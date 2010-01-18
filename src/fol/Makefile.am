@@ -1,4 +1,4 @@
-CWD			 = $(shell pwd)
+CWD			 = $(PWD)
 
 colibri_fol.c colibri_fol_template.c colibri_fol_print.c: colibri_fol.src dbtypes.h
 	cd @DB4SRC@/dist ; \

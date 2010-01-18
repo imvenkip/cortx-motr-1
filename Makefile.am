@@ -1,13 +1,4 @@
 SUBDIRS    = doc man include src patches tests
 
 EXTRA_DIST = README NEWS AUTHORS COPYING ChangeLog
-
-define all-sources
-	( find ./ -name '*.[ch]' | grep -v .git )
-endef
-
-TAGS:
-	$(all-sources) | etags -
-
-tags:
-	$(all-sources) | xargs -- ctags -w -o TAGS
+ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
