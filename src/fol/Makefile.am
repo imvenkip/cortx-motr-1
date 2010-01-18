@@ -10,3 +10,6 @@ colibri_fol.c colibri_fol_template.c colibri_fol_print.c: colibri_fol.src dbtype
 
 INCLUDES                = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
 EXTRA_DIST		= colibri_fol.src
+
+clean-local:
+	rm -fr colibri_fol.c colibri_fol.h colibri_fol_print.c colibri_fol_template.0.c

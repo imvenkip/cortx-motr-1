@@ -174,7 +174,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-SUBDIRS = doc man include src tests
+SUBDIRS = doc man include src patches tests
 EXTRA_DIST = README NEWS AUTHORS COPYING ChangeLog
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive

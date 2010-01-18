@@ -150,6 +150,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
+CWD = $(shell pwd)
 INCLUDES = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
 EXTRA_DIST = colibri_fol.src
 all: all-am
@@ -258,7 +259,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool mostlyclean-am
+clean-am: clean-generic clean-libtool clean-local mostlyclean-am
 
 distclean: distclean-am
 	-rm -f Makefile
@@ -303,15 +304,26 @@ ps-am:
 uninstall-am: uninstall-info-am
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
-	distclean distclean-generic distclean-libtool distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-man install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am uninstall uninstall-am \
-	uninstall-info-am
+	clean-local distclean distclean-generic distclean-libtool \
+	distdir dvi dvi-am html html-am info info-am install \
+	install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am install-man \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	uninstall uninstall-am uninstall-info-am
 
+
+colibri_fol.c colibri_fol_template.c colibri_fol_print.c: colibri_fol.src dbtypes.h
+	cd @DB4SRC@/dist ; \
+        awk -f gen_rec.awk \
+	    -v source_file=$(CWD)/colibri_fol.c \
+	    -v header_file=$(CWD)/colibri_fol.h \
+	    -v print_file=$(CWD)/colibri_fol_print.c \
+	    -v template_file=$(CWD)/colibri_fol_template.0.c < $(CWD)/colibri_fol.src
+
+clean-local:
+	rm -fr colibri_fol.c colibri_fol.h colibri_fol_print.c colibri_fol_template.0.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

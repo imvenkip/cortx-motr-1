@@ -1,0 +1,466 @@
+diff -rupN db-4.8.24.orig/dbinc/db_int.in db-4.8.24/dbinc/db_int.in
+--- db-4.8.24.orig/dbinc/db_int.in	2009-08-17 16:26:17.000000000 +0300
++++ db-4.8.24/dbinc/db_int.in	2010-01-17 17:57:56.000000000 +0200
+@@ -166,6 +166,11 @@ typedef SH_TAILQ_HEAD(__hash_head) DB_HA
+ #define	ALIGNP_INC(p, bound)						\
+ 	(void *)(((uintptr_t)(p) + (bound) - 1) & ~(((uintptr_t)(bound)) - 1))
+ 
++/* Increment an integer to a specific boundary. */
++#undef	ALIGNI_INC
++#define	ALIGNI_INC(i, bound)						\
++	(((i) + (bound) - 1) & ~((bound) - 1))
++
+ /*
+  * Print an address as a u_long (a u_long is the largest type we can print
+  * portably).  Most 64-bit systems have made longs 64-bits, so this should
+diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
+--- db-4.8.24.orig/dbinc/mp.h	2009-08-17 16:26:17.000000000 +0300
++++ db-4.8.24/dbinc/mp.h	2010-01-17 14:30:29.000000000 +0200
+@@ -477,6 +477,26 @@ struct __mpoolfile {
+ #define	BH_FREE_REUSE		0x02
+ #define	BH_FREE_UNLOCKED	0x04
+ 
++#ifdef DIAG_MVCC
++#define	BH_ALIGNED
++#define VM_PAGESIZE 4096
++#endif
++
++#ifdef HAVE_O_DIRECT
++/* 
++ * Linux O_DIRECT needs aligned buffers. 2.6 kernel allows 512 byte
++ * alignment, otherwise need page sized (4096).
++ */
++#if defined(linux) && !defined(BH_ALIGNED)
++#define	BH_ALIGNED
++#ifdef LINUX_NEEDS_PAGE_ALIGNMENT
++#define VM_PAGESIZE 4096
++#else	/* Linux 2.6+ */
++#define VM_PAGESIZE 512
++#endif
++#endif
++#endif
++
+ /*
+  * BH --
+  *	Buffer header.
+@@ -507,7 +527,7 @@ struct __bh {
+ 
+ 	roff_t		td_off;		/* MVCC: creating TXN_DETAIL offset. */
+ 	SH_CHAIN_ENTRY	vc;		/* MVCC: version chain. */
+-#ifdef DIAG_MVCC
++#ifdef BH_ALIGNED
+ 	u_int16_t	align_off;	/* Alignment offset for diagnostics.*/
+ #endif
+ 
+@@ -571,7 +591,7 @@ struct __bh_frozen_a {
+  */
+ #define	BH_VISIBLE(env, bhp, read_lsnp, vlsn)				\
+     (bhp->td_off == INVALID_ROFF ||					\
+-    ((vlsn).file = VISIBLE_LSN(env, bhp)->file,			\
++    ((vlsn).file = VISIBLE_LSN(env, bhp)->file,				\
+     (vlsn).offset = VISIBLE_LSN(env, bhp)->offset,			\
+     LOG_COMPARE((read_lsnp), &(vlsn)) >= 0))
+ 
+@@ -583,15 +603,15 @@ struct __bh_frozen_a {
+     (dbc->txn != NULL && F_ISSET(dbc->txn, TXN_SNAPSHOT) &&		\
+     dbc->txn->td != NULL && __memp_skip_curadj(dbc, pgno))
+ 
+-#if defined(DIAG_MVCC) && defined(HAVE_MPROTECT)
+-#define	VM_PAGESIZE 4096
+-#define	MVCC_BHSIZE(mfp, sz) do {					\
++#ifdef BH_ALIGNED
++
++#define	BHSIZE(mfp, sz) do {						\
+ 	sz += VM_PAGESIZE + sizeof(BH);					\
+ 	if (mfp->stat.st_pagesize < VM_PAGESIZE)			\
+ 		sz += VM_PAGESIZE - mfp->stat.st_pagesize;		\
+ } while (0)
+ 
+-#define	MVCC_BHALIGN(p) do {						\
++#define	BHALIGN(p) do {							\
+ 	BH *__bhp;							\
+ 	void *__orig = (p);						\
+ 	p = ALIGNP_INC(p, VM_PAGESIZE);					\
+@@ -609,10 +629,49 @@ struct __bh_frozen_a {
+ 	p = __bhp;							\
+ } while (0)
+ 
+-#define	MVCC_BHUNALIGN(bhp) do {					\
++#define	BHUNALIGN(bhp) do {						\
+ 	(bhp) = (BH *)((u_int8_t *)(bhp) - (bhp)->align_off);		\
+ } while (0)
+ 
++/* 
++ * Add the alignment to VM_PAGESIZE (something < VM_PAGESIZE). It will be
++ * more than u16_t that we need. In case it is not more, we add one more
++ * VM_PAGESIZE for it, plus another VM_PAGESIZE for the last chunk of buffer.
++ */
++#define BSIZE(sz) do {							\
++	uint32_t __orig = sz;						\
++	sz = ALIGNI_INC(sz, VM_PAGESIZE);				\
++	if (sz - __orig < sizeof(uint16_t))				\
++		sz += VM_PAGESIZE;					\
++	 sz += VM_PAGESIZE; 						\
++} while (0)
++
++#define BALIGN(p) do {							\
++	void *__orig = (p);						\
++	uint16_t *align_off;						\
++	p = ALIGNP_INC(p, VM_PAGESIZE);					\
++	if ((u_int8_t *)p < (u_int8_t *)__orig + sizeof(uint16_t))	\
++		p = (u_int8_t *)p + VM_PAGESIZE;			\
++	align_off = (uint16_t *)(p - sizeof(uint16_t));			\
++	*align_off =							\
++	    (u_int16_t)((u_int8_t *)p - (u_int8_t *)__orig);		\
++} while (0)
++
++#define BUNALIGN(p) do {						\
++	uint16_t *align_off = (uint16_t *)(p - sizeof(uint16_t));	\
++	(p) = ((u_int8_t *)(p) - *align_off);				\
++} while (0)
++
++#else
++#define BSIZE(sz) do {} while (0)
++#define	BHSIZE(mfp, sz) do {} while (0)
++#define BALIGN(p) do {} while (0)
++#define	BHALIGN(mfp, p) do {} while (0)
++#define BUNALIGN(p) do {} while (0)
++#define	BHUNALIGN(mfp, p) do {} while (0)
++#endif
++
++#if defined(DIAG_MVCC) && defined(HAVE_MPROTECT)
+ #ifdef linux
+ #define	MVCC_MPROTECT(buf, sz, mode) do {				\
+ 	int __ret = mprotect((buf), (sz), (mode));			\
+@@ -626,11 +685,7 @@ struct __bh_frozen_a {
+ 	}								\
+ } while (0)
+ #endif /* linux */
+-
+-#else /* defined(DIAG_MVCC) && defined(HAVE_MPROTECT) */
+-#define	MVCC_BHSIZE(mfp, sz) do {} while (0)
+-#define	MVCC_BHALIGN(p) do {} while (0)
+-#define	MVCC_BHUNALIGN(bhp) do {} while (0)
++#else
+ #define	MVCC_MPROTECT(buf, size, mode) do {} while (0)
+ #endif
+ 
+diff -rupN db-4.8.24.orig/dbinc_auto/os_ext.h db-4.8.24/dbinc_auto/os_ext.h
+--- db-4.8.24.orig/dbinc_auto/os_ext.h	2009-08-17 16:26:18.000000000 +0300
++++ db-4.8.24/dbinc_auto/os_ext.h	2010-01-17 00:26:24.000000000 +0200
+@@ -20,6 +20,8 @@ void __os_ufree __P((ENV *, void *));
+ int __os_strdup __P((ENV *, const char *, void *));
+ int __os_calloc __P((ENV *, size_t, size_t, void *));
+ int __os_malloc __P((ENV *, size_t, void *));
++int __os_calloc_aligned __P((ENV *, size_t, size_t, int, void *));
++int __os_malloc_aligned __P((ENV *, size_t, int, void *));
+ int __os_realloc __P((ENV *, size_t, void *));
+ void __os_free __P((ENV *, void *));
+ void *__ua_memcpy __P((void *, const void *, size_t));
+diff -rupN db-4.8.24.orig/env/env_file.c db-4.8.24/env/env_file.c
+--- db-4.8.24.orig/env/env_file.c	2009-08-17 16:26:28.000000000 +0300
++++ db-4.8.24/env/env_file.c	2010-01-17 00:24:49.000000000 +0200
+@@ -9,6 +9,7 @@
+ #include "db_config.h"
+ 
+ #include "db_int.h"
++#include "dbinc/mp.h"
+ 
+ /*
+  * __db_file_extend --
+@@ -37,8 +38,14 @@ __db_file_extend(env, fhp, size)
+ 	 */
+ #undef	FILE_EXTEND_IO_SIZE
+ #define	FILE_EXTEND_IO_SIZE	(8 * 1024)
+-	if ((ret = __os_calloc(env, FILE_EXTEND_IO_SIZE, 1, &buf)) != 0)
+-		return (ret);
++	if (__os_support_direct_io()) {
++		if ((ret = __os_calloc_aligned(env, FILE_EXTEND_IO_SIZE, 1, 
++		    VM_PAGESIZE, &buf)) != 0)
++			return (ret);
++	} else {
++		if ((ret = __os_calloc(env, FILE_EXTEND_IO_SIZE, 1, &buf)) != 0)
++			return (ret);
++	}
+ 
+ 	pages = (db_pgno_t)((size - FILE_EXTEND_IO_SIZE) / MEGABYTE);
+ 	relative = (u_int32_t)((size - FILE_EXTEND_IO_SIZE) % MEGABYTE);
+diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
+--- db-4.8.24.orig/log/log.c	2009-08-17 16:26:29.000000000 +0300
++++ db-4.8.24/log/log.c	2010-01-17 13:46:01.000000000 +0200
+@@ -13,6 +13,7 @@
+ #include "dbinc/hmac.h"
+ #include "dbinc/log.h"
+ #include "dbinc/txn.h"
++#include "dbinc/mp.h"
+ 
+ static int	__log_init __P((ENV *, DB_LOG *));
+ static int	__log_recover __P((DB_LOG *));
+@@ -245,11 +246,20 @@ __log_init(env, dblp)
+ 	if ((ret = __mutex_alloc(env, MTX_LOG_FLUSH, 0, &lp->mtx_flush)) != 0)
+ 		return (ret);
+ 
++	/* 
++	 * Add space for possible alignment.
++	 */
++	BSIZE(dbenv->lg_bsize);
++
+ 	/* Initialize the buffer. */
+ 	if ((ret = __env_alloc(&dblp->reginfo, dbenv->lg_bsize, &p)) != 0) {
+ mem_err:	__db_errx( env, "unable to allocate log region memory");
+ 		return (ret);
+ 	}
++
++	/* Align with VM_PAGESIZE boundary for possible direct IO */
++	BALIGN(p);
++
+ 	lp->regionmax = dbenv->lg_regionmax;
+ 	lp->buffer_off = R_OFFSET(&dblp->reginfo, p);
+ 	lp->buffer_size = dbenv->lg_bsize;
+@@ -606,7 +616,7 @@ __log_valid(dblp, number, set_persist, f
+ 	LOGP *persist;
+ 	logfile_validity status;
+ 	size_t hdrsize, nr, recsize;
+-	int is_hmac, ret;
++	int is_hmac, ret, rlen;
+ 	u_int8_t *tmp;
+ 	char *fname;
+ 
+@@ -638,8 +648,19 @@ __log_valid(dblp, number, set_persist, f
+ 		recsize += db_cipher->adj_size(recsize);
+ 		is_hmac = 1;
+ 	}
+-	if ((ret = __os_calloc(env, 1, recsize + hdrsize, &tmp)) != 0)
+-		goto err;
++
++	rlen = recsize + hdrsize;
++	
++	/* Add space for possible direct IO, which requires x512 bytes chunks */
++	BSIZE(rlen);
++	
++	if (__os_support_direct_io()) {
++		if ((ret = __os_calloc_aligned(env, 1, rlen, VM_PAGESIZE, &tmp)) != 0)
++			goto err;
++	} else {
++		if ((ret = __os_calloc(env, 1, rlen, &tmp)) != 0)
++			goto err;
++	}
+ 
+ 	hdr = (HDR *)tmp;
+ 	persist = (LOGP *)(tmp + hdrsize);
+@@ -649,7 +670,7 @@ __log_valid(dblp, number, set_persist, f
+ 	 * if we find a preallocated log file where the header has not yet been
+ 	 * written, so we need to check whether the header is zero-filled.
+ 	 */
+-	if ((ret = __os_read(env, fhp, tmp, recsize + hdrsize, &nr)) != 0 ||
++	if ((ret = __os_read(env, fhp, tmp, rlen, &nr)) != 0 ||
+ 	    nr != recsize + hdrsize ||
+ 	    (hdr->len == 0 && persist->magic == 0 && persist->log_size == 0)) {
+ 		if (ret == 0)
+@@ -870,6 +891,8 @@ __log_env_refresh(env)
+ 	 * owned by any particular process.
+ 	 */
+ 	if (F_ISSET(env, ENV_PRIVATE)) {
++		void *p;
++		
+ 		reginfo->mtx_alloc = MUTEX_INVALID;
+ 		/* Discard the flush mutex. */
+ 		if ((t_ret =
+@@ -877,7 +900,10 @@ __log_env_refresh(env)
+ 			ret = t_ret;
+ 
+ 		/* Discard the buffer. */
+-		__env_alloc_free(reginfo, R_ADDR(reginfo, lp->buffer_off));
++		p = R_ADDR(reginfo, lp->buffer_off);
++		BUNALIGN(p);
++
++		__env_alloc_free(reginfo, p);
+ 
+ 		/* Discard stack of free file IDs. */
+ 		if (lp->free_fid_stack != INVALID_ROFF)
+diff -rupN db-4.8.24.orig/log/log_put.c db-4.8.24/log/log_put.c
+--- db-4.8.24.orig/log/log_put.c	2009-08-17 16:26:29.000000000 +0300
++++ db-4.8.24/log/log_put.c	2010-01-17 06:40:56.000000000 +0200
+@@ -13,6 +13,7 @@
+ #include "dbinc/hmac.h"
+ #include "dbinc/log.h"
+ #include "dbinc/txn.h"
++#include "dbinc/mp.h"
+ 
+ static int __log_encrypt_record __P((ENV *, DBT *, HDR *, u_int32_t));
+ static int __log_file __P((ENV *, const DB_LSN *, char *, size_t));
+@@ -494,10 +495,15 @@ __log_flush_commit(env, lsnp, flags)
+ 	 */
+ 	if (LF_ISSET(DB_FLUSH))
+ 		ret = __log_flush_int(dblp, &flush_lsn, 1);
+-	else if (!lp->db_log_inmemory && lp->b_off != 0)
+-		if ((ret = __log_write(dblp,
+-		    dblp->bufp, (u_int32_t)lp->b_off)) == 0)
++	else if (!lp->db_log_inmemory && lp->b_off != 0) {
++		u_int32_t rlen = (u_int32_t)lp->b_off;
++		
++		/* Add space for direct IO buffer */
++		BSIZE(rlen);
++	
++		if ((ret = __log_write(dblp, dblp->bufp, rlen)) == 0)
+ 			lp->b_off = 0;
++	}
+ 
+ 	/*
+ 	 * If a flush supporting a transaction commit fails, we must abort the
+@@ -1007,8 +1013,12 @@ flush:	MUTEX_LOCK(env, lp->mtx_flush);
+ 	 * already have one.
+ 	 */
+ 	if (lp->b_off != 0 && LOG_COMPARE(&flush_lsn, &lp->f_lsn) >= 0) {
+-		if ((ret = __log_write(dblp,
+-		    dblp->bufp, (u_int32_t)lp->b_off)) != 0) {
++		u_int32_t rlen = (u_int32_t)lp->b_off;
++		
++		/* Add space for direct IO buffer */
++		BSIZE(rlen);
++
++		if ((ret = __log_write(dblp, dblp->bufp, rlen)) != 0) {
+ 			MUTEX_UNLOCK(env, lp->mtx_flush);
+ 			goto done;
+ 		}
+diff -rupN db-4.8.24.orig/mp/mp_alloc.c db-4.8.24/mp/mp_alloc.c
+--- db-4.8.24.orig/mp/mp_alloc.c	2009-08-17 16:26:29.000000000 +0300
++++ db-4.8.24/mp/mp_alloc.c	2010-01-15 23:52:27.000000000 +0200
+@@ -65,7 +65,7 @@ __memp_alloc(dbmp, infop, mfp, len, offs
+ 	if (mfp != NULL) {
+ 		len = SSZA(BH, buf) + mfp->stat.st_pagesize;
+ 		/* Add space for alignment padding for MVCC diagnostics. */
+-		MVCC_BHSIZE(mfp, len);
++		BHSIZE(mfp, len);
+ 	}
+ 
+ 	MPOOL_REGION_LOCK(env, infop);
+@@ -88,15 +88,15 @@ __memp_alloc(dbmp, infop, mfp, len, offs
+ alloc:	if ((ret = __env_alloc(infop, len, &p)) == 0) {
+ 		if (mfp != NULL) {
+ 			/*
+-			 * For MVCC diagnostics, align the pointer so that the
++			 * If necessary, align the pointer so that the
+ 			 * buffer starts on a page boundary.
+ 			 */
+-			MVCC_BHALIGN(p);
++			BHALIGN(p);
+ 			bhp = (BH *)p;
+ 
+ 			if ((ret = __mutex_alloc(env, MTX_MPOOL_BH,
+ 			    DB_MUTEX_SHARED, &bhp->mtx_buf)) != 0) {
+-				MVCC_BHUNALIGN(bhp);
++				BHUNALIGN(bhp);
+ 				__env_alloc_free(infop, bhp);
+ 				goto search;
+ 			}
+diff -rupN db-4.8.24.orig/mp/mp_bh.c db-4.8.24/mp/mp_bh.c
+--- db-4.8.24.orig/mp/mp_bh.c	2009-08-17 16:26:29.000000000 +0300
++++ db-4.8.24/mp/mp_bh.c	2010-01-15 23:56:54.000000000 +0200
+@@ -613,7 +613,7 @@ no_hp:	MVCC_MPROTECT(bhp->buf, pagesize,
+ 			return (ret);
+ 		MPOOL_REGION_LOCK(env, infop);
+ 
+-		MVCC_BHUNALIGN(bhp);
++		BHUNALIGN(bhp);
+ 		__memp_free(infop, bhp);
+ 		c_mp = infop->primary;
+ 		c_mp->stat.st_pages--;
+diff -rupN db-4.8.24.orig/os/os_alloc.c db-4.8.24/os/os_alloc.c
+--- db-4.8.24.orig/os/os_alloc.c	2009-08-17 16:26:30.000000000 +0300
++++ db-4.8.24/os/os_alloc.c	2010-01-17 00:26:07.000000000 +0200
+@@ -199,6 +199,94 @@ __os_strdup(env, str, storep)
+ }
+ 
+ /*
++ * __os_calloc_aligned --
++ *	The calloc for aligned buffer.
++ *
++ * PUBLIC: int __os_calloc_aligned __P((ENV *, size_t, size_t, int, void *));
++ */
++int
++__os_calloc_aligned(env, num, size, bound, storep)
++	ENV *env;
++	size_t num, size;
++	int bound;
++	void *storep;
++{
++	int ret;
++	
++	size *= num;
++
++	if ((ret = __os_malloc_aligned(env, size, bound, storep)) != 0)
++		return (ret);
++
++	memset(*(void **)storep, 0, size);
++	return (0);
++}
++
++/*
++ * __os_malloc_aligned --
++ *	The malloc alined buffers.
++ *
++ * PUBLIC: int __os_malloc_aligned __P((ENV *, size_t, int, void *));
++ */
++int
++__os_malloc_aligned(env, size, bound, storep)
++	ENV *env;
++	size_t size;
++	int bound;
++	void *storep;
++{
++	int ret;
++	void *p;
++
++	*(void **)storep = NULL;
++
++	/* Never allocate 0 bytes -- some C libraries don't like it. */
++	if (size == 0)
++		++size;
++
++#ifdef DIAGNOSTIC
++	/* Add room for size and a guard byte. */
++	size += sizeof(db_allocinfo_t) + 1;
++#endif
++
++	if ((ret = posix_memalign(&p, bound, size)))
++		return (ret);
++
++	if (p == NULL) {
++		/*
++		 * Some C libraries don't correctly set errno when malloc(3)
++		 * fails.  We'd like to 0 out errno before calling malloc,
++		 * but it turns out that setting errno is quite expensive on
++		 * Windows/NT in an MT environment.
++		 */
++		if ((ret = __os_get_errno_ret_zero()) == 0) {
++			ret = ENOMEM;
++			__os_set_errno(ENOMEM);
++		}
++		__db_err(env, ret, "posix_memalign: %lu", (u_long)size);
++		return (ret);
++	}
++
++#ifdef DIAGNOSTIC
++	/* Overwrite memory. */
++	memset(p, CLEAR_BYTE, size);
++
++	/*
++	 * Guard bytes: if #DIAGNOSTIC is defined, we allocate an additional
++	 * byte after the memory and set it to a special value that we check
++	 * for when the memory is free'd.
++	 */
++	((u_int8_t *)p)[size - 1] = CLEAR_BYTE;
++
++	((db_allocinfo_t *)p)->size = size;
++	p = &((db_allocinfo_t *)p)[1];
++#endif
++	*(void **)storep = p;
++
++	return (0);
++}
++
++/*
+  * __os_calloc --
+  *	The calloc(3) function for DB.
+  *

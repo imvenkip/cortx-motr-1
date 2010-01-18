@@ -1,4 +1,4 @@
-SUBDIRS    = doc man include src tests
+SUBDIRS    = doc man include src patches tests
 
 EXTRA_DIST = README NEWS AUTHORS COPYING ChangeLog
 

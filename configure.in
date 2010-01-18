@@ -110,6 +110,7 @@ AC_OUTPUT([
         doc/Makefile
         man/Makefile
         tests/Makefile
+        patches/Makefile
         include/Makefile
         include/colibri/Makefile
         src/Makefile
