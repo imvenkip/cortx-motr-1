@@ -68,17 +68,6 @@ if test x$enable_server = xyes; then
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
-	pwd=$(pwd)
-	cwd="$(pwd)/$srcdir"
-	
-	cd $DB4SRC/dist
-        awk -f $DB4SRC/dist/gen_rec.awk \
-	    -v source_file=$cwd/src/fol/colibri_fol.c \
-	    -v header_file=$cwd/src/fol/colibri_fol.h \
-	    -v print_file=$cwd/src/fol/colibri_fol_print.c \
-	    -v template_file=$cwd/src/fol/folibri_fol_template.0.c < $cwd/src/fol/colibri_fol.src || exit
-        cd $pwd
-
 	DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 	AC_SUBST(DB4LIBS)
 	AC_SUBST(DB4SRC)
