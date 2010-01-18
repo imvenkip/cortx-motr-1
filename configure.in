@@ -66,17 +66,18 @@ if test x$enable_server = xyes; then
     if test x$with_db4 != x; then
         DB4SRC="$with_db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found!)
+		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
-	cwd=$(pwd)
-
+	pwd=$(pwd)
+	cwd="$(pwd)/$srcdir"
+	
 	cd $DB4SRC/dist
         awk -f $DB4SRC/dist/gen_rec.awk \
-	    -v source_file=$cwd/src/db4s_fol.c \
-	    -v header_file=$cwd/src/db4s_fol.h \
-	    -v print_file=$cwd/src/db4s_fol_print.c \
-	    -v template_file=$cwd/src/db4s_fol_template.0.c < $cwd/src/db4s_fol.src
-        cd $cwd
+	    -v source_file=$cwd/src/fol/colibri_fol.c \
+	    -v header_file=$cwd/src/fol/colibri_fol.h \
+	    -v print_file=$cwd/src/fol/colibri_fol_print.c \
+	    -v template_file=$cwd/src/fol/folibri_fol_template.0.c < $cwd/src/fol/colibri_fol.src || exit
+        cd $pwd
 
 	DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 	AC_SUBST(DB4LIBS)
@@ -123,4 +124,9 @@ AC_OUTPUT([
         include/Makefile
         include/colibri/Makefile
         src/Makefile
+        src/addb/Makefile
+        src/ctdb/Makefile
+        src/fol/Makefile
+        src/sns/Makefile
+        src/nrs/Makefile
 ])

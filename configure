@@ -20472,19 +20472,20 @@ fi;
     if test x$with_db4 != x; then
         DB4SRC="$with_db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-		{ { echo "$as_me:$LINENO: error: $DB4SRC/build_unix/libdb-4.8.la not found!" >&5
-echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found!" >&2;}
+		{ { echo "$as_me:$LINENO: error: $DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?" >&5
+echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?" >&2;}
    { (exit 1); exit 1; }; }
 	fi
-	cwd=$(pwd)
+	pwd=$(pwd)
+	cwd="$(pwd)/$srcdir"
 
 	cd $DB4SRC/dist
         awk -f $DB4SRC/dist/gen_rec.awk \
-	    -v source_file=$cwd/src/db4s_fol.c \
-	    -v header_file=$cwd/src/db4s_fol.h \
-	    -v print_file=$cwd/src/db4s_fol_print.c \
-	    -v template_file=$cwd/src/db4s_fol_template.0.c < $cwd/src/db4s_fol.src
-        cd $cwd
+	    -v source_file=$cwd/src/fol/colibri_fol.c \
+	    -v header_file=$cwd/src/fol/colibri_fol.h \
+	    -v print_file=$cwd/src/fol/colibri_fol_print.c \
+	    -v template_file=$cwd/src/fol/folibri_fol_template.0.c < $cwd/src/fol/colibri_fol.src || exit
+        cd $pwd
 
 	DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 
@@ -20930,7 +20931,7 @@ echo "$as_me: error: libpthread cannot be found!" >&2;}
 fi
 
 
-                                                                      ac_config_files="$ac_config_files Makefile doc/Makefile man/Makefile tests/Makefile include/Makefile include/colibri/Makefile src/Makefile"
+                                                                                                                        ac_config_files="$ac_config_files Makefile doc/Makefile man/Makefile tests/Makefile include/Makefile include/colibri/Makefile src/Makefile src/addb/Makefile src/ctdb/Makefile src/fol/Makefile src/sns/Makefile src/nrs/Makefile"
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -21508,6 +21509,11 @@ do
   "include/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/Makefile" ;;
   "include/colibri/Makefile" ) CONFIG_FILES="$CONFIG_FILES include/colibri/Makefile" ;;
   "src/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
+  "src/addb/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/addb/Makefile" ;;
+  "src/ctdb/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/ctdb/Makefile" ;;
+  "src/fol/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/fol/Makefile" ;;
+  "src/sns/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/sns/Makefile" ;;
+  "src/nrs/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/nrs/Makefile" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
