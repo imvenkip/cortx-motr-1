@@ -15,35 +15,39 @@ diff -rupN db-4.8.24.orig/dbinc/db_int.in db-4.8.24/dbinc/db_int.in
   * portably).  Most 64-bit systems have made longs 64-bits, so this should
 diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 --- db-4.8.24.orig/dbinc/mp.h	2009-08-17 16:26:17.000000000 +0300
-+++ db-4.8.24/dbinc/mp.h	2010-01-17 14:30:29.000000000 +0200
-@@ -477,6 +477,26 @@ struct __mpoolfile {
++++ db-4.8.24/dbinc/mp.h	2010-01-19 06:33:40.000000000 +0200
+@@ -477,6 +477,30 @@ struct __mpoolfile {
  #define	BH_FREE_REUSE		0x02
  #define	BH_FREE_UNLOCKED	0x04
  
++/* Disable direct I/O for DIAG_MVCC case. */
 +#ifdef DIAG_MVCC
 +#define	BH_ALIGNED
 +#define VM_PAGESIZE 4096
-+#endif
-+
-+#ifdef HAVE_O_DIRECT
++#else /* !DIAG_MVCC */
++#if defined(HAVE_O_DIRECT) || (defined(HAVE_DIRECTIO) && defined(DIRECTIO_ON))
 +/* 
 + * Linux O_DIRECT needs aligned buffers. 2.6 kernel allows 512 byte
 + * alignment, otherwise need page sized (4096).
 + */
-+#if defined(linux) && !defined(BH_ALIGNED)
++#if defined(linux)
 +#define	BH_ALIGNED
++#define BF_ALIGNED
 +#ifdef LINUX_NEEDS_PAGE_ALIGNMENT
 +#define VM_PAGESIZE 4096
 +#else	/* Linux 2.6+ */
 +#define VM_PAGESIZE 512
 +#endif
-+#endif
-+#endif
++#else  /* ! defined(linux) */
++#define VM_PAGESIZE 512
++#endif /* defined(linux) */
++#endif /* HAVE_O_DIRECT */
++#endif /* DIAG_MVCC */
 +
  /*
   * BH --
   *	Buffer header.
-@@ -507,7 +527,7 @@ struct __bh {
+@@ -507,7 +531,7 @@ struct __bh {
  
  	roff_t		td_off;		/* MVCC: creating TXN_DETAIL offset. */
  	SH_CHAIN_ENTRY	vc;		/* MVCC: version chain. */
@@ -52,16 +56,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  	u_int16_t	align_off;	/* Alignment offset for diagnostics.*/
  #endif
  
-@@ -571,7 +591,7 @@ struct __bh_frozen_a {
-  */
- #define	BH_VISIBLE(env, bhp, read_lsnp, vlsn)				\
-     (bhp->td_off == INVALID_ROFF ||					\
--    ((vlsn).file = VISIBLE_LSN(env, bhp)->file,			\
-+    ((vlsn).file = VISIBLE_LSN(env, bhp)->file,				\
-     (vlsn).offset = VISIBLE_LSN(env, bhp)->offset,			\
-     LOG_COMPARE((read_lsnp), &(vlsn)) >= 0))
- 
-@@ -583,15 +603,15 @@ struct __bh_frozen_a {
+@@ -583,15 +607,15 @@ struct __bh_frozen_a {
      (dbc->txn != NULL && F_ISSET(dbc->txn, TXN_SNAPSHOT) &&		\
      dbc->txn->td != NULL && __memp_skip_curadj(dbc, pgno))
  
@@ -81,7 +76,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  	BH *__bhp;							\
  	void *__orig = (p);						\
  	p = ALIGNP_INC(p, VM_PAGESIZE);					\
-@@ -609,10 +629,49 @@ struct __bh_frozen_a {
+@@ -609,10 +633,57 @@ struct __bh_frozen_a {
  	p = __bhp;							\
  } while (0)
  
@@ -90,12 +85,23 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  	(bhp) = (BH *)((u_int8_t *)(bhp) - (bhp)->align_off);		\
  } while (0)
  
++#else
++#define	BHSIZE(mfp, sz) do {} while (0)
++#define	BHALIGN(mfp, p) do {} while (0)
++#define	BHUNALIGN(mfp, p) do {} while (0)
++#endif
++
++/*
++ * Do not align ordinary buffers if BF_ALIGNED is not defined, which is
++ * DIAG_MVCC case.
++ */
++#ifdef BF_ALIGNED
 +/* 
 + * Add the alignment to VM_PAGESIZE (something < VM_PAGESIZE). It will be
-+ * more than u16_t that we need. In case it is not more, we add one more
++ * more than uint16_t that we need. In case it is not more, we add one more
 + * VM_PAGESIZE for it, plus another VM_PAGESIZE for the last chunk of buffer.
 + */
-+#define BSIZE(sz) do {							\
++#define BFSIZE(sz) do {							\
 +	uint32_t __orig = sz;						\
 +	sz = ALIGNI_INC(sz, VM_PAGESIZE);				\
 +	if (sz - __orig < sizeof(uint16_t))				\
@@ -103,7 +109,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 +	 sz += VM_PAGESIZE; 						\
 +} while (0)
 +
-+#define BALIGN(p) do {							\
++#define BFALIGN(p) do {							\
 +	void *__orig = (p);						\
 +	uint16_t *align_off;						\
 +	p = ALIGNP_INC(p, VM_PAGESIZE);					\
@@ -114,25 +120,22 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 +	    (u_int16_t)((u_int8_t *)p - (u_int8_t *)__orig);		\
 +} while (0)
 +
-+#define BUNALIGN(p) do {						\
++#define BFUNALIGN(p) do {						\
 +	uint16_t *align_off = (uint16_t *)(p - sizeof(uint16_t));	\
 +	(p) = ((u_int8_t *)(p) - *align_off);				\
 +} while (0)
 +
 +#else
-+#define BSIZE(sz) do {} while (0)
-+#define	BHSIZE(mfp, sz) do {} while (0)
-+#define BALIGN(p) do {} while (0)
-+#define	BHALIGN(mfp, p) do {} while (0)
-+#define BUNALIGN(p) do {} while (0)
-+#define	BHUNALIGN(mfp, p) do {} while (0)
++#define BFSIZE(sz) do {} while (0)
++#define BFALIGN(p) do {} while (0)
++#define BFUNALIGN(p) do {} while (0)
 +#endif
 +
 +#if defined(DIAG_MVCC) && defined(HAVE_MPROTECT)
  #ifdef linux
  #define	MVCC_MPROTECT(buf, sz, mode) do {				\
  	int __ret = mprotect((buf), (sz), (mode));			\
-@@ -626,11 +685,7 @@ struct __bh_frozen_a {
+@@ -626,11 +697,7 @@ struct __bh_frozen_a {
  	}								\
  } while (0)
  #endif /* linux */
@@ -187,7 +190,7 @@ diff -rupN db-4.8.24.orig/env/env_file.c db-4.8.24/env/env_file.c
  	relative = (u_int32_t)((size - FILE_EXTEND_IO_SIZE) % MEGABYTE);
 diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
 --- db-4.8.24.orig/log/log.c	2009-08-17 16:26:29.000000000 +0300
-+++ db-4.8.24/log/log.c	2010-01-17 13:46:01.000000000 +0200
++++ db-4.8.24/log/log.c	2010-01-19 06:26:54.000000000 +0200
 @@ -13,6 +13,7 @@
  #include "dbinc/hmac.h"
  #include "dbinc/log.h"
@@ -203,7 +206,7 @@ diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
 +	/* 
 +	 * Add space for possible alignment.
 +	 */
-+	BSIZE(dbenv->lg_bsize);
++	BFSIZE(dbenv->lg_bsize);
 +
  	/* Initialize the buffer. */
  	if ((ret = __env_alloc(&dblp->reginfo, dbenv->lg_bsize, &p)) != 0) {
@@ -212,7 +215,7 @@ diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
  	}
 +
 +	/* Align with VM_PAGESIZE boundary for possible direct IO */
-+	BALIGN(p);
++	BFALIGN(p);
 +
  	lp->regionmax = dbenv->lg_regionmax;
  	lp->buffer_off = R_OFFSET(&dblp->reginfo, p);
@@ -236,7 +239,7 @@ diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
 +	rlen = recsize + hdrsize;
 +	
 +	/* Add space for possible direct IO, which requires x512 bytes chunks */
-+	BSIZE(rlen);
++	BFSIZE(rlen);
 +	
 +	if (__os_support_direct_io()) {
 +		if ((ret = __os_calloc_aligned(env, 1, rlen, VM_PAGESIZE, &tmp)) != 0)
@@ -272,7 +275,7 @@ diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
  		/* Discard the buffer. */
 -		__env_alloc_free(reginfo, R_ADDR(reginfo, lp->buffer_off));
 +		p = R_ADDR(reginfo, lp->buffer_off);
-+		BUNALIGN(p);
++		BFUNALIGN(p);
 +
 +		__env_alloc_free(reginfo, p);
  
@@ -280,7 +283,7 @@ diff -rupN db-4.8.24.orig/log/log.c db-4.8.24/log/log.c
  		if (lp->free_fid_stack != INVALID_ROFF)
 diff -rupN db-4.8.24.orig/log/log_put.c db-4.8.24/log/log_put.c
 --- db-4.8.24.orig/log/log_put.c	2009-08-17 16:26:29.000000000 +0300
-+++ db-4.8.24/log/log_put.c	2010-01-17 06:40:56.000000000 +0200
++++ db-4.8.24/log/log_put.c	2010-01-19 06:25:24.000000000 +0200
 @@ -13,6 +13,7 @@
  #include "dbinc/hmac.h"
  #include "dbinc/log.h"
@@ -300,7 +303,7 @@ diff -rupN db-4.8.24.orig/log/log_put.c db-4.8.24/log/log_put.c
 +		u_int32_t rlen = (u_int32_t)lp->b_off;
 +		
 +		/* Add space for direct IO buffer */
-+		BSIZE(rlen);
++		BFSIZE(rlen);
 +	
 +		if ((ret = __log_write(dblp, dblp->bufp, rlen)) == 0)
  			lp->b_off = 0;
@@ -317,7 +320,7 @@ diff -rupN db-4.8.24.orig/log/log_put.c db-4.8.24/log/log_put.c
 +		u_int32_t rlen = (u_int32_t)lp->b_off;
 +		
 +		/* Add space for direct IO buffer */
-+		BSIZE(rlen);
++		BFSIZE(rlen);
 +
 +		if ((ret = __log_write(dblp, dblp->bufp, rlen)) != 0) {
  			MUTEX_UNLOCK(env, lp->mtx_flush);
