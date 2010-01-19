@@ -15,8 +15,8 @@ diff -rupN db-4.8.24.orig/dbinc/db_int.in db-4.8.24/dbinc/db_int.in
   * portably).  Most 64-bit systems have made longs 64-bits, so this should
 diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 --- db-4.8.24.orig/dbinc/mp.h	2009-08-17 16:26:17.000000000 +0300
-+++ db-4.8.24/dbinc/mp.h	2010-01-19 06:33:40.000000000 +0200
-@@ -477,6 +477,30 @@ struct __mpoolfile {
++++ db-4.8.24/dbinc/mp.h	2010-01-19 07:00:28.000000000 +0200
+@@ -477,6 +477,32 @@ struct __mpoolfile {
  #define	BH_FREE_REUSE		0x02
  #define	BH_FREE_UNLOCKED	0x04
  
@@ -41,13 +41,15 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 +#else  /* ! defined(linux) */
 +#define VM_PAGESIZE 512
 +#endif /* defined(linux) */
++#else
++#define VM_PAGESiZE 512
 +#endif /* HAVE_O_DIRECT */
 +#endif /* DIAG_MVCC */
 +
  /*
   * BH --
   *	Buffer header.
-@@ -507,7 +531,7 @@ struct __bh {
+@@ -507,7 +533,7 @@ struct __bh {
  
  	roff_t		td_off;		/* MVCC: creating TXN_DETAIL offset. */
  	SH_CHAIN_ENTRY	vc;		/* MVCC: version chain. */
@@ -56,7 +58,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  	u_int16_t	align_off;	/* Alignment offset for diagnostics.*/
  #endif
  
-@@ -583,15 +607,15 @@ struct __bh_frozen_a {
+@@ -583,15 +609,15 @@ struct __bh_frozen_a {
      (dbc->txn != NULL && F_ISSET(dbc->txn, TXN_SNAPSHOT) &&		\
      dbc->txn->td != NULL && __memp_skip_curadj(dbc, pgno))
  
@@ -76,7 +78,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  	BH *__bhp;							\
  	void *__orig = (p);						\
  	p = ALIGNP_INC(p, VM_PAGESIZE);					\
-@@ -609,10 +633,57 @@ struct __bh_frozen_a {
+@@ -609,10 +635,57 @@ struct __bh_frozen_a {
  	p = __bhp;							\
  } while (0)
  
@@ -87,8 +89,8 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  
 +#else
 +#define	BHSIZE(mfp, sz) do {} while (0)
-+#define	BHALIGN(mfp, p) do {} while (0)
-+#define	BHUNALIGN(mfp, p) do {} while (0)
++#define	BHALIGN(p) do {} while (0)
++#define	BHUNALIGN(p) do {} while (0)
 +#endif
 +
 +/*
@@ -135,7 +137,7 @@ diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
  #ifdef linux
  #define	MVCC_MPROTECT(buf, sz, mode) do {				\
  	int __ret = mprotect((buf), (sz), (mode));			\
-@@ -626,11 +697,7 @@ struct __bh_frozen_a {
+@@ -626,11 +699,7 @@ struct __bh_frozen_a {
  	}								\
  } while (0)
  #endif /* linux */
