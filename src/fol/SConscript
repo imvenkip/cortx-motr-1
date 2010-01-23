@@ -1,0 +1,23 @@
+import os
+
+Import('env')
+
+srcdir = env['SRCDIR']
+db4dir = env['DB4DIR']
+dist = db4dir + "/dist"
+build_unix = db4dir + "/build_unix"
+build_unix_libs = build_unix + "/.libs"
+cwd = os.popen('pwd').read().strip()
+
+fol_env = Environment(CPPPATH = ['#.', db4dir, build_unix, '#include', '.'],
+                      LIBPATH=Dir(build_unix_libs), LIBS=['db-4.8', 'pthread'])
+
+command = 'cd %s; awk -f gen_rec.awk -v source_file=%s/colibri_fol.c \
+-v header_file=%s/colibri_fol.h -v print_file=%s/colibri_fol_print.c \
+-v template_file=%s/colibri_fol_template.0.c < %s/src/fol/colibri_fol.src' % (dist, cwd, cwd, cwd, cwd, srcdir)
+
+print command
+os.system(command)
+
+fol_files = ['colibri_fol.c', 'colibri_fol_print.c', 'colibri_fol_template.c']
+fol_env.SharedLibrary('fol', fol_files)
