@@ -7,13 +7,12 @@ cwd = os.popen('pwd').read().strip()
 db4dir = ARGUMENTS.get('with-db4', '%s/../colibri-db4' % cwd)
 build_unix = db4dir + "/build_unix"
 
-env = Environment(CPPPATH = [db4dir, build_unix, '#include'],
-            	  LIBPATH = Dir(build_unix), LIBS = ['db', 'pthread'])
+env = Environment(CPPPATH = ['#include', '#.'])
 
 if int(ARGUMENTS.get('debug', 0)):
-        env.Append(CCFLAGS = ' -O0 -g')
+        env.Append(CCFLAGS = ['-O0 -g'])
 else:
-        env.Append(CCFLAGS = ' -O2')
+        env.Append(CCFLAGS = ['-O2'])
 
 env.Append(SRCDIR = cwd)
 env.Append(BUILDDIR = build)

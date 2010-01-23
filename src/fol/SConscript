@@ -9,8 +9,8 @@ build_unix = db4dir + "/build_unix"
 build_unix_libs = build_unix + "/.libs"
 cwd = os.popen('pwd').read().strip()
 
-fol_env = Environment(CPPPATH = ['#.', db4dir, build_unix, '#include', '.'],
-                      LIBPATH=Dir(build_unix_libs), LIBS=['db-4.8', 'pthread'])
+fol_env = env.Clone(LIBPATH=Dir(build_unix_libs), LIBS=['db-4.8', 'pthread'])
+fol_env.Append(CPPPATH = ['.', db4dir, build_unix])
 
 command = 'cd %s; awk -f gen_rec.awk -v source_file=%s/colibri_fol.c \
 -v header_file=%s/colibri_fol.h -v print_file=%s/colibri_fol_print.c \
