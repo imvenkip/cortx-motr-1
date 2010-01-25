@@ -1,2 +1,2 @@
 Import('env')
-env.SharedLibrary('addb', 'addb.c')
+env.StaticLibrary('addb', 'addb.c')

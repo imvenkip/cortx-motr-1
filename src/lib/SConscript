@@ -1,2 +1,2 @@
 Import('env')
-env.SharedLibrary('colibri', 'colibri.c')
+env.StaticLibrary('colibri', 'colibri.c')

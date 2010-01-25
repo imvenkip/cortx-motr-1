@@ -1,2 +1,2 @@
 Import('env')
-env.SharedLibrary('nrs', 'nrs.c')
+env.StaticLibrary('nrs', 'nrs.c')

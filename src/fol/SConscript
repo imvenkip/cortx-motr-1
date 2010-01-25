@@ -5,19 +5,16 @@ Import('env')
 srcdir = env['SRCDIR']
 db4dir = env['DB4DIR']
 dist = db4dir + "/dist"
-build_unix = db4dir + "/build_unix"
-build_unix_libs = build_unix + "/.libs"
-cwd = os.popen('pwd').read().strip()
+build = srcdir + "/" + env['BUILDDIR']
 
-fol_env = env.Clone(LIBPATH=Dir(build_unix_libs), LIBS=['db-4.8', 'pthread'])
-fol_env.Append(CPPPATH = ['.', db4dir, build_unix])
+cmd = 'cd %s; awk -f gen_rec.awk -v source_file=%s/src/fol/colibri_fol.c \
+-v header_file=%s/src/fol/colibri_fol.h -v print_file=%s/src/fol/colibri_fol_print.c \
+-v template_file=%s/src/fol/colibri_fol_template.0.c < %s/src/fol/colibri_fol.src' % (dist, build, build, build, build, srcdir)
 
-command = 'cd %s; awk -f gen_rec.awk -v source_file=%s/colibri_fol.c \
--v header_file=%s/colibri_fol.h -v print_file=%s/colibri_fol_print.c \
--v template_file=%s/colibri_fol_template.0.c < %s/src/fol/colibri_fol.src' % (dist, cwd, cwd, cwd, cwd, srcdir)
+gen_builder = Builder(action = cmd)
+env.Append(BUILDERS = { "Gen" : gen_builder })
 
-print command
-os.system(command)
-
-fol_files = ['colibri_fol.c', 'colibri_fol_print.c', 'colibri_fol_template.c']
-fol_env.SharedLibrary('fol', fol_files)
+env.Append(LIBS=['db'])
+gen = env.Gen('colibri_fol.src')
+fol = env.StaticLibrary('fol', ['colibri_fol.c', 'colibri_fol_print.c', 'colibri_fol_template.c'])
+Depends(fol, gen)

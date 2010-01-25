@@ -1,2 +1,2 @@
 Import('env')
-env.SharedLibrary('sns', 'sns.c')
+env.StaticLibrary('sns', 'sns.c')
