@@ -1,2 +1,0 @@
-Import('env')
-env.StaticLibrary('ctdb', 'ctdb.c')

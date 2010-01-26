@@ -1,4 +1,0 @@
-Import('env')
-
-env.Append(LIBS=['fol'], CCFLAGS=['-DENABLE_USER_MDS'])
-env.Program('mds', 'mds.c')
