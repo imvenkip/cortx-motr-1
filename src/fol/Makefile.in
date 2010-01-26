@@ -55,9 +55,8 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libfol_la_DEPENDENCIES =
-am_libfol_la_OBJECTS = libfol_la-colibri_fol.lo \
-	libfol_la-colibri_fol_template.lo \
-	libfol_la-colibri_fol_print.lo
+am_libfol_la_OBJECTS = libfol_la-fol.lo libfol_la-fol_template.lo \
+	libfol_la-fol_print.lo
 libfol_la_OBJECTS = $(am_libfol_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -176,12 +175,11 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libfol.la
-libfol_la_SOURCES = colibri_fol.c colibri_fol_template.c colibri_fol_print.c \
-		     colibri_fol.h dbtypes.h
-
+libfol_la_SOURCES = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libfol_la_CFLAGS = @CFLAGS@
 libfol_la_LIBADD = @DB4LIBS@
 INCLUDES = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
+EXTRA_DIST = fol.t
 all: all-am
 
 .SUFFIXES:
@@ -251,9 +249,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-colibri_fol.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-colibri_fol_print.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-colibri_fol_template.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol_print.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol_template.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -276,26 +274,26 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-libfol_la-colibri_fol.lo: colibri_fol.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-colibri_fol.lo -MD -MP -MF "$(DEPDIR)/libfol_la-colibri_fol.Tpo" -c -o libfol_la-colibri_fol.lo `test -f 'colibri_fol.c' || echo '$(srcdir)/'`colibri_fol.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-colibri_fol.Tpo" "$(DEPDIR)/libfol_la-colibri_fol.Plo"; else rm -f "$(DEPDIR)/libfol_la-colibri_fol.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='colibri_fol.c' object='libfol_la-colibri_fol.lo' libtool=yes @AMDEPBACKSLASH@
+libfol_la-fol.lo: fol.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol.Tpo" -c -o libfol_la-fol.lo `test -f 'fol.c' || echo '$(srcdir)/'`fol.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol.Tpo" "$(DEPDIR)/libfol_la-fol.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol.c' object='libfol_la-fol.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-colibri_fol.lo `test -f 'colibri_fol.c' || echo '$(srcdir)/'`colibri_fol.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol.lo `test -f 'fol.c' || echo '$(srcdir)/'`fol.c
 
-libfol_la-colibri_fol_template.lo: colibri_fol_template.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-colibri_fol_template.lo -MD -MP -MF "$(DEPDIR)/libfol_la-colibri_fol_template.Tpo" -c -o libfol_la-colibri_fol_template.lo `test -f 'colibri_fol_template.c' || echo '$(srcdir)/'`colibri_fol_template.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-colibri_fol_template.Tpo" "$(DEPDIR)/libfol_la-colibri_fol_template.Plo"; else rm -f "$(DEPDIR)/libfol_la-colibri_fol_template.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='colibri_fol_template.c' object='libfol_la-colibri_fol_template.lo' libtool=yes @AMDEPBACKSLASH@
+libfol_la-fol_template.lo: fol_template.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol_template.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol_template.Tpo" -c -o libfol_la-fol_template.lo `test -f 'fol_template.c' || echo '$(srcdir)/'`fol_template.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol_template.Tpo" "$(DEPDIR)/libfol_la-fol_template.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol_template.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol_template.c' object='libfol_la-fol_template.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-colibri_fol_template.lo `test -f 'colibri_fol_template.c' || echo '$(srcdir)/'`colibri_fol_template.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol_template.lo `test -f 'fol_template.c' || echo '$(srcdir)/'`fol_template.c
 
-libfol_la-colibri_fol_print.lo: colibri_fol_print.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-colibri_fol_print.lo -MD -MP -MF "$(DEPDIR)/libfol_la-colibri_fol_print.Tpo" -c -o libfol_la-colibri_fol_print.lo `test -f 'colibri_fol_print.c' || echo '$(srcdir)/'`colibri_fol_print.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-colibri_fol_print.Tpo" "$(DEPDIR)/libfol_la-colibri_fol_print.Plo"; else rm -f "$(DEPDIR)/libfol_la-colibri_fol_print.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='colibri_fol_print.c' object='libfol_la-colibri_fol_print.lo' libtool=yes @AMDEPBACKSLASH@
+libfol_la-fol_print.lo: fol_print.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol_print.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol_print.Tpo" -c -o libfol_la-fol_print.lo `test -f 'fol_print.c' || echo '$(srcdir)/'`fol_print.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol_print.Tpo" "$(DEPDIR)/libfol_la-fol_print.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol_print.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol_print.c' object='libfol_la-fol_print.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-colibri_fol_print.lo `test -f 'colibri_fol_print.c' || echo '$(srcdir)/'`colibri_fol_print.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol_print.lo `test -f 'fol_print.c' || echo '$(srcdir)/'`fol_print.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -415,7 +413,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool clean-local \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -465,7 +463,7 @@ ps-am:
 uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool ctags distclean \
+	clean-libLTLIBRARIES clean-libtool clean-local ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
@@ -478,13 +476,17 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	uninstall-libLTLIBRARIES
 
 
-colibri_fol.c colibri_fol.h colibri_fol_template.c colibri_fol_print.c: colibri_fol.src dbtypes.h
+fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 	cd @DB4SRC@/dist ; \
         awk -f gen_rec.awk \
-	    -v source_file=@SRCDIR@/fol/colibri_fol.c \
-	    -v header_file=@SRCDIR@/fol/colibri_fol.h \
-	    -v print_file=@SRCDIR@/fol/colibri_fol_print.c \
-	    -v template_file=@SRCDIR@/fol/colibri_fol_template.0.c < @SRCDIR@/fol/colibri_fol.src
+	    -v source_file=@SRCDIR@/fol/fol.c \
+	    -v header_file=@SRCDIR@/fol/fol.h \
+	    -v print_file=@SRCDIR@/fol/fol_print.c \
+	    -v template_file=@SRCDIR@/fol/fol_template.0.c < @SRCDIR@/fol/fol.t
+
+clean-local:
+	cd @SRCDIR@ ; \
+	rm -fr fol.c fol.h fol_print.c fol_template.0.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

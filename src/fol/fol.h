@@ -1,9 +1,9 @@
 /* Do not edit: automatically built by gen_rec.awk. */
 
-#ifndef	colibri_fol_AUTO_H
-#define	colibri_fol_AUTO_H
-#define	DB_colibri_fol_create	20001
-typedef struct _colibri_fol_create_args {
+#ifndef	fol_AUTO_H
+#define	fol_AUTO_H
+#define	DB_fol_create	20001
+typedef struct _fol_create_args {
 	u_int32_t type;
 	DB_TXN *txnp;
 	DB_LSN prev_lsn;
@@ -27,6 +27,6 @@ typedef struct _colibri_fol_create_args {
 	u32	fc_cver0;
 	u32	fc_cver1;
 	DBT	fc_name;
-} colibri_fol_create_args;
+} fol_create_args;
 
 #endif

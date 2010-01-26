@@ -1,17 +1,21 @@
 lib_LTLIBRARIES    = libfol.la
 
-colibri_fol.c colibri_fol.h colibri_fol_template.c colibri_fol_print.c: colibri_fol.src dbtypes.h
+fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 	cd @DB4SRC@/dist ; \
         awk -f gen_rec.awk \
-	    -v source_file=@SRCDIR@/fol/colibri_fol.c \
-	    -v header_file=@SRCDIR@/fol/colibri_fol.h \
-	    -v print_file=@SRCDIR@/fol/colibri_fol_print.c \
-	    -v template_file=@SRCDIR@/fol/colibri_fol_template.0.c < @SRCDIR@/fol/colibri_fol.src
+	    -v source_file=@SRCDIR@/fol/fol.c \
+	    -v header_file=@SRCDIR@/fol/fol.h \
+	    -v print_file=@SRCDIR@/fol/fol_print.c \
+	    -v template_file=@SRCDIR@/fol/fol_template.0.c < @SRCDIR@/fol/fol.t
 
-libfol_la_SOURCES  = colibri_fol.c colibri_fol_template.c colibri_fol_print.c \
-		     colibri_fol.h dbtypes.h
-
+libfol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libfol_la_CFLAGS   = @CFLAGS@
 libfol_la_LIBADD   = @DB4LIBS@
 
-INCLUDES            = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
+INCLUDES           = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
+
+EXTRA_DIST	   = fol.t
+
+clean-local:
+	cd @SRCDIR@ ; \
+	rm -fr fol.c fol.h fol_print.c fol_template.0.c

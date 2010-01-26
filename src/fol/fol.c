@@ -15,25 +15,24 @@
 #include <dbinc/db_swap.h>
 #include <db_int.h>
 #include "dbtypes.h"
-#include "colibri_fol.h"
+#include "fol.h"
 /*
- * PUBLIC: int colibri_fol_create_read __P((DB_ENV *, void *,
- * PUBLIC:     colibri_fol_create_args **));
+ * PUBLIC: int fol_create_read __P((DB_ENV *, void *, fol_create_args **));
  */
 int
-colibri_fol_create_read(dbenv, recbuf, argpp)
+fol_create_read(dbenv, recbuf, argpp)
 	DB_ENV *dbenv;
 	void *recbuf;
-	colibri_fol_create_args **argpp;
+	fol_create_args **argpp;
 {
-	colibri_fol_create_args *argp;
+	fol_create_args *argp;
 	u_int32_t uinttmp;
 	u_int8_t *bp;
 	ENV *env;
 
 	env = dbenv->env;
 
-	if ((argp = malloc(sizeof(colibri_fol_create_args) + sizeof(DB_TXN))) == NULL)
+	if ((argp = malloc(sizeof(fol_create_args) + sizeof(DB_TXN))) == NULL)
 		return (ENOMEM);
 	bp = recbuf;
 	argp->txnp = (DB_TXN *)&argp[1];
@@ -135,13 +134,12 @@ colibri_fol_create_read(dbenv, recbuf, argpp)
 }
 
 /*
- * PUBLIC: int colibri_fol_create_log __P((DB_ENV *, DB_TXN *,
- * PUBLIC:     DB_LSN *, u_int32_t, u32, u32, u32, u32, u32, u32, u32, u32,
- * PUBLIC:     u32, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32,
- * PUBLIC:     const DBT *));
+ * PUBLIC: int fol_create_log __P((DB_ENV *, DB_TXN *, DB_LSN *,
+ * PUBLIC:     u_int32_t, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32,
+ * PUBLIC:     u32, u32, u32, u32, u32, u32, u32, u32, u32, const DBT *));
  */
 int
-colibri_fol_create_log(dbenv, txnp, ret_lsnp, flags,
+fol_create_log(dbenv, txnp, ret_lsnp, flags,
     fc_epoch0, fc_epoch1, fc_lsn0, fc_lsn1, fc_pfid0, fc_pfid1,
     fc_pfid2, fc_pfid3, fc_pver0, fc_pver1, fc_flags, fc_uid,
     fc_gid, fc_cfid0, fc_cfid1, fc_cfid2, fc_cfid3, fc_cver0,
@@ -181,7 +179,7 @@ colibri_fol_create_log(dbenv, txnp, ret_lsnp, flags,
 
 	env = dbenv->env;
 	rlsnp = ret_lsnp;
-	rectype = DB_colibri_fol_create;
+	rectype = DB_fol_create;
 	npad = 0;
 	ret = 0;
 
@@ -334,7 +332,7 @@ colibri_fol_create_log(dbenv, txnp, ret_lsnp, flags,
 	}
 #ifdef LOG_DIAGNOSTIC
 	if (ret != 0)
-		(void)colibri_fol_create_print(dbenv,
+		(void)fol_create_print(dbenv,
 		    (DBT *)&logrec, ret_lsnp, DB_TXN_PRINT);
 #endif
 

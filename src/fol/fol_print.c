@@ -14,30 +14,29 @@
 #include <dbinc/db_swap.h>
 #include <db_int.h>
 #include "dbtypes.h"
-#include "colibri_fol.h"
+#include "fol.h"
 /*
- * PUBLIC: int colibri_fol_create_print __P((DB_ENV *, DBT *,
- * PUBLIC:     DB_LSN *, db_recops));
+ * PUBLIC: int fol_create_print __P((DB_ENV *, DBT *, DB_LSN *, db_recops));
  */
 int
-colibri_fol_create_print(dbenv, dbtp, lsnp, notused2)
+fol_create_print(dbenv, dbtp, lsnp, notused2)
 	DB_ENV *dbenv;
 	DBT *dbtp;
 	DB_LSN *lsnp;
 	db_recops notused2;
 {
-	colibri_fol_create_args *argp;
-	int colibri_fol_create_read __P((DB_ENV *, void *, colibri_fol_create_args **));
+	fol_create_args *argp;
+	int fol_create_read __P((DB_ENV *, void *, fol_create_args **));
 	u_int32_t i;
 	int ch;
 	int ret;
 
 	notused2 = DB_TXN_PRINT;
 
-	if ((ret = colibri_fol_create_read(dbenv, dbtp->data, &argp)) != 0)
+	if ((ret = fol_create_read(dbenv, dbtp->data, &argp)) != 0)
 		return (ret);
 	(void)printf(
-    "[%lu][%lu]colibri_fol_create%s: rec: %lu txnp %lx prevlsn [%lu][%lu]\n",
+    "[%lu][%lu]fol_create%s: rec: %lu txnp %lx prevlsn [%lu][%lu]\n",
 	    (u_long)lsnp->file, (u_long)lsnp->offset,
 	    (argp->type & DB_debug_FLAG) ? "_debug" : "",
 	    (u_long)argp->type,
@@ -74,10 +73,10 @@ colibri_fol_create_print(dbenv, dbtp, lsnp, notused2)
 }
 
 /*
- * PUBLIC: int colibri_fol_init_print __P((DB_ENV *, DB_DISTAB *));
+ * PUBLIC: int fol_init_print __P((DB_ENV *, DB_DISTAB *));
  */
 int
-colibri_fol_init_print(dbenv, dtabp)
+fol_init_print(dbenv, dtabp)
 	DB_ENV *dbenv;
 	DB_DISTAB *dtabp;
 {
@@ -86,7 +85,7 @@ colibri_fol_init_print(dbenv, dtabp)
 	int ret;
 
 	if ((ret = __db_add_recovery(dbenv, dtabp,
-	    colibri_fol_create_print, DB_colibri_fol_create)) != 0)
+	    fol_create_print, DB_fol_create)) != 0)
 		return (ret);
 	return (0);
 }

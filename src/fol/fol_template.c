@@ -1,27 +1,37 @@
-#include "db.h"
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <err.h>
+
+#include <db.h>
+#include <dbinc/db_swap.h>
+
+#include "dbtypes.h"
+#include "fol.h"
+
+int fol_create_read(DB_ENV *dbenv, void *recbuf, colibri_fol_create_args **argpp);
+int fol_create_print(DB_ENV *dbenv, DBT *dbtp, DB_LSN *lsnp, 
+		     db_recops notused2);
 
 /*
- * colibri_fol_create_recover --
+ * fol_create_recover --
  *	Recovery function for create.
  *
- * PUBLIC: int colibri_fol_create_recover
+ * PUBLIC: int fol_create_recover
  * PUBLIC:   __P((dbenv *, DBT *, DB_LSN *, db_recops));
  */
-int
-colibri_fol_create_recover(dbenv, dbtp, lsnp, op)
-	dbenv *dbenv;
-	DBT *dbtp;
-	DB_LSN *lsnp;
-	db_recops op;
+static int db4_fol_create_recover(DB_ENV *dbenv, DBT *dbtp, 
+			          DB_LSN *lsnp, db_recops op)
 {
-	colibri_fol_create_args *argp;
+	fol_create_args *argp;
 	int cmp_n, cmp_p, modified, ret;
 
-#ifdef DEBUG_RECOVER
-	(void)colibri_fol_create_print(dbenv, dbtp, lsnp, op);
-#endif
+	(void)fol_create_print(dbenv, dbtp, lsnp, op);
+
 	argp = NULL;
-	if ((ret = colibri_fol_create_read(dbenv, dbtp->data, &argp)) != 0)
+	if ((ret = fol_create_read(dbenv, dbtp->data, &argp)) != 0)
 		goto out;
 
 	modified = 0;
@@ -66,5 +76,10 @@ out:	if (argp != NULL)
 		free(argp);
 
 	return (ret);
+}
+
+int fol_dispatch(DB_ENV *dbenv, DBT *dbt, DB_LSN *lsn, db_recops op)
+{
+	return db4_fol_create_recover(dbenv, dbt, lsn, op);
 }
 

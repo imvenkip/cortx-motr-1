@@ -1,5 +1,5 @@
 
-PREFIX	colibri_fol
+PREFIX	fol
 
 INCLUDE #include <pthread.h>
 INCLUDE #include <stdlib.h>
@@ -9,7 +9,7 @@ INCLUDE #include <db.h>
 INCLUDE #include <dbinc/db_swap.h>
 INCLUDE #include <db_int.h>
 INCLUDE #include "dbtypes.h"
-INCLUDE #include "colibri_fol.h"
+INCLUDE #include "fol.h"
 
 BEGIN create 48 20001
 ARG      fc_epoch0  u32    lx
