@@ -23,16 +23,17 @@ env = Environment(
 if not env.GetOption('clean'):
 	conf = Configure(env)
 	
-	print 'Building db4 at: %s' % db4dir
-	print '  --enable-o_direct'
-	
-	if os.system('cd %s && ../dist/configure --enable-o_direct && make' % build_unix):
-		print "Can't build db4 at %s" % db4dir
-		Exit(1)
-
 	if not os.path.isfile('%s/libdb.a' % build_unix):
-		print 'Wrong location or not proper build of db4: %s' % db4dir
-		Exit(2)
+		print 'Building db4 at: %s' % db4dir
+		print '  --enable-o_direct'
+	
+		if os.system('cd %s && ../dist/configure --enable-o_direct && make' % build_unix):
+			print "Can't build db4 at %s" % db4dir
+			Exit(1)
+
+		if not os.path.isfile('%s/libdb.a' % build_unix):
+			print 'Wrong location or not proper build of db4: %s' % db4dir
+			Exit(2)
 
 	env = conf.Finish()
 
