@@ -1,8 +1,6 @@
 import platform, os
 
 build = ARGUMENTS.get('build-dir', 'build/%s.%s' % (platform.machine(), platform.node()))
-print 'Building at: %s' % build
-
 cwd = os.popen('pwd').read().strip()
 db4dir = ARGUMENTS.get('with-db4', '%s/../colibri-db4' % cwd)
 build_unix = db4dir + "/build_unix"
@@ -14,20 +12,31 @@ else:
         ccflags = '-O2'
 
 env = Environment(
-    CPPPATH = ['#include', '#.', '.', db4dir, build_unix],
-    CCFLAGS = ccflags,
-    LIBPATH=[Dir(build_unix), Dir(cwd + "/" + build + "/src/fol")],
-    SRCDIR = cwd,
-    BUILDDIR = build,
-    DB4DIR = db4dir
+	CPPPATH = ['#include', '#.', '.', db4dir, build_unix],
+	CCFLAGS = ccflags,
+	LIBPATH=[Dir(build_unix), Dir(cwd + "/" + build + "/src/fol")],
+	SRCDIR = cwd,
+	BUILDDIR = build,
+	DB4DIR = db4dir
 )
 
-conf = Configure(env)
+if not env.GetOption('clean'):
+	conf = Configure(env)
+	
+	print 'Building db4 at: %s' % db4dir
+	print '  --enable-o_direct'
+	
+	if os.system('cd %s && ../dist/configure --enable-o_direct && make' % build_unix):
+		print "Can't build db4 at %s" % db4dir
+		Exit(1)
 
-# Checking for headers, libraries, etc
-#if not env.GetOption('clean'):
+	if not os.path.isfile('%s/libdb.a' % build_unix):
+		print 'Wrong location or not proper build of db4: %s' % db4dir
+		Exit(2)
 
-env = conf.Finish()
+	env = conf.Finish()
+
+print 'Building colibri at: %s' % build
 
 Export('env')
 
