@@ -19181,7 +19181,8 @@ _ACEOF
 fi
 
 
-for ac_header in stdlib.h
+
+for ac_header in stdlib.h pthread.h
 do
 as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
 if eval "test \"\${$as_ac_Header+set}\" = set"; then
@@ -19656,6 +19657,8 @@ if test "${with_db4+set}" = set; then
 
 fi;
 
+OLD_LIBS=$LIBS
+OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
@@ -19670,10 +19673,13 @@ echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Did you build db
 
 
 else
-	{ { echo "$as_me:$LINENO: error: Cannot build server without --with-db4" >&5
-echo "$as_me: error: Cannot build server without --with-db4" >&2;}
+	{ { echo "$as_me:$LINENO: error: Cannot build mds server without --with-db4" >&5
+echo "$as_me: error: Cannot build mds server without --with-db4" >&2;}
    { (exit 1); exit 1; }; }
 fi
+
+LIBS=$OLD_LIBS
+CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
 

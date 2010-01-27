@@ -27,7 +27,7 @@ AC_SEARCH_LIBS(pthread_create, c pthread, , [AC_MSG_ERROR(pthread_create cannot 
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([stdlib.h])
+AC_CHECK_HEADERS([stdlib.h pthread.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -50,6 +50,8 @@ AC_ARG_WITH(db4,
     	[--with-db4             prefix of where db4 was built], ,
 )
 
+OLD_LIBS=$LIBS
+OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
@@ -62,8 +64,11 @@ if test x$with_db4 != x; then
 	AC_SUBST(DB4LIBS)
 	AC_SUBST(DB4SRC)
 else
-	AC_MSG_ERROR(Cannot build server without --with-db4)
+	AC_MSG_ERROR(Cannot build mds server without --with-db4)
 fi
+
+LIBS=$OLD_LIBS
+CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
 	AC_CHECK_LIB(gssrpc, xdr_int, , 

@@ -11,7 +11,7 @@
 #include "dbtypes.h"
 #include "fol.h"
 
-int fol_create_read(DB_ENV *dbenv, void *recbuf, colibri_fol_create_args **argpp);
+int fol_create_read(DB_ENV *dbenv, void *recbuf, fol_create_args **argpp);
 int fol_create_print(DB_ENV *dbenv, DBT *dbtp, DB_LSN *lsnp, 
 		     db_recops notused2);
 

@@ -1,7 +1,29 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Enable debug info. */
+#undef ENABLE_DEBUG
+
+/* Enable gssrpc. */
+#undef ENABLE_GSSRPC
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <gssrpc/pmap_clnt.h> header file. */
+#undef HAVE_GSSRPC_PMAP_CLNT_H
+
+/* Define to 1 if you have the <gssrpc/rpc.h> header file. */
+#undef HAVE_GSSRPC_RPC_H
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `gssrpc' library (-lgssrpc). */
+#undef HAVE_LIBGSSRPC
+
+/* Define to 1 if your system has a GNU libc compatible `malloc' function, and
+   to 0 otherwise. */
+#undef HAVE_MALLOC
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
@@ -50,6 +72,9 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Define to rpl_malloc if the replacement function should be used. */
+#undef malloc
 
 /* Define to `unsigned' if <sys/types.h> does not define. */
 #undef size_t
