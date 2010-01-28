@@ -109,6 +109,7 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+KCFLAGS = @KCFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
@@ -479,13 +480,13 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 	cd @DB4SRC@/dist ; \
         awk -f gen_rec.awk \
-	    -v source_file=@SRCDIR@/fol/fol.c \
-	    -v header_file=@SRCDIR@/fol/fol.h \
-	    -v print_file=@SRCDIR@/fol/fol_print.c \
-	    -v template_file=@SRCDIR@/fol/fol_template.0.c < @SRCDIR@/fol/fol.t
+	    -v source_file=@SRCDIR@/src/fol/fol.c \
+	    -v header_file=@SRCDIR@/src/fol/fol.h \
+	    -v print_file=@SRCDIR@/src/fol/fol_print.c \
+	    -v template_file=@SRCDIR@/src/fol/fol_template.0.c < @SRCDIR@/src/fol/fol.t
 
 clean-local:
-	cd @SRCDIR@/fol ; \
+	cd @SRCDIR@/src/fol ; \
 	rm -fr fol.c fol.h fol_print.c fol_template.0.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

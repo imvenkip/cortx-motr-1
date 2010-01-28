@@ -83,15 +83,19 @@ fi
 
 if test x$enable_debug = xyes; then
         CFLAGS="$CFLAGS -O0 -g"
+        KCFLAGS="-O0 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
+        KCFLAGS="-O2"
 	CFLAGS="$CFLAGS -O2"
 fi
+AC_SUBST(KCFLAGS)
 
-SRCDIR=$(cd $srcdir/src; echo $PWD)
+SRCDIR=$(cd $srcdir; echo $PWD)
 AC_SUBST(SRCDIR)
 
-AC_CONFIG_FILES([Makefile
+AC_CONFIG_FILES([
+		 Makefile
                  doc/Makefile
                  include/Makefile
                  include/colibri/Makefile
@@ -102,6 +106,7 @@ AC_CONFIG_FILES([Makefile
                  src/fol/Makefile
                  src/lib/Makefile
                  src/mds/Makefile
+                 src/mds/kernel/Makefile
                  src/net/Makefile
                  src/nrs/Makefile
                  src/sns/Makefile
