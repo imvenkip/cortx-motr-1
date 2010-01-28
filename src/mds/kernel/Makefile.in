@@ -1,9 +1,9 @@
 LINUX=@LINUX@
+MDS_SRCDIR = @SRCDIR@/src/mds/kernel
 
 ifeq ($(LINUX),y)
 
 obj-m := mds.o
-MDS_SRCDIR = @SRCDIR@/src/mds/kernel
 EXTRA_CFLAGS = -DENABLE_KERNEL_MDS @KCFLAGS@
 
 all:
@@ -21,6 +21,7 @@ distclean clean:
 else
 
 all:
+distclean clean:
 
 endif
 
