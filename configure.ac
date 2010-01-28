@@ -107,19 +107,19 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
-	AC_CHECK_LIB(gssrpc, xdr_int, , 
-		AC_MSG_ERROR(libgssrpc cannot be found!)
+	AC_CHECK_LIB(gssrpc, xdr_int, 
+		[
+			AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
+			[AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
+			[[
+			    #ifdef HAVE_GSSRPC_RPC_H
+			    #include <gssrpc/rpc.h>
+			    #endif
+			]]
+		)
+		], 
+		AC_MSG_NOTICE(libgssrpc is not found. Gssrpc is disabled!)
 	)
-
-	AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
-		[AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
-		[[
-		    #ifdef HAVE_GSSRPC_RPC_H
-		    #include <gssrpc/rpc.h>
-		    #endif
-		]]
-	)
-	
 fi
 
 case $host_os in

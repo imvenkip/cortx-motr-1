@@ -19846,8 +19846,7 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
-
-echo "$as_me:$LINENO: checking for xdr_int in -lgssrpc" >&5
+	echo "$as_me:$LINENO: checking for xdr_int in -lgssrpc" >&5
 echo $ECHO_N "checking for xdr_int in -lgssrpc... $ECHO_C" >&6
 if test "${ac_cv_lib_gssrpc_xdr_int+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -19912,19 +19911,6 @@ fi
 echo "$as_me:$LINENO: result: $ac_cv_lib_gssrpc_xdr_int" >&5
 echo "${ECHO_T}$ac_cv_lib_gssrpc_xdr_int" >&6
 if test $ac_cv_lib_gssrpc_xdr_int = yes; then
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBGSSRPC 1
-_ACEOF
-
-  LIBS="-lgssrpc $LIBS"
-
-else
-  { { echo "$as_me:$LINENO: error: libgssrpc cannot be found!" >&5
-echo "$as_me: error: libgssrpc cannot be found!" >&2;}
-   { (exit 1); exit 1; }; }
-
-fi
-
 
 
 
@@ -19943,9 +19929,9 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
-		    #ifdef HAVE_GSSRPC_RPC_H
-		    #include <gssrpc/rpc.h>
-		    #endif
+			    #ifdef HAVE_GSSRPC_RPC_H
+			    #include <gssrpc/rpc.h>
+			    #endif
 
 
 
@@ -19999,6 +19985,12 @@ fi
 
 done
 
+
+else
+  { echo "$as_me:$LINENO: libgssrpc is not found. Gssrpc is disabled!" >&5
+echo "$as_me: libgssrpc is not found. Gssrpc is disabled!" >&6;}
+
+fi
 
 fi
 
