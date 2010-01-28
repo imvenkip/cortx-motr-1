@@ -19943,9 +19943,9 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
-		   #ifdef HAVE_GSSRPC_RPC_H
-		   #include <gssrpc/rpc.h>
-		   #endif
+		    #ifdef HAVE_GSSRPC_RPC_H
+		    #include <gssrpc/rpc.h>
+		    #endif
 
 
 
@@ -19988,18 +19988,17 @@ if test `eval echo '${'$as_ac_Header'}'` = yes; then
   cat >>confdefs.h <<_ACEOF
 #define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
 _ACEOF
+ cat >>confdefs.h <<\_ACEOF
+#define ENABLE_GSSRPC 1
+_ACEOF
 
 else
-  { { echo "$as_me:$LINENO: error: gssrpc/pmap_clnt.h gssrpc/rpc.h cannot be found!" >&5
-echo "$as_me: error: gssrpc/pmap_clnt.h gssrpc/rpc.h cannot be found!" >&2;}
-   { (exit 1); exit 1; }; }
+  { echo "$as_me:$LINENO: gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!" >&5
+echo "$as_me: gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!" >&6;}
 fi
 
 done
 
-	cat >>confdefs.h <<\_ACEOF
-#define ENABLE_GSSRPC 1
-_ACEOF
 
 fi
 

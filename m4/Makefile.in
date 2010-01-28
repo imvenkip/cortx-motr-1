@@ -318,7 +318,8 @@ uninstall-am: uninstall-info-am
 
 
 # We have nothing to make but need this makefile here to make sure
-# that m4 comes to distibution tar.gz --umka
+# that m4 comes to distibution archive. This is needed for better
+# portability to Darwin. This dir stores additional autoconf macros.
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

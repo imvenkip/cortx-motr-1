@@ -111,15 +111,15 @@ if test x$enable_gssrpc = xyes; then
 		AC_MSG_ERROR(libgssrpc cannot be found!)
 	)
 
-	AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [], 
-		[AC_MSG_ERROR(gssrpc/pmap_clnt.h gssrpc/rpc.h cannot be found!)],
+	AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
+		[AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
 		[[
-		   #ifdef HAVE_GSSRPC_RPC_H
-		   #include <gssrpc/rpc.h>
-		   #endif
+		    #ifdef HAVE_GSSRPC_RPC_H
+		    #include <gssrpc/rpc.h>
+		    #endif
 		]]
 	)
-	AC_DEFINE(ENABLE_GSSRPC)
+	
 fi
 
 case $host_os in
