@@ -2,6 +2,7 @@ AC_PREREQ(2.59)
 AC_INIT(colibri, 0.1, colibri-support@clusterstor.com)
 AC_CONFIG_SRCDIR([include/colibri/colibri.h])
 AC_CONFIG_HEADER([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
@@ -26,6 +27,7 @@ AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_AWK
 AC_PROG_LIBTOOL
+AM_PROG_CC_C_O
 
 # Checks for libraries.
 AC_SEARCH_LIBS(xdr_domainname, c nsl, , [AC_MSG_ERROR(xdr_domainname cannot be found!)])
@@ -48,8 +50,8 @@ AC_ARG_ENABLE(debug,
 )
 
 AC_ARG_ENABLE(gssrpc,
-        [  --disable-gssrpc       disable gssrpc],
-             disable_gssrpc=yes
+        [  --enable-gssrpc        disable gssrpc], ,
+             enable_gssrpc=no
 )
 
 AC_ARG_WITH(db4,
@@ -109,8 +111,13 @@ if test x$enable_gssrpc = xyes; then
 		AC_MSG_ERROR(libgssrpc cannot be found!)
 	)
 
-	AC_CHECK_HEADERS([gssrpc/pmap_clnt.h gssrpc/rpc.h], , 
-		AC_MSG_ERROR(gssrpc/pmap_clnt.h gssrpc/rpc.h cannot be found!)
+	AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [], 
+		[AC_MSG_ERROR(gssrpc/pmap_clnt.h gssrpc/rpc.h cannot be found!)],
+		[[
+		   #ifdef HAVE_GSSRPC_RPC_H
+		   #include <gssrpc/rpc.h>
+		   #endif
+		]]
 	)
 	AC_DEFINE(ENABLE_GSSRPC)
 fi
@@ -154,13 +161,14 @@ if test x$enable_debug = xyes; then
         KCFLAGS="-O0 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
-        KCFLAGS="-O2"
 	CFLAGS="$CFLAGS -O2"
+        KCFLAGS="-O2"
 fi
 AC_SUBST(KCFLAGS)
 
 AC_CONFIG_FILES([
 		 Makefile
+		 m4/Makefile
                  doc/Makefile
                  include/Makefile
                  include/colibri/Makefile
