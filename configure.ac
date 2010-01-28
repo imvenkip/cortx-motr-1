@@ -81,6 +81,40 @@ if test x$enable_gssrpc = xyes; then
 	AC_DEFINE(ENABLE_GSSRPC)
 fi
 
+case $host_os in
+        darwin*) darwin="yes" ;;
+        linux*) linux="yes" ;;
+esac
+
+AM_CONDITIONAL([DARWIN], [test x$darwin = xyes])
+if test x$darwin = xyes; then
+	DARWIN=y
+else
+	DARWIN=n
+fi
+AC_SUBST(DARWIN)
+
+AM_CONDITIONAL([LINUX], [test x$linux = xyes])
+if test x$linux = xyes; then
+	LINUX=y
+else
+	LINUX=n
+fi
+AC_SUBST(LINUX)
+
+if test x$linux = xyes; then
+	AC_ARG_WITH(linux,
+    		[--with-linux           prefix of where linux was built], ,
+	)
+
+	if test x$with_linux != x; then
+		KERNELDIR=$with_linux
+	else
+		KERNELDIR="/lib/modules/`uname -r`/build"
+	fi
+	AC_SUBST(KERNELDIR)
+fi
+
 if test x$enable_debug = xyes; then
         CFLAGS="$CFLAGS -O0 -g"
         KCFLAGS="-O0 -g"

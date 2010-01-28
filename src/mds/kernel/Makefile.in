@@ -1,19 +1,28 @@
+LINUX=@LINUX@
+
+ifeq ($(LINUX),y)
+
 obj-m := mds.o
 MDS_SRCDIR = @SRCDIR@/src/mds/kernel
-KERNELDIR := /lib/modules/`uname -r`/build
 EXTRA_CFLAGS = -DENABLE_KERNEL_MDS @KCFLAGS@
 
 all:
 	rm -fr $(MDS_SRCDIR)/mds.c 
 	ln -s $(MDS_SRCDIR)/../mds.c
-	$(MAKE) -C $(KERNELDIR) M=`pwd` modules
+	$(MAKE) -C @KERNELDIR@ M=`pwd` modules
 
 modules_install:
-	$(MAKE) -C $(KERNELDIR) M=`pwd` modules_install
+	$(MAKE) -C @KERNELDIR@ M=`pwd` modules_install
 
 distclean clean:
-	$(MAKE) -C $(KERNELDIR) M=`pwd` clean;
+	$(MAKE) -C @KERNELDIR@ M=`pwd` clean;
 	rm -fr Module.symvers *.c
+
+else
+
+all:
+
+endif
 
 distdir:
 	cp $(MDS_SRCDIR)/Makefile.in @top_builddir@/@PACKAGE@-@VERSION@/src/mds/kernel
