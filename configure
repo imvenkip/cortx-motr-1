@@ -465,7 +465,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LIBOBJS DB4LIBS DB4SRC DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KCFLAGS SRCDIR LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LIBOBJS SRCDIR DB4SRC DB4LIBS DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KCFLAGS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -19663,21 +19663,51 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
+SRCDIR=$(cd $srcdir && echo $PWD)
+if ! test -d $SRCDIR; then
+	{ { echo "$as_me:$LINENO: error: Cannot figure out full path for srcdir!" >&5
+echo "$as_me: error: Cannot figure out full path for srcdir!" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+{ echo "$as_me:$LINENO: checking if db4 is built..." >&5
+echo "$as_me: checking if db4 is built..." >&6;}
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
+	{ echo "$as_me:$LINENO: using db4 at $DB4SRC" >&5
+echo "$as_me: using db4 at $DB4SRC" >&6;}
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		{ { echo "$as_me:$LINENO: error: $DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?" >&5
 echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?" >&2;}
    { (exit 1); exit 1; }; }
 	fi
-	DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
-
-
 else
-	{ { echo "$as_me:$LINENO: error: Cannot build mds server without --with-db4" >&5
-echo "$as_me: error: Cannot build mds server without --with-db4" >&2;}
+	DB4SRC="$SRCDIR/../colibri-db4"
+	{ echo "$as_me:$LINENO: using db4 at $DB4SRC" >&5
+echo "$as_me: using db4 at $DB4SRC" >&6;}
+	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
+		{ echo "$as_me:$LINENO: building db4 at $DB4SRC" >&5
+echo "$as_me: building db4 at $DB4SRC" >&6;}
+		oldcwd=$(pwd)
+		cd $DB4SRC/build_unix && ../dist/configure --enable-o_direct && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then
+			{ { echo "$as_me:$LINENO: error: An error occured while building db4!" >&5
+echo "$as_me: error: An error occured while building db4!" >&2;}
    { (exit 1); exit 1; }; }
+		fi
+		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
+			{ { echo "$as_me:$LINENO: error: $DB4SRC/build_unix/libdb-4.8.la not found! Build failed?" >&5
+echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Build failed?" >&2;}
+   { (exit 1); exit 1; }; }
+		fi
+	fi
 fi
+DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+
+
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -19991,9 +20021,6 @@ else
         KCFLAGS="-O2"
 	CFLAGS="$CFLAGS -O2"
 fi
-
-
-SRCDIR=$(cd $srcdir; echo $PWD)
 
 
                                                                                                                                                                 ac_config_files="$ac_config_files Makefile doc/Makefile include/Makefile include/colibri/Makefile man/Makefile src/Makefile src/addb/Makefile src/ctdb/Makefile src/fol/Makefile src/lib/Makefile src/mds/Makefile src/mds/kernel/Makefile src/net/Makefile src/nrs/Makefile src/sns/Makefile tests/Makefile"
@@ -20738,8 +20765,9 @@ s,@FFLAGS@,$FFLAGS,;t t
 s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
-s,@DB4LIBS@,$DB4LIBS,;t t
+s,@SRCDIR@,$SRCDIR,;t t
 s,@DB4SRC@,$DB4SRC,;t t
+s,@DB4LIBS@,$DB4LIBS,;t t
 s,@DARWIN_TRUE@,$DARWIN_TRUE,;t t
 s,@DARWIN_FALSE@,$DARWIN_FALSE,;t t
 s,@DARWIN@,$DARWIN,;t t
@@ -20748,7 +20776,6 @@ s,@LINUX_FALSE@,$LINUX_FALSE,;t t
 s,@LINUX@,$LINUX,;t t
 s,@KERNELDIR@,$KERNELDIR,;t t
 s,@KCFLAGS@,$KCFLAGS,;t t
-s,@SRCDIR@,$SRCDIR,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
 

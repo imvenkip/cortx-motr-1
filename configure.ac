@@ -55,17 +55,39 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
+SRCDIR=$(cd $srcdir && echo $PWD)
+if ! test -d $SRCDIR; then
+	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
+fi
+AC_SUBST(SRCDIR)
+
+AC_MSG_NOTICE([checking if db4 is built...])
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
+	AC_MSG_NOTICE([using db4 at $DB4SRC])
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
-	DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
-	AC_SUBST(DB4LIBS)
-	AC_SUBST(DB4SRC)
 else
-	AC_MSG_ERROR(Cannot build mds server without --with-db4)
+	DB4SRC="$SRCDIR/../colibri-db4"
+	AC_MSG_NOTICE([using db4 at $DB4SRC])
+	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
+		AC_MSG_NOTICE([building db4 at $DB4SRC])
+		oldcwd=$(pwd)
+		cd $DB4SRC/build_unix && ../dist/configure --enable-o_direct && make
+		res=$?
+		cd $oldcwd
+		if ! test $res -eq 0 ; then 
+			AC_MSG_ERROR(An error occured while building db4!)
+		fi
+		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
+			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
+		fi
+	fi
 fi
+DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+AC_SUBST(DB4SRC)
+AC_SUBST(DB4LIBS)
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -124,9 +146,6 @@ else
 	CFLAGS="$CFLAGS -O2"
 fi
 AC_SUBST(KCFLAGS)
-
-SRCDIR=$(cd $srcdir; echo $PWD)
-AC_SUBST(SRCDIR)
 
 AC_CONFIG_FILES([
 		 Makefile
