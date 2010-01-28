@@ -122,6 +122,7 @@ LINUX_FALSE = @LINUX_FALSE@
 LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LT_RELEASE = @LT_RELEASE@
 MAKEINFO = @MAKEINFO@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -184,8 +185,9 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libnet.la
 libnet_la_SOURCES = net.c
 libnet_la_CFLAGS = @CFLAGS@
+libnet_la_LDFLAGS = -release @LT_RELEASE@
 libnet_la_LIBADD = @LIBS@
-INCLUDES = -I$(top_srcdir)/include
+INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 
 .SUFFIXES:

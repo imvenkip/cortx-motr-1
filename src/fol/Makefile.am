@@ -10,9 +10,10 @@ fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 
 libfol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libfol_la_CFLAGS   = @CFLAGS@
+libfol_la_LDFLAGS  = -release @LT_RELEASE@
 libfol_la_LIBADD   = @LIBS@ @DB4LIBS@
 
-INCLUDES           = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
+INCLUDES           = -I. -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
 
 EXTRA_DIST	   = fol.t
 

@@ -123,6 +123,7 @@ LINUX_FALSE = @LINUX_FALSE@
 LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LT_RELEASE = @LT_RELEASE@
 MAKEINFO = @MAKEINFO@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -185,8 +186,9 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libfol.la
 libfol_la_SOURCES = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libfol_la_CFLAGS = @CFLAGS@
+libfol_la_LDFLAGS = -release @LT_RELEASE@
 libfol_la_LIBADD = @LIBS@ @DB4LIBS@
-INCLUDES = -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
+INCLUDES = -I. -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
 EXTRA_DIST = fol.t
 all: all-am
 
