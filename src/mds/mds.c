@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #ifdef ENABLE_USER_MDS
 
 #include <colibri/colibri.h>

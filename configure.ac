@@ -45,23 +45,14 @@ AC_FUNC_MALLOC
 
 # Configure options
 AC_ARG_ENABLE(debug,
-        [  --disable-debug        disable debug information], , 
-             enable_debug=yes
+        AC_HELP_STRING([--disable-debug], [disable debug information and logs]), ,
+        enable_debug=yes
 )
 
 AC_ARG_ENABLE(gssrpc,
-        [  --enable-gssrpc        disable gssrpc], ,
-             enable_gssrpc=no
+        AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support]), ,
+        enable_gssrpc=no
 )
-
-AC_ARG_WITH(db4,
-    	[  --with-db4             prefix of where db4 was built], ,
-)
-
-OLD_LIBS=$LIBS
-OLD_CFLAGS=$CFLAGS
-LIBS=""
-CFLAGS=""
 
 SRCDIR=$(cd $srcdir && echo $PWD)
 if ! test -d $SRCDIR; then
@@ -69,22 +60,24 @@ if ! test -d $SRCDIR; then
 fi
 AC_SUBST(SRCDIR)
 
+AC_ARG_WITH([db4], 
+        AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), ,
+)
+
+OLD_LIBS=$LIBS
+OLD_CFLAGS=$CFLAGS
+LIBS=""
+CFLAGS=""
+
+AC_MSG_CHECKING([for db4 path])
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
-	AC_MSG_NOTICE([using db4 at $DB4SRC])
-	AC_MSG_CHECKING([if db4 is built])
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-		AC_MSG_RESULT([no])
 		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
-	AC_MSG_RESULT([yes])
 else
 	DB4SRC="$SRCDIR/../colibri-db4"
-	AC_MSG_NOTICE([using db4 at $DB4SRC])
-	AC_MSG_CHECKING([if db4 is built])
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-		AC_MSG_RESULT([no])
-		AC_MSG_NOTICE([building db4 at $DB4SRC])
 		oldcwd=$(pwd)
 		cd $DB4SRC/build_unix && ../dist/configure --enable-o_direct && make
 		res=$?
@@ -95,10 +88,9 @@ else
 		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
 	        fi
-	else
-		AC_MSG_RESULT([yes])
 	fi
 fi
+AC_MSG_RESULT([$DB4SRC])
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 AC_SUBST(DB4SRC)
 AC_SUBST(DB4LIBS)
@@ -142,16 +134,25 @@ fi
 AC_SUBST(LINUX)
 
 if test x$linux = xyes; then
+        AC_MSG_CHECKING([for linux sources dir])
 	AC_ARG_WITH(linux,
-    		[  --with-linux           prefix of where linux was built], ,
+                AC_HELP_STRING([--with-linux=path], [set path to linux sources]), 
+                [KERNELDIR=$with_linux],
+                [KERNELDIR=/lib/modules/`uname -r`/build]
 	)
 
-	if test x$with_linux != x; then
-		KERNELDIR=$with_linux
-	else
-		KERNELDIR="/lib/modules/`uname -r`/build"
-	fi
+	AC_MSG_RESULT([$KERNELDIR])
 	AC_SUBST(KERNELDIR)
+
+        AC_MSG_CHECKING([for linux objects dir])
+	AC_ARG_WITH(linux-obj,
+                AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir]), 
+                [KERNELDIR_OBJ=$with_linux_obj],
+                [KERNELDIR_OBJ=$KERNELDIR]
+	)
+
+	AC_MSG_RESULT([$KERNELDIR_OBJ])
+	AC_SUBST(KERNELDIR_OBJ)
 fi
 
 if test x$enable_debug = xyes; then

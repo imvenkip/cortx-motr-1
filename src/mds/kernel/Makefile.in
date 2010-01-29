@@ -9,13 +9,13 @@ EXTRA_CFLAGS = -DENABLE_KERNEL_MDS @KCFLAGS@
 all:
 	rm -fr $(MDS_SRCDIR)/mds.c 
 	ln -s $(MDS_SRCDIR)/../mds.c
-	$(MAKE) -C @KERNELDIR@ M=`pwd` modules
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
 
 modules_install:
-	$(MAKE) -C @KERNELDIR@ M=`pwd` modules_install
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules_install
 
 distclean clean:
-	$(MAKE) -C @KERNELDIR@ M=`pwd` clean;
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers *.c
 
 else
