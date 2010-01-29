@@ -19832,7 +19832,7 @@ echo "$as_me: error: An error occured while building db4!" >&2;}
 			{ { echo "$as_me:$LINENO: error: $DB4SRC/build_unix/libdb-4.8.la not found! Build failed?" >&5
 echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Build failed?" >&2;}
    { (exit 1); exit 1; }; }
-		fi
+	        fi
 	else
 		echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
@@ -19846,7 +19846,7 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
-	echo "$as_me:$LINENO: checking for xdr_int in -lgssrpc" >&5
+        echo "$as_me:$LINENO: checking for xdr_int in -lgssrpc" >&5
 echo $ECHO_N "checking for xdr_int in -lgssrpc... $ECHO_C" >&6
 if test "${ac_cv_lib_gssrpc_xdr_int+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
@@ -19929,10 +19929,9 @@ cat confdefs.h >>conftest.$ac_ext
 cat >>conftest.$ac_ext <<_ACEOF
 /* end confdefs.h.  */
 
-			    #ifdef HAVE_GSSRPC_RPC_H
-			    #include <gssrpc/rpc.h>
-			    #endif
-
+                    #ifdef HAVE_GSSRPC_RPC_H
+                    #include <gssrpc/rpc.h>
+                    #endif
 
 
 #include <$ac_header>

@@ -94,7 +94,7 @@ else
 		fi
 		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
-		fi
+	        fi
 	else
 		AC_MSG_RESULT([yes])
 	fi
@@ -107,19 +107,17 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
-	AC_CHECK_LIB(gssrpc, xdr_int, 
-		[
-			AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
-			[AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
-			[[
-			    #ifdef HAVE_GSSRPC_RPC_H
-			    #include <gssrpc/rpc.h>
-			    #endif
-			]]
-		)
-		], 
-		AC_MSG_NOTICE(libgssrpc is not found. Gssrpc is disabled!)
-	)
+        AC_CHECK_LIB(gssrpc, xdr_int, [
+            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
+                [AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
+                [[
+                    #ifdef HAVE_GSSRPC_RPC_H
+                    #include <gssrpc/rpc.h>
+                    #endif
+                ]])
+            ], 
+            AC_MSG_NOTICE(libgssrpc is not found. Gssrpc is disabled!)
+        )
 fi
 
 case $host_os in
