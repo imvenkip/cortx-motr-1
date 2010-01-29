@@ -177,17 +177,17 @@ if test x$linux = xyes; then
 	AC_MSG_RESULT([$KERNELDIR_OBJ])
 	AC_SUBST(KERNELDIR_OBJ)
 
-        # Example for checking for kernel symbol
+        # Example of checking for kernel symbol
         COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
                 [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="$CFLAGS -O0 -g"
+        CFLAGS="-O0 -g"
         KCFLAGS="-O0 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
-	CFLAGS="$CFLAGS -O2"
+	CFLAGS="-O2"
         KCFLAGS="-O2"
 fi
 AC_SUBST(KCFLAGS)

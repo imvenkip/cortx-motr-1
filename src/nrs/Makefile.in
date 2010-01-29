@@ -55,7 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libnrs_la_DEPENDENCIES =
-am_libnrs_la_OBJECTS = libnrs_la-nrs.lo
+am_libnrs_la_OBJECTS = nrs.lo
 libnrs_la_OBJECTS = $(am_libnrs_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -185,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libnrs.la
 libnrs_la_SOURCES = nrs.c
-libnrs_la_CFLAGS = @CFLAGS@
 libnrs_la_LDFLAGS = -release @LT_RELEASE@
 libnrs_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
@@ -258,7 +257,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libnrs_la-nrs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nrs.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -280,13 +279,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libnrs_la-nrs.lo: nrs.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libnrs_la_CFLAGS) $(CFLAGS) -MT libnrs_la-nrs.lo -MD -MP -MF "$(DEPDIR)/libnrs_la-nrs.Tpo" -c -o libnrs_la-nrs.lo `test -f 'nrs.c' || echo '$(srcdir)/'`nrs.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libnrs_la-nrs.Tpo" "$(DEPDIR)/libnrs_la-nrs.Plo"; else rm -f "$(DEPDIR)/libnrs_la-nrs.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='nrs.c' object='libnrs_la-nrs.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libnrs_la_CFLAGS) $(CFLAGS) -c -o libnrs_la-nrs.lo `test -f 'nrs.c' || echo '$(srcdir)/'`nrs.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

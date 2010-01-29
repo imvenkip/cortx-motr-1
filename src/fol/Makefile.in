@@ -55,8 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libfol_la_DEPENDENCIES =
-am_libfol_la_OBJECTS = libfol_la-fol.lo libfol_la-fol_template.lo \
-	libfol_la-fol_print.lo
+am_libfol_la_OBJECTS = fol.lo fol_template.lo fol_print.lo
 libfol_la_OBJECTS = $(am_libfol_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -186,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libfol.la
 libfol_la_SOURCES = fol.c fol_template.c fol_print.c fol.h dbtypes.h
-libfol_la_CFLAGS = @CFLAGS@
 libfol_la_LDFLAGS = -release @LT_RELEASE@
 libfol_la_LIBADD = @LIBS@ @DB4LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
@@ -260,9 +258,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol_print.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libfol_la-fol_template.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol_print.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol_template.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -284,27 +282,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libfol_la-fol.lo: fol.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol.Tpo" -c -o libfol_la-fol.lo `test -f 'fol.c' || echo '$(srcdir)/'`fol.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol.Tpo" "$(DEPDIR)/libfol_la-fol.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol.c' object='libfol_la-fol.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol.lo `test -f 'fol.c' || echo '$(srcdir)/'`fol.c
-
-libfol_la-fol_template.lo: fol_template.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol_template.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol_template.Tpo" -c -o libfol_la-fol_template.lo `test -f 'fol_template.c' || echo '$(srcdir)/'`fol_template.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol_template.Tpo" "$(DEPDIR)/libfol_la-fol_template.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol_template.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol_template.c' object='libfol_la-fol_template.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol_template.lo `test -f 'fol_template.c' || echo '$(srcdir)/'`fol_template.c
-
-libfol_la-fol_print.lo: fol_print.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -MT libfol_la-fol_print.lo -MD -MP -MF "$(DEPDIR)/libfol_la-fol_print.Tpo" -c -o libfol_la-fol_print.lo `test -f 'fol_print.c' || echo '$(srcdir)/'`fol_print.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libfol_la-fol_print.Tpo" "$(DEPDIR)/libfol_la-fol_print.Plo"; else rm -f "$(DEPDIR)/libfol_la-fol_print.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fol_print.c' object='libfol_la-fol_print.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libfol_la_CFLAGS) $(CFLAGS) -c -o libfol_la-fol_print.lo `test -f 'fol_print.c' || echo '$(srcdir)/'`fol_print.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

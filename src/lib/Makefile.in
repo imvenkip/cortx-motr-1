@@ -55,7 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libcolibri_la_DEPENDENCIES =
-am_libcolibri_la_OBJECTS = libcolibri_la-colibri.lo
+am_libcolibri_la_OBJECTS = colibri.lo
 libcolibri_la_OBJECTS = $(am_libcolibri_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -185,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libcolibri.la
 libcolibri_la_SOURCES = colibri.c
-libcolibri_la_CFLAGS = @CFLAGS@
 libcolibri_la_LDFLAGS = -release @LT_RELEASE@
 libcolibri_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
@@ -258,7 +257,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcolibri_la-colibri.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/colibri.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -280,13 +279,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libcolibri_la-colibri.lo: colibri.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcolibri_la_CFLAGS) $(CFLAGS) -MT libcolibri_la-colibri.lo -MD -MP -MF "$(DEPDIR)/libcolibri_la-colibri.Tpo" -c -o libcolibri_la-colibri.lo `test -f 'colibri.c' || echo '$(srcdir)/'`colibri.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libcolibri_la-colibri.Tpo" "$(DEPDIR)/libcolibri_la-colibri.Plo"; else rm -f "$(DEPDIR)/libcolibri_la-colibri.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='colibri.c' object='libcolibri_la-colibri.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcolibri_la_CFLAGS) $(CFLAGS) -c -o libcolibri_la-colibri.lo `test -f 'colibri.c' || echo '$(srcdir)/'`colibri.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

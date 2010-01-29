@@ -55,7 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libnet_la_DEPENDENCIES =
-am_libnet_la_OBJECTS = libnet_la-net.lo
+am_libnet_la_OBJECTS = net.lo
 libnet_la_OBJECTS = $(am_libnet_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -185,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libnet.la
 libnet_la_SOURCES = net.c
-libnet_la_CFLAGS = @CFLAGS@
 libnet_la_LDFLAGS = -release @LT_RELEASE@
 libnet_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
@@ -258,7 +257,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libnet_la-net.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/net.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -280,13 +279,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libnet_la-net.lo: net.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libnet_la_CFLAGS) $(CFLAGS) -MT libnet_la-net.lo -MD -MP -MF "$(DEPDIR)/libnet_la-net.Tpo" -c -o libnet_la-net.lo `test -f 'net.c' || echo '$(srcdir)/'`net.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libnet_la-net.Tpo" "$(DEPDIR)/libnet_la-net.Plo"; else rm -f "$(DEPDIR)/libnet_la-net.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='net.c' object='libnet_la-net.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libnet_la_CFLAGS) $(CFLAGS) -c -o libnet_la-net.lo `test -f 'net.c' || echo '$(srcdir)/'`net.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

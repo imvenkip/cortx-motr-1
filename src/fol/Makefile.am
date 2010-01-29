@@ -9,7 +9,6 @@ fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 	    -v template_file=@SRCDIR@/src/fol/fol_template.0.c < @SRCDIR@/src/fol/fol.t
 
 libfol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
-libfol_la_CFLAGS   = @CFLAGS@
 libfol_la_LDFLAGS  = -release @LT_RELEASE@
 libfol_la_LIBADD   = @LIBS@ @DB4LIBS@
 

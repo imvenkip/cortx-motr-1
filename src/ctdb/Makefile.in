@@ -55,7 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libctdb_la_DEPENDENCIES =
-am_libctdb_la_OBJECTS = libctdb_la-ctdb.lo
+am_libctdb_la_OBJECTS = ctdb.lo
 libctdb_la_OBJECTS = $(am_libctdb_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -185,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libctdb.la
 libctdb_la_SOURCES = ctdb.c
-libctdb_la_CFLAGS = @CFLAGS@
 libctdb_la_LDFLAGS = -release @LT_RELEASE@
 libctdb_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
@@ -258,7 +257,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libctdb_la-ctdb.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ctdb.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -280,13 +279,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libctdb_la-ctdb.lo: ctdb.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libctdb_la_CFLAGS) $(CFLAGS) -MT libctdb_la-ctdb.lo -MD -MP -MF "$(DEPDIR)/libctdb_la-ctdb.Tpo" -c -o libctdb_la-ctdb.lo `test -f 'ctdb.c' || echo '$(srcdir)/'`ctdb.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libctdb_la-ctdb.Tpo" "$(DEPDIR)/libctdb_la-ctdb.Plo"; else rm -f "$(DEPDIR)/libctdb_la-ctdb.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='ctdb.c' object='libctdb_la-ctdb.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libctdb_la_CFLAGS) $(CFLAGS) -c -o libctdb_la-ctdb.lo `test -f 'ctdb.c' || echo '$(srcdir)/'`ctdb.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

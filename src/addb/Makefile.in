@@ -55,7 +55,7 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libaddb_la_DEPENDENCIES =
-am_libaddb_la_OBJECTS = libaddb_la-addb.lo
+am_libaddb_la_OBJECTS = addb.lo
 libaddb_la_OBJECTS = $(am_libaddb_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -185,7 +185,6 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 lib_LTLIBRARIES = libaddb.la
 libaddb_la_SOURCES = addb.c
-libaddb_la_CFLAGS = @CFLAGS@
 libaddb_la_LDFLAGS = -release @LT_RELEASE@
 libaddb_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
@@ -258,7 +257,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libaddb_la-addb.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/addb.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -280,13 +279,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-libaddb_la-addb.lo: addb.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libaddb_la_CFLAGS) $(CFLAGS) -MT libaddb_la-addb.lo -MD -MP -MF "$(DEPDIR)/libaddb_la-addb.Tpo" -c -o libaddb_la-addb.lo `test -f 'addb.c' || echo '$(srcdir)/'`addb.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libaddb_la-addb.Tpo" "$(DEPDIR)/libaddb_la-addb.Plo"; else rm -f "$(DEPDIR)/libaddb_la-addb.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='addb.c' object='libaddb_la-addb.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libaddb_la_CFLAGS) $(CFLAGS) -c -o libaddb_la-addb.lo `test -f 'addb.c' || echo '$(srcdir)/'`addb.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

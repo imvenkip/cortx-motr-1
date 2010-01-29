@@ -20056,7 +20056,7 @@ fi;
 echo "${ECHO_T}$KERNELDIR_OBJ" >&6
 
 
-        # Example for checking for kernel symbol
+        # Example of checking for kernel symbol
         echo "$as_me:$LINENO: checking for symbols file" >&5
 echo $ECHO_N "checking for symbols file... $ECHO_C" >&6
         if grep -q Modules.symvers $KERNELDIR/scripts/Makefile.modpost ; then
@@ -20088,14 +20088,14 @@ echo "${ECHO_T}no" >&6
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="$CFLAGS -O0 -g"
+        CFLAGS="-O0 -g"
         KCFLAGS="-O0 -g"
         cat >>confdefs.h <<\_ACEOF
 #define ENABLE_DEBUG 1
 _ACEOF
 
 else
-	CFLAGS="$CFLAGS -O2"
+	CFLAGS="-O2"
         KCFLAGS="-O2"
 fi
 
