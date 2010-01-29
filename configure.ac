@@ -30,6 +30,11 @@ AC_PROG_AWK
 AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
 
+AC_PATH_PROG([NM], [nm], [null])
+if test "x$NM" = "xnull"; then
+        AC_MSG_ERROR([Can't find nm program])
+fi
+
 # New macros for checking various things
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
@@ -51,6 +56,12 @@ AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
                 $3
         fi
 ])
+
+SRCDIR=$(cd $srcdir && echo $PWD)
+if ! test -d $SRCDIR; then
+	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
+fi
+AC_SUBST(SRCDIR)
 
 # Checks for libraries.
 AC_SEARCH_LIBS(xdr_domainname, c nsl, , [AC_MSG_ERROR(xdr_domainname cannot be found!)])
@@ -77,11 +88,62 @@ AC_ARG_ENABLE(gssrpc,
         enable_gssrpc=no
 )
 
-SRCDIR=$(cd $srcdir && echo $PWD)
-if ! test -d $SRCDIR; then
-	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
+case $host_os in
+        darwin*) darwin="yes" ;;
+        linux*) linux="yes" ;;
+esac
+
+AM_CONDITIONAL([DARWIN], [test x$darwin = xyes])
+if test x$darwin = xyes; then
+        DARWIN=y
+else
+        DARWIN=n
 fi
-AC_SUBST(SRCDIR)
+AC_SUBST(DARWIN)
+
+AM_CONDITIONAL([LINUX], [test x$linux = xyes])
+if test x$linux = xyes; then
+        LINUX=y
+else
+        LINUX=n
+fi
+AC_SUBST(LINUX)
+
+if test x$linux = xyes; then
+        AC_MSG_CHECKING([for linux sources dir])
+        AC_ARG_WITH(linux,
+                AC_HELP_STRING([--with-linux=path], [set path to linux sources]), 
+                [KERNELDIR=$with_linux],
+                [KERNELDIR=/lib/modules/`uname -r`/build]
+        )
+
+        AC_MSG_RESULT([$KERNELDIR])
+        AC_SUBST(KERNELDIR)
+
+        AC_MSG_CHECKING([for linux objects dir])
+        AC_ARG_WITH(linux-obj,
+                AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir]), 
+                [KERNELDIR_OBJ=$with_linux_obj],
+                [KERNELDIR_OBJ=$KERNELDIR]
+        )
+
+        AC_MSG_RESULT([$KERNELDIR_OBJ])
+        AC_SUBST(KERNELDIR_OBJ)
+
+        # Example of checking for kernel symbol
+        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
+                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
+fi
+
+if test x$enable_debug = xyes; then
+        CFLAGS="-O0 -g"
+        KCFLAGS="-O0 -g"
+        AC_DEFINE(ENABLE_DEBUG)
+else
+	CFLAGS="-O2"
+        KCFLAGS="-O2"
+fi
+AC_SUBST(KCFLAGS)
 
 AC_ARG_WITH([db4], 
         AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), ,
@@ -115,6 +177,19 @@ else
 fi
 AC_MSG_RESULT([$DB4SRC])
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+
+# Check if DIO patch is applied
+AC_MSG_CHECKING([for DIO patch applied to db4])
+$NM $DB4SRC/build_unix/libdb.a | \
+grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
+rc=$?
+if ! test $rc -eq 0; then
+        AC_MSG_RESULT([no])
+        AC_MSG_ERROR([No DIO patch applied to db4 located at $DB4SRC])
+else
+        AC_MSG_RESULT([yes])
+fi
+
 AC_SUBST(DB4SRC)
 AC_SUBST(DB4LIBS)
 
@@ -134,64 +209,6 @@ if test x$enable_gssrpc = xyes; then
             AC_MSG_NOTICE(libgssrpc is not found. Gssrpc is disabled!)
         )
 fi
-
-case $host_os in
-        darwin*) darwin="yes" ;;
-        linux*) linux="yes" ;;
-esac
-
-AM_CONDITIONAL([DARWIN], [test x$darwin = xyes])
-if test x$darwin = xyes; then
-	DARWIN=y
-else
-	DARWIN=n
-fi
-AC_SUBST(DARWIN)
-
-AM_CONDITIONAL([LINUX], [test x$linux = xyes])
-if test x$linux = xyes; then
-	LINUX=y
-else
-	LINUX=n
-fi
-AC_SUBST(LINUX)
-
-if test x$linux = xyes; then
-        AC_MSG_CHECKING([for linux sources dir])
-	AC_ARG_WITH(linux,
-                AC_HELP_STRING([--with-linux=path], [set path to linux sources]), 
-                [KERNELDIR=$with_linux],
-                [KERNELDIR=/lib/modules/`uname -r`/build]
-	)
-
-	AC_MSG_RESULT([$KERNELDIR])
-	AC_SUBST(KERNELDIR)
-
-        AC_MSG_CHECKING([for linux objects dir])
-	AC_ARG_WITH(linux-obj,
-                AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir]), 
-                [KERNELDIR_OBJ=$with_linux_obj],
-                [KERNELDIR_OBJ=$KERNELDIR]
-	)
-
-	AC_MSG_RESULT([$KERNELDIR_OBJ])
-	AC_SUBST(KERNELDIR_OBJ)
-
-        # Example of checking for kernel symbol
-        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
-                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
-fi
-
-if test x$enable_debug = xyes; then
-        CFLAGS="-O0 -g"
-        KCFLAGS="-O0 -g"
-        AC_DEFINE(ENABLE_DEBUG)
-else
-	CFLAGS="-O2"
-        KCFLAGS="-O2"
-fi
-AC_SUBST(KCFLAGS)
-
 
 AC_CONFIG_FILES([
 		 Makefile
