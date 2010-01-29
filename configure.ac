@@ -8,6 +8,7 @@ AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
+AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -28,6 +29,28 @@ AC_PROG_LN_S
 AC_PROG_AWK
 AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
+
+# New macros for checking various things
+AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
+        AC_MSG_CHECKING([for symbols file])
+        if grep -q Modules.symvers $KERNELDIR/scripts/Makefile.modpost ; then
+                SYMVERFILE=Modules.symvers
+        else
+                SYMVERFILE=Module.symvers
+	fi
+	AC_MSG_RESULT([$KERNELDIR/$SYMVERFILE])
+	
+        [AC_MSG_CHECKING([for symbol $1 exported])
+        grep -q -E '[[[:space:]]]$1[[[:space:]]]' $KERNELDIR/$SYMVERFILE 2>/dev/null
+        rc=$?
+        if test $rc -eq 0; then
+    	        AC_MSG_RESULT([yes])
+    	        $2
+        else
+                AC_MSG_RESULT([no])
+                $3
+        fi
+])
 
 # Checks for libraries.
 AC_SEARCH_LIBS(xdr_domainname, c nsl, , [AC_MSG_ERROR(xdr_domainname cannot be found!)])
@@ -153,6 +176,10 @@ if test x$linux = xyes; then
 
 	AC_MSG_RESULT([$KERNELDIR_OBJ])
 	AC_SUBST(KERNELDIR_OBJ)
+
+        # Example for checking for kernel symbol
+        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
+                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
 fi
 
 if test x$enable_debug = xyes; then
@@ -164,6 +191,7 @@ else
         KCFLAGS="-O2"
 fi
 AC_SUBST(KCFLAGS)
+
 
 AC_CONFIG_FILES([
 		 Makefile
