@@ -30,8 +30,8 @@ AC_PROG_AWK
 AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
 
-AC_PATH_PROG([NM], [nm], [null])
-if test "x$NM" = "xnull"; then
+AC_PATH_PROG([NM_B], [nm], [null])
+if test "x$NM_B" = "xnull"; then
         AC_MSG_ERROR([Can't find nm program])
 fi
 
@@ -154,7 +154,7 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-AC_MSG_CHECKING([for db4 path])
+AC_MSG_CHECKING([for db4 libs])
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
@@ -175,19 +175,21 @@ else
 	        fi
 	fi
 fi
-AC_MSG_RESULT([$DB4SRC])
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+AC_MSG_RESULT([$DB4LIBS])
 
-# Check if DIO patch is applied
-AC_MSG_CHECKING([for DIO patch applied to db4])
-$NM $DB4SRC/build_unix/libdb.a | \
-grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
-rc=$?
-if ! test $rc -eq 0; then
-        AC_MSG_RESULT([no])
-        AC_MSG_ERROR([No DIO patch applied to db4 located at $DB4SRC])
-else
-        AC_MSG_RESULT([yes])
+# Check if DIO patch applied
+if test x$linux = xyes; then
+        AC_MSG_CHECKING([for DIO patch applied to db4])
+        $NM_B $DB4SRC/build_unix/libdb.a | \
+        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
+        rc=$?
+        if ! test $rc -eq 0; then
+                AC_MSG_RESULT([no])
+                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
+        else
+                AC_MSG_RESULT([yes])
+        fi
 fi
 
 AC_SUBST(DB4SRC)
