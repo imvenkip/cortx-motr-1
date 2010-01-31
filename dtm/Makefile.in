@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# Install dtm.h into /usr/include/dtm saying this way that dtm.h contains
+# Install dtm.h into $prefix/include/dtm saying this way that dtm.h contains
 # public API for working with our DTM.
 
 srcdir = @srcdir@
