@@ -134,6 +134,9 @@ if test x$linux = xyes; then
 
         AC_MSG_RESULT([$KERNELDIR_OBJ])
         AC_SUBST(KERNELDIR_OBJ)
+        
+        KERNELMOD_DIR="/lib/modules/`uname -r`"
+        AC_SUBST(KERNELMOD_DIR)
 
         # Example of checking for kernel symbol
         COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
@@ -162,14 +165,15 @@ CFLAGS=""
 AC_MSG_CHECKING([for db4 libs])
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
-	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
+        DB4LIBS="$DB4SRC/build_unix/libdb.a"
+	if ! test -e $DB4LIBS; then
+		AC_MSG_ERROR($DB4LIBS not found! Did you build db4?)
 	fi
-        DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
         AC_MSG_RESULT([$DB4LIBS])
 else
 	DB4SRC="$SRCDIR/../colibri-db4"
-	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
+        DB4LIBS="$DB4SRC/build_unix/libdb.a"
+	if ! test -e $DB4LIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db4_dio = xyes; then
 		        dio_options="--enable-o_direct"
@@ -177,28 +181,30 @@ else
 		        dio_options=""
 		fi
                 AC_MSG_RESULT([building $DB4SRC])
-                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure $dio_options && make])
-		cd $DB4SRC/build_unix && ../dist/configure $dio_options && make
+                
+                # We need -fPIC to link libdb.a (static library) into so libraries, which should 
+                # have position intependent code as nobody case foresee in what addresses inside
+                # calling process it will be mapped
+                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make])
+		cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then 
 			AC_MSG_ERROR(An error occured while building db4!)
 		fi
-		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
-			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
+		if ! test -e $DB4LIBS; then
+			AC_MSG_ERROR($DB4LIBS not found! Build failed?)
 	        fi
 	else
-                DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+                DB4LIBS="$DB4SRC/build_unix/libdb.a"
                 AC_MSG_RESULT([$DB4LIBS])
 	fi
 fi
-DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 
 # Check if DIO patch applied
 if test x$linux = xyes -a x$enable_db4_dio = xyes; then
         AC_MSG_CHECKING([for DIO patch applied to db4])
-        $NM_B $DB4SRC/build_unix/libdb.a | \
-        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
+        $NM_B $DB4LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
         if ! test $rc -eq 0; then
                 AC_MSG_RESULT([no])

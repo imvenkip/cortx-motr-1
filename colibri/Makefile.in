@@ -1,4 +1,4 @@
-LINUX=@LINUX@
+LINUX = @LINUX@
 COLIBRI_SRCDIR = @SRCDIR@/colibri
 
 ifeq ($(LINUX),y)
@@ -9,8 +9,11 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
 all:
 	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
 
-modules_install:
-	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -fr @KERNELMOD_DIR@/kernel/fs/colibri
 
 distclean clean:
 	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
@@ -19,6 +22,8 @@ distclean clean:
 else
 
 all:
+install:
+uninstall:
 distclean clean:
 
 endif
