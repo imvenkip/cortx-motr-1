@@ -1,7 +1,7 @@
 lib_LTLIBRARIES    = libsns.la
 libsns_la_SOURCES  = sns.c
 libsns_la_LDFLAGS  = -release @LT_RELEASE@
-libsns_la_LIBADD   = $(top_builddir)/src/aux/libaux.la @LIBS@
+libsns_la_LIBADD   = $(top_builddir)/src/lib/libc2.la @LIBS@
 
 INCLUDES           = -I. -I$(top_srcdir)/include
 

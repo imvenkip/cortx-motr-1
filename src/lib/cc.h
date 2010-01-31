@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __LIB_CC_H__
-#define __LIB_CC_H__
+#ifndef __COLIBRI_CC_H__
+#define __COLIBRI_CC_H__
 
 /**
    @defgroup cc Concurrency control
@@ -42,7 +42,7 @@ struct c2_cond {
 /** @} end of cc group */
 
 
-/* __LIB_CC_H__ */
+/* __COLIBRI_CC_H__ */
 #endif
 
 /* 

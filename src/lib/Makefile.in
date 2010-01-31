@@ -36,7 +36,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src/fol
+subdir = src/lib
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -54,9 +54,9 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libfol_la_DEPENDENCIES = $(top_builddir)/src/lib/libc2.la
-am_libfol_la_OBJECTS = fol.lo fol_template.lo fol_print.lo
-libfol_la_OBJECTS = $(am_libfol_la_OBJECTS)
+libc2_la_DEPENDENCIES =
+am_libc2_la_OBJECTS = libc2.lo
+libc2_la_OBJECTS = $(am_libc2_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -68,8 +68,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libfol_la_SOURCES)
-DIST_SOURCES = $(libfol_la_SOURCES)
+SOURCES = $(libc2_la_SOURCES)
+DIST_SOURCES = $(libc2_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -184,12 +184,12 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-lib_LTLIBRARIES = libfol.la
-libfol_la_SOURCES = fol.c fol_template.c fol_print.c fol.h dbtypes.h
-libfol_la_LDFLAGS = -release @LT_RELEASE@
-libfol_la_LIBADD = $(top_builddir)/src/lib/libc2.la @LIBS@ @DB4LIBS@
-INCLUDES = -I. -I$(top_srcdir)/include -I @DB4SRC@ -I@DB4SRC@/build_unix
-EXTRA_DIST = fol.t
+lib_LTLIBRARIES = libc2.la
+libc2_la_SOURCES = libc2.c
+libc2_la_LDFLAGS = -release @LT_RELEASE@
+libc2_la_LIBADD = @LIBS@
+INCLUDES = -I. -I$(top_srcdir)/include
+EXTRA_DIST = adt.h cc.h
 all: all-am
 
 .SUFFIXES:
@@ -203,9 +203,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  src/fol/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  src/lib/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  src/fol/Makefile
+	  $(AUTOMAKE) --gnu  src/lib/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -250,8 +250,8 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libfol.la: $(libfol_la_OBJECTS) $(libfol_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libfol_la_LDFLAGS) $(libfol_la_OBJECTS) $(libfol_la_LIBADD) $(LIBS)
+libc2.la: $(libc2_la_OBJECTS) $(libc2_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libc2_la_LDFLAGS) $(libc2_la_OBJECTS) $(libc2_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -259,9 +259,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol_print.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fol_template.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libc2.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -402,7 +400,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libLTLIBRARIES clean-libtool clean-local \
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -452,7 +450,7 @@ ps-am:
 uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool clean-local ctags distclean \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
@@ -464,18 +462,6 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-
-fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
-	cd @DB4SRC@/dist ; \
-        awk -f gen_rec.awk \
-	    -v source_file=@SRCDIR@/src/fol/fol.c \
-	    -v header_file=@SRCDIR@/src/fol/fol.h \
-	    -v print_file=@SRCDIR@/src/fol/fol_print.c \
-	    -v template_file=@SRCDIR@/src/fol/fol_template.0.c < @SRCDIR@/src/fol/fol.t
-
-clean-local:
-	cd @SRCDIR@/src/fol ; \
-	rm -fr fol.c fol.h fol_print.c fol_template.0.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

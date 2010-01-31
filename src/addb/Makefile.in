@@ -54,7 +54,7 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libaddb_la_DEPENDENCIES = $(top_builddir)/src/aux/libaux.la
+libaddb_la_DEPENDENCIES = $(top_builddir)/src/lib/libc2.la
 am_libaddb_la_OBJECTS = addb.lo
 libaddb_la_OBJECTS = $(am_libaddb_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -187,7 +187,7 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libaddb.la
 libaddb_la_SOURCES = addb.c
 libaddb_la_LDFLAGS = -release @LT_RELEASE@
-libaddb_la_LIBADD = $(top_builddir)/src/aux/libaux.la @LIBS@
+libaddb_la_LIBADD = $(top_builddir)/src/lib/libc2.la @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 

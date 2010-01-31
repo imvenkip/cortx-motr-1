@@ -51,7 +51,7 @@ sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
 am_mds_OBJECTS = mds.$(OBJEXT)
 mds_OBJECTS = $(am_mds_OBJECTS)
-mds_DEPENDENCIES = $(top_builddir)/src/aux/libaux.la
+mds_DEPENDENCIES = $(top_builddir)/src/lib/libc2.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -181,7 +181,7 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 mds_SOURCES = mds.c
 mds_LDFLAGS = @LDFLAGS@
-mds_LDADD = $(top_builddir)/src/aux/libaux.la @DB4LIBS@
+mds_LDADD = $(top_builddir)/src/lib/libc2.la @DB4LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 

@@ -54,7 +54,7 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libsns_la_DEPENDENCIES = $(top_builddir)/src/aux/libaux.la
+libsns_la_DEPENDENCIES = $(top_builddir)/src/lib/libc2.la
 am_libsns_la_OBJECTS = sns.lo
 libsns_la_OBJECTS = $(am_libsns_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -187,7 +187,7 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libsns.la
 libsns_la_SOURCES = sns.c
 libsns_la_LDFLAGS = -release @LT_RELEASE@
-libsns_la_LIBADD = $(top_builddir)/src/aux/libaux.la @LIBS@
+libsns_la_LIBADD = $(top_builddir)/src/lib/libc2.la @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 

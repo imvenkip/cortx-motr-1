@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __DTM_DTM_H__
-#define __DTM_DTM_H__
+#ifndef __COLIBRI_DTM_H__
+#define __COLIBRI_DTM_H__
 
 /**
    @defgroup dtm Distributed transaction manager
@@ -13,7 +13,7 @@ struct c2_dtx;
 
 /** @} end of copymachine group */
 
-/* __DTM_DTM_H__ */
+/* __COLIBRI_DTM_H__ */
 #endif
 
 /* 

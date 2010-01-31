@@ -1,1 +1,1 @@
-SUBDIRS = aux addb ctdb fol net nrs sns colibri mds
+SUBDIRS = lib addb ctdb dtm fol fop net nrs sns sm colibri mds

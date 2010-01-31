@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __SM_SM_H__
-#define __SM_SM_H__
+#ifndef __COLIBRI_SM_H__
+#define __COLIBRI_SM_H__
 
 /**
    @defgroup sm State machine
@@ -74,7 +74,7 @@ struct c2_persistent_sm_ops {
 /** @} end of sm group */
 
 
-/* __SM_SM_H__ */
+/* __COLIBRI_SM_H__ */
 #endif
 
 /* 
