@@ -88,6 +88,11 @@ AC_ARG_ENABLE(gssrpc,
         enable_gssrpc=no
 )
 
+AC_ARG_ENABLE(db4-dio,
+        AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support]), ,
+        enable_db4_dio=no
+)
+
 case $host_os in
         darwin*) darwin="yes" ;;
         linux*) linux="yes" ;;
@@ -164,7 +169,12 @@ else
 	DB4SRC="$SRCDIR/../colibri-db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		oldcwd=$(pwd)
-		cd $DB4SRC/build_unix && ../dist/configure --enable-o_direct && make
+		if test x$enable_db4_dio = xyes; then
+		        dio_options="--enable-o_direct"
+		else
+		        dio_options=""
+		fi
+		cd $DB4SRC/build_unix && ../dist/configure $dio_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then 
@@ -179,18 +189,18 @@ DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 AC_MSG_RESULT([$DB4LIBS])
 
 # Check if DIO patch applied
-#if test x$linux = xyes; then
-#        AC_MSG_CHECKING([for DIO patch applied to db4])
-#        $NM_B $DB4SRC/build_unix/libdb.a | \
-#        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
-#        rc=$?
-#        if ! test $rc -eq 0; then
-#                AC_MSG_RESULT([no])
-#                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
-#        else
-#                AC_MSG_RESULT([yes])
-#        fi
-#fi
+if test x$linux = xyes -a x$enable_db4_dio = xyes; then
+        AC_MSG_CHECKING([for DIO patch applied to db4])
+        $NM_B $DB4SRC/build_unix/libdb.a | \
+        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
+        rc=$?
+        if ! test $rc -eq 0; then
+                AC_MSG_RESULT([no])
+                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
+        else
+                AC_MSG_RESULT([yes])
+        fi
+fi
 
 AC_SUBST(DB4SRC)
 AC_SUBST(DB4LIBS)
