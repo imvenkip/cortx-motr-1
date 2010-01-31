@@ -235,19 +235,18 @@ AC_CONFIG_FILES([
                  include/Makefile
                  include/colibri/Makefile
                  man/Makefile
-                 src/Makefile
-                 src/lib/Makefile
-                 src/dtm/Makefile
-                 src/addb/Makefile
-                 src/ctdb/Makefile
-                 src/fol/Makefile
-                 src/fop/Makefile
-                 src/net/Makefile
-                 src/nrs/Makefile
-                 src/sns/Makefile
-                 src/sm/Makefile
-                 src/mds/Makefile
-                 src/colibri/Makefile
+                 lib/Makefile
+                 dtm/Makefile
+                 addb/Makefile
+                 ctdb/Makefile
+                 fol/Makefile
+                 fop/Makefile
+                 net/Makefile
+                 nrs/Makefile
+                 sns/Makefile
+                 sm/Makefile
+                 mds/Makefile
+                 colibri/Makefile
                  patches/Makefile
                  tests/Makefile])
 AC_OUTPUT

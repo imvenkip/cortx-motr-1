@@ -1,1 +1,0 @@
-SUBDIRS = lib addb ctdb dtm fol fop net nrs sns sm colibri mds

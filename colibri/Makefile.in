@@ -1,0 +1,27 @@
+LINUX=@LINUX@
+COLIBRI_SRCDIR = @SRCDIR@/colibri
+
+ifeq ($(LINUX),y)
+
+obj-m := colibri.o
+EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
+
+all:
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
+
+modules_install:
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+
+distclean clean:
+	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
+	rm -fr Module.symvers
+
+else
+
+all:
+distclean clean:
+
+endif
+
+distdir:
+	cp $(COLIBRI_SRCDIR)/Makefile.in $(COLIBRI_SRCDIR)/colibri.c @top_builddir@/@PACKAGE@-@VERSION@/colibri
