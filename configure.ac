@@ -165,6 +165,8 @@ if test x$with_db4 != x; then
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
+        DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+        AC_MSG_RESULT([$DB4LIBS])
 else
 	DB4SRC="$SRCDIR/../colibri-db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
@@ -174,6 +176,8 @@ else
 		else
 		        dio_options=""
 		fi
+                AC_MSG_RESULT([building $DB4SRC])
+                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure $dio_options && make])
 		cd $DB4SRC/build_unix && ../dist/configure $dio_options && make
 		res=$?
 		cd $oldcwd
@@ -183,10 +187,12 @@ else
 		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
 	        fi
+	else
+                DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+                AC_MSG_RESULT([$DB4LIBS])
 	fi
 fi
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
-AC_MSG_RESULT([$DB4LIBS])
 
 # Check if DIO patch applied
 if test x$linux = xyes -a x$enable_db4_dio = xyes; then
