@@ -247,12 +247,12 @@ AC_CONFIG_FILES([
                  ctdb/Makefile
                  fol/Makefile
                  fop/Makefile
+                 rpc/Makefile
                  net/Makefile
                  nrs/Makefile
                  sns/Makefile
                  sm/Makefile
                  mds/Makefile
                  colibri/Makefile
-                 patches/Makefile
-                 tests/Makefile])
+                 patches/Makefile])
 AC_OUTPUT

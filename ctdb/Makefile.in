@@ -54,9 +54,9 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libctdb_la_DEPENDENCIES = $(top_builddir)/lib/libc2.la
-am_libctdb_la_OBJECTS = ctdb.lo
-libctdb_la_OBJECTS = $(am_libctdb_la_OBJECTS)
+libcolibri_ctdb_la_DEPENDENCIES = $(top_builddir)/lib/libc2.la
+am_libcolibri_ctdb_la_OBJECTS = ctdb.lo
+libcolibri_ctdb_la_OBJECTS = $(am_libcolibri_ctdb_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -68,8 +68,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libctdb_la_SOURCES)
-DIST_SOURCES = $(libctdb_la_SOURCES)
+SOURCES = $(libcolibri_ctdb_la_SOURCES)
+DIST_SOURCES = $(libcolibri_ctdb_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -185,10 +185,10 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-lib_LTLIBRARIES = libctdb.la
-libctdb_la_SOURCES = ctdb.c
-libctdb_la_LDFLAGS = -release @LT_RELEASE@
-libctdb_la_LIBADD = $(top_builddir)/lib/libc2.la @LIBS@
+lib_LTLIBRARIES = libcolibri-ctdb.la
+libcolibri_ctdb_la_SOURCES = ctdb.c
+libcolibri_ctdb_la_LDFLAGS = -release @LT_RELEASE@
+libcolibri_ctdb_la_LIBADD = $(top_builddir)/lib/libc2.la @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 
@@ -250,8 +250,8 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libctdb.la: $(libctdb_la_OBJECTS) $(libctdb_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libctdb_la_LDFLAGS) $(libctdb_la_OBJECTS) $(libctdb_la_LIBADD) $(LIBS)
+libcolibri-ctdb.la: $(libcolibri_ctdb_la_OBJECTS) $(libcolibri_ctdb_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libcolibri_ctdb_la_LDFLAGS) $(libcolibri_ctdb_la_OBJECTS) $(libcolibri_ctdb_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

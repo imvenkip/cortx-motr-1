@@ -1,7 +1,7 @@
-lib_LTLIBRARIES    = libnet.la
-libnet_la_SOURCES  = net.c
-libnet_la_LDFLAGS  = -release @LT_RELEASE@
-libnet_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@
+lib_LTLIBRARIES            = libcolibri-net.la
+libcolibri_net_la_SOURCES  = net.c
+libcolibri_net_la_LDFLAGS  = -release @LT_RELEASE@
+libcolibri_net_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@
 
-INCLUDES           = -I. -I$(top_srcdir)/include
+INCLUDES                   = -I. -I$(top_srcdir)/include
 
