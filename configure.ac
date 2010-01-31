@@ -223,11 +223,11 @@ AC_CONFIG_FILES([
                  src/addb/Makefile
                  src/ctdb/Makefile
                  src/fol/Makefile
-                 src/lib/Makefile
+                 src/aux/Makefile
                  src/mds/Makefile
-                 src/mds/kernel/Makefile
                  src/net/Makefile
                  src/nrs/Makefile
                  src/sns/Makefile
+                 src/colibri/Makefile
                  tests/Makefile])
 AC_OUTPUT

@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __SNS_REPAIR_H__
-#define __SNS_REPAIR_H__
+#ifndef __COLIBRI_SNS_REPAIR_H__
+#define __COLIBRI_SNS_REPAIR_H__
 
 /**
    @page snsrepair SNS repair detailed level design specification.
@@ -33,7 +33,7 @@ void poolmachine_fini(struct poolmachine *pm);
 
 /** @} */
 
-/* __SNS_REPAIR_H__ */
+/* __COLIBRI_SNS_REPAIR_H__ */
 #endif
 
 /* 

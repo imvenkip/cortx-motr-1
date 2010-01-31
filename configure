@@ -20166,7 +20166,7 @@ fi
 
 fi
 
-                                                                                                                                                                          ac_config_files="$ac_config_files Makefile m4/Makefile doc/Makefile include/Makefile include/colibri/Makefile man/Makefile src/Makefile src/addb/Makefile src/ctdb/Makefile src/fol/Makefile src/lib/Makefile src/mds/Makefile src/mds/kernel/Makefile src/net/Makefile src/nrs/Makefile src/sns/Makefile tests/Makefile"
+                                                                                                                                                                          ac_config_files="$ac_config_files Makefile m4/Makefile doc/Makefile include/Makefile include/colibri/Makefile man/Makefile src/Makefile src/addb/Makefile src/ctdb/Makefile src/fol/Makefile src/aux/Makefile src/mds/Makefile src/net/Makefile src/nrs/Makefile src/sns/Makefile src/colibri/Makefile tests/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -20748,12 +20748,12 @@ do
   "src/addb/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/addb/Makefile" ;;
   "src/ctdb/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/ctdb/Makefile" ;;
   "src/fol/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/fol/Makefile" ;;
-  "src/lib/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/lib/Makefile" ;;
+  "src/aux/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/aux/Makefile" ;;
   "src/mds/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/mds/Makefile" ;;
-  "src/mds/kernel/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/mds/kernel/Makefile" ;;
   "src/net/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/net/Makefile" ;;
   "src/nrs/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/nrs/Makefile" ;;
   "src/sns/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/sns/Makefile" ;;
+  "src/colibri/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/colibri/Makefile" ;;
   "tests/Makefile" ) CONFIG_FILES="$CONFIG_FILES tests/Makefile" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
