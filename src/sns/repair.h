@@ -109,7 +109,7 @@ struct c2_cm {
    0 < value < 100: fraction of resources can be used.
 */
 struct c2_rlimit {
-       int rl_cpu;
+       int rl_processor_throughput;
        int rl_memory;
        int rl_storage_throughput;
        int rl_network_throughput;
@@ -117,8 +117,8 @@ struct c2_rlimit {
 
 /** input set stat */
 struct c2_cm_iset_stat {
-       int progess;
-       int error;
+       int is_progess;
+       int is_error;
 };
 
 /** input set description */
