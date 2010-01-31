@@ -179,18 +179,18 @@ DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
 AC_MSG_RESULT([$DB4LIBS])
 
 # Check if DIO patch applied
-if test x$linux = xyes; then
-        AC_MSG_CHECKING([for DIO patch applied to db4])
-        $NM_B $DB4SRC/build_unix/libdb.a | \
-        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
-        rc=$?
-        if ! test $rc -eq 0; then
-                AC_MSG_RESULT([no])
-                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
-        else
-                AC_MSG_RESULT([yes])
-        fi
-fi
+#if test x$linux = xyes; then
+#        AC_MSG_CHECKING([for DIO patch applied to db4])
+#        $NM_B $DB4SRC/build_unix/libdb.a | \
+#        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
+#        rc=$?
+#        if ! test $rc -eq 0; then
+#                AC_MSG_RESULT([no])
+#                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
+#        else
+#                AC_MSG_RESULT([yes])
+#        fi
+#fi
 
 AC_SUBST(DB4SRC)
 AC_SUBST(DB4LIBS)
