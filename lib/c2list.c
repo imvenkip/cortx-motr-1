@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include "c2list.h"
 
 void c2_list_init(struct c2_list *head)

@@ -144,12 +144,12 @@ if test x$linux = xyes; then
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="-O0 -g"
-        KCFLAGS="-O0 -g"
+        CFLAGS="-Wall -Werror -O0 -g"
+        KCFLAGS="-Wall -Werror -O0 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
-	CFLAGS="-O2"
-        KCFLAGS="-O2"
+	CFLAGS="-Wall -Werror -O2"
+        KCFLAGS="-Wall -Werror -O2"
 fi
 AC_SUBST(KCFLAGS)
 

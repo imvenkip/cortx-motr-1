@@ -1,6 +1,10 @@
-#include <stdlib.h>
-#include "memory.h"
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
+#include <stdlib.h>
+#include <string.h>
+#include "memory.h"
 
 void *c2_alloc(size_t size)
 {
