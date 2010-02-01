@@ -171,7 +171,7 @@ if test x$with_db4 != x; then
 	fi
         AC_MSG_RESULT([$DB4LIBS])
 else
-	DB4SRC="$SRCDIR/../colibri-db4"
+	DB4SRC="$SRCDIR/../db4"
         DB4LIBS="$DB4SRC/build_unix/libdb.a"
 	if ! test -e $DB4LIBS; then
 		oldcwd=$(pwd)
