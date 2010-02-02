@@ -64,8 +64,17 @@ fi
 AC_SUBST(SRCDIR)
 
 # Checks for libraries.
+OLD_LIBS=$LIBS
 AC_SEARCH_LIBS(xdr_domainname, c nsl, , [AC_MSG_ERROR(xdr_domainname cannot be found!)])
+NSL_LIBS=$LIBS
+LIBS=$OLD_LIBS
+AC_SUBST(NSL_LIBS)
+
+OLD_LIBS=$LIBS
 AC_SEARCH_LIBS(pthread_create, c pthread, , [AC_MSG_ERROR(pthread_create cannot be found!)])
+PTHREAD_LIBS=$LIBS
+LIBS=$OLD_LIBS
+AC_SUBST(PTHREAD_LIBS)
 
 # Checks for header files.
 AC_HEADER_STDC

@@ -7,7 +7,6 @@ extern void test_bitops(void);
 extern void test_bitmap(void);
 extern void test_refs(void);
 
-
 int main(int argc, char *argv[])
 {
 	test_list();
