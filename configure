@@ -465,7 +465,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar LT_RELEASE CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL LIBOBJS SRCDIR DB4SRC DB4LIBS DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KERNELDIR_OBJ KCFLAGS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar LT_RELEASE CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL NM SRCDIR LIBOBJS DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KERNELDIR_OBJ KCFLAGS DB4SRC DB4LIBS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1047,9 +1047,9 @@ Optional Packages:
                           both]
   --with-tags[=TAGS]
                           include additional configurations [automatic]
-  --with-db4=path         path of where db4 was built
   --with-linux=path       set path to linux sources
   --with-linux-obj=path   set path to linux objects dir
+  --with-db4=path         path of where db4 was built
 
 Some influential environment variables:
   CC          C compiler command
@@ -18875,7 +18875,61 @@ if eval "test \"`echo '$ac_cv_prog_cc_'${ac_cc}_c_o`\" != yes"; then
 fi
 
 
+# Extract the first word of "nm", so it can be a program name with args.
+set dummy nm; ac_word=$2
+echo "$as_me:$LINENO: checking for $ac_word" >&5
+echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
+if test "${ac_cv_path_NM+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  case $NM in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_NM="$NM" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_NM="$as_dir/$ac_word$ac_exec_ext"
+    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+
+  test -z "$ac_cv_path_NM" && ac_cv_path_NM="null"
+  ;;
+esac
+fi
+NM=$ac_cv_path_NM
+
+if test -n "$NM"; then
+  echo "$as_me:$LINENO: result: $NM" >&5
+echo "${ECHO_T}$NM" >&6
+else
+  echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+fi
+
+if test "x$NM" = "xnull"; then
+        { { echo "$as_me:$LINENO: error: Can't find nm program" >&5
+echo "$as_me: error: Can't find nm program" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
 # New macros for checking various things
+
+
+SRCDIR=$(cd $srcdir && echo $PWD)
+if ! test -d $SRCDIR; then
+	{ { echo "$as_me:$LINENO: error: Cannot figure out full path for srcdir!" >&5
+echo "$as_me: error: Cannot figure out full path for srcdir!" >&2;}
+   { (exit 1); exit 1; }; }
+fi
 
 
 # Checks for libraries.
@@ -19779,11 +19833,119 @@ else
 
 fi;
 
-SRCDIR=$(cd $srcdir && echo $PWD)
-if ! test -d $SRCDIR; then
-	{ { echo "$as_me:$LINENO: error: Cannot figure out full path for srcdir!" >&5
-echo "$as_me: error: Cannot figure out full path for srcdir!" >&2;}
-   { (exit 1); exit 1; }; }
+case $host_os in
+        darwin*) darwin="yes" ;;
+        linux*) linux="yes" ;;
+esac
+
+
+
+if test x$darwin = xyes; then
+  DARWIN_TRUE=
+  DARWIN_FALSE='#'
+else
+  DARWIN_TRUE='#'
+  DARWIN_FALSE=
+fi
+
+if test x$darwin = xyes; then
+        DARWIN=y
+else
+        DARWIN=n
+fi
+
+
+
+
+if test x$linux = xyes; then
+  LINUX_TRUE=
+  LINUX_FALSE='#'
+else
+  LINUX_TRUE='#'
+  LINUX_FALSE=
+fi
+
+if test x$linux = xyes; then
+        LINUX=y
+else
+        LINUX=n
+fi
+
+
+if test x$linux = xyes; then
+        echo "$as_me:$LINENO: checking for linux sources dir" >&5
+echo $ECHO_N "checking for linux sources dir... $ECHO_C" >&6
+
+# Check whether --with-linux or --without-linux was given.
+if test "${with_linux+set}" = set; then
+  withval="$with_linux"
+  KERNELDIR=$with_linux
+else
+  KERNELDIR=/lib/modules/`uname -r`/build
+
+fi;
+
+        echo "$as_me:$LINENO: result: $KERNELDIR" >&5
+echo "${ECHO_T}$KERNELDIR" >&6
+
+
+        echo "$as_me:$LINENO: checking for linux objects dir" >&5
+echo $ECHO_N "checking for linux objects dir... $ECHO_C" >&6
+
+# Check whether --with-linux-obj or --without-linux-obj was given.
+if test "${with_linux_obj+set}" = set; then
+  withval="$with_linux_obj"
+  KERNELDIR_OBJ=$with_linux_obj
+else
+  KERNELDIR_OBJ=$KERNELDIR
+
+fi;
+
+        echo "$as_me:$LINENO: result: $KERNELDIR_OBJ" >&5
+echo "${ECHO_T}$KERNELDIR_OBJ" >&6
+
+
+        # Example of checking for kernel symbol
+        echo "$as_me:$LINENO: checking for symbols file" >&5
+echo $ECHO_N "checking for symbols file... $ECHO_C" >&6
+        if grep -q Modules.symvers $KERNELDIR/scripts/Makefile.modpost ; then
+                SYMVERFILE=Modules.symvers
+        else
+                SYMVERFILE=Module.symvers
+	fi
+	echo "$as_me:$LINENO: result: $KERNELDIR/$SYMVERFILE" >&5
+echo "${ECHO_T}$KERNELDIR/$SYMVERFILE" >&6
+
+        echo "$as_me:$LINENO: checking for symbol journal_abort exported" >&5
+echo $ECHO_N "checking for symbol journal_abort exported... $ECHO_C" >&6
+        grep -q -E '[[:space:]]journal_abort[[:space:]]' $KERNELDIR/$SYMVERFILE 2>/dev/null
+        rc=$?
+        if test $rc -eq 0; then
+    	        echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_JOURNAL_ABORT
+_ACEOF
+
+        else
+                echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+
+        fi
+
+fi
+
+if test x$enable_debug = xyes; then
+        CFLAGS="-O0 -g"
+        KCFLAGS="-O0 -g"
+        cat >>confdefs.h <<\_ACEOF
+#define ENABLE_DEBUG 1
+_ACEOF
+
+else
+	CFLAGS="-O2"
+        KCFLAGS="-O2"
 fi
 
 
@@ -19830,6 +19992,24 @@ fi
 echo "$as_me:$LINENO: result: $DB4SRC" >&5
 echo "${ECHO_T}$DB4SRC" >&6
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+
+# Check if DIO patch is applied
+echo "$as_me:$LINENO: checking for DIO patch applied to db4" >&5
+echo $ECHO_N "checking for DIO patch applied to db4... $ECHO_C" >&6
+$NM $DB4SRC/build_unix/libdb.a | \
+grep -q -E '[[:digit:]]*[[:space:]]T[[:space:]]__os_calloc_aligned';
+rc=$?
+if ! test $rc -eq 0; then
+        echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6
+        { { echo "$as_me:$LINENO: error: No DIO patch applied to db4 located at $DB4SRC" >&5
+echo "$as_me: error: No DIO patch applied to db4 located at $DB4SRC" >&2;}
+   { (exit 1); exit 1; }; }
+else
+        echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6
+fi
+
 
 
 
@@ -19983,123 +20163,6 @@ echo "$as_me: libgssrpc is not found. Gssrpc is disabled!" >&6;}
 fi
 
 fi
-
-case $host_os in
-        darwin*) darwin="yes" ;;
-        linux*) linux="yes" ;;
-esac
-
-
-
-if test x$darwin = xyes; then
-  DARWIN_TRUE=
-  DARWIN_FALSE='#'
-else
-  DARWIN_TRUE='#'
-  DARWIN_FALSE=
-fi
-
-if test x$darwin = xyes; then
-	DARWIN=y
-else
-	DARWIN=n
-fi
-
-
-
-
-if test x$linux = xyes; then
-  LINUX_TRUE=
-  LINUX_FALSE='#'
-else
-  LINUX_TRUE='#'
-  LINUX_FALSE=
-fi
-
-if test x$linux = xyes; then
-	LINUX=y
-else
-	LINUX=n
-fi
-
-
-if test x$linux = xyes; then
-        echo "$as_me:$LINENO: checking for linux sources dir" >&5
-echo $ECHO_N "checking for linux sources dir... $ECHO_C" >&6
-
-# Check whether --with-linux or --without-linux was given.
-if test "${with_linux+set}" = set; then
-  withval="$with_linux"
-  KERNELDIR=$with_linux
-else
-  KERNELDIR=/lib/modules/`uname -r`/build
-
-fi;
-
-	echo "$as_me:$LINENO: result: $KERNELDIR" >&5
-echo "${ECHO_T}$KERNELDIR" >&6
-
-
-        echo "$as_me:$LINENO: checking for linux objects dir" >&5
-echo $ECHO_N "checking for linux objects dir... $ECHO_C" >&6
-
-# Check whether --with-linux-obj or --without-linux-obj was given.
-if test "${with_linux_obj+set}" = set; then
-  withval="$with_linux_obj"
-  KERNELDIR_OBJ=$with_linux_obj
-else
-  KERNELDIR_OBJ=$KERNELDIR
-
-fi;
-
-	echo "$as_me:$LINENO: result: $KERNELDIR_OBJ" >&5
-echo "${ECHO_T}$KERNELDIR_OBJ" >&6
-
-
-        # Example of checking for kernel symbol
-        echo "$as_me:$LINENO: checking for symbols file" >&5
-echo $ECHO_N "checking for symbols file... $ECHO_C" >&6
-        if grep -q Modules.symvers $KERNELDIR/scripts/Makefile.modpost ; then
-                SYMVERFILE=Modules.symvers
-        else
-                SYMVERFILE=Module.symvers
-	fi
-	echo "$as_me:$LINENO: result: $KERNELDIR/$SYMVERFILE" >&5
-echo "${ECHO_T}$KERNELDIR/$SYMVERFILE" >&6
-
-        echo "$as_me:$LINENO: checking for symbol journal_abort exported" >&5
-echo $ECHO_N "checking for symbol journal_abort exported... $ECHO_C" >&6
-        grep -q -E '[[:space:]]journal_abort[[:space:]]' $KERNELDIR/$SYMVERFILE 2>/dev/null
-        rc=$?
-        if test $rc -eq 0; then
-    	        echo "$as_me:$LINENO: result: yes" >&5
-echo "${ECHO_T}yes" >&6
-
-cat >>confdefs.h <<\_ACEOF
-#define HAVE_JOURNAL_ABORT
-_ACEOF
-
-        else
-                echo "$as_me:$LINENO: result: no" >&5
-echo "${ECHO_T}no" >&6
-
-        fi
-
-fi
-
-if test x$enable_debug = xyes; then
-        CFLAGS="-O0 -g"
-        KCFLAGS="-O0 -g"
-        cat >>confdefs.h <<\_ACEOF
-#define ENABLE_DEBUG 1
-_ACEOF
-
-else
-	CFLAGS="-O2"
-        KCFLAGS="-O2"
-fi
-
-
 
                                                                                                                                                                           ac_config_files="$ac_config_files Makefile m4/Makefile doc/Makefile include/Makefile include/colibri/Makefile man/Makefile src/Makefile src/addb/Makefile src/ctdb/Makefile src/fol/Makefile src/lib/Makefile src/mds/Makefile src/mds/kernel/Makefile src/net/Makefile src/nrs/Makefile src/sns/Makefile tests/Makefile"
 
@@ -20844,10 +20907,9 @@ s,@F77@,$F77,;t t
 s,@FFLAGS@,$FFLAGS,;t t
 s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
-s,@LIBOBJS@,$LIBOBJS,;t t
+s,@NM@,$NM,;t t
 s,@SRCDIR@,$SRCDIR,;t t
-s,@DB4SRC@,$DB4SRC,;t t
-s,@DB4LIBS@,$DB4LIBS,;t t
+s,@LIBOBJS@,$LIBOBJS,;t t
 s,@DARWIN_TRUE@,$DARWIN_TRUE,;t t
 s,@DARWIN_FALSE@,$DARWIN_FALSE,;t t
 s,@DARWIN@,$DARWIN,;t t
@@ -20857,6 +20919,8 @@ s,@LINUX@,$LINUX,;t t
 s,@KERNELDIR@,$KERNELDIR,;t t
 s,@KERNELDIR_OBJ@,$KERNELDIR_OBJ,;t t
 s,@KCFLAGS@,$KCFLAGS,;t t
+s,@DB4SRC@,$DB4SRC,;t t
+s,@DB4LIBS@,$DB4LIBS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
 
