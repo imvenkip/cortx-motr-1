@@ -465,7 +465,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar LT_RELEASE CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL NM SRCDIR LIBOBJS DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KERNELDIR_OBJ KCFLAGS DB4SRC DB4LIBS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar LT_RELEASE CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os SED EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL NM_B SRCDIR LIBOBJS DARWIN_TRUE DARWIN_FALSE DARWIN LINUX_TRUE LINUX_FALSE LINUX KERNELDIR KERNELDIR_OBJ KCFLAGS DB4SRC DB4LIBS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -18879,12 +18879,12 @@ fi
 set dummy nm; ac_word=$2
 echo "$as_me:$LINENO: checking for $ac_word" >&5
 echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6
-if test "${ac_cv_path_NM+set}" = set; then
+if test "${ac_cv_path_NM_B+set}" = set; then
   echo $ECHO_N "(cached) $ECHO_C" >&6
 else
-  case $NM in
+  case $NM_B in
   [\\/]* | ?:[\\/]*)
-  ac_cv_path_NM="$NM" # Let the user override the test with a path.
+  ac_cv_path_NM_B="$NM_B" # Let the user override the test with a path.
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
@@ -18894,28 +18894,28 @@ do
   test -z "$as_dir" && as_dir=.
   for ac_exec_ext in '' $ac_executable_extensions; do
   if $as_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_path_NM="$as_dir/$ac_word$ac_exec_ext"
+    ac_cv_path_NM_B="$as_dir/$ac_word$ac_exec_ext"
     echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
 done
 done
 
-  test -z "$ac_cv_path_NM" && ac_cv_path_NM="null"
+  test -z "$ac_cv_path_NM_B" && ac_cv_path_NM_B="null"
   ;;
 esac
 fi
-NM=$ac_cv_path_NM
+NM_B=$ac_cv_path_NM_B
 
-if test -n "$NM"; then
-  echo "$as_me:$LINENO: result: $NM" >&5
-echo "${ECHO_T}$NM" >&6
+if test -n "$NM_B"; then
+  echo "$as_me:$LINENO: result: $NM_B" >&5
+echo "${ECHO_T}$NM_B" >&6
 else
   echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
 fi
 
-if test "x$NM" = "xnull"; then
+if test "x$NM_B" = "xnull"; then
         { { echo "$as_me:$LINENO: error: Can't find nm program" >&5
 echo "$as_me: error: Can't find nm program" >&2;}
    { (exit 1); exit 1; }; }
@@ -19961,8 +19961,8 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-echo "$as_me:$LINENO: checking for db4 path" >&5
-echo $ECHO_N "checking for db4 path... $ECHO_C" >&6
+echo "$as_me:$LINENO: checking for db4 libs" >&5
+echo $ECHO_N "checking for db4 libs... $ECHO_C" >&6
 if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
@@ -19989,25 +19989,27 @@ echo "$as_me: error: $DB4SRC/build_unix/libdb-4.8.la not found! Build failed?" >
 	        fi
 	fi
 fi
-echo "$as_me:$LINENO: result: $DB4SRC" >&5
-echo "${ECHO_T}$DB4SRC" >&6
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+echo "$as_me:$LINENO: result: $DB4LIBS" >&5
+echo "${ECHO_T}$DB4LIBS" >&6
 
-# Check if DIO patch is applied
-echo "$as_me:$LINENO: checking for DIO patch applied to db4" >&5
+# Check if DIO patch applied
+if test x$linux = xyes; then
+        echo "$as_me:$LINENO: checking for DIO patch applied to db4" >&5
 echo $ECHO_N "checking for DIO patch applied to db4... $ECHO_C" >&6
-$NM $DB4SRC/build_unix/libdb.a | \
-grep -q -E '[[:digit:]]*[[:space:]]T[[:space:]]__os_calloc_aligned';
-rc=$?
-if ! test $rc -eq 0; then
-        echo "$as_me:$LINENO: result: no" >&5
+        $NM_B $DB4SRC/build_unix/libdb.a | \
+        grep -q -E '[[:digit:]]*[[:space:]]T[[:space:]]__os_calloc_aligned';
+        rc=$?
+        if ! test $rc -eq 0; then
+                echo "$as_me:$LINENO: result: no" >&5
 echo "${ECHO_T}no" >&6
-        { { echo "$as_me:$LINENO: error: No DIO patch applied to db4 located at $DB4SRC" >&5
-echo "$as_me: error: No DIO patch applied to db4 located at $DB4SRC" >&2;}
+                { { echo "$as_me:$LINENO: error: No DIO patch applied to db4 at $DB4SRC" >&5
+echo "$as_me: error: No DIO patch applied to db4 at $DB4SRC" >&2;}
    { (exit 1); exit 1; }; }
-else
-        echo "$as_me:$LINENO: result: yes" >&5
+        else
+                echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6
+        fi
 fi
 
 
@@ -20907,7 +20909,7 @@ s,@F77@,$F77,;t t
 s,@FFLAGS@,$FFLAGS,;t t
 s,@ac_ct_F77@,$ac_ct_F77,;t t
 s,@LIBTOOL@,$LIBTOOL,;t t
-s,@NM@,$NM,;t t
+s,@NM_B@,$NM_B,;t t
 s,@SRCDIR@,$SRCDIR,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@DARWIN_TRUE@,$DARWIN_TRUE,;t t
