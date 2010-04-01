@@ -103,18 +103,18 @@ struct c2_cm {
 
    Data structure to describe the fraction of resource usage limitation:
    0  : resource cannot be used at all.
-   100: resouece can be used entirely without limitation.
+   100: resource can be used entirely without limitation.
    0 < value < 100: fraction of resources can be used.
 */
 struct c2_rlimit {
        int rl_cpu;
        int rl_memory;
-       int rl_disk;
-       int rl_network;
+       int rl_storage_throughput;
+       int rl_network_throughput;
 };
 
 /** input set stat */
-struct c2_cm_iset_stat{
+struct c2_cm_iset_stat {
        int progess;
        int error;
 };
@@ -129,7 +129,7 @@ struct c2_cm_iset {
 int  c2_cm_iset_init(struct c2_cm_iset *iset);
 void c2_cm_iset_fini(struct c2_cm_iset *iset);
 
-/** adjust resource limiation paramters for this input set. */
+/** adjust resource limitation parameters for this input set. */
 int c2_cm_iset_adjust_rlimit(struct c2_cm_iset *iset, struct c2_rlimit *new_rl);
 int c2_cm_iset_stat(const struct c2_cm_iset *iset,
                    struct c2_cm_iset_stat *stat /**< [out] output stat */
