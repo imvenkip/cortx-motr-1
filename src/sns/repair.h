@@ -98,12 +98,42 @@ struct c2_cm {
 	struct c2_persistent_sm cm_mach;
 };
 
+/** 
+   resource limit
+
+   Data structure to describe the fraction of resource usage limitation:
+   0  : resource cannot be used at all.
+   100: resouece can be used entirely without limitation.
+   0 < value < 100: fraction of resources can be used.
+*/
+struct c2_rlimit {
+       int rl_cpu;
+       int rl_memory;
+       int rl_disk;
+       int rl_network;
+};
+
+/** input set stat */
+struct c2_cm_iset_stat{
+       int progess;
+       int error;
+};
+
 /** input set description */
 struct c2_cm_iset {
+       struct c2_rlimit  ci_rlimit;  /**< resource limitation of this input. */
+       struct c2_cm_iset_stat ci_stat;
+       struct list_head  ci_linkage; /**< link this input onto global list.  */
 };
 
 int  c2_cm_iset_init(struct c2_cm_iset *iset);
 void c2_cm_iset_fini(struct c2_cm_iset *iset);
+
+/** adjust resource limiation paramters for this input set. */
+int c2_cm_iset_adjust_rlimit(struct c2_cm_iset *iset, struct c2_rlimit *new_rl);
+int c2_cm_iset_stat(const struct c2_cm_iset *iset,
+                   struct c2_cm_iset_stat *stat /**< [out] output stat */
+                  );
 
 struct c2_cm_iset_cursor {
 	struct c2_cm_iset    *ic_iset;
