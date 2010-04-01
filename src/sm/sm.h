@@ -57,9 +57,18 @@ int            c2_sm_event_wait (struct c2_sm_event *sm);
 int            c2_sm_event_apply(struct c2_sm_event *sm);
 int            c2_sm_event_queue(struct c2_sm_event *sm);
 
+struct c2_persistent_sm_ops;
+
 /** persistent state machine */
 struct c2_persistent_sm {
-	struct c2_sm ps_sm;
+	struct c2_sm                 ps_sm;
+	struct c2_persistent_sm_ops *ps_ops;
+};
+
+struct c2_persistent_sm_ops {
+	int (*pso_register)(struct dtm *dtm, struct c2_persistent_sm *pmach);
+	int (*pso_unregister)(struct c2_persistent_sm *pmach);
+	int (*pso_recover)(struct c2_persistent_sm *pmach);
 };
 
 /** @} end of sm group */
