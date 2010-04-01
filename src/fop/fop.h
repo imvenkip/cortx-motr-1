@@ -5,15 +5,20 @@
 
 /**
    @defgroup fop File operation packet
+
+   @note "Had I been one of the tragic bums who lurked in the mist of that
+          station platform where a brittle young FOP was pacing back and forth,
+          I would not have withstood the temptation to destroy him."
+
    @{
 */
 
 typedef uint32_t foptype_code_t;
 
 struct foptype {
-	foptype_code_t ft_code;
-	const char    *ft_name;
-	c2_list        ft_linkage;
+	foptype_code_t  ft_code;
+	const char     *ft_name;
+	c2_list_link    ft_linkage;
 
 	int (*ft_incoming)(struct foptype *ftype, struct fop *fop);
 };
