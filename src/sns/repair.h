@@ -14,6 +14,8 @@
 
    @section repairfuncspec Functional specification
 
+   @section repairlogspec Logical specification
+
        @ref poolmachine
        @ref copymachine
  */
@@ -135,17 +137,26 @@ int c2_cm_iset_stat(const struct c2_cm_iset *iset,
                    struct c2_cm_iset_stat *stat /**< [out] output stat */
                   );
 
+struct c2_container;
+struct c2_device;
+struct c2_layout;
+
 struct c2_cm_iset_cursor {
 	struct c2_cm_iset    *ic_iset;
 	struct c2_poolserver *ic_server;
-	struct c2_device     *ic_server;
+	struct c2_device     *ic_device;
 	struct c2_container  *ic_container;
 	struct c2_layout     *ic_layout;
+	/** an extent within the container. */
 	struct c2_ext         ic_extent;
 };
 
 int  c2_cm_iset_cursor_init   (struct c2_cm_iset_cursor *cur);
 void c2_cm_iset_cursor_fini   (struct c2_cm_iset_cursor *cur);
+void c2_cm_iset_cursor_copy   (struct c2_cm_iset_cursor *dst,
+			       const struct c2_cm_iset_cursor *src);
+int  c2_cm_iset_cursor_cmp    (const struct c2_cm_iset_cursor *c0,
+			       const struct c2_cm_iset_cursor *c1);
 
 int  c2_cm_iset_server_next   (struct c2_cm_iset_cursor *cur);
 int  c2_cm_iset_device_next   (struct c2_cm_iset_cursor *cur);
@@ -154,10 +165,6 @@ int  c2_cm_iset_layout_next   (struct c2_cm_iset_cursor *cur);
 int  c2_cm_iset_extent_next   (struct c2_cm_iset_cursor *cur);
 
 struct c2_dtx;
-struct c2_container;
-struct c2_device;
-struct c2_layout;
-
 struct c2_cm_callbacks {
 	void (*cb_group)     (struct c2_cm *mach, struct c2_dtx *tx, ???);
 	void (*cb_layout)    (struct c2_cm *mach, struct c2_dtx *tx,
@@ -169,6 +176,30 @@ struct c2_cm_callbacks {
 	void (*cb_server)    (struct c2_cm *mach, struct c2_dtx *tx,
 			      struct c2_poolserver *server);
 	void (*cb_everything)(struct c2_cm *mach, struct c2_dtx *tx, bool done);
+};
+
+/**
+   Aggregation group
+*/
+struct c2_cm_aggrg_group {
+};
+
+/**
+   Copy machine aggregation method
+*/
+struct c2_cm_aggrg {
+	/** finds at extent at cursor that maps to a single aggregation
+	    group. */
+	int (*cag_group_get)(const struct c2_cm_aggrg *agg, 
+			     const struct c2_cm_iset_cursor *cur,
+			     struct c2_ext *ext, 
+			     struct c2_cm_aggrg_group *group);
+};
+
+/**
+   Copy machine transformation method
+*/
+struct c2_cm_xform {
 };
 
 struct c2_cm_agent {
