@@ -54,7 +54,7 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libnrs_la_DEPENDENCIES =
+libnrs_la_DEPENDENCIES = $(top_builddir)/src/aux/libaux.la
 am_libnrs_la_OBJECTS = nrs.lo
 libnrs_la_OBJECTS = $(am_libnrs_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -187,7 +187,7 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libnrs.la
 libnrs_la_SOURCES = nrs.c
 libnrs_la_LDFLAGS = -release @LT_RELEASE@
-libnrs_la_LIBADD = @LIBS@
+libnrs_la_LIBADD = $(top_builddir)/src/aux/libaux.la @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 

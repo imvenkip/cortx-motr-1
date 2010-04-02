@@ -36,7 +36,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src/lib
+subdir = src/aux
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -54,9 +54,9 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libcolibri_la_DEPENDENCIES =
-am_libcolibri_la_OBJECTS = colibri.lo
-libcolibri_la_OBJECTS = $(am_libcolibri_la_OBJECTS)
+libaux_la_DEPENDENCIES =
+am_libaux_la_OBJECTS = aux.lo
+libaux_la_OBJECTS = $(am_libaux_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -68,8 +68,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libcolibri_la_SOURCES)
-DIST_SOURCES = $(libcolibri_la_SOURCES)
+SOURCES = $(libaux_la_SOURCES)
+DIST_SOURCES = $(libaux_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -184,10 +184,10 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-lib_LTLIBRARIES = libcolibri.la
-libcolibri_la_SOURCES = colibri.c
-libcolibri_la_LDFLAGS = -release @LT_RELEASE@
-libcolibri_la_LIBADD = @LIBS@
+lib_LTLIBRARIES = libaux.la
+libaux_la_SOURCES = aux.c
+libaux_la_LDFLAGS = -release @LT_RELEASE@
+libaux_la_LIBADD = @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 
@@ -202,9 +202,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  src/lib/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  src/aux/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  src/lib/Makefile
+	  $(AUTOMAKE) --gnu  src/aux/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -249,8 +249,8 @@ clean-libLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libcolibri.la: $(libcolibri_la_OBJECTS) $(libcolibri_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libcolibri_la_LDFLAGS) $(libcolibri_la_OBJECTS) $(libcolibri_la_LIBADD) $(LIBS)
+libaux.la: $(libaux_la_OBJECTS) $(libaux_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libaux_la_LDFLAGS) $(libaux_la_OBJECTS) $(libaux_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -258,7 +258,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/colibri.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aux.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \

@@ -4,12 +4,12 @@
 
 #include <colibri/colibri.h>
 
-int colibri_init()
+int aux_init()
 {
 	return 0;
 }
 
-void colibri_fini()
+void aux_fini()
 {
 	return;
 }

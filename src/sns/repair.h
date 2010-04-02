@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __SNS_REPAIR_H__
-#define __SNS_REPAIR_H__
+#ifndef __COLIBRI_SNS_REPAIR_H__
+#define __COLIBRI_SNS_REPAIR_H__
 
 #include <sm/sm.h>
 
@@ -229,7 +229,7 @@ struct c2_cm_collecting_agent {
 
 /** @} end of copymachine group */
 
-/* __SNS_REPAIR_H__ */
+/* __COLIBRI_SNS_REPAIR_H__ */
 #endif
 
 /* 
