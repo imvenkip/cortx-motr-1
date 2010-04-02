@@ -95,10 +95,22 @@ int  c2_poolserver_device_leave(struct c2_poolserver *srv,
    @{
 */
 
+/** copy machine stats */
+struct c2_cm_stats {
+       int cm_progess;
+       int cm_error;
+};
+
 /** copy machine */
 struct c2_cm {
 	struct c2_persistent_sm cm_mach;
+	struct c2_cm_stats	cm_stats;
 };
+
+/** get stats from copy machine */
+int c2_cm_stats(const struct c2_cm *cm,
+                struct c2_cm_stats *stats /**< [out] output stats */
+               );
 
 /** 
    resource limit
@@ -115,16 +127,9 @@ struct c2_rlimit {
        int rl_network_throughput;
 };
 
-/** input set stat */
-struct c2_cm_iset_stat {
-       int progess;
-       int error;
-};
-
 /** input set description */
 struct c2_cm_iset {
        struct c2_rlimit  ci_rlimit;  /**< resource limitation of this input. */
-       struct c2_cm_iset_stat ci_stat;
        struct list_head  ci_linkage; /**< link this input onto global list.  */
 };
 
@@ -133,9 +138,6 @@ void c2_cm_iset_fini(struct c2_cm_iset *iset);
 
 /** adjust resource limitation parameters for this input set. */
 int c2_cm_iset_adjust_rlimit(struct c2_cm_iset *iset, struct c2_rlimit *new_rl);
-int c2_cm_iset_stat(const struct c2_cm_iset *iset,
-                   struct c2_cm_iset_stat *stat /**< [out] output stat */
-                  );
 
 struct c2_container;
 struct c2_device;
