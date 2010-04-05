@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __SNS_REPAIR_H__
-#define __SNS_REPAIR_H__
+#ifndef __COLIBRI_SNS_REPAIR_H__
+#define __COLIBRI_SNS_REPAIR_H__
 
 #include <sm/sm.h>
 
@@ -121,7 +121,7 @@ int c2_cm_stats(const struct c2_cm *cm,
    0 < value < 100: fraction of resources can be used.
 */
 struct c2_rlimit {
-       int rl_cpu;
+       int rl_processor_throughput;
        int rl_memory;
        int rl_storage_throughput;
        int rl_network_throughput;
@@ -231,7 +231,7 @@ struct c2_cm_collecting_agent {
 
 /** @} end of copymachine group */
 
-/* __SNS_REPAIR_H__ */
+/* __COLIBRI_SNS_REPAIR_H__ */
 #endif
 
 /* 

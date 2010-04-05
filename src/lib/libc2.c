@@ -4,12 +4,12 @@
 
 #include <colibri/colibri.h>
 
-int colibri_init()
+int libc2_init()
 {
 	return 0;
 }
 
-void colibri_fini()
+void libc2_fini()
 {
 	return;
 }

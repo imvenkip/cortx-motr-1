@@ -88,6 +88,11 @@ AC_ARG_ENABLE(gssrpc,
         enable_gssrpc=no
 )
 
+AC_ARG_ENABLE(db4-dio,
+        AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support]), ,
+        enable_db4_dio=no
+)
+
 case $host_os in
         darwin*) darwin="yes" ;;
         linux*) linux="yes" ;;
@@ -160,11 +165,20 @@ if test x$with_db4 != x; then
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Did you build db-4?)
 	fi
+        DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+        AC_MSG_RESULT([$DB4LIBS])
 else
 	DB4SRC="$SRCDIR/../colibri-db4"
 	if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 		oldcwd=$(pwd)
-		cd $DB4SRC/build_unix && ../dist/configure --enable-o_direct && make
+		if test x$enable_db4_dio = xyes; then
+		        dio_options="--enable-o_direct"
+		else
+		        dio_options=""
+		fi
+                AC_MSG_RESULT([building $DB4SRC])
+                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure $dio_options && make])
+		cd $DB4SRC/build_unix && ../dist/configure $dio_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then 
@@ -173,16 +187,18 @@ else
 		if ! test -f $DB4SRC/build_unix/libdb-4.8.la; then
 			AC_MSG_ERROR($DB4SRC/build_unix/libdb-4.8.la not found! Build failed?)
 	        fi
+	else
+                DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
+                AC_MSG_RESULT([$DB4LIBS])
 	fi
 fi
 DB4LIBS="$DB4SRC/build_unix/libdb-4.8.la"
-AC_MSG_RESULT([$DB4LIBS])
 
 # Check if DIO patch applied
-if test x$linux = xyes; then
+if test x$linux = xyes -a x$enable_db4_dio = xyes; then
         AC_MSG_CHECKING([for DIO patch applied to db4])
         $NM_B $DB4SRC/build_unix/libdb.a | \
-        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_aligned';
+        grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
         if ! test $rc -eq 0; then
                 AC_MSG_RESULT([no])
@@ -220,14 +236,18 @@ AC_CONFIG_FILES([
                  include/colibri/Makefile
                  man/Makefile
                  src/Makefile
+                 src/lib/Makefile
+                 src/dtm/Makefile
                  src/addb/Makefile
                  src/ctdb/Makefile
                  src/fol/Makefile
-                 src/lib/Makefile
-                 src/mds/Makefile
-                 src/mds/kernel/Makefile
+                 src/fop/Makefile
                  src/net/Makefile
                  src/nrs/Makefile
                  src/sns/Makefile
+                 src/sm/Makefile
+                 src/mds/Makefile
+                 src/colibri/Makefile
+                 patches/Makefile
                  tests/Makefile])
 AC_OUTPUT

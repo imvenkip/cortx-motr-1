@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __FOP_FOP_H__
-#define __FOP_FOP_H__
+#ifndef __COLIBRI_FOP_H__
+#define __COLIBRI_FOP_H__
 
 /**
    @defgroup fop File operation packet
@@ -34,7 +34,7 @@ void foptype_unregister(struct foptype *ftype);
 
 /** @} end of fop group */
 
-/* __FOP_FOP_H__ */
+/* __COLIBRI_FOP_H__ */
 #endif
 
 /* 

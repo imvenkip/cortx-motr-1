@@ -54,7 +54,7 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libctdb_la_DEPENDENCIES =
+libctdb_la_DEPENDENCIES = $(top_builddir)/src/lib/libc2.la
 am_libctdb_la_OBJECTS = ctdb.lo
 libctdb_la_OBJECTS = $(am_libctdb_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -187,7 +187,7 @@ target_alias = @target_alias@
 lib_LTLIBRARIES = libctdb.la
 libctdb_la_SOURCES = ctdb.c
 libctdb_la_LDFLAGS = -release @LT_RELEASE@
-libctdb_la_LIBADD = @LIBS@
+libctdb_la_LIBADD = $(top_builddir)/src/lib/libc2.la @LIBS@
 INCLUDES = -I. -I$(top_srcdir)/include
 all: all-am
 

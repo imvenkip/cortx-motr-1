@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __LIB_ADT_H__
-#define __LIB_ADT_H__
+#ifndef __COLIBRI_ADT_H__
+#define __COLIBRI_ADT_H__
 
 /**
    @defgroup adt Basic abstract data types
@@ -64,7 +64,7 @@ uint64_t c2_ext_cap(const struct c2_ext *ext2, uint64_t val);
 /** @} end of adt group */
 
 
-/* __LIB_ADT_H__ */
+/* __COLIBRI_ADT_H__ */
 #endif
 
 /* 

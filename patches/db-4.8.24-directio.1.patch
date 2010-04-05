@@ -1,7 +1,7 @@
 diff -rupN db-4.8.24.orig/dbinc/db_int.in db-4.8.24/dbinc/db_int.in
 --- db-4.8.24.orig/dbinc/db_int.in	2009-08-17 16:26:17.000000000 +0300
-+++ db-4.8.24/dbinc/db_int.in	2010-01-30 10:31:15.000000000 +0200
-@@ -161,10 +161,15 @@ typedef SH_TAILQ_HEAD(__hash_head) DB_HA
++++ db-4.8.24/dbinc/db_int.in	2010-01-31 07:52:53.000000000 +0200
+@@ -161,8 +161,13 @@ typedef SH_TAILQ_HEAD(__hash_head) DB_HA
  #define	DB_ALIGN(v, bound)						\
  	(((v) + (bound) - 1) & ~(((uintmax_t)(bound)) - 1))
  
@@ -12,14 +12,10 @@ diff -rupN db-4.8.24.orig/dbinc/db_int.in db-4.8.24/dbinc/db_int.in
 +
  /* Increment a pointer to a specific boundary. */
 -#undef	ALIGNP_INC
--#define	ALIGNP_INC(p, bound)						\
--	(void *)(((uintptr_t)(p) + (bound) - 1) & ~(((uintptr_t)(bound)) - 1))
 +#undef  ALIGNP_INC
-+#define ALIGNP_INC(p, bound)
-+        ALIGNI_INC((uintptr_t)p, bound)						\
+ #define	ALIGNP_INC(p, bound)						\
+ 	(void *)(((uintptr_t)(p) + (bound) - 1) & ~(((uintptr_t)(bound)) - 1))
  
- /*
-  * Print an address as a u_long (a u_long is the largest type we can print
 diff -rupN db-4.8.24.orig/dbinc/mp.h db-4.8.24/dbinc/mp.h
 --- db-4.8.24.orig/dbinc/mp.h	2009-08-17 16:26:17.000000000 +0300
 +++ db-4.8.24/dbinc/mp.h	2010-01-30 10:35:18.000000000 +0200
