@@ -38,6 +38,14 @@ struct c2_poolmachine {
    pool node
 
    Data structure representing a node in a pool.
+   Pool node and pool server are two different views of the same physical
+   entity. A pool node is how a server looks "externally" to other nodes.
+   "struct poolnode" represents a particular server on other servers. E.g.,
+   when a new server is added to the pool, "struct poolnode" is created on
+   every server in the pool. "struct poolserver", on the other hand, represents
+   a server state machine locally on the server where it runs.
+
+   @see pool server
 */
 struct c2_poolnode {
 };
@@ -70,7 +78,14 @@ int  c2_poolmachine_node_leave(struct c2_poolmachine *pm,
    @{
 */
 
-/** pool server */
+/** 
+   pool server
+
+   Pool server represents a pool node plus its state machines, lives locally on
+   the server where it runs.
+
+   @see pool node
+*/
 struct c2_poolserver {
 	struct c2_poolnode      ps_node;
 	struct c2_persistent_sm ps_mach;
@@ -168,7 +183,7 @@ int  c2_cm_iset_extent_next   (struct c2_cm_iset_cursor *cur);
 
 struct c2_dtx;
 struct c2_cm_callbacks {
-	void (*cb_group)     (struct c2_cm *mach, struct c2_dtx *tx, ???);
+	void (*cb_group)     (struct c2_cm *mach, struct c2_dtx *tx /*,XXX*/);
 	void (*cb_layout)    (struct c2_cm *mach, struct c2_dtx *tx,
 			      struct c2_layout *layout, c2_foff_t upto);
 	void (*cb_container) (struct c2_cm *mach, struct c2_dtx *tx,
@@ -190,7 +205,7 @@ struct c2_cm_aggrg_group {
    Copy machine aggregation method
 */
 struct c2_cm_aggrg {
-	/** finds at extent at cursor that maps to a single aggregation
+	/** finds an extent at cursor that maps to a single aggregation
 	    group. */
 	int (*cag_group_get)(const struct c2_cm_aggrg *agg, 
 			     const struct c2_cm_iset_cursor *cur,
