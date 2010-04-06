@@ -239,6 +239,25 @@ struct c2_cm_aggrg {
 struct c2_cm_xform {
 };
 
+/** 
+   copy packet
+
+   Copy packet is the data structure used to describe the packet flowing between
+   various copy machine agents. E.g., it is allocated by storage-in agent,
+   queued by copy machine, sent to network-in agent, or storage-out agent, or
+   collecting agent.
+   Copy packet is linked to the copy machine global list via a list head.
+*/
+struct c2_cm_copy_packet {
+	int 		   cp_type;
+	int 		   cp_magic;
+	struct c2_checksum cp_checksum;
+	struct list_head   cp_linkage; /**< linkage to the global list */
+
+	void 		  *cp_data; /**< pointer to data */
+	int		   cp_len;  /**< data length */
+};
+
 /** copy machine */
 struct c2_cm {
 	struct c2_persistent_sm cm_mach;
@@ -248,10 +267,12 @@ struct c2_cm {
 	struct c2_cm_oset	cm_oset;
 	struct c2_cm_operations cm_operations;
 	struct c2_cm_callbacks  cm_callbacks;
+	struct list_head	cm_copy_packets;  /**< link all copy packets */
 };
 
 struct c2_cm_agent;
 struct c2_cm_agent_config { /* TODO */ };
+
 /** 
    copy machine agent operations
 
@@ -265,6 +286,14 @@ struct c2_cm_agent_operations {
 	int (*run)   (struct c2_cm *this);
 };
 
+/**
+   copy machine agent
+
+   Copy machine agent is the base class for all agents: storage-in, storage-out,
+   network-in, network-out, collecting, ...
+   Copy machine agent has the basic properties and functions shared by all
+   agents.
+*/
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
 	struct c2_cm		     *ag_parent;
