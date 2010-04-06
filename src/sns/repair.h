@@ -110,22 +110,13 @@ int  c2_poolserver_device_leave(struct c2_poolserver *srv,
    @{
 */
 
+struct c2_cm;
+
 /** copy machine stats */
 struct c2_cm_stats {
-       int cm_progess;
-       int cm_error;
+	int cm_progess;
+	int cm_error;
 };
-
-/** copy machine */
-struct c2_cm {
-	struct c2_persistent_sm cm_mach;
-	struct c2_cm_stats	cm_stats;
-};
-
-/** get stats from copy machine */
-int c2_cm_stats(const struct c2_cm *cm,
-                struct c2_cm_stats *stats /**< [out] output stats */
-               );
 
 /** 
    resource limit
@@ -142,17 +133,41 @@ struct c2_rlimit {
        int rl_network_throughput;
 };
 
-/** input set description */
+/** copy machine input set description */
 struct c2_cm_iset {
-       struct c2_rlimit  ci_rlimit;  /**< resource limitation of this input. */
-       struct list_head  ci_linkage; /**< link this input onto global list.  */
+};
+
+/** copy machine output set description */
+struct c2_cm_oset {
 };
 
 int  c2_cm_iset_init(struct c2_cm_iset *iset);
 void c2_cm_iset_fini(struct c2_cm_iset *iset);
 
-/** adjust resource limitation parameters for this input set. */
-int c2_cm_iset_adjust_rlimit(struct c2_cm_iset *iset, struct c2_rlimit *new_rl);
+int  c2_cm_oset_init(struct c2_cm_oset *oset);
+void c2_cm_oset_fini(struct c2_cm_oset *oset);
+
+/** 
+   copy machine operations
+
+   A copy machine has a handler which handles FOP requests. A copy machine is
+   responsible to create corresponding agents to do the actual work.
+*/
+struct c2_cm_operations {
+	int (*init)   (struct c2_cm *this);
+	int (*stop)   (struct c2_cm *this, int force);
+	int (*config) (struct c2_cm *this, struct c2_cm_iset *iset,
+		       struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
+	int (*handler)(struct c2_cm *this, struct c2_fop *req);
+};
+
+/** get stats from copy machine */
+int c2_cm_stats(const struct c2_cm *cm,
+                struct c2_cm_stats *stats /**< [out] output stats */
+               );
+
+/** adjust resource limitation parameters dynamically. */
+int c2_cm_adjust_rlimit(struct c2_cm *cm, struct c2_rlimit *new_rl);
 
 struct c2_container;
 struct c2_device;
@@ -168,18 +183,21 @@ struct c2_cm_iset_cursor {
 	struct c2_ext         ic_extent;
 };
 
-int  c2_cm_iset_cursor_init   (struct c2_cm_iset_cursor *cur);
-void c2_cm_iset_cursor_fini   (struct c2_cm_iset_cursor *cur);
-void c2_cm_iset_cursor_copy   (struct c2_cm_iset_cursor *dst,
-			       const struct c2_cm_iset_cursor *src);
-int  c2_cm_iset_cursor_cmp    (const struct c2_cm_iset_cursor *c0,
-			       const struct c2_cm_iset_cursor *c1);
+/** copy machine input set cursor operations */
+struct c2_cm_iset_cursor_operations {
+	int  c2_cm_iset_cursor_init   (struct c2_cm_iset_cursor *cur);
+	void c2_cm_iset_cursor_fini   (struct c2_cm_iset_cursor *cur);
+	void c2_cm_iset_cursor_copy   (struct c2_cm_iset_cursor *dst,
+				       const struct c2_cm_iset_cursor *src);
+	int  c2_cm_iset_cursor_cmp    (const struct c2_cm_iset_cursor *c0,
+				       const struct c2_cm_iset_cursor *c1);
 
-int  c2_cm_iset_server_next   (struct c2_cm_iset_cursor *cur);
-int  c2_cm_iset_device_next   (struct c2_cm_iset_cursor *cur);
-int  c2_cm_iset_container_next(struct c2_cm_iset_cursor *cur);
-int  c2_cm_iset_layout_next   (struct c2_cm_iset_cursor *cur);
-int  c2_cm_iset_extent_next   (struct c2_cm_iset_cursor *cur);
+	int  c2_cm_iset_server_next   (struct c2_cm_iset_cursor *cur);
+	int  c2_cm_iset_device_next   (struct c2_cm_iset_cursor *cur);
+	int  c2_cm_iset_container_next(struct c2_cm_iset_cursor *cur);
+	int  c2_cm_iset_layout_next   (struct c2_cm_iset_cursor *cur);
+	int  c2_cm_iset_extent_next   (struct c2_cm_iset_cursor *cur);
+};
 
 struct c2_dtx;
 struct c2_cm_callbacks {
@@ -201,15 +219,17 @@ struct c2_cm_callbacks {
 struct c2_cm_aggrg_group {
 };
 
+struct c2_cm_agent;
+
 /**
    Copy machine aggregation method
 */
 struct c2_cm_aggrg {
 	/** finds an extent at cursor that maps to a single aggregation
 	    group. */
-	int (*cag_group_get)(const struct c2_cm_aggrg *agg, 
+	int (*cag_group_get)(const struct c2_cm_agent *agent,
 			     const struct c2_cm_iset_cursor *cur,
-			     struct c2_ext *ext, 
+			     struct c2_ext *ext,
 			     struct c2_cm_aggrg_group *group);
 };
 
@@ -219,29 +239,70 @@ struct c2_cm_aggrg {
 struct c2_cm_xform {
 };
 
+/** copy machine */
+struct c2_cm {
+	struct c2_persistent_sm cm_mach;
+	struct c2_cm_stats	cm_stats;
+	struct c2_rlimit  	cm_rlimit;  /**< resource limitation */
+	struct c2_cm_iset	cm_iset;
+	struct c2_cm_oset	cm_oset;
+	struct c2_cm_operations cm_operations;
+	struct c2_cm_callbacks  cm_callbacks;
+};
+
+struct c2_cm_agent;
+struct c2_cm_agent_config { /* TODO */ };
+/** 
+   copy machine agent operations
+
+   A copy machine has a handler which handles FOP requests. A copy machine is
+   responsible to create corresponding agents to do the actual work.
+*/
+struct c2_cm_agent_operations {
+	int (*init)  (struct c2_cm_agent *this, struct c2_cm *parent);
+	int (*stop)  (struct c2_cm_agent *this, int force);
+	int (*config)(struct c2_cm_agent *this, struct c2_cm_agent_config *config);
+	int (*run)   (struct c2_cm *this);
+};
+
 struct c2_cm_agent {
-	struct c2_persistent_sm ag_mach;
+	struct c2_persistent_sm       ag_mach;
+	struct c2_cm		     *ag_parent;
+
+	struct c2_cm_aggrg	      ag_aggrg;
+	struct c2_cm_xform	      ag_xform;
+	struct c2_cm_agent_operations ag_operations;
 };
 
 struct c2_cm_storage_in_agent {
-	struct c2_cm_agent ci_agent;
+	struct c2_cm_agent  ci_agent;
+	struct c2_device   *ci_device;
 };
-
 struct c2_cm_storage_out_agent {
-	struct c2_cm_agent co_agent;
+	struct c2_cm_agent  co_agent;
+	struct c2_device   *ci_device;
 };
 
 struct c2_cm_network_in_agent {
-	struct c2_cm_agent ni_agent;
+	struct c2_cm_agent   ni_agent;
+	struct c2_transport *ni_transport;
 };
 
 struct c2_cm_network_out_agent {
-	struct c2_cm_agent no_agent;
+	struct c2_cm_agent   no_agent;
+	struct c2_transport *no_transport;
 };
 
 struct c2_cm_collecting_agent {
 	struct c2_cm_agent c_agent;
 };
+
+
+struct c2_cm_agent *alloc_storage_in_agent();
+struct c2_cm_agent *alloc_storage_out_agent();
+struct c2_cm_agent *alloc_network_in_agent();
+struct c2_cm_agent *alloc_network_out_agent();
+struct c2_cm_agent *alloc_collecting_agent();
 
 
 /** @} end of copymachine group */
