@@ -220,3 +220,4 @@ try to adhere to some higher level idioms.
 
       (Rationale: avoids inconsistent data structures on different arch);
 
+    * No comparism between signed vs unsigned without explicit casting.
