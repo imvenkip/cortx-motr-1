@@ -159,6 +159,7 @@ struct c2_cm_operations {
 	int (*config) (struct c2_cm *this, struct c2_cm_iset *iset,
 		       struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
 	int (*handler)(struct c2_cm *this, struct c2_fop *req);
+	int (*queue)  (struct c2_cm_copy_packet *cp);
 };
 
 /** get stats from copy machine */
@@ -249,24 +250,25 @@ struct c2_cm_xform {
    Copy packet is linked to the copy machine global list via a list head.
 */
 struct c2_cm_copy_packet {
-	int 		   cp_type;
-	int 		   cp_magic;
-	struct c2_checksum cp_checksum;
+	uint32_t	   cp_type;    /**< type of this copy packet */
+	uint32_t	   cp_magic;   /**< magic number */
+	struct c2_checksum cp_checksum;/**< checksum of the data */
 	struct list_head   cp_linkage; /**< linkage to the global list */
+	struct c2_ref	   cp_ref;     /**< reference count */
 
-	void 		  *cp_data; /**< pointer to data */
-	int		   cp_len;  /**< data length */
+	void 		  *cp_data;    /**< pointer to data */
+	uint32_t	   cp_len;     /**< data length */
 };
 
 /** copy machine */
 struct c2_cm {
-	struct c2_persistent_sm cm_mach;
-	struct c2_cm_stats	cm_stats;
-	struct c2_rlimit  	cm_rlimit;  /**< resource limitation */
-	struct c2_cm_iset	cm_iset;
-	struct c2_cm_oset	cm_oset;
-	struct c2_cm_operations cm_operations;
-	struct c2_cm_callbacks  cm_callbacks;
+	struct c2_persistent_sm cm_mach;          /**< persistant state machine */
+	struct c2_cm_stats	cm_stats;         /**< stats */
+	struct c2_rlimit  	cm_rlimit;        /**< resource limitation */
+	struct c2_cm_iset	cm_iset;          /**< input set description */
+	struct c2_cm_oset	cm_oset;          /**< output set description */
+	struct c2_cm_operations cm_operations;    /**< operations of this cm */
+	struct c2_cm_callbacks  cm_callbacks;     /**< callbacks of this cm */
 	struct list_head	cm_copy_packets;  /**< link all copy packets */
 };
 
@@ -283,7 +285,7 @@ struct c2_cm_agent_operations {
 	int (*init)  (struct c2_cm_agent *this, struct c2_cm *parent);
 	int (*stop)  (struct c2_cm_agent *this, int force);
 	int (*config)(struct c2_cm_agent *this, struct c2_cm_agent_config *config);
-	int (*run)   (struct c2_cm *this);
+	int (*run)   (struct c2_cm_agent *this);
 };
 
 /**
@@ -306,6 +308,7 @@ struct c2_cm_agent {
 struct c2_cm_storage_in_agent {
 	struct c2_cm_agent  ci_agent;
 	struct c2_device   *ci_device;
+	int		    ci_quit;
 };
 struct c2_cm_storage_out_agent {
 	struct c2_cm_agent  co_agent;
@@ -332,6 +335,21 @@ struct c2_cm_agent *alloc_storage_out_agent();
 struct c2_cm_agent *alloc_network_in_agent();
 struct c2_cm_agent *alloc_network_out_agent();
 struct c2_cm_agent *alloc_collecting_agent();
+
+/**
+   alloc a copy packet
+
+   allocate a new copy packet for future use.
+   @retval NULL failed to allocate a new copy packet.
+   @retval non-NULL pointer to the newly allocated copy packet.
+   @postcondition refcount == 1
+*/
+struct c2_cm_copy_packet *c2_cm_cp_alloc();
+/** add reference to a copy packet */
+int c2_cm_cp_refadd(struct c2_cm_copy_packet *cp);
+/** release reference from a copy packet. When refcount drops to 0, free it */
+int c2_cm_cp_refdel(struct c2_cm_copy_packet *cp);
+
 
 
 /** @} end of copymachine group */
