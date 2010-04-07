@@ -242,6 +242,7 @@ AC_CONFIG_FILES([
                  include/colibri/Makefile
                  man/Makefile
                  lib/Makefile
+                 lib/ut/Makefile
                  dtm/Makefile
                  addb/Makefile
                  ctdb/Makefile
