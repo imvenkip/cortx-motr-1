@@ -30,3 +30,4 @@ endif
 
 distdir:
 	cp $(COLIBRI_SRCDIR)/Makefile.in $(COLIBRI_SRCDIR)/colibri.c @top_builddir@/@PACKAGE@-@VERSION@/colibri
+

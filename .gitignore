@@ -16,6 +16,7 @@ depcomp
 INSTALL
 install-sh
 Makefile
+Makefile.in
 missing
 mkinstalldirs
 Module.markers
