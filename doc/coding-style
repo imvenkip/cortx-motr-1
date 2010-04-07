@@ -213,3 +213,10 @@ try to adhere to some higher level idioms.
 
       (Rationale: avoids duplication of bugs.);
 
+    * use scalar data type with explicit bits, instead of "long" or "int".
+      E.g., int32_t, int64_t, uint32_t, uint64_t should be used to represent
+      32-bits, 64-bits integers, unsigned 32-bits, unsigned 64-bits integers
+      repectively.
+
+      (Rationale: avoids inconsistent data structures on different arch);
+
