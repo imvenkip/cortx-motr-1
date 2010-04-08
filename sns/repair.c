@@ -10,7 +10,7 @@ c2_cm_storage_in_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
 	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
 					struct c2_cm_storage_in_agent, ci_agent);
 	this->ag_parent = parent;
-	ci_agent->ci_quit = 0;
+	this->ag_quit = 0;
 	return 0;
 }
 
@@ -19,7 +19,7 @@ static int c2_cm_storage_in_agent_stop(struct c2_cm_agent *this, int force)
 	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
 					struct c2_cm_storage_in_agent, ci_agent);
 	
-	ci_agent->ci_quit = 1;
+	this->ag_quit = 1;
 	return 0;
 }
 
@@ -68,7 +68,7 @@ static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 								
 								dlm_create_res_id(&id, &chunk, c2_cm_ci_dlm_completion);
 								
-								if (agent->ci_quit)
+								if (agent->ci_agent->ag_quit)
 									goto out_quit;
 								rc = dlm_enqueue_async(&id);
 
@@ -103,12 +103,12 @@ static int c2_cm_storage_in_agent_submitting(struct c2_cm_storage_in_agent *agen
 {
 	struct c2_ext chunk;
 	while (1) {
-		wait_event( (rlimit <= threshold) && !buffer_pool_empty() && !ready_queue_empty() && !agent->ci_quit);
+		wait_event((rlimit <= threshold && !buffer_pool_empty() && !ready_queue_empty()) || agent->ci_agent->ag_quit);
 	
-		if (agent->ci_quit)
+		if (agent->ci_agent->ag_quit)
 			break;
 		get_a_chunk_from_ready_queue(&chunk);
-		submit_aio_read(&chunk, c2_cm_storage_in_agent_io_completion);
+		submit_aio_read(agent->ci_device, &chunk, c2_cm_storage_in_agent_io_completion);
 	}
 	return 0;
 }
@@ -127,3 +127,149 @@ static int c2_cm_storage_in_agent_run(struct c2_cm_agent *this)
 	c2_thread_wait(t2);
 	return 0;
 }
+
+
+static int 
+c2_cm_storage_out_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
+{
+	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+					struct c2_cm_storage_out_agent, co_agent);
+	this->ag_parent = parent;
+	thia->ag_quit = 0;
+	return 0;
+}
+
+static int c2_cm_storage_out_agent_stop(struct c2_cm_agent *this, int force)
+{
+	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+					struct c2_cm_storage_out_agent, co_agent);
+	
+	this->ag_quit = 1;
+	return 0;
+}
+
+static int c2_cm_storage_out_agent_config(struct c2_cm_agent *this,
+				  	  struct c2_cm_agent_config *config)
+{
+	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+					struct c2_cm_storage_out_agent, co_agent);
+	return 0;
+}
+
+static int c2_cm_storage_out_agent_io_completion(void * data)
+{
+	struct c2_cm_copy_packet *cp = (struct c2_cm_copy_packet *)data;
+	c2_cm_cp_refdel(cp);
+}
+
+static int c2_cm_storage_out_agent_submitting(struct c2_cm_storage_out_agent *agent)
+{
+	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_device         *d = agent->co_device;
+	struct c2_cm_copy_packet *cp;
+
+	while (!agent->co_agent->ag_quit) {
+		c2_wait_event( (!agent->co_incoming_queue_empty() && rlimit <= thread) || !agent->co_agent->ag_quit);
+		if (agent->co_quit)
+			break;	
+
+		cp = agent->get_cp_from_queue();
+		submit_aio_write(d, cp, c2_cm_storage_out_agent_io_completion);
+	}
+
+	return 0;
+}
+
+static int c2_cm_storage_out_agent_handle_clio(struct c2_cm_storage_out_agent *agent)
+{
+	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_device         *d = agent->co_device;
+	struct c2_cm_copy_packet *cp;
+
+	while (!agent->co_agent->ag_quit) {
+		/* TODO handle normal IO here */
+	}
+
+	return 0;
+}
+
+static int c2_cm_storage_out_agent_run(struct c2_cm_agent *this)
+{
+	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+					struct c2_cm_storage_out_agent, co_agent);
+	struct c2_thread *t1;
+	struct c2_thread *t2;
+
+	t1 = c2_thread_create(c2_cm_storage_out_agent_submitting, co_agent);
+	t2 = c2_thread_create(c2_cm_storage_out_agent_handle_clio, co_agent);
+
+	c2_thread_wait(t1);
+	c2_thread_wait(t2);
+	return 0;
+}
+
+
+static int 
+c2_cm_network_in_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
+{
+	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+					struct c2_cm_network_in_agent, ni_agent);
+	this->ag_parent = parent;
+	this->co_quit = 0;
+	return 0;
+}
+
+static int c2_cm_network_in_agent_stop(struct c2_cm_agent *this, int force)
+{
+	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+					struct c2_cm_network_in_agent, ni_agent);
+	
+	this->co_quit = 1;
+	return 0;
+}
+
+static int c2_cm_network_in_agent_config(struct c2_cm_agent *this,
+				  	  struct c2_cm_agent_config *config)
+{
+	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+					struct c2_cm_network_in_agent, ni_agent);
+	return 0;
+}
+
+static int c2_cm_network_in_agent_completion(void * data)
+{
+	struct c2_cm_copy_packet *cp = (struct c2_cm_copy_packet *)data;
+	c2_cm_cp_refdel(cp);
+}
+
+static int c2_cm_network_in_agent_receiver(struct c2_cm_network_in_agent *agent)
+{
+	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_device         *d = agent->co_device;
+	struct c2_cm_copy_packet *cp;
+
+	while (!agent->ni_agent->ag_quit) {
+		c2_wait_event( (!agent->ni_incoming_queue_empty() && rlimit <= thread) || !agent->ni_agent_ag_quit);
+		if (agent->ni_agent->ag_quit)
+			break;
+
+		cp = agent->get_cp_from_network();
+		agent->ni_agent.queue(cp, c2_cm_network_in_agent_completion);
+	}
+
+	return 0;
+}
+
+static int c2_cm_network_in_agent_run(struct c2_cm_agent *this)
+{
+	struct c2_cm_storage_out_agent *ni_agent = container_of(this,
+					struct c2_cm_network_in_agent, ni_agent);
+	struct c2_thread *t1;
+
+	t1 = c2_thread_create(c2_network_in_agent_receiver, ni_agent);
+
+	c2_thread_wait(t1);
+	return 0;
+}
+
+
