@@ -255,5 +255,8 @@ AC_CONFIG_FILES([
                  sm/Makefile
                  mds/Makefile
                  colibri/Makefile
-                 patches/Makefile])
+                 patches/Makefile
+                 utils/Makefile
+                 utils/ploss/Makefile
+                ])
 AC_OUTPUT
