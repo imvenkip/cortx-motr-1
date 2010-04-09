@@ -28,5 +28,4 @@ void c2_free(void *data, size_t size);
 
 /** @} end of memory group */
 
-
 #endif

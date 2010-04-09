@@ -144,12 +144,12 @@ if test x$linux = xyes; then
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="-O0 -g"
-        KCFLAGS="-O0 -g"
+        CFLAGS="-Wall -Werror -O0 -g"
+        KCFLAGS="-Wall -Werror -O0 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
-	CFLAGS="-O2"
-        KCFLAGS="-O2"
+	CFLAGS="-Wall -Werror -O2"
+        KCFLAGS="-Wall -Werror -O2"
 fi
 AC_SUBST(KCFLAGS)
 
@@ -171,7 +171,7 @@ if test x$with_db4 != x; then
 	fi
         AC_MSG_RESULT([$DB4LIBS])
 else
-	DB4SRC="$SRCDIR/../colibri-db4"
+	DB4SRC="$SRCDIR/../db4"
         DB4LIBS="$DB4SRC/build_unix/libdb.a"
 	if ! test -e $DB4LIBS; then
 		oldcwd=$(pwd)

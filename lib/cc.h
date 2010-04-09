@@ -3,6 +3,8 @@
 #ifndef __COLIBRI_CC_H__
 #define __COLIBRI_CC_H__
 
+#include "lib/cdefs.h"
+
 /**
    @defgroup cc Concurrency control
    @{
@@ -32,6 +34,14 @@ struct c2_mutex {
 
 struct c2_rw_lock {
 };
+
+
+void c2_rwlock_write_lock(struct c2_rw_lock *lock);
+void c2_rwlock_write_unlock(struct c2_rw_lock *lock);
+
+void c2_rwlock_read_lock(struct c2_rw_lock *lock);
+void c2_rwlock_read_unlock(struct c2_rw_lock *lock);
+
 
 struct c2_semaphore {
 };

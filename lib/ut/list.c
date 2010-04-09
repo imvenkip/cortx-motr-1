@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -10,7 +12,7 @@ struct test1 {
 
 void test_list(void)
 {
-	struct test1	t1, t2, t3, t4;
+	struct test1	t1, t2, t3;
 	struct c2_list_link	*pos;
 	struct c2_list	test_head;
 	int t_sum;

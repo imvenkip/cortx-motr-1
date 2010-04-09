@@ -89,7 +89,7 @@ c2_list_del(struct c2_list_link *old)
  *
  * @return pointer to first list entry or NULL if list empty
  */
-static struct c2_list_link *
+static inline struct c2_list_link *
 c2_list_first(const struct c2_list *head)
 {
 	return head->first != (void *)head ? head->first : NULL ;

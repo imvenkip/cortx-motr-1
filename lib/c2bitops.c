@@ -1,4 +1,9 @@
-#include "lib/c2bitops.h"
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include "c2bitops.h"
+
 /* 31 ... 0 */
 /**
  * find bit in range
@@ -17,7 +22,6 @@ int c2_find_next_bit(long *string, uint32_t size, uint32_t start)
 	uint32_t word = BIT_WORD(start);
 	uint32_t last_word = BIT_WORD(size);
 	uint32_t pos;
-	uint32_t found;
 	long mask;
 
 	if (start >= size)
@@ -65,7 +69,6 @@ int c2_find_next_zero_bit(long *string, uint32_t size, uint32_t start)
 	uint32_t word = BIT_WORD(start);
 	uint32_t last_word = BIT_WORD(size);
 	uint32_t pos;
-	uint32_t found;
 	long mask;
 
 	if (start >= size)
