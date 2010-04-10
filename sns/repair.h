@@ -282,10 +282,10 @@ struct c2_cm_agent_config { /* TODO */ };
    responsible to create corresponding agents to do the actual work.
 */
 struct c2_cm_agent_operations {
-	int (*init)  (struct c2_cm_agent *this, struct c2_cm *parent);
-	int (*stop)  (struct c2_cm_agent *this, int force);
-	int (*config)(struct c2_cm_agent *this, struct c2_cm_agent_config *config);
-	int (*run)   (struct c2_cm_agent *this);
+	int (*agops_init)  (struct c2_cm_agent *self, struct c2_cm *parent);
+	int (*agops_stop)  (struct c2_cm_agent *self, int force);
+	int (*agops_config)(struct c2_cm_agent *self, struct c2_cm_agent_config *config);
+	int (*agops_run)   (struct c2_cm_agent *self);
 };
 
 /**
