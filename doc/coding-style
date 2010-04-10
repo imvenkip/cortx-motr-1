@@ -185,9 +185,9 @@ try to adhere to some higher level idioms.
       consts. A typical scenario is a function that doesn't modify its
       input struct argument except for taking and releasing a lock
       inside of the struct. Don't use "const" in this case. Instead,
-      document why the argument is not technically a constant.
+      document why the argument is not technically a constant;
 
-    * Control flow statement conditions should have no side-effects:
+    * control flow statement conditions should have no side-effects:
 
         alive = qoo_is_alive(elvis);
         if (alive) { /* rather than if (qoo_is_alive(elvis)) */
@@ -195,7 +195,7 @@ try to adhere to some higher level idioms.
         }
 
       (Rationale: with this convention statement coverage metric is
-      more adequate.)
+      more adequate.);
 
     * use C precedence rules to omit noise in _obvious_ expressions:
 
@@ -213,11 +213,12 @@ try to adhere to some higher level idioms.
 
       (Rationale: avoids duplication of bugs.);
 
-    * use scalar data type with explicit bits, instead of "long" or "int".
-      E.g., int32_t, int64_t, uint32_t, uint64_t should be used to represent
-      32-bits, 64-bits integers, unsigned 32-bits, unsigned 64-bits integers
-      repectively.
+    * use standard scalar data type with explicit width, instead of
+      "long" or "int".  E.g., int32_t, int64_t, uint32_t, uint64_t
+      should be used to represent 32-bits, 64-bits integers, unsigned
+      32-bits, unsigned 64-bits integers respectively
 
       (Rationale: avoids inconsistent data structures on different arch);
 
-    * No comparism between signed vs unsigned without explicit casting.
+    * no comparison between signed vs unsigned without explicit casting.
+

@@ -303,6 +303,8 @@ struct c2_cm_agent {
 	struct c2_cm_aggrg	      ag_aggrg;
 	struct c2_cm_xform	      ag_xform;
 	struct c2_cm_agent_operations ag_operations;
+	
+	int			      ag_quit;
 };
 
 struct c2_cm_storage_in_agent {
