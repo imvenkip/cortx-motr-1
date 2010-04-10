@@ -94,7 +94,6 @@ void rpc_client_unlink(struct rpc_client *cli);
 */
 struct rpc_client *rpc_client_find(const struct client_id *id);
 
-
 /**
  RPC server strucutre
  */
@@ -158,5 +157,8 @@ void rpc_server_unregister(struct rpc_server *srv);
  */
 struct rpc_server *rpc_server_find(const struct client_id *srv_id);
 
+
+
+void rpclib_init(void);
 
 #endif

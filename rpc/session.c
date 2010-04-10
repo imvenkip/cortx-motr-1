@@ -16,7 +16,7 @@ static void session_dtor(struct c2_ref *ref)
 
 static void session_create_cb(struct session_create_arg *arg,
 			      struct session_create_ret *ret,
-			      const struct client cli,
+			      const struct rpc_client cli,
 			      CLIENT *net)
 {
 	struct c2_cli_session *cli_s;
@@ -42,7 +42,7 @@ static void session_create_cb(struct session_create_arg *arg,
 	c2_rwlock_write_lock(&cli->rc_sessions_lock);
 }
 
-int c2_session_cli_create(const struct client *cli, const client_id * srv_uuid,
+int c2_session_cli_create(const struct rpc_client *cli, const client_id * srv_uuid,
 			  CLIENT * net);
 {
 	struct session_create_arg req;
@@ -81,7 +81,7 @@ int c2_session_cli_destroy(const struct c2_cli_session *sess)
 	session_destroy_cb(&ret, sess);
 }
 
-struct c2_cli_session *c2_session_cli_find(const struct client *cli,
+struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
 					   const struct client_id * srv_uuid)
 {
 	struct c2_list_link *pos;
@@ -102,7 +102,7 @@ struct c2_cli_session *c2_session_cli_find(const struct client *cli,
 	return found ? sess : NULL;
 }
 
-int c2_session_check(const struct c2_cli_session *sess)
+int c2_session_check(struct rpc_client *cli, const struct c2_cli_session *sess)
 {
 	struct c2_cli_slot *slot;
 

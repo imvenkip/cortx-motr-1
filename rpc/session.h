@@ -77,7 +77,7 @@ struct c2_cli_session {
  * \retval 0   success
  * \retval -ve failure, e.g., server don't conencted
  */
-int c2_session_cli_create(const struct client * cli,
+int c2_session_cli_create(const struct rpc_client * cli,
 			  const struct client_id * srv_uuid, CLIENT * cli);
 
 /**
@@ -100,8 +100,8 @@ int c2_session_cli_destroy(const struct cli_session *sess);
  * @retval NULL, session don't found or don't init correctly
  * @retval !NULL, OK
  */
-struct c2_cli_session *c2_session_cli_find(const struct client * cli,
-					   const struct client_id * srv_uuid);
+struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
+					   const struct client_id *srv_uuid);
 
 /**
  * verify session \a sess by sending sequence op and check response
