@@ -1,5 +1,15 @@
 #include "lib/cc.h"
 
+void c2_rwlock_init(struct c2_rw_lock *lock)
+{
+
+}
+
+void c2_rwlock_fini(struct c2_rw_lock *lock)
+{
+
+}
+
 void c2_rwlock_write_lock(struct c2_rw_lock *lock)
 {
 
