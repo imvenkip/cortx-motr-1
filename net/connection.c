@@ -2,6 +2,9 @@
 #include "lib/c2list.h"
 #include "lib/memory.h"
 
+#include "net/net.h"
+#include "net/net_internal.h"
+
 #include <errno.h>
 #include <rpc/clnt.h>
 

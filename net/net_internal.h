@@ -3,6 +3,8 @@
 
 #define _C2_NET_INTERNAL_H_
 
+#include "lib/c2ref.h"
+
 /**
  logical network connection from that node to some node and service
  on that node.
@@ -30,5 +32,14 @@ struct c2_net_conn {
 	CLIENT 		*nc_cli;
 };
 
+/**
+ initialize global structures related to network connections
+ */
+void c2_net_conn_init(void);
+
+/**
+ release resources related to network connections
+ */
+void c2_net_conn_fini(void);
 
 #endif
