@@ -3,7 +3,6 @@
 
 #define _C2_NET_H_
 
-
 /**
  unique node identifier, can send over network
  */
@@ -28,7 +27,9 @@ bool_t xdr_node_id (XDR *xdrs, node_id *objp);
 */ 
 bool nodes_is_same(struct node_id *c1, struct node_id *c2);
 
-
+/**
+ @defgroup net_conn logical network connection
+ */
 struct c2_net_conn;
 
 /**
@@ -85,7 +86,8 @@ int c2_net_cli_call_sync(struct c2_net_conn *conn, int op, void *arg, void *ret)
 
 typedef void (*c2_net_cli_cb)(int32_t errno, void *arg, void *ret);
 
-int c2_net_cli_call_async(struct c2_net_conn *conn, int op, void *arg, void *ret);
+int c2_net_cli_call_async(struct c2_net_conn *conn, int op, void *arg,
+			  c2_net_cli_cb *cb, void *ret);
 
 
 struct c2_rpc_op {
@@ -102,9 +104,9 @@ struct c2_rpc_op {
 	 */
 	xdrproc_t	ro_xdr_result;
 	/**
-	 function to a handle operation on client side
+	 function to a handle operation on server side
 	 */
-	bool_t		(*ro_shandler) (void *, void *));
+	bool		(*ro_shandler) (void *, void *));
 }
 
 /**
@@ -115,16 +117,18 @@ typedef void (*rpc_handler_t)(struct svc_req *req, SVCXPRT *xptr);
 /**
  generic code to handle incomming requests
  */
-void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *xptr, struct rpc_op *ops);
+void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *xptr,
+			   int nops, struct rpc_op *ops, void *arg, void *ret);
 
 /**
- initialize network service and attach incomming messages handleer
+ initialize network service and attach incomming messages handler
  
  typical use is define custom hanlder and call svc_generic function with custom
  array operations
   
  */
-int c2_net_srv_start(unsigned long int program_num, unsigned long ver, rpc_handler_t handler);
+int c2_net_srv_start(unsigned long int program_num, unsigned long ver,
+		     rpc_handler_t handler);
 
 int c2_net_srv_stop(unsigned long int program_num, unsigned long ver);
 
