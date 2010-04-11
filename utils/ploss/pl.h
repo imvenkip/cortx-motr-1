@@ -32,14 +32,14 @@ typedef C2_PL_CONFIG_TYPE c2_pl_config_type;
 
 struct c2_pl_config {
 	c2_pl_config_type op;
-	uint32_t value;
+	unsigned long value;
 };
 typedef struct c2_pl_config c2_pl_config;
 
 struct c2_pl_config_reply {
 	int res;
 	union {
-		uint32_t config_value;
+		unsigned long config_value;
 	} c2_pl_config_reply_u;
 };
 typedef struct c2_pl_config_reply c2_pl_config_reply;
@@ -51,13 +51,13 @@ struct c2_pl_config_res {
 typedef struct c2_pl_config_res c2_pl_config_res;
 
 struct c2_pl_ping {
-	uint32_t seqno;
+	unsigned long seqno;
 };
 typedef struct c2_pl_ping c2_pl_ping;
 
 struct c2_pl_ping_res {
-	uint32_t seqno;
-	uint32_t time;
+	unsigned long seqno;
+	unsigned long time;
 };
 typedef struct c2_pl_ping_res c2_pl_ping_res;
 

@@ -51,7 +51,7 @@ setconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, stru
 {
         const char *msg;
         int *config_res = &result->body.res;
-        uint32_t *config_vp = &result->body.c2_pl_config_reply_u.config_value;
+        unsigned long *config_vp = &result->body.c2_pl_config_reply_u.config_value;
 
         *config_res = 0;
         result->op = argp->op;
