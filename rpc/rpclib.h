@@ -4,24 +4,6 @@
 #define _RPC_COMMON_H_
 
 /**
- unique client identifier
- */
-struct client_id {
-	char uuid[40];
-};
-
-/**
- compare client indentifierer
- 
- @param c1 first client identifier
- @param c2 second client identifier
- 
- @retval TRUE if client identifiers is same
- @retval FALSE if client identifiers is differents
-*/ 
-bool clients_is_same(struct client_id *c1, struct client_id *c2);
-
-/**
  unique session identifier
  */
 struct session_id {

@@ -5,15 +5,11 @@
 #include "lib/refs.h"
 #include "rpc/rpc_common.h"
 
-bool clients_is_same(struct client_id *c1, struct client_id *c2)
-{
-	return memcmp(c1, c2, sizeof *c1) == 0;
-}
-
 bool session_is_same(struct session_id *s1, struct session_id *s2)
 {
 	return memcmp(s1, s2, sizeof *s1) == 0;
 }
+
 /**
  rpc server group
  */
@@ -40,9 +36,9 @@ struct rpc_server *rpc_server_create(const struct client_id *srv_id)
 	c2_ref_init(&srv->rs_ref, 1, rpc_server_free);
 	c2_rwlock_init(&srv->rs_session_lock);
 	c2_list_init(&srv->rs_sessions);
-	
+
 	srv->rs_id = *srv_id;
-	
+
 	return srv;
 }
 
@@ -91,6 +87,9 @@ struct rpc_server *rpc_server_find(const struct client_id *srv_id)
 	return found ? srv : NULL;
 }
 
+/**
+ rpc client group
+ */
 struct c2_rwlock clients_list_lock;
 static struct c2_list servers_list;
 
@@ -168,4 +167,3 @@ void rpclib_init()
 	c2_rwlock_init(&clients_list_lock);
 
 }
-
