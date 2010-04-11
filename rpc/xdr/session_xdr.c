@@ -12,18 +12,6 @@ xdr_c2_session_cmd (XDR *xdrs, c2_session_cmd *objp)
 }
 
 bool_t
-xdr_client_id (XDR *xdrs, client_id *objp)
-{
-	register int32_t *buf;
-
-	int i;
-	 if (!xdr_vector (xdrs, (char *)objp->uuid, 40,
-		sizeof (char), (xdrproc_t) xdr_char))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
 xdr_session_id (XDR *xdrs, session_id *objp)
 {
 	register int32_t *buf;

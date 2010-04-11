@@ -5,7 +5,6 @@
 /* the xdr functions */
 
 extern  bool_t xdr_c2_session_cmd (XDR *, c2_session_cmd*);
-extern  bool_t xdr_client_id (XDR *, client_id*);
 extern  bool_t xdr_session_id (XDR *, session_id*);
 
 extern  bool_t xdr_session_create_arg (XDR *, session_create_arg*);
