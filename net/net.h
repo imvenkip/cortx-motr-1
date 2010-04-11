@@ -29,42 +29,7 @@ bool_t xdr_node_id (XDR *xdrs, node_id *objp);
 bool nodes_is_same(struct node_id *c1, struct node_id *c2);
 
 
-#define NODE_NAME_SIZE	40
-
-struct node_name {
-	char	name[NODE_NAME_SIZE];
-};
-
-/**
- logical network connection from that node to some node and service
- on that node.
- */
-struct c2_net_conn {
-	/**
-	 entry to linkage structure into connection list
-	 */
-	struct c2_list_link	nc_link;
-	/**
-	 node identifier to establish connection
-	 */
-	struct node_id		nc_id;
-	/**
-	 node name (currently host name) to establish connection
-	 */
-	struct node_name 	nc_node;
-	/**
-	 structure reference countings
-	 */
-	struct c2_ref		nc_refs;
-	/**
-	 service identifer
-	 */
-	long			nc_prgid;
-	/**
-	 sun rpc transport
-	 */
-	CLIENT 		*nc_cli;
-};
+struct c2_net_conn;
 
 /**
  create network connection based in config info.
@@ -79,7 +44,7 @@ struct c2_net_conn {
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_connection_create(struct node_id *nid, long prgid, struct node_name *nn);
+int c2_net_connection_create(struct node_id *nid, long prgid, char *nn);
 
 /**
  find connection to specificied node.
@@ -96,13 +61,31 @@ struct c2_net_conn *c2_net_connection_find(struct node_id *nid, long prgid);
 
 /**
  release connection after using.
+ 
+ @param conn 
+
+ @return none
 */ 
 void c2_net_conn_release(struct c2_net_conn *conn);
 
 /**
- disconnect transport connection(s) and disconnect from a connections list
+ disconnect transport connection(s) and remove from a connections list
+ 
+ @param conn
+ 
+ @retval 0 OK
+ @retval <0 error hit.
  */
-int c2_net_connection_destroy(struct c2_net_conn *conn);
+int c2_net_conn_destroy(struct c2_net_conn *conn);
+
+/**
+ 
+ */
+int c2_net_cli_call_sync(struct c2_net_conn *conn, int op, void *arg, void *ret);
+
+typedef void (*c2_net_cli_cb)(int32_t errno, void *arg, void *ret);
+
+int c2_net_cli_call_async(struct c2_net_conn *conn, int op, void *arg, void *ret);
 
 
 struct c2_rpc_op {
@@ -118,22 +101,31 @@ struct c2_rpc_op {
 	 XDR program to converting result of remote procedure call
 	 */
 	xdrproc_t	ro_xdr_result;
-	bool_t (*ro_shandler) (void *, void *));
+	/**
+	 function to a handle operation on client side
+	 */
+	bool_t		(*ro_shandler) (void *, void *));
 }
 
+/**
+ function prototype to handle incommind requests
+*/
 typedef void (*rpc_handler_t)(struct svc_req *req, SVCXPRT *xptr);
 
-void svc_generic(struct svc_req *req, SVCXPRT *xptr, struct rpc_op *ops);
+/**
+ generic code to handle incomming requests
+ */
+void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *xptr, struct rpc_op *ops);
 
 /**
- initialize network service and attach rpc handler
+ initialize network service and attach incomming messages handleer
  
  typical use is define custom hanlder and call svc_generic function with custom
- operations array
+ array operations
   
  */
-int init_srv(unsigned long int program_num, unsigned long ver, rpc_handler_t handler);
+int c2_net_srv_start(unsigned long int program_num, unsigned long ver, rpc_handler_t handler);
 
-
+int c2_net_srv_stop(unsigned long int program_num, unsigned long ver);
 
 #endif
