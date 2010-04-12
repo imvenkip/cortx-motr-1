@@ -298,33 +298,32 @@ struct c2_cm_agent_operations {
 */
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
-	struct c2_cm		     *ag_parent;
+	struct c2_cm		     *ag_parent; /**< pointer to parent cm */
 
 	struct c2_cm_aggrg	      ag_aggrg;
 	struct c2_cm_xform	      ag_xform;
 	struct c2_cm_agent_operations ag_operations;
 	
-	int			      ag_quit;
+	int			      ag_quit:1;
 };
 
 struct c2_cm_storage_in_agent {
 	struct c2_cm_agent  ci_agent;
-	struct c2_device   *ci_device;
-	int		    ci_quit;
+	struct c2_device   *ci_device; /**< the device the agent attched on */
 };
 struct c2_cm_storage_out_agent {
 	struct c2_cm_agent  co_agent;
-	struct c2_device   *ci_device;
+	struct c2_device   *ci_device; /**< the device the agent attched on */
 };
 
 struct c2_cm_network_in_agent {
 	struct c2_cm_agent   ni_agent;
-	struct c2_transport *ni_transport;
+	struct c2_transport *ni_transport; /**< something like "export" */
 };
 
 struct c2_cm_network_out_agent {
 	struct c2_cm_agent   no_agent;
-	struct c2_transport *no_transport;
+	struct c2_transport *no_transport; /**< something like "import" */
 };
 
 struct c2_cm_collecting_agent {
