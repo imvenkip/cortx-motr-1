@@ -7,6 +7,9 @@
  * Written by Jay <jinshan.xiong@clusterstor.com>
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include "pl.h"
 
