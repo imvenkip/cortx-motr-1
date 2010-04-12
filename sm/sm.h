@@ -3,6 +3,12 @@
 #ifndef __COLIBRI_SM_H__
 #define __COLIBRI_SM_H__
 
+
+#include "../lib/adt.h"
+#include "../lib/c2list.h"
+#include "../lib/c2queue.h"
+#include "../dtm/dtm.h"
+
 /**
    @defgroup sm State machine
    @{
@@ -16,6 +22,9 @@ enum c2_sm_res {
 	SR_AGAIN,
 	SR_WAIT
 };
+
+struct c2_sm;
+struct c2_sm_event;
 
 struct c2_sm_ops {
 	c2_sm_state_t  (*so_state_get)(struct c2_sm *sm);
@@ -45,7 +54,8 @@ int           c2_sm_state_until(struct c2_sm *mach, c2_sm_state_t state);
 */
 struct c2_sm_event {
 	struct c2_sm        *se_mach;
-	struct c2_chan_link  se_wait;
+	/*struct c2_chan_link  se_wait;*/
+	struct c2_list_link  se_wait;
 	struct c2_queue_link se_linkage;
 };
 
@@ -66,7 +76,7 @@ struct c2_persistent_sm {
 };
 
 struct c2_persistent_sm_ops {
-	int (*pso_register)(struct dtm *dtm, struct c2_persistent_sm *pmach);
+	int (*pso_register)(struct c2_dtm *dtm, struct c2_persistent_sm *pmach);
 	int (*pso_unregister)(struct c2_persistent_sm *pmach);
 	int (*pso_recover)(struct c2_persistent_sm *pmach);
 };

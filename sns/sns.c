@@ -4,6 +4,9 @@
 
 #include <colibri/colibri.h>
 
+#include "sns.h"
+#include "repair.h"
+
 int sns_init()
 {
 	return 0;

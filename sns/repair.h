@@ -147,6 +147,7 @@ void c2_cm_iset_fini(struct c2_cm_iset *iset);
 int  c2_cm_oset_init(struct c2_cm_oset *oset);
 void c2_cm_oset_fini(struct c2_cm_oset *oset);
 
+struct c2_cm_copy_packet;
 /** 
    copy machine operations
 
@@ -186,21 +187,20 @@ struct c2_cm_iset_cursor {
 
 /** copy machine input set cursor operations */
 struct c2_cm_iset_cursor_operations {
-	int  c2_cm_iset_cursor_init   (struct c2_cm_iset_cursor *cur);
-	void c2_cm_iset_cursor_fini   (struct c2_cm_iset_cursor *cur);
-	void c2_cm_iset_cursor_copy   (struct c2_cm_iset_cursor *dst,
-				       const struct c2_cm_iset_cursor *src);
-	int  c2_cm_iset_cursor_cmp    (const struct c2_cm_iset_cursor *c0,
-				       const struct c2_cm_iset_cursor *c1);
+	int  (*c2_cm_iset_cursor_init)   (struct c2_cm_iset_cursor *cur);
+	void (*c2_cm_iset_cursor_fini)   (struct c2_cm_iset_cursor *cur);
+	void (*c2_cm_iset_cursor_copy)   (struct c2_cm_iset_cursor *dst,
+ 				          const struct c2_cm_iset_cursor *src);
+	int  (*c2_cm_iset_cursor_cmp)    (const struct c2_cm_iset_cursor *c0,
+				          const struct c2_cm_iset_cursor *c1);
 
-	int  c2_cm_iset_server_next   (struct c2_cm_iset_cursor *cur);
-	int  c2_cm_iset_device_next   (struct c2_cm_iset_cursor *cur);
-	int  c2_cm_iset_container_next(struct c2_cm_iset_cursor *cur);
-	int  c2_cm_iset_layout_next   (struct c2_cm_iset_cursor *cur);
-	int  c2_cm_iset_extent_next   (struct c2_cm_iset_cursor *cur);
+	int  (*c2_cm_iset_server_next)   (struct c2_cm_iset_cursor *cur);
+	int  (*c2_cm_iset_device_next)   (struct c2_cm_iset_cursor *cur);
+	int  (*c2_cm_iset_container_next)(struct c2_cm_iset_cursor *cur);
+	int  (*c2_cm_iset_layout_next)   (struct c2_cm_iset_cursor *cur);
+	int  (*c2_cm_iset_extent_next)   (struct c2_cm_iset_cursor *cur);
 };
 
-struct c2_dtx;
 struct c2_cm_callbacks {
 	void (*cb_group)     (struct c2_cm *mach, struct c2_dtx *tx /*,XXX*/);
 	void (*cb_layout)    (struct c2_cm *mach, struct c2_dtx *tx,
@@ -253,7 +253,7 @@ struct c2_cm_copy_packet {
 	uint32_t	   cp_type;    /**< type of this copy packet */
 	uint32_t	   cp_magic;   /**< magic number */
 	struct c2_checksum cp_checksum;/**< checksum of the data */
-	struct list_head   cp_linkage; /**< linkage to the global list */
+	struct c2_list_link   cp_linkage; /**< linkage to the global list */
 	struct c2_ref	   cp_ref;     /**< reference count */
 
 	void 		  *cp_data;    /**< pointer to data */
@@ -269,7 +269,7 @@ struct c2_cm {
 	struct c2_cm_oset	cm_oset;          /**< output set description */
 	struct c2_cm_operations cm_operations;    /**< operations of this cm */
 	struct c2_cm_callbacks  cm_callbacks;     /**< callbacks of this cm */
-	struct list_head	cm_copy_packets;  /**< link all copy packets */
+	struct c2_list_link	cm_copy_packets;  /**< link all copy packets */
 };
 
 struct c2_cm_agent;

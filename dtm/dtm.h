@@ -8,8 +8,8 @@
    @{
 */
 
-struct c2_dtm;
-struct c2_dtx;
+struct c2_dtm {};
+struct c2_dtx {};
 
 /** @} end of copymachine group */
 
