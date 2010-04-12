@@ -55,11 +55,12 @@ void plprog_ping_1(CLIENT *clnt)
                 show_msg(ping_verbose, "Received server echo\n");
                 if (result.seqno != ping.seqno) {
                         fprintf(stderr, "Server returned mismatch seqno %lu, expect %lu\n",
-                                result.seqno, ping.seqno);
+                                (unsigned long)result.seqno, (unsigned long)ping.seqno);
                         continue;
                 }
 
-                fprintf(stdout, "Server handled this ping request at %lu\n", result.time);
+                fprintf(stdout, "Server handled this ping request at %lu\n", 
+                	(unsigned long)result.time);
                 if (ping_interval)
                         sleep(ping_interval);
         }
@@ -171,7 +172,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set prop error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for propability is %lu\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
 
                 if (have_delay) {
@@ -192,7 +193,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set delay error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for delay is %lu\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
 
                 if (have_verbose) {
@@ -212,7 +213,7 @@ main (int argc, char *argv[])
                                 fprintf(stderr, "Set verbose error due to %s\n", strerror(reply->res));
                         else
                                 fprintf(stdout, "The original config value for verbose is %lu\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
         } else {        /* ping mode */
                 if (have_verbose)
