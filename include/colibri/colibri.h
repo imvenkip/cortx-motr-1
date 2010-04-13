@@ -20,7 +20,4 @@ struct c2_checksum {
 	unsigned char csum[4];
 };
 
-struct c2_ref {
-};
-
 #endif /* __COLIBRI_H */

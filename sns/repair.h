@@ -4,6 +4,7 @@
 #define __COLIBRI_SNS_REPAIR_H__
 
 #include <sm/sm.h>
+#include "../lib/refs.h"
 
 /**
    @page snsrepair SNS repair detailed level design specification.
