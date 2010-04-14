@@ -332,3 +332,96 @@ static int c2_cm_network_out_agent_run(struct c2_cm_agent *self)
 	return 0;
 }
 
+
+static int 
+c2_cm_collecting_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
+{
+	struct c2_cm_collecting_agent *c_agent = container_of(self,
+					 struct c2_cm_collecting_agent, c_agent);
+	self->ag_parent = parent;
+	self->ag_quit = 0;
+	return 0;
+}
+
+static int c2_cm_collecting_agent_stop(struct c2_cm_agent *self, int force)
+{
+	struct c2_cm_collecting_agent *c_agent = container_of(self,
+					struct c2_cm_collecting_agent, c_agent);
+	
+	self->ag_quit = 1;
+	return 0;
+}
+
+static int c2_cm_collecting_agent_config(struct c2_cm_agent *self,
+				  	 struct c2_cm_agent_config *config)
+{
+	struct c2_cm_collecting_agent *c_agent = container_of(self,
+					struct c2_cm_collecting_agent, c_agent);
+	return 0;
+}
+
+static int c2_cm_collecting_agent_completion(void *data)
+{
+	struct c2_cm_copy_packet *cp = (struct c2_cm_copy_packet *)data;
+
+	c2_cm_cp_notify_all(cp);
+	c2_cm_cp_refdel(cp);
+	return 0;
+}
+
+static int c2_cm_collecting_agent_collecting(struct c2_cm_collecting_agent *agent)
+{
+	struct c2_cm_iset        *iset = self->ag_parent->cm_iset;
+	struct c2_cm_copy_packet *cp;
+	struct c2_cm_iset_cursor *cur = XXX /* TODO */;
+	struct c2_ext 		  chunk;
+	struct c2_cm_aggrg_group  group;
+	struct c2_cm_agent       *cma = container_of(agent, struct c2_cm_collecting_agent, c_agent);
+						
+
+	while (!agent->no_agent->ag_quit) {
+		c2_wait_event( (!agent->co_incoming_queue_empty() && rlimit <= thread) || !agent->noagent.ag_quit);
+		if (agent->ni_agent.ag_quit)
+			break;
+
+		cp = agent->get_cp_from_queue();
+		cag_group_get(self, cur, &sub_ext, &group);
+		if (cag_group_first_packet(&group)) { /* the first copy packet for this group */
+			cag_group_use_buffer_from_this_packet(&group, cp);
+			cma->ag_xform.xform(group.buffer, cp);						
+		} else {
+			cma->ag_xform.xform(group.buffer, cp);						
+			c2_cm_cp_refdel(cp);
+		}
+		if (cag_group_is_done(&group)) {
+			cma->ag_parent->cm_operations->cmops_queue(cp, c2_cm_collecting_agent_completion);
+		}
+
+	}
+
+	return 0;
+}
+
+static int c2_cm_collecting_agent_run(struct c2_cm_agent *self)
+{
+	struct c2_cm_collecting_agent *c_agent = container_of(self,
+					struct c2_cm_collecting_agent, c_agent);
+	struct c2_thread *t1;
+
+	t1 = c2_thread_create(c2_cm_collecting_agent_collecting, c_agent);
+
+	c2_thread_wait(t1);
+	return 0;
+}
+
+
+struct c2_cm_agent *alloc_storage_in_agent()
+{
+	struct c2_cm_storage_in_agent *agent;
+
+	agent = c2_alloc(sizeof(*agent));
+	if (agent)
+		return &agent->ci_agent;
+	else
+		return NULL;
+}

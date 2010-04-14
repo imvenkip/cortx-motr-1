@@ -4,7 +4,7 @@
 #define __COLIBRI_SNS_REPAIR_H__
 
 #include <sm/sm.h>
-#include "../lib/refs.h"
+#include <lib/refs.h>
 
 /**
    @page snsrepair SNS repair detailed level design specification.
@@ -156,12 +156,12 @@ struct c2_cm_copy_packet;
    responsible to create corresponding agents to do the actual work.
 */
 struct c2_cm_operations {
-	int (*init)   (struct c2_cm *this);
-	int (*stop)   (struct c2_cm *this, int force);
-	int (*config) (struct c2_cm *this, struct c2_cm_iset *iset,
-		       struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
-	int (*handler)(struct c2_cm *this, struct c2_fop *req);
-	int (*queue)  (struct c2_cm_copy_packet *cp);
+	int (*cmops_init)   (struct c2_cm *this);
+	int (*cmops_stop)   (struct c2_cm *this, int force);
+	int (*cmops_config) (struct c2_cm *this, struct c2_cm_iset *iset,
+		             struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
+	int (*cmops_handler)(struct c2_cm *this, struct c2_fop *req);
+	int (*cmops_queue)  (struct c2_cm_copy_packet *cp);
 };
 
 /** get stats from copy machine */
@@ -253,9 +253,11 @@ struct c2_cm_xform {
 struct c2_cm_copy_packet {
 	uint32_t	   cp_type;    /**< type of this copy packet */
 	uint32_t	   cp_magic;   /**< magic number */
+	uint64_t	   cp_seqno;   /**< sequence number */
 	struct c2_checksum cp_checksum;/**< checksum of the data */
 	struct c2_list_link   cp_linkage; /**< linkage to the global list */
 	struct c2_ref	   cp_ref;     /**< reference count */
+	int (*cp_complete)(struct c2_cm_copy_packet *cp); /**< completion cb*/
 
 	void 		  *cp_data;    /**< pointer to data */
 	uint32_t	   cp_len;     /**< data length */
@@ -285,7 +287,8 @@ struct c2_cm_agent_config { /* TODO */ };
 struct c2_cm_agent_operations {
 	int (*agops_init)  (struct c2_cm_agent *self, struct c2_cm *parent);
 	int (*agops_stop)  (struct c2_cm_agent *self, int force);
-	int (*agops_config)(struct c2_cm_agent *self, struct c2_cm_agent_config *config);
+	int (*agops_config)(struct c2_cm_agent *self,
+			    struct c2_cm_agent_config *config);
 	int (*agops_run)   (struct c2_cm_agent *self);
 };
 
@@ -308,25 +311,31 @@ struct c2_cm_agent {
 	int			      ag_quit:1;
 };
 
+/** storage-in agent */
 struct c2_cm_storage_in_agent {
 	struct c2_cm_agent  ci_agent;
 	struct c2_device   *ci_device; /**< the device the agent attched on */
 };
+
+/** storage-out agent */
 struct c2_cm_storage_out_agent {
 	struct c2_cm_agent  co_agent;
 	struct c2_device   *ci_device; /**< the device the agent attched on */
 };
 
+/** network-in agent */
 struct c2_cm_network_in_agent {
 	struct c2_cm_agent   ni_agent;
 	struct c2_transport *ni_transport; /**< something like "export" */
 };
 
+/** network-out agent */
 struct c2_cm_network_out_agent {
 	struct c2_cm_agent   no_agent;
 	struct c2_transport *no_transport; /**< something like "import" */
 };
 
+/** collecting agent */
 struct c2_cm_collecting_agent {
 	struct c2_cm_agent c_agent;
 };
@@ -345,8 +354,23 @@ struct c2_cm_agent *alloc_collecting_agent();
    @retval NULL failed to allocate a new copy packet.
    @retval non-NULL pointer to the newly allocated copy packet.
    @postcondition refcount == 1
+   @postcondition linkage is empty
+   @postcondition cp_data == NULL
+   @postcondition cp_len == 0
 */
 struct c2_cm_copy_packet *c2_cm_cp_alloc();
+
+/**
+   alloc data area for a copy packet
+
+   allocate data area with specified size for a copy packet.
+   @retval 0 success.
+   @retval != 0 failure.
+   @precondition (cp_data == NULL)
+   @postcondition (retval != 0 || cp_data != NULL)
+*/
+int c2_cm_cp_alloc_data(struct c2_cm_copy_packet *cp, int len);
+
 /** add reference to a copy packet */
 int c2_cm_cp_refadd(struct c2_cm_copy_packet *cp);
 /** release reference from a copy packet. When refcount drops to 0, free it */
