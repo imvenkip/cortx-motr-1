@@ -5,28 +5,28 @@
 #include <colibri/colibri.h>
 
 static int 
-c2_cm_storage_in_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
+c2_cm_storage_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
-	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
+	struct c2_cm_storage_in_agent *ci_agent = container_of(self,
 					struct c2_cm_storage_in_agent, ci_agent);
-	this->ag_parent = parent;
-	this->ag_quit = 0;
+	self->ag_parent = parent;
+	self->ag_quit = 0;
 	return 0;
 }
 
-static int c2_cm_storage_in_agent_stop(struct c2_cm_agent *this, int force)
+static int c2_cm_storage_in_agent_stop(struct c2_cm_agent *self, int force)
 {
-	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
+	struct c2_cm_storage_in_agent *ci_agent = container_of(self,
 					struct c2_cm_storage_in_agent, ci_agent);
 	
-	this->ag_quit = 1;
+	self->ag_quit = 1;
 	return 0;
 }
 
-static int c2_cm_storage_in_agent_config(struct c2_cm_agent *this,
+static int c2_cm_storage_in_agent_config(struct c2_cm_agent *self,
 					 struct c2_cm_agent_config *config)
 {
-	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
+	struct c2_cm_storage_in_agent *ci_agent = container_of(self,
 					struct c2_cm_storage_in_agent, ci_agent);
 	return 0;
 }
@@ -40,7 +40,7 @@ static int c2_cm_ci_dlm_completion(void *cb_data)
 
 static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 {
-	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_cm_iset        *iset = self->ag_parent->cm_iset;
 	struct c2_device         *d = agent->ci_device;
 	struct c2_priority       *p;
 	struct c2_container      *c;	
@@ -59,7 +59,7 @@ static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 					if (c2_extent_cover(ext, iset)) {
 						struct c2_cm_iset_cursor *cur = XXX /* TODO */;
 						
-						cag_group_get(this, cur, &sub_ext, &group);
+						cag_group_get(self, cur, &sub_ext, &group);
 						if (group is on this node) {
 							
 							while (cut_ext_from(&sub_ext, &chunk, RPC_SIZE)) {
@@ -113,9 +113,9 @@ static int c2_cm_storage_in_agent_submitting(struct c2_cm_storage_in_agent *agen
 	return 0;
 }
 
-static int c2_cm_storage_in_agent_run(struct c2_cm_agent *this)
+static int c2_cm_storage_in_agent_run(struct c2_cm_agent *self)
 {
-	struct c2_cm_storage_in_agent *ci_agent = container_of(this,
+	struct c2_cm_storage_in_agent *ci_agent = container_of(self,
 					struct c2_cm_storage_in_agent, ci_agent);
 	struct c2_thread *t1;
 	struct c2_thread *t2;
@@ -130,28 +130,28 @@ static int c2_cm_storage_in_agent_run(struct c2_cm_agent *this)
 
 
 static int 
-c2_cm_storage_out_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
+c2_cm_storage_out_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
-	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
-	this->ag_parent = parent;
+	self->ag_parent = parent;
 	thia->ag_quit = 0;
 	return 0;
 }
 
-static int c2_cm_storage_out_agent_stop(struct c2_cm_agent *this, int force)
+static int c2_cm_storage_out_agent_stop(struct c2_cm_agent *self, int force)
 {
-	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
 	
-	this->ag_quit = 1;
+	self->ag_quit = 1;
 	return 0;
 }
 
-static int c2_cm_storage_out_agent_config(struct c2_cm_agent *this,
+static int c2_cm_storage_out_agent_config(struct c2_cm_agent *self,
 				  	  struct c2_cm_agent_config *config)
 {
-	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
 	return 0;
 }
@@ -164,7 +164,7 @@ static int c2_cm_storage_out_agent_io_completion(void * data)
 
 static int c2_cm_storage_out_agent_submitting(struct c2_cm_storage_out_agent *agent)
 {
-	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_cm_iset        *iset = self->ag_parent->cm_iset;
 	struct c2_device         *d = agent->co_device;
 	struct c2_cm_copy_packet *cp;
 
@@ -182,7 +182,7 @@ static int c2_cm_storage_out_agent_submitting(struct c2_cm_storage_out_agent *ag
 
 static int c2_cm_storage_out_agent_handle_clio(struct c2_cm_storage_out_agent *agent)
 {
-	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_cm_iset        *iset = self->ag_parent->cm_iset;
 	struct c2_device         *d = agent->co_device;
 	struct c2_cm_copy_packet *cp;
 
@@ -193,9 +193,9 @@ static int c2_cm_storage_out_agent_handle_clio(struct c2_cm_storage_out_agent *a
 	return 0;
 }
 
-static int c2_cm_storage_out_agent_run(struct c2_cm_agent *this)
+static int c2_cm_storage_out_agent_run(struct c2_cm_agent *self)
 {
-	struct c2_cm_storage_out_agent *co_agent = container_of(this,
+	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
 	struct c2_thread *t1;
 	struct c2_thread *t2;
@@ -210,28 +210,28 @@ static int c2_cm_storage_out_agent_run(struct c2_cm_agent *this)
 
 
 static int 
-c2_cm_network_in_agent_init(struct c2_cm_agent *this, struct c2_cm *parent)
+c2_cm_network_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
-	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
-	this->ag_parent = parent;
-	this->co_quit = 0;
+	self->ag_parent = parent;
+	self->co_quit = 0;
 	return 0;
 }
 
-static int c2_cm_network_in_agent_stop(struct c2_cm_agent *this, int force)
+static int c2_cm_network_in_agent_stop(struct c2_cm_agent *self, int force)
 {
-	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
 	
-	this->co_quit = 1;
+	self->co_quit = 1;
 	return 0;
 }
 
-static int c2_cm_network_in_agent_config(struct c2_cm_agent *this,
+static int c2_cm_network_in_agent_config(struct c2_cm_agent *self,
 				  	  struct c2_cm_agent_config *config)
 {
-	struct c2_cm_network_in_agent *ni_agent = container_of(this,
+	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
 	return 0;
 }
@@ -244,7 +244,7 @@ static int c2_cm_network_in_agent_completion(void * data)
 
 static int c2_cm_network_in_agent_receiver(struct c2_cm_network_in_agent *agent)
 {
-	struct c2_cm_iset        *iset = this->ag_parent->cm_iset;
+	struct c2_cm_iset        *iset = self->ag_parent->cm_iset;
 	struct c2_device         *d = agent->co_device;
 	struct c2_cm_copy_packet *cp;
 
@@ -260,9 +260,9 @@ static int c2_cm_network_in_agent_receiver(struct c2_cm_network_in_agent *agent)
 	return 0;
 }
 
-static int c2_cm_network_in_agent_run(struct c2_cm_agent *this)
+static int c2_cm_network_in_agent_run(struct c2_cm_agent *self)
 {
-	struct c2_cm_storage_out_agent *ni_agent = container_of(this,
+	struct c2_cm_storage_out_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
 	struct c2_thread *t1;
 

@@ -32,14 +32,64 @@ int  c2_chan_wait(struct c2_chan_link *link);
 struct c2_mutex {
 };
 
+/**
+ generic rw lock
+ */
 struct c2_rw_lock {
 };
 
+/**
+ rw lock constructor
+ 
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
+void c2_rwlock_init(struct c2_rw_lock *lock);
 
+/**
+ rw lock destructor
+
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
+void c2_rwlock_fini(struct c2_rw_lock *lock);
+
+/**
+ take exclusive lock
+ 
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
 void c2_rwlock_write_lock(struct c2_rw_lock *lock);
+
+/**
+ release exclusive lock
+ 
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
 void c2_rwlock_write_unlock(struct c2_rw_lock *lock);
 
+/**
+ take shared lock
+ 
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
 void c2_rwlock_read_lock(struct c2_rw_lock *lock);
+
+/**
+ release shared lock
+ 
+ @param lock pointer to rw lock structure
+ 
+ @return none
+*/
 void c2_rwlock_read_unlock(struct c2_rw_lock *lock);
 
 
