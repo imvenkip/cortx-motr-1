@@ -79,17 +79,10 @@ void c2_net_conn_release(struct c2_net_conn *conn);
  */
 int c2_net_conn_destroy(struct c2_net_conn *conn);
 
+
 /**
- 
+ rpc commands associated with service thread
  */
-int c2_net_cli_call_sync(struct c2_net_conn *conn, int op, void *arg, void *ret);
-
-typedef void (*c2_net_cli_cb)(int32_t errno, void *arg, void *ret);
-
-int c2_net_cli_call_async(struct c2_net_conn *conn, int op, void *arg,
-			  c2_net_cli_cb *cb, void *ret);
-
-
 struct c2_rpc_op {
 	/**
 	 operation identifier 
@@ -108,6 +101,29 @@ struct c2_rpc_op {
 	 */
 	bool		(*ro_shandler) (void *, void *));
 }
+
+struct c2_rpc_op_table {
+	/**
+	 number of operations in table
+	 */
+	int	rot_numops;
+	/**
+	 rpc operations
+	 */
+	struct c2_rpc_op	rot_ops[];
+};
+
+/**
+ 
+ */
+int c2_net_cli_call_sync(struct c2_net_conn *conn, struct c2_rpc_op_table *rot,
+			 int op, void *arg, void *ret);
+
+typedef void (*c2_net_cli_cb)(int32_t errno, void *arg, void *ret);
+
+int c2_net_cli_call_async(struct c2_net_conn *conn, struct c2_rpc_op_table *rot,
+			  int op, void *arg, c2_net_cli_cb *cb, void *ret);
+
 
 /**
  function prototype to handle incommind requests

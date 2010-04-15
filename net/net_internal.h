@@ -33,6 +33,18 @@ struct c2_net_conn {
 };
 
 /**
+ find operation in table. function scaned table with operation to find
+ requested operation.
+ 
+ @param ops pointer filled operations table
+ @param op rpc operatation to find
+ 
+ @retval NULL if pointer not exist or wrong paramters
+ @retval !NULL if operations found in table
+ */
+struct c2_rpc_op  *find_op(struct c2_rpc_op_table *ops, int op);
+
+/**
  initialize global structures related to network connections
  */
 void c2_net_conn_init(void);

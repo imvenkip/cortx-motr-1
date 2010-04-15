@@ -1,51 +1,41 @@
-#include "lib/cdefs.h"
+#include "lib/cdefs.h" /* bool type */
 
-static int find_ops_idx(int nops, struct rpc_op *ops, int op)
-{
-	int i;
+#include <rpc/svc.h>
 
-	for(i = 0; i < nops; i++)
-		if (ops[i].ro_op == op)
-			return i;
-	return -1;
-}
+#include "net/net.h"
+#include "net/net_internal.h"
 
-void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *xptr,
-			   int nops, struct rpc_op *ops, void *arg, void *ret)
+
+void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp,
+			   struct c2_rpc_op_table *ops, void *arg, void *ret)
 {
 	int idx;
 	bool_t retval;
-	xdrproc_t xdr_argument, xdr_result;
-	bool (*local)(void *, void *);
+	struct c2_rpc_op *op;
 
-	if ((rqstp->rq_proc > nops) || 
-	    ((idx = find_ops_idx(nops, ops, rqstp->rq_proc)) == -1)) {
+	if ((op = find_op(ops, rqstp->rq_proc)) == NULL) {
 		svcerr_noproc (transp);
 		return;
 	}
 	
 
-	xdr_argument = ops[idx].xdr_arg;
-	xdr_result = ops[idx].xdr_result;
-	local = ops[idx].handler;
-
-	if (!svc_getargs (transp, xdr_argument, (caddr_t) arg)) {
+	if (!svc_getargs (transp, ops->ro_xdr_argument, (caddr_t) arg)) {
 		svcerr_decode (transp);
 		return;
 	}
 
 	/** XXX need auth code */
 	retval = (*local)(arg, ret);
-	if (retval && !svc_sendreply(transp, xdr_result, ret)) {
+	if (retval && !svc_sendreply(transp, ops->ro_xdr_result, ret)) {
 		svcerr_systemerr (transp);
 	}
 
-	if (!svc_freeargs (transp, xdr_argument, (caddr_t) arg)) {
+	if (!svc_freeargs (transp, ops->ro_xdr_argument, (caddr_t) arg)) {
 		/* bug */
 	}
 
 	/* XXX check result */
-	c2_session_program_1_freeresult (transp, _xdr_result, (caddr_t) &result))
+	c2_session_program_1_freeresult (transp, ops->ro_xdr_result, (caddr_t) ret))
 
 }
 

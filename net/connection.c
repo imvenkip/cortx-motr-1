@@ -20,6 +20,7 @@ int c2_net_connection_create(struct node_id *nid, long prgid, char *nn)
 	if (!conn)
 		return -ENOMEM;
 
+	/** XXX sun rpc */
 	cli = clnt_create (nn, prgid, 1, "tcp");
 	if (!cli) {
 		c2_free(conn);
@@ -73,6 +74,7 @@ int c2_net_conn_destroy(struct c2_net_conn *conn)
 	c2_rwlock_write_lock(&conn_list_lock);
 	if (c2_link_is_in(&conn->nc_link)) {
 		c2_list_del(&conn->nc_link);
+		c2_list_link_init(&conn->nc_link);
 		need_put = TRUE;
 	}
 	c2_rwlock_write_lock(&conn_list_lock);
@@ -82,7 +84,6 @@ int c2_net_conn_destroy(struct c2_net_conn *conn)
 
 	return 0;
 }
-
 
 void c2_net_conn_init()
 {
