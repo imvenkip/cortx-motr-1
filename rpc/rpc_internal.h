@@ -44,9 +44,4 @@ enum request_type {
 enum request_type c2_check_request(struct srv_session *sess,
 				   struct session_sequence_args *cli_seq);
 
-/**
- XXX net
- */
-init_srv(unsigned long int program_num, unsigned long ver, rpc_handler handler);
-
 #endif

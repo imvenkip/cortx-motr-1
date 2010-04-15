@@ -60,10 +60,6 @@ struct c2_cli_session {
 	 *
 	 */
 	struct c2_cli_slot_table sess_slots;
-	/**
-	 * rpc client entry associated with this session
-	 */
-	CLIENT *cli;
 };
 
 /**

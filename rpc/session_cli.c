@@ -11,12 +11,12 @@ static void session_dtor(struct c2_ref *ref)
 
 	sess = container_of(ref, struct c2_cli_session, sess_ref);
 
-	c2_free(sess);
+	c2_free(sess, sizeof *cli);
 }
 
 static void session_create_cb(struct session_create_arg *arg,
 			      struct session_create_ret *ret,
-			      const struct rpc_client cli,
+			      const struct rpc_client *cli,
 			      CLIENT *net)
 {
 	struct c2_cli_session *cli_s;
@@ -54,6 +54,8 @@ int c2_session_cli_create(const struct rpc_client *cli, const client_id * srv_uu
 	/* XXX need change later */
 	req.cca_max_rpc_size = 0;
 
+	rc = send_rpc_sync(net, arg, ret, );
+	
 	/* call rpc */
 	session_create_cb(&arg, &ret, cli, net);
 }

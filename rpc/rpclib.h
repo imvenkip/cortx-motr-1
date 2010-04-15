@@ -45,6 +45,14 @@ struct rpc_client {
 	 sessions list
 	 */
 	struct c2_list		rc_sessions;
+	/**
+	 network logical connection assigned to a client
+	 */
+	struct c2_net_conn	rc_netlink;
+	/**
+	 operation to send from that client
+	 */
+	struct c2_rpc_op_table	*rc_ops;
 };
 
 /**
@@ -100,6 +108,11 @@ struct rpc_server {
 	 sessions list
 	 */
 	struct c2_list		rs_sessions;
+	/**
+	 operation to send from that client
+	 */
+	struct c2_rpc_op_table	*rc_ops;
+
 };
 
 /**

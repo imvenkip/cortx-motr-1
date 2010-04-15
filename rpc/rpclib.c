@@ -21,7 +21,7 @@ static void rpc_server_free(struct c2_ref *ref)
 	struct rpc_server *srv;
 
 	srv = container_of(ref, struct rpc_server, rs_ref);
-	c2_free(srv);
+	c2_free(srv, sizeof *cli);
 }
 
 struct rpc_server *rpc_server_create(const struct client_id *srv_id)
@@ -58,6 +58,7 @@ void rpc_server_unregister(struct rpc_server *srv)
 	c2_rwlock_write_lock(&servers_list_lock);
 	if (c2_list_link_is_in(&srv->rs_link)) {
 		c2_list_del(&srv->rs_link);
+		c2_list_link_init(&srv->rs_link);
 		need_put = TRUE;
 	}
 	c2_rwlock_write_unlock(&servers_list_lock);
@@ -98,7 +99,7 @@ static void rpc_client_free(struct c2_ref *ref)
 	struct rpc_client *cli;
 
 	cli = container_of(ref, struct rpc_client, rc_ref);
-	c2_free(cli);
+	c2_free(cli, sizeof *cli);
 }
 
 struct rpc_client *rpc_client_create(const struct client_id *id)
@@ -129,6 +130,7 @@ void rpc_client_destroy(struct rpc_client *cli)
 	c2_rwlock_write_lock(&clients_list_lock);
 	if (c2_list_link_is_in(&cli->rc_link)) {
 		c2_list_del(&cli->rc_link);
+		c2_list_link_init(&cli->rc_link);
 		need_put = TRUE;
 	}
 	c2_rwlock_write_unlock(&clients_list_lock);
