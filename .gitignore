@@ -28,3 +28,13 @@ Rules
 stamp-h1
 tags
 TAGS
+*.m4
+compile
+ltmain.sh
+INSTALL
+config.guess
+config.h.in
+config.sub
+depcomp
+install-sh
+missing
