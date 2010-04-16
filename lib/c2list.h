@@ -95,9 +95,31 @@ c2_list_first(const struct c2_list *head)
 	return head->first != (void *)head ? head->first : NULL ;
 }
 
-void c2_list_link_init(struct c2_list_link *head);
-void c2_list_link_fini(struct c2_list_link *head);
-bool c2_list_link_is_in(const struct c2_list_link *head);
+/**
+ initialize list link entry
+ 
+ @param link - pointer to link enty
+ 
+ @return NONE
+*/
+void c2_list_link_init(struct c2_list_link *link);
+void c2_list_link_fini(struct c2_list_link *link);
+
+/**
+ is link entry connected to the list
+ 
+ @param link - pointer to link entry
+ 
+ @retval true - entry connected to a list
+ @retval false - entry disconnected from a list
+*/
+bool c2_list_link_is_in(const struct c2_list_link *link);
+
+/**
+ * get pointer to object from pointer to list link entry
+ */
+#define c2_list_entry(link, type, member) \
+	container_of(link, type, member)
 
 /**
  * Iterate over a list
@@ -105,14 +127,20 @@ bool c2_list_link_is_in(const struct c2_list_link *head);
  * @param pos	the pointer to list_link to use as a loop counter.
  */
 #define c2_list_for_each(head, pos) \
-	for(pos = (head)->first; pos != (head)->last; \
+	for(pos = (head)->first; pos != (void *)(head); \
 	    pos = (pos)->next)
 
 /**
- * get pointer to object from pointer to list link entry
+ Iterate over a list
+ 
+ @param head	the head of list.
+ @param pos	the pointer to list_link to use as a loop counter.
  */
-#define c2_list_entry(link, type, member) \
-	container_of(link, type, member)
+#define c2_list_for_each_entry(head, pos, type, member) \
+	for(pos = c2_list_entry((head)->first, type, member); \
+	    &(pos->member) != (void *)head; \
+	    pos = c2_list_entry((pos)->member.next, type, member))
+
 
 #endif
 /*
