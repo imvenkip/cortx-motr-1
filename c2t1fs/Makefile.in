@@ -1,19 +1,19 @@
 LINUX = @LINUX@
-COLIBRI_SRCDIR = @SRCDIR@/colibri
+C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 
 ifeq ($(LINUX),y)
 
-obj-m := colibri.o
+obj-m := c2t1fs.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
 
 all:
 	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @KERNELDIR_OBJ@ M=`pwd` modules_install
 
 uninstall:
-	rm -fr @KERNELMOD_DIR@/kernel/fs/colibri
+	rm -fr @KERNELMOD_DIR@/kernel/fs/c2t1fs
 
 distclean clean:
 	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
@@ -29,5 +29,4 @@ distclean clean:
 endif
 
 distdir:
-	cp $(COLIBRI_SRCDIR)/Makefile.in $(COLIBRI_SRCDIR)/colibri.c @top_builddir@/@PACKAGE@-@VERSION@/colibri
-
+	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.c @top_builddir@/@PACKAGE@-@VERSION@/c2t1fs

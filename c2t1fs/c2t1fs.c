@@ -3,11 +3,11 @@
  
 int init_module(void) 
 {
-       printk(KERN_INFO "colibri FS init_module() called\n");
+       printk(KERN_INFO "c2t1fs init_module() called\n");
        return 0;
 }
         
 void cleanup_module(void)
 {
-       printk(KERN_INFO "colibri FS cleanup_module() called\n");
+       printk(KERN_INFO "c2t1fs cleanup_module() called\n");
 }

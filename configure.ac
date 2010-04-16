@@ -262,7 +262,7 @@ AC_CONFIG_FILES([
                  sns/Makefile
                  sm/Makefile
                  mds/Makefile
-                 colibri/Makefile
+                 c2t1fs/Makefile
                  patches/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
