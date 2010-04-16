@@ -156,11 +156,11 @@ struct c2_cm_copy_packet;
    responsible to create corresponding agents to do the actual work.
 */
 struct c2_cm_operations {
-	int (*cmops_init)   (struct c2_cm *this);
-	int (*cmops_stop)   (struct c2_cm *this, int force);
-	int (*cmops_config) (struct c2_cm *this, struct c2_cm_iset *iset,
+	int (*cmops_init)   (struct c2_cm *self);
+	int (*cmops_stop)   (struct c2_cm *self, int force);
+	int (*cmops_config) (struct c2_cm *self, struct c2_cm_iset *iset,
 		             struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
-	int (*cmops_handler)(struct c2_cm *this, struct c2_fop *req);
+	int (*cmops_handler)(struct c2_cm *self, struct c2_fop *req);
 	int (*cmops_queue)  (struct c2_cm_copy_packet *cp);
 };
 
