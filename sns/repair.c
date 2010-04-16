@@ -55,7 +55,7 @@ static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 						struct c2_cm_iset_cursor *cur = XXX /* TODO */;
 						
 						cag_group_get(self, cur, &sub_ext, &group);
-						if (group is on this node) {
+						if (cag_group_on_the_server(&group, server)) {
 							
 							while (cut_ext_from(&sub_ext, &chunk, RPC_SIZE)) {
 								int rc;
@@ -386,14 +386,14 @@ static int c2_cm_collecting_agent_collecting(struct c2_cm_collecting_agent *agen
 
 		cp = agent->get_cp_from_queue();
 		cag_group_get(self, cur, &sub_ext, &group);
-		if (cag_group_first_packet(&group)) { /* the first copy packet for this group */
-			cag_group_use_buffer_from_this_packet(&group, cp);
-			cma->ag_xform.xform(group.buffer, cp);						
+		if (cag_is_first_packet(&group)) { /* the first copy packet for this group */
+			cag_use_this_packet_as_buffer(&group, cp);
+			cma->ag_xform.cx_sns(&group, cp);						
 		} else {
-			cma->ag_xform.xform(group.buffer, cp);						
+			cma->ag_xform.cx_sns(&group, cp);						
 			c2_cm_cp_refdel(cp);
 		}
-		if (cag_group_is_done(&group)) {
+		if (cag_is_done(&group)) {
 			cma->ag_parent->cm_operations->cmops_queue(cp, c2_cm_collecting_agent_completion);
 		}
 

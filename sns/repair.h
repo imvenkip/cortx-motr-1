@@ -80,6 +80,21 @@ int  c2_poolmachine_node_leave(struct c2_poolmachine *pm,
 */
 
 /** 
+   resource limit
+
+   Data structure to describe the fraction of resource usage limitation:
+   0  : resource cannot be used at all.
+   100: resource can be used entirely without limitation.
+   0 < value < 100: fraction of resources can be used.
+*/
+struct c2_rlimit {
+       int rl_processor_throughput;
+       int rl_memory;
+       int rl_storage_throughput;
+       int rl_network_throughput;
+};
+
+/** 
    pool server
 
    Pool server represents a pool node plus its state machines, lives locally on
@@ -90,6 +105,7 @@ int  c2_poolmachine_node_leave(struct c2_poolmachine *pm,
 struct c2_poolserver {
 	struct c2_poolnode      ps_node;
 	struct c2_persistent_sm ps_mach;
+	struct c2_rlimit	ps_rl_usage; /**< the current resource usage */
 };
 
 int  c2_poolserver_init(struct c2_poolserver *srv);
@@ -117,21 +133,6 @@ struct c2_cm;
 struct c2_cm_stats {
 	int cm_progess;
 	int cm_error;
-};
-
-/** 
-   resource limit
-
-   Data structure to describe the fraction of resource usage limitation:
-   0  : resource cannot be used at all.
-   100: resource can be used entirely without limitation.
-   0 < value < 100: fraction of resources can be used.
-*/
-struct c2_rlimit {
-       int rl_processor_throughput;
-       int rl_memory;
-       int rl_storage_throughput;
-       int rl_network_throughput;
 };
 
 /** copy machine input set description */
@@ -219,6 +220,14 @@ struct c2_cm_callbacks {
    Aggregation group
 */
 struct c2_cm_aggrg_group {
+	/**
+	   aggrg group base buffer
+
+	   xform method need base buffer to hold the temporary result.
+	   The first copy packet for this group will be used as the base buffer.
+	   When this group is done, this buffer will be released.
+	*/
+	struct c2_cm_copy_packet *cag_buffer;
 };
 
 struct c2_cm_agent;
@@ -233,12 +242,22 @@ struct c2_cm_aggrg {
 			     const struct c2_cm_iset_cursor *cur,
 			     struct c2_ext *ext,
 			     struct c2_cm_aggrg_group *group);
+	int (*cag_is_first_packet)(struct c2_cm_aggrg_group *group);
+	int (*cag_is_done)(struct c2_cm_aggrg_group *group);
+	int (*cag_use_this_packet_as_buffer)(struct c2_cm_aggrg_group *group,
+					     struct c2_cm_copy_packet *cp);
+
+	int (*cag_group_on_the_server)(struct c2_cm_aggrg_group *group,
+				       struct c2_poolserver *server);
+
 };
 
 /**
    Copy machine transformation method
 */
 struct c2_cm_xform {
+	int (*cx_sns)(struct c2_cm_aggrg_group *group,
+		      struct c2_cm_copy_packet *cp);
 };
 
 /** 
