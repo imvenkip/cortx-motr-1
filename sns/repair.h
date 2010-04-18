@@ -396,10 +396,10 @@ struct c2_cm_agent *alloc_collecting_agent();
    allocate a new copy packet for future use.
    @retval NULL failed to allocate a new copy packet.
    @retval non-NULL pointer to the newly allocated copy packet.
-   @postcondition refcount == 1
-   @postcondition linkage is empty
-   @postcondition cp_data == NULL
-   @postcondition cp_len == 0
+   @post refcount == 1
+   @post linkage is empty
+   @post cp_data == NULL
+   @post cp_len == 0
 */
 struct c2_cm_copy_packet *c2_cm_cp_alloc();
 
@@ -409,8 +409,8 @@ struct c2_cm_copy_packet *c2_cm_cp_alloc();
    allocate data area with specified size for a copy packet.
    @retval 0 success.
    @retval != 0 failure.
-   @precondition (cp_data == NULL)
-   @postcondition (retval != 0 || cp_data != NULL)
+   @pre (cp_data == NULL)
+   @post (retval != 0 || cp_data != NULL)
 */
 int c2_cm_cp_alloc_data(struct c2_cm_copy_packet *cp, int len);
 
