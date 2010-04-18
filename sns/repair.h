@@ -11,11 +11,35 @@
 
    @section Overview
 
-   @section Definitions
+   SNS repair is a mechanism that restores functional and redundancy related
+   properties of a pool after a failure. High level design of SNS repair is
+   described in "HLD of SNS Repair" (https://docs.google.com/a/horizontalscale.com/Doc?docid=0AblBNh6IJyYvZGh0d2prNTVfMjV3NWN0Y2M5) document.
+
+   SNS repair is designed to scalably reconstruct data or meta-data in a
+   redundant striping pool after a data loss due to a failure. Redundant
+   striping stores a cluster-wide object in a collection of components,
+   according to a particular striping pattern.
+
+   @section def Definitions and requirements
+
+   See HLD for definitions and requirements.
 
    @section repairfuncspec Functional specification
 
    @section repairlogspec Logical specification
+
+   SNS repair is implemented as a system of two collaborating sub-components:
+
+   \li a pool machine: a replicated state machine responsible for organising IO
+   with a pool. External events such as failures, liveness layer and management
+   tool call-backs incur state transitions in a pool machine. A pool machine, in
+   turn, interacts with entities such as layout manager and layout IO engines to
+   control pool IO. A pool machine uses quorum based consensus to function in
+   the face of failures;
+
+   \li a copy machine: replicated state machine responsible for carrying out a particular
+   instance of a data restructuring. A copy machine is used to move, duplicate
+   or reconstruct data for various scenarios including
 
        @ref poolmachine
        @ref copymachine
