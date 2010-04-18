@@ -41,28 +41,38 @@
    instance of a data restructuring. A copy machine is used to move, duplicate
    or reconstruct data for various scenarios including
 
-       @ref poolmachine
+       @ref poolmach
        @ref copymachine
  */
 
 /**
-   @defgroup poolmachine Pool machine
+   @defgroup poolmach Pool machine
    @{
 */
 
-/**
-   pool machine
+enum c2_poolmach_version {
+	PVE_READ,
+	PVE_WRITE,
+	PVE_NR
+};
 
-   Data structure representing replicated pool state machine.
-*/
-struct c2_poolmachine {
-	struct c2_persistent_sm pm_mach;
+enum c2_poolnode_state {
+	PNS_ONLINE,
+	PNS_FAILED,
+	PNS_OFFLINE,
+	PNS_RECOVERING
+};
+
+enum c2_pooldev_state {
+	PDS_ONLINE,
+	PDS_FAILED,
+	PDS_OFFLINE,
+	PDS_RECOVERING
 };
 
 /**
-   pool node
+   pool node. Data structure representing a node in a pool.
 
-   Data structure representing a node in a pool.
    Pool node and pool server are two different views of the same physical
    entity. A pool node is how a server looks "externally" to other nodes.
    "struct poolnode" represents a particular server on other servers. E.g.,
@@ -73,6 +83,8 @@ struct c2_poolmachine {
    @see pool server
 */
 struct c2_poolnode {
+	enum c2_poolnode_state pn_state;
+	struct c2_node_id      pn_id;
 };
 
 /**
@@ -81,22 +93,64 @@ struct c2_poolnode {
    Data structure representing a storage device in a pool.
 */
 struct c2_pooldev {
+	enum c2_pooldev_state pd_state;
+	struct c2_dev_id      pd_id;
 };
 
-int  c2_poolmachine_init(struct c2_poolmachine *pm);
-void c2_poolmachine_fini(struct c2_poolmachine *pm);
+/**
+   Persistent pool machine state.
 
-int  c2_poolmachine_device_join (struct c2_poolmachine *pm, 
-				 struct c2_pooldev *dev);
-int  c2_poolmachine_device_leave(struct c2_poolmachine *pm, 
-				 struct c2_pooldev *dev);
+   Copies of this struct are maintained by every node that thinks it is a part
+   of the pool. This state is updated by a quorum protocol.
+*/
+struct c2_poolmach_state {
+	/**
+	 * pool version numbers vector updated on a failure.
+	 *
+	 * Matching pool version numbers must be presented by a client to do IO
+	 * against the pool. Usually pool version numbers vector is delivered to
+	 * a client together with a layout or a lock. Version numbers change on
+	 * failures effectively invalidating layouts affected by the failure.
+	 *
+	 * @note In addition to or instead of pool version numbers vector, every
+	 * layout can be tagged with a bitmask of alive pool nodes and devices
+	 * (such a bitmask is needed anyway to direct degraded mode IO). Version
+	 * numbers are advantageous for very large pools, where bitmask would be
+	 * too large.
+	 */
+	uint64_t            pst_version[PVE_NR];
+	struct c2_poolnode *pst_node;
+	struct c2_pooldev  *pst_dev;
+};
 
-int  c2_poolmachine_node_join (struct c2_poolmachine *pm, 
-			       struct c2_poolnode *node);
-int  c2_poolmachine_node_leave(struct c2_poolmachine *pm, 
-			       struct c2_poolnode *node);
+/**
+   pool machine. Data structure representing replicated pool state machine.
 
-/** @} end of poolmachine group */
+   Concurrency control: pool machine state is protected by a single read-write
+   blocking lock. "Normal" operations, e.g., client IO, including degraded mode
+   IO, take this lock in a read mode, because they only inspect pool machine
+   state (e.g., version numbers vector) never modifying it. "Configuration"
+   events such as node or device failures, addition or removal of a node or
+   device and administrative actions against the pool, all took the lock in a
+   write mode.
+*/
+struct c2_poolmach {
+	struct c2_persistent_sm  pm_mach;
+	struct c2_poolmach_state pm_state;
+	struct c2_rwlock        pm_lock;
+};
+
+
+int  c2_poolmach_init(struct c2_poolmach *pm);
+void c2_poolmach_fini(struct c2_poolmach *pm);
+
+int  c2_poolmach_device_join (struct c2_poolmach *pm, struct c2_pooldev *dev);
+int  c2_poolmach_device_leave(struct c2_poolmach *pm, struct c2_pooldev *dev);
+
+int  c2_poolmach_node_join (struct c2_poolmach *pm, struct c2_poolnode *node);
+int  c2_poolmach_node_leave(struct c2_poolmach *pm, struct c2_poolnode *node);
+
+/** @} end of poolmach group */
 
 /**
    @defgroup servermachine Server machine
