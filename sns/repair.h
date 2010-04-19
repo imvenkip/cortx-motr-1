@@ -83,8 +83,8 @@ enum c2_pooldev_state {
    @see pool server
 */
 struct c2_poolnode {
-	enum c2_poolnode_state pn_state;
-	struct c2_node_id      pn_id;
+	enum c2_poolnode_state  pn_state;
+	struct c2_node         *pn_id;
 };
 
 /**
@@ -93,8 +93,10 @@ struct c2_poolnode {
    Data structure representing a storage device in a pool.
 */
 struct c2_pooldev {
-	enum c2_pooldev_state pd_state;
-	struct c2_dev_id      pd_id;
+	enum c2_pooldev_state  pd_state;
+	struct c2_device      *pd_id;
+	/* a node this storage devie is attached to */
+	struct c2_poolnode    *pd_node;
 };
 
 /**
@@ -119,8 +121,20 @@ struct c2_poolmach_state {
 	 * too large.
 	 */
 	uint64_t            pst_version[PVE_NR];
+	/** number of nodes currently in the pool */
+	uint32_t            pst_nr_nodes;
+	/** identity and state of every node in the pool */
 	struct c2_poolnode *pst_node;
-	struct c2_pooldev  *pst_dev;
+	/** number of devices currently in the pool */
+	uint32_t            pst_nr_devices;
+	/** identity and state of every device in the pool */
+	struct c2_pooldev  *pst_device;
+
+	/** maximal number of node failures the pool is configured to sustain */
+	uint32_t            pst_max_node_failures;
+	/** maximal number of device failures the pool is configured to
+	    sustain */
+	uint32_t            pst_max_device_failures;
 };
 
 /**
@@ -137,7 +151,7 @@ struct c2_poolmach_state {
 struct c2_poolmach {
 	struct c2_persistent_sm  pm_mach;
 	struct c2_poolmach_state pm_state;
-	struct c2_rwlock        pm_lock;
+	struct c2_rwlock         pm_lock;
 };
 
 
