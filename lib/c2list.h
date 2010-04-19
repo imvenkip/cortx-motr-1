@@ -20,6 +20,24 @@ struct c2_list_link {
 };
 
 /**
+ initialize list link entry
+
+ @param link - pointer to link enty
+
+ @return NONE
+*/
+void c2_list_link_init(struct c2_list_link *link);
+
+/**
+ free resources associated with link entry
+
+ @param link - pointer to link enty
+
+ @return NONE
+*/
+void c2_list_link_fini(struct c2_list_link *link);
+
+/**
  list head
  */
 struct c2_list {
@@ -83,6 +101,20 @@ c2_list_del(struct c2_list_link *old)
 }
 
 /**
+ delete a entry from the list and initialize it
+
+ @param old list link entry 
+ */
+static inline void
+c2_list_del_init(struct c2_list_link *old)
+{
+	old->prev->next = old->next;
+	old->next->prev = old->prev;
+	c2_list_link_init(old);
+}
+
+
+/**
  * return first entry from the list
  *
  * @param head pointer to list head
@@ -95,15 +127,6 @@ c2_list_first(const struct c2_list *head)
 	return head->first != (void *)head ? head->first : NULL ;
 }
 
-/**
- initialize list link entry
- 
- @param link - pointer to link enty
- 
- @return NONE
-*/
-void c2_list_link_init(struct c2_list_link *link);
-void c2_list_link_fini(struct c2_list_link *link);
 
 /**
  is link entry connected to the list
