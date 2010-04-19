@@ -11,19 +11,29 @@
 struct c2_rw_lock conn_list_lock;
 struct c2_list   conn_list;
 
+static void c2_net_conn_free_cb(struct c2_ref *ref)
+{
+	struct c2_net_conn *conn;
+
+	conn = container_of(ref, struct c2_net_conn, nc_refs);
+
+	clnt_destroy(conn->nc_cli);
+	C2_FREE_PTR(conn);
+}
+
 int c2_net_connection_create(struct node_id *nid, long prgid, char *nn)
 {
 	struct c2_net_conn *conn;
-	struct CLIENT *cli;
+	CLIENT *cli;
 
-	conn = c2_alloc(sizeof *conn);
-	if (!conn)
+	C2_ALLOC_PTR(conn);
+	if (conn == NULL)
 		return -ENOMEM;
 
 	/** XXX sun rpc */
 	cli = clnt_create (nn, prgid, 1, "tcp");
-	if (!cli) {
-		c2_free(conn);
+	if (cli == NULL) {
+		C2_FREE_PTR(conn);
 		return -ENOCONN;
 	}
 
@@ -40,20 +50,17 @@ int c2_net_connection_create(struct node_id *nid, long prgid, char *nn)
 	return 0;
 }
 
-struct c2_net_conn *c2_net_connection_find(struct node_id *nid, long prgid)
+struct c2_net_conn *c2_net_connection_find(struct node_id const *nid, long prgid)
 {
-	struct c2_list_link *pos;
 	struct c2_net_conn *conn;
-	bool found = FALSE;
+	bool found = false;
 
 	c2_rwlock_read_lock(&conn_list_lock);
-	c2_list_for_each(&conn_list, pos) {
-		conn = c2_list_entry(pos, struct c2_net_conn, nc_link);
-
+	c2_list_for_each_entry(conn, &conn_list, struct c2_net_conn, nc_link) {
 		if (conn->nc_prg_id == prgid &&
-		    nodes_is_same(conn->nc_id, nid)) {
+		    nodes_is_same(&conn->nc_id, nid)) {
 			c2_ref_get(&conn->nc_refs);
-			found = TRUE;
+			found = true;
 			break;
 		}
 	}
@@ -69,13 +76,12 @@ void c2_net_conn_release(struct c2_net_conn *conn)
 
 int c2_net_conn_destroy(struct c2_net_conn *conn)
 {
-	bool need_put = FALSE;
+	bool need_put = false;
 
 	c2_rwlock_write_lock(&conn_list_lock);
 	if (c2_link_is_in(&conn->nc_link)) {
-		c2_list_del(&conn->nc_link);
-		c2_list_link_init(&conn->nc_link);
-		need_put = TRUE;
+		c2_list_del_init(&conn->nc_link);
+		need_put = false;
 	}
 	c2_rwlock_write_lock(&conn_list_lock);
 

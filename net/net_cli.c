@@ -4,42 +4,45 @@
 #include "net/net.h"
 #include "net/net_internal.h"
 
-/* Default timeout */
+/* XXX Default timeout  - need to be move in connection */
 static struct timeval TIMEOUT = { 25, 0 };
 
-int c2_net_cli_call_sync(struct c2_net_conn *conn, struct c2_rpc_op_table *rot,
+int c2_net_cli_call_sync(struct c2_net_conn const *conn,
+			 struct c2_rpc_op_table const *rot,
 			 int op, void *arg, void *ret)
 {
-	struct c2_rpc_op *rop;
+	struct c2_rpc_op const *rop;
 
-	if ((rop = find_ops(rot, op)) == NULL) {
+	rop = c2_find_ops(rot, op);
+	if (rop == NULL)
 		return -ENODEV;
-	}
 
 	return clnt_call(conn->nc_cli, op,
-			 rop->ro_xdr_arg, (caddr_t) arg,
-			 rop->ro_xdr_result, (caddr_t) ret,
-		TIMEOUT);
+			 (xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
+			 (xdrproc_t) rop->ro_xdr_result, (caddr_t) ret,
+			 TIMEOUT);
 }
 
 
-int c2_net_cli_call_async(struct c2_net_conn *conn, int op, void *arg,
+int c2_net_cli_call_async(struct c2_net_conn const *conn,
+			  struct c2_rpc_op_table const *rot,
+			  int op, void *arg,
 			  c2_net_cli_cb *cb, void *ret)
 {
-	struct c2_rpc_op *rop;
-	int32_t errno;
+	struct c2_rpc_op const *rop;
+	int32_t err;
 
-	if ((rop = find_ops(rot, op)) == NULL) {
+	rop = c2_find_ops(rot, op);
+	if (rop == NULL)
 		return -ENODEV;
-	}
 
 	/** XXX until real async exist */
-	errno = clnt_call(conn->nc_cli, op,
-			 rop->ro_xdr_arg, (caddr_t) arg,
-			 rop->ro_xdr_result, (caddr_t) ret,
-		TIMEOUT);
+	err = clnt_call((CLIENT *) conn->nc_cli, op,
+			(xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
+			(xdrproc_t) rop->ro_xdr_result, (caddr_t) ret,
+			TIMEOUT);
 
-	cb(errno, arg, ret);
+	cb(err, arg, ret);
 
 	return 0;
 }

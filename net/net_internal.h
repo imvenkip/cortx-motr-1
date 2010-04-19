@@ -19,11 +19,11 @@ struct c2_net_conn {
 	 */
 	struct node_id		nc_id;
 	/**
-	 structure reference countings
+	 structure reference counting
 	 */
 	struct c2_ref		nc_refs;
 	/**
-	 service identifer
+	 service identifier
 	 */
 	long			nc_prgid;
 	/**
@@ -33,16 +33,16 @@ struct c2_net_conn {
 };
 
 /**
- find operation in table. function scaned table with operation to find
+ find operation in table. function scanned table with operation to find
  requested operation.
  
  @param ops pointer filled operations table
- @param op rpc operatation to find
+ @param op rpc operation to find
  
- @retval NULL if pointer not exist or wrong paramters
+ @retval NULL if pointer not exist or wrong parameters
  @retval !NULL if operations found in table
  */
-struct c2_rpc_op  *find_op(struct c2_rpc_op_table *ops, int op);
+struct c2_rpc_op const *c2_find_op(struct c2_rpc_op_table const *ops, int op);
 
 /**
  initialize global structures related to network connections
