@@ -375,7 +375,6 @@ struct c2_cm {
 	struct c2_cm_oset	cm_oset;          /**< output set description */
 	struct c2_cm_operations cm_operations;    /**< operations of this cm */
 	struct c2_cm_callbacks  cm_callbacks;     /**< callbacks of this cm */
-	struct c2_list_link	cm_copy_packets;  /**< link all copy packets */
 };
 
 struct c2_cm_agent;
@@ -395,6 +394,14 @@ struct c2_cm_agent_operations {
 	int (*agops_run)   (struct c2_cm_agent *self);
 };
 
+enum c2_cm_agent_type {
+	C2_CM_STORAGE_IN_AGENT,
+	C2_CM_STORAGE_OUT_AGENT,
+	C2_CM_NETWORK_IN_AGENT,
+	C2_CM_NETWORK_OUT_AGENT,
+	C2_CM_COLLECTING_AGENT
+}
+
 /**
    copy machine agent
 
@@ -406,6 +413,7 @@ struct c2_cm_agent_operations {
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
 	struct c2_cm		     *ag_parent; /**< pointer to parent cm */
+	enum c2_cm_agent_type	      ag_type;
 
 	struct c2_cm_aggrg	      ag_aggrg;
 	struct c2_cm_xform	      ag_xform;

@@ -420,8 +420,9 @@ struct c2_cm_agent *alloc_storage_in_agent()
 	struct c2_cm_storage_in_agent *agent;
 
 	agent = c2_alloc(sizeof(*agent));
-	if (agent)
+	if (agent) {
+		agent->ci_agent.ag_type = C2_CM_STORAGE_IN_AGENT;
 		return &agent->ci_agent;
-	else
+	} else
 		return NULL;
 }
