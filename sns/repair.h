@@ -306,6 +306,12 @@ struct c2_cm_aggrg_group {
 	   When this group is done, this buffer will be released.
 	*/
 	struct c2_cm_copy_packet *cag_buffer;
+
+	/**
+	  XXX TODO How to represent all the containers/devices in this 
+	  aggregation group? Some are on remote nodes, and some are local.
+	*/
+	struct c2_device        **cag_devices;
 };
 
 struct c2_cm_agent;
@@ -404,6 +410,9 @@ struct c2_cm_agent {
 	struct c2_cm_aggrg	      ag_aggrg;
 	struct c2_cm_xform	      ag_xform;
 	struct c2_cm_agent_operations ag_operations;
+
+	/** copy packet in flight of this agent */
+	struct c2_list	      	      ag_cp_in_flight;
 	
 	int			      ag_quit:1;
 };
