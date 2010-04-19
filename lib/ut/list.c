@@ -15,6 +15,7 @@ void test_list(void)
 	struct test1	t1, t2, t3;
 	struct c2_list_link	*pos;
 	struct c2_list	test_head;
+	struct test1 *p;
 	int t_sum;
 
 	c2_list_init(&test_head);
@@ -31,7 +32,7 @@ void test_list(void)
 	c2_list_add(&test_head, &t3.t_link);
 
 	c2_list_for_each(&test_head, pos) {
-		struct test1 *p = c2_list_entry(pos,struct test1, t_link);
+		p = c2_list_entry(pos,struct test1, t_link);
 		printf("%d ", p->c);
 	}
 	printf("\n");
@@ -39,7 +40,7 @@ void test_list(void)
 	c2_list_del(&t2.t_link);
 	t_sum = 0;
 	c2_list_for_each(&test_head, pos) {
-		struct test1 *p = c2_list_entry(pos,struct test1, t_link);
+		p = c2_list_entry(pos,struct test1, t_link);
 		t_sum += p->c;
 	}
 	if (t_sum != 20)
@@ -47,8 +48,7 @@ void test_list(void)
 
 	c2_list_del(&t1.t_link);
 	t_sum = 0;
-	c2_list_for_each(&test_head, pos) {
-		struct test1 *p = c2_list_entry(pos,struct test1, t_link);
+	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
 	}
 	if (t_sum != 15)
@@ -56,8 +56,7 @@ void test_list(void)
 
 	c2_list_del(&t3.t_link);
 	t_sum = 0;
-	c2_list_for_each(&test_head, pos) {
-		struct test1 *p = c2_list_entry(pos,struct test1, t_link);
+	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
 	}
 	if (t_sum != 0)
