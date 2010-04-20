@@ -12,6 +12,13 @@ struct c2_foff;
 struct c2_coff;
 struct c2_doff;
 
+struct c2_node_id {
+};
+struct c2_dev_id {
+
+};
+
+
 typedef struct c2_foff c2_foff_t;
 typedef struct c2_coff c2_coff_t;
 typedef struct c2_doff c2_doff_t;
