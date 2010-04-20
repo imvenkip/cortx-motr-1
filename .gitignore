@@ -32,6 +32,7 @@ ltmain.sh
 missing
 .libs/
 *.lo
+*.loT
 *.o
 *.la
 .*.ko.cmd
@@ -46,6 +47,7 @@ fol/fol.h
 fol/fol_print.c
 fol/fol_template.0.c
 .#*
+#*#
 lib/ut/utlibc2
 libtool
 m4/libtool.m4

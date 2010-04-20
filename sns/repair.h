@@ -27,6 +27,35 @@
 
    @section repairfuncspec Functional specification
 
+   SNS repair component is dormant during normal cluster operation. It is
+   activated by liveness events such as server or storage device failure or
+   recovery. On the first failure in an otherwise functional pool, SNS rebuild
+   directs a collection of "agents" associated with pool devices and network
+   interfaces to start a reconstruction of data conatined on the lost
+   unit. Reconstructions process is designed to utilize the fraction of
+   available storage bandwidth on all pool devices (on average). Reconstructed
+   data are stored in a "distributed spare space" uniformly scattered over all
+   storage devices in the pool.
+
+   Should an additional failure happen during data reconstruction, the
+   reconstruction process is stopped, reconfigured to take additional failure
+   into account and re-started. After reconstructions finishes, the pool can
+   experience further failures. Reconstruction of data lost due to those uses
+   data ecavuated to the distributed spare by the previous reconstructions.
+
+   When a new server or a new storage device are added to the pool, the pool is
+   "re-balanced" to free used spare space.
+
+   A pool is configured to sustain a given number of server and device failures
+   (these parameters determine redundancy of striping patterns used by the pool
+   and the amount of allocated spare space). Once all allowed failures happened,
+   any further failure transfres the pool into a "dud" state, where availability
+   guarantees are rescinded.
+
+   While data reconstruction is ongoing, external (client) IO against the pool
+   proceeds in a "degraded" mode with clients doing reconstruction on demand and
+   helping SNS repair with their writes.
+
    @section repairlogspec Logical specification
 
    SNS repair is implemented as a system of two collaborating sub-components:
@@ -57,18 +86,27 @@ enum c2_poolmach_version {
 	PVE_NR
 };
 
+/** A state that a pool node can be in as far as a pool machine is concerned */
 enum c2_poolnode_state {
+	/** a node is online and serving IO */
 	PNS_ONLINE,
+	/** a node is considered failed */
 	PNS_FAILED,
+	/** a node turned off-line by an administrative request */
 	PNS_OFFLINE,
+	/** a node is active, but not yet serving IO */
 	PNS_RECOVERING
 };
 
+/** A state that a storage device attached to a pool node can be in as far as a
+    pool machine is concerned */
 enum c2_pooldev_state {
+	/** a device is online and serving IO */
 	PDS_ONLINE,
+	/** a device is considered failed */
 	PDS_FAILED,
-	PDS_OFFLINE,
-	PDS_RECOVERING
+	/** a device turned off-line by an administrative request */
+	PDS_OFFLINE
 };
 
 /**
@@ -84,8 +122,8 @@ enum c2_pooldev_state {
    @see pool server
 */
 struct c2_poolnode {
-	enum c2_poolnode_state pn_state;
-	struct c2_node_id      pn_id;
+	enum c2_poolnode_state  pn_state;
+	struct c2_server       *pn_id;
 };
 
 /**
@@ -94,8 +132,12 @@ struct c2_poolnode {
    Data structure representing a storage device in a pool.
 */
 struct c2_pooldev {
-	enum c2_pooldev_state pd_state;
-	struct c2_dev_id      pd_id;
+	/** device state (as part of pool machine state). This field is only
+	    meaningful when c2_pooldev::pd_node.pn_state is PNS_ONLINE */
+	enum c2_pooldev_state  pd_state;
+	struct c2_device      *pd_id;
+	/* a node this storage devie is attached to */
+	struct c2_poolnode    *pd_node;
 };
 
 /**
@@ -120,8 +162,20 @@ struct c2_poolmach_state {
 	 * too large.
 	 */
 	uint64_t            pst_version[PVE_NR];
+	/** number of nodes currently in the pool */
+	uint32_t            pst_nr_nodes;
+	/** identity and state of every node in the pool */
 	struct c2_poolnode *pst_node;
-	struct c2_pooldev  *pst_dev;
+	/** number of devices currently in the pool */
+	uint32_t            pst_nr_devices;
+	/** identity and state of every device in the pool */
+	struct c2_pooldev  *pst_device;
+
+	/** maximal number of node failures the pool is configured to sustain */
+	uint32_t            pst_max_node_failures;
+	/** maximal number of device failures the pool is configured to
+	    sustain */
+	uint32_t            pst_max_device_failures;
 };
 
 /**
@@ -138,7 +192,7 @@ struct c2_poolmach_state {
 struct c2_poolmach {
 	struct c2_persistent_sm  pm_mach;
 	struct c2_poolmach_state pm_state;
-	struct c2_rwlock        pm_lock;
+	struct c2_rwlock         pm_lock;
 };
 
 
