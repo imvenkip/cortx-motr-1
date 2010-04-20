@@ -369,7 +369,7 @@ struct c2_cm_copy_packet {
 
 /** copy machine */
 struct c2_cm {
-	struct c2_persistent_sm cm_mach;          /**< persistant state machine */
+	struct c2_persistent_sm cm_mach;          /**< persistent state machine */
 	struct c2_cm_stats	cm_stats;         /**< stats */
 	struct c2_rlimit  	cm_rlimit;        /**< resource limitation */
 	struct c2_cm_iset	cm_iset;          /**< input set description */
@@ -409,7 +409,10 @@ enum c2_cm_agent_type {
    Copy machine agent is the base class for all agents: storage-in, storage-out,
    network-in, network-out, collecting, ...
    Copy machine agent has the basic properties and functions shared by all
-   agents.
+   agents. Some information of the agent will be logged onto persistent storage,
+   and they will survive node failures with distributed replications. E.g. the
+   progress of the operation, refected by sequence number of the copy packet
+   should go onto persistent storage.
 */
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
