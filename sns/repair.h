@@ -5,6 +5,7 @@
 
 #include <sm/sm.h>
 #include <lib/refs.h>
+#include <lib/cc.h>
 
 /**
    @page snsrepair SNS repair detailed level design specification.
@@ -414,7 +415,7 @@ enum c2_cm_agent_type {
 	C2_CM_NETWORK_IN_AGENT,
 	C2_CM_NETWORK_OUT_AGENT,
 	C2_CM_COLLECTING_AGENT
-}
+};
 
 /**
    copy machine agent
