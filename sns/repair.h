@@ -234,6 +234,8 @@ struct c2_cm_copy_packet;
 
    A copy machine has a handler which handles FOP requests. A copy machine is
    responsible to create corresponding agents to do the actual work.
+   A copy machine registers its 'fop handler' to main fop handler. Then this
+   copy machine will handle copy machine related requests.
 */
 struct c2_cm_operations {
 	int (*cmops_init)   (struct c2_cm *self);
@@ -242,15 +244,13 @@ struct c2_cm_operations {
 		             struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
 	int (*cmops_handler)(struct c2_cm *self, struct c2_fop *req);
 	int (*cmops_queue)  (struct c2_cm_copy_packet *cp);
+	int (*cmops_stats)  (const struct c2_cm *cm,
+                             struct c2_cm_stats *stats /**< [out] output stats */
+			    );
+	/** adjust resource limitation parameters dynamically. */
+	int (*cmops_adjust_rlimit)(struct c2_cm *cm, struct c2_rlimit *new_rl);
 };
 
-/** get stats from copy machine */
-int c2_cm_stats(const struct c2_cm *cm,
-                struct c2_cm_stats *stats /**< [out] output stats */
-               );
-
-/** adjust resource limitation parameters dynamically. */
-int c2_cm_adjust_rlimit(struct c2_cm *cm, struct c2_rlimit *new_rl);
 
 struct c2_container;
 struct c2_device;
