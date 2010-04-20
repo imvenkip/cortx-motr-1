@@ -39,11 +39,22 @@
 
    Should an additional failure happen during data reconstruction, the
    reconstruction process is stopped, reconfigured to take additional failure
-   into account and re-started.
+   into account and re-started. After reconstructions finishes, the pool can
+   experience further failures. Reconstruction of data lost due to those uses
+   data ecavuated to the distributed spare by the previous reconstructions.
 
-   After reconstructions finishes, the pool can experience further
-   failures. Reconstruction of data lost due to those uses data ecavuated to the
-   distributed spare by the previous reconstructions.
+   When a new server or a new storage device are added to the pool, the pool is
+   "re-balanced" to free used spare space.
+
+   A pool is configured to sustain a given number of server and device failures
+   (these parameters determine redundancy of striping patterns used by the pool
+   and the amount of allocated spare space). Once all allowed failures happened,
+   any further failure transfres the pool into a "dud" state, where availability
+   guarantees are rescinded.
+
+   While data reconstruction is ongoing, external (client) IO against the pool
+   proceeds in a "degraded" mode with clients doing reconstruction on demand and
+   helping SNS repair with their writes.
 
    @section repairlogspec Logical specification
 
