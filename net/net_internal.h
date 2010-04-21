@@ -3,7 +3,10 @@
 
 #define _C2_NET_INTERNAL_H_
 
-#include "lib/c2ref.h"
+#include "lib/c2list.h"
+#include "lib/refs.h"
+
+struct CLIENT;
 
 /**
  logical network connection from that node to some node and service
@@ -29,16 +32,16 @@ struct c2_net_conn {
 	/**
 	 sun rpc transport
 	 */
-	CLIENT 		*nc_cli;
+	struct CLIENT		*nc_cli;
 };
 
 /**
  find operation in table. function scanned table with operation to find
  requested operation.
- 
+
  @param ops pointer filled operations table
  @param op rpc operation to find
- 
+
  @retval NULL if pointer not exist or wrong parameters
  @retval !NULL if operations found in table
  */

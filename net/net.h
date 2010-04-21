@@ -3,18 +3,17 @@
 
 #define _C2_NET_H_
 
+#include "lib/cdefs.h"
+
 /**
- unique node identifier, can send over network
+ unique service identifier.
+ each service have own identifiers.
+ if different services run on single physical node,
+ he will have different c2_node_id value.
  */
-struct node_id {
+struct c2_node_id {
 	char uuid[40];
 };
-
-/**
- XDR procedure to convert node_id from/to network representation
- */
-bool_t xdr_node_id (XDR *xdrs, struct node_id *objp);
-
 
 /**
  compare node identifiers
@@ -25,13 +24,14 @@ bool_t xdr_node_id (XDR *xdrs, struct node_id *objp);
  @retval TRUE if node identifiers is same
  @retval FALSE if node identifiers is different
 */
-bool nodes_is_same(struct node_id const *c1, struct node_id const *c2);
+bool c2_nodes_is_same(struct c2_node_id const *c1, struct c2_node_id const *c2);
+
+struct c2_net_conn;
 
 /**
  @defgroup net_conn logical network connection
  @{
  */
-struct c2_net_conn;
 
 /**
  create network connection based in config info.
@@ -46,7 +46,7 @@ struct c2_net_conn;
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_connection_create(struct node_id const *nid, unsigned long prgid, char *nn);
+int c2_net_conn_create(struct c2_node_id const *nid, unsigned long prgid, char *nn);
 
 /**
  find connection to specified node.
@@ -59,7 +59,7 @@ int c2_net_connection_create(struct node_id const *nid, unsigned long prgid, cha
  @retval NULL if none connections to the node
  @retval !NULL connection info pointer
  */
-struct c2_net_conn *c2_net_connection_find(struct node_id const *nid, unsigned long prgid);
+struct c2_net_conn *c2_net_conn_find(struct c2_node_id const *nid, unsigned long prgid);
 
 /**
  release connection after using.
@@ -86,6 +86,8 @@ int c2_net_conn_destroy(struct c2_net_conn *conn);
  @} end of net_conn group
 */
 
+typedef	bool (*c2_xdrproc_t)(void *, void *, unsigned int);
+
 /**
  rpc commands associated with service thread
  */
@@ -97,16 +99,16 @@ struct c2_rpc_op {
 	/**
 	 XDR program to converting argument of remote procedure call
 	 */
-	xdrproc_t	ro_xdr_arg;
+	c2_xdrproc_t	ro_xdr_arg;
 	/**
 	 XDR program to converting result of remote procedure call
 	 */
-	xdrproc_t	ro_xdr_result;
+	c2_xdrproc_t	ro_xdr_result;
 	/**
 	 function to a handle operation on server side
 	 */
 	bool		(*ro_shandler) (void *, void *);
-}
+};
 
 struct c2_rpc_op_table {
 	/**
@@ -116,7 +118,7 @@ struct c2_rpc_op_table {
 	/**
 	 array of rpc operations
 	 */
-	struct c2_rpc_op	rot_ops[];
+	struct c2_rpc_op	rot_ops[0];
 };
 
 /**
@@ -161,9 +163,9 @@ typedef void (*c2_net_cli_cb)(int32_t error, void *arg, void *ret);
 */
 int c2_net_cli_call_async(struct c2_net_conn const *conn,
 			  struct c2_rpc_op_table const *rot,
-			  int op, void *arg, c2_net_cli_cb *cb, void *ret);
+			  int op, void *arg, c2_net_cli_cb cb, void *ret);
 
-
+struct SVCXPRT;
 struct svc_req;
 
 /**
@@ -172,7 +174,7 @@ struct svc_req;
  @param req - SUN RPC request
  @param xptr - SUN RPC transport
 */
-typedef void (*rpc_handler_t)(struct svc_req *req, SVCXPRT *xptr);
+typedef void (*rpc_handler_t)(struct svc_req *req, struct SVCXPRT *xptr);
 
 /**
  generic code to handle incoming requests
@@ -187,7 +189,7 @@ typedef void (*rpc_handler_t)(struct svc_req *req, SVCXPRT *xptr);
 
  @return NONE
  */
-void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *xptr,
+void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *xptr,
 			   struct c2_rpc_op_table const *ops, void *arg, void *ret);
 
 /**
@@ -205,6 +207,18 @@ int c2_net_srv_start(unsigned long int program_num, unsigned long ver,
 		     rpc_handler_t handler);
 
 int c2_net_srv_stop(unsigned long int program_num, unsigned long ver);
+
+
+/**
+ constructor for the network library
+ */
+int net_init(void);
+
+/**
+ destructor for the network library.
+ release all allocated resources
+ */
+int net_fini(void);
 
 #endif
 

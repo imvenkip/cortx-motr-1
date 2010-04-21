@@ -21,7 +21,7 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 	C2_FREE_PTR(conn);
 }
 
-int c2_net_connection_create(struct node_id *nid, long prgid, char *nn)
+int c2_net_conn_create(struct c2_node_id const *nid, long prgid, char *nn)
 {
 	struct c2_net_conn *conn;
 	CLIENT *cli;
@@ -50,7 +50,7 @@ int c2_net_connection_create(struct node_id *nid, long prgid, char *nn)
 	return 0;
 }
 
-struct c2_net_conn *c2_net_connection_find(struct node_id const *nid, long prgid)
+struct c2_net_conn *c2_net_conn_find(struct c2_node_id const *nid, long prgid)
 {
 	struct c2_net_conn *conn;
 	bool found = false;
@@ -102,3 +102,4 @@ void c2_net_conn_fini()
 	c2_list_fini(&conn_list);
 	c2_rwlock_fini(&conn_list_lock);
 }
+

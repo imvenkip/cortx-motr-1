@@ -1,5 +1,8 @@
-#include <memory.h>
+#include <rpc/types.h>
+#include <rpc/xdr.h>
+#include <rpc/auth.h>
 #include <rpc/clnt.h>
+#include <errno.h>
 
 #include "net/net.h"
 #include "net/net_internal.h"
@@ -13,7 +16,7 @@ int c2_net_cli_call_sync(struct c2_net_conn const *conn,
 {
 	struct c2_rpc_op const *rop;
 
-	rop = c2_find_ops(rot, op);
+	rop = c2_find_op(rot, op);
 	if (rop == NULL)
 		return -ENODEV;
 
@@ -27,12 +30,12 @@ int c2_net_cli_call_sync(struct c2_net_conn const *conn,
 int c2_net_cli_call_async(struct c2_net_conn const *conn,
 			  struct c2_rpc_op_table const *rot,
 			  int op, void *arg,
-			  c2_net_cli_cb *cb, void *ret)
+			  c2_net_cli_cb cb, void *ret)
 {
 	struct c2_rpc_op const *rop;
 	int32_t err;
 
-	rop = c2_find_ops(rot, op);
+	rop = c2_find_op(rot, op);
 	if (rop == NULL)
 		return -ENODEV;
 

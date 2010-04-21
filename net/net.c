@@ -4,7 +4,8 @@
 
 #include <colibri/colibri.h>
 
-#inclide "net/net_internal.h"
+#include "net/net.h"
+#include "net/net_internal.h"
 
 int net_init()
 {

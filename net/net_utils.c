@@ -1,6 +1,8 @@
+#include <string.h>
+
 #include "net/net.h"
 
-bool nodes_is_same(struct node_id const *c1, struct node_id const *c2)
+bool c2_nodes_is_same(struct c2_node_id const *c1, struct c2_node_id const *c2)
 {
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }
