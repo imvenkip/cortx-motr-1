@@ -5,7 +5,7 @@
 #include "lib/refs.h"
 #include "rpc/rpc_common.h"
 
-bool session_is_same(struct session_id *s1, struct session_id *s2)
+bool c2_session_is_same(struct session_id const *s1, struct session_id const *s2)
 {
 	return memcmp(s1, s2, sizeof *s1) == 0;
 }
@@ -16,15 +16,15 @@ bool session_is_same(struct session_id *s1, struct session_id *s2)
 struct c2_rwlock servers_list_lock;
 static struct c2_list servers_list;
 
-static void rpc_server_free(struct c2_ref *ref)
+static void c2_rpc_server_free(struct c2_ref *ref)
 {
-	struct rpc_server *srv;
+	struct c2_rpc_server *srv;
 
 	srv = container_of(ref, struct rpc_server, rs_ref);
 	C2_FREE_PTR(srv);
 }
 
-struct rpc_server *c2_rpc_server_init(const struct client_id *srv_id)
+struct c2_rpc_server *c2_rpc_server_init(const struct client_id *srv_id)
 {
 	struct rpc_server *srv;
 
@@ -33,7 +33,7 @@ struct rpc_server *c2_rpc_server_init(const struct client_id *srv_id)
 		return NULL;
 
 	c2_list_link_init(&srv->rs_link);
-	c2_ref_init(&srv->rs_ref, 1, rpc_server_free);
+	c2_ref_init(&srv->rs_ref, 1, c2_rpc_server_free);
 	c2_rwlock_init(&srv->rs_session_lock);
 	c2_list_init(&srv->rs_sessions);
 
@@ -70,7 +70,7 @@ void c2_rpc_server_unregister(struct c2_rpc_server *srv)
 struct rpc_server *c2_rpc_server_find(struct client_id const *srv_id)
 {
 	struct c2_list_link *pos;
-	struct rpc_server *srv = NULL;
+	struct c2_rpc_server *srv = NULL;
 	bool found = false;
 
 	c2_rwlock_read_lock(&servers_list_lock);
@@ -93,15 +93,15 @@ struct rpc_server *c2_rpc_server_find(struct client_id const *srv_id)
 struct c2_rwlock clients_list_lock;
 static struct c2_list servers_list;
 
-static void rpc_client_free(struct c2_ref *ref)
+static void c2_rpc_client_free(struct c2_ref *ref)
 {
-	struct rpc_client *cli;
+	struct c2_rpc_client *cli;
 
 	cli = container_of(ref, struct rpc_client, rc_ref);
 	C2_FREE_PTR(cli);
 }
 
-struct rpc_client *c2_rpc_client_create(struct node_id const *id)
+struct c2_rpc_client *c2_rpc_client_create(struct c2_node_id const *id)
 {
 	struct c2_rpc_client *cli;
 
@@ -140,7 +140,7 @@ void c2_rpc_client_destroy(struct c2_rpc_client *cli)
 
 struct c2_rpc_client *c2_rpc_client_find(struct node_id const *id)
 {
-	struct rpc_client *cli = NULL;
+	struct c2_rpc_client *cli = NULL;
 	bool found = false;
 
 	c2_rwlock_read_lock(&client_list_lock);

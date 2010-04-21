@@ -3,6 +3,7 @@
 
 #define _RPC_CLI_SESSION_H_
 
+#include "lib/cdefs.h"
 #include "lib/refs.h"
 
 /**
@@ -110,7 +111,7 @@ struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected
  */
-int c2_session_check(struct c2_cli_session const *sess);
+int c2_cli_session_check(struct c2_cli_session const *sess);
 
 
 /**
@@ -139,7 +140,7 @@ struct srv_slot_table {
 	/**
 	 * slots array
 	 */
-	struct srv_slot srvst_slots[C2_MAX_SLOTS];
+	struct srv_slot srvst_slots[0];
 };
 
 
@@ -158,7 +159,7 @@ struct srv_session {
 	/**
 	 * client identifier
 	 */
-	struct client_id	srvs_cli;
+	struct c2_node_id	srvs_cli;
 	/**
 	 * server assigned session id
 	 */
@@ -166,41 +167,38 @@ struct srv_session {
 	/**
 	 *
 	 */
-	struct srv_slot_table srvs_slots;
+	struct srv_slot_table *srvs_slots;
 	/**
 	 * link to server owned this session
 	 */
 	struct server		*srvs_server;
-	/**
-	 * session last used time
-	*/
-	uint64_t		srvs_last_used;
 };
 
 /**
- * adjust slot numbers for given session
- *
- * \param session  - pointer to client session
- * \param new_size - new number for the high slot id.
- *
- * \retval >0 size after adjusting
- * \retval <0 any error hit (client not responded, or other)
+ adjust session parameters (currently supported slot size)
+ called by server if need change parameters on client side.
+
+ @param session  - pointer to client session
+ @param new_size - new number for the high slot id.
+
+ @retval >0 size after adjusting
+ @retval <0 any error hit (client not responded, or other)
  */
 int c2_session_adjust(struct srv_session *session, uint32_t new_size);
 
 /** rpc handlers */
 /**
- * server handler for the SESSION_CREATE cmd.
- * create new session
- *
- * \param in  - structure with arguments from client to creation session.
- * \param out - structure returned to client
- *
- * \retval 0  - create is OK
- * \retval <0 - create is fail (no memory, already exist, or other)
+ server handler for the SESSION_CREATE command.
+ create new session on server and connect session into session list.
+
+ @param in  - structure with arguments from client to creation session.
+ @param out - structure returned to client
+
+ @retval true  - need send a reply
+ @retval false - not need send a reply - some generic error is hit.
  */
-int c2_session_create_svc(struct session_create_arg *in,
-			  struct session_create_ret *out);
+bool c2_session_create_svc(struct session_create_arg const *in,
+			   struct session_create_ret *out);
 
 /**
  * server handler for the SESSION_DESTROY cmd.
@@ -212,8 +210,8 @@ int c2_session_create_svc(struct session_create_arg *in,
  * @retval 0  - destroy is OK
  * @retval <0 - destroy is fail (no memory, not found, or other)
  */
-int c2_session_destroy_svc(struct session_destroy_arg *in,
-			   struct session_destroy_out *out);
+bool c2_session_destroy_svc(struct session_destroy_arg const *in,
+			    struct session_destroy_out *out);
 
 /**
  * SESSION_COMPOUND command handler
@@ -224,8 +222,8 @@ int c2_session_destroy_svc(struct session_destroy_arg *in,
  * @retval 1 - all operations processed successfully.
  * @retval 0 any error hit (bad command format, error hit in processing, or other)
  */
-int c2_session_compound_svc(struct session_compound_arg *in,
-			    struct session_compound_reply *out);
+bool c2_session_compound_svc(struct session_compound_arg const *in,
+			     struct session_compound_reply *out);
 
 /**
  * ADJUST_SESSION command handler
@@ -236,7 +234,7 @@ int c2_session_compound_svc(struct session_compound_arg *in,
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected
  */
-int c2_session_adjust_svc(struct c2_session_adjust_in *arg,
-			  struct c2_session_adjust_out *out);
+bool c2_session_adjust_svc(struct c2_session_adjust_in const *arg,
+			   struct c2_session_adjust_out *out);
 
 #endif

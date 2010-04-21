@@ -3,7 +3,7 @@
 
 #define _RPC_COMPOUND_
 
-int compound_send_noseq(const struct rpc_client *cli,
+int compound_send_noseq(struct rpc_client const *cli,
 		        unsigned int num_ops, void *ops);
 
 int compound_send_seq(const struct rpc_client *cli, struct c2_cli_slot *slot,

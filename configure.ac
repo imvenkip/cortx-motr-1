@@ -259,6 +259,7 @@ AC_CONFIG_FILES([
                  rpc/Makefile
                  rpc/ut/Makefile
                  net/Makefile
+                 net/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
                  sm/Makefile
