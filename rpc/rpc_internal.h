@@ -3,35 +3,37 @@
 
 #define _RPC_INTERNAL_
 /**
- * find empty slot to send request
- *
- * @param sess - full initialized session
- *
- * @retval NULL failure, e.g., not have free slots to send
- * @retval !NULL pointer to client slot info
+ find empty slot to send request.
+ function scan slot table until first slot without busy flag is found and return
+ that slot with busy flag set.
+
+ @param sess - full initialized session
+
+ @retval NULL failure, e.g., not have free slots to send
+ @retval !NULL pointer to client slot info
  */
-struct cli_slot *c2_find_empty_slot(struct cli_session *sess);
+struct cli_slot *c2_find_unused_slot(struct cli_session *sess);
 
 /**
  * request type enum
  */
 enum request_type {
 	/**
-	 * request out of order
+	 request out of order
 	 */
-	BAD_ORDER,
+	REQ_ORD_BAD,
 	/**
-	 * normal request in expected order
+	 normal request in expected order
 	 */
-	NORMAL_REQ,
+	REQ_ORD_NORMAL,
 	/**
-	 * resend of already handled request
+	 resend of already handled request
 	 */
-	RESEND_REQ,
+	REQ_ORD_RESEND,
 	/**
-	 * crash recovery - replay request
+	 crash recovery - replay request
 	 */
-	REPLAY_REQ,
+	REQ_ORD_REPLAY,
 };
 
 /**
@@ -41,7 +43,7 @@ enum request_type {
  *
  * @return enum request code to describe request status.
  */
-enum request_type c2_check_request(struct srv_session *sess,
-				   struct session_sequence_args *cli_seq);
+enum request_type c2_check_request(struct srv_session const *sess,
+				   struct session_sequence_args const *cli_seq);
 
 #endif

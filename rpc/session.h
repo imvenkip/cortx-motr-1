@@ -3,18 +3,25 @@
 
 #define _RPC_CLI_SESSION_H_
 
-#define C2_MAX_SLOTS	32
-
 #include "lib/refs.h"
+
+/**
+ type to define sequence in a slot
+ */
+typedef uint32_t c2_seq_t;
 
 /**
  client side slot definition
  */
 struct c2_cli_slot {
 	/**
-	 * sequence assigned to the slot
+	 sequence assigned to the slot
 	 */
-	uint32_t sl_seq;
+	c2_seq_t sl_seq;
+	/**
+	 slots flags
+	*/
+	unsigned long sl_busy:1; /** slots a busy with sending request */
 };
 
 /**
@@ -24,57 +31,53 @@ struct c2_cli_slot_table {
 	/**
 	 maximal slot index
 	 */
-	uint32_t sltbl_high_slot_id;
-	/**
-	 slots map - used (bit set), unused (bit is clear)
-	*/
-	unsigned long sltbl_slots_bitmap;
+	uint32_t		sltbl_high_slot_id;
 	/**
 	 slots array
 	 */
-	struct cli_slot sltbl_slots[C2_MAX_SLOTS];
+	struct cli_slot		sltbl_slots[C2_MAX_SLOTS];
 	/**
-	 to protecting access to slots bitmap & high slot id.
+	 to protecting access to slots array and high slot id.
 	 */
-	struct spinlock sltbl_slheads_lock;
+	struct c2_rw_lock	sltbl_slheads_lock;
 };
 
 struct c2_cli_session {
 	/**
-	 * linking entry
-	*/
+	 linking into list of sessions assigned to client
+	 */
 	struct c2_list_link	sess_link;
 	/**
-	 * client session reference count
+	 client session reference count protection
 	 */
 	struct c2_refs		sess_ref;
 	/**
 	 * server identifier
 	 */
-	client_id		sess_srv;
+	struct c2_node_id	sess_srv;
 	/**
 	 * server assigned session id
 	 */
 	struct session_id	sess_id;
 	/**
-	 *
+	 session slot table
 	 */
 	struct c2_cli_slot_table sess_slots;
 };
 
 /**
- * session constructor.
- * allocate slot's memory and connect session to server.
- *
- * \param cli_uuid - client identifier
- * \param srv_uuid - server identifier
- * \param cli - pointer to fully setup transport session
- *
- * \retval 0   success
- * \retval -ve failure, e.g., server don't conencted
+ session constructor.
+ allocate slot's memory and connect session to server.
+ if server is unreachable function is return error without allocate new session.
+
+ @param cli - rpc client to create new session.
+ @param srv - server identifier
+
+ @retval 0   success
+ @retval -ve failure, e.g., server don't connected
  */
-int c2_session_cli_create(const struct rpc_client * cli,
-			  const struct client_id * srv_uuid, CLIENT * cli);
+int c2_cli_sess_create(struct rpc_client const * cli,
+		       struct c2_node_id const * srv);
 
 /**
  * session destructor
@@ -100,14 +103,14 @@ struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
 					   const struct client_id *srv_uuid);
 
 /**
- * verify session \a sess by sending sequence op and check response
+ * verify session @a sess by sending sequence op and check response
  *
  * @param sess - pointer to fully inited session object
  *
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected
  */
-int c2_session_check(const struct c2_cli_session *sess);
+int c2_session_check(struct c2_cli_session const *sess);
 
 
 /**
@@ -117,7 +120,7 @@ struct srv_slot {
 	/**
 	 * current sequence of operation
 	 */
-	uint32_t	srv_slot_seq;
+	c2_seq_t	srv_slot_seq;
 	/**
 	 * index in global slot array.
 	 */
@@ -145,7 +148,7 @@ struct srv_slot_table {
  */
 struct srv_session {
 	/**
-	 * linking to glibal list
+	 * linking to global list
 	 */
 	struct c2_list_link	srvs_link;
 	/**
@@ -194,7 +197,7 @@ int c2_session_adjust(struct srv_session *session, uint32_t new_size);
  * \param out - structure returned to client
  *
  * \retval 0  - create is OK
- * \retval <0 - create is fail (no memery, already exist, or other)
+ * \retval <0 - create is fail (no memory, already exist, or other)
  */
 int c2_session_create_svc(struct session_create_arg *in,
 			  struct session_create_ret *out);
