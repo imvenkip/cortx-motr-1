@@ -3,11 +3,8 @@
 
 #define _RCP_SESSION_TYPES_H_
 
-/**
- sequence in a slot
- */
-typedef uint32_t c2_seq_t;
-
+#include "lib/cdefs.h"
+#include "rpc/rpc_types.h"
 
 enum c2_session_cmd {
 	/**
@@ -38,20 +35,20 @@ enum c2_session_cmd {
  */
 struct session_create_arg {
 	/**
-         * client requested a new session
-         */
+	client requested a new session
+	*/
 	struct c2_node_id	sca_client;
-        /**
-         * server to accept connection
-         */
+	/**
+	server to accept connection
+	*/
 	struct c2_node_id	sca_server;
-        /**
-         * maximal slot count handled by client
-         */
+	/**
+	maximal slot count handled by client
+	*/
 	uint32_t		sca_high_slot_id;
-        /**
-         * maximal rpc size can be handled by client
-         */
+	/**
+	maximal rpc size can be handled by client
+	*/
 	uint32_t		sca_max_rpc_size;
 };
 
@@ -59,17 +56,17 @@ struct session_create_arg {
  * server reply to SESSION_CREATE command.
  */
 struct session_create_out {
-        /**
-         * server assigned session identifier
-         */
+	/**
+	server assigned session identifier
+	*/
 	struct c2_session_id sco_session_id;
-        /**
-         * maximal slot id (slot's count) assigned to the client
-         */
+	/**
+	 maximal slot id (slot's count) assigned to the client
+	*/
 	uint32_t sco_high_slot_id;
-        /**
-         * maximal rpc size can be handle by client
-         */
+	/**
+	 maximal rpc size can be handle by client
+	*/
 	uint32_t sco_max_rpc_size;
 };
 
@@ -93,29 +90,56 @@ struct session_create_ret {
 /**
  argument to server side procedure
  */
-struct session_destroy_arg {
+struct c2_session_destroy_arg {
+	/**
+	session identifier to destroy
+	*/
 	struct c2_session_id da_session_id;
 };
 
-struct session_destroy_ret {
+/**
+ reply to C2_SESSION_DESTOY command
+ */
+struct c2_session_destroy_ret {
+	/**
+	status of operation
+	*/
 	int32_t sda_errno;
 };
 
 /**
+ C2_SESSION_ADJUST command
 */
-struct c2_session_adjust_in {
+/**
+ argument to server side procedure
+ */
+struct c2_session_adjust_arg {
+	/**
+	 session identifier to adjust
+	*/
 	struct session_id sr_session_id;
+	/**
+	 new maximal slot id requested by server (~0 let's unchanged)
+	*/
 	uint32_t sr_new_high_slot_id;
 };
-
+/**
+ */
 struct c2_session_adjust_rep {
+	/**
+	client confirmed maximal slot id.
+	*/
 	uint32_t sr_new_high_slot_id;
 };
-
+/**
+ server reply
+ */
 struct c2_session_adjust_out {
-	int32_t errno;
-	struct c2_session_adjust_rep s_reply;
+	/**
+	status of operation
+	*/
+	int32_t error;
+	struct c2_session_adjust_rep reply;
 };
-
 
 #endif
