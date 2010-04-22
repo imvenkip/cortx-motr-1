@@ -17,17 +17,19 @@ struct cli_slot *c2_find_unused_slot(struct cli_session *sess);
 /**
  * request type enum
  */
-enum request_type {
+enum c2_request_type {
 	/**
 	 request out of order
 	 */
 	REQ_ORD_BAD,
 	/**
-	 normal request in expected order
+	 normal request in expected order,
+	 sequence id is greater last used by one.
 	 */
 	REQ_ORD_NORMAL,
 	/**
-	 resend of already handled request
+	 resend of already handled request.
+	 request sequence is same prevoisly hanlded
 	 */
 	REQ_ORD_RESEND,
 	/**
@@ -43,7 +45,7 @@ enum request_type {
  *
  * @return enum request code to describe request status.
  */
-enum request_type c2_check_request(struct srv_session const *sess,
-				   struct session_sequence_args const *cli_seq);
+enum c2_request_type c2_check_request(struct srv_session const *sess,
+				      struct session_sequence_args const *cli_seq);
 
 #endif
