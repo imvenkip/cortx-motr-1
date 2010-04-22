@@ -104,12 +104,13 @@ struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
 					   const struct client_id *srv_uuid);
 
 /**
- * verify session @a sess by sending sequence op and check response
- *
- * @param sess - pointer to fully inited session object
- *
- * @retval 0   success
- * @retval -ve failure, e.g., server don't connected
+ verify session @a sess by sending "sequence" op and check response.
+ RFC suggested method to check service livnes.
+ 
+ @param sess - pointer to fully inited session object
+ 
+ @retval 0   success
+ @retval -ve failure, e.g., server don't connected
  */
 int c2_cli_session_check(struct c2_cli_session const *sess);
 
@@ -119,11 +120,11 @@ int c2_cli_session_check(struct c2_cli_session const *sess);
  */
 struct srv_slot {
 	/**
-	 * current sequence of operation
+	 current sequence of operation
 	 */
 	c2_seq_t	srv_slot_seq;
 	/**
-	 * index in global slot array.
+	 index in global slot array.
 	 */
 	uint32_t	srv_slot_idx;
 	/* need pointer to FOL */
@@ -149,21 +150,21 @@ struct srv_slot_table {
  */
 struct srv_session {
 	/**
-	 * linking to global list
+	 linking to global list
 	 */
 	struct c2_list_link	srvs_link;
 	/**
-	 * session reference count
+	 session reference protection
 	 */
 	struct c2_ref		srvs_ref;
 	/**
-	 * client identifier
+	 client identifier
 	 */
 	struct c2_node_id	srvs_cli;
 	/**
 	 * server assigned session id
 	 */
-	uint32_t		srvs_id;
+	struct c2_session_id	srvs_id;
 	/**
 	 *
 	 */
@@ -185,56 +186,5 @@ struct srv_session {
  @retval <0 any error hit (client not responded, or other)
  */
 int c2_session_adjust(struct srv_session *session, uint32_t new_size);
-
-/** rpc handlers */
-/**
- server handler for the SESSION_CREATE command.
- create new session on server and connect session into session list.
-
- @param in  - structure with arguments from client to creation session.
- @param out - structure returned to client
-
- @retval true  - need send a reply
- @retval false - not need send a reply - some generic error is hit.
- */
-bool c2_session_create_svc(struct session_create_arg const *in,
-			   struct session_create_ret *out);
-
-/**
- * server handler for the SESSION_DESTROY cmd.
- * destroy session on server side.
- *
- * @param in  - session id + parameters to destroy session from client
- * @param out - resulting info to send to client
- *
- * @retval 0  - destroy is OK
- * @retval <0 - destroy is fail (no memory, not found, or other)
- */
-bool c2_session_destroy_svc(struct session_destroy_arg const *in,
-			    struct session_destroy_out *out);
-
-/**
- * SESSION_COMPOUND command handler
- *
- * @param in  - structure with compound header and array of operations
- * @param out - resulting structure to send to client
- *
- * @retval 1 - all operations processed successfully.
- * @retval 0 any error hit (bad command format, error hit in processing, or other)
- */
-bool c2_session_compound_svc(struct session_compound_arg const *in,
-			     struct session_compound_reply *out);
-
-/**
- * ADJUST_SESSION command handler
- *
- * @param arg - incoming argument to adjusting session settings
- * @param out - result of adjusting
- *
- * @retval 0   success
- * @retval -ve failure, e.g., server don't connected
- */
-bool c2_session_adjust_svc(struct c2_session_adjust_in const *arg,
-			   struct c2_session_adjust_out *out);
 
 #endif
