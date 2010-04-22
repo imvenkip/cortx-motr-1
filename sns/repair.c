@@ -10,13 +10,13 @@ static int
 c2_cm_storage_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	self->ag_parent = parent;
-	self->ag_quit = 0;
+	self->ag_quit = false;
 	return 0;
 }
 
 static int c2_cm_storage_in_agent_stop(struct c2_cm_agent *self, int force)
 {
-	self->ag_quit = 1;
+	self->ag_quit = true;
 	return 0;
 }
 
@@ -132,7 +132,7 @@ c2_cm_storage_out_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
 	self->ag_parent = parent;
-	thia->ag_quit = 0;
+	thia->ag_quit = false;
 	return 0;
 }
 
@@ -141,7 +141,7 @@ static int c2_cm_storage_out_agent_stop(struct c2_cm_agent *self, int force)
 	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
 	
-	self->ag_quit = 1;
+	self->ag_quit = true;
 	return 0;
 }
 
@@ -212,7 +212,7 @@ c2_cm_network_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
 	self->ag_parent = parent;
-	self->ag_quit = 0;
+	self->ag_quit = false;
 	return 0;
 }
 
@@ -221,7 +221,7 @@ static int c2_cm_network_in_agent_stop(struct c2_cm_agent *self, int force)
 	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
 	
-	self->ag_quit = 1;
+	self->ag_quit = true;
 	return 0;
 }
 
@@ -276,7 +276,7 @@ c2_cm_network_out_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 	struct c2_cm_network_out_agent *no_agent = container_of(self,
 					 struct c2_cm_network_out_agent, no_agent);
 	self->ag_parent = parent;
-	self->ag_quit = 0;
+	self->ag_quit = false;
 	return 0;
 }
 
@@ -285,7 +285,7 @@ static int c2_cm_network_out_agent_stop(struct c2_cm_agent *self, int force)
 	struct c2_cm_network_out_agent *no_agent = container_of(self,
 					struct c2_cm_network_out_agent, ni_agent);
 	
-	self->ag_quit = 1;
+	self->ag_quit = true;
 	return 0;
 }
 
@@ -339,7 +339,7 @@ c2_cm_collecting_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 	struct c2_cm_collecting_agent *c_agent = container_of(self,
 					 struct c2_cm_collecting_agent, c_agent);
 	self->ag_parent = parent;
-	self->ag_quit = 0;
+	self->ag_quit = false;
 	return 0;
 }
 
@@ -348,7 +348,7 @@ static int c2_cm_collecting_agent_stop(struct c2_cm_agent *self, int force)
 	struct c2_cm_collecting_agent *c_agent = container_of(self,
 					struct c2_cm_collecting_agent, c_agent);
 	
-	self->ag_quit = 1;
+	self->ag_quit = true;
 	return 0;
 }
 
@@ -386,7 +386,7 @@ static int c2_cm_collecting_agent_collecting(struct c2_cm_collecting_agent *agen
 
 		cp = agent->get_cp_from_queue();
 		cag_group_get(self, cur, &sub_ext, &group);
-		if (cag_is_first_packet(&group)) { /* the first copy packet for this group */
+		if (cag_has_buffer(&group)) { /* the first copy packet for this group */
 			cag_use_this_packet_as_buffer(&group, cp);
 			cma->ag_xform.cx_sns(&group, cp);						
 		} else {

@@ -381,11 +381,15 @@ struct c2_cm_aggrg {
 			     const struct c2_cm_iset_cursor *cur,
 			     struct c2_ext *ext,
 			     struct c2_cm_aggrg_group *group);
-	int (*cag_is_first_packet)(struct c2_cm_aggrg_group *group);
+	/** check if group has buffer already */
+	int (*cag_has_buffer)(struct c2_cm_aggrg_group *group);
+	/** check if the group has received all copy packets */
 	int (*cag_is_done)(struct c2_cm_aggrg_group *group);
+	/** use this copy packet as the group's buffer */
 	int (*cag_use_this_packet_as_buffer)(struct c2_cm_aggrg_group *group,
 					     struct c2_cm_copy_packet *cp);
 
+	/** check if this group has containers on this server */
 	int (*cag_group_on_the_server)(struct c2_cm_aggrg_group *group,
 				       struct c2_poolserver *server);
 
@@ -395,6 +399,7 @@ struct c2_cm_aggrg {
    Copy machine transformation method
 */
 struct c2_cm_xform {
+	/** perform sns transform method to this copy packet */
 	int (*cx_sns)(struct c2_cm_aggrg_group *group,
 		      struct c2_cm_copy_packet *cp);
 };
@@ -444,8 +449,10 @@ struct c2_cm_agent_config { /* TODO */ };
 struct c2_cm_agent_operations {
 	int (*agops_init)  (struct c2_cm_agent *self, struct c2_cm *parent);
 	int (*agops_stop)  (struct c2_cm_agent *self, int force);
+	/** config this agent with specified parameters */
 	int (*agops_config)(struct c2_cm_agent *self,
 			    struct c2_cm_agent_config *config);
+	/** main loop of this agent. To quit, call its agops_stop() method */
 	int (*agops_run)   (struct c2_cm_agent *self);
 };
 
@@ -471,16 +478,16 @@ enum c2_cm_agent_type {
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
 	struct c2_cm		     *ag_parent; /**< pointer to parent cm */
-	enum c2_cm_agent_type	      ag_type;
+	enum c2_cm_agent_type	      ag_type;   /**< agent type */
 
-	struct c2_cm_aggrg	      ag_aggrg;
-	struct c2_cm_xform	      ag_xform;
-	struct c2_cm_agent_operations ag_operations;
+	struct c2_cm_aggrg	      ag_aggrg;  /**< agent aggregation method*/
+	struct c2_cm_xform	      ag_xform;  /**< agent transform method  */
+	struct c2_cm_agent_operations ag_operations; /**< agent operations    */
 
 	/** copy packet in flight of this agent */
-	struct c2_list	      	      ag_cp_in_flight;
+	struct c2_list	      	      ag_cp_in_flight; /**< list of all cp */
 	
-	int			      ag_quit:1;
+	bool			      ag_quit:1; /** flag to quit */
 };
 
 /** storage-in agent */
@@ -513,6 +520,7 @@ struct c2_cm_collecting_agent {
 };
 
 
+/** allocate a new storage-in agent, and return pointer to its base class */
 struct c2_cm_agent *alloc_storage_in_agent();
 struct c2_cm_agent *alloc_storage_out_agent();
 struct c2_cm_agent *alloc_network_in_agent();
