@@ -196,7 +196,7 @@ struct c2_poolmach {
 };
 
 
-int  c2_poolmach_init(struct c2_poolmach *pm);
+int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
 void c2_poolmach_fini(struct c2_poolmach *pm);
 
 int  c2_poolmach_device_join (struct c2_poolmach *pm, struct c2_pooldev *dev);

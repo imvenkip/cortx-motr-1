@@ -426,3 +426,12 @@ struct c2_cm_agent *alloc_storage_in_agent()
 	} else
 		return NULL;
 }
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
