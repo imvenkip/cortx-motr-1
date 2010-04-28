@@ -4,6 +4,7 @@
 #define __COLIBRI_LIB_CDEFS_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef offsetof
 #define offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))
@@ -36,8 +37,6 @@
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
-
-typedef int bool;
 
 #endif
 /* 

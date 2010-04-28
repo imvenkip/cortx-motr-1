@@ -10,6 +10,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include "pl.h"
 
 static int pl_verbose = 1;

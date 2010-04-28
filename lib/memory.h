@@ -16,6 +16,8 @@
  */
 void *c2_alloc(size_t size);
 
+#define C2_ALLOC_PTR(ptr)	(ptr) = c2_alloc(sizeof *(ptr))
+
 /**
  * freed memory block
  *
@@ -25,6 +27,8 @@ void *c2_alloc(size_t size);
  * @return none
  */
 void c2_free(void *data, size_t size);
+
+#define C2_FREE_PTR(ptr)	c2_free((ptr), sizeof *ptr)
 
 /** @} end of memory group */
 

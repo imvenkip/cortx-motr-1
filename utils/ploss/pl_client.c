@@ -7,6 +7,9 @@
  * Written by Jay <jinshan.xiong@clusterstor.com>
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include "pl.h"
 
@@ -51,12 +54,13 @@ void plprog_ping_1(CLIENT *clnt)
 
                 show_msg(ping_verbose, "Received server echo\n");
                 if (result.seqno != ping.seqno) {
-                        fprintf(stderr, "Server returned mismatch seqno %d, expect %d\n",
-                                result.seqno, ping.seqno);
+                        fprintf(stderr, "Server returned mismatch seqno %lu, expect %lu\n",
+                                (unsigned long)result.seqno, (unsigned long)ping.seqno);
                         continue;
                 }
 
-                fprintf(stdout, "Server handled this ping request at %d\n", result.time);
+                fprintf(stdout, "Server handled this ping request at %lu\n", 
+                	(unsigned long)result.time);
                 if (ping_interval)
                         sleep(ping_interval);
         }
@@ -167,8 +171,8 @@ main (int argc, char *argv[])
                         if (reply->res)
                                 fprintf(stderr, "Set prop error due to %s\n", strerror(reply->res));
                         else
-                                fprintf(stdout, "The original config value for propability is %d\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                fprintf(stdout, "The original config value for propability is %lu\n",
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
 
                 if (have_delay) {
@@ -188,8 +192,8 @@ main (int argc, char *argv[])
                         if (reply->res)
                                 fprintf(stderr, "Set delay error due to %s\n", strerror(reply->res));
                         else
-                                fprintf(stdout, "The original config value for delay is %d\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                fprintf(stdout, "The original config value for delay is %lu\n",
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
 
                 if (have_verbose) {
@@ -208,8 +212,8 @@ main (int argc, char *argv[])
                         if (reply->res)
                                 fprintf(stderr, "Set verbose error due to %s\n", strerror(reply->res));
                         else
-                                fprintf(stdout, "The original config value for verbose is %d\n",
-                                        reply->c2_pl_config_reply_u.config_value);
+                                fprintf(stdout, "The original config value for verbose is %lu\n",
+                                        (unsigned long)reply->c2_pl_config_reply_u.config_value);
                 }
         } else {        /* ping mode */
                 if (have_verbose)

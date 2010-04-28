@@ -3,7 +3,6 @@
 #ifndef __COLIBRI_SM_H__
 #define __COLIBRI_SM_H__
 
-
 #include "../lib/adt.h"
 #include "../lib/c2list.h"
 #include "../lib/c2queue.h"
@@ -86,7 +85,6 @@ int  c2_persistent_sm_register  (struct c2_persistent_sm *pmach,
 void c2_persistent_sm_unregister(struct c2_persistent_sm *pmach);
 
 /** @} end of sm group */
-
 
 /* __COLIBRI_SM_H__ */
 #endif
