@@ -4,6 +4,7 @@
 #define __COLIBRI_ADT_H__
 
 #include <stdbool.h>
+#include "cdefs.h"
 
 /**
    @defgroup adt Basic abstract data types
@@ -102,6 +103,11 @@ void        c2_diovec_free    (struct c2_diovec *vec);
 int         c2_diovec_register(struct c2_diovec *vec, 
 			       struct c2_dio_engine *eng);
 c2_bcount_t c2_diovec_count   (const struct c2_diovec *vec);
+
+struct c2_buf {
+	void       *b_addr;
+	c2_bcount_t b_nob;
+};
 
 /** @} end of adt group */
 
