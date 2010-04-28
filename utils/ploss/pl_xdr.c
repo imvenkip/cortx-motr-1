@@ -30,7 +30,7 @@ xdr_c2_pl_config (XDR *xdrs, c2_pl_config *objp)
 {
 	 if (!xdr_c2_pl_config_type (xdrs, &objp->op))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->value))
+	 if (!xdr_u_long (xdrs, (u_long *)&objp->value))
 		 return FALSE;
 	return TRUE;
 }
@@ -42,7 +42,7 @@ xdr_c2_pl_config_reply (XDR *xdrs, c2_pl_config_reply *objp)
 		 return FALSE;
 	switch (objp->res) {
 	case 0:
-		 if (!xdr_uint32_t (xdrs, &objp->c2_pl_config_reply_u.config_value))
+		 if (!xdr_u_long (xdrs, (u_long *)&objp->c2_pl_config_reply_u.config_value))
 			 return FALSE;
 		break;
 	default:
@@ -64,7 +64,7 @@ xdr_c2_pl_config_res (XDR *xdrs, c2_pl_config_res *objp)
 bool_t
 xdr_c2_pl_ping (XDR *xdrs, c2_pl_ping *objp)
 {
-	 if (!xdr_uint32_t (xdrs, &objp->seqno))
+	 if (!xdr_u_long (xdrs, (u_long *)&objp->seqno))
 		 return FALSE;
 	return TRUE;
 }
@@ -72,9 +72,9 @@ xdr_c2_pl_ping (XDR *xdrs, c2_pl_ping *objp)
 bool_t
 xdr_c2_pl_ping_res (XDR *xdrs, c2_pl_ping_res *objp)
 {
-	 if (!xdr_uint32_t (xdrs, &objp->seqno))
+	 if (!xdr_u_long (xdrs, (u_long *)&objp->seqno))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->time))
+	 if (!xdr_u_long (xdrs, (u_long *)&objp->time))
 		 return FALSE;
 	return TRUE;
 }

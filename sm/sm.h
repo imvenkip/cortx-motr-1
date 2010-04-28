@@ -3,7 +3,6 @@
 #ifndef __COLIBRI_SM_H__
 #define __COLIBRI_SM_H__
 
-
 #include "../lib/adt.h"
 #include "../lib/c2list.h"
 #include "../lib/c2queue.h"
@@ -71,18 +70,21 @@ struct c2_persistent_sm_ops;
 
 /** persistent state machine */
 struct c2_persistent_sm {
-	struct c2_sm                 ps_sm;
-	struct c2_persistent_sm_ops *ps_ops;
+	struct c2_sm                       ps_sm;
+	const struct c2_persistent_sm_ops *ps_ops;
+	struct c2_dtm                     *ps_dtm;
 };
 
 struct c2_persistent_sm_ops {
-	int (*pso_register)(struct c2_dtm *dtm, struct c2_persistent_sm *pmach);
-	int (*pso_unregister)(struct c2_persistent_sm *pmach);
 	int (*pso_recover)(struct c2_persistent_sm *pmach);
 };
 
-/** @} end of sm group */
+int  c2_persistent_sm_register  (struct c2_persistent_sm *pmach,
+				 struct c2_dtm *dtm, 
+				 const struct c2_persistent_sm_ops *ops);
+void c2_persistent_sm_unregister(struct c2_persistent_sm *pmach);
 
+/** @} end of sm group */
 
 /* __COLIBRI_SM_H__ */
 #endif

@@ -254,7 +254,6 @@ AC_CONFIG_FILES([
                  lib/ut/Makefile
                  dtm/Makefile
                  addb/Makefile
-                 ctdb/Makefile
                  fol/Makefile
                  fop/Makefile
                  rpc/Makefile
