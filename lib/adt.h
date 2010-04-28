@@ -33,8 +33,16 @@ void c2_stack_link_init(struct c2_stack_link *stack);
 void c2_stack_link_fini(struct c2_stack_link *stack);
 bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 
+/** count of bytes (in extent, IO operation, etc.) */
 typedef uint64_t c2_bcount_t;
+/** an index (offset) in a linear name-space (e.g., in a file, storage object,
+    storage device, memory buffer) measured in bytes */
 typedef uint64_t c2_bindex_t;
+
+enum {
+	C2_BCOUNT_MAX = 0xffffffffffffffff,
+	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1
+};
 
 /** extent. */
 struct c2_ext {
@@ -55,40 +63,76 @@ void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
 		struct c2_ext *sum);
 
 /* what about signed? */
-uint64_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
+c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
 
-struct c2_outseg;
+/**
+   A vector of "segments" where each segment is something having a "count".
 
-struct c2_outvec {
-	uint32_t          ov_nr;
-	struct c2_outseg *ov_seg;
+   c2_vec is used to implement functionality common to various "scatter-gather"
+   data-structures, like c2_indexvec, c2_bufvec, c2_diovec.
+ */
+struct c2_vec {
+	/** number of segments in the vector */
+	uint32_t     v_nr;
+	/** array of segment counts */
+	c2_bcount_t *v_count;
 };
 
-struct c2_outseg {
-	c2_bindex_t os_index;
-	c2_bcount_t os_nob;
+/** Returns total count of vector */
+c2_bcount_t c2_vec_count(const struct c2_vec *vec);
+
+/**
+   Position without a vector
+ */
+struct c2_vec_cursor {
+	const struct c2_vec *vc_vec;
+	/** Segment that the cursor is currently in. */
+	uint32_t             vc_seg;
+	/** Offset within the segment that the cursor is positioned at. */
+	c2_bindex_t          vc_offset;
 };
 
-c2_bcount_t c2_outvec_count   (const struct c2_outvec *vec);
+void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
+/**
+   Move cursor count bytes further through the vector.
 
-struct c2_dioseg;
+   @return true, iff the end of the vector has been reached while moving. The
+   cursor remains at the last position in the vector in this case.
+ */
+bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
+/**
+   Return number of bytes that are left in the segment the cursor is currently
+   at.
+ */
+c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
+
+/** Vector of extents in a linear name-space */
+struct c2_indexvec {
+	/* Number of buffers and their sizes. */
+	struct c2_vec  ov_vec;
+	/** Array of starting extent indices. */
+	c2_bindex_t   *ov_index;
+};
+
+/** Vector of memory buffers */
+struct c2_bufvec {
+	/* Number of buffers and their sizes. */
+	struct c2_vec  ov_vec;
+	/** Array of buffer addresses. */
+	void         **ov_buf;
+};
+
+struct c2_dio_cookie;
+struct c2_dio_engine;
+
 /**
    Array of 4KB aligned areas, suitable for direct-IO.
 
    @invariant size of every but last element of iovec is a multiple of 4KB.
  */
 struct c2_diovec {
-	uint32_t          div_nr;
-	struct c2_dioseg *div_seg;
-};
-
-struct c2_dio_cookie;
-struct c2_dio_engine;
-
-struct c2_dioseg {
-	void                 *die_buf;
-	c2_bcount_t           die_nob;
-	struct c2_dio_cookie *die_cookie;
+	struct c2_bufvec      div_vec;
+	struct c2_dio_cookie *div_seg;
 };
 
 enum {
