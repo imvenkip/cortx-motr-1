@@ -2,6 +2,9 @@
 #  include <config.h>
 #endif
 
+/* make it compilable */
+#if 0
+
 #include <colibri/colibri.h>
 
 #include "repair.h"
@@ -426,6 +429,10 @@ struct c2_cm_agent *alloc_storage_in_agent()
 	} else
 		return NULL;
 }
+
+/* end of make it compilable */
+#endif
+
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"
