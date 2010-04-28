@@ -4,6 +4,13 @@
 
 #include "stob.h"
 
+/**
+   @addtogroup stob
+   @{
+ */
+
+
+/** @} end group stob */
 
 /* 
  *  Local variables:

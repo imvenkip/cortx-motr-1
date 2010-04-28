@@ -12,7 +12,7 @@
 struct c2_dtx;
 struct c2_clink;
 struct c2_diovec;
-struct c2_outvec;
+struct c2_indexvec;
 struct c2_io_scope;
 
 struct c2_list;
@@ -21,7 +21,7 @@ struct c2_list_link;
 /**
    @defgroup stob Storage objects
 
-   Storage object is a fundamental abstraction of C2.  storage objects offer a
+   Storage object is a fundamental abstraction of C2. Storage objects offer a
    linear address space for data and may have redundancy and may have integrity
    data.
 
@@ -51,12 +51,25 @@ struct c2_stob {
 	const struct c2_stob_op *so_op;
 };
 
+struct c2_stob_type_op {
+	int (*sto_init)(struct c2_stob *stob);
+};
+
+struct c2_stob_op {
+	void (*sop_fini)   (struct c2_stob *stob);
+	int  (*sop_io_init)(struct c2_stob *stob, struct c2_stob_io *io);
+};
+
+int  c2_stob_type_add(struct c2_stob_type *kind);
+void c2_stob_type_del(struct c2_stob_type *kind);
+
+
 /**
    @name adieu
 
-   <b>Overview</b>.
+   Asynchronous Direct Io Extensible User interface (adieu) for storage objects.
 
-   Asynchronous direct IO interfaces (adieu) for storage objects.
+   <b>Overview</b>.
 
    Storage object has an interface for a non-blocking (asynchronous) 0-copy
    (direct) vectored IO.
@@ -66,8 +79,8 @@ struct c2_stob {
    signalling a user supplied c2_clink. As usual, the user can either wait on
    the clink or register a call-back with it.
 
-   adieu supports operations scatter-gather type of IO operations (that is,
-   vectored on both input and output data).
+   adieu supports scatter-gather type of IO operations (that is, vectored on
+   both input and output data).
 
    adieu can work both on local and remote storage objects. adieu IO operations
    are executed as part of a distributed transaction.
@@ -81,8 +94,8 @@ struct c2_stob {
        (examples: RDMA). This step is optional, IO from unregistered buffers
        should also be possible (albeit might incur additional data-copy).
 
-       @li IO description creation. A IO operation description object
-       (::c2_stob_io) is initialized.
+       @li IO description creation. A IO operation description object c2_stob_io
+       is initialised.
 
        @li IO operation is queued by a call to c2_stob_io_launch(). It is
        guaranteed that on a successful return from this call, a clink embedded
@@ -103,7 +116,7 @@ struct c2_stob {
        order and with any degree of concurrency. Ordered fragments execution
        mode request has no effect on read-only IO operations.
 
-       @li When whole operation execution completed, a clink embedded into IO
+       @li When whole operation execution completes, a clink embedded into IO
        operation data-structure is signalled. It is guaranteed that no IO is
        outstanding at this moment and that adieu implementation won't touch
        either IO operation structure or associated data pages afterward.
@@ -115,9 +128,9 @@ struct c2_stob {
    <b>Ordering and barriers.</b>
 
    The only guarantee about relative order of IO operations state transitions is
-   that any operation submitted before c2_stob_io_opcode::SIO_BARRIER operation
-   is guaranteed to complete before any operation submitted after the barrier
-   starts executing.
+   that execution of any operation submitted before
+   c2_stob_io_opcode::SIO_BARRIER operation completes before any operation
+   submitted after the barrier starts executing.
 
    A barrier operation completes when all operations submitted before it
    (including other barrier operations) complete.
@@ -134,7 +147,7 @@ struct c2_stob {
        transferred between data pages and the storage object. When IO is
        executed in ordered fragments mode, exactly <tt>c2_stob_io::si_count</tt>
        bytes of the storage object, starting from the offset
-       <tt>c2_stob_io::si_stob.ov_seg[0].os_index.</tt> were transferred.
+       <tt>c2_stob_io::si_stob.ov_index[0]</tt> were transferred.
 
    <b>Data ownership.</b>
 
@@ -156,7 +169,11 @@ struct c2_stob {
    c2_stob_io can be freed once it is owned by an adieu user (see data
    ownership). While owned by the implementation, c2_stob_io pins corresponding
    storage object. This reference must be released by the user after it has been
-   notified about IO completion.
+   notified about IO completion by calling c2_stob_io_release().
+
+   Additionally, c2_stob_io pins io scope (c2_io_scope) while owned by the
+   implementation. This reference is automatically released when IO operation
+   completes.
 
    <b>Concurrency.</b>
 
@@ -201,6 +218,8 @@ enum c2_stob_io_opcode {
    State of adieu IO operation.
  */
 enum c2_stob_io_state {
+	/** State used to detect un-initialised c2_stob_io. */
+	SIS_ZERO = 0,
 	/** 
 	    User owns c2_stob_io and data pages. No IO is ongoing.
 	 */
@@ -236,7 +255,7 @@ struct c2_stob_io {
 	/**
 	   Where data are located in the storage object name-space.
 	 */
-	struct c2_outvec            si_stob;
+	struct c2_indexvec          si_stob;
 	/**
 	   Clink where IO operation completion is signalled.
 	 */
@@ -257,18 +276,10 @@ struct c2_stob_io {
 	uint32_t                    si_stob_magic;
 };
 
-struct c2_stob_type_op {
-	int (*sto_init)(struct c2_stob *stob);
-};
-
-struct c2_stob_op {
-	void (*sop_fini)   (struct c2_stob *stob);
-	int  (*sop_io_init)(struct c2_stob *stob, struct c2_stob_io *io);
-};
-
 struct c2_stob_io_op {
 	void (*sio_fini)  (struct c2_stob_io *io);
-	int  (*sio_launch)(struct c2_stob_io *io);
+	int  (*sio_launch)(struct c2_stob_io *io, struct c2_dtx *tx,
+			   struct c2_io_scope *scope);
 	void (*sio_cancel)(struct c2_stob_io *io);
 };
 
@@ -285,12 +296,17 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
 /**
    @pre !c2_clink_is_armed(&io->si_wait)
    @pre io->si_state == SIS_INACTIVE
-   @pre c2_diovec_count(&io->si_input) == c2_outvec_count(&io->si_output)
+   @pre c2_vec_count(&io->si_input.div_vec) == c2_vec_count(&io->si_output.ov_vec)
    @post c2_clink_is_armed(&io->si_wait)
  */
-int  c2_stob_io_launch(struct c2_stob_io *io, struct c2_dtx *tx,
-		       struct c2_stob *obj);
-void c2_stob_io_cancel(struct c2_stob_io *io);
+int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
+			struct c2_dtx *tx, struct c2_io_scope *scope);
+void c2_stob_io_cancel (struct c2_stob_io *io);
+/**
+   @pre  io->si_state == SIS_INACTIVE
+   @post io->si_state == SIS_INACTIVE
+ */
+void c2_stob_io_release(struct c2_stob_io *io);
 
 /** @} end member group adieu */
 
