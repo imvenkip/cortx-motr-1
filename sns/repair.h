@@ -288,6 +288,8 @@ struct c2_cm_copy_packet;
 
    A copy machine has a handler which handles FOP requests. A copy machine is
    responsible to create corresponding agents to do the actual work.
+   A copy machine registers its 'fop handler' to main fop handler. Then this
+   copy machine will handle copy machine related requests.
 */
 struct c2_cm_operations {
 	int (*cmops_init)   (struct c2_cm *self);
@@ -296,15 +298,13 @@ struct c2_cm_operations {
 		             struct c2_cm_oset *oset, struct c2_rlimit *rlimit);
 	int (*cmops_handler)(struct c2_cm *self, struct c2_fop *req);
 	int (*cmops_queue)  (struct c2_cm_copy_packet *cp);
+	int (*cmops_stats)  (const struct c2_cm *cm,
+                             struct c2_cm_stats *stats /**< [out] output stats */
+			    );
+	/** adjust resource limitation parameters dynamically. */
+	int (*cmops_adjust_rlimit)(struct c2_cm *cm, struct c2_rlimit *new_rl);
 };
 
-/** get stats from copy machine */
-int c2_cm_stats(const struct c2_cm *cm,
-                struct c2_cm_stats *stats /**< [out] output stats */
-               );
-
-/** adjust resource limitation parameters dynamically. */
-int c2_cm_adjust_rlimit(struct c2_cm *cm, struct c2_rlimit *new_rl);
 
 struct c2_container;
 struct c2_device;
@@ -381,11 +381,15 @@ struct c2_cm_aggrg {
 			     const struct c2_cm_iset_cursor *cur,
 			     struct c2_ext *ext,
 			     struct c2_cm_aggrg_group *group);
-	int (*cag_is_first_packet)(struct c2_cm_aggrg_group *group);
+	/** check if group has buffer already */
+	int (*cag_has_buffer)(struct c2_cm_aggrg_group *group);
+	/** check if the group has received all copy packets */
 	int (*cag_is_done)(struct c2_cm_aggrg_group *group);
+	/** use this copy packet as the group's buffer */
 	int (*cag_use_this_packet_as_buffer)(struct c2_cm_aggrg_group *group,
 					     struct c2_cm_copy_packet *cp);
 
+	/** check if this group has containers on this server */
 	int (*cag_group_on_the_server)(struct c2_cm_aggrg_group *group,
 				       struct c2_poolserver *server);
 
@@ -395,6 +399,7 @@ struct c2_cm_aggrg {
    Copy machine transformation method
 */
 struct c2_cm_xform {
+	/** perform sns transform method to this copy packet */
 	int (*cx_sns)(struct c2_cm_aggrg_group *group,
 		      struct c2_cm_copy_packet *cp);
 };
@@ -423,7 +428,7 @@ struct c2_cm_copy_packet {
 
 /** copy machine */
 struct c2_cm {
-	struct c2_persistent_sm cm_mach;          /**< persistant state machine */
+	struct c2_persistent_sm cm_mach;          /**< persistent state machine */
 	struct c2_cm_stats	cm_stats;         /**< stats */
 	struct c2_rlimit  	cm_rlimit;        /**< resource limitation */
 	struct c2_cm_iset	cm_iset;          /**< input set description */
@@ -444,8 +449,10 @@ struct c2_cm_agent_config { /* TODO */ };
 struct c2_cm_agent_operations {
 	int (*agops_init)  (struct c2_cm_agent *self, struct c2_cm *parent);
 	int (*agops_stop)  (struct c2_cm_agent *self, int force);
+	/** config this agent with specified parameters */
 	int (*agops_config)(struct c2_cm_agent *self,
 			    struct c2_cm_agent_config *config);
+	/** main loop of this agent. To quit, call its agops_stop() method */
 	int (*agops_run)   (struct c2_cm_agent *self);
 };
 
@@ -463,21 +470,24 @@ enum c2_cm_agent_type {
    Copy machine agent is the base class for all agents: storage-in, storage-out,
    network-in, network-out, collecting, ...
    Copy machine agent has the basic properties and functions shared by all
-   agents.
+   agents. Some information of the agent will be logged onto persistent storage,
+   and they will survive node failures with distributed replications. E.g. the
+   progress of the operation, refected by sequence number of the copy packet
+   should go onto persistent storage.
 */
 struct c2_cm_agent {
 	struct c2_persistent_sm       ag_mach;
 	struct c2_cm		     *ag_parent; /**< pointer to parent cm */
-	enum c2_cm_agent_type	      ag_type;
+	enum c2_cm_agent_type	      ag_type;   /**< agent type */
 
-	struct c2_cm_aggrg	      ag_aggrg;
-	struct c2_cm_xform	      ag_xform;
-	struct c2_cm_agent_operations ag_operations;
+	struct c2_cm_aggrg	      ag_aggrg;  /**< agent aggregation method*/
+	struct c2_cm_xform	      ag_xform;  /**< agent transform method  */
+	struct c2_cm_agent_operations ag_operations; /**< agent operations    */
 
 	/** copy packet in flight of this agent */
-	struct c2_list	      	      ag_cp_in_flight;
+	struct c2_list	      	      ag_cp_in_flight; /**< list of all cp */
 	
-	int			      ag_quit:1;
+	bool			      ag_quit:1; /** flag to quit */
 };
 
 /** storage-in agent */
@@ -510,6 +520,7 @@ struct c2_cm_collecting_agent {
 };
 
 
+/** allocate a new storage-in agent, and return pointer to its base class */
 struct c2_cm_agent *alloc_storage_in_agent();
 struct c2_cm_agent *alloc_storage_out_agent();
 struct c2_cm_agent *alloc_network_in_agent();
