@@ -53,8 +53,8 @@ void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
 uint64_t c2_ext_cap(const struct c2_ext *ext2, uint64_t val);
 
 struct c2_buf {
-	void   *b_addr;
-	size_t  b_nob;
+	void    *b_addr;
+	uint64_t b_nob;
 };
 
 /** @} end of adt group */
