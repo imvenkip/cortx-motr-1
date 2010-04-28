@@ -9,32 +9,34 @@
    @{
  */
 
-void linux_stob_io_fini(struct c2_stob_io *io)
+static void linux_stob_io_fini(struct c2_stob_io *io)
 {
 }
 
-int  linux_stob_io_launch(struct c2_stob_io *io, struct c2_dtx *tx,
+static int  linux_stob_io_launch(struct c2_stob_io *io, struct c2_dtx *tx,
 			  struct c2_io_scope *scope)
 {
+	return 0;
 }
 
-void linux_stob_io_cancel(struct c2_stob_io *io)
+static void linux_stob_io_cancel(struct c2_stob_io *io)
 {
 }
 
 static const struct c2_stob_io_op linux_stob_io_op = {
 	.sio_fini   = linux_stob_io_fini,
-	.sio_lanuch = linux_stob_io_launch,
+	.sio_launch = linux_stob_io_launch,
 	.sio_cancel = linux_stob_io_cancel
 };
 
-void linux_stob_fini(struct c2_stob *stob)
+static void linux_stob_fini(struct c2_stob *stob)
 {
 }
 
-int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
+static int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	io->si_op = &linux_stob_io_op;
+	return 0;
 }
 
 static const struct c2_stob_op linux_stob_op = {
@@ -45,6 +47,7 @@ static const struct c2_stob_op linux_stob_op = {
 static int linux_stob_init(struct c2_stob *stob)
 {
 	stob->so_op = &linux_stob_op;
+	return 0;
 }
 
 static const struct c2_stob_type_op linux_stob_type_op = {
