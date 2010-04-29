@@ -362,6 +362,10 @@ struct c2_stob_io {
 	   of time.
 	 */
 	uint32_t                    si_stob_magic;
+	/**
+	   IO operation is a state machine, see State diagram for adieu.
+	 */
+	struct c2_sm                si_mach;
 };
 
 struct c2_stob_io_op {
