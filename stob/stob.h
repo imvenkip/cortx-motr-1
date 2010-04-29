@@ -57,7 +57,46 @@ struct c2_stob_type_op {
 
 struct c2_stob_op {
 	void (*sop_fini)   (struct c2_stob *stob);
+	/**
+	   Initialises IO operation structure, preparing it to be queued for a
+	   given storage object.
+
+	   This is called when IO operation structure is used to queue IO for
+	   the first time or when the last time is queued IO for a different
+	   type of storage object.
+
+	   @pre io->si_state == SIS_INACTIVE
+
+	   @see c2_stob_io::si_stob_magic
+	   @see c2_stob_io::si_stob_private
+	 */
 	int  (*sop_io_init)(struct c2_stob *stob, struct c2_stob_io *io);
+
+	/**
+	   Takes an implementation specific lock serialising state transitions
+	   for all operations (at least) against the given object.
+
+	   This lock is used internally by the generic adieu code.
+
+	   @pre !stob->so_op.sop_io_is_locked(stob)
+	   @post stob->so_op.sop_io_is_locked(stob)
+	 */
+	void (*sop_io_lock)(struct c2_stob *stob);
+	/**
+	   Releases an implementation specific lock taken by
+	   c2_stob_op::sop_io_lock().
+
+	   @pre   stob->so_op.sop_io_is_locked(stob)
+	   @post !stob->so_op.sop_io_is_locked(stob)
+	 */
+	void (*sop_io_unlock)(struct c2_stob *stob);
+	/**
+	   Returns true iff the caller hold the lock taken by
+	   c2_stob_op::sop_io_lock().
+
+	   This call is used only by assertions.
+	 */
+	bool (*sop_io_is_locked)(struct c2_stob *stob);
 };
 
 int  c2_stob_type_add(struct c2_stob_type *kind);
@@ -71,8 +110,8 @@ void c2_stob_type_del(struct c2_stob_type *kind);
 
    <b>Overview</b>.
 
-   Storage object has an interface for a non-blocking (asynchronous) 0-copy
-   (direct) vectored IO.
+   adieu is an interface for a non-blocking (asynchronous) 0-copy (direct)
+   vectored IO against storage objects.
 
    A user of this interface builds an IO operation description and queues it
    against a storage object. IO completion or failure notification is done by
@@ -267,20 +306,87 @@ struct c2_stob_io {
 	   Storage object this operation is against.
 	 */
 	struct c2_stob             *si_obj;
-	const struct c2_stob_io_op *si_op;      /*< operation vector */
+	/** operation vector */
+	const struct c2_stob_io_op *si_op;      
+	/**
+	   Result code.
+
+	   This field is valid after IO completion has been signalled.
+	 */
 	uint32_t                    si_rc;
+	/**
+	   Number of bytes transferred between data pages and storage object.
+
+	   This field is valid after IO completion has been signalled.
+	 */
 	c2_bcount_t                 si_count;
+	/**
+	   State of IO operation. See state diagram for adieu. State transition
+	   from SIS_ACTIVE to SIS_INACTIVE is asynchronous for adieu user.
+	 */
 	enum c2_stob_io_state       si_state;
+	/**
+	   Distributed transaction this IO operation is part of.
+
+	   This field is owned by the adieu implementation.
+	 */
 	struct c2_dtx              *si_tx;
+	/**
+	   Pointer to implementation private data associated with the IO
+	   operation. 
+
+	   This pointer is initialized when c2_stob_io is queued for the first
+	   time. When IO completes, the memory allocated by implementation is
+	   not immediately freed (the implementation is still guaranteed to
+	   never touch this memory while c2_stob_io is owned by a user).
+
+	   @see c2_stob_io::si_stob_magic
+	 */
 	void                       *si_stob_private;
+	/**
+	   Stob type magic used to detect when c2_stob_io::si_stob_private can
+	   be re-used.
+
+	   This field is set to the value of c2_stob_type::st_magic when
+	   c2_stob_io::si_stob_private is allocated. When the same c2_stob_io is
+	   used to queue IO again, the magic is compared against type magic of
+	   the target storage object. If magic differs (meaning that previous IO
+	   was against an object of different type), implementation private data
+	   at c2_stob_io::si_stob_private are freed and new private data are
+	   allocated. Otherwise, old private data are re-used.
+
+	   @see c2_stob_io::si_stob_private
+
+	   @note magic number is used instead of a pointer to a storage object
+	   or storage object class, to avoid pinning them for undefined amount
+	   of time.
+	 */
 	uint32_t                    si_stob_magic;
 };
 
 struct c2_stob_io_op {
-	void (*sio_fini)  (struct c2_stob_io *io);
-	int  (*sio_launch)(struct c2_stob_io *io, struct c2_dtx *tx,
-			   struct c2_io_scope *scope);
-	void (*sio_cancel)(struct c2_stob_io *io);
+	/**
+	   Called by c2_stob_io_release() to free any implementation specific
+	   resources associated with IO operation except for implementation
+	   private memory pointed to by c2_stob_io::si_stob_private.
+
+	   @pre io->si_state == SIS_INACTIVE
+	   @pre io->si_obj != NULL
+	 */
+	void (*sio_release)(struct c2_stob_io *io);
+	/**
+	   Called by c2_stob_io_launch() to queue IO operation.
+
+	   @pre io->si_state == SIS_INACTIVE
+	   @post ergo(result == 0, io->si_state == SIS_ACTIVE)
+	 */
+	int  (*sio_launch) (struct c2_stob_io *io, struct c2_dtx *tx,
+			    struct c2_io_scope *scope);
+	/**
+	   Attempts to cancel IO operation. Has no effect when called before IO
+	   has been queued or after IO has completed.
+	 */
+	void (*sio_cancel) (struct c2_stob_io *io);
 };
 
 /**

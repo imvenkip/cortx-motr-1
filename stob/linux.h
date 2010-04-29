@@ -19,7 +19,6 @@ struct c2_stob_linux {
 	const char    *sl_path;
 };
 
-
 /** @} end group stoblinux */
 
 /* __COLIBRI_STOB_LINUX_H__ */
