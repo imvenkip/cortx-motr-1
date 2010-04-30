@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_ADT_H__
 #define __COLIBRI_ADT_H__
 
+#include "cdefs.h"
 /**
    @defgroup adt Basic abstract data types
    @{
@@ -50,6 +51,11 @@ void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
 
 /* what about signed? */
 uint64_t c2_ext_cap(const struct c2_ext *ext2, uint64_t val);
+
+struct c2_buf {
+	void    *b_addr;
+	uint64_t b_nob;
+};
 
 /** @} end of adt group */
 

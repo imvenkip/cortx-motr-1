@@ -33,65 +33,38 @@ struct c2_mutex {
 };
 
 /**
- generic rw lock
- */
-struct c2_rw_lock {
+   Blocking read-write lock.
+*/
+struct c2_rwlock {
 };
 
 /**
- rw lock constructor
- 
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_init(struct c2_rw_lock *lock);
+   read-write lock constructor
+ */
+void c2_rwlock_init(struct c2_rwlock *lock);
 
 /**
- rw lock destructor
-
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_fini(struct c2_rw_lock *lock);
+   read-write lock destructor
+ */
+void c2_rwlock_fini(struct c2_rwlock *lock);
 
 /**
- take exclusive lock
- 
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_write_lock(struct c2_rw_lock *lock);
+   take exclusive lock
+ */
+void c2_rwlock_write_lock(struct c2_rwlock *lock);
+/**
+   release exclusive lock
+ */
+void c2_rwlock_write_unlock(struct c2_rwlock *lock);
 
 /**
- release exclusive lock
- 
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_write_unlock(struct c2_rw_lock *lock);
-
+   take shared lock
+ */
+void c2_rwlock_read_lock(struct c2_rwlock *lock);
 /**
- take shared lock
- 
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_read_lock(struct c2_rw_lock *lock);
-
-/**
- release shared lock
- 
- @param lock pointer to rw lock structure
- 
- @return none
-*/
-void c2_rwlock_read_unlock(struct c2_rw_lock *lock);
-
+   release shared lock
+ */
+void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 
 struct c2_semaphore {
 };

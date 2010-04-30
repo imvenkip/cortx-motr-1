@@ -24,3 +24,4 @@ void test_memory()
 	c2_free(ptr1, 100);
 	C2_FREE_PTR(ptr2);
 }
+
