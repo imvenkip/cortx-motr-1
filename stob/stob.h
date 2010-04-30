@@ -57,6 +57,7 @@ struct c2_stob_type_op {
 
 struct c2_stob_op {
 	void (*sop_fini)   (struct c2_stob *stob);
+	int  (*sop_locate) (struct c2_stob_id *id, struct c2_stob_object **out);
 	int  (*sop_io_init)(struct c2_stob *stob, struct c2_stob_io *io);
 };
 
@@ -193,11 +194,11 @@ void c2_stob_type_del(struct c2_stob_type *kind);
                        |  |
                        V  |    
                    SIS_INACTIVE
-                       ^  |
+                       |  ^
                        |  |
-        IO completion  |  | c2_stob_io_launch()
+   c2_stob_io_launch() |  | IO completion
                        |  |
-                       |  V
+                       V  |
                     SIS_ACTIVE
 
    @endverbatim
