@@ -65,7 +65,7 @@ struct c2_stob_op {
 	   the first time or when the last time is queued IO for a different
 	   type of storage object.
 
-	   @pre io->si_state == SIS_INACTIVE
+	   @pre io->si_state == SIS_IDLE
 
 	   @see c2_stob_io::si_stob_magic
 	   @see c2_stob_io::si_stob_private
@@ -145,14 +145,14 @@ void c2_stob_type_del(struct c2_stob_type *kind);
        quotas or barriers.
 
        @li An IO operation is executed, possibly by splitting it into
-       implementation defined fragments. A user can request an "ordered
+       implementation defined fragments. A user can request an "prefixed
        fragments execution" mode (c2_stob_io_flags::SIF_PREFIX) constraining
        execution concurrency as to guarantee that after execution completion
        (with success or failure) a storage is updated as if some possibly empty
        prefix of the IO operation executed successfully (this is similar to the
-       failure mode of POSIX write call). When ordered fragments execution mode
+       failure mode of POSIX write call). When prefixed fragments execution mode
        is not requested, an implementation is free to execute fragments in any
-       order and with any degree of concurrency. Ordered fragments execution
+       order and with any degree of concurrency. Prefixed fragments execution
        mode request has no effect on read-only IO operations.
 
        @li When whole operation execution completes, a clink embedded into IO
@@ -184,9 +184,9 @@ void c2_stob_type_del(struct c2_stob_type *kind);
 
        @li <tt>c2_stob_io::si_count</tt> is a number of bytes successfully
        transferred between data pages and the storage object. When IO is
-       executed in ordered fragments mode, exactly <tt>c2_stob_io::si_count</tt>
-       bytes of the storage object, starting from the offset
-       <tt>c2_stob_io::si_stob.ov_index[0]</tt> were transferred.
+       executed in prefixed fragments mode, exactly
+       <tt>c2_stob_io::si_count</tt> bytes of the storage object, starting from
+       the offset <tt>c2_stob_io::si_stob.ov_index[0]</tt> were transferred.
 
    <b>Data ownership.</b>
 
@@ -231,13 +231,13 @@ void c2_stob_type_del(struct c2_stob_type *kind);
      c2_stob_io_init() |  | c2_stob_io_fini()
                        |  |
                        V  |    
-                   SIS_INACTIVE
+                     SIS_IDLE
                        ^  |
                        |  |
         IO completion  |  | c2_stob_io_launch()
                        |  |
                        |  V
-                    SIS_ACTIVE
+                     SIS_BUSY
 
    @endverbatim
    @{
@@ -262,13 +262,13 @@ enum c2_stob_io_state {
 	/** 
 	    User owns c2_stob_io and data pages. No IO is ongoing.
 	 */
-	SIS_INACTIVE,
+	SIS_IDLE,
 	/**
 	   Operation has been queued for execution by a call to
 	   c2_stob_io_launch(), but hasn't yet been completed. adieu owns
 	   c2_stob_io and data pages.
 	 */
-	SIS_ACTIVE
+	SIS_BUSY
 };
 
 /**
@@ -276,8 +276,16 @@ enum c2_stob_io_state {
  */
 enum c2_stob_io_flags {
 	/**
-	   Execute operation in "ordered fragments" mode. See Functional
-	   specification for details.
+	   Execute operation in "prefixed fragments" mode.
+
+	   It is called "prefixed" because in this mode it is guaranteed that
+	   some initial part of the operation is executed. For example, when
+	   writing N bytes at offset X, it is guaranteed that when operation
+	   completes, bytes in the extent [X, X+M] are written to. When
+	   operation completed successfully, M == N, otherwise, M might be less
+	   than N. That is, here "prefix" means the same as in "string prefix"
+	   (http://en.wikipedia.org/wiki/Prefix_(computer_science) ), because
+	   [X, X+M] is a prefix of [X, X+N] when M <= N.
 	 */
 	SIF_PREFIX = (1 << 0)
 };
@@ -322,7 +330,7 @@ struct c2_stob_io {
 	c2_bcount_t                 si_count;
 	/**
 	   State of IO operation. See state diagram for adieu. State transition
-	   from SIS_ACTIVE to SIS_INACTIVE is asynchronous for adieu user.
+	   from SIS_BUSY to SIS_IDLE is asynchronous for adieu user.
 	 */
 	enum c2_stob_io_state       si_state;
 	/**
@@ -374,15 +382,15 @@ struct c2_stob_io_op {
 	   resources associated with IO operation except for implementation
 	   private memory pointed to by c2_stob_io::si_stob_private.
 
-	   @pre io->si_state == SIS_INACTIVE
+	   @pre io->si_state == SIS_IDLE
 	   @pre io->si_obj != NULL
 	 */
 	void (*sio_release)(struct c2_stob_io *io);
 	/**
 	   Called by c2_stob_io_launch() to queue IO operation.
 
-	   @pre io->si_state == SIS_INACTIVE
-	   @post ergo(result == 0, io->si_state == SIS_ACTIVE)
+	   @pre io->si_state == SIS_IDLE
+	   @post ergo(result == 0, io->si_state == SIS_BUSY)
 	 */
 	int  (*sio_launch) (struct c2_stob_io *io, struct c2_dtx *tx,
 			    struct c2_io_scope *scope);
@@ -394,18 +402,18 @@ struct c2_stob_io_op {
 };
 
 /**
-   @post ergo(result == 0, io->si_state == SIS_INACTIVE)
+   @post ergo(result == 0, io->si_state == SIS_IDLE)
  */
 int  c2_stob_io_init  (struct c2_stob_io *io);
 
 /**
-   @pre io->si_state == SIS_INACTIVE
+   @pre io->si_state == SIS_IDLE
  */
 void c2_stob_io_fini  (struct c2_stob_io *io);
 
 /**
    @pre !c2_clink_is_armed(&io->si_wait)
-   @pre io->si_state == SIS_INACTIVE
+   @pre io->si_state == SIS_IDLE
    @pre c2_vec_count(&io->si_input.div_vec) == c2_vec_count(&io->si_output.ov_vec)
    @post c2_clink_is_armed(&io->si_wait)
  */
@@ -413,8 +421,8 @@ int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 void c2_stob_io_cancel (struct c2_stob_io *io);
 /**
-   @pre  io->si_state == SIS_INACTIVE
-   @post io->si_state == SIS_INACTIVE
+   @pre  io->si_state == SIS_IDLE
+   @post io->si_state == SIS_IDLE
  */
 void c2_stob_io_release(struct c2_stob_io *io);
 
