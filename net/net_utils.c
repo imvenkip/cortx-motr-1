@@ -1,13 +1,13 @@
 #include <string.h>
 
-#include "net/net.h"
+#include "net/net_types.h"
 
-bool c2_nodes_is_same(struct c2_node_id const *c1, struct c2_node_id const *c2)
+bool c2_nodes_is_same(const struct c2_node_id *c1, const struct c2_node_id *c2)
 {
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }
 
-struct c2_rpc_op const *find_ops(struct c2_rpc_op_table const *rop, int op)
+struct c2_rpc_op const *find_ops(const struct c2_rpc_op_table *rop, int op)
 {
 	int i;
 

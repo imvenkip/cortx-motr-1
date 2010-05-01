@@ -5,16 +5,7 @@
 
 #include "lib/cdefs.h"
 
-/**
- unique service identifier.
- each service have own identifiers.
- if different services run on single physical node,
- he will have different c2_node_id value.
- */
-struct c2_node_id {
-	char uuid[40];
-};
-
+struct c2_node_id;
 /**
  compare node identifiers
 
@@ -24,7 +15,7 @@ struct c2_node_id {
  @retval TRUE if node identifiers is same
  @retval FALSE if node identifiers is different
 */
-bool c2_nodes_is_same(struct c2_node_id const *c1, struct c2_node_id const *c2);
+bool c2_nodes_is_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
 
 struct c2_net_conn;
 
@@ -46,7 +37,7 @@ struct c2_net_conn;
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_conn_create(struct c2_node_id const *nid, unsigned long prgid, char *nn);
+int c2_net_conn_create(const struct c2_node_id *nid, const unsigned long prgid, char *nn);
 
 /**
  find connection to specified node.
@@ -59,7 +50,7 @@ int c2_net_conn_create(struct c2_node_id const *nid, unsigned long prgid, char *
  @retval NULL if none connections to the node
  @retval !NULL connection info pointer
  */
-struct c2_net_conn *c2_net_conn_find(struct c2_node_id const *nid, unsigned long prgid);
+struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid);
 
 /**
  release connection after using.
@@ -86,41 +77,7 @@ int c2_net_conn_destroy(struct c2_net_conn *conn);
  @} end of net_conn group
 */
 
-typedef	bool (*c2_xdrproc_t)(void *, void *, unsigned int);
-
-/**
- rpc commands associated with service thread
- */
-struct c2_rpc_op {
-	/**
-	 operation identifier
-	 */
-	int		ro_op;
-	/**
-	 XDR program to converting argument of remote procedure call
-	 */
-	c2_xdrproc_t	ro_xdr_arg;
-	/**
-	 XDR program to converting result of remote procedure call
-	 */
-	c2_xdrproc_t	ro_xdr_result;
-	/**
-	 function to a handle operation on server side
-	 */
-	bool		(*ro_shandler) (void *, void *);
-};
-
-struct c2_rpc_op_table {
-	/**
-	 number of operations in table
-	 */
-	int	rot_numops;
-	/**
-	 array of rpc operations
-	 */
-	struct c2_rpc_op	rot_ops[0];
-};
-
+struct c2_rpc_op_table;
 /**
  synchronous rpc call. client blocked until rpc finished.
 
@@ -133,8 +90,8 @@ struct c2_rpc_op_table {
  @retval 0 OK
  @retval <0 ERROR
  */
-int c2_net_cli_call_sync(struct c2_net_conn const *conn,
-			 struct c2_rpc_op_table const *rot,
+int c2_net_cli_call_sync(const struct c2_net_conn *conn,
+			 const struct c2_rpc_op_table *rot,
 			 int op, void *arg, void *ret);
 
 /**
@@ -161,8 +118,8 @@ typedef void (*c2_net_cli_cb)(int32_t error, void *arg, void *ret);
  @retval 0 OK
  @retval <0 ERROR
 */
-int c2_net_cli_call_async(struct c2_net_conn const *conn,
-			  struct c2_rpc_op_table const *rot,
+int c2_net_cli_call_async(const struct c2_net_conn *conn,
+			  const struct c2_rpc_op_table *rot,
 			  int op, void *arg, c2_net_cli_cb cb, void *ret);
 
 struct SVCXPRT;
@@ -190,7 +147,7 @@ typedef void (*rpc_handler_t)(struct svc_req *req, struct SVCXPRT *xptr);
  @return NONE
  */
 void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *xptr,
-			   struct c2_rpc_op_table const *ops, void *arg, void *ret);
+			   const struct c2_rpc_op_table *ops, void *arg, void *ret);
 
 /**
  initialize network service and attach incoming messages handler
@@ -203,10 +160,10 @@ void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *xptr,
  @param handler - function to handle request.
 
  */
-int c2_net_srv_start(unsigned long int program_num, unsigned long ver,
+int c2_net_srv_start(const unsigned long program_num, const unsigned long ver,
 		     rpc_handler_t handler);
 
-int c2_net_srv_stop(unsigned long int program_num, unsigned long ver);
+int c2_net_srv_stop(const unsigned long program_num, const unsigned long ver);
 
 
 /**
@@ -218,7 +175,7 @@ int net_init(void);
  destructor for the network library.
  release all allocated resources
  */
-int net_fini(void);
+void net_fini(void);
 
 #endif
 

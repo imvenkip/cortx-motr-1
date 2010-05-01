@@ -5,6 +5,7 @@
 #include <errno.h>
 
 #include "net/net.h"
+#include "net/net_types.h"
 #include "net/net_internal.h"
 
 /* XXX Default timeout  - need to be move in connection */

@@ -10,6 +10,7 @@
 #include <stdlib.h> /* exit */
 
 #include "net/net.h"
+#include "net/net_types.h"
 #include "net/net_internal.h"
 
 void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *transp,

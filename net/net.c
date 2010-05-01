@@ -5,6 +5,7 @@
 #include <colibri/colibri.h>
 
 #include "net/net.h"
+#include "net/net_types.h"
 #include "net/net_internal.h"
 
 int net_init()

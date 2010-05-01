@@ -20,7 +20,7 @@ struct c2_net_conn {
 	/**
 	 node identifier to establish connection
 	 */
-	struct node_id		nc_id;
+	struct c2_node_id	nc_id;
 	/**
 	 structure reference counting
 	 */
