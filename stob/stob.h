@@ -7,8 +7,10 @@
 
 #include "lib/adt.h"
 #include "lib/cc.h"
+#include "sm/sm.h"
 
 /* import */
+struct c2_sm;
 struct c2_dtx;
 struct c2_clink;
 struct c2_diovec;
@@ -305,6 +307,9 @@ struct c2_stob_io {
 	struct c2_indexvec          si_stob;
 	/**
 	   Clink where IO operation completion is signalled.
+
+	   @note alternatively a clink embedded in every state machine can be
+	   used.
 	 */
 	struct c2_clink             si_wait;
 
