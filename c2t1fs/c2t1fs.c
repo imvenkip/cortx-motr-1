@@ -20,11 +20,9 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 	csi = kmalloc(sizeof(*csi), GFP_KERNEL);
 	if (!csi)
 		return NULL;
-        memset(csi->csi_metadata_server, 0, 
-               sizeof(csi->csi_metadata_server));
-        memset(csi->csi_data_server, 0, 
-               sizeof(csi->csi_data_server));
         s2csi_nocast(sb) = csi;
+        csi->csi_metadata_server = NULL; 
+        csi->csi_data_server = NULL; 
         atomic_set(&csi->csi_mounts, 1);
         csi->csi_flags = 0;
 	return csi;
@@ -67,11 +65,6 @@ static void c2t1fs_destroy_inode(struct inode *inode)
 	kmem_cache_free(c2t1fs_inode_cachep, i2cii(inode));
 }
 
-static void c2t1fs_clear_inode(struct inode *inode)
-{
-        /* Nothing so far */
-}
-
 void c2t1fs_put_super(struct super_block *sb)
 {
         c2t1fs_put_csi(sb);
@@ -81,7 +74,6 @@ void c2t1fs_put_super(struct super_block *sb)
 struct super_operations c2t1fs_super_operations = {
         .alloc_inode   = c2t1fs_alloc_inode,
         .destroy_inode = c2t1fs_destroy_inode,
-        .clear_inode   = c2t1fs_clear_inode,
         .put_super     = c2t1fs_put_super
 };
 
@@ -104,13 +96,10 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         s1++;
 
                 if (strncmp(s1, "metadata_server=", 16) == 0) {
-                        strncpy(csi->csi_metadata_server, s1 + 16, 
-                                sizeof(csi->csi_metadata_server));
+                        csi->csi_metadata_server = s1 + 16; 
                         clear++;
                 } else if (strncmp(s1, "data_server=", 12) == 0) {
-                        strncpy(csi->csi_data_server, s1 + 12, 
-                                sizeof(csi->csi_data_server));
-                        *s1 = '\0';
+                        csi->csi_data_server = s1 + 12; 
                         clear++;
                 }
 
@@ -128,7 +117,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         s1 = s2;
         }
 
-        if (!strlen(csi->csi_metadata_server) || !strlen(csi->csi_data_server)) {
+        if (!csi->csi_metadata_server || !csi->csi_data_server) {
                 printk(KERN_ERR "No servers specified "
                        "(need mount option 'metadata_server=...,data_server=...')\n");
                 return -EINVAL;
@@ -230,7 +219,7 @@ int init_module(void)
 {
         int rc;
         
-        printk(KERN_INFO "Colibri c2t1fs: http://www.clusterstor.com\n");
+        printk(KERN_INFO "Colibri C2 T1 File System: http://www.clusterstor.com\n");
         rc = c2t1fs_init_inodecache();
         if (rc)
                 return rc;

@@ -7,9 +7,6 @@
 #define s2csi_nocast(sb) \
         ((sb)->s_fs_info)
 
-/* should be enough so far */
-#define C2T1FS_MAX_SERVER_LEN 64
-
 /* 0x\C\2\T\1 */
 #define C2T1FS_SUPER_MAGIC    0x43325431
 
@@ -18,8 +15,8 @@
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
-        char            csi_data_server[C2T1FS_MAX_SERVER_LEN];
-        char            csi_metadata_server[C2T1FS_MAX_SERVER_LEN];
+        char           *csi_data_server;
+        char           *csi_metadata_server;
 };
 
 struct c2t1fs_inode_info {
