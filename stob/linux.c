@@ -29,10 +29,46 @@ static const struct c2_stob_io_op linux_stob_io_op = {
 	.sio_cancel  = linux_stob_io_cancel
 };
 
-static void linux_stob_fini(struct c2_stob *stob)
+/**
+  Linux stob init
+
+  Init the Linux storage objects environment.
+  Plain Linux file is used to represent an object for Linux type.
+  Here we will use db4 to store the mapping from id to internal object
+  representative. So, db4 connection and tales are initialized here.
+*/
+static int linux_stob_init(struct c2_stob *stob)
 {
+	/* connect to db4 here*/
+	return 0;
 }
 
+/**
+  Linux stob fini
+
+  Cleanup the environment. Here we cleanup the db4 connections.
+*/
+static void linux_stob_fini(struct c2_stob *stob)
+{
+	/* disconnect to db4 here*/
+}
+
+/**
+  Create an object
+
+  Create an object, establish the mapping from id to it in the db.
+*/
+static int linux_stob_create(struct c2_stob_id *id,
+                             struct c2_stob_object **out)
+{
+	return 0;
+}
+
+/**
+  Lookup an object with specified id
+
+  Lookup an object with specified id in the mapping db.
+*/
 static int linux_stob_locate(struct c2_stob_id *id,
                              struct c2_stob_object **out)
 {
@@ -42,12 +78,13 @@ static int linux_stob_locate(struct c2_stob_id *id,
 static int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	io->si_op = &linux_stob_io_op;
-	io->si_stob = stob;
 	return 0;
 }
 
 static const struct c2_stob_op linux_stob_op = {
+	.sop_init    = linux_stob_init,
 	.sop_fini    = linux_stob_fini,
+	.sop_create  = linux_stob_create,
 	.sop_locate  = linux_stob_locate,
 	.sop_io_init = linux_stob_io_init
 };

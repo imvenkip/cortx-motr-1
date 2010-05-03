@@ -38,6 +38,7 @@ struct c2_list_link;
 
 struct c2_stob;
 struct c2_stob_id;
+struct c2_stob_object;
 struct c2_stob_op;
 struct c2_stob_io;
 struct c2_stob_type;
@@ -58,8 +59,43 @@ struct c2_stob_type_op {
 };
 
 struct c2_stob_op {
+	/**
+	  Initlialises the storage objects environment, make it ready
+	  for operations.
+
+	  This operation is called before any other operations.
+
+	  @return 0 success, any other value means error.
+	  @see sop_fini
+	*/
+	int  (*sop_init)   (struct c2_stob *stob);
+
+	/**
+	  Cleanup the data storage objects environment.
+
+	  This is the last operation for any storage objects data structures.
+	*/
 	void (*sop_fini)   (struct c2_stob *stob);
+
+	/**
+	  Create an object.
+
+	  Create an object, with specified id, establish the mapping from the
+	  id to the internal object repsentative.
+
+	  @return 0 success, other values mean error.
+	  @post when succeed, out points to the internal object
+	*/
+	int  (*sop_create) (struct c2_stob_id *id, struct c2_stob_object **out);
+
+	/**
+	  Lookup the mapping from id to intnerl representative
+
+	  @return 0 success, other values mean error
+	  @post when succeed, out points to the internal object
+	*/
 	int  (*sop_locate) (struct c2_stob_id *id, struct c2_stob_object **out);
+
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
 	   given storage object.
