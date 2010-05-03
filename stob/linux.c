@@ -9,7 +9,7 @@
    @{
  */
 
-static void linux_stob_io_fini(struct c2_stob_io *io)
+static void linux_stob_io_release(struct c2_stob_io *io)
 {
 }
 
@@ -24,9 +24,9 @@ static void linux_stob_io_cancel(struct c2_stob_io *io)
 }
 
 static const struct c2_stob_io_op linux_stob_io_op = {
-	.sio_fini   = linux_stob_io_fini,
-	.sio_launch = linux_stob_io_launch,
-	.sio_cancel = linux_stob_io_cancel
+	.sio_release = linux_stob_io_release,
+	.sio_launch  = linux_stob_io_launch,
+	.sio_cancel  = linux_stob_io_cancel
 };
 
 static void linux_stob_fini(struct c2_stob *stob)
