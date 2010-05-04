@@ -7,7 +7,7 @@
 #include <linux/vfs.h>
 #include "c2t1fs.h"
 
-static kmem_cache_t *c2t1fs_inode_cachep;
+static kmem_cache_t *c2t1fs_inode_cachep = NULL;
 
 MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>");
 MODULE_DESCRIPTION("Colibri C2 T1 File System");
@@ -57,6 +57,7 @@ static struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 	cii = kmem_cache_alloc(c2t1fs_inode_cachep, SLAB_KERNEL);
 	if (!cii)
 		return NULL;
+	inode_init_once(&cii->cii_vfs_inode);
 	return &cii->cii_vfs_inode;
 }
 
@@ -95,11 +96,11 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
-                if (strncmp(s1, "metadata_server=", 16) == 0) {
-                        csi->csi_metadata_server = s1 + 16; 
+                if (strncmp(s1, "ms=", 3) == 0) {
+                        csi->csi_metadata_server = s1 + 3; 
                         clear++;
-                } else if (strncmp(s1, "data_server=", 12) == 0) {
-                        csi->csi_data_server = s1 + 12; 
+                } else if (strncmp(s1, "ds=", 3) == 0) {
+                        csi->csi_data_server = s1 + 3; 
                         clear++;
                 }
 
@@ -126,6 +127,50 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         return 0;
 }
 
+#ifndef log2
+#define log2(n) ffz(~(n))
+#endif
+
+static int c2t1fs_read_inode(struct inode *inode)
+{
+        return 0;
+}
+
+static int c2t1fs_update_inode(struct inode *inode)
+{
+        return 0;
+}
+
+/* called from iget5_locked->find_inode() under inode_lock spinlock */
+static int c2t1fs_test_inode(struct inode *inode, void *opaque)
+{
+        ino_t *ino = opaque;
+        return inode->i_ino == *ino;
+}
+
+static int c2t1fs_set_inode(struct inode *inode, void *opaque)
+{
+        return 0;
+}
+
+static struct inode *c2t1fs_iget(struct super_block *sb, ino_t hash)
+{
+        struct inode *inode;
+
+        inode = iget5_locked(sb, hash, c2t1fs_test_inode, c2t1fs_set_inode, &hash);
+        if (inode) {
+                if (inode->i_state & I_NEW) {
+                        c2t1fs_read_inode(inode);
+                        unlock_new_inode(inode);
+                } else {
+                        if (!(inode->i_state & (I_FREEING | I_CLEAR)))
+                                c2t1fs_update_inode(inode);
+                }
+        }
+
+        return inode;
+}
+
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
         struct c2t1fs_sb_info *csi;
@@ -143,13 +188,14 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
                 c2t1fs_put_csi(sb);
                 return rc;
         }
-        sb_set_blocksize(sb, PAGE_SIZE);
+        sb->s_blocksize = PAGE_SIZE;
+        sb->s_blocksize_bits = log2(PAGE_SIZE);
         sb->s_magic = C2T1FS_SUPER_MAGIC;
         sb->s_maxbytes = MAX_LFS_FILESIZE;
         sb->s_op = &c2t1fs_super_operations;
 
         /* make root inode */
-        root = iget(sb, C2T1FS_ROOT_INODE);
+        root = c2t1fs_iget(sb, C2T1FS_ROOT_INODE);
         if (root == NULL || is_bad_inode(root)) {
                 c2t1fs_put_csi(sb);
                 return -EBADF;
@@ -159,14 +205,14 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         return 0;
 }
 
-int c2t1fs_get_super(struct file_system_type *fs_type,
-                     int flags, const char *devname, void *data,
-                     struct vfsmount *mnt)
+static int c2t1fs_get_super(struct file_system_type *fs_type,
+                            int flags, const char *devname, void *data,
+                            struct vfsmount *mnt)
 {
         return get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
 }
 
-void c2t1fs_kill_super(struct super_block *sb)
+static void c2t1fs_kill_super(struct super_block *sb)
 {
         kill_anon_super(sb);
 }
@@ -176,24 +222,14 @@ struct file_system_type c2t1fs_fs_type = {
         .name         = "c2t1fs",
         .get_sb       = c2t1fs_get_super,
         .kill_sb      = c2t1fs_kill_super,
-        .fs_flags     = FS_BINARY_MOUNTDATA | FS_REQUIRES_DEV,
+        .fs_flags     = FS_BINARY_MOUNTDATA | FS_REQUIRES_DEV
 };
-
-static void init_once(void *foo, kmem_cache_t *cachep, unsigned long flags)
-{
-	struct c2t1fs_inode_info *cii = foo;
-
-	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR)
-		inode_init_once(&cii->cii_vfs_inode);
-}
 
 static int c2t1fs_init_inodecache(void)
 {
 	c2t1fs_inode_cachep = kmem_cache_create("c2t1fs_inode_cache",
 					        sizeof(struct c2t1fs_inode_info),
-					        0, (SLAB_RECLAIM_ACCOUNT|SLAB_MEM_SPREAD),
-					        init_once, NULL);
+					        0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (c2t1fs_inode_cachep == NULL)
 		return -ENOMEM;
 	return 0;
@@ -201,29 +237,22 @@ static int c2t1fs_init_inodecache(void)
 
 static void c2t1fs_destroy_inodecache(void)
 {
+        if (!c2t1fs_inode_cachep)
+                return;
+
 	if (kmem_cache_destroy(c2t1fs_inode_cachep))
-		printk(KERN_INFO "c2t1fs_inode_cache: not all structures were freed\n");
+		printk(KERN_ERR "c2t1fs_destroy_inodecache: not all structures were freed\n");
 }
 
-int c2t1fs_register_fs(void)
-{
-        return register_filesystem(&c2t1fs_fs_type);
-}
-
-int c2t1fs_unregister_fs(void)
-{
-        return unregister_filesystem(&c2t1fs_fs_type);
-}
- 
 int init_module(void) 
 {
         int rc;
         
-        printk(KERN_INFO "Colibri C2 T1 File System: http://www.clusterstor.com\n");
+        printk(KERN_INFO "Colibri C2 T1 File System init: http://www.clusterstor.com\n");
         rc = c2t1fs_init_inodecache();
         if (rc)
                 return rc;
-        rc = c2t1fs_register_fs();
+        rc = register_filesystem(&c2t1fs_fs_type);
         if (rc)
                 c2t1fs_destroy_inodecache();
 
@@ -234,7 +263,7 @@ void cleanup_module(void)
 {
         int rc;
         
-        rc = c2t1fs_unregister_fs();
+        rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
-        printk(KERN_INFO "Colibri c2t1fs cleanup: %d\n", rc);
+        printk(KERN_INFO "Colibri C2 T1 File System cleanup: %d\n", rc);
 }
