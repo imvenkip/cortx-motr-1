@@ -215,14 +215,18 @@ struct address_space_operations c2t1fs_file_aops = {
 struct address_space_operations c2t1fs_dir_aops = {
 };
 
-static int c2t1fs_update_inode(struct inode *inode)
+static int c2t1fs_update_inode(struct inode *inode, void *opaque)
 {
+        ino_t ino = *((ino_t *)opaque);
         __u32 mode;
         
+        inode->i_ino = ino;
+        
+        /* FIXME: This is a hack to make it mount (we need root dir) */
         if (inode->i_ino == C2T1FS_ROOT_INODE)
-                mode = ((S_IRWXUGO|S_ISVTX) & ~current->fs->umask) | S_IFDIR;
+                mode = ((S_IRWXUGO | S_ISVTX) & ~current->fs->umask) | S_IFDIR;
         else
-                mode = S_IFREG;
+                mode = ((S_IRUGO | S_IXUGO) & ~current->fs->umask) | S_IFREG;
         inode->i_mode = (inode->i_mode & S_IFMT) | (mode & ~S_IFMT);
         inode->i_mode = (inode->i_mode & ~S_IFMT) | (mode & S_IFMT);
         if (S_ISREG(inode->i_mode)) {
@@ -253,14 +257,14 @@ static int c2t1fs_update_inode(struct inode *inode)
         return 0;
 }
 
-static int c2t1fs_read_inode(struct inode *inode)
+static int c2t1fs_read_inode(struct inode *inode, void *opaque)
 {
         C2TIME_S(inode->i_mtime) = 0;
         C2TIME_S(inode->i_atime) = 0;
         C2TIME_S(inode->i_ctime) = 0;
         inode->i_rdev = 0;
 
-        c2t1fs_update_inode(inode);
+        c2t1fs_update_inode(inode, opaque);
 
         if (S_ISREG(inode->i_mode)) {
                 inode->i_op = &c2t1fs_file_inode_operations;
@@ -285,6 +289,7 @@ static int c2t1fs_test_inode(struct inode *inode, void *opaque)
 
 static int c2t1fs_set_inode(struct inode *inode, void *opaque)
 {
+        /* FIXME: Set inode info from passed rpc data */
         return 0;
 }
 
@@ -295,11 +300,11 @@ static struct inode *c2t1fs_iget(struct super_block *sb, ino_t hash)
         inode = iget5_locked(sb, hash, c2t1fs_test_inode, c2t1fs_set_inode, &hash);
         if (inode) {
                 if (inode->i_state & I_NEW) {
-                        c2t1fs_read_inode(inode);
+                        c2t1fs_read_inode(inode, &hash);
                         unlock_new_inode(inode);
                 } else {
                         if (!(inode->i_state & (I_FREEING | I_CLEAR)))
-                                c2t1fs_update_inode(inode);
+                                c2t1fs_update_inode(inode, &hash);
                 }
         }
 
@@ -337,6 +342,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         }
 
         sb->s_root = d_alloc_root(root);
+        printk(KERN_INFO "C2T1FS init\n");
         return 0;
 }
 
@@ -350,6 +356,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 static void c2t1fs_kill_super(struct super_block *sb)
 {
         kill_anon_super(sb);
+        printk(KERN_INFO "C2T1FS finished\n");
 }
 
 struct file_system_type c2t1fs_fs_type = {
@@ -383,7 +390,7 @@ int init_module(void)
 {
         int rc;
         
-        printk(KERN_INFO "Colibri C2 T1 File System init: http://www.clusterstor.com\n");
+        printk(KERN_INFO "Colibri C2T1 File System init: http://www.clusterstor.com\n");
         rc = c2t1fs_init_inodecache();
         if (rc)
                 return rc;
@@ -400,5 +407,5 @@ void cleanup_module(void)
         
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
-        printk(KERN_INFO "Colibri C2 T1 File System cleanup: %d\n", rc);
+        printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
 }
