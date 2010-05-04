@@ -9,24 +9,28 @@
 #include "rpc/rpc_types.h"
 
 /**
+ @page rpc-srv-session
+
+*/
+
+/**
  server side slot definition
  */
-struct srv_slot {
+struct c2_srv_slot {
 	/**
-	 current sequence of operation
+	 current sequence in the slot
 	 */
 	c2_seq_t	srv_slot_seq;
-	/**
-	 index in global slot array.
-	 */
-	uint32_t	srv_slot_idx;
-	/* need pointer to FOL */
 };
 
 /**
  server side slot table
  */
-struct srv_slot_table {
+struct c2_srv_slot_table {
+	/**
+	 protect high slot id and structure resizing
+	 */
+	struct c2_rw_lock srvst_lock;
 	/**
 	 * maximal slot index
 	 */
@@ -41,7 +45,7 @@ struct srv_slot_table {
 /**
  server size session structure
  */
-struct srv_session {
+struct c2_srv_session {
 	/**
 	 linking to global list
 	 */
@@ -59,14 +63,50 @@ struct srv_session {
 	 */
 	struct c2_session_id	srvs_id;
 	/**
-	 *
+	 server side slot table
 	 */
-	struct srv_slot_table *srvs_slots;
+	struct c2_srv_slot_table *srvs_slots;
 	/**
-	 * link to server owned this session
+	 link to server owned this session
 	 */
-	struct server		*srvs_server;
+	struct c2_rpc_server	*srvs_server;
 };
+
+/**
+ create new session on a server.
+ 
+ @param srv - server to create new session
+ @param sess - ponter to new created session, with 2 references.
+               need a call c2_srv_session release after using.
+
+ @retval 0 - creation OK
+ @retval -ENOMEM not have enogth memory
+ */
+int c2_srv_session_init(struct c2_rpc_server *srv, struct c2_srv_session **sess);
+
+/**
+ unlink session from a list and release one reference
+ */
+void c2_srv_session_unlink(struct c2_srv_session *sess);
+
+/**
+ find session by session id and grab one reference to the session.
+
+ @param srv - server to find session
+ @param ss_id - session identifier
+ 
+ @retval NULL - session not exist or unlinked
+ @retval !NULL - session with that identifier
+*/
+struct c2_srv_session *c2_srv_session_find_by_id(struct c2_rpc_server *srv,
+						 const c2_session_id *ss_id);
+
+/**
+ release one reference from session.
+ if that will be last reference - session will be freed.
+ session should be unlinked from a list before free.
+*/
+void c2_srv_session_release(struct c2_srv_session *sess);
 
 /**
  adjust session parameters (currently supported slot size)
@@ -78,6 +118,6 @@ struct srv_session {
  @retval >0 size after adjusting
  @retval <0 any error hit (client not responded, or other)
  */
-int c2_session_adjust(struct srv_session *session, uint32_t new_size);
+int c2_session_adjust(const struct c2_srv_session *session, const uint32_t new_size);
 
 #endif

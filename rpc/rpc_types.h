@@ -6,7 +6,7 @@
 #include "lib/cdefs.h"
 
 /**
- Generic types used in rpc library
+ @page rpc-types type definitions used in rpc library
  */
 
 /**
@@ -28,6 +28,7 @@ struct c2_session_id {
  @retval false if session identifiers is different
 */
 bool c2_session_is_same(struct session_id const *s1, struct session_id const *s2);
+
 
 /**
  type to define sequence in a slot

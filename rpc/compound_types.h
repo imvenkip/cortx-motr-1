@@ -5,143 +5,106 @@
 
 #include "rpc/rpc_types.h"
 
-enum c2_session_cmd {
-	/**
-	 Create new session on server
-	 */
-	C2_SESSION_CREATE = 1,
-	/**
-	 Destroy session on server
-	 */
-	C2_SESSION_DESTROY,
-	/**
-	 Adjust session related paramters
-	 currently only max slot id supported
-	 */
-	C2_SESSION_ADJUST,
-	/**
-	 send compound request over session
-	 */
-	C2_SESSION_COMPOUND
-};
-
 /**
- C2_SESSION_CREATE command
- */
-
-/**
- parameters to the C2_SESSION_CREATE command
- */
-struct session_create_arg {
-	/**
-         * client requested a new session
-         */
-	struct c2_node_id	sca_client;
-        /**
-         * server to accept connection
-         */
-	struct c2_node_id	sca_server;
-        /**
-         * maximal slot count handled by client
-         */
-	uint32_t		sca_high_slot_id;
-        /**
-         * maximal rpc size can be handled by client
-         */
-	uint32_t		sca_max_rpc_size;
-};
-
-/**
- * server reply to SESSION_CREATE command.
- */
-struct session_create_out {
-	struct c2_session_id sco_session_id;
-	uint32_t sco_high_slot_id;
-	uint32_t sco_max_rpc_size;
-};
-
-struct session_create_ret {
-	int32_t errno;
-	struct session_create_out reply;
-};
-
-
-/**
-  C2_SESSION_DESTROY command
- */
-
-/**
- argument to server side procedure
- */
-struct session_destroy_arg {
-	struct session_id da_session_id;
-};
-
-struct session_destroy_ret {
-	int32_t sda_errno;
-};
-
-/**
-*/
-struct c2_session_adjust_in {
-	struct session_id sr_session_id;
-	uint32_t sr_new_high_slot_id;
-};
-
-struct c2_session_adjust_rep {
-	uint32_t sr_new_high_slot_id;
-};
-
-struct c2_session_adjust_out {
-	int32_t errno;
-	struct c2_session_adjust_rep s_reply;
-};
-
-/**
-
+ Operations inside compound request
  */
 enum c2_session_compound_op {
-	session_sequence_op = 1,
-	session_null_op,
+	C2_COMP_NULL = 0,
+	C2_COMP_SEQUENCE,
 };
 
-struct session_sequence_args {
+/**
+ parameters to sequence operation
+ */
+struct c2_session_sequence_args
+	/**
+	 slot indetifyer to sequence protection
+	 */
 	uint32_t ssa_slot_id;
-	uint32_t ssa_sequence_id;
+	/**
+	 new sequence in the slot
+	 */
+	c2_seq_id ssa_sequence_id;
+};
+/**
+ reply to sequence operation
+ */
+struct c2_session_sequence_reply {
+	/**
+	 status of operation
+	 */
+	int32_t error;
 };
 
-struct compound_op_arg {
-	c2_session_compound_op c2op;
+
+/**
+ body of one operation
+ */
+struct c2_compound_op_arg {
+	enum c2_session_compound_op c2op;
+	/**
+	 all arguments of operation should be listed here and xdr function need
+	 to be updated
+	*/
 	union {
 		struct session_sequence_args sess_args;
 	} compound_op_arg_u;
 };
 
-struct compound_args {
-	session_id ca_session_id;
-	struct {
-		u_int ca_oparray_len;
-		struct compound_op_arg *ca_oparray_val;
-	} ca_oparray;
+/**
+ C2_COMPOUND_COMMAND body
+ send many operations inside single command.
+ */
+struct c2_compound_args {
+	/**
+	 service to have addressed this request
+	*/
+	struct c2_node_id	ca_node;
+	/**
+	 session associated with that request (if exist)
+	*/
+	struct session_id	ca_session;
+	/**
+	 number operations inside compound
+	*/
+	uint32_t		ca_oparray_len;
+	/**
+	 array with operations
+	*/
+	struct c2_compound_op_arg *ca_oparray_val;
 };
 
-struct session_sequence_reply {
-	int32_t errno;
-};
 
+/**
+ one reply structure
+*/
 struct c2_session_resop {
-	c2_session_compound_op c2op;
+	/**
+	 operation to get a reply
+	 */
+	enum c2_session_compound_op c2op;
+	/**
+	 all reply's should be listed here and xdr function need
+	 to be updated
+	*/
 	union {
 		struct c2_sequence_reply c2seq_reply;
 	} c2_session_resop_u;
 };
 
 struct c2_compound_reply {
+	/**
+	 status of last operation
+	 */
 	uint32_t status;
-	struct {
-		u_int resarray_len;
-		struct c2_session_resop *resarray_val;
-	} resarray;
+	/**
+	 number of reply's in answers
+	 */
+	uint32_t resarray_len;
+	/**
+	 array wiyh reply's
+	 */
+	struct c2_session_resop *resarray_val;
 };
 
 #endif

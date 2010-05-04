@@ -1,11 +1,18 @@
 /* -*- C -*- */
 #ifndef _RPC_SESSION_TYPES_H_
 
-#define _RCP_SESSION_TYPES_H_
+#define _RPC_SESSION_TYPES_H_
 
 #include "lib/cdefs.h"
 #include "rpc/rpc_types.h"
 
+/**
+ @page rpc-session-types
+*/
+
+/**
+ RPC commands supported by session rpc program.
+ */
 enum c2_session_cmd {
 	/**
 	 Create new session on server
@@ -92,9 +99,13 @@ struct session_create_ret {
  */
 struct c2_session_destroy_arg {
 	/**
+	 node to have addressed this request
+	 */
+	struct c2_node_id    da_node;
+	/**
 	session identifier to destroy
 	*/
-	struct c2_session_id da_session_id;
+	struct c2_session_id da_session;
 };
 
 /**
@@ -139,7 +150,11 @@ struct c2_session_adjust_out {
 	status of operation
 	*/
 	int32_t error;
+	/**
+	 reply to session adjust request
+	 */
 	struct c2_session_adjust_rep reply;
 };
 
 #endif
+

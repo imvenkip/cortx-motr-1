@@ -5,32 +5,29 @@
 #include "session.h"
 #include "session_proto.h"
 
-static void session_dtor(struct c2_ref *ref)
+static void c2_session_free(struct c2_ref *ref)
 {
 	struct c2_cli_session *sess;
 
 	sess = container_of(ref, struct c2_cli_session, sess_ref);
 
-	c2_free(sess, sizeof *cli);
+	C2_FREE_PTR(sess);
 }
 
-static void session_create_cb(struct session_create_arg *arg,
-			      struct session_create_ret *ret,
-			      const struct rpc_client *cli,
-			      CLIENT *net)
+static void session_create_cb(struct session_create_arg const *arg,
+			      struct session_create_ret const *ret,
+			      struct c2_rpc_client const *cli)
 {
 	struct c2_cli_session *cli_s;
 
 	if (ret->errno)
 		return;
 
-	cli_s = c2_alloc(sizeof *cli_s);
+	C2_ALLOC_PTR(cli_s);
 	if (!cli_s)
 		return;
 
 	c2_list_link_init(&cli_s->sess_link);
-	cli_s->cli = net;
-	cli_s->sess_srv = arg->ssa_server;
 	cli_s->sess_id = ret->session_create_ret_u.sco_session_id;
 
 	session_slot_table_adjust(&cli_s->sess_slots,
@@ -42,20 +39,18 @@ static void session_create_cb(struct session_create_arg *arg,
 	c2_rwlock_write_lock(&cli->rc_sessions_lock);
 }
 
-int c2_session_cli_create(const struct rpc_client *cli, const client_id * srv_uuid,
-			  CLIENT * net);
+int c2_cli_session_create(struct rpc_client *cli)
 {
 	struct session_create_arg req;
 	struct session_create_ret ret;
 
 	req.sca_client = cli->cl_id;
-	req.sca_server = srv_uuid;
-	req.sca_high_slot_id = C2_MAX_SLOTS;
+	req.sca_server = cli->srv_uuid;
+	req.sca_high_slot_id = C2_SLOTS_INIT;
 	/* XXX need change later */
 	req.cca_max_rpc_size = 0;
 
-	rc = send_rpc_sync(net, arg, ret, );
-	
+	return c2_net_cli_call_async(cli->rc_net, cli->rc_ops,
 	/* call rpc */
 	session_create_cb(&arg, &ret, cli, net);
 }
@@ -63,6 +58,7 @@ int c2_session_cli_create(const struct rpc_client *cli, const client_id * srv_uu
 void session_destroy_cb(struct session_destroy_ret *ret,
 			const struct c2_cli_session *sess)
 {
+	bool need_put = false;
 	session_slot_table_adjust(&sess->sess_slots, 0);
 	/* XXX wait until all rpc's finished */
 
@@ -70,7 +66,8 @@ void session_destroy_cb(struct session_destroy_ret *ret,
 	c2_list_del(&sess->sess_link);
 	c2_rwlock_write_unlock(&cli->rc_sessions_lock);
 
-	c2_ref_put(&sess->sess_ref);
+	if (need_put)
+		c2_ref_put(&sess->sess_ref);
 }
 
 int c2_session_cli_destroy(const struct c2_cli_session *sess)

@@ -7,9 +7,13 @@
 #include "lib/refs.h"
 
 #include "rpc/rpc_types.h"
+/**
+ @page rpc-cli-session client side session part
+*/
+
 
 /**
- initial value to slot count, requested from a server
+ initial slot count value, requested from a server
  while session is created
  */
 #define C2_SLOTS_INIT_COUNT	32
@@ -80,8 +84,8 @@ struct c2_cli_session {
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_sess_create(struct rpc_client const * cli,
-		       struct c2_node_id const * srv);
+int c2_cli_sess_create(const struct rpc_client * cli,
+		       const struct c2_node_id * srv);
 
 /**
  * session destructor
@@ -92,7 +96,7 @@ int c2_cli_sess_create(struct rpc_client const * cli,
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected, responded
  */
-int c2_session_cli_destroy(const struct cli_session *sess);
+int c2_session_cli_destroy(struct cli_session *sess);
 
 /**
  * find session associated with server
@@ -115,6 +119,6 @@ struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_session_check(struct c2_cli_session const *sess);
+int c2_cli_session_check(const struct c2_cli_session * sess);
 
 #endif
