@@ -35,7 +35,7 @@ enum c2_session_cmd {
 /**
  parameters to the C2_SESSION_CREATE command
  */
-struct session_create_arg {
+struct c2_session_create_arg {
 	/**
 	client requested a new session
 	*/
@@ -57,7 +57,7 @@ struct session_create_arg {
 /**
  * server reply to SESSION_CREATE command.
  */
-struct session_create_out {
+struct c2_session_create_out {
 	/**
 	server assigned session identifier
 	*/
@@ -72,7 +72,7 @@ struct session_create_out {
 	uint32_t sco_max_rpc_size;
 };
 
-struct session_create_ret {
+struct c2_session_create_ret {
 	/**
 	 status of operation.
 	 if operation failed - not need a decoding reply

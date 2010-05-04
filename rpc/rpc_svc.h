@@ -50,7 +50,7 @@ bool c2_session_destroy_svc(const struct session_destroy_arg *in,
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_compound_svc(const struct session_compound_arg *in,
-			     struct session_compound_reply *out);
+bool c2_session_compound_svc(const struct c2_compound_arg *in,
+			     struct c2_compound_reply *out);
 
 #endif

@@ -39,6 +39,8 @@ Communication between these parts a processed via RPC messages.
 
 @section flow State flow
 
+
+
 @ref rpc-types
 @ref rpc-session-cli
 @ref rpc-session-srv
