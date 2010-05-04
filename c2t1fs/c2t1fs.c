@@ -127,17 +127,152 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         return 0;
 }
 
-#ifndef log2
-#define log2(n) ffz(~(n))
-#endif
-
-static int c2t1fs_read_inode(struct inode *inode)
+static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
+                                loff_t *ppos)
 {
         return 0;
 }
 
+#ifdef HAVE_FILE_READV
+static ssize_t c2t1fs_file_readv(struct file *file, const struct iovec *iov,
+                                 unsigned long nr_segs, loff_t *ppos)
+{
+#else
+static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char __user *buf, 
+                                    size_t count, loff_t pos)
+{
+#endif
+        return 0;
+}
+
+static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
+                                 loff_t *ppos)
+{
+        return 0;
+}
+
+#ifdef HAVE_FILE_WRITEV
+static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
+                                  unsigned long nr_segs, loff_t *ppos)
+{
+#else /* AIO stuff */
+static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char __user *buf, 
+                                     size_t count, loff_t pos)
+{
+#endif
+        return 0;
+}
+
+static int c2t1fs_file_open(struct inode *inode, struct file *file)
+{
+        return -ENOSYS;
+}
+
+static int c2t1fs_file_release(struct inode *inode, struct file *file)
+{
+        return -ENOSYS;
+}
+
+struct inode_operations c2t1fs_file_inode_operations = {
+};
+
+struct file_operations c2t1fs_file_operations = {
+        .read           = c2t1fs_file_read,
+#ifdef HAVE_FILE_READV
+        .readv          = c2t1fs_file_readv,
+#else
+        .aio_read       = c2t1fs_file_aio_read,
+#endif
+        .write          = c2t1fs_file_write,
+#ifdef HAVE_FILE_WRITEV
+        .writev         = c2t1fs_file_writev,
+#else
+        .aio_write      = c2t1fs_file_aio_write,
+#endif
+        .open           = c2t1fs_file_open,
+        .release        = c2t1fs_file_release
+};
+
+static int 
+c2t1fs_readdir(struct file *filp, void *cookie, filldir_t filldir)
+{
+        return -ENOSYS;
+}
+
+struct inode_operations c2t1fs_dir_inode_operations = {
+};
+
+struct file_operations c2t1fs_dir_operations = {
+        .open     = c2t1fs_file_open,
+        .release  = c2t1fs_file_release,
+        .read     = generic_read_dir,
+        .readdir  = c2t1fs_readdir
+};
+
+struct address_space_operations c2t1fs_file_aops = {
+};
+
+struct address_space_operations c2t1fs_dir_aops = {
+};
+
 static int c2t1fs_update_inode(struct inode *inode)
 {
+        __u32 mode;
+        
+        if (inode->i_ino == C2T1FS_ROOT_INODE)
+                mode = ((S_IRWXUGO|S_ISVTX) & ~current->fs->umask) | S_IFDIR;
+        else
+                mode = S_IFREG;
+        inode->i_mode = (inode->i_mode & S_IFMT) | (mode & ~S_IFMT);
+        inode->i_mode = (inode->i_mode & ~S_IFMT) | (mode & S_IFMT);
+        if (S_ISREG(inode->i_mode)) {
+                /* FIXME: This needs to be taken from rpc layer */
+                inode->i_blkbits = min(C2_MAX_BRW_BITS + 1, C2_MAX_BLKSIZE_BITS);
+        } else {
+                inode->i_blkbits = inode->i_sb->s_blocksize_bits;
+        }
+#ifdef HAVE_INODE_BLKSIZE
+        inode->i_blksize = 1 << inode->i_blkbits;
+#endif
+
+        /* FIXME: This needs to be taken from an getattr rpc */
+        if (inode->i_ino == C2T1FS_ROOT_INODE)
+                inode->i_nlink = 2;
+        else
+                inode->i_nlink = 1;
+
+        /* FIXME: This should be taken from an getattr rpc */
+        if (S_ISDIR(inode->i_mode)) {
+                inode->i_size = PAGE_SIZE;
+        } else {
+                inode->i_size = 0;
+        }
+        
+        /* FIXME: This should be taken from an getattr rpc */
+        inode->i_blocks = 0;
+        return 0;
+}
+
+static int c2t1fs_read_inode(struct inode *inode)
+{
+        C2TIME_S(inode->i_mtime) = 0;
+        C2TIME_S(inode->i_atime) = 0;
+        C2TIME_S(inode->i_ctime) = 0;
+        inode->i_rdev = 0;
+
+        c2t1fs_update_inode(inode);
+
+        if (S_ISREG(inode->i_mode)) {
+                inode->i_op = &c2t1fs_file_inode_operations;
+                inode->i_fop = &c2t1fs_file_operations;
+                inode->i_mapping->a_ops = &c2t1fs_file_aops;
+        } else if (S_ISDIR(inode->i_mode)) {
+                inode->i_op = &c2t1fs_dir_inode_operations;
+                inode->i_fop = &c2t1fs_dir_operations;
+                inode->i_mapping->a_ops = &c2t1fs_dir_aops;
+        } else {
+                return -ENOSYS;
+        }
         return 0;
 }
 

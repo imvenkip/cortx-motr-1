@@ -9,8 +9,19 @@
 
 /* 0x\C\2\T\1 */
 #define C2T1FS_SUPER_MAGIC    0x43325431
-
 #define C2T1FS_ROOT_INODE     0x10000000
+
+#define C2TIME_S(time)        (time.tv_sec)
+
+/* 1M */
+#define C2_MAX_BRW_BITS       (20)
+
+/* 4*1M */
+#define C2_MAX_BLKSIZE_BITS   (22)
+
+#ifndef log2
+#define log2(n) ffz(~(n))
+#endif
 
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
