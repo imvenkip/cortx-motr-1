@@ -10,7 +10,7 @@
 static kmem_cache_t *c2t1fs_inode_cachep = NULL;
 
 MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>");
-MODULE_DESCRIPTION("Colibri C2 T1 File System");
+MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
 static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
@@ -96,11 +96,11 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
-                if (strncmp(s1, "ms=", 3) == 0) {
-                        csi->csi_metadata_server = s1 + 3; 
+                if (strncmp(s1, "md_srv=", 7) == 0) {
+                        csi->csi_metadata_server = s1 + 7; 
                         clear++;
-                } else if (strncmp(s1, "ds=", 3) == 0) {
-                        csi->csi_data_server = s1 + 3; 
+                } else if (strncmp(s1, "dt_srv=", 7) == 0) {
+                        csi->csi_data_server = s1 + 7; 
                         clear++;
                 }
 
