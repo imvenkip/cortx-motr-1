@@ -4,7 +4,7 @@
 #define _RPC_SVC_H_
 
 /**
- server side handlers.
+ @page rpc-svc server side handlers.
  
  server side is reponsible to handle commands:
  SESSION_CREATE,
@@ -25,7 +25,7 @@
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_create_svc(struct session_create_arg const *in,
+bool c2_session_create_svc(const struct session_create_arg *in,
 			   struct session_create_ret *out);
 
 /**
@@ -38,7 +38,7 @@ bool c2_session_create_svc(struct session_create_arg const *in,
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_destroy_svc(struct session_destroy_arg const *in,
+bool c2_session_destroy_svc(const struct session_destroy_arg *in,
 			    struct session_destroy_out *out);
 
 /**
@@ -50,19 +50,7 @@ bool c2_session_destroy_svc(struct session_destroy_arg const *in,
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_compound_svc(struct session_compound_arg const *in,
+bool c2_session_compound_svc(const struct session_compound_arg *in,
 			     struct session_compound_reply *out);
-
-/**
- SESSION_ADJUST command handler
-
- @param arg - incoming argument to adjusting session settings
- @param out - result of adjusting
-
- @retval true  - need send a reply
- @retval false - not need send a reply - some generic error is hit.
- */
-bool c2_session_adjust_svc(struct c2_session_adjust_in const *arg,
-			   struct c2_session_adjust_out *out);
 
 #endif

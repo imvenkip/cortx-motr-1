@@ -4,19 +4,8 @@
 #include "lib/atomic.h"
 #include "lib/mem.h"
 
-static atomic_t	session_id;
-
-static void session_free(struct c2_ref *ref)
-{
-	struct c2_cli_session *sess;
-
-	sess = container_of(ref, struct c2_cli_session, sess_ref);
-
-	C2_FREE_PTR(sess);
-}
-
 /** rpc handlers */
-int c2_session_create_svc(struct session_create_arg *in,
+bool c2_session_create_svc(struct session_create_arg *in,
 			  struct session_create_ret *out)
 {
 	struct server *srv;
@@ -24,34 +13,26 @@ int c2_session_create_svc(struct session_create_arg *in,
 
 	srv = c2_server_find_by_id(in->sca_server);
 	if(!srv) {
-		out->errno = -ENOSRC;
-		return 0;
+		out->error = -ENOSRC;
+		return true;
 	}
 
-	C2_ALLOC_PTR(s_sess);
-	if (!s_sess) {
-		out->errno = -ENOMEM;
-		goto out;
+	rc = c2_srv_session_init(src, in, &s_sess);
+	if (rc < 0) {
+		out->error = rc;
+		return true;
 	}
-
-	c2_list_link_init(&s_sess->srvs_link);
-	c2_ref_init(&s_sess->srvs_ref, 1, srvs_free);
-	s_sess->srvs_id = atomic_and_and_test(&session_id);
-	s_sess->srvs_cli = in->sca_client;
-	/* init slot table */
-	s_sess->srvs_slots.srvst_high_slot_id = arg->sca_high_slot_id;
-
-	c2_list_add(&srv->srv_session, &s_sess->srvs_link);
 
 	/* create reply */
 	out->errno = 0;
 	out->session_create_ret_u.reply.sco_session_id = s_sess->srvs_id;
 	out->session_create_ret_u.reply.sco_high_slot_id =
 		s_sess->srvs_slots.srvs_high_slot_id;
+	c2_ref_put(&s_ses->srvs_ref);
 
 out:
-	c2_ref_put(srv->srv_ref);
-	return 0;
+	c2_ref_put(&srv->srv_ref);
+	return true;
 }
 
 int c2_session_destroy_svc(struct session_destroy_arg *in,

@@ -11,6 +11,9 @@
 #include "net/net.h"
 #include "rpc/rpc_types.h"
 
+/**
+ @page rpc-libv
+*/
 
 /**
  rpc client structure.

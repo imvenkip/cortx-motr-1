@@ -27,7 +27,7 @@ struct c2_session_id {
  @retval true if session identifiers is same
  @retval false if session identifiers is different
 */
-bool c2_session_is_same(struct session_id const *s1, struct session_id const *s2);
+bool c2_session_is_same(const struct session_id *s1, const struct session_id *s2);
 
 
 /**

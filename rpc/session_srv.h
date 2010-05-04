@@ -108,16 +108,4 @@ struct c2_srv_session *c2_srv_session_find_by_id(struct c2_rpc_server *srv,
 */
 void c2_srv_session_release(struct c2_srv_session *sess);
 
-/**
- adjust session parameters (currently supported slot size)
- called by server if need change parameters on client side.
-
- @param session  - pointer to client session
- @param new_size - new number for the high slot id.
-
- @retval >0 size after adjusting
- @retval <0 any error hit (client not responded, or other)
- */
-int c2_session_adjust(const struct c2_srv_session *session, const uint32_t new_size);
-
 #endif

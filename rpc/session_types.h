@@ -23,11 +23,6 @@ enum c2_session_cmd {
 	 */
 	C2_SESSION_DESTROY,
 	/**
-	 Adjust session related paramters
-	 currently only max slot id supported
-	 */
-	C2_SESSION_ADJUST,
-	/**
 	 send compound request over session
 	 */
 	C2_SESSION_COMPOUND
@@ -116,44 +111,6 @@ struct c2_session_destroy_ret {
 	status of operation
 	*/
 	int32_t sda_errno;
-};
-
-/**
- C2_SESSION_ADJUST command
-*/
-/**
- argument to server side procedure
- */
-struct c2_session_adjust_arg {
-	/**
-	 session identifier to adjust
-	*/
-	struct session_id sr_session_id;
-	/**
-	 new maximal slot id requested by server (~0 let's unchanged)
-	*/
-	uint32_t sr_new_high_slot_id;
-};
-/**
- */
-struct c2_session_adjust_rep {
-	/**
-	client confirmed maximal slot id.
-	*/
-	uint32_t sr_new_high_slot_id;
-};
-/**
- server reply
- */
-struct c2_session_adjust_out {
-	/**
-	status of operation
-	*/
-	int32_t error;
-	/**
-	 reply to session adjust request
-	 */
-	struct c2_session_adjust_rep reply;
 };
 
 #endif
