@@ -1,14 +1,14 @@
 /* -*- C -*- */
-#ifndef _COMPOUND_TYPES_H_
+#ifndef _RPC_COMPOUND_TYPES_H_
 
-#define _COMPOUND_TYPES_H_
+#define _RPC_COMPOUND_TYPES_H_
 
 #include "rpc/rpc_types.h"
 
 /**
  Operations inside compound request
  */
-enum c2_session_compound_op {
+enum c2_compound_op {
 	C2_COMP_NULL = 0,
 	C2_COMP_SEQUENCE,
 };

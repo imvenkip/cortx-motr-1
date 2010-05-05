@@ -12,7 +12,7 @@ destroyed by a client requests. It function is to maintain the server's state
 relative to the connection(s) belonging to a client instance.
 
 	Slot is dynamically created server object. Slot created by a client request and
-attached to active client session. Its function is to maintain the order of
+attached to active client session. It function is to maintain the order of
 requests execution. A slot contains a sequence ID and the cached
 reply corresponding to the request sent with that sequence ID.
 
@@ -23,29 +23,32 @@ reply corresponding to the request sent with that sequence ID.
 @section sessionfunct Functional specification
 
 
-session module create to create a code bases on description from RFC XXXX.
+
+session module createated to flow description from RFC XXXX.
 and have a two parts.
 
 \li client part - responsible to make a stimulus to create and destroy sessions,
 send (or resend) request to replier.
+@ref rpc-session-cli
 
 \li server part - responsible to handle incoming request, create or destroy
 session bases on client requests.
+@ref rpc-session-srv
 
-Communication between these parts a processed via RPC messages.
+Communication between these parts a processed via RPC messages. Format of messages
+is described in rpc types document. @ref rpc-types
+
+To reduce count of RPC's and protect order of excecution operations is merged in
+single compound RPC.
+@ref rpc-compound
+
 
 @section sessionlogspec Logical specification
 
 
 @section flow State flow
 
-
-
-@ref rpc-types
-@ref rpc-session-cli
-@ref rpc-session-srv
 @ref rpc-lib
-@ref rpc-compound
 
 */
 

@@ -12,7 +12,7 @@
  @retval NULL failure, e.g., not have free slots to send
  @retval !NULL pointer to client slot info
  */
-struct cli_slot *c2_find_unused_slot(struct cli_session *sess);
+struct c2_cli_slot *c2_find_unused_slot(struct c2_cli_session *sess);
 
 /**
  request ordering enumeration

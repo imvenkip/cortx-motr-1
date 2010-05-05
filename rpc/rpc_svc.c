@@ -8,8 +8,8 @@
 bool c2_session_create_svc(struct session_create_arg *in,
 			  struct session_create_ret *out)
 {
-	struct server *srv;
-	struct srv_session *s_sess;
+	struct c2_rpc_server *srv;
+	struct c2_srv_session *s_sess;
 
 	srv = c2_server_find_by_id(in->sca_server);
 	if(!srv) {

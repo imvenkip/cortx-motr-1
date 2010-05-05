@@ -7,6 +7,7 @@
 #include "lib/refs.h"
 
 #include "rpc/rpc_types.h"
+
 /**
  @page rpc-cli-session client side session part
 */
@@ -47,9 +48,22 @@ struct c2_cli_slot_table {
 	/**
 	 slots array
 	 */
-	struct cli_slot		sltbl_slots[0];
+	struct c2_cli_slot	sltbl_slots[0];
 };
 
+/**
+ client side part of session.
+ session isn't visible outside of rpc layer.
+
+ one session always created for each server connection, if client node need more
+ parallel RPC's additional sessions can be created.
+
+ session live until rpc code is ask to destroy session via calling function
+ c2_cli_session_destroy.
+
+ session have a reference counting protection.
+
+*/
 struct c2_cli_session {
 	/**
 	 linking into list of sessions assigned to client
@@ -66,7 +80,7 @@ struct c2_cli_session {
 	/**
 	 * server assigned session id
 	 */
-	struct session_id	sess_id;
+	struct c2_session_id	sess_id;
 	/**
 	 session slot table
 	 */
@@ -84,8 +98,8 @@ struct c2_cli_session {
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_sess_create(const struct rpc_client * cli,
-		       const struct c2_node_id * srv);
+int c2_cli_session_create(const struct rpc_client * cli,
+			  const struct c2_node_id * srv);
 
 /**
  * session destructor
@@ -96,7 +110,7 @@ int c2_cli_sess_create(const struct rpc_client * cli,
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected, responded
  */
-int c2_session_cli_destroy(struct cli_session *sess);
+int c2_cli_session_destroy(struct cli_session *sess);
 
 /**
  * find session associated with server
@@ -107,15 +121,15 @@ int c2_session_cli_destroy(struct cli_session *sess);
  * @retval NULL, session don't found or don't init correctly
  * @retval !NULL, OK
  */
-struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
+struct c2_cli_session *c2_cli_session_find(const struct rpc_client *cli,
 					   const struct client_id *srv_uuid);
 
 /**
- verify session @a sess by sending "sequence" op and check response.
+ verify session @a sess by sending single "sequence" op and check response.
  RFC suggested method to check service livnes.
- 
+
  @param sess - pointer to fully inited session object
- 
+
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */

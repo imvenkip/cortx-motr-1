@@ -13,6 +13,10 @@
  */
 
 /**
+ @section rpc-compound-client functions is related to client side
+ */
+
+/**
  send COMPOUND rpc without update seqence, and not uses a slot.
  function allocate request, put operations in own body and quered
  to send.
@@ -45,4 +49,18 @@ int c2_compound_send_noseq(const struct rpc_client *cli,
 int c2_compound_send_seq(const struct c2_rpc_client *cli, struct c2_cli_slot *slot,
 			 const unsigned int num_ops, const void *ops);
 
+/**
+ @section rpc-compound-server functions is related to server side
+ */
+
+/**
+ handlers for operations incapsulated in compound request
+ */
+struct c2_compound_ops {
+	uint32_t	co_op;
+	int (*co_handler)(void *arg, void *ret);
+};
+
+int c2_compound_process(const struct c2_compound_op_arg *op,
+			void *reply);
 #endif
