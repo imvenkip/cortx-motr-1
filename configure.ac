@@ -260,6 +260,7 @@ AC_CONFIG_FILES([
                  net/Makefile
                  nrs/Makefile
                  sns/Makefile
+                 reqh/Makefile
                  sm/Makefile
                  mds/Makefile
                  colibri/Makefile
