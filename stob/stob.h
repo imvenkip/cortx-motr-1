@@ -363,7 +363,7 @@ struct c2_stob_io {
 
 	   This field is valid after IO completion has been signalled.
 	 */
-	uint32_t                    si_rc;
+	int32_t                    si_rc;
 	/**
 	   Number of bytes transferred between data pages and storage object.
 
