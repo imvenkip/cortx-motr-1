@@ -64,9 +64,9 @@ struct c2_pcache {
 int c2_pcache_init(struct c2_rpc_server *srv);
 
 /**
- persisntent cache destructor
+ persistent cache destructor
 
- close database(s) and release resouces
+ close database(s) and release resources
  */
 void c2_pcache_fini(struct c2_pcache *cache);
 
