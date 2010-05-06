@@ -33,6 +33,6 @@ void c2_list_link_fini(struct c2_list_link *link)
 
 bool c2_list_link_is_in(const struct c2_list_link *link)
 {
-	return link->prev != link->next;
+	return link->prev != link;
 }
 

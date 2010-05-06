@@ -6,7 +6,7 @@
 #include <string.h>
 #include "memory.h"
 
-void *c2_alloc(size_t size)
+void *c2_alloc(int size)
 {
 	void *ret;
 
@@ -17,7 +17,7 @@ void *c2_alloc(size_t size)
 	return ret;
 }
 
-void c2_free(void *data, size_t size)
+void c2_free(void *data, int size)
 {
 	free(data);
 }

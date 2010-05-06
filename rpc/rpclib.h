@@ -7,12 +7,13 @@
 #include "lib/refs.h"
 #include "lib/c2list.h"
 #include "lib/cc.h"
+#include "lib/cache.h"
 
 #include "net/net.h"
 #include "rpc/rpc_types.h"
 
 /**
- @page rpc-libv
+ @page rpc-lib
 */
 
 /**
@@ -107,13 +108,13 @@ struct c2_rpc_server {
 	/**
 	 persistent session cache
 	 */
-	struct c2_srv_sessions rs_sessions;
+	struct c2_cache		rs_sessions;
 	/**
 	 persistent reply cache
 	 */
-	struct c2_pcache	rs_cache;
+	struct c2_cache		rs_cache;
 	/**
-	 operation to send from that client
+	 operation to send to that server
 	 */
 	struct c2_rpc_op_table	*rc_ops;
 
@@ -126,7 +127,8 @@ struct c2_rpc_server {
 
  @return pointer to rpc server object, or NULL if don't possible to create
  */
-struct rpc_server *c2_rpc_server_create(const struct c2_node_id *srv_id);
+struct c2_rpc_server *c2_rpc_server_create(const struct c2_node_id *srv_id,
+					   const char *homedir);
 
 /**
  register rpc server object in system, notify transport layer about ability

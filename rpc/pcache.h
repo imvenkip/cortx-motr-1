@@ -2,6 +2,8 @@
 
 #define _RPC_PCACHE_H_
 
+#include "lib/cache.h"
+
 /**
  @page rpc-pcache persistent cache definitions
 */
@@ -23,41 +25,6 @@ struct c2_rcid {
  all modifications in cache need to be synchronized with transaction in
  service database environment.
 */
-struct c2_pcache {
-	/**
-	 db to store reply
-	 */
-	DB	*db;
-};
-
-/**
- encode the key to record as host-independent byte-order.
- used in c2_compound_srv structure.
-
-
- @param reply  application supplied reply structure pointer
- @param record where host-independent bytes will be stored to
- @param reclen buffer length of @record
-
- @retval >0       success, the value is the length of record
- @retval -ENOSPC  No enough space in record
- @retval <0       other error
- */
-typedef int (*c2_pc_enode_t) (struct c2_crid *id, void *record, int reclen);
-
-/**
- decode the reply buffer to record as host byte-order.
- used in c2_compound_srv structure.
-
- @param reply  application supplied reply structure pointer
- @param record where host-independent bytes will be stored to
- @param reclen buffer length of @record
-
- @retval >0       success, the value is the length of record
- @retval -ENOSPC  No enough space in record
- @retval <0       other error
-*/
-typedef int (*c2_pc_decode_t)(void *record, int reclen, void **reply);
 
 /**
  persistent cache constructor
@@ -71,7 +38,7 @@ int c2_pcache_init(struct c2_rpc_server *srv);
 
  close database(s) and release resources
  */
-void c2_pcache_fini(struct c2_pcache *cache);
+void c2_pcache_fini(struct c2_rpc_server *srv);
 
 
 /**
@@ -88,7 +55,7 @@ void c2_pcache_fini(struct c2_pcache *cache);
  @retval -EEXIST     There've already been a reply in the database
  @retval < 0         error occurs
  */
-int c2_pcache_insert(struct c2_pcache *cache, DB_TXN *db_txn,
+int c2_pcache_insert(struct c2_cache *cache, DB_TXN *db_txn,
 		     struct c2_rcid *reqid, void *reply)
 
 /**
@@ -102,7 +69,7 @@ int c2_pcache_insert(struct c2_pcache *cache, DB_TXN *db_txn,
  @retval -ENOENT    no such key exists in the database
  @reval < 0 error   other error
 */
-int c2_pcache_delete(struct c2_pcache *cache, DB_TXN *db_txn,
+int c2_pcache_delete(struct c2_cache *cache, DB_TXN *db_txn,
 		     struct c2_rcid *reqid);
 
 /*
@@ -114,7 +81,7 @@ int c2_pcache_delete(struct c2_pcache *cache, DB_TXN *db_txn,
  @see c2_pcache_insert for the interpretation of parameters.
 */
 static inline
-int c2_pcache_replace(struct c2_pcache *cache, DB_TXN *db_txn,
+int c2_pcache_replace(struct c2_cache *cache, DB_TXN *db_txn,
 		      struct c2_rcid *reqid, void *reply)
 {
 	(void)c2_pcache_delete(cache, db_txn, reqid);
@@ -135,7 +102,7 @@ int c2_pcache_replace(struct c2_pcache *cache, DB_TXN *db_txn,
  @retval -ENOSRC  no such entry in database
  @retval < 0      error occurs.
  */
-int c2_pcache_search(struct c2_pcache *cache, struct c2_rcid *reqid,
+int c2_pcache_search(struct c2_cache *cache, struct c2_rcid *reqid,
 		     void **reply);
 
 

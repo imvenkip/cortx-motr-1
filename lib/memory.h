@@ -14,7 +14,7 @@
  * @retval NULL - allocation failed
  * @retval !NULL - allocated memory block
  */
-void *c2_alloc(size_t size);
+void *c2_alloc(int size);
 
 #define C2_ALLOC_PTR(ptr)	(ptr) = c2_alloc(sizeof *(ptr))
 
@@ -26,7 +26,7 @@ void *c2_alloc(size_t size);
  *
  * @return none
  */
-void c2_free(void *data, size_t size);
+void c2_free(void *data, int size);
 
 #define C2_FREE_PTR(ptr)	c2_free((ptr), sizeof *ptr)
 
