@@ -36,7 +36,7 @@ typedef int (*c2_cache_decode_t)(void *record,
 				 void **buffer, int *buflen);
 
 /**
- generic cache
+ generic key<>value cache object.
 */
 struct c2_cache {
 	/**
