@@ -38,15 +38,15 @@ fi
 # New macros for checking various things
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
-        if grep -q Modules.symvers $KERNELDIR/scripts/Makefile.modpost ; then
+        if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost ; then
                 SYMVERFILE=Modules.symvers
         else
                 SYMVERFILE=Module.symvers
 	fi
-	AC_MSG_RESULT([$KERNELDIR/$SYMVERFILE])
+	AC_MSG_RESULT([$LINUX/$SYMVERFILE])
 	
         [AC_MSG_CHECKING([for symbol $1 exported])
-        grep -q -E '[[[:space:]]]$1[[[:space:]]]' $KERNELDIR/$SYMVERFILE 2>/dev/null
+        grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX/$SYMVERFILE 2>/dev/null
         rc=$?
         if test $rc -eq 0; then
     	        AC_MSG_RESULT([yes])
@@ -55,6 +55,107 @@ AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
                 AC_MSG_RESULT([no])
                 $3
         fi
+])
+
+AC_DEFUN([COLIBRI_LINUX_CONFTEST],
+[cat >conftest.c <<_ACEOF
+$1
+_ACEOF
+])
+
+m4_define([COLIBRI_LANG_PROGRAM],
+[$1
+int
+main (void)
+{
+dnl Do *not* indent the following line: there may be CPP directives.
+dnl Don't move the `;' right after for the same reason.
+$2
+  ;
+  return 0;
+}])
+
+AC_DEFUN([COLIBRI_LINUX_COMPILE_IFELSE],
+[m4_ifvaln([$1], [COLIBRI_LINUX_CONFTEST([$1])])dnl
+rm -f config/conftest.o config/conftest.mod.c config/conftest.ko
+AS_IF([AC_TRY_COMMAND(cp conftest.c config && cd config && make -d [$2] ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ) >/dev/null && AC_TRY_COMMAND([$3])],
+	[$4],
+	[_AC_MSG_LOG_CONFTEST
+m4_ifvaln([$5],[$5])dnl])dnl
+rm -f config/conftest.o config/conftest.mod.c config/conftest.mod.o config/conftest.ko m4_ifval([$1], [config/conftest.c conftest.c])[]dnl
+])
+
+AC_DEFUN([COLIBRI_LINUX_TRY_COMPILE],[
+        COLIBRI_LINUX_COMPILE_IFELSE(
+                [AC_LANG_SOURCE([COLIBRI_LANG_PROGRAM([[$1]], [[$2]])])],
+                [modules],
+                [test -s config/conftest.o],
+                [$3], [$4])
+])
+
+AC_DEFUN([COLIBRI_LINUX_CONFIG],
+[AC_MSG_CHECKING([if Linux was built with CONFIG_$1])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/autoconf.h>
+],[
+#ifndef CONFIG_$1
+#error CONFIG_$1 not #defined
+#endif
+],[
+        AC_MSG_RESULT([yes])
+        $2
+],[
+        AC_MSG_RESULT([no])
+        $3
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_FILE_READV],
+[AC_MSG_CHECKING([readv in fops])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/fs.h>
+],[
+        struct file_operations *fops = NULL;
+        fops->readv = NULL;
+],[
+        AC_MSG_RESULT(yes)
+        AC_DEFINE(HAVE_FILE_READV, 1,
+                [use fops->readv])
+],[
+        AC_MSG_RESULT(no)
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_FILE_WRITEV],
+[AC_MSG_CHECKING([writev in fops])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/fs.h>
+],[
+        struct file_operations *fops = NULL;
+        fops->writev = NULL;
+],[
+        AC_MSG_RESULT(yes)
+        AC_DEFINE(HAVE_FILE_WRITEV, 1,
+                [use fops->writev])
+],[
+	AC_MSG_RESULT(no)
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_INODE_BLKSIZE],
+[AC_MSG_CHECKING([inode has i_blksize field])
+COLIBRI_LINUX_TRY_COMPILE([
+#include <linux/fs.h>
+],[
+	struct inode i;
+	i.i_blksize = 0; 
+],[
+	AC_MSG_RESULT(yes)
+	AC_DEFINE(HAVE_INODE_BLKSIZE, 1,
+		[struct inode has i_blksize field])
+],[
+	AC_MSG_RESULT(no)
+])
 ])
 
 SRCDIR=$(cd $srcdir && echo $PWD)
@@ -103,53 +204,42 @@ AC_ARG_ENABLE(db4-dio,
 )
 
 case $host_os in
-        darwin*) darwin="yes" ;;
-        linux*) linux="yes" ;;
+        darwin*) OS="darwin" ;;
+        linux*) OS="linux" ;;
 esac
+AC_SUBST(OS)
 
-AM_CONDITIONAL([DARWIN], [test x$darwin = xyes])
-if test x$darwin = xyes; then
-        DARWIN=y
-else
-        DARWIN=n
-fi
-AC_SUBST(DARWIN)
-
-AM_CONDITIONAL([LINUX], [test x$linux = xyes])
-if test x$linux = xyes; then
-        LINUX=y
-else
-        LINUX=n
-fi
-AC_SUBST(LINUX)
-
-if test x$linux = xyes; then
+if test x$OS = xlinux; then
         AC_MSG_CHECKING([for linux sources dir])
         AC_ARG_WITH(linux,
                 AC_HELP_STRING([--with-linux=path], [set path to linux sources]), 
-                [KERNELDIR=$with_linux],
-                [KERNELDIR=/lib/modules/`uname -r`/build]
+                [LINUX=$with_linux],
+                [LINUX=/lib/modules/`uname -r`/build]
         )
 
-        AC_MSG_RESULT([$KERNELDIR])
-        AC_SUBST(KERNELDIR)
+        AC_MSG_RESULT([$LINUX])
+        AC_SUBST(LINUX)
 
         AC_MSG_CHECKING([for linux objects dir])
         AC_ARG_WITH(linux-obj,
                 AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir]), 
-                [KERNELDIR_OBJ=$with_linux_obj],
-                [KERNELDIR_OBJ=$KERNELDIR]
+                [LINUX_OBJ=$with_linux_obj],
+                [LINUX_OBJ=$LINUX]
         )
 
-        AC_MSG_RESULT([$KERNELDIR_OBJ])
-        AC_SUBST(KERNELDIR_OBJ)
+        AC_MSG_RESULT([$LINUX_OBJ])
+        AC_SUBST(LINUX_OBJ)
         
-        KERNELMOD_DIR="/lib/modules/`uname -r`"
-        AC_SUBST(KERNELMOD_DIR)
+        LINUX_MOD="/lib/modules/`uname -r`"
+        AC_SUBST(LINUX_MOD)
 
         # Example of checking for kernel symbol
         COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
                 [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
+
+        COLIBRI_LINUX_INODE_BLKSIZE
+        COLIBRI_LINUX_FILE_READV
+        COLIBRI_LINUX_FILE_WRITEV
 fi
 
 if test x$enable_debug = xyes; then
@@ -211,7 +301,7 @@ else
 fi
 
 # Check if DIO patch applied
-if test x$linux = xyes -a x$enable_db4_dio = xyes; then
+if test x$OS = xlinux -a x$enable_db4_dio = xyes; then
         AC_MSG_CHECKING([for DIO patch applied to db4])
         $NM_B $DB4LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?

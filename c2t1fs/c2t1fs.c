@@ -21,8 +21,8 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 	if (!csi)
 		return NULL;
         s2csi_nocast(sb) = csi;
-        csi->csi_metadata_server = NULL; 
-        csi->csi_data_server = NULL; 
+        csi->csi_server = NULL;
+        csi->csi_devid = 0; 
         atomic_set(&csi->csi_mounts, 1);
         csi->csi_flags = 0;
 	return csi;
@@ -81,7 +81,7 @@ struct super_operations c2t1fs_super_operations = {
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-        char *s1, *s2;
+        char *s1, *s2, *devid = NULL;
         
         if (!options) {
                 printk(KERN_ERR "Missing mount data: check that "
@@ -96,11 +96,8 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
-                if (strncmp(s1, "md_srv=", 7) == 0) {
-                        csi->csi_metadata_server = s1 + 7; 
-                        clear++;
-                } else if (strncmp(s1, "dt_srv=", 7) == 0) {
-                        csi->csi_data_server = s1 + 7; 
+                if (strncmp(s1, "devid=", 6) == 0) {
+                        devid = s1 + 6; 
                         clear++;
                 }
 
@@ -118,9 +115,14 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         s1 = s2;
         }
 
-        if (!csi->csi_metadata_server || !csi->csi_data_server) {
-                printk(KERN_ERR "No servers specified "
-                       "(need mount option 'metadata_server=...,data_server=...')\n");
+        if (devid) {
+                csi->csi_devid = simple_strtol(devid, NULL, 0);
+                if (csi->csi_devid <= 0) {
+                        printk(KERN_ERR "Invalid device_id=%x specified\n", csi->csi_devid);
+                        return -EINVAL;
+                }
+        } else {
+                printk(KERN_ERR "No device id specified (need mount option 'devid=...')\n");
                 return -EINVAL;
         }
 

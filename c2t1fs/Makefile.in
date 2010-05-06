@@ -1,22 +1,22 @@
-LINUX = @LINUX@
+OS = @OS@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 
-ifeq ($(LINUX),y)
+ifeq ($(OS),linux)
 
 obj-m := c2t1fs.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
 
 all:
-	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install
 
 uninstall:
-	rm -fr @KERNELMOD_DIR@/kernel/fs/c2t1fs
+	rm -fr @LINUX_MOD@/kernel/fs/c2t1fs
 
 distclean clean:
-	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers
 
 else

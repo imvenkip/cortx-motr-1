@@ -26,8 +26,8 @@
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
-        char           *csi_data_server;
-        char           *csi_metadata_server;
+        int             csi_devid;
+        char           *csi_server;
 };
 
 struct c2t1fs_inode_info {
