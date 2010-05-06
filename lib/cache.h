@@ -24,7 +24,7 @@ typedef int (*c2_cache_enode_t)(void *buffer, void **record, int *reclen);
 /**
  decode the buffer to record in host byte-order.
 
- @param record where host-independent bytes will be stored to
+ @param record where host-independent bytes will be stored
  @param buffer  application supplied pointer
  @param bufflen buffer lenght after conversion
 
@@ -91,7 +91,7 @@ int c2_cache_search(struct c2_cache *cache, void *key,
  @param size size of data region
 
 */
-int c2_cache_insert(struct c2_cache *cache, void *key,
+int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn, void *key,
 		    void *data, int size);
 
 /**
@@ -100,6 +100,6 @@ int c2_cache_insert(struct c2_cache *cache, void *key,
  @param cache cache object
  @param key key to delete
  */
-int c2_cache_delete(struct c2_cache *cache, void *key);
+int c2_cache_delete(struct c2_cache *cache, DB_TXN *txn, void *key);
 
 #endif
