@@ -28,38 +28,41 @@ struct c2_pcache {
 	 db to store reply
 	 */
 	DB	*db;
-
-	/**
-	encode the reply buffer to record as host-independent byte-order.
-
-	@param reply  application supplied reply structure pointer
-	@param record where host-independent bytes will be stored to
-	@param reclen buffer length of @record
-
-	@retval >0       success, the value is the length of record
-	@retval -ENOSPC  No enough space in record
-	@retval <0       other error
-	*/
-	int (*pc_enode_t) (void *reply, void *record, int reclen);
-	/**
-	decode the reply buffer to record as host byte-order.
-
-	@param reply  application supplied reply structure pointer
-	@param record where host-independent bytes will be stored to
-	@param reclen buffer length of @record
-
-	@retval >0       success, the value is the length of record
-	@retval -ENOSPC  No enough space in record
-	@retval <0       other error
-	*/
-	int (*pc_decode_t)(void *record, int reclen, void **reply);
 };
+
+/**
+ encode the key to record as host-independent byte-order.
+ used in c2_compound_srv structure.
+
+
+ @param reply  application supplied reply structure pointer
+ @param record where host-independent bytes will be stored to
+ @param reclen buffer length of @record
+
+ @retval >0       success, the value is the length of record
+ @retval -ENOSPC  No enough space in record
+ @retval <0       other error
+ */
+typedef int (*c2_pc_enode_t) (struct c2_crid *id, void *record, int reclen);
+
+/**
+ decode the reply buffer to record as host byte-order.
+ used in c2_compound_srv structure.
+
+ @param reply  application supplied reply structure pointer
+ @param record where host-independent bytes will be stored to
+ @param reclen buffer length of @record
+
+ @retval >0       success, the value is the length of record
+ @retval -ENOSPC  No enough space in record
+ @retval <0       other error
+*/
+typedef int (*c2_pc_decode_t)(void *record, int reclen, void **reply);
 
 /**
  persistent cache constructor
 
- initialize a pcache database(s) and assign encode and decode
- functions.
+ initialize a pcache database(s)
  */
 int c2_pcache_init(struct c2_rpc_server *srv);
 

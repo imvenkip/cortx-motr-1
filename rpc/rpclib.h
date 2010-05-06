@@ -80,8 +80,9 @@ void c2_rpc_client_unlink(struct c2_rpc_client *cli);
 */
 struct c2_rpc_client *c2_rpc_client_find(const struct c2_node_id *id);
 
+
 /**
- RPC server structure
+ RPC server structure - need store in memory pool db.
  */
 struct c2_rpc_server {
 	/**
@@ -97,17 +98,20 @@ struct c2_rpc_server {
 	 */
 	struct c2_ref		rs_ref;
 	/**
-	 concurrency access to session list protection
-	 */
-	struct c2_rw_lock	rs_sessions_lock;
+	 DB enviroment with transaction support
+	*/
+	DB_ENV			*rs_env;
 	/**
-	 last used session id
-	 */
-	struct c2_session_id	rs_session_id;
+	 DB transaction used to execute sequence of operation
+	*/
 	/**
-	 sessions list
+	 persistent session cache
 	 */
-	struct c2_list		rs_sessions;
+	struct c2_srv_sessions rs_sessions;
+	/**
+	 persistent reply cache
+	 */
+	struct c2_pcache	rs_cache;
 	/**
 	 operation to send from that client
 	 */
@@ -120,12 +124,13 @@ struct c2_rpc_server {
 
  @param srv_id server identifier
 
- @return pointer to rpc server object
+ @return pointer to rpc server object, or NULL if don't possible to create
  */
 struct rpc_server *c2_rpc_server_create(const struct c2_node_id *srv_id);
 
 /**
- register rpc server object in system
+ register rpc server object in system, notify transport layer about ability
+ to accept requests.
 
  @param srv rpc server object pointer
 
