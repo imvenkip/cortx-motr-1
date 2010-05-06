@@ -72,6 +72,12 @@ void c2_list_fini(struct c2_list *head);
 bool c2_list_is_empty(const struct c2_list *head);
 
 /**
+   Returns true iff @link is in @list.
+ */
+bool c2_list_contains(const struct c2_list *list,
+		      const struct c2_list_link *link);
+
+/**
  add list to top on the list
 
  @param head pointer to list head

@@ -21,7 +21,7 @@ void test_memory()
 	if (ptr2 == NULL)
 		abort();
 
-	c2_free(ptr1, 100);
-	C2_FREE_PTR(ptr2);
+	c2_free(ptr1);
+	c2_free(ptr2);
 }
 
