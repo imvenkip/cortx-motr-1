@@ -46,6 +46,8 @@ struct c2_compound_ops {
 	c2_cache_decode_t	co_db_dec;
 };
 
+extern struct c2_compound_ops fops[C2_COMP_MAX_OP];
+
 int c2_compound_process(const struct c2_compound_op_arg *op,
 			void *arg, void **ret, int *retsize);
 

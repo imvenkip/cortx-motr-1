@@ -11,6 +11,7 @@
 enum c2_compound_op {
 	C2_COMP_NULL = 0,
 	C2_COMP_SEQUENCE,
+	C2_COMP_MAX_OP
 };
 
 /**
