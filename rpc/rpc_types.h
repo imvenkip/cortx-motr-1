@@ -31,8 +31,14 @@ bool c2_session_is_same(const struct session_id *s1, const struct session_id *s2
 
 
 /**
+ type to define slot id
+*/
+typedef uint32_t c2_slot_t;
+
+
+/**
  type to define sequence in a slot
  */
-typedef uint32_t c2_seq_t;
+typedef uint64_t c2_seq_t;
 
 #endif
