@@ -33,14 +33,17 @@ void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
 void c2_clink_fini(struct c2_clink *link);
 
 /**
+   @pre !c2_clink_is_armed(link)
    @post c2_list_contains(&link->cl_chan.ch_links, &link->cl_linkage)
  */
 void c2_clink_add     (struct c2_chan *chan, struct c2_clink *link);
 /**
-   @pre c2_list_contains(&link->cl_chan.ch_links, &link->cl_linkage)
+   @pre   c2_list_contains(&link->cl_chan.ch_links, &link->cl_linkage)
+   @post !c2_list_contains(&link->cl_chan.ch_links, &link->cl_linkage)
  */
 void c2_clink_del     (struct c2_clink *link);
 bool c2_clink_is_armed(const struct c2_clink *link);
+bool c2_clink_is_ready(const struct c2_clink *link);
 
 int  c2_chan_wait(struct c2_clink *link);
 
