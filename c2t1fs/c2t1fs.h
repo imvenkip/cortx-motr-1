@@ -23,11 +23,13 @@
 #define log2(n) ffz(~(n))
 #endif
 
+#define MAX_SERVER_LEN 64
+
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
         int             csi_devid;
-        char           *csi_server;
+        char            csi_server[MAX_SERVER_LEN];
 };
 
 struct c2t1fs_inode_info {

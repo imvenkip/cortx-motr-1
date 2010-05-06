@@ -1,6 +1,6 @@
 AC_PREREQ(2.59)
 AC_INIT(colibri, 0.1, colibri-support@clusterstor.com)
-AC_CONFIG_SRCDIR([include/colibri/colibri.h])
+AC_CONFIG_SRCDIR([c2t1fs/c2t1fs.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -9,6 +9,9 @@ AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
+AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
+AH_TEMPLATE([HAVE_FILE_WRITEV], [Have fops->writev function])
+AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -35,7 +38,6 @@ if test "x$NM_B" = "xnull"; then
         AC_MSG_ERROR([Can't find nm program])
 fi
 
-# New macros for checking various things
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
         if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost ; then

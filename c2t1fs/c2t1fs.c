@@ -3,6 +3,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/mount.h>
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
 #include "c2t1fs.h"
@@ -21,9 +22,9 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 	if (!csi)
 		return NULL;
         s2csi_nocast(sb) = csi;
-        csi->csi_server = NULL;
-        csi->csi_devid = 0; 
+        memset(csi->csi_server, 0, sizeof(csi->csi_server));
         atomic_set(&csi->csi_mounts, 1);
+        csi->csi_devid = 0; 
         csi->csi_flags = 0;
 	return csi;
 }
@@ -132,6 +133,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
                                 loff_t *ppos)
 {
+        /* FIXME: use csi->csi_devid to send read operation to the server. */
         return 0;
 }
 
@@ -150,6 +152,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char __user *buf,
 static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
                                  loff_t *ppos)
 {
+        /* FIXME: same as read. */
         return 0;
 }
 
@@ -163,16 +166,6 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char __user *buf,
 {
 #endif
         return 0;
-}
-
-static int c2t1fs_file_open(struct inode *inode, struct file *file)
-{
-        return -ENOSYS;
-}
-
-static int c2t1fs_file_release(struct inode *inode, struct file *file)
-{
-        return -ENOSYS;
 }
 
 struct inode_operations c2t1fs_file_inode_operations = {
@@ -189,10 +182,8 @@ struct file_operations c2t1fs_file_operations = {
 #ifdef HAVE_FILE_WRITEV
         .writev         = c2t1fs_file_writev,
 #else
-        .aio_write      = c2t1fs_file_aio_write,
+        .aio_write      = c2t1fs_file_aio_write
 #endif
-        .open           = c2t1fs_file_open,
-        .release        = c2t1fs_file_release
 };
 
 static int 
@@ -205,8 +196,6 @@ struct inode_operations c2t1fs_dir_inode_operations = {
 };
 
 struct file_operations c2t1fs_dir_operations = {
-        .open     = c2t1fs_file_open,
-        .release  = c2t1fs_file_release,
         .read     = generic_read_dir,
         .readdir  = c2t1fs_readdir
 };
@@ -344,7 +333,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         }
 
         sb->s_root = d_alloc_root(root);
-        printk(KERN_INFO "C2T1FS init\n");
         return 0;
 }
 
@@ -352,13 +340,24 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
                             int flags, const char *devname, void *data,
                             struct vfsmount *mnt)
 {
-        return get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
+        struct c2t1fs_sb_info *csi;
+        int rc;
+        
+        rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
+        if (rc < 0)
+                return rc;
+        csi = s2csi(mnt->mnt_sb);
+        strcpy(csi->csi_server, devname);
+        
+        /* FIXME: Connect to csi->csi_server should be performed here. Connection
+         * may be stored in csi and used for read/write. */
+        return rc;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
+        /* FIME: Disconnect from server here. */
         kill_anon_super(sb);
-        printk(KERN_INFO "C2T1FS finished\n");
 }
 
 struct file_system_type c2t1fs_fs_type = {
@@ -392,7 +391,8 @@ int init_module(void)
 {
         int rc;
         
-        printk(KERN_INFO "Colibri C2T1 File System init: http://www.clusterstor.com\n");
+        printk(KERN_INFO "Colibri C2T1 File System (http://www.clusterstor.com)\n");
+
         rc = c2t1fs_init_inodecache();
         if (rc)
                 return rc;
@@ -409,5 +409,6 @@ void cleanup_module(void)
         
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
-        printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
+        if (rc)
+                printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
 }
