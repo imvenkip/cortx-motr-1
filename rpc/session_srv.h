@@ -112,11 +112,4 @@ void c2_srv_session_delete(const struct c2_rpc_server *srv,
 struct c2_srv_session_data *c2_srv_session_lookup(const struct c2_rpc_server *srv,
 						  const c2_session_id *ss_id);
 
-/**
- release one reference from session.
- if that will be last reference - session will be freed.
- session should be unlinked from a list before free.
-*/
-void c2_srv_session_release(struct c2_srv_session *sess);
-
 #endif
