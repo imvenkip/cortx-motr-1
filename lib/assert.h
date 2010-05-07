@@ -14,7 +14,7 @@
 #define C2_PRE(cond) C2_ASSERT(cond)
 #define C2_POST(cond) C2_ASSERT(cond)
 
-#define C2_CASSERT(cond) extern char __c2_nowhere[!!(cond) - 1]
+#define C2_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
 
 /** @} end of cc group */
 
