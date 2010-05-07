@@ -24,6 +24,17 @@ struct c2_net_conn;
  @{
  */
 
+
+/**
+ initialize global structures related to network connections
+ */
+void c2_net_conn_init(void);
+
+/**
+ release resources related to network connections
+ */
+void c2_net_conn_fini(void);
+
 /**
  create network connection based in config info.
  function is allocate memory and connect transport connection to some logical
@@ -122,32 +133,11 @@ int c2_net_cli_call_async(const struct c2_net_conn *conn,
 			  const struct c2_rpc_op_table *rot,
 			  int op, void *arg, c2_net_cli_cb cb, void *ret);
 
-struct SVCXPRT;
-struct svc_req;
 
 /**
- function prototype to handle incoming requests
-
- @param req - SUN RPC request
- @param xptr - SUN RPC transport
-*/
-typedef void (*rpc_handler_t)(struct svc_req *req, struct SVCXPRT *xptr);
-
-/**
- generic code to handle incoming requests
- function scan \a ops table to find handler of operation and functions to
- convert incomming / outgoning data into correct order.
-
- @param req - SUN RPC request
- @param xptr - SUN RPC transport
- @param ops pointer to operations handled by that service
- @param arg pointer to buffer to store operation argument from a network.
- @param ret pointer to buffer to store operation result before send over network
-
- @return NONE
+ register table of operation to process incomming requests
  */
-void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *xptr,
-			   const struct c2_rpc_op_table *ops, void *arg, void *ret);
+int c2_net_srv_ops_register(struct c2_rpc_op_table *ops);
 
 /**
  initialize network service and attach incoming messages handler
@@ -155,13 +145,15 @@ void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *xptr,
  typical use is define custom handler and call svc_generic function with custom
  array of operations.
 
- @param program_num -
+ @param program_num service identifier
  @param ver version of that handler
- @param handler - function to handle request.
 
+
+ @pre must register table of operation
+ 
+ @retval -EINVAL table of operation isn't registered
  */
-int c2_net_srv_start(const unsigned long program_num, const unsigned long ver,
-		     rpc_handler_t handler);
+int c2_net_srv_start(const unsigned long program_num, const unsigned long ver);
 
 int c2_net_srv_stop(const unsigned long program_num, const unsigned long ver);
 

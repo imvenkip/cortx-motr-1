@@ -6,7 +6,7 @@
 
 #include "net/net.h"
 #include "net/net_types.h"
-#include "net/net_internal.h"
+#include "net/connection.h"
 
 /* XXX Default timeout  - need to be move in connection */
 static struct timeval TIMEOUT = { 25, 0 };

@@ -1,4 +1,3 @@
-#include "lib/cdefs.h"
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <rpc/pmap_clnt.h>
@@ -7,49 +6,80 @@
 #include <rpc/auth.h>
 #include <rpc/svc.h>
 
+#include <errno.h>
 #include <stdlib.h> /* exit */
 
+#include "lib/cdefs.h"
+#include "lib/memory.h"
 #include "net/net.h"
 #include "net/net_types.h"
-#include "net/net_internal.h"
 
-void c2_net_srv_fn_generic(struct svc_req *req, struct SVCXPRT *transp,
-			   struct c2_rpc_op_table const *ops, void *arg, void *ret)
+static struct c2_rpc_op_table *ops;
+
+int c2_net_srv_ops_register(struct c2_rpc_op_table *o)
+{
+	ops = o;
+
+	return 0;
+}
+
+
+void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp)
 {
 	bool retval;
-	struct c2_rpc_op const *op;
+	const struct c2_rpc_op *op;
+	void *arg;
+	void *ret;
 
 	op = c2_find_op(ops, req->rq_proc);
 	if (op == NULL) {
-		svcerr_noproc ((SVCXPRT *)transp);
+		svcerr_noproc(transp);
 		return;
 	}
 
-	if (!svc_getargs((SVCXPRT *)transp, (xdrproc_t) op->ro_xdr_arg,
-			 (caddr_t) arg)) {
-		svcerr_decode ((SVCXPRT *)transp);
+	arg = c2_alloc(op->ro_arg_size);
+	if (!arg) {
+		svcerr_systemerr(transp);
 		return;
+	}
+
+	if (!svc_getargs(transp, (xdrproc_t) op->ro_xdr_arg,
+			 (caddr_t) arg)) {
+		svcerr_decode(transp);
+		goto out;
+	}
+
+	ret  = c2_alloc(op->ro_result_size);
+	if (!ret) {
+		svcerr_systemerr(transp);
+		goto out;
 	}
 
 	/** XXX need auth code */
 	retval = (*op->ro_shandler)(arg, ret);
-	if (retval && !svc_sendreply((SVCXPRT *)transp,
+	if (retval && !svc_sendreply(transp,
 				     (xdrproc_t) op->ro_xdr_result,
 				     ret)) {
-		svcerr_systemerr ((SVCXPRT *)transp);
+		svcerr_systemerr(transp);
 	}
 
-	if (!svc_freeargs((SVCXPRT *)transp, (xdrproc_t) op->ro_xdr_arg,
+	if (!svc_freeargs(transp, (xdrproc_t) op->ro_xdr_arg,
 			  (caddr_t) arg)) {
 		/* bug */
 	}
 
 	xdr_free ((xdrproc_t) op->ro_xdr_result, (caddr_t) ret);
+	c2_free(ret, op->ro_result_size);
+out:
+	c2_free(arg, op->ro_arg_size);
 }
 
-int c2_net_srv_start(unsigned long int programm, unsigned long ver, rpc_handler_t handler)
+int c2_net_srv_start(unsigned long int programm, unsigned long ver)
 {
 	SVCXPRT *transp;
+
+	if (!ops)
+		return -EINVAL;
 
 	pmap_unset (programm, ver);
 
@@ -57,13 +87,11 @@ int c2_net_srv_start(unsigned long int programm, unsigned long ver, rpc_handler_
 	if (transp == NULL) {
 		exit(1);
 	}
-	if (!svc_register(transp, programm, ver, handler, IPPROTO_TCP)) {
+	if (!svc_register(transp, programm, ver, c2_net_srv_fn_generic, IPPROTO_TCP)) {
 		exit(1);
 	}
 
 	svc_run ();
-	exit (1);
-	/* NOTREACHED */
 }
 
 int c2_net_srv_stop(unsigned long int program_num, unsigned long ver)

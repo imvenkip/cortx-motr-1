@@ -1,3 +1,9 @@
+#include <errno.h>
+#include <rpc/types.h>
+#include <rpc/xdr.h>
+#include <rpc/auth.h>
+#include <rpc/clnt.h>
+
 #include "lib/cdefs.h"
 #include "lib/cc.h"
 #include "lib/c2list.h"
@@ -6,13 +12,8 @@
 
 #include "net/net.h"
 #include "net/net_types.h"
-#include "net/net_internal.h"
+#include "net/connection.h"
 
-#include <errno.h>
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
 
 static struct c2_rwlock conn_list_lock;
 static struct c2_list   conn_list;
