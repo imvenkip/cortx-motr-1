@@ -18,13 +18,12 @@
  */
 void *c2_alloc(size_t size);
 
-#define C2_ALLOC_PTR(ptr)	(ptr) = c2_alloc(sizeof *(ptr))
+#define C2_ALLOC_PTR(ptr)  ((ptr) = c2_alloc(sizeof *(ptr)))
 
 /**
  * freed memory block
  *
  * @param data pointer to allocated block
- * @param size block size
  *
  * @return none
  */
