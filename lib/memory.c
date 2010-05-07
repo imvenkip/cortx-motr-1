@@ -45,7 +45,11 @@ static size_t __allocated(void)
 }
 #else
 
-#define __allocated (0)
+static size_t __allocated(void)
+{
+	return 0;
+}
+
 #define __free free
 #define __malloc malloc
 
