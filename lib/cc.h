@@ -28,6 +28,9 @@ struct c2_clink {
 
 void c2_chan_init(struct c2_chan *chan);
 void c2_chan_fini(struct c2_chan *chan);
+void c2_chan_signal(struct c2_chan *chan);
+void c2_chan_broadcast(struct c2_chan *chan);
+bool c2_chan_has_waiters(const struct c2_chan *chan);
 
 void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
 void c2_clink_fini(struct c2_clink *link);
