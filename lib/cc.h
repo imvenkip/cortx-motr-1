@@ -53,6 +53,13 @@ int  c2_chan_wait(struct c2_clink *link);
 struct c2_mutex {
 };
 
+void c2_mutex_init(struct c2_mutex *mutex);
+void c2_mutex_fini(struct c2_mutex *mutex);
+
+void c2_mutex_lock(struct c2_mutex *mutex);
+void c2_mutex_unlock(struct c2_mutex *mutex);
+bool c2_mutex_is_locked(const struct c2_mutex *mutex);
+
 /**
    Blocking read-write lock.
 */
