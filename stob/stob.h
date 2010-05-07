@@ -49,34 +49,46 @@ struct c2_stob_type {
 	const uint32_t                st_magic;
 };
 
+struct c2_stob_domain {
+	const struct c2_stob_domain_op *sd_op;
+};
+
 struct c2_stob {
 	const struct c2_stob_op *so_op;
 	struct c2_stob_type     *so_type;
 };
 
 struct c2_stob_type_op {
-	int (*sto_init)(struct c2_stob *stob);
+	int  (*sto_init)(struct c2_stob_type *stype);
+	void (*sto_fini)(struct c2_stob_type *stype);
+	/**
+	   Locates and initlialises the storage objects domain, makes it ready
+	   for operations.
+
+	   This operation is called before any other operations.
+
+	   @return 0 success, any other value means error.
+	   @see c2_stob_domain_op::sdo_fini()
+	*/
+	int  (*sto_domain_locate)(struct c2_stob_domain *dom, ...);
 };
 
-struct c2_stob_op {
+struct c2_stob_domain_op {
 	/**
-	  Initlialises the storage objects environment, make it ready
-	  for operations.
+	  Cleanup the storage objects domain.
 
-	  This operation is called before any other operations.
-
-	  @return 0 success, any other value means error.
-	  @see sop_fini
+	  This is the last operation for any storage objects data domain
+	  structure.
 	*/
-	int  (*sop_init)   (struct c2_stob *stob);
-
+	void (*sdo_fini)(struct c2_stob_domain *dom);
 	/**
-	  Cleanup the data storage objects environment.
+	  Lookup the mapping from id to intnerl representative
 
-	  This is the last operation for any storage objects data structures.
+	  @return 0 success, other values mean error
+	  @post when succeed, out points to the internal object
 	*/
-	void (*sop_fini)   (struct c2_stob *stob);
-
+	int  (*sdo_stob_locate)(struct c2_stob_domain *dom, 
+				struct c2_stob_id *id, struct c2_stob *stob);
 	/**
 	  Create an object.
 
@@ -86,16 +98,12 @@ struct c2_stob_op {
 	  @return 0 success, other values mean error.
 	  @post when succeed, out points to the internal object
 	*/
-	int  (*sop_create) (struct c2_stob_id *id, struct c2_stob_object **out);
+	int  (*sdo_stob_create)(struct c2_stob_domain *dom, 
+				struct c2_stob *stob, ...);
+};
 
-	/**
-	  Lookup the mapping from id to intnerl representative
-
-	  @return 0 success, other values mean error
-	  @post when succeed, out points to the internal object
-	*/
-	int  (*sop_locate) (struct c2_stob_id *id, struct c2_stob_object **out);
-
+struct c2_stob_op {
+	void (*sop_fini)   (struct c2_stob *stob);
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
 	   given storage object.
@@ -214,6 +222,10 @@ void c2_stob_type_del(struct c2_stob_type *kind);
 
    A barrier operation completes when all operations submitted before it
    (including other barrier operations) complete.
+
+   @warning Clarify the scope of a barrier: a single storage object, a storage
+   object domain, a storage object type, all local storage objects or all
+   objects in the system.
 
    <b>Result codes.</b>
 
@@ -343,6 +355,10 @@ enum c2_stob_io_flags {
  */
 struct c2_stob_io {
 	enum c2_stob_io_opcode      si_opcode;
+	/**
+	   Flags with which this IO operation is queued.
+	 */
+	enum c2_stob_io_flags       si_flags;
 	/**
 	   Where data are located in the user address space.
 	 */
