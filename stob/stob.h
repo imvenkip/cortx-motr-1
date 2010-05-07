@@ -12,7 +12,7 @@
 /* import */
 struct c2_sm;
 struct c2_dtx;
-struct c2_clink;
+struct c2_chan;
 struct c2_diovec;
 struct c2_indexvec;
 struct c2_io_scope;
@@ -154,8 +154,8 @@ void c2_stob_type_del(struct c2_stob_type *kind);
 
    A user of this interface builds an IO operation description and queues it
    against a storage object. IO completion or failure notification is done by
-   signalling a user supplied c2_clink. As usual, the user can either wait on
-   the clink or register a call-back with it.
+   signalling a user supplied c2_chan. As usual, the user can either wait on
+   the chan or register a call-back with it.
 
    adieu supports scatter-gather type of IO operations (that is, vectored on
    both input and output data).
@@ -176,7 +176,7 @@ void c2_stob_type_del(struct c2_stob_type *kind);
        is initialised.
 
        @li IO operation is queued by a call to c2_stob_io_launch(). It is
-       guaranteed that on a successful return from this call, a clink embedded
+       guaranteed that on a successful return from this call, a chan embedded
        into IO operation data-structure will be eventually signalled.
 
        @li An execution of a queued IO operation can be delayed for some time
@@ -194,7 +194,7 @@ void c2_stob_type_del(struct c2_stob_type *kind);
        order and with any degree of concurrency. Prefixed fragments execution
        mode request has no effect on read-only IO operations.
 
-       @li When whole operation execution completes, a clink embedded into IO
+       @li When whole operation execution completes, a chan embedded into IO
        operation data-structure is signalled. It is guaranteed that no IO is
        outstanding at this moment and that adieu implementation won't touch
        either IO operation structure or associated data pages afterward.
@@ -230,7 +230,7 @@ void c2_stob_type_del(struct c2_stob_type *kind);
    <b>Data ownership.</b>
 
    Data pages are owned by adieu implementation from the moment of call to
-   c2_stob_io_launch() until the clink is signalled. adieu users must not
+   c2_stob_io_launch() until the chan is signalled. adieu users must not
    inspect or modify data during that time. An implementation is free to modify
    the data temporarily, un-map pages, etc. An implementation must not touch
    the data at any other time.
@@ -343,12 +343,12 @@ struct c2_stob_io {
 	 */
 	struct c2_indexvec          si_stob;
 	/**
-	   Clink where IO operation completion is signalled.
+	   Channel where IO operation completion is signalled.
 
-	   @note alternatively a clink embedded in every state machine can be
+	   @note alternatively a channel embedded in every state machine can be
 	   used.
 	 */
-	struct c2_clink             si_wait;
+	struct c2_chan              si_wait;
 
 	/* The fields below are modified only by an adieu implementation. */
 
@@ -454,10 +454,9 @@ int  c2_stob_io_init  (struct c2_stob_io *io);
 void c2_stob_io_fini  (struct c2_stob_io *io);
 
 /**
-   @pre !c2_clink_is_armed(&io->si_wait)
+   @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
    @pre c2_vec_count(&io->si_input.div_vec) == c2_vec_count(&io->si_output.ov_vec)
-   @post c2_clink_is_armed(&io->si_wait)
  */
 int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
 			struct c2_dtx *tx, struct c2_io_scope *scope);
