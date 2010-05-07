@@ -3,7 +3,6 @@
 #ifndef __COLIBRI_ADT_H__
 #define __COLIBRI_ADT_H__
 
-#include <stdbool.h>
 #include "cdefs.h"
 
 /**
