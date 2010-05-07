@@ -69,7 +69,7 @@ static inline uint32_t max64u(uint32_t a, uint32_t b)
 	__a < __b ? __a : __b;			\
 })
 
-#define max_check(t, a, b) ({			\
+#define max_check(a, b) ({			\
 	typeof(a) __a = (a);			\
 	typeof(b) __b = (b);			\
 	(void)(&__a == &__b);			\
