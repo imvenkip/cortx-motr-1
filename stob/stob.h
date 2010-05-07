@@ -3,8 +3,7 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
-#include <inttypes.h>
-
+#include "lib/cdefs.h"
 #include "lib/adt.h"
 #include "lib/cc.h"
 #include "sm/sm.h"
@@ -52,6 +51,7 @@ struct c2_stob_type {
 
 struct c2_stob {
 	const struct c2_stob_op *so_op;
+	struct c2_stob_type     *so_type;
 };
 
 struct c2_stob_type_op {
@@ -135,7 +135,7 @@ struct c2_stob_op {
 
 	   This call is used only by assertions.
 	 */
-	bool (*sop_io_is_locked)(struct c2_stob *stob);
+	bool (*sop_io_is_locked)(const struct c2_stob *stob);
 };
 
 int  c2_stob_type_add(struct c2_stob_type *kind);
@@ -206,9 +206,11 @@ void c2_stob_type_del(struct c2_stob_type *kind);
    <b>Ordering and barriers.</b>
 
    The only guarantee about relative order of IO operations state transitions is
-   that execution of any operation submitted before
-   c2_stob_io_opcode::SIO_BARRIER operation completes before any operation
-   submitted after the barrier starts executing.
+   that execution of any updating operation submitted before
+   c2_stob_io_opcode::SIO_BARRIER operation completes before any updating
+   operation submitted after the barrier starts executing. For the purpose of
+   this definition, an updating operation is an operation of any valid type
+   different from SIO_READ (i.e., barriers are updating operations).
 
    A barrier operation completes when all operations submitted before it
    (including other barrier operations) complete.
@@ -245,18 +247,24 @@ void c2_stob_type_del(struct c2_stob_type *kind);
    <b>Liveness rules.</b>
 
    c2_stob_io can be freed once it is owned by an adieu user (see data
-   ownership). While owned by the implementation, c2_stob_io pins corresponding
-   storage object. This reference must be released by the user after it has been
-   notified about IO completion by calling c2_stob_io_release().
+   ownership). It has no explicit reference counting, a user must add its own
+   should c2_stob_io be shared between multiple threads.
 
-   Additionally, c2_stob_io pins io scope (c2_io_scope) while owned by the
-   implementation. This reference is automatically released when IO operation
-   completes.
+   The user must guarantee that the target storage object is pinned in memory
+   while IO operation is owned by the implementation. An implementation is free
+   to touch storage object while IO is in progress.
+
+   Similarly, the user must pin the transaction and IO scope while c2_stob_io is
+   owned by the implementation.
 
    <b>Concurrency.</b>
 
    When c2_stob_io is owned by a user, the user is responsible for concurrency
    control.
+
+   Implementation guarantees that synchronous channel notification (through
+   clink call-back) happens in the context not holding IO lock (see
+   c2_stob_op::sop_io_lock()).
 
    @note at the moment the only type of storage object supporting adieu is a
    Linux file system based one, using Linux libaio interfaces.
@@ -286,6 +294,7 @@ void c2_stob_type_del(struct c2_stob_type *kind);
    Type of a storage object IO operation.
  */
 enum c2_stob_io_opcode {
+	SIO_INVALID,
 	SIO_READ,
 	SIO_WRITE,
 	SIO_BARRIER,
@@ -363,7 +372,7 @@ struct c2_stob_io {
 
 	   This field is valid after IO completion has been signalled.
 	 */
-	int32_t                    si_rc;
+	int32_t                     si_rc;
 	/**
 	   Number of bytes transferred between data pages and storage object.
 
@@ -381,6 +390,10 @@ struct c2_stob_io {
 	   This field is owned by the adieu implementation.
 	 */
 	struct c2_dtx              *si_tx;
+	/**
+	   IO scope (resource accounting group) this IO operation is a part of.
+	 */
+	struct c2_io_scope         *si_scope;
 	/**
 	   Pointer to implementation private data associated with the IO
 	   operation. 
@@ -420,22 +433,16 @@ struct c2_stob_io {
 
 struct c2_stob_io_op {
 	/**
-	   Called by c2_stob_io_release() to free any implementation specific
-	   resources associated with IO operation except for implementation
-	   private memory pointed to by c2_stob_io::si_stob_private.
-
-	   @pre io->si_state == SIS_IDLE
-	   @pre io->si_obj != NULL
-	 */
-	void (*sio_release)(struct c2_stob_io *io);
-	/**
 	   Called by c2_stob_io_launch() to queue IO operation.
 
-	   @pre io->si_state == SIS_IDLE
-	   @post ergo(result == 0, io->si_state == SIS_BUSY)
+	   @note This method releases lock before successful returning.
+
+	   @pre io->si_state == SIS_BUSY
+	   @pre stob->so_op.sop_io_is_locked(stob)
+	   @post ergo(result != 0, io->si_state == SIS_IDLE)
+	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
-	int  (*sio_launch) (struct c2_stob_io *io, struct c2_dtx *tx,
-			    struct c2_io_scope *scope);
+	int  (*sio_launch) (struct c2_stob_io *io);
 	/**
 	   Attempts to cancel IO operation. Has no effect when called before IO
 	   has been queued or after IO has completed.
@@ -444,9 +451,9 @@ struct c2_stob_io_op {
 };
 
 /**
-   @post ergo(result == 0, io->si_state == SIS_IDLE)
+   @post io->si_state == SIS_IDLE
  */
-int  c2_stob_io_init  (struct c2_stob_io *io);
+void c2_stob_io_init  (struct c2_stob_io *io);
 
 /**
    @pre io->si_state == SIS_IDLE
@@ -456,16 +463,17 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
 /**
    @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
-   @pre c2_vec_count(&io->si_input.div_vec) == c2_vec_count(&io->si_output.ov_vec)
+   @pre io->si_opcode != SIO_INVALID
+   @pre c2_vec_count(&io->si_user.div_vec.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
+   @post ergo(result != 0, io->si_state == SIS_IDLE)
+
+   @note IO can be already completed by the time c2_stob_io_launch()
+   finishes. Because of this no post-conditions for io->si_state are imposed in
+   the successful return case.
  */
 int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 void c2_stob_io_cancel (struct c2_stob_io *io);
-/**
-   @pre  io->si_state == SIS_IDLE
-   @post io->si_state == SIS_IDLE
- */
-void c2_stob_io_release(struct c2_stob_io *io);
 
 /** @} end member group adieu */
 

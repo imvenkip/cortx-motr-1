@@ -2,19 +2,54 @@
 #  include <config.h>
 #endif
 
+#include <libaio.h>
+
+#include "lib/memory.h"
+#include "lib/assert.h"
 #include "linux.h"
 
 /**
    @addtogroup stoblinux
+
+   XXX configure check for libaio.
+
    @{
  */
 
-static void linux_stob_io_release(struct c2_stob_io *io)
+struct linux_stob {
+	struct c2_stob sl_stob;
+	int            sl_fd;
+	const char    *sl_path;
+	io_context_t   sl_ctx;
+	struct c2_list sl_aio;
+};
+
+struct linux_stob_io {
+};
+
+struct linux_aio {
+	struct iocb         la_iocb;
+	struct c2_list_link la_linkage;
+};
+
+#if 0
+static struct linux_aio *linux_aio_get(bool must_succeed)
 {
+	struct linux_aio *aio;
+
+	do {
+		C2_ALLOC_PTR(aio);
+	} while (must_succeed && aio == NULL);
+	return aio;
 }
 
-static int linux_stob_io_launch(struct c2_stob_io *io, struct c2_dtx *tx,
-			        struct c2_io_scope *scope)
+static void linux_aio_put(struct linux_aio *aio)
+{
+	c2_free(aio);
+}
+#endif
+
+static int linux_stob_io_launch(struct c2_stob_io *io)
 {
 	return 0;
 }
@@ -24,7 +59,6 @@ static void linux_stob_io_cancel(struct c2_stob_io *io)
 }
 
 static const struct c2_stob_io_op linux_stob_io_op = {
-	.sio_release = linux_stob_io_release,
 	.sio_launch  = linux_stob_io_launch,
 	.sio_cancel  = linux_stob_io_cancel
 };
@@ -77,6 +111,8 @@ static int linux_stob_locate(struct c2_stob_id *id,
 
 static int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
+	C2_PRE(io->si_state == SIS_IDLE);
+
 	io->si_op = &linux_stob_io_op;
 	return 0;
 }
