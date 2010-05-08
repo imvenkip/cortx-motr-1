@@ -152,7 +152,6 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char __user *buf,
 static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
                                  loff_t *ppos)
 {
-        /* FIXME: same as read. */
         return 0;
 }
 
@@ -160,13 +159,24 @@ static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t coun
 static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
                                   unsigned long nr_segs, loff_t *ppos)
 {
-#else /* AIO stuff */
+#else
 static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char __user *buf, 
                                      size_t count, loff_t pos)
 {
 #endif
         return 0;
 }
+
+#ifdef HAVE_SENDFILE
+/*
+ * Send file content (through pagecache) somewhere with helper
+ */
+static ssize_t c2t1fs_file_sendfile(struct file *in_file, loff_t *ppos,
+                                    size_t count, read_actor_t actor, void *target)
+{
+        return 0;
+}
+#endif
 
 struct inode_operations c2t1fs_file_inode_operations = {
 };
@@ -182,28 +192,85 @@ struct file_operations c2t1fs_file_operations = {
 #ifdef HAVE_FILE_WRITEV
         .writev         = c2t1fs_file_writev,
 #else
-        .aio_write      = c2t1fs_file_aio_write
+        .aio_write      = c2t1fs_file_aio_write,
+#endif
+#ifdef HAVE_SENDFILE
+        .sendfile       = c2t1fs_file_sendfile,
 #endif
 };
 
-static int 
-c2t1fs_readdir(struct file *filp, void *cookie, filldir_t filldir)
+static int c2t1fs_prepare_write(struct file *file, struct page *page, 
+                                unsigned from, unsigned to)
 {
         return -ENOSYS;
 }
 
-struct inode_operations c2t1fs_dir_inode_operations = {
-};
+static int c2t1fs_commit_write(struct file *file, struct page *page, 
+                               unsigned from, unsigned to)
+{
+        return -ENOSYS;
+}
 
-struct file_operations c2t1fs_dir_operations = {
-        .read     = generic_read_dir,
-        .readdir  = c2t1fs_readdir
-};
+#ifdef HAVE_WRITE_BEGIN_END
+static int c2t1fs_write_begin(struct file *file, struct address_space *mapping,
+                              loff_t pos, unsigned len, unsigned flags,
+                              struct page **pagep, void **fsdata)
+{
+        pgoff_t index = pos >> PAGE_CACHE_SHIFT;
+        struct page *page;
+        int rc;
+        unsigned from = pos & (PAGE_CACHE_SIZE - 1);
+
+        page = grab_cache_page_write_begin(mapping, index, flags);
+        if (!page)
+                return -ENOMEM;
+
+        *pagep = page;
+ 
+        rc = c2t1fs_prepare_write(file, page, from, from + len);
+        if (rc) {
+                unlock_page(page);
+                page_cache_release(page);
+        }
+        return rc;
+}
+
+static int c2t1fs_write_end(struct file *file, struct address_space *mapping,
+                            loff_t pos, unsigned len, unsigned copied,
+                            struct page *page, void *fsdata)
+{
+        unsigned from = pos & (PAGE_CACHE_SIZE - 1);
+        int rc;
+
+        rc = c2t1fs_commit_write(file, page, from, from + copied);
+
+        unlock_page(page);
+        page_cache_release(page);
+        return rc ? rc : copied;
+}
+#endif
 
 struct address_space_operations c2t1fs_file_aops = {
+#ifdef HAVE_WRITE_BEGIN_END
+        .write_begin    = c2t1fs_write_begin,
+        .write_end      = c2t1fs_write_end
+#else
+        .prepare_write  = c2t1fs_prepare_write,
+        .commit_write   = c2t1fs_commit_write
+#endif
 };
 
 struct address_space_operations c2t1fs_dir_aops = {
+};
+
+static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry, 
+                                    struct nameidata *nd);
+
+struct inode_operations c2t1fs_dir_inode_operations = {
+        .lookup = c2t1fs_lookup
+};
+
+struct file_operations c2t1fs_dir_operations = {
 };
 
 static int c2t1fs_update_inode(struct inode *inode, void *opaque)
@@ -300,6 +367,28 @@ static struct inode *c2t1fs_iget(struct super_block *sb, ino_t hash)
         }
 
         return inode;
+}
+
+static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry, 
+                                    struct nameidata *nd)
+{
+	struct inode *inode = NULL;
+	unsigned long ino;
+
+	lock_kernel();
+	ino = simple_strtol(dentry->d_name.name, NULL, 0);
+	if (!ino) {
+	        unlock_kernel();
+	        return ERR_PTR(-EINVAL);
+	}
+        inode = c2t1fs_iget(dir->i_sb, ino);
+        if (!inode) {
+                unlock_kernel();
+                return ERR_PTR(-ENOENT);
+        }
+	unlock_kernel();
+	d_add(dentry, inode);
+	return NULL;
 }
 
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)

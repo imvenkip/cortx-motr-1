@@ -12,6 +12,7 @@ AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_WRITEV], [Have fops->writev function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
+AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -160,6 +161,47 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
+AC_DEFUN([COLIBRI_LINUX_WRITE_BEGIN_END],
+[AC_MSG_CHECKING([if kernel has .write_begin/end])
+COLIBRI_LINUX_TRY_COMPILE([
+        #include <linux/fs.h>
+#ifdef HAVE_MMTYPES_H
+        #include <linux/mm_types.h>
+#endif
+        #include <linux/pagemap.h>
+],[
+        struct address_space_operations aops;
+        struct page *page;
+
+        aops.write_begin = NULL;
+        aops.write_end = NULL;
+        page = grab_cache_page_write_begin(NULL, 0, 0);
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE(HAVE_WRITE_BEGIN_END, 1,
+                [kernel has .write_begin/end])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
+AC_DEFUN([COLIBRI_LINUX_SENDFILE],
+[AC_MSG_CHECKING([if kernel has .sendfile])
+COLIBRI_LINUX_TRY_COMPILE([
+        #include <linux/fs.h>
+],[
+        struct file_operations file;
+
+        file.sendfile = NULL;
+], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE(HAVE_SENDFILE, 1,
+                [kernel has .sendfile])
+],[
+        AC_MSG_RESULT([no])
+])
+])
+
 SRCDIR=$(cd $srcdir && echo $PWD)
 if ! test -d $SRCDIR; then
 	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
@@ -242,6 +284,8 @@ if test x$OS = xlinux; then
         COLIBRI_LINUX_INODE_BLKSIZE
         COLIBRI_LINUX_FILE_READV
         COLIBRI_LINUX_FILE_WRITEV
+        COLIBRI_LINUX_WRITE_BEGIN_END
+        COLIBRI_LINUX_SENDFILE
 fi
 
 if test x$enable_debug = xyes; then
