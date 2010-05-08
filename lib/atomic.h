@@ -2,7 +2,7 @@
 #ifndef __COLIBRI_LIB_ATOMIC_H__
 #define __COLIBRI_LIB_ATOMIC_H__
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 /**
  atomic counter

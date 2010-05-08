@@ -3,7 +3,7 @@
 
 #define __COLIBRI_LIB_BITMAP_H_
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 #endif
 /* 

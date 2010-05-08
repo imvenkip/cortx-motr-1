@@ -25,20 +25,6 @@ AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST(LT_RELEASE)
 
-# Checks for programs.
-AC_PROG_CC
-AC_PROG_CPP
-AC_PROG_INSTALL
-AC_PROG_LN_S
-AC_PROG_AWK
-AC_PROG_LIBTOOL
-AM_PROG_CC_C_O
-
-AC_PATH_PROG([NM_B], [nm], [null])
-if test "x$NM_B" = "xnull"; then
-        AC_MSG_ERROR([Can't find nm program])
-fi
-
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
         if grep -q Modules.symvers $LINUX/scripts/Makefile.modpost ; then
@@ -202,6 +188,31 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
+AC_DEFUN([COLIBRI_LINUX_INIT_CONFIG], [
+rm -fr config > /dev/null 2>&1
+mkdir config
+cat >config/Makefile <<_ACEOF
+obj-m := conftest.o
+
+modules:
+	\$(MAKE) -C \$(LINUX_OBJ) M=\`pwd\` modules
+_ACEOF
+])
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_AWK
+AC_PROG_LIBTOOL
+AM_PROG_CC_C_O
+
+AC_PATH_PROG([NM_B], [nm], [null])
+if test "x$NM_B" = "xnull"; then
+        AC_MSG_ERROR([Can't find nm program])
+fi
+
 SRCDIR=$(cd $srcdir && echo $PWD)
 if ! test -d $SRCDIR; then
 	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
@@ -277,9 +288,13 @@ if test x$OS = xlinux; then
         LINUX_MOD="/lib/modules/`uname -r`"
         AC_SUBST(LINUX_MOD)
 
-        # Example of checking for kernel symbol
+        # Prepare linux configuration checks facility. Should be done before 
+        # any *_LINUX_* checks.
+        COLIBRI_LINUX_INIT_CONFIG
+
         COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
-                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], [Have journal_abort symbol])], [])
+                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], 
+                [Have journal_abort symbol])], [])
 
         COLIBRI_LINUX_INODE_BLKSIZE
         COLIBRI_LINUX_FILE_READV

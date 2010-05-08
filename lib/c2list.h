@@ -3,7 +3,7 @@
 #ifndef __COLIBRI_LIB_LIST_H__
 #define __COLIBRI_LIB_LIST_H__
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 /**
  list entry

@@ -3,7 +3,7 @@
 
 #define __COLIBRI_LIB_BITOPS_H_
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 #define BIT_WORD(n)	((n) / BITS_PER_LONG)
 

@@ -3,7 +3,7 @@
 #ifndef __COLIBRI_CC_H__
 #define __COLIBRI_CC_H__
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 /**
    @defgroup cc Concurrency control

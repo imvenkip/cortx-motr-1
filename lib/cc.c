@@ -1,4 +1,4 @@
-#include "lib/cc.h"
+#include "cc.h"
 
 void c2_rwlock_init(struct c2_rwlock *lock)
 {

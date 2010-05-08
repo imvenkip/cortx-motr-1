@@ -3,8 +3,8 @@
 #ifndef __COLIBRI_LIB_REFS_H__
 #define __COLIBRI_LIB_REFS_H__
 
-#include "lib/cdefs.h"
-#include "lib/atomic.h"
+#include "cdefs.h"
+#include "atomic.h"
 
 /**
  routines for handling generic reference counted objects
