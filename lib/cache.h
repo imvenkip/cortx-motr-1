@@ -2,7 +2,8 @@
 
 #define _C2_LIB_CACHE_H_
 
-#include <db.h>
+#include "lib/cdefs.h"
+#include "db.h"
 
 /**
  @page c2-lib-cache generic cache mechanism
@@ -19,7 +20,7 @@
  @retval -ENOSPC  No enough space in record
  @retval <0       other error
  */
-typedef int (*c2_cache_enode_t)(void *buffer, void **record, int *reclen);
+typedef int (*c2_cache_encode_t)(void *buffer, void **record, uint32_t *reclen);
 
 /**
  decode the buffer to record in host byte-order.
@@ -33,7 +34,7 @@ typedef int (*c2_cache_enode_t)(void *buffer, void **record, int *reclen);
  @retval <0       other error
 */
 typedef int (*c2_cache_decode_t)(void *record,
-				 void **buffer, int *buflen);
+				 void **buffer, uint32_t *buflen);
 
 /**
  generic key<>value cache object.
@@ -46,11 +47,11 @@ struct c2_cache {
         /**
          function to convert primary key from host to database format
 	 */
-	c2_cache_encode_t	*c_pkey_enc;
+	c2_cache_encode_t	c_pkey_enc;
 	/**
 	 function to convert primary key from database to host format
 	 */
-	c2_cache_decode_t	*c_pkey_dec;
+	c2_cache_decode_t	c_pkey_dec;
 };
 
 /**
@@ -61,7 +62,7 @@ struct c2_cache {
  @param dbname unique name for cache
  @param flags cache flags, see db::open flags definition.
 */
-int c2_cache_init(stuct c2_cache *cache, DB_ENV *env, const char *dbname,
+int c2_cache_init(struct c2_cache *cache, DB_ENV *env, const char *dbname,
 		  uint32_t flags);
 
 /**
