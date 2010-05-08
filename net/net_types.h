@@ -16,6 +16,26 @@ struct c2_node_id {
 };
 
 /**
+ compare node identifiers
+
+ @param c1 first node identifier
+ @param c2 second node identifier
+
+ @retval TRUE if node identifiers is same
+ @retval FALSE if node identifiers is different
+*/
+bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
+
+
+struct c2_service {
+	int s_child;
+};
+
+enum c2_rpc_service_id {
+	C2_SESSION_PROGRAM = 0x20000001
+};
+
+/**
  XXX make version for all sun rpc calls to be const
 */
 static const int C2_DEF_RPC_VER = 1;

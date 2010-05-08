@@ -44,12 +44,10 @@ void test_destroy(void)
 {
 	struct c2_node_id node1 = { .uuid = "node-1" };
 	struct c2_net_conn *conn1, *conn2;
-	int rc;
 
 	conn1 = c2_net_conn_find(&node1);
 	CU_ASSERT(conn1 == NULL);
-	rc = c2_net_conn_destroy(conn1);
-	CU_ASSERT(rc != 0);
+	c2_net_conn_unlink(conn1);
 	conn2 = c2_net_conn_find(&node1);
 	CU_ASSERT(conn2 != NULL);
 	c2_net_conn_release(conn1);

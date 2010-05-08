@@ -11,7 +11,6 @@
 #include "lib/memory.h"
 
 #include "net/net.h"
-#include "net/net_types.h"
 #include "net/connection.h"
 
 
@@ -28,8 +27,8 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 	C2_FREE_PTR(conn);
 }
 
-int c2_net_conn_create(const struct c2_node_id *nid, const unsigned long prgid,
-		       char *nn)
+int c2_net_conn_create(const struct c2_node_id *nid,
+		       const enum c2_rpc_service_id prgid, char *nn)
 {
 	struct c2_net_conn *conn;
 	CLIENT *cli;
@@ -65,7 +64,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid)
 
 	c2_rwlock_read_lock(&conn_list_lock);
 	c2_list_for_each_entry(&conn_list, conn, struct c2_net_conn, nc_link) {
-		if (c2_nodes_is_same(&conn->nc_id, nid)) {
+		if (c2_nodes_are_same(&conn->nc_id, nid)) {
 			c2_ref_get(&conn->nc_refs);
 			found = true;
 			break;
@@ -81,7 +80,7 @@ void c2_net_conn_release(struct c2_net_conn *conn)
 	c2_ref_put(&conn->nc_refs);
 }
 
-int c2_net_conn_destroy(struct c2_net_conn *conn)
+void c2_net_conn_unlink(struct c2_net_conn *conn)
 {
 	bool need_put = false;
 
@@ -90,12 +89,10 @@ int c2_net_conn_destroy(struct c2_net_conn *conn)
 		c2_list_del_init(&conn->nc_link);
 		need_put = true;
 	}
-	c2_rwlock_write_lock(&conn_list_lock);
+	c2_rwlock_write_unlock(&conn_list_lock);
 
 	if (need_put)
 		c2_ref_put(&conn->nc_refs);
-
-	return 0;
 }
 
 void c2_net_conn_init()

@@ -26,7 +26,7 @@ struct c2_net_conn {
 	/**
 	 service identifier
 	 */
-	long			nc_prgid;
+	enum c2_rpc_service_id	nc_prgid;
 	/**
 	 sun rpc transport
 	 */

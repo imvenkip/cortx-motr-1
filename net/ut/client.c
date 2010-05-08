@@ -50,23 +50,18 @@ int main(int argc, char *argv[])
 	struct c2_net_conn *conn1;
 	struct c2_node_id  node_arg = { .uuid = {0} };
 	struct c2_node_id  node_ret = { .uuid = {0} };
-	pid_t pid;
+	struct c2_service s;
 
 	rc = net_init();
 	CU_ASSERT(rc);
 
-	pid = fork();
-	CU_ASSERT(pid < 0);
+	rc = c2_net_service_start(C2_SESSION_PROGRAM, &ops, &s);
+	CU_ASSERT(rc < 0);
 	
-	if (pid == 0) {
-		rc = c2_net_srv_ops_register(&ops);
-		CU_ASSERT(rc);
-		c2_net_srv_start(0x20000001);
-		return 0;
-	}
 
 	sleep(1);
-	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");
+	/* in config*/
+	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, "localhost");
 	CU_ASSERT(rc);
 
 	conn1 = c2_net_conn_find(&node1);
@@ -80,11 +75,10 @@ int main(int argc, char *argv[])
 	printf("%s\n", node_ret.uuid);
 	CU_ASSERT(rc != 0);
 
-	rc = c2_net_conn_destroy(conn1);
-	CU_ASSERT(rc != 0);
+	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
 
-	kill(pid, 9);
+	c2_net_service_stop(&s);
 
 	net_fini();
 	return 0;

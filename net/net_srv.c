@@ -6,6 +6,9 @@
 #include <rpc/auth.h>
 #include <rpc/svc.h>
 
+#include <unistd.h> /* fork */
+#include <signal.h> /* kill */
+
 #include <errno.h>
 #include <stdlib.h> /* exit */
 
@@ -15,14 +18,6 @@
 #include "net/net_types.h"
 
 static struct c2_rpc_op_table *ops;
-
-int c2_net_srv_ops_register(struct c2_rpc_op_table *o)
-{
-	ops = o;
-
-	return 0;
-}
-
 
 void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp)
 {
@@ -74,22 +69,32 @@ out:
 	c2_free(arg, op->ro_arg_size);
 }
 
-int c2_net_srv_start(unsigned long int programm)
+int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *o,
+			 struct c2_service *service)
 {
 	SVCXPRT *transp;
+	pid_t pid;
 
-	if (!ops)
-		return -EINVAL;
+	pid = fork();
+	if (pid < 0)
+		return -errno;
 
-	pmap_unset (programm, C2_DEF_RPC_VER);
+	if (pid != 0) {
+		service->s_child = pid;
+		return 0;
+	}
+
+	ops = o;
+
+	pmap_unset (id, C2_DEF_RPC_VER);
 
 	transp = svctcp_create(RPC_ANYSOCK, 0, 0);
-	if (transp == NULL) {
-		exit(1);
-	}
-	if (!svc_register(transp, programm, C2_DEF_RPC_VER,
+	if (transp == NULL)
+		return -ENOTSUP;
+
+	if (!svc_register(transp, id, C2_DEF_RPC_VER,
 			  c2_net_srv_fn_generic, IPPROTO_TCP)) {
-		exit(1);
+		return -ENOTSUP;
 	}
 
 	svc_run ();
@@ -97,9 +102,10 @@ int c2_net_srv_start(unsigned long int programm)
 	return 0;
 }
 
-int c2_net_srv_stop(unsigned long int program_num)
+int c2_net_service_stop(struct c2_service *service)
 {
 
+	kill(service->s_child, 9);
 	return 0;
 }
 

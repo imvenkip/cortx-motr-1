@@ -4,25 +4,23 @@
 #define _C2_NET_H_
 
 #include "lib/cdefs.h"
-
-struct c2_node_id;
-/**
- compare node identifiers
-
- @param c1 first node identifier
- @param c2 second node identifier
-
- @retval TRUE if node identifiers is same
- @retval FALSE if node identifiers is different
-*/
-bool c2_nodes_is_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
-
-struct c2_net_conn;
+#include "net/net_types.h"
 
 /**
  @defgroup net_conn logical network connection
  @{
  */
+
+/**
+ Logical network connection.
+
+ Logical connection should be created as part of configuration process, if upper
+layers what to use connection - he should be find by node_id and fail if
+connection not found.
+
+ */
+
+struct c2_net_conn;
 
 
 /**
@@ -36,10 +34,10 @@ void c2_net_conn_init(void);
 void c2_net_conn_fini(void);
 
 /**
- create network connection based in config info.
+ create network connection based on config info.
  function is allocate memory and connect transport connection to some logical
  connection.
- that connection will used on send rpc for one or more sessions
+ that connection will used on send rpc for one or more sessions.
 
  @param nid - unique node identifier
  @param prgid program identifier, some unique identifier to identify service group.
@@ -48,7 +46,8 @@ void c2_net_conn_fini(void);
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_conn_create(const struct c2_node_id *nid, const unsigned long prgid, char *nn);
+int c2_net_conn_create(const struct c2_node_id *nid,
+			const enum c2_rpc_service_id prgid, char *nn);
 
 /**
  find connection to specified node.
@@ -75,14 +74,13 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid);
 void c2_net_conn_release(struct c2_net_conn *conn);
 
 /**
- disconnect transport connection(s) and remove from a connections list
+ unlink connection from connection list.
+ transport connection(s) will released when last user of that connection 
+ will release that logical connection.
 
  @param conn pointer to network connection.
-
- @retval 0 OK
- @retval <0 error hit.
  */
-int c2_net_conn_destroy(struct c2_net_conn *conn);
+void c2_net_conn_unlink(struct c2_net_conn *conn);
 
 /**
  @} end of net_conn group
@@ -135,9 +133,9 @@ int c2_net_cli_call_async(const struct c2_net_conn *conn,
 
 
 /**
- register table of operation to process incomming requests
+ @defgroup net_service network services
+ @{
  */
-int c2_net_srv_ops_register(struct c2_rpc_op_table *ops);
 
 /**
  initialize network service and attach incoming messages handler
@@ -145,17 +143,17 @@ int c2_net_srv_ops_register(struct c2_rpc_op_table *ops);
  typical use is define custom handler and call svc_generic function with custom
  array of operations.
 
- @param program_num service identifier
+ @param id service identifier
 
-
- @pre must register table of operation
- 
- @retval -EINVAL table of operation isn't registered
  */
-int c2_net_srv_start(const unsigned long program_num);
+int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *ops,
+			 struct c2_service *service);
 
-int c2_net_srv_stop(const unsigned long program_num);
+int c2_net_service_stop(struct c2_service *service);
 
+/**
+ }@ end of net_service group
+ */
 
 /**
  constructor for the network library
