@@ -19,7 +19,7 @@ int c2_net_cli_call_sync(struct c2_net_conn const *conn,
 
 	rop = c2_find_op(rot, op);
 	if (rop == NULL)
-		return -ENODEV;
+		return -EOPNOTSUPP;
 
 	return clnt_call(conn->nc_cli, op,
 			 (xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
@@ -38,10 +38,10 @@ int c2_net_cli_call_async(struct c2_net_conn const *conn,
 
 	rop = c2_find_op(rot, op);
 	if (rop == NULL)
-		return -ENODEV;
+		return -EOPNOTSUPP;
 
 	/** XXX until real async exist */
-	err = clnt_call((CLIENT *) conn->nc_cli, op,
+	err = clnt_call(conn->nc_cli, op,
 			(xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
 			(xdrproc_t) rop->ro_xdr_result, (caddr_t) ret,
 			TIMEOUT);

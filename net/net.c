@@ -16,6 +16,4 @@ int net_init()
 void net_fini()
 {
 	c2_net_conn_fini();
-
-	return;
 }

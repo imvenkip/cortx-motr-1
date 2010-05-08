@@ -64,8 +64,9 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid);
 
 /**
  release connection after using.
- function is release one reference to network connection, if that last reference
- connection is freed.
+ function is release one reference from network connection.
+ reference to transport connection is released if that is last reference
+ to network connection
 
  @param conn pointer to network connection.
 
@@ -91,7 +92,7 @@ struct c2_rpc_op_table;
  synchronous rpc call. client blocked until rpc finished.
 
  @param conn - network connection associated with replier
- @param pot - pointer to operations table associated with replier
+ @param rot - pointer to operations table associated with replier
  @param op - operation to call on replier
  @param arg - pointer to buffer with argument of operation
  @param ret - pointer to buffer to put reply from a replier
@@ -117,7 +118,7 @@ typedef void (*c2_net_cli_cb)(int32_t error, void *arg, void *ret);
  to transfer.
 
  @param conn - network connection associated with replier
- @param pot - pointer to operations table associated with replier
+ @param rot - pointer to operations table associated with replier
  @param op - operation to call on replier
  @param cb - pointer to callback function called after hit a error in
 	     in transfer, or reply is accepted.

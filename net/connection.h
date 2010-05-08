@@ -20,7 +20,7 @@ struct c2_net_conn {
 	 */
 	struct c2_node_id	nc_id;
 	/**
-	 structure reference counting
+	 reference counter
 	 */
 	struct c2_ref		nc_refs;
 	/**
