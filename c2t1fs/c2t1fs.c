@@ -8,6 +8,91 @@
 #include <linux/vfs.h>
 #include "c2t1fs.h"
 
+/**
+   @page c2t1fs C2T1FS detailed level design specification.
+
+   @section Overview
+
+   C2T1FS is native linux nodev file system, which lies exactly between colibri
+   block device and colibri servers. It is in fact client file system for the
+   colibri cluster.
+   
+   It is decided that colibri block device is based on loop.c loop back driver.
+   This dictates, despite the requirements, specific impelementation, which will
+   be discussed below.
+   
+   @section def Definitions and requirements
+
+   Here is brief list of requirements:
+   - direct IO support (all the caching is done on upper layet). In our case
+     this means no page cache in IO functions. All the IO, no matter how big,
+     gets imidiately sent to the server. Do not mix it up with cache on upper
+     layer. For example, ->prepare_write and ->commit_write methods work with
+     pages from page cache but they belong to upper layer cache. When loop
+     device driver works with pages it delegates some works to underlaying FS;
+   
+   - no read ahead (nothing to say more);
+   
+   - no ACL or selinux support. Unix security model (permission masks) is
+     followed with client inventing it;
+   
+   - loop back device driver with minimal changes should work and losetup tool
+     should also work with C2T1FS;
+   
+   - no readdir is supported. Files exported by server are created in super
+     block init time;
+   
+   - read/write, readv/writev methods should work. Asynchronous interface
+     should be supported;
+     
+   - file exported by the server and which we want to use as backend for the
+     block device should be specified as part of device specification in mount
+     command in a way like this:
+     
+     mount -t c2t1fs localhost:/0x1000 /mnt/c2t1fs
+
+     where 0x1000 is object id exported by the server.
+      
+     If the server does not know this object - a error is returned and mount
+     fails and meaningful error is reported.
+
+   @section c2t1fsfuncspec Functional specification
+
+   There are three interaces we need to interact with:
+   1. linux VFS - super_block operations should have c2t1fs_get_super() and
+      c2t1fs_fill_super() methods implemented. Root inode and dentry should
+      be created in mount time;
+
+   2. loop back device driver interface: ->write(), ->prepare_write/commit_write()
+      and ->sendfile() methods should be implemented;
+      
+   3. networking layer needs: connect/disconnect rpc. Connect should have one
+      field: obj_id, that is, what object we are attaching to. We need also 
+      read/write rpcs capable to work with iovec structures.
+
+   @section c2t1fslogspec Logical specification
+
+   C2T1FS is implemented as linux native nodev file system. It may be used in
+   a way like this:
+   
+   modprobe c2t1fs
+   mount -t c2t1fs localhost:/0x1000 /mnt/c2t1fs
+   losetup /dev/loop0 /mnt/object0x1000
+   dd if=/dev/zero of=/dev/loop0 bs=1M count=10
+   
+   To support this functionality, we implement the following parts:
+   
+   - mount (super block init), which parses device name, sends connect rpc to the
+     server and creates root inode and dentry uppon success. We also create inode
+     and dentry for the file exported by the server. It is easier to handle wrong
+     file id during mount rather than in file IO time;
+     
+   - losetup part requires ->lookup method;
+   
+   - working IO part requires ->prepare_write/commit_write(), ->sendfile() and
+     ->write() file operations to being implemented.
+   
+ */
 static kmem_cache_t *c2t1fs_inode_cachep = NULL;
 
 MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>");
