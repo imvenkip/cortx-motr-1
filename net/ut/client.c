@@ -31,9 +31,9 @@ enum test_ops {
 struct c2_rpc_op  test_rpc[] = {
 	{ .ro_op = TEST_OP1,
 	  .ro_arg_size = sizeof(struct c2_node_id),
-	  .ro_xdr_arg = c2_xdr_node_id,
+	  .ro_xdr_arg = (c2_xdrproc_t)c2_xdr_node_id,
 	  .ro_result_size = sizeof(struct c2_node_id),
-	  .ro_xdr_result = c2_xdr_node_id,
+	  .ro_xdr_result = (c2_xdrproc_t)c2_xdr_node_id,
 	  .ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
 	 }
 };
