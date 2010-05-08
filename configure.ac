@@ -173,15 +173,15 @@ CFLAGS=""
 
 AC_MSG_CHECKING([for db4 libs])
 if test x$with_db4 != x; then
-	DB4SRC="$with_db4"
-        DB4LIBS="$DB4SRC/build_unix/libdb.a"
+	DB4SRC="${with_db4}/build_unix"
+        DB4LIBS="${DB4SRC}/libdb-4.8.la"
 	if ! test -e $DB4LIBS; then
 		AC_MSG_ERROR($DB4LIBS not found! Did you build db4?)
 	fi
         AC_MSG_RESULT([$DB4LIBS])
 else
-	DB4SRC="$SRCDIR/../db4"
-        DB4LIBS="$DB4SRC/build_unix/libdb.a"
+	DB4SRC="${SRCDIR}/../db4/build_unix"
+        DB4LIBS="${DB4SRC}/libdb-4.8.la"
 	if ! test -e $DB4LIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db4_dio = xyes; then
@@ -194,7 +194,7 @@ else
                 # We need -fPIC to link libdb.a (static library) into so libraries, which should 
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make])
+                AC_MSG_NOTICE([cd $DB4SRC && ../dist/configure CFLAGS=-fPIC $dio_options && make])
 		cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make
 		res=$?
 		cd $oldcwd
@@ -205,7 +205,7 @@ else
 			AC_MSG_ERROR($DB4LIBS not found! Build failed?)
 	        fi
 	else
-                DB4LIBS="$DB4SRC/build_unix/libdb.a"
+                DB4LIBS="$DB4SRC/libdb-4.8.la"
                 AC_MSG_RESULT([$DB4LIBS])
 	fi
 fi
