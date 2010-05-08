@@ -7,6 +7,10 @@ obj-m := c2t1fs.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
 
 all:
+	if ! test -e c2t1fs.c; then \
+                ln -s $(C2T1FS_SRCDIR)/c2t1fs.c; \
+                ln -s $(C2T1FS_SRCDIR)/c2t1fs.h; \
+        fi
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 install modules_install:

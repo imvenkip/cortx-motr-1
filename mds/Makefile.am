@@ -7,4 +7,4 @@ mds_LDADD     = $(top_builddir)/lib/libc2.la \
                 @DB4LIBS@
 
 # Make sure that dtm headers will be found
-INCLUDES      = -I. -I$(top_srcdir)/dtm -I$(top_srcdir)/include
+INCLUDES      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
