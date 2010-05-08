@@ -1,6 +1,6 @@
 INCLUDES             = -I. -I$(top_srcdir)/include -I$(top_srcdir)
 
-noinst_PROGRAMS = connection
+noinst_PROGRAMS = connection client
 # utils
 # client server 
 
@@ -13,9 +13,9 @@ connection_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolib
 #utils_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la /usr/lib/libcunit.la
 
 
-#rpc-client_SOURCES   = client.c
-#rpc-client_LDFLAGS   = @LDFLAGS@
-#rpc-client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la
+client_SOURCES   = client.c
+client_LDFLAGS   = @LDFLAGS@
+client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la
 
 #rpc-server_SOURCES   = rpc-server.c
 #rpc-server_LDFLAGS   = @LDFLAGS@

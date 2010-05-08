@@ -12,7 +12,7 @@
 static struct timeval TIMEOUT = { 25, 0 };
 
 int c2_net_cli_call_sync(struct c2_net_conn const *conn,
-			 struct c2_rpc_op_table const *rot,
+			 const struct c2_rpc_op_table *rot,
 			 int op, void *arg, void *ret)
 {
 	struct c2_rpc_op const *rop;

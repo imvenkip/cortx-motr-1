@@ -56,7 +56,7 @@ void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp)
 	}
 
 	/** XXX need auth code */
-	retval = (*op->ro_shandler)(arg, ret);
+	retval = (*op->ro_handler)(arg, ret);
 	if (retval && !svc_sendreply(transp,
 				     (xdrproc_t) op->ro_xdr_result,
 				     ret)) {
@@ -74,27 +74,30 @@ out:
 	c2_free(arg, op->ro_arg_size);
 }
 
-int c2_net_srv_start(unsigned long int programm, unsigned long ver)
+int c2_net_srv_start(unsigned long int programm)
 {
 	SVCXPRT *transp;
 
 	if (!ops)
 		return -EINVAL;
 
-	pmap_unset (programm, ver);
+	pmap_unset (programm, C2_DEF_RPC_VER);
 
 	transp = svctcp_create(RPC_ANYSOCK, 0, 0);
 	if (transp == NULL) {
 		exit(1);
 	}
-	if (!svc_register(transp, programm, ver, c2_net_srv_fn_generic, IPPROTO_TCP)) {
+	if (!svc_register(transp, programm, C2_DEF_RPC_VER,
+			  c2_net_srv_fn_generic, IPPROTO_TCP)) {
 		exit(1);
 	}
 
 	svc_run ();
+
+	return 0;
 }
 
-int c2_net_srv_stop(unsigned long int program_num, unsigned long ver)
+int c2_net_srv_stop(unsigned long int program_num)
 {
 
 	return 0;

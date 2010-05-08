@@ -146,16 +146,15 @@ int c2_net_srv_ops_register(struct c2_rpc_op_table *ops);
  array of operations.
 
  @param program_num service identifier
- @param ver version of that handler
 
 
  @pre must register table of operation
  
  @retval -EINVAL table of operation isn't registered
  */
-int c2_net_srv_start(const unsigned long program_num, const unsigned long ver);
+int c2_net_srv_start(const unsigned long program_num);
 
-int c2_net_srv_stop(const unsigned long program_num, const unsigned long ver);
+int c2_net_srv_stop(const unsigned long program_num);
 
 
 /**

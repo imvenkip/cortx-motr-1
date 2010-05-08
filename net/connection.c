@@ -39,7 +39,7 @@ int c2_net_conn_create(const struct c2_node_id *nid, const unsigned long prgid,
 		return -ENOMEM;
 
 	/** XXX sun rpc */
-	cli = clnt_create (nn, prgid, 1, "tcp");
+	cli = clnt_create (nn, prgid, C2_DEF_RPC_VER, "tcp");
 	if (cli == NULL) {
 		C2_FREE_PTR(conn);
 		return -ENOTCONN;

@@ -9,14 +9,41 @@
  unique service identifier.
  each service have own identifiers.
  if different services run on single physical node,
- he will have different c2_node_id value.
+ she must have different c2_node_id value.
  */
 struct c2_node_id {
 	char uuid[40];
 };
 
+/**
+ XXX make version for all sun rpc calls to be const
+*/
+static const int C2_DEF_RPC_VER = 1;
 
-typedef	bool (*c2_xdrproc_t)(void *, void *, unsigned int);
+/**
+ generic hanlder for XDR transformations
+
+ @param x pointer to XDR object
+ @param data pointer to memory region which consist data to store inside XDR,
+	     or have enough memory to extract network data from XDR.
+
+ @retval true iif conversion finished OK
+ @retval false at other cases
+ */
+typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
+
+/**
+ server side RPC handler.
+
+ @param arg - incoming argument
+ @param ret - pointer to memory area to store result. this area allocated
+		before call the hanlder.
+
+ @retval true if ret pointed to correct reply and can send over wire
+ @retval false if ret consist invalid data and system error should be returned
+	       to client
+ */
+typedef	bool (*c2_rpc_srv_handler) (void *arg, void *ret);
 
 /**
  rpc commands associated with service thread
@@ -27,7 +54,7 @@ struct c2_rpc_op {
 	 */
 	int		ro_op;
 	/**
-	 size of incomming argument
+	 size of incoming argument
 	 */
 	size_t		ro_arg_size;
 	/**
@@ -45,8 +72,18 @@ struct c2_rpc_op {
 	/**
 	 function to a handle operation on server side
 	 */
-	bool		(*ro_shandler) (void *, void *);
+	c2_rpc_srv_handler ro_handler;
 };
+
+/**
+ we want to use same structure for build server and client code, bu
+ if we build client code we can't have pointer to server side handler.
+*/
+#ifdef C2_RPC_CLIENT
+#define C2_RPC_SRV_PROC(name)	(NULL)
+#else
+#define C2_RPC_SRV_PROC(name)	((c2_rpc_srv_handler)(name))
+#endif
 
 struct c2_rpc_op_table {
 	/**
@@ -56,7 +93,7 @@ struct c2_rpc_op_table {
 	/**
 	 array of rpc operations
 	 */
-	struct c2_rpc_op	rot_ops[0];
+	struct c2_rpc_op	*rot_ops;
 };
 
 /**

@@ -8,7 +8,7 @@ struct c2_node_id;
 /**
  XDR procedure to convert node_id from/to network representation
  */
-bool_t c2_xdr_node_id (XDR *xdrs, struct c2_node_id *objp);
+bool c2_xdr_node_id (void *xdrs, void *node);
 
 #endif
 

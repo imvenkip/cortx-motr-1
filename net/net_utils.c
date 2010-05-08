@@ -7,7 +7,7 @@ bool c2_nodes_is_same(const struct c2_node_id *c1, const struct c2_node_id *c2)
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }
 
-struct c2_rpc_op const *find_ops(const struct c2_rpc_op_table *rop, int op)
+struct c2_rpc_op const *c2_find_op(const struct c2_rpc_op_table *rop, int op)
 {
 	int i;
 
