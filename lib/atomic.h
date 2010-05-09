@@ -3,7 +3,7 @@
 #define __COLIBRI_LIB_ATOMIC_H__
 
 #include "cdefs.h"
-#include "assert.h"
+#include "asrt.h"
 #include "user_x86_64_atomic.h"
 
 /**

@@ -3,7 +3,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-#include <assert.h>
+#include <lib/asrt.h>
 
 // #define C2_RPC_CLIENT 1
 #include <net/net.h>

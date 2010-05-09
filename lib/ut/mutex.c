@@ -6,7 +6,7 @@
 
 #include <lib/thread.h>
 #include <lib/mutex.h>
-#include <lib/assert.h>
+#include <lib/asrt.h>
 
 enum {
 	NR = 255

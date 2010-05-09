@@ -5,7 +5,7 @@
 #include <string.h>  /* memset */
 #include <errno.h>
 
-#include <lib/assert.h>
+#include <lib/asrt.h>
 #include <lib/memory.h>
 
 #include "stob.h"

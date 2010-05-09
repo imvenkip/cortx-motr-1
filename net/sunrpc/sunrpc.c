@@ -16,7 +16,7 @@
 #include <lib/cdefs.h>
 #include <lib/rwlock.h>
 #include <lib/memory.h>
-#include <lib/assert.h>
+#include <lib/asrt.h>
 #include <lib/c2list.h>
 #include <lib/queue.h>
 #include <lib/thread.h>

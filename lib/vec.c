@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 #include "vec.h"
-#include "assert.h"
+#include "asrt.h"
 
 /**
    @addtogroup vec Vectors

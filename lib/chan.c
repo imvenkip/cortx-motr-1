@@ -4,7 +4,7 @@
 
 #include "chan.h"
 #include "c2list.h"
-#include "assert.h"
+#include "asrt.h"
 
 /**
    @addtogroup chan

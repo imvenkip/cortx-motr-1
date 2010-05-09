@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #include <lib/queue.h>
-#include <lib/assert.h>
+#include <lib/asrt.h>
 
 struct qt {
 	struct c2_queue_link t_linkage;

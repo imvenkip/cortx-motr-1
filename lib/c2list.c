@@ -1,5 +1,5 @@
 #include "c2list.h"
-#include "assert.h"
+#include "asrt.h"
 
 void c2_list_init(struct c2_list *head)
 {

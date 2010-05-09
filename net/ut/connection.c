@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
+#include <lib/asrt.h>
 #include <net/net.h>
 #include <net/sunrpc/sunrpc.h>
 

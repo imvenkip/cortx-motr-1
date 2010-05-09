@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #include <lib/vec.h>
-#include <lib/assert.h>
+#include <lib/asrt.h>
 
 enum {
 	NR = 255,

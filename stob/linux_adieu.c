@@ -6,7 +6,7 @@
 
 #include <lib/memory.h>
 #include <lib/atomic.h>
-#include <lib/assert.h>
+#include <lib/asrt.h>
 #include <lib/queue.h>
 #include <lib/arith.h>
 #include <lib/thread.h>

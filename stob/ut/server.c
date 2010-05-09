@@ -9,7 +9,7 @@
 #include <sys/types.h> /* mkdir */
 #include <errno.h>
 
-#include <lib/assert.h>
+#include <lib/asrt.h>
 
 #include <stob/stob.h>
 #include <stob/linux.h>

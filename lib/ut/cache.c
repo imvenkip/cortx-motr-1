@@ -1,5 +1,4 @@
-#include <assert.h>
-
+#include <lib/asrt.h>
 #include <lib/cdefs.h>
 #include <lib/cache.h>
 

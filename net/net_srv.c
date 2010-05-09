@@ -11,11 +11,11 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <assert.h>
 
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
 
+#include <lib/asrt.h>
 #include <lib/cdefs.h>
 #include <lib/queue.h>
 #include <lib/memory.h>
