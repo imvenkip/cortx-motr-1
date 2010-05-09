@@ -1,5 +1,5 @@
-AC_PREREQ(2.59)
-AC_INIT(colibri, 0.1, colibri-support@clusterstor.com)
+AC_PREREQ([2.59])
+AC_INIT([colibri], [0.1], [colibri@clusterstor.com])
 AC_CONFIG_SRCDIR([c2t1fs/c2t1fs.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -22,10 +22,10 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
+AM_INIT_AUTOMAKE([$PACKAGE], [$VERSION])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
-AC_SUBST(LT_RELEASE)
+AC_SUBST([LT_RELEASE])
 
 AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
         AC_MSG_CHECKING([for symbols file])
@@ -69,7 +69,7 @@ $2
 AC_DEFUN([COLIBRI_LINUX_COMPILE_IFELSE],
 [m4_ifvaln([$1], [COLIBRI_LINUX_CONFTEST([$1])])dnl
 rm -f config/conftest.o config/conftest.mod.c config/conftest.ko
-AS_IF([AC_TRY_COMMAND(cp conftest.c config && cd config && make -d [$2] ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ) >/dev/null && AC_TRY_COMMAND([$3])],
+AS_IF([AC_TRY_COMMAND([cp conftest.c config && cd config && make -d [$2] ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ]) >/dev/null && AC_TRY_COMMAND([$3])],
 	[$4],
 	[_AC_MSG_LOG_CONFTEST
 m4_ifvaln([$5],[$5])dnl])dnl
@@ -109,11 +109,11 @@ COLIBRI_LINUX_TRY_COMPILE([
         struct file_operations *fops = NULL;
         fops->readv = NULL;
 ],[
-        AC_MSG_RESULT(yes)
-        AC_DEFINE(HAVE_FILE_READV, 1,
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_FILE_READV], [1],
                 [use fops->readv])
 ],[
-        AC_MSG_RESULT(no)
+        AC_MSG_RESULT([no])
 ])
 ])
 
@@ -125,11 +125,11 @@ COLIBRI_LINUX_TRY_COMPILE([
         struct file_operations *fops = NULL;
         fops->writev = NULL;
 ],[
-        AC_MSG_RESULT(yes)
-        AC_DEFINE(HAVE_FILE_WRITEV, 1,
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_FILE_WRITEV], [1],
                 [use fops->writev])
 ],[
-	AC_MSG_RESULT(no)
+	AC_MSG_RESULT([no])
 ])
 ])
 
@@ -141,11 +141,11 @@ COLIBRI_LINUX_TRY_COMPILE([
 	struct inode i;
 	i.i_blksize = 0; 
 ],[
-	AC_MSG_RESULT(yes)
-	AC_DEFINE(HAVE_INODE_BLKSIZE, 1,
+	AC_MSG_RESULT([yes])
+	AC_DEFINE([HAVE_INODE_BLKSIZE], [1],
 		[struct inode has i_blksize field])
 ],[
-	AC_MSG_RESULT(no)
+	AC_MSG_RESULT([no])
 ])
 ])
 
@@ -166,7 +166,7 @@ COLIBRI_LINUX_TRY_COMPILE([
         page = grab_cache_page_write_begin(NULL, 0, 0);
 ], [
         AC_MSG_RESULT([yes])
-        AC_DEFINE(HAVE_WRITE_BEGIN_END, 1,
+        AC_DEFINE([HAVE_WRITE_BEGIN_END], [1],
                 [kernel has .write_begin/end])
 ],[
         AC_MSG_RESULT([no])
@@ -183,7 +183,7 @@ COLIBRI_LINUX_TRY_COMPILE([
         file.sendfile = NULL;
 ], [
         AC_MSG_RESULT([yes])
-        AC_DEFINE(HAVE_SENDFILE, 1,
+        AC_DEFINE([HAVE_SENDFILE], [1],
                 [kernel has .sendfile])
 ],[
         AC_MSG_RESULT([no])
@@ -217,22 +217,22 @@ fi
 
 SRCDIR=$(cd $srcdir && echo $PWD)
 if ! test -d $SRCDIR; then
-	AC_MSG_ERROR(Cannot figure out full path for srcdir!)
+	AC_MSG_ERROR([Cannot figure out full path for srcdir!])
 fi
-AC_SUBST(SRCDIR)
+AC_SUBST([SRCDIR])
 
 # Checks for libraries.
 OLD_LIBS=$LIBS
-AC_SEARCH_LIBS(xdr_domainname, c nsl, , [AC_MSG_ERROR(xdr_domainname cannot be found!)])
+AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR(xdr_domainname cannot be found!)])
 NSL_LIBS=$LIBS
 LIBS=$OLD_LIBS
-AC_SUBST(NSL_LIBS)
+AC_SUBST([NSL_LIBS])
 
 OLD_LIBS=$LIBS
-AC_SEARCH_LIBS(pthread_create, c pthread, , [AC_MSG_ERROR(pthread_create cannot be found!)])
+AC_SEARCH_LIBS([pthread_create], [c pthread], [], [AC_MSG_ERROR(pthread_create cannot be found!)])
 PTHREAD_LIBS=$LIBS
 LIBS=$OLD_LIBS
-AC_SUBST(PTHREAD_LIBS)
+AC_SUBST([PTHREAD_LIBS])
 
 # Checks for header files.
 AC_HEADER_STDC
@@ -264,31 +264,31 @@ case $host_os in
         darwin*) OS="darwin" ;;
         linux*) OS="linux" ;;
 esac
-AC_SUBST(OS)
+AC_SUBST([OS])
 
 if test x$OS = xlinux; then
         AC_MSG_CHECKING([for linux sources dir])
-        AC_ARG_WITH(linux,
-                AC_HELP_STRING([--with-linux=path], [set path to linux sources]), 
+        AC_ARG_WITH([linux],
+                [AC_HELP_STRING([--with-linux=path], [set path to linux sources])], 
                 [LINUX=$with_linux],
                 [LINUX=/lib/modules/`uname -r`/build]
         )
 
         AC_MSG_RESULT([$LINUX])
-        AC_SUBST(LINUX)
+        AC_SUBST([LINUX])
 
         AC_MSG_CHECKING([for linux objects dir])
-        AC_ARG_WITH(linux-obj,
-                AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir]), 
+        AC_ARG_WITH([linux-obj],
+                [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])], 
                 [LINUX_OBJ=$with_linux_obj],
                 [LINUX_OBJ=$LINUX]
         )
 
         AC_MSG_RESULT([$LINUX_OBJ])
-        AC_SUBST(LINUX_OBJ)
+        AC_SUBST([LINUX_OBJ])
         
         LINUX_MOD="/lib/modules/`uname -r`"
-        AC_SUBST(LINUX_MOD)
+        AC_SUBST([LINUX_MOD])
 
         # Prepare linux configuration checks facility. Should be done before 
         # any *_LINUX_* checks.
@@ -313,10 +313,10 @@ else
 	CFLAGS="-Wall -Werror -O2"
         KCFLAGS="-Wall -Werror -O2"
 fi
-AC_SUBST(KCFLAGS)
+AC_SUBST([KCFLAGS])
 
 AC_ARG_WITH([db4], 
-        AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), ,
+        AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), [],
 )
 
 OLD_LIBS=$LIBS
@@ -329,7 +329,7 @@ if test x$with_db4 != x; then
 	DB4SRC="$with_db4"
         DB4LIBS="$DB4SRC/build_unix/libdb.a"
 	if ! test -e $DB4LIBS; then
-		AC_MSG_ERROR($DB4LIBS not found! Did you build db4?)
+		AC_MSG_ERROR([$DB4LIBS not found! Did you build db4?])
 	fi
         AC_MSG_RESULT([$DB4LIBS])
 else
@@ -352,10 +352,10 @@ else
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then 
-			AC_MSG_ERROR(An error occured while building db4!)
+			AC_MSG_ERROR([An error occured while building db4!])
 		fi
 		if ! test -e $DB4LIBS; then
-			AC_MSG_ERROR($DB4LIBS not found! Build failed?)
+			AC_MSG_ERROR([$DB4LIBS not found! Build failed?])
 	        fi
 	else
                 DB4LIBS="$DB4SRC/build_unix/libdb.a"
@@ -376,35 +376,35 @@ if test x$OS = xlinux -a x$enable_db4_dio = xyes; then
         fi
 fi
 
-AC_SUBST(DB4SRC)
-AC_SUBST(DB4LIBS)
+AC_SUBST([DB4SRC])
+AC_SUBST([DB4LIBS])
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
-        AC_CHECK_LIB(gssrpc, xdr_int, [
+        AC_CHECK_LIB([gssrpc], [xdr_int], [
             AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
-                [AC_MSG_NOTICE(gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!)],
+                [AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])],
                 [[
                     #ifdef HAVE_GSSRPC_RPC_H
                     #include <gssrpc/rpc.h>
                     #endif
                 ]])
             ], 
-            AC_MSG_NOTICE(libgssrpc is not found. Gssrpc is disabled!)
+            [AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])]
         )
 fi
 
 OLD_LIBS=$LIBS
 LIBS=""
-AC_SEARCH_LIBS(io_getevents, c aio, , [AC_MSG_ERROR(io_getevents cannot be found!)])
+AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found!])])
 AIO_LIBS=$LIBS
-AC_SUBST(AIO_LIBS)
+AC_SUBST([AIO_LIBS])
 LIBD=$OLD_LIBS
 
-AC_CHECK_DECL(mallinfo, [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
-AC_CHECK_DECL(malloc_size, [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
+AC_CHECK_DECL([mallinfo], [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
+AC_CHECK_DECL([malloc_size], [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
 
 AC_CONFIG_FILES([
 		 Makefile
