@@ -81,7 +81,8 @@ void c2_cache_fini(struct c2_cache *cache);
 
 */
 int c2_cache_search(struct c2_cache *cache, void *key,
-		    void **result, int *ressize);
+		    c2_cache_decode_t dec_fn,
+		    void **result, uint32_t *ressize);
 
 /**
  insert key in cache

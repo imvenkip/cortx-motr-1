@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdlib.h> /* free - we can't use c2_free to avoid confusing mem accounting */
 #include <string.h>
 
 #include "lib/memory.h"
@@ -43,12 +44,16 @@ int c2_cache_init(struct c2_cache *cache, DB_ENV *env, const char *dbname,
 
 void c2_cache_fini(struct c2_cache *cache)
 {
-	if (cache->c_db)
-		cache->c_db->close(cache->c_db, 0);
+	if (!cache->c_db)
+		return;
+	
+	cache->c_db->sync(cache->c_db, 0);
+	cache->c_db->close(cache->c_db, 0);
 }
 
 int c2_cache_search(struct c2_cache *cache, void *key,
-		    void **result, int *ressize)
+		    c2_cache_decode_t dec_fn,
+		    void **result, uint32_t *ressize)
 {
 	DBT db_key;
 	DBT db_value;
@@ -63,10 +68,18 @@ int c2_cache_search(struct c2_cache *cache, void *key,
 	/* ask db to make copy */
 	db_value.flags = DB_DBT_MALLOC;
 	ret = cache->c_db->get(cache->c_db, NULL, &db_key,
-			       &db_value, DB_READ_UNCOMMITTED);
-	c2_free(db_key.data, db_key.size);
+			       &db_value, 0);
 
-	return convert_db_error(ret);
+	if (db_key.data != key)
+		c2_free(db_key.data, db_key.size);
+
+	if (ret)
+		return convert_db_error(ret);
+
+	ret = dec_fn(db_value.data,  result, ressize);
+	free(db_value.data);
+
+	return ret;
 }
 
 int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn,
@@ -88,7 +101,8 @@ int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn,
 	ret = cache->c_db->put(cache->c_db, txn,
 			       &db_key, &db_value, 0);
 
-	c2_free(db_key.data, db_key.size);
+	if (db_key.data != key)
+		c2_free(db_key.data, db_key.size);
 
 	return convert_db_error(ret);
 }
@@ -105,7 +119,8 @@ int c2_cache_delete(struct c2_cache *cache, DB_TXN *txn, void *key)
 		return ret;
 
 	ret = cache->c_db->del(cache->c_db, txn, &db_key, 0);
-	c2_free(db_key.data, db_key.size);
+	if (db_key.data != key)
+		c2_free(db_key.data, db_key.size);
 
 	return convert_db_error(ret);
 }
