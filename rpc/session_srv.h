@@ -3,11 +3,11 @@
 
 #define __COLIBRI_RPC_SESSION_SRV_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
-#include "net/net.h"
-#include "rpc/rpc_types.h"
-#include "rpc/rpclib.h"
+#include <net/net.h>
+#include <rpc/rpc_types.h>
+#include <rpc/rpclib.h>
 
 /**
  @page rpc-srv-session  server side session handler.

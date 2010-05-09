@@ -2,10 +2,10 @@
 
 #define __COLIBRI_RPC_PCACHE_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
-#include "lib/cache.h"
-#include "net/net.h"
+#include <lib/cache.h>
+#include <net/net.h>
 
 /**
  @page rpc-pcache persistent cache definitions

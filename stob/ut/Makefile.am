@@ -1,4 +1,4 @@
-INCLUDES                   = -I. -I$(top_srcdir)/include -I@DB4SRC@/build_unix -I @DB4SRC@
+INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@/build_unix -I @DB4SRC@
 
 noinst_PROGRAMS  = server
 server_SOURCES   = server.c

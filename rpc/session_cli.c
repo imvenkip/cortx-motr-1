@@ -1,9 +1,9 @@
 /* -*- C -*- */
-#include "lib/c2list.h"
+#include <lib/c2list.h>
 
-#include "rpc_common.h"
-#include "session.h"
-#include "session_proto.h"
+#include <rpc_common.h>
+#include <session.h>
+#include <session_proto.h>
 
 static void c2_session_free(struct c2_ref *ref)
 {

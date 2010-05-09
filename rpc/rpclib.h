@@ -3,14 +3,14 @@
 
 #define __COLIBRI_RPC_RPCLIB_H__
 
-#include "lib/cdefs.h"
-#include "lib/refs.h"
-#include "lib/c2list.h"
-#include "lib/rwlock.h"
-#include "lib/cache.h"
+#include <lib/cdefs.h>
+#include <lib/refs.h>
+#include <lib/c2list.h>
+#include <lib/rwlock.h>
+#include <lib/cache.h>
 
-#include "net/net.h"
-#include "rpc/rpc_types.h"
+#include <net/net.h>
+#include <rpc/rpc_types.h>
 
 /**
  @page rpc-lib

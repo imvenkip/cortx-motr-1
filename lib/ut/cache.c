@@ -1,7 +1,7 @@
 #include <assert.h>
 
-#include "lib/cdefs.h"
-#include "lib/cache.h"
+#include <lib/cdefs.h>
+#include <lib/cache.h>
 
 int test_enc(void *buffer, void **rec , uint32_t *size)
 {

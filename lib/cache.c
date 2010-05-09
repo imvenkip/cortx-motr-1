@@ -2,8 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "lib/memory.h"
-#include "lib/cache.h"
+#include "memory.h"
+#include "cache.h"
 
 int convert_db_error(int db_error)
 {

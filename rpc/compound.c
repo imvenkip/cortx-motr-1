@@ -1,8 +1,7 @@
-#include "rpc/compound.h"
-
+#include <rpc/compound.h>
 
 int compound_send_noseq(const struct rpc_client *cli,
-		       unsigned int num_ops, void *ops)
+		        unsigned int num_ops, void *ops)
 {
 
 }

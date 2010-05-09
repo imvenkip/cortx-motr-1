@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include "CUnit/Basic.h"
-
-#include "net/net.h"
+#include <CUnit/Basic.h>
+#include <net/net.h>
 
 /* The suite initialization function.
  * Returns zero on success, non-zero otherwise.

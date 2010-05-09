@@ -3,10 +3,10 @@
 
 #define __COLIBRI_RPC_SESSION_CLI_H__
 
-#include "lib/cdefs.h"
-#include "lib/refs.h"
+#include <lib/cdefs.h>
+#include <lib/refs.h>
 
-#include "rpc/rpc_types.h"
+#include <rpc/rpc_types.h>
 
 /**
  @page rpc-cli-session client side session part

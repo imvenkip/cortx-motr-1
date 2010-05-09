@@ -1,4 +1,4 @@
-INCLUDES             = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 noinst_PROGRAMS = connection client
 # utils

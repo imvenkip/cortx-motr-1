@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lib/thread.h"
-#include "lib/mutex.h"
-#include "lib/assert.h"
+#include <lib/thread.h>
+#include <lib/mutex.h>
+#include <lib/assert.h>
 
 enum {
 	NR = 255

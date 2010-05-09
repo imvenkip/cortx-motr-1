@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 #include "queue.h"
-#include "lib/assert.h"
+#include "assert.h"
 
 /**
    @addtogroup queue Queue

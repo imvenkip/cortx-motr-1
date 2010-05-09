@@ -14,7 +14,7 @@
 #include <db.h>
 #include <libaio.h>
 
-#include "lib/thread.h"
+#include <lib/thread.h>
 
 #include "stob.h"
 

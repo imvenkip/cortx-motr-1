@@ -3,7 +3,7 @@
 
 #define __COLIBRI_RPC_SVC_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
 /**
  @page rpc-svc server side handlers.

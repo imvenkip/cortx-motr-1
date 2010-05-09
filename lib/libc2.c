@@ -4,7 +4,7 @@
 
 #include <colibri/colibri.h>
 
-#include "lib/thread.h"
+#include "thread.h"
 
 int libc2_init()
 {

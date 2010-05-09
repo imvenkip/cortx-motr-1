@@ -3,7 +3,7 @@
 #ifndef __COLIBRI_LIB_COND_H__
 #define __COLIBRI_LIB_COND_H__
 
-#include "lib/chan.h"
+#include "chan.h"
 
 struct c2_mutex;
 

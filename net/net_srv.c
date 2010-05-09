@@ -16,10 +16,10 @@
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
 
-#include "lib/cdefs.h"
-#include "lib/queue.h"
-#include "lib/memory.h"
-#include "net/net.h"
+#include <lib/cdefs.h>
+#include <lib/queue.h>
+#include <lib/memory.h>
+#include "net.h"
 
 int c2_service_start(struct c2_service *service,
 		     struct c2_service_id *sid,

@@ -3,7 +3,7 @@
 
 #define __COLIBRI_RPC_TYPES_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
 /**
  @page rpc-types type definitions used in rpc library

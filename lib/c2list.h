@@ -5,7 +5,7 @@
 
 #include <sys/types.h>
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 /**
  list entry

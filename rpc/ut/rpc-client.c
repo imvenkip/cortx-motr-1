@@ -1,6 +1,5 @@
-#include "net/net.h"
-
-#include "rpc/rpclib.h"
+#include <net/net.h>
+#include <rpc/rpclib.h>
 
 int main(int argc, char *argv[])
 {

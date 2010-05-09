@@ -8,14 +8,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "lib/cdefs.h"
-#include "lib/rwlock.h"
-#include "lib/c2list.h"
-#include "lib/refs.h"
-#include "lib/memory.h"
-
-
-#include "net/net.h"
+#include <lib/cdefs.h>
+#include <lib/rwlock.h>
+#include <lib/c2list.h>
+#include <lib/refs.h>
+#include <lib/memory.h>
+#include "net.h"
 
 static void c2_net_conn_free_cb(struct c2_ref *ref)
 {

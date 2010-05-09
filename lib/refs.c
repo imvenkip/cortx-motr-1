@@ -1,4 +1,4 @@
-#include "lib/refs.h"
+#include "refs.h"
 
 void c2_ref_init(struct c2_ref *ref, int init_num,
 		void (*release) (struct c2_ref *ref))

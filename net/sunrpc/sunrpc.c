@@ -13,16 +13,16 @@
 #include <pthread.h>  /* pthread_key */
 #include <unistd.h>    /* close() */
 
-#include "lib/cdefs.h"
-#include "lib/rwlock.h"
-#include "lib/memory.h"
-#include "lib/assert.h"
-#include "lib/c2list.h"
-#include "lib/queue.h"
-#include "lib/thread.h"
-#include "lib/cond.h"
+#include <lib/cdefs.h>
+#include <lib/rwlock.h>
+#include <lib/memory.h>
+#include <lib/assert.h>
+#include <lib/c2list.h>
+#include <lib/queue.h>
+#include <lib/thread.h>
+#include <lib/cond.h>
+#include <net/net.h>
 
-#include "net/net.h"
 #include "sunrpc.h"
 #include "sunrpc_internal.h"
 

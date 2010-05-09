@@ -1,15 +1,15 @@
 /* -*- C -*- */
 #include <string.h>
 
-#include "lib/c2list.h"
-#include "lib/rwlock.h"
-#include "lib/memory.h"
+#include <lib/c2list.h>
+#include <lib/rwlock.h>
+#include <lib/memory.h>
 
-#include "lib/refs.h"
+#include <lib/refs.h>
 
-#include "net/net.h"
-#include "rpc/rpclib.h"
-#include "rpc/rpc_ops.h"
+#include <net/net.h>
+#include <rpc/rpclib.h>
+#include <rpc/rpc_ops.h>
 
 struct c2_rpc_op_table *rpc_ops;
 

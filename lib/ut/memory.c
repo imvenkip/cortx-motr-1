@@ -1,8 +1,7 @@
 /* -*- C -*- */
 #include <stdlib.h>
 
-#include "lib/memory.h"
-
+#include <lib/memory.h>
 
 struct test1 {
 	int a;

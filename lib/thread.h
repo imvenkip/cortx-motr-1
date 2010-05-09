@@ -8,7 +8,7 @@
 #include <signal.h>
 
 #include "cdefs.h"
-#include "lib/chan.h"
+#include "chan.h"
 
 /**
    @defgroup thread Thread

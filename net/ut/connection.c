@@ -3,8 +3,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include "net/net.h"
-#include "net/sunrpc/sunrpc.h"
+#include <net/net.h>
+#include <net/sunrpc/sunrpc.h>
 
 #define CU_ASSERT(a)	assert(a)
 

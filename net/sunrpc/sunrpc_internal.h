@@ -2,7 +2,7 @@
 #ifndef __COLIBRI_NET_SUNRPC_SUNRPC_INTERNAL_H__
 #define __COLIBRI_NET_SUNRPC_SUNRPC_INTERNAL_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
 struct sunrpc_xprt {
 	union {

@@ -5,7 +5,7 @@
 
 #include <pthread.h>
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 
 /**
    @defgroup mutex Mutual exclusion synchronisation object

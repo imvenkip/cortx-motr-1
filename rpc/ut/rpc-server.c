@@ -1,8 +1,7 @@
-#include "net/net.h"
-
-#include "rpc/rpclib.h"
-#include "rpc/rpc_ops.h"
-#include "rpc/pcache.h"
+#include <net/net.h>
+#include <rpc/rpclib.h>
+#include <rpc/rpc_ops.h>
+#include <rpc/pcache.h>
 
 
 int main(void)

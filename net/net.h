@@ -5,13 +5,13 @@
 
 #include <stdarg.h>
 
-#include "lib/cdefs.h"
-#include "lib/rwlock.h"
-#include "lib/c2list.h"
-#include "lib/queue.h"
-#include "lib/refs.h"
-#include "lib/chan.h"
-#include "lib/thread.h"
+#include <lib/cdefs.h>
+#include <lib/rwlock.h>
+#include <lib/c2list.h>
+#include <lib/queue.h>
+#include <lib/refs.h>
+#include <lib/chan.h>
+#include <lib/thread.h>
 
 /**
    @defgroup net Networking.

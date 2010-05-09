@@ -1,9 +1,9 @@
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#include "lib/cdefs.h"
-#include "net/net.h"
-#include "net/xdr.h"
+#include <lib/cdefs.h>
+#include "net.h"
+#include "xdr.h"
 
 bool c2_xdr_service_id (void *x, struct c2_service_id *objp)
 {

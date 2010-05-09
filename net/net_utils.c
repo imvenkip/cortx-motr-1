@@ -1,9 +1,9 @@
 #include <string.h>
 #include <errno.h>
 
-#include "lib/memory.h"
-#include "lib/rwlock.h"
-#include "net/net.h"
+#include <lib/memory.h>
+#include <lib/rwlock.h>
+#include "net.h"
 
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2)

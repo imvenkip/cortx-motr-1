@@ -6,9 +6,9 @@
 #include <assert.h>
 
 // #define C2_RPC_CLIENT 1
-#include "net/net.h"
-#include "net/xdr.h"
-#include "net/sunrpc/sunrpc.h"
+#include <net/net.h>
+#include <net/xdr.h>
+#include <net/sunrpc/sunrpc.h>
 
 #define CU_ASSERT(a)	assert(a)
 

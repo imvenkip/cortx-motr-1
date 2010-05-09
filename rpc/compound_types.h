@@ -3,7 +3,7 @@
 
 #define __COLIBRI_RPC_COMPOUND_TYPES_H__
 
-#include "rpc/rpc_types.h"
+#include <rpc/rpc_types.h>
 
 /**
  Operations inside compound request

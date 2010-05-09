@@ -3,12 +3,12 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
-#include "lib/atomic.h"
-#include "lib/cdefs.h"
-#include "lib/vec.h"
-#include "lib/chan.h"
-#include "lib/rwlock.h"
-#include "sm/sm.h"
+#include <lib/atomic.h>
+#include <lib/cdefs.h>
+#include <lib/vec.h>
+#include <lib/chan.h>
+#include <lib/rwlock.h>
+#include <sm/sm.h>
 
 /* import */
 struct c2_sm;

@@ -3,8 +3,7 @@
 #endif
 
 #include <colibri/colibri.h>
-
-#include "net/net.h"
+#include "net.h"
 
 extern int  user_sunrpc_init(void);
 extern void user_sunrpc_fini(void);

@@ -2,7 +2,7 @@
 
 #define _C2_LIB_CACHE_H_
 
-#include "lib/cdefs.h"
+#include "cdefs.h"
 #include <db.h>
 
 /**

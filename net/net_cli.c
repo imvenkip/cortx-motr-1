@@ -3,8 +3,7 @@
 #include <rpc/auth.h>
 #include <rpc/clnt.h>
 #include <errno.h>
-
-#include "net/net.h"
+#include "net.h"
 
 int c2_net_cli_call(struct c2_net_conn *conn,
 		    struct c2_rpc_op_table *rot,

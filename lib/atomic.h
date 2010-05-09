@@ -2,10 +2,9 @@
 #ifndef __COLIBRI_LIB_ATOMIC_H__
 #define __COLIBRI_LIB_ATOMIC_H__
 
-#include "lib/cdefs.h"
-#include "lib/assert.h"
-
-#include "lib/user_x86_64_atomic.h"
+#include "cdefs.h"
+#include "assert.h"
+#include "user_x86_64_atomic.h"
 
 /**
    @defgroup atomic

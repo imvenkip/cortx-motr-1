@@ -3,7 +3,7 @@
 #endif
 
 #include <colibri/colibri.h>
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 #include <dtm/dtm.h>
 
 int main(int argc, char *argv[])

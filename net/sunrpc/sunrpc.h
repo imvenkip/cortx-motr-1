@@ -2,7 +2,7 @@
 #ifndef __COLIBRI_NET_SUNRPC_SUNRPC_H__
 #define __COLIBRI_NET_SUNRPC_SUNRPC_H__
 
-#include "lib/cdefs.h"
+#include <lib/cdefs.h>
 
 /**
    @addtogroup sunrpc Sun RPC

@@ -3,8 +3,8 @@
 
 #define __COLIBRI_RPC_SESSION_TYPES_H__
 
-#include "lib/cdefs.h"
-#include "rpc/rpc_types.h"
+#include <lib/cdefs.h>
+#include <rpc/rpc_types.h>
 
 /**
  @page rpc-session-types
