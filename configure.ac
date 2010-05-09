@@ -274,7 +274,6 @@ AC_CONFIG_FILES([
                  sns/Makefile
                  sm/Makefile
                  mds/Makefile
-                 colibri/Makefile
                  patches/Makefile
                  stob/Makefile
                  utils/Makefile
