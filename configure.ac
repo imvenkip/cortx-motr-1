@@ -246,18 +246,18 @@ AC_FUNC_MALLOC
 
 # Configure options
 AC_ARG_ENABLE(debug,
-        AC_HELP_STRING([--disable-debug], [disable debug information and logs]), ,
-        enable_debug=yes
+        AC_HELP_STRING([--disable-debug], [disable debug information and logs]), [],
+        [enable_debug=yes]
 )
 
 AC_ARG_ENABLE(gssrpc,
-        AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support]), ,
-        enable_gssrpc=no
+        AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support]), [],
+        [enable_gssrpc=no]
 )
 
 AC_ARG_ENABLE(db4-dio,
-        AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support]), ,
-        enable_db4_dio=no
+        AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support]), [],
+        [enable_db4_dio=no]
 )
 
 case $host_os in
