@@ -24,7 +24,7 @@ enum {
 	BACKTRACE_DEPTH_MAX = 256
 };
 
-int c2_panic(const char *expr, const char *func, const char *file, int lineno)
+void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 {
 	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
 		expr, func, file, lineno, errno);
@@ -39,7 +39,6 @@ int c2_panic(const char *expr, const char *func, const char *file, int lineno)
 	}
 #endif
 	abort();
-	return 0;
 }
 
 /** @} end of assert group */
