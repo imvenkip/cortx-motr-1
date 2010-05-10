@@ -33,4 +33,4 @@ distclean clean:
 endif
 
 distdir:
-	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.c $(KSUNRPC_SRCDIR)/ksunrpc.h @top_builddir@/@PACKAGE@-@VERSION@/ksunrpc
+	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.c $(KSUNRPC_SRCDIR)/ksunrpc.h @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc
