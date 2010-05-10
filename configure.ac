@@ -242,22 +242,26 @@ AC_CHECK_HEADERS([stdlib.h pthread.h])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 
+AC_CHECK_DECL([mallinfo], [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
+AC_CHECK_DECL([malloc_size], [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
+AC_CHECK_DECL([backtrace], [AC_DEFINE(HAVE_BACKTRACE)], [], [[#include <execinfo.h>]])
+
 # Checks for library functions.
 AC_FUNC_MALLOC
 
 # Configure options
-AC_ARG_ENABLE(debug,
-        AC_HELP_STRING([--disable-debug], [disable debug information and logs]), [],
+AC_ARG_ENABLE([debug],
+        [AC_HELP_STRING([--disable-debug], [disable debug information and logs])], [],
         [enable_debug=yes]
 )
 
-AC_ARG_ENABLE(gssrpc,
-        AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support]), [],
+AC_ARG_ENABLE([gssrpc],
+        [AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support])], [],
         [enable_gssrpc=no]
 )
 
-AC_ARG_ENABLE(db4-dio,
-        AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support]), [],
+AC_ARG_ENABLE([db4-dio],
+        [AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support])], [],
         [enable_db4_dio=no]
 )
 
@@ -309,7 +313,7 @@ fi
 if test x$enable_debug = xyes; then
         CFLAGS="-Wall -Werror -O0 -g"
         KCFLAGS="-Wall -Werror -O1 -g"
-        AC_DEFINE(ENABLE_DEBUG)
+        AC_DEFINE([ENABLE_DEBUG])
 else
 	CFLAGS="-Wall -Werror -O2"
         KCFLAGS="-Wall -Werror -O2"
@@ -321,8 +325,7 @@ CFLAGS="$CFLAGS -D_REENTRANT"
 LDFLAGS="-rdynamic"
 
 AC_ARG_WITH([db4],
-        AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), [],
-)
+        [AC_HELP_STRING([--with-db4=path], [path of where db4 was built])])
 
 OLD_LIBS=$LIBS
 OLD_CFLAGS=$CFLAGS
@@ -407,10 +410,6 @@ AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot b
 AIO_LIBS=$LIBS
 AC_SUBST([AIO_LIBS])
 LIBD=$OLD_LIBS
-
-AC_CHECK_DECL([mallinfo], [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
-AC_CHECK_DECL([malloc_size], [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
-AC_CHECK_DECL(backtrace, [AC_DEFINE(HAVE_BACKTRACE)], [], [[#include <execinfo.h>]])
 
 AC_CONFIG_FILES([
 		 Makefile
