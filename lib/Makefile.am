@@ -6,5 +6,5 @@ libc2_la_LDFLAGS     = -static
 libc2_la_CFLAGS      = -fPIC
 libc2_la_LIBADD      = @LIBS@ $(DB4LIBS)
 
-INCLUDES             = -I. -I$(top_srcdir)/include -I $(DB4SRC)
+INCLUDES             = -I. -I$(top_srcdir)/include -I $(DB4SRC)/build_unix
 EXTRA_DIST           = adt.h cc.h memory.h c2list.h c2bitops.h c2bitmap.h refs.h atomic.h c2queue.h cache.h
