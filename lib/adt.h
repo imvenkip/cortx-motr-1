@@ -3,7 +3,6 @@
 #ifndef __COLIBRI_ADT_H__
 #define __COLIBRI_ADT_H__
 
-#include <stdbool.h>
 #include "cdefs.h"
 
 /**
@@ -11,23 +10,13 @@
    @{
 */
 
-struct c2_queue;
 struct c2_stack;
 
-struct c2_queue_link;
 struct c2_stack_link;
-
-void c2_queue_init(struct c2_queue *q);
-void c2_queue_fini(struct c2_queue *q);
-bool c2_queue_is_empty(const struct c2_queue *q);
 
 void c2_stack_init(struct c2_stack *stack);
 void c2_stack_fini(struct c2_stack *stack);
 bool c2_stack_is_empty(const struct c2_stack *stack);
-
-void c2_queue_link_init(struct c2_queue_link *q);
-void c2_queue_link_fini(struct c2_queue_link *q);
-bool c2_queue_link_is_in(const struct c2_queue_link *q);
 
 void c2_stack_link_init(struct c2_stack_link *stack);
 void c2_stack_link_fini(struct c2_stack_link *stack);

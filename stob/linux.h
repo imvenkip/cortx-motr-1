@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_STOB_LINUX_H__
 #define __COLIBRI_STOB_LINUX_H__
 
+#include "stob/stob.h"
 /**
    @defgroup stoblinux Storage object based on Linux specific file system
    interfaces.

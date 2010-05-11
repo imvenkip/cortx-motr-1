@@ -3,8 +3,7 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
-#include <inttypes.h>
-
+#include "lib/cdefs.h"
 #include "lib/adt.h"
 #include "lib/cc.h"
 #include "sm/sm.h"
@@ -12,7 +11,7 @@
 /* import */
 struct c2_sm;
 struct c2_dtx;
-struct c2_clink;
+struct c2_chan;
 struct c2_diovec;
 struct c2_indexvec;
 struct c2_io_scope;
@@ -56,6 +55,7 @@ struct c2_stob_type {
 };
 
 struct c2_stob {
+	struct c2_stob_type 	*so_type;
 	const struct c2_stob_op *so_op;
 	struct c2_list_link	 so_linkage; /**< linkage into its domain */
 	struct c2_stob_id	 so_id;      /**< unique id of this object */
@@ -63,28 +63,23 @@ struct c2_stob {
 };
 
 struct c2_stob_type_op {
-	int (*sto_init)(struct c2_stob *stob);
-	int (*sto_domain_add)(struct c2_stob_domain *d);
-	struct c2_stob_domain *(*sto_domain_locate)(char *domain_name);
-	struct c2_stob_domain *(*sto_domain_first)();
+	int  (*sto_init)(struct c2_stob_type *stype);
+	void (*sto_fini)(struct c2_stob_type *stype);
+	/**
+	   Locates and initlialises the storage objects domain, makes it ready
+	   for operations.
+
+	   This operation is called before any other operations.
+
+	   @return 0 success, any other value means error.
+	   @see c2_stob_domain_op::sdo_fini()
+	*/
+	int  (*sto_domain_locate)(struct c2_stob_domain *dom, ...);
 };
 
 struct c2_stob_op {
-	/**
-	  Initlialise the storage object.
-
-	  @return 0 success, any other value means error.
-	  @see sop_fini
-	*/
-	int  (*sop_init)(struct c2_stob *stob);
-
-	/**
-	  Cleanup the storage object.
-
-	  This is the last operation for any storage object.
-	*/
-	void (*sop_fini)(struct c2_stob *stob);
-
+	int  (*sop_init)   (struct c2_stob *stob);
+	void (*sop_fini)   (struct c2_stob *stob);
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
 	   given storage object.
@@ -124,7 +119,7 @@ struct c2_stob_op {
 
 	   This call is used only by assertions.
 	 */
-	bool (*sop_io_is_locked)(struct c2_stob *stob);
+	bool (*sop_io_is_locked)(const struct c2_stob *stob);
 };
 
 int  c2_stob_type_add(struct c2_stob_type *kind);
@@ -155,18 +150,22 @@ struct c2_stob_domain_op {
 	/**
 	   Init this domain. E.g. init the list, connecting to mapping db.
 	*/
-	int (*sdops_init)(struct c2_stob_domain *self);
+	int (*sdo_init)(struct c2_stob_domain *self);
 
 	/**
 	   Cleanup this domain.
 	*/
-	void (*sdops_fini)(struct c2_stob_domain *self);
+	void (*sdo_fini)(struct c2_stob_domain *self);
 
 	/**
 	   alloc in-memory structure for an object, and add it into this domain.
 	*/
-	struct c2_stob *(*sdops_alloc)(struct c2_stob_domain *d,
+	struct c2_stob *(*sdo_alloc)(struct c2_stob_domain *d,
 			               struct c2_stob_id *id);
+	/**
+	   free in-memory structure for an object
+	*/
+	void (*sdo_free)(struct c2_stob_domain *d, struct c2_stob *o);
 
 	/**
 	  Create an object.
@@ -178,7 +177,7 @@ struct c2_stob_domain_op {
 	  @return 0 success, other values mean error.
 	  @post when succeed, out points to the internal object
 	*/
-	int (*sdops_create)(struct c2_stob_domain *d, struct c2_stob *o);
+	int (*sdo_create)(struct c2_stob_domain *d, struct c2_stob *o);
 
 	/**
 	   setup the mapping from id to intnerl representative by looking up
@@ -186,7 +185,7 @@ struct c2_stob_domain_op {
 
 	  @return 0 success, other values mean error
 	*/
-	int (*sdops_locate)(struct c2_stob_domain *d, struct c2_stob *o);
+	int (*sdo_locate)(struct c2_stob_domain *d, struct c2_stob *o);
 
 };
 
@@ -203,8 +202,8 @@ struct c2_stob_domain_op {
 
    A user of this interface builds an IO operation description and queues it
    against a storage object. IO completion or failure notification is done by
-   signalling a user supplied c2_clink. As usual, the user can either wait on
-   the clink or register a call-back with it.
+   signalling a user supplied c2_chan. As usual, the user can either wait on
+   the chan or register a call-back with it.
 
    adieu supports scatter-gather type of IO operations (that is, vectored on
    both input and output data).
@@ -225,7 +224,7 @@ struct c2_stob_domain_op {
        is initialised.
 
        @li IO operation is queued by a call to c2_stob_io_launch(). It is
-       guaranteed that on a successful return from this call, a clink embedded
+       guaranteed that on a successful return from this call, a chan embedded
        into IO operation data-structure will be eventually signalled.
 
        @li An execution of a queued IO operation can be delayed for some time
@@ -243,7 +242,7 @@ struct c2_stob_domain_op {
        order and with any degree of concurrency. Prefixed fragments execution
        mode request has no effect on read-only IO operations.
 
-       @li When whole operation execution completes, a clink embedded into IO
+       @li When whole operation execution completes, a chan embedded into IO
        operation data-structure is signalled. It is guaranteed that no IO is
        outstanding at this moment and that adieu implementation won't touch
        either IO operation structure or associated data pages afterward.
@@ -255,12 +254,18 @@ struct c2_stob_domain_op {
    <b>Ordering and barriers.</b>
 
    The only guarantee about relative order of IO operations state transitions is
-   that execution of any operation submitted before
-   c2_stob_io_opcode::SIO_BARRIER operation completes before any operation
-   submitted after the barrier starts executing.
+   that execution of any updating operation submitted before
+   c2_stob_io_opcode::SIO_BARRIER operation completes before any updating
+   operation submitted after the barrier starts executing. For the purpose of
+   this definition, an updating operation is an operation of any valid type
+   different from SIO_READ (i.e., barriers are updating operations).
 
    A barrier operation completes when all operations submitted before it
    (including other barrier operations) complete.
+
+   @warning Clarify the scope of a barrier: a single storage object, a storage
+   object domain, a storage object type, all local storage objects or all
+   objects in the system.
 
    <b>Result codes.</b>
 
@@ -279,7 +284,7 @@ struct c2_stob_domain_op {
    <b>Data ownership.</b>
 
    Data pages are owned by adieu implementation from the moment of call to
-   c2_stob_io_launch() until the clink is signalled. adieu users must not
+   c2_stob_io_launch() until the chan is signalled. adieu users must not
    inspect or modify data during that time. An implementation is free to modify
    the data temporarily, un-map pages, etc. An implementation must not touch
    the data at any other time.
@@ -294,18 +299,24 @@ struct c2_stob_domain_op {
    <b>Liveness rules.</b>
 
    c2_stob_io can be freed once it is owned by an adieu user (see data
-   ownership). While owned by the implementation, c2_stob_io pins corresponding
-   storage object. This reference must be released by the user after it has been
-   notified about IO completion by calling c2_stob_io_release().
+   ownership). It has no explicit reference counting, a user must add its own
+   should c2_stob_io be shared between multiple threads.
 
-   Additionally, c2_stob_io pins io scope (c2_io_scope) while owned by the
-   implementation. This reference is automatically released when IO operation
-   completes.
+   The user must guarantee that the target storage object is pinned in memory
+   while IO operation is owned by the implementation. An implementation is free
+   to touch storage object while IO is in progress.
+
+   Similarly, the user must pin the transaction and IO scope while c2_stob_io is
+   owned by the implementation.
 
    <b>Concurrency.</b>
 
    When c2_stob_io is owned by a user, the user is responsible for concurrency
    control.
+
+   Implementation guarantees that synchronous channel notification (through
+   clink call-back) happens in the context not holding IO lock (see
+   c2_stob_op::sop_io_lock()).
 
    @note at the moment the only type of storage object supporting adieu is a
    Linux file system based one, using Linux libaio interfaces.
@@ -335,6 +346,7 @@ struct c2_stob_domain_op {
    Type of a storage object IO operation.
  */
 enum c2_stob_io_opcode {
+	SIO_INVALID,
 	SIO_READ,
 	SIO_WRITE,
 	SIO_BARRIER,
@@ -384,6 +396,10 @@ enum c2_stob_io_flags {
 struct c2_stob_io {
 	enum c2_stob_io_opcode      si_opcode;
 	/**
+	   Flags with which this IO operation is queued.
+	 */
+	enum c2_stob_io_flags       si_flags;
+	/**
 	   Where data are located in the user address space.
 	 */
 	struct c2_diovec            si_user;
@@ -392,12 +408,12 @@ struct c2_stob_io {
 	 */
 	struct c2_indexvec          si_stob;
 	/**
-	   Clink where IO operation completion is signalled.
+	   Channel where IO operation completion is signalled.
 
-	   @note alternatively a clink embedded in every state machine can be
+	   @note alternatively a channel embedded in every state machine can be
 	   used.
 	 */
-	struct c2_clink             si_wait;
+	struct c2_chan              si_wait;
 
 	/* The fields below are modified only by an adieu implementation. */
 
@@ -412,7 +428,7 @@ struct c2_stob_io {
 
 	   This field is valid after IO completion has been signalled.
 	 */
-	uint32_t                    si_rc;
+	int32_t                     si_rc;
 	/**
 	   Number of bytes transferred between data pages and storage object.
 
@@ -430,6 +446,10 @@ struct c2_stob_io {
 	   This field is owned by the adieu implementation.
 	 */
 	struct c2_dtx              *si_tx;
+	/**
+	   IO scope (resource accounting group) this IO operation is a part of.
+	 */
+	struct c2_io_scope         *si_scope;
 	/**
 	   Pointer to implementation private data associated with the IO
 	   operation. 
@@ -469,22 +489,16 @@ struct c2_stob_io {
 
 struct c2_stob_io_op {
 	/**
-	   Called by c2_stob_io_release() to free any implementation specific
-	   resources associated with IO operation except for implementation
-	   private memory pointed to by c2_stob_io::si_stob_private.
-
-	   @pre io->si_state == SIS_IDLE
-	   @pre io->si_obj != NULL
-	 */
-	void (*sio_release)(struct c2_stob_io *io);
-	/**
 	   Called by c2_stob_io_launch() to queue IO operation.
 
-	   @pre io->si_state == SIS_IDLE
-	   @post ergo(result == 0, io->si_state == SIS_BUSY)
+	   @note This method releases lock before successful returning.
+
+	   @pre io->si_state == SIS_BUSY
+	   @pre stob->so_op.sop_io_is_locked(stob)
+	   @post ergo(result != 0, io->si_state == SIS_IDLE)
+	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
-	int  (*sio_launch) (struct c2_stob_io *io, struct c2_dtx *tx,
-			    struct c2_io_scope *scope);
+	int  (*sio_launch) (struct c2_stob_io *io);
 	/**
 	   Attempts to cancel IO operation. Has no effect when called before IO
 	   has been queued or after IO has completed.
@@ -493,9 +507,9 @@ struct c2_stob_io_op {
 };
 
 /**
-   @post ergo(result == 0, io->si_state == SIS_IDLE)
+   @post io->si_state == SIS_IDLE
  */
-int  c2_stob_io_init  (struct c2_stob_io *io);
+void c2_stob_io_init  (struct c2_stob_io *io);
 
 /**
    @pre io->si_state == SIS_IDLE
@@ -503,19 +517,19 @@ int  c2_stob_io_init  (struct c2_stob_io *io);
 void c2_stob_io_fini  (struct c2_stob_io *io);
 
 /**
-   @pre !c2_clink_is_armed(&io->si_wait)
+   @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
-   @pre c2_vec_count(&io->si_input.div_vec) == c2_vec_count(&io->si_output.ov_vec)
-   @post c2_clink_is_armed(&io->si_wait)
+   @pre io->si_opcode != SIO_INVALID
+   @pre c2_vec_count(&io->si_user.div_vec.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
+   @post ergo(result != 0, io->si_state == SIS_IDLE)
+
+   @note IO can be already completed by the time c2_stob_io_launch()
+   finishes. Because of this no post-conditions for io->si_state are imposed in
+   the successful return case.
  */
 int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 void c2_stob_io_cancel (struct c2_stob_io *io);
-/**
-   @pre  io->si_state == SIS_IDLE
-   @post io->si_state == SIS_IDLE
- */
-void c2_stob_io_release(struct c2_stob_io *io);
 
 /** @} end member group adieu */
 
