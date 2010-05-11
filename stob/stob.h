@@ -36,65 +36,54 @@ struct c2_list_link;
    @{
  */
 
+struct c2_stob_id {
+	uint64_t	seq;
+	uint64_t	id;
+};
+
 struct c2_stob;
-struct c2_stob_id;
-struct c2_stob_object;
 struct c2_stob_op;
 struct c2_stob_io;
 struct c2_stob_type;
 struct c2_stob_type_op;
+struct c2_stob_domain;
 
 struct c2_stob_type {
 	const struct c2_stob_type_op *st_op;
 	const char                   *st_name;
 	const uint32_t                st_magic;
+	struct c2_list		      st_domains; /**< list of domains */
 };
 
 struct c2_stob {
 	const struct c2_stob_op *so_op;
+	struct c2_list_link	 so_linkage; /**< linkage into its domain */
+	struct c2_stob_id	 so_id;      /**< unique id of this object */
+	struct c2_stob_domain 	*so_domain;  /**< its domain */
 };
 
 struct c2_stob_type_op {
 	int (*sto_init)(struct c2_stob *stob);
+	int (*sto_domain_add)(struct c2_stob_domain *d);
+	struct c2_stob_domain *(*sto_domain_locate)(char *domain_name);
+	struct c2_stob_domain *(*sto_domain_first)();
 };
 
 struct c2_stob_op {
 	/**
-	  Initlialises the storage objects environment, make it ready
-	  for operations.
-
-	  This operation is called before any other operations.
+	  Initlialise the storage object.
 
 	  @return 0 success, any other value means error.
 	  @see sop_fini
 	*/
-	int  (*sop_init)   (struct c2_stob *stob);
+	int  (*sop_init)(struct c2_stob *stob);
 
 	/**
-	  Cleanup the data storage objects environment.
+	  Cleanup the storage object.
 
-	  This is the last operation for any storage objects data structures.
+	  This is the last operation for any storage object.
 	*/
-	void (*sop_fini)   (struct c2_stob *stob);
-
-	/**
-	  Create an object.
-
-	  Create an object, with specified id, establish the mapping from the
-	  id to the internal object repsentative.
-
-	  @return 0 success, other values mean error.
-	  @post when succeed, out points to the internal object
-	*/
-	int  (*sop_create) (struct c2_stob_id *id, struct c2_stob_object **out);
-
-	/**
-	  Lookup the mapping from id to intnerl representative
-
-	  @return 0 success, other values mean error
-	  @post when succeed, out points to the internal object
-	*/
-	int  (*sop_locate) (struct c2_stob_id *id, struct c2_stob_object **out);
+	void (*sop_fini)(struct c2_stob *stob);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -140,6 +129,66 @@ struct c2_stob_op {
 
 int  c2_stob_type_add(struct c2_stob_type *kind);
 void c2_stob_type_del(struct c2_stob_type *kind);
+
+
+struct c2_stob_domain_op;
+/**
+   stob domain
+
+   Stob domain is a collection of storage objects of the same type.
+   A stob type may have multiple domains, which are linked together to its
+   type by 'sd_domain_linkage'. A stob domain may have multiple storage objects,
+   which are linked together by 'sd_objects'.
+*/
+struct c2_stob_domain {
+	const char 		        *sd_name;
+	const struct c2_stob_domain_op *sd_ops;
+	struct c2_list_link	        sd_domain_linkage;
+
+	struct c2_list	 	        sd_objects;
+};
+
+/**
+   domain operations vector
+*/
+struct c2_stob_domain_op {
+	/**
+	   Init this domain. E.g. init the list, connecting to mapping db.
+	*/
+	int (*sdops_init)(struct c2_stob_domain *self);
+
+	/**
+	   Cleanup this domain.
+	*/
+	void (*sdops_fini)(struct c2_stob_domain *self);
+
+	/**
+	   alloc in-memory structure for an object, and add it into this domain.
+	*/
+	struct c2_stob *(*sdops_alloc)(struct c2_stob_domain *d,
+			               struct c2_stob_id *id);
+
+	/**
+	  Create an object.
+
+	  Create an object on storage physically, and insert the
+	  mapping from the id to the internal object repsentative into its
+	  database.
+
+	  @return 0 success, other values mean error.
+	  @post when succeed, out points to the internal object
+	*/
+	int (*sdops_create)(struct c2_stob_domain *d, struct c2_stob *o);
+
+	/**
+	   setup the mapping from id to intnerl representative by looking up
+	   in its database.
+
+	  @return 0 success, other values mean error
+	*/
+	int (*sdops_locate)(struct c2_stob_domain *d, struct c2_stob *o);
+
+};
 
 
 /**
