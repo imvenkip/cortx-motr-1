@@ -27,10 +27,16 @@ struct c2_node_id {
 bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
 
 
+/**
+ structure to desctribe running service
+ */
 struct c2_service {
 	int s_child;
 };
 
+/**
+ services unique identifier
+ */
 enum c2_rpc_service_id {
 	C2_SESSION_PROGRAM = 0x20000001
 };

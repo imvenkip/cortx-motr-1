@@ -35,9 +35,9 @@ void c2_net_conn_fini(void);
 
 /**
  create network connection based on config info.
- function is allocate memory and connect transport connection to some logical
- connection.
- that connection will used on send rpc for one or more sessions.
+ Allocates resources and connects transport connection to some logical connection.
+ Logical connection is used to send rpc in the context of one or more sessions.
+ (@ref rpc-cli-session)
 
  @param nid - unique node identifier
  @param prgid program identifier, some unique identifier to identify service group.
@@ -50,7 +50,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
 			const enum c2_rpc_service_id prgid, char *nn);
 
 /**
- find connection to specified node.
+ find a connection to a specified node.
  Scans the list of connections to find a logical connection associated with
  a given nid.
 
