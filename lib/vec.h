@@ -27,7 +27,34 @@ struct c2_vec {
 c2_bcount_t c2_vec_count(const struct c2_vec *vec);
 
 /**
-   Position without a vector
+   Position within a vector.
+
+   c2_vec_cursor is a cursor associated with a c2_vec instance. A cursor can be
+   moved in the forward direction.
+
+   A cursor can be in one of the two exclusive states:
+
+   @li it is positioned within one of the vector segments. In this state
+
+   @code
+   cur->vc_seg < cur->vc_vec->v_nr &&
+   cur->vc_offset < cur->vc_vec->v_count[cur->vc_seg]
+   @code
+
+   invariant is maintained. This is called a "normal" state.
+
+   @li or a cursor is in an "end of the vector" state. In this state
+
+   @code
+   cur->vc_seg == cur->vc_vec->v_nr && cur->vc_offset == 0
+   @code
+
+   Note that a cursor over an empty vector (one with vec::v_nr == 0) is always
+   in the end of the vector state.
+
+   Also note, that according to the normal state invariant, a cursor cannot be
+   positioned in an empty segment (one with zero count). Empty segments are
+   skipped over by all cursor manipulating functions, including constructor.
  */
 struct c2_vec_cursor {
 	const struct c2_vec *vc_vec;
@@ -40,23 +67,27 @@ struct c2_vec_cursor {
 /**
    Initialise a cursor.
 
-   @pre vec->v_nr > 0
+   Cursor requires no special finalisation.
  */
 void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
+
 /**
    Move cursor count bytes further through the vector.
 
+   c2_vec_cursor_move(cur, 0) is guaranteed to return true iff cursor is in end
+   of the vector position without modifying cursor in any way.
+
    @return true, iff the end of the vector has been reached while moving. The
-   cursor remains at the last position in the vector in this case.
+   cursor is in end of the vector position in this case.
  */
 bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
+
 /**
    Return number of bytes that the cursor have to be moved to reach next segment
-   in its vector (or to move past the last segment, when the cursor is already
-   at the last segment).
+   in its vector (or to move into end of the vector position, when the cursor is
+   already at the last segment).
 
    @pre cur->vc_seg < cur->vc_vec->v_nr
-
  */
 c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur);
 

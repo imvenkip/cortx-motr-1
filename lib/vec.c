@@ -30,6 +30,9 @@ static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 		      cur->vc_offset == 0);
 }
 
+/**
+   Skips over empty segments, restoring cursor invariant.
+ */
 static void c2_vec_cursor_normalize(struct c2_vec_cursor *cur) 
 {
 	while (cur->vc_seg < cur->vc_vec->v_nr && 
