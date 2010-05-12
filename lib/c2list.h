@@ -10,13 +10,13 @@
  */
 struct c2_list_link {
 	/**
-	 * next in link
-	 */
-	struct c2_list_link *prev;
-	/**
 	 * prev in link
 	 */
 	struct c2_list_link *next;
+	/**
+	 * next in link
+	 */
+	struct c2_list_link *prev;
 };
 
 /**
@@ -91,7 +91,22 @@ c2_list_add(struct c2_list *head, struct c2_list_link *new)
 	
 	head->first = new;
 	new->next->prev = new;
+}
 
+/**
+ add an entry to tail of the list.
+
+ @param head pointer to list head
+ @param new  pointer to list entry
+ */
+static inline void
+c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
+{
+	new->prev = head->last;
+	new->next = (struct c2_list_link *)head;
+	
+	head->last = new;
+	new->prev->next = new;
 }
 
 /**
