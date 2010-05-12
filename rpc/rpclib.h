@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _RPC_COMMON_H_
+#ifndef __COLIBRI_RPC_RPCLIB_H__
 
-#define _RPC_COMMON_H_
+#define __COLIBRI_RPC_RPCLIB_H__
 
 #include "lib/cdefs.h"
 #include "lib/refs.h"

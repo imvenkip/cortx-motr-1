@@ -1,6 +1,6 @@
-#ifndef __COLIBRI_RPC_SESSION_H_
+#ifndef __COLIBRI_RPC_SESSION_H__
 
-#define __COLIBRI_RPC_SESSION_H_
+#define __COLIBRI_RPC_SESSION_H__
 
 /**
 @page rpc-session rpc session implementation

@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _RPC_COMPOUND_SRV_
+#ifndef __COLIBRI_RPC_COMPOUND_SRV_H__
 
-#define _RPC_COMPOUND_SRV_
+#define __COLIBRI_RPC_COMPOUND_SRV_H__
 
 #include "net/net_types.h"
 #include "lib/cache.h"
@@ -48,6 +48,9 @@ struct c2_compound_ops {
 
 extern struct c2_compound_ops fops[C2_COMP_MAX_OP];
 
+/**
+ process incoming compound request
+ */
 int c2_compound_process(const struct c2_compound_op_arg *op,
 			void *arg, void **ret, int *retsize);
 

@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _RPC_SVC_H_
+#ifndef __COLIBRI_RPC_SVC_H__
 
-#define _RPC_SVC_H_
+#define __COLIBRI_RPC_SVC_H__
 
 /**
  @page rpc-svc server side handlers.

@@ -1,6 +1,6 @@
-#ifndef _RPC_PCACHE_H_
+#ifndef __COLIBRI_RPC_PCACHE_H__
 
-#define _RPC_PCACHE_H_
+#define __COLIBRI_RPC_PCACHE_H__
 
 #include "lib/cache.h"
 

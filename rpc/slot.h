@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef __COLIBRY_RPC_SLOT_H_
+#ifndef __COLIBRY_RPC_SLOT_H__
 
-#define __COLIBRY_RPC_SLOT_H_
+#define __COLIBRY_RPC_SLOT_H__
 /**
 	@page rpc-slot RPC Slot
 

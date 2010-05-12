@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _RPC_COMPOUND_TYPES_H_
+#ifndef __COLIBRI_RPC_COMPOUND_TYPES_H__
 
-#define _RPC_COMPOUND_TYPES_H_
+#define __COLIBRI_RPC_COMPOUND_TYPES_H__
 
 #include "rpc/rpc_types.h"
 

@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _RPC_CLI_SESSION_H_
+#ifndef __COLIBRI_RPC_SESSION_CLI_H__
 
-#define _RPC_CLI_SESSION_H_
+#define __COLIBRI_RPC_SESSION_CLI_H__
 
 #include "lib/cdefs.h"
 #include "lib/refs.h"

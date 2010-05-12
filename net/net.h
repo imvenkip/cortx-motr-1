@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _C2_NET_H_
+#ifndef __COLIBRI_NET_NET_H__
 
-#define _C2_NET_H_
+#define __COLIBRI_NET_NET_H__
 
 #include "lib/cdefs.h"
 #include "net/net_types.h"

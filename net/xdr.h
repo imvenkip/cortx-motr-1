@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _C2_NET_XDR_H_
+#ifndef __COLIBRI_NET_XDR_H__
 
-#define _C2_NET_XDR_H_
+#define __COLIBRI_NET_XDR_H__
 
 struct c2_node_id;
 
