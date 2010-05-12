@@ -67,8 +67,6 @@ static struct c2_stob_domain_linux * domain2linux(struct c2_stob_domain *dom)
 	return container_of(dom, struct c2_stob_domain_linux, sdl_base);
 }
 
-
-
 static void linux_stob_io_fini(struct linux_stob_io *lio)
 {
 	c2_free(lio->si_qev);
@@ -216,11 +214,11 @@ void mapping_db_fini(struct c2_stob_domain_linux *sdl)
 
 static int mapping_db_init(struct c2_stob_domain_linux *sdl)
 {
-	int            	 rc;
-	DB_ENV 		*dbenv;
-	const char      *backend_path = sdl->sdl_path;
-	char 	         path[MAXPATHLEN];
-	char		 *msg;
+	int         rc;
+	DB_ENV 	   *dbenv;
+	const char *backend_path = sdl->sdl_path;
+	char 	    path[MAXPATHLEN];
+	char	    *msg;
 
 	rc = db_env_create(&dbenv, 0);
 	if (rc != 0) {
@@ -371,12 +369,12 @@ static int mapping_db_insert(struct c2_stob_domain_linux *sdl,
   		      	     const struct c2_stob_id *id,
 		             const char *fname)
 {
-	DB_TXN               *tx = NULL;
-	DB_ENV               *dbenv = sdl->sdl_dbenv;
-	size_t                flen  = strlen(fname) + 1;
-	int 		      rc;
-	DBT keyt;
-	DBT rect;
+	DB_TXN *tx = NULL;
+	DB_ENV *dbenv = sdl->sdl_dbenv;
+	size_t  flen  = strlen(fname) + 1;
+	int     rc;
+	DBT     keyt;
+	DBT     rect;
 
 	memset(&keyt, 0, sizeof keyt);
 	memset(&rect, 0, sizeof rect);
@@ -412,11 +410,11 @@ static int mapping_db_lookup(struct c2_stob_domain_linux *sdl,
   		      	     const struct c2_stob_id *id,
 		             char *fname, int maxflen)
 {
-	DB_ENV               *dbenv = sdl->sdl_dbenv;
-	size_t                flen  = maxflen;
-	int 		      rc;
-	DBT keyt;
-	DBT rect;
+	DB_ENV *dbenv = sdl->sdl_dbenv;
+	size_t  flen  = maxflen;
+	int     rc;
+	DBT     keyt;
+	DBT     rect;
 
 	memset(&keyt, 0, sizeof keyt);
 	memset(&rect, 0, sizeof rect);
@@ -479,8 +477,7 @@ static int stob_domain_linux_init(struct c2_stob_domain *self)
 
 static void stob_domain_linux_fini(struct c2_stob_domain *self)
 {
-	struct c2_stob_domain_linux *sdl = container_of(self,
-					  struct c2_stob_domain_linux, sdl_base);
+	struct c2_stob_domain_linux *sdl = domain2linux(self);
 
 	mapping_db_fini(sdl);
 }
@@ -504,6 +501,7 @@ static struct c2_stob *stob_domain_linux_alloc(struct c2_stob_domain *d,
 static void stob_domain_linux_free(struct c2_stob_domain *d,
 				   struct c2_stob *o)
 {
+	c2_list_del(&o->so_linkage);
 	linux_stob_free(o);	
 }
 
@@ -540,10 +538,8 @@ static int stob_domain_linux_create(struct c2_stob_domain *d,
 static int stob_domain_linux_locate(struct c2_stob_domain *d,
 				    struct c2_stob *o)
 {
-	struct c2_stob_domain_linux *sdl = container_of(d,
-		 			   struct c2_stob_domain_linux, sdl_base);
-	struct c2_stob_linux        *sl  = container_of(o, struct c2_stob_linux,
-							sl_stob);
+	struct c2_stob_domain_linux *sdl = domain2linux(d);
+	struct c2_stob_linux        *sl  = stob2linux(o);
 	int rc;	
 
 	memset(sl->sl_filename, 0, MAXPATHLEN);

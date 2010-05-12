@@ -66,15 +66,19 @@ struct c2_stob_type_op {
 	int  (*sto_init)(struct c2_stob_type *stype);
 	void (*sto_fini)(struct c2_stob_type *stype);
 	/**
-	   Locates and initlialises the storage objects domain, makes it ready
+	   Locates a storage objects domain with specified name.
+
+	   @return valid-pointer success, any other value means error.
+	*/
+	struct c2_stob_domain* (*sto_domain_locate)(const char *domain_name);
+
+	/**
+	   Add and initlialises the storage objects domain, makes it ready
 	   for operations.
 
-	   This operation is called before any other operations.
-
 	   @return 0 success, any other value means error.
-	   @see c2_stob_domain_op::sdo_fini()
 	*/
-	int  (*sto_domain_locate)(struct c2_stob_domain *dom, ...);
+	int (*sto_domain_add)(struct c2_stob_domain *dom);
 };
 
 struct c2_stob_op {
@@ -136,8 +140,9 @@ struct c2_stob_domain_op;
    which are linked together by 'sd_objects'.
 */
 struct c2_stob_domain {
-	const char 		        *sd_name;
+	const char 		       *sd_name;
 	const struct c2_stob_domain_op *sd_ops;
+	struct c2_stob_type 	       *sd_type;
 	struct c2_list_link	        sd_domain_linkage;
 
 	struct c2_list	 	        sd_objects;
@@ -148,12 +153,12 @@ struct c2_stob_domain {
 */
 struct c2_stob_domain_op {
 	/**
-	   Init this domain. E.g. init the list, connecting to mapping db.
+	   Init this domain: e.g. init the list, connecting to mapping db.
 	*/
 	int (*sdo_init)(struct c2_stob_domain *self);
 
 	/**
-	   Cleanup this domain.
+	   Cleanup this domain: e.g. delete itself from the domain list in type.
 	*/
 	void (*sdo_fini)(struct c2_stob_domain *self);
 
@@ -186,7 +191,6 @@ struct c2_stob_domain_op {
 	  @return 0 success, other values mean error
 	*/
 	int (*sdo_locate)(struct c2_stob_domain *d, struct c2_stob *o);
-
 };
 
 
