@@ -1,7 +1,7 @@
 /* -*- C -*- */
-#ifndef _C2_NET_CONNECTION_H_
+#ifndef __COLIBRI_NET_CONNECTION_H__
 
-#define _C2_NET_CONNECTION_H_
+#define __COLIBRI_NET_CONNECTION_H__
 
 #include "lib/c2list.h"
 #include "lib/refs.h"
