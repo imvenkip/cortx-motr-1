@@ -30,11 +30,21 @@ static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 		      cur->vc_offset == 0);
 }
 
+static void c2_vec_cursor_normalize(struct c2_vec_cursor *cur) 
+{
+	while (cur->vc_seg < cur->vc_vec->v_nr && 
+	       cur->vc_vec->v_count[cur->vc_seg] == 0) {
+		++cur->vc_seg;
+		cur->vc_offset = 0;
+	}
+}
+
 void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec)
 {
 	cur->vc_vec    = vec;
 	cur->vc_seg    = 0;
 	cur->vc_offset = 0;
+	c2_vec_cursor_normalize(cur);
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 }
 
@@ -53,8 +63,9 @@ bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 			cur->vc_offset += count;
 			count = 0;
 		}
-		C2_ASSERT(c2_vec_cursor_invariant(cur));
+		c2_vec_cursor_normalize(cur);
 	}
+	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
 

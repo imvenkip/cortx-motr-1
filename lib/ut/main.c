@@ -8,6 +8,7 @@ extern void test_bitops(void);
 extern void test_bitmap(void);
 extern void test_refs(void);
 extern void test_queue(void);
+extern void test_vec(void);
 
 int main(int argc, char *argv[])
 {
@@ -17,5 +18,6 @@ int main(int argc, char *argv[])
 	test_bitmap();
 	test_refs();
 	test_queue();
+	test_vec();
 	return 0;
 }
