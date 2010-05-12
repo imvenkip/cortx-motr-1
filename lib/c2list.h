@@ -10,11 +10,11 @@
  */
 struct c2_list_link {
 	/**
-	 * prev in link
+	 * next in link
 	 */
 	struct c2_list_link *next;
 	/**
-	 * next in link
+	 * prev in link
 	 */
 	struct c2_list_link *prev;
 };
