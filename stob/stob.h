@@ -299,6 +299,20 @@ void c2_stob_type_del(struct c2_stob_type *kind);
                      SIS_BUSY
 
    @endverbatim
+
+   @todo A natural way to extend this design is to introduce additional
+   SIS_PREPARED state and to split IO operation submission into two stages: (i)
+   "preparation" stage that is entered once "IO geometry" is known (i.e., once
+   c2_vec of data pages and c2_vec storage objects are known) and (ii)
+   "queueing" stage that is entered when in addition to IO geometry, actual data
+   pages are allocated. The motivating example for this refinement is a data
+   server handling read or write RPC from a client. The RPC contains enough
+   information to build IO vectors, while data arrive later through RDMA. To
+   avoid dead-locks, it is crucial to avoid dynamic resource allocations (first
+   of all, memory allocations) in data path after resources are consumed by
+   RDMA. To this end, IO operation must be completely set up and ready for
+   queueing before RMDA starts, i.e., before data pages are available.
+
    @{
  */
 
