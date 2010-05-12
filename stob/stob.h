@@ -6,6 +6,7 @@
 #include "lib/cdefs.h"
 #include "lib/cc.h"
 #include "lib/vec.h"
+#include "lib/chan.h"
 #include "sm/sm.h"
 
 /* import */
