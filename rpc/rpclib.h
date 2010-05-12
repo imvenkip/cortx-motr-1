@@ -10,6 +10,7 @@
 #include "lib/cache.h"
 
 #include "net/net.h"
+#include "net/net_types.h"
 #include "rpc/rpc_types.h"
 
 /**
@@ -128,10 +129,15 @@ struct c2_rpc_server {
 	 persistent reply cache
 	 */
 	struct c2_cache		rs_cache;
+	/* transport specific */
+	/**
+	 network service structure
+	 */
+	struct c2_service	*rs_service;
 	/**
 	 operation to send to that service
 	 */
-	struct c2_rpc_op_table	*rc_ops;
+	struct c2_rpc_op_table	*rs_ops;
 };
 
 /**
