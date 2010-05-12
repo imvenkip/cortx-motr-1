@@ -19,7 +19,14 @@
 /**
  rpc client structure.
 
- structure describe rpc client
+ structure describe rpc client.
+ 
+ one structure is describe one service on server side, 
+ structure is created when user application want to send
+ operations from client side to server.
+ structure have reference counter protection and will freed
+ after upper layers will call c2_rpc_client function and all rpc's
+ are finished and release own sessions.
  */
 struct c2_rpc_client {
 	/**
@@ -27,11 +34,11 @@ struct c2_rpc_client {
 	*/
 	struct c2_list_link	rc_link;
 	/**
-	 unique client identifier
+	 remote service id identifier
 	 */
 	struct c2_node_id	rc_id;
 	/**
-	 client structure reference counter protection
+	 reference counter
 	 */
 	struct c2_ref		rc_ref;
 	/**
@@ -55,7 +62,7 @@ struct c2_rpc_client {
 /**
  create rpc client instance and add into system list
 
- @param id pointer to client identifier
+ @param id remote service identifier
 
  @return pointer to allocated rpc structure or NULL if not have enough memory
  */
@@ -83,7 +90,15 @@ struct c2_rpc_client *c2_rpc_client_find(const struct c2_node_id *id);
 
 
 /**
- RPC server structure - need store in memory pool db.
+ RPC server structure (need store in memory pool db)
+ 
+ structure is describe one service on server side.
+ service have responsible to process incoming requests.
+ 
+ structure created by request of configure options and
+ and live until service shutdown will called.
+ to prevent to an early freed - structure has reference counter
+ protection. 
  */
 struct c2_rpc_server {
 	/**
@@ -95,11 +110,11 @@ struct c2_rpc_server {
 	 */
 	struct c2_node_id	rs_id;
 	/**
-	 server structure reference counter protection
+	 reference counter
 	 */
 	struct c2_ref		rs_ref;
 	/**
-	 DB enviroment with transaction support
+	 DB environment with transaction support
 	*/
 	DB_ENV			*rs_env;
 	/**
@@ -114,10 +129,9 @@ struct c2_rpc_server {
 	 */
 	struct c2_cache		rs_cache;
 	/**
-	 operation to send to that server
+	 operation to send to that service
 	 */
 	struct c2_rpc_op_table	*rc_ops;
-
 };
 
 /**

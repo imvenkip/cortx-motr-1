@@ -1,4 +1,4 @@
-SUBDIRS    = . xdr ut
+SUBDIRS    = . ut
 
 lib_LTLIBRARIES = librpc.la
 librpc_la_SOURCES  = session_cli.c session_srv.c rpc_lib.c session_svc.c compound.c xdr/session_xdr.c

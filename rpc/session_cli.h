@@ -14,44 +14,6 @@
 
 
 /**
- initial slot count value, requested from a server
- while session is created
- */
-#define C2_SLOTS_INIT_COUNT	32
-
-/**
- client side slot definition
- */
-struct c2_cli_slot {
-	/**
-	 sequence assigned to the slot
-	 */
-	c2_seq_t sl_seq;
-	/**
-	 slots flags
-	*/
-	unsigned long sl_busy:1; /** slots a busy with sending request */
-};
-
-/**
- slot table associated with session
- */
-struct c2_cli_slot_table {
-	/**
-	 to protecting access to slots array and high slot id.
-	 */
-	struct c2_rw_lock	sltbl_slheads_lock;
-	/**
-	 maximal slot index
-	 */
-	uint32_t		sltbl_high_slot_id;
-	/**
-	 slots array
-	 */
-	struct c2_cli_slot	sltbl_slots[0];
-};
-
-/**
  client side part of session.
  session isn't visible outside of rpc layer.
 
@@ -62,23 +24,22 @@ struct c2_cli_slot_table {
  c2_cli_session_destroy.
 
  session have a reference counting protection.
-
 */
 struct c2_cli_session {
 	/**
-	 linking into list of sessions assigned to client
+	 linking into list of sessions assigned to rpc client
 	 */
 	struct c2_list_link	sess_link;
 	/**
-	 client session reference count protection
+	 reference counter
 	 */
 	struct c2_refs		sess_ref;
 	/**
-	 * server identifier
+	 server identifier
 	 */
 	struct c2_node_id	sess_srv;
 	/**
-	 * server assigned session id
+	 server assigned session id
 	 */
 	struct c2_session_id	sess_id;
 	/**
@@ -90,7 +51,7 @@ struct c2_cli_session {
 /**
  session constructor.
  allocate slot's memory and connect session to server.
- if server is unreachable function is return error without allocate new session.
+ if server is unreachable, function is return error without allocate new session.
 
  @param cli - rpc client to create new session.
  @param srv - server identifier
@@ -98,7 +59,7 @@ struct c2_cli_session {
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_session_create(const struct rpc_client * cli,
+int c2_cli_session_create(const struct c2_rpc_client * cli,
 			  const struct c2_node_id * srv);
 
 /**
@@ -110,7 +71,7 @@ int c2_cli_session_create(const struct rpc_client * cli,
  * @retval 0   success
  * @retval -ve failure, e.g., server don't connected, responded
  */
-int c2_cli_session_destroy(struct cli_session *sess);
+int c2_cli_session_destroy(struct c2_cli_session *sess);
 
 /**
  * find session associated with server
@@ -121,8 +82,8 @@ int c2_cli_session_destroy(struct cli_session *sess);
  * @retval NULL, session don't found or don't init correctly
  * @retval !NULL, OK
  */
-struct c2_cli_session *c2_cli_session_find(const struct rpc_client *cli,
-					   const struct client_id *srv_uuid);
+struct c2_cli_session *c2_cli_session_find(const struct c2_rpc_client *cli,
+					   const struct c2_node_id *srv_uuid);
 
 /**
  verify session @a sess by sending single "sequence" op and check response.
@@ -133,6 +94,6 @@ struct c2_cli_session *c2_cli_session_find(const struct rpc_client *cli,
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_session_check(const struct c2_cli_session * sess);
+int c2_cli_session_check(const struct c2_cli_session *sess);
 
 #endif

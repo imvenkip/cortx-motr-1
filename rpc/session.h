@@ -23,7 +23,6 @@ reply corresponding to the request sent with that sequence ID.
 @section sessionfunct Functional specification
 
 
-
 session module createated to flow description from RFC XXXX.
 and have a two parts.
 
@@ -38,7 +37,7 @@ session bases on client requests.
 Communication between these parts a processed via RPC messages. Format of messages
 is described in rpc types document. @ref rpc-types
 
-To reduce count of RPC's and protect order of excecution operations is merged in
+To reduce count of RPC's and protect order of excecution number of operations merged in
 single compound RPC.
 @ref rpc-compound
 

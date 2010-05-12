@@ -90,7 +90,7 @@ struct c2_cli_session *c2_session_cli_find(const struct rpc_client *cli,
 	c2_rwlock_read_lock(&cli->cli_sessions_lock);
 	c2_list_for_each(&cli->sessions, pos) {
 		sess = c2_list_entry(pos, struct c2_cli_session, sess_link);
-		if (client_is_same(&sess->sess_srv, srv_uuid)) {
+		if (client_are_same(&sess->sess_srv, srv_uuid)) {
 			c2_ref_get(&sess->sess_ref);
 			found = TRUE;
 			break;

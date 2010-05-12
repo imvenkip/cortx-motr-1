@@ -87,6 +87,7 @@ and use them to reconstruct the reply. After all entries have been served, or
 grace period times out, it will purge the persistence cache, and then can serve
 new requests.
 
+@ref rpc-server
 */
 
 
@@ -104,9 +105,11 @@ struct c2_rcid {
  cache a live all time until rpc service is live, and destroyed via call
  c2_pcache_fini from a c2_rpc_server destructor.
 
- all modifications in cache need to be synchronized with transaction in
- database environment.
+ all modifications in cache need to be synchronized with transaction which
+ used to execute folling FOP.
 */
+
+struct c2_rpc_server;
 
 /**
  persistent cache constructor
