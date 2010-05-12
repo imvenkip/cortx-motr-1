@@ -4,8 +4,8 @@
 #define __COLIBRI_STOB_STOB_H__
 
 #include "lib/cdefs.h"
-#include "lib/adt.h"
 #include "lib/cc.h"
+#include "lib/vec.h"
 #include "sm/sm.h"
 
 /* import */
