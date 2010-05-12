@@ -101,6 +101,28 @@ void c2_stob_io_cancel(struct c2_stob_io *io)
 	c2_stob_io_unlock(io->si_obj);
 }
 
+int c2_domain_add(struct c2_stob_type *stype, struct c2_stob_domain *dom)
+{
+	dom->sd_type = stype;
+	c2_list_link_init(&dom->sd_domain_linkage);
+	c2_list_add(&stype->st_domains, &dom->sd_domain_linkage);
+	return 0;
+}
+
+struct c2_stob_domain* c2_domain_locate(struct c2_stob_type *stype,
+                                        const char *domain_name)
+{
+	struct c2_stob_domain *dom;
+
+	c2_list_for_each_entry(&stype->st_domains, dom,
+			       struct c2_stob_domain, sd_domain_linkage) {
+		if (strcmp(domain_name, dom->sd_name) == 0)
+			return dom;
+	}
+	return NULL;
+}
+
+
 /** @} end group stob */
 
 /* 
