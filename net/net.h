@@ -51,8 +51,8 @@ int c2_net_conn_create(const struct c2_node_id *nid,
 
 /**
  find connection to specified node.
- function is scan list of connections to find logical connection associated
- with that nid
+ Scans the list of connections to find a logical connection associated with
+ a given nid.
 
  @param nid unique node identifier
  @param prgid program identifier, some unique identifier to identify service group.
