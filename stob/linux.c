@@ -67,127 +67,7 @@ static struct c2_stob_domain_linux * domain2linux(struct c2_stob_domain *dom)
 	return container_of(dom, struct c2_stob_domain_linux, sdl_base);
 }
 
-static void linux_stob_io_fini(struct linux_stob_io *lio)
-{
-	c2_free(lio->si_qev);
-	lio->si_qev = NULL;
-}
-
-/**
-   Launch asynchronous IO.
-
-   @li calculate how many fragments IO operation has;
-
-   @li allocate ioq_qev array and fill it with fragments;
-
-   @li queue all fragments and submit as many as possible;
- */
-static int linux_stob_io_launch(struct c2_stob_io *io)
-{
-	struct c2_stob_linux *lstob  = stob2linux(io->si_obj);
-	struct linux_stob_io *lio    = io->si_stob_private;
-	struct c2_vec_cursor  src;
-	struct c2_vec_cursor  dst;
-	uint32_t              frags;
-	c2_bcount_t           frag_size;
-	int                   result = 0;
-	int                   i;
-	bool                  eosrc;
-	bool                  eodst;
-
-	C2_PRE(io->si_obj->so_type == &linux_stob_type);
-
-	/* prefix fragments execution mode is not yet supported */
-	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
-
-	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
-
-	frags = 0;
-	do {
-		frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
-				  c2_vec_cursor_step(&dst));
-		C2_ASSERT(frag_size > 0);
-		frags++;
-		eosrc = c2_vec_cursor_move(&src, frag_size);
-		eodst = c2_vec_cursor_move(&dst, frag_size);
-		C2_ASSERT(eosrc == eodst);
-	} while (!eosrc);
-
-	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
-
-	lio->si_nr = frags;
-	c2_atomic64_set(&lio->si_done, 0);
-	C2_ALLOC_ARR(lio->si_qev, frags);
-
-	if (lio->si_qev != NULL) {
-		for (i = 0; i < frags; ++i) {
-			void        *buf;
-			c2_bindex_t  off;
-			struct iocb *iocb;
-
-			frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
-					  c2_vec_cursor_step(&dst));
-			if (frag_size > (size_t)~0ULL) {
-				result = -EOVERFLOW;
-				break;
-			}
-
-			buf = io->si_user.div_vec.ov_buf[src.vc_seg] + 
-				src.vc_offset;
-			off = io->si_stob.ov_index[dst.vc_seg] + dst.vc_offset;
-
-			iocb = &lio->si_qev[i].iq_iocb;
-			memset(iocb, 0, sizeof *iocb);
-
-			iocb->aio_fildes = lstob->sl_fd;
-			iocb->u.c.buf    = buf;
-			iocb->u.c.nbytes = frag_size;
-			iocb->u.c.offset = off;
-
-			switch (io->si_opcode) {
-			case SIO_READ:
-				iocb->aio_lio_opcode = IO_CMD_PREAD;
-				break;
-			case SIO_WRITE:
-				iocb->aio_lio_opcode = IO_CMD_PWRITE;
-				break;
-			default:
-				C2_ASSERT(0);
-			}
-
-			c2_vec_cursor_move(&src, frag_size);
-			c2_vec_cursor_move(&dst, frag_size);
-			lio->si_qev[i].iq_io = io;
-		}
-		if (result == 0) {
-			ioq_queue_lock();
-			for (i = 0; i < frags; ++i)
-				ioq_queue_put(&lio->si_qev[i]);
-			ioq_queue_unlock();
-			ioq_queue_submit();
-		}
-	} else
-		result = -ENOMEM;
-
-	if (result != 0)
-		linux_stob_io_fini(lio);
-	return result;
-}
-
-static void linux_stob_io_cancel(struct c2_stob_io *io)
-{
-}
-
-static const struct c2_stob_io_op linux_stob_io_op = {
-	.sio_launch  = linux_stob_io_launch,
-	.sio_cancel  = linux_stob_io_cancel
-};
-
-static void
-db_err(DB_ENV *dbenv, int rc, const char *msg)
+static void db_err(DB_ENV *dbenv, int rc, const char *msg)
 {
 	dbenv->err(dbenv, rc, msg);
 	printf("%s: %s", msg, db_strerror(rc));
@@ -572,6 +452,8 @@ struct c2_stob_domain_linux sdl = {
 	.sdl_path = "./",
 };
 
+static const struct c2_stob_io_op linux_stob_io_op;
+
 static int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
@@ -579,6 +461,126 @@ static int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 	io->si_op = &linux_stob_io_op;
 	return 0;
 }
+
+static void linux_stob_io_fini(struct linux_stob_io *lio)
+{
+	c2_free(lio->si_qev);
+	lio->si_qev = NULL;
+}
+
+/**
+   Launch asynchronous IO.
+
+   @li calculate how many fragments IO operation has;
+
+   @li allocate ioq_qev array and fill it with fragments;
+
+   @li queue all fragments and submit as many as possible;
+ */
+static int linux_stob_io_launch(struct c2_stob_io *io)
+{
+	struct c2_stob_linux *lstob  = stob2linux(io->si_obj);
+	struct linux_stob_io *lio    = io->si_stob_private;
+	struct c2_vec_cursor  src;
+	struct c2_vec_cursor  dst;
+	uint32_t              frags;
+	c2_bcount_t           frag_size;
+	int                   result = 0;
+	int                   i;
+	bool                  eosrc;
+	bool                  eodst;
+
+	C2_PRE(io->si_obj->so_type == &linux_stob_type);
+
+	/* prefix fragments execution mode is not yet supported */
+	C2_ASSERT((io->si_flags & SIF_PREFIX) == 0);
+	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
+
+	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
+	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
+
+	frags = 0;
+	do {
+		frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
+				  c2_vec_cursor_step(&dst));
+		C2_ASSERT(frag_size > 0);
+		frags++;
+		eosrc = c2_vec_cursor_move(&src, frag_size);
+		eodst = c2_vec_cursor_move(&dst, frag_size);
+		C2_ASSERT(eosrc == eodst);
+	} while (!eosrc);
+
+	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
+	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
+
+	lio->si_nr = frags;
+	c2_atomic64_set(&lio->si_done, 0);
+	C2_ALLOC_ARR(lio->si_qev, frags);
+
+	if (lio->si_qev != NULL) {
+		for (i = 0; i < frags; ++i) {
+			void        *buf;
+			c2_bindex_t  off;
+			struct iocb *iocb;
+
+			frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
+					  c2_vec_cursor_step(&dst));
+			if (frag_size > (size_t)~0ULL) {
+				result = -EOVERFLOW;
+				break;
+			}
+
+			buf = io->si_user.div_vec.ov_buf[src.vc_seg] + 
+				src.vc_offset;
+			off = io->si_stob.ov_index[dst.vc_seg] + dst.vc_offset;
+
+			iocb = &lio->si_qev[i].iq_iocb;
+			memset(iocb, 0, sizeof *iocb);
+
+			iocb->aio_fildes = lstob->sl_fd;
+			iocb->u.c.buf    = buf;
+			iocb->u.c.nbytes = frag_size;
+			iocb->u.c.offset = off;
+
+			switch (io->si_opcode) {
+			case SIO_READ:
+				iocb->aio_lio_opcode = IO_CMD_PREAD;
+				break;
+			case SIO_WRITE:
+				iocb->aio_lio_opcode = IO_CMD_PWRITE;
+				break;
+			default:
+				C2_ASSERT(0);
+			}
+
+			c2_vec_cursor_move(&src, frag_size);
+			c2_vec_cursor_move(&dst, frag_size);
+			lio->si_qev[i].iq_io = io;
+		}
+		if (result == 0) {
+			ioq_queue_lock();
+			for (i = 0; i < frags; ++i)
+				ioq_queue_put(&lio->si_qev[i]);
+			ioq_queue_unlock();
+			ioq_queue_submit();
+		}
+	} else
+		result = -ENOMEM;
+
+	if (result != 0)
+		linux_stob_io_fini(lio);
+	return result;
+}
+
+static void linux_stob_io_cancel(struct c2_stob_io *io)
+{
+}
+
+static const struct c2_stob_io_op linux_stob_io_op = {
+	.sio_launch  = linux_stob_io_launch,
+	.sio_cancel  = linux_stob_io_cancel
+};
+
 
 /**
    An implementation of c2_stob_op::sop_lock() method.
