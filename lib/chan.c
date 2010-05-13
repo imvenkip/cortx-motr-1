@@ -11,19 +11,49 @@
    @{
  */
 
+static bool c2_chan_invariant_locked(struct c2_chan *chan)
+{
+	struct c2_clink *scan;
+
+	if (chan->ch_waiters != c2_list_length(&chan->ch_links))
+		return false;
+
+	c2_list_for_each_entry(&chan->ch_links, scan, 
+			       struct c2_clink, cl_linkage) {
+		if (scan->cl_chan != chan)
+			return false;
+	}
+	return true;
+}
+
+static bool c2_chan_invariant(struct c2_chan *chan)
+{
+	bool holds;
+
+	c2_mutex_lock(&chan->ch_guard);
+	holds = c2_chan_invariant_locked(chan);
+	c2_mutex_unlock(&chan->ch_guard);
+	return holds;
+}
 
 void c2_chan_init(struct c2_chan *chan)
 {
 	c2_list_init(&chan->ch_links);
 	c2_mutex_init(&chan->ch_guard);
 	chan->ch_waiters = 0;
+	C2_ASSERT(c2_chan_invariant(chan));
 }
 
 void c2_chan_fini(struct c2_chan *chan)
 {
+	C2_ASSERT(c2_chan_invariant(chan));
 	C2_ASSERT(chan->ch_waiters == 0);
 
 	c2_mutex_lock(&chan->ch_guard);
+	/*
+	 * This seemingly useless lock-unlock pair is to synchronize with
+	 * c2_chan_{signal,broadcast}() that might be still using chan.
+	 */
 	c2_mutex_unlock(&chan->ch_guard);
 
 	c2_mutex_fini(&chan->ch_guard);
@@ -36,6 +66,7 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 	C2_ASSERT(c2_mutex_is_not_locked(&chan->ch_guard));
 
 	c2_mutex_lock(&chan->ch_guard);
+	C2_ASSERT(c2_chan_invariant_locked(chan));
 	if (!c2_list_is_empty(&chan->ch_links)) {
 		clink = container_of(chan->ch_links.first, struct c2_clink,
 				     cl_linkage);
@@ -44,6 +75,7 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 	} else
 		clink = NULL;
 	C2_ASSERT((chan->ch_waiters > 0) == (clink != NULL));
+	C2_ASSERT(c2_chan_invariant_locked(chan));
 	c2_mutex_unlock(&chan->ch_guard);
 	return clink;
 }
@@ -67,6 +99,7 @@ static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
 {
 	uint32_t i;
 
+	C2_ASSERT(c2_chan_invariant(chan));
 	for (i = 0; i < nr; ++i) {
 		struct c2_clink *clink;
 
@@ -76,6 +109,7 @@ static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
 		else
 			break;
 	}
+	C2_ASSERT(c2_chan_invariant(chan));
 }
 
 void c2_chan_signal(struct c2_chan *chan)
@@ -90,6 +124,7 @@ void c2_chan_broadcast(struct c2_chan *chan)
 
 bool c2_chan_has_waiters(struct c2_chan *chan)
 {
+	C2_ASSERT(c2_chan_invariant(chan));
 	return chan->ch_waiters > 0;
 }
 
@@ -129,10 +164,12 @@ void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
 
 	link->cl_chan = chan;
 	clink_lock(link);
+	C2_ASSERT(c2_chan_invariant_locked(chan));
 	chan->ch_waiters++;
 	c2_list_add_tail(&chan->ch_links, &link->cl_linkage);
 	rc = sem_init(&link->cl_wait, 0, 0);
 	C2_ASSERT(rc == 0);
+	C2_ASSERT(c2_chan_invariant_locked(chan));
 	clink_unlock(link);
 
 	C2_POST(c2_clink_is_armed(link));
@@ -145,17 +182,22 @@ void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
 void c2_clink_del(struct c2_clink *link)
 {
 	int rc;
+	struct c2_chan *chan;
 
 	C2_PRE(c2_clink_is_armed(link));
 
 	clink_lock(link);
-	C2_ASSERT(link->cl_chan->ch_waiters > 0);
-	link->cl_chan->ch_waiters--;
+	chan = link->cl_chan;
+	C2_ASSERT(c2_chan_invariant_locked(chan));
+	C2_ASSERT(chan->ch_waiters > 0);
+	chan->ch_waiters--;
 	c2_list_del_init(&link->cl_linkage);
+	C2_ASSERT(c2_chan_invariant_locked(chan));
+	clink_unlock(link);
+
+	link->cl_chan = NULL;
 	rc = sem_destroy(&link->cl_wait);
 	C2_ASSERT(rc == 0);
-	clink_unlock(link);
-	link->cl_chan = NULL;
 
 	C2_POST(!c2_clink_is_armed(link));
 }
@@ -170,8 +212,10 @@ bool c2_chan_trywait(struct c2_clink *link)
 	int rc;
 
 	C2_ASSERT(link->cl_cb == NULL);
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	rc = sem_trywait(&link->cl_wait);
 	C2_ASSERT(rc == 0 || (rc == -1 && errno == EAGAIN));
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	return rc == 0;
 }
 
@@ -179,9 +223,11 @@ void c2_chan_wait(struct c2_clink *link)
 {
 	int rc;
 
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	C2_ASSERT(link->cl_cb == NULL);
 	rc = sem_wait(&link->cl_wait);
 	C2_ASSERT(rc == 0);
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
 
 /** @} end of chan group */
