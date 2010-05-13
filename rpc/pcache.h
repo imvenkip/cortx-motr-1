@@ -2,7 +2,10 @@
 
 #define __COLIBRI_RPC_PCACHE_H__
 
+#include "lib/cdefs.h"
+
 #include "lib/cache.h"
+#include "net/net_types.h"
 
 /**
  @page rpc-pcache persistent cache definitions
@@ -129,6 +132,7 @@ void c2_pcache_fini(struct c2_rpc_server *srv);
 /**
  This function is used by server process to store the reply of FOP @reqid
  into persistence cache table.
+ If reply with same key exist, it will overwrited.
 
  @param cache is the cache to store reply contents
  @param db_txn is the transaction which is used to execute the FOP
@@ -140,8 +144,13 @@ void c2_pcache_fini(struct c2_rpc_server *srv);
  @retval -EEXIST     There've already been a reply in the database
  @retval < 0         error occurs
  */
+static inline
 int c2_pcache_insert(struct c2_cache *cache, DB_TXN *db_txn,
-		     struct c2_rcid *reqid, void *reply)
+		     struct c2_rcid *reqid, c2_cache_encode_t enc,
+		     void *reply, size_t size)
+{
+	return c2_cache_insert(cache, db_txn, reqid, enc, reply, size);
+}
 
 /**
  This function is used to delete a record from the database.
@@ -154,24 +163,13 @@ int c2_pcache_insert(struct c2_cache *cache, DB_TXN *db_txn,
  @retval -ENOENT    no such key exists in the database
  @reval < 0 error   other error
 */
-int c2_pcache_delete(struct c2_cache *cache, DB_TXN *db_txn,
-		     struct c2_rcid *reqid);
-
-/*
- c2_pcache_replace is just a simple combination of pcache_insert and
- pcache_delete.
- This interface is useful when a new request comes meaning the recept of
- previous request.
-
- @see c2_pcache_insert for the interpretation of parameters.
-*/
 static inline
-int c2_pcache_replace(struct c2_cache *cache, DB_TXN *db_txn,
-		      struct c2_rcid *reqid, void *reply)
+int c2_pcache_delete(struct c2_cache *cache, DB_TXN *db_txn,
+		     struct c2_rcid *reqid)
 {
-	(void)c2_pcache_delete(cache, db_txn, reqid);
-	c2_pcache_insert(cache, db_txn, reqid, reply);
+	return c2_cache_delete(cache, db_txn, reqid);
 }
+
 
 /*
  c2_pcache_search: check if there exists a persistent reply cache in the database.
@@ -187,9 +185,11 @@ int c2_pcache_replace(struct c2_cache *cache, DB_TXN *db_txn,
  @retval -ENOSRC  no such entry in database
  @retval < 0      error occurs.
  */
+static inline
 int c2_pcache_search(struct c2_cache *cache, struct c2_rcid *reqid,
-		     void **reply);
-
-
+		     c2_cache_decode_t dec_fn, void **reply, uint32_t *size)
+{
+	return c2_cache_search(cache, reqid, dec_fn, reply, size);
+}
 #endif
 
