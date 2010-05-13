@@ -10,11 +10,11 @@
  */
 struct c2_list_link {
 	/**
-	 * next in link
+	 * next in the list
 	 */
 	struct c2_list_link *next;
 	/**
-	 * prev in link
+	 * previous in the list
 	 */
 	struct c2_list_link *prev;
 };
@@ -23,8 +23,6 @@ struct c2_list_link {
  initialize list link entry
 
  @param link - pointer to link enty
-
- @return NONE
 */
 void c2_list_link_init(struct c2_list_link *link);
 
@@ -32,8 +30,6 @@ void c2_list_link_init(struct c2_list_link *link);
  free resources associated with link entry
 
  @param link - pointer to link enty
-
- @return NONE
 */
 void c2_list_link_fini(struct c2_list_link *link);
 
@@ -78,44 +74,52 @@ bool c2_list_contains(const struct c2_list *list,
 		      const struct c2_list_link *link);
 
 /**
+ This function iterate over the argument list checking that double-linked
+ list invariant holds (x->prev->next == x && x->next->prev == x).
+
+ @return true iff @list don't corrupted
+*/
+bool c2_list_invariant(const struct c2_list *list);
+
+static inline void __c2_list_add(struct c2_list_link *next,
+				 struct c2_list_link *prev,
+			         struct c2_list_link *new)
+{
+	new->next = next;
+	new->prev = prev;
+	
+	next->prev = new;
+	prev->next = new;
+}
+
+/**
  add list to top on the list
 
  @param head pointer to list head
  @param new  pointer to list entry
  */
-static inline void
-c2_list_add(struct c2_list *head, struct c2_list_link *new)
+static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
 {
-	new->next = head->first;
-	new->prev = (struct c2_list_link *)head;
-	
-	head->first = new;
-	new->next->prev = new;
+	__c2_list_add(head->first, (void *)head, new);
 }
 
 /**
- add an entry to tail of the list.
+ add list to tail on the list
 
  @param head pointer to list head
  @param new  pointer to list entry
  */
-static inline void
-c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
+static inline void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
 {
-	new->prev = head->last;
-	new->next = (struct c2_list_link *)head;
-	
-	head->last = new;
-	new->prev->next = new;
+	__c2_list_add((void *)head, head->last, new);
 }
 
 /**
  delete a entry from the list
 
- @param old list link entry 
+ @param old list link entry
  */
-static inline void
-c2_list_del(struct c2_list_link *old)
+static inline void c2_list_del(struct c2_list_link *old)
 {
 	old->prev->next = old->next;
 	old->next->prev = old->prev;
@@ -124,10 +128,9 @@ c2_list_del(struct c2_list_link *old)
 /**
  delete a entry from the list and initialize it
 
- @param old list link entry 
+ @param old list link entry
  */
-static inline void
-c2_list_del_init(struct c2_list_link *old)
+static inline void c2_list_del_init(struct c2_list_link *old)
 {
 	old->prev->next = old->next;
 	old->next->prev = old->prev;
@@ -142,8 +145,7 @@ c2_list_del_init(struct c2_list_link *old)
  *
  * @return pointer to first list entry or NULL if list empty
  */
-static inline struct c2_list_link *
-c2_list_first(const struct c2_list *head)
+static inline struct c2_list_link * c2_list_first(const struct c2_list *head)
 {
 	return head->first != (void *)head ? head->first : NULL ;
 }
@@ -151,9 +153,9 @@ c2_list_first(const struct c2_list *head)
 
 /**
  is link entry connected to the list
- 
+
  @param link - pointer to link entry
- 
+
  @retval true - entry connected to a list
  @retval false - entry disconnected from a list
 */
@@ -176,7 +178,7 @@ bool c2_list_link_is_in(const struct c2_list_link *link);
 
 /**
  Iterate over a list
- 
+
  @param head	the head of list.
  @param pos	the pointer to list_link to use as a loop counter.
  */
