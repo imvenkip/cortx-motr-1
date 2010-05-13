@@ -85,7 +85,8 @@ int c2_cache_search(struct c2_cache *cache, void *key,
 		    void **result, uint32_t *ressize);
 
 /**
- insert key in cache
+ insert key in cache.
+ will return error or make duplicate if key is exist on cache.
 
  @param cache cache object
  @param key key to insert in cache
@@ -94,7 +95,19 @@ int c2_cache_search(struct c2_cache *cache, void *key,
 
 */
 int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn, void *key,
-		    void *data, int size);
+		    c2_cache_encode_t enc_fn, void *data, int size);
+
+/**
+ insert key in cache or replace is existent one.
+
+ @param cache cache object
+ @param key key to insert in cache
+ @param data pointer to supplied data
+ @param size size of data region
+
+*/
+int c2_cache_replace(struct c2_cache *cache, DB_TXN *txn, void *key,
+		     c2_cache_encode_t enc_fn, void *data, int size);
 
 /**
  delete cache from the cache

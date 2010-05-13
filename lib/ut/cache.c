@@ -36,7 +36,7 @@ void test_cache()
 
 	key = 5;
 	data = 100;
-	rc = c2_cache_insert(&test_cache1, NULL, &key, &data, sizeof data);
+	rc = c2_cache_insert(&test_cache1, NULL, &key, test_enc, &data, sizeof data);
 	assert(!rc);
 
 	key = 5;
