@@ -41,7 +41,7 @@ void c2_mutex_unlock(struct c2_mutex *mutex)
 	pthread_t self;
 
 	self = pthread_self();
-	C2_PRE(!pthread_equal(mutex->m_owner, self));
+	C2_PRE(pthread_equal(mutex->m_owner, self));
 	mutex_owner_reset(mutex);
 	pthread_mutex_unlock(&mutex->m_impl);
 }
