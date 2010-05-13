@@ -13,6 +13,8 @@ extern void test_refs(void);
 extern void test_queue(void);
 extern void test_vec(void);
 extern void test_thread(void);
+extern void test_mutex(void);
+extern void test_chan(void);
 
 int main(int argc, char *argv[])
 {
@@ -26,6 +28,8 @@ int main(int argc, char *argv[])
 	test_queue();
 	test_vec();
 	test_thread();
+	test_mutex();
+	test_chan();
 
 	c2_threads_fini();
 

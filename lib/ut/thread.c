@@ -11,17 +11,17 @@ enum {
 	NR = 255
 };
 
-int t0place = 0;
+static int t0place = 0;
 
-void t0(int x)
+static void t0(int x)
 {
 	t0place = x;
 }
 
-struct c2_thread t[NR];
-int r[NR] = { 0, };
+static struct c2_thread t[NR];
+static int r[NR] = { 0, };
 
-void t2(int n)
+static void t2(int n)
 {
 	int result;
 

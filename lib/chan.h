@@ -30,6 +30,18 @@
    @li consumer interface. It consists of c2_clink_add(), c2_clink_del(),
    c2_clink_wait() and c2_clink_trywait() functions.
 
+   When a producer declares an event on a channel, this event is delivered. If
+   event is a broadcast (c2_chan_broadcast()) it is delivered to all clinks
+   registered with the channel. If event is a signal (c2_chan_signal()) it is
+   delivered to a single clink (if any) registered with the channel. Clinks for
+   delivery of consecutive signals are selected in a round-robin manner.
+
+   The method of delivery depends on the clink interface used (c2_clink). If
+   clink has a call-back, the delivery consists in calling this call-back. If a
+   clink has no call-back, the delivered event becomes pending on the
+   clink. Pending events can be consumed by calls to c2_chan_wait() and
+   c2_chan_trywait().
+
    @note An interface similar to c2_chan was a part of historical UNIX kernel
    implementations. It is where "CHAN" field in ps(1) output comes from.
 
@@ -42,6 +54,7 @@
 struct c2_chan {
 	struct c2_mutex ch_guard;
 	struct c2_list  ch_links;
+	uint32_t        ch_waiters;
 };
 
 struct c2_clink;
@@ -93,8 +106,8 @@ void c2_chan_signal(struct c2_chan *chan);
    Notify all clinks currently registered with the channel that a new event
    happened.
 
-   No guarantees about notification for clinks that are added while
-   c2_chan_broadcast() is running.
+   No guarantees about behaviour in the case when clinks are added or removed
+   while c2_chan_broadcast() is running.
 
    If clinks with call-backs (c2_clink::cl_cb) are registered with the channel
    at the time of this call, the call-backs are run to completion as part of
@@ -138,8 +151,8 @@ void c2_clink_del     (struct c2_clink *link);
 bool c2_clink_is_armed(const struct c2_clink *link);
 
 /**
-   Returns when an event that happened after the clink has been registered with
-   the channel happens.
+   Returns when there is an event pending in the clink. The event is consumed
+   before the call returns.
 
    Note that this implies that if an event happened after the clink has been
    registered (by a call to c2_clink_add()) and before call to c2_chan_wait(),
@@ -150,8 +163,8 @@ bool c2_clink_is_armed(const struct c2_clink *link);
 void c2_chan_wait(struct c2_clink *link);
 
 /**
-   True iff an event happened in the stream after the clink has been registered
-   but before the call.
+   True there is an event pending in the clink. When this function returns true,
+   the event is consumed, exactly like if c2_chan_wait() were called instead.
  */
 bool c2_chan_trywait(struct c2_clink *link);
 
