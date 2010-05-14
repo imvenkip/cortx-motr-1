@@ -3,7 +3,7 @@
 #ifndef __COLIBRI_LIB_ASSERT_H__
 #define __COLIBRI_LIB_ASSERT_H__
 
-#include <assert.h>
+#include_next <assert.h>
 
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.

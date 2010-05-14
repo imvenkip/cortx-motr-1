@@ -115,7 +115,7 @@ struct c2_rpc_op_table;
 
 int c2_rpc_op_table_init(struct c2_rpc_op_table **table);
 
-int c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
+void c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
 
 int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
 
@@ -129,7 +129,7 @@ int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op
  @retval NULL if pointer not exist or wrong parameters
  @retval !NULL if operations found in table
  */
-const struct c2_rpc_op *c2_rpc_op_find(const struct c2_rpc_op_table *ops, int op);
+const struct c2_rpc_op *c2_rpc_op_find(struct c2_rpc_op_table *ops, int op);
 
 
 #endif

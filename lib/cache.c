@@ -71,7 +71,7 @@ int c2_cache_search(struct c2_cache *cache, void *key,
 			       &db_value, 0);
 
 	if (db_key.data != key)
-		c2_free(db_key.data, db_key.size);
+		c2_free(db_key.data);
 
 	if (ret)
 		return convert_db_error(ret);
@@ -104,7 +104,7 @@ static int _cache_insert(struct c2_cache *cache, DB_TXN *txn,
 			       &db_key, &db_value, flags);
 out:
 	if (db_key.data != key)
-		c2_free(db_key.data, db_key.size);
+		c2_free(db_key.data);
 
 	return convert_db_error(ret);
 }
@@ -138,7 +138,7 @@ int c2_cache_delete(struct c2_cache *cache, DB_TXN *txn, void *key)
 
 	ret = cache->c_db->del(cache->c_db, txn, &db_key, 0);
 	if (db_key.data != key)
-		c2_free(db_key.data, db_key.size);
+		c2_free(db_key.data);
 
 	return convert_db_error(ret);
 }

@@ -1,6 +1,7 @@
 #include <string.h>
+#include <errno.h>
 
-#include "lib/memory.h
+#include "lib/memory.h"
 #include "lib/cc.h"
 #include "net/net_types.h"
 
@@ -14,11 +15,11 @@ struct c2_rpc_op_table {
 	/**
 	 number of operations in table
 	 */
-	int			rot_numops;
+	int			rot_index;
 	/**
 	 number an allocated entries
 	*/
-	int			rot_numalloc;
+	int			rot_maxindex;
 	/**
 	 protect add vs find
 	 */
@@ -43,36 +44,36 @@ int c2_rpc_op_table_init(struct c2_rpc_op_table **table)
 	return 0;
 }
 
-int c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
+void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
 {
 	c2_rwlock_fini(&table->rot_ops_lock);
 
 	c2_free(table);
 }
 
-int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
+int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op)
 {
 	void *old;
 	int rc = 0;
 
 	c2_rwlock_write_lock(&table->rot_ops_lock);
-	if (rot_numops == table->rot_numalloc) { 
-		table->rot_numalloc *= 2;
+	if (table->rot_index == table->rot_maxindex) { 
 		old = table->rot_ops;
-		C2_ALLOC_ARR(table->rot_ops, table->rot_nummalloc);
+		C2_ALLOC_ARR(table->rot_ops, table->rot_maxindex + 8);
 		if (table->rot_ops == NULL) {
 			table->rot_ops = old;
 			rc = -ENOMEM;
 			goto out;
 		}
+		table->rot_maxindex += 8;
 	}
-	table->rot_ops[table->rot_maxindex ++] = *op;
+	table->rot_ops[table->rot_index ++] = *op;
 out:
 	c2_rwlock_write_unlock(&table->rot_ops_lock);
 	return rc;
 }
 
-struct c2_rpc_op const *c2_find_op(const struct c2_rpc_op_table *rop, int op)
+struct c2_rpc_op const *c2_find_op(struct c2_rpc_op_table *rop, int op)
 {
 	int i;
 
@@ -80,11 +81,12 @@ struct c2_rpc_op const *c2_find_op(const struct c2_rpc_op_table *rop, int op)
 		return NULL;
 
 	c2_rwlock_read_lock(&rop->rot_ops_lock);
-	for(i = 0; i <= rop->rot_maxindex; i++)
+	for(i = 0; i <= rop->rot_maxindex; i++) {
 		if (rop->rot_ops[i].ro_op == op) {
 			c2_rwlock_read_unlock(&rop->rot_ops_lock);
 			return &rop->rot_ops[i];
 		}
+	}
 	c2_rwlock_read_unlock(&rop->rot_ops_lock);
 
 	return NULL;

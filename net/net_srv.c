@@ -26,7 +26,7 @@ void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp)
 	void *arg;
 	void *ret;
 
-	op = c2_find_op(ops, req->rq_proc);
+	op = c2_rpc_op_find(ops, req->rq_proc);
 	if (op == NULL) {
 		svcerr_noproc(transp);
 		return;
@@ -64,9 +64,9 @@ void c2_net_srv_fn_generic(struct svc_req *req, SVCXPRT *transp)
 	}
 
 	xdr_free ((xdrproc_t) op->ro_xdr_result, (caddr_t) ret);
-	c2_free(ret, op->ro_result_size);
+	c2_free(ret);
 out:
-	c2_free(arg, op->ro_arg_size);
+	c2_free(arg);
 }
 
 int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *o,
