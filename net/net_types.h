@@ -111,16 +111,13 @@ struct c2_rpc_op {
 #define C2_RPC_SRV_PROC(name)	((c2_rpc_srv_handler)(name))
 #endif
 
-struct c2_rpc_op_table {
-	/**
-	 number of operations in table
-	 */
-	int	rot_numops;
-	/**
-	 array of rpc operations
-	 */
-	struct c2_rpc_op	*rot_ops;
-};
+struct c2_rpc_op_table;
+
+int c2_rpc_op_table_init(struct c2_rpc_op_table **table);
+
+int c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
+
+int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
 
 /**
  find operation in table. function scanned table with operation to find
@@ -132,7 +129,7 @@ struct c2_rpc_op_table {
  @retval NULL if pointer not exist or wrong parameters
  @retval !NULL if operations found in table
  */
-const struct c2_rpc_op *c2_find_op(const struct c2_rpc_op_table *ops, int op);
+const struct c2_rpc_op *c2_rpc_op_find(const struct c2_rpc_op_table *ops, int op);
 
 
 #endif

@@ -23,6 +23,9 @@
 #define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
 #endif
 
+#define ergo(a, b) (!(a) || (b))
+#define equi(a, b) (!(a) == !(b))
+
 #include <limits.h>
 
 #if LONG_MAX == 9223372036854775807L

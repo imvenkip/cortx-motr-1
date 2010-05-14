@@ -11,5 +11,4 @@ int libc2_init()
 
 void libc2_fini()
 {
-	return;
 }
