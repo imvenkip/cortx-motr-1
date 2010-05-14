@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 	struct c2_net_conn *conn2;
 	struct c2_node_id  node_arg = { .uuid = {0} };
 	struct c2_node_id  node_ret = { .uuid = {0} };
-	struct c2_rpc_op_table *ops
+	struct c2_rpc_op_table *ops;
 	struct c2_service s;
 
 	rc = net_init();
@@ -65,12 +65,12 @@ int main(int argc, char *argv[])
 	c2_rpc_op_table_init(&ops);
 	CU_ASSERT(ops == NULL);
 
-	rc = c2_rpc_op_table(&ops, test_rpc1);
+	rc = c2_rpc_op_register(ops, &test_rpc1);
 
 	rc = c2_net_service_start(C2_SESSION_PROGRAM, ops, &s);
 	CU_ASSERT(rc < 0);
 
-	rc = c2_rpc_op_table(&ops, test_rpc2);
+	rc = c2_rpc_op_register(ops, &test_rpc2);
 	rc = c2_net_service_start(C2_SESSION_PROGRAM+1, ops, &s);
 	CU_ASSERT(rc < 0);
 

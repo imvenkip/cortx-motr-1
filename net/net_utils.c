@@ -73,7 +73,7 @@ out:
 	return rc;
 }
 
-struct c2_rpc_op const *c2_find_op(struct c2_rpc_op_table *rop, int op)
+struct c2_rpc_op const *c2_rpc_op_find(struct c2_rpc_op_table *rop, int op)
 {
 	int i;
 
