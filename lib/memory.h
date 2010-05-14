@@ -18,10 +18,13 @@
  */
 void *c2_alloc(size_t size);
 
-#define C2_ALLOC_PTR(ptr)  ((ptr) = c2_alloc(sizeof *(ptr)))
+#define C2_ALLOC_ARR(arr, nr)  ((arr) = c2_alloc((nr) * sizeof ((arr)[0])))
+#define C2_ALLOC_PTR(ptr)      C2_ALLOC_ARR(ptr, 1)
 
 /**
  * freed memory block
+ *
+ * This function must be a no-op when called with NULL argument.
  *
  * @param data pointer to allocated block
  *
