@@ -3,6 +3,9 @@
 
 #define __COLIBRI_NET_TYPES_H__
 
+#include <pthread.h>
+#include <rpc/rpc.h>
+
 #include "lib/cdefs.h"
 
 /**
@@ -26,19 +29,25 @@ struct c2_node_id {
 */
 bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
 
-
-/**
- structure to desctribe running service
- */
-struct c2_service {
-	int s_child;
-};
-
 /**
  services unique identifier
  */
 enum c2_rpc_service_id {
 	C2_SESSION_PROGRAM = 0x20000001
+};
+
+struct c2_service_thread_data {
+	enum c2_rpc_service_id std_progid;
+	pthread_t              std_handle;
+	SVCXPRT               *std_transp;
+};
+
+/**
+ structure to desctribe running service
+ */
+struct c2_service {
+	int 			       s_number_of_threads;
+	struct c2_service_thread_data *s_thread_data_array;
 };
 
 /**

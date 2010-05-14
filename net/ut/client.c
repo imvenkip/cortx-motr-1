@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	rc = net_init();
 	CU_ASSERT(rc);
 
-	rc = c2_net_service_start(C2_SESSION_PROGRAM, &ops, &s);
+	rc = c2_net_service_start(C2_SESSION_PROGRAM, 1, &ops, &s);
 	CU_ASSERT(rc < 0);
 	
 

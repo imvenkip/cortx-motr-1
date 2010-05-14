@@ -139,15 +139,20 @@ int c2_net_cli_call_async(const struct c2_net_conn *conn,
  */
 
 /**
- initialize network service and attach incoming messages handler
+ initialize network service and setup incoming messages handler
 
- typical use is define custom handler and call svc_generic function with custom
- array of operations.
+ This function creates a number of service threads, installs request handlers,
+ record the thread infomation for all services.
 
  @param id service identifier
+ @param num_of_threads number of the services to be created
+ @param ops rpc operations table
+ @param service data structure to contain all service threads info
 
  */
-int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *ops,
+int c2_net_service_start(enum c2_rpc_service_id prog_id,
+			 int num_of_threads,
+			 struct c2_rpc_op_table *ops,
 			 struct c2_service *service);
 
 int c2_net_service_stop(struct c2_service *service);
