@@ -11,24 +11,6 @@
 */
 
 /**
- RPC commands supported by session rpc program.
- */
-enum c2_session_cmd {
-	/**
-	 Create new session on server
-	 */
-	C2_SESSION_CREATE = 1,
-	/**
-	 Destroy session on server
-	 */
-	C2_SESSION_DESTROY,
-	/**
-	 send compound request over session
-	 */
-	C2_SESSION_COMPOUND
-};
-
-/**
  C2_SESSION_CREATE command
  */
 

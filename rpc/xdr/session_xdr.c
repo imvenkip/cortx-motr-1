@@ -1,45 +1,39 @@
 #include "lib/cdefs.h"
-#include "session_rpc.h"
 
-bool_t
-xdr_c2_session_cmd (XDR *xdrs, c2_session_cmd *objp)
+#include <rpc/types.h>
+#include <rpc/xdr.h>
+
+#include "net/xdr.h"
+#include "rpc/xdr/session_xdr.h"
+
+bool xdr_session_id(void *x, struct c2_session_id *objp)
 {
+	XDR *xdrs = x;
 	register int32_t *buf;
 
-	 if (!xdr_enum (xdrs, (enum_t *) objp))
-		 return FALSE;
-	return TRUE;
+	return xdr_u_int64_t(xdrs, &objp->id))
 }
 
-bool_t
-xdr_session_id (XDR *xdrs, session_id *objp)
+bool xdr_session_create_arg(void *x, struct c2_session_create_arg *objp)
 {
+	XDR *xdrs = x;
 	register int32_t *buf;
 
-	 if (!xdr_uint64_t (xdrs, &objp->id))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
-xdr_session_create_arg (XDR *xdrs, session_create_arg *objp)
-{
-	register int32_t *buf;
-
-	 if (!xdr_client_id (xdrs, &objp->sca_client))
-		 return FALSE;
+	 if (!c2_xdr_node_id (xdrs, &objp->sca_client))
+		 return false;
 	 if (!xdr_client_id (xdrs, &objp->sca_server))
-		 return FALSE;
+		 return false;
 	 if (!xdr_uint32_t (xdrs, &objp->sca_high_slot_id))
-		 return FALSE;
+		 return false;
 	 if (!xdr_uint32_t (xdrs, &objp->cca_max_rpc_size))
-		 return FALSE;
-	return TRUE;
+		 return false;
+	return true;
 }
 
 bool_t
 xdr_session_create_out (XDR *xdrs, session_create_out *objp)
 {
+	XDR *xdrs = x;
 	register int32_t *buf;
 
 	 if (!xdr_session_id (xdrs, &objp->sco_session_id))

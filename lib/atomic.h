@@ -3,15 +3,18 @@
 #define __COLIBRI_LIB_ATOMIC_H__
 
 #include "lib/cdefs.h"
+#include "lib/assert.h"
 
 /**
  atomic counter
  */
-struct atomic {
-	long value;
+struct c2_atomic64 {
+	long a_value;
 };
-typedef struct atomic atomic_t;
 
+#define C2_ATOMIC64_INIT(val) { \
+        .a_value = (val)        \
+}
 
 /**
  set value to atomic counter
@@ -21,10 +24,19 @@ typedef struct atomic atomic_t;
 
  @return none
  */
-static inline
-void c2_atomic_set(atomic_t *a, int num)
+static inline void c2_atomic64_set(struct c2_atomic64 *a, int64_t num)
 {
-	a->value = num;
+	C2_CASSERT(sizeof a->a_value == sizeof num);
+
+	a->a_value = num;
+}
+
+/**
+   Returns value of an atomic counter.
+ */
+static inline int64_t c2_atomic64_get(const struct c2_atomic64 *a)
+{
+	return a->a_value;
 }
 
 /**
@@ -34,10 +46,9 @@ void c2_atomic_set(atomic_t *a, int num)
 
  @return none
  */
-static inline
-void c2_atomic_inc(atomic_t *a)
+static inline void c2_atomic64_inc(struct c2_atomic64 *a)
 {
-	a->value ++;
+	a->a_value ++;
 }
 
 /**
@@ -47,10 +58,9 @@ void c2_atomic_inc(atomic_t *a)
 
  @return new value of atomic counter
  */
-static inline
-long c2_atomic_inc_and_test(atomic_t *a)
+static inline int64_t c2_atomic64_inc_and_test(struct c2_atomic64 *a)
 {
-	return a->value += 1;
+	return a->a_value += 1;
 }
 
 /**
@@ -60,10 +70,25 @@ long c2_atomic_inc_and_test(atomic_t *a)
 
  @return none
  */
-static inline
-void c2_atomic_dec(atomic_t *a)
+static inline void c2_atomic64_dec(struct c2_atomic64 *a)
 {
-	a->value --;
+	a->a_value --;
+}
+
+/**
+   Atomically adds given amount to a counter
+ */
+static inline void c2_atomic64_add(struct c2_atomic64 *a, int64_t num)
+{
+	a->a_value += num;
+}
+
+/**
+   Atomically subtracts given amount from a counter
+ */
+static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
+{
+	a->a_value -= num;
 }
 
 
@@ -74,12 +99,12 @@ void c2_atomic_dec(atomic_t *a)
 
  @return new value of atomic counter
  */
-static inline
-long c2_atomic_dec_and_test(atomic_t *a)
+static inline int64_t c2_atomic64_dec_and_test(struct c2_atomic64 *a)
 {
-	return a->value -= 1;
+	return a->a_value -= 1;
 }
 
+/* __COLIBRI_LIB_ATOMIC_H__ */
 #endif
 /* 
  *  Local variables:

@@ -1,6 +1,6 @@
 #include <errno.h>
-#include <stdlib.h> /* free - we can't use c2_free to avoid confusing mem accounting */
 #include <string.h>
+#include <stdlib.h>
 
 #include "lib/memory.h"
 #include "lib/cache.h"
@@ -82,9 +82,9 @@ int c2_cache_search(struct c2_cache *cache, void *key,
 	return ret;
 }
 
-int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn,
-		    void *key,
-		    void *data, int size)
+static int _cache_insert(struct c2_cache *cache, DB_TXN *txn,
+			 void *key, c2_cache_encode_t enc_fn,
+			 void *data, int size, int32_t flags)
 {
 	DBT db_key;
 	DBT db_value;
@@ -95,17 +95,35 @@ int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn,
 	if (ret < 0)
 		return ret;
 
-	memset(&db_value, 0, sizeof(db_value));
-	db_value.data = data;
-	db_value.size = size;
-	ret = cache->c_db->put(cache->c_db, txn,
-			       &db_key, &db_value, 0);
+	memset(&db_value, 0, sizeof(db_value));	
+	ret = enc_fn(data, &db_value.data, &db_value.size);
+	if (ret < 0)
+		goto out;	
 
+	ret = cache->c_db->put(cache->c_db, txn,
+			       &db_key, &db_value, flags);
+out:
 	if (db_key.data != key)
 		c2_free(db_key.data, db_key.size);
 
 	return convert_db_error(ret);
 }
+
+int c2_cache_insert(struct c2_cache *cache, DB_TXN *txn,
+		    void *key, c2_cache_encode_t enc_fn,
+		    void *data, int size)
+{
+	return _cache_insert(cache, txn, key, enc_fn, data, size,
+			     DB_NOOVERWRITE);
+}
+
+int c2_cache_replace(struct c2_cache *cache, DB_TXN *txn,
+		     void *key, c2_cache_encode_t enc_fn,
+		     void *data, int size)
+{
+	return _cache_insert(cache, txn, key, enc_fn, data, size, 0);
+}
+
 
 int c2_cache_delete(struct c2_cache *cache, DB_TXN *txn, void *key)
 {

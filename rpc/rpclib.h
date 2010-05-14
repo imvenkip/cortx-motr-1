@@ -45,7 +45,7 @@ struct c2_rpc_client {
 	/**
 	 protect concurrency access to session list
 	 */
-	struct c2_rw_lock	rc_sessions_lock;
+	struct c2_rwlock	rc_sessions_lock;
 	/**
 	 sessions list
 	 */
