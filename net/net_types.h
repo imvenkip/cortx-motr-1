@@ -111,12 +111,24 @@ struct c2_rpc_op {
 #define C2_RPC_SRV_PROC(name)	((c2_rpc_srv_handler)(name))
 #endif
 
+/**
+ structre to hold an array of operations to handle in the service
+ */
 struct c2_rpc_op_table;
 
+/**
+ allocate new table and fill with initial values
+ */
 int c2_rpc_op_table_init(struct c2_rpc_op_table **table);
 
+/**
+ free allocated resources
+ */
 void c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
 
+/**
+ register one rpc operation in the table
+ */
 int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
 
 /**
