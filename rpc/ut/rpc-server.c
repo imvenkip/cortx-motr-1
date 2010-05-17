@@ -1,5 +1,4 @@
-#include "rpc/net.h"
-#include "rpc/net_types.h"
+#include "net/net.h"
 
 #include "rpc/rpclib.h"
 #include "rpc/pcache.h
@@ -7,7 +6,7 @@
 
 int main(void)
 {
-	const c2_service_id srv_id = { .uuid = "srv-1"; }
+	const struct c2_service_id srv_id = { .uuid = "srv-1"; }
 	struct c2_rpc_server *srv;
 
 	srv = c2_server_create(&srv_id, "/tmp");

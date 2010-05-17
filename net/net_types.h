@@ -4,35 +4,97 @@
 #define __COLIBRI_NET_TYPES_H__
 
 #include "lib/cdefs.h"
+#include "lib/c2list.h"
+#include "lib/refs.h"
 
-/**
- unique service identifier.
- each service have own identifiers.
- if different services run on single physical node,
- she must have different c2_service_id value.
- */
-struct c2_service_id {
-	char uuid[40];
+struct c2_net_xprt;
+struct c2_net_xprt_ops;
+struct c2_net_domain;
+struct c2_service_id;
+struct c2_service_id_ops;
+struct c2_net_conn;
+struct c2_net_conn_ops;
+struct c2_service;
+struct c2_service_ops;
+
+/** network transport (e.g., lnet or sunrpc) */
+struct c2_net_xprt {
+	const char                   *nx_name;
+	const struct c2_net_xprt_ops *nx_ops;
+};
+
+struct c2_net_xprt_ops {
+	int  (*xo_dom_init)(struct c2_net_xprt *xprt, 
+			    struct c2_net_domain *dom);
+	void (*xo_dom_fini)(struct c2_net_domain *dom);
 };
 
 /**
- compare node identifiers
+   Collection of network resources.
 
- @param c1 first node identifier
- @param c2 second node identifier
+   @todo for now assume that a domain is associated with single transport. In
+   the future domains with connections and services over different transports
+   will be supported.
+ */
+struct c2_net_domain {
+	struct c2_rwlock    nd_lock;
+	/** List of connections in this domain. */
+	struct c2_list      nd_conn;
+	/** List of services running in this domain. */
+	struct c2_list      nd_service;
+	/** Transport private domain data. */
+	void               *nd_xprt_private;
+	struct c2_net_xprt *nd_xprt;
+};
 
- @retval TRUE if node identifiers is same
- @retval FALSE if node identifiers is different
-*/
+enum {
+	C2_SERVICE_UUID_SIZE = 40
+};
+
+/**
+   Unique service identifier.
+
+   Each service has its own identifier. Different services running on
+   the same node have different identifiers.
+
+   An identifier contains enough information to locate a service in
+   the cluster and to connect to it.
+ */
+struct c2_service_id {
+	/** generic identifier */
+	char                            si_uuid[C2_SERVICE_UUID_SIZE];
+	/** a domain this service is addressed from */
+	struct c2_net_domain           *si_domain;
+	/** pointer to transport private service identifier */
+	void                           *si_xport_private;
+	const struct c2_service_id_ops *si_ops;
+};
+
+struct c2_service_id_ops {
+	void (*sis_fini)(struct c2_service_id *id);
+	int  (*sis_conn_init)(struct c2_service_id *id, struct c2_net_conn *c);
+};
+
+/**
+   Compare node identifiers for equality.
+ */
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2);
 
 
 /**
- structure to desctribe running service
+   Running service instance.
+
+   This structure describes an instance of a service running locally.
  */
 struct c2_service {
-	int s_child;
+	/** a domain this service is running at */
+	struct c2_net_domain           *s_domain;
+	/** linkage in the list of all services running in the domain */
+	struct c2_list                  s_linkage;
+	/** pointer to transport private service data */
+	void                           *s_xport_private;
+	const struct c2_service_ops    *s_ops;
 };
 
 /**
@@ -46,6 +108,39 @@ enum c2_rpc_service_id {
  XXX make version for all sun rpc calls to be const
 */
 static const int C2_DEF_RPC_VER = 1;
+
+/**
+   Client side of a logical network connection to a service.
+ */
+struct c2_net_conn {
+	/** a domain this connection originates at */
+	struct c2_net_domain         *nc_domain;
+	/**
+	 entry to linkage structure into connection list
+	 */
+	struct c2_list_link	      nc_link;
+	/**
+	   Service identifier.
+	 */
+	struct c2_service_id         *nc_id;
+	/**
+	 reference counter
+	 */
+	struct c2_ref		      nc_refs;
+	/**
+	   Pointer to transport private data.
+	 */
+	void                         *nc_xprt_private;
+	const struct c2_net_conn_ops *nc_ops;
+};
+
+struct c2_service_id_ops {
+	void (*sio_fini)(struct c2_net_conn *conn);
+	int  (*sio_call)(struct c2_net_conn *conn, const struct c2_rpc_op *op,
+			 void *arg, void *ret);
+	int  (*sio_send)(struct c2_net_conn *conn, struct c2_net_async_call *c);
+};
+
 
 /**
  generic hanlder for XDR transformations
@@ -79,7 +174,7 @@ struct c2_rpc_op {
 	/**
 	 operation identifier
 	 */
-	int		ro_op;
+	uint64_t	ro_op;
 	/**
 	 size of incoming argument
 	 */
@@ -144,6 +239,14 @@ int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op
  */
 const struct c2_rpc_op *c2_rpc_op_find(struct c2_rpc_op_table *ops, int op);
 
-
+/* __COLIBRI_NET_TYPES_H__ */
 #endif
-
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

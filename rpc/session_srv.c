@@ -1,10 +1,12 @@
 /* -*- C -*- */
 #include <errno.h>
 
+#if 0
+
 #include "lib/atomic.h"
 #include "lib/memory.h"
 
-#include "net/net_types.h"
+#include "net/net.h"
 
 #include "rpc/session_srv.h"
 
@@ -112,3 +114,5 @@ void c2_srv_session_release(struct c2_srv_session *sess)
 {
 	c2_ref_put(&sess->srvs_ref);
 }
+
+#endif

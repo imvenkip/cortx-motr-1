@@ -3,7 +3,7 @@
 
 #define __COLIBRI_RPC_COMPOUND_SRV_H__
 
-#include "net/net_types.h"
+#include "net/net.h"
 #include "lib/cache.h"
 #include "rpc/compound_types.h"
 

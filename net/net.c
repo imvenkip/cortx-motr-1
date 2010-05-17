@@ -6,14 +6,29 @@
 
 #include "net/net.h"
 
-int net_init()
+int c2_net_init()
 {
-	c2_net_conn_init();
-
 	return 0;
 }
 
-void net_fini()
+void c2_net_fini()
 {
-	c2_net_conn_fini();
 }
+
+int c2_net_xprt_init(struct c2_net_xprt *xprt)
+{
+	return 0;
+}
+
+void c2_net_xprt_fini(struct c2_net_xprt *xprt)
+{
+}
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

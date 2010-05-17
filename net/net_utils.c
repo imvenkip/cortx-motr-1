@@ -3,10 +3,10 @@
 
 #include "lib/memory.h"
 #include "lib/cc.h"
-#include "net/net_types.h"
+#include "net/net.h"
 
-bool c2_nodes_are_same(const struct c2_service_id *c1,
-		       const struct c2_service_id *c2)
+bool c2_services_are_same(const struct c2_service_id *c1,
+			  const struct c2_service_id *c2)
 {
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }
@@ -52,9 +52,10 @@ void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
 	c2_free(table);
 }
 
-int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op)
+int c2_rpc_op_register(struct c2_rpc_op_table *table, 
+		       const struct c2_rpc_op *op)
 {
-	void *old;
+	struct c2_rpc_op *old;
 	int rc = 0;
 
 	c2_rwlock_write_lock(&table->rot_ops_lock);
@@ -67,6 +68,7 @@ int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op
 			goto out;
 		}
 		table->rot_maxindex += 8;
+		c2_free(old);
 	}
 	table->rot_ops[table->rot_index ++] = *op;
 out:
@@ -74,7 +76,7 @@ out:
 	return rc;
 }
 
-struct c2_rpc_op const *c2_rpc_op_find(struct c2_rpc_op_table *rop, int op)
+const struct c2_rpc_op *c2_rpc_op_find(struct c2_rpc_op_table *rop, uint64_t op)
 {
 	int i;
 

@@ -5,48 +5,51 @@
 #include <errno.h>
 
 #include "net/net.h"
-#include "net/net_types.h"
-#include "net/connection.h"
 
-/* XXX Default timeout  - need to be move in connection */
-static struct timeval TIMEOUT = { 25, 0 };
-
-int c2_net_cli_call_sync(const struct c2_net_conn *conn,
-			 struct c2_rpc_op_table *rot,
-			 int op, void *arg, void *ret)
+int c2_net_cli_call(struct c2_net_conn *conn,
+		    struct c2_rpc_op_table *rot,
+		    uint64_t op, void *arg, void *ret)
 {
-	struct c2_rpc_op const *rop;
+	const struct c2_rpc_op *rop;
+	int                     result;
 
 	rop = c2_rpc_op_find(rot, op);
-	if (rop == NULL)
-		return -EOPNOTSUPP;
-
-	return clnt_call(conn->nc_cli, op,
-			 (xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
-			 (xdrproc_t) rop->ro_xdr_result, (caddr_t) ret,
-			 TIMEOUT);
+	if (rop != NULL)
+		result = conn->nc_ops->sio_call(conn, rop, arg, ret);
+	else
+		result = -EOPNOTSUPP;
+	return result;
 }
 
 
-int c2_net_cli_call_async(const struct c2_net_conn *conn,
-			  struct c2_rpc_op_table *rot,
-			  int op, void *arg,
-			  c2_net_cli_cb cb, void *ret)
+int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call)
 {
-	struct c2_rpc_op const *rop;
-	int32_t err;
-
-	rop = c2_rpc_op_find(rot, op);
-	if (rop == NULL)
-		return -EOPNOTSUPP;
-
-	/** XXX until real async exist */
-	err = clnt_call(conn->nc_cli, op,
-			(xdrproc_t) rop->ro_xdr_arg, (caddr_t) arg,
-			(xdrproc_t) rop->ro_xdr_result, (caddr_t) ret,
-			TIMEOUT);
-
-	cb(err, arg, ret);
-
-	return 0;
+	return conn->nc_ops->sio_send(conn, call);
 }
+
+int c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *dom, ...)
+{
+	va_list varargs;
+	int     result;
+
+	id->si_domain = dom;
+	va_start(varargs, dom);
+	result = dom->nd_xprt->nx_ops->xo_service_id_init(dom, id, varargs);
+	va_end(varargs);
+	return result;
+}
+
+void c2_service_id_fini(struct c2_service_id *id)
+{
+	id->si_ops->sis_fini(id);
+}
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

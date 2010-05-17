@@ -15,7 +15,6 @@
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 #include "net/net.h"
-#include "net/net_types.h"
 
 static struct c2_rpc_op_table *ops;
 
@@ -80,7 +79,7 @@ int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *o,
 		return -errno;
 
 	if (pid != 0) {
-		service->s_child = pid;
+		/* service->s_child = pid; */
 		return 0;
 	}
 
@@ -105,7 +104,7 @@ int c2_net_service_start(enum c2_rpc_service_id id, struct c2_rpc_op_table *o,
 int c2_net_service_stop(struct c2_service *service)
 {
 
-	kill(service->s_child, 9);
+	/* kill(service->s_child, 9); */
 	return 0;
 }
 

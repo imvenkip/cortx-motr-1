@@ -5,8 +5,9 @@
 
 #include "lib/cdefs.h"
 
-#include "rpc/net_types.h"
+#include "net/net.h"
 #include "rpc/rpc_types.h"
+#include "rpc/rpclib.h"
 
 /**
  @page rpc-srv-session  server side session handler.
@@ -32,7 +33,7 @@ struct c2_server_session_key {
 	/**
 	 client which send a request
 	 */
-	struct c2_node_id	ssk_client;
+	struct c2_service_id	ssk_client;
 	/**
 	 session to handle that request
 	 */
@@ -82,7 +83,7 @@ enum c2_request_order {
 
  @return enum request code to describe request status.
  */
-enum c2_request_order c2_check_request(const struct c2_srv_session_data *sess,
+enum c2_request_order c2_check_request(const struct c2_server_session_data *sess,
 					const struct c2_session_sequence_args *cli_seq);
 
 /**
