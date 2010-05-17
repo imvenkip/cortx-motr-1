@@ -8,7 +8,6 @@ AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
-AH_TEMPLATE([HAVE_LIBAIO], [Asynchronous IO library libaio is present.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
@@ -246,13 +245,12 @@ if test x$enable_gssrpc = xyes; then
         )
 fi
 
-AC_CHECK_LIB(aio, io_getevents, [
-    AC_CHECK_HEADERS([libaio.h], [AC_DEFINE(HAVE_LIBAIO)], 
-        AC_MSG_ERROR([No libaio.h found]),
-        [])
-    ], 
-    AC_MSG_ERROR([No libaio found])
-)
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS(io_getevents, c aio, , [AC_MSG_ERROR(io_getevents cannot be found!)])
+AIO_LIBS=$LIBS
+AC_SUBST(AIO_LIBS)
+LIBD=$OLD_LIBS
 
 AC_CHECK_DECL(mallinfo, [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
 AC_CHECK_DECL(malloc_size, [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])

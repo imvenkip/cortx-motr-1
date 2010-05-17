@@ -36,7 +36,7 @@
    @{
  */
 
-static const struct c2_stob_type linux_stob_type;
+static struct c2_stob_type linux_stob_type;
 static const struct c2_stob_op linux_stob_op;
 
 struct ioq_qev {
@@ -722,7 +722,7 @@ static void ioq_complete(struct ioq_qev *qev)
 	}
 }
 
-static struct timespec ioq_timeout = {
+const static struct timespec ioq_timeout_default = {
 	.tv_sec  = 1,
 	.tv_nsec = 0
 };
@@ -733,9 +733,11 @@ static void ioq_thread(void *arg)
 	int i;
 
 	struct io_event evout[IOQ_BATCH_OUT_SIZE];
+	struct timespec ioq_timeout;
 
 	while (!ioq_shutdown) {
-		got = io_getevents(ioq_ctx, 0, ARRAY_SIZE(evout), 
+		ioq_timeout = ioq_timeout_default;
+		got = io_getevents(ioq_ctx, 1, ARRAY_SIZE(evout), 
 				   evout, &ioq_timeout);
 		ioq_queue_lock();
 		ioq_avail += got;
@@ -802,11 +804,21 @@ static const struct c2_stob_type_op linux_stob_type_op = {
 	.sto_init = linux_stob_type_init
 };
 
-static const struct c2_stob_type linux_stob_type = {
+static struct c2_stob_type linux_stob_type = {
 	.st_op    = &linux_stob_type_op,
 	.st_name  = "linuxstob",
 	.st_magic = 0xACC01ADE
 };
+
+int linux_stob_module_init(void)
+{
+	return linux_stob_type.st_op->sto_init(&linux_stob_type);
+}
+
+void linux_stob_module_fini(void)
+{
+	linux_stob_type.st_op->sto_fini(&linux_stob_type);
+}
 
 /** @} end group stoblinux */
 
