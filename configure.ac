@@ -245,6 +245,13 @@ if test x$enable_gssrpc = xyes; then
         )
 fi
 
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS(io_getevents, c aio, , [AC_MSG_ERROR(io_getevents cannot be found!)])
+AIO_LIBS=$LIBS
+AC_SUBST(AIO_LIBS)
+LIBD=$OLD_LIBS
+
 AC_CHECK_DECL(mallinfo, [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
 AC_CHECK_DECL(malloc_size, [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
 

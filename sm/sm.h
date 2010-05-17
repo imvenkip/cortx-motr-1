@@ -5,7 +5,7 @@
 
 #include "lib/adt.h"
 #include "lib/c2list.h"
-#include "lib/c2queue.h"
+#include "lib/queue.h"
 #include "dtm/dtm.h"
 
 /**

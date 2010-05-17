@@ -28,7 +28,7 @@ void test_list(void)
 	t3.c = 15;
 
 	c2_list_add(&test_head, &t1.t_link);
-	c2_list_add(&test_head, &t2.t_link);
+	c2_list_add_tail(&test_head, &t2.t_link);
 	c2_list_add(&test_head, &t3.t_link);
 
 	c2_list_for_each(&test_head, pos) {
