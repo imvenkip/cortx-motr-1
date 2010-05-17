@@ -33,7 +33,7 @@ static
 void test_create(void)
 {
 	int rc;
-	struct c2_node_id node1 = { .uuid = "node-1" };
+	struct c2_service_id node1 = { .uuid = "node-1" };
 
 	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");
 	CU_ASSERT( rc != 0);
@@ -42,7 +42,7 @@ void test_create(void)
 static
 void test_destroy(void)
 {
-	struct c2_node_id node1 = { .uuid = "node-1" };
+	struct c2_service_id node1 = { .uuid = "node-1" };
 	struct c2_net_conn *conn1, *conn2;
 
 	conn1 = c2_net_conn_find(&node1);
@@ -56,7 +56,7 @@ void test_destroy(void)
 static
 void test_create2(void)
 {
-	struct c2_node_id node1 = { .uuid = "node-1" };
+	struct c2_service_id node1 = { .uuid = "node-1" };
 	int rc;
 
 	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");

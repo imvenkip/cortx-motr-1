@@ -5,7 +5,7 @@
 #include "net/net_types.h"
 #include "net/xdr.h"
 
-bool c2_xdr_node_id (void *x, struct c2_node_id *objp)
+bool c2_xdr_node_id (void *x, struct c2_service_id *objp)
 {
 	XDR *xdrs = x;
 

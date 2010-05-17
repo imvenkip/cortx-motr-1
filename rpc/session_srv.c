@@ -4,13 +4,40 @@
 #include "lib/atomic.h"
 #include "lib/memory.h"
 
+#include "net/net_types.h"
+
 #include "rpc/session_srv.h"
 
-static void srv_session_new_id(struct c2_rpc_server *srv)
+int c2_server_session_init(struct c2_rpc_server *srv)
 {
-	return 
+	int rc;
+
+	rc = c2_cache_init(&srv->rs_sessions);
+	if (rc < 0)
+		goto out;
+
+	rc = c2_rpc_op_register(&srv->rs_ops, c2_sesson_create_op);
+	if (rc < 0)
+		goto out;
+
+	rc = c2_rpc_op_register(&srv->rs_ops, c2_sesson_destroy_op);
+out:
+	return rc;
 }
 
+void c2_server_session_fini(struct c2_rpc_server *srv)
+{
+	c2_cache_fini(&srv->rs_session);
+}
+
+
+
+static void server_session_new_id(struct c2_rpc_server *srv)
+{
+
+}
+
+/*** ***/
 static void c2_srv_session_free(struct c2_ref *ref)
 {
 	struct c2_cli_session *sess;
@@ -21,7 +48,7 @@ static void c2_srv_session_free(struct c2_ref *ref)
 }
 
 int c2_srv_session_init(struct c2_rpc_server *srv, uint32_t highslot,
-			struct c2_node_id *cli_id;
+			struct c2_service_id *cli_id;
 			struct c2_srv_session **sess)
 {
 	struct c2_srv_session *s_sess;

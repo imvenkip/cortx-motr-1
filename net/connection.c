@@ -27,7 +27,7 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 	c2_free(conn);
 }
 
-int c2_net_conn_create(const struct c2_node_id *nid,
+int c2_net_conn_create(const struct c2_service_id *nid,
 		       const enum c2_rpc_service_id prgid, char *nn)
 {
 	struct c2_net_conn *conn;
@@ -57,7 +57,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
 	return 0;
 }
 
-struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid)
+struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 {
 	struct c2_net_conn *conn;
 	bool found = false;

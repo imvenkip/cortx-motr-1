@@ -37,7 +37,7 @@ struct c2_cli_session {
 	/**
 	 server identifier
 	 */
-	struct c2_node_id	sess_srv;
+	struct c2_service_id	sess_srv;
 	/**
 	 server assigned session id
 	 */
@@ -60,7 +60,7 @@ struct c2_cli_session {
  @retval -ve failure, e.g., server don't connected
  */
 int c2_cli_session_create(const struct c2_rpc_client * cli,
-			  const struct c2_node_id * srv);
+			  const struct c2_service_id * srv);
 
 /**
  * session destructor
@@ -83,7 +83,7 @@ int c2_cli_session_destroy(struct c2_cli_session *sess);
  * @retval !NULL, OK
  */
 struct c2_cli_session *c2_cli_session_find(const struct c2_rpc_client *cli,
-					   const struct c2_node_id *srv_uuid);
+					   const struct c2_service_id *srv_uuid);
 
 /**
  verify session @a sess by sending single "sequence" op and check response.
