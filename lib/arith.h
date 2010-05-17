@@ -20,12 +20,12 @@ static inline int32_t max32(int32_t a, int32_t b)
 	return a > b ? a : b;
 }
 
-static inline int32_t min64(int32_t a, int32_t b)
+static inline int64_t min64(int64_t a, int64_t b)
 {
 	return a < b ? a : b;
 }
 
-static inline int32_t max64(int32_t a, int32_t b)
+static inline int64_t max64(int64_t a, int64_t b)
 {
 	return a > b ? a : b;
 }
@@ -40,12 +40,12 @@ static inline uint32_t max32u(uint32_t a, uint32_t b)
 	return a > b ? a : b;
 }
 
-static inline uint32_t min64u(uint32_t a, uint32_t b)
+static inline uint64_t min64u(uint64_t a, uint64_t b)
 {
 	return a < b ? a : b;
 }
 
-static inline uint32_t max64u(uint32_t a, uint32_t b)
+static inline uint64_t max64u(uint32_t a, uint64_t b)
 {
 	return a > b ? a : b;
 }
