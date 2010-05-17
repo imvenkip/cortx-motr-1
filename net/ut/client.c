@@ -68,21 +68,25 @@ int main(int argc, char *argv[])
 
 	rc = c2_rpc_op_register(ops, &test_rpc1);
 
-	rc = c2_net_service_start(C2_SESSION_PROGRAM, 1, ops, &s);
+	rc = c2_net_service_start(C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+				  C2_DEF_RPC_PORT, 1, ops, &s);
 	CU_ASSERT(rc < 0);
 
 	rc = c2_rpc_op_register(ops, &test_rpc2);
-	rc = c2_net_service_start(C2_SESSION_PROGRAM+1, 1, ops, &s);
+	rc = c2_net_service_start(C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+				  C2_DEF_RPC_PORT, 1, ops, &s);
 	CU_ASSERT(rc < 0);
 
 
 	sleep(1);
 	/* in config*/
-	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, "localhost");
+	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+				"localhost", C2_DEF_RPC_PORT);
 	CU_ASSERT(rc);
 
 	/* in config*/
-	rc = c2_net_conn_create(&node2, C2_SESSION_PROGRAM+1, "localhost");
+	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+				"localhost", C2_DEF_RPC_PORT);
 	CU_ASSERT(rc);
 
 	conn1 = c2_net_conn_find(&node1);

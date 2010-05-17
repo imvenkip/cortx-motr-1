@@ -37,23 +37,54 @@ enum c2_rpc_service_id {
 };
 
 struct c2_service_thread_data {
-	enum c2_rpc_service_id std_progid;
 	pthread_t              std_handle;
-	SVCXPRT               *std_transp;
 };
 
 /**
  structure to desctribe running service
  */
 struct c2_service {
-	int 			       s_number_of_threads;
-	struct c2_service_thread_data *s_thread_data_array;
+	/**
+	   program ID for this sunrpc service
+	*/
+	enum c2_rpc_service_id 	       s_progid;
+	/**
+	   tcp port of service socket
+	*/
+	int			       s_port;
+	/**
+	   service socket
+	*/
+	int			       s_socket;
+
+	/**
+	   scheduler thread handle
+	*/
+	pthread_t		       s_scheduler_thread;
+
+	/**
+	   service transport
+	*/
+	SVCXPRT *		       s_transp;
+
+	/**
+	   number of worker threads
+	*/
+	int 			       s_number_of_worker_threads;
+	/**
+	   worker thread array
+	*/
+	struct c2_service_thread_data *s_worker_thread_array;
 };
 
 /**
  XXX make version for all sun rpc calls to be const
 */
 static const int C2_DEF_RPC_VER = 1;
+
+static const int C2_DEF_RPC_PORT = 12345;
+
+static const int C2_DEF_RPC_THREADS = 16;
 
 /**
  generic hanlder for XDR transformations

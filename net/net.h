@@ -47,7 +47,9 @@ void c2_net_conn_fini(void);
  @retval <0 error is hit
 */
 int c2_net_conn_create(const struct c2_node_id *nid,
-			const enum c2_rpc_service_id prgid, char *nn);
+		       const enum c2_rpc_service_id prgid,
+		       const int  prg_version, const char *host,
+		       const int port);
 
 /**
  find a connection to a specified node.
@@ -151,6 +153,8 @@ int c2_net_cli_call_async(const struct c2_net_conn *conn,
 
  */
 int c2_net_service_start(enum c2_rpc_service_id prog_id,
+			 int prog_version,
+			 int port,
 			 int num_of_threads,
 			 struct c2_rpc_op_table *ops,
 			 struct c2_service *service);

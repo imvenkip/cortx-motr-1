@@ -35,7 +35,8 @@ void test_create(void)
 	int rc;
 	struct c2_node_id node1 = { .uuid = "node-1" };
 
-	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");
+	rc = c2_net_conn_create(&node1, 0x20000001, C2_DEF_RPC_VER,
+				"localhost", C2_DEF_RPC_PORT);
 	CU_ASSERT( rc != 0);
 }
 
@@ -59,9 +60,11 @@ void test_create2(void)
 	struct c2_node_id node1 = { .uuid = "node-1" };
 	int rc;
 
-	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");
+	rc = c2_net_conn_create(&node1, 0x20000001, C2_DEF_RPC_VER,
+				"localhost", C2_DEF_RPC_PORT);
 	CU_ASSERT( rc != 0);
-//	rc = c2_net_conn_create(&node1, 0x20000001, "localhost");
+//	rc = c2_net_conn_create(&node1, 0x20000001, C2_DEF_RPC_VER,
+//				"localhost", C2_DEF_RPC_PORT);
 //	CU_ASSERT(rc == 0);
 }
 

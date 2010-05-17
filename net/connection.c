@@ -3,12 +3,17 @@
 #include <rpc/xdr.h>
 #include <rpc/auth.h>
 #include <rpc/clnt.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 #include "lib/cdefs.h"
 #include "lib/cc.h"
 #include "lib/c2list.h"
 #include "lib/refs.h"
 #include "lib/memory.h"
+
 
 #include "net/net.h"
 #include "net/connection.h"
@@ -28,17 +33,25 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 }
 
 int c2_net_conn_create(const struct c2_node_id *nid,
-		       const enum c2_rpc_service_id prgid, char *nn)
+		       const enum c2_rpc_service_id prgid,
+		       const int prg_version, const char *host,
+		       const int port)
 {
 	struct c2_net_conn *conn;
+        int sock = -1;
+        struct sockaddr_in addr;
 	CLIENT *cli;
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL)
 		return -ENOMEM;
 
-	/** XXX sun rpc */
-	cli = clnt_create (nn, prgid, C2_DEF_RPC_VER, "tcp");
+        memset(&addr, 0, sizeof addr);
+        addr.sin_family      = AF_INET;
+        addr.sin_addr.s_addr = inet_addr(host);
+        addr.sin_port        = htons(port);
+
+        cli = clnttcp_create(&addr, prgid, prg_version, &sock, 0, 0);
 	if (cli == NULL) {
 		c2_free(conn);
 		return -ENOTCONN;
