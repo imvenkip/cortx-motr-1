@@ -98,8 +98,8 @@ new requests.
 * Used to describe an unique FOP for reply cache at server side.
 */
 struct c2_rcid {
-	struct c2_node_id      cr_clid;  /* client ID of this request */
-	uint64_t               cr_xid;   /* FOP ID */
+	struct c2_service_id	cr_clid;  /* client ID of this request */
+	uint64_t		cr_xid;   /* FOP ID */
 };
 
 /**

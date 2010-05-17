@@ -37,7 +37,7 @@ struct c2_rpc_client {
 	/**
 	 remote service id identifier
 	 */
-	struct c2_node_id	rc_id;
+	struct c2_service_id	rc_id;
 	/**
 	 reference counter
 	 */
@@ -87,7 +87,7 @@ void c2_rpc_client_unlink(struct c2_rpc_client *cli);
 
  @return pointer to rpc client instance of NULL if rpc client not found
 */
-struct c2_rpc_client *c2_rpc_client_find(const struct c2_node_id *id);
+struct c2_rpc_client *c2_rpc_client_find(const struct c2_service_id *id);
 
 
 /**
@@ -109,7 +109,7 @@ struct c2_rpc_server {
 	/**
 	 unique server identifier
 	 */
-	struct c2_node_id	rs_id;
+	struct c2_service_id	rs_id;
 	/**
 	 reference counter
 	 */
@@ -147,7 +147,7 @@ struct c2_rpc_server {
 
  @return pointer to rpc server object, or NULL if don't possible to create
  */
-struct c2_rpc_server *c2_rpc_server_create(const struct c2_node_id *srv_id,
+struct c2_rpc_server *c2_rpc_server_create(const struct c2_service_id *srv_id,
 					   const char *homedir);
 
 /**
@@ -177,7 +177,7 @@ void c2_rpc_server_unregister(struct c2_rpc_server *srv);
 
  @return rpc server object pointer, or NULL if not found
  */
-struct c2_rpc_server *c2_rpc_server_find(const struct c2_node_id *srv_id);
+struct c2_rpc_server *c2_rpc_server_find(const struct c2_service_id *srv_id);
 
 /**
  constructor for rpc library

@@ -5,7 +5,8 @@
 #include "lib/cc.h"
 #include "net/net_types.h"
 
-bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2)
+bool c2_nodes_are_same(const struct c2_service_id *c1,
+		       const struct c2_service_id *c2)
 {
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }

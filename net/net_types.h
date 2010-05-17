@@ -9,9 +9,9 @@
  unique service identifier.
  each service have own identifiers.
  if different services run on single physical node,
- she must have different c2_node_id value.
+ she must have different c2_service_id value.
  */
-struct c2_node_id {
+struct c2_service_id {
 	char uuid[40];
 };
 
@@ -24,7 +24,8 @@ struct c2_node_id {
  @retval TRUE if node identifiers is same
  @retval FALSE if node identifiers is different
 */
-bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
+bool c2_services_are_same(const struct c2_service_id *c1,
+			  const struct c2_service_id *c2);
 
 
 /**

@@ -46,7 +46,7 @@ void c2_net_conn_fini(void);
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_conn_create(const struct c2_node_id *nid,
+int c2_net_conn_create(const struct c2_service_id *nid,
 			const enum c2_rpc_service_id prgid, char *nn);
 
 /**
@@ -60,7 +60,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
  @retval NULL if none connections to the node
  @retval !NULL connection info pointer
  */
-struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid);
+struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 
 /**
  release connection after using.

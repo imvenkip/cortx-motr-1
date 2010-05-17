@@ -7,7 +7,7 @@
 
 int main(void)
 {
-	const c2_node_id srv_id = { .uuid = "srv-1"; }
+	const c2_service_id srv_id = { .uuid = "srv-1"; }
 	struct c2_rpc_server *srv;
 
 	srv = c2_server_create(&srv_id, "/tmp");
