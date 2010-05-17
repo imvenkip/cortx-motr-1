@@ -14,7 +14,7 @@ void c2_ref_get(struct c2_ref *ref)
 
 void c2_ref_put(struct c2_ref *ref)
 {
-	if (!c2_atomic64_dec_and_test(&ref->ref_cnt)){
+	if (c2_atomic64_dec_and_test(&ref->ref_cnt)) {
 		ref->release(ref);
 	}
 }
