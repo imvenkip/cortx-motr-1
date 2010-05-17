@@ -6,7 +6,7 @@ noinst_PROGRAMS = connection client
 
 connection_SOURCES   = connection.c
 connection_LDFLAGS   = @LDFLAGS@
-connection_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la
+connection_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la @DB4LIBS@
 
 #utils_SOURCES   = connection.c
 #utils_LDFLAGS   = @LDFLAGS@
@@ -15,7 +15,7 @@ connection_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolib
 
 client_SOURCES   = client.c
 client_LDFLAGS   = @LDFLAGS@
-client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la
+client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la @DB4LIBS@
 
 #rpc-server_SOURCES   = rpc-server.c
 #rpc-server_LDFLAGS   = @LDFLAGS@
