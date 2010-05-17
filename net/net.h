@@ -29,16 +29,27 @@ struct c2_service_ops;
 struct c2_rpc_op;
 struct c2_net_async_call;
 
-/** network transport (e.g., lnet or sunrpc) */
+/** Network transport (e.g., lnet or sunrpc) */
 struct c2_net_xprt {
 	const char                   *nx_name;
 	const struct c2_net_xprt_ops *nx_ops;
 };
 
+/** Network transport operations. */
 struct c2_net_xprt_ops {
+	/**
+	   Initialise transport specific part of a domain (e.g., start threads,
+	   initialise portals).
+	 */
 	int  (*xo_dom_init)(struct c2_net_xprt *xprt, 
 			    struct c2_net_domain *dom);
+	/**
+	   Finalise transport resources in a domain.
+	 */
 	void (*xo_dom_fini)(struct c2_net_domain *dom);
+	/**
+	   Initialise transport specific part of a service identifier.
+	 */
 	int  (*xo_service_id_init)(struct c2_net_domain *dom,
 				   struct c2_service_id *sid, va_list varargs);
 };
@@ -87,6 +98,9 @@ enum {
 
    An identifier contains enough information to locate a service in
    the cluster and to connect to it.
+
+   A service identifier is used by service clients to open connections to the
+   service.
  */
 struct c2_service_id {
 	/** generic identifier */
@@ -99,7 +113,9 @@ struct c2_service_id {
 };
 
 struct c2_service_id_ops {
+	/** Finalise service identifier */
 	void (*sis_fini)(struct c2_service_id *id);
+	/** Initialise a connection to this service */
 	int  (*sis_conn_init)(struct c2_service_id *id, struct c2_net_conn *c);
 };
 
@@ -144,18 +160,20 @@ static const int C2_DEF_RPC_VER = 1;
    Client side of a logical network connection to a service.
  */
 struct c2_net_conn {
-	/** a domain this connection originates at */
+	/** 
+	    A domain this connection originates at.
+	 */
 	struct c2_net_domain         *nc_domain;
 	/**
-	 entry to linkage structure into connection list
+	   Entry to linkage structure into connection list.
 	 */
 	struct c2_list_link	      nc_link;
 	/**
-	   Service identifier.
+	   Service identifier of the service this connection is to.
 	 */
 	struct c2_service_id         *nc_id;
 	/**
-	 reference counter
+	   Reference counter.
 	 */
 	struct c2_ref		      nc_refs;
 	/**
@@ -166,59 +184,64 @@ struct c2_net_conn {
 };
 
 struct c2_net_conn_ops {
+	/**
+	   Finalise connection resources.
+	 */
 	void (*sio_fini)(struct c2_net_conn *conn);
+	/**
+	   Synchronously call operation on the target service and wait for
+	   reply.
+	 */
 	int  (*sio_call)(struct c2_net_conn *conn, const struct c2_rpc_op *op,
 			 void *arg, void *ret);
+	/**
+	   Post an asynchronous operation to the target service.
+
+	   The completion is announced by signalling c2_net_async_call::ac_chan.
+	 */
 	int  (*sio_send)(struct c2_net_conn *conn, struct c2_net_async_call *c);
 };
 
 /**
-   Create network connection to a given service.
+   Create a network connection to a given service.
 
    Allocates resources and connects transport connection to some logical
    connection.  Logical connection is used to send rpc in the context of one or
    more sessions.  (@ref rpc-cli-session)
 
- @param nid - service identifier
- @param prgid program identifier, some unique identifier to identify service group.
- @param nn node name, currently host name which hold service with node id 'nid'
+   @param nid - service identifier
 
- @retval 0 is OK
- @retval <0 error is hit
+   @retval 0 is OK
+   @retval <0 error is hit
 */
 int c2_net_conn_create(struct c2_service_id *nid);
 
 /**
- find a connection to a specified node.
- Scans the list of connections to find a logical connection associated with
- a given nid.
+   Find a connection to a specified service.
 
- @param nid service identifier
- @param prgid program identifier, some unique identifier to identify service group.
+   Scans the list of connections to find a logical connection associated with a
+   given nid.
 
- @retval NULL if none connections to the node
- @retval !NULL connection info pointer
+   @param nid service identifier
+
+   @retval NULL if none connections to the node
+   @retval !NULL connection info pointer
  */
 struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 
 /**
- release connection after using.
- function is release one reference from network connection.
- reference to transport connection is released if that is last reference
- to network connection
+   Release a connection.
 
- @param conn pointer to network connection.
-
- @return none
+   Releases a reference on network connection. Reference to transport connection
+   is released when the last reference to network connection has been released.
 */
 void c2_net_conn_release(struct c2_net_conn *conn);
 
 /**
- unlink connection from connection list.
- transport connection(s) will released when last user of that connection 
- will release that logical connection.
+   Unlink connection from connection list.
 
- @param conn pointer to network connection.
+   Transport connection(s) are released when the last reference on logical
+   connection is released.
  */
 void c2_net_conn_unlink(struct c2_net_conn *conn);
 
@@ -277,7 +300,7 @@ struct c2_rpc_op {
 };
 
 /**
- we want to use same structure for build server and client code, bu
+ we want to use same structure for build server and client code, but
  if we build client code we can't have pointer to server side handler.
 */
 #ifdef C2_RPC_CLIENT
@@ -336,13 +359,23 @@ struct c2_rpc_op_table;
 int c2_net_cli_call(struct c2_net_conn *conn, struct c2_rpc_op_table *rot,
 		    uint64_t op, void *arg, void *ret);
 
+/**
+   Asynchronous service call description.
+ */
 struct c2_net_async_call {
+	/** Connection over which the call is made. */
 	struct c2_net_conn     *ac_conn;
+	/** Service operation that is called. */
 	const struct c2_rpc_op *ac_op;
+	/** Arguments. */
 	void                   *ac_arg;
+	/** Results, only meaningful when c2_net_async_call::ac_rc is 0. */
 	void                   *ac_ret;
+	/** Call result. */
 	uint32_t                ac_rc;
+	/** Channel where call completion is broadcast. */
 	struct c2_chan          ac_chan;
+	/** Linkage into the queue of pending calls. */
 	struct c2_queue_link    ac_linkage;
 };
 
