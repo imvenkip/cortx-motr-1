@@ -24,7 +24,7 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 	conn = container_of(ref, struct c2_net_conn, nc_refs);
 
 	clnt_destroy(conn->nc_cli);
-	C2_FREE_PTR(conn);
+	c2_free(conn);
 }
 
 int c2_net_conn_create(const struct c2_node_id *nid,
@@ -40,7 +40,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
 	/** XXX sun rpc */
 	cli = clnt_create (nn, prgid, C2_DEF_RPC_VER, "tcp");
 	if (cli == NULL) {
-		C2_FREE_PTR(conn);
+		c2_free(conn);
 		return -ENOTCONN;
 	}
 

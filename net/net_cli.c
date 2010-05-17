@@ -11,13 +11,13 @@
 /* XXX Default timeout  - need to be move in connection */
 static struct timeval TIMEOUT = { 25, 0 };
 
-int c2_net_cli_call_sync(struct c2_net_conn const *conn,
-			 const struct c2_rpc_op_table *rot,
+int c2_net_cli_call_sync(const struct c2_net_conn *conn,
+			 struct c2_rpc_op_table *rot,
 			 int op, void *arg, void *ret)
 {
 	struct c2_rpc_op const *rop;
 
-	rop = c2_find_op(rot, op);
+	rop = c2_rpc_op_find(rot, op);
 	if (rop == NULL)
 		return -EOPNOTSUPP;
 
@@ -28,15 +28,15 @@ int c2_net_cli_call_sync(struct c2_net_conn const *conn,
 }
 
 
-int c2_net_cli_call_async(struct c2_net_conn const *conn,
-			  struct c2_rpc_op_table const *rot,
+int c2_net_cli_call_async(const struct c2_net_conn *conn,
+			  struct c2_rpc_op_table *rot,
 			  int op, void *arg,
 			  c2_net_cli_cb cb, void *ret)
 {
 	struct c2_rpc_op const *rop;
 	int32_t err;
 
-	rop = c2_find_op(rot, op);
+	rop = c2_rpc_op_find(rot, op);
 	if (rop == NULL)
 		return -EOPNOTSUPP;
 

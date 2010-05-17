@@ -101,7 +101,7 @@ struct c2_rpc_op_table;
  @retval <0 ERROR
  */
 int c2_net_cli_call_sync(const struct c2_net_conn *conn,
-			 const struct c2_rpc_op_table *rot,
+			 struct c2_rpc_op_table *rot,
 			 int op, void *arg, void *ret);
 
 /**
@@ -129,7 +129,7 @@ typedef void (*c2_net_cli_cb)(int32_t error, void *arg, void *ret);
  @retval <0 ERROR
 */
 int c2_net_cli_call_async(const struct c2_net_conn *conn,
-			  const struct c2_rpc_op_table *rot,
+			  struct c2_rpc_op_table *rot,
 			  int op, void *arg, c2_net_cli_cb cb, void *ret);
 
 

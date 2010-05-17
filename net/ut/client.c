@@ -52,11 +52,12 @@ int main(int argc, char *argv[])
 {
 	int rc;
 	struct c2_node_id node1 = { .uuid = "node-1" };
+	struct c2_node_id node2 = { .uuid = "node-2" };
 	struct c2_net_conn *conn1;
 	struct c2_net_conn *conn2;
 	struct c2_node_id  node_arg = { .uuid = {0} };
 	struct c2_node_id  node_ret = { .uuid = {0} };
-	struct c2_rpc_op_table *ops
+	struct c2_rpc_op_table *ops;
 	struct c2_service s;
 
 	rc = net_init();
@@ -65,12 +66,12 @@ int main(int argc, char *argv[])
 	c2_rpc_op_table_init(&ops);
 	CU_ASSERT(ops == NULL);
 
-	rc = c2_rpc_op_table(&ops, test_rpc1);
+	rc = c2_rpc_op_register(ops, &test_rpc1);
 
 	rc = c2_net_service_start(C2_SESSION_PROGRAM, 1, ops, &s);
 	CU_ASSERT(rc < 0);
 
-	rc = c2_rpc_op_table(&ops, test_rpc2);
+	rc = c2_rpc_op_register(ops, &test_rpc2);
 	rc = c2_net_service_start(C2_SESSION_PROGRAM+1, 1, ops, &s);
 	CU_ASSERT(rc < 0);
 
@@ -81,10 +82,13 @@ int main(int argc, char *argv[])
 	CU_ASSERT(rc);
 
 	/* in config*/
-	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM+1, "localhost");
+	rc = c2_net_conn_create(&node2, C2_SESSION_PROGRAM+1, "localhost");
 	CU_ASSERT(rc);
 
 	conn1 = c2_net_conn_find(&node1);
+	CU_ASSERT(conn1 == NULL);
+
+	conn2 = c2_net_conn_find(&node2);
 	CU_ASSERT(conn1 == NULL);
 
 	sprintf(node_arg.uuid, "%d", 10);
@@ -105,6 +109,9 @@ int main(int argc, char *argv[])
 
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
+
+	c2_net_conn_unlink(conn2);
+	c2_net_conn_release(conn2);
 
 	c2_net_service_stop(&s);
 	c2_rpc_op_table_fini(ops);
