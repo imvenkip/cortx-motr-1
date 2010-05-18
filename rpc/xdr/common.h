@@ -10,6 +10,8 @@
 */
 
 
+struct c2_session_id;
+
 bool c2_xdr_session_id(void *, struct c2_session_id *);
 
 #endif

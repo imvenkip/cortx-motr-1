@@ -23,4 +23,6 @@ enum c2_rpc_ops {
 struct c2_rpc_op_table;
 extern struct c2_rpc_op_table *rpc_ops;
 
+int c2_session_register_ops(struct c2_rpc_op_table *ops);
+
 #endif

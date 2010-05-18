@@ -9,6 +9,7 @@
 
 #include "net/net.h"
 #include "rpc/rpclib.h"
+#include "rpc/rpc_ops.h"
 
 struct c2_rpc_op_table *rpc_ops;
 
@@ -180,6 +181,9 @@ void c2_rpclib_init()
 	c2_rwlock_init(&clients_list_lock);
 
 	c2_rpc_op_table_init(&rpc_ops);
+	/** XXX */
+//	c2_session_register_ops(rpc_ops);
+
 }
 
 void c2_rpclib_fini()
