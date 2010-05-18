@@ -403,7 +403,7 @@ int c2_net_service_stop(struct c2_service *service)
 
 	/* close the service socket */
 	close(service->s_socket);
-	
+
 	/* free all the remaining work items */
         pthread_mutex_lock(&req_guard);
         while ((ql = c2_queue_get(&requests)) != NULL) {
