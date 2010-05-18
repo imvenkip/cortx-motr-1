@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 	CU_ASSERT(rc < 0);
 
 	rc = c2_rpc_op_register(ops, &test_rpc2);
-	rc = c2_net_service_start(C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+	rc = c2_net_service_start(C2_SESSION_PROGRAM + 1, C2_DEF_RPC_VER,
 				  C2_DEF_RPC_PORT, 1, ops, &s);
 	CU_ASSERT(rc < 0);
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	CU_ASSERT(rc);
 
 	/* in config*/
-	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM + 1, C2_DEF_RPC_VER,
 				"localhost", C2_DEF_RPC_PORT);
 	CU_ASSERT(rc);
 

@@ -78,7 +78,8 @@ struct work_item {
 	   to be remembered separately, because this transport can (and
            usually is) different from the transport on which rpc has been
 	   received (the latter is associated with listen(2)-ing socket, while
-	   the former is associated with accept(3)-ed socket. */
+	   the former is associated with accept(3)-ed socket.
+	 */
 	SVCXPRT          *wi_transp;
 	/** request */
 	struct svc_req   *wi_req;
@@ -349,7 +350,6 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 		rc = -1;
 		goto out_transp;
         }
-	service->s_transp = transp;
 
 	/* create the scheduler thread */
 	rc = pthread_create(&service->s_scheduler_thread, &attr,
@@ -386,7 +386,6 @@ out_socket:
 	close(sock);
 
 	service->s_scheduler_thread = 0;
-	service->s_transp = NULL;
 	service->s_worker_thread_array = NULL;
 	return rc;
 }
@@ -407,7 +406,6 @@ int c2_net_service_stop(struct c2_service *service)
 	pthread_kill(service->s_scheduler_thread, 9);
 	service->s_scheduler_thread = 0;
 
-	service->s_transp = NULL;
 	/* close the service socket */
 	close(service->s_socket);
 

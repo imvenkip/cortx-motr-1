@@ -64,11 +64,6 @@ struct c2_service {
 	pthread_t		       s_scheduler_thread;
 
 	/**
-	   service transport
-	*/
-	SVCXPRT *		       s_transp;
-
-	/**
 	   number of worker threads
 	*/
 	int 			       s_number_of_worker_threads;
