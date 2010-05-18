@@ -9,6 +9,11 @@ int main(void)
 {
 	const c2_service_id srv_id = { .uuid = "srv-1"; }
 	struct c2_rpc_server *srv;
+	struct c2_rpc_op_table *ops;
+	struct c2_service	rs_service;
+
+	c2_rpclib_init();
+
 
 	srv = c2_server_create(&srv_id, "/tmp");
 
@@ -22,5 +27,8 @@ int main(void)
 	/* add compound rpc in list*/
 	// c2_server_compond_init(srv);
 
+	/* answer to reply */
 	c2_server_register(srv);
+
+	while(1) {};
 }

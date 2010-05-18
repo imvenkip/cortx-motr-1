@@ -39,7 +39,12 @@ struct c2_session_create_arg {
 /**
  * server reply to SESSION_CREATE command.
  */
-struct c2_session_create_out {
+struct c2_session_create_ret {
+	/**
+	 status of operation.
+	 if operation failed - not need a decoding reply
+	*/
+	int32_t errno;
 	/**
 	server assigned session identifier
 	*/
@@ -52,18 +57,6 @@ struct c2_session_create_out {
 	 maximal rpc size can be handle by client
 	*/
 	uint32_t sco_max_rpc_size;
-};
-
-struct c2_session_create_ret {
-	/**
-	 status of operation.
-	 if operation failed - not need a decoding reply
-	*/
-	int32_t errno;
-	/**
-	 real reply to C2_SESSION_CREATE command
-	*/
-	struct session_create_out reply;
 };
 
 

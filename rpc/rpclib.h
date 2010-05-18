@@ -35,7 +35,7 @@ struct c2_rpc_client {
 	*/
 	struct c2_list_link	rc_link;
 	/**
-	 remote service id identifier
+	 remote service identifier
 	 */
 	struct c2_service_id	rc_id;
 	/**
@@ -54,10 +54,6 @@ struct c2_rpc_client {
 	 network logical connection assigned to a client
 	 */
 	struct c2_net_conn	*rc_netlink;
-	/**
-	 operation to send from that client
-	 */
-	struct c2_rpc_op_table	*rc_ops;
 };
 
 /**
@@ -67,7 +63,7 @@ struct c2_rpc_client {
 
  @return pointer to allocated rpc structure or NULL if not have enough memory
  */
-struct c2_rpc_client *c2_rpc_client_init(const struct c2_node_id *id);
+struct c2_rpc_client *c2_rpc_client_init(const struct c2_service_id *id);
 
 /**
  unlink rpc client from system list. structure will
@@ -129,15 +125,6 @@ struct c2_rpc_server {
 	 persistent reply cache
 	 */
 	struct c2_cache		rs_cache;
-	/* transport specific */
-	/**
-	 network service structure
-	 */
-	struct c2_service	*rs_service;
-	/**
-	 operation to send to that service
-	 */
-	struct c2_rpc_op_table	*rs_ops;
 };
 
 /**
@@ -147,8 +134,7 @@ struct c2_rpc_server {
 
  @return pointer to rpc server object, or NULL if don't possible to create
  */
-struct c2_rpc_server *c2_rpc_server_create(const struct c2_service_id *srv_id,
-					   const char *homedir);
+struct c2_rpc_server *c2_rpc_server_create(const struct c2_service_id *srv_id);
 
 /**
  register rpc server object in system, notify transport layer about ability

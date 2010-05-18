@@ -3,6 +3,8 @@
 #ifndef __COLIBRI_LIB_LIST_H__
 #define __COLIBRI_LIB_LIST_H__
 
+#include <sys/types.h>
+
 #include "lib/cdefs.h"
 
 /**
@@ -10,11 +12,11 @@
  */
 struct c2_list_link {
 	/**
-	 * prev in link
+	 * next in the list
 	 */
 	struct c2_list_link *next;
 	/**
-	 * next in link
+	 * previous in the list
 	 */
 	struct c2_list_link *prev;
 };
@@ -77,9 +79,11 @@ bool c2_list_contains(const struct c2_list *list,
  This function iterate over the argument list checking that double-linked
  list invariant holds (x->prev->next == x && x->next->prev == x).
 
- @return true iff @list don't corrupted
+ @return true iff @list isn't corrupted
 */
 bool c2_list_invariant(const struct c2_list *list);
+
+size_t c2_list_length(const struct c2_list *list);
 
 static inline void __c2_list_add(struct c2_list_link *next,
 				 struct c2_list_link *prev,
@@ -111,7 +115,7 @@ static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
  */
 static inline void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
 {
-	__c2_list_add(head->last, (void *)head, new);
+	__c2_list_add((void *)head, head->last, new);
 }
 
 /**
@@ -160,6 +164,8 @@ static inline struct c2_list_link * c2_list_first(const struct c2_list *head)
  @retval false - entry disconnected from a list
 */
 bool c2_list_link_is_in(const struct c2_list_link *link);
+
+size_t c2_list_length(const struct c2_list *list);
 
 /**
  * get pointer to object from pointer to list link entry

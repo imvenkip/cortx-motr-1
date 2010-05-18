@@ -52,18 +52,6 @@ static inline void c2_atomic64_inc(struct c2_atomic64 *a)
 }
 
 /**
- atomically increment counter and return result
-
- @param a pointer to atomic counter
-
- @return new value of atomic counter
- */
-static inline int64_t c2_atomic64_inc_and_test(struct c2_atomic64 *a)
-{
-	return a->a_value += 1;
-}
-
-/**
  atomically decrement counter
 
  @param a pointer to atomic counter
@@ -93,15 +81,37 @@ static inline void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num)
 
 
 /**
+ atomically increment counter and return result
+
+ @param a pointer to atomic counter
+
+ @return new value of atomic counter
+ */
+static inline int64_t c2_atomic64_add_return(struct c2_atomic64 *a, int64_t d)
+{
+	return a->a_value += d;
+}
+
+/**
  atomically decrement counter and return result
 
  @param a pointer to atomic counter
 
  @return new value of atomic counter
  */
-static inline int64_t c2_atomic64_dec_and_test(struct c2_atomic64 *a)
+static inline int64_t c2_atomic64_sub_return(struct c2_atomic64 *a, int64_t d)
 {
-	return a->a_value -= 1;
+	return a->a_value -= d;
+}
+
+static inline bool c2_atomic64_inc_and_test(struct c2_atomic64 *a)
+{
+	return c2_atomic64_add_return(a, 1) == 0;
+}
+
+static inline bool c2_atomic64_dec_and_test(struct c2_atomic64 *a)
+{
+	return c2_atomic64_sub_return(a, 1) == 0;
 }
 
 /* __COLIBRI_LIB_ATOMIC_H__ */

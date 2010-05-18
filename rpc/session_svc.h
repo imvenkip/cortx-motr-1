@@ -3,6 +3,8 @@
 
 #define __COLIBRI_RPC_SVC_H__
 
+#include "lib/cdefs.h"
+
 /**
  @page rpc-svc server side handlers.
  
@@ -40,17 +42,4 @@ bool c2_session_create_svc(const struct session_create_arg *in,
  */
 bool c2_session_destroy_svc(const struct session_destroy_arg *in,
 			    struct session_destroy_out *out);
-
-/**
- SESSION_COMPOUND command handler
-
- @param in  - structure with compound header and array of operations
- @param out - resulting structure to send to client
-
- @retval true  - need send a reply
- @retval false - not need send a reply - some generic error is hit.
- */
-bool c2_session_compound_svc(const struct c2_compound_arg *in,
-			     struct c2_compound_reply *out);
-
 #endif
