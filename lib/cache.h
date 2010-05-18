@@ -3,7 +3,7 @@
 #define _C2_LIB_CACHE_H_
 
 #include "lib/cdefs.h"
-#include "db.h"
+#include <db.h>
 
 /**
  @page c2-lib-cache generic cache mechanism

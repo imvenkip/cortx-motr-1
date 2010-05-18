@@ -8,7 +8,7 @@ libc2_la_LDFLAGS     = -release @LT_RELEASE@
 libc2_la_CFLAGS      = -fPIC
 libc2_la_LIBADD      = @LIBS@ @DB4LIBS@ @PTHREAD_LIBS@
 
-INCLUDES             = -I. -I$(top_srcdir)/include -I $(DB4SRC)/build_unix
+INCLUDES             = -I. -I$(top_srcdir)/include -I@DB4SRC@/build_unix -I@DB4SRC@
 EXTRA_DIST           = adt.h cc.h memory.h c2list.h c2bitops.h c2bitmap.h \
                        refs.h atomic.h queue.h arith.h thread.h vec.h \
                        chan.h mutex.h cache.h
