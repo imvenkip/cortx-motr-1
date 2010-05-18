@@ -7,6 +7,7 @@
 #include <rpc/rpc.h>
 
 #include "lib/cdefs.h"
+#include "lib/thread.h"
 
 /**
  unique service identifier.
@@ -38,7 +39,7 @@ enum c2_rpc_service_id {
 };
 
 struct c2_service_thread_data {
-	pthread_t              std_handle;
+	struct c2_thread std_handle;
 };
 
 /**
@@ -61,7 +62,7 @@ struct c2_service {
 	/**
 	   scheduler thread handle
 	*/
-	pthread_t		       s_scheduler_thread;
+	struct c2_thread	       s_scheduler_thread;
 
 	/**
 	   number of worker threads

@@ -37,6 +37,11 @@ void c2_thread_fini(struct c2_thread *q)
 	q->t_func = NULL;
 }
 
+int c2_thread_kill(struct c2_thread *q, int signal)
+{
+	return pthread_kill(q->t_id, signal);
+}
+
 int c2_thread_join(struct c2_thread *q)
 {
 	return pthread_join(q->t_id, NULL);

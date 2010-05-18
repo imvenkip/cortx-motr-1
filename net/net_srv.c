@@ -74,7 +74,8 @@ struct work_item {
 	const struct c2_rpc_op *wi_op;
 
 	/**
-	   Sunrpc transport
+	   sunrpc transport
+
 	   This is the sunrpc transport to which reply must be sent. This has
 	   to be remembered separately, because this transport can (and
            usually is) different from the transport on which rpc has been
@@ -146,7 +147,7 @@ static struct c2_rpc_op_table *g_c2_rpc_ops;
    This worker thread will not exit by itself, until it is killed when
    c2_net_service_stop() is called.
  */
-static void *c2_net_worker(void *used)
+static void c2_net_worker(void *used)
 {
 	struct work_item       *wi;
 	struct c2_queue_link   *ql;
@@ -185,7 +186,6 @@ static void *c2_net_worker(void *used)
 		/* free the work item. It is allocated in dispatch() */
 		c2_free(wi);
 	}
-	return NULL;
 }
 
 /**
@@ -256,7 +256,7 @@ out_arg:
 /**
   c2_net_scheduler: equivalent to svc_run()
 */
-static void *c2_net_scheduler(void *unused)
+static void c2_net_scheduler(void *unused)
 {
 	while (1) {
 		static fd_set listen_local;
@@ -277,7 +277,6 @@ static void *c2_net_scheduler(void *unused)
 			fprintf(stderr, "select failed\n");
 		pthread_rwlock_unlock(&guard);
 	}
-	return NULL;
 }
 
 
@@ -289,7 +288,6 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 			 struct c2_service *service)
 {
 	struct c2_service_thread_data *worker_thread_array;
-        pthread_attr_t attr;
         SVCXPRT *transp;
 	struct sockaddr_in addr;
 	int sock;
@@ -332,14 +330,6 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
         }
 	service->s_worker_thread_array = worker_thread_array;
 
-        rc = pthread_attr_init(&attr);
-        if (rc) {
-                fprintf(stderr, "pthread_attr_init:(%d)\n", rc);
-		goto out_free_array;
-        }
-	/* or should PTHREAD_CREATE_DETACHED be used? */
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
         transp = svctcp_create(sock, 0, 0);
         if (transp == NULL) {
                 fprintf(stderr, "svctcp_create failed\n");
@@ -354,8 +344,8 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
         }
 
 	/* create the scheduler thread */
-	rc = pthread_create(&service->s_scheduler_thread, &attr,
-		             c2_net_scheduler, service);
+	rc = C2_THREAD_INIT(&service->s_scheduler_thread, void *,
+		            &c2_net_scheduler, NULL);
         if (rc) {
                 fprintf(stderr, "scheduler pthread_create:(%d)\n", rc);
 		goto out_transp;
@@ -363,11 +353,8 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 
 	/* create the worker threads */
         for (i = 0; i < number_of_worker_threads; i++) {
-                worker_thread_array[i].std_handle = 0;
-
-                rc = pthread_create(&worker_thread_array[i].std_handle, &attr,
-                                    c2_net_worker,
-				    &worker_thread_array[i]);
+                rc = C2_THREAD_INIT(&worker_thread_array[i].std_handle, void *,
+                                    &c2_net_worker, NULL);
                 if (rc) {
                         fprintf(stderr, "worker pthread_create:(%d)\n", rc);
                         goto out_kill_scheduler;
@@ -379,7 +366,8 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 	return 0;
 
 out_kill_scheduler:
-	pthread_kill(service->s_scheduler_thread, 9);
+	c2_thread_kill(&service->s_scheduler_thread, 9);
+	c2_thread_fini(&service->s_scheduler_thread);
 out_transp:
 	svc_destroy(transp);
 out_free_array:
@@ -387,7 +375,6 @@ out_free_array:
 out_socket:
 	close(sock);
 
-	service->s_scheduler_thread = 0;
 	service->s_worker_thread_array = NULL;
 	return rc;
 }
@@ -396,19 +383,23 @@ int c2_net_service_stop(struct c2_service *service)
 {
 	struct work_item     *wi;
 	struct c2_queue_link *ql;
+	struct c2_service_thread_data *thr;
 	int i;
 
 	/* kill worker thread */
 	if (service->s_worker_thread_array) {
-		for (i = 0; i < service->s_number_of_worker_threads; i++)
-			pthread_kill(service->s_worker_thread_array[i].std_handle, 9);
+		for (i = 0; i < service->s_number_of_worker_threads; i++) {
+			thr = &service->s_worker_thread_array[i];
+			c2_thread_kill(&thr->std_handle, 9);
+			c2_thread_fini(&thr->std_handle);
+		}
 		free(service->s_worker_thread_array);
 		service->s_worker_thread_array = NULL;
 	}
 
 	/* kill scheduler thread */
-	pthread_kill(service->s_scheduler_thread, 9);
-	service->s_scheduler_thread = 0;
+	c2_thread_kill(&service->s_scheduler_thread, 9);
+	c2_thread_fini(&service->s_scheduler_thread);
 
 	/* close the service socket */
 	close(service->s_socket);

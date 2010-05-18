@@ -5,6 +5,7 @@
 
 #include <sys/types.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "cdefs.h"
 
@@ -35,6 +36,7 @@ struct c2_thread {
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
 
 int  c2_thread_init(struct c2_thread *q, void (*func)(void *), void *arg);
+int  c2_thread_kill(struct c2_thread *q, int signal);
 void c2_thread_fini(struct c2_thread *q);
 int  c2_thread_join(struct c2_thread *q);
 
