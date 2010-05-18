@@ -63,7 +63,7 @@ struct c2_rpc_client {
 
  @return pointer to allocated rpc structure or NULL if not have enough memory
  */
-struct c2_rpc_client *c2_rpc_client_init(const struct c2_service_id *id);
+struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id);
 
 /**
  unlink rpc client from system list. structure will

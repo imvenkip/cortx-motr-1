@@ -10,7 +10,7 @@
 #include "net/net.h"
 #include "rpc/rpclib.h"
 
-struct c2_rpc_op_table *gops;
+struct c2_rpc_op_table *rpc_ops;
 
 bool c2_session_is_same(const struct c2_session_id *s1, const struct c2_session_id *s2)
 {
@@ -137,7 +137,7 @@ struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id)
 	return cli;
 }
 
-void c2_rpc_client_destroy(struct c2_rpc_client *cli)
+void c2_rpc_client_unlink(struct c2_rpc_client *cli)
 {
 	bool need_put = false;
 
@@ -171,7 +171,7 @@ struct c2_rpc_client *c2_rpc_client_find(const struct c2_service_id *id)
 	return found ? cli : NULL;
 }
 
-void rpclib_init()
+void c2_rpclib_init()
 {
 	c2_list_init(&servers_list);
 	c2_rwlock_init(&servers_list_lock);
@@ -179,10 +179,10 @@ void rpclib_init()
 	c2_list_init(&clients_list);
 	c2_rwlock_init(&clients_list_lock);
 
-	c2_rpc_op_table_init(&gops);
+	c2_rpc_op_table_init(&rpc_ops);
 }
 
-void rpclib_fini()
+void c2_rpclib_fini()
 {
 	c2_list_fini(&servers_list);
 	c2_rwlock_fini(&servers_list_lock);
