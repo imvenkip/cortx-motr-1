@@ -44,7 +44,7 @@ struct c2_session_create_ret {
 	 status of operation.
 	 if operation failed - not need a decoding reply
 	*/
-	int32_t errno;
+	int32_t error;
 	/**
 	server assigned session identifier
 	*/
@@ -71,11 +71,11 @@ struct c2_session_destroy_arg {
 	/**
 	 node to have addressed this request
 	 */
-	struct c2_service_id    da_node;
+	struct c2_service_id	da_service;
 	/**
 	session identifier to destroy
 	*/
-	struct c2_session_id da_session;
+	struct c2_session_id	da_session;
 };
 
 /**

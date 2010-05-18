@@ -1,7 +1,8 @@
 SUBDIRS    = . ut
 
 lib_LTLIBRARIES = librpc.la
-librpc_la_SOURCES  =
+librpc_la_SOURCES  = pcache.c rpclib.c session_svc.c \
+		    xdr/common.c xdr/session.c
 librpc_la_LDFLAGS  = -release @LT_RELEASE@
 librpc_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@ $(PTHREAD_LIBS) $(DB4LIBS)
 
