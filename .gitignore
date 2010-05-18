@@ -63,3 +63,4 @@ sns/sns
 stob/server
 net/ut/connection
 net/ut/client
+test_db*
