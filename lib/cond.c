@@ -30,6 +30,8 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 	c2_mutex_unlock(mutex);
 	c2_chan_wait(&clink);
 	c2_mutex_lock(mutex);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
 }
 
 void c2_cond_signal(struct c2_cond *cond)
