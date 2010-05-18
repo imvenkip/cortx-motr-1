@@ -20,4 +20,9 @@ enum c2_rpc_ops {
 	C2_SESSION_COMPOUND
 };
 
+struct c2_rpc_op_table;
+
+int c2_session_register_ops(struct c2_rpc_op_table *ops);
+
+
 #endif

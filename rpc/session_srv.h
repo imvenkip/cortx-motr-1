@@ -32,7 +32,7 @@ struct c2_server_session_key {
 	/**
 	 client which send a request
 	 */
-	struct c2_node_id	ssk_client;
+	struct c2_service_id	ssk_client;
 	/**
 	 session to handle that request
 	 */
@@ -105,7 +105,8 @@ void c2_server_session_fini(struct c2_rpc_server *srv);
  @retval 0 - creation OK
  @retval -ENOMEM not have enogth memory
  */
-int c2_server_session_create(struct c2_rpc_server *srv, struct c2_session_id **sess);
+int c2_server_session_create(struct c2_rpc_server *srv,
+			     struct c2_session_id **sess);
 
 /**
  unlink session from a list and release one reference

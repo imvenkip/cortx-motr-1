@@ -35,17 +35,13 @@ struct c2_cli_session {
 	 */
 	struct c2_refs		sess_ref;
 	/**
-	 server identifier
-	 */
-	struct c2_service_id	sess_srv;
-	/**
 	 server assigned session id
 	 */
 	struct c2_session_id	sess_id;
 	/**
 	 session slot table
 	 */
-	struct c2_cli_slot_table sess_slots;
+	struct c2_cli_slot_table *sess_slots;
 };
 
 /**
@@ -59,8 +55,7 @@ struct c2_cli_session {
  @retval 0   success
  @retval -ve failure, e.g., server don't connected
  */
-int c2_cli_session_create(const struct c2_rpc_client * cli,
-			  const struct c2_service_id * srv);
+int c2_cli_session_create(const struct c2_rpc_client *cli);
 
 /**
  * session destructor
