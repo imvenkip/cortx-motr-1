@@ -17,6 +17,7 @@
 #include <rpc/pmap_clnt.h>
 
 #include "lib/cdefs.h"
+#include "lib/queue.h"
 #include "lib/memory.h"
 #include "net/net.h"
 #include "net/net_types.h"
@@ -83,8 +84,8 @@ struct work_item {
 	SVCXPRT          *wi_transp;
 	/** request */
 	struct svc_req   *wi_req;
-	/** next work item in the queue, protect by 'req_guard' */
-	struct work_item *wi_next;
+	/** linkage in the queue, protect by 'req_guard' */
+	struct c2_queue_link wi_linkage;
 };
 
 /**
@@ -92,7 +93,9 @@ struct work_item {
 
    This queue is protected by 'req_guard'.
  */
-static struct work_item *requests = NULL;
+static struct c2_queue requests;
+/** mutex protecting "requests" queue */
+static pthread_mutex_t req_guard;
 
 /**
    read-write lock for synchronisation between the scheduler and the
@@ -114,9 +117,6 @@ static struct work_item *requests = NULL;
    this call potentially works with all connections.
  */
 static pthread_rwlock_t guard;
-
-/** mutex protecting "requests" queue */
-static pthread_mutex_t req_guard;
 
 /**
    synchronization condition.
@@ -148,16 +148,17 @@ static struct c2_rpc_op_table *g_c2_rpc_ops;
  */
 static void *c2_net_worker(void *used)
 {
-	struct work_item *wi;
+	struct work_item       *wi;
+	struct c2_queue_link   *ql;
 	const struct c2_rpc_op *op;
 	int ret;
 
 	while (1) {
 		pthread_mutex_lock(&req_guard);
-		while (requests == NULL)
+		while (c2_queue_is_empty(&requests))
 			pthread_cond_wait(&gotwork, &req_guard);
-		wi = requests;
-		requests = wi->wi_next;
+		ql = c2_queue_get(&requests);
+		wi = container_of(ql, struct work_item, wi_linkage);
 		pthread_mutex_unlock(&req_guard);
 
 		op = wi->wi_op;
@@ -239,9 +240,9 @@ static void c2_net_dispatch(struct svc_req *req, SVCXPRT *transp)
 	wi->wi_res = res;
 	wi->wi_transp = transp;
 	wi->wi_req = req;
+	c2_queue_link_init(&wi->wi_linkage);
 	pthread_mutex_lock(&req_guard);
-	wi->wi_next = requests;
-	requests = wi;
+	c2_queue_put(&requests, &wi->wi_linkage);
 	pthread_cond_signal(&gotwork);
 	pthread_mutex_unlock(&req_guard);
 	return;
@@ -317,6 +318,7 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
         pthread_rwlock_init(&guard, NULL);
         pthread_mutex_init(&req_guard, NULL);
         pthread_cond_init(&gotwork, NULL);
+	c2_queue_init(&requests);
 
 
         service->s_number_of_worker_threads = number_of_worker_threads;
@@ -392,7 +394,8 @@ out_socket:
 
 int c2_net_service_stop(struct c2_service *service)
 {
-	struct work_item *wi;
+	struct work_item     *wi;
+	struct c2_queue_link *ql;
 	int i;
 
 	/* kill worker thread */
@@ -412,14 +415,13 @@ int c2_net_service_stop(struct c2_service *service)
 	
 	/* free all the remaining work items */
         pthread_mutex_lock(&req_guard);
-        while (requests != NULL) {
-                wi = requests;
-                requests = wi->wi_next;
+        while ((ql = c2_queue_get(&requests)) != NULL) {
+		wi = container_of(ql, struct work_item, wi_linkage);
 		c2_free(wi);
 	}
         pthread_mutex_unlock(&req_guard);
 
-	requests = NULL;
+	c2_queue_fini(&requests);
 	return 0;
 }
 
