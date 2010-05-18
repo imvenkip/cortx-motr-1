@@ -392,6 +392,7 @@ out_socket:
 
 int c2_net_service_stop(struct c2_service *service)
 {
+	struct work_item *wi;
 	int i;
 
 	/* kill worker thread */
@@ -408,7 +409,17 @@ int c2_net_service_stop(struct c2_service *service)
 
 	/* close the service socket */
 	close(service->s_socket);
+	
+	/* free all the remaining work items */
+        pthread_mutex_lock(&req_guard);
+        while (requests != NULL) {
+                wi = requests;
+                requests = wi->wi_next;
+		c2_free(wi);
+	}
+        pthread_mutex_unlock(&req_guard);
 
+	requests = NULL;
 	return 0;
 }
 
