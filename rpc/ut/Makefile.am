@@ -1,13 +1,15 @@
 INCLUDES             = -I. -I$(top_srcdir)/include -I$(top_srcdir)
 
-#noinst_PROGRAMS = rpc-client rpc-server
+noinst_PROGRAMS = rclient rserver
 
-#rpc-client_SOURCES   = rpc-client.c
-#rpc-client_LDFLAGS   = @LDFLAGS@
-#rpc-client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la $(top_builddir)/rpc/librpc.la
+rclient_SOURCES   = rpc-client.c
+rclient_LDFLAGS   = @LDFLAGS@
+rclient_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
+		    $(top_builddir)/net/libcolibri-net.la
 
-#rpc-server_SOURCES   = rpc-server.c
-#rpc-server_LDFLAGS   = @LDFLAGS@
-#rpc-server_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la
+rserver_SOURCES   = rpc-server.c
+rserver_LDFLAGS   = @LDFLAGS@
+rserver_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
+		    $(top_builddir)/net/libcolibri-net.la $(DB4LIBS)
 
 
