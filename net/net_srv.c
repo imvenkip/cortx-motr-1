@@ -22,14 +22,14 @@
 #include "net/net_types.h"
 
 
-/*
-  Multithreaded sunrpc server implementation, designed by Nikita Danilov.
+/**
+  Multithreaded sunrpc server implementation (designed by Nikita Danilov).
 
   The server executes rpc programs in the operations table in multiple threads
   concurrently. The following rpc related activity is still single-threaded:
 
-      * accepting socket connections and peek data from socket;
-      * parsing arguments (this can be easily fixed if necessary).
+      @li accepting socket connections and peek data from socket;
+      @li parsing arguments (this can be easily fixed if necessary).
 
   The server starts N worker threads (c2_net_worker) and a scheduler thread
   (c2_net_scheduler()) listening for incoming data and distributing work among
@@ -47,34 +47,54 @@
   the dynamically allocated argument and reply buffer will be released.
  */
 
-/*
+/**
   Work item, holding RPC operation argument and results.
  */
 struct work_item {
-	/* argument */
+	/**
+	   argument.
+
+	   @note this is dynamically allocated for every request, and should
+           be freed after the request is done.
+	 */
 	void *wi_arg;
-	/* result */
+	/**
+	   result.
+
+	   @note this is dynamically allocated for every request, and should
+           be freed after the request is done.
+	 */
 	void *wi_res;
-	/* operation */
+	/**
+	   operation.
+
+	   Operation of this request, including xdr functions.
+	 */
 	const struct c2_rpc_op *wi_op;
 
-	/* sunrpc transport to which reply must be sent. This has to be
-	   remembered separately, because this transport can (and usually is)
-	   different from the transport on which rpc has been received (the
-	   latter is associated with listen(2)-ing socket, while the former is
-	   associated with accept(3)-ed socket. */
+	/**
+	   Sunrpc transport
+	   This is the sunrpc transport to which reply must be sent. This has
+	   to be remembered separately, because this transport can (and
+           usually is) different from the transport on which rpc has been
+	   received (the latter is associated with listen(2)-ing socket, while
+	   the former is associated with accept(3)-ed socket. */
 	SVCXPRT          *wi_transp;
-	/* request */
+	/** request */
 	struct svc_req   *wi_req;
-	/* next work item in the queue */
+	/** next work item in the queue, protect by 'req_guard' */
 	struct work_item *wi_next;
 };
 
-/* queue of received and not yet processed work items */
-/* XXX TODO change this into a real queue by using struct c2_queue */
+/**
+   queue of received and not yet processed work items
+
+   This queue is protected by 'req_guard'.
+ */
 static struct work_item *requests = NULL;
 
-/* read-write lock for synchronisation between the scheduler and the
+/**
+   read-write lock for synchronisation between the scheduler and the
    workers.
 
    Why this lock is needed? Because there is a shared state in sunrpc: network
@@ -94,15 +114,37 @@ static struct work_item *requests = NULL;
  */
 static pthread_rwlock_t guard;
 
-/* mutex protecting "requests" queue */
+/** mutex protecting "requests" queue */
 static pthread_mutex_t req_guard;
-/* a condition variable that idle worker threads wait upon. It is signalled by
-   the scheduler after rpc arguments have been parsed and work item queued. */
+
+/**
+   synchronization condition.
+
+   A condition variable that the worker threads wait upon. It is signalled by
+   the scheduler/dispatch after rpc arguments have been parsed and
+   work item queued. */
 static pthread_cond_t gotwork;
 
-/* rpc operations table */
+/**
+   rpc operations table
+
+   This rpc operations table is registered by c2_net_service_start().
+   It will be used to handle all the incoming requests. This operations table
+   is assumed to remain constant in the whole life cycle.
+*/
 static struct c2_rpc_op_table *g_c2_rpc_ops;
 
+
+/**
+   worker thread.
+
+   This worker thread waits upon the 'gotwork' condition variable, until
+   the 'requests' queue is not empy. It retrieves a request from the queue,
+   and calls corresponding handler.
+
+   This worker thread will not exit by itself, until it is killed when
+   c2_net_service_stop() is called.
+ */
 static void *c2_net_worker(void *used)
 {
 	struct work_item *wi;
@@ -127,19 +169,34 @@ static void *c2_net_worker(void *used)
 			svcerr_systemerr(wi->wi_transp);
 		}
 
+		/* free the arg and res. They are allocated in dispatch() */
+		/* XXX They are allocated by c2_alloc(), but not freed by
+                       c2_free(). This will report some memory leak. */
 		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)op->ro_xdr_arg,
 				 (caddr_t) wi->wi_arg)) {
 			/* bug */
 		}
-
 		xdr_free((xdrproc_t)op->ro_xdr_result, (caddr_t)wi->wi_res);
+
 		pthread_rwlock_unlock(&guard);
 
-		free(wi);
+		/* free the work item. It is allocated in dispatch() */
+		c2_free(wi);
 	}
 	return NULL;
 }
 
+/**
+   dispatch.
+
+   This dispatch() is called by the scheduler thread:
+   c2_net_scheduler() -> svc_getreqset() -> ... -> c2_net_dispatch()
+
+   It finds suitable operation from the operations table, allocates
+   proper argument and result buffer memory, decodes the argument,
+   and then create a work item, put it into the queue. After that it
+   signals the worker thread to handle this request concurrently.
+ */
 static void c2_net_dispatch(struct svc_req *req, SVCXPRT *transp)
 {
 	const struct c2_rpc_op *op;
@@ -197,13 +254,8 @@ out_arg:
 /**
   c2_net_scheduler: equivalent to svc_run()
 */
-static void *c2_net_scheduler(void *data)
+static void *c2_net_scheduler(void *unused)
 {
-	struct c2_service *s = (struct c2_service *) data;
-	SVCXPRT *transp = s->s_transp;
-
-	(void)(transp);
-
 	while (1) {
 		static fd_set listen_local;
 		int ret;
@@ -230,7 +282,7 @@ static void *c2_net_scheduler(void *data)
 int c2_net_service_start(enum c2_rpc_service_id prog_id,
 			 int prog_version,
 			 int port,
-			 int num_of_worker_threads,
+			 int number_of_worker_threads,
 			 struct c2_rpc_op_table *ops,
 			 struct c2_service *service)
 {
@@ -266,9 +318,9 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
         pthread_cond_init(&gotwork, NULL);
 
 
-        service->s_number_of_worker_threads = num_of_worker_threads;
+        service->s_number_of_worker_threads = number_of_worker_threads;
 	worker_thread_array = (struct c2_service_thread_data *)
-               c2_alloc(num_of_worker_threads * sizeof(struct c2_service_thread_data));
+               c2_alloc(number_of_worker_threads * sizeof(struct c2_service_thread_data));
 
         if (worker_thread_array == NULL) {
                 fprintf(stderr, "alloc thread handle failure\n");
@@ -308,7 +360,7 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 	}
 
 	/* create the worker threads */
-        for (i = 0; i < num_of_worker_threads; i++) {
+        for (i = 0; i < number_of_worker_threads; i++) {
                 worker_thread_array[i].std_handle = 0;
 
                 rc = pthread_create(&worker_thread_array[i].std_handle, &attr,

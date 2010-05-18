@@ -46,7 +46,7 @@ void c2_net_conn_fini(void);
  @retval 0 is OK
  @retval <0 error is hit
 */
-int c2_net_conn_create(const struct c2_node_id *nid,
+int c2_net_conn_create(const struct c2_service_id *nid,
 		       const enum c2_rpc_service_id prgid,
 		       const int  prg_version, const char *host,
 		       const int port);
@@ -149,8 +149,10 @@ int c2_net_cli_call_async(const struct c2_net_conn *conn,
  @param id service identifier
  @param num_of_threads number of the services to be created
  @param ops rpc operations table
- @param service data structure to contain all service threads info
+ @param service data structure to contain all service info
 
+ @return 0 succees, other value indicates error.
+ @see c2_net_service_stop
  */
 int c2_net_service_start(enum c2_rpc_service_id prog_id,
 			 int prog_version,
@@ -158,7 +160,13 @@ int c2_net_service_start(enum c2_rpc_service_id prog_id,
 			 int num_of_threads,
 			 struct c2_rpc_op_table *ops,
 			 struct c2_service *service);
+/**
+ stop network service
 
+ @param service data structure to contain all service info
+ @return 0 succees, other value indicates error.
+ @see c2_net_service_start
+ */
 int c2_net_service_stop(struct c2_service *service);
 
 /**

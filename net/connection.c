@@ -32,7 +32,7 @@ static void c2_net_conn_free_cb(struct c2_ref *ref)
 	c2_free(conn);
 }
 
-int c2_net_conn_create(const struct c2_node_id *nid,
+int c2_net_conn_create(const struct c2_service_id *nid,
 		       const enum c2_rpc_service_id prgid,
 		       const int prg_version, const char *host,
 		       const int port)
@@ -77,7 +77,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 
 	c2_rwlock_read_lock(&conn_list_lock);
 	c2_list_for_each_entry(&conn_list, conn, struct c2_net_conn, nc_link) {
-		if (c2_nodes_are_same(&conn->nc_id, nid)) {
+		if (c2_services_are_same(&conn->nc_id, nid)) {
 			c2_ref_get(&conn->nc_refs);
 			found = true;
 			break;
