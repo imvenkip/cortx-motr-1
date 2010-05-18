@@ -11,8 +11,6 @@
  server side is reponsible to handle commands:
  SESSION_CREATE,
  SESSION_DESTROY,
- SESSION_COMPOUND,
- SESSION_ADJUST.
 
  All these commands need to be listed in enum c2_session_cmd
 */
@@ -27,8 +25,8 @@
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_create_svc(const struct session_create_arg *in,
-			   struct session_create_ret *out);
+bool c2_session_create_svc(const struct c2_session_create_arg *in,
+			   struct c2_session_create_ret *out);
 
 /**
  server handler for the SESSION_DESTROY cmd.
@@ -40,6 +38,7 @@ bool c2_session_create_svc(const struct session_create_arg *in,
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_destroy_svc(const struct session_destroy_arg *in,
-			    struct session_destroy_out *out);
+bool c2_session_destroy_svc(const struct c2_session_destroy_arg *in,
+			    struct c2_session_destroy_ret *out);
+
 #endif
