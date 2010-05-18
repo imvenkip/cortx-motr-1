@@ -4,37 +4,39 @@
 #define __COLIBRI_ADT_H__
 
 #include "cdefs.h"
+
 /**
    @defgroup adt Basic abstract data types
    @{
 */
 
-struct c2_queue;
 struct c2_stack;
 
-struct c2_queue_link;
 struct c2_stack_link;
-
-void c2_queue_init(struct c2_queue *q);
-void c2_queue_fini(struct c2_queue *q);
-bool c2_queue_is_empty(const struct c2_queue *q);
 
 void c2_stack_init(struct c2_stack *stack);
 void c2_stack_fini(struct c2_stack *stack);
 bool c2_stack_is_empty(const struct c2_stack *stack);
 
-void c2_queue_link_init(struct c2_queue_link *q);
-void c2_queue_link_fini(struct c2_queue_link *q);
-bool c2_queue_link_is_in(const struct c2_queue_link *q);
-
 void c2_stack_link_init(struct c2_stack_link *stack);
 void c2_stack_link_fini(struct c2_stack_link *stack);
 bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 
+/** count of bytes (in extent, IO operation, etc.) */
+typedef uint64_t c2_bcount_t;
+/** an index (offset) in a linear name-space (e.g., in a file, storage object,
+    storage device, memory buffer) measured in bytes */
+typedef uint64_t c2_bindex_t;
+
+enum {
+	C2_BCOUNT_MAX = 0xffffffffffffffff,
+	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1
+};
+
 /** extent. */
 struct c2_ext {
-	uint64_t e_start;
-	uint64_t e_end;
+	c2_bindex_t e_start;
+	c2_bindex_t e_end;
 };
 
 int c2_ext_are_overlapping(const struct c2_ext *e0, const struct c2_ext *e1);
@@ -50,11 +52,11 @@ void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
 		struct c2_ext *sum);
 
 /* what about signed? */
-uint64_t c2_ext_cap(const struct c2_ext *ext2, uint64_t val);
+c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
 
 struct c2_buf {
-	void    *b_addr;
-	uint64_t b_nob;
+	void       *b_addr;
+	c2_bcount_t b_nob;
 };
 
 /** @} end of adt group */
