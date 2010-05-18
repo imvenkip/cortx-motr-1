@@ -64,7 +64,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 
 	c2_rwlock_read_lock(&conn_list_lock);
 	c2_list_for_each_entry(&conn_list, conn, struct c2_net_conn, nc_link) {
-		if (c2_nodes_are_same(&conn->nc_id, nid)) {
+		if (c2_services_are_same(&conn->nc_id, nid)) {
 			c2_ref_get(&conn->nc_refs);
 			found = true;
 			break;
