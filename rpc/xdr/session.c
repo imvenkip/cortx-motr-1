@@ -25,7 +25,7 @@ bool c2_xdr_session_create_arg(void *x, struct c2_session_create_arg *objp)
 	return true;
 }
 
-bool c2_xdr_session_create_out (void *x, struct c2_session_create_ret *objp)
+bool c2_xdr_session_create_ret(void *x, struct c2_session_create_ret *objp)
 {
 	 if (!xdr_int(x, &objp->error))
 		return false;
@@ -43,24 +43,18 @@ bool c2_xdr_session_create_out (void *x, struct c2_session_create_ret *objp)
 	return true;
 }
 
-/*
-bool_t
-xdr_session_destroy_arg (XDR *xdrs, session_destroy_arg *objp)
+bool c2_xdr_session_destroy_arg(void *xdrs, struct c2_session_destroy_arg *objp)
 {
-	register int32_t *buf;
+	if (!c2_xdr_service_id(xdrs, &objp->da_service))
+		return false;
 
-	 if (!xdr_session_id (xdrs, &objp->da_session_id))
-		 return FALSE;
-	return TRUE;
+	if (!c2_xdr_session_id(xdrs, &objp->da_session))
+		return false;
+
+	return true;
 }
 
-bool_t
-xdr_session_destroy_ret (XDR *xdrs, session_destroy_ret *objp)
+bool c2_xdr_session_destroy_ret(void *xdrs, struct c2_session_destroy_ret *objp)
 {
-	register int32_t *buf;
-
-	 if (!xdr_int32_t (xdrs, &objp->sda_errno))
-		 return FALSE;
-	return TRUE;
+	return xdr_int32_t(xdrs, &objp->sda_errno);
 }
-*/
