@@ -12,9 +12,9 @@
  unique service identifier.
  each service have own identifiers.
  if different services run on single physical node,
- she must have different c2_node_id value.
+ she must have different c2_service_id value.
  */
-struct c2_node_id {
+struct c2_service_id {
 	char uuid[40];
 };
 
@@ -27,7 +27,8 @@ struct c2_node_id {
  @retval TRUE if node identifiers is same
  @retval FALSE if node identifiers is different
 */
-bool c2_nodes_are_same(const struct c2_node_id *c1, const struct c2_node_id *c2);
+bool c2_services_are_same(const struct c2_service_id *c1,
+			  const struct c2_service_id *c2);
 
 /**
  services unique identifier
@@ -151,12 +152,24 @@ struct c2_rpc_op {
 #define C2_RPC_SRV_PROC(name)	((c2_rpc_srv_handler)(name))
 #endif
 
+/**
+ structre to hold an array of operations to handle in the service
+ */
 struct c2_rpc_op_table;
 
+/**
+ allocate new table and fill with initial values
+ */
 int c2_rpc_op_table_init(struct c2_rpc_op_table **table);
 
+/**
+ free allocated resources
+ */
 void c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
 
+/**
+ register one rpc operation in the table
+ */
 int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
 
 /**

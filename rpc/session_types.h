@@ -21,11 +21,11 @@ struct c2_session_create_arg {
 	/**
 	client requested a new session
 	*/
-	struct c2_node_id	sca_client;
+	struct c2_service_id	sca_client;
 	/**
 	server to accept connection
 	*/
-	struct c2_node_id	sca_server;
+	struct c2_service_id	sca_server;
 	/**
 	maximal slot count handled by client
 	*/
@@ -78,7 +78,7 @@ struct c2_session_destroy_arg {
 	/**
 	 node to have addressed this request
 	 */
-	struct c2_node_id    da_node;
+	struct c2_service_id    da_node;
 	/**
 	session identifier to destroy
 	*/

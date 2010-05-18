@@ -62,7 +62,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
  @retval NULL if none connections to the node
  @retval !NULL connection info pointer
  */
-struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid);
+struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 
 /**
  release connection after using.

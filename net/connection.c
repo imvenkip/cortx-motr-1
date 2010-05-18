@@ -70,7 +70,7 @@ int c2_net_conn_create(const struct c2_node_id *nid,
 	return 0;
 }
 
-struct c2_net_conn *c2_net_conn_find(const struct c2_node_id *nid)
+struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 {
 	struct c2_net_conn *conn;
 	bool found = false;

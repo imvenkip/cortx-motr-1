@@ -101,7 +101,7 @@ static void c2_rpc_client_free(struct c2_ref *ref)
 	C2_FREE_PTR(cli);
 }
 
-struct c2_rpc_client *c2_rpc_client_create(struct c2_node_id const *id)
+struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id)
 {
 	struct c2_rpc_client *cli;
 

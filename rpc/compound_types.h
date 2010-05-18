@@ -60,7 +60,7 @@ struct c2_compound_args {
 	/**
 	 service to have addressed this request
 	*/
-	struct c2_node_id	ca_node;
+	struct c2_service_id	ca_node;
 	/**
 	 session associated with that request (if exist)
 	*/

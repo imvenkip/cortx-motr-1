@@ -12,7 +12,7 @@
 
 #define CU_ASSERT(a)	if ((a)) {abort();}
 
-bool test_op1_hanlder(struct c2_node_id *arg, struct c2_node_id *ret)
+bool test_op1_hanlder(struct c2_service_id *arg, struct c2_service_id *ret)
 {
 	int a;
 
@@ -31,18 +31,18 @@ enum test_ops {
 
 struct c2_rpc_op  test_rpc1 = {
 	.ro_op = TEST_OP1,
-	.ro_arg_size = sizeof(struct c2_node_id),
+	.ro_arg_size = sizeof(struct c2_service_id),
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_node_id,
-	.ro_result_size = sizeof(struct c2_node_id),
+	.ro_result_size = sizeof(struct c2_service_id),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_node_id,
 	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
 };
 
 struct c2_rpc_op  test_rpc2 = {
 	.ro_op = TEST_OP2,
-	.ro_arg_size = sizeof(struct c2_node_id),
+	.ro_arg_size = sizeof(struct c2_service_id),
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_node_id,
-	.ro_result_size = sizeof(struct c2_node_id),
+	.ro_result_size = sizeof(struct c2_service_id),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_node_id,
 	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
 };
@@ -51,12 +51,12 @@ struct c2_rpc_op  test_rpc2 = {
 int main(int argc, char *argv[])
 {
 	int rc;
-	struct c2_node_id node1 = { .uuid = "node-1" };
-	struct c2_node_id node2 = { .uuid = "node-2" };
+	struct c2_service_id node1 = { .uuid = "node-1" };
+	struct c2_service_id node2 = { .uuid = "node-2" };
 	struct c2_net_conn *conn1;
 	struct c2_net_conn *conn2;
-	struct c2_node_id  node_arg = { .uuid = {0} };
-	struct c2_node_id  node_ret = { .uuid = {0} };
+	struct c2_service_id  node_arg = { .uuid = {0} };
+	struct c2_service_id  node_ret = { .uuid = {0} };
 	struct c2_rpc_op_table *ops;
 	struct c2_service s;
 
