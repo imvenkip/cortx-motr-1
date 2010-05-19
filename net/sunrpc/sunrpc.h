@@ -9,19 +9,6 @@
    @{
  */
 
-/**
-   SUNRPC service identifier.
- */
-struct c2_sunrpc_service_id {
-	struct c2_service_id *ssi_id;
-	char                 *ssi_host;
-	uint16_t              ssi_port;
-};
-
-struct c2_sunrpc_service {
-	/** pointers to threads... */
-};
-
 extern struct c2_net_xprt c2_net_sunrpc_xprt;
 
 /** @} end of group sunrpc */

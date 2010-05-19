@@ -6,7 +6,7 @@
 #include "lib/cdefs.h"
 #include "lib/refs.h"
 #include "lib/c2list.h"
-#include "lib/cc.h"
+#include "lib/rwlock.h"
 #include "lib/cache.h"
 
 #include "net/net.h"

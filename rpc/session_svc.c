@@ -16,7 +16,7 @@ static struct c2_rpc_op  create_session = {
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_session_create_arg,
 	.ro_result_size = sizeof(struct c2_session_create_ret),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_session_create_ret,
-	.ro_handler = C2_RPC_SRV_PROC(c2_session_create_svc)
+	.ro_handler = c2_session_create_svc
 };
 
 static struct c2_rpc_op  destroy_session = {
@@ -25,7 +25,7 @@ static struct c2_rpc_op  destroy_session = {
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_session_destroy_arg,
 	.ro_result_size = sizeof(struct c2_session_destroy_ret),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_session_destroy_ret,
-	.ro_handler = C2_RPC_SRV_PROC(c2_session_destroy_svc)
+	.ro_handler = c2_session_destroy_svc
 };
 
 
@@ -44,14 +44,12 @@ int c2_session_register_ops(struct c2_rpc_op_table *ops)
 
 
 /** rpc handlers */
-bool c2_session_create_svc(const struct c2_session_create_arg *in,
-			  struct c2_session_create_ret *out)
+bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void *out)
 {
 	return true;
 }
 
-bool c2_session_destroy_svc(const struct c2_session_destroy_arg *in,
-			   struct c2_session_destroy_ret *out)
+bool c2_session_destroy_svc(const struct c2_rpc_op *op, void *in, void *out)
 {
 	return true;
 }

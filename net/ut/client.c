@@ -12,13 +12,14 @@
 
 #define CU_ASSERT(a)	assert(a)
 
-static bool test_op1_hanlder(struct c2_service_id *arg, 
-			     struct c2_service_id *ret)
+static bool test_op1_hanlder(const struct c2_rpc_op *op, void *arg, void *ret)
 {
+	struct c2_service_id *iid = arg;
+	struct c2_service_id *oid = ret;
 	int a;
 
-	a = atoi((char *)&arg->si_uuid);
-	sprintf(ret->si_uuid, "%d", a + a);
+	a = atoi((char *)&iid->si_uuid);
+	sprintf(oid->si_uuid, "%d", a + a);
 
 	return true;
 }
@@ -36,7 +37,7 @@ static struct c2_rpc_op  test_rpc1 = {
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_service_id,
 	.ro_result_size = sizeof(struct c2_service_id),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_service_id,
-	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
+	.ro_handler = test_op1_hanlder
 };
 
 static struct c2_rpc_op  test_rpc2 = {
@@ -45,7 +46,7 @@ static struct c2_rpc_op  test_rpc2 = {
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_service_id,
 	.ro_result_size = sizeof(struct c2_service_id),
 	.ro_xdr_result = (c2_xdrproc_t)c2_xdr_service_id,
-	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
+	.ro_handler = test_op1_hanlder
 };
 
 static struct c2_net_domain dom;
@@ -86,11 +87,11 @@ int main(int argc, char *argv[])
 
 	rc = c2_rpc_op_register(ops, &test_rpc1);
 
-	rc = c2_net_service_start(&node1, ops, &s);
+	rc = c2_service_start(&s, &node1, ops);
 	CU_ASSERT(rc >= 0);
 
 	rc = c2_rpc_op_register(ops, &test_rpc2);
-	rc = c2_net_service_start(&node2, ops, &s);
+	rc = c2_service_start(&s, &node2, ops);
 	CU_ASSERT(rc >= 0);
 
 	sleep(1);
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
 	c2_net_conn_unlink(conn2);
 	c2_net_conn_release(conn2);
 
-	c2_net_service_stop(&s);
+	c2_service_stop(&s);
 	c2_rpc_op_table_fini(ops);
 
 	c2_service_id_fini(&node2);

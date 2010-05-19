@@ -6,7 +6,7 @@
 #include <stdarg.h>
 
 #include "lib/cdefs.h"
-#include "lib/cc.h"
+#include "lib/rwlock.h"
 #include "lib/c2list.h"
 #include "lib/queue.h"
 #include "lib/refs.h"
@@ -15,6 +15,19 @@
 
 /**
    @defgroup net Networking.
+
+   Major data-types in C2 networking are:
+
+   @li transport (c2_net_xprt);
+
+   @li network domain (c2_net_domain);
+
+   @li service id (c2_service_id);
+
+   @li service (c2_service);
+
+   @li logical connection (c2_net_conn).
+
    @{
  */
 
@@ -51,8 +64,8 @@ struct c2_net_xprt_ops {
 	/**
 	   Initialise transport specific part of a service identifier.
 	 */
-	int  (*xo_service_id_init)(struct c2_net_domain *dom,
-				   struct c2_service_id *sid, va_list varargs);
+	int  (*xo_service_id_init)(struct c2_service_id *sid, va_list varargs);
+	int  (*xo_service_init)(struct c2_service *service);
 };
 
 int  c2_net_xprt_init(struct c2_net_xprt *xprt);
@@ -129,64 +142,31 @@ void c2_service_id_fini(struct c2_service_id *id);
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2);
 /**
- services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
-
-/**
- XXX make version for all sun rpc calls to be const
-*/
-static const int C2_DEF_RPC_VER = 1;
-
-static const int C2_DEF_RPC_PORT = 12345;
-
-static const int C2_DEF_RPC_THREADS = 16;
-
-struct c2_service_thread_data {
-	struct c2_thread std_handle;
-};
-
-/**
    Running service instance.
 
    This structure describes an instance of a service running locally.
  */
 struct c2_service {
-	/** a domain this service is running at */
+	/** an identifier of this service */
+	struct c2_service_id           *s_id;
+	/** Domain this service is running in. */
 	struct c2_net_domain           *s_domain;
-	/** linkage in the list of all services running in the domain */
+	/** Table of operations. */
+	struct c2_rpc_op_table         *s_table;
+	/** 
+	    linkage in the list of all services running in the domain 
+
+	    @todo not currently maintained.
+	*/
 	struct c2_list                  s_linkage;
 	/** pointer to transport private service data */
 	void                           *s_xport_private;
 	const struct c2_service_ops    *s_ops;
-	/**
-	   program ID for this sunrpc service
-	*/
-	enum c2_rpc_service_id 	       s_progid;
-	/**
-	   tcp port of service socket
-	*/
-	int			       s_port;
-	/**
-	   service socket
-	*/
-	int			       s_socket;
+};
 
-	/**
-	   scheduler thread handle
-	*/
-	struct c2_thread	       s_scheduler_thread;
-
-	/**
-	   number of worker threads
-	*/
-	int 			       s_number_of_worker_threads;
-	/**
-	   worker thread array
-	*/
-	struct c2_service_thread_data *s_worker_thread_array;
+struct c2_service_ops {
+	void (*so_fini)(struct c2_service *service);
+	void  (*so_stop)(struct c2_service *service);
 };
 
 
@@ -301,7 +281,8 @@ typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
  @retval false if ret consist invalid data and system error should be returned
 	       to client
  */
-typedef	bool (*c2_rpc_srv_handler) (void *arg, void *ret);
+typedef	bool (*c2_rpc_srv_handler)(const struct c2_rpc_op *op, 
+				   void *arg, void *ret);
 
 /**
    rpc commands associated with service thread
@@ -332,16 +313,6 @@ struct c2_rpc_op {
 	 */
 	c2_rpc_srv_handler ro_handler;
 };
-
-/**
- we want to use same structure for build server and client code, but
- if we build client code we can't have pointer to server side handler.
-*/
-#ifdef C2_RPC_CLIENT
-#define C2_RPC_SRV_PROC(name)	(NULL)
-#else
-#define C2_RPC_SRV_PROC(name)	((c2_rpc_srv_handler)(name))
-#endif
 
 /**
  structre to hold an array of operations to handle in the service
@@ -446,17 +417,15 @@ int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call);
  @return 0 succees, other value indicates error.
  @see c2_net_service_stop
  */
-int c2_net_service_start(struct c2_service_id *id,
-			 struct c2_rpc_op_table *ops,
-			 struct c2_service *service);
+int c2_service_start(struct c2_service *service,
+		     struct c2_service_id *sid,
+		     struct c2_rpc_op_table *ops);
 /**
- stop network service
+   stop network service
 
- @param service data structure to contain all service info
- @return 0 succees, other value indicates error.
- @see c2_net_service_start
+   @see c2_net_service_start
  */
-int c2_net_service_stop(struct c2_service *service);
+void c2_service_stop(struct c2_service *service);
 
 /**
  constructor for the network library

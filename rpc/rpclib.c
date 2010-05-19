@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "lib/c2list.h"
-#include "lib/cc.h"
+#include "lib/rwlock.h"
 #include "lib/memory.h"
 
 #include "lib/refs.h"

@@ -34,7 +34,7 @@ int c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *dom, ...)
 
 	id->si_domain = dom;
 	va_start(varargs, dom);
-	result = dom->nd_xprt->nx_ops->xo_service_id_init(dom, id, varargs);
+	result = dom->nd_xprt->nx_ops->xo_service_id_init(id, varargs);
 	va_end(varargs);
 	return result;
 }
