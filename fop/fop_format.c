@@ -1,5 +1,7 @@
 /* -*- C -*- */
 
+#include <errno.h>
+
 #include "fop_format.h"
 #include "lib/assert.h"
 
@@ -8,18 +10,43 @@
    @{
  */
 
-const struct c2_fop_field c2_fop_write[] = {
-	C2_FOP_FIELD_FORMAT("", FFT_RECORD),
-		C2_FOP_FIELD_FORMAT("wr_fid", FFT_FID),
-		C2_FOP_FIELD_FORMAT("wr_iovec", FFT_ARRAY),
-       			C2_FOP_FIELD_FORMAT("iv_offset", FFT_OFFSET),
-			C2_FOP_FIELD_FORMAT("iv_buf", FFT_BUFFER),
-        	C2_FOP_FORMAT_END,
-	C2_FOP_FORMAT_END
+#define BASE(type, compound) [type] = {		\
+	.ffb_kind = FFK_OTHER,			\
+	.ffb_type = (type),			\
+	.ffb_compound = (compound)		\
+}
+
+const struct c2_fop_field_base c2_fop_field_base[FFT_NR] = {
+	BASE(FFT_ZERO, false),
+	BASE(FFT_VOID, false),
+	BASE(FFT_BOOL, false),
+	BASE(FFT_CHAR, false),
+	BASE(FFT_64,   false),
+	BASE(FFT_32,   false),
+	BASE(FFT_RECORD, true),
+	BASE(FFT_UNION, true),
+	BASE(FFT_ARRAY, true),
+	BASE(FFT_BITMASK, false),
+	BASE(FFT_FID, false),
+	BASE(FFT_NAME, false),
+	BASE(FFT_PATH, false),
+	BASE(FFT_PRINCIPAL, false),
+	BASE(FFT_CAPABILITY, false),
+	BASE(FFT_TIMESTAMP, false),
+	BASE(FFT_EPOCH, false),
+	BASE(FFT_VERSION, false),
+	BASE(FFT_OFFSET, false),
+	BASE(FFT_COUNT, false),
+	BASE(FFT_BUFFER, false),
+	BASE(FFT_RESOURCE, false),
+	BASE(FFT_LOCK, false),
+	BASE(FFT_NODE, false),
+	BASE(FFT_FOP, false),
+	BASE(FFT_REF, false),
+	BASE(FFT_OTHER, false)
 };
 
-int c2_fop_field_format_parse(const struct c2_fop_field_format *format, 
-			      size_t nr, struct c2_fop_field **out)
+int c2_fop_field_format_parse(struct c2_fop_field_descr *descr)
 {
 	struct c2_fop_field *parent;
 	struct c2_fop_field *top;
@@ -28,21 +55,25 @@ int c2_fop_field_format_parse(const struct c2_fop_field_format *format,
 	size_t   i;
 
 	parent = NULL;
-	depth = 0;
+	top    = NULL;
+	depth  = 0;
+	result = 0;
 
-	for (i = 0; i < nr; ++i) {
-		struct c2_fop_field        *cur;
-		struct c2_fop_field_format *fmt;
+	for (i = 0; i < descr->ffd_nr; ++i) {
+		struct c2_fop_field              *cur;
+		const struct c2_fop_field_format *fmt;
 
-		fmt = &format[i];
+		C2_ASSERT((parent == NULL) == (i == 0));
+
+		fmt = &descr->ffd_fmt[i];
 		if (fmt->fif_name == NULL) {
-			C2_ASSERT(fmt->fif_type == FFT_ZERO);
+			C2_ASSERT(fmt->fif_base == NULL);
 			C2_ASSERT(depth > 0);
 			C2_ASSERT(parent != NULL);
 			depth--;
 			parent = parent->ff_parent;
 			C2_ASSERT((depth == 0) == (parent == NULL));
-			C2_ASSERT(ergo(depth == 0, i + 1 == nr)); 
+			C2_ASSERT((depth == 0) == (i + 1 == descr->ffd_nr)); 
 			continue;
 		}
 		cur = c2_fop_field_alloc();
@@ -52,9 +83,9 @@ int c2_fop_field_format_parse(const struct c2_fop_field_format *format,
 		} else if (top == NULL)
 			top = cur;
 		cur->ff_name = fmt->fif_name;
-		C2_ASSERT(0 <= fmt->fif_type);
-		C2_ASSERT(fmt->fif_type < ARRAY_SIZE(fop_field_base));
-		cur->ff_base = &fop_field_base[fmt->fif_type];
+		if (fmt->fif_ref != NULL)
+			cur->ff_ref  = fmt->fif_ref->ffd_field;
+		cur->ff_base = fmt->fif_base;
 		if (parent != NULL)
 			c2_list_add_tail(&parent->ff_child, &cur->ff_sibling);
 		cur->ff_parent = parent;
@@ -66,15 +97,13 @@ int c2_fop_field_format_parse(const struct c2_fop_field_format *format,
 	}
 	if (result == 0) {
 		C2_ASSERT(depth == 0);
-		C2_ASSERT(i == nr);
+		C2_ASSERT(i == descr->ffd_nr);
 		C2_ASSERT(top != NULL);
-		*out = top;
+		descr->ffd_field = top;
 	} else
 		c2_fop_field_fini(top);
 	return result;
 }
-
-static const struct fop_field_base c2_fop_field_bases[FFT_NR];
 
 
 /** @} end of fop group */

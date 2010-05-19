@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 #include "fop.h"
-#include "lib/assert.h"
+#include "lib/memory.h"
 
 /**
    @addtogroup fop
@@ -20,35 +20,45 @@ struct c2_fop_field *c2_fop_field_alloc(void)
 	return field;
 }
 
-#if 0
-void c2_fop_field_traverse(struct c2_fop_field *fop, 
-			   c2_fop_field_cb_t cb, void *arg);
+static bool fop_field_subtree(struct c2_fop_field *root, unsigned depth,
+			      c2_fop_field_cb_t pre_cb, 
+			      c2_fop_field_cb_t post_cb, void *arg)
 {
-	struct c2_fop_field *cur;
-	struct c2_fop_field *path[C2_FOP_MAX_FIELD_DEPTH];
-	int                  depth;
+	struct c2_fop_field     *cur;
+	enum c2_fop_field_cb_ret ret;
 
-	depth   = 0;
-	path[0] = fop;
-	while (1) {
-		cur = path[depth];
-		if (pre && !cb(cur, depth, arg))
-			break;
-		else if (!c2_list_is_empty(&cur->ff_child))
-			path[++depth] = list2field(cur->ff_child.first);
-		else if (cur->ff_sibling.next != &cur->ff_parent.ff_child)
-			path[depth] = list2field(cur->ff_sibling.next);
-		else if ((!pre && !cb(cur, depth, arg) || --depth < 0))
-			break;
+	ret = pre_cb(root, depth, arg);
+	if (ret == FFC_CONTINUE) {
+		do {
+			c2_list_for_each_entry(&root->ff_child, cur, 
+					       struct c2_fop_field, ff_sibling){
+				if (!fop_field_subtree(cur, depth + 1, 
+						       pre_cb, post_cb, arg))
+					return false;
+			}
+			ret = post_cb(root, depth, arg);
+		} while (ret == FFC_REPEAT);
 	}
+	return ret != FFC_BREAK;
 }
-#endif
+
+void c2_fop_field_traverse(struct c2_fop_field *field,
+			   c2_fop_field_cb_t pre_cb, 
+			   c2_fop_field_cb_t post_cb, void *arg)
+{
+	fop_field_subtree(field, 0, pre_cb, post_cb, arg);
+}
 
 static void fop_field_fini_one(struct c2_fop_field *fop) 
 {
 	c2_list_del_init(&fop->ff_sibling);
 	c2_list_fini(&fop->ff_child);
 	c2_free(fop);
+}
+
+static struct c2_fop_field *list2field(struct c2_list_link *link)
+{
+	return container_of(link, struct c2_fop_field, ff_sibling);
 }
 
 void c2_fop_field_fini(struct c2_fop_field *field)

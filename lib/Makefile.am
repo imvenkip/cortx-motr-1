@@ -1,5 +1,3 @@
-SUBDIRS    = . ut
-
 noinst_LTLIBRARIES   = libc2.la
 libc2_la_SOURCES     = libc2.c memory.c c2list.c c2bitops.c refs.c cc.c \
                        queue.c vec.c thread.c chan.c mutex.c

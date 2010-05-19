@@ -20,6 +20,7 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	reqh->rh_rpc = rpc;
 	reqh->rh_dtm = dtm;
 	reqh->rh_dom = dom;
+	return 0;
 }
 
 void c2_reqh_fini(struct c2_reqh *reqh)
@@ -68,6 +69,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
 {
+#if 0
 	struct c2_fop_iterator    it;
 	struct c2_fom            *fom;
 	struct c2_fop_field_value val;
@@ -188,6 +190,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
 	 */
 	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	fom->fm_ops->fmo_run(fom);
+#endif
 }
 
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,

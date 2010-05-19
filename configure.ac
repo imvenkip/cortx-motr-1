@@ -268,6 +268,7 @@ AC_CONFIG_FILES([
                  addb/Makefile
                  fol/Makefile
                  fop/Makefile
+                 fop/ut/Makefile
                  rpc/Makefile
                  net/Makefile
                  nrs/Makefile

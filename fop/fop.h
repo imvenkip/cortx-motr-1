@@ -5,6 +5,7 @@
 
 #include "lib/cdefs.h"
 #include "lib/vec.h"
+#include "lib/c2list.h"
 
 /**
    @defgroup fop File operation packet
@@ -30,6 +31,7 @@
 
 /* import */
 struct c2_fom;
+struct c2_rpcmachine;
 
 /* export */
 struct c2_fop_type;
@@ -66,14 +68,6 @@ struct c2_fop_type_ops {
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
 };
 
-/** fop. */
-struct c2_fop {
-	struct c2_fop_type *f_type;
-	/** Pointer to the data where fop is serialised or will be
-	    serialised. */
-	struct c2_fop_data  f_data;
-};
-
 /** 
     fop storage.
 
@@ -81,6 +75,14 @@ struct c2_fop {
  */
 struct c2_fop_data {
 	struct c2_bufvec fd_vec;
+};
+
+/** fop. */
+struct c2_fop {
+	struct c2_fop_type *f_type;
+	/** Pointer to the data where fop is serialised or will be
+	    serialised. */
+	struct c2_fop_data  f_data;
 };
 
 int  c2_fop_type_register  (struct c2_fop_type *ftype, 
@@ -136,6 +138,12 @@ enum c2_fop_field_type {
 	FFT_VOID,
 	/** Boolean. */
 	FFT_BOOL,
+	/** Octet. */
+	FFT_CHAR,
+	/** 64 bit value. */
+	FFT_64,
+	/** 32 bit value. */
+	FFT_32,
 	/** This field is a record, containing other fields. */
 	FFT_RECORD,
 	/** This field is a discriminated union, containing some field from a
@@ -176,6 +184,8 @@ enum c2_fop_field_type {
 	FFT_NODE,
 	/** This field contains a fop. */
 	FFT_FOP,
+	/** This field is a reference to another field. */
+	FFT_REF,
 	/** This field contains something else. */
 	FFT_OTHER,
 
@@ -213,6 +223,7 @@ struct c2_fop_field_base {
    this element field.
  */
 struct c2_fop_field {
+	struct c2_fop                  *ff_fop;
 	/** Field name. */
 	const char                     *ff_name;
 	/** Base attributes. */
@@ -226,16 +237,36 @@ struct c2_fop_field {
 	/** Pointer to the parent field in the tree, or NULL for the top field
 	    in fop type (c2_fop_type::ft_top). */
 	struct c2_fop_field            *ff_parent;
+	const struct c2_fop_field      *ff_ref;
 };
 
 /** Allocate fop field and initialise its attributes. */
 struct c2_fop_field *c2_fop_field_alloc(void);
 /** Finalise the field destroying all its state including sub-tree of fields
     rooted at the field. */
-void                 c2_fop_field_fini(struct c2_fop_field *field);
+void c2_fop_field_fini(struct c2_fop_field *field);
 
-/** Call-back function supplied to fop field tree iterating functions. */
-typedef bool (*c2_fop_field_cb_t)(struct c2_fop_field *, unsigned, void *);
+enum c2_fop_field_cb_ret {
+	FFC_CONTINUE,
+	FFC_BREAK,
+	FFC_SKIP,
+	FFC_REPEAT
+};
+
+/** 
+    Call-back function supplied to fop field tree iterating functions.
+ */
+typedef enum c2_fop_field_cb_ret (*c2_fop_field_cb_t)(struct c2_fop_field *, 
+						      unsigned , void *);
+/**
+   Traverse the fop field tree calling call-backs for every tree node.
+
+   @param pre_cb call-back called before children are traversed
+   @param post_cb call-back called after children are traversed
+ */
+void c2_fop_field_traverse(struct c2_fop_field *field,
+			   c2_fop_field_cb_t pre_cb, 
+			   c2_fop_field_cb_t post_cb, void *arg);
 
 /** 
     Values of this type describe position within a compound field.
@@ -257,9 +288,11 @@ enum {
 
 /**
    Contents of a given field in a given fop instance.
+
+   @note a fop field can potentially have multiple values in the same fop. For
+   example, an element field in the array field.
  */
 struct c2_fop_field_val {
-	struct c2_fop       *ffv_fop;
 	struct c2_fop_field *ffv_field;
 	void                *ffv_val;
 };
@@ -270,7 +303,7 @@ struct c2_fop_field_val {
    A fop iterator goes through the values that fields have for a given fop.
  */
 struct c2_fop_iterator {
-	struct c2_fop                  *ffi_fop;
+	struct c2_fop *ffi_fop;
 	/**
 	   Stack describing the iterator position within nested compound fields.
 	 */
@@ -281,9 +314,9 @@ struct c2_fop_iterator {
 		struct c2_vec_cursor    s_pos;
 		/** Position within this field. */
 		c2_fop_field_iterator_t s_it;
-	}                               ffi_stack[C2_FOP_MAX_FIELD_DEPTH];
+	}              ffi_stack[C2_FOP_MAX_FIELD_DEPTH];
 	/** Current stack depth. */
-	int                             ffi_depth;
+	int            ffi_depth;
 };
 
 void c2_fop_iterator_init(struct c2_fop_iterator *it, struct c2_fop *fop);
