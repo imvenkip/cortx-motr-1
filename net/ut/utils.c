@@ -28,8 +28,8 @@ int clean_suite(void)
 
 void test_node1(void)
 {
-	struct node_id node1 = { .uuid = "node-1"; }
-	struct node_id node2 = { .uuid = "node-2"; }
+	struct node_id node1 = { .si_uuid = "node-1"; }
+	struct node_id node2 = { .si_uuid = "node-2"; }
 	bool rc;
 
 	rc = nodes_is_same(node1, node2);
@@ -39,8 +39,8 @@ void test_node1(void)
 
 void test_node2(void)
 {
-	struct node_id node1 = { .uuid = "node-1"; }
-	struct node_id node2 = { .uuid = "node-1"; }
+	struct node_id node1 = { .si_uuid = "node-1"; }
+	struct node_id node2 = { .si_uuid = "node-1"; }
 	bool rc;
 
 	rc = nodes_is_same(node1, node2);

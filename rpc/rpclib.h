@@ -10,7 +10,6 @@
 #include "lib/cache.h"
 
 #include "net/net.h"
-#include "net/net_types.h"
 #include "rpc/rpc_types.h"
 
 /**
@@ -63,6 +62,7 @@ struct c2_rpc_client {
 
  @return pointer to allocated rpc structure or NULL if not have enough memory
  */
+struct c2_rpc_client *c2_rpc_client_init(const struct c2_service_id *id);
 struct c2_rpc_client *c2_rpc_client_create(const struct c2_service_id *id);
 
 /**

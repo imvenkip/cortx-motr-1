@@ -3,21 +3,22 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-
-#include "net/net.h"
+#include <assert.h>
 
 // #define C2_RPC_CLIENT 1
-#include "net/net_types.h"
+#include "net/net.h"
 #include "net/xdr.h"
+#include "net/sunrpc/sunrpc.h"
 
-#define CU_ASSERT(a)	if ((a)) {abort();}
+#define CU_ASSERT(a)	assert(a)
 
-bool test_op1_hanlder(struct c2_service_id *arg, struct c2_service_id *ret)
+static bool test_op1_hanlder(struct c2_service_id *arg, 
+			     struct c2_service_id *ret)
 {
 	int a;
 
-	a = atoi((char *)&arg->uuid);
-	sprintf(ret->uuid, "%d", a + a);
+	a = atoi((char *)&arg->si_uuid);
+	sprintf(ret->si_uuid, "%d", a + a);
 
 	return true;
 }
@@ -29,7 +30,7 @@ enum test_ops {
 };
 
 
-struct c2_rpc_op  test_rpc1 = {
+static struct c2_rpc_op  test_rpc1 = {
 	.ro_op = TEST_OP1,
 	.ro_arg_size = sizeof(struct c2_service_id),
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_service_id,
@@ -38,7 +39,7 @@ struct c2_rpc_op  test_rpc1 = {
 	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
 };
 
-struct c2_rpc_op  test_rpc2 = {
+static struct c2_rpc_op  test_rpc2 = {
 	.ro_op = TEST_OP2,
 	.ro_arg_size = sizeof(struct c2_service_id),
 	.ro_xdr_arg = (c2_xdrproc_t)c2_xdr_service_id,
@@ -47,69 +48,79 @@ struct c2_rpc_op  test_rpc2 = {
 	.ro_handler = C2_RPC_SRV_PROC(test_op1_hanlder)
 };
 
+static struct c2_net_domain dom;
+
+enum {
+	PORT = 10001
+};
 
 int main(int argc, char *argv[])
 {
 	int rc;
-	struct c2_service_id node1 = { .uuid = "node-1" };
-	struct c2_service_id node2 = { .uuid = "node-2" };
+	struct c2_service_id node1 = { .si_uuid = "node-1" };
+	struct c2_service_id node2 = { .si_uuid = "node-2" };
 	struct c2_net_conn *conn1;
 	struct c2_net_conn *conn2;
-	struct c2_service_id  node_arg = { .uuid = {0} };
-	struct c2_service_id  node_ret = { .uuid = {0} };
+	struct c2_service_id  node_arg = { .si_uuid = {0} };
+	struct c2_service_id  node_ret = { .si_uuid = {0} };
 	struct c2_rpc_op_table *ops;
 	struct c2_service s;
 
-	rc = net_init();
-	CU_ASSERT(rc);
+	rc = c2_net_init();
+	CU_ASSERT(rc == 0);
+
+	rc = c2_net_xprt_init(&c2_net_sunrpc_xprt);
+	CU_ASSERT(rc == 0);
+
+	rc = c2_net_domain_init(&dom, &c2_net_sunrpc_xprt);
+	CU_ASSERT(rc == 0);
+
+	rc = c2_service_id_init(&node1, &dom, "127.0.0.1", PORT);
+	CU_ASSERT(rc == 0);
+
+	rc = c2_service_id_init(&node2, &dom, "127.0.0.1", PORT + 1);
+	CU_ASSERT(rc == 0);
 
 	c2_rpc_op_table_init(&ops);
-	CU_ASSERT(ops == NULL);
+	CU_ASSERT(ops != NULL);
 
 	rc = c2_rpc_op_register(ops, &test_rpc1);
 
-	rc = c2_net_service_start(C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
-				  C2_DEF_RPC_PORT, 1, ops, &s);
-	CU_ASSERT(rc < 0);
+	rc = c2_net_service_start(&node1, ops, &s);
+	CU_ASSERT(rc >= 0);
 
 	rc = c2_rpc_op_register(ops, &test_rpc2);
-	rc = c2_net_service_start(C2_SESSION_PROGRAM + 1, C2_DEF_RPC_VER,
-				  C2_DEF_RPC_PORT, 1, ops, &s);
-	CU_ASSERT(rc < 0);
-
+	rc = c2_net_service_start(&node2, ops, &s);
+	CU_ASSERT(rc >= 0);
 
 	sleep(1);
-	/* in config*/
-	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
-				"localhost", C2_DEF_RPC_PORT);
-	CU_ASSERT(rc);
+	/* in config */
+	rc = c2_net_conn_create(&node1);
+	CU_ASSERT(rc == 0);
 
-	/* in config*/
-	rc = c2_net_conn_create(&node1, C2_SESSION_PROGRAM + 1, C2_DEF_RPC_VER,
-				"localhost", C2_DEF_RPC_PORT);
-	CU_ASSERT(rc);
+	/* in config */
+	rc = c2_net_conn_create(&node2);
+	CU_ASSERT(rc == 0);
 
 	conn1 = c2_net_conn_find(&node1);
-	CU_ASSERT(conn1 == NULL);
+	CU_ASSERT(conn1 != NULL);
 
 	conn2 = c2_net_conn_find(&node2);
-	CU_ASSERT(conn1 == NULL);
+	CU_ASSERT(conn1 != NULL);
 
-	sprintf(node_arg.uuid, "%d", 10);
-	rc = c2_net_cli_call_sync(conn1,
-			 ops, TEST_OP1, &node_arg, &node_ret);
-
-	printf("rc = %d\n", rc);
-	printf("%s\n", node_ret.uuid);
-	CU_ASSERT(rc != 0);
-
-	sprintf(node_arg.uuid, "%d", 10);
-	rc = c2_net_cli_call_sync(conn2,
-			 ops, TEST_OP2, &node_arg, &node_ret);
+	sprintf(node_arg.si_uuid, "%d", 10);
+	rc = c2_net_cli_call(conn1, ops, TEST_OP1, &node_arg, &node_ret);
 
 	printf("rc = %d\n", rc);
-	printf("%s\n", node_ret.uuid);
-	CU_ASSERT(rc != 0);
+	printf("%s\n", node_ret.si_uuid);
+	CU_ASSERT(rc == 0);
+
+	sprintf(node_arg.si_uuid, "%d", 10);
+	rc = c2_net_cli_call(conn2, ops, TEST_OP2, &node_arg, &node_ret);
+
+	printf("rc = %d\n", rc);
+	printf("%s\n", node_ret.si_uuid);
+	CU_ASSERT(rc == 0);
 
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
@@ -120,6 +131,19 @@ int main(int argc, char *argv[])
 	c2_net_service_stop(&s);
 	c2_rpc_op_table_fini(ops);
 
-	net_fini();
+	c2_service_id_fini(&node2);
+	c2_service_id_fini(&node1);
+	c2_net_domain_fini(&dom);
+	c2_net_xprt_fini(&c2_net_sunrpc_xprt);
+	c2_net_fini();
 	return 0;
 }
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

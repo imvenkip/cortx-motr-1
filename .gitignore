@@ -61,3 +61,6 @@ utils/ploss/ploss_client
 utils/ploss/ploss_server
 sns/sns
 stob/server
+net/ut/connection
+net/ut/client
+test_db*

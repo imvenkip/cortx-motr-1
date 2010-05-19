@@ -5,7 +5,7 @@
 #include "lib/cdefs.h"
 
 #include "lib/cache.h"
-#include "net/net_types.h"
+#include "net/net.h"
 
 /**
  @page rpc-pcache persistent cache definitions

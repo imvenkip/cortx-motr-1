@@ -20,8 +20,8 @@
 #include "lib/queue.h"
 #include "lib/memory.h"
 #include "net/net.h"
-#include "net/net_types.h"
 
+#if 0
 
 /**
   Multithreaded sunrpc server implementation (designed by Nikita Danilov).
@@ -416,6 +416,18 @@ int c2_net_service_stop(struct c2_service *service)
 	return 0;
 }
 
+#endif
+
+int c2_net_service_start(struct c2_service_id *sid,
+			 struct c2_rpc_op_table *ops,
+			 struct c2_service *service)
+{
+	return 0;
+}
+int c2_net_service_stop(struct c2_service *service)
+{
+	return 0;
+}
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

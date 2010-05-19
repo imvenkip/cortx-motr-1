@@ -17,7 +17,7 @@ enum c2_compound_op {
 /**
  parameters to sequence operation
  */
-struct c2_session_sequence_args
+struct c2_session_sequence_args {
 	/**
 	 slot indetifyer to sequence protection
 	 */
@@ -48,7 +48,7 @@ struct c2_compound_op_arg {
 	 to be updated
 	*/
 	union {
-		struct session_sequence_args sess_args;
+		struct c2_session_sequence_args sess_args;
 	} compound_op_arg_u;
 };
 

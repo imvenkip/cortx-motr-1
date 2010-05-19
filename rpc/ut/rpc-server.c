@@ -1,5 +1,4 @@
 #include "net/net.h"
-#include "net/net_types.h"
 
 #include "rpc/rpclib.h"
 #include "rpc/rpc_ops.h"
@@ -8,15 +7,14 @@
 
 int main(void)
 {
-	struct c2_service_id srv_id = { .uuid = "srv-1" };
+	struct c2_service_id srv_id = { .si_uuid = "srv-1" };
 	struct c2_rpc_server *srv;
 	struct c2_service	s;
 	int rc;
 
 	c2_rpclib_init();
 
-	rc = c2_net_service_start(C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
-				  C2_DEF_RPC_PORT, 1, rpc_ops, &s);
+	rc = c2_net_service_start(&srv_id, rpc_ops, &s);
 
 	srv = c2_rpc_server_create(&srv_id);
 
@@ -32,8 +30,6 @@ int main(void)
 	/* add compound rpc in list*/
 	// c2_server_compond_init(srv);
 
-	/* answer to reply */
-	c2_rpc_server_register(srv);
-
-	while(1) {};
+	//c2_server_register(srv);
+	return 0;
 }

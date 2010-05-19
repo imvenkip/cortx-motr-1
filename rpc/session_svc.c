@@ -2,8 +2,7 @@
 #include <errno.h>
 
 #include "lib/memory.h"
-
-#include "net/net_types.h"
+#include "net/net.h"
 
 #include "rpc/rpc_ops.h"
 

@@ -4,7 +4,7 @@
 #include <rpc/xdr.h>
 
 
-#include "net/net_types.h"
+#include "net/net.h"
 #include "net/xdr.h"
 #include "rpc/rpc_types.h"
 #include "rpc/session_types.h"

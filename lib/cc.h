@@ -47,9 +47,6 @@ void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 struct c2_semaphore {
 };
 
-struct c2_cond {
-};
-
 /** @} end of cc group */
 
 
