@@ -63,4 +63,6 @@ sns/sns
 stob/server
 net/ut/connection
 net/ut/client
+rpc/ut/rclient
+rpc/ut/rserver
 test_db*
