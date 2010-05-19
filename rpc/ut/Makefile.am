@@ -1,4 +1,4 @@
-INCLUDES             = -I. -I$(top_srcdir)/include -I$(top_srcdir)  -I@DB4SRC@/build_unix -I@DB4SRC@
+INCLUDES             = -I. -I$(top_srcdir)/include -I$(top_srcdir)  -I@DB4SRC@/build_unix
 
 noinst_PROGRAMS = rclient rserver
 
