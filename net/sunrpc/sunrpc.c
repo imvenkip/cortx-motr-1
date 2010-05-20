@@ -27,48 +27,53 @@
 
 /**
    @addtogroup sunrpc Sun RPC
-   @{
- */
 
-/**
- services unique identifier
+   User level Sunrpc-based implementation of C2 networking interfaces.
+
+   The implementation uses public sunrpc interfaces (rpc/rpc.h, part of libc on
+   Linux). The following C2 network properties are not entirely trivial in
+   sunrpc model:
+
+   @li asynchronous client calls;
+
+   @li one-way messages (rpcs without replies, the replies are sent as another
+   one way rpc in the opposite direction);
+
+   @li multi-threaded server.
+
+   Currently asynchronous client calls are implemented by creating a pool of
+   sunrpc client connections (CLIENT structure) per C2 logical network
+   connection. To submit an asynchronous call, a user allocates a call structure
+   (c2_net_async_call) and places it in a global (per network domain) queue.
+
+   A global (per domain) pool of threads listens on this queue and processes
+   requests synchronously.
+
+   One-way messaging is not implemented at the moment.
+
+   Multi-threaded server (described in detail in sunrpc_service documentation)
+   uses select(2) call to detect incoming data.
+
+   @todo A nicer approach to implement both asynchronous messaging and one-way
+   messaging is to use zero-duration timeouts for clnt_call(3).
+
+  @{
  */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
 
 static const struct c2_net_conn_ops sunrpc_conn_ops;
 static const struct c2_service_id_ops sunrpc_service_id_ops;
 static const struct c2_service_ops sunrpc_service_ops;
 static const struct c2_net_xprt_ops xprt_ops;
-static pthread_key_t sunrpc_service_key;
-
-enum {
-	CONN_CLIENT_COUNT  = 8,
-	CONN_CLIENT_THR_NR = CONN_CLIENT_COUNT * 2,
-
-	SERVER_THR_NR = 32,
-};
-
-/**
-   Connection data private to sunrpc transport.
-
-   @see c2_net_conn
- */
-struct sunrpc_conn {
-	/** Pool of sunrpc connections. */
-	struct sunrpc_xprt *nsc_pool;
-	/** Number of elements in the pool */
-	size_t              nsc_nr;
-	struct c2_mutex     nsc_guard;
-	struct c2_queue     nsc_idle;
-	struct c2_cond      nsc_gotfree;
-};
 
 struct sunrpc_xprt {
 	CLIENT              *nsx_client;
 	int                  nsx_fd;
 	struct c2_queue_link nsx_linkage;
+};
+
+enum {
+	CONN_CLIENT_COUNT  = 8,
+	CONN_CLIENT_THR_NR = CONN_CLIENT_COUNT * 2,
 };
 
 struct sunrpc_dom {
@@ -87,6 +92,37 @@ struct sunrpc_dom {
 	 */
 };
 
+/**
+   XXX make version for all sun rpc calls to be const
+ */
+static const int C2_DEF_RPC_VER = 1;
+
+/**
+   services unique identifier
+ */
+enum c2_rpc_service_id {
+	C2_SESSION_PROGRAM = 0x20000001
+};
+
+
+/*
+ * Client code.
+ */
+
+/**
+   Connection data private to sunrpc transport.
+
+   @see c2_net_conn
+ */
+struct sunrpc_conn {
+	/** Pool of sunrpc connections. */
+	struct sunrpc_xprt *nsc_pool;
+	/** Number of elements in the pool */
+	size_t              nsc_nr;
+	struct c2_mutex     nsc_guard;
+	struct c2_queue     nsc_idle;
+	struct c2_cond      nsc_gotfree;
+};
 
 /**
    SUNRPC service identifier.
@@ -96,97 +132,6 @@ struct sunrpc_service_id {
 	char                 *ssi_host;
 	uint16_t              ssi_port;
 };
-
-/**
-   XXX make version for all sun rpc calls to be const
-*/
-static const int C2_DEF_RPC_VER = 1;
-
-struct c2_service_thread_data {
-	struct c2_thread std_handle;
-};
-
-struct sunrpc_service {
-	/**
-	   SUNRPC transport handle for this service
-	 */
-	SVCXPRT                       *s_transp;
-	/**
-	   program ID for this sunrpc service
-	 */
-	enum c2_rpc_service_id 	       s_progid;
-	/**
-	   tcp port of service socket
-	 */
-	int			       s_port;
-	/**
-	   service socket
-	 */
-	int			       s_socket;
-
-	/**
-	   scheduler thread handle
-	 */
-	struct c2_thread	       s_scheduler_thread;
-
-	/**
-	   number of worker threads
-	 */
-	int 			       s_nr_workers;
-	/**
-	   worker thread array
-	 */
-	struct c2_service_thread_data *s_workers;
-
-	/**
-	   queue of received and not yet processed work items
-
-	   This queue is protected by 'req_guard'.
-	*/
-	struct c2_queue s_requests;
-
-	/** mutex protecting "requests" queue */
-	struct c2_mutex s_req_guard;
-
-	/**
-	   read-write lock for synchronisation between the scheduler and the
-	   workers.
-
-	   Why this lock is needed? Because there is a shared state in sunrpc:
-	   network buffers, XDR decoding and encoding state, etc. If workers
-	   were allowed to send replies concurrently with scheduler parsing
-	   incoming connections, such state would be corrupted.
-
-	   Why this lock can be made read-write? Because the shared state in
-	   sunrpc is per SVCXPRT. Different workers work on different
-	   connections from the client (transport level connections, that is,
-	   different sockets returned by accept(3) on the master listening
-	   socket), because client waits for reply before sending next rpc
-	   through the same connections (CLIENT structure).
-
-	   Because of this, different workers can send replies in parallel. They
-	   cannot send replies in parallel with svc_getreqset() call in the
-	   scheduler because this call potentially works with all connections.
-	*/
-	struct c2_rwlock s_guard;
-
-	/**
-	   synchronization condition.
-
-	   A condition variable that the worker threads wait upon. It is
-	   signalled by the scheduler/dispatch after rpc arguments have been
-	   parsed and work item queued. 
-	*/
-	struct c2_cond s_gotwork;
-	/**
-	   The service is being dismantled.
-	 */
-	bool           s_shutdown;
-};
-
-/*
- * Client code.
- */
 
 static bool dom_is_shutting(const struct c2_net_domain *dom)
 {
@@ -409,6 +354,14 @@ static void sunrpc_worker(struct c2_net_domain *dom)
  * Server code.
  */
 
+struct c2_service_thread_data {
+	struct c2_thread std_handle;
+};
+
+enum {
+	SERVER_THR_NR = 32
+};
+
 /**
   Multi-threaded sunrpc server implementation (designed by Nikita Danilov).
 
@@ -433,6 +386,85 @@ static void sunrpc_worker(struct c2_net_domain *dom)
   It then builds and sends a reply under a shared guard lock. After that,
   the dynamically allocated argument and reply buffer will be released.
  */
+struct sunrpc_service {
+	/**
+	   SUNRPC transport handle for this service
+	 */
+	SVCXPRT                       *s_transp;
+	/**
+	   program ID for this sunrpc service
+	 */
+	enum c2_rpc_service_id 	       s_progid;
+	/**
+	   tcp port of service socket
+	 */
+	int			       s_port;
+	/**
+	   service socket
+	 */
+	int			       s_socket;
+
+	/**
+	   scheduler thread handle
+	 */
+	struct c2_thread	       s_scheduler_thread;
+
+	/**
+	   number of worker threads
+	 */
+	int 			       s_nr_workers;
+	/**
+	   worker thread array
+	 */
+	struct c2_service_thread_data *s_workers;
+
+	/**
+	   queue of received and not yet processed work items
+
+	   This queue is protected by 'req_guard'.
+	*/
+	struct c2_queue s_requests;
+
+	/** mutex protecting "requests" queue */
+	struct c2_mutex s_req_guard;
+
+	/**
+	   read-write lock for synchronisation between the scheduler and the
+	   workers.
+
+	   Why this lock is needed? Because there is a shared state in sunrpc:
+	   network buffers, XDR decoding and encoding state, etc. If workers
+	   were allowed to send replies concurrently with scheduler parsing
+	   incoming connections, such state would be corrupted.
+
+	   Why this lock can be made read-write? Because the shared state in
+	   sunrpc is per SVCXPRT. Different workers work on different
+	   connections from the client (transport level connections, that is,
+	   different sockets returned by accept(3) on the master listening
+	   socket), because client waits for reply before sending next rpc
+	   through the same connections (CLIENT structure).
+
+	   Because of this, different workers can send replies in parallel. They
+	   cannot send replies in parallel with svc_getreqset() call in the
+	   scheduler because this call potentially works with all connections.
+	*/
+	struct c2_rwlock s_guard;
+
+	/**
+	   synchronization condition.
+
+	   A condition variable that the worker threads wait upon. It is
+	   signalled by the scheduler/dispatch after rpc arguments have been
+	   parsed and work item queued. 
+	*/
+	struct c2_cond s_gotwork;
+	/**
+	   The service is being dismantled.
+	 */
+	bool           s_shutdown;
+};
+
+static pthread_key_t sunrpc_service_key;
 
 /**
   Work item, holding RPC operation argument and results.
@@ -532,7 +564,7 @@ static void sunrpc_service_worker(struct c2_service *service)
                        platforms. */
 		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)op->ro_xdr_arg,
 				 (caddr_t) wi->wi_arg)) {
-			/* bug */
+			/* XXX bug */
 		}
 		xdr_free((xdrproc_t)op->ro_xdr_result, (caddr_t)wi->wi_res);
 
@@ -551,10 +583,10 @@ static void sunrpc_service_worker(struct c2_service *service)
    This dispatch() is called by the scheduler thread:
    c2_net_scheduler() -> svc_getreqset() -> ... -> sunrpc_dispatch()
 
-   It finds suitable operation from the operations table, allocates
-   proper argument and result buffer memory, decodes the argument,
-   and then create a work item, put it into the queue. After that it
-   signals the worker thread to handle this request concurrently.
+   It finds suitable operation from the operations table, allocates proper
+   argument and result buffer memory, decodes the argument, and then create a
+   work item, puts it into the queue. After that it signals the worker thread to
+   handle this request concurrently.
  */
 static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 {
@@ -610,7 +642,9 @@ static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 }
 
 /**
-  sunrpc_scheduler: equivalent to svc_run()
+   sunrpc_scheduler: equivalent to svc_run()
+
+   @todo use svc_pollfd.
 */
 static void sunrpc_scheduler(struct c2_service *service)
 {
@@ -671,21 +705,16 @@ static void service_stop(struct sunrpc_service *xs)
 	}
 
 	if (xs->s_scheduler_thread.t_func != NULL) {
-		/* Wait until scheduler sees the shutdown and exits. This might
-		   wait for select(2) timeout. See sunrpc_scheduler(). */
+		/* 
+		 * Wait until scheduler sees the shutdown and exits. This might
+		 * wait for select(2) timeout. See
+		 * sunrpc_scheduler(). Alternatively, use a signal to kill
+		 * scheduler thread and call svc_exit() from the signal
+		 * handler. 
+		 */
 		c2_thread_join(&xs->s_scheduler_thread);
 		c2_thread_fini(&xs->s_scheduler_thread);
 	}
-
-	/* close the service socket */
-	/*
-	 * XXX nikita: shouldn't sunrpc lib do this for us?
-	 */
-	if (xs->s_socket != -1) {
-		close(xs->s_socket);
-		xs->s_socket = -1;
-	}
-
 	/* Free all the remaining work items. Strictly speaking, the lock is not
 	   needed, because all the threads are dead by now. */
         c2_mutex_lock(&xs->s_req_guard);
@@ -699,6 +728,15 @@ static void service_stop(struct sunrpc_service *xs)
 	if (xs->s_transp != NULL) {
 		svc_destroy(xs->s_transp);
 		xs->s_transp = NULL;
+	}
+	/* close the service socket */
+	/*
+	 * XXX nikita: shouldn't sunrpc lib do this for us? If the library
+	 * doesn't close the socket, shouldn't we call shutdown(2) here too?
+	 */
+	if (xs->s_socket != -1) {
+		close(xs->s_socket);
+		xs->s_socket = -1;
 	}
 }
 
@@ -782,7 +820,6 @@ static int service_start(struct c2_service *service,
 static void sunrpc_service_stop(struct c2_service *service)
 {
 	service_stop(service->s_xport_private);
-	service->s_xport_private = NULL;
 }
 
 static void sunrpc_service_fini(struct c2_service *service)
@@ -824,7 +861,6 @@ static int sunrpc_service_init(struct c2_service *service)
 		result = -ENOMEM;
 	return result;
 }
-
 
 /*
  * Domain code.
