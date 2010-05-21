@@ -31,6 +31,11 @@ int main(int argc, char **argv)
 	struct c2_stob *obj;
 	struct c2_stob *obj1;
 	const char path[] = "./__s/o/0000000000000001.0000000000000002";
+	struct c2_stob_io io;
+	c2_bcount_t user_vec[] = { 4096 };
+	char user_buf[4096];
+	c2_bindex_t stob_vec[] = { 4096 };
+	struct c2_clink clink;
 
 	result = linux_stob_module_init();
 	
@@ -78,6 +83,39 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
+
+	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+
+	result = c2_stob_locate(obj);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(obj->so_state == CSS_EXISTS);
+
+	c2_stob_io_init(&io);
+
+	io.si_opcode = SIO_WRITE;
+	io.si_flags  = 0;
+	io.si_user.div_vec.ov_vec.v_nr = ARRAY_SIZE(user_vec);
+	io.si_user.div_vec.ov_vec.v_count = user_vec;
+	io.si_user.div_vec.ov_buf = (void **)&user_buf;
+	io.si_stob.ov_vec.v_nr = ARRAY_SIZE(user_vec);
+	io.si_stob.ov_vec.v_count = user_vec;
+	io.si_stob.ov_index = stob_vec;
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&io.si_wait, &clink);
+
+	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	C2_ASSERT(result == 0);
+
+	c2_chan_wait(&clink);
+
+	C2_ASSERT(io.si_rc == 0);
+	C2_ASSERT(io.si_count == 4096);
+
+	c2_stob_io_fini(&io);
+	c2_stob_put(obj);
+	c2_clink_fini(&clink);
 
 	dom->sd_ops->sdo_fini(dom);
 	linux_stob_module_fini();

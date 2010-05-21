@@ -50,10 +50,19 @@ static const struct c2_stob_io_op linux_stob_io_op;
 
 int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
+	struct linux_stob_io *lio;
+	int                   result;
+
 	C2_PRE(io->si_state == SIS_IDLE);
 
-	io->si_op = &linux_stob_io_op;
-	return 0;
+	C2_ALLOC_PTR(lio);
+	if (lio != NULL) {
+		io->si_stob_private = lio;
+		io->si_op = &linux_stob_io_op;
+		result = 0;
+	} else
+		result = -ENOMEM;
+	return result;
 }
 
 static void linux_stob_io_fini(struct linux_stob_io *lio)

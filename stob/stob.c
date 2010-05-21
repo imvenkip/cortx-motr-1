@@ -136,11 +136,6 @@ static void c2_stob_io_private_fini(struct c2_stob_io *io)
 	}
 }
 
-static bool c2_stob_io_is_locked(const struct c2_stob *obj)
-{
-	return obj->so_op->sop_io_is_locked(obj);
-}
-
 static void c2_stob_io_lock(struct c2_stob *obj)
 {
 	obj->so_op->sop_io_lock(obj);
@@ -198,7 +193,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		c2_stob_io_lock(obj);
 		/* XXX do something about barriers here. */
 		result = io->si_op->sio_launch(io);
-		C2_ASSERT(equi(result == 0, !c2_stob_io_is_locked(obj)));
 		if (result != 0) {
 			io->si_state = SIS_IDLE;
 			c2_stob_io_unlock(obj);
