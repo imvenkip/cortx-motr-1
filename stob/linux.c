@@ -328,13 +328,14 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
-static bool linux_stob_invariant(struct linux_stob *lstob)
+static bool linux_stob_invariant(const struct linux_stob *lstob)
 {
-	struct c2_stob *stob;
+	const struct c2_stob *stob;
 
 	stob = &lstob->sl_stob;
 	return
-		((lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS));
+		((lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS)) &&
+		(lstob->sl_stob.so_domain->sd_type == &linux_stob_type);
 }
 
 static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
@@ -346,13 +347,13 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 	found = false;
 	c2_list_for_each_entry(&ldom->sdl_object, obj, 
 			       struct linux_stob, sl_linkage) {
+		C2_ASSERT(linux_stob_invariant(obj));
 		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
 			c2_atomic64_inc(&obj->sl_stob.so_ref);
 			found = true;
 			break;
 		}
 	}
-	C2_ASSERT(linux_stob_invariant(obj));
 	return found ? obj : NULL;
 }
 
@@ -381,6 +382,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 			if (ghost == NULL) {
 				stob = &lstob->sl_stob;
 				stob->so_op = &linux_stob_op;
+				stob->so_domain = dom;
 				lstob->sl_fd = -1;
 				c2_stob_init(stob, id);
 				c2_list_add(&ldom->sdl_object, 
@@ -401,6 +403,19 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 	return result;
 }
 
+static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
+{
+	int                 nob;
+	struct linux_domain *ldom;
+
+	C2_ASSERT(linux_stob_invariant(lstob));
+
+	ldom  = domain2linux(lstob->sl_stob.so_domain);
+	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path, 
+		       lstob->sl_stob.so_id.si_seq, lstob->sl_stob.so_id.si_id);
+	return nob < nr ? 0 : -EOVERFLOW;
+}
+
 static void linux_stob_fini(struct c2_stob *stob)
 {
 	struct linux_stob *lstob;
@@ -419,36 +434,34 @@ static void linux_stob_fini(struct c2_stob *stob)
 	c2_free(lstob);
 }
 
-static int linux_stob_create(struct c2_stob *stob)
+static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
-	C2_ASSERT(linux_stob_invariant(stob2linux(stob)));
-	return -ENOSYS;
+	struct linux_domain *ldom;
+	char                 pathname[64];
+	int                  result;
+
+	ldom  = domain2linux(lstob->sl_stob.so_domain);
+
+	C2_ASSERT(linux_stob_invariant(lstob));
+	C2_ASSERT(lstob->sl_fd == -1);
+
+	result = linux_stob_path(lstob, ARRAY_SIZE(pathname), pathname);
+	if (result == 0) {
+		lstob->sl_fd = open(pathname, oflag, 0700);
+		if (lstob->sl_fd == -1)
+			result = -errno;
+	}
+	return result;
+}
+
+static int linux_stob_create(struct c2_stob *obj)
+{
+	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
 }
 
 static int linux_stob_locate(struct c2_stob *obj)
 {
-	struct linux_domain *ldom;
-	struct linux_stob   *lstob;
-	char                 pathname[40];
-	int                  nob;
-	int                  result;
-
-	lstob = stob2linux(obj);
-	ldom  = domain2linux(obj->so_domain);
-
-	C2_ASSERT(linux_stob_invariant(lstob));
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
-	C2_ASSERT(lstob->sl_fd == -1);
-
-	nob = snprintf(pathname, ARRAY_SIZE(pathname), "%s/o/%016lx.%016lx", 
-		       ldom->sdl_path, obj->so_id.si_seq, obj->so_id.si_id);
-	if (nob < ARRAY_SIZE(pathname)) {
-		lstob->sl_fd = open(pathname, O_RDWR);
-		result = -errno;
-	} else
-		result = -EOVERFLOW;
-	C2_ASSERT(linux_stob_invariant(lstob));
-	return result;
+	return linux_stob_open(stob2linux(obj), O_RDWR);
 }
 
 static const struct c2_stob_type_op linux_stob_type_op = {

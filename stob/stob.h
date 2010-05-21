@@ -190,7 +190,6 @@ struct c2_stob_op {
 
 	  @return 0 success, other values mean error.
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
-	  @post ergo(result == -EEXIST, stob->so_state == CSS_EXISTS)
 	*/
 	int (*sop_create)(struct c2_stob *stob);
 

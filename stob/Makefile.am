@@ -1,3 +1,5 @@
+SUBDIRS    = . ut
+
 lib_LTLIBRARIES            = libcolibri-stob.la
 libcolibri_stob_la_SOURCES  = stob.c linux.c linux_adieu.c
 libcolibri_stob_la_LDFLAGS  = -release @LT_RELEASE@

@@ -333,7 +333,7 @@ static void ioq_thread(struct linux_domain *ldom)
 	}
 }
 
-void linux_stob_domain_io_fini(struct c2_stob_domain *dom)
+void linux_domain_io_fini(struct c2_stob_domain *dom)
 {
 	int i;
 	struct linux_domain *ldom;
@@ -351,7 +351,7 @@ void linux_stob_domain_io_fini(struct c2_stob_domain *dom)
 	c2_mutex_fini(&ldom->ioq_lock);
 }
 
-int linux_stob_domain_io_init(struct c2_stob_domain *dom)
+int linux_domain_io_init(struct c2_stob_domain *dom)
 {
 	int                          result;
 	int                          i;
@@ -378,7 +378,7 @@ int linux_stob_domain_io_init(struct c2_stob_domain *dom)
 		}
 	}
 	if (result != 0)
-		linux_stob_domain_io_fini(dom);
+		linux_domain_io_fini(dom);
 	return result;
 }
 

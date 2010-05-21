@@ -99,17 +99,16 @@ int c2_stob_create(struct c2_stob *obj)
 	case CSS_UNKNOWN:
 	case CSS_NOENT:
 		result = obj->so_op->sop_create(obj);
-		if (result == 0 || result == -EEXIST)
+		if (result == 0)
 			obj->so_state = CSS_EXISTS;
 		break;
 	case CSS_EXISTS:
-		result = -EEXIST;
+		result = 0;
 		break;
 	default:
 		C2_ASSERT(0);
 	}
 	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
-	C2_POST(ergo(result == -EEXIST, obj->so_state == CSS_EXISTS));
 	return result;
 }
 
