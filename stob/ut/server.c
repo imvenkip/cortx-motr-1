@@ -2,6 +2,8 @@
 #  include <config.h>
 #endif
 
+#include <stdio.h>     /* fopen, fgetc, ... */
+#include <string.h>    /* memset */
 #include <unistd.h>    /* unlink */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
@@ -34,8 +36,16 @@ int main(int argc, char **argv)
 	struct c2_stob_io io;
 	c2_bcount_t user_vec[] = { 4096 };
 	char user_buf[4096];
+	char *user_bufs[1] = {
+		[0] = user_buf
+	};
 	c2_bindex_t stob_vec[] = { 4096 };
 	struct c2_clink clink;
+	FILE *f;
+	int ch;
+	int i;
+
+	memset(user_buf, 'u', sizeof user_buf);
 
 	result = linux_stob_module_init();
 	
@@ -98,7 +108,7 @@ int main(int argc, char **argv)
 	io.si_flags  = 0;
 	io.si_user.div_vec.ov_vec.v_nr = ARRAY_SIZE(user_vec);
 	io.si_user.div_vec.ov_vec.v_count = user_vec;
-	io.si_user.div_vec.ov_buf = (void **)&user_buf;
+	io.si_user.div_vec.ov_buf = (void **)user_bufs;
 	io.si_stob.ov_vec.v_nr = ARRAY_SIZE(user_vec);
 	io.si_stob.ov_vec.v_count = user_vec;
 	io.si_stob.ov_index = stob_vec;
@@ -113,10 +123,25 @@ int main(int argc, char **argv)
 	C2_ASSERT(io.si_rc == 0);
 	C2_ASSERT(io.si_count == 4096);
 
+	c2_clink_del(&clink);
 	c2_stob_io_fini(&io);
 	c2_stob_put(obj);
 	c2_clink_fini(&clink);
 
+	f = fopen(path, "r");
+	for (i = 0; i < 4096; ++i) {
+		ch = fgetc(f);
+		C2_ASSERT(ch == '\0');
+		C2_ASSERT(!feof(f));
+	}
+	for (i = 0; i < 4096; ++i) {
+		ch = fgetc(f);
+		C2_ASSERT(ch == 'u');
+		C2_ASSERT(!feof(f));
+	}
+	ch = fgetc(f);
+	C2_ASSERT(ch == EOF);
+	fclose(f);
 	dom->sd_ops->sdo_fini(dom);
 	linux_stob_module_fini();
 

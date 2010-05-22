@@ -35,7 +35,7 @@ struct ioq_qev {
 
 struct linux_stob_io {
 	uint64_t           si_nr;
-	struct c2_atomic64 si_done;
+	uint64_t           si_done;
 	struct ioq_qev    *si_qev;
 };
 
@@ -117,8 +117,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
 	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
 
-	lio->si_nr = frags;
-	c2_atomic64_set(&lio->si_done, 0);
+	lio->si_nr   = frags;
+	lio->si_done = 0;
 	C2_ALLOC_ARR(lio->si_qev, frags);
 
 	if (lio->si_qev != NULL) {
@@ -259,24 +259,30 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 			qev[i] = ioq_queue_get(ldom);
 			evin[i] = &qev[i]->iq_iocb;
 		}
+		ldom->ioq_avail -= got;
 		ioq_queue_unlock(ldom);
 
 		if (got > 0) {
 			put = io_submit(ldom->ioq_ctx, got, evin);
 
 			if (put < 0) {
-				; /* log error */
-			} else if (put != got) {
+				/* XXX log error */
+				printf("io_submit: %i", put);
+			} else {
 				ioq_queue_lock(ldom);
+				C2_ASSERT(ldom->ioq_avail >= got - put);
+				ldom->ioq_avail += got - put;
 				for (i = put; i < got; ++i)
 					ioq_queue_put(ldom, qev[i]);
 				ioq_queue_unlock(ldom);
+
 			}
 		}
 	} while (got > 0);
 }
 
-static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev)
+static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
+			 unsigned long res, unsigned long res2)
 {
 	struct c2_stob_io    *io;
 	struct linux_stob_io *lio;
@@ -292,8 +298,19 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev)
 	lstob = stob2linux(io->si_obj);
 
 	C2_ASSERT(io->si_state == SIS_BUSY);
-	C2_ASSERT(c2_atomic64_get(&lio->si_done) < lio->si_nr);
-	done = c2_atomic64_add_return(&lio->si_done, 1) == lio->si_nr;
+
+	/*
+	 * XXX per io lock can be used here.
+	 */
+	ioq_queue_lock(ldom);
+	C2_ASSERT(lio->si_done < lio->si_nr);
+	if (res > 0)
+		qev->iq_io->si_count += res;
+	else if (res < 0 && qev->iq_io->si_rc == 0)
+		qev->iq_io->si_rc = res;
+	++lio->si_done;
+	done = lio->si_done == lio->si_nr;
+	ioq_queue_unlock(ldom);
 
 	if (done) {
 		for (i = 0; i < lio->si_nr; ++i) {
@@ -322,7 +339,8 @@ static void ioq_thread(struct linux_domain *ldom)
 		got = io_getevents(ldom->ioq_ctx, 1, ARRAY_SIZE(evout), 
 				   evout, &ioq_timeout);
 		ioq_queue_lock(ldom);
-		ldom->ioq_avail += got;
+		if (got > 0)
+			ldom->ioq_avail += got;
 		C2_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
 		ioq_queue_unlock(ldom);
 
@@ -332,10 +350,11 @@ static void ioq_thread(struct linux_domain *ldom)
 			qev = container_of(evout[i].obj, struct ioq_qev,
 					   iq_iocb);
 			C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
-			ioq_complete(ldom, qev);
+			ioq_complete(ldom, qev, evout[i].res, evout[i].res2);
 		}
 		if (got < 0) {
-			; /* log error */
+			/* XXX log error */
+			printf("io_getevents: %i\n", got);
 		}
 
 		ioq_queue_submit(ldom);
