@@ -58,14 +58,18 @@ enum {
 int main(int argc, char *argv[])
 {
 	int rc;
-	struct c2_service_id node1 = { .si_uuid = "node-1" };
-	struct c2_service_id node2 = { .si_uuid = "node-2" };
+
+	struct c2_service_id sid1 = { .si_uuid = "node-1" };
 	struct c2_net_conn *conn1;
-	struct c2_net_conn *conn2;
 	struct c2_service_id  node_arg = { .si_uuid = {0} };
 	struct c2_service_id  node_ret = { .si_uuid = {0} };
 	struct c2_rpc_op_table *ops;
-	struct c2_service s;
+	struct c2_service s1;
+
+	memset(&s1, 0, sizeof s1);
+
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
 
 	rc = c2_net_init();
 	CU_ASSERT(rc == 0);
@@ -76,10 +80,7 @@ int main(int argc, char *argv[])
 	rc = c2_net_domain_init(&dom, &c2_net_sunrpc_xprt);
 	CU_ASSERT(rc == 0);
 
-	rc = c2_service_id_init(&node1, &dom, "127.0.0.1", PORT);
-	CU_ASSERT(rc == 0);
-
-	rc = c2_service_id_init(&node2, &dom, "127.0.0.1", PORT + 1);
+	rc = c2_service_id_init(&sid1, &dom, "127.0.0.1", PORT);
 	CU_ASSERT(rc == 0);
 
 	c2_rpc_op_table_init(&ops);
@@ -87,26 +88,18 @@ int main(int argc, char *argv[])
 
 	rc = c2_rpc_op_register(ops, &test_rpc1);
 
-	rc = c2_service_start(&s, &node1, ops);
-	CU_ASSERT(rc >= 0);
-
 	rc = c2_rpc_op_register(ops, &test_rpc2);
-	rc = c2_service_start(&s, &node2, ops);
+
+	rc = c2_service_start(&s1, &sid1, ops);
 	CU_ASSERT(rc >= 0);
 
 	sleep(1);
-	/* in config */
-	rc = c2_net_conn_create(&node1);
-	CU_ASSERT(rc == 0);
 
 	/* in config */
-	rc = c2_net_conn_create(&node2);
+	rc = c2_net_conn_create(&sid1);
 	CU_ASSERT(rc == 0);
 
-	conn1 = c2_net_conn_find(&node1);
-	CU_ASSERT(conn1 != NULL);
-
-	conn2 = c2_net_conn_find(&node2);
+	conn1 = c2_net_conn_find(&sid1);
 	CU_ASSERT(conn1 != NULL);
 
 	sprintf(node_arg.si_uuid, "%d", 10);
@@ -116,24 +109,13 @@ int main(int argc, char *argv[])
 	printf("%s\n", node_ret.si_uuid);
 	CU_ASSERT(rc == 0);
 
-	sprintf(node_arg.si_uuid, "%d", 10);
-	rc = c2_net_cli_call(conn2, ops, TEST_OP2, &node_arg, &node_ret);
-
-	printf("rc = %d\n", rc);
-	printf("%s\n", node_ret.si_uuid);
-	CU_ASSERT(rc == 0);
-
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
 
-	c2_net_conn_unlink(conn2);
-	c2_net_conn_release(conn2);
-
-	c2_service_stop(&s);
+	c2_service_stop(&s1);
 	c2_rpc_op_table_fini(ops);
 
-	c2_service_id_fini(&node2);
-	c2_service_id_fini(&node1);
+	c2_service_id_fini(&sid1);
 	c2_net_domain_fini(&dom);
 	c2_net_xprt_fini(&c2_net_sunrpc_xprt);
 	c2_net_fini();

@@ -25,6 +25,8 @@ int c2_service_start(struct c2_service *service,
 		     struct c2_service_id *sid,
 		     struct c2_rpc_op_table *ops)
 {
+	C2_ASSERT(service->s_id == NULL);
+
 	service->s_id     = sid;
 	service->s_domain = sid->si_domain;
 	service->s_table  = ops;

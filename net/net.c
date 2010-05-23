@@ -6,13 +6,17 @@
 
 #include "net/net.h"
 
+extern int  sunrpc_init(void);
+extern void sunrpc_fini(void);
+
 int c2_net_init()
 {
-	return 0;
+	return sunrpc_init();
 }
 
 void c2_net_fini()
 {
+	sunrpc_fini();
 }
 
 int c2_net_xprt_init(struct c2_net_xprt *xprt)

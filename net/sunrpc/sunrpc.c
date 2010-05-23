@@ -206,9 +206,10 @@ static int sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 			c2_mutex_init(&xconn->nsc_guard);
 			c2_queue_init(&xconn->nsc_idle);
 			c2_cond_init(&xconn->nsc_gotfree);
-			xconn->nsc_pool = pool;
-			xconn->nsc_nr   = CONN_CLIENT_COUNT;
-			conn->nc_ops    = &sunrpc_conn_ops;
+			xconn->nsc_pool       = pool;
+			xconn->nsc_nr         = CONN_CLIENT_COUNT;
+			conn->nc_ops          = &sunrpc_conn_ops;
+			conn->nc_xprt_private = xconn;
 			for (i = 0; i < CONN_CLIENT_COUNT; ++i) {
 				result = conn_init_one(id->si_xport_private, 
 						       xconn,
@@ -251,7 +252,7 @@ static void conn_xprt_put(struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
 }
 
 /* XXX Default timeout - need to be move in connection */
-static struct timeval TIMEOUT = { .tv_sec = 5, .tv_usec = 0 };
+static struct timeval TIMEOUT = { .tv_sec = 300, .tv_usec = 0 };
 
 static int sunrpc_conn_call(struct c2_net_conn *conn, 
 			    const struct c2_rpc_op *op, void *arg, void *ret)
@@ -264,10 +265,10 @@ static int sunrpc_conn_call(struct c2_net_conn *conn,
 
 	xconn = conn->nc_xprt_private;
 	xprt = conn_xprt_get(xconn);
-	result = clnt_call(xprt->nsx_client, op->ro_op,
-			   (xdrproc_t) op->ro_xdr_arg, (caddr_t) arg,
-			   (xdrproc_t) op->ro_xdr_result, (caddr_t) ret,
-			   TIMEOUT);
+	result = -clnt_call(xprt->nsx_client, op->ro_op,
+			    (xdrproc_t) op->ro_xdr_arg, (caddr_t) arg,
+			    (xdrproc_t) op->ro_xdr_result, (caddr_t) ret,
+			    TIMEOUT);
 	conn_xprt_put(xconn, xprt);
 	return result;
 }
@@ -359,7 +360,7 @@ struct c2_service_thread_data {
 };
 
 enum {
-	SERVER_THR_NR = 32
+	SERVER_THR_NR = 8
 };
 
 /**
@@ -394,11 +395,11 @@ struct sunrpc_service {
 	/**
 	   program ID for this sunrpc service
 	 */
-	enum c2_rpc_service_id 	       s_progid;
+	unsigned long    	       s_progid;
 	/**
-	   tcp port of service socket
+	   program version
 	 */
-	int			       s_port;
+	unsigned long                  s_version;
 	/**
 	   service socket
 	 */
@@ -465,6 +466,7 @@ struct sunrpc_service {
 };
 
 static pthread_key_t sunrpc_service_key;
+static bool sunrpc_service_key_initialised = false;
 
 /**
   Work item, holding RPC operation argument and results.
@@ -515,6 +517,7 @@ static void sunrpc_service_set(struct c2_service *service)
 
 static struct c2_service *sunrpc_service_get(void)
 {
+	C2_ASSERT(sunrpc_service_key_initialised);
 	return pthread_getspecific(sunrpc_service_key);
 }
 
@@ -642,6 +645,44 @@ static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 }
 
 /**
+   Init-call for sunrpc scheduler thread (sunrpc_scheduler()).
+
+   @note svctcp_create() and svc_register() calls must be made in this thread,
+   because they initialise sunrpc library internal per-thread state.
+ */
+static int sunrpc_scheduler_init(struct c2_service *service)
+{
+	struct sunrpc_service    *xservice;
+	struct sunrpc_service_id *xid;
+	SVCXPRT                  *transp;
+	int                       result;
+
+	sunrpc_service_set(service);
+	xservice = service->s_xport_private;
+	xid = service->s_id->si_xport_private;
+
+	C2_ASSERT(xservice->s_socket >= 0);
+
+	result = -EINVAL;
+        transp = svctcp_create(xservice->s_socket, 0, 0);
+        if (transp != NULL) {
+		xservice->s_transp = transp;
+		if (svc_register(transp, xservice->s_progid, 
+				 xservice->s_version,
+				 sunrpc_dispatch, 0))
+			result = 0;
+		else {
+			fprintf(stderr, "error registering (%lu, %lu, %i).\n",
+				xservice->s_progid, 
+				xservice->s_version, xid->ssi_port);
+			svc_destroy(xservice->s_transp);
+		}
+	} else
+                fprintf(stderr, "svctcp_create failed\n");
+	return result;
+}
+
+/**
    sunrpc_scheduler: equivalent to svc_run()
 
    @todo use svc_pollfd.
@@ -652,6 +693,7 @@ static void sunrpc_scheduler(struct c2_service *service)
 
 	sunrpc_service_set(service);
 	xservice = service->s_xport_private;
+
 	while (1) {
 		static fd_set  listen_local;
 		int            ret;
@@ -673,6 +715,11 @@ static void sunrpc_scheduler(struct c2_service *service)
 		else if (ret < 0)
 			fprintf(stderr, "select failed\n");
 		c2_rwlock_write_unlock(&xservice->s_guard);
+	}
+
+	if (xservice->s_transp != NULL) {
+		svc_destroy(xservice->s_transp);
+		xservice->s_transp = NULL;
 	}
 }
 
@@ -725,10 +772,7 @@ static void service_stop(struct sunrpc_service *xs)
 		c2_free(wi);
 	}
         c2_mutex_unlock(&xs->s_req_guard);
-	if (xs->s_transp != NULL) {
-		svc_destroy(xs->s_transp);
-		xs->s_transp = NULL;
-	}
+
 	/* close the service socket */
 	/*
 	 * XXX nikita: shouldn't sunrpc lib do this for us? If the library
@@ -747,24 +791,28 @@ static int service_start(struct c2_service *service,
 			 int nr_workers,
 			 struct c2_rpc_op_table *ops)
 {
-        SVCXPRT               *transp;
 	struct sockaddr_in     addr;
-	int                    sock;
 	int                    i;
 	int                    rc;
 	struct sunrpc_service *xservice;
 
 	xservice = service->s_xport_private;
 
-        sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (sock == -1) {
+	xservice->s_progid  = prog_id;
+	xservice->s_version = prog_version;
+
+	C2_ASSERT(xservice->s_socket == -1);
+
+        xservice->s_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (xservice->s_socket == -1) {
                 fprintf(stderr, "socket error: %d\n", errno);
 		return -errno;
 	}
 
         memset(&addr, 0, sizeof addr);
         addr.sin_port = htons(port);
-        if (bind(sock, (struct sockaddr *)&addr, sizeof addr) == -1) {
+        if (bind(xservice->s_socket, 
+		 (struct sockaddr *)&addr, sizeof addr) == -1) {
                 fprintf(stderr, "bind error: %d\n", errno);
 		rc = -errno;
 		goto err;
@@ -778,23 +826,9 @@ static int service_start(struct c2_service *service,
 		goto err;
         }
 
-        transp = svctcp_create(sock, 0, 0);
-        if (transp == NULL) {
-                fprintf(stderr, "svctcp_create failed\n");
-                rc = -EINVAL;
-		goto err;
-        }
-	xservice->s_transp = transp;
-        if (!svc_register(transp, prog_id, prog_version, sunrpc_dispatch, 0)) {
-                fprintf(stderr, "unable to register (%d, %d, tcpport=%d).\n",
-			prog_id, prog_version, port);
-		rc = -EINVAL;
-		goto err;
-        }
-
 	/* create the scheduler thread */
 	rc = C2_THREAD_INIT(&xservice->s_scheduler_thread, struct c2_service *,
-		            &sunrpc_scheduler, service);
+		            &sunrpc_scheduler_init, &sunrpc_scheduler, service);
         if (rc != 0) {
                 fprintf(stderr, "scheduler thread create: %d\n", rc);
 		goto err;
@@ -804,7 +838,7 @@ static int service_start(struct c2_service *service,
         for (i = 0; i < nr_workers; i++) {
                 rc = C2_THREAD_INIT(&xservice->s_workers[i].std_handle, 
 				    struct c2_service *,
-                                    &sunrpc_service_worker, service);
+                                    NULL, &sunrpc_service_worker, service);
                 if (rc) {
                         fprintf(stderr, "worker thread create: %d\n", rc);
                         goto err;
@@ -914,7 +948,7 @@ static int dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		for (i = 0; i < ARRAY_SIZE(xdom->sd_workers); ++i) {
 			result = C2_THREAD_INIT(&xdom->sd_workers[i], 
 						struct c2_net_domain *, 
-						&sunrpc_worker, dom);
+						NULL, &sunrpc_worker, dom);
 			if (result != 0)
 				break;
 		}
@@ -962,12 +996,14 @@ int sunrpc_init(void)
         setbuf(stdout, NULL);
         setbuf(stderr, NULL);
 
+	sunrpc_service_key_initialised = true;
 	return pthread_key_create(&sunrpc_service_key, NULL);
 }
 
 void sunrpc_fini(void)
 {
 	pthread_key_delete(sunrpc_service_key);
+	sunrpc_service_key_initialised = false;
 }
 
 /** @} end of group sunrpc */
