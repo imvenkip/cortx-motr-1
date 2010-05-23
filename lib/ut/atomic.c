@@ -23,8 +23,7 @@ static void wait(pthread_barrier_t *b)
 	int result;
 
 	result = pthread_barrier_wait(b);
-	C2_ASSERT(result == 0 || 
-		  result == PTHREAD_BARRIER_SERIAL_THREAD);
+	C2_ASSERT(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD);
 }
 
 static void worker(int id)
@@ -69,6 +68,7 @@ void test_atomic(void)
 		sum += i;
 		C2_ASSERT(c2_atomic64_get(&atom) == sum);
 	}
+
 	for (i = sum; i > 0; --i) {
 		zero = c2_atomic64_dec_and_test(&atom);
 		C2_ASSERT(zero == (i == 1));
@@ -106,8 +106,8 @@ void test_atomic(void)
 		result = pthread_barrier_destroy(&let[i]);
 		C2_ASSERT(result == 0);
 	}
+	printf("\n");
 }
-
 
 /* 
  *  Local variables:
