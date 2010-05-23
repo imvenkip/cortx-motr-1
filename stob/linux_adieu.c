@@ -265,18 +265,17 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 		if (got > 0) {
 			put = io_submit(ldom->ioq_ctx, got, evin);
 
+			ioq_queue_lock(ldom);
 			if (put < 0) {
 				/* XXX log error */
 				printf("io_submit: %i", put);
-			} else {
-				ioq_queue_lock(ldom);
-				C2_ASSERT(ldom->ioq_avail >= got - put);
-				ldom->ioq_avail += got - put;
-				for (i = put; i < got; ++i)
-					ioq_queue_put(ldom, qev[i]);
-				ioq_queue_unlock(ldom);
-
+				put = 0;
 			}
+			for (i = put; i < got; ++i)
+				ioq_queue_put(ldom, qev[i]);
+			ldom->ioq_avail += got - put;
+			C2_ASSERT(ldom->ioq_avail <= IOQ_RING_SIZE);
+			ioq_queue_unlock(ldom);
 		}
 	} while (got > 0);
 }
@@ -345,12 +344,13 @@ static void ioq_thread(struct linux_domain *ldom)
 		ioq_queue_unlock(ldom);
 
 		for (i = 0; i < got; ++i) {
-			struct ioq_qev *qev;
+			struct ioq_qev  *qev;
+			struct io_event *iev;
 
-			qev = container_of(evout[i].obj, struct ioq_qev,
-					   iq_iocb);
+			iev = &evout[i];
+			qev = container_of(iev->obj, struct ioq_qev, iq_iocb);
 			C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
-			ioq_complete(ldom, qev, evout[i].res, evout[i].res2);
+			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
 		if (got < 0) {
 			/* XXX log error */
