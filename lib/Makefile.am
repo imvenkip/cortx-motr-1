@@ -10,4 +10,4 @@ libc2_la_LIBADD      = @LIBS@
 INCLUDES             = -I. -I$(top_srcdir)/include
 EXTRA_DIST           = adt.h cc.h memory.h c2list.h c2bitops.h c2bitmap.h \
                        refs.h atomic.h queue.h arith.h thread.h vec.h \
-                       chan.h mutex.h
+                       chan.h mutex.h user_x86_64_atomic.h
