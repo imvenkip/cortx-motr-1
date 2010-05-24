@@ -11,6 +11,7 @@ AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
+AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -257,6 +258,7 @@ LIBD=$OLD_LIBS
 
 AC_CHECK_DECL(mallinfo, [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
 AC_CHECK_DECL(malloc_size, [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
+AC_CHECK_DECL(backtrace, [AC_DEFINE(HAVE_BACKTRACE)], [], [[#include <execinfo.h>]])
 
 AC_CONFIG_FILES([
 		 Makefile
