@@ -65,6 +65,28 @@ static const struct c2_net_conn_ops user_sunrpc_conn_ops;
 static const struct c2_service_id_ops user_sunrpc_service_id_ops;
 static const struct c2_service_ops user_sunrpc_service_ops;
 
+struct sunrpc_xprt {
+	CLIENT              *nsx_client;
+	int                  nsx_fd;
+	struct c2_queue_link nsx_linkage;
+};
+
+/**
+   Connection data private to sunrpc transport.
+
+   @see c2_net_conn
+ */
+struct sunrpc_conn {
+	/** Pool of sunrpc connections. */
+	struct sunrpc_xprt *nsc_pool;
+	/** Number of elements in the pool */
+	size_t	 	    nsc_nr;
+	struct c2_mutex	    nsc_guard;
+	struct c2_queue     nsc_idle;
+	struct c2_cond	    nsc_gotfree;
+};
+
+
 /*
  * Client code.
  */
@@ -80,9 +102,9 @@ static void user_conn_fini_internal(struct sunrpc_conn *xconn)
 		for (i = 0; i < USER_CONN_CLIENT_COUNT; ++i) {
 			/* assume stdin is never used as a transport
 			   socket. :-) */
-			if (xconn->nsc_pool[i].c.u.nsx_fd != 0)
+			if (xconn->nsc_pool[i].nsx_fd != 0)
 				/* rpc library closes the socket for us */
-				clnt_destroy(xconn->nsc_pool[i].c.u.nsx_client);
+				clnt_destroy(xconn->nsc_pool[i].nsx_client);
 		}
 		c2_free(xconn->nsc_pool);
 	}
@@ -103,11 +125,11 @@ static int user_conn_init_one(struct sunrpc_service_id *id,
 	addr.sin_port        = htons(id->ssi_port);
 
 	sock = -1;
-	xprt->c.u.nsx_client = clnttcp_create(&addr, C2_SESSION_PROGRAM,
+	xprt->nsx_client = clnttcp_create(&addr, C2_SESSION_PROGRAM,
 					      C2_DEF_RPC_VER, &sock, 0, 0);
-	if (xprt->c.u.nsx_client != NULL) {
-		xprt->c.u.nsx_fd = sock;
-		c2_queue_put(&xconn->nsc_idle, &xprt->c.u.nsx_linkage);
+	if (xprt->nsx_client != NULL) {
+		xprt->nsx_fd = sock;
+		c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
@@ -171,7 +193,7 @@ static struct sunrpc_xprt *conn_xprt_get(struct sunrpc_conn *xconn)
 	while (c2_queue_is_empty(&xconn->nsc_idle))
 		c2_cond_wait(&xconn->nsc_gotfree, &xconn->nsc_guard);
 	xprt = container_of(c2_queue_get(&xconn->nsc_idle),
-			    struct sunrpc_xprt, c.u.nsx_linkage);
+			    struct sunrpc_xprt, nsx_linkage);
 	c2_mutex_unlock(&xconn->nsc_guard);
 	return xprt;
 }
@@ -179,7 +201,7 @@ static struct sunrpc_xprt *conn_xprt_get(struct sunrpc_conn *xconn)
 static void conn_xprt_put(struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
 {
 	c2_mutex_lock(&xconn->nsc_guard);
-	c2_queue_put(&xconn->nsc_idle, &xprt->c.u.nsx_linkage);
+	c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
 	c2_cond_signal(&xconn->nsc_gotfree);
 	c2_mutex_unlock(&xconn->nsc_guard);
 }
@@ -199,7 +221,7 @@ static int user_sunrpc_conn_call(struct c2_net_conn *conn,
 
 	xconn = conn->nc_xprt_private;
 	xprt = conn_xprt_get(xconn);
-	result = -clnt_call(xprt->c.u.nsx_client, op->ro_op,
+	result = -clnt_call(xprt->nsx_client, op->ro_op,
 		    	    (xdrproc_t) op->ro_xdr_arg, (caddr_t) arg,
 			    (xdrproc_t) op->ro_xdr_result, (caddr_t) ret,
 			    TIMEOUT);
@@ -275,7 +297,7 @@ static void user_sunrpc_client_worker(struct c2_net_domain *dom)
 		xconn = call->ac_conn->nc_xprt_private;
 		xprt  = conn_xprt_get(xconn);
 		op    = call->ac_op;
-		call->ac_rc = clnt_call(xprt->c.u.nsx_client, op->ro_op,
+		call->ac_rc = clnt_call(xprt->nsx_client, op->ro_op,
 					(xdrproc_t) op->ro_xdr_arg, 
 					(caddr_t) call->ac_arg,
 					(xdrproc_t) op->ro_xdr_result, 

@@ -4,21 +4,7 @@
 
 #include "lib/cdefs.h"
 
-struct sunrpc_xprt {
-	union {
-		struct {
-			CLIENT              *nsx_client;
-			int                  nsx_fd;
-			struct c2_queue_link nsx_linkage;
-		} u;
-		struct {
-			struct rpc_clnt     *nsx_client;
-		} k;
-	} c;
-};
-
 enum {
-	KERN_CONN_CLIENT_COUNT  = 1,
 	USER_CONN_CLIENT_COUNT  = 8,
 	USER_CONN_CLIENT_THR_NR = USER_CONN_CLIENT_COUNT * 2,
 };
@@ -55,21 +41,6 @@ enum c2_rpc_service_id {
 	C2_SESSION_PROGRAM = 0x20000001
 };
 
-
-/**
-   Connection data private to sunrpc transport.
-
-   @see c2_net_conn
- */
-struct sunrpc_conn {
-	/** Pool of sunrpc connections. */
-	struct sunrpc_xprt *nsc_pool;
-	/** Number of elements in the pool */
-	size_t              nsc_nr;
-	struct c2_mutex     nsc_guard;
-	struct c2_queue     nsc_idle;
-	struct c2_cond      nsc_gotfree;
-};
 
 /**
    SUNRPC service identifier.
