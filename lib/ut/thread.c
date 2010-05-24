@@ -26,7 +26,7 @@ static void t2(int n)
 	int result;
 
 	if (n > 0) {
-		result = C2_THREAD_INIT(&t[n - 1], int, &t2, n - 1);
+		result = C2_THREAD_INIT(&t[n - 1], int, NULL, &t2, n - 1);
 		C2_ASSERT(result == 0);
 	}
 	r[n] = n;
@@ -38,13 +38,13 @@ void test_thread(void)
 	int result;
 	char t1place[100];
 
-	result = C2_THREAD_INIT(&t[0], int, &t0, 42);
+	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
 	C2_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 	C2_ASSERT(t0place == 42);
 
-	result = C2_THREAD_INIT(&t[0], const char *, 
+	result = C2_THREAD_INIT(&t[0], const char *, NULL, 
 				LAMBDA(void, (const char *s) { 
 						strcpy(t1place, s); } ), 
 				(const char *)"forty-two");

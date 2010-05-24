@@ -15,6 +15,7 @@ connection_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolib
 
 client_SOURCES   = client.c
 client_LDFLAGS   = @LDFLAGS@
+client_CFLAGS    = -pthread
 client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/sunrpc/libcolibri-net-sunrpc.la @DB4LIBS@
 
 #rpc-server_SOURCES   = rpc-server.c

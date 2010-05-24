@@ -141,6 +141,7 @@ static int kernel_sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn 
 			xconn->nsc_pool = pool;
 			xconn->nsc_nr   = KERN_CONN_CLIENT_COUNT;
 			conn->nc_ops    = &kernel_sunrpc_conn_ops;
+			conn->nc_xprt_private = xconn;
 
 			for (i = 0; i < KERN_CONN_CLIENT_COUNT; ++i) {
 				result = kernel_conn_init_one(xsid, xconn,
@@ -148,7 +149,6 @@ static int kernel_sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn 
 				if (result != 0)
 					break;
 			}
-			conn->nc_xprt_private = xconn;
 		}
 	}
 
