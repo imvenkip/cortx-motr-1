@@ -167,6 +167,7 @@ fi
 AC_SUBST(KCFLAGS)
 
 CFLAGS="$CFLAGS -D_REENTRANT"
+LDFLAGS="-rdynamic"
 
 AC_ARG_WITH([db4], 
         AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), ,

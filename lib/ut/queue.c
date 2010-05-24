@@ -64,6 +64,7 @@ void test_queue(void)
 		C2_ASSERT(!c2_queue_link_is_in(&t[i].t_linkage));
 
 	c2_queue_fini(&q);
+	C2_ASSERT(0);
 }
 
 
