@@ -5,7 +5,7 @@
 
 #include <sm/sm.h>
 #include <lib/refs.h>
-#include <lib/cc.h>
+#include <lib/rwlock.h>
 
 /**
    @page snsrepair SNS repair detailed level design specification.

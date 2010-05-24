@@ -10,6 +10,7 @@ extern void test_list(void);
 extern void test_bitops(void);
 extern void test_bitmap(void);
 extern void test_refs(void);
+extern void test_cache(void);
 extern void test_queue(void);
 extern void test_vec(void);
 extern void test_thread(void);
@@ -25,6 +26,7 @@ int main(int argc, char *argv[])
 	test_bitops();
 	test_bitmap();
 	test_refs();
+	test_cache();
 	test_queue();
 	test_vec();
 	test_thread();

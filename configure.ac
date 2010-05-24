@@ -162,7 +162,10 @@ else
 	CFLAGS="-Wall -Werror -O2"
         KCFLAGS="-Wall -Werror -O2"
 fi
+
 AC_SUBST(KCFLAGS)
+
+CFLAGS="$CFLAGS -D_REENTRANT"
 
 AC_ARG_WITH([db4], 
         AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), ,
@@ -269,7 +272,10 @@ AC_CONFIG_FILES([
                  fol/Makefile
                  fop/Makefile
                  rpc/Makefile
+                 rpc/ut/Makefile
                  net/Makefile
+                 net/sunrpc/Makefile
+                 net/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
                  sm/Makefile

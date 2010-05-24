@@ -1,12 +1,12 @@
 /* -*- C -*- */
 
-#ifndef __COLIBRI_CC_H__
-#define __COLIBRI_CC_H__
+#ifndef __COLIBRI_LIB_RWLOCK_H__
+#define __COLIBRI_LIB_RWLOCK_H__
 
-#include "lib/cdefs.h"
+#include <pthread.h>
 
 /**
-   @defgroup cc Concurrency control
+   @defgroup rwlock Read-write lock
    @{
  */
 
@@ -14,6 +14,7 @@
    Blocking read-write lock.
  */
 struct c2_rwlock {
+	pthread_rwlock_t rw_lock;
 };
 
 /**
@@ -47,13 +48,10 @@ void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 struct c2_semaphore {
 };
 
-struct c2_cond {
-};
-
-/** @} end of cc group */
+/** @} end of rwlock group */
 
 
-/* __COLIBRI_CC_H__ */
+/* __COLIBRI_LIB_RWLOCK_H__ */
 #endif
 
 /* 

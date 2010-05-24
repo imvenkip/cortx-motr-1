@@ -5,8 +5,10 @@
 
 #include <sys/types.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "cdefs.h"
+#include "lib/chan.h"
 
 /**
    @defgroup thread Thread
@@ -15,12 +17,15 @@
 
 struct c2_thread {
 	/** POSIX thread identifier for now. */
-	pthread_t  t_id;
-	void     (*t_func)(void *);
-	void      *t_arg;
+	pthread_t      t_id;
+	int          (*t_init)(void *);
+	void         (*t_func)(void *);
+	void          *t_arg;
+	struct c2_chan t_initwait;
+	int            t_initrc;
 };
 
-#define C2_THREAD_INIT(thread, TYPE, func, arg)		\
+#define C2_THREAD_INIT(thread, TYPE, init, func, arg)	\
 ({							\
 	typeof(func) __func = (func);			\
 	typeof(arg)  __arg  = (arg);			\
@@ -28,13 +33,16 @@ struct c2_thread {
 	(void)(__func == (void (*)(TYPE))NULL);		\
 	(void)(&__arg  == &__dummy);			\
 	c2_thread_init(thread,				\
+                       (int  (*)(void *))init,  	\
 		       (void (*)(void *))__func,	\
 		       (void *)(unsigned long)__arg);	\
 })
 
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
 
-int  c2_thread_init(struct c2_thread *q, void (*func)(void *), void *arg);
+int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
+		    void (*func)(void *), void *arg);
+int  c2_thread_kill(struct c2_thread *q, int signal);
 void c2_thread_fini(struct c2_thread *q);
 int  c2_thread_join(struct c2_thread *q);
 

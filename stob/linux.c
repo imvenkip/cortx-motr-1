@@ -727,7 +727,7 @@ const static struct timespec ioq_timeout_default = {
 	.tv_nsec = 0
 };
 
-static void ioq_thread(void *arg)
+static void ioq_thread(int unused)
 {
 	int got;
 	int i;
@@ -784,8 +784,8 @@ int linux_stob_type_init(struct c2_stob_type *stype)
 	result = io_setup(IOQ_RING_SIZE, &ioq_ctx);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ioq); ++i) {
-			result = c2_thread_init(&ioq[i], ioq_thread, 
-						(void *)(uint64_t)i);
+			result = C2_THREAD_INIT(&ioq[i], 
+						int, NULL, &ioq_thread, 0);
 			if (result != 0)
 				break;
 		}

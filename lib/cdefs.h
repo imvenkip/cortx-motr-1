@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifndef offsetof
 #define offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))
