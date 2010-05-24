@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 #include "thread.h"
-#include "asrt.h"
+#include "assert.h"
 
 /**
    @addtogroup thread Thread

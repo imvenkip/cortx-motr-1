@@ -9,10 +9,10 @@
 #include <sys/types.h> /* mkdir */
 #include <errno.h>
 
-#include <lib/asrt.h>
+#include "lib/assert.h"
 
-#include <stob/stob.h>
-#include <stob/linux.h>
+#include "stob/stob.h"
+#include "stob/linux.h"
 
 /**
    @addtogroup stob

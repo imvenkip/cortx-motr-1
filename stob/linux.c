@@ -12,9 +12,9 @@
 #include <fcntl.h>
 
 
-#include <lib/memory.h>
-#include <lib/asrt.h>
-#include <lib/queue.h>
+#include "lib/memory.h"
+#include "lib/assert.h"
+#include "lib/queue.h"
 
 #include "linux.h"
 #include "linux_internal.h"

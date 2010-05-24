@@ -3,7 +3,7 @@
 #include <string.h> /* memset */
 
 #include "mutex.h"
-#include "asrt.h"
+#include "assert.h"
 
 /**
    @addtogroup mutex

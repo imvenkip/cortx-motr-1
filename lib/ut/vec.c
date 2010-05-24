@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <lib/vec.h>
-#include <lib/asrt.h>
+#include "lib/vec.h"
+#include "lib/assert.h"
 
 enum {
 	NR = 255,

@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <lib/asrt.h>
-#include <net/net.h>
-#include <net/sunrpc/sunrpc.h>
+#include "lib/assert.h"
+#include "net/net.h"
+#include "net/sunrpc/sunrpc.h"
 
-#define CU_ASSERT(a)	assert(a)
+#define CU_ASSERT(a)	C2_ASSERT(a)
 
 static struct c2_net_domain dom;
 static struct c2_service_id sid;

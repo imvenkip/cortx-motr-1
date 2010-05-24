@@ -3,14 +3,15 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-#include <lib/asrt.h>
+
+#include "lib/assert.h"
 
 // #define C2_RPC_CLIENT 1
-#include <net/net.h>
-#include <net/xdr.h>
-#include <net/sunrpc/sunrpc.h>
+#include "net/net.h"
+#include "net/xdr.h"
+#include "net/sunrpc/sunrpc.h"
 
-#define CU_ASSERT(a)	assert(a)
+#define CU_ASSERT(a)	C2_ASSERT(a)
 
 static bool test_op1_hanlder(const struct c2_rpc_op *op, void *arg, void *ret)
 {

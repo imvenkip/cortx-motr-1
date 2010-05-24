@@ -1,6 +1,6 @@
 /* -*- C -*- */
 
-#include "asrt.h"
+#include "assert.h"
 #include "rwlock.h"
 
 /**

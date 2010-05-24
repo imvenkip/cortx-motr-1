@@ -3,14 +3,16 @@
 #ifndef __COLIBRI_LIB_ASSERT_H__
 #define __COLIBRI_LIB_ASSERT_H__
 
-#include_next <assert.h>
-
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.
    @{
 */
 
-#define C2_ASSERT(cond) assert(cond)
+int c2_panic(const char *expr, const char *file, int lineno);
+
+#define C2_ASSERT(cond) \
+        ((void)((cond) ? 0 : c2_panic(#cond, __FILE__, __LINE__)))
+
 #define C2_PRE(cond) C2_ASSERT(cond)
 #define C2_POST(cond) C2_ASSERT(cond)
 

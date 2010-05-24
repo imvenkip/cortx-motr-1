@@ -4,10 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <lib/thread.h>
-#include <lib/mutex.h>
-#include <lib/chan.h>
-#include <lib/asrt.h>
+#include "lib/thread.h"
+#include "lib/mutex.h"
+#include "lib/chan.h"
+#include "lib/assert.h"
 
 enum {
 	NR = 16

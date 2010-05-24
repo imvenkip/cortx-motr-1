@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <lib/queue.h>
-#include <lib/asrt.h>
+#include "lib/queue.h"
+#include "lib/assert.h"
 
 struct qt {
 	struct c2_queue_link t_linkage;

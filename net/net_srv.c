@@ -15,10 +15,11 @@
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
 
-#include <lib/asrt.h>
-#include <lib/cdefs.h>
-#include <lib/queue.h>
-#include <lib/memory.h>
+#include "lib/assert.h"
+#include "lib/cdefs.h"
+#include "lib/queue.h"
+#include "lib/memory.h"
+
 #include "net.h"
 
 int c2_service_start(struct c2_service *service,
