@@ -286,7 +286,7 @@ typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
 	       to client
  */
 typedef	bool (*c2_rpc_srv_handler)(const struct c2_rpc_op *op, 
-				   void *arg, void *ret);
+				   void *arg, void **ret);
 
 /**
    rpc commands associated with service thread

@@ -44,12 +44,12 @@ int c2_session_register_ops(struct c2_rpc_op_table *ops)
 
 
 /** rpc handlers */
-bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void *out)
+bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void **out)
 {
 	return true;
 }
 
-bool c2_session_destroy_svc(const struct c2_rpc_op *op, void *in, void *out)
+bool c2_session_destroy_svc(const struct c2_rpc_op *op, void *in, void **out)
 {
 	return true;
 }

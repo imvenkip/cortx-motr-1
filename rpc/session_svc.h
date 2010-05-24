@@ -25,7 +25,7 @@
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void *out);
+bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void **out);
 
 /**
  server handler for the SESSION_DESTROY cmd.
@@ -37,6 +37,6 @@ bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void *out);
  @retval true  - need send a reply
  @retval false - not need send a reply - some generic error is hit.
  */
-bool c2_session_destroy_svc(const struct c2_rpc_op *op, void *in, void *out);
+bool c2_session_destroy_svc(const struct c2_rpc_op *op, void *in, void **out);
 
 #endif

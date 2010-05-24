@@ -68,3 +68,6 @@ rpc/ut/rclient
 rpc/ut/rserver
 test_db*
 __s/
+stob/ut/client
+stob/ut/utadieu
+build/
