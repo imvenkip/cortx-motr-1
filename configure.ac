@@ -13,6 +13,8 @@ AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_WRITEV], [Have fops->writev function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
+AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
+AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -394,6 +396,16 @@ if test x$enable_gssrpc = xyes; then
         )
 fi
 
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS(io_getevents, c aio, , [AC_MSG_ERROR(io_getevents cannot be found!)])
+AIO_LIBS=$LIBS
+AC_SUBST(AIO_LIBS)
+LIBD=$OLD_LIBS
+
+AC_CHECK_DECL(mallinfo, [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
+AC_CHECK_DECL(malloc_size, [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
+
 AC_CONFIG_FILES([
 		 Makefile
 		 m4/Makefile
@@ -415,6 +427,7 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  c2t1fs/Makefile
                  patches/Makefile
+                 stob/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

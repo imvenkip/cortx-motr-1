@@ -60,3 +60,4 @@ nohup.out
 utils/ploss/ploss_client
 utils/ploss/ploss_server
 sns/sns
+stob/server

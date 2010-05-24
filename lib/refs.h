@@ -14,7 +14,7 @@ struct c2_ref {
 	/**
 	 number references to object
 	 */
-	atomic_t	ref_cnt;
+	struct c2_atomic64	ref_cnt;
 	/**
 	  ponter to destructor
 	  @param ref pointer to reference object
