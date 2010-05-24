@@ -24,9 +24,10 @@
 
 #include "net/net.h"
 #include "sunrpc.h"
+#include "sunrpc_internal.h"
 
 /**
-   @addtogroup sunrpc Sun RPC
+   @addtogroup usunrpc Sun RPC
 
    User level Sunrpc-based implementation of C2 networking interfaces.
 
@@ -60,88 +61,15 @@
   @{
  */
 
-static const struct c2_net_conn_ops sunrpc_conn_ops;
-static const struct c2_service_id_ops sunrpc_service_id_ops;
-static const struct c2_service_ops sunrpc_service_ops;
-static const struct c2_net_xprt_ops xprt_ops;
-
-struct sunrpc_xprt {
-	CLIENT              *nsx_client;
-	int                  nsx_fd;
-	struct c2_queue_link nsx_linkage;
-};
-
-enum {
-	CONN_CLIENT_COUNT  = 8,
-	CONN_CLIENT_THR_NR = CONN_CLIENT_COUNT * 2,
-};
-
-struct sunrpc_dom {
-	bool             sd_shutown;
-	/*
-	 * Client side domain state.
-	 */
-
-	struct c2_cond   sd_gotwork;
-	struct c2_mutex  sd_guard;
-	struct c2_queue  sd_queue;
-	struct c2_thread sd_workers[CONN_CLIENT_THR_NR];
-
-	/*
-	 * Server side domain state.
-	 */
-};
-
-/**
-   XXX make version for all sun rpc calls to be const
- */
-static const int C2_DEF_RPC_VER = 1;
-
-/**
-   services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
-
+static const struct c2_net_conn_ops user_sunrpc_conn_ops;
+static const struct c2_service_id_ops user_sunrpc_service_id_ops;
+static const struct c2_service_ops user_sunrpc_service_ops;
 
 /*
  * Client code.
  */
 
-/**
-   Connection data private to sunrpc transport.
-
-   @see c2_net_conn
- */
-struct sunrpc_conn {
-	/** Pool of sunrpc connections. */
-	struct sunrpc_xprt *nsc_pool;
-	/** Number of elements in the pool */
-	size_t              nsc_nr;
-	struct c2_mutex     nsc_guard;
-	struct c2_queue     nsc_idle;
-	struct c2_cond      nsc_gotfree;
-};
-
-/**
-   SUNRPC service identifier.
- */
-struct sunrpc_service_id {
-	struct c2_service_id *ssi_id;
-	char                 *ssi_host;
-	uint16_t              ssi_port;
-};
-
-static bool dom_is_shutting(const struct c2_net_domain *dom)
-{
-	struct sunrpc_dom *xdom;
-
-	xdom = dom->nd_xprt_private;
-	return xdom->sd_shutown;
-}
-
-static void conn_fini_internal(struct sunrpc_conn *xconn)
+static void user_conn_fini_internal(struct sunrpc_conn *xconn)
 {
 	size_t i;
 
@@ -149,20 +77,21 @@ static void conn_fini_internal(struct sunrpc_conn *xconn)
 		return;
 
 	if (xconn->nsc_pool != NULL) {
-		for (i = 0; i < CONN_CLIENT_COUNT; ++i) {
+		for (i = 0; i < USER_CONN_CLIENT_COUNT; ++i) {
 			/* assume stdin is never used as a transport
 			   socket. :-) */
-			if (xconn->nsc_pool[i].nsx_fd != 0)
+			if (xconn->nsc_pool[i].c.u.nsx_fd != 0)
 				/* rpc library closes the socket for us */
-				clnt_destroy(xconn->nsc_pool[i].nsx_client);
+				clnt_destroy(xconn->nsc_pool[i].c.u.nsx_client);
 		}
 		c2_free(xconn->nsc_pool);
 	}
 	c2_free(xconn);
 }
 
-static int conn_init_one(struct sunrpc_service_id *id, 
-			 struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
+static int user_conn_init_one(struct sunrpc_service_id *id,
+			      struct sunrpc_conn *xconn,
+			      struct sunrpc_xprt *xprt)
 {
 	struct sockaddr_in addr;
 	int                result;
@@ -174,11 +103,11 @@ static int conn_init_one(struct sunrpc_service_id *id,
 	addr.sin_port        = htons(id->ssi_port);
 
 	sock = -1;
-	xprt->nsx_client = clnttcp_create(&addr, C2_SESSION_PROGRAM, 
-					  C2_DEF_RPC_VER, &sock, 0, 0);
-	if (xprt->nsx_client != NULL) {
-		xprt->nsx_fd = sock;
-		c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
+	xprt->c.u.nsx_client = clnttcp_create(&addr, C2_SESSION_PROGRAM,
+					      C2_DEF_RPC_VER, &sock, 0, 0);
+	if (xprt->c.u.nsx_client != NULL) {
+		xprt->c.u.nsx_fd = sock;
+		c2_queue_put(&xconn->nsc_idle, &xprt->c.u.nsx_linkage);
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
@@ -187,7 +116,7 @@ static int conn_init_one(struct sunrpc_service_id *id,
 	return result;
 }
 
-static int sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
+static int user_sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 {
 	int                 result;
 	struct sunrpc_conn *xconn;
@@ -198,8 +127,9 @@ static int sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 
 	result = -ENOMEM;
 	C2_ALLOC_PTR(xconn);
-	C2_ALLOC_ARR(pool, CONN_CLIENT_COUNT);
+
 	if (xconn != NULL) {
+		C2_ALLOC_ARR(pool, USER_CONN_CLIENT_COUNT);
 		if (pool != NULL) {
 			size_t i;
 
@@ -207,26 +137,30 @@ static int sunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 			c2_queue_init(&xconn->nsc_idle);
 			c2_cond_init(&xconn->nsc_gotfree);
 			xconn->nsc_pool = pool;
-			xconn->nsc_nr   = CONN_CLIENT_COUNT;
-			conn->nc_ops    = &sunrpc_conn_ops;
-			for (i = 0; i < CONN_CLIENT_COUNT; ++i) {
-				result = conn_init_one(id->si_xport_private, 
-						       xconn,
-						       &xconn->nsc_pool[i]);
+			xconn->nsc_nr   = USER_CONN_CLIENT_COUNT;
+			conn->nc_ops    = &user_sunrpc_conn_ops;
+
+			for (i = 0; i < USER_CONN_CLIENT_COUNT; ++i) {
+				result =user_conn_init_one(id->si_xport_private,
+							   xconn,
+							   &xconn->nsc_pool[i]);
 				if (result != 0)
 					break;
 			}
+			conn->nc_xprt_private = xconn;
 		}
-	} else
-		c2_free(pool);
-	if (result != 0)
-		conn_fini_internal(xconn);
+	}
+	if (result != 0) {
+		/* xconn & pool will be released there */
+		user_conn_fini_internal(xconn);
+	}
+
 	return result;
 }
 
-static void sunrpc_conn_fini(struct c2_net_conn *conn)
+static void user_sunrpc_conn_fini(struct c2_net_conn *conn)
 {
-	conn_fini_internal(conn->nc_xprt_private);
+	user_conn_fini_internal(conn->nc_xprt_private);
 }
 
 static struct sunrpc_xprt *conn_xprt_get(struct sunrpc_conn *xconn)
@@ -237,7 +171,7 @@ static struct sunrpc_xprt *conn_xprt_get(struct sunrpc_conn *xconn)
 	while (c2_queue_is_empty(&xconn->nsc_idle))
 		c2_cond_wait(&xconn->nsc_gotfree, &xconn->nsc_guard);
 	xprt = container_of(c2_queue_get(&xconn->nsc_idle),
-			    struct sunrpc_xprt, nsx_linkage);
+			    struct sunrpc_xprt, c.u.nsx_linkage);
 	c2_mutex_unlock(&xconn->nsc_guard);
 	return xprt;
 }
@@ -245,7 +179,7 @@ static struct sunrpc_xprt *conn_xprt_get(struct sunrpc_conn *xconn)
 static void conn_xprt_put(struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
 {
 	c2_mutex_lock(&xconn->nsc_guard);
-	c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
+	c2_queue_put(&xconn->nsc_idle, &xprt->c.u.nsx_linkage);
 	c2_cond_signal(&xconn->nsc_gotfree);
 	c2_mutex_unlock(&xconn->nsc_guard);
 }
@@ -253,8 +187,9 @@ static void conn_xprt_put(struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
 /* XXX Default timeout - need to be move in connection */
 static struct timeval TIMEOUT = { .tv_sec = 5, .tv_usec = 0 };
 
-static int sunrpc_conn_call(struct c2_net_conn *conn, 
-			    const struct c2_rpc_op *op, void *arg, void *ret)
+static int user_sunrpc_conn_call(struct c2_net_conn *conn,
+			         const struct c2_rpc_op *op,
+				 void *arg, void *ret)
 {
 	struct sunrpc_conn *xconn;
 	struct sunrpc_xprt *xprt;
@@ -264,7 +199,7 @@ static int sunrpc_conn_call(struct c2_net_conn *conn,
 
 	xconn = conn->nc_xprt_private;
 	xprt = conn_xprt_get(xconn);
-	result = clnt_call(xprt->nsx_client, op->ro_op,
+	result = clnt_call(xprt->c.u.nsx_client, op->ro_op,
 			   (xdrproc_t) op->ro_xdr_arg, (caddr_t) arg,
 			   (xdrproc_t) op->ro_xdr_result, (caddr_t) ret,
 			   TIMEOUT);
@@ -272,8 +207,8 @@ static int sunrpc_conn_call(struct c2_net_conn *conn,
 	return result;
 }
 
-static int sunrpc_conn_send(struct c2_net_conn *conn, 
-			    struct c2_net_async_call *call)
+static int user_sunrpc_conn_send(struct c2_net_conn *conn, 
+			         struct c2_net_async_call *call)
 {
 	struct sunrpc_dom *xdom;
 
@@ -290,7 +225,7 @@ static int sunrpc_conn_send(struct c2_net_conn *conn,
 	return 0;
 }
 
-static void sunrpc_service_id_fini(struct c2_service_id *id)
+static void user_sunrpc_service_id_fini(struct c2_service_id *id)
 {
 	if (id->si_xport_private != NULL) {
 		c2_free(id->si_xport_private);
@@ -298,7 +233,7 @@ static void sunrpc_service_id_fini(struct c2_service_id *id)
 	}
 }
 
-static int sunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
+static int user_sunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 {
 	struct sunrpc_service_id *xsid;
 	int                       result;
@@ -307,16 +242,18 @@ static int sunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 	if (xsid != NULL) {
 		sid->si_xport_private = xsid;
 		xsid->ssi_id = sid;
+
+		/* N.B. they have different order than kernelspace's ones */
 		xsid->ssi_host = va_arg(varargs, char *);
 		xsid->ssi_port = va_arg(varargs, int);
-		sid->si_ops = &sunrpc_service_id_ops;
+		sid->si_ops = &user_sunrpc_service_id_ops;
 		result = 0;
 	} else
 		result = -ENOMEM;
 	return result;
 }
 
-static void sunrpc_worker(struct c2_net_domain *dom)
+static void user_sunrpc_client_worker(struct c2_net_domain *dom)
 {
 	struct sunrpc_dom        *xdom;
 	struct c2_net_async_call *call;
@@ -338,7 +275,7 @@ static void sunrpc_worker(struct c2_net_domain *dom)
 		xconn = call->ac_conn->nc_xprt_private;
 		xprt  = conn_xprt_get(xconn);
 		op    = call->ac_op;
-		call->ac_rc = clnt_call(xprt->nsx_client, op->ro_op,
+		call->ac_rc = clnt_call(xprt->c.u.nsx_client, op->ro_op,
 					(xdrproc_t) op->ro_xdr_arg, 
 					(caddr_t) call->ac_arg,
 					(xdrproc_t) op->ro_xdr_result, 
@@ -464,7 +401,7 @@ struct sunrpc_service {
 	bool           s_shutdown;
 };
 
-static pthread_key_t sunrpc_service_key;
+static pthread_key_t user_sunrpc_service_key;
 
 /**
   Work item, holding RPC operation argument and results.
@@ -505,17 +442,17 @@ struct work_item {
 	struct c2_queue_link wi_linkage;
 };
 
-static void sunrpc_service_set(struct c2_service *service)
+static void user_sunrpc_service_set(struct c2_service *service)
 {
 	int rc;
 
-	rc = pthread_setspecific(sunrpc_service_key, service);
+	rc = pthread_setspecific(user_sunrpc_service_key, service);
 	C2_ASSERT(rc == 0);
 }
 
-static struct c2_service *sunrpc_service_get(void)
+static struct c2_service *user_sunrpc_service_get(void)
 {
-	return pthread_getspecific(sunrpc_service_key);
+	return pthread_getspecific(user_sunrpc_service_key);
 }
 
 /**
@@ -528,7 +465,7 @@ static struct c2_service *sunrpc_service_get(void)
    The worker thread exits when sunrpc_service::s_shudown is set by
    service_stop().
  */
-static void sunrpc_service_worker(struct c2_service *service)
+static void user_sunrpc_service_worker(struct c2_service *service)
 {
 	struct sunrpc_service  *xs;
 	struct work_item       *wi;
@@ -588,7 +525,7 @@ static void sunrpc_service_worker(struct c2_service *service)
    work item, puts it into the queue. After that it signals the worker thread to
    handle this request concurrently.
  */
-static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
+static void user_sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 {
 	const struct c2_rpc_op *op;
 	struct work_item       *wi = NULL;
@@ -598,7 +535,7 @@ static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 	void *res = NULL;
 	int   result;
 
-	service = sunrpc_service_get();
+	service = user_sunrpc_service_get();
 	C2_ASSERT(service != NULL);
 
 	xs = service->s_xport_private;
@@ -646,11 +583,11 @@ static void sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 
    @todo use svc_pollfd.
 */
-static void sunrpc_scheduler(struct c2_service *service)
+static void user_sunrpc_scheduler(struct c2_service *service)
 {
 	struct sunrpc_service *xservice;
 
-	sunrpc_service_set(service);
+	user_sunrpc_service_set(service);
 	xservice = service->s_xport_private;
 	while (1) {
 		static fd_set  listen_local;
@@ -676,7 +613,7 @@ static void sunrpc_scheduler(struct c2_service *service)
 	}
 }
 
-static void service_stop(struct sunrpc_service *xs)
+static void user_service_stop(struct sunrpc_service *xs)
 {
 	struct work_item      *wi;
 	struct c2_queue_link  *ql;
@@ -740,7 +677,7 @@ static void service_stop(struct sunrpc_service *xs)
 	}
 }
 
-static int service_start(struct c2_service *service,
+static int user_service_start(struct c2_service *service,
 			 enum c2_rpc_service_id prog_id,
 			 int prog_version,
 			 uint16_t port,
@@ -785,7 +722,8 @@ static int service_start(struct c2_service *service,
 		goto err;
         }
 	xservice->s_transp = transp;
-        if (!svc_register(transp, prog_id, prog_version, sunrpc_dispatch, 0)) {
+        if (!svc_register(transp, prog_id, prog_version,
+			  user_sunrpc_dispatch, 0)) {
                 fprintf(stderr, "unable to register (%d, %d, tcpport=%d).\n",
 			prog_id, prog_version, port);
 		rc = -EINVAL;
@@ -794,7 +732,7 @@ static int service_start(struct c2_service *service,
 
 	/* create the scheduler thread */
 	rc = C2_THREAD_INIT(&xservice->s_scheduler_thread, struct c2_service *,
-		            &sunrpc_scheduler, service);
+		            &user_sunrpc_scheduler, service);
         if (rc != 0) {
                 fprintf(stderr, "scheduler thread create: %d\n", rc);
 		goto err;
@@ -804,7 +742,7 @@ static int service_start(struct c2_service *service,
         for (i = 0; i < nr_workers; i++) {
                 rc = C2_THREAD_INIT(&xservice->s_workers[i].std_handle, 
 				    struct c2_service *,
-                                    &sunrpc_service_worker, service);
+                                    &user_sunrpc_service_worker, service);
                 if (rc) {
                         fprintf(stderr, "worker thread create: %d\n", rc);
                         goto err;
@@ -813,16 +751,16 @@ static int service_start(struct c2_service *service,
 	return 0;
 
  err:
-	service_stop(xservice);
+	user_service_stop(xservice);
 	return rc;
 }
 
-static void sunrpc_service_stop(struct c2_service *service)
+static void user_sunrpc_service_stop(struct c2_service *service)
 {
-	service_stop(service->s_xport_private);
+	user_service_stop(service->s_xport_private);
 }
 
-static void sunrpc_service_fini(struct c2_service *service)
+static void user_sunrpc_service_fini(struct c2_service *service)
 {
 	struct sunrpc_service *xs;
 
@@ -836,7 +774,7 @@ static void sunrpc_service_fini(struct c2_service *service)
 	c2_free(xs);
 }
 
-static int sunrpc_service_init(struct c2_service *service)
+static int user_sunrpc_service_init(struct c2_service *service)
 {
 	struct sunrpc_service    *xservice;
 	struct sunrpc_service_id *xid;
@@ -849,14 +787,14 @@ static int sunrpc_service_init(struct c2_service *service)
 		c2_rwlock_init(&xservice->s_guard);
 		c2_cond_init(&xservice->s_gotwork);
 		service->s_xport_private = xservice;
-		service->s_ops = &sunrpc_service_ops;
+		service->s_ops = &user_sunrpc_service_ops;
 		xid = service->s_id->si_xport_private;
 		xservice->s_socket = -1;
-		C2_ASSERT(service->s_id->si_ops == &sunrpc_service_id_ops);
-		result = service_start(service,
-				       C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
-				       xid->ssi_port, SERVER_THR_NR,
-				       service->s_table);
+		C2_ASSERT(service->s_id->si_ops == &user_sunrpc_service_id_ops);
+		result = user_service_start(service,
+					    C2_SESSION_PROGRAM, C2_DEF_RPC_VER,
+					    xid->ssi_port, SERVER_THR_NR,
+					    service->s_table);
 	} else
 		result = -ENOMEM;
 	return result;
@@ -866,7 +804,7 @@ static int sunrpc_service_init(struct c2_service *service)
  * Domain code.
  */
 
-static void dom_fini(struct c2_net_domain *dom)
+static void user_dom_fini(struct c2_net_domain *dom)
 {
 	struct sunrpc_dom  *xdom;
 
@@ -898,7 +836,7 @@ static void dom_fini(struct c2_net_domain *dom)
 	}
 }
 
-static int dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
+static int user_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 {
 	int i;
 	int result;
@@ -914,65 +852,66 @@ static int dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		for (i = 0; i < ARRAY_SIZE(xdom->sd_workers); ++i) {
 			result = C2_THREAD_INIT(&xdom->sd_workers[i], 
 						struct c2_net_domain *, 
-						&sunrpc_worker, dom);
+						&user_sunrpc_client_worker,
+						dom);
 			if (result != 0)
 				break;
 		}
 	} else
 		result = -ENOMEM;
 	if (result != 0)
-		dom_fini(dom);
+		user_dom_fini(dom);
 	return result;
 
 }
 
-static const struct c2_service_id_ops sunrpc_service_id_ops = {
-	.sis_conn_init = sunrpc_conn_init,
-	.sis_fini      = sunrpc_service_id_fini
+static const struct c2_service_id_ops user_sunrpc_service_id_ops = {
+	.sis_conn_init = user_sunrpc_conn_init,
+	.sis_fini      = user_sunrpc_service_id_fini
 };
 
-static const struct c2_service_ops sunrpc_service_ops = {
-	.so_stop = sunrpc_service_stop,
-	.so_fini = sunrpc_service_fini
+static const struct c2_service_ops user_sunrpc_service_ops = {
+	.so_stop = user_sunrpc_service_stop,
+	.so_fini = user_sunrpc_service_fini
 };
 
-static const struct c2_net_conn_ops sunrpc_conn_ops = {
-	.sio_fini = sunrpc_conn_fini,
-	.sio_call = sunrpc_conn_call,
-	.sio_send = sunrpc_conn_send
+static const struct c2_net_conn_ops user_sunrpc_conn_ops = {
+	.sio_fini = user_sunrpc_conn_fini,
+	.sio_call = user_sunrpc_conn_call,
+	.sio_send = user_sunrpc_conn_send
 };
 
-static const struct c2_net_xprt_ops xprt_ops = {
-	.xo_dom_init        = dom_init,
-	.xo_dom_fini        = dom_fini,
-	.xo_service_id_init = sunrpc_service_id_init,
-	.xo_service_init    = sunrpc_service_init
+static const struct c2_net_xprt_ops user_sunrpc_xprt_ops = {
+	.xo_dom_init        = user_dom_init,
+	.xo_dom_fini        = user_dom_fini,
+	.xo_service_id_init = user_sunrpc_service_id_init,
+	.xo_service_init    = user_sunrpc_service_init
 };
 
-struct c2_net_xprt c2_net_sunrpc_xprt = {
+struct c2_net_xprt c2_net_user_sunrpc_xprt = {
 	.nx_name = "sunrpc/user",
-	.nx_ops  = &xprt_ops
+	.nx_ops  = &user_sunrpc_xprt_ops
 };
 
-static pthread_key_t sunrpc_service_key;
+static pthread_key_t user_sunrpc_service_key;
 
-int sunrpc_init(void)
+int user_sunrpc_init(void)
 {
 	/* un-buffer to see error messages timely. */
         setbuf(stdout, NULL);
         setbuf(stderr, NULL);
 
-	return pthread_key_create(&sunrpc_service_key, NULL);
+	return pthread_key_create(&user_sunrpc_service_key, NULL);
 }
 
-void sunrpc_fini(void)
+void user_sunrpc_fini(void)
 {
-	pthread_key_delete(sunrpc_service_key);
+	pthread_key_delete(user_sunrpc_service_key);
 }
 
-/** @} end of group sunrpc */
+/** @} end of group usunrpc */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

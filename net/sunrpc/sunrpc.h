@@ -9,13 +9,14 @@
    @{
  */
 
-extern struct c2_net_xprt c2_net_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_user_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_kernel_sunrpc_xprt;
 
 /** @} end of group sunrpc */
 
 /* __COLIBRI_NET_SUNRPC_SUNRPC_H__ */
 #endif
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

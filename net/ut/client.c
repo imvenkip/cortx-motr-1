@@ -70,10 +70,10 @@ int main(int argc, char *argv[])
 	rc = c2_net_init();
 	CU_ASSERT(rc == 0);
 
-	rc = c2_net_xprt_init(&c2_net_sunrpc_xprt);
+	rc = c2_net_xprt_init(&c2_net_user_sunrpc_xprt);
 	CU_ASSERT(rc == 0);
 
-	rc = c2_net_domain_init(&dom, &c2_net_sunrpc_xprt);
+	rc = c2_net_domain_init(&dom, &c2_net_user_sunrpc_xprt);
 	CU_ASSERT(rc == 0);
 
 	rc = c2_service_id_init(&node1, &dom, "127.0.0.1", PORT);
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 	c2_service_id_fini(&node2);
 	c2_service_id_fini(&node1);
 	c2_net_domain_fini(&dom);
-	c2_net_xprt_fini(&c2_net_sunrpc_xprt);
+	c2_net_xprt_fini(&c2_net_user_sunrpc_xprt);
 	c2_net_fini();
 	return 0;
 }

@@ -65,6 +65,10 @@ struct c2_net_xprt_ops {
 	   Initialise transport specific part of a service identifier.
 	 */
 	int  (*xo_service_id_init)(struct c2_service_id *sid, va_list varargs);
+
+	/**
+	   Initialise the server side part of a transport.
+	 */
 	int  (*xo_service_init)(struct c2_service *service);
 };
 
