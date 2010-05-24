@@ -203,7 +203,7 @@ static void kernel_sunrpc_async_done(struct rpc_task *task, void *data)
 {
 	struct c2_net_async_call *call = (struct c2_net_async_call *)data;
 
-        call->ac_rc = task->tk_status;
+	call->ac_rc = task->tk_status;
 	c2_chan_broadcast(&call->ac_chan);
 }
 
