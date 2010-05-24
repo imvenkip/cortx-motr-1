@@ -3,9 +3,11 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
+#include "lib/atomic.h"
 #include "lib/cdefs.h"
 #include "lib/vec.h"
 #include "lib/chan.h"
+#include "lib/rwlock.h"
 #include "sm/sm.h"
 
 /* import */
@@ -35,17 +37,14 @@ struct c2_list_link;
    @{
  */
 
-struct c2_stob_id {
-	uint64_t	seq;
-	uint64_t	id;
-};
-
 struct c2_stob;
+struct c2_stob_id;
 struct c2_stob_op;
 struct c2_stob_io;
 struct c2_stob_type;
 struct c2_stob_type_op;
 struct c2_stob_domain;
+struct c2_stob_domain_op;
 
 struct c2_stob_type {
 	const struct c2_stob_type_op *st_op;
@@ -54,36 +53,155 @@ struct c2_stob_type {
 	struct c2_list		      st_domains; /**< list of domains */
 };
 
-struct c2_stob {
-	struct c2_stob_type 	*so_type;
-	const struct c2_stob_op *so_op;
-	struct c2_list_link	 so_linkage; /**< linkage into its domain */
-	struct c2_stob_id	 so_id;      /**< unique id of this object */
-	struct c2_stob_domain 	*so_domain;  /**< its domain */
-};
-
 struct c2_stob_type_op {
 	int  (*sto_init)(struct c2_stob_type *stype);
 	void (*sto_fini)(struct c2_stob_type *stype);
 	/**
-	   Locates a storage objects domain with specified name.
-
-	   @return valid-pointer success, any other value means error.
-	*/
-	struct c2_stob_domain* (*sto_domain_locate)(const char *domain_name);
-
-	/**
-	   Add and initlialises the storage objects domain, makes it ready
-	   for operations.
+	   Locates a storage objects domain with specified name, creating it if
+	   none exists.
 
 	   @return 0 success, any other value means error.
 	*/
-	int (*sto_domain_add)(struct c2_stob_domain *dom);
+	int (*sto_domain_locate)(struct c2_stob_type *type, 
+				 const char *domain_name,
+				 struct c2_stob_domain **dom);
+};
+
+int  c2_stob_type_init(struct c2_stob_type *kind);
+void c2_stob_type_fini(struct c2_stob_type *kind);
+
+/**
+   stob domain
+
+   Stob domain is a collection of storage objects of the same type.
+   A stob type may have multiple domains, which are linked together to its
+   type by 'sd_domain_linkage'. A stob domain may have multiple storage objects,
+   which are linked together by 'sd_objects'.
+*/
+struct c2_stob_domain {
+	const char 		       *sd_name;
+	const struct c2_stob_domain_op *sd_ops;
+	struct c2_stob_type 	       *sd_type;
+	struct c2_list_link	        sd_domain_linkage;
+	struct c2_rwlock                sd_guard;
+};
+
+/**
+   domain operations vector
+ */
+struct c2_stob_domain_op {
+	/**
+	   Cleanup this domain: e.g. delete itself from the domain list in type.
+	*/
+	void (*sdo_fini)(struct c2_stob_domain *self);
+	/**
+	   Returns an in-memory representation for the storage object with given
+	   identifier in this domain, either by creating a new c2_stob or
+	   returning already existing one.
+
+	   Returned object can be in any c2_stob_state state.
+
+	   @pre id is from a part of identifier name-space assigned to dom.
+	 */
+	int (*sdo_stob_find)(struct c2_stob_domain *dom, 
+			     const struct c2_stob_id *id, struct c2_stob **out);
+};
+
+void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
+void c2_stob_domain_fini(struct c2_stob_domain *dom);
+
+/**
+   c2_stob state specifying it relationship with the underlying storage object.
+ */
+enum c2_stob_state {
+	/**
+	   The state or existence of the underlying storage object are not
+	   known. c2_stob can be used as a placeholder in storage object
+	   identifiers name-space in this state.
+	 */
+	CSS_UNKNOWN,
+	/**
+	   The underlying storage object is known to exist.
+	 */
+	CSS_EXISTS,
+	/**
+	   The underlying storage object is known to not exist.
+	 */
+	CSS_NOENT
+};
+
+/**
+   Unique storage object identifier.
+
+   A storage object in a cluster is identified by identifier of this type.
+ */
+struct c2_stob_id {
+	uint64_t  si_seq;
+	uint64_t  si_id;
+};
+
+bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+
+/**
+   In-memory representation of a storage object.
+
+   c2_stob is created by a call to one of the c2_stob_create(), c2_stob_locate()
+   or c2_stob_get() functions that in turn call corresponding c2_stob_domain_op
+   method.
+
+   c2_stob serves multiple purposes:
+
+   @li it acts as a placeholder in storage object identifiers name-space. For
+   example, locks can be taken on it;
+
+   @li it acts as a handle for the underlying storage object. IO and meta-data
+   operations can be directed to the storage object by calling functions on
+   c2_stob;
+
+   @li it caches certain storage object attributes in memory.
+
+   Accordingly, c2_stob can be in one of the states described by enum
+   c2_stob_state. Compare these c2_stob roles with the socket interface (bind,
+   connect, etc.)
+ */
+struct c2_stob {
+	struct c2_atomic64       so_ref;
+	enum c2_stob_state       so_state;
+	const struct c2_stob_op *so_op;
+	struct c2_stob_id	 so_id;      /**< unique id of this object */
+	struct c2_stob_domain 	*so_domain;  /**< its domain */
 };
 
 struct c2_stob_op {
-	int  (*sop_init)   (struct c2_stob *stob);
-	void (*sop_fini)   (struct c2_stob *stob);
+	/**
+	   Called when the last reference on the object is released.
+
+	   This method is called under exclusive mode c2_stob_domain::sd_guard
+	   lock.
+
+	   An implementation is free to either destroy the c2_stob immediately
+	   or cache it in some internal data-structure.
+	 */
+	void (*sop_fini)(struct c2_stob *stob);
+	/**
+	  Create an object.
+
+	  Create the storage object for this c2_stob.
+
+	  @return 0 success, other values mean error.
+	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+	*/
+	int (*sop_create)(struct c2_stob *stob);
+
+	/**
+	   Locate a storage object for this c2_stob.
+
+	   @return 0 success, other values mean error
+	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
+	*/
+	int (*sop_locate)(struct c2_stob *obj);
+
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
 	   given storage object.
@@ -92,6 +210,7 @@ struct c2_stob_op {
 	   the first time or when the last time is queued IO for a different
 	   type of storage object.
 
+	   @pre stob->so_state == CSS_EXISTS
 	   @pre io->si_state == SIS_IDLE
 
 	   @see c2_stob_io::si_stob_magic
@@ -126,73 +245,37 @@ struct c2_stob_op {
 	bool (*sop_io_is_locked)(const struct c2_stob *stob);
 };
 
-int  c2_stob_type_add(struct c2_stob_type *kind);
-void c2_stob_type_del(struct c2_stob_type *kind);
-
-
-struct c2_stob_domain_op;
+int  c2_stob_find  (struct c2_stob_domain *dom, const struct c2_stob_id *id,
+		    struct c2_stob **out);
 /**
-   stob domain
+   Initialise generic c2_stob fields.
 
-   Stob domain is a collection of storage objects of the same type.
-   A stob type may have multiple domains, which are linked together to its
-   type by 'sd_domain_linkage'. A stob domain may have multiple storage objects,
-   which are linked together by 'sd_objects'.
-*/
-struct c2_stob_domain {
-	const char 		       *sd_name;
-	const struct c2_stob_domain_op *sd_ops;
-	struct c2_stob_type 	       *sd_type;
-	struct c2_list_link	        sd_domain_linkage;
-
-	struct c2_list	 	        sd_objects;
-};
+   @post obj->so_state == CSS_UNKNOWN
+ */
+void c2_stob_init  (struct c2_stob *obj, const struct c2_stob_id *id);
+void c2_stob_fini  (struct c2_stob *obj);
 
 /**
-   domain operations vector
-*/
-struct c2_stob_domain_op {
-	/**
-	   Init this domain: e.g. init the list, connecting to mapping db.
-	*/
-	int (*sdo_init)(struct c2_stob_domain *self);
+   Locate a storage object for this c2_stob.
 
-	/**
-	   Cleanup this domain: e.g. delete itself from the domain list in type.
-	*/
-	void (*sdo_fini)(struct c2_stob_domain *self);
+   @return 0 success, other values mean error
+   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
+ */
+int  c2_stob_locate(struct c2_stob *obj);
 
-	/**
-	   alloc in-memory structure for an object, and add it into this domain.
-	*/
-	struct c2_stob *(*sdo_alloc)(struct c2_stob_domain *d,
-			               struct c2_stob_id *id);
-	/**
-	   free in-memory structure for an object
-	*/
-	void (*sdo_free)(struct c2_stob_domain *d, struct c2_stob *o);
+/**
+   Create an object.
 
-	/**
-	  Create an object.
+   Create the storage object for this c2_stob.
 
-	  Create an object on storage physically, and insert the
-	  mapping from the id to the internal object repsentative into its
-	  database.
+   @return 0 success, other values mean error.
+   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+ */
+int  c2_stob_create(struct c2_stob *obj);
 
-	  @return 0 success, other values mean error.
-	  @post when succeed, out points to the internal object
-	*/
-	int (*sdo_create)(struct c2_stob_domain *d, struct c2_stob *o);
-
-	/**
-	   setup the mapping from id to intnerl representative by looking up
-	   in its database.
-
-	  @return 0 success, other values mean error
-	*/
-	int (*sdo_locate)(struct c2_stob_domain *d, struct c2_stob *o);
-};
-
+void c2_stob_get(struct c2_stob *obj);
+void c2_stob_put(struct c2_stob *obj);
 
 /**
    @name adieu
@@ -535,6 +618,7 @@ void c2_stob_io_init  (struct c2_stob_io *io);
 void c2_stob_io_fini  (struct c2_stob_io *io);
 
 /**
+   @pre obj->so_state == CSS_EXISTS
    @pre c2_chan_has_waiters(&io->si_wait)
    @pre io->si_state == SIS_IDLE
    @pre io->si_opcode != SIO_INVALID

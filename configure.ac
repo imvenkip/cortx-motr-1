@@ -282,6 +282,7 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  patches/Makefile
                  stob/Makefile
+                 stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

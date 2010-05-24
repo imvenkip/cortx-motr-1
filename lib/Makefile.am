@@ -11,4 +11,5 @@ libc2_la_LIBADD      = @LIBS@ @DB4LIBS@ @PTHREAD_LIBS@
 INCLUDES             = -I. -I$(top_srcdir)/include -I@DB4SRC@/build_unix 
 EXTRA_DIST           = adt.h rwlock.h memory.h c2list.h c2bitops.h c2bitmap.h \
                        refs.h atomic.h queue.h arith.h thread.h vec.h \
-                       chan.h mutex.h cache.h cond.h
+                       chan.h mutex.h cache.h cond.h user_x86_64_atomic.h
+

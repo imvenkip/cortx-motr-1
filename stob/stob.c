@@ -3,6 +3,7 @@
 #endif
 
 #include <string.h>  /* memset */
+#include <errno.h>
 
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -14,17 +15,125 @@
    @{
  */
 
+int c2_stob_type_init(struct c2_stob_type *kind)
+{
+	c2_list_init(&kind->st_domains);
+	return 0;
+}
+
+void c2_stob_type_fini(struct c2_stob_type *kind)
+{
+	c2_list_fini(&kind->st_domains);
+}
+
+void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
+{
+	c2_rwlock_init(&dom->sd_guard);
+	dom->sd_type = t;
+	c2_list_add_tail(&t->st_domains, &dom->sd_domain_linkage);
+}
+
+void c2_stob_domain_fini(struct c2_stob_domain *dom)
+{
+	c2_rwlock_fini(&dom->sd_guard);
+	c2_list_del_init(&dom->sd_domain_linkage);
+}
+
+int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,
+		 struct c2_stob **out)
+{
+	return dom->sd_ops->sdo_stob_find(dom, id, out);
+}
+
+void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id)
+{
+	c2_atomic64_set(&obj->so_ref, 1);
+	obj->so_state = CSS_UNKNOWN;
+	obj->so_id = *id;
+}
+
+void c2_stob_fini(struct c2_stob *obj)
+{
+}
+
+bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
+{
+	return memcmp(id0, id1, sizeof *id0) == 0;
+}
+
+int c2_stob_locate(struct c2_stob *obj)
+{
+	int result;
+
+	switch (obj->so_state) {
+	case CSS_UNKNOWN:
+		result = obj->so_op->sop_locate(obj);
+		switch (result) {
+		case 0:
+			obj->so_state = CSS_EXISTS;
+			break;
+		case -ENOENT:
+			obj->so_state = CSS_NOENT;
+			break;
+		}
+		break;
+	case CSS_EXISTS:
+		result = 0;
+		break;
+	case CSS_NOENT:
+		result = -ENOENT;
+		break;
+	default:
+		C2_ASSERT(0);
+	}
+	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
+	C2_POST(ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
+	return result;
+}
+
+int c2_stob_create(struct c2_stob *obj)
+{
+	int result;
+
+	switch (obj->so_state) {
+	case CSS_UNKNOWN:
+	case CSS_NOENT:
+		result = obj->so_op->sop_create(obj);
+		if (result == 0)
+			obj->so_state = CSS_EXISTS;
+		break;
+	case CSS_EXISTS:
+		result = 0;
+		break;
+	default:
+		C2_ASSERT(0);
+	}
+	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
+	return result;
+}
+
+void c2_stob_get(struct c2_stob *obj)
+{
+	c2_atomic64_inc(&obj->so_ref);
+}
+
+void c2_stob_put(struct c2_stob *obj)
+{
+	struct c2_stob_domain *dom;
+
+	dom = obj->so_domain;
+	c2_rwlock_write_lock(&dom->sd_guard);
+	if (c2_atomic64_dec_and_test(&obj->so_ref))
+		obj->so_op->sop_fini(obj);
+	c2_rwlock_write_unlock(&dom->sd_guard);
+}
+
 static void c2_stob_io_private_fini(struct c2_stob_io *io)
 {
 	if (io->si_stob_private != NULL) {
 		c2_free(io->si_stob_private);
 		io->si_stob_private = NULL;
 	}
-}
-
-static bool c2_stob_io_is_locked(const struct c2_stob *obj)
-{
-	return obj->so_op->sop_io_is_locked(obj);
 }
 
 static void c2_stob_io_lock(struct c2_stob *obj)
@@ -62,6 +171,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 {
 	int result;
 
+	C2_PRE(obj->so_state == CSS_EXISTS);
 	C2_PRE(c2_chan_has_waiters(&io->si_wait));
 	C2_PRE(io->si_obj == NULL);
 	C2_PRE(io->si_state == SIS_IDLE);
@@ -69,7 +179,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) == 
 	       c2_vec_count(&io->si_stob.ov_vec));
 
-	if (io->si_stob_magic != obj->so_type->st_magic) {
+	if (io->si_stob_magic != obj->so_domain->sd_type->st_magic) {
 		c2_stob_io_private_fini(io);
 		result = obj->so_op->sop_io_init(obj, io);
 	} else
@@ -83,7 +193,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		c2_stob_io_lock(obj);
 		/* XXX do something about barriers here. */
 		result = io->si_op->sio_launch(io);
-		C2_ASSERT(equi(result == 0, !c2_stob_io_is_locked(obj)));
 		if (result != 0) {
 			io->si_state = SIS_IDLE;
 			c2_stob_io_unlock(obj);
@@ -100,28 +209,6 @@ void c2_stob_io_cancel(struct c2_stob_io *io)
 		io->si_op->sio_cancel(io);
 	c2_stob_io_unlock(io->si_obj);
 }
-
-int c2_domain_add(struct c2_stob_type *stype, struct c2_stob_domain *dom)
-{
-	dom->sd_type = stype;
-	c2_list_link_init(&dom->sd_domain_linkage);
-	c2_list_add(&stype->st_domains, &dom->sd_domain_linkage);
-	return 0;
-}
-
-struct c2_stob_domain* c2_domain_locate(struct c2_stob_type *stype,
-                                        const char *domain_name)
-{
-	struct c2_stob_domain *dom;
-
-	c2_list_for_each_entry(&stype->st_domains, dom,
-			       struct c2_stob_domain, sd_domain_linkage) {
-		if (strcmp(domain_name, dom->sd_name) == 0)
-			return dom;
-	}
-	return NULL;
-}
-
 
 /** @} end group stob */
 
