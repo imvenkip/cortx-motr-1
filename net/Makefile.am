@@ -1,4 +1,4 @@
-SUBDIRS    = . sunrpc ut
+SUBDIRS    = . sunrpc ut ksunrpc
 
 lib_LTLIBRARIES            = libcolibri-net.la
 libcolibri_net_la_SOURCES  = net.c net_xdr.c net_utils.c net_cli.c net_srv.c \
