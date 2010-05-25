@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 	result = c2_net_domain_init(&ndom, &c2_net_user_sunrpc_xprt);
 	C2_ASSERT(result == 0);
 
-	result = c2_service_id_init(&sid, &ndom, "127.0.0.1", PORT);
+	result = c2_service_id_init(&sid, &ndom, argv[1], atoi(argv[2]));
 	C2_ASSERT(result == 0);
 
 	c2_rpc_op_table_init(&ops);
