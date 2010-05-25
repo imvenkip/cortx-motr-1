@@ -55,6 +55,8 @@ bool_t xdr_c2_stob_io_read_fop(XDR *xdrs, struct c2_stob_io_read_fop *r)
 bool_t xdr_c2_stob_io_read_rep_fop(XDR *xdrs, struct c2_stob_io_read_rep_fop *r)
 {
 	return
+		xdr_u_int(xdrs, &r->sirr_rc) &&
+		xdr_u_int(xdrs, &r->sirr_count) &&
 		xdr_array(xdrs, (char **)&r->sirr_buf.b_buf, 
 			  &r->sirr_buf.b_count, ~0,
 			  sizeof (struct c2_stob_io_buf), 

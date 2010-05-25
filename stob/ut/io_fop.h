@@ -55,6 +55,8 @@ struct c2_stob_io_read_fop {
 };
 
 struct c2_stob_io_read_rep_fop {
+	u_int sirr_rc;
+	u_int sirr_count;
 	struct {
 		u_int                  b_count;
 		struct c2_stob_io_buf *b_buf;
