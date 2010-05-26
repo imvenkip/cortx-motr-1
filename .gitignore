@@ -64,6 +64,7 @@ stob/server
 stob/ut/server
 net/ut/connection
 net/ut/client
+net/ut/kclient
 rpc/ut/rclient
 rpc/ut/rserver
 test_db*
