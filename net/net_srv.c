@@ -35,7 +35,7 @@ int c2_service_start(struct c2_service *service,
 
 void c2_service_stop(struct c2_service *service)
 {
-	service->s_ops->so_stop(service);
+	service->s_ops->so_fini(service);
 }
 
 /*
