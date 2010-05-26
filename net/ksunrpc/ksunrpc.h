@@ -12,6 +12,11 @@ struct ksunrpc_service_id {
 	uint16_t              ssi_port;     /**< server tcp port */
 };
 
+#define UT_PROC_NAME "ksunrpc-ut"
+
+
+#ifdef __KERNEL__
+
 struct ksunrpc_xprt {
 	struct rpc_clnt *ksx_client;
 };
@@ -81,6 +86,8 @@ struct c2_rpc_op {
 	c2_rpc_srv_handler ro_handler;
 	char		  *ro_name;
 };
+
+#endif
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

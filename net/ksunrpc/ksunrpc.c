@@ -6,6 +6,7 @@
 #include <linux/fs.h>
 #include <linux/mount.h>
 #include <linux/smp_lock.h>
+#include <linux/uaccess.h>
 #include <linux/vfs.h>
 #include <linux/sunrpc/clnt.h>
 
@@ -175,14 +176,101 @@ struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
 
 EXPORT_SYMBOL(ksunrpc_xprt_ops);
 
+/*******************************************************************************
+ *                     Start of UT                                             *
+ ******************************************************************************/
+
+#if 1
+
+static struct proc_dir_entry *proc_ksunrpc_ut;
+
+static int read_ksunrpc_ut(char *page, char **start, off_t off,
+			   int count, int *eof, void *data)
+{
+	int ret;
+
+	ret = sprintf(page + off, "%d\n", 1);
+	*eof = 1;
+	printk("reading from ut\n");
+	return ret;
+}
+
+static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
+			    unsigned long count, void *data)
+{
+	char host[128];
+	struct sockaddr_in sa;
+	struct ksunrpc_service_id id_in_kernel = {
+		.ssi_host = host,
+		.ssi_sockaddr = &sa,
+	};
+	struct ksunrpc_service_id id_in_user;
+	struct ksunrpc_xprt* xprt;
+
+	if (count != sizeof id_in_kernel) {
+		printk("writing: wrong size %d. %d is expected\n", (int)count,
+			(int)sizeof id_in_kernel);
+		return count;
+	}
+	if (copy_from_user(&id_in_user, buffer, count))
+		return -EFAULT;
+
+	if (copy_from_user(id_in_kernel.ssi_host, id_in_user.ssi_host, id_in_user.ssi_addrlen))
+		return -EFAULT;
+
+	if (copy_from_user(id_in_kernel.ssi_sockaddr, id_in_user.ssi_sockaddr, sizeof sa))
+		return -EFAULT;
+	id_in_kernel.ssi_addrlen = id_in_user.ssi_addrlen;
+	id_in_kernel.ssi_port = id_in_user.ssi_port;
+
+	printk("got data from userspace. testing...\n");
+	xprt = ksunrpc_xprt_ops.ksxo_init(&id_in_kernel);
+	printk("xprt = %p\n", xprt);
+	if (!IS_ERR(xprt))
+		ksunrpc_xprt_ops.ksxo_fini(xprt);
+
+	return count;
+}
+
+
+static void __init create_ut_proc_entry(void)
+{
+	proc_ksunrpc_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
+	if (proc_ksunrpc_ut) {
+		/* Why is this so hard? */
+		proc_ksunrpc_ut->read_proc  = read_ksunrpc_ut;
+		proc_ksunrpc_ut->write_proc = write_ksunrpc_ut;
+	}
+}
+
+static void __exit remove_ut_proc_entry(void)
+{
+	if (proc_ksunrpc_ut)
+		remove_proc_entry(UT_PROC_NAME, NULL);
+}
+
+#else
+
+static void __init create_ut_proc_entry(void) {}
+static void __exit remove_ut_proc_entry(void) {}
+
+#endif
+
+/*******************************************************************************
+ *                       End of UT                                             *
+ ******************************************************************************/
+
+
 static int __init kernel_sunrpc_init(void)
 {
 	printk(KERN_INFO "Colibri Kernel Client SUNRPC(http://www.clusterstor.com)\n");
+	create_ut_proc_entry();
 	return 0;
 }
 
 static void __exit kernel_sunrpc_fini(void)
 {
+	remove_ut_proc_entry();
 	printk(KERN_INFO "Colibri Kernel Client SUNRPC cleanup\n");
 }
 
