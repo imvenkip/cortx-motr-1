@@ -1,0 +1,82 @@
+#! /bin/bash
+
+#
+# T1 throughput test.
+#
+# This is a very crude throughput benchmark for the prototype T1 data
+# server.
+#
+# Usage:
+#
+#     * build ./client and ./server programs in the same directory
+#       (colibri/core/stob/ut)
+#
+#     * start the server:
+#
+#         ./server __s 10001
+#
+#       here "__s" is a path-name to a directory where objects will be
+#       located and 10001 is a port number the server listens to.
+#
+#    * run the benchmark
+#
+#        ./client-load 127.0.0.1 10001 16 100 1000000
+#
+#      here
+#
+#          127.0.0.1 is an ip address of the server
+#              10001 is a port of the server
+#                 16 is a number of threads
+#                100 is a number of operations each thread executes
+#            1000000 is a number of bytes in each operation
+#
+#    * the script outputs
+#
+#        57142857 1600000000 28
+#
+#      here
+#
+#            57142857 is a throughput in bytes per second
+#          1600000000 is a total number of bytes written
+#                  28 is a wall-clock time in seconds
+#
+# After the benchmark is done, kill the server and "rm -fr ./__s".
+#
+
+host=$1
+port=$2
+threads=$3
+ops=$4
+size=$5
+
+function load()
+{
+    fid="42 $(($$ + $1))"
+    (
+	echo c $fid
+	for ((offset = 0, i = 0; i < ops; ++i, offset += size)) ;do
+	    echo w $fid 1 $offset $size z
+	done
+	) | ./client $host $port >/dev/null
+}
+
+function run()
+{
+    for ((i = 0; i < threads; ++i)) ;do
+	load i &
+    done
+
+    wait
+}
+
+function main()
+{
+    export TIMEFORMAT="%0R %0U %0S"
+    time run
+}
+
+total=$((threads * ops * size))
+out=$(main 2>&1)
+wclock=$(echo $out | cut -f1 -d' ')
+echo $total $wclock $out
+echo $((total/wclock)) $total $wclock
