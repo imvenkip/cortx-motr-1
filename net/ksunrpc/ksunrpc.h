@@ -7,7 +7,7 @@
  */
 struct ksunrpc_service_id {
 	char                 *ssi_host;	    /**< server hostname */
-	struct sockadd       *ssi_sockaddr; /**< server ip_addr  */
+	struct sockaddr_in   *ssi_sockaddr; /**< server ip_addr  */
 	int 	              ssi_addrlen;  /**< server ip_addr  */
 	uint16_t              ssi_port;     /**< server tcp port */
 };
@@ -50,9 +50,10 @@ extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
 /*
  XXX The following should be identical to the definition in net/net.h
 */
-typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
-typedef	bool (*c2_rpc_srv_handler)(const struct c2_rpc_op *op,
-				   void *arg, void *ret);
+
+typedef	int (*c2_xdrproc_t)(void *xdr, void *data);
+typedef	int (*c2_rpc_srv_handler)(const struct c2_rpc_op *op,
+				  void *arg, void *ret);
 struct c2_rpc_op {
 	/**
 	 operation identifier

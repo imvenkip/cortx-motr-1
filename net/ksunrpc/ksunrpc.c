@@ -8,8 +8,6 @@
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
 #include <linux/sunrpc/clnt.h>
-#include <linux/nfs_fs.h>
-#include <linux/sunrpc/xprtsock.h>
 
 #include "ksunrpc.h"
 
@@ -28,33 +26,33 @@
  * Client code.
  */
 
-struct rpc_procinfo c2t0_procedures[] = {
+struct rpc_procinfo c2t1_procedures[] = {
 };
 
 
-struct rpc_version  c2t0_sunrpc_version = {
+struct rpc_version  c2t1_sunrpc_version = {
         .number     = 1,
-        .nrprocs    = ARRAY_SIZE(c2t0_procedures),
-        .procs      = c2t0_procedures
+        .nrprocs    = ARRAY_SIZE(c2t1_procedures),
+        .procs      = c2t1_procedures
 };
 
-static struct rpc_version *c2t0_versions[2] = {
-        [1]         = &c2t0_sunrpc_version,
+static struct rpc_version *c2t1_versions[2] = {
+        [1]         = &c2t1_sunrpc_version,
 };
 
-struct rpc_stat c2t0_rpcstat;
+struct rpc_stat c2t1_rpcstat;
 
-struct rpc_program c2t0_program = {
-        .name                   = "c2t0",
+struct rpc_program c2t1_program = {
+        .name                   = "c2t1",
         .number                 = C2_SESSION_PROGRAM,
-        .nrvers                 = ARRAY_SIZE(c2t0_versions),
-        .version                = c2t0_versions,
-        .stats                  = &c2t0_rpcstat,
-        .pipe_dir_name          = "/c2t0",
+        .nrvers                 = ARRAY_SIZE(c2t1_versions),
+        .version                = c2t1_versions,
+        .stats                  = &c2t1_rpcstat,
+        .pipe_dir_name          = "/c2t1",
 };
 
-struct rpc_stat c2t0_rpcstat = {
-        .program                = &c2t0_program
+struct rpc_stat c2t1_rpcstat = {
+        .program                = &c2t1_program
 };
 
 void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
@@ -69,44 +67,48 @@ void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
 	kfree(xprt);
 }
 
-/* TODO: replace these NFS_* with C2_* */
+#define C2_DEF_TCP_RETRANS (2)
+#define C2_DEF_TCP_TIMEO   (600)
+
 struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 {
-        struct rpc_timeout       timeparms = {
-                .to_retries   = NFS_DEF_TCP_RETRANS,
-                .to_initval   = NFS_DEF_TCP_TIMEO * HZ / 10,
-                .to_increment = NFS_DEF_TCP_TIMEO * HZ / 10,
-                .to_maxval    = NFS_DEF_TCP_TIMEO * HZ / 10 +
-			       (NFS_DEF_TCP_TIMEO * HZ / 10 * NFS_DEF_TCP_RETRANS),
-                .to_exponential = 0
+	struct rpc_timeout       timeparms = {
+		.to_retries   = C2_DEF_TCP_RETRANS,
+		.to_initval   = C2_DEF_TCP_TIMEO * HZ / 10,
+		.to_increment = C2_DEF_TCP_TIMEO * HZ / 10,
+		.to_maxval    = C2_DEF_TCP_TIMEO * HZ / 10 +
+			       (C2_DEF_TCP_TIMEO * HZ / 10 * C2_DEF_TCP_RETRANS),
+		.to_exponential = 0
 	};
-        struct rpc_create_args args = {
-                .protocol       = XPRT_TRANSPORT_TCP,
-                .address        = (struct sockaddr *)xsid->ssi_sockaddr,
-                .addrsize       = xsid->ssi_addrlen,
-                .timeout        = &timeparms,
-                .servername     = xsid->ssi_host,
-                .program        = &c2t0_program,
-                .version        = 1,
-                .authflavor     = RPC_AUTH_NULL,
-                .flags          = 0,
-        };
-        struct rpc_clnt         *clnt;
-	struct ksunrpc_xprt     *xprt;
 
-	xprt = kmalloc(sizeof *xprt, GFP_KERNEL);
-	if (xprt != NULL) {
-		clnt = rpc_create(&args);
-		if (IS_ERR(clnt)) {
-			printk("%s: cannot create RPC client. Error = %ld\n",
-				__func__, PTR_ERR(clnt));
-			kfree(xprt);
-			xprt = NULL;
-	} else
-			xprt->ksx_client = clnt;
+	struct rpc_clnt         *clnt;
+	struct rpc_xprt         *rpc_xprt;
+	struct ksunrpc_xprt     *ksunrpc_xprt;
+
+	ksunrpc_xprt = kmalloc(sizeof *ksunrpc_xprt, GFP_KERNEL);
+	if (ksunrpc_xprt == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	/* create transport and client */
+        rpc_xprt = xprt_create_proto(IPPROTO_TCP, xsid->ssi_sockaddr, &timeparms);
+	if (IS_ERR(rpc_xprt)) {
+		printk("%s: cannot create RPC transport. Error = %ld\n",
+		__FUNCTION__, PTR_ERR(rpc_xprt));
+                return (struct ksunrpc_xprt *)rpc_xprt;
+        }
+	clnt = rpc_create_client(rpc_xprt, xsid->ssi_host, &c2t1_program,
+				 1, RPC_AUTH_NULL);
+	if (IS_ERR(clnt)) {
+		printk("%s: cannot create RPC client. Error = %ld\n",
+			__FUNCTION__, PTR_ERR(clnt));
+			return (struct ksunrpc_xprt *)clnt;
 	}
 
-        return xprt;
+	clnt->cl_intr     = 1;
+	clnt->cl_softrtry = 1;
+
+	ksunrpc_xprt->ksx_client = clnt;
+        return ksunrpc_xprt;
 }
 
 static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
@@ -119,8 +121,7 @@ static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
 		.p_proc   = op->ro_op,
 		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
 		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_arglen = op->ro_arg_size,
-		.p_replen = op->ro_result_size,
+		.p_bufsiz = op->ro_arg_size,
 		.p_statidx= op->ro_op,
 		.p_name   = op->ro_name,
 	};
@@ -148,8 +149,7 @@ static int ksunrpc_xprt_send(struct ksunrpc_xprt *xprt,
 		.p_proc   = op->ro_op,
 		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
 		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_arglen = op->ro_arg_size,
-		.p_replen = op->ro_result_size,
+		.p_bufsiz = op->ro_arg_size,
 		.p_statidx= op->ro_op,
 		.p_name   = op->ro_name,
 	};

@@ -48,7 +48,7 @@ enum c2_rpc_service_id {
 struct sunrpc_service_id {
 	struct c2_service_id *ssi_id;
 	char                 *ssi_host;	    /**< server hostname */
-	struct sockadd       *ssi_sockaddr; /**< server ip_addr  */
+	struct sockadd_in    *ssi_sockaddr; /**< server ip_addr  */
 	int 	              ssi_addrlen;  /**< server ip_addr  */
 	uint16_t              ssi_port;     /**< server tcp port */
 };
