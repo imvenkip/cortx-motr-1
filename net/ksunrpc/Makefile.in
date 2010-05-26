@@ -1,7 +1,7 @@
 linux=@LINUX@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 
-ifeq (linux$(linux),linuxy)
+ifeq ($(linux),y)
 
 obj-m := ksunrpc.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
@@ -33,4 +33,4 @@ distclean clean:
 endif
 
 distdir:
-	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.c @top_builddir@/@PACKAGE@-@VERSION@/ksunrpc
+	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.c $(KSUNRPC_SRCDIR)/ksunrpc.c @top_builddir@/@PACKAGE@-@VERSION@/ksunrpc
