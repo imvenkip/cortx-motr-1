@@ -32,13 +32,13 @@
 #
 #    * the script outputs
 #
-#        57142857 1600000000 28
+#        55.569062 1600000000 28.793000
 #
 #      here
 #
-#            57142857 is a throughput in bytes per second
-#          1600000000 is a total number of bytes written
-#                  28 is a wall-clock time in seconds
+#                  55.569062 is a throughput in MB/sec
+#          1600000000        is a total number of bytes written
+#                  28.793000 is a wall-clock time in seconds
 #
 # After the benchmark is done, kill the server and "rm -fr ./__s".
 #
@@ -71,12 +71,10 @@ function run()
 
 function main()
 {
-    export TIMEFORMAT="%0R %0U %0S"
+    export TIMEFORMAT="%4R %4U %4S"
     time run
 }
 
-total=$((threads * ops * size))
 out=$(main 2>&1)
-wclock=$(echo $out | cut -f1 -d' ')
-echo $total $wclock $out
-echo $((total/wclock)) $total $wclock
+echo $out | awk -vt=$threads -vo=$ops -vs=$size \
+       '{ printf("%f %i %f\n", t*o*s/$1/1000000, t*o*s, $1); }'
