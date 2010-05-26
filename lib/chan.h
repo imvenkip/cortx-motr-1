@@ -72,7 +72,8 @@ typedef void (*c2_chan_cb_t)(struct c2_clink *link);
    constructor c2_clink_init(). This call-back is called when an event happens
    in the channel the clink is registered with. It is guaranteed that a
    call-back is executed in the same context where event producer declared new
-   event without any additional locks held.
+   event. A per-channel mutex c2_chan::ch_guard is held while call-backs are
+   executed.
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().
