@@ -501,6 +501,9 @@ static void user_sunrpc_service_worker(struct c2_service *service)
 		}
 		xdr_free((xdrproc_t)op->ro_xdr_result, (caddr_t)res);
 
+		c2_free(res);
+		c2_free(wi->wi_arg);
+
 		c2_rwlock_read_unlock(&xs->s_guard);
 
 		/* free the work item. It is allocated in dispatch() */
@@ -777,16 +780,14 @@ static int user_service_start(struct c2_service *service,
 	return rc;
 }
 
-static void user_sunrpc_service_stop(struct c2_service *service)
-{
-	user_service_stop(service->s_xport_private);
-}
-
 static void user_sunrpc_service_fini(struct c2_service *service)
 {
 	struct sunrpc_service *xs;
 
 	xs = service->s_xport_private;
+
+	user_service_stop(xs);
+
 	C2_ASSERT(xs->s_workers == NULL);
 	C2_ASSERT(xs->s_socket == -1);
 	c2_queue_fini(&xs->s_requests);
@@ -894,7 +895,6 @@ static const struct c2_service_id_ops user_sunrpc_service_id_ops = {
 };
 
 static const struct c2_service_ops user_sunrpc_service_ops = {
-	.so_stop = user_sunrpc_service_stop,
 	.so_fini = user_sunrpc_service_fini
 };
 

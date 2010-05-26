@@ -170,7 +170,6 @@ struct c2_service {
 
 struct c2_service_ops {
 	void (*so_fini)(struct c2_service *service);
-	void  (*so_stop)(struct c2_service *service);
 };
 
 
@@ -425,7 +424,7 @@ int c2_service_start(struct c2_service *service,
 		     struct c2_service_id *sid,
 		     struct c2_rpc_op_table *ops);
 /**
-   stop network service
+   Stop network service and release resources associated with it.
 
    @see c2_net_service_start
  */
