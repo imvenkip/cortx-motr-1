@@ -123,6 +123,10 @@ static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 
 	c2_stob_io_fini(&io);
 
+	c2_free(count);
+	c2_free(offset);
+	c2_free(buf);
+
 	*ret = ex;
 	return true;
 }
@@ -190,7 +194,26 @@ static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 
 	c2_stob_io_fini(&io);
 
+	c2_free(count);
+	c2_free(offset);
+	c2_free(buf);
+
 	*ret = ex;
+	return true;
+}
+
+static bool stop = false;
+
+static bool quit_handler(const struct c2_rpc_op *op, void *arg, void **ret)
+{
+	int *ex;
+
+	C2_ALLOC_PTR(ex);
+	C2_ASSERT(ex != NULL);
+
+	*ex = 42;
+	*ret = ex;
+	stop = true;
 	return true;
 }
 
@@ -219,6 +242,15 @@ static const struct c2_rpc_op write_op = {
 	.ro_result_size = sizeof(struct c2_stob_io_write_rep_fop),
 	.ro_xdr_result  = (c2_xdrproc_t)xdr_c2_stob_io_write_rep_fop,
 	.ro_handler     = write_handler
+};
+
+static const struct c2_rpc_op quit_op = {
+	.ro_op          = SIF_QUIT,
+	.ro_arg_size    = sizeof(int),
+	.ro_xdr_arg     = (c2_xdrproc_t)xdr_int,
+	.ro_result_size = sizeof(int),
+	.ro_xdr_result  = (c2_xdrproc_t)xdr_int,
+	.ro_handler     = quit_handler
 };
 
 /**
@@ -292,12 +324,16 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 	result = c2_rpc_op_register(ops, &write_op);
 	C2_ASSERT(result == 0);
+	result = c2_rpc_op_register(ops, &quit_op);
+	C2_ASSERT(result == 0);
 
 	result = c2_service_start(&service, &sid, ops);
 	C2_ASSERT(result >= 0);
 
-	while (1)
+	while (!stop) {
 		sleep(1);
+		printf("allocated: %li\n", c2_allocated());
+	}
 
 	c2_service_stop(&service);
 	c2_rpc_op_table_fini(ops);

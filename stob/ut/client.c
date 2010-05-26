@@ -51,6 +51,15 @@ static const struct c2_rpc_op write_op = {
 	.ro_handler     = NULL
 };
 
+static const struct c2_rpc_op quit_op = {
+	.ro_op          = SIF_QUIT,
+	.ro_arg_size    = sizeof(int),
+	.ro_xdr_arg     = (c2_xdrproc_t)xdr_int,
+	.ro_result_size = sizeof(int),
+	.ro_xdr_result  = (c2_xdrproc_t)xdr_int,
+	.ro_handler     = NULL
+};
+
 static void create_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 {
 	int result;
@@ -135,6 +144,17 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 	printf("GOT: %i %i %i\n", result, rep.siwr_rc, rep.siwr_count);
 }
 
+static void quit_send(struct c2_net_conn *conn)
+{
+	int fop;
+	int rep;
+	int result;
+
+	fop = rep = 0;
+	result = c2_net_cli_call(conn, ops, SIF_QUIT, &fop, &rep);
+	printf("GOT: %i %i\n", result, rep);
+}
+
 /**
    Simple client.
 
@@ -160,6 +180,10 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 
            Read from an object with the fid (D1:D2) N buffers with given offsets
            and sizes.
+
+       q <D1> <D2>
+
+           Shutdown the server.
  */
 int main(int argc, char **argv)
 {
@@ -193,6 +217,8 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 	result = c2_rpc_op_register(ops, &write_op);
 	C2_ASSERT(result == 0);
+	result = c2_rpc_op_register(ops, &quit_op);
+	C2_ASSERT(result == 0);
 
 	result = c2_net_conn_create(&sid);
 	C2_ASSERT(result == 0);
@@ -217,6 +243,9 @@ int main(int argc, char **argv)
 			break;
 		case 'w':
 			write_send(conn, &fid);
+			break;
+		case 'q':
+			quit_send(conn);
 			break;
 		default:
 			err(1, "Unknown command '%c'", cmd);

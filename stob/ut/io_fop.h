@@ -11,7 +11,8 @@ enum {
 enum c2_stob_io_fop_opcode {
 	SIF_READ  = 0x4001,
 	SIF_WRITE = 0x4002,
-	SIF_CREAT = 0x4003
+	SIF_CREAT = 0x4003,
+	SIF_QUIT  = 0x4004
 };
 
 struct c2_fid {
