@@ -48,7 +48,7 @@ int c2_rpc_op_table_init(struct c2_rpc_op_table **table)
 void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
 {
 	c2_rwlock_fini(&table->rot_ops_lock);
-
+	c2_free(table->rot_ops);
 	c2_free(table);
 }
 
