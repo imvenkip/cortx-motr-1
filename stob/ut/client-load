@@ -51,7 +51,7 @@ size=$5
 
 function load()
 {
-    fid="42 $(($$ + $1))"
+    fid="$$ $1"
     (
 	echo c $fid
 	for ((offset = 0, i = 0; i < ops; ++i, offset += size)) ;do
@@ -63,7 +63,7 @@ function load()
 function run()
 {
     for ((i = 0; i < threads; ++i)) ;do
-	load i &
+	load $i &
     done
 
     wait
