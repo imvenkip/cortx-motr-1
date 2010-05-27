@@ -155,6 +155,15 @@ static void quit_send(struct c2_net_conn *conn)
 	printf("GOT: %i %i\n", result, rep);
 }
 
+static void ping_send(struct c2_net_conn *conn)
+{
+	int result;
+
+	result = c2_net_cli_call(conn, ops, NULLPROC, NULL, NULL);
+	printf("Ping back: %i \n", result);
+}
+
+
 /**
    Simple client.
 
@@ -226,6 +235,7 @@ int main(int argc, char **argv)
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
 
+	ping_send(conn);
 	while (!feof(stdin)) {
 		struct c2_fid fid;
 		char cmd;

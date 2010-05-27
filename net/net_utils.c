@@ -44,6 +44,8 @@ struct c2_rpc_op_table {
 static bool null_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 {
 	printf("got NULLPROC: ping\n");
+	if (ret)
+		*ret = NULL;
 	return true;
 }
 
