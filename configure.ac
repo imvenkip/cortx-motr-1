@@ -15,6 +15,7 @@ AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
+AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -313,7 +314,11 @@ else
 	CFLAGS="-Wall -Werror -O2"
         KCFLAGS="-Wall -Werror -O2"
 fi
+
 AC_SUBST([KCFLAGS])
+
+CFLAGS="$CFLAGS -D_REENTRANT"
+LDFLAGS="-rdynamic"
 
 AC_ARG_WITH([db4], 
         AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), [],
@@ -405,6 +410,7 @@ LIBD=$OLD_LIBS
 
 AC_CHECK_DECL([mallinfo], [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
 AC_CHECK_DECL([malloc_size], [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
+AC_CHECK_DECL(backtrace, [AC_DEFINE(HAVE_BACKTRACE)], [], [[#include <execinfo.h>]])
 
 AC_CONFIG_FILES([
 		 Makefile
@@ -420,7 +426,10 @@ AC_CONFIG_FILES([
                  fol/Makefile
                  fop/Makefile
                  rpc/Makefile
+                 rpc/ut/Makefile
                  net/Makefile
+                 net/sunrpc/Makefile
+                 net/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
                  sm/Makefile
@@ -428,6 +437,7 @@ AC_CONFIG_FILES([
                  c2t1fs/Makefile
                  patches/Makefile
                  stob/Makefile
+                 stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

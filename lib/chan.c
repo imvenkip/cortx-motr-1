@@ -2,9 +2,9 @@
 
 #include <errno.h>
 
-#include "lib/chan.h"
-#include "lib/c2list.h"
-#include "lib/assert.h"
+#include "chan.h"
+#include "c2list.h"
+#include "assert.h"
 
 /**
    @addtogroup chan

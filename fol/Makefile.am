@@ -13,8 +13,7 @@ libcolibri_fol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libcolibri_fol_la_LDFLAGS  = -release @LT_RELEASE@
 libcolibri_fol_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@ @DB4LIBS@ @PTHREAD_LIBS@
 
-# Make sure that dtm headers will be found
-INCLUDES           = -I. -I$(top_srcdir)/dtm -I$(top_srcdir)/include -I@DB4SRC@ -I@DB4SRC@/build_unix
+INCLUDES           = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@ -I@DB4SRC@/build_unix
 
 EXTRA_DIST	   = fol.t
 
