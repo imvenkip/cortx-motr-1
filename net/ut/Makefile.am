@@ -1,6 +1,6 @@
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-noinst_PROGRAMS = connection client
+noinst_PROGRAMS = connection client kclient
 # utils
 # client server 
 
@@ -23,3 +23,6 @@ client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-n
 #rpc-server_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/sunrpc/libcolibri-net-sunrpc.la @DB4LIBS@
 
 
+kclient_SOURCES   = kclient.c
+kclient_LDFLAGS   = @LDFLAGS@
+kclient_LDADD     =

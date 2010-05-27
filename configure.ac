@@ -278,6 +278,7 @@ AC_CONFIG_FILES([
                  rpc/ut/Makefile
                  net/Makefile
                  net/sunrpc/Makefile
+                 net/ksunrpc/Makefile
                  net/ut/Makefile
                  nrs/Makefile
                  sns/Makefile

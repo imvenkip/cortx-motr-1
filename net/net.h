@@ -316,6 +316,10 @@ struct c2_rpc_op {
 	 function to a handle operation on server side
 	 */
 	c2_rpc_srv_handler ro_handler;
+	/**
+	 name of this operation
+	 */
+	char 		*ro_name;
 };
 
 /**
