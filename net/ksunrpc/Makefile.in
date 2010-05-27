@@ -4,7 +4,7 @@ KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 ifeq ($(linux),y)
 
 obj-m := ksunrpc.o
-EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -O2 @KCFLAGS@
 
 all:
 	if ! test -e ksunrpc.c; then \

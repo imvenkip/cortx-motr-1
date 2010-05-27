@@ -8,7 +8,16 @@
 #include <linux/smp_lock.h>
 #include <linux/uaccess.h>
 #include <linux/vfs.h>
+#include <linux/param.h>
+#include <linux/time.h>
+#include <linux/utsname.h>
+#include <linux/errno.h>
+#include <linux/string.h>
+#include <linux/in.h>
+#include <linux/pagemap.h>
+#include <linux/proc_fs.h>
 #include <linux/sunrpc/clnt.h>
+#include <linux/sunrpc/xdr.h>
 
 #include "ksunrpc.h"
 
@@ -26,34 +35,36 @@
 /*
  * Client code.
  */
-
-struct rpc_procinfo c2t1_procedures[] = {
+struct rpc_procinfo c2t1_procedures[2] = {
+	[0] = {},
+	[1] = {},
 };
 
 
 struct rpc_version  c2t1_sunrpc_version = {
-        .number     = 1,
-        .nrprocs    = ARRAY_SIZE(c2t1_procedures),
-        .procs      = c2t1_procedures
+	.number     = 1,
+	.nrprocs    = ARRAY_SIZE(c2t1_procedures),
+	.procs      = c2t1_procedures
 };
 
 static struct rpc_version *c2t1_versions[2] = {
-        [1]         = &c2t1_sunrpc_version,
+	[0]	    = NULL,
+	[1]         = &c2t1_sunrpc_version,
 };
 
 struct rpc_stat c2t1_rpcstat;
 
 struct rpc_program c2t1_program = {
-        .name                   = "c2t1",
-        .number                 = C2_SESSION_PROGRAM,
-        .nrvers                 = ARRAY_SIZE(c2t1_versions),
-        .version                = c2t1_versions,
-        .stats                  = &c2t1_rpcstat,
-        .pipe_dir_name          = "/c2t1",
+	.name                   = "c2t1",
+	.number                 = C2_SESSION_PROGRAM,
+	.nrvers                 = ARRAY_SIZE(c2t1_versions),
+	.version                = c2t1_versions,
+	.stats                  = &c2t1_rpcstat,
+	.pipe_dir_name          = NULL,
 };
 
 struct rpc_stat c2t1_rpcstat = {
-        .program                = &c2t1_program
+	.program                = &c2t1_program
 };
 
 void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
@@ -123,7 +134,7 @@ static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
 		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
 		.p_decode = (kxdrproc_t) op->ro_xdr_result,
 		.p_bufsiz = op->ro_arg_size,
-		.p_statidx= op->ro_op,
+		.p_statidx= 1,
 		.p_name   = op->ro_name,
 	};
 
@@ -182,6 +193,39 @@ EXPORT_SYMBOL(ksunrpc_xprt_ops);
 
 #if 1
 
+static int ksunrpc_xdr_enc_int(struct rpc_rqst *req, uint32_t *p, int *args)
+{
+	*p++ = htonl(*args);
+	req->rq_slen = xdr_adjust_iovec(req->rq_svec, p);
+	printk("arg encoded\n");
+	return 0;
+}
+
+static int ksunrpc_xdr_dec_int(struct rpc_rqst *req, uint32_t *p, int *res)
+{
+	*res = ntohl(*p++);
+	printk("res decoded\n");
+	return 0;
+}
+
+/* taken from other branch. When merged, should be removed, or be consistant */
+enum c2_stob_io_fop_opcode {
+        SIF_READ  = 0x4001,
+        SIF_WRITE = 0x4002,
+        SIF_CREAT = 0x4003,
+        SIF_QUIT  = 0x4004
+};
+
+static const struct c2_rpc_op quit_op = {
+        .ro_op          = SIF_QUIT,
+        .ro_arg_size    = sizeof(int),
+        .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_int,
+        .ro_result_size = sizeof(int),
+        .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_int,
+        .ro_handler     = NULL,
+	.ro_name        = "quit",
+};
+
 static struct proc_dir_entry *proc_ksunrpc_ut;
 
 static int read_ksunrpc_ut(char *page, char **start, off_t off,
@@ -189,7 +233,7 @@ static int read_ksunrpc_ut(char *page, char **start, off_t off,
 {
 	int ret;
 
-	ret = sprintf(page + off, "%d\n", 1);
+	ret = sprintf(page + off, "nothing to read\n");
 	*eof = 1;
 	printk("reading from ut\n");
 	return ret;
@@ -226,8 +270,16 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 	printk("got data from userspace. testing...\n");
 	xprt = ksunrpc_xprt_ops.ksxo_init(&id_in_kernel);
 	printk("xprt = %p\n", xprt);
-	if (!IS_ERR(xprt))
+	if (!IS_ERR(xprt)) {
+		int arg = 101;
+		int res;
+		int retval;
+
+		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &quit_op, &arg, &res);
+		printk("got reply: retval=%d, result=%d\n", retval, res);
+
 		ksunrpc_xprt_ops.ksxo_fini(xprt);
+	}
 
 	return count;
 }
