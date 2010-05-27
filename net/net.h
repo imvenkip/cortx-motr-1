@@ -170,7 +170,6 @@ struct c2_service {
 
 struct c2_service_ops {
 	void (*so_fini)(struct c2_service *service);
-	void  (*so_stop)(struct c2_service *service);
 };
 
 
@@ -286,7 +285,7 @@ typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
 	       to client
  */
 typedef	bool (*c2_rpc_srv_handler)(const struct c2_rpc_op *op, 
-				   void *arg, void *ret);
+				   void *arg, void **ret);
 
 /**
    rpc commands associated with service thread
@@ -429,7 +428,7 @@ int c2_service_start(struct c2_service *service,
 		     struct c2_service_id *sid,
 		     struct c2_rpc_op_table *ops);
 /**
-   stop network service
+   Stop network service and release resources associated with it.
 
    @see c2_net_service_start
  */

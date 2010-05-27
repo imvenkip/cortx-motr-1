@@ -316,6 +316,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			C2_ASSERT(!c2_queue_link_is_in
 				  (&lio->si_qev[i].iq_linkage));
 		}
+		linux_stob_io_fini(lio);
 		io->si_state = SIS_IDLE;
 		c2_chan_broadcast(&io->si_wait);
 	}

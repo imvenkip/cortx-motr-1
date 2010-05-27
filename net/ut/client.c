@@ -7,20 +7,25 @@
 #include "lib/assert.h"
 
 // #define C2_RPC_CLIENT 1
+#include "lib/memory.h"
 #include "net/net.h"
 #include "net/xdr.h"
 #include "net/sunrpc/sunrpc.h"
 
 #define CU_ASSERT(a)	C2_ASSERT(a)
 
-static bool test_op1_hanlder(const struct c2_rpc_op *op, void *arg, void *ret)
+static bool test_op1_hanlder(const struct c2_rpc_op *op, void *arg, void **ret)
 {
 	struct c2_service_id *iid = arg;
-	struct c2_service_id *oid = ret;
+	struct c2_service_id *oid;
 	int a;
+
+	C2_ALLOC_PTR(oid);
+	C2_ASSERT(oid != NULL);
 
 	a = atoi((char *)&iid->si_uuid);
 	sprintf(oid->si_uuid, "%d", a + a);
+	*ret = oid;
 
 	return true;
 }
