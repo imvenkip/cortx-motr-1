@@ -1,5 +1,10 @@
 #include <string.h>
 #include <errno.h>
+#include <rpc/types.h>
+#include <rpc/xdr.h>
+#include <rpc/auth.h>
+#include <rpc/clnt.h>
+#include <rpc/svc.h>
 
 #include "lib/memory.h"
 #include "lib/rwlock.h"
@@ -31,26 +36,26 @@ struct c2_rpc_op_table {
 	struct c2_rpc_op	*rot_ops;
 };
 
-int c2_rpc_op_table_init(struct c2_rpc_op_table **table)
+/**
+  nullproc handler.
+
+  This will always exist in every operation table.
+*/
+static bool null_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 {
-	struct c2_rpc_op_table *t;
-
-	C2_ALLOC_PTR(t);
-	if (!t)
-		return -ENOMEM;
-
-	c2_rwlock_init(&t->rot_ops_lock);
-	*table = t;
-
-	return 0;
+	printf("got NULLPROC: ping\n");
+	return true;
 }
 
-void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
-{
-	c2_rwlock_fini(&table->rot_ops_lock);
-	c2_free(table->rot_ops);
-	c2_free(table);
-}
+static const struct c2_rpc_op null_op = {
+        .ro_op          = NULLPROC,
+        .ro_arg_size    = 0,
+        .ro_xdr_arg     = (c2_xdrproc_t)xdr_void,
+        .ro_result_size = 0,
+        .ro_xdr_result  = (c2_xdrproc_t)xdr_void,
+        .ro_handler     = null_handler
+};
+
 
 int c2_rpc_op_register(struct c2_rpc_op_table *table, 
 		       const struct c2_rpc_op *op)
@@ -93,4 +98,29 @@ const struct c2_rpc_op *c2_rpc_op_find(struct c2_rpc_op_table *rop, uint64_t op)
 	c2_rwlock_read_unlock(&rop->rot_ops_lock);
 
 	return NULL;
+}
+
+int c2_rpc_op_table_init(struct c2_rpc_op_table **table)
+{
+	struct c2_rpc_op_table *t;
+	int result;
+
+	C2_ALLOC_PTR(t);
+	if (!t)
+		return -ENOMEM;
+
+	c2_rwlock_init(&t->rot_ops_lock);
+	*table = t;
+
+	/* add nullproc */
+	result = c2_rpc_op_register(t, &null_op);
+	C2_ASSERT(result == 0);
+	return 0;
+}
+
+void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
+{
+	c2_rwlock_fini(&table->rot_ops_lock);
+	c2_free(table->rot_ops);
+	c2_free(table);
 }

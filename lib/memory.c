@@ -68,7 +68,8 @@ void *c2_alloc(size_t size)
 
 void c2_free(void *data)
 {
-	__free(data);
+	if (data)
+		__free(data);
 }
 
 static size_t used0;

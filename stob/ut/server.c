@@ -212,6 +212,7 @@ static bool quit_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	C2_ASSERT(ex != NULL);
 
 	*ex = 42;
+	printf("I got quit request: arg = %d, res = %d\n", *((int*)arg), *ex);
 	*ret = ex;
 	stop = true;
 	return true;

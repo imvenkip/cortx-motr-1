@@ -555,6 +555,11 @@ static void user_sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 				c2_mutex_unlock(&xs->s_req_guard);
 				result = 0;
 			} else {
+				/* TODO XXX
+				  How to pass the error code back to client?
+				  If code reaches here, the client got timeout,
+				  instead of error.
+				*/
 				svcerr_decode(transp);
 				result = -EPROTO;
 			}
@@ -568,8 +573,10 @@ static void user_sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 	}
 
 	if (result != 0) {
-		c2_free(arg);
-		c2_free(wi);
+		if (arg)
+			c2_free(arg);
+		if (wi)
+			c2_free(wi);
 	}
 }
 
