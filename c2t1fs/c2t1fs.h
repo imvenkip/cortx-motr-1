@@ -1,6 +1,19 @@
 #ifndef __COLIBRI_C2T1FS_H
 #define __COLIBRI_C2T1FS_H
 
+#include "c2t1fs_config.h"
+
+#define C2T1FS_DEBUG 1
+#ifdef C2T1FS_DEBUG
+#define ENTER   printk("Enter into function %s\n", __FUNCTION__)
+#define LEAVE   printk("Leave function %s\n", __FUNCTION__)
+#define GETHERE printk("Get %s line %d\n", __FUNCTION__, __LINE__)
+#else
+#define ENTER
+#define LEAVE
+#define GETHERE
+#endif
+
 #define s2csi(sb)       \
         ((struct c2t1fs_sb_info *)((sb)->s_fs_info))
 

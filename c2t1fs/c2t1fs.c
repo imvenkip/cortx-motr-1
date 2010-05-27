@@ -155,7 +155,6 @@ static void c2t1fs_destroy_inode(struct inode *inode)
 void c2t1fs_put_super(struct super_block *sb)
 {
         c2t1fs_put_csi(sb);
-        module_put(THIS_MODULE);
 }
 
 struct super_operations c2t1fs_super_operations = {
@@ -481,8 +480,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         struct c2t1fs_sb_info *csi;
         struct inode          *root;
         int rc;
-        
-        try_module_get(THIS_MODULE);
         
         csi = c2t1fs_init_csi(sb);
         if (!csi)

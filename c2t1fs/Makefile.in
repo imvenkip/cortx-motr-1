@@ -3,8 +3,9 @@ C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 
 ifeq ($(OS),linux)
 
-obj-m := c2t1fs.o
-EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@
+obj-m := c2t1fs.o c2t1fs_loop.o
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@ 
 
 all:
 	if ! test -e c2t1fs.c; then \
