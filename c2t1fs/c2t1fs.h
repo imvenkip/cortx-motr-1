@@ -1,6 +1,9 @@
 #ifndef __COLIBRI_C2T1FS_H
 #define __COLIBRI_C2T1FS_H
 
+#include <linux/in.h> /* for sockaddr_in */
+
+#include "net/ksunrpc/ksunrpc.h"
 #include "config.h"
 
 #define C2T1FS_DEBUG 1
@@ -43,6 +46,13 @@ struct c2t1fs_sb_info {
         int             csi_flags;
         int             csi_devid;
         char            csi_server[MAX_SERVER_LEN];
+
+        /* hack part for t1 milestone */
+        uint64_t                csi_objid; /* The object id will be mapped */
+
+        struct sockaddr_in      csi_addr;
+        struct ksunrpc_service_id csi_srvid;
+        struct ksunrpc_xprt    *csi_xprt;
 };
 
 struct c2t1fs_inode_info {

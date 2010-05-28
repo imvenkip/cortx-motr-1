@@ -2,6 +2,11 @@
 #ifndef __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
+#ifdef __KERNEL__
+#include <linux/in.h>
+#include <linux/sunrpc/sched.h> /* for rpc_call_ops */
+#endif
+
 /**
    SUNRPC service identifier.
  */

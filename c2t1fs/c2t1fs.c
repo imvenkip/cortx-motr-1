@@ -8,6 +8,11 @@
 #include <linux/vfs.h>
 #include <linux/uio.h>
 #include <linux/errno.h>
+#include <linux/inet.h>
+#include <linux/in.h>
+
+#define __OPTIMIZE__ 1
+#include <asm/byteorder.h>
 
 #include "c2t1fs.h"
 
@@ -55,9 +60,9 @@
        back-end for the block device should be specified as part of
        device specification in mount command in a way like this:
      
-     mount -t c2t1fs localhost:/0x1000 /mnt/c2t1fs
+     mount -t c2t1fs objid@ipaddr:port /mnt/c2t1fs
 
-     where 0x1000 is object id exported by the server.
+     where objid is object id exported by the server.
       
      If the server does not know this object - a error is returned and mount
      fails and meaningful error is reported.
@@ -86,8 +91,8 @@
    a way like this:
    
    modprobe c2t1fs
-   mount -t c2t1fs localhost:/0x1000 /mnt/c2t1fs
-   losetup /dev/loop0 /mnt/object0x1000
+   mount -t c2t1fs <objid>@ipaddr:port /mnt/c2t1fs
+   losetup /dev/loop0 /mnt/c2t1fs/$objid
    dd if=/dev/zero of=/dev/loop0 bs=1M count=10
    
    To support this functionality, we implement the following parts:
@@ -229,6 +234,9 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                                  loff_t *ppos, int rw)
 {
+        
+        struct c2t1fs_sb_info *csi = s2csi(file->f_dentry->d_inode->i_sb);
+        csi = csi;
         return 0;
 }
 
@@ -577,6 +585,9 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
                             struct vfsmount *mnt)
 {
         struct c2t1fs_sb_info *csi;
+        char *ptr;
+        char *endptr;
+        unsigned long ipaddr;
         int rc;
         
         rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
@@ -584,15 +595,57 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
                 return rc;
         csi = s2csi(mnt->mnt_sb);
         strcpy(csi->csi_server, devname);
-        
-        /* FIXME: Connect to csi->csi_server should be performed here. Connection
-         * may be stored in csi and used for read/write. */
-        return rc;
+
+        /* XXX: For t1 milestone */
+        ptr = strchr(devname, '@');
+        if (ptr == NULL)
+                return -EINVAL;
+
+        *ptr = 0;
+        csi->csi_objid = simple_strtol(devname, &endptr, 10);
+        if (endptr != NULL)
+                return -EINVAL;
+
+        devname = ++ptr;
+        ptr = strchr(devname, ':');
+        if (ptr == NULL)
+                return -EINVAL;
+
+        *ptr = 0;
+        ipaddr = htonl(in_aton(devname));
+        if (ipaddr == 0)      /* in_aton doesn't report error :-( */
+                return -EINVAL;
+
+        devname = ++ptr;
+        rc = simple_strtol(devname, &endptr, 10);
+        if (endptr)
+                return -EINVAL;
+
+        csi->csi_addr.sin_port = htons(rc);
+        csi->csi_addr.sin_family = AF_INET;
+
+        /* connect to server */
+        csi->csi_srvid.ssi_host = "unknown server";
+        csi->csi_srvid.ssi_sockaddr = &csi->csi_addr;
+        csi->csi_srvid.ssi_addrlen = strlen(csi->csi_srvid.ssi_host) + 1;
+        csi->csi_srvid.ssi_port = csi->csi_addr.sin_port;
+
+        csi->csi_xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
+        if (IS_ERR(csi->csi_xprt))
+                return PTR_ERR(csi->csi_xprt);
+
+        /* XXX: check if the objid is existent at server side. */
+
+        return 0;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
+        struct c2t1fs_sb_info *csi = s2csi(sb);
+
         /* FIME: Disconnect from server here. */
+        ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
+        csi->csi_xprt = NULL;
         kill_anon_super(sb);
 }
 
