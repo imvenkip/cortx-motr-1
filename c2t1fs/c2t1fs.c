@@ -168,10 +168,23 @@ void c2t1fs_put_super(struct super_block *sb)
         c2t1fs_put_csi(sb);
 }
 
+static int c2t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
+{
+        buf->f_type   = dentry->d_sb->s_magic;
+        buf->f_bsize  = PAGE_SIZE;
+        buf->f_blocks = 1024 * 1024;
+        buf->f_bfree  = 1024 * 1024;
+        buf->f_bavail = 1024 * 1024;
+        buf->f_namelen = NAME_MAX;
+        return 0;
+}
+
+
 struct super_operations c2t1fs_super_operations = {
         .alloc_inode   = c2t1fs_alloc_inode,
         .destroy_inode = c2t1fs_destroy_inode,
-        .put_super     = c2t1fs_put_super
+        .put_super     = c2t1fs_put_super,
+        .statfs        = c2t1fs_statfs,
 };
 
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
