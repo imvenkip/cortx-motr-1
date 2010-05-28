@@ -1,9 +1,17 @@
 /* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
+#include <stdio.h>
+#include <string.h>
 #include <errno.h>
-
 #include <sys/socket.h>
-#include <netinet/in.h>
+
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+
 #include <arpa/inet.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>

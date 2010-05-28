@@ -2,6 +2,7 @@
 #  include <config.h>
 #endif
 
+#include <stdlib.h>
 #include <string.h>    /* memset */
 #include <stdio.h>     /* feof, fscanf, ... */
 #include <err.h>
@@ -87,7 +88,7 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 	C2_ASSERT(fop.sir_vec.v_seg != NULL);
 	for (i = 0; i < fop.sir_vec.v_count; ++i) {
 		if (scanf("%lu %u", 
-			  &fop.sir_vec.v_seg[i].f_offset,
+			  (unsigned long *)&fop.sir_vec.v_seg[i].f_offset,
 			  &fop.sir_vec.v_seg[i].f_count) != 2)
 			err(1, "wrong offset conversion");
 	}
@@ -130,7 +131,7 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 
 		buf = &fop.siw_buf.b_buf[i];
 		if (scanf("%lu %u %c", 
-			  &fop.siw_vec.v_seg[i].f_offset,
+			  (unsigned long *)&fop.siw_vec.v_seg[i].f_offset,
 			  &fop.siw_vec.v_seg[i].f_count, &filler) != 3)
 			err(1, "wrong offset conversion");
 		buf->ib_count = fop.siw_vec.v_seg[i].f_count;
@@ -241,7 +242,7 @@ int main(int argc, char **argv)
 		char cmd;
 		int n;
 
-		n = scanf("%c %lu %lu", &cmd, &fid.f_d1, &fid.f_d2);
+		n = scanf("%c %lu %lu", &cmd, (unsigned long *)&fid.f_d1, (unsigned long *)&fid.f_d2);
 		if (n != 3)
 			err(1, "wrong conversion: %i", n);
 		switch (cmd) {

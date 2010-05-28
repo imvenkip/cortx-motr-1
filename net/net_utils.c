@@ -1,5 +1,16 @@
+/* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <rpc/auth.h>

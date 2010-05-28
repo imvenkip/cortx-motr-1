@@ -17,6 +17,8 @@ AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
+AH_TEMPLATE([LINUX], [Linux operating system])
+AH_TEMPLATE([DARWIN], [Darwin operating system])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -234,7 +236,9 @@ AC_SUBST([PTHREAD_LIBS])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([stdlib.h pthread.h])
+AC_CHECK_HEADERS([stdlib.h])
+AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -242,6 +246,7 @@ AC_TYPE_SIZE_T
 AC_CHECK_DECL([mallinfo], [AC_DEFINE([HAVE_MALLINFO])], [], [[#include <malloc.h>]])
 AC_CHECK_DECL([malloc_size], [AC_DEFINE([HAVE_MALLOC_SIZE])], [], [[#include <malloc/malloc.h>]])
 AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execinfo.h>]])
+AC_CHECK_TYPES([pthread_barrier_t], [AC_DEFINE([HAVE_PTHREAD_BARRIER_T])], [], [[#include <pthread.h>]])
 
 # Checks for library functions.
 AC_FUNC_MALLOC
@@ -267,6 +272,16 @@ case $host_os in
         linux*) OS="linux" ;;
 esac
 AC_SUBST([OS])
+
+if test x$OS = xlinux; then
+        AC_DEFINE([LINUX])
+fi
+if test x$OS = xdarwin; then
+        AC_DEFINE([DARWIN])
+fi
+
+AM_CONDITIONAL([LINUX], [test x$OS = xlinux])
+AM_CONDITIONAL([DARWIN], [test x$OS = xdarwin])
 
 if test x$OS = xlinux; then
         AC_MSG_CHECKING([for linux sources dir])
@@ -307,17 +322,22 @@ if test x$OS = xlinux; then
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="-Wall -Werror -O0 -g"
-        KCFLAGS="-Wall -Werror -O1 -g"
+        CFLAGS="$CFLAGS -O0 -g"
+        KCFLAGS="$KCFLAGS -O1 -g"
         AC_DEFINE([ENABLE_DEBUG])
 else
-	CFLAGS="-Wall -Werror -O2"
-        KCFLAGS="-Wall -Werror -O2"
+	CFLAGS="$CFLAGS -O2"
+        KCFLAGS="$KCFLAGS -O2"
 fi
 
 AC_SUBST([KCFLAGS])
 
-CFLAGS="$CFLAGS -D_REENTRANT"
+if test x$OS = xdarwin; then
+        CFLAGS="$CFLAGS -fnested-functions"
+fi
+
+CFLAGS="$CFLAGS -Wall -Werror -D_REENTRANT"
+KCFLAGS="$KCFLAGS -Wall -Werror"
 LDFLAGS="-rdynamic"
 
 AC_ARG_WITH([db4],
@@ -400,12 +420,14 @@ if test x$enable_gssrpc = xyes; then
         )
 fi
 
-OLD_LIBS=$LIBS
-LIBS=""
-AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found!])])
-AIO_LIBS=$LIBS
-AC_SUBST([AIO_LIBS])
-LIBD=$OLD_LIBS
+if test x$OS = xlinux; then
+        OLD_LIBS=$LIBS
+        LIBS=""
+        AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found!])])
+        AIO_LIBS=$LIBS
+        AC_SUBST([AIO_LIBS])
+        LIBD=$OLD_LIBS
+fi
 
 AC_CONFIG_FILES([
 		 Makefile
@@ -430,6 +452,7 @@ AC_CONFIG_FILES([
                  sns/Makefile
                  sm/Makefile
                  mds/Makefile
+                 mw/Makefile
                  c2t1fs/Makefile
                  patches/Makefile
                  stob/Makefile

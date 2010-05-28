@@ -1,4 +1,7 @@
 /* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
 #include <time.h>    /* nanosleep */
 #include <stdio.h>   /* printf */
@@ -10,6 +13,7 @@
 #include "lib/atomic.h"
 #include "lib/assert.h"
 
+#ifdef HAVE_PTHREAD_BARRIER_T
 enum {
 	NR = 255
 };
@@ -51,9 +55,11 @@ static void worker(int id)
 		C2_ASSERT(c2_atomic64_get(&atom) == 0);
 	}
 }
+#endif
 
 void test_atomic(void)
 {
+#ifdef HAVE_PTHREAD_BARRIER_T
 	int              i;
 	int              result;
 	uint64_t         sum;
@@ -107,6 +113,9 @@ void test_atomic(void)
 		C2_ASSERT(result == 0);
 	}
 	printf("\n");
+#else
+        printf("pthread barriers are not supported!\n");
+#endif
 }
 
 /* 

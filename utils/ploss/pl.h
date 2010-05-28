@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-
 enum C2_PL_CONFIG_TYPE {
 	PL_PROPABILITY = 1,
 	PL_DELAY = 2,

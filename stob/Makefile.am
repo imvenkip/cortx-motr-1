@@ -1,13 +1,17 @@
+if LINUX
+STOB_SOURCES                = stob.c stob.h linux.c linux.h linux_adieu.c linux_internal.h
+else
+STOB_SOURCES                = stob.c stob.h
+endif
+
 SUBDIRS                     = . ut
 
 lib_LTLIBRARIES             = libcolibri-stob.la
-libcolibri_stob_la_SOURCES  = stob.c linux.c linux_adieu.c
+libcolibri_stob_la_SOURCES  = $(STOB_SOURCES)
 libcolibri_stob_la_LDFLAGS  = -release @LT_RELEASE@
 libcolibri_stob_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@
 
 INCLUDES                    = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@/build_unix
 
-#noinst_PROGRAMS   = server
-#server_SOURCES   = main.c
-#server_LDFLAGS   = @LDFLAGS@ -pthread
-#server_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/sm/libcolibri-sm.la $(top_builddir)/../db4/build_unix/libdb-4.8.la @AIO_LIBS@ libcolibri-stob.la
+# Make sure that dist contains all sources even not on Linux
+EXTRA_DIST                  = main.c stob.c stob.h linux.c linux.h linux_adieu.c linux_internal.h
