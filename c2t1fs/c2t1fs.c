@@ -91,7 +91,7 @@
    a way like this:
 
    modprobe c2t1fs
-   mount -t c2t1fs <objid>@ipaddr:port /mnt/c2t1fs
+   mount -t c2t1fs -o objid=<objid> ipaddr:port /mnt/c2t1fs
    losetup /dev/loop0 /mnt/c2t1fs/$objid
    dd if=/dev/zero of=/dev/loop0 bs=1M count=10
 
@@ -123,17 +123,18 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 	if (!csi)
 		return NULL;
         s2csi_nocast(sb) = csi;
-        memset(csi->csi_server, 0, sizeof(csi->csi_server));
+        memset(csi, 0, sizeof *csi);
+
         atomic_set(&csi->csi_mounts, 1);
-        csi->csi_devid = 0;
-        csi->csi_flags = 0;
-	return csi;
+        return csi;
 }
 
 static int c2t1fs_free_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
+	if (csi->csi_srvid.ssi_host)
+                kfree(csi->csi_srvid.ssi_host);
         kfree(csi);
         s2csi_nocast(sb) = NULL;
 
@@ -195,7 +196,7 @@ struct super_operations c2t1fs_super_operations = {
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-        char *s1, *s2, *devid = NULL;
+        char *s1, *s2, *objid = NULL;
 
         if (!options) {
                 printk(KERN_ERR "Missing mount data: check that "
@@ -210,8 +211,8 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
-                if (strncmp(s1, "devid=", 6) == 0) {
-                        devid = s1 + 6;
+                if (strncmp(s1, "objid=", 6) == 0) {
+                        objid = s1 + 6;
                         clear++;
                 }
 
@@ -229,14 +230,14 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         s1 = s2;
         }
 
-        if (devid) {
-                csi->csi_devid = simple_strtol(devid, NULL, 0);
-                if (csi->csi_devid <= 0) {
-                        printk(KERN_ERR "Invalid device_id=%x specified\n", csi->csi_devid);
+        if (objid) {
+                csi->csi_objid = simple_strtol(objid, NULL, 0);
+                if (csi->csi_objid <= 0) {
+                        printk(KERN_ERR "Invalid device_id=%lld specified\n", csi->csi_objid);
                         return -EINVAL;
                 }
         } else {
-                printk(KERN_ERR "No device id specified (need mount option 'devid=...')\n");
+                printk(KERN_ERR "No device id specified (need mount option 'objid=...')\n");
                 return -EINVAL;
         }
 
@@ -589,6 +590,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         }
 
         sb->s_root = d_alloc_root(root);
+
         return 0;
 }
 
@@ -597,67 +599,77 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
                             struct vfsmount *mnt)
 {
         struct c2t1fs_sb_info *csi;
-        char *ptr;
+	struct super_block    *sb;
+        char *hostname;
+	char *port;
         char *endptr;
-        unsigned long ipaddr;
-        int rc;
+	int   tcp_port;
+        int   rc;
+
+	printk("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
+
+	hostname = kstrdup(devname, GFP_KERNEL);
+
+        port = strchr(hostname, ':');
+	if (port == NULL || hostname == port || *(port+1) == '\0') {
+		printk("server:port is expected as the device\n");
+		kfree(hostname);
+		return -EINVAL;
+	}
+
+	if (in_aton(hostname) == 0) {
+		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
+		kfree(hostname);
+		return -EINVAL;
+	}
+
+	*port++ = 0;
+	printk("server/port=%s/%s\n", hostname, port);
+	tcp_port = simple_strtol(port, &endptr, 10);
+        if (*endptr != '\0' || tcp_port <= 0) {
+		printk("invalid port number\n");
+		kfree(hostname);
+                return -EINVAL;
+	}
 
         rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
-        if (rc < 0)
+        if (rc < 0) {
+		kfree(hostname);
                 return rc;
-        csi = s2csi(mnt->mnt_sb);
-        strcpy(csi->csi_server, devname);
+	}
 
-        /* XXX: For t1 milestone */
-        ptr = strchr(devname, '@');
-        if (ptr == NULL)
-                return -EINVAL;
+        sb  = mnt->mnt_sb;
+        csi = s2csi(sb);
+        csi->csi_sockaddr.sin_family      = AF_INET;
+        csi->csi_sockaddr.sin_port        = htons(tcp_port);
+        csi->csi_sockaddr.sin_addr.s_addr = in_aton(hostname);
 
-        *ptr = 0;
-        csi->csi_objid = simple_strtol(devname, &endptr, 10);
-        if (endptr != NULL)
-                return -EINVAL;
+        csi->csi_srvid.ssi_host       = hostname;
+        csi->csi_srvid.ssi_sockaddr   = &csi->csi_sockaddr;
+        csi->csi_srvid.ssi_addrlen    = strlen(hostname) + 1;
+        csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
 
-        devname = ++ptr;
-        ptr = strchr(devname, ':');
-        if (ptr == NULL)
-                return -EINVAL;
-
-        *ptr = 0;
-        ipaddr = htonl(in_aton(devname));
-        if (ipaddr == 0)      /* in_aton doesn't report error :-( */
-                return -EINVAL;
-
-        devname = ++ptr;
-        rc = simple_strtol(devname, &endptr, 10);
-        if (endptr)
-                return -EINVAL;
-
-        csi->csi_addr.sin_port = htons(rc);
-        csi->csi_addr.sin_family = AF_INET;
-
-        /* connect to server */
-        csi->csi_srvid.ssi_host = "unknown server";
-        csi->csi_srvid.ssi_sockaddr = &csi->csi_addr;
-        csi->csi_srvid.ssi_addrlen = strlen(csi->csi_srvid.ssi_host) + 1;
-        csi->csi_srvid.ssi_port = csi->csi_addr.sin_port;
-
+#if 0
         csi->csi_xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
-        if (IS_ERR(csi->csi_xprt))
+        if (IS_ERR(csi->csi_xprt)) {
+		/* hostname will be freed in c2t1fs_put_csi() */
+                c2t1fs_put_csi(sb);
                 return PTR_ERR(csi->csi_xprt);
-
-        /* XXX: check if the objid is existent at server side. */
+	}
+#endif
 
         return 0;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
+#if 0
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
         /* FIME: Disconnect from server here. */
         ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
         csi->csi_xprt = NULL;
+#endif
         kill_anon_super(sb);
 }
 
