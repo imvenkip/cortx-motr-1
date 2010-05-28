@@ -436,11 +436,57 @@ struct address_space_operations c2t1fs_dir_aops = {
 static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry,
                                     struct nameidata *nd);
 
+static int
+c2t1fs_readdir(struct file * filp, void * dirent, filldir_t filldir)
+{
+        struct inode *inode = filp->f_dentry->d_inode;
+        struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
+        unsigned int ino;
+        int i;
+
+        ino = inode->i_ino;
+	if (ino != C2T1FS_ROOT_INODE)
+		return 0;
+
+        i = filp->f_pos;
+        switch (i) {
+        case 0:
+                if (filldir(dirent, ".", 1, i, ino, DT_DIR) < 0)
+                        goto out;
+                i++;
+                filp->f_pos++;
+                /* fall thru */
+        case 1:
+                if (filldir(dirent, "..", 2, i, ino, DT_DIR) < 0)
+                        goto out;
+                i++;
+                filp->f_pos++;
+                /* fall thru */
+	case 2:
+	{
+		char fn[256];
+		sprintf(fn, "%d", (int)csi->csi_objid);
+                if (filldir(dirent, fn, strlen(fn), i, csi->csi_objid, DT_REG) < 0)
+                        goto out;
+                i++;
+                filp->f_pos++;
+                /* fall thru */
+	}
+	default:
+		break;
+	}
+out:
+	return 0;
+}
+
+
+
 struct inode_operations c2t1fs_dir_inode_operations = {
         .lookup = c2t1fs_lookup
 };
 
 struct file_operations c2t1fs_dir_operations = {
+        .readdir        = c2t1fs_readdir,
 };
 
 static int c2t1fs_update_inode(struct inode *inode, void *opaque)
