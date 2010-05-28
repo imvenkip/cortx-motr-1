@@ -10,7 +10,7 @@ AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
-AH_TEMPLATE([HAVE_FILE_WRITEV], [Have fops->writev function])
+AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
@@ -118,17 +118,17 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
-AC_DEFUN([COLIBRI_LINUX_FILE_WRITEV],
-[AC_MSG_CHECKING([writev in fops])
+AC_DEFUN([COLIBRI_LINUX_FILE_AIO_READ],
+[AC_MSG_CHECKING([->aio_read in fops])
 COLIBRI_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
         struct file_operations *fops = NULL;
-        fops->writev = NULL;
+        fops->aio_read = NULL;
 ],[
         AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_FILE_WRITEV], [1],
-                [use fops->writev])
+        AC_DEFINE([HAVE_FILE_AIO_READ], [1],
+                [use fops->aio_read])
 ],[
 	AC_MSG_RESULT([no])
 ])
@@ -301,7 +301,7 @@ if test x$OS = xlinux; then
 
         COLIBRI_LINUX_INODE_BLKSIZE
         COLIBRI_LINUX_FILE_READV
-        COLIBRI_LINUX_FILE_WRITEV
+        COLIBRI_LINUX_FILE_AIO_READ
         COLIBRI_LINUX_WRITE_BEGIN_END
         COLIBRI_LINUX_SENDFILE
 fi

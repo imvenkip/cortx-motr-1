@@ -1,7 +1,7 @@
 #ifndef __COLIBRI_C2T1FS_H
 #define __COLIBRI_C2T1FS_H
 
-#include "c2t1fs_config.h"
+#include "config.h"
 
 #define C2T1FS_DEBUG 1
 #ifdef C2T1FS_DEBUG

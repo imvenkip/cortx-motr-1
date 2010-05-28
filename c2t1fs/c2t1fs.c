@@ -6,6 +6,7 @@
 #include <linux/mount.h>
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
+#include <linux/uio.h>
 #include "c2t1fs.h"
 
 /**
@@ -214,10 +215,10 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         return 0;
 }
 
-static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
-                                loff_t *ppos)
+/* common rw function for c2t1fs, it just does sync RPC. */
+static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
+                                 loff_t *ppos, int rw)
 {
-        /* FIXME: use csi->csi_devid to send read operation to the server. */
         return 0;
 }
 
@@ -225,40 +226,91 @@ static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
 static ssize_t c2t1fs_file_readv(struct file *file, const struct iovec *iov,
                                  unsigned long nr_segs, loff_t *ppos)
 {
-#else
-static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char __user *buf, 
-                                    size_t count, loff_t pos)
+        ssize_t count = 0;
+        ssize_t rc;
+        int i;
+
+        if (nr_segs == 0)
+                return 0;
+
+        /* TODO: a fake readv, will fix it after we have a real c2t1fs */
+        for (i = 0; i < nr_segs; i++) {
+                rc = file->f_op->read(file, iov->iov_base, iov->iov_len,
+                                      ppos);
+                if (rc <= 0)
+                        break;
+
+                count += rc;
+                ++iov;
+        }
+
+        return count ? : rc;
+}
+
+static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
+                                  unsigned long nr_segs, loff_t *ppos)
 {
+        ssize_t count = 0;
+        ssize_t rc;
+        int i;
+
+        if (nr_segs == 0)
+                return 0;
+
+        /* TODO: a fake readv, will fix it after we have a real c2t1fs */
+        for (i = 0; i < nr_segs; i++) {
+                rc = file->f_op->read(file, iov->iov_base, iov->iov_len,
+                                      ppos);
+                if (rc <= 0)
+                        break;
+
+                count += rc;
+                ++iov;
+        }
+
+        return count ? : rc;
+}
 #endif
-        return 0;
+
+#ifdef HAVE_FILE_AIO_READ
+static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf, 
+                                    size_t count, loff_t ppos)
+{
+        return c2t1fs_read_write(iocb->ki_filp, buf, count, &ppos, READ);
+}
+
+static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf, 
+                                     size_t count, loff_t ppos)
+{
+        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &ppos,
+                                 WRITE);
+}
+
+#else
+
+static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
+                                loff_t *ppos)
+{
+        return c2t1fs_read_write(file, buf, count, ppos, READ);
 }
 
 static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
                                  loff_t *ppos)
 {
-        return 0;
+        return c2t1fs_read_write(file, (char *)buf, count, ppos, WRITE);
 }
-
-#ifdef HAVE_FILE_WRITEV
-static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
-                                  unsigned long nr_segs, loff_t *ppos)
-{
-#else
-static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char __user *buf, 
-                                     size_t count, loff_t pos)
-{
-#endif
-        return 0;
-}
+#endif /* HAVE_FILE_AIO_READ */
 
 #ifdef HAVE_SENDFILE
 /*
  * Send file content (through pagecache) somewhere with helper
  */
 static ssize_t c2t1fs_file_sendfile(struct file *in_file, loff_t *ppos,
-                                    size_t count, read_actor_t actor, void *target)
+                                    size_t count, read_actor_t actor,
+                                    void *target)
 {
-        return 0;
+        /* Do not support buffer ops, just make loop driver happy. */
+        return -ENOSYS;
 }
 #endif
 
@@ -266,18 +318,21 @@ struct inode_operations c2t1fs_file_inode_operations = {
 };
 
 struct file_operations c2t1fs_file_operations = {
-        .read           = c2t1fs_file_read,
 #ifdef HAVE_FILE_READV
         .readv          = c2t1fs_file_readv,
-#else
-        .aio_read       = c2t1fs_file_aio_read,
-#endif
-        .write          = c2t1fs_file_write,
-#ifdef HAVE_FILE_WRITEV
         .writev         = c2t1fs_file_writev,
-#else
-        .aio_write      = c2t1fs_file_aio_write,
 #endif
+
+#ifdef HAVE_FILE_AIO_READ
+        .aio_read       = c2t1fs_file_aio_read,
+        .aio_write      = c2t1fs_file_aio_write,
+        .read           = do_sync_read,
+        .write          = do_sync_write,
+#else
+        .read           = c2t1fs_file_read,
+        .write          = c2t1fs_file_write,
+#endif
+
 #ifdef HAVE_SENDFILE
         .sendfile       = c2t1fs_file_sendfile,
 #endif
