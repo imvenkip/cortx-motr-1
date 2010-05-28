@@ -259,18 +259,6 @@ struct c2_fid {
 	uint64_t f_d2;
 };
 
-struct c2t1fs_write_arg {
-	struct c2_fid wa_fid;
-	uint32_t      wa_nob;
-	uint64_t      wa_offset;
-	struct page **wa_pages;
-};
-
-struct c2t1fs_write_ret {
-	uint32_t cwr_rc;
-	uint32_t cwr_count;
-};
-
 enum {
 	/*
 	  FID    (8 + 8)
@@ -281,7 +269,21 @@ enum {
 	  NOB    (4)
 	  pages
 	*/
-	C2T1FS_WRITE_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4
+	C2T1FS_WRITE_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
+};
+
+/* --------- write op implementation --------- */
+
+struct c2t1fs_write_arg {
+	struct c2_fid wa_fid;
+	uint32_t      wa_nob;
+	uint64_t      wa_offset;
+	struct page **wa_pages;
+};
+
+struct c2t1fs_write_ret {
+	uint32_t cwr_rc;
+	uint32_t cwr_count;
 };
 
 static int ksunrpc_xdr_enc_write(struct rpc_rqst *req, uint32_t *p, void *datum)
@@ -322,6 +324,32 @@ static const struct c2_rpc_op write_op = {
         .ro_handler     = NULL,
 	.ro_name        = "write"
 };
+/* --------- write op end --------- */
+
+/* --------- read op implementation --------- */
+struct c2t1fs_read_arg {
+	struct c2_fid wa_fid;
+	uint32_t      wa_nob;
+	uint64_t      wa_offset;
+};
+
+struct c2t1fs_read_ret {
+	uint32_t crr_rc;
+	uint32_t crr_count;
+	struct page **wa_pages;
+};
+
+static const struct c2_rpc_op read_op = {
+        .ro_op          = SIF_READ,
+        .ro_arg_size    = C2T1FS_READ_BASE,
+        .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_read,
+        .ro_result_size = sizeof(struct c2t1fs_read_ret),
+        .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_read_ret,
+        .ro_handler     = NULL,
+	.ro_name        = "write"
+};
+
+/* --------- read op end --------- */
 
 static const struct c2_rpc_op quit_op = {
         .ro_op          = SIF_QUIT,
