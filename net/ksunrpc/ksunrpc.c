@@ -216,6 +216,113 @@ enum c2_stob_io_fop_opcode {
         SIF_QUIT  = 0x4004
 };
 
+#if 0
+static uint32_t *decode_64(uint32_t *place, uint64_t *val)
+{
+	*val   = ntohl(*place++);
+	*val <<= 32;
+	*val  |= ntohl(*place++);
+	return place;
+}
+#endif
+
+static uint32_t *decode_32(uint32_t *place, uint32_t *val)
+{
+	*val = ntohl(*place++);
+	return place;
+}
+
+static uint32_t *encode_64(uint32_t *place, uint64_t val)
+{
+	*place++ = htonl((uint32_t)(val >> 32));
+	*place++ = htonl((uint32_t)val);
+	return place;
+}
+
+static uint32_t *encode_32(uint32_t *place, uint32_t val)
+{
+	*place++ = htonl((uint32_t)val);
+	return place;
+}
+
+static uint32_t *reserve_nr(struct xdr_stream *xdr, size_t nr)
+{
+	uint32_t *result;
+
+	result = xdr_reserve_space(xdr, nr);
+	BUG_ON(result == 0);
+	return result;
+}
+
+struct c2_fid {
+	uint64_t f_d1;
+	uint64_t f_d2;
+};
+
+struct c2t1fs_write_arg {
+	struct c2_fid wa_fid;
+	uint32_t      wa_nob;
+	uint64_t      wa_offset;
+	struct page **wa_pages;
+};
+
+struct c2t1fs_write_ret {
+	uint32_t cwr_rc;
+	uint32_t cwr_count;
+};
+
+enum {
+	/*
+	  FID    (8 + 8)
+	  1      (v_count, 4)
+	  OFFSET (8)
+	  NOB    (4)
+	  PAD    (4)
+	  NOB    (4)
+	  pages
+	*/
+	C2T1FS_WRITE_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4
+};
+
+static int ksunrpc_xdr_enc_write(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_write_arg *arg = datum;
+	struct xdr_stream        xdr;
+
+	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
+	p = reserve_nr(&xdr, C2T1FS_WRITE_BASE);
+	p = encode_64(p, arg->wa_fid.f_d1);
+	p = encode_64(p, arg->wa_fid.f_d2);
+	p = encode_32(p, 1); /* count of segments */
+	p = encode_64(p, arg->wa_offset); 
+	p = encode_32(p, arg->wa_nob); 
+	p = encode_32(p, 0); /* padding */
+	encode_32(p, arg->wa_nob); 
+	xdr_write_pages(&xdr, arg->wa_pages, 0, arg->wa_nob);
+	printk("write encoded\n");
+	return 0;
+}
+
+static int ksunrpc_xdr_dec_write(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_write_ret *ret = datum;
+
+	p = decode_32(p, &ret->cwr_rc);
+	decode_32(p, &ret->cwr_count);
+	printk("write decoded\n");
+	return 0;
+}
+
+static const struct c2_rpc_op write_op = {
+        .ro_op          = SIF_WRITE,
+        .ro_arg_size    = C2T1FS_WRITE_BASE,
+        .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_write,
+        .ro_result_size = sizeof(struct c2t1fs_write_ret),
+        .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_write,
+        .ro_handler     = NULL,
+	.ro_name        = "write"
+};
+
 static const struct c2_rpc_op quit_op = {
         .ro_op          = SIF_QUIT,
         .ro_arg_size    = sizeof(int),
@@ -223,7 +330,7 @@ static const struct c2_rpc_op quit_op = {
         .ro_result_size = sizeof(int),
         .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_int,
         .ro_handler     = NULL,
-	.ro_name        = "quit",
+	.ro_name        = "quit"
 };
 
 static struct proc_dir_entry *proc_ksunrpc_ut;
@@ -274,12 +381,29 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 		int arg = 101;
 		int res;
 		int retval;
+		struct page *pp[1];
+		struct c2t1fs_write_arg wa = {
+			.wa_fid    = { .f_d1 = 10, .f_d2 = 10 },
+			.wa_nob    = 4096,
+			.wa_offset = 4096,
+			.wa_pages  = pp
+		};
+		struct c2t1fs_write_ret wr;
+
+		pp[0] = alloc_page(GFP_KERNEL);
+		BUG_ON(pp[0] == NULL);
+
+		printk("sending SIF_WRITE to server\n");
+		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &wa, &wr);
+		printk("got reply: retval=%d, result=%d, %d\n", retval, 
+		       wr.cwr_rc, wr.cwr_count);
 
 		printk("sending SIF_QUIT to server\n");
 		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &quit_op, &arg, &res);
 		printk("got reply: retval=%d, result=%d\n", retval, res);
 
 		ksunrpc_xprt_ops.ksxo_fini(xprt);
+		__free_page(pp[0]);
 	}
 
 	return count;
