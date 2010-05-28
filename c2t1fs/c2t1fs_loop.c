@@ -384,6 +384,7 @@ struct lo_read_data {
 	int bsize;
 };
 
+#if 0
 static int
 lo_read_actor(read_descriptor_t *desc, struct page *page,
 	      unsigned long offset, unsigned long size)
@@ -412,15 +413,17 @@ lo_read_actor(read_descriptor_t *desc, struct page *page,
 	p->offset += size;
 	return size;
 }
+#endif
 
 static int
 do_lo_receive(struct loop_device *lo,
 	      struct bio_vec *bvec, int bsize, loff_t pos)
 {
-	struct lo_read_data cookie;
-	struct file *file;
+	struct file *file = lo->lo_backing_file;
 	int retval;
 
+#if 0
+	struct lo_read_data cookie;
 	cookie.lo = lo;
 	cookie.page = bvec->bv_page;
 	cookie.offset = bvec->bv_offset;
@@ -428,6 +431,9 @@ do_lo_receive(struct loop_device *lo,
 	file = lo->lo_backing_file;
 	retval = file->f_op->sendfile(file, &pos, bvec->bv_len,
 			lo_read_actor, &cookie);
+#endif
+
+        retval = file->f_op->read(file, page_address(bvec->bv_page) + bvec->bv_offset, bvec->bv_len, &pos);
 	return (retval < 0)? retval: 0;
 }
 
