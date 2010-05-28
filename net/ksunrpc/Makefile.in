@@ -1,7 +1,7 @@
-linux=@LINUX@
+OS=@OS@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 
-ifeq ($(linux),y)
+ifeq ($(OS),linux)
 
 obj-m := ksunrpc.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@ -O2
@@ -11,16 +11,16 @@ all:
                 ln -s $(KSUNRPC_SRCDIR)/ksunrpc.c; \
                 ln -s $(KSUNRPC_SRCDIR)/ksunrpc.h; \
         fi
-	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` modules
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 install modules_install:
-	$(MAKE) INSTALL_MOD_DIR=kernel/fs/ksunrpc -C @KERNELDIR_OBJ@ M=`pwd` modules_install
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/ksunrpc -C @LINUX_OBJ@ M=`pwd` modules_install
 
 uninstall:
-	rm -fr @KERNELMOD_DIR@/kernel/fs/ksunrpc
+	rm -fr @LUNUX_MOD@/kernel/fs/ksunrpc
 
 distclean clean:
-	$(MAKE) -C @KERNELDIR_OBJ@ M=`pwd` clean;
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers
 
 else
