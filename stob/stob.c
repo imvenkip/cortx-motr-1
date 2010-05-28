@@ -63,7 +63,7 @@ bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 
 int c2_stob_locate(struct c2_stob *obj)
 {
-	int result = 0;
+	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
