@@ -13,6 +13,7 @@ AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
+AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
@@ -55,7 +56,7 @@ $1
 _ACEOF
 ])
 
-m4_define([COLIBRI_LANG_PROGRAM],
+AC_DEFUN([COLIBRI_LANG_PROGRAM],
 [$1
 int
 main (void)
@@ -68,13 +69,13 @@ $2
 }])
 
 AC_DEFUN([COLIBRI_LINUX_COMPILE_IFELSE],
-[m4_ifvaln([$1], [COLIBRI_LINUX_CONFTEST([$1])])dnl
+[m4_ifvaln([$1], [COLIBRI_LINUX_CONFTEST([$1])])
 rm -f config/conftest.o config/conftest.mod.c config/conftest.ko
-AS_IF([AC_TRY_COMMAND([cp conftest.c config && cd config && make -d [$2] ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ]) >/dev/null && AC_TRY_COMMAND([$3])],
+AS_IF([AC_TRY_COMMAND([cp conftest.c config && cd config && make -d $2 ${LD:+"LD=$LD"} CC="$CC" LINUX_OBJ=$LINUX_OBJ]) >/dev/null && AC_TRY_COMMAND([$3])],
 	[$4],
 	[_AC_MSG_LOG_CONFTEST
-m4_ifvaln([$5],[$5])dnl])dnl
-rm -f config/conftest.o config/conftest.mod.c config/conftest.mod.o config/conftest.ko m4_ifval([$1], [config/conftest.c conftest.c])[]dnl
+m4_ifvaln([$5],[$5])])
+rm -f config/conftest.o config/conftest.mod.c config/conftest.mod.o config/conftest.ko m4_ifval([$1], [config/conftest.c conftest.c])[]
 ])
 
 AC_DEFUN([COLIBRI_LINUX_TRY_COMPILE],[
@@ -111,8 +112,7 @@ COLIBRI_LINUX_TRY_COMPILE([
         fops->readv = NULL;
 ],[
         AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_FILE_READV], [1],
-                [use fops->readv])
+        AC_DEFINE([HAVE_FILE_READV])
 ],[
         AC_MSG_RESULT([no])
 ])
@@ -127,8 +127,7 @@ COLIBRI_LINUX_TRY_COMPILE([
         fops->aio_read = NULL;
 ],[
         AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_FILE_AIO_READ], [1],
-                [use fops->aio_read])
+        AC_DEFINE([HAVE_FILE_AIO_READ])
 ],[
 	AC_MSG_RESULT([no])
 ])
@@ -143,8 +142,7 @@ COLIBRI_LINUX_TRY_COMPILE([
 	i.i_blksize = 0;
 ],[
 	AC_MSG_RESULT([yes])
-	AC_DEFINE([HAVE_INODE_BLKSIZE], [1],
-		[struct inode has i_blksize field])
+	AC_DEFINE([HAVE_INODE_BLKSIZE])
 ],[
 	AC_MSG_RESULT([no])
 ])
@@ -153,11 +151,11 @@ COLIBRI_LINUX_TRY_COMPILE([
 AC_DEFUN([COLIBRI_LINUX_WRITE_BEGIN_END],
 [AC_MSG_CHECKING([if kernel has .write_begin/end])
 COLIBRI_LINUX_TRY_COMPILE([
-        #include <linux/fs.h>
+#include <linux/fs.h>
 #ifdef HAVE_MMTYPES_H
-        #include <linux/mm_types.h>
+#include <linux/mm_types.h>
 #endif
-        #include <linux/pagemap.h>
+#include <linux/pagemap.h>
 ],[
         struct address_space_operations aops;
         struct page *page;
@@ -167,25 +165,24 @@ COLIBRI_LINUX_TRY_COMPILE([
         page = grab_cache_page_write_begin(NULL, 0, 0);
 ], [
         AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_WRITE_BEGIN_END], [1],
-                [kernel has .write_begin/end])
+        AC_DEFINE([HAVE_WRITE_BEGIN_END])
 ],[
         AC_MSG_RESULT([no])
 ])
 ])
 
 AC_DEFUN([COLIBRI_LINUX_SENDFILE],
-[AC_MSG_CHECKING([if kernel has .sendfile])
+[
+AC_MSG_CHECKING([if kernel has .sendfile])
 COLIBRI_LINUX_TRY_COMPILE([
-        #include <linux/fs.h>
+#include <linux/fs.h>
 ],[
         struct file_operations file;
 
         file.sendfile = NULL;
 ], [
         AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_SENDFILE], [1],
-                [kernel has .sendfile])
+        AC_DEFINE([HAVE_SENDFILE])
 ],[
         AC_MSG_RESULT([no])
 ])
@@ -213,7 +210,7 @@ AM_PROG_CC_C_O
 
 AC_PATH_PROG([NM_B], [nm], [null])
 if test "x$NM_B" = "xnull"; then
-        AC_MSG_ERROR([Can't find nm program])
+        AC_MSG_ERROR([Cannot find nm program])
 fi
 
 SRCDIR=$(cd $srcdir && echo $PWD)
@@ -224,13 +221,13 @@ AC_SUBST([SRCDIR])
 
 # Checks for libraries.
 OLD_LIBS=$LIBS
-AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR(xdr_domainname cannot be found!)])
+AC_SEARCH_LIBS([xdr_domainname], [c nsl], [], [AC_MSG_ERROR([xdr_domainname cannot be found!])])
 NSL_LIBS=$LIBS
 LIBS=$OLD_LIBS
 AC_SUBST([NSL_LIBS])
 
 OLD_LIBS=$LIBS
-AC_SEARCH_LIBS([pthread_create], [c pthread], [], [AC_MSG_ERROR(pthread_create cannot be found!)])
+AC_SEARCH_LIBS([pthread_create], [c pthread], [], [AC_MSG_ERROR([pthread_create cannot be found!])])
 PTHREAD_LIBS=$LIBS
 LIBS=$OLD_LIBS
 AC_SUBST([PTHREAD_LIBS])
@@ -242,9 +239,9 @@ AC_CHECK_HEADERS([stdlib.h pthread.h])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 
-AC_CHECK_DECL([mallinfo], [AC_DEFINE(HAVE_MALLINFO)], [], [[#include <malloc.h>]])
-AC_CHECK_DECL([malloc_size], [AC_DEFINE(HAVE_MALLOC_SIZE)], [], [[#include <malloc/malloc.h>]])
-AC_CHECK_DECL([backtrace], [AC_DEFINE(HAVE_BACKTRACE)], [], [[#include <execinfo.h>]])
+AC_CHECK_DECL([mallinfo], [AC_DEFINE([HAVE_MALLINFO])], [], [[#include <malloc.h>]])
+AC_CHECK_DECL([malloc_size], [AC_DEFINE([HAVE_MALLOC_SIZE])], [], [[#include <malloc/malloc.h>]])
+AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execinfo.h>]])
 
 # Checks for library functions.
 AC_FUNC_MALLOC
@@ -300,8 +297,7 @@ if test x$OS = xlinux; then
         COLIBRI_LINUX_INIT_CONFIG
 
         COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
-                [AC_DEFINE([HAVE_JOURNAL_ABORT], [],
-                [Have journal_abort symbol])], [])
+                [AC_DEFINE([HAVE_JOURNAL_ABORT])])
 
         COLIBRI_LINUX_INODE_BLKSIZE
         COLIBRI_LINUX_FILE_READV
@@ -392,7 +388,7 @@ CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)],
+            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE([ENABLE_GSSRPC])],
                 [AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])],
                 [[
                     #ifdef HAVE_GSSRPC_RPC_H
