@@ -30,6 +30,8 @@ static const struct c2_stob_type_op linux_stob_type_op;
 static const struct c2_stob_op linux_stob_op;
 static const struct c2_stob_domain_op linux_stob_domain_op;
 
+static void linux_stob_fini(struct c2_stob *stob);
+
 #if 0
 static void db_err(DB_ENV *dbenv, int rc, const char *msg)
 {
@@ -292,6 +294,15 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 
 	ldom = domain2linux(self);
 	linux_domain_io_fini(self);
+	c2_rwlock_write_lock(&self->sd_guard);
+	while (!c2_list_is_empty(&ldom->sdl_object)) {
+		struct linux_stob *lstob;
+
+		lstob = container_of(ldom->sdl_object.first, 
+				     struct linux_stob, sl_linkage);
+		linux_stob_fini(&lstob->sl_stob);
+	}
+	c2_rwlock_write_unlock(&self->sd_guard);
 	/* mapping_db_fini(ldom); */
 	c2_list_fini(&ldom->sdl_object);
 	c2_stob_domain_fini(self);
