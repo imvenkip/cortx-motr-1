@@ -50,8 +50,8 @@
    @li loop back device driver with minimal changes should work and
        losetup tool should also work with C2T1FS;
 
-   @li no readdir is supported. Files exported by server are created
-       in super block init time;
+   @li readdir() is only supported for root dir. A single regular file named
+       with object number is filled in the root dir.
 
    @li read/write, readv/writev methods should work. Asynchronous
        interface should be supported;
@@ -60,7 +60,7 @@
        back-end for the block device should be specified as part of
        device specification in mount command in a way like this:
 
-     mount -t c2t1fs objid@ipaddr:port /mnt/c2t1fs
+       mount -t c2t1fs -o objid=<objid> ipaddr:port /mnt/c2t1fs
 
      where objid is object id exported by the server.
 
