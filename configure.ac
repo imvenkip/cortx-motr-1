@@ -36,7 +36,7 @@ AC_DEFUN([COLIBRI_LINUX_CHECK_SYMBOL],
                 SYMVERFILE=Module.symvers
 	fi
 	AC_MSG_RESULT([$LINUX/$SYMVERFILE])
-	
+
         [AC_MSG_CHECKING([for symbol $1 exported])
         grep -q -E '[[[:space:]]]$1[[[:space:]]]' $LINUX/$SYMVERFILE 2>/dev/null
         rc=$?
@@ -140,7 +140,7 @@ COLIBRI_LINUX_TRY_COMPILE([
 #include <linux/fs.h>
 ],[
 	struct inode i;
-	i.i_blksize = 0; 
+	i.i_blksize = 0;
 ],[
 	AC_MSG_RESULT([yes])
 	AC_DEFINE([HAVE_INODE_BLKSIZE], [1],
@@ -270,7 +270,7 @@ AC_SUBST([OS])
 if test x$OS = xlinux; then
         AC_MSG_CHECKING([for linux sources dir])
         AC_ARG_WITH([linux],
-                [AC_HELP_STRING([--with-linux=path], [set path to linux sources])], 
+                [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
                 [LINUX=$with_linux],
                 [LINUX=/lib/modules/`uname -r`/build]
         )
@@ -280,23 +280,23 @@ if test x$OS = xlinux; then
 
         AC_MSG_CHECKING([for linux objects dir])
         AC_ARG_WITH([linux-obj],
-                [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])], 
+                [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
                 [LINUX_OBJ=$with_linux_obj],
                 [LINUX_OBJ=$LINUX]
         )
 
         AC_MSG_RESULT([$LINUX_OBJ])
         AC_SUBST([LINUX_OBJ])
-        
+
         LINUX_MOD="/lib/modules/`uname -r`"
         AC_SUBST([LINUX_MOD])
 
-        # Prepare linux configuration checks facility. Should be done before 
+        # Prepare linux configuration checks facility. Should be done before
         # any *_LINUX_* checks.
         COLIBRI_LINUX_INIT_CONFIG
 
-        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort], 
-                [AC_DEFINE([HAVE_JOURNAL_ABORT], [], 
+        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
+                [AC_DEFINE([HAVE_JOURNAL_ABORT], [],
                 [Have journal_abort symbol])], [])
 
         COLIBRI_LINUX_INODE_BLKSIZE
@@ -320,7 +320,7 @@ AC_SUBST([KCFLAGS])
 CFLAGS="$CFLAGS -D_REENTRANT"
 LDFLAGS="-rdynamic"
 
-AC_ARG_WITH([db4], 
+AC_ARG_WITH([db4],
         AC_HELP_STRING([--with-db4=path], [path of where db4 was built]), [],
 )
 
@@ -348,15 +348,15 @@ else
 		        dio_options=""
 		fi
                 AC_MSG_RESULT([building $DB4SRC])
-                
-                # We need -fPIC to link libdb.a (static library) into so libraries, which should 
+
+                # We need -fPIC to link libdb.a (static library) into so libraries, which should
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
                 AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make])
 		cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make
 		res=$?
 		cd $oldcwd
-		if ! test $res -eq 0 ; then 
+		if ! test $res -eq 0 ; then
 			AC_MSG_ERROR([An error occured while building db4!])
 		fi
 		if ! test -e $DB4LIBS; then
@@ -389,14 +389,14 @@ CFLAGS=$OLD_CFLAGS
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)], 
+            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE(ENABLE_GSSRPC)],
                 [AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])],
                 [[
                     #ifdef HAVE_GSSRPC_RPC_H
                     #include <gssrpc/rpc.h>
                     #endif
                 ]])
-            ], 
+            ],
             [AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])]
         )
 fi

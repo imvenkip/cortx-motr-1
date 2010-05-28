@@ -24,11 +24,11 @@
    C2T1FS is native linux nodev file system, which lies exactly between colibri
    block device and colibri servers. It is in fact client file system for the
    colibri cluster.
-   
+
    It is decided that colibri block device is based on loop.c loop back driver.
    This dictates, despite the requirements, specific impelementation, which will
    be discussed below.
-   
+
    @section def Definitions and requirements
 
    Here is brief list of requirements:
@@ -41,29 +41,29 @@
        page cache but they belong to upper layer cache. When loop
        device driver works with pages it delegates some works to
        underlaying FS;
-   
+
    @li no read ahead (nothing to say more);
-   
+
    @li no ACL or selinux support. Unix security model (permission
        masks) is followed with client inventing it;
-   
+
    @li loop back device driver with minimal changes should work and
        losetup tool should also work with C2T1FS;
-   
+
    @li no readdir is supported. Files exported by server are created
        in super block init time;
-   
+
    @li read/write, readv/writev methods should work. Asynchronous
        interface should be supported;
-     
+
    @li file exported by the server and which we want to use as a
        back-end for the block device should be specified as part of
        device specification in mount command in a way like this:
-     
+
      mount -t c2t1fs objid@ipaddr:port /mnt/c2t1fs
 
      where objid is object id exported by the server.
-      
+
      If the server does not know this object - a error is returned and mount
      fails and meaningful error is reported.
 
@@ -79,7 +79,7 @@
    @li loop back device driver interface: ->write(),
        ->prepare_write/commit_write() and ->sendfile() methods should be
        implemented;
-      
+
    @li networking layer needs: connect/disconnect rpc. Connect should
        have one field: obj_id, that is, what object we are attaching
        to. We need also read/write rpcs capable to work with iovec
@@ -89,25 +89,25 @@
 
    C2T1FS is implemented as linux native nodev file system. It may be used in
    a way like this:
-   
+
    modprobe c2t1fs
    mount -t c2t1fs <objid>@ipaddr:port /mnt/c2t1fs
    losetup /dev/loop0 /mnt/c2t1fs/$objid
    dd if=/dev/zero of=/dev/loop0 bs=1M count=10
-   
+
    To support this functionality, we implement the following parts:
-   
+
    @li mount (super block init), which parses device name, sends
        connect rpc to the server and creates root inode and dentry
        upon success. We also create inode and dentry for the file
        exported by the server. It is easier to handle wrong file id
        during mount rather than in file IO time;
-     
+
    @li losetup part requires ->lookup method;
-   
+
    @li working IO part requires ->prepare_write/commit_write(),
        ->sendfile() and ->write() file operations to being implemented.
-   
+
  */
 static kmem_cache_t *c2t1fs_inode_cachep = NULL;
 
@@ -118,14 +118,14 @@ MODULE_LICENSE("GPL");
 static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi;
-        
+
 	csi = kmalloc(sizeof(*csi), GFP_KERNEL);
 	if (!csi)
 		return NULL;
         s2csi_nocast(sb) = csi;
         memset(csi->csi_server, 0, sizeof(csi->csi_server));
         atomic_set(&csi->csi_mounts, 1);
-        csi->csi_devid = 0; 
+        csi->csi_devid = 0;
         csi->csi_flags = 0;
 	return csi;
 }
@@ -196,13 +196,13 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
         char *s1, *s2, *devid = NULL;
-        
+
         if (!options) {
                 printk(KERN_ERR "Missing mount data: check that "
                        "/sbin/mount.c2t1fs is installed.\n");
                 return -EINVAL;
         }
-        
+
         s1 = options;
         while (*s1) {
                 int clear = 0;
@@ -211,7 +211,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         s1++;
 
                 if (strncmp(s1, "devid=", 6) == 0) {
-                        devid = s1 + 6; 
+                        devid = s1 + 6;
                         clear++;
                 }
 
@@ -247,7 +247,6 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                                  loff_t *ppos, int rw)
 {
-        
         struct c2t1fs_sb_info *csi = s2csi(file->f_dentry->d_inode->i_sb);
         csi = csi;
         return 0;
@@ -304,13 +303,13 @@ static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
 #endif
 
 #ifdef HAVE_FILE_AIO_READ
-static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf, 
+static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf,
                                     size_t count, loff_t ppos)
 {
         return c2t1fs_read_write(iocb->ki_filp, buf, count, &ppos, READ);
 }
 
-static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf, 
+static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
                                      size_t count, loff_t ppos)
 {
         return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &ppos,
@@ -369,13 +368,13 @@ struct file_operations c2t1fs_file_operations = {
 #endif
 };
 
-static int c2t1fs_prepare_write(struct file *file, struct page *page, 
+static int c2t1fs_prepare_write(struct file *file, struct page *page,
                                 unsigned from, unsigned to)
 {
         return -ENOSYS;
 }
 
-static int c2t1fs_commit_write(struct file *file, struct page *page, 
+static int c2t1fs_commit_write(struct file *file, struct page *page,
                                unsigned from, unsigned to)
 {
         return -ENOSYS;
@@ -396,7 +395,7 @@ static int c2t1fs_write_begin(struct file *file, struct address_space *mapping,
                 return -ENOMEM;
 
         *pagep = page;
- 
+
         rc = c2t1fs_prepare_write(file, page, from, from + len);
         if (rc) {
                 unlock_page(page);
@@ -433,7 +432,7 @@ struct address_space_operations c2t1fs_file_aops = {
 struct address_space_operations c2t1fs_dir_aops = {
 };
 
-static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry, 
+static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry,
                                     struct nameidata *nd);
 
 struct inode_operations c2t1fs_dir_inode_operations = {
@@ -447,9 +446,9 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
 {
         ino_t ino = *((ino_t *)opaque);
         __u32 mode;
-        
+
         inode->i_ino = ino;
-        
+
         /* FIXME: This is a hack to make it mount (we need root dir) */
         if (inode->i_ino == C2T1FS_ROOT_INODE)
                 mode = ((S_IRWXUGO | S_ISVTX) & ~current->fs->umask) | S_IFDIR;
@@ -479,7 +478,7 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
         } else {
                 inode->i_size = 0;
         }
-        
+
         /* FIXME: This should be taken from an getattr rpc */
         inode->i_blocks = 0;
         return 0;
@@ -539,7 +538,7 @@ static struct inode *c2t1fs_iget(struct super_block *sb, ino_t hash)
         return inode;
 }
 
-static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry, 
+static struct dentry *c2t1fs_lookup(struct inode *dir, struct dentry *dentry,
                                     struct nameidata *nd)
 {
 	struct inode *inode = NULL;
@@ -566,11 +565,11 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         struct c2t1fs_sb_info *csi;
         struct inode          *root;
         int rc;
-        
+
         csi = c2t1fs_init_csi(sb);
         if (!csi)
                 return -ENOMEM;
-                
+
         rc = c2t1fs_parse_options(sb, (char *)data);
         if (rc) {
                 c2t1fs_put_csi(sb);
@@ -602,7 +601,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
         char *endptr;
         unsigned long ipaddr;
         int rc;
-        
+
         rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
         if (rc < 0)
                 return rc;
@@ -689,10 +688,10 @@ static void c2t1fs_destroy_inodecache(void)
 		printk(KERN_ERR "c2t1fs_destroy_inodecache: not all structures were freed\n");
 }
 
-int init_module(void) 
+int init_module(void)
 {
         int rc;
-        
+
         printk(KERN_INFO "Colibri C2T1 File System (http://www.clusterstor.com)\n");
 
         rc = c2t1fs_init_inodecache();
@@ -704,11 +703,11 @@ int init_module(void)
 
         return rc;
 }
-        
+
 void cleanup_module(void)
 {
         int rc;
-        
+
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
         if (rc)
