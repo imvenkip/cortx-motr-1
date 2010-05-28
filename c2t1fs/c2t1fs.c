@@ -248,8 +248,30 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                                  loff_t *ppos, int rw)
 {
-        struct c2t1fs_sb_info *csi = s2csi(file->f_dentry->d_inode->i_sb);
+	struct inode *inode = file->f_dentry->d_inode;
+	struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
+
         csi = csi;
+	if (rw == READ) {
+		printk("read: %d@%d <size=%d>\n", (int)count, (int)*ppos, (int)inode->i_size);
+		if (*ppos + count >= inode->i_size) {
+			count = inode->i_size - *ppos;
+		}
+		*ppos += count;
+		/* TODO: fill 'c' into the buffer.
+		   The client should get data from server by rpc.
+		 */
+		memset(buf, 'c', count);
+
+		return count;
+	} else {
+		return -1;
+		if (*ppos + count > inode->i_size) {
+			count = inode->i_size - *ppos;
+		}
+		*ppos += count;
+
+	}
         return 0;
 }
 
@@ -307,13 +329,15 @@ static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
 static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf,
                                     size_t count, loff_t ppos)
 {
-        return c2t1fs_read_write(iocb->ki_filp, buf, count, &ppos, READ);
+        printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
+        return c2t1fs_read_write(iocb->ki_filp, buf, count, &iocb->ki_pos, READ);
 }
 
 static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
                                      size_t count, loff_t ppos)
 {
-        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &ppos,
+        printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
+        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &iocb->ki_pos,
                                  WRITE);
 }
 
@@ -322,12 +346,14 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
 static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
                                 loff_t *ppos)
 {
+        printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
         return c2t1fs_read_write(file, buf, count, ppos, READ);
 }
 
 static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
                                  loff_t *ppos)
 {
+        printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
         return c2t1fs_read_write(file, (char *)buf, count, ppos, WRITE);
 }
 #endif /* HAVE_FILE_AIO_READ */
@@ -519,15 +545,16 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
         else
                 inode->i_nlink = 1;
 
-        /* FIXME: This should be taken from an getattr rpc */
         if (S_ISDIR(inode->i_mode)) {
                 inode->i_size = PAGE_SIZE;
+                inode->i_blocks = 1;
         } else {
-                inode->i_size = 0;
+                /* FIXME: This should be taken from an getattr rpc */
+                /* Before that, let's have this size */
+                inode->i_size = PAGE_SIZE * 4;
+                inode->i_blocks = 16;
         }
 
-        /* FIXME: This should be taken from an getattr rpc */
-        inode->i_blocks = 0;
         return 0;
 }
 
