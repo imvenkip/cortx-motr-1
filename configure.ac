@@ -307,7 +307,7 @@ if test x$OS = xlinux; then
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="-Wall -Werror -O1 -g"
+        CFLAGS="-Wall -Werror -O0 -g"
         KCFLAGS="-Wall -Werror -O1 -g"
         AC_DEFINE(ENABLE_DEBUG)
 else
