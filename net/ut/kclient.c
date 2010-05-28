@@ -85,6 +85,6 @@ int main(int argc, char **argv)
 	ret = write(fd, &id, sizeof id);
 	close(fd);
 
-	printf("kernel sunrpc ut: ret = %d\n", ret);
+	printf("kernel sunrpc ut: ret = %d\n'dmesg' to see more.\n", ret);
 	return 0;
 }

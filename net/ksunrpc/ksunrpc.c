@@ -267,14 +267,15 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 	id_in_kernel.ssi_addrlen = id_in_user.ssi_addrlen;
 	id_in_kernel.ssi_port = id_in_user.ssi_port;
 
-	printk("got data from userspace. testing...\n");
+	printk("got data from userspace. connect...\n");
 	xprt = ksunrpc_xprt_ops.ksxo_init(&id_in_kernel);
-	printk("xprt = %p\n", xprt);
+	printk("got xprt = %p\n", xprt);
 	if (!IS_ERR(xprt)) {
 		int arg = 101;
 		int res;
 		int retval;
 
+		printk("sending SIF_QUIT to server\n");
 		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &quit_op, &arg, &res);
 		printk("got reply: retval=%d, result=%d\n", retval, res);
 
@@ -284,12 +285,10 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 	return count;
 }
 
-
 static void __init create_ut_proc_entry(void)
 {
 	proc_ksunrpc_ut = create_proc_entry(UT_PROC_NAME, 0644, NULL);
 	if (proc_ksunrpc_ut) {
-		/* Why is this so hard? */
 		proc_ksunrpc_ut->read_proc  = read_ksunrpc_ut;
 		proc_ksunrpc_ut->write_proc = write_ksunrpc_ut;
 	}
