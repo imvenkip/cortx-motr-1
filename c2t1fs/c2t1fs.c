@@ -7,6 +7,8 @@
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
 #include <linux/uio.h>
+#include <linux/errno.h>
+
 #include "c2t1fs.h"
 
 /**
@@ -25,30 +27,33 @@
    @section def Definitions and requirements
 
    Here is brief list of requirements:
-   - direct IO support (all the caching is done on upper layet). In our case
-     this means no page cache in IO functions. All the IO, no matter how big,
-     gets imidiately sent to the server. Do not mix it up with cache on upper
-     layer. For example, ->prepare_write and ->commit_write methods work with
-     pages from page cache but they belong to upper layer cache. When loop
-     device driver works with pages it delegates some works to underlaying FS;
+
+   @li direct IO support (all the caching is done on upper layet). In
+       our case this means no page cache in IO functions. All the IO,
+       no matter how big, gets imidiately sent to the server. Do not
+       mix it up with cache on upper layer. For example,
+       ->prepare_write and ->commit_write methods work with pages from
+       page cache but they belong to upper layer cache. When loop
+       device driver works with pages it delegates some works to
+       underlaying FS;
    
-   - no read ahead (nothing to say more);
+   @li no read ahead (nothing to say more);
    
-   - no ACL or selinux support. Unix security model (permission masks) is
-     followed with client inventing it;
+   @li no ACL or selinux support. Unix security model (permission
+       masks) is followed with client inventing it;
    
-   - loop back device driver with minimal changes should work and losetup tool
-     should also work with C2T1FS;
+   @li loop back device driver with minimal changes should work and
+       losetup tool should also work with C2T1FS;
    
-   - no readdir is supported. Files exported by server are created in super
-     block init time;
+   @li no readdir is supported. Files exported by server are created
+       in super block init time;
    
-   - read/write, readv/writev methods should work. Asynchronous interface
-     should be supported;
+   @li read/write, readv/writev methods should work. Asynchronous
+       interface should be supported;
      
-   - file exported by the server and which we want to use as backend for the
-     block device should be specified as part of device specification in mount
-     command in a way like this:
+   @li file exported by the server and which we want to use as a
+       back-end for the block device should be specified as part of
+       device specification in mount command in a way like this:
      
      mount -t c2t1fs localhost:/0x1000 /mnt/c2t1fs
 
@@ -60,16 +65,20 @@
    @section c2t1fsfuncspec Functional specification
 
    There are three interaces we need to interact with:
-   1. linux VFS - super_block operations should have c2t1fs_get_super() and
-      c2t1fs_fill_super() methods implemented. Root inode and dentry should
-      be created in mount time;
 
-   2. loop back device driver interface: ->write(), ->prepare_write/commit_write()
-      and ->sendfile() methods should be implemented;
+   @li linux VFS - super_block operations should have
+       c2t1fs_get_super() and c2t1fs_fill_super() methods
+       implemented. Root inode and dentry should be created in mount
+       time;
+
+   @li loop back device driver interface: ->write(),
+       ->prepare_write/commit_write() and ->sendfile() methods should be
+       implemented;
       
-   3. networking layer needs: connect/disconnect rpc. Connect should have one
-      field: obj_id, that is, what object we are attaching to. We need also 
-      read/write rpcs capable to work with iovec structures.
+   @li networking layer needs: connect/disconnect rpc. Connect should
+       have one field: obj_id, that is, what object we are attaching
+       to. We need also read/write rpcs capable to work with iovec
+       structures.
 
    @section c2t1fslogspec Logical specification
 
@@ -83,15 +92,16 @@
    
    To support this functionality, we implement the following parts:
    
-   - mount (super block init), which parses device name, sends connect rpc to the
-     server and creates root inode and dentry uppon success. We also create inode
-     and dentry for the file exported by the server. It is easier to handle wrong
-     file id during mount rather than in file IO time;
+   @li mount (super block init), which parses device name, sends
+       connect rpc to the server and creates root inode and dentry
+       upon success. We also create inode and dentry for the file
+       exported by the server. It is easier to handle wrong file id
+       during mount rather than in file IO time;
      
-   - losetup part requires ->lookup method;
+   @li losetup part requires ->lookup method;
    
-   - working IO part requires ->prepare_write/commit_write(), ->sendfile() and
-     ->write() file operations to being implemented.
+   @li working IO part requires ->prepare_write/commit_write(),
+       ->sendfile() and ->write() file operations to being implemented.
    
  */
 static kmem_cache_t *c2t1fs_inode_cachep = NULL;
