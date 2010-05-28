@@ -39,20 +39,14 @@
 #define log2(n) ffz(~(n))
 #endif
 
-#define MAX_SERVER_LEN 64
-
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
-        int             csi_devid;
-        char            csi_server[MAX_SERVER_LEN];
 
-        /* hack part for t1 milestone */
-        uint64_t                csi_objid; /* The object id will be mapped */
-
-        struct sockaddr_in      csi_addr;
+        uint64_t                  csi_objid; /* The object id will be mapped */
+        struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
         struct ksunrpc_service_id csi_srvid;
-        struct ksunrpc_xprt    *csi_xprt;
+        struct ksunrpc_xprt      *csi_xprt;
 };
 
 struct c2t1fs_inode_info {

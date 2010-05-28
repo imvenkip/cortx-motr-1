@@ -8,10 +8,11 @@
    @{
 */
 
-int c2_panic(const char *expr, const char *func, const char *file, int lineno);
+void c2_panic(const char *expr, const char *func, const char *file, int lineno) 
+	__attribute__((noreturn));
 
 #define C2_ASSERT(cond) \
-        ((void)((cond) ? 0 : c2_panic(#cond, __func__, __FILE__, __LINE__)))
+        ((cond) ? (void)0 : c2_panic(#cond, __func__, __FILE__, __LINE__))
 
 #define C2_PRE(cond) C2_ASSERT(cond)
 #define C2_POST(cond) C2_ASSERT(cond)
