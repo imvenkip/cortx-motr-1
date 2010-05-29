@@ -252,19 +252,23 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         struct page          **pages;
         int                    npages;
         int                    off;
+        loff_t                 pos = *ppos;
         int rc;
 
 	printk("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
-		count, (unsigned long)*ppos, (unsigned long)inode->i_size);
+		count, (unsigned long)pos, (unsigned long)inode->i_size);
 
 	if (rw == READ) {
 		/* check if pos beyond the file size */
-		if (*ppos + count >= inode->i_size)
-			count = inode->i_size - *ppos;
+		if (pos + count >= inode->i_size)
+			count = inode->i_size - pos;
 	}
 
 	if (count == 0)
 		return 0;
+
+        if (file->f_flags & O_APPEND)
+                pos = inode->i_size;
 
 	/*
 	    XXX XXX XXX Question here:
@@ -274,7 +278,10 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         addr = (unsigned long)buf;
         off  = (addr & (PAGE_SIZE - 1));
         addr = addr & PAGE_MASK;
-        npages = ((count + PAGE_SIZE - 1) >> PAGE_SHIFT) + !!off;
+
+	/* suppose addr = 0x400386, count=5, then one page is enough */
+        npages = ((count + PAGE_SIZE - 1) >> PAGE_SHIFT) +
+		 ((off + (count & (PAGE_SIZE - 1))) & PAGE_MASK);
         pages = kmalloc(sizeof(*pages) * npages, GFP_KERNEL);
         if (pages == NULL)
                 return -ENOMEM;
@@ -292,12 +299,13 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         }
 
         rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
-				off, count, *ppos, rw);
+				off, count, pos, rw);
         printk("call ksunrpc_read_write returns %d\n", rc);
 	if (rc > 0) {
-		*ppos += rc;
-		if (rw == WRITE && *ppos > inode->i_size)
-			inode->i_size = *ppos;
+		pos += rc;
+		if (rw == WRITE && pos > inode->i_size)
+			inode->i_size = pos;
+		*ppos = pos;
 	}
 out:
         for (off = 0; off < npages; off++)
