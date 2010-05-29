@@ -18,22 +18,30 @@ static bool_t xdr_c2_stob_io_seg(XDR *xdrs, struct c2_stob_io_seg *seg)
 
 static bool_t xdr_c2_stob_io_buf(XDR *xdrs, struct c2_stob_io_buf *buf)
 {
+#if 0
 	return xdr_array(xdrs, &buf->ib_value, &buf->ib_count, ~0,
 			 sizeof (char), (xdrproc_t) xdr_char);
+#endif
+        return xdr_bytes(xdrs, &buf->ib_value, &buf->ib_count, ~0);
 }
 
 bool_t xdr_c2_stob_io_write_fop(XDR *xdrs, struct c2_stob_io_write_fop *w)
 {
-	return
-		xdr_c2_fid(xdrs, &w->siw_object) &&
-		xdr_array(xdrs, (char **)&w->siw_vec.v_seg, 
+        int ret = 0;
+
+	ret = xdr_c2_fid(xdrs, &w->siw_object);
+        printf("%d, ret = %d\n", __LINE__, ret);
+	ret = xdr_array(xdrs, (char **)&w->siw_vec.v_seg, 
 			  &w->siw_vec.v_count, ~0,
 			  sizeof (struct c2_stob_io_seg), 
-			  (xdrproc_t) xdr_c2_stob_io_seg) &&
-		xdr_array(xdrs, (char **)&w->siw_buf.b_buf, 
+			  (xdrproc_t) xdr_c2_stob_io_seg);
+        printf("%d, ret = %d\n", __LINE__, ret);
+	ret = xdr_array(xdrs, (char **)&w->siw_buf.b_buf, 
 			  &w->siw_buf.b_count, ~0,
 			  sizeof (struct c2_stob_io_buf), 
 			  (xdrproc_t) xdr_c2_stob_io_buf);
+        //printf("%d, ret = %d, buf = %s\n", __LINE__, ret, w->siw_buf.b_buf->ib_value);
+        return ret;
 }
 
 bool_t xdr_c2_stob_io_write_rep_fop(XDR *xdrs, 

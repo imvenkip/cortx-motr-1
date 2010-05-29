@@ -275,6 +275,46 @@ enum {
 	C2T1FS_READ_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
 };
 
+/* ----------- create op -------------- */
+struct c2t1fs_create_arg {
+        struct c2_fid ca_fid;
+};
+
+struct c2t1fs_create_res {
+        int res;
+};
+
+static int ksunrpc_xdr_enc_create(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_create_arg *arg = datum;
+	struct xdr_stream        xdr;
+
+	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
+	p = reserve_nr(&xdr, sizeof(*arg));
+	p = encode_64(p, arg->ca_fid.f_d1);
+	p = encode_64(p, arg->ca_fid.f_d2);
+	return 0;
+}
+
+static int ksunrpc_xdr_dec_create_res(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_create_res *ret = datum;
+
+	decode_32(p, &ret->res);
+	return 0;
+}
+
+static const struct c2_rpc_op create_op = {
+        .ro_op          = SIF_CREAT,
+        .ro_arg_size    = sizeof(struct c2t1fs_create_arg),
+        .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_create,
+        .ro_result_size = sizeof(struct c2t1fs_create_res),
+        .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_create_res,
+        .ro_handler     = NULL,
+	.ro_name        = "create"
+};
+
+
 /* --------- write op implementation --------- */
 
 struct c2t1fs_write_arg {
@@ -331,6 +371,7 @@ static const struct c2_rpc_op write_op = {
 /* --------- write op end --------- */
 
 /* --------- read op implementation --------- */
+#if 0
 struct c2t1fs_readpage_arg {
 	struct c2_fid wa_fid;
 	uint64_t      wa_pgidx;
@@ -380,6 +421,7 @@ static const struct c2_rpc_op read_op = {
         .ro_handler     = NULL,
 	.ro_name        = "write"
 };
+#endif
 
 /* --------- read op end --------- */
 
@@ -403,12 +445,13 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 {
         int rc;
 
+        //(void)ksunrpc_create(xprt, objid);
         if (rw == WRITE) {
                 struct c2t1fs_write_arg arg;
                 struct c2t1fs_write_ret ret;
 
-                arg.wa_fid.f_d1 = 0;
-                arg.wa_fid.f_d1 = objid;
+                arg.wa_fid.f_d1 = 10;
+                arg.wa_fid.f_d2 = objid;
                 arg.wa_nob = len;
                 arg.wa_pageoff = off;
                 arg.wa_offset = pos;
@@ -427,6 +470,24 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
         return 0;
 }
 EXPORT_SYMBOL(ksunrpc_read_write);
+
+int ksunrpc_create(struct ksunrpc_xprt *xprt,
+                   uint64_t objid)
+{
+        int rc;
+        struct c2t1fs_create_arg arg;
+        struct c2t1fs_create_res res;
+
+        arg.ca_fid.f_d1 = 10;
+        arg.ca_fid.f_d2 = objid;
+
+        printk("%s create object %llu\n", __FUNCTION__, objid);
+        rc = ksunrpc_xprt_ops.ksxo_call(xprt, &create_op, &arg, &res);
+        printk("write to server returns %d/%d\n", rc, res.res);
+        return rc? : res.res;
+}
+EXPORT_SYMBOL(ksunrpc_create);
+
 
 /* ------------- proc entry things ------------*/
 static struct proc_dir_entry *proc_ksunrpc_ut;
@@ -482,13 +543,23 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 			.wa_fid    = { .f_d1 = 10, .f_d2 = 10 },
 			.wa_nob    = 4096,
 			.wa_offset = 4096,
+                        .wa_pageoff  = 0,
 			.wa_pages  = pp
 		};
 		struct c2t1fs_write_ret wr;
+                struct c2t1fs_create_arg ca = {
+			.ca_fid    = { .f_d1 = 10, .f_d2 = 10 }
+                };
+                struct c2t1fs_create_res cres;
+
+		printk("sending SIF_CREATE to server\n");
+		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &create_op, &ca, &cres);
+		printk("got reply: retval=%d, result=%d\n", retval, cres.res);
 
 		pp[0] = alloc_page(GFP_KERNEL);
 		BUG_ON(pp[0] == NULL);
 
+		memcpy(page_address(pp[0]), "sending SIF_WRITE to server\n", 256);
 		printk("sending SIF_WRITE to server\n");
 		retval = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &wa, &wr);
 		printk("got reply: retval=%d, result=%d, %d\n", retval, 

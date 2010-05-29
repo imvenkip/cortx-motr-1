@@ -98,6 +98,7 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
                        uint64_t objid,
                        struct page **pages, int npages, int off,
                        size_t len, loff_t pos, int rw);
+int ksunrpc_create(struct ksunrpc_xprt *xprt, uint64_t objid);
 
 #endif
 

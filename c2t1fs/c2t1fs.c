@@ -744,6 +744,10 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
                 return PTR_ERR(csi->csi_xprt);
 	}
 
+        rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
+        if (rc)
+                printk("Creaete objid %llu failed %d, loop device may not work\n", csi->csi_objid, rc);
+
         return 0;
 }
 
