@@ -11,9 +11,6 @@
 #include <linux/inet.h>
 #include <linux/in.h>
 
-#define __OPTIMIZE__ 1
-#include <asm/byteorder.h>
-
 #include "c2t1fs.h"
 
 /**
@@ -246,33 +243,43 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 
 /* common rw function for c2t1fs, it just does sync RPC. */
 static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
-                                 loff_t *ppos, int rw)
+                                 loff_t pos, int rw)
 {
 	struct inode *inode = file->f_dentry->d_inode;
 	struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
+        unsigned long addr;
+        struct mm_struct *mm;
+        struct page **pages;
+        int npages;
+        int off;
+        int rc;
 
-        csi = csi;
-	if (rw == READ) {
-		printk("read: %d@%d <size=%d>\n", (int)count, (int)*ppos, (int)inode->i_size);
-		if (*ppos + count >= inode->i_size) {
-			count = inode->i_size - *ppos;
-		}
-		*ppos += count;
-		/* TODO: fill 'c' into the buffer.
-		   The client should get data from server by rpc.
-		 */
-		memset(buf, 'c', count);
+        addr = (unsigned long)buf;
+        off = (addr & (PAGE_SIZE - 1));
+        addr = addr & PAGE_MASK;
+        npages = ((count + PAGE_SIZE - 1) >> PAGE_SHIFT) + !!off;
+        pages = kmalloc(sizeof(*pages) * npages, GFP_KERNEL);
+        if (pages == NULL)
+                return -ENOMEM;
 
-		return count;
-	} else {
-		return -1;
-		if (*ppos + count > inode->i_size) {
-			count = inode->i_size - *ppos;
-		}
-		*ppos += count;
+        printk("addr = %lx, count = %ld, npages = %d, off = %d\n", addr, count, npages, off);
+        mm = addr > PAGE_OFFSET ? &init_mm : current->mm;
+        rc = get_user_pages(current, mm, addr, npages, rw == WRITE, 1, pages, NULL);
+        if (rc != npages) {
+                printk("expect %d, got %d\n", npages, rc);
+                npages = rc > 0 ? rc : 0;
+                rc = -EFAULT;
+                goto out;
+        }
 
-	}
-        return 0;
+        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages, off, count, pos, rw);
+        printk("call ksunrpc_read_write returns %d\n", rc);
+
+out:
+        for (off = 0; off < npages; off++)
+                put_page(pages[off]);
+        kfree(pages);
+        return rc;
 }
 
 #ifdef HAVE_FILE_READV
@@ -330,14 +337,14 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf,
                                     size_t count, loff_t ppos)
 {
         printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
-        return c2t1fs_read_write(iocb->ki_filp, buf, count, &iocb->ki_pos, READ);
+        return c2t1fs_read_write(iocb->ki_filp, buf, count, iocb->ki_pos, READ);
 }
 
 static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
                                      size_t count, loff_t ppos)
 {
         printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
-        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &iocb->ki_pos,
+        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, iocb->ki_pos,
                                  WRITE);
 }
 
@@ -346,15 +353,23 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
 static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
                                 loff_t *ppos)
 {
+        ssize_t cnt;
         printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
-        return c2t1fs_read_write(file, buf, count, ppos, READ);
+        cnt = c2t1fs_read_write(file, buf, count, *ppos, READ);
+        if (cnt > 0)
+                *ppos += cnt;
+        return cnt;
 }
 
 static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
                                  loff_t *ppos)
 {
+        ssize_t cnt;
         printk("what is read/write? %s:%d\n", __FUNCTION__, __LINE__);
-        return c2t1fs_read_write(file, (char *)buf, count, ppos, WRITE);
+        return c2t1fs_read_write(file, (char *)buf, count, *ppos, WRITE);
+        if (cnt > 0)
+                *ppos += cnt;
+        return cnt;
 }
 #endif /* HAVE_FILE_AIO_READ */
 
@@ -722,27 +737,25 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
         csi->csi_srvid.ssi_addrlen    = strlen(hostname) + 1;
         csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
 
-#if 0
-        csi->csi_xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
+        csi->csi_xprt = ksunrpc_xprt_init(&csi->csi_srvid);
         if (IS_ERR(csi->csi_xprt)) {
 		/* hostname will be freed in c2t1fs_put_csi() */
                 c2t1fs_put_csi(sb);
                 return PTR_ERR(csi->csi_xprt);
 	}
-#endif
 
         return 0;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
-#if 0
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
         /* FIME: Disconnect from server here. */
-        ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
-        csi->csi_xprt = NULL;
-#endif
+        GETHERE;
+        if (csi && csi->csi_xprt)
+                ksunrpc_xprt_fini(csi->csi_xprt);
+        GETHERE;
         kill_anon_super(sb);
 }
 

@@ -92,6 +92,13 @@ struct c2_rpc_op {
 	char		  *ro_name;
 };
 
+struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid);
+void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt);
+int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
+                       uint64_t objid,
+                       struct page **pages, int npages, int off,
+                       size_t len, loff_t pos, int rw);
+
 #endif
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */

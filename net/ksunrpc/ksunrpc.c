@@ -78,6 +78,7 @@ void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
 	}
 	kfree(xprt);
 }
+EXPORT_SYMBOL(ksunrpc_xprt_fini);
 
 #define C2_DEF_TCP_RETRANS (2)
 #define C2_DEF_TCP_TIMEO   (600)
@@ -122,6 +123,7 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 	ksunrpc_xprt->ksx_client = clnt;
         return ksunrpc_xprt;
 }
+EXPORT_SYMBOL(ksunrpc_xprt_init);
 
 static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
 			     const struct c2_rpc_op *op,
@@ -270,6 +272,7 @@ enum {
 	  pages
 	*/
 	C2T1FS_WRITE_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
+	C2T1FS_READ_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
 };
 
 /* --------- write op implementation --------- */
@@ -277,6 +280,7 @@ enum {
 struct c2t1fs_write_arg {
 	struct c2_fid wa_fid;
 	uint32_t      wa_nob;
+        uint32_t      wa_pageoff;
 	uint64_t      wa_offset;
 	struct page **wa_pages;
 };
@@ -298,9 +302,9 @@ static int ksunrpc_xdr_enc_write(struct rpc_rqst *req, uint32_t *p, void *datum)
 	p = encode_32(p, 1); /* count of segments */
 	p = encode_64(p, arg->wa_offset); 
 	p = encode_32(p, arg->wa_nob); 
-	p = encode_32(p, 0); /* padding */
+	p = encode_32(p, 1); /* padding */
 	encode_32(p, arg->wa_nob); 
-	xdr_write_pages(&xdr, arg->wa_pages, 0, arg->wa_nob);
+	xdr_write_pages(&xdr, arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
 	printk("write encoded\n");
 	return 0;
 }
@@ -327,17 +331,45 @@ static const struct c2_rpc_op write_op = {
 /* --------- write op end --------- */
 
 /* --------- read op implementation --------- */
-struct c2t1fs_read_arg {
+struct c2t1fs_readpage_arg {
 	struct c2_fid wa_fid;
-	uint32_t      wa_nob;
-	uint64_t      wa_offset;
+	uint64_t      wa_pgidx;
 };
 
 struct c2t1fs_read_ret {
 	uint32_t crr_rc;
 	uint32_t crr_count;
-	struct page **wa_pages;
+	struct page *crr_page;
 };
+
+static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_write_arg *arg = datum;
+	struct xdr_stream        xdr;
+
+	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
+	p = reserve_nr(&xdr, C2T1FS_WRITE_BASE);
+	p = encode_64(p, arg->wa_fid.f_d1);
+	p = encode_64(p, arg->wa_fid.f_d2);
+	p = encode_32(p, 1); /* count of segments */
+	p = encode_64(p, arg->wa_offset); 
+	p = encode_32(p, arg->wa_nob); 
+	p = encode_32(p, 0); /* padding */
+	encode_32(p, arg->wa_nob); 
+	xdr_write_pages(&xdr, arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
+	printk("write encoded\n");
+	return 0;
+}
+
+static int ksunrpc_xdr_dec_read_ret(struct rpc_rqst *req, uint32_t *p, void *datum)
+{
+	struct c2t1fs_write_ret *ret = datum;
+
+	p = decode_32(p, &ret->cwr_rc);
+	decode_32(p, &ret->cwr_count);
+	printk("write decoded\n");
+	return 0;
+}
 
 static const struct c2_rpc_op read_op = {
         .ro_op          = SIF_READ,
@@ -361,6 +393,42 @@ static const struct c2_rpc_op quit_op = {
 	.ro_name        = "quit"
 };
 
+/**
+ * Export symbol for read/write support for loop device
+ */
+int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
+                       uint64_t objid,
+                       struct page **pages, int npages, int off,
+                       size_t len, loff_t pos, int rw)
+{
+        int rc;
+
+        if (rw == WRITE) {
+                struct c2t1fs_write_arg arg;
+                struct c2t1fs_write_ret ret;
+
+                arg.wa_fid.f_d1 = 0;
+                arg.wa_fid.f_d1 = objid;
+                arg.wa_nob = len;
+                arg.wa_pageoff = off;
+                arg.wa_offset = pos;
+                arg.wa_pages = pages;
+
+                printk("%s Send data to server(%llu/%d/%d/%ld/%lld)\n",
+                       __FUNCTION__, objid, npages, off, len, pos);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &arg, &ret);
+                printk("write to server returns %d\n", rc);
+                if (rc)
+                        return rc;
+                return ret.cwr_rc ? : ret.cwr_count;
+        }
+
+        /* read */
+        return 0;
+}
+EXPORT_SYMBOL(ksunrpc_read_write);
+
+/* ------------- proc entry things ------------*/
 static struct proc_dir_entry *proc_ksunrpc_ut;
 
 static int read_ksunrpc_ut(char *page, char **start, off_t off,
