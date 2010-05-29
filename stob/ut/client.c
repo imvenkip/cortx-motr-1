@@ -261,7 +261,7 @@ int main(int argc, char **argv)
 		default:
 			err(1, "Unknown command '%c'", cmd);
 		}
-		scanf(" \n");
+		n = scanf(" \n");
 	}
 
 	c2_net_conn_unlink(conn);

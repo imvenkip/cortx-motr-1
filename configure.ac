@@ -434,7 +434,7 @@ fi
 CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*//')
 KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*//')
 
-CFLAGS="-Wall -Werror -D_REENTRANT $CFLAGS $USER_CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -fno-strict-aliasing $CFLAGS $USER_CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
 LDFLAGS="-rdynamic"
 
