@@ -201,6 +201,9 @@ modules:
 _ACEOF
 ])
 
+USER_CFLAGS=$CFLAGS
+USER_KCFAGS=$KCFLAGS
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
@@ -321,27 +324,8 @@ if test x$OS = xlinux; then
         COLIBRI_LINUX_SENDFILE
 fi
 
-if test x$enable_debug = xyes; then
-        CFLAGS="$CFLAGS -O0 -g"
-        KCFLAGS="$KCFLAGS -O1 -g"
-        AC_DEFINE([ENABLE_DEBUG])
-else
-	CFLAGS="$CFLAGS -O2"
-        KCFLAGS="$KCFLAGS -O2"
-fi
-
-AC_SUBST([KCFLAGS])
-
-if test x$OS = xdarwin; then
-        CFLAGS="$CFLAGS -fnested-functions"
-fi
-
-CFLAGS="$CFLAGS -Wall -Werror -D_REENTRANT"
-KCFLAGS="$KCFLAGS -Wall -Werror"
-LDFLAGS="-rdynamic"
-
 AC_ARG_WITH([db4],
-        [AC_HELP_STRING([--with-db4=path], [path of where db4 was built])])
+        [AC_HELP_STRING([--with-db4=path], [path where db4 was built])])
 
 OLD_LIBS=$LIBS
 OLD_CFLAGS=$CFLAGS
@@ -429,6 +413,36 @@ if test x$OS = xlinux; then
         LIBD=$OLD_LIBS
 fi
 
+CFLAGS=""
+KCFLAGS=""
+if test x$enable_debug = xyes; then
+        echo $USER_CFLAGS | grep -q "\-O" || CFLAGS="-O2"
+        echo $USER_CFLAGS | grep -q "\-g" || CFLAGS="$CFLAGS -g"
+        echo $USER_KCFLAGS | grep -q "\-O" || KCFLAGS="-O2"
+        echo $USER_KCFLAGS | grep -q "\-g" || KCFLAGS="$KCFLAGS -g"
+        AC_DEFINE([ENABLE_DEBUG])
+else
+        echo $USER_CFLAGS | grep -q "\-O" || CFLAGS="-O2"
+        echo $USER_KCFLAGS | grep -q "\-O" || KCFLAGS="-O2"
+fi
+
+if test x$OS = xdarwin; then
+        CFLAGS="$CFLAGS -fnested-functions"
+fi
+
+# trim spaces at the end of flags
+CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*//')
+KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*//')
+
+CFLAGS="-Wall -Werror -D_REENTRANT $CFLAGS $USER_CFLAGS"
+KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
+LDFLAGS="-rdynamic"
+
+# trim spaces at the end of flags
+CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
+KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
+AC_SUBST([KCFLAGS])
+
 AC_CONFIG_FILES([
 		 Makefile
 		 m4/Makefile
@@ -461,3 +475,17 @@ AC_CONFIG_FILES([
                  utils/ploss/Makefile
                 ])
 AC_OUTPUT
+
+echo ""
+echo "CFLAGS :  \"$CFLAGS\""
+echo "KCFLAGS:  \"$KCFLAGS\""
+echo "LDFLAGS:  \"$LDFLAGS\""
+echo ""
+
+if test x$OS = xlinux; then
+echo "Linux  :  \"$LINUX\""
+fi
+echo "DB     :  \"$DB4SRC\""
+echo ""
+
+echo "Type 'make' to build Colibri"

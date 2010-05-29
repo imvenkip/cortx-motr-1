@@ -69,6 +69,7 @@ int main(int argc, char **argv)
 #else
         /* Others than Linux are not supported so far. */
         result = -ENOSYS;
+        dom = NULL;
 #endif
 	C2_ASSERT(result == 0);
 
