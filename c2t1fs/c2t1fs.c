@@ -112,6 +112,52 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>");
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
+int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
+                       uint64_t objid,
+                       struct page **pages, int npages, int off,
+                       size_t len, loff_t pos, int rw)
+{
+        int rc;
+
+        if (rw == WRITE) {
+                struct c2t1fs_write_arg arg;
+                struct c2t1fs_write_ret ret;
+
+                arg.wa_fid.f_d1 = 10;
+                arg.wa_fid.f_d2 = objid;
+                arg.wa_nob = len;
+                arg.wa_pageoff = off;
+                arg.wa_offset = pos;
+                arg.wa_pages = pages;
+
+                printk("%s Send data to server(%llu/%d/%d/%ld/%lld)\n",
+                       __FUNCTION__, objid, npages, off, len, pos);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &arg, &ret);
+                printk("write to server returns %d\n", rc);
+                if (rc)
+                        return rc;
+                return ret.cwr_rc ? : ret.cwr_count;
+        } else {
+		return len;
+	}
+}
+
+int ksunrpc_create(struct ksunrpc_xprt *xprt,
+                   uint64_t objid)
+{
+        int rc;
+        struct c2t1fs_create_arg arg;
+        struct c2t1fs_create_res res;
+
+        arg.ca_fid.f_d1 = 10;
+        arg.ca_fid.f_d2 = objid;
+
+        printk("%s create object %llu\n", __FUNCTION__, objid);
+        rc = ksunrpc_xprt_ops.ksxo_call(xprt, &create_op, &arg, &res);
+        printk("write to server returns %d/%d\n", rc, res.res);
+        return rc? : res.res;
+}
+
 static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi;
@@ -757,7 +803,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
         csi->csi_srvid.ssi_addrlen    = strlen(hostname) + 1;
         csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
 
-        csi->csi_xprt = ksunrpc_xprt_init(&csi->csi_srvid);
+        csi->csi_xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
         if (IS_ERR(csi->csi_xprt)) {
 		/* hostname will be freed in c2t1fs_put_csi() */
                 c2t1fs_put_csi(sb);
@@ -778,7 +824,7 @@ static void c2t1fs_kill_super(struct super_block *sb)
         /* FIME: Disconnect from server here. */
         GETHERE;
         if (csi && csi->csi_xprt)
-                ksunrpc_xprt_fini(csi->csi_xprt);
+                ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
         GETHERE;
         kill_anon_super(sb);
 }

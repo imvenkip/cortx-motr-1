@@ -55,8 +55,6 @@ struct ksunrpc_xprt_ops {
 			 void *data);
 };
 
-extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
-
 /*
  XXX The following should be identical to the definition in net/net.h
 */
@@ -92,13 +90,50 @@ struct c2_rpc_op {
 	char		  *ro_name;
 };
 
-struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid);
-void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt);
-int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
-                       uint64_t objid,
-                       struct page **pages, int npages, int off,
-                       size_t len, loff_t pos, int rw);
-int ksunrpc_create(struct ksunrpc_xprt *xprt, uint64_t objid);
+struct c2_fid {
+	uint64_t f_d1;
+	uint64_t f_d2;
+};
+
+struct c2t1fs_create_arg {
+        struct c2_fid ca_fid;
+};
+
+struct c2t1fs_write_arg {
+	struct c2_fid wa_fid;
+	uint32_t      wa_nob;
+        uint32_t      wa_pageoff;
+	uint64_t      wa_offset;
+	struct page **wa_pages;
+};
+
+struct c2t1fs_write_ret {
+	uint32_t cwr_rc;
+	uint32_t cwr_count;
+};
+
+struct c2t1fs_create_res {
+        int res;
+};
+
+struct c2t1fs_readpage_arg {
+	struct c2_fid wa_fid;
+	uint64_t      wa_pgidx;
+};
+
+struct c2t1fs_read_ret {
+	uint32_t crr_rc;
+	uint32_t crr_count;
+	struct page *crr_page;
+};
+
+
+
+extern const struct c2_rpc_op create_op;
+extern const struct c2_rpc_op write_op;
+extern const struct c2_rpc_op read_op;
+extern const struct c2_rpc_op quit_op;
+extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
 
 #endif
 
