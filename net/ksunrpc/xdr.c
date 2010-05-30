@@ -33,14 +33,12 @@ static int ksunrpc_xdr_enc_int(struct rpc_rqst *req, uint32_t *p, int *args)
 {
 	*p++ = htonl(*args);
 	req->rq_slen = xdr_adjust_iovec(req->rq_svec, p);
-	printk("int encoded\n");
 	return 0;
 }
 
 static int ksunrpc_xdr_dec_int(struct rpc_rqst *req, uint32_t *p, int *res)
 {
 	*res = ntohl(*p++);
-	printk("int decoded\n");
 	return 0;
 }
 
@@ -93,7 +91,15 @@ enum {
 	  pages
 	*/
 	C2T1FS_WRITE_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
-	C2T1FS_READ_BASE = 8 + 8 + 4 + 8 + 4 + 4 + 4,
+	/*
+	  FID    (8 + 8)
+	  1      (v_count, 4)
+	  OFFSET (8)
+	  NOB    (4)
+	  pages
+	*/
+
+	C2T1FS_READ_BASE = 8 + 8 + 4 + 8 + 4,
 };
 
 static int ksunrpc_xdr_enc_create(struct rpc_rqst *req, uint32_t *p, void *datum)
@@ -142,7 +148,6 @@ static int ksunrpc_xdr_enc_write(struct rpc_rqst *req, uint32_t *p, void *datum)
 	p = encode_32(p, 1); /* padding */
 	encode_32(p, arg->wa_nob);
 	xdr_write_pages(&xdr, arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
-	printk("write encoded\n");
 	return 0;
 }
 
@@ -152,7 +157,6 @@ static int ksunrpc_xdr_dec_write(struct rpc_rqst *req, uint32_t *p, void *datum)
 
 	p = decode_32(p, &ret->cwr_rc);
 	decode_32(p, &ret->cwr_count);
-	printk("write decoded\n");
 	return 0;
 }
 
@@ -166,33 +170,48 @@ const struct c2_rpc_op write_op = {
 	.ro_name        = "write"
 };
 
-#if 0
 static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
 	struct c2t1fs_write_arg *arg = datum;
 	struct xdr_stream        xdr;
 
 	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
-	p = reserve_nr(&xdr, C2T1FS_WRITE_BASE);
+	p = reserve_nr(&xdr, C2T1FS_READ_BASE);
 	p = encode_64(p, arg->wa_fid.f_d1);
 	p = encode_64(p, arg->wa_fid.f_d2);
 	p = encode_32(p, 1); /* count of segments */
 	p = encode_64(p, arg->wa_offset);
 	p = encode_32(p, arg->wa_nob);
-	p = encode_32(p, 0); /* padding */
-	encode_32(p, arg->wa_nob);
-	xdr_write_pages(&xdr, arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
-	printk("write encoded\n");
+        printk("nob = %d\n", arg->wa_nob);
+
+        /* 
+                struct c2_stob_io_read_rep_fop {
+                        u_int sirr_rc;
+                        u_int sirr_count;
+                        struct {
+                                u_int                  b_count;
+                                struct c2_stob_io_buf {
+                                        u_int ib_count;
+                                        char *ib_value;
+                                } *b_buf;
+                        } sirr_buf;
+                };
+                replen = 4 + 4 + 4 + 4;
+        */
+	xdr_inline_pages(&req->rq_rcv_buf, 16,
+                        arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
 	return 0;
 }
 
 static int ksunrpc_xdr_dec_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
 	struct c2t1fs_write_ret *ret = datum;
+        int bcount, nbuf;
 
 	p = decode_32(p, &ret->cwr_rc);
-	decode_32(p, &ret->cwr_count);
-	printk("write decoded\n");
+	p = decode_32(p, &ret->cwr_count);
+        p = decode_32(p, &bcount);
+        p = decode_32(p, &nbuf);
 	return 0;
 }
 
@@ -200,12 +219,11 @@ const struct c2_rpc_op read_op = {
         .ro_op          = SIF_READ,
         .ro_arg_size    = C2T1FS_READ_BASE,
         .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_read,
-        .ro_result_size = sizeof(struct c2t1fs_read_ret),
+        .ro_result_size = sizeof(struct c2t1fs_write_ret),
         .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_read,
         .ro_handler     = NULL,
 	.ro_name        = "read"
 };
-#endif
 
 const struct c2_rpc_op quit_op = {
         .ro_op          = SIF_QUIT,
@@ -219,6 +237,7 @@ const struct c2_rpc_op quit_op = {
 
 EXPORT_SYMBOL(create_op);
 EXPORT_SYMBOL(write_op);
+EXPORT_SYMBOL(read_op);
 EXPORT_SYMBOL(quit_op);
 
 MODULE_LICENSE("GPL");

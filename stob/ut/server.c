@@ -151,7 +151,6 @@ static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	obj = object_find(&in->siw_object);
 	nr = in->siw_vec.v_count;
 	C2_ASSERT(nr > 0);
-        printf("nr = %d, bufcnt %d\n", nr, in->siw_buf.b_count);
 	C2_ASSERT(nr == in->siw_buf.b_count);
 
 	C2_ALLOC_ARR(count, nr);
@@ -334,7 +333,7 @@ int main(int argc, char **argv)
 
 	while (!stop) {
 		sleep(1);
-		printf("allocated: %li\n", c2_allocated());
+		//printf("allocated: %li\n", c2_allocated());
 	}
 
 	c2_service_stop(&service);

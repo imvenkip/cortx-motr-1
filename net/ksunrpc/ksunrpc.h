@@ -116,19 +116,6 @@ struct c2t1fs_create_res {
         int res;
 };
 
-struct c2t1fs_readpage_arg {
-	struct c2_fid wa_fid;
-	uint64_t      wa_pgidx;
-};
-
-struct c2t1fs_read_ret {
-	uint32_t crr_rc;
-	uint32_t crr_count;
-	struct page *crr_page;
-};
-
-
-
 extern const struct c2_rpc_op create_op;
 extern const struct c2_rpc_op write_op;
 extern const struct c2_rpc_op read_op;

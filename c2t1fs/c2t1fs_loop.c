@@ -199,6 +199,7 @@ lo_do_transfer(struct loop_device *lo, int cmd,
 	return lo->transfer(lo, cmd, rpage, roffs, lpage, loffs, size, rblock);
 }
 
+#if 0
 /**
  * do_lo_send_aops - helper for writing data to a loop device
  *
@@ -266,6 +267,7 @@ fail:
 	ret = -1;
 	goto out;
 }
+#endif
 
 /**
  * __do_lo_send_write - helper for writing data to a loop device
@@ -310,6 +312,7 @@ static int do_lo_send_direct_write(struct loop_device *lo,
 	return bw;
 }
 
+#if 0
 /**
  * do_lo_send_write - helper for writing data to a loop device
  *
@@ -338,6 +341,7 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 		ret = -EIO;
 	return ret;
 }
+#endif
 
 static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
 		loff_t pos)
@@ -348,7 +352,8 @@ static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
 	struct page *page = NULL;
 	int i, ret = 0;
 
-	do_lo_send = do_lo_send_aops;
+	do_lo_send = do_lo_send_direct_write;
+#if 0
 	if (!(lo->lo_flags & LO_FLAGS_USE_AOPS)) {
 		do_lo_send = do_lo_send_direct_write;
 		if (lo->transfer != transfer_none) {
@@ -359,6 +364,7 @@ static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
 			do_lo_send = do_lo_send_write;
 		}
 	}
+#endif
 	bio_for_each_segment(bvec, bio, i) {
 		ret = do_lo_send(lo, bvec, bsize, pos, page);
 		if (ret < 0)
@@ -369,12 +375,13 @@ static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
 		kunmap(page);
 		__free_page(page);
 	}
-out:
 	return ret;
+#if 0
 fail:
 	printk(KERN_ERR "loop: Failed to allocate temporary page for write.\n");
 	ret = -ENOMEM;
 	goto out;
+#endif
 }
 
 struct lo_read_data {

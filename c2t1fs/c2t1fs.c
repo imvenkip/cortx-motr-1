@@ -13,6 +13,8 @@
 
 #include "c2t1fs.h"
 
+#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+
 /**
    @page c2t1fs C2T1FS detailed level design specification.
 
@@ -119,27 +121,25 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 {
         int rc;
 
-        if (rw == WRITE) {
-                struct c2t1fs_write_arg arg;
-                struct c2t1fs_write_ret ret;
+        struct c2t1fs_write_arg arg;
+        struct c2t1fs_write_ret ret;
 
-                arg.wa_fid.f_d1 = 10;
-                arg.wa_fid.f_d2 = objid;
-                arg.wa_nob = len;
-                arg.wa_pageoff = off;
-                arg.wa_offset = pos;
-                arg.wa_pages = pages;
+        arg.wa_fid.f_d1 = 10;
+        arg.wa_fid.f_d2 = objid;
+        arg.wa_nob = len;
+        arg.wa_pageoff = off;
+        arg.wa_offset = pos;
+        arg.wa_pages = pages;
 
-                printk("%s Send data to server(%llu/%d/%d/%ld/%lld)\n",
-                       __FUNCTION__, objid, npages, off, len, pos);
-                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &arg, &ret);
-                printk("write to server returns %d\n", rc);
-                if (rc)
-                        return rc;
-                return ret.cwr_rc ? : ret.cwr_count;
-        } else {
-		return len;
-	}
+        DBG("Send data to server(%llu/%d/%d/%ld/%lld)\n",
+               objid, npages, off, len, pos);
+        rc = ksunrpc_xprt_ops.ksxo_call(xprt, rw == WRITE ? &write_op : &read_op, &arg, &ret);
+        DBG("read/write to server returns %d\n", rc);
+        if (rw == READ)
+                printk("read rc %d contents %s\n", rc, (char*)(page_address(pages[0]) + off));
+        if (rc)
+                return rc;
+        return ret.cwr_rc ? : ret.cwr_count;
 }
 
 int ksunrpc_create(struct ksunrpc_xprt *xprt,
@@ -152,9 +152,9 @@ int ksunrpc_create(struct ksunrpc_xprt *xprt,
         arg.ca_fid.f_d1 = 10;
         arg.ca_fid.f_d2 = objid;
 
-        printk("%s create object %llu\n", __FUNCTION__, objid);
+        DBG("%s create object %llu\n", __FUNCTION__, objid);
         rc = ksunrpc_xprt_ops.ksxo_call(xprt, &create_op, &arg, &res);
-        printk("write to server returns %d/%d\n", rc, res.res);
+        DBG("create obj returns %d/%d\n", rc, res.res);
         return rc? : res.res;
 }
 
@@ -294,14 +294,13 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 	struct inode          *inode = file->f_dentry->d_inode;
 	struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
         unsigned long          addr;
-        struct mm_struct      *mm;
         struct page          **pages;
         int                    npages;
         int                    off;
         loff_t                 pos = *ppos;
         int rc;
 
-	printk("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
+	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
 		count, (unsigned long)pos, (unsigned long)inode->i_size);
 
 	if (rw == READ) {
@@ -323,7 +322,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 	 */
         addr = (unsigned long)buf;
         off  = (addr & (PAGE_SIZE - 1));
-        addr = addr & PAGE_MASK;
+        addr &= PAGE_MASK;
 
 	/* suppose addr = 0x400386, count=5, then one page is enough */
         npages = ((count + PAGE_SIZE - 1) >> PAGE_SHIFT) +
@@ -332,13 +331,23 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         if (pages == NULL)
                 return -ENOMEM;
 
-        printk("addr = %lx, count = %ld, npages = %d, off = %d\n",
+        DBG("addr = %lx, count = %ld, npages = %d, off = %d\n",
 		addr, count, npages, off);
 
-        mm = addr > PAGE_OFFSET ? &init_mm : current->mm;
-        rc = get_user_pages(current, mm, addr, npages, rw == WRITE, 1, pages, NULL);
+        if (addr > PAGE_OFFSET) {
+                int i;
+                unsigned long va = addr;
+                for (i = 0; i < npages; i++, va += PAGE_SIZE) {
+                        pages[i] = virt_to_page(va);
+                        get_page(pages[i]);
+                }
+                rc = npages;
+        }
+        else
+                rc = get_user_pages(current, current->mm, addr, npages,
+                                    rw == WRITE, 1, pages, NULL);
         if (rc != npages) {
-                printk("expect %d, got %d\n", npages, rc);
+                DBG("expect %d, got %d\n", npages, rc);
                 npages = rc > 0 ? rc : 0;
                 rc = -EFAULT;
                 goto out;
@@ -346,7 +355,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 
         rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
 				off, count, pos, rw);
-        printk("call ksunrpc_read_write returns %d\n", rc);
+        DBG("call ksunrpc_read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
 		if (rw == WRITE && pos > inode->i_size)
@@ -632,8 +641,8 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
         } else {
                 /* FIXME: This should be taken from an getattr rpc */
                 /* Before that, let's have this size */
-                inode->i_size = PAGE_SIZE * 4;
-                inode->i_blocks = 16;
+                inode->i_size = 4 << 20;
+                inode->i_blocks = inode->i_size >> PAGE_SHIFT;
         }
 
         return 0;
@@ -760,28 +769,28 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	int   tcp_port;
         int   rc;
 
-	printk("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
+	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
 	hostname = kstrdup(devname, GFP_KERNEL);
 
         port = strchr(hostname, ':');
 	if (port == NULL || hostname == port || *(port+1) == '\0') {
-		printk("server:port is expected as the device\n");
+		DBG("server:port is expected as the device\n");
 		kfree(hostname);
 		return -EINVAL;
 	}
 
 	if (in_aton(hostname) == 0) {
-		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
+		DBG("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
 		kfree(hostname);
 		return -EINVAL;
 	}
 
 	*port++ = 0;
-	printk("server/port=%s/%s\n", hostname, port);
+	DBG("server/port=%s/%s\n", hostname, port);
 	tcp_port = simple_strtol(port, &endptr, 10);
         if (*endptr != '\0' || tcp_port <= 0) {
-		printk("invalid port number\n");
+		DBG("invalid port number\n");
 		kfree(hostname);
                 return -EINVAL;
 	}
@@ -812,7 +821,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
         if (rc)
-                printk("Creaete objid %llu failed %d, loop device may not work\n", csi->csi_objid, rc);
+                DBG("Creaete objid %llu failed %d, loop device may not work\n", csi->csi_objid, rc);
 
         return 0;
 }
