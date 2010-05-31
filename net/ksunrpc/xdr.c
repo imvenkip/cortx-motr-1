@@ -172,17 +172,17 @@ const struct c2_rpc_op write_op = {
 
 static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
-	struct c2t1fs_write_arg *arg = datum;
+	struct c2t1fs_read_arg *arg = datum;
 	struct xdr_stream        xdr;
+        struct rpc_auth *auth = req->rq_task->tk_auth;
 
 	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
 	p = reserve_nr(&xdr, C2T1FS_READ_BASE);
-	p = encode_64(p, arg->wa_fid.f_d1);
-	p = encode_64(p, arg->wa_fid.f_d2);
+	p = encode_64(p, arg->ra_fid.f_d1);
+	p = encode_64(p, arg->ra_fid.f_d2);
 	p = encode_32(p, 1); /* count of segments */
-	p = encode_64(p, arg->wa_offset);
-	p = encode_32(p, arg->wa_nob);
-        printk("nob = %d\n", arg->wa_nob);
+	p = encode_64(p, arg->ra_offset);
+	p = encode_32(p, arg->ra_nob);
 
         /* 
                 struct c2_stob_io_read_rep_fop {
@@ -198,20 +198,26 @@ static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
                 };
                 replen = 4 + 4 + 4 + 4;
         */
-	xdr_inline_pages(&req->rq_rcv_buf, 16,
-                        arg->wa_pages, arg->wa_pageoff, arg->wa_nob);
+	xdr_inline_pages(&req->rq_rcv_buf,
+                        (RPC_REPHDRSIZE + auth->au_rslack + 4) << 2,
+                        arg->ra_pages, arg->ra_pageoff, arg->ra_nob);
 	return 0;
 }
 
 static int ksunrpc_xdr_dec_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
-	struct c2t1fs_write_ret *ret = datum;
+        struct xdr_stream xdr;
+	struct c2t1fs_read_ret *ret = datum;
         int bcount, nbuf;
 
-	p = decode_32(p, &ret->cwr_rc);
-	p = decode_32(p, &ret->cwr_count);
+	p = decode_32(p, &ret->crr_rc);
+	p = decode_32(p, &ret->crr_count);
         p = decode_32(p, &bcount);
         p = decode_32(p, &nbuf);
+
+        xdr_init_decode(&xdr, &req->rq_rcv_buf, p);
+        xdr_read_pages(&xdr, ret->crr_count);
+
 	return 0;
 }
 
@@ -219,7 +225,7 @@ const struct c2_rpc_op read_op = {
         .ro_op          = SIF_READ,
         .ro_arg_size    = C2T1FS_READ_BASE,
         .ro_xdr_arg     = (c2_xdrproc_t)ksunrpc_xdr_enc_read,
-        .ro_result_size = sizeof(struct c2t1fs_write_ret),
+        .ro_result_size = sizeof(struct c2t1fs_read_ret),
         .ro_xdr_result  = (c2_xdrproc_t)ksunrpc_xdr_dec_read,
         .ro_handler     = NULL,
 	.ro_name        = "read"

@@ -18,13 +18,6 @@ static bool_t xdr_c2_stob_io_seg(XDR *xdrs, struct c2_stob_io_seg *seg)
 
 static bool_t xdr_c2_stob_io_buf(XDR *xdrs, struct c2_stob_io_buf *buf)
 {
-#if 0
-	return xdr_array(xdrs, &buf->ib_value, &buf->ib_count, ~0,
-			 sizeof (char), (xdrproc_t) xdr_char);
-#endif
-        printf("value = %p, count = %d\n", buf->ib_value, buf->ib_count);
-        memset(buf->ib_value, 0, buf->ib_count);
-        strcpy(buf->ib_value, "helloworodl\n\0");
         return xdr_bytes(xdrs, &buf->ib_value, &buf->ib_count, ~0);
 }
 
@@ -52,35 +45,15 @@ bool_t xdr_c2_stob_io_write_rep_fop(XDR *xdrs,
 
 bool_t xdr_c2_stob_io_read_fop(XDR *xdrs, struct c2_stob_io_read_fop *r)
 {
-        u_quad_t offset;
-        unsigned int count;
-        bool_t ret;
-	ret =	xdr_c2_fid(xdrs, &r->sir_object) &&
-#if 0
+	return xdr_c2_fid(xdrs, &r->sir_object) &&
 		xdr_array(xdrs, (char **)&r->sir_vec.v_seg, 
 			  &r->sir_vec.v_count, ~0,
 			  sizeof (struct c2_stob_io_seg), 
 			  (xdrproc_t) xdr_c2_stob_io_seg);
-#else
-                xdr_u_int(xdrs, &r->sir_vec.v_count) &&
-                xdr_u_longlong_t(xdrs, &offset) &&
-                xdr_u_int(xdrs, &count);
-        r->sir_vec.v_seg = malloc(sizeof(struct c2_stob_io_seg));
-        r->sir_vec.v_seg->f_offset = offset;
-        r->sir_vec.v_seg->f_count = count;
-#endif
-        printf("ret = %d\n", ret);
-        printf("decode read fop, %d, %p\n", r->sir_vec.v_count, r->sir_vec.v_seg);
-        if (r->sir_vec.v_seg)
-                printf("xxx %ld/%d\n",
-                        (long int)r->sir_vec.v_seg->f_offset,
-                        (int)r->sir_vec.v_seg->f_count);
-        return ret;
 }
 
 bool_t xdr_c2_stob_io_read_rep_fop(XDR *xdrs, struct c2_stob_io_read_rep_fop *r)
 {
-        printf("read rc %d count %d\n", r->sirr_rc, r->sirr_count);
 	return
 		xdr_u_int(xdrs, &r->sirr_rc) &&
 		xdr_u_int(xdrs, &r->sirr_count) &&

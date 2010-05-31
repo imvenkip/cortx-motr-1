@@ -13,7 +13,7 @@
 
 #include "c2t1fs.h"
 
-#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+#define DBG(fmt, args...) //printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
 /**
    @page c2t1fs C2T1FS detailed level design specification.
@@ -135,8 +135,6 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
                objid, npages, off, len, pos);
         rc = ksunrpc_xprt_ops.ksxo_call(xprt, rw == WRITE ? &write_op : &read_op, &arg, &ret);
         DBG("read/write to server returns %d\n", rc);
-        if (rw == READ)
-                printk("read rc %d contents %s\n", rc, (char*)(page_address(pages[0]) + off));
         if (rc)
                 return rc;
         return ret.cwr_rc ? : ret.cwr_count;
@@ -325,8 +323,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         addr &= PAGE_MASK;
 
 	/* suppose addr = 0x400386, count=5, then one page is enough */
-        npages = ((count + PAGE_SIZE - 1) >> PAGE_SHIFT) +
-		 ((off + (count & (PAGE_SIZE - 1))) & PAGE_MASK);
+        npages = (off + count + PAGE_SIZE - 1) >> PAGE_SHIFT;
         pages = kmalloc(sizeof(*pages) * npages, GFP_KERNEL);
         if (pages == NULL)
                 return -ENOMEM;

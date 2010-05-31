@@ -99,6 +99,10 @@ struct c2t1fs_create_arg {
         struct c2_fid ca_fid;
 };
 
+struct c2t1fs_create_res {
+        int res;
+};
+
 struct c2t1fs_write_arg {
 	struct c2_fid wa_fid;
 	uint32_t      wa_nob;
@@ -112,8 +116,17 @@ struct c2t1fs_write_ret {
 	uint32_t cwr_count;
 };
 
-struct c2t1fs_create_res {
-        int res;
+struct c2t1fs_read_arg {
+	struct c2_fid ra_fid;
+	uint32_t      ra_nob;
+        uint32_t      ra_pageoff;
+	uint64_t      ra_offset;
+	struct page **ra_pages;
+};
+
+struct c2t1fs_read_ret {
+	uint32_t crr_rc;
+	uint32_t crr_count;
 };
 
 extern const struct c2_rpc_op create_op;
