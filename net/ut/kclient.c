@@ -1,21 +1,30 @@
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <netdb.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-#include <netinet/in.h>
+
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+
 #include <arpa/inet.h>
+#include <rpc/types.h>
+#include <rpc/xdr.h>
 #include <rpc/auth.h>
 #include <rpc/rpc.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-
 
 #include "../ksunrpc/ksunrpc.h"
 

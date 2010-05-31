@@ -49,7 +49,7 @@ ping_1_svc(struct c2_pl_ping *argp, struct c2_pl_ping_res *result, struct svc_re
 bool_t
 setconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, struct svc_req *rqstp)
 {
-        const char *msg;
+        const char *msg = NULL;
         int *config_res = &result->body.res;
         uint32_t *config_vp = &result->body.c2_pl_config_reply_u.config_value;
 
@@ -88,7 +88,7 @@ setconfig_1_svc(struct c2_pl_config *argp, struct c2_pl_config_res *result, stru
                 msg = "Unknow option\n";
         }
 
-        if (*config_res)
+        if (*config_res && msg != NULL)
                 show_msg(pl_verbose, msg);
         return TRUE;
 }

@@ -51,8 +51,10 @@ int main(int argc, char **argv)
 	int i;
 	int j;
 
+#ifdef LINUX
 	result = linux_stob_module_init();
-	
+#endif	
+
 	result = mkdir("./__s", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
@@ -61,8 +63,14 @@ int main(int argc, char **argv)
 
 	unlink(path);
 
+#ifdef LINUX
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
 							  "./__s", &dom);
+#else
+        /* Others than Linux are not supported so far. */
+        result = -ENOSYS;
+        dom = NULL;
+#endif
 	C2_ASSERT(result == 0);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
@@ -196,7 +204,9 @@ int main(int argc, char **argv)
 
 	c2_stob_put(obj);
 	dom->sd_ops->sdo_fini(dom);
+#ifdef LINUX
 	linux_stob_module_fini();
+#endif
 
 	return 0;
 }

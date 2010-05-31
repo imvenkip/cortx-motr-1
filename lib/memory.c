@@ -22,7 +22,7 @@ static size_t __allocated(void)
 #elif HAVE_MALLOC_SIZE
 #include <malloc/malloc.h>
 
-static struct c2_atomic64 allocated = C2_ATOMIC64_INIT(0);
+static struct c2_atomic64 allocated = {0};//FIXME: where is this defined? C2_ATOMIC64_INIT(0);
 
 static void __free(void *ptr)
 {

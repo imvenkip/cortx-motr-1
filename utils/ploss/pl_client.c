@@ -81,10 +81,10 @@ main (int argc, char *argv[])
         int have_delay    = 0;
         int have_interval = 0;
 
-        int interval;
-        int prop;
-        int delay;
-        int verbose;
+        int interval      = 0;
+        int prop          = 0;
+        int delay         = 0;
+        int verbose       = 1;
         int c;
 
 	if (argc < 2)

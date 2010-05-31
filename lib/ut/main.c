@@ -1,5 +1,4 @@
 /* -*- C -*- */
-
 #include <stdio.h>
 
 extern void c2_threads_init(void);
