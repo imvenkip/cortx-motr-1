@@ -206,6 +206,11 @@ int main(int argc, char **argv)
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
+	if (argc != 3) {
+		fprintf(stderr, "%s host port\n", argv[0]);
+		return -1;
+	}
+
 	result = c2_net_init();
 	C2_ASSERT(result == 0);
 

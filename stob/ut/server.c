@@ -286,6 +286,11 @@ int main(int argc, char **argv)
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
+	if (argc != 3) {
+		fprintf(stderr, "%s path port\n", argv[0]);
+		return -1;
+	}
+
 	path = argv[1];
 	port = atoi(argv[2]);
 
