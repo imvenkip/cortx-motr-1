@@ -21,7 +21,7 @@
 
 #include "ksunrpc.h"
 
-/* taken from other branch. When merged, should be removed, or be consistant */
+/* Please keep it consistant with stob/ut/io_fop.h */
 enum c2_stob_io_fop_opcode {
         SIF_READ  = 0x4001,
         SIF_WRITE = 0x4002,
@@ -199,24 +199,24 @@ static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
                 replen = 4 + 4 + 4 + 4;
         */
 	xdr_inline_pages(&req->rq_rcv_buf,
-                        (RPC_REPHDRSIZE + auth->au_rslack + 4) << 2,
-                        arg->ra_pages, arg->ra_pageoff, arg->ra_nob);
+			 (RPC_REPHDRSIZE + auth->au_rslack + 4) << 2,
+			 arg->ra_pages, arg->ra_pageoff, arg->ra_nob);
 	return 0;
 }
 
 static int ksunrpc_xdr_dec_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
-        struct xdr_stream xdr;
+	struct xdr_stream xdr;
 	struct c2t1fs_read_ret *ret = datum;
-        int bcount, nbuf;
+	int bcount, blen;
 
 	p = decode_32(p, &ret->crr_rc);
 	p = decode_32(p, &ret->crr_count);
-        p = decode_32(p, &bcount);
-        p = decode_32(p, &nbuf);
+	p = decode_32(p, &bcount); /* buffer count, currently it is 1 */
+	p = decode_32(p, &blen);   /* buffer length, equal to crr_count */
 
-        xdr_init_decode(&xdr, &req->rq_rcv_buf, p);
-        xdr_read_pages(&xdr, ret->crr_count);
+	xdr_init_decode(&xdr, &req->rq_rcv_buf, p);
+	xdr_read_pages(&xdr, ret->crr_count);
 
 	return 0;
 }
@@ -246,7 +246,6 @@ EXPORT_SYMBOL(write_op);
 EXPORT_SYMBOL(read_op);
 EXPORT_SYMBOL(quit_op);
 
-MODULE_LICENSE("GPL");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

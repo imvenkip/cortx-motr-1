@@ -110,7 +110,7 @@
  */
 static kmem_cache_t *c2t1fs_inode_cachep = NULL;
 
-MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>");
+MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jinshan Xiong");
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
@@ -121,23 +121,43 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 {
         int rc;
 
-        struct c2t1fs_write_arg arg;
-        struct c2t1fs_write_ret ret;
+        if (rw == WRITE) {
+                struct c2t1fs_write_arg arg;
+                struct c2t1fs_write_ret ret;
 
-        arg.wa_fid.f_d1 = 10;
-        arg.wa_fid.f_d2 = objid;
-        arg.wa_nob = len;
-        arg.wa_pageoff = off;
-        arg.wa_offset = pos;
-        arg.wa_pages = pages;
+                arg.wa_fid.f_d1 = 10;
+                arg.wa_fid.f_d2 = objid;
+                arg.wa_nob      = len;
+                arg.wa_pageoff  = off;
+                arg.wa_offset   = pos;
+                arg.wa_pages    = pages;
 
-        DBG("Send data to server(%llu/%d/%d/%ld/%lld)\n",
-               objid, npages, off, len, pos);
-        rc = ksunrpc_xprt_ops.ksxo_call(xprt, rw == WRITE ? &write_op : &read_op, &arg, &ret);
-        DBG("read/write to server returns %d\n", rc);
-        if (rc)
-                return rc;
-        return ret.cwr_rc ? : ret.cwr_count;
+                DBG("writing data to server(%llu/%d/%d/%ld/%lld)\n",
+                    objid, npages, off, len, pos);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &arg, &ret);
+                DBG("write to server returns %d\n", rc);
+                if (rc)
+                        return rc;
+                return ret.cwr_rc ? : ret.cwr_count;
+        } else {
+                struct c2t1fs_read_arg arg;
+                struct c2t1fs_read_ret ret;
+
+                arg.ra_fid.f_d1 = 10;
+                arg.ra_fid.f_d2 = objid;
+                arg.ra_nob = len;
+                arg.ra_pageoff = off;
+                arg.ra_offset = pos;
+                arg.ra_pages = pages;
+
+                DBG("reading data from server(%llu/%d/%d/%ld/%lld)\n",
+                    objid, npages, off, len, pos);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &read_op, &arg, &ret);
+                DBG("read from server returns %d\n", rc);
+                if (rc)
+                        return rc;
+                return ret.crr_rc ? : ret.crr_count;
+        }
 }
 
 int ksunrpc_create(struct ksunrpc_xprt *xprt,
@@ -313,11 +333,6 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         if (file->f_flags & O_APPEND)
                 pos = inode->i_size;
 
-	/*
-	    XXX XXX XXX Question here:
-	    why do we need to copy the data again into kernel space?
-	    if the write count is huge, this will definitely fail!!
-	 */
         addr = (unsigned long)buf;
         off  = (addr & (PAGE_SIZE - 1));
         addr &= PAGE_MASK;
@@ -344,7 +359,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 rc = get_user_pages(current, current->mm, addr, npages,
                                     rw == WRITE, 1, pages, NULL);
         if (rc != npages) {
-                DBG("expect %d, got %d\n", npages, rc);
+                printk("expect %d, got %d\n", npages, rc);
                 npages = rc > 0 ? rc : 0;
                 rc = -EFAULT;
                 goto out;
@@ -772,13 +787,13 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         port = strchr(hostname, ':');
 	if (port == NULL || hostname == port || *(port+1) == '\0') {
-		DBG("server:port is expected as the device\n");
+		printk("server:port is expected as the device\n");
 		kfree(hostname);
 		return -EINVAL;
 	}
 
 	if (in_aton(hostname) == 0) {
-		DBG("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
+		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
 		kfree(hostname);
 		return -EINVAL;
 	}
@@ -787,7 +802,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	DBG("server/port=%s/%s\n", hostname, port);
 	tcp_port = simple_strtol(port, &endptr, 10);
         if (*endptr != '\0' || tcp_port <= 0) {
-		DBG("invalid port number\n");
+		printk("invalid port number\n");
 		kfree(hostname);
                 return -EINVAL;
 	}
@@ -818,7 +833,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
         if (rc)
-                DBG("Creaete objid %llu failed %d, loop device may not work\n", csi->csi_objid, rc);
+                printk("Creaete objid %llu failed %d\n", csi->csi_objid, rc);
 
         return 0;
 }
@@ -827,11 +842,10 @@ static void c2t1fs_kill_super(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
-        /* FIME: Disconnect from server here. */
+        /* FIXME: Disconnect from server here. */
         GETHERE;
         if (csi && csi->csi_xprt)
                 ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
-        GETHERE;
         kill_anon_super(sb);
 }
 
