@@ -257,49 +257,53 @@ struct super_operations c2t1fs_super_operations = {
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-        char *s1, *s2, *objid = NULL;
+        char *s1, *s2, *objid = NULL, *objsize = NULL;
 
         if (!options) {
-                printk(KERN_ERR "Missing mount data: check that "
-                       "/sbin/mount.c2t1fs is installed.\n");
+                printk(KERN_ERR "Missing mount data: objid=xxx,objsize=yyy\n");
                 return -EINVAL;
         }
 
         s1 = options;
         while (*s1) {
-                int clear = 0;
-
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
                 if (strncmp(s1, "objid=", 6) == 0) {
                         objid = s1 + 6;
-                        clear++;
+                } else if (strncmp(s1, "objsize=", 8) == 0) {
+                        objsize = s1 + 8;
                 }
 
                 /* Find next opt */
                 s2 = strchr(s1, ',');
                 if (s2 == NULL) {
-                        if (clear)
-                                *s1 = '\0';
                         break;
                 }
                 s2++;
-                if (clear)
-                        memmove(s1, s2, strlen(s2) + 1);
-                else
-                        s1 = s2;
+                s1 = s2;
         }
 
         if (objid) {
                 csi->csi_objid = simple_strtol(objid, NULL, 0);
                 if (csi->csi_objid <= 0) {
-                        printk(KERN_ERR "Invalid device_id=%lld specified\n", csi->csi_objid);
+                        printk(KERN_ERR "Invalid objid=%lld specified\n", csi->csi_objid);
                         return -EINVAL;
                 }
         } else {
                 printk(KERN_ERR "No device id specified (need mount option 'objid=...')\n");
                 return -EINVAL;
+        }
+        if (objsize) {
+                csi->csi_objsize = simple_strtol(objsize, NULL, 0);
+                if (csi->csi_objsize <= 0) {
+                        printk(KERN_WARNING "Invalid objsize=%lld specified."
+                               " Default value is used\n", csi->csi_objsize);
+                        csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
+                }
+        } else {
+                printk(KERN_WARNING "no objsize specified. Default value is used\n");
+                csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
         }
 
         return 0;
@@ -651,9 +655,7 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
                 inode->i_size = PAGE_SIZE;
                 inode->i_blocks = 1;
         } else {
-                /* FIXME: This should be taken from an getattr rpc */
-                /* Before that, let's have this size */
-                inode->i_size = 4 << 20;
+                inode->i_size = s2csi(inode->i_sb)->csi_objsize;
                 inode->i_blocks = inode->i_size >> PAGE_SHIFT;
         }
 
