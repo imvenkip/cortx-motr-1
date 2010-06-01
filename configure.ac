@@ -410,7 +410,7 @@ if test x$OS = xlinux; then
         AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found!])])
         AIO_LIBS=$LIBS
         AC_SUBST([AIO_LIBS])
-        LIBD=$OLD_LIBS
+        LIBS=$OLD_LIBS
 fi
 
 CFLAGS=""
