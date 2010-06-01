@@ -265,9 +265,9 @@ AC_ARG_ENABLE([gssrpc],
         [enable_gssrpc=no]
 )
 
-AC_ARG_ENABLE([db4-dio],
-        [AC_HELP_STRING([--enable-db4-dio], [enable db4 direct IO support])], [],
-        [enable_db4_dio=no]
+AC_ARG_ENABLE([db-o_direct],
+        [AC_HELP_STRING([--enable-db-o_direct], [enable db direct IO support])], [],
+        [enable_db_o_direct=no]
 )
 
 case $host_os in
@@ -324,68 +324,68 @@ if test x$OS = xlinux; then
         COLIBRI_LINUX_SENDFILE
 fi
 
-AC_ARG_WITH([db4],
-        [AC_HELP_STRING([--with-db4=path], [path where db4 was built])])
+AC_ARG_WITH([db],
+        [AC_HELP_STRING([--with-db=path], [path where db was built])])
 
 OLD_LIBS=$LIBS
 OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-AC_MSG_CHECKING([for db4 libs])
-if test x$with_db4 != x; then
-	DB4SRC="$with_db4"
-        DB4LIBS="$DB4SRC/build_unix/libdb.a"
-	if ! test -e $DB4LIBS; then
-		AC_MSG_ERROR([$DB4LIBS not found! Did you build db4?])
+AC_MSG_CHECKING([for db libs])
+if test x$with_db != x; then
+	DBSRC="$with_db"
+        DBLIBS="$DBSRC/build_unix/libdb.a"
+	if ! test -e $DBLIBS; then
+		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
 	fi
-        AC_MSG_RESULT([$DB4LIBS])
+        AC_MSG_RESULT([$DBLIBS])
 else
-	DB4SRC="$SRCDIR/../db4"
-        DB4LIBS="$DB4SRC/build_unix/libdb.a"
-	if ! test -e $DB4LIBS; then
+	DBSRC="$SRCDIR/../db4"
+        DBLIBS="$DBSRC/build_unix/libdb.a"
+	if ! test -e $DBLIBS; then
 		oldcwd=$(pwd)
-		if test x$enable_db4_dio = xyes; then
-		        dio_options="--enable-o_direct"
+		if test x$enable_db_o_direct = xyes; then
+		        o_direct_options="--enable-o_direct"
 		else
-		        dio_options=""
+		        o_direct_options=""
 		fi
-                AC_MSG_RESULT([building $DB4SRC])
+                AC_MSG_RESULT([building $DBSRC])
 
                 # We need -fPIC to link libdb.a (static library) into so libraries, which should
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make])
-		cd $DB4SRC/build_unix && ../dist/configure CFLAGS=-fPIC $dio_options && make
+                AC_MSG_NOTICE([cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make])
+		cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then
-			AC_MSG_ERROR([An error occured while building db4!])
+			AC_MSG_ERROR([An error occured while building db!])
 		fi
-		if ! test -e $DB4LIBS; then
-			AC_MSG_ERROR([$DB4LIBS not found! Build failed?])
+		if ! test -e $DBLIBS; then
+			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
 	        fi
 	else
-                DB4LIBS="$DB4SRC/build_unix/libdb.a"
-                AC_MSG_RESULT([$DB4LIBS])
+                DBLIBS="$DBSRC/build_unix/libdb.a"
+                AC_MSG_RESULT([$DBLIBS])
 	fi
 fi
 
-# Check if DIO patch applied
-if test x$OS = xlinux -a x$enable_db4_dio = xyes; then
-        AC_MSG_CHECKING([for DIO patch applied to db4])
-        $NM_B $DB4LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
+# Check if o_direct patch applied
+if test x$OS = xlinux -a x$enable_db_o_direct = xyes; then
+        AC_MSG_CHECKING([for direct I/O patch applied to db])
+        $NM_B $DBLIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
         if ! test $rc -eq 0; then
                 AC_MSG_RESULT([no])
-                AC_MSG_ERROR([No DIO patch applied to db4 at $DB4SRC])
+                AC_MSG_ERROR([No direct I/O patch applied to db at $DBSRC found!])
         else
                 AC_MSG_RESULT([yes])
         fi
 fi
 
-AC_SUBST([DB4SRC])
-AC_SUBST([DB4LIBS])
+AC_SUBST([DBSRC])
+AC_SUBST([DBLIBS])
 
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
@@ -485,7 +485,7 @@ echo ""
 if test x$OS = xlinux; then
 echo "Linux  :  \"$LINUX\""
 fi
-echo "DB     :  \"$DB4SRC\""
+echo "Db     :  \"$DBSRC\""
 echo ""
 
 echo "Type 'make' to build Colibri"

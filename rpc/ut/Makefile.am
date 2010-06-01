@@ -1,4 +1,4 @@
-INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@/build_unix
+INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix
 
 noinst_PROGRAMS   = rclient rserver
 
@@ -10,6 +10,6 @@ rclient_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
 rserver_SOURCES   = rpc-server.c
 rserver_LDFLAGS   = -pthread
 rserver_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
-		    $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/sunrpc/libcolibri-net-sunrpc.la @DB4LIBS@
+		    $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/sunrpc/libcolibri-net-sunrpc.la @DBLIBS@
 
 
