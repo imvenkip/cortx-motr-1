@@ -1,5 +1,5 @@
 lib_LTLIBRARIES                   = libcolibri-net-usunrpc.la
-libcolibri_net_usunrpc_la_SOURCES  = client.c server.c domain.c
+libcolibri_net_usunrpc_la_SOURCES  = client.c server.c domain.c usunrpc.h usunrpc_internal.h
 libcolibri_net_usunrpc_la_LDFLAGS  = -release @LT_RELEASE@
 libcolibri_net_usunrpc_la_LIBADD   = $(top_builddir)/lib/libc2.la
 
