@@ -1,4 +1,4 @@
-lib_LTLIBRARIES    = libcolibri-fol.la
+noinst_LTLIBRARIES         = libcolibri-fol.la
 CWD=$(PWD)
 
 fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
@@ -12,9 +12,8 @@ fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 libcolibri_fol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libcolibri_fol_la_LDFLAGS  = -release @LT_RELEASE@
 
-INCLUDES           = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@ -I@DBSRC@/build_unix
-
-EXTRA_DIST	   = fol.t
+INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@ -I@DBSRC@/build_unix
+EXTRA_DIST	           = fol.t
 
 clean-local:
 	cd @SRCDIR@/fol ; \

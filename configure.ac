@@ -335,14 +335,14 @@ CFLAGS=""
 AC_MSG_CHECKING([for db libs])
 if test x$with_db != x; then
 	DBSRC="$with_db"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
+        DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
 	if ! test -e $DBLIBS; then
 		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
 	fi
         AC_MSG_RESULT([$DBLIBS])
 else
 	DBSRC="$SRCDIR/../db4"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
+        DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
 	if ! test -e $DBLIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db_o_direct = xyes; then
@@ -355,7 +355,7 @@ else
                 # We need -fPIC to link libdb.a (static library) into so libraries, which should
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make])
+                AC_MSG_NOTICE([cd $DBSRC/build_unix && ../dist/configure $o_direct_options && make])
 		cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
 		res=$?
 		cd $oldcwd
@@ -366,7 +366,7 @@ else
 			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
 	        fi
 	else
-                DBLIBS="$DBSRC/build_unix/libdb.a"
+                DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
                 AC_MSG_RESULT([$DBLIBS])
 	fi
 fi

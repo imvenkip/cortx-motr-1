@@ -1,4 +1,4 @@
-INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix -I @DBSRC@
+INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix -I@DBSRC@
 
 if LINUX
 noinst_PROGRAMS  = server utadieu client
