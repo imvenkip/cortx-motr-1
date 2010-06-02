@@ -17,6 +17,12 @@ all:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 clean distclean:
+	if ! test -e c2t1fs; then       \
+            ln -s $(C2T1FS_SRCDIR);     \
+        fi
+	if ! test -e ksunrpc; then      \
+            ln -s $(KSUNRPC_SRCDIR);    \
+        fi
 	$(MAKE) -C c2t1fs clean
 	$(MAKE) -C ksunrpc clean
 	$(RM) Module.markers modules.order
@@ -32,7 +38,11 @@ distclean clean:
 endif
 
 distdir:
-	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.[ch] $(C2T1FS_SRCDIR)/c2t1fs_loop.c \
-@top_builddir@/@PACKAGE@-@VERSION@/c2t1fs
-	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/client.c $(KSUNRPC_SRCDIR)/xdr.c \
-$(KSUNRPC_SRCDIR)/ksunrpc.h @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc
+	if ! test -e c2t1fs; then       \
+            ln -s $(C2T1FS_SRCDIR);     \
+        fi
+	if ! test -e ksunrpc; then      \
+            ln -s $(KSUNRPC_SRCDIR);    \
+        fi
+	$(MAKE) -C c2t1fs distdir
+	$(MAKE) -C ksunrpc distdir
