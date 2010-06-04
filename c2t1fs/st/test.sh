@@ -33,6 +33,7 @@ dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
 
 #attach loop device over c2t1fs file
 insmod c2t1fs/c2t1fs_loop.ko
+sleep 1
 losetup /dev/loop0 /mnt/c2t1fs/12345
 
 mkfs.ext3 /dev/loop0
