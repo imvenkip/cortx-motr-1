@@ -821,6 +821,12 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file,
 
 	set_blocksize(bdev, lo_blocksize);
 
+        blk_queue_max_sectors(lo->lo_queue,
+                              BIO_MAX_PAGES << (PAGE_SHIFT - 9));
+        blk_queue_max_phys_segments(lo->lo_queue, BIO_MAX_PAGES);
+        blk_queue_max_hw_segments(lo->lo_queue, BIO_MAX_PAGES);
+        blk_queue_hardsect_size(lo->lo_queue, PAGE_SIZE);
+
 	error = kernel_thread(loop_thread, lo, CLONE_KERNEL);
 	if (error < 0)
 		goto out_putf;
@@ -1278,12 +1284,6 @@ static int __init loop_init(void)
 		sprintf(disk->disk_name, "loop%d", i);
 		disk->private_data = lo;
 		disk->queue = lo->lo_queue;
-
-#define MAX_SEGMENTS    256
-                blk_queue_max_sectors(lo->lo_queue,
-                                      MAX_SEGMENTS << (PAGE_SHIFT - 9));
-                blk_queue_max_phys_segments(lo->lo_queue, MAX_SEGMENTS);
-                blk_queue_max_hw_segments(lo->lo_queue, MAX_SEGMENTS);
 	}
 
 	/* We cannot fail after we call this, so another loop!*/
