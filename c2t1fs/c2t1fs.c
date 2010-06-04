@@ -413,17 +413,64 @@ static ssize_t c2t1fs_file_readv(struct file *file, const struct iovec *iov,
 static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
                                   unsigned long nr_segs, loff_t *ppos)
 {
+        struct inode          *inode = file->f_dentry->d_inode;
+        struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
         ssize_t count = 0;
         ssize_t rc;
         int i;
+        int j;
+        int nr_pages = 0;
+        struct page **pages;
+        const struct iovec *iv;
 
         if (nr_segs == 0)
                 return 0;
+        if (nr_segs == 1)
+                goto normal_write;
 
+        iv = iov;
+        for (i = 0; i < nr_segs; i++, iv++) {
+                unsigned long addr = (unsigned long)iv->iov_base;
+                if (addr < PAGE_OFFSET)
+                        goto normal_write;
+                if (addr & (PAGE_SIZE - 1))
+                        goto normal_write;
+                if (iv->iov_len & (PAGE_SIZE - 1))
+                        goto normal_write;
+                nr_pages += iv->iov_len >> PAGE_SHIFT;
+        }
+
+        pages = kmalloc(sizeof(struct page *) * nr_pages, GFP_KERNEL);
+        if (pages == NULL)
+                goto normal_write;
+
+        iv = iov;
+        for (i = 0, j = 0; i < nr_segs; i++, iv++) {
+                unsigned long base = (unsigned long)iv->iov_base;
+                int len = iv->iov_len;
+                while (len) {
+                        pages[j++] = virt_to_page(base);
+                        base += PAGE_SIZE;
+                        len -= PAGE_SIZE;
+                }
+        }
+        BUG_ON(nr_pages != j);
+
+        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, nr_pages,
+                                0, nr_pages << PAGE_SHIFT, *ppos, WRITE);
+        if (rc > 0) {
+                *ppos += rc;
+                if (*ppos > inode->i_size)
+                        inode->i_size = *ppos;
+        }
+        kfree(pages);
+        return rc;
+
+normal_write:
         /* TODO: a fake readv, will fix it after we have a real c2t1fs */
         for (i = 0; i < nr_segs; i++) {
-                rc = file->f_op->read(file, iov->iov_base, iov->iov_len,
-                                      ppos);
+                rc = file->f_op->write(file, iov->iov_base, iov->iov_len,
+                                       ppos);
                 if (rc <= 0)
                         break;
 
