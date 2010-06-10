@@ -7,6 +7,9 @@
 
 /**
    @addtogroup mutex
+
+   Implementation of c2_mutex on top of pthread_mutex_t.
+
    @{
 */
 

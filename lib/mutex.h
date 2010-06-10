@@ -21,9 +21,37 @@ struct c2_mutex {
 void c2_mutex_init(struct c2_mutex *mutex);
 void c2_mutex_fini(struct c2_mutex *mutex);
 
+/**
+   Returns with the mutex locked.
+
+   @pre  c2_mutex_is_not_locked(mutex)
+   @post c2_mutex_is_locked(mutex)
+ */
 void c2_mutex_lock(struct c2_mutex *mutex);
+
+/**
+   Unlocks the mutex.
+
+   @pre  c2_mutex_is_locked(mutex)
+   @post c2_mutex_is_not_locked(mutex)
+ */
 void c2_mutex_unlock(struct c2_mutex *mutex);
+
+/**
+   True iff mutex is locked by the calling thread.
+
+   @note this function can be used only in assertions.
+ */
 bool c2_mutex_is_locked(const struct c2_mutex *mutex);
+
+/**
+   True iff mutex is not locked by the calling thread.
+
+   @note this function can be used only in assertions.
+
+   @note that this function is *not* necessary equivalent to
+   !c2_mutex_is_locked(mutex).
+ */
 bool c2_mutex_is_not_locked(const struct c2_mutex *mutex);
 
 
