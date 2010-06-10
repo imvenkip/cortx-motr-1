@@ -8,7 +8,26 @@
 #include "atomic.h"
 #include "memory.h"
 
+/**
+   @addtogroup memory
+
+   User level malloc(3) based implementation.
+
+   The only interesting detail is implementation of c2_allocated(). No standard
+   function returns the amount of memory allocated in the arena.
+
+   GNU Libc defines mallinfo() function, returning the amount of allocated
+   memory among other things. On OS X (of all places) there is malloc_size()
+   function that, given a pointer to an allocated block of memory, returns its
+   size. On other platforms c2_allocates() is always 0.
+
+   @{
+*/
+
+static struct c2_atomic64 allocated;
+
 #ifdef HAVE_MALLINFO
+
 #include <malloc.h>
 static size_t __allocated(void)
 {
@@ -19,10 +38,11 @@ static size_t __allocated(void)
 }
 #define __free free
 #define __malloc malloc
-#elif HAVE_MALLOC_SIZE
-#include <malloc/malloc.h>
 
-static struct c2_atomic64 allocated = {0};//FIXME: where is this defined? C2_ATOMIC64_INIT(0);
+/* HAVE_MALLINFO */
+#elif HAVE_MALLOC_SIZE
+
+#include <malloc/malloc.h>
 
 static void __free(void *ptr)
 {
@@ -43,6 +63,8 @@ static size_t __allocated(void)
 {
 	return c2_atomic64_get(&allocated);
 }
+
+/* HAVE_MALLOC_SIZE */
 #else
 
 static size_t __allocated(void)
@@ -86,12 +108,15 @@ size_t c2_allocated(void)
 
 void c2_memory_init()
 {
+	c2_atomic64_set(&allocated, 0);
 	used0 = __allocated();
 }
 
 void c2_memory_fini()
 {
 }
+
+/** @} end of memory group */
 
 /* 
  *  Local variables:

@@ -10,7 +10,7 @@
 */
 
 /**
- * allocate memory
+ * Allocates zero-filled memory
  * @param size - memory size
  *
  * @retval NULL - allocation failed
