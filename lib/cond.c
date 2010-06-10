@@ -6,6 +6,14 @@
 
 /**
    @addtogroup cond
+
+   Very simple implementation of condition variables on top of waiting
+   channels. 
+
+   Self-explanatory.
+
+   @see c2_chan
+
    @{
  */
 
@@ -23,7 +31,13 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 {
 	struct c2_clink clink;
 
-	C2_ASSERT(c2_mutex_is_locked(mutex));
+	/*
+	 * First, register the clink with the channel, *then* unlock the
+	 * mutex. This guarantees that signals to the condition variable are not
+	 * missed, because they are done under the mutex.
+	 */
+
+	C2_PRE(c2_mutex_is_locked(mutex));
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&cond->c_chan, &clink);
@@ -34,13 +48,15 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 	c2_clink_fini(&clink);
 }
 
-void c2_cond_signal(struct c2_cond *cond)
+void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex)
 {
+	C2_PRE(c2_mutex_is_locked(mutex));
 	c2_chan_signal(&cond->c_chan);
 }
 
-void c2_cond_broadcast(struct c2_cond *cond)
+void c2_cond_broadcast(struct c2_cond *cond, struct c2_mutex *mutex)
 {
+	C2_PRE(c2_mutex_is_locked(mutex));
 	c2_chan_broadcast(&cond->c_chan);
 }
 

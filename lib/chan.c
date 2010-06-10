@@ -8,9 +8,36 @@
 
 /**
    @addtogroup chan
+
+   A simplistic user space implementation of c2_chan and c2_clink interfaces
+   based on POSIX semaphores.
+
+   A list of registered clinks is maintained for each channel. Each clink has a
+   semaphore, used to wait for pending events. When an event is declared on the
+   channel, a number (depending on whether event is signalled or broadcast) of
+   clinks on the channel list is scanned and for each of them either call-back
+   is called or semaphore is upped.
+
+   To wait for an event, a user downs clink semaphore.
+
+   Semaphore is initialized every time when the clink is registered with a
+   channel (c2_clink_add()) and destroyed every time the clink is deleted from a
+   channel (c2_clink_del()). This guarantees that semaphore counter is exactly
+   equal to the number of pending events declared on the channel.
+
+   @todo replace POSIX sem_t with c2_semaphore.
+
+   @note that a version of c2_chan_wait() with a timeout would induce some
+   changes to the design, because in this case it is waiter who has to unlink a
+   clink from a channel.
+
    @{
  */
 
+/**
+   Channel invariant: all clinks on the list are clinks for this channel and
+   number of waiters matches list length.
+ */
 static bool c2_chan_invariant_locked(struct c2_chan *chan)
 {
 	struct c2_clink *scan;

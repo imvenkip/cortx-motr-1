@@ -18,7 +18,7 @@
    can wait or register a call-back for.
 
    A clink (c2_clink) is a record of interest in events on a particular
-   channel. A user adds clink to a channel and appearance of new events in the
+   channel. A user adds a clink to a channel and appearance of new events in the
    stream is recorded in the clink.
 
    There are two interfaces related to channels:
@@ -50,10 +50,49 @@
 
 /**
    A stream of asynchronous events.
+
+   <b>Concurrency control</b>
+
+   Implementation serializes producer interface calls, but see
+   c2_chan_broadcast() description. Implementation serializes c2_clink_add() and
+   c2_clink_del() calls against a given channel.
+
+   <b>Liveness</b>
+
+   A user has to enforce a serialization between event production and channel
+   destruction. Implementation guarantees that call to c2_chan_fini() first
+   waits until calls to c2_chan_{signal,broadcast}() that started before this
+   c2_chan_fini() call complete. This make the following idiomatic usage safe:
+
+   @code
+   struct c2_chan *complete;
+
+   producer() {
+           ...
+           c2_chan_signal(complete);
+   }
+
+   consumer() {
+           c2_clink_add(complete, &wait);
+           for (i = 0; i < nr_producers; ++i)
+                   c2_chan_wait(&wait);
+           c2_clink_del(&wait);
+           c2_chan_fini(complete);
+           c2_free(complete);
+   }
+   @endcode
+
+   <b>Invariants</b>
+
+   c2_chan_invariant()
  */
 struct c2_chan {
+	/** Lock protecting other fields. */
 	struct c2_mutex ch_guard;
+	/** List of registered clinks. */
 	struct c2_list  ch_links;
+	/** Number of clinks in c2_chan::ch_links. This is used to speed up
+	    c2_chan_broadcast(). */
 	uint32_t        ch_waiters;
 };
 
@@ -78,15 +117,26 @@ typedef void (*c2_chan_cb_t)(struct c2_clink *link);
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().
 
-   <b<Concurrency control</b>
+   <b>Concurrency control</b>
 
    A user must guarantee that at most one thread waits on a
    clink. Synchronization between call-backs, waits and clink destruction is
    also up to user.
+
+   A user owns a clink before call to c2_chan_add() and after return from the
+   c2_chan_del() call. At any other time clink can be concurrently accessed by
+   the implementation.
+
+   <b>Liveness</b>
+
+   A user is free to dispose a clink whenever it owns the latter.
  */
 struct c2_clink {
+	/** Channel this clink is registered with. */
 	struct c2_chan     *cl_chan;
+	/** Call-back to be called when event is declared. */
 	c2_chan_cb_t        cl_cb;
+	/** Linkage into c2_chan::ch_links */
 	struct c2_list_link cl_linkage;
 	/** POSIX.1-2001 semaphore for now. */
 	sem_t               cl_wait;

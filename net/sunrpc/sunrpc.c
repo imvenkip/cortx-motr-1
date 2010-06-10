@@ -210,7 +210,7 @@ static void conn_xprt_put(struct sunrpc_conn *xconn, struct sunrpc_xprt *xprt)
 {
 	c2_mutex_lock(&xconn->nsc_guard);
 	c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
-	c2_cond_signal(&xconn->nsc_gotfree);
+	c2_cond_signal(&xconn->nsc_gotfree, &xconn->nsc_guard);
 	c2_mutex_unlock(&xconn->nsc_guard);
 }
 
@@ -249,7 +249,7 @@ static int user_sunrpc_conn_send(struct c2_net_conn *conn,
 
 	c2_mutex_lock(&xdom->sd_guard);
 	c2_queue_put(&xdom->sd_queue, &call->ac_linkage);
-	c2_cond_signal(&xdom->sd_gotwork);
+	c2_cond_signal(&xdom->sd_gotwork, &xdom->sd_guard);
 	c2_mutex_unlock(&xdom->sd_guard);
 	
 	return 0;
@@ -581,7 +581,8 @@ static void user_sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 				wi->wi_transp = transp;
 				c2_mutex_lock(&xs->s_req_guard);
 				c2_queue_put(&xs->s_requests, &wi->wi_linkage);
-				c2_cond_signal(&xs->s_gotwork);
+				c2_cond_signal(&xs->s_gotwork, 
+					       &xs->s_req_guard);
 				c2_mutex_unlock(&xs->s_req_guard);
 				result = 0;
 			} else {
@@ -702,7 +703,7 @@ static void user_service_stop(struct sunrpc_service *xs)
 	 */
 	c2_mutex_lock(&xs->s_req_guard);
 	xs->s_shutdown = true;
-	c2_cond_broadcast(&xs->s_gotwork);
+	c2_cond_broadcast(&xs->s_gotwork, &xs->s_req_guard);
 	c2_mutex_unlock(&xs->s_req_guard);
 
 	if (xs->s_workers != NULL) {
@@ -878,7 +879,9 @@ static void user_dom_fini(struct c2_net_domain *dom)
 		xdom->sd_shutown = true;
 		/* wake up all worker threads so that they detect shutdown and
 		   exit */
-		c2_cond_broadcast(&xdom->sd_gotwork);
+		c2_mutex_lock(&xdom->sd_guard);
+		c2_cond_broadcast(&xdom->sd_gotwork, &xdom->sd_guard);
+		c2_mutex_unlock(&xdom->sd_guard);
 		for (i = 0; i < ARRAY_SIZE(xdom->sd_workers); ++i) {
 			if (xdom->sd_workers[i].t_func != NULL) {
 				int rc;
