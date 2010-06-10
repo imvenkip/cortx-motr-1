@@ -833,7 +833,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
         if (rc)
-                printk("Creaete objid %llu failed %d\n", csi->csi_objid, rc);
+                printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
 
         return 0;
 }
