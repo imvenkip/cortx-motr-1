@@ -3,8 +3,13 @@
 
 void c2_list_init(struct c2_list *head)
 {
-	head->first = (struct c2_list_link *)head;
-	head->last = (struct c2_list_link *)head;
+	C2_CASSERT(offsetof(struct c2_list, l_head) == 
+		   offsetof(struct c2_list_link, ll_next));
+	C2_CASSERT(offsetof(struct c2_list, l_tail) == 
+		   offsetof(struct c2_list_link, ll_prev));
+
+	head->l_head = (struct c2_list_link *)head;
+	head->l_tail = (struct c2_list_link *)head;
 }
 
 void c2_list_fini(struct c2_list *head)
@@ -14,11 +19,11 @@ void c2_list_fini(struct c2_list *head)
 
 bool c2_list_is_empty(const struct c2_list *head)
 {
-	return head->first == (void *)head && head->last == (void *)head;
+	return head->l_head == (void *)head && head->l_tail == (void *)head;
 }
 bool c2_list_invariant(const struct c2_list *head)
 {
-	struct c2_list_link *pos = head->first;
+	struct c2_list_link *pos = head->l_head;
 
 	while (pos != (void *)head) {
 		if (pos->ll_next->ll_prev != pos ||
@@ -37,7 +42,7 @@ size_t c2_list_length(const struct c2_list *list)
 
 	C2_ASSERT(c2_list_invariant(list));
 	length = 0;
-	for (scan = list->first; scan != (void *)list; scan = scan->ll_next)
+	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
 		length++;
 	return length;
 }

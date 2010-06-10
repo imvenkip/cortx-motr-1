@@ -65,7 +65,7 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 	struct c2_clink *clink;
 
 	if (!c2_list_is_empty(&chan->ch_links)) {
-		clink = container_of(chan->ch_links.first, struct c2_clink,
+		clink = container_of(chan->ch_links.l_head, struct c2_clink,
 				     cl_linkage);
 		c2_list_del(&clink->cl_linkage);
 		c2_list_add_tail(&chan->ch_links, &clink->cl_linkage);

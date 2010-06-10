@@ -43,28 +43,28 @@ void c2_list_link_fini(struct c2_list_link *link);
 
 /**
    List head.
+
+   @note it is necessary that this structure has exactly the same layout as
+   c2_list_link. It is checked by assertions in c2_list_init().
  */
 struct c2_list {
 	/**
 	 * Pointer to the first entry in the list.
 	 */
-	struct c2_list_link *first;
+	struct c2_list_link *l_head;
 	/**
 	 * Pointer to the last entry in the list.
 	 */
-	struct c2_list_link *last;
+	struct c2_list_link *l_tail;
 };
 
 /**
- initialize list head
- *
- * @param head pointer to list head
+   Initializes list head.
  */
 void c2_list_init(struct c2_list *head);
-/**
- free list resources
 
- @param head pointer to list head
+/**
+   Finalizes the list.
  */
 void c2_list_fini(struct c2_list *head);
 
@@ -110,7 +110,7 @@ static inline void __c2_list_add(struct c2_list_link *next,
  */
 static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
 {
-	__c2_list_add(head->first, (void *)head, new);
+	__c2_list_add(head->l_head, (void *)head, new);
 }
 
 /**
@@ -121,7 +121,7 @@ static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
  */
 static inline void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
 {
-	__c2_list_add((void *)head, head->last, new);
+	__c2_list_add((void *)head, head->l_tail, new);
 }
 
 /**
@@ -155,9 +155,9 @@ static inline void c2_list_del_init(struct c2_list_link *old)
  *
  * @return pointer to first list entry or NULL if list empty
  */
-static inline struct c2_list_link * c2_list_first(const struct c2_list *head)
+static inline struct c2_list_link *c2_list_first(const struct c2_list *head)
 {
-	return head->first != (void *)head ? head->first : NULL ;
+	return head->l_head != (void *)head ? head->l_head : NULL ;
 }
 
 
@@ -185,7 +185,7 @@ size_t c2_list_length(const struct c2_list *list);
  * @param pos	the pointer to list_link to use as a loop counter.
  */
 #define c2_list_for_each(head, pos) \
-	for(pos = (head)->first; pos != (void *)(head); \
+	for(pos = (head)->l_head; pos != (void *)(head); \
 	    pos = (pos)->ll_next)
 
 /**
@@ -195,7 +195,7 @@ size_t c2_list_length(const struct c2_list *list);
  @param pos	the pointer to list_link to use as a loop counter.
  */
 #define c2_list_for_each_entry(head, pos, type, member) \
-	for(pos = c2_list_entry((head)->first, type, member); \
+	for(pos = c2_list_entry((head)->l_head, type, member); \
 	    &(pos->member) != (void *)head; \
 	    pos = c2_list_entry((pos)->member.ll_next, type, member))
 

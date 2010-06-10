@@ -298,7 +298,7 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 	while (!c2_list_is_empty(&ldom->sdl_object)) {
 		struct linux_stob *lstob;
 
-		lstob = container_of(ldom->sdl_object.first, 
+		lstob = container_of(ldom->sdl_object.l_head,
 				     struct linux_stob, sl_linkage);
 		linux_stob_fini(&lstob->sl_stob);
 	}
