@@ -5,6 +5,20 @@
 
 /**
    @addtogroup queue Queue
+
+   When a queue is not empty, last element's c2_queue_link::ql_next is set to
+   "end-of-queue" marker (EOQ). This guarantees that an element is in a queue
+   iff ql_next is not NULL (see c2_queue_link_is_in()).
+
+   When a queue is empty, its head and tail are set to EOQ. This allows
+   iteration over queue elements via loop of the form 
+
+   @code
+   for (scan = q->q_head; scan != EOQ; scan = scan->ql_next) { ... }
+   @endcode
+
+   independently of whether the queue is empty.
+
    @{
  */
 
