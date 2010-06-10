@@ -10,6 +10,8 @@
    @defgroup atomic
 
    Atomic operations on 64bit quantities.
+
+   Implementation of these is platform-specific.
  */
 
 /**
@@ -18,12 +20,7 @@
 struct c2_atomic64;
 
 /**
-   set value to atomic counter
-
-   @param a pointer to atomic counter
-   @param num value to set
-
-   @return none
+   Assigns a value to a counter.
  */
 PREFIX void c2_atomic64_set(struct c2_atomic64 *a, int64_t num);
 
@@ -33,51 +30,43 @@ PREFIX void c2_atomic64_set(struct c2_atomic64 *a, int64_t num);
 PREFIX int64_t c2_atomic64_get(const struct c2_atomic64 *a);
 
 /**
-   atomically increment counter
-
-   @param a pointer to atomic counter
-   @return none
+   Atomically increments a counter.
  */
 PREFIX void c2_atomic64_inc(struct c2_atomic64 *a);
 
 /**
-   atomically decrement counter
-
-   @param a pointer to atomic counter
-
-   @return none
+   Atomically decrements a counter.
  */
 PREFIX void c2_atomic64_dec(struct c2_atomic64 *a);
 
 /**
-   Atomically adds given amount to a counter
+   Atomically adds given amount to a counter.
  */
 PREFIX void c2_atomic64_add(struct c2_atomic64 *a, int64_t num);
 
 /**
-   Atomically subtracts given amount from a counter
+   Atomically subtracts given amount from a counter.
  */
 PREFIX void c2_atomic64_sub(struct c2_atomic64 *a, int64_t num);
 
 /**
-   atomically increment counter and return result
-
-   @param a pointer to atomic counter
-
-   @return new value of atomic counter
+   Atomically increments a counter and returns the result.
  */
 PREFIX int64_t c2_atomic64_add_return(struct c2_atomic64 *a, int64_t d);
 
 /**
- atomically decrement counter and return result
-
- @param a pointer to atomic counter
-
- @return new value of atomic counter
+   Atomically decrements a counter and returns the result.
  */
 PREFIX int64_t c2_atomic64_sub_return(struct c2_atomic64 *a, int64_t d);
 
+/**
+   Atomically increments a counter and returns true iff the result is 0.
+ */
 PREFIX bool c2_atomic64_inc_and_test(struct c2_atomic64 *a);
+
+/**
+   Atomically decrements a counter and returns true iff the result is 0.
+ */
 PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
 
 /** @} end of atomic group */
