@@ -21,10 +21,10 @@ bool c2_list_invariant(const struct c2_list *head)
 	struct c2_list_link *pos = head->first;
 
 	while (pos != (void *)head) {
-		if (pos->next->prev != pos ||
-		    pos->prev->next != pos)
+		if (pos->ll_next->ll_prev != pos ||
+		    pos->ll_prev->ll_next != pos)
 			return false;
-		pos = pos->next;
+		pos = pos->ll_next;
 	}
 
 	return true;
@@ -37,15 +37,15 @@ size_t c2_list_length(const struct c2_list *list)
 
 	C2_ASSERT(c2_list_invariant(list));
 	length = 0;
-	for (scan = list->first; scan != (void *)list; scan = scan->next)
+	for (scan = list->first; scan != (void *)list; scan = scan->ll_next)
 		length++;
 	return length;
 }
 
 void c2_list_link_init(struct c2_list_link *link)
 {
-	link->prev = link;
-	link->next = link;
+	link->ll_prev = link;
+	link->ll_next = link;
 }
 
 void c2_list_link_fini(struct c2_list_link *link)
@@ -55,7 +55,7 @@ void c2_list_link_fini(struct c2_list_link *link)
 
 bool c2_list_link_is_in(const struct c2_list_link *link)
 {
-	return link->prev != link;
+	return link->ll_prev != link;
 }
 
 /*

@@ -20,11 +20,11 @@ struct c2_list_link {
 	/**
 	 * Next entry in the list
 	 */
-	struct c2_list_link *next;
+	struct c2_list_link *ll_next;
 	/**
 	 * Previous entry in the list
 	 */
-	struct c2_list_link *prev;
+	struct c2_list_link *ll_prev;
 };
 
 /**
@@ -42,15 +42,15 @@ void c2_list_link_init(struct c2_list_link *link);
 void c2_list_link_fini(struct c2_list_link *link);
 
 /**
- list head
+   List head.
  */
 struct c2_list {
 	/**
-	 * pointer to first in list
+	 * Pointer to the first entry in the list.
 	 */
 	struct c2_list_link *first;
 	/**
-	 * pointer to last elemnt in list
+	 * Pointer to the last entry in the list.
 	 */
 	struct c2_list_link *last;
 };
@@ -83,7 +83,7 @@ bool c2_list_contains(const struct c2_list *list,
 
 /**
  This function iterate over the argument list checking that double-linked
- list invariant holds (x->prev->next == x && x->next->prev == x).
+ list invariant holds (x->ll_prev->ll_next == x && x->ll_next->ll_prev == x).
 
  @return true iff @list isn't corrupted
 */
@@ -95,11 +95,11 @@ static inline void __c2_list_add(struct c2_list_link *next,
 				 struct c2_list_link *prev,
 			         struct c2_list_link *new)
 {
-	new->next = next;
-	new->prev = prev;
+	new->ll_next = next;
+	new->ll_prev = prev;
 	
-	next->prev = new;
-	prev->next = new;
+	next->ll_prev = new;
+	prev->ll_next = new;
 }
 
 /**
@@ -131,8 +131,8 @@ static inline void c2_list_add_tail(struct c2_list *head, struct c2_list_link *n
  */
 static inline void c2_list_del(struct c2_list_link *old)
 {
-	old->prev->next = old->next;
-	old->next->prev = old->prev;
+	old->ll_prev->ll_next = old->ll_next;
+	old->ll_next->ll_prev = old->ll_prev;
 }
 
 /**
@@ -142,8 +142,8 @@ static inline void c2_list_del(struct c2_list_link *old)
  */
 static inline void c2_list_del_init(struct c2_list_link *old)
 {
-	old->prev->next = old->next;
-	old->next->prev = old->prev;
+	old->ll_prev->ll_next = old->ll_next;
+	old->ll_next->ll_prev = old->ll_prev;
 	c2_list_link_init(old);
 }
 
@@ -186,7 +186,7 @@ size_t c2_list_length(const struct c2_list *list);
  */
 #define c2_list_for_each(head, pos) \
 	for(pos = (head)->first; pos != (void *)(head); \
-	    pos = (pos)->next)
+	    pos = (pos)->ll_next)
 
 /**
  Iterate over a list
@@ -197,9 +197,12 @@ size_t c2_list_length(const struct c2_list *list);
 #define c2_list_for_each_entry(head, pos, type, member) \
 	for(pos = c2_list_entry((head)->first, type, member); \
 	    &(pos->member) != (void *)head; \
-	    pos = c2_list_entry((pos)->member.next, type, member))
+	    pos = c2_list_entry((pos)->member.ll_next, type, member))
 
 
+/** @} end of list group */
+
+/* __COLIBRI_LIB_LIST_H__ */
 #endif
 /*
  *  Local variables:
