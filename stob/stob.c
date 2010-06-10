@@ -84,7 +84,7 @@ int c2_stob_locate(struct c2_stob *obj)
 		result = -ENOENT;
 		break;
 	default:
-		C2_ASSERT(0);
+		C2_IMPOSSIBLE("invalid object state");
 	}
 	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	C2_POST(ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
@@ -106,7 +106,7 @@ int c2_stob_create(struct c2_stob *obj)
 		result = 0;
 		break;
 	default:
-		C2_ASSERT(0);
+		C2_IMPOSSIBLE("invalid object state");
 	}
 	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
 	return result;

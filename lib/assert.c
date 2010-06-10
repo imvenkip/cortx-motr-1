@@ -17,6 +17,8 @@
 
 /**
    @addtogroup assert
+
+   User space c2_panic() implementation.
    @{
 */
 
@@ -24,6 +26,14 @@ enum {
 	BACKTRACE_DEPTH_MAX = 256
 };
 
+/**
+   Simple user space panic function: issue diagnostics to the stderr, flush the
+   stream, optionally print the backtrace and abort(3) the program.
+
+   Stack back-trace printing uses GNU extensions to the libc, declared in
+   <execinfo.h> header (checked for by ./configure). Object files should be
+   compiled with -rdynamic for this to work in the presence of dynamic linking.
+ */
 void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 {
 	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
