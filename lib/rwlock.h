@@ -45,11 +45,7 @@ void c2_rwlock_read_lock(struct c2_rwlock *lock);
  */
 void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 
-struct c2_semaphore {
-};
-
 /** @} end of rwlock group */
-
 
 /* __COLIBRI_LIB_RWLOCK_H__ */
 #endif
