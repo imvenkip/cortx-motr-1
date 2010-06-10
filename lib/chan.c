@@ -67,8 +67,7 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 	if (!c2_list_is_empty(&chan->ch_links)) {
 		clink = container_of(chan->ch_links.l_head, struct c2_clink,
 				     cl_linkage);
-		c2_list_del(&clink->cl_linkage);
-		c2_list_add_tail(&chan->ch_links, &clink->cl_linkage);
+		c2_list_move_tail(&chan->ch_links, &clink->cl_linkage);
 	} else
 		clink = NULL;
 	C2_ASSERT((chan->ch_waiters > 0) == (clink != NULL));
