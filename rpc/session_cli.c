@@ -1,5 +1,5 @@
 /* -*- C -*- */
-#include <lib/c2list.h>
+#include <lib/list.h>
 
 #include <rpc_common.h>
 #include <session.h>

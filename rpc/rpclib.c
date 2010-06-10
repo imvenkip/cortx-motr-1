@@ -1,7 +1,7 @@
 /* -*- C -*- */
 #include <string.h>
 
-#include <lib/c2list.h>
+#include <lib/list.h>
 #include <lib/rwlock.h>
 #include <lib/memory.h>
 

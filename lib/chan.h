@@ -6,7 +6,7 @@
 #include <semaphore.h>
 
 #include "cdefs.h"
-#include "c2list.h"
+#include "list.h"
 #include "mutex.h"
 
 /**

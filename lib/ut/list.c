@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <lib/c2list.h>
+#include <lib/list.h>
 
 struct test1 {
 	struct c2_list_link	t_link;

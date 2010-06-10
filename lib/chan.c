@@ -3,7 +3,7 @@
 #include <errno.h>
 
 #include "chan.h"
-#include "c2list.h"
+#include "list.h"
 #include "assert.h"
 
 /**

@@ -8,15 +8,21 @@
 #include "cdefs.h"
 
 /**
- list entry
+   @defgroup list
+
+   Double linked list.
+ */
+
+/**
+   List entry.
  */
 struct c2_list_link {
 	/**
-	 * next in the list
+	 * Next entry in the list
 	 */
 	struct c2_list_link *next;
 	/**
-	 * previous in the list
+	 * Previous entry in the list
 	 */
 	struct c2_list_link *prev;
 };

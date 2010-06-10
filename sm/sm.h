@@ -4,7 +4,7 @@
 #define __COLIBRI_SM_H__
 
 #include <lib/adt.h>
-#include <lib/c2list.h>
+#include <lib/list.h>
 #include <lib/queue.h>
 #include <dtm/dtm.h>
 
