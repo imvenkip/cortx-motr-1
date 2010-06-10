@@ -10,6 +10,7 @@
 #include <err.h>
 
 #include <db.h>
+#include <db_int.h>
 #include <dbinc/db_swap.h>
 
 #include "dbtypes.h"

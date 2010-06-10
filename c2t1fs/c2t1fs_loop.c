@@ -267,7 +267,6 @@ fail:
 	ret = -1;
 	goto out;
 }
-#endif
 
 /**
  * __do_lo_send_write - helper for writing data to a loop device
@@ -312,7 +311,6 @@ static int do_lo_send_direct_write(struct loop_device *lo,
 	return bw;
 }
 
-#if 0
 /**
  * do_lo_send_write - helper for writing data to a loop device
  *
@@ -346,42 +344,30 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
 		loff_t pos)
 {
-	int (*do_lo_send)(struct loop_device *, struct bio_vec *, int, loff_t,
-			struct page *page);
+        struct file *file = lo->lo_backing_file;
+        struct iovec iov_arr[bio->bi_vcnt]; /* XXX: large static variable */
+        struct iovec *iov;
 	struct bio_vec *bvec;
-	struct page *page = NULL;
-	int i, ret = 0;
+	int i;
+        int j = 0;
 
-	do_lo_send = do_lo_send_direct_write;
-#if 0
-	if (!(lo->lo_flags & LO_FLAGS_USE_AOPS)) {
-		do_lo_send = do_lo_send_direct_write;
-		if (lo->transfer != transfer_none) {
-			page = alloc_page(GFP_NOIO | __GFP_HIGHMEM);
-			if (unlikely(!page))
-				goto fail;
-			kmap(page);
-			do_lo_send = do_lo_send_write;
-		}
-	}
-#endif
+        ssize_t bw;
+        mm_segment_t old_fs = get_fs();
+
 	bio_for_each_segment(bvec, bio, i) {
-		ret = do_lo_send(lo, bvec, bsize, pos, page);
-		if (ret < 0)
-			break;
-		pos += bvec->bv_len;
+                iov = &iov_arr[j++];
+                iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
+                iov->iov_len = bvec->bv_len;
 	}
-	if (page) {
-		kunmap(page);
-		__free_page(page);
-	}
-	return ret;
-#if 0
-fail:
-	printk(KERN_ERR "loop: Failed to allocate temporary page for write.\n");
-	ret = -ENOMEM;
-	goto out;
-#endif
+
+        set_fs(get_ds());
+        bw = file->f_op->writev(file, iov_arr, j, &pos);
+        set_fs(old_fs);
+        if (likely(bio->bi_size == bw))
+                return 0;
+
+        printk("c2t1fs_loop: io error bw = %ld, bsize = %d\n", bw, bio->bi_size);
+	return -EIO;
 }
 
 struct lo_read_data {
@@ -834,6 +820,12 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file,
 	bd_set_size(bdev, size << 9);
 
 	set_blocksize(bdev, lo_blocksize);
+
+        blk_queue_max_sectors(lo->lo_queue,
+                              BIO_MAX_PAGES << (PAGE_SHIFT - 9));
+        blk_queue_max_phys_segments(lo->lo_queue, BIO_MAX_PAGES);
+        blk_queue_max_hw_segments(lo->lo_queue, BIO_MAX_PAGES);
+        blk_queue_hardsect_size(lo->lo_queue, PAGE_SIZE);
 
 	error = kernel_thread(loop_thread, lo, CLONE_KERNEL);
 	if (error < 0)

@@ -26,6 +26,7 @@
 /* 0x\C\2\T\1 */
 #define C2T1FS_SUPER_MAGIC    0x43325431
 #define C2T1FS_ROOT_INODE     0x10000000
+#define C2T1FS_INIT_OBJSIZE   (4 << 20)
 
 #define C2TIME_S(time)        (time.tv_sec)
 
@@ -43,7 +44,8 @@ struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
 
-        uint64_t                  csi_objid; /* The object id will be mapped */
+        uint64_t                  csi_objid;  /* The object id will be mapped */
+        uint64_t                  csi_objsize;/* The initial object size */
         struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
         struct ksunrpc_service_id csi_srvid;
         struct ksunrpc_xprt      *csi_xprt;

@@ -2,7 +2,7 @@ lib_LTLIBRARIES    = libcolibri-fol.la
 CWD=$(PWD)
 
 fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
-	cd @DB4SRC@/dist ; \
+	cd @DBSRC@/dist ; \
         awk -f gen_rec.awk \
 	    -v source_file=$(CWD)/fol.c \
 	    -v header_file=$(CWD)/fol.h \
@@ -11,9 +11,9 @@ fol.c fol.h fol_template.c fol_print.c: fol.t dbtypes.h
 
 libcolibri_fol_la_SOURCES  = fol.c fol_template.c fol_print.c fol.h dbtypes.h
 libcolibri_fol_la_LDFLAGS  = -release @LT_RELEASE@
-libcolibri_fol_la_LIBADD   = $(top_builddir)/lib/libc2.la @LIBS@ @DB4LIBS@ @PTHREAD_LIBS@
+libcolibri_fol_la_LIBADD   = $(top_builddir)/lib/libc2.la @DBLIBS@ @PTHREAD_LIBS@
 
-INCLUDES           = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@ -I@DB4SRC@/build_unix
+INCLUDES           = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@ -I@DBSRC@/build_unix
 
 EXTRA_DIST	   = fol.t
 

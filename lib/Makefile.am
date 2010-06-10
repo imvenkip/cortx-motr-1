@@ -8,7 +8,7 @@ libc2_la_SOURCES     = libc2.c memory.c c2list.c c2bitops.c refs.c rwlock.c \
                        vec.h chan.h mutex.h cache.h cond.h user_x86_64_atomic.h \
                        assert.h cdefs.h
 libc2_la_LDFLAGS     = -release @LT_RELEASE@ 
-libc2_la_LIBADD      = @LIBS@ @DB4LIBS@ @PTHREAD_LIBS@
+libc2_la_LIBADD      = @DBLIBS@ @PTHREAD_LIBS@
 
-INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DB4SRC@/build_unix 
+INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix 
 
