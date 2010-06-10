@@ -64,7 +64,7 @@ void c2_rpc_server_unregister(struct c2_rpc_server *srv)
 
 	c2_rwlock_write_lock(&servers_list_lock);
 	if (c2_list_link_is_in(&srv->rs_link)) {
-		c2_list_del_init(&srv->rs_link);
+		c2_list_del(&srv->rs_link);
 		need_put = true;
 	}
 	c2_rwlock_write_unlock(&servers_list_lock);
@@ -144,7 +144,7 @@ void c2_rpc_client_unlink(struct c2_rpc_client *cli)
 
 	c2_rwlock_write_lock(&clients_list_lock);
 	if (c2_list_link_is_in(&cli->rc_link)) {
-		c2_list_del_init(&cli->rc_link);
+		c2_list_del(&cli->rc_link);
 		need_put = true;
 	}
 	c2_rwlock_write_unlock(&clients_list_lock);

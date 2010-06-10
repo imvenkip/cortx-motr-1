@@ -19,20 +19,27 @@ void c2_list_fini(struct c2_list *head)
 
 bool c2_list_is_empty(const struct c2_list *head)
 {
-	return head->l_head == (void *)head && head->l_tail == (void *)head;
+	return head->l_head == (void *)head;
 }
+
+bool c2_list_link_invariant(const struct c2_list_link *link)
+{
+	struct c2_list_link *scan;
+
+	if ((link->ll_next == link) != (link->ll_prev == link))
+		return false;
+
+	for (scan = link->ll_next; scan != link; scan = scan->ll_next) {
+		if (scan->ll_next->ll_prev != scan ||
+		    scan->ll_prev->ll_next != scan)
+			return false;
+	}
+	return true;
+}
+
 bool c2_list_invariant(const struct c2_list *head)
 {
-	struct c2_list_link *pos = head->l_head;
-
-	while (pos != (void *)head) {
-		if (pos->ll_next->ll_prev != pos ||
-		    pos->ll_prev->ll_next != pos)
-			return false;
-		pos = pos->ll_next;
-	}
-
-	return true;
+	return c2_list_link_invariant((void *)head);
 }
 
 size_t c2_list_length(const struct c2_list *list)
@@ -47,6 +54,57 @@ size_t c2_list_length(const struct c2_list *list)
 	return length;
 }
 
+static inline void __c2_list_add(struct c2_list_link *next,
+				 struct c2_list_link *prev,
+			         struct c2_list_link *new)
+{
+	C2_ASSERT(prev->ll_next == next && next->ll_prev == prev);
+	C2_ASSERT(c2_list_link_invariant(next));
+	new->ll_next = next;
+	new->ll_prev = prev;
+	
+	next->ll_prev = new;
+	prev->ll_next = new;
+	C2_ASSERT(c2_list_link_invariant(next));
+}
+
+void c2_list_add(struct c2_list *head, struct c2_list_link *new)
+{
+	__c2_list_add(head->l_head, (void *)head, new);
+}
+
+void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
+{
+	__c2_list_add((void *)head, head->l_tail, new);
+}
+
+static void __c2_list_del(struct c2_list_link *old)
+{
+	C2_ASSERT(c2_list_link_invariant(old));
+	old->ll_prev->ll_next = old->ll_next;
+	old->ll_next->ll_prev = old->ll_prev;
+}
+
+void c2_list_del(struct c2_list_link *old)
+{
+	__c2_list_del(old);
+	c2_list_link_init(old);
+}
+
+void c2_list_move(struct c2_list *head, struct c2_list_link *old)
+{
+	__c2_list_del(old);
+	c2_list_add(head, old);
+	C2_ASSERT(c2_list_invariant(head));
+}
+
+void c2_list_move_tail(struct c2_list *head, struct c2_list_link *old)
+{
+	__c2_list_del(old);
+	c2_list_add_tail(head, old);
+	C2_ASSERT(c2_list_invariant(head));
+}
+
 void c2_list_link_init(struct c2_list_link *link)
 {
 	link->ll_prev = link;
@@ -55,7 +113,7 @@ void c2_list_link_init(struct c2_list_link *link)
 
 void c2_list_link_fini(struct c2_list_link *link)
 {
-
+	C2_ASSERT(!c2_list_link_is_in(link));
 }
 
 bool c2_list_link_is_in(const struct c2_list_link *link)

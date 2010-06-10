@@ -41,6 +41,8 @@ void c2_list_link_init(struct c2_list_link *link);
 */
 void c2_list_link_fini(struct c2_list_link *link);
 
+bool c2_list_link_invariant(const struct c2_list_link *link);
+
 /**
    List head.
 
@@ -91,27 +93,13 @@ bool c2_list_invariant(const struct c2_list *list);
 
 size_t c2_list_length(const struct c2_list *list);
 
-static inline void __c2_list_add(struct c2_list_link *next,
-				 struct c2_list_link *prev,
-			         struct c2_list_link *new)
-{
-	new->ll_next = next;
-	new->ll_prev = prev;
-	
-	next->ll_prev = new;
-	prev->ll_next = new;
-}
-
 /**
  add list to top on the list
 
  @param head pointer to list head
  @param new  pointer to list entry
  */
-static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
-{
-	__c2_list_add(head->l_head, (void *)head, new);
-}
+void c2_list_add(struct c2_list *head, struct c2_list_link *new);
 
 /**
  add list to tail on the list
@@ -119,34 +107,22 @@ static inline void c2_list_add(struct c2_list *head, struct c2_list_link *new)
  @param head pointer to list head
  @param new  pointer to list entry
  */
-static inline void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
-{
-	__c2_list_add((void *)head, head->l_tail, new);
-}
+void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
 
 /**
- delete a entry from the list
-
- @param old list link entry
+   Deletes an entry from the list and re-initializes the entry.
  */
-static inline void c2_list_del(struct c2_list_link *old)
-{
-	old->ll_prev->ll_next = old->ll_next;
-	old->ll_next->ll_prev = old->ll_prev;
-}
+void c2_list_del(struct c2_list_link *old);
 
 /**
- delete a entry from the list and initialize it
-
- @param old list link entry
+   Moves an entry to head of the list.
  */
-static inline void c2_list_del_init(struct c2_list_link *old)
-{
-	old->ll_prev->ll_next = old->ll_next;
-	old->ll_next->ll_prev = old->ll_prev;
-	c2_list_link_init(old);
-}
+void c2_list_move(struct c2_list *head, struct c2_list_link *new);
 
+/**
+   Moves an entry to tail of the list.
+ */
+void c2_list_move_tail(struct c2_list *head, struct c2_list_link *new);
 
 /**
  * return first entry from the list
@@ -185,8 +161,8 @@ size_t c2_list_length(const struct c2_list *list);
  * @param pos	the pointer to list_link to use as a loop counter.
  */
 #define c2_list_for_each(head, pos) \
-	for(pos = (head)->l_head; pos != (void *)(head); \
-	    pos = (pos)->ll_next)
+	for (pos = (head)->l_head; pos != (void *)(head); \
+	     pos = (pos)->ll_next)
 
 /**
  Iterate over a list
@@ -195,15 +171,16 @@ size_t c2_list_length(const struct c2_list *list);
  @param pos	the pointer to list_link to use as a loop counter.
  */
 #define c2_list_for_each_entry(head, pos, type, member) \
-	for(pos = c2_list_entry((head)->l_head, type, member); \
-	    &(pos->member) != (void *)head; \
-	    pos = c2_list_entry((pos)->member.ll_next, type, member))
+	for (pos = c2_list_entry((head)->l_head, type, member); \
+	     &(pos->member) != (void *)head; \
+	     pos = c2_list_entry((pos)->member.ll_next, type, member))
 
 
 /** @} end of list group */
 
 /* __COLIBRI_LIB_LIST_H__ */
 #endif
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

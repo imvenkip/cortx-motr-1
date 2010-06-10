@@ -36,7 +36,7 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
 	c2_rwlock_fini(&dom->sd_guard);
-	c2_list_del_init(&dom->sd_domain_linkage);
+	c2_list_del(&dom->sd_domain_linkage);
 }
 
 int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,

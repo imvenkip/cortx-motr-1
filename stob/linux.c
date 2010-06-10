@@ -440,7 +440,7 @@ static void linux_stob_fini(struct c2_stob *stob)
 		close(lstob->sl_fd);
 		lstob->sl_fd = -1;
 	}
-	c2_list_del_init(&lstob->sl_linkage);
+	c2_list_del(&lstob->sl_linkage);
 	c2_stob_fini(&lstob->sl_stob);
 	c2_free(lstob);
 }

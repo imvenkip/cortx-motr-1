@@ -86,7 +86,7 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 
 	c2_rwlock_write_lock(&dom->nd_lock);
 	if (c2_list_link_is_in(&conn->nc_link)) {
-		c2_list_del_init(&conn->nc_link);
+		c2_list_del(&conn->nc_link);
 		need_put = true;
 	}
 	c2_rwlock_write_unlock(&dom->nd_lock);

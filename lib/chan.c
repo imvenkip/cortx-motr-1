@@ -187,7 +187,7 @@ void c2_clink_del(struct c2_clink *link)
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	C2_ASSERT(chan->ch_waiters > 0);
 	chan->ch_waiters--;
-	c2_list_del_init(&link->cl_linkage);
+	c2_list_del(&link->cl_linkage);
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	clink_unlock(link);
 
