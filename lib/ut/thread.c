@@ -61,6 +61,20 @@ void test_thread(void)
 		c2_thread_fini(&t[i]);
 		C2_ASSERT(r[i] == i);
 	}
+
+	/* test init functions */
+	result = C2_THREAD_INIT(&t[0], int, 
+				LAMBDA(int, (int x) { return 0; } ),
+				LAMBDA(void, (int x) { ; } ), 42);
+	C2_ASSERT(result == 0);
+	c2_thread_join(&t[0]);
+	c2_thread_fini(&t[0]);
+
+	result = C2_THREAD_INIT(&t[0], int, 
+				LAMBDA(int, (int x) { return -42; } ),
+				LAMBDA(void, (int x) { ; } ), 42);
+	C2_ASSERT(result == -42);
+	c2_thread_fini(&t[0]);
 }
 
 
