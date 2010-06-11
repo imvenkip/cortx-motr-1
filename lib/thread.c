@@ -1,24 +1,41 @@
 /* -*- C -*- */
 
+#include <string.h> /* memset */
+
 #include "thread.h"
 #include "assert.h"
 
 /**
    @addtogroup thread Thread
+
+   Implementation of c2_thread on top of pthread_t.
+
+   <b>Implementation notes</b>
+
+   Instead of creating a new POSIX thread executing user-supplied function, all
+   threads start executing the same trampoline function pthread_trampoline()
+   that performs some generic book-keeping.
+
+   Threads are created with a PTHREAD_CREATE_JOINABLE attribute.
+
    @{
  */
 
 static pthread_attr_t pthread_attr_default;
 
-void *pthread_trampoline(void *arg)
+static void *pthread_trampoline(void *arg)
 {
 	struct c2_thread *t = arg;
+
+	C2_ASSERT(t->t_state == TS_RUNNING);
+	C2_ASSERT(t->t_initrc == 0);
 
 	if (t->t_init != NULL) {
 		t->t_initrc = t->t_init(t->t_arg);
 		c2_chan_signal(&t->t_initwait);
 	}
-	t->t_func(t->t_arg);
+	if (t->t_initrc == 0)
+		t->t_func(t->t_arg);
 	return NULL;
 }
 
@@ -28,11 +45,13 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	int             result;
 	struct c2_clink wait;
 
-	C2_ASSERT(q->t_func == NULL);
+	C2_PRE(q->t_func == NULL);
+	C2_PRE(q->t_state == TS_PARKED);
 
-	q->t_init = init;
-	q->t_func = func;
-	q->t_arg  = arg;
+	q->t_state = TS_RUNNING;
+	q->t_init  = init;
+	q->t_func  = func;
+	q->t_arg   = arg;
 	if (init != NULL) {
 		c2_clink_init(&wait, NULL);
 		c2_chan_init(&q->t_initwait);
@@ -44,27 +63,34 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		if (result == 0) {
 			c2_chan_wait(&wait);
 			result = q->t_initrc;
+			if (result != 0)
+				c2_thread_join(q);
 		}
 		c2_clink_del(&wait);
 		c2_clink_fini(&wait);
 		c2_chan_fini(&q->t_initwait);
 	}
+	if (result != 0)
+		q->t_state = TS_PARKED;
 	return result;
 }
 
 void c2_thread_fini(struct c2_thread *q)
 {
-	q->t_func = NULL;
-}
-
-int c2_thread_kill(struct c2_thread *q, int signal)
-{
-	return pthread_kill(q->t_id, signal);
+	C2_PRE(q->t_state == TS_PARKED);
+	memset(q, 0, sizeof *q);
 }
 
 int c2_thread_join(struct c2_thread *q)
 {
-	return pthread_join(q->t_id, NULL);
+	int result;
+
+	C2_PRE(q->t_state == TS_RUNNING);
+	C2_PRE(!pthread_equal(q->t_id, pthread_self()));
+	result = pthread_join(q->t_id, NULL);
+	if (result == 0)
+		q->t_state = TS_PARKED;
+	return result;
 }
 
 int c2_threads_init(void)
