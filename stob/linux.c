@@ -22,6 +22,38 @@
 /**
    @addtogroup stoblinux
 
+   Implementation of c2_stob on top of Linux files.
+
+   A linux storage object is simply a file on a local file system. A linux
+   storage object domain is a directory containing
+
+   @li data-base (db5) tables mapping storage object identifiers to local
+   identifiers (not currently used) and
+
+   @li a directory where files, corresponding to storage objects are stored
+   in. A name of a file is built from the corresponding storage object local
+   identifier (currently c2_stob_id is used).
+
+   A linux storage object domain is identified by the path to its directory.
+
+   When an in-memory representation for an object is created, no file system
+   operations are performed. It is only when the object is "located"
+   (linux_stob_locate()) or "created" (linux_stob_create()) when actual open(2)
+   system call is made. If the call was successful, the file descriptor
+   (linux_stob::sl_fd) remains open until the object is destroyed.
+
+   Storage objects are kept on a list linux_domain::sdl_object list that is
+   consulted by linux_domain_lookup().
+
+   @todo implement data-base bindings
+
+   @todo object caching 
+
+   @todo a per-domain limit on number of open file descriptors with LRU based
+   cleanup.
+
+   @todo more scalable object index instead of a list.
+
    @{
  */
 
@@ -277,17 +309,28 @@ static int mapping_db_lookup(struct linux_domain *sdl,
 }
 #endif
 
+/**
+   Implementation of c2_stob_type_op::sto_init().
+ */
 static int linux_stob_type_init(struct c2_stob_type *stype)
 {
 	c2_stob_type_init(stype);
 	return 0;
 }
 
+/**
+   Implementation of c2_stob_type_op::sto_fini().
+ */
 static void linux_stob_type_fini(struct c2_stob_type *stype)
 {
 	c2_stob_type_fini(stype);
 }
 
+/**
+   Implementation of c2_stob_domain_op::sdo_fini().
+
+   Finalizes all still existing in-memory objects.
+ */
 static void linux_domain_fini(struct c2_stob_domain *self)
 {
 	struct linux_domain *ldom;
@@ -309,6 +352,12 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 	c2_free(ldom);
 }
 
+/**
+   Implementation of c2_stob_type_op::sto_domain_locate().
+
+   Initialises data-base in (not currently implemented) and adieu sub-system for
+   the domain.
+ */
 static int linux_stob_type_domain_locate(struct c2_stob_type *type, 
 					 const char *domain_name,
 					 struct c2_stob_domain **out)
@@ -349,6 +398,12 @@ static bool linux_stob_invariant(const struct linux_stob *lstob)
 		(lstob->sl_stob.so_domain->sd_type == &linux_stob_type);
 }
 
+/**
+   Searches for the object with a given identifier in the domain object list.
+
+   This function is used by linux_domain_stob_find() to check whether in-memory
+   representation of an object already exists.
+ */
 static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 					      const struct c2_stob_id *id)
 {
@@ -368,6 +423,11 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 	return found ? obj : NULL;
 }
 
+/**
+   Implementation of c2_stob_domain_op::sdo_stob_find().
+
+   Returns an in-memory representation of the object with a given identifier.
+ */
 static int linux_domain_stob_find(struct c2_stob_domain *dom, 
 				  const struct c2_stob_id *id, 
 				  struct c2_stob **out)
@@ -414,6 +474,9 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 	return result;
 }
 
+/**
+   Helper function constructing a file system path to the object.
+ */
 static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 {
 	int                 nob;
@@ -427,6 +490,11 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 	return nob < nr ? 0 : -EOVERFLOW;
 }
 
+/**
+   Implementation of c2_stob_op::sop_fini().
+
+   Closes the object's file descriptor.
+ */
 static void linux_stob_fini(struct c2_stob *stob)
 {
 	struct linux_stob *lstob;
@@ -445,6 +513,9 @@ static void linux_stob_fini(struct c2_stob *stob)
 	c2_free(lstob);
 }
 
+/**
+   Helper function opening the object in the file system.
+ */
 static int linux_stob_open(struct linux_stob *lstob, int oflag)
 {
 	struct linux_domain *ldom;
@@ -465,11 +536,17 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 	return result;
 }
 
+/**
+   Implementation of c2_stob_op::sop_create().
+ */
 static int linux_stob_create(struct c2_stob *obj)
 {
 	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
 }
 
+/**
+   Implementation of c2_stob_op::sop_locate().
+ */
 static int linux_stob_locate(struct c2_stob *obj)
 {
 	return linux_stob_open(stob2linux(obj), O_RDWR);

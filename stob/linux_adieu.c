@@ -22,20 +22,83 @@
    adieu implementation for Linux stob is based on Linux specific asynchronous
    IO interfaces: io_{setup,destroy,submit,cancel,getevents}().
 
+   IO admission control and queueing in Linux stob adieu are implemented on a
+   storage object domain level, that is, each domain has its own set of queues,
+   threads and thresholds.
+
+   On a high level, adieu IO request is first placed into a per-domain queue
+   (admission queue, linux_domain::ioq_queue) where it is held until there is
+   enough space in the AIO ring buffer (linux_domain::ioq_ctx). Placing the
+   request into the ring buffer (ioq_queue_submit()) means that the kernel AIO
+   is launched for the request. When IO completes, the kernel delivers an IO
+   completion event via the ring buffer.
+
+   A number (IOQ_NR_THREADS by default) of worker adieu threads is created for
+   each storage object domain. These threads are implementing admission control
+   and completion notification, they
+
+   @li listen for the AIO completion events on the in the ring buffer. When AIO
+   is completed, worker thread signals completion event to AIO users;
+
+   @li when space becomes available in the ring buffer, a worker thread moves
+   some number of pending requests from the queue to the ring buffer.
+
+   Admission queue separate from the ring buffer is needed to
+
+   @li be able to handle more pending requests than a kernel can support and
+
+   @li potentially do some pre-processing on the pending requests (like elevator
+   does).
+
    @see http://www.kernel.org/doc/man-pages/online/pages/man2/io_setup.2.html
+
+   <b>Concurrency control</b>
+
+   Per-domain data structures (queue, thresholds, etc.) are protected by
+   linux_domain::ioq_mutex.
+
+   @todo IO cancellation
+
+   @todo use explicit state machine instead of ioq threads
 
    @{
  */
 
+enum {
+	/** Default number of threads to create in a storage object domain. */
+	IOQ_NR_THREADS     = 8,
+	/** Default size of a ring buffer shared by adieu and the kernel. */
+	IOQ_RING_SIZE      = 1024,
+	/** Size of a batch in which requests are moved from the admission queue
+	    to the ring buffer. */
+	IOQ_BATCH_IN_SIZE  = 8,
+	/** Size of a batch in which completion events are extracted from the
+	    ring buffer. */
+	IOQ_BATCH_OUT_SIZE = 8,
+};
+
+/**
+   Admission queue element.
+
+   A ioq_qev is created for each fragment of original adieu request (see
+   linux_stob_io_launch()) and placed into a per-domain admission queue
+   (linux_domain::ioq_queue).
+ */
 struct ioq_qev {
 	struct iocb           iq_iocb;
 	struct c2_queue_link  iq_linkage;
 	struct c2_stob_io    *iq_io;
 };
 
+/**
+   Linux adieu specific part of generic c2_stob_io structure.
+ */
 struct linux_stob_io {
+	/** Number of fragments in this adieu request. */
 	uint64_t           si_nr;
+	/** Number of completed fragments. */
 	uint64_t           si_done;
+	/** Array of fragments. */
 	struct ioq_qev    *si_qev;
 };
 
@@ -207,6 +270,9 @@ bool linux_stob_io_is_locked(const struct c2_stob *stob)
 	return true;
 }
 
+/**
+   Removes an element from the (non-empty) admission queue and returns it.
+ */
 static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 {
 	struct c2_queue_link *head;
@@ -220,6 +286,9 @@ static struct ioq_qev *ioq_queue_get(struct linux_domain *ldom)
 	return container_of(head, struct ioq_qev, iq_linkage);
 }
 
+/**
+   Adds an element to the admission queue. 
+ */
 static void ioq_queue_put(struct linux_domain *ldom, 
 			  struct ioq_qev *qev)
 {
@@ -242,6 +311,10 @@ static void ioq_queue_unlock(struct linux_domain *ldom)
 	c2_mutex_unlock(&ldom->ioq_lock);
 }
 
+/**
+   Transfers requests from the admission queue to the ring buffer in batches
+   until the ring buffer is full.
+ */
 static void ioq_queue_submit(struct linux_domain *ldom)
 {
 	int got;
@@ -280,6 +353,12 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 	} while (got > 0);
 }
 
+/**
+   Handles AIO completion event from the ring buffer.
+
+   When all fragments of a certain adieu request have completed, signals
+   c2_stob_io::si_wait.
+ */
 static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			 unsigned long res, unsigned long res2)
 {
@@ -327,6 +406,13 @@ const static struct timespec ioq_timeout_default = {
 	.tv_nsec = 0
 };
 
+/**
+   Linux adieu worker thread.
+
+   Listens to the completion events from the ring buffer. Delivers completion
+   events to the users. Moves requests from the admission queue to the ring
+   buffer.
+ */
 static void ioq_thread(struct linux_domain *ldom)
 {
 	int got;

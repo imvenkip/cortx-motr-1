@@ -22,15 +22,8 @@
 #define MAXPATHLEN 1024
 #endif
 
-enum {
-	IOQ_NR_THREADS     = 8,
-	IOQ_RING_SIZE      = 1024,
-	IOQ_BATCH_IN_SIZE  = 8,
-	IOQ_BATCH_OUT_SIZE = 8,
-};
-
 /**
-  Stob domain for Linux type.
+   Stob domain for Linux type.
  */
 struct linux_domain {
 	struct c2_stob_domain sdl_base;
@@ -54,14 +47,33 @@ struct linux_domain {
         u_int32_t        sdl_recsize;
         int              sdl_direct_db;
 
+	/** @name ioq Linux adieu fields. @{ */
+
+	/** Set up when domain is being shut down. adieu worker threads
+	    (ioq_thread()) check this field on each iteration. */
 	bool             ioq_shutdown;
+	/** 
+	    Ring buffer shared between adieu and the kernel.
+	    
+	    It contains adieu request fragments currently being executed by the
+	    kernel. The kernel delivers AIO completion events through this
+	    buffer. */
 	io_context_t     ioq_ctx;
+	/** Free slots in the ring buffer. */
 	int              ioq_avail;
+	/** Used slots in the ring buffer. */
 	int              ioq_queued;
+	/** Worker threads. */
 	struct c2_thread ioq[IOQ_NR_THREADS];
 
+	/** Mutex protecting all ioq_ fields (except for the ring buffer that is
+	    updated by the kernel asynchronously). */
 	struct c2_mutex  ioq_lock;
+	/** Admission queue where adieu request fragments are kept until there
+	    is free space in the ring buffer.  */
 	struct c2_queue  ioq_queue;
+
+	/** *} end of ioq name */
 };
 
 /**
