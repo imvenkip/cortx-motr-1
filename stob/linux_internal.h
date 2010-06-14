@@ -22,6 +22,19 @@
 #define MAXPATHLEN 1024
 #endif
 
+enum {
+	/** Default number of threads to create in a storage object domain. */
+	IOQ_NR_THREADS     = 8,
+	/** Default size of a ring buffer shared by adieu and the kernel. */
+	IOQ_RING_SIZE      = 1024,
+	/** Size of a batch in which requests are moved from the admission queue
+	    to the ring buffer. */
+	IOQ_BATCH_IN_SIZE  = 8,
+	/** Size of a batch in which completion events are extracted from the
+	    ring buffer. */
+	IOQ_BATCH_OUT_SIZE = 8,
+};
+
 /**
    Stob domain for Linux type.
  */
