@@ -5,7 +5,7 @@
 
 #include "lib/cdefs.h"
 #include "lib/vec.h"
-#include "lib/c2list.h"
+#include "lib/list.h"
 
 /**
    @defgroup fop File operation packet
@@ -20,7 +20,7 @@
    operations that are used to manipulate the fop.
 
    The execution of an operation described by fop is carried out by a "fop
-   machine" (fop, struct c2_fom).
+   machine" (fom, struct c2_fom).
 
    @note "Had I been one of the tragic bums who lurked in the mist of that
           station platform where a brittle young FOP was pacing back and forth,

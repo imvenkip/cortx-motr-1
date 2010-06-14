@@ -116,7 +116,7 @@ static const char *typename(const struct c2_fop_field *field)
 	if (field->ff_ref != NULL)
 		tname = field->ff_ref->ff_name;
 	else if (isarray(field))
-		tname = typename(list2field(field->ff_child.first));
+		tname = typename(list2field(field->ff_child.l_head));
 	else
 		tname = xdr_attrs[field->ff_base->ffb_type].xa_type;
 	return tname;

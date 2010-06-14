@@ -51,7 +51,7 @@ void c2_fop_field_traverse(struct c2_fop_field *field,
 
 static void fop_field_fini_one(struct c2_fop_field *fop) 
 {
-	c2_list_del_init(&fop->ff_sibling);
+	c2_list_del(&fop->ff_sibling);
 	c2_list_fini(&fop->ff_child);
 	c2_free(fop);
 }
@@ -66,9 +66,10 @@ void c2_fop_field_fini(struct c2_fop_field *field)
 	struct c2_fop_field *scan;
 	struct c2_fop_field *next;
 
+	scan = field;
 	while (1) {
 		while (!c2_list_is_empty(&scan->ff_child))
-			scan = list2field(scan->ff_child.first);
+			scan = list2field(scan->ff_child.l_head);
 		next = scan->ff_parent;
 		fop_field_fini_one(scan);
 		if (scan == field)
