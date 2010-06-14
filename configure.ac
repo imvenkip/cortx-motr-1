@@ -456,6 +456,7 @@ AC_CONFIG_FILES([
                  addb/Makefile
                  fol/Makefile
                  fop/Makefile
+                 fop/ut/Makefile
                  rpc/Makefile
                  rpc/ut/Makefile
                  net/Makefile
@@ -464,6 +465,7 @@ AC_CONFIG_FILES([
                  net/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
+                 reqh/Makefile
                  sm/Makefile
                  mds/Makefile
                  mw/Makefile
