@@ -334,7 +334,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 	if (count == 0)
 		return 0;
 
-        if (file->f_flags & O_APPEND)
+        if (rw == WRITE && file->f_flags & O_APPEND)
                 pos = inode->i_size;
 
         addr = (unsigned long)buf;
@@ -361,7 +361,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         }
         else
                 rc = get_user_pages(current, current->mm, addr, npages,
-                                    rw == WRITE, 1, pages, NULL);
+                                    rw == READ, 1, pages, NULL);
         if (rc != npages) {
                 printk("expect %d, got %d\n", npages, rc);
                 npages = rc > 0 ? rc : 0;

@@ -341,121 +341,33 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 }
 #endif
 
-static int lo_send(struct loop_device *lo, struct bio *bio, int bsize,
-		loff_t pos)
-{
-        struct file *file = lo->lo_backing_file;
-        struct iovec iov_arr[bio->bi_vcnt]; /* XXX: large static variable */
-        struct iovec *iov;
-	struct bio_vec *bvec;
-	int i;
-        int j = 0;
-
-        ssize_t bw;
-        mm_segment_t old_fs = get_fs();
-
-	bio_for_each_segment(bvec, bio, i) {
-                iov = &iov_arr[j++];
-                iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
-                iov->iov_len = bvec->bv_len;
-	}
-
-        set_fs(get_ds());
-        bw = file->f_op->writev(file, iov_arr, j, &pos);
-        set_fs(old_fs);
-        if (likely(bio->bi_size == bw))
-                return 0;
-
-        printk("c2t1fs_loop: io error bw = %ld, bsize = %d\n", bw, bio->bi_size);
-	return -EIO;
-}
-
-struct lo_read_data {
-	struct loop_device *lo;
-	struct page *page;
-	unsigned offset;
-	int bsize;
-};
-
-#if 0
-static int
-lo_read_actor(read_descriptor_t *desc, struct page *page,
-	      unsigned long offset, unsigned long size)
-{
-	unsigned long count = desc->count;
-	struct lo_read_data *p = desc->arg.data;
-	struct loop_device *lo = p->lo;
-	sector_t IV;
-
-	IV = ((sector_t) page->index << (PAGE_CACHE_SHIFT - 9))+(offset >> 9);
-
-	if (size > count)
-		size = count;
-
-	if (lo_do_transfer(lo, READ, page, offset, p->page, p->offset, size, IV)) {
-		size = 0;
-		printk(KERN_ERR "loop: transfer error block %ld\n",
-		       page->index);
-		desc->error = -EINVAL;
-	}
-
-	flush_dcache_page(p->page);
-
-	desc->count = count - size;
-	desc->written += size;
-	p->offset += size;
-	return size;
-}
-#endif
-
-static int
-do_lo_receive(struct loop_device *lo,
-	      struct bio_vec *bvec, int bsize, loff_t pos)
-{
-	struct file *file = lo->lo_backing_file;
-	int retval;
-
-#if 0
-	struct lo_read_data cookie;
-	cookie.lo = lo;
-	cookie.page = bvec->bv_page;
-	cookie.offset = bvec->bv_offset;
-	cookie.bsize = bsize;
-	file = lo->lo_backing_file;
-	retval = file->f_op->sendfile(file, &pos, bvec->bv_len,
-			lo_read_actor, &cookie);
-#endif
-
-        retval = file->f_op->read(file, page_address(bvec->bv_page) + bvec->bv_offset, bvec->bv_len, &pos);
-	return (retval < 0)? retval: 0;
-}
-
-static int
-lo_receive(struct loop_device *lo, struct bio *bio, int bsize, loff_t pos)
-{
-	struct bio_vec *bvec;
-	int i, ret = 0;
-
-	bio_for_each_segment(bvec, bio, i) {
-		ret = do_lo_receive(lo, bvec, bsize, pos);
-		if (ret < 0)
-			break;
-		pos += bvec->bv_len;
-	}
-	return ret;
-}
-
+static struct iovec iov_static[BIO_MAX_PAGES];
 static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 {
 	loff_t pos;
-	int ret;
-
+        struct file *file = lo->lo_backing_file;
+        struct iovec *iov;
+        struct bio_vec *bvec;
+        int i;
+        int j = 0;
+        
+        ssize_t bw;
+        mm_segment_t old_fs = get_fs();
+        
 	pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
-	if (bio_rw(bio) == WRITE)
-		ret = lo_send(lo, bio, lo->lo_blocksize, pos);
-	else
-		ret = lo_receive(lo, bio, lo->lo_blocksize, pos);
-	return ret;
+        bio_for_each_segment(bvec, bio, i) {
+                iov = &iov_static[j++];
+                iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
+                iov->iov_len = bvec->bv_len;
+        }
+        
+        set_fs(get_ds());
+        bw = (bio_rw(bio) == READ ? file->f_op->readv : file->f_op->writev)
+                (file, iov_static, j, &pos);
+        set_fs(old_fs);
+        if (likely(bio->bi_size == bw))
+                return 0;
+	return -EIO;
 }
 
 /*
