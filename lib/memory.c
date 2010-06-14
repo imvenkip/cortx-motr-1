@@ -17,7 +17,7 @@
    function returns the amount of memory allocated in the arena.
 
    GNU Libc defines mallinfo() function, returning the amount of allocated
-   memory among other things. On OS X (of all places) there is malloc_size()
+   memory among other things. In OS X (of all places) there is malloc_size()
    function that, given a pointer to an allocated block of memory, returns its
    size. On other platforms c2_allocates() is always 0.
 
