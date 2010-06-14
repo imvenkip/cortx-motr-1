@@ -75,8 +75,12 @@ void c2_stob_type_fini(struct c2_stob_type *kind);
 
    Stob domain is a collection of storage objects of the same type.
    A stob type may have multiple domains, which are linked together to its
-   type by 'sd_domain_linkage'. A stob domain may have multiple storage objects,
-   which are linked together by 'sd_objects'.
+   type by 'sd_domain_linkage'.
+
+   A storage domain comes with an operation to find a storage object in the
+   domain. A domain might cache storage objects and use some kind of index to
+   speed up object lookup. This caching and indexing are not visible at the
+   generic level.
 */
 struct c2_stob_domain {
 	const char 		       *sd_name;
@@ -245,6 +249,17 @@ struct c2_stob_op {
 	bool (*sop_io_is_locked)(const struct c2_stob *stob);
 };
 
+/**
+   Returns an in-memory representation for a stob with a given identifier,
+   creating the former if necessary.
+
+   Resulting c2_stob can be in any state. c2_stob_find() neither fetches the
+   object attributes from the storage nor checks for object's existence. This
+   function is used to create a placeholder on which other functions
+   (c2_stob_locate(), c2_stob_create(), locking functions, etc.) can be called.
+
+   On success, this function acquires a reference on the returned object.
+ */
 int  c2_stob_find  (struct c2_stob_domain *dom, const struct c2_stob_id *id,
 		    struct c2_stob **out);
 /**
@@ -274,7 +289,25 @@ int  c2_stob_locate(struct c2_stob *obj);
  */
 int  c2_stob_create(struct c2_stob *obj);
 
+/**
+   Acquires an additional reference on the object.
+
+   @see c2_stob_put()
+   @see c2_stob_find()
+ */
 void c2_stob_get(struct c2_stob *obj);
+
+/**
+   Releases a reference on the object. 
+
+   When the last reference is released, the object can either return to the
+   cache or can be immediately destroyed at the storage object type
+   discretion. If object is cached, its state (c2_stob::so_state) can change at
+   any moment.
+
+   @see c2_stob_get()
+   @see c2_stob_find()
+ */
 void c2_stob_put(struct c2_stob *obj);
 
 /**
