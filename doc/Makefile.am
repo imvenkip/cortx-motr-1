@@ -1,1 +1,1 @@
-EXTRA_DIST = Doxyfile coding-style doxygen.c
+EXTRA_DIST = Doxyfile coding-style

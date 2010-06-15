@@ -10,7 +10,11 @@
 #include <err.h>
 
 #include <db.h>
-#include <db_int.h>
+
+#if DB_VERSION_MAJOR == 5
+#  include <db_int.h>
+#endif
+
 #include <dbinc/db_swap.h>
 
 #include "dbtypes.h"
