@@ -78,6 +78,8 @@ void c2_net_xprt_fini(struct c2_net_xprt *xprt);
 /**
    Collection of network resources.
 
+   Network connections, service ids and services exist within a network domain.
+
    @todo for now assume that a domain is associated with single transport. In
    the future domains with connections and services over different transports
    will be supported.
@@ -391,21 +393,14 @@ struct c2_net_async_call {
 	struct c2_queue_link    ac_linkage;
 };
 
-/*
- asynchronous rpc call. client is continue after request queried
- to transfer.
+/**
+   Asynchronous rpc call. Caller continues without waiting for an answer.
 
- @param conn - network connection associated with replier
- @param rot - pointer to operations table associated with replier
- @param op - operation to call on replier
- @param arg - pointer to buffer with argument of operation
- @param ret - pointer to buffer to put reply from a replier
- @param cb - pointer to callback function called after hit a error in
-	     in transfer, or reply is accepted
- @param datum - an argument to be passed to the call-back.
+   @param conn - network connection associated with replier
+   @param call - asynchronous call description
 
- @retval 0 OK
- @retval <0 ERROR
+   @retval 0 OK
+   @retval <0 ERROR
 */
 int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call);
 
@@ -444,6 +439,8 @@ int c2_net_init(void);
  release all allocated resources
  */
 void c2_net_fini(void);
+
+/** @} end of net group */
 
 #endif
 

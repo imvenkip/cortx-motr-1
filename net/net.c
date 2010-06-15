@@ -5,6 +5,10 @@
 #include <colibri/colibri.h>
 #include "net.h"
 
+/**
+   @addtogroup net Networking.
+ */
+
 extern int  user_sunrpc_init(void);
 extern void user_sunrpc_fini(void);
 
@@ -26,6 +30,9 @@ int c2_net_xprt_init(struct c2_net_xprt *xprt)
 void c2_net_xprt_fini(struct c2_net_xprt *xprt)
 {
 }
+
+/** @} end of net group */
+
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

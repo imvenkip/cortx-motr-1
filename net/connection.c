@@ -1,19 +1,30 @@
 /* -*- C -*- */
+
 #include <errno.h>
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #include <lib/cdefs.h>
 #include <lib/rwlock.h>
 #include <lib/list.h>
 #include <lib/refs.h>
 #include <lib/memory.h>
+
 #include "net.h"
+
+/**
+   @addtogroup net Networking.
+
+   <b>Connections</b>
+
+   A network domain (c2_net_domain) maintains a list of connections
+   (c2_net_conn) originating from the domain.
+
+   A connection is used to communicate with remote network services (c2_service)
+   identified by service ids (c2_service_id). Multiple connections to the same
+   service can be established for the purpose of load balancing. Connections are
+   reference counted.
+
+   @{
+ */
 
 static void c2_net_conn_free_cb(struct c2_ref *ref)
 {
@@ -111,6 +122,8 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 	c2_list_init(&dom->nd_service);
 	c2_list_init(&dom->nd_conn);
 }
+
+/** @} end of net group */
 
 /* 
  *  Local variables:

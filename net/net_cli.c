@@ -5,6 +5,12 @@
 #include <errno.h>
 #include "net.h"
 
+/**
+   @addtogroup net Networking.
+
+   @{
+ */
+
 int c2_net_cli_call(struct c2_net_conn *conn,
 		    struct c2_rpc_op_table *rot,
 		    uint64_t op, void *arg, void *ret)
@@ -42,6 +48,8 @@ void c2_service_id_fini(struct c2_service_id *id)
 {
 	id->si_ops->sis_fini(id);
 }
+
+/** @} end of net group */
 
 /* 
  *  Local variables:

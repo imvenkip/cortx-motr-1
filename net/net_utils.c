@@ -21,6 +21,10 @@
 #include <lib/rwlock.h>
 #include "net.h"
 
+/**
+   @addtogroup net Networking.
+ */
+
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2)
 {
@@ -137,3 +141,5 @@ void c2_rpc_op_table_fini(struct c2_rpc_op_table *table)
 	c2_free(table->rot_ops);
 	c2_free(table);
 }
+
+/** @} end of net group */

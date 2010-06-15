@@ -22,6 +22,12 @@
 
 #include "net.h"
 
+/**
+   @addtogroup net Networking.
+
+   @{
+ */
+
 int c2_service_start(struct c2_service *service,
 		     struct c2_service_id *sid,
 		     struct c2_rpc_op_table *ops)
@@ -38,6 +44,8 @@ void c2_service_stop(struct c2_service *service)
 {
 	service->s_ops->so_fini(service);
 }
+
+/** @} end of net group */
 
 /*
  *  Local variables:

@@ -604,10 +604,8 @@ static void user_sunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 	}
 
 	if (result != 0) {
-		if (arg)
-			c2_free(arg);
-		if (wi)
-			c2_free(wi);
+		c2_free(arg);
+		c2_free(wi);
 	}
 }
 
