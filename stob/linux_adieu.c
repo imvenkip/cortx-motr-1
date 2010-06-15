@@ -41,7 +41,7 @@
    is completed, worker thread signals completion event to AIO users;
 
    @li when space becomes available in the ring buffer, a worker thread moves
-   some number of pending requests from the queue to the ring buffer.
+   some number of pending requests from the admission queue to the ring buffer.
 
    Admission queue separate from the ring buffer is needed to
 
