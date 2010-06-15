@@ -9,17 +9,17 @@
    @addtogroup net Networking.
  */
 
-extern int  user_sunrpc_init(void);
-extern void user_sunrpc_fini(void);
+extern int  usunrpc_init(void);
+extern void usunrpc_fini(void);
 
 int c2_net_init()
 {
-	return user_sunrpc_init();
+	return usunrpc_init();
 }
 
 void c2_net_fini()
 {
-	user_sunrpc_fini();
+	usunrpc_fini();
 }
 
 int c2_net_xprt_init(struct c2_net_xprt *xprt)

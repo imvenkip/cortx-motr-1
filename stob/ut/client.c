@@ -11,7 +11,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "net/net.h"
-#include "net/sunrpc/sunrpc.h"
+#include "net/usunrpc/usunrpc.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
@@ -214,10 +214,10 @@ int main(int argc, char **argv)
 	result = c2_net_init();
 	C2_ASSERT(result == 0);
 
-	result = c2_net_xprt_init(&c2_net_user_sunrpc_xprt);
+	result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
 	C2_ASSERT(result == 0);
 
-	result = c2_net_domain_init(&ndom, &c2_net_user_sunrpc_xprt);
+	result = c2_net_domain_init(&ndom, &c2_net_usunrpc_xprt);
 	C2_ASSERT(result == 0);
 
 	result = c2_service_id_init(&sid, &ndom, argv[1], atoi(argv[2]));
@@ -276,7 +276,7 @@ int main(int argc, char **argv)
 
 	c2_service_id_fini(&sid);
 	c2_net_domain_fini(&ndom);
-	c2_net_xprt_fini(&c2_net_user_sunrpc_xprt);
+	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 	c2_net_fini();
 
 	return 0;

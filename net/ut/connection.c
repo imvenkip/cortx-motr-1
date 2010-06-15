@@ -4,7 +4,7 @@
 
 #include "lib/assert.h"
 #include "net/net.h"
-#include "net/sunrpc/sunrpc.h"
+#include "net/usunrpc/usunrpc.h"
 
 #define CU_ASSERT(a)	C2_ASSERT(a)
 
@@ -21,10 +21,10 @@ static int init_suite(void)
 	rc = c2_net_init();
 	CU_ASSERT(rc == 0);
 
-	rc = c2_net_xprt_init(&c2_net_user_sunrpc_xprt);
+	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
 	CU_ASSERT(rc == 0);
 	
-	rc = c2_net_domain_init(&dom, &c2_net_user_sunrpc_xprt);
+	rc = c2_net_domain_init(&dom, &c2_net_usunrpc_xprt);
 	CU_ASSERT(rc == 0);
 
 	rc = c2_service_id_init(&sid, &dom, "127.0.0.1", 10001);
@@ -40,7 +40,7 @@ static int clean_suite(void)
 {
 	c2_service_id_fini(&sid);
 	c2_net_domain_fini(&dom);
-	c2_net_xprt_fini(&c2_net_user_sunrpc_xprt);
+	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 	c2_net_fini();
 	return 0;
 }

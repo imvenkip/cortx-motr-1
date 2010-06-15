@@ -5,12 +5,11 @@
 #include <lib/cdefs.h>
 
 /**
-   @addtogroup sunrpc Sun RPC
+   @addtogroup usunrpc User Level Sun RPC
    @{
  */
 
-extern struct c2_net_xprt c2_net_user_sunrpc_xprt;
-extern struct c2_net_xprt c2_net_kernel_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_usunrpc_xprt;
 
 /** @} end of group sunrpc */
 
