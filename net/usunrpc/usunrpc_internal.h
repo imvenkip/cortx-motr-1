@@ -39,18 +39,6 @@
    @{
 */
 
-/**
-   XXX make version for all sun rpc calls to be const
- */
-static const int C2_DEF_RPC_VER = 1;
-
-/**
-   services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
-
 enum {
 	USUNRPC_CONN_CLIENT_COUNT  = 8,
 	USUNRPC_CONN_CLIENT_THR_NR = USUNRPC_CONN_CLIENT_COUNT * 2,
@@ -85,6 +73,8 @@ struct usunrpc_service_id {
 	struct sockadd_in    *ssi_sockaddr; /**< server ip_addr  */
 	int 	              ssi_addrlen;  /**< server ip_addr  */
 	uint16_t              ssi_port;     /**< server tcp port */
+	uint32_t              ssi_prog;     /**< server program number */
+	uint32_t              ssi_ver;      /**< server program version */
 };
 
 static inline bool dom_is_shutting(const struct c2_net_domain *dom)

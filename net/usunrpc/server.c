@@ -466,11 +466,8 @@ static void usunrpc_service_stop(struct usunrpc_service *xs)
 }
 
 static int usunrpc_service_start(struct c2_service *service,
-				 enum c2_rpc_service_id prog_id,
-				 int prog_version,
-				 uint16_t port,
-				 int nr_workers,
-				 struct c2_rpc_op_table *ops)
+				 struct usunrpc_service_id *xid,
+				 int nr_workers, struct c2_rpc_op_table *ops)
 {
 	struct sockaddr_in     addr;
 	int                    i;
@@ -479,8 +476,8 @@ static int usunrpc_service_start(struct c2_service *service,
 
 	xservice = service->s_xport_private;
 
-	xservice->s_progid  = prog_id;
-	xservice->s_version = prog_version;
+	xservice->s_progid  = xid->ssi_prog;
+	xservice->s_version = xid->ssi_ver;
 
 	C2_ASSERT(xservice->s_socket == -1);
 
@@ -491,7 +488,7 @@ static int usunrpc_service_start(struct c2_service *service,
 	}
 
         memset(&addr, 0, sizeof addr);
-        addr.sin_port = htons(port);
+        addr.sin_port = htons(xid->ssi_port);
         if (bind(xservice->s_socket, 
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
                 fprintf(stderr, "bind error: %d\n", errno);
@@ -554,7 +551,7 @@ int usunrpc_service_init(struct c2_service *service)
 {
 	struct usunrpc_service    *xservice;
 	struct usunrpc_service_id *xid;
-	int                       result;
+	int                        result;
 
 	C2_ALLOC_PTR(xservice);
 	if (xservice != NULL) {
@@ -567,9 +564,7 @@ int usunrpc_service_init(struct c2_service *service)
 		xid = service->s_id->si_xport_private;
 		xservice->s_socket = -1;
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
-		result = usunrpc_service_start(service, C2_SESSION_PROGRAM, 
-					       C2_DEF_RPC_VER,
-					       xid->ssi_port, SERVER_THR_NR,
+		result = usunrpc_service_start(service, xid, SERVER_THR_NR,
 					       service->s_table);
 	} else
 		result = -ENOMEM;
