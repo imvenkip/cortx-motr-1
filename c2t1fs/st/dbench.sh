@@ -8,15 +8,21 @@ fi
 cd ../..
 pwd
 
+# get the first non-loopback IP address
+IPAddr=$(/sbin/ifconfig | grep "inet addr" | grep -v "127.0.0.1" | awk -F: '{print $2}' | awk '{print $1}' | head -n 1)
+Port="2222"
+echo "server address is $IPAddr:$Port"
+
 rmmod loop
 
 ulimit -c unlimited
-insmod net/ksunrpc/ksunrpc.ko || exit
+insmod net/ksunrpc/ksunrpc.ko
 insmod c2t1fs/c2t1fs.ko
-(./stob/ut/server /tmp/ 2222 &)
+lsmod | grep -c "c2t1fs" || exit
+(./stob/ut/server /tmp/ $Port &)
 sleep 1
 mkdir -p /mnt/c2t1fs
-mount -t c2t1fs -o objid=12345 127.0.0.1:2222 /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345 $IPAddr:$Port /mnt/c2t1fs
 
 #large file write & read
 dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=200
@@ -26,7 +32,7 @@ umount /mnt/c2t1fs
 
 # mount again and check its content
 # 1024 * 1024 * 256 = 268435456
-mount -t c2t1fs -o objid=12345,objsize=268435456 127.0.0.1:2222 /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
 
 #attach loop device over c2t1fs file
 insmod c2t1fs/c2t1fs_loop.ko
