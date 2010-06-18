@@ -668,6 +668,9 @@ void c2_stob_io_cancel (struct c2_stob_io *io);
 
 /** @} end member group adieu */
 
+int  c2_stobs_init(void);
+void c2_stobs_fini(void);
+
 /** @} end group stob */
 
 /* __COLIBRI_STOB_STOB_H__ */

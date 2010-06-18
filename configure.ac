@@ -450,6 +450,7 @@ AC_CONFIG_FILES([
                  include/Makefile
                  include/colibri/Makefile
                  man/Makefile
+                 colibri/Makefile
                  lib/Makefile
                  lib/ut/Makefile
                  dtm/Makefile

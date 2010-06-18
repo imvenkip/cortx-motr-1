@@ -4,12 +4,10 @@ noinst_PROGRAMS   = rclient rserver
 
 rclient_SOURCES   = rpc-client.c
 rclient_LDFLAGS   = -pthread
-rclient_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
-		    $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/usunrpc/libcolibri-net-usunrpc.la
+rclient_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
 rserver_SOURCES   = rpc-server.c
 rserver_LDFLAGS   = -pthread
-rserver_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/rpc/librpc.la \
-		    $(top_builddir)/net/libcolibri-net.la $(top_builddir)/net/usunrpc/libcolibri-net-usunrpc.la
+rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
 

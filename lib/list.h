@@ -11,6 +11,8 @@
    @defgroup list
 
    Double linked list.
+
+   @{
  */
 
 /**

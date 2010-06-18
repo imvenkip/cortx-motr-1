@@ -168,7 +168,7 @@ struct c2_rpc_server *c2_rpc_server_find(const struct c2_service_id *srv_id);
 /**
  constructor for rpc library
  */
-void c2_rpclib_init(void);
+int c2_rpclib_init(void);
 
 /**
  destructor for rpc library

@@ -210,6 +210,18 @@ void c2_stob_io_cancel(struct c2_stob_io *io)
 	c2_stob_io_unlock(io->si_obj);
 }
 
+#include "stob/linux.h"
+
+int c2_stobs_init(void)
+{
+	return linux_stob_module_init();
+}
+
+void c2_stobs_fini(void)
+{
+	linux_stob_module_fini();
+}
+
 /** @} end group stob */
 
 /* 

@@ -1,8 +1,7 @@
 /* -*- C -*- */
 #include <stdio.h>
 
-extern void c2_threads_init(void);
-extern void c2_threads_fini(void);
+#include <colibri/init.h>
 
 extern void test_memory(void);
 extern void test_list(void);
@@ -20,7 +19,7 @@ int main(int argc, char *argv[])
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	c2_threads_init();
+	c2_init();
 
 	test_memory();
 	test_list();
@@ -33,7 +32,7 @@ int main(int argc, char *argv[])
 	test_chan();
 	test_atomic();
 
-	c2_threads_fini();
+	c2_fini();
 
 	return 0;
 }

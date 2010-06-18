@@ -23,18 +23,16 @@ static bool_t xdr_c2_stob_io_buf(XDR *xdrs, struct c2_stob_io_buf *buf)
 
 bool_t xdr_c2_stob_io_write_fop(XDR *xdrs, struct c2_stob_io_write_fop *w)
 {
-        int ret = 0;
-
-	ret = xdr_c2_fid(xdrs, &w->siw_object);
-	ret = xdr_array(xdrs, (char **)&w->siw_vec.v_seg, 
+	return
+		xdr_c2_fid(xdrs, &w->siw_object) &&
+		xdr_array(xdrs, (char **)&w->siw_vec.v_seg, 
 			  &w->siw_vec.v_count, ~0,
 			  sizeof (struct c2_stob_io_seg), 
-			  (xdrproc_t) xdr_c2_stob_io_seg);
-	ret = xdr_array(xdrs, (char **)&w->siw_buf.b_buf, 
+			  (xdrproc_t) xdr_c2_stob_io_seg) &&
+		xdr_array(xdrs, (char **)&w->siw_buf.b_buf, 
 			  &w->siw_buf.b_count, ~0,
 			  sizeof (struct c2_stob_io_buf), 
 			  (xdrproc_t) xdr_c2_stob_io_buf);
-        return ret;
 }
 
 bool_t xdr_c2_stob_io_write_rep_fop(XDR *xdrs, 

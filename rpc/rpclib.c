@@ -172,7 +172,7 @@ struct c2_rpc_client *c2_rpc_client_find(const struct c2_service_id *id)
 	return found ? cli : NULL;
 }
 
-void c2_rpclib_init()
+int c2_rpclib_init()
 {
 	c2_list_init(&servers_list);
 	c2_rwlock_init(&servers_list_lock);
@@ -183,7 +183,7 @@ void c2_rpclib_init()
 	c2_rpc_op_table_init(&rpc_ops);
 	/** XXX */
 //	c2_session_register_ops(rpc_ops);
-
+	return 0;
 }
 
 void c2_rpclib_fini()
