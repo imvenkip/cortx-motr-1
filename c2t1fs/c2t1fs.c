@@ -765,9 +765,10 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
         if (IS_ERR(xprt)) {
-		dput(sb->s_root);
-		/* hostname will be freed in c2t1fs_put_csi() */
-                c2t1fs_put_csi(sb);
+		csi->csi_srvid.ssi_host = NULL;
+		kfree(hostname);
+		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
+		deactivate_locked_super(sb);
                 return PTR_ERR(xprt);
 	}
 
