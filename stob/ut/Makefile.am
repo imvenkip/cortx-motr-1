@@ -1,5 +1,6 @@
 INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix -I @DBSRC@
 
+if LINUX
 noinst_PROGRAMS  = server utadieu client
 
 server_SOURCES   = server.c io_fop_xdr.c io_fop.h
@@ -13,3 +14,4 @@ client_LDADD     = $(top_builddir)/lib/libc2.la $(top_builddir)/net/libcolibri-n
 utadieu_SOURCES  = adieu.c
 utadieu_LDFLAGS  = -pthread
 utadieu_LDADD    = $(top_builddir)/lib/libc2.la $(top_builddir)/sm/libcolibri-sm.la @AIO_LIBS@ $(top_builddir)/stob/libcolibri-stob.la
+endif

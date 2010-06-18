@@ -202,14 +202,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	return result;
 }
 
-void c2_stob_io_cancel(struct c2_stob_io *io)
-{
-	c2_stob_io_lock(io->si_obj);
-	if (io->si_state == SIS_BUSY)
-		io->si_op->sio_cancel(io);
-	c2_stob_io_unlock(io->si_obj);
-}
-
 /** @} end group stob */
 
 /* 
