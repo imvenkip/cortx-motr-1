@@ -40,6 +40,17 @@
  * Client code.
  */
 
+/**
+   XXX make version for all sun rpc calls to be const
+ */
+static const int C2_DEF_RPC_VER = 1;
+
+/**
+   services unique identifier
+ */
+enum c2_rpc_service_id {
+	C2_SESSION_PROGRAM = 0x20000001
+};
 
 struct usunrpc_xprt {
 	CLIENT              *nsx_client;
@@ -91,8 +102,8 @@ static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 }
 
 static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
-			      struct usunrpc_conn *xconn,
-			      struct usunrpc_xprt *xprt)
+				 struct usunrpc_conn *xconn,
+				 struct usunrpc_xprt *xprt)
 {
 	struct sockaddr_in addr;
 	int                result;
@@ -104,8 +115,8 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	addr.sin_port        = htons(id->ssi_port);
 
 	sock = -1;
-	xprt->nsx_client = clnttcp_create(&addr, C2_SESSION_PROGRAM,
-					  C2_DEF_RPC_VER, &sock, 0, 0);
+	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog, 
+					  id->ssi_ver, &sock, 0, 0);
 	if (xprt->nsx_client != NULL) {
 		xprt->nsx_fd = sock;
 		c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
@@ -237,7 +248,7 @@ static void usunrpc_service_id_fini(struct c2_service_id *id)
 int usunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 {
 	struct usunrpc_service_id *xsid;
-	int                       result;
+	int                        result;
 
 	C2_ALLOC_PTR(xsid);
 	if (xsid != NULL) {
@@ -247,6 +258,8 @@ int usunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 		/* N.B. they have different order than kernelspace's ones */
 		xsid->ssi_host = va_arg(varargs, char *);
 		xsid->ssi_port = va_arg(varargs, int);
+		xsid->ssi_prog = C2_SESSION_PROGRAM;
+		xsid->ssi_ver  = C2_DEF_RPC_VER;
 		sid->si_ops = &usunrpc_service_id_ops;
 		result = 0;
 	} else
