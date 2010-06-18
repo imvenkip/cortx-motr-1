@@ -13,6 +13,7 @@
 #endif
 
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <rpc/auth.h>
@@ -108,11 +109,25 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	struct sockaddr_in addr;
 	int                result;
 	int                sock;
+	struct hostent    *hp;
 
 	memset(&addr, 0, sizeof addr);
 	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(id->ssi_host);
 	addr.sin_port        = htons(id->ssi_port);
+
+	if (inet_aton(id->ssi_host, &addr.sin_addr) == 0) {
+		if ((hp = gethostbyname(id->ssi_host)) == NULL) {
+			fprintf(stderr, "can't get address for %s\n",
+				id->ssi_host);
+			return -1;
+		}
+		if (hp->h_length > sizeof(struct in_addr)) {
+			fprintf(stderr, "got bad hp->h_length\n");
+			hp->h_length = sizeof(struct in_addr);
+		}
+		memcpy(&addr.sin_addr, hp->h_addr, hp->h_length);
+	}
 
 	sock = -1;
 	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog, 

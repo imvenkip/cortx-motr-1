@@ -7,7 +7,7 @@ obj-y := ../c2t1fs/ ../net/ksunrpc/
 all:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
-clean:
+clean distclean:
 	$(MAKE) -C ../c2t1fs/ clean
 	$(MAKE) -C ../net/ksunrpc/ clean
 	$(RM) Module.markers modules.order
