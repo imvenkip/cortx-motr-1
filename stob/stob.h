@@ -466,6 +466,8 @@ void c2_stob_put(struct c2_stob *obj);
    RDMA. To this end, IO operation must be completely set up and ready for
    queueing before RMDA starts, i.e., before data pages are available.
 
+   @todo implement barriers
+
    @{
  */
 

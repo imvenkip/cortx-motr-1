@@ -43,7 +43,7 @@ struct linux_domain {
 	/**
 	   parent directory to hold the mapping db and objects.
 	   Mapping db will be stored in map.db, and all objects will be stored
-	   in Objects/LOXXXXXX
+	   in o/AAAAAAAA.BBBBBBBB
 	*/
 	char             sdl_path[MAXPATHLEN];
 

@@ -191,7 +191,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		io->si_scope = scope;
 		io->si_state = SIS_BUSY;
 		c2_stob_io_lock(obj);
-		/* XXX do something about barriers here. */
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			io->si_state = SIS_IDLE;
