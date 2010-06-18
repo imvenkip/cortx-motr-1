@@ -27,12 +27,12 @@
    storage object domain level, that is, each domain has its own set of queues,
    threads and thresholds.
 
-   On a high level, adieu IO request is first placed into a per-domain queue
-   (admission queue, linux_domain::ioq_queue) where it is held until there is
-   enough space in the AIO ring buffer (linux_domain::ioq_ctx). Placing the
-   request into the ring buffer (ioq_queue_submit()) means that the kernel AIO
-   is launched for the request. When IO completes, the kernel delivers an IO
-   completion event via the ring buffer.
+   On a high level, adieu IO request is first split into fragments. A fragment
+   is initially placed into a per-domain queue (admission queue,
+   linux_domain::ioq_queue) where it is held until there is enough space in the
+   AIO ring buffer (linux_domain::ioq_ctx). Placing a fragment into the ring
+   buffer (ioq_queue_submit()) means that kernel AIO is launched for it. When IO
+   completes, the kernel delivers an IO completion event via the ring buffer.
 
    A number (IOQ_NR_THREADS by default) of worker adieu threads is created for
    each storage object domain. These threads are implementing admission control
@@ -42,16 +42,14 @@
    is completed, worker thread signals completion event to AIO users;
 
    @li when space becomes available in the ring buffer, a worker thread moves
-   some number of pending requests from the admission queue to the ring buffer.
+   some number of pending fragments from the admission queue to the ring buffer.
 
    Admission queue separate from the ring buffer is needed to
 
-   @li be able to handle more pending requests than a kernel can support and
+   @li be able to handle more pending fragments than a kernel can support and
 
-   @li potentially do some pre-processing on the pending requests (like elevator
-   does).
-
-   @see http://www.kernel.org/doc/man-pages/online/pages/man2/io_setup.2.html
+   @li potentially do some pre-processing on the pending fragments (like
+   elevator does).
 
    <b>Concurrency control</b>
 
@@ -61,24 +59,27 @@
    Concurrency control for an individual adieu fragment is very simple: user is
    not allowed to touch it in SIS_BUSY state and io_getevents() exactly-once
    delivery semantics guarantee that there is no concurrency for busy->idle
-   transition. This nice picture would break down if IO cancellation were to be
-   implemented, because this requires synchronization between user actions
+   transition. This nice picture would break apart if IO cancellation were to be
+   implemented, because it requires synchronization between user actions
    (cancellation) and ongoing IO in SIS_BUSY state.
 
    @todo use explicit state machine instead of ioq threads
+
+   @see http://www.kernel.org/doc/man-pages/online/pages/man2/io_setup.2.html
 
    @{
  */
 
 /**
-   Admission queue element.
+   AIO fragment.
 
    A ioq_qev is created for each fragment of original adieu request (see
-   linux_stob_io_launch()) and placed into a per-domain admission queue
-   (linux_domain::ioq_queue).
+   linux_stob_io_launch()).
  */
 struct ioq_qev {
 	struct iocb           iq_iocb;
+	/** Linkage to a per-domain admission queue
+	    (linux_domain::ioq_queue). */
 	struct c2_queue_link  iq_linkage;
 	struct c2_stob_io    *iq_io;
 };
@@ -305,7 +306,7 @@ static void ioq_queue_unlock(struct linux_domain *ldom)
 }
 
 /**
-   Transfers requests from the admission queue to the ring buffer in batches
+   Transfers fragments from the admission queue to the ring buffer in batches
    until the ring buffer is full.
  */
 static void ioq_queue_submit(struct linux_domain *ldom)
@@ -400,7 +401,7 @@ const static struct timespec ioq_timeout_default = {
    Linux adieu worker thread.
 
    Listens to the completion events from the ring buffer. Delivers completion
-   events to the users. Moves requests from the admission queue to the ring
+   events to the users. Moves fragments from the admission queue to the ring
    buffer.
  */
 static void ioq_thread(struct linux_domain *ldom)
