@@ -490,6 +490,15 @@ static int usunrpc_service_start(struct c2_service *service,
 		return -errno;
 	}
 
+	i = 1;
+	if (setsockopt(xservice->s_socket, SOL_SOCKET, SO_REUSEADDR,
+		       &i, sizeof(i)) < 0) {
+		rc = -errno;
+		fprintf(stderr, "set socket option error: %d\n", errno);
+		close(xservice->s_socket);
+		return rc;
+	}
+
         memset(&addr, 0, sizeof addr);
         addr.sin_port = htons(port);
         if (bind(xservice->s_socket, 
