@@ -117,6 +117,8 @@ bool linux_stob_io_is_locked(const struct c2_stob *stob);
 void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
 
+extern struct c2_addb_ctx adieu_addb_ctx;
+
 /** @} end group stoblinux */
 
 /* __COLIBRI_STOB_LINUX_INTERNAL_H__ */

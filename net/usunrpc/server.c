@@ -235,13 +235,11 @@ static void usunrpc_service_worker(struct c2_service *service)
 		if (ret > 0 && !svc_sendreply(wi->wi_transp,
 					      (xdrproc_t)op->ro_xdr_result,
 					      (caddr_t)res)) {
+			/* XXX log error */
 			svcerr_systemerr(wi->wi_transp);
 		}
 
 		/* free the arg and res. They are allocated in dispatch() */
-		/* XXX They are allocated by c2_alloc(), but not freed by
-		   c2_free(). This will report some memory leak on some
-		   platforms. */
 		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)op->ro_xdr_arg,
 				  (caddr_t) wi->wi_arg)) {
 			/* XXX bug */
@@ -307,6 +305,8 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 				   How to pass the error code back to client?
 				   If code reaches here, the client got timeout,
 				   instead of error.
+
+				   XXX log error
 				*/
 				svcerr_decode(transp);
 				result = -EPROTO;
@@ -455,10 +455,6 @@ static void usunrpc_service_stop(struct usunrpc_service *xs)
         c2_mutex_unlock(&xs->s_req_guard);
 
 	/* close the service socket */
-	/*
-	 * XXX nikita: shouldn't sunrpc lib do this for us? If the library
-	 * doesn't close the socket, shouldn't we call shutdown(2) here too?
-	 */
 	if (xs->s_socket != -1) {
 		close(xs->s_socket);
 		xs->s_socket = -1;

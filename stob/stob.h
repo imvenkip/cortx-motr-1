@@ -8,6 +8,7 @@
 #include <lib/vec.h>
 #include <lib/chan.h>
 #include <lib/rwlock.h>
+#include <addb/addb.h>
 #include <sm/sm.h>
 
 /* import */
@@ -614,6 +615,11 @@ struct c2_stob_io {
 	   IO operation is a state machine, see State diagram for adieu.
 	 */
 	struct c2_sm                si_mach;
+	/**
+	   Context in which addb events related to this IO operation are
+	   reported.
+	 */
+	struct c2_addb_ctx          si_addb;
 };
 
 struct c2_stob_io_op {

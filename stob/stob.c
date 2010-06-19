@@ -146,6 +146,10 @@ static void c2_stob_io_unlock(struct c2_stob *obj)
 	obj->so_op->sop_io_unlock(obj);
 }
 
+static const struct c2_addb_ctx_type stob_io_addb_ctx = {
+	.act_name = "stob-io"
+};
+
 void c2_stob_io_init(struct c2_stob_io *io)
 {
 	memset(io, 0, sizeof *io);
@@ -154,6 +158,7 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	io->si_state  = SIS_IDLE;
 	c2_chan_init(&io->si_wait);
 	c2_sm_init(&io->si_mach);
+	c2_addb_ctx_init(&io->si_addb, &stob_io_addb_ctx, NULL);
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
@@ -161,6 +166,8 @@ void c2_stob_io_init(struct c2_stob_io *io)
 void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
+
+	c2_addb_ctx_fini(&io->si_addb);
 	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
