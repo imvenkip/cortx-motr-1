@@ -145,7 +145,7 @@ const struct c2_addb_ev var = {						\
 	.ae_ops   = &(ops)						\
 };									\
 									\
-typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t;
+typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 
 /**
    Type-safe addb posting interface.
