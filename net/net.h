@@ -12,6 +12,7 @@
 #include <lib/refs.h>
 #include <lib/chan.h>
 #include <lib/thread.h>
+#include <addb/addb.h>
 
 /**
    @defgroup net Networking.
@@ -166,6 +167,7 @@ struct c2_service {
 	/** pointer to transport private service data */
 	void                           *s_xport_private;
 	const struct c2_service_ops    *s_ops;
+	struct c2_addb_ctx              s_addb;
 };
 
 struct c2_service_ops {

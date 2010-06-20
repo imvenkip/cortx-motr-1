@@ -344,7 +344,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 			ioq_queue_lock(ldom);
 			if (put < 0) {
-				C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, 
+				C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc,
 					    linux_addb_io_submit, put);
 				put = 0;
 			}

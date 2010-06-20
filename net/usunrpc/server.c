@@ -30,6 +30,7 @@
 #include "lib/thread.h"
 #include "lib/cond.h"
 #include "net/net.h"
+#include "addb/addb.h"
 
 #include "usunrpc_internal.h"
 
@@ -150,6 +151,9 @@ struct usunrpc_service {
 
 static pthread_key_t usunrpc_service_key;
 static bool usunrpc_service_key_initialised = false;
+static const struct c2_addb_loc usunrpc_addb_server = {
+	.al_name = "usunrpc-server"
+};
 
 /**
    Work item, holding RPC operation argument and results.
@@ -197,6 +201,34 @@ static struct c2_service *usunrpc_service_get(void)
 	return pthread_getspecific(usunrpc_service_key);
 }
 
+C2_ADDB_EV_DEFINE(usunrpc_addb_sendreply,        "sendreply", 0x10, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_freeargs,         "freeargs",   0x11, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_getargs,          "getargs",     0x12, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_req,              "req", 0x13, 
+		  C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(usunrpc_addb_svc_register,     "svc_register", 0x14, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_svctcp_create,    "svctcp_create", 0x15, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_select,           "select", 0x16, 
+		  C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_socket,           "socket", 0x17, 
+		  C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_bind,             "bind", 0x18, 
+		  C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_alloc_workers,    "alloc_workers", 0x19, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x1a, 
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1b, 
+		  C2_ADDB_CALL);
+
+#define ADDB_ADD(service, ev, ...) \
+C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server, ev , ## __VA_ARGS__)
+
 /**
    worker thread.
 
@@ -235,15 +267,14 @@ static void usunrpc_service_worker(struct c2_service *service)
 		if (ret > 0 && !svc_sendreply(wi->wi_transp,
 					      (xdrproc_t)op->ro_xdr_result,
 					      (caddr_t)res)) {
-			/* XXX log error */
+			ADDB_ADD(service, usunrpc_addb_sendreply, 0);
 			svcerr_systemerr(wi->wi_transp);
 		}
 
 		/* free the arg and res. They are allocated in dispatch() */
 		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)op->ro_xdr_arg,
-				  (caddr_t) wi->wi_arg)) {
-			/* XXX bug */
-		}
+				  (caddr_t) wi->wi_arg))
+			ADDB_ADD(service, usunrpc_addb_freeargs, 0);
 		xdr_free((xdrproc_t)op->ro_xdr_result, (caddr_t)res);
 
 		c2_free(res);
@@ -281,6 +312,7 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 	service = usunrpc_service_get();
 	C2_ASSERT(service != NULL);
 
+	ADDB_ADD(service, usunrpc_addb_req);
 	xs = service->s_xport_private;
 	op = c2_rpc_op_find(service->s_table, req->rq_proc);
 
@@ -305,9 +337,8 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 				   How to pass the error code back to client?
 				   If code reaches here, the client got timeout,
 				   instead of error.
-
-				   XXX log error
 				*/
+				ADDB_ADD(service, usunrpc_addb_getargs, 0);
 				svcerr_decode(transp);
 				result = -EPROTO;
 			}
@@ -354,13 +385,11 @@ static int usunrpc_scheduler_init(struct c2_service *service)
 				 usunrpc_dispatch, 0))
 			result = 0;
 		else {
-			fprintf(stderr, "error registering (%lu, %lu, %i).\n",
-				xservice->s_progid, 
-				xservice->s_version, xid->ssi_port);
+			ADDB_ADD(service, usunrpc_addb_svc_register, 0);
 			svc_destroy(xservice->s_transp);
 		}
 	} else
-                fprintf(stderr, "svctcp_create failed\n");
+		ADDB_ADD(service, usunrpc_addb_svctcp_create, 0);
 	return result;
 }
 
@@ -395,7 +424,7 @@ static void usunrpc_scheduler(struct c2_service *service)
 		if (ret > 0)
 			svc_getreqset(&listen_local);
 		else if (ret < 0)
-			fprintf(stderr, "select failed\n");
+			ADDB_ADD(service, usunrpc_addb_select, ret);
 		c2_rwlock_write_unlock(&xservice->s_guard);
 	}
 
@@ -479,7 +508,7 @@ static int usunrpc_service_start(struct c2_service *service,
 
         xservice->s_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (xservice->s_socket == -1) {
-                fprintf(stderr, "socket error: %d\n", errno);
+		ADDB_ADD(service, usunrpc_addb_socket, errno);
 		return -errno;
 	}
 
@@ -487,7 +516,7 @@ static int usunrpc_service_start(struct c2_service *service,
         addr.sin_port = htons(xid->ssi_port);
         if (bind(xservice->s_socket, 
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
-                fprintf(stderr, "bind error: %d\n", errno);
+		ADDB_ADD(service, usunrpc_addb_bind, errno);
 		rc = -errno;
 		goto err;
 	}
@@ -495,8 +524,8 @@ static int usunrpc_service_start(struct c2_service *service,
         xservice->s_nr_workers = nr_workers;
 	C2_ALLOC_ARR(xservice->s_workers, nr_workers);
         if (xservice->s_workers == NULL) {
-                fprintf(stderr, "alloc thread handle failure\n");
                 rc = -ENOMEM;
+		ADDB_ADD(service, usunrpc_addb_alloc_workers, rc);
 		goto err;
         }
 
@@ -505,7 +534,7 @@ static int usunrpc_service_start(struct c2_service *service,
 		            &usunrpc_scheduler_init, &usunrpc_scheduler,
 			    service);
         if (rc != 0) {
-                fprintf(stderr, "scheduler thread create: %d\n", rc);
+		ADDB_ADD(service, usunrpc_addb_scheduler_thread, rc);
 		goto err;
 	}
 
@@ -515,7 +544,7 @@ static int usunrpc_service_start(struct c2_service *service,
 				    struct c2_service *, NULL, 
 				    &usunrpc_service_worker, service);
                 if (rc) {
-                        fprintf(stderr, "worker thread create: %d\n", rc);
+			ADDB_ADD(service, usunrpc_addb_worker_thread, rc);
                         goto err;
                 }
         }

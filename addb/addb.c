@@ -52,10 +52,27 @@ static int subst_int(struct c2_addb_dp *dp, int rc)
 	return 0;
 }
 
+static int subst_void(struct c2_addb_dp *dp)
+{
+	return 0;
+}
+
 const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
 	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
 	.aeo_size  = sizeof(int32_t),
 	.aeo_name  = "syscall-failure"
+};
+
+const struct c2_addb_ev_ops C2_ADDB_CALL = {
+	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
+	.aeo_size  = sizeof(int32_t),
+	.aeo_name  = "call-failure"
+};
+
+const struct c2_addb_ev_ops C2_ADDB_STAMP = {
+	.aeo_subst = (c2_addb_ev_subst_t)subst_void,
+	.aeo_size  = 0,
+	.aeo_name  = "."
 };
 
 /** @} end of addb group */

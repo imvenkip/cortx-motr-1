@@ -120,7 +120,7 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t;
 								\
 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
 		     (&__dp , ## __VA_ARGS__));			\
-	if (ev.ae_ops->aeo_subst(&__dp, __VA_ARGS__) == 0)	\
+	if (ev.ae_ops->aeo_subst(&__dp , ## __VA_ARGS__) == 0)	\
 		c2_addb_add(&__dp);				\
 })
 
@@ -130,8 +130,13 @@ extern const struct c2_addb_ev_ops ops;					\
 typedef int								\
 __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 
+/** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
-C2_ADDB_OPS_DEFINE(C2_ADDB_VOID);
+/** A call to an C2 component failed. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
+/** Time-stamp. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
+/** Record a Boolean condition. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
 
 /** @} end of addb group */
