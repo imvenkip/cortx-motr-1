@@ -31,7 +31,7 @@ struct c2_addb_ctx_type {
 /**
    Activity in context on which addb event happens.
 
-   This can be, for example, FOP processing, storage IO, etc. There is also a
+   This can be, for example, FOP processing or storage IO. There is also a
    "global" per address space context for events not related to any identifiable
    activity (e.g., for reception of unsolicited signals).
 
@@ -86,6 +86,9 @@ struct c2_addb_ev {
 	const struct c2_addb_ev_ops *ae_ops;
 };
 
+/**
+   An instance of addb event packet together with its formal parameters.
+ */
 struct c2_addb_dp {
 	struct c2_addb_ctx       *ad_ctx;
 	const struct c2_addb_loc *ad_loc;
@@ -94,12 +97,47 @@ struct c2_addb_dp {
 	int ad_rc;
 };
 
+/**
+   Low-level interface posting a data-point to the addb.
+
+   Use this if type-safe interface (C2_ADDB_ADD()) is for some reason
+   inadequate.
+ */
 void c2_addb_add(struct c2_addb_dp *dp);
 
 int  c2_addb_init(void);
 void c2_addb_fini(void);
 
+/*
+ * The ugly pre-processor code below implements a type-safe interface to addb,
+ * guaranteeing at compile time that formal parameters supplied for an addb
+ * event match its definition. This is achieved through the mechanisms not
+ * entirely unlike to C++ templates.
+ */
 
+/**
+   Defines an addb event with a given name, identifier and operations vector.
+
+   "ops" MUST be a variable name, usually introduced by C2_ADDB_OPS_DEFINE()
+   macro.
+
+   Example:
+
+   @code
+   // addb event recording directory entry cache hits and misses during 
+   // fop processing
+   //
+   // This call defines const struct c2_addb_ev reqh_dirent_cache;
+   C2_ADDB_EV_DEFINE(reqh_dirent_cache,
+                     "sendreply",           // human-readable name
+                     REQH_ADDB_DIRENT_CACHE,// unique identifier
+		     C2_ADDB_FLAG,          // event type (Boolean: hit or miss)
+		     bool flag              // prototype. Must match the 
+                                            // prototype in C2_ADDB_FLAG
+                                            // definition.
+                    );
+   @endcode
+ */
 #define C2_ADDB_EV_DEFINE(var, name, id, ops, ...)			\
 const struct c2_addb_ev var = {						\
 	.ae_name  = (name),						\
@@ -109,7 +147,24 @@ const struct c2_addb_ev var = {						\
 									\
 typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t;
 
+/**
+   Type-safe addb posting interface.
 
+   Composes a data-point for a given event in a given context and a given
+   location and posts it to addb.
+
+   Event formal parameters are supplied as variadic arguments. This macro checks
+   that their number and types conform to the event definition
+   (C2_ADDB_EV_DEFINE(), which it turns conforms to the event operation vector
+   definition in C2_ADDB_OPS_DEFINE()).
+
+   "ev" MUST be a variable name, usually introduced by C2_ADDB_EV_DEFINE().
+
+   @code
+   hit = c2_dirent_cache_lookup(pdir, name, &entry);
+   C2_ADDB_ADD(&fop->f_addb_ctx, &reqh_addb_loc, &reqh_dirent_cache, hit);
+   @endcode
+ */
 #define C2_ADDB_ADD(ctx, loc, ev, ...)				\
 ({								\
 	struct c2_addb_dp __dp;					\
@@ -124,6 +179,12 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t;
 		c2_addb_add(&__dp);				\
 })
 
+/**
+   Declare addb event operations vector with a given collection of formal
+   parameter.
+
+   @see C2_ADDB_SYSCALL, C2_ADDB_CALL, C2_ADDB_STAMP, C2_ADDB_FLAG
+ */
 #define C2_ADDB_OPS_DEFINE(ops, ...)					\
 extern const struct c2_addb_ev_ops ops;					\
 									\

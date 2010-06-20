@@ -75,6 +75,12 @@ const struct c2_addb_ev_ops C2_ADDB_STAMP = {
 	.aeo_name  = "."
 };
 
+const struct c2_addb_ev_ops C2_ADDB_FLAG = {
+	.aeo_subst = (c2_addb_ev_subst_t)subst_void,
+	.aeo_size  = sizeof(bool),
+	.aeo_name  = "flag"
+};
+
 /** @} end of addb group */
 
 /* 
