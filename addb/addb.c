@@ -4,6 +4,8 @@
 #  include <config.h>
 #endif
 
+#include "lib/arith.h"
+
 #include "addb/addb.h"
 
 /**
@@ -38,12 +40,22 @@ void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
 
 void c2_addb_add(struct c2_addb_dp *dp)
 {
-	printf("addb: ctx: %s/%p, loc: %s, ev: %s/%s, rc: %i\n",
-	       dp->ad_ctx->ac_type->act_name, dp->ad_ctx,
-	       dp->ad_loc->al_name,
-	       dp->ad_ev->ae_ops->aeo_name,
-	       dp->ad_ev->ae_name,
-	       dp->ad_rc);
+	enum c2_addb_ev_level     lev;
+	struct c2_addb_ctx       *ctx;
+	const struct c2_addb_ev  *ev;
+
+	ctx = dp->ad_ctx;
+	ev  = dp->ad_ev;
+	lev = max_check(dp->ad_level, max_check(ev->ae_level,
+						ev->ae_ops->aeo_level));
+	if (lev >= AEL_NOTE) {
+		printf("addb: ctx: %s/%p, loc: %s, ev: %s/%s, rc: %i\n",
+		       ctx->ac_type->act_name, ctx,
+		       dp->ad_loc->al_name,
+		       ev->ae_ops->aeo_name,
+		       ev->ae_name,
+		       dp->ad_rc);
+	}
 }
 
 static int subst_int(struct c2_addb_dp *dp, int rc)

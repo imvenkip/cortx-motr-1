@@ -60,10 +60,21 @@ struct c2_addb_loc {
 
 typedef int (*c2_addb_ev_subst_t)(struct c2_addb_dp *dp, ...);
 
+/** Event severity level. */
+enum c2_addb_ev_level {
+	AEL_TRACE,
+	AEL_INFO,
+	AEL_NOTE,
+	AEL_WARN,
+	AEL_ERROR,
+	AEL_FATAL
+};
+
 struct c2_addb_ev_ops {
-	c2_addb_ev_subst_t aeo_subst;
-	size_t             aeo_size;
-	const char        *aeo_name;
+	c2_addb_ev_subst_t    aeo_subst;
+	size_t                aeo_size;
+	const char           *aeo_name;
+	enum c2_addb_ev_level aeo_level;
 };
 
 /**
@@ -84,6 +95,7 @@ struct c2_addb_ev {
 	const char                  *ae_name;
 	uint64_t                     ae_id;
 	const struct c2_addb_ev_ops *ae_ops;
+	enum c2_addb_ev_level        ae_level;
 };
 
 /**
@@ -93,6 +105,7 @@ struct c2_addb_dp {
 	struct c2_addb_ctx       *ad_ctx;
 	const struct c2_addb_loc *ad_loc;
 	const struct c2_addb_ev  *ad_ev;
+	enum c2_addb_ev_level     ad_level;
 
 	int ad_rc;
 };
@@ -169,9 +182,10 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 ({								\
 	struct c2_addb_dp __dp;					\
 								\
-	__dp.ad_ctx = (ctx);					\
-	__dp.ad_loc = (loc);					\
-	__dp.ad_ev  = &(ev);					\
+	__dp.ad_ctx   = (ctx);					\
+	__dp.ad_loc   = (loc);					\
+	__dp.ad_ev    = &(ev);					\
+	__dp.ad_level = 0;					\
 								\
 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
 		     (&__dp , ## __VA_ARGS__));			\
