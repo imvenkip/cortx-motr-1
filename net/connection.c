@@ -118,9 +118,9 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 void c2_net_domain_fini(struct c2_net_domain *dom)
 {
 	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
-	c2_rwlock_init(&dom->nd_lock);
-	c2_list_init(&dom->nd_service);
-	c2_list_init(&dom->nd_conn);
+	c2_rwlock_fini(&dom->nd_lock);
+	c2_list_fini(&dom->nd_service);
+	c2_list_fini(&dom->nd_conn);
 }
 
 /** @} end of net group */

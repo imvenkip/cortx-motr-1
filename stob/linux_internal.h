@@ -43,7 +43,7 @@ struct linux_domain {
 	/**
 	   parent directory to hold the mapping db and objects.
 	   Mapping db will be stored in map.db, and all objects will be stored
-	   in Objects/LOXXXXXX
+	   in o/AAAAAAAA.BBBBBBBB
 	*/
 	char             sdl_path[MAXPATHLEN];
 
@@ -116,6 +116,8 @@ void linux_stob_io_unlock(struct c2_stob *stob);
 bool linux_stob_io_is_locked(const struct c2_stob *stob);
 void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
+
+extern struct c2_addb_ctx adieu_addb_ctx;
 
 /** @} end group stoblinux */
 

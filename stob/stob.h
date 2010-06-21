@@ -8,6 +8,7 @@
 #include <lib/vec.h>
 #include <lib/chan.h>
 #include <lib/rwlock.h>
+#include <addb/addb.h>
 #include <sm/sm.h>
 
 /* import */
@@ -409,13 +410,6 @@ void c2_stob_put(struct c2_stob *obj);
    the data temporarily, un-map pages, etc. An implementation must not touch
    the data at any other time.
 
-   <b>IO cancellation.</b>
-
-   The c2_stob_io_cancel() function attempts to cancel IO. This is only a
-   best-effort call without any hard guarantees, because it may be impossible to
-   cancel ongoing IO for certain implementations. Cancelled IO terminates with
-   -EINTR result code.
-
    <b>Liveness rules.</b>
 
    c2_stob_io can be freed once it is owned by an adieu user (see data
@@ -472,6 +466,8 @@ void c2_stob_put(struct c2_stob *obj);
    of all, memory allocations) in data path after resources are consumed by
    RDMA. To this end, IO operation must be completely set up and ready for
    queueing before RMDA starts, i.e., before data pages are available.
+
+   @todo implement barriers
 
    @{
  */
@@ -619,6 +615,11 @@ struct c2_stob_io {
 	   IO operation is a state machine, see State diagram for adieu.
 	 */
 	struct c2_sm                si_mach;
+	/**
+	   Context in which addb events related to this IO operation are
+	   reported.
+	 */
+	struct c2_addb_ctx          si_addb;
 };
 
 struct c2_stob_io_op {
@@ -633,11 +634,6 @@ struct c2_stob_io_op {
 	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
 	int  (*sio_launch) (struct c2_stob_io *io);
-	/**
-	   Attempts to cancel IO operation. Has no effect when called before IO
-	   has been queued or after IO has completed.
-	 */
-	void (*sio_cancel) (struct c2_stob_io *io);
 };
 
 /**
@@ -664,7 +660,6 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
  */
 int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
 			struct c2_dtx *tx, struct c2_io_scope *scope);
-void c2_stob_io_cancel (struct c2_stob_io *io);
 
 /** @} end member group adieu */
 

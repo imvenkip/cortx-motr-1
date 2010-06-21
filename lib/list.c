@@ -3,11 +3,6 @@
 
 void c2_list_init(struct c2_list *head)
 {
-	C2_CASSERT(offsetof(struct c2_list, l_head) == 
-		   offsetof(struct c2_list_link, ll_next));
-	C2_CASSERT(offsetof(struct c2_list, l_tail) == 
-		   offsetof(struct c2_list_link, ll_prev));
-
 	head->l_head = (struct c2_list_link *)head;
 	head->l_tail = (struct c2_list_link *)head;
 }

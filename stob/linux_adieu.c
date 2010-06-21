@@ -10,9 +10,11 @@
 #include "lib/queue.h"
 #include "lib/arith.h"
 #include "lib/thread.h"
+#include "addb/addb.h"
 
 #include "linux.h"
 #include "linux_internal.h"
+#include "linux_getevents.h"
 
 /**
    @addtogroup stoblinux
@@ -26,12 +28,12 @@
    storage object domain level, that is, each domain has its own set of queues,
    threads and thresholds.
 
-   On a high level, adieu IO request is first placed into a per-domain queue
-   (admission queue, linux_domain::ioq_queue) where it is held until there is
-   enough space in the AIO ring buffer (linux_domain::ioq_ctx). Placing the
-   request into the ring buffer (ioq_queue_submit()) means that the kernel AIO
-   is launched for the request. When IO completes, the kernel delivers an IO
-   completion event via the ring buffer.
+   On a high level, adieu IO request is first split into fragments. A fragment
+   is initially placed into a per-domain queue (admission queue,
+   linux_domain::ioq_queue) where it is held until there is enough space in the
+   AIO ring buffer (linux_domain::ioq_ctx). Placing a fragment into the ring
+   buffer (ioq_queue_submit()) means that kernel AIO is launched for it. When IO
+   completes, the kernel delivers an IO completion event via the ring buffer.
 
    A number (IOQ_NR_THREADS by default) of worker adieu threads is created for
    each storage object domain. These threads are implementing admission control
@@ -41,38 +43,44 @@
    is completed, worker thread signals completion event to AIO users;
 
    @li when space becomes available in the ring buffer, a worker thread moves
-   some number of pending requests from the admission queue to the ring buffer.
+   some number of pending fragments from the admission queue to the ring buffer.
 
    Admission queue separate from the ring buffer is needed to
 
-   @li be able to handle more pending requests than a kernel can support and
+   @li be able to handle more pending fragments than a kernel can support and
 
-   @li potentially do some pre-processing on the pending requests (like elevator
-   does).
-
-   @see http://www.kernel.org/doc/man-pages/online/pages/man2/io_setup.2.html
+   @li potentially do some pre-processing on the pending fragments (like
+   elevator does).
 
    <b>Concurrency control</b>
 
    Per-domain data structures (queue, thresholds, etc.) are protected by
    linux_domain::ioq_mutex.
 
-   @todo IO cancellation
+   Concurrency control for an individual adieu fragment is very simple: user is
+   not allowed to touch it in SIS_BUSY state and io_getevents() exactly-once
+   delivery semantics guarantee that there is no concurrency for busy->idle
+   transition. This nice picture would break apart if IO cancellation were to be
+   implemented, because it requires synchronization between user actions
+   (cancellation) and ongoing IO in SIS_BUSY state.
 
    @todo use explicit state machine instead of ioq threads
+
+   @see http://www.kernel.org/doc/man-pages/online/pages/man2/io_setup.2.html
 
    @{
  */
 
 /**
-   Admission queue element.
+   AIO fragment.
 
    A ioq_qev is created for each fragment of original adieu request (see
-   linux_stob_io_launch()) and placed into a per-domain admission queue
-   (linux_domain::ioq_queue).
+   linux_stob_io_launch()).
  */
 struct ioq_qev {
 	struct iocb           iq_iocb;
+	/** Linkage to a per-domain admission queue
+	    (linux_domain::ioq_queue). */
 	struct c2_queue_link  iq_linkage;
 	struct c2_stob_io    *iq_io;
 };
@@ -87,6 +95,8 @@ struct linux_stob_io {
 	uint64_t           si_done;
 	/** Array of fragments. */
 	struct ioq_qev    *si_qev;
+	/** Mutex serialising processing of completion events for this IO. */
+	struct c2_mutex    si_endlock;
 };
 
 static struct ioq_qev *ioq_queue_get   (struct linux_domain *ldom);
@@ -109,6 +119,7 @@ int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 	if (lio != NULL) {
 		io->si_stob_private = lio;
 		io->si_op = &linux_stob_io_op;
+		c2_mutex_init(&lio->si_endlock);
 		result = 0;
 	} else
 		result = -ENOMEM;
@@ -119,6 +130,7 @@ static void linux_stob_io_fini(struct linux_stob_io *lio)
 {
 	c2_free(lio->si_qev);
 	lio->si_qev = NULL;
+	c2_mutex_fini(&lio->si_endlock);
 }
 
 /**
@@ -210,6 +222,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			c2_vec_cursor_move(&src, frag_size);
 			c2_vec_cursor_move(&dst, frag_size);
 			lio->si_qev[i].iq_io = io;
+			c2_queue_link_init(&lio->si_qev[i].iq_linkage);
 		}
 		if (result == 0) {
 			ioq_queue_lock(ldom);
@@ -226,13 +239,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	return result;
 }
 
-static void linux_stob_io_cancel(struct c2_stob_io *io)
-{
-}
-
 static const struct c2_stob_io_op linux_stob_io_op = {
-	.sio_launch  = linux_stob_io_launch,
-	.sio_cancel  = linux_stob_io_cancel
+	.sio_launch  = linux_stob_io_launch
 };
 
 /**
@@ -298,8 +306,17 @@ static void ioq_queue_unlock(struct linux_domain *ldom)
 	c2_mutex_unlock(&ldom->ioq_lock);
 }
 
+static const struct c2_addb_loc adieu_addb_loc = {
+	.al_name = "linux-adieu"
+};
+
+C2_ADDB_EV_DEFINE(linux_addb_io_setup, "io_setup", 0x1, C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(linux_addb_io_submit, "io_submit", 0x2, C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(linux_addb_io_getevents, "io_getevents", 0x3, 
+		  C2_ADDB_SYSCALL);
+
 /**
-   Transfers requests from the admission queue to the ring buffer in batches
+   Transfers fragments from the admission queue to the ring buffer in batches
    until the ring buffer is full.
  */
 static void ioq_queue_submit(struct linux_domain *ldom)
@@ -327,8 +344,8 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 			ioq_queue_lock(ldom);
 			if (put < 0) {
-				/* XXX log error */
-				printf("io_submit: %i", put);
+				C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc,
+					    linux_addb_io_submit, put);
 				put = 0;
 			}
 			for (i = put; i < got; ++i)
@@ -364,10 +381,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 
 	C2_ASSERT(io->si_state == SIS_BUSY);
 
-	/*
-	 * XXX per io lock can be used here.
-	 */
-	ioq_queue_lock(ldom);
+	c2_mutex_lock(&lio->si_endlock);
 	C2_ASSERT(lio->si_done < lio->si_nr);
 	if (res > 0)
 		qev->iq_io->si_count += res;
@@ -375,7 +389,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 		qev->iq_io->si_rc = res;
 	++lio->si_done;
 	done = lio->si_done == lio->si_nr;
-	ioq_queue_unlock(ldom);
+	c2_mutex_unlock(&lio->si_endlock);
 
 	if (done) {
 		for (i = 0; i < lio->si_nr; ++i) {
@@ -393,63 +407,11 @@ const static struct timespec ioq_timeout_default = {
 	.tv_nsec = 0
 };
 
-/*
- * XXX the following macro are copied from libaio-devel source,
- *     to solve a bug in libaio code.
- *     Now we are going to do system call directly.
- *     They should be definitely removed when that bug fixed. After that,
- *     io_getevents() from libaio should be called directly.
- */
-
-#if defined(__i386__)
-
-#define __NR_io_getevents       247
-#define io_syscall5(type,fname,sname,type1,arg1,type2,arg2,type3,arg3,type4,arg4, \
-          type5,arg5)                                                   \
-type fname (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5)     \
-{                                                                       \
-long __res;                                                             \
-long tmp;                                                               \
-__asm__ volatile ("movl %%ebx,%7\n"                                     \
-                  "movl %2,%%ebx\n"                                     \
-                  "int $0x80\n"                                         \
-                  "movl %7,%%ebx"                                       \
-        : "=a" (__res)                                                  \
-        : "0" (__NR_##sname),"rm" ((long)(arg1)),"c" ((long)(arg2)),    \
-          "d" ((long)(arg3)),"S" ((long)(arg4)),"D" ((long)(arg5)), \
-          "m" (tmp));                                                   \
-return __res;                                                           \
-}
-
-
-#elif defined(__x86_64__)
-
-#define __NR_io_getevents	208
-#define __syscall_clobber "r11","rcx","memory"
-#define __syscall "syscall"
-#define io_syscall5(type,fname,sname,type1,arg1,type2,arg2,type3,arg3,type4,arg4, \
-	  type5,arg5)							\
-type fname (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5)	\
-{									\
-long __res;								\
-__asm__ volatile ("movq %5,%%r10 ; movq %6,%%r8 ; " __syscall		\
-	: "=a" (__res)							\
-	: "0" (__NR_##sname),"D" ((long)(arg1)),"S" ((long)(arg2)),	\
-	  "d" ((long)(arg3)),"g" ((long)(arg4)),"g" ((long)(arg5)) :	\
-	__syscall_clobber,"r8","r10" );					\
-return __res;								\
-}
-
-#endif
-
-io_syscall5(int, my_io_getevents, io_getevents, io_context_t, ctx, long, min_nr, long, nr, struct io_event *, events, struct timespec *, timeout)
-
-
 /**
    Linux adieu worker thread.
 
    Listens to the completion events from the ring buffer. Delivers completion
-   events to the users. Moves requests from the admission queue to the ring
+   events to the users. Moves fragments from the admission queue to the ring
    buffer.
  */
 static void ioq_thread(struct linux_domain *ldom)
@@ -461,9 +423,8 @@ static void ioq_thread(struct linux_domain *ldom)
 
 	while (!ldom->ioq_shutdown) {
 		ioq_timeout = ioq_timeout_default;
-		/* XXX see the above comments */
-		got = my_io_getevents(ldom->ioq_ctx, 1, ARRAY_SIZE(evout),
-				   evout, &ioq_timeout);
+		got = raw_io_getevents(ldom->ioq_ctx, 1, ARRAY_SIZE(evout),
+				       evout, &ioq_timeout);
 		ioq_queue_lock(ldom);
 		if (got > 0)
 			ldom->ioq_avail += got;
@@ -479,10 +440,9 @@ static void ioq_thread(struct linux_domain *ldom)
 			C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
-		if (got < 0) {
-			/* XXX log error */
-			printf("io_getevents: %i\n", got);
-		}
+		if (got < 0)
+			C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, 
+				    linux_addb_io_getevents, got);
 
 		ioq_queue_submit(ldom);
 	}
@@ -531,7 +491,9 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 			if (result != 0)
 				break;
 		}
-	}
+	} else
+		C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, 
+			    linux_addb_io_setup, result);
 	if (result != 0)
 		linux_domain_io_fini(dom);
 	return result;

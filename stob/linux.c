@@ -579,14 +579,22 @@ struct c2_stob_type linux_stob_type = {
 	.st_magic = 0xACC01ADE
 };
 
+const struct c2_addb_ctx_type adieu_addb_ctx_type = {
+	.act_name = "adieu"
+};
+
+struct c2_addb_ctx adieu_addb_ctx;
+
 int linux_stob_module_init(void)
 {
+	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, NULL);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
 
 void linux_stob_module_fini(void)
 {
 	linux_stob_type.st_op->sto_fini(&linux_stob_type);
+	c2_addb_ctx_fini(&adieu_addb_ctx);
 }
 
 /** @} end group stoblinux */
