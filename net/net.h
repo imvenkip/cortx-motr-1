@@ -94,6 +94,10 @@ struct c2_net_domain {
 	/** Transport private domain data. */
 	void               *nd_xprt_private;
 	struct c2_net_xprt *nd_xprt;
+	/**
+	   ADDB context for events related to this domain
+	 */
+	struct c2_addb_ctx  nd_addb;
 };
 
 /**
@@ -200,6 +204,10 @@ struct c2_net_conn {
 	 */
 	void                         *nc_xprt_private;
 	const struct c2_net_conn_ops *nc_ops;
+	/**
+	   ADDB context for events related to this connection.
+	 */
+	struct c2_addb_ctx            nc_addb;
 };
 
 struct c2_net_conn_ops {

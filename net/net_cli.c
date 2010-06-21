@@ -11,6 +11,16 @@
    @{
  */
 
+static const struct c2_addb_loc net_cli_addb = {
+	.al_name = "net-cli"
+};
+
+C2_ADDB_EV_DEFINE(net_addb_conn_send, "send", 0x10, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(net_addb_conn_call, "call", 0x11, C2_ADDB_STAMP);
+
+#define ADDB_ADD(conn, ev, ...) \
+C2_ADDB_ADD(&(conn)->nc_addb, &net_cli_addb, ev , ## __VA_ARGS__)
+
 int c2_net_cli_call(struct c2_net_conn *conn,
 		    struct c2_rpc_op_table *rot,
 		    uint64_t op, void *arg, void *ret)
@@ -18,6 +28,7 @@ int c2_net_cli_call(struct c2_net_conn *conn,
 	const struct c2_rpc_op *rop;
 	int                     result;
 
+	ADDB_ADD(conn, net_addb_conn_call);
 	rop = c2_rpc_op_find(rot, op);
 	if (rop != NULL)
 		result = conn->nc_ops->sio_call(conn, rop, arg, ret);
@@ -29,6 +40,7 @@ int c2_net_cli_call(struct c2_net_conn *conn,
 
 int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call)
 {
+	ADDB_ADD(conn, net_addb_conn_send);
 	return conn->nc_ops->sio_send(conn, call);
 }
 
