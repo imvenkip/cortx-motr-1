@@ -17,6 +17,7 @@ static const struct c2_addb_loc net_cli_addb = {
 
 C2_ADDB_EV_DEFINE(net_addb_conn_send, "send", 0x10, C2_ADDB_STAMP);
 C2_ADDB_EV_DEFINE(net_addb_conn_call, "call", 0x11, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(net_addb_conn_opnotsupp, "EOPNOTSUPP", 0x12, C2_ADDB_CALL);
 
 #define ADDB_ADD(conn, ev, ...) \
 C2_ADDB_ADD(&(conn)->nc_addb, &net_cli_addb, ev , ## __VA_ARGS__)
@@ -32,8 +33,10 @@ int c2_net_cli_call(struct c2_net_conn *conn,
 	rop = c2_rpc_op_find(rot, op);
 	if (rop != NULL)
 		result = conn->nc_ops->sio_call(conn, rop, arg, ret);
-	else
+	else {
+		ADDB_ADD(conn, net_addb_conn_opnotsupp, -EOPNOTSUPP);
 		result = -EOPNOTSUPP;
+	}
 	return result;
 }
 

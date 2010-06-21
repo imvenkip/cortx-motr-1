@@ -69,16 +69,24 @@ static int subst_void(struct c2_addb_dp *dp)
 	return 0;
 }
 
+static int subst_uint64_t(struct c2_addb_dp *dp, uint64_t val)
+{
+	dp->ad_rc = val;
+	return 0;
+}
+
 const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
 	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
 	.aeo_size  = sizeof(int32_t),
-	.aeo_name  = "syscall-failure"
+	.aeo_name  = "syscall-failure",
+	.aeo_level = AEL_NOTE
 };
 
 const struct c2_addb_ev_ops C2_ADDB_CALL = {
 	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
 	.aeo_size  = sizeof(int32_t),
-	.aeo_name  = "call-failure"
+	.aeo_name  = "call-failure",
+	.aeo_level = AEL_NOTE
 };
 
 const struct c2_addb_ev_ops C2_ADDB_STAMP = {
@@ -91,6 +99,27 @@ const struct c2_addb_ev_ops C2_ADDB_FLAG = {
 	.aeo_subst = (c2_addb_ev_subst_t)subst_void,
 	.aeo_size  = sizeof(bool),
 	.aeo_name  = "flag"
+};
+
+const struct c2_addb_ev_ops C2_ADDB_INVAL = {
+	.aeo_subst = (c2_addb_ev_subst_t)subst_uint64_t,
+	.aeo_size  = sizeof(uint64_t),
+	.aeo_name  = "inval"
+};
+
+struct c2_addb_ev c2_addb_oom = {
+	.ae_name = "oom",
+	.ae_id   = 0x3,
+	.ae_ops  = &C2_ADDB_STAMP
+};
+
+static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
+	.act_name = "global"
+};
+
+struct c2_addb_ctx c2_addb_global_ctx = {
+	.ac_type   = &c2_addb_global_ctx_type,
+	.ac_parent = NULL
 };
 
 /** @} end of addb group */

@@ -52,7 +52,7 @@ int c2_service_start(struct c2_service *service,
 		c2_list_add(&dom->nd_service, &service->s_linkage);
 		c2_rwlock_read_unlock(&dom->nd_lock);
 		c2_addb_ctx_init(&service->s_addb, &c2_net_service_addb_ctx,
-				 NULL);
+				 &c2_addb_global_ctx);
 	}
 	return result;
 }

@@ -209,10 +209,20 @@ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
 /** A call to an C2 component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
+/** An invalid value was supplied. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_INVAL, uint64_t val);
 /** Time-stamp. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_STAMP);
 /** Record a Boolean condition. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
+
+/** Report this event when memory allocation fails. */
+extern struct c2_addb_ev c2_addb_oom;
+typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
+
+/** Global (per address space) addb context, used when no other context is
+    applicable. */
+extern struct c2_addb_ctx c2_addb_global_ctx;
 
 /** @} end of addb group */
 

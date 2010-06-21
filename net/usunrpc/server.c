@@ -219,12 +219,12 @@ C2_ADDB_EV_DEFINE(usunrpc_addb_socket,           "socket", 0x17,
 		  C2_ADDB_SYSCALL);
 C2_ADDB_EV_DEFINE(usunrpc_addb_bind,             "bind", 0x18, 
 		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_alloc_workers,    "alloc_workers", 0x19, 
+C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x19,
 		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x1a, 
+C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1a,
 		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1b, 
-		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp,    "EOPNOTSUPP", 0x1b,
+		  C2_ADDB_INVAL);
 
 #define ADDB_ADD(service, ev, ...) \
 C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server, ev , ## __VA_ARGS__)
@@ -343,10 +343,12 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 				result = -EPROTO;
 			}
 		} else {
+			ADDB_ADD(service, c2_addb_oom);
 			svcerr_systemerr(transp);
 			result = -ENOMEM;
 		}
 	} else {
+		ADDB_ADD(service, usunrpc_addb_opnotsupp, -EINVAL);
 		svcerr_noproc(transp);
 		result = -EINVAL;
 	}
@@ -534,7 +536,7 @@ static int usunrpc_service_start(struct c2_service *service,
 	C2_ALLOC_ARR(xservice->s_workers, nr_workers);
         if (xservice->s_workers == NULL) {
                 rc = -ENOMEM;
-		ADDB_ADD(service, usunrpc_addb_alloc_workers, rc);
+		ADDB_ADD(service, c2_addb_oom);
 		goto err;
         }
 
@@ -600,8 +602,11 @@ int usunrpc_service_init(struct c2_service *service)
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
 		result = usunrpc_service_start(service, xid, SERVER_THR_NR,
 					       service->s_table);
-	} else
+	} else {
+		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server, 
+			    c2_addb_oom);
 		result = -ENOMEM;
+	}
 	return result;
 }
 

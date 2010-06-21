@@ -34,6 +34,10 @@ static const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 	.act_name = "net-dom"
 };
 
+static const struct c2_addb_loc c2_net_addb_loc = {
+	.al_name = "net"
+};
+
 static void c2_net_conn_free_cb(struct c2_ref *ref)
 {
 	struct c2_net_conn *conn;
@@ -66,8 +70,10 @@ int c2_net_conn_create(struct c2_service_id *nid)
 					 &dom->nd_addb);
 		} else
 			c2_free(conn);
-	} else
+	} else {
+		C2_ADDB_ADD(&dom->nd_addb, &c2_net_addb_loc, c2_addb_oom);
 		result = -ENOMEM;
+	}
 	return result;
 }
 
@@ -123,7 +129,8 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_list_init(&dom->nd_service);
 	c2_rwlock_init(&dom->nd_lock);
 	dom->nd_xprt = xprt;
-	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, NULL);
+	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, 
+			 &c2_addb_global_ctx);
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
 

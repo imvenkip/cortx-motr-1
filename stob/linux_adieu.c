@@ -108,6 +108,24 @@ static void            ioq_queue_unlock(struct linux_domain *ldom);
 
 static const struct c2_stob_io_op linux_stob_io_op;
 
+static const struct c2_addb_loc adieu_addb_loc = {
+	.al_name = "linux-adieu"
+};
+
+C2_ADDB_EV_DEFINE(linux_addb_io_setup, "io_setup", 0x1, C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(linux_addb_io_submit, "io_submit", 0x2, C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(linux_addb_io_getevents, "io_getevents", 0x3, 
+		  C2_ADDB_SYSCALL);
+
+#define ADDB_GLOBAL_ADD(ev, ...) \
+C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, ev , ## __VA_ARGS__)
+
+C2_ADDB_EV_DEFINE(linux_addb_frag_overflow, "frag_overflow", 0x3, 
+		  C2_ADDB_INVAL);
+
+#define ADDB_ADD(obj, ev, ...)	\
+C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
+
 int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	struct linux_stob_io *lio;
@@ -121,8 +139,10 @@ int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 		io->si_op = &linux_stob_io_op;
 		c2_mutex_init(&lio->si_endlock);
 		result = 0;
-	} else
+	} else {
+		ADDB_ADD(stob, c2_addb_oom);
 		result = -ENOMEM;
+	}
 	return result;
 }
 
@@ -192,6 +212,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
 					  c2_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
+				ADDB_ADD(io->si_obj, linux_addb_frag_overflow,
+					 frag_size);
 				result = -EOVERFLOW;
 				break;
 			}
@@ -231,8 +253,10 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			ioq_queue_unlock(ldom);
 			ioq_queue_submit(ldom);
 		}
-	} else
+	} else {
+		ADDB_ADD(io->si_obj, c2_addb_oom);
 		result = -ENOMEM;
+	}
 
 	if (result != 0)
 		linux_stob_io_fini(lio);
@@ -306,15 +330,6 @@ static void ioq_queue_unlock(struct linux_domain *ldom)
 	c2_mutex_unlock(&ldom->ioq_lock);
 }
 
-static const struct c2_addb_loc adieu_addb_loc = {
-	.al_name = "linux-adieu"
-};
-
-C2_ADDB_EV_DEFINE(linux_addb_io_setup, "io_setup", 0x1, C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(linux_addb_io_submit, "io_submit", 0x2, C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(linux_addb_io_getevents, "io_getevents", 0x3, 
-		  C2_ADDB_SYSCALL);
-
 /**
    Transfers fragments from the admission queue to the ring buffer in batches
    until the ring buffer is full.
@@ -344,8 +359,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 			ioq_queue_lock(ldom);
 			if (put < 0) {
-				C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc,
-					    linux_addb_io_submit, put);
+				ADDB_GLOBAL_ADD(linux_addb_io_submit, put);
 				put = 0;
 			}
 			for (i = put; i < got; ++i)
@@ -441,8 +455,7 @@ static void ioq_thread(struct linux_domain *ldom)
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
 		if (got < 0)
-			C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, 
-				    linux_addb_io_getevents, got);
+			ADDB_GLOBAL_ADD(linux_addb_io_getevents, got);
 
 		ioq_queue_submit(ldom);
 	}
@@ -492,8 +505,7 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 				break;
 		}
 	} else
-		C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, 
-			    linux_addb_io_setup, result);
+		ADDB_GLOBAL_ADD(linux_addb_io_setup, result);
 	if (result != 0)
 		linux_domain_io_fini(dom);
 	return result;

@@ -194,7 +194,8 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 					break;
 			}
 		}
-	}
+	} else
+		ADDB_ADD(conn, c2_addb_oom);
 	if (result != 0) {
 		/* xconn & pool will be released there */
 		usunrpc_conn_fini_internal(xconn);

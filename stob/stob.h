@@ -52,6 +52,7 @@ struct c2_stob_type {
 	const char                   *st_name;
 	const uint32_t                st_magic;
 	struct c2_list		      st_domains; /**< list of domains */
+	struct c2_addb_ctx            st_addb;
 };
 
 struct c2_stob_type_op {
@@ -89,6 +90,7 @@ struct c2_stob_domain {
 	struct c2_stob_type 	       *sd_type;
 	struct c2_list_link	        sd_domain_linkage;
 	struct c2_rwlock                sd_guard;
+	struct c2_addb_ctx              sd_addb;
 };
 
 /**
@@ -175,6 +177,7 @@ struct c2_stob {
 	const struct c2_stob_op *so_op;
 	struct c2_stob_id	 so_id;      /**< unique id of this object */
 	struct c2_stob_domain 	*so_domain;  /**< its domain */
+	struct c2_addb_ctx       so_addb;
 };
 
 struct c2_stob_op {
@@ -268,7 +271,8 @@ int  c2_stob_find  (struct c2_stob_domain *dom, const struct c2_stob_id *id,
 
    @post obj->so_state == CSS_UNKNOWN
  */
-void c2_stob_init  (struct c2_stob *obj, const struct c2_stob_id *id);
+void c2_stob_init  (struct c2_stob *obj, const struct c2_stob_id *id,
+		    struct c2_stob_domain *dom);
 void c2_stob_fini  (struct c2_stob *obj);
 
 /**
@@ -615,11 +619,6 @@ struct c2_stob_io {
 	   IO operation is a state machine, see State diagram for adieu.
 	 */
 	struct c2_sm                si_mach;
-	/**
-	   Context in which addb events related to this IO operation are
-	   reported.
-	 */
-	struct c2_addb_ctx          si_addb;
 };
 
 struct c2_stob_io_op {

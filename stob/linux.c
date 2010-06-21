@@ -11,7 +11,6 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
-
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/queue.h"
@@ -63,6 +62,10 @@ static const struct c2_stob_op linux_stob_op;
 static const struct c2_stob_domain_op linux_stob_domain_op;
 
 static void linux_stob_fini(struct c2_stob *stob);
+
+static const struct c2_addb_loc c2_linux_stob_addb_loc = {
+	.al_name = "linux-stob"
+};
 
 #if 0
 static void db_err(DB_ENV *dbenv, int rc, const char *msg)
@@ -383,8 +386,11 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		}
 		if (result != 0)
 			linux_domain_fini(dom);
-	} else
+	} else {
+		C2_ADDB_ADD(&type->st_addb, 
+			    &c2_linux_stob_addb_loc, c2_addb_oom);
 		result = -ENOMEM;
+	}
 	return result;
 }
 
@@ -453,9 +459,8 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 			if (ghost == NULL) {
 				stob = &lstob->sl_stob;
 				stob->so_op = &linux_stob_op;
-				stob->so_domain = dom;
 				lstob->sl_fd = -1;
-				c2_stob_init(stob, id);
+				c2_stob_init(stob, id, dom);
 				c2_list_add(&ldom->sdl_object, 
 					    &lstob->sl_linkage);
 			} else {
@@ -464,8 +469,11 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 				c2_stob_get(&lstob->sl_stob);
 			}
 			c2_rwlock_write_unlock(&dom->sd_guard);
-		} else
+		} else {
+			C2_ADDB_ADD(&dom->sd_addb,
+				    &c2_linux_stob_addb_loc, c2_addb_oom);
 			result = -ENOMEM;
+		}
 	}
 	if (result == 0) {
 		*out = &lstob->sl_stob;
@@ -587,7 +595,8 @@ struct c2_addb_ctx adieu_addb_ctx;
 
 int linux_stob_module_init(void)
 {
-	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, NULL);
+	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, 
+			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
 
