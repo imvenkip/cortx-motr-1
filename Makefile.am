@@ -1,4 +1,4 @@
-SUBDIRS    = m4 doc include man patches lib sm addb fop stob net rpc \
+SUBDIRS    = m4 doc include man patches lib sm addb fop net stob rpc \
              fol dtm nrs sns \
              mds mw utils reqh build_kernel_modules
 

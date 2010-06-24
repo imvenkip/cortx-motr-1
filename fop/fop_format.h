@@ -11,40 +11,50 @@
    @{
 */
 
-struct c2_fop_field_descr;
-struct c2_fop_field_format;
+struct c2_fop_type_format;
 
-struct c2_fop_field_format {
-	const char                      *fif_name;
-	const struct c2_fop_field_base  *fif_base;
-	const struct c2_fop_field_descr *fif_ref;
+struct c2_fop_type_format {
+	struct c2_fop_field_type  *ftf_out;
+	enum c2_fop_field_aggr     ftf_aggr;
+	const char                *ftf_name;
+	uint64_t                   ftf_val;
+	const struct c2_fop_field_format {
+		const char                      *c_name;
+		const struct c2_fop_type_format *c_type;
+		uint32_t                         c_tag;
+	} ftf_child[];
 };
 
-struct c2_fop_field_descr {
-	const struct c2_fop_field_format *ffd_fmt;
-	const size_t                      ffd_nr;
-	struct c2_fop_field              *ffd_field;
-};
+int c2_fop_type_format_parse(struct c2_fop_type_format *fmt);
 
-#define C2_FOP_FIELD_FORMAT(name, type) {	\
-	.fif_name = (name),		        \
-	.fif_base = &c2_fop_field_base[type]	\
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64;
+
+#define C2_FOP_FIELD_TAG(_tag, _name, _type)	\
+{						\
+	.c_name = #_name,			\
+	.c_type = &(_type),			\
+	.c_tag  = (_tag)			\
 }
 
-#define C2_FOP_FIELD_REF(name, referred) {		\
-	.fif_name = (name),				\
-	.fif_base = &c2_fop_field_base[FFT_REF],	\
-	.fif_ref  = &referred				\
+#define C2_FOP_FIELD(_name, _type) C2_FOP_FIELD_TAG(0, _name, _type)
+
+#define C2_FOP_FORMAT(_name, _aggr, ...)	\
+struct c2_fop_type_format _name = {		\
+	.ftf_aggr = (_aggr),			\
+	.ftf_name = #_name,			\
+	.ftf_val  = 1,				\
+	.ftf_child = {				\
+		__VA_ARGS__,			\
+		{ .c_name = NULL }		\
+	}					\
 }
 
-#define C2_FOP_FIELD_FORMAT_END {		\
-        .fif_name = NULL,			\
-        .fif_base = NULL			\
-}
-
-int c2_fop_field_format_parse(struct c2_fop_field_descr *descr);
-
-extern const struct c2_fop_field_base c2_fop_field_base[FFT_NR];
+int c2_fop_type_format_cdef(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_uxdr(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_uxdr_c(struct c2_fop_field_type *ftype);
 
 /** @} end of fop group */
 

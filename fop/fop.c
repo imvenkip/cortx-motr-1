@@ -8,17 +8,7 @@
    @{
  */
 
-struct c2_fop_field *c2_fop_field_alloc(void)
-{
-	struct c2_fop_field *field;
-
-	C2_ALLOC_PTR(field);
-	if (field != NULL) {
-		c2_list_link_init(&field->ff_sibling);
-		c2_list_init(&field->ff_child);
-	}
-	return field;
-}
+#if 0
 
 static bool fop_field_subtree(struct c2_fop_field *root, unsigned depth,
 			      c2_fop_field_cb_t pre_cb, 
@@ -48,35 +38,73 @@ void c2_fop_field_traverse(struct c2_fop_field *field,
 {
 	fop_field_subtree(field, 0, pre_cb, post_cb, arg);
 }
+#endif
 
-static void fop_field_fini_one(struct c2_fop_field *fop) 
+void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 {
-	c2_list_del(&fop->ff_sibling);
-	c2_list_fini(&fop->ff_child);
-	c2_free(fop);
-}
+	size_t i;
 
-static struct c2_fop_field *list2field(struct c2_list_link *link)
-{
-	return container_of(link, struct c2_fop_field, ff_sibling);
-}
-
-void c2_fop_field_fini(struct c2_fop_field *field)
-{
-	struct c2_fop_field *scan;
-	struct c2_fop_field *next;
-
-	scan = field;
-	while (1) {
-		while (!c2_list_is_empty(&scan->ff_child))
-			scan = list2field(scan->ff_child.l_head);
-		next = scan->ff_parent;
-		fop_field_fini_one(scan);
-		if (scan == field)
-			break;
-		scan = next;
+	if (t->fft_child != NULL) {
+		for (i = 0; i < t->fft_nr; ++i) {
+			if (t->fft_child[i] != NULL)
+				c2_free(t->fft_child[i]);
+		}
+		c2_free(t->fft_child);
+		t->fft_child = NULL;
 	}
 }
+
+void c2_fop_field_type_map(const struct c2_fop_field_type *ftype,
+			   c2_fop_field_cb_t cb, void *arg)
+{
+	size_t i;
+
+	for (i = 0; i < ftype->fft_nr; ++i) {
+		if (cb(ftype->fft_child[i], 1, arg) == FFC_BREAK)
+			break;
+	}
+}
+
+struct c2_fop_field_type C2_FOP_TYPE_VOID = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "void",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_VOID
+		}
+	}
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "void",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_BYTE
+		}
+	}
+};
+
+
+struct c2_fop_field_type C2_FOP_TYPE_U32 = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "u32",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_U32
+		}
+	}
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_U64 = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "u64",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_U64
+		}
+	}
+};
 
 /** @} end of fop group */
 

@@ -2,109 +2,126 @@
 
 #include <errno.h>
 
-#include "fop_format.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
+
+#include "fop_format.h"
 
 /**
    @addtogroup fop
    @{
  */
 
-#define BASE(type, compound) [type] = {		\
-	.ffb_kind = FFK_OTHER,			\
-	.ffb_type = (type),			\
-	.ffb_compound = (compound)		\
-}
-
-const struct c2_fop_field_base c2_fop_field_base[FFT_NR] = {
-	BASE(FFT_ZERO, false),
-	BASE(FFT_VOID, false),
-	BASE(FFT_BOOL, false),
-	BASE(FFT_CHAR, false),
-	BASE(FFT_64,   false),
-	BASE(FFT_32,   false),
-	BASE(FFT_RECORD, true),
-	BASE(FFT_UNION, true),
-	BASE(FFT_ARRAY, true),
-	BASE(FFT_BITMASK, false),
-	BASE(FFT_FID, false),
-	BASE(FFT_NAME, false),
-	BASE(FFT_PATH, false),
-	BASE(FFT_PRINCIPAL, false),
-	BASE(FFT_CAPABILITY, false),
-	BASE(FFT_TIMESTAMP, false),
-	BASE(FFT_EPOCH, false),
-	BASE(FFT_VERSION, false),
-	BASE(FFT_OFFSET, false),
-	BASE(FFT_COUNT, false),
-	BASE(FFT_BUFFER, false),
-	BASE(FFT_RESOURCE, false),
-	BASE(FFT_LOCK, false),
-	BASE(FFT_NODE, false),
-	BASE(FFT_FOP, false),
-	BASE(FFT_REF, false),
-	BASE(FFT_OTHER, false)
-};
-
-int c2_fop_field_format_parse(struct c2_fop_field_descr *descr)
+int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 {
-	struct c2_fop_field *parent;
-	struct c2_fop_field *top;
-	int      result;
-	unsigned depth;
-	size_t   i;
+	struct c2_fop_field_type *t;
+	int    result;
+	size_t nr;
+	size_t i;
 
-	parent = NULL;
-	top    = NULL;
-	depth  = 0;
+
+	C2_PRE(fmt->ftf_out == NULL);
+
+	C2_ALLOC_PTR(t);
+	if (t == NULL)
+		return -ENOMEM;
+	for (nr = 0; fmt->ftf_child[nr].c_name != NULL; ++nr)
+		C2_ASSERT(fmt->ftf_child[nr].c_type != NULL);
+
+	t->fft_aggr = fmt->ftf_aggr;
+	t->fft_name = fmt->ftf_name;
+	t->fft_nr   = nr;
+
+	switch (fmt->ftf_aggr) {
+	case FFA_RECORD:
+		C2_ASSERT(nr > 0);
+		break;
+	case FFA_UNION:
+		C2_ASSERT(nr > 1);
+		break;
+	case FFA_SEQUENCE:
+		C2_ASSERT(fmt->ftf_val > 0);
+		C2_ASSERT(nr == 1);
+		t->fft_u.u_sequence.s_max = fmt->ftf_val;
+		break;
+	case FFA_TYPEDEF:
+		C2_ASSERT(nr == 1);
+		break;
+	case FFA_ATOM:
+		C2_ASSERT(nr == 0);
+		t->fft_u.u_atom.a_type = fmt->ftf_val;
+		C2_ASSERT(0 <= fmt->ftf_val && fmt->ftf_val < FPF_NR);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid fop type aggregate.");
+	}
+
 	result = 0;
+	if (nr > 0) {
+		C2_ALLOC_ARR(t->fft_child, nr);
+		if (t->fft_child != NULL) {
+			for (i = 0; i < nr; ++i) {
+				struct c2_fop_field              *field;
+				const struct c2_fop_field_format *field_fmt;
 
-	for (i = 0; i < descr->ffd_nr; ++i) {
-		struct c2_fop_field              *cur;
-		const struct c2_fop_field_format *fmt;
-
-		C2_ASSERT((parent == NULL) == (i == 0));
-
-		fmt = &descr->ffd_fmt[i];
-		if (fmt->fif_name == NULL) {
-			C2_ASSERT(fmt->fif_base == NULL);
-			C2_ASSERT(depth > 0);
-			C2_ASSERT(parent != NULL);
-			depth--;
-			parent = parent->ff_parent;
-			C2_ASSERT((depth == 0) == (parent == NULL));
-			C2_ASSERT((depth == 0) == (i + 1 == descr->ffd_nr)); 
-			continue;
-		}
-		cur = c2_fop_field_alloc();
-		if (cur == NULL) {
-			result = -ENOMEM;
-			break;
-		} else if (top == NULL)
-			top = cur;
-		cur->ff_name = fmt->fif_name;
-		if (fmt->fif_ref != NULL)
-			cur->ff_ref  = fmt->fif_ref->ffd_field;
-		cur->ff_base = fmt->fif_base;
-		if (parent != NULL)
-			c2_list_add_tail(&parent->ff_child, &cur->ff_sibling);
-		cur->ff_parent = parent;
-		if (cur->ff_base->ffb_compound) {
-			parent = cur;
-			depth++;
-			C2_ASSERT(depth < C2_FOP_MAX_FIELD_DEPTH);
+				C2_ALLOC_PTR(t->fft_child[i]);
+				field = t->fft_child[i];
+				if (field == NULL) {
+					result = -ENOMEM;
+					break;
+				}
+				field_fmt = &fmt->ftf_child[i];
+				field->ff_name = field_fmt->c_name;
+				field->ff_type = field_fmt->c_type->ftf_out;
+				field->ff_tag  = field_fmt->c_tag;
+			}
 		}
 	}
-	if (result == 0) {
-		C2_ASSERT(depth == 0);
-		C2_ASSERT(i == descr->ffd_nr);
-		C2_ASSERT(top != NULL);
-		descr->ffd_field = top;
-	} else
-		c2_fop_field_fini(top);
+
+	/* XXX: add sanity checking: 
+
+	       - tags and field names are unique;
+	       - discriminant is U32
+	*/
+
+	if (result == 0)
+		fmt->ftf_out = t;
+	else
+		c2_fop_field_type_fini(t);
 	return result;
 }
 
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID = {
+	.ftf_out   = &C2_FOP_TYPE_VOID,
+	.ftf_aggr  = FFA_ATOM,
+	.ftf_name  = "void",
+	.ftf_val   = FPF_VOID,
+	.ftf_child = { [0] = { .c_name = NULL } }
+};
+
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE = {
+	.ftf_out   = &C2_FOP_TYPE_BYTE,
+	.ftf_aggr  = FFA_ATOM,
+	.ftf_name  = "byte",
+	.ftf_val   = FPF_BYTE,
+	.ftf_child = { [0] = { .c_name = NULL } }
+};
+
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32 = {
+	.ftf_out   = &C2_FOP_TYPE_U32,
+	.ftf_aggr  = FFA_ATOM,
+	.ftf_name  = "u32",
+	.ftf_val   = FPF_U32,
+	.ftf_child = { [0] = { .c_name = NULL } }
+};
+
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64 = {
+	.ftf_out   = &C2_FOP_TYPE_U64,
+	.ftf_aggr  = FFA_ATOM,
+	.ftf_name  = "u64",
+	.ftf_val   = FPF_U64,
+	.ftf_child = { [0] = { .c_name = NULL } }
+};
 
 /** @} end of fop group */
 
