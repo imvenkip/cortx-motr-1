@@ -1,6 +1,10 @@
 SUBDIRS    = m4 doc include man patches lib sm addb fop stob net rpc \
              fol dtm nrs sns \
-             mds mw utils reqh build_kernel_modules \
+             mw reqh build_kernel_modules \
+             \
+             colibri \
+             \
+             mds utils \
              \
              fop/ut rpc/ut lib/ut stob/ut net/ut
 
