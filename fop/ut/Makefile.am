@@ -2,16 +2,16 @@ INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
 
 noinst_PROGRAMS    = fmt_test
 
-test_format.h test_format_xdr.h test_format_xdr.c: test_format.ff \
+test_format.h test_format_uxdr.h test_format_uxdr.c: test_format.ff \
                                      $(top_builddir)/fop/fop.h \
                                      $(top_builddir)/fop/fop_format.h \
                                      $(top_builddir)/fop/fop.c \
                                      $(top_builddir)/fop/fop_format.c \
                                      $(top_builddir)/fop/fop_format_c.c \
                                      $(top_builddir)/fop/fop2c 
-	$(top_builddir)/fop/fop2c $<
+	$(top_builddir)/fop/fop2c -ku $<
 
-fmt_test_SOURCES   = test_format.h test_format_xdr.h test_format_xdr.c \
+fmt_test_SOURCES   = test_format.h test_format_uxdr.h test_format_uxdr.c \
                      fmt_test.c
 fmt_test_LDFLAGS   = -pthread
 fmt_test_LDADD     = $(top_builddir)/lib/libc2.la \
@@ -21,4 +21,4 @@ EXTRA_DIST	   = test_format.ff
 
 clean-local:
 	cd @SRCDIR@/fop/ut ; \
-	rm -fr test_format.h test_format_xdr.h test_format_xdr.c
+	rm -fr test_format.h test_format_k.h test_format_[uk]xdr.[ch]

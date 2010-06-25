@@ -4,7 +4,7 @@
 # Convert FOP format descriptions into C data-strcture definitions.
 #
 
-OPTVAL=`getopt -o d:v -n 'fop2c' -- "$@"`
+OPTVAL=`getopt -o ukd:v -n 'fop2c' -- "$@"`
 
 # Note the quotes around `$OPTVAL': they are essential!
 eval set -- "$OPTVAL"
@@ -19,11 +19,22 @@ DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir"
 OBJS="$topdir/fop/fop.o $topdir/fop/fop_format.o $topdir/fop/fop_format_c.o $topdir/lib/.libs/libc2.a"
 
+generate_uxdr=0
+generate_kxdr=0
+
 while true ;do
     case "$1" in
 	-d)
 	    topdir="$2"
 	    shift 2
+	    ;;
+	-u)
+	    generate_uxdr=1
+	    shift 1
+	    ;;
+	-k)
+	    generate_kxdr=1
+	    shift 1
 	    ;;
 	-v)
 	    verbose=$(($verbose + 1))
@@ -158,34 +169,45 @@ for sfile in "$*" ;do
 	echo $COMPILE
     fi
 
-    echo | gen_c DEF cdef
-    $COMPILE      || exit 1
+    if [ $generate_uxdr -eq 1 ] ;then
+	echo | gen_c DEF_H cdef
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c  > ${s}.h
 
-    if [ $verbose -ge 1 ] ;then
-	echo $ofile $base $orig fop2c DEF_H
+	(
+	    echo '#include \\"'${s}.h'\\"'
+	    echo "#include <rpc/rpc.h>"
+	) | gen_c UXDR_H uxdr_h
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c > ${s}_uxdr.h
+
+	(
+	    echo '#include \\"'${s}_uxdr.h'\\"'
+	) | gen_c UXDR_C uxdr_c
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c > ${s}_uxdr.c
     fi
-    $ofile $base $orig fop2c DEF_H  > ${s}.h
 
-    (
-	echo '#include \\"'${s}.h'\\"'
-	echo "#include <rpc/rpc.h>"
-    ) | gen_c UXDR uxdr  
-    $COMPILE      || exit 1
+    if [ $generate_kxdr -eq 1 ] ;then
+	(
+	    echo 'struct page;'
+	) | gen_c KDEF_H kdef
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c  > ${s}_k.h
 
-    if [ $verbose -ge 1 ] ;then
-	echo $ofile $base $orig fop2c UXDR_H
+	(
+	    echo
+	) | gen_c KXDR_H kxdr_h
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c > ${s}_kxdr.h
+
+	(
+	    echo '#include \\"'${s}_kxdr.h'\\"'
+	) | gen_c KXDR_C kxdr_c
+	$COMPILE      || exit 1
+	$ofile $base $orig fop2c > ${s}_kxdr.c
     fi
-    $ofile $base $orig fop2c UXDR_H > ${s}_xdr.h
 
-    (
-	echo '#include \\"'${s}_xdr.h'\\"'
-    ) | gen_c UXDR_C uxdr_c
-    $COMPILE      || exit 1
-
-    if [ $verbose -ge 1 ] ;then
-	echo $ofile $base $orig fop2c UXDR_C
-    fi
-    $ofile $base $orig fop2c UXDR_C > ${s}_xdr.c
 done
 if [ $verbose -eq 0 ] ;then
     rm $tfile

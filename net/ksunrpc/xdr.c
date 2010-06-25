@@ -29,6 +29,58 @@ enum c2_stob_io_fop_opcode {
         SIF_QUIT  = 0x4004
 };
 
+bool c2_kvoid_encode0(struct xdr_stream *xdr, uint32_t **p, void *val)
+{
+	return true;
+}
+
+bool c2_kvoid_decode0(struct xdr_stream *xdr, uint32_t **p, void *val)
+{
+	return true;
+}
+
+bool c2_ku32_encode0(struct xdr_stream *xdr, uint32_t *val)
+{
+	uint32_t *p;
+
+	p = xdr_reserve_space(xdr, 4);
+	if (p != NULL)
+		*p = htonl(*val);
+	return p != NULL;
+}
+
+bool c2_ku32_decode0(struct xdr_stream *xdr, uint32_t *val)
+{
+	uint32_t *p;
+
+	p = xdr_inline_decode(xdr, 4);
+	if (p != NULL)
+		*val = ntohl(*p);
+	return p != NULL;
+}
+
+bool c2_ku64_encode0(struct xdr_stream *xdr, uint64_t *val)
+{
+	uint32_t *p;
+
+	p = xdr_reserve_space(xdr, 8);
+	if (p != NULL) {
+		p[0] = htonl((uint32_t)(*val >> 32));
+		p[1] = htonl((uint32_t)*val);
+	}
+	return p != NULL;
+}
+
+bool c2_ku64_decode0(struct xdr_stream *xdr, uint64_t *val)
+{
+	uint32_t *p;
+
+	p = xdr_inline_decode(xdr, 8);
+	if (p != NULL)
+		*val = (((uint64_t)ntohl(p[0])) << 32) | ntohl(p[1]);
+	return p != NULL;
+}
+
 static int ksunrpc_xdr_enc_int(struct rpc_rqst *req, uint32_t *p, int *args)
 {
 	*p++ = htonl(*args);

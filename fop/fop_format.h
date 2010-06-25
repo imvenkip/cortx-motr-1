@@ -52,9 +52,12 @@ struct c2_fop_type_format _name = {		\
 	}					\
 }
 
-int c2_fop_type_format_cdef(struct c2_fop_field_type *ftype);
-int c2_fop_type_format_uxdr(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_cdef  (struct c2_fop_field_type *ftype);
+int c2_fop_type_format_kdef  (struct c2_fop_field_type *ftype);
+int c2_fop_type_format_uxdr_h(struct c2_fop_field_type *ftype);
 int c2_fop_type_format_uxdr_c(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_kxdr_h(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_kxdr_c(struct c2_fop_field_type *ftype);
 
 /** @} end of fop group */
 

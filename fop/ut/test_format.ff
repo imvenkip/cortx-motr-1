@@ -140,18 +140,51 @@
    Eight octetsful of data.
  */
 
+/**
+   Fid format.
+
+   Fid is defined as a record with two U64 fields.
+ */
 DEF(fid, RECORD,
     _(f_seq, U64),
     _(f_oid, U64));
 
+/**
+   "Optional fid".
+
+   This defines a discriminated union. If "b_present" field value is 1, optfid
+   contains b_fid field of type fid (defined above). Otherwise it contains
+   nothing (except to "b_present").
+ */
 DEF(optfid, UNION,
     _(b_present, U32),
     _case(1, b_fid,     fid),
     _case(0, b_none,    VOID));
 
+/**
+   Defines an array of fids.
+
+   At the C data-type level, a struct type corresponds to this definition:
+   @code
+   struct fid_array {
+           uint32_t    fa_count;
+	   struct fid *fa_fid;
+   };
+   @endcode
+
+   fa_count field stores number of elements in the sequence. Its name is
+   composed as a prefix, followed by "_count", where prefix is defined by
+   type_prefix() function.
+ */
 DEF(fid_array, SEQUENCE,
     _(fa_fid, fid));
 
+/**
+   Defines fid_typedef as another name for optfid.
+
+   The name of (the only) field in this definition is ignored and can be
+   omitted.
+ */
 DEF(fid_typedef, TYPEDEF,
     _(, optfid));
 
