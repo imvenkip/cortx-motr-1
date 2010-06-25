@@ -1,5 +1,3 @@
-SUBDIRS              = . ut
-
 lib_LTLIBRARIES      = libc2.la
 libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
                        queue.c vec.c thread.c chan.c mutex.c cache.c cond.c \

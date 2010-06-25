@@ -1,5 +1,3 @@
-SUBDIRS            = . ut
-
 lib_LTLIBRARIES    = librpc.la
 librpc_la_SOURCES  = pcache.c pcache.h rpclib.c rpclib.h session_svc.c session_svc.h \
                      xdr/common.c xdr/common.h xdr/session.c xdr/session.h
