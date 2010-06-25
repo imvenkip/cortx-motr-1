@@ -94,31 +94,31 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 		.to_exponential = 0
 	};
 
+	struct rpc_create_args args = {
+		.protocol	= XPRT_TRANSPORT_TCP,
+		.address	= (struct sockaddr *)xsid->ssi_sockaddr,
+		.addrsize	= xsid->ssi_addrlen,
+		.timeout	= &timeparms,
+		.servername	= xsid->ssi_host,
+		.program	= &c2t1_program,
+		.version	= C2_DEF_RPC_VER,
+		.authflavor	= RPC_AUTH_NULL,
+//		.flags          = RPC_CLNT_CREATE_DISCRTRY,
+	};
+
 	struct rpc_clnt         *clnt;
-	struct rpc_xprt         *rpc_xprt;
 	struct ksunrpc_xprt     *ksunrpc_xprt;
 
 	ksunrpc_xprt = kmalloc(sizeof *ksunrpc_xprt, GFP_KERNEL);
 	if (ksunrpc_xprt == NULL)
 		return ERR_PTR(-ENOMEM);
 
-	/* create transport and client */
-        rpc_xprt = xprt_create_proto(IPPROTO_TCP, xsid->ssi_sockaddr, &timeparms);
-	if (IS_ERR(rpc_xprt)) {
-		printk("%s: cannot create RPC transport. Error = %ld\n",
-		__FUNCTION__, PTR_ERR(rpc_xprt));
-                return (struct ksunrpc_xprt *)rpc_xprt;
-        }
-	clnt = rpc_create_client(rpc_xprt, xsid->ssi_host, &c2t1_program,
-				 1, RPC_AUTH_NULL);
+	clnt = rpc_create(&args);
 	if (IS_ERR(clnt)) {
 		printk("%s: cannot create RPC client. Error = %ld\n",
 			__FUNCTION__, PTR_ERR(clnt));
 			return (struct ksunrpc_xprt *)clnt;
 	}
-
-	clnt->cl_intr     = 1;
-	clnt->cl_softrtry = 1;
 
 	ksunrpc_xprt->ksx_client = clnt;
         return ksunrpc_xprt;
@@ -135,7 +135,8 @@ static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
 		.p_proc   = op->ro_op,
 		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
 		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_bufsiz = op->ro_arg_size,
+		.p_arglen = op->ro_arg_size,
+		.p_replen = op->ro_result_size,
 		.p_statidx= 1,
 		.p_name   = op->ro_name,
 	};
@@ -163,7 +164,8 @@ static int ksunrpc_xprt_send(struct ksunrpc_xprt *xprt,
 		.p_proc   = op->ro_op,
 		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
 		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_bufsiz = op->ro_arg_size,
+		.p_arglen = op->ro_arg_size,
+		.p_replen = op->ro_result_size,
 		.p_statidx= op->ro_op,
 		.p_name   = op->ro_name,
 	};

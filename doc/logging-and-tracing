@@ -1,0 +1,75 @@
+
+All quality assurance efforts notwithstanding, it has to be assumed
+that a software system of Colibri's scale and complexity would
+experience a range of deployment-time problems. Mechanisms must be put
+in place to expedite detection and analysis of such problems. This
+document describes mechanisms that in advance record information about
+system state that might be useful for analysis of a future problem.
+
+It is convenient to roughly classify such mechanisms according to the
+frequency of events that are recorded:
+
+    * "logging" records relatively rare events, of which no more than
+      few tens occur during processing of a typical file system
+      operation on a node. Examples of events subject to logging are:
+      "a fop arrived to a server", "storage IO request took N
+      millisecond to complete", "data page was found in the cache",
+      "thread creation failed";
+
+    * "tracing" records events at least by an order magnitude more
+      frequent: "X bytes of memory were allocated", "lock granted",
+      "function FOO returns false".
+
+Events of different frequencies are useful for analysis of different
+types of problems. Intuitively, logging tends to be useful for
+analysis of higher level problems, like system scalability and its
+interaction with environment and user loads, whereas tracing is better
+suited for lower level problems like race conditions and control flow
+errors. The classification above is only approximate, there is a gray
+area between logging and tracing, and investigation of a higher level
+problem might often require analysis of lower level system behaviour
+details and vice versa.
+
+It is important to realise that to be useful, logging and tracing must
+be active at all times rather than only during "debug runs".
+
+Logging in C2 is based on ADDB (Analysis and Diagnostics Data-Base),
+which is a central component of Colibri architecture. Details of ADDB
+design are described elsewhere. For the purpose of present discussion,
+ADDB consists of "records" containing "data-points" pertaining to
+execution of system actions. An action form a "context" for
+records. For example, ADDB records on a client are generated in a
+context of a particular system call (where appropriate). ADDB records
+are moved across the network along the edges of a proxy hierarchy
+graph and eventually placed on the storage. On a server, ADDB records
+are generated in a context of FOP handling, which can be linked back
+to the original system call context. This means that ADDB contains
+enough information to analyse end-to-end system behavior at the level
+of individual file system operations.
+
+ADDB interface is described in addb/addb.h.
+
+Note that all "errors", such as system and library call errors, IO
+errors, memory allocation errors are subject to logging.
+
+Tracing [not implemented at the moment, 2010.06.20] interface and
+implementation is constrained by the high frequency of traced
+events. Together with the requirement of constant tracing this implies
+that tracing implementation must be very light-weight. It is expected
+that logging would produce a stream of binary records that would
+require pre-processing before analysis. Such pre-processing would
+require access to the exact binary image of an executable that
+produced the stream (to allow pointers in records). It is possible
+that pre-processing would be a special functionality of an executable
+and pre-processing is implemented by re-running the same executable
+that produced the trace with a special command line switch.
+
+It is expected that a trace would survive a large class of fatal
+errors, including assertion failures, unexpected process termination,
+etc. In user space, this can be achieved by placing trace records in a
+cyclic buffer memory mapped from a file (or allocated from SysV shared
+memory).
+
+
+
+

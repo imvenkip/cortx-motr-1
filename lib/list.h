@@ -5,7 +5,8 @@
 
 #include <sys/types.h>
 
-#include "cdefs.h"
+#include "lib/cdefs.h"
+#include "lib/assert.h"
 
 /**
    @defgroup list
@@ -47,9 +48,6 @@ bool c2_list_link_invariant(const struct c2_list_link *link);
 
 /**
    List head.
-
-   @note it is necessary that this structure has exactly the same layout as
-   c2_list_link. It is checked by assertions in c2_list_init().
  */
 struct c2_list {
 	/**
@@ -61,6 +59,16 @@ struct c2_list {
 	 */
 	struct c2_list_link *l_tail;
 };
+
+/*
+   It is necessary that c2_list and c2_list_link structures have exactly the
+   same layout as.
+ */
+
+C2_BASSERT(offsetof(struct c2_list, l_head) == 
+	   offsetof(struct c2_list_link, ll_next));
+C2_BASSERT(offsetof(struct c2_list, l_tail) == 
+	   offsetof(struct c2_list_link, ll_prev));
 
 /**
    Initializes list head.

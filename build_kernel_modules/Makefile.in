@@ -1,0 +1,24 @@
+OS = @OS@
+
+ifeq ($(OS),linux)
+
+obj-y := ../c2t1fs/ ../net/ksunrpc/
+
+all:
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
+
+clean distclean:
+	$(MAKE) -C ../c2t1fs/ clean
+	$(MAKE) -C ../net/ksunrpc/ clean
+	$(RM) Module.markers modules.order
+
+else
+
+all:
+install:
+uninstall:
+distclean clean:
+
+endif
+
+distdir:

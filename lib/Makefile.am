@@ -4,7 +4,7 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
                        assert.c adt.h rwlock.h memory.h list.h \
                        refs.h atomic.h queue.h arith.h thread.h \
                        vec.h chan.h mutex.h cache.h cond.h \
-                       user_x86_64_atomic.h assert.h cdefs.h
+                       user_x86_64_atomic.h assert.h cdefs.h misc.c
 libc2_la_LDFLAGS     = -release @LT_RELEASE@ 
 libc2_la_LIBADD      = @DBLIBS@ @PTHREAD_LIBS@
 

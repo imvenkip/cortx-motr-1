@@ -10,7 +10,6 @@ connection_LDADD     = $(top_builddir)/colibri/libcolibri.la
 #utils_SOURCES       = connection.c
 #utils_LDADD         = $(top_builddir)/colibri/libcolibri.la
 
-
 client_SOURCES       = client.c
 client_LDFLAGS       = -pthread
 client_LDADD         = $(top_builddir)/colibri/libcolibri.la

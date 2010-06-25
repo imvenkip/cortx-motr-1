@@ -108,7 +108,7 @@
        ->sendfile() and ->write() file operations to being implemented.
 
  */
-static kmem_cache_t *c2t1fs_inode_cachep = NULL;
+static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
 MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jinshan Xiong");
 MODULE_DESCRIPTION("Colibri C2T1 File System");
@@ -218,7 +218,7 @@ static struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode_info *cii;
 	
-	cii = kmem_cache_alloc(c2t1fs_inode_cachep, SLAB_KERNEL);
+	cii = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_NOFS);
 	if (!cii)
 		return NULL;
 	inode_init_once(&cii->cii_vfs_inode);
@@ -385,35 +385,34 @@ out:
         return rc;
 }
 
-#ifdef HAVE_FILE_READV
-static ssize_t c2t1fs_file_readv(struct file *file, const struct iovec *iov,
-                                 unsigned long nr_segs, loff_t *ppos)
+static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
+                                    unsigned long nr_segs, loff_t pos)
 {
+	unsigned long seg;
+	ssize_t result = 0;
         ssize_t count = 0;
-        ssize_t rc;
-        int i;
 
         if (nr_segs == 0)
                 return 0;
 
-        /* TODO: a fake readv, will fix it after we have a real c2t1fs */
-        for (i = 0; i < nr_segs; i++) {
-                rc = file->f_op->read(file, iov->iov_base, iov->iov_len,
-                                      ppos);
-                if (rc <= 0)
+        for (seg = 0; seg < nr_segs; seg++) {
+		const struct iovec *vec = &iov[seg];
+		result = c2t1fs_read_write(iocb->ki_filp,(char *)vec->iov_base,
+					   vec->iov_len, &iocb->ki_pos,
+					   READ);
+                if (result <= 0)
                         break;
-
-                count += rc;
-                ++iov;
+                if ((size_t)result < vec->iov_len)
+                        break;
+		count += result;
         }
-
-        return count ? : rc;
+	return count ? count : result;
 }
 
-static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
-                                  unsigned long nr_segs, loff_t *ppos)
+static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
+                                     unsigned long nr_segs, loff_t pos)
 {
-        struct inode          *inode = file->f_dentry->d_inode;
+        struct inode          *inode = iocb->ki_filp->f_dentry->d_inode;
         struct c2t1fs_sb_info *csi = s2csi(inode->i_sb);
         ssize_t count = 0;
         ssize_t rc;
@@ -422,6 +421,8 @@ static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
         int nr_pages = 0;
         struct page **pages;
         const struct iovec *iv;
+	unsigned long seg;
+	ssize_t result = 0;
 
         if (nr_segs == 0)
                 return 0;
@@ -457,156 +458,44 @@ static ssize_t c2t1fs_file_writev(struct file *file, const struct iovec *iov,
         BUG_ON(nr_pages != j);
 
         rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, nr_pages,
-                                0, nr_pages << PAGE_SHIFT, *ppos, WRITE);
+                                0, nr_pages << PAGE_SHIFT, pos, WRITE);
         if (rc > 0) {
-                *ppos += rc;
-                if (*ppos > inode->i_size)
-                        inode->i_size = *ppos;
+                pos += rc;
+                if (pos > inode->i_size)
+                        inode->i_size = pos;
         }
         kfree(pages);
         return rc;
 
 normal_write:
-        /* TODO: a fake readv, will fix it after we have a real c2t1fs */
-        for (i = 0; i < nr_segs; i++) {
-                rc = file->f_op->write(file, iov->iov_base, iov->iov_len,
-                                       ppos);
-                if (rc <= 0)
+        DBG("doing normal write for %d segments\n", (int)nr_segs);
+        for (seg = 0; seg < nr_segs; seg++) {
+		const struct iovec *vec = &iov[seg];
+		result = c2t1fs_read_write(iocb->ki_filp,(char *)vec->iov_base,
+					   vec->iov_len, &iocb->ki_pos,
+					   WRITE);
+                if (result <= 0)
                         break;
-
-                count += rc;
-                ++iov;
+                if ((size_t)result < vec->iov_len)
+                        break;
+		count += result;
         }
-
-        return count ? : rc;
-}
-#endif
-
-#ifdef HAVE_FILE_AIO_READ
-static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, char *buf,
-                                    size_t count, loff_t ppos)
-{
-        return c2t1fs_read_write(iocb->ki_filp, buf, count, &iocb->ki_pos, READ);
+	return count ? count : result;
 }
 
-static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const char *buf,
-                                     size_t count, loff_t ppos)
-{
-        return c2t1fs_read_write(iocb->ki_filp, (char *)buf, count, &iocb->ki_pos,
-                                 WRITE);
-}
-
-#else
-
-static ssize_t c2t1fs_file_read(struct file *file, char *buf, size_t count,
-                                loff_t *ppos)
-{
-        return c2t1fs_read_write(file, buf, count, ppos, READ);
-}
-
-static ssize_t c2t1fs_file_write(struct file *file, const char *buf, size_t count,
-                                 loff_t *ppos)
-{
-        return c2t1fs_read_write(file, (char *)buf, count, ppos, WRITE);
-}
-#endif /* HAVE_FILE_AIO_READ */
-
-#ifdef HAVE_SENDFILE
-/*
- * Send file content (through pagecache) somewhere with helper
- */
-static ssize_t c2t1fs_file_sendfile(struct file *in_file, loff_t *ppos,
-                                    size_t count, read_actor_t actor,
-                                    void *target)
-{
-        /* Do not support buffer ops, just make loop driver happy. */
-        return -ENOSYS;
-}
-#endif
 
 struct inode_operations c2t1fs_file_inode_operations = {
 };
 
 struct file_operations c2t1fs_file_operations = {
-#ifdef HAVE_FILE_READV
-        .readv          = c2t1fs_file_readv,
-        .writev         = c2t1fs_file_writev,
-#endif
-
-#ifdef HAVE_FILE_AIO_READ
         .aio_read       = c2t1fs_file_aio_read,
         .aio_write      = c2t1fs_file_aio_write,
         .read           = do_sync_read,
         .write          = do_sync_write,
-#else
-        .read           = c2t1fs_file_read,
-        .write          = c2t1fs_file_write,
-#endif
-
-#ifdef HAVE_SENDFILE
-        .sendfile       = c2t1fs_file_sendfile,
-#endif
 };
 
-static int c2t1fs_prepare_write(struct file *file, struct page *page,
-                                unsigned from, unsigned to)
-{
-        return -ENOSYS;
-}
-
-static int c2t1fs_commit_write(struct file *file, struct page *page,
-                               unsigned from, unsigned to)
-{
-        return -ENOSYS;
-}
-
-#ifdef HAVE_WRITE_BEGIN_END
-static int c2t1fs_write_begin(struct file *file, struct address_space *mapping,
-                              loff_t pos, unsigned len, unsigned flags,
-                              struct page **pagep, void **fsdata)
-{
-        pgoff_t index = pos >> PAGE_CACHE_SHIFT;
-        struct page *page;
-        int rc;
-        unsigned from = pos & (PAGE_CACHE_SIZE - 1);
-
-        page = grab_cache_page_write_begin(mapping, index, flags);
-        if (!page)
-                return -ENOMEM;
-
-        *pagep = page;
-
-        rc = c2t1fs_prepare_write(file, page, from, from + len);
-        if (rc) {
-                unlock_page(page);
-                page_cache_release(page);
-        }
-        return rc;
-}
-
-static int c2t1fs_write_end(struct file *file, struct address_space *mapping,
-                            loff_t pos, unsigned len, unsigned copied,
-                            struct page *page, void *fsdata)
-{
-        unsigned from = pos & (PAGE_CACHE_SIZE - 1);
-        int rc;
-
-        rc = c2t1fs_commit_write(file, page, from, from + copied);
-
-        unlock_page(page);
-        page_cache_release(page);
-        return rc ? rc : copied;
-}
-#endif
 
 struct address_space_operations c2t1fs_file_aops = {
-#ifdef HAVE_WRITE_BEGIN_END
-        .write_begin    = c2t1fs_write_begin,
-        .write_end      = c2t1fs_write_end
-#else
-        .prepare_write  = c2t1fs_prepare_write,
-        .commit_write   = c2t1fs_commit_write
-#endif
 };
 
 struct address_space_operations c2t1fs_dir_aops = {
@@ -677,9 +566,9 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
 
         /* FIXME: This is a hack to make it mount (we need root dir) */
         if (inode->i_ino == C2T1FS_ROOT_INODE)
-                mode = ((S_IRWXUGO | S_ISVTX) & ~current->fs->umask) | S_IFDIR;
+                mode = ((S_IRWXUGO | S_ISVTX) & ~current_umask()) | S_IFDIR;
         else
-                mode = ((S_IRUGO | S_IXUGO) & ~current->fs->umask) | S_IFREG;
+                mode = ((S_IRUGO | S_IXUGO) & ~current_umask()) | S_IFREG;
         inode->i_mode = (inode->i_mode & S_IFMT) | (mode & ~S_IFMT);
         inode->i_mode = (inode->i_mode & ~S_IFMT) | (mode & S_IFMT);
         if (S_ISREG(inode->i_mode)) {
@@ -829,6 +718,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
         char *endptr;
 	int   tcp_port;
         int   rc;
+	struct ksunrpc_xprt *xprt
 
 	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
@@ -873,13 +763,16 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
         csi->csi_srvid.ssi_addrlen    = strlen(hostname) + 1;
         csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
 
-        csi->csi_xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
-        if (IS_ERR(csi->csi_xprt)) {
-		/* hostname will be freed in c2t1fs_put_csi() */
-                c2t1fs_put_csi(sb);
-                return PTR_ERR(csi->csi_xprt);
+        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
+        if (IS_ERR(xprt)) {
+		csi->csi_srvid.ssi_host = NULL;
+		kfree(hostname);
+		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
+		deactivate_locked_super(sb);
+                return PTR_ERR(xprt);
 	}
 
+        csi->csi_xprt = xprt;
         rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
         if (rc)
                 printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
@@ -910,7 +803,7 @@ static int c2t1fs_init_inodecache(void)
 {
 	c2t1fs_inode_cachep = kmem_cache_create("c2t1fs_inode_cache",
 					        sizeof(struct c2t1fs_inode_info),
-					        0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+					        0, SLAB_HWCACHE_ALIGN, NULL);
 	if (c2t1fs_inode_cachep == NULL)
 		return -ENOMEM;
 	return 0;
@@ -921,8 +814,8 @@ static void c2t1fs_destroy_inodecache(void)
         if (!c2t1fs_inode_cachep)
                 return;
 
-	if (kmem_cache_destroy(c2t1fs_inode_cachep))
-		printk(KERN_ERR "c2t1fs_destroy_inodecache: not all structures were freed\n");
+	kmem_cache_destroy(c2t1fs_inode_cachep);
+	c2t1fs_inode_cachep = NULL;
 }
 
 int init_module(void)

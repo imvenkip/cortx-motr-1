@@ -1,6 +1,6 @@
 if LINUX
 STOB_SOURCES                = stob.c stob.h linux.c linux.h linux_adieu.c \
-                              linux_internal.h
+                              linux_internal.h linux_getevents.h
 else
 STOB_SOURCES                = stob.c stob.h
 endif

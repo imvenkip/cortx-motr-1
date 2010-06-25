@@ -26,12 +26,25 @@
    @{
  */
 
+static const struct c2_addb_ctx_type c2_net_conn_addb_ctx = {
+	.act_name = "net-conn"
+};
+
+static const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
+	.act_name = "net-dom"
+};
+
+static const struct c2_addb_loc c2_net_addb_loc = {
+	.al_name = "net"
+};
+
 static void c2_net_conn_free_cb(struct c2_ref *ref)
 {
 	struct c2_net_conn *conn;
 
 	conn = container_of(ref, struct c2_net_conn, nc_refs);
 	conn->nc_ops->sio_fini(conn);
+	c2_addb_ctx_fini(&conn->nc_addb);
 	c2_free(conn);
 }
 
@@ -53,10 +66,14 @@ int c2_net_conn_create(struct c2_service_id *nid)
 			c2_rwlock_write_lock(&dom->nd_lock);
 			c2_list_add(&dom->nd_conn, &conn->nc_link);
 			c2_rwlock_write_unlock(&dom->nd_lock);
+			c2_addb_ctx_init(&conn->nc_addb, &c2_net_conn_addb_ctx,
+					 &dom->nd_addb);
 		} else
 			c2_free(conn);
-	} else
+	} else {
+		C2_ADDB_ADD(&dom->nd_addb, &c2_net_addb_loc, c2_addb_oom);
 		result = -ENOMEM;
+	}
 	return result;
 }
 
@@ -112,15 +129,18 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_list_init(&dom->nd_service);
 	c2_rwlock_init(&dom->nd_lock);
 	dom->nd_xprt = xprt;
+	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, 
+			 &c2_addb_global_ctx);
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
 
 void c2_net_domain_fini(struct c2_net_domain *dom)
 {
 	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
-	c2_rwlock_init(&dom->nd_lock);
-	c2_list_init(&dom->nd_service);
-	c2_list_init(&dom->nd_conn);
+	c2_addb_ctx_fini(&dom->nd_addb);
+	c2_rwlock_fini(&dom->nd_lock);
+	c2_list_fini(&dom->nd_service);
+	c2_list_fini(&dom->nd_conn);
 }
 
 /** @} end of net group */

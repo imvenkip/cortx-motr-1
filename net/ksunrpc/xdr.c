@@ -174,7 +174,7 @@ static int ksunrpc_xdr_enc_read(struct rpc_rqst *req, uint32_t *p, void *datum)
 {
 	struct c2t1fs_read_arg *arg = datum;
 	struct xdr_stream        xdr;
-        struct rpc_auth *auth = req->rq_task->tk_auth;
+        struct rpc_auth *auth = req->rq_task->tk_msg.rpc_cred->cr_auth;
 
 	xdr_init_encode(&xdr, &req->rq_snd_buf, p);
 	p = reserve_nr(&xdr, C2T1FS_READ_BASE);

@@ -296,11 +296,7 @@ int main(int argc, char **argv)
 
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-#ifdef LINUX
 	result = linux_stob_module_init();
-#else
-        result = -ENOSYS;
-#endif
 	C2_ASSERT(result == 0);
 	
 	result = mkdir(path, 0700);
@@ -309,13 +305,8 @@ int main(int argc, char **argv)
 	result = mkdir(opath, 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-#ifdef LINUX
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
 							  path, &dom);
-#else
-        /* Others than Linux are not supported so far. */
-        result = -ENOSYS;
-#endif
 	C2_ASSERT(result == 0);
 
 	memset(&service, 0, sizeof service);
@@ -361,9 +352,7 @@ int main(int argc, char **argv)
 	c2_net_fini();
 
 	dom->sd_ops->sdo_fini(dom);
-#ifdef LINUX
 	linux_stob_module_fini();
-#endif
 	return 0;
 }
 

@@ -42,6 +42,14 @@
 #define NULL ((void *)0)
 #endif
 
+extern void __dummy_function(void);
+
+/**
+   A macro used with if-statements without `else' clause to assure proper
+   coverage analysis.
+ */
+#define AND_NOTHING_ELSE else __dummy_function();
+
 #endif
 /* 
  *  Local variables:

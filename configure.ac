@@ -471,6 +471,7 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  mw/Makefile
                  c2t1fs/Makefile
+                 build_kernel_modules/Makefile
                  patches/Makefile
                  stob/Makefile
                  stob/ut/Makefile

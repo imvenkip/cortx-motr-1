@@ -13,6 +13,7 @@
 #endif
 
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <rpc/auth.h>
@@ -81,6 +82,20 @@ struct usunrpc_conn {
 	struct c2_cond	     nsc_gotfree;
 };
 
+static const struct c2_addb_loc usunrpc_addb_client = {
+	.al_name = "usunrpc-client"
+};
+
+C2_ADDB_EV_DEFINE(usunrpc_addb_gethostbyname,  "gethostbyname", 0x10,
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_gethostbyname_len,  "gethostbyname_len", 0x11,
+		  C2_ADDB_CALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_clnttcp_create,  "clnttcp_create", 0x12,
+		  C2_ADDB_CALL);
+
+#define ADDB_ADD(conn, ev, ...) \
+C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client, ev , ## __VA_ARGS__)
+
 static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 {
 	size_t i;
@@ -102,17 +117,34 @@ static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 }
 
 static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
+				 struct c2_net_conn *conn,
 				 struct usunrpc_conn *xconn,
 				 struct usunrpc_xprt *xprt)
 {
 	struct sockaddr_in addr;
 	int                result;
 	int                sock;
+	struct hostent    *hp;
 
 	memset(&addr, 0, sizeof addr);
 	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(id->ssi_host);
 	addr.sin_port        = htons(id->ssi_port);
+
+	if (inet_aton(id->ssi_host, &addr.sin_addr) == 0) {
+		if ((hp = gethostbyname(id->ssi_host)) == NULL) {
+			fprintf(stderr, "can't get address for %s\n",
+				id->ssi_host);
+			ADDB_ADD(conn, usunrpc_addb_gethostbyname, 0);
+			return -1;
+		}
+		if (hp->h_length > sizeof(struct in_addr)) {
+			ADDB_ADD(conn, usunrpc_addb_gethostbyname_len, 
+				 hp->h_length);
+			hp->h_length = sizeof(struct in_addr);
+		}
+		memcpy(&addr.sin_addr, hp->h_addr, hp->h_length);
+	}
 
 	sock = -1;
 	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog, 
@@ -123,6 +155,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
+		ADDB_ADD(conn, usunrpc_addb_clnttcp_create, -errno);
 		result = -errno;
 	}
 	return result;
@@ -155,13 +188,14 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 
 			for (i = 0; i < USUNRPC_CONN_CLIENT_COUNT; ++i) {
 				result = usunrpc_conn_init_one
-					(id->si_xport_private, xconn,
+					(id->si_xport_private, conn, xconn,
 					 &xconn->nsc_pool[i]);
 				if (result != 0)
 					break;
 			}
 		}
-	}
+	} else
+		ADDB_ADD(conn, c2_addb_oom);
 	if (result != 0) {
 		/* xconn & pool will be released there */
 		usunrpc_conn_fini_internal(xconn);

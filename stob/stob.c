@@ -15,14 +15,29 @@
    @{
  */
 
+static const struct c2_addb_ctx_type c2_stob_type_addb = {
+	.act_name = "stob-type"
+};
+
+static const struct c2_addb_ctx_type c2_stob_domain_addb = {
+	.act_name = "stob-domain"
+};
+
+static const struct c2_addb_ctx_type c2_stob_addb = {
+	.act_name = "stob-domain"
+};
+
 int c2_stob_type_init(struct c2_stob_type *kind)
 {
 	c2_list_init(&kind->st_domains);
+	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb, 
+			 &c2_addb_global_ctx);
 	return 0;
 }
 
 void c2_stob_type_fini(struct c2_stob_type *kind)
 {
+	c2_addb_ctx_fini(&kind->st_addb);
 	c2_list_fini(&kind->st_domains);
 }
 
@@ -31,10 +46,12 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t)
 	c2_rwlock_init(&dom->sd_guard);
 	dom->sd_type = t;
 	c2_list_add_tail(&t->st_domains, &dom->sd_domain_linkage);
+	c2_addb_ctx_init(&dom->sd_addb, &c2_stob_domain_addb, &t->st_addb);
 }
 
 void c2_stob_domain_fini(struct c2_stob_domain *dom)
 {
+	c2_addb_ctx_fini(&dom->sd_addb);
 	c2_rwlock_fini(&dom->sd_guard);
 	c2_list_del(&dom->sd_domain_linkage);
 }
@@ -45,15 +62,19 @@ int c2_stob_find(struct c2_stob_domain *dom, const struct c2_stob_id *id,
 	return dom->sd_ops->sdo_stob_find(dom, id, out);
 }
 
-void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id)
+void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
+		  struct c2_stob_domain *dom)
 {
 	c2_atomic64_set(&obj->so_ref, 1);
 	obj->so_state = CSS_UNKNOWN;
 	obj->so_id = *id;
+	obj->so_domain = dom;
+	c2_addb_ctx_init(&obj->so_addb, &c2_stob_addb, &dom->sd_addb);
 }
 
 void c2_stob_fini(struct c2_stob *obj)
 {
+	c2_addb_ctx_fini(&obj->so_addb);
 }
 
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
@@ -161,6 +182,7 @@ void c2_stob_io_init(struct c2_stob_io *io)
 void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
+
 	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
@@ -191,7 +213,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		io->si_scope = scope;
 		io->si_state = SIS_BUSY;
 		c2_stob_io_lock(obj);
-		/* XXX do something about barriers here. */
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
 			io->si_state = SIS_IDLE;
@@ -200,14 +221,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	}
 	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
-}
-
-void c2_stob_io_cancel(struct c2_stob_io *io)
-{
-	c2_stob_io_lock(io->si_obj);
-	if (io->si_state == SIS_BUSY)
-		io->si_op->sio_cancel(io);
-	c2_stob_io_unlock(io->si_obj);
 }
 
 #include "stob/linux.h"

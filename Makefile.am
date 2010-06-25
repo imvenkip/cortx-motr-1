@@ -1,8 +1,8 @@
-SUBDIRS    = m4 doc include man patches lib net rpc fop addb dtm fol nrs sns \
-             sm mds mw stob utils c2t1fs reqh fop colibri\
+SUBDIRS    = m4 doc include man patches lib sm addb fop stob net rpc \
+             fol dtm nrs sns \
+             mds mw utils reqh build_kernel_modules \
              \
              fop/ut rpc/ut lib/ut stob/ut net/ut
-
 
 EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
