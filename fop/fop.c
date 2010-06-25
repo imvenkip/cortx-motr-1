@@ -78,6 +78,15 @@ void c2_fop_field_fini(struct c2_fop_field *field)
 	}
 }
 
+int  c2_fops_init(void)
+{
+	return 0;
+}
+
+void c2_fops_fini(void)
+{
+}
+
 /** @} end of fop group */
 
 /* 
