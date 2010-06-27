@@ -206,6 +206,27 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 	C2_ASSERT(ergo(!dec->d_varsize, dec->d_kanbelast));
 }
 
+static void memlayout(struct c2_fop_field_type *ftype, const char *prefix)
+{
+	size_t i;
+
+	printf("static int %s_memlayout[] = {\n", ftype->fft_name);
+	for (i = 0; i < ftype->fft_nr; ++i) {
+		struct c2_fop_field *f;
+		struct c_fop_field_decor *fd;
+
+		f  = ftype->fft_child[i];
+		fd = FD(f);
+		if (!fd->fd_void && f->ff_name[0] != 0)
+			printf("\toffsetof(%s, %s%s)", TD(ftype)->d_type,
+			       i ? prefix : "", f->ff_name);
+		else
+			printf("\t0 /* %s */", f->ff_name);
+		printf(",\n");
+	}
+	printf("};\n\n");
+}
+
 static void body_cdef(struct c2_fop_field_type *ftype, 
 		      int start, int indent, bool tags)
 {
@@ -229,6 +250,7 @@ static void union_cdef(struct c2_fop_field_type *ftype)
 	       FD(ftype->fft_child[0])->fd_fmt);
 	body_cdef(ftype, 1, 2, true);
 	printf("\t} u;\n};\n\n");
+	memlayout(ftype, "u.");
 }
 
 static void record_cdef(struct c2_fop_field_type *ftype)
@@ -236,6 +258,7 @@ static void record_cdef(struct c2_fop_field_type *ftype)
 	printf("%s {\n", TD(ftype)->d_type);
 	body_cdef(ftype, 0, 1, false);
 	printf("};\n\n");
+	memlayout(ftype, "");
 }
 
 static void sequence_cdef(struct c2_fop_field_type *ftype)
@@ -246,12 +269,14 @@ static void sequence_cdef(struct c2_fop_field_type *ftype)
 	printf("%s {\n\t%-20s %s;\n\t%s%s\n};\n\n",
 	       TD(ftype)->d_type, "uint32_t", TD(ftype)->u.d_sequence.d_count,
 	       fd->fd_fmt_ptr, fd->fd_void ? "" : ";");
+	memlayout(ftype, "");
 }
 
 static void typedef_cdef(struct c2_fop_field_type *ftype)
 {
 	printf("typedef %s %s;\n\n", TD(ftype->fft_child[0]->ff_type)->d_type,
 	       ftype->fft_name);
+	memlayout(ftype, "");
 }
 
 static void uxdr_head(struct c2_fop_field_type *ftype)
@@ -353,6 +378,7 @@ static void union_kdef(struct c2_fop_field_type *ftype)
 	       FD(ftype->fft_child[0])->fd_fmt);
 	body_cdef(ftype, 1, 2, true);
 	printf("\t} u;\n};\n\n");
+	memlayout(ftype, "u.");
 }
 
 static void record_kdef(struct c2_fop_field_type *ftype)
@@ -360,6 +386,7 @@ static void record_kdef(struct c2_fop_field_type *ftype)
 	printf("%s {\n", TD(ftype)->d_type);
 	body_cdef(ftype, 0, 1, false);
 	printf("};\n\n");
+	memlayout(ftype, "");
 }
 
 static void sequence_kdef(struct c2_fop_field_type *ftype)
@@ -376,6 +403,7 @@ static void sequence_kdef(struct c2_fop_field_type *ftype)
 	else
 		printf("%s%s", fd->fd_fmt_ptr, fd->fd_void ? "" : ";");
 	printf("\n};\n\n");
+	memlayout(ftype, "");
 }
 
 static void kxdr_head(struct c2_fop_field_type *ftype, int encdec)
