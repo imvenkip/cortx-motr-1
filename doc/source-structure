@@ -98,6 +98,10 @@ In core/Makefile.am add "foo" to SUBDIRS_LIBS, and, if necessary,
 Add "core/Makefile" and (if necessary) "core/{ut,st,ub}/Makefile" to
 AC_CONFIG_FILES section at the end of core/configure.ac.
 
+Finally, add $(top_builddir)/foo/libcolibri-foo.la to
+libcolibri_la_LIBADD in core/colibri/Makefile.am
+
+
 How to add a new executable?
 ----------------------------
 
@@ -113,3 +117,26 @@ baz_LDADD          = $(top_builddir)/colibri/libcolibri.la
 If necessary also add 
 
 baz_LDFLAGS   = -pthread
+
+System initialization and finalisation
+--------------------------------------
+
+core/colibri/init.h declares functions 
+
+int  c2_init(void);
+void c2_fini(void);
+
+That must be called by an executable to respectively initialise and
+finalise Colibri internal libraries.
+
+If your library (say, core/foo/libcolibri-foo.la with interfaces
+declared) requires some global (per address space)
+initialisation or finalisation actions (e.g., starting service
+threads, opening files), declare 
+
+int  foo_init(void);
+void foo_fini(void);
+
+in core/foo/foo.h and add { &foo_init, &foo_fini } to the subsystem[]
+array, defined in core/colibri/init.c. foo_init() must follow standard
+return conventions: 0 on success, negated errno value on failure.
