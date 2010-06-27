@@ -38,10 +38,10 @@ unit and system tests, benchmarks and Colibri executables.
 There are two types of top-level sub-directories in core/: ones
 building internal Colibri libraries, typically stored in
 core/foo/libcolibri-foo.la and ones building Colibri executables (none
-at the moment, 2010.06.27). Internal Colibri libraries are build
+at the moment, 2010.06.27). Internal Colibri libraries are built
 first. All libraries needed by the current configuration are linked
 together into core/colibri/libcolibri.la. Then binaries, including
-unit tests are build and linked against libcolibri.
+unit tests are built and linked against libcolibri.
 
 Kernel code is built by using Linux kernel build.
 
