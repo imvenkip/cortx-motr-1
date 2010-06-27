@@ -133,7 +133,7 @@ struct c2_fop_field {
 	const char               *ff_name;
 	struct c2_fop_field_type *ff_type;
 	uint32_t                  ff_tag;
-	void                     *ff_decor;
+	void                    **ff_decor;
 };
 
 
@@ -175,7 +175,7 @@ struct c2_fop_field_type {
 		} u_atom;
 	} fft_u;
 	/* a fop must be decorated, see any dictionary. */
-	void                   *fft_decor;
+	void                  **fft_decor;
 	size_t                  fft_nr;
 	struct c2_fop_field   **fft_child;
 };

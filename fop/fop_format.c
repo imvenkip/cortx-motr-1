@@ -12,6 +12,66 @@
    @{
  */
 
+void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
+{
+	int    i
+	size_t j;
+
+	if (ftype->fft_decor != NULL) {
+		for (j = 0; j < ARRAY_SIZE(decorators); ++j) {
+			if (ftype->fft_decor[j] != NULL)
+				decorators[j]->dec_type_fini
+					(ftype->fft_decor[j]);
+		}
+		c2_free(ftype->fft_decor);
+		ftype->fft_decor = NULL;
+	}
+	for (i = 0; i < ftype->fft_nr; ++i) {
+		struct c2_fop_field *field;
+
+		field = ftype->fft_child[i];
+		if (field->ff_decor != NULL) {
+			for (j = 0; j < ARRAY_SIZE(decorators); ++j) {
+				if (field->ff_decor[i] != NULL)
+					decorators[i]->dec_field_fini
+						(field->ff_decor[i]);
+			}
+		}
+		c2_free(field->ff_decor);
+		field->ff_decor = NULL;
+	}
+}
+
+int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
+{
+	int    result;
+	size_t i;
+
+	C2_PRE(ftype->fft_decor == NULL);
+
+	C2_ALLOC_ARR(ftype->fft_decor, ARRAY_SIZE(decorators));
+	if (ftype->fft_decor != NULL) {
+		result = 0;
+		for (i = 0; i < ftype->fft_nr; ++i) {
+			struct c2_fop_field *field;
+
+			field = ftype->fft_child[i];
+			C2_PRE(field->ff_decor == NULL);
+			C2_PRE(field->ff_type->fft_decor != NULL);
+
+			C2_ALLOC_ARR(field->ff_decor, ARRAY_SIZE(decorators));
+			if (field->ff_decor == NULL) {
+				result = -ENOMEM;
+				break;
+			}
+		}
+	} else
+		result = -ENOMEM;
+	if (result != NULL)
+		c2_fop_field_type_unprepare(ftype);
+	return result;
+}
+
 int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 {
 	struct c2_fop_field_type *t;
@@ -85,10 +145,59 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	*/
 
 	if (result == 0)
+		result = c2_fop_field_type_prepare(t);
+
+	if (result == 0)
 		fmt->ftf_out = t;
 	else
 		c2_fop_field_type_fini(t);
 	return result;
+}
+
+enum {
+	C2_FOP_DECORATOR_MAX = 4
+};
+
+static struct c2_fop_decorator *decorators[C2_FOP_DECORATOR_MAX];
+static size_t decorators_nr = 0;
+static bool decoration_used = false;
+
+void *c2_fop_type_decoration_get(const struct c2_fop_field_type *ftype,
+				 const struct c2_fop_decorator *dec)
+{
+	decoration_used = true;
+	return ftype->fft_decor[dec->dec_id];
+}
+
+void  c2_fop_type_decoration_set(const struct c2_fop_field_type *ftype,
+				 const struct c2_fop_decorator *dec, void *val)
+{
+	decoration_used = true;
+	ftype->fft_decor[dec->dec_id] = val;
+}
+
+void *c2_fop_field_decoration_get(const struct c2_fop_field *field,
+				  const struct c2_fop_decorator *dec)
+{
+	decoration_used = true;
+	return field->ff_decor[dec->dec_id];
+}
+
+void  c2_fop_field_decoration_set(const struct c2_fop_field *field,
+				  const struct c2_fop_decorator *dec,
+				  void *val)
+{
+	decoration_used = true;
+	field->ff_decor[dec->dec_id] = val;
+}
+
+void c2_fop_decorator_register(struct c2_fop_decorator *dec)
+{
+	C2_PRE(decorators_nr < ARRAY_SIZE(decorators));
+	C2_PRE(!decoration_used);
+
+	decorators[decorators_nr] = dec;
+	dec->dec_id = decorators_nr++;
 }
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID = {

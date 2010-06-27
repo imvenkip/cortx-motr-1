@@ -52,12 +52,29 @@ struct c2_fop_type_format _name = {		\
 	}					\
 }
 
-int c2_fop_type_format_cdef  (struct c2_fop_field_type *ftype);
-int c2_fop_type_format_kdef  (struct c2_fop_field_type *ftype);
-int c2_fop_type_format_uxdr_h(struct c2_fop_field_type *ftype);
-int c2_fop_type_format_uxdr_c(struct c2_fop_field_type *ftype);
-int c2_fop_type_format_kxdr_h(struct c2_fop_field_type *ftype);
-int c2_fop_type_format_kxdr_c(struct c2_fop_field_type *ftype);
+int c2_fop_type_format_cdef     (struct c2_fop_field_type *ftype);
+int c2_fop_type_format_kdef     (struct c2_fop_field_type *ftype);
+int c2_fop_type_format_memlayout(struct c2_fop_field_type *ftype);
+
+struct c2_fop_decorator {
+	const char *dec_name;
+	uint32_t    dec_id;
+	void      (*dec_type_fini)(void *value);
+	void      (*dec_field_fini)(void *value);
+};
+
+void c2_fop_decorator_register(struct c2_fop_decorator *dec);
+
+void *c2_fop_type_decoration_get(const struct c2_fop_field_type *ftype,
+				 const struct c2_fop_decorator *dec);
+void  c2_fop_type_decoration_set(const struct c2_fop_field_type *ftype,
+				 const struct c2_fop_decorator *dec, void *val);
+
+void *c2_fop_field_decoration_get(const struct c2_fop_field *field,
+				  const struct c2_fop_decorator *dec);
+void  c2_fop_field_decoration_set(const struct c2_fop_field *field,
+				  const struct c2_fop_decorator *dec, 
+				  void *val);
 
 /** @} end of fop group */
 

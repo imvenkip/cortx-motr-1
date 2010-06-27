@@ -40,10 +40,13 @@ void c2_fop_field_traverse(struct c2_fop_field *field,
 }
 #endif
 
+void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
+
 void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 {
 	size_t i;
 
+	c2_fop_field_type_unprepare(t);
 	if (t->fft_child != NULL) {
 		for (i = 0; i < t->fft_nr; ++i) {
 			if (t->fft_child[i] != NULL)
