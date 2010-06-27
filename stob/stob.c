@@ -223,6 +223,18 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	return result;
 }
 
+#include "stob/linux.h"
+
+int c2_stobs_init(void)
+{
+	return linux_stob_module_init();
+}
+
+void c2_stobs_fini(void)
+{
+	linux_stob_module_fini();
+}
+
 /** @} end group stob */
 
 /* 
