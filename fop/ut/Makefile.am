@@ -14,8 +14,7 @@ test_format.h test_format.c test_format_k.h: test_format.ff \
 fmt_test_SOURCES   = test_format.h test_format.c test_format_k.h \
                      fmt_test.c
 fmt_test_LDFLAGS   = -pthread
-fmt_test_LDADD     = $(top_builddir)/lib/libc2.la \
-                     $(top_builddir)/fop/libcolibri-fop.la
+fmt_test_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
 EXTRA_DIST	   = test_format.ff
 

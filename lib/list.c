@@ -1,6 +1,8 @@
 #include "list.h"
 #include "assert.h"
 
+/** @addtogroup list @{ */
+
 void c2_list_init(struct c2_list *head)
 {
 	head->l_head = (struct c2_list_link *)head;
@@ -115,6 +117,8 @@ bool c2_list_link_is_in(const struct c2_list_link *link)
 {
 	return link->ll_prev != link;
 }
+
+/** @} end of list group */
 
 /*
  *  Local variables:

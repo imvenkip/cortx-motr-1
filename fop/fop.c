@@ -109,6 +109,15 @@ struct c2_fop_field_type C2_FOP_TYPE_U64 = {
 	}
 };
 
+int  c2_fops_init(void)
+{
+	return 0;
+}
+
+void c2_fops_fini(void)
+{
+}
+
 /** @} end of fop group */
 
 /* 

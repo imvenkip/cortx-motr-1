@@ -1,16 +1,32 @@
 OS = @OS@
 
+C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
+KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
+
 ifeq ($(OS),linux)
 
-obj-y := ../c2t1fs/ ../net/ksunrpc/
+obj-y := c2t1fs/ ksunrpc/
 
 all:
+	if ! test -e c2t1fs; then       \
+            ln -s $(C2T1FS_SRCDIR);     \
+        fi
+	if ! test -e ksunrpc; then      \
+            ln -s $(KSUNRPC_SRCDIR);    \
+        fi
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 clean distclean:
-	$(MAKE) -C ../c2t1fs/ clean
-	$(MAKE) -C ../net/ksunrpc/ clean
+	if ! test -e c2t1fs; then       \
+            ln -s $(C2T1FS_SRCDIR);     \
+        fi
+	if ! test -e ksunrpc; then      \
+            ln -s $(KSUNRPC_SRCDIR);    \
+        fi
+	$(MAKE) -C c2t1fs clean
+	$(MAKE) -C ksunrpc clean
 	$(RM) Module.markers modules.order
+	$(RM) -fr c2t1fs ksunrpc
 
 else
 
@@ -22,3 +38,11 @@ distclean clean:
 endif
 
 distdir:
+	if ! test -e c2t1fs; then       \
+            ln -s $(C2T1FS_SRCDIR);     \
+        fi
+	if ! test -e ksunrpc; then      \
+            ln -s $(KSUNRPC_SRCDIR);    \
+        fi
+	$(MAKE) -C c2t1fs distdir
+	$(MAKE) -C ksunrpc distdir

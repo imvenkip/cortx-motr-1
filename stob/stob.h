@@ -662,6 +662,9 @@ int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 
 /** @} end member group adieu */
 
+int  c2_stobs_init(void);
+void c2_stobs_fini(void);
+
 /** @} end group stob */
 
 /* __COLIBRI_STOB_STOB_H__ */
