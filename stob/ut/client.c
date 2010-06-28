@@ -23,6 +23,9 @@
    @{
  */
 
+int io_fop_init(void);
+void io_fop_fini(void);
+
 static struct c2_rpc_op_table *ops;
 
 static const struct c2_rpc_op create_op = {
@@ -61,7 +64,7 @@ static const struct c2_rpc_op quit_op = {
 	.ro_handler     = NULL
 };
 
-static void create_send(struct c2_net_conn *conn, const struct c2_fid *fid)
+static void create_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 {
 	int result;
 	struct c2_stob_io_create_fop fop;
@@ -73,7 +76,7 @@ static void create_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 	printf("GOT: %i %i\n", result, rep.sicr_rc);
 }
 
-static void read_send(struct c2_net_conn *conn, const struct c2_fid *fid)
+static void read_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 {
 	int result;
 	struct c2_stob_io_read_fop fop;
@@ -82,63 +85,53 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fid *fid)
 
 	memset(&rep, 0, sizeof rep);
 	fop.sir_object = *fid;
-	if (scanf("%i", &fop.sir_vec.v_count) != 1)
+	if (scanf("%i", &fop.sir_vec.csiv_count) != 1)
 		err(1, "wrong count conversion");
-	C2_ALLOC_ARR(fop.sir_vec.v_seg, fop.sir_vec.v_count);
+	C2_ALLOC_ARR(fop.sir_vec.csiv_seg, fop.sir_vec.v_count);
 	C2_ASSERT(fop.sir_vec.v_seg != NULL);
 	for (i = 0; i < fop.sir_vec.v_count; ++i) {
 		if (scanf("%lu %u", 
-			  (unsigned long *)&fop.sir_vec.v_seg[i].f_offset,
-			  &fop.sir_vec.v_seg[i].f_count) != 2)
+			  (unsigned long *)&fop.sir_vec.csiv_seg[i].f_offset,
+			  &fop.sir_vec.csiv_seg[i].f_count) != 2)
 			err(1, "wrong offset conversion");
 	}
 	result = c2_net_cli_call(conn, ops, SIF_READ, &fop, &rep);
 	C2_ASSERT(result == 0);
-	printf("GOT: %i %i %i\n", rep.sirr_rc, rep.sirr_count,
-	       rep.sirr_buf.b_count);
-	for (i = 0; i < rep.sirr_buf.b_count; ++i) {
-		int j;
-		struct c2_stob_io_buf *buf;
-
-		buf = &rep.sirr_buf.b_buf[i];
-
-		printf("\t%i[", buf->ib_count);
-		for (j = 0; j < buf->ib_count; ++j)
-			printf("%02x", buf->ib_value[j]);
-		printf("]\n");
-	}
+	printf("GOT: %i %i %i\n", rep.sirr_rc, rep.sirr_buf.csib_count);
+	printf("\t%i[", buf->ib_count);
+	for (i = 0; i < rep.sirr_buf.csib_count; ++i)
+		printf("%02x", rep.sirr_buf.csib_value[j]);
+	printf("]\n");
 }
 
-static void write_send(struct c2_net_conn *conn, const struct c2_fid *fid)
+static void write_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 {
 	int result;
 	int i;
 	struct c2_stob_io_write_fop fop;
 	struct c2_stob_io_write_rep_fop rep;
+	struct c2_stob_io_seg seg;
+	char filler;
 
 	memset(&rep, 0, sizeof rep);
 	fop.siw_object = *fid;
 	if (scanf("%i", &fop.siw_vec.v_count) != 1)
 		err(1, "wrong count conversion");
-	fop.siw_buf.b_count = fop.siw_vec.v_count;
-	C2_ALLOC_ARR(fop.siw_vec.v_seg, fop.siw_vec.v_count);
+	C2_ASSERT(fop.siw_vec.v_count == 1);
+	fop.siw_buf.b_count = fop.siw_vec.csiv_count;
+	fop.siw_vec.csiv_count = 1;
+	fop.siw_vec.csiv_seg   = &seg;
+	C2_ALLOC_ARR(fop.siw_vec.csiv_seg, fop.siw_vec.csiv_count);
 	C2_ALLOC_ARR(fop.siw_buf.b_buf, fop.siw_buf.b_count);
 	C2_ASSERT(fop.siw_vec.v_seg != NULL);
 	C2_ASSERT(fop.siw_buf.b_buf != NULL);
-	for (i = 0; i < fop.siw_vec.v_count; ++i) {
-		char filler;
-		struct c2_stob_io_buf *buf;
-
-		buf = &fop.siw_buf.b_buf[i];
-		if (scanf("%lu %u %c", 
-			  (unsigned long *)&fop.siw_vec.v_seg[i].f_offset,
-			  &fop.siw_vec.v_seg[i].f_count, &filler) != 3)
-			err(1, "wrong offset conversion");
-		buf->ib_count = fop.siw_vec.v_seg[i].f_count;
-		buf->ib_value = c2_alloc(buf->ib_count);
-		C2_ASSERT(buf->ib_value != NULL);
-		memset(buf->ib_value, filler, buf->ib_count);
-	}
+	if (scanf("%lu %u %c", 
+		  (unsigned long *)&seg.f_offset, &seg.f_count, &filler) != 3)
+		err(1, "wrong offset conversion");
+	fop.siw_buf.csib_count = seg.f_count;
+	fop.siw_buf.csib_value = c2_alloc(seg.f_count);
+	C2_ASSERT(fop.siw_buf.csib_value != NULL);
+	memset(fop.siw_buf.csib_value, filler, seg.f_count);
 
 	result = c2_net_cli_call(conn, ops, SIF_WRITE, &fop, &rep);
 
@@ -211,6 +204,9 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	result = io_fop_init();
+	C2_ASSERT(result == 0);
+
 	result = c2_net_init();
 	C2_ASSERT(result == 0);
 
@@ -243,7 +239,7 @@ int main(int argc, char **argv)
 
 	ping_send(conn);
 	while (!feof(stdin)) {
-		struct c2_fid fid;
+		struct c2_fop_fid fid;
 		char cmd;
 		int n;
 
@@ -278,6 +274,7 @@ int main(int argc, char **argv)
 	c2_net_domain_fini(&ndom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 	c2_net_fini();
+	io_fop_fini();
 
 	return 0;
 }

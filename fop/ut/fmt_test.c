@@ -3,7 +3,12 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "test_format.h"
+#include "fop/fop.h"
+#include "fop/fop_format.h"
+#include "fop/fop_format_def.h"
+#include "test_format.ff"
+
+#include "test_format_u.h"
 
 extern void test(void);
 

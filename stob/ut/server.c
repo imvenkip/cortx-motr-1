@@ -18,7 +18,7 @@
 #include "stob/stob.h"
 #include "stob/linux.h"
 
-#include "io_fop.h"
+#include "io_u.h"
 
 /**
    @addtogroup stob
@@ -27,14 +27,17 @@
 
 static struct c2_stob_domain *dom;
 
-static struct c2_stob *object_find(const struct c2_fid *fid)
+int io_fop_init(void);
+void io_fop_fini(void);
+
+static struct c2_stob *object_find(const struct c2_fop_fid *fid)
 {
 	struct c2_stob_id  id;
 	struct c2_stob    *obj;
 	int result;
 
-	id.si_seq = fid->f_d1;
-	id.si_id  = fid->f_d2;
+	id.si_seq = fid->f_seq;
+	id.si_id  = fid->f_oid;
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(obj);
@@ -65,7 +68,9 @@ static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	struct c2_stob_io_read_rep_fop *ex;
 	struct c2_stob                 *obj;
 	c2_bcount_t                    *count;
+	c2_bcount_t                     total;
 	c2_bindex_t                    *offset;
+	c2_bindex_t                     scan;
 	void                          **buf;
 	uint32_t                        nr;
 	uint32_t                        i;
@@ -77,24 +82,26 @@ static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	C2_ASSERT(ex != NULL);
 
 	obj = object_find(&in->sir_object);
-	nr = in->sir_vec.v_count;
+	nr = in->sir_vec.csiv_count;
 	C2_ASSERT(nr > 0);
-	ex->sirr_buf.b_count = nr;
+
+	for (total = 0, i = 0; i < nr; ++i)
+		total += in->sir_vec.csiv_seg[i].f_count;
+
+	ex->sirr_buf.csib_count = nr;
 
 	C2_ALLOC_ARR(count, nr);
 	C2_ALLOC_ARR(offset, nr);
 	C2_ALLOC_ARR(buf, nr);
-	C2_ALLOC_ARR(ex->sirr_buf.b_buf, nr);
+	C2_ALLOC_ARR(ex->sirr_buf.csib_value, total);
 
 	C2_ASSERT(count != NULL && offset != NULL && buf != NULL &&
-		  ex->sirr_buf.b_buf != NULL);
-	for (i = 0; i < nr; ++i) {
-		count[i]  = in->sir_vec.v_seg[i].f_count;
-		offset[i] = in->sir_vec.v_seg[i].f_offset;
-		buf[i] = c2_alloc(count[i]);
-		C2_ASSERT(buf[i] != NULL);
-		ex->sirr_buf.b_buf[i].ib_count = count[i];
-		ex->sirr_buf.b_buf[i].ib_value = buf[i];
+		  ex->sirr_buf.csib_value != NULL);
+	for (scan = 0, i = 0; i < nr; ++i) {
+		count[i]  = in->sir_vec.csiv_seg[i].f_count;
+		offset[i] = in->sir_vec.csiv_seg[i].f_offset;
+		buf[i] = &ex->sirr_buf.csib_value[scan];
+		scan += count[i];
 	}
 	c2_stob_io_init(&io);
 
@@ -117,8 +124,8 @@ static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 
 	c2_chan_wait(&clink);
 
-	ex->sirr_rc    = io.si_rc;
-	ex->sirr_count = io.si_count;
+	ex->sirr_rc             = io.si_rc;
+	ex->sirr_buf.csib_count = io.si_count;
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
@@ -139,6 +146,7 @@ static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	struct c2_stob_io_write_rep_fop *ex;
 	struct c2_stob                  *obj;
 	c2_bcount_t                     *count;
+	c2_bcount_t                      total;
 	c2_bindex_t                     *offset;
 	void                           **buf;
 	uint32_t                         nr;
@@ -151,22 +159,22 @@ static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	C2_ASSERT(ex != NULL);
 
 	obj = object_find(&in->siw_object);
-	nr = in->siw_vec.v_count;
+	nr = in->siw_vec.csiv_count;
 	C2_ASSERT(nr > 0);
-	C2_ASSERT(nr == in->siw_buf.b_count);
 
 	C2_ALLOC_ARR(count, nr);
 	C2_ALLOC_ARR(offset, nr);
 	C2_ALLOC_ARR(buf, nr);
 
 	C2_ASSERT(count != NULL && offset != NULL && buf != NULL);
-	for (i = 0; i < nr; ++i) {
-		count[i]  = in->siw_vec.v_seg[i].f_count;
-		C2_ASSERT(count[i] == in->siw_buf.b_buf[i].ib_count);
-		offset[i] = in->siw_vec.v_seg[i].f_offset;
-		buf[i] = in->siw_buf.b_buf[i].ib_value;
-		C2_ASSERT(buf[i] != NULL);
+	for (total = 0, i = 0; i < nr; ++i) {
+		buf[i]    = &in->siw_buf.csib_value[total];
+		count[i]  = in->siw_vec.csiv_seg[i].f_count;
+		offset[i] = in->siw_vec.csiv_seg[i].f_offset;
+		total    += count[i];
 	}
+	C2_ASSERT(total == in->siw_buf.csib_count);
+
 	c2_stob_io_init(&io);
 
 	io.si_user.div_vec.ov_vec.v_nr    = nr;
@@ -291,6 +299,9 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	result = io_fop_init();
+	C2_ASSERT(result == 0);
+
 	path = argv[1];
 	port = atoi(argv[2]);
 
@@ -353,6 +364,7 @@ int main(int argc, char **argv)
 
 	dom->sd_ops->sdo_fini(dom);
 	linux_stob_module_fini();
+	io_fop_fini();
 	return 0;
 }
 

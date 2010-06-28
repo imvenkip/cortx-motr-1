@@ -2,6 +2,7 @@
 
 #define _GNU_SOURCE /* asprintf */
 #include <stdio.h>
+#include <stdlib.h> /* free(3) */
 
 #include "fop.h"
 #include "fop_format.h"
@@ -31,14 +32,46 @@ struct c_fop_decor {
 struct c_fop_field_decor {
 	char *fd_fmt;
 	char *fd_fmt_ptr;
-	bool  fd_void;
 };
 
-#define TD(ftype) ((struct c_fop_decor *)((ftype)->fft_decor))
-#define FD(field) ((struct c_fop_field_decor *)((field)->ff_decor))
+static void type_decor_free(void *val)
+{
+	struct c_fop_decor *dec = val;
+
+	free(dec->d_type);
+	free(dec->d_prefix);
+	free(dec->u.d_sequence.d_count);
+	free(dec->u.d_sequence.d_pgoff);
+	c2_free(dec);
+}
+
+static void field_decor_free(void *val)
+{
+	struct c_fop_field_decor *fdec = val;
+
+	free(fdec->fd_fmt);
+	free(fdec->fd_fmt_ptr);
+	c2_free(fdec);
+}
+
+static struct c2_fop_decorator comp_dec = {
+	.dec_name       = "comp",
+	.dec_type_fini  = type_decor_free,
+	.dec_field_fini = field_decor_free
+};
+
+static inline struct c_fop_decor *TD(const struct c2_fop_field_type *ftype)
+{
+	return c2_fop_type_decoration_get(ftype, &comp_dec);
+}
+
+static inline struct c_fop_field_decor *FD(const struct c2_fop_field *field)
+{
+	return c2_fop_field_decoration_get(field, &comp_dec);
+}
 
 static const char *atom_name[] = {
-	[FPF_VOID] = "/* void */",
+	[FPF_VOID] = "c2_fop_void_t",
 	[FPF_BYTE] = "char",
 	[FPF_U32]  = "uint32_t",
 	[FPF_U64]  = "uint64_t",
@@ -72,13 +105,13 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 
 	enum c2_fop_field_primitive_type atype;
 
-	if (ftype->fft_decor != NULL)
+	if (TD(ftype) != NULL)
 		return;
 
 	C2_ALLOC_PTR(dec);
 	C2_ASSERT(dec != NULL);
 
-	ftype->fft_decor = dec;
+	c2_fop_type_decoration_set(ftype, &comp_dec, dec);
 	arg = ftype->fft_name;
 	fmt = "%s";
 
@@ -117,23 +150,16 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 		C2_ALLOC_PTR(fd);
 		C2_ASSERT(fd != NULL);
 
-		f->ff_decor = fd;
-		if (f->ff_type->fft_decor == NULL)
+
+		c2_fop_field_decoration_set(f, &comp_dec, fd);
+		if (TD(f->ff_type) == NULL)
 			type_decorate(f->ff_type);
 
 		fdec = TD(f->ff_type);
 
-		if (f->ff_type != &C2_FOP_TYPE_VOID) {
-			ASPRINTF(&fd->fd_fmt, "%-20s %s", 
-				 fdec->d_type, f->ff_name);
-			ASPRINTF(&fd->fd_fmt_ptr, "%-19s *%s", 
-				 fdec->d_type, f->ff_name);
-		} else {
-			ASPRINTF(&fd->fd_fmt, "/* void %-9s */", f->ff_name);
-			fd->fd_fmt_ptr = fd->fd_fmt;
-			fd->fd_void = true;
-		}
-
+		ASPRINTF(&fd->fd_fmt, "%-20s %s", fdec->d_type, f->ff_name);
+		ASPRINTF(&fd->fd_fmt_ptr, "%-19s *%s", 
+			 fdec->d_type, f->ff_name);
 		dec->d_varsize |= fdec->d_varsize;
 
 		switch (ftype->fft_aggr) {
@@ -157,28 +183,34 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 	C2_ASSERT(ergo(!dec->d_varsize, dec->d_kanbelast));
 }
 
-static void memlayout(struct c2_fop_field_type *ftype)
+static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 {
 	size_t i;
 	const char *prefix;
 
 	prefix = ftype->fft_aggr == FFA_UNION ? "u." : "";
 
-	printf("int %s_memlayout[] = {\n", ftype->fft_name);
+	printf("struct c2_fop_memlayout %s_%smemlayout = {\n"
+	       "\t.fm_sizeof = sizeof (%s),\n",
+	       ftype->fft_name, where, TD(ftype)->d_type);
+	if (where[0] == 'u')
+		printf("\t.fm_uxdr = (xdrproc_t)uxdr_%s,\n", ftype->fft_name);
+	printf("\t.fm_child = {\n");
 	for (i = 0; i < ftype->fft_nr; ++i) {
 		struct c2_fop_field *f;
 		struct c_fop_field_decor *fd;
 
 		f  = ftype->fft_child[i];
 		fd = FD(f);
-		if (!fd->fd_void && f->ff_name[0] != 0)
-			printf("\toffsetof(%s, %s%s)", TD(ftype)->d_type,
+		printf("\t\t{ ");
+		if (f->ff_name[0] != 0)
+			printf("offsetof(%s, %s%s)", TD(ftype)->d_type,
 			       i ? prefix : "", f->ff_name);
 		else
-			printf("\t0 /* %s */", f->ff_name);
-		printf(",\n");
+			printf("0 /* %s */", f->ff_name);
+		printf(" },\n");
 	}
-	printf("};\n\n");
+	printf("\t}\n};\n\n");
 }
 
 static void body_cdef(struct c2_fop_field_type *ftype, 
@@ -190,8 +222,7 @@ static void body_cdef(struct c2_fop_field_type *ftype,
 
 	for (i = start; i < ftype->fft_nr; ++i) {
 		fd = FD(ftype->fft_child[i]);
-		printf("%*.*s%s%s", indent, indent, ruler, fd->fd_fmt, 
-		       fd->fd_void ? "" : ";");
+		printf("%*.*s%s;", indent, indent, ruler, fd->fd_fmt);
 		if (tags)
 			printf("\t/* case %i */", ftype->fft_child[i]->ff_tag);
 		printf("\n");
@@ -218,9 +249,9 @@ static void sequence_cdef(struct c2_fop_field_type *ftype)
 	struct c_fop_field_decor *fd;
 
 	fd = FD(ftype->fft_child[0]);
-	printf("%s {\n\t%-20s %s;\n\t%s%s\n};\n\n",
+	printf("%s {\n\t%-20s %s;\n\t%s;\n};\n\n",
 	       TD(ftype)->d_type, "uint32_t", TD(ftype)->u.d_sequence.d_count,
-	       fd->fd_fmt_ptr, fd->fd_void ? "" : ";");
+	       fd->fd_fmt_ptr);
 }
 
 static void typedef_cdef(struct c2_fop_field_type *ftype)
@@ -250,7 +281,7 @@ static void sequence_kdef(struct c2_fop_field_type *ftype)
 		printf("\tuint32_t %s;\n\tstruct page *%s;", 
 		       td->u.d_sequence.d_pgoff, ftype->fft_child[0]->ff_name);
 	} else
-		printf("\t%s%s", fd->fd_fmt_ptr, fd->fd_void ? "" : ";");
+		printf("\t%s;", fd->fd_fmt_ptr);
 	printf("\n};\n\n");
 }
 
@@ -272,27 +303,52 @@ static const struct c_ops kdef_ops[] = {
 	[FFA_TYPEDEF]  = { typedef_cdef }
 };
 
-int c2_fop_type_format_cdef(struct c2_fop_field_type *ftype)
+int c2_fop_comp_udef(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	cdef_ops[ftype->fft_aggr].op(ftype);
-	printf("extern int %s_memlayout[];\n\n", ftype->fft_name);
+	printf("extern struct c2_fop_memlayout %s_umemlayout;\n",
+	       ftype->fft_name);
 	return 0;
 }
 
-int c2_fop_type_format_kdef(struct c2_fop_field_type *ftype)
+int c2_fop_comp_kdef(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	kdef_ops[ftype->fft_aggr].op(ftype);
-	printf("extern int %s_memlayout[];\n\n", ftype->fft_name);
+	printf("extern struct c2_fop_memlayout %s_kmemlayout;\n\n", 
+	       ftype->fft_name);
 	return 0;
 }
 
-int c2_fop_type_format_memlayout(struct c2_fop_field_type *ftype)
+int c2_fop_comp_ulay(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
-	memlayout(ftype);
+	printf("static bool_t uxdr_%s(XDR *xdrs, %s *%s)\n{\n"
+	       "\textern struct c2_fop_type_format %s;\n"
+	       "\treturn c2_uxdr_fop(%s.ftf_out, xdrs, %s);\n}\n\n",
+	       ftype->fft_name, TD(ftype)->d_type, TD(ftype)->d_prefix,
+	       ftype->fft_name,
+	       ftype->fft_name, TD(ftype)->d_prefix);
+	memlayout(ftype, "u");
 	return 0;
+}
+
+int c2_fop_comp_klay(struct c2_fop_field_type *ftype)
+{
+	type_decorate(ftype);
+	memlayout(ftype, "k");
+	return 0;
+}
+
+int c2_fop_comp_init(void)
+{
+	c2_fop_decorator_register(&comp_dec);
+	return 0;
+}
+
+void c2_fop_comp_fini(void)
+{
 }
 
 /** @} end of fop group */

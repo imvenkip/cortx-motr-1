@@ -3,6 +3,8 @@
 #ifndef __COLIBRI_FOP_FOP_FORMAT_H__
 #define __COLIBRI_FOP_FOP_FORMAT_H__
 
+#include <rpc/rpc.h>
+
 #include "fop.h"
 
 /**
@@ -52,10 +54,6 @@ struct c2_fop_type_format _name = {		\
 	}					\
 }
 
-int c2_fop_type_format_cdef     (struct c2_fop_field_type *ftype);
-int c2_fop_type_format_kdef     (struct c2_fop_field_type *ftype);
-int c2_fop_type_format_memlayout(struct c2_fop_field_type *ftype);
-
 struct c2_fop_decorator {
 	const char *dec_name;
 	uint32_t    dec_id;
@@ -75,6 +73,36 @@ void *c2_fop_field_decoration_get(const struct c2_fop_field *field,
 void  c2_fop_field_decoration_set(const struct c2_fop_field *field,
 				  const struct c2_fop_decorator *dec, 
 				  void *val);
+
+int  c2_fop_comp_init(void);
+void c2_fop_comp_fini(void);
+
+int  c2_fop_comp_udef(struct c2_fop_field_type *ftype);
+int  c2_fop_comp_kdef(struct c2_fop_field_type *ftype);
+int  c2_fop_comp_ulay(struct c2_fop_field_type *ftype);
+int  c2_fop_comp_klay(struct c2_fop_field_type *ftype);
+
+typedef char c2_fop_void_t[0];
+
+struct c2_fop_memlayout {
+	xdrproc_t fm_uxdr;
+	size_t    fm_sizeof;
+	struct {
+		int ch_offset;
+	} fm_child[];
+};
+
+struct c2_fop_format_initdata {
+	struct c2_fop_type_format *fi_fmt;
+	struct c2_fop_memlayout   *fi_layout;
+};
+
+#define C2_FOP_FORMAT_INITDATA(fmt, prefix) {		\
+	.fi_fmt    = &fmt,				\
+	.fi_layout = &fmt ## _ ## prefix ## memlayout	\
+}
+
+int c2_fop_type_build(struct c2_fop_format_initdata *idata);
 
 /** @} end of fop group */
 

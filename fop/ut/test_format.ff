@@ -185,8 +185,8 @@ DEF(fid_array, SEQUENCE,
    The name of (the only) field in this definition is ignored and can be
    omitted.
  */
-DEF(fid_typedef, TYPEDEF,
-    _(, optfid));
+/* DEF(fid_typedef, TYPEDEF,
+    _(, optfid)); */
 
 DEF(c2_stob_io_seg, RECORD,
     _(f_offset, U64),

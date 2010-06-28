@@ -40,6 +40,7 @@ struct c2_fop_data;
 struct c2_fop;
 struct c2_fop_field;
 struct c2_fop_field_type;
+struct c2_fop_memlayout;
 
 typedef uint32_t c2_fop_type_code_t;
 
@@ -158,8 +159,8 @@ enum c2_fop_field_primitive_type {
    fop field type in a programming language "type" sense.
  */
 struct c2_fop_field_type {
-	enum c2_fop_field_aggr  fft_aggr;
-	const char             *fft_name;
+	enum c2_fop_field_aggr   fft_aggr;
+	const char              *fft_name;
 	union {
 		struct c2_fop_field_record {
 		} u_record;
@@ -175,9 +176,10 @@ struct c2_fop_field_type {
 		} u_atom;
 	} fft_u;
 	/* a fop must be decorated, see any dictionary. */
-	void                  **fft_decor;
-	size_t                  fft_nr;
-	struct c2_fop_field   **fft_child;
+	void                   **fft_decor;
+	size_t                   fft_nr;
+	struct c2_fop_field    **fft_child;
+	struct c2_fop_memlayout *fft_layout;
 };
 
 void c2_fop_field_type_fini(struct c2_fop_field_type *t);

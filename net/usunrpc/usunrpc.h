@@ -2,7 +2,9 @@
 #ifndef __COLIBRI_NET_SUNRPC_SUNRPC_H__
 #define __COLIBRI_NET_SUNRPC_SUNRPC_H__
 
-#include <lib/cdefs.h>
+#include <rpc/xdr.h>
+
+#include "lib/cdefs.h"
 
 /**
    @addtogroup usunrpc User Level Sun RPC
@@ -11,7 +13,11 @@
 
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 
-/** @} end of group sunrpc */
+struct c2_fop_field_type;
+
+bool_t c2_uxdr_fop(const struct c2_fop_field_type *ftype, XDR *xdrs, void *obj);
+
+/** @} end of group usunrpc */
 
 /* __COLIBRI_NET_SUNRPC_SUNRPC_H__ */
 #endif

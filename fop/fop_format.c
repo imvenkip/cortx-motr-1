@@ -2,6 +2,7 @@
 
 #include <errno.h>
 
+#include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 
@@ -12,9 +13,17 @@
    @{
  */
 
+enum {
+	C2_FOP_DECORATOR_MAX = 4
+};
+
+static struct c2_fop_decorator *decorators[C2_FOP_DECORATOR_MAX];
+static size_t decorators_nr = 0;
+static bool decoration_used = false;
+
 void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
 {
-	int    i
+	int    i;
 	size_t j;
 
 	if (ftype->fft_decor != NULL) {
@@ -67,7 +76,7 @@ int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 		}
 	} else
 		result = -ENOMEM;
-	if (result != NULL)
+	if (result != 0)
 		c2_fop_field_type_unprepare(ftype);
 	return result;
 }
@@ -154,14 +163,6 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	return result;
 }
 
-enum {
-	C2_FOP_DECORATOR_MAX = 4
-};
-
-static struct c2_fop_decorator *decorators[C2_FOP_DECORATOR_MAX];
-static size_t decorators_nr = 0;
-static bool decoration_used = false;
-
 void *c2_fop_type_decoration_get(const struct c2_fop_field_type *ftype,
 				 const struct c2_fop_decorator *dec)
 {
@@ -198,6 +199,18 @@ void c2_fop_decorator_register(struct c2_fop_decorator *dec)
 
 	decorators[decorators_nr] = dec;
 	dec->dec_id = decorators_nr++;
+}
+
+int c2_fop_type_build(struct c2_fop_format_initdata *idata)
+{
+	int                        result;
+	struct c2_fop_type_format *fmt;
+
+	fmt    = idata->fi_fmt;
+	result = c2_fop_type_format_parse(fmt);
+	if (result == 0)
+		fmt->ftf_out->fft_layout = idata->fi_layout;
+	return result;
 }
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID = {

@@ -66,36 +66,15 @@ gen_c()
     where=$1
     topic=$2
 
-    case $where in
-	U)
-	    case $topic in
-		DEF)
-		    what=CDEF
-		    func=cdef
-		    outf=${base}.h
-		    ;;
-		MEMLAYOUT)
-		    what=MEMLAYOUT
-		    func=memlayout
-		    outf=${base}.c
-		    incl=${base}.h
-		    ;;
-	    esac
+    what=$where$topic
+    outf=${base}_$(echo $where | tr [A-Z] [a-z])
+    incl=${outf}.h
+    case $topic in
+	DEF)
+	    outf=${outf}.h
 	    ;;
-	K)
-	    case $topic in
-		DEF)
-		    what=KDEF
-		    func=kdef
-		    outf=${base}_k.h
-		    ;;
-		MEMLAYOUT)
-		    what=MEMLAYOUT
-		    func=memlayout
-		    outf=${base}_k.c
-		    incl=${base}_k.h
-		    ;;
-	    esac
+	LAY)
+	    outf=${outf}.c
 	    ;;
     esac
 
@@ -109,9 +88,17 @@ gen_c()
 #include "fop/fop_format_def.h"
 
 enum todo {
-	CDEF,
+	UDEF,
 	KDEF,
-	MEMLAYOUT
+	ULAY,
+	KLAY
+};
+
+static int (*func[])(struct c2_fop_field_type *) = {
+	[UDEF] = &c2_fop_comp_udef,
+	[KDEF] = &c2_fop_comp_kdef,
+	[ULAY] = &c2_fop_comp_ulay,
+	[KLAY] = &c2_fop_comp_klay
 };
 
 EOF
@@ -138,7 +125,7 @@ EOF
 void prefix(void)
 {
 	printf("/* -*- C -*- */\n");
-	if (todo != MEMLAYOUT) {
+	if (todo != ULAY && todo != KLAY) {
 		printf("#ifndef __COLIBRI_%s_%s_H__\n", BASE, what);
 		printf("#define __COLIBRI_%s_%s_H__\n", BASE, what);
 	}
@@ -150,18 +137,19 @@ void prefix(void)
 	printf("\n");
 	printf("#include \"lib/cdefs.h\"\n");
 	printf("#include \"fop/fop_format.h\"\n");
-	if (todo == MEMLAYOUT)
+	if (todo == UDEF) 
+		printf("#include <rpc/rpc.h>\n");
+	if (todo == ULAY || todo == KLAY) 
 		printf("#include \"%s\"\n", incl);
-	printf("\n");
-EOF
-    cat >> $tfile <<EOF
+	if (todo == ULAY) 
+		printf("#include \"net/usunrpc/usunrpc.h\"\n");
 	printf("\n");
 }
 
 void suffix()
 {
 	printf("\n");
-	if (todo != MEMLAYOUT) {
+	if (todo != ULAY && todo != KLAY) {
 		printf("/* __COLIBRI_%s_%s_H__ */\n", BASE, what);
 		printf("#endif\n");
 	}
@@ -182,20 +170,24 @@ int main(int argc, char **argv)
 	int result;
 	struct c2_fop_type_format **f;
 
+	result = c2_fops_init();
+	assert(result == 0);
+	c2_fop_comp_init();
 	for (f = fmt; *f != NULL; ++f) {
 		result = c2_fop_type_format_parse(*f);
 		assert(result == 0);
 	}
 
+	prefix();
+	for (f = fmt; *f != NULL; ++f)
+		func[todo]((*f)->ftf_out);
+	suffix();
+	c2_fop_comp_fini();
+	c2_fops_fini();
+
+	return 0;
+}
 EOF
-    echo '	prefix();' >> $tfile
-    echo '	for (f = fmt; *f != NULL; ++f) {'                    >> $tfile
-    echo '		c2_fop_type_format_'$func'((*f)->ftf_out);'  >> $tfile
-    echo '	}'                                                   >> $tfile
-    echo '	suffix();'                                           >> $tfile
-    echo ''                                                          >> $tfile
-    echo '	return 0;'                                           >> $tfile
-    echo '}'                                                         >> $tfile
 
     ofile=$fbase-o-$what
     $CC $INC $DEFINES $CFLAGS $LDFLAGS $OBJS -o $ofile $tfile || exit 1
@@ -208,10 +200,11 @@ for sfile in "$*" ;do
 
     if [ $generate_u -eq 1 ] ;then
 	gen_c U DEF
-	gen_c U MEMLAYOUT
-    else
+	gen_c U LAY
+    fi
+    if [ $generate_k -eq 1 ] ;then
 	gen_c K DEF
-	gen_c K MEMLAYOUT
+	gen_c K LAY
     fi
 
 done

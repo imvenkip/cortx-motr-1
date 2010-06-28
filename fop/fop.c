@@ -109,13 +109,24 @@ struct c2_fop_field_type C2_FOP_TYPE_U64 = {
 	}
 };
 
+int  c2_fop_field_type_prepare  (struct c2_fop_field_type *ftype);
+void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
+
 int  c2_fops_init(void)
 {
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
 	return 0;
 }
 
 void c2_fops_fini(void)
 {
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U64);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 }
 
 /** @} end of fop group */

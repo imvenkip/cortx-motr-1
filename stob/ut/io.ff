@@ -30,7 +30,7 @@ DEF(c2_stob_io_write_fop, RECORD,
     _(siw_vec, c2_stob_io_vec),
     _(siw_buf, c2_stob_io_buf));
 
-DEF(c2_stop_io_write_rep_fop, RECORD,
+DEF(c2_stob_io_write_rep_fop, RECORD,
     _(siwr_rc, U32),
     _(siwr_count, U32));
 
@@ -42,10 +42,10 @@ DEF(c2_stob_io_read_rep_fop, RECORD,
     _(sirr_rc, U32),
     _(sirr_buf, c2_stob_io_buf));
 
-DEF(c2_stob_io_create_fop, 
+DEF(c2_stob_io_create_fop, RECORD,
     _(sic_object, c2_fop_fid));
 
-DEF(c2_stob_io_create_rep_fop,
+DEF(c2_stob_io_create_rep_fop, RECORD,
     _(sicr_rc, U32));
 
 /** @} end of fop group */
