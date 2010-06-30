@@ -13,11 +13,7 @@
 #endif
 
 #include <arpa/inet.h>
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <rpc/svc.h>
+#include <rpc/rpc.h>
 #include <pthread.h>  /* pthread_key */
 #include <unistd.h>    /* close() */
 
@@ -29,9 +25,11 @@
 #include "lib/queue.h"
 #include "lib/thread.h"
 #include "lib/cond.h"
+#include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
 
+#include "usunrpc.h"
 #include "usunrpc_internal.h"
 
 /**
@@ -165,14 +163,7 @@ struct work_item {
 	   @note this is dynamically allocated for every request, and should
            be freed after the request is done.
 	*/
-	void *wi_arg;
-	/**
-	   operation.
-
-	   Operation of this request, including xdr functions.
-	*/
-	const struct c2_rpc_op *wi_op;
-
+	struct c2_fop *wi_arg;
 	/**
 	   sunrpc transport
 
@@ -219,11 +210,13 @@ C2_ADDB_EV_DEFINE(usunrpc_addb_socket,           "socket", 0x17,
 		  C2_ADDB_SYSCALL);
 C2_ADDB_EV_DEFINE(usunrpc_addb_bind,             "bind", 0x18, 
 		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x19,
+C2_ADDB_EV_DEFINE(usunrpc_addb_reuseaddr,        "reuseaddr", 0x19, 
+		  C2_ADDB_SYSCALL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x1a,
 		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1a,
+C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1b,
 		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp,    "EOPNOTSUPP", 0x1b,
+C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp,    "EOPNOTSUPP", 0x1c,
 		  C2_ADDB_INVAL);
 
 #define ADDB_ADD(service, ev, ...) \
@@ -244,9 +237,7 @@ static void usunrpc_service_worker(struct c2_service *service)
 	struct usunrpc_service  *xs;
 	struct work_item        *wi;
 	struct c2_queue_link    *ql;
-	const struct c2_rpc_op  *op;
-	int                      ret;
-	void                    *res;
+	struct c2_fop           *ret;
 
 	xs = service->s_xport_private;
 
@@ -260,25 +251,25 @@ static void usunrpc_service_worker(struct c2_service *service)
 		wi = container_of(ql, struct work_item, wi_linkage);
 		c2_mutex_unlock(&xs->s_req_guard);
 
-		op = wi->wi_op;
-		ret = (*op->ro_handler)(op, wi->wi_arg, &res);
+		ret = NULL;
+		service->s_handler(service, wi->wi_arg, &ret);
 
 		c2_rwlock_read_lock(&xs->s_guard);
-		if (ret > 0 && !svc_sendreply(wi->wi_transp,
-					      (xdrproc_t)op->ro_xdr_result,
-					      (caddr_t)res)) {
+		if (ret != NULL && !svc_sendreply(wi->wi_transp,
+					     (xdrproc_t)c2_fop_uxdrproc,
+					     (caddr_t)ret)) {
 			ADDB_ADD(service, usunrpc_addb_sendreply, 0);
 			svcerr_systemerr(wi->wi_transp);
 		}
 
 		/* free the arg and res. They are allocated in dispatch() */
-		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)op->ro_xdr_arg,
+		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)c2_fop_uxdrproc,
 				  (caddr_t) wi->wi_arg))
 			ADDB_ADD(service, usunrpc_addb_freeargs, 0);
-		xdr_free((xdrproc_t)op->ro_xdr_result, (caddr_t)res);
+		xdr_free((xdrproc_t)c2_fop_uxdrproc, (caddr_t)ret);
 
-		c2_free(res);
-		c2_free(wi->wi_arg);
+		c2_fop_free(ret);
+		c2_fop_free(wi->wi_arg);
 
 		c2_rwlock_read_unlock(&xs->s_guard);
 
@@ -290,72 +281,82 @@ static void usunrpc_service_worker(struct c2_service *service)
 }
 
 /**
+   Allocates memory for the argument, decodes the argument and creates a work
+   item, puts it into the queue. After that it signals the worker thread to
+   handle this request concurrently.
+ */
+static void usunrpc_op(struct c2_service *service, 
+		       struct c2_fop_type *fopt, SVCXPRT *transp)
+{
+	struct usunrpc_service *xs;
+	struct work_item       *wi;
+	struct c2_fop          *arg;
+	int                     result;
+
+	xs  = service->s_xport_private;
+	arg = c2_fop_alloc(fopt, NULL);
+	C2_ALLOC_PTR(wi);
+	if (arg != NULL && wi != NULL) {
+		result = svc_getargs(transp, (xdrproc_t)c2_fop_uxdrproc,
+				     (caddr_t)arg);
+		if (result) {
+			wi->wi_arg = arg;
+			wi->wi_transp = transp;
+			c2_mutex_lock(&xs->s_req_guard);
+			c2_queue_put(&xs->s_requests, &wi->wi_linkage);
+			c2_cond_signal(&xs->s_gotwork, 
+				       &xs->s_req_guard);
+			c2_mutex_unlock(&xs->s_req_guard);
+			result = 0;
+		} else {
+			/* TODO XXX
+			   How to pass the error code back to client?
+			   If code reaches here, the client got timeout,
+			   instead of error.
+			*/
+			ADDB_ADD(service, usunrpc_addb_getargs, 0);
+			svcerr_decode(transp);
+			result = -EPROTO;
+		}
+	} else {
+		ADDB_ADD(service, c2_addb_oom);
+		svcerr_systemerr(transp);
+		result = -ENOMEM;
+	}
+	if (result != 0) {
+		c2_fop_free(arg);
+		c2_free(wi);
+	}
+}
+
+/**
    dispatch.
 
    This dispatch() is called by the scheduler thread:
    c2_net_scheduler() -> svc_getreqset() -> ... -> sunrpc_dispatch()
 
-   It finds suitable operation from the operations table, allocates proper
-   argument and result buffer memory, decodes the argument, and then create a
-   work item, puts it into the queue. After that it signals the worker thread to
-   handle this request concurrently.
+   It finds suitable operation from the operations table and calls unsunrpc_op()
+   to hand the operation off to a worker thread.
 */
 static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 {
-	const struct c2_rpc_op  *op;
-	struct work_item        *wi = NULL;
+	struct c2_net_op_table  *tab;
+	struct c2_fop_type      *fopt;
 	struct c2_service       *service;
-	struct usunrpc_service  *xs;
-	void *arg = NULL;
-	int   result;
 
 	service = usunrpc_service_get();
 	C2_ASSERT(service != NULL);
 
 	ADDB_ADD(service, usunrpc_addb_req);
-	xs = service->s_xport_private;
-	op = c2_rpc_op_find(service->s_table, req->rq_proc);
-
-	if (op != NULL) {
-		arg = c2_alloc(op->ro_arg_size);
-		C2_ALLOC_PTR(wi);
-		if (arg != NULL && wi != NULL) {
-			result = svc_getargs(transp, (xdrproc_t)op->ro_xdr_arg,
-					     (caddr_t) arg);
-			if (result) {
-				wi->wi_op  = op;
-				wi->wi_arg = arg;
-				wi->wi_transp = transp;
-				c2_mutex_lock(&xs->s_req_guard);
-				c2_queue_put(&xs->s_requests, &wi->wi_linkage);
-				c2_cond_signal(&xs->s_gotwork, 
-					       &xs->s_req_guard);
-				c2_mutex_unlock(&xs->s_req_guard);
-				result = 0;
-			} else {
-				/* TODO XXX
-				   How to pass the error code back to client?
-				   If code reaches here, the client got timeout,
-				   instead of error.
-				*/
-				ADDB_ADD(service, usunrpc_addb_getargs, 0);
-				svcerr_decode(transp);
-				result = -EPROTO;
-			}
-		} else {
-			ADDB_ADD(service, c2_addb_oom);
-			svcerr_systemerr(transp);
-			result = -ENOMEM;
-		}
+	tab = &service->s_table;
+	if (tab->not_start <= req->rq_proc && 
+	    req->rq_proc < tab->not_start + tab->not_nr) {
+		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
+		C2_ASSERT(fopt != NULL);
+		usunrpc_op(service, fopt, transp);
 	} else {
-		ADDB_ADD(service, usunrpc_addb_opnotsupp, -EINVAL);
+		ADDB_ADD(service, usunrpc_addb_opnotsupp, -EOPNOTSUPP);
 		svcerr_noproc(transp);
-		result = -EINVAL;
-	}
-
-	if (result != 0) {
-		c2_free(arg);
-		c2_free(wi);
 	}
 }
 
@@ -493,8 +494,7 @@ static void usunrpc_service_stop(struct usunrpc_service *xs)
 }
 
 static int usunrpc_service_start(struct c2_service *service,
-				 struct usunrpc_service_id *xid,
-				 int nr_workers, struct c2_rpc_op_table *ops)
+				 struct usunrpc_service_id *xid, int nr_workers)
 {
 	struct sockaddr_in     addr;
 	int                    i;
@@ -517,8 +517,8 @@ static int usunrpc_service_start(struct c2_service *service,
 	i = 1;
 	if (setsockopt(xservice->s_socket, SOL_SOCKET, SO_REUSEADDR,
 		       &i, sizeof(i)) < 0) {
+		ADDB_ADD(service, usunrpc_addb_reuseaddr, errno);
 		rc = -errno;
-		fprintf(stderr, "set socket option error: %d\n", errno);
 		close(xservice->s_socket);
 		return rc;
 	}
@@ -600,14 +600,25 @@ int usunrpc_service_init(struct c2_service *service)
 		xid = service->s_id->si_xport_private;
 		xservice->s_socket = -1;
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
-		result = usunrpc_service_start(service, xid, SERVER_THR_NR,
-					       service->s_table);
+		result = usunrpc_service_start(service, xid, SERVER_THR_NR);
 	} else {
 		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server, 
 			    c2_addb_oom);
 		result = -ENOMEM;
 	}
 	return result;
+}
+
+/**
+   Implementation of c2_service_ops::sio_reply_post.
+ */
+static void usunrpc_reply_post(struct c2_service *service, 
+			       struct c2_fop *fop, void *cookie)
+{
+	struct c2_fop **ret = cookie;
+
+	C2_ASSERT(*ret == NULL);
+	*ret = fop;
 }
 
 int usunrpc_server_init(void)
@@ -623,7 +634,8 @@ void usunrpc_server_fini(void)
 }
 
 const struct c2_service_ops usunrpc_service_ops = {
-	.so_fini = usunrpc_service_fini
+	.so_fini       = usunrpc_service_fini,
+	.so_reply_post = usunrpc_reply_post
 };
 
 /** @} end of group usunrpc */

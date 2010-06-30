@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h> /* free(3) */
 
-#include "fop.h"
-#include "fop_format.h"
+#include "fop/fop.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 
@@ -129,6 +128,8 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 		arg = atom_name[atype];
 		dec->d_kanbelast = true;
 		break;
+	default:
+		C2_IMPOSSIBLE("Wrong fop type aggregation");
 	}
 
 	ASPRINTF(&dec->d_type, fmt, arg);
@@ -178,6 +179,9 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 			break;
 		case FFA_ATOM:
 			C2_IMPOSSIBLE("Primitive type has children?");
+			break;
+		default:
+			C2_IMPOSSIBLE("Wrong fop type aggregation");
 		}
 	}
 	C2_ASSERT(ergo(!dec->d_varsize, dec->d_kanbelast));
@@ -190,9 +194,9 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 
 	prefix = ftype->fft_aggr == FFA_UNION ? "u." : "";
 
-	printf("struct c2_fop_memlayout %s_%smemlayout = {\n"
+	printf("struct c2_fop_memlayout %s_memlayout = {\n"
 	       "\t.fm_sizeof = sizeof (%s),\n",
-	       ftype->fft_name, where, TD(ftype)->d_type);
+	       ftype->fft_name, TD(ftype)->d_type);
 	if (where[0] == 'u')
 		printf("\t.fm_uxdr = (xdrproc_t)uxdr_%s,\n", ftype->fft_name);
 	printf("\t.fm_child = {\n");
@@ -278,7 +282,7 @@ static void sequence_kdef(struct c2_fop_field_type *ftype)
 	printf("%s {\n\tuint32_t %s;\n",
 	       td->d_type, td->u.d_sequence.d_count);
 	if (td->d_kanbelast) {
-		printf("\tuint32_t %s;\n\tstruct page *%s;", 
+		printf("\tuint32_t %s;\n\tstruct page **%s;", 
 		       td->u.d_sequence.d_pgoff, ftype->fft_child[0]->ff_name);
 	} else
 		printf("\t%s;", fd->fd_fmt_ptr);
@@ -289,14 +293,14 @@ struct c_ops {
 	void (*op)(struct c2_fop_field_type *ftype);
 };
 
-static const struct c_ops cdef_ops[] = {
+static const struct c_ops cdef_ops[FFA_NR] = {
 	[FFA_UNION]    = { union_cdef },
 	[FFA_RECORD]   = { record_cdef },
 	[FFA_SEQUENCE] = { sequence_cdef },
 	[FFA_TYPEDEF]  = { typedef_cdef }
 };
 
-static const struct c_ops kdef_ops[] = {
+static const struct c_ops kdef_ops[FFA_NR] = {
 	[FFA_UNION]    = { union_cdef },
 	[FFA_RECORD]   = { record_cdef },
 	[FFA_SEQUENCE] = { sequence_kdef },
@@ -307,7 +311,7 @@ int c2_fop_comp_udef(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	cdef_ops[ftype->fft_aggr].op(ftype);
-	printf("extern struct c2_fop_memlayout %s_umemlayout;\n",
+	printf("extern struct c2_fop_memlayout %s_memlayout;\n",
 	       ftype->fft_name);
 	return 0;
 }
@@ -316,7 +320,7 @@ int c2_fop_comp_kdef(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	kdef_ops[ftype->fft_aggr].op(ftype);
-	printf("extern struct c2_fop_memlayout %s_kmemlayout;\n\n", 
+	printf("extern struct c2_fop_memlayout %s_memlayout;\n\n", 
 	       ftype->fft_name);
 	return 0;
 }
@@ -325,8 +329,8 @@ int c2_fop_comp_ulay(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
 	printf("static bool_t uxdr_%s(XDR *xdrs, %s *%s)\n{\n"
-	       "\textern struct c2_fop_type_format %s;\n"
-	       "\treturn c2_uxdr_fop(%s.ftf_out, xdrs, %s);\n}\n\n",
+	       "\textern struct c2_fop_type_format %s_tfmt;\n"
+	       "\treturn c2_fop_type_uxdr(%s_tfmt.ftf_out, xdrs, %s);\n}\n\n",
 	       ftype->fft_name, TD(ftype)->d_type, TD(ftype)->d_prefix,
 	       ftype->fft_name,
 	       ftype->fft_name, TD(ftype)->d_prefix);

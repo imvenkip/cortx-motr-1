@@ -12,12 +12,15 @@
 
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "fop/fop.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
+#include "colibri/init.h"
 
+#include "io_fop.h"
 #include "io_u.h"
 
 /**
@@ -26,9 +29,6 @@
  */
 
 static struct c2_stob_domain *dom;
-
-int io_fop_init(void);
-void io_fop_fini(void);
 
 static struct c2_stob *object_find(const struct c2_fop_fid *fid)
 {
@@ -44,74 +44,54 @@ static struct c2_stob *object_find(const struct c2_fop_fid *fid)
 	return obj;
 }
 
-static bool create_handler(const struct c2_rpc_op *op, void *arg, void **ret)
+int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct c2_stob_io_create_fop     *in = arg;
-	struct c2_stob_io_create_rep_fop *ex;
+	struct c2_io_create     *in = c2_fop_data(fop);
+	struct c2_io_create_rep *ex;
+	struct c2_fop                    *reply;
 	struct c2_stob                   *obj;
 	bool result;
-
-	C2_ALLOC_PTR(ex);
-	C2_ASSERT(ex != NULL);
+	
+	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
+	C2_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
 
 	obj = object_find(&in->sic_object);
 	result = c2_stob_create(obj);
 	C2_ASSERT(result == 0);
 	ex->sicr_rc = 0;
-	*ret = ex;
-	return true;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 1;
 }
 
-static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
+int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct c2_stob_io_read_fop     *in = arg;
-	struct c2_stob_io_read_rep_fop *ex;
+	struct c2_io_read     *in = c2_fop_data(fop);
+	struct c2_io_read_rep *ex;
+	struct c2_fop                  *reply;
 	struct c2_stob                 *obj;
-	c2_bcount_t                    *count;
-	c2_bcount_t                     total;
-	c2_bindex_t                    *offset;
-	c2_bindex_t                     scan;
-	void                          **buf;
-	uint32_t                        nr;
-	uint32_t                        i;
 	struct c2_stob_io               io;
 	struct c2_clink                 clink;
 	bool result;
 
-	C2_ALLOC_PTR(ex);
-	C2_ASSERT(ex != NULL);
+	reply = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
+	C2_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
 
 	obj = object_find(&in->sir_object);
-	nr = in->sir_vec.csiv_count;
-	C2_ASSERT(nr > 0);
 
-	for (total = 0, i = 0; i < nr; ++i)
-		total += in->sir_vec.csiv_seg[i].f_count;
+	C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
 
-	ex->sirr_buf.csib_count = nr;
-
-	C2_ALLOC_ARR(count, nr);
-	C2_ALLOC_ARR(offset, nr);
-	C2_ALLOC_ARR(buf, nr);
-	C2_ALLOC_ARR(ex->sirr_buf.csib_value, total);
-
-	C2_ASSERT(count != NULL && offset != NULL && buf != NULL &&
-		  ex->sirr_buf.csib_value != NULL);
-	for (scan = 0, i = 0; i < nr; ++i) {
-		count[i]  = in->sir_vec.csiv_seg[i].f_count;
-		offset[i] = in->sir_vec.csiv_seg[i].f_offset;
-		buf[i] = &ex->sirr_buf.csib_value[scan];
-		scan += count[i];
-	}
+	C2_ASSERT(ex->sirr_buf.cib_value != NULL);
 	c2_stob_io_init(&io);
 
-	io.si_user.div_vec.ov_vec.v_nr    = nr;
-	io.si_user.div_vec.ov_vec.v_count = count;
-	io.si_user.div_vec.ov_buf         = buf;
+	io.si_user.div_vec.ov_vec.v_nr    = 1;
+	io.si_user.div_vec.ov_vec.v_count = &in->sir_seg.f_count;
+	io.si_user.div_vec.ov_buf         = (void **)&ex->sirr_buf.cib_value;
 
-	io.si_stob.ov_vec.v_nr    = nr;
-	io.si_stob.ov_vec.v_count = count;
-	io.si_stob.ov_index       = offset;
+	io.si_stob.ov_vec.v_nr    = 1;
+	io.si_stob.ov_vec.v_count = &in->sir_seg.f_count;
+	io.si_stob.ov_index       = &in->sir_seg.f_offset;
 
 	io.si_opcode = SIO_READ;
 	io.si_flags  = 0;
@@ -125,65 +105,44 @@ static bool read_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 	c2_chan_wait(&clink);
 
 	ex->sirr_rc             = io.si_rc;
-	ex->sirr_buf.csib_count = io.si_count;
+	ex->sirr_buf.cib_count = io.si_count;
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
 	c2_stob_io_fini(&io);
 
-	c2_free(count);
-	c2_free(offset);
-	c2_free(buf);
-
-	*ret = ex;
-	return true;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 1;
 }
 
-static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
+int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct c2_stob_io_write_fop     *in = arg;
-	struct c2_stob_io_write_rep_fop *ex;
+	struct c2_io_write     *in = c2_fop_data(fop);
+	struct c2_io_write_rep *ex;
+	struct c2_fop                   *reply;
 	struct c2_stob                  *obj;
-	c2_bcount_t                     *count;
-	c2_bcount_t                      total;
-	c2_bindex_t                     *offset;
-	void                           **buf;
-	uint32_t                         nr;
-	uint32_t                         i;
 	struct c2_stob_io                io;
+	c2_bcount_t                      count;
 	struct c2_clink                  clink;
 	bool result;
 
-	C2_ALLOC_PTR(ex);
-	C2_ASSERT(ex != NULL);
+	reply = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
+	C2_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
 
 	obj = object_find(&in->siw_object);
-	nr = in->siw_vec.csiv_count;
-	C2_ASSERT(nr > 0);
-
-	C2_ALLOC_ARR(count, nr);
-	C2_ALLOC_ARR(offset, nr);
-	C2_ALLOC_ARR(buf, nr);
-
-	C2_ASSERT(count != NULL && offset != NULL && buf != NULL);
-	for (total = 0, i = 0; i < nr; ++i) {
-		buf[i]    = &in->siw_buf.csib_value[total];
-		count[i]  = in->siw_vec.csiv_seg[i].f_count;
-		offset[i] = in->siw_vec.csiv_seg[i].f_offset;
-		total    += count[i];
-	}
-	C2_ASSERT(total == in->siw_buf.csib_count);
 
 	c2_stob_io_init(&io);
 
-	io.si_user.div_vec.ov_vec.v_nr    = nr;
-	io.si_user.div_vec.ov_vec.v_count = count;
-	io.si_user.div_vec.ov_buf         = buf;
+	count = in->siw_buf.cib_count;
+	io.si_user.div_vec.ov_vec.v_nr    = 1;
+	io.si_user.div_vec.ov_vec.v_count = &count;
+	io.si_user.div_vec.ov_buf         = (void **)&in->siw_buf.cib_value;
 
-	io.si_stob.ov_vec.v_nr    = nr;
-	io.si_stob.ov_vec.v_count = count;
-	io.si_stob.ov_index       = offset;
+	io.si_stob.ov_vec.v_nr    = 1;
+	io.si_stob.ov_vec.v_count = &count;
+	io.si_stob.ov_index       = &in->siw_offset;
 
 	io.si_opcode = SIO_WRITE;
 	io.si_flags  = 0;
@@ -204,64 +163,45 @@ static bool write_handler(const struct c2_rpc_op *op, void *arg, void **ret)
 
 	c2_stob_io_fini(&io);
 
-	c2_free(count);
-	c2_free(offset);
-	c2_free(buf);
-
-	*ret = ex;
-	return true;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 1;
 }
 
 static bool stop = false;
 
-static bool quit_handler(const struct c2_rpc_op *op, void *arg, void **ret)
+int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	int *ex;
+	struct c2_io_quit *in = c2_fop_data(fop);
+	struct c2_fop              *reply;
+        struct c2_io_quit *ex;
 
-	C2_ALLOC_PTR(ex);
-	C2_ASSERT(ex != NULL);
+	reply = c2_fop_alloc(&c2_io_quit_fopt, NULL);
+	C2_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
 
-	*ex = 42;
-	printf("I got quit request: arg = %d, res = %d\n", *((int*)arg), *ex);
-	*ret = ex;
+	ex->siq_rc = 42;
+	printf("I got quit request: arg = %d\n", in->siq_rc);
 	stop = true;
-	return true;
+
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 1;
 }
 
-static const struct c2_rpc_op create_op = {
-	.ro_op          = SIF_CREAT,
-	.ro_arg_size    = sizeof(struct c2_stob_io_create_fop),
-	.ro_xdr_arg     = (c2_xdrproc_t)xdr_c2_stob_io_create_fop,
-	.ro_result_size = sizeof(struct c2_stob_io_create_rep_fop),
-	.ro_xdr_result  = (c2_xdrproc_t)xdr_c2_stob_io_create_rep_fop,
-	.ro_handler     = create_handler
-};
+static int io_handler(struct c2_service *service, struct c2_fop *fop,
+		      void *cookie)
+{
+	struct c2_fop_ctx ctx;
 
-static const struct c2_rpc_op read_op = {
-	.ro_op          = SIF_READ,
-	.ro_arg_size    = sizeof(struct c2_stob_io_read_fop),
-	.ro_xdr_arg     = (c2_xdrproc_t)xdr_c2_stob_io_read_fop,
-	.ro_result_size = sizeof(struct c2_stob_io_read_rep_fop),
-	.ro_xdr_result  = (c2_xdrproc_t)xdr_c2_stob_io_read_rep_fop,
-	.ro_handler     = read_handler
-};
+	ctx.ft_service = service;
+	ctx.fc_cookie  = cookie;
+	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
+}
 
-static const struct c2_rpc_op write_op = {
-	.ro_op          = SIF_WRITE,
-	.ro_arg_size    = sizeof(struct c2_stob_io_write_fop),
-	.ro_xdr_arg     = (c2_xdrproc_t)xdr_c2_stob_io_write_fop,
-	.ro_result_size = sizeof(struct c2_stob_io_write_rep_fop),
-	.ro_xdr_result  = (c2_xdrproc_t)xdr_c2_stob_io_write_rep_fop,
-	.ro_handler     = write_handler
-};
-
-static const struct c2_rpc_op quit_op = {
-	.ro_op          = SIF_QUIT,
-	.ro_arg_size    = sizeof(int),
-	.ro_xdr_arg     = (c2_xdrproc_t)xdr_int,
-	.ro_result_size = sizeof(int),
-	.ro_xdr_result  = (c2_xdrproc_t)xdr_int,
-	.ro_handler     = quit_handler
+static struct c2_fop_type *fopt[] = {
+	&c2_io_write_fopt,
+	&c2_io_read_fopt,
+	&c2_io_create_fopt,
+	&c2_io_quit_fopt
 };
 
 /**
@@ -287,7 +227,6 @@ int main(int argc, char **argv)
 	int         port;
 
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
-	struct c2_rpc_op_table *ops;
 	struct c2_service       service;
 	struct c2_net_domain    ndom;
 
@@ -299,6 +238,9 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	result = c2_init();
+	C2_ASSERT(result == 0);
+	
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
@@ -307,9 +249,6 @@ int main(int argc, char **argv)
 
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-	result = linux_stob_module_init();
-	C2_ASSERT(result == 0);
-	
 	result = mkdir(path, 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 	sprintf(opath, "%s/o", path);
@@ -322,8 +261,10 @@ int main(int argc, char **argv)
 
 	memset(&service, 0, sizeof service);
 
-	result = c2_net_init();
-	C2_ASSERT(result == 0);
+	service.s_table.not_start = fopt[0]->ft_code;
+	service.s_table.not_nr    = ARRAY_SIZE(fopt);
+	service.s_table.not_fopt  = fopt;
+	service.s_handler         = &io_handler;
 
 	result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
 	C2_ASSERT(result == 0);
@@ -334,19 +275,7 @@ int main(int argc, char **argv)
 	result = c2_service_id_init(&sid, &ndom, "127.0.0.1", port);
 	C2_ASSERT(result == 0);
 
-	c2_rpc_op_table_init(&ops);
-	C2_ASSERT(ops != NULL);
-
-	result = c2_rpc_op_register(ops, &create_op);
-	C2_ASSERT(result == 0);
-	result = c2_rpc_op_register(ops, &read_op);
-	C2_ASSERT(result == 0);
-	result = c2_rpc_op_register(ops, &write_op);
-	C2_ASSERT(result == 0);
-	result = c2_rpc_op_register(ops, &quit_op);
-	C2_ASSERT(result == 0);
-
-	result = c2_service_start(&service, &sid, ops);
+	result = c2_service_start(&service, &sid);
 	C2_ASSERT(result >= 0);
 
 	while (!stop) {
@@ -355,16 +284,13 @@ int main(int argc, char **argv)
 	}
 
 	c2_service_stop(&service);
-	c2_rpc_op_table_fini(ops);
-
 	c2_service_id_fini(&sid);
 	c2_net_domain_fini(&ndom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
-	c2_net_fini();
 
 	dom->sd_ops->sdo_fini(dom);
-	linux_stob_module_fini();
 	io_fop_fini();
+	c2_fini();
 	return 0;
 }
 

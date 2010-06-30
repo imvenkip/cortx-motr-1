@@ -3,23 +3,27 @@
 #ifndef __COLIBRI_FOP_FOP_FORMAT_H__
 #define __COLIBRI_FOP_FOP_FORMAT_H__
 
-#include <rpc/rpc.h>
-
-#include "fop.h"
-
 /**
    @addtogroup fop 
 
    @{
 */
 
-struct c2_fop_type_format;
+#ifndef __KERNEL__
+# include <rpc/rpc.h> /* xdrproc_t */
+#else
+# include "lib/kdef.h"
+typedef void *xdrproc_t;
+#endif
+
+struct c2_fop_memlayout;
 
 struct c2_fop_type_format {
 	struct c2_fop_field_type  *ftf_out;
 	enum c2_fop_field_aggr     ftf_aggr;
 	const char                *ftf_name;
 	uint64_t                   ftf_val;
+	struct c2_fop_memlayout   *ftf_layout;
 	const struct c2_fop_field_format {
 		const char                      *c_name;
 		const struct c2_fop_type_format *c_type;
@@ -27,27 +31,40 @@ struct c2_fop_type_format {
 	} ftf_child[];
 };
 
-int c2_fop_type_format_parse(struct c2_fop_type_format *fmt);
+int  c2_fop_type_format_parse(struct c2_fop_type_format *fmt);
+void c2_fop_type_format_fini(struct c2_fop_type_format *fmt);
 
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64;
+int  c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr);
+void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr);
+
+void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
+			     int fileno);
+
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
+extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
+
+#define __paste(x) x ## _tfmt
+#ifndef __layout
+#define __layout(x) &(x ## _memlayout)
+#endif
 
 #define C2_FOP_FIELD_TAG(_tag, _name, _type)	\
 {						\
 	.c_name = #_name,			\
-	.c_type = &(_type),			\
+	.c_type = &__paste(_type),		\
 	.c_tag  = (_tag)			\
 }
 
 #define C2_FOP_FIELD(_name, _type) C2_FOP_FIELD_TAG(0, _name, _type)
 
 #define C2_FOP_FORMAT(_name, _aggr, ...)	\
-struct c2_fop_type_format _name = {		\
+struct c2_fop_type_format __paste(_name) = {	\
 	.ftf_aggr = (_aggr),			\
 	.ftf_name = #_name,			\
 	.ftf_val  = 1,				\
+	.ftf_layout = __layout(_name),		\
 	.ftf_child = {				\
 		__VA_ARGS__,			\
 		{ .c_name = NULL }		\
@@ -92,17 +109,25 @@ struct c2_fop_memlayout {
 	} fm_child[];
 };
 
-struct c2_fop_format_initdata {
-	struct c2_fop_type_format *fi_fmt;
-	struct c2_fop_memlayout   *fi_layout;
-};
-
-#define C2_FOP_FORMAT_INITDATA(fmt, prefix) {		\
-	.fi_fmt    = &fmt,				\
-	.fi_layout = &fmt ## _ ## prefix ## memlayout	\
+#ifndef __KERNEL__
+#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
+struct c2_fop_type fopt ## _fopt = {			\
+	.ft_code = (opcode),				\
+	.ft_name = name,				\
+	.ft_fmt  = &__paste(fopt),			\
+	.ft_ops  = (ops)				\
 }
 
-int c2_fop_type_build(struct c2_fop_format_initdata *idata);
+#else /* !__KERNEL__ */
+#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
+struct c2_fop_type fopt ## _fopt = {			\
+	.ft_code = (opcode),				\
+	.ft_name = name,				\
+	.ft_fmt  = &__paste(fopt),			\
+	.ft_ops  = (ops)				\
+};                      				\
+EXPORT_SYMBOL(fopt ## _fopt)
+#endif /* __KERNEL__ */
 
 /** @} end of fop group */
 

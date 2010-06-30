@@ -13,7 +13,7 @@ int main(void)
 
 	c2_rpclib_init();
 
-	rc = c2_service_start(&s, &srv_id, rpc_ops);
+	rc = c2_service_start(&s, &srv_id);
 
 	srv = c2_rpc_server_create(&srv_id);
 

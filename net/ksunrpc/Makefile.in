@@ -1,18 +1,23 @@
 OS=@OS@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
+FOP_SRCDIR = @SRCDIR@/fop
 
 ifeq ($(OS),linux)
 
 obj-m := ksunrpc.o
-ksunrpc-y = client.o xdr.o
+ksunrpc-y = client.o kxdr.o fop.o fop_format.o
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H @KCFLAGS@ -O2
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@ -O2
 
 all:
 	if ! test -e ksunrpc.h; then               \
                 ln -s $(KSUNRPC_SRCDIR)/client.c;  \
-                ln -s $(KSUNRPC_SRCDIR)/xdr.c;     \
+                ln -s $(KSUNRPC_SRCDIR)/kxdr.c;    \
                 ln -s $(KSUNRPC_SRCDIR)/ksunrpc.h; \
+        fi
+	if ! test -e fop.c; then               \
+                ln -s $(FOP_SRCDIR)/fop.c;  \
+                ln -s $(FOP_SRCDIR)/fop_format.c;    \
         fi
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
@@ -36,4 +41,6 @@ distclean clean:
 endif
 
 distdir:
-	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h $(KSUNRPC_SRCDIR)/xdr.c $(KSUNRPC_SRCDIR)/client.c @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc
+	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h \
+           $(KSUNRPC_SRCDIR)/kxdr.c $(KSUNRPC_SRCDIR)/client.c \
+           @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc

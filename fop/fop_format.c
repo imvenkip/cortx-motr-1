@@ -1,12 +1,20 @@
 /* -*- C -*- */
 
+#ifdef __KERNEL__
+
+#include "lib/kdef.h"
+
+#else /* __KERNEL__ */
+
 #include <errno.h>
 
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 
-#include "fop_format.h"
+#endif /* __KERNEL__ */
+
+#include "fop/fop.h"
 
 /**
    @addtogroup fop
@@ -156,10 +164,11 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	if (result == 0)
 		result = c2_fop_field_type_prepare(t);
 
-	if (result == 0)
+	if (result == 0) {
 		fmt->ftf_out = t;
-	else
-		c2_fop_field_type_fini(t);
+		t->fft_layout = fmt->ftf_layout;
+	} else
+		c2_fop_type_format_fini(fmt);
 	return result;
 }
 
@@ -201,19 +210,47 @@ void c2_fop_decorator_register(struct c2_fop_decorator *dec)
 	dec->dec_id = decorators_nr++;
 }
 
-int c2_fop_type_build(struct c2_fop_format_initdata *idata)
+void c2_fop_type_format_fini(struct c2_fop_type_format *fmt)
 {
-	int                        result;
-	struct c2_fop_type_format *fmt;
+	if (fmt->ftf_out != NULL) {
+		c2_fop_field_type_fini(fmt->ftf_out);
+		c2_free(fmt->ftf_out);
+		fmt->ftf_out = NULL;
+	}
+}
 
-	fmt    = idata->fi_fmt;
-	result = c2_fop_type_format_parse(fmt);
-	if (result == 0)
-		fmt->ftf_out->fft_layout = idata->fi_layout;
+int c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr)
+{
+	int i;
+	int result;
+
+	for (result = 0, i = 0; i < nr; ++i) {
+		result = c2_fop_type_format_parse(fmt[i]);
+		if (result != 0) {
+			c2_fop_type_format_fini_nr(fmt, i);
+			break;
+		}
+	}
 	return result;
 }
 
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID = {
+void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
+{
+	int i;
+
+	for (i = 0; i < nr; ++i)
+		c2_fop_type_format_fini(fmt[i]);
+}
+
+void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
+			     int fileno)
+{
+	C2_ASSERT(fileno < ftype->fft_nr);
+	return ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
+}
+
+
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_VOID,
 	.ftf_aggr  = FFA_ATOM,
 	.ftf_name  = "void",
@@ -221,7 +258,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID = {
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
 
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE = {
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_BYTE,
 	.ftf_aggr  = FFA_ATOM,
 	.ftf_name  = "byte",
@@ -229,7 +266,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE = {
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
 
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32 = {
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_U32,
 	.ftf_aggr  = FFA_ATOM,
 	.ftf_name  = "u32",
@@ -237,7 +274,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32 = {
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
 
-const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64 = {
+const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_U64,
 	.ftf_aggr  = FFA_ATOM,
 	.ftf_name  = "u64",

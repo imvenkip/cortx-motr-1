@@ -28,21 +28,6 @@ static struct c2_rpc_op  destroy_session = {
 	.ro_handler = c2_session_destroy_svc
 };
 
-
-int c2_session_register_ops(struct c2_rpc_op_table *ops)
-{
-	int rc;
-
-	rc = c2_rpc_op_register(ops, &create_session);
-	if (rc < 0)
-		return rc;
-
-	rc = c2_rpc_op_register(ops, &destroy_session);
-
-	return rc;
-}
-
-
 /** rpc handlers */
 bool c2_session_create_svc(const struct c2_rpc_op *op, void *in, void **out)
 {

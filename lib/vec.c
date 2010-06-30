@@ -1,7 +1,8 @@
 /* -*- C -*- */
 
-#include "vec.h"
-#include "assert.h"
+#include "lib/vec.h"
+#include "lib/assert.h"
+#include "lib/memory.h"
 
 /**
    @addtogroup vec Vectors
@@ -76,6 +77,14 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 	C2_PRE(cur->vc_seg < cur->vc_vec->v_nr);
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
+}
+
+void c2_bufvec_free(struct c2_bufvec *bufvec)
+{
+	uint32_t i;
+
+	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
+		c2_free(bufvec->ov_buf[i]);
 }
 
 /** @} end of vec group */

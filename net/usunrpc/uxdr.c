@@ -6,7 +6,6 @@
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 
 #include "usunrpc.h"
 
@@ -19,13 +18,6 @@
  * User level xdr code.
  */
 
-static void *ftype_field(void *obj, 
-			 const struct c2_fop_field_type *ftype, int i)
-{
-	C2_ASSERT(i < ftype->fft_nr);
-	return ((char *)obj) + ftype->fft_layout->fm_child[i].ch_offset;
-}
-
 static xdrproc_t ftype_field_xdr(const struct c2_fop_field_type *ftype, 
 				 int fieldno)
 {
@@ -36,8 +28,8 @@ static xdrproc_t ftype_field_xdr(const struct c2_fop_field_type *ftype,
 static bool ftype_subxdr(const struct c2_fop_field_type *ftype, 
 			 XDR *xdrs, void *obj, int fieldno)
 {
-	return ftype_field_xdr(ftype, fieldno)(xdrs, ftype_field(obj, ftype, 
-								 fieldno));
+	return ftype_field_xdr(ftype, fieldno)
+		(xdrs, c2_fop_type_field_addr(ftype, obj, fieldno));
 }
 
 static bool uxdr_record(const struct c2_fop_field_type *ftype, 
@@ -74,13 +66,16 @@ static bool uxdr_union(const struct c2_fop_field_type *ftype,
 static bool uxdr_sequence(const struct c2_fop_field_type *ftype, 
 			  XDR *xdrs, void *obj)
 {
+	char **buffer;
+
+	buffer = c2_fop_type_field_addr(ftype, obj, 0);
 	if (ftype->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE)
-		return xdr_bytes(xdrs, ftype_field(obj, ftype, 0), obj, ~0);
+		return xdr_bytes(xdrs, buffer, obj, ~0);
 	else {
 		struct c2_fop_memlayout *ellay;
 
 		ellay = ftype->fft_child[0]->ff_type->fft_layout;
-		return xdr_array(xdrs, ftype_field(obj, ftype, 0), obj, ~0,
+		return xdr_array(xdrs, buffer, obj, ~0,
 				 ellay->fm_sizeof, ftype_field_xdr(ftype, 0));
 	}
 }
@@ -105,7 +100,8 @@ static bool uxdr_atom(const struct c2_fop_field_type *ftype,
 	return atom_xdr[ftype->fft_u.u_atom.a_type](xdrs, obj);
 }
 
-static bool (*uxdr_aggr[])(const struct c2_fop_field_type *, XDR *, void *) = {
+static bool (*uxdr_aggr[FFA_NR])(const struct c2_fop_field_type *, 
+				 XDR *, void *) = {
 	[FFA_RECORD]   = &uxdr_record,
 	[FFA_UNION]    = &uxdr_union,
 	[FFA_SEQUENCE] = &uxdr_sequence,
@@ -113,10 +109,16 @@ static bool (*uxdr_aggr[])(const struct c2_fop_field_type *, XDR *, void *) = {
 	[FFA_ATOM]     = &uxdr_atom
 };
 
-bool_t c2_uxdr_fop(const struct c2_fop_field_type *ftype, XDR *xdrs, void *obj)
+bool_t c2_fop_type_uxdr(const struct c2_fop_field_type *ftype,
+			XDR *xdrs, void *obj)
 {
 	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(uxdr_aggr));
 	return uxdr_aggr[ftype->fft_aggr](ftype, xdrs, obj);
+}
+
+bool_t c2_fop_uxdrproc(XDR *xdrs, struct c2_fop *fop)
+{
+	return c2_fop_type_uxdr(fop->f_type->ft_top, xdrs, c2_fop_data(fop));
 }
 
 /** @} end of group usunrpc */

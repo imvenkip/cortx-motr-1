@@ -84,7 +84,8 @@ gen_c()
 #include <stdio.h>
 #include <assert.h>
 
-#include "fop/fop_format.h"
+#define __layout(x) NULL
+#include "fop/fop.h"
 #include "fop/fop_format_def.h"
 
 enum todo {
@@ -117,7 +118,7 @@ EOF
 static struct c2_fop_type_format *fmt[] = {
 EOF
     grep '^DEF' $sfile | \
-	sed -e 's/^DEF(\([^,]*\),.*$/        \&\1,/g' >> $tfile
+	sed -e 's/^DEF(\([^,]*\),.*$/        \&\1_tfmt,/g' >> $tfile
     cat >> $tfile <<EOF
         NULL
 };
@@ -136,13 +137,15 @@ void prefix(void)
 	printf(" */\n");
 	printf("\n");
 	printf("#include \"lib/cdefs.h\"\n");
-	printf("#include \"fop/fop_format.h\"\n");
+	printf("#include \"fop/fop.h\"\n");
 	if (todo == UDEF) 
 		printf("#include <rpc/rpc.h>\n");
 	if (todo == ULAY || todo == KLAY) 
 		printf("#include \"%s\"\n", incl);
 	if (todo == ULAY) 
 		printf("#include \"net/usunrpc/usunrpc.h\"\n");
+	if (todo == KLAY) 
+		printf("#include <linux/module.h>\n");
 	printf("\n");
 }
 

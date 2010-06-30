@@ -4,8 +4,6 @@
 #define __COLIBRI_FOP_FOP_H__
 
 #include "lib/cdefs.h"
-#include "lib/vec.h"
-#include "lib/list.h"
 
 /**
    @defgroup fop File operation packet
@@ -32,6 +30,7 @@
 /* import */
 struct c2_fom;
 struct c2_rpcmachine;
+struct c2_service;
 
 /* export */
 struct c2_fop_type;
@@ -41,6 +40,7 @@ struct c2_fop;
 struct c2_fop_field;
 struct c2_fop_field_type;
 struct c2_fop_memlayout;
+struct c2_fop_type_format;
 
 typedef uint32_t c2_fop_type_code_t;
 
@@ -55,26 +55,41 @@ struct c2_fop_type {
 	c2_fop_type_code_t            ft_code;
 	/** Operation name. */
 	const char                   *ft_name;
+#if 0
 	/** Linkage into a list of all known operations. */
 	struct c2_list_link           ft_linkage;
+#endif
 	/** Type of a top level field in fops of this type. */
 	struct c2_fop_field_type     *ft_top;
 	const struct c2_fop_type_ops *ft_ops;
+	struct c2_fop_type_format    *ft_fmt;
+};
+
+int  c2_fop_type_build(struct c2_fop_type *fopt);
+void c2_fop_type_fini(struct c2_fop_type *fopt);
+
+int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
+void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+
+struct c2_fop_ctx {
+	struct c2_service *ft_service;
+	void              *fc_cookie;
 };
 
 /** fop type operations. */
 struct c2_fop_type_ops {
 	/** Create a fom that will carry out operation described by the fop. */
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
+	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
 };
 
 /** 
     fop storage.
 
-    A fop is stored in a buffer vector.
+    A fop is stored in a buffer vector. XXX not for now.
  */
 struct c2_fop_data {
-	struct c2_bufvec fd_vec;
+	void            *fd_data;
 };
 
 /** fop. */
@@ -85,9 +100,9 @@ struct c2_fop {
 	struct c2_fop_data  f_data;
 };
 
-int  c2_fop_type_register  (struct c2_fop_type *ftype, 
-			    struct c2_rpcmachine *rpcm);
-void c2_fop_type_unregister(struct c2_fop_type *ftype);
+struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
+void           c2_fop_free(struct c2_fop *fop);
+void          *c2_fop_data(struct c2_fop *fop);
 
 /** True iff fop describes an operation that would mutate file system state when
     executed. */
@@ -143,7 +158,8 @@ enum c2_fop_field_aggr {
 	FFA_UNION,
 	FFA_SEQUENCE,
 	FFA_TYPEDEF,
-	FFA_ATOM
+	FFA_ATOM,
+	FFA_NR
 };
 
 enum c2_fop_field_primitive_type {
@@ -189,6 +205,8 @@ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
 
+#if 0
+
 enum c2_fop_field_cb_ret {
 	FFC_CONTINUE,
 	FFC_BREAK
@@ -208,15 +226,6 @@ typedef enum c2_fop_field_cb_ret
 void c2_fop_field_type_traverse(const struct c2_fop_field_type *ftype,
 				c2_fop_field_cb_t pre_cb, 
 				c2_fop_field_cb_t post_cb, void *arg);
-
-/**
-   Shallowly traverse the top-most children of a fop field type tree calling
-   call-backs for every tree node.
-
-   @param cb call-back called for every child
- */
-void c2_fop_field_type_map(const struct c2_fop_field_type *ftype,
-			   c2_fop_field_cb_t cb, void *arg);
 
 /** 
     Values of this type describe position within a compound field.
@@ -269,9 +278,13 @@ void c2_fop_iterator_init(struct c2_fop_iterator *it, struct c2_fop *fop);
 void c2_fop_iterator_fini(struct c2_fop_iterator *it);
 int  c2_fop_iterator_get (struct c2_fop_iterator *it, 
 			  struct c2_fop_field_val *val);
+/* 0 */
+#endif
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
+
+#include "fop/fop_format.h"
 
 /** @} end of fop group */
 
