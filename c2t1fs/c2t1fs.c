@@ -760,7 +760,7 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
         csi->csi_srvid.ssi_host       = hostname;
         csi->csi_srvid.ssi_sockaddr   = &csi->csi_sockaddr;
-        csi->csi_srvid.ssi_addrlen    = strlen(hostname) + 1;
+        csi->csi_srvid.ssi_addrlen    = sizeof csi->csi_srvid.ssi_sockaddr;
         csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
 
         xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
