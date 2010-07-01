@@ -41,6 +41,8 @@ clean distclean:
 	$(MAKE) -C c2t1fs clean
 	$(MAKE) -C ksunrpc clean
 	$(RM) Module.markers modules.order
+	$(RM) ksunrpc/fop.c ksunrpc/fop_format.c
+	$(RM) c2t1fs/fop.c c2t1fs/fop_format.c c2t1fs/io_fop_init.c
 	$(RM) -fr c2t1fs ksunrpc
 
 else

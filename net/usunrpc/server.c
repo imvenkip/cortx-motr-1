@@ -354,6 +354,8 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
 		C2_ASSERT(fopt != NULL);
 		usunrpc_op(service, fopt, transp);
+	} else if (req->rq_proc == NULLPROC) {
+		svc_sendreply(transp, (xdrproc_t)xdr_void, (caddr_t)NULL);
 	} else {
 		ADDB_ADD(service, usunrpc_addb_opnotsupp, -EOPNOTSUPP);
 		svcerr_noproc(transp);
