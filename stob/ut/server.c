@@ -135,6 +135,10 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	c2_stob_io_init(&io);
 
+	printf("write: %lu:%lu %lu %u\n", 
+	       in->siw_object.f_seq, in->siw_object.f_oid,
+	       in->siw_offset, in->siw_buf.cib_count);
+
 	count = in->siw_buf.cib_count;
 	io.si_user.div_vec.ov_vec.v_nr    = 1;
 	io.si_user.div_vec.ov_vec.v_count = &count;

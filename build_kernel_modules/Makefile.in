@@ -25,10 +25,6 @@ all:
 		ln -s $(FOPDIR)/fop.c ksunrpc/; \
 		ln -s $(FOPDIR)/fop_format.c ksunrpc/; \
         fi 
-	if ! test -e c2t1fs/fop.c; then \
-		ln -s $(FOPDIR)/fop.c c2t1fs/; \
-		ln -s $(FOPDIR)/fop_format.c c2t1fs/; \
-        fi 
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 clean distclean:

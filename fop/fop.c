@@ -40,6 +40,7 @@ void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 		t->fft_child = NULL;
 	}
 }
+EXPORT_SYMBOL(c2_fop_field_type_fini);
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
@@ -62,6 +63,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 	}
 	return fop;
 }
+EXPORT_SYMBOL(c2_fop_alloc);
 
 void c2_fop_free(struct c2_fop *fop)
 {
@@ -70,12 +72,14 @@ void c2_fop_free(struct c2_fop *fop)
 		c2_free(fop);
 	}
 }
+EXPORT_SYMBOL(c2_fop_free);
 
 void *c2_fop_data(struct c2_fop *fop)
 {
 	return fop->f_data.fd_data;
 
 }
+EXPORT_SYMBOL(c2_fop_data);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
@@ -84,6 +88,7 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 		fopt->ft_fmt = NULL;
 	}
 }
+EXPORT_SYMBOL(c2_fop_type_fini);
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
@@ -96,6 +101,7 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 		fopt->ft_top = fmt->ftf_out;
 	return result;
 }
+EXPORT_SYMBOL(c2_fop_type_build);
 
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 {
@@ -111,6 +117,7 @@ int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 	}
 	return result;
 }
+EXPORT_SYMBOL(c2_fop_type_build_nr);
 
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
@@ -119,6 +126,7 @@ void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 	for (i = 0; i < nr; ++i)
 		c2_fop_type_fini(fopt[i]);
 }
+EXPORT_SYMBOL(c2_fop_type_fini_nr);
 
 struct c2_fop_memlayout atom_void_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_void,
@@ -135,6 +143,7 @@ struct c2_fop_field_type C2_FOP_TYPE_VOID = {
 	},
 	.fft_layout = &atom_void_memlayout
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_VOID);
 
 struct c2_fop_memlayout atom_byte_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_char,
@@ -143,7 +152,7 @@ struct c2_fop_memlayout atom_byte_memlayout = {
 
 struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
 	.fft_aggr = FFA_ATOM,
-	.fft_name = "void",
+	.fft_name = "byte",
 	.fft_u = {
 		.u_atom = {
 			.a_type = FPF_BYTE
@@ -151,6 +160,7 @@ struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
 	},
 	.fft_layout = &atom_byte_memlayout
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_BYTE);
 
 struct c2_fop_memlayout atom_u32_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_uint32_t,
@@ -167,6 +177,7 @@ struct c2_fop_field_type C2_FOP_TYPE_U32 = {
 	},
 	.fft_layout = &atom_u32_memlayout
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_U32);
 
 struct c2_fop_memlayout atom_u64_memlayout = {
 	.fm_uxdr   = (xdrproc_t)xdr_uint64_t,
@@ -183,8 +194,9 @@ struct c2_fop_field_type C2_FOP_TYPE_U64 = {
 	},
 	.fft_layout = &atom_u64_memlayout
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_U64);
 
-int  c2_fops_init(void)
+int c2_fops_init(void)
 {
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
@@ -192,6 +204,7 @@ int  c2_fops_init(void)
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
 	return 0;
 }
+EXPORT_SYMBOL(c2_fops_init);
 
 void c2_fops_fini(void)
 {
@@ -200,6 +213,7 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 }
+EXPORT_SYMBOL(c2_fops_fini);
 
 /** @} end of fop group */
 

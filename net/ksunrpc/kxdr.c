@@ -49,14 +49,14 @@ typedef int (*c2_kxdrproc_t)(struct kxdr_ctx *, void *);
 static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR];
 static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj);
 
-int c2_kvoid_encode(struct xdr_stream *xdr, uint32_t **p, void *val)
+int c2_kvoid_encode(struct xdr_stream *xdr, void *val)
 {
 	return 0;
 }
 
-int c2_kvoid_decode(struct xdr_stream *xdr, uint32_t **p, void *val)
+int c2_kvoid_decode(struct xdr_stream *xdr, void *val)
 {
-	return true;
+	return 0;
 }
 
 int c2_ku32_encode(struct xdr_stream *xdr, uint32_t *val)
@@ -175,6 +175,7 @@ static int kxdr_sequence_dec(struct kxdr_ctx *ctx, void *obj)
 	nr = *(uint32_t *)obj;
 	if (ctx->kc_type->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
 		xdr_read_pages(ctx->kc_xdr, nr);
+		result = 0;
 	} else {
 		uint32_t i;
 
@@ -189,13 +190,19 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 	int                   result;
 	struct page_sequence *ps = obj;
 
-	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr, &ps->ps_nr);
-	if (result != 0)
-		return result;
-
+	*ctx->kc_nob += 4;
 	if (ctx->kc_type->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
-		xdr_inline_pages(&ctx->kc_req->rq_rcv_buf, *ctx->kc_nob,
+		struct rpc_auth *auth;
+		uint32_t         offset;
+
+		/* Believe or not this is how kernel rpc users are supposed to
+		   indicate size of a reply. */
+		auth = ctx->kc_req->rq_task->tk_msg.rpc_cred->cr_auth;
+		offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) + 
+			*ctx->kc_nob;
+		xdr_inline_pages(&ctx->kc_req->rq_rcv_buf, offset,
 				 ps->ps_pages, ps->ps_pgoff, ps->ps_nr);
+		result = 0;
 	} else {
 		result = -EIO;
 	}
@@ -208,13 +215,13 @@ static int kxdr_typedef(struct kxdr_ctx *ctx, void *obj)
 }
 
 static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
-	[KDEC] = {
+	[KENC] = {
 		[FPF_VOID] = (void *)&c2_kvoid_encode,
 		[FPF_BYTE] = NULL,
 		[FPF_U32]  = (void *)&c2_ku32_encode,
 		[FPF_U64]  = (void *)&c2_ku64_encode
 	},
-	[KENC] = {
+	[KDEC] = {
 		[FPF_VOID] = (void *)&c2_kvoid_decode,
 		[FPF_BYTE] = NULL,
 		[FPF_U32]  = (void *)&c2_ku32_decode,
@@ -232,7 +239,7 @@ static int kxdr_atom(struct kxdr_ctx *ctx, void *obj)
 
 static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
 {
-	ctx->kc_nob += ctx->kc_type->fft_layout->fm_sizeof;
+	*ctx->kc_nob += ctx->kc_type->fft_layout->fm_sizeof;
 	return 0;
 }
 
@@ -261,11 +268,11 @@ static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] =
 	}
 };
 
-int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
-		       struct rpc_rqst *req, __be32 *data, void *obj,
-		       enum kxdr_what what)
+static int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
+			      struct rpc_rqst *req, __be32 *data, void *obj,
+			      enum kxdr_what what)
 {
-	int nob;
+	int nob = 0;
 	struct xdr_stream xdr;
 	struct kxdr_ctx   ctx = {
 		.kc_type = ftype,
@@ -277,23 +284,31 @@ int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
 
 	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
 
-	xdr_init_encode(&xdr, &req->rq_snd_buf, data);
+	switch (what) {
+	case KENC:
+		xdr_init_encode(&xdr, &req->rq_snd_buf, data);
+		break;
+	case KDEC:
+		xdr_init_decode(&xdr, &req->rq_rcv_buf, data);
+	default:
+		break;
+	}
 	return kxdr_disp[what][ftype->fft_aggr](&ctx, obj);
 }
 
-int c2_fop_kenc(void *req, __be32 *data, struct c2_fop *fop)
+static int c2_fop_kenc(void *req, __be32 *data, struct c2_fop *fop)
 {
 	return c2_fop_type_encdec(fop->f_type->ft_top, 
 				  req, data, c2_fop_data(fop), KENC);
 }
 
-int c2_fop_kdec(void *req, __be32 *data, struct c2_fop *fop)
+static int c2_fop_kdec(void *req, __be32 *data, struct c2_fop *fop)
 {
 	return c2_fop_type_encdec(fop->f_type->ft_top, 
 				  req, data, c2_fop_data(fop), KDEC);
 }
 
-int c2_fop_krep(void *req, __be32 *data, struct c2_fop *fop)
+static int c2_fop_krep(void *req, __be32 *data, struct c2_fop *fop)
 {
 	return c2_fop_type_encdec(fop->f_type->ft_top, 
 				  req, data, c2_fop_data(fop), KREP);

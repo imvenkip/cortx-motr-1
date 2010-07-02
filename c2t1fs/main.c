@@ -210,8 +210,8 @@ int ksunrpc_create(struct ksunrpc_xprt *xprt,
 	struct c2_fop            *r;
 	struct c2_knet_call       kcall;
 
-	f = c2_fop_alloc(&c2_io_read_fopt, NULL);
-	r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
+	f = c2_fop_alloc(&c2_io_create_fopt, NULL);
+	r = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
 
 	BUG_ON(f == NULL || r == NULL);
 
@@ -885,7 +885,16 @@ int init_module(void)
         if (rc)
                 return rc;
         rc = register_filesystem(&c2t1fs_fs_type);
-        if (rc)
+        if (rc == 0) {
+		rc = c2_fops_init();
+		if (rc == 0) {
+			rc = io_fop_init();
+			if (rc != 0)
+				c2_fops_fini();
+		}
+		if (rc != 0)
+			unregister_filesystem(&c2t1fs_fs_type);
+	} else
                 c2t1fs_destroy_inodecache();
 
         return rc;
@@ -895,6 +904,8 @@ void cleanup_module(void)
 {
         int rc;
 
+	io_fop_fini();
+	c2_fops_fini();
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
         if (rc)

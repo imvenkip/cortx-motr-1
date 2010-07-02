@@ -41,12 +41,14 @@
 #define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
 #endif
 
-#else /* !__KERNEL__ */
+#define EXPORT_SYMBOL(s) 
+
+#else /* __KERNEL__ */
 
 #include <linux/types.h>
 #include <linux/kernel.h>
 
-#endif /* !__KERNEL__ */
+#endif /* __KERNEL__ */
 
 #define ergo(a, b) (!(a) || (b))
 #define equi(a, b) (!(a) == !(b))

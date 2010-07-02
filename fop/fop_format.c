@@ -171,6 +171,7 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 		c2_fop_type_format_fini(fmt);
 	return result;
 }
+EXPORT_SYMBOL(c2_fop_type_format_parse);
 
 void *c2_fop_type_decoration_get(const struct c2_fop_field_type *ftype,
 				 const struct c2_fop_decorator *dec)
@@ -218,6 +219,7 @@ void c2_fop_type_format_fini(struct c2_fop_type_format *fmt)
 		fmt->ftf_out = NULL;
 	}
 }
+EXPORT_SYMBOL(c2_fop_type_format_fini);
 
 int c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr)
 {
@@ -233,6 +235,7 @@ int c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr)
 	}
 	return result;
 }
+EXPORT_SYMBOL(c2_fop_type_format_parse_nr);
 
 void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
 {
@@ -241,6 +244,7 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
 	for (i = 0; i < nr; ++i)
 		c2_fop_type_format_fini(fmt[i]);
 }
+EXPORT_SYMBOL(c2_fop_type_format_fini_nr);
 
 void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
 			     int fileno)
@@ -248,7 +252,7 @@ void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 	C2_ASSERT(fileno < ftype->fft_nr);
 	return ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
 }
-
+EXPORT_SYMBOL(c2_fop_type_field_addr);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_VOID,
@@ -257,6 +261,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_val   = FPF_VOID,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_VOID_tfmt);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_BYTE,
@@ -265,6 +270,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt = {
 	.ftf_val   = FPF_BYTE,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_BYTE_tfmt);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_U32,
@@ -273,6 +279,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt = {
 	.ftf_val   = FPF_U32,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_U32_tfmt);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_U64,
@@ -281,6 +288,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt = {
 	.ftf_val   = FPF_U64,
 	.ftf_child = { [0] = { .c_name = NULL } }
 };
+EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_U64_tfmt);
 
 /** @} end of fop group */
 
