@@ -62,6 +62,22 @@ static int c2_db_insert(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	return result;
 }
 
+static int c2_dba_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
+{
+	c2_blockno_t	*bn1;
+	c2_blockno_t	*bn2;
+
+	bn1 = dbt1->data;
+	bn2 = dbt2->data;
+	if (*bn1 > *bn2 )
+		return 1;
+	else if (*bn1 == *bn2)
+		return 0;
+	else
+		return -1;
+}
+
+
 int c2_db_open(DB_ENV *dbenv, const char *name, u_int32_t flags, DB **dbp)
 {
 	const char *msg;
@@ -73,6 +89,7 @@ int c2_db_open(DB_ENV *dbenv, const char *name, u_int32_t flags, DB **dbp)
 	msg = "create";
 	if (rc == 0) {
 		db = *dbp;
+		db->set_bt_compare(db, c2_dba_compare);
 		rc = db->open(db, NULL, name,
 			      NULL, DB_BTREE, flags, 0664);
 		msg = "open";
@@ -221,6 +238,7 @@ int c2_db_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 	return rc;
 }
 
+
 static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 {
 	DB_ENV	       *dbenv = ctxt->dc_dbenv;
@@ -239,13 +257,25 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 
 	result = ctxt->dc_group_extent->cursor(ctxt->dc_group_extent, NULL, &cursor, 0);
 	if (result == 0) {
+		c2_blockno_t	goal = 5000;
+		nkeyt.data = &goal;
+		nkeyt.size = sizeof goal;
+
+		result = cursor->get(cursor, &nkeyt,
+					     &nrect, DB_SET_RANGE);
+		if ( result == 0) {
+			bn = nkeyt.data;
+			count = nrect.data;
+			printf("[%08llu, %lu]\n",
+			       (unsigned long long) *bn, (unsigned long)*count);
+
 		while ((result = cursor->get(cursor, &nkeyt,
 					     &nrect, DB_NEXT)) == 0) {
 			/* XXX db4 does not guarantee proper alignment */
 			bn = nkeyt.data;
 			count = nrect.data;
 
-			printf("[%08llu, %lu]\n",
+			printf("...[%08llu, %lu]\n",
 			       (unsigned long long) *bn, (unsigned long)*count);
 		}
 		if (result != DB_NOTFOUND)
@@ -253,6 +283,8 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 						   result, "Full iteration");
 		else
 			result = 0;
+		}
+
 		cursor->close(cursor);
 	}
 	if (result != 0)
@@ -281,10 +313,9 @@ int main()
 		fprintf(stderr, "c2_db_init error: %d\n", rc);
 		return rc;
 	}
-
 	request.dar_logical = 1234;
 	request.dar_lcount  = 5678;
-//	rc = c2_db_allocate(&ctxt, &request);
+	rc = c2_db_allocate(&ctxt, &request);
 	if (rc != 0) {
 		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
 		return rc;
@@ -292,7 +323,7 @@ int main()
 
 	request.dar_logical = 4321;
 	request.dar_lcount  = 8765;
-//	rc = c2_db_allocate(&ctxt, &request);
+	rc = c2_db_allocate(&ctxt, &request);
 	if (rc != 0) {
 		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
 		return rc;
@@ -300,11 +331,21 @@ int main()
 
 	request.dar_logical = 1111;
 	request.dar_lcount  = 2222;
-//	rc = c2_db_allocate(&ctxt, &request);
+	rc = c2_db_allocate(&ctxt, &request);
 	if (rc != 0) {
 		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
 		return rc;
 	}
+
+
+	request.dar_logical = 8888;
+	request.dar_lcount  = 9999;
+	rc = c2_db_allocate(&ctxt, &request);
+	if (rc != 0) {
+		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
+		return rc;
+	}
+
 
 	db_list(&ctxt, &request);
 
