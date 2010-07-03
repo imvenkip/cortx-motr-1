@@ -1,5 +1,5 @@
 SUBDIRS_BASE = m4 doc include man patches 
-SUBDIRS_LIBS = lib sm addb fop stob net rpc fol dtm nrs sns mw reqh
+SUBDIRS_LIBS = lib sm addb fop stob net rpc fol dtm nrs sns mw reqh dba
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_BINARIES = mds utils
 SUBDIR_UT = fop/ut rpc/ut lib/ut stob/ut net/ut

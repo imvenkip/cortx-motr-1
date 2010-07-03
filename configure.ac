@@ -477,6 +477,7 @@ AC_CONFIG_FILES([
                  stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
+                 dba/Makefile
                 ])
 AC_OUTPUT
 
