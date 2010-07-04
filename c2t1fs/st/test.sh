@@ -1,3 +1,5 @@
+set -x
+
 cd ../..
 pwd
 
@@ -19,9 +21,9 @@ mount -t c2t1fs -o objid=12345 $IPAddr:$Port /mnt/c2t1fs
 
 #small file write & read
 ls -l /mnt/c2t1fs/12345
-cat c2t1fs/c2t1fs.c > /mnt/c2t1fs/12345
+cat c2t1fs/main.c > /mnt/c2t1fs/12345
 ls -l /mnt/c2t1fs/12345
-cat c2t1fs/c2t1fs.c | md5sum
+cat c2t1fs/main.c | md5sum
 cat /mnt/c2t1fs/12345 | md5sum
 
 #large file write & read

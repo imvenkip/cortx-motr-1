@@ -107,6 +107,11 @@ struct c2_bufvec {
 	void         **ov_buf;
 };
 
+/**
+   Frees all bufvec buffers.
+ */
+void c2_bufvec_free(struct c2_bufvec *bufvec);
+
 struct c2_dio_cookie;
 struct c2_dio_engine;
 

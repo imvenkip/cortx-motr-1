@@ -1,4 +1,8 @@
 /* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -18,6 +22,9 @@
 #include <linux/proc_fs.h>
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/xdr.h>
+
+#include "lib/cdefs.h"
+#include "fop/fop.h"
 
 #include "ksunrpc.h"
 
@@ -125,68 +132,35 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 }
 EXPORT_SYMBOL(ksunrpc_xprt_init);
 
-static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
-			     const struct c2_rpc_op *op,
-			     void *arg, void *ret)
+static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt, 
+			     struct c2_knet_call *kcall)
 {
-	int                 result;
+	struct c2_fop_type *arg_fopt = kcall->ac_arg->f_type;
+	struct c2_fop_type *ret_fopt = kcall->ac_ret->f_type;
 
 	struct rpc_procinfo proc = {
-		.p_proc   = op->ro_op,
-		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
-		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_arglen = op->ro_arg_size,
-		.p_replen = op->ro_result_size,
+		.p_proc   = arg_fopt->ft_code,
+		.p_encode = (kxdrproc_t) c2_kcall_enc,
+		.p_decode = (kxdrproc_t) c2_kcall_dec,
+		.p_arglen = arg_fopt->ft_top->fft_layout->fm_sizeof,
+		.p_replen = ret_fopt->ft_top->fft_layout->fm_sizeof,
 		.p_statidx= 1,
-		.p_name   = op->ro_name,
+		.p_name   = (char *)arg_fopt->ft_name
 	};
 
         struct rpc_message msg = {
                 .rpc_proc = &proc,
-                .rpc_argp = arg,
-                .rpc_resp = ret,
+                .rpc_argp = kcall,
+                .rpc_resp = kcall,
         };
 
-        result = rpc_call_sync(xprt->ksx_client, &msg, 0);
-
-	return result;
-}
-
-static int ksunrpc_xprt_send(struct ksunrpc_xprt *xprt,
-			     const struct c2_rpc_op *op,
-			     void *arg, void *ret,
-			     struct rpc_call_ops *async_ops,
-			     void *data)
-{
-	int result;
-
-	struct rpc_procinfo proc = {
-		.p_proc   = op->ro_op,
-		.p_encode = (kxdrproc_t) op->ro_xdr_arg,
-		.p_decode = (kxdrproc_t) op->ro_xdr_result,
-		.p_arglen = op->ro_arg_size,
-		.p_replen = op->ro_result_size,
-		.p_statidx= op->ro_op,
-		.p_name   = op->ro_name,
-	};
-
-        struct rpc_message msg = {
-                .rpc_proc = &proc,
-                .rpc_argp = arg,
-                .rpc_resp = ret,
-        };
-
-        result = rpc_call_async(xprt->ksx_client, &msg, RPC_TASK_SOFT,
-                                async_ops, data);
-
-	return result;
+        return rpc_call_sync(xprt->ksx_client, &msg, 0);
 }
 
 struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
 	.ksxo_init = ksunrpc_xprt_init,
 	.ksxo_fini = ksunrpc_xprt_fini,
 	.ksxo_call = ksunrpc_xprt_call,
-	.ksxo_send = ksunrpc_xprt_send,
 };
 
 EXPORT_SYMBOL(ksunrpc_xprt_ops);
@@ -195,7 +169,7 @@ EXPORT_SYMBOL(ksunrpc_xprt_ops);
  *                     Start of UT                                             *
  ******************************************************************************/
 
-#if 1
+#if 0
 
 static struct proc_dir_entry *proc_ksunrpc_ut;
 

@@ -14,11 +14,7 @@
 
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <rpc/svc.h>
+#include <rpc/rpc.h>
 
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -29,7 +25,9 @@
 #include "lib/thread.h"
 #include "lib/cond.h"
 #include "net/net.h"
+#include "fop/fop.h"
 
+#include "usunrpc.h"
 #include "usunrpc_internal.h"
 
 /**
@@ -233,28 +231,34 @@ static void conn_xprt_put(struct usunrpc_conn *xconn, struct usunrpc_xprt *xprt)
 /* XXX Default timeout - need to be move in connection */
 static struct timeval TIMEOUT = { .tv_sec = 300, .tv_usec = 0 };
 
-static int usunrpc_conn_call(struct c2_net_conn *conn,
-			     const struct c2_rpc_op *op,
-			     void *arg, void *ret)
+static int usunrpc_call(struct usunrpc_xprt *xprt, struct c2_net_call *call)
+{
+	struct c2_fop *arg;
+	struct c2_fop *ret;
+
+	arg = call->ac_arg;
+	ret = call->ac_ret;
+	return -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
+			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
+			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
+}
+
+static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 {
 	struct usunrpc_conn *xconn;
 	struct usunrpc_xprt *xprt;
-	int                 result;
+	int                  result;
 
 	C2_ASSERT(!dom_is_shutting(conn->nc_domain));
 
-	xconn = conn->nc_xprt_private;
-	xprt = conn_xprt_get(xconn);
-	result = -clnt_call(xprt->nsx_client, op->ro_op,
-		    	    (xdrproc_t) op->ro_xdr_arg, (caddr_t) arg,
-			    (xdrproc_t) op->ro_xdr_result, (caddr_t) ret,
-			    TIMEOUT);
+	xconn  = conn->nc_xprt_private;
+	xprt   = conn_xprt_get(xconn);
+	result = usunrpc_call(xprt, call);
 	conn_xprt_put(xconn, xprt);
 	return result;
 }
 
-static int usunrpc_conn_send(struct c2_net_conn *conn, 
-			     struct c2_net_async_call *call)
+static int usunrpc_conn_send(struct c2_net_conn *conn, struct c2_net_call *call)
 {
 	struct usunrpc_dom *xdom;
 
@@ -304,10 +308,9 @@ int usunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 void usunrpc_client_worker(struct c2_net_domain *dom)
 {
 	struct usunrpc_dom        *xdom;
-	struct c2_net_async_call *call;
+	struct c2_net_call        *call;
 	struct usunrpc_conn       *xconn;
 	struct usunrpc_xprt       *xprt;
-	const struct c2_rpc_op   *op;
 
 	xdom = dom->nd_xprt_private;
 	c2_mutex_lock(&xdom->sd_guard);
@@ -317,17 +320,12 @@ void usunrpc_client_worker(struct c2_net_domain *dom)
 		if (xdom->sd_shutown)
 			break;
 		call = container_of(c2_queue_get(&xdom->sd_queue),
-				    struct c2_net_async_call, ac_linkage);
+				    struct c2_net_call, ac_linkage);
 		c2_mutex_unlock(&xdom->sd_guard);
 
 		xconn = call->ac_conn->nc_xprt_private;
 		xprt  = conn_xprt_get(xconn);
-		op    = call->ac_op;
-		call->ac_rc = clnt_call(xprt->nsx_client, op->ro_op,
-					(xdrproc_t) op->ro_xdr_arg, 
-					(caddr_t) call->ac_arg,
-					(xdrproc_t) op->ro_xdr_result, 
-					(caddr_t) call->ac_ret, TIMEOUT);
+		call->ac_rc = usunrpc_call(xprt, call);
 		c2_chan_broadcast(&call->ac_chan);
 		conn_xprt_put(xconn, xprt);
 		c2_mutex_lock(&xdom->sd_guard);

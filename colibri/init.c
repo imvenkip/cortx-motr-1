@@ -23,7 +23,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_addb_init,    &c2_addb_fini },
 	{ &c2_stobs_init,   &c2_stobs_fini },
 	{ &c2_net_init,     &c2_net_fini },
-	{ &c2_rpclib_init,  &c2_rpclib_fini },
+/*	{ &c2_rpclib_init,  &c2_rpclib_fini }, */
 	{ &c2_fops_init,    &c2_fops_fini }
 };
 

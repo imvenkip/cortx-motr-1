@@ -1,91 +1,219 @@
 /* -*- C -*- */
 
-#include "fop.h"
+#ifdef __KERNEL__
+
+#include "lib/kdef.h"
+
+#define xdr_void NULL
+#define xdr_char NULL
+#define xdr_uint32_t NULL
+#define xdr_uint64_t NULL
+
+#else /* __KERNEL__ */
 #include "lib/memory.h"
+#endif /* __KERNEL__ */
+
+#include "lib/vec.h"
+#include "fop/fop.h"
+
 
 /**
    @addtogroup fop
    @{
  */
 
-struct c2_fop_field *c2_fop_field_alloc(void)
-{
-	struct c2_fop_field *field;
+int  c2_fop_field_type_prepare  (struct c2_fop_field_type *ftype);
+void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
 
-	C2_ALLOC_PTR(field);
-	if (field != NULL) {
-		c2_list_link_init(&field->ff_sibling);
-		c2_list_init(&field->ff_child);
+
+void c2_fop_field_type_fini(struct c2_fop_field_type *t)
+{
+	size_t i;
+
+	c2_fop_field_type_unprepare(t);
+	if (t->fft_child != NULL) {
+		for (i = 0; i < t->fft_nr; ++i) {
+			if (t->fft_child[i] != NULL)
+				c2_free(t->fft_child[i]);
+		}
+		c2_free(t->fft_child);
+		t->fft_child = NULL;
 	}
-	return field;
 }
+EXPORT_SYMBOL(c2_fop_field_type_fini);
 
-static bool fop_field_subtree(struct c2_fop_field *root, unsigned depth,
-			      c2_fop_field_cb_t pre_cb, 
-			      c2_fop_field_cb_t post_cb, void *arg)
+struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
-	struct c2_fop_field     *cur;
-	enum c2_fop_field_cb_ret ret;
+	struct c2_fop *fop;
 
-	ret = pre_cb(root, depth, arg);
-	if (ret == FFC_CONTINUE) {
-		do {
-			c2_list_for_each_entry(&root->ff_child, cur, 
-					       struct c2_fop_field, ff_sibling){
-				if (!fop_field_subtree(cur, depth + 1, 
-						       pre_cb, post_cb, arg))
-					return false;
-			}
-			ret = post_cb(root, depth, arg);
-		} while (ret == FFC_REPEAT);
+	C2_ALLOC_PTR(fop);
+	if (fop != NULL) {
+		c2_bcount_t nob;
+
+		fop->f_type = fopt;
+		nob = fopt->ft_top->fft_layout->fm_sizeof;
+		if (data == NULL)
+			data = c2_alloc(nob);
+		if (data != NULL) {
+			fop->f_data.fd_data = data;
+		} else {
+			c2_free(fop);
+			fop = NULL;
+		}
 	}
-	return ret != FFC_BREAK;
+	return fop;
 }
+EXPORT_SYMBOL(c2_fop_alloc);
 
-void c2_fop_field_traverse(struct c2_fop_field *field,
-			   c2_fop_field_cb_t pre_cb, 
-			   c2_fop_field_cb_t post_cb, void *arg)
+void c2_fop_free(struct c2_fop *fop)
 {
-	fop_field_subtree(field, 0, pre_cb, post_cb, arg);
+	if (fop != NULL) {
+		c2_free(fop->f_data.fd_data);
+		c2_free(fop);
+	}
 }
+EXPORT_SYMBOL(c2_fop_free);
 
-static void fop_field_fini_one(struct c2_fop_field *fop) 
+void *c2_fop_data(struct c2_fop *fop)
 {
-	c2_list_del(&fop->ff_sibling);
-	c2_list_fini(&fop->ff_child);
-	c2_free(fop);
+	return fop->f_data.fd_data;
+
 }
+EXPORT_SYMBOL(c2_fop_data);
 
-static struct c2_fop_field *list2field(struct c2_list_link *link)
+void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
-	return container_of(link, struct c2_fop_field, ff_sibling);
+	if (fopt->ft_fmt != NULL) {
+		c2_fop_type_format_fini(fopt->ft_fmt);
+		fopt->ft_fmt = NULL;
+	}
 }
+EXPORT_SYMBOL(c2_fop_type_fini);
 
-void c2_fop_field_fini(struct c2_fop_field *field)
+int c2_fop_type_build(struct c2_fop_type *fopt)
 {
-	struct c2_fop_field *scan;
-	struct c2_fop_field *next;
+	int                        result;
+	struct c2_fop_type_format *fmt;
 
-	scan = field;
-	while (1) {
-		while (!c2_list_is_empty(&scan->ff_child))
-			scan = list2field(scan->ff_child.l_head);
-		next = scan->ff_parent;
-		fop_field_fini_one(scan);
-		if (scan == field)
+	fmt    = fopt->ft_fmt;
+	result = c2_fop_type_format_parse(fmt);
+	if (result == 0)
+		fopt->ft_top = fmt->ftf_out;
+	return result;
+}
+EXPORT_SYMBOL(c2_fop_type_build);
+
+int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
+{
+	int i;
+	int result;
+
+	for (result = 0, i = 0; i < nr; ++i) {
+		result = c2_fop_type_build(fopt[i]);
+		if (result != 0) {
+			c2_fop_type_fini_nr(fopt, i);
 			break;
-		scan = next;
+		}
 	}
+	return result;
 }
+EXPORT_SYMBOL(c2_fop_type_build_nr);
 
-int  c2_fops_init(void)
+void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
+	int i;
+
+	for (i = 0; i < nr; ++i)
+		c2_fop_type_fini(fopt[i]);
+}
+EXPORT_SYMBOL(c2_fop_type_fini_nr);
+
+struct c2_fop_memlayout atom_void_memlayout = {
+	.fm_uxdr   = (xdrproc_t)xdr_void,
+	.fm_sizeof = 0
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_VOID = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "void",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_VOID
+		}
+	},
+	.fft_layout = &atom_void_memlayout
+};
+EXPORT_SYMBOL(C2_FOP_TYPE_VOID);
+
+struct c2_fop_memlayout atom_byte_memlayout = {
+	.fm_uxdr   = (xdrproc_t)xdr_char,
+	.fm_sizeof = 1
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "byte",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_BYTE
+		}
+	},
+	.fft_layout = &atom_byte_memlayout
+};
+EXPORT_SYMBOL(C2_FOP_TYPE_BYTE);
+
+struct c2_fop_memlayout atom_u32_memlayout = {
+	.fm_uxdr   = (xdrproc_t)xdr_uint32_t,
+	.fm_sizeof = 4
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_U32 = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "u32",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_U32
+		}
+	},
+	.fft_layout = &atom_u32_memlayout
+};
+EXPORT_SYMBOL(C2_FOP_TYPE_U32);
+
+struct c2_fop_memlayout atom_u64_memlayout = {
+	.fm_uxdr   = (xdrproc_t)xdr_uint64_t,
+	.fm_sizeof = 8
+};
+
+struct c2_fop_field_type C2_FOP_TYPE_U64 = {
+	.fft_aggr = FFA_ATOM,
+	.fft_name = "u64",
+	.fft_u = {
+		.u_atom = {
+			.a_type = FPF_U64
+		}
+	},
+	.fft_layout = &atom_u64_memlayout
+};
+EXPORT_SYMBOL(C2_FOP_TYPE_U64);
+
+int c2_fops_init(void)
+{
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
+	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
 	return 0;
 }
+EXPORT_SYMBOL(c2_fops_init);
 
 void c2_fops_fini(void)
 {
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U64);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
+	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
 }
+EXPORT_SYMBOL(c2_fops_fini);
 
 /** @} end of fop group */
 

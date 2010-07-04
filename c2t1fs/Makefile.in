@@ -1,9 +1,12 @@
 OS = @OS@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
+FOPDIR = @SRCDIR@/fop
+STOBDIR = @SRCDIR@/stob/ut
 
 ifeq ($(OS),linux)
 
-obj-m := c2t1fs.o c2t1fs_loop.o
+obj-m := c2t1fs.o c2t1fs_loop.o 
+c2t1fs-y := main.o io_fop_init.o io_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
@@ -11,7 +14,11 @@ all:
 	if ! test -e c2t1fs.c; then \
                 ln -s $(C2T1FS_SRCDIR)/c2t1fs.c; \
                 ln -s $(C2T1FS_SRCDIR)/c2t1fs.h; \
-        fi
+        fi 
+	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
+	if ! test -e io_fop_init.c; then \
+		ln -s $(STOBDIR)/io_fop_init.c; \
+        fi 
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 install modules_install:
@@ -22,7 +29,7 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr Module.symvers
+	rm -fr Module.symvers io_k.[ch]
 
 else
 
