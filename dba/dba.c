@@ -3,16 +3,40 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "dba.h"
 
+/**
+   C2 Data Block Allocator.
+   DBA is a multi-block allocator, with pre-allocation. All metadata about
+   block allocation is stored in database -- Oracle Berkeley DB.
+
+ */
+
+
+
+/**
+   db_err, reporting error messsage.
+
+   @param dbenv pointer to db environment.
+   @param rc error number returned from function call.
+   @param msg message to output.
+ */
 static void db_err(DB_ENV *dbenv, int rc, const char * msg)
 {
 	dbenv->err(dbenv, rc, msg);
 	fprintf(stderr, "%s:%s\n", msg, db_strerror(rc));
 }
 
-static void c2_db_fini(struct c2_dba_ctxt *ctxt)
+
+
+/**
+   finaliazation of the dba environment.
+
+   @param ctxt context of this data-block-allocation.
+ */
+static void c2_dba_fini(struct c2_dba_ctxt *ctxt)
 {
 	DB_ENV  *dbenv = ctxt->dc_dbenv;
 	int 	 rc;
@@ -36,9 +60,23 @@ static void c2_db_fini(struct c2_dba_ctxt *ctxt)
 }
 
 
-static int c2_db_insert(DB_ENV *dbenv, DB_TXN *tx, DB *db,
-			void *key, size_t keysize,
-			void *rec, size_t recsize)
+/**
+   Insert a key/record pair into the db.
+
+   @param dbenv pointer to this db env.
+   @param tx transaction. See more on DB->put().
+   @param db the database into which key/record will be inserted to.
+   @param key pointer to key. Any data type is accepted.
+   @param keysize size of data.
+   @param rec pointer to record. Any data type is accpeted.
+   @param recsize size of record.
+
+   @return 0 on success; Otherwise, error number is returned.
+
+ */
+static int c2_dba_insert_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
+				void *key, size_t keysize,
+				void *rec, size_t recsize)
 {
 	int result;
 	DBT keyt;
@@ -62,7 +100,11 @@ static int c2_db_insert(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	return result;
 }
 
-static int c2_dba_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
+
+/**
+   Comparison function for block number, supplied to database.
+ */
+static int c2_dba_blockno_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
 {
 	c2_blockno_t	*bn1;
 	c2_blockno_t	*bn2;
@@ -78,7 +120,20 @@ static int c2_dba_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
 }
 
 
-int c2_db_open(DB_ENV *dbenv, const char *name, u_int32_t flags, DB **dbp)
+/**
+   Open/create a database.
+
+   @param dbenv database environment.
+   @param name database name
+   @param flags flags to open the database. Depending on the flags, this function
+          may open an existing database, or create a new one.
+   @param key_compare comparison function for key in this database.
+   @param dbp [out] db pointer returned.
+*/
+
+static int c2_dba_open_db(DB_ENV *dbenv, const char *name, u_int32_t flags,
+			  int (*key_compare)(DB *db, const DBT *dbt1, const DBT *dbt2),
+			  DB **dbp)
 {
 	const char *msg;
 	int rc;
@@ -89,7 +144,10 @@ int c2_db_open(DB_ENV *dbenv, const char *name, u_int32_t flags, DB **dbp)
 	msg = "create";
 	if (rc == 0) {
 		db = *dbp;
-		db->set_bt_compare(db, c2_dba_compare);
+
+		if (key_compare)
+			db->set_bt_compare(db, key_compare);
+
 		rc = db->open(db, NULL, name,
 			      NULL, DB_BTREE, flags, 0664);
 		msg = "open";
@@ -102,12 +160,214 @@ int c2_db_open(DB_ENV *dbenv, const char *name, u_int32_t flags, DB **dbp)
 	return rc;
 }
 
+/**
+   Format the container: create database, fill them with initial information.
 
-int c2_db_init(struct c2_dba_ctxt *ctxt)
+   This routine will create a "super_block" database to store global parameters
+   for this container. It will also create "group free extent" and "group_desc"
+   for every group. If some groups are reserved for special purpse, then they
+   will be marked as "allocated" at the format time, and those groups will not
+   be used by normal allocation routines.
+
+   @param req pointer to this format request. All configuration will be passed
+          by this parameter.
+   @return 0 means success. Otherwize, error number will be returned.
+ */
+int c2_dba_format(struct c2_dba_format_req *req)
 {
 	int            	 rc;
 	DB_ENV 		*dbenv;
 	char		 path[MAXPATHLEN];
+        u_int32_t        dbenv_flags;
+        u_int32_t  	 db_flags;
+	DB              *group_free_extent;
+	DB              *group_desc;
+	DB              *super_block;
+	u_int32_t	 number_of_groups;
+	u_int32_t	 i;
+
+	struct c2_dba_extent      ext;
+	struct c2_dba_group_desc  gd;
+	struct c2_dba_super_block sb;
+
+	ENTER;
+
+	rc = db_env_create(&dbenv, 0);
+	if (rc != 0) {
+		fprintf(stderr, "db_env_create: %s", db_strerror(rc));
+		return rc;
+	}
+
+	dbenv->set_errfile(dbenv, stderr);
+	dbenv->set_errpfx(dbenv, "c2db format");
+
+	rc = mkdir(req->dfr_db_home, 0700);
+	if (rc != 0 && errno != EEXIST) {
+		fprintf(stderr, "->mkdir() for home failed: %d\n", errno);
+		dbenv->close(dbenv, 0);
+		return rc;
+	}
+
+	snprintf(path, MAXPATHLEN - 1, "%s/d", req->dfr_db_home);
+	rc = mkdir(path, 0700);
+	if (rc != 0) {
+		if (errno == EEXIST) {
+			fprintf(stderr, "database dir %s already exists. "
+				"Please remove it and then format again\n",
+				path);
+		} else {
+			fprintf(stderr, "create database dir %s failed: %d\n",
+				path, errno);
+		}
+		dbenv->close(dbenv, 0);
+		return rc;
+	}
+
+	snprintf(path, MAXPATHLEN - 1, "%s/l", req->dfr_db_home);
+	mkdir(path, 0700);
+
+	snprintf(path, MAXPATHLEN - 1, "%s/t", req->dfr_db_home);
+	mkdir(path, 0700);
+
+	rc = dbenv->set_data_dir(dbenv, "d");
+	if (rc != 0) {
+		db_err(dbenv, rc, "->set_data_dir()");
+		dbenv->close(dbenv, 0);
+		return rc;
+	}
+
+	/* Open the environment with full transactional support. */
+	dbenv_flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|
+		      DB_INIT_MPOOL|DB_INIT_TXN|DB_INIT_LOCK|
+	              DB_RECOVER;
+	rc = dbenv->open(dbenv, req->dfr_db_home, dbenv_flags, 0);
+	if (rc != 0) {
+		db_err(dbenv, rc, "environment open");
+		dbenv->close(dbenv, 0);
+		return rc;
+	}
+
+	db_flags = DB_CREATE;
+	number_of_groups = req->dfr_totalsize / req->dfr_blocksize /
+			   req->dfr_groupsize;
+
+	if (number_of_groups == 0)
+		number_of_groups = 1;
+	printf("totalsize=%llu, blocksize=%d, groupsize=%d, groups=%d resvd=%d\n",
+		(unsigned long long)req->dfr_totalsize, req->dfr_blocksize,
+                req->dfr_groupsize, number_of_groups, req->dfr_reserved_groups);
+	if (number_of_groups <= req->dfr_reserved_groups) {
+		fprintf(stderr, "container is too small\n");
+		dbenv->close(dbenv, 0);
+		return -EINVAL;
+	}
+
+	rc = c2_dba_open_db(dbenv, "super_block", db_flags,
+			    NULL, &super_block);
+	if (rc == 0) {
+		struct timeval now;
+
+		gettimeofday(&now, NULL);
+		memset(&sb, 0, sizeof sb);
+
+		sb.dsb_magic = C2_DBA_SB_MAGIC;
+		sb.dsb_state = C2_DBA_SB_CLEAN;
+		sb.dsb_version = C2_DBA_SB_VERSION;
+		sb.dsb_totalsize = req->dfr_totalsize;
+		sb.dsb_blocksize = req->dfr_blocksize;
+		sb.dsb_groupsize = req->dfr_groupsize;
+		sb.dsb_reserved_groups = req->dfr_reserved_groups;
+		sb.dsb_freeblocks      = sb.dsb_blocksize * number_of_groups;
+		sb.dsb_prealloc_count  = 16;
+		sb.dsb_format_time = ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
+
+		rc = c2_dba_insert_record(dbenv, NULL, super_block,
+					  &sb.dsb_magic, sizeof sb.dsb_magic,
+					  &sb, sizeof sb);
+
+		super_block->sync(super_block, 0);
+		super_block->close(super_block, 0);
+	} else {
+		fprintf(stderr, "create super_block db failed\n");
+		dbenv->close(dbenv, 0);
+		return rc;
+	}
+	for (i = 0; i < number_of_groups; i++) {
+		char db_name[64];
+
+		printf("creating extent for group %d\n", i);
+		snprintf(db_name, 63, "group_free_extent_%d", i);
+		rc = c2_dba_open_db(dbenv, db_name, db_flags,
+				    c2_dba_blockno_compare, &group_free_extent);
+		if (rc == 0) {
+			ext.ext_start = i * req->dfr_groupsize;
+			if (i < req->dfr_reserved_groups) {
+				ext.ext_len = 0;
+			} else {
+				ext.ext_len = req->dfr_groupsize;
+			}
+			rc = c2_dba_insert_record(dbenv, NULL, group_free_extent,
+						  &ext.ext_start, sizeof ext.ext_start,
+						  &ext.ext_len, sizeof ext.ext_len);
+			if (rc != 0) {
+				fprintf(stderr, "insert extent failed:"
+					"group=%d, rc=%d\n", i, rc);
+			}
+			group_free_extent->sync(group_free_extent, 0);
+			group_free_extent->close(group_free_extent, 0);
+		} else {
+			fprintf(stderr, "create free extent db failed:i=%d\n", i);
+			break;
+		}
+
+		printf("creating  group_desc for group %d\n", i);
+		snprintf(db_name, 63, "group_desc_%d", i);
+		rc = c2_dba_open_db(dbenv, db_name, db_flags,
+				    NULL, &group_desc);
+		if (rc == 0) {
+			if (i < req->dfr_reserved_groups) {
+				gd.dgd_freeblocks = 0;
+				gd.dgd_fragments  = 0;
+				gd.dgd_maxchunk   = 0;
+			} else {
+				gd.dgd_freeblocks = req->dfr_groupsize;
+				gd.dgd_fragments  = 1;
+				gd.dgd_maxchunk   = req->dfr_groupsize;
+			}
+			rc = c2_dba_insert_record(dbenv, NULL, group_desc,
+						  &i, sizeof i,
+						  &gd, sizeof gd);
+			if (rc != 0) {
+				fprintf(stderr, "insert gd failed:"
+					"group=%d, rc=%d\n", i, rc);
+			}
+			group_desc->sync(group_desc, 0);
+			group_desc->close(group_desc, 0);
+		} else {
+			fprintf(stderr, "create free extent db failed:i=%d\n", i);
+			break;
+		}
+	}
+	dbenv->close(dbenv, 0);
+
+	LEAVE;
+	return 0;
+}
+
+
+/**
+   Init the database operation environment, opening databases, ...
+
+   @param ctxt pointer to the operation context environment.
+   @return 0 means success. Otherwise errer number will be returned.
+   @see c2_dba_fini
+ */
+int c2_dba_init(struct c2_dba_ctxt *ctxt)
+{
+	int            	 rc;
+	DB_ENV 		*dbenv;
+	char		 path[MAXPATHLEN];
+	ENTER;
 
 	rc = db_env_create(&dbenv, 0);
 	if (rc != 0) {
@@ -122,7 +382,7 @@ int c2_db_init(struct c2_dba_ctxt *ctxt)
 	rc = dbenv->set_flags(dbenv, DB_TXN_NOSYNC, 1);
 	if (rc != 0) {
 		db_err(dbenv, rc, "->set_flags(DB_TXN_NOSYNC)");
-		c2_db_fini(ctxt);
+		c2_dba_fini(ctxt);
 		return rc;
 	}
 
@@ -136,7 +396,7 @@ int c2_db_init(struct c2_dba_ctxt *ctxt)
 		rc = dbenv->set_cachesize(dbenv, gbytes, bytes, 1);
 		if (rc != 0) {
 			db_err(dbenv, rc, "->set_cachesize()");
-			c2_db_fini(ctxt);
+			c2_dba_fini(ctxt);
 			return rc;
 		}
 	}
@@ -144,7 +404,7 @@ int c2_db_init(struct c2_dba_ctxt *ctxt)
 	rc = dbenv->set_thread_count(dbenv, ctxt->dc_nr_thread);
 	if (rc != 0) {
 		db_err(dbenv, rc, "->set_thread_count()");
-		c2_db_fini(ctxt);
+		c2_dba_fini(ctxt);
 		return rc;
 	}
 
@@ -159,7 +419,7 @@ int c2_db_init(struct c2_dba_ctxt *ctxt)
 	rc = mkdir(ctxt->dc_home, 0700);
 	if (rc != 0 && errno != EEXIST) {
 		db_err(dbenv, rc, "->mkdir() for home");
-		c2_db_fini(ctxt);
+		c2_dba_fini(ctxt);
 		return rc;
 	}
 
@@ -203,13 +463,28 @@ int c2_db_init(struct c2_dba_ctxt *ctxt)
 			     */
                              DB_READ_UNCOMMITTED;
 	ctxt->dc_txn_flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
-	rc = c2_db_open(dbenv, "group_extent_1", ctxt->dc_db_flags, &ctxt->dc_group_extent);
+	rc = c2_dba_open_db(dbenv, "group_extent_1", ctxt->dc_db_flags,
+			    c2_dba_blockno_compare, &ctxt->dc_group_extent);
 
-	printf("path = %s\n", ctxt->dc_home);
+	LEAVE;
 	return 0;
 }
 
-int c2_db_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
+/**
+   Allocate multiple blocks for some object.
+
+   This routine will search suitable free space, and determine where to allocate
+   from.  Caller can provide some hint. Pre-allocation may be used depending
+   the character of the I/O sequences, and the current state of the active I/O.
+   When trying allocate blocks from free space, we will allocate from the
+   best suitable chunks, which are represented as buddy.
+
+   @param ctxt dba operation context environment.
+   @param req allocate request which includes all parameters.
+   @return 0 means success. Result allocated blocks are again stored in "req".
+           Upon failure, non-zero error number is returned.
+ */
+int c2_dba_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 {
 	DB_TXN         *tx = NULL;
 	DB_ENV	       *dbenv = ctxt->dc_dbenv;
@@ -226,7 +501,7 @@ int c2_db_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 		db_err(dbenv, rc, "cannot start transaction");
 		return rc;
 	}
-	rc = c2_db_insert(dbenv, tx, ctxt->dc_group_extent,
+	rc = c2_dba_insert_record(dbenv, tx, ctxt->dc_group_extent,
 			  &bn, sizeof bn, &count, sizeof count);
 
 	if (rc == 0)
@@ -238,7 +513,19 @@ int c2_db_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 	return rc;
 }
 
+/**
+   Free multiple blocks owned by some object to free space.
+ */
+int c2_dba_free(struct c2_dba_ctxt *ctxt, struct c2_dba_free_req *req)
+{
 
+	return 0;
+}
+
+
+/**
+   Sample code to iterate over a db
+ */
 static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 {
 	DB_ENV	       *dbenv = ctxt->dc_dbenv;
@@ -300,55 +587,66 @@ int main()
 		.dc_nr_thread = 1
 		};
 
-	struct c2_dba_allocate_req request;
+	struct c2_dba_allocate_req alloc_req;
+	struct c2_dba_format_req   format_req;
 
 	int rc = 0;
 	char path[256];
 
 	getcwd(path, 255);
+
+	format_req.dfr_db_home = path;
+	format_req.dfr_totalsize = 4096ULL * 1024 * 1024 * 10; //=40GB
+	format_req.dfr_blocksize = 4096;
+	format_req.dfr_groupsize = 4096 * 8; //=128MB = ext4 group size
+	format_req.dfr_reserved_groups = 2;
+
+	rc = c2_dba_format(&format_req);
+
+	return rc;
+
 	ctxt.dc_home = path;
-
-	rc = c2_db_init(&ctxt);
+	rc = c2_dba_init(&ctxt);
 	if (rc != 0) {
-		fprintf(stderr, "c2_db_init error: %d\n", rc);
+		fprintf(stderr, "c2_dba_init error: %d\n", rc);
 		return rc;
 	}
-	request.dar_logical = 1234;
-	request.dar_lcount  = 5678;
-	rc = c2_db_allocate(&ctxt, &request);
+	alloc_req.dar_logical = 0x1234;
+	alloc_req.dar_lcount  = 0x5678;
+	rc = c2_dba_allocate(&ctxt, &alloc_req);
 	if (rc != 0) {
-		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
-		return rc;
-	}
-
-	request.dar_logical = 4321;
-	request.dar_lcount  = 8765;
-	rc = c2_db_allocate(&ctxt, &request);
-	if (rc != 0) {
-		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
+		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
 	}
 
-	request.dar_logical = 1111;
-	request.dar_lcount  = 2222;
-	rc = c2_db_allocate(&ctxt, &request);
+	alloc_req.dar_logical = 0x1122;
+	alloc_req.dar_lcount  = 0x3344;
+	rc = c2_dba_allocate(&ctxt, &alloc_req);
 	if (rc != 0) {
-		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
+		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
 	}
 
 
-	request.dar_logical = 8888;
-	request.dar_lcount  = 9999;
-	rc = c2_db_allocate(&ctxt, &request);
+	alloc_req.dar_logical = 0x7788;
+	alloc_req.dar_lcount  = 0x9900;
+	rc = c2_dba_allocate(&ctxt, &alloc_req);
 	if (rc != 0) {
-		fprintf(stderr, "c2_db_allocate error: %d\n", rc);
+		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
+		return rc;
+	}
+
+	alloc_req.dar_logical = 0x1111;
+	alloc_req.dar_lcount  = 0x2222;
+	rc = c2_dba_allocate(&ctxt, &alloc_req);
+	if (rc != 0) {
+		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
 	}
 
 
-	db_list(&ctxt, &request);
+	db_list(&ctxt, &alloc_req);
 
-	c2_db_fini(&ctxt);
+	c2_dba_fini(&ctxt);
 	return 0;
 }
