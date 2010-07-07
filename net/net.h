@@ -32,6 +32,10 @@
    @{
  */
 
+/*import */
+struct c2_fop;
+
+/* export */
 struct c2_net_xprt;
 struct c2_net_xprt_ops;
 struct c2_net_domain;
@@ -41,8 +45,7 @@ struct c2_net_conn;
 struct c2_net_conn_ops;
 struct c2_service;
 struct c2_service_ops;
-struct c2_rpc_op;
-struct c2_net_async_call;
+struct c2_net_call;
 
 /** Network transport (e.g., lnet or sunrpc) */
 struct c2_net_xprt {
@@ -152,6 +155,21 @@ void c2_service_id_fini(struct c2_service_id *id);
  */
 bool c2_services_are_same(const struct c2_service_id *c1,
 			  const struct c2_service_id *c2);
+
+/**
+   Table of operations, supported by a service.
+
+   Operations supported by a service are identified by a scalar "opcode". A
+   server supports a continuous range of opcodes. This simple model simplifies
+   memory management and eliminates a loop over an array of a list in a service
+   hot path.
+ */
+struct c2_net_op_table {
+	uint64_t             not_start;
+	uint64_t             not_nr;
+	struct c2_fop_type **not_fopt;
+};
+
 /**
    Running service instance.
 
@@ -163,7 +181,10 @@ struct c2_service {
 	/** Domain this service is running in. */
 	struct c2_net_domain           *s_domain;
 	/** Table of operations. */
-	struct c2_rpc_op_table         *s_table;
+	struct c2_net_op_table          s_table;
+	int                           (*s_handler)(struct c2_service *service,
+						   struct c2_fop *fop,
+						   void *cookie);
 	/** 
 	    linkage in the list of all services running in the domain 
 	*/
@@ -176,8 +197,9 @@ struct c2_service {
 
 struct c2_service_ops {
 	void (*so_fini)(struct c2_service *service);
+	void (*so_reply_post)(struct c2_service *service,
+			      struct c2_fop *fop, void *cookie);
 };
-
 
 /**
    Client side of a logical network connection to a service.
@@ -219,14 +241,13 @@ struct c2_net_conn_ops {
 	   Synchronously call operation on the target service and wait for
 	   reply.
 	 */
-	int  (*sio_call)(struct c2_net_conn *conn, const struct c2_rpc_op *op,
-			 void *arg, void *ret);
+	int  (*sio_call)(struct c2_net_conn *conn, struct c2_net_call *c);
 	/**
 	   Post an asynchronous operation to the target service.
 
-	   The completion is announced by signalling c2_net_async_call::ac_chan.
+	   The completion is announced by signalling c2_net_call::ac_chan.
 	 */
-	int  (*sio_send)(struct c2_net_conn *conn, struct c2_net_async_call *c);
+	int  (*sio_send)(struct c2_net_conn *conn, struct c2_net_call *c);
 };
 
 /**
@@ -273,133 +294,30 @@ void c2_net_conn_release(struct c2_net_conn *conn);
 void c2_net_conn_unlink(struct c2_net_conn *conn);
 
 /**
- generic hanlder for XDR transformations
-
- @param x pointer to XDR object
- @param data pointer to memory region which consist data to store inside XDR,
-	     or have enough memory to extract network data from XDR.
-
- @retval true iif conversion finished OK
+   Service call description.
  */
-typedef	bool (*c2_xdrproc_t)(void *xdr, void *data);
-
-/**
- server side RPC handler.
-
- @param arg - incoming argument
- @param ret - pointer to memory area to store result. this area allocated
-		before call the hanlder.
-
- @retval true if ret pointed to correct reply and can send over wire
- @retval false if ret consist invalid data and system error should be returned
-	       to client
- */
-typedef	bool (*c2_rpc_srv_handler)(const struct c2_rpc_op *op, 
-				   void *arg, void **ret);
-
-/**
-   rpc commands associated with service thread
- */
-struct c2_rpc_op {
-	/**
-	 operation identifier
-	 */
-	uint64_t	ro_op;
-	/**
-	 size of incoming argument
-	 */
-	size_t		ro_arg_size;
-	/**
-	 XDR program to converting argument of remote procedure call
-	 */
-	c2_xdrproc_t	ro_xdr_arg;
-	/**
-	 size of reply
-	 */
-	size_t		ro_result_size;
-	/**
-	 XDR program to converting result of remote procedure call
-	 */
-	c2_xdrproc_t	ro_xdr_result;
-	/**
-	 function to a handle operation on server side
-	 */
-	c2_rpc_srv_handler ro_handler;
-	/**
-	 name of this operation
-	 */
-	char 		*ro_name;
-};
-
-/**
- structre to hold an array of operations to handle in the service
- */
-struct c2_rpc_op_table;
-
-/**
- allocate new table and fill with initial values
- */
-int c2_rpc_op_table_init(struct c2_rpc_op_table **table);
-
-/**
- free allocated resources
- */
-void c2_rpc_op_table_fini(struct c2_rpc_op_table *table);
-
-/**
- register one rpc operation in the table
- */
-int c2_rpc_op_register(struct c2_rpc_op_table *table, const struct c2_rpc_op *op);
-
-/**
- find operation in table. function scanned table with operation to find
- requested operation.
-
- @param ops pointer filled operations table
- @param op rpc operation to find
-
- @retval NULL if pointer not exist or wrong parameters
- @retval !NULL if operations found in table
- */
-const struct c2_rpc_op *c2_rpc_op_find(struct c2_rpc_op_table *ops, 
-				       uint64_t op);
-
-struct c2_rpc_op_table;
-
-/**
- synchronous rpc call. client blocked until rpc finished.
-
- @param conn - network connection associated with replier
- @param rot - pointer to operations table associated with replier
- @param op - operation to call on replier
- @param arg - pointer to buffer with argument of operation
- @param ret - pointer to buffer to put reply from a replier
-
- @retval 0 OK
- @retval <0 ERROR
- */
-int c2_net_cli_call(struct c2_net_conn *conn, struct c2_rpc_op_table *rot,
-		    uint64_t op, void *arg, void *ret);
-
-/**
-   Asynchronous service call description.
- */
-struct c2_net_async_call {
+struct c2_net_call {
 	/** Connection over which the call is made. */
 	struct c2_net_conn     *ac_conn;
-	/** Service operation that is called. */
-	const struct c2_rpc_op *ac_op;
-	/** Arguments. */
-	void                   *ac_arg;
-	/** Results, only meaningful when c2_net_async_call::ac_rc is 0. */
-	void                   *ac_ret;
-	/** Call result. */
+	/** Argument. */
+	struct c2_fop          *ac_arg;
+	/** Result, only meaningful when c2_net_async_call::ac_rc is 0. */
+	struct c2_fop          *ac_ret;
+	/** Call result for asynchronous call. */
 	uint32_t                ac_rc;
-	/** Channel where call completion is broadcast. */
+	/** Channel where asynchronous call completion is broadcast. */
 	struct c2_chan          ac_chan;
 	/** Linkage into the queue of pending calls. */
 	struct c2_queue_link    ac_linkage;
 };
+
+/**
+   Synchronous network call. Caller is blocked until reply message is received.
+
+   @param conn - network connection associated with replier
+   @param call - description of the call.
+ */
+int c2_net_cli_call(struct c2_net_conn *conn, struct c2_net_call *call);
 
 /**
    Asynchronous rpc call. Caller continues without waiting for an answer.
@@ -410,7 +328,7 @@ struct c2_net_async_call {
    @retval 0 OK
    @retval <0 ERROR
 */
-int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call);
+int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_call *call);
 
 
 /**
@@ -419,17 +337,14 @@ int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_async_call *call);
  This function creates a number of service threads, installs request handlers,
  record the thread infomation for all services.
 
- @param id service identifier
- @param num_of_threads number of the services to be created
- @param ops rpc operations table
  @param service data structure to contain all service info
+ @param sid service identifier
 
  @return 0 succees, other value indicates error.
  @see c2_net_service_stop
  */
 int c2_service_start(struct c2_service *service,
-		     struct c2_service_id *sid,
-		     struct c2_rpc_op_table *ops);
+		     struct c2_service_id *sid);
 /**
    Stop network service and release resources associated with it.
 
@@ -437,6 +352,8 @@ int c2_service_start(struct c2_service *service,
  */
 void c2_service_stop(struct c2_service *service);
 
+void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop, 
+		       void *cookie);
 /**
  constructor for the network library
  */

@@ -57,8 +57,7 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 /**
    A macro indicating that computation reached an invalid state.
  */
-#define C2_IMPOSSIBLE(msg) \
-        c2_panic("Impossible: " msg, __func__, __FILE__, __LINE__)
+#define C2_IMPOSSIBLE(msg) C2_ASSERT("Impossible: " msg == NULL)
 
 /** @} end of assert group */
 

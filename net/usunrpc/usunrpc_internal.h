@@ -23,7 +23,7 @@
    Currently asynchronous client calls are implemented by creating a pool of
    sunrpc client connections (CLIENT structure) per C2 logical network
    connection. To submit an asynchronous call, a user allocates a call structure
-   (c2_net_async_call) and places it in a global (per network domain) queue.
+   (c2_net_call) and places it in a global (per network domain) queue.
 
    A global (per domain) pool of threads listens on this queue and processes
    requests synchronously.

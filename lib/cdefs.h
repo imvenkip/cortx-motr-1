@@ -3,6 +3,8 @@
 
 #define __COLIBRI_LIB_CDEFS_H_
 
+#ifndef __KERNEL__
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -15,16 +17,6 @@
 #define container_of(ptr, type, member) \
         ((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))
 #endif
-
-/**
- * size of static array
- */
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
-#endif
-
-#define ergo(a, b) (!(a) || (b))
-#define equi(a, b) (!(a) == !(b))
 
 #include <limits.h>
 
@@ -41,6 +33,25 @@
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
+
+/**
+ * size of static array
+ */
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
+#endif
+
+#define EXPORT_SYMBOL(s) 
+
+#else /* __KERNEL__ */
+
+#include <linux/types.h>
+#include <linux/kernel.h>
+
+#endif /* __KERNEL__ */
+
+#define ergo(a, b) (!(a) || (b))
+#define equi(a, b) (!(a) == !(b))
 
 extern void __dummy_function(void);
 

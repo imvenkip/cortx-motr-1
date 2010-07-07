@@ -2,6 +2,8 @@ OS = @OS@
 
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
+FOPDIR = @SRCDIR@/fop
+STOBDIR = @SRCDIR@/stob/ut
 
 ifeq ($(OS),linux)
 
@@ -13,7 +15,16 @@ all:
         fi
 	if ! test -e ksunrpc; then      \
             ln -s $(KSUNRPC_SRCDIR);    \
-        fi
+        fi 
+	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
+	mv io_k.[ch] c2t1fs/
+	if ! test -e c2t1fs/io_fop_init.c; then \
+		ln -s $(STOBDIR)/io_fop_init.c c2t1fs/; \
+        fi 
+	if ! test -e ksunrpc/fop.c; then \
+		ln -s $(FOPDIR)/fop.c ksunrpc/; \
+		ln -s $(FOPDIR)/fop_format.c ksunrpc/; \
+        fi 
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 clean distclean:
@@ -26,6 +37,8 @@ clean distclean:
 	$(MAKE) -C c2t1fs clean
 	$(MAKE) -C ksunrpc clean
 	$(RM) Module.markers modules.order
+	$(RM) ksunrpc/fop.c ksunrpc/fop_format.c
+	$(RM) c2t1fs/fop.c c2t1fs/fop_format.c c2t1fs/io_fop_init.c
 	$(RM) -fr c2t1fs ksunrpc
 
 else

@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
 	struct c2_net_conn *conn1;
 	struct c2_service_id  node_arg = { .si_uuid = {0} };
 	struct c2_service_id  node_ret = { .si_uuid = {0} };
-	struct c2_rpc_op_table *ops;
 	struct c2_service s1;
 
 	memset(&s1, 0, sizeof s1);
@@ -89,14 +88,7 @@ int main(int argc, char *argv[])
 	rc = c2_service_id_init(&sid1, &dom, "127.0.0.1", PORT);
 	CU_ASSERT(rc == 0);
 
-	c2_rpc_op_table_init(&ops);
-	CU_ASSERT(ops != NULL);
-
-	rc = c2_rpc_op_register(ops, &test_rpc1);
-
-	rc = c2_rpc_op_register(ops, &test_rpc2);
-
-	rc = c2_service_start(&s1, &sid1, ops);
+	rc = c2_service_start(&s1, &sid1);
 	CU_ASSERT(rc >= 0);
 
 	sleep(1);
@@ -119,8 +111,6 @@ int main(int argc, char *argv[])
 	c2_net_conn_release(conn1);
 
 	c2_service_stop(&s1);
-	c2_rpc_op_table_fini(ops);
-
 	c2_service_id_fini(&sid1);
 	c2_net_domain_fini(&dom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);

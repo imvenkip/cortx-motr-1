@@ -13,12 +13,12 @@
 #include <netinet/in.h>
 
 #include <rpc/rpc.h>
-#include <rpc/pmap_clnt.h>
 
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/queue.h"
 #include "lib/memory.h"
+#include "fop/fop.h"
 
 #include "net.h"
 
@@ -32,19 +32,23 @@ static const struct c2_addb_ctx_type c2_net_service_addb_ctx = {
 	.act_name = "net-service"
 };
 
-int c2_service_start(struct c2_service *service,
-		     struct c2_service_id *sid,
-		     struct c2_rpc_op_table *ops)
+int c2_service_start(struct c2_service *service, struct c2_service_id *sid)
 {
 	int                   result;
+	int                   i;
 	struct c2_net_domain *dom;
 
 	C2_ASSERT(service->s_id == NULL);
+	C2_ASSERT(service->s_table.not_nr > 0);
+
+	for (i = 0; i < service->s_table.not_nr; ++i) {
+		C2_ASSERT(service->s_table.not_fopt[i]->ft_code == 
+			  service->s_table.not_start + i);
+	}
 
 	dom = sid->si_domain;
 	service->s_id     = sid;
 	service->s_domain = dom;
-	service->s_table  = ops;
 	c2_list_link_init(&service->s_linkage);
 	result = service->s_domain->nd_xprt->nx_ops->xo_service_init(service);
 	if (result == 0) {
@@ -67,6 +71,12 @@ void c2_service_stop(struct c2_service *service)
 	c2_rwlock_read_lock(&dom->nd_lock);
 	c2_list_del(&service->s_linkage);
 	c2_rwlock_read_unlock(&dom->nd_lock);
+}
+
+void c2_net_reply_post(struct c2_service *service, 
+		       struct c2_fop *fop, void *cookie)
+{
+	service->s_ops->so_reply_post(service, fop, cookie);
 }
 
 /** @} end of net group */

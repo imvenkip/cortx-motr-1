@@ -4,8 +4,6 @@
 #define __COLIBRI_FOP_FOP_H__
 
 #include "lib/cdefs.h"
-#include "lib/vec.h"
-#include "lib/list.h"
 
 /**
    @defgroup fop File operation packet
@@ -32,6 +30,7 @@
 /* import */
 struct c2_fom;
 struct c2_rpcmachine;
+struct c2_service;
 
 /* export */
 struct c2_fop_type;
@@ -39,8 +38,9 @@ struct c2_fop_type_ops;
 struct c2_fop_data;
 struct c2_fop;
 struct c2_fop_field;
-struct c2_fop_field_ops;
-struct c2_fop_field_base;
+struct c2_fop_field_type;
+struct c2_fop_memlayout;
+struct c2_fop_type_format;
 
 typedef uint32_t c2_fop_type_code_t;
 
@@ -55,26 +55,41 @@ struct c2_fop_type {
 	c2_fop_type_code_t            ft_code;
 	/** Operation name. */
 	const char                   *ft_name;
+#if 0
 	/** Linkage into a list of all known operations. */
 	struct c2_list_link           ft_linkage;
-	/** Top level field in the fops of this type. */
-	struct c2_fop_field          *ft_top;
+#endif
+	/** Type of a top level field in fops of this type. */
+	struct c2_fop_field_type     *ft_top;
 	const struct c2_fop_type_ops *ft_ops;
+	struct c2_fop_type_format    *ft_fmt;
+};
+
+int  c2_fop_type_build(struct c2_fop_type *fopt);
+void c2_fop_type_fini(struct c2_fop_type *fopt);
+
+int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
+void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+
+struct c2_fop_ctx {
+	struct c2_service *ft_service;
+	void              *fc_cookie;
 };
 
 /** fop type operations. */
 struct c2_fop_type_ops {
 	/** Create a fom that will carry out operation described by the fop. */
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
+	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
 };
 
 /** 
     fop storage.
 
-    A fop is stored in a buffer vector.
+    A fop is stored in a buffer vector. XXX not for now.
  */
 struct c2_fop_data {
-	struct c2_bufvec fd_vec;
+	void            *fd_data;
 };
 
 /** fop. */
@@ -85,9 +100,9 @@ struct c2_fop {
 	struct c2_fop_data  f_data;
 };
 
-int  c2_fop_type_register  (struct c2_fop_type *ftype, 
-			    struct c2_rpcmachine *rpcm);
-void c2_fop_type_unregister(struct c2_fop_type *ftype);
+struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
+void           c2_fop_free(struct c2_fop *fop);
+void          *c2_fop_data(struct c2_fop *fop);
 
 /** True iff fop describes an operation that would mutate file system state when
     executed. */
@@ -127,146 +142,90 @@ enum c2_fop_field_kind {
 };
 
 /**
-   fop field type describes the set of values that can be stored in this field.
-
-   This enum describes "type" (in a programming language sense) of a fop field.
- */
-enum c2_fop_field_type {
-	/** Invalid type. */
-	FFT_ZERO,
-	/** Void type. */
-	FFT_VOID,
-	/** Boolean. */
-	FFT_BOOL,
-	/** Octet. */
-	FFT_CHAR,
-	/** 64 bit value. */
-	FFT_64,
-	/** 32 bit value. */
-	FFT_32,
-	/** This field is a record, containing other fields. */
-	FFT_RECORD,
-	/** This field is a discriminated union, containing some field from a
-	    set of possible cases. */
-	FFT_UNION,
-	/** This field is an array, containing a number of instances of the same
-	    element field. */
-	FFT_ARRAY,
-	/** This field is a bit-mask. */
-	FFT_BITMASK,
-	/** This field contains a file or object identifier. */
-	FFT_FID,
-	/** This field contains file name (a path component). */
-	FFT_NAME,
-	/** This field contains a path-name. */
-	FFT_PATH,
-	/** This field contains a principal (user or group) identifier. */
-	FFT_PRINCIPAL,
-	/** This field contains a cryptographic capability. */
-	FFT_CAPABILITY,
-	/** This field contains a time-stamp. */
-	FFT_TIMESTAMP,
-	/** This field contains an epoch number. */
-	FFT_EPOCH,
-	/** This field contains a file system object version. */
-	FFT_VERSION,
-	/** This field contains an linear offset within a file system object. */
-	FFT_OFFSET,
-	/** This field contains a count of something. */
-	FFT_COUNT,
-	/** This field contains a data buffer. */
-	FFT_BUFFER,
-	/** This field contains a resource identifier. */
-	FFT_RESOURCE,
-	/** This field contains a lock identifier. */
-	FFT_LOCK,
-	/** This field contains a cluster node identifier. */
-	FFT_NODE,
-	/** This field contains a fop. */
-	FFT_FOP,
-	/** This field is a reference to another field. */
-	FFT_REF,
-	/** This field contains something else. */
-	FFT_OTHER,
-
-	FFT_NR
-};
-
-/**
-   Attributes that multiple "similar" field in different fop types can share.
-
-   For example, many fop types would have a field storing identifier of the
-   object on which an operation is performed. Some field attributes, like field
-   name can be different in different fop types. Shared attributes are factored
-   out to c2_fop_field_base.
- */
-struct c2_fop_field_base {
-	const enum c2_fop_field_kind   ffb_kind;
-	const enum c2_fop_field_type   ffb_type;
-	/** Is this field compound (array, record, fop, union, etc.) or
-	    non-compound (atom)? */
-	const bool                     ffb_compound;
-	const struct c2_fop_field_ops *ffb_ops;
-};
-
-/**
    fop field.
-
-   fop structure is described in terms of fields. Fields of a given fop type are
-   arranged in a tree. Non-compound fields are the leaves of this tree and the
-   root and all intermediate nodes are compound fields.
-
-   @note a tree of fields describes structure of field in a fop type, not an
-   actual arrangement of fields in a particular fop instance. For example, a
-   field of array type has a single child node that corresponds to the field of
-   array elements. In the actual fop there can be multiple (or 0) instances of
-   this element field.
  */
 struct c2_fop_field {
-	struct c2_fop                  *ff_fop;
 	/** Field name. */
-	const char                     *ff_name;
-	/** Base attributes. */
-	const struct c2_fop_field_base *ff_base;
-	/** Sibling node in the field tree. */
-	struct c2_list_link             ff_sibling;
-	/** List of children fields (if any), linked through
-	    c2_fop_field::ff_sibling. Only compound fields have this list
-	    non-empty. */
-	struct c2_list                  ff_child;
-	/** Pointer to the parent field in the tree, or NULL for the top field
-	    in fop type (c2_fop_type::ft_top). */
-	struct c2_fop_field            *ff_parent;
-	const struct c2_fop_field      *ff_ref;
+	const char               *ff_name;
+	struct c2_fop_field_type *ff_type;
+	uint32_t                  ff_tag;
+	void                    **ff_decor;
 };
 
-/** Allocate fop field and initialise its attributes. */
-struct c2_fop_field *c2_fop_field_alloc(void);
-/** Finalise the field destroying all its state including sub-tree of fields
-    rooted at the field. */
-void c2_fop_field_fini(struct c2_fop_field *field);
+
+enum c2_fop_field_aggr {
+	FFA_RECORD,
+	FFA_UNION,
+	FFA_SEQUENCE,
+	FFA_TYPEDEF,
+	FFA_ATOM,
+	FFA_NR
+};
+
+enum c2_fop_field_primitive_type {
+	FPF_VOID,
+	FPF_BYTE,
+	FPF_U32,
+	FPF_U64,
+
+	FPF_NR
+};
+
+/**
+   fop field type in a programming language "type" sense.
+ */
+struct c2_fop_field_type {
+	enum c2_fop_field_aggr   fft_aggr;
+	const char              *fft_name;
+	union {
+		struct c2_fop_field_record {
+		} u_record;
+		struct c2_fop_field_union {
+		} u_union;
+		struct c2_fop_field_sequence {
+			uint64_t s_max;
+		} u_sequence;
+		struct c2_fop_field_typedef {
+		} u_typedef;
+		struct c2_fop_field_atom {
+			enum c2_fop_field_primitive_type a_type;
+		} u_atom;
+	} fft_u;
+	/* a fop must be decorated, see any dictionary. */
+	void                   **fft_decor;
+	size_t                   fft_nr;
+	struct c2_fop_field    **fft_child;
+	struct c2_fop_memlayout *fft_layout;
+};
+
+void c2_fop_field_type_fini(struct c2_fop_field_type *t);
+
+extern struct c2_fop_field_type C2_FOP_TYPE_VOID;
+extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
+extern struct c2_fop_field_type C2_FOP_TYPE_U32;
+extern struct c2_fop_field_type C2_FOP_TYPE_U64;
+
+#if 0
 
 enum c2_fop_field_cb_ret {
 	FFC_CONTINUE,
-	FFC_BREAK,
-	FFC_SKIP,
-	FFC_REPEAT
+	FFC_BREAK
 };
 
 /** 
     Call-back function supplied to fop field tree iterating functions.
  */
-typedef enum c2_fop_field_cb_ret (*c2_fop_field_cb_t)(struct c2_fop_field *, 
-						      unsigned , void *);
+typedef enum c2_fop_field_cb_ret 
+(*c2_fop_field_cb_t)(const struct c2_fop_field *, unsigned , void *);
 /**
-   Traverse the fop field tree calling call-backs for every tree node.
+   Traverse the fop field type tree calling call-backs for every tree node.
 
    @param pre_cb call-back called before children are traversed
    @param post_cb call-back called after children are traversed
  */
-void c2_fop_field_traverse(struct c2_fop_field *field,
-			   c2_fop_field_cb_t pre_cb, 
-			   c2_fop_field_cb_t post_cb, void *arg);
+void c2_fop_field_type_traverse(const struct c2_fop_field_type *ftype,
+				c2_fop_field_cb_t pre_cb, 
+				c2_fop_field_cb_t post_cb, void *arg);
 
 /** 
     Values of this type describe position within a compound field.
@@ -276,10 +235,6 @@ void c2_fop_field_traverse(struct c2_fop_field *field,
     of an element, etc.
 */
 typedef uint64_t c2_fop_field_iterator_t;
-
-struct c2_fop_field_ops {
-	
-};
 
 enum {
 	/** Maximal depth of a fop field tree. */
@@ -323,9 +278,13 @@ void c2_fop_iterator_init(struct c2_fop_iterator *it, struct c2_fop *fop);
 void c2_fop_iterator_fini(struct c2_fop_iterator *it);
 int  c2_fop_iterator_get (struct c2_fop_iterator *it, 
 			  struct c2_fop_field_val *val);
+/* 0 */
+#endif
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
+
+#include "fop/fop_format.h"
 
 /** @} end of fop group */
 

@@ -11,7 +11,12 @@
 #include <linux/inet.h>
 #include <linux/in.h>
 
+#include "fop/fop.h"
+
 #include "c2t1fs.h"
+
+#include "io_k.h"
+#include "stob/ut/io_fop.h"
 
 #define DBG(fmt, args...) //printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -122,58 +127,110 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
         int rc;
 
         if (rw == WRITE) {
-                struct c2t1fs_write_arg arg;
-                struct c2t1fs_write_ret ret;
+		struct c2_io_write     *arg;
+                struct c2_io_write_rep *ret;
+		struct c2_fop               *f;
+		struct c2_fop               *r;
+		struct c2_knet_call          kcall;
 
-                arg.wa_fid.f_d1 = 10;
-                arg.wa_fid.f_d2 = objid;
-                arg.wa_nob      = len;
-                arg.wa_pageoff  = off;
-                arg.wa_offset   = pos;
-                arg.wa_pages    = pages;
+		f = c2_fop_alloc(&c2_io_write_fopt, NULL);
+		r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
+
+		BUG_ON(f == NULL || r == NULL);
+
+		kcall.ac_arg = f;
+		kcall.ac_ret = r;
+
+		arg = c2_fop_data(f);
+		ret = c2_fop_data(r);
+
+                arg->siw_object.f_seq  = 10;
+                arg->siw_object.f_oid  = objid;
+		arg->siw_offset        = pos;
+		arg->siw_buf.cib_count = len;
+		arg->siw_buf.cib_pgoff = off;
+		arg->siw_buf.cib_value = pages;
 
                 DBG("writing data to server(%llu/%d/%d/%ld/%lld)\n",
                     objid, npages, off, len, pos);
-                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &write_op, &arg, &ret);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
                 DBG("write to server returns %d\n", rc);
                 if (rc)
                         return rc;
-                return ret.cwr_rc ? : ret.cwr_count;
+                rc = ret->siwr_rc ? : ret->siwr_count;
+		c2_fop_free(r);
+		c2_fop_free(f);
         } else {
-                struct c2t1fs_read_arg arg;
-                struct c2t1fs_read_ret ret;
+		struct c2_io_read      *arg;
+                struct c2_io_read_rep  *ret;
+		struct c2_fop               *f;
+		struct c2_fop               *r;
+		struct c2_knet_call          kcall;
 
-                arg.ra_fid.f_d1 = 10;
-                arg.ra_fid.f_d2 = objid;
-                arg.ra_nob = len;
-                arg.ra_pageoff = off;
-                arg.ra_offset = pos;
-                arg.ra_pages = pages;
+		f = c2_fop_alloc(&c2_io_read_fopt, NULL);
+		r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
+
+		BUG_ON(f == NULL || r == NULL);
+
+		kcall.ac_arg = f;
+		kcall.ac_ret = r;
+
+		arg = c2_fop_data(f);
+		ret = c2_fop_data(r);
+
+                arg->sir_object.f_seq = 10;
+                arg->sir_object.f_oid = objid;
+		arg->sir_seg.f_offset = pos;
+		arg->sir_seg.f_count  = len;
+
+		ret->sirr_buf.cib_count = len;
+		ret->sirr_buf.cib_pgoff = off;
+		ret->sirr_buf.cib_value = pages;
 
                 DBG("reading data from server(%llu/%d/%d/%ld/%lld)\n",
                     objid, npages, off, len, pos);
-                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &read_op, &arg, &ret);
+                rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
                 DBG("read from server returns %d\n", rc);
                 if (rc)
                         return rc;
-                return ret.crr_rc ? : ret.crr_count;
+                rc = ret->sirr_rc ? : ret->sirr_buf.cib_count;
+		c2_fop_free(r);
+		c2_fop_free(f);
         }
+	return rc;
 }
 
 int ksunrpc_create(struct ksunrpc_xprt *xprt,
                    uint64_t objid)
 {
         int rc;
-        struct c2t1fs_create_arg arg;
-        struct c2t1fs_create_res res;
+	struct c2_io_create      *arg;
+	struct c2_io_create_rep  *ret;
+	struct c2_fop            *f;
+	struct c2_fop            *r;
+	struct c2_knet_call       kcall;
 
-        arg.ca_fid.f_d1 = 10;
-        arg.ca_fid.f_d2 = objid;
+	f = c2_fop_alloc(&c2_io_create_fopt, NULL);
+	r = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
+
+	BUG_ON(f == NULL || r == NULL);
+
+	kcall.ac_arg = f;
+	kcall.ac_ret = r;
+
+	arg = c2_fop_data(f);
+	ret = c2_fop_data(r);
+
+        arg->sic_object.f_seq = 10;
+        arg->sic_object.f_oid = objid;
 
         DBG("%s create object %llu\n", __FUNCTION__, objid);
-        rc = ksunrpc_xprt_ops.ksxo_call(xprt, &create_op, &arg, &res);
-        DBG("create obj returns %d/%d\n", rc, res.res);
-        return rc? : res.res;
+        rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
+        DBG("create obj returns %d/%d\n", rc, ret->sicr_res);
+        rc = rc ? : ret->sicr_rc;
+	c2_fop_free(r);
+	c2_fop_free(f);
+	return rc;
 }
 
 static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
@@ -828,7 +885,16 @@ int init_module(void)
         if (rc)
                 return rc;
         rc = register_filesystem(&c2t1fs_fs_type);
-        if (rc)
+        if (rc == 0) {
+		rc = c2_fops_init();
+		if (rc == 0) {
+			rc = io_fop_init();
+			if (rc != 0)
+				c2_fops_fini();
+		}
+		if (rc != 0)
+			unregister_filesystem(&c2t1fs_fs_type);
+	} else
                 c2t1fs_destroy_inodecache();
 
         return rc;
@@ -838,8 +904,20 @@ void cleanup_module(void)
 {
         int rc;
 
+	io_fop_fini();
+	c2_fops_fini();
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
         if (rc)
                 printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
 }
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
