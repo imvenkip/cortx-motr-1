@@ -131,7 +131,7 @@ static int c2_dba_blockno_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
    @param dbp [out] db pointer returned.
 */
 
-static int c2_dba_open_db(DB_ENV *dbenv, const char *name, u_int32_t flags,
+static int c2_dba_open_db(DB_ENV *dbenv, const char *name, uint32_t flags,
 			  int (*key_compare)(DB *db, const DBT *dbt1, const DBT *dbt2),
 			  DB **dbp)
 {
@@ -178,13 +178,13 @@ int c2_dba_format(struct c2_dba_format_req *req)
 	int            	 rc;
 	DB_ENV 		*dbenv;
 	char		 path[MAXPATHLEN];
-        u_int32_t        dbenv_flags;
-        u_int32_t  	 db_flags;
+        uint32_t         dbenv_flags;
+        uint32_t  	 db_flags;
 	DB              *group_free_extent;
 	DB              *group_desc;
 	DB              *super_block;
-	u_int32_t	 number_of_groups;
-	u_int32_t	 i;
+	uint32_t	 number_of_groups;
+	uint32_t	 i;
 
 	struct c2_dba_extent      ext;
 	struct c2_dba_group_desc  gd;
@@ -388,8 +388,8 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 
 	ctxt->dc_cache_size = 1024*1024;
 	if (ctxt->dc_cache_size != 0) {
-		u_int32_t gbytes;
-		u_int32_t bytes;
+		uint32_t gbytes;
+		uint32_t bytes;
 
 		gbytes = ctxt->dc_cache_size / (1024*1024*1024);
 		bytes  = ctxt->dc_cache_size - (gbytes * (1024*1024*1024));

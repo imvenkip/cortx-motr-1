@@ -9,20 +9,20 @@
 
 #define MAXPATHLEN 1024
 
-typedef u_int64_t c2_blockno_t;
-typedef u_int32_t c2_blockcount_t;
-typedef u_int64_t c2_groupno_t;
+typedef uint64_t c2_blockno_t;
+typedef uint32_t c2_blockcount_t;
+typedef uint64_t c2_groupno_t;
 
 
 struct c2_dba_ctxt {
 	DB_ENV         *dc_dbenv;
 	char	       *dc_home;
 
-        u_int32_t       dc_dbenv_flags;
-        u_int32_t  	dc_db_flags;
-        u_int32_t  	dc_txn_flags;
-        u_int32_t  	dc_cache_size;
-        u_int32_t  	dc_nr_thread;
+        uint32_t       dc_dbenv_flags;
+        uint32_t       dc_db_flags;
+        uint32_t       dc_txn_flags;
+        uint32_t       dc_cache_size;
+        uint32_t       dc_nr_thread;
 
 	DB             *dc_group_extent;
 	DB             *dc_group_info;
@@ -101,9 +101,9 @@ struct c2_dba_super_block {
 
 struct c2_dba_format_req {
 	c2_blockno_t 	dfr_totalsize;	      /* total size in bytes */
-	u_int32_t	dfr_blocksize;        /* block size in bytes */
-	u_int32_t	dfr_groupsize;        /* block size in blocks */
-	u_int32_t	dfr_reserved_groups;  /* # of resvered groups */
+	uint32_t	dfr_blocksize;        /* block size in bytes */
+	uint32_t	dfr_groupsize;        /* block size in blocks */
+	uint32_t	dfr_reserved_groups;  /* # of resvered groups */
 
 	char 	       *dfr_db_home;          /* database home dir */
 };
@@ -112,11 +112,11 @@ struct c2_dba_allocate_req {
 	c2_blockno_t	dar_logical;
 	c2_blockcount_t	dar_lcount;
 	c2_blockno_t	dar_goal;
-	u_int32_t	dar_flags;
+	uint32_t	dar_flags;
 
 	c2_blockno_t	dar_physical;  /* result allocated blocks */
 
-	u_int32_t	dar_err;
+	uint32_t	dar_err;
 	c2_blockno_t	dar_max_avail; /* max avail blocks */
 };
 
@@ -124,7 +124,7 @@ struct c2_dba_free_req {
 	c2_blockno_t	dfr_logical;
 	c2_blockcount_t	dfr_lcount;
 	c2_blockno_t	dfr_physical;
-	u_int32_t	dfr_flags;
+	uint32_t	dfr_flags;
 };
 
 static inline void cpube(void *place, uint64_t val)

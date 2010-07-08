@@ -52,12 +52,12 @@ struct linux_domain {
 
         DB_ENV          *sdl_dbenv;
         DB              *sdl_mapping;
-        u_int32_t        sdl_dbenv_flags;
-        u_int32_t        sdl_db_flags;
-        u_int32_t        sdl_txn_flags;
-        u_int32_t        sdl_cache_size;
-        u_int32_t        sdl_nr_thread;
-        u_int32_t        sdl_recsize;
+        uint32_t         sdl_dbenv_flags;
+        uint32_t         sdl_db_flags;
+        uint32_t         sdl_txn_flags;
+        uint32_t         sdl_cache_size;
+        uint32_t         sdl_nr_thread;
+        uint32_t         sdl_recsize;
         int              sdl_direct_db;
 
 	/** @name ioq Linux adieu fields. @{ */
