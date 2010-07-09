@@ -7,13 +7,28 @@
 #include <lib/list.h>
 #include <lib/mutex.h>
 
+/**
+   @defgroup dba data-block-allocator
+
+   All data structures stored in db in little-endian format (Intel CPU endian).
+   To correctly compare the key value, a custom specific comparison function
+   is provided to db.
+   @{
+*/
+
+
+
 #define MAXPATHLEN 1024
 
 typedef uint64_t c2_blockno_t;
 typedef uint32_t c2_blockcount_t;
 typedef uint64_t c2_groupno_t;
 
+/**
+   In-memory data structure for the dba environment.
 
+   It includes pointers to db, home dir, various flags and parameters.
+ */
 struct c2_dba_ctxt {
 	DB_ENV         *dc_dbenv;
 	char	       *dc_home;
@@ -99,6 +114,9 @@ struct c2_dba_super_block {
 #define C2_DBA_SB_VERSION 1ULL
 
 
+/**
+   Request to format a container.
+ */
 struct c2_dba_format_req {
 	c2_blockno_t 	dfr_totalsize;	      /* total size in bytes */
 	uint32_t	dfr_blocksize;        /* block size in bytes */
@@ -108,6 +126,13 @@ struct c2_dba_format_req {
 	char 	       *dfr_db_home;          /* database home dir */
 };
 
+/**
+   Request to allocate multiple blocks from a container.
+
+   Result is stored in dar_physical. On error case, error number is returned
+   in dar_err. If all available free chunks are smaller that requested, then
+   the maximum available chunk size is returned in dar_max_avail.
+ */
 struct c2_dba_allocate_req {
 	c2_blockno_t	dar_logical;
 	c2_blockcount_t	dar_lcount;
@@ -120,6 +145,9 @@ struct c2_dba_allocate_req {
 	c2_blockno_t	dar_max_avail; /* max avail blocks */
 };
 
+/**
+   Request to free multiple blocks to a container.
+ */
 struct c2_dba_free_req {
 	c2_blockno_t	dfr_logical;
 	c2_blockcount_t	dfr_lcount;
@@ -127,7 +155,10 @@ struct c2_dba_free_req {
 	uint32_t	dfr_flags;
 };
 
-static inline void cpube(void *place, uint64_t val)
+/**
+   Convert a 64-bit integer into big-endian and place it into @place
+ */
+static inline void cpu2be(void *place, uint64_t val)
 {
 	*(uint64_t *)place = val;
 
@@ -138,7 +169,10 @@ static inline void cpube(void *place, uint64_t val)
 		area[i] = val >> (64 - (i + 1)*8);
 }
 
-static inline uint64_t becpu(void *place)
+/**
+   Convert big-endian data @place into 64-bit interger and return it
+ */
+static inline uint64_t be2cpu(void *place)
 {
 	char *area = place;
 	int i;
@@ -162,4 +196,16 @@ static inline uint64_t becpu(void *place)
 #define GOTHERE
 #endif
 
+/** @} end of addb dba */
+
 #endif /*__COLIBRI_DBA_DBA_H__*/
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
