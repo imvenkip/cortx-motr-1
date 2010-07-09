@@ -118,7 +118,7 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 		break;
 	case FFA_SEQUENCE:
 		C2_ASSERT(fmt->ftf_val > 0);
-		C2_ASSERT(nr == 1);
+		C2_ASSERT(nr == 2);
 		t->fft_u.u_sequence.s_max = fmt->ftf_val;
 		break;
 	case FFA_TYPEDEF:

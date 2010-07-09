@@ -68,20 +68,15 @@ static bool uxdr_sequence(const struct c2_fop_field_type *ftype,
 {
 	char **buffer;
 
-	buffer = c2_fop_type_field_addr(ftype, obj, 0);
-	if (ftype->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
-		bool result;
-		result = xdr_bytes(xdrs, buffer, obj, ~0);
-		if (!result)
-			printf("xdr_bytes: %u %p/%p\n", *(uint32_t *)obj, 
-			       buffer, *buffer);
-		return result;
+	buffer = c2_fop_type_field_addr(ftype, obj, 1);
+	if (ftype->fft_child[1]->ff_type == &C2_FOP_TYPE_BYTE) {
+		return xdr_bytes(xdrs, buffer, obj, ~0);
 	} else {
 		struct c2_fop_memlayout *ellay;
 
-		ellay = ftype->fft_child[0]->ff_type->fft_layout;
+		ellay = ftype->fft_child[1]->ff_type->fft_layout;
 		return xdr_array(xdrs, buffer, obj, ~0,
-				 ellay->fm_sizeof, ftype_field_xdr(ftype, 0));
+				 ellay->fm_sizeof, ftype_field_xdr(ftype, 1));
 	}
 }
 

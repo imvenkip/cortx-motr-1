@@ -22,7 +22,6 @@ struct c_fop_decor {
 	bool        d_kreply_prepare;
 	union {
 		struct {
-			char *d_count;
 			char *d_pgoff;
 		} d_sequence;
 	} u;
@@ -39,7 +38,6 @@ static void type_decor_free(void *val)
 
 	free(dec->d_type);
 	free(dec->d_prefix);
-	free(dec->u.d_sequence.d_count);
 	free(dec->u.d_sequence.d_pgoff);
 	c2_free(dec);
 }
@@ -137,10 +135,8 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 	type_prefix(ftype->fft_name, prefix);
 	ASPRINTF(&dec->d_prefix, "%s", prefix);
 
-	if (ftype->fft_aggr == FFA_SEQUENCE) {
-		ASPRINTF(&dec->u.d_sequence.d_count, "%s_count", prefix);
+	if (ftype->fft_aggr == FFA_SEQUENCE)
 		ASPRINTF(&dec->u.d_sequence.d_pgoff, "%s_pgoff", prefix);
-	}
 
 	for (i = 0; i < ftype->fft_nr; ++i) {
 		struct c2_fop_field *f;
@@ -218,7 +214,7 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 }
 
 static void body_cdef(struct c2_fop_field_type *ftype, 
-		      int start, int indent, bool tags)
+		      int start, int indent, bool tags, int ptr)
 {
 	static const char         ruler[] = "\t\t\t\t\t\t\t\t\t\t\t\t\t";
 	size_t                    i;
@@ -226,7 +222,8 @@ static void body_cdef(struct c2_fop_field_type *ftype,
 
 	for (i = start; i < ftype->fft_nr; ++i) {
 		fd = FD(ftype->fft_child[i]);
-		printf("%*.*s%s;", indent, indent, ruler, fd->fd_fmt);
+		printf("%*.*s%s;", indent, indent, ruler, 
+		       i == ptr ? fd->fd_fmt_ptr : fd->fd_fmt);
 		if (tags)
 			printf("\t/* case %i */", ftype->fft_child[i]->ff_tag);
 		printf("\n");
@@ -237,25 +234,22 @@ static void union_cdef(struct c2_fop_field_type *ftype)
 {
 	printf("%s {\n\t%s;\n\tunion {\n", TD(ftype)->d_type, 
 	       FD(ftype->fft_child[0])->fd_fmt);
-	body_cdef(ftype, 1, 2, true);
+	body_cdef(ftype, 1, 2, true, -1);
 	printf("\t} u;\n};\n\n");
 }
 
 static void record_cdef(struct c2_fop_field_type *ftype)
 {
 	printf("%s {\n", TD(ftype)->d_type);
-	body_cdef(ftype, 0, 1, false);
+	body_cdef(ftype, 0, 1, false, -1);
 	printf("};\n\n");
 }
 
 static void sequence_cdef(struct c2_fop_field_type *ftype)
 {
-	struct c_fop_field_decor *fd;
-
-	fd = FD(ftype->fft_child[0]);
-	printf("%s {\n\t%-20s %s;\n\t%s;\n};\n\n",
-	       TD(ftype)->d_type, "uint32_t", TD(ftype)->u.d_sequence.d_count,
-	       fd->fd_fmt_ptr);
+	printf("%s {\n", TD(ftype)->d_type);
+	body_cdef(ftype, 0, 1, false, 1);
+	printf("};\n\n");
 }
 
 static void typedef_cdef(struct c2_fop_field_type *ftype)
@@ -278,12 +272,12 @@ static void sequence_kdef(struct c2_fop_field_type *ftype)
 	struct c_fop_field_decor *fd;
 
 	td = TD(ftype);
-	fd = FD(ftype->fft_child[0]);
+	fd = FD(ftype->fft_child[1]);
 	printf("%s {\n\tuint32_t %s;\n",
-	       td->d_type, td->u.d_sequence.d_count);
+	       td->d_type, ftype->fft_child[0]->ff_name);
 	if (td->d_kanbelast) {
 		printf("\tuint32_t %s;\n\tstruct page **%s;", 
-		       td->u.d_sequence.d_pgoff, ftype->fft_child[0]->ff_name);
+		       td->u.d_sequence.d_pgoff, ftype->fft_child[1]->ff_name);
 	} else
 		printf("\t%s;", fd->fd_fmt_ptr);
 	printf("\n};\n\n");
