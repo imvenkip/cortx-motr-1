@@ -14,7 +14,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ \
                             $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/fol/libcolibri-fol.la \
                             $(top_builddir)/sns/libcolibri-sns.la \
-                            $(top_builddir)/addb/libcolibri-addb.la
+                            $(top_builddir)/addb/libcolibri-addb.la \
+                            $(top_builddir)/layout/libcolibri-layout.la
 
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 
