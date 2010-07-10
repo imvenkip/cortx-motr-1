@@ -155,6 +155,10 @@ struct c2_dba_free_req {
 	uint32_t	dfr_flags;
 };
 
+struct c2_dba_discard_req {
+	struct c2_list  ddr_prealloc;
+};
+
 /**
    Convert a 64-bit integer into big-endian and place it into @place
  */

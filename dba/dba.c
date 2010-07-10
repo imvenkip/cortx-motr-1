@@ -474,10 +474,24 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
    Allocate multiple blocks for some object.
 
    This routine will search suitable free space, and determine where to allocate
-   from.  Caller can provide some hint. Pre-allocation may be used depending
+   from.  Caller can provide some hint (goal). Pre-allocation is used depending
    the character of the I/O sequences, and the current state of the active I/O.
    When trying allocate blocks from free space, we will allocate from the
    best suitable chunks, which are represented as buddy.
+
+   Allocation will first try to use pre-allocation if it exists. Pre-allocation
+   can be per-object, or group based.
+
+   This routine will first check the group description to see if enough free
+   space is availabe, and if largest contiguous chunk satisfy the request. This
+   checking will be done group by group, until allocation succeeded or failed.
+   If failed, the largest available contiguous chunk size is returned, and the
+   caller can decide whether to use a smaller request.
+
+   While searching free space from group to group, the free space extent will be
+   loaded into cache.  We cache as much free space extent up to some
+   specified memory limitation.  This is a configurable parameter, or default
+   value will be choosed based on system memory.
 
    @param ctxt dba operation context environment.
    @param req allocate request which includes all parameters.
@@ -485,6 +499,64 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
            Upon failure, non-zero error number is returned.
  */
 int c2_dba_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
+{
+	DB_TXN         *tx = NULL;
+	DB_ENV	       *dbenv = ctxt->dc_dbenv;
+	int 		rc;
+
+	rc = dbenv->txn_begin(dbenv, NULL, &tx, ctxt->dc_txn_flags);
+	if (tx == NULL) {
+		db_err(dbenv, rc, "cannot start transaction");
+		return rc;
+	}
+
+	/* Step 1. query the pre-allocation */
+
+	/* Step 2. Iterate over groups */
+
+	/* Step 3. Update the group free space extent and group desc. */
+
+	if (rc == 0)
+		rc = tx->commit(tx, 0);
+	else
+		rc = tx->abort(tx);
+	if (rc != 0)
+		db_err(dbenv, rc, "cannot commit/abort transaction");
+	return rc;
+}
+
+/**
+   Free multiple blocks owned by some object to free space.
+
+   @param ctxt dba operation context environment.
+   @param req block free request which includes all parameters.
+   @return 0 means success. Upon failure, non-zero error number is returned.
+ */
+int c2_dba_free(struct c2_dba_ctxt *ctxt, struct c2_dba_free_req *req)
+{
+
+	return 0;
+}
+
+/**
+   Discard the pre-allocation for object.
+
+   @param ctxt dba operation context environment.
+   @param req discard request which includes all parameters.
+   @return 0 means success. Upon failure, non-zero error number is returned.
+ */
+int c2_dba_discard_prealloc(struct c2_dba_ctxt *ctxt, struct c2_dba_discard_req *req)
+{
+
+	return 0;
+}
+
+
+
+/**
+   Sample code to insert a record and iterate over a db
+ */
+int db_insert(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 {
 	DB_TXN         *tx = NULL;
 	DB_ENV	       *dbenv = ctxt->dc_dbenv;
@@ -513,19 +585,7 @@ int c2_dba_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 	return rc;
 }
 
-/**
-   Free multiple blocks owned by some object to free space.
- */
-int c2_dba_free(struct c2_dba_ctxt *ctxt, struct c2_dba_free_req *req)
-{
 
-	return 0;
-}
-
-
-/**
-   Sample code to iterate over a db
- */
 static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 {
 	DB_ENV	       *dbenv = ctxt->dc_dbenv;
@@ -544,16 +604,15 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 
 	result = ctxt->dc_group_extent->cursor(ctxt->dc_group_extent, NULL, &cursor, 0);
 	if (result == 0) {
-		c2_blockno_t	goal = 5000;
-		nkeyt.data = &goal;
-		nkeyt.size = sizeof goal;
+		nkeyt.data = &req->dar_goal;
+		nkeyt.size = sizeof req->dar_goal;
 
 		result = cursor->get(cursor, &nkeyt,
 					     &nrect, DB_SET_RANGE);
 		if ( result == 0) {
 			bn = nkeyt.data;
 			count = nrect.data;
-			printf("[%08llu, %lu]\n",
+			printf("[%08llx, %lx]\n",
 			       (unsigned long long) *bn, (unsigned long)*count);
 
 		while ((result = cursor->get(cursor, &nkeyt,
@@ -562,7 +621,7 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 			bn = nkeyt.data;
 			count = nrect.data;
 
-			printf("...[%08llu, %lu]\n",
+			printf("...[%08llx, %lx]\n",
 			       (unsigned long long) *bn, (unsigned long)*count);
 		}
 		if (result != DB_NOTFOUND)
@@ -601,9 +660,9 @@ int main()
 	format_req.dfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 	format_req.dfr_reserved_groups = 2;
 
-	rc = c2_dba_format(&format_req);
+//	rc = c2_dba_format(&format_req);
 
-	return rc;
+//	return rc;
 
 	ctxt.dc_home = path;
 	rc = c2_dba_init(&ctxt);
@@ -613,7 +672,7 @@ int main()
 	}
 	alloc_req.dar_logical = 0x1234;
 	alloc_req.dar_lcount  = 0x5678;
-	rc = c2_dba_allocate(&ctxt, &alloc_req);
+	rc = db_insert(&ctxt, &alloc_req);
 	if (rc != 0) {
 		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
@@ -621,7 +680,7 @@ int main()
 
 	alloc_req.dar_logical = 0x1122;
 	alloc_req.dar_lcount  = 0x3344;
-	rc = c2_dba_allocate(&ctxt, &alloc_req);
+	rc = db_insert(&ctxt, &alloc_req);
 	if (rc != 0) {
 		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
@@ -630,7 +689,7 @@ int main()
 
 	alloc_req.dar_logical = 0x7788;
 	alloc_req.dar_lcount  = 0x9900;
-	rc = c2_dba_allocate(&ctxt, &alloc_req);
+	rc = db_insert(&ctxt, &alloc_req);
 	if (rc != 0) {
 		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
@@ -638,14 +697,19 @@ int main()
 
 	alloc_req.dar_logical = 0x1111;
 	alloc_req.dar_lcount  = 0x2222;
-	rc = c2_dba_allocate(&ctxt, &alloc_req);
+	rc = db_insert(&ctxt, &alloc_req);
 	if (rc != 0) {
 		fprintf(stderr, "c2_dba_allocate error: %d\n", rc);
 		return rc;
 	}
 
 
+	alloc_req.dar_goal = 0x1000;
 	db_list(&ctxt, &alloc_req);
+
+	alloc_req.dar_goal = 0x5000;
+	db_list(&ctxt, &alloc_req);
+
 
 	c2_dba_fini(&ctxt);
 	return 0;
