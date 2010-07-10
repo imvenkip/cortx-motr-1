@@ -177,6 +177,7 @@ DEF(optfid, UNION,
    type_prefix() function.
  */
 DEF(fid_array, SEQUENCE,
+    _(fa_nr,  U32),
     _(fa_fid, fid));
 
 /**
@@ -193,9 +194,11 @@ DEF(c2_stob_io_seg, RECORD,
     _(f_count, U32));
 
 DEF(c2_stob_io_buf, SEQUENCE,
+    _(csib_count,  U32),
     _(csib_value, BYTE));
 
 DEF(c2_stob_io_vec, SEQUENCE,
+    _(csiv_count,  U32),
     _(csiv_seg, c2_stob_io_seg));
 
 DEF(c2_stob_io_write_fop, RECORD,

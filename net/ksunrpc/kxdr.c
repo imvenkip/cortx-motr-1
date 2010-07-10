@@ -1,23 +1,6 @@
 /* -*- C -*- */
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
-#include <linux/fs.h>
-#include <linux/mount.h>
-#include <linux/smp_lock.h>
-#include <linux/uaccess.h>
-#include <linux/vfs.h>
-#include <linux/param.h>
-#include <linux/time.h>
-#include <linux/utsname.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/in.h>
-#include <linux/pagemap.h>
-#include <linux/proc_fs.h>
+
 #include <linux/sunrpc/clnt.h>
-#include <linux/sunrpc/xdr.h>
 
 #include "lib/cdefs.h"
 #include "lib/kdef.h"
@@ -142,6 +125,12 @@ struct page_sequence {
 	struct page **ps_pages;
 };
 
+static bool kxdr_is_byte_array(const struct kxdr_ctx *ctx)
+{
+	C2_ASSERT(ctx->kc_type->fft_aggr == FFA_SEQUENCE);
+	return ctx->kc_type->fft_child[1]->ff_type == &C2_FOP_TYPE_BYTE;
+}
+
 static int kxdr_sequence_enc(struct kxdr_ctx *ctx, void *obj)
 {
 	int result;
@@ -151,14 +140,14 @@ static int kxdr_sequence_enc(struct kxdr_ctx *ctx, void *obj)
 	if (result != 0)
 		return result;
 
-	if (ctx->kc_type->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
+	if (kxdr_is_byte_array(ctx)) {
 		xdr_write_pages(ctx->kc_xdr, 
 				ps->ps_pages, ps->ps_pgoff, ps->ps_nr);
 	} else {
 		uint32_t i;
 
 		for (result = 0, i = 0; result == 0 && i < ps->ps_nr; ++i)
-			result = ftype_subxdr(ctx, obj, 0);
+			result = ftype_subxdr(ctx, obj, 1);
 	}
 	return result;
 }
@@ -173,14 +162,14 @@ static int kxdr_sequence_dec(struct kxdr_ctx *ctx, void *obj)
 		return result;
 
 	nr = *(uint32_t *)obj;
-	if (ctx->kc_type->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
+	if (kxdr_is_byte_array(ctx)) {
 		xdr_read_pages(ctx->kc_xdr, nr);
 		result = 0;
 	} else {
 		uint32_t i;
 
 		for (result = 0, i = 0; result == 0 && i < nr; ++i)
-			result = ftype_subxdr(ctx, obj, 0);
+			result = ftype_subxdr(ctx, obj, 1);
 	}
 	return result;
 }
@@ -191,7 +180,7 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 	struct page_sequence *ps = obj;
 
 	*ctx->kc_nob += 4;
-	if (ctx->kc_type->fft_child[0]->ff_type == &C2_FOP_TYPE_BYTE) {
+	if (kxdr_is_byte_array(ctx)) {
 		struct rpc_auth *auth;
 		uint32_t         offset;
 
