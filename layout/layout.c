@@ -9,6 +9,14 @@
    @{
  */
 
+void c2_layout_init(struct c2_layout *lay)
+{
+}
+
+void c2_layout_fini(struct c2_layout *lay)
+{
+}
+
 int c2_layouts_init(void)
 {
 	return 0;

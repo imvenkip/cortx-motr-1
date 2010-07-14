@@ -82,6 +82,11 @@ bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 	return memcmp(id0, id1, sizeof *id0) == 0;
 }
 
+bool c2_stob_id_is_set(const struct c2_stob_id *id)
+{
+	return !c2_stob_id_eq(id, &(struct c2_stob_id){ 0, });
+}
+
 int c2_stob_locate(struct c2_stob *obj)
 {
 	int result;

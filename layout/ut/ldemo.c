@@ -76,9 +76,6 @@ uint32_t permute(uint64_t k, uint32_t n, uint32_t val)
 }
 
 
-/*  2^63 + 2^61 - 2^57 + 2^54 - 2^51 - 2^18 + 1 */
-#define GOLDEN_RATIO_PRIME 0x9e37fffffffc0001UL
-
 static uint64_t hash_64(uint64_t val)
 {
 	uint64_t hash = val;

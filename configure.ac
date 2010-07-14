@@ -475,6 +475,7 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  layout/Makefile
                  layout/ut/Makefile
+                 pool/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  utils/Makefile

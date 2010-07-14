@@ -76,8 +76,22 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
 	__a > __b ? __a : __b;			\
 })
 
-/** @} end of arith group */
+/**
+   A very simple and fast re-entrant PRNG from Knuth.
 
+   Generates a pseudo-random number using "seed" and stores the number back in
+   seed. Returns the number modulo "max".
+
+   @post result < max
+ */
+uint64_t c2_rnd(uint64_t max, uint64_t *seed);
+
+/**
+   Greatest common divisor.
+ */
+uint64_t c2_gcd64(uint64_t p, uint64_t q);
+
+/** @} end of arith group */
 
 /* __COLIBRI_LIB_ARITH_H__ */
 #endif

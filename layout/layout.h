@@ -4,6 +4,8 @@
 #define __COLIBRI_LAYOUT_LAYOUT_H__
 
 /* import */
+#include "lib/cdefs.h"
+#include "lib/vec.h"
 
 /**
    @defgroup layout Layouts.
@@ -11,11 +13,59 @@
    @{
  */
 
-struct c2_layout;
+struct c2_layout_id;
 struct c2_layout_formula;
 struct c2_layout_parameter;
+struct c2_layout_parameter_type;
+struct c2_layout;
+struct c2_layout_ops;
 struct c2_layout_type;
-struct c2_failure_vector;
+
+struct c2_layout_ops;
+struct c2_layout_formula_ops;
+
+struct c2_layout_formula {
+	const struct c2_layout_type        *lf_type;
+	const struct c2_uint128             lf_id;
+	const struct c2_layout_formula_ops *lf_ops;
+};
+
+struct c2_layout_formula_ops {
+	int (*lfo_subst)(const struct c2_layout_formula *form, uint16_t nr,
+			 const struct c2_layout_parameter *actuals, 
+			 struct c2_layout **out);
+};
+
+struct c2_layout {
+	const struct c2_layout_type      *l_type;
+	const struct c2_layout_formula   *l_form;
+	const struct c2_layout_parameter *l_actuals;
+	struct c2_uint128                 l_id;
+	const struct c2_layout_ops       *l_ops;
+};
+
+void c2_layout_init(struct c2_layout *lay);
+void c2_layout_fini(struct c2_layout *lay);
+
+struct c2_layout_parameter {
+	const struct c2_layout_parameter_type *lp_type;
+	const void                            *lp_value;
+};
+
+struct c2_layout_parameter_type {
+	const char *lpt_name;
+	int       (*lpt_convert)(const struct c2_layout_parameter *other,
+				 struct c2_layout_parameter *out);
+};
+
+struct c2_layout_ops {
+};
+
+struct c2_layout_type {
+	const char  *lt_name;
+	bool       (*lt_equal)(const struct c2_layout *l0, 
+			       const struct c2_layout *l1);
+};
 
 int  c2_layouts_init(void);
 void c2_layouts_fini(void);
