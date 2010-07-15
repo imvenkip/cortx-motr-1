@@ -24,10 +24,17 @@ int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 
 uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 {
-	uint64_t result;
-
-	*prev = result = *prev * 6364136223846793005ULL + 1442695040888963407;
-	return result % max;
+	/*
+	 * Linear congruential generator with constants from TAOCP MMIX.
+	 * http://en.wikipedia.org/wiki/Linear_congruential_generator
+	 */
+	double result;
+	result = *prev = *prev * 6364136223846793005ULL + 1442695040888963407;
+	/*
+	 * Use higher bits of *prev to generate return value, because they are
+	 * more random.
+	 */
+	return result * max / (1.0 + ~0ULL); 
 }
 
 uint64_t c2_gcd64(uint64_t p, uint64_t q)
@@ -40,6 +47,23 @@ uint64_t c2_gcd64(uint64_t p, uint64_t q)
 		q = t;
 	}
 	return p;
+}
+
+static uint64_t c2u64(const unsigned char *s)
+{
+	uint64_t v;
+	int      i;
+
+	for (v = 0, i = 0; i < 8; ++i)
+		v |= ((uint64_t)s[i]) << (64 - 8 - i * 8);
+	return v;
+}
+
+void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
+{
+	C2_ASSERT(strlen(magic) == sizeof *u128);
+	u128->u_hi = c2u64((const unsigned char *)magic);
+	u128->u_lo = c2u64((const unsigned char *)magic + 8);
 }
 
 /* 

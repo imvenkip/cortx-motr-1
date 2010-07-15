@@ -116,6 +116,7 @@ struct c2_pdclust_layout {
 enum c2_pdclust_unit_type {
 	PUT_DATA,
 	PUT_PARITY,
+	PUT_SPARE,
 	PUT_NR
 };
 
@@ -172,6 +173,11 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play, 
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src);
+
+void c2_pdclust_fini(struct c2_pdclust_layout *pdl);
+int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
+		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     struct c2_pdclust_layout **out);
 
 extern const struct c2_layout_type c2_pdclust_layout_type;
 extern const struct c2_layout_formula c2_pdclust_NKP_formula;

@@ -53,9 +53,10 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 		x = s[t];
 		for (j = t; j > i; --j)
 			s[j] = s[j - 1];
-		s[i] = t;
-		r[t] = i;
+		s[i] = x;
+		r[x] = i;
 	}
+	r[s[n - 1]] = n - 1;
 }
 
 static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
@@ -63,6 +64,25 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	return 
 		play->pl_C * (play->pl_N + 2*play->pl_K) == 
 		play->pl_L * play->pl_P;
+}
+
+static uint64_t hash(uint64_t x)
+{
+	uint64_t y;
+
+	y = x;
+	y <<= 18;
+	x -= y;
+	y <<= 33;
+	x -= y;
+	y <<= 3;
+	x += y;
+	y <<= 3;
+	x -= y;
+	y <<= 4;
+	x += y;
+	y <<= 2;
+	return x + y;
 }
 
 static uint64_t permute_column(struct c2_pdclust_layout *play, 
@@ -80,11 +100,9 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 			tc->tc_permute[i] = i;
 
 		/* Initialize PRNG */
-		rstate  = play->pl_seed.u_hi;
-		c2_rnd(1, &rstate);
-		rstate += omega;
-		c2_rnd(1, &rstate);
-		rstate += play->pl_seed.u_lo;
+		rstate  = 
+			hash(play->pl_seed.u_hi) ^
+			hash(play->pl_seed.u_lo + omega);
 
 		for (i = 0; i < play->pl_P - 1; ++i)
 			tc->tc_lcode[i] = c2_rnd(play->pl_P - i, &rstate);
@@ -196,6 +214,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_layout_fini(&pdl->pl_layout);
 		c2_free(pdl->pl_tile_cache.tc_inverse);
 		c2_free(pdl->pl_tile_cache.tc_permute);
+		c2_free(pdl->pl_tile_cache.tc_lcode);
 		if (pdl->pl_tgt != NULL) {
 			for (i = 0; i < pdl->pl_P; ++i) {
 				if (c2_stob_id_is_set(&pdl->pl_tgt[i]))
@@ -209,7 +228,8 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 }
 
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
-		     uint32_t N, uint32_t K, const struct c2_uint128 *seed)
+		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
+		     struct c2_pdclust_layout **out)
 {
 	struct c2_pdclust_layout *pdl;
 	uint32_t B;
@@ -222,10 +242,12 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 
 	C2_ALLOC_PTR(pdl);
 	C2_ALLOC_ARR(pdl->pl_tgt, P);
+	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_lcode, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_permute, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_inverse, P);
 
 	if (pdl != NULL && pdl->pl_tgt != NULL &&
+	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
 		c2_layout_init(&pdl->pl_layout);
@@ -240,7 +262,7 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		pdl->pl_K = K;
 
 		pdl->pl_pool = pool;
-		B = c2_gcd64(N+2*K, P);
+		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
 		pdl->pl_P = P;
 		pdl->pl_C = B/(N+2*K);
 		pdl->pl_L = B/P;
@@ -255,7 +277,9 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 	} else {
 		result = -ENOMEM;
 	}
-	if (result != 0)
+	if (result == 0)
+		*out = pdl;
+	else
 		c2_pdclust_fini(pdl);
 	return result;
 }

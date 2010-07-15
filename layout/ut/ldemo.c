@@ -3,249 +3,173 @@
 #include <string.h> /* memset */
 #include <stdio.h>  /* printf */
 #include <stdlib.h> /* atoi */
+#include <math.h>   /* sqrt */
 
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
+#include "lib/arith.h"
+#include "colibri/init.h"
+
+#include "pool/pool.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
 
 /**
    @addtogroup layout
    @{
 */
 
-uint64_t m_enc(uint64_t row, uint64_t column, uint64_t width)
-{
-	C2_ASSERT(column < width);
-	return row * width + column;
-}
-
-void m_dec(uint64_t pos, uint64_t width, uint64_t *row, uint64_t *column)
-{
-	*row    = pos / width;
-	*column = pos % width;
-}
-
-struct pdec_layout {
-	uint64_t pl_seed;
-	uint32_t pl_N;
-	uint32_t pl_K;
-	uint32_t pl_P;
-
-	uint32_t pl_C;
-	uint32_t pl_L;
-};
-
-struct src_addr {
-	uint64_t sa_group;
-	uint64_t sa_unit;
-};
-
-struct tgt_addr {
-	uint32_t ta_obj;
-	uint64_t ta_unit;
-};
-
-uint32_t permute(uint64_t k, uint32_t n, uint32_t val)
-{
-	unsigned long f;
-	unsigned      i;
-	unsigned      j;
-	unsigned      t;
-	unsigned      x;
-	uint32_t      s[n];
-
-	C2_ASSERT(val < n);
-	s[0] = 0; 
-	s[1] = 1;
-	for (f = 1, i = 2; i < n; ++i) {
-		C2_ASSERT(f*i > f);
-		f *= i;
-		s[i] = i;
-	}
-
-	for (i = 0; i < n - 1; ++i) {
-		t = (k/f) % (n - i);
-		x = s[i + t];
-		for (j = i + t; j > i; --j)
-			s[j] = s[j - 1];
-		s[i] = x;
-		f /= n - i - 1;
-	}
-	C2_ASSERT(s[val] < n);
-	return s[val];
-}
-
-
-static uint64_t hash_64(uint64_t val)
-{
-	uint64_t hash = val;
-
-	/*  Sigh, gcc can't optimise this alone like it does for 32 bits. */
-	uint64_t n = hash;
-	n <<= 18;
-	hash -= n;
-	n <<= 33;
-	hash -= n;
-	n <<= 3;
-	hash += n;
-	n <<= 3;
-	hash -= n;
-	n <<= 4;
-	hash += n;
-	n <<= 2;
-	hash += n;
-
-	return hash;
-}
-
-uint64_t hash(uint64_t v0, uint64_t v1)
-{
-	return hash_64(v0) ^ hash_64(v1);
-}
-
-void pdec_layout_map(const struct pdec_layout *play, const struct src_addr *src,
-		     struct tgt_addr *tgt)
-{
-	uint32_t N;
-	uint32_t K;
-	uint32_t P;
-	uint32_t W;
-
-	uint32_t C;
-	uint32_t L;
-
-	uint64_t omega;
-	uint64_t j;
-
-	uint64_t b;
-	uint64_t d;
-
-	N = play->pl_N;
-	K = play->pl_K;
-	P = play->pl_P;
-	C = play->pl_C;
-	L = play->pl_L;
-
-	W = N + 2*K;
-	C2_ASSERT(C * W == L * P);
-
-	m_dec(src->sa_group, C, &omega, &j);
-	m_dec(m_enc(j, src->sa_unit, W), P, &b, &d);
-	tgt->ta_obj  = permute(hash(play->pl_seed, omega), P, d);
-	tgt->ta_unit = m_enc(omega, b, L);
-}
-
-void g(const struct pdec_layout *play, uint64_t unit, struct src_addr *src)
-{
-	m_dec(unit, play->pl_N, &src->sa_group, &src->sa_unit);
-}
-
-void pdec_layout(const struct pdec_layout *play, uint64_t unit, 
-		 struct tgt_addr *tgt)
-{
-	struct src_addr src;
-
-	g(play, unit, &src);
-	pdec_layout_map(play, &src, tgt);
-}
-
-enum {
-	DATA,
-	PARITY,
-	SPARE,
-	NR
-};
-
-int classify(const struct pdec_layout *play, int unit)
+enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
+				   int unit)
 {
 	if (unit < play->pl_N)
-		return DATA;
+		return PUT_DATA;
 	else if (unit < play->pl_N + play->pl_K)
-		return PARITY;
+		return PUT_PARITY;
 	else
-		return SPARE;
+		return PUT_SPARE;
 }
 
-int main(int argc, char **argv)
+void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 {
-	const int P = 20;
-	const struct pdec_layout play = {
-		.pl_seed = 42,
-		.pl_N = 4,
-		.pl_K = 2,
-		.pl_P = P, /* lcm(4 + 2*2, 20) == 40 */
+	uint64_t                   group;
+	uint64_t                   frame;
+	uint32_t                   unit;
+	uint32_t                   obj;
+	uint32_t                   N;
+	uint32_t                   K;
+	uint32_t                   W;
+	int                        i;
+	struct c2_pdclust_src_addr src;
+	struct c2_pdclust_tgt_addr tgt;
+	struct c2_pdclust_src_addr map[R][P];
+	uint32_t                   incidence[P][P];
+	uint32_t                   usage[P][PUT_NR + 1];
+	uint32_t                   where[play->pl_N + 2*play->pl_K];
+	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
+	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
 
-		.pl_C = 40/(4 + 2*2),
-		.pl_L = 40/20
-	};
-	uint64_t group;
-	uint32_t unit;
-	uint32_t obj;
-	struct src_addr src;
-	struct tgt_addr tgt;
-	int R;
-	int C;
-	int i;
-	struct src_addr (*map)[P];
-	uint32_t incidence[P][P];
-	uint32_t usage[P][NR + 1];
-	uint32_t where[play.pl_N + 2*play.pl_K];
-	const char *brace[NR] = { "[]", "<>", "{}" };
-	const char *head[NR + 1] = { "D", "P", "S", "total" };
-
-	R = atoi(argv[1]);
-	C = atoi(argv[2]);
-	C2_ALLOC_ARR(map, R);
-	C2_ASSERT(map != NULL);
+	uint32_t min;
+	uint32_t max;
+	uint64_t sum;
+	uint32_t u;
+	double   sq;
+	double   avg;
 
 	memset(usage, 0, sizeof usage);
 	memset(incidence, 0, sizeof incidence);
 
-	for (group = 0; group < C ; ++group) {
+	N = play->pl_N;
+	K = play->pl_K;
+	W = N + 2*K;
+
+	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
+	       N, K, P, play->pl_C, play->pl_L);
+
+	for (group = 0; group < I ; ++group) {
 		src.sa_group = group;
-		for (unit = 0; unit < play.pl_N + 2*play.pl_K; ++unit) {
+		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
-			pdec_layout_map(&play, &src, &tgt);
-			if (tgt.ta_unit < R)
-				map[tgt.ta_unit][tgt.ta_obj] = src;
+			c2_pdclust_layout_map(play, &src, &tgt);
+			if (tgt.ta_frame < R)
+				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
-			usage[tgt.ta_obj][NR]++;
-			usage[tgt.ta_obj][classify(&play, unit)]++;
+			usage[tgt.ta_obj][PUT_NR]++;
+			usage[tgt.ta_obj][classify(play, unit)]++;
 		}
-		for (unit = 0; unit < play.pl_N + 2*play.pl_K; ++unit) {
-			for (i = 0; i < play.pl_N + 2*play.pl_K; ++i)
+		for (unit = 0; unit < W; ++unit) {
+			for (i = 0; i < W; ++i)
 				incidence[where[unit]][where[i]]++;
 		}
 	}
 	printf("map: \n");
-	for (unit = 0; unit < R; ++unit) {
-		printf("%5i : ", (int)unit);
+	for (frame = 0; frame < R; ++frame) {
+		printf("%5i : ", (int)frame);
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
-			d = classify(&play, map[unit][obj].sa_unit);
+			d = classify(play, map[frame][obj].sa_unit);
 			printf("%c%2i, %1i%c ", 
 			       brace[d][0],
-			       (int)map[unit][obj].sa_group, 
-			       (int)map[unit][obj].sa_unit,
+			       (int)map[frame][obj].sa_group, 
+			       (int)map[frame][obj].sa_unit,
 			       brace[d][1]);
 		}
 		printf("\n");
 	}
 	printf("usage : \n");
-	for (i = 0; i < NR + 1; ++i) {
+	for (i = 0; i < PUT_NR + 1; ++i) {
+		max = sum = sq = 0;
+		min = ~0;
 		printf("%5s : ", head[i]);
-		for (obj = 0; obj < P; ++obj)
-			printf("%7i ", usage[obj][i]);
-		printf("\n");
+		for (obj = 0; obj < P; ++obj) {
+			u = usage[obj][i];
+			printf("%7i ", u);
+			min = min32u(min, u);
+			max = max32u(max, u);
+			sum += u;
+			sq += u*u;
+		}
+		avg = ((double)sum)/P;
+		printf(" | %7i %7i %7i %7.2f%%\n", min, max, (int)avg,
+		       sqrt(sq/P - avg*avg)*100.0/avg);
 	}
 	printf("\nincidence:\n");
 	for (obj = 0; obj < P; ++obj) {
-		for (i = 0; i < P; ++i)
-			printf("%5i ", incidence[obj][i]);
-		printf("\n");
+		max = sum = sq = 0;
+		min = ~0;
+		for (i = 0; i < P; ++i) {
+			u = incidence[obj][i];
+			if (obj != i) {
+				min = min32u(min, u);
+				max = max32u(max, u);
+				sum += u;
+				sq += u*u;
+			}
+			printf("%5i ", u);
+		}
+		avg = ((double)sum)/(P - 1);
+		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
+		       sqrt(sq/(P - 1) - avg*avg)*100.0/avg);
 	}
-	return 0;
+}
+
+int main(int argc, char **argv)
+{
+	uint32_t N;
+	uint32_t K;
+	uint32_t P;
+	int      R;
+	int      I;
+	int      result;
+	struct c2_pdclust_layout  *play;
+	struct c2_pool             pool;
+	struct c2_uint128          id;
+	struct c2_uint128          seed;
+
+	N = atoi(argv[1]);
+	K = atoi(argv[2]);
+	P = atoi(argv[3]);
+	R = atoi(argv[4]);
+	I = atoi(argv[5]);
+
+	c2_uint128_init(&id,   "jinniesisjillous");
+	c2_uint128_init(&seed, "upjumpandpumpim,");
+
+	result = c2_init();
+	if (result == 0) {
+		result = c2_pool_init(&pool, P);
+		if (result == 0) {
+			result = c2_pdclust_build(&pool, &id, N, K, &seed, 
+						  &play);
+			if (result == 0)
+				layout_demo(play, P, R, I);
+			c2_pool_fini(&pool);
+		}
+		c2_fini();
+	}
+	return result;
 }
 
 /** @} end of layout group */
