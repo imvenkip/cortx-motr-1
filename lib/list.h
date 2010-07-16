@@ -9,9 +9,7 @@
 #include "lib/assert.h"
 
 /**
-   @defgroup list
-
-   Double linked list.
+   @defgroup list Double-linked list.
 
    @{
  */
