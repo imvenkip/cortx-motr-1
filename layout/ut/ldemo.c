@@ -43,6 +43,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	int                        i;
 	struct c2_pdclust_src_addr src;
 	struct c2_pdclust_tgt_addr tgt;
+	struct c2_pdclust_src_addr src1;
 	struct c2_pdclust_src_addr map[R][P];
 	uint32_t                   incidence[P][P];
 	uint32_t                   usage[P][PUT_NR + 1];
@@ -72,6 +73,8 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
 			c2_pdclust_layout_map(play, &src, &tgt);
+			c2_pdclust_layout_inv(play, &tgt, &src1);
+			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;

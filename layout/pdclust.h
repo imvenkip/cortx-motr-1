@@ -58,6 +58,9 @@ struct c2_pdclust_ops;
 
 /**
    Extension of generic c2_layout for a parity de-clustering.
+
+   @todo liveness rules
+   @todo concurrency control
  */
 struct c2_pdclust_layout {
 	/** super class */
@@ -101,11 +104,42 @@ struct c2_pdclust_layout {
 	 */
 	struct c2_stob_id           *pl_tgt;
 
+	/**
+	   Caches information about the most recently used tile.
+
+	   Some auxiliary data, such as permutations, used by layout mapping
+	   function is relatively expensive to re-compute. To reduce the
+	   overhead, such information is cached.
+
+	   Currently only information for a single tile is cached. More
+	   sophisticated schemes are possible.
+	 */
 	struct tile_cache {
+		/** Tile to which caches information pertains. */
 		uint64_t  tc_tile_no;
+		/** Column permutation for this tile.  
+
+		    This is an array of c2_pdclust_layout::pl_P elements, each
+		    element less than c2_pdclust_layout::pl_P without
+		    duplicates.
+		 */
 		uint32_t *tc_permute;
+		/** Inverse column permutation. 
+
+		    @invariant tc_permute[tc_inverse[x]] == x
+		    @invariant tc_inverse[tc_permute[x]] == x
+		 */
 		uint32_t *tc_inverse;
 		/** Lehmer code of permutation.
+
+		    This array of c2_pdclust_layout::pl_P elements is used to
+		    generate tc_permute[] and tc_inverse[] arrays. Strictly
+		    speaking, it is not needed after above arrays are built, but
+		    as it is kept for completeness.
+
+		    Technically speaking, this array is a lexicographic number
+		    of permutation written in factorial number system (see HLD
+		    for references).
 
 		    @see http://en.wikipedia.org/wiki/Lehmer_code
 		 */
@@ -113,6 +147,7 @@ struct c2_pdclust_layout {
 	} pl_tile_cache;
 };
 
+/** Classification of units in a parity group. */
 enum c2_pdclust_unit_type {
 	PUT_DATA,
 	PUT_PARITY,

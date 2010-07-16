@@ -13,6 +13,38 @@
 
 /**
    @addtogroup pdclust
+
+   <b>Implementation overview.</b>
+
+   Parity de-clustering layout mapping function requires some amount of code
+   dealing with permutations, random sequences generations and conversions
+   between blocks of different shapes.
+
+   First, as explained in the HLD, an efficient way to generate permutations
+   uniformly scattered across the set of all permutations of a given set is
+   necessary. To this end permute_column() uses a sequence of pseudo-random
+   numbers obtained from a PRNG (c2_rnd()). Few comments are in order:
+
+   @li to seed a PRNG, layout seed and tile number are hashed by a
+   multiplicative cache (hash());
+
+   @li system PRNG cannot be used, because reproducible sequences are
+   needed. c2_rnd() is a very simple linear congruential generator straight from
+   TAOCP. It takes care to return higher, more random, bits of result;
+
+   @li layout behavior is quite sensitive to the PRNG properties. For example,
+   if c2_rnd() is changed to return lower bits (result % max), resulting
+   distribution of spare and parity units is not uniform even for a large number
+   of units. Experiments with different PRNG's are indicated.
+
+   Once permutation's Lehmer code is generated, it has to be applied to the set
+   of columns. permute() function applies a permutation, simultaneously building
+   an inverse permutation.
+
+   Finally, m_dec() and m_enc() implement core parts of layout mapping
+   functions, mapping a source address to a tile and then to a target address
+   (and back for inverse layout mapping function).
+
    @{
 */
 
@@ -22,7 +54,7 @@
 
    @see m_dec()
  */
-static uint64_t m_enc(uint64_t row, uint64_t column, uint64_t width)
+static uint64_t m_enc(uint64_t width, uint64_t row, uint64_t column)
 {
 	C2_ASSERT(column < width);
 	return row * width + column;
@@ -34,18 +66,46 @@ static uint64_t m_enc(uint64_t row, uint64_t column, uint64_t width)
 
    @see m_enc()
  */
-static void m_dec(uint64_t pos, uint64_t width, uint64_t *row, uint64_t *column)
+static void m_dec(uint64_t width, uint64_t pos, uint64_t *row, uint64_t *column)
 {
 	*row    = pos / width;
 	*column = pos % width;
 }
 
+/**
+   Apply a permutation given by its Lehmer code in k[] to a set s[] of n
+   elements and build inverse permutation in r[].
+
+   @param n - number of elements in k[], s[] and r[]
+   @param k - Lehmer code of the permutation
+   @param s - an array to permute
+   @param r - an array to build inverse permutation in
+
+   @pre  k[i] + i < n
+   @pre  s[i] < n && ergo(s[i] == s[j], i == j)
+   @post s[i] < n && ergo(s[i] == s[j], i == j)
+   @post s[r[i]] == i && r[s[i]] == i
+ */
 static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 {
 	uint32_t i;
 	uint32_t j;
 	uint32_t t;
 	uint32_t x;
+
+	/*
+	 * k[0] is an index of one of the n elements that permutation moves to
+	 * the 0-th position in s[];
+	 *
+	 * k[1] is an index of one of the (n - 1) remaining elements that
+	 * permutation moves to the 1-st position in s[], etc.
+	 *
+	 * To produce i-th element of s[], pick one of remaining elements as
+	 * specified by k[i], shift elements s[i] ... s[n - 1] to the right by
+	 * one and place selected element in s[i]. This guarantees that at
+	 * beginning of the loop elements s[0] ... s[i - 1] are already selected
+	 * and elements s[i] ... s[n - 1] are "remaining".
+	 */
 
 	for (i = 0; i < n - 1; ++i) {
 		t = k[i] + i;
@@ -56,16 +116,48 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 		s[i] = x;
 		r[x] = i;
 	}
+	/*
+	 * The loop above iterates n-1 times, because the last element finds its
+	 * place automatically. Complete inverse permutation.
+	 */
 	r[s[n - 1]] = n - 1;
 }
 
 static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 {
+	uint32_t i;
+	uint32_t P;
+	uint32_t sum;
+
+	const struct tile_cache *tc;
+
+	P = play->pl_P;
+
+	tc = &play->pl_tile_cache;
+	/*
+	 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse bijections
+	 * of {0, ..., P - 1}.
+	 */
+	for (sum = 0, i = 0; i < P; ++i) {
+		if (tc->tc_lcode[i] + i >= P)
+			return false;
+		if (tc->tc_permute[i] >= P || tc->tc_inverse[i] >= P)
+			return false;
+		if (tc->tc_permute[tc->tc_inverse[i]] != i)
+			return false;
+		if (tc->tc_inverse[tc->tc_permute[i]] != i)
+			return false;
+		/* existence of inverse guarantees that tc->tc_permute[] is a
+		   bijection. */
+	}
 	return 
 		play->pl_C * (play->pl_N + 2*play->pl_K) == 
 		play->pl_L * play->pl_P;
 }
 
+/**
+ * Simple multiplicative hash.
+ */
 static uint64_t hash(uint64_t x)
 {
 	uint64_t y;
@@ -85,6 +177,10 @@ static uint64_t hash(uint64_t x)
 	return x + y;
 }
 
+/**
+   Returns column number that a column t has after a permutation for tile omega
+   is applied.
+ */
 static uint64_t permute_column(struct c2_pdclust_layout *play, 
 			       uint64_t omega, uint64_t t)
 {
@@ -92,22 +188,28 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(t < play->pl_P);
 	tc = &play->pl_tile_cache;
+	/*
+	 * If cached values are for different tile, update the cache.
+	 */
 	if (tc->tc_tile_no != omega) {
 		uint32_t i;
 		uint64_t rstate;
 
+		/* initialise columns array that will be permuted. */
 		for (i = 0; i < play->pl_P; ++i)
 			tc->tc_permute[i] = i;
 
-		/* Initialize PRNG */
+		/* initialize PRNG */
 		rstate  = 
 			hash(play->pl_seed.u_hi) ^
 			hash(play->pl_seed.u_lo + omega);
 
+		/* generate permutation number in lexicographic ordering */
 		for (i = 0; i < play->pl_P - 1; ++i)
 			tc->tc_lcode[i] = c2_rnd(play->pl_P - i, &rstate);
 
-		permute(play->pl_P, tc->tc_lcode, 
+		/* apply the permutation */
+		permute(play->pl_P, tc->tc_lcode,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
 	}
@@ -142,10 +244,18 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(c2_pdclust_layout_invariant(play));
 
-	m_dec(src->sa_group, C, &omega, &j);
-	m_dec(m_enc(j, src->sa_unit, N + 2*K), P, &r, &t);
+	/* first translate source address into a tile number and parity group
+	   number in the tile. */
+	m_dec(C, src->sa_group, &omega, &j);
+	/*
+	 * then, convert from C*(N+2*K) coordinates to L*P coordinates within a
+	 * tile.
+	 */
+	m_dec(P, m_enc(N + 2*K, j, src->sa_unit), &r, &t);
+	/* permute columns */
 	tgt->ta_obj   = permute_column(play, omega, t);
-	tgt->ta_frame = m_enc(omega, r, L);
+	/* and translate back from tile to target address. */
+	tgt->ta_frame = m_enc(L, omega, r);
 }
 
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
@@ -176,11 +286,13 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 
 	C2_ASSERT(c2_pdclust_layout_invariant(play));
 
-	m_dec(tgt->ta_frame, L, &omega, &r);
+	/* execute inverses of the steps of c2_pdclust_layout_map() in reverse
+	   order.  */
+	m_dec(L, tgt->ta_frame, &omega, &r);
 	permute_column(play, omega, t); /* force tile cache update */
 	t = play->pl_tile_cache.tc_inverse[t];
-	m_dec(m_enc(r, t, P), N + 2*K, &j, &src->sa_unit);
-	src->sa_group = m_enc(omega, j, C);
+	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
+	src->sa_group = m_enc(C, omega, j);
 }
 
 static bool pdclust_equal(const struct c2_layout *l0,
@@ -262,6 +374,8 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		pdl->pl_K = K;
 
 		pdl->pl_pool = pool;
+		/* select minimal possible B (least common multiple of P and
+		   N+2*K */
 		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
 		pdl->pl_P = P;
 		pdl->pl_C = B/(N+2*K);
