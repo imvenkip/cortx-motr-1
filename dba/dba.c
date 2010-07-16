@@ -642,10 +642,9 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 
 int main()
 {
-	struct c2_dba_ctxt ctxt = {
-		.dc_nr_thread = 1
+	struct c2_dba_ctxt         ctxt = {
+			.dc_nr_thread = 1,
 		};
-
 	struct c2_dba_allocate_req alloc_req;
 	struct c2_dba_format_req   format_req;
 

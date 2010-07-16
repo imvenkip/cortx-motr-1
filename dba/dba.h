@@ -126,6 +126,14 @@ struct c2_dba_format_req {
 	char 	       *dfr_db_home;          /* database home dir */
 };
 
+struct c2_dba_prealloc {
+	c2_blockno_t	dpr_logical;   /* logical offset within the object */
+	c2_blockcount_t	dpr_lcount;    /* count of blocks */
+	c2_blockno_t	dpr_physical;  /* physical block number */
+	c2_blockcount_t	dpr_remaining; /* remaining count of blocks */
+	struct c2_list_link dpr_link;  /* pre-allocation is linked together */
+};
+
 /**
    Request to allocate multiple blocks from a container.
 
@@ -134,29 +142,70 @@ struct c2_dba_format_req {
    the maximum available chunk size is returned in dar_max_avail.
  */
 struct c2_dba_allocate_req {
-	c2_blockno_t	dar_logical;
-	c2_blockcount_t	dar_lcount;
-	c2_blockno_t	dar_goal;
-	uint32_t	dar_flags;
+	c2_blockno_t	dar_logical;   /* logical offset within the object */
+	c2_blockcount_t	dar_lcount;    /* count of blocks */
+	c2_blockno_t	dar_goal;      /* prefered physical block number */
+	uint32_t	dar_flags;     /* allocation flags */
 
 	c2_blockno_t	dar_physical;  /* result allocated blocks */
 
-	uint32_t	dar_err;
+	uint32_t	dar_err;       /* error number */
 	c2_blockno_t	dar_max_avail; /* max avail blocks */
+
+	void           *dar_prealloc;  /* User opaque prealloc result */
 };
+
+enum c2_dba_allocation_flag {
+	/* prefer goal again. length */
+	C2_DBA_HINT_MERGE              = 1 << 0,
+
+	/* blocks already reserved */
+	C2_DBA_HINT_RESERVED           = 1 << 1,
+
+	/* metadata is being allocated */
+	C2_DBA_HINT_METADATA           = 1 << 2,
+
+	/* first blocks in the file */
+	C2_DBA_HINT_FIRST              = 1 << 3,
+
+	/* search for the best chunk */
+	C2_DBA_HINT_BEST               = 1 << 4,
+
+	/* data is being allocated */
+	C2_DBA_HINT_DATA               = 1 << 5,
+
+	/* don't preallocate (for tails) */
+	C2_DBA_HINT_NOPREALLOC         = 1 << 6,
+
+	/* allocate for locality group */
+	C2_DBA_HINT_GROUP_ALLOC        = 1 << 7,
+
+	/* allocate goal blocks or none */
+	C2_DBA_HINT_GOAL_ONLY          = 1 << 8,
+
+	/* goal is meaningful */
+	C2_DBA_HINT_TRY_GOAL           = 1 << 9,
+
+	/* blocks already pre-reserved by delayed allocation */
+	C2_DBA_DELALLOC_RESERVED       = 1 << 10,
+
+	/* We are doing stream allocation */
+	C2_DBA_STREAM_ALLOC            = 1 << 11,
+};
+
 
 /**
    Request to free multiple blocks to a container.
  */
 struct c2_dba_free_req {
-	c2_blockno_t	dfr_logical;
-	c2_blockcount_t	dfr_lcount;
-	c2_blockno_t	dfr_physical;
-	uint32_t	dfr_flags;
+	c2_blockno_t	dfr_logical;  /* logical offset within the object */
+	c2_blockcount_t	dfr_lcount;   /* count of blocks */
+	c2_blockno_t	dfr_physical; /* physical block number */
+	uint32_t	dfr_flags;    /* free flags */
 };
 
 struct c2_dba_discard_req {
-	struct c2_list  ddr_prealloc;
+	void           *ddr_prealloc; /* User opaque prealloc result */
 };
 
 /**
