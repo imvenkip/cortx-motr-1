@@ -80,7 +80,7 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
    A very simple and fast re-entrant PRNG from Knuth.
 
    Generates a pseudo-random number using "seed" and stores the number back in
-   seed. Returns the number modulo "max".
+   seed. Result is no greater than max.
 
    @post result < max
  */
