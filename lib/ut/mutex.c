@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/mutex.h"
 #include "lib/assert.h"
@@ -12,7 +13,7 @@ enum {
 	NR = 255
 };
 
-static int counter = 0;
+static int counter;
 static struct c2_thread t[NR];
 static struct c2_mutex  m[NR];
 
@@ -47,10 +48,12 @@ void test_mutex(void)
 	int sum;
 	int result;
 
+	counter = 0;
+
 	for (sum = i = 0; i < NR; ++i) {
 		c2_mutex_init(&m[i]);
 		result = C2_THREAD_INIT(&t[i], int, NULL, &t0, i);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		sum += i;
 	}
 
@@ -59,13 +62,13 @@ void test_mutex(void)
 		c2_thread_fini(&t[i]);
 	}
 
-	C2_ASSERT(counter == sum * NR);
+	C2_UT_ASSERT(counter == sum * NR);
 
 	counter = 0;
 
 	for (sum = i = 0; i < NR; ++i) {
 		result = C2_THREAD_INIT(&t[i], int, NULL, &t1, i);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		sum += i;
 	}
 
@@ -77,7 +80,7 @@ void test_mutex(void)
 	for (i = 0; i < NR; ++i)
 		c2_mutex_fini(&m[i]);
 
-	C2_ASSERT(counter == sum * NR);
+	C2_UT_ASSERT(counter == sum * NR);
 }
 
 

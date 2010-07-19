@@ -1,7 +1,6 @@
 /* -*- C -*- */
-#include <stdio.h>
 
-#include <colibri/init.h>
+#include <lib/ut.h>
 
 extern void test_memory(void);
 extern void test_list(void);
@@ -14,28 +13,25 @@ extern void test_mutex(void);
 extern void test_chan(void);
 extern void test_atomic(void);
 
-int main(int argc, char *argv[])
-{
-	setbuf(stdout, NULL);
-	setbuf(stderr, NULL);
+const struct c2_test_suite libc2_ut = {
+	.ts_name = "libc2-ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "memory", test_memory },
+		{ "list", test_list },
+		{ "refs", test_refs },
+		{ "cache", test_cache },
+		{ "queue", test_queue },
+		{ "vec", test_vec },
+		{ "thread", test_thread },
+		{ "mutex", test_mutex },
+		{ "chan", test_chan },
+		{ "atomic", test_atomic },
+		{ NULL, NULL }
+	}
+};
 
-	c2_init();
-
-	test_memory();
-	test_list();
-	test_refs();
-	test_cache();
-	test_queue();
-	test_vec();
-	test_thread();
-	test_mutex();
-	test_chan();
-	test_atomic();
-
-	c2_fini();
-
-	return 0;
-}
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

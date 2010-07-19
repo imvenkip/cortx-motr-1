@@ -1,7 +1,10 @@
 INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix -I@DBSRC@
 
 if LINUX
-noinst_PROGRAMS  = server utadieu client
+noinst_LTLIBRARIES    = libstob-ut.la
+libstob_ut_la_SOURCES = adieu.c
+
+noinst_PROGRAMS  = server client
 
 io_u.h io_u.c: io.ff \
                   $(top_builddir)/colibri/libcolibri.la \
@@ -15,10 +18,6 @@ server_LDADD     = $(top_builddir)/colibri/libcolibri.la
 client_SOURCES   = client.c io_fop_init.c io_fop.h io_u.h io_u.c 
 client_LDFLAGS   = -pthread
 client_LDADD     = $(top_builddir)/colibri/libcolibri.la
-
-utadieu_SOURCES  = adieu.c
-utadieu_LDFLAGS  = -pthread
-utadieu_LDADD    = $(top_builddir)/colibri/libcolibri.la
 
 clean-local:
 	cd @SRCDIR@/stob/ut ; \

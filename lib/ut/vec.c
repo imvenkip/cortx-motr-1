@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "lib/ut.h"
 #include "lib/vec.h"
 #include "lib/assert.h"
 
@@ -39,12 +40,12 @@ void test_vec(void)
 		}
 	};
 
-	C2_ASSERT(c2_vec_count(&t) == sum0);
+	C2_UT_ASSERT(c2_vec_count(&t) == sum0);
 
 	c2_vec_cursor_init(&c, &t);
 	for (i = 0; i < sum0; ++i) {
 		eov = c2_vec_cursor_move(&c, 1);
-		C2_ASSERT(eov == (i == sum0 - 1));
+		C2_UT_ASSERT(eov == (i == sum0 - 1));
 	}
 
 	c2_vec_cursor_init(&c, &t);
@@ -55,9 +56,9 @@ void test_vec(void)
 		if (count * it != 0) {
 			step = c2_vec_cursor_step(&c);
 			sum1 += step;
-			C2_ASSERT(step == count * it);
+			C2_UT_ASSERT(step == count * it);
 			eov = c2_vec_cursor_move(&c, step);
-			C2_ASSERT(eov == (sum1 == sum0));
+			C2_UT_ASSERT(eov == (sum1 == sum0));
 		}
 		if (++count == NR) {
 			count = 0;
@@ -66,7 +67,7 @@ void test_vec(void)
 	}
 	c2_vec_cursor_init(&c, &t);
 	c2_vec_cursor_move(&c, sum0);
-	C2_ASSERT(c2_vec_cursor_move(&c, 0));
+	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
 }
 
 /* 

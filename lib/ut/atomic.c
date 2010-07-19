@@ -4,11 +4,11 @@
 #endif
 
 #include <time.h>    /* nanosleep */
-#include <stdio.h>   /* printf */
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h> /* barrier */
 
+#include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/atomic.h"
 #include "lib/assert.h"
@@ -27,7 +27,7 @@ static void wait(pthread_barrier_t *b)
 	int result;
 
 	result = pthread_barrier_wait(b);
-	C2_ASSERT(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD);
+	C2_UT_ASSERT(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD);
 }
 
 static void worker(int id)
@@ -52,7 +52,7 @@ static void worker(int id)
 		delay.tv_nsec = (((id + i) % 4) + 1) * 1000;
 		nanosleep(&delay, NULL);
 		wait(&bar[i]);
-		C2_ASSERT(c2_atomic64_get(&atom) == 0);
+		C2_UT_ASSERT(c2_atomic64_get(&atom) == 0);
 	}
 }
 #endif
@@ -72,33 +72,32 @@ void test_atomic(void)
 	for (i = 0; i < NR; ++i) {
 		c2_atomic64_add(&atom, i);
 		sum += i;
-		C2_ASSERT(c2_atomic64_get(&atom) == sum);
+		C2_UT_ASSERT(c2_atomic64_get(&atom) == sum);
 	}
 
 	for (i = sum; i > 0; --i) {
 		zero = c2_atomic64_dec_and_test(&atom);
-		C2_ASSERT(zero == (i == 1));
+		C2_UT_ASSERT(zero == (i == 1));
 	}
 
 	for (i = 0; i < ARRAY_SIZE(bar); ++i) {
 		result = pthread_barrier_init(&bar[i], NULL, NR + 1);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		result = pthread_barrier_init(&let[i], NULL, NR + 1);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 	}
 
 	c2_atomic64_set(&atom, 0);
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		result = C2_THREAD_INIT(&t[i], int, NULL, &worker, i);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 	}
 
 	for (i = 0; i < NR; ++i) {
 		wait(&let[i]);
 		wait(&bar[i]);
-		C2_ASSERT(c2_atomic64_get(&atom) == 0);
-		printf(".");
+		C2_UT_ASSERT(c2_atomic64_get(&atom) == 0);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -108,13 +107,12 @@ void test_atomic(void)
 
 	for (i = 0; i < ARRAY_SIZE(bar); ++i) {
 		result = pthread_barrier_destroy(&bar[i]);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 		result = pthread_barrier_destroy(&let[i]);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 	}
-	printf("\n");
 #else
-        printf("pthread barriers are not supported!\n");
+        C2_UT_ASSERT("pthread barriers are not supported!" == NULL);
 #endif
 }
 

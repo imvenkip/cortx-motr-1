@@ -13,11 +13,6 @@ void test_memory()
 	struct test1 *ptr2;
 	size_t allocated;
 
-	extern void c2_memory_init();
-	extern void c2_memory_fini();
-
-	c2_memory_init();
-
 	allocated = c2_allocated();
 	ptr1 = c2_alloc(100);
 	if (ptr1 == NULL)
@@ -31,8 +26,6 @@ void test_memory()
 	c2_free(ptr2);
 	if (allocated != c2_allocated())
 		abort();
-
-	c2_memory_fini();
 }
 
 /* 

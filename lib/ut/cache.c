@@ -1,3 +1,5 @@
+
+#include "lib/ut.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/cache.h"
@@ -31,23 +33,22 @@ void test_cache()
 	uint32_t data_s;
 
 	rc = c2_cache_init(&test_cache1, NULL, "test_db1", 0);
-	C2_ASSERT(!rc);
+	C2_UT_ASSERT(!rc);
 
 	key = 5;
 	data = 100;
 	rc = c2_cache_insert(&test_cache1, NULL, &key, test_enc, &data, sizeof data);
-	C2_ASSERT(!rc);
+	C2_UT_ASSERT(!rc);
 
 	key = 5;
 	rc = c2_cache_search(&test_cache1, &key, test_dec, (void **)&data, &data_s);
-	C2_ASSERT(!rc);
-	printf("%d\n", data);
+	C2_UT_ASSERT(!rc);
 
 	rc = c2_cache_delete(&test_cache1, NULL, &key);
-	C2_ASSERT(!rc);
+	C2_UT_ASSERT(!rc);
 
 	rc = c2_cache_search(&test_cache1, &key, test_dec, (void **)&data, &data_s);
-	C2_ASSERT(rc);
+	C2_UT_ASSERT(rc);
 
 
 	c2_cache_fini(&test_cache1);

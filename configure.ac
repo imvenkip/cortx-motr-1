@@ -17,6 +17,7 @@ AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
+AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
 AH_TEMPLATE([LINUX], [Linux operating system])
 AH_TEMPLATE([DARWIN], [Darwin operating system])
 
@@ -242,6 +243,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
+AC_CHECK_HEADERS([CUnit/CUnit.h], [AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -413,6 +415,13 @@ if test x$OS = xlinux; then
         LIBS=$OLD_LIBS
 fi
 
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
+CUNIT_LIBS=$LIBS
+AC_SUBST([CUNIT_LIBS])
+LIBS=$OLD_LIBS
+
 CFLAGS=""
 KCFLAGS=""
 if test x$enable_debug = xyes; then
@@ -475,6 +484,7 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  stob/Makefile
                  stob/ut/Makefile
+                 ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

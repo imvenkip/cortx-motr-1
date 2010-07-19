@@ -33,9 +33,7 @@ void test_list(void)
 
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
-		printf("%d ", p->c);
 	}
-	printf("\n");
 
 	c2_list_del(&t2.t_link);
 	t_sum = 0;

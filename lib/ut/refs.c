@@ -9,7 +9,7 @@ struct test_struct {
 	struct c2_ref	ref;
 };
 
-static int free_done = 0;
+static int free_done;
 
 void test_destructor(struct c2_ref *r)
 {
@@ -19,7 +19,6 @@ void test_destructor(struct c2_ref *r)
 
 	free(t);
 	free_done = 1;
-	printf("free done\n");
 }
 
 void test_refs(void)
@@ -30,6 +29,7 @@ void test_refs(void)
 	if (!t)
 		abort();
 
+	free_done = 0;
 	c2_ref_init(&t->ref, 1, test_destructor);
 	
 	c2_ref_get(&t->ref);

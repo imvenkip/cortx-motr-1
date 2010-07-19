@@ -8,8 +8,12 @@
 #include "rpc/rpclib.h"
 #include "fop/fop.h"
 #include "addb/addb.h"
+#include "lib/ut.h"
 
 #include "colibri/init.h"
+
+extern int  c2_memory_init(void);
+extern void c2_memory_fini(void);
 
 /** @addtogroup init @{ */
 
@@ -19,6 +23,8 @@ struct init_fini_call {
 };
 
 struct init_fini_call subsystem[] = {
+	{ &c2_memory_init,  &c2_memory_fini },
+	{ &c2_uts_init,     &c2_uts_fini },
 	{ &c2_threads_init, &c2_threads_fini },
 	{ &c2_addb_init,    &c2_addb_fini },
 	{ &c2_stobs_init,   &c2_stobs_fini },

@@ -106,10 +106,11 @@ size_t c2_allocated(void)
 	return used - used0;
 }
 
-void c2_memory_init()
+int c2_memory_init()
 {
 	c2_atomic64_set(&allocated, 0);
 	used0 = __allocated();
+	return 0;
 }
 
 void c2_memory_fini()
