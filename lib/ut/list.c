@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "lib/ub.h"
+#include "lib/ut.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 #include "lib/list.h"
@@ -44,30 +45,27 @@ void test_list(void)
 		p = c2_list_entry(pos,struct test1, t_link);
 		t_sum += p->c;
 	}
-	if (t_sum != 20)
-		abort();
+	C2_UT_ASSERT(t_sum == 20);
 
 	c2_list_del(&t1.t_link);
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
 	}
-	if (t_sum != 15)
-		abort();
+	C2_UT_ASSERT(t_sum == 15);
 
 	c2_list_del(&t3.t_link);
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
 	}
-	if (t_sum != 0)
-		abort();
+	C2_UT_ASSERT(t_sum == 0);
 
 	c2_list_fini(&test_head);
 }
 
 enum {
-	UB_ITER = 50001
+	UB_ITER = 10001
 };
 
 static struct test1 t[UB_ITER];
@@ -101,7 +99,7 @@ static void ub_delete(int i)
 	c2_list_del(&t[i].t_link);
 }
 
-struct c2_ub_set libc2_ub = {
+struct c2_ub_set c2_list_ub = {
 	.us_name = "list-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,

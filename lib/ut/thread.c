@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "lib/ut.h"
+#include "lib/ub.h"
 #include "lib/thread.h"
 #include "lib/assert.h"
 
@@ -79,6 +80,85 @@ void test_thread(void)
 	C2_UT_ASSERT(result == -42);
 	c2_thread_fini(&t[0]);
 }
+
+enum {
+	UB_ITER = 1000
+};
+
+static struct c2_thread ubt[UB_ITER];
+
+static void ub_init(void)
+{
+	memset(ubt, 0, sizeof ubt);
+}
+
+static void ub_fini(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(t); ++i)
+		c2_thread_fini(&ubt[i]);
+}
+
+static void ub0(int x)
+{
+}
+
+static int ub_spawn_initcall(int x)
+{
+	return 0;
+}
+
+static void ub_spawn(int i)
+{
+	int result;
+	result = C2_THREAD_INIT(&ubt[i], int, NULL, &ub0, 0);
+	C2_ASSERT(result == 0);
+}
+
+static void ub_join(int i)
+{
+	c2_thread_join(&ubt[i]);
+}
+
+static void ub_spawn_init(int i)
+{
+	int result;
+	result = C2_THREAD_INIT(&ubt[i], int, &ub_spawn_initcall, &ub0, 0);
+	C2_ASSERT(result == 0);
+}
+
+static void ub_join_all(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(t); ++i)
+		c2_thread_join(&ubt[i]);
+	ub_init();
+}
+
+struct c2_ub_set c2_thread_ub = {
+	.us_name = "thread-ub",
+	.us_init = ub_init,
+	.us_fini = ub_fini,
+	.us_run  = { 
+		{ .ut_name  = "spawn", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_spawn },
+
+		{ .ut_name  = "join", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_join,
+		  .ut_fini  = ub_init /* sic */ },
+
+		{ .ut_name  = "spawn-init", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_spawn_init,
+		  .ut_fini  = ub_join_all },
+
+		{ .ut_name = NULL }
+	}
+};
 
 
 /* 
