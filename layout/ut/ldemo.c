@@ -123,14 +123,15 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		max = sum = sq = 0;
 		min = ~0;
 		for (i = 0; i < P; ++i) {
-			u = incidence[obj][i];
 			if (obj != i) {
+				u = incidence[obj][i];
 				min = min32u(min, u);
 				max = max32u(max, u);
 				sum += u;
 				sq += u*u;
-			}
-			printf("%5i ", u);
+				printf("%5i ", u);
+			} else
+				printf("    * ");
 		}
 		avg = ((double)sum)/(P - 1);
 		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
