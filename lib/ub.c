@@ -73,10 +73,14 @@ static void ub_run_one(const struct c2_ub_set *set, struct c2_ub_bench *bench)
 	double         sec;
 
 	printf(".");
+	if (bench->ut_init != NULL)
+		bench->ut_init();
 	gettimeofday(&start, NULL);
 	for (i = 0; i < bench->ut_iter; ++i)
 		bench->ut_round(i);
 	gettimeofday(&end, NULL);
+	if (bench->ut_fini != NULL)
+		bench->ut_fini();
 	sec = delay(&start, &end);
 	bench->ut_total += sec;
 	bench->ut_square += sec * sec;
@@ -112,10 +116,10 @@ void c2_ub_run(uint32_t rounds)
 			printf("]");
 		}
 		printf("\n");
+		printf("\t\t%12.12s: [%7s] %6s %6s %6s %5s %8s %8s\n",
+		       "bench", "iter", "min", "max", "avg", "std", 
+		       "sec/op", "op/sec");
 		for (set = last; set != NULL; set = set->us_prev) {
-			printf("\t\t%12.12s: [%6s] %6s %6s %6s %5s %8s %8s\n",
-			       "bench", "iter", "min", "max", "avg", "std", 
-			       "sec/op", "op/sec");
 			printf("\tset: %12.12s\n", set->us_name);
 			for (bench = &set->us_run[0]; bench->ut_name; bench++) {
 				double avg;
@@ -123,7 +127,7 @@ void c2_ub_run(uint32_t rounds)
 
 				avg = bench->ut_total/i;
 				std = sqrt(bench->ut_square/i - avg*avg);
-				printf("\t\t%12.12s: [%6i] %6.2f %6.2f "
+				printf("\t\t%12.12s: [%7i] %6.2f %6.2f "
 				       "%6.2f %5.2f%% %8.3e/%8.3e\n", 
 				       bench->ut_name, 
 				       bench->ut_iter, 

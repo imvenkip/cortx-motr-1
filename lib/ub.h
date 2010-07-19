@@ -13,6 +13,8 @@ struct c2_ub_bench {
 	const char *ut_name;
 	uint32_t    ut_iter;
 	void      (*ut_round)(int iter);
+	void      (*ut_init)(void);
+	void      (*ut_fini)(void);
 	double      ut_total;
 	double      ut_square;
 	double      ut_min;

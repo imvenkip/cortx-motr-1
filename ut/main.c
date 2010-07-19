@@ -11,7 +11,9 @@ extern const struct c2_test_suite libc2_ut;
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite fop_ut;
 
-extern struct c2_ub_set libc2_ub;
+extern struct c2_ub_set c2_list_ub;
+extern struct c2_ub_set c2_thread_ub;
+extern struct c2_ub_set c2_memory_ub;
 
 int main(int argc, char *argv[])
 {
@@ -23,10 +25,12 @@ int main(int argc, char *argv[])
 	c2_ut_add(&libc2_ut);
 	c2_ut_add(&adieu_ut);
 	c2_ut_add(&fop_ut);
-	c2_ut_run("c2ut.log");
+	//c2_ut_run("c2ut.log");
 
-	c2_ub_set_add(&libc2_ub);
-	c2_ub_run(8);
+	c2_ub_set_add(&c2_memory_ub);
+	c2_ub_set_add(&c2_thread_ub);
+	c2_ub_set_add(&c2_list_ub);
+	c2_ub_run(~0);
 
 	c2_fini();
 
