@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 	c2_ut_add(&libc2_ut);
 	c2_ut_add(&adieu_ut);
 	c2_ut_add(&fop_ut);
-	//c2_ut_run("c2ut.log");
+	c2_ut_run("c2ut.log");
 
 	c2_ub_set_add(&c2_memory_ub);
 	c2_ub_set_add(&c2_thread_ub);
