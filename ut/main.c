@@ -4,11 +4,14 @@
 #include <CUnit/CUnit.h>
 
 #include "lib/ut.h"
+#include "lib/ub.h"
 #include "colibri/init.h"
 
 extern const struct c2_test_suite libc2_ut;
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite fop_ut;
+
+extern struct c2_ub_set libc2_ub;
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +24,10 @@ int main(int argc, char *argv[])
 	c2_ut_add(&adieu_ut);
 	c2_ut_add(&fop_ut);
 	c2_ut_run("c2ut.log");
+
+	c2_ub_set_add(&libc2_ub);
+	c2_ub_run(8);
+
 	c2_fini();
 
 	return 0;
