@@ -18,7 +18,7 @@
 
    Parity de-clustering layout mapping function requires some amount of code
    dealing with permutations, random sequences generations and conversions
-   between blocks of different shapes.
+   between matrices of different shapes.
 
    First, as explained in the HLD, an efficient way to generate permutations
    uniformly scattered across the set of all permutations of a given set is
@@ -34,23 +34,49 @@
 
    @li layout behavior is quite sensitive to the PRNG properties. For example,
    if c2_rnd() is changed to return lower bits (result % max), resulting
-   distribution of spare and parity units is not uniform even for a large number
+   distribution of spare and parity units is not uniform even for large number
    of units. Experiments with different PRNG's are indicated.
 
    Once permutation's Lehmer code is generated, it has to be applied to the set
    of columns. permute() function applies a permutation, simultaneously building
    an inverse permutation.
 
-   Finally, m_dec() and m_enc() implement core parts of layout mapping
-   functions, mapping a source address to a tile and then to a target address
-   (and back for inverse layout mapping function).
+   Finally, layout mapping function is defined in terms of conversions between
+   matrices of different shapes. Let's call a matrix having M columns and an
+   arbitrary (probably infinite) number of rows an M-matrix. An element of an
+   M-matrix has (row, column) coordinates. Coordinate pairs can be ordered and
+   enumerated in the "row first" lexicographical order:
+
+           (0, 0) < (0, 1) < ... < (0, M - 1) < (1, 0) < ...
+
+   Function m_enc() returns the number a (row, column) element of an M-matrix
+   has in this ordering. Conversely, function m_dec() returns coordinates of the
+   element having a given number in the ordering. With the help of these two
+   function an M-matrix can be re-arranged into an N-matrix in such a way the
+   element position in the ordering remains invariant.
+
+   Layout mapping function c2_pdclust_layout_map() performs these
+   re-arrangements in the following places:
+
+   @li to convert a parity group number to a (tile number, group in tile)
+   pair. This is a conversion of 1-matrix to C-matrix;
+
+   @li to convert a tile from C*(N + 2*K) to L*P form. This is a conversion of
+   (N + 2*K)-matrix to P-matrix;
+
+   @li to convert a (tile number, frame in tile) pair to a target frame
+   number. This is a conversion of L-matrix to 1-matrix.
+
+   Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
+   conversions.
 
    @{
 */
 
 /**
    "Encoding" function: returns the number that a (row, column) element of a
-   matrix with "width" columns has when elements are counted row by row.
+   matrix with "width" columns has when elements are counted row by row. This
+   function is denoted e_{width} in the HLD.
 
    @see m_dec()
  */
@@ -62,7 +88,8 @@ static uint64_t m_enc(uint64_t width, uint64_t row, uint64_t column)
 
 /**
    "Decoding" function: returns (row, column) coordinates of a pos-th element in
-   a matrix with "width" column when elements are counted row by row.
+   a matrix with "width" column when elements are counted row by row. This
+   function is denoted d_{width} in the HLD.
 
    @see m_enc()
  */
@@ -100,11 +127,11 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	 * k[1] is an index of one of the (n - 1) remaining elements that
 	 * permutation moves to the 1-st position in s[], etc.
 	 *
-	 * To produce i-th element of s[], pick one of remaining elements as
-	 * specified by k[i], shift elements s[i] ... s[n - 1] to the right by
-	 * one and place selected element in s[i]. This guarantees that at
-	 * beginning of the loop elements s[0] ... s[i - 1] are already selected
-	 * and elements s[i] ... s[n - 1] are "remaining".
+	 * To produce i-th element of s[], pick one of remaining elements, say
+	 * s[t], as specified by k[i], shift elements s[i] ... s[t] to the right
+	 * by one and place s[t] in s[i]. This guarantees that at beginning of
+	 * the loop elements s[0] ... s[i - 1] are already selected and elements
+	 * s[i] ... s[n - 1] are "remaining".
 	 */
 
 	for (i = 0; i < n - 1; ++i) {
@@ -151,8 +178,7 @@ static bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 		   bijection. */
 	}
 	return 
-		play->pl_C * (play->pl_N + 2*play->pl_K) == 
-		play->pl_L * play->pl_P;
+		play->pl_C * (play->pl_N + 2*play->pl_K) == play->pl_L * P;
 }
 
 /**
@@ -174,6 +200,7 @@ static uint64_t hash(uint64_t x)
 	y <<= 4;
 	x += y;
 	y <<= 2;
+
 	return x + y;
 }
 
