@@ -417,7 +417,7 @@ fi
 
 OLD_LIBS=$LIBS
 LIBS=""
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
+AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])], [-lncurses])
 CUNIT_LIBS=$LIBS
 AC_SUBST([CUNIT_LIBS])
 LIBS=$OLD_LIBS
