@@ -9,6 +9,7 @@
 #include <sys/types.h> /* mkdir */
 #include <errno.h>
 
+#include "lib/ut.h"
 #include "lib/assert.h"
 
 #include "stob/stob.h"
@@ -20,14 +21,14 @@
  */
 
 enum {
-	NR    = 250,
+	NR    = 6,
 	COUNT = 4096
 };
 
 /**
    Adieu unit-test. 
  */
-int main(int argc, char **argv)
+void test_adieu(void)
 {
 	int result;
 	struct c2_stob_domain *dom;
@@ -54,57 +55,57 @@ int main(int argc, char **argv)
 	result = linux_stob_module_init();
 
 	result = mkdir("./__s", 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	result = mkdir("./__s/o", 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	unlink(path);
 
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
 							  "./__s", &dom);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_locate(obj);
-	C2_ASSERT(result == -ENOENT);
-	C2_ASSERT(obj->so_state == CSS_NOENT);
+	C2_UT_ASSERT(result == -ENOENT);
+	C2_UT_ASSERT(obj->so_state == CSS_NOENT);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj1);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj == obj1);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj == obj1);
 
 	c2_stob_put(obj);
 	c2_stob_put(obj1);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_create(obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_create(obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
 
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_locate(obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(obj->so_state == CSS_EXISTS);
 
 	for (i = 0; i < NR; ++i) {
 		user_bufs[i] = user_buf[i];
@@ -131,12 +132,12 @@ int main(int argc, char **argv)
 		c2_clink_add(&io.si_wait, &clink);
 
 		result = c2_stob_io_launch(&io, obj, NULL, NULL);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 
 		c2_chan_wait(&clink);
 
-		C2_ASSERT(io.si_rc == 0);
-		C2_ASSERT(io.si_count == COUNT * i);
+		C2_UT_ASSERT(io.si_rc == 0);
+		C2_UT_ASSERT(io.si_count == COUNT * i);
 
 		c2_clink_del(&clink);
 		c2_clink_fini(&clink);
@@ -149,17 +150,17 @@ int main(int argc, char **argv)
 
 			for (k = 0; k < COUNT; ++k) {
 				ch = fgetc(f);
-				C2_ASSERT(ch == '\0');
-				C2_ASSERT(!feof(f));
+				C2_UT_ASSERT(ch == '\0');
+				C2_UT_ASSERT(!feof(f));
 			}
 			for (k = 0; k < COUNT; ++k) {
 				ch = fgetc(f);
-				C2_ASSERT(ch != '\0');
-				C2_ASSERT(!feof(f));
+				C2_UT_ASSERT(ch != '\0');
+				C2_UT_ASSERT(!feof(f));
 			}
 		}
 		ch = fgetc(f);
-		C2_ASSERT(ch == EOF);
+		C2_UT_ASSERT(ch == EOF);
 		fclose(f);
 	}
 
@@ -180,26 +181,34 @@ int main(int argc, char **argv)
 		c2_clink_add(&io.si_wait, &clink);
 
 		result = c2_stob_io_launch(&io, obj, NULL, NULL);
-		C2_ASSERT(result == 0);
+		C2_UT_ASSERT(result == 0);
 
 		c2_chan_wait(&clink);
 
-		C2_ASSERT(io.si_rc == 0);
-		C2_ASSERT(io.si_count == COUNT * i);
+		C2_UT_ASSERT(io.si_rc == 0);
+		C2_UT_ASSERT(io.si_count == COUNT * i);
 
 		c2_clink_del(&clink);
 		c2_clink_fini(&clink);
 
 		c2_stob_io_fini(&io);
-		C2_ASSERT(memcmp(user_buf, read_buf, COUNT * i) == 0);
+		C2_UT_ASSERT(memcmp(user_buf, read_buf, COUNT * i) == 0);
 	}
 
 	c2_stob_put(obj);
 	dom->sd_ops->sdo_fini(dom);
 	linux_stob_module_fini();
-
-	return 0;
 }
+
+const struct c2_test_suite adieu_ut = {
+	.ts_name = "adieu-ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "adieu", test_adieu },
+		{ NULL, NULL }
+	}
+};
 
 /** @} end group stob */
 

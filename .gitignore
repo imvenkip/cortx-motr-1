@@ -60,3 +60,4 @@ nohup.out
 test_db*
 __s/
 build/
+c2ut.log-Results.xml

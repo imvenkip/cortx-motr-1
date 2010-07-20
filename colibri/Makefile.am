@@ -2,8 +2,8 @@ SUBDIRS                   = .
 
 lib_LTLIBRARIES           = libcolibri.la
 libcolibri_la_SOURCES     = init.h init.c
-libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread
-libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ \
+libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread -lm
+libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
                             $(top_builddir)/lib/libc2.la \
                             $(top_builddir)/sm/libcolibri-sm.la \
                             $(top_builddir)/stob/libcolibri-stob.la \

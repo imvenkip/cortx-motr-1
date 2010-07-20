@@ -104,8 +104,8 @@ libcolibri_la_LIBADD in core/colibri/Makefile.am
 How to add a new executable?
 ----------------------------
 
-To build a new executable core/foo/baz (including core/foo/ut/utbaz)
-add to the core/foo/Makefile.am:
+To build a new executable core/foo/baz add to the
+core/foo/Makefile.am:
 
 INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
 
@@ -143,3 +143,93 @@ to core/colibri/init.c and add { &foo_init, &foo_fini } to the
 subsystem[] array, defined in core/colibri/init.c. foo_init() must
 follow standard return conventions: 0 on success, negated errno value
 on failure.
+
+How to add a new unit test?
+---------------------------
+
+C2 uses a unit test framework based on CUnit
+(http://cunit.sourceforge.net/).
+
+To add a collection of unit tests ("test suite") for a module foo:
+
+In a file core/foo/ut/foo.c do something like:
+
+#include "lib/ut.h"
+
+void test_foo0(void)
+{
+	struct foo F;
+
+	foo_init(&F);
+	C2_UT_ASSERT(foo_bar(&F) == foo_baz(&F) + 1);
+        ...
+}
+
+void test_foo1(void)
+{
+        ...
+}
+
+...
+
+int foo_ut_init(void)
+{
+	/* prepare for testing */
+        ...
+}
+
+int foo_it_fini(void)
+{
+	/* cleanup after testing */
+        ...
+}
+
+const struct c2_test_suite foo_ut = {
+	.ts_name = "foo-ut",
+	.ts_init = foo_ut_init, /* optional, may be NULL */
+	.ts_fini = foo_ut_fini, /* optional, may be NULL */
+	.ts_tests = {
+		{ "test0", test_foo0 },
+		{ "test1", test_foo1 },
+		...
+		{ NULL, NULL }
+	}
+};
+
+In core/foo/ut/Makefile.am do:
+
+noinst_LTLIBRARIES   = libfoo-ut.la
+libfoo_ut_la_SOURCES = foo.c ...
+
+In core/ut/Makefile.am add $(top_builddir)/foo/ut/libfoo-ut.la to ut_LDADD.
+
+In core/ut/main.c add
+
+extern const struct c2_test_suite foo_ut;
+
+declaration and 
+
+	c2_ut_add(&foo_ut);
+
+to main().
+
+Add foo/ut to SUBDIR_UT in core/Makefile.am.
+
+All unit tests are executed by ./core/ut/ut.
+
+A few comments:
+
+    * unit testing functions should use C2_UT_ASSERT() or other CUnit
+      macros (see <CUnit/CUnit.h>) for testing;
+
+    * unit testing functions should produce no output;
+
+    * unit testing code should be ready to be ran multiple
+      times. Avoid static initialisers or carefully re-set everything
+      in foo_ut_fini();
+
+    * unit tests are ran in an address space where c2_init() was
+      already executed.
+
+See core/lib/ut/*.c, core/stob/ut/adieu.c, core/fop/ut/fmt_test.c for
+examples.

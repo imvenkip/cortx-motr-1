@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
@@ -22,8 +23,6 @@ static void t0(int self)
 	int i;
 	int j;
 
-	if (self == 0)
-		printf("chan mt ");
 	for (i = 0; i < NR; ++i) {
 		for (j = 0; j < NR; ++j) {
 			if (j != self)
@@ -32,11 +31,7 @@ static void t0(int self)
 		
 		for (j = 0; j < NR - 1; ++j)
 			c2_chan_wait(&l[self]);
-		if (self == 0)
-			printf(".");
 	}
-	if (self == 0)
-		printf(" done\n");
 }
 
 static int flag;
@@ -66,28 +61,28 @@ void test_chan(void)
 	c2_clink_init(&clink1, &cb1);
 	c2_clink_add(&chan, &clink1);
 	c2_chan_signal(&chan);
-	C2_ASSERT(flag == 1);
+	C2_UT_ASSERT(flag == 1);
 	c2_chan_broadcast(&chan);
-	C2_ASSERT(flag == 2);
+	C2_UT_ASSERT(flag == 2);
 
 	c2_clink_init(&clink2, &cb2);
 	c2_clink_add(&chan, &clink2);
 
 	flag = 0;
 	c2_chan_signal(&chan);
-	C2_ASSERT(flag == 1 || flag == 2);
+	C2_UT_ASSERT(flag == 1 || flag == 2);
 	flag = 0;
 	c2_chan_broadcast(&chan);
-	C2_ASSERT(flag == 3);
+	C2_UT_ASSERT(flag == 3);
 
 	c2_clink_del(&clink1);
 
 	flag = 0;
 	c2_chan_signal(&chan);
-	C2_ASSERT(flag == 2);
+	C2_UT_ASSERT(flag == 2);
 	flag = 0;
 	c2_chan_broadcast(&chan);
-	C2_ASSERT(flag == 2);
+	C2_UT_ASSERT(flag == 2);
 
 	c2_clink_del(&clink2);
 
@@ -100,11 +95,11 @@ void test_chan(void)
 	c2_clink_add(&chan, &clink1);
 
 	got = c2_chan_trywait(&clink1);
-	C2_ASSERT(!got);
+	C2_UT_ASSERT(!got);
 
 	c2_chan_signal(&chan);
 	got = c2_chan_trywait(&clink1);
-	C2_ASSERT(got);
+	C2_UT_ASSERT(got);
 
 	c2_chan_signal(&chan);
 	c2_chan_wait(&clink1);
@@ -124,7 +119,7 @@ void test_chan(void)
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i);
-		C2_ASSERT(got == 0);
+		C2_UT_ASSERT(got == 0);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {

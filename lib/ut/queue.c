@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "lib/ut.h"
 #include "lib/queue.h"
 #include "lib/assert.h"
 
@@ -30,38 +31,38 @@ void test_queue(void)
 	};
 
 	c2_queue_init(&q);
-	C2_ASSERT(c2_queue_is_empty(&q));
-	C2_ASSERT(c2_queue_get(&q) == NULL);
-	C2_ASSERT(c2_queue_length(&q) == 0);
+	C2_UT_ASSERT(c2_queue_is_empty(&q));
+	C2_UT_ASSERT(c2_queue_get(&q) == NULL);
+	C2_UT_ASSERT(c2_queue_length(&q) == 0);
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		c2_queue_put(&q, &t[i].t_linkage);
-		C2_ASSERT(!c2_queue_is_empty(&q));
-		C2_ASSERT(c2_queue_link_is_in(&t[i].t_linkage));
-		C2_ASSERT(c2_queue_length(&q) == i + 1);
+		C2_UT_ASSERT(!c2_queue_is_empty(&q));
+		C2_UT_ASSERT(c2_queue_link_is_in(&t[i].t_linkage));
+		C2_UT_ASSERT(c2_queue_length(&q) == i + 1);
 	}
-	C2_ASSERT(c2_queue_length(&q) == ARRAY_SIZE(t));
+	C2_UT_ASSERT(c2_queue_length(&q) == ARRAY_SIZE(t));
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i)
-		C2_ASSERT(c2_queue_contains(&q, &t[i].t_linkage));
+		C2_UT_ASSERT(c2_queue_contains(&q, &t[i].t_linkage));
 
 	for (sum1 = i = 0; i < ARRAY_SIZE(t); ++i) {
 		struct c2_queue_link *ql;
 		struct qt            *qt;
 
 		ql = c2_queue_get(&q);
-		C2_ASSERT(ql != NULL);
+		C2_UT_ASSERT(ql != NULL);
 		qt = container_of(ql, struct qt, t_linkage);
-		C2_ASSERT(&t[0] <= qt && qt < &t[NR]);
-		C2_ASSERT(qt->t_val == i);
+		C2_UT_ASSERT(&t[0] <= qt && qt < &t[NR]);
+		C2_UT_ASSERT(qt->t_val == i);
 		sum1 += qt->t_val;
 	}
-	C2_ASSERT(sum0 == sum1);
-	C2_ASSERT(c2_queue_get(&q) == NULL);
-	C2_ASSERT(c2_queue_is_empty(&q));
-	C2_ASSERT(c2_queue_length(&q) == 0);
+	C2_UT_ASSERT(sum0 == sum1);
+	C2_UT_ASSERT(c2_queue_get(&q) == NULL);
+	C2_UT_ASSERT(c2_queue_is_empty(&q));
+	C2_UT_ASSERT(c2_queue_length(&q) == 0);
 	for (i = 0; i < ARRAY_SIZE(t); ++i)
-		C2_ASSERT(!c2_queue_link_is_in(&t[i].t_linkage));
+		C2_UT_ASSERT(!c2_queue_link_is_in(&t[i].t_linkage));
 
 	c2_queue_fini(&q);
 }

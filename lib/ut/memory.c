@@ -1,7 +1,10 @@
 /* -*- C -*- */
 #include <stdlib.h>
+#include <string.h> /* memset */
 
-#include <lib/memory.h>
+#include "lib/ub.h"
+#include "lib/ut.h"
+#include "lib/memory.h"
 
 struct test1 {
 	int a;
@@ -13,27 +16,109 @@ void test_memory()
 	struct test1 *ptr2;
 	size_t allocated;
 
-	extern void c2_memory_init();
-	extern void c2_memory_fini();
-
-	c2_memory_init();
-
 	allocated = c2_allocated();
 	ptr1 = c2_alloc(100);
-	if (ptr1 == NULL)
-		abort();
+	C2_UT_ASSERT(ptr1 != NULL);
 
 	C2_ALLOC_PTR(ptr2);
-	if (ptr2 == NULL)
-		abort();
+	C2_UT_ASSERT(ptr2 != NULL);
 
 	c2_free(ptr1);
 	c2_free(ptr2);
-	if (allocated != c2_allocated())
-		abort();
-
-	c2_memory_fini();
+	C2_UT_ASSERT(allocated == c2_allocated())
 }
+
+enum {
+	UB_ITER   = 1000000,
+	UB_SMALL  = 1,
+	UB_MEDIUM = 17,
+	UB_LARGE  = 512,
+	UB_HUGE   = 128*1024
+};
+
+static void *ubx[UB_ITER];
+
+static void ub_init(void)
+{
+	memset(ubx, 0, sizeof ubx);
+}
+
+static void ub_free(int i)
+{
+	c2_free(ubx[i]);
+}
+
+static void ub_small(int i)
+{
+	ubx[i] = c2_alloc(UB_SMALL);
+}
+
+static void ub_medium(int i)
+{
+	ubx[i] = c2_alloc(UB_MEDIUM);
+}
+
+static void ub_large(int i)
+{
+	ubx[i] = c2_alloc(UB_LARGE);
+}
+
+static void ub_huge(int i)
+{
+	ubx[i] = c2_alloc(UB_HUGE);
+}
+
+#if 0
+static void ub_free_all(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ubx); ++i)
+		c2_free(ubx[i]);
+}
+#endif
+
+struct c2_ub_set c2_memory_ub = {
+	.us_name = "memory-ub",
+	.us_init = ub_init,
+	.us_fini = NULL,
+	.us_run  = { 
+		{ .ut_name  = "alloc-small",
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_small },
+
+		{ .ut_name  = "free-small", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_free },
+
+		{ .ut_name  = "alloc-medium",
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_medium },
+
+		{ .ut_name  = "free-medium", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_free },
+
+		{ .ut_name  = "alloc-large",
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_large },
+
+		{ .ut_name  = "free-large", 
+		  .ut_iter  = UB_ITER, 
+		  .ut_round = ub_free },
+
+		{ .ut_name  = "alloc-huge",
+		  .ut_iter  = UB_ITER/1000, 
+		  .ut_round = ub_huge },
+
+		{ .ut_name  = "free-huge", 
+		  .ut_iter  = UB_ITER/1000, 
+		  .ut_round = ub_free },
+
+		{ .ut_name = NULL }
+	}
+};
+
 
 /* 
  *  Local variables:
