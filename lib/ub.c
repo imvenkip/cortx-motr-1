@@ -1,9 +1,10 @@
 /* -*- C -*- */
 
-#include <stdio.h>    /* printf */
-#include <sys/time.h> /* gettimeofday */
-#include <math.h>     /* sqrt */
-#include <string.h>   /* memset */
+#define _ISOC99_SOURCE /* INFINITY */
+#include <stdio.h>     /* printf */
+#include <sys/time.h>  /* gettimeofday */
+#include <math.h>      /* sqrt */
+#include <string.h>    /* memset */
 
 #include "lib/assert.h"
 #include "lib/arith.h"
