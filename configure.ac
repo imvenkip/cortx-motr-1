@@ -484,7 +484,6 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  stob/Makefile
                  stob/ut/Makefile
-                 ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

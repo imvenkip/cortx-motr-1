@@ -201,9 +201,9 @@ In core/foo/ut/Makefile.am do:
 noinst_LTLIBRARIES   = libfoo-ut.la
 libfoo_ut_la_SOURCES = foo.c ...
 
-In core/ut/Makefile.am add $(top_builddir)/foo/ut/libfoo-ut.la to ut_LDADD.
+In core/utils/Makefile.am add $(top_builddir)/foo/ut/libfoo-ut.la to ut_LDADD.
 
-In core/ut/main.c add
+In core/utils/ut_main.c add
 
 extern const struct c2_test_suite foo_ut;
 
@@ -215,7 +215,7 @@ to main().
 
 Add foo/ut to SUBDIR_UT in core/Makefile.am.
 
-All unit tests are executed by ./core/ut/ut.
+All unit tests are executed by ./core/utils/ut.
 
 A few comments:
 
@@ -233,3 +233,15 @@ A few comments:
 
 See core/lib/ut/*.c, core/stob/ut/adieu.c, core/fop/ut/fmt_test.c for
 examples.
+
+How to add a new unit benchmark?
+--------------------------------
+
+Unit benchmarks for a component is a collection of micro-benchmarks
+measuring performance of common code-paths at the function level.
+
+It is cleat that unit benchmarks are somewhat similar to unit
+tests. Indeed, they usually happen to share a lot of code. As a
+result, unit benchmark code is typically kept in the same
+core/foo/ut/foo.c code as unit tests for the same component. See
+core/lib/ut/*.c and core/stob/ut/adieu.c for examples.
