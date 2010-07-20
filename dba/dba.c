@@ -358,7 +358,8 @@ int c2_dba_format(struct c2_dba_format_req *req)
 /**
    Init the database operation environment, opening databases, ...
 
-   @param ctxt pointer to the operation context environment.
+   @param ctxt pointer to the operation context environment, e.g. db_home is
+          passed by this into this function.
    @return 0 means success. Otherwise errer number will be returned.
    @see c2_dba_fini
  */
@@ -551,6 +552,36 @@ int c2_dba_discard_prealloc(struct c2_dba_ctxt *ctxt, struct c2_dba_discard_req 
 	return 0;
 }
 
+/**
+   modify the allocation status forcibly.
+
+   This function may be used by fsck or some other tools to modify the
+   allocation status directly.
+
+   @param ctxt dba operation context environment.
+   @param alloc true to make the specifed extent as allocated, otherwise make
+          the extent as free.
+   @param ext user supplied extent to check.
+   @return 0 means success. Upon failure, non-zero error number is returned.
+ */
+int c2_dba_enforce(struct c2_dba_ctxt *ctxt, bool alloc, struct c2_dba_extent *ext)
+{
+	return 0;
+}
+
+
+/**
+   Query the allocation status.
+
+   @param ctxt dba operation context environment.
+   @param ext user supplied extent to check.
+   @return true if the extent is fully allocated. Otherwise, false is returned.
+ */
+bool c2_dba_query(struct c2_dba_ctxt *ctxt, struct c2_dba_extent *ext)
+{
+
+	return false;
+}
 
 
 /**

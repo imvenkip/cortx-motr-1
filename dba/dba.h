@@ -208,6 +208,17 @@ struct c2_dba_discard_req {
 	void           *ddr_prealloc; /* User opaque prealloc result */
 };
 
+
+int c2_dba_format(struct c2_dba_format_req *req);
+int c2_dba_init(struct c2_dba_ctxt *ctxt);
+int c2_dba_allocate(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req);
+int c2_dba_free(struct c2_dba_ctxt *ctxt, struct c2_dba_free_req *req);
+int c2_dba_discard_prealloc(struct c2_dba_ctxt *ctxt,
+			    struct c2_dba_discard_req *req);
+int c2_dba_enforce(struct c2_dba_ctxt *ctxt, bool alloc, struct c2_dba_extent *ext);
+bool c2_dba_query(struct c2_dba_ctxt *ctxt, struct c2_dba_extent *ext);
+
+
 /**
    Convert a 64-bit integer into big-endian and place it into @place
  */
