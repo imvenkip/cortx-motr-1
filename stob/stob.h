@@ -118,7 +118,7 @@ void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
 void c2_stob_domain_fini(struct c2_stob_domain *dom);
 
 /**
-   c2_stob state specifying it relationship with the underlying storage object.
+   c2_stob state specifying its relationship with the underlying storage object.
  */
 enum c2_stob_state {
 	/**
