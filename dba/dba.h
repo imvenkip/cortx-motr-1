@@ -25,25 +25,6 @@ typedef uint32_t c2_blockcount_t;
 typedef uint64_t c2_groupno_t;
 
 /**
-   In-memory data structure for the dba environment.
-
-   It includes pointers to db, home dir, various flags and parameters.
- */
-struct c2_dba_ctxt {
-	DB_ENV         *dc_dbenv;
-	char	       *dc_home;
-
-        uint32_t       dc_dbenv_flags;
-        uint32_t       dc_db_flags;
-        uint32_t       dc_txn_flags;
-        uint32_t       dc_cache_size;
-        uint32_t       dc_nr_thread;
-
-	DB             *dc_group_extent;
-	DB             *dc_group_info;
-};
-
-/**
    On-disk and in-momory data structure for extent
 
    When stored in db, {key, value} = {start, len}
@@ -95,6 +76,7 @@ struct c2_dba_super_block {
         c2_blockno_t       dsb_freeblocks; /* nr of free blocks */
         c2_blockcount_t    dsb_blocksize;  /* block size in bytes */
         c2_blockcount_t    dsb_groupsize;  /* group size in blocks */
+        c2_blockcount_t    dsb_groupcount; /* # of group */
         c2_blockcount_t    dsb_reserved_groups;  /* nr of reserved groups */
         c2_blockcount_t    dsb_prealloc_count;   /* nr of pre-alloc blocks */
 
@@ -112,6 +94,29 @@ struct c2_dba_super_block {
 #define C2_DBA_SB_MAGIC   0xC011B21AC08EC08EULL
 #define C2_DBA_SB_CLEAN   (1 << 0)
 #define C2_DBA_SB_VERSION 1ULL
+
+/**
+   In-memory data structure for the dba environment.
+
+   It includes pointers to db, home dir, various flags and parameters.
+ */
+struct c2_dba_ctxt {
+	DB_ENV        *dc_dbenv;
+	char	      *dc_home;
+
+        uint32_t       dc_dbenv_flags;
+        uint32_t       dc_db_flags;
+        uint32_t       dc_txn_flags;
+        uint32_t       dc_cache_size;
+        uint32_t       dc_nr_thread;
+
+	DB            *dc_db_sb;
+	struct c2_dba_super_block dc_sb;
+
+	DB           **dc_db_group_info;
+	DB           **dc_db_group_extent;
+};
+
 
 
 /**

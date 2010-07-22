@@ -482,6 +482,9 @@ AC_CONFIG_FILES([
                  c2t1fs/Makefile
                  build_kernel_modules/Makefile
                  patches/Makefile
+                 layout/Makefile
+                 layout/ut/Makefile
+                 pool/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  utils/Makefile

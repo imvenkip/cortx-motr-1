@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <memory.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -40,18 +41,28 @@ static void c2_dba_fini(struct c2_dba_ctxt *ctxt)
 {
 	DB_ENV  *dbenv = ctxt->dc_dbenv;
 	int 	 rc;
+	int	 i;
 
 	if (dbenv) {
 		rc = dbenv->log_flush(dbenv, NULL);
+		if (ctxt->dc_db_sb != NULL) {
+			ctxt->dc_db_sb->sync(ctxt->dc_db_sb, 0);
+			ctxt->dc_db_sb->close(ctxt->dc_db_sb, 0);
+			ctxt->dc_db_sb = NULL;
+		}
 
-		if (ctxt->dc_group_extent != NULL)
-			ctxt->dc_group_extent->sync(ctxt->dc_group_extent, 0);
-		if (rc != 0)
-			db_err(dbenv, rc, "->log_flush()");
+		for (i = 0 ; i < ctxt->dc_sb.dsb_groupcount; i++) {
 
-		if (ctxt->dc_group_extent != NULL) {
-			ctxt->dc_group_extent->close(ctxt->dc_group_extent, 0);
-			ctxt->dc_group_extent = NULL;
+			if (ctxt->dc_db_group_extent[i] != NULL) {
+				ctxt->dc_db_group_extent[i]->sync(ctxt->dc_db_group_extent[i], 0);
+				ctxt->dc_db_group_extent[i]->close(ctxt->dc_db_group_extent[i], 0);
+				ctxt->dc_db_group_extent[i] = NULL;
+			}
+			if (ctxt->dc_db_group_info[i] != NULL) {
+				ctxt->dc_db_group_info[i]->sync(ctxt->dc_db_group_info[i], 0);
+				ctxt->dc_db_group_info[i]->close(ctxt->dc_db_group_info[i], 0);
+				ctxt->dc_db_group_info[i] = NULL;
+			}
 		}
 
 		dbenv->close(dbenv, 0);
@@ -99,6 +110,49 @@ static int c2_dba_insert_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 
 	return result;
 }
+
+/**
+   Get a key/record pair from the db.
+
+   The caller should free the result record memory if succeeded to call
+   this function.
+
+   @param dbenv pointer to this db env.
+   @param tx transaction. See more on DB->put().
+   @param db the database from which key/record will be retrieved from.
+   @param key [in] pointer to key. Any data type is accepted.
+   @param keysize [in] size of data.
+   @param rec [out] pointer to record. Any data type is accpeted.
+   @param recsize [out] size of record.
+
+   @return 0 on success; Otherwise, error number is returned.
+
+ */
+static int c2_dba_get_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
+			     void *key, size_t keysize,
+			     void **rec, size_t *recsize)
+{
+	int result;
+	DBT keyt;
+	DBT rect;
+
+	memset(&keyt, 0, sizeof keyt);
+	memset(&rect, 0, sizeof rect);
+	keyt.data = key;
+	keyt.size = keysize;
+	rect.flags = DB_DBT_MALLOC;
+
+	result = db->get(db, tx, &keyt, &rect, 0);
+	if (result != 0) {
+		const char *msg = "DB->get() cannot get into database";
+		db_err(dbenv, result, msg);
+	} else {
+		*rec = rect.data;
+		*recsize = rect.size;
+	}
+	return result;
+}
+
 
 
 /**
@@ -276,6 +330,7 @@ int c2_dba_format(struct c2_dba_format_req *req)
 		sb.dsb_totalsize = req->dfr_totalsize;
 		sb.dsb_blocksize = req->dfr_blocksize;
 		sb.dsb_groupsize = req->dfr_groupsize;
+		sb.dsb_groupcount = number_of_groups;
 		sb.dsb_reserved_groups = req->dfr_reserved_groups;
 		sb.dsb_freeblocks      = sb.dsb_blocksize * number_of_groups;
 		sb.dsb_prealloc_count  = 16;
@@ -354,6 +409,27 @@ int c2_dba_format(struct c2_dba_format_req *req)
 	return 0;
 }
 
+static int c2_dba_read_super(DB_ENV *dbenv, DB *db, struct c2_dba_super_block *sb)
+{
+	struct c2_dba_super_block *tmp;
+	size_t size;
+	int    rc;
+
+	sb->dsb_magic = C2_DBA_SB_MAGIC;
+
+	rc = c2_dba_get_record(dbenv, NULL, db, &sb->dsb_magic,
+			       sizeof sb->dsb_magic, (void**)&tmp, &size);
+
+	if (rc == 0) {
+		if (size != sizeof *sb) {
+			fprintf(stderr, "size mismatch\n");
+		}
+		memcpy(sb, tmp, size);
+		free(tmp);
+	}
+
+	return rc;
+}
 
 /**
    Init the database operation environment, opening databases, ...
@@ -368,6 +444,7 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 	int            	 rc;
 	DB_ENV 		*dbenv;
 	char		 path[MAXPATHLEN];
+	int 		 i;
 	ENTER;
 
 	rc = db_env_create(&dbenv, 0);
@@ -378,7 +455,7 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 
 	ctxt->dc_dbenv = dbenv;
 	dbenv->set_errfile(dbenv, stderr);
-	dbenv->set_errpfx(dbenv, "db4s");
+	dbenv->set_errpfx(dbenv, "dba");
 
 	rc = dbenv->set_flags(dbenv, DB_TXN_NOSYNC, 1);
 	if (rc != 0) {
@@ -387,7 +464,7 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 		return rc;
 	}
 
-	ctxt->dc_cache_size = 1024*1024;
+	ctxt->dc_cache_size = 1024 * 1024 * 64;
 	if (ctxt->dc_cache_size != 0) {
 		uint32_t gbytes;
 		uint32_t bytes;
@@ -446,12 +523,13 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 		db_err(dbenv, rc, "->set_data_dir()");
 
 	/* Open the environment with full transactional support. */
-	ctxt->dc_dbenv_flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|
-			       DB_INIT_MPOOL|DB_INIT_TXN|DB_INIT_LOCK|
-	                       DB_RECOVER;
+       ctxt->dc_dbenv_flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|
+                              DB_INIT_MPOOL|DB_INIT_TXN|DB_INIT_LOCK|
+                              DB_RECOVER;
 	rc = dbenv->open(dbenv, ctxt->dc_home, ctxt->dc_dbenv_flags, 0);
 	if (rc != 0) {
 		db_err(dbenv, rc, "environment open");
+		c2_dba_fini(ctxt);
 		return rc;
 	}
 
@@ -464,11 +542,57 @@ int c2_dba_init(struct c2_dba_ctxt *ctxt)
 			     */
                              DB_READ_UNCOMMITTED;
 	ctxt->dc_txn_flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
-	rc = c2_dba_open_db(dbenv, "group_extent_1", ctxt->dc_db_flags,
-			    c2_dba_blockno_compare, &ctxt->dc_group_extent);
+
+	rc = c2_dba_open_db(dbenv, "super_block", ctxt->dc_db_flags,
+			    NULL, &ctxt->dc_db_sb);
+
+	if (rc != 0) {
+		db_err(dbenv, rc, "open super block");
+		c2_dba_fini(ctxt);
+		return rc;
+	}
+
+	rc = c2_dba_read_super(dbenv, ctxt->dc_db_sb, &ctxt->dc_sb);
+	if (rc != 0) {
+		db_err(dbenv, rc, "open super block");
+		c2_dba_fini(ctxt);
+		return rc;
+	}
+
+	printf("Group Count = %u\n", ctxt->dc_sb.dsb_groupcount);
+
+	ctxt->dc_db_group_extent = malloc(ctxt->dc_sb.dsb_groupcount * sizeof (DB*));
+	ctxt->dc_db_group_info   = malloc(ctxt->dc_sb.dsb_groupcount * sizeof (DB*));
+	if (ctxt->dc_db_group_extent == NULL || ctxt->dc_db_group_info == NULL) {
+		free(ctxt->dc_db_group_info);
+		free(ctxt->dc_db_group_extent);
+		rc = -ENOMEM;
+		db_err(dbenv, rc, "malloc");
+		c2_dba_fini(ctxt);
+		return rc;
+	}
+
+	for (i = 0; i < ctxt->dc_sb.dsb_groupcount; i++ ) {
+		char db_name[64];
+
+		snprintf(db_name, 63, "group_desc_%d", i);
+		rc = c2_dba_open_db(dbenv, db_name, ctxt->dc_db_flags,
+				    NULL, &ctxt->dc_db_group_info[i]);
+
+		snprintf(db_name, 63, "group_free_extent_%d", i);
+		rc |= c2_dba_open_db(dbenv, db_name, ctxt->dc_db_flags,
+				     c2_dba_blockno_compare,
+				     &ctxt->dc_db_group_extent[i]);
+
+		if (rc != 0) {
+			db_err(dbenv, rc, "opening db");
+			c2_dba_fini(ctxt);
+			break;
+		}
+	}
 
 	LEAVE;
-	return 0;
+	return rc;
 }
 
 /**
@@ -604,7 +728,7 @@ int db_insert(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 		db_err(dbenv, rc, "cannot start transaction");
 		return rc;
 	}
-	rc = c2_dba_insert_record(dbenv, tx, ctxt->dc_group_extent,
+	rc = c2_dba_insert_record(dbenv, tx, ctxt->dc_db_group_extent[0],
 			  &bn, sizeof bn, &count, sizeof count);
 
 	if (rc == 0)
@@ -631,13 +755,12 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 	memset(&nkeyt, 0, sizeof nkeyt);
 	memset(&nrect, 0, sizeof nrect);
 
-	nrect.flags = DB_DBT_MALLOC;
-
-	result = ctxt->dc_group_extent->cursor(ctxt->dc_group_extent, NULL, &cursor, 0);
+	result = ctxt->dc_db_group_extent[0]->cursor(ctxt->dc_db_group_extent[0], NULL, &cursor, 0);
 	if (result == 0) {
 		nkeyt.data = &req->dar_goal;
 		nkeyt.size = sizeof req->dar_goal;
 
+		nrect.flags = DB_DBT_MALLOC;
 		result = cursor->get(cursor, &nkeyt,
 					     &nrect, DB_SET_RANGE);
 		if ( result == 0) {
@@ -645,21 +768,32 @@ static int db_list(struct c2_dba_ctxt *ctxt, struct c2_dba_allocate_req *req)
 			count = nrect.data;
 			printf("[%08llx, %lx]\n",
 			       (unsigned long long) *bn, (unsigned long)*count);
+			free (count);
 
-		while ((result = cursor->get(cursor, &nkeyt,
-					     &nrect, DB_NEXT)) == 0) {
-			/* XXX db4 does not guarantee proper alignment */
-			bn = nkeyt.data;
-			count = nrect.data;
+			while (1) {
+				memset(&nkeyt, 0, sizeof nkeyt);
+				memset(&nrect, 0, sizeof nrect);
+				nrect.flags = DB_DBT_MALLOC;
+				nkeyt.flags = DB_DBT_MALLOC;
 
-			printf("...[%08llx, %lx]\n",
-			       (unsigned long long) *bn, (unsigned long)*count);
-		}
-		if (result != DB_NOTFOUND)
-			ctxt->dc_group_extent->err(ctxt->dc_group_extent,
-						   result, "Full iteration");
-		else
-			result = 0;
+				result = cursor->get(cursor, &nkeyt,
+					     &nrect, DB_NEXT);
+				if ( result != 0)
+					break;
+
+				bn = nkeyt.data;
+				count = nrect.data;
+
+				printf("...[%08llx, %lx]\n",
+					(unsigned long long) *bn, (unsigned long)*count);
+				free(bn);
+				free(count);
+			}
+			if (result != DB_NOTFOUND)
+				ctxt->dc_db_group_extent[0]->err(ctxt->dc_db_group_extent[0],
+						      result, "Full iteration");
+			else
+				result = 0;
 		}
 
 		cursor->close(cursor);
@@ -685,12 +819,12 @@ int main()
 	getcwd(path, 255);
 
 	format_req.dfr_db_home = path;
-	format_req.dfr_totalsize = 4096ULL * 1024 * 1024 * 10; //=40GB
+	format_req.dfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
 	format_req.dfr_blocksize = 4096;
 	format_req.dfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 	format_req.dfr_reserved_groups = 2;
 
-//	rc = c2_dba_format(&format_req);
+	rc = c2_dba_format(&format_req);
 
 //	return rc;
 
@@ -739,7 +873,6 @@ int main()
 
 	alloc_req.dar_goal = 0x5000;
 	db_list(&ctxt, &alloc_req);
-
 
 	c2_dba_fini(&ctxt);
 	return 0;

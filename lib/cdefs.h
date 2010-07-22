@@ -61,6 +61,15 @@ extern void __dummy_function(void);
  */
 #define AND_NOTHING_ELSE else __dummy_function();
 
+struct c2_uint128 {
+	uint64_t u_hi;
+	uint64_t u_lo;
+};
+
+bool c2_uint128_eq (const struct c2_uint128 *u0, const struct c2_uint128 *u1);
+int  c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1);
+void c2_uint128_init(struct c2_uint128 *u128, const char *magic);
+
 #endif
 /* 
  *  Local variables:

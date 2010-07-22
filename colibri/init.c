@@ -9,6 +9,8 @@
 #include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
+#include "layout/layout.h"
+#include "pool/pool.h"
 
 #include "colibri/init.h"
 
@@ -30,6 +32,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_stobs_init,   &c2_stobs_fini },
 	{ &c2_net_init,     &c2_net_fini },
 /*	{ &c2_rpclib_init,  &c2_rpclib_fini }, */
+	{ &c2_layouts_init, &c2_layouts_fini },
+	{ &c2_pools_init,   &c2_pools_fini },
 	{ &c2_fops_init,    &c2_fops_fini }
 };
 
