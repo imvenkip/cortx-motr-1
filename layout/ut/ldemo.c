@@ -152,6 +152,28 @@ int main(int argc, char **argv)
 	struct c2_uint128          id;
 	struct c2_uint128          seed;
 
+	if (argc != 6) {
+		printf(
+"\t\tldemo N K P R I\nwhere\n"
+"\tN: number of data units in a parity group\n"
+"\tK: number of parity units in a parity group\n"
+"\tP: number of target object to stripe over\n"
+"\tR: number of frames to show in a layout map\n"
+"\tI: number of groups to iterate over while\n"
+"\t   calculating incidence and block distributions\n"
+"\noutput:\n"
+"\tmap:       an R*P map showing initial fragment of layout\n"
+"\t                   [G, U] - data unit U from a group G\n"
+"\t                   <G, U> - parity unit U from a group G\n"
+"\t                   {G, U} - spare unit U from a group G\n"
+"\tusage:     counts of data, parity, spare and total frames\n"
+"\t           occupied on each target object, followed by MIN,\n"
+"\t           MAX, AVG, STD/AVG\n"
+"\tincidence: a matrix showing a number of parity groups having\n"
+"\t           units on a given pair of target objects, followed by\n"
+"\t           MIN, MAX, AVG, STD/AVG\n");
+		return 1;
+	}
 	N = atoi(argv[1]);
 	K = atoi(argv[2]);
 	P = atoi(argv[3]);
