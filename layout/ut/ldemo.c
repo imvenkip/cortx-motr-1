@@ -1,0 +1,189 @@
+/* -*- C -*- */
+
+#include <string.h> /* memset */
+#include <stdio.h>  /* printf */
+#include <stdlib.h> /* atoi */
+#include <math.h>   /* sqrt */
+
+#include "lib/cdefs.h"
+#include "lib/memory.h"
+#include "lib/assert.h"
+#include "lib/arith.h"
+#include "colibri/init.h"
+
+#include "pool/pool.h"
+#include "layout/layout.h"
+#include "layout/pdclust.h"
+
+/**
+   @addtogroup layout
+   @{
+*/
+
+enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
+				   int unit)
+{
+	if (unit < play->pl_N)
+		return PUT_DATA;
+	else if (unit < play->pl_N + play->pl_K)
+		return PUT_PARITY;
+	else
+		return PUT_SPARE;
+}
+
+void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
+{
+	uint64_t                   group;
+	uint64_t                   frame;
+	uint32_t                   unit;
+	uint32_t                   obj;
+	uint32_t                   N;
+	uint32_t                   K;
+	uint32_t                   W;
+	int                        i;
+	struct c2_pdclust_src_addr src;
+	struct c2_pdclust_tgt_addr tgt;
+	struct c2_pdclust_src_addr src1;
+	struct c2_pdclust_src_addr map[R][P];
+	uint32_t                   incidence[P][P];
+	uint32_t                   usage[P][PUT_NR + 1];
+	uint32_t                   where[play->pl_N + 2*play->pl_K];
+	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
+	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
+
+	uint32_t min;
+	uint32_t max;
+	uint64_t sum;
+	uint32_t u;
+	double   sq;
+	double   avg;
+
+	memset(usage, 0, sizeof usage);
+	memset(incidence, 0, sizeof incidence);
+
+	N = play->pl_N;
+	K = play->pl_K;
+	W = N + 2*K;
+
+	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
+	       N, K, P, play->pl_C, play->pl_L);
+
+	for (group = 0; group < I ; ++group) {
+		src.sa_group = group;
+		for (unit = 0; unit < W; ++unit) {
+			src.sa_unit = unit;
+			c2_pdclust_layout_map(play, &src, &tgt);
+			c2_pdclust_layout_inv(play, &tgt, &src1);
+			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
+			if (tgt.ta_frame < R)
+				map[tgt.ta_frame][tgt.ta_obj] = src;
+			where[unit] = tgt.ta_obj;
+			usage[tgt.ta_obj][PUT_NR]++;
+			usage[tgt.ta_obj][classify(play, unit)]++;
+		}
+		for (unit = 0; unit < W; ++unit) {
+			for (i = 0; i < W; ++i)
+				incidence[where[unit]][where[i]]++;
+		}
+	}
+	printf("map: \n");
+	for (frame = 0; frame < R; ++frame) {
+		printf("%5i : ", (int)frame);
+		for (obj = 0; obj < P; ++obj) {
+			int d;
+
+			d = classify(play, map[frame][obj].sa_unit);
+			printf("%c%2i, %1i%c ", 
+			       brace[d][0],
+			       (int)map[frame][obj].sa_group, 
+			       (int)map[frame][obj].sa_unit,
+			       brace[d][1]);
+		}
+		printf("\n");
+	}
+	printf("usage : \n");
+	for (i = 0; i < PUT_NR + 1; ++i) {
+		max = sum = sq = 0;
+		min = ~0;
+		printf("%5s : ", head[i]);
+		for (obj = 0; obj < P; ++obj) {
+			u = usage[obj][i];
+			printf("%7i ", u);
+			min = min32u(min, u);
+			max = max32u(max, u);
+			sum += u;
+			sq += u*u;
+		}
+		avg = ((double)sum)/P;
+		printf(" | %7i %7i %7i %7.2f%%\n", min, max, (int)avg,
+		       sqrt(sq/P - avg*avg)*100.0/avg);
+	}
+	printf("\nincidence:\n");
+	for (obj = 0; obj < P; ++obj) {
+		max = sum = sq = 0;
+		min = ~0;
+		for (i = 0; i < P; ++i) {
+			if (obj != i) {
+				u = incidence[obj][i];
+				min = min32u(min, u);
+				max = max32u(max, u);
+				sum += u;
+				sq += u*u;
+				printf("%5i ", u);
+			} else
+				printf("    * ");
+		}
+		avg = ((double)sum)/(P - 1);
+		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
+		       sqrt(sq/(P - 1) - avg*avg)*100.0/avg);
+	}
+}
+
+int main(int argc, char **argv)
+{
+	uint32_t N;
+	uint32_t K;
+	uint32_t P;
+	int      R;
+	int      I;
+	int      result;
+	struct c2_pdclust_layout  *play;
+	struct c2_pool             pool;
+	struct c2_uint128          id;
+	struct c2_uint128          seed;
+
+	N = atoi(argv[1]);
+	K = atoi(argv[2]);
+	P = atoi(argv[3]);
+	R = atoi(argv[4]);
+	I = atoi(argv[5]);
+
+	c2_uint128_init(&id,   "jinniesisjillous");
+	c2_uint128_init(&seed, "upjumpandpumpim,");
+
+	result = c2_init();
+	if (result == 0) {
+		result = c2_pool_init(&pool, P);
+		if (result == 0) {
+			result = c2_pdclust_build(&pool, &id, N, K, &seed, 
+						  &play);
+			if (result == 0)
+				layout_demo(play, P, R, I);
+			c2_pool_fini(&pool);
+		}
+		c2_fini();
+	}
+	return result;
+}
+
+/** @} end of layout group */
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

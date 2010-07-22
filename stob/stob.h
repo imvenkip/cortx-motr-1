@@ -148,6 +148,7 @@ struct c2_stob_id {
 };
 
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**
    In-memory representation of a storage object.

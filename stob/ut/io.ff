@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /**
-   @addtogroup fop
+   @addtogroup stob
    @{
  */
 
@@ -53,7 +53,7 @@ DEF(c2_io_create_rep, RECORD,
 DEF(c2_io_quit, RECORD,
     _(siq_rc, U32));
 
-/** @} end of fop group */
+/** @} end of stob group */
 
 /* 
  *  Local variables:
