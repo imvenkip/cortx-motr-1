@@ -62,6 +62,7 @@ struct c2_fop_type {
 	/** Type of a top level field in fops of this type. */
 	struct c2_fop_field_type     *ft_top;
 	const struct c2_fop_type_ops *ft_ops;
+	/** Format of this fop's top field. */
 	struct c2_fop_type_format    *ft_fmt;
 };
 

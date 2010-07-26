@@ -11,6 +11,30 @@
 
 /**
    @addtogroup usunrpc User Level Sun RPC
+
+   <b>Fop xdr</b>
+
+   See head comment in fop_format.h for overview of fop formats, see
+   net/ksunrpc/kxdr.c for description of kernel level xdr functions.
+
+   User level xdr functions are quite similar to kxdr (the same fop format tree
+   processing idea) with a few notable exceptions:
+
+   @li there is no "reply preparation" at the moment;
+
+   @li user level sunrpc library requires xdr functions with the prototype
+
+       bool_t xdr_foo(XDR *xdrs, void *obj);
+
+   where, obj is a pointer to data. There is no way to pass a pointer to fop or
+   fop type to the xdr function (compare with kernel xdr functions usage of
+   kxdr_ctx). Current solution is to generate (in fop2c, see c2_fop_comp_ulay())
+   an xdr function for each fop type:
+
+       bool_t xdr_foo(XDR *xdrs, void *obj) {
+               return c2_fop_type_uxdr(&foo_fop_type, xdrs, obj);
+       }
+
    @{
  */
 
