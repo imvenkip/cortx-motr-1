@@ -35,6 +35,10 @@
                return c2_fop_type_uxdr(&foo_fop_type, xdrs, obj);
        }
 
+   Pointer to this function is installed as
+   c2_fop_field_type::fft_layout::fm_uxdr. This allows tree traversing code to
+   call xdr functions of children nodes, see ftype_field_xdr().
+
    @{
  */
 
