@@ -6,6 +6,52 @@
 /**
    @addtogroup fop 
 
+   <b>Fop format</b>
+
+   A fop type contains as its part a "fop format". A fop format is a description
+   of structure of data in a fop instance. Fop format describes fop instance
+   data structure as a tree of fields. Leaves of this tree are fields of
+   "atomic" types (VOID, BYTE, U32 and U64) and non-leaf nodes are "aggregation
+   fields": record, union, sequence or typedef.
+
+   The key point of fop formats is that data structure description can be
+   analysed at run-time, by traversing the tree:
+
+   @li to pack and unpack fop instance between in-memory and on-wire
+   representation fop format tree is traversed recursively and fop fields are
+   serialized or de-serialized. The same generic "xdr" function
+   (c2_fop_uxdrproc() for user space, c2_kcall_enc() and c2_kcall_dec() for
+   Linux kernel) serializes and de-serializes all fop types;
+
+   @li the same for converting fop between in-memory and data-base record
+   formats;
+
+   @li finally, when a new fop type is added, data-structure definitions for
+   instances of this type are also generated automatically by traversing the
+   format tree (by code in fop_format_c.c and fop2c). These data-structure
+   definitions can be different for different platforms (e.g., kernel and user
+   space).
+
+   Fop formats are introduced in "fop format description files", usually having
+   .ff extension. See fop/ut/test_format.ff for an example. fop format
+   description file defines instances of struct c2_fop_type_format encoded via
+   helper macros from fop_format_def.h.
+
+   During build process, fop format description file is processed by fop/fop2c
+   "compiler". This compiler runs c2_fop_type_format_parse() function on
+   c2_fop_type_format instances from fop format descriptions. This function
+   builds c2_fop_field_type instances organized into a tree.
+
+   After this, fop2c runs various functions from fop_format_c.c on the resulting
+   tree. These functions traverse the tree and generate C language files
+   containing data-type definitions corresponding to the fop format and an
+   additional auxiliary data-structure c2_fop_memlayout describing how fop
+   fields are laid out in memory.
+
+   @see net/usunrpc/uxdr.c
+   @see net/ksunrpc/kxdr.c
+   @see fop/fop2c
+
    @{
 */
 

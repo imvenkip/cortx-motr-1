@@ -9,6 +9,59 @@
 
 /**
    @addtogroup ksunrpc
+
+   <b>Fop xdr</b>
+
+   See head comment in fop_format.h for overview of fop formats.
+
+   This file defines "universal" fop xdr functions for the Linux kernel.
+
+   Main entry points c2_kcall_dec() and c2_kcall_enc() decode and encode rpc
+   calls respectively. For each fop type there are three xdr-related operations
+   (see enum kxdr_what):
+
+   @li encoding (KENC): serialize fop data to the rpc send buffer, according to
+   fop type. This operation is called on c2_knet_call::ac_arg fop before rpc is
+   sent;
+
+   @li decoding (KDEC): read data from the rpc receive buffer and build fop
+   instance. This operation is called on c2_knet_call::ac_ret for after rpc
+   reply was received;
+
+   @li reply preparing (KREP): prepare for receipt a fop of this type as a
+   reply. This operation is called on c2_knet::ac_ret before rpc is sent. This
+   operation is necessary to prepare receive buffer where incoming data are
+   stored. For example "read" type operations must attach data pages to the
+   reply buffer, see kxdr_sequence_rep().
+
+   All three xdr operations are implemented similarly, by recursively descending
+   through the fop format tree.
+
+   When handling a non-leaf (i.e., "aggregating") node of a fop format tree,
+   control branches though the kxdr_disp[] function pointer array, using
+   aggregation type as an index. When a leaf (i.e., "atomic") node is reached,
+   control branches through the atom_kxdr[] function pointer array, using atom
+   type as an index.
+
+   Serialization state is recorded in struct kxdr_ctx (similar to XDR type of
+   user level SUNRPC).
+
+   A few of points worth mentioning:
+
+   @li an array of bytes is handled specially to optimize large data transfers,
+   see calls to kxdr_is_byte_array();
+
+   @li "reply preparing" operation shares a lot of code with decoding operation
+   (see kxdr_disp[KREP] values), but at the atomic field level, instead of
+   actual decoding (there is nothing to decode yet, because there is no reply),
+   reply preparing increments the counter of bytes that _would_ be used in the
+   receive buffer on actual reply. kxdr_sequence_rep() uses this information to
+   attach data pages at the correct offset;
+
+   @li very limited class of format is accepted. Unions are not supported at all
+   at the moment (kxdr_union(), this is easy to fix though). Variable size array
+   must be the last field in the fop and it must be a byte array.
+
    @{
  */
 
