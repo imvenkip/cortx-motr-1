@@ -489,7 +489,7 @@ AC_CONFIG_FILES([
                  stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
-                 dba/Makefile
+                 balloc/Makefile
                 ])
 AC_OUTPUT
 

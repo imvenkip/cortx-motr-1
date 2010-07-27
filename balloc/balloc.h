@@ -1,0 +1,251 @@
+/* -*- C -*- */
+
+#ifndef __COLIBRI_BALLOC_BALLOC_H__
+#define __COLIBRI_BALLOC_BALLOC_H__
+
+#include <db.h>
+#include <lib/list.h>
+#include <lib/mutex.h>
+#include <lib/adt.h>
+
+/**
+   @defgroup balloc data-block-allocator
+
+   All data structures stored in db in little-endian format (Intel CPU endian).
+   To correctly compare the key value, a custom specific comparison function
+   is provided to db.
+   @{
+*/
+
+#define MAXPATHLEN 1024
+
+struct c2_balloc_extent {
+	c2_bindex_t ext_start;
+	c2_bcount_t ext_len;
+};
+
+
+/**
+   On-disk data structure for group, stored in db.
+
+   When stored in db, {key, value} = {group_nr, c2_balloc_group_desc}.
+   Every group description will stay in a separate db.
+ */
+struct c2_balloc_group_desc {
+        c2_bcount_t  bgd_freeblocks; /*< total free blocks */
+        c2_bcount_t  bgd_fragments;  /*< nr of freespace fragments */
+        c2_bcount_t  bgd_maxchunk;   /*< max bytes of freespace chunk */
+};
+
+/**
+   In-memory data structure for group
+ */
+struct c2_balloc_group_info {
+        uint64_t        bgi_state;
+        c2_bcount_t     bgi_freeblocks; /*< total free blocks */
+        c2_bcount_t     bgi_fragments;  /*< nr of freespace fragments */
+        c2_bcount_t     bgi_maxchunk;   /*< max bytes of freespace chunk */
+        struct c2_list_link bgi_prealloc_list; /*< list of pre-alloc */
+        struct c2_mutex     bgi_mutex;      /*< per-group lock */
+
+        /** 
+	   Nr of free power-of-two-block regions, index is order.
+           bb_counters[3] = 5 means 5 free 8-block regions.
+        */
+        c2_bcount_t     bgi_counters[];
+};
+
+/**
+   On-disk and in-memory super block stored in db
+ */
+struct c2_balloc_super_block {
+	uint64_t	bsb_magic;
+	uint64_t	bsb_state;
+	uint64_t	bsb_version;
+	uint8_t		bsb_uuid[128];
+
+        c2_bcount_t	bsb_totalsize;  /*< total size in bytes */
+        c2_bcount_t	bsb_freeblocks; /*< nr of free blocks */
+        c2_bcount_t	bsb_blocksize;  /*< block size in bytes */
+        c2_bcount_t	bsb_groupsize;  /*< group size in blocks */
+        c2_bcount_t	bsb_groupcount; /*< # of group */
+        c2_bcount_t	bsb_reserved_groups;  /*< nr of reserved groups */
+        c2_bcount_t	bsb_prealloc_count;   /*< nr of pre-alloc blocks */
+
+	uint64_t	bsb_format_time;
+	uint64_t	bsb_write_time;
+	uint64_t	bsb_mnt_time;
+	uint64_t	bsb_last_check_time;
+
+	uint64_t	bsb_mnt_count;
+	uint64_t	bsb_max_mnt_count;
+
+        c2_bcount_t	bsb_stripe_size;   /*< stripe size in blocks */
+};
+
+enum c2_balloc_super_block_magic { 
+	C2_BALLOC_SB_MAGIC =  0xC011B21AC08EC08EULL,
+};
+
+enum c2_balloc_super_block_state {
+	C2_BALLOC_SB_CLEAN =  1 << 0,
+};
+
+enum c2_balloc_super_block_version {
+	C2_BALLOC_SB_VERSION = 1ULL,
+};
+
+/**
+   In-memory data structure for the balloc environment.
+
+   It includes pointers to db, home dir, various flags and parameters.
+ */
+struct c2_balloc_ctxt {
+	DB_ENV        *bc_dbenv;
+	char	      *bc_home;
+
+        uint32_t       bc_dbenv_flags;
+        uint32_t       bc_db_flags;
+        uint32_t       bc_txn_flags;
+        uint32_t       bc_cache_size;
+        uint32_t       bc_nr_thread;
+
+	DB            *bc_db_sb;
+	struct c2_balloc_super_block bc_sb;
+
+	DB           **bc_db_group_info;
+	DB           **bc_db_group_extent;
+};
+
+
+
+/**
+   Request to format a container.
+ */
+struct c2_balloc_format_req {
+	c2_bindex_t 	bfr_totalsize;	      /*< total size in bytes */
+	uint32_t	bfr_blocksize;        /*< block size in bytes */
+	uint32_t	bfr_groupsize;        /*< block size in blocks */
+	uint32_t	bfr_reserved_groups;  /*< # of resvered groups */
+
+	const char 	*bfr_db_home;          /*< database home dir */
+};
+
+struct c2_balloc_prealloc {
+	c2_bindex_t	bpr_logical;   /*< logical offset within the object */
+	c2_bcount_t	bpr_lcount;    /*< count of blocks */
+	c2_bindex_t	bpr_physical;  /*< physical block number */
+	c2_bcount_t	bpr_remaining; /*< remaining count of blocks */
+	struct c2_list_link bpr_link;  /*< pre-allocation is linked together */
+};
+
+/**
+   Request to allocate multiple blocks from a container.
+
+   Result is stored in bar_physical. On error case, error number is returned
+   in bar_err. If all available free chunks are smaller that requested, then
+   the maximum available chunk size is returned in bar_max_avail.
+ */
+struct c2_balloc_allocate_req {
+	c2_bindex_t	bar_logical;   /*< logical offset within the object */
+	c2_bcount_t	bar_lcount;    /*< count of blocks */
+	c2_bindex_t	bar_goal;      /*< prefered physical block number */
+	uint32_t	bar_flags;     /*< allocation flags from c2_balloc_allocation_flag */
+
+	c2_bindex_t	bar_physical;  /*< result allocated blocks */
+
+	uint32_t	bar_err;       /*< error number */
+	c2_bindex_t	bar_max_avail; /*< max avail blocks */
+
+	void           *bar_prealloc;  /*< User opaque prealloc result */
+};
+
+enum c2_balloc_allocation_flag {
+	/** prefer goal again. length */
+	C2_BALLOC_HINT_MERGE              = 1 << 0,
+
+	/** blocks already reserved */
+	C2_BALLOC_HINT_RESERVED           = 1 << 1,
+
+	/** metadata is being allocated */
+	C2_BALLOC_HINT_METADATA           = 1 << 2,
+
+	/** first blocks in the file */
+	C2_BALLOC_HINT_FIRST              = 1 << 3,
+
+	/** search for the best chunk */
+	C2_BALLOC_HINT_BEST               = 1 << 4,
+
+	/** data is being allocated */
+	C2_BALLOC_HINT_DATA               = 1 << 5,
+
+	/** don't preallocate (for tails) */
+	C2_BALLOC_HINT_NOPREALLOC         = 1 << 6,
+
+	/** allocate for locality group */
+	C2_BALLOC_HINT_GROUP_ALLOC        = 1 << 7,
+
+	/** allocate goal blocks or none */
+	C2_BALLOC_HINT_GOAL_ONLY          = 1 << 8,
+
+	/** goal is meaningful */
+	C2_BALLOC_HINT_TRY_GOAL           = 1 << 9,
+
+	/** blocks already pre-reserved by delayed allocation */
+	C2_BALLOC_DELALLOC_RESERVED       = 1 << 10,
+
+	/** We are doing stream allocation */
+	C2_BALLOC_STREAM_ALLOC            = 1 << 11,
+};
+
+
+/**
+   Request to free multiple blocks to a container.
+ */
+struct c2_balloc_free_req {
+	c2_bindex_t	bfr_logical;  /*< logical offset within the object */
+	c2_bcount_t	bfr_lcount;   /*< count of blocks */
+	c2_bindex_t	bfr_physical; /*< physical block number */
+	uint32_t	bfr_flags;    /*< free flags */
+};
+
+struct c2_balloc_discard_req {
+	void           *bdr_prealloc; /*< User opaque prealloc result */
+};
+
+
+int c2_balloc_format(struct c2_balloc_format_req *req);
+int c2_balloc_init(struct c2_balloc_ctxt *ctxt);
+int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt, struct c2_balloc_allocate_req *req);
+int c2_balloc_free(struct c2_balloc_ctxt *ctxt, struct c2_balloc_free_req *req);
+int c2_balloc_discard_prealloc(struct c2_balloc_ctxt *ctxt,
+			    struct c2_balloc_discard_req *req);
+int c2_balloc_enforce(struct c2_balloc_ctxt *ctxt, bool alloc, struct c2_balloc_extent *ext);
+bool c2_balloc_query(struct c2_balloc_ctxt *ctxt, struct c2_balloc_extent *ext);
+
+
+#define BALLOC_DEBUG
+
+#ifdef BALLOC_DEBUG
+#define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
+#define LEAVE printf("<<<=== %s:%d:%s\n", __FILE__, __LINE__, __func__)
+#define GOTHERE printf("!!! %s:%d:%s\n", __FILE__, __LINE__, __func__)
+#else
+#define ENTER
+#define LEAVE
+#define GOTHERE
+#endif
+
+/** @} end of balloc */
+
+#endif /*__COLIBRI_BALLOC_BALLOC_H__*/
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
