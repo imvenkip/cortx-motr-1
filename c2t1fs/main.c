@@ -904,8 +904,8 @@ void cleanup_module(void)
 {
         int rc;
 
-	io_fop_fini();
 	c2_fops_fini();
+	io_fop_fini();
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();
         if (rc)
