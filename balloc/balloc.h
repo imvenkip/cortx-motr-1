@@ -32,6 +32,7 @@ struct c2_balloc_extent {
    Every group description will stay in a separate db.
  */
 struct c2_balloc_group_desc {
+        c2_bindex_t  bgd_groupno;    /*< group number */
         c2_bcount_t  bgd_freeblocks; /*< total free blocks */
         c2_bcount_t  bgd_fragments;  /*< nr of freespace fragments */
         c2_bcount_t  bgd_maxchunk;   /*< max bytes of freespace chunk */
@@ -41,19 +42,28 @@ struct c2_balloc_group_desc {
    In-memory data structure for group
  */
 struct c2_balloc_group_info {
-        uint64_t        bgi_state;
+        uint64_t        bgi_state;      /*< enum c2_balloc_group_info_state */
+        c2_bindex_t     bgi_groupno;    /*< group number */
         c2_bcount_t     bgi_freeblocks; /*< total free blocks */
         c2_bcount_t     bgi_fragments;  /*< nr of freespace fragments */
         c2_bcount_t     bgi_maxchunk;   /*< max bytes of freespace chunk */
-        struct c2_list_link bgi_prealloc_list; /*< list of pre-alloc */
+        struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
         struct c2_mutex     bgi_mutex;      /*< per-group lock */
 
         /** 
 	   Nr of free power-of-two-block regions, index is order.
            bb_counters[3] = 5 means 5 free 8-block regions.
         */
-        c2_bcount_t     bgi_counters[];
+//        c2_bcount_t     bgi_counters[];
 };
+
+enum c2_balloc_group_info_state {
+	/** inited from disk */
+	C2_BALLOC_GROUP_INFO_INIT = 1 << 0,
+	/** dirty, need sync */
+	C2_BALLOC_GROUP_INFO_DIRTY = 1 << 1,
+};
+
 
 /**
    On-disk and in-memory super block stored in db
@@ -114,6 +124,8 @@ struct c2_balloc_ctxt {
 	struct c2_balloc_super_block bc_sb;
 
 	DB           **bc_db_group_info;
+	struct c2_balloc_group_info *bc_group_info;
+
 	DB           **bc_db_group_extent;
 };
 

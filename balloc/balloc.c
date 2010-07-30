@@ -69,8 +69,10 @@ static void c2_balloc_fini(struct c2_balloc_ctxt *ctxt)
 
 			free(ctxt->bc_db_group_extent);
 			free(ctxt->bc_db_group_info);
+			free(ctxt->bc_group_info);
 			ctxt->bc_db_group_extent = NULL;
 			ctxt->bc_db_group_info = NULL;
+			ctxt->bc_group_info = NULL;
 		}
 		dbenv->close(dbenv, 0);
 		ctxt->bc_dbenv = NULL;
@@ -393,6 +395,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 		rc = c2_balloc_open_db(dbenv, db_name, db_flags,
 				    NULL, &group_desc);
 		if (rc == 0) {
+			gd.bgd_groupno = i;
 			if (i < req->bfr_reserved_groups) {
 				gd.bgd_freeblocks = 0;
 				gd.bgd_fragments  = 0;
@@ -403,7 +406,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 				gd.bgd_maxchunk   = req->bfr_groupsize;
 			}
 			rc = c2_balloc_insert_record(dbenv, NULL, group_desc,
-						  &i, sizeof i,
+						  &gd.bgd_groupno, sizeof gd.bgd_groupno,
 						  &gd, sizeof gd);
 			if (rc != 0) {
 				fprintf(stderr, "insert gd failed:"
@@ -444,6 +447,35 @@ static int c2_balloc_read_super(DB_ENV *dbenv, DB *db, struct c2_balloc_super_bl
 	return rc;
 }
 
+static int c2_balloc_load_group_info(DB_ENV *dbenv, DB *db, c2_bindex_t gn,
+				     struct c2_balloc_group_info *gi)
+{
+	struct c2_balloc_group_desc *tmp;
+	size_t size;
+	int    rc;
+
+	rc = c2_balloc_get_record(dbenv, NULL, db, &gn,
+			       sizeof gn, (void**)&tmp, &size);
+
+	if (rc == 0) {
+		if (size != sizeof *tmp) {
+			fprintf(stderr, "size mismatch\n");
+		}
+		gi->bgi_groupno    = tmp->bgd_groupno;
+		gi->bgi_freeblocks = tmp->bgd_freeblocks;
+		gi->bgi_fragments  = tmp->bgd_fragments;
+		gi->bgi_maxchunk   = tmp->bgd_maxchunk;
+		gi->bgi_state      = C2_BALLOC_GROUP_INFO_INIT;
+		c2_list_init(&gi->bgi_prealloc_list);
+		c2_mutex_init(&gi->bgi_mutex);
+
+		free(tmp);
+	}
+
+	return rc;
+}
+
+
 /**
    Init the database operation environment, opening databases, ...
 
@@ -456,7 +488,6 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 {
 	int            	 rc;
 	DB_ENV 		*dbenv;
-	char		 path[MAXPATHLEN];
 	int 		 i;
 	ENTER;
 
@@ -507,23 +538,6 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 	dbenv->set_verbose(dbenv, DB_VERB_FILEOPS_ALL, 1);
 #endif
 
-	rc = mkdir(ctxt->bc_home, 0700);
-	if (rc != 0 && errno != EEXIST) {
-		rc = -errno;
-		db_err(dbenv, rc, "->mkdir() for home");
-		c2_balloc_fini(ctxt);
-		return rc;
-	}
-
-	snprintf(path, MAXPATHLEN - 1, "%s/d", ctxt->bc_home);
-	mkdir(path, 0700);
-
-	snprintf(path, MAXPATHLEN - 1, "%s/l", ctxt->bc_home);
-	mkdir(path, 0700);
-
-	snprintf(path, MAXPATHLEN - 1, "%s/t", ctxt->bc_home);
-	mkdir(path, 0700);
-
 	rc = dbenv->set_tmp_dir(dbenv, "t");
 	if (rc != 0)
 		db_err(dbenv, rc, "->set_tmp_dir()");
@@ -533,8 +547,11 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 		db_err(dbenv, rc, "->set_lg_dir()");
 
 	rc = dbenv->set_data_dir(dbenv, "d");
-	if (rc != 0)
+	if (rc != 0) {
 		db_err(dbenv, rc, "->set_data_dir()");
+		c2_balloc_fini(ctxt);
+		return rc;
+	}
 
 	/* Open the environment with full transactional support. */
        ctxt->bc_dbenv_flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|
@@ -558,7 +575,7 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 	ctxt->bc_txn_flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
 
 	rc = c2_balloc_open_db(dbenv, "super_block", ctxt->bc_db_flags,
-			    NULL, &ctxt->bc_db_sb);
+			       NULL, &ctxt->bc_db_sb);
 
 	if (rc != 0) {
 		db_err(dbenv, rc, "open super block");
@@ -577,9 +594,16 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 
 	ctxt->bc_db_group_extent = malloc(ctxt->bc_sb.bsb_groupcount * sizeof (DB*));
 	ctxt->bc_db_group_info   = malloc(ctxt->bc_sb.bsb_groupcount * sizeof (DB*));
-	if (ctxt->bc_db_group_extent == NULL || ctxt->bc_db_group_info == NULL) {
+	ctxt->bc_group_info      = malloc(ctxt->bc_sb.bsb_groupcount * sizeof (struct c2_balloc_group_info));
+	if (ctxt->bc_db_group_extent == NULL || ctxt->bc_db_group_info == NULL ||
+		ctxt->bc_group_info == NULL ) {
 		free(ctxt->bc_db_group_info);
 		free(ctxt->bc_db_group_extent);
+		free(ctxt->bc_group_info);
+		ctxt->bc_db_group_info = NULL;
+		ctxt->bc_db_group_extent = NULL;
+		ctxt->bc_group_info = NULL;
+
 		rc = -ENOMEM;
 		db_err(dbenv, rc, "malloc");
 		c2_balloc_fini(ctxt);
@@ -597,7 +621,9 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 		rc |= c2_balloc_open_db(dbenv, db_name, ctxt->bc_db_flags,
 				     c2_balloc_blockno_compare,
 				     &ctxt->bc_db_group_extent[i]);
-
+		if (rc == 0)
+			rc = c2_balloc_load_group_info(dbenv, ctxt->bc_db_group_info[i],
+						       i, &ctxt->bc_group_info[i]);
 		if (rc != 0) {
 			db_err(dbenv, rc, "opening db");
 			c2_balloc_fini(ctxt);
