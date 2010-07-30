@@ -96,17 +96,12 @@ static void ub_fini(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(t); ++i)
+	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
 		c2_thread_fini(&ubt[i]);
 }
 
 static void ub0(int x)
 {
-}
-
-static int ub_spawn_initcall(int x)
-{
-	return 0;
 }
 
 static void ub_spawn(int i)
@@ -121,6 +116,11 @@ static void ub_join(int i)
 	c2_thread_join(&ubt[i]);
 }
 
+static int ub_spawn_initcall(int x)
+{
+	return 0;
+}
+
 static void ub_spawn_init(int i)
 {
 	int result;
@@ -132,7 +132,7 @@ static void ub_join_all(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(t); ++i)
+	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
 		c2_thread_join(&ubt[i]);
 	ub_init();
 }
