@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_FOP_FOP_H__
 #define __COLIBRI_FOP_FOP_H__
 
+#include "addb/addb.h"
 #include "lib/cdefs.h"
 
 /**
@@ -64,6 +65,10 @@ struct c2_fop_type {
 	const struct c2_fop_type_ops *ft_ops;
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format    *ft_fmt;
+	/**
+	   ADDB context for events related to this fop type.
+	 */
+	struct c2_addb_ctx            ft_addb;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
@@ -99,6 +104,10 @@ struct c2_fop {
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
 	struct c2_fop_data  f_data;
+	/**
+	   ADDB context for events related to this fop.
+	 */
+	struct c2_addb_ctx  f_addb;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);

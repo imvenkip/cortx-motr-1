@@ -25,6 +25,17 @@
 int  c2_fop_field_type_prepare  (struct c2_fop_field_type *ftype);
 void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
 
+static const struct c2_addb_ctx_type c2_fop_addb_ctx = {
+	.act_name = "fop"
+};
+
+static const struct c2_addb_ctx_type c2_fop_type_addb_ctx = {
+	.act_name = "fop-type"
+};
+
+static const struct c2_addb_loc c2_fop_addb_loc = {
+	.al_name = "fop"
+};
 
 void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 {
@@ -56,6 +67,8 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 			data = c2_alloc(nob);
 		if (data != NULL) {
 			fop->f_data.fd_data = data;
+			c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
+					 &fopt->ft_addb);
 		} else {
 			c2_free(fop);
 			fop = NULL;
@@ -67,6 +80,7 @@ EXPORT_SYMBOL(c2_fop_alloc);
 
 void c2_fop_free(struct c2_fop *fop)
 {
+	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop != NULL) {
 		c2_free(fop->f_data.fd_data);
 		c2_free(fop);
@@ -87,6 +101,7 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 		c2_fop_type_format_fini(fopt->ft_fmt);
 		fopt->ft_fmt = NULL;
 	}
+	c2_addb_ctx_fini(&fopt->ft_addb);
 }
 EXPORT_SYMBOL(c2_fop_type_fini);
 
@@ -97,8 +112,11 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 
 	fmt    = fopt->ft_fmt;
 	result = c2_fop_type_format_parse(fmt);
-	if (result == 0)
+	if (result == 0) {
 		fopt->ft_top = fmt->ftf_out;
+		c2_addb_ctx_init(&fopt->ft_addb, &c2_fop_type_addb_ctx,
+				 &c2_addb_global_ctx);
+	}
 	return result;
 }
 EXPORT_SYMBOL(c2_fop_type_build);

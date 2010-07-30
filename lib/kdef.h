@@ -25,13 +25,6 @@ static inline void c2_free(void *data)
 	kfree(data);
 }
 
-#define C2_ASSERT(cond) BUG_ON(!(cond))
-#define C2_PRE(cond) C2_ASSERT(cond)
-#define C2_POST(cond) C2_ASSERT(cond)
-#define C2_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
-#define C2_BASSERT(cond) extern char __build_assertion_failure[!!(cond) - 1]
-#define C2_IMPOSSIBLE(msg) C2_ASSERT(msg == NULL)
-
 /** @} end of fop group */
 
 /* __COLIBRI_FOP_FOP_H__ */

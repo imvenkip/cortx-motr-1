@@ -14,5 +14,4 @@ int sns_init()
 
 void sns_fini()
 {
-	return;
 }

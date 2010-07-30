@@ -9,6 +9,8 @@
    @{
 */
 
+#ifndef __KERNEL__
+
 void c2_panic(const char *expr, const char *func, const char *file, int lineno) 
 	__attribute__((noreturn));
 
@@ -59,6 +61,16 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
  */
 #define C2_IMPOSSIBLE(msg) C2_ASSERT("Impossible: " msg == NULL)
 
+#else /* __KERNEL__ */
+
+#define C2_ASSERT(cond) BUG_ON(!(cond))
+#define C2_PRE(cond) C2_ASSERT(cond)
+#define C2_POST(cond) C2_ASSERT(cond)
+#define C2_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
+#define C2_BASSERT(cond) extern char __build_assertion_failure[!!(cond) - 1]
+#define C2_IMPOSSIBLE(msg) C2_ASSERT(msg == NULL)
+
+#endif /* __KERNEL__ */
 /** @} end of assert group */
 
 /* __COLIBRI_LIB_ASSERT_H__ */

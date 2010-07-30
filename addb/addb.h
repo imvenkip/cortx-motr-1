@@ -44,10 +44,6 @@ struct c2_addb_ctx {
 	struct c2_addb_ctx            *ac_parent;
 };
 
-void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
-		      struct c2_addb_ctx *parent);
-void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
-
 /**
    Part of the system where addb event happened.
 
@@ -109,6 +105,12 @@ struct c2_addb_dp {
 
 	int ad_rc;
 };
+
+#ifndef __KERNEL__
+
+void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
+		      struct c2_addb_ctx *parent);
+void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 
 /**
    Low-level interface posting a data-point to the addb.
@@ -204,6 +206,45 @@ extern const struct c2_addb_ev_ops ops;					\
 									\
 typedef int								\
 __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
+
+#else /* __KERNEL__ */
+
+/**
+ * @todo No addb in kernel at the moment, unfortunately.
+ */
+
+static inline void c2_addb_ctx_init(struct c2_addb_ctx *ctx, 
+				    const struct c2_addb_ctx_type *t,
+				    struct c2_addb_ctx *parent)
+{
+}
+
+static inline void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
+{
+}
+
+static inline void c2_addb_add(struct c2_addb_dp *dp)
+{
+}
+
+static inline int  c2_addb_init(void)
+{
+	return 0;
+}
+
+static inline void c2_addb_fini(void)
+{
+}
+
+#define C2_ADDB_EV_DEFINE(var, name, id, ops, ...) \
+extern char __do_not_exists_dummy[0]
+
+#define C2_ADDB_ADD(ctx, loc, ev, ...) do {;} while (0)
+
+#define C2_ADDB_OPS_DEFINE(ops, ...)					\
+extern char __do_not_exists_dummy[0]
+
+#endif /* __KERNEL__ */
 
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
