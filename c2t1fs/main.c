@@ -383,8 +383,11 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 		count, (unsigned long)pos, (unsigned long)inode->i_size);
 
 	if (rw == READ) {
+                if (pos >= inode->i_size)
+                        return 0;
+
 		/* check if pos beyond the file size */
-		if (pos + count >= inode->i_size)
+		if (pos + count > inode->i_size)
 			count = inode->i_size - pos;
 	}
 
@@ -415,10 +418,12 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                         get_page(pages[i]);
                 }
                 rc = npages;
-        }
-        else
+        } else {
+                down_read(&current->mm->mmap_sem);
                 rc = get_user_pages(current, current->mm, addr, npages,
                                     rw == READ, 1, pages, NULL);
+                up_read(&current->mm->mmap_sem);
+        }
         if (rc != npages) {
                 printk("expect %d, got %d\n", npages, rc);
                 npages = rc > 0 ? rc : 0;
