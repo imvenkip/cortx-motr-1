@@ -7,10 +7,10 @@
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
 #include <linux/uio.h>
-#include <linux/errno.h>
 #include <linux/inet.h>
 #include <linux/in.h>
 
+#include "lib/errno.h"
 #include "fop/fop.h"
 
 #include "c2t1fs.h"

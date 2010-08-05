@@ -1,8 +1,8 @@
 /* -*- C -*- */
 
-#include <errno.h>
 #include <stdio.h>
 
+#include "lib/errno.h"
 #include "lib/ut.h"
 
 #include "fop/fop.h"

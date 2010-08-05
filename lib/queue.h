@@ -3,9 +3,8 @@
 #ifndef __COLIBRI_LIB_QUEUE_H__
 #define __COLIBRI_LIB_QUEUE_H__
 
-#include <sys/types.h>
-
-#include "cdefs.h"
+#include "lib/types.h"
+#include "lib/cdefs.h"
 
 /**
    @defgroup queue Queue

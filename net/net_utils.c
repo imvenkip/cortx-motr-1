@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -17,9 +16,10 @@
 #include <rpc/clnt.h>
 #include <rpc/svc.h>
 
-#include <lib/memory.h>
-#include <lib/rwlock.h>
-#include "net.h"
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/rwlock.h"
+#include "net/net.h"
 
 /**
    @addtogroup net Networking.

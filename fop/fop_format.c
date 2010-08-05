@@ -1,18 +1,9 @@
 /* -*- C -*- */
 
-#ifdef __KERNEL__
-
-#include "lib/kdef.h"
-
-#else /* __KERNEL__ */
-
-#include <errno.h>
-
+#include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-
-#endif /* __KERNEL__ */
 
 #include "fop/fop.h"
 
@@ -58,6 +49,7 @@ void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
 		field->ff_decor = NULL;
 	}
 }
+EXPORT_SYMBOL(c2_fop_field_type_unprepare);
 
 int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 {
@@ -88,6 +80,7 @@ int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 		c2_fop_field_type_unprepare(ftype);
 	return result;
 }
+EXPORT_SYMBOL(c2_fop_field_type_prepare);
 
 int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 {

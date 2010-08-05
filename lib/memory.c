@@ -11,7 +11,7 @@
 /**
    @addtogroup memory
 
-   User level malloc(3) based implementation.
+   <b>User level malloc(3) based implementation.</b>
 
    The only interesting detail is implementation of c2_allocated(). No standard
    function returns the amount of memory allocated in the arena.
@@ -90,8 +90,7 @@ void *c2_alloc(size_t size)
 
 void c2_free(void *data)
 {
-	if (data)
-		__free(data);
+	__free(data);
 }
 
 static size_t used0;

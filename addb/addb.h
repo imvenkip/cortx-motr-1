@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_ADDB_ADDB_H__
 #define __COLIBRI_ADDB_ADDB_H__
 
+#include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 

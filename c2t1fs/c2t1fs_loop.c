@@ -55,7 +55,6 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/stat.h>
-#include <linux/errno.h>
 #include <linux/major.h>
 #include <linux/wait.h>
 #include <linux/blkdev.h>
@@ -76,6 +75,7 @@
 
 #include <asm/uaccess.h>
 
+#include "lib/errno.h"
 #include "c2t1fs.h"
 
 static LIST_HEAD(loop_devices);

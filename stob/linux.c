@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/queue.h"

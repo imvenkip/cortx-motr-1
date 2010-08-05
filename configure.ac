@@ -461,11 +461,13 @@ AC_CONFIG_FILES([
                  man/Makefile
                  colibri/Makefile
                  lib/Makefile
+                 lib/linux_kernel/Makefile
                  lib/ut/Makefile
                  dtm/Makefile
                  addb/Makefile
                  fol/Makefile
                  fop/Makefile
+                 fop/linux_kernel/Makefile
                  fop/ut/Makefile
                  rpc/Makefile
                  rpc/ut/Makefile

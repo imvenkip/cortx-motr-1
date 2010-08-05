@@ -1,10 +1,9 @@
 /* -*- C -*- */
 
-#include <errno.h>
-
-#include "chan.h"
-#include "list.h"
-#include "assert.h"
+#include "lib/errno.h"
+#include "lib/chan.h"
+#include "lib/list.h"
+#include "lib/assert.h"
 
 /**
    @addtogroup chan

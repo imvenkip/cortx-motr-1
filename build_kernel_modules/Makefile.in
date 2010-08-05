@@ -7,39 +7,16 @@ STOBDIR = @SRCDIR@/stob/ut
 
 ifeq ($(OS),linux)
 
-obj-y := c2t1fs/ ksunrpc/
+subdirs := ../c2t1fs/ ../net/ksunrpc/ ../lib/linux_kernel/ ../fop/linux_kernel/
+obj-y += $(subdirs)
 
 all:
-	if ! test -e c2t1fs; then       \
-            ln -s $(C2T1FS_SRCDIR);     \
-        fi
-	if ! test -e ksunrpc; then      \
-            ln -s $(KSUNRPC_SRCDIR);    \
-        fi 
-	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
-	mv io_k.[ch] c2t1fs/
-	if ! test -e c2t1fs/io_fop_init.c; then \
-		ln -s $(STOBDIR)/io_fop_init.c c2t1fs/; \
-        fi 
-	if ! test -e ksunrpc/fop.c; then \
-		ln -s $(FOPDIR)/fop.c ksunrpc/; \
-		ln -s $(FOPDIR)/fop_format.c ksunrpc/; \
-        fi 
+	for s in $(subdirs) ;do $(MAKE) -C $$s prepare ;done
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
 
 clean distclean:
-	if ! test -e c2t1fs; then       \
-            ln -s $(C2T1FS_SRCDIR);     \
-        fi
-	if ! test -e ksunrpc; then      \
-            ln -s $(KSUNRPC_SRCDIR);    \
-        fi
-	$(MAKE) -C c2t1fs clean
-	$(MAKE) -C ksunrpc clean
+	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
 	$(RM) Module.markers modules.order
-	$(RM) ksunrpc/fop.c ksunrpc/fop_format.c
-	$(RM) c2t1fs/fop.c c2t1fs/fop_format.c c2t1fs/io_fop_init.c
-	$(RM) -fr c2t1fs ksunrpc
 
 else
 
@@ -51,11 +28,3 @@ distclean clean:
 endif
 
 distdir:
-	if ! test -e c2t1fs; then       \
-            ln -s $(C2T1FS_SRCDIR);     \
-        fi
-	if ! test -e ksunrpc; then      \
-            ln -s $(KSUNRPC_SRCDIR);    \
-        fi
-	$(MAKE) -C c2t1fs distdir
-	$(MAKE) -C ksunrpc distdir

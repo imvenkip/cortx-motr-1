@@ -2,8 +2,7 @@
 #  include <config.h>
 #endif
 
-#include <errno.h>
-
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/atomic.h"
 #include "lib/assert.h"

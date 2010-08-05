@@ -2,10 +2,10 @@
 #ifndef __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
-#ifdef __KERNEL__
 #include <linux/in.h>
 #include <linux/sunrpc/sched.h> /* for rpc_call_ops */
-#endif
+
+#include "lib/mutex.h"
 
 struct c2_fop;
 
@@ -19,13 +19,9 @@ struct ksunrpc_service_id {
 	uint16_t              ssi_port;     /**< server tcp port */
 };
 
-#define UT_PROC_NAME "ksunrpc-ut"
-
-
-#ifdef __KERNEL__
-
 struct ksunrpc_xprt {
 	struct rpc_clnt *ksx_client;
+	struct c2_mutex  ksx_lock;
 };
 
 /**
@@ -60,8 +56,6 @@ extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
-
-#endif
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

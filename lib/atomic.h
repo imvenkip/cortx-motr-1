@@ -4,7 +4,10 @@
 
 #include "cdefs.h"
 #include "assert.h"
-#include "user_x86_64_atomic.h"
+
+#ifndef __KERNEL__
+#include "user_space/user_x86_64_atomic.h"
+#endif
 
 /**
    @defgroup atomic

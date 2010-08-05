@@ -7,8 +7,8 @@
 #include <unistd.h>    /* unlink */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
-#include <errno.h>
 
+#include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/assert.h"

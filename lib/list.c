@@ -1,5 +1,5 @@
-#include "list.h"
-#include "assert.h"
+#include "lib/list.h"
+#include "lib/assert.h"
 
 /** @addtogroup list @{ */
 

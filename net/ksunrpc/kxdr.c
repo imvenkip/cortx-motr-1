@@ -3,7 +3,6 @@
 #include <linux/sunrpc/clnt.h>
 
 #include "lib/cdefs.h"
-#include "lib/kdef.h"
 #include "fop/fop.h"
 #include "ksunrpc.h"
 

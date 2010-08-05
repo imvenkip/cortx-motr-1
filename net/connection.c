@@ -1,12 +1,11 @@
 /* -*- C -*- */
 
-#include <errno.h>
-
-#include <lib/cdefs.h>
-#include <lib/rwlock.h>
-#include <lib/list.h>
-#include <lib/refs.h>
-#include <lib/memory.h>
+#include "lib/errno.h"
+#include "lib/cdefs.h"
+#include "lib/rwlock.h"
+#include "lib/list.h"
+#include "lib/refs.h"
+#include "lib/memory.h"
 
 #include "net.h"
 

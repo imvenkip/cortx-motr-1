@@ -3,8 +3,9 @@
 #ifndef __COLIBRI_FOP_FOP_H__
 #define __COLIBRI_FOP_FOP_H__
 
-#include "addb/addb.h"
+#include "lib/types.h"
 #include "lib/cdefs.h"
+#include "addb/addb.h"
 
 /**
    @defgroup fop File operation packet

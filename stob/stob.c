@@ -3,8 +3,8 @@
 #endif
 
 #include <string.h>  /* memset */
-#include <errno.h>
 
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 

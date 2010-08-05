@@ -5,13 +5,13 @@
 #endif
 
 #include <stdio.h>  /* fprintf, fflush */
-#include <errno.h>
 #include <stdlib.h> /* abort */
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
 #endif
 
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 

@@ -2,17 +2,14 @@
 
 #ifdef __KERNEL__
 
-#include "lib/kdef.h"
-
 #define xdr_void NULL
 #define xdr_char NULL
 #define xdr_uint32_t NULL
 #define xdr_uint64_t NULL
 
-#else /* __KERNEL__ */
-#include "lib/memory.h"
 #endif /* __KERNEL__ */
 
+#include "lib/memory.h"
 #include "lib/vec.h"
 #include "fop/fop.h"
 

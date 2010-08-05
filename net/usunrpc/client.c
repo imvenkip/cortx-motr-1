@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/socket.h>
 
 #ifdef HAVE_NETINET_IN_H
@@ -16,6 +15,7 @@
 #include <netdb.h>
 #include <rpc/rpc.h>
 
+#include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"

@@ -8,8 +8,8 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 #include <unistd.h>    /* sleep */
-#include <errno.h>
 
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "fop/fop.h"

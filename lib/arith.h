@@ -3,7 +3,8 @@
 #ifndef __COLIBRI_LIB_ARITH_H__
 #define __COLIBRI_LIB_ARITH_H__
 
-#include "cdefs.h"
+#include "lib/types.h"
+#include "lib/cdefs.h"
 
 /**
    @defgroup arith Miscellaneous arithmetic functions.

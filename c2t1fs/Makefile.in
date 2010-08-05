@@ -10,16 +10,9 @@ c2t1fs-y := main.o io_fop_init.o io_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
-all:
-	if ! test -e c2t1fs.c; then \
-                ln -s $(C2T1FS_SRCDIR)/c2t1fs.c; \
-                ln -s $(C2T1FS_SRCDIR)/c2t1fs.h; \
-        fi 
+prepare:
 	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
-	if ! test -e io_fop_init.c; then \
-		ln -s $(STOBDIR)/io_fop_init.c; \
-        fi 
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules
+	ln -sf $(STOBDIR)/io_fop_init.c .
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install
@@ -29,7 +22,7 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr Module.symvers io_k.[ch]
+	rm -fr Module.symvers io_k.[ch] io_fop_init.c
 
 else
 

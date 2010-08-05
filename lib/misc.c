@@ -2,6 +2,7 @@
 
 #include <string.h> /* memcmp() */
 
+#include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 
