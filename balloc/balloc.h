@@ -20,8 +20,8 @@
 #define MAXPATHLEN 1024
 
 struct c2_balloc_extent {
-	c2_bindex_t ext_start;
-	c2_bcount_t ext_len;
+	c2_bindex_t be_start;
+	c2_bcount_t be_len;
 };
 
 
@@ -50,6 +50,8 @@ struct c2_balloc_group_info {
         struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
         struct c2_mutex     bgi_mutex;      /*< per-group lock */
 
+	struct c2_balloc_extent *bgi_extents; /*< (bgi_fragments+1) of extents */
+	
         /** 
 	   Nr of free power-of-two-block regions, index is order.
            bb_counters[3] = 5 means 5 free 8-block regions.
@@ -112,6 +114,7 @@ enum c2_balloc_super_block_version {
  */
 struct c2_balloc_ctxt {
 	DB_ENV        *bc_dbenv;
+	DB_TXN        *bc_tx;
 	char	      *bc_home;
 
         uint32_t       bc_dbenv_flags;
@@ -122,6 +125,7 @@ struct c2_balloc_ctxt {
 
 	DB            *bc_db_sb;
 	struct c2_balloc_super_block bc_sb;
+        struct c2_mutex bc_sb_mutex;      /*< super block lock */
 
 	DB           **bc_db_group_info;
 	struct c2_balloc_group_info *bc_group_info;
@@ -136,9 +140,9 @@ struct c2_balloc_ctxt {
  */
 struct c2_balloc_format_req {
 	c2_bindex_t 	bfr_totalsize;	      /*< total size in bytes */
-	uint32_t	bfr_blocksize;        /*< block size in bytes */
-	uint32_t	bfr_groupsize;        /*< block size in blocks */
-	uint32_t	bfr_reserved_groups;  /*< # of resvered groups */
+	c2_bcount_t	bfr_blocksize;        /*< block size in bytes */
+	c2_bcount_t	bfr_groupsize;        /*< block size in blocks */
+	c2_bcount_t	bfr_reserved_groups;  /*< # of resvered groups */
 
 	const char 	*bfr_db_home;          /*< database home dir */
 };
@@ -151,6 +155,13 @@ struct c2_balloc_prealloc {
 	struct c2_list_link bpr_link;  /*< pre-allocation is linked together */
 };
 
+struct c2_balloc_free_extent {
+        c2_bindex_t bfe_logical;       /*< logical offset within the object */
+        c2_bindex_t bfe_goal;          /*< goal block number */
+        c2_bindex_t bfe_physical;      /*< physical offset, result */
+        c2_bcount_t bfe_len;           /*< count of blocks */
+};
+
 /**
    Request to allocate multiple blocks from a container.
 
@@ -159,17 +170,17 @@ struct c2_balloc_prealloc {
    the maximum available chunk size is returned in bar_max_avail.
  */
 struct c2_balloc_allocate_req {
-	c2_bindex_t	bar_logical;   /*< logical offset within the object */
-	c2_bcount_t	bar_lcount;    /*< count of blocks */
-	c2_bindex_t	bar_goal;      /*< prefered physical block number */
-	uint32_t	bar_flags;     /*< allocation flags from c2_balloc_allocation_flag */
+	c2_bindex_t	bar_logical;   /*< [in]logical offset within the object */
+	c2_bcount_t	bar_len;       /*< [in][out]count of blocks, */
+	c2_bindex_t	bar_goal;      /*< [in]prefered physical block number */
+	uint64_t	bar_flags;     /*< [in]allocation flags from c2_balloc_allocation_flag */
 
-	c2_bindex_t	bar_physical;  /*< result allocated blocks */
+        c2_bindex_t     bar_physical;  /*< [out]physical offset, result */
 
-	uint32_t	bar_err;       /*< error number */
-	c2_bindex_t	bar_max_avail; /*< max avail blocks */
+	uint32_t	bar_err;       /*< [out]error number */
+	c2_bcount_t	bar_max_avail; /*< [out]max avail blocks */
 
-	void           *bar_prealloc;  /*< User opaque prealloc result */
+	void           *bar_prealloc;  /*< [in][out]User opaque prealloc result */
 };
 
 enum c2_balloc_allocation_flag {
