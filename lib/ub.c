@@ -85,8 +85,8 @@ static void ub_run_one(const struct c2_ub_set *set, struct c2_ub_bench *bench)
 	sec = delay(&start, &end);
 	bench->ut_total += sec;
 	bench->ut_square += sec * sec;
-	bench->ut_max = max_t(double, bench->ut_max, sec);
-	bench->ut_min = min_t(double, bench->ut_min, sec);
+	bench->ut_max = max_type(double, bench->ut_max, sec);
+	bench->ut_min = min_type(double, bench->ut_min, sec);
 }
 
 void c2_ub_run(uint32_t rounds)
