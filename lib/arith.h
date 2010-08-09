@@ -51,13 +51,13 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
 	return a > b ? a : b;
 }
 
-#define min_t(t, a, b) ({			\
+#define min_type(t, a, b) ({			\
 	t __a = (a);				\
 	t __b = (b);				\
 	__a < __b ? __a : __b;			\
 })
 
-#define max_t(t, a, b) ({			\
+#define max_type(t, a, b) ({			\
 	t __a = (a);				\
 	t __b = (b);				\
 	__a > __b ? __a : __b;			\
