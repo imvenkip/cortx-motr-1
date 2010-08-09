@@ -3,8 +3,9 @@
 #ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
 #define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
 
-#include <linux/types.h>
-#include <linux/kernel.h>
+#include <linux/stddef.h> /* offsetof, NULL */
+#include <linux/kernel.h> /* container_of, ARRAY_SIZE */
+#include <linux/module.h> /* EXPORT_SYMBOL */
 
 /* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
 #endif
