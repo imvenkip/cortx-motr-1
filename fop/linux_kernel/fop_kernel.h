@@ -11,6 +11,11 @@ typedef void *xdrproc_t;
 	__FOP_TYPE_DECLARE(fopt, name, opcode, ops);    \
 	EXPORT_SYMBOL(fopt ## _fopt)
 
+#define xdr_void NULL
+#define xdr_char NULL
+#define xdr_uint32_t NULL
+#define xdr_uint64_t NULL
+
 /* __COLIBRI_FOP_FOP_KERNEL_H__ */
 #endif
 
