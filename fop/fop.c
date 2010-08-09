@@ -89,14 +89,14 @@ EXPORT_SYMBOL(c2_fop_data);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
-	if (fopt->ft_fmt != NULL) {
-		c2_fop_type_format_fini(fopt->ft_fmt);
-		fopt->ft_fmt = NULL;
-	}
 	if (fopt->ft_top != NULL) {
 		c2_mutex_lock(&fop_types_lock);
 		c2_list_del(&fopt->ft_linkage);
 		c2_mutex_unlock(&fop_types_lock);
+	}
+	if (fopt->ft_fmt != NULL) {
+		c2_fop_type_format_fini(fopt->ft_fmt);
+		fopt->ft_fmt = NULL;
 	}
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
