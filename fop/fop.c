@@ -1,18 +1,10 @@
 /* -*- C -*- */
 
-#ifdef __KERNEL__
-
-#define xdr_void NULL
-#define xdr_char NULL
-#define xdr_uint32_t NULL
-#define xdr_uint64_t NULL
-
-#endif /* __KERNEL__ */
-
 #include "lib/memory.h"
+#include "lib/list.h"
+#include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fop/fop.h"
-
 
 /**
    @addtogroup fop
@@ -33,6 +25,9 @@ static const struct c2_addb_ctx_type c2_fop_type_addb_ctx = {
 static const struct c2_addb_loc c2_fop_addb_loc = {
 	.al_name = "fop"
 };
+
+static struct c2_mutex fop_types_lock;
+static struct c2_list  fop_types_list;
 
 void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 {
@@ -98,6 +93,11 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 		c2_fop_type_format_fini(fopt->ft_fmt);
 		fopt->ft_fmt = NULL;
 	}
+	if (fopt->ft_top != NULL) {
+		c2_mutex_lock(&fop_types_lock);
+		c2_list_del(&fopt->ft_linkage);
+		c2_mutex_unlock(&fop_types_lock);
+	}
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
 EXPORT_SYMBOL(c2_fop_type_fini);
@@ -107,12 +107,17 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 	int                        result;
 	struct c2_fop_type_format *fmt;
 
+	C2_PRE(fopt->ft_top == NULL);
+
 	fmt    = fopt->ft_fmt;
 	result = c2_fop_type_format_parse(fmt);
 	if (result == 0) {
 		fopt->ft_top = fmt->ftf_out;
 		c2_addb_ctx_init(&fopt->ft_addb, &c2_fop_type_addb_ctx,
 				 &c2_addb_global_ctx);
+		c2_mutex_lock(&fop_types_lock);
+		c2_list_add(&fop_types_list, &fopt->ft_linkage);
+		c2_mutex_unlock(&fop_types_lock);
 	}
 	return result;
 }
@@ -213,6 +218,8 @@ EXPORT_SYMBOL(C2_FOP_TYPE_U64);
 
 int c2_fops_init(void)
 {
+	c2_list_init(&fop_types_list);
+	c2_mutex_init(&fop_types_lock);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
@@ -227,6 +234,8 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
+	c2_mutex_fini(&fop_types_lock);
+	c2_list_fini(&fop_types_list);
 }
 EXPORT_SYMBOL(c2_fops_fini);
 
