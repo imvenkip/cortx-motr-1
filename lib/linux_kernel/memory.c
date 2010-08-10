@@ -5,6 +5,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 
+#include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/memory.h"
 
 /**
@@ -19,19 +20,19 @@ void *c2_alloc(size_t size)
 {
 	return kzalloc(size, GFP_KERNEL);
 }
-EXPORT_SYMBOL(c2_alloc);
+C2_EXPORTED(c2_alloc);
 
 void c2_free(void *data)
 {
 	kfree(data);
 }
-EXPORT_SYMBOL(c2_free);
+C2_EXPORTED(c2_free);
 
 size_t c2_allocated(void)
 {
 	return 0;
 }
-EXPORT_SYMBOL(c2_allocated);
+C2_EXPORTED(c2_allocated);
 
 /** @} end of memory group */
 

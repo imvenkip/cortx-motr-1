@@ -154,13 +154,14 @@ struct c2_fop_memlayout {
 	} fm_child[];
 };
 
-#define __FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
+#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
 struct c2_fop_type fopt ## _fopt = {			\
 	.ft_code = (opcode),				\
 	.ft_name = name,				\
 	.ft_fmt  = &__paste(fopt),			\
 	.ft_ops  = (ops)				\
-}
+};							\
+C2_EXPORTED(fopt ## _fopt)
 
 /** @} end of fop group */
 

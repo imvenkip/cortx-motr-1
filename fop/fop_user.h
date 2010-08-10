@@ -5,9 +5,6 @@
 
 #include <rpc/rpc.h> /* xdrproc_t */
 
-#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
-	__FOP_TYPE_DECLARE(fopt, name, opcode, ops)
-
 /* __COLIBRI_FOP_FOP_USER_H__ */
 #endif
 

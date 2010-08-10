@@ -88,7 +88,7 @@ void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
 	}
 	kfree(xprt);
 }
-EXPORT_SYMBOL(ksunrpc_xprt_fini);
+C2_EXPORTED(ksunrpc_xprt_fini);
 
 #define C2_DEF_TCP_RETRANS (2)
 #define C2_DEF_TCP_TIMEO   (600)
@@ -134,7 +134,7 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 	c2_mutex_init(&ksunrpc_xprt->ksx_lock);
         return ksunrpc_xprt;
 }
-EXPORT_SYMBOL(ksunrpc_xprt_init);
+C2_EXPORTED(ksunrpc_xprt_init);
 
 static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt, 
 			     struct c2_knet_call *kcall)
@@ -171,7 +171,7 @@ struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
 	.ksxo_call = ksunrpc_xprt_call,
 };
 
-EXPORT_SYMBOL(ksunrpc_xprt_ops);
+C2_EXPORTED(ksunrpc_xprt_ops);
 
 /*******************************************************************************
  *                     Start of UT                                             *

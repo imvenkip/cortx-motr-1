@@ -7,6 +7,8 @@
 #include <linux/kernel.h> /* container_of, ARRAY_SIZE */
 #include <linux/module.h> /* EXPORT_SYMBOL */
 
+#define C2_EXPORTED(s) EXPORT_SYMBOL(s)
+
 /* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
 #endif
 

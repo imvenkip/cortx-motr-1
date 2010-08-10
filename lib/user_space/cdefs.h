@@ -23,7 +23,7 @@
 #define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0] ))
 #endif
 
-#define EXPORT_SYMBOL(s) 
+#define C2_EXPORTED(s) 
 
 /* __COLIBRI_LIB_USER_SPACE_CDEFS_H_ */
 #endif

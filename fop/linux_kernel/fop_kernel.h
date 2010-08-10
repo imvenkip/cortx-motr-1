@@ -7,10 +7,6 @@
 
 typedef void *xdrproc_t;
 
-#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
-	__FOP_TYPE_DECLARE(fopt, name, opcode, ops);    \
-	EXPORT_SYMBOL(fopt ## _fopt)
-
 #define xdr_void NULL
 #define xdr_char NULL
 #define xdr_uint32_t NULL
