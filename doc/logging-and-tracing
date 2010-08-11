@@ -27,7 +27,7 @@ interaction with environment and user loads, whereas tracing is better
 suited for lower level problems like race conditions and control flow
 errors. The classification above is only approximate, there is a gray
 area between logging and tracing, and investigation of a higher level
-problem might often require analysis of lower level system behaviour
+problem might often require analysis of a lower level system behaviour
 details and vice versa.
 
 It is important to realise that to be useful, logging and tracing must
