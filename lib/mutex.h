@@ -38,6 +38,14 @@ void c2_mutex_lock(struct c2_mutex *mutex);
 void c2_mutex_unlock(struct c2_mutex *mutex);
 
 /**
+   Try to take a mutex lock.
+   Returns 0 with the mutex locked,
+   or non-zero if lock is already hold by others.
+ */
+int c2_mutex_trylock(struct c2_mutex *mutex);
+
+
+/**
    True iff mutex is locked by the calling thread.
 
    @note this function can be used only in assertions.

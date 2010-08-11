@@ -49,6 +49,20 @@ void c2_mutex_unlock(struct c2_mutex *mutex)
 	pthread_mutex_unlock(&mutex->m_impl);
 }
 
+int c2_mutex_trylock(struct c2_mutex *mutex)
+{
+	pthread_t self;
+	int ret;
+
+	self = pthread_self();
+	C2_PRE(!pthread_equal(mutex->m_owner, self));
+	ret = pthread_mutex_trylock(&mutex->m_impl);
+	if (ret == 0)
+		memcpy(&mutex->m_owner, &self, sizeof self);
+
+	return ret;
+}
+
 bool c2_mutex_is_locked(const struct c2_mutex *mutex)
 {
 	return pthread_equal(mutex->m_owner, pthread_self());

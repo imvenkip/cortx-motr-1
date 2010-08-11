@@ -50,6 +50,8 @@ struct c2_balloc_group_info {
         struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
         struct c2_mutex     bgi_mutex;      /*< per-group lock */
 
+	DB             *bgi_db_group_desc;
+	DB             *bgi_db_group_extent;
 	struct c2_balloc_extent *bgi_extents; /*< (bgi_fragments+1) of extents */
 	
         /** 
@@ -127,10 +129,7 @@ struct c2_balloc_ctxt {
 	struct c2_balloc_super_block bc_sb;
         struct c2_mutex bc_sb_mutex;      /*< super block lock */
 
-	DB           **bc_db_group_info;
 	struct c2_balloc_group_info *bc_group_info;
-
-	DB           **bc_db_group_extent;
 };
 
 
@@ -157,8 +156,8 @@ struct c2_balloc_prealloc {
 
 struct c2_balloc_free_extent {
         c2_bindex_t bfe_logical;       /*< logical offset within the object */
-        c2_bindex_t bfe_goal;          /*< goal block number */
-        c2_bindex_t bfe_physical;      /*< physical offset, result */
+        c2_bindex_t bfe_groupno;       /*< goal group # */
+        c2_bindex_t bfe_start;         /*< relative start offset */
         c2_bcount_t bfe_len;           /*< count of blocks */
 };
 
