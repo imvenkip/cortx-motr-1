@@ -200,14 +200,6 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 	return rc;
 }
 
-static int read_write(struct ksunrpc_xprt *xprt,
-                       uint64_t objid,
-                       struct page **pages, int npages, int off,
-                       size_t len, loff_t pos, int rw)
-{
-	return 0;
-}
-
 static int ksunrpc_create(struct ksunrpc_xprt *xprt,
 			  uint64_t objid)
 {
@@ -439,8 +431,8 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 goto out;
         }
 
-        rc = read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
-			off, count, pos, rw);
+        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
+				off, count, pos, rw);
         DBG("call read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
