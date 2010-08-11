@@ -1,9 +1,7 @@
 /* -*- C -*- */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "lib/ut.h"
+#include "lib/memory.h"
 #include "lib/refs.h"
 
 struct test_struct {
@@ -18,7 +16,7 @@ void test_destructor(struct c2_ref *r)
 
 	t = container_of(r, struct test_struct, ref);
 
-	free(t);
+	c2_free(t);
 	free_done = 1;
 }
 
@@ -26,7 +24,7 @@ void test_refs(void)
 {
 	struct test_struct *t;
 
-	t = malloc(sizeof(struct test_struct));
+	t = c2_alloc(sizeof(struct test_struct));
 	C2_UT_ASSERT(t != NULL);
 
 	free_done = 0;

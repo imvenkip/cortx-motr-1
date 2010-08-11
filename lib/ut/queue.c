@@ -1,8 +1,5 @@
 /* -*- C -*- */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "lib/ut.h"
 #include "lib/queue.h"
 #include "lib/assert.h"
