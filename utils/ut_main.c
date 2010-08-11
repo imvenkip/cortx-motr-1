@@ -1,6 +1,6 @@
 /* -*- C -*- */
 
-#include <stdio.h>
+#include <stdio.h> /* setbuf */
 #include <CUnit/CUnit.h>
 
 #include "lib/ut.h"
@@ -15,14 +15,14 @@ int main(int argc, char *argv[])
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	c2_init();
+	if (c2_init() == 0) {
+		c2_ut_add(&libc2_ut);
+		c2_ut_add(&adieu_ut);
+		c2_ut_add(&fop_ut);
+		c2_ut_run("c2ut.log");
 
-	c2_ut_add(&libc2_ut);
-	c2_ut_add(&adieu_ut);
-	c2_ut_add(&fop_ut);
-	c2_ut_run("c2ut.log");
-
-	c2_fini();
+		c2_fini();
+	}
 
 	return 0;
 }

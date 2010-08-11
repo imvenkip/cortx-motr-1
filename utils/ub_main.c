@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include <stdio.h> /* setbuf */
 #include <stdlib.h> /* atoi */
 
 #include "lib/ub.h"
@@ -19,15 +20,19 @@ int main(int argc, char *argv[])
 	else
 		rounds = ~0;
 
-	c2_init();
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
 
-	c2_ub_set_add(&c2_memory_ub);
-	c2_ub_set_add(&c2_thread_ub);
-	c2_ub_set_add(&c2_list_ub);
-	c2_ub_set_add(&c2_adieu_ub);
-	c2_ub_run(rounds);
+	if (c2_init() == 0) {
 
-	c2_fini();
+		c2_ub_set_add(&c2_memory_ub);
+		c2_ub_set_add(&c2_thread_ub);
+		c2_ub_set_add(&c2_list_ub);
+		c2_ub_set_add(&c2_adieu_ub);
+		c2_ub_run(rounds);
+
+		c2_fini();
+	}
 
 	return 0;
 }
