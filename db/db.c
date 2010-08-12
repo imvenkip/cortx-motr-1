@@ -207,7 +207,7 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	if (result == 0) {
 		txn = tx->dt_txn;
 		/*
-		 * Hack alert: DB_TXN has to application private field similar
+		 * Hack alert: DB_TXN has no application private field similar
 		 * to {DBENV,DB}->app_private. Hijack xml_private.
 		 */
 		txn->xml_internal = tx;
