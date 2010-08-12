@@ -4,6 +4,7 @@
 #include <CUnit/CUnit.h>
 
 #include "lib/ut.h"
+#include "lib/trace.h"
 #include "colibri/init.h"
 
 extern const struct c2_test_suite libc2_ut;
@@ -16,11 +17,14 @@ int main(int argc, char *argv[])
 	setbuf(stderr, NULL);
 
 	if (c2_init() == 0) {
-		c2_ut_add(&libc2_ut);
-		c2_ut_add(&adieu_ut);
-		c2_ut_add(&fop_ut);
-		c2_ut_run("c2ut.log");
-
+		if (argc == 2 && !strcmp(argv[1], "trace")) {
+			c2_trace_parse();
+		} else {
+			c2_ut_add(&libc2_ut);
+			c2_ut_add(&adieu_ut);
+			c2_ut_add(&fop_ut);
+			c2_ut_run("c2ut.log");
+		}
 		c2_fini();
 	}
 
