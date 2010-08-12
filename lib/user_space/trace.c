@@ -6,8 +6,8 @@
 #include <string.h>   /* memset */
 #include <stdio.h>    /* getchar */
 #include <ctype.h>    /* isspace */
-#include <errno.h>
 
+#include "lib/errno.h"
 #include "lib/atomic.h"
 #include "lib/cdefs.h"
 #include "lib/arith.h" /* c2_align */
