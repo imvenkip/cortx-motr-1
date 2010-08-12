@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES   = libc2.la
 libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
-                       queue.c vec.c thread.c chan.c mutex.c cache.c cond.c \
+                       queue.c vec.c thread.c chan.c mutex.c cond.c \
                        assert.c adt.h rwlock.h memory.h list.h \
                        refs.h atomic.h queue.h arith.h thread.h \
                        vec.h chan.h mutex.h cache.h cond.h \

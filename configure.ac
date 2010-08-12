@@ -488,6 +488,7 @@ AC_CONFIG_FILES([
                  utils/ploss/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
+                 db/Makefile
                 ])
 AC_OUTPUT
 

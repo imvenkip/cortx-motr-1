@@ -5,13 +5,14 @@
 #include "lib/thread.h"
 #include "stob/stob.h"
 #include "net/net.h"
-#include "rpc/rpclib.h"
+/* #include "rpc/rpclib.h" */
 #include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
 #include "layout/layout.h"
 #include "pool/pool.h"
 #include "lib/trace.h"
+#include "db/db.h"
 
 #include "colibri/init.h"
 
@@ -32,6 +33,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_uts_init,     &c2_uts_fini,     "ut" },
 	{ &c2_threads_init, &c2_threads_fini, "thread" },
 	{ &c2_addb_init,    &c2_addb_fini,    "addb" },
+	{ &c2_db_init,      &c2_db_fini,      "db" },
 	{ &c2_stobs_init,   &c2_stobs_fini,   "stob" },
 	{ &c2_net_init,     &c2_net_fini,     "net" },
 /*	{ &c2_rpclib_init,  &c2_rpclib_fini,  "rpc" }, */
