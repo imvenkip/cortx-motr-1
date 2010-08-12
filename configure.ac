@@ -490,6 +490,7 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/ploss/Makefile
                  balloc/Makefile
+                 balloc/ut/Makefile
                 ])
 AC_OUTPUT
 

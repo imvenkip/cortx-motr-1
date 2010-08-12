@@ -4,9 +4,10 @@
 #define __COLIBRI_BALLOC_BALLOC_H__
 
 #include <db.h>
-#include <lib/list.h>
-#include <lib/mutex.h>
-#include <lib/adt.h>
+
+#include "lib/list.h"
+#include "lib/mutex.h"
+#include "lib/adt.h"
 
 /**
    @defgroup balloc data-block-allocator
@@ -238,6 +239,7 @@ struct c2_balloc_discard_req {
 
 int c2_balloc_format(struct c2_balloc_format_req *req);
 int c2_balloc_init(struct c2_balloc_ctxt *ctxt);
+void c2_balloc_fini(struct c2_balloc_ctxt *ctxt);
 int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt, struct c2_balloc_allocate_req *req);
 int c2_balloc_free(struct c2_balloc_ctxt *ctxt, struct c2_balloc_free_req *req);
 int c2_balloc_discard_prealloc(struct c2_balloc_ctxt *ctxt,
