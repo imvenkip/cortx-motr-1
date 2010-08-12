@@ -202,9 +202,6 @@ modules:
 _ACEOF
 ])
 
-USER_CFLAGS=$CFLAGS
-USER_KCFAGS=$KCFLAGS
-
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
@@ -439,17 +436,14 @@ if test x$OS = xdarwin; then
         CFLAGS="$CFLAGS -fnested-functions"
 fi
 
-# trim spaces at the end of flags
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*//')
-KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*//')
-
 CFLAGS="-Wall -Werror -D_REENTRANT -fno-strict-aliasing $CFLAGS $USER_CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
-LDFLAGS="-rdynamic"
+LDFLAGS="-rdynamic $USER_LDFLAGS"
 
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
 KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
+LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
 AC_SUBST([KCFLAGS])
 
 AC_CONFIG_FILES([
