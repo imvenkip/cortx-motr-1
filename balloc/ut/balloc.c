@@ -3,11 +3,12 @@
 #include <unistd.h>  /* getcwd */
 #include <stdio.h>   /* fprintf */
 #include <string.h>  /* memset */
-#include <errno.h>   /* errno */
-#include <stdlib.h>  /* free */
+#include <errno.h>
+#include <stdlib.h>   /* free */
 #include <sys/stat.h> /* mkdir */
 #include <err.h>
 
+#include "lib/errno.h"   /* errno */
 #include "balloc/balloc.h"
 
 static void db_err(DB_ENV *dbenv, int rc, const char * msg)

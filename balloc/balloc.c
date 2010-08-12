@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <errno.h>
 #include <sys/time.h>
 #include <string.h>
 
+#include "lib/errno.h"
+#include "lib/types.h"
 #include "lib/arith.h"    /* min_check */
 #include "lib/memory.h"
 #include "balloc/balloc.h"
