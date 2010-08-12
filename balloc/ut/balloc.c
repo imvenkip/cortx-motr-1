@@ -192,7 +192,7 @@ int main(int argc, char **argv)
 	format_req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 	format_req.bfr_reserved_groups = 2;
 
-	rc = c2_balloc_format(&format_req);
+	rc = c2_balloc_format(&format_req); 
 
 	ctxt.bc_home = path;
 	rc = c2_balloc_init(&ctxt);
