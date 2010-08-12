@@ -61,3 +61,4 @@ test_db*
 __s/
 build/
 c2ut.log-Results.xml
+c2.trace
