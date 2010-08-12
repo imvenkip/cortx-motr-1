@@ -52,23 +52,21 @@ ADDB interface is described in addb/addb.h.
 Note that all "errors", such as system and library call errors, IO
 errors, memory allocation errors are subject to logging.
 
-Tracing [not implemented at the moment, 2010.06.20] interface and
-implementation is constrained by the high frequency of traced
-events. Together with the requirement of constant tracing this implies
-that tracing implementation must be very light-weight. It is expected
-that logging would produce a stream of binary records that would
-require pre-processing before analysis. Such pre-processing would
-require access to the exact binary image of an executable that
-produced the stream (to allow pointers in records). It is possible
-that pre-processing would be a special functionality of an executable
-and pre-processing is implemented by re-running the same executable
-that produced the trace with a special command line switch.
+Tracing interface (lib/trace.h) and implementation are constrained by
+the high frequency of traced events. Together with the requirement of
+constant tracing this implies that tracing implementation must be very
+light-weight. Tracing produces a stream of binary records that require
+pre-processing before analysis. This pre-processing needs access to
+the exact binary image of an executable that produced the stream
+(because tracing records contain pointers). In fact, the
+pre-processing is implemented as a special functionality of an
+executable: the same executable that produced the trace must be re-ran
+with a special command line switch.
 
-It is expected that a trace would survive a large class of fatal
-errors, including assertion failures, unexpected process termination,
-etc. In user space, this can be achieved by placing trace records in a
-cyclic buffer memory mapped from a file (or allocated from SysV shared
-memory).
+A trace survives a large class of fatal errors, including assertion
+failures, unexpected process termination, etc. In user space, this is
+achieved by placing trace records in a cyclic buffer memory mapped
+from a file (or allocated from SysV shared memory).
 
 
 
