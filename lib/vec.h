@@ -137,9 +137,7 @@ int         c2_diovec_alloc   (struct c2_diovec *vec,
 void        c2_diovec_free    (struct c2_diovec *vec);
 int         c2_diovec_register(struct c2_diovec *vec, 
 			       struct c2_dio_engine *eng);
-
 /** @} end of vec group */
-
 
 /* __COLIBRI_LIB_VEC_H__ */
 #endif
