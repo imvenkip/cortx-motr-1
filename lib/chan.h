@@ -5,9 +5,9 @@
 
 #include <semaphore.h>
 
-#include "cdefs.h"
-#include "list.h"
-#include "mutex.h"
+#include "lib/cdefs.h"
+#include "lib/list.h"
+#include "lib/mutex.h"
 
 /**
    @defgroup chan Waiting channels

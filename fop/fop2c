@@ -17,7 +17,7 @@ CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
 LDFLAGS=${LDFLAGS:-"-rdynamic"}
 DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir"
-OBJS="$topdir/fop/fop.o $topdir/fop/fop_format.o $topdir/fop/fop_format_c.o $topdir/lib/.libs/libc2.a"
+OBJS="$topdir/fop/fop.o $topdir/fop/fop_format.o $topdir/fop/fop_format_c.o $topdir/lib/.libs/libc2.a $topdir/addb/.libs/libcolibri-addb.a"
 
 generate_u=0
 generate_k=0

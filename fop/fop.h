@@ -3,7 +3,10 @@
 #ifndef __COLIBRI_FOP_FOP_H__
 #define __COLIBRI_FOP_FOP_H__
 
+#include "lib/types.h"
 #include "lib/cdefs.h"
+#include "lib/list.h"
+#include "addb/addb.h"
 
 /**
    @defgroup fop File operation packet
@@ -55,15 +58,17 @@ struct c2_fop_type {
 	c2_fop_type_code_t            ft_code;
 	/** Operation name. */
 	const char                   *ft_name;
-#if 0
 	/** Linkage into a list of all known operations. */
 	struct c2_list_link           ft_linkage;
-#endif
 	/** Type of a top level field in fops of this type. */
 	struct c2_fop_field_type     *ft_top;
 	const struct c2_fop_type_ops *ft_ops;
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format    *ft_fmt;
+	/**
+	   ADDB context for events related to this fop type.
+	 */
+	struct c2_addb_ctx            ft_addb;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
@@ -72,8 +77,21 @@ void c2_fop_type_fini(struct c2_fop_type *fopt);
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
 
+/**
+   A context for fop processing in a service.
+
+   A context is created by a service and passed to
+   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
+   particular fop execution in a service.
+ */
 struct c2_fop_ctx {
 	struct c2_service *ft_service;
+	/**
+	   Service-dependent cookie identifying fop execution. Passed to
+	   c2_service_ops::so_reply_post() to post a reply.
+
+	   @see c2_net_reply_post()
+	 */
 	void              *fc_cookie;
 };
 
@@ -81,6 +99,7 @@ struct c2_fop_ctx {
 struct c2_fop_type_ops {
 	/** Create a fom that will carry out operation described by the fop. */
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
+	/** XXX temporary entry point for threaded fop execution. */
 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
 };
 
@@ -99,6 +118,10 @@ struct c2_fop {
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
 	struct c2_fop_data  f_data;
+	/**
+	   ADDB context for events related to this fop.
+	 */
+	struct c2_addb_ctx  f_addb;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);

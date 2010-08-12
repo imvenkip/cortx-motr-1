@@ -1,8 +1,5 @@
 /* -*- C -*- */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/cdefs.h"

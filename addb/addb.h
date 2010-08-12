@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_ADDB_ADDB_H__
 #define __COLIBRI_ADDB_ADDB_H__
 
+#include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 
@@ -43,10 +44,6 @@ struct c2_addb_ctx {
 	const struct c2_addb_ctx_type *ac_type;
 	struct c2_addb_ctx            *ac_parent;
 };
-
-void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
-		      struct c2_addb_ctx *parent);
-void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 
 /**
    Part of the system where addb event happened.
@@ -109,6 +106,10 @@ struct c2_addb_dp {
 
 	int ad_rc;
 };
+
+void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
+		      struct c2_addb_ctx *parent);
+void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 
 /**
    Low-level interface posting a data-point to the addb.

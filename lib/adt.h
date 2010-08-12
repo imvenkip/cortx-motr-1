@@ -3,7 +3,8 @@
 #ifndef __COLIBRI_ADT_H__
 #define __COLIBRI_ADT_H__
 
-#include "cdefs.h"
+#include "lib/types.h"
+#include "lib/cdefs.h"
 
 /**
    @defgroup adt Basic abstract data types

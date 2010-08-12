@@ -1,9 +1,10 @@
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <errno.h>
-#include "net.h"
+#include "rpc/types.h"
+#include "rpc/xdr.h"
+#include "rpc/auth.h"
+#include "rpc/clnt.h"
+
+#include "lib/errno.h"
+#include "net/net.h"
 
 /**
    @addtogroup net Networking.

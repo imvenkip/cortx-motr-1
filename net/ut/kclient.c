@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <netdb.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -26,6 +25,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "lib/errno.h"
 #include "../ksunrpc/ksunrpc.h"
 
 static int fill_ipv4_sockaddr(const char *hostname, struct sockaddr_in *addr)

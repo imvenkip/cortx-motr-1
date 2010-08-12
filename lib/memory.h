@@ -2,7 +2,7 @@
 
 #define _COLIBRI_LIB_MEMORY_H_
 
-#include <sys/types.h>
+#include "lib/types.h"
 
 /**
    @defgroup memory memory allocation handling functions

@@ -15,7 +15,6 @@
 #include <linux/param.h>
 #include <linux/time.h>
 #include <linux/utsname.h>
-#include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/in.h>
 #include <linux/pagemap.h>
@@ -23,6 +22,7 @@
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/xdr.h>
 
+#include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 
@@ -38,10 +38,12 @@
 
 #define C2_DEF_RPC_VER  1
 #define C2_SESSION_PROGRAM 0x20000001
+#define UT_PROC_NAME "ksunrpc-ut"
 
 /*
  * Client code.
  */
+
 struct rpc_procinfo c2t1_procedures[2] = {
 	[0] = {},
 	[1] = {},
@@ -79,13 +81,14 @@ void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
 	if (xprt == NULL)
 		return;
 
+	c2_mutex_fini(&xprt->ksx_lock);
 	if (xprt->ksx_client != NULL) {
 		rpc_shutdown_client(xprt->ksx_client);
 		xprt->ksx_client = NULL;
 	}
 	kfree(xprt);
 }
-EXPORT_SYMBOL(ksunrpc_xprt_fini);
+C2_EXPORTED(ksunrpc_xprt_fini);
 
 #define C2_DEF_TCP_RETRANS (2)
 #define C2_DEF_TCP_TIMEO   (600)
@@ -128,15 +131,17 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 	}
 
 	ksunrpc_xprt->ksx_client = clnt;
+	c2_mutex_init(&ksunrpc_xprt->ksx_lock);
         return ksunrpc_xprt;
 }
-EXPORT_SYMBOL(ksunrpc_xprt_init);
+C2_EXPORTED(ksunrpc_xprt_init);
 
 static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt, 
 			     struct c2_knet_call *kcall)
 {
 	struct c2_fop_type *arg_fopt = kcall->ac_arg->f_type;
 	struct c2_fop_type *ret_fopt = kcall->ac_ret->f_type;
+	int                 result;
 
 	struct rpc_procinfo proc = {
 		.p_proc   = arg_fopt->ft_code,
@@ -154,7 +159,10 @@ static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
                 .rpc_resp = kcall,
         };
 
-        return rpc_call_sync(xprt->ksx_client, &msg, 0);
+	c2_mutex_lock(&xprt->ksx_lock);
+        result = rpc_call_sync(xprt->ksx_client, &msg, 0);
+	c2_mutex_unlock(&xprt->ksx_lock);
+	return result;
 }
 
 struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
@@ -163,7 +171,7 @@ struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
 	.ksxo_call = ksunrpc_xprt_call,
 };
 
-EXPORT_SYMBOL(ksunrpc_xprt_ops);
+C2_EXPORTED(ksunrpc_xprt_ops);
 
 /*******************************************************************************
  *                     Start of UT                                             *

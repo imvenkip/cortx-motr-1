@@ -2,7 +2,8 @@
 #ifndef __COLIBRI_LIB_USER_X86_64_ATOMIC_H__
 #define __COLIBRI_LIB_USER_X86_64_ATOMIC_H__
 
-#include "cdefs.h"
+#include "lib/types.h"
+#include "lib/cdefs.h"
 #include "lib/assert.h"
 
 /**

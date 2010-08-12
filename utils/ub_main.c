@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include <stdio.h> /* setbuf */
 #include <stdlib.h> /* atoi */
 
 #include "lib/ub.h"
@@ -9,6 +10,7 @@ extern struct c2_ub_set c2_list_ub;
 extern struct c2_ub_set c2_thread_ub;
 extern struct c2_ub_set c2_memory_ub;
 extern struct c2_ub_set c2_adieu_ub;
+extern struct c2_ub_set c2_trace_ub;
 
 int main(int argc, char *argv[])
 {
@@ -19,15 +21,20 @@ int main(int argc, char *argv[])
 	else
 		rounds = ~0;
 
-	c2_init();
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
 
-	c2_ub_set_add(&c2_memory_ub);
-	c2_ub_set_add(&c2_thread_ub);
-	c2_ub_set_add(&c2_list_ub);
-	c2_ub_set_add(&c2_adieu_ub);
-	c2_ub_run(rounds);
+	if (c2_init() == 0) {
 
-	c2_fini();
+		c2_ub_set_add(&c2_memory_ub);
+		c2_ub_set_add(&c2_thread_ub);
+		c2_ub_set_add(&c2_list_ub);
+		c2_ub_set_add(&c2_adieu_ub);
+		c2_ub_set_add(&c2_trace_ub);
+		c2_ub_run(rounds);
+
+		c2_fini();
+	}
 
 	return 0;
 }

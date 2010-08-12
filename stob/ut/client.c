@@ -6,8 +6,8 @@
 #include <string.h>    /* memset */
 #include <stdio.h>     /* feof, fscanf, ... */
 #include <err.h>
-#include <errno.h>
 
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "net/net.h"

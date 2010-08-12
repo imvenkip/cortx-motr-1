@@ -1,11 +1,9 @@
 #include <stdio.h>
-#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <memory.h>
 #include <time.h>
 #include <sys/time.h>
-#include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <signal.h>
@@ -14,6 +12,7 @@
 
 #include <rpc/rpc.h>
 
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/queue.h"

@@ -1,9 +1,5 @@
 /* -*- C -*- */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/mutex.h"

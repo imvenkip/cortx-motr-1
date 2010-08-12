@@ -1,9 +1,9 @@
-#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 
-#include "memory.h"
-#include "cache.h"
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/cache.h"
 
 int convert_db_error(int db_error)
 {

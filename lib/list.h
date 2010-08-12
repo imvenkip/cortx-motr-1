@@ -3,8 +3,7 @@
 #ifndef __COLIBRI_LIB_LIST_H__
 #define __COLIBRI_LIB_LIST_H__
 
-#include <sys/types.h>
-
+#include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 

@@ -5,13 +5,14 @@
 #endif
 
 #include <stdio.h>  /* fprintf, fflush */
-#include <errno.h>
 #include <stdlib.h> /* abort */
 
 #ifdef HAVE_BACKTRACE
 #  include <execinfo.h>
 #endif
 
+#include "lib/trace.h"
+#include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 
@@ -48,6 +49,11 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
+	C2_TRACE_POINT( { /* emit a trace point for panic */
+			const char *expr; 
+			const char *func;
+			const char *file;
+			int         lineno; }, expr, func, file, lineno);
 	abort();
 }
 

@@ -2,8 +2,7 @@
 #  include <config.h>
 #endif
 
-#include <errno.h>
-
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/atomic.h"
 #include "lib/assert.h"
@@ -187,8 +186,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 
 	frags = 0;
 	do {
-		frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
-				  c2_vec_cursor_step(&dst));
+		frag_size = min_type(c2_bcount_t, c2_vec_cursor_step(&src),
+				     c2_vec_cursor_step(&dst));
 		C2_ASSERT(frag_size > 0);
 		frags++;
 		eosrc = c2_vec_cursor_move(&src, frag_size);
@@ -209,8 +208,9 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			c2_bindex_t  off;
 			struct iocb *iocb;
 
-			frag_size = min_t(c2_bcount_t, c2_vec_cursor_step(&src),
-					  c2_vec_cursor_step(&dst));
+			frag_size = min_type(c2_bcount_t, 
+					     c2_vec_cursor_step(&src),
+					     c2_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
 				ADDB_ADD(io->si_obj, linux_addb_frag_overflow,
 					 frag_size);

@@ -7,10 +7,10 @@
 #include <linux/smp_lock.h>
 #include <linux/vfs.h>
 #include <linux/uio.h>
-#include <linux/errno.h>
 #include <linux/inet.h>
 #include <linux/in.h>
 
+#include "lib/errno.h"
 #include "fop/fop.h"
 
 #include "c2t1fs.h"
@@ -119,10 +119,10 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jins
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
-int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
-                       uint64_t objid,
-                       struct page **pages, int npages, int off,
-                       size_t len, loff_t pos, int rw)
+static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
+			      uint64_t objid,
+			      struct page **pages, int npages, int off,
+			      size_t len, loff_t pos, int rw)
 {
         int rc;
 
@@ -200,8 +200,8 @@ int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 	return rc;
 }
 
-int ksunrpc_create(struct ksunrpc_xprt *xprt,
-                   uint64_t objid)
+static int ksunrpc_create(struct ksunrpc_xprt *xprt,
+			  uint64_t objid)
 {
         int rc;
 	struct c2_io_create      *arg;
@@ -287,7 +287,7 @@ static void c2t1fs_destroy_inode(struct inode *inode)
 	kmem_cache_free(c2t1fs_inode_cachep, i2cii(inode));
 }
 
-void c2t1fs_put_super(struct super_block *sb)
+static void c2t1fs_put_super(struct super_block *sb)
 {
         c2t1fs_put_csi(sb);
 }
@@ -433,7 +433,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 
         rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
 				off, count, pos, rw);
-        DBG("call ksunrpc_read_write returns %d\n", rc);
+        DBG("call read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
 		if (rw == WRITE && pos > inode->i_size)
@@ -611,11 +611,11 @@ out:
 
 
 
-struct inode_operations c2t1fs_dir_inode_operations = {
+static const struct inode_operations c2t1fs_dir_inode_operations = {
         .lookup = c2t1fs_lookup
 };
 
-struct file_operations c2t1fs_dir_operations = {
+static const struct file_operations c2t1fs_dir_operations = {
         .readdir        = c2t1fs_readdir,
 };
 
@@ -853,7 +853,7 @@ static void c2t1fs_kill_super(struct super_block *sb)
         kill_anon_super(sb);
 }
 
-struct file_system_type c2t1fs_fs_type = {
+static struct file_system_type c2t1fs_fs_type = {
         .owner        = THIS_MODULE,
         .name         = "c2t1fs",
         .get_sb       = c2t1fs_get_super,
@@ -884,19 +884,15 @@ int init_module(void)
 {
         int rc;
 
-        printk(KERN_INFO "Colibri C2T1 File System (http://www.clusterstor.com)\n");
+        printk(KERN_INFO 
+	       "Colibri C2T1 File System (http://www.clusterstor.com)\n");
 
         rc = c2t1fs_init_inodecache();
         if (rc)
                 return rc;
         rc = register_filesystem(&c2t1fs_fs_type);
         if (rc == 0) {
-		rc = c2_fops_init();
-		if (rc == 0) {
-			rc = io_fop_init();
-			if (rc != 0)
-				c2_fops_fini();
-		}
+		rc = io_fop_init();
 		if (rc != 0)
 			unregister_filesystem(&c2t1fs_fs_type);
 	} else
@@ -909,7 +905,6 @@ void cleanup_module(void)
 {
         int rc;
 
-	c2_fops_fini();
 	io_fop_fini();
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();

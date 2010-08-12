@@ -4,7 +4,6 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <errno.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <err.h>
@@ -17,6 +16,7 @@
 
 #include <dbinc/db_swap.h>
 
+#include "lib/errno.h"
 #include "dbtypes.h"
 #include "fol.h"
 

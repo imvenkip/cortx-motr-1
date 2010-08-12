@@ -11,6 +11,7 @@
 #include "lib/ut.h"
 #include "layout/layout.h"
 #include "pool/pool.h"
+#include "lib/trace.h"
 
 #include "colibri/init.h"
 
@@ -22,19 +23,21 @@ extern void c2_memory_fini(void);
 struct init_fini_call {
 	int  (*ifc_init)(void);
 	void (*ifc_fini)(void);
+	const char *ifc_name;
 };
 
 struct init_fini_call subsystem[] = {
-	{ &c2_memory_init,  &c2_memory_fini },
-	{ &c2_uts_init,     &c2_uts_fini },
-	{ &c2_threads_init, &c2_threads_fini },
-	{ &c2_addb_init,    &c2_addb_fini },
-	{ &c2_stobs_init,   &c2_stobs_fini },
-	{ &c2_net_init,     &c2_net_fini },
-/*	{ &c2_rpclib_init,  &c2_rpclib_fini }, */
-	{ &c2_layouts_init, &c2_layouts_fini },
-	{ &c2_pools_init,   &c2_pools_fini },
-	{ &c2_fops_init,    &c2_fops_fini }
+	{ &c2_trace_init,   &c2_trace_fini,   "trace" },
+	{ &c2_memory_init,  &c2_memory_fini,  "memory" },
+	{ &c2_uts_init,     &c2_uts_fini,     "ut" },
+	{ &c2_threads_init, &c2_threads_fini, "thread" },
+	{ &c2_addb_init,    &c2_addb_fini,    "addb" },
+	{ &c2_stobs_init,   &c2_stobs_fini,   "stob" },
+	{ &c2_net_init,     &c2_net_fini,     "net" },
+/*	{ &c2_rpclib_init,  &c2_rpclib_fini,  "rpc" }, */
+	{ &c2_layouts_init, &c2_layouts_fini, "layout" },
+	{ &c2_pools_init,   &c2_pools_fini,   "pool" },
+	{ &c2_fops_init,    &c2_fops_fini,    "fop" }
 };
 
 static void fini_nr(int i)
@@ -53,6 +56,9 @@ int c2_init(void)
 	for (result = i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		result = subsystem[i].ifc_init();
 		if (result != 0) {
+			fprintf(stderr, 
+				"Subsystem \"%s\" failed to initialize: %i.\n",
+				subsystem[i].ifc_name, result);
 			fini_nr(i);
 			break;
 		}

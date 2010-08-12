@@ -3,7 +3,8 @@
 #ifndef __COLIBRI_LIB_VEC_H__
 #define __COLIBRI_LIB_VEC_H__
 
-#include "adt.h"
+#include "lib/types.h"
+#include "lib/adt.h"
 
 /**
    @defgroup vec Vectors

@@ -1,0 +1,27 @@
+OS = @OS@
+
+ifeq ($(OS),linux)
+
+obj-m       := kaddb.o
+shared_src  := addb.c
+kernel_src  := addb_console.c
+kaddb-y     := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig        := $(shared_src:%=../%)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(orig) .
+
+clean distclean:
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+else
+
+all:
+install:
+uninstall:
+distclean clean:
+
+endif

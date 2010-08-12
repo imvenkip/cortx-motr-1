@@ -1,15 +1,14 @@
 /* -*- C -*- */
-#include <errno.h>
-
-#include <rpc/rpclib.h>
+#include "rpc/rpclib.h"
 #if 0
 
-#include <lib/atomic.h>
-#include <lib/memory.h>
+#include "lib/errno.h"
+#include "lib/atomic.h"
+#include "lib/memory.h"
 
-#include <net/net.h>
+#include "net/net.h"
 
-#include <rpc/session_srv.h>
+#include "rpc/session_srv.h"
 
 int c2_server_session_init(struct c2_rpc_server *srv)
 {

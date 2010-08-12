@@ -55,7 +55,6 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/stat.h>
-#include <linux/errno.h>
 #include <linux/major.h>
 #include <linux/wait.h>
 #include <linux/blkdev.h>
@@ -76,7 +75,9 @@
 
 #include <asm/uaccess.h>
 
-#include "c2t1fs.h"
+#include "lib/errno.h"
+#include "lib/cdefs.h"    /* C2_EXPORTED */
+#include "c2t1fs/c2t1fs.h"
 
 static LIST_HEAD(loop_devices);
 static DEFINE_MUTEX(loop_devices_mutex);
@@ -1365,8 +1366,8 @@ int loop_unregister_transfer(int number)
 	return 0;
 }
 
-EXPORT_SYMBOL(loop_register_transfer);
-EXPORT_SYMBOL(loop_unregister_transfer);
+C2_EXPORTED(loop_register_transfer);
+C2_EXPORTED(loop_unregister_transfer);
 
 static struct loop_device *loop_alloc(int i)
 {

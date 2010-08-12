@@ -56,10 +56,9 @@
 */
 
 #ifndef __KERNEL__
-# include <rpc/rpc.h> /* xdrproc_t */
+# include "fop_user.h"
 #else
-# include "lib/kdef.h"
-typedef void *xdrproc_t;
+# include "linux_kernel/fop_kernel.h"
 #endif
 
 struct c2_fop_memlayout;
@@ -155,25 +154,14 @@ struct c2_fop_memlayout {
 	} fm_child[];
 };
 
-#ifndef __KERNEL__
 #define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
 struct c2_fop_type fopt ## _fopt = {			\
 	.ft_code = (opcode),				\
 	.ft_name = name,				\
 	.ft_fmt  = &__paste(fopt),			\
 	.ft_ops  = (ops)				\
-}
-
-#else /* !__KERNEL__ */
-#define C2_FOP_TYPE_DECLARE(fopt, name, opcode, ops)	\
-struct c2_fop_type fopt ## _fopt = {			\
-	.ft_code = (opcode),				\
-	.ft_name = name,				\
-	.ft_fmt  = &__paste(fopt),			\
-	.ft_ops  = (ops)				\
-};                      				\
-EXPORT_SYMBOL(fopt ## _fopt)
-#endif /* __KERNEL__ */
+};							\
+C2_EXPORTED(fopt ## _fopt)
 
 /** @} end of fop group */
 

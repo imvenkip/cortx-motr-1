@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/socket.h>
 
 #ifdef HAVE_NETINET_IN_H
@@ -17,6 +16,7 @@
 #include <pthread.h>  /* pthread_key */
 #include <unistd.h>    /* close() */
 
+#include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"
