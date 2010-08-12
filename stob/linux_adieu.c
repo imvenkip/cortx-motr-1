@@ -111,19 +111,14 @@ static const struct c2_addb_loc adieu_addb_loc = {
 	.al_name = "linux-adieu"
 };
 
-C2_ADDB_EV_DEFINE(linux_addb_io_setup, "io_setup", 0x1, C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(linux_addb_io_submit, "io_submit", 0x2, C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(linux_addb_io_getevents, "io_getevents", 0x3, 
-		  C2_ADDB_SYSCALL);
-
-#define ADDB_GLOBAL_ADD(ev, ...) \
-C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, ev , ## __VA_ARGS__)
-
-C2_ADDB_EV_DEFINE(linux_addb_frag_overflow, "frag_overflow", 0x3, 
-		  C2_ADDB_INVAL);
+#define ADDB_GLOBAL_ADD(name, rc)					\
+C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
 
 #define ADDB_ADD(obj, ev, ...)	\
 C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
+
+#define ADDB_CALL(obj, name, rc)	\
+C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
 
 int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
@@ -212,8 +207,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 					     c2_vec_cursor_step(&src),
 					     c2_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
-				ADDB_ADD(io->si_obj, linux_addb_frag_overflow,
-					 frag_size);
+				ADDB_CALL(io->si_obj, "frag_overflow", 
+					  frag_size);
 				result = -EOVERFLOW;
 				break;
 			}
@@ -359,7 +354,7 @@ static void ioq_queue_submit(struct linux_domain *ldom)
 
 			ioq_queue_lock(ldom);
 			if (put < 0) {
-				ADDB_GLOBAL_ADD(linux_addb_io_submit, put);
+				ADDB_GLOBAL_ADD("io_submit", put);
 				put = 0;
 			}
 			for (i = put; i < got; ++i)
@@ -455,7 +450,7 @@ static void ioq_thread(struct linux_domain *ldom)
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
 		if (got < 0)
-			ADDB_GLOBAL_ADD(linux_addb_io_getevents, got);
+			ADDB_GLOBAL_ADD("io_getevents", got);
 
 		ioq_queue_submit(ldom);
 	}
@@ -505,7 +500,7 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 				break;
 		}
 	} else
-		ADDB_GLOBAL_ADD(linux_addb_io_setup, result);
+		ADDB_GLOBAL_ADD("io_setup", result);
 	if (result != 0)
 		linux_domain_io_fini(dom);
 	return result;
