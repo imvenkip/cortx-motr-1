@@ -37,6 +37,7 @@ static int db_reset(void)
 
 	rc = system(cmd);
 	C2_ASSERT(rc == 0);
+	free(cmd);
 	return 0;
 }
 
