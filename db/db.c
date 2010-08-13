@@ -52,6 +52,8 @@ static void dbt_setup_ret(const struct c2_table *table, int idx, DBT *dbt);
 
    This function is idempotent: dberr_conv(dberr_conv(x)) == dberr_conv(x) for
    all x.
+
+   @see http://www.oracle.com/technology/documentation/berkeley-db/db/programmer_reference/program_errorret.html
  */
 static int dberr_conv(int db_error)
 {
@@ -80,6 +82,9 @@ static int dberr_conv(int db_error)
 		 */
 		if (-30999 <= db_error && db_error <= -30800)
 			return -EINVAL;
+		else if (db_error > 0)
+			/* errno */
+			return -db_error;
 		else
 			return db_error;
 	}
@@ -378,6 +383,18 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key,
 
 	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
 	dbt_setup_ret(table, TO_REC, &rec_dbt);
+
+	/*
+	 * Possible optimization: if DB_DBT_MALLOC is not set in rec_dbt.flags,
+	 *                        ->get() would return with rec_dbt.data
+	 *                        pointing directly to the in-db data. Returned
+	 *                        pointer is valid until _any_ call against the
+	 *                        same DB handle is made by any thread.
+	 *
+	 *                        This gives a 0-copy lookup: embed a mutex in
+	 *                        c2_table, lock it in c2_table_lookup() and
+	 *                        release in c2_db_rec_fini().
+	 */
 
 	/*
 	 * TABLE_CALL() is not used here, because DB_NOTFOUND is a "valid"
