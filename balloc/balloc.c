@@ -11,7 +11,7 @@
 
 #include "lib/arith.h"    /* min_check */
 #include "lib/memory.h"
-#include "balloc/balloc.h"
+#include "balloc.h"
 
 /**
    C2 Data Block Allocator.
