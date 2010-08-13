@@ -32,6 +32,12 @@ void c2_mutex_lock(struct c2_mutex *mutex)
 }
 C2_EXPORTED(c2_mutex_lock);
 
+int c2_mutex_trylock(struct c2_mutex *mutex)
+{
+	return mutex_trylock(&mutex->m_mutex);
+}
+C2_EXPORTED(c2_mutex_trylock);
+
 void c2_mutex_unlock(struct c2_mutex *mutex)
 {
 	mutex_unlock(&mutex->m_mutex);

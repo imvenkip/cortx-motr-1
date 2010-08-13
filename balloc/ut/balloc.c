@@ -174,7 +174,6 @@ int main(int argc, char **argv)
 		.bc_nr_thread = 1,
 	};
 	struct c2_balloc_allocate_req alloc_req = { 0 };
-	struct c2_balloc_format_req   format_req = { 0 };
 
 	int rc;
 	char *path;
@@ -183,17 +182,6 @@ int main(int argc, char **argv)
 		errx(1, "Usage: balloc path-to-db-dir");
 
 	path = argv[1];
-	rc = mkdir(path, 0700);
-	if (rc != 0)
-		err(1, "mkdir(\"%s\")", path);
-
-	format_req.bfr_db_home = path;
-	format_req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
-	format_req.bfr_blocksize = 4096;
-	format_req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
-	format_req.bfr_reserved_groups = 2;
-
-	rc = c2_balloc_format(&format_req);
 
 	ctxt.bc_home = path;
 	rc = c2_balloc_init(&ctxt);

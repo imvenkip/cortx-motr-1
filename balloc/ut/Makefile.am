@@ -1,8 +1,11 @@
-INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix
 
-noinst_PROGRAMS  = balloc
+noinst_PROGRAMS  = format balloc
+
+format_SOURCES   = format.c
+format_LDFLAGS   =
+format_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
 balloc_SOURCES   = balloc.c
-balloc_LDFLAGS   = 
+balloc_LDFLAGS   =
 balloc_LDADD     = $(top_builddir)/colibri/libcolibri.la
-
