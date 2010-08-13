@@ -1,6 +1,10 @@
 /* -*- C -*- */
 
+#include <stdarg.h>    /* memset */
 #include <string.h>    /* memset */
+#include <stdlib.h>    /* free */
+#include <sys/stat.h>  /* mkdir */
+#include <stdio.h>     /* asprintf, fopen, fclose */
 
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -62,37 +66,64 @@ static int dberr_conv(int db_error)
 	}
 }
 
-#define DBENV_CALL(dbenv, method, ...)				\
-({								\
-	int rc;							\
-	DB_ENV *de;     					\
-								\
-	de = (dbenv)->d_env;					\
-	rc = de->method(de, __VA_ARGS__);			\
-	if (rc != 0) {						\
-		rc = dberr_conv(rc);				\
-		C2_ADDB_ADD(&(dbenv)->d_addb, &db_loc,		\
-			    c2_addb_func_fail, #method, rc);	\
-	}							\
-	rc;							\
+static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
+{
+	if (rc != 0) {
+		rc = dberr_conv(rc);
+		C2_ADDB_ADD(ctx, &db_loc, c2_addb_func_fail, method, rc);
+	}
+	return rc;
+}
+
+/**
+   Calls dbenv method (open, set_*, get_*, tx_*, etc.), converts the result to
+   errno and emits addb event if necessary.
+ */
+#define DBENV_CALL(dbenv, method, ...)					\
+({									\
+	int rc;								\
+									\
+	rc = (dbenv)->d_env->method((dbenv)->d_env, __VA_ARGS__);	\
+	db_call_tail(&(dbenv)->d_addb, rc, #method);			\
 })
 
+/**
+   Calls table method (open, get, put, etc.), converts the result to errno and
+   emits addb event if necessary.
+
+   @note c2_table_lookup() calls ->get() directly.
+ */
 #define TABLE_CALL(table, method, ...)				\
 ({								\
 	int rc;							\
-	DB *db;     						\
 								\
-	db = (table)->t_db;					\
-	rc = db->method(db, __VA_ARGS__);			\
-	if (rc != 0) {						\
-		rc = dberr_conv(rc);				\
-		C2_ADDB_ADD(&(table)->t_addb, &db_loc,		\
-			    c2_addb_func_fail, #method, rc);	\
-	}							\
-	rc;							\
+	rc = (table)->t_db->method((table)->t_db, __VA_ARGS__);	\
+	db_call_tail(&(table)->t_addb, rc, #method);		\
 })
 
-int c2_dbenv_init(struct c2_dbenv *env, char *name, uint64_t flags)
+static __attribute__((format(printf, 3, 4))) int
+openvar(FILE **file, const char *mode, const char *fmt, ...)
+{
+	char   *name;
+	int     nob;
+	va_list args;
+	int     result;
+
+	va_start(args, fmt);
+	nob = vasprintf(&name, fmt, args);
+	if (nob >= 0) {
+		*file = fopen(name, mode);
+		free(name);
+		result = file != NULL ? 0 : -errno;
+	} else {
+		*file = NULL;
+		result = -ENOMEM;
+	}
+	va_end(args);
+	return result;
+}
+
+static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 {
 	int result;
 	DB_ENV *de;
@@ -104,12 +135,26 @@ int c2_dbenv_init(struct c2_dbenv *env, char *name, uint64_t flags)
 		flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|DB_INIT_MPOOL|
 			DB_INIT_TXN|DB_INIT_LOCK|DB_RECOVER;
 
+	if (flags & DB_CREATE)
+		/* try to create home directory, don't bother to check the
+		   result, ->open() below would fail anyway. */
+		mkdir(name, 0700);
+	
+	result = openvar(&env->d_errlog, "a", "%s.errlog", name);
+	if (result != 0)
+		return result;
+
+	result = openvar(&env->d_msglog, "a", "%s.msglog", name);
+	if (result != 0)
+		return result;
+
 	c2_addb_ctx_init(&env->d_addb, &db_env_ctx_type, &c2_addb_global_ctx);
 	result = db_env_create(&env->d_env, 0);
 	if (result == 0) {
 		de = env->d_env;
 		de->app_private = env;
-		de->set_errfile(de, stderr);
+		de->set_msgfile(de, env->d_msglog);
+		de->set_errfile(de, env->d_errlog);
 		de->set_errpfx(de, "c2");
 		result = DBENV_CALL(env, set_verbose, DB_VERB_DEADLOCK, 1);
 		C2_ASSERT(result == 0);
@@ -132,7 +177,14 @@ int c2_dbenv_init(struct c2_dbenv *env, char *name, uint64_t flags)
 			result = DBENV_CALL(env, open, name, flags, 0700);
 	} else
 		env->d_env = NULL;
-	result = dberr_conv(result);
+	return dberr_conv(result);
+}
+
+int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags)
+{
+	int result;
+
+	result = dbenv_setup(env, name, flags);
 	if (result != 0)
 		c2_dbenv_fini(env);
 	return result;
@@ -143,6 +195,14 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 	if (env->d_env != NULL) {
 		DBENV_CALL(env, close, 0);
 		env->d_env = NULL;
+	}
+	if (env->d_msglog != NULL) {
+		fclose(env->d_msglog);
+		env->d_msglog = NULL;
+	}
+	if (env->d_errlog != NULL) {
+		fclose(env->d_errlog);
+		env->d_errlog = NULL;
 	}
 	c2_addb_ctx_fini(&env->d_addb);
 }
@@ -165,12 +225,12 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 
 	table->t_env = env;
 	table->t_ops = ops;
-	c2_addb_ctx_init(&table->t_addb, 
-			 &db_table_ctx_type, &c2_addb_global_ctx);
+	c2_addb_ctx_init(&table->t_addb, &db_table_ctx_type, &env->d_addb);
 	result = db_create(&table->t_db, env->d_env, 0);
 	if (result == 0) {
 		db = table->t_db;
 		db->app_private = table;
+		/* Our lord is little-endian. */
 		result = TABLE_CALL(table, set_lorder, 1234);
 		if (result == 0) {
 			if (ops->key_cmp != NULL)
@@ -248,9 +308,19 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key,
 
 	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
 	dbt_setup_ret(table, TO_REC, &rec_dbt);
-	result = TABLE_CALL(table, get, tx->dt_txn, &key_dbt, &rec_dbt, 0);
-	if (result == 0)
+
+	/*
+	 * TABLE_CALL() is not used here, because DB_NOTFOUND is a "valid"
+	 * return value for which no addb noise should be made.
+	 */
+	result = table->t_db->get(table->t_db, tx->dt_txn, 
+				  &key_dbt, &rec_dbt, 0);
+	if (result == DB_NOTFOUND)
+		result = -ENOENT;
+	else if (result == 0)
 		*rec = rec_dbt.data;
+	else
+		result = db_call_tail(&table->t_addb, result, "get");
 	return result;
 }
 
@@ -260,6 +330,11 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_table *table, void *key)
 
 	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
 	return TABLE_CALL(table, del, tx->dt_txn, &key_dbt, 0);
+}
+
+void c2_db_rec_fini(const struct c2_table *table, void *rec)
+{
+	free(rec);
 }
 
 int c2_db_init(void)

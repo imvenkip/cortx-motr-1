@@ -1,6 +1,6 @@
 /* -*- C -*- */
 
-#include <lib/ut.h>
+#include "lib/ut.h"
 
 extern void test_memory(void);
 extern void test_list(void);

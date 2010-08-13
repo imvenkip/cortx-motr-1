@@ -25,9 +25,15 @@ struct c2_db_tx;
 struct c2_dbenv {
 	DB_ENV            *d_env;
 	struct c2_addb_ctx d_addb;
+
+	/** File stream where error messages for this dbenv are sent to. */
+	FILE              *d_errlog;
+	/** File stream where informational messages for this dbenv are sent
+	    to. */
+	FILE              *d_msglog;
 };
 
-int  c2_dbenv_init(struct c2_dbenv *env, char *name, uint64_t flags);
+int  c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
 void c2_dbenv_fini(struct c2_dbenv *env);
 
 struct c2_table {
@@ -74,6 +80,8 @@ int c2_table_insert(struct c2_db_tx *tx, struct c2_table *table, void *key,
 int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key, 
 		    void **rec);
 int c2_table_delete(struct c2_db_tx *tx, struct c2_table *table, void *key);
+
+void c2_db_rec_fini(const struct c2_table *table, void *rec);
 
 int  c2_db_init(void);
 void c2_db_fini(void);

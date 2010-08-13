@@ -10,6 +10,7 @@
 extern const struct c2_test_suite libc2_ut;
 extern const struct c2_test_suite adieu_ut;
 extern const struct c2_test_suite fop_ut;
+extern const struct c2_test_suite db_ut;
 
 int main(int argc, char *argv[])
 {
@@ -23,6 +24,7 @@ int main(int argc, char *argv[])
 			c2_ut_add(&libc2_ut);
 			c2_ut_add(&adieu_ut);
 			c2_ut_add(&fop_ut);
+			c2_ut_add(&db_ut);
 			c2_ut_run("c2ut.log");
 		}
 		c2_fini();

@@ -436,7 +436,10 @@ if test x$OS = xdarwin; then
         CFLAGS="$CFLAGS -fnested-functions"
 fi
 
-CFLAGS="-Wall -Werror -D_REENTRANT -fno-strict-aliasing $CFLAGS $USER_CFLAGS"
+#
+# _GNU_SOURCE for asprintf(3)
+#
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing $CFLAGS $USER_CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
 LDFLAGS="-rdynamic $USER_LDFLAGS"
 
@@ -489,6 +492,7 @@ AC_CONFIG_FILES([
                  balloc/Makefile
                  balloc/ut/Makefile
                  db/Makefile
+                 db/ut/Makefile
                 ])
 AC_OUTPUT
 
