@@ -8,7 +8,9 @@
 /**
    @defgroup trace Tracing.
 
-   See doc/logging-and-tracing
+   See doc/logging-and-tracing.
+
+   Fast and light-weight tracing facility.
 
    @{
  */
@@ -34,6 +36,25 @@ struct c2_trace_descr {
 void *c2_trace_allot(const struct c2_trace_descr *td);
 int   c2_trace_parse(void);
 
+/**
+   Add a fixed-size trace entry into the trace buffer.
+
+   A typical examples of usage are
+
+   @code
+   C2_TRACE_POINT({ uint32_t nr_calls; }, calls++);
+   @endcode
+
+   and
+
+   @code
+   C2_TRACE_POINT({ uint64_t fop_opcode; uint16_t got_lock; }, 
+                  fop->f_opcode, c2_mutex_is_locked(&queue_lock));
+   @endcode
+
+   The first argument, DECL is a C definition of a trace entry format. The
+   remaining arguments must match the number and types of fields in the format.
+ */
 #define C2_TRACE_POINT(DECL, ...)					\
 ({									\
 	struct t_body DECL;						\

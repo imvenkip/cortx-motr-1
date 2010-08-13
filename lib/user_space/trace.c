@@ -15,8 +15,22 @@
 
 /**
    @addtogroup trace
+
+   <b>User space trace implementation.</b>
+
+   Trace entries are placed in a largish buffer backed up by a memory mapped
+   file. Buffer space allocation is controlled by a single atomic variable
+   (cur).
+
+   Trace entries contain pointers from the process address space. To interpret
+   them, c2_trace_parse() must be called in the same binary. See utils/ut_main.c
+   for example.
+
+   @note things like address space layout randomization might break this
+   implementation.
+
    @{
-*/
+ */
 
 /* single buffer for now */
 static void              *logbuf;
@@ -150,6 +164,14 @@ static void trace_decl(const char *decl)
 	}
 }
 
+/**
+   Parse log buffer supplied at stderr.
+
+   When a trace record is defined by C2_TRACE_POINT(), a declaration of its
+   format is stored in c2_trace_descr::td_decl as a NUL-terminated string
+   containing C declaration. trace_decl() is an extremely crude ad-hoc parser
+   for this string.
+ */
 int c2_trace_parse(void)
 {
 	uint64_t                     magic;
