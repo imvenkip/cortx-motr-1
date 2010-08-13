@@ -14,6 +14,15 @@
 
 /**
    @addtogroup db
+
+   <b>db5 based implementation.</b>
+
+   Should be mostly self-evident.
+
+   An implementation emits ADDB events all db5 errors.
+
+   @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/index.html
+
    @{
  */
 
@@ -29,11 +38,21 @@ static const struct c2_addb_ctx_type db_table_ctx_type = {
 	.act_name = "db-table"
 };
 
+static const struct c2_addb_ctx_type db_tx_ctx_type = {
+	.act_name = "db-tx"
+};
+
 static int  key_compare  (DB *db, const DBT *dbt1, const DBT *dbt2);
 static void dbt_setup_arg(const struct c2_table *table, int idx, 
 			  DBT *dbt, void *buf);
 static void dbt_setup_ret(const struct c2_table *table, int idx, DBT *dbt);
 
+/**
+   Convert db5 specific error code into generic errno.
+
+   This function is idempotent: dberr_conv(dberr_conv(x)) == dberr_conv(x) for
+   all x.
+ */
 static int dberr_conv(int db_error)
 {
 	/*
@@ -66,6 +85,10 @@ static int dberr_conv(int db_error)
 	}
 }
 
+/**
+   A helper to DBENV_CALL(), TABLE_CALL() and TX_CALL(): converts db5 error code
+   into errno and emits ab ADDB event in a given context, if necessary.
+ */
 static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 {
 	if (rc != 0) {
@@ -83,7 +106,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 ({									\
 	int rc;								\
 									\
-	rc = (dbenv)->d_env->method((dbenv)->d_env, __VA_ARGS__);	\
+	rc = (dbenv)->d_env->method((dbenv)->d_env , ## __VA_ARGS__);	\
 	db_call_tail(&(dbenv)->d_addb, rc, #method);			\
 })
 
@@ -93,14 +116,30 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 
    @note c2_table_lookup() calls ->get() directly.
  */
-#define TABLE_CALL(table, method, ...)				\
-({								\
-	int rc;							\
-								\
-	rc = (table)->t_db->method((table)->t_db, __VA_ARGS__);	\
-	db_call_tail(&(table)->t_addb, rc, #method);		\
+#define TABLE_CALL(table, method, ...)					\
+({									\
+	int rc;								\
+									\
+	rc = (table)->t_db->method((table)->t_db , ## __VA_ARGS__);	\
+	db_call_tail(&(table)->t_addb, rc, #method);			\
 })
 
+/**
+   Calls transaction method (commit, abort, etc.), converts the result to errno
+   and emits addb event if necessary.
+ */
+#define TX_CALL(tx, method, ...)					\
+({									\
+	int rc;								\
+									\
+	rc = (tx)->dt_txn->method((tx)->dt_txn , ## __VA_ARGS__);	\
+	db_call_tail(&(tx)->dt_addb, rc, #method);			\
+})
+
+/**
+   Helper function: opens a file with a name constructed from printf(3)-like
+   format and arguments.
+ */
 static __attribute__((format(printf, 3, 4))) int
 openvar(FILE **file, const char *mode, const char *fmt, ...)
 {
@@ -123,6 +162,9 @@ openvar(FILE **file, const char *mode, const char *fmt, ...)
 	return result;
 }
 
+/**
+   Major part of c2_dbenv_init().
+ */
 static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 {
 	int result;
@@ -139,7 +181,16 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		/* try to create home directory, don't bother to check the
 		   result, ->open() below would fail anyway. */
 		mkdir(name, 0700);
-	
+
+	/*
+	 * Redirect db environment message stream and error streams to
+	 * appropriately names files. Alternatively, DB_ENV->set_msgcall() and
+	 * DB_ENV->set_errcall() can be used to intercept individual messages
+	 * (at the data-base environment level, corresponding
+	 * DB->set_{msg,err}call() calls can be used for table-level granularity
+	 * interception) and to emit ADDB events for them.
+	 */
+
 	result = openvar(&env->d_errlog, "a", "%s.errlog", name);
 	if (result != 0)
 		return result;
@@ -165,6 +216,11 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		result = DBENV_CALL(env, set_flags, DB_TXN_NOSYNC, 1);
 		/*
 		 * XXX todo
+		 *
+		 * db5 has a plethora of data-base flags and options that could
+		 * be setup here. One goal of db/db.h interface is to insulate
+		 * its user from all these complexities. Sensible defaults must
+		 * be selected.
 		 *
 		 * DBENV_CALL(env, set_thread_count, ...);
 		 * DBENV_CALL(env, set_cachesize, ...);
@@ -263,6 +319,7 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	if (flags == 0)
 		flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
 
+	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_txn, flags);
 	if (result == 0) {
 		txn = tx->dt_txn;
@@ -277,14 +334,27 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	return result;
 }
 
+void tx_fini(struct c2_db_tx *tx)
+{
+	c2_addb_ctx_fini(&tx->dt_addb);
+}
+
 int c2_db_tx_commit(struct c2_db_tx *tx)
 {
-	return dberr_conv(tx->dt_txn->commit(tx->dt_txn, DB_TXN_NOSYNC));
+	int result;
+
+	result = TX_CALL(tx, commit, DB_TXN_NOSYNC);
+	tx_fini(tx);
+	return result;
 }
 
 int c2_db_tx_abort(struct c2_db_tx *tx)
 {
-	return dberr_conv(tx->dt_txn->abort(tx->dt_txn));
+	int result;
+
+	result = TX_CALL(tx, abort);
+	tx_fini(tx);
+	return result;
 }
 
 int c2_table_insert(struct c2_db_tx *tx, struct c2_table *table, void *key, 
