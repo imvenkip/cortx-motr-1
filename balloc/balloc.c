@@ -21,34 +21,46 @@
  */
 
 
-static inline
 void c2_balloc_debug_dump_free_extent(struct c2_balloc_free_extent *fex)
 {
-	printf("dumping fe@%p:\n logical=%llu, gn=%llu, start=%llu, len=%llu\n",
+	printf("dumping fe@%p:\n"
+		"          logical=%llu, gn=%llu, start=%llu, len=%llu\n"
+		"          logical=%llx, gn=%llx, start=%llx, len=%llx\n",
 		fex,
+		(unsigned long long) fex->bfe_logical,
+		(unsigned long long) fex->bfe_groupno,
+		(unsigned long long) fex->bfe_start,
+		(unsigned long long) fex->bfe_len,
 		(unsigned long long) fex->bfe_logical,
 		(unsigned long long) fex->bfe_groupno,
 		(unsigned long long) fex->bfe_start,
 		(unsigned long long) fex->bfe_len);
 }
 
-static inline void c2_balloc_debug_dump_extent(struct c2_balloc_extent *ex)
+void c2_balloc_debug_dump_extent(struct c2_balloc_extent *ex)
 {
-	printf("dumping ex@%p:\n start=%llu, len=%llu\n",
+	printf("dumping ex@%p:\n"
+	       "           start=%llu, len=%llu\n"
+	       "           start=%llx, len=%llx\n",
 		ex,
+		(unsigned long long) ex->be_start,
+		(unsigned long long) ex->be_len,
 		(unsigned long long) ex->be_start,
 		(unsigned long long) ex->be_len);
 }
 
-static inline void c2_balloc_debug_dump_sb(struct c2_balloc_ctxt *ctxt)
+void c2_balloc_debug_dump_sb(struct c2_balloc_ctxt *ctxt)
 {
 	struct c2_balloc_super_block *sb = &ctxt->bc_sb;
-	printf("dumping sb@%p:%p:\n "
-		"magic=%llx, state=%llu, version=%llu\n"
-		"total=%llu, free=%llu, bs=%llu\n"
-		"gs=%llu, gc=%llu, rsvd=%llu, prealloc=%llu\n"
-		"time format=%llu, write=%llu, mnt=%llu, check=%llu\n"
-		"mount=%llu, max_mnt=%llu, stripe_size=%llu\n",
+	printf("dumping sb@%p:%p:\n"
+		"          magic=%llx, state=%llu, version=%llu\n"
+		"          total=%llu, free=%llu, bs=%llu\n"
+		"          gs=%llu, gc=%llu, rsvd=%llu, prealloc=%llu\n"
+		"          time format=%llu,\n"
+		"          write=%llu,\n"
+		"          mnt=%llu,\n"
+		"          last_check=%llu\n"
+		"          mount=%llu, max_mnt=%llu, stripe_size=%llu\n",
 		ctxt, sb,
 		(unsigned long long) sb->bsb_magic,
 		(unsigned long long) sb->bsb_state,
@@ -158,7 +170,7 @@ int c2_balloc_insert_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	int result;
 	DBT keyt;
 	DBT rect;
-	ENTER;
+//	ENTER;
 
 	memset(&keyt, 0, sizeof keyt);
 	memset(&rect, 0, sizeof rect);
@@ -175,7 +187,7 @@ int c2_balloc_insert_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 		db_err(dbenv, result, msg);
 	}
 
-	LEAVE;
+//	LEAVE;
 	return result;
 }
 
@@ -200,7 +212,7 @@ int c2_balloc_update_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	int result = 0;
 	DBT keyt;
 	DBT rect;
-	ENTER;
+//	ENTER;
 
 	memset(&keyt, 0, sizeof keyt);
 	memset(&rect, 0, sizeof rect);
@@ -223,7 +235,7 @@ int c2_balloc_update_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 		db_err(dbenv, result, msg);
 	}
 
-	LEAVE;
+//	LEAVE;
 	return result;
 }
 
@@ -245,7 +257,7 @@ int c2_balloc_del_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 {
 	int result;
 	DBT keyt;
-	ENTER;
+//	ENTER;
 
 	memset(&keyt, 0, sizeof keyt);
 
@@ -258,7 +270,7 @@ int c2_balloc_del_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 		db_err(dbenv, result, msg);
 	}
 
-	LEAVE;
+//	LEAVE;
 	return result;
 }
 
@@ -387,7 +399,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 	char		 path[MAXPATHLEN];
         uint32_t         dbenv_flags;
         uint32_t  	 db_flags;
-	DB              *group_free_extent;
+	DB              *group_extents;
 	DB              *group_desc;
 	DB              *super_block;
 	uint32_t	 number_of_groups;
@@ -485,7 +497,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 		memset(&sb, 0, sizeof sb);
 
 		sb.bsb_magic = C2_BALLOC_SB_MAGIC;
-		sb.bsb_state = C2_BALLOC_SB_CLEAN;
+		sb.bsb_state = 0;
 		sb.bsb_version = C2_BALLOC_SB_VERSION;
 		sb.bsb_totalsize = req->bfr_totalsize;
 		sb.bsb_blocksize = req->bfr_blocksize;
@@ -522,10 +534,10 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 
 		printf("creating extent for group %d\n", i);
 		snprintf(db_name, ARRAY_SIZE(db_name), 
-			 "group_free_extent_%09d", i);
+			 "group_extents_%09d", i);
 		rc = c2_balloc_open_db(dbenv, db_name, db_flags,
 				       c2_balloc_blockno_compare,
-				       &group_free_extent);
+				       &group_extents);
 		if (rc == 0) {
 			ext.be_start = i * req->bfr_groupsize;
 			if (i < req->bfr_reserved_groups) {
@@ -534,7 +546,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 				ext.be_len = req->bfr_groupsize;
 			}
 			rc = c2_balloc_insert_record(dbenv, NULL,
-						     group_free_extent,
+						     group_extents,
 						     &ext.be_start,
 						     sizeof ext.be_start,
 						     &ext.be_len,
@@ -543,8 +555,8 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 				fprintf(stderr, "insert extent failed:"
 					"group=%d, rc=%d\n", i, rc);
 			}
-			group_free_extent->sync(group_free_extent, 0);
-			group_free_extent->close(group_free_extent, 0);
+			group_extents->sync(group_extents, 0);
+			group_extents->close(group_extents, 0);
 		} else {
 			fprintf(stderr, "create free extent failed:i=%d\n", i);
 			break;
@@ -619,12 +631,17 @@ static int c2_balloc_sync_sb(struct c2_balloc_ctxt *ctxt)
 	int    rc;
 	ENTER;
 
+	if (!(ctxt->bc_sb.bsb_state & C2_BALLOC_SB_DIRTY)) {
+		LEAVE;
+		return 0;
+	}
 
 	rc = c2_balloc_update_record(ctxt->bc_dbenv, ctxt->bc_tx,
 				     ctxt->bc_db_sb,
 				     &sb->bsb_magic, sizeof sb->bsb_magic,
 				     sb, sizeof *sb);
 
+	ctxt->bc_sb.bsb_state &= ~C2_BALLOC_SB_DIRTY;
 	LEAVE;
 	return rc;
 }
@@ -637,6 +654,11 @@ static int c2_balloc_sync_group_info(struct c2_balloc_ctxt *ctxt,
 	int rc;
 	ENTER;
 
+	if (! (gi->bgi_state & C2_BALLOC_GROUP_INFO_DIRTY)) {
+		LEAVE;
+		return 0;
+	}
+
 	gd.bgd_groupno    = gi->bgi_groupno;
 	gd.bgd_freeblocks = gi->bgi_freeblocks;
 	gd.bgd_fragments  = gi->bgi_fragments;
@@ -647,6 +669,7 @@ static int c2_balloc_sync_group_info(struct c2_balloc_ctxt *ctxt,
 				     &gd.bgd_groupno, sizeof gd.bgd_groupno,
 				     &gd, sizeof gd);
 
+	gi->bgi_state &= ~C2_BALLOC_GROUP_INFO_DIRTY;
 	LEAVE;
 	return rc;
 }
@@ -820,7 +843,7 @@ int c2_balloc_init(struct c2_balloc_ctxt *ctxt)
 		rc = c2_balloc_open_db(dbenv, db_name, ctxt->bc_db_flags,
 				       NULL, &gi->bgi_db_group_desc);
 
-		snprintf(db_name, ARRAY_SIZE(db_name)-1, "group_free_extent_%09d", i);
+		snprintf(db_name, ARRAY_SIZE(db_name)-1, "group_extents_%09d", i);
 		rc |= c2_balloc_open_db(dbenv, db_name, ctxt->bc_db_flags,
 				        c2_balloc_blockno_compare,
 				        &gi->bgi_db_group_extent);
@@ -927,7 +950,7 @@ static int c2_balloc_init_ac(struct c2_balloc_ctxt *ctxt,
 
 	bac->bac_orig.bfe_logical = req->bar_logical;
 	bac->bac_orig.bfe_groupno = req->bar_goal / sb->bsb_groupsize;
-	bac->bac_orig.bfe_start   = req->bar_goal % sb->bsb_groupsize;
+	bac->bac_orig.bfe_start   = req->bar_goal;
 	bac->bac_orig.bfe_len     = req->bar_len;
 
 	bac->bac_goal = bac->bac_orig;
@@ -1089,6 +1112,7 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp)
 	DBT  nrect;
 	int  result;
 	int size;
+        c2_bcount_t maxchunk = 0;
 	c2_bcount_t count = 0;
 	ENTER;
 	
@@ -1122,6 +1146,8 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp)
 
 		grp->bgi_extents[count].be_start = *((c2_bindex_t *)nkeyt.data);
 		grp->bgi_extents[count].be_len = *((c2_bindex_t *)nrect.data);
+		if (grp->bgi_extents[count].be_len > maxchunk)
+			maxchunk = grp->bgi_extents[count].be_len;
 //		printf("...[%08llx, %08llx]\n",
 //			(unsigned long long) grp->bgi_extents[count].be_start,
 //			(unsigned long long) grp->bgi_extents[count].be_len);
@@ -1143,6 +1169,9 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp)
 		c2_free(grp->bgi_extents);
 		grp->bgi_extents = NULL;
 	}
+	if (grp->bgi_maxchunk != maxchunk) {
+		grp->bgi_state |= C2_BALLOC_GROUP_INFO_DIRTY;
+	}
 
 	LEAVE;
 	return result;
@@ -1156,10 +1185,10 @@ static int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 }
 
 /* called under group lock */
-static int c2_balloc_find_extent(struct c2_balloc_allocation_context *bac,
-				 struct c2_balloc_group_info *grp,
-				 struct c2_balloc_free_extent *goal,
-				 struct c2_balloc_extent *ex)
+static int c2_balloc_find_extent_exact(struct c2_balloc_allocation_context *bac,
+				       struct c2_balloc_group_info *grp,
+				       struct c2_balloc_free_extent *goal,
+				       struct c2_balloc_extent *ex)
 {
 	c2_bcount_t i;
 	c2_bcount_t max = 0;
@@ -1169,18 +1198,16 @@ static int c2_balloc_find_extent(struct c2_balloc_allocation_context *bac,
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
-		start = fragment->be_start % bac->bac_ctxt->bc_sb.bsb_groupsize;
+		start = fragment->be_start;
 		len   = fragment->be_len;
 
 		if ((start <= goal->bfe_start) &&
 		    (goal->bfe_start < start + len)) {
-			if (start + len - goal->bfe_start > max) {
-				max = start + len - goal->bfe_start;
-				*ex = *fragment;
-			}
-		}
-		if (max == MAX_ALLOCATION_CHUNK)
+			max = start + len - goal->bfe_start;
+			*ex = *fragment;
+			c2_balloc_debug_dump_extent(ex);
 			break;
+		}
 	}
 
 	return max;
@@ -1188,9 +1215,9 @@ static int c2_balloc_find_extent(struct c2_balloc_allocation_context *bac,
 
 static int c2_balloc_use_best_found(struct c2_balloc_allocation_context *bac)
 {
+	bac->bac_best.bfe_logical = bac->bac_goal.bfe_logical;
 	bac->bac_best.bfe_len = min_check(bac->bac_best.bfe_len, 
 					  bac->bac_goal.bfe_len);
-	bac->bac_best.bfe_logical = bac->bac_goal.bfe_logical;
 
 	/* preallocation can change bac_best, thus we store actually
 	 * allocated blocks for history */
@@ -1235,6 +1262,10 @@ static int c2_balloc_update_db(struct c2_balloc_ctxt * ctxt,
 				break;
 		}
 
+		C2_ASSERT(i < grp->bgi_fragments);
+
+		c2_balloc_debug_dump_extent(fragment);
+
 		if (fragment->be_start == target->bfe_start) {
 			c2_balloc_del_record(ctxt->bc_dbenv,
 					     ctxt->bc_tx,
@@ -1261,6 +1292,8 @@ static int c2_balloc_update_db(struct c2_balloc_ctxt * ctxt,
 			struct c2_balloc_extent tmp = *fragment;
 
 			fragment->be_len = target->bfe_start - fragment->be_start;
+			c2_balloc_debug_dump_extent(fragment);
+
 			c2_balloc_update_record(ctxt->bc_dbenv,
 						ctxt->bc_tx,
 						grp->bgi_db_group_extent,
@@ -1269,21 +1302,31 @@ static int c2_balloc_update_db(struct c2_balloc_ctxt * ctxt,
 						&fragment->be_len,
 						sizeof fragment->be_len);
 			if (tmp.be_start + tmp.be_len > target->bfe_start + target->bfe_len) {
-				fragment++;
-				memmove(fragment + 1, fragment, (grp->bgi_fragments - i) * sizeof(struct c2_balloc_extent));
-				fragment->be_start = target->bfe_start + target->bfe_len;
-				fragment->be_len   = tmp.be_start + tmp.be_len - target->bfe_start - target->bfe_len;
-				c2_balloc_update_record(ctxt->bc_dbenv,
+				tmp.be_len   = (tmp.be_start + tmp.be_len) - (target->bfe_start + target->bfe_len);
+				tmp.be_start = target->bfe_start + target->bfe_len;
+				c2_balloc_insert_record(ctxt->bc_dbenv,
 							ctxt->bc_tx,
 							grp->bgi_db_group_extent,
-							&fragment->be_start,
-							sizeof fragment->be_start,
-							&fragment->be_len,
-							sizeof fragment->be_len);
+							&tmp.be_start,
+							sizeof tmp.be_start,
+							&tmp.be_len,
+							sizeof tmp.be_len);
+				c2_balloc_debug_dump_extent(&tmp);
+				fragment++;
+				if (i + 1 < grp->bgi_fragments) {
+					memmove(fragment + 1, fragment, (grp->bgi_fragments - i) * sizeof(struct c2_balloc_extent));
+				}
+				*fragment = tmp;
 				grp->bgi_fragments++;
 				grp->bgi_extents = realloc(grp->bgi_extents, (grp->bgi_fragments + 1) * sizeof (struct c2_balloc_extent));
 			}
 		}
+
+		ctxt->bc_sb.bsb_freeblocks -= target->bfe_len;
+		grp->bgi_freeblocks -= target->bfe_len;
+		grp->bgi_state |= C2_BALLOC_GROUP_INFO_DIRTY;
+		ctxt->bc_sb.bsb_state |= C2_BALLOC_SB_DIRTY;
+
 		rc = c2_balloc_sync_sb(ctxt);
 		rc = c2_balloc_sync_group_info(ctxt, grp);
 
@@ -1307,7 +1350,7 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 	ENTER;
 
 	printf("groupno=%llu, start=%llu len=%llu, groupsize (%llu)\n",
-		(unsigned long long)group,
+		(unsigned long long)bac->bac_goal.bfe_groupno,
 		(unsigned long long)bac->bac_goal.bfe_start,
 		(unsigned long long)bac->bac_goal.bfe_len,
 		(unsigned long long)bac->bac_ctxt->bc_sb.bsb_groupsize
@@ -1324,14 +1367,14 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 	if (ret)
 		goto out_unlock;
 
-	max = c2_balloc_find_extent(bac, grp, &bac->bac_goal, &ex);
+	max = c2_balloc_find_extent_exact(bac, grp, &bac->bac_goal, &ex);
 	printf("max=%llu\n", (unsigned long long)max);
 
 	if (max >= bac->bac_goal.bfe_len) {
 		bac->bac_found++;
 		bac->bac_best.bfe_groupno = grp->bgi_groupno;
-		bac->bac_best.bfe_start = ex.be_start;
-		bac->bac_best.bfe_len   = ex.be_len;
+		bac->bac_best.bfe_start   = bac->bac_goal.bfe_start;
+		bac->bac_best.bfe_len     = ex.be_start + ex.be_len - bac->bac_goal.bfe_start;
 		ret = c2_balloc_use_best_found(bac);
 	}
 

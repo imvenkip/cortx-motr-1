@@ -103,7 +103,7 @@ enum c2_balloc_super_block_magic {
 };
 
 enum c2_balloc_super_block_state {
-	C2_BALLOC_SB_CLEAN =  1 << 0,
+	C2_BALLOC_SB_DIRTY =  1 << 0,
 };
 
 enum c2_balloc_super_block_version {
