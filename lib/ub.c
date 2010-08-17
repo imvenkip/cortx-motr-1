@@ -4,8 +4,8 @@
 #include <stdio.h>     /* printf */
 #include <sys/time.h>  /* gettimeofday */
 #include <math.h>      /* sqrt */
-#include <string.h>    /* memset */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h"
 #include "lib/arith.h"
 #include "lib/ub.h"
@@ -61,7 +61,7 @@ double delay(const struct timeval *start, const struct timeval *end)
 {
 	struct timeval diff;
 
-	memset(&diff, 0, sizeof diff);
+	C2_SET0(&diff);
 	timeval_diff(start, end, &diff);
 	return diff.tv_sec + ((double)diff.tv_usec)/1000000;
 }

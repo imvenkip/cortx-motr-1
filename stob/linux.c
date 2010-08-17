@@ -2,7 +2,6 @@
 #  include <config.h>
 #endif
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +20,7 @@
 /**
    @addtogroup stoblinux
 
-   Implementation of c2_stob on top of Linux files.
+   <b>Implementation of c2_stob on top of Linux files.</b>
 
    A linux storage object is simply a file on a local file system. A linux
    storage object domain is a directory containing
@@ -44,8 +43,6 @@
    Storage objects are kept on a list linux_domain::sdl_object list that is
    consulted by linux_domain_lookup().
 
-   @todo implement data-base bindings
-
    @todo object caching 
 
    @todo a per-domain limit on number of open file descriptors with LRU based
@@ -66,251 +63,6 @@ static void linux_stob_fini(struct c2_stob *stob);
 static const struct c2_addb_loc c2_linux_stob_addb_loc = {
 	.al_name = "linux-stob"
 };
-
-#if 0
-static void db_err(DB_ENV *dbenv, int rc, const char *msg)
-{
-	dbenv->err(dbenv, rc, msg);
-	printf("%s: %s", msg, db_strerror(rc));
-}
-
-void mapping_db_fini(struct linux_domain *sdl)
-{
-	DB_ENV  *dbenv = sdl->sdl_dbenv;
-	int 	 rc;
-	
-	if (dbenv) {
-		rc = dbenv->log_flush(dbenv, NULL);
-		if (sdl->sdl_mapping) {
-			sdl->sdl_mapping->sync(sdl->sdl_mapping, 0);
-			sdl->sdl_mapping->close(sdl->sdl_mapping, 0);
-		}
-		sdl->sdl_mapping = NULL;
-		dbenv->close(dbenv, 0);
-		sdl->sdl_dbenv = NULL;
-	}
-}
-
-
-static int mapping_db_init(struct linux_domain *sdl)
-{
-	int         rc;
-	DB_ENV 	   *dbenv;
-	const char *backend_path = sdl->sdl_path;
-	char 	    path[MAXPATHLEN];
-	char	    *msg;
-
-	rc = db_env_create(&dbenv, 0);
-	if (rc != 0) {
-		printf("db_env_create: %s", db_strerror(rc));
-		return rc;
-	}
-
-	sdl->sdl_dbenv = dbenv;
-	dbenv->set_errfile(dbenv, stderr);
-	dbenv->set_errpfx(dbenv, "linux_stob");
-
-	rc = dbenv->set_flags(dbenv, DB_TXN_NOSYNC, 1);
-	if (rc != 0) {
-		db_err(dbenv, rc, "->set_flags(DB_TXN_NOSYNC)");
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-	if (sdl->sdl_direct_db) {
-		rc = dbenv->set_flags(dbenv, DB_DIRECT_DB, 1);
-		if (rc != 0) {
-			db_err(dbenv, rc, "->set_flags(DB_DIRECT_DB)");
-			mapping_db_fini(sdl);
-			return rc;
-		}
-		rc = dbenv->log_set_config(dbenv, DB_LOG_DIRECT, 1);
-		if (rc != 0) {
-			db_err(dbenv, rc, "->log_set_config()");
-			mapping_db_fini(sdl);
-			return rc;
-		}
-	}
-
-	rc = dbenv->set_lg_bsize(dbenv, 1024*1024*1024);
-	if (rc != 0) {
-		db_err(dbenv, rc, "->set_lg_bsize()");
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-	rc = dbenv->log_set_config(dbenv, DB_LOG_AUTO_REMOVE, 1);
-	if (rc != 0) {
-		db_err(dbenv, rc, "->log_set_config(DB_LOG_AUTO_REMOVE)");
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-	rc = dbenv->set_cachesize(dbenv, 0, 1024 * 1024, 1);
-	if (rc != 0) {
-		db_err(dbenv, rc, "->set_cachesize()");
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-	rc = dbenv->set_thread_count(dbenv, sdl->sdl_nr_thread);
-	if (rc != 0) {
-		db_err(dbenv, rc, "->set_thread_count()");
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-#if 0
-	dbenv->set_verbose(dbenv, DB_VERB_DEADLOCK, 1);
-	dbenv->set_verbose(dbenv, DB_VERB_WAITSFOR, 1);
-	dbenv->set_verbose(dbenv, DB_VERB_RECOVERY, 1);
-	dbenv->set_verbose(dbenv, DB_VERB_FILEOPS, 1);
-	dbenv->set_verbose(dbenv, DB_VERB_FILEOPS_ALL, 1);
-#endif
-
-	/* creating working directory */
-	rc = mkdir(backend_path, 0700);
-	if (rc != 0 && errno != EEXIST) {
-		printf("mkdir(%s): %s", backend_path, strerror(errno));
-		mapping_db_fini(sdl);
-		return rc;
-	}
-
-	/* directory to hold objects */
-	snprintf(path, MAXPATHLEN - 1, "%s/Objects", backend_path);
-	rc = mkdir(path, 0700);
-	if (rc != 0 && errno != EEXIST)
-		printf("mkdir(%s): %s", path, strerror(errno));
-
-	/* directory to hold mapping db */
-	snprintf(path, MAXPATHLEN - 1, "%s/oi.db", backend_path);
-	rc = mkdir(path, 0700);
-	if (rc != 0 && errno != EEXIST)
-		printf("mkdir(%s): %s", path, strerror(errno));
-
-	snprintf(path, MAXPATHLEN - 1, "%s/oi.db/d", backend_path);
-	mkdir(path, 0700);
-
-	snprintf(path, MAXPATHLEN - 1, "%s/oi.db/d/o", backend_path);
-	mkdir(path, 0700);
-
-	snprintf(path, MAXPATHLEN - 1, "%s/oi.db/l", backend_path);
-	mkdir(path, 0700);
-
-	snprintf(path, MAXPATHLEN - 1, "%s/oi.db/t", backend_path);
-	mkdir(path, 0700);
-
-	rc = dbenv->set_tmp_dir(dbenv, "t");
-	if (rc != 0)
-		db_err(dbenv, rc, "->set_tmp_dir()");
-
-	rc = dbenv->set_lg_dir(dbenv, "l");
-	if (rc != 0)
-		db_err(dbenv, rc, "->set_lg_dir()");
-
-	rc = dbenv->set_data_dir(dbenv, "d");
-	if (rc != 0)
-		db_err(dbenv, rc, "->set_data_dir()");
-
-	/* Open the environment with full transactional support. */
-	sdl->sdl_dbenv_flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|
-	               	       DB_INIT_MPOOL|DB_INIT_TXN|DB_INIT_LOCK|
-	                       DB_RECOVER;
-	snprintf(path, MAXPATHLEN - 1, "%s/db4s.db", backend_path);
-	rc = dbenv->open(dbenv, path, sdl->sdl_dbenv_flags, 0);
-	if (rc != 0)
-		db_err(dbenv, rc, "environment open");
-
-	sdl->sdl_db_flags = DB_AUTO_COMMIT|DB_CREATE|
-                            DB_THREAD|DB_TXN_NOSYNC|
-	                    /*
-	    		     * Both a data-base and a transaction
-			     * must use "read uncommitted" to avoid
-	    	             * dead-locks.
-			     */
-                             DB_READ_UNCOMMITTED;
-
-	sdl->sdl_txn_flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
-	rc = db_create(&sdl->sdl_mapping, dbenv, 0);
-	msg = "create";
-	if (rc == 0) {
-		rc = sdl->sdl_mapping->open(sdl->sdl_mapping, NULL, "o/oi", 
-			               NULL, DB_BTREE, sdl->sdl_db_flags, 0664);
-		msg = "open";
-	}
-	if (rc != 0) {
-		dbenv->err(dbenv, rc, "database \"oi\": %s failure", msg);
-		printf("database \"oi\": %s failure", msg);
-	}
-	return 0;
-}
-
-static int mapping_db_insert(struct linux_domain *sdl,
-  		      	     const struct c2_stob_id *id,
-		             const char *fname)
-{
-	DB_TXN *tx = NULL;
-	DB_ENV *dbenv = sdl->sdl_dbenv;
-	size_t  flen  = strlen(fname) + 1;
-	int     rc;
-	DBT     keyt;
-	DBT     rect;
-
-	memset(&keyt, 0, sizeof keyt);
-	memset(&rect, 0, sizeof rect);
-
-	keyt.data = (void*)id;
-	keyt.size = sizeof *id;
-
-	rect.data = (void*)fname;
-	rect.size = flen;
-
-	rc = dbenv->txn_begin(dbenv, NULL, &tx, sdl->sdl_txn_flags);
-	if (tx == NULL) {
-		db_err(dbenv, rc, "cannot start transaction");
-		return rc;
-	}
-
-	rc = sdl->sdl_mapping->put(sdl->sdl_mapping, tx, &keyt, &rect, 0);
-	if (rc == DB_LOCK_DEADLOCK)
-		fprintf(stderr, "deadlock.\n");
-	else if (rc != 0)
-		db_err(dbenv, rc, "DB->put() cannot insert into database");
-
-	if (rc == 0)
-		rc = tx->commit(tx, 0);
-	else
-		rc = tx->abort(tx);
-	if (rc != 0)
-		db_err(dbenv, rc, "cannot commit/abort transaction");
-	return rc;
-}
-
-static int mapping_db_lookup(struct linux_domain *sdl,
-  		      	     const struct c2_stob_id *id,
-		             char *fname, int maxflen)
-{
-	DB_ENV *dbenv = sdl->sdl_dbenv;
-	size_t  flen  = maxflen;
-	int     rc;
-	DBT     keyt;
-	DBT     rect;
-
-	memset(&keyt, 0, sizeof keyt);
-	memset(&rect, 0, sizeof rect);
-
-	keyt.data = (void*)id;
-	keyt.size = sizeof *id;
-
-	rect.data = (void*)fname;
-	rect.size = flen;
-
-	rc = sdl->sdl_mapping->get(sdl->sdl_mapping, NULL, &keyt, &rect, 0);
-	if (rc != 0)
-		db_err(dbenv, rc, "DB->get() cannot get data from database");
-	return rc;
-}
-#endif
 
 /**
    Implementation of c2_stob_type_op::sto_init().
@@ -349,7 +101,7 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 		linux_stob_fini(&lstob->sl_stob);
 	}
 	c2_rwlock_write_unlock(&self->sd_guard);
-	/* mapping_db_fini(ldom); */
+	adata_fini(ldom);
 	c2_list_fini(&ldom->sdl_object);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
@@ -365,9 +117,9 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 					 const char *domain_name,
 					 struct c2_stob_domain **out)
 {
-	struct linux_domain *ldom;
-	struct c2_stob_domain       *dom;
-	int                          result;
+	struct linux_domain   *ldom;
+	struct c2_stob_domain *dom;
+	int                    result;
 
 	C2_ASSERT(strlen(domain_name) < ARRAY_SIZE(ldom->sdl_path));
 
@@ -378,7 +130,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
 		c2_stob_domain_init(dom, type);
-		result = 0; /* mapping_db_init(ldom); */
+		result = adata_init(ldom);
 		if (result == 0) {
 			result = linux_domain_io_init(dom);
 			if (result == 0)
@@ -487,7 +239,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
  */
 static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 {
-	int                 nob;
+	int                  nob;
 	struct linux_domain *ldom;
 
 	C2_ASSERT(linux_stob_invariant(lstob));

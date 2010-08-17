@@ -11,10 +11,11 @@
    @{
  */
 
-#include <db.h>
 #include <libaio.h>
 
-#include <lib/thread.h>
+#include "db/db.h"
+#include "balloc/balloc.h"
+#include "lib/thread.h"
 
 #include "stob.h"
 
@@ -50,8 +51,8 @@ struct linux_domain {
 	/** List of all existing c2_stob's. */
 	struct c2_list   sdl_object;
 
-        DB_ENV          *sdl_dbenv;
-        DB              *sdl_mapping;
+	struct c2_dbenv  sdl_dbenv;
+	struct c2_table  sdl_mapping;
         uint32_t         sdl_dbenv_flags;
         uint32_t         sdl_db_flags;
         uint32_t         sdl_txn_flags;
@@ -100,12 +101,12 @@ struct linux_stob {
 	struct c2_list_link sl_linkage;
 };
 
-static struct linux_stob *stob2linux(struct c2_stob *stob)
+static inline struct linux_stob *stob2linux(struct c2_stob *stob)
 {
 	return container_of(stob, struct linux_stob, sl_stob);
 }
 
-static struct linux_domain *domain2linux(struct c2_stob_domain *dom)
+static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
 {
 	return container_of(dom, struct linux_domain, sdl_base);
 }
@@ -118,6 +119,19 @@ void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
 
 extern struct c2_addb_ctx adieu_addb_ctx;
+
+void adata_fini(struct linux_domain *ldom);
+int  adata_init(struct linux_domain *ldom);
+
+struct adata_ext {
+	c2_bindex_t             e_logical;
+	struct c2_balloc_extent e_physical;
+};
+
+enum adata_lookup_return {
+	ALR_GOT_NEXT = 1 << 0,
+	ALR_GOT_PREV = 1 << 1
+};
 
 /** @} end group stoblinux */
 

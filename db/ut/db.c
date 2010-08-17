@@ -21,8 +21,8 @@ static void test_db_create(void)
 
 static const struct c2_table_ops test_table_ops = {
 	.to = {
-		[TO_KEY] = { .size = 8 },
-		[TO_REC] = { .size = 8 }
+		[TO_KEY] = { .max_size = 8 },
+		[TO_REC] = { .max_size = 8 }
 	},
 	.key_cmp = NULL
 };
@@ -59,12 +59,13 @@ static void test_table_create(void)
 
 static void test_lookup(void) 
 {
-	struct c2_dbenv db;
-	struct c2_db_tx tx;
-	struct c2_table table;
-	int             result;
-	uint64_t        key;
-	uint64_t       *rec_out;
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
 
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
@@ -76,9 +77,11 @@ static void test_lookup(void)
 	C2_UT_ASSERT(result == 0);
 
 	key = 42;
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+	result = c2_table_lookup(&tx, &cons);
 	C2_UT_ASSERT(result == -ENOENT);
-	
+
+	c2_db_pair_fini(&cons);
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
 
@@ -88,13 +91,15 @@ static void test_lookup(void)
 
 static void test_insert(void) 
 {
-	struct c2_dbenv db;
-	struct c2_db_tx tx;
-	struct c2_table table;
-	int             result;
-	uint64_t        key;
-	uint64_t        rec;
-	uint64_t       *rec_out;
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	struct c2_db_pair cons1;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
+	uint64_t          rec_out;
 
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
@@ -108,13 +113,20 @@ static void test_insert(void)
 	key = 42;
 	rec = 16;
 
-	result = c2_table_insert(&tx, &table, &key, &rec);
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+
+	result = c2_table_insert(&tx, &cons);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	c2_db_pair_setup(&cons1, &table, &key, sizeof key, 
+			 &rec_out, sizeof rec_out);
+
+	result = c2_table_lookup(&tx, &cons1);
 	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(*(uint64_t *)rec_out == rec);
-	c2_db_rec_fini(&table, rec_out);
+	C2_UT_ASSERT(rec_out == rec);
+
+	c2_db_pair_fini(&cons1);
+	c2_db_pair_fini(&cons);
 
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
@@ -133,10 +145,14 @@ static void test_insert(void)
 	result = c2_db_tx_init(&tx, &db, 0);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	c2_db_pair_setup(&cons1, &table, &key, sizeof key, 
+			 &rec_out, sizeof rec_out);
+	result = c2_table_lookup(&tx, &cons1);
 	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(*(uint64_t *)rec_out == rec);
-	c2_db_rec_fini(&table, rec_out);
+	C2_UT_ASSERT(rec_out == rec);
+
+	c2_db_pair_fini(&cons1);
+	c2_db_pair_fini(&cons);
 	
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
@@ -147,13 +163,15 @@ static void test_insert(void)
 
 static void test_delete(void) 
 {
-	struct c2_dbenv db;
-	struct c2_db_tx tx;
-	struct c2_table table;
-	int             result;
-	uint64_t        key;
-	uint64_t        rec;
-	uint64_t       *rec_out;
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	struct c2_db_pair cons1;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
+	uint64_t          rec_out;
 
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
@@ -167,18 +185,27 @@ static void test_delete(void)
 	key = 43;
 	rec = 17;
 
-	result = c2_table_insert(&tx, &table, &key, &rec);
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+	c2_db_pair_setup(&cons1, &table, &key, sizeof key, 
+			 &rec_out, sizeof rec_out);
+
+	result = c2_table_insert(&tx, &cons);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	result = c2_table_lookup(&tx, &cons1);
 	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(*(uint64_t *)rec_out == rec);
-	c2_db_rec_fini(&table, rec_out);
+	C2_UT_ASSERT(rec_out == rec);
 
-	result = c2_table_delete(&tx, &table, &key);
+	c2_db_pair_release(&cons1);
+	c2_db_pair_release(&cons);
+
+	result = c2_table_delete(&tx, &cons);
 	C2_UT_ASSERT(result == 0);
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	result = c2_table_lookup(&tx, &cons1);
 	C2_UT_ASSERT(result == -ENOENT);
+
+	c2_db_pair_fini(&cons1);
+	c2_db_pair_fini(&cons);
 
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
@@ -189,13 +216,13 @@ static void test_delete(void)
 
 static void test_abort(void) 
 {
-	struct c2_dbenv db;
-	struct c2_db_tx tx;
-	struct c2_table table;
-	int             result;
-	uint64_t        key;
-	uint64_t        rec;
-	uint64_t       *rec_out;
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
 
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
@@ -209,9 +236,12 @@ static void test_abort(void)
 	key = 44;
 	rec = 18;
 
-	result = c2_table_insert(&tx, &table, &key, &rec);
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+
+	result = c2_table_insert(&tx, &cons);
 	C2_UT_ASSERT(result == 0);
 
+	c2_db_pair_fini(&cons);
 	c2_db_tx_abort(&tx);
 
 	c2_table_fini(&table);
@@ -226,9 +256,11 @@ static void test_abort(void)
 	result = c2_db_tx_init(&tx, &db, 0);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_table_lookup(&tx, &table, &key, (void **)&rec_out);
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+	result = c2_table_lookup(&tx, &cons);
 	C2_UT_ASSERT(result == -ENOENT);
 	
+	c2_db_pair_fini(&cons);
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
 
@@ -259,9 +291,12 @@ enum {
 	UB_ITER = 10000
 };
 
-static struct c2_dbenv ub_db;
-static struct c2_table ub_table;
-static struct c2_db_tx ub_tx;
+static struct c2_dbenv   ub_db;
+static struct c2_table   ub_table;
+static struct c2_db_tx   ub_tx;
+static struct c2_db_pair ub_pair;
+static uint64_t key;
+static uint64_t rec;
 
 static void ub_init(void)
 {
@@ -278,6 +313,9 @@ static void ub_init(void)
 
 	result = c2_db_tx_init(&ub_tx, &ub_db, 0);
 	C2_ASSERT(result == 0);
+
+	c2_db_pair_setup(&ub_pair, &ub_table, 
+			 &key, sizeof key, &rec, sizeof rec);
 }
 
 static void ub_fini(void)
@@ -287,6 +325,7 @@ static void ub_fini(void)
 	result = c2_db_tx_commit(&ub_tx);
 	C2_ASSERT(result == 0);
 
+	c2_db_pair_fini(&ub_pair);
 	c2_table_fini(&ub_table);
 	c2_dbenv_fini(&ub_db);
 	db_reset();
@@ -295,37 +334,32 @@ static void ub_fini(void)
 static void ub_insert(int i)
 {
 	int      result;
-	uint64_t key;
-	uint64_t rec;
 
 	key = i;
 	rec = i*i;
 
-	result = c2_table_insert(&ub_tx, &ub_table, &key, &rec);
+	result = c2_table_insert(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
 }
 
 static void ub_lookup(int i)
 {
 	int       result;
-	uint64_t  key;
-	uint64_t *rec_out;
 
 	key = i;
-	result = c2_table_lookup(&ub_tx, &ub_table, &key, (void **)&rec_out);
+	result = c2_table_lookup(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(*(uint64_t *)rec_out == i*i);
-	c2_db_rec_fini(&ub_table, rec_out);
+	C2_ASSERT(rec == i*i);
+	c2_db_pair_release(&ub_pair);
 }
 
 static void ub_delete(int i)
 {
 	int      result;
-	uint64_t key;
 
 	key = i;
 
-	result = c2_table_delete(&ub_tx, &ub_table, &key);
+	result = c2_table_delete(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
 }
 

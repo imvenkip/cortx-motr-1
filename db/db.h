@@ -122,6 +122,34 @@ int  c2_table_init(struct c2_table *table, struct c2_dbenv *env,
  */
 void c2_table_fini(struct c2_table *table);
 
+enum c2_db_pair_flags {
+	DPF_ALLOCATED = 1 << 0
+};
+
+struct c2_db_pair {
+	struct c2_table *dp_table;
+	void            *dp_keybuf;
+	void            *dp_recbuf;
+	uint32_t         dp_key_size;
+	uint32_t         dp_rec_size;
+	DBT              dp_key;
+	DBT              dp_rec;
+	uint32_t         dp_flags;
+};
+
+int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
+void c2_db_pair_fini(struct c2_db_pair *pair);
+
+int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
+void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
+		      void *keybuf, uint32_t keysize, 
+		      void *recbuf, uint32_t recsize);
+
+/**
+   Finalize the record returned by c2_table_lookup().
+ */
+void c2_db_pair_release(struct c2_db_pair *pair);
+
 enum {
 	TO_KEY,
 	TO_REC,
@@ -136,14 +164,10 @@ enum {
 struct c2_table_ops {
 	struct {
 		/** 
-		    Size of key or record (as determined by the index in
-		    c2_table_ops::to). 
-
-		    Currently only fixed size keys and records are supported. In
-		    the future, methods will be added to this operation vector
-		    to determine key or record size.
+		    Maximal size of key or record (as determined by the index in
+		    c2_table_ops::to).
 		 */
-		uint32_t size;
+		uint32_t max_size;
 		/**
 		   Convert in-memory key or record representation to in-db one.
 
@@ -165,8 +189,8 @@ struct c2_table_ops {
 	   Should return -ve, 0 or +ve value depending on how key0 and key1
 	   compare in key ordering.
 	 */
-	int    (*key_cmp)(struct c2_table *table,
-			  const void *key0, const void *key1);
+	int (*key_cmp)(struct c2_table *table, 
+		       const void *key0, const void *key1);
 };
 
 /**
@@ -211,8 +235,8 @@ int c2_db_tx_abort (struct c2_db_tx *tx);
 /**
    Insert (key, rec) pair into table as part of transaction tx.
  */
-int c2_table_insert(struct c2_db_tx *tx, struct c2_table *table, void *key, 
-		    void *rec);
+int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
+
 /**
    Look up and return record with a given key in the table and returns it.
 
@@ -222,17 +246,26 @@ int c2_table_insert(struct c2_db_tx *tx, struct c2_table *table, void *key,
 
    @note no alignment guarantees on returned record.
  */
-int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key, 
-		    void **rec);
+int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair);
+
 /**
    Delete a record with the key in the table as part of transaction tx.
  */
-int c2_table_delete(struct c2_db_tx *tx, struct c2_table *table, void *key);
+int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
-/**
-   Finalize the record returned by c2_table_lookup().
- */
-void c2_db_rec_fini(const struct c2_table *table, void *rec);
+struct c2_db_cursor {
+	struct c2_table *c_table;
+	struct c2_db_tx *c_tx;
+	DBC             *c_dbc;
+};
+
+int  c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
+		       struct c2_db_tx *tx);
+void c2_db_cursor_fini(struct c2_db_cursor *cursor);
+
+int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 
 int  c2_db_init(void);
 void c2_db_fini(void);

@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/misc.h"  /* C2_SET_ARR0 */
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/thread.h"
@@ -36,7 +37,7 @@ void test_thread(void)
 	int result;
 	char t1place[100];
 
-	memset(r, 0, sizeof r);
+	C2_SET_ARR0(r);
 	t0place = 0;
 	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
 	C2_UT_ASSERT(result == 0);
@@ -85,7 +86,7 @@ static struct c2_thread ubt[UB_ITER];
 
 static void ub_init(void)
 {
-	memset(ubt, 0, sizeof ubt);
+	C2_SET_ARR0(ubt);
 }
 
 static void ub_fini(void)

@@ -16,6 +16,7 @@
 #include <pthread.h>  /* pthread_key */
 #include <unistd.h>    /* close() */
 
+#include "lib/misc.h"  /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -505,7 +506,7 @@ static int usunrpc_service_start(struct c2_service *service,
 		return rc;
 	}
 
-        memset(&addr, 0, sizeof addr);
+        C2_SET0(&addr);
         addr.sin_port = htons(xid->ssi_port);
         if (bind(xservice->s_socket, 
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {

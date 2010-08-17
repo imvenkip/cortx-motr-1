@@ -1,9 +1,8 @@
 /* -*- C -*- */
 
-#include <string.h> /* memset */
-
-#include "thread.h"
-#include "assert.h"
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/thread.h"
+#include "lib/assert.h"
 
 /**
    @addtogroup thread Thread
@@ -78,7 +77,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 void c2_thread_fini(struct c2_thread *q)
 {
 	C2_PRE(q->t_state == TS_PARKED);
-	memset(q, 0, sizeof *q);
+	C2_SET0(q);
 }
 
 int c2_thread_join(struct c2_thread *q)

@@ -4,11 +4,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>    /* memset */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 #include <unistd.h>    /* sleep */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -259,7 +259,7 @@ int main(int argc, char **argv)
 							  path, &dom);
 	C2_ASSERT(result == 0);
 
-	memset(&service, 0, sizeof service);
+	C2_SET0(&service);
 
 	service.s_table.not_start = fopt[0]->ft_code;
 	service.s_table.not_nr    = ARRAY_SIZE(fopt);

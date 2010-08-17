@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/thread.h"
@@ -22,7 +23,7 @@ void test_trace(void)
 	for (i = 0; i < NR_INNER; ++i)
 		C2_TRACE_POINT({ uint32_t c; uint64_t d; }, i, i*i);
 
-	memset(t, 0, sizeof t);
+	C2_SET_ARR0(t);
 	for (i = 0; i < NR; ++i) {
 		result = C2_THREAD_INIT(&t[i], int, NULL,
 					LAMBDA(void, (int d) {

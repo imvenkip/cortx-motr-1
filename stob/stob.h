@@ -147,7 +147,8 @@ struct c2_stob_id {
 	uint64_t  si_id;
 };
 
-bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+int  c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
 bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**

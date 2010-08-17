@@ -5,8 +5,8 @@
 #include <memory.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <string.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/types.h"
 #include "lib/arith.h"    /* min_check */
@@ -160,8 +160,8 @@ int c2_balloc_insert_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	DBT rect;
 	ENTER;
 
-	memset(&keyt, 0, sizeof keyt);
-	memset(&rect, 0, sizeof rect);
+	C2_SET0(&keyt);
+	C2_SET0(&rect);
 
 	keyt.data = key;
 	keyt.size = keysize;
@@ -202,8 +202,8 @@ int c2_balloc_update_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	DBT rect;
 	ENTER;
 
-	memset(&keyt, 0, sizeof keyt);
-	memset(&rect, 0, sizeof rect);
+	C2_SET0(&keyt);
+	C2_SET0(&rect);
 
 	keyt.data = key;
 	keyt.size = keysize;
@@ -213,7 +213,7 @@ int c2_balloc_update_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	rect.size = recsize;
 
 	if ((result = db->exists(db, tx, &keyt, 0)) == 0) {
-		memset(&keyt, 0, sizeof keyt);
+		C2_SET0(&keyt);
 		keyt.data = key;
 		keyt.size = keysize;
 		result = db->put(db, tx, &keyt, &rect, 0);
@@ -247,7 +247,7 @@ int c2_balloc_del_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	DBT keyt;
 	ENTER;
 
-	memset(&keyt, 0, sizeof keyt);
+	C2_SET0(&keyt);
 
 	keyt.data = key;
 	keyt.size = keysize;
@@ -288,8 +288,8 @@ int c2_balloc_get_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
 	DBT keyt;
 	DBT rect;
 
-	memset(&keyt, 0, sizeof keyt);
-	memset(&rect, 0, sizeof rect);
+	C2_SET0(&keyt);
+	C2_SET0(&rect);
 	keyt.data = key;
 	keyt.size = keysize;
 	rect.flags = DB_DBT_MALLOC;
@@ -482,7 +482,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 		struct timeval now;
 
 		gettimeofday(&now, NULL);
-		memset(&sb, 0, sizeof sb);
+		C2_SET0(&sb);
 
 		sb.bsb_magic = C2_BALLOC_SB_MAGIC;
 		sb.bsb_state = C2_BALLOC_SB_CLEAN;
@@ -932,8 +932,8 @@ static int c2_balloc_init_ac(struct c2_balloc_ctxt *ctxt,
 
 	bac->bac_goal = bac->bac_orig;
 
-	memset(&bac->bac_best, 0, sizeof bac->bac_best);
-	memset(&bac->bac_final, 0, sizeof bac->bac_final);
+	C2_SET0(&bac->bac_best);
+	C2_SET0(&bac->bac_final);
 
 	LEAVE;
 	return 0;
@@ -1110,8 +1110,8 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp)
 	}
 
 	while (1) {
-		memset(&nkeyt, 0, sizeof nkeyt);
-		memset(&nrect, 0, sizeof nrect);
+		C2_SET0(&nkeyt);
+		C2_SET0(&nrect);
 		nrect.flags = DB_DBT_MALLOC;
 		nkeyt.flags = DB_DBT_MALLOC;
 
@@ -1491,7 +1491,7 @@ repeat:
 			 * found block(s)
 			printk(KERN_DEBUG "EXT4-fs: someone won our chunk\n");
 			 */
-			memset(&bac->bac_best, 0 , sizeof bac->bac_best);
+			C2_SET0(&bac->bac_best);
 			bac->bac_status = C2_BALLOC_AC_STATUS_CONTINUE;
 			bac->bac_flags |= C2_BALLOC_HINT_FIRST;
 			cr = 3;

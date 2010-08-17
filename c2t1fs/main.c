@@ -10,6 +10,7 @@
 #include <linux/inet.h>
 #include <linux/in.h>
 
+#include "lib/misc.h"  /* C2_SET0 */
 #include "lib/errno.h"
 #include "fop/fop.h"
 
@@ -241,7 +242,7 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 	if (!csi)
 		return NULL;
         s2csi_nocast(sb) = csi;
-        memset(csi, 0, sizeof *csi);
+        C2_SET0(csi);
 
         atomic_set(&csi->csi_mounts, 1);
         return csi;

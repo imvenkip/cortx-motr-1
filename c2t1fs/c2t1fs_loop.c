@@ -75,6 +75,7 @@
 
 #include <asm/uaccess.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"    /* C2_EXPORTED */
 #include "c2t1fs/c2t1fs.h"
@@ -917,7 +918,7 @@ loop_get_status(struct loop_device *lo, struct loop_info64 *info)
 	error = vfs_getattr(file->f_path.mnt, file->f_path.dentry, &stat);
 	if (error)
 		return error;
-	memset(info, 0, sizeof(*info));
+	C2_SET0(info);
 	info->lo_number = lo->lo_number;
 	info->lo_device = huge_encode_dev(stat.dev);
 	info->lo_inode = stat.ino;
@@ -940,7 +941,7 @@ loop_get_status(struct loop_device *lo, struct loop_info64 *info)
 static void
 loop_info64_from_old(const struct loop_info *info, struct loop_info64 *info64)
 {
-	memset(info64, 0, sizeof(*info64));
+	C2_SET0(info64);
 	info64->lo_number = info->lo_number;
 	info64->lo_device = info->lo_device;
 	info64->lo_inode = info->lo_inode;
@@ -962,7 +963,7 @@ loop_info64_from_old(const struct loop_info *info, struct loop_info64 *info64)
 static int
 loop_info64_to_old(const struct loop_info64 *info64, struct loop_info *info)
 {
-	memset(info, 0, sizeof(*info));
+	C2_SET0(info);
 	info->lo_number = info64->lo_number;
 	info->lo_device = info64->lo_device;
 	info->lo_inode = info64->lo_inode;
@@ -1143,7 +1144,7 @@ loop_info64_from_compat(const struct compat_loop_info __user *arg,
 	if (copy_from_user(&info, arg, sizeof(info)))
 		return -EFAULT;
 
-	memset(info64, 0, sizeof(*info64));
+	C2_SET0(info64);
 	info64->lo_number = info.lo_number;
 	info64->lo_device = info.lo_device;
 	info64->lo_inode = info.lo_inode;
@@ -1173,7 +1174,7 @@ loop_info64_to_compat(const struct loop_info64 *info64,
 {
 	struct compat_loop_info info;
 
-	memset(&info, 0, sizeof(info));
+	C2_SET0(&info);
 	info.lo_number = info64->lo_number;
 	info.lo_device = info64->lo_device;
 	info.lo_inode = info64->lo_inode;

@@ -2,8 +2,9 @@
 #  include <config.h>
 #endif
 
-#include <string.h>  /* memset */
-
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/cdefs.h"
+#include "lib/arith.h"   /* C2_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -80,6 +81,12 @@ void c2_stob_fini(struct c2_stob *obj)
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
 	return memcmp(id0, id1, sizeof *id0) == 0;
+}
+
+int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
+{
+	return C2_3WAY(id0->si_seq, id0->si_seq) ?: C2_3WAY(id0->si_id, 
+							    id1->si_id);
 }
 
 bool c2_stob_id_is_set(const struct c2_stob_id *id)
@@ -174,7 +181,7 @@ static void c2_stob_io_unlock(struct c2_stob *obj)
 
 void c2_stob_io_init(struct c2_stob_io *io)
 {
-	memset(io, 0, sizeof *io);
+	C2_SET0(io);
 
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;

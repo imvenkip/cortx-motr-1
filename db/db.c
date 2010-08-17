@@ -1,11 +1,11 @@
 /* -*- C -*- */
 
-#include <stdarg.h>    /* memset */
-#include <string.h>    /* memset */
+#include <stdarg.h>
 #include <stdlib.h>    /* free */
 #include <sys/stat.h>  /* mkdir */
 #include <stdio.h>     /* asprintf, fopen, fclose */
 
+#include "lib/misc.h"  /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -42,10 +42,7 @@ static const struct c2_addb_ctx_type db_tx_ctx_type = {
 	.act_name = "db-tx"
 };
 
-static int  key_compare  (DB *db, const DBT *dbt1, const DBT *dbt2);
-static void dbt_setup_arg(const struct c2_table *table, int idx, 
-			  DBT *dbt, void *buf);
-static void dbt_setup_ret(const struct c2_table *table, int idx, DBT *dbt);
+static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 
 /**
    Convert db5 specific error code into generic errno.
@@ -72,6 +69,8 @@ static int dberr_conv(int db_error)
 		return -ENOENT;
 	case DB_LOCK_NOTGRANTED:
 		return -ENOLCK;
+	case DB_BUFFER_SMALL:
+		return -ENOBUFS;
 	default:
 		/* As per <db.h>:
 		 *
@@ -92,7 +91,7 @@ static int dberr_conv(int db_error)
 
 /**
    A helper to DBENV_CALL(), TABLE_CALL() and TX_CALL(): converts db5 error code
-   into errno and emits ab ADDB event in a given context, if necessary.
+   into errno and emits an ADDB event in a given context, if necessary.
  */
 static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 {
@@ -139,6 +138,18 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 									\
 	rc = (tx)->dt_txn->method((tx)->dt_txn , ## __VA_ARGS__);	\
 	db_call_tail(&(tx)->dt_addb, rc, #method);			\
+})
+
+/**
+   Calls cursor method (get, set, close, etc.), converts the result to errno
+   and emits addb event in the context of cursor table, if necessary.
+ */
+#define CURSOR_CALL(cur, method, ...)					\
+({									\
+	int rc;								\
+									\
+	rc = (cur)->c_dbc->method((cur)->c_dbc , ## __VA_ARGS__);	\
+	db_call_tail(&(cur)->c_table->t_addb, rc, "dbc::" #method);	\
 })
 
 /**
@@ -316,6 +327,66 @@ void c2_table_fini(struct c2_table *table)
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
+void pair_init(struct c2_db_pair *pair, struct c2_table *table)
+{
+	pair->dp_table = table;
+
+	pair->dp_key.data  = pair->dp_keybuf;
+	pair->dp_rec.data  = pair->dp_recbuf;
+	pair->dp_key.size  = pair->dp_key.ulen;
+	pair->dp_rec.size  = pair->dp_rec.ulen;
+	pair->dp_key.flags = pair->dp_rec.flags = DB_DBT_USERMEM;
+}
+
+int c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table)
+{
+	C2_SET0(pair);
+
+	pair->dp_key.ulen = table->t_ops->to[TO_KEY].max_size;
+	pair->dp_rec.ulen = table->t_ops->to[TO_REC].max_size;
+
+	pair->dp_keybuf = c2_alloc(pair->dp_key.ulen);
+	pair->dp_recbuf = c2_alloc(pair->dp_rec.ulen);
+
+	pair->dp_flags = DPF_ALLOCATED;
+	pair_init(pair, table);
+
+	if (pair->dp_keybuf != NULL && pair->dp_recbuf != NULL)
+		return 0;
+	else {
+		c2_db_pair_fini(pair);
+		return -ENOMEM;
+	}
+}
+
+void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
+		      void *keybuf, uint32_t keysize, 
+		      void *recbuf, uint32_t recsize)
+{
+	C2_SET0(pair);
+
+	pair->dp_key.ulen = keysize;
+	pair->dp_rec.ulen = recsize;
+
+	pair->dp_keybuf = keybuf;
+	pair->dp_recbuf = recbuf;
+
+	pair_init(pair, table);
+}
+
+void c2_db_pair_fini(struct c2_db_pair *pair)
+{
+	if (pair->dp_flags & DPF_ALLOCATED) {
+		c2_free(pair->dp_keybuf);
+		c2_free(pair->dp_recbuf);
+	}
+	C2_SET0(pair);
+}
+
+void c2_db_pair_release(struct c2_db_pair *pair)
+{
+}
+
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 {
 	int result;
@@ -362,34 +433,23 @@ int c2_db_tx_abort(struct c2_db_tx *tx)
 	return result;
 }
 
-int c2_table_insert(struct c2_db_tx *tx, struct c2_table *table, void *key, 
-		    void *rec)
+int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	DBT key_dbt;
-	DBT rec_dbt;
-
-	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
-	dbt_setup_arg(table, TO_REC, &rec_dbt, rec);
-	return TABLE_CALL(table, put, tx->dt_txn, 
-			  &key_dbt, &rec_dbt, DB_NOOVERWRITE);
+	return TABLE_CALL(pair->dp_table, put, tx->dt_txn, 
+			  &pair->dp_key, &pair->dp_rec, DB_NOOVERWRITE);
 }
 
-int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key, 
-		    void **rec)
+int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	DBT key_dbt;
-	DBT rec_dbt;
 	int result;
-
-	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
-	dbt_setup_ret(table, TO_REC, &rec_dbt);
+	DB *db;
 
 	/*
-	 * Possible optimization: if DB_DBT_MALLOC is not set in rec_dbt.flags,
-	 *                        ->get() would return with rec_dbt.data
-	 *                        pointing directly to the in-db data. Returned
-	 *                        pointer is valid until _any_ call against the
-	 *                        same DB handle is made by any thread.
+	 * Possible optimization: if pair DBT's flags are 0, ->get() would
+	 *                        return with DBT->data pointing directly to the
+	 *                        in-db data. Returned pointer is valid until
+	 *                        _any_ call against the same DB handle is made
+	 *                        by any thread.
 	 *
 	 *                        This gives a 0-copy lookup: embed a mutex in
 	 *                        c2_table, lock it in c2_table_lookup() and
@@ -400,28 +460,55 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_table *table, void *key,
 	 * TABLE_CALL() is not used here, because DB_NOTFOUND is a "valid"
 	 * return value for which no addb noise should be made.
 	 */
-	result = table->t_db->get(table->t_db, tx->dt_txn, 
-				  &key_dbt, &rec_dbt, 0);
-	if (result == DB_NOTFOUND)
-		result = -ENOENT;
-	else if (result == 0)
-		*rec = rec_dbt.data;
-	else
-		result = db_call_tail(&table->t_addb, result, "get");
+	db = pair->dp_table->t_db;
+	result = db->get(db, tx->dt_txn, &pair->dp_key, &pair->dp_rec, 0);
+	if (result != 0) {
+		if (result == DB_NOTFOUND)
+			result = -ENOENT;
+		else
+			result = db_call_tail(&pair->dp_table->t_addb, 
+					      result, "get");
+	}
 	return result;
 }
 
-int c2_table_delete(struct c2_db_tx *tx, struct c2_table *table, void *key)
+int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	DBT key_dbt;
-
-	dbt_setup_arg(table, TO_KEY, &key_dbt, key);
-	return TABLE_CALL(table, del, tx->dt_txn, &key_dbt, 0);
+	return TABLE_CALL(pair->dp_table, del, tx->dt_txn, &pair->dp_key, 0);
 }
 
-void c2_db_rec_fini(const struct c2_table *table, void *rec)
+int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
+		      struct c2_db_tx *tx)
 {
-	free(rec);
+	cursor->c_table = table;
+	cursor->c_tx    = tx;
+	return TABLE_CALL(table, cursor, tx->dt_txn, &cursor->c_dbc, 0);
+}
+
+void c2_db_cursor_fini(struct c2_db_cursor *cursor)
+{
+	CURSOR_CALL(cursor, close);
+}
+
+static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
+		      uint32_t flags)
+{
+	return CURSOR_CALL(cursor, get, &pair->dp_key, &pair->dp_rec, flags);
+}
+
+int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return cursor_get(cursor, pair, DB_SET_RANGE);
+}
+
+int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return cursor_get(cursor, pair, DB_NEXT);
+}
+
+int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return cursor_get(cursor, pair, DB_PREV);
 }
 
 int c2_db_init(void)
@@ -441,23 +528,6 @@ static int key_compare(DB *db, const DBT *dbt0, const DBT *dbt1)
 	C2_ASSERT(table->t_db == db);
 	C2_ASSERT(table->t_ops->key_cmp != NULL);
 	return table->t_ops->key_cmp(table, dbt0->data, dbt1->data);
-}
-
-static void dbt_setup_arg(const struct c2_table *table, int idx, 
-			  DBT *dbt, void *buf)
-{
-	memset(dbt, 0, sizeof *dbt);
-	/*
-	 * XXX use table->t_ops.to[].{pack,open}().
-	 */
-	dbt->data = buf;
-	dbt->size = table->t_ops->to[idx].size;
-}
-
-static void dbt_setup_ret(const struct c2_table *table, int idx, DBT *dbt)
-{
-	memset(dbt, 0, sizeof *dbt);
-	dbt->flags = DB_DBT_MALLOC;
 }
 
 /** @} end of db group */

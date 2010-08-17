@@ -15,6 +15,7 @@
 #include <netdb.h>
 #include <rpc/rpc.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -121,7 +122,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	int                sock;
 	struct hostent    *hp;
 
-	memset(&addr, 0, sizeof addr);
+	C2_SET0(&addr);
 	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(id->ssi_host);
 	addr.sin_port        = htons(id->ssi_port);

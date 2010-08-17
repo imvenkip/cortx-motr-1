@@ -8,6 +8,7 @@
 #include <string.h>
 #include <pthread.h> /* barrier */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ut.h"
 #include "lib/thread.h"
 #include "lib/atomic.h"
@@ -66,7 +67,7 @@ void test_atomic(void)
 	bool             zero;
 	struct c2_thread t[NR];
 
-	memset(t, 0, sizeof t);
+	C2_SET_ARR0(t);
 	c2_atomic64_set(&atom, 0);
 	sum = 0;
 	for (i = 0; i < NR; ++i) {

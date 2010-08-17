@@ -1,7 +1,7 @@
 /* -*- C -*- */
 #include <stdlib.h>
-#include <string.h> /* memset */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/memory.h"
@@ -40,7 +40,7 @@ static void *ubx[UB_ITER];
 
 static void ub_init(void)
 {
-	memset(ubx, 0, sizeof ubx);
+	C2_SET_ARR0(ubx);
 }
 
 static void ub_free(int i)

@@ -3,6 +3,7 @@
 #define _COLIBRI_LIB_MEMORY_H_
 
 #include "lib/types.h"
+#include "lib/assert.h" /* C2_CASSERT */
 
 /**
    @defgroup memory memory allocation handling functions

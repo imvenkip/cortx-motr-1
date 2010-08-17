@@ -1,11 +1,10 @@
 /* -*- C -*- */
 
-#include <string.h> /* memset */
 #include <stdio.h>  /* printf */
 #include <stdlib.h> /* atoi */
 #include <math.h>   /* sqrt */
 
-#include "lib/cdefs.h"
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/arith.h"
@@ -58,8 +57,8 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	double   sq;
 	double   avg;
 
-	memset(usage, 0, sizeof usage);
-	memset(incidence, 0, sizeof incidence);
+	C2_SET_ARR0(usage);
+	C2_SET_ARR0(incidence);
 
 	N = play->pl_N;
 	K = play->pl_K;

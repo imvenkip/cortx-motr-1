@@ -2,6 +2,7 @@
 #  include <config.h>
 #endif
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/atomic.h"
@@ -218,7 +219,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			off = io->si_stob.ov_index[dst.vc_seg] + dst.vc_offset;
 
 			iocb = &lio->si_qev[i].iq_iocb;
-			memset(iocb, 0, sizeof *iocb);
+			C2_SET0(iocb);
 
 			iocb->aio_fildes = lstob->sl_fd;
 			iocb->u.c.buf    = buf;

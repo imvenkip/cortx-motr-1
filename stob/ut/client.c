@@ -3,10 +3,11 @@
 #endif
 
 #include <stdlib.h>
-#include <string.h>    /* memset */
 #include <stdio.h>     /* feof, fscanf, ... */
 #include <err.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -99,7 +100,7 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fop_fid *fid)
 	r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
 	rep = c2_fop_data(r);
 
-	memset(&rep, 0, sizeof rep);
+	C2_SET0(&rep);
 	fop->siw_object = *fid;
 	if (scanf("%i", &result) != 1)
 		err(1, "wrong count conversion");

@@ -107,6 +107,13 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	return (val + mask) & ~mask;
 }
 
+#define C2_3WAY(v0, v1)					\
+({							\
+	typeof(v0) __a0 = (v0);				\
+	typeof(v1) __a1 = (v1);				\
+							\
+	(__a0 < __a1) ? -1 : (__a0 == __a1 ? 0 : +1);	\
+})
 
 /** @} end of arith group */
 

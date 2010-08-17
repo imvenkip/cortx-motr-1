@@ -3,11 +3,11 @@
 #endif
 
 #include <stdio.h>     /* fopen, fgetc, ... */
-#include <string.h>    /* memset */
 #include <unistd.h>    /* unlink */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
