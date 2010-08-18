@@ -133,6 +133,14 @@ enum adata_lookup_return {
 	ALR_GOT_PREV = 1 << 1
 };
 
+int adata_lookup(struct linux_domain *ldom, struct c2_db_tx *tx,
+		 const struct c2_stob_id *obj, c2_bindex_t offset, 
+		 struct adata_ext *prev, struct adata_ext *next);
+int adata_insert(struct linux_domain *ldom, struct c2_db_tx *tx,
+		 const struct c2_stob_id *obj, struct adata_ext *ext);
+int adata_delete(struct linux_domain *ldom, struct c2_db_tx *tx,
+		 const struct c2_stob_id *obj, struct adata_ext *ext);
+
 /** @} end group stoblinux */
 
 /* __COLIBRI_STOB_LINUX_INTERNAL_H__ */

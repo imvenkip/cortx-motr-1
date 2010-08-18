@@ -35,7 +35,6 @@ struct ad_rec {
 	struct c2_balloc_extent ar_ext;
 };
 
-#if 0
 static void ad_pack(const struct c2_stob_id *obj, const struct adata_ext *ext, 
 		    struct ad_key *key, struct ad_rec *rec)
 {
@@ -43,7 +42,6 @@ static void ad_pack(const struct c2_stob_id *obj, const struct adata_ext *ext,
 	key->ak_offset =  ext->e_logical + ext->e_physical.be_len;
 	rec->ar_ext    =  ext->e_physical;
 }
-#endif
 
 static void ad_open(const struct ad_key *key, const struct ad_rec *rec,
 		    struct adata_ext *ext)
@@ -134,6 +132,35 @@ int adata_lookup(struct linux_domain *ldom, struct c2_db_tx *tx,
 	}
 	c2_db_pair_fini(&cons);
 	return result;
+}
+
+static int pair_do(struct linux_domain *ldom, struct c2_db_tx *tx,
+		   const struct c2_stob_id *obj, struct adata_ext *ext,
+		   int (*func)(struct c2_db_tx *, struct c2_db_pair *))
+{
+	struct ad_key       key;
+	struct ad_rec       rec;
+	int                 result;
+	struct c2_db_pair   cons;
+
+	ad_pack(obj, ext, &key, &rec);
+	c2_db_pair_setup(&cons, &ldom->sdl_mapping,
+			 &key, sizeof key, &rec, sizeof rec);
+	result = (*func)(tx, &cons);
+	c2_db_pair_fini(&cons);
+	return result;
+}
+
+int adata_insert(struct linux_domain *ldom, struct c2_db_tx *tx,
+		 const struct c2_stob_id *obj, struct adata_ext *ext)
+{
+	return pair_do(ldom, tx, obj, ext, &c2_table_insert);
+}
+
+int adata_delete(struct linux_domain *ldom, struct c2_db_tx *tx,
+		 const struct c2_stob_id *obj, struct adata_ext *ext)
+{
+	return pair_do(ldom, tx, obj, ext, &c2_table_delete);
 }
 
 /** @} end group stoblinux */
