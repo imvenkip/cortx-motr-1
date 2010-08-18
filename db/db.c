@@ -93,11 +93,15 @@ static int dberr_conv(int db_error)
    A helper to DBENV_CALL(), TABLE_CALL() and TX_CALL(): converts db5 error code
    into errno and emits an ADDB event in a given context, if necessary.
  */
-static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
+static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
+			int *tolerate)
 {
 	if (rc != 0) {
 		rc = dberr_conv(rc);
-		C2_ADDB_ADD(ctx, &db_loc, c2_addb_func_fail, method, rc);
+		for (; *tolerate != 0 && *tolerate != rc; tolerate++)
+			;
+		if (*tolerate == 0)
+			C2_ADDB_ADD(ctx, &db_loc, c2_addb_func_fail, name, rc);
 	}
 	return rc;
 }
@@ -111,7 +115,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 	int rc;								\
 									\
 	rc = (dbenv)->d_env->method((dbenv)->d_env , ## __VA_ARGS__);	\
-	db_call_tail(&(dbenv)->d_addb, rc, #method);			\
+	db_call_tail(&(dbenv)->d_addb, rc, #method, dbenv_tol_ ## method); \
 })
 
 /**
@@ -125,7 +129,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 	int rc;								\
 									\
 	rc = (table)->t_db->method((table)->t_db , ## __VA_ARGS__);	\
-	db_call_tail(&(table)->t_addb, rc, #method);			\
+	db_call_tail(&(table)->t_addb, rc, #method, table_tol_ ## method); \
 })
 
 /**
@@ -137,7 +141,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 	int rc;								\
 									\
 	rc = (tx)->dt_txn->method((tx)->dt_txn , ## __VA_ARGS__);	\
-	db_call_tail(&(tx)->dt_addb, rc, #method);			\
+	db_call_tail(&(tx)->dt_addb, rc, #method, tx_tol_ ## method);	\
 })
 
 /**
@@ -149,7 +153,8 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *method)
 	int rc;								\
 									\
 	rc = (cur)->c_dbc->method((cur)->c_dbc , ## __VA_ARGS__);	\
-	db_call_tail(&(cur)->c_table->t_addb, rc, "dbc::" #method);	\
+	db_call_tail(&(cur)->c_table->t_addb, rc, "dbc::" #method,	\
+		cursor_tol_ ## method);				\
 })
 
 /**
@@ -177,6 +182,12 @@ openvar(FILE **file, const char *mode, const char *fmt, ...)
 	va_end(args);
 	return result;
 }
+
+static int dbenv_tol_set_verbose[] = { 0 };
+static int dbenv_tol_set_flags[] = { 0 };
+static int dbenv_tol_open[] = { 0 };
+static int dbenv_tol_close[] = { 0 };
+static int dbenv_tol_txn_begin[] = { 0 };
 
 /**
    Major part of c2_dbenv_init().
@@ -278,6 +289,15 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 	}
 	c2_addb_ctx_fini(&env->d_addb);
 }
+
+static int table_tol_set_lorder[] = { 0 };
+static int table_tol_open[] = { 0 };
+static int table_tol_close[] = { 0 };
+static int table_tol_set_bt_compare[] = { 0 };
+static int table_tol_put[] = { 0 };
+static int table_tol_get[] = { -ENOENT, 0 };
+static int table_tol_del[] = { 0 };
+static int table_tol_cursor[] = { 0 };
 
 int c2_table_init(struct c2_table *table, struct c2_dbenv *env, 
 		  const char *name, uint64_t flags, 
@@ -415,6 +435,9 @@ void tx_fini(struct c2_db_tx *tx)
 	c2_addb_ctx_fini(&tx->dt_addb);
 }
 
+static int tx_tol_commit[] = { 0 };
+static int tx_tol_abort[] = { 0 };
+
 int c2_db_tx_commit(struct c2_db_tx *tx)
 {
 	int result;
@@ -442,7 +465,6 @@ int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	int result;
-	DB *db;
 
 	/*
 	 * Possible optimization: if pair DBT's flags are 0, ->get() would
@@ -455,20 +477,8 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        c2_table, lock it in c2_table_lookup() and
 	 *                        release in c2_db_rec_fini().
 	 */
-
-	/*
-	 * TABLE_CALL() is not used here, because DB_NOTFOUND is a "valid"
-	 * return value for which no addb noise should be made.
-	 */
-	db = pair->dp_table->t_db;
-	result = db->get(db, tx->dt_txn, &pair->dp_key, &pair->dp_rec, 0);
-	if (result != 0) {
-		if (result == DB_NOTFOUND)
-			result = -ENOENT;
-		else
-			result = db_call_tail(&pair->dp_table->t_addb, 
-					      result, "get");
-	}
+	result = TABLE_CALL(pair->dp_table, get, 
+			    tx->dt_txn, &pair->dp_key, &pair->dp_rec, 0);
 	return result;
 }
 
@@ -484,6 +494,9 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 	cursor->c_tx    = tx;
 	return TABLE_CALL(table, cursor, tx->dt_txn, &cursor->c_dbc, 0);
 }
+
+static int cursor_tol_close[] = { 0 };
+static int cursor_tol_get[] = { -ENOENT, 0 };
 
 void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 {
