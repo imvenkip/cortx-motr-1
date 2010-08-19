@@ -1,11 +1,10 @@
 /* -*- C -*- */
 
-#include <stdio.h> /* setbuf */
 #include <CUnit/CUnit.h>
 
 #include "lib/ut.h"
 #include "lib/trace.h"
-#include "colibri/init.h"
+#include "utils/common.h"
 
 extern const struct c2_test_suite libc2_ut;
 extern const struct c2_test_suite adieu_ut;
@@ -13,12 +12,11 @@ extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
 
+#define UT_SANDBOX "./ut-sandbox"
+
 int main(int argc, char *argv[])
 {
-	setbuf(stdout, NULL);
-	setbuf(stderr, NULL);
-
-	if (c2_init() == 0) {
+	if (unit_start(UT_SANDBOX) == 0) {
 		if (argc == 2 && !strcmp(argv[1], "trace")) {
 			c2_trace_parse();
 		} else {
@@ -29,7 +27,7 @@ int main(int argc, char *argv[])
 			c2_ut_add(&emap_ut);
 			c2_ut_run("c2ut.log");
 		}
-		c2_fini();
+		unit_end(UT_SANDBOX);
 	}
 
 	return 0;

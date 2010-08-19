@@ -234,6 +234,9 @@ A few comments:
 See core/lib/ut/*.c, core/stob/ut/adieu.c, core/fop/ut/fmt_test.c for
 examples.
 
+Note, that a unit test should create no files outside of current process
+directory (except for possibly in its sub-directories).
+
 How to add a new unit benchmark?
 --------------------------------
 
@@ -245,3 +248,7 @@ tests. Indeed, they usually happen to share a lot of code. As a
 result, unit benchmark code is typically kept in the same
 core/foo/ut/foo.c code as unit tests for the same component. See
 core/lib/ut/*.c and core/stob/ut/adieu.c for examples.
+
+Note, that a unit benchmark should create no files outside of current
+process directory (except for possibly in its sub-directories).
+
