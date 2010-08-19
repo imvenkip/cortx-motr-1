@@ -8,8 +8,8 @@
 #include "lib/ub.h"
 #include "db/db.h"
 
-const char db_name[] = "ut-db";
-const char test_table[] = "test-table";
+static const char db_name[] = "ut-db";
+static const char test_table[] = "test-table";
 
 static void test_db_create(void) 
 {
