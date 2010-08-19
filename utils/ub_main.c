@@ -12,6 +12,7 @@ extern struct c2_ub_set c2_memory_ub;
 extern struct c2_ub_set c2_adieu_ub;
 extern struct c2_ub_set c2_trace_ub;
 extern struct c2_ub_set c2_db_ub;
+extern struct c2_ub_set c2_emap_ub;
 
 int main(int argc, char *argv[])
 {
@@ -33,6 +34,7 @@ int main(int argc, char *argv[])
 		c2_ub_set_add(&c2_adieu_ub);
 		c2_ub_set_add(&c2_trace_ub);
 		c2_ub_set_add(&c2_db_ub);
+		c2_ub_set_add(&c2_emap_ub);
 		c2_ub_run(rounds);
 
 		c2_fini();

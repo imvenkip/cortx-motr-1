@@ -14,7 +14,6 @@
 #include <libaio.h>
 
 #include "db/db.h"
-#include "balloc/balloc.h"
 #include "lib/thread.h"
 
 #include "stob.h"
@@ -119,27 +118,6 @@ void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
 
 extern struct c2_addb_ctx adieu_addb_ctx;
-
-void adata_fini(struct linux_domain *ldom);
-int  adata_init(struct linux_domain *ldom);
-
-struct adata_ext {
-	c2_bindex_t             e_logical;
-	struct c2_balloc_extent e_physical;
-};
-
-enum adata_lookup_return {
-	ALR_GOT_NEXT = 1 << 0,
-	ALR_GOT_PREV = 1 << 1
-};
-
-int adata_lookup(struct linux_domain *ldom, struct c2_db_tx *tx,
-		 const struct c2_stob_id *obj, c2_bindex_t offset, 
-		 struct adata_ext *prev, struct adata_ext *next);
-int adata_insert(struct linux_domain *ldom, struct c2_db_tx *tx,
-		 const struct c2_stob_id *obj, struct adata_ext *ext);
-int adata_delete(struct linux_domain *ldom, struct c2_db_tx *tx,
-		 const struct c2_stob_id *obj, struct adata_ext *ext);
 
 /** @} end group stoblinux */
 

@@ -101,7 +101,6 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 		linux_stob_fini(&lstob->sl_stob);
 	}
 	c2_rwlock_write_unlock(&self->sd_guard);
-	adata_fini(ldom);
 	c2_list_fini(&ldom->sdl_object);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
@@ -130,7 +129,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
 		c2_stob_domain_init(dom, type);
-		result = adata_init(ldom);
+		result = 0; /* c2_ext_init(); */
 		if (result == 0) {
 			result = linux_domain_io_init(dom);
 			if (result == 0)
