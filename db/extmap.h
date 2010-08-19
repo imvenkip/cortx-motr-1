@@ -26,30 +26,31 @@
 	   ([e_n, C2_BINDEX_MAX + 1), v_n)
    @f]
 
-   Note that extents covert whole name-space from 0 to C2_BINDEX_MAX without
+   Note that extents cover the whole name-space from 0 to C2_BINDEX_MAX without
    holes.
 
    Possible applications of extent map include:
 
-   @li allocation data for a data object. In this case extent in the name-space
-   is interpreted as an extent in logical offset space. A value associated with
-   the extent is a starting block of a physical extent allocated to the logical
-   extent. In addition to allocated extents, a map might contain "holes" and
-   "not-allocated" extents, tagged with special otherwise impossible values;
+   @li allocation data for a data object. In this case an extent in the
+   name-space is interpreted as an extent in the logical offset space of data
+   object. A value associated with the extent is a starting block of a physical
+   extent allocated to the logical extent. In addition to allocated extents, a
+   map might contain "holes" and "not-allocated" extents, tagged with special
+   otherwise impossible values;
 
    @li various resource identifier distribution maps: file identifiers,
    container identifiers, layout identifiers, recording state of resource
    name-spaces: allocated to a certain node, free, etc.
 
-   Extent map interface consists is based on a notion of map cursor
-   (c2_emap_cursor): an object recording a position within a map (i.e., a
-   segment reached by the iteration). 
+   Extent map interface is based on a notion of map cursor (c2_emap_cursor): an
+   object recording a position within a map (i.e., a segment reached by the
+   iteration).
 
    A cursor can be positioned at the segment including a given point in the
-   name-space (c2_emap_lookup()) moved through the segments (c2_emap_next() and
-   c2_emap_prev()).
+   name-space (c2_emap_lookup()) and moved through the segments (c2_emap_next()
+   and c2_emap_prev()).
 
-   An extent map can be modifying by two functions:
+   An extent map can be modified by two functions:
 
    @li c2_emap_split(): split a segment into a collection of segments with given
    lengths and values, provided that their total length is the same as the
@@ -61,6 +62,20 @@
 
    It's easy to see that these operations preserve extent map invariant that
    extents are non-empty and form the name-space partition.
+
+   @note The asymmetry between split and merge interfaces (i.e., the fact that a
+   segment can be split into multiple segments at once, but only two segments
+   can be merged) is because a user usually wants to inspect a segment before
+   merging it with another one. For example, data object truncate goes through
+   the allocation data segments downward until the target offset of
+   reached. Each segment is analyzed, data-blocks are freed is necessary and the
+   segment is merged with the next one.
+
+   @note Currently the length and ordering of prefix and value is fixed by the
+   implementation. Should the need arise, prefixes and values of arbitrary size
+   and ordering could be easily implemented at the expense of dynamic memory
+   allocation during cursor initialization. Prefix comparison function could be
+   supplied as c2_emap constructor parameter.
 
    @{
  */

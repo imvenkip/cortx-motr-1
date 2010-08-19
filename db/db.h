@@ -16,7 +16,7 @@
    implemented on top of Oracle db5 (nee Sleepycat's Berkeley DB) and details of
    this implementation leak into data-structures. In the future, additional
    implementations will be added, specifically a simple memory-only
-   implementation for Linux kernel, and separation between generic and
+   implementation for Linux kernel, and the separation between generic and
    implementation-specific state will be exacted.
 
    @{
@@ -234,29 +234,29 @@ struct c2_db_tx {
 int c2_db_tx_init  (struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags);
 
 /**
-   Commit the transaction.
+   Commits the transaction.
 
    Commit is _not_ durable: log is not forced out. Transaction is invalid after
-   this returns.
+   this function returns.
  */
 int c2_db_tx_commit(struct c2_db_tx *tx);
 
 /**
-   Commit the transaction.
+   Aborts the transaction.
 
    Transaction is invalid after this returns.
  */
 int c2_db_tx_abort (struct c2_db_tx *tx);
 
 /**
-   Insert (key, rec) pair into table as part of transaction tx.
+   Inserts (key, rec) pair into table as part of transaction tx.
  */
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
 /**
-   Look up and return record with a given key in the table and returns it.
+   Looks up a record with a given key in the table and returns it.
 
-   Returned record must be finalized with a call to c2_db_rec_fini().
+   Returned record must be finalized with a call to c2_db_pair_fini().
 
    @note lookup does require transaction (for locking context at least).
 
