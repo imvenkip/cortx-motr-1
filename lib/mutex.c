@@ -51,8 +51,6 @@ void c2_mutex_unlock(struct c2_mutex *mutex)
 
 int c2_mutex_trylock(struct c2_mutex *mutex)
 {
-	return 0;
-/*
 	pthread_t self;
 	int ret;
 
@@ -63,7 +61,6 @@ int c2_mutex_trylock(struct c2_mutex *mutex)
 		memcpy(&mutex->m_owner, &self, sizeof self);
 
 	return ret;
-*/
 }
 
 bool c2_mutex_is_locked(const struct c2_mutex *mutex)

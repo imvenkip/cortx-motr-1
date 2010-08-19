@@ -248,18 +248,6 @@ int c2_balloc_enforce(struct c2_balloc_ctxt *ctxt, bool alloc, struct c2_balloc_
 bool c2_balloc_query(struct c2_balloc_ctxt *ctxt, struct c2_balloc_extent *ext);
 
 
-#define BALLOC_DEBUG
-
-#ifdef BALLOC_DEBUG
-#define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
-#define LEAVE printf("<<<=== %s:%d:%s\n", __FILE__, __LINE__, __func__)
-#define GOTHERE printf("!!! %s:%d:%s\n", __FILE__, __LINE__, __func__)
-#else
-#define ENTER
-#define LEAVE
-#define GOTHERE
-#endif
-
 /** @} end of balloc */
 
 #endif /*__COLIBRI_BALLOC_BALLOC_H__*/

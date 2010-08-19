@@ -8,11 +8,11 @@
 
 #include "balloc/balloc.h"
 
-void c2_balloc_debug_dump_sb(struct c2_balloc_ctxt *ctxt);
+extern void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_ctxt *ctxt);
 
 static int c2_balloc_dump_super_block(struct c2_balloc_ctxt *ctxt) 
 {
-	c2_balloc_debug_dump_sb(ctxt);
+	c2_balloc_debug_dump_sb(__func__, ctxt);
 	return 0;
 }
 

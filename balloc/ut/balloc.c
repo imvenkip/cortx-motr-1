@@ -251,6 +251,15 @@ int main(int argc, char **argv)
 	alloc_req.bar_flags   = C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;
 	rc = c2_balloc_allocate(&ctxt, &alloc_req);
 
+	if (rc == 0) {
+		printf("Result physical = %llu(=0x%08llx), len=%llu(=0x%08llx)\n",
+			(unsigned long long)alloc_req.bar_physical,
+			(unsigned long long)alloc_req.bar_physical,
+			(unsigned long long)alloc_req.bar_len,
+			(unsigned long long)alloc_req.bar_len);
+
+	}
+
 	c2_balloc_fini(&ctxt);
 	return rc;
 }

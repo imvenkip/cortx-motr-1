@@ -10,3 +10,4 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include \
                        -I@DBSRC@/build_unix 
 
+libc2_la_LDFLAGS       = @PTHREAD_LIBS@
