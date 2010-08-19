@@ -497,6 +497,8 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 
 static int cursor_tol_close[] = { 0 };
 static int cursor_tol_get[] = { -ENOENT, 0 };
+static int cursor_tol_put[] = { 0 };
+static int cursor_tol_del[] = { 0 };
 
 void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 {
@@ -522,6 +524,23 @@ int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	return cursor_get(cursor, pair, DB_PREV);
+}
+
+int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return CURSOR_CALL(cursor, put, 
+			   &pair->dp_key, &pair->dp_rec, DB_CURRENT);
+}
+
+int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return CURSOR_CALL(cursor, put,
+			   &pair->dp_key, &pair->dp_rec, DB_KEYFIRST);
+}
+
+int c2_db_cursor_del(struct c2_db_cursor *cursor)
+{
+	return CURSOR_CALL(cursor, del, 0);
 }
 
 int c2_db_init(void)
