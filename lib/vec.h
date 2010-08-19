@@ -4,7 +4,6 @@
 #define __COLIBRI_LIB_VEC_H__
 
 #include "lib/types.h"
-#include "lib/adt.h"
 
 /**
    @defgroup vec Vectors

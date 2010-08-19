@@ -3,9 +3,10 @@
 #ifndef __COLIBRI_SNS_REPAIR_H__
 #define __COLIBRI_SNS_REPAIR_H__
 
-#include <sm/sm.h>
-#include <lib/refs.h>
-#include <lib/rwlock.h>
+#include "lib/ext.h"
+#include "lib/refs.h"
+#include "lib/rwlock.h"
+#include "sm/sm.h"
 
 /**
    @page snsrepair SNS repair detailed level design specification.

@@ -7,7 +7,6 @@
 
 #include "lib/list.h"
 #include "lib/mutex.h"
-#include "lib/adt.h"
 
 /**
    @defgroup balloc data-block-allocator
