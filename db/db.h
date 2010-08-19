@@ -126,6 +126,12 @@ enum c2_db_pair_flags {
 	DPF_ALLOCATED = 1 << 0
 };
 
+/**
+   Pair of buffers for data-base operations.
+
+   c2_db_pair is a descriptor of buffers where user supplied key and record are
+   stored in and where data-base supplied key and record are retrieved to.
+ */
 struct c2_db_pair {
 	struct c2_table *dp_table;
 	void            *dp_keybuf;
@@ -140,7 +146,17 @@ struct c2_db_pair {
 int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
 void c2_db_pair_fini(struct c2_db_pair *pair);
 
+/**
+   Initialise a pair and allocated buffers of maximal size indicated by
+   table->t_ops->to[]->max_size.
+
+   Buffers will be freed by c2_db_pair_fini().
+ */
 int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
+
+/**
+   Initialise a pair and set buffers to the given values.
+ */
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
 		      void *recbuf, uint32_t recsize);
@@ -253,19 +269,55 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair);
  */
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
 
+/**
+   Data-base cursor.
+
+   A cursor can be positioned at a given (key, rec) in a table, moved around
+   (c2_db_cursor_next(), c2_db_cursor_prev()) and used to update the table
+   (c2_db_cursor_set(), c2_db_cursor_add(), c2_db_cursor_del()).
+ */
 struct c2_db_cursor {
 	struct c2_table *c_table;
 	struct c2_db_tx *c_tx;
 	DBC             *c_dbc;
 };
 
+/**
+   Initialise a cursor.
+
+   The cursor is not initially positioned anywhere. All operations with the
+   cursor will be done in the context of a given transaction.
+ */
 int  c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 		       struct c2_db_tx *tx);
+
+/**
+   Release the resources associated with the cursor.
+ */
 void c2_db_cursor_fini(struct c2_db_cursor *cursor);
 
+/**
+   Position the cursor at the (key, rec) pair with the least key not less than
+   the key of a given pair.
+ */
 int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the next key */
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the previous key */
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Change the key and record of the current cursor pair.  */
+int c2_db_cursor_set (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Add new pair to the table and position the cursor on it. */
+int c2_db_cursor_add (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/**
+    Delete the current pair from the table. For the purpose of following
+    c2_db_cursor_next() and c2_db_cursor_prev() calls, the cursor remains
+    positioned over the deleted pair.
+
+    Following calls to c2_db_cursor_del() and c2_db_cursor_set() in the same
+    cursor position will fail.
+ */
+int c2_db_cursor_del (struct c2_db_cursor *cursor);
 
 int  c2_db_init(void);
 void c2_db_fini(void);
