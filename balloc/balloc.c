@@ -19,7 +19,9 @@
    block allocation is stored in database -- Oracle Berkeley DB.
 
  */
-//#define BALLOC_DEBUG
+
+/* This macro is to control the debug verbose message */
+#define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
   #define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
@@ -956,6 +958,7 @@ static int c2_balloc_init_ac(struct c2_balloc_ctxt *ctxt,
 
 	bac->bac_ctxt = ctxt;
 	bac->bac_req  = req;
+	req->bar_physical = 0;
 	bac->bac_order2  = 0;
 	bac->bac_scanned = 0;
 	bac->bac_found   = 0;
@@ -1233,28 +1236,46 @@ static int c2_balloc_find_extent_exact(struct c2_balloc_allocation_context *bac,
 /* called under group lock */
 static int c2_balloc_find_extent_buddy(struct c2_balloc_allocation_context *bac,
 				       struct c2_balloc_group_info *grp,
-				       struct c2_balloc_free_extent *goal,
+				       c2_bcount_t len,
 				       struct c2_balloc_extent *ex)
 {
+	struct c2_balloc_super_block *sb = &bac->bac_ctxt->bc_sb;
 	c2_bcount_t i;
 	c2_bcount_t found = 0;
 	c2_bindex_t start;
-	c2_bcount_t len;
 	struct c2_balloc_extent *fragment;
 	struct c2_balloc_extent min = {.be_len = 0xffffffff };
 
+	start = sb->bsb_groupsize * grp->bgi_groupno;
+
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
-		start = fragment->be_start;
-		len   = fragment->be_len;
 
-		if ((start == goal->bfe_start) && (len >= goal->bfe_len)) {
+repeat:
+		{
+			char msg[128];
+			sprintf(msg, "buddy len=%d:%x start=%llu:%llx",
+				(int)len, (int)len,
+				(unsigned long long)start,
+				(unsigned long long)start);
+			(void)msg;
+			c2_balloc_debug_dump_extent(msg, fragment);
+		}
+		if ((fragment->be_start == start) && (fragment->be_len >= len)){
+
 			found = 1;
-			if (len < min.be_len)
+			if (fragment->be_len < min.be_len)
 				min = *fragment;
 		}
-		if (start > goal->bfe_start)
-			break;
+		if (fragment->be_start > start) {
+			do {
+				start += len;
+			} while (fragment->be_start > start);
+			if (start > sb->bsb_groupsize * (grp->bgi_groupno + 1))
+				break;
+			/* we changed the 'start'. let's restart seaching. */
+			goto repeat;
+		}
 	}
 
 	if (found)
@@ -1487,37 +1508,23 @@ static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 				       struct c2_balloc_group_info *grp)
 {
 	struct c2_balloc_super_block *sb = &bac->bac_ctxt->bc_sb;
-	c2_bindex_t start;
-	c2_bcount_t len;
-	struct c2_balloc_free_extent goal;
 	struct c2_balloc_extent ex;
-	int found = 0;;
+	c2_bcount_t len;
+	int found = 0;
 	ENTER;
 
 	C2_ASSERT(bac->bac_order2 > 0);
-	for (len = 1 << bac->bac_order2; len <= sb->bsb_groupsize; len = len << 1) {
-		start = sb->bsb_groupsize * grp->bgi_groupno;
-		found = 0;
 
-		while (start <= sb->bsb_groupsize * (grp->bgi_groupno + 1)) {
-			goal.bfe_start = start;
-			goal.bfe_len   = len;
-
-		debugp("searching at %d: gs = %d, order = %d, len=%d:%x, start=%d:%x\n",
+	len = 1 << bac->bac_order2;
+	for (; len <= sb->bsb_groupsize; len = len << 1) {
+		debugp("searching at %d (gs = %d) for order = %d, len=%d:%x\n",
 			(int)grp->bgi_groupno,
 			(int)sb->bsb_groupsize,
 			(int)bac->bac_order2,
 			(int)len,
-			(int)len,
-			(int)start,
-			(int)start);
+			(int)len);
 
-			found = c2_balloc_find_extent_buddy(bac, grp, &goal, &ex);
-			if (found)
-				break;
-
-			start += len;
-		}
+		found = c2_balloc_find_extent_buddy(bac, grp, len, &ex);
 		if (found)
 			break;
 	}
@@ -1711,7 +1718,10 @@ out:
 
    @param ctxt balloc operation context environment.
    @param req allocate request which includes all parameters.
-   @return 0 means success. Result allocated blocks are again stored in "req".
+   @return 0 means success.
+	   Result allocated blocks are again stored in "req":
+	   result physical block number = bar_physical,
+	   result count of blocks = bar_len.
            Upon failure, non-zero error number is returned.
  */
 int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt,
@@ -1749,6 +1759,7 @@ int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt,
 		c2_balloc_normalize_request(&bac);
 
 		rc = c2_balloc_regular_allocator(&bac);
+		bac.bac_req->bar_err = rc;
 		if (rc == 0 && bac.bac_status == C2_BALLOC_AC_STATUS_FOUND) {
 			bac.bac_req->bar_physical = bac.bac_final.bfe_start;
 			bac.bac_req->bar_len = bac.bac_final.bfe_len;
