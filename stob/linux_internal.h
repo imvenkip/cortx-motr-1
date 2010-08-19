@@ -14,6 +14,7 @@
 #include <libaio.h>
 
 #include "db/db.h"
+#include "db/extmap.h"
 #include "lib/thread.h"
 
 #include "stob.h"
@@ -51,14 +52,7 @@ struct linux_domain {
 	struct c2_list   sdl_object;
 
 	struct c2_dbenv  sdl_dbenv;
-	struct c2_table  sdl_mapping;
-        uint32_t         sdl_dbenv_flags;
-        uint32_t         sdl_db_flags;
-        uint32_t         sdl_txn_flags;
-        uint32_t         sdl_cache_size;
-        uint32_t         sdl_nr_thread;
-        uint32_t         sdl_recsize;
-        int              sdl_direct_db;
+	struct c2_emap   sdl_adata;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -118,6 +112,12 @@ void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
 
 extern struct c2_addb_ctx adieu_addb_ctx;
+
+enum linux_stob_allocation_extent_type {
+	AET_MIN = ~0ULL - (1ULL << 32),
+	AET_NONE,
+	AET_HOLE
+};
 
 /** @} end group stoblinux */
 

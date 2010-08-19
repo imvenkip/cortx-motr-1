@@ -78,29 +78,36 @@ void c2_stob_fini(struct c2_stob *obj)
 	c2_addb_ctx_fini(&obj->so_addb);
 }
 
+C2_BASSERT(sizeof(struct c2_uint128) == sizeof(struct c2_stob_id));
+
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
-	return memcmp(id0, id1, sizeof *id0) == 0;
+	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
 }
 
 int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
-	return C2_3WAY(id0->si_seq, id0->si_seq) ?: C2_3WAY(id0->si_id, 
-							    id1->si_id);
+	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
 }
 
 bool c2_stob_id_is_set(const struct c2_stob_id *id)
 {
-	return !c2_stob_id_eq(id, &(struct c2_stob_id){ 0, });
+	static const struct c2_stob_id zero = {
+		.si_bits = {
+			.u_hi = 0,
+			.u_lo = 0
+		}
+	};
+	return !c2_stob_id_eq(id, &zero);
 }
 
-int c2_stob_locate(struct c2_stob *obj)
+int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
-		result = obj->so_op->sop_locate(obj);
+		result = obj->so_op->sop_locate(obj, tx);
 		switch (result) {
 		case 0:
 			obj->so_state = CSS_EXISTS;
@@ -124,14 +131,14 @@ int c2_stob_locate(struct c2_stob *obj)
 	return result;
 }
 
-int c2_stob_create(struct c2_stob *obj)
+int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
 	case CSS_NOENT:
-		result = obj->so_op->sop_create(obj);
+		result = obj->so_op->sop_create(obj, tx);
 		if (result == 0)
 			obj->so_state = CSS_EXISTS;
 		break;

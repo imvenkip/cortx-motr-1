@@ -2,6 +2,7 @@
 #  include <config.h>
 #endif
 
+#include <stdlib.h>    /* system */
 #include <stdio.h>     /* fopen, fgetc, ... */
 #include <unistd.h>    /* unlink */
 #include <sys/stat.h>  /* mkdir */
@@ -28,8 +29,10 @@ enum {
 
 static struct c2_stob_domain *dom;
 static const struct c2_stob_id id = {
-	.si_seq = 1,
-	.si_id = 2
+	.si_bits = {
+		.u_hi = 1,
+		.u_lo = 2
+	}
 };
 static struct c2_stob *obj;
 static struct c2_stob *obj1;
@@ -43,6 +46,7 @@ static char *read_bufs[NR];
 static c2_bindex_t stob_vec[NR];
 static struct c2_clink clink;
 static FILE *f;
+static struct c2_dtx tx;
 
 static int test_adieu_init(void)
 {
@@ -50,6 +54,9 @@ static int test_adieu_init(void)
 	int result;
 
 	result = linux_stob_module_init();
+
+	result = system("rm -fr ./__s");
+	C2_ASSERT(result == 0);
 
 	result = mkdir("./__s", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
@@ -67,7 +74,10 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj);
+	result = dom->sd_ops->sdo_tx_make(dom, &tx);
+	C2_ASSERT(result == 0);
+
+	result = c2_stob_locate(obj, &tx);
 	C2_ASSERT(result == -ENOENT);
 	C2_ASSERT(obj->so_state == CSS_NOENT);
 
@@ -82,7 +92,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj);
+	result = c2_stob_create(obj, &tx);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
@@ -91,16 +101,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
-	c2_stob_put(obj);
-
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
-
-	result = c2_stob_locate(obj);
+	result = c2_stob_locate(obj, &tx);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 
@@ -116,6 +117,11 @@ static int test_adieu_init(void)
 
 static int test_adieu_fini(void)
 {
+	int result;
+
+	result = c2_db_tx_commit(&tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
 	c2_stob_put(obj);
 	dom->sd_ops->sdo_fini(dom);
 	linux_stob_module_fini();
@@ -140,7 +146,7 @@ static void test_write(int i)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);
@@ -172,7 +178,7 @@ static void test_read(int i)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);

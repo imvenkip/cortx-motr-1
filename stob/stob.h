@@ -3,13 +3,14 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
-#include <lib/atomic.h>
-#include <lib/cdefs.h>
-#include <lib/vec.h>
-#include <lib/chan.h>
-#include <lib/rwlock.h>
-#include <addb/addb.h>
-#include <sm/sm.h>
+#include "lib/atomic.h"
+#include "lib/types.h"         /* c2_uint128 */
+#include "lib/cdefs.h"
+#include "lib/vec.h"
+#include "lib/chan.h"
+#include "lib/rwlock.h"
+#include "addb/addb.h"
+#include "sm/sm.h"
 
 /* import */
 struct c2_sm;
@@ -21,6 +22,8 @@ struct c2_io_scope;
 
 struct c2_list;
 struct c2_list_link;
+
+struct c2_db_tx;
 
 /**
    @defgroup stob Storage objects
@@ -110,8 +113,15 @@ struct c2_stob_domain_op {
 
 	   @pre id is from a part of identifier name-space assigned to dom.
 	 */
-	int (*sdo_stob_find)(struct c2_stob_domain *dom, 
+	int (*sdo_stob_find)(struct c2_stob_domain *dom,
 			     const struct c2_stob_id *id, struct c2_stob **out);
+	/**
+	   Furnish a transactional context for this domain.
+
+	   @todo this is a temporary method, until proper DTM interfaces are in
+	   place.
+	 */
+	int (*sdo_tx_make)(struct c2_stob_domain *dom, struct c2_dtx *tx);
 };
 
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
@@ -143,8 +153,7 @@ enum c2_stob_state {
    A storage object in a cluster is identified by identifier of this type.
  */
 struct c2_stob_id {
-	uint64_t  si_seq;
-	uint64_t  si_id;
+	struct c2_uint128 si_bits;
 };
 
 bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
@@ -201,7 +210,7 @@ struct c2_stob_op {
 	  @return 0 success, other values mean error.
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	*/
-	int (*sop_create)(struct c2_stob *stob);
+	int (*sop_create)(struct c2_stob *stob, struct c2_dtx *tx);
 
 	/**
 	   Locate a storage object for this c2_stob.
@@ -210,7 +219,7 @@ struct c2_stob_op {
 	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
-	int (*sop_locate)(struct c2_stob *obj);
+	int (*sop_locate)(struct c2_stob *obj, struct c2_dtx *tx);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -284,7 +293,7 @@ void c2_stob_fini  (struct c2_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-int  c2_stob_locate(struct c2_stob *obj);
+int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Create an object.
@@ -294,7 +303,7 @@ int  c2_stob_locate(struct c2_stob *obj);
    @return 0 success, other values mean error.
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
-int  c2_stob_create(struct c2_stob *obj);
+int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Acquires an additional reference on the object.

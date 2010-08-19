@@ -81,6 +81,12 @@ static void linux_stob_type_fini(struct c2_stob_type *stype)
 	c2_stob_type_fini(stype);
 }
 
+static void linux_db_fini(struct linux_domain *ldom)
+{
+	c2_emap_fini(&ldom->sdl_adata);
+	c2_dbenv_fini(&ldom->sdl_dbenv);
+}
+
 /**
    Implementation of c2_stob_domain_op::sdo_fini().
 
@@ -102,8 +108,29 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 	}
 	c2_rwlock_write_unlock(&self->sd_guard);
 	c2_list_fini(&ldom->sdl_object);
+	linux_db_fini(ldom);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
+}
+
+static int linux_db_init(struct linux_domain *ldom)
+{
+	int   result;
+	char *db_name;
+
+	result = asprintf(&db_name, "%s/db", ldom->sdl_path);
+	if (result >= 0) {
+		result = c2_dbenv_init(&ldom->sdl_dbenv, db_name, 0);
+		free(db_name);
+		if (result == 0) {
+			result = c2_emap_init(&ldom->sdl_adata,
+					      &ldom->sdl_dbenv, "ad");
+			if (result != 0)
+				linux_db_fini(ldom);
+		}
+	} else
+		result = -ENOMEM;
+	return result;
 }
 
 /**
@@ -129,7 +156,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
 		c2_stob_domain_init(dom, type);
-		result = 0; /* c2_ext_init(); */
+		result = linux_db_init(ldom);
 		if (result == 0) {
 			result = linux_domain_io_init(dom);
 			if (result == 0)
@@ -234,6 +261,17 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
 }
 
 /**
+   Implementation of c2_stob_domain_op::sdo_tx_make().
+ */
+static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
+{
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(dom);
+	return c2_db_tx_init(&tx->tx_dbtx, &ldom->sdl_dbenv, 0);
+}
+
+/**
    Helper function constructing a file system path to the object.
  */
 static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
@@ -245,7 +283,8 @@ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
 
 	ldom  = domain2linux(lstob->sl_stob.so_domain);
 	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path, 
-		       lstob->sl_stob.so_id.si_seq, lstob->sl_stob.so_id.si_id);
+		       lstob->sl_stob.so_id.si_bits.u_hi, 
+		       lstob->sl_stob.so_id.si_bits.u_lo);
 	return nob < nr ? 0 : -EOVERFLOW;
 }
 
@@ -298,15 +337,23 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
 /**
    Implementation of c2_stob_op::sop_create().
  */
-static int linux_stob_create(struct c2_stob *obj)
+static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
-	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
+	int                  result;
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(obj->so_domain);
+	result = linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
+	if (result == 0)
+		result = c2_emap_obj_insert(&ldom->sdl_adata, &tx->tx_dbtx,
+					    &obj->so_id.si_bits, AET_NONE);
+	return result;
 }
 
 /**
    Implementation of c2_stob_op::sop_locate().
  */
-static int linux_stob_locate(struct c2_stob *obj)
+static int linux_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	return linux_stob_open(stob2linux(obj), O_RDWR);
 }
@@ -319,7 +366,8 @@ static const struct c2_stob_type_op linux_stob_type_op = {
 
 static const struct c2_stob_domain_op linux_stob_domain_op = {
 	.sdo_fini      = linux_domain_fini,
-	.sdo_stob_find = linux_domain_stob_find
+	.sdo_stob_find = linux_domain_stob_find,
+	.sdo_tx_make   = linux_domain_tx_make
 };
 
 static const struct c2_stob_op linux_stob_op = {
