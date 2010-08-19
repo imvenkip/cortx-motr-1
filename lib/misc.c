@@ -1,10 +1,11 @@
 /* -*- C -*- */
 
-#include <string.h> /* memcmp() */
+#include <string.h>         /* strlen */
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
+#include "lib/arith.h"      /* C2_3WAY */
 
 void __dummy_function(void)
 {
@@ -20,7 +21,7 @@ bool c2_uint128_eq(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 
 int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 {
-	return memcmp(u0, u1, sizeof *u0);
+	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
 }
 
 uint64_t c2_rnd(uint64_t max, uint64_t *prev)
