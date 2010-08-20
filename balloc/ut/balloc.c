@@ -10,7 +10,7 @@
 
 #include "balloc/balloc.h"
 
-static void db_err(DB_ENV *dbenv, int rc, const char * msg)
+void db_err(DB_ENV *dbenv, int rc, const char * msg)
 {
 	dbenv->err(dbenv, rc, msg);
 }
@@ -28,8 +28,8 @@ int c2_balloc_del_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
    Sample code to insert a record and iterate over a db
  */
 
-static int db_insert(struct c2_balloc_ctxt *ctxt, 
-		     struct c2_balloc_allocate_req *req)
+int db_insert(struct c2_balloc_ctxt *ctxt,
+	      struct c2_balloc_allocate_req *req)
 {
 	DB_TXN         *tx = NULL;
 	DB_ENV	       *dbenv = ctxt->bc_dbenv;
@@ -62,8 +62,8 @@ static int db_insert(struct c2_balloc_ctxt *ctxt,
 	return rc;
 }
 
-static int db_update(struct c2_balloc_ctxt *ctxt, 
-		     struct c2_balloc_allocate_req *req)
+int db_update(struct c2_balloc_ctxt *ctxt,
+	      struct c2_balloc_allocate_req *req)
 {
 	DB_TXN         *tx = NULL;
 	DB_ENV	       *dbenv = ctxt->bc_dbenv;
@@ -96,8 +96,8 @@ static int db_update(struct c2_balloc_ctxt *ctxt,
 	return rc;
 }
 
-static int db_delete(struct c2_balloc_ctxt *ctxt, 
-		     struct c2_balloc_allocate_req *req)
+int db_delete(struct c2_balloc_ctxt *ctxt,
+	      struct c2_balloc_allocate_req *req)
 {
 	DB_TXN         *tx = NULL;
 	DB_ENV	       *dbenv = ctxt->bc_dbenv;
@@ -124,8 +124,8 @@ static int db_delete(struct c2_balloc_ctxt *ctxt,
 	return rc;
 }
 
-static int db_list2(struct c2_balloc_ctxt *ctxt, 
-		    struct c2_balloc_allocate_req *req)
+int db_list2(struct c2_balloc_ctxt *ctxt,
+	     struct c2_balloc_allocate_req *req)
 {
 	int  result;
 	DBT  nkeyt;
@@ -155,7 +155,7 @@ static int db_list2(struct c2_balloc_ctxt *ctxt,
 			bn = nkeyt.data;
 			count = nrect.data;
 
-			printf("...[%08llx, %lx]\n", (unsigned long long) *bn, 
+			printf("...[%08llx, %lx]\n", (unsigned long long) *bn,
 			       (unsigned long)*count);
 			free(bn);
 			free(count);
@@ -243,7 +243,7 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
-	db_list2(&ctxt, &alloc_req);
+//	db_list2(&ctxt, &alloc_req);
 
 	alloc_req.bar_logical = 0x88;
 	alloc_req.bar_goal    = 0x8000 * 3 + 1;

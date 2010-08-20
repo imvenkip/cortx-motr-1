@@ -83,6 +83,8 @@ struct c2_balloc_super_block {
         c2_bcount_t	bsb_freeblocks; /*< nr of free blocks */
         c2_bcount_t	bsb_blocksize;  /*< block size in bytes */
         c2_bcount_t	bsb_groupsize;  /*< group size in blocks */
+	uint32_t	bsb_bsbits;     /*< block size bits: power of 2 */
+	uint32_t	bsb_gsbits;     /*< group size bits: power of 2 */
         c2_bcount_t	bsb_groupcount; /*< # of group */
         c2_bcount_t	bsb_reserved_groups;  /*< nr of reserved groups */
         c2_bcount_t	bsb_prealloc_count;   /*< nr of pre-alloc blocks */
@@ -227,7 +229,7 @@ enum c2_balloc_allocation_flag {
  */
 struct c2_balloc_free_req {
 	c2_bindex_t	bfr_logical;  /*< logical offset within the object */
-	c2_bcount_t	bfr_lcount;   /*< count of blocks */
+	c2_bcount_t	bfr_len;      /*< count of blocks */
 	c2_bindex_t	bfr_physical; /*< physical block number */
 	uint32_t	bfr_flags;    /*< free flags */
 };
