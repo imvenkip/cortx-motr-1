@@ -83,9 +83,9 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
 bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
 
 /**
-   Return number of bytes that the cursor have to be moved to reach next segment
-   in its vector (or to move into end of the vector position, when the cursor is
-   already at the last segment).
+   Return number of bytes that the cursor have to be moved to reach the next
+   segment in its vector (or to move into end of the vector position, when the
+   cursor is already at the last segment).
 
    @pre cur->vc_seg < cur->vc_vec->v_nr
  */

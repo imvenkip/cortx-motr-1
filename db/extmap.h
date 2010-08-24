@@ -189,6 +189,13 @@ int c2_emap_prev(struct c2_emap_cursor *iterator);
  */
 int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
 
+int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
+		  void (*del)(struct c2_emap_seg *),
+		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 
+				   uint64_t),
+		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *, 
+				    uint64_t));
+
 /**
    Merge a part of the segment the cursor is currently positioned at with the
    next segment in the map.
@@ -207,6 +214,30 @@ int c2_emap_merge(struct c2_emap_cursor *iterator, c2_bindex_t delta);
 void c2_emap_close(struct c2_emap_cursor *iterator);
 
 #include "db/extmap_internal.h"
+
+/** 
+    Extent map caret.
+
+    A caret is an iterator with finer granularity than a cursor. A caret is a
+    cursor plus an offset within the segment the cursor is currently over.
+
+    Caret interface is intentionally similar to c2_vec_cursor interface, which
+    see for further references.
+
+    Caret implementation is simplified by segment non-emptiness (as guaranteed
+    by extent map invariant).
+ */
+struct c2_emap_caret {
+	struct c2_emap_cursor *ct_it;
+	c2_bindex_t            ct_index;
+};
+
+void c2_emap_caret_init(struct c2_emap_caret *car,
+			struct c2_emap_cursor *it, c2_bindex_t index);
+void c2_emap_caret_fini(struct c2_emap_caret *car);
+int  c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count);
+
+c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car);
 
 /** @} end group extmap */
 

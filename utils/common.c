@@ -9,6 +9,21 @@
 #include "colibri/init.h"
 #include "lib/assert.h"
 
+int reset_sandbox(const char *sandbox)
+{
+	char *cmd;
+	int   rc;
+
+	rc = asprintf(&cmd, "rm -fr '%s'", sandbox);
+	C2_ASSERT(rc > 0);
+
+	rc = system(cmd);
+	C2_ASSERT(rc == 0);
+
+	free(cmd);
+	return rc;
+}
+
 int unit_start(const char *sandbox)
 {
 	int result;
@@ -18,32 +33,29 @@ int unit_start(const char *sandbox)
 
 	result = c2_init();
 	if (result == 0) {
-		result = mkdir(sandbox, 0700);
-		if (result == 0 || errno == EEXIST)
-			result = chdir(sandbox);
-		if (result != 0)
-			result = -errno;
+		result = reset_sandbox(sandbox);
+		if (result == 0) {
+			result = mkdir(sandbox, 0700);
+			if (result == 0)
+				result = chdir(sandbox);
+			if (result != 0)
+				result = -errno;
+		}
 	}
 	return result;
 }
 
 void unit_end(const char *sandbox)
 {
-	char *cmd;
-	int   rc;
+	int rc;
 
 	c2_fini();
 
 	rc = chdir("..");
 	C2_ASSERT(rc == 0);
 
-	rc = asprintf(&cmd, "rm -fr \"%s\"", sandbox);
-	C2_ASSERT(rc > 0);
-
-	rc = system(cmd);
+	rc = reset_sandbox(sandbox);
 	C2_ASSERT(rc == 0);
-
-	free(cmd);
 }
 
 /* 

@@ -81,12 +81,6 @@ static void linux_stob_type_fini(struct c2_stob_type *stype)
 	c2_stob_type_fini(stype);
 }
 
-static void linux_db_fini(struct linux_domain *ldom)
-{
-	c2_emap_fini(&ldom->sdl_adata);
-	c2_dbenv_fini(&ldom->sdl_dbenv);
-}
-
 /**
    Implementation of c2_stob_domain_op::sdo_fini().
 
@@ -108,36 +102,14 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 	}
 	c2_rwlock_write_unlock(&self->sd_guard);
 	c2_list_fini(&ldom->sdl_object);
-	linux_db_fini(ldom);
 	c2_stob_domain_fini(self);
 	c2_free(ldom);
-}
-
-static int linux_db_init(struct linux_domain *ldom)
-{
-	int   result;
-	char *db_name;
-
-	result = asprintf(&db_name, "%s/db", ldom->sdl_path);
-	if (result >= 0) {
-		result = c2_dbenv_init(&ldom->sdl_dbenv, db_name, 0);
-		free(db_name);
-		if (result == 0) {
-			result = c2_emap_init(&ldom->sdl_adata,
-					      &ldom->sdl_dbenv, "ad");
-			if (result != 0)
-				linux_db_fini(ldom);
-		}
-	} else
-		result = -ENOMEM;
-	return result;
 }
 
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   Initialises data-base in (not currently implemented) and adieu sub-system for
-   the domain.
+   Initialises adieu sub-system for the domain.
  */
 static int linux_stob_type_domain_locate(struct c2_stob_type *type, 
 					 const char *domain_name,
@@ -156,13 +128,10 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 		dom = &ldom->sdl_base;
 		dom->sd_ops = &linux_stob_domain_op;
 		c2_stob_domain_init(dom, type);
-		result = linux_db_init(ldom);
-		if (result == 0) {
-			result = linux_domain_io_init(dom);
-			if (result == 0)
-				*out = dom;
-		}
-		if (result != 0)
+		result = linux_domain_io_init(dom);
+		if (result == 0)
+			*out = dom;
+		else
 			linux_domain_fini(dom);
 	} else {
 		C2_ADDB_ADD(&type->st_addb, 
@@ -199,7 +168,7 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 			       struct linux_stob, sl_linkage) {
 		C2_ASSERT(linux_stob_invariant(obj));
 		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
-			c2_atomic64_inc(&obj->sl_stob.so_ref);
+			c2_stob_get(&obj->sl_stob);
 			found = true;
 			break;
 		}
@@ -265,10 +234,7 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
  */
 static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
 {
-	struct linux_domain *ldom;
-
-	ldom  = domain2linux(dom);
-	return c2_db_tx_init(&tx->tx_dbtx, &ldom->sdl_dbenv, 0);
+	return -ENOSYS;
 }
 
 /**
@@ -339,15 +305,10 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
  */
 static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
-	int                  result;
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
-	result = linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
-	if (result == 0)
-		result = c2_emap_obj_insert(&ldom->sdl_adata, &tx->tx_dbtx,
-					    &obj->so_id.si_bits, AET_NONE);
-	return result;
+	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
 }
 
 /**
@@ -392,14 +353,14 @@ const struct c2_addb_ctx_type adieu_addb_ctx_type = {
 
 struct c2_addb_ctx adieu_addb_ctx;
 
-int linux_stob_module_init(void)
+int linux_stobs_init(void)
 {
 	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, 
 			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
 
-void linux_stob_module_fini(void)
+void linux_stobs_fini(void)
 {
 	linux_stob_type.st_op->sto_fini(&linux_stob_type);
 	c2_addb_ctx_fini(&adieu_addb_ctx);

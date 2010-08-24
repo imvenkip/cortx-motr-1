@@ -5,6 +5,7 @@
 
 #include <db.h>
 
+#include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
 

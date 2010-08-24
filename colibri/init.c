@@ -13,6 +13,8 @@
 #include "pool/pool.h"
 #include "lib/trace.h"
 #include "db/db.h"
+#include "stob/linux.h"
+#include "stob/ad.h"
 
 #include "colibri/init.h"
 
@@ -28,18 +30,19 @@ struct init_fini_call {
 };
 
 struct init_fini_call subsystem[] = {
-	{ &c2_trace_init,   &c2_trace_fini,   "trace" },
-	{ &c2_memory_init,  &c2_memory_fini,  "memory" },
-	{ &c2_uts_init,     &c2_uts_fini,     "ut" },
-	{ &c2_threads_init, &c2_threads_fini, "thread" },
-	{ &c2_addb_init,    &c2_addb_fini,    "addb" },
-	{ &c2_db_init,      &c2_db_fini,      "db" },
-	{ &c2_stobs_init,   &c2_stobs_fini,   "stob" },
-	{ &c2_net_init,     &c2_net_fini,     "net" },
-/*	{ &c2_rpclib_init,  &c2_rpclib_fini,  "rpc" }, */
-	{ &c2_layouts_init, &c2_layouts_fini, "layout" },
-	{ &c2_pools_init,   &c2_pools_fini,   "pool" },
-	{ &c2_fops_init,    &c2_fops_fini,    "fop" }
+	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
+	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
+	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
+	{ &c2_threads_init,  &c2_threads_fini, "thread" },
+	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
+	{ &c2_db_init,       &c2_db_fini,      "db" },
+	{ &c2_net_init,      &c2_net_fini,     "net" },
+/*	{ &c2_rpclib_init,   &c2_rpclib_fini,  "rpc" }, */
+	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
+	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
+	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
+	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
+	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
 };
 
 static void fini_nr(int i)

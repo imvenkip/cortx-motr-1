@@ -13,11 +13,8 @@
 
 #include <libaio.h>
 
-#include "db/db.h"
-#include "db/extmap.h"
 #include "lib/thread.h"
-
-#include "stob.h"
+#include "stob/stob.h"
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -42,17 +39,12 @@ enum {
 struct linux_domain {
 	struct c2_stob_domain sdl_base;
 	/**
-	   parent directory to hold the mapping db and objects.
-	   Mapping db will be stored in map.db, and all objects will be stored
-	   in o/AAAAAAAA.BBBBBBBB
-	*/
+	   parent directory to hold the objects.
+	 */
 	char             sdl_path[MAXPATHLEN];
 
 	/** List of all existing c2_stob's. */
 	struct c2_list   sdl_object;
-
-	struct c2_dbenv  sdl_dbenv;
-	struct c2_emap   sdl_adata;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -112,12 +104,6 @@ void linux_domain_io_fini(struct c2_stob_domain *dom);
 int  linux_domain_io_init(struct c2_stob_domain *dom);
 
 extern struct c2_addb_ctx adieu_addb_ctx;
-
-enum linux_stob_allocation_extent_type {
-	AET_MIN = ~0ULL - (1ULL << 32),
-	AET_NONE,
-	AET_HOLE
-};
 
 /** @} end group stoblinux */
 

@@ -145,7 +145,7 @@ static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 			 &it->ec_key, sizeof it->ec_key,
 			 &it->ec_rec, sizeof it->ec_rec);
 	it->ec_key.ek_prefix = *prefix;
-	it->ec_key.ek_offset = offset;
+	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
 	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx);
 }
@@ -159,6 +159,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 	result = it_init(emap, tx, prefix, offset, it);
 	if (result == 0)
 		result = IT_DO_OPEN(it, &c2_db_cursor_get);
+	C2_POST(ergo(result == 0, c2_ext_is_in(&it->ec_seg.ee_ext, offset)));
 	return result;
 }
 
@@ -254,15 +255,12 @@ void c2_emap_close(struct c2_emap_cursor *it)
 	emap_close(it);
 }
 
-int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
+int emap_split_internal(struct c2_emap_cursor *it, struct c2_indexvec *vec)
 {
 	uint32_t    i;
 	int         result;
 	c2_bindex_t scan;
 	c2_bcount_t count;
-
-	C2_PRE(c2_vec_count(&vec->ov_vec) == c2_ext_length(&it->ec_seg.ee_ext));
-	C2_ASSERT(emap_invariant(it));
 
 	result = c2_db_cursor_del(&it->ec_cursor);
 	if (result == 0) {
@@ -277,6 +275,96 @@ int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
 				if (result != 0)
 					break;
 			}
+		}
+	}
+	return result;
+}
+
+int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
+{
+	int         result;
+
+	C2_PRE(c2_vec_count(&vec->ov_vec) == c2_ext_length(&it->ec_seg.ee_ext));
+	C2_ASSERT(emap_invariant(it));
+
+	result = emap_split_internal(it, vec);
+	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	return result;
+}
+
+int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
+		  void (*del)(struct c2_emap_seg *),
+		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 
+				   uint64_t),
+		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *, 
+				    uint64_t))
+{
+	int                    result   = 0;
+	bool                   first;
+	bool                   last;
+	uint64_t               val_orig;
+	struct c2_emap_seg    *seg      = &it->ec_seg;
+	struct c2_ext         *chunk    = &seg->ee_ext;
+
+	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
+	C2_ASSERT(emap_invariant(it));
+
+	for (first = true; !c2_ext_is_empty(ext); first = false) {
+		c2_bcount_t        length[3];
+		c2_bindex_t        bstart[3];
+		c2_bcount_t        consumed;
+		struct c2_ext      clip;
+		struct c2_indexvec vec = {
+			.ov_vec = {
+				.v_nr    = 3,
+				.v_count = length
+			},
+			.ov_index = bstart
+		};
+
+		c2_ext_intersection(ext, chunk, &clip);
+		C2_ASSERT(clip.e_start == ext->e_start);
+		consumed = c2_ext_length(&clip);
+		C2_ASSERT(consumed > 0);
+
+		length[0] = clip.e_start - chunk->e_start;
+		length[1] = first ? c2_ext_length(ext) : 0;
+		length[2] = chunk->e_end - clip.e_end;
+
+		last = clip.e_end == ext->e_end;
+
+		C2_ASSERT(ergo(length[0] > 0, first));
+		C2_ASSERT(ergo(length[2] > 0, last));
+		C2_ASSERT(ergo(!last && !first, 
+			       c2_ext_length(chunk) == consumed));
+
+		bstart[0] = val_orig = seg->ee_val;
+		bstart[1] = val;
+		bstart[2] = bstart[0] + length[0] + consumed;
+
+		if (length[0] > 0) {
+			cut_left(seg, &clip, val_orig);
+			bstart[0] = seg->ee_val;
+		}
+		if (length[2] > 0) {
+			cut_right(seg, &clip, val_orig);
+			bstart[2] = seg->ee_val;
+		}
+		if (length[0] == 0 && length[1] == 0)
+			del(seg);
+		
+		result = emap_split_internal(it, &vec);
+		if (result != 0)
+			break;
+
+		ext->e_start += consumed;
+		C2_ASSERT(ext->e_start <= ext->e_end);
+
+		if (!c2_ext_is_empty(ext)) {
+			C2_PRE(!c2_emap_ext_is_last(&seg->ee_ext));
+			result = emap_next(it);
+			if (result != 0)
+				break;
 		}
 	}
 	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
@@ -345,6 +433,58 @@ int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
 	return result;
 }
 
+static bool c2_emap_caret_invariant(const struct c2_emap_caret *car)
+{
+	return 
+		c2_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
+		(c2_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) && 
+		 car->ct_index == C2_BINDEX_MAX + 1);
+}
+
+void c2_emap_caret_init(struct c2_emap_caret *car,
+			struct c2_emap_cursor *it, c2_bindex_t index)
+{
+	C2_PRE(index <= C2_BINDEX_MAX);
+	C2_PRE(c2_ext_is_in(&it->ec_seg.ee_ext, index));
+	car->ct_it    = it;
+	car->ct_index = index;
+	C2_ASSERT(c2_emap_caret_invariant(car));
+}
+
+void c2_emap_caret_fini(struct c2_emap_caret *car)
+{
+	C2_ASSERT(c2_emap_caret_invariant(car));
+}
+
+int c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count)
+{
+	int result;
+
+	C2_ASSERT(c2_emap_caret_invariant(car));
+	while (count > 0 && car->ct_index < C2_BINDEX_MAX + 1) {
+		c2_bcount_t step;
+
+		step = c2_emap_caret_step(car);
+		if (count >= step) {
+			result = c2_emap_next(car->ct_it);
+			if (result < 0)
+				return result;
+			count -= step;
+			car->ct_index += step;
+		} else {
+			car->ct_index += count;
+			count = 0;
+		}
+	}
+	C2_ASSERT(c2_emap_caret_invariant(car));
+	return car->ct_index == C2_BINDEX_MAX + 1;
+}
+
+c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car)
+{
+	C2_ASSERT(c2_emap_caret_invariant(car));
+	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
+}
 
 /** @} end group extmap */
 

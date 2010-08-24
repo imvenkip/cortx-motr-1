@@ -18,6 +18,8 @@ struct c2_ext {
 };
 
 c2_bcount_t c2_ext_length(const struct c2_ext *ext);
+bool        c2_ext_is_in (const struct c2_ext *ext, c2_bindex_t index);
+
 bool c2_ext_are_overlapping(const struct c2_ext *e0, const struct c2_ext *e1);
 bool c2_ext_is_partof(const struct c2_ext *super, const struct c2_ext *sub);
 bool c2_ext_is_empty(const struct c2_ext *ext);

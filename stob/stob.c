@@ -171,7 +171,7 @@ void c2_stob_put(struct c2_stob *obj)
 static void c2_stob_io_private_fini(struct c2_stob_io *io)
 {
 	if (io->si_stob_private != NULL) {
-		c2_free(io->si_stob_private);
+		io->si_op->sio_fini(io);
 		io->si_stob_private = NULL;
 	}
 }
@@ -231,6 +231,8 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		io->si_tx    = tx;
 		io->si_scope = scope;
 		io->si_state = SIS_BUSY;
+		io->si_rc    = 0;
+		io->si_count = 0;
 		c2_stob_io_lock(obj);
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
@@ -240,18 +242,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	}
 	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
-}
-
-#include "stob/linux.h"
-
-int c2_stobs_init(void)
-{
-	return linux_stob_module_init();
-}
-
-void c2_stobs_fini(void)
-{
-	linux_stob_module_fini();
 }
 
 /** @} end group stob */

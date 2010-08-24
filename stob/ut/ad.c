@@ -16,6 +16,7 @@
 
 #include "stob/stob.h"
 #include "stob/linux.h"
+#include "stob/ad.h"
 
 /**
    @addtogroup stob
@@ -27,15 +28,27 @@ enum {
 	COUNT = 4096*1024
 };
 
-static struct c2_stob_domain *dom;
-static const struct c2_stob_id id = {
+static struct c2_stob_domain *dom_back;
+static struct c2_stob_domain *dom_fore;
+
+static const struct c2_stob_id id_back = {
 	.si_bits = {
 		.u_hi = 1,
 		.u_lo = 2
 	}
 };
-static struct c2_stob *obj;
-static struct c2_stob *obj1;
+
+static const struct c2_stob_id id_fore = {
+	.si_bits = {
+		.u_hi = 11,
+		.u_lo = 22
+	}
+};
+
+static const char db_name[] = "ut-ad";
+
+static struct c2_stob *obj_back;
+static struct c2_stob *obj_fore;
 static const char path[] = "./__s/o/0000000000000001.0000000000000002";
 static struct c2_stob_io io;
 static c2_bcount_t user_vec[NR];
@@ -45,9 +58,10 @@ static char *user_bufs[NR];
 static char *read_bufs[NR];
 static c2_bindex_t stob_vec[NR];
 static struct c2_clink clink;
-static FILE *f;
+static struct c2_dtx tx;
+static struct c2_dbenv db;
 
-static int test_adieu_init(void)
+static int test_ad_init(void)
 {
 	int i;
 	int result;
@@ -61,41 +75,40 @@ static int test_adieu_init(void)
 	result = mkdir("./__s/o", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_ASSERT(result == 0);
+
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
-							  "./__s", &dom);
+							  "./__s", &dom_back);
 	C2_ASSERT(result == 0);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	result = dom_back->sd_ops->sdo_stob_find(dom_back, &id_back, &obj_back);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	C2_ASSERT(obj_back->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj, NULL);
-	C2_ASSERT(result == -ENOENT);
-	C2_ASSERT(obj->so_state == CSS_NOENT);
-
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj1);
+	result = c2_stob_create(obj_back, NULL);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj == obj1);
+	C2_ASSERT(obj_back->so_state == CSS_EXISTS);
 
-	c2_stob_put(obj);
-	c2_stob_put(obj1);
-
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
+	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "",
+						       &dom_fore);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj, NULL);
+	result = ad_setup(dom_fore, &db, obj_back, NULL);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
-	c2_stob_put(obj);
 
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
+	c2_stob_put(obj_back);
 
-	result = c2_stob_locate(obj, NULL);
+	result = dom_fore->sd_ops->sdo_stob_find(dom_fore, &id_fore, &obj_fore);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
+	C2_ASSERT(obj_fore->so_state == CSS_UNKNOWN);
+
+	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
+	C2_ASSERT(result == 0);
+
+	result = c2_stob_create(obj_fore, &tx);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(obj_fore->so_state == CSS_EXISTS);
 
 	for (i = 0; i < NR; ++i) {
 		user_bufs[i] = user_buf[i];
@@ -107,10 +120,16 @@ static int test_adieu_init(void)
 	return result;
 }
 
-static int test_adieu_fini(void)
+static int test_ad_fini(void)
 {
-	c2_stob_put(obj);
-	dom->sd_ops->sdo_fini(dom);
+	int result;
+
+	result = c2_db_tx_commit(&tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
+	c2_stob_put(obj_fore);
+	dom_fore->sd_ops->sdo_fini(dom_fore);
+	dom_back->sd_ops->sdo_fini(dom_back);
 	return 0;
 }
 
@@ -132,7 +151,7 @@ static void test_write(int i)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj_fore, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);
@@ -164,7 +183,7 @@ static void test_read(int i)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj_fore, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);
@@ -179,49 +198,26 @@ static void test_read(int i)
 }
 
 /**
-   Adieu unit-test. 
+   AD unit-test. 
  */
-static void test_adieu(void)
+static void test_ad(void)
 {
-	int ch;
 	int i;
-	int j;
 
-	for (i = 1; i < NR; ++i) {
+	for (i = 1; i < NR; ++i)
 		test_write(i);
-
-		f = fopen(path, "r");
-		for (j = 0; j < i; ++j) {
-			int k;
-
-			for (k = 0; k < COUNT; ++k) {
-				ch = fgetc(f);
-				C2_ASSERT(ch == '\0');
-				C2_ASSERT(!feof(f));
-			}
-			for (k = 0; k < COUNT; ++k) {
-				ch = fgetc(f);
-				C2_ASSERT(ch != '\0');
-				C2_ASSERT(!feof(f));
-			}
-		}
-		ch = fgetc(f);
-		C2_ASSERT(ch == EOF);
-		fclose(f);
-	}
-
 	for (i = 1; i < NR; ++i) {
 		test_read(i);
 		C2_ASSERT(memcmp(user_buf, read_buf, COUNT * i) == 0);
 	}
 }
 
-const struct c2_test_suite adieu_ut = {
-	.ts_name = "adieu-ut",
-	.ts_init = test_adieu_init,
-	.ts_fini = test_adieu_fini,
+const struct c2_test_suite ad_ut = {
+	.ts_name = "ad-ut",
+	.ts_init = test_ad_init,
+	.ts_fini = test_ad_fini,
 	.ts_tests = {
-		{ "adieu", test_adieu },
+		{ "ad", test_ad },
 		{ NULL, NULL }
 	}
 };
@@ -240,10 +236,10 @@ static void ub_read(int i)
 	test_read(NR - 1);
 }
 
-struct c2_ub_set c2_adieu_ub = {
-	.us_name = "adieu-ub",
-	.us_init = (void *)test_adieu_init,
-	.us_fini = (void *)test_adieu_fini,
+struct c2_ub_set c2_ad_ub = {
+	.us_name = "ad-ub",
+	.us_init = (void *)test_ad_init,
+	.us_fini = (void *)test_ad_fini,
 	.us_run  = { 
 		{ .ut_name = "write-prime",
 		  .ut_iter = 1,

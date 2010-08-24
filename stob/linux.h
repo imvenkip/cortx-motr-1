@@ -13,8 +13,8 @@
 
 extern struct c2_stob_type linux_stob_type;
 
-int  linux_stob_module_init(void);
-void linux_stob_module_fini(void);
+int  linux_stobs_init(void);
+void linux_stobs_fini(void);
 
 /** @} end group stoblinux */
 

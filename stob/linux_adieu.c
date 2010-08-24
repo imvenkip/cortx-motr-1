@@ -141,11 +141,19 @@ int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 	return result;
 }
 
-static void linux_stob_io_fini(struct linux_stob_io *lio)
+static void linux_stob_io_release(struct linux_stob_io *lio)
 {
 	c2_free(lio->si_qev);
 	lio->si_qev = NULL;
+}
+
+static void linux_stob_io_fini(struct c2_stob_io *io)
+{
+	struct linux_stob_io *lio = io->si_stob_private;
+
+	linux_stob_io_release(lio);
 	c2_mutex_fini(&lio->si_endlock);
+	c2_free(lio);
 }
 
 /**
@@ -182,8 +190,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 
 	frags = 0;
 	do {
-		frag_size = min_type(c2_bcount_t, c2_vec_cursor_step(&src),
-				     c2_vec_cursor_step(&dst));
+		frag_size = min_check(c2_vec_cursor_step(&src),
+				      c2_vec_cursor_step(&dst));
 		C2_ASSERT(frag_size > 0);
 		frags++;
 		eosrc = c2_vec_cursor_move(&src, frag_size);
@@ -204,9 +212,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			c2_bindex_t  off;
 			struct iocb *iocb;
 
-			frag_size = min_type(c2_bcount_t, 
-					     c2_vec_cursor_step(&src),
-					     c2_vec_cursor_step(&dst));
+			frag_size = min_check(c2_vec_cursor_step(&src),
+					      c2_vec_cursor_step(&dst));
 			if (frag_size > (size_t)~0ULL) {
 				ADDB_CALL(io->si_obj, "frag_overflow", 
 					  frag_size);
@@ -255,12 +262,13 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	}
 
 	if (result != 0)
-		linux_stob_io_fini(lio);
+		linux_stob_io_release(lio);
 	return result;
 }
 
 static const struct c2_stob_io_op linux_stob_io_op = {
-	.sio_launch  = linux_stob_io_launch
+	.sio_launch  = linux_stob_io_launch,
+	.sio_fini    = linux_stob_io_fini
 };
 
 /**
@@ -406,7 +414,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 			C2_ASSERT(!c2_queue_link_is_in
 				  (&lio->si_qev[i].iq_linkage));
 		}
-		linux_stob_io_fini(lio);
+		linux_stob_io_release(lio);
 		io->si_state = SIS_IDLE;
 		c2_chan_broadcast(&io->si_wait);
 	}
@@ -450,7 +458,7 @@ static void ioq_thread(struct linux_domain *ldom)
 			C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
 			ioq_complete(ldom, qev, iev->res, iev->res2);
 		}
-		if (got < 0)
+		if (got < 0 && got != -EINTR)
 			ADDB_GLOBAL_ADD("io_getevents", got);
 
 		ioq_queue_submit(ldom);

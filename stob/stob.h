@@ -62,8 +62,8 @@ struct c2_stob_type_op {
 	int  (*sto_init)(struct c2_stob_type *stype);
 	void (*sto_fini)(struct c2_stob_type *stype);
 	/**
-	   Locates a storage objects domain with specified name, creating it if
-	   none exists.
+	   Locates a storage objects domain with a specified name, creating it
+	   if none exists.
 
 	   @return 0 success, any other value means error.
 	*/
@@ -634,6 +634,15 @@ struct c2_stob_io {
 
 struct c2_stob_io_op {
 	/**
+	   Called by c2_stob_io_fini() to finalize implementation resources.
+
+	   Also called when the same c2_stob_io is re-used for a different type
+	   of IO.
+
+	   @see c2_stob_io_private_fini().
+	 */
+	void (*sio_fini)(struct c2_stob_io *io);
+	/**
 	   Called by c2_stob_io_launch() to queue IO operation.
 
 	   @note This method releases lock before successful returning.
@@ -643,7 +652,7 @@ struct c2_stob_io_op {
 	   @post ergo(result != 0, io->si_state == SIS_IDLE)
 	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
-	int  (*sio_launch) (struct c2_stob_io *io);
+	int  (*sio_launch)(struct c2_stob_io *io);
 };
 
 /**
@@ -672,9 +681,6 @@ int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 
 /** @} end member group adieu */
-
-int  c2_stobs_init(void);
-void c2_stobs_fini(void);
 
 /** @} end group stob */
 

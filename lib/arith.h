@@ -78,6 +78,15 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
 	__a > __b ? __a : __b;			\
 })
 
+#define min3(a, b, c) (min_check((a), min_check((b), (c))))
+#define max3(a, b, c) (max_check((a), max_check((b), (c))))
+
+static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
+{
+	C2_PRE(lo < hi);
+	return min64u(max64u(lo, x), hi);
+}
+
 /**
    A very simple and fast re-entrant PRNG from Knuth.
 
