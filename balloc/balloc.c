@@ -21,7 +21,7 @@
  */
 
 /* This macro is to control the debug verbose message */
-//#define BALLOC_DEBUG
+#define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
   #define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
@@ -1655,7 +1655,9 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 	int found;
 	int ret = 0;
 	ENTER;
-	return 0;
+
+	if (!(bac->bac_flags & C2_BALLOC_HINT_TRY_GOAL))
+		goto out;
 
 	debugp("groupno=%llu, start=%llu len=%llu, groupsize (%llu)\n",
 		(unsigned long long)bac->bac_goal.bfe_groupno,
@@ -1663,9 +1665,6 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 		(unsigned long long)bac->bac_goal.bfe_len,
 		(unsigned long long)bac->bac_ctxt->bc_sb.bsb_groupsize
         );
-
-	if (!(bac->bac_flags & C2_BALLOC_HINT_TRY_GOAL))
-		goto out;
 
 	c2_balloc_lock_group(grp);
 	if (grp->bgi_maxchunk < bac->bac_goal.bfe_len)
@@ -1807,6 +1806,11 @@ int c2_balloc_check_limits(struct c2_balloc_allocation_context *bac,
 	int max_to_scan = C2_BALLOC_DEFAULT_MAX_TO_SCAN;
 	int max_groups  = C2_BALLOC_DEFAULT_MAX_GROUPS_TO_SCAN;
 	int min_to_scan = C2_BALLOC_DEFAULT_MIN_TO_SCAN;
+	ENTER;
+
+	debugp("check limits for group %llu. end = %d\n",
+		(unsigned long long)grp->bgi_groupno,
+		end_of_group);
 
 	if (bac->bac_status == C2_BALLOC_AC_FOUND)
 		return 0;
@@ -1834,7 +1838,10 @@ static int c2_balloc_measure_extent(struct c2_balloc_allocation_context *bac,
 {
 	struct c2_balloc_free_extent *goal = &bac->bac_goal;
 	struct c2_balloc_free_extent *best = &bac->bac_best;
+	int rc;
+	ENTER;
 
+	c2_balloc_debug_dump_extent(__func__, ex);
 	bac->bac_found++;
 
 	if ((bac->bac_flags & C2_BALLOC_HINT_FIRST) ||
@@ -1843,6 +1850,7 @@ static int c2_balloc_measure_extent(struct c2_balloc_allocation_context *bac,
 		best->bfe_start   = ex->be_start;
 		best->bfe_len     = ex->be_len;
 		c2_balloc_use_best_found(bac);
+		LEAVE;
 		return 0;
 	}
 
@@ -1850,6 +1858,7 @@ static int c2_balloc_measure_extent(struct c2_balloc_allocation_context *bac,
 		best->bfe_groupno = grp->bgi_groupno;
 		best->bfe_start   = ex->be_start;
 		best->bfe_len     = ex->be_len;
+		LEAVE;
 		return 0;
 	}
 
@@ -1869,7 +1878,10 @@ static int c2_balloc_measure_extent(struct c2_balloc_allocation_context *bac,
 			best->bfe_len     = ex->be_len;
 		}
 	}
-	return c2_balloc_check_limits(bac, grp, 0);
+
+	rc = c2_balloc_check_limits(bac, grp, 0);
+	LEAVE;
+	return rc;
 }
 
 /**
@@ -1882,6 +1894,11 @@ static int c2_balloc_wild_scan_group(struct c2_balloc_allocation_context *bac,
 	c2_bcount_t i;
 	c2_bcount_t free;
 	struct c2_balloc_extent *ex;
+	int rc;
+	ENTER;
+
+	debugp("Wild scanning at group %llu\n",
+		(unsigned long long)grp->bgi_groupno);
 
 	free = grp->bgi_freeblocks;
 
@@ -1893,16 +1910,21 @@ static int c2_balloc_wild_scan_group(struct c2_balloc_allocation_context *bac,
 				(unsigned long long)grp->bgi_groupno,
 				(unsigned long long)ex->be_start,
 				(unsigned long long)ex->be_len);
+			LEAVE;
 			return -EINVAL;
 		}
 		c2_balloc_measure_extent(bac, grp, ex);
 
 		free -= ex->be_len;
-		if (free==0 || bac->bac_status!=C2_BALLOC_AC_CONTINUE)
+		if (free == 0 || bac->bac_status != C2_BALLOC_AC_CONTINUE) {
+			LEAVE;
 			return 0;
+		}
 	}
 
-	return c2_balloc_check_limits(bac, grp, 1);
+	rc = c2_balloc_check_limits(bac, grp, 1);
+	LEAVE;
+	return rc;
 }
 
 /*
@@ -1917,6 +1939,8 @@ static int c2_balloc_try_best_found(struct c2_balloc_allocation_context *bac)
 	struct c2_balloc_group_info *grp = &bac->bac_ctxt->bc_group_info[group];
 	struct c2_balloc_extent *ex;
 	c2_bcount_t i;
+	int rc = -ENOENT;
+	ENTER;
 
 	c2_balloc_lock_group(grp);
 
@@ -1927,15 +1951,25 @@ static int c2_balloc_try_best_found(struct c2_balloc_allocation_context *bac)
 		ex = &grp->bgi_extents[i];
 		if (ex->be_start == best->bfe_start &&
                     ex->be_len   == best->bfe_len) {
-			c2_balloc_use_best_found(bac);
+			rc = c2_balloc_use_best_found(bac);
 			break;
 		} else if (ex->be_start > best->bfe_start)
 			break;
 	}
 
+	/* update db according to the allocation result */
+	if (rc == 0 && bac->bac_status == C2_BALLOC_AC_FOUND) {
+		if (bac->bac_goal.bfe_len < bac->bac_best.bfe_len)
+			c2_balloc_new_preallocation(bac);
+
+		rc = c2_balloc_update_db(bac->bac_ctxt, grp,
+					 &bac->bac_final,
+					 C2_BALLOC_ALLOC);
+	}
 out:
 	c2_balloc_unlock_group(grp);
-	return 0;
+	LEAVE;
+	return rc;
 }
 
 static int
@@ -1974,7 +2008,7 @@ c2_balloc_regular_allocator(struct c2_balloc_allocation_context *bac)
 	cr = bac->bac_order2 ? 0 : 1;
 	/*
 	 * cr == 0 try to get exact allocation,
-	 * cr == 2  try to get anything
+	 * cr == 2 try to get anything
 	 */
 repeat:
 	for (;cr < 3 && bac->bac_status == C2_BALLOC_AC_CONTINUE; cr++) {
@@ -2051,7 +2085,7 @@ repeat:
 		 * the best chunk we've found so far
 		 */
 
-		c2_balloc_try_best_found(bac);
+		rc = c2_balloc_try_best_found(bac);
 		if (bac->bac_status != C2_BALLOC_AC_FOUND) {
 			/*
 			 * Someone more lucky has already allocated it.
@@ -2061,6 +2095,7 @@ repeat:
 			bac->bac_status = C2_BALLOC_AC_CONTINUE;
 			bac->bac_flags |= C2_BALLOC_HINT_FIRST;
 			cr = 3;
+			debugp("Let's repeat..........\n");
 			goto repeat;
 		}
 	}
