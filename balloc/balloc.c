@@ -21,18 +21,25 @@
  */
 
 /* This macro is to control the debug verbose message */
-//#define BALLOC_DEBUG
+#define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
   #define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
   #define LEAVE printf("<<<=== %s:%d:%s\n", __FILE__, __LINE__, __func__)
   #define GOTHERE printf("!!! %s:%d:%s\n", __FILE__, __LINE__, __func__)
-  #define debugp printf
+
+  #define debugp(fmt, a...)                                     \
+        do {                                                    \
+                printf("(%s, %d): %s: ",                        \
+                       __FILE__, __LINE__, __func__);           \
+                printf(fmt, ## a);                              \
+        } while (0)
+
 #else
   #define ENTER
   #define LEAVE
   #define GOTHERE
-  #define debugp(unused, ...)
+  #define debugp(fmt, a...)
 #endif
 
 void c2_balloc_debug_dump_free_extent(const char *tag,
@@ -376,7 +383,7 @@ static int c2_balloc_blockno_compare(DB *db, const DBT *dbt1, const DBT *dbt2)
    @param dbp [out] db pointer returned.
 */
 
-static int 
+static int
 c2_balloc_open_db(DB_ENV *dbenv, const char *name, uint32_t flags,
 		  int (*key_compare)(DB *db, const DBT *dbt1, const DBT *dbt2),
 		  DB **dbp)
@@ -563,7 +570,7 @@ int c2_balloc_format(struct c2_balloc_format_req *req)
 		char db_name[64];
 
 		debugp("creating extent for group %d\n", i);
-		snprintf(db_name, ARRAY_SIZE(db_name), 
+		snprintf(db_name, ARRAY_SIZE(db_name),
 			 "group_extents_%09d", i);
 		rc = c2_balloc_open_db(dbenv, db_name, db_flags,
 				       c2_balloc_blockno_compare,
@@ -934,7 +941,7 @@ int c2_balloc_abort_txn(struct c2_balloc_ctxt *ctxt)
 	return rc;
 }
 
-static int 
+static int
 c2_balloc_discard_prealloc_internal(struct c2_balloc_prealloc *prealloc)
 {
 	c2_list_del(&prealloc->bpr_link);
@@ -1043,7 +1050,7 @@ static int c2_balloc_claim_free_blocks(struct c2_balloc_ctxt *ctxt,
 /*
  * here we normalize request for locality group
  */
-static void 
+static void
 c2_balloc_normalize_group_request(struct c2_balloc_allocation_context *bac)
 {
 	if (bac->bac_ctxt->bc_sb.bsb_stripe_size)
@@ -1146,7 +1153,7 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp)
 	int size;
         c2_bcount_t maxchunk = 0;
 	c2_bcount_t count = 0;
-	
+
 	if (grp->bgi_extents != NULL) {
 		/* already loaded */
 		return 0;
@@ -1305,7 +1312,7 @@ repeat:
 static int c2_balloc_use_best_found(struct c2_balloc_allocation_context *bac)
 {
 	bac->bac_best.bfe_logical = bac->bac_goal.bfe_logical;
-	bac->bac_best.bfe_len = min_check(bac->bac_best.bfe_len, 
+	bac->bac_best.bfe_len = min_check(bac->bac_best.bfe_len,
 					  bac->bac_goal.bfe_len);
 
 	/* preallocation can change bac_best, thus we store actually
@@ -1632,7 +1639,7 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 
 	c2_balloc_lock_group(grp);
 	if (grp->bgi_maxchunk < bac->bac_goal.bfe_len)
-		goto out_unlock;	
+		goto out_unlock;
 
 	ret = c2_balloc_load_extents(grp);
 	if (ret)
@@ -1666,6 +1673,7 @@ out:
 	return ret;
 }
 
+/* group is locked */
 static int c2_balloc_good_group(struct c2_balloc_allocation_context *bac,
 			        struct c2_balloc_group_info *gi)
 {
@@ -1700,6 +1708,7 @@ static int c2_balloc_good_group(struct c2_balloc_allocation_context *bac,
 	return 0;
 }
 
+/* group is locked */
 static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 				       struct c2_balloc_group_info *grp)
 {
@@ -1738,19 +1747,162 @@ static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 	return 0;
 }
 
-int c2_balloc_scan_aligned(struct c2_balloc_allocation_context *bac)
+int c2_balloc_aligned_scan_group(struct c2_balloc_allocation_context *bac,
+				 struct c2_balloc_group_info *grp)
 {
 	return 0;
 }
 
-static int
-c2_balloc_complex_scan_group(struct c2_balloc_allocation_context *bac)
+/*
+ * How long balloc can look for a best extent (in found extents)
+ */
+#define C2_BALLOC_DEFAULT_MAX_TO_SCAN          200
+
+/*
+ * How long balloc must look for a best extent
+ */
+#define C2_BALLOC_DEFAULT_MIN_TO_SCAN          10
+
+/*
+ * How many groups balloc will scan looking for the best chunk
+ */
+#define C2_BALLOC_DEFAULT_MAX_GROUPS_TO_SCAN   5
+
+
+int c2_balloc_check_limits(struct c2_balloc_allocation_context *bac,
+			   struct c2_balloc_group_info *grp,
+			   int end_of_group)
 {
+	int max_to_scan = C2_BALLOC_DEFAULT_MAX_TO_SCAN;
+	int max_groups  = C2_BALLOC_DEFAULT_MAX_GROUPS_TO_SCAN;
+	int min_to_scan = C2_BALLOC_DEFAULT_MIN_TO_SCAN;
+
+	if (bac->bac_status == C2_BALLOC_AC_STATUS_FOUND)
+		return 0;
+
+	if ((bac->bac_found > max_to_scan || bac->bac_scanned > max_groups) &&
+		!(bac->bac_flags & C2_BALLOC_HINT_FIRST)) {
+		bac->bac_status = C2_BALLOC_AC_STATUS_BREAK;
+		return 0;
+	}
+
+	if (bac->bac_best.bfe_len < bac->bac_goal.bfe_len)
+		return 0;
+
+	if ((end_of_group || bac->bac_found >= min_to_scan) &&
+		bac->bac_best.bfe_groupno == grp->bgi_groupno) {
+		c2_balloc_use_best_found(bac);
+	}
+
 	return 0;
 }
 
+static int c2_balloc_measure_extent(struct c2_balloc_allocation_context *bac,
+				    struct c2_balloc_group_info *grp,
+				    struct c2_balloc_extent *ex)
+{
+	struct c2_balloc_free_extent *goal = &bac->bac_goal;
+	struct c2_balloc_free_extent *best = &bac->bac_best;
+
+	bac->bac_found++;
+
+	if ((bac->bac_flags & C2_BALLOC_HINT_FIRST) ||
+	     ex->be_len == goal->bfe_len) {
+		best->bfe_groupno = grp->bgi_groupno;
+		best->bfe_start   = ex->be_start;
+		best->bfe_len     = ex->be_len;
+		c2_balloc_use_best_found(bac);
+		return 0;
+	}
+
+	if (best->bfe_len == 0) {
+		best->bfe_groupno = grp->bgi_groupno;
+		best->bfe_start   = ex->be_start;
+		best->bfe_len     = ex->be_len;
+		return 0;
+	}
+
+	if (best->bfe_len < goal->bfe_len) {
+		/* req is still not satisfied. use the larger one */
+		if (ex->be_len > best->bfe_len) {
+			best->bfe_groupno = grp->bgi_groupno;
+			best->bfe_start   = ex->be_start;
+			best->bfe_len     = ex->be_len;
+		}
+	} else if (ex->be_len > goal->bfe_len) {
+		/* req is satisfied. but it is satisfied again.
+		   use the smaller one */
+		if (ex->be_len < best->bfe_len) {
+			best->bfe_groupno = grp->bgi_groupno;
+			best->bfe_start   = ex->be_start;
+			best->bfe_len     = ex->be_len;
+		}
+	}
+	return c2_balloc_check_limits(bac, grp, 0);
+}
+
+/**
+ * This function scans the specified group for a goal. If maximal
+ * group is locked.
+ */
+static int c2_balloc_wild_scan_group(struct c2_balloc_allocation_context *bac,
+				     struct c2_balloc_group_info *grp)
+{
+	c2_bcount_t i;
+	c2_bcount_t free;
+	struct c2_balloc_extent *ex;
+
+	free = grp->bgi_freeblocks;
+
+	for (i = 0; i < grp->bgi_fragments; i++) {
+		ex = &grp->bgi_extents[i];
+		if (ex->be_len > free) {
+			fprintf(stderr, "corrupt group = %llu, ex=[0x%08llx:0x%08llx]\n",
+				(unsigned long long)grp->bgi_groupno,
+				(unsigned long long)ex->be_start,
+				(unsigned long long)ex->be_len);
+			return -EINVAL;
+		}
+		c2_balloc_measure_extent(bac, grp, ex);
+
+		free -= ex->be_len;
+		if (free == 0 || bac->bac_status != C2_BALLOC_AC_STATUS_CONTINUE)
+			return 0;
+	}
+
+	return c2_balloc_check_limits(bac, grp, 1);
+}
+
+/*
+ * TRY to use the best result found in previous iteration.
+ * The best result may be already used by others who are more lukcy.
+ * Group lock should be taken again.
+ */
 static int c2_balloc_try_best_found(struct c2_balloc_allocation_context *bac)
 {
+	struct c2_balloc_free_extent *best = &bac->bac_best;
+	c2_bcount_t group = best->bfe_groupno;
+	struct c2_balloc_group_info *grp = &bac->bac_ctxt->bc_group_info[group];
+	struct c2_balloc_extent *ex;
+	c2_bcount_t i;
+
+	c2_balloc_lock_group(grp);
+
+	if (grp->bgi_freeblocks < best->bfe_len)
+		goto out;
+
+	for (i = 0; i < grp->bgi_fragments; i++) {
+		ex = &grp->bgi_extents[i];
+		if (ex->be_start == best->bfe_start &&
+                    ex->be_len   == best->bfe_len) {
+			c2_balloc_use_best_found(bac);
+			break;
+		} else if (ex->be_start > best->bfe_start)
+			break;
+	}
+
+out:
+	c2_balloc_unlock_group(grp);
 	return 0;
 }
 
@@ -1839,7 +1991,7 @@ repeat:
 					bac->bac_goal.bfe_len == bac->bac_ctxt->bc_sb.bsb_stripe_size)
 				rc = c2_balloc_simple_scan_group(bac, grp);
 			else
-				rc = c2_balloc_complex_scan_group(bac);
+				rc = c2_balloc_wild_scan_group(bac, grp);
 
 			/* update db according to the allocation result */
 			if (rc == 0 && bac->bac_status == C2_BALLOC_AC_STATUS_FOUND) {
@@ -1871,9 +2023,7 @@ repeat:
 		if (bac->bac_status != C2_BALLOC_AC_STATUS_FOUND) {
 			/*
 			 * Someone more lucky has already allocated it.
-			 * The only thing we can do is just take first
-			 * found block(s)
-			printk(KERN_DEBUG "EXT4-fs: someone won our chunk\n");
+			 * Let's just take first found block(s).
 			 */
 			memset(&bac->bac_best, 0 , sizeof bac->bac_best);
 			bac->bac_status = C2_BALLOC_AC_STATUS_CONTINUE;
@@ -1951,14 +2101,15 @@ int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt,
 	if (!c2_balloc_use_prealloc(&bac)) {
 		/* we did not find suitable free space in prealloc. */
 
-		/* Step 2. Iterate over groups */
 		c2_balloc_normalize_request(&bac);
 
+		/* Step 2. Iterate over groups */
 		rc = c2_balloc_regular_allocator(&bac);
 		bac.bac_req->bar_err = rc;
 		if (rc == 0 && bac.bac_status == C2_BALLOC_AC_STATUS_FOUND) {
-			bac.bac_req->bar_physical = bac.bac_final.bfe_start;
-			bac.bac_req->bar_len = bac.bac_final.bfe_len;
+			/* store the result in req and they will be returned */
+			req->bar_physical = bac.bac_final.bfe_start;
+			req->bar_len = bac.bac_final.bfe_len;
 		}
 	}
 out:
@@ -1968,7 +2119,7 @@ out:
 		else
 			c2_balloc_abort_txn(ctxt);
 	}
-	
+
 	LEAVE;
 	return rc;
 }

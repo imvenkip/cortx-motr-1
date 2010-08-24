@@ -31,10 +31,18 @@ static int c2_balloc_dump_group_desc(struct c2_balloc_ctxt *ctxt,
 				      &gn, sizeof gn,
 				      (void**)&desc, &size);
 	if (result == 0) {
-		printf("groupno=%llu,%llx\n", (unsigned long long)desc->bgd_groupno, (unsigned long long)desc->bgd_groupno);    /*< group number */
-        	printf("freeblocks=%llu,%llx\n", (unsigned long long)desc->bgd_freeblocks, (unsigned long long)desc->bgd_freeblocks); /*< total free blocks */
-        	printf("fragments=%llu,%llx\n", (unsigned long long)desc->bgd_fragments, (unsigned long long)desc->bgd_fragments);  /*< nr of freespace fragments */
-        	printf("maxchunk=%llu,%llx\n", (unsigned long long)desc->bgd_maxchunk, (unsigned long long)desc->bgd_maxchunk);   /*< max bytes of freespace chunk */
+		printf("groupno    =%8llu, 0x%08llx\n",
+			(unsigned long long)desc->bgd_groupno,
+			(unsigned long long)desc->bgd_groupno);
+		printf("freeblocks =%8llu, 0x%08llx\n",
+			(unsigned long long)desc->bgd_freeblocks,
+			(unsigned long long)desc->bgd_freeblocks);
+		printf("fragments  =%8llu, 0x%08llx\n",
+			(unsigned long long)desc->bgd_fragments,
+			(unsigned long long)desc->bgd_fragments);
+		printf("maxchunk   =%8llu, 0x%08llx\n",
+			(unsigned long long)desc->bgd_maxchunk,
+			(unsigned long long)desc->bgd_maxchunk);
 		free(desc);
 	}
 
@@ -65,7 +73,9 @@ int main(int argc, char **argv)
 	}
 
 	rc = c2_balloc_dump_group_desc(&ctxt, gn);
-	
+	if (rc == 0)
+		printf("Dump group desc succeeded.\n");
+
 	c2_balloc_fini(&ctxt);
 	return rc;
 }

@@ -18,6 +18,7 @@ static int c2_balloc_dump_free_extent(struct c2_balloc_ctxt *ctxt,
 	DB  *db;
 	c2_bindex_t	*bn;
 	c2_bcount_t	*count;
+	int sum = 0;
 
 	if (gn > ctxt->bc_sb.bsb_groupcount) {
 		printf("Invalid group number: %llu\n", (unsigned long long)gn);
@@ -36,8 +37,11 @@ static int c2_balloc_dump_free_extent(struct c2_balloc_ctxt *ctxt,
 
 			result = cursor->get(cursor, &nkeyt,
 				     &nrect, DB_NEXT);
-			if ( result != 0)
+			if ( result != 0) {
+				if (result == DB_NOTFOUND)
+					result = 0;
 				break;
+			}
 
 			bn = nkeyt.data;
 			count = nrect.data;
@@ -46,12 +50,16 @@ static int c2_balloc_dump_free_extent(struct c2_balloc_ctxt *ctxt,
 			       (unsigned long)*count);
 			free(bn);
 			free(count);
+			sum++;
 		}
 
 		cursor->close(cursor);
 	}
 
-	return result;
+	if (result)
+		return result;
+	else
+		return sum;
 }
 
 int main(int argc, char **argv)
@@ -78,6 +86,11 @@ int main(int argc, char **argv)
 	}
 
 	rc = c2_balloc_dump_free_extent(&ctxt, gn);
+	if (rc >= 0) {
+		printf("%d free extents dump succeeded\n", rc);
+	} else {
+		printf("Dump free extents failed: rc = %d\n", rc);
+	}
 	
 	c2_balloc_fini(&ctxt);
 	return rc;

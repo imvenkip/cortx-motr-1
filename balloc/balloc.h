@@ -195,7 +195,7 @@ enum c2_balloc_allocation_flag {
 	/** metadata is being allocated */
 	C2_BALLOC_HINT_METADATA           = 1 << 2,
 
-	/** first blocks in the file */
+	/** use the first found extent */
 	C2_BALLOC_HINT_FIRST              = 1 << 3,
 
 	/** search for the best chunk */

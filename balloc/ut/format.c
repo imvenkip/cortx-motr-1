@@ -28,7 +28,9 @@ int main(int argc, char **argv)
 	format_req.bfr_reserved_groups = 2;
 
 	rc = c2_balloc_format(&format_req);
-	if (rc != 0)
+	if (rc == 0) {
+		printf("Successfully formatted!\n");
+	} else
 		err(1, "format error (\"%s\")", path);
 
 	return rc;

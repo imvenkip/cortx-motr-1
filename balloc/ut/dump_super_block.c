@@ -8,11 +8,41 @@
 
 #include "balloc/balloc.h"
 
-extern void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_ctxt *ctxt);
 
 static int c2_balloc_dump_super_block(struct c2_balloc_ctxt *ctxt) 
 {
-	c2_balloc_debug_dump_sb(__func__, ctxt);
+	struct c2_balloc_super_block *sb = &ctxt->bc_sb;
+
+	printf("dumping sb@%p:%p\n"
+		"|---------magic=%llx, state=%llu, version=%llu\n"
+		"|---------total=%llu, free=%llu, bs=%llu@%lx\n"
+		"|---------gs=%llu:@%lx, gc=%llu, rsvd=%llu, prealloc=%llu\n"
+		"|---------time format=%llu,\n"
+		"|---------write=%llu,\n"
+		"|---------mnt=%llu,\n"
+		"|---------last_check=%llu\n"
+		"|---------mount=%llu, max_mnt=%llu, stripe_size=%llu\n",
+		ctxt, sb,
+		(unsigned long long) sb->bsb_magic,
+		(unsigned long long) sb->bsb_state,
+		(unsigned long long) sb->bsb_version,
+		(unsigned long long) sb->bsb_totalsize,
+		(unsigned long long) sb->bsb_freeblocks,
+		(unsigned long long) sb->bsb_blocksize,
+		(unsigned long     ) sb->bsb_bsbits,
+		(unsigned long long) sb->bsb_groupsize,
+		(unsigned long     ) sb->bsb_gsbits,
+		(unsigned long long) sb->bsb_groupcount,
+		(unsigned long long) sb->bsb_reserved_groups,
+		(unsigned long long) sb->bsb_prealloc_count,
+		(unsigned long long) sb->bsb_format_time,
+		(unsigned long long) sb->bsb_write_time,
+		(unsigned long long) sb->bsb_mnt_time,
+		(unsigned long long) sb->bsb_last_check_time,
+		(unsigned long long) sb->bsb_mnt_count,
+		(unsigned long long) sb->bsb_max_mnt_count,
+		(unsigned long long) sb->bsb_stripe_size
+		);
 	return 0;
 }
 
@@ -38,7 +68,9 @@ int main(int argc, char **argv)
 	}
 
 	rc = c2_balloc_dump_super_block(&ctxt);
-	
+	if (rc == 0)
+		printf("Dump super block succeeded.\n");
+
 	c2_balloc_fini(&ctxt);
 	return rc;
 }
