@@ -634,15 +634,25 @@ struct ad_write_ext {
 	struct ad_write_ext *we_next;
 };
 
+static void ad_wext_fini(struct ad_write_ext *wext)
+{
+	struct ad_write_ext *next;
+
+	for (wext = wext->we_next; wext != NULL; wext = next) {
+		next = wext->we_next;
+		c2_free(wext);
+	}
+}
+
 static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			   struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
-			   struct c2_emap_caret *map)
+			   struct c2_emap_caret *map,
+			   struct ad_write_ext  *head)
 {
 	c2_bcount_t          todo;
 	uint32_t             frags;
 	uint32_t             idx;
 	int                  result;
-	struct ad_write_ext  head;
 	struct ad_write_ext *wext;
 	struct ad_write_ext *next;
 	struct c2_stob_io   *back;
@@ -652,7 +662,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	todo = c2_vec_count(&io->si_user.div_vec.ov_vec);
 	back = &aio->ai_back;
-	wext = &head;
+	wext = head;
 	wext->we_offset = io->si_stob.ov_index[0];
 	wext->we_next   = NULL;
 	while (1) {
@@ -678,7 +688,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			break;
 	}
 
-	for (frags = 0, wext = &head; wext != NULL; wext = wext->we_next)
+	for (frags = 0, wext = head; wext != NULL; wext = wext->we_next)
 		frags += ad_write_count(io, src, dst, &wext->we_ext);
 
 	result = ad_vec_alloc(io->si_obj, back, frags);
@@ -689,14 +699,14 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
 
 	idx = 0;
-	for (wext = &head; wext != NULL && result == 0; wext = wext->we_next)
+	for (wext = head; wext != NULL && result == 0; wext = wext->we_next)
 		ad_write_back_fill(io, back, src, dst, &wext->we_ext, &idx);
 	C2_ASSERT(idx == frags);
 
 	c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
 	c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
 
-	for (wext = &head; wext != NULL && result == 0; wext = wext->we_next)
+	for (wext = head; wext != NULL && result == 0; wext = wext->we_next)
 		result = ad_write_map(io, map, wext->we_offset, &wext->we_ext);
 	return result;
 }
@@ -743,9 +753,12 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	case SIO_READ:
 		result = ad_read_launch(io, adom, &src, &dst, &map);
 		break;
-	case SIO_WRITE:
-		result = ad_write_launch(io, adom, &src, &dst, &map);
+	case SIO_WRITE: {
+		struct ad_write_ext head;
+		result = ad_write_launch(io, adom, &src, &dst, &map, &head);
+		ad_wext_fini(&head);
 		break;
+	}
 	default:
 		C2_IMPOSSIBLE("Invalid io type.");
 	}
@@ -793,6 +806,7 @@ static int ad_balloc(struct c2_stob_io *io, c2_bcount_t length,
 
 	out->e_start = reached;
 	out->e_end   = (reached += length);
+	reached += 11;
 	return 0;
 }
 
