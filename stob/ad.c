@@ -594,13 +594,17 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 	C2_ASSERT(*idx <= back->si_stob.ov_vec.v_nr);
 }
 
-static int ad_write_map(struct c2_stob_io *io, struct c2_emap_cursor *it, 
+static int ad_write_map(struct c2_stob_io *io, struct c2_emap_caret *map,
 			c2_bindex_t offset, const struct c2_ext *ext)
 {
-	struct c2_ext todo = *ext;
+	int           result;
+	struct c2_ext todo = {
+		.e_start = offset,
+		.e_end   = offset + c2_ext_length(ext)
+	};
 
-	return c2_emap_paste
-		(it, &todo, offset,
+	result = c2_emap_paste
+		(map->ct_it, &todo, ext->e_start,
 		 LAMBDA(void, (struct c2_emap_seg *seg) {
 		 /* handle extent deletion. */
 			 }),
@@ -618,6 +622,10 @@ static int ad_write_map(struct c2_stob_io *io, struct c2_emap_cursor *it,
 			       c2_ext_length(ext)));
 		C2_ASSERT(ergo(val >= AET_MIN, val == seg->ee_val));
 			 }));
+	/* adjust caret pointer back into a valid position, after manipulating
+	   caret's iterator directly. */
+	map->ct_index = c2_emap_seg_get(map->ct_it)->ee_ext.e_start;
+	return result;
 }
 
 struct ad_write_ext {
@@ -689,8 +697,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
 
 	for (wext = &head; wext != NULL && result == 0; wext = wext->we_next)
-		result = ad_write_map(io, map->ct_it, 
-				      wext->we_offset, &wext->we_ext);
+		result = ad_write_map(io, map, wext->we_offset, &wext->we_ext);
 	return result;
 }
 

@@ -361,7 +361,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		C2_ASSERT(ext->e_start <= ext->e_end);
 
 		if (!c2_ext_is_empty(ext)) {
-			C2_PRE(!c2_emap_ext_is_last(&seg->ee_ext));
+			C2_ASSERT(!c2_emap_ext_is_last(&seg->ee_ext));
 			result = emap_next(it);
 			if (result != 0)
 				break;
