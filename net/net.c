@@ -2,8 +2,7 @@
 #  include <config.h>
 #endif
 
-#include <colibri/colibri.h>
-#include "net.h"
+#include "net/net.h"
 
 /**
    @addtogroup net Networking.

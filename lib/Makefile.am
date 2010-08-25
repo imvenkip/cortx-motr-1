@@ -7,6 +7,4 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
 	               user_space/user_x86_64_atomic.h assert.h cdefs.h \
                        misc.c misc.h ext.c ext.h \
                        ut.c ut.h ub.c ub.h trace.h user_space/trace.c
-INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include \
-                       -I@DBSRC@/build_unix 
 

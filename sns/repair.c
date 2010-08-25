@@ -5,9 +5,7 @@
 /* make it compilable */
 #if 0
 
-#include <colibri/colibri.h>
-
-#include "repair.h"
+#include "sns/repair.h"
 
 static int 
 c2_cm_storage_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)

@@ -8,6 +8,9 @@
 #include "lib/rwlock.h"
 #include "sm/sm.h"
 
+struct c2_io_req;
+struct c2_fop;
+
 /**
    @page snsrepair SNS repair detailed level design specification.
 
@@ -340,11 +343,11 @@ struct c2_cm_iset_cursor_operations {
 struct c2_cm_callbacks {
 	void (*cb_group)     (struct c2_cm *mach, struct c2_dtx *tx /*,XXX*/);
 	void (*cb_layout)    (struct c2_cm *mach, struct c2_dtx *tx,
-			      struct c2_layout *layout, c2_foff_t upto);
+			      struct c2_layout *layout, c2_bindex_t upto);
 	void (*cb_container) (struct c2_cm *mach, struct c2_dtx *tx,
-			      struct c2_container *container, c2_coff_t upto);
+			      struct c2_container *container, c2_bindex_t upto);
 	void (*cb_device)    (struct c2_cm *mach, struct c2_dtx *tx,
-			      struct c2_device *device, c2_doff_t upto);
+			      struct c2_device *device, c2_bindex_t upto);
 	void (*cb_server)    (struct c2_cm *mach, struct c2_dtx *tx,
 			      struct c2_poolserver *server);
 	void (*cb_everything)(struct c2_cm *mach, struct c2_dtx *tx, bool done);
@@ -418,7 +421,7 @@ struct c2_cm_copy_packet {
 	uint32_t	   cp_type;    /**< type of this copy packet */
 	uint32_t	   cp_magic;   /**< magic number */
 	uint64_t	   cp_seqno;   /**< sequence number */
-	struct c2_checksum cp_checksum;/**< checksum of the data */
+	/* struct c2_checksum cp_checksum; */ /**< checksum of the data */
 	struct c2_list_link   cp_linkage; /**< linkage to the global list */
 	struct c2_ref	   cp_ref;     /**< reference count */
 	int (*cp_complete)(struct c2_cm_copy_packet *cp); /**< completion cb*/

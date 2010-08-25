@@ -2,9 +2,7 @@
 #  include <config.h>
 #endif
 
-#include <colibri/colibri.h>
-
-#include "thread.h"
+#include "lib/thread.h"
 
 int libc2_init()
 {

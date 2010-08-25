@@ -1,5 +1,3 @@
-INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix
-
 noinst_PROGRAMS   = rclient rserver
 
 rclient_SOURCES   = rpc-client.c

@@ -439,7 +439,7 @@ fi
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing $CFLAGS $USER_CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I. -I$SRCDIR $CFLAGS $USER_CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
 LDFLAGS="-rdynamic $USER_LDFLAGS"
 
@@ -453,8 +453,6 @@ AC_CONFIG_FILES([
 		 Makefile
 		 m4/Makefile
                  doc/Makefile
-                 include/Makefile
-                 include/colibri/Makefile
                  man/Makefile
                  colibri/Makefile
                  lib/Makefile

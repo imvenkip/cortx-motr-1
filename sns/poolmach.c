@@ -2,9 +2,7 @@
 #  include <config.h>
 #endif
 
-#include <colibri/colibri.h>
-
-#include "repair.h"
+#include "sns/repair.h"
 
 static const struct c2_persistent_sm_ops;
 

@@ -1,5 +1,3 @@
-INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix -I@DBSRC@
-
 if LINUX
 noinst_LTLIBRARIES    = libstob-ut.la
 libstob_ut_la_SOURCES = adieu.c ad.c

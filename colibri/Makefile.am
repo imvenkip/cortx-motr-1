@@ -23,5 +23,4 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
 
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 
-INCLUDES                  = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@ -I@DBSRC@/build_unix 
 
