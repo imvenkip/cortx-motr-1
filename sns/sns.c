@@ -2,10 +2,8 @@
 #  include <config.h>
 #endif
 
-#include <colibri/colibri.h>
-
-#include "sns.h"
-#include "repair.h"
+#include "sns/sns.h"
+#include "sns/repair.h"
 
 int sns_init()
 {

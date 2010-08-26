@@ -3,10 +3,9 @@
 #ifndef __COLIBRI_SM_H__
 #define __COLIBRI_SM_H__
 
-#include <lib/adt.h>
-#include <lib/list.h>
-#include <lib/queue.h>
-#include <dtm/dtm.h>
+#include "lib/list.h"
+#include "lib/queue.h"
+#include "dtm/dtm.h"
 
 /**
    @defgroup sm State machine

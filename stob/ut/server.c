@@ -4,11 +4,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>    /* memset */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 #include <unistd.h>    /* sleep */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -30,17 +30,18 @@
 
 static struct c2_stob_domain *dom;
 
-static struct c2_stob *object_find(const struct c2_fop_fid *fid)
+static struct c2_stob *object_find(const struct c2_fop_fid *fid, 
+				   struct c2_dtx *tx)
 {
 	struct c2_stob_id  id;
 	struct c2_stob    *obj;
 	int result;
 
-	id.si_seq = fid->f_seq;
-	id.si_id  = fid->f_oid;
+	id.si_bits.u_hi = fid->f_seq;
+	id.si_bits.u_lo = fid->f_oid;
 	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
 	C2_ASSERT(result == 0);
-	result = c2_stob_locate(obj);
+	result = c2_stob_locate(obj, tx);
 	return obj;
 }
 
@@ -48,19 +49,30 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	struct c2_io_create     *in = c2_fop_data(fop);
 	struct c2_io_create_rep *ex;
-	struct c2_fop                    *reply;
-	struct c2_stob                   *obj;
-	bool result;
-	
+	struct c2_fop           *reply;
+	struct c2_stob          *obj;
+	struct c2_dtx            tx;
+	int                      result;
+
 	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	obj = object_find(&in->sic_object);
-	result = c2_stob_create(obj);
+	result = dom->sd_ops->sdo_tx_make(dom, &tx);
+	C2_ASSERT(result == 0);
+
+	obj = object_find(&in->sic_object, &tx);
+
+	result = c2_stob_create(obj, &tx);
 	C2_ASSERT(result == 0);
 	ex->sicr_rc = 0;
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+
+	c2_stob_put(obj);
+
+	result = c2_db_tx_commit(&tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
 	return 1;
 }
 
@@ -68,17 +80,21 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	struct c2_io_read     *in = c2_fop_data(fop);
 	struct c2_io_read_rep *ex;
-	struct c2_fop                  *reply;
-	struct c2_stob                 *obj;
-	struct c2_stob_io               io;
-	struct c2_clink                 clink;
-	bool result;
+	struct c2_fop         *reply;
+	struct c2_stob        *obj;
+	struct c2_stob_io      io;
+	struct c2_clink        clink;
+	struct c2_dtx          tx;
+	int                    result;
 
 	reply = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	obj = object_find(&in->sir_object);
+	result = dom->sd_ops->sdo_tx_make(dom, &tx);
+	C2_ASSERT(result == 0);
+
+	obj = object_find(&in->sir_object, &tx);
 
 	C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
 
@@ -99,7 +115,7 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);
@@ -113,6 +129,12 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_stob_io_fini(&io);
 
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+
+	c2_stob_put(obj);
+
+	result = c2_db_tx_commit(&tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
 	return 1;
 }
 
@@ -120,18 +142,22 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	struct c2_io_write     *in = c2_fop_data(fop);
 	struct c2_io_write_rep *ex;
-	struct c2_fop                   *reply;
-	struct c2_stob                  *obj;
-	struct c2_stob_io                io;
-	c2_bcount_t                      count;
-	struct c2_clink                  clink;
-	bool result;
+	struct c2_fop          *reply;
+	struct c2_stob         *obj;
+	struct c2_stob_io       io;
+	struct c2_dtx           tx;
+	c2_bcount_t             count;
+	struct c2_clink         clink;
+	int                     result;
 
 	reply = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	obj = object_find(&in->siw_object);
+	result = dom->sd_ops->sdo_tx_make(dom, &tx);
+	C2_ASSERT(result == 0);
+
+	obj = object_find(&in->siw_object, &tx);
 
 	c2_stob_io_init(&io);
 
@@ -150,7 +176,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
 
-	result = c2_stob_io_launch(&io, obj, NULL, NULL);
+	result = c2_stob_io_launch(&io, obj, &tx, NULL);
 	C2_ASSERT(result == 0);
 
 	c2_chan_wait(&clink);
@@ -164,6 +190,12 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_stob_io_fini(&io);
 
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+
+	c2_stob_put(obj);
+
+	result = c2_db_tx_commit(&tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
 	return 1;
 }
 
@@ -259,7 +291,7 @@ int main(int argc, char **argv)
 							  path, &dom);
 	C2_ASSERT(result == 0);
 
-	memset(&service, 0, sizeof service);
+	C2_SET0(&service);
 
 	service.s_table.not_start = fopt[0]->ft_code;
 	service.s_table.not_nr    = ARRAY_SIZE(fopt);

@@ -15,6 +15,7 @@
 #include <netdb.h>
 #include <rpc/rpc.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -84,15 +85,12 @@ static const struct c2_addb_loc usunrpc_addb_client = {
 	.al_name = "usunrpc-client"
 };
 
-C2_ADDB_EV_DEFINE(usunrpc_addb_gethostbyname,  "gethostbyname", 0x10,
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_gethostbyname_len,  "gethostbyname_len", 0x11,
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_clnttcp_create,  "clnttcp_create", 0x12,
-		  C2_ADDB_CALL);
-
 #define ADDB_ADD(conn, ev, ...) \
 C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client, ev , ## __VA_ARGS__)
+
+#define ADDB_CALL(conn, name, rc)					\
+C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client,                     \
+            c2_addb_func_fail, (name), (rc))
 
 static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 {
@@ -124,7 +122,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	int                sock;
 	struct hostent    *hp;
 
-	memset(&addr, 0, sizeof addr);
+	C2_SET0(&addr);
 	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(id->ssi_host);
 	addr.sin_port        = htons(id->ssi_port);
@@ -133,12 +131,11 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 		if ((hp = gethostbyname(id->ssi_host)) == NULL) {
 			fprintf(stderr, "can't get address for %s\n",
 				id->ssi_host);
-			ADDB_ADD(conn, usunrpc_addb_gethostbyname, 0);
+			ADDB_CALL(conn, "gethostbyname", 0);
 			return -1;
 		}
 		if (hp->h_length > sizeof(struct in_addr)) {
-			ADDB_ADD(conn, usunrpc_addb_gethostbyname_len, 
-				 hp->h_length);
+			ADDB_CALL(conn, "gethostbyname_len", hp->h_length);
 			hp->h_length = sizeof(struct in_addr);
 		}
 		memcpy(&addr.sin_addr, hp->h_addr, hp->h_length);
@@ -153,7 +150,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
-		ADDB_ADD(conn, usunrpc_addb_clnttcp_create, -errno);
+		ADDB_CALL(conn, "clnttcp_create", -errno);
 		result = -errno;
 	}
 	return result;

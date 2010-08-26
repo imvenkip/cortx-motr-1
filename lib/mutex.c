@@ -1,9 +1,8 @@
 /* -*- C -*- */
 
-#include <string.h> /* memset */
-
-#include "mutex.h"
-#include "assert.h"
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/mutex.h"
+#include "lib/assert.h"
 
 /**
    @addtogroup mutex
@@ -15,7 +14,7 @@
 
 static void mutex_owner_reset(struct c2_mutex *mutex)
 {
-	memset(&mutex->m_owner, 0, sizeof mutex->m_owner);
+	C2_SET0(&mutex->m_owner);
 }
 
 void c2_mutex_init(struct c2_mutex *mutex)

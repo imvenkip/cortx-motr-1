@@ -2,12 +2,13 @@
 
 #include <unistd.h>  /* getcwd */
 #include <stdio.h>   /* fprintf */
-#include <string.h>  /* memset */
-#include <errno.h>   /* errno */
-#include <stdlib.h>  /* free */
+#include <errno.h>
+#include <stdlib.h>   /* free */
 #include <sys/stat.h> /* mkdir */
 #include <err.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/errno.h"   /* errno */
 #include "balloc/balloc.h"
 
 void db_err(DB_ENV *dbenv, int rc, const char * msg)
@@ -136,14 +137,14 @@ int db_list2(struct c2_balloc_ctxt *ctxt,
 	c2_bindex_t	*bn;
 	c2_bcount_t	*count;
 
-	memset(&nkeyt, 0, sizeof nkeyt);
-	memset(&nrect, 0, sizeof nrect);
+	C2_SET0(&nkeyt);
+	C2_SET0(&nrect);
 
 	result = db->cursor(db, NULL, &cursor, 0);
 	if (result == 0) {
 		while (1) {
-			memset(&nkeyt, 0, sizeof nkeyt);
-			memset(&nrect, 0, sizeof nrect);
+			C2_SET0(&nkeyt);
+			C2_SET0(&nrect);
 			nrect.flags = DB_DBT_MALLOC;
 			nkeyt.flags = DB_DBT_MALLOC;
 

@@ -3,13 +3,21 @@
 #ifndef __COLIBRI_DTM_H__
 #define __COLIBRI_DTM_H__
 
+#include "db/db.h"
+
 /**
    @defgroup dtm Distributed transaction manager
    @{
 */
 
 struct c2_dtm {};
-struct c2_dtx {};
+
+struct c2_dtx {
+	/**
+	   @todo placeholder for now.
+	 */
+	struct c2_db_tx tx_dbtx;
+};
 
 /** @} end of copymachine group */
 

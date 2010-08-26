@@ -11,12 +11,10 @@
    @{
  */
 
-#include <db.h>
 #include <libaio.h>
 
-#include <lib/thread.h>
-
-#include "stob.h"
+#include "lib/thread.h"
+#include "stob/stob.h"
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -41,24 +39,12 @@ enum {
 struct linux_domain {
 	struct c2_stob_domain sdl_base;
 	/**
-	   parent directory to hold the mapping db and objects.
-	   Mapping db will be stored in map.db, and all objects will be stored
-	   in o/AAAAAAAA.BBBBBBBB
-	*/
+	   parent directory to hold the objects.
+	 */
 	char             sdl_path[MAXPATHLEN];
 
 	/** List of all existing c2_stob's. */
 	struct c2_list   sdl_object;
-
-        DB_ENV          *sdl_dbenv;
-        DB              *sdl_mapping;
-        uint32_t         sdl_dbenv_flags;
-        uint32_t         sdl_db_flags;
-        uint32_t         sdl_txn_flags;
-        uint32_t         sdl_cache_size;
-        uint32_t         sdl_nr_thread;
-        uint32_t         sdl_recsize;
-        int              sdl_direct_db;
 
 	/** @name ioq Linux adieu fields. @{ */
 
@@ -100,12 +86,12 @@ struct linux_stob {
 	struct c2_list_link sl_linkage;
 };
 
-static struct linux_stob *stob2linux(struct c2_stob *stob)
+static inline struct linux_stob *stob2linux(struct c2_stob *stob)
 {
 	return container_of(stob, struct linux_stob, sl_stob);
 }
 
-static struct linux_domain *domain2linux(struct c2_stob_domain *dom)
+static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
 {
 	return container_of(dom, struct linux_domain, sdl_base);
 }

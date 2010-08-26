@@ -1,6 +1,7 @@
 /* -*- C -*- */
 
 #include "lib/ut.h"
+#include "lib/cdefs.h"     /* ARRAY_SIZE */
 #include "lib/vec.h"
 #include "lib/assert.h"
 

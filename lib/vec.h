@@ -4,7 +4,6 @@
 #define __COLIBRI_LIB_VEC_H__
 
 #include "lib/types.h"
-#include "lib/adt.h"
 
 /**
    @defgroup vec Vectors
@@ -84,9 +83,9 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec);
 bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count);
 
 /**
-   Return number of bytes that the cursor have to be moved to reach next segment
-   in its vector (or to move into end of the vector position, when the cursor is
-   already at the last segment).
+   Return number of bytes that the cursor have to be moved to reach the next
+   segment in its vector (or to move into end of the vector position, when the
+   cursor is already at the last segment).
 
    @pre cur->vc_seg < cur->vc_vec->v_nr
  */
@@ -137,9 +136,7 @@ int         c2_diovec_alloc   (struct c2_diovec *vec,
 void        c2_diovec_free    (struct c2_diovec *vec);
 int         c2_diovec_register(struct c2_diovec *vec, 
 			       struct c2_dio_engine *eng);
-
 /** @} end of vec group */
-
 
 /* __COLIBRI_LIB_VEC_H__ */
 #endif

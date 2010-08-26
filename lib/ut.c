@@ -47,9 +47,11 @@ void c2_ut_run(const char *log_file)
 	CU_basic_set_mode(CU_BRM_VERBOSE);
 	CU_basic_run_tests();
 	CU_basic_show_failures(CU_get_failure_list());
-	
+
+#if 0	
 	/* run and save results to xml */
 	CU_automated_run_tests();
+#endif
 }
 
 /** @} end of ut group. */

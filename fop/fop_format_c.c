@@ -1,6 +1,5 @@
 /* -*- C -*- */
 
-#define _GNU_SOURCE /* asprintf */
 #include <stdio.h>
 #include <stdlib.h> /* free(3) */
 

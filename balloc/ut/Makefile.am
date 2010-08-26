@@ -1,5 +1,3 @@
-INCLUDES         = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I@DBSRC@/build_unix
-
 noinst_PROGRAMS  = format balloc dump_free_extent dump_group_desc dump_super_block free
 
 format_SOURCES   = format.c

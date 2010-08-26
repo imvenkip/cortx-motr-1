@@ -16,6 +16,7 @@
 #include <pthread.h>  /* pthread_key */
 #include <unistd.h>    /* close() */
 
+#include "lib/misc.h"  /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
@@ -192,35 +193,15 @@ static struct c2_service *usunrpc_service_get(void)
 	return pthread_getspecific(usunrpc_service_key);
 }
 
-C2_ADDB_EV_DEFINE(usunrpc_addb_sendreply,        "sendreply", 0x10, 
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_freeargs,         "freeargs",   0x11, 
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_getargs,          "getargs",     0x12, 
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_req,              "req", 0x13, 
-		  C2_ADDB_STAMP);
-C2_ADDB_EV_DEFINE(usunrpc_addb_svc_register,     "svc_register", 0x14, 
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_svctcp_create,    "svctcp_create", 0x15, 
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_select,           "select", 0x16, 
-		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_socket,           "socket", 0x17, 
-		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_bind,             "bind", 0x18, 
-		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_reuseaddr,        "reuseaddr", 0x19, 
-		  C2_ADDB_SYSCALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_scheduler_thread, "scheduler_thread", 0x1a,
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_worker_thread,    "worker_thread", 0x1b,
-		  C2_ADDB_CALL);
-C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp,    "EOPNOTSUPP", 0x1c,
-		  C2_ADDB_INVAL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_req,       "req",        0x1, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp, "EOPNOTSUPP", 0x2, C2_ADDB_INVAL);
 
 #define ADDB_ADD(service, ev, ...) \
 C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server, ev , ## __VA_ARGS__)
+
+#define ADDB_CALL(service, name, rc)				\
+C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server,		\
+            c2_addb_func_fail, (name), (rc))
 
 /**
    worker thread.
@@ -258,14 +239,14 @@ static void usunrpc_service_worker(struct c2_service *service)
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,
 					     (xdrproc_t)c2_fop_uxdrproc,
 					     (caddr_t)ret)) {
-			ADDB_ADD(service, usunrpc_addb_sendreply, 0);
+			ADDB_CALL(service, "sendreply", 0);
 			svcerr_systemerr(wi->wi_transp);
 		}
 
 		/* free the arg and res. They are allocated in dispatch() */
 		if (!svc_freeargs(wi->wi_transp, (xdrproc_t)c2_fop_uxdrproc,
 				  (caddr_t) wi->wi_arg))
-			ADDB_ADD(service, usunrpc_addb_freeargs, 0);
+			ADDB_CALL(service, "freeargs", 0);
 		xdr_free((xdrproc_t)c2_fop_uxdrproc, (caddr_t)ret);
 
 		c2_fop_free(ret);
@@ -314,7 +295,7 @@ static void usunrpc_op(struct c2_service *service,
 			   If code reaches here, the client got timeout,
 			   instead of error.
 			*/
-			ADDB_ADD(service, usunrpc_addb_getargs, 0);
+			ADDB_CALL(service, "getargs", 0);
 			svcerr_decode(transp);
 			result = -EPROTO;
 		}
@@ -390,11 +371,11 @@ static int usunrpc_scheduler_init(struct c2_service *service)
 				 usunrpc_dispatch, 0))
 			result = 0;
 		else {
-			ADDB_ADD(service, usunrpc_addb_svc_register, 0);
+			ADDB_CALL(service, "svc_register", 0);
 			svc_destroy(xservice->s_transp);
 		}
 	} else
-		ADDB_ADD(service, usunrpc_addb_svctcp_create, 0);
+		ADDB_CALL(service, "svctcp_create", 0);
 	return result;
 }
 
@@ -429,7 +410,7 @@ static void usunrpc_scheduler(struct c2_service *service)
 		if (ret > 0)
 			svc_getreqset(&listen_local);
 		else if (ret < 0)
-			ADDB_ADD(service, usunrpc_addb_select, ret);
+			ADDB_CALL(service, "select", ret);
 		c2_rwlock_write_unlock(&xservice->s_guard);
 	}
 
@@ -512,24 +493,24 @@ static int usunrpc_service_start(struct c2_service *service,
 
         xservice->s_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (xservice->s_socket == -1) {
-		ADDB_ADD(service, usunrpc_addb_socket, errno);
+		ADDB_CALL(service, "socket", errno);
 		return -errno;
 	}
 
 	i = 1;
 	if (setsockopt(xservice->s_socket, SOL_SOCKET, SO_REUSEADDR,
 		       &i, sizeof(i)) < 0) {
-		ADDB_ADD(service, usunrpc_addb_reuseaddr, errno);
+		ADDB_CALL(service, "reuseaddr", errno);
 		rc = -errno;
 		close(xservice->s_socket);
 		return rc;
 	}
 
-        memset(&addr, 0, sizeof addr);
+        C2_SET0(&addr);
         addr.sin_port = htons(xid->ssi_port);
         if (bind(xservice->s_socket, 
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
-		ADDB_ADD(service, usunrpc_addb_bind, errno);
+		ADDB_CALL(service, "bind", errno);
 		rc = -errno;
 		goto err;
 	}
@@ -547,7 +528,7 @@ static int usunrpc_service_start(struct c2_service *service,
 		            &usunrpc_scheduler_init, &usunrpc_scheduler,
 			    service);
         if (rc != 0) {
-		ADDB_ADD(service, usunrpc_addb_scheduler_thread, rc);
+		ADDB_CALL(service, "scheduler_thread", rc);
 		goto err;
 	}
 
@@ -557,7 +538,7 @@ static int usunrpc_service_start(struct c2_service *service,
 				    struct c2_service *, NULL, 
 				    &usunrpc_service_worker, service);
                 if (rc) {
-			ADDB_ADD(service, usunrpc_addb_worker_thread, rc);
+			ADDB_CALL(service, "worker_thread", rc);
                         goto err;
                 }
         }

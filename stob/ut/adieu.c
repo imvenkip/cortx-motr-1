@@ -2,12 +2,13 @@
 #  include <config.h>
 #endif
 
+#include <stdlib.h>    /* system */
 #include <stdio.h>     /* fopen, fgetc, ... */
-#include <string.h>    /* memset */
 #include <unistd.h>    /* unlink */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -28,8 +29,10 @@ enum {
 
 static struct c2_stob_domain *dom;
 static const struct c2_stob_id id = {
-	.si_seq = 1,
-	.si_id = 2
+	.si_bits = {
+		.u_hi = 1,
+		.u_lo = 2
+	}
 };
 static struct c2_stob *obj;
 static struct c2_stob *obj1;
@@ -49,15 +52,14 @@ static int test_adieu_init(void)
 	int i;
 	int result;
 
-	result = linux_stob_module_init();
+	result = system("rm -fr ./__s");
+	C2_ASSERT(result == 0);
 
 	result = mkdir("./__s", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	result = mkdir("./__s/o", 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
-
-	unlink(path);
 
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
 							  "./__s", &dom);
@@ -67,7 +69,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_locate(obj);
+	result = c2_stob_locate(obj, NULL);
 	C2_ASSERT(result == -ENOENT);
 	C2_ASSERT(obj->so_state == CSS_NOENT);
 
@@ -82,7 +84,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj);
+	result = c2_stob_create(obj, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 	c2_stob_put(obj);
@@ -91,16 +93,7 @@ static int test_adieu_init(void)
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
 
-	result = c2_stob_create(obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_EXISTS);
-	c2_stob_put(obj);
-
-	result = dom->sd_ops->sdo_stob_find(dom, &id, &obj);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
-
-	result = c2_stob_locate(obj);
+	result = c2_stob_locate(obj, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(obj->so_state == CSS_EXISTS);
 
@@ -118,7 +111,6 @@ static int test_adieu_fini(void)
 {
 	c2_stob_put(obj);
 	dom->sd_ops->sdo_fini(dom);
-	linux_stob_module_fini();
 	return 0;
 }
 

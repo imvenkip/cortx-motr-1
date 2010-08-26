@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/cdefs.h"     /* NULL */
 #include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -14,8 +15,11 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 	c2_bcount_t count;
 	uint32_t    i;
 
-	for (count = 0, i = 0; i < vec->v_nr; ++i)
+	for (count = 0, i = 0; i < vec->v_nr; ++i) {
+		/* overflow check */
+		C2_ASSERT(count + vec->v_count[i] >= count);
 		count += vec->v_count[i];
+	}
 	return count;
 }
 

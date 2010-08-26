@@ -1,16 +1,20 @@
 /* -*- C -*- */
 
-#include <stdio.h> /* setbuf */
-#include <stdlib.h> /* atoi */
+#include <stdlib.h>             /* atoi */
 
 #include "lib/ub.h"
-#include "colibri/init.h"
+#include "utils/common.h"
 
 extern struct c2_ub_set c2_list_ub;
 extern struct c2_ub_set c2_thread_ub;
 extern struct c2_ub_set c2_memory_ub;
 extern struct c2_ub_set c2_adieu_ub;
+extern struct c2_ub_set c2_ad_ub;
 extern struct c2_ub_set c2_trace_ub;
+extern struct c2_ub_set c2_db_ub;
+extern struct c2_ub_set c2_emap_ub;
+
+#define UB_SANDBOX "./ub-sandbox"
 
 int main(int argc, char *argv[])
 {
@@ -21,19 +25,19 @@ int main(int argc, char *argv[])
 	else
 		rounds = ~0;
 
-	setbuf(stdout, NULL);
-	setbuf(stderr, NULL);
-
-	if (c2_init() == 0) {
+	if (unit_start(UB_SANDBOX) == 0) {
 
 		c2_ub_set_add(&c2_memory_ub);
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_list_ub);
 		c2_ub_set_add(&c2_adieu_ub);
+		c2_ub_set_add(&c2_ad_ub);
 		c2_ub_set_add(&c2_trace_ub);
+		c2_ub_set_add(&c2_db_ub);
+		c2_ub_set_add(&c2_emap_ub);
 		c2_ub_run(rounds);
 
-		c2_fini();
+		unit_end(UB_SANDBOX);
 	}
 
 	return 0;

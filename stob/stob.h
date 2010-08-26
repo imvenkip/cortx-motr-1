@@ -3,13 +3,14 @@
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
 
-#include <lib/atomic.h>
-#include <lib/cdefs.h>
-#include <lib/vec.h>
-#include <lib/chan.h>
-#include <lib/rwlock.h>
-#include <addb/addb.h>
-#include <sm/sm.h>
+#include "lib/atomic.h"
+#include "lib/types.h"         /* c2_uint128 */
+#include "lib/cdefs.h"
+#include "lib/vec.h"
+#include "lib/chan.h"
+#include "lib/rwlock.h"
+#include "addb/addb.h"
+#include "sm/sm.h"
 
 /* import */
 struct c2_sm;
@@ -21,6 +22,8 @@ struct c2_io_scope;
 
 struct c2_list;
 struct c2_list_link;
+
+struct c2_db_tx;
 
 /**
    @defgroup stob Storage objects
@@ -59,8 +62,8 @@ struct c2_stob_type_op {
 	int  (*sto_init)(struct c2_stob_type *stype);
 	void (*sto_fini)(struct c2_stob_type *stype);
 	/**
-	   Locates a storage objects domain with specified name, creating it if
-	   none exists.
+	   Locates a storage objects domain with a specified name, creating it
+	   if none exists.
 
 	   @return 0 success, any other value means error.
 	*/
@@ -110,8 +113,15 @@ struct c2_stob_domain_op {
 
 	   @pre id is from a part of identifier name-space assigned to dom.
 	 */
-	int (*sdo_stob_find)(struct c2_stob_domain *dom, 
+	int (*sdo_stob_find)(struct c2_stob_domain *dom,
 			     const struct c2_stob_id *id, struct c2_stob **out);
+	/**
+	   Furnish a transactional context for this domain.
+
+	   @todo this is a temporary method, until proper DTM interfaces are in
+	   place.
+	 */
+	int (*sdo_tx_make)(struct c2_stob_domain *dom, struct c2_dtx *tx);
 };
 
 void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
@@ -143,11 +153,11 @@ enum c2_stob_state {
    A storage object in a cluster is identified by identifier of this type.
  */
 struct c2_stob_id {
-	uint64_t  si_seq;
-	uint64_t  si_id;
+	struct c2_uint128 si_bits;
 };
 
-bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+int  c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
 bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**
@@ -200,7 +210,7 @@ struct c2_stob_op {
 	  @return 0 success, other values mean error.
 	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	*/
-	int (*sop_create)(struct c2_stob *stob);
+	int (*sop_create)(struct c2_stob *stob, struct c2_dtx *tx);
 
 	/**
 	   Locate a storage object for this c2_stob.
@@ -209,7 +219,7 @@ struct c2_stob_op {
 	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
-	int (*sop_locate)(struct c2_stob *obj);
+	int (*sop_locate)(struct c2_stob *obj, struct c2_dtx *tx);
 
 	/**
 	   Initialises IO operation structure, preparing it to be queued for a
@@ -283,7 +293,7 @@ void c2_stob_fini  (struct c2_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-int  c2_stob_locate(struct c2_stob *obj);
+int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Create an object.
@@ -293,7 +303,7 @@ int  c2_stob_locate(struct c2_stob *obj);
    @return 0 success, other values mean error.
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
-int  c2_stob_create(struct c2_stob *obj);
+int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Acquires an additional reference on the object.
@@ -624,6 +634,15 @@ struct c2_stob_io {
 
 struct c2_stob_io_op {
 	/**
+	   Called by c2_stob_io_fini() to finalize implementation resources.
+
+	   Also called when the same c2_stob_io is re-used for a different type
+	   of IO.
+
+	   @see c2_stob_io_private_fini().
+	 */
+	void (*sio_fini)(struct c2_stob_io *io);
+	/**
 	   Called by c2_stob_io_launch() to queue IO operation.
 
 	   @note This method releases lock before successful returning.
@@ -633,7 +652,7 @@ struct c2_stob_io_op {
 	   @post ergo(result != 0, io->si_state == SIS_IDLE)
 	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
-	int  (*sio_launch) (struct c2_stob_io *io);
+	int  (*sio_launch)(struct c2_stob_io *io);
 };
 
 /**
@@ -662,9 +681,6 @@ int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
 			struct c2_dtx *tx, struct c2_io_scope *scope);
 
 /** @} end member group adieu */
-
-int  c2_stobs_init(void);
-void c2_stobs_fini(void);
 
 /** @} end group stob */
 

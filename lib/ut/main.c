@@ -1,11 +1,10 @@
 /* -*- C -*- */
 
-#include <lib/ut.h>
+#include "lib/ut.h"
 
 extern void test_memory(void);
 extern void test_list(void);
 extern void test_refs(void);
-extern void test_cache(void);
 extern void test_queue(void);
 extern void test_vec(void);
 extern void test_thread(void);
@@ -22,7 +21,6 @@ const struct c2_test_suite libc2_ut = {
 		{ "memory", test_memory },
 		{ "list", test_list },
 		{ "refs", test_refs },
-		{ "cache", test_cache },
 		{ "queue", test_queue },
 		{ "vec", test_vec },
 		{ "thread", test_thread },

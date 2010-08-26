@@ -17,6 +17,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include "lib/misc.h"   /* C2_SET0 */
+
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)
 #endif
@@ -65,7 +67,7 @@ plprog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		svcerr_noproc (transp);
 		return;
 	}
-	memset ((char *)&argument, 0, sizeof (argument));
+	C2_SET0(&argument);
 	if (!svc_getargs (transp, (xdrproc_t) _xdr_argument, (caddr_t) &argument)) {
 		svcerr_decode (transp);
 		return;

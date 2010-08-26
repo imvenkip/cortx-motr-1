@@ -62,3 +62,5 @@ __s/
 build/
 c2ut.log-Results.xml
 c2.trace
+*.errlog
+*.msglog

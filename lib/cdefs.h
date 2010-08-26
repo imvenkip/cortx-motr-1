@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __COLIBRI_LIB_CDEFS_H_
-#define __COLIBRI_LIB_CDEFS_H_
+#ifndef __COLIBRI_LIB_CDEFS_H__
+#define __COLIBRI_LIB_CDEFS_H__
 
 #ifndef __KERNEL__
 #include "user_space/cdefs.h"
@@ -20,6 +20,10 @@ extern void __dummy_function(void);
  */
 #define AND_NOTHING_ELSE else __dummy_function();
 
+#define c2_is_array(x) \
+	(!__builtin_types_compatible_p(typeof(&(x)[0]), typeof(x)))
+
+/* __COLIBRI_LIB_CDEFS_H__ */
 #endif
 
 /* 

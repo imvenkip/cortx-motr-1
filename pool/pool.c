@@ -26,8 +26,8 @@ int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id)
 {
 	static uint64_t seq = 3;
 
-	id->si_seq = (uint64_t)pool;
-	id->si_id  = seq++;
+	id->si_bits.u_hi = (uint64_t)pool;
+	id->si_bits.u_lo  = seq++;
 	C2_POST(c2_stob_id_is_set(id));
 	return 0;
 }

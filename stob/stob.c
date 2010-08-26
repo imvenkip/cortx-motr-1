@@ -2,8 +2,9 @@
 #  include <config.h>
 #endif
 
-#include <string.h>  /* memset */
-
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/cdefs.h"
+#include "lib/arith.h"   /* C2_3WAY */
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -77,23 +78,36 @@ void c2_stob_fini(struct c2_stob *obj)
 	c2_addb_ctx_fini(&obj->so_addb);
 }
 
+C2_BASSERT(sizeof(struct c2_uint128) == sizeof(struct c2_stob_id));
+
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {
-	return memcmp(id0, id1, sizeof *id0) == 0;
+	return c2_uint128_eq(&id0->si_bits, &id1->si_bits);
+}
+
+int c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
+{
+	return c2_uint128_cmp(&id0->si_bits, &id1->si_bits);
 }
 
 bool c2_stob_id_is_set(const struct c2_stob_id *id)
 {
-	return !c2_stob_id_eq(id, &(struct c2_stob_id){ 0, });
+	static const struct c2_stob_id zero = {
+		.si_bits = {
+			.u_hi = 0,
+			.u_lo = 0
+		}
+	};
+	return !c2_stob_id_eq(id, &zero);
 }
 
-int c2_stob_locate(struct c2_stob *obj)
+int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
-		result = obj->so_op->sop_locate(obj);
+		result = obj->so_op->sop_locate(obj, tx);
 		switch (result) {
 		case 0:
 			obj->so_state = CSS_EXISTS;
@@ -117,14 +131,14 @@ int c2_stob_locate(struct c2_stob *obj)
 	return result;
 }
 
-int c2_stob_create(struct c2_stob *obj)
+int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
 	int result;
 
 	switch (obj->so_state) {
 	case CSS_UNKNOWN:
 	case CSS_NOENT:
-		result = obj->so_op->sop_create(obj);
+		result = obj->so_op->sop_create(obj, tx);
 		if (result == 0)
 			obj->so_state = CSS_EXISTS;
 		break;
@@ -157,7 +171,7 @@ void c2_stob_put(struct c2_stob *obj)
 static void c2_stob_io_private_fini(struct c2_stob_io *io)
 {
 	if (io->si_stob_private != NULL) {
-		c2_free(io->si_stob_private);
+		io->si_op->sio_fini(io);
 		io->si_stob_private = NULL;
 	}
 }
@@ -174,7 +188,7 @@ static void c2_stob_io_unlock(struct c2_stob *obj)
 
 void c2_stob_io_init(struct c2_stob_io *io)
 {
-	memset(io, 0, sizeof *io);
+	C2_SET0(io);
 
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
@@ -217,6 +231,8 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		io->si_tx    = tx;
 		io->si_scope = scope;
 		io->si_state = SIS_BUSY;
+		io->si_rc    = 0;
+		io->si_count = 0;
 		c2_stob_io_lock(obj);
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
@@ -226,18 +242,6 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	}
 	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
-}
-
-#include "stob/linux.h"
-
-int c2_stobs_init(void)
-{
-	return linux_stob_module_init();
-}
-
-void c2_stobs_fini(void)
-{
-	linux_stob_module_fini();
 }
 
 /** @} end group stob */

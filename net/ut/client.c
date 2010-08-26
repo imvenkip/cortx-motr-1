@@ -7,6 +7,7 @@
 #include "lib/assert.h"
 
 // #define C2_RPC_CLIENT 1
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/memory.h"
 #include "net/net.h"
 #include "net/xdr.h"
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
 	struct c2_service_id  node_ret = { .si_uuid = {0} };
 	struct c2_service s1;
 
-	memset(&s1, 0, sizeof s1);
+	C2_SET0(&s1);
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);

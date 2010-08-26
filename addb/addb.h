@@ -104,7 +104,9 @@ struct c2_addb_dp {
 	const struct c2_addb_ev  *ad_ev;
 	enum c2_addb_ev_level     ad_level;
 
-	int ad_rc;
+	/* XXX temporary */
+	int         ad_rc;
+	const char *ad_name;
 };
 
 void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
@@ -198,7 +200,8 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
    Declare addb event operations vector with a given collection of formal
    parameter.
 
-   @see C2_ADDB_SYSCALL, C2_ADDB_CALL, C2_ADDB_STAMP, C2_ADDB_FLAG
+   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL 
+   @see C2_ADDB_STAMP, C2_ADDB_FLAG
  */
 #define C2_ADDB_OPS_DEFINE(ops, ...)					\
 extern const struct c2_addb_ev_ops ops;					\
@@ -208,6 +211,8 @@ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
 
 /** A call to an external system component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_SYSCALL, int rc);
+/** A call to an given function failed. */
+C2_ADDB_OPS_DEFINE(C2_ADDB_FUNC_CALL, const char *fname, int rc);
 /** A call to an C2 component failed. */
 C2_ADDB_OPS_DEFINE(C2_ADDB_CALL, int rc);
 /** An invalid value was supplied. */
@@ -220,6 +225,12 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_FLAG, bool flag);
 /** Report this event when memory allocation fails. */
 extern struct c2_addb_ev c2_addb_oom;
 typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
+
+/** Report this event when function call fails that doesn't fit into a more
+    specific event. */
+extern struct c2_addb_ev c2_addb_func_fail;
+typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp, 
+					    const char *name, int rc);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */

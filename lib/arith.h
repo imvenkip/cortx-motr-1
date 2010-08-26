@@ -78,6 +78,15 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
 	__a > __b ? __a : __b;			\
 })
 
+#define min3(a, b, c) (min_check((a), min_check((b), (c))))
+#define max3(a, b, c) (max_check((a), max_check((b), (c))))
+
+static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
+{
+	C2_PRE(lo < hi);
+	return min64u(max64u(lo, x), hi);
+}
+
 /**
    A very simple and fast re-entrant PRNG from Knuth.
 
@@ -107,6 +116,13 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	return (val + mask) & ~mask;
 }
 
+#define C2_3WAY(v0, v1)					\
+({							\
+	typeof(v0) __a0 = (v0);				\
+	typeof(v1) __a1 = (v1);				\
+							\
+	(__a0 < __a1) ? -1 : (__a0 == __a1 ? 0 : +1);	\
+})
 
 /** @} end of arith group */
 

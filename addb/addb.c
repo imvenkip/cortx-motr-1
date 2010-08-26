@@ -57,19 +57,29 @@ void c2_addb_add(struct c2_addb_dp *dp)
 }
 C2_EXPORTED(c2_addb_add);
 
+static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
+{
+	dp->ad_name = name;
+	dp->ad_rc = rc;
+	return 0;
+}
+
 static int subst_int(struct c2_addb_dp *dp, int rc)
 {
+	dp->ad_name = "";
 	dp->ad_rc = rc;
 	return 0;
 }
 
 static int subst_void(struct c2_addb_dp *dp)
 {
+	dp->ad_name = "";
 	return 0;
 }
 
 static int subst_uint64_t(struct c2_addb_dp *dp, uint64_t val)
 {
+	dp->ad_name = "";
 	dp->ad_rc = val;
 	return 0;
 }
@@ -81,6 +91,14 @@ const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
 	.aeo_level = AEL_NOTE
 };
 C2_EXPORTED(C2_ADDB_SYSCALL);
+
+const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
+	.aeo_subst = (c2_addb_ev_subst_t)subst_name_int,
+	.aeo_size  = sizeof(int32_t) + sizeof(char *),
+	.aeo_name  = "function-failure",
+	.aeo_level = AEL_NOTE
+};
+C2_EXPORTED(C2_ADDB_FUNC_CALL);
 
 const struct c2_addb_ev_ops C2_ADDB_CALL = {
 	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
@@ -117,6 +135,13 @@ struct c2_addb_ev c2_addb_oom = {
 	.ae_ops  = &C2_ADDB_STAMP
 };
 C2_EXPORTED(c2_addb_oom);
+
+struct c2_addb_ev c2_addb_func_fail = {
+	.ae_name = "func-fail",
+	.ae_id   = 0x4,
+	.ae_ops  = &C2_ADDB_FUNC_CALL
+};
+C2_EXPORTED(c2_addb_func_fail);
 
 static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
 	.act_name = "global"
