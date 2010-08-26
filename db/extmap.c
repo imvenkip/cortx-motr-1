@@ -311,6 +311,21 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
 	C2_ASSERT(emap_invariant(it));
 
+	/*
+	 * Iterate over existing segments overlapping with the new one,
+	 * calculating for each, what parts have to be deleted and what remains.
+	 *
+	 * In the worst case, an existing segment can split into three
+	 * parts. Generally, some of these parts can be empty.
+	 *
+	 * Cutting and deleting segments is handled uniformly by
+	 * emap_split_internal(), thanks to the latter skipping empty segments.
+	 *
+	 * Note that the _whole_ new segment is inserted on the first iteration
+	 * of the loop below (see length[1] assignment) thus violating the map
+	 * invariant until the loop exits.
+	 */
+
 	for (first = true; !c2_ext_is_empty(ext); first = false) {
 		c2_bcount_t        length[3];
 		c2_bindex_t        bstart[3];
@@ -340,10 +355,8 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		C2_ASSERT(ergo(!last && !first, 
 			       c2_ext_length(chunk) == consumed));
 
-		bstart[0] = val_orig = seg->ee_val;
 		bstart[1] = val;
-		bstart[2] = bstart[0] + length[0] + consumed;
-
+		val_orig  = seg->ee_val;
 		if (length[0] > 0) {
 			cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;

@@ -50,7 +50,7 @@
    name-space (c2_emap_lookup()) and moved through the segments (c2_emap_next()
    and c2_emap_prev()).
 
-   An extent map can be modified by two functions:
+   An extent map can be modified by the following functions:
 
    @li c2_emap_split(): split a segment into a collection of segments with given
    lengths and values, provided that their total length is the same as the
@@ -58,7 +58,9 @@
 
    @li c2_emap_merge(): merge part of a segment into the next segment. The
    current segment is shrunk (or deleted if it would become empty) and the next
-   segment is expanded downward.
+   segment is expanded downward;
+
+   @li c2_emap_paste() handles more complicated cases.
 
    It's easy to see that these operations preserve extent map invariant that
    extents are non-empty and form the name-space partition.
@@ -189,6 +191,35 @@ int c2_emap_prev(struct c2_emap_cursor *iterator);
  */
 int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
 
+/**
+   Paste segment (ext, val) into the map, deleting or truncating overlapping
+   segments as necessary.
+
+   @param del - this call-back is called when an existing segment is completely
+   covered by a new one and has to be deleted. The segment to be deleted is
+   supplied as the call-back argument;
+
+   @param cut_left - this call-back is called when an existing segment has to be
+   cut to give place to a new one and some non-empty left part of the existing
+   segment remains in the map. c2_ext call-back argument is the extent being cut
+   from the existing segment. The last argument is the value associated with the
+   existing segment. The call-back must set seg->ee_val to the new value
+   associated with the remaining left part of the call-back;
+
+   @param cut_right - similar to cut_left, this call-back is called when some
+   non-empty part of an existing segment survives the paste operation.
+
+   @note It is possible that both left and right cut call-backs are called
+   against the same segment (in the case where new segment fits completely into
+   existing one.
+
+   @note Map invariant is temporarily violated during paste operation. No calls
+   against the map should be made from the call-backs or, more generally, from
+   the same transaction, while paste is running.
+
+   @note Call-backs are called in the order of cursor iteration, but this is not
+   a part of official function contract.
+ */
 int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		  void (*del)(struct c2_emap_seg *),
 		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 
