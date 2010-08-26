@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 
 		printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
 		for (i = 0; ; ++i) {
-			printf("\t%5.5i [%16lx .. %16lx] (%16lx): %16lx\n", i,
+			printf("\t%5.5i [%16lx .. %16lx) (%16lx): %16lx\n", i,
 			       seg->ee_ext.e_start, seg->ee_ext.e_end,
 			       c2_ext_length(&seg->ee_ext), seg->ee_val);
 			if (c2_emap_ext_is_last(&seg->ee_ext))
