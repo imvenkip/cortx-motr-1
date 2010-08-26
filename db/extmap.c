@@ -38,6 +38,17 @@
    name-space and ordered by their starting offsets. This creates a separate
    cursor within the same transaction as the cursor it is called against.
 
+   @li A segment ([A, B), V) is stored as a record (A, V) with a key (prefix,
+   B). Note, that the _high_ extent end is used as a key. This way, standard
+   c2_db_cursor_get() can be used to position a cursor on a segment containing a
+   given offset. Also note, that there is some redundancy in the persistent
+   state: two consecutive segments ([A, B), V) and ([B, C), U) are stored as
+   records (A, V) and (B, U) with keys (prefix, B) and (prefix, C)
+   respectively. B is stored twice. Generally, starting offset of a segment
+   extent can always be deduced from the key of previous segment (and for the
+   first segment it's 0), so some slight economy of storage could be achieved at
+   the expense of increased complexity and occasional extra storage traffic.
+
    @note emap_invariant() is potentially expensive. Consider turning it off
    conditionally.
 

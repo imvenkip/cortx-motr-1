@@ -23,7 +23,7 @@
 
    @f[
            ([0, e_0), v_0), ([e_0, e_1), v_1), \ldots, 
-	   ([e_n, C2_BINDEX_MAX + 1), v_n)
+	   ([e_n, C2\_BINDEX\_MAX + 1), v_n)
    @f]
 
    Note that extents cover the whole name-space from 0 to C2_BINDEX_MAX without
@@ -114,7 +114,7 @@ void c2_emap_fini(struct c2_emap *emap);
    Initially new map consists of a single extent:
 
    @f[
-	   ([0, C2_BINDEX_MAX + 1), val)
+	   ([0, C2\_BINDEX\_MAX + 1), val)
    @f]
  */
 int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx, 
@@ -211,7 +211,7 @@ int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
 
    @note It is possible that both left and right cut call-backs are called
    against the same segment (in the case where new segment fits completely into
-   existing one.
+   existing one).
 
    @note Map invariant is temporarily violated during paste operation. No calls
    against the map should be made from the call-backs or, more generally, from
