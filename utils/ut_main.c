@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 			c2_ut_add(&emap_ut);
 			c2_ut_run("c2ut.log");
 		}
-		unit_end(UT_SANDBOX);
+		//unit_end(UT_SANDBOX);
 	}
 
 	return 0;
