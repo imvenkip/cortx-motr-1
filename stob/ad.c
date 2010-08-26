@@ -52,7 +52,7 @@ struct ad_domain {
 	struct c2_stob            *ad_bstore;
 	/** List of all existing c2_stob's. */
 	struct c2_list             ad_object;
-	struct c2_space_allocator *ad_balloc;
+	struct ad_balloc          *ad_ballroom;
 
 };
 
@@ -104,8 +104,11 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 	struct ad_domain *adom;
 
 	adom = domain2ad(self);
-	c2_emap_fini(&adom->ad_adata);
-	c2_stob_put(adom->ad_bstore);
+	if (adom->ad_setup) {
+		adom->ad_ballroom->ab_ops->bo_fini(adom->ad_ballroom);
+		c2_emap_fini(&adom->ad_adata);
+		c2_stob_put(adom->ad_bstore);
+	}
 	c2_stob_domain_fini(self);
 	c2_free(adom);
 }
@@ -140,8 +143,9 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 }
 
 int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-	     struct c2_stob *bstore, struct c2_space_allocator *balloc)
+	     struct c2_stob *bstore, struct ad_balloc *ballroom)
 {
+	int result;
 	struct ad_domain *adom;
 
 	adom = domain2ad(dom);
@@ -150,12 +154,16 @@ int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
-	adom->ad_dbenv  = dbenv;
-	adom->ad_bstore = bstore;
-	adom->ad_balloc = balloc;
-	adom->ad_setup = true;
-	c2_stob_get(adom->ad_bstore);
-	return c2_emap_init(&adom->ad_adata, dbenv, "ad");
+	result = ballroom->ab_ops->bo_init(ballroom, dbenv);
+	if (result == 0) {
+		adom->ad_dbenv    = dbenv;
+		adom->ad_bstore   = bstore;
+		adom->ad_ballroom = ballroom;
+		adom->ad_setup    = true;
+		c2_stob_get(adom->ad_bstore);
+		result = c2_emap_init(&adom->ad_adata, dbenv, "ad");
+	}
+	return result;
 }
 
 /**
@@ -316,9 +324,23 @@ struct ad_stob_io {
 	struct c2_clink    ai_clink;
 };
 
-static void ad_endio (struct c2_clink *link);
-static int  ad_balloc(struct c2_stob_io *io, c2_bcount_t length, 
-		      struct c2_ext *out);
+static void ad_endio(struct c2_clink *link);
+
+static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
+		     c2_bcount_t count, struct c2_ext *out)
+{
+	C2_PRE(adom->ad_setup);
+	return adom->ad_ballroom->ab_ops->bo_alloc(adom->ad_ballroom,
+						   tx, count, out);
+}
+
+static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
+		    struct c2_ext *ext)
+{
+	C2_PRE(adom->ad_setup);
+	return adom->ad_ballroom->ab_ops->bo_free(adom->ad_ballroom, tx, ext);
+}
+
 
 int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
@@ -532,30 +554,71 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
+struct ad_write_ext {
+	struct c2_ext        we_ext;
+	struct ad_write_ext *we_next;
+};
+
+struct ad_wext_cursor {
+	const struct ad_write_ext *wc_wext;
+	c2_bcount_t                wc_done;
+};
+
+static void ad_wext_cursor_init(struct ad_wext_cursor *wc, 
+				struct ad_write_ext *wext)
+{
+	wc->wc_wext = wext;
+	wc->wc_done = 0;
+}
+
+static c2_bcount_t ad_wext_cursor_step(struct ad_wext_cursor *wc)
+{
+	C2_PRE(wc->wc_wext != NULL);
+	C2_PRE(wc->wc_done < c2_ext_length(&wc->wc_wext->we_ext));
+
+	return c2_ext_length(&wc->wc_wext->we_ext) - wc->wc_done;
+}
+
+static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, c2_bcount_t count)
+{
+	while (count > 0 && wc->wc_wext != NULL) {
+		c2_bcount_t step;
+
+		step = ad_wext_cursor_step(wc);
+		if (count >= step) {
+			wc->wc_wext = wc->wc_wext->we_next;
+			wc->wc_done = 0;
+			count -= step;
+		} else {
+			wc->wc_done += count;
+			count = 0;
+		}
+	}
+	return wc->wc_wext == NULL;
+}
+
 static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
 			       struct c2_vec_cursor *dst, 
-			       const struct c2_ext *ext)
+			       struct ad_wext_cursor *wc)
 {
-	struct c2_ext          todo;
 	uint32_t               frags;
 	c2_bcount_t            frag_size;
 	bool                   eosrc;
 	bool                   eodst;
 	bool                   eoext;
 
-	todo = *ext;
 	frags = 0;
 
 	do {
 		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), c2_ext_length(&todo));
+				 c2_vec_cursor_step(dst), 
+				 ad_wext_cursor_step(wc));
 		C2_ASSERT(frag_size > 0);
 		C2_ASSERT(frag_size <= (size_t)~0ULL);
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
 		eodst = c2_vec_cursor_move(dst, frag_size);
-		todo.e_start += frag_size;
-		eoext = c2_ext_is_empty(&todo);
+		eoext = ad_wext_cursor_move(wc, frag_size);
 
 		C2_ASSERT(eosrc == eodst);
 		C2_ASSERT(ergo(eosrc, eoext));
@@ -567,72 +630,139 @@ static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
 static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 			       struct c2_vec_cursor *src, 
 			       struct c2_vec_cursor *dst, 
-			       const struct c2_ext *ext, uint32_t *idx)
+			       struct ad_wext_cursor *wc)
 {
-	struct c2_ext          todo;
-	c2_bcount_t            frag_size;
+	c2_bcount_t    frag_size;
+	uint32_t       idx;
+	bool           eosrc;
+	bool           eodst;
+	bool           eoext;
 
-	todo = *ext;
-	while (!c2_ext_is_empty(&todo)) {
-		void        *buf;
+	idx = 0;
+	do {
+		void *buf;
 			
 		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), c2_ext_length(&todo));
+				 c2_vec_cursor_step(dst), 
+				 ad_wext_cursor_step(wc));
 
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
 
-		back->si_user.div_vec.ov_vec.v_count[*idx] = frag_size;
-		back->si_user.div_vec.ov_buf[*idx] = buf;
+		back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
+		back->si_user.div_vec.ov_buf[idx] = buf;
 
-		back->si_stob.ov_index[*idx] = todo.e_start;
+		back->si_stob.ov_index[idx] = 
+			wc->wc_wext->we_ext.e_start + wc->wc_done;
 
-		c2_vec_cursor_move(src, frag_size);
-		c2_vec_cursor_move(dst, frag_size);
-		todo.e_start += frag_size;
-		(*idx)++;
-	}
-	C2_ASSERT(*idx <= back->si_stob.ov_vec.v_nr);
+		eosrc = c2_vec_cursor_move(src, frag_size);
+		eodst = c2_vec_cursor_move(dst, frag_size);
+		eoext = ad_wext_cursor_move(wc, frag_size);
+		idx++;
+		C2_ASSERT(eosrc == eodst);
+		C2_ASSERT(eodst == eoext);
+	} while (!eoext);
+	C2_ASSERT(idx == back->si_stob.ov_vec.v_nr);
 }
 
-static int ad_write_map(struct c2_stob_io *io, struct c2_emap_caret *map,
-			c2_bindex_t offset, const struct c2_ext *ext)
+static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
+			    c2_bindex_t offset, struct c2_emap_cursor *orig, 
+			    const struct c2_ext *ext)
 {
-	int           result;
-	struct c2_ext todo = {
+	int                    result;
+	int                    rc = 0;
+	struct c2_emap_cursor  it;
+	struct c2_ext          tocut;
+	struct c2_ext          todo = {
 		.e_start = offset,
 		.e_end   = offset + c2_ext_length(ext)
 	};
 
+	result = c2_emap_lookup(orig->ec_map, orig->ec_cursor.c_tx,
+				&orig->ec_seg.ee_pre, offset, &it);
+	if (result != 0)
+		return result;
+
 	result = c2_emap_paste
-		(map->ct_it, &todo, ext->e_start,
+		(&it, &todo, ext->e_start,
 		 LAMBDA(void, (struct c2_emap_seg *seg) {
-		 /* handle extent deletion. */
+				 /* handle extent deletion. */
+				 if (seg->ee_val < AET_MIN) {
+					 tocut.e_start = seg->ee_val;
+					 tocut.e_end   = seg->ee_val + 
+						 c2_ext_length(&seg->ee_ext);
+					 rc = rc ?: ad_bfree(adom, io->si_tx, 
+							     &tocut);
+				 }
 			 }),
 		 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 			       uint64_t val) {
-		/* cut left: nothing */
-		C2_ASSERT(val == seg->ee_val);
-			 }),
+				/* cut left: nothing */
+				C2_ASSERT(val == seg->ee_val);
+				C2_ASSERT(ext->e_start > seg->ee_ext.e_start);
+
+				if (val < AET_MIN) {
+					tocut.e_start = val;
+					tocut.e_end   = val + ext->e_start - 
+						seg->ee_ext.e_start;
+					rc = rc ?: ad_bfree(adom, io->si_tx, 
+							    &tocut);
+				}
+			}),
 		 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 			       uint64_t val) {
-		/* cut right: default just works. */
-		C2_ASSERT(ergo(val < AET_MIN, 
-			       val == seg->ee_val + (ext->e_start - 
-						     seg->ee_ext.e_start) +
-			       c2_ext_length(ext)));
-		C2_ASSERT(ergo(val >= AET_MIN, val == seg->ee_val));
-			 }));
-	/* adjust caret pointer back into a valid position, after manipulating
-	   caret's iterator directly. */
-	map->ct_index = c2_emap_seg_get(map->ct_it)->ee_ext.e_start;
-	return result;
+				/* cut right: default just works. */
+				C2_ASSERT(ergo(val < AET_MIN, 
+					       val == seg->ee_val + 
+					       (ext->e_start - 
+						seg->ee_ext.e_start) +
+					       c2_ext_length(ext)));
+				C2_ASSERT(ergo(val >= AET_MIN, 
+					       val == seg->ee_val));
+				C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
+				if (val < AET_MIN) {
+					tocut.e_start = val;
+					tocut.e_end   = val + 
+						seg->ee_ext.e_end - ext->e_end;
+					rc = rc ?: ad_bfree(adom, io->si_tx, 
+							    &tocut);
+				}
+			}));
+	c2_emap_close(&it);
+	return result ?: rc;
 }
 
-struct ad_write_ext {
-	c2_bindex_t          we_offset;
-	struct c2_ext        we_ext;
-	struct ad_write_ext *we_next;
-};
+static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
+			struct c2_vec_cursor *dst,
+			struct c2_emap_caret *map, struct ad_wext_cursor *wc)
+{
+	int           result;
+	c2_bcount_t   frag_size;
+	bool          eodst;
+	bool          eoext;
+	struct c2_ext todo;
+
+	result = 0;
+	do {
+		c2_bindex_t offset;
+
+		offset    = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
+		frag_size = min_check(c2_vec_cursor_step(dst), 
+				      ad_wext_cursor_step(wc));
+
+		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
+		todo.e_end   = todo.e_start + frag_size;
+
+		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
+		if (result != 0)
+			break;
+
+		eodst = c2_vec_cursor_move(dst, frag_size);
+		eoext = ad_wext_cursor_move(wc, frag_size);
+
+		C2_ASSERT(eodst == eoext);
+	} while (!eodst);
+	return result;
+}
 
 static void ad_wext_fini(struct ad_write_ext *wext)
 {
@@ -646,68 +776,66 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 
 static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			   struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
-			   struct c2_emap_caret *map,
-			   struct ad_write_ext  *head)
+			   struct c2_emap_caret *map)
 {
-	c2_bcount_t          todo;
-	uint32_t             frags;
-	uint32_t             idx;
-	int                  result;
-	struct ad_write_ext *wext;
-	struct ad_write_ext *next;
-	struct c2_stob_io   *back;
-	struct ad_stob_io   *aio       = io->si_stob_private;
+	c2_bcount_t           todo;
+	uint32_t              frags;
+	int                   result;
+	struct ad_write_ext   head;
+	struct ad_write_ext  *wext;
+	struct ad_write_ext  *next;
+	struct c2_stob_io    *back;
+	struct ad_stob_io    *aio       = io->si_stob_private;
+	struct ad_wext_cursor wc;
 
 	C2_PRE(io->si_opcode == SIO_WRITE);
 
 	todo = c2_vec_count(&io->si_user.div_vec.ov_vec);
 	back = &aio->ai_back;
-	wext = head;
-	wext->we_offset = io->si_stob.ov_index[0];
-	wext->we_next   = NULL;
+	wext = &head;
+	wext->we_next = NULL;
 	while (1) {
 		c2_bcount_t got;
 
-		result = ad_balloc(io, todo, &wext->we_ext);
+		result = ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
 		if (result != 0)
-			return result;
+			break;
 		got = c2_ext_length(&wext->we_ext);
 		C2_ASSERT(todo >= got);
 		todo -= got;
 		if (todo > 0) {
 			C2_ALLOC_PTR(next);
 			if (next != NULL) {
-				next->we_offset = wext->we_offset + got;
 				wext->we_next = next;
 				wext = next;
 			} else {
 				ADDB_ADD(io->si_obj, c2_addb_oom);
-				return -ENOMEM;
+				result = -ENOMEM;
+				break;
 			}
 		} else
 			break;
 	}
 
-	for (frags = 0, wext = head; wext != NULL; wext = wext->we_next)
-		frags += ad_write_count(io, src, dst, &wext->we_ext);
+	if (result == 0) {
+		ad_wext_cursor_init(&wc, &head);
+		frags = ad_write_count(io, src, dst, &wc);
+		result = ad_vec_alloc(io->si_obj, back, frags);
+		if (result == 0) {
+			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
+			ad_wext_cursor_init(&wc, &head);
 
-	result = ad_vec_alloc(io->si_obj, back, frags);
-	if (result != 0)
-		return result;
+			ad_write_back_fill(io, back, src, dst, &wc);
 
-	c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
+			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
+			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
+			ad_wext_cursor_init(&wc, &head);
 
-	idx = 0;
-	for (wext = head; wext != NULL && result == 0; wext = wext->we_next)
-		ad_write_back_fill(io, back, src, dst, &wext->we_ext, &idx);
-	C2_ASSERT(idx == frags);
-
-	c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
-
-	for (wext = head; wext != NULL && result == 0; wext = wext->we_next)
-		result = ad_write_map(io, map, wext->we_offset, &wext->we_ext);
+			result = ad_write_map(io, adom, dst, map, &wc);
+		}
+	}
+	ad_wext_fini(&head);
 	return result;
 }
 
@@ -753,18 +881,15 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	case SIO_READ:
 		result = ad_read_launch(io, adom, &src, &dst, &map);
 		break;
-	case SIO_WRITE: {
-		struct ad_write_ext head;
-		result = ad_write_launch(io, adom, &src, &dst, &map, &head);
-		ad_wext_fini(&head);
+	case SIO_WRITE:
+		result = ad_write_launch(io, adom, &src, &dst, &map);
 		break;
-	}
 	default:
 		C2_IMPOSSIBLE("Invalid io type.");
 	}
 	ad_cursors_fini(&it, &src, &dst, &map);
 	if (result == 0) {
-		if (back->si_user.div_vec.ov_vec.v_nr > 0) {
+		if (back->si_stob.ov_vec.v_nr > 0) {
 			result = c2_stob_io_launch(back, adom->ad_bstore,
 						   io->si_tx, io->si_scope);
 			wentout = result == 0;
@@ -796,18 +921,6 @@ void ad_stob_io_unlock(struct c2_stob *stob)
 bool ad_stob_io_is_locked(const struct c2_stob *stob)
 {
 	return true;
-}
-
-/* Mock allocator */
-static int ad_balloc(struct c2_stob_io *io, c2_bcount_t length, 
-		     struct c2_ext *out)
-{
-	static c2_bindex_t reached = 0;
-
-	out->e_start = reached;
-	out->e_end   = (reached += length);
-	reached += 11;
-	return 0;
 }
 
 static void ad_endio(struct c2_clink *link)
