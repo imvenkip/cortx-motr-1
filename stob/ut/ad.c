@@ -8,7 +8,8 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/arith.h"   /* min64u */
+#include "lib/misc.h"    /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -84,20 +85,23 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			     c2_bcount_t count, struct c2_ext *out)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
+	c2_bcount_t giveout;
 
+	giveout = min64u(count, 500000);
 	out->e_start = mb->mb_next;
-	out->e_end   = mb->mb_next + count;
-	mb->mb_next += count + 11;
-	printf("allocated %8lx bytes: [%8lx .. %8lx)\n", count, 
-	       out->e_start, out->e_end);
+	out->e_end   = mb->mb_next + giveout;
+	mb->mb_next += giveout + 1;
+	/* printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", 
+	   giveout, count, 
+	       out->e_start, out->e_end); */
 	return 0;
 }
 
 static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			    struct c2_ext *ext)
 {
-	printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
-	       ext->e_start, ext->e_end);
+	/* printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
+	       ext->e_start, ext->e_end); */
 	return 0;
 }
 
