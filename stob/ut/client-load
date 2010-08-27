@@ -13,7 +13,7 @@
 #
 #     * start the server:
 #
-#         ./server __s 10001
+#         ./server -d__s -p10001
 #
 #       here "__s" is a path-name to a directory where objects will be
 #       located and 10001 is a port number the server listens to.
