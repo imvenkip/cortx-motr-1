@@ -2091,13 +2091,8 @@ repeat:
 			 * Someone more lucky has already allocated it.
 			 * Let's just take first found block(s).
 			 */
-<<<<<<< HEAD
-			memset(&bac->bac_best, 0 , sizeof bac->bac_best);
 			bac->bac_status = C2_BALLOC_AC_CONTINUE;
-=======
 			C2_SET0(&bac->bac_best);
-			bac->bac_status = C2_BALLOC_AC_STATUS_CONTINUE;
->>>>>>> allocation-data
 			bac->bac_flags |= C2_BALLOC_HINT_FIRST;
 			cr = 3;
 			debugp("Let's repeat..........\n");
