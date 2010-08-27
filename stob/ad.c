@@ -11,7 +11,7 @@
 #include "stob/ad.h"
 
 /**
-   @addtogroup stobad
+   @addtogroup stobad Storage objects with extent maps.
 
    <b>Implementation of c2_stob with Allocation Data (AD).</b>
 
@@ -376,10 +376,10 @@ static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 
    The user buffers list of the back IO request can differ from the user buffers
    list of the original IO request, because in the case of read, some parts of
-   the original IO request might corresponding to holes in the AD object and
+   the original IO request might correspond to holes in the AD object and
    produce no back IO.
 
-   For writes, the reason to make back IO user buffers list different from
+   For writes, the reason to make back IO user buffers list different from the
    original user buffers list is to make memory management identical in read and
    write case. See ad_stob_io_release() and ad_vec_alloc().
 
@@ -618,7 +618,7 @@ static int ad_vec_alloc(struct c2_stob *obj,
    extents map (map). Once this pass is completed, back IO vectors can be
    allocated;
 
-   @li then, iterates over the same maps again. For holes, call memset()
+   @li then, iterate over the same sequences again. For holes, call memset()
    immediately, for other fragments, fill back IO vectors with the fragment
    description.
 
@@ -1215,7 +1215,7 @@ struct c2_stob_type ad_stob_type = {
 };
 
 const struct c2_addb_ctx_type ad_stob_ctx_type = {
-	.act_name = "adieu"
+	.act_name = "adstob"
 };
 
 int ad_stobs_init(void)
