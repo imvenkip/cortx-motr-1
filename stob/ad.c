@@ -331,7 +331,7 @@ static int ad_cursor(struct ad_domain *adom, struct c2_stob *obj,
 
 	result = c2_emap_lookup(&adom->ad_adata, &tx->tx_dbtx,
 				&obj->so_id.si_bits, offset, it);
-	if (result != 0)
+	if (result != 0 && result != -ENOENT && result != -ESRCH)
 		ADDB_CALL(obj, "c2_emap_lookup", result);
 	return result;
 }

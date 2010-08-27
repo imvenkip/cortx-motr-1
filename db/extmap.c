@@ -55,11 +55,29 @@
    @{
  */
 
+/*
+static void key_print(const struct c2_emap_key *k)
+{
+	printf("%08lx.%08lx:%08lx", k->ek_prefix.u_hi, k->ek_prefix.u_lo,
+	       k->ek_offset);
+}
+*/
+
 static int emap_cmp(struct c2_table *table, 
 		    const void *key0, const void *key1)
 {
 	const struct c2_emap_key *a0 = key0;
 	const struct c2_emap_key *a1 = key1;
+
+/*	static const char compare[] = "<=>";
+
+	key_print(a0);
+	printf(" %c ", compare[(c2_uint128_cmp(&a0->ek_prefix, 
+						 &a1->ek_prefix) ?:
+				  C2_3WAY(a0->ek_offset, 
+					  a1->ek_offset)) + 1]);
+	key_print(a1);
+	printf("\n"); */
 	return c2_uint128_cmp(&a0->ek_prefix, &a1->ek_prefix) ?:
 		C2_3WAY(a0->ek_offset, a1->ek_offset);
 }
@@ -129,14 +147,22 @@ static void it_open(struct c2_emap_cursor *it)
 	emap_open(&it->ec_key, &it->ec_rec, &it->ec_seg);
 }
 
+static bool it_prefix_ok(const struct c2_emap_cursor *it)
+{
+	return c2_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
+}
+
 #define IT_DO_OPEN(it, func)						\
 ({									\
 	int __result;							\
 	struct c2_emap_cursor *__it = (it);				\
 									\
 	__result = ((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
-	if (__result == 0)						\
+	if (__result == 0) {						\
 		it_open(__it);						\
+		if (!it_prefix_ok(__it))				\
+			__result = -ESRCH;				\
+	}								\
 	__result;							\
 })
 
@@ -155,7 +181,7 @@ static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
 			 &it->ec_key, sizeof it->ec_key,
 			 &it->ec_rec, sizeof it->ec_rec);
-	it->ec_key.ek_prefix = *prefix;
+	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
 	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx);
@@ -188,6 +214,7 @@ static int emap_next(struct c2_emap_cursor *it)
 	return IT_DO_OPEN(it, &c2_db_cursor_next);
 }
 
+#if 0
 static bool emap_invariant_check(struct c2_emap_cursor *it)
 {
 	int                   result;
@@ -232,6 +259,12 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 	} else
 		check = true;
 	return check;
+}
+#endif
+
+static bool emap_invariant(struct c2_emap_cursor *it)
+{
+	return true;
 }
 
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,

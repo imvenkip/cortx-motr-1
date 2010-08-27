@@ -41,15 +41,16 @@ int main(int argc, char **argv)
 
 	C2_SET0(&prefix);
 
+	seg = c2_emap_seg_get(&it);
 	while (1) {
 		result = c2_emap_lookup(&emap, &tx, &prefix, 0, &it);
 		if (result == -ENOENT)
 			break;
-		else if (result != 0)
+		else if (result == -ESRCH) {
+			prefix = seg->ee_pre;
+			continue;
+		} else if (result != 0)
 			err(1, "c2_emap_lookup(): %i", result);
-
-		seg = c2_emap_seg_get(&it);
-		prefix = seg->ee_pre;
 
 		printf("%010lx:%010lx:\n", prefix.u_hi, prefix.u_lo);
 		for (i = 0; ; ++i) {

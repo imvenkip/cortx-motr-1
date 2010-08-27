@@ -156,6 +156,13 @@ struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
     transaction.
 
     @pre offset <= C2_BINDEX_MAX
+
+    @retval -ESRCH no matching segment is found. The cursor is non-functional,
+    but c2_emap_seg_get() contains information about the first segment of the
+    next map (in prefix lexicographical order);
+
+    @retval -ENOENT no matching segment is found and there is no map following
+    requested one.
  */
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
