@@ -188,6 +188,7 @@ static int dbenv_tol_set_flags[] = { 0 };
 static int dbenv_tol_open[] = { 0 };
 static int dbenv_tol_close[] = { 0 };
 static int dbenv_tol_txn_begin[] = { 0 };
+static int dbenv_tol_set_lk_detect[] = { 0 };
 
 /**
    Major part of c2_dbenv_init().
@@ -211,7 +212,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 
 	/*
 	 * Redirect db environment message stream and error streams to
-	 * appropriately names files. Alternatively, DB_ENV->set_msgcall() and
+	 * appropriately named files. Alternatively, DB_ENV->set_msgcall() and
 	 * DB_ENV->set_errcall() can be used to intercept individual messages
 	 * (at the data-base environment level, corresponding
 	 * DB->set_{msg,err}call() calls can be used for table-level granularity
@@ -241,6 +242,9 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		result = DBENV_CALL(env, set_verbose, DB_VERB_RECOVERY, 1);
 		C2_ASSERT(result == 0);
 		result = DBENV_CALL(env, set_flags, DB_TXN_NOSYNC, 1);
+		C2_ASSERT(result == 0);
+		result = DBENV_CALL(env, set_lk_detect, DB_LOCK_DEFAULT);
+		C2_ASSERT(result == 0);
 		/*
 		 * XXX todo
 		 *
@@ -313,7 +317,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 			 * must use "read uncommitted" to avoid
 			 * dead-locks.
 			 */
-			DB_READ_UNCOMMITTED;
+			0/*DB_READ_UNCOMMITTED*/;
 
 	table->t_env = env;
 	table->t_ops = ops;
@@ -413,7 +417,7 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	DB_TXN *txn;
 
 	if (flags == 0)
-		flags = DB_READ_UNCOMMITTED|DB_TXN_NOSYNC;
+		flags = 0/*DB_READ_UNCOMMITTED*/|DB_TXN_NOSYNC;
 
 	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_txn, flags);
@@ -478,7 +482,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        release in c2_db_rec_fini().
 	 */
 	result = TABLE_CALL(pair->dp_table, get, 
-			    tx->dt_txn, &pair->dp_key, &pair->dp_rec, 0);
+			    tx->dt_txn, &pair->dp_key, &pair->dp_rec, DB_RMW);
 	return result;
 }
 
@@ -508,7 +512,8 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
-	return CURSOR_CALL(cursor, get, &pair->dp_key, &pair->dp_rec, flags);
+	return CURSOR_CALL(cursor, get, &pair->dp_key, &pair->dp_rec, 
+			   flags|DB_RMW);
 }
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
