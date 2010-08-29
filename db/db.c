@@ -456,6 +456,12 @@ int c2_db_tx_abort(struct c2_db_tx *tx)
 	return result;
 }
 
+int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
+{
+	return TABLE_CALL(pair->dp_table, put, tx->dt_txn,
+			  &pair->dp_key, &pair->dp_rec, 0);
+}
+
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	return TABLE_CALL(pair->dp_table, put, tx->dt_txn, 

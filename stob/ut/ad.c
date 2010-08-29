@@ -17,6 +17,7 @@
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
+#include "balloc/balloc.h"
 
 /**
    @addtogroup stob
@@ -80,7 +81,7 @@ static void mock_balloc_fini(struct ad_balloc *ballroom)
 {
 }
 
-static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			     c2_bcount_t count, struct c2_ext *out)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
@@ -93,7 +94,7 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return 0;
 }
 
-static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			    struct c2_ext *ext)
 {
 	printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
@@ -108,7 +109,7 @@ static const struct ad_balloc_ops mock_balloc_ops = {
 	.bo_free  = mock_balloc_free,
 };
 
-static struct mock_balloc mb = {
+struct mock_balloc mb = {
 	.mb_next = 0,
 	.mb_ballroom = {
 		.ab_ops = &mock_balloc_ops
@@ -149,6 +150,7 @@ static int test_ad_init(void)
 	C2_ASSERT(result == 0);
 
 	result = ad_setup(dom_fore, &db, obj_back, &mb.mb_ballroom);
+	//result = ad_setup(dom_fore, &db, obj_back, &colibri_balloc.cb_ballroom);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(obj_back);

@@ -8,6 +8,7 @@
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "stob/ad.h"
 
 /**
    @defgroup balloc data-block-allocator
@@ -19,12 +20,6 @@
 */
 
 #define MAXPATHLEN 1024
-
-struct c2_balloc_extent {
-	c2_bindex_t be_start;
-	c2_bcount_t be_len;
-};
-
 
 /**
    On-disk data structure for group, stored in db.
@@ -49,17 +44,17 @@ struct c2_balloc_group_info {
         c2_bcount_t     bgi_fragments;  /*< nr of freespace fragments */
         c2_bcount_t     bgi_maxchunk;   /*< max bytes of freespace chunk */
         struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
-        struct c2_mutex     bgi_mutex;      /*< per-group lock */
+        struct c2_mutex bgi_mutex;      /*< per-group lock */
 
-	DB             *bgi_db_group_desc;
-	DB             *bgi_db_group_extent;
-	struct c2_balloc_extent *bgi_extents; /*< (bgi_fragments+1) of extents */
+	struct c2_table bgi_db_group_desc;
+	struct c2_table bgi_db_group_extent;
+	struct c2_ext   *bgi_extents;   /*< (bgi_fragments+1) of extents */
 	
         /** 
 	   Nr of free power-of-two-block regions, index is order.
            bb_counters[3] = 5 means 5 free 8-block regions.
+        c2_bcount_t     bgi_counters[];
         */
-//        c2_bcount_t     bgi_counters[];
 };
 
 enum c2_balloc_group_info_state {
@@ -115,27 +110,23 @@ enum c2_balloc_super_block_version {
 /**
    In-memory data structure for the balloc environment.
 
-   It includes pointers to db, home dir, various flags and parameters.
+   It includes pointers to db, various flags and parameters.
  */
-struct c2_balloc_ctxt {
-	DB_ENV        *bc_dbenv;
-	DB_TXN        *bc_tx;
-	char	      *bc_home;
+struct c2_balloc {
+	struct c2_dbenv *cb_dbenv;
+	struct c2_table  cb_db_sb;
+	struct c2_balloc_super_block cb_sb;
+        struct c2_mutex cb_sb_mutex;      /*< super block lock */
 
-        uint32_t       bc_dbenv_flags;
-        uint32_t       bc_db_flags;
-        uint32_t       bc_txn_flags;
-        uint32_t       bc_cache_size;
-        uint32_t       bc_nr_thread;
+	struct c2_balloc_group_info *cb_group_info;
 
-	DB            *bc_db_sb;
-	struct c2_balloc_super_block bc_sb;
-        struct c2_mutex bc_sb_mutex;      /*< super block lock */
-
-	struct c2_balloc_group_info *bc_group_info;
+	struct ad_balloc cb_ballroom;
 };
 
-
+static inline struct c2_balloc *b2c2(struct ad_balloc *ballroom)
+{
+	return container_of(ballroom, struct c2_balloc, cb_ballroom);
+}
 
 /**
    Request to format a container.
@@ -145,23 +136,13 @@ struct c2_balloc_format_req {
 	c2_bcount_t	bfr_blocksize;        /*< block size in bytes */
 	c2_bcount_t	bfr_groupsize;        /*< block size in blocks */
 	c2_bcount_t	bfr_reserved_groups;  /*< # of resvered groups */
-
-	const char 	*bfr_db_home;          /*< database home dir */
-};
-
-struct c2_balloc_prealloc {
-	c2_bindex_t	bpr_logical;   /*< logical offset within the object */
-	c2_bcount_t	bpr_lcount;    /*< count of blocks */
-	c2_bindex_t	bpr_physical;  /*< physical block number */
-	c2_bcount_t	bpr_remaining; /*< remaining count of blocks */
-	struct c2_list_link bpr_link;  /*< pre-allocation is linked together */
 };
 
 struct c2_balloc_free_extent {
         c2_bindex_t bfe_logical;       /*< logical offset within the object */
         c2_bindex_t bfe_groupno;       /*< goal group # */
         c2_bindex_t bfe_start;         /*< relative start offset */
-        c2_bcount_t bfe_len;           /*< count of blocks */
+        c2_bindex_t bfe_end;           /*< relative start offset */
 };
 
 /**
@@ -173,14 +154,10 @@ struct c2_balloc_free_extent {
  */
 struct c2_balloc_allocate_req {
 	c2_bindex_t	bar_logical;   /*< [in]logical offset within the object */
-	c2_bcount_t	bar_len;       /*< [in][out]count of blocks, */
+	c2_bcount_t	bar_len;       /*< [in]count of blocks, */
 	c2_bindex_t	bar_goal;      /*< [in]prefered physical block number */
 	uint64_t	bar_flags;     /*< [in]allocation flags from c2_balloc_allocation_flag */
-
-        c2_bindex_t     bar_physical;  /*< [out]physical offset, result */
-
-	uint32_t	bar_err;       /*< [out]error number */
-	c2_bcount_t	bar_max_avail; /*< [out]max avail blocks */
+        struct c2_ext   bar_result;    /*< [out]physical offset, result */
 
 	void           *bar_prealloc;  /*< [in][out]User opaque prealloc result */
 };
@@ -239,16 +216,7 @@ struct c2_balloc_discard_req {
 };
 
 
-int c2_balloc_format(struct c2_balloc_format_req *req);
-int c2_balloc_init(struct c2_balloc_ctxt *ctxt);
-void c2_balloc_fini(struct c2_balloc_ctxt *ctxt);
-int c2_balloc_allocate(struct c2_balloc_ctxt *ctxt, struct c2_balloc_allocate_req *req);
-int c2_balloc_free(struct c2_balloc_ctxt *ctxt, struct c2_balloc_free_req *req);
-int c2_balloc_discard_prealloc(struct c2_balloc_ctxt *ctxt,
-			    struct c2_balloc_discard_req *req);
-int c2_balloc_enforce(struct c2_balloc_ctxt *ctxt, bool alloc, struct c2_balloc_extent *ext);
-bool c2_balloc_query(struct c2_balloc_ctxt *ctxt, struct c2_balloc_extent *ext);
-
+extern struct c2_balloc colibri_balloc;
 
 /** @} end of balloc */
 

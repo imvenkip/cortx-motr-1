@@ -28,9 +28,9 @@ struct ad_balloc {
 struct ad_balloc_ops {
 	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db);
 	void (*bo_fini)(struct ad_balloc *ballroom);
-	int  (*bo_alloc)(struct ad_balloc *ballroom, struct c2_dtx *tx,
+	int  (*bo_alloc)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			 c2_bcount_t count, struct c2_ext *out);
-	int  (*bo_free)(struct ad_balloc *ballroom, struct c2_dtx *tx,
+	int  (*bo_free)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			struct c2_ext *ext);
 };
 

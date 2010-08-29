@@ -1,4 +1,5 @@
 noinst_PROGRAMS  = format balloc dump_free_extent dump_group_desc dump_super_block free
+noinst_PROGRAMS  =
 
 format_SOURCES   = format.c
 format_LDFLAGS   =

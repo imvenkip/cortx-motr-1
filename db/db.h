@@ -143,7 +143,7 @@ struct c2_db_pair {
 	uint32_t         dp_flags;
 };
 
-int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
+//int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
 void c2_db_pair_fini(struct c2_db_pair *pair);
 
 /**
@@ -252,6 +252,12 @@ int c2_db_tx_abort (struct c2_db_tx *tx);
    Inserts (key, rec) pair into table as part of transaction tx.
  */
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair);
+
+/**
+   Updates (key, rec) pair into table as part of transaction tx.
+ */
+int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair);
+
 
 /**
    Looks up a record with a given key in the table and returns it.
