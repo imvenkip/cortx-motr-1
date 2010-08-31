@@ -126,7 +126,7 @@ struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
    finaliazation of the balloc environment.
  */
 static int c2_balloc_fini_internal(struct c2_balloc *colibri,
-			       struct c2_db_tx *tx)
+				   struct c2_db_tx *tx)
 {
 	struct c2_balloc_group_info *gi;
 	int	 i;
@@ -1726,9 +1726,10 @@ out:
 	   result count of blocks = bar_len.
            Upon failure, non-zero error number is returned.
  */
-int _balloc_allocate(struct c2_balloc *colibri,
-		     struct c2_db_tx *tx,
-		     struct c2_balloc_allocate_req *req)
+static
+int c2_balloc_allocate_internal(struct c2_balloc *colibri,
+				struct c2_db_tx *tx,
+				struct c2_balloc_allocate_req *req)
 {
 	struct c2_balloc_allocation_context bac;
 	int rc;
@@ -1770,9 +1771,9 @@ out:
    @param req block free request which includes all parameters.
    @return 0 means success. Upon failure, non-zero error number is returned.
  */
-int _balloc_free(struct c2_balloc *colibri,
-		 struct c2_db_tx *tx,
-		 struct c2_balloc_free_req *req)
+static int c2_balloc_free_internal(struct c2_balloc *colibri,
+				   struct c2_db_tx *tx,
+				   struct c2_balloc_free_req *req)
 {
 	struct c2_ext fex;
 	struct c2_balloc_group_info *grp;
@@ -1780,11 +1781,8 @@ int _balloc_free(struct c2_balloc *colibri,
 	c2_bcount_t group;
 	c2_bindex_t start, off;
 	c2_bcount_t len, step;
-	c2_bcount_t mask;
 	int rc = 0;
 	ENTER;
-
-	mask = ~(sb->bsb_groupsize - 1);
 
 	start = req->bfr_physical;
 	len = req->bfr_len;
@@ -1878,31 +1876,49 @@ bool c2_balloc_query(struct c2_balloc *colibri, struct c2_ext *ex)
 	return false;
 }
 
+/**
+ * allocate from underlying container.
+ * @param count count of bytes. count will be first aligned to block boundry.
+ * @param out result is stored there. space is still in bytes.
+ */
 static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			   c2_bcount_t count, struct c2_ext *out)
 {
 	struct c2_balloc *colibri = b2c2(ballroom);
+	struct c2_balloc_super_block *sb = &colibri->cb_sb;
 	struct c2_balloc_allocate_req req;
 	int rc;
 
 	req.bar_goal = 0;
-	req.bar_len = count;
-	rc = _balloc_allocate(colibri, &tx->tx_dbtx, &req);
+	req.bar_len = (count + sb->bsb_blocksize - 1) >> sb->bsb_bsbits;
+	rc = c2_balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
+	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
+		out->e_start = req.bar_result.e_start << sb->bsb_bsbits;
+		out->e_end   = req.bar_result.e_end   << sb->bsb_bsbits;
+	}
 
 	return rc;
 }
 
+/**
+ * free spaces to container.
+ * @param ext the space to be freed. This space must align to block boundry.
+ */
 static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			  struct c2_ext *ext)
 {
 	struct c2_balloc *colibri = b2c2(ballroom);
+	struct c2_balloc_super_block *sb = &colibri->cb_sb;
 	struct c2_balloc_free_req req;
 	int rc;
 
-	req.bfr_physical = ext->e_start;
-	req.bfr_len = c2_ext_length(ext);
+	C2_ASSERT((ext->e_start & (sb->bsb_blocksize - 1)) == 0);
+	C2_ASSERT((ext->e_end   & (sb->bsb_blocksize - 1)) == 0);
 
-	rc = _balloc_free(colibri, &tx->tx_dbtx, &req);
+	req.bfr_physical = ext->e_start >> sb->bsb_bsbits;
+	req.bfr_len      = ext->e_end   >> sb->bsb_bsbits;
+
+	rc = c2_balloc_free_internal(colibri, &tx->tx_dbtx, &req);
 	return rc;
 }
 
