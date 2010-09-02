@@ -1969,12 +1969,16 @@ static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return rc;
 }
 
-static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db)
+static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+			  uint32_t bshift)
 {
 	struct c2_balloc *colibri;
 	struct c2_db_tx tx;
 	int rc;
 	ENTER;
+
+	/* XXX for now, support real block size shift later. */
+	C2_ASSERT(bshift == 12);
 
 	colibri = b2c2(ballroom);
 	rc = c2_db_tx_init(&tx, db, 0);

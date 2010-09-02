@@ -205,6 +205,15 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
+/**
+   Block size shift for objects of this domain.
+ */
+static uint32_t ad_bshift(const struct ad_domain *adom)
+{
+	C2_PRE(adom->ad_setup);
+	return adom->ad_bstore->so_op->sop_block_shift(adom->ad_bstore);
+}
+
 int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	     struct c2_stob *bstore, struct ad_balloc *ballroom)
 {
@@ -217,7 +226,7 @@ int ad_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
 	C2_PRE(!adom->ad_setup);
 	C2_PRE(bstore->so_state == CSS_EXISTS);
 
-	result = ballroom->ab_ops->bo_init(ballroom, dbenv);
+	result = ballroom->ab_ops->bo_init(ballroom, dbenv, ad_bshift(adom));
 	if (result == 0) {
 		adom->ad_dbenv    = dbenv;
 		adom->ad_bstore   = bstore;
@@ -413,7 +422,7 @@ static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
    object map to offsets in the underlying object. The extent map can be seen as
    a sequence of matching logical and physical extents;
 
-   @li for a write, a sequence of allocated extents, returned by the byte
+   @li for a write, a sequence of allocated extents, returned by the block
    allocator (ad_balloc), specifies where newly written data should go.
 
    Note that intervals of these sequences belong to different name-spaces (user
@@ -476,8 +485,8 @@ struct ad_stob_io {
 static void ad_endio(struct c2_clink *link);
 
 /**
-   Helper function to allocate a given number of bytes in the underlying storage
-   object.
+   Helper function to allocate a given number of blocks in the underlying
+   storage object.
  */
 static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 		     c2_bcount_t count, struct c2_ext *out)
@@ -488,7 +497,8 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 }
 
 /**
-   Helper function to free a given byte extent in the underlying storage object.
+   Helper function to free a given block extent in the underlying storage
+   object.
  */
 static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx, 
 		    struct c2_ext *ext)
@@ -649,6 +659,8 @@ static int ad_vec_alloc(struct c2_stob *obj,
    @note assumes that allocation data can not change concurrently.
 
    @note memset() could become a bottleneck here.
+
+   @note cursors and fragment sizes are measured in blocks.
  */
 static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			  struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
@@ -660,8 +672,9 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	struct ad_stob_io     *aio       = io->si_stob_private;
 	uint32_t               frags;
 	uint32_t               frags_not_empty;
-	c2_bcount_t            frag_size;
-	c2_bindex_t            off;
+	uint32_t               bshift    = ad_bshift(adom);
+	c2_bcount_t            frag_size; /* measured in blocks */
+	c2_bindex_t            off;       /* measured in blocks */
 	int                    result;
 	int                    i;
 	int                    idx;
@@ -679,9 +692,6 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	do {
 		frag_size = min_check(c2_vec_cursor_step(src), 
 				      c2_vec_cursor_step(dst));
-
-		c2_emap_caret_step(map);
-
 		C2_ASSERT(frag_size > 0);
 		if (frag_size > (size_t)~0ULL) {
 			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
@@ -691,9 +701,9 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
 
 		/*
-		 * The next fragment starts at offset off, and extents map has
-		 * to be positioned at this offset. There are two ways to do
-		 * this:
+		 * The next fragment starts at the offset off and the extents
+		 * map has to be positioned at this offset. There are two ways
+		 * to do this:
 		 *
 		 * * lookup an extent containing off (c2_emap_lookup()), or
 		 *
@@ -752,8 +762,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			
 		frag_size = min_check(c2_vec_cursor_step(src), 
 				      c2_vec_cursor_step(dst));
-		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + 
-			src->vc_offset;
+		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
 		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
 
 		C2_ASSERT(off >= map->ct_index);
@@ -770,7 +779,8 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			 * Read of a hole or unallocated space (beyond
 			 * end of the file).
 			 */
-			memset(buf, 0, frag_size);
+			memset(c2_stob_addr_open(buf, bshift), 
+			       0, frag_size << bshift);
 			if (seg->ee_val == AET_HOLE)
 				io->si_count += frag_size;
 		} else {
@@ -1201,23 +1211,33 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 /**
    An implementation of c2_stob_op::sop_lock() method.
  */
-void ad_stob_io_lock(struct c2_stob *stob)
+static void ad_stob_io_lock(struct c2_stob *stob)
 {
 }
 
 /**
    An implementation of c2_stob_op::sop_unlock() method.
  */
-void ad_stob_io_unlock(struct c2_stob *stob)
+static void ad_stob_io_unlock(struct c2_stob *stob)
 {
 }
 
 /**
    An implementation of c2_stob_op::sop_is_locked() method.
  */
-bool ad_stob_io_is_locked(const struct c2_stob *stob)
+static bool ad_stob_io_is_locked(const struct c2_stob *stob)
 {
 	return true;
+}
+
+/**
+   An implementation of c2_stob_op::sop_block_shift() method.
+
+   AD uses the same block size as its backing store object.
+ */
+static uint32_t ad_stob_block_shift(const struct c2_stob *stob)
+{
+	return ad_bshift(domain2ad(stob->so_domain));
 }
 
 static void ad_endio(struct c2_clink *link)
@@ -1263,6 +1283,7 @@ static const struct c2_stob_op ad_stob_op = {
 	.sop_io_lock      = ad_stob_io_lock,
 	.sop_io_unlock    = ad_stob_io_unlock,
 	.sop_io_is_locked = ad_stob_io_is_locked,
+	.sop_block_shift  = ad_stob_block_shift
 };
 
 struct c2_stob_type ad_stob_type = {

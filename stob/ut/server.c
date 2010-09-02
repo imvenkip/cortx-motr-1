@@ -89,6 +89,9 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob_io      io;
 	struct c2_clink        clink;
 	struct c2_dtx          tx;
+	void                  *addr;
+	uint32_t               bshift;
+	uint64_t               bmask;
 	int                    result;
 	int                    rc;
 
@@ -102,14 +105,25 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		obj = object_find(&in->sir_object, &tx);
 
-		C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
+		bshift = obj->so_op->sop_block_shift(obj);
+		bmask  = (1 << bshift) - 1;
 
+		C2_ASSERT((in->sir_seg.f_count & bmask) == 0);
+		C2_ASSERT((in->sir_seg.f_offset & bmask) == 0);
+		
+		C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
 		C2_ASSERT(ex->sirr_buf.cib_value != NULL);
+
+		in->sir_seg.f_count >>= bshift;
+		in->sir_seg.f_offset >>= bshift;
+
+		addr = c2_stob_addr_pack(ex->sirr_buf.cib_value, bshift);
+
 		c2_stob_io_init(&io);
 
 		io.si_user.div_vec.ov_vec.v_nr    = 1;
 		io.si_user.div_vec.ov_vec.v_count = &in->sir_seg.f_count;
-		io.si_user.div_vec.ov_buf = (void **)&ex->sirr_buf.cib_value;
+		io.si_user.div_vec.ov_buf = &addr;
 
 		io.si_stob.ov_vec.v_nr    = 1;
 		io.si_stob.ov_vec.v_count = &in->sir_seg.f_count;
@@ -127,7 +141,7 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_chan_wait(&clink);
 
 		ex->sirr_rc            = io.si_rc;
-		ex->sirr_buf.cib_count = io.si_count;
+		ex->sirr_buf.cib_count = io.si_count << bshift;
 
 		c2_clink_del(&clink);
 		c2_clink_fini(&clink);
@@ -159,8 +173,12 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob         *obj;
 	struct c2_stob_io       io;
 	struct c2_dtx           tx;
+	void                   *addr;
 	c2_bcount_t             count;
+	c2_bindex_t             offset;
 	struct c2_clink         clink;
+	uint32_t                bshift;
+	uint64_t                bmask;
 	int                     result;
 	int                     rc;
 
@@ -174,16 +192,25 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		obj = object_find(&in->siw_object, &tx);
 
+		bshift = obj->so_op->sop_block_shift(obj);
+		bmask  = (1 << bshift) - 1;
+
+		C2_ASSERT((in->siw_buf.cib_count & bmask) == 0);
+		C2_ASSERT((in->siw_offset & bmask) == 0);
+
+		addr = c2_stob_addr_pack(in->siw_buf.cib_value, bshift);
+		count = in->siw_buf.cib_count >> bshift;
+		offset = in->siw_offset >> bshift;
+
 		c2_stob_io_init(&io);
 
-		count = in->siw_buf.cib_count;
 		io.si_user.div_vec.ov_vec.v_nr    = 1;
 		io.si_user.div_vec.ov_vec.v_count = &count;
-		io.si_user.div_vec.ov_buf = (void **)&in->siw_buf.cib_value;
+		io.si_user.div_vec.ov_buf = &addr;
 
 		io.si_stob.ov_vec.v_nr    = 1;
 		io.si_stob.ov_vec.v_count = &count;
-		io.si_stob.ov_index       = &in->siw_offset;
+		io.si_stob.ov_index       = &offset;
 
 		io.si_opcode = SIO_WRITE;
 		io.si_flags  = 0;
@@ -197,7 +224,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			c2_chan_wait(&clink);
 
 		ex->siwr_rc    = io.si_rc;
-		ex->siwr_count = io.si_count;
+		ex->siwr_count = io.si_count << bshift;
 
 		c2_clink_del(&clink);
 		c2_clink_fini(&clink);
@@ -267,7 +294,8 @@ static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db)
+static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+			    uint32_t bshift)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
 

@@ -262,6 +262,28 @@ struct c2_stob_op {
 	   This call is used only by assertions.
 	 */
 	bool (*sop_io_is_locked)(const struct c2_stob *stob);
+	/**
+	   IO alignment and granularity.
+
+	   This method returns a power of two, which determines alignment
+	   required for the user buffers of stob IO requests against this object
+	   and IO granularity.
+
+	   Note that this is not "optimal IO size"---alignment is a requirement
+	   rather than hint.
+
+	   Block sizes are needed for the following reasons:
+
+	   @li to insulate stob IO layer from read-modify-write details;
+
+	   @li to allow IO to the portions of objects inaccessible through the
+	   flat 64-bit byte-granularity name-space.
+
+	   @note the scheme is very simplistic, enforcing the same unit of
+	   alignment and granularity. Sophistication could be added as
+	   necessary.
+	 */
+	uint32_t (*sop_block_shift)(const struct c2_stob *stob);
 };
 
 /**
@@ -411,11 +433,12 @@ void c2_stob_put(struct c2_stob *obj);
        @li <tt>c2_stob_io::si_rc</tt> is a return code of IO operation. 0 means
        success, any other possible value is negated errno;
 
-       @li <tt>c2_stob_io::si_count</tt> is a number of bytes successfully
-       transferred between data pages and the storage object. When IO is
-       executed in prefixed fragments mode, exactly
-       <tt>c2_stob_io::si_count</tt> bytes of the storage object, starting from
-       the offset <tt>c2_stob_io::si_stob.ov_index[0]</tt> were transferred.
+       @li <tt>c2_stob_io::si_count</tt> is a number of blocks (as defined by
+       c2_stob_op::sop_block_shift()) successfully transferred between data
+       pages and the storage object. When IO is executed in prefixed fragments
+       mode, exactly <tt>c2_stob_io::si_count</tt> blocks of the storage object,
+       starting from the offset <tt>c2_stob_io::si_stob.ov_index[0]</tt> were
+       transferred.
 
    <b>Data ownership.</b>
 
@@ -525,8 +548,8 @@ enum c2_stob_io_flags {
 
 	   It is called "prefixed" because in this mode it is guaranteed that
 	   some initial part of the operation is executed. For example, when
-	   writing N bytes at offset X, it is guaranteed that when operation
-	   completes, bytes in the extent [X, X+M] are written to. When
+	   writing N blocks at offset X, it is guaranteed that when operation
+	   completes, blocks in the extent [X, X+M] are written to. When
 	   operation completed successfully, M == N, otherwise, M might be less
 	   than N. That is, here "prefix" means the same as in "string prefix"
 	   (http://en.wikipedia.org/wiki/Prefix_(computer_science) ), because
@@ -546,6 +569,12 @@ struct c2_stob_io {
 	enum c2_stob_io_flags       si_flags;
 	/**
 	   Where data are located in the user address space.
+
+	   @note buffer sizes in c2_stob_io::si_user.div_vec.ov_vec.v_count[]
+	   are in block size units (as determined by
+	   c2_stob_op::sop_block_shift). Buffer addresses in
+	   c2_stob_io::si_user.div_vec.ov_buf[] must be shifted block-shift bits
+	   to the left.
 	 */
 	struct c2_diovec            si_user;
 	/**
@@ -553,6 +582,10 @@ struct c2_stob_io {
 
 	   Segments in si_stob must be non-overlapping and go in increasing
 	   offset order.
+
+	   @note extent sizes in c2_stob_io::si_stob.ov_vec.v_count[] and extent
+	   offsets in c2_stob_io::si_stob.ov_index[] are in block size units (as
+	   determined by c2_stob_op::sop_block_shift).
 	 */
 	struct c2_indexvec          si_stob;
 	/**
@@ -578,7 +611,7 @@ struct c2_stob_io {
 	 */
 	int32_t                     si_rc;
 	/**
-	   Number of bytes transferred between data pages and storage object.
+	   Number of blocks transferred between data pages and storage object.
 
 	   This field is valid after IO completion has been signalled.
 	 */
@@ -674,6 +707,9 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    @pre io->si_state == SIS_IDLE
    @pre io->si_opcode != SIO_INVALID
    @pre c2_vec_count(&io->si_user.div_vec.ov_vec) == c2_vec_count(&io->si_stob.ov_vec)
+   @pre c2_stob_io_user_is_valid(&io->si_user)
+   @pre c2_stob_io_stob_is_valid(&io->si_stob)
+
    @post ergo(result != 0, io->si_state == SIS_IDLE)
 
    @note IO can be already completed by the time c2_stob_io_launch()
@@ -682,6 +718,29 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
  */
 int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj, 
 			struct c2_dtx *tx, struct c2_io_scope *scope);
+
+/**
+   Returns true if user is a valid vector of user IO buffers.
+ */
+bool c2_stob_io_user_is_valid(const struct c2_diovec *user);
+/**
+   Returns true if stob is a valid vector of target IO extents.
+ */
+bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob);
+
+/**
+   Scale buffer address into block-sized units.
+
+   @see c2_stob_addr_open()
+ */
+void *c2_stob_addr_pack(const void *buf, uint32_t shift);
+
+/**
+   Scale buffer address back from block-sized units.
+
+   @see c2_stob_addr_pack()
+ */
+void *c2_stob_addr_open(const void *buf, uint32_t shift);
 
 /** @} end member group adieu */
 

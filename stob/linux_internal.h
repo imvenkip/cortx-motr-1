@@ -96,12 +96,13 @@ static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
 	return container_of(dom, struct linux_domain, sdl_base);
 }
 
-int  linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io);
-void linux_stob_io_lock(struct c2_stob *stob);
-void linux_stob_io_unlock(struct c2_stob *stob);
-bool linux_stob_io_is_locked(const struct c2_stob *stob);
-void linux_domain_io_fini(struct c2_stob_domain *dom);
-int  linux_domain_io_init(struct c2_stob_domain *dom);
+int      linux_stob_io_init     (struct c2_stob *stob, struct c2_stob_io *io);
+void     linux_stob_io_lock     (struct c2_stob *stob);
+void     linux_stob_io_unlock   (struct c2_stob *stob);
+bool     linux_stob_io_is_locked(const struct c2_stob *stob);
+uint32_t linux_stob_block_shift (const struct c2_stob *stob);
+void     linux_domain_io_fini   (struct c2_stob_domain *dom);
+int      linux_domain_io_init   (struct c2_stob_domain *dom);
 
 extern struct c2_addb_ctx adieu_addb_ctx;
 
