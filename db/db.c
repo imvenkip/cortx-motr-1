@@ -189,6 +189,8 @@ static int dbenv_tol_open[] = { 0 };
 static int dbenv_tol_close[] = { 0 };
 static int dbenv_tol_txn_begin[] = { 0 };
 static int dbenv_tol_set_lk_detect[] = { 0 };
+static int dbenv_tol_memp_sync[] = { 0 };
+static int dbenv_tol_log_flush[] = { 0 };
 
 /**
    Major part of c2_dbenv_init().
@@ -280,6 +282,8 @@ int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags)
 void c2_dbenv_fini(struct c2_dbenv *env)
 {
 	if (env->d_env != NULL) {
+		DBENV_CALL(env, memp_sync, NULL);
+		DBENV_CALL(env, log_flush, NULL);
 		DBENV_CALL(env, close, 0);
 		env->d_env = NULL;
 	}
@@ -302,6 +306,7 @@ static int table_tol_put[] = { 0 };
 static int table_tol_get[] = { -ENOENT, 0 };
 static int table_tol_del[] = { 0 };
 static int table_tol_cursor[] = { 0 };
+static int table_tol_sync[] = { 0 };
 
 int c2_table_init(struct c2_table *table, struct c2_dbenv *env, 
 		  const char *name, uint64_t flags, 
@@ -346,8 +351,10 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 
 void c2_table_fini(struct c2_table *table)
 {
-	if (table->t_db != NULL)
+	if (table->t_db != NULL) {
+		TABLE_CALL(table, sync, 0);
 		TABLE_CALL(table, close, 0);
+	}
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
