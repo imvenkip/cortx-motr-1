@@ -203,7 +203,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	 */
 	if (flags == 0)
 		flags = DB_CREATE|DB_THREAD|DB_INIT_LOG|DB_INIT_MPOOL|
-			DB_INIT_TXN|DB_INIT_LOCK;
+			DB_INIT_TXN|DB_INIT_LOCK|DB_RECOVER;
 
 	if (flags & DB_CREATE)
 		/* try to create home directory, don't bother to check the

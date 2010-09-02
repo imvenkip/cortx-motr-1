@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db);
 	
 	if (result == 0) {
-//		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext);
+		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext);
 		printf("rc = %d: count=%d [%08llx,%08llx)\n", result, (int)count,
 			(unsigned long long)ext.e_start,
 			(unsigned long long)ext.e_end);

@@ -404,6 +404,7 @@ static int c2_balloc_sync_sb(struct c2_balloc *cb, struct c2_db_tx *tx)
 {
 	struct c2_balloc_super_block *sb = &cb->cb_sb;
 	struct c2_db_pair pair;
+	struct timeval    now;
 	int    rc;
 	ENTER;
 
@@ -411,6 +412,9 @@ static int c2_balloc_sync_sb(struct c2_balloc *cb, struct c2_db_tx *tx)
 		LEAVE;
 		return 0;
 	}
+
+	gettimeofday(&now, NULL);
+	sb->bsb_write_time = ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 
 	sb->bsb_magic = C2_BALLOC_SB_MAGIC;
 	c2_db_pair_setup(&pair, &cb->cb_db_sb,
@@ -511,7 +515,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		return rc;
 
 	rc = c2_balloc_read_sb(colibri, tx);
-	if (rc == -ENOENT || rc == DB_NOTFOUND) {
+	if (rc == -ENOENT) {
 		struct c2_balloc_format_req req = { 0 };
 		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
 		req.bfr_blocksize = 4096;
@@ -529,15 +533,13 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	if (formatted)
 		goto done;
 
-	c2_balloc_debug_dump_sb("old sb", &colibri->cb_sb);
 	/* update the db */
-	colibri->cb_sb.bsb_mnt_count = 0xbeefbeef;
+	++ colibri->cb_sb.bsb_mnt_count;
 	gettimeofday(&now, NULL);
 	colibri->cb_sb.bsb_mnt_time = ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 	colibri->cb_sb.bsb_state |= C2_BALLOC_SB_DIRTY;
 
-	rc = c2_balloc_sync_sb(colibri, tx);
-	debugp("sync sb rc=%d\n", rc);
+	c2_balloc_sync_sb(colibri, tx);
 
 	debugp("Group Count = %lu\n", colibri->cb_sb.bsb_groupcount);
 
@@ -804,7 +806,7 @@ static int c2_balloc_load_extents(struct c2_balloc_group_info *grp, struct c2_db
 	}
 	c2_db_cursor_fini(&cursor);
 
-	if (result == DB_NOTFOUND && count != grp->bgi_fragments)
+	if (result == -ENOENT && count != grp->bgi_fragments)
 		debugp("fragments mismatch: count=%llu, fragments=%lld\n",
 			(unsigned long long)count,
 			(unsigned long long)grp->bgi_fragments);
@@ -1938,8 +1940,7 @@ static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	req.bar_len = (count + sb->bsb_blocksize - 1) >> sb->bsb_bsbits;
 	req.bar_flags = C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;
 	rc = c2_balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
-	if (rc == 0) {
-		c2_balloc_debug_dump_extent("result=", &req.bar_result);
+	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
 		out->e_start = req.bar_result.e_start << sb->bsb_bsbits;
 		out->e_end   = req.bar_result.e_end   << sb->bsb_bsbits;
 	}
