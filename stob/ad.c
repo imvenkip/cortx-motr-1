@@ -80,7 +80,7 @@ struct ad_domain {
 	struct c2_emap             ad_adata;
 
 	/**
-	   Set to true in ad_setup(). Used in pre-conditions to guaranteed that
+	   Set to true in ad_setup(). Used in pre-conditions to guarantee that
 	   the domain is fully initialized.
 	 */
 	bool                       ad_setup;
@@ -95,6 +95,11 @@ struct ad_domain {
 
 };
 
+/**
+   AD storage object.
+
+   There is very little of the state besides c2_stob.
+ */
 struct ad_stob {
 	struct c2_stob      as_stob;
 	struct c2_list_link as_linkage;
@@ -110,9 +115,27 @@ static inline struct ad_domain *domain2ad(struct c2_stob_domain *dom)
 	return container_of(dom, struct ad_domain, ad_base);
 }
 
+/**
+   Types of allocation extents.
+
+   Values of this enum are stored as "physical extent start" in allocation
+   extents.
+ */
 enum ad_stob_allocation_extent_type {
+	/**
+	    Minimal "special" extent type. All values less than this are valid
+	    start values of normal allocated extents.
+	 */
 	AET_MIN = C2_BINDEX_MAX - (1ULL << 32),
+	/**
+	   This value is used to tag an extent that does not belong to the
+	   stob's name-space. For example, an extent [X, C2_BINDEX_MAX + 1)
+	   would usually be AET_NONE for a file of size X.
+	 */
 	AET_NONE,
+	/**
+	   This value is used to tag a hole in the storage object.
+	 */
 	AET_HOLE
 };
 
@@ -155,7 +178,8 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   Initialises data-base.
+   @note the domain returned is not immediately ready for use. ad_setup() has to
+   be called against it first.
  */
 static int ad_stob_type_domain_locate(struct c2_stob_type *type, 
 				      const char *domain_name,
@@ -466,7 +490,7 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 /**
    Helper function to free a given byte extent in the underlying storage object.
  */
-static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
+static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx, 
 		    struct c2_ext *ext)
 {
 	C2_PRE(adom->ad_setup);
