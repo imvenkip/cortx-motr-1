@@ -78,6 +78,7 @@ struct c2_emap_cursor {
 	struct c2_db_pair   ec_pair;
 	struct c2_emap_key  ec_key;
 	struct c2_emap_rec  ec_rec;
+	struct c2_uint128   ec_prefix;
 };
 
 /** @} end group extmap */

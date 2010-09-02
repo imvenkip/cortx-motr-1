@@ -23,7 +23,7 @@
 
    @f[
            ([0, e_0), v_0), ([e_0, e_1), v_1), \ldots, 
-	   ([e_n, C2_BINDEX_MAX + 1), v_n)
+	   ([e_n, C2\_BINDEX\_MAX + 1), v_n)
    @f]
 
    Note that extents cover the whole name-space from 0 to C2_BINDEX_MAX without
@@ -50,7 +50,7 @@
    name-space (c2_emap_lookup()) and moved through the segments (c2_emap_next()
    and c2_emap_prev()).
 
-   An extent map can be modified by two functions:
+   An extent map can be modified by the following functions:
 
    @li c2_emap_split(): split a segment into a collection of segments with given
    lengths and values, provided that their total length is the same as the
@@ -58,7 +58,9 @@
 
    @li c2_emap_merge(): merge part of a segment into the next segment. The
    current segment is shrunk (or deleted if it would become empty) and the next
-   segment is expanded downward.
+   segment is expanded downward;
+
+   @li c2_emap_paste() handles more complicated cases.
 
    It's easy to see that these operations preserve extent map invariant that
    extents are non-empty and form the name-space partition.
@@ -112,7 +114,7 @@ void c2_emap_fini(struct c2_emap *emap);
    Initially new map consists of a single extent:
 
    @f[
-	   ([0, C2_BINDEX_MAX + 1), val)
+	   ([0, C2\_BINDEX\_MAX + 1), val)
    @f]
  */
 int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx, 
@@ -154,6 +156,13 @@ struct c2_emap_seg *c2_emap_seg_get(struct c2_emap_cursor *iterator);
     transaction.
 
     @pre offset <= C2_BINDEX_MAX
+
+    @retval -ESRCH no matching segment is found. The cursor is non-functional,
+    but c2_emap_seg_get() contains information about the first segment of the
+    next map (in prefix lexicographical order);
+
+    @retval -ENOENT no matching segment is found and there is no map following
+    requested one.
  */
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
@@ -189,6 +198,35 @@ int c2_emap_prev(struct c2_emap_cursor *iterator);
  */
 int c2_emap_split(struct c2_emap_cursor *iterator, struct c2_indexvec *vec);
 
+/**
+   Paste segment (ext, val) into the map, deleting or truncating overlapping
+   segments as necessary.
+
+   @param del - this call-back is called when an existing segment is completely
+   covered by a new one and has to be deleted. The segment to be deleted is
+   supplied as the call-back argument;
+
+   @param cut_left - this call-back is called when an existing segment has to be
+   cut to give place to a new one and some non-empty left part of the existing
+   segment remains in the map. c2_ext call-back argument is the extent being cut
+   from the existing segment. The last argument is the value associated with the
+   existing segment. The call-back must set seg->ee_val to the new value
+   associated with the remaining left part of the call-back;
+
+   @param cut_right - similar to cut_left, this call-back is called when some
+   non-empty part of an existing segment survives the paste operation.
+
+   @note It is possible that both left and right cut call-backs are called
+   against the same segment (in the case where new segment fits completely into
+   existing one).
+
+   @note Map invariant is temporarily violated during paste operation. No calls
+   against the map should be made from the call-backs or, more generally, from
+   the same transaction, while paste is running.
+
+   @note Call-backs are called in the order of cursor iteration, but this is not
+   a part of official function contract.
+ */
 int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		  void (*del)(struct c2_emap_seg *),
 		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 

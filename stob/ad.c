@@ -11,9 +11,41 @@
 #include "stob/ad.h"
 
 /**
-   @addtogroup stobad
+   @addtogroup stobad Storage objects with extent maps.
 
    <b>Implementation of c2_stob with Allocation Data (AD).</b>
+
+   An object created by ad_domain_stob_find() is kept in a per-domain in-memory
+   list, until last reference to it is released and ad_stob_fini() is called.
+
+   @todo this code is identical to one in linux_stob_type and must be factored
+   out.
+
+   <b>AD extent map.</b>
+
+   AD uses single c2_emap instance to store logical-physical translations for
+   all stobs in the domain.
+
+   For each ad storage object, its identifier (c2_stob_id) is used as a prefix
+   to identify an extent map in c2_emap.
+
+   The meaning of a segment ([A, B), V) in an extent map maintained for a
+   storage object X depends on the value of V:
+
+   @li if V is less than AET_MIN, the segment represents a mapping from extent
+   [A, B) in X's name-space to extent [V, V + B - A) in the underlying object's
+   name-space. This is the most usual "allocated extent", specifying where X
+   data live;
+
+   @li if V is AET_HOLE, the segment represents a hole [A, B) in X;
+
+   @li if V is AET_NONE, the segment represents an extent that is not part of
+   X's address-space. For example, when a new empty file is created, its extent
+   map initially consists of a single segment ([0, C2_BINDEX_MAX + 1),
+   AET_NONE);
+
+   @li other values of V greater than or equal to AET_MIN could be used for
+   special purpose segments in the future.
 
    @{
  */
@@ -42,8 +74,15 @@ struct ad_domain {
 	struct c2_stob_domain      ad_base;
 
 	struct c2_dbenv           *ad_dbenv;
+	/**
+	   Extent map storing mapping from logical to physical offsets.
+	 */
 	struct c2_emap             ad_adata;
 
+	/**
+	   Set to true in ad_setup(). Used in pre-conditions to guarantee that
+	   the domain is fully initialized.
+	 */
 	bool                       ad_setup;
 	/**
 	    Backing store storage object, where storage objects of this domain
@@ -56,6 +95,11 @@ struct ad_domain {
 
 };
 
+/**
+   AD storage object.
+
+   There is very little of the state besides c2_stob.
+ */
 struct ad_stob {
 	struct c2_stob      as_stob;
 	struct c2_list_link as_linkage;
@@ -71,9 +115,27 @@ static inline struct ad_domain *domain2ad(struct c2_stob_domain *dom)
 	return container_of(dom, struct ad_domain, ad_base);
 }
 
+/**
+   Types of allocation extents.
+
+   Values of this enum are stored as "physical extent start" in allocation
+   extents.
+ */
 enum ad_stob_allocation_extent_type {
+	/**
+	    Minimal "special" extent type. All values less than this are valid
+	    start values of normal allocated extents.
+	 */
 	AET_MIN = C2_BINDEX_MAX - (1ULL << 32),
+	/**
+	   This value is used to tag an extent that does not belong to the
+	   stob's name-space. For example, an extent [X, C2_BINDEX_MAX + 1)
+	   would usually be AET_NONE for a file of size X.
+	 */
 	AET_NONE,
+	/**
+	   This value is used to tag a hole in the storage object.
+	 */
 	AET_HOLE
 };
 
@@ -116,7 +178,8 @@ static void ad_domain_fini(struct c2_stob_domain *self)
 /**
    Implementation of c2_stob_type_op::sto_domain_locate().
 
-   Initialises data-base.
+   @note the domain returned is not immediately ready for use. ad_setup() has to
+   be called against it first.
  */
 static int ad_stob_type_domain_locate(struct c2_stob_type *type, 
 				      const char *domain_name,
@@ -292,7 +355,7 @@ static int ad_cursor(struct ad_domain *adom, struct c2_stob *obj,
 
 	result = c2_emap_lookup(&adom->ad_adata, &tx->tx_dbtx,
 				&obj->so_id.si_bits, offset, it);
-	if (result != 0)
+	if (result != 0 && result != -ENOENT && result != -ESRCH)
 		ADDB_CALL(obj, "c2_emap_lookup", result);
 	return result;
 }
@@ -314,18 +377,108 @@ static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 	return result;
 }
 
+/** @} end group stobad */
+
 /*****************************************************************************/
 /*                                    IO code                                */
 /*****************************************************************************/
 
+/**
+   @addtogroup stobad
+
+   <b>AD IO implementation.</b>
+
+   Storage object IO (c2_stob_io) is a request to transfer data from the user
+   address-space to the storage object name-space. The source and target
+   locations are specified by sequences of intervals: c2_stob_io::si_user for
+   locations in source address space, which are user buffers and
+   c2_stob_io::si_stob for locations in the target name-space, which are extents
+   in the storage object.
+
+   AD IO implementation takes a c2_stob_io against an AD storage object and
+   constructs a "back" c2_stob_io against the underlying storage object.
+
+   The user buffers list of the back IO request can differ from the user buffers
+   list of the original IO request, because in the case of read, some parts of
+   the original IO request might correspond to holes in the AD object and
+   produce no back IO.
+
+   For writes, the reason to make back IO user buffers list different from the
+   original user buffers list is to make memory management identical in read and
+   write case. See ad_stob_io_release() and ad_vec_alloc().
+
+   Two other interval sequences are used by AD to construct back IO request:
+
+   @li extent map for the AD object specifies how logical offsets in the AD
+   object map to offsets in the underlying object. The extent map can be seen as
+   a sequence of matching logical and physical extents;
+
+   @li for a write, a sequence of allocated extents, returned by the byte
+   allocator (ad_balloc), specifies where newly written data should go.
+
+   Note that intervals of these sequences belong to different name-spaces (user
+   address-space, AD object name-space, underlying object name-space), but they
+   have the same total length, except for the extent map.
+
+   Construction of back IO request proceeds by making a number of passes over
+   these sequences. An interval boundary in any of the sequences can,
+   potentially, introduce a discontinuity in the back IO request (a point where
+   back IO has to switch another user buffer or to another offset in the
+   underlying object). To handle this, the IO request is split into a number of
+   "fragments", each fragment fitting completely inside corresponding intervals
+   in all relevant sequences. Fragment number calculation constitutes the first
+   pass.
+
+   To make code more uniform, sequences are represented by "cursor-like" data
+   structures:
+
+   @li c2_vec_cursor for c2_vec-derived sequences (list of user buffers and list
+   of target extents in a storage object);
+
+   @li c2_emap_caret for an extent map;
+
+   @li ad_wext_cursor for sequence of allocated extents.
+
+   With cursors a pass looks like
+
+   @code
+   frags = 0;
+   do {
+           frag_size = min(cursor_step(seq1), cursor_step(seq2), ...);
+
+	   ... handle fragment of size frag_size ...
+
+	   end_of_cursor = cursor_move(seq1, frag_step);
+	   cursor_move(seq2, frag_step);
+	   ...
+   } while (!end_of_cursor)
+   @endcode
+
+   Here cursor_step returns a distance to start of the next interval in a
+   sequence and cursor_move advances a sequence to a given amount.
+
+   @{
+ */
+
+/**
+   AD private IO state.
+ */
 struct ad_stob_io {
+	/** IO request */
 	struct c2_stob_io *ai_fore;
+	/** Back IO request */
 	struct c2_stob_io  ai_back;
+	/** Clink registered with back-io completion channel to intercept back
+	    IO completion notification. */
 	struct c2_clink    ai_clink;
 };
 
 static void ad_endio(struct c2_clink *link);
 
+/**
+   Helper function to allocate a given number of bytes in the underlying storage
+   object.
+ */
 static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 		     c2_bcount_t count, struct c2_ext *out)
 {
@@ -334,14 +487,21 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
 						   tx, count, out);
 }
 
-static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
+/**
+   Helper function to free a given byte extent in the underlying storage object.
+ */
+static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx, 
 		    struct c2_ext *ext)
 {
 	C2_PRE(adom->ad_setup);
 	return adom->ad_ballroom->ab_ops->bo_free(adom->ad_ballroom, tx, ext);
 }
 
+/**
+   Implementation of c2_stob_op::sop_io_init().
 
+   Allocates private IO state structure.
+ */
 int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	struct ad_stob_io *aio;
@@ -365,12 +525,24 @@ int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 	return result;
 }
 
+/**
+   Releases vectors allocated for back IO.
+
+   @note that back->si_stob.ov_vec.v_count is _not_ freed separately, as it is
+   aliased to back->si_user.div_vec.ov_vec.v_count.
+
+   @see ad_vec_alloc()
+ */
 static void ad_stob_io_release(struct ad_stob_io *aio)
 {
 	struct c2_stob_io *back = &aio->ai_back;
 
+	C2_ASSERT(back->si_stob.ov_vec.v_count == 
+		  back->si_user.div_vec.ov_vec.v_count);
+
 	c2_free(back->si_user.div_vec.ov_vec.v_count);
 	back->si_user.div_vec.ov_vec.v_count = NULL;
+	back->si_stob.ov_vec.v_count = NULL;
 
 	c2_free(back->si_user.div_vec.ov_buf);
 	back->si_user.div_vec.ov_buf = NULL;
@@ -381,6 +553,9 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 	back->si_obj = NULL;
 }
 
+/**
+   Implementation of c2_stob_io_op::sio_fini().
+ */
 static void ad_stob_io_fini(struct c2_stob_io *io)
 {
 	struct ad_stob_io *aio = io->si_stob_private;
@@ -392,6 +567,9 @@ static void ad_stob_io_fini(struct c2_stob_io *io)
 	c2_free(aio);
 }
 
+/**
+   Initializes cursors at the beginning of a pass.
+ */
 static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
 			   struct c2_emap_cursor *it,
 			   struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
@@ -409,6 +587,9 @@ static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
+/**
+   Finalizes the cursors that need finalisation.
+ */
 static void ad_cursors_fini(struct c2_emap_cursor *it,
 			    struct c2_vec_cursor *src, 
 			    struct c2_vec_cursor *dst,
@@ -418,6 +599,11 @@ static void ad_cursors_fini(struct c2_emap_cursor *it,
 	c2_emap_close(it);
 }
 
+/**
+   Allocates back IO buffers after number of fragments has been calculated.
+
+   @see ad_stob_io_release()
+ */
 static int ad_vec_alloc(struct c2_stob *obj, 
 			struct c2_stob_io *back, uint32_t frags)
 {
@@ -447,7 +633,22 @@ static int ad_vec_alloc(struct c2_stob *obj,
 }
 
 /**
+   Constructs back IO for read.
+
+   This is done in two passes:
+
+   @li first, calculate number of fragments, taking holes into account. This
+   pass iterates over user buffers list (src), target extents list (dst) and
+   extents map (map). Once this pass is completed, back IO vectors can be
+   allocated;
+
+   @li then, iterate over the same sequences again. For holes, call memset()
+   immediately, for other fragments, fill back IO vectors with the fragment
+   description.
+
    @note assumes that allocation data can not change concurrently.
+
+   @note memset() could become a bottleneck here.
  */
 static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			  struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
@@ -460,6 +661,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	uint32_t               frags;
 	uint32_t               frags_not_empty;
 	c2_bcount_t            frag_size;
+	c2_bindex_t            off;
 	int                    result;
 	int                    i;
 	int                    idx;
@@ -469,17 +671,54 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	C2_PRE(io->si_opcode == SIO_READ);
 
-	seg = c2_emap_seg_get(map->ct_it);
+	it   = map->ct_it;
+	seg  = c2_emap_seg_get(it);
+	back = &aio->ai_back;
+
 	frags = frags_not_empty = 0;
 	do {
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst),
-				 c2_emap_caret_step(map));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      c2_vec_cursor_step(dst));
+
+		c2_emap_caret_step(map);
+
 		C2_ASSERT(frag_size > 0);
 		if (frag_size > (size_t)~0ULL) {
 			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
 			return -EOVERFLOW;
 		}
+
+		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
+
+		/*
+		 * The next fragment starts at offset off, and extents map has
+		 * to be positioned at this offset. There are two ways to do
+		 * this:
+		 *
+		 * * lookup an extent containing off (c2_emap_lookup()), or
+		 *
+		 * * iterate from the current position (c2_emap_caret_move())
+		 *   until off is reached.
+		 *
+		 * Lookup incurs an overhead of tree traversal, whereas
+		 * iteration could become expensive when extents map is
+		 * fragmented and target extents are far from each other.
+		 *
+		 * Iteration is used for now, because extents map is fragmented
+		 * or IO locality of reference is weak, performance will be bad
+		 * anyway.
+		 *
+		 * Note: the code relies on the target extents being in
+		 * increasing offset order in dst.
+		 */
+		C2_ASSERT(off >= map->ct_index);
+		eomap = c2_emap_caret_move(map, off - map->ct_index);
+		if (eomap < 0) {
+			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			return eomap;
+		}
+		C2_ASSERT(!eomap);
+		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
 		frags++;
 		if (seg->ee_val < AET_MIN)
@@ -497,10 +736,6 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		C2_ASSERT(!eomap);
 	} while (!eosrc);
 
-	it   = map->ct_it;
-	seg  = c2_emap_seg_get(it);
-	back = &aio->ai_back;
-
 	ad_cursors_fini(it, src, dst, map);
 
 	result = ad_vec_alloc(io->si_obj, back, frags_not_empty);
@@ -515,12 +750,19 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		void        *buf;
 		c2_bindex_t  off;
 			
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst),
-				 c2_emap_caret_step(map));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      c2_vec_cursor_step(dst));
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + 
 			src->vc_offset;
 		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
+
+		C2_ASSERT(off >= map->ct_index);
+		eomap = c2_emap_caret_move(map, off - map->ct_index);
+		if (eomap < 0) {
+			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			return eomap;
+		}
+		C2_ASSERT(!eomap);
 		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
 		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
@@ -554,11 +796,17 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
+/**
+   A linked list of allocated extents.
+ */
 struct ad_write_ext {
 	struct c2_ext        we_ext;
 	struct ad_write_ext *we_next;
 };
 
+/**
+   A cursor over allocated extents.
+ */
 struct ad_wext_cursor {
 	const struct ad_write_ext *wc_wext;
 	c2_bcount_t                wc_done;
@@ -597,54 +845,56 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, c2_bcount_t count)
 	return wc->wc_wext == NULL;
 }
 
+/**
+   Calculates how many fragments this IO request contains.
+
+   @note extent map and dst are not used here, because write allocates new space
+   for data, ignoring existing allocations in the overwritten extent of the
+   file.
+ */
 static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
-			       struct c2_vec_cursor *dst, 
 			       struct ad_wext_cursor *wc)
 {
 	uint32_t               frags;
 	c2_bcount_t            frag_size;
 	bool                   eosrc;
-	bool                   eodst;
 	bool                   eoext;
 
 	frags = 0;
 
 	do {
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), 
-				 ad_wext_cursor_step(wc));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      ad_wext_cursor_step(wc));
 		C2_ASSERT(frag_size > 0);
 		C2_ASSERT(frag_size <= (size_t)~0ULL);
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
-		eodst = c2_vec_cursor_move(dst, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 
-		C2_ASSERT(eosrc == eodst);
 		C2_ASSERT(ergo(eosrc, eoext));
 		++frags;
 	} while (!eoext);
 	return frags;
 }
 
+/**
+   Fills back IO request with information about fragments.
+ */
 static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 			       struct c2_vec_cursor *src, 
-			       struct c2_vec_cursor *dst, 
 			       struct ad_wext_cursor *wc)
 {
 	c2_bcount_t    frag_size;
 	uint32_t       idx;
 	bool           eosrc;
-	bool           eodst;
 	bool           eoext;
 
 	idx = 0;
 	do {
 		void *buf;
 			
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), 
-				 ad_wext_cursor_step(wc));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      ad_wext_cursor_step(wc));
 
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
 
@@ -655,15 +905,24 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
-		eodst = c2_vec_cursor_move(dst, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 		idx++;
-		C2_ASSERT(eosrc == eodst);
-		C2_ASSERT(eodst == eoext);
+		C2_ASSERT(eosrc == eoext);
 	} while (!eoext);
 	C2_ASSERT(idx == back->si_stob.ov_vec.v_nr);
 }
 
+/**
+   Inserts allocated extent into AD storage object allocation map, possibly
+   overwriting a number of existing extents.
+
+   @param offset - an offset in AD stob name-space;
+   @param ext - an extent in the underlying object name-space.
+
+   This function updates extent mapping of AD storage to map an extent in its
+   logical name-space, starting with offset to an extent ext in the underlying
+   storage object name-space.
+ */
 static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			    c2_bindex_t offset, struct c2_emap_cursor *orig, 
 			    const struct c2_ext *ext)
@@ -672,6 +931,7 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 	int                    rc = 0;
 	struct c2_emap_cursor  it;
 	struct c2_ext          tocut;
+	/* an extent in the logical name-space to be mapped to ext. */
 	struct c2_ext          todo = {
 		.e_start = offset,
 		.e_end   = offset + c2_ext_length(ext)
@@ -681,56 +941,74 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 				&orig->ec_seg.ee_pre, offset, &it);
 	if (result != 0)
 		return result;
-
+	/* 
+	 * Insert a new segment into extent map, overwriting parts of the map.
+	 *
+	 * Some existing segments are deleted completely, others are
+	 * cut. c2_emap_paste() invokes supplied call-backs to notify the caller
+	 * about changes in the map.
+	 *
+	 * Call-backs are used to free space from overwritten parts of the file.
+	 *
+	 * Each call-back takes a segment argument, seg. seg->ee_ext is a
+	 * logical extent of the segment and seg->ee_val is the starting offset
+	 * of the corresponding physical extent.
+	 */
 	result = c2_emap_paste
 		(&it, &todo, ext->e_start,
-		 LAMBDA(void, (struct c2_emap_seg *seg) {
-				 /* handle extent deletion. */
-				 if (seg->ee_val < AET_MIN) {
-					 tocut.e_start = seg->ee_val;
-					 tocut.e_end   = seg->ee_val + 
-						 c2_ext_length(&seg->ee_ext);
-					 rc = rc ?: ad_bfree(adom, io->si_tx, 
-							     &tocut);
-				 }
-			 }),
-		 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
-			       uint64_t val) {
-				/* cut left: nothing */
-				C2_ASSERT(val == seg->ee_val);
-				C2_ASSERT(ext->e_start > seg->ee_ext.e_start);
+	 LAMBDA(void, (struct c2_emap_seg *seg) {
+			 /* handle extent deletion. */
+			 if (seg->ee_val < AET_MIN) {
+				 tocut.e_start = seg->ee_val;
+				 tocut.e_end   = seg->ee_val + 
+					 c2_ext_length(&seg->ee_ext);
+				 rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
+			 }
+		 }),
+	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
+		       uint64_t val) {
+			/* cut left */
+			C2_ASSERT(ext->e_start > seg->ee_ext.e_start);
 
-				if (val < AET_MIN) {
-					tocut.e_start = val;
-					tocut.e_end   = val + ext->e_start - 
-						seg->ee_ext.e_start;
-					rc = rc ?: ad_bfree(adom, io->si_tx, 
-							    &tocut);
-				}
-			}),
-		 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
-			       uint64_t val) {
-				/* cut right: default just works. */
-				C2_ASSERT(ergo(val < AET_MIN, 
-					       val == seg->ee_val + 
-					       (ext->e_start - 
-						seg->ee_ext.e_start) +
-					       c2_ext_length(ext)));
-				C2_ASSERT(ergo(val >= AET_MIN, 
-					       val == seg->ee_val));
-				C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
-				if (val < AET_MIN) {
-					tocut.e_start = val;
-					tocut.e_end   = val + 
-						seg->ee_ext.e_end - ext->e_end;
-					rc = rc ?: ad_bfree(adom, io->si_tx, 
-							    &tocut);
-				}
-			}));
+			seg->ee_val = val;
+			if (val < AET_MIN) {
+				tocut.e_start = val;
+				tocut.e_end   = val + ext->e_start - 
+					seg->ee_ext.e_start;
+				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
+			}
+		}),
+	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
+		       uint64_t val) {
+			/* cut right */
+			C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
+			if (val < AET_MIN) {
+				seg->ee_val = val + 
+					(ext->e_start - seg->ee_ext.e_start) +
+					c2_ext_length(ext);
+				tocut.e_start = val;
+				tocut.e_end   = val + 
+					seg->ee_ext.e_end - ext->e_end;
+				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
+			} else
+				seg->ee_val = val;
+		}));
 	c2_emap_close(&it);
 	return result ?: rc;
 }
 
+/**
+   Updates extent map, inserting newly allocated extents into it.
+
+   @param dst - target extents in AD storage object;
+   @param wc - allocated extents.
+
+   Total size of extents in dst and wc is the same, but their boundaries not
+   necessary match. Iterate over both sequences at the same time, mapping
+   contiguous chunks of AD stob name-space to contiguous chunks of the
+   underlying object name-space.
+
+ */
 static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 			struct c2_vec_cursor *dst,
 			struct c2_emap_caret *map, struct ad_wext_cursor *wc)
@@ -764,6 +1042,9 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 	return result;
 }
 
+/**
+   Frees wext list.
+ */
 static void ad_wext_fini(struct ad_write_ext *wext)
 {
 	struct ad_write_ext *next;
@@ -774,6 +1055,18 @@ static void ad_wext_fini(struct ad_write_ext *wext)
 	}
 }
 
+/**
+   AD write.
+
+   @li allocates space for data to be written (first loop);
+
+   @li calculates number of fragments (ad_write_count());
+
+   @li constructs back IO (ad_write_back_fill());
+
+   @li updates extent map for this AD object with allocated extents
+   (ad_write_map()).
+ */
 static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 			   struct c2_vec_cursor *src, struct c2_vec_cursor *dst,
 			   struct c2_emap_caret *map)
@@ -819,14 +1112,14 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
-		frags = ad_write_count(io, src, dst, &wc);
+		frags = ad_write_count(io, src, &wc);
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
 			ad_wext_cursor_init(&wc, &head);
 
-			ad_write_back_fill(io, back, src, dst, &wc);
+			ad_write_back_fill(io, back, src, &wc);
 
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
@@ -842,11 +1135,8 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 /**
    Launch asynchronous IO.
 
-   @li calculate how many fragments IO operation has;
-
-   @li allocate vectors
-
-   @li launch back-store io.
+   Call ad_write_launch() or ad_read_launch() to do the bulk of work, then
+   launch back IO just constructed.
  */
 static int ad_stob_io_launch(struct c2_stob_io *io)
 {
@@ -893,8 +1183,15 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 			result = c2_stob_io_launch(back, adom->ad_bstore,
 						   io->si_tx, io->si_scope);
 			wentout = result == 0;
-		} else
+		} else {
+			/*
+			 * Back IO request was constructed OK, but is empty (all
+			 * IO was satisfied from holes). Notify caller about
+			 * completion.
+			 */
+			C2_ASSERT(io->si_opcode == SIO_READ);
 			ad_endio(&aio->ai_clink);
+		}
 	}
 	if (!wentout)
 		ad_stob_io_release(aio);
@@ -975,7 +1272,7 @@ struct c2_stob_type ad_stob_type = {
 };
 
 const struct c2_addb_ctx_type ad_stob_ctx_type = {
-	.act_name = "adieu"
+	.act_name = "adstob"
 };
 
 int ad_stobs_init(void)

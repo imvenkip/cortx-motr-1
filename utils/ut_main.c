@@ -1,9 +1,12 @@
 /* -*- C -*- */
 
+#include <stdlib.h>        /* exit */
 #include <CUnit/CUnit.h>
 
 #include "lib/ut.h"
 #include "lib/trace.h"
+#include "lib/thread.h"    /* LAMBDA */
+#include "lib/getopts.h"
 #include "utils/common.h"
 
 extern const struct c2_test_suite libc2_ut;
@@ -17,19 +20,30 @@ extern const struct c2_test_suite emap_ut;
 
 int main(int argc, char *argv[])
 {
+	int  result;
+	bool keep   = false;
+
+	result = C2_GETOPTS("ut", argc, argv,
+			    C2_VOIDARG('T', "parse trace log produced earlier",
+				       LAMBDA(void, (void) {
+						       c2_trace_parse();
+						       exit(0);
+					       })),
+			    C2_VOIDARG('k', "keep the sandbox directory",
+				       LAMBDA(void, (void) { keep = true; })));
+	if (result != 0)
+		return result;
+
 	if (unit_start(UT_SANDBOX) == 0) {
-		if (argc == 2 && !strcmp(argv[1], "trace")) {
-			c2_trace_parse();
-		} else {
-			c2_ut_add(&libc2_ut);
-			c2_ut_add(&adieu_ut);
-			c2_ut_add(&ad_ut);
-			c2_ut_add(&fop_ut);
-			c2_ut_add(&db_ut);
-			c2_ut_add(&emap_ut);
-			c2_ut_run("c2ut.log");
-		}
-		//unit_end(UT_SANDBOX);
+		c2_ut_add(&libc2_ut);
+		c2_ut_add(&adieu_ut);
+		c2_ut_add(&ad_ut);
+		c2_ut_add(&fop_ut);
+		c2_ut_add(&db_ut);
+		c2_ut_add(&emap_ut);
+		c2_ut_run("c2ut.log");
+		if (!keep)
+			unit_end(UT_SANDBOX);
 	}
 
 	return 0;

@@ -38,17 +38,46 @@
    name-space and ordered by their starting offsets. This creates a separate
    cursor within the same transaction as the cursor it is called against.
 
+   @li A segment ([A, B), V) is stored as a record (A, V) with a key (prefix,
+   B). Note, that the _high_ extent end is used as a key. This way, standard
+   c2_db_cursor_get() can be used to position a cursor on a segment containing a
+   given offset. Also note, that there is some redundancy in the persistent
+   state: two consecutive segments ([A, B), V) and ([B, C), U) are stored as
+   records (A, V) and (B, U) with keys (prefix, B) and (prefix, C)
+   respectively. B is stored twice. Generally, starting offset of a segment
+   extent can always be deduced from the key of previous segment (and for the
+   first segment it's 0), so some slight economy of storage could be achieved at
+   the expense of increased complexity and occasional extra storage traffic.
+
    @note emap_invariant() is potentially expensive. Consider turning it off
    conditionally.
 
    @{
  */
 
+/*
+static void key_print(const struct c2_emap_key *k)
+{
+	printf("%08lx.%08lx:%08lx", k->ek_prefix.u_hi, k->ek_prefix.u_lo,
+	       k->ek_offset);
+}
+*/
+
 static int emap_cmp(struct c2_table *table, 
 		    const void *key0, const void *key1)
 {
 	const struct c2_emap_key *a0 = key0;
 	const struct c2_emap_key *a1 = key1;
+
+/*	static const char compare[] = "<=>";
+
+	key_print(a0);
+	printf(" %c ", compare[(c2_uint128_cmp(&a0->ek_prefix, 
+						 &a1->ek_prefix) ?:
+				  C2_3WAY(a0->ek_offset, 
+					  a1->ek_offset)) + 1]);
+	key_print(a1);
+	printf("\n"); */
 	return c2_uint128_cmp(&a0->ek_prefix, &a1->ek_prefix) ?:
 		C2_3WAY(a0->ek_offset, a1->ek_offset);
 }
@@ -118,14 +147,22 @@ static void it_open(struct c2_emap_cursor *it)
 	emap_open(&it->ec_key, &it->ec_rec, &it->ec_seg);
 }
 
+static bool it_prefix_ok(const struct c2_emap_cursor *it)
+{
+	return c2_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
+}
+
 #define IT_DO_OPEN(it, func)						\
 ({									\
 	int __result;							\
 	struct c2_emap_cursor *__it = (it);				\
 									\
 	__result = ((*(func))(&__it->ec_cursor, &__it->ec_pair));	\
-	if (__result == 0)						\
+	if (__result == 0) {						\
 		it_open(__it);						\
+		if (!it_prefix_ok(__it))				\
+			__result = -ESRCH;				\
+	}								\
 	__result;							\
 })
 
@@ -144,7 +181,7 @@ static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
 	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
 			 &it->ec_key, sizeof it->ec_key,
 			 &it->ec_rec, sizeof it->ec_rec);
-	it->ec_key.ek_prefix = *prefix;
+	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
 	it->ec_map           = emap;
 	return c2_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx);
@@ -177,6 +214,7 @@ static int emap_next(struct c2_emap_cursor *it)
 	return IT_DO_OPEN(it, &c2_db_cursor_next);
 }
 
+#if 0
 static bool emap_invariant_check(struct c2_emap_cursor *it)
 {
 	int                   result;
@@ -221,6 +259,12 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 	} else
 		check = true;
 	return check;
+}
+#endif
+
+static bool emap_invariant(struct c2_emap_cursor *it)
+{
+	return true;
 }
 
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
@@ -311,6 +355,21 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
 	C2_ASSERT(emap_invariant(it));
 
+	/*
+	 * Iterate over existing segments overlapping with the new one,
+	 * calculating for each, what parts have to be deleted and what remains.
+	 *
+	 * In the worst case, an existing segment can split into three
+	 * parts. Generally, some of these parts can be empty.
+	 *
+	 * Cutting and deleting segments is handled uniformly by
+	 * emap_split_internal(), thanks to the latter skipping empty segments.
+	 *
+	 * Note that the _whole_ new segment is inserted on the first iteration
+	 * of the loop below (see length[1] assignment) thus violating the map
+	 * invariant until the loop exits.
+	 */
+
 	for (first = true; !c2_ext_is_empty(ext); first = false) {
 		c2_bcount_t        length[3];
 		c2_bindex_t        bstart[3];
@@ -340,10 +399,8 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		C2_ASSERT(ergo(!last && !first, 
 			       c2_ext_length(chunk) == consumed));
 
-		bstart[0] = val_orig = seg->ee_val;
 		bstart[1] = val;
-		bstart[2] = bstart[0] + length[0] + consumed;
-
+		val_orig  = seg->ee_val;
 		if (length[0] > 0) {
 			cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
@@ -472,12 +529,10 @@ int c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count)
 			result = c2_emap_next(car->ct_it);
 			if (result < 0)
 				return result;
-			count -= step;
-			car->ct_index += step;
-		} else {
-			car->ct_index += count;
-			count = 0;
-		}
+		} else
+			step = count;
+		car->ct_index += step;
+		count -= step;
 	}
 	C2_ASSERT(c2_emap_caret_invariant(car));
 	return car->ct_index == C2_BINDEX_MAX + 1;

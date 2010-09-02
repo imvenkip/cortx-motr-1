@@ -8,7 +8,8 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/arith.h"   /* min64u */
+#include "lib/misc.h"    /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -85,20 +86,23 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			     c2_bcount_t count, struct c2_ext *out)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
+	c2_bcount_t giveout;
 
+	giveout = min64u(count, 500000);
 	out->e_start = mb->mb_next;
-	out->e_end   = mb->mb_next + count;
-	mb->mb_next += count + 11;
-	printf("allocated %8lx bytes: [%8lx .. %8lx)\n", count, 
-	       out->e_start, out->e_end);
+	out->e_end   = mb->mb_next + giveout;
+	mb->mb_next += giveout + 1;
+	/* printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", 
+	   giveout, count, 
+	       out->e_start, out->e_end); */
 	return 0;
 }
 
 static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			    struct c2_ext *ext)
 {
-	printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
-	       ext->e_start, ext->e_end);
+	/* printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
+	       ext->e_start, ext->e_end); */
 	return 0;
 }
 
@@ -162,8 +166,12 @@ static int test_ad_init(void)
 	result = dom_fore->sd_ops->sdo_tx_make(dom_fore, &tx);
 	C2_ASSERT(result == 0);
 
-	result = c2_stob_create(obj_fore, &tx);
-	C2_ASSERT(result == 0);
+	result = c2_stob_locate(obj_fore, &tx);
+	C2_ASSERT(result == 0 || result == -ENOENT);
+	if (result == -ENOENT) {
+		result = c2_stob_create(obj_fore, &tx);
+		C2_ASSERT(result == 0);
+	}
 	C2_ASSERT(obj_fore->so_state == CSS_EXISTS);
 
 	for (i = 0; i < NR; ++i) {
@@ -186,6 +194,7 @@ static int test_ad_fini(void)
 	c2_stob_put(obj_fore);
 	dom_fore->sd_ops->sdo_fini(dom_fore);
 	dom_back->sd_ops->sdo_fini(dom_back);
+	c2_dbenv_fini(&db);
 	return 0;
 }
 
