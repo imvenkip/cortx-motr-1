@@ -550,6 +550,9 @@ struct c2_stob_io {
 	struct c2_diovec            si_user;
 	/**
 	   Where data are located in the storage object name-space.
+
+	   Segments in si_stob must be non-overlapping and go in increasing
+	   offset order.
 	 */
 	struct c2_indexvec          si_stob;
 	/**
