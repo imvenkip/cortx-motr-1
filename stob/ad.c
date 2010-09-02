@@ -661,6 +661,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	uint32_t               frags;
 	uint32_t               frags_not_empty;
 	c2_bcount_t            frag_size;
+	c2_bindex_t            off;
 	int                    result;
 	int                    i;
 	int                    idx;
@@ -676,14 +677,48 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	frags = frags_not_empty = 0;
 	do {
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst),
-				 c2_emap_caret_step(map));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      c2_vec_cursor_step(dst));
+
+		c2_emap_caret_step(map);
+
 		C2_ASSERT(frag_size > 0);
 		if (frag_size > (size_t)~0ULL) {
 			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
 			return -EOVERFLOW;
 		}
+
+		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
+
+		/*
+		 * The next fragment starts at offset off, and extents map has
+		 * to be positioned at this offset. There are two ways to do
+		 * this:
+		 *
+		 * * lookup an extent containing off (c2_emap_lookup()), or
+		 *
+		 * * iterate from the current position (c2_emap_caret_move())
+		 *   until off is reached.
+		 *
+		 * Lookup incurs an overhead of tree traversal, whereas
+		 * iteration could become expensive when extents map is
+		 * fragmented and target extents are far from each other.
+		 *
+		 * Iteration is used for now, because extents map is fragmented
+		 * or IO locality of reference is weak, performance will be bad
+		 * anyway.
+		 *
+		 * Note: the code relies on the target extents being in
+		 * increasing offset order in dst.
+		 */
+		C2_ASSERT(off >= map->ct_index);
+		eomap = c2_emap_caret_move(map, off - map->ct_index);
+		if (eomap < 0) {
+			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			return eomap;
+		}
+		C2_ASSERT(!eomap);
+		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
 		frags++;
 		if (seg->ee_val < AET_MIN)
@@ -715,12 +750,19 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		void        *buf;
 		c2_bindex_t  off;
 			
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst),
-				 c2_emap_caret_step(map));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      c2_vec_cursor_step(dst));
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + 
 			src->vc_offset;
 		off = io->si_stob.ov_index[dst->vc_seg] + dst->vc_offset;
+
+		C2_ASSERT(off >= map->ct_index);
+		eomap = c2_emap_caret_move(map, off - map->ct_index);
+		if (eomap < 0) {
+			ADDB_CALL(io->si_obj, "caret_move:shift", eomap);
+			return eomap;
+		}
+		C2_ASSERT(!eomap);
 		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
 		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
@@ -806,33 +848,29 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, c2_bcount_t count)
 /**
    Calculates how many fragments this IO request contains.
 
-   @note extent map is not used here, because write allocates new space for
-   data, ignoring existing allocations in the overwritten extent of the file.
+   @note extent map and dst are not used here, because write allocates new space
+   for data, ignoring existing allocations in the overwritten extent of the
+   file.
  */
 static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
-			       struct c2_vec_cursor *dst, 
 			       struct ad_wext_cursor *wc)
 {
 	uint32_t               frags;
 	c2_bcount_t            frag_size;
 	bool                   eosrc;
-	bool                   eodst;
 	bool                   eoext;
 
 	frags = 0;
 
 	do {
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), 
-				 ad_wext_cursor_step(wc));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      ad_wext_cursor_step(wc));
 		C2_ASSERT(frag_size > 0);
 		C2_ASSERT(frag_size <= (size_t)~0ULL);
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
-		eodst = c2_vec_cursor_move(dst, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 
-		C2_ASSERT(eosrc == eodst);
 		C2_ASSERT(ergo(eosrc, eoext));
 		++frags;
 	} while (!eoext);
@@ -844,22 +882,19 @@ static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
  */
 static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 			       struct c2_vec_cursor *src, 
-			       struct c2_vec_cursor *dst, 
 			       struct ad_wext_cursor *wc)
 {
 	c2_bcount_t    frag_size;
 	uint32_t       idx;
 	bool           eosrc;
-	bool           eodst;
 	bool           eoext;
 
 	idx = 0;
 	do {
 		void *buf;
 			
-		frag_size = min3(c2_vec_cursor_step(src), 
-				 c2_vec_cursor_step(dst), 
-				 ad_wext_cursor_step(wc));
+		frag_size = min_check(c2_vec_cursor_step(src), 
+				      ad_wext_cursor_step(wc));
 
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
 
@@ -870,11 +905,9 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
-		eodst = c2_vec_cursor_move(dst, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 		idx++;
-		C2_ASSERT(eosrc == eodst);
-		C2_ASSERT(eodst == eoext);
+		C2_ASSERT(eosrc == eoext);
 	} while (!eoext);
 	C2_ASSERT(idx == back->si_stob.ov_vec.v_nr);
 }
@@ -1079,14 +1112,14 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
-		frags = ad_write_count(io, src, dst, &wc);
+		frags = ad_write_count(io, src, &wc);
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
 			ad_wext_cursor_init(&wc, &head);
 
-			ad_write_back_fill(io, back, src, dst, &wc);
+			ad_write_back_fill(io, back, src, &wc);
 
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
 			c2_vec_cursor_init(dst, &io->si_stob.ov_vec);
