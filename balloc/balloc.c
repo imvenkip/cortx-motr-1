@@ -1982,9 +1982,9 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db)
 		rc = c2_balloc_init_internal(colibri, db, &tx);
 		debugp("rc = %d, ww are going to %s\n", rc, rc == 0 ?"commit":"abort");
 		if (rc == 0)
-			c2_db_tx_commit(&tx);
+			rc = c2_db_tx_commit(&tx);
 		else
-			c2_db_tx_abort(&tx);
+			rc = c2_db_tx_abort(&tx);
 	}
 	LEAVE;
 	return rc;
