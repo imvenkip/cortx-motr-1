@@ -529,12 +529,10 @@ int c2_emap_caret_move(struct c2_emap_caret *car, c2_bcount_t count)
 			result = c2_emap_next(car->ct_it);
 			if (result < 0)
 				return result;
-			count -= step;
-			car->ct_index += step;
-		} else {
-			car->ct_index += count;
-			count = 0;
-		}
+		} else
+			step = count;
+		car->ct_index += step;
+		count -= step;
 	}
 	C2_ASSERT(c2_emap_caret_invariant(car));
 	return car->ct_index == C2_BINDEX_MAX + 1;
