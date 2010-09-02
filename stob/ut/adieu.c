@@ -146,9 +146,9 @@ static void test_write(int i)
 	io.si_user.div_vec.ov_vec.v_count = user_vec;
 	io.si_user.div_vec.ov_buf = (void **)user_bufs;
 
-	io.si_stob.ov_vec.v_nr = i;
-	io.si_stob.ov_vec.v_count = user_vec;
-	io.si_stob.ov_index = stob_vec;
+	io.si_stob.iv_vec.v_nr = i;
+	io.si_stob.iv_vec.v_count = user_vec;
+	io.si_stob.iv_index = stob_vec;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
@@ -178,9 +178,9 @@ static void test_read(int i)
 	io.si_user.div_vec.ov_vec.v_count = user_vec;
 	io.si_user.div_vec.ov_buf = (void **)read_bufs;
 
-	io.si_stob.ov_vec.v_nr = i;
-	io.si_stob.ov_vec.v_count = user_vec;
-	io.si_stob.ov_index = stob_vec;
+	io.si_stob.iv_vec.v_nr = i;
+	io.si_stob.iv_vec.v_count = user_vec;
+	io.si_stob.iv_index = stob_vec;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);

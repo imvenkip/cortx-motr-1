@@ -125,9 +125,9 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		io.si_user.div_vec.ov_vec.v_count = &in->sir_seg.f_count;
 		io.si_user.div_vec.ov_buf = &addr;
 
-		io.si_stob.ov_vec.v_nr    = 1;
-		io.si_stob.ov_vec.v_count = &in->sir_seg.f_count;
-		io.si_stob.ov_index       = &in->sir_seg.f_offset;
+		io.si_stob.iv_vec.v_nr    = 1;
+		io.si_stob.iv_vec.v_count = &in->sir_seg.f_count;
+		io.si_stob.iv_index       = &in->sir_seg.f_offset;
 
 		io.si_opcode = SIO_READ;
 		io.si_flags  = 0;
@@ -208,9 +208,9 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		io.si_user.div_vec.ov_vec.v_count = &count;
 		io.si_user.div_vec.ov_buf = &addr;
 
-		io.si_stob.ov_vec.v_nr    = 1;
-		io.si_stob.ov_vec.v_count = &count;
-		io.si_stob.ov_index       = &offset;
+		io.si_stob.iv_vec.v_nr    = 1;
+		io.si_stob.iv_vec.v_count = &count;
+		io.si_stob.iv_index       = &offset;
 
 		io.si_opcode = SIO_WRITE;
 		io.si_flags  = 0;

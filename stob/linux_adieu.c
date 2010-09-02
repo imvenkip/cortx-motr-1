@@ -197,7 +197,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) > 0);
 
 	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
+	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	frags = 0;
 	do {
@@ -211,7 +211,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 	} while (!eosrc);
 
 	c2_vec_cursor_init(&src, &io->si_user.div_vec.ov_vec);
-	c2_vec_cursor_init(&dst, &io->si_stob.ov_vec);
+	c2_vec_cursor_init(&dst, &io->si_stob.iv_vec);
 
 	lio->si_nr   = frags;
 	lio->si_done = 0;
@@ -234,7 +234,7 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 
 			buf = io->si_user.div_vec.ov_buf[src.vc_seg] + 
 				src.vc_offset;
-			off = io->si_stob.ov_index[dst.vc_seg] + dst.vc_offset;
+			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
 
 			iocb = &lio->si_qev[i].iq_iocb;
 			C2_SET0(iocb);

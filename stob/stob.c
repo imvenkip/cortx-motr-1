@@ -218,7 +218,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
 	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) == 
-	       c2_vec_count(&io->si_stob.ov_vec));
+	       c2_vec_count(&io->si_stob.iv_vec));
 	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
 	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
 
@@ -256,10 +256,10 @@ bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob)
 	uint32_t    i;
 	c2_bindex_t reached;
 
-	for (reached = 0, i = 0; i < stob->ov_vec.v_nr; ++i) {
-		if (stob->ov_index[i] < reached)
+	for (reached = 0, i = 0; i < stob->iv_vec.v_nr; ++i) {
+		if (stob->iv_index[i] < reached)
 			return false;
-		reached = stob->ov_index[i] + stob->ov_vec.v_count[i];
+		reached = stob->iv_index[i] + stob->iv_vec.v_count[i];
 	}
 	return true;
 }
