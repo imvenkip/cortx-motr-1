@@ -105,6 +105,19 @@ size_t c2_allocated(void)
 	return used - used0;
 }
 
+void *c2_alloc_aligned(size_t size, unsigned shift)
+{
+	void *result;
+	int   rc;
+
+	rc = posix_memalign(&result, 1 << shift, size);
+	if (rc == 0) 
+		memset(result, 0, size);
+	else
+		result = NULL;
+	return result;
+}
+
 int c2_memory_init()
 {
 	c2_atomic64_set(&allocated, 0);
