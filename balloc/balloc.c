@@ -1982,9 +1982,6 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	int rc;
 	ENTER;
 
-	/* XXX for now, support real block size shift later. */
-	C2_ASSERT(bshift == 12);
-
 	colibri = b2c2(ballroom);
 	rc = c2_db_tx_init(&tx, db, 0);
 	if (rc == 0) {
