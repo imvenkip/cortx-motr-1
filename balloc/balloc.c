@@ -9,7 +9,7 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/types.h"
-#include "lib/arith.h"    /* min_check */
+#include "lib/arith.h"    /* min_check, c2_is_po2 */
 #include "lib/memory.h"
 #include "balloc.h"
 
@@ -236,6 +236,9 @@ int c2_balloc_format(struct c2_balloc *colibri,
 	struct c2_balloc_group_desc  gd;
 	struct c2_balloc_super_block *sb = &colibri->cb_sb;
 	ENTER;
+
+	C2_PRE(c2_is_po2(req->bfr_blocksize));
+	C2_PRE(c2_is_po2(req->bfr_groupsize));
 
 	number_of_groups = req->bfr_totalsize / req->bfr_blocksize /
 			   req->bfr_groupsize;
@@ -490,7 +493,7 @@ static int c2_balloc_load_group_info(struct c2_balloc *cb,
 
 static int c2_balloc_init_internal(struct c2_balloc *colibri,
 				   struct c2_dbenv *dbenv,
-				   struct c2_db_tx *tx)
+				   struct c2_db_tx *tx, uint32_t bshift)
 {
 	struct c2_balloc_group_info *gi;
 	int            	 rc;
@@ -514,7 +517,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	if (rc == -ENOENT || rc == DB_NOTFOUND) {
 		struct c2_balloc_format_req req = { 0 };
 		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
-		req.bfr_blocksize = 4096;
+		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 		req.bfr_reserved_groups = 5;
 
@@ -540,6 +543,13 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	debugp("sync sb rc=%d\n", rc);
 
 	debugp("Group Count = %lu\n", colibri->cb_sb.bsb_groupcount);
+
+	if (colibri->cb_sb.bsb_blocksize != 1 << bshift) {
+		rc = -EINVAL;
+		c2_balloc_fini_internal(colibri, tx);
+		LEAVE;
+		return rc;
+	}
 
 	i = colibri->cb_sb.bsb_groupcount * sizeof (struct c2_balloc_group_info);
 	colibri->cb_group_info = c2_alloc(i);
@@ -1930,18 +1940,17 @@ static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			   c2_bcount_t count, struct c2_ext *out)
 {
 	struct c2_balloc *colibri = b2c2(ballroom);
-	struct c2_balloc_super_block *sb = &colibri->cb_sb;
 	struct c2_balloc_allocate_req req;
 	int rc;
 
 	req.bar_goal = 0;
-	req.bar_len = (count + sb->bsb_blocksize - 1) >> sb->bsb_bsbits;
+	req.bar_len = count;
 	req.bar_flags = C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;
 	rc = c2_balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
 	if (rc == 0) {
 		c2_balloc_debug_dump_extent("result=", &req.bar_result);
-		out->e_start = req.bar_result.e_start << sb->bsb_bsbits;
-		out->e_end   = req.bar_result.e_end   << sb->bsb_bsbits;
+		out->e_start = req.bar_result.e_start;
+		out->e_end   = req.bar_result.e_end;
 	}
 
 	return rc;
@@ -1955,15 +1964,11 @@ static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 			  struct c2_ext *ext)
 {
 	struct c2_balloc *colibri = b2c2(ballroom);
-	struct c2_balloc_super_block *sb = &colibri->cb_sb;
 	struct c2_balloc_free_req req;
 	int rc;
 
-	C2_ASSERT((ext->e_start & (sb->bsb_blocksize - 1)) == 0);
-	C2_ASSERT((ext->e_end   & (sb->bsb_blocksize - 1)) == 0);
-
-	req.bfr_physical = ext->e_start >> sb->bsb_bsbits;
-	req.bfr_len      = ext->e_end   >> sb->bsb_bsbits;
+	req.bfr_physical = ext->e_start;
+	req.bfr_len      = ext->e_end;
 
 	rc = c2_balloc_free_internal(colibri, &tx->tx_dbtx, &req);
 	return rc;
@@ -1983,7 +1988,7 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	colibri = b2c2(ballroom);
 	rc = c2_db_tx_init(&tx, db, 0);
 	if (rc == 0) {
-		rc = c2_balloc_init_internal(colibri, db, &tx);
+		rc = c2_balloc_init_internal(colibri, db, &tx, bshift);
 		debugp("rc = %d, ww are going to %s\n", rc, rc == 0 ?"commit":"abort");
 		if (rc == 0)
 			rc = c2_db_tx_commit(&tx);
