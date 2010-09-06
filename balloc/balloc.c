@@ -24,15 +24,15 @@
 #define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
-  #define ENTER printf("===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
-  #define LEAVE printf("<<<=== %s:%d:%s\n", __FILE__, __LINE__, __func__)
-  #define GOTHERE printf("!!! %s:%d:%s\n", __FILE__, __LINE__, __func__)
+  #define ENTER fprintf(stderr, "===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
+  #define LEAVE fprintf(stderr, "<<<=== %s:%d:%s\n", __FILE__, __LINE__, __func__)
+  #define GOTHERE fprintf(stderr "!!! %s:%d:%s\n", __FILE__, __LINE__, __func__)
 
   #define debugp(fmt, a...)                                     \
         do {                                                    \
-                printf("(%s, %d): %s: ",                        \
+                fprintf(stderr, "(%s, %d): %s: ",               \
                        __FILE__, __LINE__, __func__);           \
-                printf(fmt, ## a);                              \
+                fprintf(stderr, fmt, ## a);                     \
         } while (0)
 
 #else

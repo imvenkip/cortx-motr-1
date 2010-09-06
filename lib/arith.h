@@ -124,6 +124,16 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	(__a0 < __a1) ? -1 : (__a0 == __a1 ? 0 : +1);	\
 })
 
+#define C2_SWAP(v0, v1)					\
+({							\
+	typeof(v0) __a0 = (v0);				\
+	typeof(v1) __a1 = (v1);				\
+	typeof(v0) __tmp = (v0);			\
+	(void)(&__a0 == &__a1);				\
+							\
+	(v0) = (v1);					\
+	(v1) = (__tmp);					\
+})
 /** @} end of arith group */
 
 /* __COLIBRI_LIB_ARITH_H__ */
