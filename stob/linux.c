@@ -339,6 +339,7 @@ static const struct c2_stob_op linux_stob_op = {
 	.sop_io_lock      = linux_stob_io_lock,
 	.sop_io_unlock    = linux_stob_io_unlock,
 	.sop_io_is_locked = linux_stob_io_is_locked,
+	.sop_block_shift  = linux_stob_block_shift
 };
 
 struct c2_stob_type linux_stob_type = {

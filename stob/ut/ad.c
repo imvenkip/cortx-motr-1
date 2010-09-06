@@ -10,6 +10,7 @@
 
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* C2_SET0 */
+#include "lib/memory.h" 
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -26,8 +27,9 @@
  */
 
 enum {
-	NR    = 8,
-	COUNT = 4096*1024
+	NR    = 3,
+	SHIFT = 12,
+	COUNT = (1 << SHIFT)*1024
 };
 
 static struct c2_stob_domain *dom_back;
@@ -54,8 +56,8 @@ static struct c2_stob *obj_fore;
 static const char path[] = "./__s/o/0000000000000001.0000000000000002";
 static struct c2_stob_io io;
 static c2_bcount_t user_vec[NR];
-static char user_buf[NR][COUNT];
-static char read_buf[NR][COUNT];
+static char *user_buf[NR];
+static char *read_buf[NR];
 static char *user_bufs[NR];
 static char *read_bufs[NR];
 static c2_bindex_t stob_vec[NR];
@@ -73,7 +75,8 @@ static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
 	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
-static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db)
+static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+			    uint32_t bshift)
 {
 	return 0;
 }
@@ -125,6 +128,16 @@ static int test_ad_init(void)
 	int i;
 	int result;
 
+	for (i = 0; i < ARRAY_SIZE(user_buf); ++i) {
+		user_buf[i] = c2_alloc_aligned(COUNT, SHIFT);
+		C2_ASSERT(user_buf[i] != NULL);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
+		read_buf[i] = c2_alloc_aligned(COUNT, SHIFT);
+		C2_ASSERT(read_buf[i] != NULL);
+	}
+
 	result = system("rm -fr ./__s");
 	C2_ASSERT(result == 0);
 
@@ -173,13 +186,14 @@ static int test_ad_init(void)
 		C2_ASSERT(result == 0);
 	}
 	C2_ASSERT(obj_fore->so_state == CSS_EXISTS);
+	C2_ASSERT(obj_fore->so_op->sop_block_shift(obj_fore) == SHIFT);
 
 	for (i = 0; i < NR; ++i) {
-		user_bufs[i] = user_buf[i];
-		read_bufs[i] = read_buf[i];
-		user_vec[i] = COUNT;
-		stob_vec[i] = COUNT * (2 * i + 1);
-		memset(user_buf[i], ('a' + i)|0, sizeof user_buf[i]);
+		user_bufs[i] = c2_stob_addr_pack(user_buf[i], SHIFT);
+		read_bufs[i] = c2_stob_addr_pack(read_buf[i], SHIFT);
+		user_vec[i] = COUNT >> SHIFT;
+		stob_vec[i] = (COUNT * (2 * i + 1)) >> SHIFT;
+		memset(user_buf[i], ('a' + i)|1, COUNT);
 	}
 	return result;
 }
@@ -187,6 +201,7 @@ static int test_ad_init(void)
 static int test_ad_fini(void)
 {
 	int result;
+	int i;
 
 	result = c2_db_tx_commit(&tx.tx_dbtx);
 	C2_ASSERT(result == 0);
@@ -195,6 +210,12 @@ static int test_ad_fini(void)
 	dom_fore->sd_ops->sdo_fini(dom_fore);
 	dom_back->sd_ops->sdo_fini(dom_back);
 	c2_dbenv_fini(&db);
+
+	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
+		c2_free(user_buf[i]);
+
+	for (i = 0; i < ARRAY_SIZE(read_buf); ++i)
+		c2_free(read_buf[i]);
 	return 0;
 }
 
@@ -209,9 +230,9 @@ static void test_write(int i)
 	io.si_user.div_vec.ov_vec.v_count = user_vec;
 	io.si_user.div_vec.ov_buf = (void **)user_bufs;
 
-	io.si_stob.ov_vec.v_nr = i;
-	io.si_stob.ov_vec.v_count = user_vec;
-	io.si_stob.ov_index = stob_vec;
+	io.si_stob.iv_vec.v_nr = i;
+	io.si_stob.iv_vec.v_count = user_vec;
+	io.si_stob.iv_index = stob_vec;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
@@ -222,7 +243,7 @@ static void test_write(int i)
 	c2_chan_wait(&clink);
 
 	C2_ASSERT(io.si_rc == 0);
-	C2_ASSERT(io.si_count == COUNT * i);
+	C2_ASSERT(io.si_count == (COUNT * i) >> SHIFT);
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
@@ -241,9 +262,9 @@ static void test_read(int i)
 	io.si_user.div_vec.ov_vec.v_count = user_vec;
 	io.si_user.div_vec.ov_buf = (void **)read_bufs;
 
-	io.si_stob.ov_vec.v_nr = i;
-	io.si_stob.ov_vec.v_count = user_vec;
-	io.si_stob.ov_index = stob_vec;
+	io.si_stob.iv_vec.v_nr = i;
+	io.si_stob.iv_vec.v_count = user_vec;
+	io.si_stob.iv_index = stob_vec;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&io.si_wait, &clink);
@@ -254,7 +275,7 @@ static void test_read(int i)
 	c2_chan_wait(&clink);
 
 	C2_ASSERT(io.si_rc == 0);
-	C2_ASSERT(io.si_count == COUNT * i);
+	C2_ASSERT(io.si_count == (COUNT * i) >> SHIFT);
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);

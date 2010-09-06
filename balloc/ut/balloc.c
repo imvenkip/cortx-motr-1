@@ -33,8 +33,9 @@ int main(int argc, char **argv)
 	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 	C2_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db);
-
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc.cb_ballroom, &db, 12);
+	
 	if (result == 0) {
 		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext);
 		printf("rc = %d: count=%d [%08llx,%08llx)\n", result, (int)count,

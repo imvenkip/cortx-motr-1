@@ -42,14 +42,20 @@ struct ad_balloc {
 
 struct ad_balloc_ops {
 	/** Initializes this balloc instance, creating its persistent state, if
-	    necessary. */
-	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db);
+	    necessary. 
+
+	    @param block size shift in bytes, similarly to
+	    c2_stob_op::sop_block_shift().
+	 */
+	int  (*bo_init)(struct ad_balloc *ballroom, struct c2_dbenv *db,
+			uint32_t bshift);
 	void (*bo_fini)(struct ad_balloc *ballroom);
-	/** Allocated count bytes. On success, allocated extent, also measured
-	    in bytes, is returned in out parameter. */
+	/** Allocates count of blocks. On success, allocated extent, also
+	    measured in blocks, is returned in out parameter. */
 	int  (*bo_alloc)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			 c2_bcount_t count, struct c2_ext *out);
-	/** Free space (possibly a sub-extent of an extent allocated earlier. */
+	/** Free space (possibly a sub-extent of an extent allocated
+	    earlier). */
 	int  (*bo_free)(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 			struct c2_ext *ext);
 };

@@ -218,7 +218,9 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
 	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) == 
-	       c2_vec_count(&io->si_stob.ov_vec));
+	       c2_vec_count(&io->si_stob.iv_vec));
+	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
+	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
 
 	if (io->si_stob_magic != obj->so_domain->sd_type->st_magic) {
 		c2_stob_io_private_fini(io);
@@ -242,6 +244,40 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	}
 	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
+}
+
+bool c2_stob_io_user_is_valid(const struct c2_diovec *user)
+{
+	return true;
+}
+
+bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob)
+{
+	uint32_t    i;
+	c2_bindex_t reached;
+
+	for (reached = 0, i = 0; i < stob->iv_vec.v_nr; ++i) {
+		if (stob->iv_index[i] < reached)
+			return false;
+		reached = stob->iv_index[i] + stob->iv_vec.v_count[i];
+	}
+	return true;
+}
+
+void *c2_stob_addr_pack(const void *buf, uint32_t shift)
+{
+	uint64_t addr = (uint64_t)buf;
+
+	C2_PRE(((addr >> shift) << shift) == addr);
+	return (void *)(addr >> shift);
+}
+
+void *c2_stob_addr_open(const void *buf, uint32_t shift)
+{
+	uint64_t addr = (uint64_t)buf;
+
+	C2_PRE(((addr << shift) >> shift) == addr);
+	return (void *)(addr << shift);
 }
 
 /** @} end group stob */

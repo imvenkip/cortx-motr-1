@@ -23,7 +23,12 @@ void *c2_alloc(size_t size);
 #define C2_ALLOC_PTR(ptr)      C2_ALLOC_ARR(ptr, 1)
 
 /**
- * freed memory block
+   Allocates zero-filled memory, aligned on (2^shift)-byte boundary.
+ */
+void *c2_alloc_aligned(size_t size, unsigned shift);
+
+/**
+ * Frees memory block
  *
  * This function must be a no-op when called with NULL argument.
  *
