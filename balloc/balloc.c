@@ -48,8 +48,7 @@ void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 		return;
 
 	debugp("dumping ex@%p:%s\n"
-	       "|----start=%10llu, end=%10llu\n"
-	       "=====start=0x%08llx, end=0x%08llx\n",
+	       "|----[%10llu, %10llu), [0x%08llx, 0x%08llx)\n",
 		ex, tag,
 		(unsigned long long) ex->e_start,
 		(unsigned long long) ex->e_end,
@@ -81,7 +80,7 @@ void c2_balloc_debug_dump_group_extent(const char *tag, struct c2_balloc_group_i
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
-		c2_balloc_debug_dump_extent(__func__, ex);
+		c2_balloc_debug_dump_extent(tag, ex);
 	}
 }
 
@@ -406,7 +405,6 @@ static int c2_balloc_read_sb(struct c2_balloc *cb, struct c2_db_tx *tx)
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 
-	debugp("rc= %d NOTFOUND=%d\n", rc, DB_NOTFOUND);
 	return rc;
 }
 
@@ -530,7 +528,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
 		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
-		req.bfr_reserved_groups = 5;
+		req.bfr_reserved_groups = 2;
 
 		rc = c2_balloc_format(colibri, dbenv, tx, &req);
 		if (rc != 0) {
@@ -815,7 +813,7 @@ int c2_balloc_load_extents(struct c2_balloc_group_info *grp, struct c2_db_tx *tx
 
 		if (c2_ext_length(ex) > maxchunk)
 			maxchunk = c2_ext_length(ex);
-		c2_balloc_debug_dump_extent("loading...", ex);
+//		c2_balloc_debug_dump_extent("loading...", ex);
 
 		count++;
 		if (count >= grp->bgi_fragments)
@@ -1670,7 +1668,7 @@ repeat:
 				group = 0;
 
 			grp = c2_balloc_gn2info(bac->bac_ctxt, group);
-			c2_balloc_debug_dump_group("searching group ...\n", grp);
+//			c2_balloc_debug_dump_group("searching group ...\n", grp);
 
 			rc = c2_balloc_trylock_group(grp);
 			if (rc != 0) {
@@ -1970,7 +1968,7 @@ static int c2_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	int rc;
 
 	req.bfr_physical = ext->e_start;
-	req.bfr_len      = ext->e_end;
+	req.bfr_len      = c2_ext_length(ext);
 
 	rc = c2_balloc_free_internal(colibri, &tx->tx_dbtx, &req);
 	return rc;

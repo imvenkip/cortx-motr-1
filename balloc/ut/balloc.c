@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 	struct c2_dtx         dtx;
 	int                   result;
 	struct c2_ext         ext = { 0 };
-	c2_bcount_t	      count = 4096 * 539;
+	c2_bcount_t	      count = 539;
 
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
@@ -38,7 +38,9 @@ int main(int argc, char **argv)
 	
 	if (result == 0) {
 		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext);
-		printf("rc = %d: count=%d [%08llx,%08llx)\n", result, (int)count,
+		printf("rc = %d: count=%d [%08llx,%08llx)=[%llu,%llu)\n", result, (int)count,
+			(unsigned long long)ext.e_start,
+			(unsigned long long)ext.e_end,
 			(unsigned long long)ext.e_start,
 			(unsigned long long)ext.e_end);
 	}
