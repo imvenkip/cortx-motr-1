@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 	c2_bcount_t	      count = 4096 * 539;
 
 	if (argc != 2) {
-		fprintf(stderr, "Usage: elist <db-dir>\n");
+		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
 		return 1;
 	}
 	db_name = argv[1];
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db);
-	
+
 	if (result == 0) {
 		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext);
 		printf("rc = %d: count=%d [%08llx,%08llx)\n", result, (int)count,

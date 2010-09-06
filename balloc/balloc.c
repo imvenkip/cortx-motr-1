@@ -44,11 +44,10 @@
 
 void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 {
-#ifdef BALLOC_DEBUG
 	if (ex == NULL)
 		return;
 
-	printf("dumping ex@%p:%s\n"
+	debugp("dumping ex@%p:%s\n"
 	       "|----start=%10llu, end=%10llu\n"
 	       "=====start=0x%08llx, end=0x%08llx\n",
 		ex, tag,
@@ -56,29 +55,38 @@ void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 		(unsigned long long) ex->e_end,
 		(unsigned long long) ex->e_start,
 		(unsigned long long) ex->e_end);
-#endif
 }
 
 void c2_balloc_debug_dump_group(const char *tag, struct c2_balloc_group_info *grp)
 {
-#ifdef BALLOC_DEBUG
 	if (grp == NULL)
 		return;
 
-	printf("dumping group_desc@%p:%s\n"
+	debugp("dumping group_desc@%p:%s\n"
 	       "|-----groupno=%08llx, freeblocks=%08llx, maxchunk=0x%08llx, fragments=0x%08llx\n",
 		grp, tag,
 		(unsigned long long) grp->bgi_groupno,
 		(unsigned long long) grp->bgi_freeblocks,
 		(unsigned long long) grp->bgi_maxchunk,
 		(unsigned long long) grp->bgi_fragments);
-#endif
 }
 
+void c2_balloc_debug_dump_group_extent(const char *tag, struct c2_balloc_group_info *grp)
+{
+	c2_bcount_t i;
+	struct c2_ext *ex;
+
+	if (grp == NULL || grp->bgi_extents == NULL)
+		return;
+
+	for (i = 0; i < grp->bgi_fragments; i++) {
+		ex = &grp->bgi_extents[i];
+		c2_balloc_debug_dump_extent(__func__, ex);
+	}
+}
 
 void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
 {
-#ifdef BALLOC_DEBUG
 	if (sb == NULL)
 		return;
 
@@ -112,7 +120,6 @@ void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
 		(unsigned long long) sb->bsb_max_mnt_count,
 		(unsigned long long) sb->bsb_stripe_size
 		);
-#endif
 }
 
 static inline c2_bindex_t
@@ -120,22 +127,25 @@ c2_balloc_bn2gn(c2_bindex_t blockno, struct c2_balloc *cb)
 {
 	return blockno >> cb->cb_sb.bsb_gsbits;
 }
-static inline
+
 struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 						c2_bindex_t groupno)
 {
-	return &cb->cb_group_info[groupno];
+	if (cb->cb_group_info)
+		return &cb->cb_group_info[groupno];
+	else
+		return NULL;
 }
 
-/**
-   db_err, reporting error messsage.
-
-   @param dbenv pointer to db environment.
-   @param rc error number returned from function call.
-   @param msg message to output.
-
-   @todo using ADDB instead
- */
+int c2_balloc_release_extents(struct c2_balloc_group_info *grp,int force)
+{
+	if (force) {
+		if (grp->bgi_extents)
+			c2_free(grp->bgi_extents);
+		grp->bgi_extents = NULL;
+	}
+	return 0;
+}
 
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
@@ -154,10 +164,7 @@ static int c2_balloc_fini_internal(struct c2_balloc *colibri,
 			gi = &colibri->cb_group_info[i];
 			c2_table_fini(&gi->bgi_db_group_desc);
 			c2_table_fini(&gi->bgi_db_group_extent);
-			if (gi->bgi_extents) {
-				c2_free(gi->bgi_extents);
-				gi->bgi_extents = NULL;
-			}
+			c2_balloc_release_extents(gi, 1);
 		}
 
 		c2_free(colibri->cb_group_info);
@@ -756,7 +763,7 @@ static void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
 }
 
 /* called under group lock */
-static int c2_balloc_load_extents(struct c2_balloc_group_info *grp, struct c2_db_tx *tx)
+int c2_balloc_load_extents(struct c2_balloc_group_info *grp, struct c2_db_tx *tx)
 {
 	struct c2_table *db_ext = &grp->bgi_db_group_extent;
 	struct c2_db_cursor cursor;
@@ -821,13 +828,6 @@ out:
 	}
 
 	return result;
-}
-
-static int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
-{
-//	c2_free(grp->bgi_extents);
-//	grp->bgi_extents = NULL;
-	return 0;
 }
 
 /* called under group lock */
@@ -1338,7 +1338,7 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 					  &bac->bac_final, C2_BALLOC_ALLOC);
 	}
 
-	c2_balloc_release_extents(grp);
+	c2_balloc_release_extents(grp, 0);
 	LEAVE;
 out_unlock:
 	c2_balloc_unlock_group(grp);
@@ -1706,7 +1706,7 @@ repeat:
 			}
 
 
-			c2_balloc_release_extents(grp);
+			c2_balloc_release_extents(grp, 0);
 			c2_balloc_unlock_group(grp);
 
 			if (bac->bac_status != C2_BALLOC_AC_CONTINUE)
@@ -1867,7 +1867,7 @@ static int c2_balloc_free_internal(struct c2_balloc *colibri,
 		fex.e_end   = start + step;
 		rc = c2_balloc_update_db(colibri, tx, grp,
 					 &fex, C2_BALLOC_FREE);
-		c2_balloc_release_extents(grp);
+		c2_balloc_release_extents(grp, 0);
 		c2_balloc_unlock_group(grp);
 		start += step;
 		len -= step;

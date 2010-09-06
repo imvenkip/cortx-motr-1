@@ -1,80 +1,51 @@
 /* -*- C -*- */
 
-#include <stdio.h>   /* fprintf */
-#include <stdlib.h>  /* free */
-#include <errno.h>   /* errno */
-#include <string.h>  /* memset */
+#include <stdio.h>        /* fprintf */
+#include <errno.h>
 #include <err.h>
 
+#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
+#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/assert.h"
+#include "db/db.h"
 #include "balloc/balloc.h"
 
+extern	struct c2_balloc colibri_balloc;
 
-static int c2_balloc_dump_super_block(struct c2_balloc_ctxt *ctxt) 
-{
-	struct c2_balloc_super_block *sb = &ctxt->bc_sb;
-
-	printf("dumping sb@%p:%p\n"
-		"|---------magic=%llx, state=%llu, version=%llu\n"
-		"|---------total=%llu, free=%llu, bs=%llu@%lx\n"
-		"|---------gs=%llu:@%lx, gc=%llu, rsvd=%llu, prealloc=%llu\n"
-		"|---------time format=%llu,\n"
-		"|---------write=%llu,\n"
-		"|---------mnt=%llu,\n"
-		"|---------last_check=%llu\n"
-		"|---------mount=%llu, max_mnt=%llu, stripe_size=%llu\n",
-		ctxt, sb,
-		(unsigned long long) sb->bsb_magic,
-		(unsigned long long) sb->bsb_state,
-		(unsigned long long) sb->bsb_version,
-		(unsigned long long) sb->bsb_totalsize,
-		(unsigned long long) sb->bsb_freeblocks,
-		(unsigned long long) sb->bsb_blocksize,
-		(unsigned long     ) sb->bsb_bsbits,
-		(unsigned long long) sb->bsb_groupsize,
-		(unsigned long     ) sb->bsb_gsbits,
-		(unsigned long long) sb->bsb_groupcount,
-		(unsigned long long) sb->bsb_reserved_groups,
-		(unsigned long long) sb->bsb_prealloc_count,
-		(unsigned long long) sb->bsb_format_time,
-		(unsigned long long) sb->bsb_write_time,
-		(unsigned long long) sb->bsb_mnt_time,
-		(unsigned long long) sb->bsb_last_check_time,
-		(unsigned long long) sb->bsb_mnt_count,
-		(unsigned long long) sb->bsb_max_mnt_count,
-		(unsigned long long) sb->bsb_stripe_size
-		);
-	return 0;
-}
+extern void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb);
 
 int main(int argc, char **argv)
 {
-	struct c2_balloc_ctxt         ctxt = {
-		.bc_nr_thread = 1,
-	};
+	const char           *db_name;
+	struct c2_dbenv       db;
+	struct c2_dtx         dtx;
+	int                   result;
 
-	int rc;
-	char *path;
-
-	if (argc != 2)
-		errx(1, "Usage: %s path-to-db-dir", argv[0]);
-
-	path = argv[1];
-
-	ctxt.bc_home = path;
-	rc = c2_balloc_init(&ctxt);
-	if (rc != 0) {
-		fprintf(stderr, "c2_balloc_init error: %d\n", rc);
-		return rc;
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
+		return 1;
 	}
+	db_name = argv[1];
 
-	rc = c2_balloc_dump_super_block(&ctxt);
-	if (rc == 0)
-		printf("Dump super block succeeded.\n");
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_ASSERT(result == 0);
 
-	c2_balloc_fini(&ctxt);
-	return rc;
+	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
+	C2_ASSERT(result == 0);
+
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db);
+
+	if (result == 0) {
+		c2_balloc_debug_dump_sb(argv[0], &colibri_balloc.cb_sb);
+	}
+	result = c2_db_tx_commit(&dtx.tx_dbtx);
+	C2_ASSERT(result == 0);
+	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+
+	c2_dbenv_fini(&db);
+	printf("done\n");
+	return 0;
 }
-
 
 /*
  *  Local variables:
