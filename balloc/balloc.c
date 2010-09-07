@@ -21,7 +21,7 @@
  */
 
 /* This macro is to control the debug verbose message */
-#define BALLOC_DEBUG
+//#define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
   #define ENTER fprintf(stderr, "===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
@@ -42,54 +42,69 @@
   #define debugp(fmt, a...)
 #endif
 
+#define BALLOC_ENABLE_DUMP
+
 void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 {
+#ifdef BALLOC_ENABLE_DUMP
+
 	if (ex == NULL)
 		return;
 
-	debugp("dumping ex@%p:%s\n"
+	fprintf(stderr, "dumping ex@%p:%s\n"
 	       "|----[%10llu, %10llu), [0x%08llx, 0x%08llx)\n",
 		ex, tag,
 		(unsigned long long) ex->e_start,
 		(unsigned long long) ex->e_end,
 		(unsigned long long) ex->e_start,
 		(unsigned long long) ex->e_end);
+#endif
 }
 
 void c2_balloc_debug_dump_group(const char *tag, struct c2_balloc_group_info *grp)
 {
+#ifdef BALLOC_ENABLE_DUMP
 	if (grp == NULL)
 		return;
 
-	debugp("dumping group_desc@%p:%s\n"
+	fprintf(stderr, "dumping group_desc@%p:%s\n"
 	       "|-----groupno=%08llx, freeblocks=%08llx, maxchunk=0x%08llx, fragments=0x%08llx\n",
 		grp, tag,
 		(unsigned long long) grp->bgi_groupno,
 		(unsigned long long) grp->bgi_freeblocks,
 		(unsigned long long) grp->bgi_maxchunk,
 		(unsigned long long) grp->bgi_fragments);
+#endif
 }
 
 void c2_balloc_debug_dump_group_extent(const char *tag, struct c2_balloc_group_info *grp)
 {
+#ifdef BALLOC_ENABLE_DUMP
 	c2_bcount_t i;
 	struct c2_ext *ex;
 
 	if (grp == NULL || grp->bgi_extents == NULL)
 		return;
 
+	fprintf(stderr, "dumping free extents@%p:%s for %08llx\n",
+		grp, tag, (unsigned long long) grp->bgi_groupno);
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
-		c2_balloc_debug_dump_extent(tag, ex);
+		fprintf(stderr, "[0x%08llx, 0x%08llx) ",
+			(unsigned long long) ex->e_start,
+			(unsigned long long) ex->e_end);
 	}
+	fprintf(stderr, "\n");
+#endif
 }
 
 void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
 {
+#ifdef BALLOC_ENABLE_DUMP
 	if (sb == NULL)
 		return;
 
-	debugp("dumping sb@%p:%s\n"
+	fprintf(stderr, "dumping sb@%p:%s\n"
 		"|-----magic=%llx, state=%llu, version=%llu\n"
 		"|-----total=%llu, free=%llu, bs=%llu(bits=%lu)\n"
 		"|-----gs=%llu(bits=%lu), gc=%llu, rsvd=%llu, prealloc=%llu\n"
@@ -119,6 +134,7 @@ void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb)
 		(unsigned long long) sb->bsb_max_mnt_count,
 		(unsigned long long) sb->bsb_stripe_size
 		);
+#endif
 }
 
 static inline c2_bindex_t
@@ -136,11 +152,10 @@ struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 		return NULL;
 }
 
-int c2_balloc_release_extents(struct c2_balloc_group_info *grp,int force)
+int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 {
-	if (force) {
-		if (grp->bgi_extents)
-			c2_free(grp->bgi_extents);
+	if (grp->bgi_extents) {
+		c2_free(grp->bgi_extents);
 		grp->bgi_extents = NULL;
 	}
 	return 0;
@@ -163,7 +178,7 @@ static int c2_balloc_fini_internal(struct c2_balloc *colibri,
 			gi = &colibri->cb_group_info[i];
 			c2_table_fini(&gi->bgi_db_group_desc);
 			c2_table_fini(&gi->bgi_db_group_extent);
-			c2_balloc_release_extents(gi, 1);
+			c2_balloc_release_extents(gi);
 		}
 
 		c2_free(colibri->cb_group_info);
@@ -891,7 +906,7 @@ repeat:
 				(unsigned long long)start,
 				(int)len, (int)len);
 			(void)msg;
-			c2_balloc_debug_dump_extent(msg, fragment);
+		//	c2_balloc_debug_dump_extent(msg, fragment);
 		}
 		if ((fragment->e_start == start) && (c2_ext_length(fragment) >= len)) {
 			found = 1;
@@ -949,8 +964,6 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 	size_t recsize = sizeof (tgt->e_end);
 	struct c2_table *db = &grp->bgi_db_group_extent;
 	c2_bcount_t i;
-	int         sz;
-	int	    one = sizeof(struct c2_ext);
 	struct c2_db_pair pair;
 	int rc = 0;
 	ENTER;
@@ -995,14 +1008,8 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-				c2_balloc_debug_dump_extent("new current=", cur);
 			} else {
-				/* this extent is gone */
-				sz = (grp->bgi_fragments - i) * one;
-				memmove(cur, cur + 1, sz);
 				grp->bgi_fragments--;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents = realloc(grp->bgi_extents,sz);
 			}
 		} else {
 			struct c2_ext next = *cur;
@@ -1032,16 +1039,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-
-				cur++;
-				if (i + 1 < grp->bgi_fragments) {
-					sz = (grp->bgi_fragments - i) * one;
-					memmove(cur + 1, cur, sz);
-				}
-				*cur = next;
 				grp->bgi_fragments++;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents = realloc(grp->bgi_extents,sz);
 			}
 		}
 
@@ -1074,12 +1072,14 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 		c2_balloc_debug_dump_extent("prev=", pre);
 		c2_balloc_debug_dump_extent("current=", cur);
 
-		if (cur && tgt->e_end > cur->e_start) {
-			fprintf(stderr, "double free\n");
+		if (found && cur && tgt->e_end > cur->e_start) {
+			fprintf(stderr, "!!!!!!!!!!!!!double free\n");
+			c2_balloc_debug_dump_group_extent("double free with cur", grp);
 			return -EINVAL;
 		}
 		if (pre && pre->e_end > tgt->e_start) {
-			fprintf(stderr, "double free\n");
+			fprintf(stderr, "!!!!!!!!!!!!!double free\n");
+			c2_balloc_debug_dump_group_extent("double free with pre", grp);
 			return -EINVAL;
 		}
 
@@ -1095,12 +1095,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-
-				cur = &grp->bgi_extents[0];
-				*cur = *tgt;
 				grp->bgi_fragments++;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents= realloc(grp->bgi_extents,sz);
 			} else {
 				/* at the tail */
 				if (pre->e_end < tgt->e_start) {
@@ -1114,13 +1109,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 						LEAVE;
 						return rc;
 					}
-
-					cur++;
-					*cur = *tgt;
 					grp->bgi_fragments++;
-					sz = (grp->bgi_fragments + 1) * one;
-					grp->bgi_extents =
-						realloc(grp->bgi_extents, sz);
 				} else {
 					pre->e_end = tgt->e_end;
 
@@ -1149,13 +1138,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-				sz = grp->bgi_fragments * one;
-				memmove(cur + 1, cur, sz);
-				cur = &grp->bgi_extents[0];
-				*cur = *tgt;
 				grp->bgi_fragments++;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents = realloc(grp->bgi_extents,sz);
 			} else {
 				/* join the first one */
 
@@ -1206,11 +1189,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-				sz = (grp->bgi_fragments - i) * one;
-				memmove(cur, cur + 1, sz);
 				grp->bgi_fragments--;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents = realloc(grp->bgi_extents,sz);
 			} else
 			if (pre->e_end == tgt->e_start) {
 				/* joint with prev */
@@ -1261,13 +1240,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 					LEAVE;
 					return rc;
 				}
-
-				sz = grp->bgi_fragments * one;
-				memmove(cur + 1, cur, sz);
-				*cur = *tgt;
 				grp->bgi_fragments++;
-				sz = (grp->bgi_fragments + 1) * one;
-				grp->bgi_extents = realloc(grp->bgi_extents,sz);
 			}
 		}
 
@@ -1346,7 +1319,7 @@ static int c2_balloc_find_by_goal(struct c2_balloc_allocation_context *bac)
 					  &bac->bac_final, C2_BALLOC_ALLOC);
 	}
 
-	c2_balloc_release_extents(grp, 0);
+	c2_balloc_release_extents(grp);
 	LEAVE;
 out_unlock:
 	c2_balloc_unlock_group(grp);
@@ -1415,7 +1388,7 @@ static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 			break;
 	}
 	if (found) {
-		c2_balloc_debug_dump_extent(__func__, &ex);
+		c2_balloc_debug_dump_extent("found at simple scan", &ex);
 
 		bac->bac_found++;
 		bac->bac_best = ex;
@@ -1589,13 +1562,18 @@ static int c2_balloc_try_best_found(struct c2_balloc_allocation_context *bac)
 	if (grp->bgi_freeblocks < c2_ext_length(best))
 		goto out;
 
+	rc = c2_balloc_load_extents(grp, bac->bac_tx);
+	if (rc != 0) {
+		goto out;
+	}
+
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		ex = &grp->bgi_extents[i];
 		if (ex == best) {
 			rc = c2_balloc_use_best_found(bac);
 			break;
 		} else if (ex->e_start > best->e_start)
-			goto out;
+			goto out_release;
 	}
 
 	/* update db according to the allocation result */
@@ -1607,6 +1585,8 @@ static int c2_balloc_try_best_found(struct c2_balloc_allocation_context *bac)
 					 &bac->bac_final,
 					 C2_BALLOC_ALLOC);
 	}
+out_release:
+	c2_balloc_release_extents(grp);
 out:
 	c2_balloc_unlock_group(grp);
 	LEAVE;
@@ -1689,11 +1669,13 @@ repeat:
 			}
 
 			if (!c2_balloc_good_group(bac, grp)) {
+				c2_balloc_release_extents(grp);
 				c2_balloc_unlock_group(grp);
 				continue;
 			}
 			bac->bac_scanned++;
 
+			c2_balloc_debug_dump_group_extent("AAAAAAAAAAAAAAAAAAAAAAAAAAA", grp);
 			if (cr == 0)
 				rc = c2_balloc_simple_scan_group(bac, grp);
 			else if (cr == 1 &&
@@ -1714,7 +1696,7 @@ repeat:
 			}
 
 
-			c2_balloc_release_extents(grp, 0);
+			c2_balloc_release_extents(grp);
 			c2_balloc_unlock_group(grp);
 
 			if (bac->bac_status != C2_BALLOC_AC_CONTINUE)
@@ -1867,6 +1849,7 @@ static int c2_balloc_free_internal(struct c2_balloc *colibri,
 			goto out;
 		}
 
+		c2_balloc_debug_dump_group_extent("FFFFFFFFFFFFFFFFFFFFFFFFFFFF", grp);
 		off = start & (sb->bsb_groupsize - 1);
 		step = (off + len > sb->bsb_groupsize) ?
 			sb->bsb_groupsize  - off : len;
@@ -1875,7 +1858,7 @@ static int c2_balloc_free_internal(struct c2_balloc *colibri,
 		fex.e_end   = start + step;
 		rc = c2_balloc_update_db(colibri, tx, grp,
 					 &fex, C2_BALLOC_FREE);
-		c2_balloc_release_extents(grp, 0);
+		c2_balloc_release_extents(grp);
 		c2_balloc_unlock_group(grp);
 		start += step;
 		len -= step;
@@ -1943,12 +1926,13 @@ static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	struct c2_balloc_allocate_req req;
 	int rc;
 
+	C2_ASSERT(count > 0);
+
 	req.bar_goal = 0;
 	req.bar_len = count;
 	req.bar_flags = C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;
 	rc = c2_balloc_allocate_internal(colibri, &tx->tx_dbtx, &req);
 	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
-		c2_balloc_debug_dump_extent("result=", &req.bar_result);
 		out->e_start = req.bar_result.e_start;
 		out->e_end   = req.bar_result.e_end;
 	}
