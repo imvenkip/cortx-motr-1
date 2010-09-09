@@ -1,5 +1,5 @@
 SUBDIRS_BASE = m4 doc man patches 
-SUBDIRS_LIBS = lib sm addb fop stob net fol dtm nrs sns mw reqh layout \
+SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
                pool balloc db # rpc
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_BINARIES = mds utils

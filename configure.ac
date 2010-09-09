@@ -462,6 +462,7 @@ AC_CONFIG_FILES([
                  addb/Makefile
                  addb/linux_kernel/Makefile
                  fol/Makefile
+                 fid/Makefile
                  fop/Makefile
                  fop/linux_kernel/Makefile
                  fop/ut/Makefile
