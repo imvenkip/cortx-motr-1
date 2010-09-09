@@ -1,41 +1,47 @@
 /* -*- C -*- */
 
-#include <stdio.h>   /* fprintf */
-#include <sys/stat.h> /* mkdir */
+#include <stdio.h>        /* fprintf */
+#include <errno.h>
 #include <err.h>
 
+#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
+#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/assert.h"
+#include "db/db.h"
 #include "balloc/balloc.h"
+
+extern	struct c2_balloc colibri_balloc;
 
 int main(int argc, char **argv)
 {
-	struct c2_balloc_format_req   format_req = { 0 };
+	const char           *db_name;
+	struct c2_dbenv       db;
+	struct c2_dtx         dtx;
+	int                   result;
 
-	int rc;
-	char *path;
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s <db-dir>\n", argv[0]);
+		return 1;
+	}
+	db_name = argv[1];
 
-	if (argc != 2)
-		errx(1, "Usage: balloc path-to-db-dir");
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_ASSERT(result == 0);
 
-	path = argv[1];
-	rc = mkdir(path, 0700);
-	if (rc != 0)
-		err(1, "mkdir(\"%s\")", path);
+	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
+	C2_ASSERT(result == 0);
 
-	format_req.bfr_db_home = path;
-	format_req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1; //=40GB
-	format_req.bfr_blocksize = 4096;
-	format_req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
-	format_req.bfr_reserved_groups = 2;
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc.cb_ballroom, &db, 12);
+	
+	result = c2_db_tx_commit(&dtx.tx_dbtx);
+	C2_ASSERT(result == 0);
+	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
 
-	rc = c2_balloc_format(&format_req);
-	if (rc == 0) {
-		printf("Successfully formatted!\n");
-	} else
-		err(1, "format error (\"%s\")", path);
-
-	return rc;
+	c2_dbenv_fini(&db);
+	printf("done\n");
+	return 0;
 }
-
 
 /*
  *  Local variables:

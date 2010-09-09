@@ -46,7 +46,6 @@ struct c2_balloc_group_info {
         struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
         struct c2_mutex bgi_mutex;      /*< per-group lock */
 
-	struct c2_table bgi_db_group_desc;
 	struct c2_table bgi_db_group_extent;
 	struct c2_ext   *bgi_extents;   /*< (bgi_fragments+1) of extents */
 	
@@ -116,8 +115,9 @@ struct c2_balloc {
 	struct c2_dbenv *cb_dbenv;
 	struct c2_table  cb_db_sb;
 	struct c2_balloc_super_block cb_sb;
-        struct c2_mutex cb_sb_mutex;      /*< super block lock */
+        struct c2_mutex  cb_sb_mutex;      /*< super block lock */
 
+	struct c2_table  cb_db_group_desc;
 	struct c2_balloc_group_info *cb_group_info;
 
 	struct ad_balloc cb_ballroom;
@@ -217,6 +217,21 @@ struct c2_balloc_discard_req {
 
 
 extern struct c2_balloc colibri_balloc;
+
+
+
+/* Interfaces for UT */
+extern void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb);
+extern void c2_balloc_debug_dump_group_extent(const char *tag, struct c2_balloc_group_info *grp);
+
+extern int c2_balloc_release_extents(struct c2_balloc_group_info *grp);
+extern int c2_balloc_load_extents(struct c2_balloc *cb,
+			   struct c2_balloc_group_info *grp,
+			   struct c2_db_tx *tx);
+extern struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
+						       c2_bindex_t groupno);
+extern void c2_balloc_debug_dump_group(const char *tag, struct c2_balloc_group_info *grp);
+
 
 /** @} end of balloc */
 

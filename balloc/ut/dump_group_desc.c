@@ -1,85 +1,53 @@
 /* -*- C -*- */
 
-#include <stdio.h>   /* fprintf */
-#include <stdlib.h>  /* free */
-#include <errno.h>   /* errno */
-#include <string.h>  /* memset */
+#include <stdio.h>        /* fprintf */
+#include <stdlib.h>       /* atoll */
+#include <errno.h>
 #include <err.h>
 
+#include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
+#include "lib/misc.h"     /* C2_SET0 */
+#include "lib/assert.h"
+#include "db/db.h"
 #include "balloc/balloc.h"
 
-int c2_balloc_get_record(DB_ENV *dbenv, DB_TXN *tx, DB *db,
-			 void *key, size_t keysize,
-			 void **rec, size_t *recsize);
-
-static int c2_balloc_dump_group_desc(struct c2_balloc_ctxt *ctxt, 
-				     c2_bindex_t gn)
-{
-	DB  *db;
-	struct c2_balloc_group_desc *desc;
-	size_t size;
-	int  result;
-
-	if (gn > ctxt->bc_sb.bsb_groupcount) {
-		printf("Invalid group number: %llu\n", (unsigned long long)gn);
-		return -EINVAL;
-	}
-
-	db = ctxt->bc_group_info[gn].bgi_db_group_desc;
-
-	result = c2_balloc_get_record(ctxt->bc_dbenv, ctxt->bc_tx, db,
-				      &gn, sizeof gn,
-				      (void**)&desc, &size);
-	if (result == 0) {
-		printf("groupno    =%8llu, 0x%08llx\n",
-			(unsigned long long)desc->bgd_groupno,
-			(unsigned long long)desc->bgd_groupno);
-		printf("freeblocks =%8llu, 0x%08llx\n",
-			(unsigned long long)desc->bgd_freeblocks,
-			(unsigned long long)desc->bgd_freeblocks);
-		printf("fragments  =%8llu, 0x%08llx\n",
-			(unsigned long long)desc->bgd_fragments,
-			(unsigned long long)desc->bgd_fragments);
-		printf("maxchunk   =%8llu, 0x%08llx\n",
-			(unsigned long long)desc->bgd_maxchunk,
-			(unsigned long long)desc->bgd_maxchunk);
-		free(desc);
-	}
-
-	return result;
-}
-
+extern	struct c2_balloc colibri_balloc;
 int main(int argc, char **argv)
 {
-	struct c2_balloc_ctxt         ctxt = {
-		.bc_nr_thread = 1,
-	};
+	const char           *db_name;
+	struct c2_dbenv       db;
+	struct c2_dtx         dtx;
+	c2_bcount_t	      gn;
+	int                   result;
 
-	int rc;
-	char *path;
-	int gn;
-
-	if (argc != 3)
-		errx(1, "Usage: %s path-to-db-dir group_number", argv[0]);
-
-	path = argv[1];
-	gn = atol(argv[2]);
-
-	ctxt.bc_home = path;
-	rc = c2_balloc_init(&ctxt);
-	if (rc != 0) {
-		fprintf(stderr, "c2_balloc_init error: %d\n", rc);
-		return rc;
+	if (argc != 3) {
+		fprintf(stderr, "Usage: %s <db-dir> groupno\n", argv[0]);
+		return 1;
 	}
+	db_name = argv[1];
+	gn = atoll(argv[2]);
 
-	rc = c2_balloc_dump_group_desc(&ctxt, gn);
-	if (rc == 0)
-		printf("Dump group desc succeeded.\n");
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_ASSERT(result == 0);
 
-	c2_balloc_fini(&ctxt);
-	return rc;
+	result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
+	C2_ASSERT(result == 0);
+
+	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db, 12);
+
+	if (result == 0) {
+		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, gn);
+		if (grp)
+			c2_balloc_debug_dump_group(argv[0], grp);
+	}
+	result = c2_db_tx_commit(&dtx.tx_dbtx);
+	C2_ASSERT(result == 0);
+	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
+
+	c2_dbenv_fini(&db);
+	printf("done\n");
+	return 0;
 }
-
 
 /*
  *  Local variables:
