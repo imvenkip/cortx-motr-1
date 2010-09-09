@@ -62,7 +62,9 @@ int main(int argc, char **argv)
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
 	}
-	for (i = 2; i < 5 && result == 0; i++ ) {
+
+	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
+	     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0; i++ ) {
 		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, i);
 
 		if (grp) {
@@ -91,7 +93,8 @@ int main(int argc, char **argv)
 			(unsigned long long)ext[i].e_end);
 	}
 
-	for (i = 2; i < 10 && result == 0; i++ ) {
+	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
+	     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0; i++ ) {
 		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, i);
 
 		if (grp) {
@@ -106,6 +109,7 @@ int main(int argc, char **argv)
 			}
 		}
 	}
+
 	if (result == 0 )
 		result = c2_db_tx_commit(&dtx.tx_dbtx);
 	else
