@@ -355,6 +355,7 @@ void c2_table_fini(struct c2_table *table)
 	if (table->t_db != NULL) {
 		TABLE_CALL(table, sync, 0);
 		TABLE_CALL(table, close, 0);
+		table->t_db = NULL;
 	}
 	c2_addb_ctx_fini(&table->t_addb);
 }

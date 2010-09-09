@@ -12,7 +12,6 @@
 
 extern	struct c2_balloc colibri_balloc;
 
-extern void c2_balloc_debug_dump_sb(const char *tag, struct c2_balloc_super_block *sb);
 
 int main(int argc, char **argv)
 {

@@ -12,10 +12,6 @@
 #include "balloc/balloc.h"
 
 extern	struct c2_balloc colibri_balloc;
-extern void c2_balloc_debug_dump_group(const char *tag, struct c2_balloc_group_info *grp);
-
-extern struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						       c2_bindex_t groupno);
 int main(int argc, char **argv)
 {
 	const char           *db_name;

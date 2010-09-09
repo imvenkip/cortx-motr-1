@@ -12,13 +12,6 @@
 #include "balloc/balloc.h"
 
 extern	struct c2_balloc colibri_balloc;
-extern void c2_balloc_debug_dump_group_extent(const char *tag, struct c2_balloc_group_info *grp);
-
-extern struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
-						       c2_bindex_t groupno);
-extern int c2_balloc_load_extents(struct c2_balloc_group_info *grp, struct c2_db_tx *tx);
-
-
 int main(int argc, char **argv)
 {
 	const char           *db_name;
@@ -45,9 +38,10 @@ int main(int argc, char **argv)
 	if (result == 0) {
 		struct c2_balloc_group_info *grp = c2_balloc_gn2info(&colibri_balloc, gn);
 		if (grp) {
-			result = c2_balloc_load_extents(grp, &dtx.tx_dbtx);
+			result = c2_balloc_load_extents(&colibri_balloc, grp, &dtx.tx_dbtx);
 			if (result == 0)
 				c2_balloc_debug_dump_group_extent(argv[0], grp);
+			c2_balloc_release_extents(grp);
 		}
 	}
 	result = c2_db_tx_commit(&dtx.tx_dbtx);
