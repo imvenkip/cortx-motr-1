@@ -311,12 +311,12 @@ int emap_split_internal(struct c2_emap_cursor *it, struct c2_indexvec *vec,
 
 	result = c2_db_cursor_del(&it->ec_cursor);
 	if (result == 0) {
-		for (result = 0, i = 0; i < vec->ov_vec.v_nr; ++i) {
-			count = vec->ov_vec.v_count[i];
+		for (result = 0, i = 0; i < vec->iv_vec.v_nr; ++i) {
+			count = vec->iv_vec.v_count[i];
 			if (count != 0) {
 				it->ec_seg.ee_ext.e_start = scan;
 				it->ec_seg.ee_ext.e_end   = scan = scan + count;
-				it->ec_seg.ee_val         = vec->ov_index[i];
+				it->ec_seg.ee_val         = vec->iv_index[i];
 				result = IT_DO_PACK(it, c2_db_cursor_add);
 				if (result != 0)
 					break;
@@ -330,7 +330,7 @@ int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
 {
 	int result;
 
-	C2_PRE(c2_vec_count(&vec->ov_vec) == c2_ext_length(&it->ec_seg.ee_ext));
+	C2_PRE(c2_vec_count(&vec->iv_vec) == c2_ext_length(&it->ec_seg.ee_ext));
 	C2_ASSERT(emap_invariant(it));
 
 	result = emap_split_internal(it, vec, it->ec_seg.ee_ext.e_start);
@@ -376,11 +376,11 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		c2_bcount_t        consumed;
 		struct c2_ext      clip;
 		struct c2_indexvec vec = {
-			.ov_vec = {
+			.iv_vec = {
 				.v_nr    = 3,
 				.v_count = length
 			},
-			.ov_index = bstart
+			.iv_index = bstart
 		};
 
 		c2_ext_intersection(ext, chunk, &clip);

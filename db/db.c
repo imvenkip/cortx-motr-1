@@ -90,8 +90,9 @@ static int dberr_conv(int db_error)
 }
 
 /**
-   A helper to DBENV_CALL(), TABLE_CALL() and TX_CALL(): converts db5 error code
-   into errno and emits an ADDB event in a given context, if necessary.
+   A helper to DBENV_CALL(), TABLE_CALL(), TX_CALL() and CURSOR_CALL(): converts
+   db5 error code into errno and emits an ADDB event in a given context, if
+   necessary.
  */
 static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 			int *tolerate)

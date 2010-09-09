@@ -102,11 +102,11 @@ static void split(c2_bindex_t offset, int nr, bool commit)
 	c2_bcount_t len[] = { 100, 2, 0, 0 };
 	uint64_t    val[] = { 1,   2, 3, 4 };
 	struct c2_indexvec vec = {
-		.ov_vec = {
+		.iv_vec = {
 			.v_nr    = ARRAY_SIZE(len),
 			.v_count = len
 		},
-		.ov_index = val
+		.iv_index = val
 	};
 
 	result = c2_emap_lookup(&emap, &tx, &prefix, offset, &it);
