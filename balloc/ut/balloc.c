@@ -21,6 +21,7 @@ int main(int argc, char **argv)
 	struct c2_dtx         dtx;
 	int                   result;
 	struct c2_ext         ext[MAX];
+	struct c2_ext         tmp = { 0 };
 	c2_bcount_t	      count = 539;
 	int		      i = 0;
 	time_t		      now;
@@ -49,9 +50,12 @@ int main(int argc, char **argv)
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 		C2_ASSERT(result == 0);
 
-		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &ext[i]);
+		/* pass last result as goal. comment out this to turn off goal */
+		//tmp.e_start = tmp.e_end;
+		result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(&colibri_balloc.cb_ballroom, &dtx, count, &tmp);
+		ext[i] = tmp;
 
-		printf("%d:rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%3d:rc = %d: requested count=%5d, result count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)count,
 			(int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
@@ -59,9 +63,9 @@ int main(int argc, char **argv)
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
 		if (result == 0)
-			result = c2_db_tx_commit(&dtx.tx_dbtx);
+			c2_db_tx_commit(&dtx.tx_dbtx);
 		else
-			result = c2_db_tx_abort(&dtx.tx_dbtx);
+			c2_db_tx_abort(&dtx.tx_dbtx);
 	}
 
 	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
@@ -76,8 +80,7 @@ int main(int argc, char **argv)
 				c2_balloc_debug_dump_group_extent(argv[0], grp);
 			c2_balloc_release_extents(grp);
 		}
-		result = c2_db_tx_commit(&dtx.tx_dbtx);
-		C2_ASSERT(result == 0);
+		c2_db_tx_commit(&dtx.tx_dbtx);
 	}
 
 	/* randonmize the array */
@@ -95,16 +98,16 @@ int main(int argc, char **argv)
 		if (ext[i].e_start != 0)
 			result = colibri_balloc.cb_ballroom.ab_ops->bo_free(&colibri_balloc.cb_ballroom, &dtx, &ext[i]);
 
-		printf("%d: rc = %d: freed: len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
+		printf("%3d:rc = %d: freed:                          len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
 			i, result, (int)c2_ext_length(&ext[i]),
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end,
 			(unsigned long long)ext[i].e_start,
 			(unsigned long long)ext[i].e_end);
 		if (result == 0)
-			result = c2_db_tx_commit(&dtx.tx_dbtx);
+			c2_db_tx_commit(&dtx.tx_dbtx);
 		else
-			result = c2_db_tx_abort(&dtx.tx_dbtx);
+			c2_db_tx_abort(&dtx.tx_dbtx);
 	}
 
 	for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
@@ -125,16 +128,13 @@ int main(int argc, char **argv)
 			}
 			c2_balloc_release_extents(grp);
 		}
-		result = c2_db_tx_commit(&dtx.tx_dbtx);
-		C2_ASSERT(result == 0);
+		c2_db_tx_commit(&dtx.tx_dbtx);
 	}
-
-	C2_ASSERT(result == 0);
 
 	colibri_balloc.cb_ballroom.ab_ops->bo_fini(&colibri_balloc.cb_ballroom);
 	c2_dbenv_fini(&db);
-	printf("done\n");
-	return 0;
+	printf("done. status = %d\n", result);
+	return result;
 }
 
 /*

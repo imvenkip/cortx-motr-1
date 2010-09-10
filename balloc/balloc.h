@@ -46,7 +46,6 @@ struct c2_balloc_group_info {
         struct c2_list  bgi_prealloc_list; /*< list of pre-alloc */
         struct c2_mutex bgi_mutex;      /*< per-group lock */
 
-	struct c2_table bgi_db_group_extent;
 	struct c2_ext   *bgi_extents;   /*< (bgi_fragments+1) of extents */
 	
         /** 
@@ -113,12 +112,14 @@ enum c2_balloc_super_block_version {
  */
 struct c2_balloc {
 	struct c2_dbenv *cb_dbenv;
-	struct c2_table  cb_db_sb;
-	struct c2_balloc_super_block cb_sb;
+
+	struct c2_table  cb_db_sb;	   /*< db for sb */
+	struct c2_balloc_super_block cb_sb;/*< the on-disk and in-memory sb */
         struct c2_mutex  cb_sb_mutex;      /*< super block lock */
 
-	struct c2_table  cb_db_group_desc;
-	struct c2_balloc_group_info *cb_group_info;
+	struct c2_table  cb_db_group_extents;/*< db for free extent */
+	struct c2_table  cb_db_group_desc;   /*< db for group desc */
+	struct c2_balloc_group_info *cb_group_info; /*< array of group info */
 
 	struct ad_balloc cb_ballroom;
 };

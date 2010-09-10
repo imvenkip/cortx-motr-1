@@ -25,6 +25,12 @@ bool c2_ext_is_partof(const struct c2_ext *super, const struct c2_ext *sub)
 		sub->e_end <= super->e_end;
 }
 
+bool c2_ext_equal(const struct c2_ext *a, const struct c2_ext *b)
+{
+	return a->e_start == b->e_start && a->e_end == b->e_end;
+}
+
+
 bool c2_ext_is_empty(const struct c2_ext *ext)
 {
 	return ext->e_end <= ext->e_start;

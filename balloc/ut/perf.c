@@ -18,10 +18,13 @@ const int DEF = 1000 * 1;
 
 
 unsigned long timesub(struct timeval *begin, struct timeval *end) {
-	return
+	unsigned long interval = 
 		(unsigned long)((end->tv_sec - begin->tv_sec) * 1000000 +
 		                (end->tv_usec - begin->tv_usec)
 			        );
+	if (interval == 0)
+		interval = 1;
+	return interval;
 }
 
 
@@ -86,6 +89,10 @@ int main(int argc, char **argv)
 			c2_db_tx_commit(&dtx.tx_dbtx);
 		else
 			c2_db_tx_abort(&dtx.tx_dbtx);
+		if (result == -ENOSPC) {
+			result = 0;
+			break;
+		}
 	}
 	gettimeofday(&alloc_end, NULL);
 	alloc_usec = timesub(&alloc_begin, &alloc_end);
