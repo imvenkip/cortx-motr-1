@@ -21,6 +21,22 @@
 
    An implementation emits ADDB events all db5 errors.
 
+   The natural way to implement transaction waiter would be to use a "commit
+   call-back" that gets called whenever a transaction or a group of transactions
+   becomes persistent. Alas, db5 provides no such call-back. Instead, when a
+   transaction is closed, the last LSN used by the data-base environment is
+   obtained (get_lsn()). A special per-environment thread (dbenv_thread()),
+   started by c2_dbenv_init() once a second learns (by calling
+   DBENV->log_stat()) what is the last persistent LSN and signals waiters for
+   all transactions with LSNs less than or equal to the last persistent LSN.
+
+   This solution leaves much to be desired: (i) it smells of a hack, (ii)
+   get_lsn() is perhaps too expensive to be called on each transaction
+   completion, (iii) it relies on undocumented internal structure of LSN, see
+   dbenv_thread() for details.
+
+   Alternatively, commit call-back can be added to db5.
+
    @see http://www.oracle.com/technology/documentation/berkeley-db/db/api_reference/C/index.html
 
    @{
@@ -43,6 +59,8 @@ static const struct c2_addb_ctx_type db_tx_ctx_type = {
 };
 
 static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
+static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn);
+static void dbenv_thread(struct c2_dbenv *env);
 
 /**
    Convert db5 specific error code into generic errno.
@@ -192,6 +210,9 @@ static int dbenv_tol_txn_begin[] = { 0 };
 static int dbenv_tol_set_lk_detect[] = { 0 };
 static int dbenv_tol_memp_sync[] = { 0 };
 static int dbenv_tol_log_flush[] = { 0 };
+static int dbenv_tol_log_cursor[] = { 0 };
+static int dbenv_tol_log_stat[] = { 0 };
+static int dbenv_tol_memp_trickle[] = { 0 };
 
 /**
    Major part of c2_dbenv_init().
@@ -201,6 +222,10 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	int result;
 	DB_ENV *de;
 
+	C2_SET0(env);
+
+	c2_mutex_init(&env->d_lock);
+	c2_list_init(&env->d_waiters);
 	/*
 	 * XXX translate flags from c2 to db5.
 	 */
@@ -248,6 +273,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		C2_ASSERT(result == 0);
 		result = DBENV_CALL(env, set_lk_detect, DB_LOCK_DEFAULT);
 		C2_ASSERT(result == 0);
+
 		/*
 		 * XXX todo
 		 *
@@ -260,11 +286,21 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		 * DBENV_CALL(env, set_cachesize, ...);
 		 * DBENV_CALL(env, set_bsize, ...);
 		 * DBENV_CALL(env, set_app_dispatch, c2_fol_dispatch);
+		 * DBENV_CALL(env, set_alloc, c2_alloc, c2_realloc, c2_free);
 		 *
 		 * start ->memp_trickle() thread.
 		 */
-		if (result == 0)
+		if (result == 0) {
 			result = DBENV_CALL(env, open, name, flags, 0700);
+			if (result == 0) {
+				result = C2_THREAD_INIT(&env->d_thread, 
+							struct c2_dbenv *, NULL,
+							&dbenv_thread, env);
+				if (result == 0)
+					DBENV_CALL(env, log_cursor, 
+						   &env->d_logc, 0);
+			}
+		}
 	} else
 		env->d_env = NULL;
 	return dberr_conv(result);
@@ -285,6 +321,17 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 	if (env->d_env != NULL) {
 		DBENV_CALL(env, memp_sync, NULL);
 		DBENV_CALL(env, log_flush, NULL);
+	}
+	if (env->d_thread.t_state == TS_RUNNING) {
+		env->d_shutdown = true;
+		c2_thread_join(&env->d_thread);
+		c2_thread_fini(&env->d_thread);
+	}
+	if (env->d_logc != NULL) {
+		env->d_logc->close(env->d_logc, 0);
+		env->d_logc = NULL;
+	}
+	if (env->d_env != NULL) {
 		DBENV_CALL(env, close, 0);
 		env->d_env = NULL;
 	}
@@ -297,6 +344,8 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 		env->d_errlog = NULL;
 	}
 	c2_addb_ctx_fini(&env->d_addb);
+	c2_list_fini(&env->d_waiters);
+	c2_mutex_fini(&env->d_lock);
 }
 
 static int table_tol_set_lorder[] = { 0 };
@@ -360,7 +409,7 @@ void c2_table_fini(struct c2_table *table)
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
-void pair_init(struct c2_db_pair *pair, struct c2_table *table)
+static void pair_init(struct c2_db_pair *pair, struct c2_table *table)
 {
 	pair->dp_table = table;
 
@@ -428,6 +477,8 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	if (flags == 0)
 		flags = 0/*DB_READ_UNCOMMITTED*/|DB_TXN_NOSYNC;
 
+	tx->dt_env = env;
+	c2_list_init(&tx->dt_waiters);
 	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_txn, flags);
 	if (result == 0) {
@@ -443,6 +494,42 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	return result;
 }
 
+static void waiter_fini(struct c2_db_tx_waiter *w)
+{
+	c2_list_del(&w->tw_env);
+	w->tw_done(w);
+}
+
+static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
+{
+	struct c2_db_tx_waiter *w;
+	struct c2_dbenv        *env;
+	int                     result;
+	DB_LSN                  lsn;
+
+	env = tx->dt_env;
+	if (commit) {
+		result = get_lsn(env, &lsn);
+		if (result != 0)
+			return result;
+	}
+	while (!c2_list_is_empty(&tx->dt_waiters)) {
+		w = container_of(tx->dt_waiters.l_head, struct c2_db_tx_waiter,
+				 tw_tx);
+		C2_ASSERT(c2_list_link_is_in(&w->tw_env));
+		c2_list_del(&w->tw_tx);
+		w->tw_close(w, commit);
+		if (!commit) {
+			c2_mutex_lock(&env->d_lock);
+			waiter_fini(w);
+			c2_mutex_unlock(&env->d_lock);
+		} else
+			w->tw_lsn = lsn;
+	}
+	c2_list_fini(&tx->dt_waiters);
+	return 0;
+}
+
 void tx_fini(struct c2_db_tx *tx)
 {
 	c2_addb_ctx_fini(&tx->dt_addb);
@@ -455,7 +542,9 @@ int c2_db_tx_commit(struct c2_db_tx *tx)
 {
 	int result;
 
-	result = TX_CALL(tx, commit, DB_TXN_NOSYNC);
+	result = tx_fini_pre(tx, true);
+	if (result == 0)
+		result = TX_CALL(tx, commit, DB_TXN_NOSYNC);
 	tx_fini(tx);
 	return result;
 }
@@ -464,9 +553,23 @@ int c2_db_tx_abort(struct c2_db_tx *tx)
 {
 	int result;
 
+	tx_fini_pre(tx, false);
 	result = TX_CALL(tx, abort);
 	tx_fini(tx);
 	return result;
+}
+
+void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
+{
+	struct c2_dbenv *env;
+
+	env = tx->dt_env;
+
+	c2_mutex_lock(&env->d_lock);
+	c2_list_add(&env->d_waiters, &w->tw_env);
+	c2_mutex_unlock(&env->d_lock);
+
+	c2_list_add(&tx->dt_waiters, &w->tw_tx);
 }
 
 int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
@@ -580,6 +683,86 @@ static int key_compare(DB *db, const DBT *dbt0, const DBT *dbt1)
 	C2_ASSERT(table->t_db == db);
 	C2_ASSERT(table->t_ops->key_cmp != NULL);
 	return table->t_ops->key_cmp(table, dbt0->data, dbt1->data);
+}
+
+/**
+   Returns the last LSN used by the data-base environment.
+ */
+static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn)
+{
+	int         rc;
+	DBT         nonce;
+	/* dummy buffer to copy last log record to. */
+	static char dummy[20000];
+
+	nonce.data  = dummy;
+	nonce.flags = DB_DBT_USERMEM;
+	nonce.ulen  = sizeof dummy;
+
+	rc = env->d_logc->get(env->d_logc, lsn, &nonce, DB_LAST);
+	return db_call_tail(&env->d_addb, rc, "logc::get", NULL);
+}
+
+/**
+   Per data-base environment thread.
+
+   This thread loops until the environment shutdown starts, doing the following:
+
+   @li de-stage some dirty pages, to guarantee some amount of free memory in the
+   pool and to make write-back smoother;
+
+   @li determine what is the last persistent LSN and signal transacaction
+   waiters accordingly;
+
+   @li sleep for some time.
+
+   @todo the thread might linger for more than a second after
+   c2_dbenv::d_shutdown was set. The solution is to introduce channel waiting
+   with timeout to c2_chan or c2_cond and to use it instead of sleep.
+ */
+static void dbenv_thread(struct c2_dbenv *env)
+{
+	bool         last;
+	DB_LSN       next;
+	DB_LOG_STAT *st;
+
+	C2_SET0(&next);
+	last = false;
+	do {
+		int rc;
+		int nr_pages;
+
+		last = env->d_shutdown;
+		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
+		rc = DBENV_CALL(env, log_stat, &st, 0);
+		if (rc == 0) {
+			/*
+			 * Reconstruct LSN from DB_LOG_STAT fields. This has
+			 * been reverse engineered from db5 sources.
+			 */
+			next.file   = st->st_disk_file;
+			next.offset = st->st_disk_offset;
+			free(st);
+			c2_mutex_lock(&env->d_lock);
+			while (!c2_list_is_empty(&env->d_waiters)) {
+				struct c2_db_tx_waiter *w;
+
+				w = container_of(env->d_waiters.l_head,
+						 struct c2_db_tx_waiter, 
+						 tw_env);
+				if (log_compare(&w->tw_lsn, &next) <= 0) {
+					w->tw_persistent(w);
+					waiter_fini(w);
+				}
+			}
+			c2_mutex_unlock(&env->d_lock);
+		}
+		/*
+		 * XXX hard-coded sleep for 1 second.
+		 */
+		sleep(1);
+	} while (!last);
+	C2_ASSERT(c2_list_is_empty(&env->d_waiters));
 }
 
 /** @} end of db group */

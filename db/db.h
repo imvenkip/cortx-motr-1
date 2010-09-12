@@ -6,6 +6,9 @@
 #include_next <db.h>
 
 #include "lib/types.h"
+#include "lib/thread.h"
+#include "lib/list.h"
+#include "lib/mutex.h"
 #include "addb/addb.h"
 
 /**
@@ -18,6 +21,23 @@
    implementations will be added, specifically a simple memory-only
    implementation for Linux kernel, and the separation between generic and
    implementation-specific state will be exacted.
+
+   Main data-types introduced here are:
+
+   @li data-base environment (c2_dbenv), where tables are located in and to
+   which transactions are confined;
+
+   @li data-base table (c2_table): a container for records indexed by key;
+
+   @li transaction (c2_db_tx): a group of operations over tables that is atomic
+   and isolated (in the standard data-base sense of these words);
+
+   Auxiliary data-types are:
+
+   @li table cursor (c2_db_cursor) used to iterate over table records, and
+
+   @li transaction waiter (c2_db_tx_waiter) used to get notifications of (or to
+   wait until) transaction state changes.
 
    @{
  */
@@ -43,6 +63,16 @@ struct c2_dbenv {
 	/** File stream where informational messages for this dbenv are sent
 	    to. */
 	FILE              *d_msglog;
+	/** Log cursor used to determine the current LSN. */
+	DB_LOGC           *d_logc;
+	/** Lock protecting waiters list. */
+	struct c2_mutex    d_lock;
+	/** A list of waiters (c2_db_tx_waiter). */
+	struct c2_list     d_waiters;
+	/** Thread for asynchronous environment related work. */
+	struct c2_thread   d_thread;
+	/** True iff the environment is being shut down. */
+	bool               d_shutdown;
 };
 
 /**
@@ -143,7 +173,6 @@ struct c2_db_pair {
 	uint32_t         dp_flags;
 };
 
-//int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
 void c2_db_pair_fini(struct c2_db_pair *pair);
 
 /**
@@ -218,6 +247,8 @@ struct c2_table_ops {
 struct c2_db_tx {
 	/** An environment this transaction operates in. */
 	struct c2_dbenv   *dt_env;
+	/** A list of waiters (c2_db_tx_waiter). */
+	struct c2_list     dt_waiters;
 	/** A db5 private transaction handle. */
 	DB_TXN            *dt_txn;
 	/** An ADDB context for events related to this transaction. */
@@ -247,6 +278,43 @@ int c2_db_tx_commit(struct c2_db_tx *tx);
    Transaction is invalid after this returns.
  */
 int c2_db_tx_abort (struct c2_db_tx *tx);
+
+/**
+   An anchor to wait for transaction state change.
+
+   Liveness.
+
+   Once c2_db_tx_waiter::tw_close() with commit == true has been called, it is
+   guaranteed that c2_db_tx_waiter::tw_persistent() would eventually be called.
+
+   After the latter of these two calls, the implementation calls
+   c2_db_tx_waiter::tw_done() and won't touch the waiter afterwards. It is up to
+   the caller to free the waiter data-structure (e.g., this can be done inside
+   of c2_db_tx_waiter::tw_done()).
+ */
+struct c2_db_tx_waiter {
+	/** Called when the transaction is closed (i.e., either committed or
+	    aborted) */
+	void              (*tw_close)(struct c2_db_tx_waiter *w, bool commit);
+	/** Called when a committed transaction becomes persistent. */
+	void              (*tw_persistent)(struct c2_db_tx_waiter *w);
+	/** Called when no further call-backs will be coming. */
+	void              (*tw_done)(struct c2_db_tx_waiter *w);
+	/** An lsn from the transaction this wait is for. */
+	DB_LSN              tw_lsn;
+	/** Linkage into a list of all waiters for data-base environment. */
+	struct c2_list_link tw_env;
+	/** Linkage into a list of all waiters for a given transaction. */
+	struct c2_list_link tw_tx;
+};
+
+/**
+   Adds a waiter for a transaction.
+
+   Waiters call-backs will be called when the transaction changes its state
+   appropriately.
+ */
+void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w);
 
 /**
    Inserts (key, rec) pair into table as part of transaction tx.
