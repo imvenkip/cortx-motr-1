@@ -279,6 +279,97 @@ static void test_abort(void)
 	c2_dbenv_fini(&db);
 }
 
+static void test_waiter(void) 
+{
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
+	int               wflag;
+
+	struct c2_db_tx_waiter wait;
+
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&tx, &db, 0);
+	C2_UT_ASSERT(result == 0);
+
+	key = 45;
+	rec = 19;
+
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+
+	result = c2_table_insert(&tx, &cons);
+	C2_UT_ASSERT(result == 0);
+
+	wflag = 0;
+	wait.tw_close = LAMBDA(void, (struct c2_db_tx_waiter *w, bool commit) {
+			C2_UT_ASSERT(!commit);
+			C2_UT_ASSERT(w == &wait);
+			wflag = 1;
+		});
+	wait.tw_persistent = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
+		});
+	wait.tw_done = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 1);
+			wflag = 2;
+		});
+	c2_db_tx_waiter_add(&tx, &wait);
+
+	c2_db_pair_fini(&cons);
+	c2_db_tx_abort(&tx);
+
+	C2_UT_ASSERT(wflag == 2);
+
+	c2_table_fini(&table);
+	c2_dbenv_fini(&db);
+
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&tx, &db, 0);
+	C2_UT_ASSERT(result == 0);
+
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+	result = c2_table_insert(&tx, &cons);
+	C2_UT_ASSERT(result == 0);
+
+	wflag = 0;
+	wait.tw_close = LAMBDA(void, (struct c2_db_tx_waiter *w, bool commit) {
+			C2_UT_ASSERT(commit);
+			C2_UT_ASSERT(w == &wait);
+			wflag = 1;
+		});
+	wait.tw_persistent = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 1);
+			wflag = 2;
+		});
+	wait.tw_done = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 2);
+			wflag = 3;
+		});
+	c2_db_tx_waiter_add(&tx, &wait);
+
+	c2_db_pair_fini(&cons);
+	result = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(result == 0);
+
+	c2_table_fini(&table);
+	c2_dbenv_fini(&db);
+	C2_UT_ASSERT(wflag == 3);
+}
+
 const struct c2_test_suite db_ut = {
 	.ts_name = "libdb-ut",
 	.ts_init = db_reset,
@@ -290,6 +381,7 @@ const struct c2_test_suite db_ut = {
 		{ "insert", test_insert },
 		{ "delete", test_delete },
 		{ "abort", test_abort },
+		{ "waiter", test_waiter },
 		{ NULL, NULL }
 	}
 };
