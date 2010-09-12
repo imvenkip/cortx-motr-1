@@ -27,7 +27,8 @@ struct c2_update_id {
 enum c2_update_state {
 	C2_US_INVALID,
 	C2_US_VOLATILE,
-	C2_US_PERSISTENT
+	C2_US_PERSISTENT,
+	C2_US_NR
 };
 
 /** @} end of dtm group */
