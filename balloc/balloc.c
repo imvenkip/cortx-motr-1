@@ -166,7 +166,8 @@ int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 /**
    finaliazation of the balloc environment.
  */
-static int c2_balloc_fini_internal(struct c2_balloc *colibri)
+static int c2_balloc_fini_internal(struct c2_balloc *colibri,
+				   struct c2_db_tx  *tx)
 {
 	struct c2_balloc_group_info *gi;
 	int	 i;
@@ -241,15 +242,15 @@ static const struct c2_table_ops c2_group_desc_ops = {
    @return 0 means success. Otherwize, error number will be returned.
  */
 static int c2_balloc_format(struct c2_balloc *colibri,
-			    struct c2_dbenv *dbenv,
 			    struct c2_balloc_format_req *req)
 {
-	struct c2_db_tx   format_tx;
 	struct timeval    now;
 	struct c2_db_pair pair;
 	c2_bcount_t       number_of_groups;
-	int  		  i;
+	c2_bcount_t       i;
+	int  		  sz;
 	int            	  rc;
+	struct c2_db_tx   format_tx;
 
 	struct c2_balloc_group_info *grp;
 	struct c2_ext                ext;
@@ -278,10 +279,7 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		return -EINVAL;
 	}
 
-
 	gettimeofday(&now, NULL);
-	C2_SET0(sb);
-
 	/* TODO verification of these parameters */
 	sb->bsb_magic = C2_BALLOC_SB_MAGIC;
 	sb->bsb_state = 0;
@@ -307,14 +305,13 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 	c2_db_pair_setup(&pair, &colibri->cb_db_sb,
 			 &sb->bsb_magic, sizeof sb->bsb_magic,
 			 sb, sizeof *sb);
-
-	rc = c2_db_tx_init(&format_tx, dbenv, 0);
+	rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
 	if (rc == 0) {
 		rc = c2_table_insert(&format_tx, &pair);
 		if (rc == 0)
 			rc = c2_db_tx_commit(&format_tx);
 		else
-			rc = c2_db_tx_abort(&format_tx);
+			c2_db_tx_abort(&format_tx);
 	}
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
@@ -324,22 +321,8 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		return rc;
 	}
 
-	rc = c2_table_init(&colibri->cb_db_group_desc, dbenv, "group_desc", 0,
-			   &c2_group_desc_ops);
-	if (rc != 0) {
-		fprintf(stderr, "create group_desc failed: rc=%d\n", rc);
-		return rc;
-	}
-	rc = c2_table_init(&colibri->cb_db_group_extents, dbenv,
-			   "group_extents",0,
-			   &c2_group_extent_ops);
-	if (rc != 0) {
-		fprintf(stderr, "create group_desc failed: rc=%d\n", rc);
-		return rc;
-	}
-
-	i = sb->bsb_groupcount * sizeof (struct c2_balloc_group_info);
-	colibri->cb_group_info = c2_alloc(i);
+	sz = sb->bsb_groupcount * sizeof (struct c2_balloc_group_info);
+	colibri->cb_group_info = c2_alloc(sz);
 	if (colibri->cb_group_info == NULL) {
 		fprintf(stderr, "create allocate memory for group info\n");
 		rc = -ENOMEM;
@@ -359,19 +342,19 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		c2_db_pair_setup(&pair, &colibri->cb_db_group_extents,
 				 &ext.e_start, sizeof ext.e_start,
 				 &ext.e_end, sizeof ext.e_end);
-		rc = c2_db_tx_init(&format_tx, dbenv, 0);
+		rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
 		if (rc == 0) {
 			rc = c2_table_insert(&format_tx, &pair);
 			if (rc == 0)
 				rc = c2_db_tx_commit(&format_tx);
 			else
-				rc = c2_db_tx_abort(&format_tx);
+				c2_db_tx_abort(&format_tx);
 		}
 		c2_db_pair_release(&pair);
 		c2_db_pair_fini(&pair);
 		if (rc != 0) {
 			fprintf(stderr, "insert extent failed:"
-				"group=%d, rc=%d\n", i, rc);
+				"group=%llu, rc=%d\n", (unsigned long long)i, rc);
 			break;
 		}
 
@@ -395,30 +378,22 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		grp->bgi_freeblocks = gd.bgd_freeblocks;
 		grp->bgi_fragments  = gd.bgd_fragments;
 		grp->bgi_maxchunk   = gd.bgd_maxchunk;
-
-		rc = c2_db_tx_init(&format_tx, dbenv, 0);
+		rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
 		if (rc == 0) {
 			rc = c2_table_insert(&format_tx, &pair);
 			if (rc == 0)
 				rc = c2_db_tx_commit(&format_tx);
 			else
-				rc = c2_db_tx_abort(&format_tx);
+				c2_db_tx_abort(&format_tx);
 		}
 		c2_db_pair_release(&pair);
 		c2_db_pair_fini(&pair);
 		if (rc != 0) {
 			fprintf(stderr, "insert gd failed:"
-				"group=%d, rc=%d\n", i, rc);
+				"group=%llu, rc=%d\n", (unsigned long long)i, rc);
 			break;
 		}
 	}
-	if (rc != 0) {
-		c2_free(colibri->cb_group_info);
-		colibri->cb_group_info = NULL;
-		c2_table_fini(&colibri->cb_db_sb);
-		c2_table_fini(&colibri->cb_db_group_desc);
-	}
-
 	LEAVE;
 	return rc;
 }
@@ -511,6 +486,8 @@ static int c2_balloc_load_group_info(struct c2_balloc *cb,
 	struct c2_db_pair pair;
 	int    rc;
 
+//	debugp("loading group info for = %llu\n", (unsigned long long)gi->bgi_groupno);
+
 	c2_db_pair_setup(&pair, &cb->cb_db_group_desc,
 			 &gd.bgd_groupno, sizeof gd.bgd_groupno,
 			 &gd, sizeof gd);
@@ -533,14 +510,19 @@ static int c2_balloc_load_group_info(struct c2_balloc *cb,
 	return rc;
 }
 
+/*
+ * start transaction for init() and format() respectively.
+ * One transaction maybe fail to include all update. Multiple transaction
+ * is used here.
+ * The same reason for format().
+ */
 static int c2_balloc_init_internal(struct c2_balloc *colibri,
-				   struct c2_dbenv *dbenv,
+				   struct c2_dbenv  *dbenv,
 				   uint32_t bshift)
 {
 	struct c2_balloc_group_info *gi;
 	int            	 rc;
-	int 		 i;
-	int		 formatted = 0;
+	c2_bcount_t 	 i;
 	struct timeval   now;
 	struct c2_db_tx  init_tx;
 	ENTER;
@@ -549,38 +531,43 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	colibri->cb_group_info = NULL;
 	c2_mutex_init(&colibri->cb_sb_mutex);
 	C2_SET0(&colibri->cb_sb);
+	C2_SET0(&colibri->cb_db_group_extents);
+	C2_SET0(&colibri->cb_db_group_desc);
 
-	rc = c2_table_init(&colibri->cb_db_sb, dbenv, "super_block", 0,
-			   &c2_super_block_ops);
-
+	rc = c2_table_init(&colibri->cb_db_sb, dbenv,
+			   "super_block", 0,
+			   &c2_super_block_ops) ||
+	     c2_table_init(&colibri->cb_db_group_desc, dbenv,
+			   "group_desc", 0,
+			   &c2_group_desc_ops)  ||
+	     c2_table_init(&colibri->cb_db_group_extents, dbenv,
+			   "group_extents", 0,
+			   &c2_group_extent_ops);
 	if (rc != 0)
-		return rc;
+		goto out;
 
 	rc = c2_db_tx_init(&init_tx, dbenv, 0);
 	if (rc == 0) {
 		rc = c2_balloc_read_sb(colibri, &init_tx);
-		if (rc == 0)
-			c2_db_tx_commit(&init_tx);
-		else
-			c2_db_tx_abort(&init_tx);
+		c2_db_tx_commit(&init_tx);
 	}
+
 	if (rc == -ENOENT) {
 		struct c2_balloc_format_req req = { 0 };
-		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 10; //=400GB
+
+		/* let's format this container */
+		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 100; //=400GB
 		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 		req.bfr_reserved_groups = 2;
 
-		rc = c2_balloc_format(colibri, dbenv, &req);
-		if (rc != 0) {
-			c2_balloc_fini_internal(colibri);
-			return rc;
-		}
-		formatted = 1;
-	}
-
-	if (formatted)
-		goto done;
+		rc = c2_balloc_format(colibri, &req);
+		if (rc != 0)
+			c2_balloc_fini_internal(colibri, NULL);
+		LEAVE;
+		return rc;
+	} else if (rc != 0)
+		goto out;
 
 	/* update the db */
 	++ colibri->cb_sb.bsb_mnt_count;
@@ -594,48 +581,27 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		if (rc == 0)
 			rc = c2_db_tx_commit(&init_tx);
 		else
-			rc = c2_db_tx_abort(&init_tx);
-		if (rc != 0) {
-			c2_balloc_fini_internal(colibri);
-			return rc;
-		}
+			c2_db_tx_abort(&init_tx);
+
 	}
+	if (rc != 0)
+		goto out;
 
 	debugp("Group Count = %lu\n", colibri->cb_sb.bsb_groupcount);
 
 	if (colibri->cb_sb.bsb_blocksize != 1 << bshift) {
 		rc = -EINVAL;
-		c2_balloc_fini_internal(colibri);
-		LEAVE;
-		return rc;
-	}
-
-	rc = c2_table_init(&colibri->cb_db_group_desc, dbenv, "group_desc", 0,
-			   &c2_group_desc_ops);
-	if (rc != 0) {
-		c2_balloc_fini_internal(colibri);
-		LEAVE;
-		return rc;
-	}
-
-	rc = c2_table_init(&colibri->cb_db_group_extents, dbenv,
-			       "group_extents", 0,
-			       &c2_group_extent_ops);
-	if (rc != 0) {
-		c2_balloc_fini_internal(colibri);
-		LEAVE;
-		return rc;
+		goto out;
 	}
 
 	i = colibri->cb_sb.bsb_groupcount * sizeof (struct c2_balloc_group_info);
 	colibri->cb_group_info = c2_alloc(i);
 	if (colibri->cb_group_info == NULL) {
 		rc = -ENOMEM;
-		c2_balloc_fini_internal(colibri);
-		LEAVE;
-		return rc;
+		goto out;
 	}
 
+	debugp("Loading group info. Please wait...\n");
 	for (i = 0; i < colibri->cb_sb.bsb_groupcount; i++ ) {
 
 		gi = &colibri->cb_group_info[i];
@@ -647,7 +613,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 			if (rc == 0)
 				rc = c2_db_tx_commit(&init_tx);
 			else
-				rc = c2_db_tx_abort(&init_tx);
+				c2_db_tx_abort(&init_tx);
 		}
 		if (rc != 0)
 			break;
@@ -655,14 +621,9 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		/* TODO verify the super_block info based on the group info */
 	}
 
-	if (rc != 0) {
-		c2_balloc_fini_internal(colibri);
-		LEAVE;
-		return rc;
-	}
-
-done:
-	c2_balloc_debug_dump_sb(__func__, &colibri->cb_sb);
+out:
+	if (rc != 0)
+		c2_balloc_fini_internal(colibri, NULL);
 	LEAVE;
 	return rc;
 }
@@ -914,6 +875,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
 	if (grp->bgi_maxchunk != maxchunk) {
 		grp->bgi_state |= C2_BALLOC_GROUP_INFO_DIRTY;
 		grp->bgi_maxchunk = maxchunk;
+		c2_balloc_sync_group_info(cb, tx, grp);
 	}
 
 	return result;
@@ -2036,7 +1998,9 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 	ENTER;
 
 	colibri = b2c2(ballroom);
+
 	rc = c2_balloc_init_internal(colibri, db, bshift);
+
 	LEAVE;
 	return rc;
 }
@@ -2044,10 +2008,19 @@ static int c2_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
 static void c2_balloc_fini(struct ad_balloc *ballroom)
 {
 	struct c2_balloc *colibri = b2c2(ballroom);
+	struct c2_db_tx  fini_tx;
 	int rc;
 	ENTER;
 
-	rc = c2_balloc_fini_internal(colibri);
+	rc = c2_db_tx_init(&fini_tx, colibri->cb_dbenv, 0);
+	if (rc == 0) {
+		rc = c2_balloc_fini_internal(colibri, &fini_tx);
+		if (rc == 0)
+			rc = c2_db_tx_commit(&fini_tx);
+		else
+			c2_db_tx_abort(&fini_tx);
+	}
+
 	LEAVE;
 }
 
