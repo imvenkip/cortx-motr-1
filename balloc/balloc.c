@@ -21,7 +21,7 @@
  */
 
 /* This macro is to control the debug verbose message */
-#define BALLOC_DEBUG
+//#define BALLOC_DEBUG
 
 #ifdef BALLOC_DEBUG
   #define ENTER fprintf(stderr, "===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
@@ -251,6 +251,7 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 	int  		  sz;
 	int            	  rc;
 	struct c2_db_tx   format_tx;
+	int		  tx_started = 0;
 
 	struct c2_balloc_group_info *grp;
 	struct c2_ext                ext;
@@ -342,14 +343,14 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		c2_db_pair_setup(&pair, &colibri->cb_db_group_extents,
 				 &ext.e_start, sizeof ext.e_start,
 				 &ext.e_end, sizeof ext.e_end);
-		rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
-		if (rc == 0) {
-			rc = c2_table_insert(&format_tx, &pair);
-			if (rc == 0)
-				rc = c2_db_tx_commit(&format_tx);
-			else
-				c2_db_tx_abort(&format_tx);
+		if (!tx_started) {
+			rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
+			if (rc != 0)
+				break;
+			tx_started = 1;
 		}
+		rc = c2_table_insert(&format_tx, &pair);
+
 		c2_db_pair_release(&pair);
 		c2_db_pair_fini(&pair);
 		if (rc != 0) {
@@ -378,14 +379,7 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 		grp->bgi_freeblocks = gd.bgd_freeblocks;
 		grp->bgi_fragments  = gd.bgd_fragments;
 		grp->bgi_maxchunk   = gd.bgd_maxchunk;
-		rc = c2_db_tx_init(&format_tx, colibri->cb_dbenv, 0);
-		if (rc == 0) {
-			rc = c2_table_insert(&format_tx, &pair);
-			if (rc == 0)
-				rc = c2_db_tx_commit(&format_tx);
-			else
-				c2_db_tx_abort(&format_tx);
-		}
+		rc = c2_table_insert(&format_tx, &pair);
 		c2_db_pair_release(&pair);
 		c2_db_pair_fini(&pair);
 		if (rc != 0) {
@@ -393,6 +387,19 @@ static int c2_balloc_format(struct c2_balloc *colibri,
 				"group=%llu, rc=%d\n", (unsigned long long)i, rc);
 			break;
 		}
+		if ((i & 0x3ff) == 0) {
+			if (rc == 0)
+				rc = c2_db_tx_commit(&format_tx);
+			else
+				c2_db_tx_abort(&format_tx);
+			tx_started = 0;
+		}
+	}
+	if (tx_started) {
+		if (rc == 0)
+			rc = c2_db_tx_commit(&format_tx);
+		else
+			c2_db_tx_abort(&format_tx);
 	}
 	LEAVE;
 	return rc;
@@ -525,6 +532,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	c2_bcount_t 	 i;
 	struct timeval   now;
 	struct c2_db_tx  init_tx;
+	int		 tx_started = 0;
 	ENTER;
 
 	colibri->cb_dbenv = dbenv;
@@ -556,7 +564,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		struct c2_balloc_format_req req = { 0 };
 
 		/* let's format this container */
-		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 100; //=400GB
+		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1000; //=4000GB
 		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 		req.bfr_reserved_groups = 2;
@@ -603,24 +611,35 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 
 	debugp("Loading group info. Please wait...\n");
 	for (i = 0; i < colibri->cb_sb.bsb_groupcount; i++ ) {
-
 		gi = &colibri->cb_group_info[i];
 		gi->bgi_groupno = i;
 
-		rc = c2_db_tx_init(&init_tx, dbenv, 0);
-		if (rc == 0) {
-			rc = c2_balloc_load_group_info(colibri, &init_tx, gi);
+		if (!tx_started) {
+			rc = c2_db_tx_init(&init_tx, dbenv, 0);
+			if (rc != 0)
+				break;
+			tx_started = 1;
+		}
+		rc = c2_balloc_load_group_info(colibri, &init_tx, gi);
+
+		if ((i & 0x3ff) == 0) {
 			if (rc == 0)
 				rc = c2_db_tx_commit(&init_tx);
 			else
 				c2_db_tx_abort(&init_tx);
+			tx_started = 0;
 		}
 		if (rc != 0)
 			break;
 
 		/* TODO verify the super_block info based on the group info */
 	}
-
+	if (tx_started) {
+		if (rc == 0)
+			rc = c2_db_tx_commit(&init_tx);
+		else
+			c2_db_tx_abort(&init_tx);
+	}
 out:
 	if (rc != 0)
 		c2_balloc_fini_internal(colibri, NULL);
