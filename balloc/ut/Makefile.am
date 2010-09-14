@@ -1,4 +1,4 @@
-noinst_PROGRAMS  = balloc dump_super_block free dump_free_extent dump_group_desc format perf
+noinst_PROGRAMS  = balloc dump_super_block free dump_free_extent dump_group_desc format perf mperf
 
 format_SOURCES   = format.c
 format_LDFLAGS   =
@@ -27,3 +27,7 @@ dump_super_block_LDADD     = $(top_builddir)/colibri/libcolibri.la
 perf_SOURCES   = perf.c
 perf_LDFLAGS   =
 perf_LDADD     = $(top_builddir)/colibri/libcolibri.la
+
+mperf_SOURCES  = mperf.c
+mperf_LDFLAGS  =
+mperf_LDADD    = $(top_builddir)/colibri/libcolibri.la

@@ -42,7 +42,7 @@
   #define debugp(fmt, a...)
 #endif
 
-#define BALLOC_ENABLE_DUMP
+//#define BALLOC_ENABLE_DUMP
 
 void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 {
@@ -154,12 +154,29 @@ struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 
 int c2_balloc_release_extents(struct c2_balloc_group_info *grp)
 {
+	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents) {
 		c2_free(grp->bgi_extents);
 		grp->bgi_extents = NULL;
 	}
 	return 0;
 }
+
+void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
+{
+	c2_mutex_lock(&grp->bgi_mutex);
+}
+
+int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
+{
+	return c2_mutex_trylock(&grp->bgi_mutex);
+}
+
+void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
+{
+	c2_mutex_unlock(&grp->bgi_mutex);
+}
+
 
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
@@ -176,7 +193,9 @@ static int c2_balloc_fini_internal(struct c2_balloc *colibri,
 	if (colibri->cb_group_info) {
 		for (i = 0 ; i < colibri->cb_sb.bsb_groupcount; i++) {
 			gi = &colibri->cb_group_info[i];
+			c2_balloc_lock_group(gi);
 			c2_balloc_release_extents(gi);
+			c2_balloc_unlock_group(gi);
 		}
 
 		c2_free(colibri->cb_group_info);
@@ -803,21 +822,6 @@ c2_balloc_normalize_request(struct c2_balloc_allocation_context *bac)
 	LEAVE;
 }
 
-static void c2_balloc_lock_group(struct c2_balloc_group_info *grp)
-{
-	c2_mutex_lock(&grp->bgi_mutex);
-}
-
-static int c2_balloc_trylock_group(struct c2_balloc_group_info *grp)
-{
-	return c2_mutex_trylock(&grp->bgi_mutex);
-}
-
-static void c2_balloc_unlock_group(struct c2_balloc_group_info *grp)
-{
-	c2_mutex_unlock(&grp->bgi_mutex);
-}
-
 /* called under group lock */
 int c2_balloc_load_extents(struct c2_balloc *cb,
 			   struct c2_balloc_group_info *grp,
@@ -833,6 +837,7 @@ int c2_balloc_load_extents(struct c2_balloc *cb,
         c2_bcount_t maxchunk = 0;
 	c2_bcount_t count = 0;
 
+	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	if (grp->bgi_extents != NULL) {
 		/* already loaded */
 		return 0;
@@ -910,6 +915,8 @@ static int c2_balloc_find_extent_exact(struct c2_balloc_allocation_context *bac,
 	c2_bcount_t found = 0;
 	struct c2_ext *fragment;
 
+	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
+
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
 
@@ -941,6 +948,7 @@ static int c2_balloc_find_extent_buddy(struct c2_balloc_allocation_context *bac,
 			.e_start = 0,
 			.e_end = 0xffffffff };
 
+	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 
 	for (i = 0; i < grp->bgi_fragments; i++) {
@@ -1015,6 +1023,7 @@ static int c2_balloc_update_db(struct c2_balloc *colibri,
 	int rc = 0;
 	ENTER;
 
+	C2_ASSERT(c2_mutex_is_locked(&grp->bgi_mutex));
 	c2_balloc_debug_dump_extent("target=", tgt);
 	if (op == C2_BALLOC_ALLOC) {
 		struct c2_ext *cur = NULL;

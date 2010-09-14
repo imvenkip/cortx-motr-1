@@ -232,6 +232,9 @@ extern int c2_balloc_load_extents(struct c2_balloc *cb,
 extern struct c2_balloc_group_info * c2_balloc_gn2info(struct c2_balloc *cb,
 						       c2_bindex_t groupno);
 extern void c2_balloc_debug_dump_group(const char *tag, struct c2_balloc_group_info *grp);
+extern void c2_balloc_lock_group(struct c2_balloc_group_info *grp);
+extern int c2_balloc_trylock_group(struct c2_balloc_group_info *grp);
+extern void c2_balloc_unlock_group(struct c2_balloc_group_info *grp);
 
 
 /** @} end of balloc */
