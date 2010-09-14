@@ -5,6 +5,7 @@
 #include <memory.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <stdlib.h>       /* srand, rand */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
@@ -552,8 +553,11 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	struct timeval   now;
 	struct c2_db_tx  init_tx;
 	int		 tx_started = 0;
+	time_t		 salt;
 	ENTER;
 
+	time(&salt);
+	srand(salt);
 	colibri->cb_dbenv = dbenv;
 	colibri->cb_group_info = NULL;
 	c2_mutex_init(&colibri->cb_sb_mutex);
@@ -708,8 +712,9 @@ static int c2_balloc_init_ac(struct c2_balloc_allocation_context *bac,
 	bac->bac_status  = C2_BALLOC_AC_CONTINUE;
 	bac->bac_criteria = 0;
 
-	if (req->bar_goal > colibri->cb_sb.bsb_totalsize)
-		req->bar_goal = 0;
+	if (req->bar_goal == 0)
+		req->bar_goal = (rand() % colibri->cb_sb.bsb_groupcount)
+				<< colibri->cb_sb.bsb_gsbits;
 
 	bac->bac_orig.e_start   = req->bar_goal;
 	bac->bac_orig.e_end     = req->bar_goal + req->bar_len;
