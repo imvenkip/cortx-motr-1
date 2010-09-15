@@ -587,7 +587,7 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 		struct c2_balloc_format_req req = { 0 };
 
 		/* let's format this container */
-		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 100; //=400GB
+		req.bfr_totalsize = 4096ULL * 1024 * 1024 * 1000; //=400GB
 		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = 4096 * 8; //=128MB = ext4 group size
 		req.bfr_reserved_groups = 2;
