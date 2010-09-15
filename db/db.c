@@ -213,6 +213,12 @@ static int dbenv_tol_log_flush[] = { 0 };
 static int dbenv_tol_log_cursor[] = { 0 };
 static int dbenv_tol_log_stat[] = { 0 };
 static int dbenv_tol_memp_trickle[] = { 0 };
+static int dbenv_tol_set_alloc[] = { 0 };
+
+static void *never(void *ptr, size_t size)
+{
+	C2_IMPOSSIBLE("realloc called.");
+}
 
 /**
    Major part of c2_dbenv_init().
@@ -273,6 +279,8 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		C2_ASSERT(result == 0);
 		result = DBENV_CALL(env, set_lk_detect, DB_LOCK_DEFAULT);
 		C2_ASSERT(result == 0);
+		result = DBENV_CALL(env, set_alloc, c2_alloc, never, c2_free);
+		C2_ASSERT(result == 0);
 
 		/*
 		 * XXX todo
@@ -286,7 +294,6 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		 * DBENV_CALL(env, set_cachesize, ...);
 		 * DBENV_CALL(env, set_bsize, ...);
 		 * DBENV_CALL(env, set_app_dispatch, c2_fol_dispatch);
-		 * DBENV_CALL(env, set_alloc, c2_alloc, c2_realloc, c2_free);
 		 *
 		 * start ->memp_trickle() thread.
 		 */
@@ -409,15 +416,55 @@ void c2_table_fini(struct c2_table *table)
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
+static bool pair_invariant(const struct c2_db_pair *p)
+{
+	const DBT *key;
+	const DBT *rec;
+
+	uint32_t   keyf;
+	uint32_t   recf;
+
+	key = &p->dp_key;
+	rec = &p->dp_rec;
+
+	keyf = p->dp_key_flags;
+	recf = p->dp_rec_flags;
+	return 
+		p->dp_table != NULL &&
+
+		!!(key->flags & DB_DBT_MALLOC)  == (keyf == DPF_ALLOC_THERE) && 
+		!!(key->flags & DB_DBT_USERMEM) == (keyf != DPF_ALLOC_THERE) && 
+
+		!!(rec->flags & DB_DBT_MALLOC)  == (recf == DPF_ALLOC_THERE) && 
+		!!(rec->flags & DB_DBT_USERMEM) == (recf != DPF_ALLOC_THERE) && 
+
+		keyf < DPF_NR && recf < DPF_NR;
+}
+
 static void pair_init(struct c2_db_pair *pair, struct c2_table *table)
 {
+	DBT *key;
+	DBT *rec;
+
+	key = &pair->dp_key;
+	rec = &pair->dp_rec;
+
 	pair->dp_table = table;
 
-	pair->dp_key.data  = pair->dp_keybuf;
-	pair->dp_rec.data  = pair->dp_recbuf;
-	pair->dp_key.size  = pair->dp_key.ulen;
-	pair->dp_rec.size  = pair->dp_rec.ulen;
-	pair->dp_key.flags = pair->dp_rec.flags = DB_DBT_USERMEM;
+	C2_PRE((key->data != NULL) == (key->ulen > 0));
+	C2_PRE((rec->data != NULL) == (rec->ulen > 0));
+	C2_PRE(pair->dp_key_flags < DPF_NR);
+	C2_PRE(pair->dp_rec_flags < DPF_NR);
+
+	key->size  = key->ulen;
+	rec->size  = rec->ulen;
+
+	key->flags = pair->dp_key_flags == DPF_ALLOC_THERE ? 
+		DB_DBT_MALLOC : DB_DBT_USERMEM;
+	rec->flags = pair->dp_rec_flags == DPF_ALLOC_THERE ? 
+		DB_DBT_MALLOC : DB_DBT_USERMEM;
+
+	C2_POST(pair_invariant(pair));
 }
 
 int c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table)
@@ -427,13 +474,13 @@ int c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table)
 	pair->dp_key.ulen = table->t_ops->to[TO_KEY].max_size;
 	pair->dp_rec.ulen = table->t_ops->to[TO_REC].max_size;
 
-	pair->dp_keybuf = c2_alloc(pair->dp_key.ulen);
-	pair->dp_recbuf = c2_alloc(pair->dp_rec.ulen);
+	pair->dp_key.data = c2_alloc(pair->dp_key.ulen);
+	pair->dp_rec.data = c2_alloc(pair->dp_rec.ulen);
 
-	pair->dp_flags = DPF_ALLOCATED;
+	pair->dp_key_flags = pair->dp_rec_flags = DPF_ALLOC_HERE;
 	pair_init(pair, table);
 
-	if (pair->dp_keybuf != NULL && pair->dp_recbuf != NULL)
+	if (pair->dp_key.data != NULL && pair->dp_rec.data != NULL)
 		return 0;
 	else {
 		c2_db_pair_fini(pair);
@@ -445,23 +492,33 @@ void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
 		      void *recbuf, uint32_t recsize)
 {
+	DBT *key;
+	DBT *rec;
+
+	key = &pair->dp_key;
+	rec = &pair->dp_rec;
+
 	C2_SET0(pair);
 
-	pair->dp_key.ulen = keysize;
-	pair->dp_rec.ulen = recsize;
+	key->ulen = keysize;
+	rec->ulen = recsize;
 
-	pair->dp_keybuf = keybuf;
-	pair->dp_recbuf = recbuf;
+	key->data = keybuf;
+	rec->data = recbuf;
+
+	pair->dp_key_flags = keysize > 0 ? DPF_BUFFER : DPF_ALLOC_THERE;
+	pair->dp_rec_flags = recsize > 0 ? DPF_BUFFER : DPF_ALLOC_THERE;
 
 	pair_init(pair, table);
 }
 
 void c2_db_pair_fini(struct c2_db_pair *pair)
 {
-	if (pair->dp_flags & DPF_ALLOCATED) {
-		c2_free(pair->dp_keybuf);
-		c2_free(pair->dp_recbuf);
-	}
+	C2_PRE(pair_invariant(pair));
+	if (pair->dp_key_flags != DPF_BUFFER)
+		c2_free(pair->dp_key.data);
+	if (pair->dp_rec_flags != DPF_BUFFER)
+		c2_free(pair->dp_key.data);
 	C2_SET0(pair);
 }
 
@@ -508,7 +565,7 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 	DB_LSN                  lsn;
 
 	env = tx->dt_env;
-	if (commit) {
+	if (commit && !c2_list_is_empty(&tx->dt_waiters)) {
 		result = get_lsn(env, &lsn);
 		if (result != 0)
 			return result;
@@ -518,13 +575,15 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 				 tw_tx);
 		C2_ASSERT(c2_list_link_is_in(&w->tw_env));
 		c2_list_del(&w->tw_tx);
-		w->tw_close(w, commit);
 		if (!commit) {
+			w->tw_abort(w);
 			c2_mutex_lock(&env->d_lock);
 			waiter_fini(w);
 			c2_mutex_unlock(&env->d_lock);
-		} else
+		} else {
+			w->tw_commit(w);
 			w->tw_lsn = lsn;
+		}
 	}
 	c2_list_fini(&tx->dt_waiters);
 	return 0;
@@ -572,14 +631,36 @@ void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 	c2_list_add(&tx->dt_waiters, &w->tw_tx);
 }
 
+static void pair_prep(struct c2_db_pair *pair)
+{
+	DBT *key;
+	DBT *rec;
+
+	key = &pair->dp_key;
+	rec = &pair->dp_rec;
+
+	C2_PRE(pair_invariant(pair));
+
+	if (pair->dp_key_flags == DPF_ALLOC_THERE && key->data != NULL) {
+		c2_free(key->data);
+		key->data = NULL;
+	}
+	if (pair->dp_rec_flags == DPF_ALLOC_THERE && rec->data != NULL) {
+		c2_free(rec->data);
+		rec->data = NULL;
+	}
+}
+
 int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
+	pair_prep(pair);
 	return TABLE_CALL(pair->dp_table, put, tx->dt_txn,
 			  &pair->dp_key, &pair->dp_rec, 0);
 }
 
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
+	pair_prep(pair);
 	return TABLE_CALL(pair->dp_table, put, tx->dt_txn, 
 			  &pair->dp_key, &pair->dp_rec, DB_NOOVERWRITE);
 }
@@ -589,7 +670,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	int result;
 
 	/*
-	 * Possible optimization: if pair DBT's flags are 0, ->get() would
+	 * Possible optimization: if pair's DBT flags are 0, ->get() would
 	 *                        return with DBT->data pointing directly to the
 	 *                        in-db data. Returned pointer is valid until
 	 *                        _any_ call against the same DB handle is made
@@ -599,6 +680,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        c2_table, lock it in c2_table_lookup() and
 	 *                        release in c2_db_rec_fini().
 	 */
+	pair_prep(pair);
 	result = TABLE_CALL(pair->dp_table, get, 
 			    tx->dt_txn, &pair->dp_key, &pair->dp_rec, DB_RMW);
 	return result;
@@ -606,6 +688,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
+	pair_prep(pair);
 	return TABLE_CALL(pair->dp_table, del, tx->dt_txn, &pair->dp_key, 0);
 }
 
@@ -630,6 +713,7 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
+	pair_prep(pair);
 	return CURSOR_CALL(cursor, get, &pair->dp_key, &pair->dp_rec, 
 			   flags|DB_RMW);
 }
@@ -649,14 +733,26 @@ int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 	return cursor_get(cursor, pair, DB_PREV);
 }
 
+int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return cursor_get(cursor, pair, DB_FIRST);
+}
+
+int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
+{
+	return cursor_get(cursor, pair, DB_LAST);
+}
+
 int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
+	pair_prep(pair);
 	return CURSOR_CALL(cursor, put, 
 			   &pair->dp_key, &pair->dp_rec, DB_CURRENT);
 }
 
 int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
+	pair_prep(pair);
 	return CURSOR_CALL(cursor, put,
 			   &pair->dp_key, &pair->dp_rec, DB_KEYFIRST);
 }
@@ -729,8 +825,10 @@ static void dbenv_thread(struct c2_dbenv *env)
 	C2_SET0(&next);
 	last = false;
 	do {
-		int rc;
-		int nr_pages;
+		int                     rc;
+		int                     nr_pages;
+		struct c2_db_tx_waiter *w;
+		struct c2_db_tx_waiter *tmp;
 
 		last = env->d_shutdown;
 		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
@@ -742,14 +840,11 @@ static void dbenv_thread(struct c2_dbenv *env)
 			 */
 			next.file   = st->st_disk_file;
 			next.offset = st->st_disk_offset;
-			free(st);
+			c2_free(st);
 			c2_mutex_lock(&env->d_lock);
-			while (!c2_list_is_empty(&env->d_waiters)) {
-				struct c2_db_tx_waiter *w;
-
-				w = container_of(env->d_waiters.l_head,
-						 struct c2_db_tx_waiter, 
-						 tw_env);
+			c2_list_for_each_entry_safe(&env->d_waiters, w, tmp, 
+						    struct c2_db_tx_waiter, 
+						    tw_env) {
 				if (log_compare(&w->tw_lsn, &next) <= 0) {
 					w->tw_persistent(w);
 					waiter_fini(w);

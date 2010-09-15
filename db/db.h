@@ -152,8 +152,25 @@ int  c2_table_init(struct c2_table *table, struct c2_dbenv *env,
  */
 void c2_table_fini(struct c2_table *table);
 
+/**
+   How a memory buffer (for a key or a record) in a pair is allocated and who
+   owns it.
+
+   @see c2_db_pair
+ */
 enum c2_db_pair_flags {
-	DPF_ALLOCATED = 1 << 0
+	/** A buffer is allocated "here" by C2 code. It is up to the caller to
+	    allocate buffer of sufficient size. The buffer is freed by
+	    c2_db_pair_fini(). */
+	DPF_ALLOC_HERE,
+	/** A buffer is allocated "there" by the underlying data-base. db.c code
+	    takes care to free the buffer (if any) before calling into db4 again
+	    and in c2_db_pair_fini(). */
+	DPF_ALLOC_THERE,
+	/** A buffer is allocated "here" by C2 code. It is up to the caller to
+	    allocate buffer of sufficient size and to free it when necessary. */
+	DPF_BUFFER,
+	DPF_NR
 };
 
 /**
@@ -161,16 +178,16 @@ enum c2_db_pair_flags {
 
    c2_db_pair is a descriptor of buffers where user supplied key and record are
    stored in and where data-base supplied key and record are retrieved to.
+
+   c2_db_pair also describes the method of memory buffer allocation (and their
+   ownership) used for exchanging data with the underlying data-base.
  */
 struct c2_db_pair {
-	struct c2_table *dp_table;
-	void            *dp_keybuf;
-	void            *dp_recbuf;
-	uint32_t         dp_key_size;
-	uint32_t         dp_rec_size;
-	DBT              dp_key;
-	DBT              dp_rec;
-	uint32_t         dp_flags;
+	struct c2_table      *dp_table;
+	DBT                   dp_key;
+	DBT                   dp_rec;
+	enum c2_db_pair_flags dp_key_flags;
+	enum c2_db_pair_flags dp_rec_flags;
 };
 
 void c2_db_pair_fini(struct c2_db_pair *pair);
@@ -185,6 +202,10 @@ int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
 
 /**
    Initialise a pair and set buffers to the given values.
+
+   If key of record size is positive, the buffer is maintained according to
+   DPF_BUFFER. Otherwise (size is 0 and buffer pointer is NULL), the buffer is
+   maintained according to DPF_ALLOC_THERE.
  */
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
@@ -284,18 +305,18 @@ int c2_db_tx_abort (struct c2_db_tx *tx);
 
    Liveness.
 
-   Once c2_db_tx_waiter::tw_close() with commit == true has been called, it is
-   guaranteed that c2_db_tx_waiter::tw_persistent() would eventually be called.
+   Once c2_db_tx_waiter::tw_commit() has been called, it is guaranteed that
+   c2_db_tx_waiter::tw_persistent() would eventually be called.
 
-   After the latter of these two calls, the implementation calls
-   c2_db_tx_waiter::tw_done() and won't touch the waiter afterwards. It is up to
-   the caller to free the waiter data-structure (e.g., this can be done inside
-   of c2_db_tx_waiter::tw_done()).
+   The implementation calls c2_db_tx_waiter::tw_done() as the last call-back and
+   won't touch the waiter afterwards. It is up to the caller to free the waiter
+   data-structure (e.g., this can be done inside of c2_db_tx_waiter::tw_done()).
  */
 struct c2_db_tx_waiter {
-	/** Called when the transaction is closed (i.e., either committed or
-	    aborted) */
-	void              (*tw_close)(struct c2_db_tx_waiter *w, bool commit);
+	/** Called when the transaction is committed */
+	void              (*tw_commit)(struct c2_db_tx_waiter *w);
+	/** Called when the transaction is aborted */
+	void              (*tw_abort) (struct c2_db_tx_waiter *w);
 	/** Called when a committed transaction becomes persistent. */
 	void              (*tw_persistent)(struct c2_db_tx_waiter *w);
 	/** Called when no further call-backs will be coming. */
@@ -379,6 +400,10 @@ int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Move cursor to the previous key */
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the first key in the table */
+int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the last key in the table */
+int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Change the key and record of the current cursor pair.  */
 int c2_db_cursor_set (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Add new pair to the table and position the cursor on it. */
