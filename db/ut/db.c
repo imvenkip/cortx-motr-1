@@ -163,7 +163,6 @@ static void test_insert(void)
 	C2_UT_ASSERT(rec_out == rec);
 
 	c2_db_pair_fini(&cons1);
-	c2_db_pair_fini(&cons);
 	
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
@@ -310,10 +309,12 @@ static void test_waiter(void)
 	C2_UT_ASSERT(result == 0);
 
 	wflag = 0;
-	wait.tw_close = LAMBDA(void, (struct c2_db_tx_waiter *w, bool commit) {
-			C2_UT_ASSERT(!commit);
+	wait.tw_abort = LAMBDA(void, (struct c2_db_tx_waiter *w) {
 			C2_UT_ASSERT(w == &wait);
 			wflag = 1;
+		});
+	wait.tw_commit = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
 		});
 	wait.tw_persistent = LAMBDA(void, (struct c2_db_tx_waiter *w) {
 			C2_UT_ASSERT(false);
@@ -346,8 +347,10 @@ static void test_waiter(void)
 	C2_UT_ASSERT(result == 0);
 
 	wflag = 0;
-	wait.tw_close = LAMBDA(void, (struct c2_db_tx_waiter *w, bool commit) {
-			C2_UT_ASSERT(commit);
+	wait.tw_abort = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
+		});
+	wait.tw_commit = LAMBDA(void, (struct c2_db_tx_waiter *w) {
 			C2_UT_ASSERT(w == &wait);
 			wflag = 1;
 		});
