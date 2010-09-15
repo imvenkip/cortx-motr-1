@@ -10,6 +10,12 @@
    @{
 */
 
+/* export */
+struct c2_dtm;
+struct c2_dtx;
+struct c2_epoch_id;
+struct c2_update_id;
+
 struct c2_dtm {};
 
 struct c2_dtx {
