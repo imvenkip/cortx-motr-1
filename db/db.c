@@ -214,6 +214,7 @@ static int dbenv_tol_log_cursor[] = { 0 };
 static int dbenv_tol_log_stat[] = { 0 };
 static int dbenv_tol_memp_trickle[] = { 0 };
 static int dbenv_tol_set_alloc[] = { 0 };
+static int dbenv_tol_txn_checkpoint[] = { 0 };
 
 static void *never(void *ptr, size_t size)
 {
@@ -353,6 +354,11 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 	c2_addb_ctx_fini(&env->d_addb);
 	c2_list_fini(&env->d_waiters);
 	c2_mutex_fini(&env->d_lock);
+}
+
+int c2_dbenv_sync(struct c2_dbenv *env)
+{
+	return DBENV_CALL(env, txn_checkpoint, 0, 0, 0);
 }
 
 static int table_tol_set_lorder[] = { 0 };
@@ -518,7 +524,7 @@ void c2_db_pair_fini(struct c2_db_pair *pair)
 	if (pair->dp_key_flags != DPF_BUFFER)
 		c2_free(pair->dp_key.data);
 	if (pair->dp_rec_flags != DPF_BUFFER)
-		c2_free(pair->dp_key.data);
+		c2_free(pair->dp_rec.data);
 	C2_SET0(pair);
 }
 

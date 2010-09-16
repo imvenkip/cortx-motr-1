@@ -92,6 +92,12 @@ int  c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
 void c2_dbenv_fini(struct c2_dbenv *env);
 
 /**
+   When this call returns, results of all operations against the environment
+   that completed before this call started are guaranteed to be persistent.
+ */
+int c2_dbenv_sync(struct c2_dbenv *env);
+
+/**
     Data-base table.
 
     A c2_table is (notionally) a container of (key, record) pairs. A new pair
