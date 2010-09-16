@@ -15,6 +15,7 @@
 #include "db/db.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
+#include "fol/fol.h"
 
 #include "colibri/init.h"
 
@@ -43,6 +44,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
 	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
+	{ &c2_fols_init,     &c2_fols_fini,     "fol" }
 };
 
 static void fini_nr(int i)

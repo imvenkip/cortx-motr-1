@@ -17,8 +17,11 @@
    @li c2_fol_rec_desc: a description of a new fol record to be added to a
    fol. This description is used to add a record via call to c2_fol_add();
 
-   @li c2_fol_rec: a record fetched from a fol. c2_fol_rec contains pointers to
-   the in-fol data and remembers its location it the fol.
+   @li c2_fol_rec: a record fetched from a fol. c2_fol_rec remembers its
+   location it the fol.
+
+   A fol record belongs to a fol type (c2_fol_rec_type) that defines how record
+   reacts to the relevant fol state changes.
 
    @see https://docs.google.com/a/horizontalscale.com/Doc?docid=0Aa9lcGbR4emcZGhxY2hqdmdfNjQ2ZHZocWJ4OWo
 
@@ -29,8 +32,10 @@
 struct c2_fol;
 struct c2_fol_rec_desc;
 struct c2_fol_rec;
+struct c2_fol_rec_type;
 
 /* import */
+#include "lib/adt.h"      /* c2_buf */
 #include "lib/types.h"    /* uint64_t */
 #include "lib/mutex.h"
 #include "fid/fid.h"
@@ -67,7 +72,11 @@ enum {
 	/** Non-existent lsn. This is used, for example, as a prevlsn, when
 	    there is no previous operation on the object. */
 	C2_LSN_NONE,
-	C2_LSN_RESERVED_NR
+	C2_LSN_RESERVED_NR,
+	/** 
+	    LSN of a special "anchor" record always present in the fol.
+	 */
+	C2_LSN_ANCHOR = C2_LSN_RESERVED_NR + 1
 };
 
 /** True iff the argument might be an lsn of an existing fol record. */
@@ -99,18 +108,39 @@ struct c2_fol {
 	struct c2_mutex f_lock;
 };
 
+/**
+   Initialise in-memory fol structure, creating persistent structures, if
+   necessary.
+
+   @post ergo(result == 0, c2_lsn_is_valid(c2_lsn_inc(fol->f_lsn)))
+ */
 int  c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
 void c2_fol_fini(struct c2_fol *fol);
 
 /**
+   Constructs a in-db representation of a fol record in an allocated buffer.
+ */
+int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
+
+/**
    Adds a record to the fol, in the transaction context.
 
-   @param drec - describes the record to be added. drec->rd_lsn is filled in by
-   c2_fol_add() with lsn assigned to the record. drec->rd_refcounter is initial
-   value of record's reference counter.
+   This function calls c2_fol_rec_pack() internally to pack the record.
+
+   drec->rd_lsn is filled in by c2_fol_add() with lsn assigned to the record.
+
+   drec->rd_refcounter is initial value of record's reference counter.
+
+   @see c2_fol_add_buf()
  */
 int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx, 
 	       struct c2_fol_rec_desc *drec);
+
+/**
+   Similar to c2_fol_add(), but with a record already packed into a buffer.
+ */
+int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx, 
+		   struct c2_fol_rec_desc *drec, struct c2_buf *buf);
 
 /**
    Forces the log.
@@ -161,11 +191,38 @@ struct c2_fol_obj_ref {
    @todo More detailed description is to be supplies as part of DTM design.
  */
 struct c2_fol_update_ref {
+	/* taken from enum c2_update_state  */
+	uint32_t             ur_state;
 	struct c2_update_id  ur_id;
-	enum c2_update_state ur_state;
 };
 
-struct c2_fol_rec_ops;
+/**
+   Fixed part of a fol record.
+
+   @see c2_fol_rec_desc
+ */
+struct c2_fol_rec_header {
+	/** number of outstanding references to the record */
+	uint64_t            rh_refcount;
+	/** operation code */
+	uint32_t            rh_opcode;
+	/** number of objects modified by this update */
+	uint32_t            rh_obj_nr;
+	/** number of sibling updates in the same operation */
+	uint32_t            rh_sibling_nr;
+	/** length or the remaining operation type specific data in bytes */
+	uint32_t            rh_data_len;
+	/** 
+	    Identifier of this update.
+
+	    @note that the update might be for a different node.
+	 */
+	struct c2_update_id rh_self;
+};
+
+C2_BASSERT((sizeof(struct c2_fol_rec_header) & 7) == 0);
+C2_BASSERT((sizeof(struct c2_fol_obj_ref) & 7) == 0);
+C2_BASSERT((sizeof(struct c2_fol_update_ref) & 7) == 0);
 
 /**
    In-memory representation of a fol record.
@@ -183,36 +240,17 @@ struct c2_fol_rec_ops;
  */
 struct c2_fol_rec_desc {
 	/** record log sequence number */
-	c2_lsn_t                     rd_lsn;
-	/** number of outstanding references to the record */
-	uint64_t                     rd_refcount;
-	/** operation code */
-	uint32_t                     rd_opcode;
-
-	/** number of objects modified by this update */
-	uint32_t                     rd_obj_nr;
-	/** references to the objects modified by this update. This points to
-	    in-fol data.*/
-	struct c2_fol_obj_ref       *rd_ref;
-
-	/** a DTM epoch this update is a part of. This points to in-fol data. */
-	struct c2_epoch_id          *rd_epoch;
-	/** 
-	    Identifier of this update. This points to in-fol data.
-
-	    @note that the update might be for a different node.
-	 */
-	struct c2_update_id         *rd_self;
-	/** number of sibling updates in the same operation */
-	uint32_t                     rd_sibling_nr;
-	/** identifiers of sibling updates. This points to in-fol data. */
-	struct c2_fol_update_ref    *rd_sibling;
-
-	/** length or the remaining operation type specific data in bytes */
-	uint32_t                     rd_data_len;
-	/** pointer to the remaining operation type specific data. This points
-	    to in-fol data. */
-	void                        *rd_data;
+	c2_lsn_t                      rd_lsn;
+	struct c2_fol_rec_header      rd_h;
+	const struct c2_fol_rec_type *rd_type;
+	/** references to the objects modified by this update. */
+	struct c2_fol_obj_ref        *rd_ref;
+	/** a DTM epoch this update is a part of. */
+	struct c2_epoch_id           *rd_epoch;
+	/** identifiers of sibling updates. */
+	struct c2_fol_update_ref     *rd_sibling;
+	/** pointer to the remaining operation type specific data. */
+	void                         *rd_data;
 };
 
 /**
@@ -237,22 +275,19 @@ struct c2_fol_rec_desc {
    culled.) Between record addition to the log and its culling the only record
    fields that could change are its reference counter and sibling updates state.
 
-   @li short-term: in-fol data pointed to from the record (object references,
-   sibling updates and operation type specific data) are valid until
-   c2_fol_rec_fini() is called. Multiple threads can access the record with a
-   given lsn. It's up to them to synchronize access to mutable fields (reference
-   counter and sibling updates state).
+   @li short-term: data copied from the fol and pointed to from the record
+   (object references, sibling updates and operation type specific data) are
+   valid until c2_fol_rec_fini() is called. Multiple threads can access the
+   record with a given lsn. It's up to them to synchronize access to mutable
+   fields (reference counter and sibling updates state).
  */
 struct c2_fol_rec {
 	struct c2_fol               *fr_fol;
 	struct c2_fol_rec_desc       fr_d;
-	const struct c2_fol_rec_ops *fr_ops;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
 	struct c2_db_cursor          fr_ptr;
-};
-
-struct c2_fol_rec_ops {
+	struct c2_db_pair            fr_pair;
 };
 
 /**
@@ -262,6 +297,7 @@ struct c2_fol_rec_ops {
 
    @post ergo(result == 0, out->fr_d.rd_lsn == lsn)
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
+   @post ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
  */
 int  c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn, 
 		       struct c2_fol_rec *out);
@@ -305,6 +341,98 @@ void c2_fol_rec_put(struct c2_fol_rec *rec);
  */
 int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr, 
 		 struct c2_fol_rec *out);
+
+struct c2_fol_rec_type_ops;
+
+/**
+   Fol record type.
+
+   There is an instance of struct c2_fol_rec_type for MKDIR, another for WRITE,
+   yet another for OPEN, etc.
+
+   Liveness.
+
+   The user is responsible for guaranteeing that a fol record type is not
+   unregistered while fol activity is still possible on the node.
+ */
+struct c2_fol_rec_type {
+	/** symbolic type name */
+	const char                       *rt_name;
+	/** opcode for records of this type */
+	uint32_t                          rt_opcode;
+	const struct c2_fol_rec_type_ops *rt_ops;
+};
+
+/**
+   Register a new fol record type.
+
+   @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
+   @post ergo(result == 0, c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
+
+   @see c2_fol_rec_type_unregister()
+ */
+int c2_fol_rec_type_register(const struct c2_fol_rec_type *rtype);
+
+/**
+   Dual to c2_fol_rec_type_register().
+
+   @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype
+   @post c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
+ */
+void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rtype);
+
+/**
+   Finds a record type with a given opcode.
+
+   @post ergo(result != NULL, result->rt_opcode == opcode)
+ */
+const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode);
+
+struct c2_fol_rec_type_ops {
+	/**
+	   Invoked when a transaction containing a record of the type is
+	   committed.
+	 */
+	void (*rto_commit)    (const struct c2_fol_rec_type *type, 
+			       struct c2_fol *fol, c2_lsn_t lsn);
+	/**
+	   Invoked when a transaction containing a record of the type is
+	   aborted.
+	 */
+	void (*rto_abort)     (const struct c2_fol_rec_type *type, 
+			       struct c2_fol *fol, c2_lsn_t lsn);
+	/**
+	   Invoked when a record of the type becomes persistent.
+	 */
+	void (*rto_persistent)(const struct c2_fol_rec_type *type, 
+			       struct c2_fol *fol, c2_lsn_t lsn);
+	/**
+	   Invoked when a record of the type is culled from a fol.
+	 */
+	void (*rto_cull)      (const struct c2_fol_rec_type *type, 
+			       struct c2_db_tx *tx, struct c2_fol_rec *rec);
+	/**
+	   Parse operation type specific data in desc->rd_data.
+	 */
+	int  (*rto_open)      (const struct c2_fol_rec_type *type, 
+			       struct c2_fol_rec_desc *desc);
+	/**
+	   Release resources associated with a record being finalised.
+	 */
+	void (*rto_fini)      (struct c2_fol_rec_desc *desc);
+	/**
+	   Returns number of bytes necessary to store type specific record data.
+	 */
+	size_t (*rto_pack_size)(struct c2_fol_rec_desc *desc);
+	/**
+	   Packs type specific record data into a buffer of size returned by
+	   ->rto_pack_size().
+	 */
+	void (*rto_pack)(struct c2_fol_rec_desc *desc, void *buf);
+};
+
+int  c2_fols_init(void);
+void c2_fols_fini(void);
 
 /** @} end of fol group */
 
