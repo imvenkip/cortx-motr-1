@@ -341,7 +341,7 @@ if test x$with_db != x; then
         AC_MSG_RESULT([$DBLIBS])
 else
 	DBSRC="$SRCDIR/../db4"
-        DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
+        DBLIBS="$DBSRC/build_unix/libdb.a"
 	if ! test -e $DBLIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db_o_direct = xyes; then
