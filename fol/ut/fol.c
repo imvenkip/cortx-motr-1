@@ -4,6 +4,7 @@
 
 #include "lib/ut.h"
 #include "lib/ub.h"
+#include "lib/memory.h"
 #include "lib/misc.h"              /* C2_SET0 */
 #include "fol/fol.h"
 
@@ -30,6 +31,7 @@ static struct c2_db_tx       tx;
 static struct c2_fol_rec            r;
 static struct c2_fol_rec_desc      *d;
 static struct c2_fol_rec_header    *h;
+static struct c2_buf                buf;
 
 static int result;
 
@@ -44,8 +46,8 @@ static void test_init(void)
 	result = c2_db_tx_init(&tx, &db, 0);
 	C2_ASSERT(result == 0);
 
-	d = &r.fr_d;
-	h = &d->rd_h;
+	d = &r.fr_desc;
+	h = &d->rd_header;
 }
 
 static void test_fini(void)
@@ -55,6 +57,7 @@ static void test_fini(void)
 
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
+	c2_free(buf.b_addr);
 }
 
 static size_t ut_fol_size(struct c2_fol_rec_desc *desc)
@@ -93,6 +96,9 @@ static void test_add(void)
 
 	result = c2_fol_add(&fol, &tx, d);
 	C2_ASSERT(result == 0);
+
+	result = c2_fol_rec_pack(d, &buf);
+	C2_ASSERT(result == 0);
 }
 
 static void test_lookup(void)
@@ -105,8 +111,9 @@ static void test_lookup(void)
 	result = c2_fol_rec_lookup(&fol, &tx, d->rd_lsn, &dup);
 	C2_ASSERT(result == 0);
 
-	C2_ASSERT(dup.fr_d.rd_lsn == d->rd_lsn);
-	C2_ASSERT(memcmp(&d->rd_h, &dup.fr_d.rd_h, sizeof d->rd_h) == 0);
+	C2_ASSERT(dup.fr_desc.rd_lsn == d->rd_lsn);
+	C2_ASSERT(memcmp(&d->rd_header, 
+			 &dup.fr_desc.rd_header, sizeof d->rd_header) == 0);
 
 	c2_fol_rec_fini(&dup);
 
@@ -135,110 +142,95 @@ const struct c2_test_suite fol_ut = {
 	}
 };
 
-#if 0
 /*
  * UB
  */
 
 enum {
-	UB_ITER = 10000
+	UB_ITER = 100000
 };
 
 static void ub_init(void)
 {
 	db_reset();
 	test_init();
+	test_type_reg();
+
+	C2_SET0(h);
+
+	d->rd_type = &ut_fol_type;
+	h->rh_refcount = 1;
 }
 
 static void ub_fini(void)
 {
+	test_type_unreg();
 	test_fini();
 	db_reset();
 }
 
-static struct c2_uint128 p;
+static c2_lsn_t last;
 
-static void ub_obj_init(int i)
+static void checkpoint()
 {
-	p = prefix;
-
-	p.u_hi += i;
-	p.u_lo -= i*i;
-
-	result = c2_emap_obj_insert(&emap, &tx, &p, 42);
+	result = c2_db_tx_commit(&tx);
 	C2_ASSERT(result == 0);
-	checkpoint();
-}
 
-static void ub_obj_fini(int i)
-{
-	p = prefix;
-
-	p.u_hi += i;
-	p.u_lo -= i*i;
-
-	result = c2_emap_obj_delete(&emap, &tx, &p);
-	C2_ASSERT(result == 0);
-	checkpoint();
-}
-
-static void ub_obj_init_same(int i)
-{
-	p = prefix;
-
-	p.u_hi += i;
-	p.u_lo -= i*i;
-
-	result = c2_emap_obj_insert(&emap, &tx, &p, 42);
+	result = c2_db_tx_init(&tx, &db, 0);
 	C2_ASSERT(result == 0);
 }
 
-static void ub_obj_fini_same(int i)
+static void ub_insert(int i)
 {
-	p = prefix;
-
-	p.u_hi += i;
-	p.u_lo -= i*i;
-
-	result = c2_emap_obj_delete(&emap, &tx, &p);
+	result = c2_fol_add(&fol, &tx, d);
 	C2_ASSERT(result == 0);
+	last = d->rd_lsn;
+	if (i%1000 == 0)
+		checkpoint();
 }
 
-static void ub_split(int i)
+static void ub_lookup(int i)
 {
-	split(5000, 1, false);
+	c2_lsn_t lsn;
+	struct c2_fol_rec rec;
+
+	lsn = last - i;
+
+	result = c2_fol_rec_lookup(&fol, &tx, lsn, &rec);
+	C2_ASSERT(result == 0);
+	c2_fol_rec_fini(&rec);
+	if (i%1000 == 0)
+		checkpoint();
 }
 
-struct c2_ub_set c2_emap_ub = {
-	.us_name = "emap-ub",
+static void ub_insert_buf(int i)
+{
+	result = c2_fol_add_buf(&fol, &tx, d, &buf);
+	C2_ASSERT(result == 0);
+	if (i%1000 == 0)
+		checkpoint();
+}
+
+struct c2_ub_set c2_fol_ub = {
+	.us_name = "fol-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
 	.us_run  = { 
-		{ .ut_name = "obj-init",
+		{ .ut_name = "insert",
 		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_init },
+		  .ut_round = ub_insert },
 
-		{ .ut_name = "obj-fini",
+		{ .ut_name = "lookup",
 		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_fini },
+		  .ut_round = ub_lookup },
 
-		{ .ut_name = "obj-init-same-tx",
+		{ .ut_name = "insert-buf",
 		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_init_same },
-
-		{ .ut_name = "obj-fini-same-tx",
-		  .ut_iter = UB_ITER,
-		  .ut_round = ub_obj_fini_same },
-
-		{ .ut_name = "split",
-		  .ut_iter = UB_ITER/5,
-		  .ut_init = test_obj_init,
-		  .ut_round = ub_split },
+		  .ut_round = ub_insert_buf },
 
 		{ .ut_name = NULL }
 	}
 };
-#endif
 
 /* 
  *  Local variables:
