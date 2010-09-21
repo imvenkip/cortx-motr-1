@@ -248,7 +248,7 @@ const struct c2_test_suite adieu_ut = {
 };
 
 enum {
-	UB_ITER = 10
+	UB_ITER = 100
 };
 
 static void ub_write(int i)

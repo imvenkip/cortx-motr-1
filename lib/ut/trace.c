@@ -41,7 +41,7 @@ void test_trace(void)
 }
 
 enum {
-	UB_ITER = 1000000
+	UB_ITER = 5000000
 };
 
 static void ub_empty(int i)

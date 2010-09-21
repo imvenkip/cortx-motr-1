@@ -204,7 +204,8 @@ const struct c2_test_suite emap_ut = {
  */
 
 enum {
-	UB_ITER = 10000
+	UB_ITER = 100000,
+	UB_ITER_TX = 10000
 };
 
 static void ub_init(void)
@@ -286,11 +287,11 @@ struct c2_ub_set c2_emap_ub = {
 		  .ut_round = ub_obj_fini },
 
 		{ .ut_name = "obj-init-same-tx",
-		  .ut_iter = UB_ITER,
+		  .ut_iter = UB_ITER_TX,
 		  .ut_round = ub_obj_init_same },
 
 		{ .ut_name = "obj-fini-same-tx",
-		  .ut_iter = UB_ITER,
+		  .ut_iter = UB_ITER_TX,
 		  .ut_round = ub_obj_fini_same },
 
 		{ .ut_name = "split",

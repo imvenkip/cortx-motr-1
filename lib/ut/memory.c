@@ -29,7 +29,7 @@ void test_memory()
 }
 
 enum {
-	UB_ITER   = 1000000,
+	UB_ITER   = 5000000,
 	UB_SMALL  = 1,
 	UB_MEDIUM = 17,
 	UB_LARGE  = 512,

@@ -79,7 +79,7 @@ void test_thread(void)
 }
 
 enum {
-	UB_ITER = 1000
+	UB_ITER = 10000
 };
 
 static struct c2_thread ubt[UB_ITER];

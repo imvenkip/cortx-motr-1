@@ -62,7 +62,7 @@ void test_list(void)
 }
 
 enum {
-	UB_ITER = 10001
+	UB_ITER = 100000
 };
 
 static struct test1 t[UB_ITER];
