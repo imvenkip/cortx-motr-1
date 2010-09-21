@@ -11,7 +11,7 @@
    the description of requirements, usage patterns and constraints on fol, as
    well as important terminology (update, operation, etc.).
 
-   A fol is represented by an instance of struct c2_fol. A fol record is has two
+   A fol is represented by an instance of struct c2_fol. A fol record has two
    data-types associated with it:
 
    @li c2_fol_rec_desc: a description of a new fol record to be added to a
@@ -129,7 +129,8 @@ int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
 
    drec->rd_lsn is filled in by c2_fol_add() with lsn assigned to the record.
 
-   drec->rd_refcounter is initial value of record's reference counter.
+   drec->rd_refcounter is initial value of record's reference counter. This
+   field must be filled by the caller.
 
    @see c2_fol_add_buf()
  */
@@ -188,7 +189,7 @@ struct c2_fol_obj_ref {
 /**
    Reference to a sibling update of the same operation.
 
-   @todo More detailed description is to be supplies as part of DTM design.
+   @todo More detailed description is to be supplied as part of DTM design.
  */
 struct c2_fol_update_ref {
 	/* taken from enum c2_update_state  */
@@ -230,8 +231,9 @@ C2_BASSERT((sizeof(struct c2_fol_update_ref) & 7) == 0);
    c2_fol_rec_desc is used in two ways:
 
    @li as an argument to c2_fol_add(). In this case c2_fol_rec_desc describes a
-   new record to be added. All fields are filled in by a user and the user is
-   responsible for the concurrency control and the liveness of the structure;
+   new record to be added. All fields, except for rd_lsn, are filled in by a
+   user and the user is responsible for the concurrency control and the liveness
+   of the structure;
 
    @li as part of c2_fol_rec returned by c2_fol_rec_lookup() or
    c2_fol_batch(). In this case, c2_fol_rec_desc is filled by the fol code. The
@@ -241,7 +243,7 @@ C2_BASSERT((sizeof(struct c2_fol_update_ref) & 7) == 0);
 struct c2_fol_rec_desc {
 	/** record log sequence number */
 	c2_lsn_t                      rd_lsn;
-	struct c2_fol_rec_header      rd_h;
+	struct c2_fol_rec_header      rd_header;
 	const struct c2_fol_rec_type *rd_type;
 	/** references to the objects modified by this update. */
 	struct c2_fol_obj_ref        *rd_ref;
@@ -283,7 +285,7 @@ struct c2_fol_rec_desc {
  */
 struct c2_fol_rec {
 	struct c2_fol               *fr_fol;
-	struct c2_fol_rec_desc       fr_d;
+	struct c2_fol_rec_desc       fr_desc;
 	/** cursor in the underlying data-base, pointing to the record location
 	    in the fol. */
 	struct c2_db_cursor          fr_ptr;

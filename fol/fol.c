@@ -84,7 +84,7 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 	h = buf_move(&buf, &nob, sizeof *h);
 	if (h == NULL)
 		return -EIO;
-	d->rd_h = *h;
+	d->rd_header = *h;
 	d->rd_ref = buf_move(&buf, &nob, h->rh_obj_nr * sizeof d->rd_ref[0]);
 	if (d->rd_ref == NULL)
 		return -EIO;
@@ -111,8 +111,8 @@ static int rec_open_internal(struct c2_fol_rec *rec)
 	struct c2_db_pair *p;
 
 	p = &rec->fr_pair;
-	C2_ASSERT(p->dp_key.data == (void *)&rec->fr_d.rd_lsn);
-	return rec_parse(&rec->fr_d, p->dp_rec.data, p->dp_rec.size);
+	C2_ASSERT(p->dp_key.data == (void *)&rec->fr_desc.rd_lsn);
+	return rec_parse(&rec->fr_desc, p->dp_rec.data, p->dp_rec.size);
 }
 
 static int rec_open(struct c2_fol_rec *rec)
@@ -121,7 +121,7 @@ static int rec_open(struct c2_fol_rec *rec)
 
 	result = rec_open_internal(rec);
 	if (result == 0)
-		result = c2_fol_rec_invariant(&rec->fr_d) ? 0 : -EIO;
+		result = c2_fol_rec_invariant(&rec->fr_desc) ? 0 : -EIO;
 	return result;
 }
 
@@ -136,7 +136,8 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 	if (result == 0) {
 		pair = &rec->fr_pair;
 		c2_db_pair_setup(pair, &rec->fr_fol->f_table,
-				 &rec->fr_d.rd_lsn, sizeof rec->fr_d.rd_lsn,
+				 &rec->fr_desc.rd_lsn, 
+				 sizeof rec->fr_desc.rd_lsn,
 				 NULL, 0);
 	}
 	return result;
@@ -189,7 +190,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 		struct c2_db_tx         tx;
 		int                     rc;
 
-		d = &r.fr_d;
+		d = &r.fr_desc;
 		result = c2_db_tx_init(&tx, env, 0);
 		if (result == 0) {
 			result = c2_fol_rec_lookup(fol, &tx, C2_LSN_ANCHOR, &r);
@@ -197,9 +198,9 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 				/* initialise new fol */
 				C2_SET0(d);
 				d->rd_lsn  = C2_LSN_ANCHOR;
-				d->rd_h.rh_refcount = 1;
-				d->rd_h.rh_opcode   = anchor_type.rt_opcode;
-				d->rd_type          = &anchor_type;
+				d->rd_header.rh_refcount = 1;
+				d->rd_header.rh_opcode = anchor_type.rt_opcode;
+				d->rd_type = &anchor_type;
 				fol->f_lsn = C2_LSN_RESERVED_NR;
 				result = c2_fol_add(fol, &tx, d);
 			} else {
@@ -235,19 +236,20 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 	uint32_t                      data_len;
 
 	rtype = desc->rd_type;
-	data_len = desc->rd_h.rh_data_len = rtype->rt_ops->rto_pack_size(desc);
+	data_len = desc->rd_header.rh_data_len = 
+		rtype->rt_ops->rto_pack_size(desc);
 	size = sizeof *h +
-		desc->rd_h.rh_obj_nr * sizeof desc->rd_ref[0] +
-		desc->rd_h.rh_sibling_nr * sizeof desc->rd_sibling[0] +
+		desc->rd_header.rh_obj_nr * sizeof desc->rd_ref[0] +
+		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
 		data_len;
-	desc->rd_h.rh_opcode = rtype->rt_opcode;
+	desc->rd_header.rh_opcode = rtype->rt_opcode;
 	C2_ASSERT((size & 7) == 0);
 
 	buf = c2_alloc(size);
 	if (buf != NULL) {
 		h = out->b_addr = buf;
 		out->b_nob = size;
-		*h = desc->rd_h;
+		*h = desc->rd_header;
 		rtype->rt_ops->rto_pack(desc, h + 1);
 		result = 0;
 	} else
@@ -300,7 +302,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 
 	if (!c2_lsn_is_valid(drec->rd_lsn))
 		return false;
-	for (i = 0; i < drec->rd_h.rh_obj_nr; ++i) {
+	for (i = 0; i < drec->rd_header.rh_obj_nr; ++i) {
 		struct c2_fol_obj_ref *ref;
 
 		ref = &drec->rd_ref[i];
@@ -319,9 +321,9 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 #if 0
 	if (!c2_epoch_is_valid(&drec->rd_epoch))
 		return false;
-	if (!c2_update_is_valid(&drec->rd_h.rh_self))
+	if (!c2_update_is_valid(&drec->rd_header.rh_self))
 		return false;
-	for (i = 0; i < drec->rd_h.rh_sibling_nr; ++i) {
+	for (i = 0; i < drec->rd_header.rh_sibling_nr; ++i) {
 		struct c2_fol_update_ref *upd;
 
 		upd = &drec->rd_sibling[i];
@@ -347,11 +349,12 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 	out->fr_fol = fol;
 	result = rec_init(out, tx);
 	if (result == 0) {
-		out->fr_d.rd_lsn = lsn;
+		out->fr_desc.rd_lsn = lsn;
 		result = c2_db_cursor_get(&out->fr_ptr, &out->fr_pair);
 		if (result == 0) {
-			if (out->fr_d.rd_lsn == lsn && 
-			    out->fr_d.rd_h.rh_refcount > 0)
+			struct c2_fol_rec_header *h = out->fr_pair.dp_rec.data;
+
+			if (out->fr_desc.rd_lsn == lsn && h->rh_refcount > 0)
 				result = rec_open(out);
 			else
 				result = -ENOENT;
@@ -359,9 +362,9 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		if (result != 0)
 			rec_fini(out);
 	}
-	C2_POST(ergo(result == 0, out->fr_d.rd_lsn == lsn));
-	C2_POST(ergo(result == 0, out->fr_d.rd_h.rh_refcount > 0));
-	C2_POST(ergo(result == 0, c2_fol_rec_invariant(&out->fr_d)));
+	C2_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
+	C2_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
+	C2_POST(ergo(result == 0, c2_fol_rec_invariant(&out->fr_desc)));
 	return result;
 }
 
@@ -369,9 +372,9 @@ void c2_fol_rec_fini(struct c2_fol_rec *rec)
 {
 	const struct c2_fol_rec_type *rtype;
 
-	rtype = rec->fr_d.rd_type;
+	rtype = rec->fr_desc.rd_type;
 	if (rtype != NULL && rtype->rt_ops->rto_fini != NULL)
-		rtype->rt_ops->rto_fini(&rec->fr_d);
+		rtype->rt_ops->rto_fini(&rec->fr_desc);
 	rec_fini(rec);
 }
 
