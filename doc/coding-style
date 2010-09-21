@@ -83,14 +83,14 @@ try to adhere to some higher level idioms.
 
       (Rationale: when bar's type changes code remains correct.);
 
-    * to iterate over indices of an array X use sizeof_array(X) (or
-      ARRAY_SIZE(X)?) macro instead of an explicit array size:
+    * to iterate over indices of an array X use ARRAY_SIZE(X) macro
+      instead of an explicit array size:
 
         #define MAX_DEGREE_OF_SEPARATION (7)
 
         int degrees_of_separation[MAX_DEGREE_OF_SEPARATION + 1];
 
-        for (i = 0; i < sizeof_array(degrees_of_separation); ++i) {
+        for (i = 0; i < ARRAY_SIZE(degrees_of_separation); ++i) {
                 body;
         }
 
