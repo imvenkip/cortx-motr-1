@@ -28,7 +28,7 @@
 
 enum {
 	NR    = 3,
-	SHIFT = 12,
+	SHIFT = 3, /* 12, */
 	COUNT = (1 << SHIFT)*1024
 };
 
