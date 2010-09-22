@@ -17,7 +17,11 @@ CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
 LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
 DEFINES="-DHAVE_CONFIG"
 INC="-I$topdir"
-OBJS="$topdir/fop/fop.o $topdir/fop/fop_format.o $topdir/fop/fop_format_c.o $topdir/lib/.libs/libc2.a $topdir/addb/.libs/libcolibri-addb.a"
+#
+# Enumerate all object files and libraries necessary for the binary linked
+# below.
+#
+OBJS="$topdir/colibri/.libs/libcolibri.a $topdir/../db4/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
@@ -193,7 +197,7 @@ int main(int argc, char **argv)
 EOF
 
     ofile=$fbase-o-$what
-    $CC $INC $DEFINES $CFLAGS $LDFLAGS $OBJS -o $ofile $tfile || exit 1
+    $CC $INC $DEFINES $CFLAGS $LDFLAGS -o $ofile $tfile $OBJS || exit 1
     $ofile > $outf
 }
 
