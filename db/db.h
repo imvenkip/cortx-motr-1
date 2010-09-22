@@ -6,6 +6,9 @@
 #include_next <db.h>
 
 #include "lib/types.h"
+#include "lib/thread.h"
+#include "lib/list.h"
+#include "lib/mutex.h"
 #include "addb/addb.h"
 
 /**
@@ -18,6 +21,23 @@
    implementations will be added, specifically a simple memory-only
    implementation for Linux kernel, and the separation between generic and
    implementation-specific state will be exacted.
+
+   Main data-types introduced here are:
+
+   @li data-base environment (c2_dbenv), where tables are located in and to
+   which transactions are confined;
+
+   @li data-base table (c2_table): a container for records indexed by key;
+
+   @li transaction (c2_db_tx): a group of operations over tables that is atomic
+   and isolated (in the standard data-base sense of these words);
+
+   Auxiliary data-types are:
+
+   @li table cursor (c2_db_cursor) used to iterate over table records, and
+
+   @li transaction waiter (c2_db_tx_waiter) used to get notifications of (or to
+   wait until) transaction state changes.
 
    @{
  */
@@ -43,6 +63,16 @@ struct c2_dbenv {
 	/** File stream where informational messages for this dbenv are sent
 	    to. */
 	FILE              *d_msglog;
+	/** Log cursor used to determine the current LSN. */
+	DB_LOGC           *d_logc;
+	/** Lock protecting waiters list. */
+	struct c2_mutex    d_lock;
+	/** A list of waiters (c2_db_tx_waiter). */
+	struct c2_list     d_waiters;
+	/** Thread for asynchronous environment related work. */
+	struct c2_thread   d_thread;
+	/** True iff the environment is being shut down. */
+	bool               d_shutdown;
 };
 
 /**
@@ -60,6 +90,12 @@ int  c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags);
    Finalize the data-base environment and release all associated resources.
  */
 void c2_dbenv_fini(struct c2_dbenv *env);
+
+/**
+   When this call returns, results of all operations against the environment
+   that completed before this call started are guaranteed to be persistent.
+ */
+int c2_dbenv_sync(struct c2_dbenv *env);
 
 /**
     Data-base table.
@@ -122,8 +158,25 @@ int  c2_table_init(struct c2_table *table, struct c2_dbenv *env,
  */
 void c2_table_fini(struct c2_table *table);
 
+/**
+   How a memory buffer (for a key or a record) in a pair is allocated and who
+   owns it.
+
+   @see c2_db_pair
+ */
 enum c2_db_pair_flags {
-	DPF_ALLOCATED = 1 << 0
+	/** A buffer is allocated "here" by C2 code. It is up to the caller to
+	    allocate buffer of sufficient size. The buffer is freed by
+	    c2_db_pair_fini(). */
+	DPF_ALLOC_HERE,
+	/** A buffer is allocated "there" by the underlying data-base. db.c code
+	    takes care to free the buffer (if any) before calling into db4 again
+	    and in c2_db_pair_fini(). */
+	DPF_ALLOC_THERE,
+	/** A buffer is allocated "here" by C2 code. It is up to the caller to
+	    allocate buffer of sufficient size and to free it when necessary. */
+	DPF_BUFFER,
+	DPF_NR
 };
 
 /**
@@ -131,19 +184,18 @@ enum c2_db_pair_flags {
 
    c2_db_pair is a descriptor of buffers where user supplied key and record are
    stored in and where data-base supplied key and record are retrieved to.
+
+   c2_db_pair also describes the method of memory buffer allocation (and their
+   ownership) used for exchanging data with the underlying data-base.
  */
 struct c2_db_pair {
-	struct c2_table *dp_table;
-	void            *dp_keybuf;
-	void            *dp_recbuf;
-	uint32_t         dp_key_size;
-	uint32_t         dp_rec_size;
-	DBT              dp_key;
-	DBT              dp_rec;
-	uint32_t         dp_flags;
+	struct c2_table      *dp_table;
+	DBT                   dp_key;
+	DBT                   dp_rec;
+	enum c2_db_pair_flags dp_key_flags;
+	enum c2_db_pair_flags dp_rec_flags;
 };
 
-//int  c2_db_pair_init(struct c2_db_pair *pair, const struct c2_table *table);
 void c2_db_pair_fini(struct c2_db_pair *pair);
 
 /**
@@ -156,6 +208,10 @@ int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
 
 /**
    Initialise a pair and set buffers to the given values.
+
+   If key of record size is positive, the buffer is maintained according to
+   DPF_BUFFER. Otherwise (size is 0 and buffer pointer is NULL), the buffer is
+   maintained according to DPF_ALLOC_THERE.
  */
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
@@ -218,6 +274,8 @@ struct c2_table_ops {
 struct c2_db_tx {
 	/** An environment this transaction operates in. */
 	struct c2_dbenv   *dt_env;
+	/** A list of waiters (c2_db_tx_waiter). */
+	struct c2_list     dt_waiters;
 	/** A db5 private transaction handle. */
 	DB_TXN            *dt_txn;
 	/** An ADDB context for events related to this transaction. */
@@ -247,6 +305,43 @@ int c2_db_tx_commit(struct c2_db_tx *tx);
    Transaction is invalid after this returns.
  */
 int c2_db_tx_abort (struct c2_db_tx *tx);
+
+/**
+   An anchor to wait for transaction state change.
+
+   Liveness.
+
+   Once c2_db_tx_waiter::tw_commit() has been called, it is guaranteed that
+   c2_db_tx_waiter::tw_persistent() would eventually be called.
+
+   The implementation calls c2_db_tx_waiter::tw_done() as the last call-back and
+   won't touch the waiter afterwards. It is up to the caller to free the waiter
+   data-structure (e.g., this can be done inside of c2_db_tx_waiter::tw_done()).
+ */
+struct c2_db_tx_waiter {
+	/** Called when the transaction is committed */
+	void              (*tw_commit)(struct c2_db_tx_waiter *w);
+	/** Called when the transaction is aborted */
+	void              (*tw_abort) (struct c2_db_tx_waiter *w);
+	/** Called when a committed transaction becomes persistent. */
+	void              (*tw_persistent)(struct c2_db_tx_waiter *w);
+	/** Called when no further call-backs will be coming. */
+	void              (*tw_done)(struct c2_db_tx_waiter *w);
+	/** An lsn from the transaction this wait is for. */
+	DB_LSN              tw_lsn;
+	/** Linkage into a list of all waiters for data-base environment. */
+	struct c2_list_link tw_env;
+	/** Linkage into a list of all waiters for a given transaction. */
+	struct c2_list_link tw_tx;
+};
+
+/**
+   Adds a waiter for a transaction.
+
+   Waiters call-backs will be called when the transaction changes its state
+   appropriately.
+ */
+void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w);
 
 /**
    Inserts (key, rec) pair into table as part of transaction tx.
@@ -311,6 +406,10 @@ int c2_db_cursor_get (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 int c2_db_cursor_next(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Move cursor to the previous key */
 int c2_db_cursor_prev(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the first key in the table */
+int c2_db_cursor_first(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
+/** Move cursor to the last key in the table */
+int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Change the key and record of the current cursor pair.  */
 int c2_db_cursor_set (struct c2_db_cursor *cursor, struct c2_db_pair *pair);
 /** Add new pair to the table and position the cursor on it. */

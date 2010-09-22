@@ -292,10 +292,12 @@ static void test_ad(void)
 
 	for (i = 1; i < NR; ++i)
 		test_write(i);
-	return;
+
 	for (i = 1; i < NR; ++i) {
+		int j;
 		test_read(i);
-		C2_ASSERT(memcmp(user_buf, read_buf, COUNT * i) == 0);
+		for (j = 0; j < i; ++j)
+			C2_ASSERT(memcmp(user_buf[j], read_buf[j], COUNT) == 0);
 	}
 }
 
@@ -310,7 +312,7 @@ const struct c2_test_suite ad_ut = {
 };
 
 enum {
-	UB_ITER = 10
+	UB_ITER = 100
 };
 
 static void ub_write(int i)

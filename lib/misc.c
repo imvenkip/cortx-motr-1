@@ -68,6 +68,29 @@ void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
 	u128->u_lo = c2u64((const unsigned char *)magic + 8);
 }
 
+enum {
+	C2_MOD_SAFE_LIMIT = UINT64_MAX/32
+};
+
+static int64_t getdelta(uint64_t x0, uint64_t x1)
+{
+	int64_t delta;
+
+	delta = (int64_t)x0 - (int64_t)x1;
+	C2_ASSERT(delta < C2_MOD_SAFE_LIMIT && -delta < C2_MOD_SAFE_LIMIT);
+	return delta;
+}
+
+bool c2_mod_gt(uint64_t x0, uint64_t x1)
+{
+	return getdelta(x0, x1) > 0;
+}
+
+bool c2_mod_ge(uint64_t x0, uint64_t x1)
+{
+	return getdelta(x0, x1) >= 0;
+}
+
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

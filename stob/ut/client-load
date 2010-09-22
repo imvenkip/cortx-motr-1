@@ -20,7 +20,7 @@
 #
 #    * run the benchmark
 #
-#        ./client-load 127.0.0.1 10001 16 100 1000000
+#        ./client-load 127.0.0.1 10001 16 100 1048576
 #
 #      here
 #
@@ -28,7 +28,8 @@
 #              10001 is a port of the server
 #                 16 is a number of threads
 #                100 is a number of operations each thread executes
-#            1000000 is a number of bytes in each operation
+#            1048576 is a number of bytes in each operation, must be a
+#                    multiple of a block size.
 #
 #    * the script outputs
 #

@@ -10,6 +10,12 @@
    @{
 */
 
+/* export */
+struct c2_dtm;
+struct c2_dtx;
+struct c2_epoch_id;
+struct c2_update_id;
+
 struct c2_dtm {};
 
 struct c2_dtx {
@@ -19,7 +25,19 @@ struct c2_dtx {
 	struct c2_db_tx tx_dbtx;
 };
 
-/** @} end of copymachine group */
+struct c2_update_id {
+	uint32_t ui_node;
+	uint64_t ui_update;
+};
+
+enum c2_update_state {
+	C2_US_INVALID,
+	C2_US_VOLATILE,
+	C2_US_PERSISTENT,
+	C2_US_NR
+};
+
+/** @} end of dtm group */
 
 /* __COLIBRI_DTM_H__ */
 #endif

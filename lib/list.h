@@ -163,7 +163,8 @@ size_t c2_list_length(const struct c2_list *list);
 	container_of(link, type, member)
 
 /**
- * Iterate over a list
+ * Iterates over a list
+ *
  * @param head	the head of list.
  * @param pos	the pointer to list_link to use as a loop counter.
  */
@@ -172,15 +173,28 @@ size_t c2_list_length(const struct c2_list *list);
 	     pos = (pos)->ll_next)
 
 /**
- Iterate over a list
+   Read-only iterates over a "typed" list.
 
- @param head	the head of list.
- @param pos	the pointer to list_link to use as a loop counter.
+   The loop body is not allowed to modify the list.
  */
 #define c2_list_for_each_entry(head, pos, type, member) \
 	for (pos = c2_list_entry((head)->l_head, type, member); \
 	     &(pos->member) != (void *)head; \
 	     pos = c2_list_entry((pos)->member.ll_next, type, member))
+
+/**
+   Iterates over a "typed" list safely: the loop body is allowed to remove the
+   current element.
+
+   @param head	the head of list.
+   @param pos	the pointer to list_link to use as a loop counter.
+ */
+#define c2_list_for_each_entry_safe(head, pos, next, type, member)	\
+	for (pos = c2_list_entry((head)->l_head, type, member),		\
+	     next = c2_list_entry((pos)->member.ll_next, type, member); \
+	     &(pos)->member != (void *)head;				\
+	     pos = next,						\
+	     next = c2_list_entry((next)->member.ll_next, type, member))
 
 
 /** @} end of list group */

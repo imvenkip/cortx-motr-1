@@ -81,6 +81,30 @@ static inline uint64_t max64u(uint32_t a, uint64_t b)
 #define min3(a, b, c) (min_check((a), min_check((b), (c))))
 #define max3(a, b, c) (max_check((a), max_check((b), (c))))
 
+/**
+   Compares two 64bit numbers "modulo overflow".
+
+   This function returns true iff x0 == x1 + delta, where delta is a positive
+   signed 64bit number (alternatively speaking, delta is an unsigned 64bit
+   number less than UINT64_MAX/2).
+
+   This function is useful for comparing rolling counters (like epoch numbers,
+   times, log sequence numbers, etc.) which can overflow, but only "close
+   enough" values ever get compared.
+
+   As a safety measure, function checks that values are close enough.
+
+   @see c2_mod_ge()
+ */
+bool c2_mod_gt(uint64_t x0, uint64_t x1);
+
+/**
+   Compares two 64bit numbers "modulo overflow".
+
+   @see c2_mod_gt()
+ */
+bool c2_mod_ge(uint64_t x0, uint64_t x1);
+
 static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 {
 	C2_PRE(lo < hi);
@@ -128,12 +152,13 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 ({							\
 	typeof(v0) __a0 = (v0);				\
 	typeof(v1) __a1 = (v1);				\
-	typeof(v0) __tmp = (v0);			\
+	typeof(v0) __tmp = __a0;			\
 	(void)(&__a0 == &__a1);				\
 							\
 	(v0) = (v1);					\
 	(v1) = (__tmp);					\
 })
+
 /** @} end of arith group */
 
 /* __COLIBRI_LIB_ARITH_H__ */

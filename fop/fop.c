@@ -2,6 +2,7 @@
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/memory.h"
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/vec.h"
@@ -14,6 +15,11 @@
 
 int  c2_fop_field_type_prepare  (struct c2_fop_field_type *ftype);
 void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
+
+static int  fop_fol_type_init(struct c2_fop_type *fopt);
+static void fop_fol_type_fini(struct c2_fop_type *fopt);
+
+static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;
 
 static const struct c2_addb_ctx_type c2_fop_addb_ctx = {
 	.act_name = "fop"
@@ -90,6 +96,7 @@ C2_EXPORTED(c2_fop_data);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
+	fop_fol_type_fini(fopt);
 	if (fopt->ft_top != NULL) {
 		c2_mutex_lock(&fop_types_lock);
 		c2_list_del(&fopt->ft_linkage);
@@ -113,18 +120,22 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 	fmt    = fopt->ft_fmt;
 	result = c2_fop_type_format_parse(fmt);
 	if (result == 0) {
-		fopt->ft_top = fmt->ftf_out;
-		c2_addb_ctx_init(&fopt->ft_addb, &c2_fop_type_addb_ctx,
-				 &c2_addb_global_ctx);
-		c2_mutex_lock(&fop_types_lock);
-		c2_list_add(&fop_types_list, &fopt->ft_linkage);
-		c2_mutex_unlock(&fop_types_lock);
+		result = fop_fol_type_init(fopt);
+		if (result == 0) {
+			fopt->ft_top = fmt->ftf_out;
+			c2_addb_ctx_init(&fopt->ft_addb, &c2_fop_type_addb_ctx,
+					 &c2_addb_global_ctx);
+			c2_mutex_lock(&fop_types_lock);
+			c2_list_add(&fop_types_list, &fopt->ft_linkage);
+			c2_mutex_unlock(&fop_types_lock);
+		} else
+			c2_fop_type_fini(fopt);
 	}
 	return result;
 }
 C2_EXPORTED(c2_fop_type_build);
 
-int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
+int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 {
 	int i;
 	int result;
@@ -237,6 +248,98 @@ void c2_fops_fini(void)
 	c2_mutex_fini(&fop_types_lock);
 	c2_list_fini(&fop_types_list);
 }
+
+/*
+ * fop-fol interaction.
+ */
+
+#ifdef __KERNEL__
+
+/* XXX for now */
+
+static int fop_fol_type_init(struct c2_fop_type *fopt)
+{
+	return 0;
+}
+
+static void fop_fol_type_fini(struct c2_fop_type *fopt)
+{
+}
+
+#else /* !__KERNEL__ */
+
+static int fop_fol_type_init(struct c2_fop_type *fopt)
+{
+	struct c2_fol_rec_type *rtype;
+
+	C2_CASSERT(sizeof rtype->rt_opcode == sizeof fopt->ft_code);
+
+	rtype = &fopt->ft_rec_type;
+	rtype->rt_name   = fopt->ft_name;
+	rtype->rt_opcode = fopt->ft_code;
+	if (fopt->ft_ops != NULL && fopt->ft_ops->fto_rec_ops != NULL)
+		rtype->rt_ops = fopt->ft_ops->fto_rec_ops;
+	else
+		rtype->rt_ops = &c2_fop_fol_default_ops;
+	return c2_fol_rec_type_register(rtype);
+}
+
+static void fop_fol_type_fini(struct c2_fop_type *fopt)
+{
+	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
+}
+
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+		       struct c2_db_tx *tx, uint64_t *lsn)
+{
+	struct c2_fop_type    *fopt;
+	struct c2_fol_rec_desc desc;
+	int                    result;
+
+	fopt = fop->f_type;
+	C2_CASSERT(sizeof desc.rd_header.rh_opcode == sizeof fopt->ft_code);
+
+	C2_SET0(&desc);
+	desc.rd_type               = &fop->f_type->ft_rec_type;
+	desc.rd_type_private       = fop;
+	/* XXX an arbitrary number for now */
+	desc.rd_header.rh_refcount = 1;
+	/*
+	 * @todo fill the rest by iterating through fop fields.
+	 */
+	result = c2_fol_add(fol, tx, &desc);
+	if (result == 0)
+		*lsn = desc.rd_lsn;
+	return result;
+}
+C2_EXPORTED(c2_fop_fol_rec_add);
+
+static size_t fol_pack_size(struct c2_fol_rec_desc *desc)
+{
+	struct c2_fop *fop = desc->rd_type_private;
+
+	return fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+}
+
+static void fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+{
+	struct c2_fop *fop = desc->rd_type_private;
+
+	memcpy(buf, c2_fop_data(fop), fol_pack_size(desc));
+}
+
+static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
+	.rto_commit     = NULL,
+	.rto_abort      = NULL,
+	.rto_persistent = NULL,
+	.rto_cull       = NULL,
+	.rto_open       = NULL,
+	.rto_fini       = NULL,
+	.rto_pack_size  = fol_pack_size,
+	.rto_pack       = fol_pack
+};
+
+#endif /* __KERNEL__ */
 
 /** @} end of fop group */
 

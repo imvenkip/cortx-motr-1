@@ -43,10 +43,6 @@ missing
 *.mod.o
 *~
 doc/html/
-fol/fol.c
-fol/fol.h
-fol/fol_print.c
-fol/fol_template.0.c
 .#*
 #*#
 libtool

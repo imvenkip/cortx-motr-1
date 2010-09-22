@@ -15,6 +15,7 @@ extern const struct c2_test_suite ad_ut;
 extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
+extern const struct c2_test_suite fol_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -35,6 +36,7 @@ int main(int argc, char *argv[])
 		return result;
 
 	if (unit_start(UT_SANDBOX) == 0) {
+		c2_ut_add(&fol_ut);
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&ad_ut);

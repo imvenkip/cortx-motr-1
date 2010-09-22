@@ -117,8 +117,14 @@ enum {
 	 * Require 4K alignment sufficient for direct-IO.
 	 *
 	 * In fact, 512 is sufficient.
+	 *
+	 * @todo Here lies a problem: server uses standard ONC XDR library for
+	 *       message decoding. This library uses standard malloc(3) to
+	 *       allocate all the memory, including buffers. This means that
+	 *       server-side buffers are not aligned. Disable alignment (and
+	 *       direct-IO) until this is fixed.
 	 */
-	LINUX_BSHIFT = 12,
+	LINUX_BSHIFT = 0, /* 12, */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };

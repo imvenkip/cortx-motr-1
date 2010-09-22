@@ -470,8 +470,12 @@ void c2_stob_put(struct c2_stob *obj);
    clink call-back) happens in the context not holding IO lock (see
    c2_stob_op::sop_io_lock()).
 
-   @note at the moment the only type of storage object supporting adieu is a
-   Linux file system based one, using Linux libaio interfaces.
+   At the moment there are two types of storage object supporting adieu:
+
+   @li Linux file system based one, using Linux libaio interfaces;
+
+   @li AD stob type implements adiue on top of underlying backing store storage
+   object.
 
    <b>State.</b>
    @verbatim

@@ -163,7 +163,6 @@ static void test_insert(void)
 	C2_UT_ASSERT(rec_out == rec);
 
 	c2_db_pair_fini(&cons1);
-	c2_db_pair_fini(&cons);
 	
 	result = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(result == 0);
@@ -279,6 +278,101 @@ static void test_abort(void)
 	c2_dbenv_fini(&db);
 }
 
+static void test_waiter(void) 
+{
+	struct c2_dbenv   db;
+	struct c2_db_tx   tx;
+	struct c2_table   table;
+	struct c2_db_pair cons;
+	int               result;
+	uint64_t          key;
+	uint64_t          rec;
+	int               wflag;
+
+	struct c2_db_tx_waiter wait;
+
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&tx, &db, 0);
+	C2_UT_ASSERT(result == 0);
+
+	key = 45;
+	rec = 19;
+
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+
+	result = c2_table_insert(&tx, &cons);
+	C2_UT_ASSERT(result == 0);
+
+	wflag = 0;
+	wait.tw_abort = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(w == &wait);
+			wflag = 1;
+		});
+	wait.tw_commit = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
+		});
+	wait.tw_persistent = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
+		});
+	wait.tw_done = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 1);
+			wflag = 2;
+		});
+	c2_db_tx_waiter_add(&tx, &wait);
+
+	c2_db_pair_fini(&cons);
+	c2_db_tx_abort(&tx);
+
+	C2_UT_ASSERT(wflag == 2);
+
+	c2_table_fini(&table);
+	c2_dbenv_fini(&db);
+
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_table_init(&table, &db, test_table, 0, &test_table_ops);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&tx, &db, 0);
+	C2_UT_ASSERT(result == 0);
+
+	c2_db_pair_setup(&cons, &table, &key, sizeof key, &rec, sizeof rec);
+	result = c2_table_insert(&tx, &cons);
+	C2_UT_ASSERT(result == 0);
+
+	wflag = 0;
+	wait.tw_abort = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(false);
+		});
+	wait.tw_commit = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(w == &wait);
+			wflag = 1;
+		});
+	wait.tw_persistent = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 1);
+			wflag = 2;
+		});
+	wait.tw_done = LAMBDA(void, (struct c2_db_tx_waiter *w) {
+			C2_UT_ASSERT(wflag == 2);
+			wflag = 3;
+		});
+	c2_db_tx_waiter_add(&tx, &wait);
+
+	c2_db_pair_fini(&cons);
+	result = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(result == 0);
+
+	c2_table_fini(&table);
+	c2_dbenv_fini(&db);
+	C2_UT_ASSERT(wflag == 3);
+}
+
 const struct c2_test_suite db_ut = {
 	.ts_name = "libdb-ut",
 	.ts_init = db_reset,
@@ -290,6 +384,7 @@ const struct c2_test_suite db_ut = {
 		{ "insert", test_insert },
 		{ "delete", test_delete },
 		{ "abort", test_abort },
+		{ "waiter", test_waiter },
 		{ NULL, NULL }
 	}
 };
@@ -299,7 +394,8 @@ const struct c2_test_suite db_ut = {
  */
 
 enum {
-	UB_ITER = 10000
+	UB_ITER = 200000,
+	UB_ITER_TX = 10000
 };
 
 static struct c2_dbenv     ub_db;
@@ -343,15 +439,29 @@ static void ub_fini(void)
 	db_reset();
 }
 
+static void checkpoint()
+{
+	int result;
+
+	result = c2_db_tx_commit(&ub_tx);
+	C2_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&ub_tx, &ub_db, 0);
+	C2_ASSERT(result == 0);
+}
+
 static void ub_insert(int i)
 {
 	int      result;
 
 	key = i;
-	rec = i*i;
+	rec = key*key;
 
 	result = c2_table_insert(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
+
+	if (i%1000)
+		checkpoint();
 }
 
 static void ub_lookup(int i)
@@ -361,8 +471,11 @@ static void ub_lookup(int i)
 	key = i;
 	result = c2_table_lookup(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
-	C2_ASSERT(rec == i*i);
+	C2_ASSERT(rec == key*key);
 	c2_db_pair_release(&ub_pair);
+
+	if (i%1000)
+		checkpoint();
 }
 
 static void ub_delete(int i)
@@ -373,6 +486,9 @@ static void ub_delete(int i)
 
 	result = c2_table_delete(&ub_tx, &ub_pair);
 	C2_ASSERT(result == 0);
+
+	if (i%1000)
+		checkpoint();
 }
 
 static void ub_iterate_init(void)
@@ -444,13 +560,13 @@ struct c2_ub_set c2_db_ub = {
 		  .ut_round = ub_lookup },
 
 		{ .ut_name  = "iterate",
-		  .ut_iter  = UB_ITER,
+		  .ut_iter  = UB_ITER_TX,
 		  .ut_init  = ub_iterate_init,
 		  .ut_round = ub_iterate,
 		  .ut_fini  = ub_iterate_fini },
 
 		{ .ut_name  = "iterate-back",
-		  .ut_iter  = UB_ITER,
+		  .ut_iter  = UB_ITER_TX,
 		  .ut_init  = ub_iterate_back_init,
 		  .ut_round = ub_iterate_back,
 		  .ut_fini  = ub_iterate_back_fini },
