@@ -3,6 +3,8 @@
 #ifndef __COLIBRI_FOL_FOL_H__
 #define __COLIBRI_FOL_FOL_H__
 
+#ifndef __KERNEL__
+
 /**
    @defgroup fol File operations log
 
@@ -245,6 +247,8 @@ struct c2_fol_rec_desc {
 	c2_lsn_t                      rd_lsn;
 	struct c2_fol_rec_header      rd_header;
 	const struct c2_fol_rec_type *rd_type;
+	/** pointer for use by fol record type. */
+	void                         *rd_type_private;
 	/** references to the objects modified by this update. */
 	struct c2_fol_obj_ref        *rd_ref;
 	/** a DTM epoch this update is a part of. */
@@ -437,6 +441,12 @@ int  c2_fols_init(void);
 void c2_fols_fini(void);
 
 /** @} end of fol group */
+
+#else  /* !__KERNEL__ */
+
+struct c2_fol_rec_type {};
+
+#endif /* !__KERNEL__ */
 
 /* __COLIBRI_FOL_FOL_H__ */
 #endif
