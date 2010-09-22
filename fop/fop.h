@@ -7,6 +7,7 @@
 #include "lib/cdefs.h"
 #include "lib/list.h"
 #include "addb/addb.h"
+#include "fol/fol.h"
 
 /**
    @defgroup fop File operation packet
@@ -34,6 +35,8 @@
 struct c2_fom;
 struct c2_rpcmachine;
 struct c2_service;
+struct c2_fol;
+struct c2_db_tx;
 
 /* export */
 struct c2_fop_type;
@@ -55,20 +58,21 @@ typedef uint32_t c2_fop_type_code_t;
  */
 struct c2_fop_type {
 	/** Unique operation code. */
-	c2_fop_type_code_t            ft_code;
+	c2_fop_type_code_t                ft_code;
 	/** Operation name. */
-	const char                   *ft_name;
+	const char                       *ft_name;
 	/** Linkage into a list of all known operations. */
-	struct c2_list_link           ft_linkage;
+	struct c2_list_link               ft_linkage;
 	/** Type of a top level field in fops of this type. */
-	struct c2_fop_field_type     *ft_top;
-	const struct c2_fop_type_ops *ft_ops;
+	struct c2_fop_field_type         *ft_top;
+	const struct c2_fop_type_ops     *ft_ops;
 	/** Format of this fop's top field. */
-	struct c2_fop_type_format    *ft_fmt;
+	struct c2_fop_type_format        *ft_fmt;
+	struct c2_fol_rec_type            ft_rec_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
-	struct c2_addb_ctx            ft_addb;
+	struct c2_addb_ctx                ft_addb;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
@@ -101,6 +105,9 @@ struct c2_fop_type_ops {
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
 	/** XXX temporary entry point for threaded fop execution. */
 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+	/** fol record type operations for this fop type, or NULL is standard
+	    operations are to be used. */
+	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 };
 
 /** 
@@ -228,6 +235,9 @@ extern struct c2_fop_field_type C2_FOP_TYPE_VOID;
 extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
+
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+		       struct c2_db_tx *tx, uint64_t *lsn);
 
 #if 0
 
