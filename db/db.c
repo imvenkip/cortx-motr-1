@@ -5,6 +5,7 @@
 #include <sys/stat.h>  /* mkdir */
 #include <stdio.h>     /* asprintf, fopen, fclose */
 
+#include "lib/adt.h"   /* c2_buf */
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -133,7 +134,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 ({									\
 	int rc;								\
 									\
-	rc = (dbenv)->d_env->method((dbenv)->d_env , ## __VA_ARGS__);	\
+	rc = (dbenv)->d_i.d_env->method((dbenv)->d_i.d_env , ## __VA_ARGS__); \
 	db_call_tail(&(dbenv)->d_addb, rc, #method, dbenv_tol_ ## method); \
 })
 
@@ -147,7 +148,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 ({									\
 	int rc;								\
 									\
-	rc = (table)->t_db->method((table)->t_db , ## __VA_ARGS__);	\
+	rc = (table)->t_i.t_db->method((table)->t_i.t_db , ## __VA_ARGS__); \
 	db_call_tail(&(table)->t_addb, rc, #method, table_tol_ ## method); \
 })
 
@@ -159,7 +160,7 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 ({									\
 	int rc;								\
 									\
-	rc = (tx)->dt_txn->method((tx)->dt_txn , ## __VA_ARGS__);	\
+	rc = (tx)->dt_i.dt_txn->method((tx)->dt_i.dt_txn , ## __VA_ARGS__); \
 	db_call_tail(&(tx)->dt_addb, rc, #method, tx_tol_ ## method);	\
 })
 
@@ -171,9 +172,9 @@ static int db_call_tail(struct c2_addb_ctx *ctx, int rc, const char *name,
 ({									\
 	int rc;								\
 									\
-	rc = (cur)->c_dbc->method((cur)->c_dbc , ## __VA_ARGS__);	\
+	rc = (cur)->c_i.c_dbc->method((cur)->c_i.c_dbc , ## __VA_ARGS__); \
 	db_call_tail(&(cur)->c_table->t_addb, rc, "dbc::" #method,	\
-		cursor_tol_ ## method);				\
+		cursor_tol_ ## method);					\
 })
 
 /**
@@ -231,8 +232,8 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 
 	C2_SET0(env);
 
-	c2_mutex_init(&env->d_lock);
-	c2_list_init(&env->d_waiters);
+	c2_mutex_init(&env->d_i.d_lock);
+	c2_list_init(&env->d_i.d_waiters);
 	/*
 	 * XXX translate flags from c2 to db5.
 	 */
@@ -254,21 +255,21 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	 * interception) and to emit ADDB events for them.
 	 */
 
-	result = openvar(&env->d_errlog, "a", "%s.errlog", name);
+	result = openvar(&env->d_i.d_errlog, "a", "%s.errlog", name);
 	if (result != 0)
 		return result;
 
-	result = openvar(&env->d_msglog, "a", "%s.msglog", name);
+	result = openvar(&env->d_i.d_msglog, "a", "%s.msglog", name);
 	if (result != 0)
 		return result;
 
 	c2_addb_ctx_init(&env->d_addb, &db_env_ctx_type, &c2_addb_global_ctx);
-	result = db_env_create(&env->d_env, 0);
+	result = db_env_create(&env->d_i.d_env, 0);
 	if (result == 0) {
-		de = env->d_env;
+		de = env->d_i.d_env;
 		de->app_private = env;
-		de->set_msgfile(de, env->d_msglog);
-		de->set_errfile(de, env->d_errlog);
+		de->set_msgfile(de, env->d_i.d_msglog);
+		de->set_errfile(de, env->d_i.d_errlog);
 		de->set_errpfx(de, "c2");
 		result = DBENV_CALL(env, set_verbose, DB_VERB_DEADLOCK, 1);
 		C2_ASSERT(result == 0);
@@ -301,16 +302,16 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		if (result == 0) {
 			result = DBENV_CALL(env, open, name, flags, 0700);
 			if (result == 0) {
-				result = C2_THREAD_INIT(&env->d_thread, 
+				result = C2_THREAD_INIT(&env->d_i.d_thread, 
 							struct c2_dbenv *, NULL,
 							&dbenv_thread, env);
 				if (result == 0)
 					DBENV_CALL(env, log_cursor, 
-						   &env->d_logc, 0);
+						   &env->d_i.d_logc, 0);
 			}
 		}
 	} else
-		env->d_env = NULL;
+		env->d_i.d_env = NULL;
 	return dberr_conv(result);
 }
 
@@ -326,34 +327,34 @@ int c2_dbenv_init(struct c2_dbenv *env, const char *name, uint64_t flags)
 
 void c2_dbenv_fini(struct c2_dbenv *env)
 {
-	if (env->d_env != NULL) {
+	if (env->d_i.d_env != NULL) {
 		DBENV_CALL(env, memp_sync, NULL);
 		DBENV_CALL(env, log_flush, NULL);
 	}
-	if (env->d_thread.t_state == TS_RUNNING) {
-		env->d_shutdown = true;
-		c2_thread_join(&env->d_thread);
-		c2_thread_fini(&env->d_thread);
+	if (env->d_i.d_thread.t_state == TS_RUNNING) {
+		env->d_i.d_shutdown = true;
+		c2_thread_join(&env->d_i.d_thread);
+		c2_thread_fini(&env->d_i.d_thread);
 	}
-	if (env->d_logc != NULL) {
-		env->d_logc->close(env->d_logc, 0);
-		env->d_logc = NULL;
+	if (env->d_i.d_logc != NULL) {
+		env->d_i.d_logc->close(env->d_i.d_logc, 0);
+		env->d_i.d_logc = NULL;
 	}
-	if (env->d_env != NULL) {
+	if (env->d_i.d_env != NULL) {
 		DBENV_CALL(env, close, 0);
-		env->d_env = NULL;
+		env->d_i.d_env = NULL;
 	}
-	if (env->d_msglog != NULL) {
-		fclose(env->d_msglog);
-		env->d_msglog = NULL;
+	if (env->d_i.d_msglog != NULL) {
+		fclose(env->d_i.d_msglog);
+		env->d_i.d_msglog = NULL;
 	}
-	if (env->d_errlog != NULL) {
-		fclose(env->d_errlog);
-		env->d_errlog = NULL;
+	if (env->d_i.d_errlog != NULL) {
+		fclose(env->d_i.d_errlog);
+		env->d_i.d_errlog = NULL;
 	}
 	c2_addb_ctx_fini(&env->d_addb);
-	c2_list_fini(&env->d_waiters);
-	c2_mutex_fini(&env->d_lock);
+	c2_list_fini(&env->d_i.d_waiters);
+	c2_mutex_fini(&env->d_i.d_lock);
 }
 
 int c2_dbenv_sync(struct c2_dbenv *env)
@@ -390,9 +391,9 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 	table->t_env = env;
 	table->t_ops = ops;
 	c2_addb_ctx_init(&table->t_addb, &db_table_ctx_type, &env->d_addb);
-	result = db_create(&table->t_db, env->d_env, 0);
+	result = db_create(&table->t_i.t_db, env->d_i.d_env, 0);
 	if (result == 0) {
-		db = table->t_db;
+		db = table->t_i.t_db;
 		db->app_private = table;
 		/* Our lord is little-endian. */
 		result = TABLE_CALL(table, set_lorder, 1234);
@@ -405,7 +406,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 			result = TABLE_CALL(table, open, NULL, name, 
 					    NULL, DB_BTREE, flags, 0700);
 	} else
-		table->t_db = NULL;
+		table->t_i.t_db = NULL;
 	result = dberr_conv(result);
 	if (result != 0)
 		c2_table_fini(table);
@@ -414,10 +415,10 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 
 void c2_table_fini(struct c2_table *table)
 {
-	if (table->t_db != NULL) {
+	if (table->t_i.t_db != NULL) {
 		TABLE_CALL(table, sync, 0);
 		TABLE_CALL(table, close, 0);
-		table->t_db = NULL;
+		table->t_i.t_db = NULL;
 	}
 	c2_addb_ctx_fini(&table->t_addb);
 }
@@ -430,8 +431,8 @@ static bool pair_invariant(const struct c2_db_pair *p)
 	uint32_t   keyf;
 	uint32_t   recf;
 
-	key = &p->dp_key;
-	rec = &p->dp_rec;
+	key = &p->dp_i.dp_key;
+	rec = &p->dp_i.dp_rec;
 
 	keyf = p->dp_key_flags;
 	recf = p->dp_rec_flags;
@@ -452,8 +453,8 @@ static void pair_init(struct c2_db_pair *pair, struct c2_table *table)
 	DBT *key;
 	DBT *rec;
 
-	key = &pair->dp_key;
-	rec = &pair->dp_rec;
+	key = &pair->dp_i.dp_key;
+	rec = &pair->dp_i.dp_rec;
 
 	pair->dp_table = table;
 
@@ -477,16 +478,16 @@ int c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table)
 {
 	C2_SET0(pair);
 
-	pair->dp_key.ulen = table->t_ops->to[TO_KEY].max_size;
-	pair->dp_rec.ulen = table->t_ops->to[TO_REC].max_size;
+	pair->dp_i.dp_key.ulen = table->t_ops->to[TO_KEY].max_size;
+	pair->dp_i.dp_rec.ulen = table->t_ops->to[TO_REC].max_size;
 
-	pair->dp_key.data = c2_alloc(pair->dp_key.ulen);
-	pair->dp_rec.data = c2_alloc(pair->dp_rec.ulen);
+	pair->dp_i.dp_key.data = c2_alloc(pair->dp_i.dp_key.ulen);
+	pair->dp_i.dp_rec.data = c2_alloc(pair->dp_i.dp_rec.ulen);
 
 	pair->dp_key_flags = pair->dp_rec_flags = DPF_ALLOC_HERE;
 	pair_init(pair, table);
 
-	if (pair->dp_key.data != NULL && pair->dp_rec.data != NULL)
+	if (pair->dp_i.dp_key.data != NULL && pair->dp_i.dp_rec.data != NULL)
 		return 0;
 	else {
 		c2_db_pair_fini(pair);
@@ -501,8 +502,8 @@ void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 	DBT *key;
 	DBT *rec;
 
-	key = &pair->dp_key;
-	rec = &pair->dp_rec;
+	key = &pair->dp_i.dp_key;
+	rec = &pair->dp_i.dp_rec;
 
 	C2_SET0(pair);
 
@@ -522,14 +523,30 @@ void c2_db_pair_fini(struct c2_db_pair *pair)
 {
 	C2_PRE(pair_invariant(pair));
 	if (pair->dp_key_flags != DPF_BUFFER)
-		c2_free(pair->dp_key.data);
+		c2_free(pair->dp_i.dp_key.data);
 	if (pair->dp_rec_flags != DPF_BUFFER)
-		c2_free(pair->dp_rec.data);
+		c2_free(pair->dp_i.dp_rec.data);
 	C2_SET0(pair);
 }
 
 void c2_db_pair_release(struct c2_db_pair *pair)
 {
+}
+
+static void DBT2buf(DBT *dbt, struct c2_buf *buf)
+{
+	buf->b_addr = dbt->data;
+	buf->b_nob  = dbt->size;
+}
+
+void c2_db_pair_key(struct c2_db_pair *pair, struct c2_buf *key)
+{
+	DBT2buf(&pair->dp_i.dp_key, key);
+}
+
+void c2_db_pair_rec(struct c2_db_pair *pair, struct c2_buf *rec)
+{
+	DBT2buf(&pair->dp_i.dp_rec, rec);
 }
 
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
@@ -543,16 +560,16 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	tx->dt_env = env;
 	c2_list_init(&tx->dt_waiters);
 	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
-	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_txn, flags);
+	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_i.dt_txn, flags);
 	if (result == 0) {
-		txn = tx->dt_txn;
+		txn = tx->dt_i.dt_txn;
 		/*
 		 * Hack alert: DB_TXN has no application private field similar
 		 * to {DBENV,DB}->app_private. Hijack xml_private.
 		 */
 		txn->xml_internal = tx;
 	} else
-		tx->dt_txn = NULL;
+		tx->dt_i.dt_txn = NULL;
 	result = dberr_conv(result);
 	return result;
 }
@@ -583,12 +600,12 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 		c2_list_del(&w->tw_tx);
 		if (!commit) {
 			w->tw_abort(w);
-			c2_mutex_lock(&env->d_lock);
+			c2_mutex_lock(&env->d_i.d_lock);
 			waiter_fini(w);
-			c2_mutex_unlock(&env->d_lock);
+			c2_mutex_unlock(&env->d_i.d_lock);
 		} else {
 			w->tw_commit(w);
-			w->tw_lsn = lsn;
+			w->tw_i.tw_lsn = lsn;
 		}
 	}
 	c2_list_fini(&tx->dt_waiters);
@@ -630,9 +647,9 @@ void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 
 	env = tx->dt_env;
 
-	c2_mutex_lock(&env->d_lock);
-	c2_list_add(&env->d_waiters, &w->tw_env);
-	c2_mutex_unlock(&env->d_lock);
+	c2_mutex_lock(&env->d_i.d_lock);
+	c2_list_add(&env->d_i.d_waiters, &w->tw_env);
+	c2_mutex_unlock(&env->d_i.d_lock);
 
 	c2_list_add(&tx->dt_waiters, &w->tw_tx);
 }
@@ -642,8 +659,8 @@ static void pair_prep(struct c2_db_pair *pair)
 	DBT *key;
 	DBT *rec;
 
-	key = &pair->dp_key;
-	rec = &pair->dp_rec;
+	key = &pair->dp_i.dp_key;
+	rec = &pair->dp_i.dp_rec;
 
 	C2_PRE(pair_invariant(pair));
 
@@ -660,15 +677,16 @@ static void pair_prep(struct c2_db_pair *pair)
 int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, put, tx->dt_txn,
-			  &pair->dp_key, &pair->dp_rec, 0);
+	return TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
+			  &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 0);
 }
 
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, put, tx->dt_txn, 
-			  &pair->dp_key, &pair->dp_rec, DB_NOOVERWRITE);
+	return TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn, 
+			  &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 
+			  DB_NOOVERWRITE);
 }
 
 int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
@@ -687,15 +705,16 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        release in c2_db_rec_fini().
 	 */
 	pair_prep(pair);
-	result = TABLE_CALL(pair->dp_table, get, 
-			    tx->dt_txn, &pair->dp_key, &pair->dp_rec, DB_RMW);
+	result = TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn, 
+			    &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_RMW);
 	return result;
 }
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, del, tx->dt_txn, &pair->dp_key, 0);
+	return TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn, 
+			  &pair->dp_i.dp_key, 0);
 }
 
 int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
@@ -703,7 +722,8 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
 {
 	cursor->c_table = table;
 	cursor->c_tx    = tx;
-	return TABLE_CALL(table, cursor, tx->dt_txn, &cursor->c_dbc, 0);
+	return TABLE_CALL(table, cursor, tx->dt_i.dt_txn,
+			  &cursor->c_i.c_dbc, 0);
 }
 
 static int cursor_tol_close[] = { 0 };
@@ -720,7 +740,7 @@ static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
 	pair_prep(pair);
-	return CURSOR_CALL(cursor, get, &pair->dp_key, &pair->dp_rec, 
+	return CURSOR_CALL(cursor, get, &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 
 			   flags|DB_RMW);
 }
 
@@ -753,14 +773,14 @@ int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	pair_prep(pair);
 	return CURSOR_CALL(cursor, put, 
-			   &pair->dp_key, &pair->dp_rec, DB_CURRENT);
+			   &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_CURRENT);
 }
 
 int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
 	pair_prep(pair);
 	return CURSOR_CALL(cursor, put,
-			   &pair->dp_key, &pair->dp_rec, DB_KEYFIRST);
+			   &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_KEYFIRST);
 }
 
 int c2_db_cursor_del(struct c2_db_cursor *cursor)
@@ -782,7 +802,7 @@ static int key_compare(DB *db, const DBT *dbt0, const DBT *dbt1)
 	struct c2_table *table;
 
 	table = db->app_private;
-	C2_ASSERT(table->t_db == db);
+	C2_ASSERT(table->t_i.t_db == db);
 	C2_ASSERT(table->t_ops->key_cmp != NULL);
 	return table->t_ops->key_cmp(table, dbt0->data, dbt1->data);
 }
@@ -801,7 +821,7 @@ static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn)
 	nonce.flags = DB_DBT_USERMEM;
 	nonce.ulen  = sizeof dummy;
 
-	rc = env->d_logc->get(env->d_logc, lsn, &nonce, DB_LAST);
+	rc = env->d_i.d_logc->get(env->d_i.d_logc, lsn, &nonce, DB_LAST);
 	return db_call_tail(&env->d_addb, rc, "logc::get", NULL);
 }
 
@@ -819,8 +839,8 @@ static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn)
    @li sleep for some time.
 
    @todo the thread might linger for more than a second after
-   c2_dbenv::d_shutdown was set. The solution is to introduce channel waiting
-   with timeout to c2_chan or c2_cond and to use it instead of sleep.
+   c2_dbenv::d_i::d_shutdown was set. The solution is to introduce channel
+   waiting with timeout to c2_chan or c2_cond and to use it instead of sleep.
  */
 static void dbenv_thread(struct c2_dbenv *env)
 {
@@ -836,7 +856,7 @@ static void dbenv_thread(struct c2_dbenv *env)
 		struct c2_db_tx_waiter *w;
 		struct c2_db_tx_waiter *tmp;
 
-		last = env->d_shutdown;
+		last = env->d_i.d_shutdown;
 		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
 		rc = DBENV_CALL(env, log_stat, &st, 0);
 		if (rc == 0) {
@@ -847,23 +867,24 @@ static void dbenv_thread(struct c2_dbenv *env)
 			next.file   = st->st_disk_file;
 			next.offset = st->st_disk_offset;
 			c2_free(st);
-			c2_mutex_lock(&env->d_lock);
-			c2_list_for_each_entry_safe(&env->d_waiters, w, tmp, 
+			c2_mutex_lock(&env->d_i.d_lock);
+			c2_list_for_each_entry_safe(&env->d_i.d_waiters, 
+						    w, tmp, 
 						    struct c2_db_tx_waiter, 
 						    tw_env) {
-				if (log_compare(&w->tw_lsn, &next) <= 0) {
+				if (log_compare(&w->tw_i.tw_lsn, &next) <= 0) {
 					w->tw_persistent(w);
 					waiter_fini(w);
 				}
 			}
-			c2_mutex_unlock(&env->d_lock);
+			c2_mutex_unlock(&env->d_i.d_lock);
 		}
 		/*
 		 * XXX hard-coded sleep for 1 second.
 		 */
 		sleep(1);
 	} while (!last);
-	C2_ASSERT(c2_list_is_empty(&env->d_waiters));
+	C2_ASSERT(c2_list_is_empty(&env->d_i.d_waiters));
 }
 
 /** @} end of db group */

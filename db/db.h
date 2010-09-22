@@ -3,12 +3,6 @@
 #ifndef __COLIBRI_DB_DB_H__
 #define __COLIBRI_DB_DB_H__
 
-#include_next <db.h>
-
-#include "lib/types.h"
-#include "lib/thread.h"
-#include "lib/list.h"
-#include "lib/mutex.h"
 #include "addb/addb.h"
 
 /**
@@ -47,6 +41,13 @@ struct c2_table;
 struct c2_table_ops;
 struct c2_db_rec;
 struct c2_db_tx;
+struct c2_buf;
+
+#ifdef __KERNEL__
+#include "db/linux_kernel/db_impl.h"
+#else
+#include "db/db_impl.h"
+#endif
 
 /** Data-base environment.
 
@@ -54,25 +55,9 @@ struct c2_db_tx;
     (c2_db_tx) cannot cross data-base environment boundary.
  */
 struct c2_dbenv {
-	/** db5 private handle */
-	DB_ENV            *d_env;
+	struct c2_dbenv_impl d_i;
 	/** ADDB context for events related to this environment. */
-	struct c2_addb_ctx d_addb;
-	/** File stream where error messages for this dbenv are sent to. */
-	FILE              *d_errlog;
-	/** File stream where informational messages for this dbenv are sent
-	    to. */
-	FILE              *d_msglog;
-	/** Log cursor used to determine the current LSN. */
-	DB_LOGC           *d_logc;
-	/** Lock protecting waiters list. */
-	struct c2_mutex    d_lock;
-	/** A list of waiters (c2_db_tx_waiter). */
-	struct c2_list     d_waiters;
-	/** Thread for asynchronous environment related work. */
-	struct c2_thread   d_thread;
-	/** True iff the environment is being shut down. */
-	bool               d_shutdown;
+	struct c2_addb_ctx   d_addb;
 };
 
 /**
@@ -115,8 +100,7 @@ int c2_dbenv_sync(struct c2_dbenv *env);
 struct c2_table {
 	/** an environment this table is in. */
 	struct c2_dbenv           *t_env;
-	/** db5 private table handle. */
-	DB                        *t_db;
+	struct c2_table_impl       t_i;
 	/**
 	    operations vector.
 
@@ -189,11 +173,10 @@ enum c2_db_pair_flags {
    ownership) used for exchanging data with the underlying data-base.
  */
 struct c2_db_pair {
-	struct c2_table      *dp_table;
-	DBT                   dp_key;
-	DBT                   dp_rec;
-	enum c2_db_pair_flags dp_key_flags;
-	enum c2_db_pair_flags dp_rec_flags;
+	struct c2_table       *dp_table;
+	enum c2_db_pair_flags  dp_key_flags;
+	enum c2_db_pair_flags  dp_rec_flags;
+	struct c2_db_pair_impl dp_i;
 };
 
 void c2_db_pair_fini(struct c2_db_pair *pair);
@@ -216,6 +199,16 @@ int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
 		      void *recbuf, uint32_t recsize);
+
+/**
+   Return pair's key as a buffer.
+ */
+void c2_db_pair_key(struct c2_db_pair *pair, struct c2_buf *key);
+
+/**
+   Return pair's record as a buffer.
+ */
+void c2_db_pair_rec(struct c2_db_pair *pair, struct c2_buf *rec);
 
 /**
    Finalize the record returned by c2_table_lookup().
@@ -273,13 +266,12 @@ struct c2_table_ops {
  */
 struct c2_db_tx {
 	/** An environment this transaction operates in. */
-	struct c2_dbenv   *dt_env;
+	struct c2_dbenv     *dt_env;
 	/** A list of waiters (c2_db_tx_waiter). */
-	struct c2_list     dt_waiters;
-	/** A db5 private transaction handle. */
-	DB_TXN            *dt_txn;
+	struct c2_list       dt_waiters;
+	struct c2_db_tx_impl dt_i;
 	/** An ADDB context for events related to this transaction. */
-	struct c2_addb_ctx dt_addb;
+	struct c2_addb_ctx   dt_addb;
 };
 
 /**
@@ -320,19 +312,18 @@ int c2_db_tx_abort (struct c2_db_tx *tx);
  */
 struct c2_db_tx_waiter {
 	/** Called when the transaction is committed */
-	void              (*tw_commit)(struct c2_db_tx_waiter *w);
+	void                      (*tw_commit)(struct c2_db_tx_waiter *w);
 	/** Called when the transaction is aborted */
-	void              (*tw_abort) (struct c2_db_tx_waiter *w);
+	void                      (*tw_abort) (struct c2_db_tx_waiter *w);
 	/** Called when a committed transaction becomes persistent. */
-	void              (*tw_persistent)(struct c2_db_tx_waiter *w);
+	void                      (*tw_persistent)(struct c2_db_tx_waiter *w);
 	/** Called when no further call-backs will be coming. */
-	void              (*tw_done)(struct c2_db_tx_waiter *w);
-	/** An lsn from the transaction this wait is for. */
-	DB_LSN              tw_lsn;
+	void                      (*tw_done)(struct c2_db_tx_waiter *w);
 	/** Linkage into a list of all waiters for data-base environment. */
-	struct c2_list_link tw_env;
+	struct c2_list_link         tw_env;
 	/** Linkage into a list of all waiters for a given transaction. */
-	struct c2_list_link tw_tx;
+	struct c2_list_link         tw_tx;
+	struct c2_db_tx_waiter_impl tw_i;
 };
 
 /**
@@ -378,9 +369,9 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair);
    (c2_db_cursor_set(), c2_db_cursor_add(), c2_db_cursor_del()).
  */
 struct c2_db_cursor {
-	struct c2_table *c_table;
-	struct c2_db_tx *c_tx;
-	DBC             *c_dbc;
+	struct c2_table         *c_table;
+	struct c2_db_tx         *c_tx;
+	struct c2_db_cursor_impl c_i;
 };
 
 /**
