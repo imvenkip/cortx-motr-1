@@ -116,6 +116,9 @@ void c2_list_add(struct c2_list *head, struct c2_list_link *new);
  */
 void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
 
+void c2_list_add_after (struct c2_list_link *anchor, struct c2_list_link *new);
+void c2_list_add_before(struct c2_list_link *anchor, struct c2_list_link *new);
+
 /**
    Deletes an entry from the list and re-initializes the entry.
  */

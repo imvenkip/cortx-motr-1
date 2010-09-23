@@ -83,6 +83,18 @@ void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new)
 }
 C2_EXPORTED(c2_list_add_tail);
 
+void c2_list_add_after(struct c2_list_link *anchor, struct c2_list_link *new)
+{
+	__c2_list_add(anchor->ll_next, anchor, new);
+}
+C2_EXPORTED(c2_list_add_after);
+
+void c2_list_add_before(struct c2_list_link *anchor, struct c2_list_link *new)
+{
+	__c2_list_add(anchor, anchor->ll_prev, new);
+}
+C2_EXPORTED(c2_list_add_before);
+
 static void __c2_list_del(struct c2_list_link *old)
 {
 	C2_ASSERT(c2_list_link_invariant(old));
