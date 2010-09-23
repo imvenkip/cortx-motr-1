@@ -12,6 +12,7 @@
 #include "lib/memory.h"
 
 #include "db/db.h"
+#include "db/db_common.h"
 
 /**
    @addtogroup db
@@ -42,22 +43,6 @@
 
    @{
  */
-
-static const struct c2_addb_loc db_loc = {
-	.al_name = "db"
-};
-
-static const struct c2_addb_ctx_type db_env_ctx_type = {
-	.act_name = "db-env"
-};
-
-static const struct c2_addb_ctx_type db_table_ctx_type = {
-	.act_name = "db-table"
-};
-
-static const struct c2_addb_ctx_type db_tx_ctx_type = {
-	.act_name = "db-tx"
-};
 
 static int key_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 static int get_lsn(struct c2_dbenv *env, DB_LSN *lsn);
@@ -232,6 +217,7 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 
 	C2_SET0(env);
 
+	c2_dbenv_common_init(env);
 	c2_mutex_init(&env->d_i.d_lock);
 	c2_list_init(&env->d_i.d_waiters);
 	/*
@@ -263,7 +249,6 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 	if (result != 0)
 		return result;
 
-	c2_addb_ctx_init(&env->d_addb, &db_env_ctx_type, &c2_addb_global_ctx);
 	result = db_env_create(&env->d_i.d_env, 0);
 	if (result == 0) {
 		de = env->d_i.d_env;
@@ -352,9 +337,9 @@ void c2_dbenv_fini(struct c2_dbenv *env)
 		fclose(env->d_i.d_errlog);
 		env->d_i.d_errlog = NULL;
 	}
-	c2_addb_ctx_fini(&env->d_addb);
 	c2_list_fini(&env->d_i.d_waiters);
 	c2_mutex_fini(&env->d_i.d_lock);
+	c2_dbenv_common_fini(env);
 }
 
 int c2_dbenv_sync(struct c2_dbenv *env)
@@ -379,6 +364,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 	int result;
 	DB *db;
 
+	c2_table_common_init(table, env, ops);
 	if (flags == 0)
 		flags = DB_AUTO_COMMIT|DB_CREATE|DB_THREAD|DB_TXN_NOSYNC|
 			/*
@@ -388,9 +374,6 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 			 */
 			0/*DB_READ_UNCOMMITTED*/;
 
-	table->t_env = env;
-	table->t_ops = ops;
-	c2_addb_ctx_init(&table->t_addb, &db_table_ctx_type, &env->d_addb);
 	result = db_create(&table->t_i.t_db, env->d_i.d_env, 0);
 	if (result == 0) {
 		db = table->t_i.t_db;
@@ -420,10 +403,10 @@ void c2_table_fini(struct c2_table *table)
 		TABLE_CALL(table, close, 0);
 		table->t_i.t_db = NULL;
 	}
-	c2_addb_ctx_fini(&table->t_addb);
+	c2_table_common_fini(table);
 }
 
-static void c2_db_buf_impl_init(struct c2_db_buf *buf)
+void c2_db_buf_impl_init(struct c2_db_buf *buf)
 {
 	DBT *dbt;
 
@@ -444,97 +427,15 @@ static void c2_db_buf_impl_init(struct c2_db_buf *buf)
 	}
 }
 
-static void c2_db_buf_impl_fini(struct c2_db_buf *buf)
+void c2_db_buf_impl_fini(struct c2_db_buf *buf)
 {
 }
 
-static bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
+bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
 {
 	return 
 		buf->db_i.db_dbt.data == buf->db_buf.b_addr &&
 		buf->db_i.db_dbt.size == buf->db_buf.b_nob;
-}
-
-static bool c2_db_buf_invariant(const struct c2_db_buf *buf)
-{
-	return 
-		DBT_ZERO < buf->db_type && buf->db_type < DBT_NR &&
-		/* in-place buffers are not yet supported */
-		buf->db_type != DBT_INPLACE &&
-		(buf->db_buf.b_addr != NULL) == (buf->db_buf.b_nob > 0) &&
-		ergo(buf->db_static, buf->db_buf.b_nob > 0) &&
-		c2_db_buf_impl_invariant(buf);
-}
-
-static void c2_db_buf_init(struct c2_db_buf *buf, enum c2_db_buf_type btype,
-			   void *area, uint32_t size)
-{
-	buf->db_type = btype;
-	buf->db_buf.b_addr = area;
-	buf->db_buf.b_nob  = size;
-	c2_db_buf_impl_init(buf);
-	C2_ASSERT(c2_db_buf_invariant(buf));
-}
-
-static void c2_db_buf_fini(struct c2_db_buf *buf)
-{
-	C2_ASSERT(c2_db_buf_invariant(buf));
-	c2_db_buf_impl_fini(buf);
-	if (!buf->db_static) {
-		c2_free(buf->db_buf.b_addr);
-		buf->db_buf.b_addr = NULL;
-	}
-}
-
-void c2_db_buf_steal(struct c2_db_buf *buf)
-{
-	C2_PRE(buf->db_type == DBT_ALLOC);
-	buf->db_buf.b_addr = NULL;
-	buf->db_buf.b_nob  = 0;
-}
-
-static bool c2_db_pair_invariant(const struct c2_db_pair *p)
-{
-	return
-		p->dp_table != NULL &&
-		c2_db_buf_invariant(&p->dp_key) && 
-		c2_db_buf_invariant(&p->dp_rec);
-}
-
-void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
-		      void *keybuf, uint32_t keysize, 
-		      void *recbuf, uint32_t recsize)
-{
-	C2_PRE((keybuf != NULL) == (keysize > 0));
-	C2_PRE((recbuf != NULL) == (recsize > 0));
-
-	C2_SET0(pair);
-	pair->dp_table = table;
-
-	if (keybuf != NULL) {
-		c2_db_buf_init(&pair->dp_key, DBT_COPYOUT, keybuf, keysize);
-		pair->dp_key.db_static = true;
-	} else
-		c2_db_buf_init(&pair->dp_key, DBT_ALLOC, NULL, 0);
-
-	if (recbuf != NULL) {
-		c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT, recbuf, recsize);
-		pair->dp_rec.db_static = true;
-	} else
-		c2_db_buf_init(&pair->dp_rec, DBT_ALLOC, NULL, 0);
-	C2_POST(c2_db_pair_invariant(pair));
-}
-
-void c2_db_pair_fini(struct c2_db_pair *pair)
-{
-	C2_PRE(c2_db_pair_invariant(pair));
-	c2_db_buf_fini(&pair->dp_rec);
-	c2_db_buf_fini(&pair->dp_key);
-	C2_SET0(pair);
-}
-
-void c2_db_pair_release(struct c2_db_pair *pair)
-{
 }
 
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
@@ -542,12 +443,10 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 	int result;
 	DB_TXN *txn;
 
+	c2_db_common_tx_init(tx, env);
 	if (flags == 0)
 		flags = 0/*DB_READ_UNCOMMITTED*/|DB_TXN_NOSYNC;
 
-	tx->dt_env = env;
-	c2_list_init(&tx->dt_waiters);
-	c2_addb_ctx_init(&tx->dt_addb, &db_tx_ctx_type, &env->d_addb);
 	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_i.dt_txn, flags);
 	if (result == 0) {
 		txn = tx->dt_i.dt_txn;
@@ -596,13 +495,12 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 			w->tw_i.tw_lsn = lsn;
 		}
 	}
-	c2_list_fini(&tx->dt_waiters);
 	return 0;
 }
 
 void tx_fini(struct c2_db_tx *tx)
 {
-	c2_addb_ctx_fini(&tx->dt_addb);
+	c2_db_common_tx_fini(tx);
 }
 
 static int tx_tol_commit[] = { 0 };
