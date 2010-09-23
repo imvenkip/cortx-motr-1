@@ -469,7 +469,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
                         break;
 		count += result;
         }
-	return (result < 0) ? result : count;
+	return count ? count : result;
 }
 
 static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
