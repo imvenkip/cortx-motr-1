@@ -492,6 +492,7 @@ AC_CONFIG_FILES([
                  balloc/Makefile
                  balloc/ut/Makefile
                  db/Makefile
+                 db/linux_kernel/Makefile
                  db/ut/Makefile
                 ])
 AC_OUTPUT
