@@ -113,10 +113,10 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 
 static int rec_open_internal(struct c2_fol_rec *rec)
 {
-	struct c2_buf recbuf;
+	struct c2_buf *recbuf;
 
-	c2_db_pair_rec(&rec->fr_pair, &recbuf);
-	return rec_parse(&rec->fr_desc, recbuf.b_addr, recbuf.b_nob);
+	recbuf = &rec->fr_pair.dp_rec.db_buf;
+	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob);
 }
 
 static int rec_open(struct c2_fol_rec *rec)
@@ -363,11 +363,9 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		out->fr_desc.rd_lsn = lsn;
 		result = c2_db_cursor_get(&out->fr_ptr, &out->fr_pair);
 		if (result == 0) {
-			struct c2_buf             rec;
 			struct c2_fol_rec_header *h;
 
-			c2_db_pair_rec(&out->fr_pair, &rec);
-			h = rec.b_addr;
+			h = out->fr_pair.dp_rec.db_buf.b_addr;
 			if (out->fr_desc.rd_lsn == lsn && h->rh_refcount > 0)
 				result = rec_open(out);
 			else

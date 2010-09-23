@@ -4,6 +4,7 @@
 #define __COLIBRI_DB_DB_H__
 
 #include "addb/addb.h"
+#include "lib/adt.h"           /* c2_buf */
 
 /**
    @defgroup db Data-base interfaces.
@@ -146,21 +147,21 @@ void c2_table_fini(struct c2_table *table);
    How a memory buffer (for a key or a record) in a pair is allocated and who
    owns it.
 
-   @see c2_db_pair
+   @see c2_db_buf
  */
-enum c2_db_pair_flags {
-	/** A buffer is allocated "here" by C2 code. It is up to the caller to
-	    allocate buffer of sufficient size. The buffer is freed by
-	    c2_db_pair_fini(). */
-	DPF_ALLOC_HERE,
-	/** A buffer is allocated "there" by the underlying data-base. db.c code
-	    takes care to free the buffer (if any) before calling into db4 again
-	    and in c2_db_pair_fini(). */
-	DPF_ALLOC_THERE,
-	/** A buffer is allocated "here" by C2 code. It is up to the caller to
-	    allocate buffer of sufficient size and to free it when necessary. */
-	DPF_BUFFER,
-	DPF_NR
+enum c2_db_buf_type {
+	DBT_ZERO,
+	DBT_COPYOUT,
+	DBT_ALLOC,
+	DBT_INPLACE,
+	DBT_NR
+};
+
+struct c2_db_buf {
+	enum c2_db_buf_type   db_type;
+	bool                  db_static;
+	struct c2_buf         db_buf;
+	struct c2_db_buf_impl db_i;
 };
 
 /**
@@ -173,42 +174,20 @@ enum c2_db_pair_flags {
    ownership) used for exchanging data with the underlying data-base.
  */
 struct c2_db_pair {
-	struct c2_table       *dp_table;
-	enum c2_db_pair_flags  dp_key_flags;
-	enum c2_db_pair_flags  dp_rec_flags;
-	struct c2_db_pair_impl dp_i;
+	struct c2_table  *dp_table;
+	struct c2_db_buf  dp_key;
+	struct c2_db_buf  dp_rec;
 };
 
 void c2_db_pair_fini(struct c2_db_pair *pair);
 
 /**
-   Initialise a pair and allocated buffers of maximal size indicated by
-   table->t_ops->to[]->max_size.
-
-   Buffers will be freed by c2_db_pair_fini().
- */
-int  c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table);
-
-/**
    Initialise a pair and set buffers to the given values.
 
-   If key of record size is positive, the buffer is maintained according to
-   DPF_BUFFER. Otherwise (size is 0 and buffer pointer is NULL), the buffer is
-   maintained according to DPF_ALLOC_THERE.
  */
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
 		      void *recbuf, uint32_t recsize);
-
-/**
-   Return pair's key as a buffer.
- */
-void c2_db_pair_key(struct c2_db_pair *pair, struct c2_buf *key);
-
-/**
-   Return pair's record as a buffer.
- */
-void c2_db_pair_rec(struct c2_db_pair *pair, struct c2_buf *rec);
 
 /**
    Finalize the record returned by c2_table_lookup().

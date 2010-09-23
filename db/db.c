@@ -423,130 +423,118 @@ void c2_table_fini(struct c2_table *table)
 	c2_addb_ctx_fini(&table->t_addb);
 }
 
-static bool pair_invariant(const struct c2_db_pair *p)
+static void c2_db_buf_impl_init(struct c2_db_buf *buf)
 {
-	const DBT *key;
-	const DBT *rec;
+	DBT *dbt;
 
-	uint32_t   keyf;
-	uint32_t   recf;
+	dbt = &buf->db_i.db_dbt;
+	dbt->data = buf->db_buf.b_addr;
+	dbt->size = buf->db_buf.b_nob;
 
-	key = &p->dp_i.dp_key;
-	rec = &p->dp_i.dp_rec;
-
-	keyf = p->dp_key_flags;
-	recf = p->dp_rec_flags;
-	return 
-		p->dp_table != NULL &&
-
-		!!(key->flags & DB_DBT_MALLOC)  == (keyf == DPF_ALLOC_THERE) && 
-		!!(key->flags & DB_DBT_USERMEM) == (keyf != DPF_ALLOC_THERE) && 
-
-		!!(rec->flags & DB_DBT_MALLOC)  == (recf == DPF_ALLOC_THERE) && 
-		!!(rec->flags & DB_DBT_USERMEM) == (recf != DPF_ALLOC_THERE) && 
-
-		keyf < DPF_NR && recf < DPF_NR;
-}
-
-static void pair_init(struct c2_db_pair *pair, struct c2_table *table)
-{
-	DBT *key;
-	DBT *rec;
-
-	key = &pair->dp_i.dp_key;
-	rec = &pair->dp_i.dp_rec;
-
-	pair->dp_table = table;
-
-	C2_PRE((key->data != NULL) == (key->ulen > 0));
-	C2_PRE((rec->data != NULL) == (rec->ulen > 0));
-	C2_PRE(pair->dp_key_flags < DPF_NR);
-	C2_PRE(pair->dp_rec_flags < DPF_NR);
-
-	key->size  = key->ulen;
-	rec->size  = rec->ulen;
-
-	key->flags = pair->dp_key_flags == DPF_ALLOC_THERE ? 
-		DB_DBT_MALLOC : DB_DBT_USERMEM;
-	rec->flags = pair->dp_rec_flags == DPF_ALLOC_THERE ? 
-		DB_DBT_MALLOC : DB_DBT_USERMEM;
-
-	C2_POST(pair_invariant(pair));
-}
-
-int c2_db_pair_alloc(struct c2_db_pair *pair, struct c2_table *table)
-{
-	C2_SET0(pair);
-
-	pair->dp_i.dp_key.ulen = table->t_ops->to[TO_KEY].max_size;
-	pair->dp_i.dp_rec.ulen = table->t_ops->to[TO_REC].max_size;
-
-	pair->dp_i.dp_key.data = c2_alloc(pair->dp_i.dp_key.ulen);
-	pair->dp_i.dp_rec.data = c2_alloc(pair->dp_i.dp_rec.ulen);
-
-	pair->dp_key_flags = pair->dp_rec_flags = DPF_ALLOC_HERE;
-	pair_init(pair, table);
-
-	if (pair->dp_i.dp_key.data != NULL && pair->dp_i.dp_rec.data != NULL)
-		return 0;
-	else {
-		c2_db_pair_fini(pair);
-		return -ENOMEM;
+	switch (buf->db_type) {
+	case DBT_ALLOC:
+		dbt->flags = DB_DBT_MALLOC;
+		break;
+	case DBT_COPYOUT:
+		dbt->flags = DB_DBT_USERMEM;
+		dbt->ulen  = dbt->size;
+		break;
+	default:
+		C2_IMPOSSIBLE("Wrong buffer type.");
 	}
+}
+
+static void c2_db_buf_impl_fini(struct c2_db_buf *buf)
+{
+}
+
+static bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
+{
+	return 
+		buf->db_i.db_dbt.data == buf->db_buf.b_addr &&
+		buf->db_i.db_dbt.size == buf->db_buf.b_nob;
+}
+
+static bool c2_db_buf_invariant(const struct c2_db_buf *buf)
+{
+	return 
+		DBT_ZERO < buf->db_type && buf->db_type < DBT_NR &&
+		/* in-place buffers are not yet supported */
+		buf->db_type != DBT_INPLACE &&
+		(buf->db_buf.b_addr != NULL) == (buf->db_buf.b_nob > 0) &&
+		ergo(buf->db_static, buf->db_buf.b_nob > 0) &&
+		c2_db_buf_impl_invariant(buf);
+}
+
+static void c2_db_buf_init(struct c2_db_buf *buf, enum c2_db_buf_type btype,
+			   void *area, uint32_t size)
+{
+	buf->db_type = btype;
+	buf->db_buf.b_addr = area;
+	buf->db_buf.b_nob  = size;
+	c2_db_buf_impl_init(buf);
+	C2_ASSERT(c2_db_buf_invariant(buf));
+}
+
+static void c2_db_buf_fini(struct c2_db_buf *buf)
+{
+	C2_ASSERT(c2_db_buf_invariant(buf));
+	c2_db_buf_impl_fini(buf);
+	if (!buf->db_static) {
+		c2_free(buf->db_buf.b_addr);
+		buf->db_buf.b_addr = NULL;
+	}
+}
+
+void c2_db_buf_steal(struct c2_db_buf *buf)
+{
+	C2_PRE(buf->db_type == DBT_ALLOC);
+	buf->db_buf.b_addr = NULL;
+	buf->db_buf.b_nob  = 0;
+}
+
+static bool c2_db_pair_invariant(const struct c2_db_pair *p)
+{
+	return
+		p->dp_table != NULL &&
+		c2_db_buf_invariant(&p->dp_key) && 
+		c2_db_buf_invariant(&p->dp_rec);
 }
 
 void c2_db_pair_setup(struct c2_db_pair *pair, struct c2_table *table,
 		      void *keybuf, uint32_t keysize, 
 		      void *recbuf, uint32_t recsize)
 {
-	DBT *key;
-	DBT *rec;
-
-	key = &pair->dp_i.dp_key;
-	rec = &pair->dp_i.dp_rec;
+	C2_PRE((keybuf != NULL) == (keysize > 0));
+	C2_PRE((recbuf != NULL) == (recsize > 0));
 
 	C2_SET0(pair);
+	pair->dp_table = table;
 
-	key->ulen = keysize;
-	rec->ulen = recsize;
+	if (keybuf != NULL) {
+		c2_db_buf_init(&pair->dp_key, DBT_COPYOUT, keybuf, keysize);
+		pair->dp_key.db_static = true;
+	} else
+		c2_db_buf_init(&pair->dp_key, DBT_ALLOC, NULL, 0);
 
-	key->data = keybuf;
-	rec->data = recbuf;
-
-	pair->dp_key_flags = keysize > 0 ? DPF_BUFFER : DPF_ALLOC_THERE;
-	pair->dp_rec_flags = recsize > 0 ? DPF_BUFFER : DPF_ALLOC_THERE;
-
-	pair_init(pair, table);
+	if (recbuf != NULL) {
+		c2_db_buf_init(&pair->dp_rec, DBT_COPYOUT, recbuf, recsize);
+		pair->dp_rec.db_static = true;
+	} else
+		c2_db_buf_init(&pair->dp_rec, DBT_ALLOC, NULL, 0);
+	C2_POST(c2_db_pair_invariant(pair));
 }
 
 void c2_db_pair_fini(struct c2_db_pair *pair)
 {
-	C2_PRE(pair_invariant(pair));
-	if (pair->dp_key_flags != DPF_BUFFER)
-		c2_free(pair->dp_i.dp_key.data);
-	if (pair->dp_rec_flags != DPF_BUFFER)
-		c2_free(pair->dp_i.dp_rec.data);
+	C2_PRE(c2_db_pair_invariant(pair));
+	c2_db_buf_fini(&pair->dp_rec);
+	c2_db_buf_fini(&pair->dp_key);
 	C2_SET0(pair);
 }
 
 void c2_db_pair_release(struct c2_db_pair *pair)
 {
-}
-
-static void DBT2buf(DBT *dbt, struct c2_buf *buf)
-{
-	buf->b_addr = dbt->data;
-	buf->b_nob  = dbt->size;
-}
-
-void c2_db_pair_key(struct c2_db_pair *pair, struct c2_buf *key)
-{
-	DBT2buf(&pair->dp_i.dp_key, key);
-}
-
-void c2_db_pair_rec(struct c2_db_pair *pair, struct c2_buf *rec)
-{
-	DBT2buf(&pair->dp_i.dp_rec, rec);
 }
 
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
@@ -654,45 +642,77 @@ void c2_db_tx_waiter_add(struct c2_db_tx *tx, struct c2_db_tx_waiter *w)
 	c2_list_add(&tx->dt_waiters, &w->tw_tx);
 }
 
+static DBT *pair_key(struct c2_db_pair *pair)
+{
+	return &pair->dp_key.db_i.db_dbt;
+}
+
+static DBT *pair_rec(struct c2_db_pair *pair)
+{
+	return &pair->dp_rec.db_i.db_dbt;
+}
+
 static void pair_prep(struct c2_db_pair *pair)
 {
 	DBT *key;
 	DBT *rec;
 
-	key = &pair->dp_i.dp_key;
-	rec = &pair->dp_i.dp_rec;
+	key = pair_key(pair);
+	rec = pair_rec(pair);
 
-	C2_PRE(pair_invariant(pair));
+	C2_PRE(c2_db_pair_invariant(pair));
 
-	if (pair->dp_key_flags == DPF_ALLOC_THERE && key->data != NULL) {
+	if (pair->dp_key.db_type == DBT_ALLOC) {
 		c2_free(key->data);
 		key->data = NULL;
 	}
-	if (pair->dp_rec_flags == DPF_ALLOC_THERE && rec->data != NULL) {
+	if (pair->dp_rec.db_type == DBT_ALLOC) {
 		c2_free(rec->data);
 		rec->data = NULL;
 	}
 }
 
+static void db_buf_done(struct c2_db_buf *buf)
+{
+	if (buf->db_type == DBT_ALLOC) {
+		buf->db_buf.b_addr = buf->db_i.db_dbt.data;
+		buf->db_buf.b_nob  = buf->db_i.db_dbt.size;
+	}
+}
+
+static void pair_done(struct c2_db_pair *pair)
+{
+	db_buf_done(&pair->dp_key);
+	db_buf_done(&pair->dp_rec);
+	C2_POST(c2_db_pair_invariant(pair));
+}
+
+#define WITH_PAIR(pair, action)			\
+({						\
+	struct c2_db_pair *__pair = (pair);	\
+	int                __result;		\
+						\
+	pair_prep(__pair);			\
+	__result = (action);			\
+	pair_done(__pair);			\
+	__result;				\
+});
+
 int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
-			  &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 0);
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
+					  pair_key(pair), pair_rec(pair), 0));
 }
 
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn, 
-			  &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 
-			  DB_NOOVERWRITE);
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn, 
+					  pair_key(pair), pair_rec(pair), 
+					  DB_NOOVERWRITE));
 }
 
 int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	int result;
-
 	/*
 	 * Possible optimization: if pair's DBT flags are 0, ->get() would
 	 *                        return with DBT->data pointing directly to the
@@ -703,18 +723,19 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        This gives a 0-copy lookup: embed a mutex in
 	 *                        c2_table, lock it in c2_table_lookup() and
 	 *                        release in c2_db_rec_fini().
+	 *
+	 *                        DBT_INPLACE buffer type is reserved for this
+	 *                        purpose.
 	 */
-	pair_prep(pair);
-	result = TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn, 
-			    &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_RMW);
-	return result;
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn, 
+					  pair_key(pair), pair_rec(pair), 
+					  DB_RMW));
 }
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	pair_prep(pair);
-	return TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn, 
-			  &pair->dp_i.dp_key, 0);
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn, 
+					  pair_key(pair), 0));
 }
 
 int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
@@ -739,9 +760,8 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
-	pair_prep(pair);
-	return CURSOR_CALL(cursor, get, &pair->dp_i.dp_key, &pair->dp_i.dp_rec, 
-			   flags|DB_RMW);
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair), 
+					   pair_rec(pair), flags|DB_RMW));
 }
 
 int c2_db_cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
@@ -771,16 +791,14 @@ int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 
 int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	pair_prep(pair);
-	return CURSOR_CALL(cursor, put, 
-			   &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_CURRENT);
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair), 
+					   pair_rec(pair), DB_CURRENT));
 }
 
 int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	pair_prep(pair);
-	return CURSOR_CALL(cursor, put,
-			   &pair->dp_i.dp_key, &pair->dp_i.dp_rec, DB_KEYFIRST);
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair), 
+					   pair_rec(pair), DB_KEYFIRST));
 }
 
 int c2_db_cursor_del(struct c2_db_cursor *cursor)

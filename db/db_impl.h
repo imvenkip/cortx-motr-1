@@ -16,17 +16,6 @@
    @{
  */
 
-struct c2_dbenv;
-struct c2_table;
-struct c2_table_ops;
-struct c2_db_rec;
-struct c2_db_tx;
-
-/** Data-base environment.
-
-    c2_dbenv represents a collection of related tables (c2_table). Transactions
-    (c2_db_tx) cannot cross data-base environment boundary.
- */
 struct c2_dbenv_impl {
 	/** db5 private handle */
 	DB_ENV            *d_env;
@@ -52,9 +41,8 @@ struct c2_table_impl {
 	DB                        *t_db;
 };
 
-struct c2_db_pair_impl {
-	DBT                   dp_key;
-	DBT                   dp_rec;
+struct c2_db_buf_impl {
+	DBT db_dbt;
 };
 
 struct c2_db_tx_impl {
