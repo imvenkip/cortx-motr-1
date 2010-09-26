@@ -240,7 +240,28 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h])
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
-AC_CHECK_HEADERS([CUnit/CUnit.h], [AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])])
+
+# Checking for CUnit
+OLD_CFLAGS=$CFLAGS
+
+# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
+CFLAGS="-I/usr/local/include -I/opt/local/include"
+AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], 
+[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])], 
+[
+#ifdef CUNIT_CUNIT_H
+#include <CUnit/CUnit.h>
+#endif
+])
+
+OLD_LIBS=$LIBS
+
+# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
+LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
+AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])], [-lncurses])
+CUNIT_LIBS=$LIBS
+AC_SUBST([CUNIT_LIBS])
+LIBS=$OLD_LIBS
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -412,24 +433,13 @@ if test x$OS = xlinux; then
         LIBS=$OLD_LIBS
 fi
 
-OLD_LIBS=$LIBS
-LIBS=""
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])], [-lncurses])
-CUNIT_LIBS=$LIBS
-AC_SUBST([CUNIT_LIBS])
-LIBS=$OLD_LIBS
-
-CFLAGS=""
-KCFLAGS=""
 if test x$enable_debug = xyes; then
-        echo $USER_CFLAGS | grep -q "\-O" || CFLAGS="-O2"
-        echo $USER_CFLAGS | grep -q "\-g" || CFLAGS="$CFLAGS -g"
-        echo $USER_KCFLAGS | grep -q "\-O" || KCFLAGS="-O2"
-        echo $USER_KCFLAGS | grep -q "\-g" || KCFLAGS="$KCFLAGS -g"
+        CFLAGS="$CFLAGS -O2 -g"
+        KCFLAGS="$KCFLAGS -O2 -g"
         AC_DEFINE([ENABLE_DEBUG])
 else
-        echo $USER_CFLAGS | grep -q "\-O" || CFLAGS="-O2"
-        echo $USER_KCFLAGS | grep -q "\-O" || KCFLAGS="-O2"
+        CFLAGS="$CFLAGS -O2"
+        KCFLAGS="$KCFLAGS -O2"
 fi
 
 if test x$OS = xdarwin; then
@@ -439,9 +449,9 @@ fi
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I. -I$SRCDIR $CFLAGS $USER_CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
-LDFLAGS="-rdynamic $USER_LDFLAGS"
+LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
@@ -463,16 +473,14 @@ AC_CONFIG_FILES([
                  addb/linux_kernel/Makefile
                  fol/Makefile
                  fol/ut/Makefile
-                 fid/Makefile
-                 fop/Makefile
-                 fop/linux_kernel/Makefile
-                 fop/ut/Makefile
-                 rpc/Makefile
-                 rpc/ut/Makefile
                  net/Makefile
                  net/usunrpc/Makefile
                  net/ksunrpc/Makefile
-                 net/ut/Makefile
+                 fid/Makefile
+                 fop/Makefile
+                 fop/fop2c
+                 fop/linux_kernel/Makefile
+                 fop/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
                  reqh/Makefile
@@ -494,6 +502,10 @@ AC_CONFIG_FILES([
                  db/Makefile
                  db/ut/Makefile
                 ])
+                
+                #rpc/Makefile
+                #rpc/ut/Makefile
+                #net/ut/Makefile
 AC_OUTPUT
 
 echo ""

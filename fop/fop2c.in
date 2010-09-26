@@ -16,13 +16,13 @@ CC=${CC:-"cc"}
 CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
 LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
 DEFINES="-DHAVE_CONFIG"
-INC="-I$topdir -I/Users/umka/Work/ClusterStor/colibri/core/../db4 -I/Users/umka/Work/ClusterStor/colibri/core/../db4/build_unix"
+INC="-I$topdir -I@DBSRC@ -I@DBSRC@/build_unix"
 
 #
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-OBJS="$topdir/colibri/.libs/libcolibri.a /Users/umka/Work/ClusterStor/colibri/core/../db4/build_unix/libdb.a"
+OBJS="$topdir/colibri/.libs/libcolibri.a @DBSRC@/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
