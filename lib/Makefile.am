@@ -12,3 +12,6 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
                        user_space/types.h
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@
+EXTRA_DIST             = linux_kernel/assert.h linux_kernel/cdefs.h \
+                         linux_kernel/memory.c linux_kernel/mutex.c \
+                         linux_kernel/mutex.h linux_kernel/types.h
