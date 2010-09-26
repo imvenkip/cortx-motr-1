@@ -19,9 +19,13 @@ clean distclean:
 	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
 	$(RM) Module.markers modules.order
 
+dist distdir:
+	for s in $(subdirs) ;do $(MAKE) -C $$s distdir ;done
+
 else
 
 all:
+distdir:
 install:
 uninstall:
 distclean clean:

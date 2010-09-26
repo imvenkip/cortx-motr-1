@@ -1,4 +1,5 @@
 OS = @OS@
+ADDB_SRCDIR = @SRCDIR@/addb/linux_kernel
 
 ifeq ($(OS),linux)
 
@@ -25,3 +26,7 @@ uninstall:
 distclean clean:
 
 endif
+
+distdir:
+	cp $(ADDB_SRCDIR)/Makefile.in $(ADDB_SRCDIR)/addb_console.c \
+@top_builddir@/@PACKAGE@-@VERSION@/addb/linux_kernel
