@@ -120,6 +120,8 @@ struct c2_balloc {
 	struct c2_table  cb_db_group_extents;/*< db for free extent */
 	struct c2_table  cb_db_group_desc;   /*< db for group desc */
 	struct c2_balloc_group_info *cb_group_info; /*< array of group info */
+	
+	struct c2_ext    cb_last;
 
 	struct ad_balloc cb_ballroom;
 };

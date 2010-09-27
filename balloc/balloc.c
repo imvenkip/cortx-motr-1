@@ -5,7 +5,6 @@
 #include <memory.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <stdlib.h>       /* srand, rand */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
@@ -22,7 +21,9 @@
  */
 
 /* This macro is to control the debug verbose message */
-//#define BALLOC_DEBUG
+/*
+#define BALLOC_DEBUG
+*/
 
 #ifdef BALLOC_DEBUG
   #define ENTER fprintf(stderr, "===>>> %s:%d:%s\n", __FILE__, __LINE__, __func__)
@@ -43,8 +44,9 @@
   #define debugp(fmt, a...)
 #endif
 
-//#define BALLOC_ENABLE_DUMP
-
+/*
+#define BALLOC_ENABLE_DUMP
+*/
 void c2_balloc_debug_dump_extent(const char *tag, struct c2_ext *ex)
 {
 #ifdef BALLOC_ENABLE_DUMP
@@ -550,14 +552,11 @@ static int c2_balloc_init_internal(struct c2_balloc *colibri,
 	struct c2_balloc_group_info *gi;
 	int            	 rc;
 	c2_bcount_t 	 i;
-	struct timeval   now;
 	struct c2_db_tx  init_tx;
+	struct timeval    now;
 	int		 tx_started = 0;
-	time_t		 salt;
 	ENTER;
 
-	time(&salt);
-	srand(salt);
 	colibri->cb_dbenv = dbenv;
 	colibri->cb_group_info = NULL;
 	c2_mutex_init(&colibri->cb_sb_mutex);
@@ -713,8 +712,7 @@ static int c2_balloc_init_ac(struct c2_balloc_allocation_context *bac,
 	bac->bac_criteria = 0;
 
 	if (req->bar_goal == 0)
-		req->bar_goal = (rand() % colibri->cb_sb.bsb_groupcount)
-				<< colibri->cb_sb.bsb_gsbits;
+		req->bar_goal = colibri->cb_last.e_end;
 
 	bac->bac_orig.e_start   = req->bar_goal;
 	bac->bac_orig.e_end     = req->bar_goal + req->bar_len;
@@ -959,6 +957,7 @@ static int c2_balloc_find_extent_buddy(struct c2_balloc_allocation_context *bac,
 	for (i = 0; i < grp->bgi_fragments; i++) {
 		fragment = &grp->bgi_extents[i];
 repeat:
+		/*
 		{
 			char msg[128];
 			sprintf(msg, "buddy[s=%llu:0x%08llx, l=%u:0x%08x]",
@@ -966,8 +965,9 @@ repeat:
 				(unsigned long long)start,
 				(int)len, (int)len);
 			(void)msg;
-		//	c2_balloc_debug_dump_extent(msg, fragment);
+			c2_balloc_debug_dump_extent(msg, fragment);
 		}
+		*/
 		if ((fragment->e_start == start) && (c2_ext_length(fragment) >= len)) {
 			found = 1;
 			if (c2_ext_length(fragment) < c2_ext_length(&min))
@@ -977,7 +977,7 @@ repeat:
 			do {
 				start += len;
 			} while (fragment->e_start > start);
-			if (start > ((grp->bgi_groupno + 1) << sb->bsb_gsbits))
+			if (start >= ((grp->bgi_groupno + 1) << sb->bsb_gsbits))
 				break;
 			/* we changed the 'start'. let's restart seaching. */
 			goto repeat;
@@ -1424,7 +1424,9 @@ static int c2_balloc_good_group(struct c2_balloc_allocation_context *bac,
 static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 				       struct c2_balloc_group_info *grp)
 {
+/*
 	struct c2_balloc_super_block *sb = &bac->bac_ctxt->cb_sb;
+*/
 	struct c2_ext ex;
 	c2_bcount_t len;
 	int found = 0;
@@ -1433,7 +1435,7 @@ static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 	C2_ASSERT(bac->bac_order2 > 0);
 
 	len = 1 << bac->bac_order2;
-	for (; len <= sb->bsb_groupsize; len = len << 1) {
+/*	for (; len <= sb->bsb_groupsize; len = len << 1) {
 		debugp("searching at %d (gs = %d) for order = %d, len=%d:%x\n",
 			(int)grp->bgi_groupno,
 			(int)sb->bsb_groupsize,
@@ -1445,6 +1447,9 @@ static int c2_balloc_simple_scan_group(struct c2_balloc_allocation_context *bac,
 		if (found)
 			break;
 	}
+*/
+
+	found = c2_balloc_find_extent_buddy(bac, grp, len, &ex);
 	if (found) {
 		c2_balloc_debug_dump_extent("found at simple scan", &ex);
 
@@ -1991,7 +1996,7 @@ static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 
 	req.bar_goal  = out->e_start; /* this also plays as the goal */
 	req.bar_len   = count;
-	req.bar_flags = C2_BALLOC_HINT_DATA | C2_BALLOC_HINT_TRY_GOAL;
+	req.bar_flags = C2_BALLOC_HINT_DATA ;//| C2_BALLOC_HINT_TRY_GOAL;
 
 	C2_SET0(out);
 
@@ -1999,6 +2004,7 @@ static int c2_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	if (rc == 0 && !c2_ext_is_empty(&req.bar_result)) {
 		out->e_start = req.bar_result.e_start;
 		out->e_end   = req.bar_result.e_end;
+		colibri->cb_last = *out;
 	} else if (rc == 0)
 		rc = -ENOENT;
 
