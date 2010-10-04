@@ -30,14 +30,14 @@ int main(int argc, char *argv[])
 						       c2_trace_parse();
 						       exit(0);
 					       })),
-			    C2_VOIDARG('k', "keep the sandbox directory",
-				       LAMBDA(void, (void) { keep = true; })));
+			    C2_FLAGARG('k', "keep the sandbox directory", 
+				       &keep));
 	if (result != 0)
 		return result;
 
 	if (unit_start(UT_SANDBOX) == 0) {
-		c2_ut_add(&fol_ut);
 		c2_ut_add(&libc2_ut);
+		c2_ut_add(&fol_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&ad_ut);
 		c2_ut_add(&fop_ut);

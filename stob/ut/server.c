@@ -409,12 +409,9 @@ int main(int argc, char **argv)
 			    C2_STRINGARG('d', "path to object store",
 				       LAMBDA(void, (const char *string) { 
 					       path = string; })),
-			    C2_NUMBERARG('o', "back store object id",
-					 LAMBDA(void, (int64_t num) { 
-					       backid.si_bits.u_lo = num; })),
-			    C2_NUMBERARG('p', "port to listen at",
-				       LAMBDA(void, (int64_t num) { 
-					       port = num; })));
+			    C2_FORMATARG('o', "back store object id", "%lu",
+					 &backid.si_bits.u_lo),
+			    C2_FORMATARG('p', "port to listen at", "i", &port));
 	if (result != 0)
 		return result;
 

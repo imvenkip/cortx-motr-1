@@ -12,6 +12,7 @@ extern void test_mutex(void);
 extern void test_chan(void);
 extern void test_atomic(void);
 extern void test_trace(void);
+extern void test_getopts(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",
@@ -28,6 +29,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "chan", test_chan },
 		{ "atomic", test_atomic },
 		{ "trace", test_trace },
+		{ "getopts", test_getopts },
 		{ NULL, NULL }
 	}
 };

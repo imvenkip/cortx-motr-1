@@ -41,10 +41,10 @@ int main(int argc, char **argv)
 	c2_bcount_t	      count = 0;
 	c2_bcount_t	      target;
 	int		      loops = DEF;
-	int		      g = 0;
+	bool		      g;
 	int		      r = 0;
 	int		      i = 0;
-	int		      verbose = 0;
+	bool		      verbose;
 	time_t		      now;
 	struct timeval	      alloc_begin, alloc_end;
 	unsigned long	      alloc_usec = 0;
@@ -56,26 +56,17 @@ int main(int argc, char **argv)
                             C2_STRINGARG('d', "db-dir",
                                        LAMBDA(void, (const char *string) {
                                                db_name = string; })),
-                            C2_NUMBERARG('l', "loops to run",
-                                         LAMBDA(void, (int64_t num) { 
-                                               loops = num; })),
-                            C2_NUMBERARG('r', "randomize the result",
-                                         LAMBDA(void, (int64_t num) { 
-                                               r = num;})),
-                            C2_NUMBERARG('c', "count to alloc",
-                                         LAMBDA(void, (int64_t num) { 
-                                               count = num;})),
-                            C2_NUMBERARG('v', "verbose",
-                                         LAMBDA(void, (int64_t num) { 
-                                               verbose = num;})),
-                            C2_NUMBERARG('g', "use goal or not",
-                                       LAMBDA(void, (int64_t num) {
-                                               g = num; })));
+                            C2_FORMATARG('l', "loops to run", "%i", &loops),
+                            C2_FORMATARG('r', "randomize the result", "%i", &r),
+                            C2_FORMATARG('c', "count to alloc", "%lu", 
+					 &count),
+                            C2_FLAGARG('v', "verbose", &verbose),
+                            C2_FLAGARG('g', "use goal or not", &g));
         if (result != 0)
                 return result;
 
 	if (db_name == NULL) {
-		fprintf(stderr, "%s -d <db-dir>\n", argv[0]);
+		fprintf(stderr, "Specify <db-dir>. -? for usage.\n");
 		return -EINVAL;
 	}
 

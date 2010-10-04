@@ -2,7 +2,7 @@
 
 #define _POSIX_C_SOURCE 2 /* for getopts */
 #include <unistd.h>     /* getopts */
-#include <stdio.h>      /* fprintf */
+#include <stdio.h>      /* fprintf, sscanf */
 #include <stdlib.h>     /* strtoull */
 
 /* getopts(3) interface */
@@ -36,6 +36,8 @@ static void usage(const char *progname,
 		o = &opts[i];
 		fprintf(stderr, "\t -%c %6.6s: %s\n", o->go_opt,
 			o->go_type == GOT_VOID ? "" : 
+			o->go_type == GOT_FLAG ? "" : 
+			o->go_type == GOT_FORMAT ? "arg" : 
 			o->go_type == GOT_NUMBER ? "number" : "string",
 			o->go_desc);
 	}
@@ -47,14 +49,15 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 
 	*out = strtoull(arg, &end, 0);
 	if (*end != 0) {
-		fprintf(stderr, "Failed conversion of \"%s\" to %s", arg, desc);
+		fprintf(stderr, "Failed conversion of \"%s\" to %s\n", 
+			arg, desc);
 		return -EINVAL;
 	} else
 		return 0;
 	
 }
 
-int c2_getopts(const char *progname, int argc, char * const argv[],
+int c2_getopts(const char *progname, int argc, char * const *argv,
 	       const struct c2_getopts_opt *opts, unsigned nr)
 {
 	char *optstring;
@@ -72,33 +75,58 @@ int c2_getopts(const char *progname, int argc, char * const argv[],
                     option escape. */
 		C2_ASSERT(opts[i].go_opt != 'W');
 		optstring[scan++] = opts[i].go_opt;
-		if (opts[i].go_type != GOT_VOID)
+		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG)
 			optstring[scan++] = ':';
+		if (opts[i].go_type == GOT_FLAG)
+			*opts[i].go_u.got_flag = false;
 	}
 
 	result = 0;
+
+	/*
+	 * Re-set global getopt(3) state before calling it.
+	 */
+	optind = 1;
+	opterr = 1;
+
 	while (result == 0 && (ch = getopt(argc, argv, optstring)) != -1) {
 		for (i = 0; i < nr; ++i) {
-			const struct c2_getopts_opt *o;
+			const struct c2_getopts_opt  *o;
+			const union c2_getopts_union *u;
 
 			o = &opts[i];
 			if (ch != o->go_opt)
 				continue;
 
+			u = &o->go_u;
 			switch (o->go_type) {
 			case GOT_VOID:
-				o->go_u.got_void();
+				u->got_void();
 				break;
 			case GOT_NUMBER: {
 				int64_t num;
 
 				result = getnum(optarg, o->go_desc, &num);
 				if (result == 0)
-					o->go_u.got_number(num);
+					u->got_number(num);
 				break;
 			}
 			case GOT_STRING:
-				o->go_u.got_string(optarg);
+				u->got_string(optarg);
+				break;
+			case GOT_FORMAT:
+				result = sscanf(optarg, u->got_fmt.f_string,
+						u->got_fmt.f_out);
+				result = result == 1 ? 0 : -EINVAL;
+				if (result != 0) {
+					fprintf(stderr, "Cannot scan \"%s\" "
+						"as \"%s\" in \"%s\"\n", 
+						optarg, u->got_fmt.f_string, 
+						o->go_desc);
+				}
+				break;
+			case GOT_FLAG:
+				*u->got_flag = true;
 				break;
 			default:
 				C2_IMPOSSIBLE("Wrong option type.");
