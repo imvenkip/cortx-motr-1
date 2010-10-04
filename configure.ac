@@ -509,6 +509,11 @@ AC_CONFIG_FILES([
                 #net/ut/Makefile
 AC_OUTPUT
 
+#
+# Set up execute bit on our "compiler" generated from fop2c.in above.
+#
+chmod u+x fop/fop2c
+
 echo ""
 echo "CFLAGS :  \"$CFLAGS\""
 echo "KCFLAGS:  \"$KCFLAGS\""

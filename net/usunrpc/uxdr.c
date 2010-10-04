@@ -117,13 +117,8 @@ static bool uxdr_typedef(const struct c2_fop_field_type *ftype,
 static const xdrproc_t atom_xdr[FPF_NR] = {
 	[FPF_VOID] = (xdrproc_t)&xdr_void,
 	[FPF_BYTE] = NULL,
-#ifdef LINUX
 	[FPF_U32]  = (xdrproc_t)&xdr_uint32_t,
 	[FPF_U64]  = (xdrproc_t)&xdr_uint64_t
-#elif DARWIN
-	[FPF_U32]  = (xdrproc_t)&xdr_u_int32_t,
-	[FPF_U64]  = (xdrproc_t)&xdr_u_int64_t
-#endif
 };
 
 static bool uxdr_atom(const struct c2_fop_field_type *ftype, 

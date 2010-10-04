@@ -6,7 +6,7 @@ test_format_u.h test_format_u.c test_format_k.h test_format_k.c: \
                                      test_format.ff \
                                      $(top_builddir)/colibri/libcolibri.la \
                                      $(top_builddir)/fop/fop2c 
-	sh $(top_builddir)/fop/fop2c -ku $<
+	$(top_builddir)/fop/fop2c -ku $<
 
 libfop_ut_la_SOURCES = test_format_u.h test_format_u.c fmt_test.c test_format.ff
 

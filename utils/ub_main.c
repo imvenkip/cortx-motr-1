@@ -8,10 +8,8 @@
 extern struct c2_ub_set c2_list_ub;
 extern struct c2_ub_set c2_thread_ub;
 extern struct c2_ub_set c2_memory_ub;
-#ifdef LINUX
 extern struct c2_ub_set c2_adieu_ub;
 extern struct c2_ub_set c2_ad_ub;
-#endif
 extern struct c2_ub_set c2_trace_ub;
 extern struct c2_ub_set c2_db_ub;
 extern struct c2_ub_set c2_emap_ub;
@@ -33,10 +31,8 @@ int main(int argc, char *argv[])
 		c2_ub_set_add(&c2_memory_ub);
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_list_ub);
-#ifdef LINUX
 		c2_ub_set_add(&c2_adieu_ub);
 		c2_ub_set_add(&c2_ad_ub);
-#endif
 		c2_ub_set_add(&c2_trace_ub);
 		c2_ub_set_add(&c2_db_ub);
 		c2_ub_set_add(&c2_emap_ub);

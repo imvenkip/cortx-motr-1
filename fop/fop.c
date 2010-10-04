@@ -195,11 +195,7 @@ struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
 C2_EXPORTED(C2_FOP_TYPE_BYTE);
 
 struct c2_fop_memlayout atom_u32_memlayout = {
-#ifdef LINUX
 	.fm_uxdr   = (xdrproc_t)xdr_uint32_t,
-#elif DARWIN
-	.fm_uxdr   = (xdrproc_t)xdr_u_int32_t,
-#endif
 	.fm_sizeof = 4
 };
 
@@ -216,11 +212,7 @@ struct c2_fop_field_type C2_FOP_TYPE_U32 = {
 C2_EXPORTED(C2_FOP_TYPE_U32);
 
 struct c2_fop_memlayout atom_u64_memlayout = {
-#ifdef LINUX
 	.fm_uxdr   = (xdrproc_t)xdr_uint64_t,
-#elif DARWIN
-	.fm_uxdr   = (xdrproc_t)xdr_u_int64_t,
-#endif
 	.fm_sizeof = 8
 };
 
