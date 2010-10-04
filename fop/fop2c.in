@@ -16,12 +16,13 @@ CC=${CC:-"cc"}
 CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
 LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
 DEFINES="-DHAVE_CONFIG"
-INC="-I$topdir"
+INC="-I$topdir -I@DBSRC@ -I@DBSRC@/build_unix"
+
 #
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-OBJS="$topdir/colibri/.libs/libcolibri.a $topdir/../db4/build_unix/libdb.a"
+OBJS="$topdir/colibri/.libs/libcolibri.a @DBSRC@/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
@@ -217,6 +218,6 @@ for sfile in "$*" ;do
 done
 
 if [ $verbose -eq 0 ] ;then
-    rm $fbase*
+    rm -fr $fbase*
 fi
 

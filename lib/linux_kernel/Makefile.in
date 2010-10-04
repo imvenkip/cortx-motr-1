@@ -1,4 +1,5 @@
 OS = @OS@
+LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 ifeq ($(OS),linux)
 
@@ -25,3 +26,10 @@ uninstall:
 distclean clean:
 
 endif
+
+distdir:
+	cp $(LIB_SRCDIR)/Makefile.in \
+	$(LIB_SRCDIR)/memory.c $(LIB_SRCDIR)/mutex.c \
+	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
+	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/types.h \
+@top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel

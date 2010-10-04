@@ -1,4 +1,5 @@
 OS = @OS@
+FOP_SRCDIR = @SRCDIR@/fop/linux_kernel
 
 ifeq ($(OS),linux)
 
@@ -25,3 +26,7 @@ uninstall:
 distclean clean:
 
 endif
+
+distdir:
+	cp $(FOP_SRCDIR)/Makefile.in $(FOP_SRCDIR)/fop_kernel.c $(FOP_SRCDIR)/fop_kernel.h \
+           @top_builddir@/@PACKAGE@-@VERSION@/fop/linux_kernel

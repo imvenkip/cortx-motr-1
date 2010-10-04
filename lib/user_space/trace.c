@@ -206,7 +206,7 @@ int c2_trace_parse(void)
 		C2_ASSERT(nr == 1);
 
 		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %s\n\t",
-		       no, timestamp, td->td_func, td->td_file, 
+		       (long unsigned int)no, (long unsigned int)timestamp, td->td_func, td->td_file, 
 		       td->td_line, td->td_size, td->td_decl);
 		align(8);
 		trace_decl(td->td_decl);

@@ -18,8 +18,8 @@
 
 void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
 {
-	struct c2_addb_ctx       *ctx;
-	const struct c2_addb_ev  *ev;
+	struct c2_addb_ctx *ctx;
+        const struct c2_addb_ev  *ev;
 
 	ctx = dp->ad_ctx;
 	ev  = dp->ad_ev;

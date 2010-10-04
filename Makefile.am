@@ -12,6 +12,9 @@ SUBDIR_BIN = utils mds
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_KERNEL) \
              $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_UB) $(SUBDIR_BIN)
 
+etags:
+	find . -name '*.[ch]' | xargs etags
+
 EXTRA_DIST = autogen.sh README NEWS AUTHORS COPYING ChangeLog
 ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ automake.texi
 ACLOCAL_AMFLAGS = -I m4
