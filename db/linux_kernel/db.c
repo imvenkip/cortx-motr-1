@@ -569,7 +569,7 @@ static bool ktable_invariant_locked(struct c2_table *t,
 			return false;
 
 		if (prev != NULL && 
-		    key_cmp(t, &prev->dk_key, &scan->dk_key) != +1)
+		    key_cmp(t, &prev->dk_key, &scan->dk_key) != -1)
 			return false;
 		prev = scan;
 	}

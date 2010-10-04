@@ -2,10 +2,10 @@ OS = @OS@
 
 ifeq ($(OS),linux)
 
-obj-m       := db.o
+obj-m       := kdb.o
 shared_src  := db_common.c
-kernel_src  := kdb.c
-db-y        := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+kernel_src  := db.c
+kdb-y       := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
