@@ -1,5 +1,7 @@
 set -x
 
+. common.sh
+
 cd ../..
 pwd
 
@@ -10,12 +12,8 @@ echo "server address is $IPAddr:$Port"
 rmmod loop
 
 ulimit -c unlimited
-insmod lib/linux_kernel/klibc2.ko
-insmod addb/linux_kernel/kaddb.ko
-insmod fop/linux_kernel/kfop.ko
-insmod net/ksunrpc/ksunrpc.ko
-insmod c2t1fs/c2t1fs.ko
-lsmod | grep -c "c2t1fs" || exit
+
+modload
 
 (./stob/ut/server -d/tmp/ -p$Port &)
 sleep 1
@@ -43,7 +41,6 @@ mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
 dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
 
 #attach loop device over c2t1fs file
-insmod c2t1fs/c2t1fs_loop.ko
 sleep 1
 losetup /dev/loop0 /mnt/c2t1fs/12345
 
@@ -75,13 +72,7 @@ umount /mnt/loop
 losetup -d /dev/loop0
 umount /mnt/c2t1fs
 
-
-rmmod c2t1fs_loop
-rmmod c2t1fs
-rmmod ksunrpc
-rmmod kfop
-rmmod kaddb
-rmmod klibc2
+modunload
 
 killall lt-server
 echo ======================done=====================
