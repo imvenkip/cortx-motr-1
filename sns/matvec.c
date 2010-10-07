@@ -23,7 +23,7 @@ void c2_vector_fini(struct c2_vector *v)
 
 int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h)
 {
-	uint32_t i = 0;
+	uint32_t i;
 	m->m_height = h;
 	m->m_width = w;
 
@@ -44,7 +44,7 @@ int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h)
 
 void c2_matrix_fini(struct c2_matrix *m)
 {
-	uint32_t i = 0;
+	uint32_t i;
 
 	for (i = 0; i < m->m_height; ++i) {
 		c2_free(m->m_matrix[i]);
@@ -100,7 +100,7 @@ void c2_vector_print(const struct c2_vector *vec)
 
 void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)
 {
-	c2_parity_elem_t *temp = NULL;
+	c2_parity_elem_t *temp;
 	C2_PRE(r0 < m->m_height && r1 < m->m_height);
 
 	temp = m->m_matrix[r0];
@@ -121,7 +121,7 @@ void c2_vector_swap_row(struct c2_vector *v, uint32_t r0, uint32_t r1)
 void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row, c2_parity_elem_t c,
 			   c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x = 0;
+	uint32_t x;
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
@@ -144,7 +144,7 @@ void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			    c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x = 0;	
+	uint32_t x;	
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
@@ -158,7 +158,7 @@ void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x = 0;	
+	uint32_t x;	
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
@@ -172,7 +172,7 @@ void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t x = 0;	
+	uint32_t x;	
 	C2_PRE(m);
 
 	for (x = 0; x < m->m_width; ++x) {
@@ -187,7 +187,7 @@ void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
 			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			    c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t y = 0;
+	uint32_t y;
 
 	C2_PRE(m);
 
@@ -201,7 +201,7 @@ void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
 void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col, c2_parity_elem_t c,
 			   c2_vector_matrix_binary_operator_t f)
 {
-	uint32_t y = 0;
+	uint32_t y;
 	C2_PRE(m);
 
 	for (y = 0; y < m->m_height; ++y) {
@@ -215,8 +215,8 @@ void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0, uint32_t row1,
 			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			    c2_vector_matrix_binary_operator_t f)
 {
-	c2_parity_elem_t *e0 = NULL;
-	c2_parity_elem_t *e1 = NULL;
+	c2_parity_elem_t *e0;
+	c2_parity_elem_t *e1;
 
 	C2_PRE(v);
 
@@ -229,8 +229,8 @@ void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	c2_parity_elem_t *e0 = NULL;
-	c2_parity_elem_t *e1 = NULL;
+	c2_parity_elem_t *e0;
+	c2_parity_elem_t *e1;
 
 	C2_PRE(v);
 
@@ -243,8 +243,8 @@ void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0, uint32_t row1,
 			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
 			     c2_vector_matrix_binary_operator_t f)
 {
-	c2_parity_elem_t *e0 = NULL;
-	c2_parity_elem_t *e1 = NULL;
+	c2_parity_elem_t *e0;
+	c2_parity_elem_t *e1;
 
 	C2_PRE(v);
 
@@ -258,7 +258,8 @@ void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_
 			    c2_vector_matrix_binary_operator_t mul,
 			    c2_vector_matrix_binary_operator_t add)
 {
-	uint32_t y = 0, x = 0;
+	uint32_t y;
+	uint32_t x;
 
         C2_PRE(v != NULL && m != NULL && r != NULL);
 	C2_PRE(m->m_width == v->v_size && m->m_height == r->v_size);
@@ -278,7 +279,8 @@ void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_
 void c2_matrix_get_submatrix(struct c2_matrix *mat, struct c2_matrix *submat,
 			     uint32_t x_off, uint32_t y_off)
 {
-	uint32_t x = 0, y = 0;
+	uint32_t x;
+	uint32_t y;
         
 	C2_PRE(mat->m_width >= (submat->m_width + x_off)
                && mat->m_height >= (submat->m_height + y_off));

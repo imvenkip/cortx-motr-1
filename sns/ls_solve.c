@@ -6,13 +6,17 @@
 #include "ls_solve.h"
 
 void c2_linsys_init(struct c2_linsys* lynsys,
-                    struct c2_matrix* mat,
-                    struct c2_vector* vec,
-                    struct c2_vector* res)
+                    struct c2_matrix* m,
+                    struct c2_vector* v,
+                    struct c2_vector* r)
 {
-	lynsys->l_mat = mat;
-	lynsys->l_res = res;
-	lynsys->l_vec = vec;
+	C2_PRE(m != NULL && v != NULL && r != NULL);
+	C2_PRE(m->m_height > 0 && m->m_width > 0);
+	C2_PRE(m->m_width == m->m_height && r->v_size == v->v_size && v->v_size == m->m_width);
+
+	lynsys->l_mat = m;
+	lynsys->l_res = r;
+	lynsys->l_vec = v;
 }
 
 void c2_linsys_fini(struct c2_linsys* lynsys)
@@ -22,8 +26,9 @@ void c2_linsys_fini(struct c2_linsys* lynsys)
 	lynsys->l_vec = NULL;
 }
 
-static uint32_t find_max_row_ind_for_col(struct c2_matrix *m,
-					 uint32_t column)
+/* Works with partially processed matrix */
+static uint32_t find_max_row_index_for_col(struct c2_matrix *m,
+					   uint32_t column)
 {
 	uint32_t i = 0;
 	uint32_t ret = column;
@@ -52,7 +57,7 @@ static void triangularize(struct c2_matrix *m, struct c2_vector *v)
 		uint32_t row;
 
 		/* move row with max first elem to the top of matrix */
-		max_row = find_max_row_ind_for_col(m, col);
+		max_row = find_max_row_index_for_col(m, col);
 		c2_matrix_swap_row(m, current_row, max_row);
 		c2_vector_swap_row(v, current_row, max_row);		
 
@@ -98,10 +103,6 @@ void c2_linsys_solve(struct c2_linsys *lynsys)
 	struct c2_matrix *m = lynsys->l_mat;
 	struct c2_vector *v = lynsys->l_vec;
 	struct c2_vector *r = lynsys->l_res;
-
-	C2_PRE(m != NULL && v != NULL && r != NULL);
-	C2_PRE(m->m_height > 0 && m->m_width > 0);
-	C2_PRE(m->m_width == m->m_height && r->v_size == v->v_size && v->v_size == m->m_width);
 
 	triangularize(m, v);
 	substitute(m, v, r);

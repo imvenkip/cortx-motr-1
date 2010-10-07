@@ -48,12 +48,12 @@ static int gpow(int x, int p)
 }
 
 /* fills vandermonde matrix with initial values */
-static int vandmat_init(struct c2_matrix *m, uint32_t data_count, uint32_t checksum_count)
+static int vandmat_init(struct c2_matrix *m, uint32_t data_count, uint32_t parity_count)
 {
-	int ret = 0;
+	int ret;
 	uint32_t y;
 	uint32_t x;
-	uint32_t mat_height = data_count + checksum_count;
+	uint32_t mat_height = data_count + parity_count;
 	uint32_t mat_width = data_count;
 
 	ret = c2_matrix_init(m, mat_width, mat_height);
@@ -125,7 +125,7 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 int  c2_parity_math_init(struct c2_parity_math *math,
 			 uint32_t data_count, uint32_t parity_count)
 {
-	int ret = 0;
+	int ret;
 
 	C2_PRE(data_count >= 1);
 	C2_PRE(parity_count >= 1);
@@ -184,8 +184,8 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *data,
 			      struct c2_buf *parity)
 {
-	uint32_t ei = 0; /* block element index */
-	uint32_t ui = 0; /* unit index */
+	uint32_t ei; /* block element index */
+	uint32_t ui; /* unit index */
 	uint32_t block_size = data[0].b_nob;
 	
 	for (ui = 0; ui < math->pmi_data_count; ++ui)
@@ -217,7 +217,8 @@ void c2_parity_math_refine(struct c2_parity_math *math,
 /* counts number of blocks failed */
 static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 {
-	uint32_t x = 0, count = 0;
+	uint32_t x;
+	uint32_t count = 0;
 	
 	for (x = 0; x < unit_count; ++x)
 		count += !!fail[x];
@@ -246,13 +247,13 @@ static void recovery_data_fill(struct c2_parity_math *math,
 				*c2_matrix_elem_get(mat, x, y) = *c2_matrix_elem_get(&math->pmi_vandmat, x, f);
 
 			++y;
-		}/*
-		else { / * just fill broken blocks with 0xFF * /
+		}
+		/* else { / * just fill broken blocks with 0xFF * /
 			if (f < math->pmi_data_count)
 				*c2_vector_elem_get(&math->pmi_data, f) = 0xFF;
 			else
 				*c2_vector_elem_get(&math->pmi_parity, f - math->pmi_data_count) = 0xFF;
-		}*/
+		} */
 	}
 }
 
@@ -276,10 +277,10 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 			    struct c2_buf *parity,
 			    struct c2_buf *fails)
 {
-	uint32_t ei = 0; /* block element index */
-	uint32_t ui = 0; /* unit index */
-	uint8_t *fail = NULL;
-	uint32_t fail_count = 0;
+	uint32_t ei; /* block element index */
+	uint32_t ui; /* unit index */
+	uint8_t *fail;
+	uint32_t fail_count;
 	uint32_t unit_count = math->pmi_data_count + math->pmi_parity_count;
 	uint32_t block_size = data[0].b_nob;
 

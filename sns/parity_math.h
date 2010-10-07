@@ -79,7 +79,8 @@ void c2_parity_math_refine(struct c2_parity_math *math,
    Recovers data or parity units' data words from single or multiple errors.
    @param data[inout] - data block, treated as uint8_t block with b_nob elements
    @param parity[inout] - parity block, treated as uint8_t block with b_nob elements
-   @param fail[in] - array of flags, if element of this array is '1' then block is treated as broken
+   @param fail[in] - block with flags, treated as uint8_t block with b_nob elements,
+   if element is '1' then data or parity block with given index is treated as broken
    @pre c2_parity_math_init() succeded
  */
 void c2_parity_math_recover(struct c2_parity_math *math,
