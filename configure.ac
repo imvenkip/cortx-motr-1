@@ -262,6 +262,7 @@ AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_te
 CUNIT_LIBS=$LIBS
 AC_SUBST([CUNIT_LIBS])
 LIBS=$OLD_LIBS
+CFLAGS=$OLD_CFLAGS
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -458,12 +459,12 @@ if test x$OS = xlinux; then
 fi
 
 if test x$enable_debug = xyes; then
-        CFLAGS="$CFLAGS -O2 -g"
-        KCFLAGS="$KCFLAGS -O2 -g"
+        CFLAGS="-O2 -g $CFLAGS"
+        KCFLAGS="-O2 -g $KCFLAGS"
         AC_DEFINE([ENABLE_DEBUG])
 else
-        CFLAGS="$CFLAGS -O2"
-        KCFLAGS="$KCFLAGS -O2"
+        CFLAGS="-O2 $CFLAGS"
+        KCFLAGS="-O2 $KCFLAGS"
 fi
 
 if test x$OS = xdarwin; then
@@ -474,7 +475,7 @@ fi
 # _GNU_SOURCE for asprintf(3)
 #
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
-KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
+KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags

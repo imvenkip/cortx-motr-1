@@ -14,21 +14,28 @@
 enum c2_getopts_opt_type {
 	GOT_VOID,
 	GOT_NUMBER,
-	GOT_STRING
+	GOT_STRING,
+	GOT_FORMAT,
+	GOT_FLAG
 };
 
 struct c2_getopts_opt {
 	enum c2_getopts_opt_type go_type;
 	char                    go_opt;
 	const char             *go_desc;
-	union {
-		void (*got_void)(void);
-		void (*got_number)(int64_t num);
-		void (*got_string)(const char *string);
+	union c2_getopts_union {
+		void   (*got_void)(void);
+		void   (*got_number)(int64_t num);
+		void   (*got_string)(const char *string);
+		struct {
+			const char *f_string;
+			void       *f_out;
+		}        got_fmt;
+		bool    *got_flag;
 	} go_u;
 };
 
-int c2_getopts(const char *progname, int argc, char * const argv[],
+int c2_getopts(const char *progname, int argc, char * const *argv,
 	      const struct c2_getopts_opt *opts, unsigned nr);
 
 #define C2_GETOPTS(progname, argc, argv, ...)				\
@@ -56,6 +63,25 @@ int c2_getopts(const char *progname, int argc, char * const argv[],
 	.go_desc = (desc),			\
 	.go_u    = { .got_string = (func) }	\
 }
+
+#define C2_FORMATARG(ch, desc, fmt, ptr) {			\
+	.go_type = GOT_FORMAT,					\
+	.go_opt  = (ch),					\
+	.go_desc = (desc),					\
+	.go_u    = {						\
+		.got_fmt = {					\
+			.f_string = (fmt), .f_out = (ptr)	\
+		}						\
+	}							\
+}
+
+#define C2_FLAGARG(ch, desc, ptr) {		\
+	.go_type = GOT_FLAG,			\
+	.go_opt  = (ch),			\
+	.go_desc = (desc),			\
+	.go_u    = { .got_flag = (ptr) }	\
+}
+
 
 /** @} end of getopts group */
 
