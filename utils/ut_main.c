@@ -16,6 +16,8 @@ extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite emap_ut;
 extern const struct c2_test_suite fol_ut;
+extern const struct c2_test_suite fol_ut;
+extern const struct c2_test_suite parity_math_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -43,6 +45,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&fop_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
+		c2_ut_add(&parity_math_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);

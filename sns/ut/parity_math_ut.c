@@ -152,9 +152,7 @@ void test_parity_math() {
 	
 		unit_spoil(buff_size, fail_count, data_count);
 
-		ret = c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
-		/* printf("2) %d\n", ret); */
-		C2_UT_ASSERT(ret == 0);
+		c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
 	
 		c2_parity_math_fini(&math);
 
@@ -191,9 +189,8 @@ void parity_math_tb() {
 	
 		unit_spoil(buff_size, fail_count, data_count);
 
-		ret = c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
-		/* printf("2) %d\n", ret); */
-	
+		c2_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
+
 		c2_parity_math_fini(&math);
 	}
 }
@@ -320,8 +317,9 @@ struct c2_ub_set c2_parity_math_ub = {
 
                 { .ut_name  = "l 30/12/ 1M",
                   .ut_iter  = UB_ITER,
-                  .ut_round = ub_large_1048576 }
+                  .ut_round = ub_large_1048576 },
 
+		{.ut_name = NULL}
 	}
 };
 

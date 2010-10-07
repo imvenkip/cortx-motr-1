@@ -391,6 +391,30 @@ else
 	fi
 fi
 
+# Check for galois
+GALOIS_SRC=$SRCDIR/../galois
+AC_MSG_CHECKING([for galois libs])
+if ! test -e $GALOIS_SRC/libgalois.la; then
+        AC_MSG_RESULT([building $GALOIS_SRC])
+	oldcwd=$(pwd)
+	cd $GALOIS_SRC && ./configure && make
+        res=$?
+        cd $oldcwd
+	if ! test $res -eq 0 ; then
+                AC_MSG_ERROR([An error occured while building libgalois!])
+        fi
+	if ! test -e $GALOIS_SRC/libgalois.la; then
+                AC_MSG_ERROR([$GALOIS_SRC/libgalois.la not found! Build failed?])
+        fi
+else
+	AC_MSG_RESULT([$GALOIS_SRC/libgalois.la])
+fi
+
+OLD_LIBS="$OLD_LIBS $GALOIS_SRC/libgalois.la"
+#LIBS="$LIBS $GALOIS_SRC/libgalois.la"
+#CFLAGS="$CFLAGS -I $GALOIS_SRC"
+
+
 # Check if o_direct patch applied
 if test x$OS = xlinux -a x$enable_db_o_direct = xyes; then
         AC_MSG_CHECKING([for direct I/O patch applied to db])
@@ -449,7 +473,7 @@ fi
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS $USER_KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -483,6 +507,7 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  nrs/Makefile
                  sns/Makefile
+		 sns/ut/Makefile
                  reqh/Makefile
                  sm/Makefile
                  mds/Makefile

@@ -12,37 +12,43 @@ typedef int c2_parity_elem_t;
 
 #ifdef _C2_PARITY_USE_OPS_
 
-static void c2_parity_init() {
+static inline void c2_parity_init()
+{
 	int ret = galois_create_mult_tables(C2_PARITY_GALOIS_W);
 	C2_ASSERT(ret == 0);
 }
 
-static c2_parity_elem_t c2_parity_add(c2_parity_elem_t x, c2_parity_elem_t y) {
+static inline c2_parity_elem_t c2_parity_add(c2_parity_elem_t x, c2_parity_elem_t y)
+{
 	return x ^ y;
 }
 
-static c2_parity_elem_t c2_parity_sub(c2_parity_elem_t x, c2_parity_elem_t y) {
+static inline c2_parity_elem_t c2_parity_sub(c2_parity_elem_t x, c2_parity_elem_t y)
+{
 	return x ^ y;
 }
 
-static c2_parity_elem_t c2_parity_mul(c2_parity_elem_t x, c2_parity_elem_t y) {
+static inline c2_parity_elem_t c2_parity_mul(c2_parity_elem_t x, c2_parity_elem_t y)
+{
 	/* return galois_single_multiply(x, y, C2_PARITY_GALOIS_W); */
 	return galois_multtable_multiply(x, y, C2_PARITY_GALOIS_W);
 }
 
-static c2_parity_elem_t c2_parity_div(c2_parity_elem_t x, c2_parity_elem_t y) {
+static inline c2_parity_elem_t c2_parity_div(c2_parity_elem_t x, c2_parity_elem_t y)
+{
 	/* return galois_single_divide(x, y, C2_PARITY_GALOIS_W); */
 	return galois_multtable_divide(x, y, C2_PARITY_GALOIS_W);
 }
 
-static c2_parity_elem_t c2_parity_lt(c2_parity_elem_t x, c2_parity_elem_t y) {
+static inline c2_parity_elem_t c2_parity_lt(c2_parity_elem_t x, c2_parity_elem_t y)
+{
 	return x < y;
 }
 
-/* WHY I CAN'T HAVE UNUSED FUNCTIONS???? */
-/* static c2_parity_elem_t c2_parity_gt(c2_parity_elem_t x, c2_parity_elem_t y) { */
-/* 	return x > y; */
-/* } */
+static inline c2_parity_elem_t c2_parity_gt(c2_parity_elem_t x, c2_parity_elem_t y)
+{
+	return x > y;
+}
 
 /* _C2_PARITY_USE_OPS_ */
 #endif

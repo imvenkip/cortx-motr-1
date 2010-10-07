@@ -6,6 +6,15 @@
 #include "matvec.h"
 
 /**
+   @defgroup c2_linsys Systems of Linear Equations Solving Algorithm:
+   
+   A systems of linear equations solving algorithm is a part of C2 core.
+   It is based on Gauss method and performs the following:
+   @li Solves a linear system of equations represented by (NxN) matrix and (1xN) vector, result is (1xN) vector.
+   @{
+ */
+
+/**
  * Represents linear system of equations [l_mat]*[l_res]=[l_vec]
  */
 struct c2_linsys {
@@ -15,7 +24,7 @@ struct c2_linsys {
 };
 
 /**
- * @pre c2_mat_init(mat) && c2_vec_init(vec) && c2_vec_init(res)
+ * @pre c2_matrix_init(mat) && c2_vector_init(vec) && c2_vec_init(res)
  */
 void c2_linsys_init(struct c2_linsys *linsys,
                     struct c2_matrix *mat,
@@ -26,9 +35,11 @@ void c2_linsys_fini(struct c2_linsys *linsys);
 
 /**
  * Solves given system of linear equatons, writes result into 'linsys->l_res'.
- * @pre c2_mat_init(mat) && c2_vec_init(vec) && c2_vec_init(res)
+ * @pre c2_matrix_init(mat) && c2_vector_init(vec) && c2_vec_init(res)
  */
 void c2_linsys_solve(struct c2_linsys *linsys);
+
+/** @} end group c2_linsys */
 
 /* __COLIBRI_SNS_LS_SOLVE_H__*/
 #endif

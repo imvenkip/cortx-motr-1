@@ -15,23 +15,26 @@
    @{
 */
 
-/* Implementation of c2_parity_math */
-struct c2_parity_math_impl;
-
 /**
    Holds information about system configuration i.e., data and parity units data
    blocks and failure flags.
  */
 struct c2_parity_math {
-	struct c2_parity_math_impl *pm_impl;
-};
+	/* private: */
+	uint32_t pmi_data_count;
+	uint32_t pmi_parity_count;
 
+	/* structures used for parity calculation and recovery */
+	struct c2_vector pmi_data;
+	struct c2_vector pmi_parity;
+	struct c2_matrix pmi_vandmat;
+	struct c2_matrix pmi_vandmat_parity_slice;
 
-enum {
-	/**
-	   Returned if data and parity units are not broken
-	 */
-	C2_SNS_PARITY_MATH_RECOVERY_IS_NOT_NEDDED = 102
+	/* structures used for recovery */
+	struct c2_matrix pmi_sys_mat;
+	struct c2_vector pmi_sys_vec;
+	struct c2_vector pmi_sys_res;
+	struct c2_linsys pmi_sys;
 };
 
 /**
@@ -57,8 +60,8 @@ void c2_parity_math_fini(struct c2_parity_math *math);
    @pre c2_parity_math_init() succeeded
  */
 void c2_parity_math_calculate(struct c2_parity_math *math,
-			      struct c2_buf data[],
-			      struct c2_buf parity[]);
+			      struct c2_buf *data,
+			      struct c2_buf *parity);
 
 /**
    Parity block refinement iff one data word of one data unit had changed.
@@ -68,8 +71,8 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
    @pre c2_parity_math_init() succeeded
  */
 void c2_parity_math_refine(struct c2_parity_math *math,
-			   struct c2_buf data[],
-			   struct c2_buf parity[],
+			   struct c2_buf *data,
+			   struct c2_buf *parity,
 			   uint32_t data_ind_changed);
 
 /**
@@ -78,11 +81,10 @@ void c2_parity_math_refine(struct c2_parity_math *math,
    @param parity[inout] - parity block, treated as uint8_t block with b_nob elements
    @param fail[in] - array of flags, if element of this array is '1' then block is treated as broken
    @pre c2_parity_math_init() succeded
-   @return 0 for success, -C2_SNS_PARITY_MATH_* codes or -ENOMEM for fail
  */
-int  c2_parity_math_recover(struct c2_parity_math *math,
-			    struct c2_buf data[],
-			    struct c2_buf parity[],
+void c2_parity_math_recover(struct c2_parity_math *math,
+			    struct c2_buf *data,
+			    struct c2_buf *parity,
 			    struct c2_buf *fail);
 
 /** @} end group parity_math */
