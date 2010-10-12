@@ -258,7 +258,7 @@ OLD_LIBS=$LIBS
 
 # Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
 LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])], [-lncurses])
+AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
 CUNIT_LIBS=$LIBS
 AC_SUBST([CUNIT_LIBS])
 LIBS=$OLD_LIBS
