@@ -79,6 +79,12 @@ void cnt_global_init(void)
 
 void cnt_global_fini(void)
 {
+	struct cnt *scan;
+	struct cnt *next;
+
+	c2_list_for_each_entry_safe(&cnts, scan, next, struct cnt, c_linkage)
+		cnt_fini(scan);
+
 	c2_list_fini(&cnts);
 }
 

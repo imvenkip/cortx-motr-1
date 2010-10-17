@@ -202,6 +202,7 @@ int main(int argc, char **argv)
 		cnt_dump_all();
 		sim_log(&s, SLL_WARN, "done\n");
 		sim_fini(&s);
+		c2_fini();
 	}
 	return result;
 }

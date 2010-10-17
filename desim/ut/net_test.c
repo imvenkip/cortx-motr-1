@@ -120,6 +120,7 @@ int main(int argc, char **argv)
 		sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads, 
 			1000.0 * filesize * clients / s.ss_bolt);
 		sim_fini(&s);
+		c2_fini();
 	}
 	return result;
 }
