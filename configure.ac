@@ -528,6 +528,7 @@ AC_CONFIG_FILES([
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
+		 desim/Makefile
                 ])
                 
                 #rpc/Makefile
