@@ -5,7 +5,7 @@
  */
 
 /**
-   @addtogroup desim Discreet Event Simulator
+   @defgroup desim Discreet Event Simulator
    @{
  */
 
