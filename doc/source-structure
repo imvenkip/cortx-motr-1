@@ -15,11 +15,9 @@ core/ directory. Such sub-directory might contain other
 sub-directories for sub-sub-systems. In addition, a sub-directory
 might contain the following standard sub-directories:
 
-    - ut: for CUnit based unit testing;
+    - ut: for CUnit based unit testing and unit benchmarking;
 
     - st: for system testing scripts;
-
-    - ub: for unit benchmarking (not currently implemented, 2010.06.27).
 
 Build
 =====
