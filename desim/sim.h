@@ -37,7 +37,7 @@ typedef void sim_func_t(struct sim *, struct sim_thread *, void *);
 
 /*
  * A call-out (alias timer, alias event) is a representation of an event in
- * simulation. A call-outs is allocated to simulate some event that is to happen
+ * simulation. A call-out is allocated to simulate some event that is to happen
  * in the simulation "future". Call-outs are inserted into a per-simulation
  * queue sorted by the logical simulation time. In the fullness of logical time,
  * call-out is "executed", meaning that its ->sc_call() function is
@@ -75,7 +75,7 @@ struct sim {
 	sim_time_t          ss_bolt;
 	/*
 	 * A "logical time queue". A list of call-outs (struct sim_callout)
-	 * linked through their sim_callout::sc_sim and ordered by the
+	 * linked through their sim_callout::sc_linkage and ordered by the
 	 * sim_callout::sc_time field. This list represents of future events,
 	 * still to be executed by the simulation loop.
 	 */
@@ -100,8 +100,8 @@ struct sim {
  *
  * With threads there are two modes in which simulation can be at the moment:
  *
- *     "thread mode", when one of the reads is running. In this mode the code is
- *     executed on the thread's stack;
+ *     "thread mode", when one of the threads is running. In this mode the code
+ *     is executed on the thread's stack;
  *
  *     "scheduler mode", when no thread is running and simulation state is
  *     advanced by main simulation loop running on a stack where sim_run() was
