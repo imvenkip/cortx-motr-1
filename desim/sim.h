@@ -5,7 +5,7 @@
  */
 
 /*
- * Disreet Event Simulator (desim).
+ * Discreet (sic.) Event Simulator (desim).
  *
  * Main data types and entry points declarations.
  */
