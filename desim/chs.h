@@ -6,6 +6,11 @@
 #ifndef CHS_H
 #define CHS_H
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 /*
  * CHS: Cylinder-head-sector rotational storage.
  */
@@ -72,6 +77,8 @@ void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf);
 void chs_dev_fini(struct chs_dev *dev);
 
 #endif /* CHS_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

@@ -3,12 +3,21 @@
  *
  * Nikita Danilov.
  */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 
 #include "lib/assert.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/client.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 struct client_thread_param {
 	struct client_conf *ctp_conf;
@@ -188,6 +197,8 @@ void client_fini(struct client_conf *conf)
 	cnt_fini(&conf->cc_cache_busy);
 }
  
+/** @} end of desim group */
+
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

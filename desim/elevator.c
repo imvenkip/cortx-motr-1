@@ -3,12 +3,21 @@
  *
  * Nikita Danilov.
  */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "lib/assert.h"
 #include "desim/elevator.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 /*
  * Simple FIFO elevator.
@@ -65,6 +74,8 @@ void elevator_io(struct elevator *el, enum storage_req_type type,
 		sim_chan_wait(&el->e_wait, sim_thread_current());
 	elevator_submit(el, type, sector, count);
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

@@ -6,6 +6,11 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 struct net_conf;
 struct net_srv;
 
@@ -47,6 +52,8 @@ void client_init(struct sim *s, struct client_conf *conf);
 void client_fini(struct client_conf *conf);
 
 #endif /* CLIENT_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

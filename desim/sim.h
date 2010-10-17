@@ -4,6 +4,11 @@
  * Nikita Danilov.
  */
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 /*
  * Discreet (sic.) Event Simulator (desim).
  *
@@ -205,6 +210,8 @@ int  sim_global_init(void);
 void sim_global_fini(void);
 
 #endif /* SIM_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

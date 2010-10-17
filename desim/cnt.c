@@ -3,6 +3,10 @@
  *
  * Nikita Danilov.
  */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,6 +15,11 @@
 
 #include "desim/sim.h"
 #include "desim/cnt.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 static struct c2_list cnts;
 
@@ -87,6 +96,8 @@ void cnt_global_fini(void)
 
 	c2_list_fini(&cnts);
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

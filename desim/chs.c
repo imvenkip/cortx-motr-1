@@ -3,6 +3,11 @@
  *
  * Nikita Danilov.
  */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +16,11 @@
 #include "lib/assert.h"
 #include "desim/sim.h"
 #include "desim/chs.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 extern long long int llabs(long long int j);
 
@@ -358,6 +368,8 @@ static void chs_submit(struct storage_dev *sdev,
 	sim_timer_rearm(&dev->cd_todo, reqtime, chs_req_done, dev);
 	dev->cd_state = CDS_XFER;
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

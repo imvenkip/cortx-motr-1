@@ -3,12 +3,21 @@
  *
  * Nikita Danilov.
  */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 
 #include "lib/assert.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/elevator.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 {
@@ -182,6 +191,8 @@ void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
 	rpc->nr_todo = 0;
 	sim_chan_signal(&rpc->nr_bulk_wait);
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

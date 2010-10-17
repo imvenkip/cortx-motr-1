@@ -8,6 +8,11 @@
 
 #include "desim/sim.h"
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 struct elevator;
 
 struct net_conf {
@@ -67,6 +72,8 @@ void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
 void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
 
 #endif /* NET_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

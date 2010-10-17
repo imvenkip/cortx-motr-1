@@ -8,6 +8,11 @@
 
 #include "desim/sim.h"
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 typedef unsigned long long sector_t;
 
 struct storage_dev;
@@ -36,6 +41,8 @@ struct storage_dev {
 };
 
 #endif /* STORAGE_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

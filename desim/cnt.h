@@ -6,6 +6,11 @@
 #ifndef CNT_H
 #define CNT_H
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 #include "lib/list.h"
 
 typedef unsigned long long cnt_t;
@@ -33,6 +38,8 @@ void cnt_global_init(void);
 void cnt_global_fini(void);
 
 #endif /* CNT_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

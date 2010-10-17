@@ -3,6 +3,10 @@
  *
  * Nikita Danilov.
  */
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 #include <math.h> /* sqrt */
 
@@ -14,6 +18,11 @@
 #include "desim/net.h"
 #include "desim/client.h"
 #include "desim/elevator.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 #if 0
 /* 
@@ -206,6 +215,8 @@ int main(int argc, char **argv)
 	}
 	return result;
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

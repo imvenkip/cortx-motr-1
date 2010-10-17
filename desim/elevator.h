@@ -10,6 +10,11 @@
 #include "desim/storage.h"
 #include "lib/list.h"
 
+/**
+   @addtogroup desim desim
+   @{
+ */
+
 struct elevator {
 	struct storage_dev *e_dev;
 	int                 e_idle;
@@ -24,6 +29,8 @@ void elevator_io(struct elevator *el, enum storage_req_type type,
 		 sector_t sector, unsigned long count);
 
 #endif /* ELEVATOR_H */
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:

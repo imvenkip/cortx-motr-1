@@ -4,6 +4,10 @@
  * Nikita Danilov.
  */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +17,11 @@
 
 #include "lib/assert.h"
 #include "desim/sim.h"
+
+/**
+   @addtogroup desim desim
+   @{
+ */
 
 extern int vasprintf(char **strp, const char *fmt, va_list ap);
 
@@ -471,6 +480,8 @@ void sim_global_fini(void)
 {
 	cnt_global_fini();
 }
+
+/** @} end of desim group */
 
 /* 
  *  Local variables:
