@@ -13,8 +13,7 @@ libcolibri_desim_la_SOURCES   = \
                                 sim \
                                 sim.c \
                                 sim.h \
-                                storage.h \
-                                test.c
+                                storage.h
 
 INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 

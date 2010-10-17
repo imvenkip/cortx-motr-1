@@ -6,27 +6,16 @@
 #include <stdio.h>
 #include <math.h> /* sqrt */
 
-#include "sim.h"
-#include "storage.h"
-#include "chs.h"
-#include "net.h"
-#include "client.h"
-#include "elevator.h"
+#include "colibri/init.h"
+
+#include "desim/sim.h"
+#include "desim/storage.h"
+#include "desim/chs.h"
+#include "desim/net.h"
+#include "desim/client.h"
+#include "desim/elevator.h"
 
 #if 0
-static struct net_conf net = {
-	.nc_frag_size      = 4*1024,
-	.nc_rpc_size       =   1024,
-	.nc_rpc_delay_min  =   1000, /* microsecond */
-	.nc_rpc_delay_max  =   5000,
-	.nc_frag_delay_min =    100,
-	.nc_frag_delay_max =   1000,
-	.nc_rate_min       =  750000000,
-	.nc_rate_max       = 1000000000, /* 1GB/sec QDR Infiniband */
-	.nc_nob_max        =     ~0UL,
-	.nc_msg_max        =     ~0UL
-};
-
 /* 
  * Seagate Cheetah 15K.7 SAS ST3450857SS
  *
@@ -91,72 +80,6 @@ static struct chs_conf ST31000640SS = { /* Barracuda ES.2 */
 static struct chs_dev disc;
 static struct elevator el;
 
-#if 0
-static struct net_srv  srv = {
-	.ns_nr_threads     =      64,
-	.ns_pre_bulk_min   =       0,
-	.ns_pre_bulk_max   =    1000,
-	.ns_el             = &el
-};
-
-static struct client_conf client = {
-	.cc_nr_clients   =             0,
-	.cc_nr_threads   =             0,
-	.cc_total        = 100*1024*1024,
-	.cc_count        =     1024*1024,
-	.cc_opt_count    =     1024*1024,
-	.cc_inflight_max =             8,
-	.cc_delay_min    =             0,
-	.cc_delay_max    =       1000000, /* millisecond */
-	.cc_cache_max    =            ~0UL,
-	.cc_dirty_max    =  32*1024*1024,
-	.cc_net          = &net,
-	.cc_srv          = &srv
-};
-
-static void workload_init(struct sim *s, int argc, char **argv)
-{
-	chs_conf_init(&cheetah);
-	chs_dev_init(&disc, s, &cheetah);
-	elevator_init(&el, &disc.cd_storage);
-	net_init(&net);
-	net_srv_init(s, &srv);
-	client_init(s, &client);
-}
-
-static void workload_fini(void)
-{
-	client_fini(&client);
-	net_srv_fini(&srv);
-	net_fini(&net);
-	elevator_fini(&el);
-	chs_dev_fini(&disc);	
-	chs_conf_fini(&cheetah);
-}
-
-int main(int argc, char **argv)
-{
-	struct sim s;
-	unsigned clients = atoi(argv[1]);
-	unsigned threads = atoi(argv[2]);
-	unsigned long long filesize;
-	
-	client.cc_nr_clients = clients;
-	client.cc_nr_threads = threads;
-	srv.ns_file_size = filesize = threads * client.cc_total;
-	sim_init(&s);
-	workload_init(&s, argc, argv);
-	sim_run(&s);
-	/* workload_fini(); */
-	cnt_dump_all();
-	sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads, 
-		1000.0 * filesize * clients / s.ss_bolt);
-	sim_fini(&s);
-	return 0;
-}
-
-#else
-
 static struct sim_thread seek_thr;
 
 static double seekto(struct sim *s, int64_t sector, int sectors) 
@@ -169,10 +92,10 @@ static double seekto(struct sim *s, int64_t sector, int sectors)
 }
 
 enum {
-  LBA_D   =   10,
-  ROUNDS  =   10,
-  TRACK_D =    8,
-  TRACK_S = 2500
+	LBA_D   =   10,
+	ROUNDS  =   10,
+	TRACK_D =    8,
+	TRACK_S = 2500
 };
 
 static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
@@ -208,7 +131,8 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 			}
 			avg /= ROUNDS;
 			printf("reading %4i sectors at %i/%i: %6.0f (%6.0f)\n", 
-			       sectors, i, LBA_D, avg, sqrt(sqr/ROUNDS - avg*avg));
+			       sectors, i, LBA_D, avg, 
+			       sqrt(sqr/ROUNDS - avg*avg));
 		}
 	}
 
@@ -263,22 +187,24 @@ static int seek_test_start(struct sim_callout *co)
 int main(int argc, char **argv)
 {
 	struct sim s;
+	int result;
 
-	chs_conf_init(&ST31000640SS);
-	chs_dev_init(&disc, &s, &ST31000640SS);
-	elevator_init(&el, &disc.cd_storage);
-	sim_init(&s);
+	result = c2_init();
+	if (result == 0) {
+		chs_conf_init(&ST31000640SS);
+		chs_dev_init(&disc, &s, &ST31000640SS);
+		elevator_init(&el, &disc.cd_storage);
+		sim_init(&s);
 
-	sim_timer_add(&s, 0, seek_test_start, NULL);
-	sim_run(&s);
+		sim_timer_add(&s, 0, seek_test_start, NULL);
+		sim_run(&s);
 
-	cnt_dump_all();
-	sim_log(&s, SLL_WARN, "done\n");
-	sim_fini(&s);
-	return 0;
+		cnt_dump_all();
+		sim_log(&s, SLL_WARN, "done\n");
+		sim_fini(&s);
+	}
+	return result;
 }
-
-#endif
 
 /* 
  *  Local variables:

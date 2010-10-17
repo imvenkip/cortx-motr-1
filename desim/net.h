@@ -6,7 +6,7 @@
 #ifndef NET_H
 #define NET_H
 
-#include "sim.h"
+#include "desim/sim.h"
 
 struct elevator;
 

@@ -6,7 +6,7 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include "sim.h"
+#include "desim/sim.h"
 
 typedef unsigned long long sector_t;
 

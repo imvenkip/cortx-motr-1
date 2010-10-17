@@ -230,8 +230,11 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 		/*
 		 * In the kernel land people coded distrbuted file system
 		 * servers with a 4K stack.
+		 *
+		 * Unfortunately, in user land, glibc vfprintf alone eats 1.3KB
+		 * of stack space.
 		 */
-		stacksize = 1024 * sizeof(int);
+		stacksize = 4 * 1024 * sizeof(int);
 	if (stacksize < MINSIGSTKSZ)
 		stacksize = MINSIGSTKSZ;
 

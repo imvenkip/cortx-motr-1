@@ -9,8 +9,8 @@
 /*
  * CHS: Cylinder-head-sector rotational storage.
  */
-#include "sim.h"
-#include "storage.h"
+#include "desim/sim.h"
+#include "desim/storage.h"
 
 struct chs_dev;
 
