@@ -86,8 +86,6 @@ bool     c2_lsn_is_valid(c2_lsn_t lsn);
 /** 3-way comparison (-1, 0, +1) of lsns, compatible with record
     dependencies. */
 int      c2_lsn_cmp     (c2_lsn_t lsn0, c2_lsn_t lsn1);
-/** Returns an lsn larger than given one. */
-c2_lsn_t c2_lsn_inc     (c2_lsn_t lsn);
 
 /**
    In-memory representation of a fol.
@@ -104,7 +102,7 @@ c2_lsn_t c2_lsn_inc     (c2_lsn_t lsn);
 struct c2_fol {
 	/** Table where fol records are stored. */
 	struct c2_table f_table;
-	/** Largest lsn in the fol. */
+	/** Next lsn to use in the fol. */
 	c2_lsn_t        f_lsn;
 	/** Lock, serializing fol access. */
 	struct c2_mutex f_lock;
@@ -114,7 +112,7 @@ struct c2_fol {
    Initialise in-memory fol structure, creating persistent structures, if
    necessary.
 
-   @post ergo(result == 0, c2_lsn_is_valid(c2_lsn_inc(fol->f_lsn)))
+   @post ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
  */
 int  c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
 void c2_fol_fini(struct c2_fol *fol);

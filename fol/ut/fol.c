@@ -101,6 +101,8 @@ static void test_add(void)
 	C2_ASSERT(result == 0);
 }
 
+extern c2_lsn_t lsn_inc(c2_lsn_t lsn);
+
 static void test_lookup(void)
 {
 	struct c2_fol_rec dup;
@@ -117,7 +119,7 @@ static void test_lookup(void)
 
 	c2_fol_rec_fini(&dup);
 
-	result = c2_fol_rec_lookup(&fol, &tx, c2_lsn_inc(d->rd_lsn), &dup);
+	result = c2_fol_rec_lookup(&fol, &tx, lsn_inc(d->rd_lsn), &dup);
 	C2_ASSERT(result == -ENOENT);
 }
 

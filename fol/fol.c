@@ -37,14 +37,13 @@ int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 }
 C2_EXPORTED(c2_lsn_cmp);
 
-c2_lsn_t c2_lsn_inc(c2_lsn_t lsn)
+c2_lsn_t lsn_inc(c2_lsn_t lsn)
 {
 	++lsn;
 	C2_ASSERT(lsn != 0);
 	C2_POST(c2_lsn_is_valid(lsn));
 	return lsn;
 }
-C2_EXPORTED(c2_lsn_inc);
 
 static int lsn_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
@@ -186,6 +185,8 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 {
 	int result;
 
+	C2_CASSERT(C2_LSN_ANCHOR > C2_LSN_RESERVED_NR);
+
 	c2_mutex_init(&fol->f_lock);
 	result = c2_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
 	if (result == 0) {
@@ -201,19 +202,17 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 			if (result == -ENOENT) {
 				/* initialise new fol */
 				C2_SET0(d);
-				d->rd_lsn  = C2_LSN_ANCHOR;
 				d->rd_header.rh_refcount = 1;
 				d->rd_header.rh_opcode = anchor_type.rt_opcode;
 				d->rd_type = &anchor_type;
-				fol->f_lsn = C2_LSN_RESERVED_NR;
+				fol->f_lsn = C2_LSN_ANCHOR;
 				result = c2_fol_add(fol, &tx, d);
 			} else if (result == 0) {
 				result = c2_db_cursor_last(&r.fr_ptr, 
 							   &r.fr_pair);
 				if (result == 0) {
 					result = rec_open_internal(&r);
-					fol->f_lsn = max64u(C2_LSN_RESERVED_NR, 
-							    d->rd_lsn);
+					fol->f_lsn = lsn_inc(d->rd_lsn);
 				}
 				c2_fol_rec_fini(&r);
 			}
@@ -221,7 +220,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 			result = result ?: rc;
 		}
 	}
-	C2_POST(ergo(result == 0, c2_lsn_is_valid(c2_lsn_inc(fol->f_lsn))));
+	C2_POST(ergo(result == 0, c2_lsn_is_valid(fol->f_lsn)));
 	return result;
 }
 C2_EXPORTED(c2_fol_init);
@@ -288,11 +287,12 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 			 &drec->rd_lsn, sizeof drec->rd_lsn,
 			 buf->b_addr, buf->b_nob);
 	/*
-	 * Increment largest used fol lsn under the lock. Alternatively,
-	 * c2_fol::f_lsn could be made into a c2_atomic64 instance.
+	 * Obtain next fol lsn under the lock. Alternatively, c2_fol::f_lsn
+	 * could be made into a c2_atomic64 instance.
 	 */
 	c2_mutex_lock(&fol->f_lock);
-	drec->rd_lsn = fol->f_lsn = c2_lsn_inc(fol->f_lsn);
+	drec->rd_lsn = fol->f_lsn = fol->f_lsn;
+	fol->f_lsn = lsn_inc(fol->f_lsn);
 	c2_mutex_unlock(&fol->f_lock);
 
 	return c2_table_insert(tx, &pair);
