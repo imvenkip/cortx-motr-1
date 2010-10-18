@@ -40,13 +40,13 @@ static int workload_debug(struct sim_callout *call)
 }
 #endif
 
-/*
+/**
  * Currently executing thread in the thread mode of execution (see struct
  * sim_thread).
  */
 static struct sim_thread *sim_current = NULL;
 
-/*
+/**
  * Scheduler context.
  *
  * Here the context of a main simulation loop is stored before switching in the
@@ -55,7 +55,7 @@ static struct sim_thread *sim_current = NULL;
  */
 static ucontext_t sim_idle_ctx;
 
-/*
+/**
  * Wrapper around malloc(3), aborting the simulation when allocation fails.
  */
 void *sim_alloc(size_t size)
@@ -68,7 +68,7 @@ void *sim_alloc(size_t size)
 	return area;
 }
 
-/*
+/**
  * Wrapper around free(3), dual to sim_alloc().
  */
 void sim_free(void *ptr)
@@ -76,7 +76,7 @@ void sim_free(void *ptr)
 	free(ptr);
 }
 
-/*
+/**
  * Initialize simulator state (struct sim).
  */
 void sim_init(struct sim *state)
@@ -86,7 +86,7 @@ void sim_init(struct sim *state)
 	getcontext(&sim_idle_ctx);
 }
 
-/*
+/**
  * Finalize simulator state.
  */
 void sim_fini(struct sim *state)
@@ -94,7 +94,7 @@ void sim_fini(struct sim *state)
 	c2_list_fini(&state->ss_future);
 }
 
-/*
+/**
  * Execute the simulation.
  *
  * This function runs main simulation loop, taking callouts from simulator
@@ -125,7 +125,7 @@ void sim_run(struct sim *state)
 	}
 }
 
-/*
+/**
  * Insert a callout in sorted events list.
  */
 static void sim_call_place(struct sim *sim, struct sim_callout *call)
@@ -146,7 +146,7 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	c2_list_add_before(&scan->sc_linkage, &call->sc_linkage);
 }
 
-/*
+/**
  * Initialize callout 
  */
 static void sim_timer_init(struct sim *state, struct sim_callout *call,
@@ -160,7 +160,7 @@ static void sim_timer_init(struct sim *state, struct sim_callout *call,
 	sim_call_place(state, call);
 }
 
-/*
+/**
  * Allocate and initialize call-out. Allocated call-out will be executed after
  * delta units of simulation logical time by calling cfunc call-back. datum in
  * installed into sim_callout::sc_datum field of a newly allocated call-out.
@@ -174,7 +174,7 @@ void sim_timer_add(struct sim *state, sim_time_t delta,
 	sim_timer_init(state, call, delta, cfunc, datum);
 }
 
-/*
+/**
  * Re-arm already allocated call-out to be executed (possibly again) after delta
  * units of logical time. The call-out must be not in the logical time queue.
  */
@@ -184,7 +184,7 @@ void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
 	sim_timer_init(call->sc_sim, call, delta, cfunc, datum);
 }
 
-/*
+/**
  * Mac OS X getmcontext() (Libc-498/i386/gen/) resets uc_stack.ss_size
  * incorrectly.
  */
@@ -193,7 +193,7 @@ static void sim_thread_fix(struct sim_thread *thread)
 	thread->st_ctx.uc_stack.ss_size = thread->st_size;
 }
 
-/*
+/**
  * Resume a thread by jumping onto its context.
  */
 static void sim_thread_resume(struct sim_thread *thread)
@@ -207,7 +207,7 @@ static void sim_thread_resume(struct sim_thread *thread)
 		err(1, "resume: swapcontext");
 }
 
-/*
+/**
  * Stash current state of the read (registers) into sim_thread::st_ctx and jump
  * onto main simulation loop context (sim_idle_ctx).
  */
@@ -223,7 +223,7 @@ static void sim_thread_suspend(struct sim_thread *thread)
 	sim_thread_fix(thread);
 }
 
-/*
+/**
  * Initialize and start a new simulation thread that will be running a function
  * func with an argument arg.
  *
@@ -261,7 +261,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	sim_thread_resume(thread);
 }
 
-/*
+/**
  * Finalize thread, releasing its resources (stack).
  */
 void sim_thread_fini(struct sim_thread *thread)
@@ -270,7 +270,7 @@ void sim_thread_fini(struct sim_thread *thread)
 		sim_free(thread->st_stack);
 }
 
-/*
+/**
  * Exit thread execution. Simulation threads must call this before returning
  * from their top-level function.
  */
@@ -279,7 +279,7 @@ void sim_thread_exit(struct sim_thread *thread)
 	sim_thread_suspend(thread);
 }
 
-/*
+/**
  * Wake-up a thread.
  */
 static int sim_wakeup(struct sim_callout *call)
@@ -288,7 +288,7 @@ static int sim_wakeup(struct sim_callout *call)
 	return 0;
 }
 
-/*
+/**
  * Schedule a thread wake-up after a given amount of logical time.
  */
 static void sim_wakeup_post(struct sim *sim, 
@@ -297,7 +297,7 @@ static void sim_wakeup_post(struct sim *sim,
 	sim_timer_init(sim, &thread->st_wake, nap, sim_wakeup, thread);
 }
 
-/*
+/**
  * Delay thread execution for a given amount of logical time.
  */
 void sim_sleep(struct sim_thread *thread, sim_time_t nap)
@@ -307,7 +307,7 @@ void sim_sleep(struct sim_thread *thread, sim_time_t nap)
 	sim_thread_suspend(thread);
 }
 
-/*
+/**
  * Initialize synchronization channel. If format is not-NULL it (after
  * sprintf-ing remaining arguments into it) will be used as a name of
  * statistical counter embedded into the channel. This name is used in the final
@@ -325,7 +325,7 @@ void sim_chan_init(struct sim_chan *chan, char *format, ...)
 	}
 }
 
-/*
+/**
  * Finalize the channel, releasing its resources.
  */
 void sim_chan_fini(struct sim_chan *chan)
@@ -334,7 +334,7 @@ void sim_chan_fini(struct sim_chan *chan)
 	cnt_fini(&chan->ch_cnt_sleep);
 }
 
-/*
+/**
  * Wait on a channel. This call suspends calling sim_thread until it is woken-up
  * by a sim_chan_{signal,broadcast}() call. The calling thread is added to the
  * tail of the list, so that sim_chan_signal() wakes threads up in FIFO order.
@@ -359,7 +359,7 @@ void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread)
 	 */
 }
 
-/*
+/**
  * A helper function, waking up a thread at head of the sim_chan::ch_threads
  * list.
  */
@@ -373,7 +373,7 @@ static void sim_chan_wake_head(struct sim_chan *chan)
 	sim_wakeup_post(t->st_sim, t, 0);
 }
 
-/*
+/**
  * Wake-up a thread at head of the channel list of waiting threads.
  */
 void sim_chan_signal(struct sim_chan *chan)
@@ -382,7 +382,7 @@ void sim_chan_signal(struct sim_chan *chan)
 		sim_chan_wake_head(chan);
 }
 
-/*
+/**
  * Wake-up all threads waiting on a channel.
  */
 void sim_chan_broadcast(struct sim_chan *chan)
@@ -391,7 +391,7 @@ void sim_chan_broadcast(struct sim_chan *chan)
 		sim_chan_wake_head(chan);
 }
 
-/*
+/**
  * Currently executing thread or NULL if in the scheduler mode.
  */
 struct sim_thread *sim_thread_current(void)
@@ -399,7 +399,7 @@ struct sim_thread *sim_thread_current(void)
 	return sim_current;
 }
 
-/* get a pseudo-random number in the interval [a, b] */
+/** get a pseudo-random number in the interval [a, b] */
 unsigned long long sim_rnd(unsigned long long a, unsigned long long b)
 {
 	/*
@@ -424,7 +424,7 @@ unsigned long long sim_rnd(unsigned long long a, unsigned long long b)
 	return scaled;
 }
 
-/*
+/**
  * Format optional arguments according to the format and store resulting
  * allocated string at a given place, freeing its previous contents if any.
  */
@@ -437,7 +437,7 @@ void sim_name_set(char **name, const char *format, ...)
 	va_end(valist);
 }
 
-/*
+/**
  * Format arguments in valist according to the format and store resulting
  * allocated string at a given place, freeing its previous contents if any.
  */
@@ -452,7 +452,7 @@ void sim_name_vaset(char **name, const char *format, va_list valist)
 
 enum sim_log_level sim_log_level = SLL_INFO;
 
-/*
+/**
  * Write a log message to the console.
  */
 void sim_log(struct sim *s, enum sim_log_level level, const char *format, ...)

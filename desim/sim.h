@@ -6,13 +6,70 @@
 
 /**
    @defgroup desim Discreet Event Simulator
-   @{
- */
 
-/*
- * Discreet (sic.) Event Simulator (desim).
- *
- * Main data types and entry points declarations.
+   <b>Concepts</b>
+
+   sim is a very simple discrete event simulator, geared toward simulation of
+   distributed systems.
+
+   In sim a model consists of state machines, representing entities in a system
+   being simulated. Software (a client cache, a kernel disc elevator, a thread
+   etc.) as well as hardware (a volatile memory, a hard disc, a network, etc.)
+   entities can be simulated.
+
+   A state machine maintains some internal state, receives input events, and
+   sends output messages to state machines. The core task of simulator is to
+   arrange events in the chronological order, given that state transitions and
+   event deliveries take some time, specified by the model. While for some
+   system message exchanging state machines are a natural device of simulation,
+   the most common control flow mechanism---a function call is awkward to
+   express this way. sim provides a built-in support for synchronous state
+   machine interaction.
+
+   <b>Data types and interfaces</b>
+
+   The most fundamental components of sim are logical time (struct sim) and a
+   future event (struct sim_callout), defined in sim.h.
+
+   struct sim represents an instance of simulation, it contains a current
+   logical time (sim::ss_bolt) and a queue of future events
+   (sim::ss_future). sim_run() function executes main simulation loop: it
+   removes an event from head of the future events list and calls its callback
+   function repeatedly until the future queue is empty. Callback functions
+   populate the queue by creating new future events (by calling
+   sim_timer_add()), that are added to the queue in chronological order.
+
+   struct sim_callout represents a parametrized event scheduled for some future
+   time ("callout" is a traditional UNIX name for this).
+   
+   Sequential threads are simulated with two more data types:
+   
+   struct sim_thread represents a simulated thread. struct sim_chan represents a
+   channel (in UNIX kernel sense) that threads can synchronize on. sim_thread is
+   relatively lightweight. Current implementation is based on ucontext_t calls
+   (getcontext(3), swapcontext(3), etc.). Overhead depends on platform. Mac OS X
+   requires a minimum stack of 32K (16K on Linux).
+
+   Threading introduces two distinct modes of execution: in-thread and call-back
+   (the latter is also called a "scheduler mode"). Call-back is a code executed
+   on the stack of main simulation loop. All timer code runs in call-backs. Mode
+   of execution can be distinguished by result of sim_thread_current() function
+   which is non-null only in a thread. New threads can be created only from
+   call-backs.
+
+   A "counter" is a simple statistical and measurement interface. A counter
+   (struct cnt) is named on creation. A "measurement" can be added to a counter
+   by a call to cnt_mod(). When simulation finishes, values of all alive
+   counters are dumped onto standard output. A counter reports average and
+   standard deviation (a square root of difference between average of squared
+   measurements and squared average). A counter optionally has a parent counter
+   to which it replicates all its measurements. This can be used to accumulate
+   data across a number of short-lived objects (like RPCs). Histogram
+   capabilities should be added.
+
+   @todo add c2_ prefixes to sim symbols.
+
+   @{
  */
 
 #ifndef SIM_H
@@ -40,7 +97,7 @@ typedef unsigned long long sim_time_t;
 typedef int  sim_call_t(struct sim_callout *);
 typedef void sim_func_t(struct sim *, struct sim_thread *, void *);
 
-/*
+/**
  * A call-out (alias timer, alias event) is a representation of an event in
  * simulation. A call-out is allocated to simulate some event that is to happen
  * in the simulation "future". Call-outs are inserted into a per-simulation
@@ -50,35 +107,38 @@ typedef void sim_func_t(struct sim *, struct sim_thread *, void *);
  * state of simulation.
  */
 struct sim_callout {
-	/* logical time for which the call-out is scheduled */
+	/** logical time for which the call-out is scheduled */
 	sim_time_t         sc_time;
-	/* call-back function to be invoked when the logical time is ripe. If
+	/** 
+	 * call-back function to be invoked when the logical time is ripe. If
 	 * call-back function returns true (non-0), main simulation loop frees
 	 * the call-out structure (this is suitable for one-shot call-outs),
 	 * otherwise it is up to the call-out creator to clean up. */
 	sim_call_t         *sc_call;
-	/* a datum, opaque for generic simulation code, attached to the
+	/** 
+	 * a datum, opaque for generic simulation code, attached to the
 	 * call-out. This field is for private use by call-back function */
 	void               *sc_datum;
-	/* linkage into a logical time list sim::ss_future */
+	/** linkage into a logical time list sim::ss_future */
 	struct c2_list_link sc_linkage;
-	/* simulation run this call-out is an event in */
+	/** simulation run this call-out is an event in */
 	struct sim         *sc_sim;
 };
 
-/*
+/**
  * State of a simulation.
  *
  * This is the "root" data-structure used by the simulation loop (sim_run()) to
  * drive simulation.
  */
 struct sim {
-	/* current logical time. The precise meaning of this field is up to a
+	/**
+	 * current logical time. The precise meaning of this field is up to a
 	 * particular simulation model. Standard modules in net.[ch],
 	 * storage.[ch], etc. assume this field to be a nanosecond-precision
 	 * time. */
 	sim_time_t          ss_bolt;
-	/*
+	/**
 	 * A "logical time queue". A list of call-outs (struct sim_callout)
 	 * linked through their sim_callout::sc_linkage and ordered by the
 	 * sim_callout::sc_time field. This list represents of future events,
@@ -87,7 +147,7 @@ struct sim {
 	struct c2_list      ss_future;
 };
 
-/*
+/**
  * A thread in a simulated world. 
  *
  * Conceptually, a thread can always be replaced by a collection of call-outs. A
@@ -122,27 +182,30 @@ struct sim {
  *
  */
 struct sim_thread {
-	/* simulation instance this thread is a part of */
+	/** simulation instance this thread is a part of */
 	struct sim         *st_sim;
-	/* allocated native stack, allocated in sim_thread_init() */
+	/** allocated native stack, allocated in sim_thread_init() */
 	void               *st_stack;
-	/* size of allocated stack */
+	/** size of allocated stack */
 	unsigned            st_size;
-	/* platform-independent structure holding thread machine state
+	/** 
+	 * platform-independent structure holding thread machine state
 	 * (registers and signals mask usually) */
 	ucontext_t          st_ctx;
 	/* channel waiting */
-	/* linkage into a sim_chan::ch_threads list */
+	/** linkage into a sim_chan::ch_threads list */
 	struct c2_list_link st_block;
-	/* time when a thread was parked onto a channel. See sim_chan_wait()
+	/**
+	   time when a thread was parked onto a channel. See sim_chan_wait()
 	   comments. */
 	sim_time_t          st_blocked;
-	/* pre-allocated callout to wake the thread. Used by sim_sleep() and
-	   sim_chan_{signal,broadcast}(). */
+	/** 
+	    pre-allocated callout to wake the thread. Used by sim_sleep() and
+	    sim_chan_{signal,broadcast}(). */
 	struct sim_callout  st_wake;
 };
 
-/*
+/**
  * Synchronization channel.
  *
  * A channel is conceptually similar to a POSIX condition variable, except that
@@ -153,10 +216,11 @@ struct sim_thread {
  * all together by a call to sim_chan_broadcast().
  */
 struct sim_chan {
-	/* list of threads waiting on a channel */
+	/** list of threads waiting on a channel */
 	struct c2_list      ch_threads;
-	/* statistical counter measuring for how long threads are sleeping on
-	 * this channel */
+	/** 
+	    statistical counter measuring for how long threads are sleeping on
+	    this channel */
 	struct cnt          ch_cnt_sleep;
 };
 
