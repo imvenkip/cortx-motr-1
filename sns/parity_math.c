@@ -1,16 +1,17 @@
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/types.h"
 #include "lib/misc.h" /* SET0() */
 
-#define _C2_PARITY_USE_OPS_
 #include "parity_ops.h"
 #include "parity_math.h"
 
-#define C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX (128)
+#define C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX (pow(2, C2_PARITY_GALOIS_W - 1))
 
 /* c2_parity_* are to much eclectic. just more simple names. */
 static int gadd(int x, int y)

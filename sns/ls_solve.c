@@ -1,7 +1,6 @@
 #include "lib/assert.h"
 #include "lib/types.h"
 
-#define _C2_PARITY_USE_OPS_
 #include "parity_ops.h"
 #include "ls_solve.h"
 
