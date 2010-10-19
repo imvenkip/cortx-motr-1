@@ -233,7 +233,7 @@ static void recovery_data_fill(struct c2_parity_math *math,
 			       struct c2_matrix *mat, struct c2_vector *vec) /* out */
 {
 	uint32_t f;
-	uint32_t y;
+	uint32_t y = 0;
 	uint32_t x;
 
 	for (f = 0; f < unit_count; ++f) {
