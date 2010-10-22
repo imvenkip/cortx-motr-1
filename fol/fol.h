@@ -42,50 +42,13 @@ struct c2_fol_rec_type;
 #include "lib/mutex.h"
 #include "fid/fid.h"
 #include "dtm/dtm.h"      /* c2_update_id, c2_update_state */
+#include "dtm/verno.h"    /* c2_verno */
 #include "db/db.h"        /* c2_table, c2_db_cursor */
+#include "fol/lsn.h"      /* c2_lsn_t */
 
 struct c2_dbenv;
 struct c2_db_tx;
 struct c2_epoch_id;
-
-/**
-   Log sequence number (lsn) uniquely identifies a record in a fol.
-
-   lsn possesses two properties:
-
-   @li a record with a given lsn can be found efficiently, and
-
-   @li lsn of a dependent update is greater than the lsn of an update it depends
-   upon.
-
-   lsn should _never_ overflow, because other persistent file system tables
-   (most notably object index) store lsns of arbitrarily old records, possibly
-   long time truncated from the fol. It would be dangerous to allow such a
-   reference to accidentally alias an unrelated record after lsn overflow. Are
-   64 bits enough?
-
-   Given 1M operations per second, a 64 bit counter overflows in 600000 years.
- */
-typedef uint64_t c2_lsn_t;
-
-enum {
-	/** Invalid lsn value. Used to catch uninitialised lsns. */
-	C2_LSN_INVALID,
-	/** Non-existent lsn. This is used, for example, as a prevlsn, when
-	    there is no previous operation on the object. */
-	C2_LSN_NONE,
-	C2_LSN_RESERVED_NR,
-	/** 
-	    LSN of a special "anchor" record always present in the fol.
-	 */
-	C2_LSN_ANCHOR = C2_LSN_RESERVED_NR + 1
-};
-
-/** True iff the argument might be an lsn of an existing fol record. */
-bool     c2_lsn_is_valid(c2_lsn_t lsn);
-/** 3-way comparison (-1, 0, +1) of lsns, compatible with record
-    dependencies. */
-int      c2_lsn_cmp     (c2_lsn_t lsn0, c2_lsn_t lsn1);
 
 /**
    In-memory representation of a fol.
@@ -178,12 +141,10 @@ int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
  */
 struct c2_fol_obj_ref {
 	/** file identifier */
-	struct c2_fid or_fid;
-	/** version that the file had before operation has been applied */
-	uint64_t      or_version;
-	/** lsn of a record for the previous operation modifying the file, or
-	    C2_LSN_NONE, if this is the first operation. */
-	c2_lsn_t      or_prevlsn;
+	struct c2_fid   or_fid;
+	/** version that the object had before operation has been applied,
+	    or {C2_LSN_NONE, ~0} if this is the first operation */
+	struct c2_verno or_before_ver;
 };
 
 /**

@@ -318,10 +318,10 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 		ref = &drec->rd_ref[i];
 		if (!c2_fid_is_valid(&ref->or_fid))
 			return false;
-		if (!c2_lsn_is_valid(ref->or_prevlsn) && 
-		    ref->or_prevlsn != C2_LSN_NONE)
+		if (!c2_lsn_is_valid(ref->or_before_ver.vn_lsn) && 
+		    ref->or_before_ver.vn_lsn != C2_LSN_NONE)
 			return false;
-		if (drec->rd_lsn <= ref->or_prevlsn)
+		if (drec->rd_lsn <= ref->or_before_ver.vn_lsn)
 			return false;
 		for (j = 0; j < i; ++j) {
 			if (c2_fid_eq(&ref->or_fid, &drec->rd_ref[j].or_fid))
