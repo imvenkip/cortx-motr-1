@@ -21,7 +21,8 @@
    for fol would require manual control over db5 log pruning policies).
 
    The fol table is (naturally) indexed by lsn. The record itself does not store
-   the lsn and has the following variable-sized format:
+   the lsn (take a look at the comment before rec_init()) and has the following
+   variable-sized format:
 
    @li struct c2_fol_rec_header
    @li followed by rh_obj_nr c2_fol_obj_ref-s
@@ -79,7 +80,7 @@ static const struct c2_table_ops fol_ops = {
 };
 
 /**
-   Reserves "delta" bytes it a buffer starting at *buf and having *nob
+   Reserves "delta" bytes in a buffer starting at *buf and having *nob
    bytes. Advances *buf by delta and returns original buffer starting
    address. If position is advanced past the end of the buffer---returns NULL
    without modifying *buf.
@@ -158,6 +159,10 @@ static int rec_open(struct c2_fol_rec *rec)
 
 /**
    Initializes fields in @rec.
+
+   Note, that key buffer in the cursor is initialized to point to
+   rec->fr_desc.rd_lsn. As a result, the cursor's key follow lsn changes
+   automagically.
 
    @see rec_fini()
  */
