@@ -64,10 +64,12 @@ int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1);
 
    @retval 0 the update can be applied right away
 
-   @retval -ESTALE the update is already present in the unit's state
+   @retval -EALREADY the update is already present in the unit's state
 
    @retval -EAGAIN the update can be applied, but not immediately: some
    intermediate updates are missing.
+
+   @see c2_verno_is_undoable()
  */
 int c2_verno_is_redoable(const struct c2_verno *unit, 
 			 const struct c2_verno *before_update, bool total);
@@ -81,11 +83,13 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 
    @retval 0 the update can be undone right away
 
-   @retval -ESTALE the update has already been undone, or was never applied in
+   @retval -EALREADY the update has already been undone, or was never applied in
    the first place.
 
    @retval -EAGAIN the update can be undone, but not immediately: some
    intermediate updates have to be undone first.
+
+   @see c2_verno_is_redoable()
  */
 int c2_verno_is_undoable(const struct c2_verno *unit, 
 			 const struct c2_verno *before_update, bool total);

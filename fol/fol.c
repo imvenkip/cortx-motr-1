@@ -12,14 +12,27 @@
 /**
    @addtogroup fol
 
-   FOL record on-storage format:
+   <b>Implementation notes.</b>
 
-   struct c2_fol_rec_header
-   followed by rh_obj_nr c2_fol_obj_ref-s
-   followed by rh_sibling_nr c2_update_id-s
-   followed by rh_data_len bytes
+   At the moment, fol is implemented as a c2_table. An alternative implemenation
+   would re-use db5 transaction log to store fol records. The dis-advantage of
+   the former approach is that records are duplicated between fol table and
+   transaction log. The advantage is its simplicity (specifically, using db5 log
+   for fol would require manual control over db5 log pruning policies).
 
-   @{
+   The fol table is (naturally) indexed by lsn. The record itself does not store
+   the lsn and has the following variable-sized format:
+
+   @li struct c2_fol_rec_header
+   @li followed by rh_obj_nr c2_fol_obj_ref-s
+   @li followed by rh_sibling_nr c2_update_id-s
+   @li followed by rh_data_len bytes
+
+   When a record is fetched from the fol, it is "parsed" by rec_open(). When a
+   record is placed into the fol, its representation is prepared by
+   c2_fol_rec_pack().
+
+  @{
  */
 
 bool c2_lsn_is_valid(c2_lsn_t lsn)
@@ -65,6 +78,12 @@ static const struct c2_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 
+/**
+   Reserves "delta" bytes it a buffer starting at *buf and having *nob
+   bytes. Advances *buf by delta and returns original buffer starting
+   address. If position is advanced past the end of the buffer---returns NULL
+   without modifying *buf.
+ */
 static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 {
 	void *consumed;
@@ -80,6 +99,9 @@ static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 	return consumed;
 }
 
+/**
+   Parses a record representation and fills in @d.
+ */
 static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 {
 	struct c2_fol_rec_header     *h;
@@ -110,6 +132,9 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 		return 0;
 }
 
+/**
+   Parses a record without checking invariants.
+ */
 static int rec_open_internal(struct c2_fol_rec *rec)
 {
 	struct c2_buf *recbuf;
@@ -118,6 +143,9 @@ static int rec_open_internal(struct c2_fol_rec *rec)
 	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob);
 }
 
+/**
+   Parses a record representation.
+ */
 static int rec_open(struct c2_fol_rec *rec)
 {
 	int result;
@@ -128,6 +156,11 @@ static int rec_open(struct c2_fol_rec *rec)
 	return result;
 }
 
+/**
+   Initializes fields in @rec.
+
+   @see rec_fini()
+ */
 static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 {
 	int                result;
@@ -146,6 +179,11 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 	return result;
 }
 
+/**
+   Finalizes @rec.
+
+   @see rec_init()
+ */
 void rec_fini(struct c2_fol_rec *rec)
 {
 	c2_db_cursor_fini(&rec->fr_ptr);
@@ -161,6 +199,10 @@ static void anchor_pack(struct c2_fol_rec_desc *desc, void *buf)
 {
 }
 
+/**
+   Operations vector for an "anchor" record type. A unique anchor record is
+   inserted into every fol on initialisation.
+ */
 static const struct c2_fol_rec_type_ops anchor_ops = {
 	.rto_commit     = NULL,
 	.rto_abort      = NULL,

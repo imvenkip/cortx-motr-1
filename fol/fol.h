@@ -143,7 +143,7 @@ struct c2_fol_obj_ref {
 	/** file identifier */
 	struct c2_fid   or_fid;
 	/** version that the object had before operation has been applied,
-	    or {C2_LSN_NONE, ~0} if this is the first operation */
+	    or {C2_LSN_NONE, 0} if this is the first operation */
 	struct c2_verno or_before_ver;
 };
 
