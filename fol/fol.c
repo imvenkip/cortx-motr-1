@@ -161,7 +161,7 @@ static int rec_open(struct c2_fol_rec *rec)
    Initializes fields in @rec.
 
    Note, that key buffer in the cursor is initialized to point to
-   rec->fr_desc.rd_lsn. As a result, the cursor's key follow lsn changes
+   rec->fr_desc.rd_lsn. As a result, the cursor's key follows lsn changes
    automagically.
 
    @see rec_fini()
