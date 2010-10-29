@@ -29,10 +29,11 @@ enum {
 	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1
 };
 
+
 /* __COLIBRI_LIB_TYPES_H_ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

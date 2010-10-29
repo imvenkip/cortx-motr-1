@@ -486,50 +486,52 @@ AC_SUBST([KCFLAGS])
 
 AC_CONFIG_FILES([
 		 Makefile
-		 m4/Makefile
-                 doc/Makefile
-                 man/Makefile
-                 colibri/Makefile
-                 lib/Makefile
-                 lib/linux_kernel/Makefile
-                 lib/ut/Makefile
-                 dtm/Makefile
                  addb/Makefile
                  addb/linux_kernel/Makefile
+                 balloc/Makefile
+                 balloc/ut/Makefile
+                 build_kernel_modules/Makefile
+                 c2t1fs/Makefile
+                 cob/Makefile
+                 cob/ut/Makefile
+                 colibri/Makefile
+                 db/Makefile
+                 db/linux_kernel/Makefile
+                 db/ut/Makefile
+                 desim/Makefile
+                 desim/ut/Makefile
+                 doc/Makefile
+                 dtm/Makefile
+                 fid/Makefile
                  fol/Makefile
                  fol/ut/Makefile
-                 net/Makefile
-                 net/usunrpc/Makefile
-                 net/ksunrpc/Makefile
-                 fid/Makefile
                  fop/Makefile
                  fop/fop2c
                  fop/linux_kernel/Makefile
                  fop/ut/Makefile
-                 nrs/Makefile
-                 sns/Makefile
-		 sns/ut/Makefile
-                 reqh/Makefile
-                 sm/Makefile
-                 mds/Makefile
-                 mw/Makefile
-                 c2t1fs/Makefile
-                 build_kernel_modules/Makefile
-                 patches/Makefile
                  layout/Makefile
                  layout/ut/Makefile
+                 lib/Makefile
+                 lib/linux_kernel/Makefile
+                 lib/ut/Makefile
+                 m4/Makefile
+                 man/Makefile
+                 mds/Makefile
+                 mw/Makefile
+                 net/Makefile
+                 net/ksunrpc/Makefile
+                 net/usunrpc/Makefile
+                 nrs/Makefile
+                 patches/Makefile
                  pool/Makefile
+                 reqh/Makefile
+                 sm/Makefile
+                 sns/Makefile
+                 sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
-                 balloc/Makefile
-                 balloc/ut/Makefile
-                 db/Makefile
-                 db/linux_kernel/Makefile
-                 db/ut/Makefile
-		 desim/Makefile
-		 desim/ut/Makefile
                 ])
                 
                 #rpc/Makefile
