@@ -2,17 +2,19 @@ OS = @OS@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
+GALOISDIR = @SRCDIR@/../galois
 
 ifeq ($(OS),linux)
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
-c2t1fs-y := main.o io_fop_init.o io_k.o
+c2t1fs-y := main.o io_fop_init.o io_k.o stubs/pdclust.o stubs/pool.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
 	ln -sf $(STOBDIR)/io_fop_init.c .
+	ln -sf $(GALOISDIR)/galois.h @SRCDIR@/sns
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install

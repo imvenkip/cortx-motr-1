@@ -1,3 +1,4 @@
+#include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/types.h"
 

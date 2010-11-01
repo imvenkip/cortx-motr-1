@@ -40,15 +40,21 @@
 #define log2(n) ffz(~(n))
 #endif
 
+struct c2t1fs_srv_info {
+        struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
+        struct ksunrpc_service_id csi_srvid;
+        struct ksunrpc_xprt      *csi_xprt;
+};
+
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
 
         uint64_t                  csi_objid;  /* The object id will be mapped */
         uint64_t                  csi_objsize;/* The initial object size */
-        struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
-        struct ksunrpc_service_id csi_srvid;
-        struct ksunrpc_xprt      *csi_xprt;
+
+        struct c2t1fs_srv_info    csi_srv[32]; /* servers which the object is striped onto */
+        uint32_t                  csi_srv_sz;
 };
 
 struct c2t1fs_inode_info {

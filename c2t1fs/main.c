@@ -19,7 +19,11 @@
 #include "io_k.h"
 #include "stob/ut/io_fop.h"
 
-#define DBG(fmt, args...) //printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+#include "sns/parity_math.h"
+#include "stubs/pdclust.h"
+#include "stubs/pool.h"
+
+#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
 /**
    @page c2t1fs C2T1FS detailed level design specification.
@@ -63,7 +67,7 @@
 
    @li file exported by the server and which we want to use as a
        back-end for the block device should be specified as part of
-       device specification in mount command in a way like this:
+       device secification in mount command in a way like this:
 
        mount -t c2t1fs -o objid=<objid> ipaddr:port /mnt/c2t1fs
 
@@ -119,6 +123,70 @@ static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jinshan Xiong");
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
+
+/* struct simple_layout { */
+/* 	uint32_t sl_data_count; */
+/* 	uint32_t sl_parity_count; */
+/* 	int sl_data_index[32]; */
+/* 	int sl_parity_index[32]; */
+/* }; */
+/* static struct simple_layout sl_simple_layout; */
+
+static const int LAYOUT_N = 2;
+static const int LAYOUT_K = 1;
+
+struct pdclust_layout {
+	struct c2_pdclust_layout  *pl_play;
+	struct c2_pool             pl_pool;
+	struct c2_uint128          pl_id;
+	struct c2_uint128          pl_seed;
+
+	struct c2_parity_math      pl_math;
+	struct c2_buf              pl_data_buf[32];
+	struct c2_buf              pl_parity_buf[32];
+};
+
+static struct pdclust_layout pl_layout;
+
+static enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
+					  int unit)
+{
+	if (unit < play->pl_N)
+		return PUT_DATA;
+	else if (unit < play->pl_N + play->pl_K)
+		return PUT_PARITY;
+	else
+		return PUT_SPARE;
+}
+
+static int pdclust_layout_init(struct pdclust_layout *play, int N, int K)
+{
+	int result;
+	c2_uint128_init(&play->pl_id,   "jinniesisjillous");
+	c2_uint128_init(&play->pl_seed, "upjumpandpumpim,");
+
+	/* result = c2_init(); */
+	result = c2_pool_init(&play->pl_pool, N+2*K);
+
+	if (result == 0) {
+		result = c2_pdclust_build(&play->pl_pool, &play->pl_id, N, K, &play->pl_seed, 
+					  &play->pl_play);
+		if (result == 0) {
+			/* parity math init */
+			result = c2_parity_math_init(&play->pl_math,
+						     LAYOUT_N, /* data_count */
+						     LAYOUT_K);/* parity_count */
+		}
+	}
+
+	return result;
+
+}
+
+static void c2_buf_init(struct c2_buf *b, void *d, uint32_t sz) {
+	b->b_addr = d;
+	b->b_nob = sz;
+}
 
 static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 			      uint64_t objid,
@@ -227,7 +295,7 @@ static int ksunrpc_create(struct ksunrpc_xprt *xprt,
 
         DBG("%s create object %llu\n", __FUNCTION__, objid);
         rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
-        DBG("create obj returns %d/%d\n", rc, ret->sicr_res);
+        DBG("create obj returns %d/%d\n", rc, ret->sicr_rc);
         rc = rc ? : ret->sicr_rc;
 	c2_fop_free(r);
 	c2_fop_free(f);
@@ -252,8 +320,8 @@ static int c2t1fs_free_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
-	if (csi->csi_srvid.ssi_host)
-                kfree(csi->csi_srvid.ssi_host);
+	if (csi->csi_srv[0].csi_srvid.ssi_host)
+                kfree(csi->csi_srv[0].csi_srvid.ssi_host);
         kfree(csi);
         s2csi_nocast(sb) = NULL;
 
@@ -380,6 +448,20 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         loff_t                 pos = *ppos;
         int rc;
 
+	int			   N;
+	int			   K;
+	int			   W;
+	int                        I;
+	int			   group;
+	int			   unit;
+	int                        frame;
+	int                        obj;
+	struct c2_pdclust_src_addr src;
+	struct c2_pdclust_tgt_addr tgt;
+
+	struct page		  *parity_page;
+	int                        i;
+
 	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
 		count, (unsigned long)pos, (unsigned long)inode->i_size);
 
@@ -432,9 +514,109 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 goto out;
         }
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
-				off, count, pos, rw);
-        DBG("call read_write returns %d\n", rc);
+	N = pl_layout.pl_play->pl_N;
+	K = pl_layout.pl_play->pl_K;
+	W = N + 2*K;
+	I = npages / N;
+
+	if (npages % N != 0 || off != 0 || pos != 0) {
+		/* rc = -EPARSE; */
+		rc = -EINVAL;
+		goto out;
+	}
+
+	parity_page = alloc_pages(GFP_KERNEL, K); /* for parity only */
+	BUG_ON(parity_page == NULL);
+	
+	for (i = 0; i < K; ++i)
+		c2_buf_init(&pl_layout.pl_parity_buf[i], page_address(&parity_page[i]), 4096);
+
+	DBG("rw=%d, npages=%d, I=%d, W=%d\n", rw, npages, I, W);
+
+	if (rw == WRITE) {
+		for (group = 0; group < I ; ++group) {
+			src.sa_group = group;
+			for (unit = 0; unit < W; ++unit) {
+				src.sa_unit = unit;
+				c2_pdclust_layout_map(pl_layout.pl_play, &src, &tgt);
+				DBG("src.sa_unit=%llu,src.sa_group=%llu,"
+				    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
+				    src.sa_unit,src.sa_group,
+				    tgt.ta_obj, tgt.ta_frame);
+
+				if (classify(pl_layout.pl_play, unit) == PUT_DATA) {
+					DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
+					    tgt.ta_obj, unit + group*N);
+					rc = ksunrpc_read_write
+						(csi->csi_srv[tgt.ta_obj].csi_xprt,
+						 csi->csi_objid,
+						 &pages[unit + group*N],
+						 1, off, 4096/* count */, pos, rw);
+					c2_buf_init(&pl_layout.pl_data_buf[unit], page_address(&parity_page[unit]), 4096);
+				}
+				else if (classify(pl_layout.pl_play, unit) == PUT_PARITY) {
+					c2_parity_math_calculate(&pl_layout.pl_math,
+								 pl_layout.pl_data_buf,
+								 pl_layout.pl_parity_buf);
+				}
+				else {
+					;
+				}
+			}
+		}
+	}
+
+	if (rw == READ) {
+		for (frame = 0; frame < I; ++frame) {
+			tgt.ta_frame = frame;
+			for (obj = 0; obj < W; ++obj) {
+				tgt.ta_obj = obj;
+				c2_pdclust_layout_inv(pl_layout.pl_play, &tgt, &src);
+				DBG("src.sa_unit=%llu,src.sa_group=%llu,"
+				    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
+				    src.sa_unit,src.sa_group,
+				    tgt.ta_obj, tgt.ta_frame);
+
+				if (classify(pl_layout.pl_play, src.sa_unit) == PUT_DATA) {
+					DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
+					    tgt.ta_obj, (int)(src.sa_unit + src.sa_group*N));
+					rc = ksunrpc_read_write
+						(csi->csi_srv[tgt.ta_obj].csi_xprt,
+						 csi->csi_objid,
+						 &pages[src.sa_unit + src.sa_group*N],
+						 1, off, 4096/* count */, pos, rw);
+				}
+			}
+		}
+	}
+	
+	__free_pages(parity_page, K);
+	rc = npages*4096;
+
+#if 0
+	/* page_address(); */
+	ssz = sl_simple_layout.sl_data_count;
+	rc = 0;
+	/* for (i = 0; i < ssz; ++i) { */
+	for (j = 0; j < ssz; ++j) {
+		i = sl_simple_layout.sl_data_index[j];
+		rc = ksunrpc_read_write(csi->csi_srv[i].csi_xprt, csi->csi_objid,
+					&pages[i*npages/ssz], npages/ssz,
+					off, count, pos, rw);
+		DBG("call read_write returns %d\n", rc);
+	}
+	/* } */
+
+	if (rw == WRITE) {
+		parity_page = alloc_pages(GFP_KERNEL, npages/ssz);
+		BUG_ON(parity_page == NULL);
+		for (j = 0; j < sl_simple_layout.sl_parity_count; ++j) {
+			i = sl_simple_layout.sl_parity_index[j];
+			/* calculate parity and send data here*/ 
+		}
+		__free_pages(parity_page, npages/ssz);
+	}
+#endif
 	if (rc > 0) {
 		pos += rc;
 		if (rw == WRITE && pos > inode->i_size)
@@ -486,6 +668,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         const struct iovec *iv;
 	unsigned long seg;
 	ssize_t result = 0;
+	int ssz;
 
         if (nr_segs == 0)
                 return 0;
@@ -520,8 +703,23 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         }
         BUG_ON(nr_pages != j);
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, nr_pages,
-                                0, nr_pages << PAGE_SHIFT, pos, WRITE);
+	DBG("Unexpected Write!\n");
+	BUG_ON(1); /* unable to continue for now */
+
+	/* ssz = csi->csi_srv_sz; */
+	rc = 0;
+	if (0) { /* !!! just for compilability !!! */
+	/* for (i = 0; i < ssz; ++i) { */
+	/* for (j = 0; j < sl_simple_layout.sl_data_count; ++j) { */
+	/* 	i = sl_simple_layout.sl_data_index[j]; */
+		i = 0, j = 0;
+		rc = ksunrpc_read_write(csi->csi_srv[i].csi_xprt, csi->csi_objid,
+					&pages[i*nr_pages/ssz], nr_pages/ssz,
+					0, (nr_pages/ssz) << PAGE_SHIFT, pos, WRITE);
+	/* } */
+	/* /\* } *\/ */
+	}
+
         if (rc > 0) {
                 pos += rc;
                 if (pos > inode->i_size)
@@ -770,75 +968,118 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         return 0;
 }
 
+/* static int layout_init(struct simple_layout *layout) { */
+/* 	layout->sl_parity_count = 0; */
+/* 	layout->sl_data_count = 0; */
+/* 	return 0; */
+/* } */
+
+/* static void layout_update(struct simple_layout *layout, int unit_index, char *unit_type) { */
+/* 	if (unit_type[0] == 'p') */
+/* 		layout->sl_parity_index[layout->sl_parity_count++] = unit_index; */
+/* 	else if (unit_type[0] == 'd') */
+/* 		layout->sl_data_index[layout->sl_data_count++] = unit_index; */
+/* 	else */
+/* 		; */
+/* } */
+
 static int c2t1fs_get_super(struct file_system_type *fs_type,
                             int flags, const char *devname, void *data,
                             struct vfsmount *mnt)
 {
-        struct c2t1fs_sb_info *csi;
-	struct super_block    *sb;
+        struct c2t1fs_sb_info *csi = NULL;
+	struct super_block    *sb = NULL;
         char *hostname;
 	char *port;
+	char *unittype;
         char *endptr;
 	int   tcp_port;
         int   rc;
-	struct ksunrpc_xprt *xprt
+	struct ksunrpc_xprt *xprt;
+
+	int si = 0; /* srv index */
+	char *parsename = NULL;
+	char *devnames = kstrdup(devname, GFP_KERNEL);
+	/* layout_init(&sl_simple_layout); */
+
+	/* layout init */
+	rc = pdclust_layout_init(&pl_layout, LAYOUT_N, LAYOUT_K);
+	if (rc < 0)
+		return rc;
 
 	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
-	hostname = kstrdup(devname, GFP_KERNEL);
+	while ((parsename = strsep(&devnames, ", "))) {
+		hostname = kstrdup(parsename, GFP_KERNEL);
 
-        port = strchr(hostname, ':');
-	if (port == NULL || hostname == port || *(port+1) == '\0') {
-		printk("server:port is expected as the device\n");
-		kfree(hostname);
-		return -EINVAL;
+		port = strchr(hostname, ':');
+		if (port == NULL || hostname == port || *(port+1) == '\0') {
+			printk("server:port@[dt] is expected as the device\n");
+			kfree(hostname);
+			return -EINVAL;
+		}
+
+		unittype = strchr(hostname, '@');
+		if (unittype == NULL || hostname == unittype || *(unittype+1) == '\0') {
+			printk("server:port@[dt] is expected as the device\n");
+			kfree(hostname);
+			return -EINVAL;
+		}
+
+		if (in_aton(hostname) == 0) {
+			printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
+			kfree(hostname);
+			return -EINVAL;
+		}
+
+		*port++ = 0;
+		*unittype++ = 0;
+		DBG("[%d] server/port/type=%s/%s/%s\n", si, hostname, port, unittype);
+		tcp_port = simple_strtol(port, &endptr, 10);
+		if (*endptr != '\0' || tcp_port <= 0) {
+			printk("invalid port number\n");
+			kfree(hostname);
+			return -EINVAL;
+		}
+
+		/* layout_update(&sl_simple_layout, si, unittype); */
+
+		if (!sb) {
+			rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
+			if (rc < 0) {
+				kfree(hostname);
+				return rc;
+			}
+		}
+
+		sb  = mnt->mnt_sb;
+		csi = s2csi(sb);
+		csi->csi_srv[si].csi_sockaddr.sin_family      = AF_INET;
+		csi->csi_srv[si].csi_sockaddr.sin_port        = htons(tcp_port);
+		csi->csi_srv[si].csi_sockaddr.sin_addr.s_addr = in_aton(hostname);
+
+		csi->csi_srv[si].csi_srvid.ssi_host       = hostname;
+		csi->csi_srv[si].csi_srvid.ssi_sockaddr   = &csi->csi_srv[si].csi_sockaddr;
+		csi->csi_srv[si].csi_srvid.ssi_addrlen    = sizeof *csi->csi_srv[si].csi_srvid.ssi_sockaddr;
+		csi->csi_srv[si].csi_srvid.ssi_port       = csi->csi_srv[si].csi_sockaddr.sin_port;
+
+		xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srv[si].csi_srvid);
+		if (IS_ERR(xprt)) {
+			csi->csi_srv[si].csi_srvid.ssi_host = NULL;
+			kfree(hostname);
+			dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
+			deactivate_locked_super(sb);
+			return PTR_ERR(xprt);
+		}
+
+		csi->csi_srv[si].csi_xprt = xprt;
+		rc = ksunrpc_create(csi->csi_srv[si].csi_xprt, csi->csi_objid);
+		if (rc)
+			printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
+		++si;
 	}
 
-	if (in_aton(hostname) == 0) {
-		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
-		kfree(hostname);
-		return -EINVAL;
-	}
-
-	*port++ = 0;
-	DBG("server/port=%s/%s\n", hostname, port);
-	tcp_port = simple_strtol(port, &endptr, 10);
-        if (*endptr != '\0' || tcp_port <= 0) {
-		printk("invalid port number\n");
-		kfree(hostname);
-                return -EINVAL;
-	}
-
-        rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
-        if (rc < 0) {
-		kfree(hostname);
-                return rc;
-	}
-
-        sb  = mnt->mnt_sb;
-        csi = s2csi(sb);
-        csi->csi_sockaddr.sin_family      = AF_INET;
-        csi->csi_sockaddr.sin_port        = htons(tcp_port);
-        csi->csi_sockaddr.sin_addr.s_addr = in_aton(hostname);
-
-        csi->csi_srvid.ssi_host       = hostname;
-        csi->csi_srvid.ssi_sockaddr   = &csi->csi_sockaddr;
-        csi->csi_srvid.ssi_addrlen    = sizeof *csi->csi_srvid.ssi_sockaddr;
-        csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
-
-        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
-        if (IS_ERR(xprt)) {
-		csi->csi_srvid.ssi_host = NULL;
-		kfree(hostname);
-		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
-		deactivate_locked_super(sb);
-                return PTR_ERR(xprt);
-	}
-
-        csi->csi_xprt = xprt;
-        rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
-        if (rc)
-                printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
+	csi->csi_srv_sz = si;
 
         return 0;
 }
@@ -849,8 +1090,8 @@ static void c2t1fs_kill_super(struct super_block *sb)
 
         /* FIXME: Disconnect from server here. */
         GETHERE;
-        if (csi && csi->csi_xprt)
-                ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
+        if (csi && csi->csi_srv[0].csi_xprt)
+                ksunrpc_xprt_ops.ksxo_fini(csi->csi_srv[0].csi_xprt);
         kill_anon_super(sb);
 }
 
