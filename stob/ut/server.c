@@ -283,6 +283,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
+	printf("Got fop: code = %d, name = %s\n",
+			 fop->f_type->ft_code, fop->f_type->ft_name);
 	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
@@ -397,7 +399,8 @@ int main(int argc, char **argv)
 
 	backid.si_bits.u_hi = 0x8;
 	backid.si_bits.u_lo = 0xf00baf11e;
-	port = 1001;
+	/* port above 1024 is for normal use access permission */
+	port = 1201;
 	path = "__s";
 
 	result = C2_GETOPTS("server", argc, argv,
@@ -414,6 +417,10 @@ int main(int argc, char **argv)
 			    C2_FORMATARG('p', "port to listen at", "i", &port));
 	if (result != 0)
 		return result;
+
+	printf("path=%s, back store object=%llx.%llx, tcp port=%d\n",
+		path, (unsigned long long)backid.si_bits.u_hi,
+		(unsigned long long)backid.si_bits.u_lo, port);
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
