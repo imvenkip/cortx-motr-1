@@ -252,8 +252,6 @@ static int c2t1fs_free_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
-	if (csi->csi_srvid.ssi_host)
-                kfree(csi->csi_srvid.ssi_host);
         kfree(csi);
         s2csi_nocast(sb) = NULL;
 
@@ -342,9 +340,61 @@ static struct c2t1fs_xprt_clt* c2t1fs_container_lookup(struct super_block *sb,
 */
 static int c2t1fs_container_fini(struct super_block *sb)
 {
+        struct c2t1fs_sb_info *csi = s2csi(sb);
+	struct c2_list_link   *first;
+	struct c2t1fs_xprt_clt *con;
 
+	while (1) {
+		c2_mutex_lock(&csi->csi_mutex);
+		first = c2_list_first(&csi->csi_xprt);
+		if (first)
+			c2_list_del(first);
+		c2_mutex_unlock(&csi->csi_mutex);
+
+		if (first == NULL)
+			break;
+
+		con = c2_list_entry(first, struct c2t1fs_xprt_clt, xc_link);
+		if (con->xc_xprt) {
+			ksunrpc_xprt_ops.ksxo_fini(con->xc_xprt);
+			con->xc_xprt = NULL;
+		}
+		kfree(con);
+	}
 	return 0;
 }
+
+/**
+   establish container connections.
+*/
+static int c2t1fs_container_connect(struct super_block *sb)
+{
+        struct c2t1fs_sb_info  *csi = s2csi(sb);
+	struct c2t1fs_xprt_clt *con;
+	struct ksunrpc_xprt    *xprt;
+	int rc = 0;
+
+	c2_mutex_lock(&csi->csi_mutex);
+	c2_list_for_each_entry(&csi->csi_xprt, con, struct c2t1fs_xprt_clt, xc_link) {
+                xprt = ksunrpc_xprt_ops.ksxo_init(&con->xc_srvid);
+	        if (IS_ERR(xprt)) {
+			rc = PTR_ERR(xprt);
+			break;
+		}
+		con->xc_xprt = xprt;
+		rc = ksunrpc_create(xprt, csi->csi_objid);
+		if (rc) {
+			printk("Create objid %llu on %llu failed %d\n",
+				csi->csi_objid, con->xc_cid, rc);
+			break;
+		}
+	}
+	c2_mutex_unlock(&csi->csi_mutex);
+	if (rc)
+		c2t1fs_container_fini(sb);
+	return rc;
+}
+
 
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
@@ -369,6 +419,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 			/* add layout id for this client */
 		} else if (strncmp(s1, "ds=", 2) == 0) {
 			/* add container server information here */
+			c2t1fs_container_add(sb, NULL);
 		}
 
                 /* Find next opt */
@@ -416,6 +467,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         int                    npages;
         int                    off;
         loff_t                 pos = *ppos;
+	struct c2t1fs_xprt_clt *con;
         int rc;
 
 	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
@@ -470,8 +522,12 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 goto out;
         }
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
-				off, count, pos, rw);
+	con = c2t1fs_container_lookup(inode->i_sb, 0);
+	if (con)
+	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_objid, pages, npages,
+					off, count, pos, rw);
+	else
+		rc = -ENODEV;
         DBG("call read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
@@ -524,6 +580,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         const struct iovec *iv;
 	unsigned long seg;
 	ssize_t result = 0;
+	struct c2t1fs_xprt_clt *con;
 
         if (nr_segs == 0)
                 return 0;
@@ -558,8 +615,12 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         }
         BUG_ON(nr_pages != j);
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, nr_pages,
+	con = c2t1fs_container_lookup(inode->i_sb, 0);
+	if (con)
+	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_objid, pages, nr_pages,
                                 0, nr_pages << PAGE_SHIFT, pos, WRITE);
+	else
+		rc = -ENODEV;
         if (rc > 0) {
                 pos += rc;
                 if (pos > inode->i_size)
@@ -823,18 +884,25 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
 	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
-	hostname = kstrdup(devname, GFP_KERNEL);
+        rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
+        if (rc < 0)
+                return rc;
 
+        sb  = mnt->mnt_sb;
+        csi = s2csi(sb);
+
+	strncpy(csi->csi_mgmt_srvid.ssi_host, devname,
+		ARRAY_SIZE(csi->csi_mgmt_srvid.ssi_host) - 1);
+
+	hostname = csi->csi_mgmt_srvid.ssi_host;
         port = strchr(hostname, ':');
 	if (port == NULL || hostname == port || *(port+1) == '\0') {
 		printk("server:port is expected as the device\n");
-		kfree(hostname);
 		return -EINVAL;
 	}
 
 	if (in_aton(hostname) == 0) {
 		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
-		kfree(hostname);
 		return -EINVAL;
 	}
 
@@ -843,52 +911,45 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	tcp_port = simple_strtol(port, &endptr, 10);
         if (*endptr != '\0' || tcp_port <= 0) {
 		printk("invalid port number\n");
-		kfree(hostname);
                 return -EINVAL;
 	}
 
-        rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
-        if (rc < 0) {
-		kfree(hostname);
-                return rc;
-	}
+        csi->csi_mgmt_srvid.ssi_port       = htons(tcp_port);
+        csi->csi_mgmt_srvid.ssi_addrlen    = sizeof csi->csi_mgmt_srvid.ssi_sockaddr;
 
-        sb  = mnt->mnt_sb;
-        csi = s2csi(sb);
-        csi->csi_sockaddr.sin_family      = AF_INET;
-        csi->csi_sockaddr.sin_port        = htons(tcp_port);
-        csi->csi_sockaddr.sin_addr.s_addr = in_aton(hostname);
+        csi->csi_mgmt_srvid.ssi_sockaddr.sin_family      = AF_INET;
+        csi->csi_mgmt_srvid.ssi_sockaddr.sin_port        = htons(tcp_port);
+        csi->csi_mgmt_srvid.ssi_sockaddr.sin_addr.s_addr = in_aton(hostname);
 
-        csi->csi_srvid.ssi_host       = hostname;
-        csi->csi_srvid.ssi_sockaddr   = &csi->csi_sockaddr;
-        csi->csi_srvid.ssi_addrlen    = sizeof *csi->csi_srvid.ssi_sockaddr;
-        csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
-
-        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
+        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_mgmt_srvid);
         if (IS_ERR(xprt)) {
-		csi->csi_srvid.ssi_host = NULL;
-		kfree(hostname);
+		c2t1fs_container_fini(sb);
 		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
 		deactivate_locked_super(sb);
                 return PTR_ERR(xprt);
 	}
 
-        csi->csi_xprt = xprt;
-        rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
-        if (rc)
-                printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
+        csi->csi_mgmt_xprt = xprt;
 
-        return 0;
+	rc = c2t1fs_container_connect(sb);
+	if (rc) {
+		ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
+		deactivate_locked_super(sb);
+	}
+        return rc;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-
-        /* FIXME: Disconnect from server here. */
         GETHERE;
-        if (csi && csi->csi_xprt)
-                ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
+	if (csi->csi_mgmt_xprt) {
+		ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+		csi->csi_mgmt_xprt = NULL;
+	}
+	/* disconnect from container server and free them */
+	c2t1fs_container_fini(sb);
         kill_anon_super(sb);
 }
 

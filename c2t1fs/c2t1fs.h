@@ -3,6 +3,7 @@
 
 #include <linux/in.h> /* for sockaddr_in */
 
+#include "lib/list.h"
 #include "net/ksunrpc/ksunrpc.h"
 #include "config.h"
 
@@ -66,6 +67,9 @@ struct c2t1fs_sb_info {
         uint64_t        csi_objid;    /*< The object id will be mapped */
         uint64_t        csi_objsize;  /*< The initial object size */
         uint64_t        csi_layoutid; /*< layout id this client uses */
+
+        struct ksunrpc_service_id csi_mgmt_srvid; /*< mgmt node service id */
+        struct ksunrpc_xprt      *csi_mgmt_xprt;  /*< mgmt node xprt */
 
         struct c2_list  csi_xprt;     /*< transport list or hash table */
         struct c2_mutex csi_mutex;    /*< mutex to pretect this sb */
