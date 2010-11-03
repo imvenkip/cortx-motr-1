@@ -40,15 +40,35 @@
 #define log2(n) ffz(~(n))
 #endif
 
+
+/**
+   This is the data structure to describe a client transport,
+   identified by its container id.
+*/
+struct c2t1fs_xprt_clt {
+	/** container id */
+	uint64_t                  xc_cid;
+
+	/** node service id on which this container is running */
+        struct ksunrpc_service_id xc_srvid;
+
+	/** the connection transport for this container */
+        struct ksunrpc_xprt      *xc_xprt;
+
+	/** linkage in hash table */
+	struct c2_list_link       xc_link;
+};
+
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
 
-        uint64_t                  csi_objid;  /* The object id will be mapped */
-        uint64_t                  csi_objsize;/* The initial object size */
-        struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
-        struct ksunrpc_service_id csi_srvid;
-        struct ksunrpc_xprt      *csi_xprt;
+        uint64_t        csi_objid;    /*< The object id will be mapped */
+        uint64_t        csi_objsize;  /*< The initial object size */
+        uint64_t        csi_layoutid; /*< layout id this client uses */
+
+        struct c2_list  csi_xprt;     /*< transport list or hash table */
+        struct c2_mutex csi_mutex;    /*< mutex to pretect this sb */
 };
 
 struct c2t1fs_inode_info {

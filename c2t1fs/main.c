@@ -312,6 +312,40 @@ struct super_operations c2t1fs_super_operations = {
         .statfs        = c2t1fs_statfs,
 };
 
+/**
+   Adding a container connection into list.
+
+   Container id, service id is provided by caller. Connection will be
+   established in this function.
+*/
+static int c2t1fs_container_add(struct super_block *sb,
+				struct c2t1fs_xprt_clt *clt)
+{
+
+	return 0;
+}
+
+/**
+   Lookup a container connection from list.
+
+   container id is the key.
+*/
+static struct c2t1fs_xprt_clt* c2t1fs_container_lookup(struct super_block *sb,
+						       uint64_t container_id)
+{
+
+	return NULL;
+}
+
+/**
+   Destroy all container connection infomation and free them.
+*/
+static int c2t1fs_container_fini(struct super_block *sb)
+{
+
+	return 0;
+}
+
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
@@ -331,7 +365,11 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         objid = s1 + 6;
                 } else if (strncmp(s1, "objsize=", 8) == 0) {
                         objsize = s1 + 8;
-                }
+                } else if (strncmp(s1, "layoutid=", 9) == 0) {
+			/* add layout id for this client */
+		} else if (strncmp(s1, "ds=", 2) == 0) {
+			/* add container server information here */
+		}
 
                 /* Find next opt */
                 s2 = strchr(s1, ',');
