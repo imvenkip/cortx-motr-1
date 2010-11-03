@@ -129,6 +129,8 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 	c2_matrix_fini(&math->pmi_sys_mat);
 	c2_vector_fini(&math->pmi_sys_vec);
 	c2_vector_fini(&math->pmi_sys_res);
+	
+	c2_parity_fini();
 }
 C2_EXPORTED(c2_parity_math_fini);
 

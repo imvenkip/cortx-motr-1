@@ -40,6 +40,10 @@
 #define log2(n) ffz(~(n))
 #endif
 
+/* for now, fix this constraint later */
+#define C2T1FS_SERVERS_MAX (32)
+#define C2T1FS_PAGE_SIZE (4096)
+
 struct c2t1fs_srv_info {
         struct sockaddr_in        csi_sockaddr; /**< server ip_addr  */
         struct ksunrpc_service_id csi_srvid;
@@ -52,8 +56,9 @@ struct c2t1fs_sb_info {
 
         uint64_t                  csi_objid;  /* The object id will be mapped */
         uint64_t                  csi_objsize;/* The initial object size */
-
-        struct c2t1fs_srv_info    csi_srv[32]; /* servers which the object is striped onto */
+	
+	/* servers which the object is striped onto */
+        struct c2t1fs_srv_info    csi_srv[C2T1FS_SERVERS_MAX]; 
         uint32_t                  csi_srv_sz;
 };
 

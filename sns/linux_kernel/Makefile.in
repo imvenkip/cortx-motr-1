@@ -1,15 +1,13 @@
 OS = @OS@
 SNS_SRCDIR = @SRCDIR@/sns/linux_kernel
-GALOIS_SRCDIR = @SRCDIR@/../galois
 
 ifeq ($(OS),linux)
 
 obj-m       := ksns.o
-shared_src  := galois.c ls_solve.c matvec.c parity_math.c
+shared_src  := ls_solve.c matvec.c parity_math.c
 kernel_src  := ksns.c
 ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := $(GALOIS_SRCDIR)/galois.c $(GALOIS_SRCDIR)/galois.h \
-		../ls_solve.c ../ls_solve.h ../matvec.c ../matvec.h  \
+orig        := 	../ls_solve.c ../ls_solve.h ../matvec.c ../matvec.h  \
 		../parity_math.c ../parity_math.h ../parity_ops.h
 
 

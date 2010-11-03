@@ -124,14 +124,6 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jins
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
-/* struct simple_layout { */
-/* 	uint32_t sl_data_count; */
-/* 	uint32_t sl_parity_count; */
-/* 	int sl_data_index[32]; */
-/* 	int sl_parity_index[32]; */
-/* }; */
-/* static struct simple_layout sl_simple_layout; */
-
 static const int LAYOUT_N = 2;
 static const int LAYOUT_K = 1;
 
@@ -142,8 +134,8 @@ struct pdclust_layout {
 	struct c2_uint128          pl_seed;
 
 	struct c2_parity_math      pl_math;
-	struct c2_buf              pl_data_buf[32];
-	struct c2_buf              pl_parity_buf[32];
+	struct c2_buf              pl_data_buf[C2T1FS_SERVERS_MAX];
+	struct c2_buf              pl_parity_buf[C2T1FS_SERVERS_MAX];
 };
 
 static struct pdclust_layout pl_layout;
@@ -165,22 +157,37 @@ static int pdclust_layout_init(struct pdclust_layout *play, int N, int K)
 	c2_uint128_init(&play->pl_id,   "jinniesisjillous");
 	c2_uint128_init(&play->pl_seed, "upjumpandpumpim,");
 
-	/* result = c2_init(); */
 	result = c2_pool_init(&play->pl_pool, N+2*K);
 
-	if (result == 0) {
-		result = c2_pdclust_build(&play->pl_pool, &play->pl_id, N, K, &play->pl_seed, 
-					  &play->pl_play);
-		if (result == 0) {
-			/* parity math init */
-			result = c2_parity_math_init(&play->pl_math,
-						     LAYOUT_N, /* data_count */
-						     LAYOUT_K);/* parity_count */
-		}
+	if (result != 0) 
+		return result;
+
+	result = c2_pdclust_build(&play->pl_pool, &play->pl_id, N, K, &play->pl_seed, 
+				  &play->pl_play);
+
+	if (result != 0) {
+		c2_pool_fini(&play->pl_pool);
+		return result;
+	}
+
+	result = c2_parity_math_init(&play->pl_math,
+				     LAYOUT_N, /* data_count */
+				     LAYOUT_K);/* parity_count */
+
+	if (result != 0) {
+		c2_pdclust_fini(play->pl_play);
+		c2_pool_fini(&play->pl_pool);
 	}
 
 	return result;
 
+}
+
+static void pdclust_layout_fini(struct pdclust_layout *play)
+{
+	c2_parity_math_fini(&play->pl_math);
+	c2_pdclust_fini(play->pl_play);	
+	c2_pool_fini(&play->pl_pool);
 }
 
 static void c2_buf_init(struct c2_buf *b, void *d, uint32_t sz) {
@@ -318,10 +325,14 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
 
 static int c2t1fs_free_csi(struct super_block *sb)
 {
+	int i;
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
-	if (csi->csi_srv[0].csi_srvid.ssi_host)
-                kfree(csi->csi_srv[0].csi_srvid.ssi_host);
+	for (i = 0; i < csi->csi_srv_sz; ++i) {
+		if (csi->csi_srv[i].csi_srvid.ssi_host)
+			kfree(csi->csi_srv[i].csi_srvid.ssi_host);
+	}
+
         kfree(csi);
         s2csi_nocast(sb) = NULL;
 
@@ -435,6 +446,121 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         return 0;
 }
 
+static int c2t1fs_internal_write(struct c2t1fs_sb_info *csi,
+				 struct page **pages,
+				 int off, loff_t pos,
+				 struct page *parity_page,
+				 int N, int K, int W, int I)
+{
+	int                         i;
+	int                         rc;
+	int			    group;
+	int			    unit;
+	struct c2_pdclust_src_addr  src;
+	struct c2_pdclust_tgt_addr  tgt;
+	struct page               **current_page;
+	struct page                *page;
+	
+	C2_ASSERT(csi);
+
+	for (i = 0; i < K; ++i)
+		c2_buf_init(&pl_layout.pl_parity_buf[i],
+			    page_address(&parity_page[i]),
+			    C2T1FS_PAGE_SIZE);
+
+	for (group = 0; group < I ; ++group) {
+		src.sa_group = group;
+		for (unit = 0; unit < W; ++unit) {
+			src.sa_unit = unit;
+			c2_pdclust_layout_map(pl_layout.pl_play, &src, &tgt);
+			DBG("src.sa_unit=%llu,src.sa_group=%llu,"
+			    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
+			    src.sa_unit,src.sa_group,
+			    tgt.ta_obj, tgt.ta_frame);
+
+			if (classify(pl_layout.pl_play, unit) == PUT_DATA) {
+				DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
+				    tgt.ta_obj, unit + group*N);
+				
+				current_page = &pages[unit + group*N];
+				c2_buf_init(&pl_layout.pl_data_buf[unit],
+					    page_address(*current_page),
+					    C2T1FS_PAGE_SIZE);
+			} else if (classify(pl_layout.pl_play, unit) == PUT_PARITY) {
+				c2_parity_math_calculate(&pl_layout.pl_math,
+							 pl_layout.pl_data_buf,
+							 pl_layout.pl_parity_buf);
+				C2_ASSERT((unit - N) < K);
+				page = &parity_page[unit - N];
+				current_page = &page;
+			} else { /* PUT_SPARE */
+				current_page = NULL;
+			}
+			
+			if (current_page)
+				rc = ksunrpc_read_write
+					(csi->csi_srv[tgt.ta_obj].csi_xprt,
+					 csi->csi_objid,
+					 current_page,
+					 1, off, C2T1FS_PAGE_SIZE, pos, WRITE);
+		}
+	}
+
+	return rc;
+}
+
+static int c2t1fs_internal_read(struct c2t1fs_sb_info *csi,
+				struct page **pages,
+				int off, loff_t pos,
+				struct page *parity_page,
+				int N, int K, int W, int I)
+{
+	int                         rc;
+	int                         frame;
+	int                         obj;
+	struct c2_pdclust_src_addr  src;
+	struct c2_pdclust_tgt_addr  tgt;
+	struct page               **current_page;
+	struct page                *page;
+
+	C2_ASSERT(csi);
+
+	for (frame = 0; frame < I; ++frame) {
+		tgt.ta_frame = frame;
+		for (obj = 0; obj < W; ++obj) {
+			tgt.ta_obj = obj;
+			c2_pdclust_layout_inv(pl_layout.pl_play, &tgt, &src);
+			DBG("src.sa_unit=%llu,src.sa_group=%llu,"
+			    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
+			    src.sa_unit,src.sa_group,
+			    tgt.ta_obj, tgt.ta_frame);
+
+			if (classify(pl_layout.pl_play, src.sa_unit) == PUT_DATA) {
+				DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
+				    tgt.ta_obj, (int)(src.sa_unit + src.sa_group*N));
+				
+				current_page = &pages[src.sa_unit + src.sa_group*N];
+			} else if (classify(pl_layout.pl_play, src.sa_unit) == PUT_DATA) {
+				C2_ASSERT((src.sa_unit - N) < K);
+				page = &parity_page[src.sa_unit - N];
+				current_page = &page;
+			} else {
+				current_page = NULL;
+			}
+			
+			if (current_page)
+				rc = ksunrpc_read_write
+					(csi->csi_srv[tgt.ta_obj].csi_xprt,
+					 csi->csi_objid,
+					 current_page,
+					 1, off, C2T1FS_PAGE_SIZE, pos, READ);				
+		}
+	}
+
+	return rc;
+}
+
+
 /* common rw function for c2t1fs, it just does sync RPC. */
 static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                                  loff_t *ppos, int rw)
@@ -446,21 +572,14 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         int                    npages;
         int                    off;
         loff_t                 pos = *ppos;
-        int rc;
+        int                    rc;
 
-	int			   N;
-	int			   K;
-	int			   W;
-	int                        I;
-	int			   group;
-	int			   unit;
-	int                        frame;
-	int                        obj;
-	struct c2_pdclust_src_addr src;
-	struct c2_pdclust_tgt_addr tgt;
+	int		       N;
+	int		       K;
+	int		       W;
+	int                    I;
+	struct page	      *parity_page;
 
-	struct page		  *parity_page;
-	int                        i;
 
 	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
 		count, (unsigned long)pos, (unsigned long)inode->i_size);
@@ -528,95 +647,26 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 	parity_page = alloc_pages(GFP_KERNEL, K); /* for parity only */
 	BUG_ON(parity_page == NULL);
 	
-	for (i = 0; i < K; ++i)
-		c2_buf_init(&pl_layout.pl_parity_buf[i], page_address(&parity_page[i]), 4096);
-
 	DBG("rw=%d, npages=%d, I=%d, W=%d\n", rw, npages, I, W);
-
-	if (rw == WRITE) {
-		for (group = 0; group < I ; ++group) {
-			src.sa_group = group;
-			for (unit = 0; unit < W; ++unit) {
-				src.sa_unit = unit;
-				c2_pdclust_layout_map(pl_layout.pl_play, &src, &tgt);
-				DBG("src.sa_unit=%llu,src.sa_group=%llu,"
-				    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
-				    src.sa_unit,src.sa_group,
-				    tgt.ta_obj, tgt.ta_frame);
-
-				if (classify(pl_layout.pl_play, unit) == PUT_DATA) {
-					DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
-					    tgt.ta_obj, unit + group*N);
-					rc = ksunrpc_read_write
-						(csi->csi_srv[tgt.ta_obj].csi_xprt,
-						 csi->csi_objid,
-						 &pages[unit + group*N],
-						 1, off, 4096/* count */, pos, rw);
-					c2_buf_init(&pl_layout.pl_data_buf[unit], page_address(&parity_page[unit]), 4096);
-				}
-				else if (classify(pl_layout.pl_play, unit) == PUT_PARITY) {
-					c2_parity_math_calculate(&pl_layout.pl_math,
-								 pl_layout.pl_data_buf,
-								 pl_layout.pl_parity_buf);
-				}
-				else {
-					;
-				}
-			}
-		}
-	}
-
-	if (rw == READ) {
-		for (frame = 0; frame < I; ++frame) {
-			tgt.ta_frame = frame;
-			for (obj = 0; obj < W; ++obj) {
-				tgt.ta_obj = obj;
-				c2_pdclust_layout_inv(pl_layout.pl_play, &tgt, &src);
-				DBG("src.sa_unit=%llu,src.sa_group=%llu,"
-				    "tgt.ta_obj=%llu,tgt.ta_frame=%llu\n",
-				    src.sa_unit,src.sa_group,
-				    tgt.ta_obj, tgt.ta_frame);
-
-				if (classify(pl_layout.pl_play, src.sa_unit) == PUT_DATA) {
-					DBG("tgt.ta_obj=%llu, unit + group*N=%d\n",
-					    tgt.ta_obj, (int)(src.sa_unit + src.sa_group*N));
-					rc = ksunrpc_read_write
-						(csi->csi_srv[tgt.ta_obj].csi_xprt,
-						 csi->csi_objid,
-						 &pages[src.sa_unit + src.sa_group*N],
-						 1, off, 4096/* count */, pos, rw);
-				}
-			}
-		}
-	}
 	
+	if (rw == WRITE)
+		rc = c2t1fs_internal_write(csi,
+					   pages,
+					   off, pos,
+					   parity_page,
+					   N, K, W, I);
+	else if (rw == READ)
+		rc = c2t1fs_internal_read(csi,
+					  pages,
+					  off, pos,
+					  parity_page,
+					  N, K, W, I);
+	else
+		;
+		
 	__free_pages(parity_page, K);
-	rc = npages*4096;
+	rc = npages * C2T1FS_PAGE_SIZE;
 
-#if 0
-	/* page_address(); */
-	ssz = sl_simple_layout.sl_data_count;
-	rc = 0;
-	/* for (i = 0; i < ssz; ++i) { */
-	for (j = 0; j < ssz; ++j) {
-		i = sl_simple_layout.sl_data_index[j];
-		rc = ksunrpc_read_write(csi->csi_srv[i].csi_xprt, csi->csi_objid,
-					&pages[i*npages/ssz], npages/ssz,
-					off, count, pos, rw);
-		DBG("call read_write returns %d\n", rc);
-	}
-	/* } */
-
-	if (rw == WRITE) {
-		parity_page = alloc_pages(GFP_KERNEL, npages/ssz);
-		BUG_ON(parity_page == NULL);
-		for (j = 0; j < sl_simple_layout.sl_parity_count; ++j) {
-			i = sl_simple_layout.sl_parity_index[j];
-			/* calculate parity and send data here*/ 
-		}
-		__free_pages(parity_page, npages/ssz);
-	}
-#endif
 	if (rc > 0) {
 		pos += rc;
 		if (rw == WRITE && pos > inode->i_size)
@@ -703,21 +753,17 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         }
         BUG_ON(nr_pages != j);
 
-	DBG("Unexpected Write!\n");
-	BUG_ON(1); /* unable to continue for now */
+	DBG("Currently supported normal writes only!\n");
+	rc = -EINVAL; /* -EPARSE */
 
-	/* ssz = csi->csi_srv_sz; */
-	rc = 0;
-	if (0) { /* !!! just for compilability !!! */
-	/* for (i = 0; i < ssz; ++i) { */
-	/* for (j = 0; j < sl_simple_layout.sl_data_count; ++j) { */
-	/* 	i = sl_simple_layout.sl_data_index[j]; */
-		i = 0, j = 0;
+	/* !!! just for compilability !!! */
+	if (0) {
+		i = 0;
+		j = 0;
+		ssz = 1;
 		rc = ksunrpc_read_write(csi->csi_srv[i].csi_xprt, csi->csi_objid,
 					&pages[i*nr_pages/ssz], nr_pages/ssz,
 					0, (nr_pages/ssz) << PAGE_SHIFT, pos, WRITE);
-	/* } */
-	/* /\* } *\/ */
 	}
 
         if (rc > 0) {
@@ -968,20 +1014,15 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         return 0;
 }
 
-/* static int layout_init(struct simple_layout *layout) { */
-/* 	layout->sl_parity_count = 0; */
-/* 	layout->sl_data_count = 0; */
-/* 	return 0; */
-/* } */
-
-/* static void layout_update(struct simple_layout *layout, int unit_index, char *unit_type) { */
-/* 	if (unit_type[0] == 'p') */
-/* 		layout->sl_parity_index[layout->sl_parity_count++] = unit_index; */
-/* 	else if (unit_type[0] == 'd') */
-/* 		layout->sl_data_index[layout->sl_data_count++] = unit_index; */
-/* 	else */
-/* 		; */
-/* } */
+static void c2t1fs_srv_fini(struct c2t1fs_sb_info *csi)
+{
+	int i;
+	for (i = 0; i < csi->csi_srv_sz; ++i) {
+		kfree(csi->csi_srv[i].csi_srvid.ssi_host);
+		if (csi && csi->csi_srv[i].csi_xprt)
+			ksunrpc_xprt_ops.ksxo_fini(csi->csi_srv[i].csi_xprt);
+	}
+}
 
 static int c2t1fs_get_super(struct file_system_type *fs_type,
                             int flags, const char *devname, void *data,
@@ -991,7 +1032,6 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	struct super_block    *sb = NULL;
         char *hostname;
 	char *port;
-	char *unittype;
         char *endptr;
 	int   tcp_port;
         int   rc;
@@ -1000,54 +1040,52 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	int si = 0; /* srv index */
 	char *parsename = NULL;
 	char *devnames = kstrdup(devname, GFP_KERNEL);
-	/* layout_init(&sl_simple_layout); */
-
-	/* layout init */
-	rc = pdclust_layout_init(&pl_layout, LAYOUT_N, LAYOUT_K);
-	if (rc < 0)
-		return rc;
 
 	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
 	while ((parsename = strsep(&devnames, ", "))) {
+		C2_ASSERT(si < C2T1FS_SERVERS_MAX);
+
 		hostname = kstrdup(parsename, GFP_KERNEL);
 
 		port = strchr(hostname, ':');
 		if (port == NULL || hostname == port || *(port+1) == '\0') {
 			printk("server:port@[dt] is expected as the device\n");
 			kfree(hostname);
-			return -EINVAL;
-		}
-
-		unittype = strchr(hostname, '@');
-		if (unittype == NULL || hostname == unittype || *(unittype+1) == '\0') {
-			printk("server:port@[dt] is expected as the device\n");
-			kfree(hostname);
+			csi->csi_srv_sz = si;
+			c2t1fs_srv_fini(csi);
+			kfree(devnames);
 			return -EINVAL;
 		}
 
 		if (in_aton(hostname) == 0) {
 			printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
 			kfree(hostname);
+			csi->csi_srv_sz = si;
+			c2t1fs_srv_fini(csi);
+			kfree(devnames);
 			return -EINVAL;
 		}
 
 		*port++ = 0;
-		*unittype++ = 0;
-		DBG("[%d] server/port/type=%s/%s/%s\n", si, hostname, port, unittype);
+		DBG("[%d] server/port/type=%s/%s\n", si, hostname, port);
 		tcp_port = simple_strtol(port, &endptr, 10);
 		if (*endptr != '\0' || tcp_port <= 0) {
 			printk("invalid port number\n");
 			kfree(hostname);
+			csi->csi_srv_sz = si;
+			c2t1fs_srv_fini(csi);
+			kfree(devnames);
 			return -EINVAL;
 		}
-
-		/* layout_update(&sl_simple_layout, si, unittype); */
 
 		if (!sb) {
 			rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
 			if (rc < 0) {
 				kfree(hostname);
+				csi->csi_srv_sz = si;
+				c2t1fs_srv_fini(csi);
+				kfree(devnames);
 				return rc;
 			}
 		}
@@ -1067,6 +1105,9 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 		if (IS_ERR(xprt)) {
 			csi->csi_srv[si].csi_srvid.ssi_host = NULL;
 			kfree(hostname);
+			csi->csi_srv_sz = si;
+			c2t1fs_srv_fini(csi);
+			kfree(devnames);
 			dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
 			deactivate_locked_super(sb);
 			return PTR_ERR(xprt);
@@ -1074,24 +1115,36 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 
 		csi->csi_srv[si].csi_xprt = xprt;
 		rc = ksunrpc_create(csi->csi_srv[si].csi_xprt, csi->csi_objid);
-		if (rc)
+
+		if (rc) 
 			printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
+
 		++si;
 	}
 
 	csi->csi_srv_sz = si;
 
-        return 0;
+	kfree(devnames);
+
+	/* layout init */
+	rc = pdclust_layout_init(&pl_layout, LAYOUT_N, LAYOUT_K);
+	C2_ASSERT(LAYOUT_N + 2*LAYOUT_K == csi->csi_srv_sz);
+
+        return rc;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
+	int i;
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
         /* FIXME: Disconnect from server here. */
         GETHERE;
-        if (csi && csi->csi_srv[0].csi_xprt)
-                ksunrpc_xprt_ops.ksxo_fini(csi->csi_srv[0].csi_xprt);
+	for (i = 0; i < csi->csi_srv_sz; ++i) {
+		if (csi && csi->csi_srv[i].csi_xprt)
+			ksunrpc_xprt_ops.ksxo_fini(csi->csi_srv[i].csi_xprt);
+	}
+
         kill_anon_super(sb);
 }
 
@@ -1147,6 +1200,7 @@ void cleanup_module(void)
 {
         int rc;
 
+	pdclust_layout_fini(&pl_layout);
 	io_fop_fini();
         rc = unregister_filesystem(&c2t1fs_fs_type);
         c2t1fs_destroy_inodecache();

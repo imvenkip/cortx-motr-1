@@ -510,6 +510,7 @@ AC_CONFIG_FILES([
                  sns/Makefile
 		 sns/ut/Makefile
                  sns/linux_kernel/Makefile
+		 galois/linux_kernel/Makefile
                  reqh/Makefile
                  sm/Makefile
                  mds/Makefile
