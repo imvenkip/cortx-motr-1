@@ -71,8 +71,8 @@ struct c2t1fs_sb_info {
         struct ksunrpc_service_id csi_mgmt_srvid; /*< mgmt node service id */
         struct ksunrpc_xprt      *csi_mgmt_xprt;  /*< mgmt node xprt */
 
-        struct c2_list  csi_xprt;     /*< transport list or hash table */
-        struct c2_mutex csi_mutex;    /*< mutex to pretect this sb */
+        struct c2_list  csi_xprts_list; /*< transport list or hash table */
+        struct c2_mutex csi_mutex;      /*< mutex to pretect this sb */
 };
 
 struct c2t1fs_inode_info {
