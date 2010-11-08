@@ -82,6 +82,11 @@ void c2_fol_fini(struct c2_fol *fol);
 
 /**
    Constructs a in-db representation of a fol record in an allocated buffer.
+
+   This function takes @desc as an input parameter, describing the record to be
+   constructed. Representation size is estimated by calling
+   c2_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
+   spilled into it. It's up to the caller to free the buffer when necessary.
  */
 int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
 
@@ -172,7 +177,7 @@ struct c2_fol_rec_header {
 	uint32_t            rh_obj_nr;
 	/** number of sibling updates in the same operation */
 	uint32_t            rh_sibling_nr;
-	/** length or the remaining operation type specific data in bytes */
+	/** length of the remaining operation type specific data in bytes */
 	uint32_t            rh_data_len;
 	/** 
 	    Identifier of this update.
@@ -276,7 +281,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
 
 /**
    Adds a reference to a record. The record cannot be culled until its reference
-   counter drops to 0.
+   counter drops to 0. This operation updates the record in the fol.
 
    @see c2_fol_rec_put()
  */
@@ -285,7 +290,8 @@ void c2_fol_rec_get(struct c2_fol_rec *rec);
 /**
    Removes a reference to a record.
 
-   When the last reference is removed, the record becomes eligible for culling.
+   When the last reference is removed, the record becomes eligible for
+   culling. This operation updates the record in the fol.
 
    @pre rec->fr_d.rd_refcount > 0
 
@@ -300,6 +306,7 @@ void c2_fol_rec_put(struct c2_fol_rec *rec);
    This function returns the number of records fetched. This number is less than
    "nr" if the end of the fol has been reached.
 
+   @pre  @out array contains at least @nr elements.
    @post result <= nr
    @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn && 
                                         out[i]->fr_d.rd_refcount > 0)

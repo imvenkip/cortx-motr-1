@@ -48,7 +48,8 @@ void tb_cfg_init(struct tb_cfg *cfg,
 		 uint32_t parity_count,
 		 uint32_t block_size)
 {
-	uint32_t i, j;
+	uint32_t i;
+	uint32_t j;
 
 	cfg->tc_data_count	= data_count;
 	cfg->tc_parity_count	= parity_count;
@@ -253,7 +254,7 @@ struct c2_ub_set c2_parity_math_mt_ub = {
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_large_1048576 },
 		
-		{.ut_name = NULL}
+		{ .ut_name = NULL}
 	}
 };
 

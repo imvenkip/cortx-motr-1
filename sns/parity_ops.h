@@ -10,9 +10,10 @@
 #define C2_PARITY_GALOIS_W (8)
 typedef int c2_parity_elem_t;
 
-#ifdef _C2_PARITY_USE_OPS_
+//void c2_parity_init(void) 
 
-static inline void c2_parity_init()
+static void c2_parity_init(void) __attribute__((unused));
+static void c2_parity_init(void)
 {
 	int ret = galois_create_mult_tables(C2_PARITY_GALOIS_W);
 	C2_ASSERT(ret == 0);
@@ -49,9 +50,6 @@ static inline c2_parity_elem_t c2_parity_gt(c2_parity_elem_t x, c2_parity_elem_t
 {
 	return x > y;
 }
-
-/* _C2_PARITY_USE_OPS_ */
-#endif
 
 /* __COLIBRI_SNS_PARITY_OPS_H__ */
 #endif

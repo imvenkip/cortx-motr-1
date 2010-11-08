@@ -30,15 +30,19 @@ static uint8_t fail    [DATA_UNIT_COUNT_MAX+PRTY_UNIT_COUNT_MAX];
 static int32_t duc = DATA_UNIT_COUNT_MAX;
 static int32_t puc = PRTY_UNIT_COUNT_MAX;
 static int32_t fuc = PRTY_UNIT_COUNT_MAX;
-static uint32_t UNIT_BUFF_SIZE = 4096;
+static uint32_t UNIT_BUFF_SIZE = 256;
 
 
-static void c2_buf_init(struct c2_buf *b, uint8_t *d, uint32_t sz) {
+static void c2_buf_init(struct c2_buf *b, uint8_t *d, uint32_t sz)
+{
 	b->b_addr = d;
 	b->b_nob = sz;
 }
 
-extern  void unit_spoil(uint32_t buff_size, uint32_t fail_count, uint32_t data_count) {
+extern void unit_spoil(uint32_t buff_size,
+		       uint32_t fail_count,
+		       uint32_t data_count)
+{
 	uint32_t i = 0;
 	for (i = 0; i < fail_count; ++i)
 		if (fail[i]) {
@@ -49,9 +53,11 @@ extern  void unit_spoil(uint32_t buff_size, uint32_t fail_count, uint32_t data_c
 		}
 }
 
+extern bool expected_cmp(uint32_t data_count, uint32_t buff_size)
+{
+	int i = 0;
+	int j = 0;
 
-extern bool expected_cmp(uint32_t data_count, uint32_t buff_size) {
-	int i = 0, j = 0;
 	for (i = 0; i < data_count; ++i)
 		for (j = 0; j < buff_size; ++j)
 			if (expected[i][j] != data[i][j]) {
@@ -64,8 +70,10 @@ extern bool expected_cmp(uint32_t data_count, uint32_t buff_size) {
 
 static bool config_generate(uint32_t *data_count,
 			    uint32_t *parity_count,
-			    uint32_t *buff_size) {
-	int32_t i = 0, j = 0;
+			    uint32_t *buff_size)
+{
+	int32_t i = 0;
+	int32_t j = 0;
 
 	memset(fail, 0, DATA_UNIT_COUNT_MAX+PRTY_UNIT_COUNT_MAX);
 	if (fuc <= 1) {
@@ -119,16 +127,22 @@ static bool config_generate(uint32_t *data_count,
 	return true;
 }
 
-static void ut_ub_init(void) {
+static void ut_ub_init(void)
+{
 	srand(1285360231);
 }
 
-void test_parity_math() {
+void test_parity_math(void)
+{
 	int ret = 0;
 	uint32_t i = 0;
 	struct c2_parity_math math;
-	uint32_t data_count = 0, parity_count = 0, buff_size = 0, fail_count = 0;
-	struct c2_buf data_buf[DATA_UNIT_COUNT_MAX], parity_buf[DATA_UNIT_COUNT_MAX];
+	uint32_t data_count = 0;
+	uint32_t parity_count = 0;
+	uint32_t buff_size = 0;
+	uint32_t fail_count = 0;
+	struct c2_buf data_buf[DATA_UNIT_COUNT_MAX];
+	struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
 	struct c2_buf fail_buf;
 
 	ut_ub_init();
@@ -162,12 +176,17 @@ void test_parity_math() {
 	}
 }
 
-void parity_math_tb() {
+void parity_math_tb(void)
+{
 	int ret = 0;
 	uint32_t i = 0;
 	struct c2_parity_math math;
-	uint32_t data_count = 0, parity_count = 0, buff_size = 0, fail_count = 0;
-	struct c2_buf data_buf[DATA_UNIT_COUNT_MAX], parity_buf[DATA_UNIT_COUNT_MAX];
+	uint32_t data_count = 0;
+	uint32_t parity_count = 0;
+	uint32_t buff_size = 0;
+	uint32_t fail_count = 0;
+	struct c2_buf data_buf[DATA_UNIT_COUNT_MAX];
+	struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
 	struct c2_buf fail_buf;
 
 	config_generate(&data_count, &parity_count, &buff_size);
@@ -205,7 +224,8 @@ const struct c2_test_suite parity_math_ut = {
         }
 };
 
-void ub_small_4096() {
+void ub_small_4096(int iter)
+{
 	UNIT_BUFF_SIZE = 4096;
 	duc = 10;
 	puc = 5;
@@ -213,7 +233,8 @@ void ub_small_4096() {
 	parity_math_tb();
 }
 
-void ub_medium_4096() {
+void ub_medium_4096(int iter)
+{
 	UNIT_BUFF_SIZE = 4096;
 	duc = 20;
 	puc = 6;
@@ -221,7 +242,8 @@ void ub_medium_4096() {
 	parity_math_tb();
 }
 
-void ub_large_4096() {
+void ub_large_4096(int iter)
+{
 	UNIT_BUFF_SIZE = 4096;
 	duc = 30;
 	puc = 12;
@@ -229,7 +251,8 @@ void ub_large_4096() {
 	parity_math_tb();
 }
 
-void ub_small_1048576() {
+void ub_small_1048576(int iter)
+{
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 10;
 	puc = 5;
@@ -237,7 +260,8 @@ void ub_small_1048576() {
 	parity_math_tb();
 }
 
-void ub_medium_1048576() {
+void ub_medium_1048576(int iter)
+{
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 20;
 	puc = 6;
@@ -245,7 +269,8 @@ void ub_medium_1048576() {
 	parity_math_tb();
 }
 
-void ub_large_1048576() {
+void ub_large_1048576(int iter)
+{
 	UNIT_BUFF_SIZE = 1048576;
 	duc = 30;
 	puc = 12;
@@ -253,7 +278,8 @@ void ub_large_1048576() {
 	parity_math_tb();
 }
 
-void ub_small_32768() {
+void ub_small_32768(int iter)
+{
 	UNIT_BUFF_SIZE = 32768;
 	duc = 10;
 	puc = 5;
@@ -261,7 +287,8 @@ void ub_small_32768() {
 	parity_math_tb();
 }
 
-void ub_medium_32768() {
+void ub_medium_32768(int iter)
+{
 	UNIT_BUFF_SIZE = 32768;
 	duc = 20;
 	puc = 6;
@@ -269,7 +296,8 @@ void ub_medium_32768() {
 	parity_math_tb();
 }
 
-void ub_large_32768() {
+void ub_large_32768(int iter)
+{
 	UNIT_BUFF_SIZE = 32768;
 	duc = 30;
 	puc = 12;
@@ -319,7 +347,7 @@ struct c2_ub_set c2_parity_math_ub = {
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_large_1048576 },
 
-		{.ut_name = NULL}
+		{ .ut_name = NULL}
 	}
 };
 
