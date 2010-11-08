@@ -373,7 +373,7 @@ static int c2t1fs_container_fini(struct super_block *sb)
 	struct c2t1fs_xprt_clt *con;
 	ENTER;
 
-	while (1) {
+	while (!c2_list_is_empty(&csi->csi_xprts_list)) {
 		c2_mutex_lock(&csi->csi_mutex);
 		first = c2_list_first(&csi->csi_xprts_list);
 		if (first)
@@ -413,17 +413,15 @@ static int c2t1fs_container_connect(struct super_block *sb)
 			break;
 		}
 		con->xc_xprt = xprt;
-		rc = ksunrpc_create(xprt, csi->csi_objid);
+		rc = ksunrpc_create(xprt, csi->csi_object_param.cop_objid);
 		if (rc) {
 			printk("Create objid %llu on %llu failed %d\n",
-				csi->csi_objid, con->xc_cid, rc);
+				csi->csi_object_param.cop_objid, con->xc_cid, rc);
 			break;
 		}
 		DBG("Connecting container %llu\n", (unsigned long long)con->xc_cid);
 	}
 	c2_mutex_unlock(&csi->csi_mutex);
-	if (rc)
-		c2t1fs_container_fini(sb);
 	return rc;
 }
 
@@ -530,9 +528,9 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         }
 
         if (objid) {
-                csi->csi_objid = simple_strtol(objid, NULL, 0);
-                if (csi->csi_objid <= 0) {
-                        printk(KERN_ERR "Invalid objid=%lld specified\n", csi->csi_objid);
+                csi->csi_object_param.cop_objid = simple_strtol(objid, NULL, 0);
+                if (csi->csi_object_param.cop_objid <= 0) {
+                        printk(KERN_ERR "Invalid objid=%s specified\n", objid);
                         return -EINVAL;
                 }
         } else {
@@ -540,25 +538,25 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 return -EINVAL;
         }
         if (layoutid) {
-                csi->csi_layoutid = simple_strtol(layoutid, NULL, 0);
-                if (csi->csi_layoutid <= 0) {
-                        printk(KERN_ERR "Invalid objid=%lld specified\n", csi->csi_layoutid);
+                csi->csi_object_param.cop_layoutid = simple_strtol(layoutid, NULL, 0);
+                if (csi->csi_object_param.cop_layoutid <= 0) {
+                        printk(KERN_ERR "Invalid objid=%s specified\n", layoutid);
                         return -EINVAL;
                 }
         } else {
 		/* use default value */
-                csi->csi_layoutid = 0;
+                csi->csi_object_param.cop_layoutid = 0;
         }
         if (objsize) {
-                csi->csi_objsize = simple_strtol(objsize, NULL, 0);
-                if (csi->csi_objsize <= 0) {
-                        printk(KERN_WARNING "Invalid objsize=%lld specified."
-                               " Default value is used\n", csi->csi_objsize);
-                        csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
+                csi->csi_object_param.cop_objsize = simple_strtol(objsize, NULL, 0);
+                if (csi->csi_object_param.cop_objsize <= 0) {
+                        printk(KERN_WARNING "Invalid objsize=%s specified."
+                               " Default value is used\n", objsize);
+                        csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
                 }
         } else {
                 printk(KERN_WARNING "no objsize specified. Default value is used\n");
-                csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
+                csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
         }
 
         return 0;
@@ -632,7 +630,8 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 
 	con = c2t1fs_container_lookup(inode->i_sb, 0);
 	if (con)
-	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_objid, pages, npages,
+	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_object_param.cop_objid,
+					pages, npages,
 					off, count, pos, rw);
 	else
 		rc = -ENODEV;
@@ -725,8 +724,10 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
 
 	con = c2t1fs_container_lookup(inode->i_sb, 0);
 	if (con)
-	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_objid, pages, nr_pages,
-                                0, nr_pages << PAGE_SHIFT, pos, WRITE);
+	        rc = ksunrpc_read_write(con->xc_xprt,
+					csi->csi_object_param.cop_objid,
+					pages, nr_pages,
+					0, nr_pages << PAGE_SHIFT, pos, WRITE);
 	else
 		rc = -ENODEV;
         if (rc > 0) {
@@ -803,8 +804,8 @@ c2t1fs_readdir(struct file * filp, void * dirent, filldir_t filldir)
 	case 2:
 	{
 		char fn[256];
-		sprintf(fn, "%d", (int)csi->csi_objid);
-                if (filldir(dirent, fn, strlen(fn), i, csi->csi_objid, DT_REG) < 0)
+		sprintf(fn, "%d", (int)csi->csi_object_param.cop_objid);
+                if (filldir(dirent, fn, strlen(fn), i, csi->csi_object_param.cop_objid, DT_REG) < 0)
                         goto out;
                 i++;
                 filp->f_pos++;
@@ -861,7 +862,7 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
                 inode->i_size = PAGE_SIZE;
                 inode->i_blocks = 1;
         } else {
-                inode->i_size = s2csi(inode->i_sb)->csi_objsize;
+                inode->i_size = s2csi(inode->i_sb)->csi_object_param.cop_objsize;
                 inode->i_blocks = inode->i_size >> PAGE_SHIFT;
         }
 
@@ -1003,6 +1004,8 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	}
 
 	/* connect to mgmt node */
+if (0) {
+	/* XXX no need to connect to mgmt node right now */
         xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_mgmt_srvid);
         if (IS_ERR(xprt)) {
 		c2t1fs_container_fini(sb);
@@ -1012,18 +1015,17 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 	}
 
         csi->csi_mgmt_xprt = xprt;
+}
 	rc = c2t1fs_container_connect(sb);
 	if (rc) {
-		ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+		if (csi->csi_mgmt_xprt) {
+			ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+			csi->csi_mgmt_xprt = NULL;
+		}
 		c2t1fs_container_fini(sb);
 		dput(sb->s_root);
 		deactivate_locked_super(sb);
 	}
-
-	/* test code */
-	c2t1fs_container_lookup(sb, 0);
-	c2t1fs_container_lookup(sb, 1);
-	c2t1fs_container_lookup(sb, 2);
 
         return rc;
 }

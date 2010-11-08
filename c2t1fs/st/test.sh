@@ -13,12 +13,13 @@ rmmod loop
 
 ulimit -c unlimited
 
+modunload
 modload
 
 (./stob/ut/server -d/tmp/ -p$Port &)
 sleep 1
 mkdir -p /mnt/c2t1fs
-mount -t c2t1fs -o objid=12345 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
 #small file write & read
 ls -l /mnt/c2t1fs/12345
@@ -37,7 +38,7 @@ umount /mnt/c2t1fs
 
 # mount again and check its content
 # 1024 * 1024 * 256 = 268435456
-mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
 
 #attach loop device over c2t1fs file
@@ -64,7 +65,7 @@ losetup -d /dev/loop0
 umount /mnt/c2t1fs
 
 ###### mount c2t1fs and loop again
-mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 losetup /dev/loop0 /mnt/c2t1fs/12345
 mount /dev/loop0 /mnt/loop
 dd if=/mnt/loop/10M bs=1M count=10 2>/dev/null | md5sum

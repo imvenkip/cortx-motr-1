@@ -201,6 +201,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		bshift = obj->so_op->sop_block_shift(obj);
 		bmask  = (1 << bshift) - 1;
 
+		printf("count=%d, mask=%x\n", in->siw_buf.cib_count , (unsigned int)bmask);
 		C2_ASSERT((in->siw_buf.cib_count & bmask) == 0);
 		C2_ASSERT((in->siw_offset & bmask) == 0);
 
@@ -414,7 +415,7 @@ int main(int argc, char **argv)
 					       path = string; })),
 			    C2_FORMATARG('o', "back store object id", "%lu",
 					 &backid.si_bits.u_lo),
-			    C2_FORMATARG('p', "port to listen at", "i", &port));
+			    C2_FORMATARG('p', "port to listen at", "%i", &port));
 	if (result != 0)
 		return result;
 

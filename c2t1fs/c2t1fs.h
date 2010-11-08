@@ -60,19 +60,29 @@ struct c2t1fs_xprt_clt {
 	struct c2_list_link       xc_link;
 };
 
+/**
+   Object parameter on client.
+
+   This object is shown on client and can be read from and written to.
+   Also this object can be exported by loop device.
+*/
+struct c2t1fs_object_param {
+        uint64_t        cop_objid;    /*< The object id will be mapped */
+        uint64_t        cop_objsize;  /*< The initial object size */
+        uint64_t        cop_layoutid; /*< layout id this client uses */
+};
+
 struct c2t1fs_sb_info {
         atomic_t        csi_mounts;
         int             csi_flags;
 
-        uint64_t        csi_objid;    /*< The object id will be mapped */
-        uint64_t        csi_objsize;  /*< The initial object size */
-        uint64_t        csi_layoutid; /*< layout id this client uses */
+	struct c2t1fs_object_param csi_object_param; /*< the object on client */
 
-        struct ksunrpc_service_id csi_mgmt_srvid; /*< mgmt node service id */
-        struct ksunrpc_xprt      *csi_mgmt_xprt;  /*< mgmt node xprt */
+        struct ksunrpc_service_id  csi_mgmt_srvid; /*< mgmt node service id */
+        struct ksunrpc_xprt       *csi_mgmt_xprt;  /*< mgmt node xprt */
 
         struct c2_list  csi_xprts_list; /*< transport list or hash table */
-        struct c2_mutex csi_mutex;      /*< mutex to pretect this sb */
+        struct c2_mutex csi_mutex;      /*< mutex to protect this sb */
 };
 
 struct c2t1fs_inode_info {
