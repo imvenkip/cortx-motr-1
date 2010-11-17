@@ -21,7 +21,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
                             $(top_builddir)/layout/libcolibri-layout.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \
-                            $(top_builddir)/db/libcolibri-db.la
+                            $(top_builddir)/db/libcolibri-db.la \
+                            $(top_builddir)/desim/libcolibri-desim.la
 
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 
