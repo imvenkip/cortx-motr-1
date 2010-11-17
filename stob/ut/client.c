@@ -26,6 +26,8 @@
    @{
  */
 
+int got_quit = 0;
+
 static int netcall(struct c2_net_conn *conn, struct c2_fop *arg, 
 		   struct c2_fop *ret)
 {
@@ -137,6 +139,7 @@ static void quit_send(struct c2_net_conn *conn)
 	C2_ASSERT(result == 0);
 	rep = c2_fop_data(r);
 	printf("GOT: %i %i\n", result, rep->siq_rc);
+	got_quit = 1;
 }
 
 /**
@@ -231,6 +234,8 @@ int main(int argc, char **argv)
 		default:
 			err(1, "Unknown command '%c'", cmd);
 		}
+		if (got_quit)
+			break;
 		n = scanf(" \n");
 	}
 
