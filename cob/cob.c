@@ -8,6 +8,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/bitstring.h"
 
 #include "cob.h"
 
@@ -39,16 +40,13 @@ static int ns_cmp(struct c2_table *table, const void *key0, const void *key1)
         C2_PRE(c2_stob_id_is_set(&cnk1->cnk_pfid));
 
         rc = c2_stob_id_cmp(&cnk0->cnk_pfid, &cnk1->cnk_pfid);
-        if (rc == 0)
-                return c2_bitstring_cmp(&cnk0->cnk_name, &cnk1->cnk_name);
-
-	return rc;
+        return rc ?: c2_bitstring_cmp(&cnk0->cnk_name, &cnk1->cnk_name);
 }
 
 static const struct c2_table_ops cob_ns_ops = {
 	.to = {
 		[TO_KEY] = {
-			.max_size = C2_COB_NSKEY_MAX
+			.max_size = ~0
 		},
 		[TO_REC] = {
 			.max_size = sizeof(struct c2_cob_nsrec)
@@ -59,7 +57,8 @@ static const struct c2_table_ops cob_ns_ops = {
 
 int c2_cob_nskey_size(struct c2_cob_nskey *cnk)
 {
-        return sizeof(*cnk) + c2_bitstring_len_get(&cnk->cnk_name);
+        return (sizeof(*cnk) +
+                c2_bitstring_len_get(&cnk->cnk_name));
 }
 
 /** Object index table definition */
@@ -73,9 +72,7 @@ static int oi_cmp(struct c2_table *table, const void *key0, const void *key1)
         C2_PRE(c2_stob_id_is_set(&cok1->cok_stobid));
 
         rc = c2_stob_id_cmp(&cok0->cok_stobid, &cok1->cok_stobid);
-        if (rc == 0)
-                return C2_3WAY(cok0->cok_linkno, cok1->cok_linkno);
-	return rc;
+        return rc ?: C2_3WAY(cok0->cok_linkno, cok1->cok_linkno);
 }
 
 static const struct c2_table_ops cob_oi_ops = {
@@ -84,7 +81,7 @@ static const struct c2_table_ops cob_oi_ops = {
 			.max_size = sizeof(struct c2_cob_oikey)
 		},
 		[TO_REC] = {
-			.max_size = C2_COB_NSKEY_MAX
+			.max_size = ~0
 		}
 	},
 	.key_cmp = oi_cmp
@@ -136,13 +133,18 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
         rc = c2_table_init(&dom->cd_object_index, dom->cd_dbenv,
                                cob_dom_id_make(table, &dom->cd_id, "oi"),
                                0, &cob_oi_ops);
-        if (rc != 0)
+        if (rc != 0) {
+                c2_table_fini(&dom->cd_namespace);
                 return rc;
+        }
         rc = c2_table_init(&dom->cd_fileattr_basic, dom->cd_dbenv,
                                cob_dom_id_make(table, &dom->cd_id, "fb"),
                                0, &cob_fab_ops);
-	if (rc != 0)
+	if (rc != 0) {
+                c2_table_fini(&dom->cd_object_index);
+                c2_table_fini(&dom->cd_namespace);
 		return rc;
+        }
 
         c2_addb_ctx_init(&dom->cd_addb, &c2_cob_domain_addb, &env->d_addb);
 
@@ -160,40 +162,35 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 
 static void cob_free_cb(struct c2_ref *ref);
 
-static void cob_init(struct c2_cob_domain *dom, struct c2_cob *obj)
+static void cob_init(struct c2_cob_domain *dom, struct c2_cob *cob)
 {
-        obj->co_dom = dom;
-	c2_ref_init(&obj->co_ref, 1, cob_free_cb);
-	memset(&obj->co_id, 0, sizeof(obj->co_id));
-	c2_rwlock_init(&obj->co_guard);
-        obj->co_nsrec = NULL;
-        obj->co_nskey = NULL;
-        obj->co_fabrec = NULL;
-	c2_addb_ctx_init(&obj->co_addb, &c2_cob_addb, &dom->cd_addb);
+        cob->co_dom = dom;
+	c2_ref_init(&cob->co_ref, 1, cob_free_cb);
+	C2_SET0(&cob->co_stobid);
+        c2_rwlock_init(&cob->co_guard);
+        cob->co_valid = 0;
+	c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
 }
 
-static void cob_fini(struct c2_cob *obj)
+static void cob_fini(struct c2_cob *cob)
 {
-	c2_rwlock_fini(&obj->co_guard);
-	c2_addb_ctx_fini(&obj->co_addb);
+        if (cob->co_valid & CA_NSKEY_FREE)
+                c2_free(cob->co_nskey);
+        else if (cob->co_valid & CA_NSKEY_DB)
+                c2_db_pair_fini(&cob->co_oipair);
+
+	c2_rwlock_fini(&cob->co_guard);
+	c2_addb_ctx_fini(&cob->co_addb);
 }
 
 /**
    Return cob memory to the pool
  */
-static int cob_free(struct c2_cob *cob)
+static void cob_free(struct c2_cob *cob)
 {
         cob_fini(cob);
 
-        if (cob->co_nskey != NULL)
-                c2_free(cob->co_nskey);
-        if (cob->co_nsrec != NULL)
-                c2_free(cob->co_nsrec);
-        if (cob->co_fabrec != NULL)
-                c2_free(cob->co_fabrec);
         c2_free(cob);
-
-        return 0;
 }
 
 static void cob_free_cb(struct c2_ref *ref)
@@ -204,32 +201,29 @@ static void cob_free_cb(struct c2_ref *ref)
 	cob_free(cob);
 }
 
-void c2_cob_get(struct c2_cob *obj)
+void c2_cob_get(struct c2_cob *cob)
 {
-	c2_ref_get(&obj->co_ref);
+	c2_ref_get(&cob->co_ref);
 }
 
-void c2_cob_put(struct c2_cob *obj)
+void c2_cob_put(struct c2_cob *cob)
 {
-        c2_ref_put(&obj->co_ref);
+        c2_ref_put(&cob->co_ref);
 }
 
 /**
    Allocate a new cob
 
-   Optimization: we should have a pool of cobs to reuse.
+   @todo Optimization: we should have a pool of cobs to reuse.
    We need a general memory pool handler: slab_init(size, count).
  */
-static int cob_new(struct c2_cob_domain *dom, struct c2_cob **out)
+static int cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out)
 {
         struct c2_cob *cob;
 
-        C2_ALLOC_PTR(cob);
-        if (cob == NULL) {
-                C2_ADDB_ADD(&dom->cd_addb,
-                            &cob_addb_loc, c2_addb_oom);
+        C2_ALLOC_PTR_ADDB(cob, &dom->cd_addb, &cob_addb_loc);
+        if (cob == NULL)
                 return -ENOMEM;
-        }
 
         cob_init(dom, cob);
         *out = cob;
@@ -237,91 +231,39 @@ static int cob_new(struct c2_cob_domain *dom, struct c2_cob **out)
         return 0;
 }
 
-/** Copy the ns key into a cob */
-static int cob_nskey_cache(struct c2_cob *cob, struct c2_cob_nskey *nskey)
-{
-        if (cob->co_nskey != NULL)
-                c2_free(cob->co_nskey);
+static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 
-        cob->co_nskey = c2_alloc(c2_cob_nskey_size(nskey)) ;
-        if (cob->co_nskey == NULL) {
-                C2_ADDB_ADD(&cob->co_addb,
-                            &cob_addb_loc, c2_addb_oom);
-                return -ENOMEM;
-        }
+static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 
-        memcpy(cob->co_nskey, nskey, c2_cob_nskey_size(nskey));
-        cob->co_valid |= CA_NSKEY;
-
-        return 0;
-}
-
-/**
- Allocate a new namespace record
-
- Optimization: we should have a pool of nsrecs to reuse.
- */
-static int cob_nsrec_new(struct c2_cob *cob)
-{
-        if (cob->co_nsrec != NULL)
-                return 0;
-
-        C2_ALLOC_PTR(cob->co_nsrec);
-        if (cob->co_nsrec == NULL) {
-                C2_ADDB_ADD(&cob->co_addb,
-                            &cob_addb_loc, c2_addb_oom);
-                return -ENOMEM;
-        }
-
-        return 0;
-}
-
-static int cob_ns_lookup(struct c2_cob *cob, struct c2_cob_nskey *key,
-                         struct c2_db_tx *tx);
-
-static int cob_oi_lookup(struct c2_cob *cob, struct c2_cob_oikey *key,
-                         struct c2_db_tx *tx);
-
-static int cob_fab_lookup(struct c2_cob *cob, struct c2_stob_id *key,
-                          struct c2_db_tx *tx);
+static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /** Search for a record in the namespace table
+
+    If the lookup fails, we return error and co_valid accurately reflects
+    the missing fields.
+
     @see cob_oi_lookup
  */
-static int cob_ns_lookup(struct c2_cob *cob, struct c2_cob_nskey *nskey,
-                         struct c2_db_tx *tx)
+static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 {
         struct c2_db_pair pair;
         int rc;
 
-        /* allocate space if needed */
-        rc = cob_nsrec_new(cob);
-        if (rc)
-                return rc;
-
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
-			 nskey, c2_cob_nskey_size(nskey),
-			 cob->co_nsrec, sizeof *cob->co_nsrec);
+			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+			 &cob->co_nsrec, sizeof cob->co_nsrec);
         rc = c2_table_lookup(tx, &pair);
 
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
 
         if (rc == 0) {
-                cob->co_id = cob->co_nsrec->cnr_stobid;
                 cob->co_valid |= CA_NSREC;
+                C2_POST(c2_stob_id_is_set(&cob->co_stobid));
         }
-
-        /* And get the fabrec here too if needed  */
-        if (cob->co_need & CA_FABREC)
-                cob_fab_lookup(cob, &cob->co_id, tx);
 
         return rc;
 }
-
-/* TODO replace this with a per-thread session buffer */
-char lookupbuf[C2_COB_NSKEY_MAX];
-struct c2_buf threadbuf = {lookupbuf, C2_COB_NSKEY_MAX};
 
 /**
  Search for a record in the object index table.
@@ -329,42 +271,34 @@ struct c2_buf threadbuf = {lookupbuf, C2_COB_NSKEY_MAX};
 
  @see cob_ns_lookup
  */
-static int cob_oi_lookup(struct c2_cob *cob, struct c2_cob_oikey *oikey,
-                         struct c2_db_tx *tx)
+static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 {
-        struct c2_db_pair pair;
-        struct c2_buf *buf = &threadbuf;
+        struct c2_cob_oikey oikey;
         int rc;
 
         if (cob->co_valid & CA_NSKEY)
                 /* Don't need to lookup anything if nskey is already here */
                 return 0;
 
-        /* Find the name from the object index table */
-        c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
-			 oikey, sizeof *oikey,
-			 buf->b_addr, buf->b_nob);
-        rc = c2_table_lookup(tx, &pair);
-        c2_db_pair_release(&pair);
-        c2_db_pair_fini(&pair);
+        oikey.cok_stobid = cob->co_stobid;
+        oikey.cok_linkno = 0;
 
-        if (rc)
+        /* Find the name from the object index table.
+           Note the key buffer is out of scope outside of this function,
+           but the record is good until c2_db_pair_fini. */
+        c2_db_pair_setup(&cob->co_oipair, &cob->co_dom->cd_object_index,
+			 &oikey, sizeof oikey,
+                         NULL, 0);
+        rc = c2_table_lookup(tx, &cob->co_oipair);
+        c2_db_pair_release(&cob->co_oipair);
+        if (rc) {
+                c2_db_pair_fini(&cob->co_oipair);
                 return rc;
+        }
 
-        cob->co_id = oikey->cok_stobid;
-
-        /* Save the nskey if wanted */
-        if (cob->co_need & CA_NSKEY)
-                cob_nskey_cache(cob, (struct c2_cob_nskey *)buf->b_addr);
-
-        /* Use the nsrec to lookup stat data if wanted,
-           since we have the nsrec here. */
-        if (cob->co_need & CA_NSREC)
-                cob_ns_lookup(cob, (struct c2_cob_nskey *)buf->b_addr, tx);
-
-        /* And get the fabrec here too if needed */
-        if (cob->co_need & CA_FABREC)
-                cob_fab_lookup(cob, &cob->co_id, tx);
+        cob->co_nskey =
+                (struct c2_cob_nskey *)cob->co_oipair.dp_rec.db_buf.b_addr;
+        cob->co_valid |= CA_NSKEY | CA_NSKEY_DB;
 
         return 0;
 }
@@ -373,34 +307,17 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_cob_oikey *oikey,
   @see cob_ns_lookup
   @see cob_oi_lookup
  */
-static int cob_fab_lookup(struct c2_cob *cob, struct c2_stob_id *key,
-                          struct c2_db_tx *tx)
+static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 {
         struct c2_db_pair pair;
-        struct c2_cob_fabrec *rec;
         int rc;
 
-        if (cob->co_valid & CA_FABREC) {
-                C2_PRE(cob->co_fabrec != NULL);
+        if (cob->co_valid & CA_FABREC)
                 return 0;
-        }
-
-        /* lookup in fileattr_basic table */
-        rec = cob->co_fabrec;
-        /* allocate space if needed */
-        if (rec == NULL) {
-                C2_ALLOC_PTR(rec);
-                if (rec == NULL) {
-                        C2_ADDB_ADD(&cob->co_addb,
-                                    &cob_addb_loc, c2_addb_oom);
-                        return -ENOMEM;
-                }
-                cob->co_fabrec = rec;
-        }
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-			 key, sizeof *key,
-			 rec, sizeof *rec);
+			 &cob->co_stobid, sizeof cob->co_stobid,
+			 &cob->co_fabrec, sizeof cob->co_fabrec);
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
@@ -423,8 +340,8 @@ static int cob_cache_nscheck(struct c2_cob_domain *dom,
                              const struct c2_cob_nskey *nskey,
                              struct c2_cob **out)
 {
-        /* TODO: implement a cache for cobs and check if this nskey is in the
-         cache */
+        /* @todo implement a cache for cobs and check if the cob with this
+         nskey is in the cache */
         return -ENOENT;
 }
 
@@ -437,34 +354,46 @@ static int cob_cache_nscheck(struct c2_cob_domain *dom,
    The stat data and the namespace key (filename) may be cached.
 
    This lookup adds a reference to the cob.
+
+   On namespace table lookup failure, no cob is created. On failure to lookup
+   other data, co_valid fields shall be correctly set.
  */
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
-                  struct c2_cob **out)
+                  int need, struct c2_cob **out, struct c2_db_tx *tx)
 {
-        struct c2_db_tx tx;
+        struct c2_cob *cob;
         int rc;
 
         rc = cob_cache_nscheck(dom, nskey, out);
-        if (rc == 0) /* cached, took ref above */
+        if (rc == 0) {
+                /* Cached, we took ref above. But we do need to free nskey
+                 if they asked */
+                if (need & CA_NSKEY_FREE)
+                        c2_free(nskey);
                 return 0;
+        }
 
         /* Get cob memory */
-        rc = cob_new(dom, out);
+        rc = cob_alloc(dom, &cob);
         if (rc)
                 return rc;
 
-        rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	if (rc)
-                goto out_free;
-        rc = cob_ns_lookup(*out, nskey, &tx);
-        c2_db_tx_commit(&tx);
+        cob->co_nskey = nskey;
+        rc = cob_ns_lookup(cob, tx);
 
-out_free:
-        if (rc)
-                c2_cob_put(*out);
-        else
-                /* Save the nskey if wanted */
-                cob_nskey_cache(*out, nskey);
+        /* And get the fabrec here too if needed.  co_valid will be set
+         correctly inside the call so we can ignore the return code */
+        if (need & CA_FABREC)
+                cob_fab_lookup(cob, tx);
+
+        if (rc) {
+                c2_cob_put(cob);
+        } else {
+                *out = cob;
+                if (need & CA_NSKEY_FREE)
+                        /* Otherwise we can't assume NSKEY will stick around */
+                        cob->co_valid |= CA_NSKEY | CA_NSKEY_FREE;
+        }
 
 	return rc;
 }
@@ -478,8 +407,8 @@ out_free:
 static int cob_cache_oicheck(struct c2_cob_domain *dom,
                              const struct c2_stob_id *id, struct c2_cob **out)
 {
-        /* TODO: implement a cache for cobs and check if this oi is in the
-           cache */
+        /* @todo implement a cache for cobs and check if the cob with this
+         oi is in the cache */
         return -ENOENT;
 }
 
@@ -489,44 +418,37 @@ static int cob_cache_oicheck(struct c2_cob_domain *dom,
    Check if cached first; otherwise create a new cob and populate it with
    the contents of the oi record; i.e. the filename.
 
-   We may also lookup file attributes in cob_oi_lookup.
-
    This lookup adds a reference to the cob.
  */
-int c2_cob_locate(struct c2_cob_domain *dom, struct c2_stob_id *id,
-                  struct c2_cob **out)
+int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
+                  struct c2_cob **out, struct c2_db_tx *tx)
 {
-        struct c2_cob_oikey oikey;
-        struct c2_db_tx   tx;
+        struct c2_cob *cob;
         int rc;
 
         C2_PRE(c2_stob_id_is_set(id));
-        memcpy(&oikey.cok_stobid, id, sizeof(*id));
-        oikey.cok_linkno = 0;
 
         rc = cob_cache_oicheck(dom, id, out);
         if (rc == 0) /* cached, took ref */
                 return 0;
 
         /* Get cob memory */
-        rc = cob_new(dom, out);
+        rc = cob_alloc(dom, &cob);
         if (rc)
                 return rc;
 
-        /* Let's assume we want to cache the nskey and lookup the nsrec as
-           well */
-        (*out)->co_need |= CA_NSKEY | CA_NSREC;
+        cob->co_stobid = *id;
+        rc = cob_oi_lookup(cob, tx);
+        if (rc) {
+                c2_cob_put(cob);
+                return rc;
+        }
 
-        rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	if (rc)
-                goto out_free;
-        rc = cob_oi_lookup(*out, &oikey, &tx);
-        c2_db_tx_commit(&tx);
+        /* Let's assume we want to lookup these up as well */
+        cob_ns_lookup(cob, tx);
+        cob_fab_lookup(cob, tx);
 
-out_free:
-        if (rc)
-                c2_cob_put(*out);
-
+        *out = cob;
 	return rc;
 }
 
@@ -541,71 +463,84 @@ C2_ADDB_EV_DEFINE(cob_eexist, "md_exists", 0x1, C2_ADDB_INVAL);
    This takes a reference on the cob in-memory struct.
  */
 int c2_cob_create(struct c2_cob_domain *dom,
-                  struct c2_cob_nskey *nskey,
-                  struct c2_cob_nsrec *nsrec,
-                  struct c2_cob **out)
+                  struct c2_cob_nskey  *nskey,
+                  struct c2_cob_nsrec  *nsrec,
+                  struct c2_cob_fabrec *fabrec,
+                  int                   need,
+                  struct c2_cob       **out,
+                  struct c2_db_tx      *tx)
 {
+        struct c2_cob      *cob;
         struct c2_cob_oikey oikey;
-        struct c2_db_tx     tx;
         struct c2_db_pair   pair;
 	int rc;
 
+        C2_PRE(nskey != NULL);
+        C2_PRE(nsrec != NULL);
+        C2_PRE(fabrec != NULL);
 	C2_PRE(c2_stob_id_is_set(&nsrec->cnr_stobid));
         C2_PRE(c2_stob_id_is_set(&nskey->cnk_pfid));
         C2_PRE(nsrec->cnr_nlink == 1);
 
-        /* Fid in object index key is the child fid of nsrec */
-        oikey.cok_stobid = nsrec->cnr_stobid;
-        oikey.cok_linkno = 0;
-
         /* Get cob memory */
-        rc = cob_new(dom, out);
+        rc = cob_alloc(dom, &cob);
         if (rc)
                 return rc;
 
         /* Populate the cob */
 
-        /* Cache the nskey */
-        cob_nskey_cache(*out, nskey);
-
-        /* Cache the nsrec */
-        if (cob_nsrec_new(*out) == 0) {
-                /* Failure here just means we can't cache, not failure to add
-                   to the ns table */
-                memcpy((*out)->co_nsrec, nsrec, sizeof *nsrec);
-                (*out)->co_valid |= CA_NSREC;
-        }
-
-        rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	if (rc)
-                goto out_free;
+        cob->co_nskey = nskey;
+        /* Take over nskey memory management from caller */
+        if (need & CA_NSKEY_FREE)
+                cob->co_valid |= CA_NSKEY | CA_NSKEY_FREE;
 
         /* Add to object index table.  Table insert should fail if
            already exists. */
+        /* Fid in object index key is the child fid of nsrec */
+        oikey.cok_stobid = nsrec->cnr_stobid;
+        oikey.cok_linkno = 0;
         c2_db_pair_setup(&pair, &dom->cd_object_index,
 			 &oikey, sizeof oikey,
-			 nskey, c2_cob_nskey_size(nskey));
+			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey));
 
-        rc = c2_table_insert(&tx, &pair);
+        rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	if (rc)
                 goto out_free;
+
+        /* Cache the nsrec */
+        memcpy(&cob->co_nsrec, nsrec, sizeof cob->co_nsrec);
+        cob->co_valid |= CA_NSREC;
 
         /* Add to namespace table */
         c2_db_pair_setup(&pair, &dom->cd_namespace,
-			 nskey, c2_cob_nskey_size(nskey),
-			 nsrec, sizeof *nsrec);
+			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+			 &cob->co_nsrec, sizeof cob->co_nsrec);
 
-        rc = c2_table_insert(&tx, &pair);
+        rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	if (rc)
                 goto out_free;
 
-        rc = c2_db_tx_commit(&tx);
+        /* Cache the fabrec */
+        memcpy(&cob->co_fabrec, fabrec, sizeof cob->co_fabrec);
+        cob->co_valid |= CA_FABREC;
 
-	return rc;
+        /* Add to filattr-basic table */
+        c2_db_pair_setup(&pair, &dom->cd_fileattr_basic,
+			 &cob->co_stobid, sizeof cob->co_stobid,
+			 &cob->co_fabrec, sizeof cob->co_fabrec);
+
+        rc = c2_table_insert(tx, &pair);
+        c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	if (rc)
+                goto out_free;
+
+        *out = cob;
+	return 0;
 
 out_free:
         c2_cob_put(*out);
@@ -616,7 +551,7 @@ out_free:
 /** For assertions only */
 static bool c2_cob_is_valid(struct c2_cob *cob)
 {
-        if (!c2_stob_id_is_set(&cob->co_id))
+        if (!c2_stob_id_is_set(&cob->co_stobid))
                 return false;
         return true;
 }
@@ -628,35 +563,30 @@ C2_ADDB_EV_DEFINE(cob_delete, "md_delete", 0x2, C2_ADDB_FLAG);
 
    Caller must be holding a reference on this cob, which
    will be released here.
+
+   @todo right now we don't handle hardlinks
  */
-int c2_cob_delete(struct c2_cob *cob)
+int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
 {
         struct c2_cob_oikey oikey;
-        struct c2_db_tx     tx;
-        struct c2_db_pair   pair;
+        struct c2_db_pair pair;
         int rc;
 
         C2_PRE(c2_cob_is_valid(cob));
 
-        rc = c2_db_tx_init(&tx, cob->co_dom->cd_dbenv, 0);
-	if (rc)
-                goto out;
-
         /* We need the name key */
-        cob->co_need |= CA_NSKEY;
-        oikey.cok_stobid = cob->co_id;
-        oikey.cok_linkno = 0;
-        rc = cob_oi_lookup(cob, &oikey, &tx);
+        rc = cob_oi_lookup(cob, tx);
         if (rc)
                 goto out;
         C2_POST(cob->co_valid & CA_NSKEY);
 
         /* Remove from the object index table */
-        /* TODO loop over all hardlinks */
+        oikey.cok_stobid = cob->co_stobid;
+        oikey.cok_linkno = 0;
         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
 			 &oikey, sizeof oikey,
 			 NULL, 0);
-        rc = c2_table_delete(&tx, &pair);
+        rc = c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
         if (rc)
@@ -666,23 +596,27 @@ int c2_cob_delete(struct c2_cob *cob)
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
 			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
 			 NULL, 0);
-        rc = c2_table_delete(&tx, &pair);
+        rc = c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-        if (rc)
-                goto out;
+#if 0
+        /* Remove from the fileattr_basic table */
+        c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+			 &cob->co_stobid, sizeof cob->co_stobid,
+			 NULL, 0);
+        /* ignore errors; it's a dangling table entry but causes no harm */
+        c2_table_delete(tx, &pair);
+        c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+#endif
 
-        rc = c2_db_tx_commit(&tx);
 out:
-        /* If the tx failed, assume we're not going to do anything else about
-           it */
+        /* If the op failed, assume we're not going to do anything else about
+           it, so log and drop in all cases. */
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_delete, rc == 0);
         c2_cob_put(cob);
         return rc;
 }
-
-/** TODO c2_cob_update(version, stats) */
-
 
 
 /** @} end group cob */

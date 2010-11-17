@@ -95,14 +95,10 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom);
  */
 struct c2_cob_nskey {
         struct c2_stob_id   cnk_pfid;
-        c2_bitstring        cnk_name;
+        struct c2_bitstring cnk_name;
 };
 
 int c2_cob_nskey_size(struct c2_cob_nskey *);
-
-enum c2_cob_nskey_max {
-        C2_COB_NSKEY_MAX =  FILENAME_MAX + sizeof(struct c2_cob_nskey),
-};
 
 struct c2_cob_nsrec {
         struct c2_stob_id cnr_stobid;
@@ -122,21 +118,21 @@ struct c2_cob_oikey {
 
 /** Fileattr_basic table
     key is stobid
- */
 
+    @note version change at every ns manipulation and data write.
+    If version and mtime/ctime both change frequently, at the same time,
+    it is arguable better to put version info in the namespace table instead
+    of fileattr_basic table so that there is only 1 table write.
+
+    The reasoning behind the current design is that name-space table should be
+    as compact as possible to reduce lookup footprint. Also, readdir benefits
+    from smaller name-space entries.
+ */
 struct c2_cob_fabrec {
         struct c2_verno cfb_version; /**< version from last fop */
         /* add ACL, layout_ref, any other md not needed for stat(2) */
 };
-/** NOTE: version change at every ns manipulation and data write.
-   If version and mtime/ctime both change frequently, at the same time,
-   it is arguable better to put version info in the namespace table instead
-   of fileattr_basic table so that there is only 1 table write.
 
-   The reasoning behind the current design is that name-space table should be
-   as compact as possible to reduce lookup footprint. Also, readdir benefits
-   from smaller name-space entries.
-*/
 
 /**
    In-memory representation of a component object.
@@ -153,7 +149,7 @@ struct c2_cob_fabrec {
 
    Users use c2_cob_get/put to hold references; the cob may be destroyed on
    the last put, or it may be cached for faster future lookup.
-   TODO at some point, we me replace the co_ref by taking a reference on the
+   @todo at some point, we me replace the co_ref by taking a reference on the
    underlying co_stob.  At that point, we will need a callback at last put.
    We wait to see how cob users will use these references, whether they need
    callbacks in turn, etc.
@@ -165,29 +161,42 @@ struct c2_cob_fabrec {
    c2_cob;
 
    - it caches certain metadata attributes in memory.
+
+   <b>Concurrency control</b>
+   co_guard is used to protect agaist manipulation of data inside a
+   c2_cob (currently usused as there are no manipulation methods yet).
+
+   <b>Liveness</b>
+   A c2-cob may be freed when the reference count drops to 0
+
+   @note: The c2_nskey is allocated separately because it is variable length.
+   Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
  */
 struct c2_cob {
         struct c2_cob_domain  *co_dom;
-        struct c2_ref          co_ref;     /**< refcounter for caching cobs */
-        struct c2_stob_id      co_id;
         struct c2_stob        *co_stob;    /**< underlying storage object */
+        struct c2_ref          co_ref;     /**< refcounter for caching cobs */
         struct c2_rwlock       co_guard;   /**< lock on cob manipulation */
-        uint64_t               co_need;    /**< @see enum ca_valid */
         uint64_t               co_valid;   /**< @see enum ca_valid */
         struct c2_verno        co_version; /**< current object version */
-        struct c2_cob_nskey   *co_nskey;  /**< pfid, filename */
-        struct c2_cob_nsrec   *co_nsrec;  /**< fid, stat data */
-        struct c2_cob_fabrec  *co_fabrec; /**< fileattr_basic data */
+        struct c2_cob_nskey   *co_nskey;   /**< pfid, filename */
+        struct c2_cob_nsrec    co_nsrec;   /**< fid, stat data */
+        struct c2_cob_fabrec   co_fabrec;  /**< fileattr_basic data */
+        struct c2_db_pair      co_oipair;
 	struct c2_addb_ctx     co_addb;
 };
 
-/** cob attributes */
+#define co_stobid co_nsrec.cnr_stobid
+
+/** cob flags and valid attributes */
 enum ca_valid {
-        CA_NSKEY     = (1 << 0),
-        CA_NSREC     = (1 << 1),
-        CA_FABREC    = (1 << 2),
-        CA_OMG       = (1 << 3),
-        CA_LAYOUT    = (1 << 4),
+        CA_NSKEY      = (1 << 0),
+        CA_NSKEY_FREE = (1 << 1),  /**< cob responsible for dealloc of nskey */
+        CA_NSKEY_DB   = (1 << 2),  /**< db responsible for dealloc of nskey */
+        CA_NSREC      = (1 << 3),
+        CA_FABREC     = (1 << 4),
+        CA_OMG        = (1 << 5),
+        CA_LAYOUT     = (1 << 6),
 };
 
 /**
@@ -199,7 +208,7 @@ enum ca_valid {
    @see c2_cob_locate
  */
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
-                  struct c2_cob **out);
+                  int need, struct c2_cob **out, struct c2_db_tx *tx);
 
 /**
    Locate by stob id
@@ -211,8 +220,8 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
 
     @see c2_cob_lookup
  */
-int c2_cob_locate(struct c2_cob_domain *dom, struct c2_stob_id *id,
-                  struct c2_cob **out);
+int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
+                  struct c2_cob **out, struct c2_db_tx *tx);
 
 /**
    Create a new cob and add it to the namespace.
@@ -221,9 +230,12 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_stob_id *id,
    entries for it to enable namespace and oi lookup.
  */
 int c2_cob_create(struct c2_cob_domain *dom,
-                  struct c2_cob_nskey *nskey,
-                  struct c2_cob_nsrec *nsrec,
-                  struct c2_cob **out);
+                  struct c2_cob_nskey  *nskey,
+                  struct c2_cob_nsrec  *nsrec,
+                  struct c2_cob_fabrec *fabrec,
+                  int                   valid,
+                  struct c2_cob       **out,
+                  struct c2_db_tx      *tx);
 
 /**
    Delete the metadata for this cob.
@@ -233,7 +245,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
 
    This does not affect the underlying stob.
  */
-int c2_cob_delete(struct c2_cob *cob);
+int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
    Acquires an additional reference on the object.

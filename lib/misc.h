@@ -11,7 +11,6 @@
 
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
-#include "lib/types.h"
 
 
 #define C2_SET0(obj)				\

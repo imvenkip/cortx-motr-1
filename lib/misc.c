@@ -6,8 +6,6 @@
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/arith.h"      /* C2_3WAY */
-#include "lib/adt.h"
-
 
 void __dummy_function(void)
 {
@@ -92,59 +90,6 @@ bool c2_mod_ge(uint64_t x0, uint64_t x1)
 {
 	return getdelta(x0, x1) >= 0;
 }
-
-void *c2_bitstring_buf_get(c2_bitstring *c)
-{
-	return c->b_addr;
-}
-
-void c2_bitstring_buf_set(c2_bitstring *c, void *data)
-{
-	c->b_addr = data;
-}
-
-c2_bcount_t c2_bitstring_len_get(c2_bitstring *c)
-{
-	return c->b_nob;
-}
-
-void c2_bitstring_len_set(c2_bitstring *c, c2_bcount_t len)
-{
-	c->b_nob = len;
-}
-
-/**
-   String-like compare: alphanumeric for the length of the shortest string.
-   Shorter strings precede longer strings.
-   Strings may contain embedded NULLs.
- */
-int c2_bitstring_cmp(const c2_bitstring *c1, const c2_bitstring *c2)
-{
-        char *s1 = c1->b_addr;
-        char *s2 = c2->b_addr;
-        unsigned char uc1 = 0, uc2;
-        int rc;
-
-        /* end of compare */
-        uc2 = c1->b_nob < c2->b_nob ? c1->b_nob : c2->b_nob;
-        /* first diff */
-        while (*s1 == *s2 && uc1 < uc2) {
-                s1++;
-                s2++;
-                uc1++;
-        }
-        /* Compare the characters as unsigned char and
-         return the difference.  */
-        uc1 = (*(unsigned char *) s1);
-        uc2 = (*(unsigned char *) s2);
-
-        if ((rc = (uc1 < uc2) ? -1 : (uc1 > uc2)))
-                return rc;
-
-        /* Everything matches through the shortest string */
-        return (c1->b_nob < c2->b_nob) ? -1 : (c1->b_nob > c2->b_nob);
-}
-
 
 /*
  *  Local variables:

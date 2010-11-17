@@ -28,15 +28,6 @@ struct c2_buf {
 	c2_bcount_t b_nob;
 };
 
-typedef struct c2_buf c2_bitstring;
-
-void *c2_bitstring_buf_get(c2_bitstring *c);
-void c2_bitstring_buf_set(c2_bitstring *c, void *data);
-c2_bcount_t c2_bitstring_len_get(c2_bitstring *c);
-void c2_bitstring_len_set(c2_bitstring *c, c2_bcount_t len);
-int c2_bitstring_cmp(const c2_bitstring *c1, const c2_bitstring *c2);
-
-
 /** @} end of adt group */
 
 
