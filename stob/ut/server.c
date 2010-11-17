@@ -58,7 +58,6 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob          *obj;
 	struct c2_dtx            tx;
 	int                      result;
-	c2_lsn_t                 lsn;
 
 	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
@@ -76,7 +75,7 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	c2_stob_put(obj);
 
-	result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx, &lsn);
+	result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
 	C2_ASSERT(result == 0);
 
 	result = c2_db_tx_commit(&tx.tx_dbtx);
@@ -186,7 +185,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	uint64_t                bmask;
 	int                     result;
 	int                     rc;
-	c2_lsn_t                lsn;
 
 	reply = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
@@ -240,8 +238,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_stob_put(obj);
 
 		if (result != -EDEADLK) {
-			result = c2_fop_fol_rec_add(fop, &fol, 
-						    &tx.tx_dbtx, &lsn);
+			result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
 			C2_ASSERT(result == 0);
 
 			rc = c2_db_tx_commit(&tx.tx_dbtx);

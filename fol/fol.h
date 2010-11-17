@@ -39,6 +39,7 @@ struct c2_fol_rec_type;
 /* import */
 #include "lib/adt.h"      /* c2_buf */
 #include "lib/types.h"    /* uint64_t */
+#include "lib/arith.h"    /* C2_IS_8ALIGNED */
 #include "lib/mutex.h"
 #include "fid/fid.h"
 #include "dtm/dtm.h"      /* c2_update_id, c2_update_state */
@@ -91,6 +92,13 @@ void c2_fol_fini(struct c2_fol *fol);
 int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
 
 /**
+   Reserves and returns lsn.
+
+   @post c2_lsn_is_valid(result);
+ */
+c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
+
+/**
    Adds a record to the fol, in the transaction context.
 
    This function calls c2_fol_rec_pack() internally to pack the record.
@@ -100,13 +108,16 @@ int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
    drec->rd_refcounter is initial value of record's reference counter. This
    field must be filled by the caller.
 
+   @pre c2_lsn_is_valid(drec->rd_lsn);
    @see c2_fol_add_buf()
  */
-int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx, 
+int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	       struct c2_fol_rec_desc *drec);
 
 /**
    Similar to c2_fol_add(), but with a record already packed into a buffer.
+
+   @pre c2_lsn_is_valid(drec->rd_lsn);
  */
 int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx, 
 		   struct c2_fol_rec_desc *drec, struct c2_buf *buf);
@@ -187,9 +198,9 @@ struct c2_fol_rec_header {
 	struct c2_update_id rh_self;
 };
 
-C2_BASSERT((sizeof(struct c2_fol_rec_header) & 7) == 0);
-C2_BASSERT((sizeof(struct c2_fol_obj_ref) & 7) == 0);
-C2_BASSERT((sizeof(struct c2_fol_update_ref) & 7) == 0);
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_rec_header)));
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_obj_ref)));
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_update_ref)));
 
 /**
    In-memory representation of a fol record.

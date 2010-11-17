@@ -11,6 +11,9 @@
    @{
  */
 
+/* import */
+struct c2_fol_rec;
+
 /* export */
 struct c2_verno;
 typedef uint64_t c2_vercount_t;
@@ -99,6 +102,24 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
  */
 int c2_verno_cmp_invariant(const struct c2_verno *vn0, 
 			   const struct c2_verno *vn1);
+
+/**
+   Increments unit version number.
+
+   This function pushes given fol record to the front of linked list of records
+   describing unit serial history (see HLD).
+
+   It assumes that the unit corresponds to the index-th slot in @rec's
+   c2_fol_rec_desc::rd_ref[] array.
+
+   @pre index < rec->fr_desc.rd_header.rh_obj_nr
+   @pre c2_lsn_is_valid(rec->fr_desc.rd_lsn)
+
+   @post unit->vn_lsn = rec->fr_desc.rd_lsn
+   @post c2_verno_cmp(&rec->fr_desc.rd_ref[index].or_before_ver, unit) == -1
+ */
+void c2_verno_inc(struct c2_verno *unit, 
+		  struct c2_fol_rec *rec, uint32_t index);
 
 /** @} end of dtm group */
 

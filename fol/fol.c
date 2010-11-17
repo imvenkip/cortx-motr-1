@@ -89,7 +89,7 @@ static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 {
 	void *consumed;
 
-	C2_PRE((((unsigned long)buf) & 07) == 0); /* buffer is aligned */
+	C2_PRE(C2_IS_8ALIGNED(buf)); /* buffer is aligned */
 
 	if (*nob >= delta) {
 		consumed = *buf;
@@ -168,20 +168,14 @@ static int rec_open(struct c2_fol_rec *rec)
  */
 static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 {
-	int                result;
 	struct c2_db_pair *pair;
 
 	C2_PRE(rec->fr_fol != NULL);
 
-	result = c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
-	if (result == 0) {
-		pair = &rec->fr_pair;
-		c2_db_pair_setup(pair, &rec->fr_fol->f_table,
-				 &rec->fr_desc.rd_lsn, 
-				 sizeof rec->fr_desc.rd_lsn,
-				 NULL, 0);
-	}
-	return result;
+	pair = &rec->fr_pair;
+	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn, 
+			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
+	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
 }
 
 /**
@@ -252,7 +246,8 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 				d->rd_header.rh_refcount = 1;
 				d->rd_header.rh_opcode = anchor_type.rt_opcode;
 				d->rd_type = &anchor_type;
-				fol->f_lsn = C2_LSN_ANCHOR;
+				d->rd_lsn = C2_LSN_ANCHOR;
+				fol->f_lsn = C2_LSN_ANCHOR + 1;
 				result = c2_fol_add(fol, &tx, d);
 			} else if (result == 0) {
 				result = c2_db_cursor_last(&r.fr_ptr, 
@@ -277,6 +272,23 @@ void c2_fol_fini(struct c2_fol *fol)
 	c2_table_fini(&fol->f_table);
 }
 C2_EXPORTED(c2_fol_fini);
+
+c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
+{
+	c2_lsn_t lsn;
+
+	/*
+	 * Obtain next fol lsn under the lock. Alternatively, c2_fol::f_lsn
+	 * could be made into a c2_atomic64 instance.
+	 */
+	c2_mutex_lock(&fol->f_lock);
+	lsn = fol->f_lsn;
+	fol->f_lsn = lsn_inc(fol->f_lsn);
+	c2_mutex_unlock(&fol->f_lock);
+	C2_POST(c2_lsn_is_valid(lsn));
+	return lsn;
+}
+C2_EXPORTED(c2_fol_lsn_allocate);
 
 int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 {
@@ -316,6 +328,8 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	int           result;
 	struct c2_buf buf;
 
+	C2_PRE(c2_lsn_is_valid(rec->rd_lsn));
+
 	result = c2_fol_rec_pack(rec, &buf);
 	if (result == 0) {
 		result = c2_fol_add_buf(fol, tx, rec, &buf);
@@ -330,18 +344,11 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 {
 	struct c2_db_pair pair;
 
+	C2_PRE(c2_lsn_is_valid(drec->rd_lsn));
+
 	c2_db_pair_setup(&pair, &fol->f_table,
 			 &drec->rd_lsn, sizeof drec->rd_lsn,
 			 buf->b_addr, buf->b_nob);
-	/*
-	 * Obtain next fol lsn under the lock. Alternatively, c2_fol::f_lsn
-	 * could be made into a c2_atomic64 instance.
-	 */
-	c2_mutex_lock(&fol->f_lock);
-	drec->rd_lsn = fol->f_lsn = fol->f_lsn;
-	fol->f_lsn = lsn_inc(fol->f_lsn);
-	c2_mutex_unlock(&fol->f_lock);
-
 	return c2_table_insert(tx, &pair);
 }
 C2_EXPORTED(c2_fol_add_buf);

@@ -236,8 +236,8 @@ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
-		       struct c2_db_tx *tx, uint64_t *lsn);
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+		       struct c2_db_tx *tx);
 
 #if 0
 

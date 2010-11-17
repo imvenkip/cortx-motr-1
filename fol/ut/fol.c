@@ -94,6 +94,7 @@ static void test_add(void)
 	d->rd_type = &ut_fol_type;
 	h->rh_refcount = 1;
 
+	d->rd_lsn = c2_fol_lsn_allocate(&fol);
 	result = c2_fol_add(&fol, &tx, d);
 	C2_ASSERT(result == 0);
 
@@ -107,6 +108,7 @@ static void test_lookup(void)
 {
 	struct c2_fol_rec dup;
 
+	d->rd_lsn = c2_fol_lsn_allocate(&fol);
 	result = c2_fol_add(&fol, &tx, d);
 	C2_ASSERT(result == 0);
 
@@ -184,6 +186,7 @@ static void checkpoint()
 
 static void ub_insert(int i)
 {
+	d->rd_lsn = c2_fol_lsn_allocate(&fol);
 	result = c2_fol_add(&fol, &tx, d);
 	C2_ASSERT(result == 0);
 	last = d->rd_lsn;
@@ -207,6 +210,7 @@ static void ub_lookup(int i)
 
 static void ub_insert_buf(int i)
 {
+	d->rd_lsn = c2_fol_lsn_allocate(&fol);
 	result = c2_fol_add_buf(&fol, &tx, d, &buf);
 	C2_ASSERT(result == 0);
 	if (i%1000 == 0)
