@@ -61,3 +61,4 @@ c2.trace
 *.msglog
 ut-sandbox
 ub-sandbox
+gmon.out

@@ -1,10 +1,10 @@
 SUBDIRS_BASE = m4 doc man patches 
 SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
-               pool balloc db # rpc
+               pool balloc db desim # rpc
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_BINARIES = mds utils
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut #net/ut rpc/ut 
+            fol/ut sns/ut desim/ut #net/ut rpc/ut 
 SUBDIR_ST = 
 SUBDIR_UB = 
 SUBDIR_BIN = utils mds

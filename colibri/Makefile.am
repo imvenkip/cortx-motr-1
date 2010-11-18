@@ -16,11 +16,13 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
                             $(top_builddir)/fol/libcolibri-fol.la \
                             $(top_builddir)/fid/libcolibri-fid.la \
                             $(top_builddir)/sns/libcolibri-sns.la \
+                            $(top_builddir)/dtm/libcolibri-dtm.la \
                             $(top_builddir)/addb/libcolibri-addb.la \
                             $(top_builddir)/layout/libcolibri-layout.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \
-                            $(top_builddir)/db/libcolibri-db.la
+                            $(top_builddir)/db/libcolibri-db.la \
+                            $(top_builddir)/desim/libcolibri-desim.la
 
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 

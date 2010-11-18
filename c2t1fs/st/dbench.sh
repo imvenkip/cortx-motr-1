@@ -25,7 +25,7 @@ lsmod | grep -c "c2t1fs" || exit
 (./stob/ut/server -d/tmp/ -p$Port &)
 sleep 1
 mkdir -p /mnt/c2t1fs
-mount -t c2t1fs -o objid=12345 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
 #large file write & read
 dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=200
@@ -35,7 +35,7 @@ umount /mnt/c2t1fs
 
 # mount again and check its content
 # 1024 * 1024 * 256 = 268435456
-mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
 #attach loop device over c2t1fs file
 insmod c2t1fs/c2t1fs_loop.ko

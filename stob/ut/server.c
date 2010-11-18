@@ -58,7 +58,6 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_stob          *obj;
 	struct c2_dtx            tx;
 	int                      result;
-	c2_lsn_t                 lsn;
 
 	reply = c2_fop_alloc(&c2_io_create_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
@@ -76,7 +75,7 @@ int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	c2_stob_put(obj);
 
-	result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx, &lsn);
+	result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
 	C2_ASSERT(result == 0);
 
 	result = c2_db_tx_commit(&tx.tx_dbtx);
@@ -186,7 +185,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	uint64_t                bmask;
 	int                     result;
 	int                     rc;
-	c2_lsn_t                lsn;
 
 	reply = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
 	C2_ASSERT(reply != NULL);
@@ -240,8 +238,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_stob_put(obj);
 
 		if (result != -EDEADLK) {
-			result = c2_fop_fol_rec_add(fop, &fol, 
-						    &tx.tx_dbtx, &lsn);
+			result = c2_fop_fol_rec_add(fop, &fol, &tx.tx_dbtx);
 			C2_ASSERT(result == 0);
 
 			rc = c2_db_tx_commit(&tx.tx_dbtx);
@@ -283,6 +280,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
+	printf("Got fop: code = %d, name = %s\n",
+			 fop->f_type->ft_code, fop->f_type->ft_name);
 	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
@@ -397,7 +396,8 @@ int main(int argc, char **argv)
 
 	backid.si_bits.u_hi = 0x8;
 	backid.si_bits.u_lo = 0xf00baf11e;
-	port = 1001;
+	/* port above 1024 is for normal use access permission */
+	port = 1201;
 	path = "__s";
 
 	result = C2_GETOPTS("server", argc, argv,
@@ -411,9 +411,13 @@ int main(int argc, char **argv)
 					       path = string; })),
 			    C2_FORMATARG('o', "back store object id", "%lu",
 					 &backid.si_bits.u_lo),
-			    C2_FORMATARG('p', "port to listen at", "i", &port));
+			    C2_FORMATARG('p', "port to listen at", "%i", &port));
 	if (result != 0)
 		return result;
+
+	printf("path=%s, back store object=%llx.%llx, tcp port=%d\n",
+		path, (unsigned long long)backid.si_bits.u_hi,
+		(unsigned long long)backid.si_bits.u_lo, port);
 
 	result = c2_init();
 	C2_ASSERT(result == 0);

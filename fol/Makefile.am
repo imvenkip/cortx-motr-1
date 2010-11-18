@@ -1,5 +1,5 @@
 noinst_LTLIBRARIES         = libcolibri-fol.la
-libcolibri_fol_la_SOURCES  = fol.c fol.h
+libcolibri_fol_la_SOURCES  = fol.c fol.h lsn.h
 INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 #CWD=$(PWD)

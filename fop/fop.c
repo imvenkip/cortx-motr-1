@@ -290,11 +290,10 @@ static void fop_fol_type_fini(struct c2_fop_type *fopt)
 }
 
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
-		       struct c2_db_tx *tx, uint64_t *lsn)
+		       struct c2_db_tx *tx)
 {
 	struct c2_fop_type    *fopt;
 	struct c2_fol_rec_desc desc;
-	int                    result;
 
 	fopt = fop->f_type;
 	C2_CASSERT(sizeof desc.rd_header.rh_opcode == sizeof fopt->ft_code);
@@ -302,15 +301,13 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 	C2_SET0(&desc);
 	desc.rd_type               = &fop->f_type->ft_rec_type;
 	desc.rd_type_private       = fop;
+	desc.rd_lsn                = c2_fol_lsn_allocate(fol);
 	/* XXX an arbitrary number for now */
 	desc.rd_header.rh_refcount = 1;
 	/*
 	 * @todo fill the rest by iterating through fop fields.
 	 */
-	result = c2_fol_add(fol, tx, &desc);
-	if (result == 0)
-		*lsn = desc.rd_lsn;
-	return result;
+	return c2_fol_add(fol, tx, &desc);
 }
 C2_EXPORTED(c2_fop_fol_rec_add);
 

@@ -39,55 +39,17 @@ struct c2_fol_rec_type;
 /* import */
 #include "lib/adt.h"      /* c2_buf */
 #include "lib/types.h"    /* uint64_t */
+#include "lib/arith.h"    /* C2_IS_8ALIGNED */
 #include "lib/mutex.h"
 #include "fid/fid.h"
 #include "dtm/dtm.h"      /* c2_update_id, c2_update_state */
+#include "dtm/verno.h"    /* c2_verno */
 #include "db/db.h"        /* c2_table, c2_db_cursor */
+#include "fol/lsn.h"      /* c2_lsn_t */
 
 struct c2_dbenv;
 struct c2_db_tx;
 struct c2_epoch_id;
-
-/**
-   Log sequence number (lsn) uniquely identifies a record in a fol.
-
-   lsn possesses two properties:
-
-   @li a record with a given lsn can be found efficiently, and
-
-   @li lsn of a dependent update is greater than the lsn of an update it depends
-   upon.
-
-   lsn should _never_ overflow, because other persistent file system tables
-   (most notably object index) store lsns of arbitrarily old records, possibly
-   long time truncated from the fol. It would be dangerous to allow such a
-   reference to accidentally alias an unrelated record after lsn overflow. Are
-   64 bits enough?
-
-   Given 1M operations per second, a 64 bit counter overflows in 600000 years.
- */
-typedef uint64_t c2_lsn_t;
-
-enum {
-	/** Invalid lsn value. Used to catch uninitialised lsns. */
-	C2_LSN_INVALID,
-	/** Non-existent lsn. This is used, for example, as a prevlsn, when
-	    there is no previous operation on the object. */
-	C2_LSN_NONE,
-	C2_LSN_RESERVED_NR,
-	/** 
-	    LSN of a special "anchor" record always present in the fol.
-	 */
-	C2_LSN_ANCHOR = C2_LSN_RESERVED_NR + 1
-};
-
-/** True iff the argument might be an lsn of an existing fol record. */
-bool     c2_lsn_is_valid(c2_lsn_t lsn);
-/** 3-way comparison (-1, 0, +1) of lsns, compatible with record
-    dependencies. */
-int      c2_lsn_cmp     (c2_lsn_t lsn0, c2_lsn_t lsn1);
-/** Returns an lsn larger than given one. */
-c2_lsn_t c2_lsn_inc     (c2_lsn_t lsn);
 
 /**
    In-memory representation of a fol.
@@ -104,7 +66,7 @@ c2_lsn_t c2_lsn_inc     (c2_lsn_t lsn);
 struct c2_fol {
 	/** Table where fol records are stored. */
 	struct c2_table f_table;
-	/** Largest lsn in the fol. */
+	/** Next lsn to use in the fol. */
 	c2_lsn_t        f_lsn;
 	/** Lock, serializing fol access. */
 	struct c2_mutex f_lock;
@@ -114,15 +76,27 @@ struct c2_fol {
    Initialise in-memory fol structure, creating persistent structures, if
    necessary.
 
-   @post ergo(result == 0, c2_lsn_is_valid(c2_lsn_inc(fol->f_lsn)))
+   @post ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
  */
 int  c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
 void c2_fol_fini(struct c2_fol *fol);
 
 /**
    Constructs a in-db representation of a fol record in an allocated buffer.
+
+   This function takes @desc as an input parameter, describing the record to be
+   constructed. Representation size is estimated by calling
+   c2_fol_rec_type_ops::rto_pack_size(). A buffer is allocated and the record is
+   spilled into it. It's up to the caller to free the buffer when necessary.
  */
 int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
+
+/**
+   Reserves and returns lsn.
+
+   @post c2_lsn_is_valid(result);
+ */
+c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol);
 
 /**
    Adds a record to the fol, in the transaction context.
@@ -134,13 +108,16 @@ int  c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *buf);
    drec->rd_refcounter is initial value of record's reference counter. This
    field must be filled by the caller.
 
+   @pre c2_lsn_is_valid(drec->rd_lsn);
    @see c2_fol_add_buf()
  */
-int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx, 
+int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	       struct c2_fol_rec_desc *drec);
 
 /**
    Similar to c2_fol_add(), but with a record already packed into a buffer.
+
+   @pre c2_lsn_is_valid(drec->rd_lsn);
  */
 int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx, 
 		   struct c2_fol_rec_desc *drec, struct c2_buf *buf);
@@ -180,12 +157,10 @@ int c2_fol_force(struct c2_fol *fol, c2_lsn_t upto);
  */
 struct c2_fol_obj_ref {
 	/** file identifier */
-	struct c2_fid or_fid;
-	/** version that the file had before operation has been applied */
-	uint64_t      or_version;
-	/** lsn of a record for the previous operation modifying the file, or
-	    C2_LSN_NONE, if this is the first operation. */
-	c2_lsn_t      or_prevlsn;
+	struct c2_fid   or_fid;
+	/** version that the object had before operation has been applied,
+	    or {C2_LSN_NONE, 0} if this is the first operation */
+	struct c2_verno or_before_ver;
 };
 
 /**
@@ -213,7 +188,7 @@ struct c2_fol_rec_header {
 	uint32_t            rh_obj_nr;
 	/** number of sibling updates in the same operation */
 	uint32_t            rh_sibling_nr;
-	/** length or the remaining operation type specific data in bytes */
+	/** length of the remaining operation type specific data in bytes */
 	uint32_t            rh_data_len;
 	/** 
 	    Identifier of this update.
@@ -223,9 +198,9 @@ struct c2_fol_rec_header {
 	struct c2_update_id rh_self;
 };
 
-C2_BASSERT((sizeof(struct c2_fol_rec_header) & 7) == 0);
-C2_BASSERT((sizeof(struct c2_fol_obj_ref) & 7) == 0);
-C2_BASSERT((sizeof(struct c2_fol_update_ref) & 7) == 0);
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_rec_header)));
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_obj_ref)));
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_fol_update_ref)));
 
 /**
    In-memory representation of a fol record.
@@ -317,7 +292,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec);
 
 /**
    Adds a reference to a record. The record cannot be culled until its reference
-   counter drops to 0.
+   counter drops to 0. This operation updates the record in the fol.
 
    @see c2_fol_rec_put()
  */
@@ -326,7 +301,8 @@ void c2_fol_rec_get(struct c2_fol_rec *rec);
 /**
    Removes a reference to a record.
 
-   When the last reference is removed, the record becomes eligible for culling.
+   When the last reference is removed, the record becomes eligible for
+   culling. This operation updates the record in the fol.
 
    @pre rec->fr_d.rd_refcount > 0
 
@@ -341,6 +317,7 @@ void c2_fol_rec_put(struct c2_fol_rec *rec);
    This function returns the number of records fetched. This number is less than
    "nr" if the end of the fol has been reached.
 
+   @pre  @out array contains at least @nr elements.
    @post result <= nr
    @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn && 
                                         out[i]->fr_d.rd_refcount > 0)

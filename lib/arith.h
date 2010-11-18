@@ -140,6 +140,10 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	return (val + mask) & ~mask;
 }
 
+/** True iff @val is a multiple of 8. This macro can be used to check that a
+    pointer is aligned at a 64-bit boundary. */
+#define C2_IS_8ALIGNED(val) ((((uint64_t)(val)) & 07) == 0)
+
 #define C2_3WAY(v0, v1)					\
 ({							\
 	typeof(v0) __a0 = (v0);				\

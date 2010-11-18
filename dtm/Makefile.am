@@ -1,5 +1,4 @@
-# Install dtm.h into $prefix/include/dtm saying this way that dtm.h contains
-# public API for working with our DTM.
+noinst_LTLIBRARIES         = libcolibri-dtm.la
+libcolibri_dtm_la_SOURCES  = dtm.h verno.h verno.c
+INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-dtmincludedir = $(includedir)/dtm
-dtminclude_HEADERS = dtm.h

@@ -12,14 +12,28 @@
 /**
    @addtogroup fol
 
-   FOL record on-storage format:
+   <b>Implementation notes.</b>
 
-   struct c2_fol_rec_header
-   followed by rh_obj_nr c2_fol_obj_ref-s
-   followed by rh_sibling_nr c2_update_id-s
-   followed by rh_data_len bytes
+   At the moment, fol is implemented as a c2_table. An alternative implemenation
+   would re-use db5 transaction log to store fol records. The dis-advantage of
+   the former approach is that records are duplicated between fol table and
+   transaction log. The advantage is its simplicity (specifically, using db5 log
+   for fol would require manual control over db5 log pruning policies).
 
-   @{
+   The fol table is (naturally) indexed by lsn. The record itself does not store
+   the lsn (take a look at the comment before rec_init()) and has the following
+   variable-sized format:
+
+   @li struct c2_fol_rec_header
+   @li followed by rh_obj_nr c2_fol_obj_ref-s
+   @li followed by rh_sibling_nr c2_update_id-s
+   @li followed by rh_data_len bytes
+
+   When a record is fetched from the fol, it is "parsed" by rec_open(). When a
+   record is placed into the fol, its representation is prepared by
+   c2_fol_rec_pack().
+
+  @{
  */
 
 bool c2_lsn_is_valid(c2_lsn_t lsn)
@@ -37,14 +51,13 @@ int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1)
 }
 C2_EXPORTED(c2_lsn_cmp);
 
-c2_lsn_t c2_lsn_inc(c2_lsn_t lsn)
+c2_lsn_t lsn_inc(c2_lsn_t lsn)
 {
 	++lsn;
 	C2_ASSERT(lsn != 0);
 	C2_POST(c2_lsn_is_valid(lsn));
 	return lsn;
 }
-C2_EXPORTED(c2_lsn_inc);
 
 static int lsn_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
@@ -66,11 +79,17 @@ static const struct c2_table_ops fol_ops = {
 	.key_cmp = lsn_cmp
 };
 
+/**
+   Reserves "delta" bytes in a buffer starting at *buf and having *nob
+   bytes. Advances *buf by delta and returns original buffer starting
+   address. If position is advanced past the end of the buffer---returns NULL
+   without modifying *buf.
+ */
 static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 {
 	void *consumed;
 
-	C2_PRE((((unsigned long)buf) & 07) == 0); /* buffer is aligned */
+	C2_PRE(C2_IS_8ALIGNED(buf)); /* buffer is aligned */
 
 	if (*nob >= delta) {
 		consumed = *buf;
@@ -81,6 +100,9 @@ static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 	return consumed;
 }
 
+/**
+   Parses a record representation and fills in @d.
+ */
 static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 {
 	struct c2_fol_rec_header     *h;
@@ -111,6 +133,9 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 		return 0;
 }
 
+/**
+   Parses a record without checking invariants.
+ */
 static int rec_open_internal(struct c2_fol_rec *rec)
 {
 	struct c2_buf *recbuf;
@@ -119,6 +144,9 @@ static int rec_open_internal(struct c2_fol_rec *rec)
 	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob);
 }
 
+/**
+   Parses a record representation.
+ */
 static int rec_open(struct c2_fol_rec *rec)
 {
 	int result;
@@ -129,24 +157,32 @@ static int rec_open(struct c2_fol_rec *rec)
 	return result;
 }
 
+/**
+   Initializes fields in @rec.
+
+   Note, that key buffer in the cursor is initialized to point to
+   rec->fr_desc.rd_lsn. As a result, the cursor's key follows lsn changes
+   automagically.
+
+   @see rec_fini()
+ */
 static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 {
-	int                result;
 	struct c2_db_pair *pair;
 
 	C2_PRE(rec->fr_fol != NULL);
 
-	result = c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
-	if (result == 0) {
-		pair = &rec->fr_pair;
-		c2_db_pair_setup(pair, &rec->fr_fol->f_table,
-				 &rec->fr_desc.rd_lsn, 
-				 sizeof rec->fr_desc.rd_lsn,
-				 NULL, 0);
-	}
-	return result;
+	pair = &rec->fr_pair;
+	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn, 
+			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
+	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
 }
 
+/**
+   Finalizes @rec.
+
+   @see rec_init()
+ */
 void rec_fini(struct c2_fol_rec *rec)
 {
 	c2_db_cursor_fini(&rec->fr_ptr);
@@ -162,6 +198,10 @@ static void anchor_pack(struct c2_fol_rec_desc *desc, void *buf)
 {
 }
 
+/**
+   Operations vector for an "anchor" record type. A unique anchor record is
+   inserted into every fol on initialisation.
+ */
 static const struct c2_fol_rec_type_ops anchor_ops = {
 	.rto_commit     = NULL,
 	.rto_abort      = NULL,
@@ -186,6 +226,8 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 {
 	int result;
 
+	C2_CASSERT(C2_LSN_ANCHOR > C2_LSN_RESERVED_NR);
+
 	c2_mutex_init(&fol->f_lock);
 	result = c2_table_init(&fol->f_table, env, "fol", 0, &fol_ops);
 	if (result == 0) {
@@ -201,19 +243,18 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 			if (result == -ENOENT) {
 				/* initialise new fol */
 				C2_SET0(d);
-				d->rd_lsn  = C2_LSN_ANCHOR;
 				d->rd_header.rh_refcount = 1;
 				d->rd_header.rh_opcode = anchor_type.rt_opcode;
 				d->rd_type = &anchor_type;
-				fol->f_lsn = C2_LSN_RESERVED_NR;
+				d->rd_lsn = C2_LSN_ANCHOR;
+				fol->f_lsn = C2_LSN_ANCHOR + 1;
 				result = c2_fol_add(fol, &tx, d);
 			} else if (result == 0) {
 				result = c2_db_cursor_last(&r.fr_ptr, 
 							   &r.fr_pair);
 				if (result == 0) {
 					result = rec_open_internal(&r);
-					fol->f_lsn = max64u(C2_LSN_RESERVED_NR, 
-							    d->rd_lsn);
+					fol->f_lsn = lsn_inc(d->rd_lsn);
 				}
 				c2_fol_rec_fini(&r);
 			}
@@ -221,7 +262,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 			result = result ?: rc;
 		}
 	}
-	C2_POST(ergo(result == 0, c2_lsn_is_valid(c2_lsn_inc(fol->f_lsn))));
+	C2_POST(ergo(result == 0, c2_lsn_is_valid(fol->f_lsn)));
 	return result;
 }
 C2_EXPORTED(c2_fol_init);
@@ -231,6 +272,23 @@ void c2_fol_fini(struct c2_fol *fol)
 	c2_table_fini(&fol->f_table);
 }
 C2_EXPORTED(c2_fol_fini);
+
+c2_lsn_t c2_fol_lsn_allocate(struct c2_fol *fol)
+{
+	c2_lsn_t lsn;
+
+	/*
+	 * Obtain next fol lsn under the lock. Alternatively, c2_fol::f_lsn
+	 * could be made into a c2_atomic64 instance.
+	 */
+	c2_mutex_lock(&fol->f_lock);
+	lsn = fol->f_lsn;
+	fol->f_lsn = lsn_inc(fol->f_lsn);
+	c2_mutex_unlock(&fol->f_lock);
+	C2_POST(c2_lsn_is_valid(lsn));
+	return lsn;
+}
+C2_EXPORTED(c2_fol_lsn_allocate);
 
 int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 {
@@ -270,6 +328,8 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	int           result;
 	struct c2_buf buf;
 
+	C2_PRE(c2_lsn_is_valid(rec->rd_lsn));
+
 	result = c2_fol_rec_pack(rec, &buf);
 	if (result == 0) {
 		result = c2_fol_add_buf(fol, tx, rec, &buf);
@@ -284,17 +344,11 @@ int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 {
 	struct c2_db_pair pair;
 
+	C2_PRE(c2_lsn_is_valid(drec->rd_lsn));
+
 	c2_db_pair_setup(&pair, &fol->f_table,
 			 &drec->rd_lsn, sizeof drec->rd_lsn,
 			 buf->b_addr, buf->b_nob);
-	/*
-	 * Increment largest used fol lsn under the lock. Alternatively,
-	 * c2_fol::f_lsn could be made into a c2_atomic64 instance.
-	 */
-	c2_mutex_lock(&fol->f_lock);
-	drec->rd_lsn = fol->f_lsn = c2_lsn_inc(fol->f_lsn);
-	c2_mutex_unlock(&fol->f_lock);
-
 	return c2_table_insert(tx, &pair);
 }
 C2_EXPORTED(c2_fol_add_buf);
@@ -318,10 +372,10 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 		ref = &drec->rd_ref[i];
 		if (!c2_fid_is_valid(&ref->or_fid))
 			return false;
-		if (!c2_lsn_is_valid(ref->or_prevlsn) && 
-		    ref->or_prevlsn != C2_LSN_NONE)
+		if (!c2_lsn_is_valid(ref->or_before_ver.vn_lsn) && 
+		    ref->or_before_ver.vn_lsn != C2_LSN_NONE)
 			return false;
-		if (drec->rd_lsn <= ref->or_prevlsn)
+		if (drec->rd_lsn <= ref->or_before_ver.vn_lsn)
 			return false;
 		for (j = 0; j < i; ++j) {
 			if (c2_fid_eq(&ref->or_fid, &drec->rd_ref[j].or_fid))

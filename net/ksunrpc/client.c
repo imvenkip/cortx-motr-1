@@ -106,7 +106,7 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 
 	struct rpc_create_args args = {
 		.protocol	= XPRT_TRANSPORT_TCP,
-		.address	= (struct sockaddr *)xsid->ssi_sockaddr,
+		.address	= (struct sockaddr *)&xsid->ssi_sockaddr,
 		.addrsize	= xsid->ssi_addrlen,
 		.timeout	= &timeparms,
 		.servername	= xsid->ssi_host,
@@ -196,10 +196,8 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 			    unsigned long count, void *data)
 {
 	char host[128];
-	struct sockaddr_in sa;
 	struct ksunrpc_service_id id_in_kernel = {
 		.ssi_host = host,
-		.ssi_sockaddr = &sa,
 	};
 	struct ksunrpc_service_id id_in_user;
 	struct ksunrpc_xprt* xprt;
@@ -215,7 +213,7 @@ static int write_ksunrpc_ut(struct file *file, const char __user *buffer,
 	if (copy_from_user(id_in_kernel.ssi_host, id_in_user.ssi_host, id_in_user.ssi_addrlen))
 		return -EFAULT;
 
-	if (copy_from_user(id_in_kernel.ssi_sockaddr, id_in_user.ssi_sockaddr, sizeof sa))
+	if (copy_from_user(&id_in_kernel.ssi_sockaddr, id_in_user.ssi_sockaddr, sizeof sa))
 		return -EFAULT;
 	id_in_kernel.ssi_addrlen = id_in_user.ssi_addrlen;
 	id_in_kernel.ssi_port = id_in_user.ssi_port;
