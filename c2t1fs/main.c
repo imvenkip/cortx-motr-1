@@ -11,6 +11,7 @@
 #include <linux/in.h>
 
 #include "lib/misc.h"  /* C2_SET0 */
+#include "lib/memory.h"
 #include "lib/errno.h"
 #include "fop/fop.h"
 
@@ -19,7 +20,7 @@
 #include "io_k.h"
 #include "stob/ut/io_fop.h"
 
-#define DBG(fmt, args...) //printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
 /**
    @page c2t1fs C2T1FS detailed level design specification.
@@ -227,7 +228,7 @@ static int ksunrpc_create(struct ksunrpc_xprt *xprt,
 
         DBG("%s create object %llu\n", __FUNCTION__, objid);
         rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
-        DBG("create obj returns %d/%d\n", rc, ret->sicr_res);
+        DBG("create obj returns %d/%d\n", rc, ret->sicr_rc);
         rc = rc ? : ret->sicr_rc;
 	c2_fop_free(r);
 	c2_fop_free(f);
@@ -245,6 +246,8 @@ static struct c2t1fs_sb_info *c2t1fs_init_csi(struct super_block *sb)
         C2_SET0(csi);
 
         atomic_set(&csi->csi_mounts, 1);
+	c2_mutex_init(&csi->csi_mutex);
+	c2_list_init(&csi->csi_xprts_list);
         return csi;
 }
 
@@ -252,8 +255,6 @@ static int c2t1fs_free_csi(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
 
-	if (csi->csi_srvid.ssi_host)
-                kfree(csi->csi_srvid.ssi_host);
         kfree(csi);
         s2csi_nocast(sb) = NULL;
 
@@ -312,10 +313,169 @@ struct super_operations c2t1fs_super_operations = {
         .statfs        = c2t1fs_statfs,
 };
 
+/**
+   Adding a container connection into list.
+
+   Container id, service id is provided by caller. Connection will be
+   established in this function.
+
+   TODO: Initially, this is maintained as a list. I will improve it into
+   a hash table.
+*/
+static int c2t1fs_container_add(struct super_block *sb,
+				struct c2t1fs_xprt_clt *clt)
+{
+        struct c2t1fs_sb_info *csi = s2csi(sb);
+	ENTER;
+
+	DBG("Adding container %llu\n", (unsigned long long)clt->xc_cid);
+	c2_mutex_lock(&csi->csi_mutex);
+	c2_list_link_init(&clt->xc_link);
+	c2_list_add_tail(&csi->csi_xprts_list, &clt->xc_link);
+	c2_mutex_unlock(&csi->csi_mutex);
+
+	return 0;
+}
+
+/**
+   Lookup a container connection from list.
+
+   container id is the key.
+*/
+static struct c2t1fs_xprt_clt* c2t1fs_container_lookup(struct super_block *sb,
+						       uint64_t container_id)
+{
+        struct c2t1fs_sb_info  *csi = s2csi(sb);
+	struct c2t1fs_xprt_clt *con;
+	struct c2t1fs_xprt_clt *ret = NULL;
+	ENTER;
+
+	DBG("Looking for container %llu\n", (unsigned long long)container_id);
+	c2_mutex_lock(&csi->csi_mutex);
+	c2_list_for_each_entry(&csi->csi_xprts_list, con, struct c2t1fs_xprt_clt, xc_link) {
+		if (con->xc_cid == container_id) {
+			ret = con;
+			break;
+		}
+	}
+	c2_mutex_unlock(&csi->csi_mutex);
+	DBG("Looking for container result=%p\n", ret);
+	return ret;
+}
+
+/**
+   Destroy all container connection infomation and free them.
+*/
+static int c2t1fs_container_fini(struct super_block *sb)
+{
+        struct c2t1fs_sb_info *csi = s2csi(sb);
+	struct c2_list_link   *first;
+	struct c2t1fs_xprt_clt *con;
+	ENTER;
+
+	while (!c2_list_is_empty(&csi->csi_xprts_list)) {
+		c2_mutex_lock(&csi->csi_mutex);
+		first = c2_list_first(&csi->csi_xprts_list);
+		if (first)
+			c2_list_del(first);
+		c2_mutex_unlock(&csi->csi_mutex);
+
+		if (first == NULL)
+			break;
+
+		con = c2_list_entry(first, struct c2t1fs_xprt_clt, xc_link);
+		DBG("Freeing container %llu\n", (unsigned long long)con->xc_cid);
+		if (con->xc_xprt) {
+			ksunrpc_xprt_ops.ksxo_fini(con->xc_xprt);
+			con->xc_xprt = NULL;
+		}
+		c2_free(con);
+	}
+	return 0;
+}
+
+/**
+   establish container connections.
+*/
+static int c2t1fs_container_connect(struct super_block *sb)
+{
+        struct c2t1fs_sb_info  *csi = s2csi(sb);
+	struct c2t1fs_xprt_clt *con;
+	struct ksunrpc_xprt    *xprt = NULL;
+	int rc = 0;
+	ENTER;
+
+	c2_mutex_lock(&csi->csi_mutex);
+	c2_list_for_each_entry(&csi->csi_xprts_list, con, struct c2t1fs_xprt_clt, xc_link) {
+                xprt = ksunrpc_xprt_ops.ksxo_init(&con->xc_srvid);
+	        if (IS_ERR(xprt)) {
+			rc = PTR_ERR(xprt);
+			break;
+		}
+		con->xc_xprt = xprt;
+		rc = ksunrpc_create(xprt, csi->csi_object_param.cop_objid);
+		if (rc) {
+			printk("Create objid %llu on %llu failed %d\n",
+				csi->csi_object_param.cop_objid, con->xc_cid, rc);
+			break;
+		}
+		DBG("Connecting container %llu\n", (unsigned long long)con->xc_cid);
+	}
+	c2_mutex_unlock(&csi->csi_mutex);
+	return rc;
+}
+
+static int c2t1fs_parse_address(struct super_block *sb, const char *address,
+				struct ksunrpc_service_id *sid)
+{
+        char *hostname;
+	char *port;
+	int   tcp_port;
+	ENTER;
+
+	strncpy(sid->ssi_host, address, ARRAY_SIZE(sid->ssi_host) - 1);
+	hostname = sid->ssi_host;
+
+        port = strchr(hostname, ':');
+	if (port == NULL || hostname == port || *(port+1) == '\0') {
+		printk("server:port is expected as the device\n");
+		return -EINVAL;
+	}
+
+	*port++ = 0;
+	if (in_aton(hostname) == 0) {
+		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
+		return -EINVAL;
+	}
+
+	DBG("server:port=%s:%s\n", hostname, port);
+	tcp_port = simple_strtol(port, NULL, 10);
+        if (tcp_port <= 0) {
+		printk("invalid port number\n");
+                return -EINVAL;
+	}
+
+        sid->ssi_port       = htons(tcp_port);
+        sid->ssi_addrlen    = sizeof sid->ssi_sockaddr;
+
+        sid->ssi_sockaddr.sin_family      = AF_INET;
+        sid->ssi_sockaddr.sin_port        = htons(tcp_port);
+        sid->ssi_sockaddr.sin_addr.s_addr = in_aton(hostname);
+
+	return 0;
+}
+
 static int c2t1fs_parse_options(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-        char *s1, *s2, *objid = NULL, *objsize = NULL;
+        char *s1, *s2;
+	char *objid = NULL;
+	char *objsize = NULL;
+	char *layoutid = NULL;
+	uint64_t cid = 0;
+	struct c2t1fs_xprt_clt *clt;
+	int rc;
+	ENTER;
 
         if (!options) {
                 printk(KERN_ERR "Missing mount data: objid=xxx,objsize=yyy\n");
@@ -331,7 +491,32 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                         objid = s1 + 6;
                 } else if (strncmp(s1, "objsize=", 8) == 0) {
                         objsize = s1 + 8;
-                }
+                } else if (strncmp(s1, "layoutid=", 9) == 0) {
+			/* add layout id for this client */
+			layoutid = s1 + 9;
+		} else if (strncmp(s1, "ds=", 3) == 0) {
+			/*
+			   Add container server information here.
+			   There may be multiple container servers. This option
+			   Will appear multiple times.
+			 */
+			clt = c2_alloc(sizeof *clt);
+			if (clt == NULL)
+				return -ENOMEM;
+			rc = c2t1fs_parse_address(sb, s1+3, &clt->xc_srvid);
+			if (rc) {
+				c2_free(clt);
+				return rc;
+			}
+			/* adding container one by one */
+			clt->xc_cid = cid;
+			rc = c2t1fs_container_add(sb, clt);
+			if (rc) {
+				c2_free(clt);
+				return rc;
+			}
+			cid ++;
+		}
 
                 /* Find next opt */
                 s2 = strchr(s1, ',');
@@ -343,25 +528,35 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
         }
 
         if (objid) {
-                csi->csi_objid = simple_strtol(objid, NULL, 0);
-                if (csi->csi_objid <= 0) {
-                        printk(KERN_ERR "Invalid objid=%lld specified\n", csi->csi_objid);
+                csi->csi_object_param.cop_objid = simple_strtol(objid, NULL, 0);
+                if (csi->csi_object_param.cop_objid <= 0) {
+                        printk(KERN_ERR "Invalid objid=%s specified\n", objid);
                         return -EINVAL;
                 }
         } else {
                 printk(KERN_ERR "No device id specified (need mount option 'objid=...')\n");
                 return -EINVAL;
         }
+        if (layoutid) {
+                csi->csi_object_param.cop_layoutid = simple_strtol(layoutid, NULL, 0);
+                if (csi->csi_object_param.cop_layoutid <= 0) {
+                        printk(KERN_ERR "Invalid objid=%s specified\n", layoutid);
+                        return -EINVAL;
+                }
+        } else {
+		/* use default value */
+                csi->csi_object_param.cop_layoutid = 0;
+        }
         if (objsize) {
-                csi->csi_objsize = simple_strtol(objsize, NULL, 0);
-                if (csi->csi_objsize <= 0) {
-                        printk(KERN_WARNING "Invalid objsize=%lld specified."
-                               " Default value is used\n", csi->csi_objsize);
-                        csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
+                csi->csi_object_param.cop_objsize = simple_strtol(objsize, NULL, 0);
+                if (csi->csi_object_param.cop_objsize <= 0) {
+                        printk(KERN_WARNING "Invalid objsize=%s specified."
+                               " Default value is used\n", objsize);
+                        csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
                 }
         } else {
                 printk(KERN_WARNING "no objsize specified. Default value is used\n");
-                csi->csi_objsize = C2T1FS_INIT_OBJSIZE;
+                csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
         }
 
         return 0;
@@ -378,6 +573,7 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         int                    npages;
         int                    off;
         loff_t                 pos = *ppos;
+	struct c2t1fs_xprt_clt *con;
         int rc;
 
 	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
@@ -432,8 +628,13 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 goto out;
         }
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, npages,
-				off, count, pos, rw);
+	con = c2t1fs_container_lookup(inode->i_sb, 0);
+	if (con)
+	        rc = ksunrpc_read_write(con->xc_xprt, csi->csi_object_param.cop_objid,
+					pages, npages,
+					off, count, pos, rw);
+	else
+		rc = -ENODEV;
         DBG("call read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
@@ -486,6 +687,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         const struct iovec *iv;
 	unsigned long seg;
 	ssize_t result = 0;
+	struct c2t1fs_xprt_clt *con;
 
         if (nr_segs == 0)
                 return 0;
@@ -520,8 +722,14 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
         }
         BUG_ON(nr_pages != j);
 
-        rc = ksunrpc_read_write(csi->csi_xprt, csi->csi_objid, pages, nr_pages,
-                                0, nr_pages << PAGE_SHIFT, pos, WRITE);
+	con = c2t1fs_container_lookup(inode->i_sb, 0);
+	if (con)
+	        rc = ksunrpc_read_write(con->xc_xprt,
+					csi->csi_object_param.cop_objid,
+					pages, nr_pages,
+					0, nr_pages << PAGE_SHIFT, pos, WRITE);
+	else
+		rc = -ENODEV;
         if (rc > 0) {
                 pos += rc;
                 if (pos > inode->i_size)
@@ -596,8 +804,8 @@ c2t1fs_readdir(struct file * filp, void * dirent, filldir_t filldir)
 	case 2:
 	{
 		char fn[256];
-		sprintf(fn, "%d", (int)csi->csi_objid);
-                if (filldir(dirent, fn, strlen(fn), i, csi->csi_objid, DT_REG) < 0)
+		sprintf(fn, "%d", (int)csi->csi_object_param.cop_objid);
+                if (filldir(dirent, fn, strlen(fn), i, csi->csi_object_param.cop_objid, DT_REG) < 0)
                         goto out;
                 i++;
                 filp->f_pos++;
@@ -654,7 +862,7 @@ static int c2t1fs_update_inode(struct inode *inode, void *opaque)
                 inode->i_size = PAGE_SIZE;
                 inode->i_blocks = 1;
         } else {
-                inode->i_size = s2csi(inode->i_sb)->csi_objsize;
+                inode->i_size = s2csi(inode->i_sb)->csi_object_param.cop_objsize;
                 inode->i_blocks = inode->i_size >> PAGE_SHIFT;
         }
 
@@ -776,81 +984,62 @@ static int c2t1fs_get_super(struct file_system_type *fs_type,
 {
         struct c2t1fs_sb_info *csi;
 	struct super_block    *sb;
-        char *hostname;
-	char *port;
-        char *endptr;
-	int   tcp_port;
         int   rc;
-	struct ksunrpc_xprt *xprt
+	struct ksunrpc_xprt *xprt;
 
 	DBG("flags=%x devname=%s, data=%s\n", flags, devname, (char*)data);
 
-	hostname = kstrdup(devname, GFP_KERNEL);
-
-        port = strchr(hostname, ':');
-	if (port == NULL || hostname == port || *(port+1) == '\0') {
-		printk("server:port is expected as the device\n");
-		kfree(hostname);
-		return -EINVAL;
-	}
-
-	if (in_aton(hostname) == 0) {
-		printk("only dotted ipaddr is accepted now: e.g. 1.2.3.4\n");
-		kfree(hostname);
-		return -EINVAL;
-	}
-
-	*port++ = 0;
-	DBG("server/port=%s/%s\n", hostname, port);
-	tcp_port = simple_strtol(port, &endptr, 10);
-        if (*endptr != '\0' || tcp_port <= 0) {
-		printk("invalid port number\n");
-		kfree(hostname);
-                return -EINVAL;
-	}
-
         rc = get_sb_nodev(fs_type, flags, data, c2t1fs_fill_super, mnt);
-        if (rc < 0) {
-		kfree(hostname);
+        if (rc < 0)
                 return rc;
-	}
 
         sb  = mnt->mnt_sb;
         csi = s2csi(sb);
-        csi->csi_sockaddr.sin_family      = AF_INET;
-        csi->csi_sockaddr.sin_port        = htons(tcp_port);
-        csi->csi_sockaddr.sin_addr.s_addr = in_aton(hostname);
 
-        csi->csi_srvid.ssi_host       = hostname;
-        csi->csi_srvid.ssi_sockaddr   = &csi->csi_sockaddr;
-        csi->csi_srvid.ssi_addrlen    = sizeof *csi->csi_srvid.ssi_sockaddr;
-        csi->csi_srvid.ssi_port       = csi->csi_sockaddr.sin_port;
-
-        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_srvid);
-        if (IS_ERR(xprt)) {
-		csi->csi_srvid.ssi_host = NULL;
-		kfree(hostname);
+	rc = c2t1fs_parse_address(sb, devname, &csi->csi_mgmt_srvid);
+	if (rc) {
 		dput(sb->s_root); /* aka mnt->mnt_root, as set by get_sb_nodev() */
+		deactivate_locked_super(sb);
+                return rc;
+	}
+
+	/* connect to mgmt node */
+if (0) {
+	/* XXX no need to connect to mgmt node right now */
+        xprt = ksunrpc_xprt_ops.ksxo_init(&csi->csi_mgmt_srvid);
+        if (IS_ERR(xprt)) {
+		c2t1fs_container_fini(sb);
+		dput(sb->s_root);
 		deactivate_locked_super(sb);
                 return PTR_ERR(xprt);
 	}
 
-        csi->csi_xprt = xprt;
-        rc = ksunrpc_create(csi->csi_xprt, csi->csi_objid);
-        if (rc)
-                printk("Create objid %llu failed %d\n", csi->csi_objid, rc);
+        csi->csi_mgmt_xprt = xprt;
+}
+	rc = c2t1fs_container_connect(sb);
+	if (rc) {
+		if (csi->csi_mgmt_xprt) {
+			ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+			csi->csi_mgmt_xprt = NULL;
+		}
+		c2t1fs_container_fini(sb);
+		dput(sb->s_root);
+		deactivate_locked_super(sb);
+	}
 
-        return 0;
+        return rc;
 }
 
 static void c2t1fs_kill_super(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
-
-        /* FIXME: Disconnect from server here. */
         GETHERE;
-        if (csi && csi->csi_xprt)
-                ksunrpc_xprt_ops.ksxo_fini(csi->csi_xprt);
+	if (csi->csi_mgmt_xprt) {
+		ksunrpc_xprt_ops.ksxo_fini(csi->csi_mgmt_xprt);
+		csi->csi_mgmt_xprt = NULL;
+	}
+	/* disconnect from container server and free them */
+	c2t1fs_container_fini(sb);
         kill_anon_super(sb);
 }
 
