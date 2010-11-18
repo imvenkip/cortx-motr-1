@@ -72,6 +72,10 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
 			c2_pdclust_layout_map(play, &src, &tgt);
+			printf("src.sa_unit=%lu, src.sa_group=%lu"
+			       "tgt.ta_frame=%lu, tgt.ta_obj=%lu\n"
+			       , src.sa_unit, src.sa_group, tgt.ta_frame, tgt.ta_obj);
+
 			c2_pdclust_layout_inv(play, &tgt, &src1);
 			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
@@ -80,11 +84,27 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 			usage[tgt.ta_obj][PUT_NR]++;
 			usage[tgt.ta_obj][classify(play, unit)]++;
 		}
+		printf("---\n");
 		for (unit = 0; unit < W; ++unit) {
 			for (i = 0; i < W; ++i)
 				incidence[where[unit]][where[i]]++;
 		}
 	}
+
+	printf("hahaha:\n");
+	for (group = 0; group < I ; ++group) {
+		src.sa_group = group;
+		for (unit = 0; unit < W; ++unit) {
+			src.sa_unit = unit;
+			c2_pdclust_layout_map(play, &src, &tgt);
+			printf("src.sa_unit=%lu, src.sa_group=%lu"
+			       "tgt.ta_frame=%lu, tgt.ta_obj=%lu\n"
+			       , src.sa_unit, src.sa_group, tgt.ta_frame, tgt.ta_obj);			
+		}
+		printf("---\n");
+	}
+	
+
 	printf("map: \n");
 	for (frame = 0; frame < R; ++frame) {
 		printf("%5i : ", (int)frame);

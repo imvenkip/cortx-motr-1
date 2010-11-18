@@ -520,7 +520,9 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  layout/Makefile
                  layout/ut/Makefile
+		 layout/linux_kernel/Makefile
                  pool/Makefile
+		 pool/linux_kernel/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  utils/Makefile

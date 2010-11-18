@@ -1,8 +1,10 @@
+#include "lib/cdefs.h"
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/assert.h"
+#include "lib/types.h"
+
 #ifdef __KERNEL__
-# include <linux/module.h>
-# include <linux/kernel.h>
-# include <linux/mm.h>
-# include <linux/slab.h>
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 #else
 # include <stdio.h>
@@ -11,10 +13,6 @@
 #endif
 
 #include "matvec.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/assert.h"
-#include "lib/types.h"
 
 int c2_vector_init(struct c2_vector *v, uint32_t sz)
 {

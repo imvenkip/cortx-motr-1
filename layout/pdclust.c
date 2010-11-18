@@ -5,7 +5,7 @@
 #include "lib/memory.h"
 #include "lib/arith.h" /* c2_rnd() */
 
-#include "stob/stob.h"
+#include "stob/stob_id.h"
 #include "pool/pool.h"
 
 #include "layout/pdclust.h"

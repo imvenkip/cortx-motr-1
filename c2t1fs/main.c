@@ -20,8 +20,8 @@
 #include "stob/ut/io_fop.h"
 
 #include "sns/parity_math.h"
-#include "stubs/pdclust.h"
-#include "stubs/pool.h"
+#include "layout/pdclust.h"
+#include "pool/pool.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -665,7 +665,8 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 		;
 		
 	__free_pages(parity_page, K);
-	rc = npages * C2T1FS_PAGE_SIZE;
+	
+	rc = rc > 0 ? npages * C2T1FS_PAGE_SIZE : 0;
 
 	if (rc > 0) {
 		pos += rc;

@@ -7,7 +7,7 @@ GALOISDIR = @SRCDIR@/../galois
 ifeq ($(OS),linux)
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
-c2t1fs-y := main.o io_fop_init.o io_k.o stubs/pdclust.o stubs/pool.o
+c2t1fs-y := main.o io_fop_init.o io_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 

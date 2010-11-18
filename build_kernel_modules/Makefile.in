@@ -7,7 +7,8 @@ STOBDIR = @SRCDIR@/stob/ut
 
 subdirs := ../c2t1fs/ ../net/ksunrpc/ ../lib/linux_kernel/ \
            ../fop/linux_kernel/ ../addb/linux_kernel/ ../db/linux_kernel/ \
-           ../sns/linux_kernel/ ../galois/linux_kernel/
+           ../sns/linux_kernel/ ../galois/linux_kernel/ ../pool/linux_kernel/ \
+	   ../layout/linux_kernel/
 
 ifeq ($(OS),linux)
 
