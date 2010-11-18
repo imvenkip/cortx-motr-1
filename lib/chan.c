@@ -234,7 +234,9 @@ bool c2_chan_trywait(struct c2_clink *link)
 
 	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	rc = sem_trywait(&link->cl_wait);
+	do
+		rc = sem_trywait(&link->cl_wait);
+	while (rc == -1 && errno == EINTR);
 	C2_ASSERT(rc == 0 || (rc == -1 && errno == EAGAIN));
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	return rc == 0;
@@ -246,7 +248,9 @@ void c2_chan_wait(struct c2_clink *link)
 
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	C2_ASSERT(link->cl_cb == NULL);
-	rc = sem_wait(&link->cl_wait);
+	do
+		rc = sem_wait(&link->cl_wait);
+	while (rc == -1 && errno == EINTR);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
