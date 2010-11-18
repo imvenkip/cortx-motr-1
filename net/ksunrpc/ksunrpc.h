@@ -13,10 +13,10 @@ struct c2_fop;
    SUNRPC service identifier.
  */
 struct ksunrpc_service_id {
-	char                 *ssi_host;	    /**< server hostname */
-	struct sockaddr_in   *ssi_sockaddr; /**< server ip_addr  */
-	int 	              ssi_addrlen;  /**< server ip_addr  */
-	uint16_t              ssi_port;     /**< server tcp port */
+	char                 ssi_host[256];/**< server hostname */
+	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
+	int 	             ssi_addrlen;  /**< server ip_addr  */
+	uint16_t             ssi_port;     /**< server tcp port */
 };
 
 struct ksunrpc_xprt {

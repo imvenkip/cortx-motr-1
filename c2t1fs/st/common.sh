@@ -27,6 +27,6 @@ modunload()
     for m in $MODLIST ;do
 	echo $m
     done | tac | while read ;do
-	rmmod $REPLY                || abort "Error unloading $m."
+	rmmod $REPLY                || echo "Error unloading $m."
     done
 }

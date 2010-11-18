@@ -411,7 +411,7 @@ int main(int argc, char **argv)
 					       path = string; })),
 			    C2_FORMATARG('o', "back store object id", "%lu",
 					 &backid.si_bits.u_lo),
-			    C2_FORMATARG('p', "port to listen at", "i", &port));
+			    C2_FORMATARG('p', "port to listen at", "%i", &port));
 	if (result != 0)
 		return result;
 

@@ -27,7 +27,7 @@ sleep 1
 mkdir -p /mnt/c2t1fs
 
 # 1024 * 1024 * 256 = 268435456
-mount -t c2t1fs -o objid=12345,objsize=268435456 $IPAddr:$Port /mnt/c2t1fs
+mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
 echo "wwwwwwwwwwwwwwwww"
 for bs in 1 2 4 8 16 32 64 128 256 1024; do
