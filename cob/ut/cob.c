@@ -80,10 +80,10 @@ static void test_create(void)
 	C2_ASSERT(rc == 0);
         c2_cob_put(cob);
 
-#if 0        
+#if 0
         /* This emits an ugly ADDB message during ut. */
-        
-        /* 2nd create should fail. */ 
+
+        /* 2nd create should fail. */
         nsrec.cnr_stobid.si_bits.u_hi = 0x666;
         rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
                            &cob, &tx);
@@ -91,7 +91,7 @@ static void test_create(void)
         c2_cob_put(cob);
 #endif
         c2_free(key);
-        
+
         c2_db_tx_commit(&tx);
 }
 
