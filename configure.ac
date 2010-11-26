@@ -452,14 +452,15 @@ fi
 if test x$OS = xlinux; then
         OLD_LIBS=$LIBS
         LIBS=""
-        AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found!])])
+        AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
         AIO_LIBS=$LIBS
         AC_SUBST([AIO_LIBS])
         LIBS=$OLD_LIBS
 fi
 
+CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]-g//' | sec 's/[[:blank:]]-O2//')
 if test x$enable_debug = xyes; then
-        CFLAGS="-O2 -g $CFLAGS"
+	CFLAGS="-O2 -g $CFLAGS"
         KCFLAGS="-O2 -g $KCFLAGS"
         AC_DEFINE([ENABLE_DEBUG])
 else
