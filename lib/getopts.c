@@ -1,11 +1,11 @@
 /* -*- C -*- */
 
-#define _POSIX_C_SOURCE 2 /* for getopts */
-#include <unistd.h>     /* getopts */
+#define _POSIX_C_SOURCE 2 /* for getopt */
+#include <unistd.h>     /* getopt */
 #include <stdio.h>      /* fprintf, sscanf */
 #include <stdlib.h>     /* strtoull */
 
-/* getopts(3) interface */
+/* getopt(3) interface */
 extern char *optarg;
 extern int   optind;
 extern int   optopt;
