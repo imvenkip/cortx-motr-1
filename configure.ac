@@ -485,6 +485,8 @@ KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
 LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
 AC_SUBST([KCFLAGS])
 
+# Please keep this list sorted (always appending new items at the end
+# results in needless merge conflicts)
 AC_CONFIG_FILES([
 		 Makefile
                  addb/Makefile

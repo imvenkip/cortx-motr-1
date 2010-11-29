@@ -1,6 +1,7 @@
 /* -*- C -*- */
 
 #include "lib/bitstring.h"
+#include "lib/arith.h"      /* C2_3WAY */
 
 
 void *c2_bitstring_buf_get(struct c2_bitstring *c)
@@ -8,7 +9,7 @@ void *c2_bitstring_buf_get(struct c2_bitstring *c)
 	return c->b_data;
 }
 
-uint32_t c2_bitstring_len_get(struct c2_bitstring *c)
+uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
 {
 	return c->b_len;
 }
@@ -26,29 +27,28 @@ void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
 int c2_bitstring_cmp(const struct c2_bitstring *c1,
                      const struct c2_bitstring *c2)
 {
-        const char *s1 = c1->b_data;
-        const char *s2 = c2->b_data;
-        unsigned char uc1 = 0, uc2;
+        /* Compare the bytes as unsigned */
+        const unsigned char *s1 = (const unsigned char *)c1->b_data;
+        const unsigned char *s2 = (const unsigned char *)c2->b_data;
+        uint32_t pos = 1, min_len;
         int rc;
 
-        /* end of compare */
-        uc2 = c1->b_len < c2->b_len ? c1->b_len : c2->b_len;
-        /* first diff */
-        while (*s1 == *s2 && uc1 < uc2) {
+        min_len = min_check(c1->b_len, c2->b_len);
+        if (min_len == 0)
+                return 0;
+
+        /* Find the first differing char */
+        while (*s1 == *s2 && pos < min_len) {
                 s1++;
                 s2++;
-                uc1++;
+                pos++;
         }
-        /* Compare the characters as unsigned char and
-         return the difference.  */
-        uc1 = (*(unsigned char *) s1);
-        uc2 = (*(unsigned char *) s2);
 
-        if ((rc = (uc1 < uc2) ? -1 : (uc1 > uc2)))
+        if ((rc = C2_3WAY(*s1, *s2)))
                 return rc;
 
-        /* Everything matches through the shortest string */
-        return (c1->b_len < c2->b_len) ? -1 : (c1->b_len > c2->b_len);
+        /* Everything matches through the shortest string, so compare length */
+        return C2_3WAY(c1->b_len, c2->b_len);
 }
 
 

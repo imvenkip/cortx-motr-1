@@ -55,7 +55,7 @@ static const struct c2_table_ops cob_ns_ops = {
 	.key_cmp = ns_cmp
 };
 
-int c2_cob_nskey_size(struct c2_cob_nskey *cnk)
+int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
 {
         return (sizeof(*cnk) +
                 c2_bitstring_len_get(&cnk->cnk_name));
@@ -99,8 +99,8 @@ static const struct c2_table_ops cob_fab_ops = {
 	.key_cmp = oi_cmp
 };
 
-static char *cob_dom_id_make(char *buf, struct c2_cob_domain_id *id,
-                             char *prefix)
+static char *cob_dom_id_make(char *buf, const struct c2_cob_domain_id *id,
+                             const char *prefix)
 {
         sprintf(buf, "%s%u", prefix ? prefix : "", id->id);
         return buf;
@@ -186,19 +186,13 @@ static void cob_fini(struct c2_cob *cob)
 /**
    Return cob memory to the pool
  */
-static void cob_free(struct c2_cob *cob)
-{
-        cob_fini(cob);
-
-        c2_free(cob);
-}
-
 static void cob_free_cb(struct c2_ref *ref)
 {
 	struct c2_cob *cob;
 
 	cob = container_of(ref, struct c2_cob, co_ref);
-	cob_free(cob);
+        cob_fini(cob);
+        c2_free(cob);
 }
 
 void c2_cob_get(struct c2_cob *cob)
@@ -359,7 +353,7 @@ static int cob_cache_nscheck(struct c2_cob_domain *dom,
    other data, co_valid fields shall be correctly set.
  */
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
-                  int need, struct c2_cob **out, struct c2_db_tx *tx)
+                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob *cob;
         int rc;
@@ -380,21 +374,21 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
 
         cob->co_nskey = nskey;
         rc = cob_ns_lookup(cob, tx);
+        if (rc) {
+                c2_cob_put(cob);
+                return rc;
+        }
 
-        /* And get the fabrec here too if needed.  co_valid will be set
+        if (need & CA_NSKEY_FREE)
+        /* Otherwise we can't assume NSKEY will stick around */
+                cob->co_valid |= CA_NSKEY | CA_NSKEY_FREE;
+
+        /* Get the fabrec here too if needed.  co_valid will be set
          correctly inside the call so we can ignore the return code */
         if (need & CA_FABREC)
                 cob_fab_lookup(cob, tx);
 
-        if (rc) {
-                c2_cob_put(cob);
-        } else {
-                *out = cob;
-                if (need & CA_NSKEY_FREE)
-                        /* Otherwise we can't assume NSKEY will stick around */
-                        cob->co_valid |= CA_NSKEY | CA_NSKEY_FREE;
-        }
-
+        *out = cob;
 	return rc;
 }
 
@@ -466,7 +460,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                   struct c2_cob_nskey  *nskey,
                   struct c2_cob_nsrec  *nsrec,
                   struct c2_cob_fabrec *fabrec,
-                  int                   need,
+                  uint64_t              need,
                   struct c2_cob       **out,
                   struct c2_db_tx      *tx)
 {
@@ -510,7 +504,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                 goto out_free;
 
         /* Cache the nsrec */
-        memcpy(&cob->co_nsrec, nsrec, sizeof cob->co_nsrec);
+        cob->co_nsrec = *nsrec;
         cob->co_valid |= CA_NSREC;
 
         /* Add to namespace table */
@@ -525,7 +519,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                 goto out_free;
 
         /* Cache the fabrec */
-        memcpy(&cob->co_fabrec, fabrec, sizeof cob->co_fabrec);
+        cob->co_fabrec = *fabrec;
         cob->co_valid |= CA_FABREC;
 
         /* Add to filattr-basic table */
@@ -551,9 +545,7 @@ out_free:
 /** For assertions only */
 static bool c2_cob_is_valid(struct c2_cob *cob)
 {
-        if (!c2_stob_id_is_set(&cob->co_stobid))
-                return false;
-        return true;
+        return c2_stob_id_is_set(&cob->co_stobid);
 }
 
 C2_ADDB_EV_DEFINE(cob_delete, "md_delete", 0x2, C2_ADDB_FLAG);

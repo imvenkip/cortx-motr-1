@@ -1,5 +1,0 @@
-To add a new CUnit unit test:
-1. add your new library to libcolibri in core/colibri/Makefile.am (e.g. libcolibri-cob.la)
-2. add your unit test library to the ut sources in core/utils/Makefile.am (e.g. libcob-ut.la)
-3. call your tests from the unit test and unit benchmark sources in core/utils/ut_main.c and ub_main.c (e.g. cob_ut, c2_cob_ub)
-

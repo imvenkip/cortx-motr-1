@@ -1,7 +1,5 @@
 /* -*- C -*- */
 
-#include <stdlib.h>                /* system, free */
-
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
@@ -11,30 +9,25 @@
 
 static const char db_name[] = "ut-cob";
 
-static int db_reset(void)
-{
-	char *cmd;
-	int   rc;
-
-	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
-	C2_ASSERT(rc > 0);
-
-	rc = system(cmd);
-	C2_ASSERT(rc == 0);
-	free(cmd);
-	return 0;
-}
-
 static struct c2_dbenv       db;
 static struct c2_cob_domain  dom;
 static struct c2_cob         *cob;
 static int rc;
+
+static int db_reset(void)
+{
+        rc = c2_ut_db_reset(db_name);
+        /* C2_UT_ASSERT not usable during ts_init */
+        C2_ASSERT(rc == 0);
+        return rc;
+}
 
 static void test_init(void)
 {
         struct c2_cob_domain_id id = { 42 };
 
 	rc = c2_dbenv_init(&db, db_name, 0);
+        /* test_init is called by ub_init which hates C2_UT_ASSERT */
 	C2_ASSERT(rc == 0);
 
         rc = c2_cob_domain_init(&dom, &db, &id);
@@ -77,7 +70,7 @@ static void test_create(void)
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
 	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
                            &cob, &tx);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
         c2_cob_put(cob);
 
 #if 0
@@ -87,7 +80,7 @@ static void test_create(void)
         nsrec.cnr_stobid.si_bits.u_hi = 0x666;
         rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
                            &cob, &tx);
-	C2_ASSERT(rc != 0);
+	C2_UT_ASSERT(rc != 0);
         c2_cob_put(cob);
 #endif
         c2_free(key);
@@ -105,15 +98,15 @@ static void test_lookup(void)
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &tx);
         c2_db_tx_commit(&tx);
-        C2_ASSERT(rc == 0);
-        C2_ASSERT(cob != NULL);
-        C2_ASSERT(cob->co_dom == &dom);
-        C2_ASSERT(cob->co_valid & CA_NSREC);
-        C2_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xabc);
-        C2_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == 0xdef);
+        C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(cob != NULL);
+        C2_UT_ASSERT(cob->co_dom == &dom);
+        C2_UT_ASSERT(cob->co_valid & CA_NSREC);
+        C2_UT_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xabc);
+        C2_UT_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == 0xdef);
 
         /* We should have cached the key also, unless oom */
-        C2_ASSERT(cob->co_valid & CA_NSKEY);
+        C2_UT_ASSERT(cob->co_valid & CA_NSKEY);
 
         c2_cob_put(cob);
 }
@@ -138,17 +131,17 @@ static int test_locate_internal(void)
 static void test_locate(void)
 {
         rc = test_locate_internal();
-        C2_ASSERT(rc == 0);
-        C2_ASSERT(cob != NULL);
-        C2_ASSERT(cob->co_dom == &dom);
+        C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(cob != NULL);
+        C2_UT_ASSERT(cob->co_dom == &dom);
 
         /* We should have saved the NSKEY */
-        C2_ASSERT(cob->co_valid & CA_NSKEY);
-        C2_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_hi == 0x123);
-        C2_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_lo == 0x456);
+        C2_UT_ASSERT(cob->co_valid & CA_NSKEY);
+        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_hi == 0x123);
+        C2_UT_ASSERT(cob->co_nskey->cnk_pfid.si_bits.u_lo == 0x456);
 
         /* Assuming we looked up the NSREC at the same time */
-        C2_ASSERT(cob->co_valid & CA_NSREC);
+        C2_UT_ASSERT(cob->co_valid & CA_NSREC);
 
         c2_cob_put(cob);
 }
@@ -159,17 +152,17 @@ static void test_delete(void)
 
         /* gets ref */
         rc = test_locate_internal();
-        C2_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         /* drops ref */
         rc = c2_cob_delete(cob, &tx);
         c2_db_tx_commit(&tx);
-	C2_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
         /* should fail now */
         rc = test_locate_internal();
-        C2_ASSERT(rc != 0);
+        C2_UT_ASSERT(rc != 0);
 }
 
 const struct c2_test_suite cob_ut = {
@@ -191,6 +184,9 @@ const struct c2_test_suite cob_ut = {
 /*
  * UB
  */
+
+/* CU_ASSERT doesn't work for ub tests */
+#define C2_UB_ASSERT C2_ASSERT
 
 static struct c2_db_tx cob_ub_tx;
 
@@ -219,9 +215,9 @@ static void newtx(int i) {
 
         if (i && i % 10 == 0) {
                 rc = c2_db_tx_commit(&cob_ub_tx);
-                C2_ASSERT(rc == 0);
+                C2_UB_ASSERT(rc == 0);
                 rc = c2_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
-                C2_ASSERT(rc == 0);
+                C2_UB_ASSERT(rc == 0);
         }
 }
 
@@ -243,7 +239,7 @@ static void ub_create(int i)
 
 	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,
                            &cob_ub_tx);
-	C2_ASSERT(rc == 0);
+	C2_UB_ASSERT(rc == 0);
 
         c2_cob_put(cob);
 }
@@ -257,16 +253,16 @@ static void ub_lookup(int i)
         /* pfid == cfid for data objects */
         make_nskey(&key, 0xAA, i, "");
         rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &cob_ub_tx);
-        C2_ASSERT(rc == 0);
-        C2_ASSERT(cob != NULL);
-        C2_ASSERT(cob->co_dom == &dom);
+        C2_UB_ASSERT(rc == 0);
+        C2_UB_ASSERT(cob != NULL);
+        C2_UB_ASSERT(cob->co_dom == &dom);
 
-        C2_ASSERT(cob->co_valid & CA_NSREC);
-        C2_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xAA);
-        C2_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == i);
+        C2_UB_ASSERT(cob->co_valid & CA_NSREC);
+        C2_UB_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_hi == 0xAA);
+        C2_UB_ASSERT(cob->co_nsrec.cnr_stobid.si_bits.u_lo == i);
 
         /* We should be holding the nskey until the final put */
-        C2_ASSERT(cob->co_valid & CA_NSKEY);
+        C2_UB_ASSERT(cob->co_valid & CA_NSKEY);
 
         c2_cob_put(cob);
 }

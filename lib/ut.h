@@ -59,27 +59,35 @@ void c2_uts_fini(void);
 /**
  add test site into global pool.
  if adding test suite failed application is aborted.
- 
+
  @param ts pointer to test suite
- 
+
  */
 void c2_ut_add(const struct c2_test_suite *ts);
 
 /**
  run tests and write log into file
- 
+
  @param log_file - name of file to a write testing log
- 
+
  @return NONE
  */
 void c2_ut_run(const char *log_file);
 
+/**
+ commonly used test database reset function
+ */
+int c2_ut_db_reset(const char *db_name);
+
 /** @} end of ut group. */
 
 /* __COLIBRI_LIB_UT_H_ */
+
+
+
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

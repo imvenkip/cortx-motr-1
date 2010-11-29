@@ -7,17 +7,13 @@
 #include "lib/types.h"         /* c2_uint128 */
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
-//#include "lib/verno.h" not in git yet
 #include "lib/refs.h"
 #include "lib/adt.h"
 #include "addb/addb.h"
 #include "db/db.h"
 #include "stob/stob.h"
+#include "dtm/verno.h"
 
-/* TEMP until lib/verno.h is here */
-struct c2_verno {
-        int stub;
-};
 
 /* import */
 struct c2_db_tx;
@@ -98,7 +94,7 @@ struct c2_cob_nskey {
         struct c2_bitstring cnk_name;
 };
 
-int c2_cob_nskey_size(struct c2_cob_nskey *);
+int c2_cob_nskey_size(const struct c2_cob_nskey *);
 
 struct c2_cob_nsrec {
         struct c2_stob_id cnr_stobid;
@@ -208,7 +204,7 @@ enum ca_valid {
    @see c2_cob_locate
  */
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
-                  int need, struct c2_cob **out, struct c2_db_tx *tx);
+                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx);
 
 /**
    Locate by stob id
@@ -233,7 +229,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                   struct c2_cob_nskey  *nskey,
                   struct c2_cob_nsrec  *nsrec,
                   struct c2_cob_fabrec *fabrec,
-                  int                   valid,
+                  uint64_t              need,
                   struct c2_cob       **out,
                   struct c2_db_tx      *tx);
 
