@@ -1,4 +1,5 @@
 INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+UT_SRCDIR          = @SRCDIR@/fop/ut
 
 noinst_LTLIBRARIES = libfop-ut.la
 
@@ -10,8 +11,11 @@ test_format_u.h test_format_u.c test_format_k.h test_format_k.c: \
 
 libfop_ut_la_SOURCES = test_format_u.h test_format_u.c fmt_test.c test_format.ff
 
-EXTRA_DIST           = test_format.ff
-
 clean-local:
-	cd @SRCDIR@/fop/ut ; \
+	cd $(UT_SRCDIR) ; \
 	rm -fr test_format_[uk].[ch]
+
+distdir:
+	cp $(UT_SRCDIR)/Makefile.am $(UT_SRCDIR)/Makefile.in \
+           $(UT_SRCDIR)/fmt_test.c $(UT_SRCDIR)/test_format.ff \
+           @top_builddir@/@PACKAGE@-@VERSION@/fop/ut

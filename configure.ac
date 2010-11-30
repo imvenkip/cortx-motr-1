@@ -458,14 +458,16 @@ if test x$OS = xlinux; then
         LIBS=$OLD_LIBS
 fi
 
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]-g//' | sec 's/[[:blank:]]-O2//')
 if test x$enable_debug = xyes; then
-	CFLAGS="-O2 -g $CFLAGS"
-        KCFLAGS="-O2 -g $KCFLAGS"
+        # If debug option specified we are free to strip all the default
+        # optimization and debug flags if any.
+        CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
+        KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
 else
-        CFLAGS="-O2 $CFLAGS"
-        KCFLAGS="-O2 $KCFLAGS"
+        # Remove debug flags but keep default or user optimizations
+        # passed via construction like ./configure CFLAGS=-O3 
+        CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
 if test x$OS = xdarwin; then
