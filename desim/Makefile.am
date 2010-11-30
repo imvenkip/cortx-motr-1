@@ -10,7 +10,6 @@ libcolibri_desim_la_SOURCES   = \
                                 elevator.h \
                                 net.c \
                                 net.h \
-                                sim \
                                 sim.c \
                                 sim.h \
                                 storage.h
