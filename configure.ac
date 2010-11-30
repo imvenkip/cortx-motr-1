@@ -356,7 +356,7 @@ CFLAGS=""
 AC_MSG_CHECKING([for db libs])
 if test x$with_db != x; then
 	DBSRC="$with_db"
-        DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
+        DBLIBS="$DBSRC/build_unix/libdb.a"
 	if ! test -e $DBLIBS; then
 		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
 	fi
@@ -387,7 +387,7 @@ else
 			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
 	        fi
 	else
-                DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
+                DBLIBS="$DBSRC/build_unix/libdb.a"
                 AC_MSG_RESULT([$DBLIBS])
 	fi
 fi
