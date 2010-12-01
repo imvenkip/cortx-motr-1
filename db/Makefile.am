@@ -1,3 +1,6 @@
+dbdir                    = $(includedir)/db
+db_HEADERS               = db.h extmap.h extmap_internal.h db_impl.h db_common.h
+
 noinst_LTLIBRARIES       = libcolibri-db.la
 libcolibri_db_la_SOURCES = db.c db.h extmap.c extmap.h extmap_internal.h \
                            db_impl.h db_common.c db_common.h

@@ -1,3 +1,6 @@
+layoutdir                     = $(includedir)/layout
+layout_HEADERS                = layout.h pdclust.h
+
 noinst_LTLIBRARIES            = libcolibri-layout.la
 libcolibri_layout_la_SOURCES  = layout.c layout.h pdclust.c pdclust.h
 

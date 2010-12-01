@@ -494,6 +494,7 @@ AC_CONFIG_FILES([
                  man/Makefile
                  colibri/Makefile
                  lib/Makefile
+                 lib/user_space/Makefile
                  lib/linux_kernel/Makefile
                  lib/ut/Makefile
                  dtm/Makefile
