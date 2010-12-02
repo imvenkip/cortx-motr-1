@@ -422,7 +422,7 @@ void c2_fols_fini(void);
 #else  /* !__KERNEL__ */
 
 struct c2_fol_rec_type {};
-
+struct c2_fol_rec_type_ops {};
 #endif /* !__KERNEL__ */
 
 /* __COLIBRI_FOL_FOL_H__ */
