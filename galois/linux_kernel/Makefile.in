@@ -1,0 +1,34 @@
+OS = @OS@
+GALOIS_KERNEL_SRCDIR = @SRCDIR@/galois/linux_kernel
+GALOIS_SRCDIR = @SRCDIR@/../galois
+
+ifeq ($(OS),linux)
+
+obj-m       := kgalois.o
+shared_src  := galois.c
+kernel_src  := kgalois.c
+kgalois-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig        := $(GALOIS_SRCDIR)/galois.c $(GALOIS_SRCDIR)/galois.h
+
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(orig) .
+
+clean distclean:
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+else
+
+all:
+install:
+uninstall:
+distclean clean:
+
+endif
+
+distdir:
+	cp $(GALOIS_KERNEL_SRCDIR)/Makefile.in \
+           @top_builddir@/@PACKAGE@-@VERSION@/galois/linux_kernel
