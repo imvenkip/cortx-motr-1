@@ -14,6 +14,12 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 prepare:
 	ln -fs $(orig) .
 
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/fop -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -fr @LUNUX_MOD@/kernel/fs/fop
+
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean

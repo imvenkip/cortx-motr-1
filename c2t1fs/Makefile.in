@@ -36,5 +36,6 @@ distclean clean:
 endif
 
 distdir:
-	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.[ch] $(C2T1FS_SRCDIR)/c2t1fs_loop.c \
+	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.h \
+$(C2T1FS_SRCDIR)/c2t1fs_loop.c $(C2T1FS_SRCDIR)/main.c \
 @top_builddir@/@PACKAGE@-@VERSION@/c2t1fs
