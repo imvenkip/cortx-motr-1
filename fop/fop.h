@@ -110,7 +110,7 @@ struct c2_fop_type_ops {
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 };
 
-/** 
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -236,7 +236,7 @@ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
 /**
@@ -262,7 +262,7 @@ void c2_fops_fini(void);
 /* __COLIBRI_FOP_FOP_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
