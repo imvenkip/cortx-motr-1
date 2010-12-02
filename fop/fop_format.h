@@ -4,7 +4,7 @@
 #define __COLIBRI_FOP_FOP_FORMAT_H__
 
 /**
-   @addtogroup fop 
+   @addtogroup fop
 
    <b>Fop format</b>
 
@@ -82,8 +82,8 @@ void c2_fop_type_format_fini(struct c2_fop_type_format *fmt);
 int  c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr);
 void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr);
 
-void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
-			     int fileno);
+void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
+			     int fileno, uint32_t elno);
 
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt;
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
@@ -133,7 +133,7 @@ void  c2_fop_type_decoration_set(const struct c2_fop_field_type *ftype,
 void *c2_fop_field_decoration_get(const struct c2_fop_field *field,
 				  const struct c2_fop_decorator *dec);
 void  c2_fop_field_decoration_set(const struct c2_fop_field *field,
-				  const struct c2_fop_decorator *dec, 
+				  const struct c2_fop_decorator *dec,
 				  void *val);
 
 int  c2_fop_comp_init(void);
@@ -168,7 +168,7 @@ C2_EXPORTED(fopt ## _fopt)
 /* __COLIBRI_FOP_FOP_FORMAT_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

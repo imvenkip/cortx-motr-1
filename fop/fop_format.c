@@ -148,7 +148,7 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 		}
 	}
 
-	/* XXX: add sanity checking: 
+	/* XXX: add sanity checking:
 
 	       - tags and field names are unique;
 	       - discriminant is U32
@@ -239,11 +239,17 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
 }
 C2_EXPORTED(c2_fop_type_format_fini_nr);
 
-void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
-			     int fileno)
+void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
+			     int fileno, uint32_t elno)
 {
+	void *addr;
+
 	C2_ASSERT(fileno < ftype->fft_nr);
-	return ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
+	addr = ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
+	if (ftype->fft_aggr == FFA_SEQUENCE && fileno == 1)
+		addr = *((char **)addr) + elno *
+			ftype->fft_child[1]->ff_type->fft_layout->fm_sizeof;
+	return addr;
 }
 C2_EXPORTED(c2_fop_type_field_addr);
 
@@ -285,7 +291,7 @@ C2_EXPORTED(C2_FOP_TYPE_FORMAT_U64_tfmt);
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
