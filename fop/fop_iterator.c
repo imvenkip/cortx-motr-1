@@ -178,12 +178,12 @@ void c2_fop_itype_init(struct c2_fit_type *itype)
 			break;
 		}
 	}
-	C2_ASSERT(i < ARRAY_SIZE(fits));
+	C2_ASSERT(IS_IN_ARRAY(i, fits));
 }
 
 void c2_fop_itype_fini(struct c2_fit_type *itype)
 {
-	C2_PRE(0 <= itype->fit_index && itype->fit_index < ARRAY_SIZE(fits));
+	C2_PRE(IS_IN_ARRAY(itype->fit_index, fits));
 
 	fits[itype->fit_index] = NULL;
 	itype->fit_index = -1;
@@ -214,11 +214,11 @@ static bool c2_fit_invariant(const struct c2_fit *it)
 	int index;
 
 	index = it->fi_type->fit_index;
-	if (index < 0 || index >= ARRAY_SIZE(fits))
+	if (!IS_IN_ARRAY(index, fits))
 		return false;
 	if (fits[index] != it->fi_type)
 		return false;
-	if (it->fi_depth >= ARRAY_SIZE(it->fi_stack))
+	if (!IS_IN_ARRAY(it->fi_depth, it->fi_stack))
 		return false;
 	if (it->fi_depth == -1)
 		return true;
@@ -546,7 +546,6 @@ static const struct ftype_fit *data_get(const struct c2_fop_field_type *ftype)
  */
 static struct c2_fit_frame *fit_top(struct c2_fit *it)
 {
-	C2_PRE(0 <= it->fi_depth && it->fi_depth < ARRAY_SIZE(it->fi_stack));
 	C2_PRE(c2_fit_invariant(it));
 	return &it->fi_stack[it->fi_depth];
 }
