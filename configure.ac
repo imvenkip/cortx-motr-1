@@ -525,6 +525,7 @@ AC_CONFIG_FILES([
 		 pool/linux_kernel/Makefile
                  stob/Makefile
                  stob/ut/Makefile
+		 stob/linux_kernel/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                  balloc/Makefile

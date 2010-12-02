@@ -19,17 +19,6 @@
    @{
 */
 
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
-				   int unit)
-{
-	if (unit < play->pl_N)
-		return PUT_DATA;
-	else if (unit < play->pl_N + play->pl_K)
-		return PUT_PARITY;
-	else
-		return PUT_SPARE;
-}
-
 void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 {
 	uint64_t                   group;
@@ -82,7 +71,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
 			usage[tgt.ta_obj][PUT_NR]++;
-			usage[tgt.ta_obj][classify(play, unit)]++;
+			usage[tgt.ta_obj][c2_pdclust_unit_classify(play, unit)]++;
 		}
 		printf("---\n");
 		for (unit = 0; unit < W; ++unit) {
@@ -111,7 +100,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
-			d = classify(play, map[frame][obj].sa_unit);
+			d = c2_pdclust_unit_classify(play, map[frame][obj].sa_unit);
 			printf("%c%2i, %1i%c ", 
 			       brace[d][0],
 			       (int)map[frame][obj].sa_group, 

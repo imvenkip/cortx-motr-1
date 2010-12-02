@@ -42,30 +42,32 @@ mount -t c2t1fs -o layout-data=3,layout-parity=1,objid=12345,objsize=196608,\
 ds=$IPAddr:$Port0,ds=$IPAddr:$Port1,ds=$IPAddr:$Port2,ds=$IPAddr:$Port3,ds=$IPAddr:$Port4\
  $IPAddr:$Port1 /mnt/c2t1fs
 
-dd if=/dev/urandom of=dummy.bin bs=196608 count=1
+# max_count_=3
+# max_bs_=49152
 
-# tests:
-# 1
-dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=12288 count=1
-#dd if=dummy.bin of=dummy1.bin bs=12288 count=1
-#dd if=/mnt/c2t1fs/12345 of=dummy2.bin bs=12288 count=1
-dd if=dummy.bin         bs=12288 count=1 2>/dev/null | md5sum
-dd if=/mnt/c2t1fs/12345 bs=12288 count=1 2>/dev/null | md5sum
-# 2
-dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=36864 count=1
-dd if=dummy.bin         bs=36864 count=1 2>/dev/null | md5sum
-dd if=/mnt/c2t1fs/12345 bs=36864 count=1 2>/dev/null | md5sum
-# 3
-dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=110592 count=1
-dd if=dummy.bin         bs=110592 count=1 2>/dev/null | md5sum
-dd if=/mnt/c2t1fs/12345 bs=110592 count=1 2>/dev/null | md5sum
+# dd if=/dev/urandom of=dummy.bin bs=$(($max_bs_*$max_count_)) count=1
 
+# for count_ in {1,2,$max_count_}
+# do
+#      for bs_ in {12288,24576,$max_bs_}
+#      do
+#         dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=$bs_ count=$count_
+#         left=$(dd if=dummy.bin         bs=$bs_ count=$count_ 2>/dev/null | md5sum)
+# 	sleep 2
+#         right=$(dd if=/mnt/c2t1fs/12345 bs=$bs_ count=$count_ 2>/dev/null | md5sum)
+# 	sleep 2
+	
+# 	if [ "$left" == "$right" ]
+# 	then
+# 	    echo "test {$count_,$bs_} passed."
+# 	else
+# 	    echo "test {$count_,$bs_} failed."
+# 	fi
+#      done
+#  done
+# rm dummy.bin
 
-rm dummy.bin
-umount /mnt/c2t1fs
-modunload
-killall lt-server
+# umount /mnt/c2t1fs
+# modunload
+# killall lt-server
 echo ======================done=====================
-
-#a=$(dd if=/dev/urandom bs=1M count=1 2>/dev/null | md5sum)
-#if [ "$a" = "$a" ]; then echo passed; fi

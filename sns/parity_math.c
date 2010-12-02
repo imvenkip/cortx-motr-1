@@ -1,14 +1,4 @@
-#ifdef __KERNEL__
-# include <linux/module.h>
-# include <linux/kernel.h>
-# include <linux/mm.h>
-# include <linux/slab.h>
-#else
-# include <stdio.h>
-# include <stdlib.h>
-# include <string.h>
-#endif
-
+#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -18,8 +8,9 @@
 #include "parity_ops.h"
 #include "parity_math.h"
 
-/* #define C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX (pow(2, C2_PARITY_GALOIS_W - 1)) */
-#define C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX (128)
+enum {
+	C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (C2_PARITY_GALOIS_W - 1)
+};
 
 /* c2_parity_* are to much eclectic. just more simple names. */
 static int gadd(int x, int y)

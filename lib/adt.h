@@ -23,11 +23,6 @@ void c2_stack_link_init(struct c2_stack_link *stack);
 void c2_stack_link_fini(struct c2_stack_link *stack);
 bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 
-struct c2_buf {
-	void       *b_addr;
-	c2_bcount_t b_nob;
-};
-
 /** @} end of adt group */
 
 
