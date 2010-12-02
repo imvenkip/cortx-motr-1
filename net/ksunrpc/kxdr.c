@@ -355,7 +355,7 @@ static int c2_fop_krep(void *req, __be32 *data, struct c2_fop *fop)
 				  req, data, c2_fop_data(fop), KREP);
 }
 
-int c2_kcall_enc(void *req, __be32 *data, struct c2_knet_call *kcall)
+int c2_kcall_enc(void *req, __be32 *data, struct c2_net_call *kcall)
 {
 	int result;
 
@@ -365,7 +365,7 @@ int c2_kcall_enc(void *req, __be32 *data, struct c2_knet_call *kcall)
 	return result;
 }
 
-int c2_kcall_dec(void *req, __be32 *data, struct c2_knet_call *kcall)
+int c2_kcall_dec(void *req, __be32 *data, struct c2_net_call *kcall)
 {
 	return c2_fop_kdec(req, data, kcall->ac_ret);
 }

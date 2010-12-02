@@ -47,7 +47,7 @@ enum {
 struct usunrpc_dom {
 	bool             sd_shutown;
 	/*
-	 * Userspace llient side domain state.
+	 * Userspace client side domain state.
 	 */
 
 	struct c2_cond   sd_gotwork;
@@ -58,11 +58,12 @@ struct usunrpc_dom {
 	/*
 	 * Userspace server side domain state.
 	 */
-
-	/*
-	 * kernelspace client side domain state.
-	 */
 };
+
+static inline bool udom_is_shutting(const struct c2_net_domain *dom)
+{
+	return ((struct usunrpc_dom *)dom->nd_xprt_private)->sd_shutown;
+}
 
 /**
    SUNRPC service identifier.
@@ -76,14 +77,6 @@ struct usunrpc_service_id {
 	uint32_t              ssi_prog;     /**< server program number */
 	uint32_t              ssi_ver;      /**< server program version */
 };
-
-static inline bool dom_is_shutting(const struct c2_net_domain *dom)
-{
-	struct usunrpc_dom *xdom;
-
-	xdom = dom->nd_xprt_private;
-	return xdom->sd_shutown;
-}
 
 int  usunrpc_server_init(void);
 void usunrpc_server_fini(void);

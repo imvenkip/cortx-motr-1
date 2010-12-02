@@ -6,18 +6,40 @@
 #include <linux/sunrpc/sched.h> /* for rpc_call_ops */
 
 #include "lib/mutex.h"
+#include "net/net.h"
+
+
+struct ksunrpc_dom {
+	/*
+	 * Kernel space client side domain state.
+	 */
+
+	int kd_dummy; /**< not used */
+
+	/*
+	 * Userspace server side domain state.
+	 */
+};
 
 struct c2_fop;
 
 /**
-   SUNRPC service identifier.
+   Kernel SUNRPC service identifier.
  */
 struct ksunrpc_service_id {
-	char                 ssi_host[256];/**< server hostname */
-	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
-	int 	             ssi_addrlen;  /**< server ip_addr  */
-	uint16_t             ssi_port;     /**< server tcp port */
+	struct c2_service_id *ssi_id;
+	char                  ssi_host[256];/**< server hostname */
+	struct sockaddr_in    ssi_sockaddr; /**< server ip_addr  */
+	int 	              ssi_addrlen;  /**< server ip_addr  */
+	uint16_t              ssi_port;     /**< server tcp port */
+	uint32_t              ssi_prog;     /**< server program number */
+	uint32_t              ssi_ver;      /**< server program version */
 };
+
+int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
+
+extern const struct c2_service_id_ops ksunrpc_service_id_ops;
+extern const struct c2_net_conn_ops   ksunrpc_conn_ops;
 
 struct ksunrpc_xprt {
 	struct rpc_clnt *ksx_client;
@@ -25,37 +47,19 @@ struct ksunrpc_xprt {
 };
 
 /**
-   Service call description.
- */
-struct c2_knet_call {
-	/** Argument. */
-	struct c2_fop          *ac_arg;
-	/** Result, only meaningful when c2_net_async_call::ac_rc is 0. */
-	struct c2_fop          *ac_ret;
+   Connection data private to sunrpc transport.
+
+   @see c2_net_conn
+*/
+struct ksunrpc_conn {
+	struct ksunrpc_xprt *ksc_xprt;
 };
 
-struct ksunrpc_xprt_ops {
-	/**
-	   Initialise transport resources.
-	 */
-	struct ksunrpc_xprt* (*ksxo_init)(struct ksunrpc_service_id *xsid);
 
-	/**
-	   Finalise transport resources.
-	 */
-	void (*ksxo_fini)(struct ksunrpc_xprt *xprt);
+//==============================================================================
 
-	/**
-	   Synchronously call operation on the target service and wait for
-	   reply.
-	 */
-	int (*ksxo_call)(struct ksunrpc_xprt *xprt, struct c2_knet_call *kcall);
-};
-
-extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
-
-int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
-int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
+int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_net_call *call);
+int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

@@ -3,19 +3,17 @@
 #ifndef __COLIBRI_LIB_RWLOCK_H__
 #define __COLIBRI_LIB_RWLOCK_H__
 
-#include <pthread.h>
 
 /**
    @defgroup rwlock Read-write lock
    @{
  */
 
-/**
-   Blocking read-write lock.
- */
-struct c2_rwlock {
-	pthread_rwlock_t rw_lock;
-};
+#ifndef __KERNEL__
+#include "lib/user_space/rwlock.h"
+#else
+#include "lib/linux_kernel/rwlock.h"
+#endif
 
 /**
    read-write lock constructor

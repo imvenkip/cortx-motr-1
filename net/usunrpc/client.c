@@ -100,7 +100,7 @@ static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 		return;
 
 	if (xconn->nsc_pool != NULL) {
-		for (i = 0; i < USUNRPC_CONN_CLIENT_COUNT; ++i) {
+		for (i = 0; i < xconn->nsc_nr; ++i) {
 			/* assume stdin is never used as a transport
 			   socket. :-) */
 			if (xconn->nsc_pool[i].nsx_fd != 0)
@@ -162,7 +162,7 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 	struct usunrpc_conn *xconn;
 	struct usunrpc_xprt *pool;
 
-	if (dom_is_shutting(conn->nc_domain))
+	if (udom_is_shutting(conn->nc_domain))
 		return -ESHUTDOWN;
 
 	result = -ENOMEM;
@@ -246,7 +246,7 @@ static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	struct usunrpc_xprt *xprt;
 	int                  result;
 
-	C2_ASSERT(!dom_is_shutting(conn->nc_domain));
+	C2_ASSERT(!udom_is_shutting(conn->nc_domain));
 
 	xconn  = conn->nc_xprt_private;
 	xprt   = conn_xprt_get(xconn);
@@ -259,7 +259,7 @@ static int usunrpc_conn_send(struct c2_net_conn *conn, struct c2_net_call *call)
 {
 	struct usunrpc_dom *xdom;
 
-	C2_ASSERT(!dom_is_shutting(conn->nc_domain));
+	C2_ASSERT(!udom_is_shutting(conn->nc_domain));
 
 	call->ac_conn = conn;
 	xdom = conn->nc_domain->nd_xprt_private;

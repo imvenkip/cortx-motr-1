@@ -1,18 +1,17 @@
 /* -*- C -*- */
 #ifndef __COLIBRI_NET_NET_H__
-
 #define __COLIBRI_NET_NET_H__
 
 #include <stdarg.h>
 
-#include <lib/cdefs.h>
-#include <lib/rwlock.h>
-#include <lib/list.h>
-#include <lib/queue.h>
-#include <lib/refs.h>
-#include <lib/chan.h>
-#include <lib/thread.h>
-#include <addb/addb.h>
+#include "lib/cdefs.h"
+#include "lib/rwlock.h"
+#include "lib/list.h"
+#include "lib/queue.h"
+#include "lib/refs.h"
+#include "lib/chan.h"
+#include "addb/addb.h"
+
 
 /**
    @defgroup net Networking.
@@ -364,6 +363,10 @@ int c2_net_init(void);
  release all allocated resources
  */
 void c2_net_fini(void);
+
+
+extern struct c2_net_xprt c2_net_usunrpc_xprt;
+extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
 /** @} end of net group */
 

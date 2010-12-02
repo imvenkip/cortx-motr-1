@@ -4,8 +4,8 @@ LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 ifeq ($(OS),linux)
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c
-kernel_src  := memory.c mutex.c
+shared_src  := vec.c list.c queue.c refs.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 

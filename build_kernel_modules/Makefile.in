@@ -5,8 +5,9 @@ KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 
-subdirs := ../c2t1fs/ ../net/ksunrpc/ ../lib/linux_kernel/ \
-           ../fop/linux_kernel/ ../addb/linux_kernel/ ../db/linux_kernel/ 
+subdirs := ../net/ksunrpc/ ../lib/linux_kernel/ \
+           ../fop/linux_kernel/ ../addb/linux_kernel/ \
+	   ../db/linux_kernel/ ../c2t1fs/
 
 ifeq ($(OS),linux)
 

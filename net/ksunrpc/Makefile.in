@@ -4,11 +4,15 @@ OS=@OS@
 ifeq ($(OS),linux)
 
 obj-m := ksunrpc.o
-ksunrpc-y = client.o kxdr.o
+shared_src  := connection.c net.c net_cli.c net_utils.c
+kernel_src  := client.o kxdr.o domain.o 
+ksunrpc-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig        := $(shared_src:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@ -O2
 
 prepare:
+	ln -fs $(orig) .
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/ksunrpc -C @LINUX_OBJ@ M=`pwd` modules_install

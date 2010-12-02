@@ -24,6 +24,7 @@
 
 #include "lib/errno.h"
 #include "lib/cdefs.h"
+#include "lib/memory.h"
 #include "fop/fop.h"
 
 #include "ksunrpc.h"
@@ -43,6 +44,8 @@
 /*
  * Client code.
  */
+
+
 
 struct rpc_procinfo c2t1_procedures[2] = {
 	[0] = {},
@@ -76,25 +79,40 @@ struct rpc_stat c2t1_rpcstat = {
 	.program                = &c2t1_program
 };
 
-void ksunrpc_xprt_fini(struct ksunrpc_xprt *xprt)
+/**
+  Finalize a kernel sunrpc connection.
+*/
+static void ksunrpc_conn_fini(struct c2_net_conn *conn)
 {
-	if (xprt == NULL)
+	struct ksunrpc_conn *kconn = conn->nc_xprt_private;
+
+	if (kconn == NULL)
 		return;
 
-	c2_mutex_fini(&xprt->ksx_lock);
-	if (xprt->ksx_client != NULL) {
-		rpc_shutdown_client(xprt->ksx_client);
-		xprt->ksx_client = NULL;
+	if (kconn->ksc_xprt != NULL) {
+		struct ksunrpc_xprt *xprt = kconn->ksc_xprt;
+
+		c2_mutex_fini(&xprt->ksx_lock);
+		if (xprt->ksx_client != NULL) {
+			rpc_shutdown_client(xprt->ksx_client);
+		}
+		kfree(xprt);
 	}
-	kfree(xprt);
+	c2_free(kconn);
 }
-C2_EXPORTED(ksunrpc_xprt_fini);
 
 #define C2_DEF_TCP_RETRANS (2)
 #define C2_DEF_TCP_TIMEO   (600)
 
-struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
+/**
+  Init a kernel sunrpc connection to the given service id.
+
+  @param id the target service id;
+  @param conn the returned connection will be stored there;
+*/
+static int ksunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 {
+	struct ksunrpc_service_id *ksid = id->si_xport_private;
 	struct rpc_timeout       timeparms = {
 		.to_retries   = C2_DEF_TCP_RETRANS,
 		.to_initval   = C2_DEF_TCP_TIMEO * HZ / 10,
@@ -106,42 +124,53 @@ struct ksunrpc_xprt* ksunrpc_xprt_init(struct ksunrpc_service_id *xsid)
 
 	struct rpc_create_args args = {
 		.protocol	= XPRT_TRANSPORT_TCP,
-		.address	= (struct sockaddr *)&xsid->ssi_sockaddr,
-		.addrsize	= xsid->ssi_addrlen,
+		.address	= (struct sockaddr *)&ksid->ssi_sockaddr,
+		.addrsize	= ksid->ssi_addrlen,
 		.timeout	= &timeparms,
-		.servername	= xsid->ssi_host,
+		.servername	= ksid->ssi_host,
 		.program	= &c2t1_program,
 		.version	= C2_DEF_RPC_VER,
 		.authflavor	= RPC_AUTH_NULL,
 //		.flags          = RPC_CLNT_CREATE_DISCRTRY,
 	};
+	int                 result;
+	struct rpc_clnt     *clnt;
+	struct ksunrpc_xprt *ksunrpc_xprt;
+	struct ksunrpc_conn *kconn;
 
-	struct rpc_clnt         *clnt;
-	struct ksunrpc_xprt     *ksunrpc_xprt;
+	result = -ENOMEM;
+	C2_ALLOC_PTR(kconn);
 
-	ksunrpc_xprt = kmalloc(sizeof *ksunrpc_xprt, GFP_KERNEL);
-	if (ksunrpc_xprt == NULL)
-		return ERR_PTR(-ENOMEM);
-
-	clnt = rpc_create(&args);
-	if (IS_ERR(clnt)) {
-		printk("%s: cannot create RPC client. Error = %ld\n",
-			__FUNCTION__, PTR_ERR(clnt));
-			return (struct ksunrpc_xprt *)clnt;
+	if (kconn != NULL) {
+		ksunrpc_xprt = c2_alloc(sizeof *ksunrpc_xprt);
+		if (ksunrpc_xprt != NULL) {
+			clnt = rpc_create(&args);
+			if (IS_ERR(clnt)) {
+				printk("%s: cannot create RPC client. "
+					"Error = %ld\n",
+					__FUNCTION__, PTR_ERR(clnt));
+				result = PTR_ERR(clnt);
+			} else {
+				ksunrpc_xprt->ksx_client = clnt;
+				c2_mutex_init(&ksunrpc_xprt->ksx_lock);
+				kconn->ksc_xprt = ksunrpc_xprt;
+				conn->nc_xprt_private = kconn;
+				conn->nc_ops = &ksunrpc_conn_ops;
+			}
+		}
 	}
 
-	ksunrpc_xprt->ksx_client = clnt;
-	c2_mutex_init(&ksunrpc_xprt->ksx_lock);
-        return ksunrpc_xprt;
+        return result;
 }
-C2_EXPORTED(ksunrpc_xprt_init);
 
-static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt, 
-			     struct c2_knet_call *kcall)
+static int ksunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 {
-	struct c2_fop_type *arg_fopt = kcall->ac_arg->f_type;
-	struct c2_fop_type *ret_fopt = kcall->ac_ret->f_type;
-	int                 result;
+	struct c2_fop_type  *arg_fopt = call->ac_arg->f_type;
+	struct c2_fop_type  *ret_fopt = call->ac_ret->f_type;
+	struct ksunrpc_conn *kconn;
+	struct ksunrpc_xprt *kxprt;
+	int                  result;
+
 
 	struct rpc_procinfo proc = {
 		.p_proc   = arg_fopt->ft_code,
@@ -155,23 +184,89 @@ static int ksunrpc_xprt_call(struct ksunrpc_xprt *xprt,
 
         struct rpc_message msg = {
                 .rpc_proc = &proc,
-                .rpc_argp = kcall,
-                .rpc_resp = kcall,
+                .rpc_argp = call,
+                .rpc_resp = call,
         };
 
-	c2_mutex_lock(&xprt->ksx_lock);
-        result = rpc_call_sync(xprt->ksx_client, &msg, 0);
-	c2_mutex_unlock(&xprt->ksx_lock);
+
+	kconn  = conn->nc_xprt_private;
+	kxprt  = kconn->ksc_xprt;
+
+	c2_mutex_lock(&kxprt->ksx_lock);
+        result = rpc_call_sync(kxprt->ksx_client, &msg, 0);
+	c2_mutex_unlock(&kxprt->ksx_lock);
 	return result;
 }
 
-struct ksunrpc_xprt_ops ksunrpc_xprt_ops = {
-	.ksxo_init = ksunrpc_xprt_init,
-	.ksxo_fini = ksunrpc_xprt_fini,
-	.ksxo_call = ksunrpc_xprt_call,
+static int ksunrpc_conn_send(struct c2_net_conn *conn, struct c2_net_call *call)
+{
+	/* TODO */
+	return -ENOENT;
+}
+
+
+/**
+  Fini a kernel sunrpc service id.
+
+  @param id the target id to be finalized.
+*/
+static void ksunrpc_service_id_fini(struct c2_service_id *id)
+{
+	/* c2_free(NULL) is a no-op */
+	c2_free(id->si_xport_private);
+}
+
+/**
+  Init a kernel sunrpc service id from args.
+
+  @param sid the result service id will be stored there.
+  @param varagrs variable size of args can be passed.
+*/
+int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
+{
+	struct ksunrpc_service_id *ksid;
+	int                        result;
+
+	C2_ALLOC_PTR(ksid);
+	if (ksid != NULL) {
+		char * hostname;
+		sid->si_xport_private = ksid;
+		ksid->ssi_id = sid;
+
+		/* N.B. they have different order than kernelspace's ones */
+		hostname = va_arg(varargs, char *);
+		strncpy(ksid->ssi_host, hostname, ARRAY_SIZE(ksid->ssi_host)-1);
+		ksid->ssi_port = va_arg(varargs, int);
+		ksid->ssi_addrlen    = sizeof ksid->ssi_sockaddr;
+		ksid->ssi_sockaddr.sin_family      = AF_INET;
+		ksid->ssi_sockaddr.sin_port        = htons(ksid->ssi_port);
+		ksid->ssi_sockaddr.sin_addr.s_addr = in_aton(hostname);
+		ksid->ssi_prog = C2_SESSION_PROGRAM;
+		ksid->ssi_ver  = C2_DEF_RPC_VER;
+		sid->si_ops = &ksunrpc_service_id_ops;
+		result = 0;
+	} else
+		result = -ENOMEM;
+	return result;
+}
+
+/**
+  kernel sunrpc service id operations
+*/
+const struct c2_service_id_ops ksunrpc_service_id_ops = {
+	.sis_conn_init = ksunrpc_conn_init,
+	.sis_fini      = ksunrpc_service_id_fini
 };
 
-C2_EXPORTED(ksunrpc_xprt_ops);
+/**
+  kernel sunrpc connection operations.
+*/
+const struct c2_net_conn_ops ksunrpc_conn_ops = {
+	.sio_fini = ksunrpc_conn_fini,
+	.sio_call = ksunrpc_conn_call,
+	.sio_send = ksunrpc_conn_send
+};
+
 
 /*******************************************************************************
  *                     Start of UT                                             *

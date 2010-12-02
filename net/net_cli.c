@@ -1,8 +1,3 @@
-#include "rpc/types.h"
-#include "rpc/xdr.h"
-#include "rpc/auth.h"
-#include "rpc/clnt.h"
-
 #include "lib/errno.h"
 #include "net/net.h"
 
@@ -27,13 +22,14 @@ int c2_net_cli_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	ADDB_ADD(conn, net_addb_conn_call);
 	return conn->nc_ops->sio_call(conn, call);
 }
-
+C2_EXPORTED(c2_net_cli_call);
 
 int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_call *call)
 {
 	ADDB_ADD(conn, net_addb_conn_send);
 	return conn->nc_ops->sio_send(conn, call);
 }
+C2_EXPORTED(c2_net_cli_send);
 
 int c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *dom, ...)
 {
@@ -46,6 +42,7 @@ int c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *dom, ...)
 	va_end(varargs);
 	return result;
 }
+C2_EXPORTED(c2_service_id_init);
 
 void c2_service_id_fini(struct c2_service_id *id)
 {

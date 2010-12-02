@@ -3,22 +3,10 @@
 #  include <config.h>
 #endif
 
-#include <stdio.h>
-#include <string.h>
-
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
+#ifndef __KERNEL__
+#include "lib/misc.h"
 #endif
 
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <rpc/svc.h>
-
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/rwlock.h"
 #include "net/net.h"
 
 /**

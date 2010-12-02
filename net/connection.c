@@ -7,7 +7,7 @@
 #include "lib/refs.h"
 #include "lib/memory.h"
 
-#include "net.h"
+#include "net/net.h"
 
 /**
    @addtogroup net Networking.
@@ -75,6 +75,7 @@ int c2_net_conn_create(struct c2_service_id *nid)
 	}
 	return result;
 }
+C2_EXPORTED(c2_net_conn_create);
 
 struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 {
@@ -98,11 +99,13 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 
 	return found ? conn : NULL;
 }
+C2_EXPORTED(c2_net_conn_find);
 
 void c2_net_conn_release(struct c2_net_conn *conn)
 {
 	c2_ref_put(&conn->nc_refs);
 }
+C2_EXPORTED(c2_net_conn_release);
 
 void c2_net_conn_unlink(struct c2_net_conn *conn)
 {
@@ -121,6 +124,7 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 	if (need_put)
 		c2_ref_put(&conn->nc_refs);
 }
+C2_EXPORTED(c2_net_conn_unlink);
 
 int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 {
@@ -132,6 +136,7 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 			 &c2_addb_global_ctx);
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
+C2_EXPORTED(c2_net_domain_init);
 
 void c2_net_domain_fini(struct c2_net_domain *dom)
 {
@@ -141,6 +146,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 	c2_list_fini(&dom->nd_service);
 	c2_list_fini(&dom->nd_conn);
 }
+C2_EXPORTED(c2_net_domain_fini);
 
 /** @} end of net group */
 
