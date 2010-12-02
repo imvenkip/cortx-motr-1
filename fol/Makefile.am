@@ -1,3 +1,6 @@
+foldir                     = $(includedir)/fol
+fol_HEADERS                = fol.h lsn.h
+
 noinst_LTLIBRARIES         = libcolibri-fol.la
 libcolibri_fol_la_SOURCES  = fol.c fol.h lsn.h
 INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include

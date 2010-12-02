@@ -4,7 +4,7 @@
 #define __COLIBRI_DB_DB_H__
 
 #include "addb/addb.h"
-#include "lib/adt.h"           /* c2_buf */
+#include "lib/buf.h"           /* c2_buf */
 
 /**
    @defgroup db Data-base interfaces.

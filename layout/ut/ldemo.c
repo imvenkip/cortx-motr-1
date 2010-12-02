@@ -19,17 +19,6 @@
    @{
 */
 
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play, 
-				   int unit)
-{
-	if (unit < play->pl_N)
-		return PUT_DATA;
-	else if (unit < play->pl_N + play->pl_K)
-		return PUT_PARITY;
-	else
-		return PUT_SPARE;
-}
-
 void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 {
 	uint64_t                   group;
@@ -72,26 +61,46 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
 			c2_pdclust_layout_map(play, &src, &tgt);
+			printf("src.sa_unit=%lu, src.sa_group=%lu"
+			       "tgt.ta_frame=%lu, tgt.ta_obj=%lu\n"
+			       , src.sa_unit, src.sa_group, tgt.ta_frame, tgt.ta_obj);
+
 			c2_pdclust_layout_inv(play, &tgt, &src1);
 			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
 			usage[tgt.ta_obj][PUT_NR]++;
-			usage[tgt.ta_obj][classify(play, unit)]++;
+			usage[tgt.ta_obj][c2_pdclust_unit_classify(play, unit)]++;
 		}
+		printf("---\n");
 		for (unit = 0; unit < W; ++unit) {
 			for (i = 0; i < W; ++i)
 				incidence[where[unit]][where[i]]++;
 		}
 	}
+
+	printf("hahaha:\n");
+	for (group = 0; group < I ; ++group) {
+		src.sa_group = group;
+		for (unit = 0; unit < W; ++unit) {
+			src.sa_unit = unit;
+			c2_pdclust_layout_map(play, &src, &tgt);
+			printf("src.sa_unit=%lu, src.sa_group=%lu"
+			       "tgt.ta_frame=%lu, tgt.ta_obj=%lu\n"
+			       , src.sa_unit, src.sa_group, tgt.ta_frame, tgt.ta_obj);			
+		}
+		printf("---\n");
+	}
+	
+
 	printf("map: \n");
 	for (frame = 0; frame < R; ++frame) {
 		printf("%5i : ", (int)frame);
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
-			d = classify(play, map[frame][obj].sa_unit);
+			d = c2_pdclust_unit_classify(play, map[frame][obj].sa_unit);
 			printf("%c%2i, %1i%c ", 
 			       brace[d][0],
 			       (int)map[frame][obj].sa_group, 

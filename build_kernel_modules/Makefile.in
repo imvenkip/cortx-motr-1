@@ -6,7 +6,9 @@ FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 
 subdirs := ../c2t1fs/ ../net/ksunrpc/ ../lib/linux_kernel/ \
-           ../fop/linux_kernel/ ../addb/linux_kernel/ ../db/linux_kernel/ 
+           ../fop/linux_kernel/ ../addb/linux_kernel/ ../db/linux_kernel/ \
+           ../sns/linux_kernel/ ../galois/linux_kernel/ ../pool/linux_kernel/ \
+	   ../layout/linux_kernel/ ../stob/linux_kernel/
 
 ifeq ($(OS),linux)
 
@@ -19,6 +21,12 @@ all:
 clean distclean:
 	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
 	$(RM) Module.markers modules.order
+
+install modules_install:
+	for s in $(subdirs) ;do $(MAKE) -C $$s install ;done
+
+uninstall:
+	for s in $(subdirs) ;do $(MAKE) -C $$s uninstall ;done
 
 else
 

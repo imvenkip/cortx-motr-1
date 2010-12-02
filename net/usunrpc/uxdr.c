@@ -124,7 +124,7 @@ static const xdrproc_t atom_xdr[FPF_NR] = {
 static bool uxdr_atom(const struct c2_fop_field_type *ftype,
 		      XDR *xdrs, void *obj)
 {
-	C2_ASSERT(ftype->fft_u.u_atom.a_type < ARRAY_SIZE(atom_xdr));
+	C2_ASSERT(IS_IN_ARRAY(ftype->fft_u.u_atom.a_type, atom_xdr));
 	return atom_xdr[ftype->fft_u.u_atom.a_type](xdrs, obj);
 }
 
@@ -140,7 +140,7 @@ static bool (*uxdr_aggr[FFA_NR])(const struct c2_fop_field_type *,
 bool_t c2_fop_type_uxdr(const struct c2_fop_field_type *ftype,
 			XDR *xdrs, void *obj)
 {
-	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(uxdr_aggr));
+	C2_ASSERT(IS_IN_ARRAY(ftype->fft_aggr, uxdr_aggr));
 	return uxdr_aggr[ftype->fft_aggr](ftype, xdrs, obj);
 }
 

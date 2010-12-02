@@ -4,7 +4,7 @@ LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 ifeq ($(OS),linux)
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c
+shared_src  := vec.c list.c queue.c misc.c buf.c
 kernel_src  := memory.c mutex.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
@@ -13,6 +13,12 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	ln -fs $(orig) .
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/libc2 -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -fr @LUNUX_MOD@/kernel/fs/libc2
 
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
