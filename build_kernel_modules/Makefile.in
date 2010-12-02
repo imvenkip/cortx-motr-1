@@ -22,6 +22,12 @@ clean distclean:
 	for s in $(subdirs) ;do $(MAKE) -C $$s clean ;done
 	$(RM) Module.markers modules.order
 
+install modules_install:
+	for s in $(subdirs) ;do $(MAKE) -C $$s install ;done
+
+uninstall:
+	for s in $(subdirs) ;do $(MAKE) -C $$s uninstall ;done
+
 else
 
 all:

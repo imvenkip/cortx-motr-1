@@ -132,13 +132,13 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
+	struct c2_fop       *f;
+	struct c2_fop       *r;
+	struct c2_knet_call  kcall;
 
         if (rw == WRITE) {
 		struct c2_io_write     *arg;
                 struct c2_io_write_rep *ret;
-		struct c2_fop               *f;
-		struct c2_fop               *r;
-		struct c2_knet_call          kcall;
 
 		f = c2_fop_alloc(&c2_io_write_fopt, NULL);
 		r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
@@ -165,14 +165,9 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
                 if (rc)
                         return rc;
                 rc = ret->siwr_rc ? : ret->siwr_count;
-		c2_fop_free(r);
-		c2_fop_free(f);
         } else {
 		struct c2_io_read      *arg;
                 struct c2_io_read_rep  *ret;
-		struct c2_fop               *f;
-		struct c2_fop               *r;
-		struct c2_knet_call          kcall;
 
 		f = c2_fop_alloc(&c2_io_read_fopt, NULL);
 		r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
@@ -201,9 +196,9 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
                 if (rc)
                         return rc;
                 rc = ret->sirr_rc ? : ret->sirr_buf.cib_count;
-		c2_fop_free(r);
-		c2_fop_free(f);
         }
+	c2_fop_free(r);
+	c2_fop_free(f);
 	return rc;
 }
 

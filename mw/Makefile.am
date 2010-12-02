@@ -1,1 +1,4 @@
-EXTRA_DIST = consensus.h
+mwdir       = $(includedir)/mw
+mw_HEADERS  = consensus.h
+
+EXTRA_DIST  = consensus.h

@@ -1,3 +1,6 @@
+netdir                     = $(includedir)/net
+net_HEADERS                = net.h xdr.h
+
 SUBDIRS                    = . usunrpc
 
 noinst_LTLIBRARIES         = libcolibri-net.la
