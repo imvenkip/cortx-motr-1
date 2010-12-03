@@ -1,3 +1,4 @@
+KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 OS=@OS@
 
 ifeq ($(OS),linux)

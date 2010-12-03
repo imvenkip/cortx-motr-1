@@ -356,7 +356,7 @@ CFLAGS=""
 AC_MSG_CHECKING([for db libs])
 if test x$with_db != x; then
 	DBSRC="$with_db"
-        DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
+        DBLIBS="$DBSRC/build_unix/libdb.a"
 	if ! test -e $DBLIBS; then
 		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
 	fi
@@ -387,7 +387,7 @@ else
 			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
 	        fi
 	else
-                DBLIBS="$(ls $DBSRC/build_unix/libdb*.la)"
+                DBLIBS="$DBSRC/build_unix/libdb.a"
                 AC_MSG_RESULT([$DBLIBS])
 	fi
 fi
@@ -458,14 +458,16 @@ if test x$OS = xlinux; then
         LIBS=$OLD_LIBS
 fi
 
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]-g//' | sec 's/[[:blank:]]-O2//')
 if test x$enable_debug = xyes; then
-	CFLAGS="-O2 -g $CFLAGS"
-        KCFLAGS="-O2 -g $KCFLAGS"
+        # If debug option specified we are free to strip all the default
+        # optimization and debug flags if any.
+        CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
+        KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
 else
-        CFLAGS="-O2 $CFLAGS"
-        KCFLAGS="-O2 $KCFLAGS"
+        # Remove debug flags but keep default or user optimizations
+        # passed via construction like ./configure CFLAGS=-O3 
+        CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
 if test x$OS = xdarwin; then
@@ -516,6 +518,7 @@ AC_CONFIG_FILES([
                  layout/ut/Makefile
                  lib/Makefile
                  lib/linux_kernel/Makefile
+                 lib/user_space/Makefile
                  lib/ut/Makefile
                  m4/Makefile
                  man/Makefile
