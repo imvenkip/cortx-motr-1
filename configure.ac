@@ -513,8 +513,6 @@ AC_CONFIG_FILES([
                  nrs/Makefile
                  sns/Makefile
 		 sns/ut/Makefile
-                 sns/linux_kernel/Makefile
-		 galois/linux_kernel/Makefile
                  reqh/Makefile
                  sm/Makefile
                  mds/Makefile
@@ -524,12 +522,9 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  layout/Makefile
                  layout/ut/Makefile
-		 layout/linux_kernel/Makefile
                  pool/Makefile
-		 pool/linux_kernel/Makefile
                  stob/Makefile
                  stob/ut/Makefile
-		 stob/linux_kernel/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                  balloc/Makefile

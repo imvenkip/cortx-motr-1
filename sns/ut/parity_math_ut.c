@@ -32,6 +32,13 @@ static int32_t puc = PRTY_UNIT_COUNT_MAX;
 static int32_t fuc = PRTY_UNIT_COUNT_MAX;
 static uint32_t UNIT_BUFF_SIZE = 256;
 
+
+static void c2_buf_init(struct c2_buf *b, uint8_t *d, uint32_t sz)
+{
+	b->b_addr = d;
+	b->b_nob = sz;
+}
+
 extern void unit_spoil(uint32_t buff_size,
 		       uint32_t fail_count,
 		       uint32_t data_count)

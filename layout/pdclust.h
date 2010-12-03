@@ -4,7 +4,7 @@
 #define __COLIBRI_LAYOUT_PDCLUST_H__
 
 #include "layout/layout.h"
-#include "sns/parity_math.h"
+
 /**
    @defgroup pdclust Parity de-clustering.
 
@@ -145,11 +145,6 @@ struct c2_pdclust_layout {
 		 */
 		uint32_t *tc_lcode;
 	} pl_tile_cache;
-
-	/**
-	 * Parity math information, initialized according to the layout
-	 */
-	struct c2_parity_math pl_math;
 };
 
 /** Classification of units in a parity group. */
@@ -218,13 +213,6 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl);
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
 		     struct c2_pdclust_layout **out);
-
-/**
-   Returns type of the given unit according to layout information.
- */
-enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
-			 int unit);
 
 extern const struct c2_layout_type c2_pdclust_layout_type;
 extern const struct c2_layout_formula c2_pdclust_NKP_formula;
