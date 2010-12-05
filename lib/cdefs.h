@@ -23,10 +23,17 @@ extern void __dummy_function(void);
 #define c2_is_array(x) \
 	(!__builtin_types_compatible_p(typeof(&(x)[0]), typeof(x)))
 
+#define IS_IN_ARRAY(idx, array)				\
+({							\
+	C2_CASSERT(c2_is_array(array));			\
+							\
+	((unsigned long)(idx)) < ARRAY_SIZE(array);	\
+})
+
 /* __COLIBRI_LIB_CDEFS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
