@@ -1,1 +1,0 @@
-/home/anatoliy/Work/colibri_clean2/colibri/core/../galois/galois.c

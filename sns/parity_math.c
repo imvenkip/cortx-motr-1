@@ -1,4 +1,7 @@
-#include "lib/cdefs.h"
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -8,9 +11,7 @@
 #include "parity_ops.h"
 #include "parity_math.h"
 
-enum {
-	C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (C2_PARITY_GALOIS_W - 1)
-};
+#define C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX (pow(2, C2_PARITY_GALOIS_W - 1))
 
 /* c2_parity_* are to much eclectic. just more simple names. */
 static int gadd(int x, int y)
@@ -120,10 +121,7 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 	c2_matrix_fini(&math->pmi_sys_mat);
 	c2_vector_fini(&math->pmi_sys_vec);
 	c2_vector_fini(&math->pmi_sys_res);
-	
-	c2_parity_fini();
 }
-C2_EXPORTED(c2_parity_math_fini);
 
 int  c2_parity_math_init(struct c2_parity_math *math,
 			 uint32_t data_count, uint32_t parity_count)
@@ -182,7 +180,6 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	c2_parity_math_fini(math);
 	return ret;
 }
-C2_EXPORTED(c2_parity_math_init);
 
 void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *data,
@@ -208,7 +205,6 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			((uint8_t*)parity[ui].b_addr)[ei] = *c2_vector_elem_get(&math->pmi_parity, ui);
 	}
 }
-C2_EXPORTED(c2_parity_math_calculate);
 
 void c2_parity_math_refine(struct c2_parity_math *math,
 			   struct c2_buf *data,
@@ -322,7 +318,6 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 	/* recalculate parity */
 	c2_parity_math_calculate(math, data, parity);
 }
-C2_EXPORTED(c2_parity_math_recover);
 
 /*
  *  Local variables:
