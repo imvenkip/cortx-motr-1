@@ -30,17 +30,21 @@ mkdir -p /tmp/test/
 sleep 5
 mkdir -p /mnt/c2t1fs
 
-# 1024 * 1024 * 256 = 268435456
-mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
+# size of file to write, in MB
+MB=256
+
+mount -t c2t1fs -o objid=12345,objsize=$((MB * 1024 * 1024)),ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs || exit 1
 
 echo "wwwwwwwwwwwwwwwww"
 for bs in 1 2 4 8 16 32 64 128 256 1024; do
-	dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=${bs}k count=$((268435456 / bs / 1024 ))
+	echo "w block size ${bs}k"
+	dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=${bs}k count=$((MB * 1024 / bs))
 done
 
 echo "rrrrrrrrrrrrrrrrr"
 for bs in 1024 512 256 128 64 32 16 8 4 2 1; do
-	dd of=/dev/null if=/mnt/c2t1fs/12345 bs=${bs}k count=$((268435456 / bs / 1024 ))
+	echo "r block size ${bs}k"
+	dd of=/dev/null if=/mnt/c2t1fs/12345 bs=${bs}k count=$((MB * 1024 / bs))
 done
 
 umount /mnt/c2t1fs

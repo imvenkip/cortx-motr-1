@@ -89,7 +89,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
 	dom = nid->si_domain;
 
 	c2_rwlock_read_lock(&dom->nd_lock);
-	c2_list_for_each_entry(&dom->nd_conn, conn, 
+	c2_list_for_each_entry(&dom->nd_conn, conn,
 			       struct c2_net_conn, nc_link) {
 		C2_ASSERT(conn->nc_domain == dom);
 		if (c2_services_are_same(conn->nc_id, nid)) {
@@ -134,8 +134,9 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_list_init(&dom->nd_conn);
 	c2_list_init(&dom->nd_service);
 	c2_rwlock_init(&dom->nd_lock);
-	dom->nd_xprt = xprt;
-	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, 
+        c2_net_domain_stats_init(dom);
+ 	dom->nd_xprt = xprt;
+	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
 			 &c2_addb_global_ctx);
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
@@ -145,6 +146,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 {
 	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 	c2_addb_ctx_fini(&dom->nd_addb);
+        c2_net_domain_stats_fini(dom);
 	c2_rwlock_fini(&dom->nd_lock);
 	c2_list_fini(&dom->nd_service);
 	c2_list_fini(&dom->nd_conn);
@@ -153,7 +155,7 @@ C2_EXPORTED(c2_net_domain_fini);
 
 /** @} end of net group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

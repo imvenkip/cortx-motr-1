@@ -142,7 +142,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	}
 
 	sock = -1;
-	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog, 
+	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
 					  id->ssi_ver, &sock, 0, 0);
 	if (xprt->nsx_client != NULL) {
 		xprt->nsx_fd = sock;
@@ -268,7 +268,7 @@ static int usunrpc_conn_send(struct c2_net_conn *conn, struct c2_net_call *call)
 	c2_queue_put(&xdom->sd_queue, &call->ac_linkage);
 	c2_cond_signal(&xdom->sd_gotwork, &xdom->sd_guard);
 	c2_mutex_unlock(&xdom->sd_guard);
-	
+
 	return 0;
 }
 
@@ -308,16 +308,22 @@ void usunrpc_client_worker(struct c2_net_domain *dom)
 	struct c2_net_call        *call;
 	struct usunrpc_conn       *xconn;
 	struct usunrpc_xprt       *xprt;
+        bool                       sleeping = false;
 
 	xdom = dom->nd_xprt_private;
 	c2_mutex_lock(&xdom->sd_guard);
 	while (1) {
-		while (!xdom->sd_shutown && c2_queue_is_empty(&xdom->sd_queue))
+		while (!xdom->sd_shutown && c2_queue_is_empty(&xdom->sd_queue)){
+                        sleeping = true;
 			c2_cond_wait(&xdom->sd_gotwork, &xdom->sd_guard);
+                }
 		if (xdom->sd_shutown)
 			break;
 		call = container_of(c2_queue_get(&xdom->sd_queue),
 				    struct c2_net_call, ac_linkage);
+                c2_net_domain_stats_collect(dom, NS_STATS_OUT,
+                        call->ac_arg->f_type->ft_top->fft_layout->fm_sizeof,
+                        &sleeping);
 		c2_mutex_unlock(&xdom->sd_guard);
 
 		xconn = call->ac_conn->nc_xprt_private;

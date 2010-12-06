@@ -47,7 +47,7 @@ static inline uint64_t min64u(uint64_t a, uint64_t b)
 	return a < b ? a : b;
 }
 
-static inline uint64_t max64u(uint32_t a, uint64_t b)
+static inline uint64_t max64u(uint64_t a, uint64_t b)
 {
 	return a > b ? a : b;
 }
