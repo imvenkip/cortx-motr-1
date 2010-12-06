@@ -21,6 +21,10 @@ void *c2_alloc(size_t size);
 
 #define C2_ALLOC_ARR(arr, nr)  ((arr) = c2_alloc((nr) * sizeof ((arr)[0])))
 #define C2_ALLOC_PTR(ptr)      C2_ALLOC_ARR(ptr, 1)
+#define C2_ALLOC_ADDB(ptr, size, ctx, loc) \
+    if ((ptr = c2_alloc(size)) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
+#define C2_ALLOC_PTR_ADDB(ptr, ctx, loc) \
+    if (C2_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.
