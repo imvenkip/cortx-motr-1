@@ -1,4 +1,4 @@
-#include "stob_id.h"
+#include "stob/stob_id.h"
 
 bool c2_stob_id_eq(const struct c2_stob_id *id0, const struct c2_stob_id *id1)
 {

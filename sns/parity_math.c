@@ -5,8 +5,8 @@
 #include "lib/types.h"
 #include "lib/misc.h" /* SET0() */
 
-#include "parity_ops.h"
-#include "parity_math.h"
+#include "sns/parity_ops.h"
+#include "sns/parity_math.h"
 
 enum {
 	C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (C2_PARITY_GALOIS_W - 1)

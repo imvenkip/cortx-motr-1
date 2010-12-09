@@ -25,6 +25,7 @@ uninstall:
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers io_k.[ch] io_fop_init.c
+	rm -fr @SRCDIR@/sns/galois.h
 
 else
 
