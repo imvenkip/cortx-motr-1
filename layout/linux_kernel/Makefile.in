@@ -7,8 +7,7 @@ obj-m       := klayout.o
 shared_src  := layout.c pdclust.c
 kernel_src  := klayout.c
 klayout-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := ../layout.c  ../layout.h  ../pdclust.c  ../pdclust.h
-
+orig        := $(shared_src:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 

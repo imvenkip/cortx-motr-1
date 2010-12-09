@@ -7,8 +7,7 @@ obj-m       := kstob.o
 shared_src  := stob_id.c
 kernel_src  := kstob.c
 kstob-y     := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := ../stob_id.c ../stob_id.h
-
+orig        := $(shared_src:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
