@@ -7,7 +7,7 @@ obj-m       := kpool.o
 shared_src  := pool.c
 kernel_src  := kpool.c
 kpool-y     := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := 	../pool.c ../pool.h
+orig        := $(shared_src:%=../%)
 
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@

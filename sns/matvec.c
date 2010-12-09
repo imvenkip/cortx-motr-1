@@ -12,7 +12,7 @@
 #define DBG(fmt, args...) printf("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 #endif
 
-#include "matvec.h"
+#include "sns/matvec.h"
 
 int c2_vector_init(struct c2_vector *v, uint32_t sz)
 {
