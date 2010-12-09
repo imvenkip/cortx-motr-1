@@ -93,7 +93,7 @@ struct c2_fit_type {
  */
 struct c2_fit_watch {
 	/** A fop field type that the iterator type watches for. */
-	struct c2_fop_field_type *fif_field;
+	const struct c2_fop_field_type *fif_field;
 	/**
 	    A collection of bit-flags associated with this watch.
 
@@ -102,19 +102,19 @@ struct c2_fit_watch {
 	    what kind of a lock is to be taken on the object identified by the
 	    field.
 	*/
-	uint64_t                  fif_bits;
+	uint64_t                        fif_bits;
 	/**
 	   Linkage into a list of watches hanging off of fop iterator type.
 
 	   @see c2_fit_type::fit_watch
 	 */
-	struct c2_list_link       fif_linkage;
+	struct c2_list_link             fif_linkage;
 	/**
 	   A list of per-field modifiers.
 
 	   @see c2_fit_mod::fm_linkage
 	 */
-	struct c2_list            fif_mod;
+	struct c2_list                  fif_mod;
 };
 
 /**
@@ -133,27 +133,23 @@ struct c2_fit_watch {
  */
 struct c2_fit_mod {
 	/**
-	 * A fop type for which modification is made.
+	 * A field being watched.
 	 */
-	struct c2_fop_type  *fm_type;
-	/**
-	 * A field within c2_fit_mod::fm_type.
-	 */
-	struct c2_fop_field *fm_field;
+	const struct c2_fop_field *fm_field;
 	/**
 	 * Bits added (|) to the watch bit flags.
 	 */
-	uint64_t             fm_bits_add;
+	uint64_t                   fm_bits_add;
 	/**
 	 * Bits cleared (&~) from the watch bit flags.
 	 */
-	uint64_t             fm_bits_sub;
+	uint64_t                   fm_bits_sub;
 	/**
 	 * Linkage to the list of all modifiers for the watch.
 	 *
 	 * @see c2_fit_watch::fif_mod.
 	 */
-	struct c2_list_link  fm_linkage;
+	struct c2_list_link        fm_linkage;
 };
 
 void c2_fop_itype_init(struct c2_fit_type *itype);
@@ -165,17 +161,21 @@ void c2_fop_itype_fini(struct c2_fit_type *itype);
    @pre itype->fit_watch does not contains a watch for watch->fif_field
    @post itype->fit_watch contains the watch
  */
-void c2_fop_itype_add_watch(struct c2_fit_type *itype,
+void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 			    struct c2_fit_watch *watch);
 
 /**
    Adds a per-field modifier to a fop iterator watch.
  */
-void c2_fop_itype_add_mod(struct c2_fit_watch *watch, struct c2_fit_mod *mod);
+void c2_fop_itype_mod_add(struct c2_fit_watch *watch, struct c2_fit_mod *mod);
 
-extern struct c2_fit_type c2_fop_object_iterator;
-extern struct c2_fit_type c2_fop_user_iterator;
-extern struct c2_fit_type c2_fop_capability_iterator;
+/**
+   A helper function that allocates a per-field modifier for a field with the
+   given name and adds it to the watch.
+ */
+int c2_fit_field_add(struct c2_fit_watch *watch,
+		     struct c2_fop_type *ftype, const char *fname,
+		     uint64_t add_bits, uint64_t sub_bits);
 
 /**
    Fop cursor stack frame.
@@ -285,6 +285,28 @@ void c2_fits_fini(void);
  */
 int c2_fop_type_fit(struct c2_fop_type *fopt);
 
+/*
+ * Standard fop iterator types.
+ */
+
+/*
+ * Fop object: enumerates file system objects referenced by a fop.
+ */
+
+struct c2_fid;
+
+enum c2_fop_object_bitflags {
+	C2_FOB_LOAD  = 1 << 0,
+	C2_FOB_READ  = 1 << 1,
+	C2_FOB_WRITE = 1 << 2
+};
+
+void c2_fop_object_init(const struct c2_fop_type_format *fid_type);
+
+void c2_fop_object_it_init (struct c2_fit *it, struct c2_fop *fop);
+void c2_fop_object_it_fini (struct c2_fit *it);
+int  c2_fop_object_it_yield(struct c2_fit *it,
+			    struct c2_fid *fid, uint64_t *bits);
 
 /** @} end of fop group */
 

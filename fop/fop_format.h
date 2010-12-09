@@ -85,6 +85,10 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr);
 void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 			     int fileno, uint32_t elno);
 
+struct c2_fop_field *
+c2_fop_type_field_find(const struct c2_fop_field_type *ftype,
+		       const char *fname);
+
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt;
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
 extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;

@@ -4,6 +4,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"               /* ENOMEM */
 #include "lib/misc.h"                /* C2_SET0 */
+#include "fid/fid.h"
 #include "fop/fop_iterator.h"
 
 /**
@@ -114,6 +115,10 @@ static const struct field_fit_data *top_field(struct c2_fit *it);
 static void *drill(const struct c2_fit *it, int depth);
 static bool tag_find(struct c2_fit *it);
 
+static const struct c2_addb_loc fit_addb_loc = {
+	.al_name = "fop-iterator"
+};
+
 /**
    An invariant maintained for ftype_fit.
  */
@@ -190,7 +195,7 @@ void c2_fop_itype_fini(struct c2_fit_type *itype)
 	c2_list_fini(&itype->fit_watch);
 }
 
-void c2_fop_itype_add_watch(struct c2_fit_type *itype,
+void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 			    struct c2_fit_watch *watch)
 {
 	struct c2_fit_watch *scan;
@@ -203,9 +208,33 @@ void c2_fop_itype_add_watch(struct c2_fit_type *itype,
 	c2_list_init(&watch->fif_mod);
 }
 
-void c2_fop_itype_add_mod(struct c2_fit_watch *watch, struct c2_fit_mod *mod)
+void c2_fop_itype_mod_add(struct c2_fit_watch *watch, struct c2_fit_mod *mod)
 {
 	c2_list_add(&watch->fif_mod, &mod->fm_linkage);
+}
+
+int c2_fit_field_add(struct c2_fit_watch *watch,
+		     struct c2_fop_type *ftype, const char *fname,
+		     uint64_t add_bits, uint64_t sub_bits)
+{
+	struct c2_fit_mod   *mod;
+	struct c2_fop_field *field;
+	int                  result;
+
+	field = c2_fop_type_field_find(ftype->ft_top, fname);
+	if (field != NULL) {
+		C2_ALLOC_PTR_ADDB(mod, &ftype->ft_addb, &fit_addb_loc);
+		if (mod != NULL) {
+			mod->fm_field = field;
+			mod->fm_bits_add = add_bits;
+			mod->fm_bits_sub = sub_bits;
+			c2_fop_itype_mod_add(watch, mod);
+			result = 0;
+		} else
+			result = -ENOMEM;
+	} else
+		result = -ENOENT;
+	return result;
 }
 
 static bool c2_fit_invariant(const struct c2_fit *it)
@@ -422,15 +451,6 @@ static struct c2_fop_decorator fit_dec = {
 	.dec_type_fini = ftype_fit_fini
 };
 
-void c2_fits_init(void)
-{
-	c2_fop_decorator_register(&fit_dec);
-}
-
-void c2_fits_fini(void)
-{
-}
-
 /**
    Returns true iff given field is "watched" by the given iterator type.
 
@@ -471,7 +491,7 @@ int c2_fop_type_fit(struct c2_fop_type *fopt)
 	/*
 	 * Allocate "data" and populate it.
 	 */
-	C2_ALLOC_PTR(data);
+	C2_ALLOC_PTR_ADDB(data, &fopt->ft_addb, &fit_addb_loc);
 	if (data == NULL)
 		return -ENOMEM;
 
@@ -484,7 +504,8 @@ int c2_fop_type_fit(struct c2_fop_type *fopt)
 		if (itype == NULL)
 			continue;
 
-		C2_ALLOC_ARR(data->ff_present[t], data->ff_nr + 1);
+		C2_ALLOC_ARR_ADDB(data->ff_present[t], data->ff_nr + 1,
+				  &fopt->ft_addb, &fit_addb_loc);
 		if (data->ff_present[t] == NULL)
 			return -ENOMEM;
 
@@ -625,6 +646,67 @@ static bool tag_find(struct c2_fit *it)
 	return false;
 }
 
+/*
+ * Standard fop iterator types.
+ */
+
+static struct c2_fit_type fop_object_itype = {
+	.fit_name  = "fop-object",
+	.fit_index = -1
+};
+
+static struct c2_fit_watch fop_object_watch = {
+	.fif_bits = 0
+};
+
+void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
+{
+	struct c2_fop_field_type *fid_type;
+
+	fid_type = fid_fop_type->ftf_out;
+	C2_PRE(fid_type != NULL);
+	C2_PRE(fid_type->fft_nr == 2);
+	C2_PRE(fid_type->fft_layout->fm_sizeof == 2 * sizeof(uint64_t));
+
+	fop_object_watch.fif_field = fid_type;
+	fop_object_watch.fif_bits  = C2_FOB_LOAD;
+	c2_fop_itype_watch_add(&fop_object_itype, &fop_object_watch);
+}
+
+void c2_fop_object_it_init(struct c2_fit *it, struct c2_fop *fop)
+{
+	c2_fit_init(it, &fop_object_itype, fop);
+}
+
+void c2_fop_object_it_fini(struct c2_fit *it)
+{
+	C2_PRE(it->fi_type == &fop_object_itype);
+	c2_fit_fini(it);
+}
+
+int c2_fop_object_it_yield(struct c2_fit *it,
+			   struct c2_fid *fid, uint64_t *bits)
+{
+	struct c2_fit_yield yield;
+	int                 result;
+
+	C2_PRE(it->fi_type == &fop_object_itype);
+	result = c2_fit_yield(it, &yield);
+	*fid = *(struct c2_fid *)yield.fy_val.ffi_val;
+	*bits = yield.fy_bits;
+	return result;
+}
+
+void c2_fits_init(void)
+{
+	c2_fop_decorator_register(&fit_dec);
+	c2_fop_itype_init(&fop_object_itype);
+}
+
+void c2_fits_fini(void)
+{
+	c2_fop_itype_fini(&fop_object_itype);
+}
 
 /** @} end of fop group */
 

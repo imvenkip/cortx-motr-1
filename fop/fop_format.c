@@ -253,6 +253,19 @@ void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 }
 C2_EXPORTED(c2_fop_type_field_addr);
 
+struct c2_fop_field *
+c2_fop_type_field_find(const struct c2_fop_field_type *ftype, const char *fname)
+{
+	size_t i;
+
+	for (i = 0; i < ftype->fft_nr; ++i) {
+		if (!strcmp(fname, ftype->fft_child[i]->ff_name))
+			return ftype->fft_child[i];
+	}
+	return NULL;
+}
+C2_EXPORTED(c2_fop_type_field_find);
+
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_VOID,
 	.ftf_aggr  = FFA_ATOM,
