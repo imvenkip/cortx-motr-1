@@ -92,6 +92,21 @@ bool c2_mod_ge(uint64_t x0, uint64_t x1)
 }
 
 /*
+ * Check that ergo() and equi() macros are really what they pretend to be.
+ */
+
+C2_BASSERT(ergo(false, false) == true);
+C2_BASSERT(ergo(false, true)  == true);
+C2_BASSERT(ergo(true,  false) == false);
+C2_BASSERT(ergo(true,  true)  == true);
+
+C2_BASSERT(equi(false, false) == true);
+C2_BASSERT(equi(false, true)  == false);
+C2_BASSERT(equi(true,  false) == false);
+C2_BASSERT(equi(true,  true)  == true);
+
+
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
