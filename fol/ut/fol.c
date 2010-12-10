@@ -1,6 +1,5 @@
 /* -*- C -*- */
 
-#include <stdlib.h>                /* system, free */
 
 #include "lib/ut.h"
 #include "lib/ub.h"
@@ -12,16 +11,7 @@ static const char db_name[] = "ut-fol";
 
 static int db_reset(void)
 {
-	char *cmd;
-	int   rc;
-
-	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
-	C2_ASSERT(rc > 0);
-
-	rc = system(cmd);
-	C2_ASSERT(rc == 0);
-	free(cmd);
-	return 0;
+        return c2_ut_db_reset(db_name);
 }
 
 static struct c2_dbenv       db;

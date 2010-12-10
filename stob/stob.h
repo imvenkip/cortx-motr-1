@@ -11,7 +11,6 @@
 #include "lib/rwlock.h"
 #include "addb/addb.h"
 #include "sm/sm.h"
-#include "stob_id.h"
 
 /* import */
 struct c2_sm;
@@ -147,6 +146,19 @@ enum c2_stob_state {
 	 */
 	CSS_NOENT
 };
+
+/**
+   Unique storage object identifier.
+
+   A storage object in a cluster is identified by identifier of this type.
+ */
+struct c2_stob_id {
+	struct c2_uint128 si_bits;
+};
+
+bool c2_stob_id_eq (const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+int  c2_stob_id_cmp(const struct c2_stob_id *id0, const struct c2_stob_id *id1);
+bool c2_stob_id_is_set(const struct c2_stob_id *id);
 
 /**
    In-memory representation of a storage object.

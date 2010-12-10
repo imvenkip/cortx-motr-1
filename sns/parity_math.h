@@ -1,7 +1,7 @@
 #ifndef __COLIBRI_SNS_PARITY_MATH_H__ 
 #define __COLIBRI_SNS_PARITY_MATH_H__
 
-#include "lib/buf.h"
+#include "lib/adt.h"
 #include "matvec.h"
 #include "ls_solve.h"
 

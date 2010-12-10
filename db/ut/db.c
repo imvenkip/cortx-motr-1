@@ -1,7 +1,5 @@
 /* -*- C -*- */
 
-#include <stdlib.h>       /* system */
-
 #include "lib/arith.h"    /* C2_3WAY */
 #include "lib/types.h"
 #include "lib/ut.h"
@@ -40,16 +38,7 @@ static const struct c2_table_ops test_table_ops = {
 
 static int db_reset(void)
 {
-	char *cmd;
-	int   rc;
-
-	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
-	C2_ASSERT(rc > 0);
-
-	rc = system(cmd);
-	C2_ASSERT(rc == 0);
-	free(cmd);
-	return 0;
+        return c2_ut_db_reset(db_name);
 }
 
 static void test_table_create(void) 

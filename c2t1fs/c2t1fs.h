@@ -41,10 +41,6 @@
 #define log2(n) ffz(~(n))
 #endif
 
-enum {
-	/* for now, 4k page size for ksunrpc_{read,write}(...) */
-	C2T1FS_DEFAULT_UNIT_SIZE = 4096
-};
 
 /**
    This is the data structure to describe a client transport,
@@ -72,11 +68,8 @@ struct c2t1fs_xprt_clt {
 */
 struct c2t1fs_object_param {
         uint64_t        cop_objid;    /*< The object id will be mapped */
-        c2_bcount_t     cop_objsize;  /*< The initial object size */
+        uint64_t        cop_objsize;  /*< The initial object size */
         uint64_t        cop_layoutid; /*< layout id this client uses */
-	c2_bcount_t     cop_unitsize; /*< data or parity unit size in bytes */
-	
-	struct c2_pdclust_layout *cop_play; /*< parity de-clustered layout */
 };
 
 struct c2t1fs_sb_info {

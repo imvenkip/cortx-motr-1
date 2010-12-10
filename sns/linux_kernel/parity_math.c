@@ -1,1 +1,0 @@
-../parity_math.c

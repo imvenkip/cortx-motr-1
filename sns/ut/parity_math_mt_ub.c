@@ -32,6 +32,12 @@ enum {
 	UB_ITER = 1
 };
 
+static void c2_buf_init(struct c2_buf *b, uint8_t *d, uint32_t sz)
+{
+	b->b_addr = d;
+	b->b_nob = sz;
+}
+
 static void ub_init(void)
 {
 	srand(1285360231);

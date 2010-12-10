@@ -120,7 +120,7 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 	if (d->rd_sibling == NULL)
 		return -EIO;
 	d->rd_data = buf_move(&buf, &nob, h->rh_data_len);
-	if (d->rd_sibling == NULL)
+	if (d->rd_data == NULL)
 		return -EIO;
 	if (nob != 0)
 		return -EIO;

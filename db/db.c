@@ -287,11 +287,11 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 		if (result == 0) {
 			result = DBENV_CALL(env, open, name, flags, 0700);
 			if (result == 0) {
-				result = C2_THREAD_INIT(&env->d_i.d_thread, 
+				result = C2_THREAD_INIT(&env->d_i.d_thread,
 							struct c2_dbenv *, NULL,
 							&dbenv_thread, env);
 				if (result == 0)
-					DBENV_CALL(env, log_cursor, 
+					DBENV_CALL(env, log_cursor,
 						   &env->d_i.d_logc, 0);
 			}
 		}
@@ -357,8 +357,8 @@ static int table_tol_del[] = { 0 };
 static int table_tol_cursor[] = { 0 };
 static int table_tol_sync[] = { 0 };
 
-int c2_table_init(struct c2_table *table, struct c2_dbenv *env, 
-		  const char *name, uint64_t flags, 
+int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
+		  const char *name, uint64_t flags,
 		  const struct c2_table_ops *ops)
 {
 	int result;
@@ -386,7 +386,7 @@ int c2_table_init(struct c2_table *table, struct c2_dbenv *env,
 						    &key_compare);
 		}
 		if (result == 0)
-			result = TABLE_CALL(table, open, NULL, name, 
+			result = TABLE_CALL(table, open, NULL, name,
 					    NULL, DB_BTREE, flags, 0700);
 	} else
 		table->t_i.t_db = NULL;
@@ -412,7 +412,7 @@ void c2_db_buf_impl_init(struct c2_db_buf *buf)
 
 	dbt = &buf->db_i.db_dbt;
 	dbt->data = buf->db_buf.b_addr;
-	dbt->size = buf->db_buf.b_nob;
+	dbt->ulen = dbt->size = buf->db_buf.b_nob;
 
 	switch (buf->db_type) {
 	case DBT_ALLOC:
@@ -420,7 +420,6 @@ void c2_db_buf_impl_init(struct c2_db_buf *buf)
 		break;
 	case DBT_COPYOUT:
 		dbt->flags = DB_DBT_USERMEM;
-		dbt->ulen  = dbt->size;
 		break;
 	default:
 		C2_IMPOSSIBLE("Wrong buffer type.");
@@ -433,9 +432,11 @@ void c2_db_buf_impl_fini(struct c2_db_buf *buf)
 
 bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
 {
-	return 
-		buf->db_i.db_dbt.data == buf->db_buf.b_addr &&
-		buf->db_i.db_dbt.size == buf->db_buf.b_nob;
+	return
+                buf->db_i.db_dbt.data == buf->db_buf.b_addr &&
+                (buf->db_type == DBT_ALLOC) ?
+                buf->db_i.db_dbt.size == buf->db_buf.b_nob :
+                buf->db_i.db_dbt.ulen == buf->db_buf.b_nob;
 }
 
 int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
@@ -604,8 +605,8 @@ int c2_table_update(struct c2_db_tx *tx, struct c2_db_pair *pair)
 
 int c2_table_insert(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn, 
-					  pair_key(pair), pair_rec(pair), 
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, put, tx->dt_i.dt_txn,
+					  pair_key(pair), pair_rec(pair),
 					  DB_NOOVERWRITE));
 }
 
@@ -625,14 +626,14 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 *                        DBT_INPLACE buffer type is reserved for this
 	 *                        purpose.
 	 */
-	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn, 
-					  pair_key(pair), pair_rec(pair), 
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn,
+					  pair_key(pair), pair_rec(pair),
 					  DB_RMW));
 }
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
-	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn, 
+	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, del, tx->dt_i.dt_txn,
 					  pair_key(pair), 0));
 }
 
@@ -658,7 +659,7 @@ void c2_db_cursor_fini(struct c2_db_cursor *cursor)
 static int cursor_get(struct c2_db_cursor *cursor, struct c2_db_pair *pair,
 		      uint32_t flags)
 {
-	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair), 
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, get, pair_key(pair),
 					   pair_rec(pair), flags|DB_RMW));
 }
 
@@ -689,13 +690,13 @@ int c2_db_cursor_last(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 
 int c2_db_cursor_set(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair), 
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair),
 					   pair_rec(pair), DB_CURRENT));
 }
 
 int c2_db_cursor_add(struct c2_db_cursor *cursor, struct c2_db_pair *pair)
 {
-	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair), 
+	return WITH_PAIR(pair, CURSOR_CALL(cursor, put, pair_key(pair),
 					   pair_rec(pair), DB_KEYFIRST));
 }
 
@@ -784,9 +785,9 @@ static void dbenv_thread(struct c2_dbenv *env)
 			next.offset = st->st_disk_offset;
 			c2_free(st);
 			c2_mutex_lock(&env->d_i.d_lock);
-			c2_list_for_each_entry_safe(&env->d_i.d_waiters, 
-						    w, tmp, 
-						    struct c2_db_tx_waiter, 
+			c2_list_for_each_entry_safe(&env->d_i.d_waiters,
+						    w, tmp,
+						    struct c2_db_tx_waiter,
 						    tw_env) {
 				if (log_compare(&w->tw_i.tw_lsn, &next) <= 0) {
 					w->tw_persistent(w);
@@ -805,7 +806,7 @@ static void dbenv_thread(struct c2_dbenv *env)
 
 /** @} end of db group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
