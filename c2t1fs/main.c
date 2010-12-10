@@ -127,8 +127,7 @@ MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
 static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
-			      uint64_t objid,
-			      struct page **pages, int npages, int off,
+			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
@@ -158,8 +157,8 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 		arg->siw_buf.cib_pgoff = off;
 		arg->siw_buf.cib_value = pages;
 
-                DBG("writing data to server(%llu/%d/%d/%ld/%lld)\n",
-                    objid, npages, off, len, pos);
+                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
+                    objid, off, len, pos);
                 rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
                 DBG("write to server returns %d\n", rc);
                 if (rc)
@@ -189,8 +188,8 @@ static int ksunrpc_read_write(struct ksunrpc_xprt *xprt,
 		ret->sirr_buf.cib_pgoff = off;
 		ret->sirr_buf.cib_value = pages;
 
-                DBG("reading data from server(%llu/%d/%d/%ld/%lld)\n",
-                    objid, npages, off, len, pos);
+                DBG("reading data from server(%llu/%d/%ld/%lld)\n",
+                    objid, off, len, pos);
                 rc = ksunrpc_xprt_ops.ksxo_call(xprt, &kcall);
                 DBG("read from server returns %d\n", rc);
                 if (rc)
@@ -276,7 +275,7 @@ static int c2t1fs_put_csi(struct super_block *sb)
 static struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode_info *cii;
-	
+
 	cii = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_NOFS);
 	if (!cii)
 		return NULL;
@@ -347,7 +346,7 @@ static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
 static void pdclust_layout_fini(struct c2_pdclust_layout *play)
 {
 	c2_pool_fini(play->pl_pool);
-	c2_pdclust_fini(play);	
+	c2_pdclust_fini(play);
 }
 
 /**
@@ -627,7 +626,7 @@ static int optparse(struct super_block *sb, char *options)
                 printk(KERN_ERR "No layout specified "
 		       "(need mount option 'layout-parity=...' and 'layout-data=...')\n");
 		obj_param->cop_play = NULL;
-                return -EINVAL;		
+                return -EINVAL;
 	}
         if (objsize != NULL) {
                 obj_param->cop_objsize = simple_strtol(objsize, NULL, 0);
@@ -655,11 +654,11 @@ static int optparse(struct super_block *sb, char *options)
         return 0;
 }
 #if 1
-static void srv_map_fini(struct page ****p, uint32_t W, uint32_t I)
+static void obj_map_fini(struct page ****p, uint32_t P, uint32_t I)
 {
         uint32_t i;
 
-        for (i = 0; i < W; ++i) {
+        for (i = 0; i < P; ++i) {
                 c2_free((*p)[i]);
                 (*p)[i] = NULL;
 	}
@@ -667,18 +666,18 @@ static void srv_map_fini(struct page ****p, uint32_t W, uint32_t I)
         c2_free(*p);
 }
 
-static int srv_map_init(struct page ****p, uint32_t W, uint32_t I)
+static int obj_map_init(struct page ****p, uint32_t P, uint32_t I)
 {
         uint32_t i;
 
-        C2_ALLOC_ARR(*p, W);
+        C2_ALLOC_ARR(*p, P);
         if (*p == NULL)
 		return -ENOMEM;
 
-        for (i = 0; i < W; ++i) {
+        for (i = 0; i < P; ++i) {
                 C2_ALLOC_ARR((*p)[i], I);
 		if ((*p)[i] == NULL) {
-                        srv_map_fini(p, W, I);
+                        obj_map_fini(p, P, I);
                         return -ENOMEM;
                 }
         }
@@ -686,6 +685,12 @@ static int srv_map_init(struct page ****p, uint32_t W, uint32_t I)
         return 0;
 }
 #endif
+
+struct rpc_desc {
+	c2_bindex_t rd_offset;
+	int         rd_units;
+};
+
 static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 				      struct inode             *inode,
 				      struct page **pages, int npages,
@@ -700,6 +705,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 	int	                    unit;
 	int                         N = play->pl_N;
 	int                         K = play->pl_K;
+	int                         P = play->pl_P;
 	int                         W = N + 2*K;
 	int                         I = npages / N;
 
@@ -716,7 +722,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 	enum c2_pdclust_unit_type   unit_type;
 
 	loff_t                      pos;
-	uint64_t                    srv;
+	uint64_t                    obj;
 
 	struct c2t1fs_xprt_clt     *con;
 	struct page                *page;
@@ -727,28 +733,31 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 
 	struct c2t1fs_object_param *obj_param;
 
-	struct page              ***srvmap;  /* *srvmap[W][I]; */
-	loff_t                     *grppos;
+	struct page              ***objmap;  /* *objmap[P][I]; */
+	struct rpc_desc            *rpc;
 
 	ENTER;
+
 	C2_ASSERT(csi != NULL);
-	DBG("layout settings: N=%d, K=%d, W=%d, I=%d\n", N, K, W, I);
+	C2_PRE(off == 0);
+
+	DBG("layout settings: N=%d, K=%d, W=%d, I=%d, P=%d\n", N, K, W, I, P);
 
 	obj_param = &csi->csi_object_param;
 	objid = obj_param->cop_objid;
 	unitsize = obj_param->cop_unitsize;
 	C2_ASSERT(unitsize >= C2T1FS_DEFAULT_UNIT_SIZE);
 
-	rc = srv_map_init(&srvmap, W, I);
+	rc = obj_map_init(&objmap, P, I);
 	if (rc)
 		goto int_out;
 
 	C2_ALLOC_ARR(data_buf, N);
-	C2_ALLOC_ARR(grppos, I);
+	C2_ALLOC_ARR(rpc, P);
 	C2_ALLOC_ARR(parity_pages, parity_nr);
 	C2_ALLOC_ARR(parity_buf, parity_nr);
-	
-	if (grppos == NULL || parity_pages == NULL ||
+
+	if (rpc == NULL || parity_pages == NULL ||
 	    data_buf == NULL || parity_buf == NULL) {
 		rc = -ENOMEM;
 		goto int_out;
@@ -765,13 +774,19 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 			    unitsize);
 	}
 
+	for (i = 0; i < P; ++i)
+		rpc[i].rd_offset = C2_BINDEX_MAX;
+
 	src.sa_group = in_pos / (N * unitsize);
 	for (group = 0, parity = 0, spare = 0; group < I ; ++group, src.sa_group++) {
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
 			c2_pdclust_layout_map(play, &src, &tgt);
 			pos = tgt.ta_frame * unitsize;
-			srv = tgt.ta_obj;
+			obj = tgt.ta_obj;
+
+			rpc[i].rd_offset = min_check(pos, rpc[i].rd_offset);
+			rpc[i].rd_units++;
 
 			unit_type = c2_pdclust_unit_classify(play, unit);
 			if (unit_type == PUT_DATA) {
@@ -791,22 +806,23 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 				C2_ASSERT(spare < spare_nr);
 				page = parity_pages[spare++]; /* just use parity pages for now */
 			}
-			
-			srvmap[srv][group] = page;
-			grppos[group] = pos;
-			DBG("prepare: srv=%llu, group=%d, pos=%llu, page=%p\n", srv, group, pos, page);
+
+			objmap[obj][group] = page;
+			DBG("prepare: obj=%llu, group=%d, pos=%llu, page=%p\n", obj, group, pos, page);
 		}
 	}
 
-	for (srv = 0; srv < W; ++srv) {
-		con = c2t1fs_container_lookup(inode->i_sb, srv);
+	for (obj = 0; obj < P; ++obj) {
+		if (rpc[obj].nr_units == 0)
+			continue;
+		con = c2t1fs_container_lookup(inode->i_sb, obj);
 		if (con != NULL) {
 			rpc_rc = ksunrpc_read_write(con->xc_xprt,
-						    objid,
-						    srvmap[srv], I,
+						    obj,
+						    objmap[obj],
 						    off,
-						    unitsize*I,
-						    grppos[0], rw);
+						    rpc[i].rd_units * I,
+						    rpc[i].rd_offset, rw);
 
 			if (rpc_rc < 0) {
 				rc = rpc_rc;
@@ -827,10 +843,10 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 
 	c2_free(parity_buf);
 	c2_free(parity_pages);
-	c2_free(grppos);
+	c2_free(rpc);
 	c2_free(data_buf);
-	srv_map_fini(&srvmap, W, I);
-	
+	obj_map_fini(&objmap, W, I);
+
 	return rc;
 }
 
@@ -1378,7 +1394,7 @@ int init_module(void)
 {
         int rc;
 
-        printk(KERN_INFO 
+        printk(KERN_INFO
 	       "Colibri C2T1 File System (http://www.clusterstor.com)\n");
 
         rc = c2t1fs_init_inodecache();
@@ -1406,7 +1422,7 @@ void cleanup_module(void)
                 printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
