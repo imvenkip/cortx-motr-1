@@ -179,7 +179,7 @@ static void type_decorate(struct c2_fop_field_type *ftype)
 			C2_IMPOSSIBLE("Wrong fop type aggregation");
 		}
 	}
-	C2_ASSERT(c2_ergo(!dec->d_varsize, dec->d_kanbelast));
+	C2_ASSERT(ergo(!dec->d_varsize, dec->d_kanbelast));
 }
 
 static void memlayout(struct c2_fop_field_type *ftype, const char *where)

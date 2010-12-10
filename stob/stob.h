@@ -208,7 +208,7 @@ struct c2_stob_op {
 	  Create the storage object for this c2_stob.
 
 	  @return 0 success, other values mean error.
-	  @post c2_ergo(result == 0, stob->so_state == CSS_EXISTS)
+	  @post ergo(result == 0, stob->so_state == CSS_EXISTS)
 	*/
 	int (*sop_create)(struct c2_stob *stob, struct c2_dtx *tx);
 
@@ -216,8 +216,8 @@ struct c2_stob_op {
 	   Locate a storage object for this c2_stob.
 
 	   @return 0 success, other values mean error
-	   @post c2_ergo(result == 0, stob->so_state == CSS_EXISTS)
-	   @post c2_ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
+	   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+	   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
 	*/
 	int (*sop_locate)(struct c2_stob *obj, struct c2_dtx *tx);
 
@@ -312,8 +312,8 @@ void c2_stob_fini  (struct c2_stob *obj);
    Locate a storage object for this c2_stob.
 
    @return 0 success, other values mean error
-   @post c2_ergo(result == 0, stob->so_state == CSS_EXISTS)
-   @post c2_ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
+   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
+   @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
 int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
 
@@ -323,7 +323,7 @@ int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
    Create the storage object for this c2_stob.
 
    @return 0 success, other values mean error.
-   @post c2_ergo(result == 0, stob->so_state == CSS_EXISTS)
+   @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
 int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 
@@ -689,8 +689,8 @@ struct c2_stob_io_op {
 
 	   @pre io->si_state == SIS_BUSY
 	   @pre stob->so_op.sop_io_is_locked(stob)
-	   @post c2_ergo(result != 0, io->si_state == SIS_IDLE)
-	   @post c2_equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
+	   @post ergo(result != 0, io->si_state == SIS_IDLE)
+	   @post equi(result == 0, !stob->so_op.sop_io_is_locked(stob))
 	 */
 	int  (*sio_launch)(struct c2_stob_io *io);
 };
@@ -714,7 +714,7 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    @pre c2_stob_io_user_is_valid(&io->si_user)
    @pre c2_stob_io_stob_is_valid(&io->si_stob)
 
-   @post c2_ergo(result != 0, io->si_state == SIS_IDLE)
+   @post ergo(result != 0, io->si_state == SIS_IDLE)
 
    @note IO can be already completed by the time c2_stob_io_launch()
    finishes. Because of this no post-conditions for io->si_state are imposed in

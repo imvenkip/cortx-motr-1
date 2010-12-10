@@ -28,9 +28,9 @@ static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 	return 
 		cur->vc_vec != NULL &&
 		cur->vc_seg <= cur->vc_vec->v_nr &&
-		c2_ergo(cur->vc_seg < cur->vc_vec->v_nr,
+		ergo(cur->vc_seg < cur->vc_vec->v_nr,
 		     cur->vc_offset < cur->vc_vec->v_count[cur->vc_seg]) &&
-		c2_ergo(cur->vc_seg == cur->vc_vec->v_nr,
+		ergo(cur->vc_seg == cur->vc_vec->v_nr,
 		      cur->vc_offset == 0);
 }
 

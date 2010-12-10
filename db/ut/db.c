@@ -498,8 +498,8 @@ static void ub_iterate(int i)
 	result = c2_db_cursor_next(&ub_cur, &ub_pair);
 	C2_ASSERT((result ==       0) == (i != UB_ITER - 1));
 	C2_ASSERT((result == -ENOENT) == (i == UB_ITER - 1));
-	C2_ASSERT(c2_ergo(result == 0, key == i + 1));
-	C2_ASSERT(c2_ergo(result == 0, rec == key * key));
+	C2_ASSERT(ergo(result == 0, key == i + 1));
+	C2_ASSERT(ergo(result == 0, rec == key * key));
 }
 
 static void ub_iterate_fini(void)
@@ -526,8 +526,8 @@ static void ub_iterate_back(int i)
 	result = c2_db_cursor_prev(&ub_cur, &ub_pair);
 	C2_ASSERT((result ==       0) == (i != UB_ITER - 1));
 	C2_ASSERT((result == -ENOENT) == (i == UB_ITER - 1));
-	C2_ASSERT(c2_ergo(result == 0, key == UB_ITER - 2 - i));
-	C2_ASSERT(c2_ergo(result == 0, rec == key * key));
+	C2_ASSERT(ergo(result == 0, key == UB_ITER - 2 - i));
+	C2_ASSERT(ergo(result == 0, rec == key * key));
 }
 
 static void ub_iterate_back_fini(void)

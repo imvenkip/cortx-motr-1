@@ -262,7 +262,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 			result = result ?: rc;
 		}
 	}
-	C2_POST(c2_ergo(result == 0, c2_lsn_is_valid(fol->f_lsn)));
+	C2_POST(ergo(result == 0, c2_lsn_is_valid(fol->f_lsn)));
 	return result;
 }
 C2_EXPORTED(c2_fol_init);
@@ -428,9 +428,9 @@ int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		if (result != 0)
 			rec_fini(out);
 	}
-	C2_POST(c2_ergo(result == 0, out->fr_desc.rd_lsn == lsn));
-	C2_POST(c2_ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
-	C2_POST(c2_ergo(result == 0, c2_fol_rec_invariant(&out->fr_desc)));
+	C2_POST(ergo(result == 0, out->fr_desc.rd_lsn == lsn));
+	C2_POST(ergo(result == 0, out->fr_desc.rd_header.rh_refcount > 0));
+	C2_POST(ergo(result == 0, c2_fol_rec_invariant(&out->fr_desc)));
 	return result;
 }
 C2_EXPORTED(c2_fol_rec_lookup);
