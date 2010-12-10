@@ -67,7 +67,7 @@ bool c2_db_buf_invariant(const struct c2_db_buf *buf)
 		/* in-place buffers are not yet supported */
 		buf->db_type != DBT_INPLACE &&
 		(buf->db_buf.b_addr != NULL) == (buf->db_buf.b_nob > 0) &&
-		ergo(buf->db_static, buf->db_buf.b_nob > 0) &&
+		c2_c2_ergo(buf->db_static, buf->db_buf.b_nob > 0) &&
 		c2_db_buf_impl_invariant(buf);
 }
 

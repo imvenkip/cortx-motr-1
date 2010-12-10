@@ -27,7 +27,7 @@ void c2_pool_fini(struct c2_pool *pool);
 /**
    Allocates object id in the pool.
 
-   @post ergo(result == 0, c2_stob_id_is_set(id))
+   @post c2_ergo(result == 0, c2_stob_id_is_set(id))
  */
 int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
 

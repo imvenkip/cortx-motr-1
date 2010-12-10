@@ -76,7 +76,7 @@ struct c2_fol {
    Initialise in-memory fol structure, creating persistent structures, if
    necessary.
 
-   @post ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
+   @post c2_ergo(result == 0, c2_lsn_is_valid(fol->f_lsn))
  */
 int  c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env);
 void c2_fol_fini(struct c2_fol *fol);
@@ -276,9 +276,9 @@ struct c2_fol_rec {
 
    @pre lsn refers to a record with elevated reference counter.
 
-   @post ergo(result == 0, out->fr_d.rd_lsn == lsn)
-   @post ergo(result == 0, out->fr_d.rd_refcount > 0)
-   @post ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
+   @post c2_ergo(result == 0, out->fr_d.rd_lsn == lsn)
+   @post c2_ergo(result == 0, out->fr_d.rd_refcount > 0)
+   @post c2_ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
  */
 int  c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn, 
 		       struct c2_fol_rec *out);
@@ -350,7 +350,7 @@ struct c2_fol_rec_type {
    Register a new fol record type.
 
    @pre c2_fol_rec_type_lookup(rtype->rt_opcode) == NULL
-   @post ergo(result == 0, c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
+   @post c2_ergo(result == 0, c2_fol_rec_type_lookup(rtype->rt_opcode) == rtype)
 
    @see c2_fol_rec_type_unregister()
  */
@@ -367,7 +367,7 @@ void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rtype);
 /**
    Finds a record type with a given opcode.
 
-   @post ergo(result != NULL, result->rt_opcode == opcode)
+   @post c2_ergo(result != NULL, result->rt_opcode == opcode)
  */
 const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode);
 

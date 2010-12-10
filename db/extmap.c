@@ -205,7 +205,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 		if (result != 0)
 			emap_close(it);
 	}
-	C2_POST(ergo(result == 0, c2_ext_is_in(&it->ec_seg.ee_ext, offset)));
+	C2_POST(c2_ergo(result == 0, c2_ext_is_in(&it->ec_seg.ee_ext, offset)));
 	return result;
 }
 
@@ -276,7 +276,7 @@ int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 	C2_PRE(offset <= C2_BINDEX_MAX);
 
 	result = emap_lookup(emap, tx, prefix, offset, it);
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	C2_ASSERT(c2_ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -334,7 +334,7 @@ int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
 	C2_ASSERT(emap_invariant(it));
 
 	result = emap_split_internal(it, vec, it->ec_seg.ee_ext.e_start);
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	C2_ASSERT(c2_ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -394,9 +394,9 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 
 		last = clip.e_end == ext->e_end;
 
-		C2_ASSERT(ergo(length[0] > 0, first));
-		C2_ASSERT(ergo(length[2] > 0, last));
-		C2_ASSERT(ergo(!last && !first, 
+		C2_ASSERT(c2_ergo(length[0] > 0, first));
+		C2_ASSERT(c2_ergo(length[2] > 0, last));
+		C2_ASSERT(c2_ergo(!last && !first, 
 			       c2_ext_length(chunk) == consumed));
 
 		bstart[1] = val;
@@ -427,7 +427,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 				break;
 		}
 	}
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	C2_ASSERT(c2_ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -452,7 +452,7 @@ int c2_emap_merge(struct c2_emap_cursor *it, c2_bindex_t delta)
 			result = IT_DO_PACK(it, &c2_db_cursor_set);
 		}
 	}
-	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
+	C2_ASSERT(c2_ergo(result == 0, emap_invariant(it)));
 	return result;
 }
 
@@ -470,7 +470,7 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 		it.ec_seg.ee_val         = val;
 		it_pack(&it);
 		result = c2_table_insert(tx, &it.ec_pair);
-		C2_ASSERT(ergo(result == 0, emap_invariant(&it)));
+		C2_ASSERT(c2_ergo(result == 0, emap_invariant(&it)));
 		c2_emap_close(&it);
 	}
 	return result;

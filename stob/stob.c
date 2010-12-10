@@ -105,8 +105,8 @@ int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 	default:
 		C2_IMPOSSIBLE("invalid object state");
 	}
-	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
-	C2_POST(ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
+	C2_POST(c2_ergo(result == 0, obj->so_state == CSS_EXISTS));
+	C2_POST(c2_ergo(result == -ENOENT, obj->so_state == CSS_NOENT));
 	return result;
 }
 
@@ -127,7 +127,7 @@ int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 	default:
 		C2_IMPOSSIBLE("invalid object state");
 	}
-	C2_POST(ergo(result == 0, obj->so_state == CSS_EXISTS));
+	C2_POST(c2_ergo(result == 0, obj->so_state == CSS_EXISTS));
 	return result;
 }
 
@@ -221,7 +221,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 			c2_stob_io_unlock(obj);
 		}
 	}
-	C2_POST(ergo(result != 0, io->si_state == SIS_IDLE));
+	C2_POST(c2_ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
 }
 

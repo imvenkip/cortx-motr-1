@@ -803,7 +803,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		}
 		C2_ASSERT(result == 0);
 	}
-	C2_ASSERT(ergo(result == 0, idx == frags_not_empty));
+	C2_ASSERT(c2_ergo(result == 0, idx == frags_not_empty));
 	return result;
 }
 
@@ -882,7 +882,7 @@ static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
 		eosrc = c2_vec_cursor_move(src, frag_size);
 		eoext = ad_wext_cursor_move(wc, frag_size);
 
-		C2_ASSERT(ergo(eosrc, eoext));
+		C2_ASSERT(c2_ergo(eosrc, eoext));
 		++frags;
 	} while (!eoext);
 	return frags;

@@ -9,8 +9,8 @@
 #include "linux_kernel/cdefs.h"
 #endif
 
-#define ergo(a, b) (!(a) || (b))
-#define equi(a, b) (!(a) == !(b))
+#define c2_ergo(a, b) (!(a) || (b))
+#define c2_equi(a, b) (!(a) == !(b))
 
 extern void __dummy_function(void);
 

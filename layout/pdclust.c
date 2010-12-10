@@ -108,8 +108,8 @@ static void m_dec(uint64_t width, uint64_t pos, uint64_t *row, uint64_t *column)
    @param r - an array to build inverse permutation in
 
    @pre  k[i] + i < n
-   @pre  s[i] < n && ergo(s[i] == s[j], i == j)
-   @post s[i] < n && ergo(s[i] == s[j], i == j)
+   @pre  s[i] < n && c2_ergo(s[i] == s[j], i == j)
+   @post s[i] < n && c2_ergo(s[i] == s[j], i == j)
    @post s[r[i]] == i && r[s[i]] == i
  */
 static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
