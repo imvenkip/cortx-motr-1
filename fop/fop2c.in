@@ -111,7 +111,7 @@ EOF
     echo "static const enum todo todo = "$what";" >> $tfile
     echo "static const char what[] =\""$what"\";" >> $tfile
     echo "static const char base[] = \""$base"\";" >> $tfile
-    echo "static const char BASE[] = \""$(echo $base | tr [a-z] [A-Z])"\";" \
+    echo "static const char BASE[] = \""$(echo $base | tr [a-z] [A-Z] | sed 's/-/_/g')"\";" \
          >> $tfile
     echo "static const char orig[] = \""$(basename $sfile)"\";" >> $tfile
     echo "static const char comp[] = \"fop2c\";" >> $tfile
