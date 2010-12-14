@@ -1,21 +1,14 @@
-INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES        	= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
+noinst_LTLIBRARIES   	= libnet-ut.la
+libnet_ut_la_SOURCES	= io_u.h io_u.c client.c io_fop_init.c io_fop.h 
+libnet_ut_la_LIBADD 	= $(top_builddir)/colibri/libcolibri.la
 
-noinst_PROGRAMS      = connection client kclient
-# utils
-# client server 
+io_u.h io_u.c: io.ff \
+                  $(top_builddir)/colibri/libcolibri.la \
+                  $(top_builddir)/fop/fop2c 
+	$(top_builddir)/fop/fop2c -uk $<
 
-connection_SOURCES   = connection.c
-connection_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
-#utils_SOURCES       = connection.c
-#utils_LDADD         = $(top_builddir)/colibri/libcolibri.la
-
-client_SOURCES       = client.c
-client_LDFLAGS       = -pthread
-client_LDADD         = $(top_builddir)/colibri/libcolibri.la
-
-#rpc-server_SOURCES  = rpc-server.c
-#rpc-server_LDADD    = $(top_builddir)/colibri/libcolibri.la
-
-kclient_SOURCES      = kclient.c
-kclient_LDADD        =
+clean distclean:
+	cd $(top_builddir)/net/ut ; \
+	rm -fr io_[uk].[hc]

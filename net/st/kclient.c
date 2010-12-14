@@ -26,7 +26,16 @@
 #include <fcntl.h>
 
 #include "lib/errno.h"
-#include "../ksunrpc/ksunrpc.h"
+/* #include "net/ksunrpc/ksunrpc.h" */
+
+#define UT_PROC_NAME "ksunrpc-ut"
+
+struct ksunrpc_service_id {
+	char                 ssi_host[256];/**< server hostname */
+	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
+	int 	             ssi_addrlen;  /**< server ip_addr  */
+	uint16_t             ssi_port;     /**< server tcp port */
+};
 
 static int fill_ipv4_sockaddr(const char *hostname, struct sockaddr_in *addr)
 {
@@ -66,16 +75,16 @@ int main(int argc, char **argv)
 	hostname = argv[1];
 	port = atoi(argv[2]);
 
-	id.ssi_host = hostname;
+	strcpy(id.ssi_host, hostname);
 	ret = fill_ipv4_sockaddr(id.ssi_host, &sa);
 	if (ret < 0) {
 		fprintf(stderr, "failed to resolve %s\n", hostname);
 		return -1;
 	}
 
-	id.ssi_sockaddr = &sa;
-	id.ssi_sockaddr->sin_port = htons(port);
-	id.ssi_sockaddr->sin_family = AF_INET;
+	id.ssi_sockaddr = sa;
+	id.ssi_sockaddr.sin_port = htons(port);
+	id.ssi_sockaddr.sin_family = AF_INET;
 	id.ssi_addrlen  = strlen(hostname) + 1; /* this is used as the length of hostname */
 	id.ssi_port = htons(port);
 

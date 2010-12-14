@@ -1,0 +1,30 @@
+/* -*- C -*- */
+
+DEF(c2_fop_fid, RECORD,
+    _(f_seq, U64),
+    _(f_oid, U64));
+
+DEF(c2_io_seg, RECORD,
+    _(f_offset, U64),
+    _(f_count, U64));
+
+DEF(c2_io_buf, SEQUENCE,
+    _(cib_count, U32),
+    _(cib_value, BYTE));
+
+DEF(c2_io_vec, SEQUENCE,
+    _(civ_count, U32),
+    _(civ_seg, c2_io_seg));
+
+DEF(c2_io_nettest, RECORD,
+    _(siq_rc, U32));
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

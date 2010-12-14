@@ -421,6 +421,7 @@ void c2_fols_fini(void);
 
 #else  /* !__KERNEL__ */
 
+struct c2_fol_rec_type_ops {};
 struct c2_fol_rec_type {};
 
 #endif /* !__KERNEL__ */
