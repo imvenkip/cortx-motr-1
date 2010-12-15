@@ -10,8 +10,8 @@
 
 static struct c2_net_domain dom;
 static struct c2_service_id sid;
-static char *g_addr;
-static int g_port;
+static char *test_addr;
+static int test_port;
 
 /* The suite initialization function.
  * Returns zero on success, non-zero otherwise.
@@ -29,7 +29,7 @@ static int init_suite(void)
 	rc = c2_net_domain_init(&dom, &c2_net_usunrpc_xprt);
 	CU_ASSERT(rc == 0);
 
-	rc = c2_service_id_init(&sid, &dom, g_addr, g_port);
+	rc = c2_service_id_init(&sid, &dom, test_addr, test_port);
 	CU_ASSERT(rc == 0);
 
 	return 0;
@@ -79,7 +79,7 @@ static void test_create2(void)
 int usage(char *appname)
 {
 	printf("%s ip-address port\nex: %s %s %s",
-	       appname, appname, "127.0.0.1", "1001");
+	       appname, appname, "127.0.0.1", "10001");
 	return 1;
 }
 
@@ -87,8 +87,8 @@ int main(int argc, char *argv[])
 {
 	if (argc != 3)
 		return usage(argv[0]);
-	g_addr = argv[1];
-	g_port = atoi(argv[2]);
+	test_addr = argv[1];
+	test_port = atoi(argv[2]);
 
 	init_suite();
 

@@ -14,8 +14,8 @@
 #include "net/usunrpc/usunrpc.h"
 
 #include "fop/fop.h"
-#include "io_fop.h"
-#include "io_u.h"
+#include "net_fop.h"
+#include "net_u.h"
 
 enum {
 	PORT = 10001
@@ -24,7 +24,7 @@ enum {
 static struct c2_net_domain dom;
 
 static struct c2_fop_type *fopt[] = {
-	&c2_io_nettest_fopt
+	&c2_nettest_fopt
 };
 
 static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
@@ -41,27 +41,29 @@ static void nettest_send(struct c2_net_conn *conn)
 {
 	struct c2_fop        *f;
 	struct c2_fop        *r;
-	struct c2_io_nettest *fop;
-	struct c2_io_nettest *rep;
+	struct c2_nettest *fop;
+	struct c2_nettest *rep;
 	int result;
 
-	f = c2_fop_alloc(&c2_io_nettest_fopt, NULL);
+	f = c2_fop_alloc(&c2_nettest_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_io_nettest_fopt, NULL);
+	r = c2_fop_alloc(&c2_nettest_fopt, NULL);
 	rep = c2_fop_data(r);
 
 	result = netcall(conn, f, r);
 	CU_ASSERT(result == 0);
 	rep = c2_fop_data(r);
 	/* printf("GOT: %i %i\n", result, rep->siq_rc); */
+	c2_fop_free(r);
+	c2_fop_free(f);
 }
 
 int nettest_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-        struct c2_fop        *reply;
-        struct c2_io_nettest *ex;
+        struct c2_fop     *reply;
+        struct c2_nettest *ex;
 
-        reply = c2_fop_alloc(&c2_io_nettest_fopt, NULL);
+        reply = c2_fop_alloc(&c2_nettest_fopt, NULL);
         CU_ASSERT(reply != NULL);
         ex = c2_fop_data(reply);
 
@@ -71,8 +73,9 @@ int nettest_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
         return 1;
 }
 
-static int io_handler(struct c2_service *service, struct c2_fop *fop,
-                      void *cookie)
+static int nettest_service_handler(struct c2_service *service,
+				   struct c2_fop *fop,
+				   void *cookie)
 {
         struct c2_fop_ctx ctx;
 
@@ -98,9 +101,9 @@ void test_net_client(void)
 	s1.s_table.not_start = fopt[0]->ft_code;
 	s1.s_table.not_nr    = ARRAY_SIZE(fopt);
 	s1.s_table.not_fopt  = fopt;
-	s1.s_handler         = &io_handler;
+	s1.s_handler         = &nettest_service_handler;
 
-        rc = io_fop_init();
+        rc = nettest_fop_init();
         CU_ASSERT(rc == 0);
 
 	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
@@ -137,7 +140,7 @@ void test_net_client(void)
 	c2_service_id_fini(&sid1);
 	c2_net_domain_fini(&dom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
-	io_fop_fini();
+	nettest_fop_fini();
 }
 
 const struct c2_test_suite net_client_ut = {

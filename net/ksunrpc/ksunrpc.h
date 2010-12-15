@@ -2,22 +2,13 @@
 #ifndef __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
-#include <linux/in.h>
-#include <linux/sunrpc/sched.h> /* for rpc_call_ops */
-
-#include "lib/mutex.h"
+#ifdef __KERNEL__
+# include <linux/in.h>
+# include <linux/sunrpc/sched.h> /* for rpc_call_ops */
+# include "lib/mutex.h"
 
 struct c2_fop;
-
-/**
-   SUNRPC service identifier.
- */
-struct ksunrpc_service_id {
-	char                 ssi_host[256];/**< server hostname */
-	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
-	int 	             ssi_addrlen;  /**< server ip_addr  */
-	uint16_t             ssi_port;     /**< server tcp port */
-};
+struct ksunrpc_service_id;
 
 struct ksunrpc_xprt {
 	struct rpc_clnt *ksx_client;
@@ -56,6 +47,20 @@ extern struct ksunrpc_xprt_ops ksunrpc_xprt_ops;
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_knet_call *kcall);
+/* #else __KERNEL__ */
+#else
+# include <netinet/in.h>
+/* #ifdef __KERNEL__ */
+#endif
+/**
+   SUNRPC service identifier.
+ */
+struct ksunrpc_service_id {
+	char                 ssi_host[256];/**< server hostname */
+	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
+	int 	             ssi_addrlen;  /**< server ip_addr  */
+	uint16_t             ssi_port;     /**< server tcp port */
+};
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

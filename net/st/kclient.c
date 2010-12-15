@@ -10,11 +10,6 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
 #include <arpa/inet.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -26,16 +21,9 @@
 #include <fcntl.h>
 
 #include "lib/errno.h"
-/* #include "net/ksunrpc/ksunrpc.h" */
+#include "net/ksunrpc/ksunrpc.h"
 
 #define UT_PROC_NAME "ksunrpc-ut"
-
-struct ksunrpc_service_id {
-	char                 ssi_host[256];/**< server hostname */
-	struct sockaddr_in   ssi_sockaddr; /**< server ip_addr  */
-	int 	             ssi_addrlen;  /**< server ip_addr  */
-	uint16_t             ssi_port;     /**< server tcp port */
-};
 
 static int fill_ipv4_sockaddr(const char *hostname, struct sockaddr_in *addr)
 {
@@ -95,7 +83,7 @@ int main(int argc, char **argv)
 	printf("addr = %x\n", sa.sin_addr.s_addr);
 	printf("port = %x\n", sa.sin_port);
 
-	fd = open("/proc/" UT_PROC_NAME, O_RDWR);
+	fd = open("/proc/" UT_PROC_NAME, O_WRONLY);
 	if (fd < 0) {
 		fprintf(stderr, "failed to open %s:%d\n", "/proc/" UT_PROC_NAME, errno);
 		return -1;

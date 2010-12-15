@@ -68,8 +68,10 @@ int c2_net_conn_create(struct c2_service_id *nid)
 			c2_rwlock_write_lock(&dom->nd_lock);
 			c2_list_add(&dom->nd_conn, &conn->nc_link);
 			c2_rwlock_write_unlock(&dom->nd_lock);
-		} else
+		} else {
+			c2_addb_ctx_fini(&conn->nc_addb);
 			c2_free(conn);
+		}
 	} else {
 		C2_ADDB_ADD(&dom->nd_addb, &c2_net_addb_loc, c2_addb_oom);
 		result = -ENOMEM;
