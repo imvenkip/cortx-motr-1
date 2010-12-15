@@ -105,6 +105,10 @@ struct c2_fop_type_ops {
 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
 	/** XXX temporary entry point for threaded fop execution. */
 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+	/** init complex fd_data structure. Called by caller of c2_fop_alloc() */
+	int (*fto_data_init)(struct c2_fop *fop, void *data);
+	/** free complex fd_data structure. Called by caller of c2_fop_free() */
+	void (*fto_data_free)(struct c2_fop *fop);
 	/** fol record type operations for this fop type, or NULL is standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
