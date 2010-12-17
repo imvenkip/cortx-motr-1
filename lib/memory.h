@@ -50,7 +50,7 @@ size_t c2_allocated(void);
 /** @} end of memory group */
 
 #endif
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
