@@ -124,7 +124,7 @@ enum {
 	 *       server-side buffers are not aligned. Disable alignment (and
 	 *       direct-IO) until this is fixed.
 	 */
-	LINUX_BSHIFT = 3, /* 12, */
+	LINUX_BSHIFT = 0, /* 12, */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };
