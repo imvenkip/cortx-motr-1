@@ -595,7 +595,7 @@ struct c2_stob_io {
 	 */
 	struct c2_stob             *si_obj;
 	/** operation vector */
-	const struct c2_stob_io_op *si_op;      
+	const struct c2_stob_io_op *si_op;
 	/**
 	   Result code.
 

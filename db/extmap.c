@@ -205,6 +205,16 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 		if (result != 0)
 			emap_close(it);
 	}
+
+	printf("PID:%d=>emap_lookup():result=%d, "
+	       "it->ec_seg.ee_ext.e_start=%lu, "
+	       "it->ec_seg.ee_ext.e_end=%lu, "
+	       "it->ec_seg.ee_val=%lu\n",
+	       (int)getpid(), result,
+	       it->ec_seg.ee_ext.e_start, 
+	       it->ec_seg.ee_ext.e_end, 
+	       it->ec_seg.ee_val);
+
 	C2_POST(ergo(result == 0, c2_ext_is_in(&it->ec_seg.ee_ext, offset)));
 	return result;
 }
@@ -214,7 +224,7 @@ static int emap_next(struct c2_emap_cursor *it)
 	return IT_DO_OPEN(it, &c2_db_cursor_next);
 }
 
-#if 0
+#if 1
 static bool emap_invariant_check(struct c2_emap_cursor *it)
 {
 	int                   result;
@@ -260,12 +270,12 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 		check = true;
 	return check;
 }
-#endif
-
+#else
 static bool emap_invariant(struct c2_emap_cursor *it)
 {
 	return true;
 }
+#endif
 
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
@@ -352,6 +362,8 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	struct c2_emap_seg    *seg      = &it->ec_seg;
 	struct c2_ext         *chunk    = &seg->ee_ext;
 
+	printf("PID:%d=>c2_emap_paste() IN\n", (int)getpid());
+
 	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
 	C2_ASSERT(emap_invariant(it));
 
@@ -383,10 +395,16 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			.iv_index = bstart
 		};
 
+		printf("PID:%d=>c2_emap_paste() ITERATE\n",
+		       (int)getpid());
+
 		c2_ext_intersection(ext, chunk, &clip);
 		C2_ASSERT(clip.e_start == ext->e_start);
 		consumed = c2_ext_length(&clip);
 		C2_ASSERT(consumed > 0);
+
+		printf("PID:%d=>c2_emap_paste():consumed=%lu\n",
+		       (int)getpid(), consumed);
 
 		length[0] = clip.e_start - chunk->e_start;
 		length[1] = first ? c2_ext_length(ext) : 0;

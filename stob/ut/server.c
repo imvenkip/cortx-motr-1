@@ -206,6 +206,9 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		count = in->siw_buf.cib_count >> bshift;
 		offset = in->siw_offset >> bshift;
 
+		printf("PID:%d=>write_handler(): addr=%p, count=%lu, offset=%lu\n",
+		       (int)getpid(), addr, count, offset);
+
 		c2_stob_io_init(&io);
 
 		io.si_user.div_vec.ov_vec.v_nr    = 1;

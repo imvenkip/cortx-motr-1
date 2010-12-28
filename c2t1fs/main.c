@@ -14,6 +14,7 @@
 #include "lib/buf.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "lib/arith.h"
 #include "fop/fop.h"
 
 #include "c2t1fs.h"
@@ -24,6 +25,7 @@
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
+
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -653,7 +655,7 @@ static int optparse(struct super_block *sb, char *options)
 
         return 0;
 }
-#if 1
+
 static void obj_map_fini(struct page ****p, uint32_t P, uint32_t I)
 {
         uint32_t i;
@@ -684,11 +686,10 @@ static int obj_map_init(struct page ****p, uint32_t P, uint32_t I)
 
         return 0;
 }
-#endif
 
 struct rpc_desc {
-	c2_bindex_t rd_offset;
-	int         rd_units;
+	loff_t rd_offset;
+	int    rd_units;
 };
 
 static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
@@ -774,8 +775,10 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 			    unitsize);
 	}
 
-	for (i = 0; i < P; ++i)
-		rpc[i].rd_offset = C2_BINDEX_MAX;
+	for (i = 0; i < P; ++i) {
+		rpc[i].rd_offset = 0x00ffffffffffffff; /* C2_BINDEX_MAX; */
+		rpc[i].rd_units  = 0;
+	}
 
 	src.sa_group = in_pos / (N * unitsize);
 	for (group = 0, parity = 0, spare = 0; group < I ; ++group, src.sa_group++) {
@@ -785,8 +788,8 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 			pos = tgt.ta_frame * unitsize;
 			obj = tgt.ta_obj;
 
-			rpc[i].rd_offset = min_check(pos, rpc[i].rd_offset);
-			rpc[i].rd_units++;
+			rpc[obj].rd_offset = min_check(pos, rpc[obj].rd_offset);
+			rpc[obj].rd_units++;
 
 			unit_type = c2_pdclust_unit_classify(play, unit);
 			if (unit_type == PUT_DATA) {
@@ -813,16 +816,17 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 	}
 
 	for (obj = 0; obj < P; ++obj) {
-		if (rpc[obj].nr_units == 0)
+		if (rpc[obj].rd_units == 0)
 			continue;
 		con = c2t1fs_container_lookup(inode->i_sb, obj);
 		if (con != NULL) {
 			rpc_rc = ksunrpc_read_write(con->xc_xprt,
-						    obj,
+						    objid,
 						    objmap[obj],
 						    off,
-						    rpc[i].rd_units * I,
-						    rpc[i].rd_offset, rw);
+						    /* rpc[obj].rd_units * I, */
+						    unitsize * I,
+						    rpc[obj].rd_offset, rw);
 
 			if (rpc_rc < 0) {
 				rc = rpc_rc;
