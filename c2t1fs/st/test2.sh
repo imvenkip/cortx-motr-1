@@ -26,6 +26,7 @@ modload
 
 # Run servers on different ports with different stobs:
 cd /tmp
+rm -rf 0 1 2 3 4
 mkdir -p 0 1 2 3 4 
 cd -
 
@@ -34,7 +35,7 @@ cd -
 (./stob/ut/server -d/tmp/2 -p$Port2 &)
 (./stob/ut/server -d/tmp/3 -p$Port3 &)
 (./stob/ut/server -d/tmp/4 -p$Port4 &)
-sleep 1
+sleep 3
 
 mkdir -p /mnt/c2t1fs
 
@@ -45,29 +46,29 @@ ds=$IPAddr:$Port0,ds=$IPAddr:$Port1,ds=$IPAddr:$Port2,ds=$IPAddr:$Port3,ds=$IPAd
 max_count_=3
 max_bs_=49152
 
-# dd if=/dev/urandom of=dummy.bin bs=$(($max_bs_*$max_count_)) count=1
+dd if=/dev/urandom of=dummy.bin bs=$(($max_bs_*$max_count_)) count=1
 
-# for count_ in {1,2,$max_count_}
-# do
-#      for bs_ in {12288,24576,$max_bs_}
-#      do
-#         dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=$bs_ count=$count_
-#         left=$(dd if=dummy.bin         bs=$bs_ count=$count_ 2>/dev/null | md5sum)
-# 	sleep 2
-#         right=$(dd if=/mnt/c2t1fs/12345 bs=$bs_ count=$count_ 2>/dev/null | md5sum)
-# 	sleep 2
+for count_ in {1,2,$max_count_}
+do
+     for bs_ in {12288,24576,$max_bs_}
+     do
+        dd if=dummy.bin of=/mnt/c2t1fs/12345 bs=$bs_ count=$count_
+        left=$(dd if=dummy.bin         bs=$bs_ count=$count_ 2>/dev/null | md5sum)
+	#sleep 2
+        right=$(dd if=/mnt/c2t1fs/12345 bs=$bs_ count=$count_ 2>/dev/null | md5sum)
+	#sleep 2
 	
-# 	if [ "$left" == "$right" ]
-# 	then
-# 	    echo "test {$count_,$bs_} passed."
-# 	else
-# 	    echo "test {$count_,$bs_} failed."
-# 	fi
-#      done
-#  done
-# rm dummy.bin
+	if [ "$left" == "$right" ]
+	then
+	    echo "test {$count_,$bs_} passed."
+	else
+	    echo "test {$count_,$bs_} failed."
+	fi
+     done
+ done
+rm dummy.bin
 
-# umount /mnt/c2t1fs
-# modunload
-# killall lt-server
-# echo ======================done=====================
+umount /mnt/c2t1fs
+modunload
+killall lt-server
+echo ======================done=====================
