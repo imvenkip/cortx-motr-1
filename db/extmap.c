@@ -324,6 +324,10 @@ int emap_split_internal(struct c2_emap_cursor *it, struct c2_indexvec *vec,
 		for (result = 0, i = 0; i < vec->iv_vec.v_nr; ++i) {
 			count = vec->iv_vec.v_count[i];
 			if (count != 0) {
+				printf("PID:%d=>c2_emap_paste():"
+				       "[%u]: scan=%lu, count=%lu\n",
+				       (int)getpid(), i, scan, count);
+
 				it->ec_seg.ee_ext.e_start = scan;
 				it->ec_seg.ee_ext.e_end   = scan = scan + count;
 				it->ec_seg.ee_val         = vec->iv_index[i];
@@ -395,8 +399,12 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			.iv_index = bstart
 		};
 
-		printf("PID:%d=>c2_emap_paste() ITERATE\n",
-		       (int)getpid());
+		printf("PID:%d=>c2_emap_paste() ITERATE: "
+		       "ext->e_start=%lu, ext->e_end=%lu,"
+		       "chunk->e_start=%lu, chunk->e_end=%lu\n",
+		       (int)getpid(),
+		       ext->e_start, ext->e_end,
+		       chunk->e_start, chunk->e_end);
 
 		c2_ext_intersection(ext, chunk, &clip);
 		C2_ASSERT(clip.e_start == ext->e_start);
@@ -436,7 +444,17 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			break;
 
 		ext->e_start += consumed;
+#if 0
+		/* XXX: for now: in case when we are not going to delete */
+		if (!(length[0] == 0 && length[2] == 0))
+			ext->e_end += consumed;
+#endif
+
 		C2_ASSERT(ext->e_start <= ext->e_end);
+
+		printf("PID:%d=>c2_emap_paste():"
+		       "ext->e_start=%lu, ext->e_end=%lu\n",
+		       (int)getpid(), ext->e_start, ext->e_end);
 
 		if (!c2_ext_is_empty(ext)) {
 			C2_ASSERT(!c2_emap_ext_is_last(&seg->ee_ext));
