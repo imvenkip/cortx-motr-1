@@ -302,7 +302,6 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 	 */
 
 	while (1) {
-		C2_ASSERT(c2_fit_invariant(it));
 		/* top of cursor stack. This is invalidated when it->fi_depth is
 		   modified. */
 		struct c2_fit_frame            *top;
@@ -318,6 +317,7 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		ftype = top->ff_type;
 		el    = top_field(it);
 
+		C2_ASSERT(c2_fit_invariant(it));
 		/*
 		 * On an entry to the loop body the cursor is positioned "after"
 		 * the last yielded position or on the first position.
