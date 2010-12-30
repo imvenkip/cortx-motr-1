@@ -11,6 +11,9 @@
 #include "lib/arith.h"   /* C2_3WAY */
 #include "db/extmap.h"
 
+#define PRINTF(fmt, args...) /* printf("%s:%d " fmt, __FUNCTION__, __LINE__, ##args) */
+/* #define PRINTF printf */
+
 /**
    @addtogroup extmap
 
@@ -206,7 +209,7 @@ static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
 			emap_close(it);
 	}
 
-	printf("PID:%d=>emap_lookup():result=%d, "
+	PRINTF("PID:%d=>emap_lookup():result=%d, "
 	       "it->ec_seg.ee_ext.e_start=%lu, "
 	       "it->ec_seg.ee_ext.e_end=%lu, "
 	       "it->ec_seg.ee_val=%lu\n",
@@ -235,7 +238,13 @@ static bool emap_invariant_check(struct c2_emap_cursor *it)
 	total   = 0;
 	if (!c2_emap_ext_is_first(&it->ec_seg.ee_ext))
 		return false;
+
+	PRINTF("PID:%d=>emap_invariant_check(): ", (int)getpid());
 	while (1) {
+		PRINTF("[%lu, %lu) ",
+		       it->ec_seg.ee_ext.e_start,
+		       it->ec_seg.ee_ext.e_end);
+
 		if (it->ec_seg.ee_ext.e_start != reached)
 			return false;
 		if (it->ec_seg.ee_ext.e_end <= reached)
@@ -248,6 +257,7 @@ static bool emap_invariant_check(struct c2_emap_cursor *it)
 		if (result != 0)
 			return true;
 	}
+	PRINTF("\n");
 	if (total != C2_BCOUNT_MAX)
 		return false;
 	if (reached != C2_BINDEX_MAX + 1)
@@ -324,7 +334,7 @@ int emap_split_internal(struct c2_emap_cursor *it, struct c2_indexvec *vec,
 		for (result = 0, i = 0; i < vec->iv_vec.v_nr; ++i) {
 			count = vec->iv_vec.v_count[i];
 			if (count != 0) {
-				printf("PID:%d=>c2_emap_paste():"
+				PRINTF("PID:%d=>c2_emap_split_int():"
 				       "[%u]: scan=%lu, count=%lu\n",
 				       (int)getpid(), i, scan, count);
 
@@ -366,7 +376,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	struct c2_emap_seg    *seg      = &it->ec_seg;
 	struct c2_ext         *chunk    = &seg->ee_ext;
 
-	printf("PID:%d=>c2_emap_paste() IN\n", (int)getpid());
+	PRINTF("PID:%d=>c2_emap_paste() IN\n", (int)getpid());
 
 	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
 	C2_ASSERT(emap_invariant(it));
@@ -399,7 +409,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			.iv_index = bstart
 		};
 
-		printf("PID:%d=>c2_emap_paste() ITERATE: "
+		PRINTF("PID:%d=>c2_emap_paste() ITERATE: "
 		       "ext->e_start=%lu, ext->e_end=%lu,"
 		       "chunk->e_start=%lu, chunk->e_end=%lu\n",
 		       (int)getpid(),
@@ -411,7 +421,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		consumed = c2_ext_length(&clip);
 		C2_ASSERT(consumed > 0);
 
-		printf("PID:%d=>c2_emap_paste():consumed=%lu\n",
+		PRINTF("PID:%d=>c2_emap_paste():consumed=%lu\n",
 		       (int)getpid(), consumed);
 
 		length[0] = clip.e_start - chunk->e_start;
@@ -435,15 +445,25 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
 		}
-		if (length[0] == 0 && length[2] == 0)
+		if (length[0] == 0 && length[2] == 0) {
 			del(seg);
+			PRINTF("PID:%d=>c2_emap_paste():"
+			       " first: %d\n", (int)getpid(), first);
+		}
 		
+		PRINTF("PID:%d=>c2_emap_paste(): INVAR BEFORE split:\n", (int)getpid());
+		emap_invariant(it);
+
 		result = emap_split_internal(it, &vec, first ? 
 					     chunk->e_start : ext->e_end);
 		if (result != 0)
 			break;
 
+		PRINTF("PID:%d=>c2_emap_paste(): INVAR AFTER  split:\n", (int)getpid());
+		emap_invariant(it);
+
 		ext->e_start += consumed;
+
 #if 0
 		/* XXX: for now: in case when we are not going to delete */
 		if (!(length[0] == 0 && length[2] == 0))
@@ -452,7 +472,7 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 
 		C2_ASSERT(ext->e_start <= ext->e_end);
 
-		printf("PID:%d=>c2_emap_paste():"
+		PRINTF("PID:%d=>c2_emap_paste():"
 		       "ext->e_start=%lu, ext->e_end=%lu\n",
 		       (int)getpid(), ext->e_start, ext->e_end);
 
@@ -461,6 +481,23 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 			result = emap_next(it);
 			if (result != 0)
 				break;
+#if 0
+			/* XXX: if it was delete operation before... */
+			if (length[0] == 0 && length[2] == 0) {
+				PRINTF("PID:%d=>c2_emap_paste(): CLEAN after DELETE\n",
+				       (int)getpid());
+				result = c2_emap_prev(it);
+				if (result != 0)
+					break;
+			}
+#endif
+			if (length[0] == 0 && length[2] == 0 && first) {
+				PRINTF("PID:%d=>c2_emap_paste(): DELETE: "
+				       "merged update ext->e_start?!\n",
+				       (int)getpid());
+				if (ext->e_end == chunk->e_start)
+					ext->e_start = ext->e_end;
+			}
 		}
 	}
 	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
