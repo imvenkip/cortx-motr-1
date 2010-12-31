@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lib/arith.h"   /* min_type, c2_is_po2 */
+#include "lib/assert.h"
 #include "lib/atomic.h"
 #include "lib/memory.h"
 
@@ -107,11 +109,21 @@ size_t c2_allocated(void)
 
 void *c2_alloc_aligned(size_t size, unsigned shift)
 {
-	void *result;
-	int   rc;
+	void  *result;
+	int    rc;
+	size_t alignment;
 
-	rc = posix_memalign(&result, 1 << shift, size);
-	if (rc == 0) 
+	/*
+	 * posix_memalign(3):
+	 *
+	 *         The requested alignment must be a power of 2 at least as
+	 *         large as sizeof(void *).
+	 */
+
+	alignment = max_type(size_t, 1 << shift, sizeof result);
+	C2_ASSERT(c2_is_po2(alignment));
+	rc = posix_memalign(&result, alignment, size);
+	if (rc == 0)
 		memset(result, 0, size);
 	else
 		result = NULL;
@@ -131,7 +143,7 @@ void c2_memory_fini()
 
 /** @} end of memory group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
