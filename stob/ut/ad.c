@@ -10,7 +10,7 @@
 
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* C2_SET0 */
-#include "lib/memory.h" 
+#include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -28,7 +28,7 @@
 
 enum {
 	NR    = 3,
-	SHIFT = 3, /* 12, */
+	SHIFT = 0, /* 12, */
 	COUNT = (1 << SHIFT)*1024
 };
 
@@ -95,8 +95,8 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *dtx,
 	out->e_start = mb->mb_next;
 	out->e_end   = mb->mb_next + giveout;
 	mb->mb_next += giveout + 1;
-	/* printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", 
-	   giveout, count, 
+	/* printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n",
+	   giveout, count,
 	       out->e_start, out->e_end); */
 	return 0;
 }
@@ -150,7 +150,7 @@ static int test_ad_init(void)
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(result == 0);
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
+	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  "./__s", &dom_back);
 	C2_ASSERT(result == 0);
 
@@ -284,7 +284,7 @@ static void test_read(int i)
 }
 
 /**
-   AD unit-test. 
+   AD unit-test.
  */
 static void test_ad(void)
 {
@@ -329,7 +329,7 @@ struct c2_ub_set c2_ad_ub = {
 	.us_name = "ad-ub",
 	.us_init = (void *)test_ad_init,
 	.us_fini = (void *)test_ad_fini,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name = "write-prime",
 		  .ut_iter = 1,
 		  .ut_round = ub_write },
@@ -348,7 +348,7 @@ struct c2_ub_set c2_ad_ub = {
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
