@@ -12,6 +12,7 @@
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
 
+
 #define C2_SET0(obj)				\
 ({						\
 	C2_CASSERT(!c2_is_array(obj));		\
@@ -24,10 +25,12 @@
 	memset((arr), 0, sizeof (arr));		\
 })
 
+
+
 /* __COLIBRI_LIB_MISC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

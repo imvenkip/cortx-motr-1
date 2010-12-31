@@ -156,6 +156,7 @@ static int ksunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 				kconn->ksc_xprt = ksunrpc_xprt;
 				conn->nc_xprt_private = kconn;
 				conn->nc_ops = &ksunrpc_conn_ops;
+				result = 0;
 			}
 		}
 	}

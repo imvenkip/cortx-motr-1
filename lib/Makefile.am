@@ -13,7 +13,7 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
                        refs.h atomic.h queue.h arith.h thread.h \
                        vec.h chan.h mutex.h cond.h types.h errno.h \
                        user_space/user_x86_64_atomic.h assert.h cdefs.h \
-                       misc.c misc.h ext.c ext.h \
+                       misc.c misc.h ext.c ext.h bitstring.h bitstring.c \
                        ut.c ut.h ub.c ub.h trace.h user_space/trace.c \
                        getopts.c getopts.h user_space/assert.h \
                        user_space/mutex.h user_space/cdefs.h \

@@ -1,7 +1,6 @@
 /* -*- C -*- */
 
 #include <stdio.h>        /* printf */
-#include <stdlib.h>       /* system */
 
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/vec.h"
@@ -15,16 +14,7 @@ static const char emap_name[] = "test-emap";
 
 static int db_reset(void)
 {
-	char *cmd;
-	int   rc;
-
-	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
-	C2_ASSERT(rc > 0);
-
-	rc = system(cmd);
-	C2_ASSERT(rc == 0);
-	free(cmd);
-	return 0;
+        return c2_ut_db_reset(db_name);
 }
 
 static struct c2_dbenv       db;

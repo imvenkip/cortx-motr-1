@@ -34,7 +34,7 @@ struct c2_buf {
 /* __COLIBRI_ADT_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

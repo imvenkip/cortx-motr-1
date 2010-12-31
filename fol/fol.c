@@ -115,12 +115,12 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 	d->rd_ref = buf_move(&buf, &nob, h->rh_obj_nr * sizeof d->rd_ref[0]);
 	if (d->rd_ref == NULL)
 		return -EIO;
-	d->rd_sibling = buf_move(&buf, &nob, 
+	d->rd_sibling = buf_move(&buf, &nob,
 				 h->rh_sibling_nr * sizeof d->rd_sibling[0]);
 	if (d->rd_sibling == NULL)
 		return -EIO;
 	d->rd_data = buf_move(&buf, &nob, h->rh_data_len);
-	if (d->rd_sibling == NULL)
+	if (d->rd_data == NULL)
 		return -EIO;
 	if (nob != 0)
 		return -EIO;
@@ -173,7 +173,7 @@ static int rec_init(struct c2_fol_rec *rec, struct c2_db_tx *tx)
 	C2_PRE(rec->fr_fol != NULL);
 
 	pair = &rec->fr_pair;
-	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn, 
+	c2_db_pair_setup(pair, &rec->fr_fol->f_table, &rec->fr_desc.rd_lsn,
 			 sizeof rec->fr_desc.rd_lsn, NULL, 0);
 	return c2_db_cursor_init(&rec->fr_ptr, &rec->fr_fol->f_table, tx);
 }
@@ -250,7 +250,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 				fol->f_lsn = C2_LSN_ANCHOR + 1;
 				result = c2_fol_add(fol, &tx, d);
 			} else if (result == 0) {
-				result = c2_db_cursor_last(&r.fr_ptr, 
+				result = c2_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0) {
 					result = rec_open_internal(&r);
@@ -300,7 +300,7 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 	uint32_t                      data_len;
 
 	rtype = desc->rd_type;
-	data_len = desc->rd_header.rh_data_len = 
+	data_len = desc->rd_header.rh_data_len =
 		rtype->rt_ops->rto_pack_size(desc);
 	size = sizeof *h +
 		desc->rd_header.rh_obj_nr * sizeof desc->rd_ref[0] +
@@ -322,7 +322,7 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 }
 C2_EXPORTED(c2_fol_rec_pack);
 
-int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx, 
+int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 	       struct c2_fol_rec_desc *rec)
 {
 	int           result;
@@ -339,7 +339,7 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 }
 C2_EXPORTED(c2_fol_add);
 
-int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx, 
+int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 		   struct c2_fol_rec_desc *drec, struct c2_buf *buf)
 {
 	struct c2_db_pair pair;
@@ -372,7 +372,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 		ref = &drec->rd_ref[i];
 		if (!c2_fid_is_valid(&ref->or_fid))
 			return false;
-		if (!c2_lsn_is_valid(ref->or_before_ver.vn_lsn) && 
+		if (!c2_lsn_is_valid(ref->or_before_ver.vn_lsn) &&
 		    ref->or_before_ver.vn_lsn != C2_LSN_NONE)
 			return false;
 		if (drec->rd_lsn <= ref->or_before_ver.vn_lsn)
@@ -396,7 +396,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 		if (!c2_update_state_is_valid(upd->ui_state))
 			return false;
 		for (j = 0; j < i; ++j) {
-			if (c2_update_is_eq(&upd->ui_id, 
+			if (c2_update_is_eq(&upd->ui_id,
 					    &drec->rd_sibling[j].ui_id))
 				return false;
 		}
@@ -406,7 +406,7 @@ bool c2_fol_rec_invariant(const struct c2_fol_rec_desc *drec)
 }
 C2_EXPORTED(c2_fol_rec_invariant);
 
-int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn, 
+int c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		      struct c2_fol_rec *out)
 {
 	int result;
@@ -478,7 +478,7 @@ int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 	int result;
 
 	c2_mutex_lock(&rtypes_lock);
-	if (rt->rt_opcode < ARRAY_SIZE(rtypes)) {
+	if (IS_IN_ARRAY(rt->rt_opcode, rtypes)) {
 		if (rtypes[rt->rt_opcode] == NULL) {
 			rtypes[rt->rt_opcode] = rt;
 			result = 0;
@@ -495,7 +495,7 @@ void c2_fol_rec_type_unregister(const struct c2_fol_rec_type *rt)
 {
 	c2_mutex_lock(&rtypes_lock);
 
-	C2_PRE(rt->rt_opcode < ARRAY_SIZE(rtypes));
+	C2_PRE(IS_IN_ARRAY(rt->rt_opcode, rtypes));
 	C2_PRE(rtypes[rt->rt_opcode] == rt || rtypes[rt->rt_opcode] == NULL);
 
 	rtypes[rt->rt_opcode] = NULL;
@@ -505,14 +505,14 @@ C2_EXPORTED(c2_fol_rec_type_unregister);
 
 const struct c2_fol_rec_type *c2_fol_rec_type_lookup(uint32_t opcode)
 {
-	C2_PRE(opcode < ARRAY_SIZE(rtypes));
+	C2_PRE(IS_IN_ARRAY(opcode, rtypes));
 	return rtypes[opcode];
 }
 C2_EXPORTED(c2_fol_rec_type_lookup);
 
 /** @} end of fol group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
