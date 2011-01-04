@@ -22,7 +22,7 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr Module.symvers
+	rm -fr $(shared_src) Module.symvers
 
 else
 
