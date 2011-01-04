@@ -497,6 +497,7 @@ AC_CONFIG_FILES([
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
                  c2t1fs/Makefile
+                 capa/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
@@ -527,6 +528,8 @@ AC_CONFIG_FILES([
                  net/Makefile
                  net/ksunrpc/Makefile
                  net/usunrpc/Makefile
+		 net/ut/Makefile
+		 net/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
@@ -536,10 +539,9 @@ AC_CONFIG_FILES([
                  sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
+                 udb/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
-		 net/ut/Makefile
-		 net/st/Makefile
                 ])
                 
                 #rpc/Makefile

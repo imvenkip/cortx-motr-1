@@ -7,6 +7,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
                             -lm -lncurses \
                             $(top_builddir)/addb/libcolibri-addb.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \
+                            $(top_builddir)/capa/libcolibri-capa.la \
                             $(top_builddir)/cob/libcolibri-cob.la \
                             $(top_builddir)/db/libcolibri-db.la \
                             $(top_builddir)/desim/libcolibri-desim.la \
@@ -23,7 +24,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
                             $(top_builddir)/reqh/libcolibri-reqh.la \
                             $(top_builddir)/sm/libcolibri-sm.la \
                             $(top_builddir)/sns/libcolibri-sns.la \
-                            $(top_builddir)/stob/libcolibri-stob.la
+                            $(top_builddir)/stob/libcolibri-stob.la \
+                            $(top_builddir)/udb/libcolibri-udb.la
 
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 
