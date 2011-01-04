@@ -63,7 +63,7 @@ static void key_print(const struct c2_emap_key *k)
 }
 */
 
-static int emap_cmp(struct c2_table *table, 
+static int emap_cmp(struct c2_table *table,
 		    const void *key0, const void *key1)
 {
 	const struct c2_emap_key *a0 = key0;
@@ -72,9 +72,9 @@ static int emap_cmp(struct c2_table *table,
 /*	static const char compare[] = "<=>";
 
 	key_print(a0);
-	printf(" %c ", compare[(c2_uint128_cmp(&a0->ek_prefix, 
+	printf(" %c ", compare[(c2_uint128_cmp(&a0->ek_prefix,
 						 &a1->ek_prefix) ?:
-				  C2_3WAY(a0->ek_offset, 
+				  C2_3WAY(a0->ek_offset,
 					  a1->ek_offset)) + 1]);
 	key_print(a1);
 	printf("\n"); */
@@ -84,7 +84,7 @@ static int emap_cmp(struct c2_table *table,
 
 static const struct c2_table_ops emap_ops = {
 	.to = {
-		[TO_KEY] = { 
+		[TO_KEY] = {
 			.max_size = sizeof(struct c2_emap_key)
 		},
 		[TO_REC] = {
@@ -113,7 +113,7 @@ static void emap_pack(const struct c2_emap_seg *ext,
 	rec->er_value  = ext->ee_val;
 }
 
-static void emap_open(const struct c2_emap_key *key, 
+static void emap_open(const struct c2_emap_key *key,
 		      const struct c2_emap_rec *rec, struct c2_emap_seg *ext)
 {
 	ext->ee_pre         = key->ek_prefix;
@@ -175,7 +175,7 @@ static bool it_prefix_ok(const struct c2_emap_cursor *it)
 })
 
 static int it_init(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
+		   const struct c2_uint128 *prefix, c2_bindex_t offset,
 		   struct c2_emap_cursor *it)
 {
 	c2_db_pair_setup(&it->ec_pair, &emap->em_mapping,
@@ -194,7 +194,7 @@ static void emap_close(struct c2_emap_cursor *it)
 }
 
 static int emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		       const struct c2_uint128 *prefix, c2_bindex_t offset, 
+		       const struct c2_uint128 *prefix, c2_bindex_t offset,
 		       struct c2_emap_cursor *it)
 {
 	int result;
@@ -214,7 +214,7 @@ static int emap_next(struct c2_emap_cursor *it)
 	return IT_DO_OPEN(it, &c2_db_cursor_next);
 }
 
-#if 0
+#if 1
 static bool emap_invariant_check(struct c2_emap_cursor *it)
 {
 	int                   result;
@@ -260,15 +260,17 @@ static bool emap_invariant(struct c2_emap_cursor *it)
 		check = true;
 	return check;
 }
-#endif
+
+#else /* 0 */
 
 static bool emap_invariant(struct c2_emap_cursor *it)
 {
 	return true;
 }
+#endif
 
 int c2_emap_lookup(struct c2_emap *emap, struct c2_db_tx *tx,
-		   const struct c2_uint128 *prefix, c2_bindex_t offset, 
+		   const struct c2_uint128 *prefix, c2_bindex_t offset,
 		   struct c2_emap_cursor *it)
 {
 	int result;
@@ -340,17 +342,16 @@ int c2_emap_split(struct c2_emap_cursor *it, struct c2_indexvec *vec)
 
 int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		  void (*del)(struct c2_emap_seg *),
-		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *, 
+		  void (*cut_left)(struct c2_emap_seg *, struct c2_ext *,
 				   uint64_t),
-		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *, 
+		  void (*cut_right)(struct c2_emap_seg *, struct c2_ext *,
 				    uint64_t))
 {
 	int                    result   = 0;
-	bool                   first;
-	bool                   last;
 	uint64_t               val_orig;
 	struct c2_emap_seg    *seg      = &it->ec_seg;
 	struct c2_ext         *chunk    = &seg->ee_ext;
+	const struct c2_ext    ext0     = *ext;
 
 	C2_PRE(c2_ext_is_in(chunk, ext->e_start));
 	C2_ASSERT(emap_invariant(it));
@@ -365,12 +366,13 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	 * Cutting and deleting segments is handled uniformly by
 	 * emap_split_internal(), thanks to the latter skipping empty segments.
 	 *
-	 * Note that the _whole_ new segment is inserted on the first iteration
-	 * of the loop below (see length[1] assignment) thus violating the map
-	 * invariant until the loop exits.
+	 * Note that the _whole_ new segment is inserted on the last iteration
+	 * of the loop below (see length[1] assignment), thus violating the map
+	 * invariant until the loop exits (the map is "porous" during that
+	 * time).
 	 */
 
-	for (first = true; !c2_ext_is_empty(ext); first = false) {
+	while (!c2_ext_is_empty(ext)) {
 		c2_bcount_t        length[3];
 		c2_bindex_t        bstart[3];
 		c2_bcount_t        consumed;
@@ -389,15 +391,8 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		C2_ASSERT(consumed > 0);
 
 		length[0] = clip.e_start - chunk->e_start;
-		length[1] = first ? c2_ext_length(ext) : 0;
+		length[1] = clip.e_end == ext->e_end ? c2_ext_length(&ext0) : 0;
 		length[2] = chunk->e_end - clip.e_end;
-
-		last = clip.e_end == ext->e_end;
-
-		C2_ASSERT(ergo(length[0] > 0, first));
-		C2_ASSERT(ergo(length[2] > 0, last));
-		C2_ASSERT(ergo(!last && !first, 
-			       c2_ext_length(chunk) == consumed));
 
 		bstart[1] = val;
 		val_orig  = seg->ee_val;
@@ -411,9 +406,9 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 		}
 		if (length[0] == 0 && length[2] == 0)
 			del(seg);
-		
-		result = emap_split_internal(it, &vec, first ? 
-					     chunk->e_start : ext->e_end);
+
+		result = emap_split_internal(it, &vec, length[0] > 0 ?
+					     chunk->e_start : ext0.e_start);
 		if (result != 0)
 			break;
 
@@ -429,6 +424,53 @@ int c2_emap_paste(struct c2_emap_cursor *it, struct c2_ext *ext, uint64_t val,
 	}
 	C2_ASSERT(ergo(result == 0, emap_invariant(it)));
 	return result;
+
+	/*
+	 * A tale of two keys.
+	 *
+	 * Primordial version of this function inserted the whole new extent (as
+	 * specified by @ext) at the first iteration of the loop. From time to
+	 * time the (clip.e_start == ext->e_start) assertion got violated for no
+	 * apparent reason. Eventually, after a lot of tracing (by Anatoliy),
+	 * the following sequence was tracked down:
+	 *
+	 * - on entry to c2_emap_paste():
+	 *
+	 *   emap: *[0, 512) [512, 1024) [1024, 2048) [2048, ...)
+	 *   ext:   [0, 1024)
+	 *
+	 *   (where current cursor position is starred).
+	 *
+	 * - at the end of the first iteration, instead of expected
+	 *
+	 *   emap: [0, 1024) *[512, 1024) [1024, 2048) [2048, ...)
+	 *
+	 *   the map was
+	 *
+	 *   emap: [0, 1024) *[1024, 2048) [2048, ...)
+	 *
+	 * - that is, the call to emap_split_internal():
+	 *
+	 *   - deleted [0, 512) (as expected),
+	 *   - inserted [0, 1024) (as expected),
+	 *   - deleted [512, 1024) ?!
+	 *
+	 * The later is seemingly impossible, because the call deletes exactly
+	 * one segment. The surprising explanation is that segment ([L, H), V)
+	 * is stored as a record (L, V) with H as a key (this is documented at
+	 * the top of this file) and the [0, 1024) segment has the same key as
+	 * already existing [512, 1024) one, with the former forever masking the
+	 * latter.
+	 *
+	 * The solution is to insert the new extent as the last step, but the
+	 * more important morale of this melancholy story is
+	 *
+	 *         Thou shalt wit thine abstraction levels.
+	 *
+	 * In the present case, emap_split_internal() operates on the level of
+	 * records and keys which turns out to be subtly different from the
+	 * level of segments and maps.
+	 */
 }
 
 int c2_emap_merge(struct c2_emap_cursor *it, c2_bindex_t delta)
@@ -456,7 +498,7 @@ int c2_emap_merge(struct c2_emap_cursor *it, c2_bindex_t delta)
 	return result;
 }
 
-int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx, 
+int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 		       const struct c2_uint128 *prefix, uint64_t val)
 {
 	struct c2_emap_cursor it;
@@ -476,7 +518,7 @@ int c2_emap_obj_insert(struct c2_emap *emap, struct c2_db_tx *tx,
 	return result;
 }
 
-int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx, 
+int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
 		       const struct c2_uint128 *prefix)
 {
 	struct c2_emap_cursor it;
@@ -495,9 +537,9 @@ int c2_emap_obj_delete(struct c2_emap *emap, struct c2_db_tx *tx,
 
 static bool c2_emap_caret_invariant(const struct c2_emap_caret *car)
 {
-	return 
+	return
 		c2_ext_is_in(&car->ct_it->ec_seg.ee_ext, car->ct_index) ||
-		(c2_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) && 
+		(c2_emap_ext_is_last(&car->ct_it->ec_seg.ee_ext) &&
 		 car->ct_index == C2_BINDEX_MAX + 1);
 }
 
@@ -546,7 +588,7 @@ c2_bcount_t c2_emap_caret_step(const struct c2_emap_caret *car)
 
 /** @} end group extmap */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
