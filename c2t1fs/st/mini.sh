@@ -32,6 +32,10 @@ cat c2t1fs/main.c | md5sum
 cat /mnt/c2t1fs/12345 | md5sum
 
 #large file write & read
+dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=128 count=200
+dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=256 count=200
+dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=512 count=200
+dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1024 count=200
 dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=200
 ls -l /mnt/c2t1fs/12345
 dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum

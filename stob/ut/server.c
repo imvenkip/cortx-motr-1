@@ -280,8 +280,10 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
+/*
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
+*/
 	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
