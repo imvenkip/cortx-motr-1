@@ -17,7 +17,7 @@ modunload
 modload
 
 rm -rf /tmp/test/
-mkdir -p /tmp/test
+mkdir -p /tmp/test/
 
 (./stob/ut/server -d/tmp/test -p$Port &)
 sleep 5
@@ -43,37 +43,6 @@ umount /mnt/c2t1fs
 # 1024 * 1024 * 256 = 268435456
 mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
-
-#attach loop device over c2t1fs file
-sleep 1
-losetup /dev/loop0 /mnt/c2t1fs/12345
-
-mkfs.ext3 /dev/loop0
-mkdir -p /mnt/loop
-mount /dev/loop0 /mnt/loop
-
-# read & write the loop device file system.
-dd if=/dev/zero of=/mnt/loop/10M bs=1M count=10 oflag=direct
-ls -l /mnt/loop/10M
-dd if=/mnt/loop/10M bs=1M count=10 2>/dev/null | md5sum
-dd if=/dev/zero bs=1M count=10 2>/dev/null | md5sum
-umount /mnt/loop
-
-# again, read & write the loop device file system.
-mount /dev/loop0 /mnt/loop
-dd if=/mnt/loop/10M bs=1M count=10 2>/dev/null | md5sum
-umount /mnt/loop
-
-losetup -d /dev/loop0
-umount /mnt/c2t1fs
-
-###### mount c2t1fs and loop again
-mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
-losetup /dev/loop0 /mnt/c2t1fs/12345
-mount /dev/loop0 /mnt/loop
-dd if=/mnt/loop/10M bs=1M count=10 2>/dev/null | md5sum
-umount /mnt/loop
-losetup -d /dev/loop0
 umount /mnt/c2t1fs
 
 modunload

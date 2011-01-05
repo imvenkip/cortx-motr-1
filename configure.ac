@@ -538,6 +538,8 @@ AC_CONFIG_FILES([
                  stob/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
+		 net/ut/Makefile
+		 net/st/Makefile
                 ])
                 
                 #rpc/Makefile
