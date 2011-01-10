@@ -38,15 +38,15 @@ dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=512 count=200
 dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1024 count=200
 dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=200
 ls -l /mnt/c2t1fs/12345
-dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
-dd if=/dev/zero bs=1M count=200 2>/dev/null | md5sum
+dd if=/mnt/c2t1fs/12345 bs=1M count=256 2>/dev/null | md5sum
+dd if=/dev/zero bs=1M count=256 2>/dev/null | md5sum
 
 umount /mnt/c2t1fs
 
 # mount again and check its content
 # 1024 * 1024 * 256 = 268435456
 mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
-dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
+dd if=/mnt/c2t1fs/12345 bs=1M count=256 2>/dev/null | md5sum
 umount /mnt/c2t1fs
 
 modunload
