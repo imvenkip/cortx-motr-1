@@ -1,6 +1,8 @@
-COB_SOURCES                = cob.c cob.h
+cobdir                     = $(includedir)/cob
+cob_HEADERS                = cob.h
 
-noinst_LTLIBRARIES          = libcolibri-cob.la
-libcolibri_cob_la_SOURCES  = $(COB_SOURCES)
-EXTRA_DIST                  = cob.c cob.h
+noinst_LTLIBRARIES         = libcolibri-cob.la
+libcolibri_cob_la_SOURCES  = cob.c cob.h
+
+INCLUDES                   = -I. -I$(top_srcdir)/include
 
