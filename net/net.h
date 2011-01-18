@@ -73,6 +73,15 @@ struct c2_net_xprt_ops {
 	   Initialise the server side part of a transport.
 	 */
 	int  (*xo_service_init)(struct c2_service *service);
+
+	/**
+	   Interface to return maxima for bulk I/O for network transport e.g.,
+	   lnet or sunrpc.
+
+	   The interface can be made generic enough to return any other property
+	   of network transport.
+	 */
+	size_t (*xo_net_bulk_size)(void);
 };
 
 int  c2_net_xprt_init(struct c2_net_xprt *xprt);

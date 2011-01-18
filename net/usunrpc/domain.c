@@ -37,6 +37,10 @@
    @addtogroup usunrpc User Level Sun RPC
    @{
  */
+/* 
+ * Maximum bulk IO size
+ */
+#define USUNRPC_MAX_BRW_SIZE (4 << 20)
 
 /*
  * Domain code.
@@ -106,11 +110,17 @@ static int usunrpc_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 
 }
 
+static size_t usunrpc_net_bulk_size(void)
+{
+	return USUNRPC_MAX_BRW_SIZE;
+}
+
 static const struct c2_net_xprt_ops usunrpc_xprt_ops = {
 	.xo_dom_init        = usunrpc_dom_init,
 	.xo_dom_fini        = usunrpc_dom_fini,
 	.xo_service_id_init = usunrpc_service_id_init,
-	.xo_service_init    = usunrpc_service_init
+	.xo_service_init    = usunrpc_service_init,
+	.xo_net_bulk_size   = usunrpc_net_bulk_size
 };
 
 struct c2_net_xprt c2_net_usunrpc_xprt = {
