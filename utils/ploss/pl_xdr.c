@@ -34,15 +34,8 @@ xdr_c2_pl_config (XDR *xdrs, c2_pl_config *objp)
 {
 	 if (!xdr_c2_pl_config_type (xdrs, &objp->op))
 		 return FALSE;
-#ifdef LINUX
 	 if (!xdr_uint32_t(xdrs, &objp->value))
 		 return FALSE;
-#elif DARWIN
-	 if (!xdr_u_int32_t(xdrs, &objp->value))
-		 return FALSE;
-#else
-#error "Not supported platform!"
-#endif
 	return TRUE;
 }
 
@@ -53,15 +46,8 @@ xdr_c2_pl_config_reply (XDR *xdrs, c2_pl_config_reply *objp)
 		 return FALSE;
 	switch (objp->res) {
 	case 0:
-#ifdef LINUX
 		 if (!xdr_uint32_t(xdrs, &objp->c2_pl_config_reply_u.config_value))
 			 return FALSE;
-#elif DARWIN
-		 if (!xdr_u_int32_t(xdrs, &objp->c2_pl_config_reply_u.config_value))
-			 return FALSE;
-#else
-#error "Not supported platform!"
-#endif
 		break;
 	default:
 		break;
@@ -82,33 +68,17 @@ xdr_c2_pl_config_res (XDR *xdrs, c2_pl_config_res *objp)
 bool_t
 xdr_c2_pl_ping (XDR *xdrs, c2_pl_ping *objp)
 {
-#ifdef LINUX
 	 if (!xdr_uint32_t(xdrs, &objp->seqno))
 		 return FALSE;
-#elif DARWIN
-	 if (!xdr_u_int32_t(xdrs, &objp->seqno))
-		 return FALSE;
-#else
-#error "Not supported platform!"
-#endif
 	return TRUE;
 }
 
 bool_t
 xdr_c2_pl_ping_res (XDR *xdrs, c2_pl_ping_res *objp)
 {
-#ifdef LINUX
 	 if (!xdr_uint32_t(xdrs, &objp->seqno))
 		 return FALSE;
 	 if (!xdr_uint32_t(xdrs, &objp->time))
 		 return FALSE;
-#elif DARWIN
-	 if (!xdr_u_int32_t(xdrs, &objp->seqno))
-		 return FALSE;
-	 if (!xdr_u_int32_t(xdrs, &objp->time))
-		 return FALSE;
-#else
-#error "Not supported platform!"
-#endif
 	return TRUE;
 }

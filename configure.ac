@@ -18,8 +18,6 @@ AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
-AH_TEMPLATE([LINUX], [Linux operating system])
-AH_TEMPLATE([DARWIN], [Darwin operating system])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -291,59 +289,51 @@ AC_ARG_ENABLE([db-o_direct],
         [enable_db_o_direct=no]
 )
 
+AC_MSG_CHECKING([for operating system])
+AC_MSG_RESULT([$host_os])
 case $host_os in
-        darwin*) OS="darwin" ;;
-        linux*) OS="linux" ;;
+        linux*) 
+                ;;
+        *)
+                AC_MSG_ERROR([Unsupported platform detected!])
+                ;;
 esac
-AC_SUBST([OS])
 
-if test x$OS = xlinux; then
-        AC_DEFINE([LINUX])
-fi
-if test x$OS = xdarwin; then
-        AC_DEFINE([DARWIN])
-fi
+AC_MSG_CHECKING([for linux sources dir])
+AC_ARG_WITH([linux],
+        [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
+        [LINUX=$with_linux],
+        [LINUX=/lib/modules/`uname -r`/build]
+)
 
-AM_CONDITIONAL([LINUX], [test x$OS = xlinux])
-AM_CONDITIONAL([DARWIN], [test x$OS = xdarwin])
+AC_MSG_RESULT([$LINUX])
+AC_SUBST([LINUX])
 
-if test x$OS = xlinux; then
-        AC_MSG_CHECKING([for linux sources dir])
-        AC_ARG_WITH([linux],
-                [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
-                [LINUX=$with_linux],
-                [LINUX=/lib/modules/`uname -r`/build]
-        )
+AC_MSG_CHECKING([for linux objects dir])
+AC_ARG_WITH([linux-obj],
+        [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
+        [LINUX_OBJ=$with_linux_obj],
+        [LINUX_OBJ=$LINUX]
+)
 
-        AC_MSG_RESULT([$LINUX])
-        AC_SUBST([LINUX])
+AC_MSG_RESULT([$LINUX_OBJ])
+AC_SUBST([LINUX_OBJ])
 
-        AC_MSG_CHECKING([for linux objects dir])
-        AC_ARG_WITH([linux-obj],
-                [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
-                [LINUX_OBJ=$with_linux_obj],
-                [LINUX_OBJ=$LINUX]
-        )
+LINUX_MOD="/lib/modules/`uname -r`"
+AC_SUBST([LINUX_MOD])
 
-        AC_MSG_RESULT([$LINUX_OBJ])
-        AC_SUBST([LINUX_OBJ])
+# Prepare linux configuration checks facility. Should be done before
+# any *_LINUX_* checks.
+COLIBRI_LINUX_INIT_CONFIG
 
-        LINUX_MOD="/lib/modules/`uname -r`"
-        AC_SUBST([LINUX_MOD])
+COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
+        [AC_DEFINE([HAVE_JOURNAL_ABORT])])
 
-        # Prepare linux configuration checks facility. Should be done before
-        # any *_LINUX_* checks.
-        COLIBRI_LINUX_INIT_CONFIG
-
-        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
-                [AC_DEFINE([HAVE_JOURNAL_ABORT])])
-
-        COLIBRI_LINUX_INODE_BLKSIZE
-        COLIBRI_LINUX_FILE_READV
-        COLIBRI_LINUX_FILE_AIO_READ
-        COLIBRI_LINUX_WRITE_BEGIN_END
-        COLIBRI_LINUX_SENDFILE
-fi
+COLIBRI_LINUX_INODE_BLKSIZE
+COLIBRI_LINUX_FILE_READV
+COLIBRI_LINUX_FILE_AIO_READ
+COLIBRI_LINUX_WRITE_BEGIN_END
+COLIBRI_LINUX_SENDFILE
 
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
@@ -417,7 +407,7 @@ OLD_LIBS="$OLD_LIBS $GALOIS_SRC/libgalois.la"
 
 
 # Check if o_direct patch applied
-if test x$OS = xlinux -a x$enable_db_o_direct = xyes; then
+if test x$enable_db_o_direct = xyes; then
         AC_MSG_CHECKING([for direct I/O patch applied to db])
         $NM_B $DBLIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
@@ -449,18 +439,16 @@ if test x$enable_gssrpc = xyes; then
         )
 fi
 
-if test x$OS = xlinux; then
-        OLD_LIBS=$LIBS
-        LIBS=""
-        AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
-        AIO_LIBS=$LIBS
-        AC_SUBST([AIO_LIBS])
-        LIBS=$OLD_LIBS
-fi
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
+AIO_LIBS=$LIBS
+AC_SUBST([AIO_LIBS])
+LIBS=$OLD_LIBS
 
 if test x$enable_debug = xyes; then
-        # If debug option specified we are free to strip all the default
-        # optimization and debug flags if any.
+        # If debug options specified we are free to strip all the default
+        # optimization and debug flags.
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
@@ -468,10 +456,6 @@ else
         # Remove debug flags but keep default or user optimizations
         # passed via construction like ./configure CFLAGS=-O3 
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
-fi
-
-if test x$OS = xdarwin; then
-        CFLAGS="$CFLAGS -fnested-functions"
 fi
 
 #
@@ -552,7 +536,7 @@ AC_OUTPUT
 #
 # Set up execute bit on our "compiler" generated from fop2c.in above.
 #
-chmod u+x fop/fop2c
+chmod +x fop/fop2c
 
 echo ""
 echo "CFLAGS :  \"$CFLAGS\""
@@ -560,9 +544,7 @@ echo "KCFLAGS:  \"$KCFLAGS\""
 echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
-if test x$OS = xlinux; then
 echo "Linux  :  \"$LINUX\""
-fi
 echo "Db     :  \"$DBSRC\""
 echo ""
 

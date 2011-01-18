@@ -1,12 +1,8 @@
-SUBDIRS    = ploss
+SUBDIRS      = ploss
 
 noinst_PROGRAMS = ut ub
 
-if LINUX
 libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
-else
-libstob_ut   = 
-endif
 
 ut_SOURCES   = ut_main.c common.c common.h
 ut_LDFLAGS   = -pthread
