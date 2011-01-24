@@ -37,10 +37,13 @@
    @addtogroup usunrpc User Level Sun RPC
    @{
  */
+
 /* 
  * Maximum bulk IO size
  */
-#define USUNRPC_MAX_BRW_SIZE (4 << 20)
+enum {
+	USUNRPC_MAX_BRW_SIZE = (4 << 20)
+};
 
 /*
  * Domain code.

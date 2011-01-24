@@ -4,7 +4,7 @@ SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_BINARIES = mds utils
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/st #rpc/ut
+            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut #rpc/ut
 SUBDIR_ST = 
 SUBDIR_UB = 
 SUBDIR_BIN = utils mds

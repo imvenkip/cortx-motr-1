@@ -482,6 +482,7 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  c2t1fs/Makefile
                  capa/Makefile
+		 capa/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
@@ -524,6 +525,7 @@ AC_CONFIG_FILES([
                  stob/Makefile
                  stob/ut/Makefile
                  udb/Makefile
+                 udb/ut/Makefile
                  utils/Makefile
                  utils/ploss/Makefile
                 ])

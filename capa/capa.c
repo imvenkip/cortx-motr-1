@@ -61,7 +61,16 @@ int c2_capa_auth(struct c2_capa_ctxt *ctxt, struct c2_object_capa *capa,
 	return 0;
 }
 
+int c2_capa_ctxt_init(struct c2_capa_ctxt *ctxt)
+{
+	/* TODO This is only stub */
+	return 0;
+}
 
+void c2_capa_ctxt_fini(struct c2_capa_ctxt *ctxt)
+{
+	/* TODO This is only stub */
+}
 
 /** @} end group capa */
 
