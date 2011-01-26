@@ -35,7 +35,7 @@ https://docs.google.com/a/xyratex.com/Doc?docid=0AYiCgZNYbBLAZGhrZ3p2emRfMmhyZm4
 enum c2_capa_entity_type {
 	C2_CAPA_ENTITY_OBJECT,
 	C2_CAPA_ENTITY_LOCKS,
-	C2_CAPA_ENTITY_ALYOUT,
+	C2_CAPA_ENTITY_LAYOUT,
 };
 
 /**
@@ -129,7 +129,7 @@ int c2_capa_new(struct c2_object_capa *capa,
    @param capa [in][out]result will be stored here.
    @return 0 means success. Otherwise failure.
 
-   @pre c2_capa_init() should be called successfully.
+   @pre c2_capa_new() should be called successfully.
    Reference count will be bumped.
 */
 int c2_capa_get(struct c2_capa_ctxt *ctxt, struct c2_capa_issuer *owner,

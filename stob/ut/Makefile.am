@@ -1,7 +1,7 @@
 UT_SRCDIR=@SRCDIR@/stob/ut
 
 noinst_LTLIBRARIES    = libstob-ut.la
-libstob_ut_la_SOURCES = adieu.c ad.c
+libstob_ut_la_SOURCES = adieu.c ad.c stobio.c
 
 noinst_PROGRAMS       = server client
 
