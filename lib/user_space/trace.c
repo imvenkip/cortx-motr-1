@@ -53,7 +53,7 @@ static inline uint64_t rdtsc(void)
 	uint32_t count_lo;
 
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
-	
+
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
 }
 
@@ -66,6 +66,17 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 	uint64_t                    endpos;
 	uint32_t                    pos_in_buf;
 
+	/*
+	 * Allocate space in trace buffer to store trace record header
+	 * (header_len bytes) and record payload (record_len bytes).
+	 *
+	 * Record and payload always start at 8-byte aligned address.
+	 *
+	 * First free byte in the trace buffer is at "cur" offset. Note, that
+	 * cur is not wrapped to 0 when the end of the buffer is reached (that
+	 * would require additional synchronization between contending threads).
+	 */
+
 	header_len = c2_align(sizeof *header, 8);
 	record_len = header_len + c2_align(td->td_size, 8);
 
@@ -73,6 +84,11 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 		endpos = c2_atomic64_add_return(&cur, record_len);
 		pos    = endpos - record_len;
 		pos_in_buf = pos & bufmask;
+		/*
+		 * If allocated space crosses buffer end, zero allocated parts
+		 * of the buffer and allocate anew. Allocated space remains lost
+		 * until the buffer is wrapped over again.
+		 */
 		if ((pos >> bufshift) != (endpos >> bufshift)) {
 			memset(logbuf + pos_in_buf, 0, bufsize - pos_in_buf);
 			memset(logbuf, 0, endpos & bufmask);
@@ -89,7 +105,7 @@ void *c2_trace_allot(const struct c2_trace_descr *td)
 	return ((void *)header) + header_len;
 }
 
-static void align(unsigned align) 
+static void align(unsigned align)
 {
 	C2_ASSERT(c2_is_po2(align));
 	while (ftell(stdin) & (align - 1))
@@ -151,7 +167,7 @@ static void trace_decl(const char *decl)
 	decl++;
 	skip();
 	while (*decl != '}') {
-		while (gotmatch("const") || gotmatch("volatile") || 
+		while (gotmatch("const") || gotmatch("volatile") ||
 		       gotmatch("unsigned"))
 			skip();
 
@@ -206,7 +222,7 @@ int c2_trace_parse(void)
 		C2_ASSERT(nr == 1);
 
 		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %s\n\t",
-		       no, timestamp, td->td_func, td->td_file, 
+		       no, timestamp, td->td_func, td->td_file,
 		       td->td_line, td->td_size, td->td_decl);
 		align(8);
 		trace_decl(td->td_decl);
@@ -236,7 +252,7 @@ int c2_trace_init(void)
 	logfd = open("c2.trace", O_RDWR|O_CREAT|O_TRUNC, 0700);
 	if (logfd != -1) {
 		if (ftruncate(logfd, BUFSIZE) == 0) {
-			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE, 
+			logbuf = mmap(NULL, BUFSIZE, PROT_WRITE,
 				      MAP_SHARED, logfd, 0);
 		}
 	}
@@ -251,7 +267,7 @@ void c2_trace_fini(void)
 
 /** @} end of trace group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
