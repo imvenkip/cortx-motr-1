@@ -1,7 +1,4 @@
-OS = @OS@
 DB_SRCDIR = @SRCDIR@/db/linux_kernel
-
-ifeq ($(OS),linux)
 
 obj-m       := kdb.o
 shared_src  := db_common.c
@@ -23,15 +20,6 @@ uninstall:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(DB_SRCDIR)/Makefile.in $(DB_SRCDIR)/db.c $(DB_SRCDIR)/db_impl.h \

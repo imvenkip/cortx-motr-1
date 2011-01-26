@@ -1,5 +1,3 @@
-OS = @OS@
-
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
 FOPDIR = @SRCDIR@/fop
@@ -8,8 +6,6 @@ STOBDIR = @SRCDIR@/stob/ut
 subdirs := ../net/ksunrpc/ ../lib/linux_kernel/ \
            ../fop/linux_kernel/ ../addb/linux_kernel/ \
 	   ../db/linux_kernel/ ../c2t1fs/
-
-ifeq ($(OS),linux)
 
 obj-y += $(subdirs)
 
@@ -26,15 +22,6 @@ install modules_install:
 
 uninstall:
 	for s in $(subdirs) ;do $(MAKE) -C $$s uninstall ;done
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 dist distdir:
 	for s in $(subdirs) ;do $(MAKE) -C $$s distdir ;done

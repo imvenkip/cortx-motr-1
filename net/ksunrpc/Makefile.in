@@ -1,7 +1,4 @@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
-OS=@OS@
-
-ifeq ($(OS),linux)
 
 obj-m := ksunrpc.o
 shared_src  := connection.c net.c net_cli.c net_utils.c
@@ -23,15 +20,6 @@ uninstall:
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr $(shared_src) Module.symvers
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h \

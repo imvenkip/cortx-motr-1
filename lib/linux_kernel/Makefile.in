@@ -1,7 +1,4 @@
-OS = @OS@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
-
-ifeq ($(OS),linux)
 
 obj-m       := klibc2.o
 shared_src  := vec.c list.c queue.c refs.c
@@ -23,15 +20,6 @@ uninstall:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(LIB_SRCDIR)/Makefile.in \
