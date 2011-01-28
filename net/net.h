@@ -10,6 +10,7 @@
 #include "lib/queue.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
+#include "lib/time.h"
 #include "addb/addb.h"
 
 
@@ -58,7 +59,7 @@ struct c2_net_xprt_ops {
 	   Initialise transport specific part of a domain (e.g., start threads,
 	   initialise portals).
 	 */
-	int  (*xo_dom_init)(struct c2_net_xprt *xprt, 
+	int  (*xo_dom_init)(struct c2_net_xprt *xprt,
 			    struct c2_net_domain *dom);
 	/**
 	   Finalise transport resources in a domain.
@@ -87,6 +88,37 @@ struct c2_net_xprt_ops {
 int  c2_net_xprt_init(struct c2_net_xprt *xprt);
 void c2_net_xprt_fini(struct c2_net_xprt *xprt);
 
+enum c2_net_stats_direction {
+        NS_STATS_IN  = 0,
+        NS_STATS_OUT = 1,
+        NS_STATS_NR
+};
+
+struct c2_net_stats {
+        struct c2_rwlock ns_lock;
+        /**
+         All counters are 64 bits wide and wrap naturally. We re-zero
+         the counters every time we examine the stats so that we have a known
+         timebase for rate calculations. */
+        struct c2_time     ns_time;
+        /** Counts how many FOPs have been seen by the service workers */
+        struct c2_atomic64 ns_reqs;
+        /** Bytes inside FOPs, as determined by fop type layout */
+        struct c2_atomic64 ns_bytes;
+        /**
+         Counts how many times an idle thread is woken to try to
+         receive some data from a transport.
+
+         This statistic tracks the circumstance where incoming
+         network-facing work is being handled quickly, which is a good
+         thing.  The ideal rate of change for this counter will be close
+         to but less than the rate of change of the ns_reqs counter.
+         */
+        struct c2_atomic64 ns_threads_woken;
+        uint64_t           ns_max;      /**< Max load seen so far */
+        bool               ns_got_busy; /**< We can believe max rate */
+};
+
 /**
    Collection of network resources.
 
@@ -105,6 +137,8 @@ struct c2_net_domain {
 	/** Transport private domain data. */
 	void               *nd_xprt_private;
 	struct c2_net_xprt *nd_xprt;
+        /** Domain network stats */
+        struct c2_net_stats nd_stats[NS_STATS_NR];
 	/**
 	   ADDB context for events related to this domain
 	 */
@@ -120,6 +154,23 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
    Release resources related to a domain.
  */
 void c2_net_domain_fini(struct c2_net_domain *dom);
+
+void c2_net_domain_stats_init(struct c2_net_domain *dom);
+void c2_net_domain_stats_fini(struct c2_net_domain *dom);
+
+/**
+ Collect values for stats.
+ */
+void c2_net_domain_stats_collect(struct c2_net_domain *dom,
+                                 enum c2_net_stats_direction dir,
+                                 uint64_t bytes,
+                                 bool *sleeping);
+/**
+ Report the network loading rate for a direction (in/out).
+ @returnval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
+ */
+int c2_net_domain_stats_get(struct c2_net_domain *dom,
+                            enum c2_net_stats_direction dir);
 
 
 enum {
@@ -193,8 +244,8 @@ struct c2_service {
 	int                           (*s_handler)(struct c2_service *service,
 						   struct c2_fop *fop,
 						   void *cookie);
-	/** 
-	    linkage in the list of all services running in the domain 
+	/**
+	    linkage in the list of all services running in the domain
 	*/
 	struct c2_list_link             s_linkage;
 	/** pointer to transport private service data */
@@ -213,7 +264,7 @@ struct c2_service_ops {
    Client side of a logical network connection to a service.
  */
 struct c2_net_conn {
-	/** 
+	/**
 	    A domain this connection originates at.
 	 */
 	struct c2_net_domain         *nc_domain;
@@ -360,7 +411,7 @@ int c2_service_start(struct c2_service *service,
  */
 void c2_service_stop(struct c2_service *service);
 
-void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop, 
+void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 		       void *cookie);
 /**
  constructor for the network library
@@ -381,7 +432,7 @@ extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

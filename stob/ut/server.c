@@ -35,7 +35,7 @@
 static struct c2_stob_domain *dom;
 static struct c2_fol          fol;
 
-static struct c2_stob *object_find(const struct c2_fop_fid *fid, 
+static struct c2_stob *object_find(const struct c2_fop_fid *fid,
 				   struct c2_dtx *tx)
 {
 	struct c2_stob_id  id;
@@ -114,7 +114,7 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		C2_ASSERT((in->sir_seg.f_count & bmask) == 0);
 		C2_ASSERT((in->sir_seg.f_offset & bmask) == 0);
-		
+
 		C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
 		C2_ASSERT(ex->sirr_buf.cib_value != NULL);
 
@@ -333,7 +333,7 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	out->e_end   = mb->mb_next + giveout;
 	mb->mb_next += giveout + 1;
 	/*
-	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count, 
+	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count,
 	       out->e_start, out->e_end); */
 	c2_mutex_unlock(&mb->mb_lock);
 	return 0;
@@ -384,6 +384,7 @@ int main(int argc, char **argv)
 	char        opath[64];
 	char        dpath[64];
 	int         port;
+        int         i = 0;
 
 	struct c2_stob_domain  *bdom;
 	struct c2_stob_id       backid;
@@ -409,7 +410,7 @@ int main(int argc, char **argv)
 					       exit(0);
 					       })),
 			    C2_STRINGARG('d', "path to object store",
-				       LAMBDA(void, (const char *string) { 
+				       LAMBDA(void, (const char *string) {
 					       path = string; })),
 			    C2_FORMATARG('o', "back store object id", "%lu",
 					 &backid.si_bits.u_lo),
@@ -423,7 +424,7 @@ int main(int argc, char **argv)
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
-	
+
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
@@ -450,7 +451,7 @@ int main(int argc, char **argv)
 	 * Locate and create (if necessary) the backing store object.
 	 */
 
-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
+	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  path, &bdom);
 	C2_ASSERT(result == 0);
 
@@ -497,8 +498,12 @@ int main(int argc, char **argv)
 
 	while (!stop) {
 		sleep(1);
-		//printf("allocated: %li\n", c2_allocated());
-	}
+                //printf("allocated: %li\n", c2_allocated());
+                if (i++ % 5 == 0)
+                        printf("busy: in=%5.2f out=%5.2f\n",
+                               (float)c2_net_domain_stats_get(&ndom, NS_STATS_IN) / 100,
+                               (float)c2_net_domain_stats_get(&ndom, NS_STATS_OUT) / 100);
+        }
 
 	c2_service_stop(&service);
 	c2_service_id_fini(&sid);
@@ -516,7 +521,7 @@ int main(int argc, char **argv)
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
