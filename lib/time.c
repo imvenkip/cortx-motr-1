@@ -1,10 +1,5 @@
 /* -*- C -*- */
 
-/* Note: the filename time_.c is required because this file is also
-   included in the linux_kernel/ tree, where it must not conflict
-   with the local time.c there.
-*/
-
 #include "lib/cdefs.h" /* C2_EXPORTED */
 #include "lib/time.h"
 
