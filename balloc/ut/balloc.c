@@ -75,10 +75,12 @@ int main(int argc, char **argv)
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 		C2_ASSERT(result == 0);
 		if (grp) {
+			c2_balloc_lock_group(grp);
 			result = c2_balloc_load_extents(&colibri_balloc, grp, &dtx.tx_dbtx);
 			if (result == 0)
 				c2_balloc_debug_dump_group_extent(argv[0], grp);
 			c2_balloc_release_extents(grp);
+			c2_balloc_unlock_group(grp);
 		}
 		c2_db_tx_commit(&dtx.tx_dbtx);
 	}
@@ -117,16 +119,19 @@ int main(int argc, char **argv)
 		result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 		C2_ASSERT(result == 0);
 		if (grp) {
+			c2_balloc_lock_group(grp);
 			result = c2_balloc_load_extents(&colibri_balloc, grp, &dtx.tx_dbtx);
 			if (result == 0)
 				c2_balloc_debug_dump_group_extent(argv[0], grp);
 			if (grp->bgi_freeblocks != colibri_balloc.cb_sb.bsb_groupsize) {
-				printf("corruptted: %llx != %llx\n",
+				printf("corrupted grp %d: %llx != %llx\n",
+					i,
 					(unsigned long long)grp->bgi_freeblocks,
 					(unsigned long long)colibri_balloc.cb_sb.bsb_groupsize);
 				result = -EINVAL;
 			}
 			c2_balloc_release_extents(grp);
+			c2_balloc_unlock_group(grp);
 		}
 		c2_db_tx_commit(&dtx.tx_dbtx);
 	}
