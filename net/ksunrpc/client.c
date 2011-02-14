@@ -193,6 +193,9 @@ static int ksunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	kconn  = conn->nc_xprt_private;
 	kxprt  = kconn->ksc_xprt;
 
+	/* use the addb record here and free it. */
+	c2_free(call->ac_addb_rec);
+
 	c2_mutex_lock(&kxprt->ksx_lock);
         result = rpc_call_sync(kxprt->ksx_client, &msg, 0);
 	c2_mutex_unlock(&kxprt->ksx_lock);

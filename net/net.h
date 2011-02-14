@@ -143,6 +143,15 @@ struct c2_net_domain {
 	   ADDB context for events related to this domain
 	 */
 	struct c2_addb_ctx  nd_addb;
+
+	/**
+	   Lock to protect the addb items list.
+	 */
+	struct c2_rwlock    nd_addb_lock;
+	/**
+	   ADDB record items list.
+	 */
+	struct c2_list      nd_addb_items;
 };
 
 /**
@@ -368,6 +377,8 @@ struct c2_net_call {
 	struct c2_chan          ac_chan;
 	/** Linkage into the queue of pending calls. */
 	struct c2_queue_link    ac_linkage;
+	/** piggy caiiried addb record. */
+	struct c2_addb_rec_header *ac_addb_rec;
 };
 
 /**

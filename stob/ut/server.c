@@ -32,6 +32,19 @@
    @{
  */
 
+static struct c2_addb_ctx server_addb_ctx;
+
+static const struct c2_addb_loc server_addb_loc = {
+	.al_name = "server"
+};
+
+const struct c2_addb_ctx_type server_addb_ctx_type = {
+	.act_name = "t1-server",
+};
+
+#define SERVER_ADDB_ADD(name, rc)                                       \
+C2_ADDB_ADD(&server_addb_ctx, &server_addb_loc, c2_addb_func_fail, (name), (rc))
+
 static struct c2_stob_domain *dom;
 static struct c2_fol          fol;
 
@@ -277,6 +290,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		      void *cookie)
 {
 	struct c2_fop_ctx ctx;
+	int rc;
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
@@ -284,7 +298,9 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
 */
-	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
+	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
+	SERVER_ADDB_ADD("io_handler", rc);
+	return rc;
 }
 
 static struct c2_fop_type *fopt[] = {
@@ -425,6 +441,17 @@ int main(int argc, char **argv)
 	result = c2_init();
 	C2_ASSERT(result == 0);
 
+	/* write addb record into stob */
+	c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
+	/* create or open a stob in which to store the record.
+	 * XXX we use file for demo
+	 */
+	c2_addb_store_stob = (struct c2_stob*)fopen("server_addb_log", "a");
+	C2_ASSERT(c2_addb_store_stob != NULL);
+
+	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
+			 &c2_addb_global_ctx);
+
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
@@ -515,6 +542,8 @@ int main(int argc, char **argv)
 	io_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
+	c2_addb_ctx_fini(&server_addb_ctx);
+	fclose((FILE*)c2_addb_store_stob);
 	c2_fini();
 	return 0;
 }
