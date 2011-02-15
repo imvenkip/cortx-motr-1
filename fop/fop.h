@@ -8,6 +8,7 @@
 #include "lib/list.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
+#include "fop/fom.h"
 
 /**
    @defgroup fop File operation packet
@@ -69,6 +70,8 @@ struct c2_fop_type {
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format        *ft_fmt;
 	struct c2_fol_rec_type            ft_rec_type;
+	/** State machine for this fop type */
+	struct c2_fom_type                ft_fom_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
