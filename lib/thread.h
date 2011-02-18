@@ -114,7 +114,7 @@ struct c2_thread {
    @code
    int x;
 
-   result = C2_THREAD_INIT(&tcb, int, NULL, 
+   result = C2_THREAD_INIT(&tcb, int, NULL,
                            LAMBDA(void, (int y) { printf("%i", x + y); } ));
    @endcode
 
@@ -174,6 +174,16 @@ void c2_thread_fini(struct c2_thread *q);
  */
 int  c2_thread_join(struct c2_thread *q);
 
+struct c2_bitmap;
+
+/**
+   Sets thread affinity to a given processor bitmap.
+
+   @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
+   @see lib/processor.h
+ */
+void c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
+
 int  c2_threads_init(void);
 void c2_threads_fini(void);
 
@@ -183,7 +193,7 @@ void c2_threads_fini(void);
 /* __COLIBRI_LIB_THREAD_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

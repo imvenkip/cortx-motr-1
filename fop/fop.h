@@ -8,6 +8,7 @@
 #include "lib/list.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
+#include "fop/fom.h"
 
 /**
    @defgroup fop File operation packet
@@ -69,6 +70,8 @@ struct c2_fop_type {
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format        *ft_fmt;
 	struct c2_fol_rec_type            ft_rec_type;
+	/** State machine for this fop type */
+	struct c2_fom_type                ft_fom_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
@@ -110,7 +113,7 @@ struct c2_fop_type_ops {
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 };
 
-/** 
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -236,7 +239,7 @@ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
 #if 0
@@ -246,10 +249,10 @@ enum c2_fop_field_cb_ret {
 	FFC_BREAK
 };
 
-/** 
+/**
     Call-back function supplied to fop field tree iterating functions.
  */
-typedef enum c2_fop_field_cb_ret 
+typedef enum c2_fop_field_cb_ret
 (*c2_fop_field_cb_t)(const struct c2_fop_field *, unsigned , void *);
 /**
    Traverse the fop field type tree calling call-backs for every tree node.
@@ -258,10 +261,10 @@ typedef enum c2_fop_field_cb_ret
    @param post_cb call-back called after children are traversed
  */
 void c2_fop_field_type_traverse(const struct c2_fop_field_type *ftype,
-				c2_fop_field_cb_t pre_cb, 
+				c2_fop_field_cb_t pre_cb,
 				c2_fop_field_cb_t post_cb, void *arg);
 
-/** 
+/**
     Values of this type describe position within a compound field.
 
     Zero means the beginning of a compound field. For record field the value of
@@ -310,7 +313,7 @@ struct c2_fop_iterator {
 
 void c2_fop_iterator_init(struct c2_fop_iterator *it, struct c2_fop *fop);
 void c2_fop_iterator_fini(struct c2_fop_iterator *it);
-int  c2_fop_iterator_get (struct c2_fop_iterator *it, 
+int  c2_fop_iterator_get (struct c2_fop_iterator *it,
 			  struct c2_fop_field_val *val);
 /* 0 */
 #endif
@@ -325,7 +328,7 @@ void c2_fops_fini(void);
 /* __COLIBRI_FOP_FOP_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
