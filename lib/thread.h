@@ -3,12 +3,16 @@
 #ifndef __COLIBRI_LIB_THREAD_H__
 #define __COLIBRI_LIB_THREAD_H__
 
-#include <sys/types.h>
-#include <pthread.h>
-#include <signal.h>
-
 #include "cdefs.h"
 #include "chan.h"
+
+#ifndef __KERNEL__
+#include "user_space/thread.h"
+#else
+#include "linux_kernel/thread.h"
+#endif
+
+/* platform-specific headers above must define struct c2_thread_handle */
 
 /**
    @defgroup thread Thread
@@ -66,14 +70,13 @@ enum c2_thread_state {
    not yet joined) thread.
  */
 struct c2_thread {
-	enum c2_thread_state t_state;
-	/** POSIX thread identifier for now. */
-	pthread_t            t_id;
-	int                (*t_init)(void *);
-	void               (*t_func)(void *);
-	void                *t_arg;
-	struct c2_chan       t_initwait;
-	int                  t_initrc;
+	enum c2_thread_state    t_state;
+	struct c2_thread_handle t_h;
+	int                   (*t_init)(void *);
+	void                  (*t_func)(void *);
+	void                   *t_arg;
+	struct c2_chan          t_initwait;
+	int                     t_initrc;
 };
 
 /**
@@ -183,10 +186,6 @@ struct c2_bitmap;
    @see lib/processor.h
  */
 void c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
-
-int  c2_threads_init(void);
-void c2_threads_fini(void);
-
 
 /** @} end of thread group */
 
