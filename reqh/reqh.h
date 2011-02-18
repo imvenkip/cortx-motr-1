@@ -7,6 +7,7 @@
 
 /* import */
 struct c2_fop;
+struct c2_fom;
 struct c2_stob_domain;
 
 /**
