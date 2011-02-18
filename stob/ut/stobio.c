@@ -16,10 +16,11 @@
 #include "balloc/balloc.h"
 #include "colibri/init.h"
 
-#define WITH_LOCK(lock, action, args...) ({	\
-			c2_mutex_lock(&lock);	\
-			action(args);		\
-			c2_mutex_unlock(&lock);	\
+#define WITH_LOCK(lock, action, args...) ({		\
+			struct c2_mutex *lk = lock;	\
+			c2_mutex_lock(lk);		\
+			action(args);			\
+			c2_mutex_unlock(lk);		\
 		})
 
 enum {
@@ -249,7 +250,7 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 	int i;
 	int j;
 
-	WITH_LOCK(lock, stobio_init, test);
+	WITH_LOCK(&lock, stobio_init, test);
 
 	/* Write overlapped segments */
 	stobio_rwsegs_prepare(test, starts_from);
@@ -273,7 +274,7 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 			C2_UT_ASSERT(test->st_rdbuf[i][j] == (('a' + i) | 1));
 	}
 
-	WITH_LOCK(lock, stobio_fini, test);
+	WITH_LOCK(&lock, stobio_fini, test);
 }
 
 void test_stobio(void)
