@@ -183,9 +183,10 @@ struct c2_bitmap;
    Sets thread affinity to a given processor bitmap.
 
    @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
+   @see http://www.kernel.org/doc/man-pages/online/pages/man2/sched_setaffinity.2.html
    @see lib/processor.h
 
-   @param q thread whose afiinity is to be set (confined)
+   @param q thread whose affinity is to be set (confined)
    @param processors bitmap of processors, true values are those on which the
    thread can run
    @retval 0 success
