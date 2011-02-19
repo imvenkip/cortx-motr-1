@@ -196,7 +196,7 @@ struct c2_bitmap;
    @retval 0 success
    @retval !0 failed to set affinity, -errno
  */
-void c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
+int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
 
 /** @} end of thread group */
 
