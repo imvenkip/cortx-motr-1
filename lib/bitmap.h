@@ -4,6 +4,7 @@
 #define __COLIBRI_LIB_BITMAP_H__
 
 #include "lib/types.h"
+#include "lib/assert.h"
 
 /**
    @defgroup bitmap Bitmap
@@ -26,6 +27,9 @@ struct c2_bitmap {
    Initialise a bitmap to hold nr bits. The array to store bits is
    allocated internally.
 
+   On success, the bitmap is initialised with all bits initially
+   set to false.
+
    @param map bitmap object to initialize
    @param nr  size of the bitmap, in bits
    @retval 0 success
@@ -34,31 +38,12 @@ struct c2_bitmap {
 int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
 
 /**
-   Initialise a bitmap to hold nr bits with word array already
-   pre-allocated. C2_BITMAP_WORDS() should be used to calculate the size of
-   array.  Note that the caller must track that the bitmap was
-   pre-allocated.
-
-   @see c2_bitmap_fini
-
-   @param map bitmap object to initialize
-   @param nr size of the bitmap in bits
-   @param bits pre-allocated memory to apply to the bitmap
- */
-void c2_bitmap_init_inplace(struct c2_bitmap *map, size_t nr, uint64_t *bits);
-
-/**
    Finalise the bitmap.
-
-   In the case that the bitmap memory was pre-allocated, finalisation will
-   not free the memory.
-
-   @see c2_bitmap_init_inplace
+   All memory associated with the bitmap is released.
 
    @param map bitmap to finalise
-   @param inplace finalise a pre-allocated bitmap.
  */
-void c2_bitmap_fini(struct c2_bitmap *map, bool inplace);
+void c2_bitmap_fini(struct c2_bitmap *map);
 
 /**
    Get a bit value from a bitmap.

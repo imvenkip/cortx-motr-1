@@ -182,9 +182,8 @@ struct c2_bitmap;
 /**
    Sets thread affinity to a given processor bitmap.
 
-   Note the the kernel implementation does not call sched_setaffinity, it calls
-   set_cpus_allowed_ptr() directly.  sched_setaffinity() is not exported to modules and
-   performs additional checks required only when called from user space.
+   The user space implementation calls pthread_setaffinity_np and the kernel implementation
+   calls set_cpus_allowed_ptr() directly.
 
    @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
    @see http://www.kernel.org/doc/man-pages/online/pages/man2/sched_setaffinity.2.html
