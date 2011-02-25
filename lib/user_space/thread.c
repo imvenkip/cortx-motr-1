@@ -56,7 +56,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		c2_chan_init(&q->t_initwait);
 		c2_clink_add(&q->t_initwait, &wait);
 	}
-	result = pthread_create(&q->t_id, &pthread_attr_default, 
+	result = pthread_create(&q->t_h.h_id, &pthread_attr_default,
 				pthread_trampoline, q);
 	if (init != NULL) {
 		if (result == 0) {
@@ -85,8 +85,8 @@ int c2_thread_join(struct c2_thread *q)
 	int result;
 
 	C2_PRE(q->t_state == TS_RUNNING);
-	C2_PRE(!pthread_equal(q->t_id, pthread_self()));
-	result = pthread_join(q->t_id, NULL);
+	C2_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
+	result = pthread_join(q->t_h.h_id, NULL);
 	if (result == 0)
 		q->t_state = TS_PARKED;
 	return result;
@@ -110,7 +110,7 @@ void c2_threads_fini(void)
 
 /** @} end of vec group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
