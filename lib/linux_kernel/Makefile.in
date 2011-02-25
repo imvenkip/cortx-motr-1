@@ -25,7 +25,7 @@ distdir:
 	cp $(LIB_SRCDIR)/Makefile.in \
 	$(LIB_SRCDIR)/memory.c $(LIB_SRCDIR)/mutex.c \
 	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
-	$(LIB_SRCDIR)/thread.c \
+	$(LIB_SRCDIR)/thread.c $(LIB_SRCDIR)/thread.h \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
 	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h $(LIB_SRCDIR)/types.h \
 @top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel

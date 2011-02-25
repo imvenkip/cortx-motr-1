@@ -97,7 +97,7 @@ int c2_thread_join(struct c2_thread *q)
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
 	int       result;
-	long      idx;
+	size_t    idx;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
 

@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 #include "lib/bitmap.h"
-#include "lib/cdefs.h"
+#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -39,7 +39,9 @@ C2_EXPORTED(c2_bitmap_init);
 
 void c2_bitmap_fini(struct c2_bitmap *map)
 {
+	C2_ASSERT(map->b_words != NULL);
 	c2_free(map->b_words);
+	C2_SET0(map);
 }
 C2_EXPORTED(c2_bitmap_fini);
 

@@ -1,6 +1,5 @@
 /* -*- C -*- */
 
-#include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
 #include "lib/arith.h"
 #include "lib/bitmap.h"
@@ -19,7 +18,7 @@
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
 	int                 result;
-	long                idx;
+	size_t              idx;
 	size_t              nr_bits = min64u(processors->b_nr, nr_cpu_ids);
 	cpumask_var_t       cpuset;
 	struct task_struct *p;
@@ -31,7 +30,7 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 		return -ESRCH;
 	}
 
-	/* lock p */
+	/* ensure p will remain valid until done */
 	get_task_struct(p);
 	rcu_read_unlock();
 

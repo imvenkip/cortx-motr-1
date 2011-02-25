@@ -25,4 +25,5 @@ libc2_la_LDFLAGS       = @PTHREAD_LIBS@
 EXTRA_DIST             = linux_kernel/assert.h linux_kernel/cdefs.h \
                          linux_kernel/memory.c linux_kernel/mutex.c \
                          linux_kernel/mutex.h linux_kernel/ktime.c \
+                         linux_kernel/thread.c linux_kernel/thread.h \
                          linux_kernel/types.h

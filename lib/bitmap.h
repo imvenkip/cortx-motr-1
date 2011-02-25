@@ -53,8 +53,8 @@ void c2_bitmap_fini(struct c2_bitmap *map);
    @return the bit value, true or false.  Querying for a bit beyond the size
    of the bitmap always returns false.
  */
-
 bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
+
 /**
    Set a bit value in a bitmap.
 
