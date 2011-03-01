@@ -47,19 +47,22 @@
 
    A few of points worth mentioning:
 
-   @li an array of bytes is handled specially to optimize large data transfers,
+   - an array of bytes is handled specially to optimize large data transfers,
    see calls to kxdr_is_byte_array();
 
-   @li "reply preparing" operation shares a lot of code with decoding operation
+   - "reply preparing" operation shares a lot of code with decoding operation
    (see kxdr_disp[KREP] values), but at the atomic field level, instead of
    actual decoding (there is nothing to decode yet, because there is no reply),
    reply preparing increments the counter of bytes that _would_ be used in the
    receive buffer on actual reply. kxdr_sequence_rep() uses this information to
    attach data pages at the correct offset;
 
-   @li very limited class of format is accepted. Unions are not supported at all
+   - very limited class of format is accepted. Unions are not supported at all
    at the moment (kxdr_union(), this is easy to fix though). Variable size array
    must be the last field in the fop and it must be a byte array.
+
+   - allocation of intermediate data structures (arrays to hold sequences) is
+   not implemented.
 
    @{
  */
@@ -144,7 +147,8 @@ static c2_kxdrproc_t ftype_field_kxdr(const struct c2_fop_field_type *ftype,
 	return kxdr_disp[what][ftype->fft_child[fieldno]->ff_type->fft_aggr];
 }
 
-static int ftype_subxdr(struct kxdr_ctx *ctx, void *obj, int fieldno)
+static int ftype_subxdr(struct kxdr_ctx *ctx, void *obj, int fieldno,
+			uint32_t elno)
 {
 	const struct c2_fop_field_type *ftype;
 	struct kxdr_ctx                 subctx;
@@ -153,7 +157,7 @@ static int ftype_subxdr(struct kxdr_ctx *ctx, void *obj, int fieldno)
 	subctx = *ctx;
 	subctx.kc_type = ftype->fft_child[fieldno]->ff_type;
 	return ftype_field_kxdr(ftype, fieldno, ctx->kc_what)
-		(&subctx, c2_fop_type_field_addr(ftype, obj, fieldno));
+		(&subctx, c2_fop_type_field_addr(ftype, obj, fieldno, elno));
 }
 
 static int kxdr_record(struct kxdr_ctx *ctx, void *obj)
@@ -162,7 +166,7 @@ static int kxdr_record(struct kxdr_ctx *ctx, void *obj)
 	int    result;
 
 	for (result = 0, i = 0; result == 0 && i < ctx->kc_type->fft_nr; ++i)
-		result = ftype_subxdr(ctx, obj, i);
+		result = ftype_subxdr(ctx, obj, i, 0);
 	return result;
 }
 
@@ -193,13 +197,13 @@ static int kxdr_sequence_enc(struct kxdr_ctx *ctx, void *obj)
 		return result;
 
 	if (kxdr_is_byte_array(ctx)) {
-		xdr_write_pages(ctx->kc_xdr, 
+		xdr_write_pages(ctx->kc_xdr,
 				ps->ps_pages, ps->ps_pgoff, ps->ps_nr);
 	} else {
 		uint32_t i;
 
 		for (result = 0, i = 0; result == 0 && i < ps->ps_nr; ++i)
-			result = ftype_subxdr(ctx, obj, 1);
+			result = ftype_subxdr(ctx, obj, 1, i);
 	}
 	return result;
 }
@@ -216,12 +220,11 @@ static int kxdr_sequence_dec(struct kxdr_ctx *ctx, void *obj)
 	nr = *(uint32_t *)obj;
 	if (kxdr_is_byte_array(ctx)) {
 		xdr_read_pages(ctx->kc_xdr, nr);
-		result = 0;
 	} else {
 		uint32_t i;
 
 		for (result = 0, i = 0; result == 0 && i < nr; ++i)
-			result = ftype_subxdr(ctx, obj, 1);
+			result = ftype_subxdr(ctx, obj, 1, i);
 	}
 	return result;
 }
@@ -239,7 +242,7 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 		/* Believe or not this is how kernel rpc users are supposed to
 		   indicate size of a reply. */
 		auth = ctx->kc_req->rq_task->tk_msg.rpc_cred->cr_auth;
-		offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) + 
+		offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) +
 			*ctx->kc_nob;
 		xdr_inline_pages(&ctx->kc_req->rq_rcv_buf, offset,
 				 ps->ps_pages, ps->ps_pgoff, ps->ps_nr);
@@ -252,7 +255,7 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 
 static int kxdr_typedef(struct kxdr_ctx *ctx, void *obj)
 {
-	return ftype_subxdr(ctx, obj, 0);
+	return ftype_subxdr(ctx, obj, 0, 0);
 }
 
 static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
@@ -272,7 +275,7 @@ static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
 
 static int kxdr_atom(struct kxdr_ctx *ctx, void *obj)
 {
-	C2_ASSERT(ctx->kc_type->fft_u.u_atom.a_type < 
+	C2_ASSERT(ctx->kc_type->fft_u.u_atom.a_type <
 		  ARRAY_SIZE(atom_kxdr[ctx->kc_what]));
 	return atom_kxdr[ctx->kc_what][ctx->kc_type->fft_u.u_atom.a_type]
 		(ctx->kc_xdr, obj);
@@ -284,7 +287,7 @@ static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
 	return 0;
 }
 
-static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] = 
+static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] =
 {
 	[KENC] = {
 		[FFA_RECORD]   = kxdr_record,
@@ -339,19 +342,19 @@ static int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
 
 static int c2_fop_kenc(void *req, __be32 *data, struct c2_fop *fop)
 {
-	return c2_fop_type_encdec(fop->f_type->ft_top, 
+	return c2_fop_type_encdec(fop->f_type->ft_top,
 				  req, data, c2_fop_data(fop), KENC);
 }
 
 static int c2_fop_kdec(void *req, __be32 *data, struct c2_fop *fop)
 {
-	return c2_fop_type_encdec(fop->f_type->ft_top, 
+	return c2_fop_type_encdec(fop->f_type->ft_top,
 				  req, data, c2_fop_data(fop), KDEC);
 }
 
 static int c2_fop_krep(void *req, __be32 *data, struct c2_fop *fop)
 {
-	return c2_fop_type_encdec(fop->f_type->ft_top, 
+	return c2_fop_type_encdec(fop->f_type->ft_top,
 				  req, data, c2_fop_data(fop), KREP);
 }
 

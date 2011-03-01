@@ -7,6 +7,7 @@
 #include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fop/fop.h"
+#include "fop/fop_iterator.h"
 
 /**
    @addtogroup fop
@@ -122,13 +123,18 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 	if (result == 0) {
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
-			fopt->ft_top = fmt->ftf_out;
-			c2_addb_ctx_init(&fopt->ft_addb, &c2_fop_type_addb_ctx,
-					 &c2_addb_global_ctx);
-			c2_mutex_lock(&fop_types_lock);
-			c2_list_add(&fop_types_list, &fopt->ft_linkage);
-			c2_mutex_unlock(&fop_types_lock);
-		} else
+			result = c2_fop_type_fit(fopt);
+			if (result == 0) {
+				fopt->ft_top = fmt->ftf_out;
+				c2_addb_ctx_init(&fopt->ft_addb,
+						 &c2_fop_type_addb_ctx,
+						 &c2_addb_global_ctx);
+				c2_mutex_lock(&fop_types_lock);
+				c2_list_add(&fop_types_list, &fopt->ft_linkage);
+				c2_mutex_unlock(&fop_types_lock);
+			}
+		}
+		if (result != 0)
 			c2_fop_type_fini(fopt);
 	}
 	return result;
@@ -232,6 +238,7 @@ int c2_fops_init(void)
 {
 	c2_list_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
+	c2_fits_init();
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
@@ -245,6 +252,7 @@ void c2_fops_fini(void)
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
+	c2_fits_fini();
 	c2_mutex_fini(&fop_types_lock);
 	c2_list_fini(&fop_types_list);
 }
@@ -289,7 +297,7 @@ static void fop_fol_type_fini(struct c2_fop_type *fopt)
 	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
 }
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx)
 {
 	struct c2_fop_type    *fopt;
@@ -340,7 +348,7 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
