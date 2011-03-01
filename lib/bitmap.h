@@ -67,7 +67,7 @@ void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
 
 C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
 
-#define C2_BITMAP_WORDS(nr) (((nr) + 7) >> 3)
+#define C2_BITMAP_WORDS(nr) (((nr) + 63) >> 6)
 
 /** @} end of bitmap group */
 

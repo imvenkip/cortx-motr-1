@@ -17,13 +17,22 @@
 #define C2_BITMAP_BITS (8 * sizeof ((struct c2_bitmap *)0)->b_words[0])
 
 /**
+   Shift a c2_bitmap bit index to get the word index.
+   Use C2_BITMAP_SHIFT() to select the correct word, then use C2_BITMAP_MASK()
+   to access the individual bit within that word.
+
+   @param idx bit offset into the bitmap
+ */
+#define C2_BITMAP_SHIFT(idx) ((idx) / C2_BITMAP_BITS)
+
+/**
    Mask off a single bit within a word.
-   Use C2_BITMAP_WORDS()-1 to select the correct word, then use C2_BITMAP_MASK to
-   access the individual bit within that word.
+   Use C2_BITMAP_SHIFT() to select the correct word, then use C2_BITMAP_MASK()
+   to access the individual bit within that word.
    
    @param idx bit offset into the bitmap
  */
-#define C2_BITMAP_MASK(idx) (1 << ((idx) % C2_BITMAP_BITS))
+#define C2_BITMAP_MASK(idx) (1UL << ((idx) % C2_BITMAP_BITS))
 
 int c2_bitmap_init(struct c2_bitmap *map, size_t nr)
 {
@@ -49,7 +58,8 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx)
 {
 	bool result = false;
 	if (idx < map->b_nr)
-		result = ((map->b_words[C2_BITMAP_WORDS(idx)-1] & C2_BITMAP_MASK(idx)) != 0);
+		result = ((map->b_words[C2_BITMAP_SHIFT(idx)] &
+			   C2_BITMAP_MASK(idx)) != 0);
 	return result;
 }
 C2_EXPORTED(c2_bitmap_get);
@@ -58,9 +68,9 @@ void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
 {
 	C2_ASSERT(idx < map->b_nr);
 	if (val)
-		map->b_words[C2_BITMAP_WORDS(idx)-1] |= C2_BITMAP_MASK(idx);
+		map->b_words[C2_BITMAP_SHIFT(idx)] |= C2_BITMAP_MASK(idx);
 	else
-		map->b_words[C2_BITMAP_WORDS(idx)-1] &= ~C2_BITMAP_MASK(idx);
+		map->b_words[C2_BITMAP_SHIFT(idx)] &= ~C2_BITMAP_MASK(idx);
 }
 C2_EXPORTED(c2_bitmap_set);
 

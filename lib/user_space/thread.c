@@ -108,7 +108,7 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 			CPU_SET(idx, &cpuset);
 	}
 
-	result = pthread_setaffinity_np(q->t_h.h_id, CPU_SETSIZE, &cpuset);
+	result = pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 	return result;
 }
 
