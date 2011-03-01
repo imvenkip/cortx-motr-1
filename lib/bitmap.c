@@ -29,7 +29,7 @@
    Mask off a single bit within a word.
    Use C2_BITMAP_SHIFT() to select the correct word, then use C2_BITMAP_MASK()
    to access the individual bit within that word.
-   
+
    @param idx bit offset into the bitmap
  */
 #define C2_BITMAP_MASK(idx) (1UL << ((idx) % C2_BITMAP_BITS))
