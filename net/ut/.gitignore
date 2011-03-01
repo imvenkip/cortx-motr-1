@@ -3,3 +3,7 @@ client
 kclient
 rclient
 rserver
+net_k.c
+net_k.h
+net_u.c
+net_u.h

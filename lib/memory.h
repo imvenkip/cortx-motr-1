@@ -4,6 +4,7 @@
 
 #include "lib/types.h"
 #include "lib/assert.h" /* C2_CASSERT */
+#include "addb/addb.h"
 
 /**
    @defgroup memory memory allocation handling functions
@@ -25,6 +26,8 @@ void *c2_alloc(size_t size);
     if ((ptr = c2_alloc(size)) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
 #define C2_ALLOC_PTR_ADDB(ptr, ctx, loc) \
     if (C2_ALLOC_PTR(ptr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
+#define C2_ALLOC_ARR_ADDB(arr, nr, ctx, loc)				\
+    if (C2_ALLOC_ARR(arr, nr) == NULL) C2_ADDB_ADD(ctx, loc, c2_addb_oom)
 
 /**
    Allocates zero-filled memory, aligned on (2^shift)-byte boundary.
