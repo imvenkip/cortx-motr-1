@@ -424,16 +424,26 @@ AC_SUBST([GALOIS_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE([ENABLE_GSSRPC])],
-                [AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])],
+            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [],
+                [
+                    enable_gssrpc=no
+                    AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])
+                ],
                 [[
                     #ifdef HAVE_GSSRPC_RPC_H
                     #include <gssrpc/rpc.h>
                     #endif
                 ]])
             ],
-            [AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])]
+            [
+                enable_gssrpc=no
+                AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])
+            ]
         )
+        if test x$enable_gssrpc = xyes; then
+                AC_DEFINE([ENABLE_GSSRPC])
+                LIBS="-lgssrpc $LIBS"
+        fi
 fi
 
 OLD_LIBS=$LIBS
@@ -538,14 +548,15 @@ AC_OUTPUT
 chmod +x fop/fop2c
 
 echo ""
+echo "LIBS   :  \"$LIBS\""
 echo "CFLAGS :  \"$CFLAGS\""
 echo "KCFLAGS:  \"$KCFLAGS\""
 echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
-echo "Linux  :  \"$LINUX\""
 echo "Db     :  \"$DB_SRC\""
+echo "Linux  :  \"$LINUX\""
 echo ""
 
 echo "Type 'make' to build Colibri"
