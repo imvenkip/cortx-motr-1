@@ -3,7 +3,7 @@ SUBDIRS                   = .
 lib_LTLIBRARIES           = libcolibri.la
 libcolibri_la_SOURCES     = init.h init.c
 libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread 
-libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
+libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @CUNIT_LIBS@ \
                             -lm -lncurses \
                             $(top_builddir)/addb/libcolibri-addb.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \

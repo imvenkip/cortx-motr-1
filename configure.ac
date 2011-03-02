@@ -345,47 +345,48 @@ CFLAGS=""
 
 AC_MSG_CHECKING([for db libs])
 if test x$with_db != x; then
-	DBSRC="$with_db"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
-	if ! test -e $DBLIBS; then
-		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
+	DB_SRC="$with_db"
+        DB_LIBS="$DB_SRC/build_unix/libdb.a"
+	if ! test -e $DB_LIBS; then
+		AC_MSG_ERROR([$DB_LIBS not found! Did you build db?])
 	fi
-        AC_MSG_RESULT([$DBLIBS])
+        AC_MSG_RESULT([$DB_LIBS])
 else
-	DBSRC="$SRCDIR/../db4"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
-	if ! test -e $DBLIBS; then
+	DB_SRC="$SRCDIR/../db4"
+        DB_LIBS="$DB_SRC/build_unix/libdb.a"
+	if ! test -e $DB_LIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db_o_direct = xyes; then
 		        o_direct_options="--enable-o_direct"
 		else
 		        o_direct_options=""
 		fi
-                AC_MSG_RESULT([building $DBSRC])
+                AC_MSG_RESULT([building $DB_SRC])
 
                 # We need -fPIC to link libdb.a (static library) into so libraries, which should
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DBSRC/build_unix && ../dist/configure $o_direct_options && make])
-		cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
+                AC_MSG_NOTICE([cd $DB_SRC/build_unix && ../dist/configure $o_direct_options && make])
+		cd $DB_SRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then
 			AC_MSG_ERROR([An error occured while building db!])
 		fi
-		if ! test -e $DBLIBS; then
-			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
+		if ! test -e $DB_LIBS; then
+			AC_MSG_ERROR([$DB_LIBS not found! Build failed?])
 	        fi
 	else
-                DBLIBS="$DBSRC/build_unix/libdb.a"
-                AC_MSG_RESULT([$DBLIBS])
+                DB_LIBS="$DB_SRC/build_unix/libdb.a"
+                AC_MSG_RESULT([$DB_LIBS])
 	fi
 fi
 
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
+GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_SRC/libgalois.la; then
+if ! test -e $GALOIS_LIBS; then
         AC_MSG_RESULT([building $GALOIS_SRC])
 	oldcwd=$(pwd)
 	cd $GALOIS_SRC && ./configure && make
@@ -394,36 +395,32 @@ if ! test -e $GALOIS_SRC/libgalois.la; then
 	if ! test $res -eq 0 ; then
                 AC_MSG_ERROR([An error occured while building libgalois!])
         fi
-	if ! test -e $GALOIS_SRC/libgalois.la; then
-                AC_MSG_ERROR([$GALOIS_SRC/libgalois.la not found! Build failed?])
+	if ! test -e $GALOIS_LIBS; then
+                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
         fi
 else
-	AC_MSG_RESULT([$GALOIS_SRC/libgalois.la])
+	AC_MSG_RESULT([$GALOIS_LIBS])
 fi
 
-OLD_LIBS="$OLD_LIBS $GALOIS_SRC/libgalois.la"
-#LIBS="$LIBS $GALOIS_SRC/libgalois.la"
-#CFLAGS="$CFLAGS -I $GALOIS_SRC"
-
+LIBS=$OLD_LIBS
+CFLAGS=$OLD_CFLAGS
 
 # Check if o_direct patch applied
 if test x$enable_db_o_direct = xyes; then
         AC_MSG_CHECKING([for direct I/O patch applied to db])
-        $NM_B $DBLIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
+        $NM_B $DB_LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
         if ! test $rc -eq 0; then
                 AC_MSG_RESULT([no])
-                AC_MSG_ERROR([No direct I/O patch applied to db at $DBSRC found!])
+                AC_MSG_ERROR([No direct I/O patch applied to db at $DB_SRC found!])
         else
                 AC_MSG_RESULT([yes])
         fi
 fi
 
-AC_SUBST([DBSRC])
-AC_SUBST([DBLIBS])
-
-LIBS=$OLD_LIBS
-CFLAGS=$OLD_CFLAGS
+AC_SUBST([DB_SRC])
+AC_SUBST([DB_LIBS])
+AC_SUBST([GALOIS_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -461,7 +458,7 @@ fi
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -546,8 +543,9 @@ echo "KCFLAGS:  \"$KCFLAGS\""
 echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
+echo "Galois :  \"$GALOIS_SRC\""
 echo "Linux  :  \"$LINUX\""
-echo "Db     :  \"$DBSRC\""
+echo "Db     :  \"$DB_SRC\""
 echo ""
 
 echo "Type 'make' to build Colibri"
