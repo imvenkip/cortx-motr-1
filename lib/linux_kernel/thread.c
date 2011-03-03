@@ -27,6 +27,13 @@
 
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
+#if 1
+	/*
+	  For now, not implemented because it needs to call GPL functions to
+	  succeed.  See also problems with put_task_struct mentioned below.
+	 */
+	return -ENOSYS;
+#else
 	int                 result;
 	size_t              idx;
 	size_t              nr_bits = min64u(processors->b_nr, nr_cpu_ids);
@@ -72,6 +79,7 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 	result = set_cpus_allowed_ptr(p, cpuset);
 	free_cpumask_var(cpuset);
 	return result;
+#endif
 }
 C2_EXPORTED(c2_thread_confine);
 

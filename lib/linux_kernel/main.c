@@ -4,7 +4,7 @@
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Library");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("proprietary");
 
 int init_module(void)
 {

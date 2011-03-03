@@ -9,7 +9,7 @@
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Unit Test Module");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("proprietary");
 
 enum {
 	UT_BITMAP_SIZE = 120
@@ -67,7 +67,7 @@ static void c2_kernel_thread_ut(void)
 
 	result = c2_thread_confine(t, &cpus);
 	c2_bitmap_fini(&cpus);
-	if (result != 0) {
+	if (result != -ENOSYS) {
 	    printk(KERN_INFO "c2_thread_confine: failed, result == %d\n", result);
 	} else {
 	    printk(KERN_INFO "thread: passed\n");
