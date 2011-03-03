@@ -12,6 +12,16 @@
 
    Implementation of c2_thread on top of struct task_struct.
 
+   Presently, the kernel c2_thread_confine only succeeds when the thread
+   referenced is the current thread.  This is because the interfaces required
+   to safely reference other threads are not all exported, most notably,
+   the matched pair get_task_struct() and put_task_struct() are required to
+   ensure a task will not be deallocated while set_cpus_allowed_ptr() is called,
+   however, put_task_struct() references __put_task_struct() and the latter
+   is not exported.  By restricting to the current thread, we can ensure the
+   thread will not be deallocated during the call without using this pair of
+   reference counting functions.
+
    @{
  */
 
@@ -23,19 +33,12 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 	cpumask_var_t       cpuset;
 	struct task_struct *p;
 
-	rcu_read_lock();
-	p = pid_task(find_pid_ns(q->t_h.h_id, current->nsproxy->pid_ns), PIDTYPE_PID);
-	if (p == NULL) {
-		rcu_read_unlock();
-		return -ESRCH;
+	if (q->t_h.h_id != current->pid) {
+		return -EINVAL;
 	}
-
-	/* ensure p will remain valid until done */
-	get_task_struct(p);
-	rcu_read_unlock();
+	p = current;
 
 	if (!alloc_cpumask_var(&cpuset, GFP_KERNEL)) {
-		put_task_struct(p);
 		return -ENOMEM;
 	}
 	cpumask_clear(cpuset);
@@ -45,9 +48,29 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 			cpumask_set_cpu(idx, cpuset);
 	}
 
+	/*
+	  The following code would safely find the task_struct and ensure it
+	  would not disappear, however, put_task_struct is an inline that
+	  references __put_task_struct, and the latter is not exported.
+
+	rcu_read_lock();
+	p = pid_task(find_pid_ns(q->t_h.h_id, current->nsproxy->pid_ns), PIDTYPE_PID);
+	if (p == NULL) {
+		rcu_read_unlock();
+		free_cpumask_var(cpuset);
+		return -ESRCH;
+	}
+
+	get_task_struct(p);
+	rcu_read_unlock();
+
+	...
+
+	put_task_struct(p);
+	*/
+
 	result = set_cpus_allowed_ptr(p, cpuset);
 	free_cpumask_var(cpuset);
-	put_task_struct(p);
 	return result;
 }
 C2_EXPORTED(c2_thread_confine);
