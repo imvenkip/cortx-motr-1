@@ -6,6 +6,7 @@ kutc2-y := main.o
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
+	true
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/utc2 -C @LINUX_OBJ@ M=`pwd` modules_install
