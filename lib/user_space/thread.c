@@ -92,6 +92,11 @@ int c2_thread_join(struct c2_thread *q)
 	return result;
 }
 
+int c2_thread_signal(struct c2_thread *q, int sig)
+{
+	return pthread_kill(q->t_h.h_id, sig);
+}
+
 int c2_threads_init(void)
 {
 	int result;

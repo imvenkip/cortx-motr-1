@@ -7,6 +7,7 @@
 void test_time(void)
 {
 	struct c2_time t1, t2, t3;
+	int rc;
 
         /* check wrapping: time "1" should be after time "very big" */
         c2_time_set(&t1, 1, 0);
@@ -36,6 +37,9 @@ void test_time(void)
 	c2_time_set(&t2, 1, 500000000);
 	c2_time_add(&t1, &t2, &t3);
 	C2_UT_ASSERT(c2_time_flatten(&t3) == 1236487654321);
+
+	rc = c2_nanosleep(&t2, &t1);
+	C2_UT_ASSERT(rc == 0);
 }
 
 

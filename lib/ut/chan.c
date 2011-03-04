@@ -5,6 +5,7 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 #include "lib/assert.h"
+#include "lib/timer.h"
 
 enum {
 	NR = 16
@@ -42,11 +43,22 @@ static void cb2(struct c2_clink *clink)
 	flag += 2;
 }
 
+unsigned long signal_the_chan_in_timer(unsigned long data)
+{
+	struct c2_chan *chan = (struct c2_chan *)data;
+	c2_chan_signal(chan);
+	return 0;
+}
+
 void test_chan(void)
 {
 	struct c2_chan  chan;
 	struct c2_clink clink1;
 	struct c2_clink clink2;
+	struct c2_time  now;
+	struct c2_time  delta;
+	struct c2_time  expire;
+	struct c2_timer timer;
 	int i;
 	bool got;
 
@@ -99,6 +111,38 @@ void test_chan(void)
 
 	c2_chan_signal(&chan);
 	c2_chan_wait(&clink1);
+
+	printf("testing c2_chan_wait_timeout. This will take ~6 seconds\n");
+	/* wait will expire after 2 seconds */
+	c2_time_set(&delta, 2, 0);
+	c2_time_add(c2_time_now(&now), &delta, &expire);
+	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	C2_UT_ASSERT(!got);
+
+	/* chan is signaled after 1 second. so the wait will return true */
+	c2_time_set(&expire, 1, 0);
+	c2_timer_init(&timer, &expire, 1, &signal_the_chan_in_timer,
+		      (unsigned long)&chan);
+	c2_timer_start(&timer);
+	c2_time_add(c2_time_now(&now), &delta, &expire);
+	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	C2_UT_ASSERT(got);
+	c2_timer_stop(&timer);
+	c2_timer_fini(&timer);
+
+	/* chan is signaled after 3 seconds. so the wait will timeout and
+	   return false. Another wait should work.*/
+	c2_time_set(&expire, 3, 0);
+	c2_timer_init(&timer, &expire, 1, &signal_the_chan_in_timer,
+		      (unsigned long)&chan);
+	c2_timer_start(&timer);
+	c2_time_add(c2_time_now(&now), &delta, &expire);
+	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	C2_UT_ASSERT(!got);
+	c2_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
+	c2_timer_stop(&timer);
+	c2_timer_fini(&timer);
+	printf("testing c2_chan_wait_timeout completed.\n");
 
 	c2_clink_del(&clink1);
 	c2_clink_fini(&clink1);

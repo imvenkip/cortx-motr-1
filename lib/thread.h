@@ -177,6 +177,11 @@ void c2_thread_fini(struct c2_thread *q);
  */
 int  c2_thread_join(struct c2_thread *q);
 
+/**
+   Send specified signal to this thread.
+*/
+int  c2_thread_signal(struct c2_thread *q, int sig);
+
 struct c2_bitmap;
 
 /**

@@ -14,6 +14,7 @@ extern void test_atomic(void);
 extern void test_trace(void);
 extern void test_getopts(void);
 extern void test_time(void);
+extern void test_timer(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",
@@ -32,6 +33,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "trace", test_trace },
 		{ "getopts", test_getopts },
 		{ "time", test_time },
+		{ "timer", test_timer },
 		{ NULL, NULL }
 	}
 };

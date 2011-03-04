@@ -2,19 +2,16 @@
 #  include <config.h>
 #endif
 
-#include "lib/thread.h"
-
 int libc2_init()
 {
-	return c2_threads_init();
+	return 0;
 }
 
 void libc2_fini()
 {
-	c2_threads_fini();
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

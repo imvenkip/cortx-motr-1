@@ -2,7 +2,7 @@ LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 obj-m       := klibc2.o
 shared_src  := vec.c list.c queue.c refs.c time.c
-kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
@@ -27,4 +27,5 @@ distdir:
 	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
 	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h $(LIB_SRCDIR)/types.h \
+	$(LIB_SRCDIR)/timer.h $(LIB_SRCDIR)/timer.c \
 @top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel
