@@ -14,14 +14,6 @@ void test_bitmap(void)
 	struct c2_bitmap bm;
 	size_t idx;
 
-	/* verify the bounds of size macro */
-	C2_UT_ASSERT(C2_BITMAP_WORDS(0) == 0);
-	C2_UT_ASSERT(C2_BITMAP_WORDS(1) == 1);
-	C2_UT_ASSERT(C2_BITMAP_WORDS(63) == 1);
-	C2_UT_ASSERT(C2_BITMAP_WORDS(64) == 1);
-	C2_UT_ASSERT(C2_BITMAP_WORDS(65) == 2);
-	C2_UT_ASSERT(C2_BITMAP_WORDS(UT_BITMAP_SIZE) == 2);
-
 	C2_UT_ASSERT(c2_bitmap_init(&bm, UT_BITMAP_SIZE) == 0);
 	C2_UT_ASSERT(bm.b_nr == UT_BITMAP_SIZE);
 	C2_UT_ASSERT(bm.b_words != NULL);
@@ -36,38 +28,24 @@ void test_bitmap(void)
 
 	c2_bitmap_set(&bm, 1, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		if (idx != 1) {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
-		} else {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == true);
-		}
+		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == (idx == 1));
 	}
 
 	c2_bitmap_set(&bm, 2, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		if (idx != 1 && idx != 2) {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
-		} else {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == true);
-		}
+		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == (idx == 1 || idx == 2));
 	}
 
 	c2_bitmap_set(&bm, 64, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		if (idx != 1 && idx != 2 && idx != 64) {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
-		} else {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == true);
-		}
+		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) ==
+			     (idx == 1 || idx == 2 || idx == 64));
 	}
 
 	c2_bitmap_set(&bm, 2, false);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		if (idx != 1 && idx != 64) {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
-		} else {
-			C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == true);
-		}
+		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) ==
+			     (idx == 1 || idx == 64));
 	}
 
 	c2_bitmap_set(&bm, 1, false);

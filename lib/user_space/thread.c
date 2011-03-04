@@ -96,7 +96,6 @@ int c2_thread_join(struct c2_thread *q)
 
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
-	int       result;
 	size_t    idx;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
@@ -108,8 +107,7 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 			CPU_SET(idx, &cpuset);
 	}
 
-	result = pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
-	return result;
+	return pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
 int c2_threads_init(void)

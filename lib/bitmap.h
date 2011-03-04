@@ -48,10 +48,11 @@ void c2_bitmap_fini(struct c2_bitmap *map);
 /**
    Get a bit value from a bitmap.
 
+   @pre idx < map->b_br
+
    @param map bitmap to query
    @param idx bit offset in the bitmap to query
-   @return the bit value, true or false.  Querying for a bit beyond the size
-   of the bitmap always returns false.
+   @return the bit value, true or false.
  */
 bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
 
@@ -66,8 +67,6 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
 void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
 
 C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
-
-#define C2_BITMAP_WORDS(nr) (((nr) + 63) >> 6)
 
 /** @} end of bitmap group */
 
