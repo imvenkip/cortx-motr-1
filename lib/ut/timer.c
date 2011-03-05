@@ -37,11 +37,11 @@ void test_2_timers()
 	struct c2_time i1, i2, wait;
 
 	c2_time_set(&i1, 2, 0);
-	c2_timer_init(&timer1, &i1, 10, tick, 0);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, &i1, 10, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&i2, 9, 0);
-	c2_timer_init(&timer2, &i2, 10, tack, 10000);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, &i2, 10, tack, 10000);
 	c2_timer_start(&timer2);
 
 	c2_time_set(&wait, 0, 500000);
@@ -71,7 +71,7 @@ void timer1_thread(int unused)
 	struct c2_time i1, wait;
 
 	c2_time_set(&i1, 2, 0);
-	c2_timer_init(&timer1, &i1, 10, tick, 0);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, &i1, 10, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&wait, 0, 500000);
@@ -97,7 +97,7 @@ void timer2_thread(int unused)
 	struct c2_time  i2, wait;
 
 	c2_time_set(&i2, 9, 0);
-	c2_timer_init(&timer2, &i2, 10, tack, 10000);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, &i2, 10, tack, 10000);
 	c2_timer_start(&timer2);
 
 	while (count < 15)

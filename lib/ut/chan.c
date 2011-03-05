@@ -121,8 +121,8 @@ void test_chan(void)
 
 	/* chan is signaled after 1 second. so the wait will return true */
 	c2_time_set(&expire, 1, 0);
-	c2_timer_init(&timer, &expire, 1, &signal_the_chan_in_timer,
-		      (unsigned long)&chan);
+	c2_timer_init(&timer, C2_TIMER_SOFT, &expire, 1,
+		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
 	c2_time_add(c2_time_now(&now), &delta, &expire);
 	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
@@ -133,8 +133,8 @@ void test_chan(void)
 	/* chan is signaled after 3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
 	c2_time_set(&expire, 3, 0);
-	c2_timer_init(&timer, &expire, 1, &signal_the_chan_in_timer,
-		      (unsigned long)&chan);
+	c2_timer_init(&timer, C2_TIMER_SOFT, &expire, 1,
+		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
 	c2_time_add(c2_time_now(&now), &delta, &expire);
 	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */

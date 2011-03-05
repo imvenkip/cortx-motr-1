@@ -14,6 +14,11 @@
 
 struct c2_timer {
 	/**
+	   Timer type: C2_TIMER_SOFT or C2_TIMER_HARD
+	 */
+	enum c2_timer_type t_type;
+
+	/**
 	   The interval to trigger the timer callback.
 	 */
 	struct c2_time t_interval;

@@ -16,11 +16,34 @@
    the timer after usage.
 
    User supplied callback function should be small, run and complete quickly.
+
+   There are two types of timer: soft timer and hard timer. For Linux kernel
+   implementation, all timers are hard timer. For userspace implemenation,
+   soft timer and hard timer have different mechanism:
+
+   @li Hard timer has better resolution and is driven by signal. The
+    user-defined callback should take short time and should never block
+    at any time.
+   @li Soft timer creates separate thread to execute the user-defined
+    callback for each timer. So the overhead is bigger than hard timer.
+    The user-defined callback execution may take longer time and it will
+    not impact other timers.
+
+   @todo currently, in userspace implementation, hard timer is the same
+    as soft timer. Hard timer will be implemented later.
    @{
 */
 
 typedef	unsigned long (*c2_timer_callback_t)(unsigned long data);
 struct c2_timer;
+
+/**
+   Timer type.
+*/
+enum c2_timer_type {
+	C2_TIMER_SOFT,
+	C2_TIMER_HARD
+};
 
 #ifndef __KERNEL__
 #include "lib/user_space/timer.h"
@@ -39,7 +62,7 @@ struct c2_timer;
 
    @return 0 means success, other values mean error.
  */
-int c2_timer_init(struct c2_timer *timer,
+int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  struct c2_time *interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data);
 

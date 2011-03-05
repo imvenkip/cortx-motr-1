@@ -55,14 +55,19 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 
 /**
    Init the timer data structure.
+
+   TODO: Currently hard timer is the same as soft timer. We will implement hard
+   timer later.
  */
-int c2_timer_init(struct c2_timer *timer,
+int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  struct c2_time *interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
 	C2_PRE(callback != NULL);
+	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
 
 	C2_SET0(timer);
+	timer->t_type     = type;
 	timer->t_interval = *interval;
 	timer->t_repeat   = repeat;
 	timer->t_left     = 0;

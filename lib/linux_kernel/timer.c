@@ -37,18 +37,23 @@ void c2_timer_trampoline_callback(unsigned long data)
 /**
    Init the timer data structure.
  */
-int c2_timer_init(struct c2_timer *timer,
+int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 		  struct c2_time *interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
-	struct timer_list *tl = &timer->t_timer;
+	struct timer_list *tl;
 
+	C2_PRE(callback != NULL);
+	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
+
+	timer->t_type     = type;
 	timer->t_interval = *interval;
-	timer->t_repeat = repeat;
-	timer->t_left   = 0;
+	timer->t_repeat   = repeat;
+	timer->t_left     = 0;
 	timer->t_callback = callback;
-	timer->t_data = data;
+	timer->t_data     = data;
 
+	tl = &timer->t_timer;
 	init_timer(tl);
 	tl->data = (unsigned long)timer;
 	tl->function = c2_timer_trampoline_callback;
