@@ -112,7 +112,7 @@ void test_chan(void)
 	c2_chan_signal(&chan);
 	c2_chan_wait(&clink1);
 
-	printf("testing c2_chan_wait_timeout. This will take ~6 seconds\n");
+	printf("testing c2_chan_timedwait. This will take ~6 seconds\n");
 	/* wait will expire after 2 seconds */
 	c2_time_set(&delta, 2, 0);
 	c2_time_add(c2_time_now(&now), &delta, &expire);
@@ -142,7 +142,7 @@ void test_chan(void)
 	c2_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
 	c2_timer_stop(&timer);
 	c2_timer_fini(&timer);
-	printf("testing c2_chan_wait_timeout completed.\n");
+	printf("testing c2_chan_timedwait completed.\n");
 
 	c2_clink_del(&clink1);
 	c2_clink_fini(&clink1);

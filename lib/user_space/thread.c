@@ -2,6 +2,8 @@
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
+#include "lib/arith.h"
+#include "lib/bitmap.h"
 #include "lib/assert.h"
 
 /**
@@ -97,6 +99,22 @@ int c2_thread_signal(struct c2_thread *q, int sig)
 	return pthread_kill(q->t_h.h_id, sig);
 }
 
+int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
+{
+	size_t    idx;
+	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
+	cpu_set_t cpuset;
+
+	CPU_ZERO(&cpuset);
+
+	for (idx = 0; idx < nr_bits; ++idx) {
+		if (c2_bitmap_get(processors, idx))
+			CPU_SET(idx, &cpuset);
+	}
+
+	return pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
+}
+
 int c2_threads_init(void)
 {
 	int result;
@@ -113,7 +131,7 @@ void c2_threads_fini(void)
 	pthread_attr_destroy(&pthread_attr_default);
 }
 
-/** @} end of vec group */
+/** @} end of thread group */
 
 /*
  *  Local variables:
