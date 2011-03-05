@@ -16,7 +16,8 @@ unsigned long tick(unsigned long data)
 
 	c2_time_now(&now);
 	count ++;
-	printf("%lu.%lu: timer1 tick = %d\n", now.ts.tv_sec, now.ts.tv_nsec, count);
+	printf("%lu.%lu: timer1 tick = %d\n",
+		c2_time_seconds(&now), c2_time_nanoseconds(&now), count);
 	return 0;
 }
 
@@ -27,7 +28,8 @@ unsigned long tack(unsigned long data)
 
 	c2_time_now(&now);
 	tack += data;
-	printf("%lu.%lu:    timer2 tack = %d\n", now.ts.tv_sec, now.ts.tv_nsec, tack);
+	printf("%lu.%lu:    timer2 tack = %d\n",
+		c2_time_seconds(&now), c2_time_nanoseconds(&now), tack);
 	return 0;
 }
 
