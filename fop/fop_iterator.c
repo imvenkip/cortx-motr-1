@@ -132,14 +132,18 @@ static bool ftype_fit_invariant(const struct ftype_fit *data)
 	for (t = 0; t < ARRAY_SIZE(data->ff_present); ++t) {
 		bool end;
 
+		/* if this iterator type is not registered---there
+		   should be no data. */
+		if (fits[t] == NULL) {
+			if (data->ff_present[t] != NULL)
+				return false;
+			continue;
+		}
+
 		for (end = false, i = 0; i <= data->ff_nr; ++i) {
 			struct field_fit_data *fd;
 
 			fd = &data->ff_present[t][i];
-			/* if this iterator type is not registered---there
-			   should be no data. */
-			if (fits[t] == NULL && fd->ffd_valid)
-				return false;
 			/* found first unused slot... */
 			if (!fd->ffd_valid) {
 				end = true;
@@ -164,11 +168,14 @@ static bool ftype_fit_invariant(const struct ftype_fit *data)
 	return true;
 }
 
+extern bool fop_types_built;
+
 void c2_fop_itype_init(struct c2_fit_type *itype)
 {
 	int i;
 
 	C2_PRE(itype->fit_index == -1);
+	C2_PRE(!fop_types_built);
 
 	c2_list_init(&itype->fit_watch);
 
@@ -263,13 +270,9 @@ static bool c2_fit_invariant(const struct c2_fit *it)
 		if (ftype == NULL)
 			return false;
 		data = data_get(ftype);
-		if (frame->ff_pos >= ftype->fft_nr)
+		if (frame->ff_pos > ftype->fft_nr)
 			return false;
 		if (ftype->fft_nr != data->ff_nr)
-			return false;
-		if (ftype->fft_aggr != FFA_SEQUENCE && frame->ff_u.u_index != 0)
-			return false;
-		if (ftype->fft_aggr != FFA_UNION && frame->ff_u.u_branch)
 			return false;
 		if (!ftype_fit_invariant(data))
 			return false;
@@ -352,12 +355,12 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 				 * position.
 				 */
 				top->ff_pos = data_get(ftype)->ff_nr;
-				el          = top_field(it);
 				C2_ASSERT(!el->ffd_valid);
 			} else {
 				tag_find(it);
 				top->ff_u.u_branch = true;
 			}
+			el = top_field(it);
 			break;
 		case FFA_SEQUENCE: {
 			uint32_t seq_length;
@@ -481,7 +484,7 @@ static bool has_watches(const struct c2_fit_type *itype,
 	return false;
 }
 
-int c2_fop_type_fit(struct c2_fop_type *fopt)
+int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 {
 	struct ftype_fit *data;
 	int               i;
@@ -491,12 +494,12 @@ int c2_fop_type_fit(struct c2_fop_type *fopt)
 	/*
 	 * Allocate "data" and populate it.
 	 */
-	C2_ALLOC_PTR_ADDB(data, &fopt->ft_addb, &fit_addb_loc);
+	C2_ALLOC_PTR(data);
 	if (data == NULL)
 		return -ENOMEM;
 
-	c2_fop_type_decoration_set(fopt->ft_top, &fit_dec, data);
-	data->ff_nr = fopt->ft_top->fft_nr;
+	c2_fop_type_decoration_set(fieldt, &fit_dec, data);
+	data->ff_nr = fieldt->fft_nr;
 	for (t = 0; t < ARRAY_SIZE(data->ff_present); ++t) {
 		struct c2_fit_type *itype;
 
@@ -504,8 +507,7 @@ int c2_fop_type_fit(struct c2_fop_type *fopt)
 		if (itype == NULL)
 			continue;
 
-		C2_ALLOC_ARR_ADDB(data->ff_present[t], data->ff_nr + 1,
-				  &fopt->ft_addb, &fit_addb_loc);
+		C2_ALLOC_ARR(data->ff_present[t], data->ff_nr + 1);
 		if (data->ff_present[t] == NULL)
 			return -ENOMEM;
 
@@ -514,7 +516,7 @@ int c2_fop_type_fit(struct c2_fop_type *fopt)
 			struct field_fit_data  *el;
 			const struct ftype_fit *child_data;
 
-			child = fopt->ft_top->fft_child[i];
+			child = fieldt->fft_child[i];
 			el    = &data->ff_present[t][j];
 
 			/*
@@ -567,8 +569,21 @@ static const struct ftype_fit *data_get(const struct c2_fop_field_type *ftype)
  */
 static struct c2_fit_frame *fit_top(struct c2_fit *it)
 {
-	C2_PRE(c2_fit_invariant(it));
 	return &it->fi_stack[it->fi_depth];
+}
+
+/**
+   Returns the descriptor of a field the given frame is positioned over.
+ */
+static const struct field_fit_data *
+frame_field(const struct c2_fit *it, const struct c2_fit_frame *frame)
+{
+	const struct ftype_fit *data;
+
+	data = data_get(frame->ff_type);
+	C2_ASSERT(data != NULL);
+	C2_ASSERT(frame->ff_pos <= data->ff_nr);
+	return &data->ff_present[it->fi_type->fit_index][frame->ff_pos];
 }
 
 /**
@@ -576,16 +591,7 @@ static struct c2_fit_frame *fit_top(struct c2_fit *it)
  */
 static const struct field_fit_data *top_field(struct c2_fit *it)
 {
-	const struct c2_fit_frame *top;
-	const struct ftype_fit    *data;
-
-	C2_PRE(c2_fit_invariant(it));
-
-	top  = fit_top(it);
-	data = data_get(top->ff_type);
-	C2_ASSERT(data != NULL);
-	C2_ASSERT(top->ff_pos <= data->ff_nr);
-	return &data->ff_present[it->fi_type->fit_index][top->ff_pos];
+	return frame_field(it, fit_top(it));
 }
 
 /**
@@ -603,7 +609,8 @@ static void *drill(const struct c2_fit *it, int depth)
 	frame = &it->fi_stack[0];
 	for (mark = c2_fop_data(it->fi_fop), i = 0; i <= depth; ++i, ++frame)
 		mark = c2_fop_type_field_addr(frame->ff_type, mark,
-					      frame->ff_pos,
+					      frame_field(it,
+							  frame)->ffd_fieldno,
 					      frame->ff_u.u_index);
 	return mark;
 }
@@ -673,6 +680,11 @@ void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
 	c2_fop_itype_watch_add(&fop_object_itype, &fop_object_watch);
 }
 
+void c2_fop_object_fini(void)
+{
+	c2_list_del(&fop_object_watch.fif_linkage);
+}
+
 void c2_fop_object_it_init(struct c2_fit *it, struct c2_fop *fop)
 {
 	c2_fit_init(it, &fop_object_itype, fop);
@@ -692,8 +704,10 @@ int c2_fop_object_it_yield(struct c2_fit *it,
 
 	C2_PRE(it->fi_type == &fop_object_itype);
 	result = c2_fit_yield(it, &yield);
-	*fid = *(struct c2_fid *)yield.fy_val.ffi_val;
-	*bits = yield.fy_bits;
+	if (result > 0) {
+		*fid = *(struct c2_fid *)yield.fy_val.ffi_val;
+		*bits = yield.fy_bits;
+	}
 	return result;
 }
 

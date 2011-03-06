@@ -7,6 +7,8 @@
 #include "lib/assert.h"
 #include "lib/timer.h"
 
+#include <stdio.h>
+
 enum {
 	NR = 16
 };
@@ -25,7 +27,7 @@ static void t0(int self)
 			if (j != self)
 				c2_chan_signal(&c[j]);
 		}
-		
+
 		for (j = 0; j < NR - 1; ++j)
 			c2_chan_wait(&l[self]);
 	}
@@ -33,12 +35,12 @@ static void t0(int self)
 
 static int flag;
 
-static void cb1(struct c2_clink *clink) 
+static void cb1(struct c2_clink *clink)
 {
 	flag += 1;
 }
 
-static void cb2(struct c2_clink *clink) 
+static void cb2(struct c2_clink *clink)
 {
 	flag += 2;
 }
@@ -174,7 +176,7 @@ void test_chan(void)
 	}
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

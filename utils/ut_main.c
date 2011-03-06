@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&cob_ut);
 		c2_ut_add(&db_ut);
 		c2_ut_add(&emap_ut);
-/* FIXME	c2_ut_add(&fit_ut); */
+		c2_ut_add(&fit_ut);
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);
 /* FIXME	c2_ut_add(&net_client_ut); */

@@ -36,6 +36,11 @@ static const struct c2_addb_loc c2_fop_addb_loc = {
 
 static struct c2_mutex fop_types_lock;
 static struct c2_list  fop_types_list;
+/**
+   Used to check that no new fop iterator types are registered once a fop type
+   has been built.
+ */
+bool fop_types_built = false;
 
 void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 {
@@ -123,20 +128,18 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 	if (result == 0) {
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
-			result = c2_fop_type_fit(fopt);
-			if (result == 0) {
-				fopt->ft_top = fmt->ftf_out;
-				c2_addb_ctx_init(&fopt->ft_addb,
-						 &c2_fop_type_addb_ctx,
-						 &c2_addb_global_ctx);
-				c2_mutex_lock(&fop_types_lock);
-				c2_list_add(&fop_types_list, &fopt->ft_linkage);
-				c2_mutex_unlock(&fop_types_lock);
-			}
+			fopt->ft_top = fmt->ftf_out;
+			c2_addb_ctx_init(&fopt->ft_addb,
+					 &c2_fop_type_addb_ctx,
+					 &c2_addb_global_ctx);
+			c2_mutex_lock(&fop_types_lock);
+			c2_list_add(&fop_types_list, &fopt->ft_linkage);
+			c2_mutex_unlock(&fop_types_lock);
 		}
 		if (result != 0)
 			c2_fop_type_fini(fopt);
 	}
+	fop_types_built = true;
 	return result;
 }
 C2_EXPORTED(c2_fop_type_build);
