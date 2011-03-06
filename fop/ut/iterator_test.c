@@ -116,7 +116,7 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 /**
    FOP object iterator test function
 
-   @todo add
+   @todo add FFA_SEQUENCE tests.
  */
 static void fit_test(void)
 {
