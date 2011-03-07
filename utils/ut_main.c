@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&fit_ut);
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);
-/* FIXME	c2_ut_add(&net_client_ut); */
+		c2_ut_add(&net_client_ut);
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
