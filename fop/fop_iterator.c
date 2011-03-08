@@ -4,6 +4,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"               /* ENOMEM */
 #include "lib/misc.h"                /* C2_SET0 */
+#include "lib/cdefs.h"               /* C2_EXPORTED */
 #include "fid/fid.h"
 #include "fop/fop_iterator.h"
 
@@ -192,6 +193,7 @@ void c2_fop_itype_init(struct c2_fit_type *itype)
 	}
 	C2_ASSERT(IS_IN_ARRAY(i, fits));
 }
+C2_EXPORTED(c2_fop_itype_init);
 
 void c2_fop_itype_fini(struct c2_fit_type *itype)
 {
@@ -201,6 +203,7 @@ void c2_fop_itype_fini(struct c2_fit_type *itype)
 	itype->fit_index = -1;
 	c2_list_fini(&itype->fit_watch);
 }
+C2_EXPORTED(c2_fop_itype_fini);
 
 void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 			    struct c2_fit_watch *watch)
@@ -214,11 +217,13 @@ void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 	c2_list_add(&itype->fit_watch, &watch->fif_linkage);
 	c2_list_init(&watch->fif_mod);
 }
+C2_EXPORTED(c2_fop_itype_watch_add);
 
 void c2_fop_itype_mod_add(struct c2_fit_watch *watch, struct c2_fit_mod *mod)
 {
 	c2_list_add(&watch->fif_mod, &mod->fm_linkage);
 }
+C2_EXPORTED(c2_fop_itype_mod_add);
 
 int c2_fit_field_add(struct c2_fit_watch *watch,
 		     struct c2_fop_type *ftype, const char *fname,
@@ -243,6 +248,7 @@ int c2_fit_field_add(struct c2_fit_watch *watch,
 		result = -ENOENT;
 	return result;
 }
+C2_EXPORTED(c2_fit_field_add);
 
 static bool c2_fit_invariant(const struct c2_fit *it)
 {
@@ -289,12 +295,14 @@ void c2_fit_init(struct c2_fit *it, struct c2_fit_type *itype,
 	it->fi_fop              = fop;
 	it->fi_stack[0].ff_type = fop->f_type->ft_top;
 }
+C2_EXPORTED(c2_fit_init);
 
 void c2_fit_fini(struct c2_fit *it)
 {
 	/* nothing to do even if the cursor is destroyed before iteration loop
 	   is over. */
 }
+C2_EXPORTED(c2_fit_fini);
 
 int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 {
@@ -434,6 +442,7 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		return +1;
 	}
 }
+C2_EXPORTED(c2_fit_yield);
 
 /**
    Destructor for fop iterator decorator.
@@ -679,22 +688,26 @@ void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
 	fop_object_watch.fif_bits  = C2_FOB_LOAD;
 	c2_fop_itype_watch_add(&fop_object_itype, &fop_object_watch);
 }
+C2_EXPORTED(c2_fop_object_init);
 
 void c2_fop_object_fini(void)
 {
 	c2_list_del(&fop_object_watch.fif_linkage);
 }
+C2_EXPORTED(c2_fop_object_fini);
 
 void c2_fop_object_it_init(struct c2_fit *it, struct c2_fop *fop)
 {
 	c2_fit_init(it, &fop_object_itype, fop);
 }
+C2_EXPORTED(c2_fop_object_it_init);
 
 void c2_fop_object_it_fini(struct c2_fit *it)
 {
 	C2_PRE(it->fi_type == &fop_object_itype);
 	c2_fit_fini(it);
 }
+C2_EXPORTED(c2_fop_object_it_fini);
 
 int c2_fop_object_it_yield(struct c2_fit *it,
 			   struct c2_fid *fid, uint64_t *bits)
@@ -710,17 +723,20 @@ int c2_fop_object_it_yield(struct c2_fit *it,
 	}
 	return result;
 }
+C2_EXPORTED(c2_fop_object_it_yield);
 
 void c2_fits_init(void)
 {
 	c2_fop_decorator_register(&fit_dec);
 	c2_fop_itype_init(&fop_object_itype);
 }
+C2_EXPORTED(c2_fits_init);
 
 void c2_fits_fini(void)
 {
 	c2_fop_itype_fini(&fop_object_itype);
 }
+C2_EXPORTED(c2_fits_fini);
 
 /** @} end of fop group */
 
