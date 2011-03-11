@@ -119,7 +119,7 @@ int c2_fol_add(struct c2_fol *fol, struct c2_db_tx *tx,
 
    @pre c2_lsn_is_valid(drec->rd_lsn);
  */
-int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx, 
+int c2_fol_add_buf(struct c2_fol *fol, struct c2_db_tx *tx,
 		   struct c2_fol_rec_desc *drec, struct c2_buf *buf);
 
 /**
@@ -190,7 +190,7 @@ struct c2_fol_rec_header {
 	uint32_t            rh_sibling_nr;
 	/** length of the remaining operation type specific data in bytes */
 	uint32_t            rh_data_len;
-	/** 
+	/**
 	    Identifier of this update.
 
 	    @note that the update might be for a different node.
@@ -280,7 +280,7 @@ struct c2_fol_rec {
    @post ergo(result == 0, out->fr_d.rd_refcount > 0)
    @post ergo(result == 0, c2_fol_rec_invariant(&out->fr_d))
  */
-int  c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn, 
+int  c2_fol_rec_lookup(struct c2_fol *fol, struct c2_db_tx *tx, c2_lsn_t lsn,
 		       struct c2_fol_rec *out);
 /**
    Finalizes the record, returned by the c2_fol_rec_lookup() or c2_fol_batch()
@@ -319,10 +319,10 @@ void c2_fol_rec_put(struct c2_fol_rec *rec);
 
    @pre  @out array contains at least @nr elements.
    @post result <= nr
-   @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn && 
+   @post \forall i >= 0 && i < result, (out[i]->fr_d.rd_lsn >= lsn &&
                                         out[i]->fr_d.rd_refcount > 0)
  */
-int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr, 
+int c2_fol_batch(struct c2_fol *fol, c2_lsn_t lsn, uint32_t nr,
 		 struct c2_fol_rec *out);
 
 struct c2_fol_rec_type_ops;
@@ -376,28 +376,28 @@ struct c2_fol_rec_type_ops {
 	   Invoked when a transaction containing a record of the type is
 	   committed.
 	 */
-	void (*rto_commit)    (const struct c2_fol_rec_type *type, 
+	void (*rto_commit)    (const struct c2_fol_rec_type *type,
 			       struct c2_fol *fol, c2_lsn_t lsn);
 	/**
 	   Invoked when a transaction containing a record of the type is
 	   aborted.
 	 */
-	void (*rto_abort)     (const struct c2_fol_rec_type *type, 
+	void (*rto_abort)     (const struct c2_fol_rec_type *type,
 			       struct c2_fol *fol, c2_lsn_t lsn);
 	/**
 	   Invoked when a record of the type becomes persistent.
 	 */
-	void (*rto_persistent)(const struct c2_fol_rec_type *type, 
+	void (*rto_persistent)(const struct c2_fol_rec_type *type,
 			       struct c2_fol *fol, c2_lsn_t lsn);
 	/**
 	   Invoked when a record of the type is culled from a fol.
 	 */
-	void (*rto_cull)      (const struct c2_fol_rec_type *type, 
+	void (*rto_cull)      (const struct c2_fol_rec_type *type,
 			       struct c2_db_tx *tx, struct c2_fol_rec *rec);
 	/**
 	   Parse operation type specific data in desc->rd_data.
 	 */
-	int  (*rto_open)      (const struct c2_fol_rec_type *type, 
+	int  (*rto_open)      (const struct c2_fol_rec_type *type,
 			       struct c2_fol_rec_desc *desc);
 	/**
 	   Release resources associated with a record being finalised.
@@ -421,15 +421,18 @@ void c2_fols_fini(void);
 
 #else  /* !__KERNEL__ */
 
-struct c2_fol_rec_type_ops {};
-struct c2_fol_rec_type {};
+struct c2_fol_rec_type {
+};
+
+struct c2_fol_rec_type_ops {
+};
 
 #endif /* !__KERNEL__ */
 
 /* __COLIBRI_FOL_FOL_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

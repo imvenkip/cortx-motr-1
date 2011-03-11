@@ -8,12 +8,20 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/ut.h"
+#include "lib/mutex.h"
 
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "stob/ad.h"
 #include "balloc/balloc.h"
 #include "colibri/init.h"
+
+#define WITH_LOCK(lock, action, args...) ({		\
+			struct c2_mutex *lk = lock;	\
+			c2_mutex_lock(lk);		\
+			action(args);			\
+			c2_mutex_unlock(lk);		\
+		})
 
 enum {
 	RW_BUFF_NR    = 10,
@@ -38,6 +46,8 @@ struct stobio_test {
 	c2_bcount_t st_wrvec[RW_BUFF_NR];
 };
 
+/* sync object for init/fini */
+static struct c2_mutex lock;
 static struct c2_thread thread[TEST_NR];
 struct stobio_test test[TEST_NR] = {
 	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } } },
@@ -240,7 +250,7 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 	int i;
 	int j;
 
-	stobio_init(test);
+	WITH_LOCK(&lock, stobio_init, test);
 
 	/* Write overlapped segments */
 	stobio_rwsegs_prepare(test, starts_from);
@@ -263,8 +273,8 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 		for (j = 0; j < RW_BUFF_NR; ++j)
 			C2_UT_ASSERT(test->st_rdbuf[i][j] == (('a' + i) | 1));
 	}
-	
-	stobio_fini(test);
+
+	WITH_LOCK(&lock, stobio_fini, test);
 }
 
 void test_stobio(void)
@@ -272,6 +282,7 @@ void test_stobio(void)
 	int i;
 	int result;
 
+	c2_mutex_init(&lock);
 	/* result = c2_init(); */
 	/* C2_UT_ASSERT(result == 0); */
 
@@ -293,6 +304,7 @@ void test_stobio(void)
 
 	stobio_storage_fini();
 
+	c2_mutex_fini(&lock);
 	/* return 0; */
 }
 

@@ -1,8 +1,8 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c refs.c time.c
-kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c
+shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c main.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
@@ -22,9 +22,11 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(LIB_SRCDIR)/Makefile.in \
+	cp $(LIB_SRCDIR)/Makefile.in $(LIB_SRCDIR)/main.c \
 	$(LIB_SRCDIR)/memory.c $(LIB_SRCDIR)/mutex.c \
 	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
+	$(LIB_SRCDIR)/thread.c $(LIB_SRCDIR)/thread.h \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
 	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h $(LIB_SRCDIR)/types.h \
+	$(LIB_SRCDIR)/timer.h $(LIB_SRCDIR)/timer.c \
 @top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel

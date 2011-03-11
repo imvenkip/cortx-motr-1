@@ -8,6 +8,7 @@
 #include "lib/list.h"
 #include "addb/addb.h"
 #include "fol/fol.h"
+#include "fop/fom.h"
 
 /**
    @defgroup fop File operation packet
@@ -69,6 +70,8 @@ struct c2_fop_type {
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format        *ft_fmt;
 	struct c2_fol_rec_type            ft_rec_type;
+	/** State machine for this fop type */
+	struct c2_fom_type                ft_fom_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
@@ -110,7 +113,7 @@ struct c2_fop_type_ops {
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 };
 
-/** 
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -236,44 +239,8 @@ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
 extern struct c2_fop_field_type C2_FOP_TYPE_U32;
 extern struct c2_fop_field_type C2_FOP_TYPE_U64;
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol, 
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
-
-#if 0
-
-enum c2_fop_field_cb_ret {
-	FFC_CONTINUE,
-	FFC_BREAK
-};
-
-/** 
-    Call-back function supplied to fop field tree iterating functions.
- */
-typedef enum c2_fop_field_cb_ret 
-(*c2_fop_field_cb_t)(const struct c2_fop_field *, unsigned , void *);
-/**
-   Traverse the fop field type tree calling call-backs for every tree node.
-
-   @param pre_cb call-back called before children are traversed
-   @param post_cb call-back called after children are traversed
- */
-void c2_fop_field_type_traverse(const struct c2_fop_field_type *ftype,
-				c2_fop_field_cb_t pre_cb, 
-				c2_fop_field_cb_t post_cb, void *arg);
-
-/** 
-    Values of this type describe position within a compound field.
-
-    Zero means the beginning of a compound field. For record field the value of
-    iterator means the number of sub-field. For an array field it means an index
-    of an element, etc.
-*/
-typedef uint64_t c2_fop_field_iterator_t;
-
-enum {
-	/** Maximal depth of a fop field tree. */
-	C2_FOP_MAX_FIELD_DEPTH = 8
-};
 
 /**
    Contents of a given field in a given fop instance.
@@ -281,39 +248,11 @@ enum {
    @note a fop field can potentially have multiple values in the same fop. For
    example, an element field in the array field.
  */
-struct c2_fop_field_val {
-	struct c2_fop_field *ffv_field;
-	void                *ffv_val;
+struct c2_fop_field_instance {
+	struct c2_fop       *ffi_fop;
+	struct c2_fop_field *ffi_field;
+	void                *ffi_val;
 };
-
-/**
-   Iterator through fop fields.
-
-   A fop iterator goes through the values that fields have for a given fop.
- */
-struct c2_fop_iterator {
-	struct c2_fop *ffi_fop;
-	/**
-	   Stack describing the iterator position within nested compound fields.
-	 */
-	struct {
-		/** Compound field that the iterator is currently in. */
-		struct c2_fop_field    *s_field;
-		/** Position within fop data storage. */
-		struct c2_vec_cursor    s_pos;
-		/** Position within this field. */
-		c2_fop_field_iterator_t s_it;
-	}              ffi_stack[C2_FOP_MAX_FIELD_DEPTH];
-	/** Current stack depth. */
-	int            ffi_depth;
-};
-
-void c2_fop_iterator_init(struct c2_fop_iterator *it, struct c2_fop *fop);
-void c2_fop_iterator_fini(struct c2_fop_iterator *it);
-int  c2_fop_iterator_get (struct c2_fop_iterator *it, 
-			  struct c2_fop_field_val *val);
-/* 0 */
-#endif
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
@@ -325,7 +264,7 @@ void c2_fops_fini(void);
 /* __COLIBRI_FOP_FOP_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

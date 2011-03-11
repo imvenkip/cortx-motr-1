@@ -2,7 +2,7 @@
 
 #include "lib/cdefs.h"
 
-#include "lib/thread.h"
+#include "lib/user_space/thread.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
@@ -67,7 +67,7 @@ int c2_init(void)
 	for (result = i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		result = subsystem[i].ifc_init();
 		if (result != 0) {
-			fprintf(stderr, 
+			fprintf(stderr,
 				"Subsystem \"%s\" failed to initialize: %i.\n",
 				subsystem[i].ifc_name, result);
 			fini_nr(i);

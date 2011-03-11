@@ -48,6 +48,26 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 	c2_clink_fini(&clink);
 }
 
+bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
+		       const struct c2_time *abs_timeout)
+{
+	struct c2_clink clink;
+	bool retval;
+
+	C2_PRE(c2_mutex_is_locked(mutex));
+
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&cond->c_chan, &clink);
+	c2_mutex_unlock(mutex);
+	retval = c2_chan_timedwait(&clink, abs_timeout);
+	c2_mutex_lock(mutex);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	return retval;
+}
+
+
 void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex)
 {
 	C2_PRE(c2_mutex_is_locked(mutex));

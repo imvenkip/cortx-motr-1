@@ -6,6 +6,7 @@
 #include "lib/cdefs.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "lib/time.h"
 
 /**
    @defgroup chan Waiting channels
@@ -129,6 +130,17 @@ void c2_chan_wait(struct c2_clink *link);
    the event is consumed, exactly like if c2_chan_wait() were called instead.
  */
 bool c2_chan_trywait(struct c2_clink *link);
+
+/**
+   This is the same as c2_chan_wait, except that it has an expire time. If the
+   time expires before event is pending, this function will return false.
+
+   @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+   @return true if the there is an event pending before timeout.
+   @return false if there is no events pending and timeout expires. errno is ETIMEDOUT;
+ */
+bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout);
+
 
 /** @} end of chan group */
 
