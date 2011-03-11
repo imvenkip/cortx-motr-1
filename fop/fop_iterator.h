@@ -267,7 +267,7 @@ void c2_fit_fini(struct c2_fit *it);
            // use yield.
    }
 
-   // result contains either 0 or negative errno.
+   // result contains either 0 or a negative errno.
    @endcode
  */
 int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield);
@@ -283,7 +283,7 @@ void c2_fits_fini(void);
    Called from c2_fop_type_build() to construct fop-iterators related state for
    a newly built fop type.
  */
-int c2_fop_type_fit(struct c2_fop_type *fopt);
+int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt);
 
 /*
  * Standard fop iterator types.
@@ -302,6 +302,7 @@ enum c2_fop_object_bitflags {
 };
 
 void c2_fop_object_init(const struct c2_fop_type_format *fid_type);
+void c2_fop_object_fini(void);
 
 void c2_fop_object_it_init (struct c2_fit *it, struct c2_fop *fop);
 void c2_fop_object_it_fini (struct c2_fit *it);

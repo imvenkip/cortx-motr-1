@@ -6,6 +6,7 @@
 #include "lib/memory.h"
 
 #include "fop/fop.h"
+#include "fop/fop_iterator.h"
 
 /**
    @addtogroup fop
@@ -40,9 +41,9 @@ void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
 		field = ftype->fft_child[i];
 		if (field->ff_decor != NULL) {
 			for (j = 0; j < ARRAY_SIZE(decorators); ++j) {
-				if (field->ff_decor[i] != NULL)
-					decorators[i]->dec_field_fini
-						(field->ff_decor[i]);
+				if (field->ff_decor[j] != NULL)
+					decorators[j]->dec_field_fini
+						(field->ff_decor[j]);
 			}
 		}
 		c2_free(field->ff_decor);
@@ -154,8 +155,11 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	       - discriminant is U32
 	*/
 
-	if (result == 0)
+	if (result == 0) {
 		result = c2_fop_field_type_prepare(t);
+		if (result == 0)
+			result = c2_fop_field_type_fit(t);
+	}
 
 	if (result == 0) {
 		fmt->ftf_out = t;

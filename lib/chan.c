@@ -255,6 +255,23 @@ void c2_chan_wait(struct c2_clink *link)
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
 
+bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout)
+{
+	int rc;
+
+	C2_ASSERT(link->cl_cb == NULL);
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
+	C2_ASSERT(abs_timeout != NULL);
+
+	do
+		rc = sem_timedwait(&link->cl_wait, &abs_timeout->ts);
+	while (rc == -1 && errno == EINTR);
+	C2_ASSERT(rc == 0 || (rc == -1 && errno == ETIMEDOUT));
+	C2_ASSERT(c2_chan_invariant(link->cl_chan));
+	return rc == 0;
+}
+
+
 /** @} end of chan group */
 
 /* 

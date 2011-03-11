@@ -177,15 +177,30 @@ void c2_thread_fini(struct c2_thread *q);
  */
 int  c2_thread_join(struct c2_thread *q);
 
+/**
+   Send specified signal to this thread.
+*/
+int  c2_thread_signal(struct c2_thread *q, int sig);
+
 struct c2_bitmap;
 
 /**
    Sets thread affinity to a given processor bitmap.
 
+   The user space implementation calls pthread_setaffinity_np and the kernel implementation
+   calls set_cpus_allowed_ptr() directly.
+
    @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
+   @see http://www.kernel.org/doc/man-pages/online/pages/man2/sched_setaffinity.2.html
    @see lib/processor.h
+
+   @param q thread whose affinity is to be set (confined)
+   @param processors bitmap of processors, true values are those on which the
+   thread can run
+   @retval 0 success
+   @retval !0 failed to set affinity, -errno
  */
-void c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
+int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
 
 /** @} end of thread group */
 

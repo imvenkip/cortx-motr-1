@@ -91,6 +91,18 @@ void c2_cond_fini(struct c2_cond *cond);
 void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
 
 /**
+   This is the same as c2_cond_wait, except that it has a timeout value. If the
+   time expires before event is pending, this function will return false.
+
+   @param abs_timeout this is the time since Epoch (00:00:00, 1 January 1970).
+   @return true if condition is signaled before timeout.
+   @return false if condition variable is not signaled but timeout expires.
+	   errno is ETIMEDOUT;
+ */
+bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
+		       const struct c2_time *abs_timeout);
+
+/**
    Wakes up no more than one thread waiting on the condition variable.
 
    @pre c2_mutex_is_locked(mutex)

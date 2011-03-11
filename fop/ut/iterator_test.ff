@@ -32,11 +32,12 @@ DEF(c2_fop_recursive2, RECORD,
 DEF(c2_fop_iterator_test, RECORD,
     _(fit_fid, c2_fop_fid),
     _(fit_vec, c2_fop_vec),
-    _(fit_opt, c2_fop_optfid),
+    _(fit_opt0, c2_fop_optfid),
+    _(fit_opt1, c2_fop_optfid),
     _(fit_topt, c2_fop_fid_typedef),
     _(fit_rec, c2_fop_recursive2));
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
