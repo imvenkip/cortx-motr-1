@@ -1,0 +1,44 @@
+/* -*- C -*- */
+
+/**
+   @addtogroup rpc-sessions
+   @{
+ */
+
+
+DEF(c2_rpc_session_create, RECORD,
+   _(rsc_snd_id, U64),
+   _(rsc_seq_id, U32));
+
+DEF(c2_rpc_session_create_rep, RECORD,
+   _(rscr_status, U32),
+   _(rscr_session_id, U64),
+   _(rscr_seq_id, U64));
+
+DEF(c2_rpc_session_destroy, RECORD,
+   _(rsd_session_id, U64));
+
+DEF(c2_rpc_session_destroy_rep, RECORD,
+   _(rsd_status, U32));
+
+/** 
+   ow stands for on-wire structure
+ */
+
+DEF(c2_rpc_update_stream_ow, RECORD,
+   _(ruso_session_id, U64),
+   _(ruso_slot_id, U32));
+
+
+/** @} end of rpc-sessions group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+
