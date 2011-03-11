@@ -1,8 +1,5 @@
 /* -*- C -*- */
 
-#ifndef __COLIBRI_LIB_PROCESSOR_K_INTERNAL_H__
-#define __COLIBRI_LIB_PROCESSOR_K_INTERNAL_H__
-
 #include <linux/cpumask.h>
 #include "lib/processor.h"
 
@@ -20,7 +17,7 @@
  */
 
 /**
-   Convert bitmap from one format to another. Copy cpumaxk bitmap to
+   Convert bitmap from one format to another. Copy cpumask bitmap to
    c2_bitmap.
 
    @param inpbamp -> Processors bitmap used by Linux kernel.
@@ -82,7 +79,6 @@ static uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id);
 
 /** @} end of processor group */
 
-/* __COLIBRI_LIB_PROCESSOR_K_INTERNAL_H__ */
 #endif
 
 /*
