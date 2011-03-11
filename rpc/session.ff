@@ -5,7 +5,6 @@
    @{
  */
 
-
 DEF(c2_rpc_session_create, RECORD,
    _(rsc_snd_id, U64),
    _(rsc_seq_id, U32));
@@ -28,7 +27,6 @@ DEF(c2_rpc_session_destroy_rep, RECORD,
 DEF(c2_rpc_update_stream_ow, RECORD,
    _(ruso_session_id, U64),
    _(ruso_slot_id, U32));
-
 
 /** @} end of rpc-sessions group */
 
