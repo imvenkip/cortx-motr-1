@@ -1,15 +1,19 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c
-kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c main.c
-klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := $(shared_src:%=../%)
+shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c chan.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c \
+               semaphore.c main.c
+shared_ut   := ut/chan.c
+klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o) $(shared_ut:.c=.o)
+orig_src    := $(shared_src:%=../%)
+orig_ut     := $(shared_ut:%=../../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
-	ln -fs $(orig) .
+	ln -fs $(orig_src) .
+	ln -fs $(orig_ut) ut/
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/libc2 -C @LINUX_OBJ@ M=`pwd` modules_install
