@@ -106,7 +106,7 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr);
    an array of the elements.
 
    With fileno == 1, c2_fop_type_field_addr() returns &xseq->xs_body when @elno
-   == ~0 and &xseq->xs_body[i] otherwise.
+   == ~0 and &xseq->xs_body[elno] otherwise.
  */
 void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 			     int fileno, uint32_t elno);
