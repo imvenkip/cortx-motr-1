@@ -6,6 +6,7 @@
 #include "utils/common.h"
 
 extern struct c2_ub_set c2_list_ub;
+extern struct c2_ub_set c2_bitmap_ub;
 extern struct c2_ub_set c2_thread_ub;
 extern struct c2_ub_set c2_memory_ub;
 extern struct c2_ub_set c2_trace_ub;
@@ -39,6 +40,7 @@ int main(int argc, char *argv[])
                 c2_ub_set_add(&c2_emap_ub);
                 c2_ub_set_add(&c2_fol_ub);
                 c2_ub_set_add(&c2_list_ub);
+                c2_ub_set_add(&c2_bitmap_ub);
                 c2_ub_set_add(&c2_parity_math_ub);
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_trace_ub);

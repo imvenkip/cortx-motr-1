@@ -4,8 +4,8 @@
 #include "lib/assert.h"  /* C2_CASSERT */
 #include "lib/cdefs.h"   /* C2_EXPORTED */
 #include <stddef.h>
-#include <sys/time.h>    /* gettimeofday */
 
+extern int nanosleep(const struct timespec *req, struct timespec *rem);
 
 /**
    @addtogroup time
@@ -15,7 +15,7 @@
    @{
 */
 
-void c2_time_now(struct c2_time *time)
+struct c2_time *c2_time_now(struct c2_time *time)
 {
         struct timeval tv;
 
@@ -25,8 +25,25 @@ void c2_time_now(struct c2_time *time)
         gettimeofday(&tv, NULL);
         time->ts.tv_sec = tv.tv_sec;
         time->ts.tv_nsec = tv.tv_usec * 1000;
+	return time;
 }
 C2_EXPORTED(c2_time_now);
+
+/**
+   Sleep for requested time
+*/
+int c2_nanosleep(const struct c2_time *req, struct c2_time *rem)
+{
+	struct timespec remaining = req->ts;
+	int rc;
+
+	rc = nanosleep(&req->ts, &remaining);
+	if (rem != NULL)
+		rem->ts = remaining;
+	return rc;
+}
+C2_EXPORTED(c2_nanosleep);
+
 
 /** @} end of time group */
 

@@ -4,6 +4,7 @@
 #define __COLIBRI_LIB_BITMAP_H__
 
 #include "lib/types.h"
+#include "lib/assert.h"
 
 /**
    @defgroup bitmap Bitmap
@@ -25,27 +26,47 @@ struct c2_bitmap {
 /**
    Initialise a bitmap to hold nr bits. The array to store bits is
    allocated internally.
+
+   On success, the bitmap is initialised with all bits initially
+   set to false.
+
+   @param map bitmap object to initialize
+   @param nr  size of the bitmap, in bits
+   @retval 0 success
+   @retval !0 failure, -errno
  */
 int c2_bitmap_init(struct c2_bitmap *map, size_t nr);
 
 /**
-   Initialise a bitmap to hold nr bits with word array already
-   pre-allocated. C2_BITMAP_WORDS() should be used to calculate the size of
-   array.
+   Finalise the bitmap.
+   All memory associated with the bitmap is released.
+
+   @param map bitmap to finalise
  */
-void c2_bitmap_init_inplace(struct c2_bitmap *map, size_t nr, uint64_t *bits);
+void c2_bitmap_fini(struct c2_bitmap *map);
 
 /**
-   Finalise the bitmap.
- */
-void c2_bitmap_fini(struct c2_bitmap *map, bool inplace);
+   Get a bit value from a bitmap.
 
+   @pre idx < map->b_br
+
+   @param map bitmap to query
+   @param idx bit offset in the bitmap to query
+   @return the bit value, true or false.
+ */
 bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx);
+
+/**
+   Set a bit value in a bitmap.
+
+   @param map bitmap to modify
+   @param idx bit offset to modify.  Attempting to set a bit beyond the size
+   of the bitmap results is not allowed (causes and assert to fail).
+   @param val new bit value, true or false
+ */
 void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val);
 
 C2_BASSERT(8 == sizeof ((struct c2_bitmap *)0)->b_words[0]);
-
-#define C2_BITMAP_WORDS(nr) (((nr) + 7) >> 3)
 
 /** @} end of bitmap group */
 
