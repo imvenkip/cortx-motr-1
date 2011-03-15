@@ -82,6 +82,32 @@ void c2_fop_type_format_fini(struct c2_fop_type_format *fmt);
 int  c2_fop_type_format_parse_nr(struct c2_fop_type_format **fmt, int nr);
 void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr);
 
+/**
+   Returns the address of a sub-field within a field.
+
+   @param ftype  - a type of enclosing field
+   @param obj    - address of an enclosing object with type @ftype
+   @param fileno - ordinal number of sub-field
+
+   @param elno   - for a FFA_SEQUENCE sub-field, index of the element to
+                   return the address of.
+
+   The behaviour of this function for FFA_SEQUENCE fields depends on @elno
+   value. FFA_SEQEUNCE fields have the following structure:
+
+   @code
+   struct x_seq {
+           uint32_t  xs_nr;
+           struct y *xs_body;
+   } *xseq;
+   @endcode
+
+   where xs_nr stores a number of elements in the sequence and xs_body points to
+   an array of the elements.
+
+   With fileno == 1, c2_fop_type_field_addr() returns &xseq->xs_body when @elno
+   == ~0 and &xseq->xs_body[elno] otherwise.
+ */
 void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 			     int fileno, uint32_t elno);
 

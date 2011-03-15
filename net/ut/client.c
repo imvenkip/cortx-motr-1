@@ -37,7 +37,7 @@ static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
 	return c2_net_cli_call(conn, &call);
 }
 
-static void nettest_send(struct c2_net_conn *conn)
+static void nettest_send(struct c2_net_conn *conn, int num)
 {
 	struct c2_fop        *f;
 	struct c2_fop        *r;
@@ -50,24 +50,32 @@ static void nettest_send(struct c2_net_conn *conn)
 	r = c2_fop_alloc(&c2_nettest_fopt, NULL);
 	rep = c2_fop_data(r);
 
+	fop->siq_rc = num;
 	result = netcall(conn, f, r);
-	CU_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 	rep = c2_fop_data(r);
-	/* printf("GOT: %i %i\n", result, rep->siq_rc); */
+/*	printf("GOT: %3i %3i: %6i %6i\n", num, result,
+		fop->siq_rc, rep->siq_rc); */
+	C2_UT_ASSERT(fop->siq_rc * fop->siq_rc == rep->siq_rc);
+
 	c2_fop_free(r);
 	c2_fop_free(f);
 }
 
 int nettest_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
+        struct c2_nettest *in;
         struct c2_fop     *reply;
         struct c2_nettest *ex;
 
+	in = c2_fop_data(fop);
+
         reply = c2_fop_alloc(&c2_nettest_fopt, NULL);
-        CU_ASSERT(reply != NULL);
+        C2_UT_ASSERT(reply != NULL);
         ex = c2_fop_data(reply);
 
-        ex->siq_rc = 42;
+	/* return the square of the requested number */
+        ex->siq_rc =in->siq_rc * in->siq_rc;
 
         c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
         return 1;
@@ -104,31 +112,31 @@ void test_net_client(void)
 	s1.s_handler         = &nettest_service_handler;
 
         rc = nettest_fop_init();
-        CU_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
 
 	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
-	CU_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_net_domain_init(&dom, &c2_net_usunrpc_xprt);
-	CU_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_service_id_init(&sid1, &dom, "127.0.0.1", PORT);
-	CU_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_service_start(&s1, &sid1);
-	CU_ASSERT(rc >= 0);
+	C2_UT_ASSERT(rc >= 0);
 
 	sleep(1);
 
 	rc = c2_net_conn_create(&sid1);
-	CU_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
 
 	conn1 = c2_net_conn_find(&sid1);
-	CU_ASSERT(conn1 != NULL);
+	C2_UT_ASSERT(conn1 != NULL);
 
 	for (i = 0; i < 100; ++i) {
 		sprintf(node_arg.si_uuid, "%d", i);
-		nettest_send(conn1);
+		nettest_send(conn1, i);
 	}
 	
 	/* printf("rc = %d\n", rc); */

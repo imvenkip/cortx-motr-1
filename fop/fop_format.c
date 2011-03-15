@@ -250,7 +250,7 @@ void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
 
 	C2_ASSERT(fileno < ftype->fft_nr);
 	addr = ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
-	if (ftype->fft_aggr == FFA_SEQUENCE && fileno == 1)
+	if (ftype->fft_aggr == FFA_SEQUENCE && fileno == 1 && elno != ~0)
 		addr = *((char **)addr) + elno *
 			ftype->fft_child[1]->ff_type->fft_layout->fm_sizeof;
 	return addr;
