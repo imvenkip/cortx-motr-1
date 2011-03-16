@@ -6,7 +6,7 @@ libstob_ut_la_SOURCES = adieu.c ad.c stobio.c
 noinst_PROGRAMS       = server client
 
 io_u.h io_u.c: io.ff \
-                  $(top_builddir)/colibri/libcolibri.la \
+                  $(top_builddir)/fop/libc2rt.la \
                   $(top_builddir)/fop/fop2c 
 	$(top_builddir)/fop/fop2c -uk $<
 
