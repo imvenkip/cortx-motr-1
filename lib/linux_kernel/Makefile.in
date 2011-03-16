@@ -27,6 +27,9 @@ distdir:
 	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
 	$(LIB_SRCDIR)/thread.c $(LIB_SRCDIR)/thread.h \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
-	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h $(LIB_SRCDIR)/types.h \
+	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h \
+	$(LIB_SRCDIR)/types.h $(LIB_SRCDIR)/chan.h \
 	$(LIB_SRCDIR)/timer.h $(LIB_SRCDIR)/timer.c \
+	$(LIB_SRCDIR)/rwlock.h $(LIB_SRCDIR)/rwlock.c \
+	$(LIB_SRCDIR)/atomic64.h \
 @top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel
