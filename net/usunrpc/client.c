@@ -236,9 +236,6 @@ static int usunrpc_call(struct usunrpc_xprt *xprt, struct c2_net_call *call)
 	arg = call->ac_arg;
 	ret = call->ac_ret;
 
-	/* use the addb record here and free it. */
-	c2_free(call->ac_addb_rec);
-
 	return -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
 			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
 			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);

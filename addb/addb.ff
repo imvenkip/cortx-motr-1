@@ -1,0 +1,34 @@
+/* -*- C -*- */
+
+/* buf in memory */
+DEF(c2_mem_buf, SEQUENCE,
+    _(cmb_count, U32),
+    _(cmb_value, BYTE));
+
+/* on-wire and on-disk addb record header */
+DEF(c2_addb_record_header, RECORD,
+    _(arh_magic1,     U64),
+    _(arh_version,    U32),
+    _(arh_len,        U32),
+    _(arh_event_id,   U64),
+    _(arh_timestamp,  U64),
+    _(arh_magic2,     U64));
+
+/* on wire addb record */
+DEF(c2_addb_record, RECORD,
+    _(ar_header,     c2_addb_record_header),
+    _(ar_data,       c2_mem_buf));
+
+/* on wire addb record reply */
+DEF(c2_addb_rep, RECORD,
+    _(ar_rc, U32));
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

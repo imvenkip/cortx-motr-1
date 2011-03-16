@@ -7,9 +7,11 @@ c2t1fs-y := main.o io_fop_init.o io_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
-prepare:
-	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
+prepare: io_k.h io_k.c
 	ln -sf $(STOBDIR)/io_fop_init.c .
+
+io_k.h io_k.c: $(STOBDIR)/io.ff
+	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install

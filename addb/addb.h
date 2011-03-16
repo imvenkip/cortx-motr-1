@@ -127,20 +127,46 @@ enum c2_addb_ev_level {
 };
 
 /**
+   ADDB record header (on-disk & on-wire)
+
+   This header is always followed by actual addb record body, in memory or
+   on disk. Magic is to check validity. The @arh_len is the total record length,
+   including header and opaque body. Event ID can be used to identify the event
+   type. Event ID should be unique in system wide. There should be a mechanism
+   to keep the uniqueness of the event id.
+
+   @note the record length should keep 64bit aligned.
+*/
+struct c2_addb_record_header;
+/**
+   ADDB record (on-wire)
+*/
+struct c2_addb_record;
+
+/**
    Packing this event into a buffer.
 
    @param dp the data point
-   @param buf the buffer. Buffer is allocated by caller.
-	  If buf address is NULL and length is zero, this function will store
-          the expected size of buffer into buf->b_nob.
+   @param rec the caller supplied addb record, which is long enough to fill.
 
    @return 0 on success. Other negative values mean error.
 */
-typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp, struct c2_buf *buf);
+typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp,
+				 struct c2_addb_record *rec);
+
+/**
+   Get size for this event data point.
+
+   The size is its opaque data, excluding header.
+   @param dp the data point
+   @return actual size is returned on success. Negative values mean error.
+*/
+typedef	int (*c2_addb_ev_getsize_t)(struct c2_addb_dp *dp);
 
 struct c2_addb_ev_ops {
 	c2_addb_ev_subst_t    aeo_subst;
 	c2_addb_ev_pack_t     aeo_pack;
+	c2_addb_ev_getsize_t  aeo_getsize;
 	size_t                aeo_size;
 	const char           *aeo_name;
 	enum c2_addb_ev_level aeo_level;
@@ -167,45 +193,10 @@ struct c2_addb_ev {
 	enum c2_addb_ev_level        ae_level;
 };
 
-/**
-   ADDB record header
-
-   This header is always followed by actual addb record body. Magic is to check
-   validity. The @arh_len is the total record length, including header and body.
-   Event ID can be used to identify the event type. Event ID should be unique
-   in system wide. There should be a mechanism to keep the uniqueness of the
-   event id.
-
-   @note the record length should keep 64bit aligned.
-*/
-struct c2_addb_rec_header {
-	uint64_t	arh_magic1;
-	uint32_t	arh_version;
-	uint32_t	arh_len;
-	uint64_t        arh_event_id;
-	uint64_t	arh_timestamp;
-	uint64_t	arh_magic2;
-	char		arh_body[0];
-};
-
 enum {
 	ADDB_REC_HEADER_MAGIC1  = 0xADDB0123ADDB4567LL,
 	ADDB_REC_HEADER_MAGIC2  = 0xADDB89ABADDBCDEFLL,
 	ADDB_REC_HEADER_VERSION = 0x000000001
-};
-
-/**
-   ADDB record item.
-
-   This item is linked into a network domain, ready for sending over network.
-   Items are linked via @ari_linkage. This item is added to network domain list
-   by aco_net_add() in addb context operation;
-
-   @see c2_net_domain
-*/
-struct c2_addb_rec_item {
-	struct c2_list_link        ari_linkage;
-	struct c2_addb_rec_header *ari_header;
 };
 
 /**

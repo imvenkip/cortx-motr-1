@@ -139,9 +139,6 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
 			 &c2_addb_global_ctx);
 
-	c2_rwlock_init(&dom->nd_addb_lock);
-	c2_list_init(&dom->nd_addb_items);
-
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
 C2_EXPORTED(c2_net_domain_init);
@@ -149,8 +146,6 @@ C2_EXPORTED(c2_net_domain_init);
 void c2_net_domain_fini(struct c2_net_domain *dom)
 {
 	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
-	c2_rwlock_fini(&dom->nd_addb_lock);
-	c2_list_fini(&dom->nd_addb_items);
 	c2_addb_ctx_fini(&dom->nd_addb);
         c2_net_domain_stats_fini(dom);
 	c2_rwlock_fini(&dom->nd_lock);
