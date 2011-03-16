@@ -22,7 +22,7 @@ INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-OBJS="$topdir/fop/.libs/libfop2c.a @DB_SRC@/build_unix/libdb.a"
+OBJS="$topdir/fop/.libs/libc2rt.a @DB_SRC@/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
