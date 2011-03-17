@@ -24,4 +24,5 @@ distclean clean:
 distdir:
 	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h \
            $(KSUNRPC_SRCDIR)/kxdr.c $(KSUNRPC_SRCDIR)/client.c \
+           $(KSUNRPC_SRCDIR)/domain.c \
            @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc
