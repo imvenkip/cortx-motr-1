@@ -53,9 +53,9 @@ int c2_service_start(struct c2_service *service, struct c2_service_id *sid)
 			 &c2_addb_global_ctx);
 	result = service->s_domain->nd_xprt->nx_ops->xo_service_init(service);
 	if (result == 0) {
-		c2_rwlock_read_lock(&dom->nd_lock);
+		c2_rwlock_write_lock(&dom->nd_lock);
 		c2_list_add(&dom->nd_service, &service->s_linkage);
-		c2_rwlock_read_unlock(&dom->nd_lock);
+		c2_rwlock_write_unlock(&dom->nd_lock);
 	}
 	return result;
 }
@@ -67,9 +67,9 @@ void c2_service_stop(struct c2_service *service)
 	dom = service->s_domain;
 	service->s_ops->so_fini(service);
 	c2_addb_ctx_fini(&service->s_addb);
-	c2_rwlock_read_lock(&dom->nd_lock);
+	c2_rwlock_write_lock(&dom->nd_lock);
 	c2_list_del(&service->s_linkage);
-	c2_rwlock_read_unlock(&dom->nd_lock);
+	c2_rwlock_write_unlock(&dom->nd_lock);
 }
 
 void c2_net_reply_post(struct c2_service *service,
