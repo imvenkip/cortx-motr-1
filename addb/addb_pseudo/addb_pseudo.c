@@ -4,8 +4,8 @@
 
 #include "addb/addb.h"
 
-/* 
-   XXX 
+/*
+   XXX
    all interfaces here are only for building the pseudu
    addb library, which is used to build fop/fop2c, which is used
    to build full addb library

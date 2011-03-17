@@ -138,7 +138,6 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
  	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
 			 &c2_addb_global_ctx);
-
 	return xprt->nx_ops->xo_dom_init(xprt, dom);
 }
 C2_EXPORTED(c2_net_domain_init);

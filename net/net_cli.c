@@ -20,8 +20,6 @@ C2_ADDB_ADD(&(conn)->nc_addb, &net_cli_addb, ev , ## __VA_ARGS__)
 
 /**
    Send the request to connection and wait for reply synchronously.
-
-   The ->sio_call() is responsible to add the addb record and free it.
  */
 int c2_net_cli_call(struct c2_net_conn *conn, struct c2_net_call *call)
 {
@@ -32,8 +30,6 @@ C2_EXPORTED(c2_net_cli_call);
 
 /**
    Send the request to connection asynchronously and don't wait for reply.
-
-   The ->sio_send() is responsible to add the addb record and free it.
  */
 int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_call *call)
 {
