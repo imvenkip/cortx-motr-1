@@ -17,6 +17,12 @@
    @{
  */
 
+/**
+   db5-specific part of generic c2_dbenv.
+
+   Most fields are only updated when the environment is set up. Others (as noted
+   below) are protected by c2_dbenv_impl::d_lock.
+ */
 struct c2_dbenv_impl {
 	/** db5 private handle */
 	DB_ENV            *d_env;
@@ -29,13 +35,16 @@ struct c2_dbenv_impl {
 	DB_LOGC           *d_logc;
 	/** Lock protecting waiters list. */
 	struct c2_mutex    d_lock;
-	/** A list of waiters (c2_db_tx_waiter). */
+	/** A list of waiters (c2_db_tx_waiter). Protected by
+	    c2_dbenv_impl::d_lock.  */
 	struct c2_list     d_waiters;
 	/** Thread for asynchronous environment related work. */
 	struct c2_thread   d_thread;
-	/** True iff the environment is being shut down. */
+	/** True iff the environment is being shut down. Protected by
+	    c2_dbenv_impl::d_lock.*/
 	bool               d_shutdown;
-	/** Condition variable signalled on shutdown. */
+	/** Condition variable signalled on shutdown. Signalled under
+	    c2_dbenv_impl::d_lock.*/
 	struct c2_cond     d_shutdown_cond;
 };
 
