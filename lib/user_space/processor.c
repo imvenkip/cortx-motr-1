@@ -344,6 +344,7 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 
 	sprintf(dirname, C2_PROCESSORS_CPU_DIR_PREFIX"%u", id);
 	dirp = opendir(dirname);
+	C2_ASSERT(dirp != NULL);
 
 	/*
 	 * Find node id under .../cpu/cpu<id>/node<id>
@@ -370,6 +371,7 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 	 * under node/nod<id>/cpu<id>
 	 */
 	dirp = opendir(C2_PROCESSORS_NODE_DIR);
+	C2_ASSERT(dirp != NULL);
 	while ((fname = readdir(dirp)) != NULL) {
 		if (fname->d_name[0] == 'n'
 		    && !strncmp(fname->d_name, C2_PROCESSORS_NODE_STR,
@@ -887,10 +889,10 @@ static void c2_processors_copy_c2bitmap(const struct c2_bitmap *src,
 
    The calling function should not assume hot-plug CPU facility.
    If the underlying OS supports the hot-plug CPU facility, the calling
-   program will have to re-initalize the interface (at least in user-mode)
+   program will have to re-initialize the interface (at least in user-mode)
    after registering for platform specific CPU change notification.
 
-   To re-initalize the interface, c2_processors_fini() must be called first,
+   To re-initialize the interface, c2_processors_fini() must be called first,
    before initializing it again.
 
    @post Interface initialized.
@@ -914,18 +916,22 @@ void c2_processors_init()
 void c2_processors_fini()
 {
 	struct c2_list_link *node;
+	struct c2_processor_node *pinfo;	
 
-	c2_bitmap_fini(&g_sys_cpus.pss_poss_map, false);
-	c2_bitmap_fini(&g_sys_cpus.pss_avail_map, false);
-	c2_bitmap_fini(&g_sys_cpus.pss_online_map, false);
+	c2_bitmap_fini(&g_sys_cpus.pss_poss_map);
+	c2_bitmap_fini(&g_sys_cpus.pss_avail_map);
+	c2_bitmap_fini(&g_sys_cpus.pss_online_map);
 	g_sys_cpus.pss_max = 0;
 
 	/*
 	 * Remove all the processor nodes.
 	 */
-	c2_list_for_each(&g_sys_cpus.pss_head, node) {
-		c2_list_del(node);
-		free(node);
+	node = g_sys_cpus.pss_head.l_head;
+	while((struct c2_list *)node != &g_sys_cpus.pss_head) {
+		pinfo = c2_list_entry(node, struct c2_processor_node, pn_link);
+		c2_list_del(&pinfo->pn_link);
+		free(pinfo);
+		node = g_sys_cpus.pss_head.l_head;
 	}
 	c2_list_fini(&g_sys_cpus.pss_head);
 	g_c2_processor_init = false;
@@ -934,9 +940,9 @@ void c2_processors_fini()
 /**
    Query if processors interface is initialized.
    @retval true if the interface is initialized
-   @retval false if the interface is not initalized.
+   @retval false if the interface is not initialized.
  */
-bool c2_processor_is_initalized(void)
+bool c2_processor_is_initialized(void)
 {
 	return g_c2_processor_init;
 }
@@ -947,6 +953,7 @@ bool c2_processor_is_initalized(void)
  */
 c2_processor_nr_t c2_processor_nr_max(void)
 {
+	C2_ASSERT(c2_processor_is_initialized() == true);
 	return g_sys_cpus.pss_max;
 }
 
@@ -960,6 +967,8 @@ c2_processor_nr_t c2_processor_nr_max(void)
  */
 void c2_processors_possible(struct c2_bitmap *map)
 {
+	C2_ASSERT(c2_processor_is_initialized() == true);
+	C2_ASSERT(map != NULL);
 	c2_processors_copy_c2bitmap(&g_sys_cpus.pss_poss_map, map);
 }
 
@@ -973,6 +982,8 @@ void c2_processors_possible(struct c2_bitmap *map)
  */
 void c2_processors_available(struct c2_bitmap *map)
 {
+	C2_ASSERT(c2_processor_is_initialized() == true);
+	C2_ASSERT(map != NULL);
 	c2_processors_copy_c2bitmap(&g_sys_cpus.pss_avail_map, map);
 }
 
@@ -987,6 +998,8 @@ void c2_processors_available(struct c2_bitmap *map)
  */
 void c2_processors_online(struct c2_bitmap *map)
 {
+	C2_ASSERT(c2_processor_is_initialized() == true);
+	C2_ASSERT(map != NULL);
 	c2_processors_copy_c2bitmap(&g_sys_cpus.pss_online_map, map);
 }
 
@@ -1016,6 +1029,7 @@ int c2_processor_describe(c2_processor_nr_t id,
 	struct c2_list_link *node;
 
 	C2_ASSERT(pd != NULL);
+	C2_ASSERT(c2_processor_is_initialized() == true);
 
 	c2_list_for_each(&g_sys_cpus.pss_head, node) {
 		pinfo = (struct c2_processor_node *)node;

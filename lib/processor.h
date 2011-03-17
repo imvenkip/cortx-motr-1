@@ -72,7 +72,7 @@ void c2_processors_fini(void);
    @retval true if the interface is initialized
    @retval false if the interface is not initalized.
  */
-bool c2_processor_is_initalized(void);
+bool c2_processor_is_initialized(void);
 
 /**
    Maximum processors this system can handle.

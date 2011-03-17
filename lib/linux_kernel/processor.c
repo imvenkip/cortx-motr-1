@@ -20,6 +20,10 @@
    @{
  */
 
+/** Default values */
+#define	DEFAULT_L1_SZ	(32*1024)
+#define	DEFAULT_L2_SZ	(6144*1024)
+
 /** Global variables */
 static bool g_c2_processor_init=false;
 
@@ -31,7 +35,7 @@ static bool g_c2_processor_init=false;
    @param outpbmap -> Processors bitmap for Colibri programs.
    @param bmpsz -> Size of cpumask bitmap (inbmp)
 
-   @pre Assumes memory is alloacted for outbmp and it's initalized.
+   @pre Assumes memory is alloacted for outbmp and it's initialized.
 
    @see lib/processor.h 
    @see lib/bitmap.h 
@@ -114,11 +118,10 @@ static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
  */
 static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
 {
-	size_t	sz=32*1024;
 	/*
 	 * TODO : Write x86 asm code to figure out L1 info.
 	 */
-	return sz;
+	return DEFAULT_L1_SZ;
 }
 
 
@@ -134,11 +137,10 @@ static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
  */
 static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 {
-	size_t	sz=6144*1024;
 	/*
 	 * TODO : Write x86 asm code to figure out L1 info.
 	 */
-	return sz;
+	return DEFAULT_L2_SZ;
 }
 
 /**
@@ -164,10 +166,10 @@ static inline uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id)
 
    The calling function should not assume hot-plug CPU facility.
    If the underlying OS supports the hot-plug CPU facility, the calling
-   program will have to re-initalize the interface (at least in user-mode)
+   program will have to re-initialize the interface (at least in user-mode)
    after registering for platform specific CPU change notification.
 
-   To re-initalize the interface, c2_processors_fini() must be called first,
+   To re-initialize the interface, c2_processors_fini() must be called first,
    before initializing it again.
 
    @post Interface initialized.
@@ -197,9 +199,9 @@ void c2_processors_fini()
 /**
    Query if processors interface is initialized.
    @retval true if the interface is initialized
-   @retval false if the interface is not initalized.
+   @retval false if the interface is not initialized.
  */
-bool c2_processor_is_initalized()
+bool c2_processor_is_initialized()
 {
 	return g_c2_processor_init;
 }
@@ -319,7 +321,7 @@ int c2_processor_getcpu(void)
 /** Export interfaces */
 C2_EXPORTED(c2_processors_init);
 C2_EXPORTED(c2_processors_fini);
-C2_EXPORTED(c2_processor_is_initalized);
+C2_EXPORTED(c2_processor_is_initialized);
 C2_EXPORTED(c2_processor_nr_max);
 C2_EXPORTED(c2_processors_possible);
 C2_EXPORTED(c2_processors_available);
