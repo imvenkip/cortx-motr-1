@@ -101,7 +101,7 @@ static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
 	uint32_t l2_id=id;
 
 	/*
-	 * TODO : Write x86 asm code to figure out L1 info.
+	 * TODO : Write x86 asm code to figure out L2 info.
 	 */
 	return l2_id;
 }
@@ -138,7 +138,7 @@ static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
 static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 {
 	/*
-	 * TODO : Write x86 asm code to figure out L1 info.
+	 * TODO : Write x86 asm code to figure out L2 info.
 	 */
 	return DEFAULT_L2_SZ;
 }
@@ -222,12 +222,10 @@ c2_processor_nr_t c2_processor_nr_max(void)
    @pre c2_processors_init() must be called before calling this function.
    @pre The calling function should allocated memory for 'map' and initialize
         it
+   @note This function does not take any locks.
  */
 void c2_processors_possible(struct c2_bitmap *map)
 {
-	/*
-	 * TODO : Check if any locks need to be taken.
-	 */
 	c2_processors_copy_bitmap(cpu_possible_mask, map, nr_cpu_ids);
 }
 
@@ -238,12 +236,10 @@ void c2_processors_possible(struct c2_bitmap *map)
    @pre c2_processors_init() must be called before calling this function.
    @pre The calling function should allocated memory for 'map' and initialize
         it
+   @note This function does not take any locks.
  */
 void c2_processors_available(struct c2_bitmap *map)
 {
-	/*
-	 * TODO : Check if any locks need to be taken.
-	 */
 	c2_processors_copy_bitmap(cpu_present_mask, map, nr_cpu_ids);
 }
 
@@ -255,13 +251,10 @@ void c2_processors_available(struct c2_bitmap *map)
    @pre c2_processors_init() must be called before calling this function.
    @pre The calling function should allocated memory for 'map' and initialize
         it
+   @note This function does not take any locks.
  */
 void c2_processors_online(struct c2_bitmap *map)
 {
-	/*
-	 * TODO : Check if any locks need to be taken.
-	 */
-
 	c2_processors_copy_bitmap(cpu_online_mask, map, nr_cpu_ids);
 }
 
