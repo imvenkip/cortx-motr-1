@@ -27,7 +27,7 @@ enum c2_addb_ev_level;
 /* these are needed earlier than they are defined */
 struct c2_stob;
 struct c2_table;
-struct c2_net_domain;
+struct c2_net_conn;
 
 /**
    ADDB record store type
@@ -68,9 +68,9 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
 int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
 
 /**
-    Send addb records through this network domain.
+    Send addb records through this network connection.
  */
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_domain *dom);
+int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn);
 
 /**
    ADDB record store type.
@@ -82,7 +82,7 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_domain *dom);
 extern enum c2_addb_rec_store_type c2_addb_store_type;
 extern struct c2_stob             *c2_addb_store_stob;
 extern struct c2_table            *c2_addb_store_table;
-extern struct c2_net_domain        *c2_addb_store_net_domain;
+extern struct c2_net_conn         *c2_addb_store_net_conn;
 
 
 /**

@@ -39,7 +39,7 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
 C2_EXPORTED(c2_addb_db_add);
 
 
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_domain *dom)
+int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 {
 	return 0;
 }

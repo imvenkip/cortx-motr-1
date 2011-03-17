@@ -80,8 +80,8 @@ void c2_addb_add(struct c2_addb_dp *dp)
 		c2_addb_db_add(dp, c2_addb_store_table);
 		break;
 	case C2_ADDB_REC_STORE_NETWORK:
-		C2_ASSERT(c2_addb_store_net_domain != NULL);
-		c2_addb_net_add(dp, c2_addb_store_net_domain);
+		C2_ASSERT(c2_addb_store_net_conn != NULL);
+		c2_addb_net_add(dp, c2_addb_store_net_conn);
 		break;
 	default:
 		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
@@ -195,10 +195,10 @@ struct c2_addb_ctx c2_addb_global_ctx = {
 };
 C2_EXPORTED(c2_addb_global_ctx);
 
-enum c2_addb_rec_store_type c2_addb_store_type       = C2_ADDB_REC_STORE_NONE;
-struct c2_stob             *c2_addb_store_stob       = NULL;
-struct c2_table            *c2_addb_store_table      = NULL;
-struct c2_net_domain       *c2_addb_store_net_domain = NULL;
+enum c2_addb_rec_store_type c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
+struct c2_stob             *c2_addb_store_stob     = NULL;
+struct c2_table            *c2_addb_store_table    = NULL;
+struct c2_net_conn         *c2_addb_store_net_conn = NULL;
 
 
 /** @} end of addb group */

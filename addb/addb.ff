@@ -20,7 +20,7 @@ DEF(c2_addb_record, RECORD,
     _(ar_data,       c2_mem_buf));
 
 /* on wire addb record reply */
-DEF(c2_addb_rep, RECORD,
+DEF(c2_addb_reply, RECORD,
     _(ar_rc, U32));
 
 /*
