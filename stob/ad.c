@@ -969,24 +969,16 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 		(&it, &todo, ext->e_start,
 	 LAMBDA(void, (struct c2_emap_seg *seg) {
 			 /* handle extent deletion. */
-			 printf("PID:%d=>c2_emap_paste::delete()\n", (int)getpid());
 			 if (seg->ee_val < AET_MIN) {
 				 tocut.e_start = seg->ee_val;
 				 tocut.e_end   = seg->ee_val + 
 					 c2_ext_length(&seg->ee_ext);
-				 printf("PID:%d=>c2_emap_paste::delete(): "
-					"tocut.e_start=%lu, "
-					"tocut.e_end=%lu\n",
-					(int)getpid(), tocut.e_start, tocut.e_end);
 				 rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
-				 printf("PID:%d=>c2_emap_paste::delete(): rc=%d\n",
-					(int)getpid(), rc);
 			 }
 		 }),
 	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 		       uint64_t val) {
 			/* cut left */
-			printf("PID:%d=>c2_emap_paste::cut_left()\n", (int)getpid());
 			C2_ASSERT(ext->e_start > seg->ee_ext.e_start);
 
 			seg->ee_val = val;
@@ -1000,7 +992,6 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 		       uint64_t val) {
 			/* cut right */
-			printf("PID:%d=>c2_emap_paste::cut_right()\n", (int)getpid());
 			C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
 			if (val < AET_MIN) {
 				seg->ee_val = val + 
@@ -1050,13 +1041,7 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
 		
-		printf("PID:%d=>ad_write_map(): offset=%lu, frag_size=%lu, "
-		       "todo.e_start=%lu, todo.e_end=%lu\n",
-		       (int)getpid(), offset, frag_size, todo.e_start, todo.e_end);
-
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
-		printf("PID:%d=>ad_write_map(): result=%d\n",
-		       (int)getpid(), result);
 		
 		if (result != 0)
 			break;
@@ -1141,8 +1126,6 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		ad_wext_cursor_init(&wc, &head);
 		frags = ad_write_count(io, src, &wc);
 
-		printf("PID:%d=>ad_write_launch(): frags=%u\n", (int)getpid(), frags);
-
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
@@ -1159,8 +1142,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		}
 	}
 	ad_wext_fini(&head);
-	
-	printf("ad_write_launch(): result=%d\n", result);
+
 	return result;
 }
 
