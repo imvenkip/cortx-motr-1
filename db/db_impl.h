@@ -9,6 +9,7 @@
 #include "lib/thread.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "lib/cond.h"
 
 /**
    @addtogroup db Data-base interfaces.
@@ -34,6 +35,8 @@ struct c2_dbenv_impl {
 	struct c2_thread   d_thread;
 	/** True iff the environment is being shut down. */
 	bool               d_shutdown;
+	/** Condition variable signalled on shutdown. */
+	struct c2_cond     d_shutdown_cond;
 };
 
 struct c2_table_impl {
@@ -64,7 +67,7 @@ struct c2_db_cursor_impl {
 /* __COLIBRI_DB_REC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
