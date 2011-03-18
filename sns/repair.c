@@ -7,7 +7,7 @@
 
 #include "sns/repair.h"
 
-static int 
+static int
 c2_cm_storage_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	self->ag_parent = parent;
@@ -31,7 +31,7 @@ static int c2_cm_ci_dlm_completion(void *cb_data)
 {
 	struct c2_ext *chunk = cb_data;
 
-	c2_cm_ci_add_extent_to_ready_queue(chunk); 
+	c2_cm_ci_add_extent_to_ready_queue(chunk);
 	return 0;
 }
 
@@ -40,7 +40,7 @@ static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 	struct c2_cm_iset        *iset = agent->ag_parent->cm_iset;
 	struct c2_device         *d = agent->ci_device;
 	struct c2_priority       *p;
-	struct c2_container      *c;	
+	struct c2_container      *c;
 	struct c2_ext            *ext;
 	struct c2_ext             sub_ext;
 	struct c2_ext 		  chunk;
@@ -49,21 +49,21 @@ static int c2_cm_storage_in_agent_enqueue(struct c2_cm_storage_in_agent *agent)
 	for (p = c2_get_highest_priority(); p != NULL; p = p->lower()) {
 		for (c = d->first_container(); c!= NULL; c = c->next_container()) {
 			struct c2_priority *cp = c->get_priority();
-			
+
 			if (c2_pri_cmp(p, cp) == 0 && c2_container_cover(c, iset)) {
 				for (ext = c->first_extent(); ext != NULL; ext->next()) {
 					if (c2_extent_cover(ext, iset)) {
 						struct c2_cm_iset_cursor *cur = XXX /* TODO */;
-						
+
 						cag_group_get(self, cur, &sub_ext, &group);
 						if (cag_group_on_the_server(&group, server)) {
-							
+
 							while (cut_ext_from(&sub_ext, &chunk, RPC_SIZE)) {
 								int rc;
 								struct dlm_res_id id;
-								
+
 								dlm_create_res_id(&id, &chunk, c2_cm_ci_dlm_completion);
-								
+
 								if (agent->ci_agent->ag_quit)
 									goto out_quit;
 								rc = dlm_enqueue_async(&id);
@@ -101,8 +101,9 @@ static int c2_cm_storage_in_agent_submitting(struct c2_cm_storage_in_agent *agen
 {
 	struct c2_ext chunk;
 	while (1) {
-		wait_event((rlimit <= threshold && !buffer_pool_empty() && !ready_queue_empty()) || agent->ci_agent->ag_quit);
-	
+		wait_event((rlimit <= threshold && !buffer_pool_empty() &&
+			    !ready_queue_empty()) || agent->ci_agent->ag_quit);
+
 		if (agent->ci_agent->ag_quit)
 			break;
 		get_a_chunk_from_ready_queue(&chunk);
@@ -127,7 +128,7 @@ static int c2_cm_storage_in_agent_run(struct c2_cm_agent *self)
 }
 
 
-static int 
+static int
 c2_cm_storage_out_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	struct c2_cm_storage_out_agent *co_agent = container_of(self,
@@ -141,7 +142,7 @@ static int c2_cm_storage_out_agent_stop(struct c2_cm_agent *self, int force)
 {
 	struct c2_cm_storage_out_agent *co_agent = container_of(self,
 					struct c2_cm_storage_out_agent, co_agent);
-	
+
 	self->ag_quit = true;
 	return 0;
 }
@@ -169,7 +170,7 @@ static int c2_cm_storage_out_agent_submitting(struct c2_cm_storage_out_agent *ag
 	while (!agent->co_agent->ag_quit) {
 		c2_wait_event( (!agent->co_incoming_queue_empty() && rlimit <= thread) || !agent->co_agent->ag_quit);
 		if (agent->co_agent.ag_quit)
-			break;	
+			break;
 
 		cp = agent->get_cp_from_queue();
 		submit_aio_write(d, cp, c2_cm_storage_out_agent_io_completion);
@@ -207,7 +208,7 @@ static int c2_cm_storage_out_agent_run(struct c2_cm_agent *self)
 }
 
 
-static int 
+static int
 c2_cm_network_in_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	struct c2_cm_network_in_agent *ni_agent = container_of(self,
@@ -221,7 +222,7 @@ static int c2_cm_network_in_agent_stop(struct c2_cm_agent *self, int force)
 {
 	struct c2_cm_network_in_agent *ni_agent = container_of(self,
 					struct c2_cm_network_in_agent, ni_agent);
-	
+
 	self->ag_quit = true;
 	return 0;
 }
@@ -271,7 +272,7 @@ static int c2_cm_network_in_agent_run(struct c2_cm_agent *self)
 }
 
 
-static int 
+static int
 c2_cm_network_out_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	struct c2_cm_network_out_agent *no_agent = container_of(self,
@@ -285,7 +286,7 @@ static int c2_cm_network_out_agent_stop(struct c2_cm_agent *self, int force)
 {
 	struct c2_cm_network_out_agent *no_agent = container_of(self,
 					struct c2_cm_network_out_agent, ni_agent);
-	
+
 	self->ag_quit = true;
 	return 0;
 }
@@ -334,7 +335,7 @@ static int c2_cm_network_out_agent_run(struct c2_cm_agent *self)
 }
 
 
-static int 
+static int
 c2_cm_collecting_agent_init(struct c2_cm_agent *self, struct c2_cm *parent)
 {
 	struct c2_cm_collecting_agent *c_agent = container_of(self,
@@ -348,7 +349,7 @@ static int c2_cm_collecting_agent_stop(struct c2_cm_agent *self, int force)
 {
 	struct c2_cm_collecting_agent *c_agent = container_of(self,
 					struct c2_cm_collecting_agent, c_agent);
-	
+
 	self->ag_quit = true;
 	return 0;
 }
@@ -378,7 +379,7 @@ static int c2_cm_collecting_agent_collecting(struct c2_cm_collecting_agent *agen
 	struct c2_ext 		  chunk;
 	struct c2_cm_aggrg_group  group;
 	struct c2_cm_agent       *cma = container_of(agent, struct c2_cm_collecting_agent, c_agent);
-						
+
 
 	while (!agent->no_agent->ag_quit) {
 		c2_wait_event( (!agent->co_incoming_queue_empty() && rlimit <= thread) || !agent->noagent.ag_quit);
@@ -389,9 +390,9 @@ static int c2_cm_collecting_agent_collecting(struct c2_cm_collecting_agent *agen
 		cag_group_get(self, cur, &sub_ext, &group);
 		if (cag_has_buffer(&group)) { /* the first copy packet for this group */
 			cag_use_this_packet_as_buffer(&group, cp);
-			cma->ag_xform.cx_sns(&group, cp);						
+			cma->ag_xform.cx_sns(&group, cp);
 		} else {
-			cma->ag_xform.cx_sns(&group, cp);						
+			cma->ag_xform.cx_sns(&group, cp);
 			c2_cm_cp_refdel(cp);
 		}
 		if (cag_is_done(&group)) {
@@ -431,7 +432,7 @@ struct c2_cm_agent *alloc_storage_in_agent()
 /* end of make it compilable */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
