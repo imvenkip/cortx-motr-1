@@ -653,41 +653,46 @@ static int optparse(struct super_block *sb, char *options)
         return 0;
 }
 
-static void obj_map_fini(struct page ****p, uint32_t P, uint32_t I)
+struct rpc_desc {
+	loff_t rd_offset;
+	int    rd_units;
+};
+
+struct obj_map {
+	/* 2D array of page-pointers: struct page *om_map[N][M] */
+	struct page ***om_map;
+};
+
+static void obj_map_fini(struct obj_map *objmap, uint32_t P, uint32_t I)
 {
         uint32_t i;
 
         for (i = 0; i < P; ++i) {
-                c2_free((*p)[i]);
-                (*p)[i] = NULL;
+                c2_free(objmap->om_map[i]);
+                objmap->om_map[i] = NULL;
 	}
 
-        c2_free(*p);
+        c2_free(objmap->om_map);
 }
 
-static int obj_map_init(struct page ****p, uint32_t P, uint32_t I)
+static int obj_map_init(struct obj_map *objmap, uint32_t P, uint32_t I)
 {
         uint32_t i;
 
-        C2_ALLOC_ARR(*p, P);
-        if (*p == NULL)
+        C2_ALLOC_ARR(objmap->om_map, P);
+        if (objmap->om_map == NULL)
 		return -ENOMEM;
 
         for (i = 0; i < P; ++i) {
-                C2_ALLOC_ARR((*p)[i], I);
-		if ((*p)[i] == NULL) {
-                        obj_map_fini(p, P, I);
+                C2_ALLOC_ARR(objmap->om_map[i], I);
+		if (objmap->om_map[i] == NULL) {
+                        obj_map_fini(objmap, P, I);
                         return -ENOMEM;
                 }
         }
 
         return 0;
 }
-
-struct rpc_desc {
-	loff_t rd_offset;
-	int    rd_units;
-};
 
 static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 				      struct inode             *inode,
@@ -731,7 +736,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 
 	struct c2t1fs_object_param *obj_param;
 
-	struct page              ***objmap;  /* *objmap[P][I]; */
+	struct obj_map              objmap;
 	struct rpc_desc            *rpc;
 
 	ENTER;
@@ -773,7 +778,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 	}
 
 	for (i = 0; i < P; ++i) {
-		rpc[i].rd_offset = 0x00ffffffffffffff; /* C2_BINDEX_MAX; */
+		rpc[i].rd_offset = C2_BSIGNED_MAX;
 		rpc[i].rd_units  = 0;
 	}
 
@@ -807,7 +812,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 				page = parity_pages[spare++]; /* just use parity pages for now */
 			}
 
-			objmap[obj][group] = page;
+			objmap.om_map[obj][group] = page;
 			DBG("prepare: obj=%llu, group=%d, pos=%llu, page=%p\n", obj, group, pos, page);
 		}
 	}
@@ -819,7 +824,7 @@ static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
 		if (con != NULL) {
 			rpc_rc = ksunrpc_read_write(con->xc_conn,
 						    objid,
-						    objmap[obj],
+						    objmap.om_map[obj],
 						    off,
 						    /* rpc[obj].rd_units * I, */
 						    unitsize * I,
