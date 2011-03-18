@@ -26,7 +26,8 @@ typedef uint64_t c2_bindex_t;
 
 enum {
 	C2_BCOUNT_MAX = 0xffffffffffffffff,
-	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1
+	C2_BINDEX_MAX = C2_BCOUNT_MAX - 1,
+	C2_BSIGNED_MAX = 0x7fffffffffffffff
 };
 
 

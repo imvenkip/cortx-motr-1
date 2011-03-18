@@ -1,7 +1,7 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c
+shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c misc.c buf.c
 kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c main.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)

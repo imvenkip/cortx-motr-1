@@ -1,9 +1,9 @@
-#include <stdio.h>
+#include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/types.h"
 
-#include "parity_ops.h"
-#include "ls_solve.h"
+#include "sns/parity_ops.h"
+#include "sns/ls_solve.h"
 
 void c2_linsys_init(struct c2_linsys* lynsys,
                     struct c2_matrix* m,
