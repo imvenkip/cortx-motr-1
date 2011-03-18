@@ -1,8 +1,5 @@
-OS = @OS@
 SNS_SRCDIR = @SRCDIR@/sns/linux_kernel
 GALOIS_SRCDIR = @SRCDIR@/../galois
-
-ifeq ($(OS),linux)
 
 obj-m       := ksns.o
 shared_src  := ls_solve.c matvec.c parity_math.c
@@ -19,15 +16,6 @@ prepare:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(SNS_SRCDIR)/Makefile.in \

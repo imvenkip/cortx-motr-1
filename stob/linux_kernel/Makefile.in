@@ -1,7 +1,4 @@
-OS = @OS@
 STOB_SRCDIR = @SRCDIR@/stob/linux_kernel
-
-ifeq ($(OS),linux)
 
 obj-m       := kstob.o
 shared_src  := stob_id.c
@@ -17,15 +14,6 @@ prepare:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(STOB_SRCDIR)/Makefile.in \

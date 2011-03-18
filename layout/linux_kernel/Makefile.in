@@ -1,7 +1,4 @@
-OS = @OS@
 LAYOUT_SRCDIR = @SRCDIR@/layout/linux_kernel
-
-ifeq ($(OS),linux)
 
 obj-m       := klayout.o
 shared_src  := layout.c pdclust.c
@@ -17,15 +14,6 @@ prepare:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(LAYOUT_SRCDIR)/Makefile.in \

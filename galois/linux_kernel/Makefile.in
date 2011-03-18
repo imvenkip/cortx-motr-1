@@ -1,8 +1,5 @@
-OS = @OS@
 GALOIS_KERNEL_SRCDIR = @SRCDIR@/galois/linux_kernel
 GALOIS_SRCDIR = @SRCDIR@/../galois
-
-ifeq ($(OS),linux)
 
 obj-m       := kgalois.o
 shared_src  := galois.c
@@ -18,15 +15,6 @@ prepare:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(GALOIS_KERNEL_SRCDIR)/Makefile.in \

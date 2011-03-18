@@ -1,7 +1,4 @@
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-
+#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
