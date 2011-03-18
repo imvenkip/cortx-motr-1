@@ -18,8 +18,6 @@ AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_CUNIT], [Have cunit library])
-AH_TEMPLATE([LINUX], [Linux operating system])
-AH_TEMPLATE([DARWIN], [Darwin operating system])
 
 COLIBRI_MAJOR_VERSION=0
 COLIBRI_MINOR_VERSION=1
@@ -291,59 +289,51 @@ AC_ARG_ENABLE([db-o_direct],
         [enable_db_o_direct=no]
 )
 
+AC_MSG_CHECKING([for operating system])
+AC_MSG_RESULT([$host_os])
 case $host_os in
-        darwin*) OS="darwin" ;;
-        linux*) OS="linux" ;;
+        linux*) 
+                ;;
+        *)
+                AC_MSG_ERROR([Unsupported platform detected!])
+                ;;
 esac
-AC_SUBST([OS])
 
-if test x$OS = xlinux; then
-        AC_DEFINE([LINUX])
-fi
-if test x$OS = xdarwin; then
-        AC_DEFINE([DARWIN])
-fi
+AC_MSG_CHECKING([for linux sources dir])
+AC_ARG_WITH([linux],
+        [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
+        [LINUX=$with_linux],
+        [LINUX=/lib/modules/`uname -r`/build]
+)
 
-AM_CONDITIONAL([LINUX], [test x$OS = xlinux])
-AM_CONDITIONAL([DARWIN], [test x$OS = xdarwin])
+AC_MSG_RESULT([$LINUX])
+AC_SUBST([LINUX])
 
-if test x$OS = xlinux; then
-        AC_MSG_CHECKING([for linux sources dir])
-        AC_ARG_WITH([linux],
-                [AC_HELP_STRING([--with-linux=path], [set path to linux sources])],
-                [LINUX=$with_linux],
-                [LINUX=/lib/modules/`uname -r`/build]
-        )
+AC_MSG_CHECKING([for linux objects dir])
+AC_ARG_WITH([linux-obj],
+        [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
+        [LINUX_OBJ=$with_linux_obj],
+        [LINUX_OBJ=$LINUX]
+)
 
-        AC_MSG_RESULT([$LINUX])
-        AC_SUBST([LINUX])
+AC_MSG_RESULT([$LINUX_OBJ])
+AC_SUBST([LINUX_OBJ])
 
-        AC_MSG_CHECKING([for linux objects dir])
-        AC_ARG_WITH([linux-obj],
-                [AC_HELP_STRING([--with-linux-obj=path], [set path to linux objects dir])],
-                [LINUX_OBJ=$with_linux_obj],
-                [LINUX_OBJ=$LINUX]
-        )
+LINUX_MOD="/lib/modules/`uname -r`"
+AC_SUBST([LINUX_MOD])
 
-        AC_MSG_RESULT([$LINUX_OBJ])
-        AC_SUBST([LINUX_OBJ])
+# Prepare linux configuration checks facility. Should be done before
+# any *_LINUX_* checks.
+COLIBRI_LINUX_INIT_CONFIG
 
-        LINUX_MOD="/lib/modules/`uname -r`"
-        AC_SUBST([LINUX_MOD])
+COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
+        [AC_DEFINE([HAVE_JOURNAL_ABORT])])
 
-        # Prepare linux configuration checks facility. Should be done before
-        # any *_LINUX_* checks.
-        COLIBRI_LINUX_INIT_CONFIG
-
-        COLIBRI_LINUX_CHECK_SYMBOL([journal_abort],
-                [AC_DEFINE([HAVE_JOURNAL_ABORT])])
-
-        COLIBRI_LINUX_INODE_BLKSIZE
-        COLIBRI_LINUX_FILE_READV
-        COLIBRI_LINUX_FILE_AIO_READ
-        COLIBRI_LINUX_WRITE_BEGIN_END
-        COLIBRI_LINUX_SENDFILE
-fi
+COLIBRI_LINUX_INODE_BLKSIZE
+COLIBRI_LINUX_FILE_READV
+COLIBRI_LINUX_FILE_AIO_READ
+COLIBRI_LINUX_WRITE_BEGIN_END
+COLIBRI_LINUX_SENDFILE
 
 AC_ARG_WITH([db],
         [AC_HELP_STRING([--with-db=path], [path where db was built])])
@@ -355,47 +345,48 @@ CFLAGS=""
 
 AC_MSG_CHECKING([for db libs])
 if test x$with_db != x; then
-	DBSRC="$with_db"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
-	if ! test -e $DBLIBS; then
-		AC_MSG_ERROR([$DBLIBS not found! Did you build db?])
+	DB_SRC="$with_db"
+        DB_LIBS="$DB_SRC/build_unix/libdb.a"
+	if ! test -e $DB_LIBS; then
+		AC_MSG_ERROR([$DB_LIBS not found! Did you build db?])
 	fi
-        AC_MSG_RESULT([$DBLIBS])
+        AC_MSG_RESULT([$DB_LIBS])
 else
-	DBSRC="$SRCDIR/../db4"
-        DBLIBS="$DBSRC/build_unix/libdb.a"
-	if ! test -e $DBLIBS; then
+	DB_SRC="$SRCDIR/../db4"
+        DB_LIBS="$DB_SRC/build_unix/libdb.a"
+	if ! test -e $DB_LIBS; then
 		oldcwd=$(pwd)
 		if test x$enable_db_o_direct = xyes; then
 		        o_direct_options="--enable-o_direct"
 		else
 		        o_direct_options=""
 		fi
-                AC_MSG_RESULT([building $DBSRC])
+                AC_MSG_RESULT([building $DB_SRC])
 
                 # We need -fPIC to link libdb.a (static library) into so libraries, which should
                 # have position intependent code as nobody case foresee in what addresses inside
                 # calling process it will be mapped
-                AC_MSG_NOTICE([cd $DBSRC/build_unix && ../dist/configure $o_direct_options && make])
-		cd $DBSRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
+                AC_MSG_NOTICE([cd $DB_SRC/build_unix && ../dist/configure $o_direct_options && make])
+		cd $DB_SRC/build_unix && ../dist/configure CFLAGS=-fPIC $o_direct_options && make
 		res=$?
 		cd $oldcwd
 		if ! test $res -eq 0 ; then
 			AC_MSG_ERROR([An error occured while building db!])
 		fi
-		if ! test -e $DBLIBS; then
-			AC_MSG_ERROR([$DBLIBS not found! Build failed?])
+		if ! test -e $DB_LIBS; then
+			AC_MSG_ERROR([$DB_LIBS not found! Build failed?])
 	        fi
 	else
-                DBLIBS="$DBSRC/build_unix/libdb.a"
-                AC_MSG_RESULT([$DBLIBS])
+                DB_LIBS="$DB_SRC/build_unix/libdb.a"
+                AC_MSG_RESULT([$DB_LIBS])
 	fi
 fi
 
 # Check for galois
 GALOIS_SRC=$SRCDIR/../galois
+GALOIS_LIBS="$GALOIS_SRC/libgalois.la"
 AC_MSG_CHECKING([for galois libs])
-if ! test -e $GALOIS_SRC/libgalois.la; then
+if ! test -e $GALOIS_LIBS; then
         AC_MSG_RESULT([building $GALOIS_SRC])
 	oldcwd=$(pwd)
 	cd $GALOIS_SRC && ./configure && make
@@ -404,63 +395,67 @@ if ! test -e $GALOIS_SRC/libgalois.la; then
 	if ! test $res -eq 0 ; then
                 AC_MSG_ERROR([An error occured while building libgalois!])
         fi
-	if ! test -e $GALOIS_SRC/libgalois.la; then
-                AC_MSG_ERROR([$GALOIS_SRC/libgalois.la not found! Build failed?])
+	if ! test -e $GALOIS_LIBS; then
+                AC_MSG_ERROR([$GALOIS_LIBS not found! Build failed?])
         fi
 else
-	AC_MSG_RESULT([$GALOIS_SRC/libgalois.la])
+	AC_MSG_RESULT([$GALOIS_LIBS])
 fi
 
-OLD_LIBS="$OLD_LIBS $GALOIS_SRC/libgalois.la"
-#LIBS="$LIBS $GALOIS_SRC/libgalois.la"
-#CFLAGS="$CFLAGS -I $GALOIS_SRC"
-
+LIBS=$OLD_LIBS
+CFLAGS=$OLD_CFLAGS
 
 # Check if o_direct patch applied
-if test x$OS = xlinux -a x$enable_db_o_direct = xyes; then
+if test x$enable_db_o_direct = xyes; then
         AC_MSG_CHECKING([for direct I/O patch applied to db])
-        $NM_B $DBLIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
+        $NM_B $DB_LIBS | grep -q -E '[[[:digit:]]]*[[[:space:]]]T[[[:space:]]]__os_calloc_for_IO';
         rc=$?
         if ! test $rc -eq 0; then
                 AC_MSG_RESULT([no])
-                AC_MSG_ERROR([No direct I/O patch applied to db at $DBSRC found!])
+                AC_MSG_ERROR([No direct I/O patch applied to db at $DB_SRC found!])
         else
                 AC_MSG_RESULT([yes])
         fi
 fi
 
-AC_SUBST([DBSRC])
-AC_SUBST([DBLIBS])
-
-LIBS=$OLD_LIBS
-CFLAGS=$OLD_CFLAGS
+AC_SUBST([DB_SRC])
+AC_SUBST([DB_LIBS])
+AC_SUBST([GALOIS_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [AC_DEFINE([ENABLE_GSSRPC])],
-                [AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])],
+            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [],
+                [
+                    enable_gssrpc=no
+                    AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])
+                ],
                 [[
                     #ifdef HAVE_GSSRPC_RPC_H
                     #include <gssrpc/rpc.h>
                     #endif
                 ]])
             ],
-            [AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])]
+            [
+                enable_gssrpc=no
+                AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])
+            ]
         )
+        if test x$enable_gssrpc = xyes; then
+                AC_DEFINE([ENABLE_GSSRPC])
+                LIBS="-lgssrpc $LIBS"
+        fi
 fi
 
-if test x$OS = xlinux; then
-        OLD_LIBS=$LIBS
-        LIBS=""
-        AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
-        AIO_LIBS=$LIBS
-        AC_SUBST([AIO_LIBS])
-        LIBS=$OLD_LIBS
-fi
+OLD_LIBS=$LIBS
+LIBS=""
+AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot be found! Try install libaio-devel.])])
+AIO_LIBS=$LIBS
+AC_SUBST([AIO_LIBS])
+LIBS=$OLD_LIBS
 
 if test x$enable_debug = xyes; then
-        # If debug option specified we are free to strip all the default
-        # optimization and debug flags if any.
+        # If debug options specified we are free to strip all the default
+        # optimization and debug flags.
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
@@ -470,14 +465,10 @@ else
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
-if test x$OS = xdarwin; then
-        CFLAGS="$CFLAGS -fnested-functions"
-fi
-
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DBSRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -487,58 +478,64 @@ KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
 LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
 AC_SUBST([KCFLAGS])
 
+# Please keep this list sorted (always appending new items at the end
+# results in needless merge conflicts)
 AC_CONFIG_FILES([
 		 Makefile
-		 m4/Makefile
-                 doc/Makefile
-                 man/Makefile
-                 colibri/Makefile
-                 lib/Makefile
-                 lib/user_space/Makefile
-                 lib/linux_kernel/Makefile
-                 lib/ut/Makefile
-                 dtm/Makefile
                  addb/Makefile
                  addb/linux_kernel/Makefile
+                 balloc/Makefile
+                 balloc/ut/Makefile
+                 build_kernel_modules/Makefile
+                 c2t1fs/Makefile
+                 capa/Makefile
+		 capa/ut/Makefile
+                 cob/Makefile
+                 cob/ut/Makefile
+                 colibri/Makefile
+                 db/Makefile
+                 db/linux_kernel/Makefile
+                 db/ut/Makefile
+                 desim/Makefile
+                 desim/ut/Makefile
+                 doc/Makefile
+                 dtm/Makefile
+                 fid/Makefile
                  fol/Makefile
                  fol/ut/Makefile
-                 net/Makefile
-                 net/usunrpc/Makefile
-                 net/ksunrpc/Makefile
-                 fid/Makefile
                  fop/Makefile
                  fop/fop2c
                  fop/linux_kernel/Makefile
                  fop/ut/Makefile
-                 nrs/Makefile
-                 sns/Makefile
-		 sns/ut/Makefile
-                 sns/linux_kernel/Makefile
-		 galois/linux_kernel/Makefile
-                 reqh/Makefile
-                 sm/Makefile
-                 mds/Makefile
-                 mw/Makefile
-                 c2t1fs/Makefile
-                 build_kernel_modules/Makefile
-                 patches/Makefile
                  layout/Makefile
                  layout/ut/Makefile
-		 layout/linux_kernel/Makefile
+                 lib/Makefile
+                 lib/linux_kernel/Makefile
+                 lib/user_space/Makefile
+                 lib/ut/Makefile
+                 m4/Makefile
+                 man/Makefile
+                 mds/Makefile
+                 mw/Makefile
+                 net/Makefile
+                 net/ksunrpc/Makefile
+                 net/usunrpc/Makefile
+		 net/ut/Makefile
+		 net/st/Makefile
+                 nrs/Makefile
+                 patches/Makefile
                  pool/Makefile
-		 pool/linux_kernel/Makefile
+                 reqh/Makefile
+                 sm/Makefile
+                 sns/Makefile
+                 sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
-		 stob/linux_kernel/Makefile
+                 udb/Makefile
+                 udb/ut/Makefile
                  utils/Makefile
+                 utils/linux_kernel/Makefile
                  utils/ploss/Makefile
-                 balloc/Makefile
-                 balloc/ut/Makefile
-                 db/Makefile
-                 db/linux_kernel/Makefile
-                 db/ut/Makefile
-		 desim/Makefile
-		 desim/ut/Makefile
                 ])
                 
                 #rpc/Makefile
@@ -549,18 +546,18 @@ AC_OUTPUT
 #
 # Set up execute bit on our "compiler" generated from fop2c.in above.
 #
-chmod u+x fop/fop2c
+chmod +x fop/fop2c
 
 echo ""
+echo "LIBS   :  \"$LIBS\""
 echo "CFLAGS :  \"$CFLAGS\""
 echo "KCFLAGS:  \"$KCFLAGS\""
 echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
-if test x$OS = xlinux; then
+echo "Galois :  \"$GALOIS_SRC\""
+echo "Db     :  \"$DB_SRC\""
 echo "Linux  :  \"$LINUX\""
-fi
-echo "Db     :  \"$DBSRC\""
 echo ""
 
 echo "Type 'make' to build Colibri"

@@ -1,0 +1,23 @@
+KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
+
+obj-m := kutc2.o
+kutc2-y := main.o
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	true
+
+install modules_install:
+	$(MAKE) INSTALL_MOD_DIR=kernel/fs/utc2 -C @LINUX_OBJ@ M=`pwd` modules_install
+
+uninstall:
+	rm -fr @LINUX_MOD@/kernel/fs/utc2
+
+distclean clean:
+	$(RM) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
+
+distdir:
+	cp $(KUTC2_SRCDIR)/Makefile.in $(KUTC2_SRCDIR)/main.c \
+@top_builddir@/@PACKAGE@-@VERSION@/utils/linux_kernel

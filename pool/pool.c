@@ -2,7 +2,7 @@
 #  include <config.h>
 #endif
 
-#include "stob/stob_id.h"
+#include "stob/stob.h"
 #include "pool/pool.h"
 
 /**

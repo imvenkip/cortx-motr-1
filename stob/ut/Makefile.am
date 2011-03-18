@@ -1,13 +1,12 @@
 UT_SRCDIR=@SRCDIR@/stob/ut
 
-if LINUX
 noinst_LTLIBRARIES    = libstob-ut.la
-libstob_ut_la_SOURCES = adieu.c ad.c
+libstob_ut_la_SOURCES = adieu.c ad.c stobio.c
 
-noinst_PROGRAMS  = server client
+noinst_PROGRAMS       = server client
 
 io_u.h io_u.c: io.ff \
-                  $(top_builddir)/colibri/libcolibri.la \
+                  $(top_builddir)/fop/libc2rt.la \
                   $(top_builddir)/fop/fop2c 
 	$(top_builddir)/fop/fop2c -uk $<
 
@@ -19,16 +18,8 @@ client_SOURCES   = client.c io_fop_init.c io_fop.h io_u.h io_u.c
 client_LDFLAGS   = -pthread
 client_LDADD     = $(top_builddir)/colibri/libcolibri.la
 
+EXTRA_DIST       = io.ff
+
 clean-local:
 	cd $(UT_SRCDIR) ; \
 	rm -fr io_[uk].[hc]
-
-endif
-
-distdir:
-	cp $(UT_SRCDIR)/Makefile.am $(UT_SRCDIR)/Makefile.in \
-           $(UT_SRCDIR)/server.c $(UT_SRCDIR)/io_fop_init.c  \
-           $(UT_SRCDIR)/io_fop.h $(UT_SRCDIR)/client.c \
-           $(UT_SRCDIR)/adieu.c $(UT_SRCDIR)/ad.c \
-           $(UT_SRCDIR)/io.ff \
-           @top_builddir@/@PACKAGE@-@VERSION@/stob/ut

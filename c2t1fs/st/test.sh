@@ -16,8 +16,11 @@ ulimit -c unlimited
 modunload
 modload
 
-(./stob/ut/server -d/tmp/ -p$Port &)
-sleep 1
+rm -rf /tmp/test/
+mkdir -p /tmp/test
+
+(./stob/ut/server -d/tmp/test -p$Port 2>/tmp/test/stderr-$$.log &)
+sleep 5
 mkdir -p /mnt/c2t1fs
 mount -t c2t1fs -o objid=12345,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 
@@ -29,25 +32,26 @@ cat c2t1fs/main.c | md5sum
 cat /mnt/c2t1fs/12345 | md5sum
 
 #large file write & read
-dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=200
+dd if=/dev/zero of=/mnt/c2t1fs/12345 bs=1M count=256
 ls -l /mnt/c2t1fs/12345
-dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
-dd if=/dev/zero bs=1M count=200 2>/dev/null | md5sum
+dd if=/mnt/c2t1fs/12345 bs=1M count=256 2>/dev/null | md5sum
+dd if=/dev/zero bs=1M count=256 2>/dev/null | md5sum
 
 umount /mnt/c2t1fs
 
 # mount again and check its content
 # 1024 * 1024 * 256 = 268435456
+# !!!! please note:  the file size is 256MB  !!!!
 mount -t c2t1fs -o objid=12345,objsize=268435456,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
-dd if=/mnt/c2t1fs/12345 bs=1M count=200 2>/dev/null | md5sum
+dd if=/mnt/c2t1fs/12345 bs=1M count=256 2>/dev/null | md5sum
 
 #attach loop device over c2t1fs file
 sleep 1
 losetup /dev/loop0 /mnt/c2t1fs/12345
 
-mkfs.ext3 /dev/loop0
+mkfs.ext3 /dev/loop0 || abort "mkfs failed"
 mkdir -p /mnt/loop
-mount /dev/loop0 /mnt/loop
+mount /dev/loop0 /mnt/loop || abort "mount failed"
 
 # read & write the loop device file system.
 dd if=/dev/zero of=/mnt/loop/10M bs=1M count=10 oflag=direct
@@ -57,7 +61,7 @@ dd if=/dev/zero bs=1M count=10 2>/dev/null | md5sum
 umount /mnt/loop
 
 # again, read & write the loop device file system.
-mount /dev/loop0 /mnt/loop
+mount /dev/loop0 /mnt/loop  || abort "mount again failed"
 dd if=/mnt/loop/10M bs=1M count=10 2>/dev/null | md5sum
 umount /mnt/loop
 

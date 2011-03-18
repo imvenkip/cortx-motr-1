@@ -1,11 +1,8 @@
-OS = @OS@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
-ifeq ($(OS),linux)
-
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c misc.c buf.c
-kernel_src  := memory.c mutex.c
+shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c misc.c buf.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c main.c
 klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
@@ -24,18 +21,15 @@ clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
-
 distdir:
-	cp $(LIB_SRCDIR)/Makefile.in \
+	cp $(LIB_SRCDIR)/Makefile.in $(LIB_SRCDIR)/main.c \
 	$(LIB_SRCDIR)/memory.c $(LIB_SRCDIR)/mutex.c \
+	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
+	$(LIB_SRCDIR)/thread.c $(LIB_SRCDIR)/thread.h \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
-	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/types.h \
+	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h \
+	$(LIB_SRCDIR)/types.h $(LIB_SRCDIR)/chan.h \
+	$(LIB_SRCDIR)/timer.h $(LIB_SRCDIR)/timer.c \
+	$(LIB_SRCDIR)/rwlock.h $(LIB_SRCDIR)/rwlock.c \
+	$(LIB_SRCDIR)/atomic64.h \
 @top_builddir@/@PACKAGE@-@VERSION@/lib/linux_kernel

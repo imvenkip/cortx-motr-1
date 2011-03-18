@@ -57,7 +57,7 @@ static bool ftype_subxdr(const struct c2_fop_field_type *ftype,
 			 XDR *xdrs, void *obj, int fieldno)
 {
 	return ftype_field_xdr(ftype, fieldno)
-		(xdrs, c2_fop_type_field_addr(ftype, obj, fieldno));
+		(xdrs, c2_fop_type_field_addr(ftype, obj, fieldno, 0));
 }
 
 static bool uxdr_record(const struct c2_fop_field_type *ftype,
@@ -96,7 +96,7 @@ static bool uxdr_sequence(const struct c2_fop_field_type *ftype,
 {
 	char **buffer;
 
-	buffer = c2_fop_type_field_addr(ftype, obj, 1);
+	buffer = c2_fop_type_field_addr(ftype, obj, 1, ~0);
 	if (ftype->fft_child[1]->ff_type == &C2_FOP_TYPE_BYTE) {
 		return xdr_bytes(xdrs, buffer, obj, ~0);
 	} else {

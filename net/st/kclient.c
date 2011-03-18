@@ -10,11 +10,6 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-
 #include <arpa/inet.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -26,7 +21,9 @@
 #include <fcntl.h>
 
 #include "lib/errno.h"
-#include "../ksunrpc/ksunrpc.h"
+#include "net/ksunrpc/ksunrpc.h"
+
+#define UT_PROC_NAME "ksunrpc-ut"
 
 static int fill_ipv4_sockaddr(const char *hostname, struct sockaddr_in *addr)
 {
@@ -66,16 +63,16 @@ int main(int argc, char **argv)
 	hostname = argv[1];
 	port = atoi(argv[2]);
 
-	id.ssi_host = hostname;
+	strcpy(id.ssi_host, hostname);
 	ret = fill_ipv4_sockaddr(id.ssi_host, &sa);
 	if (ret < 0) {
 		fprintf(stderr, "failed to resolve %s\n", hostname);
 		return -1;
 	}
 
-	id.ssi_sockaddr = &sa;
-	id.ssi_sockaddr->sin_port = htons(port);
-	id.ssi_sockaddr->sin_family = AF_INET;
+	id.ssi_sockaddr = sa;
+	id.ssi_sockaddr.sin_port = htons(port);
+	id.ssi_sockaddr.sin_family = AF_INET;
 	id.ssi_addrlen  = strlen(hostname) + 1; /* this is used as the length of hostname */
 	id.ssi_port = htons(port);
 
@@ -86,7 +83,7 @@ int main(int argc, char **argv)
 	printf("addr = %x\n", sa.sin_addr.s_addr);
 	printf("port = %x\n", sa.sin_port);
 
-	fd = open("/proc/" UT_PROC_NAME, O_RDWR);
+	fd = open("/proc/" UT_PROC_NAME, O_WRONLY);
 	if (fd < 0) {
 		fprintf(stderr, "failed to open %s:%d\n", "/proc/" UT_PROC_NAME, errno);
 		return -1;

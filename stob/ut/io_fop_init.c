@@ -4,6 +4,7 @@
 
 #include "lib/cdefs.h"
 #include "fop/fop.h"
+#include "fop/fop_iterator.h"
 
 #ifdef __KERNEL__
 # include "io_k.h"
@@ -76,6 +77,7 @@ static struct c2_fop_type_format *fmts[] = {
 
 void io_fop_fini(void)
 {
+	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }
@@ -85,8 +87,11 @@ int io_fop_init(void)
 	int result;
 
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	if (result == 0)
+	if (result == 0) {
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+		if (result == 0)
+			c2_fop_object_init(&c2_fop_fid_tfmt);
+	}
 	if (result != 0)
 		io_fop_fini();
 	return result;
@@ -94,7 +99,7 @@ int io_fop_init(void)
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

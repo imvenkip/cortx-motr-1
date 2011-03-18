@@ -7,6 +7,8 @@
 
 #ifndef __KERNEL__
 #include "user_space/user_x86_64_atomic.h"
+#else
+#include "linux_kernel/atomic64.h"
 #endif
 
 /**

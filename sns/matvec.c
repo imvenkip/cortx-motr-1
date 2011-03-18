@@ -1,4 +1,7 @@
-#include "lib/cdefs.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "matvec.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -83,15 +86,15 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	uint32_t x, y;
 	C2_PRE(mat);
 
-	DBG("-----> mat %p\n", mat);
+	printf("-----> mat %p\n", mat);
         
 	for (y = 0; y < mat->m_height; ++y) {
                 for (x = 0; x < mat->m_width; ++x)
-			DBG("%6d ", *c2_matrix_elem_get(mat, x, y));
-		DBG("\n");
+			printf("%6d ", *c2_matrix_elem_get(mat, x, y));
+		printf("\n");
 	}
         
-	DBG("\n");
+	printf("\n");
 }
 
 void c2_vector_print(const struct c2_vector *vec)
@@ -99,10 +102,10 @@ void c2_vector_print(const struct c2_vector *vec)
 	uint32_t x;
 	C2_PRE(vec);
 
-	DBG("-----> vec %p\n", vec);
+	printf("-----> vec %p\n", vec);
 	for (x = 0; x < vec->v_size; ++x)
-		DBG("%6d\n", *c2_vector_elem_get(vec, x));
-	DBG("\n");
+		printf("%6d\n", *c2_vector_elem_get(vec, x));
+	printf("\n");
 }
 
 void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)

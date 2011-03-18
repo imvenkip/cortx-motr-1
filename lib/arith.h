@@ -47,7 +47,7 @@ static inline uint64_t min64u(uint64_t a, uint64_t b)
 	return a < b ? a : b;
 }
 
-static inline uint64_t max64u(uint32_t a, uint64_t b)
+static inline uint64_t max64u(uint64_t a, uint64_t b)
 {
 	return a > b ? a : b;
 }
@@ -126,9 +126,11 @@ uint64_t c2_rnd(uint64_t max, uint64_t *seed);
  */
 uint64_t c2_gcd64(uint64_t p, uint64_t q);
 
+#define C2_IS_PO2(val) (!(val & (val - 1)))
+
 static inline bool c2_is_po2(uint64_t val)
 {
-	return !(val & (val - 1));
+	return C2_IS_PO2(val);
 }
 
 static inline uint64_t c2_align(uint64_t val, uint64_t alignment)

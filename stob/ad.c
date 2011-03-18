@@ -181,7 +181,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
    @note the domain returned is not immediately ready for use. ad_setup() has to
    be called against it first.
  */
-static int ad_stob_type_domain_locate(struct c2_stob_type *type, 
+static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 				      const char *domain_name,
 				      struct c2_stob_domain **out)
 {
@@ -245,7 +245,7 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
 	C2_PRE(adom->ad_setup);
 
 	found = false;
-	c2_list_for_each_entry(&adom->ad_object, obj, 
+	c2_list_for_each_entry(&adom->ad_object, obj,
 			       struct ad_stob, as_linkage) {
 		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
 			c2_stob_get(&obj->as_stob);
@@ -261,8 +261,8 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
 
    Returns an in-memory representation of the object with a given identifier.
  */
-static int ad_domain_stob_find(struct c2_stob_domain *dom, 
-				  const struct c2_stob_id *id, 
+static int ad_domain_stob_find(struct c2_stob_domain *dom,
+				  const struct c2_stob_id *id,
 				  struct c2_stob **out)
 {
 	struct ad_domain *adom;
@@ -289,7 +289,7 @@ static int ad_domain_stob_find(struct c2_stob_domain *dom,
 				stob = &astob->as_stob;
 				stob->so_op = &ad_stob_op;
 				c2_stob_init(stob, id, dom);
-				c2_list_add(&adom->ad_object, 
+				c2_list_add(&adom->ad_object,
 					    &astob->as_linkage);
 			} else {
 				c2_free(astob);
@@ -298,7 +298,7 @@ static int ad_domain_stob_find(struct c2_stob_domain *dom,
 			}
 			c2_rwlock_write_unlock(&dom->sd_guard);
 		} else {
-			C2_ADDB_ADD(&dom->sd_addb, 
+			C2_ADDB_ADD(&dom->sd_addb,
 				    &ad_stob_addb_loc, c2_addb_oom);
 			result = -ENOMEM;
 		}
@@ -348,8 +348,8 @@ static int ad_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 				  &obj->so_id.si_bits, AET_NONE);
 }
 
-static int ad_cursor(struct ad_domain *adom, struct c2_stob *obj, 
-		     uint64_t offset, struct c2_dtx *tx, 
+static int ad_cursor(struct ad_domain *adom, struct c2_stob *obj,
+		     uint64_t offset, struct c2_dtx *tx,
 		     struct c2_emap_cursor *it)
 {
 	int result;
@@ -492,7 +492,7 @@ static int ad_balloc(struct ad_domain *adom, struct c2_dtx *tx,
    Helper function to free a given block extent in the underlying storage
    object.
  */
-static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx, 
+static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
 		    struct c2_ext *ext)
 {
 	C2_PRE(adom->ad_setup);
@@ -539,7 +539,7 @@ static void ad_stob_io_release(struct ad_stob_io *aio)
 {
 	struct c2_stob_io *back = &aio->ai_back;
 
-	C2_ASSERT(back->si_stob.iv_vec.v_count == 
+	C2_ASSERT(back->si_stob.iv_vec.v_count ==
 		  back->si_user.div_vec.ov_vec.v_count);
 
 	c2_free(back->si_user.div_vec.ov_vec.v_count);
@@ -579,7 +579,7 @@ static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
 {
 	int result;
 
-	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0], 
+	result = ad_cursor(adom, io->si_obj, io->si_stob.iv_index[0],
 			   io->si_tx, it);
 	if (result == 0) {
 		c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
@@ -593,7 +593,7 @@ static int ad_cursors_init(struct c2_stob_io *io, struct ad_domain *adom,
    Finalizes the cursors that need finalisation.
  */
 static void ad_cursors_fini(struct c2_emap_cursor *it,
-			    struct c2_vec_cursor *src, 
+			    struct c2_vec_cursor *src,
 			    struct c2_vec_cursor *dst,
 			    struct c2_emap_caret *map)
 {
@@ -606,7 +606,7 @@ static void ad_cursors_fini(struct c2_emap_cursor *it,
 
    @see ad_stob_io_release()
  */
-static int ad_vec_alloc(struct c2_stob *obj, 
+static int ad_vec_alloc(struct c2_stob *obj,
 			struct c2_stob_io *back, uint32_t frags)
 {
 	c2_bcount_t *counts;
@@ -691,14 +691,6 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 
 	frags = frags_not_empty = 0;
 	do {
-		frag_size = min_check(c2_vec_cursor_step(src), 
-				      c2_vec_cursor_step(dst));
-		C2_ASSERT(frag_size > 0);
-		if (frag_size > (size_t)~0ULL) {
-			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
-			return -EOVERFLOW;
-		}
-
 		off = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
 
 		/*
@@ -731,6 +723,15 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		C2_ASSERT(!eomap);
 		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
+		frag_size = min3(c2_vec_cursor_step(src),
+				 c2_vec_cursor_step(dst),
+				 c2_emap_caret_step(map));
+		C2_ASSERT(frag_size > 0);
+		if (frag_size > (size_t)~0ULL) {
+			ADDB_CALL(io->si_obj, "frag_overflow", frag_size);
+			return -EOVERFLOW;
+		}
+
 		frags++;
 		if (seg->ee_val < AET_MIN)
 			frags_not_empty++;
@@ -760,9 +761,7 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	for (idx = i = 0; i < frags; ++i) {
 		void        *buf;
 		c2_bindex_t  off;
-			
-		frag_size = min_check(c2_vec_cursor_step(src), 
-				      c2_vec_cursor_step(dst));
+
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
 		off = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
 
@@ -775,22 +774,25 @@ static int ad_read_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		C2_ASSERT(!eomap);
 		C2_ASSERT(c2_ext_is_in(&seg->ee_ext, off));
 
+		frag_size = min3(c2_vec_cursor_step(src),
+				 c2_vec_cursor_step(dst),
+				 c2_emap_caret_step(map));
+
 		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
 			/*
 			 * Read of a hole or unallocated space (beyond
 			 * end of the file).
 			 */
-			memset(c2_stob_addr_open(buf, bshift), 
+			memset(c2_stob_addr_open(buf, bshift),
 			       0, frag_size << bshift);
-			if (seg->ee_val == AET_HOLE)
-				io->si_count += frag_size;
+			io->si_count += frag_size;
 		} else {
 			C2_ASSERT(seg->ee_val < AET_MIN);
 
 			back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
 			back->si_user.div_vec.ov_buf[idx] = buf;
 
-			back->si_stob.iv_index[idx] = seg->ee_val + 
+			back->si_stob.iv_index[idx] = seg->ee_val +
 				(off - seg->ee_ext.e_start);
 			idx++;
 		}
@@ -823,7 +825,7 @@ struct ad_wext_cursor {
 	c2_bcount_t                wc_done;
 };
 
-static void ad_wext_cursor_init(struct ad_wext_cursor *wc, 
+static void ad_wext_cursor_init(struct ad_wext_cursor *wc,
 				struct ad_write_ext *wext)
 {
 	wc->wc_wext = wext;
@@ -874,7 +876,7 @@ static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
 	frags = 0;
 
 	do {
-		frag_size = min_check(c2_vec_cursor_step(src), 
+		frag_size = min_check(c2_vec_cursor_step(src),
 				      ad_wext_cursor_step(wc));
 		C2_ASSERT(frag_size > 0);
 		C2_ASSERT(frag_size <= (size_t)~0ULL);
@@ -892,7 +894,7 @@ static uint32_t ad_write_count(struct c2_stob_io *io, struct c2_vec_cursor *src,
    Fills back IO request with information about fragments.
  */
 static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
-			       struct c2_vec_cursor *src, 
+			       struct c2_vec_cursor *src,
 			       struct ad_wext_cursor *wc)
 {
 	c2_bcount_t    frag_size;
@@ -903,8 +905,8 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 	idx = 0;
 	do {
 		void *buf;
-			
-		frag_size = min_check(c2_vec_cursor_step(src), 
+
+		frag_size = min_check(c2_vec_cursor_step(src),
 				      ad_wext_cursor_step(wc));
 
 		buf = io->si_user.div_vec.ov_buf[src->vc_seg] + src->vc_offset;
@@ -912,7 +914,7 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 		back->si_user.div_vec.ov_vec.v_count[idx] = frag_size;
 		back->si_user.div_vec.ov_buf[idx] = buf;
 
-		back->si_stob.iv_index[idx] = 
+		back->si_stob.iv_index[idx] =
 			wc->wc_wext->we_ext.e_start + wc->wc_done;
 
 		eosrc = c2_vec_cursor_move(src, frag_size);
@@ -935,7 +937,7 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
    storage object name-space.
  */
 static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
-			    c2_bindex_t offset, struct c2_emap_cursor *orig, 
+			    c2_bindex_t offset, struct c2_emap_cursor *orig,
 			    const struct c2_ext *ext)
 {
 	int                    result;
@@ -952,7 +954,7 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 				&orig->ec_seg.ee_pre, offset, &it);
 	if (result != 0)
 		return result;
-	/* 
+	/*
 	 * Insert a new segment into extent map, overwriting parts of the map.
 	 *
 	 * Some existing segments are deleted completely, others are
@@ -971,7 +973,7 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			 /* handle extent deletion. */
 			 if (seg->ee_val < AET_MIN) {
 				 tocut.e_start = seg->ee_val;
-				 tocut.e_end   = seg->ee_val + 
+				 tocut.e_end   = seg->ee_val +
 					 c2_ext_length(&seg->ee_ext);
 				 rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
 			 }
@@ -984,7 +986,7 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			seg->ee_val = val;
 			if (val < AET_MIN) {
 				tocut.e_start = val;
-				tocut.e_end   = val + ext->e_start - 
+				tocut.e_end   = val + ext->e_start -
 					seg->ee_ext.e_start;
 				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
 			}
@@ -994,11 +996,11 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			/* cut right */
 			C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
 			if (val < AET_MIN) {
-				seg->ee_val = val + 
+				seg->ee_val = val +
 					(ext->e_start - seg->ee_ext.e_start) +
 					c2_ext_length(ext);
 				tocut.e_start = val;
-				tocut.e_end   = val + 
+				tocut.e_end   = val +
 					seg->ee_ext.e_end - ext->e_end;
 				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
 			} else
@@ -1035,7 +1037,7 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 		c2_bindex_t offset;
 
 		offset    = io->si_stob.iv_index[dst->vc_seg] + dst->vc_offset;
-		frag_size = min_check(c2_vec_cursor_step(dst), 
+		frag_size = min_check(c2_vec_cursor_step(dst),
 				      ad_wext_cursor_step(wc));
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
@@ -1180,7 +1182,7 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 
 	back->si_opcode = io->si_opcode;
 	back->si_flags  = io->si_flags;
-	
+
 	switch (io->si_opcode) {
 	case SIO_READ:
 		result = ad_read_launch(io, adom, &src, &dst, &map);
@@ -1302,7 +1304,7 @@ const struct c2_addb_ctx_type ad_stob_ctx_type = {
 
 int ad_stobs_init(void)
 {
-	c2_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type, 
+	c2_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type,
 			 &c2_addb_global_ctx);
 	return ad_stob_type.st_op->sto_init(&ad_stob_type);
 }
@@ -1315,7 +1317,7 @@ void ad_stobs_fini(void)
 
 /** @} end group stobad */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

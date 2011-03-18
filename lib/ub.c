@@ -107,7 +107,7 @@ void c2_ub_run(uint32_t rounds)
 	for (i = 1; i <= rounds; ++i) {
 		printf("round %2i ", i);
 		for (set = last; set != NULL; set = set->us_prev) {
-			printf("[");
+			printf("%s[", set->us_name);
 			if (set->us_init != NULL)
 				set->us_init();
 			for (bench = &set->us_run[0]; bench->ut_name; bench++)
@@ -118,7 +118,7 @@ void c2_ub_run(uint32_t rounds)
 		}
 		printf("\n");
 		printf("\t\t%12.12s: [%7s] %6s %6s %6s %5s %8s %8s\n",
-		       "bench", "iter", "min", "max", "avg", "std", 
+		       "bench", "iter", "min", "max", "avg", "std",
 		       "sec/op", "op/sec");
 		for (set = last; set != NULL; set = set->us_prev) {
 			printf("\tset: %12.12s\n", set->us_name);
@@ -129,9 +129,9 @@ void c2_ub_run(uint32_t rounds)
 				avg = bench->ut_total/i;
 				std = sqrt(bench->ut_square/i - avg*avg);
 				printf("\t\t%12.12s: [%7i] %6.2f %6.2f "
-				       "%6.2f %5.2f%% %8.3e/%8.3e\n", 
-				       bench->ut_name, 
-				       bench->ut_iter, 
+				       "%6.2f %5.2f%% %8.3e/%8.3e\n",
+				       bench->ut_name,
+				       bench->ut_iter,
 				       bench->ut_min, bench->ut_max,
 				       avg, std*100.0/avg,
 				       avg/bench->ut_iter, bench->ut_iter/avg);
@@ -142,7 +142,7 @@ void c2_ub_run(uint32_t rounds)
 
 /** @} end of ub group. */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

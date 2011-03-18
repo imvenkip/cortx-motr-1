@@ -6,6 +6,7 @@
 #include "lib/memory.h"
 
 #include "fop/fop.h"
+#include "fop/fop_iterator.h"
 
 /**
    @addtogroup fop
@@ -40,9 +41,9 @@ void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype)
 		field = ftype->fft_child[i];
 		if (field->ff_decor != NULL) {
 			for (j = 0; j < ARRAY_SIZE(decorators); ++j) {
-				if (field->ff_decor[i] != NULL)
-					decorators[i]->dec_field_fini
-						(field->ff_decor[i]);
+				if (field->ff_decor[j] != NULL)
+					decorators[j]->dec_field_fini
+						(field->ff_decor[j]);
 			}
 		}
 		c2_free(field->ff_decor);
@@ -148,14 +149,17 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 		}
 	}
 
-	/* XXX: add sanity checking: 
+	/* XXX: add sanity checking:
 
 	       - tags and field names are unique;
 	       - discriminant is U32
 	*/
 
-	if (result == 0)
+	if (result == 0) {
 		result = c2_fop_field_type_prepare(t);
+		if (result == 0)
+			result = c2_fop_field_type_fit(t);
+	}
 
 	if (result == 0) {
 		fmt->ftf_out = t;
@@ -239,13 +243,32 @@ void c2_fop_type_format_fini_nr(struct c2_fop_type_format **fmt, int nr)
 }
 C2_EXPORTED(c2_fop_type_format_fini_nr);
 
-void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj, 
-			     int fileno)
+void *c2_fop_type_field_addr(const struct c2_fop_field_type *ftype, void *obj,
+			     int fileno, uint32_t elno)
 {
+	void *addr;
+
 	C2_ASSERT(fileno < ftype->fft_nr);
-	return ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
+	addr = ((char *)obj) + ftype->fft_layout->fm_child[fileno].ch_offset;
+	if (ftype->fft_aggr == FFA_SEQUENCE && fileno == 1 && elno != ~0)
+		addr = *((char **)addr) + elno *
+			ftype->fft_child[1]->ff_type->fft_layout->fm_sizeof;
+	return addr;
 }
 C2_EXPORTED(c2_fop_type_field_addr);
+
+struct c2_fop_field *
+c2_fop_type_field_find(const struct c2_fop_field_type *ftype, const char *fname)
+{
+	size_t i;
+
+	for (i = 0; i < ftype->fft_nr; ++i) {
+		if (!strcmp(fname, ftype->fft_child[i]->ff_name))
+			return ftype->fft_child[i];
+	}
+	return NULL;
+}
+C2_EXPORTED(c2_fop_type_field_find);
 
 const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt = {
 	.ftf_out   = &C2_FOP_TYPE_VOID,
@@ -285,7 +308,7 @@ C2_EXPORTED(C2_FOP_TYPE_FORMAT_U64_tfmt);
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

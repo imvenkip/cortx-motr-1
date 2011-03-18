@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/cdefs.h"     /* NULL */
 #include "assert.h"
 #include "rwlock.h"
 

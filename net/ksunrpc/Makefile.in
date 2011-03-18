@@ -1,14 +1,15 @@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
-OS=@OS@
-
-ifeq ($(OS),linux)
 
 obj-m := ksunrpc.o
-ksunrpc-y = client.o kxdr.o
+shared_src  := connection.c net.c net_cli.c net_utils.c
+kernel_src  := client.o kxdr.o domain.o 
+ksunrpc-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig        := $(shared_src:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@ -O2
 
 prepare:
+	ln -fs $(orig) .
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/ksunrpc -C @LINUX_OBJ@ M=`pwd` modules_install
@@ -18,18 +19,10 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr Module.symvers
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
+	rm -fr $(shared_src) Module.symvers
 
 distdir:
 	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h \
            $(KSUNRPC_SRCDIR)/kxdr.c $(KSUNRPC_SRCDIR)/client.c \
+           $(KSUNRPC_SRCDIR)/domain.c \
            @top_builddir@/@PACKAGE@-@VERSION@/net/ksunrpc

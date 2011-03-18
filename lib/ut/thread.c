@@ -4,6 +4,7 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/thread.h"
+#include "lib/bitmap.h"
 #include "lib/assert.h"
 
 enum {
@@ -29,6 +30,21 @@ static void t2(int n)
 		C2_UT_ASSERT(result == 0);
 	}
 	r[n] = n;
+}
+
+static void t3(int n)
+{
+	int result;
+	struct c2_bitmap t3bm;
+
+	/* set affinity (confine) to CPU 0 */
+	C2_UT_ASSERT(c2_bitmap_init(&t3bm, 3) == 0);
+	c2_bitmap_set(&t3bm, 0, true);
+
+	result = c2_thread_confine(&t[n], &t3bm);
+	C2_UT_ASSERT(result == 0);
+
+	c2_bitmap_fini(&t3bm);
 }
 
 void test_thread(void)
@@ -75,6 +91,12 @@ void test_thread(void)
 				LAMBDA(int, (int x) { return -42; } ),
 				LAMBDA(void, (int x) { ; } ), 42);
 	C2_UT_ASSERT(result == -42);
+	c2_thread_fini(&t[0]);
+
+	/* test confine */
+	result = C2_THREAD_INIT(&t[0], int, NULL, &t3, 0);
+	C2_UT_ASSERT(result == 0);
+	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 }
 

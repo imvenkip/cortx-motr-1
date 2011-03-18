@@ -2,6 +2,7 @@
 
 MODLIST="lib/linux_kernel/klibc2.ko \
          addb/linux_kernel/kaddb.ko \
+         db/linux_kernel/kdb.ko \
          fop/linux_kernel/kfop.ko \
          net/ksunrpc/ksunrpc.ko \
          galois/linux_kernel/kgalois.ko \

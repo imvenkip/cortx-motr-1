@@ -5,7 +5,7 @@
 #include "lib/memory.h"
 #include "lib/arith.h" /* c2_rnd() */
 
-#include "stob/stob_id.h"
+#include "stob/stob.h"
 #include "pool/pool.h"
 
 #include "layout/pdclust.h"
@@ -363,7 +363,6 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 			}
 			c2_free(pdl->pl_tgt);
 		}
-		c2_parity_math_fini(&pdl->pl_math);
 		c2_free(pdl);
 	}
 }
@@ -418,7 +417,7 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 			if (result != 0)
 				break;
 		}
-		
+
 		result = c2_parity_math_init(&pdl->pl_math, N, K);
 	} else {
 		result = -ENOMEM;

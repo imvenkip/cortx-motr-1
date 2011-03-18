@@ -1,7 +1,4 @@
-OS = @OS@
 ADDB_SRCDIR = @SRCDIR@/addb/linux_kernel
-
-ifeq ($(OS),linux)
 
 obj-m       := kaddb.o
 shared_src  := addb.c
@@ -23,15 +20,6 @@ uninstall:
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(ADDB_SRCDIR)/Makefile.in $(ADDB_SRCDIR)/addb_console.c \

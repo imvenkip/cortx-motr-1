@@ -1,6 +1,9 @@
 #include <CUnit/Basic.h>
 #include <CUnit/Automated.h>
 
+#include <stdlib.h>                /* system */
+#include <stdio.h>                 /* asprintf */
+
 #include "lib/assert.h"
 #include "lib/ut.h"
 
@@ -31,7 +34,7 @@ void c2_ut_add(const struct c2_test_suite *ts)
 	C2_ASSERT(pSuite != NULL);
 
 	for (i = 0; ts->ts_tests[i].t_name != NULL; i++) {
-		if (CU_add_test(pSuite, ts->ts_tests[i].t_name, 
+		if (CU_add_test(pSuite, ts->ts_tests[i].t_name,
 				ts->ts_tests[i].t_proc) == NULL)
 			break;
 	}
@@ -48,15 +51,28 @@ void c2_ut_run(const char *log_file)
 	CU_basic_run_tests();
 	CU_basic_show_failures(CU_get_failure_list());
 
-#if 0	
+#if 0
 	/* run and save results to xml */
 	CU_automated_run_tests();
 #endif
 }
 
+int c2_ut_db_reset(const char *db_name)
+{
+        char *cmd;
+	int   rc;
+
+	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
+        if (rc < 0)
+                return rc;
+	rc = system(cmd);
+	free(cmd);
+	return rc;
+}
+
 /** @} end of ut group. */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

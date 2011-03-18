@@ -1,10 +1,7 @@
-OS = @OS@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
-
-ifeq ($(OS),linux)
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
 c2t1fs-y := main.o io_fop_init.o io_k.o
@@ -26,15 +23,6 @@ distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers io_k.[ch] io_fop_init.c
 	rm -fr @SRCDIR@/sns/galois.h
-
-else
-
-all:
-install:
-uninstall:
-distclean clean:
-
-endif
 
 distdir:
 	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.h \

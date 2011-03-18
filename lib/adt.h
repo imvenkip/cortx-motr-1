@@ -5,7 +5,7 @@
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
-
+#include "lib/buf.h" /* XXX: remove through code */
 /**
    @defgroup adt Basic abstract data types
    @{
@@ -29,7 +29,7 @@ bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 /* __COLIBRI_ADT_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

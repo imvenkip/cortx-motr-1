@@ -22,8 +22,12 @@ insmod fop/linux_kernel/kfop.ko
 insmod net/ksunrpc/ksunrpc.ko
 insmod c2t1fs/c2t1fs.ko
 lsmod | grep -c "c2t1fs" || exit
-(./stob/ut/server -d/tmp/ -p$Port &)
-sleep 1
+
+rm -rf /tmp/test/
+mkdir -p /tmp/test/
+
+(./stob/ut/server -d/tmp/test -p$Port &)
+sleep 5
 mkdir -p /mnt/c2t1fs
 mount -t c2t1fs -o objid=12345,ds=$IPAddr:$Port $IPAddr:$Port /mnt/c2t1fs
 

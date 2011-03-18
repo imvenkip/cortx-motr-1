@@ -4,7 +4,7 @@
 #include <linux/in.h> /* for sockaddr_in */
 
 #include "lib/list.h"
-#include "net/ksunrpc/ksunrpc.h"
+#include "net/net.h"
 #include "config.h"
 
 #define C2T1FS_DEBUG 1
@@ -50,15 +50,15 @@ enum {
    This is the data structure to describe a client transport,
    identified by its container id.
 */
-struct c2t1fs_xprt_clt {
+struct c2t1fs_conn_clt {
 	/** container id */
 	uint64_t                  xc_cid;
 
 	/** node service id on which this container is running */
-        struct ksunrpc_service_id xc_srvid;
+        struct c2_service_id      xc_srvid;
 
-	/** the connection transport for this container */
-        struct ksunrpc_xprt      *xc_xprt;
+	/** the connection for this container */
+        struct c2_net_conn       *xc_conn;
 
 	/** linkage in hash table */
 	struct c2_list_link       xc_link;
@@ -72,10 +72,10 @@ struct c2t1fs_xprt_clt {
 */
 struct c2t1fs_object_param {
         uint64_t        cop_objid;    /*< The object id will be mapped */
-        c2_bcount_t     cop_objsize;  /*< The initial object size */
+        uint64_t        cop_objsize;  /*< The initial object size */
         uint64_t        cop_layoutid; /*< layout id this client uses */
 	c2_bcount_t     cop_unitsize; /*< data or parity unit size in bytes */
-	
+
 	struct c2_pdclust_layout *cop_play; /*< parity de-clustered layout */
 };
 
@@ -85,11 +85,13 @@ struct c2t1fs_sb_info {
 
 	struct c2t1fs_object_param csi_object_param; /*< the object on client */
 
-        struct ksunrpc_service_id  csi_mgmt_srvid; /*< mgmt node service id */
-        struct ksunrpc_xprt       *csi_mgmt_xprt;  /*< mgmt node xprt */
+        struct c2_service_id  csi_mgmt_srvid; /*< mgmt node service id */
+        struct c2_net_conn   *csi_mgmt_conn;  /*< mgmt node xprt */
 
-        struct c2_list  csi_xprts_list; /*< transport list or hash table */
+        struct c2_list  csi_conn_list; /*< transport list or hash table */
         struct c2_mutex csi_mutex;      /*< mutex to protect this sb */
+
+	struct c2_net_domain csi_net_domain;
 };
 
 struct c2t1fs_inode_info {

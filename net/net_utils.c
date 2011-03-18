@@ -3,23 +3,14 @@
 #  include <config.h>
 #endif
 
-#include <stdio.h>
-#include <string.h>
-
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
+#ifndef __KERNEL__
+#include "lib/misc.h"
 #endif
 
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-#include <rpc/auth.h>
-#include <rpc/clnt.h>
-#include <rpc/svc.h>
-
-#include "lib/errno.h"
-#include "lib/memory.h"
-#include "lib/rwlock.h"
+#include "lib/arith.h"
+#include "lib/misc.h"   /* C2_SET0 */
 #include "net/net.h"
+
 
 /**
    @addtogroup net Networking.
@@ -30,5 +21,123 @@ bool c2_services_are_same(const struct c2_service_id *c1,
 {
 	return memcmp(c1, c2, sizeof *c1) == 0;
 }
+
+void c2_net_domain_stats_init(struct c2_net_domain *dom)
+{
+        struct c2_time now;
+        int i;
+
+        C2_SET0(&dom->nd_stats);
+
+        c2_time_now(&now);
+        for (i = 0; i < ARRAY_SIZE(dom->nd_stats); i++) {
+                c2_rwlock_init(&dom->nd_stats[i].ns_lock);
+                dom->nd_stats[i].ns_time = now;
+                /** @todo we could add a provision for storing max persistently
+                 */
+                /* Lie to avoid division by 0 */
+                dom->nd_stats[i].ns_max = 1;
+                c2_atomic64_set(&dom->nd_stats[i].ns_threads_woken, 1);
+                c2_atomic64_set(&dom->nd_stats[i].ns_reqs, 1);
+        }
+}
+
+void c2_net_domain_stats_fini(struct c2_net_domain *dom)
+{
+        int i;
+
+        for (i = 0; i < ARRAY_SIZE(dom->nd_stats); i++) {
+                c2_rwlock_fini(&dom->nd_stats[i].ns_lock);
+        }
+}
+
+/**
+ Collect some network loading stats
+
+ @todo fm_sizeof used in calls to here gives the size of a "top-most"
+ in-memory fop struct.  All substructures pointed to from the
+ top are allocated deep inside XDR bowels. E.g., for read or
+ write this won't include data buffers size.
+ Either we find a way to extract the total size from sunrpc
+ or we should write a generic fop-type function traversing
+ fop-format tree.
+ Note that even if not accturate, if the number reported is
+ reflective of the actual rate that is sufficient for relative
+ loading estimation.  In fact, # reqs may be a sufficient
+ proxy for bytes. */
+void c2_net_domain_stats_collect(struct c2_net_domain *dom,
+                                 enum c2_net_stats_direction dir,
+                                 uint64_t bytes,
+                                 bool *sleeping)
+{
+        c2_atomic64_inc(&dom->nd_stats[dir].ns_reqs);
+        c2_atomic64_add(&dom->nd_stats[dir].ns_bytes, bytes);
+        if (*sleeping) {
+                c2_atomic64_inc(&dom->nd_stats[dir].ns_threads_woken);
+                *sleeping = false;
+        }
+}
+
+/**
+  Report the network loading rate for a direction (in/out).
+  Assume semi-regular calling of this function; timebase is simply the time
+  between calls.
+  @returnval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
+ */
+int c2_net_domain_stats_get(struct c2_net_domain *dom,
+                            enum c2_net_stats_direction dir)
+{
+        uint64_t interval_usec, rate, max;
+        struct c2_time now, interval;
+        int rv;
+
+        c2_time_now(&now);
+
+        /* We lock here against other callers only -- stats are still being
+           collected while we are here. We reset stats only after we calculate
+           the rate, and lock so that the rate calculation and reset is atomic.
+           The reported rate may be slightly off because of the ongoing
+           collection. */
+        c2_rwlock_write_lock(&dom->nd_stats[dir].ns_lock);
+
+        c2_time_sub(&now, &dom->nd_stats[dir].ns_time, &interval);
+        interval_usec = c2_time_flatten(&interval);
+        interval_usec = max64u(interval_usec, 1);
+
+        /* Load based on data rate only, bytes/sec */
+        rate = c2_atomic64_get(&dom->nd_stats[dir].ns_bytes) *
+                          ONE_BILLION / interval_usec;
+        max = max64u(dom->nd_stats[dir].ns_max, rate);
+        rv = (int)((rate * 10000) / max);
+
+        /* At start of world we might think any data rate is the max. Instead
+           we can use threads_woken == reqs to calculate if we're not busy --
+           if the req queues don't build up, there is probably more capacity.
+           The converse, high queue depth implies no more network capacity,
+           is not true, since queues may be limited by some other resource. */
+        if (!dom->nd_stats[dir].ns_got_busy) {
+                if (c2_atomic64_get(&dom->nd_stats[dir].ns_threads_woken) << 8 /
+                    c2_atomic64_get(&dom->nd_stats[dir].ns_reqs) > 230)
+                        /* at least 90% not busy, report "10% busy" */
+                        rv = (10 * 10000) / 100;
+                else
+                        /* Once we get a little busy, start trusting max */
+                        dom->nd_stats[dir].ns_got_busy = true;
+        }
+
+        /* Reset stats */
+        dom->nd_stats[dir].ns_time = now;
+        c2_atomic64_set(&dom->nd_stats[dir].ns_bytes, 0);
+        /* Lie to avoid division by 0 */
+        c2_atomic64_set(&dom->nd_stats[dir].ns_threads_woken, 1);
+        c2_atomic64_set(&dom->nd_stats[dir].ns_reqs, 1);
+        dom->nd_stats[dir].ns_max = max;
+
+        c2_rwlock_write_unlock(&dom->nd_stats[dir].ns_lock);
+
+        return rv;
+}
+
+
 
 /** @} end of net group */

@@ -16,13 +16,13 @@ CC=${CC:-"cc"}
 CFLAGS=${CFLAGS:-"-Wall -Werror -g"}
 LDFLAGS=${LDFLAGS:-"-rdynamic -pthread"}
 DEFINES="-DHAVE_CONFIG"
-INC="-I$topdir -I@DBSRC@ -I@DBSRC@/build_unix"
+INC="-I$topdir -I@DB_SRC@ -I@DB_SRC@/build_unix"
 
 #
 # Enumerate all object files and libraries necessary for the binary linked
 # below.
 #
-OBJS="$topdir/colibri/.libs/libcolibri.a @DBSRC@/build_unix/libdb.a"
+OBJS="$topdir/fop/.libs/libc2rt.a @DB_SRC@/build_unix/libdb.a"
 
 generate_u=0
 generate_k=0
@@ -111,7 +111,7 @@ EOF
     echo "static const enum todo todo = "$what";" >> $tfile
     echo "static const char what[] =\""$what"\";" >> $tfile
     echo "static const char base[] = \""$base"\";" >> $tfile
-    echo "static const char BASE[] = \""$(echo $base | tr [a-z] [A-Z])"\";" \
+    echo "static const char BASE[] = \""$(echo $base | tr [a-z-] [A-Z_])"\";" \
          >> $tfile
     echo "static const char orig[] = \""$(basename $sfile)"\";" >> $tfile
     echo "static const char comp[] = \"fop2c\";" >> $tfile

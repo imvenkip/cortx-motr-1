@@ -139,7 +139,7 @@ struct usunrpc_service {
 
 	   A condition variable that the worker threads wait upon. It is
 	   signalled by the scheduler/dispatch after rpc arguments have been
-	   parsed and work item queued. 
+	   parsed and work item queued.
 	*/
 	struct c2_cond s_gotwork;
 	/**
@@ -219,18 +219,24 @@ static void usunrpc_service_worker(struct c2_service *service)
 	struct work_item        *wi;
 	struct c2_queue_link    *ql;
 	struct c2_fop           *ret;
+        bool                     sleeping = false;
 
 	xs = service->s_xport_private;
 
 	c2_mutex_lock(&xs->s_req_guard);
 	while (1) {
-		while (!xs->s_shutdown && c2_queue_is_empty(&xs->s_requests))
+		while (!xs->s_shutdown && c2_queue_is_empty(&xs->s_requests)) {
+                        sleeping = true;
 			c2_cond_wait(&xs->s_gotwork, &xs->s_req_guard);
+                }
 		if (xs->s_shutdown)
 			break;
 		ql = c2_queue_get(&xs->s_requests);
 		wi = container_of(ql, struct work_item, wi_linkage);
 		c2_mutex_unlock(&xs->s_req_guard);
+                c2_net_domain_stats_collect(service->s_domain, NS_STATS_IN,
+                        wi->wi_arg->f_type->ft_top->fft_layout->fm_sizeof,
+                        &sleeping);
 
 		ret = NULL;
 		service->s_handler(service, wi->wi_arg, &ret);
@@ -266,7 +272,7 @@ static void usunrpc_service_worker(struct c2_service *service)
    item, puts it into the queue. After that it signals the worker thread to
    handle this request concurrently.
  */
-static void usunrpc_op(struct c2_service *service, 
+static void usunrpc_op(struct c2_service *service,
 		       struct c2_fop_type *fopt, SVCXPRT *transp)
 {
 	struct usunrpc_service *xs;
@@ -285,7 +291,7 @@ static void usunrpc_op(struct c2_service *service,
 			wi->wi_transp = transp;
 			c2_mutex_lock(&xs->s_req_guard);
 			c2_queue_put(&xs->s_requests, &wi->wi_linkage);
-			c2_cond_signal(&xs->s_gotwork, 
+			c2_cond_signal(&xs->s_gotwork,
 				       &xs->s_req_guard);
 			c2_mutex_unlock(&xs->s_req_guard);
 			result = 0;
@@ -330,7 +336,7 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
 
 	ADDB_ADD(service, usunrpc_addb_req);
 	tab = &service->s_table;
-	if (tab->not_start <= req->rq_proc && 
+	if (tab->not_start <= req->rq_proc &&
 	    req->rq_proc < tab->not_start + tab->not_nr) {
 		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
 		C2_ASSERT(fopt != NULL);
@@ -366,7 +372,7 @@ static int usunrpc_scheduler_init(struct c2_service *service)
         transp = svctcp_create(xservice->s_socket, 0, 0);
         if (transp != NULL) {
 		xservice->s_transp = transp;
-		if (svc_register(transp, xservice->s_progid, 
+		if (svc_register(transp, xservice->s_progid,
 				 xservice->s_version,
 				 usunrpc_dispatch, 0))
 			result = 0;
@@ -449,12 +455,12 @@ static void usunrpc_service_stop(struct usunrpc_service *xs)
 	}
 
 	if (xs->s_scheduler_thread.t_func != NULL) {
-		/* 
+		/*
 		 * Wait until scheduler sees the shutdown and exits. This might
 		 * wait for select(2) timeout. See
 		 * sunrpc_scheduler(). Alternatively, use a signal to kill
 		 * scheduler thread and call svc_exit() from the signal
-		 * handler. 
+		 * handler.
 		 */
 		c2_thread_join(&xs->s_scheduler_thread);
 		c2_thread_fini(&xs->s_scheduler_thread);
@@ -508,7 +514,7 @@ static int usunrpc_service_start(struct c2_service *service,
 
         C2_SET0(&addr);
         addr.sin_port = htons(xid->ssi_port);
-        if (bind(xservice->s_socket, 
+        if (bind(xservice->s_socket,
 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
 		ADDB_CALL(service, "bind", errno);
 		rc = -errno;
@@ -534,8 +540,8 @@ static int usunrpc_service_start(struct c2_service *service,
 
 	/* create the worker threads */
         for (i = 0; i < nr_workers; i++) {
-                rc = C2_THREAD_INIT(&xservice->s_workers[i], 
-				    struct c2_service *, NULL, 
+                rc = C2_THREAD_INIT(&xservice->s_workers[i],
+				    struct c2_service *, NULL,
 				    &usunrpc_service_worker, service);
                 if (rc) {
 			ADDB_CALL(service, "worker_thread", rc);
@@ -585,7 +591,7 @@ int usunrpc_service_init(struct c2_service *service)
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
 		result = usunrpc_service_start(service, xid, SERVER_THR_NR);
 	} else {
-		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server, 
+		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server,
 			    c2_addb_oom);
 		result = -ENOMEM;
 	}
@@ -595,7 +601,7 @@ int usunrpc_service_init(struct c2_service *service)
 /**
    Implementation of c2_service_ops::sio_reply_post.
  */
-static void usunrpc_reply_post(struct c2_service *service, 
+static void usunrpc_reply_post(struct c2_service *service,
 			       struct c2_fop *fop, void *cookie)
 {
 	struct c2_fop **ret = cookie;

@@ -25,12 +25,29 @@ int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 }
 C2_EXPORTED(c2_uint128_cmp);
 
+#if 0
+uint64_t c2_rnd(uint64_t max, uint64_t *prev)
+{
+	/*
+	 * Linear congruential generator with constants from TAOCP MMIX.
+	 * http://en.wikipedia.org/wiki/Linear_congruential_generator
+	 */
+	double result;
+	result = *prev = *prev * 6364136223846793005ULL + 1442695040888963407;
+	/*
+	 * Use higher bits of *prev to generate return value, because they are
+	 * more random.
+	 */
+	return result * max / (1.0 + ~0ULL);
+}
+#endif
+
 uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 {
         uint64_t result;
         /* Uses the same algorithm as GNU libc */
         result = *prev = *prev * 0x5DEECE66DULL + 0xB;
-
+	
 	/* PRNG generates 48-bit values only */
 	C2_ASSERT((max >> 48) == 0);
         /*Take value from higher 48 bits */
@@ -92,7 +109,22 @@ bool c2_mod_ge(uint64_t x0, uint64_t x1)
 	return getdelta(x0, x1) >= 0;
 }
 
-/* 
+/*
+ * Check that ergo() and equi() macros are really what they pretend to be.
+ */
+
+C2_BASSERT(ergo(false, false) == true);
+C2_BASSERT(ergo(false, true)  == true);
+C2_BASSERT(ergo(true,  false) == false);
+C2_BASSERT(ergo(true,  true)  == true);
+
+C2_BASSERT(equi(false, false) == true);
+C2_BASSERT(equi(false, true)  == false);
+C2_BASSERT(equi(true,  false) == false);
+C2_BASSERT(equi(true,  true)  == true);
+
+
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

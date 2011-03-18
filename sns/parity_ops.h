@@ -10,19 +10,17 @@
 #define C2_PARITY_GALOIS_W (8)
 typedef int c2_parity_elem_t;
 
-//void c2_parity_init(void)
+static void c2_parity_fini(void) __attribute__((unused));
+static void c2_parity_fini(void)
+{
+	/* galois_calc_tables_release(); */
+}
 
 static void c2_parity_init(void) __attribute__((unused));
 static void c2_parity_init(void)
 {
 	int ret = galois_create_mult_tables(C2_PARITY_GALOIS_W);
 	C2_ASSERT(ret == 0);
-}
-
-static void c2_parity_fini(void) __attribute__((unused));
-static void c2_parity_fini(void)
-{
-	/* galois_calc_tables_release(); */
 }
 
 static inline c2_parity_elem_t c2_parity_add(c2_parity_elem_t x, c2_parity_elem_t y)
