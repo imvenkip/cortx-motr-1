@@ -303,11 +303,14 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	return rc;
 }
 
+extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
+
 static struct c2_fop_type *fopt[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
-	&c2_io_quit_fopt
+	&c2_io_quit_fopt,
+	&c2_addb_record_fopt
 };
 
 struct mock_balloc {

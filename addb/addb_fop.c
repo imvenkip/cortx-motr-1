@@ -14,10 +14,10 @@
 
 #ifdef __KERNEL__
 # include "addb_k.h"
-# define addb_handler NULL
+# define c2_addb_handler NULL
 #else
 
-int addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 # include "addb_u.h"
 #endif
@@ -27,16 +27,51 @@ int addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = addb_handler,
+	.fto_execute = c2_addb_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb",       101, &addb_ops);
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", 0,   NULL);
+C2_FOP_TYPE_DECLARE(c2_addb_record, "addb",       14, &addb_ops);
+C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", 0,  NULL);
+
+/**
+   ADDB record body for function fail event.
+
+   This event includes a message and a return value.
+*/
+struct c2_addb_func_fail_body {
+	uint32_t rc;
+	char     msg[0];
+};
 
 
 #ifndef __KERNEL__
 
-int addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+static void c2_addb_record_dump(const struct c2_addb_record *rec)
+{
+	const struct c2_addb_record_header *header = &rec->ar_header;
+	printf("addb record |- magic1    = %llx\n"
+	       "            |- version   = %lu\n"
+	       "            |- len       = %lu\n"
+	       "            |- event_id  = %llu\n"
+	       "            |- timestamp = %llx\n"
+	       "            |- magic2    = %llx\n"
+	       "            |- opaque data length = %lu\n",
+	       (unsigned long long)header->arh_magic1,
+	       (unsigned long)     header->arh_version,
+	       (unsigned long)     header->arh_len,
+	       (unsigned long long)header->arh_event_id,
+	       (unsigned long long)header->arh_timestamp,
+	       (unsigned long long)header->arh_magic2,
+	       (unsigned long)     rec->ar_data.cmb_count);
+	if (header->arh_event_id == 4) {
+		const struct c2_addb_func_fail_body *body;
+		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
+
+		printf("++func-fail+|- rc = %d, msg = %s\n", body->rc, body->msg);
+	}
+}
+
+int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	struct c2_addb_record   *in;
 	struct c2_addb_reply    *ex;
@@ -44,6 +79,7 @@ int addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	in = c2_fop_data(fop);
 	/* do something with the request, e.g. store it in stob, or in db */
+	c2_addb_record_dump(in);
 
 	/* prepare the reply */
         reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
@@ -71,16 +107,6 @@ static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 	header->arh_magic2    = ADDB_REC_HEADER_MAGIC2;
 
 	return 0;
-};
-
-/**
-   ADDB record body for function fail event.
-
-   This event includes a message and a return value.
-*/
-struct c2_addb_func_fail_body {
-	uint32_t rc;
-	char     msg[0];
 };
 
 /** get size for data point opaque data */
@@ -126,7 +152,6 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 		if (rec.ar_data.cmb_value == NULL)
 			return -ENOMEM;
 	}
-
 	/* packing */
 	rc = dp->ad_ev->ae_ops->aeo_pack(dp, &rec);
 	if (rc == 0) {
@@ -159,7 +184,6 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
 }
 C2_EXPORTED(c2_addb_db_add);
 
-
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 {
 	struct c2_fop         *request;
@@ -179,14 +203,14 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 	addb_reply = c2_fop_data(reply);
 
 	/* get size */
-	addb_record->ar_data.cmb_count=size= dp->ad_ev->ae_ops->aeo_getsize(dp);
+	size = dp->ad_ev->ae_ops->aeo_getsize(dp);
 	if (size != 0) {
 		addb_record->ar_data.cmb_value = c2_alloc(size);
 		if (addb_record->ar_data.cmb_value == NULL)
 			return -ENOMEM;
 	} else
 		addb_record->ar_data.cmb_value = NULL;
-
+	addb_record->ar_data.cmb_count = size;
 	/* packing */
 	result = dp->ad_ev->ae_ops->aeo_pack(dp, addb_record);
 	if (result == 0) {

@@ -48,31 +48,40 @@ static struct c2_fop_type_ops quit_ops = {
 	.fto_execute = quit_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_io_write,      "write", 10, &write_ops);
-C2_FOP_TYPE_DECLARE(c2_io_read,       "read", 11,   &read_ops);
+C2_FOP_TYPE_DECLARE(c2_io_write,      "write",  10, &write_ops);
+C2_FOP_TYPE_DECLARE(c2_io_read,       "read",   11, &read_ops);
 C2_FOP_TYPE_DECLARE(c2_io_create,     "create", 12, &create_ops);
-C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit", 13,   &quit_ops);
+C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit",   13, &quit_ops);
 
-C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply", 0, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", 0, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  0, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply",   0, NULL);
 C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 0, NULL);
+
+extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
+extern struct c2_fop_type c2_addb_reply_fopt;
+extern struct c2_fop_type_format c2_mem_buf_tfmt;
+extern struct c2_fop_type_format c2_addb_record_header_tfmt;
 
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
+	&c2_addb_record_fopt,
 
 	&c2_io_write_rep_fopt,
 	&c2_io_read_rep_fopt,
-	&c2_io_create_rep_fopt
+	&c2_io_create_rep_fopt,
+	&c2_addb_reply_fopt
 };
 
 static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_fid_tfmt,
 	&c2_io_seg_tfmt,
 	&c2_io_buf_tfmt,
-	&c2_io_vec_tfmt
+	&c2_io_vec_tfmt,
+	&c2_mem_buf_tfmt,
+	&c2_addb_record_header_tfmt
 };
 
 void io_fop_fini(void)

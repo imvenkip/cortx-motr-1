@@ -106,6 +106,7 @@ static int subst_int(struct c2_addb_dp *dp, int rc)
 
 static int subst_void(struct c2_addb_dp *dp)
 {
+	dp->ad_rc = 0;
 	dp->ad_name = "";
 	return 0;
 }

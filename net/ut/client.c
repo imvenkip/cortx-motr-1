@@ -17,14 +17,27 @@
 #include "net_fop.h"
 #include "net_u.h"
 
+
+static struct c2_addb_ctx net_ut_client_addb_ctx;
+
+static const struct c2_addb_loc net_ut_client_addb_loc = {
+	.al_name = "net-ut-client"
+};
+
+const struct c2_addb_ctx_type net_ut_client_addb_ctx_type = {
+	.act_name = "net-ut-client-type",
+};
+
 enum {
 	PORT = 10001
 };
 
 static struct c2_net_domain dom;
+extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
 
-static struct c2_fop_type *fopt[] = {
-	&c2_nettest_fopt
+static struct c2_fop_type *net_ut_fopt[] = {
+	&c2_nettest_fopt,
+	&c2_addb_record_fopt
 };
 
 static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
@@ -44,6 +57,9 @@ static void nettest_send(struct c2_net_conn *conn, int num)
 	struct c2_nettest *fop;
 	struct c2_nettest *rep;
 	int result;
+	static int addb_call_seq;
+
+	addb_call_seq++;
 
 	f = c2_fop_alloc(&c2_nettest_fopt, NULL);
 	fop = c2_fop_data(f);
@@ -53,6 +69,10 @@ static void nettest_send(struct c2_net_conn *conn, int num)
 	fop->siq_rc = num;
 	result = netcall(conn, f, r);
 	C2_UT_ASSERT(result == 0);
+
+	C2_ADDB_ADD(&net_ut_client_addb_ctx, &net_ut_client_addb_loc,
+	            c2_addb_func_fail, "from-addb-ut-client", addb_call_seq);
+
 	rep = c2_fop_data(r);
 /*	printf("GOT: %3i %3i: %6i %6i\n", num, result,
 		fop->siq_rc, rep->siq_rc); */
@@ -60,6 +80,7 @@ static void nettest_send(struct c2_net_conn *conn, int num)
 
 	c2_fop_free(r);
 	c2_fop_free(f);
+
 }
 
 int nettest_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -105,14 +126,17 @@ void test_net_client(void)
 	/* struct c2_service_id  node_ret = { .si_uuid = {0} }; */
 	struct c2_service s1;
 
-	C2_SET0(&s1);
-	s1.s_table.not_start = fopt[0]->ft_code;
-	s1.s_table.not_nr    = ARRAY_SIZE(fopt);
-	s1.s_table.not_fopt  = fopt;
-	s1.s_handler         = &nettest_service_handler;
+	c2_addb_ctx_init(&net_ut_client_addb_ctx, &net_ut_client_addb_ctx_type,
+			 &c2_addb_global_ctx);
 
         rc = nettest_fop_init();
         C2_UT_ASSERT(rc == 0);
+
+	C2_SET0(&s1);
+	s1.s_table.not_start = net_ut_fopt[0]->ft_code;
+	s1.s_table.not_nr    = ARRAY_SIZE(net_ut_fopt);
+	s1.s_table.not_fopt  = net_ut_fopt;
+	s1.s_handler         = &nettest_service_handler;
 
 	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -134,6 +158,11 @@ void test_net_client(void)
 	conn1 = c2_net_conn_find(&sid1);
 	C2_UT_ASSERT(conn1 != NULL);
 
+	/* write addb record onto network */
+	c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
+	c2_addb_store_net_conn = conn1;
+
+
 	for (i = 0; i < 100; ++i) {
 		sprintf(node_arg.si_uuid, "%d", i);
 		nettest_send(conn1, i);
@@ -149,6 +178,7 @@ void test_net_client(void)
 	c2_net_domain_fini(&dom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 	nettest_fop_fini();
+	c2_addb_ctx_fini(&net_ut_client_addb_ctx);
 }
 
 const struct c2_test_suite net_client_ut = {
