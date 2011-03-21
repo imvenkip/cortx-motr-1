@@ -1,9 +1,10 @@
 #ifndef _FOP_TYPES_H_
 #define _FOP_TYPES_H_
 
-#include "io_fop.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
+
+extern struct c2_fop_type_format c2_fop_cob_io_rep_tfmt;
 
 int c2_fop_cob_io_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
 

@@ -11,6 +11,7 @@
 #include "stob/ut/io_fop.h"
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.h"
+#include "fop_types.h"
 
 #ifdef __KERNEL__
 # include "io_k.h"
@@ -34,7 +35,6 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
-#include "fop_types.h"
 #include "io_u.h"
 #include <ioservice/io_fops_u.h>
 

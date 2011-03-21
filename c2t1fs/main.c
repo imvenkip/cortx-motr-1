@@ -227,7 +227,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
         } else {
 
  		struct c2_fop_cob_readv		*arg;
-                 struct c2_fop_cob_io_rep	*ret;
+                struct c2_fop_cob_io_rep	*ret;
   
  		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
  		r = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);

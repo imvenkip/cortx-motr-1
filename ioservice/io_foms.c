@@ -279,7 +279,7 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	 * and c2_indexvec structures in c2_stob_io
 	 */
 	
-	c2_stob_io_vec_alloc(ctx->fmcw_st_io, write_fop->fwr_iovec.iov_count);
+	//c2_stob_io_vec_alloc(ctx->fmcw_st_io, write_fop->fwr_iovec.iov_count);
 	printf("write: stob io vec allocated.\n");
 
 	/*
@@ -361,8 +361,8 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
+	//c2_stob_io_vec_free(ctx->fmcw_st_io);
 	c2_stob_io_fini(ctx->fmcw_st_io);
-	c2_stob_io_vec_free(ctx->fmcw_st_io);
 	c2_free(ctx->fmcw_st_io);
 	ctx->fmcw_st_io = NULL;
 
@@ -501,7 +501,7 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	 */
 	
 	printf("read: stob io vec allocated.\n");
-	c2_stob_io_vec_alloc(ctx->fmcr_st_io, read_fop->frd_iovec.iov_count);
+	//c2_stob_io_vec_alloc(ctx->fmcr_st_io, read_fop->frd_iovec.iov_count);
 
 	/*
 	 * Populate the c2_diovec and c2_indexvec structures 
@@ -585,8 +585,8 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
+	//c2_stob_io_vec_free(ctx->fmcr_st_io);
 	c2_stob_io_fini(ctx->fmcr_st_io);
-	c2_stob_io_vec_free(ctx->fmcr_st_io);
 	c2_free(ctx->fmcr_st_io);
 	ctx->fmcr_st_io = NULL;
 
