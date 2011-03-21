@@ -88,12 +88,6 @@ C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 0, NULL);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", 14, &cob_readv_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", 15, &cob_writev_ops);
 
-/*
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", c2_io_service_fom_start_opcode, &cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", (c2_io_service_fom_start_opcode+1), &cob_writev_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_io_rep, "Read/Write reply", (c2_io_service_fom_start_opcode+2), &cob_writev_ops);
-*/
-
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
@@ -106,7 +100,8 @@ static struct c2_fop_type *fops[] = {
 
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_io_rep_fopt
+	&c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_readv_rep_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
@@ -118,7 +113,8 @@ static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_stob_id_tfmt,
 	&c2_fop_io_addr_tfmt,
 	&c2_fop_io_seg_tfmt,
-	&c2_fop_io_vec_tfmt
+	&c2_fop_io_vec_tfmt,
+	&c2_fop_segment_tfmt,
 };
 
 void io_fop_fini(void)

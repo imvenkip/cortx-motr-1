@@ -156,10 +156,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
         if (rw == WRITE) {
 		struct c2_fop_cob_writev 	*arg;
-                struct c2_fop_cob_io_rep	*ret;
+                struct c2_fop_cob_writev_rep	*ret;
 
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
-		r = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -227,10 +227,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
         } else {
 
  		struct c2_fop_cob_readv		*arg;
-                struct c2_fop_cob_io_rep	*ret;
+                struct c2_fop_cob_readv_rep	*ret;
   
  		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
- 		r = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
+ 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -260,7 +260,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->frd_foprep 		= (uint64_t)ret;
  		arg->frd_fid.f_container 	= 10;
  		arg->frd_fid.f_key 		= objid;
- 		arg->frd_iovec.iov_count 	= 1;
+ 		arg->frd_ioseg.f_count 	= 1;
  
  		/* Allocate space for vector of write FOP */
  		//c2_fop_cob_io_vec_alloc(1, &arg->frd_iovec.iov_seg);
@@ -273,13 +273,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		 * We might need it in future.
  		for (i = 0; i < npages; ++i) {
  		 */
- 			arg->frd_iovec.iov_seg.f_offset = pos;
+ 			arg->frd_ioseg.f_offset = pos;
  			/*
  			 * arg->frd_iovec.iov_seg.f_addr.f_count = PAGE_SIZE;
  			 */
- 			arg->frd_iovec.iov_seg.f_addr.cfia_pgoff = off;
- 			arg->frd_iovec.iov_seg.f_addr.f_buf = pages;
- 			arg->frd_iovec.iov_seg.f_addr.f_count = len;
+ 			arg->frd_ioseg.f_count = len;
  			/*
  		}
  		*/
@@ -289,6 +287,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->frd_nid = c2_get_nid();
  		arg->frd_flags = 0;
 
+		ret->frdr_buf.f_buf = pages;
+		ret->frdr_buf.f_count = len;
+		ret->frdr_buf.cfia_pgoff = off;
+
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
@@ -297,7 +299,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		//c2_fop_cob_io_vec_free(arg->frd_iovec.iov_seg);
                 if (rc)
                         return rc;
-                rc = ret->fwrr_rc ? : ret->fwrr_count;
+                rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);

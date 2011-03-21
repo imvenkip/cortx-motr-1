@@ -51,6 +51,14 @@ DEF(c2_fop_io_addr, SEQUENCE,
 	_(f_buf, BYTE));
 
 /**
+ * Plain identifier for an IO segment.
+ * This does not include any buffer, just a skeleton.
+ */
+DEF(c2_fop_segment, RECORD,
+	_(f_offset, U64),
+	_(f_count, U64));
+
+/**
  * c2_fop_io_seg is a record containing details of an IO operation.
  * <br> List of fields  
  * @li offset : offset within component object.
@@ -74,22 +82,10 @@ DEF(c2_fop_io_vec, RECORD,
 	_(iov_seg, c2_fop_io_seg));
 
 /**
- * <b> c2_fop_cob_io_rep </b>
- * This is common reply FOP for readv and writev FOPs
- * <p> The c2_fop_cob_io_rep FOP is sent as a response by the 
- * Data server to a client.
- * It contains the status code and number of bytes written.
- * <br> List of fields  
- * @li rc: status code. Non-zero value indicates error code.
- * @li number of bytes written.
- * rc = 0 indicates successful completion
- * rc > 0 indicates error code.
  */
-
-DEF(c2_fop_cob_io_rep, RECORD,
-	_(fwrr_nid, U64),
-	_(fwrr_rc, U32),
-	_(fwrr_count, U64));	
+DEF(c2_fop_cob_readv_rep, RECORD,
+	_(frdr_rc, U32),
+	_(frdr_buf, c2_fop_io_addr));
 
 /**
  * <b> c2_fop_cob_readv </b>
@@ -110,13 +106,30 @@ DEF(c2_fop_cob_io_rep, RECORD,
 DEF(c2_fop_cob_readv, RECORD,
 	_(frd_foprep, U64),
 	_(frd_fid, c2_fop_file_fid),
-	_(frd_iovec, c2_fop_io_vec),
+	_(frd_ioseg, c2_fop_segment),
 	_(frd_uid, U64),
 	_(frd_gid, U64),
 	_(frd_nid, U64),
 	_(frd_flags, U64),
 	_(frd_segsize, U32));
 
+/**
+ * <b> c2_fop_cob_writev_rep </b>
+ * This is reply FOP for writev FOPs
+ * <p> The c2_fop_cob_writev_rep FOP is sent as a response by the 
+ * Data server to a client.
+ * It contains the status code and number of bytes written.
+ * <br> List of fields  
+ * @li rc: status code. Non-zero value indicates error code.
+ * @li number of bytes written.
+ * rc = 0 indicates successful completion
+ * rc > 0 indicates error code.
+ */
+
+DEF(c2_fop_cob_writev_rep, RECORD,
+	_(fwrr_nid, U64),
+	_(fwrr_rc, U32),
+	_(fwrr_count, U64));	
 
 /**
  * <b> c2_fop_cob_writev </b>

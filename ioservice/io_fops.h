@@ -23,7 +23,8 @@ int c2_fop_cob_io_rep_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
-extern struct c2_fop_type c2_fop_cob_io_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 extern struct c2_fop_type_ops cob_readv_ops;
 extern struct c2_fop_type_ops cob_writev_ops;

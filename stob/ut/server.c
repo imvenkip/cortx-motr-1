@@ -341,7 +341,8 @@ static struct c2_fop_type *fopt[] = {
 
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_io_rep_fopt
+	&c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_readv_rep_fopt,
 };
 
 struct mock_balloc {

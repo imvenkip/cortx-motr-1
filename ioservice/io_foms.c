@@ -203,11 +203,11 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	int				rc;
 	struct c2_fop_cob_writev	*write_fop;
 	struct c2_fop			*rep_fop;
-	struct c2_fop_cob_io_rep	*rep_fop_data;
+	struct c2_fop_cob_writev_rep	*rep_fop_data;
 
 	C2_PRE(fom != NULL);
 	printf("c2_fom_cob_write_state entered.\n");
-	rep_fop = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
+	rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 	C2_ASSERT(rep_fop != NULL);
 	rep_fop_data = c2_fop_data(rep_fop);
 
@@ -318,11 +318,8 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	 * Total number of segments in IO vector 
 	 */
 
-	ctx->fmcw_st_io->si_user.div_vec.ov_vec.v_nr = 
-		write_fop->fwr_iovec.iov_count;
-
-	ctx->fmcw_st_io->si_stob.iv_vec.v_nr = 
-		write_fop->fwr_iovec.iov_count;
+	ctx->fmcw_st_io->si_user.div_vec.ov_vec.v_nr = 1;
+	ctx->fmcw_st_io->si_stob.iv_vec.v_nr = 1;
 
 	ctx->fmcw_st_io->si_opcode = SIO_WRITE;
 	ctx->fmcw_st_io->si_flags = 0;
@@ -357,6 +354,7 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	rep_fop_data->fwrr_rc = ctx->fmcw_st_io->si_rc;
 	rep_fop_data->fwrr_count = ctx->fmcw_st_io->si_count << bshift;;
 	printf("write: Reply FOP populated\n");
+	printf("write: %lu bytes written\n", rep_fop_data->fwrr_count);
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
@@ -423,13 +421,12 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	struct c2_clink			clink;
 	int				rc;
 	struct c2_fop_cob_readv		*read_fop;
-	//struct c2_fop_cob_io_rep	*io_rep;
 	struct c2_fop			*rep_fop;
-	struct c2_fop_cob_io_rep	*rep_fop_data;
+	struct c2_fop_cob_readv_rep	*rep_fop_data;
 
 	C2_PRE(fom != NULL);
 	printf("c2_fom_cob_read_state entered.\n");
-	rep_fop = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
+	rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 	C2_ASSERT(rep_fop != NULL);
 	rep_fop_data = c2_fop_data(rep_fop);
 
@@ -492,8 +489,8 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 
 	bshift = ctx->fmcr_stob->so_op->sop_block_shift(ctx->fmcr_stob);
 	bmask = (1 << bshift) - 1;
-	C2_ASSERT((read_fop->frd_iovec.iov_seg.f_offset & bmask) == 0);
-	C2_ASSERT((read_fop->frd_iovec.iov_seg.f_addr.f_count & bmask) == 0);
+	C2_ASSERT((read_fop->frd_ioseg.f_offset & bmask) == 0);
+	C2_ASSERT((read_fop->frd_ioseg.f_count & bmask) == 0);
 
 	/*
 	 * Memory allocation for necessary buffers in c2_diovec
@@ -512,8 +509,10 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 
 	//for(i = 0; i < read_fop->frd_iovec.iov_count; ++i)
 	//{
-		addr = c2_stob_addr_pack(read_fop->frd_iovec.
-				iov_seg.f_addr.f_buf, bshift);
+	C2_ALLOC_ARR(rep_fop_data->frdr_buf.f_buf, read_fop->frd_ioseg.f_count);
+	C2_ASSERT(rep_fop_data->frdr_buf.f_buf != NULL);
+
+		addr = c2_stob_addr_pack(rep_fop_data->frdr_buf.f_buf, bshift);
 
 		/*if(i == 0) {
 			count = read_fop->frd_segsize - read_fop->frd_iovec.iov_seg.f_addr.cfia_pgoff;
@@ -524,8 +523,8 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 			offset = 0;
 		}*/
 
-		count = read_fop->frd_iovec.iov_seg.f_addr.f_count;
-		offset = read_fop->frd_iovec.iov_seg.f_offset;
+		count = read_fop->frd_ioseg.f_count;
+		offset = read_fop->frd_ioseg.f_offset;
 
 		count = count >> bshift;
 		offset = offset >> bshift;
@@ -541,11 +540,8 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	 * Total number of segments in IO vector 
 	 */
 
-	ctx->fmcr_st_io->si_user.div_vec.ov_vec.v_nr = 
-		read_fop->frd_iovec.iov_count;
-
-	ctx->fmcr_st_io->si_stob.iv_vec.v_nr = 
-		read_fop->frd_iovec.iov_count;
+	ctx->fmcr_st_io->si_user.div_vec.ov_vec.v_nr = 1;
+	ctx->fmcr_st_io->si_stob.iv_vec.v_nr = 1;
 
 	ctx->fmcr_st_io->si_opcode = SIO_READ;
 	ctx->fmcr_st_io->si_flags = 0;
@@ -578,8 +574,8 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	((struct c2_fop_cob_io_rep*)io_rep)->fwrr_rc = ctx->fmcr_st_io->si_rc;
 	((struct c2_fop_cob_io_rep*)io_rep)->fwrr_count = ctx->fmcr_st_io->si_count << bshift;
 	*/
-	rep_fop_data->fwrr_rc = ctx->fmcr_st_io->si_rc;
-	rep_fop_data->fwrr_count = ctx->fmcr_st_io->si_count << bshift;;
+	rep_fop_data->frdr_rc = ctx->fmcr_st_io->si_rc;
+	rep_fop_data->frdr_buf.f_count = ctx->fmcr_st_io->si_count << bshift;;
 	printf("read: Reply FOP populated\n");
 
 	c2_clink_del(&clink);
@@ -597,7 +593,6 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 		C2_ASSERT(rc == 0);
 	}
 	else {
-		//fprintf(stderr, "Deadlock, aborting read.\n");
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
