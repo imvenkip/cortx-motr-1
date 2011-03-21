@@ -4,6 +4,7 @@
 #define __COLIBRI_LAYOUT_PDCLUST_H__
 
 #include "layout/layout.h"
+#include "sns/parity_math.h"
 
 /**
    @defgroup pdclust Parity de-clustering.
@@ -145,6 +146,11 @@ struct c2_pdclust_layout {
 		 */
 		uint32_t *tc_lcode;
 	} pl_tile_cache;
+
+	/**
+	 * Parity math information, initialized according to the layout
+	 */
+	struct c2_parity_math pl_math;
 };
 
 /** Classification of units in a parity group. */
@@ -154,6 +160,14 @@ enum c2_pdclust_unit_type {
 	PUT_SPARE,
 	PUT_NR
 };
+
+/**
+   Returns type of the given unit according to layout information.
+ */
+enum c2_pdclust_unit_type
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
+			 int unit);
+
 
 /**
    Source unit address.
