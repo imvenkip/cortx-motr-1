@@ -283,6 +283,7 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	/* and translate back from tile to target address. */
 	tgt->ta_frame = m_enc(L, omega, r);
 }
+C2_EXPORTED(c2_pdclust_layout_map);
 
 void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
@@ -320,6 +321,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
 	src->sa_group = m_enc(C, omega, j);
 }
+C2_EXPORTED(c2_pdclust_layout_inv);
 
 static bool pdclust_equal(const struct c2_layout *l0,
 			  const struct c2_layout *l1)
@@ -364,6 +366,7 @@ void c2_pdclust_fini(struct c2_pdclust_layout *pdl)
 		c2_free(pdl);
 	}
 }
+C2_EXPORTED(c2_pdclust_fini);
 
 int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		     uint32_t N, uint32_t K, const struct c2_uint128 *seed,
@@ -414,6 +417,8 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 			if (result != 0)
 				break;
 		}
+
+		result = c2_parity_math_init(&pdl->pl_math, N, K);
 	} else {
 		result = -ENOMEM;
 	}
@@ -423,6 +428,20 @@ int c2_pdclust_build(struct c2_pool *pool, struct c2_uint128 *id,
 		c2_pdclust_fini(pdl);
 	return result;
 }
+C2_EXPORTED(c2_pdclust_build);
+
+enum c2_pdclust_unit_type
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *play, 
+			 int unit)
+{
+	if (unit < play->pl_N)
+		return PUT_DATA;
+	else if (unit < play->pl_N + play->pl_K)
+		return PUT_PARITY;
+	else
+		return PUT_SPARE;
+}
+C2_EXPORTED(c2_pdclust_unit_classify);
 
 const struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_name  = "pdclust",
