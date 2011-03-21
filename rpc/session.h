@@ -41,32 +41,32 @@ update stream.
 
 @section def Definitions and Requirements
 
-	Here is the brief list of requirements : - (ref. Networking 1-pager).
+Here is the brief list of requirements : - (ref. Networking 1-pager).
 	
-	- FIFO ordering of fops within a stream (achieved through resend).
+   - FIFO ordering of fops within a stream (achieved through resend).
 
-	- exactly once semantics (EOS) of fop execution (achieved through replay).
+   - exactly once semantics (EOS) of fop execution (achieved through replay).
 
-	- negotiable degree of concurrency of sender-receiver interaction (achieved 
-	    through having multiple slots within a session, plus a run-time protocol
-	    to adjust number of slots).
+   - negotiable degree of concurrency of sender-receiver interaction (achieved 
+     through having multiple slots within a session, plus a run-time protocol
+     to adjust number of slots).
 
 
-	Some definitions : -
+Some definitions : -
 
-	- Sender ID		: - sender ID is a 64-bit quantity used as a unique 
-				    reference to the sender. NFSv4.1 specification 
-				    states that it is supplied by the receiver.
+- Sender ID:
+  sender ID is a 64-bit quantity used as a unique reference to the sender.
+  It is supplied by the receiver.
 	
-	- Session ID		: - Its an identifier used to identify a particular 
-				    session. 
+- Session ID:
+  Its an identifier used to identify a particular session. 
 
-	- Slot ID		: - Its the index into the slot table. Its 32-bit 
-				    quantity.
+- Slot ID:
+  Its the index into the slot table. Its 32-bit quantity.
 	
-	- Update Stream	: - It is an ADT associated with <session, slot>
-				    and used to send rpc items with FIFO and EOS
-				    constraints.
+- Update Stream:
+  It is an ADT associated with <session, slot> and used to send rpc items with 
+  FIFO and EOS constraints.
 
 @section sessionfunct Functional specification
 
@@ -116,13 +116,13 @@ last_seen_xid: xid of request which we accepted most recently. This counter is p
 			of in core slot table.
 
 At any time, one of following to conditions is true:
-1. last_seen_xid == last_executed_xid
-2. last_seen_xid == last_executed_xid + 1
+-  last_seen_xid == last_executed_xid
+- last_seen_xid == last_executed_xid + 1
 
 For the duration between, the time when we accepted a request AND the time when
 this request completes its execution, last_seen_xid == last_executed_xid + 1.
 
-These two counters are required to resolve a schenarious where a duplicate 
+These two counters are required to resolve a scenario where a duplicate 
 request is executed when its execution was in progress.
 
 Following conditions are possible : -
@@ -168,7 +168,7 @@ Following conditions are possible : -
     @note TODO : -
 	- Design protocol to generate sender id.(similar to EXCHANGE_ID protocol in NFSv4.1)
 	- Design protocol to dynamically adjust the no. of slots.
-
+	- Update Streams. 
 @defgroup session RPC SESSIONS 
 
 @{
@@ -185,6 +185,10 @@ struct c2_rpc_session;
 /* Internal: required for declaration of c2_rpc_session */
 struct c2_rpc_snd_slot_table;
 struct c2_rpc_snd_slot;
+
+enum {
+	INVALID_SESSION_ID = ~0
+};
 
 enum c2_rpc_session_state {
 	SESSION_UNINITIALIZED,
@@ -219,8 +223,8 @@ struct c2_rpc_session {
 	/** linkage into list of all sessions */
 	struct c2_list_link		s_link;
 	enum c2_rpc_session_state	s_state;
-	/** session_id valid only if s_state is in {ALIVE,
-		RECOVERING} */
+	/** before init and post fini session_id will
+		have value INVALID_SESSION_ID */
 	uint64_t			s_session_id;
 	struct c2_rpc_snd_slot_table	*s_slot_table;			
 	/** Sender state associated with this session */
@@ -272,12 +276,6 @@ int c2_rpc_session_create(struct c2_net_conn *conn,
 int c2_rpc_session_create_wait(struct c2_chan *);
 
 /**
-   If layer above rpc wants reference to any open session to a particular
-   service then it can use this routine
-*/
-int c2_rpc_session_find(struct c2_service_id *svc_id, struct c2_rpc_session **out);
-
-/**
    Bind a connection to the session. This is required in case
    existing connection of session is some-how got terminated and
    a new connection is to be associated with session
@@ -294,10 +292,7 @@ int c2_rpc_session_destroy(struct c2_rpc_session *);
 /**
    Waits for SESSION_DESTROY completion.
  */
-
 int c2_rpc_session_destroy_wait(struct c2_chan *);
-
-
 	
 /** 
    This structure represents the slot table information
@@ -313,7 +308,7 @@ struct c2_rpc_snd_slot_table {
 };
 
 /** 
-    structure giving information about used/unused, sequence id for the
+    Structure giving information about used/unused, sequence id for the
     particular slot-id
  */
 struct c2_rpc_snd_slot {
@@ -334,31 +329,24 @@ struct c2_rpc_snd_slot {
 	struct c2_ref		ss_ref;
 };
 
-/**
-  Get a non-busy slot
-*/
-int c2_rpc_slot_get(struct c2_rpc_session *session, struct c2_rpc_snd_slot **out);
-
-int c2_rpc_slot_put(struct c2_rpc_snd_slot *);
-
 /** 
    Receiver side SESSION_CREATE and SESSION_DESTROY handlers
  */
-int c2_rpc_session_create_handler(struct c2_fop *, struct c2_fop_ctx *);
+int c2_rpc_session_create_handler(struct c2_fom *);
 
 /**
    Destroys all the information associated with the session on the receiver 
    including reply cache entries.
  */
-int c2_rpc_session_destroy_handler(struct c2_fop *, struct c2_fop_ctx *);
+int c2_rpc_session_destroy_handler(struct c2_fom *);
 
 /**
     These are reply handlers
  */
-int c2_rpc_session_create_rep_handler(struct c2_fop *, struct c2_fop_ctx *);
+int c2_rpc_session_create_rep_handler(struct c2_fom *);
 
-int c2_rpc_session_destroy_rep_handler(struct c2_fop *, struct c2_fop_ctx *);
+int c2_rpc_session_destroy_rep_handler(struct c2_fom *);
 
-/** @} end of rpc-sessions group */	
+/** @} end of session group */	
 
 #endif

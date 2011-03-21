@@ -2,7 +2,6 @@
 
 #include "rpc/session.h"
 
-
 enum c2_rpc_session_group_state { 
         SG_UNINITIALIZED, 
         SG_INITIALIZING, 
@@ -11,6 +10,11 @@ enum c2_rpc_session_group_state {
         SG_TIMED_OUT, 
         SG_FREED 
 }; 
+
+/**
+   @addtogroup session
+   @{
+ */
 
 
 /**
@@ -48,7 +52,6 @@ enum c2_rpc_session_group_state {
    TIMED_OUT                    free                            FREED
         "                       retry                           INITIALIZING
  */
-
 struct c2_rpc_session_group { 
         /** Every session_group is stored on a global list */  
         struct c2_list_link             sg_link; 
@@ -80,12 +83,12 @@ int  c2_rpc_session_group_fini(struct c2_rpc_session_group *sg);
    XXX The protocol is yet to be decided. 
    This routine is used while creating first session with any service. 
 */ 
- 
 int c2_rpc_snd_id_get(struct c2_net_conn *conn, struct c2_rpc_session_group *sg); 
  
 /**  
    Wait until we get sender ID from receiver. 
  */ 
+
 int c2_rpc_snd_id_get_wait(struct c2_chan *); 
 /** 
    All session specific parameters except slot table
@@ -106,6 +109,16 @@ int c2_rpc_session_params_get(uint64_t session_id,
 int c2_rpc_session_params_set(uint64_t session_id,
                                 struct c2_rpc_session_params *param);
 
+/**
+   Get reference to an unused slot
+*/
+int c2_rpc_snd_slot_get(struct c2_rpc_session *session, struct c2_rpc_snd_slot **out);
+
+/**
+   Release a slot
+*/
+int c2_rpc_snd_slot_put(struct c2_rpc_snd_slot *slot);
+
 /** 
     reply cache structures 
 
@@ -115,7 +128,6 @@ int c2_rpc_session_params_set(uint64_t session_id,
     For each sender_id, receiver has session 0 associated with it.
     Hence snd_id (sender_id) is also a part of key.
  */
-
 struct c2_rpc_slot_table_key {
         uint64_t        stk_snd_id;
         uint64_t        stk_session_id;
@@ -181,4 +193,6 @@ int c2_rpc_last_seen_xid_get(struct c2_rpc_reply_cache *rc,
 		struct c2_rpc_slot_table_key *key, uint64_t *out_xid);
 int c2_rpc_last_seen_xid_set(struct c2_rpc_reply_cache *rc,
 		struct c2_rpc_slot_table_key *key, uint64_t in_xid);
+
+/** @} end of session group */
 
