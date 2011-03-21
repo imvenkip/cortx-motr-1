@@ -10,7 +10,11 @@
 #define C2_PARITY_GALOIS_W (8)
 typedef int c2_parity_elem_t;
 
-//void c2_parity_init(void) 
+static void c2_parity_fini(void) __attribute__((unused));
+static void c2_parity_fini(void)
+{
+	/* galois_calc_tables_release(); */
+}
 
 static void c2_parity_init(void) __attribute__((unused));
 static void c2_parity_init(void)

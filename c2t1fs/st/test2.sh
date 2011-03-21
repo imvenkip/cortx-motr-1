@@ -13,10 +13,9 @@ ulimit -c unlimited
 fsmount
 
 # 2. test read/write
-#arg0 max_count_
-#arg1 max_bs_
-#note: 10 * 12582912 ~ 120MiB of data, reads and write
-fsrwtest 10 12582912
+#arg0 max_count_=3
+#arg1 max_bs_=49152
+fsrwtest 3 49152
 
 # 3. umount
 fsumount

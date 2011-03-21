@@ -536,7 +536,12 @@ AC_CONFIG_FILES([
                  udb/ut/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
-                 utils/ploss/Makefile
+		 utils/ploss/Makefile
+		 sns/linux_kernel/Makefile
+		 galois/linux_kernel/Makefile
+		 layout/linux_kernel/Makefile
+		 pool/linux_kernel/Makefile
+		 stob/linux_kernel/Makefile
                 ])
                 
                 #rpc/Makefile

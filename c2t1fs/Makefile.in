@@ -1,6 +1,7 @@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
+GALOISDIR = @SRCDIR@/../galois
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
 c2t1fs-y := main.o io_fop_init.o io_k.o
@@ -9,6 +10,7 @@ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare: io_k.h io_k.c
 	ln -sf $(STOBDIR)/io_fop_init.c .
+	ln -sf $(GALOISDIR)/galois.h @SRCDIR@/sns
 
 io_k.h io_k.c: $(STOBDIR)/io.ff
 	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff
@@ -22,6 +24,7 @@ uninstall:
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers io_k.[ch] io_fop_init.c
+	rm -fr @SRCDIR@/sns/galois.h
 
 distdir:
 	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.h \

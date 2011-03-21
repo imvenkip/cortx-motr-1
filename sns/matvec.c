@@ -1,11 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "matvec.h"
+#include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/types.h"
+
+#ifdef __KERNEL__
+#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+#else
+# include <stdio.h>
+# include <stdlib.h>
+#define DBG(fmt, args...) printf("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
+#endif
+
+#include "sns/matvec.h"
 
 int c2_vector_init(struct c2_vector *v, uint32_t sz)
 {
@@ -76,15 +83,15 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	uint32_t x, y;
 	C2_PRE(mat);
 
-	printf("-----> mat %p\n", mat);
+	DBG("-----> mat %p\n", mat);
         
 	for (y = 0; y < mat->m_height; ++y) {
                 for (x = 0; x < mat->m_width; ++x)
-			printf("%6d ", *c2_matrix_elem_get(mat, x, y));
-		printf("\n");
+			DBG("%6d ", *c2_matrix_elem_get(mat, x, y));
+		DBG("\n");
 	}
         
-	printf("\n");
+	DBG("\n");
 }
 
 void c2_vector_print(const struct c2_vector *vec)
@@ -92,10 +99,10 @@ void c2_vector_print(const struct c2_vector *vec)
 	uint32_t x;
 	C2_PRE(vec);
 
-	printf("-----> vec %p\n", vec);
+	DBG("-----> vec %p\n", vec);
 	for (x = 0; x < vec->v_size; ++x)
-		printf("%6d\n", *c2_vector_elem_get(vec, x));
-	printf("\n");
+		DBG("%6d\n", *c2_vector_elem_get(vec, x));
+	DBG("\n");
 }
 
 void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)

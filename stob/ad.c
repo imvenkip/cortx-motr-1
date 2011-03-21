@@ -1042,8 +1042,9 @@ static int ad_write_map(struct c2_stob_io *io, struct ad_domain *adom,
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
-
+		
 		result = ad_write_map_ext(io, adom, offset, map->ct_it, &todo);
+		
 		if (result != 0)
 			break;
 
@@ -1126,6 +1127,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 	if (result == 0) {
 		ad_wext_cursor_init(&wc, &head);
 		frags = ad_write_count(io, src, &wc);
+
 		result = ad_vec_alloc(io->si_obj, back, frags);
 		if (result == 0) {
 			c2_vec_cursor_init(src, &io->si_user.div_vec.ov_vec);
@@ -1142,6 +1144,7 @@ static int ad_write_launch(struct c2_stob_io *io, struct ad_domain *adom,
 		}
 	}
 	ad_wext_fini(&head);
+
 	return result;
 }
 
