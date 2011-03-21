@@ -18,12 +18,14 @@
 
 #include "c2t1fs.h"
 #include "io_k.h"
+#include "io_fops_k.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
+#include "io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -127,6 +129,22 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jins
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
+static uint64_t c2_get_uid(void)
+{
+	return (uint64_t)1234;
+}
+
+static uint64_t c2_get_gid(void)
+{
+	return (uint64_t)4321;
+}
+
+static uint64_t c2_get_nid(void)
+{
+	return (uint64_t)5678;
+}
+
+
 static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
@@ -137,11 +155,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_net_call  kcall;
 
         if (rw == WRITE) {
-		struct c2_io_write     *arg;
-                struct c2_io_write_rep *ret;
+		struct c2_fop_cob_writev 	*arg;
+                struct c2_fop_cob_io_rep	*ret;
 
-		f = c2_fop_alloc(&c2_io_write_fopt, NULL);
-		r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
+		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -151,27 +169,68 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
+		/*
                 arg->siw_object.f_seq  = 10;
                 arg->siw_object.f_oid  = objid;
 		arg->siw_offset        = pos;
 		arg->siw_buf.cib_count = len;
 		arg->siw_buf.cib_pgoff = off;
 		arg->siw_buf.cib_value = pages;
+		*/
 
+ 		/* With introduction of FOMs, a reply FOP will be allocated 
+ 		 * by the request FOP and a pointer to it will be 
+ 		 * sent across. 
+ 		 * XXX The reply FOP pointer is not used as of now.
+ 		 */
+ 		arg->fwr_foprep 		= (uint64_t)ret;
+ 		arg->fwr_fid.f_container 	= 10;
+ 		arg->fwr_fid.f_key 		= objid;
+ 		arg->fwr_iovec.iov_count 	= 1;
+ 
+ 		/* Allocate space for vector of write FOP */
+ 		//c2_fop_cob_io_vec_alloc(1, &arg->fwr_iovec.iov_seg);
+ 		//BUG_ON(arg->fwr_iovec.iov_seg == NULL);
+ 
+ 		/* Populate the vector of write FOP */
+ 		/* Ideally, the pages should be mapped to some buffer
+ 		 * from the FOPs but as of now, the FOPs are modified
+ 		 * to handle pages, so we don't need the for loop here
+ 		 * We might need it in future.
+ 		for (i = 0; i < npages; ++i) {
+ 		 */
+ 			arg->fwr_iovec.iov_seg.f_offset = pos;
+ 			/*
+ 			 * arg->fwr_iovec.iov_seg.f_addr.f_count = PAGE_SIZE;
+ 			 */
+ 			arg->fwr_iovec.iov_seg.f_addr.cfia_pgoff = off;
+ 			arg->fwr_iovec.iov_seg.f_addr.f_buf = pages;
+ 			arg->fwr_iovec.iov_seg.f_addr.f_count = len;
+ 			/*
+ 		}
+ 		*/
+ 		arg->fwr_segsize = PAGE_SIZE;
+ 		arg->fwr_uid = c2_get_uid();
+ 		arg->fwr_gid = c2_get_gid();
+ 		arg->fwr_nid = c2_get_nid();
+ 		arg->fwr_flags = 0;
+  
                 DBG("writing data to server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("write to server returns %d\n", rc);
+ 		//c2_fop_cob_io_vec_free(arg->fwr_iovec.iov_seg);
                 if (rc)
                         return rc;
-                rc = ret->siwr_rc ? : ret->siwr_count;
+                rc = ret->fwrr_rc ? : ret->fwrr_count;
         } else {
-		struct c2_io_read      *arg;
-                struct c2_io_read_rep  *ret;
 
-		f = c2_fop_alloc(&c2_io_read_fopt, NULL);
-		r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
+ 		struct c2_fop_cob_readv		*arg;
+                 struct c2_fop_cob_io_rep	*ret;
+  
+ 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+ 		r = c2_fop_alloc(&c2_fop_cob_io_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -181,6 +240,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
+		/*
                 arg->sir_object.f_seq = 10;
                 arg->sir_object.f_oid = objid;
 		arg->sir_seg.f_offset = pos;
@@ -189,15 +249,55 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		ret->sirr_buf.cib_count = len;
 		ret->sirr_buf.cib_pgoff = off;
 		ret->sirr_buf.cib_value = pages;
+		*/
+
+ 
+ 		/* With introduction of FOMs, a reply FOP will be allocated 
+ 		 * by the request FOP and a pointer to it will be 
+ 		 * sent across. 
+ 		 * XXX The reply FOP pointer is not used as of now.
+ 		 */
+ 		arg->frd_foprep 		= (uint64_t)ret;
+ 		arg->frd_fid.f_container 	= 10;
+ 		arg->frd_fid.f_key 		= objid;
+ 		arg->frd_iovec.iov_count 	= 1;
+ 
+ 		/* Allocate space for vector of write FOP */
+ 		//c2_fop_cob_io_vec_alloc(1, &arg->frd_iovec.iov_seg);
+ 		//BUG_ON(arg->frd_iovec.iov_seg == NULL);
+ 
+ 		/* Populate the vector of read FOP */
+ 		/* Ideally, the pages should be mapped to some buffer
+ 		 * from the FOPs but as of now, the FOPs are modified
+ 		 * to handle pages, so we don't need the for loop here
+ 		 * We might need it in future.
+ 		for (i = 0; i < npages; ++i) {
+ 		 */
+ 			arg->frd_iovec.iov_seg.f_offset = pos;
+ 			/*
+ 			 * arg->frd_iovec.iov_seg.f_addr.f_count = PAGE_SIZE;
+ 			 */
+ 			arg->frd_iovec.iov_seg.f_addr.cfia_pgoff = off;
+ 			arg->frd_iovec.iov_seg.f_addr.f_buf = pages;
+ 			arg->frd_iovec.iov_seg.f_addr.f_count = len;
+ 			/*
+ 		}
+ 		*/
+ 		arg->frd_segsize = PAGE_SIZE;
+ 		arg->frd_uid = c2_get_uid();
+ 		arg->frd_gid = c2_get_gid();
+ 		arg->frd_nid = c2_get_nid();
+ 		arg->frd_flags = 0;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("read from server returns %d\n", rc);
+ 		//c2_fop_cob_io_vec_free(arg->frd_iovec.iov_seg);
                 if (rc)
                         return rc;
-                rc = ret->sirr_rc ? : ret->sirr_buf.cib_count;
+                rc = ret->fwrr_rc ? : ret->fwrr_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);

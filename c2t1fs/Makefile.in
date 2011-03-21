@@ -2,9 +2,10 @@ C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 FOPDIR = @SRCDIR@/fop
 STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
+IOSERVICEDIR = @SRCDIR@/ioservice
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
-c2t1fs-y := main.o io_fop_init.o io_k.o
+c2t1fs-y := main.o io_k.o io_fops_k.o io_fops.o io_fop_init.o 
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
@@ -12,6 +13,12 @@ prepare:
 	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
 	ln -sf $(STOBDIR)/io_fop_init.c .
 	ln -sf $(GALOISDIR)/galois.h @SRCDIR@/sns
+	ln -sf $(IOSERVICEDIR)/io_fops_k.h
+	ln -sf $(IOSERVICEDIR)/io_fops_k.c
+	ln -sf $(IOSERVICEDIR)/io_fops.h
+	ln -sf $(IOSERVICEDIR)/io_foms.h
+	ln -sf $(IOSERVICEDIR)/io_fops.c
+
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install
@@ -23,6 +30,7 @@ distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
 	rm -fr Module.symvers io_k.[ch] io_fop_init.c
 	rm -fr @SRCDIR@/sns/galois.h
+	rm -rf io_fops_k.* io_fops.* io_foms.*
 
 distdir:
 	cp $(C2T1FS_SRCDIR)/Makefile.in $(C2T1FS_SRCDIR)/c2t1fs.h \

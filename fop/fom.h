@@ -34,6 +34,10 @@
 #include "lib/chan.h"
 
 struct c2_fop_type;
+struct c2_fop;
+struct c2_fop_ctx;
+struct c2_stob_domain;
+struct c2_fol;
 
 /* export */
 struct c2_fom_domain;
@@ -166,6 +170,7 @@ enum c2_fom_phase {
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
 	FOPH_FAILED,                /*< fom failed. */
+	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */
@@ -190,7 +195,7 @@ void c2_fom_queue(struct c2_fom_domain *dom, struct c2_fom *fom);
 /** Fop state machine. */
 struct c2_fom {
 	enum c2_fom_state        fo_state;
-	enum c2_fom_phase        fo_phase;
+	int 			 fo_phase;
 	struct c2_fom_locality  *fo_loc;
 	struct c2_fom_type      *fo_type;
 	const struct c2_fom_ops *fo_ops;
@@ -237,7 +242,11 @@ enum c2_fom_state_outcome {
 /** Fom type operation vector. */
 struct c2_fom_type_ops {
 	/** Create a new fom of this type. */
-	int (*fto_create)(struct c2_fom_type *t, struct c2_fom **out);
+	int (*fto_create)(struct c2_fom_type *t, struct c2_fop *fop, 
+			struct c2_fom **out);
+	/** Populate the type specific object. */
+	int (*fto_populate)(struct c2_fom *fom, struct c2_stob_domain *d,
+			struct c2_fop_ctx *fopctx, struct c2_fol *fol);
 };
 
 /** Fom operations vector. */

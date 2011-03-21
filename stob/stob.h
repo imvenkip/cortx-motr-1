@@ -696,6 +696,20 @@ struct c2_stob_io_op {
 };
 
 /**
+ * Memory allocation for necessary buffers in c2_diovec
+ * and c2_indexvec structures in c2_stob_io.
+ * XXX This could be a part of c2_stob_io_init.
+ */
+void c2_stob_io_vec_alloc(struct c2_stob_io *io, uint32_t nr);
+
+/**
+ * Memory deallocation for necessary buffers in c2_diovec
+ * and c2_indexvec structures in c2_stob_io.
+ * XXX This could be a part of c2_stob_io_fini.
+ */
+void c2_stob_io_vec_free(struct c2_stob_io *io);
+
+/**
    @post io->si_state == SIS_IDLE
  */
 void c2_stob_io_init  (struct c2_stob_io *io);
