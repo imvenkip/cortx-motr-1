@@ -6,5 +6,9 @@
 #include "io_fops_u.h"
 #include "io_fops.ff"
 
+/*
+ * Solely used for inclusion of .ff file ONLY ONCE.
+ */
+
 #endif
 

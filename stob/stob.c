@@ -186,34 +186,6 @@ static void c2_stob_io_unlock(struct c2_stob *obj)
 	obj->so_op->sop_io_unlock(obj);
 }
 
-/**
- * Memory allocation for necessary buffers in c2_diovec
- * and c2_indexvec structures in c2_stob_io.
- * XXX This could be a part of c2_stob_io_init.
- */
-void c2_stob_io_vec_alloc(struct c2_stob_io *io, uint32_t nr)
-{
-        C2_ALLOC_ARR(io->si_user.div_vec.ov_buf, nr);
-        C2_ALLOC_ARR(io->si_user.div_vec.ov_vec.v_count, nr);
-
-        C2_ALLOC_ARR(io->si_stob.iv_index, nr);
-        C2_ALLOC_ARR(io->si_stob.iv_vec.v_count, nr);
-}
-
-/**
- * Memory deallocation for necessary buffers in c2_diovec
- * and c2_indexvec structures in c2_stob_io.
- * XXX This could be a part of c2_stob_io_fini.
- */
-void c2_stob_io_vec_free(struct c2_stob_io *io)
-{
-        c2_free(io->si_user.div_vec.ov_buf);
-        c2_free(io->si_user.div_vec.ov_vec.v_count);
-
-        c2_free(io->si_stob.iv_index);
-        c2_free(io->si_stob.iv_vec.v_count);
-}
-
 void c2_stob_io_init(struct c2_stob_io *io)
 {
 	C2_SET0(io);

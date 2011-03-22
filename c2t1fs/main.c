@@ -169,15 +169,6 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
-		/*
-                arg->siw_object.f_seq  = 10;
-                arg->siw_object.f_oid  = objid;
-		arg->siw_offset        = pos;
-		arg->siw_buf.cib_count = len;
-		arg->siw_buf.cib_pgoff = off;
-		arg->siw_buf.cib_value = pages;
-		*/
-
  		/* With introduction of FOMs, a reply FOP will be allocated 
  		 * by the request FOP and a pointer to it will be 
  		 * sent across. 
@@ -188,28 +179,12 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->fwr_fid.f_key 		= objid;
  		arg->fwr_iovec.iov_count 	= 1;
  
- 		/* Allocate space for vector of write FOP */
- 		//c2_fop_cob_io_vec_alloc(1, &arg->fwr_iovec.iov_seg);
- 		//BUG_ON(arg->fwr_iovec.iov_seg == NULL);
- 
  		/* Populate the vector of write FOP */
- 		/* Ideally, the pages should be mapped to some buffer
- 		 * from the FOPs but as of now, the FOPs are modified
- 		 * to handle pages, so we don't need the for loop here
- 		 * We might need it in future.
- 		for (i = 0; i < npages; ++i) {
- 		 */
- 			arg->fwr_iovec.iov_seg.f_offset = pos;
- 			/*
- 			 * arg->fwr_iovec.iov_seg.f_addr.f_count = PAGE_SIZE;
- 			 */
- 			arg->fwr_iovec.iov_seg.f_addr.cfia_pgoff = off;
- 			arg->fwr_iovec.iov_seg.f_addr.f_buf = pages;
- 			arg->fwr_iovec.iov_seg.f_addr.f_count = len;
- 			/*
- 		}
- 		*/
- 		arg->fwr_segsize = PAGE_SIZE;
+		arg->fwr_iovec.iov_seg.f_offset = pos;
+		arg->fwr_iovec.iov_seg.f_addr.cfia_pgoff = off;
+		arg->fwr_iovec.iov_seg.f_addr.f_buf = pages;
+		arg->fwr_iovec.iov_seg.f_addr.f_count = len;
+
  		arg->fwr_uid = c2_get_uid();
  		arg->fwr_gid = c2_get_gid();
  		arg->fwr_nid = c2_get_nid();
@@ -220,7 +195,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("write to server returns %d\n", rc);
- 		//c2_fop_cob_io_vec_free(arg->fwr_iovec.iov_seg);
+
                 if (rc)
                         return rc;
                 rc = ret->fwrr_rc ? : ret->fwrr_count;
@@ -240,18 +215,6 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
-		/*
-                arg->sir_object.f_seq = 10;
-                arg->sir_object.f_oid = objid;
-		arg->sir_seg.f_offset = pos;
-		arg->sir_seg.f_count  = len;
-
-		ret->sirr_buf.cib_count = len;
-		ret->sirr_buf.cib_pgoff = off;
-		ret->sirr_buf.cib_value = pages;
-		*/
-
- 
  		/* With introduction of FOMs, a reply FOP will be allocated 
  		 * by the request FOP and a pointer to it will be 
  		 * sent across. 
@@ -262,26 +225,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->frd_fid.f_key 		= objid;
  		arg->frd_ioseg.f_count 	= 1;
  
- 		/* Allocate space for vector of write FOP */
- 		//c2_fop_cob_io_vec_alloc(1, &arg->frd_iovec.iov_seg);
- 		//BUG_ON(arg->frd_iovec.iov_seg == NULL);
- 
  		/* Populate the vector of read FOP */
- 		/* Ideally, the pages should be mapped to some buffer
- 		 * from the FOPs but as of now, the FOPs are modified
- 		 * to handle pages, so we don't need the for loop here
- 		 * We might need it in future.
- 		for (i = 0; i < npages; ++i) {
- 		 */
- 			arg->frd_ioseg.f_offset = pos;
- 			/*
- 			 * arg->frd_iovec.iov_seg.f_addr.f_count = PAGE_SIZE;
- 			 */
- 			arg->frd_ioseg.f_count = len;
- 			/*
- 		}
- 		*/
- 		arg->frd_segsize = PAGE_SIZE;
+		arg->frd_ioseg.f_offset = pos;
+		arg->frd_ioseg.f_count = len;
+
  		arg->frd_uid = c2_get_uid();
  		arg->frd_gid = c2_get_gid();
  		arg->frd_nid = c2_get_nid();
@@ -296,7 +243,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("read from server returns %d\n", rc);
- 		//c2_fop_cob_io_vec_free(arg->frd_iovec.iov_seg);
+
                 if (rc)
                         return rc;
                 rc = ret->frdr_rc ? : ret->frdr_buf.f_count;

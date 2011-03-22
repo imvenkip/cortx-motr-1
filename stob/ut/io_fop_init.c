@@ -47,7 +47,6 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
    @{
  */
 
-
 static struct c2_fop_type_ops write_ops = {
 	.fto_execute = write_handler,
 };
@@ -63,7 +62,6 @@ static struct c2_fop_type_ops create_ops = {
 static struct c2_fop_type_ops quit_ops = {
 	.fto_execute = quit_handler,
 };
-
 
 int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m);
@@ -85,8 +83,8 @@ C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply", 0, NULL);
 C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", 0, NULL);
 C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 0, NULL);
 
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", 14, &cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", 15, &cob_writev_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", c2_io_service_fom_start_opcode, &cob_readv_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", (c2_io_service_fom_start_opcode+1), &cob_writev_ops);
 
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,

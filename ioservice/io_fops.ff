@@ -27,7 +27,6 @@
  * @section IO FOP Definitions
  */
 
-
 DEF(c2_fop_file_fid, RECORD,
 	_(f_container, U64),
 	_(f_key, U64));
@@ -46,6 +45,9 @@ DEF(c2_fop_stob_id, RECORD,
 	_(s_hi, U64),
 	_(s_lo, U64));
 
+/**
+ * c2_fop_io_addr is a buffer with a count specifying its length.
+ */
 DEF(c2_fop_io_addr, SEQUENCE,
 	_(f_count, U32),
 	_(f_buf, BYTE));
@@ -82,6 +84,10 @@ DEF(c2_fop_io_vec, RECORD,
 	_(iov_seg, c2_fop_io_seg));
 
 /**
+ * Reply FOP for a readv request.
+ * <br> List of fields
+ * @li rc: status code
+ * @li buf: Buffer in which read data is returned.
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	_(frdr_rc, U32),
@@ -110,8 +116,7 @@ DEF(c2_fop_cob_readv, RECORD,
 	_(frd_uid, U64),
 	_(frd_gid, U64),
 	_(frd_nid, U64),
-	_(frd_flags, U64),
-	_(frd_segsize, U32));
+	_(frd_flags, U64));
 
 /**
  * <b> c2_fop_cob_writev_rep </b>
@@ -154,8 +159,7 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(fwr_uid, U64),
 	_(fwr_gid, U64),
 	_(fwr_nid, U64),
-	_(fwr_flags, U64),
-	_(fwr_segsize, U32));
+	_(fwr_flags, U64));
 
 
 /** @} end of FOP_data_ops */

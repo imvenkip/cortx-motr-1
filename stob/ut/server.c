@@ -219,8 +219,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		io.si_stob.iv_vec.v_count = &count;
 		io.si_stob.iv_index       = &offset;
 
-		printf("No of bytes at server side rpc handler = %lu\n", count);
-
 		io.si_opcode = SIO_WRITE;
 		io.si_flags  = 0;
 
@@ -281,11 +279,8 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		      void *cookie)
 {
-	printf("io_handler hit\n");
 	struct c2_fop_ctx ctx;
 	int 		  result = 0;
-	struct c2_fom	  *fom = NULL;
-	struct c2_fom	  *fom_ptr = NULL;
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
@@ -293,37 +288,15 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/* 
 	 * FOMs are implemented only for read and write operations 
 	 */
-	//if((fop->f_type->ft_code == c2_io_service_fom_start_opcode) ||
-		//	(fop->f_type->ft_code == (c2_io_service_fom_start_opcode+1))) {
-	if((fop->f_type->ft_code == 14) || (fop->f_type->ft_code == 15)) {
-		printf("io_handler: RW IO operations if cond hit\n");
-		/* 
-		 * This init function will allocate memory for a c2_fom 
-		 * structure. 
-		 * It will find out the respective c2_fom_type object
-		 * for the given c2_fop_type object using a mapping function
-		 * and will embed the c2_fom_type object in c2_fop_type object.
-		 */
-		result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-		printf("io_handler: init completed\n");
+	if((fop->f_type->ft_code == c2_io_service_fom_start_opcode) ||
+			(fop->f_type->ft_code == (c2_io_service_fom_start_opcode+1))) 
+	{
 		/*
-		 * This create function will create a type specific FOM
-		 * structure which primarily includes the context.
+		 * A dummy request handler API to handle incoming FOPs.
+		 * Actual reqh will be used in future.
 		 */
-		fom_ptr = fom;
-		fom->fo_type->ft_ops->fto_create(&fop->f_type->ft_fom_type, fop, &fom);
-		c2_free(fom_ptr);
-		printf("io_handler: create completed\n");
-		/*
-		 * Populate the FOM context object with whatever is 
-		 * needed from server side.
-		 */
-		fom->fo_type->ft_ops->fto_populate(fom, dom, &ctx, &fol);
-		printf("io_handler: populate completed\n");
-		/* 
-		 * Start the FOM 
-		 */
-		return fom->fo_ops->fo_state(fom);
+		result = c2_dummy_req_handler(service, fop, cookie, &fol, dom);
+		return result;
 	}
 	else
 /*
