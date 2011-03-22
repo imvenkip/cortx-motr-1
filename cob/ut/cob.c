@@ -65,7 +65,8 @@ static void test_create(void)
         /* pfid, filename */
         make_nskey(&key, 0x123, 0x456, "hello world");
 
-	C2_SET0(&fabrec); /* zero fill fabrec to keep valgrind happy. */
+	C2_SET0(&fabrec); /* zero fill to keep valgrind happy. */
+	C2_SET0(&nsrec);
 
         nsrec.cnr_stobid.si_bits.u_hi = 0xabc;
         nsrec.cnr_stobid.si_bits.u_lo = 0xdef;
