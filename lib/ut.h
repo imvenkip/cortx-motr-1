@@ -1,7 +1,9 @@
 #ifndef __COLIBRI_LIB_UT_H_
 #define __COLIBRI_LIB_UT_H_
 
-#include <CUnit/Basic.h>
+#ifndef __KERNEL__
+# include <CUnit/Basic.h>
+#endif
 
 /**
    @defgroup ut Unit testing.
@@ -11,7 +13,11 @@
    @{
  */
 
-#define C2_UT_ASSERT(a)	CU_ASSERT(a)
+#ifndef __KERNEL__
+# define C2_UT_ASSERT(a)	CU_ASSERT(a)
+#else
+# define C2_UT_ASSERT(a)	C2_ASSERT(a)
+#endif
 
 /**
    structure to define test in test suite.

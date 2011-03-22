@@ -18,7 +18,12 @@ int reset_sandbox(const char *sandbox)
 	C2_ASSERT(rc > 0);
 
 	rc = system(cmd);
-	C2_ASSERT(rc == 0);
+	if (rc != 0) {
+		/* cleanup might fail for innocent reasons, e.g., unreliable rm
+		   on an NFS mount. */
+		fprintf(stderr, "sandbox cleanup at \"%s\" failed: %i\n",
+			sandbox, rc);
+	}
 
 	free(cmd);
 	return rc;
@@ -54,11 +59,10 @@ void unit_end(const char *sandbox)
 	rc = chdir("..");
 	C2_ASSERT(rc == 0);
 
-	rc = reset_sandbox(sandbox);
-	C2_ASSERT(rc == 0);
+	reset_sandbox(sandbox);
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

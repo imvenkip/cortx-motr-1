@@ -18,7 +18,7 @@
  * C) source code, containing
  *
  *     @li definitions of C data types matching fop format description;
- * 
+ *
  *     @li declaration of user level sunrpc xdr functions;
  *
  *     @li definitions of user level sunrpc xdr functions;
@@ -172,9 +172,7 @@ DEF(optfid, UNION,
    };
    @endcode
 
-   fa_count field stores number of elements in the sequence. Its name is
-   composed as a prefix, followed by "_count", where prefix is defined by
-   type_prefix() function.
+   fa_count field stores number of elements in the sequence.
  */
 DEF(fid_array, SEQUENCE,
     _(fa_nr,  U32),
@@ -208,7 +206,7 @@ DEF(c2_stob_io_write_fop, RECORD,
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
