@@ -1,11 +1,10 @@
 /* -*- C -*- */
 
-#include <string.h>         /* strlen */
-
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
 #include "lib/arith.h"      /* C2_3WAY */
+#include "lib/misc.h"
 
 void __dummy_function(void)
 {
@@ -18,12 +17,15 @@ bool c2_uint128_eq(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 {
 	return c2_uint128_cmp(u0, u1) == 0;
 }
+C2_EXPORTED(c2_uint128_eq);
 
 int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 {
 	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
 }
+C2_EXPORTED(c2_uint128_cmp);
 
+#if 0
 uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 {
 	/*
@@ -38,6 +40,20 @@ uint64_t c2_rnd(uint64_t max, uint64_t *prev)
 	 */
 	return result * max / (1.0 + ~0ULL);
 }
+#endif
+
+uint64_t c2_rnd(uint64_t max, uint64_t *prev)
+{
+        uint64_t result;
+        /* Uses the same algorithm as GNU libc */
+        result = *prev = *prev * 0x5DEECE66DULL + 0xB;
+	
+	/* PRNG generates 48-bit values only */
+	C2_ASSERT((max >> 48) == 0);
+        /*Take value from higher 48 bits */
+        return (result >> 16) * max / ((~0UL) >> 16);
+}
+C2_EXPORTED(c2_rnd);
 
 uint64_t c2_gcd64(uint64_t p, uint64_t q)
 {
@@ -50,6 +66,7 @@ uint64_t c2_gcd64(uint64_t p, uint64_t q)
 	}
 	return p;
 }
+C2_EXPORTED(c2_gcd64);
 
 static uint64_t c2u64(const unsigned char *s)
 {
@@ -67,6 +84,7 @@ void c2_uint128_init(struct c2_uint128 *u128, const char *magic)
 	u128->u_hi = c2u64((const unsigned char *)magic);
 	u128->u_lo = c2u64((const unsigned char *)magic + 8);
 }
+C2_EXPORTED(c2_uint128_init);
 
 enum {
 	C2_MOD_SAFE_LIMIT = UINT64_MAX/32

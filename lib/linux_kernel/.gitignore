@@ -4,3 +4,5 @@ vec.c
 time.c
 refs.c
 bitmap.c
+buf.c
+misc.c
