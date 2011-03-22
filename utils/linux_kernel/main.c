@@ -76,10 +76,14 @@ static void c2_kernel_thread_ut(void)
 	c2_free(t);
 }
 
+/* lib/ut/chan.c */
+extern void test_chan(void);
+
 static void c2_run_kernel_ut(void)
 {
 	c2_kernel_bitmap_ut();
 	c2_kernel_thread_ut();
+	test_chan();
 
         printk(KERN_INFO "Colibri Kernel UT: all passed\n");
 }
@@ -87,7 +91,7 @@ static void c2_run_kernel_ut(void)
 int init_module(void)
 {
         printk(KERN_INFO "Colibri Kernel Unit Test\n");
-	
+
 	c2_run_kernel_ut();
 
 	return 0;
