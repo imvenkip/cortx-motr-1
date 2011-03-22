@@ -21,19 +21,21 @@
  */
 
 /** Default values */
-#define	DEFAULT_L1_SZ	(32*1024)
-#define	DEFAULT_L2_SZ	(6144*1024)
+enum cache_size {
+	DEFAULT_L1_SZ = 32*1024,
+	DEFAULT_L2_SZ = 6144*1024
+};
 
 /** Global variables */
-static bool g_c2_processor_init=false;
+static bool c2_processor_init = false;
 
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to
    c2_bitmap.
 
-   @param inpbamp -> Processors bitmap used by Linux kernel.
-   @param outpbmap -> Processors bitmap for Colibri programs.
-   @param bmpsz -> Size of cpumask bitmap (inbmp)
+   @param src -> Processors bitmap used by Linux kernel.
+   @param dest -> Processors bitmap for Colibri programs.
+   @param bmpsz -> Size of cpumask bitmap (src)
 
    @pre Assumes memory is alloacted for outbmp and it's initialized.
 
@@ -80,7 +82,7 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
  */
 static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
 {
-	uint32_t l1_id=id;
+	uint32_t l1_id = id;
 
 	/*
 	 * TODO : Write x86 asm code to figure out L1 info.
@@ -98,7 +100,7 @@ static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
  */
 static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
 {
-	uint32_t l2_id=id;
+	uint32_t l2_id = id;
 
 	/*
 	 * TODO : Write x86 asm code to figure out L2 info.
@@ -178,10 +180,10 @@ static inline uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id)
                 It's not MT-safe and can be called only once. It can be
                 called again after calling c2_processors_fini().
  */
-void c2_processors_init()
+int c2_processors_init()
 {
-	g_c2_processor_init = true;
-	return;
+	c2_processor_init = true;
+	return 0;
 }
 
 /**
@@ -192,7 +194,7 @@ void c2_processors_init()
  */
 void c2_processors_fini()
 {
-	g_c2_processor_init = false;
+	c2_processor_init = false;
 	return;
 }
 
@@ -203,7 +205,7 @@ void c2_processors_fini()
  */
 bool c2_processor_is_initialized()
 {
-	return g_c2_processor_init;
+	return c2_processor_init;
 }
 
 /**
@@ -303,7 +305,7 @@ int c2_processor_describe(c2_processor_nr_t id,
    @retval logical processor id (as supplied by the system) on which the
            calling thread is running.
  */
-int c2_processor_getcpu(void)
+c2_processor_nr_t c2_processor_getcpu(void)
 {
 	int cpu;
 

@@ -15,6 +15,8 @@
    @{
  */
 
+#define C2_PROCESSORS_INVALID_ID	((uint32_t)-1)
+
 /**
    @section Definitions
 
@@ -57,7 +59,7 @@ typedef uint32_t c2_processor_nr_t;
                 It's not MT-safe and can be called only once. It can be
                 called again after calling c2_processors_fini().
  */
-void c2_processors_init(void);
+int c2_processors_init(void);
 
 /**
    Close the processors interface. This function will destroy any cached data.
@@ -116,9 +118,10 @@ void c2_processors_online(struct c2_bitmap *map);
 
    @retval logical processor id (as supplied by the system) on which the
            calling thread is running, if the call is uspported.
-           It will return -1, if this call is not supported.
+           It will return C2_PROCESSORS_INVALID_ID, if this call is not
+           supported.
  */
-int c2_processor_getcpu(void);
+c2_processor_nr_t c2_processor_getcpu(void);
 
 /**
    Description of a processor in the system.
