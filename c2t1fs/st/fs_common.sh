@@ -27,11 +27,11 @@ rm -rf 0 1 2 3 4
 mkdir -p 0 1 2 3 4 
 cd -
 
-(./stob/ut/server -d/tmp/0 -p$Port0 2>&1 1>/tmp/server0.log &)
-(./stob/ut/server -d/tmp/1 -p$Port1 2>&1 1>/tmp/server1.log &)
-(./stob/ut/server -d/tmp/2 -p$Port2 2>&1 1>/tmp/server2.log &)
-(./stob/ut/server -d/tmp/3 -p$Port3 2>&1 1>/tmp/server3.log &)
-(./stob/ut/server -d/tmp/4 -p$Port4 2>&1 1>/tmp/server4.log &)
+(./stob/ut/server -d/tmp/0 -p$Port0 &)
+(./stob/ut/server -d/tmp/1 -p$Port1 &)
+(./stob/ut/server -d/tmp/2 -p$Port2 &)
+(./stob/ut/server -d/tmp/3 -p$Port3 &)
+(./stob/ut/server -d/tmp/4 -p$Port4 &)
 sleep 3
 
 mkdir -p /mnt/c2t1fs
