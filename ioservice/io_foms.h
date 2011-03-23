@@ -47,29 +47,29 @@
 #include "io_fops.h"
 #ifndef __KERNEL__
 #include "io_fops_u.h"
-/*
+/**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-struct c2_stob_id *c2_fid2stob_map(struct c2_fop_file_fid *fid);
+struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid);
 #endif
 
-/* 
+/** 
  * The opcode from which IO service FOPS start.
  * Used as an anchor point.
  */
 #define c2_io_service_fom_start_opcode 14
 
-/*
+/**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
  */
 struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code);
 
-/* 
+/** 
  * The various phases for writev FOM. 
  * Not used as of now. Will be used once the 
  * complete FOM and reqh infrastructure is in place.
@@ -83,27 +83,35 @@ enum c2_fom_cob_writev_phases{
  * operation and necessary context data
  */
 struct c2_fom_cob_writev {
+	/** Generic c2_fom object. */
         struct c2_fom                   fmcw_gen;
+	/** FOP associated with this FOM. */
         struct c2_fop			*fmcw_fop;
+	/** Stob domain in which this FOM is operating. */
 	struct c2_stob_domain		*fmcw_domain;
+	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx		*fmcw_fop_ctx;
+	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fmcw_stob;
+	/** Stob IO packet for the operation. */
         struct c2_stob_io		*fmcw_st_io;
+	/** FOL object to make transactions of update operations. */
 	struct c2_fol			*fmcw_fol;
 };
 
-/* 
+/** 
  * Create FOM context object for c2_fop_cob_writev FOP.
  */
 int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop, 
-		struct c2_fom **out);
+			     struct c2_fom **out);
 
-/*
+/**
  * Populate the FOM context object for c2_fop_cob_writev FOP.
  */
 int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom, 
-		struct c2_stob_domain *d, struct c2_fop_ctx *fopctx,
-		struct c2_fol *fol);
+				   struct c2_stob_domain *d, 
+				   struct c2_fop_ctx *fopctx, 
+				   struct c2_fol *fol);
 
 /**
  * <b> State Transition function for "write IO" operation
@@ -113,10 +121,10 @@ int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom,
  */
 int c2_fom_cob_writev_state(struct c2_fom *fom); 
 
-/* Finish method of write FOM object */
+/** Finish method of write FOM object */
 void c2_fom_cob_writev_fini(struct c2_fom *fom);
 
-/* 
+/** 
  * The various phases for readv FOM. 
  * Not used as of now. Will be used once the 
  * complete FOM and reqh infrastructure is in place.
@@ -130,27 +138,33 @@ enum c2_fom_cob_readv_phases {
  * operation and necessary context data
  */
 struct c2_fom_cob_readv {
+	/** Generic c2_fom object. */
         struct c2_fom                   	fmcr_gen;
+        /** FOP associated with this FOM. */
         struct c2_fop				*fmcr_fop;
+        /** Stob domain in which this FOM is operating. */
 	struct c2_stob_domain			*fmcr_domain;
+        /** FOP ctx sent by the network service. */
 	struct c2_fop_ctx			*fmcr_fop_ctx;
+        /** Stob object on which this FOM is acting. */
         struct c2_stob		                *fmcr_stob;
+        /** Stob IO packet for the operation. */
         struct c2_stob_io			*fmcr_st_io;
-	struct c2_fol				*fmcr_fol;
 };
 
-/* 
+/** 
  * Create FOM context object for c2_fop_cob_readv FOP.
  */
 int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop, 
-		struct c2_fom **out);
+			    struct c2_fom **out);
 
-/*
+/**
  * Populate the FOM context object
  */
 int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom, 
-		struct c2_stob_domain *d, struct c2_fop_ctx *fopctx,
-		struct c2_fol *fol);
+				  struct c2_stob_domain *d, 
+				  struct c2_fop_ctx *fopctx,
+				  struct c2_fol *fol);
 
 /**
  * <b> State Transition function for "read IO" operation
@@ -160,16 +174,16 @@ int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom,
  */
 int c2_fom_cob_readv_state(struct c2_fom *fom); 
 
-/* Finish method of read FOM object */
+/** Finish method of read FOM object */
 void c2_fom_cob_readv_fini(struct c2_fom *fom);
 
-/* FOM type specific functions for readv FOP. */
+/** FOM type specific functions for readv FOP. */
 static const struct c2_fom_type_ops cob_readv_type_ops = {
 	.fto_create = c2_fom_cob_readv_create,
 	.fto_populate = c2_fom_cob_readv_ctx_populate,
 };
 
-/* FOM type specific functions for writev FOP. */
+/** FOM type specific functions for writev FOP. */
 static const struct c2_fom_type_ops cob_writev_type_ops = {
 	.fto_create = c2_fom_cob_writev_create,
 	.fto_populate = c2_fom_cob_writev_ctx_populate,
@@ -180,12 +194,13 @@ extern struct c2_fom_type c2_fom_cob_writev_mopt;
 extern struct c2_fom_type *fom_types[];
 
 #ifndef __KERNEL__
-/*
+/**
  * A dummy request handler API to handle incoming FOPs.
  * Actual reqh will be used in future.
  */
 int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-		void *cookie, struct c2_fol *fol, struct c2_stob_domain *dom);
+			 void *cookie, struct c2_fol *fol, 
+			 struct c2_stob_domain *dom);
 #endif
 
 

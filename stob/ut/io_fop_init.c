@@ -108,7 +108,6 @@ static struct c2_fop_type_format *fmts[] = {
 	&c2_io_buf_tfmt,
 	&c2_io_vec_tfmt,
 	&c2_fop_file_fid_tfmt,
-	&c2_fop_stob_id_tfmt,
 	&c2_fop_io_addr_tfmt,
 	&c2_fop_io_seg_tfmt,
 	&c2_fop_io_vec_tfmt,

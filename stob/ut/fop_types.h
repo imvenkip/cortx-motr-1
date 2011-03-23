@@ -1,10 +1,10 @@
 #ifndef _FOP_TYPES_H_
 #define _FOP_TYPES_H_
-
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "ioservice/io_foms.h"
 
+/** Needed for fop type definitions. */
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 

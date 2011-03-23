@@ -1,5 +1,4 @@
 /* -*- C -*- */
-
 #include "fop/fop.h"
 #include "io_foms.h"
 #include "io_fops.h"
@@ -18,17 +17,17 @@
  * @{
  */
 
-/* Readv specific FOM type operations vector. */
+/** Readv specific FOM type operations vector. */
 struct c2_fom_type c2_fom_cob_readv_mopt = {
 	.ft_ops = &cob_readv_type_ops,
 };
 
-/* Writev specific FOM type operations vector. */
+/** Writev specific FOM type operations vector. */
 struct c2_fom_type c2_fom_cob_writev_mopt = {
 	.ft_ops = &cob_writev_type_ops,
 };
 
-/*
+/**
  *  An array of c2_fom_type structs for all possible FOMs.
  */
 struct c2_fom_type *fom_types[] = {
@@ -36,7 +35,7 @@ struct c2_fom_type *fom_types[] = {
 	&c2_fom_cob_writev_mopt,
 };
 
-/*
+/**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
@@ -46,26 +45,41 @@ struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code)
 	return fom_types[code - c2_io_service_fom_start_opcode];
 }
 
-/*
+/**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-struct c2_stob_id *c2_fid2stob_map(struct c2_fop_file_fid *fid)
+struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid)
 {
 	struct c2_stob_id	*stobid;
 	stobid = c2_alloc(sizeof(struct c2_stob_id));
+	C2_ASSERT(stobid != NULL);
 	stobid->si_bits.u_hi = fid->f_container;
 	stobid->si_bits.u_lo = fid->f_key;
 	return stobid;
 }
 
-/* 
+/**
+ * Function to map the on-wire FOP format to in-core FOP format.
+ */
+struct c2_fid *c2_fid_wire2mem(struct c2_fop_file_fid *ffid)
+{
+	struct c2_fid *fid = NULL;
+
+	fid = c2_alloc(sizeof(struct c2_fid));
+	C2_ASSERT(fid != NULL);
+	fid->f_container = ffid->f_seq;
+	fid->f_key = ffid->f_oid;
+	return fid;
+}
+
+/** 
  * Create FOM context object for c2_fop_cob_writev FOP.
  */
 int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop, 
-		struct c2_fom **out)
+			     struct c2_fom **out)
 {
 	struct c2_fom *fom = *out;
 	struct c2_fom_cob_writev *fom_ctx = NULL;
@@ -75,6 +89,7 @@ int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop,
 	C2_PRE(fop != NULL);
 
 	fom_ctx = c2_alloc(sizeof(struct c2_fom_cob_writev));
+	C2_ASSERT(fom_ctx != NULL);
 	fom_ctx->fmcw_gen = *fom;
 
 	/* Initialize the FOM context object. */
@@ -88,12 +103,13 @@ int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop,
 	return 0;
 }
 
-/*
+/**
  * Populate the FOM context object
  */
 int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom, 
-		struct c2_stob_domain *d, struct c2_fop_ctx *fopctx,
-		struct c2_fol *fol)
+				   struct c2_stob_domain *d, 
+				   struct c2_fop_ctx *fopctx,
+				   struct c2_fol *fol)
 {
 	struct c2_fom_cob_writev *fom_ctx;
 	C2_PRE(d != NULL);
@@ -115,7 +131,8 @@ int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom,
  */
 int c2_fom_cob_write_state(struct c2_fom *fom) 
 {
-	struct c2_fop_file_fid 		*fid;
+	struct c2_fop_file_fid		*ffid;
+	struct c2_fid 			*fid;
 	struct c2_fom_cob_writev 	*ctx;
 	struct c2_stob_id		*stobid;
 	struct c2_dtx			tx;
@@ -132,6 +149,7 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	struct c2_fop_cob_writev_rep	*rep_fop_data;
 
 	C2_PRE(fom != NULL);
+
 	rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 	C2_ASSERT(rep_fop != NULL);
 	rep_fop_data = c2_fop_data(rep_fop);
@@ -143,8 +161,8 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 
 	/*
 	 * Since a c2_fom object is passed down to every FOM 
-	 * state method, the context structure which is the parent structure 
-	 * of the FOM is type casted from c2_fom.
+	 * state method, the context structure which is the 
+	 * parent structure of the FOM is type casted from c2_fom.
 	 * This is possible since the context structure has the 
 	 * first element as FOM.
 	 */
@@ -152,9 +170,19 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	write_fop = c2_fop_data(ctx->fmcw_fop);
 
 	/* 
+	 * Make an FOL transaction record.
+	 */
+	result = c2_fop_fol_rec_add(ctx->fmcw_fop, 
+			ctx->fmcw_fol, &tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
+	ffid = &write_fop->fwr_fid;
+	/* Find out the in-core fid from on-wire fid. */
+	fid = c2_fid_wire2mem(ffid);
+
+	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
-	fid = &write_fop->fwr_fid;
 	stobid = c2_fid2stob_map(fid);
 	C2_ASSERT(stobid != NULL);
 
@@ -171,11 +199,13 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	result = c2_stob_find(ctx->fmcw_domain, stobid, &ctx->fmcw_stob);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(ctx->fmcw_stob, &tx);
+	C2_ASSERT(result == 0);
 
 	/* 
 	 * Allocate and initialize stob io object 
 	 */
 	ctx->fmcw_st_io = c2_alloc(sizeof(struct c2_stob_io));
+	C2_ASSERT(ctx->fmcw_st_io);
 	c2_stob_io_init(ctx->fmcw_st_io);
 
 	/*
@@ -239,9 +269,6 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	c2_stob_put(ctx->fmcw_stob);
 
 	if(result != -EDEADLK)	{
-		result = c2_fop_fol_rec_add(ctx->fmcw_fop, 
-				ctx->fmcw_fol, &tx.tx_dbtx);
-		C2_ASSERT(result == 0);
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 	}
@@ -261,10 +288,11 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	/* This goes into DONE phase */
 	ctx->fmcw_gen.fo_phase = FOPH_DONE;
 	c2_fom_cob_writev_fini(&ctx->fmcw_gen);
+	c2_free(fid);
 	return FSO_AGAIN;
 }
 
-/* Fini of write FOM object */
+/** Fini of write FOM object */
 void c2_fom_cob_writev_fini(struct c2_fom *fom)
 {
 	struct c2_fom_cob_writev *fom_ctx;
@@ -273,11 +301,11 @@ void c2_fom_cob_writev_fini(struct c2_fom *fom)
 	c2_free(fom_ctx);
 }
 
-/* 
+/** 
  * Create FOM context object for c2_fop_cob_readv FOP.
  */
 int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop, 
-		struct c2_fom **out)
+			    struct c2_fom **out)
 {
 	struct c2_fom *fom = *out;
 	struct c2_fom_cob_readv *fom_ctx = NULL;
@@ -287,6 +315,7 @@ int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop,
 	C2_PRE(fop != NULL);
 
 	fom_ctx = c2_alloc(sizeof(struct c2_fom_cob_readv));
+	C2_ASSERT(fom_ctx != NULL);
 	fom_ctx->fmcr_gen = *fom;
 
 	/* Initialize the FOM context object. */
@@ -300,12 +329,13 @@ int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop,
 	return 0;
 }
 
-/*
+/**
  * Populate the FOM context object
  */
 int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom, 
-		struct c2_stob_domain *d, struct c2_fop_ctx *fopctx,
-		struct c2_fol *fol)
+				  struct c2_stob_domain *d, 
+				  struct c2_fop_ctx *fopctx,
+				  struct c2_fol *fol)
 {
 	struct c2_fom_cob_readv *fom_ctx;
 	C2_PRE(d != NULL);
@@ -315,7 +345,6 @@ int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom,
 	fom_ctx = container_of(fom, struct c2_fom_cob_readv, fmcr_gen);
 	fom_ctx->fmcr_domain = d;
 	fom_ctx->fmcr_fop_ctx = fopctx;
-	fom_ctx->fmcr_fol = fol;
 	return 0;
 }
 
@@ -327,7 +356,8 @@ int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom,
  */
 int c2_fom_cob_read_state(struct c2_fom *fom) 
 {
-	struct c2_fop_file_fid 		*fid;
+	struct c2_fop_file_fid 		*ffid;
+	struct c2_fid			*fid;
 	struct c2_fom_cob_readv 	*ctx;
 	struct c2_stob_id		*stobid;
 	struct c2_dtx			tx;
@@ -355,18 +385,21 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 
 	/*
 	 * Since a c2_fom object is passed down to every FOM 
-	 * state method, the context structure which is the parent structure 
-	 * of the FOM is type casted from c2_fom.
+	 * state method, the context structure which is the 
+	 * parent structure of the FOM is type casted from c2_fom.
 	 * This is possible since the context structure has the 
 	 * first element as FOM.
 	 */
 	ctx = container_of(fom, struct c2_fom_cob_readv, fmcr_gen);
 	read_fop = c2_fop_data(ctx->fmcr_fop);
 
+	ffid = &read_fop->frd_fid;
+	/* Find out the in-core fid from on-wire fid. */
+	fid = c2_fid_wire2mem(ffid);
+
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
-	fid = &read_fop->frd_fid;
 	stobid = c2_fid2stob_map(fid);
 	C2_ASSERT(stobid != NULL);
 
@@ -380,11 +413,13 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	result = c2_stob_find(ctx->fmcr_domain, stobid, &ctx->fmcr_stob);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(ctx->fmcr_stob, &tx);
+	C2_ASSERT(result == 0);
 
 	/* 
 	 * Allocate and initialize stob io object 
 	 */
 	ctx->fmcr_st_io = c2_alloc(sizeof(struct c2_stob_io));
+	C2_ASSERT(ctx->fmcr_st_io);
 	c2_stob_io_init(ctx->fmcr_st_io);
 
 	/*
@@ -469,10 +504,11 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	/* This goes into DONE phase */
 	ctx->fmcr_gen.fo_phase = FOPH_DONE;
 	c2_fom_cob_readv_fini(&ctx->fmcr_gen);
+	c2_free(fid);
 	return FSO_AGAIN;
 }
 
-/* Fini of read FOM object */
+/** Fini of read FOM object */
 void c2_fom_cob_readv_fini(struct c2_fom *fom)
 {
 	struct c2_fom_cob_readv *fom_ctx;
@@ -481,12 +517,13 @@ void c2_fom_cob_readv_fini(struct c2_fom *fom)
 	c2_free(fom_ctx);
 }
 
-/*
+/**
  * A dummy request handler API to handle incoming FOPs.
  * Actual reqh will be used in future.
  */
 int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-		void *cookie, struct c2_fol *fol, struct c2_stob_domain *dom)
+			 void *cookie, struct c2_fol *fol, 
+			 struct c2_stob_domain *dom)
 {
 	struct c2_fop_ctx ctx;
 	int 		  result = 0;
@@ -524,8 +561,6 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 */
 	return fom->fo_ops->fo_state(fom);
 }
-
-
 
 /** @} end of io_foms */
 

@@ -129,6 +129,20 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jins
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
+
+/**
+ * Global container id used to identify the corresponding
+ * component object at the server side.
+ * In future, this will be changed. 
+ */
+#define c2_global_container_id	10
+
+/**
+ * Some user/group identification functions to fill up 
+ * the uid/gid fields from various FOPs.
+ * These are hard coded for now. They will be replaced
+ * with proper user authorization routines in future.
+ */
 static uint64_t c2_get_uid(void)
 {
 	return (uint64_t)1234;
@@ -175,8 +189,8 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		 * XXX The reply FOP pointer is not used as of now.
  		 */
  		arg->fwr_foprep 		= (uint64_t)ret;
- 		arg->fwr_fid.f_container 	= 10;
- 		arg->fwr_fid.f_key 		= objid;
+ 		arg->fwr_fid.f_seq		= c2_global_container_id;
+ 		arg->fwr_fid.f_oid		= objid;
  		arg->fwr_iovec.iov_count 	= 1;
  
  		/* Populate the vector of write FOP */
@@ -221,8 +235,8 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		 * XXX The reply FOP pointer is not used as of now.
  		 */
  		arg->frd_foprep 		= (uint64_t)ret;
- 		arg->frd_fid.f_container 	= 10;
- 		arg->frd_fid.f_key 		= objid;
+ 		arg->frd_fid.f_seq		= c2_global_container_id;
+ 		arg->frd_fid.f_oid		= objid;
  		arg->frd_ioseg.f_count 	= 1;
  
  		/* Populate the vector of read FOP */
@@ -274,7 +288,7 @@ static int ksunrpc_create(struct c2_net_conn *conn,
 	arg = c2_fop_data(f);
 	ret = c2_fop_data(r);
 
-        arg->sic_object.f_seq = 10;
+        arg->sic_object.f_seq = c2_global_container_id;
         arg->sic_object.f_oid = objid;
 
         DBG("%s create object %llu\n", __FUNCTION__, objid);

@@ -1,5 +1,4 @@
 /* -*- C -*- */
-
 #ifndef __COLIBRI_FOP_IO_OPERATIONS_H__
 #define __COLIBRI_FOP_IO_OPERATIONS_H__
 
@@ -10,13 +9,13 @@
 struct c2_fom;
 struct c2_fom_type;
 
-/*
+/**
  *  A mapping function that finds out the FOM type (c2_fom_type)
  *  given an opcode.
  */
 struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code);
 
-/* 
+/** 
  * Bunch of externs needed for stob/ut/io_fop_init.c code. 
  */
 extern struct c2_fop_type_ops cob_readv_ops;
@@ -27,7 +26,7 @@ extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
-/* 
+/** 
  * FOM init methods for readv, writev and io reply FOPs. 
  * Init methods create the c2_fom objects and do the 
  * necessary association with FOM and FOM type.
@@ -36,13 +35,13 @@ int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 int c2_fop_cob_io_rep_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 
-/* 
+/** 
  * State handler functions for writev and readv FOPs.
  */
 int c2_fom_cob_write_state(struct c2_fom *fom);
 int c2_fom_cob_read_state(struct c2_fom *fom);
 
-/*
+/**
  * Placeholder declarations for c2t1fs code.
  */
 #ifndef __KERNEL__
