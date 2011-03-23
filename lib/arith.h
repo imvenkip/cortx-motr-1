@@ -126,11 +126,9 @@ uint64_t c2_rnd(uint64_t max, uint64_t *seed);
  */
 uint64_t c2_gcd64(uint64_t p, uint64_t q);
 
-#define C2_IS_PO2(val) (!(val & (val - 1)))
-
 static inline bool c2_is_po2(uint64_t val)
 {
-	return C2_IS_PO2(val);
+	return !(val & (val - 1));
 }
 
 static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
