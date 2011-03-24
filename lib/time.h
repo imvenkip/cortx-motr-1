@@ -26,7 +26,9 @@
 /** struct c2_time is defined by headers above. */
 
 
-#define ONE_BILLION 1000000000
+enum {
+	ONE_BILLION = 1000000000ULL
+};
 
 /**
    Get the current time.  This may or may not relate to wall time.
