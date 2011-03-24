@@ -3,7 +3,6 @@
 #include "io_foms.h"
 #include "io_fops.h"
 #include "stob/stob.h"
-#include "stob/ut/fop_types.h"
 #include <lib/errno.h>
 #include <net/net.h>
 #ifdef __KERNEL__
@@ -16,6 +15,9 @@
  * @addtogroup io_foms
  * @{
  */
+
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 
 /** Readv specific FOM type operations vector. */
 struct c2_fom_type c2_fom_cob_readv_mopt = {

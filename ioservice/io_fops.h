@@ -23,8 +23,6 @@ extern struct c2_fop_type_ops cob_writev_ops;
 extern struct c2_fop_type_ops io_rep_ops;
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
-extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 /** 
  * FOM init methods for readv, writev and io reply FOPs. 

@@ -38,6 +38,9 @@
 static struct c2_stob_domain *dom;
 static struct c2_fol          fol;
 
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
+
 static struct c2_stob *object_find(const struct c2_fop_fid *fid,
 				   struct c2_dtx *tx)
 {

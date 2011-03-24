@@ -11,7 +11,6 @@
 #include "stob/ut/io_fop.h"
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.h"
-#include "fop_types.h"
 
 #ifdef __KERNEL__
 # include "io_k.h"
@@ -46,6 +45,12 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
    @addtogroup stob
    @{
  */
+
+extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
+extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
+
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 static struct c2_fop_type_ops write_ops = {
 	.fto_execute = write_handler,

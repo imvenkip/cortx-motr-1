@@ -137,6 +137,9 @@ MODULE_LICENSE("GPL");
  */
 #define c2_global_container_id	10
 
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
+
 /**
  * Some user/group identification functions to fill up 
  * the uid/gid fields from various FOPs.

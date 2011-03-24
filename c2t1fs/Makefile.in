@@ -18,7 +18,7 @@ prepare:
 	ln -sf $(IOSERVICEDIR)/io_fops.h
 	ln -sf $(IOSERVICEDIR)/io_foms.h
 	ln -sf $(IOSERVICEDIR)/io_fops.c
-	ln -sf $(STOBDIR)/fop_types.h
+#ln -sf $(STOBDIR)/fop_types.h
 
 
 install modules_install:
