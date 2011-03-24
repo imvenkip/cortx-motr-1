@@ -12,8 +12,10 @@ static const struct c2_addb_loc net_cli_addb = {
 	.al_name = "net-cli"
 };
 
-C2_ADDB_EV_DEFINE(net_addb_conn_send, "send", 0x10, C2_ADDB_STAMP);
-C2_ADDB_EV_DEFINE(net_addb_conn_call, "call", 0x11, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(net_addb_conn_send, "send", C2_ADDB_EVENT_NET_SEND,
+		  C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(net_addb_conn_call, "call", C2_ADDB_EVENT_NET_CALL,
+		  C2_ADDB_STAMP);
 
 #define ADDB_ADD(conn, ev, ...) \
 C2_ADDB_ADD(&(conn)->nc_addb, &net_cli_addb, ev , ## __VA_ARGS__)

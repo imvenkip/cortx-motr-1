@@ -15,16 +15,26 @@ struct c2_addb_record {
 
 };
 
-int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
-{
-	return 8;
-}
+int c2_addb_func_fail_getsize(struct c2_addb_dp *dp) { return 8; }
 
 int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
-				  struct c2_addb_record *rec)
-{
-	return 0;
-}
+			   struct c2_addb_record *rec) { return 0; }
+
+int c2_addb_call_getsize(struct c2_addb_dp *dp) { return 0; }
+int c2_addb_call_pack(struct c2_addb_dp *dp,
+		      struct c2_addb_record *rec) { return 0; }
+
+int c2_addb_flag_getsize(struct c2_addb_dp *dp) { return 0; }
+int c2_addb_flag_pack(struct c2_addb_dp *dp,
+		      struct c2_addb_record *rec) { return 0; }
+
+int c2_addb_inval_getsize(struct c2_addb_dp *dp) { return 0; }
+int c2_addb_inval_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec) { return 0; }
+
+int c2_addb_empty_getsize(struct c2_addb_dp *dp) { return 0; }
+int c2_addb_empty_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec) { return 0; }
 
 int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 {

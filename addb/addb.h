@@ -173,6 +173,23 @@ struct c2_addb_ev_ops {
 };
 
 /**
+   Global wide Event ID.
+
+   To aviod event ID conflict, all event ID should be defined here.
+*/
+enum c2_addb_event_id {
+	C2_ADDB_EVENT_USUNRPC_REQ           = 0x1ULL,
+	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
+	C2_ADDB_EVENT_OOM                   = 0x3ULL,
+	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
+	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
+
+	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
+	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
+};
+
+/**
    Event of interest for addb.
 
    This can be "directory entry has been found in cache", "data read took N
@@ -194,8 +211,8 @@ struct c2_addb_ev {
 };
 
 enum {
-	ADDB_REC_HEADER_MAGIC1  = 0xADDB0123ADDB4567LL,
-	ADDB_REC_HEADER_MAGIC2  = 0xADDB89ABADDBCDEFLL,
+	ADDB_REC_HEADER_MAGIC1  = 0xADDB0123ADDB4567ULL,
+	ADDB_REC_HEADER_MAGIC2  = 0xADDB89ABADDBCDEFULL,
 	ADDB_REC_HEADER_VERSION = 0x000000001
 };
 
@@ -209,7 +226,7 @@ struct c2_addb_dp {
 	enum c2_addb_ev_level     ad_level;
 
 	/* XXX temporary */
-	int         ad_rc;
+	uint64_t    ad_rc;
 	const char *ad_name;
 };
 
@@ -240,6 +257,7 @@ void c2_addb_fini(void);
 
    "ops" MUST be a variable name, usually introduced by C2_ADDB_OPS_DEFINE()
    macro.
+   "id" should be system wide unique. Please define ID in enum c2_addb_event_id.
 
    Example:
 

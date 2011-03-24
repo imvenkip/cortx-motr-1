@@ -27,7 +27,7 @@
 /*
  * This can be changed.
  */
-int default_addb_level = AEL_ERROR;
+int default_addb_level = AEL_NOTE;
 C2_EXPORTED(default_addb_level);
 
 
@@ -67,7 +67,7 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	lev = max_check(dp->ad_level, max_check(ev->ae_level,
 						ev->ae_ops->aeo_level));
 	/* log high priority data points to the console */
-	if (lev >= AEL_NOTE)
+	if (lev > AEL_NOTE)
 		c2_addb_console(lev, dp);
 
 	switch (c2_addb_store_type) {
@@ -106,8 +106,8 @@ static int subst_int(struct c2_addb_dp *dp, int rc)
 
 static int subst_void(struct c2_addb_dp *dp)
 {
-	dp->ad_rc = 0;
 	dp->ad_name = "";
+	dp->ad_rc = 0;
 	return 0;
 }
 
@@ -132,6 +132,23 @@ extern int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
 extern int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 				  struct c2_addb_record *rec);
 
+extern int c2_addb_call_getsize(struct c2_addb_dp *dp);
+extern int c2_addb_call_pack(struct c2_addb_dp *dp,
+			     struct c2_addb_record *rec);
+
+extern int c2_addb_flag_getsize(struct c2_addb_dp *dp);
+extern int c2_addb_flag_pack(struct c2_addb_dp *dp,
+			     struct c2_addb_record *rec);
+
+extern int c2_addb_inval_getsize(struct c2_addb_dp *dp);
+extern int c2_addb_inval_pack(struct c2_addb_dp *dp,
+			      struct c2_addb_record *rec);
+
+extern int c2_addb_empty_getsize(struct c2_addb_dp *dp);
+extern int c2_addb_empty_pack(struct c2_addb_dp *dp,
+			      struct c2_addb_record *rec);
+
+
 const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_int,
 	.aeo_pack    = c2_addb_func_fail_pack,
@@ -143,31 +160,44 @@ const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
 C2_EXPORTED(C2_ADDB_FUNC_CALL);
 
 const struct c2_addb_ev_ops C2_ADDB_CALL = {
-	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
-	.aeo_size  = sizeof(int32_t),
-	.aeo_name  = "call-failure",
-	.aeo_level = AEL_NOTE
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_int,
+	.aeo_pack    = c2_addb_call_pack,
+	.aeo_getsize = c2_addb_call_getsize,
+	.aeo_size    = sizeof(int32_t),
+	.aeo_name    = "call-failure",
+	.aeo_level   = AEL_NOTE
 };
 C2_EXPORTED(C2_ADDB_CALL);
 
 const struct c2_addb_ev_ops C2_ADDB_STAMP = {
-	.aeo_subst = (c2_addb_ev_subst_t)subst_void,
-	.aeo_size  = 0,
-	.aeo_name  = "."
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
+/*
+	XXX disabled to aviod recursion. These ops are used by events which are
+            defined and generated in network/rpc layer.
+*/
+/*	.aeo_pack    = c2_addb_empty_pack,
+	.aeo_getsize = c2_addb_empty_getsize,
+*/
+	.aeo_size    = 0,
+	.aeo_name    = "."
 };
 C2_EXPORTED(C2_ADDB_STAMP);
 
 const struct c2_addb_ev_ops C2_ADDB_FLAG = {
-	.aeo_subst = (c2_addb_ev_subst_t)subst_void,
-	.aeo_size  = sizeof(bool),
-	.aeo_name  = "flag"
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
+	.aeo_pack    = c2_addb_flag_pack,
+	.aeo_getsize = c2_addb_flag_getsize,
+	.aeo_size    = sizeof(bool),
+	.aeo_name    = "flag"
 };
 C2_EXPORTED(C2_ADDB_FLAG);
 
 const struct c2_addb_ev_ops C2_ADDB_INVAL = {
-	.aeo_subst = (c2_addb_ev_subst_t)subst_uint64_t,
-	.aeo_size  = sizeof(uint64_t),
-	.aeo_name  = "inval"
+	.aeo_subst   = (c2_addb_ev_subst_t)subst_uint64_t,
+	.aeo_pack    = c2_addb_inval_pack,
+	.aeo_getsize = c2_addb_inval_getsize,
+	.aeo_size    = sizeof(uint64_t),
+	.aeo_name    = "inval"
 };
 C2_EXPORTED(C2_ADDB_INVAL);
 

@@ -43,6 +43,34 @@ struct c2_addb_func_fail_body {
 	char     msg[0];
 };
 
+/**
+   ADDB record body for call event.
+
+   This event includes a return value.
+*/
+struct c2_addb_call_body {
+	uint32_t rc;
+};
+
+/**
+   ADDB record body for flag event.
+
+   This event includes a return value.
+*/
+struct c2_addb_flag_body {
+	bool flag;
+};
+
+/**
+   ADDB record body for invalid event.
+
+   This event includes a errno number.
+*/
+struct c2_addb_inval_body {
+	uint64_t invalid;
+};
+
+
 
 #ifndef __KERNEL__
 
@@ -63,11 +91,17 @@ static void c2_addb_record_dump(const struct c2_addb_record *rec)
 	       (unsigned long long)header->arh_timestamp,
 	       (unsigned long long)header->arh_magic2,
 	       (unsigned long)     rec->ar_data.cmb_count);
-	if (header->arh_event_id == 4) {
+
+	switch (header->arh_event_id) {
+	case C2_ADDB_EVENT_FUNC_FAIL: {
 		const struct c2_addb_func_fail_body *body;
 		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
 
 		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
+		break;
+		}
+	default:
+		break;
 	}
 }
 
@@ -113,8 +147,28 @@ static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 /** get size for data point opaque data */
 int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) +1, 8);
+	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1, 8);
 }
+
+int c2_addb_call_getsize(struct c2_addb_dp *dp)
+{
+	return c2_align(sizeof(uint32_t), 8);
+}
+int c2_addb_flag_getsize(struct c2_addb_dp *dp)
+{
+	return c2_align(sizeof(bool), 8);
+}
+
+int c2_addb_inval_getsize(struct c2_addb_dp *dp)
+{
+	return c2_align(sizeof(uint64_t), 8);
+}
+
+int c2_addb_empty_getsize(struct c2_addb_dp *dp)
+{
+	return 0;
+}
+
 
 /** packing func fail addb record */
 int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
@@ -131,11 +185,80 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 		body = (struct c2_addb_func_fail_body *)rec->ar_data.cmb_value;
 
 		C2_ASSERT(body != NULL);
-		body->rc = dp->ad_rc;
+		body->rc = (uint32_t)dp->ad_rc;
 		strcpy(body->msg, dp->ad_name);
 	}
 	return rc;
 }
+
+int c2_addb_call_pack(struct c2_addb_dp *dp,
+		      struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header *header = &rec->ar_header;
+	struct c2_addb_call_body     *body;
+	int rc;
+
+	C2_ASSERT(c2_addb_call_getsize(dp) == rec->ar_data.cmb_count);
+
+	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+		body = (struct c2_addb_call_body *)rec->ar_data.cmb_value;
+
+		C2_ASSERT(body != NULL);
+		body->rc = (uint32_t)dp->ad_rc;
+	}
+	return rc;
+}
+
+int c2_addb_flag_pack(struct c2_addb_dp *dp,
+		      struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header *header = &rec->ar_header;
+	struct c2_addb_flag_body     *body;
+	int rc;
+
+	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+
+	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+		body = (struct c2_addb_flag_body *)rec->ar_data.cmb_value;
+
+		C2_ASSERT(body != NULL);
+		body->flag = (bool)dp->ad_rc;
+	}
+	return rc;
+}
+
+int c2_addb_inval_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header *header = &rec->ar_header;
+	struct c2_addb_inval_body    *body;
+	int rc;
+
+	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+
+	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+		body = (struct c2_addb_inval_body *)rec->ar_data.cmb_value;
+
+		C2_ASSERT(body != NULL);
+		body->invalid = (uint64_t)dp->ad_rc;
+	}
+	return rc;
+
+}
+
+int c2_addb_empty_pack(struct c2_addb_dp *dp,
+		       struct c2_addb_record *rec)
+{
+	struct c2_addb_record_header *header = &rec->ar_header;
+
+	C2_ASSERT(rec->ar_data.cmb_count = 0);
+
+	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+}
+
 
 int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 {
