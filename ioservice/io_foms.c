@@ -5,17 +5,22 @@
 #include "stob/stob.h"
 #include <lib/errno.h>
 #include <net/net.h>
+
 #ifdef __KERNEL__
 #include "io_fops_k.h"
 #else
 #include "io_fops_u.h"
 #endif
 
+#include "fop/fop_format_def.h"
+#include "ioservice/io_fops.ff"
+
 /**
  * @addtogroup io_foms
  * @{
  */
 
+#ifndef __KERNEL__
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 
@@ -563,6 +568,7 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 */
 	return fom->fo_ops->fo_state(fom);
 }
+#endif
 
 /** @} end of io_foms */
 

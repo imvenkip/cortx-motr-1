@@ -15,7 +15,6 @@
 #ifdef __KERNEL__
 # include "io_k.h"
 # include "io_fops_k.h"
-# include "ioservice/io_fops.ff"
 
 # define write_handler NULL
 # define read_handler NULL
@@ -45,12 +44,6 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
    @addtogroup stob
    @{
  */
-
-extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
-
-extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 static struct c2_fop_type_ops write_ops = {
 	.fto_execute = write_handler,

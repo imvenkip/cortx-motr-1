@@ -5,7 +5,7 @@ GALOISDIR = @SRCDIR@/../galois
 IOSERVICEDIR = @SRCDIR@/ioservice
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
-c2t1fs-y := main.o io_k.o io_fops_k.o io_fops.o io_fop_init.o 
+c2t1fs-y := main.o io_k.o io_fops_k.o io_foms.o io_fops.o io_fop_init.o 
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
@@ -17,9 +17,8 @@ prepare:
 	ln -sf $(IOSERVICEDIR)/io_fops_k.c
 	ln -sf $(IOSERVICEDIR)/io_fops.h
 	ln -sf $(IOSERVICEDIR)/io_foms.h
+	ln -sf $(IOSERVICEDIR)/io_foms.c
 	ln -sf $(IOSERVICEDIR)/io_fops.c
-#ln -sf $(STOBDIR)/fop_types.h
-
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install
