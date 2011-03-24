@@ -9,13 +9,14 @@ void test_time(void)
 	struct c2_time t1, t2, t3;
 	int rc;
 
-        /* check wrapping: time "1" should be after time "very big" */
-        c2_time_set(&t1, 1, 0);
-        c2_time_set(&t2, (uint64_t)(-1), 0);
+	/* check wrapping: time "1" should be after time "very big" */
+	c2_time_set(&t1, 1, 0);
+	c2_time_set(&t2, (uint64_t)(-1), 0);
 	C2_UT_ASSERT(c2_time_after(&t1, &t2));
+	C2_UT_ASSERT(c2_time_after(&t1, &C2_TIME_NEVER));
 
 	c2_time_now(&t1);
-        t2 = t1;
+	t2 = t1;
 	C2_UT_ASSERT(c2_time_flatten(&t1) != 0);
 	C2_UT_ASSERT(c2_time_flatten(&t2) == c2_time_flatten(&t1));
 
