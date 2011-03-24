@@ -39,7 +39,7 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec);
    @code
    cur->vc_seg < cur->vc_vec->v_nr &&
    cur->vc_offset < cur->vc_vec->v_count[cur->vc_seg]
-   @code
+   @endcode
 
    invariant is maintained. This is called a "normal" state.
 
@@ -47,7 +47,7 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec);
 
    @code
    cur->vc_seg == cur->vc_vec->v_nr && cur->vc_offset == 0
-   @code
+   @endcode
 
    Note that a cursor over an empty vector (one with vec::v_nr == 0) is always
    in the end of the vector state.
