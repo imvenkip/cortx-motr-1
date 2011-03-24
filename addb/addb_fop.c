@@ -49,12 +49,12 @@ struct c2_addb_func_fail_body {
 static void c2_addb_record_dump(const struct c2_addb_record *rec)
 {
 	const struct c2_addb_record_header *header = &rec->ar_header;
-	printf("addb record |- magic1    = %llx\n"
+	printf("addb record |- magic1    = %llX\n"
 	       "            |- version   = %lu\n"
 	       "            |- len       = %lu\n"
 	       "            |- event_id  = %llu\n"
 	       "            |- timestamp = %llx\n"
-	       "            |- magic2    = %llx\n"
+	       "            |- magic2    = %llX\n"
 	       "            |- opaque data length = %lu\n",
 	       (unsigned long long)header->arh_magic1,
 	       (unsigned long)     header->arh_version,
@@ -67,7 +67,7 @@ static void c2_addb_record_dump(const struct c2_addb_record *rec)
 		const struct c2_addb_func_fail_body *body;
 		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
 
-		printf("++func-fail+|- rc = %d, msg = %s\n", body->rc, body->msg);
+		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
 	}
 }
 
@@ -82,12 +82,13 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_addb_record_dump(in);
 
 	/* prepare the reply */
-        reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
-        C2_ASSERT(reply != NULL);
-        ex = c2_fop_data(reply);
-        ex->ar_rc = 0;
+	reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
+	if (reply != NULL) {
+		ex = c2_fop_data(reply);
+		ex->ar_rc = 0;
+	}
 
-        c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 1;
 }
 #endif
@@ -138,22 +139,23 @@ int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
 
 int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 {
-	struct c2_addb_record rec;
+	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+	struct c2_addb_record        rec;
 	int rc;
 
-	if (dp->ad_ev->ae_ops->aeo_pack == NULL)
+	if (ops->aeo_pack == NULL)
 		return 0;
 
 	C2_SET0(&rec);
 	/* get size */
-	rec.ar_data.cmb_count = dp->ad_ev->ae_ops->aeo_getsize(dp);
+	rec.ar_data.cmb_count = ops->aeo_getsize(dp);
 	if (rec.ar_data.cmb_count != 0) {
 		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
 		if (rec.ar_data.cmb_value == NULL)
 			return -ENOMEM;
 	}
 	/* packing */
-	rc = dp->ad_ev->ae_ops->aeo_pack(dp, &rec);
+	rc = ops->aeo_pack(dp, &rec);
 	if (rc == 0) {
 		/* use stob io routines to write the addb */
 #ifndef __KERNEL__
@@ -186,6 +188,7 @@ C2_EXPORTED(c2_addb_db_add);
 
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 {
+	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_fop         *request;
 	struct c2_fop         *reply;
 	struct c2_addb_record *addb_record;
@@ -194,25 +197,32 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 	int size;
 	int result;
 
-	if (dp->ad_ev->ae_ops->aeo_pack == NULL)
+	if (ops->aeo_pack == NULL)
 		return 0;
 
 	request = c2_fop_alloc(&c2_addb_record_fopt, NULL);
+	reply   = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
+	if (request == NULL || reply == NULL) {
+		result = -ENOMEM;
+		goto out;
+	}
+
 	addb_record = c2_fop_data(request);
-	reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
-	addb_reply = c2_fop_data(reply);
+	addb_reply  = c2_fop_data(reply);
 
 	/* get size */
-	size = dp->ad_ev->ae_ops->aeo_getsize(dp);
+	size = ops->aeo_getsize(dp);
 	if (size != 0) {
 		addb_record->ar_data.cmb_value = c2_alloc(size);
-		if (addb_record->ar_data.cmb_value == NULL)
-			return -ENOMEM;
+		if (addb_record->ar_data.cmb_value == NULL) {
+			result = -ENOMEM;
+			goto out;
+		}
 	} else
 		addb_record->ar_data.cmb_value = NULL;
 	addb_record->ar_data.cmb_count = size;
 	/* packing */
-	result = dp->ad_ev->ae_ops->aeo_pack(dp, addb_record);
+	result = ops->aeo_pack(dp, addb_record);
 	if (result == 0) {
 		C2_SET0(addb_reply);
 		call.ac_arg = request;
@@ -221,6 +231,9 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 		/* call c2_rpc_item_submit() in the future */
 	}
 	c2_free(addb_record->ar_data.cmb_value);
+out:
+	c2_fop_free(request);
+	c2_fop_free(reply);
 
 	return result;
 }
