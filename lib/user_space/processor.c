@@ -87,62 +87,6 @@ enum map {
 };
 
 /**
-   Macro definitions
- */
-/*
- * Return error if string pointer is NULL.
- */
-#define RET_ERR_ON_NULL_STR(str, rc)	{ \
-		if ((str) == NULL) { \
-			return (rc); \
-		} \
-					}
-
-/*
- * Return error if file pointer is NULL.
- */
-#define RET_ERR_ON_INVAL_FILE(filep, rc)	{ \
-		if ((filep) == NULL) { \
-			return (rc); \
-		} \
-						}
-
-/*
- * Return error if id is invalid
- */
-#define RET_ERR_ON_INVAL_ID(id, rc)	{ \
-		if ((id) == C2_PROCESSORS_INVALID_ID) { \
-			return (rc); \
-		} \
-					}
-/*
- * Return error if id is invalid and restore cwd.
- */
-#define RET_ERR_RESTORE_DIR_ON_INVAL_ID(cwd, id, rc)	{ \
-		if ((id) == C2_PROCESSORS_INVALID_ID) { \
-			chdir((cwd)); \
-			return (rc); \
-		} \
-					}
-/*
- * Return error if return value is non-zero.
- */
-#define RET_ERR_ON_FAILURE(val, rc)	{ \
-		if ((val) != 0) { \
-			return (rc); \
-		} \
-					}
-
-/*
- * Return error if return value is non-zero and restore cwd.
- */
-#define RET_ERR_RESTORE_DIR_ON_FAILURE(cwd, val, rc)	{ \
-		if ((val) != 0) { \
-			chdir((cwd)); \
-			return (rc); \
-		} \
-					}
-/**
    System wide summary of all the processors. This is the head node.
    It contains various processor statistics and a linked list of
    processor info (struct c2_processor_descr).
@@ -163,8 +107,8 @@ struct c2_processor_sys_summary {
 	/** bitmap of processors that are present on this node */
 	struct c2_bitmap pss_avail_map;
 
-	/** bitmap of online processors on this node */
-	struct c2_bitmap pss_online_map;
+	/** bitmap of onln processors on this node */
+	struct c2_bitmap pss_onln_map;
 
 };
 
@@ -190,6 +134,9 @@ static bool c2_processor_init = false;
 /**
    This function converts a bitmap string into a bitmap of c2_bitmap type.
 
+   @pre map in not NULL.
+   @pre mapstr in not NULL.
+
    @param map -> c2 bitmap structure that will store the bitmap. Memory
                  for this parameter should be allocated before calling.
    @param mapstr -> bitmap string
@@ -201,13 +148,13 @@ static bool c2_processor_init = false;
  */
 static int c2_processor_set_map(struct c2_bitmap *map, const char *mapstr)
 {
-	uint32_t from_id = 0,
-		 to_id = 0,
-		 id;
+	uint32_t from_id = 0;
+	uint32_t to_id = 0;
+	uint32_t id;
 	int	rc = -1;
-	char *str,
-	     *rangeset,
-	     *range;
+	char *str;
+	char *rangeset;
+	char *range;
 
 	C2_ASSERT(map != NULL);
 	C2_ASSERT(mapstr != NULL);
@@ -216,7 +163,9 @@ static int c2_processor_set_map(struct c2_bitmap *map, const char *mapstr)
 	 * strtok() modifies string. Hence create a copy.
 	 */
 	str = strdup(mapstr);
-	RET_ERR_ON_NULL_STR(str, rc);
+	if (str == NULL) {
+		return rc;
+	}
 
 	/*
 	 * Tokenize the string to separate cpu ranges.
@@ -268,9 +217,13 @@ static int c2_processor_set_map(struct c2_bitmap *map, const char *mapstr)
 static int c2_processor_set_map_type(enum map map_type)
 {
 	int	rc = -1;
-	char	buf[MAX_LINE_LEN+1],
-		*str;
+
+	char	buf[MAX_LINE_LEN+1];
+	char	*str;
+
 	FILE	*fp;
+
+	struct c2_bitmap *pbitmap;
 
 	switch (map_type) {
 	case C2_PROCESSORS_POSS_MAP :
@@ -290,29 +243,27 @@ static int c2_processor_set_map_type(enum map map_type)
 		break;
 	}
 
-	RET_ERR_ON_INVAL_FILE(fp, rc);
+	if (fp == NULL) {
+		return rc;
+	}
 
         str = fgets(buf, MAX_LINE_LEN, fp);
 	fclose (fp);
-	RET_ERR_ON_NULL_STR(str, rc);
+	if (str == NULL) {
+		return rc;
+	}
 
 	switch (map_type) {
 	case C2_PROCESSORS_POSS_MAP :
-		rc = c2_bitmap_init(&sys_cpus.pss_poss_map, sys_cpus.pss_max);
-		RET_ERR_ON_FAILURE(rc, rc);
-		c2_processor_set_map(&sys_cpus.pss_poss_map, buf);
+		pbitmap = &sys_cpus.pss_poss_map;
 		break;
 
 	case C2_PROCESSORS_AVAIL_MAP :
-		rc = c2_bitmap_init(&sys_cpus.pss_avail_map, sys_cpus.pss_max);
-		RET_ERR_ON_FAILURE(rc, rc);
-		c2_processor_set_map(&sys_cpus.pss_avail_map, buf);
+		pbitmap = &sys_cpus.pss_avail_map;
 		break;
 
 	case C2_PROCESSORS_ONLN_MAP :
-		rc = c2_bitmap_init(&sys_cpus.pss_online_map, sys_cpus.pss_max);
-		RET_ERR_ON_FAILURE(rc, rc);
-		c2_processor_set_map(&sys_cpus.pss_online_map, buf);
+		pbitmap = &sys_cpus.pss_onln_map;
 		break;
 
 	default:
@@ -322,7 +273,10 @@ static int c2_processor_set_map_type(enum map map_type)
 		break;
 	}
 
-	rc = 0;
+	rc = c2_bitmap_init(pbitmap, sys_cpus.pss_max);
+	if (rc == 0) {
+		c2_processor_set_map(pbitmap, buf);
+	}
 	return rc;
 }
 
@@ -363,7 +317,7 @@ static uint32_t c2_processor_read_number_from_file(const char *filename)
    @see c2_processor_set_map_type()
 
  */
-static void c2_processor_set_maxsz()
+static void c2_processor_get_maxsz()
 {
 	sys_cpus.pss_max
 	= c2_processor_read_number_from_file(C2_PROCESSORS_MAX_FILE);
@@ -382,8 +336,8 @@ static void c2_processor_set_maxsz()
  */
 static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 {
-	uint32_t numa_node_id = 0,
-		 gotid = 0;
+	uint32_t numa_node_id = 0;
+	uint32_t gotid = 0;
 	int rc;
 
 	char	dirname[PATH_MAX];
@@ -394,7 +348,9 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 
 	sprintf(dirname, C2_PROCESSORS_CPU_DIR_PREFIX"%u", id);
 	dirp = opendir(dirname);
-	RET_ERR_ON_INVAL_FILE(dirp, numa_node_id);
+	if (dirp == NULL) {
+		return numa_node_id;
+	}
 
 	/*
 	 * Find node id under .../cpu/cpu<id>/node<id>
@@ -421,7 +377,9 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 	 * under node/nod<id>/cpu<id>
 	 */
 	dirp = opendir(C2_PROCESSORS_NODE_DIR);
-	RET_ERR_ON_INVAL_FILE(dirp, numa_node_id);
+	if (dirp == NULL) {
+		return numa_node_id;
+	}
 
 	while ((fname = readdir(dirp)) != NULL) {
 		if (fname->d_name[0] == 'n'
@@ -503,19 +461,22 @@ static uint32_t c2_processor_get_physid(c2_processor_nr_t id)
  */
 static int c2_processor_is_cache_shared(const char *mapstr)
 {
-	char *ptr,
-	     *str;
+	char *ptr;
+	char *str;
 
-	uint32_t bit,
-	         num,
-		 i;
-	 int shared_cpus = -1;
+	uint32_t bit;
+	uint32_t num;
+	uint32_t i;
+
+	int shared_cpus = -1;
 
 	/*
 	 * strtok() modifies string. Hence create a copy.
 	 */
 	str = strdup(mapstr);
-	RET_ERR_ON_NULL_STR(str, shared_cpus);
+	if (str == NULL) {
+		return shared_cpus;
+	}
 	shared_cpus = 0;
 
 	/*
@@ -567,8 +528,8 @@ static int c2_processor_is_cache_shared(const char *mapstr)
  */
 static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
 {
-	uint32_t level,
-		 sz;
+	uint32_t level;
+	uint32_t sz;
 	int	rc;
 	size_t	size = (size_t)C2_PROCESSORS_INVALID_ID;
 	char	filename[PATH_MAX];
@@ -577,7 +538,9 @@ static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
 	sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 				   C2_PROCESSORS_CACHE1_LEVEL_FILE);
 	level = c2_processor_read_number_from_file(filename);
-	RET_ERR_ON_INVAL_ID(level, size);
+	if (level == C2_PROCESSORS_INVALID_ID) {
+		return size;
+	}
 
 	C2_ASSERT(level == C2_PROCESSORS_L1);
 
@@ -591,7 +554,9 @@ static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
 	 * Get the size string. It's in format 32K, 6144K etc.
 	 */
 	fp = fopen(filename, "r");
-	RET_ERR_ON_INVAL_FILE(fp, rc);
+	if (fp == NULL) {
+		return size;
+	}
 
 	rc = fscanf(fp, "%uK", &sz);
 	fclose(fp);
@@ -616,9 +581,9 @@ static size_t c2_processor_get_l1_size(c2_processor_nr_t id)
  */
 static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 {
-	uint32_t level,
-		 sz,
-		 l3_cache_present;
+	uint32_t level;
+	uint32_t sz;
+	uint32_t l3_cache_present;
 	int	rc;
 	size_t	size = (size_t)C2_PROCESSORS_INVALID_ID;
 	char	filename[PATH_MAX];
@@ -627,13 +592,17 @@ static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 	sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 				   C2_PROCESSORS_CACHE3_LEVEL_FILE);
 	level = c2_processor_read_number_from_file(filename);
-	RET_ERR_ON_INVAL_ID(level, size);
+	if (level == C2_PROCESSORS_INVALID_ID) {
+		return size;
+	}
 
 	if (level != C2_PROCESSORS_L2) { /* If L2 level is not found */
 		sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 					   C2_PROCESSORS_CACHE2_LEVEL_FILE);
 		level = c2_processor_read_number_from_file(filename);
-		RET_ERR_ON_INVAL_ID(level, size);
+		if (level == C2_PROCESSORS_INVALID_ID) {
+			return size;
+		}
 
 		C2_ASSERT(level == C2_PROCESSORS_L2);
 		l3_cache_present = 1;
@@ -654,7 +623,9 @@ static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
 	 * Get the size string. It's in format 32K, 6144K etc.
 	 */
 	fp = fopen(filename, "r");
-	RET_ERR_ON_INVAL_FILE(fp, size);
+	if (fp == NULL) {
+		return size;
+	}
 
 	rc = fscanf(fp, "%uK", &sz);
 	fclose(fp);
@@ -678,20 +649,25 @@ static size_t c2_processor_get_l2_size(c2_processor_nr_t id)
  */
 static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
 {
-	uint32_t level,
-		 coreid,
-		 physid,
-		 l1_id = id;
-	bool	is_shared;
-	char	filename[PATH_MAX],
-		buf[MAX_LINE_LEN+1],
-		*str;
+	uint32_t level;
+	uint32_t coreid;
+	uint32_t physid;
+	uint32_t l1_id = id;
+
+	bool is_shared;
+
+	char filename[PATH_MAX];
+	char buf[MAX_LINE_LEN+1];
+	char *str;
+
 	FILE	*fp;
 
 	sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 				   C2_PROCESSORS_CACHE1_LEVEL_FILE);
 	level = c2_processor_read_number_from_file(filename);
-	RET_ERR_ON_INVAL_ID(level, l1_id);
+	if (level == C2_PROCESSORS_INVALID_ID) {
+		return l1_id;
+	}
 
 	C2_ASSERT(level == C2_PROCESSORS_L1);
 	/*
@@ -704,10 +680,15 @@ static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
 	 * Get the shared cpu map string.
 	 */
 	fp = fopen(filename, "r");
-	RET_ERR_ON_INVAL_FILE(fp, l1_id);
+	if (fp == NULL) {
+		return l1_id;
+	}
+
         str = fgets(buf, MAX_LINE_LEN, fp);
 	fclose(fp);
-	RET_ERR_ON_NULL_STR(str, l1_id);
+	if (str == NULL) {
+		return l1_id;
+	}
 
 	/*
 	 * Scan the map string to find how many bits are set in the string
@@ -736,27 +717,34 @@ static uint32_t c2_processor_get_l1_cacheid(c2_processor_nr_t id)
  */
 static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
 {
-	uint32_t level,
-		 l2_id = id,
-		 coreid,
-		 physid;
-	bool	is_shared,
-		l3_cache_present = false;
-	char	filename[PATH_MAX],
-		buf[MAX_LINE_LEN+1],
-		*str;
+	uint32_t level;
+	uint32_t l2_id = id;
+	uint32_t coreid;
+	uint32_t physid;
+
+	bool is_shared;
+	bool l3_cache_present = false;
+
+	char	filename[PATH_MAX];
+	char	buf[MAX_LINE_LEN+1];
+	char	*str;
+
 	FILE	*fp;
 
 	sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 				   C2_PROCESSORS_CACHE3_LEVEL_FILE);
 	level = c2_processor_read_number_from_file(filename);
-	RET_ERR_ON_INVAL_ID(level, l2_id);
+	if (level == C2_PROCESSORS_INVALID_ID) {
+		return l2_id;
+	}
 
 	if (level != C2_PROCESSORS_L2) {
 		sprintf(filename, "%s%u/%s", C2_PROCESSORS_CPU_DIR_PREFIX, id,
 					   C2_PROCESSORS_CACHE2_LEVEL_FILE);
 		level = c2_processor_read_number_from_file(filename);
-		RET_ERR_ON_INVAL_ID(level, l2_id);
+		if (level == C2_PROCESSORS_INVALID_ID) {
+			return l2_id;
+		}
 
 		C2_ASSERT(level == C2_PROCESSORS_L2);
 		l3_cache_present = true;
@@ -777,11 +765,15 @@ static uint32_t c2_processor_get_l2_cacheid(c2_processor_nr_t id)
 	 * Get the shared cpu map string.
 	 */
 	fp = fopen(filename, "r");
-	RET_ERR_ON_INVAL_FILE(fp, l2_id);
+	if (fp == NULL) {
+		return l2_id;
+	}
 
         str = fgets(buf, MAX_LINE_LEN, fp);
 	fclose(fp);
-	RET_ERR_ON_NULL_STR(str, l2_id);
+	if (str == NULL) {
+		return l2_id;
+	}
 
 	/*
 	 * Scan the map string to find how many bits are set in the string
@@ -837,22 +829,33 @@ static int c2_processor_getinfo(c2_processor_nr_t id,
                           	 struct c2_processor_node *pn)
 {
 	int rc = -1;
+
 	C2_ASSERT(pn != NULL);
 
 	pn->pn_info.pd_numa_node = c2_processor_get_numanodeid(id);
-	RET_ERR_ON_INVAL_ID(pn->pn_info.pd_numa_node, rc);
+	if ( pn->pn_info.pd_numa_node == C2_PROCESSORS_INVALID_ID) {
+		return rc;
+	}
 
 	pn->pn_info.pd_l1 = c2_processor_get_l1_cacheid(id);
-	RET_ERR_ON_INVAL_ID(pn->pn_info.pd_l1, rc);
+	if ( pn->pn_info.pd_l1 == C2_PROCESSORS_INVALID_ID) {
+		return rc;
+	}
 
 	pn->pn_info.pd_l1_sz = c2_processor_get_l1_size(id);
-	RET_ERR_ON_INVAL_ID(pn->pn_info.pd_l1_sz, rc);
+	if ( pn->pn_info.pd_l1_sz == C2_PROCESSORS_INVALID_ID) {
+		return rc;
+	}
 
 	pn->pn_info.pd_l2 = c2_processor_get_l2_cacheid(id);
-	RET_ERR_ON_INVAL_ID(pn->pn_info.pd_l2, rc);
+	if ( pn->pn_info.pd_l2 == C2_PROCESSORS_INVALID_ID) {
+		return rc;
+	}
 
 	pn->pn_info.pd_l2_sz = c2_processor_get_l2_size(id);
-	RET_ERR_ON_INVAL_ID(pn->pn_info.pd_l2_sz, rc);
+	if ( pn->pn_info.pd_l2_sz == C2_PROCESSORS_INVALID_ID) {
+		return rc;
+	}
 
 	pn->pn_info.pd_id = id;
 	pn->pn_info.pd_pipeline = c2_processor_get_pipelineid(id);
@@ -881,13 +884,17 @@ static int c2_processor_getinfo(c2_processor_nr_t id,
  */
 static int c2_processors_getsummary()
 {
-	int rc;
-	bool	present,
-		empty;
+	int	rc;
+
+	bool	present;
+	bool	empty;
+
 	uint32_t cpuid;
-	char	*dirp,
-		*str,
-		cwd[PATH_MAX];
+
+	char	*dirp;
+	char	*str;
+	char	cwd[PATH_MAX];
+
 	struct c2_processor_node *pinfo;
 
 	dirp = getenv(C2_PROCESSORS_INFO_ENV);
@@ -899,7 +906,9 @@ static int c2_processors_getsummary()
 	 * Obtain current working directory.
 	 */
 	str = getcwd(cwd, sizeof(cwd) - 1);
-	RET_ERR_ON_NULL_STR(str, rc);
+	if (str == NULL) {
+		return rc;
+	}
 
 	/*
 	 * Change directory to desired "sysfs" directory.
@@ -907,7 +916,9 @@ static int c2_processors_getsummary()
 	 * Subsequent function will work in the context of "sysfs" directory.
 	 */
 	rc = chdir(dirp);
-	RET_ERR_ON_FAILURE(rc, rc);
+	if (rc != 0) {
+		return rc;
+	}
 
 	/*
 	 * Now get the summary of max/possible/avail/online CPUs
@@ -915,17 +926,29 @@ static int c2_processors_getsummary()
 	 */
 	rc = -1;
 
-	c2_processor_set_maxsz();
-	RET_ERR_RESTORE_DIR_ON_INVAL_ID(cwd, sys_cpus.pss_max, rc);
+	c2_processor_get_maxsz();
+	if ( sys_cpus.pss_max == C2_PROCESSORS_INVALID_ID) {
+		chdir(cwd);
+		return rc;
+	}
 
 	rc = c2_processor_set_map_type(C2_PROCESSORS_POSS_MAP);
-	RET_ERR_RESTORE_DIR_ON_FAILURE(cwd, rc, rc);
+	if (rc != 0) {
+		chdir(cwd);
+		return rc;
+	}
 
 	rc = c2_processor_set_map_type(C2_PROCESSORS_AVAIL_MAP);
-	RET_ERR_RESTORE_DIR_ON_FAILURE(cwd, rc, rc);
+	if (rc != 0) {
+		chdir(cwd);
+		return rc;
+	}
 
 	rc = c2_processor_set_map_type(C2_PROCESSORS_ONLN_MAP);
-	RET_ERR_RESTORE_DIR_ON_FAILURE(cwd, rc, rc);
+	if (rc != 0) {
+		chdir(cwd);
+		return rc;
+	}
 
 
 	c2_list_init(&sys_cpus.pss_head);
@@ -1035,7 +1058,7 @@ void c2_processors_fini()
 
 	c2_bitmap_fini(&sys_cpus.pss_poss_map);
 	c2_bitmap_fini(&sys_cpus.pss_avail_map);
-	c2_bitmap_fini(&sys_cpus.pss_online_map);
+	c2_bitmap_fini(&sys_cpus.pss_onln_map);
 	sys_cpus.pss_max = 0;
 
 	/*
@@ -1115,7 +1138,7 @@ void c2_processors_online(struct c2_bitmap *map)
 {
 	C2_ASSERT(c2_processor_is_initialized() == true);
 	C2_ASSERT(map != NULL);
-	c2_processors_copy_c2bitmap(&sys_cpus.pss_online_map, map);
+	c2_processors_copy_c2bitmap(&sys_cpus.pss_onln_map, map);
 }
 
 /**
