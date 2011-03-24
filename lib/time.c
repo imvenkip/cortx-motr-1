@@ -106,6 +106,13 @@ uint64_t c2_time_nanoseconds(const struct c2_time *time)
 C2_EXPORTED(c2_time_nanoseconds);
 
 
+const struct c2_time C2_TIME_NEVER = {
+	.ts = {
+		.tv_sec  = 0xFFFFFFFFFFFFFFFFULL,
+		.tv_nsec = 0
+	}
+};
+
 /** @} end of time group */
 
 /*
