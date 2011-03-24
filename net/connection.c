@@ -10,7 +10,7 @@
 #include "net/net.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    <b>Connections</b>
 
@@ -29,6 +29,12 @@ static const struct c2_addb_ctx_type c2_net_conn_addb_ctx = {
 	.act_name = "net-conn"
 };
 
+/** @}
+   @addtogroup net Networking
+   @{
+ */
+
+
 static const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 	.act_name = "net-dom"
 };
@@ -36,6 +42,11 @@ static const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 static const struct c2_addb_loc c2_net_addb_loc = {
 	.al_name = "net"
 };
+
+/** @}
+ @addtogroup netDep
+ @{
+ */
 
 static void c2_net_conn_free_cb(struct c2_ref *ref)
 {
@@ -128,6 +139,11 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 		c2_ref_put(&conn->nc_refs);
 }
 C2_EXPORTED(c2_net_conn_unlink);
+
+/** @}
+ @addtogroup net
+ @{
+*/
 
 int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 {

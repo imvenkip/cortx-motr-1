@@ -5,8 +5,12 @@
 #include "net.h"
 #include "xdr.h"
 
+#include "fop/fop_format_def.h"
+#include "net/net_otw_types.ff"
+
+
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    @{
  */
@@ -20,4 +24,4 @@ bool c2_xdr_service_id (void *x, struct c2_service_id *objp)
 			  sizeof (char), (xdrproc_t) xdr_char);
 }
 
-/** @} end of net group */
+/** @} end of net deprecated group */
