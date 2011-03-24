@@ -1,22 +1,50 @@
 /* -*- C -*- */
 #include "io_fops.h"
 
+/**
+ * readv FOP operation vector.
+ */
+struct c2_fop_type_ops cob_readv_ops = {
+	.fto_fom_init = c2_fop_cob_readv_fom_init,
+};
+
+/**
+ * writev FOP operation vector.
+ */
+struct c2_fop_type_ops cob_writev_ops = {
+	.fto_fom_init = c2_fop_cob_writev_fom_init,
+};
+
+/**
+ * Init function to initialize readv and writev reply FOMs.
+ * Since there is no client side FOMs as of now, this is empty.
+ */
 int c2_fop_cob_io_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;
 }
 
+/**
+ * readv and writev reply FOP operation vector.
+ */
 struct c2_fop_type_ops io_rep_ops = {
 	.fto_fom_init = c2_fop_cob_io_rep_fom_init,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply", (14+2), &io_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply", (14+3), &io_rep_ops);
+/**
+ * FOP definitions for readv and writev operations.
+ */
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", c2_io_service_fom_start_opcode, &cob_readv_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", (c2_io_service_fom_start_opcode+1), &cob_writev_ops);
+/**
+ * FOP definitions of readv and writev reply FOPs.
+ */
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply", (c2_io_service_fom_start_opcode+2), &io_rep_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply", (c2_io_service_fom_start_opcode+3), &io_rep_ops);
 
 #ifndef __KERNEL__
 
 struct c2_fom;
-//extern c2_io_service_fom_start_opcode;
 
 /** Generic ops object for c2_fop_cob_writev */
 struct c2_fom_ops c2_fom_write_ops = {
@@ -80,12 +108,13 @@ int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 #else
-/** Placeholder APIs for c2t1fs build. */
+/** Placeholder API for c2t1fs build. */
 int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;
 }
 
+/** Placeholder API for c2t1fs build. */
 int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;

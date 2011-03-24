@@ -56,12 +56,6 @@
 struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid);
 #endif
 
-/** 
- * The opcode from which IO service FOPS start.
- * Used as an anchor point.
- */
-#define c2_io_service_fom_start_opcode 14
-
 /**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.

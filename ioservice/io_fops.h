@@ -9,6 +9,12 @@
 struct c2_fom;
 struct c2_fom_type;
 
+/** 
+ * The opcode from which IO service FOPS start.
+ * Used as an anchor point.
+ */
+#define c2_io_service_fom_start_opcode 14
+
 /**
  *  A mapping function that finds out the FOM type (c2_fom_type)
  *  given an opcode.
@@ -22,6 +28,12 @@ extern struct c2_fop_type_ops cob_readv_ops;
 extern struct c2_fop_type_ops cob_writev_ops;
 extern struct c2_fop_type_ops io_rep_ops;
 
+/**
+ * FOP definitions and corresponding fop type formats 
+ * exported by ioservice.
+ */
+extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;
+extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 
@@ -29,6 +41,9 @@ extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+
+int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m);
+int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /** 
  * FOM init methods for readv, writev and io reply FOPs. 
