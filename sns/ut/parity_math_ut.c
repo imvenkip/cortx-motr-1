@@ -32,13 +32,6 @@ static int32_t puc = PRTY_UNIT_COUNT_MAX;
 static int32_t fuc = PRTY_UNIT_COUNT_MAX;
 static uint32_t UNIT_BUFF_SIZE = 256;
 
-
-static void c2_buf_init(struct c2_buf *b, uint8_t *d, uint32_t sz)
-{
-	b->b_addr = d;
-	b->b_nob = sz;
-}
-
 extern void unit_spoil(uint32_t buff_size,
 		       uint32_t fail_count,
 		       uint32_t data_count)
@@ -254,8 +247,8 @@ void ub_large_4096(int iter)
 void ub_small_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
-	duc = 10;
-	puc = 5;
+	duc = 3;
+	puc = 2;
 	fuc = duc+puc;
 	parity_math_tb();
 }
@@ -263,8 +256,8 @@ void ub_small_1048576(int iter)
 void ub_medium_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
-	duc = 20;
-	puc = 6;
+	duc = 6;
+	puc = 3;
 	fuc = duc+puc;
 	parity_math_tb();
 }
@@ -272,8 +265,8 @@ void ub_medium_1048576(int iter)
 void ub_large_1048576(int iter)
 {
 	UNIT_BUFF_SIZE = 1048576;
-	duc = 30;
-	puc = 12;
+	duc = 8;
+	puc = 4;
 	fuc = duc+puc;
 	parity_math_tb();
 }
@@ -335,15 +328,15 @@ struct c2_ub_set c2_parity_math_ub = {
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_large_32768 },
 
-                { .ut_name  = "s 10/05/ 1M",
+                { .ut_name  = "s  03/02/ 1M",
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_small_1048576 },
 
-                { .ut_name  = "m 20/06/ 1M",
+                { .ut_name  = "m 06/03/ 1M",
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_medium_1048576 },
 
-                { .ut_name  = "l 30/12/ 1M",
+                { .ut_name  = "l 08/04/ 1M",
                   .ut_iter  = UB_ITER,
                   .ut_round = ub_large_1048576 },
 

@@ -5,6 +5,8 @@
 
 #include <linux/types.h>
 
+#define UINT64_MAX ((uint64_t)(~((uint64_t) 0)))  /* 0xFFFFFFFFFFFFFFFF */
+
 /* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_ */
 #endif
 /* 

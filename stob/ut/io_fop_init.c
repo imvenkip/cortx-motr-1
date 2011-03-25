@@ -77,6 +77,7 @@ static struct c2_fop_type_format *fmts[] = {
 
 void io_fop_fini(void)
 {
+	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }

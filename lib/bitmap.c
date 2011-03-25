@@ -21,7 +21,11 @@ enum {
 	C2_BITMAP_BITSHIFT = 6
 };
 
-C2_BASSERT(C2_IS_PO2(C2_BITMAP_BITS));
+/*
+  Note that the following assertion validates both the relationship between
+  C2_BITMAP_BITS and C2_BITMAP_BITSHIFT, and that C2_BITMAP_BITS is
+  a power of 2.
+*/
 C2_BASSERT(C2_BITMAP_BITS == (1UL << C2_BITMAP_BITSHIFT));
 
 /**

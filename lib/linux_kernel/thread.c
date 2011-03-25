@@ -25,6 +25,21 @@
    @{
  */
 
+int c2_thread_init(struct c2_thread *q, int (*init)(void *),
+		   void (*func)(void *), void *arg)
+{
+	return -ENOSYS;
+}
+
+int c2_thread_join(struct c2_thread *q)
+{
+	return -ENOSYS;
+}
+
+void c2_thread_fini(struct c2_thread *q)
+{
+}
+
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 {
 #if 1

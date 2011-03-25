@@ -1,3 +1,9 @@
+#
+# Script is temporary disabled, use test2.sh instead.
+#
+echo Script is temporary DISABLED!!!
+exit 1
+
 DBENCH_DIR=""
 
 if [ -z $DBENCH_DIR ] ; then

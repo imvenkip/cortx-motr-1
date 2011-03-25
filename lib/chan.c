@@ -24,8 +24,6 @@
    channel (c2_clink_del()). This guarantees that semaphore counter is exactly
    equal to the number of pending events declared on the channel.
 
-   @todo replace POSIX sem_t with c2_semaphore.
-
    @note that a version of c2_chan_wait() with a timeout would induce some
    changes to the design, because in this case it is waiter who has to unlink a
    clink from a channel.
@@ -44,7 +42,7 @@ static bool c2_chan_invariant_locked(struct c2_chan *chan)
 	if (chan->ch_waiters != c2_list_length(&chan->ch_links))
 		return false;
 
-	c2_list_for_each_entry(&chan->ch_links, scan, 
+	c2_list_for_each_entry(&chan->ch_links, scan,
 			       struct c2_clink, cl_linkage) {
 		if (scan->cl_chan != chan)
 			return false;
@@ -106,12 +104,8 @@ static void clink_signal(struct c2_clink *clink)
 
 	if (clink->cl_cb != NULL)
 		clink->cl_cb(clink);
-	else {
-		int rc;
-
-		rc = sem_post(&clink->cl_wait);
-		C2_ASSERT(rc == 0);
-	}
+	else
+		c2_semaphore_up(&clink->cl_wait);
 }
 
 static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
@@ -188,7 +182,7 @@ void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	chan->ch_waiters++;
 	c2_list_add_tail(&chan->ch_links, &link->cl_linkage);
-	rc = sem_init(&link->cl_wait, 0, 0);
+	rc = c2_semaphore_init(&link->cl_wait, 0);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(c2_chan_invariant_locked(chan));
 	clink_unlock(link);
@@ -202,7 +196,6 @@ void c2_clink_add(struct c2_chan *chan, struct c2_clink *link)
  */
 void c2_clink_del(struct c2_clink *link)
 {
-	int rc;
 	struct c2_chan *chan;
 
 	C2_PRE(c2_clink_is_armed(link));
@@ -217,8 +210,7 @@ void c2_clink_del(struct c2_clink *link)
 	clink_unlock(link);
 
 	link->cl_chan = NULL;
-	rc = sem_destroy(&link->cl_wait);
-	C2_ASSERT(rc == 0);
+	c2_semaphore_fini(&link->cl_wait);
 
 	C2_POST(!c2_clink_is_armed(link));
 }
@@ -230,51 +222,40 @@ bool c2_clink_is_armed(const struct c2_clink *link)
 
 bool c2_chan_trywait(struct c2_clink *link)
 {
-	int rc;
+	bool result;
 
 	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	do
-		rc = sem_trywait(&link->cl_wait);
-	while (rc == -1 && errno == EINTR);
-	C2_ASSERT(rc == 0 || (rc == -1 && errno == EAGAIN));
+	result = c2_semaphore_trydown(&link->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	return rc == 0;
+	return result;
 }
 
 void c2_chan_wait(struct c2_clink *link)
 {
-	int rc;
-
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	C2_ASSERT(link->cl_cb == NULL);
-	do
-		rc = sem_wait(&link->cl_wait);
-	while (rc == -1 && errno == EINTR);
-	C2_ASSERT(rc == 0);
+	c2_semaphore_down(&link->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
 
 bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout)
 {
-	int rc;
+	bool result;
 
 	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	C2_ASSERT(abs_timeout != NULL);
 
-	do
-		rc = sem_timedwait(&link->cl_wait, &abs_timeout->ts);
-	while (rc == -1 && errno == EINTR);
-	C2_ASSERT(rc == 0 || (rc == -1 && errno == ETIMEDOUT));
+	result = c2_semaphore_timeddown(&link->cl_wait, abs_timeout);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	return rc == 0;
+	return result;
 }
 
 
 /** @} end of chan group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

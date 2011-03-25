@@ -13,12 +13,17 @@
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "lib/arith.h"
 #include "fop/fop.h"
 
 #include "c2t1fs.h"
-
 #include "io_k.h"
+
 #include "stob/ut/io_fop.h"
+#include "sns/parity_math.h"
+#include "layout/pdclust.h"
+#include "pool/pool.h"
+#include "lib/buf.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -123,8 +128,7 @@ MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
 static int ksunrpc_read_write(struct c2_net_conn *conn,
-			      uint64_t objid,
-			      struct page **pages, int npages, int off,
+			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
@@ -154,9 +158,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->siw_buf.cib_pgoff = off;
 		arg->siw_buf.cib_value = pages;
 
-                DBG("writing data to server(%llu/%d/%d/%ld/%lld)\n",
-                    objid, npages, off, len, pos);
+                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
+                    objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
+
                 DBG("write to server returns %d\n", rc);
                 if (rc)
                         return rc;
@@ -185,9 +190,10 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		ret->sirr_buf.cib_pgoff = off;
 		ret->sirr_buf.cib_value = pages;
 
-                DBG("reading data from server(%llu/%d/%d/%ld/%lld)\n",
-                    objid, npages, off, len, pos);
+                DBG("reading data from server(%llu/%d/%ld/%lld)\n",
+                    objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
+
                 DBG("read from server returns %d\n", rc);
                 if (rc)
                         return rc;
@@ -272,7 +278,7 @@ static int c2t1fs_put_csi(struct super_block *sb)
 static struct inode *c2t1fs_alloc_inode(struct super_block *sb)
 {
 	struct c2t1fs_inode_info *cii;
-	
+
 	cii = kmem_cache_alloc(c2t1fs_inode_cachep, GFP_NOFS);
 	if (!cii)
 		return NULL;
@@ -308,6 +314,43 @@ struct super_operations c2t1fs_super_operations = {
         .put_super     = c2t1fs_put_super,
         .statfs        = c2t1fs_statfs,
 };
+
+static int pdclust_layout_init(struct c2_pdclust_layout **play, int N, int K)
+{
+	int                 result;
+	struct c2_uint128   id;
+	struct c2_uint128   seed;
+	struct c2_pool     *pool;
+
+	C2_ALLOC_PTR(pool);
+	if (pool == NULL)
+		return -ENOMEM;
+
+	c2_uint128_init(&id,   "jinniesisjillous");
+	c2_uint128_init(&seed, "upjumpandpumpim,");
+
+	result = c2_pool_init(pool, N+2*K);
+
+	if (result != 0) {
+		c2_free(pool);
+		return result;
+	}
+
+	result = c2_pdclust_build(pool, &id, N, K, &seed, play);
+
+	if (result != 0) {
+		c2_pool_fini(pool);
+		c2_free(pool);
+	}
+
+	return result;
+}
+
+static void pdclust_layout_fini(struct c2_pdclust_layout *play)
+{
+	c2_pool_fini(play->pl_pool);
+	c2_pdclust_fini(play);
+}
 
 /**
    Adding a container connection into list.
@@ -458,14 +501,29 @@ static int c2t1fs_parse_address(struct super_block *sb, const char *address,
 	return rc;
 }
 
-static int c2t1fs_parse_options(struct super_block *sb, char *options)
+
+static bool optcheck(const char *s, const char *opt, size_t *optlen)
+{
+	*optlen = strlen(opt);
+        return strncmp(s, opt, *optlen) == 0;
+}
+
+static int optparse(struct super_block *sb, char *options)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
+ 	struct c2t1fs_object_param *obj_param = &csi->csi_object_param;
         char *s1, *s2;
 	char *objid = NULL;
 	char *objsize = NULL;
 	char *layoutid = NULL;
+	char *unitsize = NULL;
+	char *layout_data = NULL;
+	char *layout_parity = NULL;
+	uint32_t N; /* layout data   unit count */
+	uint32_t K; /* layout parity unit count */
 	uint64_t cid = 0;
+	uint32_t container_nr = 0;
+        size_t optlen;
 	struct c2t1fs_conn_clt *clt;
 	int rc;
 	ENTER;
@@ -480,14 +538,22 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 while (*s1 == ' ' || *s1 == ',')
                         s1++;
 
-                if (strncmp(s1, "objid=", 6) == 0) {
-                        objid = s1 + 6;
-                } else if (strncmp(s1, "objsize=", 8) == 0) {
+                if (optcheck(s1, "objid=", &optlen)) {
+                        objid = s1 + optlen;
+                } else if (optcheck(s1, "objsize=", &optlen)) {
                         objsize = s1 + 8;
-                } else if (strncmp(s1, "layoutid=", 9) == 0) {
+                } else if (optcheck(s1, "layoutid=", &optlen)) {
 			/* add layout id for this client */
-			layoutid = s1 + 9;
-		} else if (strncmp(s1, "ds=", 3) == 0) {
+			layoutid = s1 + optlen;
+		} else if (optcheck(s1, "unitsize=", &optlen)) {
+			unitsize = s1 + optlen;
+		} else if (optcheck(s1, "layout-data=", &optlen)) {
+			/* will remove this option when layout id will be added */
+			layout_data = s1 + optlen;
+		} else if (optcheck(s1, "layout-parity=", &optlen)) {
+			/* will remove this option when layout id will be added */
+			layout_parity = s1 + optlen;
+		} else if (optcheck(s1, "ds=", &optlen)) {
 			/*
 			   Add container server information here.
 			   There may be multiple container servers. This option
@@ -496,7 +562,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 			clt = c2_alloc(sizeof *clt);
 			if (clt == NULL)
 				return -ENOMEM;
-			rc = c2t1fs_parse_address(sb, s1+3, &clt->xc_srvid);
+			rc = c2t1fs_parse_address(sb, s1 + optlen, &clt->xc_srvid);
 			if (rc) {
 				c2_free(clt);
 				return rc;
@@ -509,6 +575,7 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
 				return rc;
 			}
 			cid ++;
+			container_nr++;
 		}
 
                 /* Find next opt */
@@ -520,9 +587,9 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 s1 = s2;
         }
 
-        if (objid) {
-                csi->csi_object_param.cop_objid = simple_strtol(objid, NULL, 0);
-                if (csi->csi_object_param.cop_objid <= 0) {
+        if (objid != NULL) {
+                obj_param->cop_objid = simple_strtol(objid, NULL, 0);
+                if (obj_param->cop_objid <= 0) {
                         printk(KERN_ERR "Invalid objid=%s specified\n", objid);
                         return -EINVAL;
                 }
@@ -530,29 +597,263 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
                 printk(KERN_ERR "No device id specified (need mount option 'objid=...')\n");
                 return -EINVAL;
         }
-        if (layoutid) {
-                csi->csi_object_param.cop_layoutid = simple_strtol(layoutid, NULL, 0);
-                if (csi->csi_object_param.cop_layoutid <= 0) {
+        if (layoutid != NULL) {
+                obj_param->cop_layoutid = simple_strtol(layoutid, NULL, 0);
+                if (obj_param->cop_layoutid <= 0) {
                         printk(KERN_ERR "Invalid objid=%s specified\n", layoutid);
                         return -EINVAL;
                 }
         } else {
 		/* use default value */
-                csi->csi_object_param.cop_layoutid = 0;
+                obj_param->cop_layoutid = 0;
         }
-        if (objsize) {
-                csi->csi_object_param.cop_objsize = simple_strtol(objsize, NULL, 0);
-                if (csi->csi_object_param.cop_objsize <= 0) {
+	if (layout_data != NULL && layout_parity != NULL) {
+		printk("layout_data && layout_parity: ");
+		N = simple_strtol(layout_data,   NULL, 0);
+		K = simple_strtol(layout_parity, NULL, 0);
+		printk("N=%d, K=%d, cnt_nr=%d", N, K, container_nr);
+		if (N + 2*K != container_nr) { /* *2 for SPARE UNITS */
+			printk(KERN_ERR "Unable to create layout with the following settigns:"
+			       " N=%u, K=%u, transport count=%u\n", N, K, container_nr);
+			return -EINVAL;
+		}
+
+		rc = pdclust_layout_init(&obj_param->cop_play, N, K);
+		if (rc)
+			return rc;
+	} else {
+                printk(KERN_ERR "No layout specified "
+		       "(need mount option 'layout-parity=...' and 'layout-data=...')\n");
+		obj_param->cop_play = NULL;
+                return -EINVAL;
+	}
+        if (objsize != NULL) {
+                obj_param->cop_objsize = simple_strtol(objsize, NULL, 0);
+                if (obj_param->cop_objsize <= 0) {
                         printk(KERN_WARNING "Invalid objsize=%s specified."
                                " Default value is used\n", objsize);
-                        csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
+                        obj_param->cop_objsize = C2T1FS_INIT_OBJSIZE;
                 }
         } else {
                 printk(KERN_WARNING "no objsize specified. Default value is used\n");
-                csi->csi_object_param.cop_objsize = C2T1FS_INIT_OBJSIZE;
+                obj_param->cop_objsize = C2T1FS_INIT_OBJSIZE;
+        }
+        if (unitsize != NULL) {
+                obj_param->cop_unitsize = simple_strtol(unitsize, NULL, 0);
+                if (obj_param->cop_unitsize < C2T1FS_DEFAULT_UNIT_SIZE) {
+                        printk(KERN_WARNING "Invalid unitsize=%s specified."
+                               " Default value is used\n", unitsize);
+                        obj_param->cop_unitsize = C2T1FS_DEFAULT_UNIT_SIZE;
+                }
+        } else {
+                printk(KERN_WARNING "no unitsize specified. Default value is used\n");
+                obj_param->cop_unitsize = C2T1FS_DEFAULT_UNIT_SIZE;
         }
 
         return 0;
+}
+
+struct rpc_desc {
+	loff_t rd_offset;
+	int    rd_units;
+};
+
+struct obj_map {
+	/* 2D array of page-pointers: struct page *om_map[N][M] */
+	struct page ***om_map;
+};
+
+static void obj_map_fini(struct obj_map *objmap, uint32_t P, uint32_t I)
+{
+        uint32_t i;
+
+        for (i = 0; i < P; ++i) {
+                c2_free(objmap->om_map[i]);
+                objmap->om_map[i] = NULL;
+	}
+
+        c2_free(objmap->om_map);
+}
+
+static int obj_map_init(struct obj_map *objmap, uint32_t P, uint32_t I)
+{
+        uint32_t i;
+
+        C2_ALLOC_ARR(objmap->om_map, P);
+        if (objmap->om_map == NULL)
+		return -ENOMEM;
+
+        for (i = 0; i < P; ++i) {
+                C2_ALLOC_ARR(objmap->om_map[i], I);
+		if (objmap->om_map[i] == NULL) {
+                        obj_map_fini(objmap, P, I);
+                        return -ENOMEM;
+                }
+        }
+
+        return 0;
+}
+
+static int c2t1fs_internal_read_write(struct c2t1fs_sb_info    *csi,
+				      struct inode             *inode,
+				      struct page **pages, int npages,
+				      loff_t in_pos, int off,
+				      struct c2_pdclust_layout *play,
+				      int rw)
+{
+	int                         i;
+	int                         rc = 0;
+	int                         rpc_rc;
+	int	                    group;
+	int	                    unit;
+	int                         N = play->pl_N;
+	int                         K = play->pl_K;
+	int                         P = play->pl_P;
+	int                         W = N + 2*K;
+	int                         I = npages / N;
+
+	int                         parity;
+	int			    parity_nr = K*I;
+	int                         spare;
+	int                         spare_nr = K*I;
+
+	uint64_t                    objid;
+	uint32_t                    unitsize;
+
+	struct c2_pdclust_src_addr  src;
+	struct c2_pdclust_tgt_addr  tgt;
+	enum c2_pdclust_unit_type   unit_type;
+
+	loff_t                      pos;
+	uint64_t                    obj;
+
+	struct c2t1fs_conn_clt     *con;
+	struct page                *page;
+	struct page	          **parity_pages;
+
+	struct c2_buf              *data_buf;
+	struct c2_buf              *parity_buf;
+
+	struct c2t1fs_object_param *obj_param;
+
+	struct obj_map              objmap;
+	struct rpc_desc            *rpc;
+
+	ENTER;
+
+	C2_ASSERT(csi != NULL);
+	C2_PRE(off == 0);
+
+	DBG("layout settings: N=%d, K=%d, W=%d, I=%d, P=%d\n", N, K, W, I, P);
+
+	obj_param = &csi->csi_object_param;
+	objid = obj_param->cop_objid;
+	unitsize = obj_param->cop_unitsize;
+	C2_ASSERT(unitsize >= C2T1FS_DEFAULT_UNIT_SIZE);
+
+	rc = obj_map_init(&objmap, P, I);
+	if (rc)
+		goto int_out;
+
+	C2_ALLOC_ARR(data_buf, N);
+	C2_ALLOC_ARR(rpc, P);
+	C2_ALLOC_ARR(parity_pages, parity_nr);
+	C2_ALLOC_ARR(parity_buf, parity_nr);
+
+	if (rpc == NULL || parity_pages == NULL ||
+	    data_buf == NULL || parity_buf == NULL) {
+		rc = -ENOMEM;
+		goto int_out;
+	}
+
+	for (i = 0; i < parity_nr; ++i) {
+		parity_pages[i] = alloc_page(GFP_KERNEL);
+		if (parity_pages[i] == NULL) {
+			rc = -ENOMEM;
+			goto int_out;
+		}
+
+		c2_buf_init(&parity_buf[i], page_address(parity_pages[i]),
+			    unitsize);
+	}
+
+	for (i = 0; i < P; ++i) {
+		rpc[i].rd_offset = C2_BSIGNED_MAX;
+		rpc[i].rd_units  = 0;
+	}
+
+	src.sa_group = in_pos / (N * unitsize);
+	for (group = 0, parity = 0, spare = 0; group < I ; ++group, src.sa_group++) {
+		for (unit = 0; unit < W; ++unit) {
+			src.sa_unit = unit;
+			c2_pdclust_layout_map(play, &src, &tgt);
+			pos = tgt.ta_frame * unitsize;
+			obj = tgt.ta_obj;
+
+			rpc[obj].rd_offset = min_check(pos, rpc[obj].rd_offset);
+			rpc[obj].rd_units++;
+
+			unit_type = c2_pdclust_unit_classify(play, unit);
+			if (unit_type == PUT_DATA) {
+				page = pages[unit + group*N];
+				c2_buf_init(&data_buf[unit],
+					    page_address(page),
+					    unitsize);
+			} else if (unit_type == PUT_PARITY) {
+				if (rw == WRITE)
+					c2_parity_math_calculate(&play->pl_math,
+								 data_buf,
+								 &parity_buf[group*K]);
+
+				C2_ASSERT(parity < parity_nr);
+				page = parity_pages[parity++];
+			} else { /* PUT_SPARE */
+				C2_ASSERT(spare < spare_nr);
+				page = parity_pages[spare++]; /* just use parity pages for now */
+			}
+
+			objmap.om_map[obj][group] = page;
+			DBG("prepare: obj=%llu, group=%d, pos=%llu, page=%p\n", obj, group, pos, page);
+		}
+	}
+
+	for (obj = 0; obj < P; ++obj) {
+		if (rpc[obj].rd_units == 0)
+			continue;
+		con = c2t1fs_container_lookup(inode->i_sb, obj);
+		if (con != NULL) {
+			rpc_rc = ksunrpc_read_write(con->xc_conn,
+						    objid,
+						    objmap.om_map[obj],
+						    off,
+						    /* rpc[obj].rd_units * I, */
+						    unitsize * I,
+						    rpc[obj].rd_offset, rw);
+
+			if (rpc_rc < 0) {
+				rc = rpc_rc;
+				goto int_out;
+			}
+		} else {
+			rc = -ENODEV;
+			goto int_out;
+		}
+		rc = I*N*unitsize;
+	}
+
+ int_out:
+	for (i = 0; i < parity_nr; ++i) {
+		if (parity_pages[i] != NULL)
+			__free_page(parity_pages[i]);
+	}
+
+	c2_free(parity_buf);
+	c2_free(parity_pages);
+	c2_free(rpc);
+	c2_free(data_buf);
+	obj_map_fini(&objmap, W, I);
+
+	return rc;
 }
 
 /* common rw function for c2t1fs, it just does sync RPC. */
@@ -567,6 +868,9 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
         int                    off;
         loff_t                 pos = *ppos;
 	struct c2t1fs_conn_clt *conn;
+	struct c2t1fs_object_param *obj_param = &csi->csi_object_param;
+	struct c2_pdclust_layout   *play    = obj_param->cop_play;
+	c2_bcount_t                unitsize = obj_param->cop_unitsize;
         int rc;
 
 	DBG("%s: %ld@%ld <i_size=%ld>\n", rw == READ ? "read" : "write",
@@ -621,6 +925,18 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
                 goto out;
         }
 
+	C2_ASSERT(play != NULL);
+	C2_ASSERT(unitsize >= C2T1FS_DEFAULT_UNIT_SIZE);
+	/* XXX: just for now, full-stripe read/write */
+	if (npages % play->pl_N != 0 || off != 0
+	    || pos % (play->pl_N * unitsize) != 0) {
+		/* rc = -EPARSE; */
+		DBG("Supporting only full-stripe read/write for now: "
+		    "npages=%d, off=%d, pos=%llu\n", npages, off, pos);
+		rc = -EINVAL;
+		goto out;
+	}
+#if 0
 	conn = c2t1fs_container_lookup(inode->i_sb, 0);
 	if (conn)
 	        rc = ksunrpc_read_write(conn->xc_conn,
@@ -629,6 +945,10 @@ static ssize_t c2t1fs_read_write(struct file *file, char *buf, size_t count,
 					off, count, pos, rw);
 	else
 		rc = -ENODEV;
+#endif
+	conn = 0; /* XXX: fix compilability */
+	rc = c2t1fs_internal_read_write(csi, inode, pages, npages, pos, off, play, rw);
+
         DBG("call read_write returns %d\n", rc);
 	if (rc > 0) {
 		pos += rc;
@@ -715,7 +1035,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
                 }
         }
         BUG_ON(nr_pages != j);
-
+#if 0
 	conn = c2t1fs_container_lookup(inode->i_sb, 0);
 	if (conn)
 	        rc = ksunrpc_read_write(conn->xc_conn,
@@ -729,6 +1049,12 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb *iocb, const struct iovec *iov
                 if (pos > inode->i_size)
                         inode->i_size = pos;
         }
+#endif
+	conn = NULL; /* XXX: fix compilability */
+	csi = NULL; /* XXX: fix compilability */
+	DBG("Currently supported normal writes only!\n");
+	rc = -EINVAL; /* -EPARSE */
+
         kfree(pages);
         return rc;
 
@@ -949,7 +1275,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
         if (!csi)
                 return -ENOMEM;
 
-        rc = c2t1fs_parse_options(sb, (char *)data);
+        rc = optparse(sb, (char *)data);
         if (rc) {
                 c2t1fs_put_csi(sb);
                 return rc;
@@ -1027,12 +1353,18 @@ if (0) {
 static void c2t1fs_kill_super(struct super_block *sb)
 {
         struct c2t1fs_sb_info *csi = s2csi(sb);
+	struct c2_pdclust_layout *play = csi->csi_object_param.cop_play;
+
         GETHERE;
 	if (csi->csi_mgmt_conn != NULL) {
 		c2_net_conn_unlink(csi->csi_mgmt_conn);
 		c2_net_conn_release(csi->csi_mgmt_conn);
 		csi->csi_mgmt_conn = NULL;
 	}
+
+	if (play)
+		pdclust_layout_fini(play);
+
 	/* disconnect from container server and free them */
 	c2t1fs_container_fini(sb);
         kill_anon_super(sb);
@@ -1070,7 +1402,7 @@ int init_module(void)
 	struct c2_net_domain *dom = &c2t1fs_domain;
         int rc;
 
-        printk(KERN_INFO 
+        printk(KERN_INFO
 	       "Colibri C2T1 File System (http://www.clusterstor.com)\n");
 
 	rc = c2_net_xprt_init(&c2_net_ksunrpc_xprt);
@@ -1110,7 +1442,7 @@ void cleanup_module(void)
                 printk(KERN_INFO "Colibri C2T1 File System cleanup: %d\n", rc);
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

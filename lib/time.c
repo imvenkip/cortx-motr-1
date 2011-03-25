@@ -16,8 +16,9 @@
  */
 struct c2_time *c2_time_set(struct c2_time *time, uint64_t secs, long ns)
 {
-	time->ts.tv_sec = secs;
-	time->ts.tv_nsec = ns;
+	uint64_t nanos = secs * ONE_BILLION + ns;
+	time->ts.tv_sec = nanos / ONE_BILLION;
+	time->ts.tv_nsec = nanos % ONE_BILLION;
 	return time;
 }
 C2_EXPORTED(c2_time_set);
@@ -104,6 +105,13 @@ uint64_t c2_time_nanoseconds(const struct c2_time *time)
 }
 C2_EXPORTED(c2_time_nanoseconds);
 
+
+const struct c2_time C2_TIME_NEVER = {
+	.ts = {
+		.tv_sec  = 0xFFFFFFFFFFFFFFFFULL,
+		.tv_nsec = 0
+	}
+};
 
 /** @} end of time group */
 

@@ -5,8 +5,13 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          db/linux_kernel/kdb.ko \
          fop/linux_kernel/kfop.ko \
          net/ksunrpc/ksunrpc.ko \
-         c2t1fs/c2t1fs.ko \
-         c2t1fs/c2t1fs_loop.ko"
+         galois/linux_kernel/kgalois.ko \
+         sns/linux_kernel/ksns.ko \
+         stob/linux_kernel/kstob.ko \
+         pool/linux_kernel/kpool.ko \
+         layout/linux_kernel/klayout.ko \
+         c2t1fs/c2t1fs.ko"
+#         c2t1fs/c2t1fs_loop.ko"
 
 abort()
 {

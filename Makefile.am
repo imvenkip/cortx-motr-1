@@ -1,13 +1,16 @@
 SUBDIRS_BASE = m4 doc man patches 
-SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
-               pool balloc db desim cob capa udb # rpc
+
+# Order is important until fop is reached. Fop needs all libs before it in the 
+# list built in order to use fop2c
+SUBDIRS_LIBS = lib addb fol db fid fop sm stob net dtm nrs sns mw reqh \
+               layout pool balloc desim cob capa udb # rpc
+
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_BINARIES = mds utils
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut #rpc/ut
 SUBDIR_ST = 
 SUBDIR_UB = 
-SUBDIR_BIN = utils mds
+SUBDIR_BIN = mds utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_KERNEL) \
              $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_UB) $(SUBDIR_BIN)

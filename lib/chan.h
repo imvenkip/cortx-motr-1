@@ -7,6 +7,7 @@
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
+#include "lib/semaphore.h"
 
 /**
    @defgroup chan Waiting channels
@@ -47,12 +48,98 @@
    @{
 */
 
+struct c2_chan;
+struct c2_clink;
+typedef void (*c2_chan_cb_t)(struct c2_clink *link);
 
-#ifndef __KERNEL__
-#include "lib/user_space/chan.h"
-#else
-#include "lib/linux_kernel/chan.h"
-#endif
+/**
+   A stream of asynchronous events.
+
+   <b>Concurrency control</b>
+
+   Implementation serializes producer interface calls, but see
+   c2_chan_broadcast() description. Implementation serializes c2_clink_add() and
+   c2_clink_del() calls against a given channel.
+
+   <b>Liveness</b>
+
+   A user has to enforce a serialization between event production and channel
+   destruction. Implementation guarantees that call to c2_chan_fini() first
+   waits until calls to c2_chan_{signal,broadcast}() that started before this
+   c2_chan_fini() call complete. This make the following idiomatic usage safe:
+
+   @code
+   struct c2_chan *complete;
+
+   producer() {
+           ...
+           c2_chan_signal(complete);
+   }
+
+   consumer() {
+           c2_clink_add(complete, &wait);
+           for (i = 0; i < nr_producers; ++i)
+                   c2_chan_wait(&wait);
+           c2_clink_del(&wait);
+           c2_chan_fini(complete);
+           c2_free(complete);
+   }
+   @endcode
+
+   <b>Invariants</b>
+
+   c2_chan_invariant()
+ */
+struct c2_chan {
+	/** Lock protecting other fields. */
+	struct c2_mutex ch_guard;
+	/** List of registered clinks. */
+	struct c2_list  ch_links;
+	/** Number of clinks in c2_chan::ch_links. This is used to speed up
+	    c2_chan_broadcast(). */
+	uint32_t        ch_waiters;
+};
+
+/**
+   A record of interest in events on a stream.
+
+   A clink records the appearance of events in the stream.
+
+   There are two mutually exclusive ways to use a clink:
+
+   @li an asynchronous call-back can be specified as an argument to clink
+   constructor c2_clink_init(). This call-back is called when an event happens
+   in the channel the clink is registered with. It is guaranteed that a
+   call-back is executed in the same context where event producer declared new
+   event. A per-channel mutex c2_chan::ch_guard is held while call-backs are
+   executed.
+
+   @li once a clink is registered with a channel, it is possible to wait until
+   an event happens by calling c2_clink_wait().
+
+   <b>Concurrency control</b>
+
+   A user must guarantee that at most one thread waits on a
+   clink. Synchronization between call-backs, waits and clink destruction is
+   also up to user.
+
+   A user owns a clink before call to c2_chan_add() and after return from the
+   c2_chan_del() call. At any other time clink can be concurrently accessed by
+   the implementation.
+
+   <b>Liveness</b>
+
+   A user is free to dispose a clink whenever it owns the latter.
+ */
+struct c2_clink {
+	/** Channel this clink is registered with. */
+	struct c2_chan     *cl_chan;
+	/** Call-back to be called when event is declared. */
+	c2_chan_cb_t        cl_cb;
+	/** Linkage into c2_chan::ch_links */
+	struct c2_list_link cl_linkage;
+	struct c2_semaphore cl_wait;
+};
 
 void c2_chan_init(struct c2_chan *chan);
 void c2_chan_fini(struct c2_chan *chan);
@@ -136,10 +223,11 @@ bool c2_chan_trywait(struct c2_clink *link);
    time expires before event is pending, this function will return false.
 
    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
-   @return true if the there is an event pending before timeout.
-   @return false if there is no events pending and timeout expires. errno is ETIMEDOUT;
+   @return true if the there is an event pending before timeout;
+   @return false if there is no events pending and timeout expires;
  */
-bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout);
+bool c2_chan_timedwait(struct c2_clink *link,
+		       const struct c2_time *abs_timeout);
 
 
 /** @} end of chan group */
@@ -148,7 +236,7 @@ bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout)
 /* __COLIBRI_LIB_CHAN_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

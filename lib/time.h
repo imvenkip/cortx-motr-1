@@ -26,7 +26,9 @@
 /** struct c2_time is defined by headers above. */
 
 
-#define ONE_BILLION 1000000000
+enum {
+	ONE_BILLION = 1000000000ULL
+};
 
 /**
    Get the current time.  This may or may not relate to wall time.
@@ -58,6 +60,8 @@ struct c2_time *c2_time_set(struct c2_time *time, uint64_t secs, long ns);
 
    @param res [OUT] the result time
    @retval the result time
+
+   @note it is safe to use one of t1 or t2 as res.
  */
 struct c2_time *c2_time_add(const struct c2_time *t1, const struct c2_time *t2,
 			    struct c2_time *res);
@@ -66,6 +70,8 @@ struct c2_time *c2_time_add(const struct c2_time *t1, const struct c2_time *t2,
    Subtract t2 from t1, store result in @res, and return that result
 
    @retval the result time
+
+   @note it is safe to use one of t1 or t2 as res.
  */
 struct c2_time *c2_time_sub(const struct c2_time *t1, const struct c2_time *t2,
 			    struct c2_time *res);
@@ -86,7 +92,7 @@ bool c2_time_after_eq(const struct c2_time *a, const struct c2_time *b);
    @param req requested time to sleep
    @param rem [OUT] remaining time
    @retval 0 means success. -1 means error. remaining time will be stored
-           in @rem. 
+           in @rem.
 */
 int c2_nanosleep(const struct c2_time *req, struct c2_time *rem);
 
@@ -105,8 +111,10 @@ uint64_t c2_time_seconds(const struct c2_time *time);
 uint64_t c2_time_nanoseconds(const struct c2_time *time);
 
 
-
-
+/**
+   the biggest time that never reaches in system life.
+*/
+extern const struct c2_time C2_TIME_NEVER;
 
 /** @} end of time group */
 
