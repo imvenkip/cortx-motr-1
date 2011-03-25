@@ -47,6 +47,7 @@ struct c2_fom_type *fom_types[] = {
  */
 struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
 {
+	C2_PRE(IS_IN_ARRAY((code - c2_io_service_readv_opcode), fom_types));
 	return fom_types[code - c2_io_service_readv_opcode];
 }
 
@@ -152,15 +153,15 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	struct c2_fom_cob_writev 	*ctx;
 	//struct c2_stob_id		stobid;
 	struct c2_stob_id		*stobid;
-	struct c2_dtx			tx;
-	uint32_t			bshift;
-	uint64_t			bmask;
-	int 				result;
+	struct c2_dtx			 tx;
+	uint32_t			 bshift;
+	uint64_t			 bmask;
+	int 				 result;
 	void				*addr;
-	c2_bcount_t			count;
-	c2_bindex_t			offset;
-	struct c2_clink			clink;
-	int				rc;
+	c2_bcount_t			 count;
+	c2_bindex_t			 offset;
+	struct c2_clink			 clink;
+	int				 rc;
 	struct c2_fop_cob_writev	*write_fop;
 	struct c2_fop			*rep_fop;
 	struct c2_fop_cob_writev_rep	*rep_fop_data;
@@ -180,8 +181,6 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	 * Since a c2_fom object is passed down to every FOM 
 	 * state method, the context structure which is the 
 	 * parent structure of the FOM is type casted from c2_fom.
-	 * This is possible since the context structure has the 
-	 * first element as FOM.
 	 */
 	ctx = container_of(fom, struct c2_fom_cob_writev, fmcw_gen);
 	write_fop = c2_fop_data(ctx->fmcw_fop);
@@ -379,15 +378,15 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	struct c2_fom_cob_readv 	*ctx;
 	//struct c2_stob_id		stobid;
 	struct c2_stob_id		*stobid;
-	struct c2_dtx			tx;
-	uint32_t			bshift;
-	uint64_t			bmask;
-	int 				result;
+	struct c2_dtx			 tx;
+	uint32_t			 bshift;
+	uint64_t			 bmask;
+	int 				 result;
 	void				*addr;
-	c2_bcount_t			count;
-	c2_bindex_t			offset;
-	struct c2_clink			clink;
-	int				rc;
+	c2_bcount_t			 count;
+	c2_bindex_t			 offset;
+	struct c2_clink			 clink;
+	int				 rc;
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop			*rep_fop;
 	struct c2_fop_cob_readv_rep	*rep_fop_data;
@@ -406,8 +405,6 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	 * Since a c2_fom object is passed down to every FOM 
 	 * state method, the context structure which is the 
 	 * parent structure of the FOM is type casted from c2_fom.
-	 * This is possible since the context structure has the 
-	 * first element as FOM.
 	 */
 	ctx = container_of(fom, struct c2_fom_cob_readv, fmcr_gen);
 	read_fop = c2_fop_data(ctx->fmcr_fop);
