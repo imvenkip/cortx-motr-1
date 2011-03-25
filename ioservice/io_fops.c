@@ -1,5 +1,6 @@
 /* -*- C -*- */
 #include "io_fops.h"
+#include "lib/errno.h"
 
 /**
  * readv FOP operation vector.
@@ -34,13 +35,17 @@ struct c2_fop_type_ops io_rep_ops = {
 /**
  * FOP definitions for readv and writev operations.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", c2_io_service_fom_start_opcode, &cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", (c2_io_service_fom_start_opcode+1), &cob_writev_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", 
+		    c2_io_service_readv_opcode, &cob_readv_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", 
+		    c2_io_service_writev_opcode, &cob_writev_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply", (c2_io_service_fom_start_opcode+2), &io_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply", (c2_io_service_fom_start_opcode+3), &io_rep_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply", 
+		    c2_io_service_writev_rep_opcode, &io_rep_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply", 
+		    c2_io_service_readv_rep_opcode, &io_rep_ops);
 
 #ifndef __KERNEL__
 
@@ -77,11 +82,14 @@ int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(m != NULL);
 
 	*m = c2_alloc(sizeof(struct c2_fom));
+	fom = *m;
+	if(fom == NULL)
+		return -ENOMEM;
 	fom_type = c2_fom_type_map(fop->f_type->ft_code);
 	C2_ASSERT(fom_type != NULL);
 	fop->f_type->ft_fom_type = *fom_type;
-	fom = *m;
 	fom->fo_type = fom_type;
+	//fom->fo_ops = &c2_fom_read_ops;
 	(*m)->fo_ops = &c2_fom_read_ops;
 	return 0;
 }
@@ -99,15 +107,18 @@ int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(m != NULL);
 
 	*m = c2_alloc(sizeof(struct c2_fom));
+	fom = *m;
+	if(fom == NULL)
+		return -ENOMEM;
 	fom_type = c2_fom_type_map(fop->f_type->ft_code);
 	C2_ASSERT(fom_type != NULL);
 	fop->f_type->ft_fom_type = *fom_type;
-	fom = *m;
 	fom->fo_type = fom_type;
+	//fom->fo_ops = &c2_fom_write_ops;
 	(*m)->fo_ops = &c2_fom_write_ops;
 	return 0;
 }
-#else
+#else /* #ifdef __KERNEL__ */
 /** Placeholder API for c2t1fs build. */
 int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {

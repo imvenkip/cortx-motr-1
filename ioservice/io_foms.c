@@ -3,8 +3,8 @@
 #include "io_foms.h"
 #include "io_fops.h"
 #include "stob/stob.h"
-#include <lib/errno.h>
-#include <net/net.h>
+#include "lib/errno.h"
+#include "net/net.h"
 
 #ifdef __KERNEL__
 #include "io_fops_k.h"
@@ -45,9 +45,9 @@ struct c2_fom_type *fom_types[] = {
  * from the given opcode.
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
  */
-struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code)
+struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
 {
-	return fom_types[code - c2_io_service_fom_start_opcode];
+	return fom_types[code - c2_io_service_readv_opcode];
 }
 
 /**
@@ -56,28 +56,38 @@ struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code)
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
+/*void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
+{
+	out->si_bits.u_hi = in->f_container;
+	out->si_bits.u_lo = in->f_key;
+}*/
 struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid)
 {
-	struct c2_stob_id	*stobid;
-	stobid = c2_alloc(sizeof(struct c2_stob_id));
-	C2_ASSERT(stobid != NULL);
-	stobid->si_bits.u_hi = fid->f_container;
-	stobid->si_bits.u_lo = fid->f_key;
-	return stobid;
+       struct c2_stob_id       *stobid;
+       stobid = c2_alloc(sizeof(struct c2_stob_id));
+       C2_ASSERT(stobid != NULL);
+       stobid->si_bits.u_hi = fid->f_container;
+       stobid->si_bits.u_lo = fid->f_key;
+       return stobid;
 }
 
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
  */
+/*void c2_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+{
+	out->f_container = in->f_seq;
+	out->f_key = in->f_oid;
+}*/
 struct c2_fid *c2_fid_wire2mem(struct c2_fop_file_fid *ffid)
 {
-	struct c2_fid *fid = NULL;
+       struct c2_fid *fid = NULL;
 
-	fid = c2_alloc(sizeof(struct c2_fid));
-	C2_ASSERT(fid != NULL);
-	fid->f_container = ffid->f_seq;
-	fid->f_key = ffid->f_oid;
-	return fid;
+       fid = c2_alloc(sizeof(struct c2_fid));
+       C2_ASSERT(fid != NULL);
+       fid->f_container = ffid->f_seq;
+       fid->f_key = ffid->f_oid;
+       return fid;
 }
 
 /** 
@@ -137,8 +147,10 @@ int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom,
 int c2_fom_cob_write_state(struct c2_fom *fom) 
 {
 	struct c2_fop_file_fid		*ffid;
+	//struct c2_fid 			fid;
 	struct c2_fid 			*fid;
 	struct c2_fom_cob_writev 	*ctx;
+	//struct c2_stob_id		stobid;
 	struct c2_stob_id		*stobid;
 	struct c2_dtx			tx;
 	uint32_t			bshift;
@@ -183,13 +195,14 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 
 	ffid = &write_fop->fwr_fid;
 	/* Find out the in-core fid from on-wire fid. */
+	//c2_fid_wire2mem(ffid, &fid);
 	fid = c2_fid_wire2mem(ffid);
 
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
+	//c2_fid2stob_map(&fid, &stobid);
 	stobid = c2_fid2stob_map(fid);
-	C2_ASSERT(stobid != NULL);
 
 	/* 
 	 * This is a transaction IO and should be a separate phase 
@@ -221,12 +234,12 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	bshift = ctx->fmcw_stob->so_op->sop_block_shift(ctx->fmcw_stob);
 	bmask = (1 << bshift) - 1;
 	C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_offset & bmask) == 0);
-	C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_addr.f_count & bmask) == 0);
+	C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_buf.f_count & bmask) == 0);
 
 	addr = c2_stob_addr_pack(write_fop->fwr_iovec.
-			iov_seg.f_addr.f_buf, bshift);
+			iov_seg.f_buf.f_buf, bshift);
 
-	count = write_fop->fwr_iovec.iov_seg.f_addr.f_count;
+	count = write_fop->fwr_iovec.iov_seg.f_buf.f_count;
 	offset = write_fop->fwr_iovec.iov_seg.f_offset;
 
 	count = count >> bshift;
@@ -293,7 +306,6 @@ int c2_fom_cob_write_state(struct c2_fom *fom)
 	/* This goes into DONE phase */
 	ctx->fmcw_gen.fo_phase = FOPH_DONE;
 	c2_fom_cob_writev_fini(&ctx->fmcw_gen);
-	c2_free(fid);
 	return FSO_AGAIN;
 }
 
@@ -362,8 +374,10 @@ int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom,
 int c2_fom_cob_read_state(struct c2_fom *fom) 
 {
 	struct c2_fop_file_fid 		*ffid;
+	//struct c2_fid			fid;
 	struct c2_fid			*fid;
 	struct c2_fom_cob_readv 	*ctx;
+	//struct c2_stob_id		stobid;
 	struct c2_stob_id		*stobid;
 	struct c2_dtx			tx;
 	uint32_t			bshift;
@@ -400,13 +414,14 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 
 	ffid = &read_fop->frd_fid;
 	/* Find out the in-core fid from on-wire fid. */
+	//c2_fid_wire2mem(ffid, &fid);
 	fid = c2_fid_wire2mem(ffid);
 
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
+	//c2_fid2stob_map(&fid, &stobid);
 	stobid = c2_fid2stob_map(fid);
-	C2_ASSERT(stobid != NULL);
 
 	/* 
 	 * This is a transaction IO and should be a separate phase 
@@ -509,7 +524,6 @@ int c2_fom_cob_read_state(struct c2_fom *fom)
 	/* This goes into DONE phase */
 	ctx->fmcr_gen.fo_phase = FOPH_DONE;
 	c2_fom_cob_readv_fini(&ctx->fmcr_gen);
-	c2_free(fid);
 	return FSO_AGAIN;
 }
 

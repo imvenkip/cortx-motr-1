@@ -288,8 +288,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/* 
 	 * FOMs are implemented only for read and write operations 
 	 */
-	if((fop->f_type->ft_code == c2_io_service_fom_start_opcode) ||
-			(fop->f_type->ft_code == (c2_io_service_fom_start_opcode+1))) 
+	if((fop->f_type->ft_code >= c2_io_service_readv_opcode))
 	{
 		/*
 		 * A dummy request handler API to handle incoming FOPs.

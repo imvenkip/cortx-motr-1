@@ -26,15 +26,14 @@
 /**
  * @section IO FOP Definitions
  */
-
 DEF(c2_fop_file_fid, RECORD,
 	_(f_seq, U64),
 	_(f_oid, U64));
 	
 /**
- * c2_fop_io_addr is a buffer with a count specifying its length.
+ * c2_fop_io_buf is a buffer with a count specifying its length.
  */
-DEF(c2_fop_io_addr, SEQUENCE,
+DEF(c2_fop_io_buf, SEQUENCE,
 	_(f_count, U32),
 	_(f_buf, BYTE));
 
@@ -53,10 +52,9 @@ DEF(c2_fop_segment, RECORD,
  * @li count : count in bytes.
  * @li Data buffer
  */
-
 DEF(c2_fop_io_seg, RECORD,
 	_(f_offset, U64),
-	_(f_addr, c2_fop_io_addr));
+	_(f_buf, c2_fop_io_buf));
 
 /**
  * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
@@ -64,7 +62,6 @@ DEF(c2_fop_io_seg, RECORD,
  * @li Array of IO segments.
  * @li count: Number of segments in array.
  */
-
 DEF(c2_fop_io_vec, RECORD,
 	_(iov_count, U32),
 	_(iov_seg, c2_fop_io_seg));
@@ -77,7 +74,7 @@ DEF(c2_fop_io_vec, RECORD,
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	_(frdr_rc, U32),
-	_(frdr_buf, c2_fop_io_addr));
+	_(frdr_buf, c2_fop_io_buf));
 
 /**
  * <b> c2_fop_cob_readv </b>
@@ -94,7 +91,6 @@ DEF(c2_fop_cob_readv_rep, RECORD,
  * @li miscellaneous flags
  * @li uid, gid for authorization
  */
- 
 DEF(c2_fop_cob_readv, RECORD,
 	_(frd_foprep, U64),
 	_(frd_fid, c2_fop_file_fid),
@@ -116,7 +112,6 @@ DEF(c2_fop_cob_readv, RECORD,
  * rc = 0 indicates successful completion
  * rc > 0 indicates error code.
  */
-
 DEF(c2_fop_cob_writev_rep, RECORD,
 	_(fwrr_nid, U64),
 	_(fwrr_rc, U32),
@@ -137,7 +132,6 @@ DEF(c2_fop_cob_writev_rep, RECORD,
  * @li miscellaneous flags
  * @li uid, gid for authorization
  */
-
 DEF(c2_fop_cob_writev, RECORD,
 	_(fwr_foprep, U64),
 	_(fwr_fid, c2_fop_file_fid),

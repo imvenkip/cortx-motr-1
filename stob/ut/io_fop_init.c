@@ -34,7 +34,7 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 #include "io_u.h"
-#include <ioservice/io_fops_u.h>
+#include "ioservice/io_fops_u.h"
 
 #endif
 
@@ -92,7 +92,7 @@ static struct c2_fop_type_format *fmts[] = {
 	&c2_io_buf_tfmt,
 	&c2_io_vec_tfmt,
 	&c2_fop_file_fid_tfmt,
-	&c2_fop_io_addr_tfmt,
+	&c2_fop_io_buf_tfmt,
 	&c2_fop_io_seg_tfmt,
 	&c2_fop_io_vec_tfmt,
 	&c2_fop_segment_tfmt,

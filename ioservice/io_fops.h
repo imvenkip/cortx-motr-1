@@ -2,18 +2,22 @@
 #ifndef __COLIBRI_FOP_IO_OPERATIONS_H__
 #define __COLIBRI_FOP_IO_OPERATIONS_H__
 
-#include <fop/fop.h>
-#include <fop/fop_format.h>
-#include <lib/memory.h>
+#include "fop/fop.h"
+#include "fop/fop_format.h"
+#include "lib/memory.h"
 
 struct c2_fom;
 struct c2_fom_type;
 
 /** 
  * The opcode from which IO service FOPS start.
- * Used as an anchor point.
  */
-#define c2_io_service_fom_start_opcode 14
+enum c2_io_service_opcodes {
+	c2_io_service_readv_opcode = 14,
+	c2_io_service_writev_opcode,
+	c2_io_service_writev_rep_opcode,
+	c2_io_service_readv_rep_opcode
+};
 
 /**
  *  A mapping function that finds out the FOM type (c2_fom_type)

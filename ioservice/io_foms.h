@@ -42,9 +42,10 @@
  * };
  */
 
-#include <fop/fop.h>
-#include <fop/fop_format.h>
+#include "fop/fop.h"
+#include "fop/fop_format.h"
 #include "io_fops.h"
+#include "stob/stob.h"
 #ifndef __KERNEL__
 #include "io_fops_u.h"
 /**
@@ -53,7 +54,8 @@
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid);
+//void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
+struct c2_stob_id *c2_fid2stob_map(struct c2_fid *in);
 #endif
 
 /**
@@ -78,7 +80,7 @@ enum c2_fom_cob_writev_phases{
  */
 struct c2_fom_cob_writev {
 	/** Generic c2_fom object. */
-        struct c2_fom                   fmcw_gen;
+        struct c2_fom                    fmcw_gen;
 	/** FOP associated with this FOM. */
         struct c2_fop			*fmcw_fop;
 	/** Stob domain in which this FOM is operating. */
@@ -133,7 +135,7 @@ enum c2_fom_cob_readv_phases {
  */
 struct c2_fom_cob_readv {
 	/** Generic c2_fom object. */
-        struct c2_fom                   	fmcr_gen;
+        struct c2_fom                   	 fmcr_gen;
         /** FOP associated with this FOM. */
         struct c2_fop				*fmcr_fop;
         /** Stob domain in which this FOM is operating. */
