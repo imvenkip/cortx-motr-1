@@ -1,1 +1,0 @@
-../parity_ops.c
