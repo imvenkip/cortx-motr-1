@@ -112,7 +112,8 @@ struct c2_net_xprt_ops {
 	int (*xo_tm_init)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Start the (initialized) transfer machine.
+	   Initiate the startup of the (initialized) transfer machine.
+	   A completion event should be posted when started.
 	   @param tm   Transfer machine pointer. 
              The following fields are of special interest to this method:
              @li ntm_dom
@@ -125,8 +126,20 @@ struct c2_net_xprt_ops {
 	int (*xo_tm_start)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Stop an initialized transfer machine (may or may not have
-	   been started  yet).
+	   Initiate the shutdown of a transfer machine, cancelling any
+	   pending startup.
+	   No incoming messages should be accepted.  Pending operations should
+	   drain or be cancelled if requested.
+	   A completion event should be posted when stopped.
+	   @param tm   Transfer machine pointer. 
+	   @param cancel Pending outbound operations should be cancelled
+	   immediately.
+	 */
+	int (*xo_tm_stop)(struct c2_net_transfer_mc *tm, bool cancel);
+
+	/**
+	   Release resources associated with a transfer machine.
+	   The transfer machine will be in the stopped state.
 	   @param tm   Transfer machine pointer. 
              The following fields are of special interest to this method:
              @li ntm_dom
@@ -163,7 +176,7 @@ struct c2_net_xprt_ops {
 	/**
 	   Register the buffer for use with a transfer machine in
 	   the manner indicated by the c2_net_buffer.nb_qtype value.
-	   @param buf  Buffer pointer with c2_net_buffer.nb_tm set.
+	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_buffer_register()
@@ -172,7 +185,7 @@ struct c2_net_xprt_ops {
 
 	/**
 	   Deregister the buffer from the transfer machine.
-	   @param buf  Buffer pointer with c2_net_buffer.nb_tm set.
+	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_buffer_deregister()
@@ -182,7 +195,18 @@ struct c2_net_xprt_ops {
 	/**
 	   Add the buffer to the transfer machine queue identified by 
 	   the c2_net_buffer.nb_qtype value.
-	   @param buf  Buffer pointer with c2_net_buffer.nb_tm set.
+
+	   In the case of buffers added to the C2_NET_QT_ACTIVE_BULK_RECV
+	   or C2_NET_QT_ACTIVE_BULK_SEND queues, the method should validate
+	   that the buffer size or data length meet the size requirements
+	   encoded within the network buffer descriptor.
+
+	   The c2_net_buffer.nb_in_use field will always be set to false
+	   before invoking the method.  This allows the transport to defer
+	   operations until later, which is useful if buffers are added
+	   during transfer machine state transitions.
+
+	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_buffer_add()
@@ -192,12 +216,40 @@ struct c2_net_xprt_ops {
 	/**
 	   Remove the buffer from the transfer machine queue identified by the 
 	   c2_net_buffer.nb_qtype value.
-	   @param buf  Buffer pointer with c2_net_buffer.nb_tm set.
+	   The method should cancel any pending operation involving use of the
+	   buffer or return an error if this is not possible.
+	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_buffer_del()
 	 */
 	int (*xo_buf_del)(struct c2_net_buffer *nb);
+
+	/**
+	   Retrieve a transfer machine operational parameter.
+	   @param tm      Transfer machine pointer. 
+	   @param param   Integer describing the parameter.
+	   @param varargs Variable length argument list suitable for
+	   recovering the parameter value.
+           @retval 0 (success)
+	   @retval -errno (failure)
+	   @see c2_net_tm_param_get()
+	 */
+	int (*xo_param_get)(struct c2_net_transfer_mc *tm, 
+			    int param, va_list varargs);
+
+	/**
+	   Set a transfer machine operational parameter.
+	   @param tm      Transfer machine pointer. 
+	   @param param   Integer describing the parameter.
+	   @param varargs Variable length argument list suitable for
+	   passing the parameter value.
+           @retval 0 (success)
+	   @retval -errno (failure)
+	   @see c2_net_tm_param_set()
+	 */
+	int (*xo_param_set)(struct c2_net_transfer_mc *tm, 
+			    int param, va_list varargs);
 
 	/**
 	   <b>Deprecated.</b>
@@ -234,6 +286,7 @@ int  c2_net_xprt_init(struct c2_net_xprt *xprt);
 /**
  Shutdown the transport software.
  All associated network domains should be cleaned up at this point.
+ @pre Network domains should have been finalized.
  @param xprt Tranport pointer.
 */
 void c2_net_xprt_fini(struct c2_net_xprt *xprt);
@@ -317,6 +370,7 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
 
 /**
    Release resources related to a domain.
+ @pre Transfer machines should have been finalized.
  @param dom Domain pointer.
  */
 void c2_net_domain_fini(struct c2_net_domain *dom);
@@ -436,65 +490,96 @@ enum c2_net_queue_type {
 };
 
 /**
-   Event data structure. Only used in callback procedures used to
-   convey completion of buffer operation, non-buffer related errors
-   or diagnostic information.
+   Event data structure.
 
-   Buffer completion events include the following:
-   - Successful termination of the operation.
-   - Failure of the operation.
-   - Expiry of the timeout period associated with the buffer.
+   The following categories of events are defined:
+   - <b>Buffer operation completion events.</b> These type of events have the
+     nev_qtype field set to identify a particular logical queue.
+     Completion is defined to include
+     - Successful termination of the operation.
+     - Failure of the operation, including cancellation.
+     - Expiry of the timeout period associated with the buffer.
+   - <b>State transition events</b> for the associated transfer machine.
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
+   field is set to 0.
+   - <b>Error events.</b>
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
+   field is set to a negative error code.
+   - <b>Diagnostic events.</b>
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
+   field is set to a non-zero value.
+   These events are transport specific and are intended for diagnostic
+   applications.
  */
 struct c2_net_event {
 	/**
 	   Indicates the type of buffer queue, or set to
 	   C2_NET_QT_NR if not a buffer related event.
 	 */
-	enum c2_net_queue_type  nev_qtype;
+	enum c2_net_queue_type     nev_qtype;
+
+	/**
+	   Transfer machine pointer
+	*/
+	struct c2_net_transfer_mc *nev_tm;
+
 	/**
 	   Buffer pointer set if the queue type is not C2_NET_QT_NR.
 	*/
-	struct c2_net_buffer   *nev_buffer;
+	struct c2_net_buffer      *nev_buffer;
 
 	/**
 	   Time the event is posted.
 	*/
-	struct c2_time          nev_time;
+	struct c2_time             nev_time;
 
 	/**
 	   Status or error code associated with the event.
-	   A 0 implies success.  Typically negative error numbers are
-	   used for failure.
+
+	   When the value of c2_net_event.nev_qtype is not C2_NET_QT_NR the
+	   event has posted for the buffer specified with the
+	   c2_net_event.nev_buffer field.  
+	   A 0 in this field implies successful completion.
+	   Negative error numbers are used to indicate the reasons for
+	   failure.
 
 	   When the value of c2_net_event.nev_qtype is C2_NET_QT_NR the 
 	   callback is made to report non-buffer related errors,
-	   or for diagnostic purposes.  
+	   transfer machine state changes or for diagnostic purposes.  
 	   The value of this field is used to distinguish these cases:
+	   - <b>State changes</b> The value of this field is 0.
 	   - <b>Errors</b> The value of this field is a negative
 	   integer. The following errors are well defined:
 	   	- <b>-ENOBUFS</b> This indicates that the transfer machine
 		lost messages due to a lack of receive buffers.
-	   - <b>Diagnostic event</b> The value of this field is 0 or a
+	   - <b>Diagnostic events</b> The value of this field is a
 	   positive integer.
 	   The c2_net_event.nev_payload field contains transport specific
 	   diagnostic information.
 	 */
-	int                     nev_status;
+	int                        nev_status;
 
 	/**
-	   Transport specific event descriptor (not necessarily
-	   a pointer).
-	   Transports could also choose to embed the event data structure
-	   in a container structure appropriate to the event, which may
-	   be of use to a diagnostic application.
+	   Event specific payload - not always a pointer.
+
+	   State transition events set the value to that of the
+	   transition state.
+
+	   Transports may use this to point to internal data; they 
+	   could also choose to embed the event data structure
+	   in a transport specific structure appropriate to the event.
+	   Either approach would be of use to a diagnostic application. 
 	 */
-	void                   *nev_payload;
+	void                      *nev_payload;
 };
 
 /**
    A transfer machine is notified of events of interest with this subroutine.
    Typically, this is done by the transport associated with the transfer
    machine.
+
+   The subroutine will also signal to all waiters on the 
+   c2_net_transfer_mc.ntm_chan field.
    @param tm Transfer machine pointer.
    @param ev Event pointer
  */
@@ -603,6 +688,18 @@ struct c2_net_qstats {
 };
 
 /**
+   A transfer machine exists in one of the following states.
+ */
+enum c2_net_tm_state {
+	C2_NET_TM_UNDEFINED=0, /**< Undefined, prior to initialization */
+	C2_NET_TM_INITIALIZED, /**< Initialized */
+	C2_NET_TM_STARTING,    /**< Startup in progress */
+	C2_NET_TM_STARTED,     /**< Active */
+	C2_NET_TM_STOPPING,    /**< Shutdown in progress */
+	C2_NET_TM_STOPPED      /**< Stopped */
+};
+
+/**
    This data structure tracks message buffers and supports callbacks to notify
    the application of changes in state associated with these buffers.
 */
@@ -615,8 +712,8 @@ struct c2_net_transfer_mc {
 	/** Application private field */
 	void                       *ntm_cb_ctx;
 
-	/** Set to true when the transfer machine is started */
-	bool                        ntm_started;
+	/** Specifies the transfer machine state */
+	enum c2_net_tm_state        ntm_state;
 
 	/** Lock. This has lower precedence than the lock in the
 	    network domain.
@@ -633,8 +730,14 @@ struct c2_net_transfer_mc {
 
 	/** End point associated with this transfer machine.
 	    It may have been provided by the application at start time,
-	    or may be dynamically assigned. */
+	    or may be dynamically assigned. 
+	*/
         struct c2_net_end_point    *ntm_ep;
+
+	/**
+	   Waiters for event notifications.
+	 */
+	struct c2_chan              ntm_chan;
 
 	/** List of c2_net_end_point structures. Managed by the transport. */
 	struct c2_list              ntm_end_points;
@@ -670,7 +773,16 @@ struct c2_net_transfer_mc {
 
 /**
    Initialize a transfer machine.
-   @param tm  Transfer machine pointer.
+   @param tm  Pointer to transfer machine data structure to be initialized.
+   Prior to invocation the following fields should be set:
+   - c2_net_transfer_mc.ntm_state should be set to C2_NET_TM_UNDEFINED.
+   Zeroing the entire structure has the side effect of setting this value.
+   - c2_net_transfer_mc.ntm_callbacks should point to a properly initialized
+   struct c2_net_tm_callbacks data structure.
+   - c2_net_transfer_mc.ntm_cb_ctx should be set by the application and
+   will be ignored.
+   All fields in the structure other then the above will be set to their
+   appropriate initial values.
    @param dom Network domain pointer.
    @retval 0 (success)
    @retval -errno (failure)
@@ -678,8 +790,10 @@ struct c2_net_transfer_mc {
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 
 /**
-   Finalize a transfer machine. Will fail if there are still registered
-   buffers.
+   Finalize a transfer machine, releasing any associated
+   transport specific resources.
+   @pre The transfer machine should be in the C2_NET_TM_STOPPED state.
+   All buffers should be deregistered and end points released.
    @param tm Transfer machine pointer.
    @retval 0 (success)
    @retval -errno (failure)
@@ -690,6 +804,16 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
    Start a transfer machine.  Optionally specify an end point to be
    associated with the transfer machine - servers have well defined
    end points and would need to use this option.
+
+   The subroutine does not block the invoker. Instead the state is
+   immediately changed to C2_NET_TM_STARTING, and an event will be
+   posted to indicate when the transfer machine has transitioned to 
+   the C2_NET_TM_STARTED state.
+
+   @note It is possible that the state change event be posted before this
+   subroutine returns.
+
+   @pre The transfer machine should be in the C2_NET_TM_INITIALIZED state.
    @param tm  Transfer machine pointer.
    @param ep  Optional end point to associate with the transfer machine.
    Specify NULL if the end point is to be dynamically assigned.
@@ -700,9 +824,34 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		    struct c2_net_end_point *ep);
 
 /**
+   Initiate the shutdown of a transfer machine.  New messages will 
+   not be accepted.  Pending operations will be completed or
+   aborted as desired.  
+
+   The subroutine does not block the invoker.  Instead the state is
+   immediately changed to C2_NET_TM_STOPPING, and an event will be
+   posted to indicate when the transfer machine has transitioned to
+   the C2_NET_TM_STOPPED state.
+
+   @note It is possible that the state change event be posted before this
+   subroutine returns.
+
+   @pre The transfer machine should be in the C2_NET_TM_INITIALIZED,
+   C2_NET_TM_STARTING or C2_NET_TM_STARTED states.
+   @param tm  Transfer machine pointer.
+   @param abort Cancel pending operations. 
+   Support for the implementation of this option is transport specific.
+   @retval 0 (success)
+   @retval -errno (failure)
+*/
+int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
+
+/**
    Retrieve transfer machine statistics for all or for a single logical queue,
    optionally resetting the data.  The operation is performed atomically
    with respect to on-going transfer machine activity.
+   @pre The transfer machine should be in the C2_NET_TM_INITIALIZED
+   or later state.
    @param tm     Transfer machine pointer
    @param qtype  Logical queue identifier of the queue concerned. 
    Specify C2_NET_QT_NR instead if all the queues are to be considered.
@@ -716,10 +865,54 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
    @retval 0 (success)
    @retval -errno (failure)
 */
-int c2_net_stats_get(struct c2_net_transfer_mc *tm, 
-		     enum c2_net_queue_type qtype,
-		     struct c2_net_qstats *qs,
-		     bool reset);
+int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm, 
+			enum c2_net_queue_type qtype,
+			struct c2_net_qstats *qs,
+			bool reset);
+
+/**
+   Defined operational parameters.
+   @see c2_net_tm_param_get(), c2_net_tm_param_set()
+ */
+enum {
+	/**
+	   Specifies the maximum buffer size.
+	 */
+	C2_NET_PARAM_MAX_BUFFER_SIZE = 1,
+	/**
+	   Specifies the maximum number of memory segments in a
+	   struct c2_net_buffer.nb_buffer
+	 */
+	C2_NET_PARAM_MAX_BUFFER_SEGMENTS = 2
+};
+
+/**
+   This subroutine is used to retrieve an operational parameter for
+   a transfer machine from
+   the network module and its underlying transport.
+   @param tm      Transfer machine pointer.
+   @param param   Integer describing the operational parameter.
+   @param ...     Variable length arguments suitable to retrieving
+   the parameter value.
+   @retval 0 (success)
+   @retval -errno (failure)
+   @see c2_net_tm_param_set()
+ */
+int c2_net_tm_param_get(struct c2_net_transfer_mc *tm, int param, ...);
+
+/**
+   This subroutine is used to set an operational parameter for
+   a transfer machine in
+   the network module and its underlying transport.
+   @param tm      Transfer machine pointer.
+   @param param   Integer describing the operational parameter.
+   @param ...     Variable length arguments suitable to pass
+   the parameter value.
+   @retval 0 (success)
+   @retval -errno (failure)
+   @see c2_net_tm_param_set()
+ */
+int c2_net_tm_param_set(struct c2_net_transfer_mc *tm, int param, ...);
 
 /**
    This data structure is used to track the memory used
@@ -831,10 +1024,29 @@ struct c2_net_buffer {
 	   Will be freed when the buffer is deregistered, if not earlier.
 	*/
         void                      *nb_xprt_private;
+
+	/**
+	   The transport will set this to true when the buffer
+	   is in use. Generally this is done when the buffer is added to the
+	   queue, but the transport may defer operations during state
+	   transitions.
+
+	   The value is always set to false when the completion event
+	   for the buffer is posted.
+	 */
+	bool                       nb_in_use;
+
+	/**
+	   The status value posted in the last completion event on
+	   the buffer.
+	 */
+	int                        nb_status;
 };
 
 /**
    Register a buffer for a specific use with a transfer machine.
+   @pre The transfer machine should be in the C2_NET_TM_INITIALIZED,
+   C2_NET_TM_STARTING or C2_NET_TM_STARTED states.
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
    - c2_net_buffer.nb_tm should be set to point to the transfer machine
@@ -842,7 +1054,6 @@ struct c2_net_buffer {
    on which the buffer will be used.
    - c2_net_buffer.nb_buffer should be initialized to point to the buffer
    memory regions.
-   @param buf Specify the buffer pointer.
    @retval 0 (success)
    @retval -errno (failure)
 */
@@ -851,7 +1062,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf);
 /**
    Deregisters a previously registered buffer and releases any transport
    specific resources associated with it.
-   Any outstanding use of the buffer is cancelled.
+   @pre The transfer machine may be in any state other 
+   than C2_NET_TM_UNDEFINED.  The buffer should not be in use.
    @param buf Specify the buffer pointer.
    @retval 0 (success)
    @retval -errno (failure)
@@ -882,6 +1094,10 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf);
 
    The buffer should not be referenced until the operation completion
    callback is invoked for the buffer.
+   @pre The transfer machine may be in the C2_NET_TM_INITIALIZED,
+   C2_NET_TM_STARTING or C2_NET_TM_STARTED state for buffers on 
+   the C2_NET_QT_MSG_RECV queue.
+   The transfer machine must be in the C2_NET_TM_STARTED state otherwise.
    @param buf Specify the buffer pointer.
    @retval 0 (success)
    @retval -errno (failure)
@@ -891,9 +1107,13 @@ int c2_net_buffer_add(struct c2_net_buffer *buf);
 /**
    Remove a registered buffer from a logical queue, if possible,
    cancelling any operation in progess.
-   It is not guaranteed that this operation will always succeed, and
-   there are race conditions in the execution of this request and the
-   concurrent invocation of the completion callback on the buffer.
+
+   <b>Cancellation support is provided by the underlying transport.</b>
+   It is not guaranteed that cancellation will always be supported, and
+   even if it is, there are race conditions in the execution of this 
+   request and the concurrent invocation of the completion callback on 
+   the buffer.
+   @pre The buffer must have been added to a logical queue.
    @param buf Specify the buffer pointer.
    @retval 0 (success)
    @retval -errno (failure)
