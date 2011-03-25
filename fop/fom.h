@@ -35,9 +35,6 @@
 
 struct c2_fop_type;
 struct c2_fop;
-struct c2_fop_ctx;
-struct c2_stob_domain;
-struct c2_fol;
 
 /* export */
 struct c2_fom_domain;
@@ -244,9 +241,6 @@ struct c2_fom_type_ops {
 	/** Create a new fom of this type. */
 	int (*fto_create)(struct c2_fom_type *t, struct c2_fop *fop, 
 			struct c2_fom **out);
-	/** Populate the type specific object. */
-	int (*fto_populate)(struct c2_fom *fom, struct c2_stob_domain *d,
-			struct c2_fop_ctx *fopctx, struct c2_fol *fol);
 };
 
 /** Fom operations vector. */

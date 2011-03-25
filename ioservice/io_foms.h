@@ -17,9 +17,6 @@
  * All operation specific code will be executed in a single phase
  * for now. It will be decomposed into more granular phases
  * when FOM and reqh infrastructure is in place. 
- * Possible decomposition of this single phase for all operations 
- * are also stated, but not used for now. In that case, for every 
- * phase, a corresponding function will be executed as a part of FOM
  *
  * <i> Note on naming convention: For operation xyz, the fop is named 
  * as c2_fop_xyz, its corresponding reply fop is named as c2_fop_xyz_rep
@@ -28,18 +25,6 @@
  * c2_fom_xyz_state, c2_fom_xyz_fini respectively </i>
  *
  *  @{
- */
-
-/**
- * Decomposed phases for "write cob" FOM 
- *
- * enum c2_fom_cob_writev_phases{
- *       FOPH_STOB_INIT_IO_REQUEST,
- *       FOPH_STOB_IO_LAUNCH,
- *       FOPH_STOB_DOMAIN_TRXN_COMPLETE,
- *       FOPH_SEND_REP_FOP,
- *       FOPH_EXIT
- * };
  */
 
 #include "fop/fop.h"
@@ -57,6 +42,13 @@
 //void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
 struct c2_stob_id *c2_fid2stob_map(struct c2_fid *in);
 #endif
+
+/**
+ */
+enum c2_io_service_rw_codes {
+	READ,
+	WRITE,
+};
 
 /**
  * Find out the respective FOM type object (c2_fom_type)
@@ -78,21 +70,23 @@ enum c2_fom_cob_writev_phases{
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
-struct c2_fom_cob_writev {
+struct c2_fom_cob_rwv {
 	/** Generic c2_fom object. */
-        struct c2_fom                    fmcw_gen;
+        struct c2_fom                    fcrw_gen;
 	/** FOP associated with this FOM. */
-        struct c2_fop			*fmcw_fop;
-	/** Stob domain in which this FOM is operating. */
-	struct c2_stob_domain		*fmcw_domain;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx		*fmcw_fop_ctx;
+        struct c2_fop			*fcrw_fop;
+	/** Reply FOP associated with request FOP above. */
+	struct c2_fop			*fcrw_rep_fop;
 	/** Stob object on which this FOM is acting. */
-        struct c2_stob		        *fmcw_stob;
+        struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
-        struct c2_stob_io		*fmcw_st_io;
+        struct c2_stob_io		*fcrw_st_io;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx		*fcrw_fop_ctx;
 	/** FOL object to make transactions of update operations. */
-	struct c2_fol			*fmcw_fol;
+	struct c2_fol			*fcrw_fol;
+	/** Stob domain in which this FOM is operating. */
+	struct c2_stob_domain		*fcrw_domain;
 };
 
 /** 
@@ -100,14 +94,6 @@ struct c2_fom_cob_writev {
  */
 int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop, 
 			     struct c2_fom **out);
-
-/**
- * Populate the FOM context object for c2_fop_cob_writev FOP.
- */
-int c2_fom_cob_writev_ctx_populate(struct c2_fom *fom, 
-				   struct c2_stob_domain *d, 
-				   struct c2_fop_ctx *fopctx, 
-				   struct c2_fol *fol);
 
 /**
  * <b> State Transition function for "write IO" operation
@@ -129,38 +115,11 @@ enum c2_fom_cob_readv_phases {
 	FOPH_COB_READ
 };
 
-/**
- * Object encompassing FOM for cob create reply
- * operation and necessary context data
- */
-struct c2_fom_cob_readv {
-	/** Generic c2_fom object. */
-        struct c2_fom                   	 fmcr_gen;
-        /** FOP associated with this FOM. */
-        struct c2_fop				*fmcr_fop;
-        /** Stob domain in which this FOM is operating. */
-	struct c2_stob_domain			*fmcr_domain;
-        /** FOP ctx sent by the network service. */
-	struct c2_fop_ctx			*fmcr_fop_ctx;
-        /** Stob object on which this FOM is acting. */
-        struct c2_stob		                *fmcr_stob;
-        /** Stob IO packet for the operation. */
-        struct c2_stob_io			*fmcr_st_io;
-};
-
 /** 
  * Create FOM context object for c2_fop_cob_readv FOP.
  */
 int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop, 
 			    struct c2_fom **out);
-
-/**
- * Populate the FOM context object
- */
-int c2_fom_cob_readv_ctx_populate(struct c2_fom *fom, 
-				  struct c2_stob_domain *d, 
-				  struct c2_fop_ctx *fopctx,
-				  struct c2_fol *fol);
 
 /**
  * <b> State Transition function for "read IO" operation
@@ -176,13 +135,11 @@ void c2_fom_cob_readv_fini(struct c2_fom *fom);
 /** FOM type specific functions for readv FOP. */
 static const struct c2_fom_type_ops cob_readv_type_ops = {
 	.fto_create = c2_fom_cob_readv_create,
-	.fto_populate = c2_fom_cob_readv_ctx_populate,
 };
 
 /** FOM type specific functions for writev FOP. */
 static const struct c2_fom_type_ops cob_writev_type_ops = {
 	.fto_create = c2_fom_cob_writev_create,
-	.fto_populate = c2_fom_cob_writev_ctx_populate,
 };
 
 extern struct c2_fom_type c2_fom_cob_readv_mopt;
