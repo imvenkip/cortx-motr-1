@@ -211,8 +211,9 @@ int main(int argc, char **argv)
 	C2_ASSERT(conn != NULL);
 
 	/* write addb record onto network */
-	c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
 	c2_addb_store_net_conn = conn;
+	c2_addb_net_add_p      = c2_addb_net_add;
+	c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
 
 
 	while (!feof(stdin)) {

@@ -27,8 +27,8 @@
 /*
  * This can be changed.
  */
-int default_addb_level = AEL_NOTE;
-C2_EXPORTED(default_addb_level);
+int c2_addb_level_default = AEL_NOTE;
+C2_EXPORTED(c2_addb_level_default);
 
 
 int c2_addb_init(void)
@@ -73,15 +73,18 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	switch (c2_addb_store_type) {
 	case C2_ADDB_REC_STORE_STOB:
 		C2_ASSERT(c2_addb_store_stob != NULL);
-		c2_addb_stob_add(dp, c2_addb_store_stob);
+		C2_ASSERT(c2_addb_stob_add_p != NULL);
+		c2_addb_stob_add_p(dp, c2_addb_store_stob);
 		break;
 	case C2_ADDB_REC_STORE_DB:
 		C2_ASSERT(c2_addb_store_table != NULL);
-		c2_addb_db_add(dp, c2_addb_store_table);
+		C2_ASSERT(c2_addb_db_add_p != NULL);
+		c2_addb_db_add_p(dp, c2_addb_store_table);
 		break;
 	case C2_ADDB_REC_STORE_NETWORK:
 		C2_ASSERT(c2_addb_store_net_conn != NULL);
-		c2_addb_net_add(dp, c2_addb_store_net_conn);
+		C2_ASSERT(c2_addb_net_add_p != NULL);
+		c2_addb_net_add_p(dp, c2_addb_store_net_conn);
 		break;
 	default:
 		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
@@ -231,6 +234,17 @@ struct c2_stob             *c2_addb_store_stob     = NULL;
 struct c2_table            *c2_addb_store_table    = NULL;
 struct c2_net_conn         *c2_addb_store_net_conn = NULL;
 
+c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
+c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
+c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
+
+C2_EXPORTED(c2_addb_store_type);
+C2_EXPORTED(c2_addb_store_stob);
+C2_EXPORTED(c2_addb_store_table);
+C2_EXPORTED(c2_addb_store_net_conn);
+C2_EXPORTED(c2_addb_stob_add_p);
+C2_EXPORTED(c2_addb_db_add_p);
+C2_EXPORTED(c2_addb_net_add_p);
 
 /** @} end of addb group */
 

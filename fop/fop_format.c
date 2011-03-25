@@ -58,6 +58,9 @@ int c2_fop_field_type_prepare(struct c2_fop_field_type *ftype)
 	size_t i;
 
 	C2_PRE(ftype->fft_decor == NULL);
+#ifdef __KERNEL__
+	printk("field type = %s\n", ftype->fft_name);
+#endif
 
 	C2_ALLOC_ARR(ftype->fft_decor, ARRAY_SIZE(decorators));
 	if (ftype->fft_decor != NULL) {
@@ -90,6 +93,9 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	size_t nr;
 	size_t i;
 
+#ifdef __KERNEL__
+	printk("fmt name = %s\n", fmt->ftf_name);
+#endif
 
 	C2_PRE(fmt->ftf_out == NULL);
 

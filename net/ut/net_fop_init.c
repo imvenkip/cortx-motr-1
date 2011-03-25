@@ -17,10 +17,6 @@ static struct c2_fop_type_ops nettest_ops = {
 };
 
 C2_FOP_TYPE_DECLARE(c2_nettest, "nettest", 13, &nettest_ops);
-extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
-extern struct c2_fop_type c2_addb_reply_fopt;
-extern struct c2_fop_type_format c2_mem_buf_tfmt;
-extern struct c2_fop_type_format c2_addb_record_header_tfmt;
 
 
 static struct c2_fop_type *net_ut_fops[] = {

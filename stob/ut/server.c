@@ -444,13 +444,14 @@ int main(int argc, char **argv)
 	result = c2_init();
 	C2_ASSERT(result == 0);
 
-	/* write addb record into stob */
-	c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
 	/* create or open a stob in which to store the record.
 	 * XXX we use file for demo
 	 */
 	c2_addb_store_stob = (struct c2_stob*)fopen("server_addb_log", "a");
 	C2_ASSERT(c2_addb_store_stob != NULL);
+	/* write addb record into stob */
+	c2_addb_stob_add_p = c2_addb_stob_add;
+	c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
 
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);

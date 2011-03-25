@@ -60,17 +60,24 @@ struct c2_addb_ctx_type {
 /**
     Write addb records into this stob.
  */
+typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_stob *stob);
 int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
 
 /**
     Write addb records into this db.
  */
+typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_table *db);
 int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
 
 /**
     Send addb records through this network connection.
  */
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn);
+typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
+int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+
+extern c2_addb_stob_add_t c2_addb_stob_add_p;
+extern c2_addb_db_add_t   c2_addb_db_add_p;
+extern c2_addb_net_add_t  c2_addb_net_add_p;
 
 /**
    ADDB record store type.
@@ -310,7 +317,7 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 	__dp.ad_ctx   = (ctx);					\
 	__dp.ad_loc   = (loc);					\
 	__dp.ad_ev    = &(ev);					\
-	__dp.ad_level = (default_addb_level);			\
+	__dp.ad_level = (c2_addb_level_default);		\
 								\
 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
 		     (&__dp , ## __VA_ARGS__));			\
@@ -318,7 +325,7 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 		c2_addb_add(&__dp);				\
 })
 
-extern int default_addb_level;
+extern int c2_addb_level_default;
 
 /**
    Declare addb event operations vector with a given collection of formal
@@ -359,6 +366,14 @@ typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
 /** Global (per address space) addb context, used when no other context is
     applicable. */
 extern struct c2_addb_ctx c2_addb_global_ctx;
+
+extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
+extern struct c2_fop_type c2_addb_reply_fopt;
+extern struct c2_fop_type_format c2_mem_buf_tfmt;
+extern struct c2_fop_type_format c2_addb_record_header_tfmt;
+extern struct c2_fop_type_format c2_addb_record_tfmt;
+extern struct c2_fop_type_format c2_addb_reply_tfmt;
+
 
 /** @} end of addb group */
 
