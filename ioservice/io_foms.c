@@ -318,11 +318,13 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 
 	c2_stob_put(fom_obj->fcrw_stob);
 
-	if(result != -EDEADLK)	{
+	if(result != -EDEADLK)	
+	{
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 	}
-	else {
+	else 
+	{
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
