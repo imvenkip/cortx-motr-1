@@ -100,7 +100,7 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	{
 		fom->fo_ops = &c2_fom_read_ops;
 		fom_obj->fcrw_rep_fop = 
-			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 		if(fom_obj->fcrw_rep_fop == NULL)
 			return -ENOMEM;
 	}
@@ -108,14 +108,12 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	{
 		fom->fo_ops = &c2_fom_write_ops;
 		fom_obj->fcrw_rep_fop = 
-			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		if(fom_obj->fcrw_rep_fop == NULL)
 			return -ENOMEM;
 	}
 
 	fom_obj->fcrw_fop = fop;
-	fom_obj->fcrw_domain = NULL;
-	fom_obj->fcrw_fop_ctx = NULL;
 	fom_obj->fcrw_stob = NULL;
 	fom_obj->fcrw_st_io = NULL;
 	*m = &fom_obj->fcrw_gen;
@@ -161,43 +159,44 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	if(fom_obj->fcrw_st_io == NULL)
 		return -ENOMEM;
 
+	/*
+	 * Retrieve the request and reply FOPs.
+	 * Extract the on-write FID from the FOPs.
+	 */
 	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
+		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
+		ffid = &write_fop->fwr_fid;
 		/*
 		 * Change the phase of FOM
 		 */
 		fom->fo_phase = FOPH_COB_WRITE;
-		write_fop = c2_fop_data(fom_obj->fcrw_fop);
-		ffid = &write_fop->fwr_fid;
 	}
 	else 
 	{
+		read_fop = c2_fop_data(fom_obj->fcrw_fop);
 		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
+		ffid = &read_fop->frd_fid;
 		/*
 		 * Change the phase of FOM
 		 */
 		fom->fo_phase = FOPH_COB_READ;
-		read_fop = c2_fop_data(fom_obj->fcrw_fop);
-		ffid = &read_fop->frd_fid;
 	}
 
 	/* Find out the in-core fid from on-wire fid. */
 	c2_fid_wire2mem(ffid, &fid);
-	//fid = c2_fid_wire2mem(ffid);
 
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
 	c2_fid2stob_map(&fid, &stobid);
-	//stobid = c2_fid2stob_map(fid);
 
 	/* 
 	 * This is a transaction IO and should be a separate phase 
 	 * with full fledged FOM. 
 	 */
-	result = fom_obj->fcrw_domain->sd_ops->sdo_tx_make(
-			fom_obj->fcrw_domain, &tx);
+	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
 	C2_ASSERT(result == 0);
 
 	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
@@ -206,18 +205,21 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 		 * Make an FOL transaction record.
 		 */
 		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
-				fom_obj->fcrw_fol, &tx.tx_dbtx);
+				fom->fo_fol, &tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 	}
 
 	/*
 	 * Allocate and find out the c2_stob object from given domain. 
 	 */
-	result = c2_stob_find(fom_obj->fcrw_domain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
+	result = c2_stob_find(fom->fo_domain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(fom_obj->fcrw_stob, &tx);
 	C2_ASSERT(result == 0);
 
+	/*
+	 * Initialize the stob io routine.
+	 */
 	c2_stob_io_init(fom_obj->fcrw_st_io);
 
 	/*
@@ -228,22 +230,14 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
+	/* 
+	 * Find out the buffer address, offset and count
+	 * required for the stob io. 
+	 */
 	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_offset & bmask) == 0);
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_buf.f_count & bmask) == 0);
-	}
-	else 
-	{
-		C2_ASSERT((read_fop->frd_ioseg.f_offset & bmask) == 0);
-		C2_ASSERT((read_fop->frd_ioseg.f_count & bmask) == 0);
-
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.f_count);     
-		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-	}
-
-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
 		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
 					 iov_seg.f_buf.f_buf, bshift);
 		count = write_fop->fwr_iovec.iov_seg.f_buf.f_count;
@@ -252,6 +246,14 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	}
 	else 
 	{
+		C2_ASSERT((read_fop->frd_ioseg.f_offset & bmask) == 0);
+		C2_ASSERT((read_fop->frd_ioseg.f_count & bmask) == 0);
+
+		/* 
+		 * Allocate the read buffer. 
+		 */
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.f_count);     
+		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
 		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, 
 					 bshift);
 		count = read_fop->frd_ioseg.f_count;
@@ -273,7 +275,6 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	 */
 	fom_obj->fcrw_st_io->si_user.div_vec.ov_vec.v_nr = 1;
 	fom_obj->fcrw_st_io->si_stob.iv_vec.v_nr = 1;
-
 	fom_obj->fcrw_st_io->si_flags = 0;
 
 	/* 
@@ -290,6 +291,10 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	if(result == 0)
 		c2_chan_wait(&clink);
 
+	/* 
+	 * Retrieve the status code and no of bytes read/written
+	 * and place it in respective reply FOP. 
+	 */
 	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
@@ -325,9 +330,8 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	/*
 	 * Send reply FOP
 	 */
-	c2_net_reply_post(fom_obj->fcrw_fop_ctx->ft_service, 
-			  fom_obj->fcrw_rep_fop, 
-			  fom_obj->fcrw_fop_ctx->fc_cookie);
+	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop, 
+			  fom->fo_fop_ctx->fc_cookie);
 
 	/* This goes into DONE phase */
 	fom_obj->fcrw_gen.fo_phase = FOPH_DONE;
@@ -378,10 +382,9 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 void *cookie, struct c2_fol *fol, 
 			 struct c2_stob_domain *dom)
 {
-	struct c2_fop_ctx ctx;
-	struct c2_fom_cob_rwv	*fom_ctx;
-	int 		  result = 0;
-	struct c2_fom	  *fom = NULL;
+	struct c2_fop_ctx 	ctx;
+	int			result = 0;
+	struct c2_fom	       *fom = NULL;
 
 	ctx.ft_service = s;
 	ctx.fc_cookie  = cookie;
@@ -393,27 +396,20 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 */
 
 	/* 
-	 * This init function will allocate memory for a c2_fom 
+	 * This init function will allocate memory for a c2_fom_cob_rwv
 	 * structure. 
 	 * It will find out the respective c2_fom_type object
 	 * for the given c2_fop_type object using a mapping function
 	 * and will embed the c2_fom_type object in c2_fop_type object.
+	 * It will populate respective fields and do the necessary
+	 * associations with fop and fom.
 	 */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	/*
-	 * This create function will create a type specific FOM
-	 * structure which primarily includes the context.
-	 */
-	//fom->fo_type->ft_ops->fto_create(&fop->f_type->ft_fom_type, fop, &fom);
-	/*
-	 * Populate the FOM context object with whatever is 
-	 * needed from server side.
-	 */
+
 	C2_ASSERT(fom != NULL);
-	fom_ctx = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
-	fom_ctx->fcrw_domain = dom;
-	fom_ctx->fcrw_fop_ctx = &ctx;
-	fom_ctx->fcrw_fol = fol;
+	fom->fo_domain = dom;
+	fom->fo_fop_ctx = &ctx;
+	fom->fo_fol = fol;
 	/* 
 	 * Start the FOM.
 	 */

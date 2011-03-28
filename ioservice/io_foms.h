@@ -73,12 +73,6 @@ struct c2_fom_cob_rwv {
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
         struct c2_stob_io		*fcrw_st_io;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx		*fcrw_fop_ctx;
-	/** FOL object to make transactions of update operations. */
-	struct c2_fol			*fcrw_fol;
-	/** Stob domain in which this FOM is operating. */
-	struct c2_stob_domain		*fcrw_domain;
 };
 
 /**

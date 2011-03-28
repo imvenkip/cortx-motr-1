@@ -194,6 +194,12 @@ struct c2_fom {
 	struct c2_fom_type      *fo_type;
 	const struct c2_fom_ops *fo_ops;
 	struct c2_clink          fo_clink;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx	*fo_fop_ctx;
+	/** FOL object to make transactions of update operations. */
+	struct c2_fol		*fo_fol;
+	/** Stob domain in which this FOM is operating. */
+	struct c2_stob_domain	*fo_domain;
 };
 
 void c2_fom_init(struct c2_fom *fom);
