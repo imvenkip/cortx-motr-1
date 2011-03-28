@@ -76,12 +76,12 @@ struct c2_fom_cob_rwv {
 };
 
 /**
- * <b> State Transition function for "write IO" operation
+ * <b> State Transition function for "read and write IO" operation
  *     that executes on data server. </b>
- *  - Submit the write IO request to the corresponding cob.
+ *  - Submit the read/write IO request to the corresponding cob.
  *  - Send reply FOP to client.
  */
-int c2_fom_cob_writev_state(struct c2_fom *fom); 
+int c2_fom_cob_rwv_state(struct c2_fom *fom); 
 
 /** 
  * The various phases for readv FOM. 
@@ -91,14 +91,6 @@ int c2_fom_cob_writev_state(struct c2_fom *fom);
 enum c2_fom_cob_readv_phases {
 	FOPH_COB_READ
 };
-
-/**
- * <b> State Transition function for "read IO" operation
- *     that executes on data server. </b>
- *  - Submit the read IO request to the corresponding cob.
- *  - Send reply FOP to client.
- */
-int c2_fom_cob_readv_state(struct c2_fom *fom); 
 
 /** Finish method of read FOM object */
 void c2_fom_cob_rwv_fini(struct c2_fom *fom);

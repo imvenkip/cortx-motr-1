@@ -59,10 +59,9 @@ int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 int c2_fop_cob_io_rep_fom_init(struct c2_fop *fop, struct c2_fom **fom);
 
 /** 
- * State handler functions for writev and readv FOPs.
+ * State handler function for writev and readv FOPs.
  */
-int c2_fom_cob_write_state(struct c2_fom *fom);
-int c2_fom_cob_read_state(struct c2_fom *fom);
+int c2_fom_cob_rwv_state(struct c2_fom *fom);
 
 /**
  * Placeholder declarations for c2t1fs code.

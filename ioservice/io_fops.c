@@ -56,13 +56,13 @@ struct c2_fom;
 /** Generic ops object for c2_fop_cob_writev */
 struct c2_fom_ops c2_fom_write_ops = {
 	.fo_fini = NULL,
-	.fo_state = c2_fom_cob_write_state,
+	.fo_state = c2_fom_cob_rwv_state,
 };
 
 /** Generic ops object for c2_fop_cob_readv */
 struct c2_fom_ops c2_fom_read_ops = {
 	.fo_fini = NULL,
-	.fo_state = c2_fom_cob_read_state,
+	.fo_state = c2_fom_cob_rwv_state,
 };
 
 /** Generic ops object for readv and writev reply FOPs */

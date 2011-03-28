@@ -33,6 +33,8 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 
+struct c2_fop_type;
+
 /* export */
 struct c2_fom_domain;
 struct c2_fom_domain_ops;

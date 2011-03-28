@@ -121,9 +121,12 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
- * Common state function for readv and writev FOMs.
+ * <b> State Transition function for "read and write IO" operation
+ *     that executes on data server. </b>
+ *  - Submit the read/write IO request to the corresponding cob.
+ *  - Send reply FOP to client.
  */
-int c2_fom_cob_rw_state(struct c2_fom *fom)
+int c2_fom_cob_rwv_state(struct c2_fom *fom)
 {
 	struct c2_fop_file_fid		*ffid;
 	struct c2_fid 			 fid;
@@ -339,32 +342,6 @@ int c2_fom_cob_rw_state(struct c2_fom *fom)
 	return FSO_AGAIN;
 }
 
-/**
- * <b> State Transition function for "write IO" operation
- *     that executes on data server. </b>
- *  - Submit the write IO request to the corresponding cob.
- *  - Send reply FOP to client.
- */
-int c2_fom_cob_write_state(struct c2_fom *fom) 
-{
-	int 				 result;
-	result = c2_fom_cob_rw_state(fom);
-	return result; 
-}
-
-/**
- * <b> State Transition function for "read IO" operation
- *     that executes on data server. </b>
- *  - Submit the read IO request to the corresponding cob.
- *  - Send reply FOP to client.
- */
-int c2_fom_cob_read_state(struct c2_fom *fom) 
-{
-	int 				 result;
-	result = c2_fom_cob_rw_state(fom);
-	return  result;
-}
-
 /** Fini of read FOM object */
 void c2_fom_cob_rwv_fini(struct c2_fom *fom)
 {
@@ -405,11 +382,12 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 * associations with fop and fom.
 	 */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-
 	C2_ASSERT(fom != NULL);
+
 	fom->fo_domain = dom;
 	fom->fo_fop_ctx = &ctx;
 	fom->fo_fol = fol;
+
 	/* 
 	 * Start the FOM.
 	 */
