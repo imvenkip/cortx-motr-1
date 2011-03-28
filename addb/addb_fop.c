@@ -76,13 +76,16 @@ struct c2_addb_inval_body {
 	uint64_t invalid;
 };
 
-
-
 #ifndef __KERNEL__
+static int c2_addb_enable_dump = 0;
 
 static void c2_addb_record_dump(const struct c2_addb_record *rec)
 {
 	const struct c2_addb_record_header *header = &rec->ar_header;
+
+	if (c2_addb_enable_dump == 0)
+		return;
+
 	printf("addb record |- magic1    = %llX\n"
 	       "            |- version   = %lu\n"
 	       "            |- len       = %lu\n"
