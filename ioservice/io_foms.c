@@ -57,79 +57,80 @@ struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-/*void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
+void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
 {
 	out->si_bits.u_hi = in->f_container;
 	out->si_bits.u_lo = in->f_key;
-}*/
-struct c2_stob_id *c2_fid2stob_map(struct c2_fid *fid)
-{
-       struct c2_stob_id       *stobid;
-       stobid = c2_alloc(sizeof(struct c2_stob_id));
-       C2_ASSERT(stobid != NULL);
-       stobid->si_bits.u_hi = fid->f_container;
-       stobid->si_bits.u_lo = fid->f_key;
-       return stobid;
 }
 
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
  */
-/*void c2_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+void c2_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
 {
 	out->f_container = in->f_seq;
 	out->f_key = in->f_oid;
-}*/
-struct c2_fid *c2_fid_wire2mem(struct c2_fop_file_fid *ffid)
-{
-       struct c2_fid *fid = NULL;
-
-       fid = c2_alloc(sizeof(struct c2_fid));
-       C2_ASSERT(fid != NULL);
-       fid->f_container = ffid->f_seq;
-       fid->f_key = ffid->f_oid;
-       return fid;
 }
 
-/** 
- * Create FOM context object for c2_fop_cob_writev FOP.
+/**
+ * Allocate struct c2_fom_cob_rwv and return generic struct c2_fom
+ * which is embedded in struct c2_fom_cob_rwv.
+ * Find the corresponding fom_type and associate it with c2_fom.
+ * Associate fop with fom type.
  */
-int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop, 
-			     struct c2_fom **out)
+int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_fom *fom = *out;
-	struct c2_fom_cob_rwv *fom_ctx = NULL;
+	struct c2_fom		*fom;
+	struct c2_fom_cob_rwv	*fom_obj;
+	struct c2_fom_type 	*fom_type;
 
-	C2_PRE(t != NULL);
-	C2_PRE(out != NULL);
 	C2_PRE(fop != NULL);
+	C2_PRE(m != NULL);
 
-	fom_ctx = c2_alloc(sizeof(struct c2_fom_cob_rwv));
-	C2_ASSERT(fom_ctx != NULL);
-	fom_ctx->fcrw_gen = *fom;
+	fom_obj= c2_alloc(sizeof(struct c2_fom_cob_rwv));
+	if(fom_obj == NULL)
+		return -ENOMEM;
+	fom_type = c2_fom_type_map(fop->f_type->ft_code);
+	C2_ASSERT(fom_type != NULL);
+	fop->f_type->ft_fom_type = *fom_type;
+	fom = &fom_obj->fcrw_gen;
+	fom->fo_type = fom_type;
 
-	/* Initialize the FOM context object. */
-	fom_ctx->fcrw_fop = fop;
-	fom_ctx->fcrw_domain = NULL;
-	fom_ctx->fcrw_fop_ctx = NULL;
-	fom_ctx->fcrw_stob = NULL;
-	fom_ctx->fcrw_st_io = NULL;
-	c2_free(*out);
-	*out = &fom_ctx->fcrw_gen;
+	if(fop->f_type->ft_code == c2_io_service_readv_opcode)
+	{
+		fom->fo_ops = &c2_fom_read_ops;
+		fom_obj->fcrw_rep_fop = 
+			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
+		if(fom_obj->fcrw_rep_fop == NULL)
+			return -ENOMEM;
+	}
+	else if(fop->f_type->ft_code == c2_io_service_writev_opcode)
+	{
+		fom->fo_ops = &c2_fom_write_ops;
+		fom_obj->fcrw_rep_fop = 
+			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+		if(fom_obj->fcrw_rep_fop == NULL)
+			return -ENOMEM;
+	}
+
+	fom_obj->fcrw_fop = fop;
+	fom_obj->fcrw_domain = NULL;
+	fom_obj->fcrw_fop_ctx = NULL;
+	fom_obj->fcrw_stob = NULL;
+	fom_obj->fcrw_st_io = NULL;
+	*m = &fom_obj->fcrw_gen;
 	return 0;
 }
 
 /**
  * Common state function for readv and writev FOMs.
  */
-int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
+int c2_fom_cob_rw_state(struct c2_fom *fom)
 {
 	struct c2_fop_file_fid		*ffid;
-	//struct c2_fid 			fid;
-	struct c2_fid 			*fid;
-	struct c2_fom_cob_rwv 		*ctx;
-	//struct c2_stob_id		stobid;
-	struct c2_stob_id		*stobid;
+	struct c2_fid 			 fid;
+	struct c2_fom_cob_rwv 		*fom_obj;
+	struct c2_stob_id		 stobid;
 	struct c2_dtx			 tx;
 	uint32_t			 bshift;
 	uint64_t			 bmask;
@@ -141,105 +142,93 @@ int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
 	int				 rc;
 	struct c2_fop_cob_writev	*write_fop;
 	struct c2_fop_cob_readv		*read_fop;
-	struct c2_fop			*rep_fop;
 	struct c2_fop_cob_writev_rep	*wr_rep_fop;
 	struct c2_fop_cob_readv_rep	*rd_rep_fop;
 
 	C2_PRE(fom != NULL);
-
-	if(rw == WRITE) 
-	{
-		rep_fop = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-		C2_ASSERT(rep_fop != NULL);
-		wr_rep_fop = c2_fop_data(rep_fop);
-		/*
-		 * Change the phase of FOM
-		 */
-		fom->fo_phase = FOPH_COB_WRITE;
-		printf("write reply FOP allocated.\n");
-	}
-	else 
-	{
-		rep_fop = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
-		C2_ASSERT(rep_fop != NULL);
-		rd_rep_fop = c2_fop_data(rep_fop);
-		/*
-		 * Change the phase of FOM
-		 */
-		fom->fo_phase = FOPH_COB_READ;
-		printf("read reply FOP allocated.\n");
-	}
 
 	/*
 	 * Since a c2_fom object is passed down to every FOM 
 	 * state method, the context structure which is the 
 	 * parent structure of the FOM is type casted from c2_fom.
 	 */
-	ctx = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
-	if(rw == WRITE)
+	fom_obj = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
+
+	/* 
+	 * Allocate and initialize stob io object 
+	 */
+	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
+	if(fom_obj->fcrw_st_io == NULL)
+		return -ENOMEM;
+
+	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
-		write_fop = c2_fop_data(ctx->fcrw_fop);
+		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
+		/*
+		 * Change the phase of FOM
+		 */
+		fom->fo_phase = FOPH_COB_WRITE;
+		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		ffid = &write_fop->fwr_fid;
-		printf("write FOL record added.\n");
 	}
-	else
+	else 
 	{
-		read_fop = c2_fop_data(ctx->fcrw_fop);
+		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
+		/*
+		 * Change the phase of FOM
+		 */
+		fom->fo_phase = FOPH_COB_READ;
+		read_fop = c2_fop_data(fom_obj->fcrw_fop);
 		ffid = &read_fop->frd_fid;
 	}
 
 	/* Find out the in-core fid from on-wire fid. */
-	//c2_fid_wire2mem(ffid, &fid);
-	fid = c2_fid_wire2mem(ffid);
+	c2_fid_wire2mem(ffid, &fid);
+	//fid = c2_fid_wire2mem(ffid);
 
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
-	//c2_fid2stob_map(&fid, &stobid);
-	stobid = c2_fid2stob_map(fid);
+	c2_fid2stob_map(&fid, &stobid);
+	//stobid = c2_fid2stob_map(fid);
 
 	/* 
 	 * This is a transaction IO and should be a separate phase 
 	 * with full fledged FOM. 
 	 */
-	result = ctx->fcrw_domain->sd_ops->sdo_tx_make(ctx->fcrw_domain, &tx);
+	result = fom_obj->fcrw_domain->sd_ops->sdo_tx_make(
+			fom_obj->fcrw_domain, &tx);
 	C2_ASSERT(result == 0);
 
-	if(rw == WRITE)
+	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
 		/* 
 		 * Make an FOL transaction record.
 		 */
-		result = c2_fop_fol_rec_add(ctx->fcrw_fop, 
-				ctx->fcrw_fol, &tx.tx_dbtx);
+		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
+				fom_obj->fcrw_fol, &tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 	}
 
 	/*
 	 * Allocate and find out the c2_stob object from given domain. 
 	 */
-	result = c2_stob_find(ctx->fcrw_domain, stobid, &ctx->fcrw_stob);
+	result = c2_stob_find(fom_obj->fcrw_domain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
 	C2_ASSERT(result == 0);
-	result = c2_stob_locate(ctx->fcrw_stob, &tx);
+	result = c2_stob_locate(fom_obj->fcrw_stob, &tx);
 	C2_ASSERT(result == 0);
-	printf("Stob found and located..\n");
 
-	/* 
-	 * Allocate and initialize stob io object 
-	 */
-	ctx->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
-	C2_ASSERT(ctx->fcrw_st_io);
-	c2_stob_io_init(ctx->fcrw_st_io);
-	printf("stob io initiated..\n");
+	c2_stob_io_init(fom_obj->fcrw_st_io);
 
 	/*
 	 * Since the upper layer IO block size could differ
 	 * with IO block size of storage object, the block
 	 * alignment and mapping is necesary. 
 	 */
-	bshift = ctx->fcrw_stob->so_op->sop_block_shift(ctx->fcrw_stob);
+	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
-	if(rw == WRITE)
+
+	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_offset & bmask) == 0);
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_buf.f_count & bmask) == 0);
@@ -251,16 +240,15 @@ int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
 
 		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.f_count);     
 		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-		printf("read buffer allocated..\n");
 	}
 
-	if(rw == WRITE)
+	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
 		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
 					 iov_seg.f_buf.f_buf, bshift);
 		count = write_fop->fwr_iovec.iov_seg.f_buf.f_count;
 		offset = write_fop->fwr_iovec.iov_seg.f_offset;
-		ctx->fcrw_st_io->si_opcode = SIO_WRITE;
+		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
 	else 
 	{
@@ -268,63 +256,59 @@ int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
 					 bshift);
 		count = read_fop->frd_ioseg.f_count;
 		offset = read_fop->frd_ioseg.f_offset; 
-		ctx->fcrw_st_io->si_opcode = SIO_READ;
+		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
-	printf("offset and count calculated.\n");
 
 	count = count >> bshift;
 	offset = offset >> bshift;
 
-	ctx->fcrw_st_io->si_user.div_vec.ov_vec.v_count = &count;
-	ctx->fcrw_st_io->si_user.div_vec.ov_buf = &addr;
+	fom_obj->fcrw_st_io->si_user.div_vec.ov_vec.v_count = &count;
+	fom_obj->fcrw_st_io->si_user.div_vec.ov_buf = &addr;
 
-	ctx->fcrw_st_io->si_stob.iv_index = &offset;
-	ctx->fcrw_st_io->si_stob.iv_vec.v_count = &count;
+	fom_obj->fcrw_st_io->si_stob.iv_index = &offset;
+	fom_obj->fcrw_st_io->si_stob.iv_vec.v_count = &count;
 
 	/*
 	 * Total number of segments in IO vector 
 	 */
-	ctx->fcrw_st_io->si_user.div_vec.ov_vec.v_nr = 1;
-	ctx->fcrw_st_io->si_stob.iv_vec.v_nr = 1;
+	fom_obj->fcrw_st_io->si_user.div_vec.ov_vec.v_nr = 1;
+	fom_obj->fcrw_st_io->si_stob.iv_vec.v_nr = 1;
 
-	ctx->fcrw_st_io->si_flags = 0;
-	printf("stob io vector populated.\n");
+	fom_obj->fcrw_st_io->si_flags = 0;
 
 	/* 
 	 * A new clink is used to wait on the channel 
 	 * from c2_stob_io.
 	 */
 	c2_clink_init(&clink, NULL);
-	c2_clink_add(&ctx->fcrw_st_io->si_wait, &clink);
+	c2_clink_add(&fom_obj->fcrw_st_io->si_wait, &clink);
 
 	/*
 	 * Launch IO and wait for status. 
 	 */
-	printf("before io launch.\n");
-	result = c2_stob_io_launch(ctx->fcrw_st_io, ctx->fcrw_stob, &tx, NULL);
+	result = c2_stob_io_launch(fom_obj->fcrw_st_io, fom_obj->fcrw_stob, &tx, NULL);
 	if(result == 0)
 		c2_chan_wait(&clink);
 
-	if(rw == WRITE)
+	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
 	{
-		wr_rep_fop->fwrr_rc = ctx->fcrw_st_io->si_rc;
-		wr_rep_fop->fwrr_count = ctx->fcrw_st_io->si_count << bshift;;
+		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
+		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;;
 	}
 	else
 	{
-		rd_rep_fop->frdr_rc = ctx->fcrw_st_io->si_rc;
-		rd_rep_fop->frdr_buf.f_count = ctx->fcrw_st_io->si_count << bshift;
+		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
+		rd_rep_fop->frdr_buf.f_count = fom_obj->fcrw_st_io->si_count << bshift;
 	}
-	printf("after io launch.\n");
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	c2_stob_io_fini(ctx->fcrw_st_io);
-	c2_free(ctx->fcrw_st_io);
-	ctx->fcrw_st_io = NULL;
+	c2_stob_io_fini(fom_obj->fcrw_st_io);
+	c2_free(fom_obj->fcrw_st_io);
+	fom_obj->fcrw_st_io = NULL;
 
-	c2_stob_put(ctx->fcrw_stob);
+	c2_stob_put(fom_obj->fcrw_stob);
 
 	if(result != -EDEADLK)	{
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
@@ -334,25 +318,20 @@ int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
-		ctx->fcrw_gen.fo_phase = FOPH_FAILED;
+		fom_obj->fcrw_gen.fo_phase = FOPH_FAILED;
 		return FSO_AGAIN;
 	}
-	printf("transaction committed/aborted..\n");
 
 	/*
 	 * Send reply FOP
 	 */
-	printf("before post reply.\n");
-	c2_net_reply_post(ctx->fcrw_fop_ctx->ft_service, rep_fop, ctx->fcrw_fop_ctx->fc_cookie);
-	printf("after post reply.\n");
+	c2_net_reply_post(fom_obj->fcrw_fop_ctx->ft_service, 
+			  fom_obj->fcrw_rep_fop, 
+			  fom_obj->fcrw_fop_ctx->fc_cookie);
 
 	/* This goes into DONE phase */
-	ctx->fcrw_gen.fo_phase = FOPH_DONE;
-	if(rw == WRITE)
-		c2_fom_cob_writev_fini(&ctx->fcrw_gen);
-	else 
-		c2_fom_cob_readv_fini(&ctx->fcrw_gen);
-	printf("after read/write fini.\n");
+	fom_obj->fcrw_gen.fo_phase = FOPH_DONE;
+	c2_fom_cob_rwv_fini(&fom_obj->fcrw_gen);
 	return FSO_AGAIN;
 }
 
@@ -365,45 +344,8 @@ int c2_fom_cob_rw_state(struct c2_fom *fom, int rw)
 int c2_fom_cob_write_state(struct c2_fom *fom) 
 {
 	int 				 result;
-	result = c2_fom_cob_rw_state(fom, WRITE);
+	result = c2_fom_cob_rw_state(fom);
 	return result; 
-}
-
-/** Fini of write FOM object */
-void c2_fom_cob_writev_fini(struct c2_fom *fom)
-{
-	struct c2_fom_cob_rwv *fom_ctx;
-
-	fom_ctx = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
-	c2_free(fom_ctx);
-}
-
-/** 
- * Create FOM context object for c2_fop_cob_readv FOP.
- */
-int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop, 
-			    struct c2_fom **out)
-{
-	struct c2_fom *fom = *out;
-	struct c2_fom_cob_rwv *fom_ctx = NULL;
-
-	C2_PRE(t != NULL);
-	C2_PRE(out != NULL);
-	C2_PRE(fop != NULL);
-
-	fom_ctx = c2_alloc(sizeof(struct c2_fom_cob_rwv));
-	C2_ASSERT(fom_ctx != NULL);
-	fom_ctx->fcrw_gen = *fom;
-
-	/* Initialize the FOM context object. */
-	fom_ctx->fcrw_fop = fop;
-	fom_ctx->fcrw_domain = NULL;
-	fom_ctx->fcrw_fop_ctx = NULL;
-	fom_ctx->fcrw_stob = NULL;
-	fom_ctx->fcrw_st_io = NULL;
-	c2_free(*out);
-	*out = &fom_ctx->fcrw_gen;
-	return 0;
 }
 
 /**
@@ -415,12 +357,12 @@ int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop,
 int c2_fom_cob_read_state(struct c2_fom *fom) 
 {
 	int 				 result;
-	result = c2_fom_cob_rw_state(fom, READ);
+	result = c2_fom_cob_rw_state(fom);
 	return  result;
 }
 
 /** Fini of read FOM object */
-void c2_fom_cob_readv_fini(struct c2_fom *fom)
+void c2_fom_cob_rwv_fini(struct c2_fom *fom)
 {
 	struct c2_fom_cob_rwv *fom_ctx;
 
@@ -462,11 +404,12 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 * This create function will create a type specific FOM
 	 * structure which primarily includes the context.
 	 */
-	fom->fo_type->ft_ops->fto_create(&fop->f_type->ft_fom_type, fop, &fom);
+	//fom->fo_type->ft_ops->fto_create(&fop->f_type->ft_fom_type, fop, &fom);
 	/*
 	 * Populate the FOM context object with whatever is 
 	 * needed from server side.
 	 */
+	C2_ASSERT(fom != NULL);
 	fom_ctx = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
 	fom_ctx->fcrw_domain = dom;
 	fom_ctx->fcrw_fop_ctx = &ctx;

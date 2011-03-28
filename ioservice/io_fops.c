@@ -2,18 +2,20 @@
 #include "io_fops.h"
 #include "lib/errno.h"
 
+int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
+
 /**
  * readv FOP operation vector.
  */
 struct c2_fop_type_ops cob_readv_ops = {
-	.fto_fom_init = c2_fop_cob_readv_fom_init,
+	.fto_fom_init = c2_fop_cob_rwv_fom_init,
 };
 
 /**
  * writev FOP operation vector.
  */
 struct c2_fop_type_ops cob_writev_ops = {
-	.fto_fom_init = c2_fop_cob_writev_fom_init,
+	.fto_fom_init = c2_fop_cob_rwv_fom_init,
 };
 
 /**
@@ -69,67 +71,14 @@ struct c2_fom_ops c2_fom_io_rep = {
 	.fo_state = NULL,
 };
 
-/**
- * Allocate and return generic struct c2_fom for readv fop.
- * Find the corresponding fom_type and associate it with c2_fom.
- */
-int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	struct c2_fom		*fom;
-	struct c2_fom_type 	*fom_type;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(m != NULL);
-
-	*m = c2_alloc(sizeof(struct c2_fom));
-	fom = *m;
-	if(fom == NULL)
-		return -ENOMEM;
-	fom_type = c2_fom_type_map(fop->f_type->ft_code);
-	C2_ASSERT(fom_type != NULL);
-	fop->f_type->ft_fom_type = *fom_type;
-	fom->fo_type = fom_type;
-	//fom->fo_ops = &c2_fom_read_ops;
-	(*m)->fo_ops = &c2_fom_read_ops;
-	return 0;
-}
-
-/**
- * Allocate and return generic struct c2_fom for writev fop.
- * Find the corresponding fom_type and associate it with c2_fom.
- */
-int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	struct c2_fom		*fom;
-	struct c2_fom_type 	*fom_type = NULL;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(m != NULL);
-
-	*m = c2_alloc(sizeof(struct c2_fom));
-	fom = *m;
-	if(fom == NULL)
-		return -ENOMEM;
-	fom_type = c2_fom_type_map(fop->f_type->ft_code);
-	C2_ASSERT(fom_type != NULL);
-	fop->f_type->ft_fom_type = *fom_type;
-	fom->fo_type = fom_type;
-	//fom->fo_ops = &c2_fom_write_ops;
-	(*m)->fo_ops = &c2_fom_write_ops;
-	return 0;
-}
 #else /* #ifdef __KERNEL__ */
+
 /** Placeholder API for c2t1fs build. */
-int c2_fop_cob_readv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	return 0;
 }
 
-/** Placeholder API for c2t1fs build. */
-int c2_fop_cob_writev_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
 #endif
 
 /* 

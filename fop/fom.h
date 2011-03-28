@@ -33,9 +33,6 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 
-struct c2_fop_type;
-struct c2_fop;
-
 /* export */
 struct c2_fom_domain;
 struct c2_fom_domain_ops;
@@ -239,8 +236,7 @@ enum c2_fom_state_outcome {
 /** Fom type operation vector. */
 struct c2_fom_type_ops {
 	/** Create a new fom of this type. */
-	int (*fto_create)(struct c2_fom_type *t, struct c2_fop *fop, 
-			struct c2_fom **out);
+	int (*fto_create)(struct c2_fom_type *t, struct c2_fom **out);
 };
 
 /** Fom operations vector. */

@@ -39,16 +39,8 @@
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-//void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
-struct c2_stob_id *c2_fid2stob_map(struct c2_fid *in);
+void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
 #endif
-
-/**
- */
-enum c2_io_service_rw_codes {
-	READ,
-	WRITE,
-};
 
 /**
  * Find out the respective FOM type object (c2_fom_type)
@@ -89,12 +81,6 @@ struct c2_fom_cob_rwv {
 	struct c2_stob_domain		*fcrw_domain;
 };
 
-/** 
- * Create FOM context object for c2_fop_cob_writev FOP.
- */
-int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop, 
-			     struct c2_fom **out);
-
 /**
  * <b> State Transition function for "write IO" operation
  *     that executes on data server. </b>
@@ -102,9 +88,6 @@ int c2_fom_cob_writev_create(struct c2_fom_type *t, struct c2_fop *fop,
  *  - Send reply FOP to client.
  */
 int c2_fom_cob_writev_state(struct c2_fom *fom); 
-
-/** Finish method of write FOM object */
-void c2_fom_cob_writev_fini(struct c2_fom *fom);
 
 /** 
  * The various phases for readv FOM. 
@@ -115,12 +98,6 @@ enum c2_fom_cob_readv_phases {
 	FOPH_COB_READ
 };
 
-/** 
- * Create FOM context object for c2_fop_cob_readv FOP.
- */
-int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop, 
-			    struct c2_fom **out);
-
 /**
  * <b> State Transition function for "read IO" operation
  *     that executes on data server. </b>
@@ -130,16 +107,16 @@ int c2_fom_cob_readv_create(struct c2_fom_type *t, struct c2_fop *fop,
 int c2_fom_cob_readv_state(struct c2_fom *fom); 
 
 /** Finish method of read FOM object */
-void c2_fom_cob_readv_fini(struct c2_fom *fom);
+void c2_fom_cob_rwv_fini(struct c2_fom *fom);
 
 /** FOM type specific functions for readv FOP. */
 static const struct c2_fom_type_ops cob_readv_type_ops = {
-	.fto_create = c2_fom_cob_readv_create,
+	.fto_create = NULL,
 };
 
 /** FOM type specific functions for writev FOP. */
 static const struct c2_fom_type_ops cob_writev_type_ops = {
-	.fto_create = c2_fom_cob_writev_create,
+	.fto_create = NULL,
 };
 
 extern struct c2_fom_type c2_fom_cob_readv_mopt;
