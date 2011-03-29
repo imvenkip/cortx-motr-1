@@ -16,4 +16,5 @@ INCLUDES                      	= -I. -I$(top_srcdir) -I$(top_srcdir)/include
 EXTRA_DIST                    	= io_fops.ff
 
 clean-local:
+	cd $(ioservicedir);
 	rm -rf io_fops_[uk]*.[ch];

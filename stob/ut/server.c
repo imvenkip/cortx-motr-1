@@ -288,8 +288,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/* 
 	 * FOMs are implemented only for read and write operations 
 	 */
-	if((fop->f_type->ft_code >= c2_io_service_readv_opcode))
-	{
+	if ((fop->f_type->ft_code >= c2_io_service_readv_opcode)) {
 		/*
 		 * A dummy request handler API to handle incoming FOPs.
 		 * Actual reqh will be used in future.
@@ -302,7 +301,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
 */
-	return fop->f_type->ft_ops->fto_execute(fop, &ctx);
+		return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
 static struct c2_fop_type *fopt[] = {

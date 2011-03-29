@@ -1,4 +1,8 @@
 /* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "fop/fop.h"
 #include "io_foms.h"
 #include "io_fops.h"
@@ -88,7 +92,7 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(m != NULL);
 
 	fom_obj= c2_alloc(sizeof(struct c2_fom_cob_rwv));
-	if(fom_obj == NULL)
+	if (fom_obj == NULL)
 		return -ENOMEM;
 	fom_type = c2_fom_type_map(fop->f_type->ft_code);
 	C2_ASSERT(fom_type != NULL);
@@ -96,21 +100,23 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom = &fom_obj->fcrw_gen;
 	fom->fo_type = fom_type;
 
-	if(fop->f_type->ft_code == c2_io_service_readv_opcode)
-	{
+	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
 		fom->fo_ops = &c2_fom_read_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
-		if(fom_obj->fcrw_rep_fop == NULL)
+		if (fom_obj->fcrw_rep_fop == NULL) {
+			c2_free(fom_obj);
 			return -ENOMEM;
+		}
 	}
-	else if(fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
+	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		fom->fo_ops = &c2_fom_write_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-		if(fom_obj->fcrw_rep_fop == NULL)
+		if (fom_obj->fcrw_rep_fop == NULL) {
+			c2_free(fom_obj);
 			return -ENOMEM;
+		}
 	}
 
 	fom_obj->fcrw_fop = fop;
@@ -159,15 +165,14 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Allocate and initialize stob io object 
 	 */
 	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
-	if(fom_obj->fcrw_st_io == NULL)
+	if (fom_obj->fcrw_st_io == NULL)
 		return -ENOMEM;
 
 	/*
 	 * Retrieve the request and reply FOPs.
 	 * Extract the on-write FID from the FOPs.
 	 */
-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
+	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
 		ffid = &write_fop->fwr_fid;
@@ -176,8 +181,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 		 */
 		fom->fo_phase = FOPH_COB_WRITE;
 	}
-	else 
-	{
+	else {
 		read_fop = c2_fop_data(fom_obj->fcrw_fop);
 		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
 		ffid = &read_fop->frd_fid;
@@ -202,8 +206,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
 	C2_ASSERT(result == 0);
 
-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
+	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		/* 
 		 * Make an FOL transaction record.
 		 */
@@ -237,8 +240,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Find out the buffer address, offset and count
 	 * required for the stob io. 
 	 */
-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
+	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_offset & bmask) == 0);
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_buf.f_count & bmask) == 0);
 		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
@@ -247,8 +249,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 		offset = write_fop->fwr_iovec.iov_seg.f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
-	else 
-	{
+	else {
 		C2_ASSERT((read_fop->frd_ioseg.f_offset & bmask) == 0);
 		C2_ASSERT((read_fop->frd_ioseg.f_count & bmask) == 0);
 
@@ -291,20 +292,18 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Launch IO and wait for status. 
 	 */
 	result = c2_stob_io_launch(fom_obj->fcrw_st_io, fom_obj->fcrw_stob, &tx, NULL);
-	if(result == 0)
+	if (result == 0)
 		c2_chan_wait(&clink);
 
 	/* 
 	 * Retrieve the status code and no of bytes read/written
 	 * and place it in respective reply FOP. 
 	 */
-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
-	{
+	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
 		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;;
 	}
-	else
-	{
+	else {
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
 		rd_rep_fop->frdr_buf.f_count = fom_obj->fcrw_st_io->si_count << bshift;
 	}
@@ -318,13 +317,11 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 
 	c2_stob_put(fom_obj->fcrw_stob);
 
-	if(result != -EDEADLK)	
-	{
+	if (result != -EDEADLK)	{
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 	}
-	else 
-	{
+	else {
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
