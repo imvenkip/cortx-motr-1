@@ -202,6 +202,20 @@ struct c2_bitmap;
  */
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
 
+/**
+   Returns the handle of the current thread.
+   @pre The kernel code will assert !in_interrupt().
+*/
+void c2_thread_self(struct c2_thread_handle *id);
+
+/**
+   Tests whether two thread handles are identical.
+   @ret true if h1 == h2
+   @ret false if h1 != h2
+*/
+bool c2_thread_handle_compare(struct c2_thread_handle *h1,
+			      struct c2_thread_handle *h2);
+
 /** @} end of thread group */
 
 /* __COLIBRI_LIB_THREAD_H__ */
