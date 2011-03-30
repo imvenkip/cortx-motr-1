@@ -6,3 +6,4 @@ refs.c
 bitmap.c
 buf.c
 misc.c
+chan.c
