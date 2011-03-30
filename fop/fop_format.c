@@ -90,7 +90,6 @@ int c2_fop_type_format_parse(struct c2_fop_type_format *fmt)
 	size_t nr;
 	size_t i;
 
-
 	C2_PRE(fmt->ftf_out == NULL);
 
 	C2_ALLOC_PTR(t);
