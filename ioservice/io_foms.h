@@ -32,6 +32,7 @@
 #include "io_fops.h"
 #include "stob/stob.h"
 #ifndef __KERNEL__
+
 #include "io_fops_u.h"
 /**
  * Function to map given fid to corresponding Component object id(in turn,
@@ -40,6 +41,15 @@
  * change as per the future requirements.
  */
 void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
+
+/**
+ * A dummy request handler API to handle incoming FOPs.
+ * Actual reqh will be used in future.
+ */
+int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
+			 void *cookie, struct c2_fol *fol, 
+			 struct c2_stob_domain *dom);
+
 #endif
 
 /**
@@ -88,23 +98,12 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom);
  * Not used as of now. Will be used once the 
  * complete FOM and reqh infrastructure is in place.
  */
-enum c2_fom_cob_readv_phases {
+enum c2_io_fom_cob_readv_phases {
 	FOPH_COB_READ
 };
 
 /** Finish method of read FOM object */
 void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
-
-#ifndef __KERNEL__
-/**
- * A dummy request handler API to handle incoming FOPs.
- * Actual reqh will be used in future.
- */
-int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-			 void *cookie, struct c2_fol *fol, 
-			 struct c2_stob_domain *dom);
-#endif
-
 
 /** @} end of io_foms */
 
