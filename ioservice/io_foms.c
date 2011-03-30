@@ -26,22 +26,50 @@
 
 #ifndef __KERNEL__
 
+/** Generic ops object for c2_fop_cob_writev */
+static struct c2_fom_ops c2_io_fom_write_ops = {
+	.fo_fini = NULL,
+	.fo_state = c2_io_fom_cob_rwv_state,
+};
+
+/** Generic ops object for c2_fop_cob_readv */
+static struct c2_fom_ops c2_io_fom_read_ops = {
+	.fo_fini = NULL,
+	.fo_state = c2_io_fom_cob_rwv_state,
+};
+
+/** Generic ops object for readv and writev reply FOPs */
+struct c2_fom_ops c2_io_fom_rwv_rep = {
+	.fo_fini = NULL,
+	.fo_state = NULL,
+};
+
+/** FOM type specific functions for readv FOP. */
+static const struct c2_fom_type_ops c2_io_cob_readv_type_ops = {
+	.fto_create = NULL,
+};
+
+/** FOM type specific functions for writev FOP. */
+static const struct c2_fom_type_ops c2_io_cob_writev_type_ops = {
+	.fto_create = NULL,
+};
+
 /** Readv specific FOM type operations vector. */
-struct c2_fom_type c2_fom_cob_readv_mopt = {
-	.ft_ops = &cob_readv_type_ops,
+static struct c2_fom_type c2_io_fom_cob_readv_mopt = {
+	.ft_ops = &c2_io_cob_readv_type_ops,
 };
 
 /** Writev specific FOM type operations vector. */
-struct c2_fom_type c2_fom_cob_writev_mopt = {
-	.ft_ops = &cob_writev_type_ops,
+static struct c2_fom_type c2_io_fom_cob_writev_mopt = {
+	.ft_ops = &c2_io_cob_writev_type_ops,
 };
 
 /**
  *  An array of c2_fom_type structs for all possible FOMs.
  */
-struct c2_fom_type *fom_types[] = {
-	&c2_fom_cob_readv_mopt,
-	&c2_fom_cob_writev_mopt,
+static struct c2_fom_type *c2_io_fom_types[] = {
+	&c2_io_fom_cob_readv_mopt,
+	&c2_io_fom_cob_writev_mopt,
 };
 
 /**
@@ -49,10 +77,11 @@ struct c2_fom_type *fom_types[] = {
  * from the given opcode.
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
  */
-struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
+struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_PRE(IS_IN_ARRAY((code - c2_io_service_readv_opcode), fom_types));
-	return fom_types[code - c2_io_service_readv_opcode];
+	C2_PRE(IS_IN_ARRAY((code - c2_io_service_readv_opcode), 
+			   c2_io_fom_types));
+	return c2_io_fom_types[code - c2_io_service_readv_opcode];
 }
 
 /**
@@ -61,7 +90,7 @@ struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
+void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
 {
 	out->si_bits.u_hi = in->f_container;
 	out->si_bits.u_lo = in->f_key;
@@ -70,38 +99,38 @@ void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
  */
-void c2_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+static void c2_io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
 {
 	out->f_container = in->f_seq;
 	out->f_key = in->f_oid;
 }
 
 /**
- * Allocate struct c2_fom_cob_rwv and return generic struct c2_fom
- * which is embedded in struct c2_fom_cob_rwv.
+ * Allocate struct c2_io_fom_cob_rwv and return generic struct c2_fom
+ * which is embedded in struct c2_io_fom_cob_rwv.
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
  */
-int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_fom		*fom;
-	struct c2_fom_cob_rwv	*fom_obj;
-	struct c2_fom_type 	*fom_type;
+	struct c2_fom			*fom;
+	struct c2_io_fom_cob_rwv	*fom_obj;
+	struct c2_fom_type 		*fom_type;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	fom_obj= c2_alloc(sizeof(struct c2_fom_cob_rwv));
+	fom_obj= c2_alloc(sizeof(struct c2_io_fom_cob_rwv));
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom_type = c2_fom_type_map(fop->f_type->ft_code);
+	fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
 	C2_ASSERT(fom_type != NULL);
 	fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fcrw_gen;
 	fom->fo_type = fom_type;
 
 	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
-		fom->fo_ops = &c2_fom_read_ops;
+		fom->fo_ops = &c2_io_fom_read_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
@@ -110,7 +139,7 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 		}
 	}
 	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		fom->fo_ops = &c2_fom_write_ops;
+		fom->fo_ops = &c2_io_fom_write_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
@@ -132,11 +161,11 @@ int c2_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
  *  - Submit the read/write IO request to the corresponding cob.
  *  - Send reply FOP to client.
  */
-int c2_fom_cob_rwv_state(struct c2_fom *fom)
+int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 {
 	struct c2_fop_file_fid		*ffid;
 	struct c2_fid 			 fid;
-	struct c2_fom_cob_rwv 		*fom_obj;
+	struct c2_io_fom_cob_rwv 	*fom_obj;
 	struct c2_stob_id		 stobid;
 	struct c2_dtx			 tx;
 	uint32_t			 bshift;
@@ -159,7 +188,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	 * state method, the context structure which is the 
 	 * parent structure of the FOM is type casted from c2_fom.
 	 */
-	fom_obj = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
+	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
 
 	/* 
 	 * Allocate and initialize stob io object 
@@ -192,12 +221,12 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 	}
 
 	/* Find out the in-core fid from on-wire fid. */
-	c2_fid_wire2mem(ffid, &fid);
+	c2_io_fid_wire2mem(ffid, &fid);
 
 	/* 
 	 * Map the given fid to find out corresponding stob id.
 	 */
-	c2_fid2stob_map(&fid, &stobid);
+	c2_io_fid2stob_map(&fid, &stobid);
 
 	/* 
 	 * This is a transaction IO and should be a separate phase 
@@ -337,16 +366,16 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
 
 	/* This goes into DONE phase */
 	fom_obj->fcrw_gen.fo_phase = FOPH_DONE;
-	c2_fom_cob_rwv_fini(&fom_obj->fcrw_gen);
+	c2_io_fom_cob_rwv_fini(&fom_obj->fcrw_gen);
 	return FSO_AGAIN;
 }
 
 /** Fini of read FOM object */
-void c2_fom_cob_rwv_fini(struct c2_fom *fom)
+void c2_io_fom_cob_rwv_fini(struct c2_fom *fom)
 {
-	struct c2_fom_cob_rwv *fom_ctx;
+	struct c2_io_fom_cob_rwv *fom_ctx;
 
-	fom_ctx = container_of(fom, struct c2_fom_cob_rwv, fcrw_gen);
+	fom_ctx = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
 	c2_free(fom_ctx);
 }
 
@@ -354,7 +383,7 @@ void c2_fom_cob_rwv_fini(struct c2_fom *fom)
  * A dummy request handler API to handle incoming FOPs.
  * Actual reqh will be used in future.
  */
-int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
+int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 void *cookie, struct c2_fol *fol, 
 			 struct c2_stob_domain *dom)
 {
@@ -372,7 +401,7 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 */
 
 	/* 
-	 * This init function will allocate memory for a c2_fom_cob_rwv
+	 * This init function will allocate memory for a c2_io_fom_cob_rwv
 	 * structure. 
 	 * It will find out the respective c2_fom_type object
 	 * for the given c2_fop_type object using a mapping function
@@ -392,6 +421,7 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 */
 	return fom->fo_ops->fo_state(fom);
 }
+
 #endif
 
 /** @} end of io_foms */

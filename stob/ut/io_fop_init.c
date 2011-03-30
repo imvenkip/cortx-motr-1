@@ -21,11 +21,6 @@
 # define create_handler NULL
 # define quit_handler NULL
 
-struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code)
-{
-	return NULL;
-}
-
 #else
 
 int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);

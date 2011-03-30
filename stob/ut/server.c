@@ -293,7 +293,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		 * A dummy request handler API to handle incoming FOPs.
 		 * Actual reqh will be used in future.
 		 */
-		result = c2_dummy_req_handler(service, fop, cookie, &fol, dom);
+		result = c2_io_dummy_req_handler(service, fop, cookie, &fol, dom);
 		return result;
 	}
 	else

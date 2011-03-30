@@ -39,7 +39,7 @@
  * Currently, this mapping is identity. But it is subject to 
  * change as per the future requirements.
  */
-void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
+void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
 #endif
 
 /**
@@ -47,14 +47,14 @@ void c2_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
  * from the given opcode.
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
  */
-struct c2_fom_type* c2_fom_type_map(c2_fop_type_code_t code);
+struct c2_fom_type* c2_io_fom_type_map(c2_fop_type_code_t code);
 
 /** 
  * The various phases for writev FOM. 
  * Not used as of now. Will be used once the 
  * complete FOM and reqh infrastructure is in place.
  */
-enum c2_fom_cob_writev_phases{
+enum c2_io_fom_cob_writev_phases{
 	FOPH_COB_WRITE
 };
 
@@ -62,7 +62,7 @@ enum c2_fom_cob_writev_phases{
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
-struct c2_fom_cob_rwv {
+struct c2_io_fom_cob_rwv {
 	/** Generic c2_fom object. */
         struct c2_fom                    fcrw_gen;
 	/** FOP associated with this FOM. */
@@ -81,7 +81,7 @@ struct c2_fom_cob_rwv {
  *  - Submit the read/write IO request to the corresponding cob.
  *  - Send reply FOP to client.
  */
-int c2_fom_cob_rwv_state(struct c2_fom *fom); 
+int c2_io_fom_cob_rwv_state(struct c2_fom *fom); 
 
 /** 
  * The various phases for readv FOM. 
@@ -93,28 +93,14 @@ enum c2_fom_cob_readv_phases {
 };
 
 /** Finish method of read FOM object */
-void c2_fom_cob_rwv_fini(struct c2_fom *fom);
-
-/** FOM type specific functions for readv FOP. */
-static const struct c2_fom_type_ops cob_readv_type_ops = {
-	.fto_create = NULL,
-};
-
-/** FOM type specific functions for writev FOP. */
-static const struct c2_fom_type_ops cob_writev_type_ops = {
-	.fto_create = NULL,
-};
-
-extern struct c2_fom_type c2_fom_cob_readv_mopt;
-extern struct c2_fom_type c2_fom_cob_writev_mopt;
-extern struct c2_fom_type *fom_types[];
+void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
 
 #ifndef __KERNEL__
 /**
  * A dummy request handler API to handle incoming FOPs.
  * Actual reqh will be used in future.
  */
-int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
+int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 void *cookie, struct c2_fol *fol, 
 			 struct c2_stob_domain *dom);
 #endif
