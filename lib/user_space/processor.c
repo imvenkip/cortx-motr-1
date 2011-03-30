@@ -884,7 +884,7 @@ static int c2_processor_getinfo(c2_processor_nr_t id,
  */
 static int c2_processors_getsummary()
 {
-	int	rc;
+	int	rc = -1;
 
 	bool	present;
 	bool	empty;
@@ -940,12 +940,15 @@ static int c2_processors_getsummary()
 
 	rc = c2_processor_set_map_type(C2_PROCESSORS_AVAIL_MAP);
 	if (rc != 0) {
+		c2_bitmap_fini(&sys_cpus.pss_poss_map);
 		chdir(cwd);
 		return rc;
 	}
 
 	rc = c2_processor_set_map_type(C2_PROCESSORS_ONLN_MAP);
 	if (rc != 0) {
+		c2_bitmap_fini(&sys_cpus.pss_poss_map);
+		c2_bitmap_fini(&sys_cpus.pss_avail_map);
 		chdir(cwd);
 		return rc;
 	}
@@ -975,6 +978,9 @@ static int c2_processors_getsummary()
 
 	empty = c2_list_is_empty(&sys_cpus.pss_head);
 	if (empty == true) {
+		c2_bitmap_fini(&sys_cpus.pss_poss_map);
+		c2_bitmap_fini(&sys_cpus.pss_avail_map);
+		c2_bitmap_fini(&sys_cpus.pss_onln_map);
 		chdir(cwd);
 		return -1;
 	}
