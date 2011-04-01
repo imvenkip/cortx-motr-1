@@ -8,7 +8,7 @@ libcolibri_net_la_SOURCES  = net.c net.h $(OTW_U_SOURCES) net_xdr.c xdr.h net_ut
 INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 OTW_U_SOURCES              = net_otw_types_u.h net_otw_types_u.c
-OTW_K_SOURCES              = net_otw_types_k.h net_otw_types_k.c
+#OTW_K_SOURCES              = net_otw_types_k.h net_otw_types_k.c
 MOSTLYCLEANFILES           = $(OTW_U_SOURCES) net_otw_types_k.h net_otw_types_k.c
 
 net.c net_utils.c net_cli.c net_srv.c connection.c: net.h
