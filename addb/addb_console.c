@@ -25,7 +25,7 @@ void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
 	ev  = dp->ad_ev;
 	printf("addb: ctx: %s/%p, loc: %s, ev: %s/%s, rc: %i name: %s\n",
 	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
-	       ev->ae_ops->aeo_name, ev->ae_name, dp->ad_rc, dp->ad_name);
+	       ev->ae_ops->aeo_name, ev->ae_name, (int)dp->ad_rc, dp->ad_name);
 }
 
 /** @} end of addb group */

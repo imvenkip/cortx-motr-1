@@ -193,8 +193,10 @@ static struct c2_service *usunrpc_service_get(void)
 	return pthread_getspecific(usunrpc_service_key);
 }
 
-C2_ADDB_EV_DEFINE(usunrpc_addb_req,       "req",        0x1, C2_ADDB_STAMP);
-C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp, "EOPNOTSUPP", 0x2, C2_ADDB_INVAL);
+C2_ADDB_EV_DEFINE(usunrpc_addb_req,       "req",
+		  C2_ADDB_EVENT_USUNRPC_REQ, C2_ADDB_STAMP);
+C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp, "EOPNOTSUPP",
+		  C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT, C2_ADDB_INVAL);
 
 #define ADDB_ADD(service, ev, ...) \
 C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server, ev , ## __VA_ARGS__)

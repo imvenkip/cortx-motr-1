@@ -8,6 +8,7 @@
 
 #ifdef __KERNEL__
 # include "io_k.h"
+# include "addb/linux_kernel/addb_k.h"
 # define write_handler NULL
 # define read_handler NULL
 # define create_handler NULL
@@ -20,12 +21,14 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 # include "io_u.h"
+# include "addb/addb_u.h"
 #endif
 
 #include "stob/ut/io_fop.h"
 
 #include "fop/fop_format_def.h"
 #include "stob/ut/io.ff"
+#include "addb/addb.ff"
 
 /**
    @addtogroup stob
@@ -48,31 +51,48 @@ static struct c2_fop_type_ops quit_ops = {
 	.fto_execute = quit_handler,
 };
 
-C2_FOP_TYPE_DECLARE(c2_io_write,      "write", 10, &write_ops);
-C2_FOP_TYPE_DECLARE(c2_io_read,       "read", 11,   &read_ops);
+C2_FOP_TYPE_DECLARE(c2_io_write,      "write",  10, &write_ops);
+C2_FOP_TYPE_DECLARE(c2_io_read,       "read",   11, &read_ops);
 C2_FOP_TYPE_DECLARE(c2_io_create,     "create", 12, &create_ops);
-C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit", 13,   &quit_ops);
+C2_FOP_TYPE_DECLARE(c2_io_quit,       "quit",   13, &quit_ops);
 
-C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply", 0, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply", 0, NULL);
-C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 0, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_write_rep,  "write reply",  21, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_read_rep,   "read reply",   22, NULL);
+C2_FOP_TYPE_DECLARE(c2_io_create_rep, "create reply", 23, NULL);
+
+struct c2_fop_type c2_addb_record_fopt = {
+	.ft_code = (14),
+	.ft_name = "addb",
+	.ft_fmt  = &c2_addb_record_header_tfmt,
+	.ft_ops  = NULL
+};
+
+struct c2_fop_type c2_addb_reply_fopt = {
+	.ft_code = (24),
+	.ft_name = "addb reply",
+	.ft_fmt  = &c2_addb_reply_tfmt,
+	.ft_ops  = NULL
+};
 
 static struct c2_fop_type *fops[] = {
 	&c2_io_write_fopt,
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
+	&c2_addb_record_fopt,
 
 	&c2_io_write_rep_fopt,
 	&c2_io_read_rep_fopt,
-	&c2_io_create_rep_fopt
+	&c2_io_create_rep_fopt,
+	&c2_addb_reply_fopt
 };
 
 static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_fid_tfmt,
 	&c2_io_seg_tfmt,
 	&c2_io_buf_tfmt,
-	&c2_io_vec_tfmt
+	&c2_io_vec_tfmt,
+	&c2_mem_buf_tfmt,
 };
 
 void io_fop_fini(void)

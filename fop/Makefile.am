@@ -10,7 +10,7 @@ fop_SOURCES                   = fop.c fop.h fom.h fop_format.c fop_format.h \
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 
 libc2rt_la_SOURCES            = $(fop_SOURCES)
-libc2rt_la_LIBADD             = $(top_builddir)/addb/libcolibri-addb.la \
+libc2rt_la_LIBADD             = $(top_builddir)/addb/addb_pseudo/libcolibri-addb-pseudo.la \
                                 $(top_builddir)/fol/libcolibri-fol.la \
                                 $(top_builddir)/db/libcolibri-db.la \
                                 $(top_builddir)/fid/libcolibri-fid.la \
