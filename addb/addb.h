@@ -27,7 +27,7 @@ enum c2_addb_ev_level;
 /* these are needed earlier than they are defined */
 struct c2_stob;
 struct c2_table;
-struct c2_net_conn;
+/* Use RPC struct c2_net_conn; */
 
 /**
    ADDB record store type
@@ -69,15 +69,17 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
 typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_table *db);
 int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
 
+/* USE RPC */
 /**
     Send addb records through this network connection.
  */
-typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
+/* typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+*/
 
 extern c2_addb_stob_add_t c2_addb_stob_add_p;
 extern c2_addb_db_add_t   c2_addb_db_add_p;
-extern c2_addb_net_add_t  c2_addb_net_add_p;
+/* Use RPC: extern c2_addb_net_add_t  c2_addb_net_add_p; */
 
 /**
    ADDB record store type.
@@ -89,7 +91,7 @@ extern c2_addb_net_add_t  c2_addb_net_add_p;
 extern enum c2_addb_rec_store_type c2_addb_store_type;
 extern struct c2_stob             *c2_addb_store_stob;
 extern struct c2_table            *c2_addb_store_table;
-extern struct c2_net_conn         *c2_addb_store_net_conn;
+/* Use RPC extern struct c2_net_conn         *c2_addb_store_net_conn;*/
 
 
 /**

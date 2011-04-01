@@ -210,10 +210,11 @@ int main(int argc, char **argv)
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
 
-	/* write addb record onto network */
-	c2_addb_store_net_conn = conn;
-	c2_addb_net_add_p      = c2_addb_net_add;
-	c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
+	/* Use RPC */
+	/* /\* write addb record onto network *\/ */
+	/* c2_addb_store_net_conn = conn; */
+	/* c2_addb_net_add_p      = c2_addb_net_add; */
+	/* c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK; */
 
 
 	while (!feof(stdin)) {
@@ -247,7 +248,7 @@ int main(int argc, char **argv)
 	}
 
 	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
-	c2_addb_store_net_conn = NULL;
+	/* Use RPC c2_addb_store_net_conn = NULL; */
 	c2_net_conn_unlink(conn);
 	c2_net_conn_release(conn);
 

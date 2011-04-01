@@ -8,7 +8,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "fop/fop.h"
-#include "net/net.h"
+/* Use RPC #include "net/net.h" */
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
@@ -66,58 +66,59 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
 }
 C2_EXPORTED(c2_addb_db_add);
 
-int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
-{
-	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
-	struct c2_fop         *request;
-	struct c2_fop         *reply;
-	struct c2_addb_record *addb_record;
-	struct c2_addb_reply  *addb_reply;
-	struct c2_net_call    call;
-	int size;
-	int result;
+/* Use RPC */
+/* int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn) */
+/* { */
+/* 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops; */
+/* 	struct c2_fop         *request; */
+/* 	struct c2_fop         *reply; */
+/* 	struct c2_addb_record *addb_record; */
+/* 	struct c2_addb_reply  *addb_reply; */
+/* 	struct c2_net_call    call; */
+/* 	int size; */
+/* 	int result; */
 
-	if (ops->aeo_pack == NULL)
-		return 0;
+/* 	if (ops->aeo_pack == NULL) */
+/* 		return 0; */
 
-	request = c2_fop_alloc(&c2_addb_record_fopt, NULL);
-	reply   = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
-	if (request == NULL || reply == NULL) {
-		result = -ENOMEM;
-		goto out;
-	}
+/* 	request = c2_fop_alloc(&c2_addb_record_fopt, NULL); */
+/* 	reply   = c2_fop_alloc(&c2_addb_reply_fopt, NULL); */
+/* 	if (request == NULL || reply == NULL) { */
+/* 		result = -ENOMEM; */
+/* 		goto out; */
+/* 	} */
 
-	addb_record = c2_fop_data(request);
-	addb_reply  = c2_fop_data(reply);
+/* 	addb_record = c2_fop_data(request); */
+/* 	addb_reply  = c2_fop_data(reply); */
 
-	/* get size */
-	size = ops->aeo_getsize(dp);
-	if (size != 0) {
-		addb_record->ar_data.cmb_value = c2_alloc(size);
-		if (addb_record->ar_data.cmb_value == NULL) {
-			result = -ENOMEM;
-			goto out;
-		}
-	} else
-		addb_record->ar_data.cmb_value = NULL;
-	addb_record->ar_data.cmb_count = size;
-	/* packing */
-	result = ops->aeo_pack(dp, addb_record);
-	if (result == 0) {
-		C2_SET0(addb_reply);
-		call.ac_arg = request;
-		call.ac_ret = reply;
-		result = c2_net_cli_call(conn, &call);
-		/* call c2_rpc_item_submit() in the future */
-	}
-	c2_free(addb_record->ar_data.cmb_value);
-out:
-	c2_fop_free(request);
-	c2_fop_free(reply);
+/* 	/\* get size *\/ */
+/* 	size = ops->aeo_getsize(dp); */
+/* 	if (size != 0) { */
+/* 		addb_record->ar_data.cmb_value = c2_alloc(size); */
+/* 		if (addb_record->ar_data.cmb_value == NULL) { */
+/* 			result = -ENOMEM; */
+/* 			goto out; */
+/* 		} */
+/* 	} else */
+/* 		addb_record->ar_data.cmb_value = NULL; */
+/* 	addb_record->ar_data.cmb_count = size; */
+/* 	/\* packing *\/ */
+/* 	result = ops->aeo_pack(dp, addb_record); */
+/* 	if (result == 0) { */
+/* 		C2_SET0(addb_reply); */
+/* 		call.ac_arg = request; */
+/* 		call.ac_ret = reply; */
+/* 		result = c2_net_cli_call(conn, &call); */
+/* 		/\* call c2_rpc_item_submit() in the future *\/ */
+/* 	} */
+/* 	c2_free(addb_record->ar_data.cmb_value); */
+/* out: */
+/* 	c2_fop_free(request); */
+/* 	c2_fop_free(reply); */
 
-	return result;
-}
-C2_EXPORTED(c2_addb_net_add);
+/* 	return result; */
+/* } */
+/* C2_EXPORTED(c2_addb_net_add); */
 
 /*
  *  Local variables:
