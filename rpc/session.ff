@@ -2,31 +2,24 @@
 
 /**
    @addtogroup rpc-sessions
+
+   XXX Todo: define fop format for c2_rpc_conn_create, c2_rpc_conn_create_rep
+		c2_rpc_conn_terminate, c2_rpc_conn_terminate_rep
    @{
  */
 
 DEF(c2_rpc_session_create, RECORD,
-   _(rsc_snd_id, U64),
-   _(rsc_seq_id, U32));
+   _(rsc_snd_id, U64));
 
 DEF(c2_rpc_session_create_rep, RECORD,
    _(rscr_status, U32),
-   _(rscr_session_id, U64),
-   _(rscr_seq_id, U64));
+   _(rscr_session_id, U64));
 
 DEF(c2_rpc_session_destroy, RECORD,
    _(rsd_session_id, U64));
 
 DEF(c2_rpc_session_destroy_rep, RECORD,
    _(rsd_status, U32));
-
-/** 
-   ow stands for on-wire structure
- */
-
-DEF(c2_rpc_update_stream_ow, RECORD,
-   _(ruso_session_id, U64),
-   _(ruso_slot_id, U32));
 
 /** @} end of rpc-sessions group */
 
