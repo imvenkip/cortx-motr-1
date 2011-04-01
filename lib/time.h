@@ -26,7 +26,9 @@
 /** struct c2_time is defined by headers above. */
 
 
-#define ONE_BILLION 1000000000
+enum {
+	ONE_BILLION = 1000000000ULL
+};
 
 /**
    Get the current time.  This may or may not relate to wall time.
@@ -109,8 +111,10 @@ uint64_t c2_time_seconds(const struct c2_time *time);
 uint64_t c2_time_nanoseconds(const struct c2_time *time);
 
 
-
-
+/**
+   the biggest time that never reaches in system life.
+*/
+extern const struct c2_time C2_TIME_NEVER;
 
 /** @} end of time group */
 

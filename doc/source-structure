@@ -250,3 +250,38 @@ core/lib/ut/*.c and core/stob/ut/adieu.c for examples.
 Note, that a unit benchmark should create no files outside of current
 process directory (except for possibly in its sub-directories).
 
+How to add a new kernel module?
+-------------------------------
+
+To build a new kernel module core/module create
+core/module/linux_kernel directory and add
+core/module/linux_kernel/Makefile.in into:
+
+obj-m       := <mod.name.o>
+shared_src  := <shared sources>
+kernel_src  := <kernel sources>
+ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig        := $(shared_src:%=../%)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+       ln -fs $(orig) .
+
+clean distclean:
+       $(RM) $(shared_src) Module.markers Module.symvers modules.order
+       $(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+       cp $(<MOD.DIR>)/Makefile.in \
+           @top_builddir@/@PACKAGE@-@VERSION@/<mod.name>/linux_kernel
+
+Add the following lines into configure.ac:
+In macro AC_CONFIG_FILES:
+add source "core/module/linux_kernel/Makefile".
+
+Add the following lines into build_kernel_modules/Makefile.in:
+In macro subdirs:
+add source dir "../module/linux_kernel/".
+
+Note: build system should be reconfigured after affected changes.

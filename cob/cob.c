@@ -446,7 +446,8 @@ int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
 	return rc;
 }
 
-C2_ADDB_EV_DEFINE(cob_eexist, "md_exists", 0x1, C2_ADDB_INVAL);
+C2_ADDB_EV_DEFINE(cob_eexist, "md_exists", C2_ADDB_EVENT_COB_MDEXISTS,
+		  C2_ADDB_INVAL);
 
 /**
    Add a new cob to the namespace.
@@ -548,7 +549,8 @@ static bool c2_cob_is_valid(struct c2_cob *cob)
         return c2_stob_id_is_set(&cob->co_stobid);
 }
 
-C2_ADDB_EV_DEFINE(cob_delete, "md_delete", 0x2, C2_ADDB_FLAG);
+C2_ADDB_EV_DEFINE(cob_delete, "md_delete", C2_ADDB_EVENT_COB_MDDELETE,
+		  C2_ADDB_FLAG);
 
 /**
    Delete the metadata for this cob.

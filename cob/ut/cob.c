@@ -46,6 +46,8 @@ static void make_nskey(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
         struct c2_cob_nskey *key;
 
         key = c2_alloc(sizeof(*key) + strlen(name));
+	C2_ASSERT(key != NULL);
+
         key->cnk_pfid.si_bits.u_hi = hi;
         key->cnk_pfid.si_bits.u_lo = lo;
         memcpy(c2_bitstring_buf_get(&key->cnk_name), name, strlen(name));
@@ -62,6 +64,9 @@ static void test_create(void)
 
         /* pfid, filename */
         make_nskey(&key, 0x123, 0x456, "hello world");
+
+	C2_SET0(&fabrec); /* zero fill to keep valgrind happy. */
+	C2_SET0(&nsrec);
 
         nsrec.cnr_stobid.si_bits.u_hi = 0xabc;
         nsrec.cnr_stobid.si_bits.u_lo = 0xdef;

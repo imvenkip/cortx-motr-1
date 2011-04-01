@@ -4,7 +4,8 @@ libc2dir             = $(includedir)/lib
 libc2_HEADERS        = adt.h atomic.h cond.h getopts.h misc.h refs.h trace.h \
                        ut.h arith.h cdefs.h errno.h list.h mutex.h rwlock.h \
                        types.h vec.h assert.h chan.h ext.h memory.h queue.h \
-                       thread.h time.h ub.h bitmap.h processor.h timer.h
+                       thread.h time.h ub.h bitmap.h processor.h timer.h \
+                       semaphore.h
 
 noinst_LTLIBRARIES   = libc2.la
 libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
@@ -20,12 +21,15 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c rwlock.c \
                        user_space/mutex.h user_space/cdefs.h \
                        user_space/utime.c user_space/types.h \
                        user_space/thread.c user_space/thread.h \
-                       user_space/timer.h
+                       user_space/processor.c \
+                       user_space/timer.h semaphore.h \
+                       user_space/semaphore.c user_space/semaphore.h
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@
 EXTRA_DIST             = linux_kernel/assert.h linux_kernel/cdefs.h \
                          linux_kernel/memory.c linux_kernel/mutex.c \
                          linux_kernel/mutex.h linux_kernel/ktime.c \
+                         linux_kernel/types.h linux_kernel/processor.c \
                          linux_kernel/thread.c linux_kernel/thread.h \
-                         linux_kernel/types.h linux_kernel/timer.h \
-                         linux_kernel/timer.c
+                         linux_kernel/timer.h linux_kernel/timer.c \
+                         linux_kernel/semaphore.c linux_kernel/semaphore.h

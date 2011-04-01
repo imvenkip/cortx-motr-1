@@ -6,6 +6,8 @@
 #include "lib/types.h"
 #include "lib/cdefs.h"
 #include "lib/assert.h"
+#include "lib/adt.h"
+#include "lib/list.h"
 
 /**
    @defgroup addb Analysis and Diagnostics Data-Base
@@ -19,6 +21,32 @@ struct c2_addb_loc;
 struct c2_addb_ev;
 struct c2_addb_dp;
 struct c2_addb_rec;
+enum c2_addb_ev_level;
+
+
+/* these are needed earlier than they are defined */
+struct c2_stob;
+struct c2_table;
+struct c2_net_conn;
+
+/**
+   ADDB record store type
+
+   ADDB record can be populated and stored in various ways:
+   STOB:    ADDB records will be stored in stob.
+   DB:      ADDB records will be stored in database.
+   NETWORK: ADDB records will be sent onto network.
+
+   Corresponding operation will be called according to this type in
+   c2_addb_add();
+ */
+enum c2_addb_rec_store_type {
+	C2_ADDB_REC_STORE_NONE    = 0,
+	C2_ADDB_REC_STORE_STOB    = 1,
+	C2_ADDB_REC_STORE_DB      = 2,
+	C2_ADDB_REC_STORE_NETWORK = 3
+};
+
 
 /**
    Common state of addb contexts.
@@ -30,6 +58,41 @@ struct c2_addb_ctx_type {
 };
 
 /**
+    Write addb records into this stob.
+ */
+typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_stob *stob);
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
+
+/**
+    Write addb records into this db.
+ */
+typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_table *db);
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
+
+/**
+    Send addb records through this network connection.
+ */
+typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
+int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+
+extern c2_addb_stob_add_t c2_addb_stob_add_p;
+extern c2_addb_db_add_t   c2_addb_db_add_p;
+extern c2_addb_net_add_t  c2_addb_net_add_p;
+
+/**
+   ADDB record store type.
+
+   This type is inited while system startup. For clients, we may configure it
+   as network; while for servers, we may configure it to store record into stob.
+   Along with this variable, corresponding parameter should be configured below.
+*/
+extern enum c2_addb_rec_store_type c2_addb_store_type;
+extern struct c2_stob             *c2_addb_store_stob;
+extern struct c2_table            *c2_addb_store_table;
+extern struct c2_net_conn         *c2_addb_store_net_conn;
+
+
+/**
    Activity in context on which addb event happens.
 
    This can be, for example, FOP processing or storage IO. There is also a
@@ -39,6 +102,8 @@ struct c2_addb_ctx_type {
    There are multiple instances of struct c2_addb_ctx in the system, e.g., one
    for each FOP being processed. State common to contexts of the same "type" is
    described in c2_addb_ctx_type.
+
+   @see c2_addb_ctx_type
  */
 struct c2_addb_ctx {
 	const struct c2_addb_ctx_type *ac_type;
@@ -59,6 +124,7 @@ typedef int (*c2_addb_ev_subst_t)(struct c2_addb_dp *dp, ...);
 
 /** Event severity level. */
 enum c2_addb_ev_level {
+	AEL_NONE = 0,
 	AEL_TRACE,
 	AEL_INFO,
 	AEL_NOTE,
@@ -67,11 +133,67 @@ enum c2_addb_ev_level {
 	AEL_FATAL
 };
 
+/**
+   ADDB record header (on-disk & on-wire)
+
+   This header is always followed by actual addb record body, in memory or
+   on disk. Magic is to check validity. The @arh_len is the total record length,
+   including header and opaque body. Event ID can be used to identify the event
+   type. Event ID should be unique in system wide. There should be a mechanism
+   to keep the uniqueness of the event id.
+
+   @note the record length should keep 64bit aligned.
+*/
+struct c2_addb_record_header;
+/**
+   ADDB record (on-wire)
+*/
+struct c2_addb_record;
+
+/**
+   Packing this event into a buffer.
+
+   @param dp the data point
+   @param rec the caller supplied addb record, which is long enough to fill.
+
+   @return 0 on success. Other negative values mean error.
+*/
+typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp,
+				 struct c2_addb_record *rec);
+
+/**
+   Get size for this event data point.
+
+   The size is its opaque data, excluding header.
+   @param dp the data point
+   @return actual size is returned on success. Negative values mean error.
+*/
+typedef	int (*c2_addb_ev_getsize_t)(struct c2_addb_dp *dp);
+
 struct c2_addb_ev_ops {
 	c2_addb_ev_subst_t    aeo_subst;
+	c2_addb_ev_pack_t     aeo_pack;
+	c2_addb_ev_getsize_t  aeo_getsize;
 	size_t                aeo_size;
 	const char           *aeo_name;
 	enum c2_addb_ev_level aeo_level;
+};
+
+/**
+   Global wide Event ID.
+
+   To aviod event ID conflict, all event ID should be defined here.
+*/
+enum c2_addb_event_id {
+	C2_ADDB_EVENT_USUNRPC_REQ           = 0x1ULL,
+	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
+	C2_ADDB_EVENT_OOM                   = 0x3ULL,
+	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
+	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
+
+	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
+	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
 };
 
 /**
@@ -95,6 +217,12 @@ struct c2_addb_ev {
 	enum c2_addb_ev_level        ae_level;
 };
 
+enum {
+	ADDB_REC_HEADER_MAGIC1  = 0xADDB0123ADDB4567ULL,
+	ADDB_REC_HEADER_MAGIC2  = 0xADDB89ABADDBCDEFULL,
+	ADDB_REC_HEADER_VERSION = 0x000000001
+};
+
 /**
    An instance of addb event packet together with its formal parameters.
  */
@@ -105,7 +233,7 @@ struct c2_addb_dp {
 	enum c2_addb_ev_level     ad_level;
 
 	/* XXX temporary */
-	int         ad_rc;
+	uint64_t    ad_rc;
 	const char *ad_name;
 };
 
@@ -136,11 +264,12 @@ void c2_addb_fini(void);
 
    "ops" MUST be a variable name, usually introduced by C2_ADDB_OPS_DEFINE()
    macro.
+   "id" should be system wide unique. Please define ID in enum c2_addb_event_id.
 
    Example:
 
    @code
-   // addb event recording directory entry cache hits and misses during 
+   // addb event recording directory entry cache hits and misses during
    // fop processing
    //
    // This call defines const struct c2_addb_ev reqh_dirent_cache;
@@ -148,7 +277,7 @@ void c2_addb_fini(void);
                      "sendreply",           // human-readable name
                      REQH_ADDB_DIRENT_CACHE,// unique identifier
 		     C2_ADDB_FLAG,          // event type (Boolean: hit or miss)
-		     bool flag              // prototype. Must match the 
+		     bool flag              // prototype. Must match the
                                             // prototype in C2_ADDB_FLAG
                                             // definition.
                     );
@@ -188,7 +317,7 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 	__dp.ad_ctx   = (ctx);					\
 	__dp.ad_loc   = (loc);					\
 	__dp.ad_ev    = &(ev);					\
-	__dp.ad_level = 0;					\
+	__dp.ad_level = (c2_addb_level_default);		\
 								\
 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
 		     (&__dp , ## __VA_ARGS__));			\
@@ -196,11 +325,13 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 		c2_addb_add(&__dp);				\
 })
 
+extern int c2_addb_level_default;
+
 /**
    Declare addb event operations vector with a given collection of formal
    parameter.
 
-   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL 
+   @see C2_ADDB_SYSCALL, C2_ADDB_FUNC_CALL, C2_ADDB_CALL
    @see C2_ADDB_STAMP, C2_ADDB_FLAG
  */
 #define C2_ADDB_OPS_DEFINE(ops, ...)					\
@@ -229,19 +360,27 @@ typedef int __c2_addb_oom_typecheck_t(struct c2_addb_dp *dp);
 /** Report this event when function call fails that doesn't fit into a more
     specific event. */
 extern struct c2_addb_ev c2_addb_func_fail;
-typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp, 
+typedef int __c2_addb_func_fail_typecheck_t(struct c2_addb_dp *dp,
 					    const char *name, int rc);
 
 /** Global (per address space) addb context, used when no other context is
     applicable. */
 extern struct c2_addb_ctx c2_addb_global_ctx;
 
+extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
+extern struct c2_fop_type c2_addb_reply_fopt;
+extern struct c2_fop_type_format c2_mem_buf_tfmt;
+extern struct c2_fop_type_format c2_addb_record_header_tfmt;
+extern struct c2_fop_type_format c2_addb_record_tfmt;
+extern struct c2_fop_type_format c2_addb_reply_tfmt;
+
+
 /** @} end of addb group */
 
 /* __COLIBRI_ADDB_ADDB_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
