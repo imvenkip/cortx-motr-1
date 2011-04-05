@@ -36,7 +36,9 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 
 	/*
 	  We could check to ensure that the ep is on the end point list;
-	  for now, just ensure that the list is not empty... its quicker!
+	  for now, just ensure that the list is not empty... its quicker
+	  than traversing the list!
+	  The only entity that plays with this list is the transport.
 	*/
 	C2_POST( rc || !c2_list_is_empty(&dom->nd_end_points) );
 

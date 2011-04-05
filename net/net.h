@@ -481,6 +481,9 @@ struct c2_net_end_point {
    end point address. These are optional, and if missing, the transport
    will assign an end point with a dynamic, new address.
    @see c2_net_end_point_get(), c2_net_end_point_put()
+   @post @code
+(*epp)->nep_ref->ref_cnt >= 1
+@endcode
  */
 int c2_net_end_point_create(struct c2_net_end_point   **epp,
 			    struct c2_net_domain       *dom,
@@ -506,6 +509,9 @@ int c2_net_end_point_get(struct c2_net_end_point *ep);
    The structure will be released when the count goes to 0.
    @param ep End point data structure pointer. 
    Do not dereference this pointer after this call.
+   @pre @code
+ep->nep_ref->ref_cnt >= 1
+@endcode
    @retval 0 (success)
    @retval -errno (failure)
 */

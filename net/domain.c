@@ -87,8 +87,9 @@ int c2_net_domain_get_param(struct c2_net_domain *dom, int param, ...)
 	int rc;
 	va_list varargs;
 
+	C2_PRE(dom != NULL );
 	c2_mutex_lock(&dom->nd_mutex);
-	C2_ASSERT(dom->nd_xprt != NULL);
+	C2_PRE(dom->nd_xprt != NULL);
 
 	va_start(varargs, param);
 	rc = dom->nd_xprt->nx_ops->xo_param_get(dom, param, varargs);
