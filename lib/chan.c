@@ -114,8 +114,6 @@ static void chan_signal_nr(struct c2_chan *chan, uint32_t nr)
 
 	c2_mutex_lock(&chan->ch_guard);
 	C2_ASSERT(c2_chan_invariant_locked(chan));
-	if (nr == UINT32_MAX)
-		nr = chan->ch_waiters;
 	for (i = 0; i < nr; ++i) {
 		struct c2_clink *clink;
 
@@ -136,7 +134,7 @@ void c2_chan_signal(struct c2_chan *chan)
 
 void c2_chan_broadcast(struct c2_chan *chan)
 {
-	chan_signal_nr(chan, UINT32_MAX);
+	chan_signal_nr(chan, chan->ch_waiters);
 }
 
 bool c2_chan_has_waiters(struct c2_chan *chan)

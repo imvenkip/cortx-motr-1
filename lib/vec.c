@@ -91,34 +91,27 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    unsigned          shift)
 {
 	uint32_t i;
-	unsigned ary_shift;
 
 	C2_PRE(num_segs > 0 && seg_size > 0);
+	bufvec->ov_buf = NULL;
 	bufvec->ov_vec.v_nr = num_segs;
-	ary_shift = ffs(sizeof(bufvec->ov_vec.v_count[0])) - 1;
-	bufvec->ov_vec.v_count = c2_alloc_aligned(num_segs, ary_shift);
+	C2_ALLOC_ARR(bufvec->ov_vec.v_count, num_segs);
 	if (bufvec->ov_vec.v_count == NULL)
-		goto fail_v_count;
-	ary_shift = ffs(sizeof(bufvec->ov_buf[0])) - 1;
-	bufvec->ov_buf = c2_alloc_aligned(num_segs, ary_shift);
+		goto fail;
+	C2_ALLOC_ARR(bufvec->ov_buf, num_segs);
 	if (bufvec->ov_buf == NULL)
-		goto fail_ov_buf;
+		goto fail;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
 		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
 		if (bufvec->ov_buf[i] == NULL)
-			goto fail_ov_bufs;
+			goto fail;
 	}
 
 	return 0;
 
-fail_ov_bufs:
-	while (i > 0)
-		c2_free(bufvec->ov_buf[--i]);
-	c2_free(bufvec->ov_buf);
-fail_ov_buf:
-	c2_free(bufvec->ov_vec.v_count);
-fail_v_count:
+fail:
+	c2_bufvec_free(bufvec);
 	return -ENOMEM;
 }
 
@@ -126,9 +119,11 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
 	uint32_t i;
 
-	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
-		c2_free(bufvec->ov_buf[i]);
-	c2_free(bufvec->ov_buf);
+	if (bufvec->ov_buf != NULL) {
+		for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
+			c2_free(bufvec->ov_buf[i]);
+		c2_free(bufvec->ov_buf);
+	}
 	c2_free(bufvec->ov_vec.v_count);
 }
 
