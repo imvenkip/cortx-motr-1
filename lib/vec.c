@@ -4,13 +4,8 @@
 #include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "lib/errno.h"
-
-#ifndef __KERNEL__
-#include <strings.h>
-#else
-#include <linux/bitops.h>
-#endif
 
 /**
    @addtogroup vec Vectors
@@ -103,19 +98,28 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 	ary_shift = ffs(sizeof(bufvec->ov_vec.v_count[0])) - 1;
 	bufvec->ov_vec.v_count = c2_alloc_aligned(num_segs, ary_shift);
 	if (bufvec->ov_vec.v_count == NULL)
-		return -ENOMEM;
+		goto fail_v_count;
 	ary_shift = ffs(sizeof(bufvec->ov_buf[0])) - 1;
 	bufvec->ov_buf = c2_alloc_aligned(num_segs, ary_shift);
 	if (bufvec->ov_buf == NULL)
-		return -ENOMEM;
+		goto fail_ov_buf;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
 		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
 		if (bufvec->ov_buf[i] == NULL)
-			return -ENOMEM;
+			goto fail_ov_bufs;
 	}
 
 	return 0;
+
+fail_ov_bufs:
+	while (i > 0)
+		c2_free(bufvec->ov_buf[--i]);
+	c2_free(bufvec->ov_buf);
+fail_ov_buf:
+	c2_free(bufvec->ov_vec.v_count);
+fail_v_count:
+	return -ENOMEM;
 }
 
 void c2_bufvec_free(struct c2_bufvec *bufvec)
@@ -124,6 +128,7 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 		c2_free(bufvec->ov_buf[i]);
+	c2_free(bufvec->ov_buf);
 	c2_free(bufvec->ov_vec.v_count);
 }
 
