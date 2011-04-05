@@ -106,6 +106,7 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
+		bufvec->ov_vec.v_count[i] = seg_size;
 	}
 
 	return 0;
@@ -117,14 +118,17 @@ fail:
 
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
-	uint32_t i;
+	if (bufvec != NULL) {
+		if (bufvec->ov_buf != NULL) {
+			uint32_t i;
 
-	if (bufvec->ov_buf != NULL) {
-		for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
-			c2_free(bufvec->ov_buf[i]);
-		c2_free(bufvec->ov_buf);
+			for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
+				c2_free(bufvec->ov_buf[i]);
+			c2_free(bufvec->ov_buf);
+		}
+		c2_free(bufvec->ov_vec.v_count);
+		C2_SET0(bufvec);
 	}
-	c2_free(bufvec->ov_vec.v_count);
 }
 
 /** @} end of vec group */
