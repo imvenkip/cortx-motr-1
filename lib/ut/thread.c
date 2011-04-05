@@ -36,6 +36,7 @@ static void t3(int n)
 {
 	int result;
 	struct c2_bitmap t3bm;
+	struct c2_thread_handle myhandle;
 
 	/* set affinity (confine) to CPU 0 */
 	C2_UT_ASSERT(c2_bitmap_init(&t3bm, 3) == 0);
@@ -45,6 +46,10 @@ static void t3(int n)
 	C2_UT_ASSERT(result == 0);
 
 	c2_bitmap_fini(&t3bm);
+
+	/* another handle test */
+	c2_thread_self(&myhandle);
+	C2_UT_ASSERT(c2_thread_handle_compare(&myhandle, &t[n].t_h));
 }
 
 void test_thread(void)
@@ -52,11 +57,21 @@ void test_thread(void)
 	int i;
 	int result;
 	char t1place[100];
+	struct c2_thread_handle thandle;
+	struct c2_thread_handle myhandle;
+
+	c2_thread_self(&myhandle);
+	c2_thread_self(&thandle);
+	C2_UT_ASSERT(c2_thread_handle_compare(&myhandle, &thandle));
 
 	C2_SET_ARR0(r);
 	t0place = 0;
 	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
 	C2_UT_ASSERT(result == 0);
+	
+	C2_UT_ASSERT(!c2_thread_handle_compare(&myhandle, &t[0].t_h));
+	C2_UT_ASSERT(c2_thread_handle_compare(&t[0].t_h, &t[0].t_h));
+
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 	C2_UT_ASSERT(t0place == 42);
