@@ -3,38 +3,51 @@
 #include "rpc/session.h"
 
 /**
-    Send handshake fop to the remote end. The reply contains sender-id.
+   Change size of slot table in 'session' to 'nr_slots'.
 
-    This function asynchronously sends an initial hand-shake fop to the other
-    end of the connection. When reply is received, the c2_rpc_conn is
-    moved into INITIALIZED state.
-
-    @pre c2_rpc_conn->c_state == CONN_UNINITIALIZED
-    @post c2_rpc_conn->c_state == CONN_INITIALIZING 
-	|| c2_rpc_conn->c_state == CONN_INITIALIZED 
-	|| c2_rpc_conn->c_state == CONN_TIMEOUT
+   If nr_slots > current capacity of slot table then
+        it reallocates the slot table.
+   else
+        it just marks slots above nr_slots as 'dont use'
  */
-void c2_rpc_conn_init(struct c2_rpc_conn *, 
-                                        struct c2_net_conn *); 
+int c2_rpc_session_slot_table_resize(struct c2_rpc_session *session,
+					uint32_t nr_slots);
 
 /**
-   Destroy c2_rpc_conn object.
-   No network communication involved.
-   @pre c2_rpc_conn->c_nr_sessions == 0
-   @post c2_rpc_conn->c_state == CONN_FREED
+   Fill all the session related fields of c2_rpc_item.
+
+   If item is unbound, assign session and slot id.
+   If item is bound, then no need to assign session and slot as it is already
+   there in the item.
+
+   Copy verno of slot into item.verno. And mark slot as 'waiting_for_reply'
+
+   rpc-core can call this routine whenever it finds it appropriate to 
+   assign slot and session info to an item. 
+
+   Assumption: c2_rpc_item has a field giving service_id of
+                destination service.
+
+   XXX Need a better name???
  */
-int  c2_rpc_conn_fini(struct c2_rpc_conn *); 
+int c2_rpc_session_prepare_item_for_sending(struct c2_rpc_item *);
 
 /**
-    Wait until c2_rpc_conn state machine reached the desired state.
+   Inform session module that a reply item is received.
+
+   rpc-core can call this function when it receives an item. session module
+   can then mark corresponding slot "unbusy", move the item to replay list etc.
  */
-void c2_rpc_conn_timedwait(c2_rpc_conn *, enum c2_rpc_conn_state, 
-			const struct c2_time *);
- 
+void c2_rpc_session_reply_item_received(struct c2_rpc_item *);
+
 /**
-   checks internal consistency of c2_rpc_conn
+   Start session recovery.
+
+   @pre c2_rpc_session->s_state == SESSION_ALIVE
+   @post c2_rpc_session->s_state == SESSION_RECOVERING
+   
  */
-bool c2_rpc_conn_invariant(const struct c2_rpc_conn *session);
+int c2_rpc_session_recovery_start(struct c2_rpc_session *);
 
 /** 
    All session specific parameters except slot table
@@ -56,9 +69,8 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
                                 struct c2_rpc_session_params *param);
 
 /** 
-    reply cache structures 
-
-    There is only one reply cached in reply-cache per <session, slot>.
+    Key into c2_rpc_in_core_slot_table.
+    Receiver side.
 
     session_id is not unique on receiver.
     For each sender_id, receiver has session 0 associated with it.
@@ -71,20 +83,6 @@ struct c2_rpc_slot_table_key {
         uint64_t        stk_generation;
 };
 
-/** 
-   We need reply rpc item specific methods to serialize and de-serialize 
-   the item to and from the persistent reply cache store.
-   for eg: In case of fop read reply, we need to store the
-   block addresses for the data read.
- */
-struct c2_rpc_slot_table_value {
-	struct c2_verno	stv_verno;
-        /** size of serialized reply in bytes. */
-        uint64_t        stv_reply_size;
-        /** Serialized reply */
-        char            stv_reply[0];
-};
-
 /**
    In core slot table stores attributes of slots which 
    are not needed to be persistent.
@@ -95,20 +93,6 @@ struct c2_rpc_in_core_slot_table_value {
 	/** A request is being executed on this slot */
 	bool		ics_busy;
 };
-
-/**
-   Reply cache stores reply of last processed item for each slot.
- */
-struct c2_reply_cache {
-        /** persistent store for slot tables of all the sessions */
-	struct c2_db_env	*rc_dbenv;
-        struct c2_table         *rc_slot_table;
-	struct c2_table		*rc_in_core_slot_table;
-};
-
-int c2_rpc_reply_cache_init(struct c2_reply_cache *, struct c2_dbenv *);
-
-int c2_rpc_reply_cache_fini(struct c2_reply_cache *);
 
 /**
    Insert a reply item in reply cache and advance slot version.
@@ -131,7 +115,9 @@ enum c2_rpc_session_seq_check_result {
 	/** Already received this item and its processing is in progress */
 	IGNORE_ITEM,
 	/** Item is not in seq. send err msg to sender */
-	SEND_ERROR_MISORDERED
+	SEND_ERROR_MISORDERED,
+	/** Invalid session or slot */
+	SESSION_INVALID
 };
 
 /**
@@ -141,6 +127,29 @@ enum c2_rpc_session_seq_check_result {
  */
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 		struct c2_rpc_item *, struct c2_rpc_item **reply_out);
+
+/** 
+   Receiver side SESSION_CREATE handler
+ */
+int c2_rpc_session_create_handler(struct c2_fom *);
+
+/**
+   Destroys all the information associated with the session on the receiver 
+   including reply cache entries.
+ */
+int c2_rpc_session_destroy_handler(struct c2_fom *);
+
+int c2_rpc_session_create_rep_handler(struct c2_fom *);
+
+int c2_rpc_session_destroy_rep_handler(struct c2_fom *);
+
+int c2_rpc_conn_create_handler(struct c2_fom *);
+
+int c2_rpc_conn_create_rep_handler(struct c2_fom *);
+
+int c2_rpc_conn_terminate_handler(struct c2_fom *);
+
+int c2_rpc_conn_terminate_rep_handler(struct c2_fom *);
 
 /** @} end of session group */
 

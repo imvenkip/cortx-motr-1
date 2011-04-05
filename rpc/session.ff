@@ -8,6 +8,23 @@
    @{
  */
 
+/**
+   "Exchange ID" protocol is not yet decided. So don't know what should be
+   input.
+ */
+DEF(c2_rpc_conn_create, RECORD,
+   _());
+
+DEF(c2_rpc_conn_create_rep, RECORD,
+   _(rccr_rc, U32),
+   _(rccr_snd_id, U64));
+
+DEF(c2_rpc_conn_terminate, RECORD,
+    _(ct_snd_id, U64));
+
+DEF(c2_rpc_conn_terminate_rep, RECORD,
+   _(ctr_rc, U32));
+
 DEF(c2_rpc_session_create, RECORD,
    _(rsc_snd_id, U64));
 
