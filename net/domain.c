@@ -82,6 +82,40 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_domain_fini);
 
+int c2_net_domain_get_param(struct c2_net_domain *dom, int param, ...)
+{
+	int rc;
+	va_list varargs;
+
+	c2_mutex_lock(&dom->nd_mutex);
+	C2_ASSERT(dom->nd_xprt != NULL);
+
+	va_start(varargs, param);
+	rc = dom->nd_xprt->nx_ops->xo_param_get(dom, param, varargs);
+	va_end(varargs);
+
+	c2_mutex_unlock(&dom->nd_mutex);
+	return rc;
+}
+
+int c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom,
+				      c2_bcount_t *size)
+{
+	return c2_net_domain_get_param(dom, 
+				       C2_NET_PARAM_MAX_BUFFER_SIZE,
+				       size);
+}
+C2_EXPORTED(c2_net_domain_get_max_buffer_size);
+
+int c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom,
+					  int32_t *num_segs)
+{
+	return c2_net_domain_get_param(dom, 
+				       C2_NET_PARAM_MAX_BUFFER_SEGMENTS,
+				       num_segs);
+}
+C2_EXPORTED(c2_net_domain_get_max_buffer_segments);
+
 /** @} end of net group */
 
 /*

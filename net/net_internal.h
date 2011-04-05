@@ -4,8 +4,17 @@
 
 #include "net/net.h"
 
+/*
+  Private symbols used within the Network module.
+*/
+
 const struct c2_addb_ctx_type c2_net_dom_addb_ctx;
 const struct c2_addb_loc c2_net_addb_loc;
+
+/*
+  Domain version of xo_get_param().
+ */
+int c2_net_domain_get_param(struct c2_net_domain *dom, int param, ...);
 
 #endif
 

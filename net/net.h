@@ -240,29 +240,29 @@ struct c2_net_xprt_ops {
 	int (*xo_buf_del)(struct c2_net_buffer *nb);
 
 	/**
-	   Retrieve a transfer machine operational parameter.
-	   @param tm      Transfer machine pointer. 
+	   Retrieve an operational parameter.
+	   @param dom     Domain pointer.
 	   @param param   Integer describing the parameter.
 	   @param varargs Variable length argument list suitable for
 	   recovering the parameter value.
            @retval 0 (success)
 	   @retval -errno (failure)
-	   @see c2_net_tm_param_get()
+	   @see c2_net_domain_get_max_buffer_size(),
+	   c2_net_domain_get_max_buffer_segments()
 	 */
-	int (*xo_param_get)(struct c2_net_transfer_mc *tm, 
+	int (*xo_param_get)(struct c2_net_domain *dom,
 			    int param, va_list varargs);
 
 	/**
-	   Set a transfer machine operational parameter.
-	   @param tm      Transfer machine pointer. 
+	   Set an operational parameter.
+	   @param dom     Domain pointer.
 	   @param param   Integer describing the parameter.
 	   @param varargs Variable length argument list suitable for
 	   passing the parameter value.
            @retval 0 (success)
 	   @retval -errno (failure)
-	   @see c2_net_tm_param_set()
 	 */
-	int (*xo_param_set)(struct c2_net_transfer_mc *tm, 
+	int (*xo_param_set)(struct c2_net_domain *dom,
 			    int param, va_list varargs);
 
 	/**
