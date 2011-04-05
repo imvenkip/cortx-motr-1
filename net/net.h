@@ -184,7 +184,7 @@ struct c2_net_xprt_ops {
 	/**
 	   Register the buffer for use with a transfer machine in
 	   the manner indicated by the c2_net_buffer.nb_qtype value.
-	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
+	   @param nb  Buffer pointer with c2_net_buffer.nb_dom set.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_buffer_register()
@@ -1085,14 +1085,21 @@ struct c2_net_buffer {
 	c2_bcount_t                nb_length;
 
 	/**
+	   Domain pointer. It is set automatically when the buffer
+	   is registered with c2_net_tm_buffer_register().
+	   The application should not modify this field.
+	*/
+	struct c2_net_domain      *nb_dom;
+
+	/**
 	   Transfer machine pointer. It is set automatically with
-	   every call to c2_net_tm_buffer_add().
+	   every call to c2_net_buffer_add().
 	*/
 	struct c2_net_transfer_mc *nb_tm;
 
 	/**
 	   The application should set this value to identify the logical
-	   transfer machine queue before calling c2_net_tm_buffer_add().
+	   transfer machine queue before calling c2_net_buffer_add().
 	*/
         enum c2_net_queue_type     nb_qtype;
 
@@ -1123,7 +1130,7 @@ struct c2_net_buffer {
 
 	/**
 	   Time at which the buffer was added to its logical queue.
-	   Set by the c2_net_tm_buffer_add() subroutine and used to
+	   Set by the c2_net_buffer_add() subroutine and used to
 	   compute the time spent in the queue.
 	*/
 	struct c2_time             nb_add_time;
@@ -1131,7 +1138,7 @@ struct c2_net_buffer {
 	/**
 	   Network transport descriptor.
 
-	   The value is set upon return from c2_net_tm_buffer_add()
+	   The value is set upon return from c2_net_buffer_add()
 	   when the buffer is added to
 	   the C2_NET_QT_PASSIVE_BULK_RECV or C2_NET_QT_PASSIVE_BULK_SEND
 	   queues.
@@ -1250,7 +1257,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
    specific resources associated with it.
    The buffer should not be in use.
    @pre @code
-(buf->nb_flags == C2_NET_BUF_REGISTERED)
+(buf->nb_flags == C2_NET_BUF_REGISTERED) &&
+(buf->nb_dom == dom)
 @endcode
    @param buf Specify the buffer pointer.
    @param dom Specify the domain pointer.
@@ -1289,17 +1297,24 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    different thread.
 
    @pre @code
+(buf->nb_dom == tm->ntm_dom) &&
 (buf->nb_qtype != C2_NET_QT_NR) &&
-(buf->nb_flags == C2_NET_BUF_REGISTERED) &&
-((buf->nb_qtype == C2_NET_QT_MSG_RECV) &&
+(buf->nb_flags & C2_NET_BUF_REGISTERED) &&
+((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
+(((buf->nb_qtype == C2_NET_QT_MSG_RECV) &&
   ((tm->ntm_state == C2_NET_TM_INITIALIZED) ||
    (tm->ntm_state == C2_NET_TM_STARTING) ||
-   (tm->ntm_state == C2_NET_TM_STARTED)) ||
- (tm->ntm_state == C2_NET_TM_STARTED))
+   (tm->ntm_state == C2_NET_TM_STARTED))) ||
+ ((buf->nb_qtype < C2_NET_QT_NR) &&
+  (tm->ntm_state == C2_NET_TM_STARTED))
 @endcode
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
+   @retval -EPERM Transfer machine not in correct state.
+   @retval -EINVAL Required fields are not set.
+   @retval -EFBIG  In send operations, the length field exceeds the 
+   size of the buffer.
    @retval -errno (failure)
 */
 int c2_net_buffer_add(struct c2_net_buffer *buf, 
