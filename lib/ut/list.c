@@ -13,7 +13,7 @@ struct test1 {
 
 void test_list(void)
 {
-	struct test1	t1, t2, t3;
+	struct test1	t1, t2, t3, t4;
 	struct c2_list_link	*pos;
 	struct c2_list	test_head;
 	struct test1 *p;
@@ -36,7 +36,12 @@ void test_list(void)
 		p = c2_list_entry(pos,struct test1, t_link);
 	}
 
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t4.t_link));
+
 	c2_list_del(&t2.t_link);
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+
 	t_sum = 0;
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
@@ -58,6 +63,7 @@ void test_list(void)
 	}
 	C2_UT_ASSERT(t_sum == 0);
 
+	C2_UT_ASSERT(c2_list_is_empty(&test_head));
 	c2_list_fini(&test_head);
 }
 

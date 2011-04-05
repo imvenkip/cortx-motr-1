@@ -22,6 +22,19 @@ bool c2_list_is_empty(const struct c2_list *head)
 }
 C2_EXPORTED(c2_list_is_empty);
 
+bool c2_list_contains(const struct c2_list *list,
+		      const struct c2_list_link *link)
+{
+	struct c2_list_link *scan;
+
+	C2_ASSERT(c2_list_invariant(list));
+	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
+		if (scan == link)
+			return true;
+	return false;
+}
+C2_EXPORTED(c2_list_contains);
+
 bool c2_list_link_invariant(const struct c2_list_link *link)
 {
 	struct c2_list_link *scan;
