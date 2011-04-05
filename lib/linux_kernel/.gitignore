@@ -7,3 +7,4 @@ bitmap.c
 buf.c
 misc.c
 chan.c
+cond.c
