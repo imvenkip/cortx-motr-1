@@ -4,6 +4,13 @@
 #include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/errno.h"
+
+#ifndef __KERNEL__
+#include <strings.h>
+#else
+#include <linux/bitops.h>
+#endif
 
 /**
    @addtogroup vec Vectors
@@ -83,17 +90,46 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
 }
 
+int c2_bufvec_alloc(struct c2_bufvec *bufvec,
+		    uint32_t          num_segs,
+		    c2_bcount_t       seg_size,
+		    unsigned          shift)
+{
+	uint32_t i;
+	unsigned ary_shift;
+
+	C2_PRE(num_segs > 0 && seg_size > 0);
+	bufvec->ov_vec.v_nr = num_segs;
+	ary_shift = ffs(sizeof(bufvec->ov_vec.v_count[0])) - 1;
+	bufvec->ov_vec.v_count = c2_alloc_aligned(num_segs, ary_shift);
+	if (bufvec->ov_vec.v_count == NULL)
+		return -ENOMEM;
+	ary_shift = ffs(sizeof(bufvec->ov_buf[0])) - 1;
+	bufvec->ov_buf = c2_alloc_aligned(num_segs, ary_shift);
+	if (bufvec->ov_buf == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
+		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
+		if (bufvec->ov_buf[i] == NULL)
+			return -ENOMEM;
+	}
+
+	return 0;
+}
+
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
 	uint32_t i;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 		c2_free(bufvec->ov_buf[i]);
+	c2_free(bufvec->ov_vec.v_count);
 }
 
 /** @} end of vec group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
