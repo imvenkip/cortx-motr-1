@@ -49,7 +49,7 @@ static void t3(int n)
 
 	/* another handle test */
 	c2_thread_self(&myhandle);
-	C2_UT_ASSERT(c2_thread_handle_compare(&myhandle, &t[n].t_h));
+	C2_UT_ASSERT(c2_thread_handle_eq(&myhandle, &t[n].t_h));
 }
 
 void test_thread(void)
@@ -62,15 +62,15 @@ void test_thread(void)
 
 	c2_thread_self(&myhandle);
 	c2_thread_self(&thandle);
-	C2_UT_ASSERT(c2_thread_handle_compare(&myhandle, &thandle));
+	C2_UT_ASSERT(c2_thread_handle_eq(&myhandle, &thandle));
 
 	C2_SET_ARR0(r);
 	t0place = 0;
 	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
 	C2_UT_ASSERT(result == 0);
 	
-	C2_UT_ASSERT(!c2_thread_handle_compare(&myhandle, &t[0].t_h));
-	C2_UT_ASSERT(c2_thread_handle_compare(&t[0].t_h, &t[0].t_h));
+	C2_UT_ASSERT(!c2_thread_handle_eq(&myhandle, &t[0].t_h));
+	C2_UT_ASSERT(c2_thread_handle_eq(&t[0].t_h, &t[0].t_h));
 
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);

@@ -136,8 +136,8 @@ void c2_thread_self(struct c2_thread_handle *id)
 	id->h_id = pthread_self();
 }
 
-bool c2_thread_handle_compare(struct c2_thread_handle *h1,
-			      struct c2_thread_handle *h2)
+bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+			 struct c2_thread_handle *h2)
 {
 	return h1->h_id == h2->h_id;
 }

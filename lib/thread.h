@@ -213,8 +213,8 @@ void c2_thread_self(struct c2_thread_handle *id);
    @ret true if h1 == h2
    @ret false if h1 != h2
 */
-bool c2_thread_handle_compare(struct c2_thread_handle *h1,
-			      struct c2_thread_handle *h2);
+bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+			 struct c2_thread_handle *h2);
 
 /** @} end of thread group */
 
