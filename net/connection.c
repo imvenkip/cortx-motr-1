@@ -121,6 +121,8 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 }
 C2_EXPORTED(c2_net_conn_unlink);
 
+/* @} */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -218,6 +218,9 @@ struct c2_net_xprt_ops {
 	   operations until later, which is useful if buffers are added
 	   during transfer machine state transitions.
 
+	   The C2_NET_BUF_QUEUED flag and the nb_add_time field
+	   will be set prior to calling the method.
+
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
 	   For other flags, see struct c2_net_buffer.
            @retval 0 (success)
@@ -818,11 +821,16 @@ struct c2_net_qstats {
 	 */
 	struct c2_time  nqs_time_in_queue;
 
-	/** The total number of bytes processed by buffers in the queue */
+	/**
+	   The total number of bytes processed by buffers in the queue.
+	   Computed at completion.
+	 */
 	uint64_t        nqs_total_bytes;
 
-	/** The maximum number of bytes processed in a single
-	    buffer in the queue 
+	/**
+	   The maximum number of bytes processed in a single
+	   buffer in the queue.
+	   Computed at completion.
 	*/
 	uint64_t        nqs_max_bytes;
 };
@@ -1358,10 +1366,8 @@ int c2_net_desc_copy(struct c2_net_buf_desc *from_desc,
    Free a network buffer descriptor.
    @param desc Specify the network buffer descriptor. Its fields will be
    cleared after this operation.
-   @retval 0 (success)
-   @retval -errno (failure)
 */
-int c2_net_desc_free(struct c2_net_buf_desc *desc);
+void c2_net_desc_free(struct c2_net_buf_desc *desc);
 		     
 /** @} end of networking group
 

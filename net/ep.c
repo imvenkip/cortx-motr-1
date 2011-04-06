@@ -17,14 +17,17 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 
 	C2_PRE(dom != NULL );
 	C2_PRE(epp != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
+
 	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
+
+	*epp = NULL;
 
 	va_start(varargs, dom);
 	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, dom, varargs);
 	va_end(varargs);
 
-	/* either we failed or got back a properly initialized end point
+	/* either we failed or we got back a properly initialized end point
 	   with reference count of at least 1
 	*/
 	C2_POST( rc || 
@@ -33,14 +36,9 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 		  ((*epp)->nep_ref.release != NULL) &&
 		  ((*epp)->nep_dom == dom)
 		  ) );
-
-	/*
-	  We could check to ensure that the ep is on the end point list;
-	  for now, just ensure that the list is not empty... its quicker
-	  than traversing the list!
-	  The only entity that plays with this list is the transport.
-	*/
-	C2_POST( rc || !c2_list_is_empty(&dom->nd_end_points) );
+	/* transport must have added the ep to the list */
+	C2_POST(rc || 
+		c2_list_contains(&dom->nd_end_points,&(*epp)->nep_dom_linkage));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
