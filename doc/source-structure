@@ -93,8 +93,9 @@ INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 In core/Makefile.am add "foo" to SUBDIRS_LIBS, and, if necessary,
 "foo/ut", "foo/st" and "foo/ub" to SUBDIRS_{UT,ST,UB} respectively.
 
-Add "core/Makefile" and (if necessary) "core/{ut,st,ub}/Makefile" to
-AC_CONFIG_FILES section at the end of core/configure.ac.
+Add "core/foo/Makefile" and (if necessary)
+"core/foo/{ut,st,ub}/Makefile" to AC_CONFIG_FILES section at the end
+of core/configure.ac.
 
 Finally, add $(top_builddir)/foo/libcolibri-foo.la to
 libcolibri_la_LIBADD in core/colibri/Makefile.am
