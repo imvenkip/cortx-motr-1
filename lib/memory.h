@@ -14,7 +14,7 @@
 /**
  * Allocates zero-filled memory.
  * The memory allocated is guaranteed to be suitably aligned
- * suitably aligned for any kind of variable.
+ * for any kind of variable.
  * @param size - memory size
  *
  * @retval NULL - allocation failed
