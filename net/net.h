@@ -946,9 +946,7 @@ tm->ntm_state == C2_NET_TM_STOPPED
 int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
-   Start a transfer machine.  Optionally specify an end point to be
-   associated with the transfer machine - servers have well defined
-   end points and would need to use this option.
+   Start a transfer machine. 
 
    The subroutine does not block the invoker. Instead the state is
    immediately changed to C2_NET_TM_STARTING, and an event will be
@@ -963,8 +961,7 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 tm->ntm_state == C2_NET_TM_INITIALIZED
 @endcode
    @param tm  Transfer machine pointer.
-   @param ep  Optional end point to associate with the transfer machine.
-   Specify NULL if the end point is to be dynamically assigned.
+   @param ep  End point to associate with the transfer machine.
    @retval 0 (success)
    @retval -errno (failure)
 */
