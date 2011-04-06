@@ -7,12 +7,12 @@
 
 @section Overview
 
-A session is established between two end points. An end-point is 
-dynamically bound to a service. There can be multiple active sessions in 
-between same <sender, receiver> pair. Objective of session infrastructure 
-is to provide FIFO and EOS (exactly once semantic) guarantees for fop 
-execution. Session is shared by sender and receiver. i.e. for a particular 
-session, both sender and receiver maintain some piece of information. 
+A session is established between two end points. An end-point is
+dynamically bound to a service. There can be multiple active sessions in
+between same <sender, receiver> pair. Objective of session infrastructure
+is to provide FIFO and EOS (exactly once semantic) guarantees for fop
+execution. Session is shared by sender and receiver. i.e. for a particular
+session, both sender and receiver maintain some piece of information.
 Session state is independent of connection itself.
 
 The sessions mechanism in colibri is similar to sessions in NFSv4.1.
@@ -22,19 +22,19 @@ A fop is a rpc item and so is ADDB record. rpc is a container for one or more
 rpc items.
 
 A session has multiple slots. Number of slots in the session decides the
-degree of concurrency. Number of slots can vary dynamically. A slot represents 
-an update stream. An Update stream is a sequential (FIFO) stream of rpc items 
+degree of concurrency. Number of slots can vary dynamically. A slot represents
+an update stream. An Update stream is a sequential (FIFO) stream of rpc items
 with exactly once semantics.
 
-Layers above rpc (e.g. c2t1fs, replicator) may or may not specify update_stream
-while submitting an item to rpc layer. 
+Layers above rpc (e.g. c2t1fs, replicator) may or may not specify update stream
+while submitting an item to rpc layer.
 
 @section def Definitions and Requirements
 
-Brief list of requirements: 
+Brief list of requirements:
    - FIFO ordering of fops within a stream (achieved through resend).
    - exactly once semantics (EOS) of fop execution (achieved through replay).
-   - negotiable degree of concurrency of sender-receiver interaction (achieved 
+   - negotiable degree of concurrency of sender-receiver interaction (achieved
      through having multiple slots within a session, plus a run-time protocol
      to adjust number of slots).
 
@@ -45,18 +45,18 @@ Some definitions : -
 - Sender ID:
   Sender-id identifies a sender _incarnation_. Incarnation of a sender changes
   when sender or receiver loses its persistent state. Same sender can have
-  different sender-id to communicate with different receiver. Sender-id is 
+  different sender-id to communicate with different receiver. Sender-id is
   given by receiver.
 
 - Session ID:
   session-id identifies a particular session on sender and receiver. It
-  is not globally unique.  
+  is not globally unique.
 
 - Slot ID:
   Its the index into the slot table. Its 32-bit quantity.
-	
+
 - Update Stream:
-  It is an ADT associated with <session, slot> and used to send rpc items with 
+  It is an ADT associated with <session, slot> and used to send rpc items with
   FIFO and EOS constraints.
 
 @section sessionfunct Functional specification
@@ -65,13 +65,13 @@ Some definitions : -
 
 @section sessionlogspec Logical specification
 
-Reply cache:
+<b> Reply cache: </b>
 ------------
 Receiver maintains reply cache. For each slot, "reply cache" caches reply item
 of last executed item. Reply cache is persistent on receiver.
 
 Session module implements a slot as a "special file". This allows to reuse
-of persistent data structure and code of cob infrastructure. 
+persistent data structure and code of cob infrastructure.
 
 For each slot, session module will create a cob named
 /sessions/$SENDER_ID/$SESSION_ID/$SLOT_ID:$GEN
@@ -79,30 +79,30 @@ Where $SENDER_ID, $SESSION_ID, $SLOT_ID and $GEN are place-holders for actual
 identifier values.
 
 "Contents" of this file will be "cached reply item". Every time a new reply
-item is cached, it overwrites previous reply item and version number of 
+item is cached, it overwrites previous reply item and version number of
 slot file is advanced. These modifications take place in the same transaction
 in which the item is processed (e.g. the transaction in which fop is executed).
 
 Version number of slot is same as version number of cob that represents
 the slot.
 
-Ensuring FIFO and EOS:
+<b> Ensuring FIFO and EOS: </b>
 ---------------------
-A version number is a pair <lsn, version_count>. Each slot has associated 
+A version number is a pair <lsn, version_count>. Each slot has associated
 version number (slot.verno).
 Before sending first item associated with a slot, following condition holds.
 receiver.slot.verno.vc == sender.slot.verno.vc == 0
 
 Each rpc item associated with the slot also contains a version
-number (item.verno). Before sending an item, slot.verno is copied into 
+number (item.verno). Before sending an item, slot.verno is copied into
 item.verno
 
 When an item is received, following conditions are possible:
 
     - New item:
-	if c2_rpc_is_redoable(slot.verno, item.verno) == 0 and 
+	if c2_rpc_is_redoable(slot.verno, item.verno) == 0 and
 			NOT slot.busy
-	then 
+	then
 		accept item as new item
 		slot.busy = true
 	end if
@@ -131,12 +131,12 @@ When an item is received, following conditions are possible:
 
 
     @note TODO : -
-	- Design protocol to generate sender id.(similar to EXCHANGE_ID 
+	- Design protocol to generate sender id.(similar to EXCHANGE_ID
 		protocol in NFSv4.1)
 	- Design protocol to dynamically adjust the no. of slots.
-	- Update Streams. 
+	- Update Streams.
 
-@defgroup session RPC SESSIONS 
+@defgroup session RPC SESSIONS
 
 @{
 
@@ -171,27 +171,28 @@ enum c2_rpc_conn_state {
          */
         CONN_INITIALIZING = (1 << 0),
         /**
-           Once sender gets sender ID from receiver it is in 
-           INITIALIZED state
+	   When initialization is successfull connection enters in IN_USE state.
+	   It stays in this state for until termination.
          */
-        CONN_INITIALIZED = (1 << 1),
-        /**
-           When first session (with session-id != 0) is added to c2_rpc_conn
-           its state changes to IN_USE
-         */
-        CONN_IN_USE = (1 << 2),
+        CONN_IN_USE = (1 << 1),
         /**
            If c2_rpc_conn is in INITIALIZING state and sender doesn't receive
            sender-id from receiver within a specific time then c2_rpc_conn
            moves to TIMED_OUT state
         */
-        CONN_TIMED_OUT = (1 << 3),
+        CONN_TIMED_OUT = (1 << 2),
 	/**
-           When all the sessions belonging to a c2_rpc_conn are terminated
-           the c2_rpc_conn is also freed. Then it moves to FREED state.
-        */
-        CONN_FREED = (1 << 4),
-        CONN_STATE_MASK = 0x1F
+	   When client calls c2_rpc_conn_fini(), the c2_rpc_conn goes in
+	   finalizing state. It has to communicate to receiver in order to
+	   terminate the connection
+	 */
+        CONN_FINALIZING = (1 << 3),
+	/**
+	   When sender gets "successful" reply from receiver to
+	   "terminate rpc_conn" msg, the c2_rpc_conn object goes in
+	   FINALIZED state.
+	 */
+	CONN_FINALIZED = (1 << 4)
 };
 
 /**
@@ -206,9 +207,9 @@ enum c2_rpc_conn_state {
    is no need to communicate to receiver in order to create this session.
    Receiver assumes that there always exists a session 0 for each sender_id.
    Session 0 always have exactly 1 slot within it.
-   When receiver receives first item on session 0 for any sender_id, 
+   When receiver receives first item on session 0 for any sender_id,
    it creates an entry of slot of session 0 in its slot table.
-   Session 0 is required to send other SESSION_CREATE/SESSION_TERMINATE requests 
+   Session 0 is required to send other SESSION_CREATE/SESSION_TERMINATE requests
    to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
    non-idempotent, they also need EOS and FIFO guarantees.
 
@@ -222,24 +223,25 @@ enum c2_rpc_conn_state {
  R |     | time-out                 |
  E |     |                          | init_successful
  T |     |                          |
- R |     V                          V
- Y +--- TIMED_OUT               INITIALIZED
+ R |     V                          |
+ Y +--- TIMED_OUT                   | 
          |                          |
-         |                          | session_created/ref=1
-         |                          |   
-         |              +--------+  | +----------+
-         |              |        |  | |          | session_created/ref++
-         |              |        V  V V          |
-         |              +--------IN-USE -------- +
-         |      session_destroyed/  |            
-         |              ref--       |
-         |                          | ref == 0
-         |      free                V
-         +-----------------------> FREED
+         |                          |
+         |                          V            
+         |                       IN-USE 
+         |                          |
+         |                          | fini()
+         |                          |          
+         |    fini()                V
+         +--------------------> FINALIZING
+				    |
+				    | finalization successful
+				    V
+				FINALIZED
 
  */
-struct c2_rpc_conn { 
-        /** Every c2_rpc_conn is stored on a global list */  
+struct c2_rpc_conn {
+        /** Every c2_rpc_conn is stored on a global list */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
         /** Id of the service with which this c2_rpc_conn is associated */
@@ -250,7 +252,7 @@ struct c2_rpc_conn {
         struct c2_list                   c_sessions;
         /** Counts number of sessions (excluding session 0) */
         uint64_t                         c_nr_sessions;
-        /** Deprecated: connection with receiver. 
+        /** Deprecated: connection with receiver.
 		All sessions share this connection */
         struct c2_net_conn              *c_conn;
         struct c2_chan                   c_chan;
@@ -267,9 +269,9 @@ struct c2_rpc_conn {
     @note c2_net_conn argument will be removed in future.
 
     @pre c2_rpc_conn->c_state == CONN_UNINITIALIZED
-    @post c2_rpc_conn->c_state == CONN_INITIALIZING 
-        || c2_rpc_conn->c_state == CONN_INITIALIZED 
-        || c2_rpc_conn->c_state == CONN_TIMEOUT
+    @post c2_rpc_conn->c_state == CONN_INITIALIZING ||
+          c2_rpc_conn->c_state == CONN_IN_USE       ||
+          c2_rpc_conn->c_state == CONN_TIMEOUT
  */
 void c2_rpc_conn_init(struct c2_rpc_conn *,
                         struct c2_net_conn *);
@@ -277,15 +279,15 @@ void c2_rpc_conn_init(struct c2_rpc_conn *,
 /**
    Destroy c2_rpc_conn object.
    No network communication involved.
-   @pre c2_rpc_conn->c_nr_sessions == 0
-   @post c2_rpc_conn->c_state == CONN_FREED
+   @pre c2_rpc_conn->c_state == CONN_IN_USE
+   @post c2_rpc_conn->c_state == CONN_FINALIZING
  */
 int  c2_rpc_conn_fini(struct c2_rpc_conn *);
 
 /**
     Wait until c2_rpc_conn state machine reached the desired state.
  */
-void c2_rpc_conn_timedwait(c2_rpc_conn *, enum c2_rpc_conn_state,
+void c2_rpc_conn_timedwait(c2_rpc_conn *, uint64_t state_flags,
                         const struct c2_time *);
 
 /**
@@ -298,7 +300,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *session);
  */
 enum c2_rpc_session_state {
 	/**
-	   When a session object is newly instantiated it is in 
+	   When a session object is newly instantiated it is in
 	   UNINITIALIZED state.
 	 */
 	SESSION_UNINITIALIZED = 0,
@@ -308,7 +310,7 @@ enum c2_rpc_session_state {
 	 */
 	SESSION_CREATING = (1 << 0),
 	/**
-	   When sender gets "SESSION_CREATE operation successful" reply 
+	   When sender gets "SESSION_CREATE operation successful" reply
 	   from receiver, session transitions to state ALIVE. This is the
 	   normal working state of session.
 	 */
@@ -335,7 +337,6 @@ enum c2_rpc_session_state {
 	   Sender cannot use a DEAD session.
 	 */
 	SESSION_DEAD = (1 << 5),
-	SESSION_STATE_MASK = 0x3F
 };
 
 /**
@@ -359,11 +360,11 @@ enum c2_rpc_session_state {
 	  |			      |
 	  | free 		      | session_terminate
 	  |			      V
-	  |		         TERMINATING <-------------+    
-	  |			      |  |		   |			
+	  |		         TERMINATING <-------------+
+	  |			      |  |		   |
 	  |			      |  |                 | timed-out/retry
 	  |			      |  +-----------------+
-	  |		              | 
+	  |		              |
 	  |			      | Session_terminated
 	  |			      V
 	  +----------------------->  DEAD
@@ -386,15 +387,15 @@ struct c2_rpc_session {
 	uint32_t			 s_slot_table_capacity;
 	/** highest slot id for which the sender has the outstanding request */
 	uint32_t 			 s_highest_used_slot_id;
-	/** pointer to array of slots */
-	struct c2_rpc_snd_slot 		*s_slot_table;
+	/** Array of pointers to slots */
+	struct c2_rpc_snd_slot 		**s_slot_table;
 };
 
 /**
     Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
 
     @pre c2_rpc_conn->c_state == CONN_IN_USE ||
-		 c2_rpc_conn->c_state == CONN_INITIALIZED
+         c2_rpc_conn->c_state == CONN_INITIALIZED
     @pre out->s_state == SESSION_UNINITIALIZED
     @post c2_rpc_conn->c_state == CONN_IN_USE
     @post out->s_state == SESSION_CREATING
@@ -413,7 +414,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
     Wait until desired state is reached.
  */
 void c2_rpc_session_timedwait(c2_rpc_session *session,
-		enum c2_rpc_session_state state,
+		uint64_t state_flags,
 		const struct c2_time *abs_timeout);
 
 /**
@@ -433,7 +434,7 @@ enum {
 	SLOT_IN_USE = (1 << 1)
 };
 
-/** 
+/**
    Session slot
 
    @note
@@ -450,8 +451,6 @@ enum {
 */
 struct c2_rpc_snd_slot {
 	uint64_t		 ss_flags;
-	/** stob-id of a cob that represents this slot on receiver */
-	struct c2_stob_id	 ss_slot_cob_id;
 	struct c2_verno		 ss_verno;
 	/** effects upto last_persistent_verno have reached persistent
 		store */
@@ -461,14 +460,12 @@ struct c2_rpc_snd_slot {
 	slot is assigned but verno is not filled */
 	struct c2_list		*ss_ready_list;
 	/** reference to the last sent item for which the
-	reply is not received (In case need to resend) */ 
+	reply is not received (In case need to resend) */
 	struct c2_rpc_item 	*ss_sent_item;
 	/** list of items for which we've received reply from receiver but
 	their effects not persistent on receiver */
 	struct c2_list		*ss_replay_queue;
 };
-
-
 
 /** @} end of session group */	
 

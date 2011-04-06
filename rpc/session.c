@@ -22,15 +22,13 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session *session,
 
    Copy verno of slot into item.verno. And mark slot as 'waiting_for_reply'
 
-   rpc-core can call this routine whenever it finds it appropriate to 
-   assign slot and session info to an item. 
+   rpc-core can call this routine whenever it finds it appropriate to
+   assign slot and session info to an item.
 
    Assumption: c2_rpc_item has a field giving service_id of
                 destination service.
-
-   XXX Need a better name???
  */
-int c2_rpc_session_prepare_item_for_sending(struct c2_rpc_item *);
+int c2_rpc_session_item_prepare(struct c2_rpc_item *);
 
 /**
    Inform session module that a reply item is received.
@@ -49,9 +47,9 @@ void c2_rpc_session_reply_item_received(struct c2_rpc_item *);
  */
 int c2_rpc_session_recovery_start(struct c2_rpc_session *);
 
-/** 
+/**
    All session specific parameters except slot table
-   should go here 
+   should go here
 
    All instances of c2_rpc_session_params will be stored
    in db5 in memory table with <sender_id, session_id> as key.
@@ -68,7 +66,7 @@ int c2_rpc_session_params_get(uint64_t sender_id, uint64_t session_id,
 int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
                                 struct c2_rpc_session_params *param);
 
-/** 
+/**
     Key into c2_rpc_in_core_slot_table.
     Receiver side.
 
@@ -84,7 +82,7 @@ struct c2_rpc_slot_table_key {
 };
 
 /**
-   In core slot table stores attributes of slots which 
+   In core slot table stores attributes of slots which
    are not needed to be persistent.
    Key is same as c2_rpc_slot_table_key.
    Value is modified in transaction. So no explicit lock required.
@@ -109,15 +107,15 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *, struct c2_db_tx *);
 
 enum c2_rpc_session_seq_check_result {
 	/** item is valid in sequence. accept it */
-	ACCEPT_ITEM,
+	RSSC_ACCEPT_ITEM,
 	/** item is duplicate of request whose reply is cached in reply cache*/
-	RESEND_REPLY,
+	RSSC_RESEND_REPLY,
 	/** Already received this item and its processing is in progress */
-	IGNORE_ITEM,
+	RSSC_IGNORE_ITEM,
 	/** Item is not in seq. send err msg to sender */
-	SEND_ERROR_MISORDERED,
+	RSSC_SEND_ERROR_MISORDERED,
 	/** Invalid session or slot */
-	SESSION_INVALID
+	RSSC_SESSION_INVALID
 };
 
 /**
@@ -128,13 +126,13 @@ enum c2_rpc_session_seq_check_result {
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 		struct c2_rpc_item *, struct c2_rpc_item **reply_out);
 
-/** 
+/**
    Receiver side SESSION_CREATE handler
  */
 int c2_rpc_session_create_handler(struct c2_fom *);
 
 /**
-   Destroys all the information associated with the session on the receiver 
+   Destroys all the information associated with the session on the receiver
    including reply cache entries.
  */
 int c2_rpc_session_destroy_handler(struct c2_fom *);
