@@ -3,17 +3,13 @@
 #include "lib/assert.h"
 #include "net/net_internal.h"
 
-/** @}
+/**
  @addtogroup net
  @{
 */
 
 const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 	.act_name = "net-dom"
-};
-
-const struct c2_addb_loc c2_net_addb_loc = {
-	.al_name = "net"
 };
 
 int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
@@ -34,8 +30,7 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	
 	dom->nd_xprt_private = NULL;
  	dom->nd_xprt = xprt;
-	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
-			 &c2_addb_global_ctx);
+	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
 
 	/* must hold the mutex when calling xo_ */
 	c2_mutex_lock(&dom->nd_mutex);

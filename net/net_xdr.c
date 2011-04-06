@@ -5,10 +5,6 @@
 #include "net.h"
 #include "xdr.h"
 
-#include "fop/fop_format_def.h"
-#include "net/net_otw_types.ff"
-
-
 /**
    @addtogroup netDep Networking (Deprecated Interfaces)
 

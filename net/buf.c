@@ -1,8 +1,9 @@
 /* -*- C -*- */
 
 #include "lib/assert.h"
+#include "lib/errno.h"
+#include "lib/time.h"
 #include "net/net_internal.h"
-#include "errno.h"
 
 /** @}
  @addtogroup net
@@ -15,8 +16,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	int rc;
 
 	C2_PRE(dom != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf &&
 	       (buf->nb_flags == 0) && 
@@ -51,12 +52,13 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	int rc;
 
 	C2_PRE(dom != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf &&
 	       (buf->nb_flags == C2_NET_BUF_REGISTERED) &&
 	       (buf->nb_dom == dom) );
+	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
 	rc = dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
 	if ( rc == 0 ) {
@@ -79,13 +81,13 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	int rc;
 	struct c2_net_domain *dom;
 	c2_bcount_t blen;
-	bool check_length=0;
-	bool check_ep=0;
-	bool check_desc=0;
-	bool post_check_desc=0;
+	bool check_length=false;
+	bool check_ep=false;
+	bool check_desc=false;
+	bool post_check_desc=false;
 	struct c2_list *ql=NULL;
 
-	C2_PRE(tm != NULL);
+	C2_PRE((tm != NULL) && (tm->ntm_dom != NULL));
 	C2_PRE(buf && (buf->nb_dom == tm->ntm_dom));
 	C2_PRE((buf->nb_qtype >= C2_NET_QT_MSG_RECV) &&
 	       (buf->nb_qtype < C2_NET_QT_NR) &&
@@ -93,8 +95,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	       ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) );
 
 	dom = tm->ntm_dom;
-	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
 
 	/* Receive queue accepts any starting state but otherwise
 	   the TM has to be started
@@ -114,28 +116,28 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		ql = &tm->ntm_msg_bufs;
 		break;
 	case C2_NET_QT_MSG_SEND:
-		check_length = 1;
-		check_ep = 1;
+		check_length = true;
+		check_ep = true;
 		ql = &tm->ntm_msg_bufs;
 		break;
 	case C2_NET_QT_PASSIVE_BULK_RECV:
-		check_ep = 1;
-		post_check_desc = 1;
+		check_ep = true;
+		post_check_desc = true;
 		ql = &tm->ntm_passive_bufs;
 		break;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
-		check_length = 1;
-		check_ep = 1;
-		post_check_desc = 1;
+		check_length = true;
+		check_ep = true;
+		post_check_desc = true;
 		ql = &tm->ntm_passive_bufs;
 		break;
 	case C2_NET_QT_ACTIVE_BULK_RECV:
-		check_desc = 1;
+		check_desc = true;
 		ql = &tm->ntm_active_bufs;
 		break;
 	case C2_NET_QT_ACTIVE_BULK_SEND:
-		check_length = 1;
-		check_desc = 1;
+		check_length = true;
+		check_desc = true;
 		ql = &tm->ntm_active_bufs;
 		break;
 	default:
@@ -165,13 +167,14 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 			rc = -EINVAL;
 			goto m_err_exit;
 		}
-		/* Bump the reference count.
-		   Should be decremented in c2_net_tm_event_post().
-		*/
-		c2_net_end_point_get(buf->nb_ep); /* mutex not used */
+		/* increment count later */
 	}
 
 	/* validate that the descriptor is present */
+	if ( post_check_desc ) {
+		buf->nb_desc.nbd_len = 0;
+		buf->nb_desc.nbd_data = NULL;
+	}
 	if ( check_desc ) {
 		if ( buf->nb_desc.nbd_len == 0 ||
 		     buf->nb_desc.nbd_data == NULL ) {
@@ -179,15 +182,21 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 			goto m_err_exit;
 		}
 	}
-	if ( post_check_desc ) {
-		buf->nb_desc.nbd_len = 0;
-		buf->nb_desc.nbd_data = NULL;
-	}
+
+	/* Optimistically add it to the queue's list before calling the xprt.
+	   Post will unlink on completion, or del on cancel.
+	 */
+	c2_list_link_init(&buf->nb_tm_linkage);
+	c2_list_add_tail(ql, &buf->nb_tm_linkage);
+	buf->nb_flags |= C2_NET_BUF_QUEUED;
+	(void)c2_time_now(&buf->nb_add_time); /* record time added */
 
 	/* call the transport */
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
 	if ( rc ) {
+		c2_list_del(&buf->nb_tm_linkage);
+		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
 	}
 
@@ -196,10 +205,15 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 			 (buf->nb_desc.nbd_data != NULL) );
 	}
 
-	/* add it to the queue's list */
-	c2_list_add_tail(ql, &buf->nb_tm_linkage);
-	buf->nb_flags |= C2_NET_BUF_QUEUED;
-	
+	tm->ntm_qstats[buf->nb_qtype].nqs_num_adds += 1;
+
+	if ( check_ep ) {
+		/* Bump the reference count.
+		   Should be decremented in c2_net_tm_event_post().
+		*/
+		c2_net_end_point_get(buf->nb_ep); /* mutex not used */
+	}
+
  m_err_exit:
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
@@ -212,16 +226,16 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	int rc;
 	struct c2_net_domain *dom;
 
-	C2_PRE(tm != NULL);
+	C2_PRE((tm != NULL) && (tm->ntm_dom != NULL));
 	C2_PRE(buf && (buf->nb_dom == tm->ntm_dom));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 
 	dom = tm->ntm_dom;
-	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
 
 	if ( (buf->nb_flags & C2_NET_BUF_QUEUED) == 0 ) {
-		rc = 0; /* race condition? no error */
+		rc = 0; /* completion race condition? no error */
 		goto m_err_exit;
 	}
 	C2_PRE( buf->nb_tm == tm );
@@ -236,6 +250,8 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 
 	c2_list_del(&buf->nb_tm_linkage);
 	buf->nb_flags &= ~C2_NET_BUF_QUEUED;
+
+	tm->ntm_qstats[buf->nb_qtype].nqs_num_dels += 1;
 
  m_err_exit:
 	c2_mutex_unlock(&dom->nd_mutex);
