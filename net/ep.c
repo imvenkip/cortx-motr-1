@@ -58,9 +58,16 @@ C2_EXPORTED(c2_net_end_point_get);
 int c2_net_end_point_put(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
+	struct c2_net_domain *dom;
 	C2_PRE(ep != NULL);
 	C2_PRE(c2_atomic64_get(&(ref->ref_cnt)) >= 1);
+	/* hold the domain lock to synchronize release(), if called */
+	dom = ep->nep_dom;
+	C2_PRE(dom != NULL );
+	C2_PRE(dom->nd_xprt != NULL);
+	c2_mutex_lock(&dom->nd_mutex);
 	c2_ref_put(ref);
+	c2_mutex_unlock(&dom->nd_mutex);
 	return 0;
 }
 C2_EXPORTED(c2_net_end_point_put);
