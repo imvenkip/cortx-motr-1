@@ -225,7 +225,7 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_end_point_create_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_ASSERT(!c2_list_is_empty(&dom->nd_end_points));
-	C2_PRE(c2_atomic64_get(&(ep1->nep_ref.ref_cnt)) == 1);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep1->nep_ref.ref_cnt)) == 1);
 
 	rc = c2_net_end_point_create(&ep2, dom, "addr2", 0);
 	C2_UT_ASSERT(rc == 0);
@@ -234,23 +234,23 @@ void test_net_bulk_if(void)
 	rc = c2_net_end_point_create(&ep, dom, "addr1", 0);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ep == ep1);
-	C2_PRE(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
 
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	rc = c2_net_end_point_get(ep); /* refcnt=3 */
 	C2_UT_ASSERT(rc == 0);
-	C2_PRE(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 3);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 3);
 
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	rc = c2_net_end_point_put(ep); /* refcnt=2 */
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_PRE(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
 
 	rc = c2_net_end_point_put(ep); /* refcnt=1 */
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_PRE(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 1);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 1);
 
 	rc = c2_net_end_point_put(ep); /* refcnt=0 */
 	C2_UT_ASSERT(rc == 0);
