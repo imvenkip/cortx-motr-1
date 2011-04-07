@@ -38,31 +38,33 @@ static void ut_dom_fini(struct c2_net_domain *dom)
 	ut_dom_fini_called = true;
 }
 
+/* params */
 enum {
 	UT_MAX_BUF_SIZE=4096,
+	UT_MAX_BUF_SEGMENT_SIZE=2048,
 	UT_MAX_BUF_SEGMENTS=4,
 };
-static bool ut_param_get_called = false;
-static int ut_param_get(struct c2_net_domain *dom,
-			int param, va_list varargs)
+static bool ut_get_max_buffer_size_called = false;
+static int ut_get_max_buffer_size(struct c2_net_domain *dom, c2_bcount_t *size)
 {
-	c2_bcount_t *bc;
-	int32_t *i32;
-
-	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
-	ut_param_get_called = true;
-	switch ( param ) {
-	case C2_NET_PARAM_MAX_BUFFER_SIZE:
-		bc = va_arg(varargs, c2_bcount_t *);
-		*bc= UT_MAX_BUF_SIZE;
-		break;
-	case C2_NET_PARAM_MAX_BUFFER_SEGMENTS:
-		i32 = va_arg(varargs, int32_t *);
-		*i32= UT_MAX_BUF_SEGMENTS;
-		break;
-	default:
-		return -ENOENT;
-	}
+	ut_get_max_buffer_size_called = true;
+	*size = UT_MAX_BUF_SIZE;
+	return 0;
+}
+static bool ut_get_max_buffer_segment_size_called = false;
+static int ut_get_max_buffer_segment_size(struct c2_net_domain *dom, 
+					  c2_bcount_t *size)
+{
+	ut_get_max_buffer_segment_size_called = true;
+	*size = UT_MAX_BUF_SEGMENT_SIZE;
+	return 0;
+}
+static bool ut_get_max_buffer_segments_called = false;
+static int ut_get_max_buffer_segments(struct c2_net_domain *dom, 
+				      int32_t *num_segs)
+{
+	ut_get_max_buffer_segments_called = true;
+	*num_segs = UT_MAX_BUF_SEGMENTS;
 	return 0;
 }
 
@@ -126,10 +128,12 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 }
 
 static const struct c2_net_xprt_ops ut_xprt_ops = {
-	.xo_dom_init         = ut_dom_init,
-	.xo_dom_fini         = ut_dom_fini,
-	.xo_param_get        = ut_param_get,
-	.xo_end_point_create = ut_end_point_create,
+	.xo_dom_init                    = ut_dom_init,
+	.xo_dom_fini                    = ut_dom_fini,
+	.xo_get_max_buffer_size         = ut_get_max_buffer_size,
+	.xo_get_max_buffer_segment_size = ut_get_max_buffer_segment_size,
+	.xo_get_max_buffer_segments     = ut_get_max_buffer_segments,
+	.xo_end_point_create            = ut_end_point_create,
 };
 
 static struct c2_net_xprt ut_xprt = {
@@ -139,7 +143,9 @@ static struct c2_net_xprt ut_xprt = {
 
 /* utility subs */
 static struct c2_net_buffer *
-allocate_buffers(c2_bcount_t buf_size, int32_t buf_segs)
+allocate_buffers(c2_bcount_t buf_size, 
+		 c2_bcount_t buf_seg_size, 
+		 int32_t buf_segs)
 {
 	int rc;
 	int i;
@@ -175,7 +181,7 @@ allocate_buffers(c2_bcount_t buf_size, int32_t buf_segs)
 void test_net_bulk_if(void)
 {
 	int rc;
-	c2_bcount_t buf_size;
+	c2_bcount_t buf_size, buf_seg_size;
 	int32_t   buf_segs;
 	struct c2_net_domain *dom = &utdom;
 	struct c2_net_buffer *nbs;
@@ -191,20 +197,29 @@ void test_net_bulk_if(void)
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 
 	/* get max buffer size */
-	C2_UT_ASSERT(ut_param_get_called == false);
+	C2_UT_ASSERT(ut_get_max_buffer_size_called == false);
 	buf_size = 0;
 	rc = c2_net_domain_get_max_buffer_size(dom, &buf_size);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_param_get_called);
+	C2_UT_ASSERT(ut_get_max_buffer_size_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_size == UT_MAX_BUF_SIZE);
 
+	/* get max buffer segment size */
+	C2_UT_ASSERT(ut_get_max_buffer_segment_size_called == false);
+	buf_seg_size = 0;
+	rc = c2_net_domain_get_max_buffer_segment_size(dom, &buf_seg_size);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_get_max_buffer_segment_size_called);
+	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
+	C2_UT_ASSERT(buf_seg_size == UT_MAX_BUF_SEGMENT_SIZE);
+
 	/* get max buffer segments */
-	ut_param_get_called = false;
+	C2_UT_ASSERT(ut_get_max_buffer_segments_called == false);
 	buf_segs = 0;
 	rc = c2_net_domain_get_max_buffer_segments(dom, &buf_segs);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_param_get_called);
+	C2_UT_ASSERT(ut_get_max_buffer_segments_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
@@ -259,7 +274,7 @@ void test_net_bulk_if(void)
 	ep1 = NULL; /* not valid! */
 
 	/* allocate buffers for testing */
-	nbs = allocate_buffers(buf_size, buf_segs);
+	nbs = allocate_buffers(buf_size, buf_seg_size, buf_segs);
 
 	/* free end points */
 	rc = c2_net_end_point_put(ep2);

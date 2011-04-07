@@ -24,7 +24,8 @@ int c2_net__domain_get_param(struct c2_net_domain *dom, int param, ...);
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt);
 
 /*
-  Buffer invariant.  Must be called with associated domain mutex held.
+  Buffer checks for a registered buffer.  
+  Must be called with associated domain mutex held.
 */
 bool c2_net__buffer_invariant(struct c2_net_buffer *buf);
 

@@ -238,30 +238,37 @@ struct c2_net_xprt_ops {
 	int (*xo_buf_del)(struct c2_net_buffer *nb);
 
 	/**
-	   Retrieve an operational parameter.
+	   Retrieve the maximum buffer size (includes all segments).
 	   @param dom     Domain pointer.
-	   @param param   Integer describing the parameter.
-	   @param varargs Variable length argument list suitable for
-	   recovering the parameter value.
+	   @param size    Returns the maximum buffer size.
            @retval 0 (success)
 	   @retval -errno (failure)
-	   @see c2_net_domain_get_max_buffer_size(),
-	   c2_net_domain_get_max_buffer_segments()
+	   @see c2_net_domain_get_max_buffer_size()
 	 */
-	int (*xo_param_get)(struct c2_net_domain *dom,
-			    int param, va_list varargs);
+	int (*xo_get_max_buffer_size)(struct c2_net_domain *dom, 
+				      c2_bcount_t *size);
 
 	/**
-	   Set an operational parameter.
+	   Retrieve the maximum buffer segment size.
 	   @param dom     Domain pointer.
-	   @param param   Integer describing the parameter.
-	   @param varargs Variable length argument list suitable for
-	   passing the parameter value.
+	   @param size    Returns the maximum segment size.
            @retval 0 (success)
 	   @retval -errno (failure)
+	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int (*xo_param_set)(struct c2_net_domain *dom,
-			    int param, va_list varargs);
+	int (*xo_get_max_buffer_segment_size)(struct c2_net_domain *dom, 
+					      c2_bcount_t *size);
+
+	/**
+	   Retrieve the maximum number of buffer segments.
+	   @param dom      Domain pointer.
+	   @param num_segs Returns the maximum segment size.
+           @retval 0 (success)
+	   @retval -errno (failure)
+	   @see c2_net_domain_get_max_buffer_segment_size()
+	 */
+	int (*xo_get_max_buffer_segments)(struct c2_net_domain *dom, 
+					  int32_t *num_segs);
 
 	/**
 	   <b>Deprecated.</b>
@@ -407,23 +414,8 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
 void c2_net_domain_fini(struct c2_net_domain *dom);
 
 /**
-   Defined operational parameter constants used in converting
-   parameter retrieval subroutines to transport method ioctl style calls.
- */
-enum {
-	/**
-	   Specifies the maximum buffer size.
-	 */
-	C2_NET_PARAM_MAX_BUFFER_SIZE = 1,
-	/**
-	   Specifies the maximum number of memory segments in a
-	   struct c2_net_buffer.nb_buffer
-	 */
-	C2_NET_PARAM_MAX_BUFFER_SEGMENTS = 2
-};
-
-/**
    This subroutine is used to determine the maximum buffer size.
+   This includes all segments.
    @param dom     Pointer to the domain.
    @param size    Returns the maximum buffer size.
    @retval 0 (success)
@@ -433,7 +425,18 @@ int c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom,
 				      c2_bcount_t *size);
 
 /**
-   This subroutine is used to determine the maximum buffer size.
+   This subroutine is used to determine the maximum buffer segment size.
+   @param dom     Pointer to the domain.
+   @param size    Returns the maximum buffer size.
+   @retval 0 (success)
+   @retval -errno (failure)
+ */
+int c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain *dom,
+					      c2_bcount_t *size);
+
+/**
+   This subroutine is used to determine the maximum number of
+   buffer segments.
    @param dom      Pointer to the domain.
    @param num_segs Returns the number of segments.
    @retval 0 (success)
