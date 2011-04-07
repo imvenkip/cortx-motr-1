@@ -77,7 +77,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_domain_fini);
 
-int c2_net_domain_get_param(struct c2_net_domain *dom, int param, ...)
+int c2_net__domain_get_param(struct c2_net_domain *dom, int param, ...)
 {
 	int rc;
 	va_list varargs;
@@ -97,18 +97,18 @@ int c2_net_domain_get_param(struct c2_net_domain *dom, int param, ...)
 int c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom,
 				      c2_bcount_t *size)
 {
-	return c2_net_domain_get_param(dom, 
-				       C2_NET_PARAM_MAX_BUFFER_SIZE,
-				       size);
+	return c2_net__domain_get_param(dom, 
+					C2_NET_PARAM_MAX_BUFFER_SIZE,
+					size);
 }
 C2_EXPORTED(c2_net_domain_get_max_buffer_size);
 
 int c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom,
 					  int32_t *num_segs)
 {
-	return c2_net_domain_get_param(dom, 
-				       C2_NET_PARAM_MAX_BUFFER_SEGMENTS,
-				       num_segs);
+	return c2_net__domain_get_param(dom, 
+					C2_NET_PARAM_MAX_BUFFER_SEGMENTS,
+					num_segs);
 }
 C2_EXPORTED(c2_net_domain_get_max_buffer_segments);
 

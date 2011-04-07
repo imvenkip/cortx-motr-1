@@ -126,6 +126,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 {
 	int result;
+	int i;
 
 	C2_PRE(tm->ntm_state == C2_NET_TM_UNDEFINED);
 	C2_PRE(tm->ntm_callbacks != NULL &&
@@ -137,9 +138,9 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_dom = dom;
 	tm->ntm_ep = NULL;
 	c2_chan_init(&tm->ntm_chan);
-	c2_list_init(&tm->ntm_msg_bufs);
-	c2_list_init(&tm->ntm_passive_bufs);
-	c2_list_init(&tm->ntm_active_bufs);
+	for(i=0; i < C2_NET_QT_NR; ++i) {
+		c2_list_init(&tm->ntm_q[i]);
+	}
 	C2_SET_ARR0(tm->ntm_qstats);
 	c2_list_link_init(&tm->ntm_dom_linkage);
 	tm->ntm_xprt_private = NULL;
@@ -158,13 +159,14 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	int result;
 	struct c2_net_domain *dom = tm->ntm_dom;
+	int i;
 
 	C2_PRE(tm->ntm_state == C2_NET_TM_STOPPED);
 
 	c2_mutex_lock(&dom->nd_mutex);
-	C2_ASSERT(c2_list_is_empty(&tm->ntm_msg_bufs) &&
-		  c2_list_is_empty(&tm->ntm_passive_bufs) &&
-		  c2_list_is_empty(&tm->ntm_active_bufs));
+	for(i=0; i < C2_NET_QT_NR; ++i) {
+		C2_ASSERT(c2_list_is_empty(&tm->ntm_q[i]));
+	}
 	if (tm->ntm_callback_counter != 0) {
 		result = -EBUSY;
 		goto done;
@@ -177,9 +179,9 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 		c2_cond_fini(&tm->ntm_cond);
 		tm->ntm_dom = NULL;
 		c2_chan_fini(&tm->ntm_chan);
-		c2_list_fini(&tm->ntm_msg_bufs);
-		c2_list_fini(&tm->ntm_passive_bufs);
-		c2_list_fini(&tm->ntm_active_bufs);
+		for(i=0; i < C2_NET_QT_NR; ++i) {
+			c2_list_fini(&tm->ntm_q[i]);			
+		}
 		c2_list_link_fini(&tm->ntm_dom_linkage);
 		tm->ntm_xprt_private = NULL;
 	}

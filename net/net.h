@@ -544,10 +544,8 @@ int c2_net_end_point_put(struct c2_net_end_point *ep);
     to the order in which the passive bulk data buffers were added.
 
     The fact of the matter is that the transfer machine itself
-    is really only interested in tracking buffer existence,
-    and actually uses
-    three linked lists to track the six logical queue types defined here.
-
+    is really only interested in tracking buffer existence and uses
+    lists and not queues internally.
  */
 enum c2_net_queue_type {
 	/**
@@ -894,21 +892,29 @@ struct c2_net_transfer_mc {
 	 */
 	struct c2_chan              ntm_chan;
 
+	/**
+	   Lists of c2_net_buffer structures by queue type.
+	 */
+	struct c2_list             ntm_q[C2_NET_QT_NR];
+
 	/** List of c2_net_buffer structures involved in message passing.
 	    Implements the C2_NET_QT_MSG_RECV and C2_NET_QT_MSG_SEND
 	    logical queues.
+	    <b>Deprecated</b>
 	*/
 	struct c2_list              ntm_msg_bufs;
 
 	/** List of c2_net_buffer structures involved in passive bulk transfer.
 	    Implements the C2_NET_QT_PASSIVE_BULK_SEND and
 	    C2_NET_QT_PASSIVE_BULK_RECV logical queues.
+	    <b>Deprecated</b>
 	*/
 	struct c2_list              ntm_passive_bufs;
 
 	/** List of c2_net_buffer structures involved in active bulk transfer.
 	    Implements the C2_NET_QT_ACTIVE_BULK_RECV and
 	    C2_NET_QT_ACTIVE_BULK_SEND logical queues.
+	    <b>Deprecated</b>
 	*/
 	struct c2_list              ntm_active_bufs;
 
