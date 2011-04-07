@@ -174,14 +174,6 @@ struct c2_net_xprt_ops {
 				   va_list varargs);
 
 	/**
-	   Release the end point. Invoked when its reference count 
-	   goes to zero.
-	   @param ep   End point pointer.
-	   @see c2_net_end_point_put()
-	 */
-	void (*xo_end_point_release)(struct c2_net_end_point *ep);
-
-	/**
 	   Register the buffer for use with a transfer machine in
 	   the manner indicated by the c2_net_buffer.nb_qtype value.
 	   @param nb  Buffer pointer with c2_net_buffer.nb_dom set.
@@ -483,6 +475,10 @@ struct c2_net_end_point {
    @param ... Transport specific variable arguments describing the 
    end point address. These are optional, and if missing, the transport
    will assign an end point with a dynamic, new address.
+   The list must terminate with a 0 - i.e. it is not permitted to not
+   have at least one argument in the variable length list.
+   Transports must be able to distinguish this terminating 0 from any
+   valid use of 0 as an argument, if permitted.
    @see c2_net_end_point_get(), c2_net_end_point_put()
    @post @code
 (*epp)->nep_ref->ref_cnt >= 1
@@ -515,6 +511,8 @@ int c2_net_end_point_get(struct c2_net_end_point *ep);
    @pre @code
 ep->nep_ref->ref_cnt >= 1
 @endcode
+   @note The domain lock will be obtained internaly to synchronize the 
+   transport provided release() method in case the end point gets released.
    @retval 0 (success)
    @retval -errno (failure)
 */
