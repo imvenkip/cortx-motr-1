@@ -122,6 +122,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 
 	return 0;
 }
+C2_EXPORTED(c2_net_tm_event_post);
 
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 {
@@ -154,6 +155,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 
 	return result;
 }
+C2_EXPORTED(c2_net_tm_init);
 
 int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 {
@@ -189,6 +191,7 @@ done:
 	c2_mutex_unlock(&dom->nd_mutex);
 	return result;
 }
+C2_EXPORTED(c2_net_tm_fini);
 
 int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		    struct c2_net_end_point *ep)
@@ -213,6 +216,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 
 	return result;
 }
+C2_EXPORTED(c2_net_tm_start);
 
 int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 {
@@ -233,6 +237,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 
 	return result;
 }
+C2_EXPORTED(c2_net_tm_stop);
 
 int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			enum c2_net_queue_type qtype,
@@ -258,6 +263,7 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 
 	return 0;
 }
+C2_EXPORTED(c2_net_tm_stats_get);
 
 /** @} end of net group */
 
