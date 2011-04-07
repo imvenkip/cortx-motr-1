@@ -162,8 +162,8 @@ struct c2_rm_resource_type {
 	const struct c2_rm_resource_type_ops *rt_ops;
 	const char                           *rt_name;
 	/**
-	   A resource type identifier, unique within a resource management
-	   domain, used to identify resource types on wire and storage.
+	   A resource type identifier, globally unique within a cluster, used
+	   to identify resource types on wire and storage.
 
 	   This identifier is used as an index in c2_rm_domain::rd_index.
 
