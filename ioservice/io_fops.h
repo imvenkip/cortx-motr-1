@@ -1,6 +1,6 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_FOP_IO_OPERATIONS_H__
-#define __COLIBRI_FOP_IO_OPERATIONS_H__
+#ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
+#define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
@@ -40,6 +40,7 @@ extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 
+/* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
 
 /* 

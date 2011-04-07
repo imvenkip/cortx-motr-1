@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
-#ifndef __COLIBRI_FOP_FOM_OPERATIONS_H__
-#define __COLIBRI_FOP_FOM_OPERATIONS_H__
+#ifndef __COLIBRI_IOSERVICE_IO_FOMS_H__
+#define __COLIBRI_IOSERVICE_IO_FOMS_H__
 
 /**
  * @defgroup io_foms Fop State Machines for various FOPs
@@ -107,7 +107,7 @@ void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
 
 /** @} end of io_foms */
 
-/* __COLIBRI_FOP_FOM_OPERATIONS_H__ */
+/* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
 #endif
 
 /* 

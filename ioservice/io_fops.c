@@ -1,4 +1,3 @@
-/* -*- C -*- */
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -41,9 +40,9 @@ struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 /**
  * FOP definitions for readv and writev operations.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "read request", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request", 
 		    c2_io_service_readv_opcode, &c2_io_cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "write request", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request", 
 		    c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
