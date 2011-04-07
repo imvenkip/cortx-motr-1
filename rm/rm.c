@@ -1,11 +1,15 @@
 /* -*- C -*- */
 
+#include "lib/mutex.h"
+#include "lib/list.h"
+
 #include "rm/rm.h"
 
 /**
    @addtogroup rm
    @{
  */
+
 
 /** @} end of rm group */
 
