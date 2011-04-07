@@ -93,6 +93,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	       (buf->nb_qtype < C2_NET_QT_NR) &&
 	       (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
 	       ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) );
+	C2_ASSERT(buf->nb_callbacks == NULL ||
+		  buf->nb_callbacks->ntc_event_cb != NULL);
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);

@@ -106,8 +106,8 @@ struct c2_net_xprt_ops {
 
 	/**
 	   Perform transport level initialization of the transfer machine.
-	   @param tm   Transfer machine pointer. 
-             The following fields will be initialized at this time:
+	   @param tm   Transfer machine pointer.
+             All fields will be initialized at this time, specifically:
              @li ntm_dom
 	     @li ntm_xprt_private - Initialized to NULL. The method can
 	     set its own value in the structure.
@@ -121,7 +121,7 @@ struct c2_net_xprt_ops {
 	   Initiate the startup of the (initialized) transfer machine.
 	   A completion event should be posted when started, using a different
 	   thread.
-	   @param tm   Transfer machine pointer. 
+	   @param tm   Transfer machine pointer.
              The following fields are of special interest to this method:
              @li ntm_dom
 	     @li ntm_ep - End point associated with the transfer machine.
@@ -139,16 +139,19 @@ struct c2_net_xprt_ops {
 	   drain or be cancelled if requested.
 	   A completion event should be posted when stopped, using a different
 	   thread.
-	   @param tm   Transfer machine pointer. 
+	   @param tm   Transfer machine pointer.
 	   @param cancel Pending outbound operations should be cancelled
 	   immediately.
+           @retval 0 (success)
+	   @retval -errno (failure)
+	   @see c2_net_tm_stop()
 	 */
 	int (*xo_tm_stop)(struct c2_net_transfer_mc *tm, bool cancel);
 
 	/**
 	   Release resources associated with a transfer machine.
 	   The transfer machine will be in the stopped state.
-	   @param tm   Transfer machine pointer. 
+	   @param tm   Transfer machine pointer.
              The following fields are of special interest to this method:
              @li ntm_dom
 	     @li ntm_xprt_private - The method should free any
@@ -174,7 +177,7 @@ struct c2_net_xprt_ops {
 				   va_list varargs);
 
 	/**
-	   Release the end point. Invoked when its reference count 
+	   Release the end point. Invoked when its reference count
 	   goes to zero.
 	   @param ep   End point pointer.
 	   @see c2_net_end_point_put()
@@ -213,7 +216,7 @@ struct c2_net_xprt_ops {
 	   or C2_NET_QT_PASSIVE_BULK_SEND queues, the method should set
 	   the network buffer descriptor in the specified buffer.
 
-	   The C2_NET_BUF_IN_USE flag will not be set before invoking the 
+	   The C2_NET_BUF_IN_USE flag will not be set before invoking the
 	   method.   This allows the transport to use this flag to defer
 	   operations until later, which is useful if buffers are added
 	   during transfer machine state transitions.
@@ -451,8 +454,8 @@ int c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom,
 /**
    This represents an addressable network end point. Memory for this data
    structure is managed by the network transport component.
-   
-   Multiple entities may reference and use the data structure at the same time, 
+
+   Multiple entities may reference and use the data structure at the same time,
    so a reference count is maintained within it to determine when it is safe to
    release the structure.
 
@@ -472,15 +475,15 @@ struct c2_net_end_point {
 
 /**
    Allocates an end point data structure representing the desired
-   end point and sets its reference count to 1, 
-   or increments the reference count of an existing matching data structure.  
+   end point and sets its reference count to 1,
+   or increments the reference count of an existing matching data structure.
    The invoker should call the c2_net_end_point_put() when the
    data structure is no longer needed.
    @param epp Pointer to a pointer to the data structure which will be
    set upon return.  The reference count of the returned data structure
    will be at least 1.
    @param dom Network domain pointer.
-   @param ... Transport specific variable arguments describing the 
+   @param ... Transport specific variable arguments describing the
    end point address. These are optional, and if missing, the transport
    will assign an end point with a dynamic, new address.
    @see c2_net_end_point_get(), c2_net_end_point_put()
@@ -510,7 +513,7 @@ int c2_net_end_point_get(struct c2_net_end_point *ep);
 /**
    Decrement the reference count of an end point data structure.
    The structure will be released when the count goes to 0.
-   @param ep End point data structure pointer. 
+   @param ep End point data structure pointer.
    Do not dereference this pointer after this call.
    @pre @code
 ep->nep_ref->ref_cnt >= 1
@@ -524,10 +527,10 @@ int c2_net_end_point_put(struct c2_net_end_point *ep);
     This enumeration describes the types of logical queues in a transfer
     machine.
 
-    <b>Note:</b> We use the term "queue" here to imply that the 
+    <b>Note:</b> We use the term "queue" here to imply that the
     order of addition
     matters; in reality, while it <i>may</i> matter, external factors have
-    a <i>much</i> larger influence on the actual order in which buffer 
+    a <i>much</i> larger influence on the actual order in which buffer
     operations complete; we're not implying FIFO semantics here!
     Consider:
     - The underlying transport manages message buffers.
@@ -543,7 +546,7 @@ int c2_net_end_point_put(struct c2_net_end_point *ep);
     to the order in which the passive bulk data buffers were added.
 
     The fact of the matter is that the transfer machine itself
-    is really only interested in tracking buffer existence, 
+    is really only interested in tracking buffer existence,
     and actually uses
     three linked lists to track the six logical queue types defined here.
 
@@ -555,34 +558,34 @@ enum c2_net_queue_type {
 	C2_NET_QT_MSG_RECV=0,
 
 	/**
-	   Queue with buffers with messages to send. 
+	   Queue with buffers with messages to send.
 	*/
 	C2_NET_QT_MSG_SEND,
 
 	/**
-	   Queue with buffers awaiting completion of 
+	   Queue with buffers awaiting completion of
 	   remotly initiated bulk data send operations
 	   that will read from these buffers.
 	*/
 	C2_NET_QT_PASSIVE_BULK_RECV,
 
 	/**
-	   Queue with buffers awaiting completion of 
-	   remotly initiated bulk data receive operations 
+	   Queue with buffers awaiting completion of
+	   remotly initiated bulk data receive operations
 	   that will write to these buffers.
 	*/
 	C2_NET_QT_PASSIVE_BULK_SEND,
 
 	/**
-	   Queue with buffers awaiting completion of 
-	   locally initiated bulk data receive operations 
+	   Queue with buffers awaiting completion of
+	   locally initiated bulk data receive operations
 	   that will read from passive buffers.
 	*/
 	C2_NET_QT_ACTIVE_BULK_RECV,
 
 	/**
-	   Queue with buffers awaiting completion of 
-	   locally initiated bulk data send operations 
+	   Queue with buffers awaiting completion of
+	   locally initiated bulk data send operations
 	   to passive buffers.
 	*/
 	C2_NET_QT_ACTIVE_BULK_SEND,
@@ -613,7 +616,7 @@ enum c2_net_queue_type {
    applications.
 
    This data structure is typically assigned on the stack of the thread
-   that invokes the c2_net_tm_event_post() subroutine.  Applications 
+   that invokes the c2_net_tm_event_post() subroutine.  Applications
    should not attempt to save a reference to it from their callback
    functions.
 
@@ -646,14 +649,14 @@ struct c2_net_event {
 
 	   When the value of c2_net_event.nev_qtype is not C2_NET_QT_NR the
 	   event has posted for the buffer specified with the
-	   c2_net_event.nev_buffer field.  
+	   c2_net_event.nev_buffer field.
 	   A 0 in this field implies successful completion.
 	   Negative error numbers are used to indicate the reasons for
 	   failure.
 
-	   When the value of c2_net_event.nev_qtype is C2_NET_QT_NR the 
+	   When the value of c2_net_event.nev_qtype is C2_NET_QT_NR the
 	   callback is made to report non-buffer related errors,
-	   transfer machine state changes or for diagnostic purposes.  
+	   transfer machine state changes or for diagnostic purposes.
 	   The value of this field is used to distinguish these cases:
 	   - <b>State changes</b> The value of this field is 0.
 	   - <b>Errors</b> The value of this field is a negative
@@ -673,18 +676,18 @@ struct c2_net_event {
 	   State transition events set the value to that of the
 	   transition state.
 
-	   Transports may use this to point to internal data; they 
+	   Transports may use this to point to internal data; they
 	   could also choose to embed the event data structure
 	   in a transport specific structure appropriate to the event.
-	   Either approach would be of use to a diagnostic application. 
+	   Either approach would be of use to a diagnostic application.
 	 */
 	void                      *nev_payload;
 };
 
 /**
    A transfer machine is notified of events of interest with this subroutine.
-   Typically, the subroutine is invoked by the transport associated with 
-   the transfer machine.  
+   Typically, the subroutine is invoked by the transport associated with
+   the transfer machine.
 
    The event data structure is not referenced from
    elsewhere after this subroutine returns, so may be allocated on the
@@ -704,7 +707,7 @@ struct c2_net_event {
    C2_NET_BUF_QUEUED and C2_NET_BUF_CANCELLED flags prior to invoking the
    callback.
 
-   The subroutine will also signal to all waiters on the 
+   The subroutine will also signal to all waiters on the
    c2_net_transfer_mc.ntm_chan field after delivery of the callback.
 
    The invoking process should be aware that the callback subroutine could
@@ -880,9 +883,8 @@ struct c2_net_transfer_mc {
 	   End point associated with this transfer machine.
 	   Messages sent from this
 	   transfer machine appear to have originated from this end point.
-	   It may have been provided by the application during the
-	   call to c2_net_tm_start(),
-	   or have may be dynamically assigned by the transport at that time.
+	   It is provided by the application during the
+	   call to c2_net_tm_start().
 	   @note The assumption here is that the transport can maintain
 	   separate receive message buffer pools for each transfer machine.
 	*/
@@ -895,26 +897,25 @@ struct c2_net_transfer_mc {
 	struct c2_chan              ntm_chan;
 
 	/** List of c2_net_buffer structures involved in message passing.
-	    Implements the C2_NET_QT_MSG_RECV and C2_NET_QT_MSG_SEND 
+	    Implements the C2_NET_QT_MSG_RECV and C2_NET_QT_MSG_SEND
 	    logical queues.
 	*/
 	struct c2_list              ntm_msg_bufs;
 
 	/** List of c2_net_buffer structures involved in passive bulk transfer.
-	    Implements the C2_NET_QT_PASSIVE_BULK_SEND and 
+	    Implements the C2_NET_QT_PASSIVE_BULK_SEND and
 	    C2_NET_QT_PASSIVE_BULK_RECV logical queues.
 	*/
 	struct c2_list              ntm_passive_bufs;
 
 	/** List of c2_net_buffer structures involved in active bulk transfer.
-	    Implements the C2_NET_QT_ACTIVE_BULK_RECV and 
+	    Implements the C2_NET_QT_ACTIVE_BULK_RECV and
 	    C2_NET_QT_ACTIVE_BULK_SEND logical queues.
 	*/
 	struct c2_list              ntm_active_bufs;
 
 	/** Statistics maintained per logical queue */
 	struct c2_net_qstats        ntm_qstats[C2_NET_QT_NR];
-
 
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
@@ -954,15 +955,15 @@ tm->ntm_state == C2_NET_TM_STOPPED
 int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
-   Start a transfer machine. 
+   Start a transfer machine.
 
    The subroutine does not block the invoker. Instead the state is
    immediately changed to C2_NET_TM_STARTING, and an event will be
-   posted to indicate when the transfer machine has transitioned to 
+   posted to indicate when the transfer machine has transitioned to
    the C2_NET_TM_STARTED state.
 
    @note It is possible that the state change event be posted before this
-   subroutine returns. 
+   subroutine returns.
    It is guaranteed that the event will be posted on a different thread.
 
    @pre @code
@@ -973,13 +974,13 @@ tm->ntm_state == C2_NET_TM_INITIALIZED
    @retval 0 (success)
    @retval -errno (failure)
 */
-int c2_net_tm_start(struct c2_net_transfer_mc *tm, 
+int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		    struct c2_net_end_point *ep);
 
 /**
-   Initiate the shutdown of a transfer machine.  New messages will 
+   Initiate the shutdown of a transfer machine.  New messages will
    not be accepted.  Pending operations will be completed or
-   aborted as desired.  
+   aborted as desired.
 
    The subroutine does not block the invoker.  Instead the state is
    immediately changed to C2_NET_TM_STOPPING, and an event will be
@@ -996,7 +997,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 (tm->ntm_state == C2_NET_TM_STARTED)
 @endcode
    @param tm  Transfer machine pointer.
-   @param abort Cancel pending operations. 
+   @param abort Cancel pending operations.
    Support for the implementation of this option is transport specific.
    @retval 0 (success)
    @retval -errno (failure)
@@ -1011,19 +1012,19 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
 tm->ntm_state >= C2_NET_TM_INITIALIZED
 @endcode
    @param tm     Transfer machine pointer
-   @param qtype  Logical queue identifier of the queue concerned. 
+   @param qtype  Logical queue identifier of the queue concerned.
    Specify C2_NET_QT_NR instead if all the queues are to be considered.
    @param qs     Returned statistical data. May be NULL if only a reset
    operation is desired.  Otherwise should point to a single c2_net_qstats
    data structure if the value of <b>qtype</b> is not C2_NET_QT_NR, or
    else should point to an array of C2_NET_QT_NR such structures in which to
    return the statistical data on all the queues.
-   @param reset  Specify <b>true</b> if the associated statistics data 
+   @param reset  Specify <b>true</b> if the associated statistics data
    should be reset at the same time. Otherwise specify <b>false</b>.
    @retval 0 (success)
    @retval -errno (failure)
 */
-int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm, 
+int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			enum c2_net_queue_type qtype,
 			struct c2_net_qstats *qs,
 			bool reset);
@@ -1047,7 +1048,7 @@ enum c2_net_buf_flags {
 /**
    This data structure is used to track the memory used
    for message passing or bulk data transfer over the network.
-   
+
    Support for scatter-gather buffers is provided by use of a c2_bufvec;
    upper layer protocols may impose limitations on the
    use of scatter-gather, especially for message passing.
@@ -1062,7 +1063,7 @@ enum c2_net_buf_flags {
    c2_bufvec are handled by the invoking application.
 
    Once the application initiates an operation on a buffer, it should
-   refrain from modifying the buffer until the callback signifying 
+   refrain from modifying the buffer until the callback signifying
    operation completion.
 
    Applications must register buffers with the transport before use,
@@ -1082,7 +1083,7 @@ struct c2_net_buffer {
 	   - The application should set the value before adding a buffer
 	   to the C2_NET_QT_MSG_SEND, C2_NET_QT_PASSIVE_BULK_SEND or
 	   C2_NET_QT_ACTIVE_BULK_SEND queues.
-	   - This value is set by the transport at the time the 
+	   - This value is set by the transport at the time the
 	   completion event is posted for a buffer on the
 	   C2_NET_QT_MSG_RECV, C2_NET_QT_PASSIVE_BULK_RECV or
 	   C2_NET_QT_ACTIVE_BULK_RECV queues.
@@ -1109,7 +1110,7 @@ struct c2_net_buffer {
         enum c2_net_queue_type     nb_qtype;
 
 	/**
-	    Pointer to application callbacks. Should be set 
+	    Pointer to application callbacks. Should be set
 	    before adding the buffer to a transfer machine logical queue.
 
 	    This is an optional field - set it to NULL if no buffer
@@ -1150,12 +1151,12 @@ struct c2_net_buffer {
 
 	   Applications should convey the descriptor to the active side
 	   to perform the bulk data transfer. The active side application
-	   code should set this value when adding the buffer to 
+	   code should set this value when adding the buffer to
 	   the C2_NET_QT_ACTIVE_BULK_RECV or C2_NET_QT_ACTIVE_BULK_SEND
 	   queues, using the c2_net_desc_copy() subroutine.
 
-	   In both cases, applications are responsible for freeing the 
-	   memory used by this descriptor with the c2_net_desc_free() 
+	   In both cases, applications are responsible for freeing the
+	   memory used by this descriptor with the c2_net_desc_free()
 	   subroutine.
 	*/
 	struct c2_net_buf_desc     nb_desc;
@@ -1167,7 +1168,7 @@ struct c2_net_buffer {
 	   will set the end point to identify the sender of the message
 	   before invoking the completion callback on the buffer.
 	   The end point will be released when the callback returns.
-	   - When sending messages 
+	   - When sending messages
 	   the application should specify the end point of the destination
 	   before adding the buffer to the C2_NET_QT_MSG_SEND queue.
 	   - When adding a buffer to the C2_NET_QT_PASSIVE_BULK_RECV or
@@ -1214,7 +1215,7 @@ struct c2_net_buffer {
 	   The application should not modify these flags again until
 	   after de-registration.
 	 */
-	bool                       nb_flags;
+	enum c2_net_buf_flags      nb_flags;
 
 	/**
 	   The status value posted in the last completion event on
@@ -1238,9 +1239,9 @@ struct c2_net_buffer {
    Register a buffer with the domain. The domain could perform some
    optimizations under the covers.
    @pre @code
-(buf->nb_flags == 0) && 
-(buf->nb_buffer.ov_buf != NULL) && 
-(buf->nb_buffer.ov_vec.v_nr > 0) && 
+(buf->nb_flags == 0) &&
+(buf->nb_buffer.ov_buf != NULL) &&
+(buf->nb_buffer.ov_vec.v_nr > 0) &&
 (buf->nb_buffer.ov_vec.v_count != NULL)
 @endcode
    @post @code
@@ -1254,7 +1255,7 @@ struct c2_net_buffer {
    @retval 0 (success)
    @retval -errno (failure)
 */
-int c2_net_buffer_register(struct c2_net_buffer *buf, 
+int c2_net_buffer_register(struct c2_net_buffer *buf,
 			   struct c2_net_domain *dom);
 
 /**
@@ -1298,7 +1299,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    The buffer should not be modified until the operation completion
    callback is invoked for the buffer.
 
-   The buffer completion callback is guaranteed to be invoked on a 
+   The buffer completion callback is guaranteed to be invoked on a
    different thread.
 
    @pre @code
@@ -1318,11 +1319,11 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    @retval 0 (success)
    @retval -EPERM Transfer machine not in correct state.
    @retval -EINVAL Required fields are not set.
-   @retval -EFBIG  In send operations, the length field exceeds the 
+   @retval -EFBIG  In send operations, the length field exceeds the
    size of the buffer.
    @retval -errno (failure)
 */
-int c2_net_buffer_add(struct c2_net_buffer *buf, 
+int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
 
 /**
@@ -1331,16 +1332,16 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
    <b>Cancellation support is provided by the underlying transport.</b>
    It is not guaranteed that cancellation will always be supported, and
-   even if it is, there are race conditions in the execution of this 
-   request and the concurrent invocation of the completion callback on 
+   even if it is, there are race conditions in the execution of this
+   request and the concurrent invocation of the completion callback on
    the buffer.
 
    If the transport supports cancellation, then the C2_NET_BUF_CANCELLED
    flag will be set in the buffer if the operation is in progress.
 
-   The buffer completion callback is guaranteed to be invoked on a 
+   The buffer completion callback is guaranteed to be invoked on a
    different thread.
-   
+
    @pre @code
 (buf->nb_flags & C2_NET_BUF_REGISTERED)
 @endcode
@@ -1368,7 +1369,7 @@ int c2_net_desc_copy(struct c2_net_buf_desc *from_desc,
    cleared after this operation.
 */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
-		     
+
 /** @} end of networking group
 
 
