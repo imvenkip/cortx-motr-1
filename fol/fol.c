@@ -487,7 +487,7 @@ int c2_fol_rec_type_register(const struct c2_fol_rec_type *rt)
 	} else
 		result = -EFBIG;
 	c2_mutex_unlock(&rtypes_lock);
-	return 0;
+	return result;
 }
 C2_EXPORTED(c2_fol_rec_type_register);
 

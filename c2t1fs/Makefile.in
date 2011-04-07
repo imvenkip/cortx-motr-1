@@ -1,17 +1,18 @@
 C2T1FS_SRCDIR = @SRCDIR@/c2t1fs
 FOPDIR = @SRCDIR@/fop
+ADDBDIR = @SRCDIR@/addb
 STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
 IOSERVICEDIR = @SRCDIR@/ioservice
 
 obj-m := c2t1fs.o c2t1fs_loop.o 
-c2t1fs-y := main.o io_k.o io_fops_k.o io_foms.o io_fops.o io_fop_init.o 
+c2t1fs-y := main.o io_k.o io_fops_k.o io_foms.o io_fops.o io_fop_init.o addb_store.o addb_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
-prepare:
-	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
+prepare: io_k.h io_k.c addb_k.c addb_k.h
 	ln -sf $(STOBDIR)/io_fop_init.c .
+	ln -sf $(ADDBDIR)/addb_store.c .
 	ln -sf $(GALOISDIR)/galois.h @SRCDIR@/sns
 	ln -sf $(IOSERVICEDIR)/io_fops_k.h
 	ln -sf $(IOSERVICEDIR)/io_fops_k.c
@@ -19,6 +20,12 @@ prepare:
 	ln -sf $(IOSERVICEDIR)/io_foms.h
 	ln -sf $(IOSERVICEDIR)/io_foms.c
 	ln -sf $(IOSERVICEDIR)/io_fops.c
+
+io_k.h io_k.c: $(STOBDIR)/io.ff
+	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff
+
+addb_k.h addb_k.c: $(ADDBDIR)/addb.ff
+	$(FOPDIR)/fop2c -k $(ADDBDIR)/addb.ff
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/c2t1fs -C @LINUX_OBJ@ M=`pwd` modules_install

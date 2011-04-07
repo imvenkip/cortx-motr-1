@@ -13,7 +13,7 @@ struct c2_fom_type;
  * The opcode from which IO service FOPS start.
  */
 enum c2_io_service_opcodes {
-	c2_io_service_readv_opcode = 14,
+	c2_io_service_readv_opcode = 15,
 	c2_io_service_writev_opcode,
 	c2_io_service_writev_rep_opcode,
 	c2_io_service_readv_rep_opcode
