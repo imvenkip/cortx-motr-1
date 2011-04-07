@@ -19,16 +19,13 @@ bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
 {
 	C2_ASSERT(buf != NULL);
 
-	/* only care for registered buffers */
+	/* must be a registered buffer */
 	if (!(buf->nb_flags & C2_NET_BUF_REGISTERED))
-		return true;
+		return false;
 
 	/* domain must be set and initialized */
 	if (buf->nb_dom == NULL || buf->nb_dom->nd_xprt == NULL)
 		return false;
-
-	/* these checks are invalid if the domain is not locked */
-	C2_ASSERT(c2_mutex_is_locked(&buf->nb_dom->nd_mutex));
 
 	/* bufvec must be set */
 	if (buf->nb_buffer.ov_buf == NULL ||
@@ -36,9 +33,17 @@ bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
 	    buf->nb_buffer.ov_vec.v_count == NULL)
 		return false;
 
+	/* these checks are invalid if the domain is not locked */
+	C2_ASSERT(c2_mutex_is_locked(&buf->nb_dom->nd_mutex));
+
 	/* EXPENSIVE: on the domain registered list */
 	if (!c2_list_contains(&buf->nb_dom->nd_registered_bufs,
 			      &buf->nb_dom_linkage)) 
+		return false;
+
+	/* optional callbacks, but if provided then ntc_event_cb required */
+	if (buf->nb_callbacks != NULL &&
+	    buf->nb_callbacks->ntc_event_cb == NULL)
 		return false;
 
 	/* is it queued? */
@@ -129,23 +134,30 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	int rc;
 	struct c2_net_domain *dom;
 	c2_bcount_t blen;
-	bool check_length = false;
-	bool check_ep = false;
-	bool check_desc = false;
-	bool post_check_desc = false;
 	struct c2_list *ql = NULL;
+	static const struct {
+		bool check_length;
+		bool check_ep;
+		bool check_desc;
+		bool post_check_desc;
+	} *todo, checks[C2_NET_QT_NR] = {
+		[C2_NET_QT_MSG_RECV]          = { false, false, false, false },
+		[C2_NET_QT_MSG_SEND]          = { true,  true,  false, false },
+		[C2_NET_QT_PASSIVE_BULK_RECV] = { false, true,  false, true  },
+		[C2_NET_QT_PASSIVE_BULK_SEND] = { true,  true,  false, true  },
+		[C2_NET_QT_ACTIVE_BULK_RECV]  = { false, false, true,  false },
+		[C2_NET_QT_ACTIVE_BULK_SEND]  = { true,  false, true,  false }
+	};
 
 	C2_PRE(tm != NULL && tm->ntm_dom != NULL);
-	C2_PRE(buf != NULL && buf->nb_dom == tm->ntm_dom);
-	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype) &&
-	       buf->nb_flags & C2_NET_BUF_REGISTERED &&
-	       !(buf->nb_flags & C2_NET_BUF_QUEUED) );
-	C2_PRE(buf->nb_callbacks == NULL ||
-	       buf->nb_callbacks->ntc_event_cb != NULL);
+	C2_PRE(buf->nb_dom == tm->ntm_dom);
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
+
+	C2_PRE(c2_net__buffer_invariant(buf));
+	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 
 	/* Receive queue accepts any starting state but otherwise
 	   the TM has to be started
@@ -160,40 +172,14 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	}
 
 	/* determine what to do by queue type */
-	switch (buf->nb_qtype) {
-	case C2_NET_QT_MSG_RECV:
-		break;
-	case C2_NET_QT_MSG_SEND:
-		check_length = true;
-		check_ep = true;
-		break;
-	case C2_NET_QT_PASSIVE_BULK_RECV:
-		check_ep = true;
-		post_check_desc = true;
-		break;
-	case C2_NET_QT_PASSIVE_BULK_SEND:
-		check_length = true;
-		check_ep = true;
-		post_check_desc = true;
-		break;
-	case C2_NET_QT_ACTIVE_BULK_RECV:
-		check_desc = true;
-		break;
-	case C2_NET_QT_ACTIVE_BULK_SEND:
-		check_length = true;
-		check_desc = true;
-		break;
-	default:
-		C2_IMPOSSIBLE("invalid queue type");
-		break;
-	}
+	todo = &checks[buf->nb_qtype];
 	ql = &tm->ntm_q[buf->nb_qtype];
 
 	/* Check that length is set and is within buffer bounds.
 	   The transport will make other checks on the buffer, such
 	   as the max size and number of segments.
 	 */
-	if (check_length) {
+	if (todo->check_length) {
 		if (buf->nb_length == 0) {
 			rc = -EINVAL;
 			goto m_err_exit;
@@ -206,7 +192,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	}
 
 	/* validate end point usage */
-	if (check_ep) {
+	if (todo->check_ep) {
 		if (buf->nb_ep == NULL){
 			rc = -EINVAL;
 			goto m_err_exit;
@@ -215,11 +201,11 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	}
 
 	/* validate that the descriptor is present */
-	if (post_check_desc) {
+	if (todo->post_check_desc) {
 		buf->nb_desc.nbd_len = 0;
 		buf->nb_desc.nbd_data = NULL;
 	}
-	if (check_desc) {
+	if (todo->check_desc) {
 		if ( buf->nb_desc.nbd_len == 0 ||
 		     buf->nb_desc.nbd_data == NULL ) {
 			rc = -EINVAL;
@@ -244,14 +230,14 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		goto m_err_exit;
 	}
 
-	if (post_check_desc) {
+	if (todo->post_check_desc) {
 		C2_POST(buf->nb_desc.nbd_len != 0 &&
 			buf->nb_desc.nbd_data != NULL);
 	}
 
 	tm->ntm_qstats[buf->nb_qtype].nqs_num_adds += 1;
 
-	if (check_ep) {
+	if (todo->check_ep) {
 		/* Bump the reference count.
 		   Should be decremented in c2_net_tm_event_post().
 		*/
