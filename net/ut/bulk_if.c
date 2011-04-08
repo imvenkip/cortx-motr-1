@@ -14,9 +14,11 @@
 static struct c2_net_domain utdom;
 static struct c2_net_transfer_mc ut_tm;
 
+void make_desc(struct c2_net_buf_desc *desc);
+
 /*
  *****************************************************
-   Fake transport for the UT 
+   Fake transport for the UT
  *****************************************************
 */
 static struct {
@@ -54,7 +56,7 @@ static int ut_get_max_buffer_size(struct c2_net_domain *dom, c2_bcount_t *size)
 	return 0;
 }
 static bool ut_get_max_buffer_segment_size_called = false;
-static int ut_get_max_buffer_segment_size(struct c2_net_domain *dom, 
+static int ut_get_max_buffer_segment_size(struct c2_net_domain *dom,
 					  c2_bcount_t *size)
 {
 	ut_get_max_buffer_segment_size_called = true;
@@ -62,7 +64,7 @@ static int ut_get_max_buffer_segment_size(struct c2_net_domain *dom,
 	return 0;
 }
 static bool ut_get_max_buffer_segments_called = false;
-static int ut_get_max_buffer_segments(struct c2_net_domain *dom, 
+static int ut_get_max_buffer_segments(struct c2_net_domain *dom,
 				      int32_t *num_segs)
 {
 	ut_get_max_buffer_segments_called = true;
@@ -103,7 +105,7 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
 	ut_end_point_create_called = true;
 	ap = va_arg(varargs, char *);
-	if ( ap == 0 ) {
+	if (ap == NULL) {
 		/* end of args - don't support dynamic */
 		return -ENOSYS;
 	}
@@ -112,7 +114,7 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 			       struct c2_net_end_point,
 			       nep_dom_linkage) {
 		utep = container_of(ep, struct ut_ep, uep);
-		if ( strcmp(utep->addr, ap) == 0 ) {
+		if (strcmp(utep->addr, ap) == 0) {
 			c2_ref_get(&ep->nep_ref); /* refcnt++ */
 			*epp = ep;
 			return 0;
@@ -146,15 +148,48 @@ static int ut_buf_deregister(struct c2_net_buffer *nb)
 static bool ut_buf_add_called = false;
 static int ut_buf_add(struct c2_net_buffer *nb)
 {
+	switch (nb->nb_qtype) {
+	case C2_NET_QT_PASSIVE_BULK_RECV:
+	case C2_NET_QT_PASSIVE_BULK_SEND:
+		/* passive bulk ops required to set nb_desc */
+		make_desc(&nb->nb_desc);
+		break;
+	default:
+		break;
+	}
 	ut_buf_add_called = true;
 	return 0;
+}
+
+struct c2_thread ut_del_thread;
+static void ut_post_del_thread(struct c2_net_buffer *nb)
+{
+	int rc;
+	struct c2_net_event ev = {
+		.nev_qtype = nb->nb_qtype,
+		.nev_tm = nb->nb_tm,
+		.nev_buffer = nb,
+		.nev_status = 0,
+		.nev_payload = NULL
+	};
+	c2_time_now(&ev.nev_time);
+
+	/* post requested event */
+	rc = c2_net_tm_event_post(ev.nev_tm, &ev);
+	C2_UT_ASSERT(rc == 0);
 }
 
 static bool ut_buf_del_called = false;
 static int ut_buf_del(struct c2_net_buffer *nb)
 {
+	int rc;
 	ut_buf_del_called = true;
-	return 0;
+	if (!(nb->nb_flags & C2_NET_BUF_IN_USE))
+		nb->nb_flags |= C2_NET_BUF_CANCELLED;
+	rc = C2_THREAD_INIT(&ut_del_thread, struct c2_net_buffer *, NULL,
+			    &ut_post_del_thread, nb);
+	C2_UT_ASSERT(rc == 0);
+	return rc;
 }
 
 struct ut_tm_pvt {
@@ -196,7 +231,7 @@ static void ut_post_ev_thread(int n)
 	c2_time_now(&ev.nev_time);
 
 	/* post requested event */
-	rc = c2_net_tm_event_post(&ut_tm, &ev);
+	rc = c2_net_tm_event_post(ev.nev_tm, &ev);
 	C2_UT_ASSERT(rc == 0);
 }
 
@@ -251,8 +286,8 @@ static struct c2_net_xprt ut_xprt = {
 
 /* utility subs */
 static struct c2_net_buffer *
-allocate_buffers(c2_bcount_t buf_size, 
-		 c2_bcount_t buf_seg_size, 
+allocate_buffers(c2_bcount_t buf_size,
+		 c2_bcount_t buf_seg_size,
 		 int32_t buf_segs)
 {
 	int rc;
@@ -263,27 +298,25 @@ allocate_buffers(c2_bcount_t buf_size,
 	int32_t nr;
 
 	C2_ALLOC_ARR(nbs, C2_NET_QT_NR);
-	for(i=0; i<C2_NET_QT_NR; i++) {
+	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		C2_SET0(nb);
-		if ( i == C2_NET_QT_MSG_RECV ) {
-			sz = min64(256,buf_seg_size);
+		if (i == C2_NET_QT_MSG_RECV) {
+			sz = min64(256, buf_seg_size);
 			nr = 1;
-		}
-		else {
+		} else {
 			nr = buf_segs;
-			if ((buf_size/buf_segs)>buf_seg_size) {
+			if ((buf_size / buf_segs) > buf_seg_size) {
 				sz = buf_seg_size;
 				C2_ASSERT((sz * nr) <= buf_size);
-			}
-			else {
+			} else {
 				sz = buf_size/buf_segs;
 			}
 		}
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz, 12);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_buffer.ov_vec.v_nr == nr);
-		C2_UT_ASSERT(c2_vec_count(&nb->nb_buffer.ov_vec) == (sz*nr));
+		C2_UT_ASSERT(c2_vec_count(&nb->nb_buffer.ov_vec) == (sz * nr));
 	}
 
 	return nbs;
@@ -299,44 +332,39 @@ void make_desc(struct c2_net_buf_desc *desc)
 }
 
 /* callback subs */
-static int ut_msg_recv_cb_calls = 0;
+static int ut_cb_calls[C2_NET_QT_NR];
 void ut_msg_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	ut_msg_recv_cb_calls++;
+	ut_cb_calls[C2_NET_QT_MSG_RECV]++;
 }
 
-static int ut_msg_send_cb_calls = 0;
 void ut_msg_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	ut_msg_send_cb_calls++;
+	ut_cb_calls[C2_NET_QT_MSG_SEND]++;
 }
 
-static int ut_passive_bulk_recv_cb_calls = 0;
 void ut_passive_bulk_recv_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_event *ev)
 {
-	ut_passive_bulk_recv_cb_calls++;
+	ut_cb_calls[C2_NET_QT_PASSIVE_BULK_RECV]++;
 }
 
-static int ut_passive_bulk_send_cb_calls = 0;
 void ut_passive_bulk_send_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_event *ev)
 {
-	ut_passive_bulk_send_cb_calls++;
+	ut_cb_calls[C2_NET_QT_PASSIVE_BULK_SEND]++;
 }
 
-static int ut_active_bulk_recv_cb_calls = 0;
 void ut_active_bulk_recv_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_event *ev)
 {
-	ut_active_bulk_recv_cb_calls++;
+	ut_cb_calls[C2_NET_QT_ACTIVE_BULK_RECV]++;
 }
 
-static int ut_active_bulk_send_cb_calls = 0;
 void ut_active_bulk_send_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_event *ev)
 {
-	ut_active_bulk_send_cb_calls++;
+	ut_cb_calls[C2_NET_QT_ACTIVE_BULK_SEND]++;
 }
 
 static int ut_event_cb_calls = 0;
@@ -345,10 +373,20 @@ void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	ut_event_cb_calls++;
 }
 
+static int ut_tm_event_cb_calls = 0;
+void ut_tm_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	ut_tm_event_cb_calls++;
+}
+
 /* UT transfer machine */
 struct c2_net_tm_callbacks ut_tm_cb = {
 	.ntc_msg_recv_cb = ut_msg_recv_cb,
 	.ntc_msg_send_cb = ut_msg_send_cb,
+	.ntc_event_cb = ut_tm_event_cb
+};
+
+struct c2_net_tm_callbacks ut_buf_cb = {
 	.ntc_passive_bulk_recv_cb = ut_passive_bulk_recv_cb,
 	.ntc_passive_bulk_send_cb = ut_passive_bulk_send_cb,
 	.ntc_active_bulk_recv_cb = ut_active_bulk_recv_cb,
@@ -445,7 +483,7 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_end_point_create_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_ASSERT(!c2_list_is_empty(&dom->nd_end_points));
-	C2_UT_ASSERT(c2_atomic64_get(&(ep1->nep_ref.ref_cnt)) == 1);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
 
 	rc = c2_net_end_point_create(&ep2, dom, "addr2", 0);
 	C2_UT_ASSERT(rc == 0);
@@ -454,23 +492,23 @@ void test_net_bulk_if(void)
 	rc = c2_net_end_point_create(&ep, dom, "addr1", 0);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ep == ep1);
-	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
 
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	rc = c2_net_end_point_get(ep); /* refcnt=3 */
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 3);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 3);
 
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	rc = c2_net_end_point_put(ep); /* refcnt=2 */
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
 
 	rc = c2_net_end_point_put(ep); /* refcnt=1 */
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_UT_ASSERT(c2_atomic64_get(&(ep->nep_ref.ref_cnt)) == 1);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 1);
 
 	rc = c2_net_end_point_put(ep); /* refcnt=0 */
 	C2_UT_ASSERT(rc == 0);
@@ -482,7 +520,7 @@ void test_net_bulk_if(void)
 	nbs = allocate_buffers(buf_size, buf_seg_size, buf_segs);
 
 	/* register the buffers */
-	for(i=0; i < C2_NET_QT_NR; ++i){
+	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		nb->nb_flags = 0;
 		ut_buf_register_called = false;
@@ -500,11 +538,12 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
 	/* add MSG_RECV buf */
-	nb = &nb[C2_NET_QT_MSG_RECV];
+	nb = &nbs[C2_NET_QT_MSG_RECV];
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_buf_add_called);
 	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
 	C2_UT_ASSERT(nb->nb_tm == tm);
 
@@ -519,49 +558,140 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(tm->ntm_ep == ep2);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTING ||
 		     tm->ntm_state == C2_NET_TM_STARTED);
-	C2_UT_ASSERT(c2_atomic64_get(&(ep2->nep_ref.ref_cnt)) == 2);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 
 	/* wait on channel for started */
 	c2_chan_wait(&tmwait);
-	C2_UT_ASSERT(ut_event_cb_calls == 1);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(ut_tm_event_cb_calls == 1);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);
 	c2_thread_fini(&ut_tm_thread);
 
-	/* initalize and add remaining types of buffers
+	/* initialize and add remaining types of buffers
 	   use buffer private callbacks for the bulk
 	 */
+	for (i = C2_NET_QT_MSG_SEND; i < C2_NET_QT_NR; ++i) {
+		nb = &nbs[i];
+		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+		nb->nb_qtype = i;
+		/* NB: real code sets nb_ep to server ep */
+		switch (i) {
+		case C2_NET_QT_MSG_SEND:
+			nb->nb_ep = ep2;
+			nb->nb_length = buf_size;
+			break;
+		case C2_NET_QT_PASSIVE_BULK_RECV:
+			nb->nb_ep = ep2;
+			nb->nb_callbacks = &ut_buf_cb;
+			break;
+		case C2_NET_QT_PASSIVE_BULK_SEND:
+			nb->nb_ep = ep2;
+			nb->nb_callbacks = &ut_buf_cb;
+			nb->nb_length = buf_size;
+			break;
+		case C2_NET_QT_ACTIVE_BULK_RECV:
+			nb->nb_callbacks = &ut_buf_cb;
+			make_desc(&nb->nb_desc);
+			break;
+		case C2_NET_QT_ACTIVE_BULK_SEND:
+			nb->nb_callbacks = &ut_buf_cb;
+			nb->nb_length = buf_size;
+			make_desc(&nb->nb_desc);
+			break;
+		}
+		rc = c2_net_buffer_add(nb, tm);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+		C2_UT_ASSERT(nb->nb_tm == tm);
+	}
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 5);
 
-	/* fake each type of "post" response */
+	/* fake each type of buffer "post" response.
+	   xprt normally does this
+	 */
+	for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
+		nb = &nbs[i];
+		struct c2_net_event ev = {
+			.nev_qtype = i,
+			.nev_tm = tm,
+			.nev_buffer = nb,
+			.nev_status = 0,
+			.nev_payload = NULL
+		};
+		c2_time_now(&ev.nev_time);
+
+		if (i == C2_NET_QT_MSG_RECV) {
+			/* simulate transport adding ep to buf */
+			nb->nb_ep = ep2;
+			rc = c2_net_end_point_get(ep2);
+			C2_UT_ASSERT(rc == 0);
+		}
+
+		rc = c2_net_tm_event_post(tm, &ev);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(ut_cb_calls[i] == 1);
+
+		if (i == C2_NET_QT_MSG_RECV) {
+			/* simulate transport removing ep from buf */
+			nb->nb_ep = NULL;
+			rc = c2_net_end_point_put(ep2);
+			C2_UT_ASSERT(rc == 0);
+		}
+	}
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 
 	/* add a buffer and fake del - check callback */
+	nb = &nbs[C2_NET_QT_PASSIVE_BULK_SEND];
+	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
+	rc = c2_net_buffer_add(nb, tm);
+	C2_UT_ASSERT(rc == 0);
+
+	ut_buf_del_called = false;
+	c2_clink_add(&tm->ntm_chan, &tmwait);
+	rc = c2_net_buffer_del(nb, tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_buf_del_called);
+	C2_UT_ASSERT(nb->nb_flags | C2_NET_BUF_CANCELLED);
+
+	/* wait on channel for post */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
 
 	/* TM stop */
+	c2_clink_add(&tm->ntm_chan, &tmwait);
 	rc = c2_net_tm_stop(tm, false);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_stop_called);
 
 	/* wait on channel for stopped */
 	c2_chan_wait(&tmwait);
-	C2_UT_ASSERT(ut_event_cb_calls == 2);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(ut_tm_event_cb_calls == 2);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);
 	c2_thread_fini(&ut_tm_thread);
 
-	/* de-queue buffers */
-	nb = &nb[C2_NET_QT_MSG_RECV];
-	rc = c2_net_buffer_del(nb, tm);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_buf_del_called);
-
 	/* de-register channel waiter */
-	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 
 	/* get stats */
+	struct c2_net_qstats qs[C2_NET_QT_NR];
+	rc = c2_net_tm_stats_get(tm,
+				 C2_NET_QT_PASSIVE_BULK_SEND,
+				 &qs[0],
+				 false);
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_net_tm_stats_get(tm,
+				 C2_NET_QT_NR,
+				 qs,
+				 true);
+	C2_UT_ASSERT(rc == 0);
 
 	/* fini the TM */
 	rc = c2_net_tm_fini(tm);
@@ -569,13 +699,13 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_tm_fini_called);
 
 	/* free end points */
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
 	rc = c2_net_end_point_put(ep2);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_last_ep_released == ep2);
 
 	/* de-register buffers */
-	for(i=0; i < C2_NET_QT_NR; ++i){
-		struct c2_net_buffer *nb;
+	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		ut_buf_deregister_called = false;
 		rc = c2_net_buffer_deregister(nb, dom);
@@ -600,7 +730,7 @@ const struct c2_test_suite net_bulk_if_ut = {
         }
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

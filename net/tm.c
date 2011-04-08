@@ -72,20 +72,25 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		cbs = tm->ntm_callbacks;
 
 	c2_net_tm_cb_proc_t cb = cbs->ntc_event_cb;
+	bool check_ep = false;
 	switch (ev->nev_qtype) {
 	case C2_NET_QT_MSG_RECV:
+		check_ep = true;	/* special case */
 		if (cbs->ntc_msg_recv_cb != NULL)
 			cb = cbs->ntc_msg_recv_cb;
 		break;
 	case C2_NET_QT_MSG_SEND:
+		check_ep = true;
 		if (cbs->ntc_msg_send_cb != NULL)
 			cb = cbs->ntc_msg_send_cb;
 		break;
 	case C2_NET_QT_PASSIVE_BULK_RECV:
+		check_ep = true;
 		if (cbs->ntc_passive_bulk_recv_cb != NULL)
 			cb = cbs->ntc_passive_bulk_recv_cb;
 		break;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
+		check_ep = true;
 		if (cbs->ntc_passive_bulk_send_cb != NULL)
 			cb = cbs->ntc_passive_bulk_send_cb;
 		break;
@@ -101,6 +106,13 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		break;
 	}
 	C2_ASSERT(cb != NULL);
+	if (check_ep) {
+		C2_ASSERT(buf->nb_ep != NULL &&
+			  c2_atomic64_get(&buf->nb_ep->nep_ref.ref_cnt) >= 1);
+		/* only check received msg buf ep, do not change refcount */
+		if (ev->nev_qtype == C2_NET_QT_MSG_RECV)
+			check_ep = false;
+	}
 
 	cb(tm, ev);
 
@@ -111,14 +123,15 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
 	tm->ntm_callback_counter--;
 	if (buf != NULL) {
-		/* someone else called _get(), not symmetric */
-		if (buf->nb_ep != NULL)
-			c2_net_end_point_put(buf->nb_ep);
 		buf->nb_flags &= ~C2_NET_BUF_IN_CALLBACK;
 		c2_cond_signal(&tm->ntm_cond, &tm->ntm_dom->nd_mutex);
 	}
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+
+	/* c2_net_buffer_add called _get(), put re-gets mutex */
+	if (check_ep)
+		c2_net_end_point_put(buf->nb_ep);
 
 	return 0;
 }
@@ -186,7 +199,7 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 		tm->ntm_dom = NULL;
 		c2_chan_fini(&tm->ntm_chan);
 		for(i=0; i < C2_NET_QT_NR; ++i) {
-			c2_list_fini(&tm->ntm_q[i]);			
+			c2_list_fini(&tm->ntm_q[i]);
 		}
 		c2_list_link_fini(&tm->ntm_dom_linkage);
 		tm->ntm_xprt_private = NULL;
@@ -225,7 +238,7 @@ C2_EXPORTED(c2_net_tm_start);
 int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 {
 	int result;
-	enum c2_net_tm_state oldstate;	
+	enum c2_net_tm_state oldstate;
 
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
