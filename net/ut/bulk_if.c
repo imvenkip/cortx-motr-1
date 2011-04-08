@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/arith.h"
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/errno.h"
@@ -127,6 +128,74 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	return 0;
 }
 
+static bool ut_buf_register_called = false;
+static int ut_buf_register(struct c2_net_buffer *nb)
+{
+	ut_buf_register_called = true;
+	return 0;
+}
+
+static bool ut_buf_deregister_called = false;
+static int ut_buf_deregister(struct c2_net_buffer *nb)
+{
+	ut_buf_deregister_called = true;
+	return 0;
+}
+
+static bool ut_buf_add_called = false;
+static int ut_buf_add(struct c2_net_buffer *nb)
+{
+	ut_buf_add_called = true;
+	return 0;
+}
+
+static bool ut_buf_del_called = false;
+static int ut_buf_del(struct c2_net_buffer *nb)
+{
+	ut_buf_del_called = true;
+	return 0;
+}
+
+struct ut_tm_pvt {
+	struct c2_net_transfer_mc *tm;
+};
+static bool ut_tm_init_called = false;
+static int ut_tm_init(struct c2_net_transfer_mc *tm)
+{
+	struct ut_tm_pvt *tmp;
+	C2_ALLOC_PTR(tmp);
+	tmp->tm = tm;
+	tm->ntm_xprt_private = tmp;
+	ut_tm_init_called = true;
+	return 0;
+}
+
+static bool ut_tm_fini_called = false;
+static int ut_tm_fini(struct c2_net_transfer_mc *tm)
+{
+	struct ut_tm_pvt *tmp;
+	tmp = tm->ntm_xprt_private;
+	C2_ASSERT(tmp->tm == tm);
+	c2_free(tmp);
+	ut_tm_fini_called = true;
+	return 0;
+}
+
+static bool ut_tm_start_called = false;
+static int ut_tm_start(struct c2_net_transfer_mc *tm)
+{
+	ut_tm_start_called = true;
+	/* may need to start a background thread */
+	return 0;
+}
+
+static bool ut_tm_stop_called = false;
+static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
+{
+	ut_tm_stop_called = true;
+	return 0;
+}
+
 static const struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_dom_init                    = ut_dom_init,
 	.xo_dom_fini                    = ut_dom_fini,
@@ -134,6 +203,14 @@ static const struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_get_max_buffer_segment_size = ut_get_max_buffer_segment_size,
 	.xo_get_max_buffer_segments     = ut_get_max_buffer_segments,
 	.xo_end_point_create            = ut_end_point_create,
+	.xo_buf_register                = ut_buf_register,
+	.xo_buf_deregister              = ut_buf_deregister,
+	.xo_buf_add                     = ut_buf_add,
+	.xo_buf_del                     = ut_buf_del,
+	.xo_tm_init                     = ut_tm_init,
+	.xo_tm_fini                     = ut_tm_fini,
+	.xo_tm_start                    = ut_tm_start,
+	.xo_tm_stop                     = ut_tm_stop,
 };
 
 static struct c2_net_xprt ut_xprt = {
@@ -159,12 +236,18 @@ allocate_buffers(c2_bcount_t buf_size,
 		nb = &nbs[i];
 		C2_SET0(nb);
 		if ( i == C2_NET_QT_MSG_RECV ) {
-			sz = 256;
+			sz = min64(256,buf_seg_size);
 			nr = 1;
 		}
 		else {
-			sz = buf_size;
 			nr = buf_segs;
+			if ((buf_size/buf_segs)>buf_seg_size) {
+				sz = buf_seg_size;
+				C2_ASSERT((sz * nr) <= buf_size);
+			}
+			else {
+				sz = buf_size/buf_segs;
+			}
 		}
 		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz, 12);
 		C2_UT_ASSERT(rc == 0);
@@ -175,17 +258,47 @@ allocate_buffers(c2_bcount_t buf_size,
 	return nbs;
 }
 
+void make_desc(struct c2_net_buf_desc *desc)
+{
+	static const char *p = "descriptor";
+	size_t len = strlen(p)+1;
+	desc->nbd_data = c2_alloc(len);
+	desc->nbd_len = len;
+	strcpy(desc->nbd_data, p);
+}
+
+/* callback subs */
+
+
 /*
   Unit test starts
  */
 void test_net_bulk_if(void)
 {
-	int rc;
+	int rc, i;
 	c2_bcount_t buf_size, buf_seg_size;
 	int32_t   buf_segs;
 	struct c2_net_domain *dom = &utdom;
 	struct c2_net_buffer *nbs;
 	struct c2_net_end_point *ep1, *ep2, *ep;
+	struct c2_net_buf_desc d1, d2;
+
+
+	C2_SET0(&d1);
+	C2_SET0(&d2);
+	make_desc(&d1);
+	C2_UT_ASSERT(d1.nbd_data != NULL);
+	C2_UT_ASSERT(d1.nbd_len > 0);
+	rc = c2_net_desc_copy(&d1, &d2);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(d2.nbd_data != NULL);
+	C2_UT_ASSERT(d2.nbd_len > 0);
+	C2_UT_ASSERT(d1.nbd_data != d2.nbd_data);
+	C2_UT_ASSERT(d1.nbd_len == d2.nbd_len);
+	C2_UT_ASSERT(memcmp(d1.nbd_data, d2.nbd_data, d1.nbd_len) == 0);
+	c2_net_desc_free(&d2);
+	C2_UT_ASSERT(d2.nbd_data == NULL);
+	C2_UT_ASSERT(d2.nbd_len == 0);
 
 	/* initialize the domain */
 	C2_UT_ASSERT(ut_dom_init_called == false);
@@ -276,15 +389,54 @@ void test_net_bulk_if(void)
 	/* allocate buffers for testing */
 	nbs = allocate_buffers(buf_size, buf_seg_size, buf_segs);
 
+	/* register the buffers */
+	for(i=0; i < C2_NET_QT_NR; ++i){
+		struct c2_net_buffer *nb;
+		nb = &nbs[i];
+		nb->nb_flags = 0;
+		ut_buf_register_called = false;
+		rc = c2_net_buffer_register(nb, dom);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(ut_buf_register_called);
+		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED);
+	}
+
+
+	/* TM init with callbacks */
+
+	/* add MSG_RECV buf */
+
+	/* TM start */
+
+	/* wait on channel for started */
+
+	/* initalize and add remaining types of buffers
+	   use buffer private callbacks for the bulk
+	 */
+
+	/* fake each type of "post" response */
+
+	/* add a buffer and fake del - check callback */
+
 	/* free end points */
 	rc = c2_net_end_point_put(ep2);
 	C2_UT_ASSERT(rc == 0);
+
+	/* de-register buffers */
+	for(i=0; i < C2_NET_QT_NR; ++i){
+		struct c2_net_buffer *nb;
+		nb = &nbs[i];
+		ut_buf_deregister_called = false;
+		rc = c2_net_buffer_deregister(nb, dom);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(ut_buf_deregister_called);
+		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_REGISTERED));
+	}
 
 	/* fini the domain */
 	C2_UT_ASSERT(ut_dom_fini_called == false);
 	c2_net_domain_fini(dom);
 	C2_UT_ASSERT(ut_dom_fini_called);
-
 }
 
 const struct c2_test_suite net_bulk_if_ut = {

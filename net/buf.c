@@ -121,7 +121,6 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 		c2_list_del(&buf->nb_dom_linkage);
 		buf->nb_xprt_private = NULL;
 	}
-	C2_POST(c2_net__buffer_invariant(buf));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
