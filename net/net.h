@@ -898,28 +898,7 @@ struct c2_net_transfer_mc {
 	/**
 	   Lists of c2_net_buffer structures by queue type.
 	 */
-	struct c2_list             ntm_q[C2_NET_QT_NR];
-
-	/** List of c2_net_buffer structures involved in message passing.
-	    Implements the C2_NET_QT_MSG_RECV and C2_NET_QT_MSG_SEND
-	    logical queues.
-	    <b>Deprecated</b>
-	*/
-	struct c2_list              ntm_msg_bufs;
-
-	/** List of c2_net_buffer structures involved in passive bulk transfer.
-	    Implements the C2_NET_QT_PASSIVE_BULK_SEND and
-	    C2_NET_QT_PASSIVE_BULK_RECV logical queues.
-	    <b>Deprecated</b>
-	*/
-	struct c2_list              ntm_passive_bufs;
-
-	/** List of c2_net_buffer structures involved in active bulk transfer.
-	    Implements the C2_NET_QT_ACTIVE_BULK_RECV and
-	    C2_NET_QT_ACTIVE_BULK_SEND logical queues.
-	    <b>Deprecated</b>
-	*/
-	struct c2_list              ntm_active_bufs;
+	struct c2_list              ntm_q[C2_NET_QT_NR];
 
 	/** Statistics maintained per logical queue */
 	struct c2_net_qstats        ntm_qstats[C2_NET_QT_NR];
