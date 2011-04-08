@@ -12,6 +12,7 @@
 #include "net/net.h"
 
 static struct c2_net_domain utdom;
+static struct c2_net_transfer_mc ut_tm;
 
 /*
  *****************************************************
@@ -175,25 +176,55 @@ static int ut_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
 	tmp = tm->ntm_xprt_private;
-	C2_ASSERT(tmp->tm == tm);
+	C2_UT_ASSERT(tmp->tm == tm);
 	c2_free(tmp);
 	ut_tm_fini_called = true;
 	return 0;
 }
 
+struct c2_thread ut_tm_thread;
+static void ut_post_ev_thread(int n)
+{
+	int rc;
+	struct c2_net_event ev = {
+		.nev_qtype = C2_NET_QT_NR,
+		.nev_tm = &ut_tm,
+		.nev_buffer = NULL,
+		.nev_status = 0,
+		.nev_payload = (void *) (enum c2_net_tm_state) n
+	};
+	c2_time_now(&ev.nev_time);
+
+	/* post requested event */
+	rc = c2_net_tm_event_post(&ut_tm, &ev);
+	C2_UT_ASSERT(rc == 0);
+}
+
 static bool ut_tm_start_called = false;
 static int ut_tm_start(struct c2_net_transfer_mc *tm)
 {
+	int rc;
+
 	ut_tm_start_called = true;
-	/* may need to start a background thread */
-	return 0;
+	/* create bg thread to post start state change event.
+	   cannot do it here: we are in dom lock, post would assert.
+	 */
+	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
+			    &ut_post_ev_thread, C2_NET_TM_STARTED);
+	C2_UT_ASSERT(rc == 0);
+	return rc;
 }
 
 static bool ut_tm_stop_called = false;
 static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
+	int rc;
+
 	ut_tm_stop_called = true;
-	return 0;
+	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
+			    &ut_post_ev_thread, C2_NET_TM_STOPPED);
+	C2_UT_ASSERT(rc == 0);
+	return rc;
 }
 
 static const struct c2_net_xprt_ops ut_xprt_ops = {
@@ -268,7 +299,67 @@ void make_desc(struct c2_net_buf_desc *desc)
 }
 
 /* callback subs */
+static int ut_msg_recv_cb_calls = 0;
+void ut_msg_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	ut_msg_recv_cb_calls++;
+}
 
+static int ut_msg_send_cb_calls = 0;
+void ut_msg_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	ut_msg_send_cb_calls++;
+}
+
+static int ut_passive_bulk_recv_cb_calls = 0;
+void ut_passive_bulk_recv_cb(struct c2_net_transfer_mc *tm,
+			     struct c2_net_event *ev)
+{
+	ut_passive_bulk_recv_cb_calls++;
+}
+
+static int ut_passive_bulk_send_cb_calls = 0;
+void ut_passive_bulk_send_cb(struct c2_net_transfer_mc *tm,
+			     struct c2_net_event *ev)
+{
+	ut_passive_bulk_send_cb_calls++;
+}
+
+static int ut_active_bulk_recv_cb_calls = 0;
+void ut_active_bulk_recv_cb(struct c2_net_transfer_mc *tm,
+			    struct c2_net_event *ev)
+{
+	ut_active_bulk_recv_cb_calls++;
+}
+
+static int ut_active_bulk_send_cb_calls = 0;
+void ut_active_bulk_send_cb(struct c2_net_transfer_mc *tm,
+			    struct c2_net_event *ev)
+{
+	ut_active_bulk_send_cb_calls++;
+}
+
+static int ut_event_cb_calls = 0;
+void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	ut_event_cb_calls++;
+}
+
+/* UT transfer machine */
+struct c2_net_tm_callbacks ut_tm_cb = {
+	.ntc_msg_recv_cb = ut_msg_recv_cb,
+	.ntc_msg_send_cb = ut_msg_send_cb,
+	.ntc_passive_bulk_recv_cb = ut_passive_bulk_recv_cb,
+	.ntc_passive_bulk_send_cb = ut_passive_bulk_send_cb,
+	.ntc_active_bulk_recv_cb = ut_active_bulk_recv_cb,
+	.ntc_active_bulk_send_cb = ut_active_bulk_send_cb,
+	.ntc_event_cb = ut_event_cb
+};
+
+static struct c2_net_transfer_mc ut_tm = {
+	.ntm_callbacks = &ut_tm_cb,
+	.ntm_state = C2_NET_TM_UNDEFINED
+};
 
 /*
   Unit test starts
@@ -279,10 +370,11 @@ void test_net_bulk_if(void)
 	c2_bcount_t buf_size, buf_seg_size;
 	int32_t   buf_segs;
 	struct c2_net_domain *dom = &utdom;
+	struct c2_net_transfer_mc *tm = &ut_tm;
 	struct c2_net_buffer *nbs;
+	struct c2_net_buffer *nb;
 	struct c2_net_end_point *ep1, *ep2, *ep;
 	struct c2_net_buf_desc d1, d2;
-
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -391,7 +483,6 @@ void test_net_bulk_if(void)
 
 	/* register the buffers */
 	for(i=0; i < C2_NET_QT_NR; ++i){
-		struct c2_net_buffer *nb;
 		nb = &nbs[i];
 		nb->nb_flags = 0;
 		ut_buf_register_called = false;
@@ -401,14 +492,43 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED);
 	}
 
-
 	/* TM init with callbacks */
+	rc = c2_net_tm_init(tm, dom);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_init_called);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
 	/* add MSG_RECV buf */
+	nb = &nb[C2_NET_QT_MSG_RECV];
+	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	rc = c2_net_buffer_add(nb, tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(nb->nb_tm == tm);
 
 	/* TM start */
+	struct c2_clink tmwait;
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&tm->ntm_chan, &tmwait);
+
+	rc = c2_net_tm_start(tm, ep2);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_start_called);
+	C2_UT_ASSERT(tm->ntm_ep == ep2);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTING ||
+		     tm->ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(c2_atomic64_get(&(ep2->nep_ref.ref_cnt)) == 2);
 
 	/* wait on channel for started */
+	c2_chan_wait(&tmwait);
+	C2_UT_ASSERT(ut_event_cb_calls == 1);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+
+	/* clean up; real xprt would handle this itself */
+	c2_thread_join(&ut_tm_thread);
+	c2_thread_fini(&ut_tm_thread);
 
 	/* initalize and add remaining types of buffers
 	   use buffer private callbacks for the bulk
@@ -418,9 +538,40 @@ void test_net_bulk_if(void)
 
 	/* add a buffer and fake del - check callback */
 
+	/* TM stop */
+	rc = c2_net_tm_stop(tm, false);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_stop_called);
+
+	/* wait on channel for stopped */
+	c2_chan_wait(&tmwait);
+	C2_UT_ASSERT(ut_event_cb_calls == 2);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);
+
+	/* clean up; real xprt would handle this itself */
+	c2_thread_join(&ut_tm_thread);
+	c2_thread_fini(&ut_tm_thread);
+
+	/* de-queue buffers */
+	nb = &nb[C2_NET_QT_MSG_RECV];
+	rc = c2_net_buffer_del(nb, tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_buf_del_called);
+
+	/* de-register channel waiter */
+	c2_clink_del(&tmwait);
+
+	/* get stats */
+
+	/* fini the TM */
+	rc = c2_net_tm_fini(tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_fini_called);
+
 	/* free end points */
 	rc = c2_net_end_point_put(ep2);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_last_ep_released == ep2);
 
 	/* de-register buffers */
 	for(i=0; i < C2_NET_QT_NR; ++i){

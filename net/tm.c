@@ -176,6 +176,10 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_fini(tm);
 	if (result >= 0) {
+		if (tm->ntm_ep != NULL) {
+			c2_ref_put(&tm->ntm_ep->nep_ref);
+			tm->ntm_ep = NULL;
+		}
 		c2_list_del(&tm->ntm_dom_linkage);
 		tm->ntm_state = C2_NET_TM_UNDEFINED;
 		c2_cond_fini(&tm->ntm_cond);
@@ -233,7 +237,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
 	if (result < 0)
 		tm->ntm_state = oldstate;
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 
 	return result;
 }
