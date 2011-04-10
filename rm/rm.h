@@ -52,11 +52,6 @@ struct c2_rm_right_ops;
 struct c2_rm_request;
 struct c2_rm_lease;
 
-enum {
-	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
-	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
-};
-
 /**
    Domain of resource management.
 
@@ -77,26 +72,6 @@ struct c2_rm_domain {
 	struct c2_mutex             rd_lock;
 };
 
-enum c2_rm_resource_state {
-	RES_FREE = 1,
-	RES_LOCATING,
-	RES_CACHED,
-	RES_USED
-};
-
-/**
-   A representation of a resource owner from another domain.
-
-   This is a generic structure.
-
-   c2_rm_resource as a portal through which interaction with the remote
-   resource owners is transacted.
- */
-struct c2_rm_remote {
-	struct c2_service_id rem_service;
-	uint64_t             rem_cookie;
-};
-
 /**
    c2_rm_resource represents a resource identity (i.e., a name). Multiple
    copies of the same name may exist in different resource management
@@ -113,8 +88,6 @@ struct c2_rm_remote {
 struct c2_rm_resource {
 	struct c2_rm_resource_type      *r_type;
 	const struct c2_rm_resource_ops *r_ops;
-	struct c2_chan                   r_signal;
-	enum c2_rm_resource_state        r_state;
 	/**
 	   Linkage to a list of all resources of this type, hanging off
 	   c2_rm_resource_type::rt_resources.
@@ -193,6 +166,11 @@ struct c2_rm_resource_type {
 	struct c2_rm_domain                  *rt_dom;
 };
 
+enum {
+	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
+	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
+};
+
 struct c2_rm_resource_type_ops {
 	bool (*rto_eq)(const struct c2_rm_resource_type *rt0,
 		       const struct c2_rm_resource_type *rt1);
@@ -218,6 +196,10 @@ struct c2_rm_resource_type_ops {
 struct c2_rm_right {
 	struct c2_rm_resource        *ri_resource;
 	const struct c2_rm_right_ops *ri_ops;
+	/** number of active right users. */
+	uint32_t                      ri_users;
+	/** resource type private field. By convention, 0 means "empty"
+	    right. */
 	uint64_t                      ri_datum;
 };
 
@@ -241,12 +223,14 @@ struct c2_rm_right_ops {
 	    any two rights on the same resource
 
 	    - their intersection ("meet") is defined as a largest right
-              that implies both original rights and
+              implied by both original rights and
 
-	    - their union ("join") is defined as a smallest right implied
-              by both original rights.
+	    - their union ("join") is defined as a smallest right that implies
+              both original rights.
 
-	    Rights A and B are equal of each implies the other.
+	    Rights A and B are equal if each implies the other. If A implies B,
+	    then their difference is defined as a largest right implied by A
+	    that has empty intersection with B.
 	 */
 	/** @{ */
 	/** intersection. This method updates r0 in place. */
@@ -255,26 +239,105 @@ struct c2_rm_right_ops {
 	/** union. This method updates r0 in place. */
 	void (*rro_join)   (struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
+	/**
+	    difference. This method updates r0 in place.
+
+	    @pre r0->ri_ops->rro_implies(r0, r1)
+	 */
+	void (*rro_diff)   (struct c2_rm_right *r0,
+			    const struct c2_rm_right *r1)
 	/** true, iff r0 is "less than or equal to" r1. */
 	bool (*rro_implies)(const struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
 	/** @} end of Rights ordering */
 };
 
+enum c2_rm_remote_state {
+	REM_FREED = 0
+	REM_INITIALIZED,
+	REM_SERVICE_LOCATING,
+	REM_SERVICE_LOCATED,
+	REM_RESOURCE_LOCATING,
+	REM_RESOURCE_LOCATED
+};
+
 /**
+   A representation of a resource owner from another domain.
+
+   This is a generic structure.
+
+   c2_rm_remote as a portal through which interaction with the remote resource
+   owners is transacted. c2_rm_remote state transitions happen under its
+   resource's lock.
+
+   A remote owner is needed to borrow from or loan to an owner in a different
+   domain. To establish the communication between local and remote owner the
+   following stages are needed:
+
+       - a service managing the remote owner must be located in the
+         cluster. The particular way to do this depends on a resource type. For
+         some resource types, the service is immediately known. For example, a
+         "grant" (i.e., a reservation of a free storage space on a data
+         service) is provided by the data service, which is already known by
+         the time the grant is needed. For such resource types,
+         c2_rm_remote::rem_state is initialised to REM_SERVICE_LOCATED. For
+         other resource types, a distributed resource location data-base is
+         consulted to locate the service. While the data-base query is going
+         on, the remote owner is in REM_SERVICE_LOCATING state;
+
+       - once the service is known, the owner within the service should be
+         located. This is done generically, by sending a resource management
+         fop to the service. The service responds with the remote owner
+         identifier (c2_rm_remote::rem_id) used for further communications. The
+         service might respond with an error, if the owner is no longer
+         there. In this case, c2_rm_state::rem_state goes back to
+         REM_SERVICE_LOCATING.
+
+	 Owner identification is an optional step, intended to optimise remote
+	 service performance. The service should be able to deal with the
+	 requests without the owner identifier. Because of this, owner
+	 identification can be piggy-backed to the first operation on the
+	 remote owner.
+
+       	     fini
+       	+----------------INITIALISED
+	|           	      |
+	|    	       	      | query the resource data-base
+	|    	       	      |
+       	|    TIMEOUT   	      V
+       	+--------------SERVICE_LOCATING<----+
+	|	       	      |		    |
+	|	       	      | reply: OK   |
+	|	       	      |		    |
+	V    fini      	      V		    |
+      FREED<-----------SERVICE_LOCATED	    | reply: moved
+	^	       	      |		    |
+	|	       	      |	get id	    |
+	|      	       	      |		    |
+	|    TIMEOUT   	      V		    |
+	+--------------RESOURCE_LOCATING----+
+	|	       	      |
+	|	       	      | reply: id
+	|	       	      |
+	|    fini      	      V
+	+--------------RESOURCE_LOCATED
+
  */
-struct c2_rm_loan {
+struct c2_rm_remote {
+	enum c2_rm_remote_state  rem_state;
 	/**
-	   A linkage to the list of all loads given out by an owner and hanging
-	   off c2_rm_owner::ro_sublet.
+	   A resource for which the remote owner is represented.
 	 */
-	struct c2_list_link rl_linkage;
-	struct c2_rm_right  rl_right;
-	/**
-	   Other party in the loan. Either an "upward" creditor or "downward"
-	   debtor.
-	 */
-	struct c2_rm_remote rl_other;
+	struct c2_rm_resource   *rem_resource;
+	/** A channel to signal state changes. */
+	struct c2_chan           rem_signal;
+	/** A service to be contacted to talk with the remote owner. Valid in
+	    states starting from REM_SERVICE_LOCATED. */
+	struct c2_service_id     rem_service;
+	/** An identifier of the remote owner within the service. Valid in
+	    REM_RESOURCE_LOCATED state. This identifier is generated by the
+	    resource manager service. */
+	uint64_t                 rem_id;
 };
 
 /**
@@ -294,6 +357,10 @@ struct c2_rm_loan {
    maintain whatever scheduling properties are desired, like serialisability.
  */
 struct c2_rm_group {
+};
+
+enum {
+	C2_RM_REQUEST_PRIORITY_MAX = 3
 };
 
 /**
@@ -331,8 +398,11 @@ struct c2_rm_group {
    c2_rm_owner is a generic structure, created and maintained by the
    generic resource manager code.
 
-   @invariant under ->ro_lock, the union of ->ro_owned and all rights in
-   ->ro_sublet equals ->ro_borrowed.
+   @invariant under ->ro_lock { // keep books balanced at all times
+           join of ->ro_owned and
+                   rights on ->ro_sublet equals to
+           join of rights on ->ro_borrowed
+   }
  */
 struct c2_rm_owner {
 	/**
@@ -352,10 +422,6 @@ struct c2_rm_owner {
 	 */
 	struct c2_list         ro_borrowed;
 	/**
-	   Right that is possessed by the owner.
-	 */
-	struct c2_rm_right     ro_owned;
-	/**
 	   A list of loans, linked through c2_rm_load::rl_linkage that this
 	   owner extended to other owners. Rights on this list are not longer
 	   possessed by this owner: they are counted in
@@ -363,32 +429,72 @@ struct c2_rm_owner {
 	 */
 	struct c2_list         ro_sublet;
 	/**
-	   A list of incoming requests, not yet satisfied. Requests are linked
-	   through c2_rm_request::rq_want::rl_linkage.
+	   Right that is possessed by the owner.
 	 */
-	struct c2_list         ro_pending;
+	struct c2_rm_right     ro_owned;
+	/**
+	   An array of lists, sorted by priority, of incoming requests, not yet
+	   satisfied. Requests are linked through
+	   c2_rm_request::rq_want::rl_linkage.
+
+	   @see c2_rm_owner::ro_outgoing
+	 */
+	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_MAX + 1];
+	/**
+	   An array of lists, sorted by priority, of outgoing, not yet
+	   completed, requests.
+
+	   @see c2_rm_owner::ro_incoming
+	 */
+	struct c2_list         ro_outgoing[C2_RM_REQUEST_PRIORITY_MAX + 1];
 	struct c2_mutex        ro_lock;
 };
 
-enum c2_rm_request_state {
-	RRS_GRANTED
+/**
+   A loan (of a right) from one owner to another.
+
+   c2_rm_loan is always on some list (to which it is linked through
+   c2_rm_loan::rl_linkage field) in an owner structure. This owner is one party
+   of the loan. Another party is c2_rm_loan::rl_other. Which party is creditor
+   and which is debtor is determined by the list the loan is on.
+ */
+struct c2_rm_loan {
+	/**
+	   A linkage to the list of all loads given out by an owner and hanging
+	   off either c2_rm_owner::ro_sublet or c2_rm_owner::ro_borrowed.
+	 */
+	struct c2_list_link rl_linkage;
+	struct c2_rm_right  rl_right;
+	/**
+	   Other party in the loan. Either an "upward" creditor or "downward"
+	   debtor.
+	 */
+	struct c2_rm_remote rl_other;
+	/**
+	   A identifier generated by the remote end that should be passed back
+	   whenever operating on a loan (think loan agreement number).
+	 */
+	uint64_t            rl_id;
 };
 
 /**
+   Resource usage right request.
+
+   The same c2_rm_request structure is used to track state of the outgoing and
+   incoming requests.
+
    @note a cedent can grant a usage right larger than requested.
  */
 struct c2_rm_request {
-	enum c2_rm_request_state  rq_state;
-	struct c2_rm_loan         rq_want;
-	struct c2_rm_right        rq_have;
-	struct c2_chan            rq_signal;
+	struct c2_rm_loan  rq_want;
+	struct c2_rm_right rq_have;
 };
 
 struct c2_rm_lease {
 };
 
-void c2_rm_domain_init(struct c2_rm_domain_init *dom);
-void c2_rm_domain_fini(struct c2_rm_domain_init *dom);
+void c2_rm_domain_init(struct c2_rm_domain *dom);
+void c2_rm_domain_fini(struct c2_rm_domain *dom);
 
 /**
    Register a resource type with a domain.
