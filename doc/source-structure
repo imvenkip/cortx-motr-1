@@ -138,7 +138,7 @@ in core/foo/foo.h, add
 
 #include "foo/foo.h"
 
-to core/colibri/init.c and add { &foo_init, &foo_fini } to the
+to core/colibri/init.c and add { &foo_init, &foo_fini, "foo" } to the
 subsystem[] array, defined in core/colibri/init.c. foo_init() must
 follow standard return conventions: 0 on success, negated errno value
 on failure.
