@@ -8,7 +8,8 @@ SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop addb sm stob net dtm nrs \
 
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut #rpc/ut
+            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut \
+            rm/ut #rpc/ut
 SUBDIR_ST = 
 SUBDIR_UB = 
 SUBDIR_BIN = mds utils

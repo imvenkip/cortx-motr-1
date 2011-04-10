@@ -3,6 +3,7 @@
 #ifndef __COLIBRI_RM_RM_H__
 #define __COLIBRI_RM_RM_H__
 
+#include "net/net.h"         /* c2_service_id */
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
@@ -38,6 +39,10 @@
    @{
 */
 
+/* import */
+struct c2_vec_cursor;
+
+/* export */
 struct c2_rm_domain;
 struct c2_rm_resource;
 struct c2_rm_resource_ops;
@@ -51,6 +56,11 @@ struct c2_rm_right;
 struct c2_rm_right_ops;
 struct c2_rm_request;
 struct c2_rm_lease;
+
+enum {
+	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
+	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
+};
 
 /**
    Domain of resource management.
@@ -103,7 +113,7 @@ struct c2_rm_resource {
 
 struct c2_rm_resource_ops {
 	int (*rto_encode)(struct c2_vec_cursor *bufvec,
-			  struct c2_resource **resource);
+			  struct c2_rm_resource **resource);
 	/**
 	   Called when a new right is allocated for the resource. The resource
 	   specific code should parse the right description stored in the
@@ -166,16 +176,11 @@ struct c2_rm_resource_type {
 	struct c2_rm_domain                  *rt_dom;
 };
 
-enum {
-	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
-	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
-};
-
 struct c2_rm_resource_type_ops {
 	bool (*rto_eq)(const struct c2_rm_resource_type *rt0,
 		       const struct c2_rm_resource_type *rt1);
 	int  (*rto_decode)(struct c2_vec_cursor *bufvec,
-			   struct c2_resource **resource);
+			   struct c2_rm_resource **resource);
 };
 
 /**
@@ -245,7 +250,7 @@ struct c2_rm_right_ops {
 	    @pre r0->ri_ops->rro_implies(r0, r1)
 	 */
 	void (*rro_diff)   (struct c2_rm_right *r0,
-			    const struct c2_rm_right *r1)
+			    const struct c2_rm_right *r1);
 	/** true, iff r0 is "less than or equal to" r1. */
 	bool (*rro_implies)(const struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
@@ -253,7 +258,7 @@ struct c2_rm_right_ops {
 };
 
 enum c2_rm_remote_state {
-	REM_FREED = 0
+	REM_FREED = 0,
 	REM_INITIALIZED,
 	REM_SERVICE_LOCATING,
 	REM_SERVICE_LOCATED,
@@ -504,8 +509,8 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom);
    @post ergo(result == 0, IS_IN_ARRAY(rtype->rt_id, dom->rd_types) &&
                            rtype->rt_dom == dom)
  */
-int  c2_rm_register  (struct c2_rm_domain_init *dom,
-		      struct c2_rm_resource_type *rtype);
+int c2_rm_register(struct c2_rm_domain *dom, struct c2_rm_resource_type *rt);
+
 /**
    Deregister a resource type.
 
