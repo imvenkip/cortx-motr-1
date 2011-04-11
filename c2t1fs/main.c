@@ -18,12 +18,14 @@
 
 #include "c2t1fs.h"
 #include "io_k.h"
+#include "io_fops_k.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
+#include "io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -127,6 +129,39 @@ MODULE_AUTHOR("Yuriy V. Umanets <yuriy.umanets@clusterstor.com>, Huang Hua, Jins
 MODULE_DESCRIPTION("Colibri C2T1 File System");
 MODULE_LICENSE("GPL");
 
+
+/**
+ * Global container id used to identify the corresponding
+ * component object at the server side.
+ * In future, this will be changed. 
+ */
+#define c2_global_container_id	10
+
+extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
+
+/**
+ * Some user/group identification functions to fill up 
+ * the uid/gid fields from various FOPs.
+ * These are hard coded for now. They will be replaced
+ * with proper user authorization routines in future.
+ */
+static uint64_t c2_get_uid(void)
+{
+	return (uint64_t)1234;
+}
+
+static uint64_t c2_get_gid(void)
+{
+	return (uint64_t)4321;
+}
+
+static uint64_t c2_get_nid(void)
+{
+	return (uint64_t)5678;
+}
+
+
 static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
@@ -137,11 +172,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_net_call  kcall;
 
         if (rw == WRITE) {
-		struct c2_io_write     *arg;
-                struct c2_io_write_rep *ret;
+		struct c2_fop_cob_writev 	*arg;
+                struct c2_fop_cob_writev_rep	*ret;
 
-		f = c2_fop_alloc(&c2_io_write_fopt, NULL);
-		r = c2_fop_alloc(&c2_io_write_rep_fopt, NULL);
+		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -151,27 +186,43 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
-                arg->siw_object.f_seq  = 10;
-                arg->siw_object.f_oid  = objid;
-		arg->siw_offset        = pos;
-		arg->siw_buf.cib_count = len;
-		arg->siw_buf.cib_pgoff = off;
-		arg->siw_buf.cib_value = pages;
+ 		/* With introduction of FOMs, a reply FOP will be allocated 
+ 		 * by the request FOP and a pointer to it will be 
+ 		 * sent across. 
+ 		 * XXX The reply FOP pointer is not used as of now.
+ 		 */
+ 		arg->fwr_foprep 		= (uint64_t)ret;
+ 		arg->fwr_fid.f_seq		= c2_global_container_id;
+ 		arg->fwr_fid.f_oid		= objid;
+ 		arg->fwr_iovec.iov_count 	= 1;
+ 
+ 		/* Populate the vector of write FOP */
+		arg->fwr_iovec.iov_seg.f_offset = pos;
+		arg->fwr_iovec.iov_seg.f_buf.cfib_pgoff = off;
+		arg->fwr_iovec.iov_seg.f_buf.f_buf = pages;
+		arg->fwr_iovec.iov_seg.f_buf.f_count = len;
 
+ 		arg->fwr_uid = c2_get_uid();
+ 		arg->fwr_gid = c2_get_gid();
+ 		arg->fwr_nid = c2_get_nid();
+ 		arg->fwr_flags = 0;
+  
                 DBG("writing data to server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("write to server returns %d\n", rc);
+
                 if (rc)
                         return rc;
-                rc = ret->siwr_rc ? : ret->siwr_count;
+                rc = ret->fwrr_rc ? : ret->fwrr_count;
         } else {
-		struct c2_io_read      *arg;
-                struct c2_io_read_rep  *ret;
 
-		f = c2_fop_alloc(&c2_io_read_fopt, NULL);
-		r = c2_fop_alloc(&c2_io_read_rep_fopt, NULL);
+ 		struct c2_fop_cob_readv		*arg;
+                struct c2_fop_cob_readv_rep	*ret;
+  
+ 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+ 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -181,23 +232,38 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
-                arg->sir_object.f_seq = 10;
-                arg->sir_object.f_oid = objid;
-		arg->sir_seg.f_offset = pos;
-		arg->sir_seg.f_count  = len;
+ 		/* With introduction of FOMs, a reply FOP will be allocated 
+ 		 * by the request FOP and a pointer to it will be 
+ 		 * sent across. 
+ 		 * XXX The reply FOP pointer is not used as of now.
+ 		 */
+ 		arg->frd_foprep 		= (uint64_t)ret;
+ 		arg->frd_fid.f_seq		= c2_global_container_id;
+ 		arg->frd_fid.f_oid		= objid;
+ 		arg->frd_ioseg.f_count 	= 1;
+ 
+ 		/* Populate the vector of read FOP */
+		arg->frd_ioseg.f_offset = pos;
+		arg->frd_ioseg.f_count = len;
 
-		ret->sirr_buf.cib_count = len;
-		ret->sirr_buf.cib_pgoff = off;
-		ret->sirr_buf.cib_value = pages;
+ 		arg->frd_uid = c2_get_uid();
+ 		arg->frd_gid = c2_get_gid();
+ 		arg->frd_nid = c2_get_nid();
+ 		arg->frd_flags = 0;
+
+		ret->frdr_buf.f_buf = pages;
+		ret->frdr_buf.f_count = len;
+		ret->frdr_buf.cfib_pgoff = off;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
 
                 DBG("read from server returns %d\n", rc);
+
                 if (rc)
                         return rc;
-                rc = ret->sirr_rc ? : ret->sirr_buf.cib_count;
+                rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);
@@ -225,7 +291,7 @@ static int ksunrpc_create(struct c2_net_conn *conn,
 	arg = c2_fop_data(f);
 	ret = c2_fop_data(r);
 
-        arg->sic_object.f_seq = 10;
+        arg->sic_object.f_seq = c2_global_container_id;
         arg->sic_object.f_oid = objid;
 
         DBG("%s create object %llu\n", __FUNCTION__, objid);

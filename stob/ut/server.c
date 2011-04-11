@@ -16,6 +16,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "fop/fop.h"
+#include "fop/fom.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
 
@@ -26,6 +27,8 @@
 
 #include "io_fop.h"
 #include "io_u.h"
+#include "ioservice/io_foms.h"
+#include "ioservice/io_fops.h"
 
 /**
    @addtogroup stob
@@ -294,6 +297,19 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
+
+	/* 
+	 * FOMs are implemented only for read and write operations 
+	 */
+	if ((fop->f_type->ft_code >= c2_io_service_readv_opcode)) {
+		/*
+		 * A dummy request handler API to handle incoming FOPs.
+		 * Actual reqh will be used in future.
+		 */
+		rc = c2_io_dummy_req_handler(service, fop, cookie, &fol, dom);
+		return rc;
+	}
+	else
 /*
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
@@ -310,7 +326,13 @@ static struct c2_fop_type *fopt[] = {
 	&c2_io_read_fopt,
 	&c2_io_create_fopt,
 	&c2_io_quit_fopt,
-	&c2_addb_record_fopt
+
+	&c2_addb_record_fopt,
+
+	&c2_fop_cob_readv_fopt,
+	&c2_fop_cob_writev_fopt,
+	&c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_readv_rep_fopt,
 };
 
 struct mock_balloc {

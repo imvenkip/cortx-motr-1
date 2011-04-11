@@ -166,6 +166,7 @@ enum c2_fom_phase {
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
 	FOPH_FAILED,                /*< fom failed. */
+	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */
@@ -190,11 +191,17 @@ void c2_fom_queue(struct c2_fom_domain *dom, struct c2_fom *fom);
 /** Fop state machine. */
 struct c2_fom {
 	enum c2_fom_state        fo_state;
-	enum c2_fom_phase        fo_phase;
+	int 			 fo_phase;
 	struct c2_fom_locality  *fo_loc;
 	struct c2_fom_type      *fo_type;
 	const struct c2_fom_ops *fo_ops;
 	struct c2_clink          fo_clink;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx	*fo_fop_ctx;
+	/** FOL object to make transactions of update operations. */
+	struct c2_fol		*fo_fol;
+	/** Stob domain in which this FOM is operating. */
+	struct c2_stob_domain	*fo_domain;
 };
 
 void c2_fom_init(struct c2_fom *fom);
