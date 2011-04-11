@@ -77,7 +77,7 @@ struct c2_processor_node {
 /**
    Overload function names.
  */
-#define c2_processor_info(a,b)		c2_processor_get_x86info((a), (b))
+#define c2_processor_info(a,b)		c2_processor_find_x86info((a), (b))
 #define c2_processor_cache_create()	c2_processor_x86cache_create()
 #define c2_processor_cache_destroy()	c2_processor_x86cache_destroy()
 #else
@@ -153,6 +153,7 @@ static inline uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id)
    Fetch the default L1 or L2 cache size for a given processor.
 
    @param id -> id of the processor for which information is requested.
+   @param cache_level -> cache level (L1 or L2) for which id is requested.
 
    @retval size of L1 or L2  cache size, in bytes, for the given processor.
 
@@ -530,14 +531,14 @@ static void c2_processor_x86_info(void *arg)
    @see c2_processor_get_info
 
  */
-static int c2_processor_get_x86info(c2_processor_nr_t id,
+static int c2_processor_find_x86info(c2_processor_nr_t id,
 			  	    struct c2_processor_descr *pd)
 {
 	int rc = -EINVAL;
 	struct c2_processor_node *pinfo;
 
-	C2_ASSERT(pd != NULL);
-	C2_ASSERT(c2_processor_is_initialized() == true);
+	C2_PRE(pd != NULL);
+	C2_PRE(c2_processor_is_initialized() == true);
 
 	c2_list_for_each_entry(&x86_cpus, pinfo, struct c2_processor_node,
 			       pn_link) {
@@ -573,9 +574,10 @@ static int c2_processor_x86cache_create(void)
 	c2_list_init(&x86_cpus);
 
 	/*
-	 * Using present/available CPU mask get details of each processor.
+	 * Using online CPU mask get details of each processor.
+	 * Unless CPU is online, we cannot execute on it.
 	 */
-	for_each_present_cpu(cpu) {
+	for_each_online_cpu(cpu) {
 		pinfo = (struct c2_processor_node *)
 			kmalloc (sizeof(struct c2_processor_node), GFP_KERNEL);
 		if (pinfo != NULL) {
@@ -590,10 +592,11 @@ static int c2_processor_x86cache_create(void)
 						 (void *)pinfo, true);
 			c2_list_add(&x86_cpus, &pinfo->pn_link);
 		}
-	}/* for - scan all the available processors */
+	}/* for - scan all the online processors */
 
 	empty = c2_list_is_empty(&x86_cpus);
 	if (empty == true) {
+		c2_list_fini(&x86_cpus);
 		return -1;
 	}
 
@@ -603,8 +606,8 @@ static int c2_processor_x86cache_create(void)
 /**
    Cache clean-up
 
-   @post Cache destroyed and memory is de-allocated.
    @see c2_processors_fini
+   @see c2_list_fini
 
  */
 static void c2_processor_x86cache_destroy(void)
@@ -656,13 +659,13 @@ static uint32_t c2_processor_get_cacheid(c2_processor_nr_t id,
    @pre c2_processors_init() must be called before calling this function.
 
    @see c2_processor_describe
-   @see c2_processor_get_x86info
+   @see c2_processor_find_x86info
  */
 static int c2_processor_get_info(c2_processor_nr_t id,
-			  	 struct c2_processor_descr *pd)
+			  	  struct c2_processor_descr *pd)
 {
-	C2_ASSERT(pd != NULL);
-	C2_ASSERT(c2_processor_is_initialized() == true);
+	C2_PRE(pd != NULL);
+	C2_PRE(c2_processor_is_initialized() == true);
 
 	pd->pd_id = id;
 	pd->pd_numa_node = c2_processor_get_numanodeid(id);
@@ -809,7 +812,8 @@ int c2_processor_describe(c2_processor_nr_t id,
 			  struct c2_processor_descr *pd)
 {
 	int rc;
-	if (id > nr_cpu_ids || pd == NULL) {
+
+	if (id >= nr_cpu_ids || pd == NULL) {
 		return -EINVAL;
 	}
 
