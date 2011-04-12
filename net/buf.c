@@ -145,21 +145,15 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
-	c2_mutex_lock(&dom->nd_mutex);
+	c2_mutex_lock(&tm->ntm_mutex);
 
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 
-	/* Receive queue accepts any starting state but otherwise
-	   the TM has to be started
-	*/
+	/* the TM has to be started */
 	if (tm->ntm_state != C2_NET_TM_STARTED) {
-		if (buf->nb_qtype != C2_NET_QT_MSG_RECV ||
-		    !(tm->ntm_state == C2_NET_TM_INITIALIZED ||
-		      tm->ntm_state == C2_NET_TM_STARTING)) {
-			rc = -EPERM;
-			goto m_err_exit;
-		}
+		rc = -EPERM;
+		goto m_err_exit;
 	}
 
 	/* determine what to do by queue type */
@@ -238,7 +232,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	C2_POST(c2_net__buffer_invariant(buf));
 
  m_err_exit:
-	c2_mutex_unlock(&dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_add);
@@ -256,7 +250,7 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
-	c2_mutex_lock(&dom->nd_mutex);
+	c2_mutex_lock(&tm->ntm_mutex);
 
 	/* wait for callbacks to clear */
 	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
@@ -282,7 +276,7 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	C2_POST(c2_net__buffer_invariant(buf));
 
  m_err_exit:
-	c2_mutex_unlock(&dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_del);

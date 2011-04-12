@@ -148,6 +148,7 @@ static int ut_buf_deregister(struct c2_net_buffer *nb)
 static bool ut_buf_add_called = false;
 static int ut_buf_add(struct c2_net_buffer *nb)
 {
+	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_PASSIVE_BULK_RECV:
 	case C2_NET_QT_PASSIVE_BULK_SEND:
@@ -183,6 +184,7 @@ static bool ut_buf_del_called = false;
 static int ut_buf_del(struct c2_net_buffer *nb)
 {
 	int rc;
+	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	ut_buf_del_called = true;
 	if (!(nb->nb_flags & C2_NET_BUF_IN_USE))
 		nb->nb_flags |= C2_NET_BUF_CANCELLED;
@@ -240,6 +242,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm)
 {
 	int rc;
 
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_start_called = true;
 	/* create bg thread to post start state change event.
 	   cannot do it here: we are in dom lock, post would assert.
@@ -255,6 +258,7 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 	int rc;
 
+	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
 			    &ut_post_ev_thread, C2_NET_TM_STOPPED);
@@ -537,15 +541,13 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
-	/* add MSG_RECV buf */
+	/* add MSG_RECV buf - should fail as not started */
 	nb = &nbs[C2_NET_QT_MSG_RECV];
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	rc = c2_net_buffer_add(nb, tm);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_buf_add_called);
-	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
-	C2_UT_ASSERT(nb->nb_tm == tm);
+	C2_UT_ASSERT(rc == -EPERM);
+	C2_UT_ASSERT(ut_buf_add_called == false);
 
 	/* TM start */
 	struct c2_clink tmwait;
@@ -565,6 +567,16 @@ void test_net_bulk_if(void)
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(ut_tm_event_cb_calls == 1);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+
+	/* add MSG_RECV buf - should succeeded as now started */
+	nb = &nbs[C2_NET_QT_MSG_RECV];
+	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	rc = c2_net_buffer_add(nb, tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_buf_add_called);
+	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+	C2_UT_ASSERT(nb->nb_tm == tm);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);
