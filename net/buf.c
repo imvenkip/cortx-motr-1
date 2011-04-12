@@ -33,14 +33,6 @@ bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
 	    buf->nb_buffer.ov_vec.v_count == NULL)
 		return false;
 
-	/* these checks are invalid if the domain is not locked */
-	C2_ASSERT(c2_mutex_is_locked(&buf->nb_dom->nd_mutex));
-
-	/* EXPENSIVE: on the domain registered list */
-	if (!c2_list_contains(&buf->nb_dom->nd_registered_bufs,
-			      &buf->nb_dom_linkage)) 
-		return false;
-
 	/* optional callbacks, but if provided then ntc_event_cb required */
 	if (buf->nb_callbacks != NULL &&
 	    buf->nb_callbacks->ntc_event_cb == NULL)
@@ -261,10 +253,10 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	C2_PRE(buf != NULL && buf->nb_dom == tm->ntm_dom);
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
 
+	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
-	C2_PRE(buf->nb_tm == tm );
 
 	/* wait for callbacks to clear */
 	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)

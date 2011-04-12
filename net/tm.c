@@ -147,6 +147,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	       tm->ntm_callbacks->ntc_event_cb != NULL);
 
 	c2_mutex_lock(&dom->nd_mutex);
+	c2_mutex_init(&tm->ntm_mutex);
 	c2_cond_init(&tm->ntm_cond);
 	tm->ntm_callback_counter = 0;
 	tm->ntm_dom = dom;
@@ -196,6 +197,7 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 		c2_list_del(&tm->ntm_dom_linkage);
 		tm->ntm_state = C2_NET_TM_UNDEFINED;
 		c2_cond_fini(&tm->ntm_cond);
+		c2_mutex_fini(&tm->ntm_mutex);
 		tm->ntm_dom = NULL;
 		c2_chan_fini(&tm->ntm_chan);
 		for(i=0; i < C2_NET_QT_NR; ++i) {

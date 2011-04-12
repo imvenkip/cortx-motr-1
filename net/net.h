@@ -90,7 +90,7 @@ struct c2_net_xprt {
 
 /**
    Network transport operations. The network domain mutex must be
-   held to invoke these methods.
+   held to invoke these methods, unless explicitly stated otherwise.
 */
 struct c2_net_xprt_ops {
 	/**
@@ -121,6 +121,7 @@ struct c2_net_xprt_ops {
 	   Initiate the startup of the (initialized) transfer machine.
 	   A completion event should be posted when started, using a different
 	   thread.
+	   <b>Serialized using the transfer machine mutex.</b>
 	   @param tm   Transfer machine pointer.
              The following fields are of special interest to this method:
              @li ntm_dom
@@ -139,6 +140,7 @@ struct c2_net_xprt_ops {
 	   drain or be cancelled if requested.
 	   A completion event should be posted when stopped, using a different
 	   thread.
+	   <b>Serialized using the transfer machine mutex.</b>
 	   @param tm   Transfer machine pointer.
 	   @param cancel Pending outbound operations should be cancelled
 	   immediately.
@@ -216,6 +218,7 @@ struct c2_net_xprt_ops {
 	   The C2_NET_BUF_QUEUED flag and the nb_add_time field
 	   will be set prior to calling the method.
 
+	   <b>Serialized using the transfer machine mutex.</b>
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
 	   For other flags, see struct c2_net_buffer.
            @retval 0 (success)
@@ -229,6 +232,7 @@ struct c2_net_xprt_ops {
 	   The method should cancel the operation involving use of the
 	   buffer, as described by the value of the c2_net_buffer.nb_qtype
 	   field, or return an error if this is not possible.
+	   <b>Serialized using the transfer machine mutex.</b>
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm and
 	   c2_net_buffer.nb_qtype set.
            @retval 0 (success)
@@ -861,6 +865,29 @@ struct c2_net_transfer_mc {
 
 	/** Specifies the transfer machine state */
 	enum c2_net_tm_state        ntm_state;
+
+	/**
+	   Mutex associated with the transfer machine.
+	   The mutex is used when the transfer machine state is in
+	   the bounds:
+	   C2_NET_TM_INITIALIZED < state < C2_NET_TM_STOPPED.
+
+	   Most transfer machine operations are protected by this
+	   mutex.  The presence of this mutex in the transfer machine
+	   provides a tighter locus of memory accesses to the data
+	   structures associated with the operation of a single transfer
+	   machine, than would occur were the domain mutex used.
+	   It also reduces the memory access overlaps between individual 
+	   transfer machines.  Transports could use this memory
+	   access pattern to provide processor-affinity support for
+	   buffer operation on a per-transfer-machine-per-processor basis,
+	   by invoking the buffer operation callbacks on the same
+	   processor used to submit the buffer operation.
+
+	   It is not permitted to obtain this mutex when holding the
+	   domain mutex. The inverse locking order is permitted.
+	 */
+	struct c2_mutex             ntm_mutex;
 
 	/**
 	   Condition variable associated with the transfer machine.
