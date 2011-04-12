@@ -341,50 +341,70 @@ void make_desc(struct c2_net_buf_desc *desc)
 
 /* callback subs */
 static int ut_cb_calls[C2_NET_QT_NR];
+static int num_adds[C2_NET_QT_NR];
+static int num_dels[C2_NET_QT_NR];
+static c2_bcount_t total_bytes[C2_NET_QT_NR];
+static c2_bcount_t max_bytes[C2_NET_QT_NR];
 void ut_msg_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_MSG_RECV]++;
+#define UT_CB_CALL(qt)							\
+	C2_UT_ASSERT(ev->nev_qtype == qt);				\
+	C2_UT_ASSERT(ev->nev_buffer != NULL);				\
+	C2_UT_ASSERT(ev->nev_buffer->nb_qtype == ev->nev_qtype);	\
+	ut_cb_calls[qt]++;						\
+	total_bytes[qt] += ev->nev_buffer->nb_length;			\
+	max_bytes[qt] = max64u(ev->nev_buffer->nb_length,max_bytes[qt]);
+
+	UT_CB_CALL(C2_NET_QT_MSG_RECV);
 }
 
 void ut_msg_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_MSG_SEND]++;
+	UT_CB_CALL(C2_NET_QT_MSG_SEND);
 }
 
 void ut_passive_bulk_recv_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_PASSIVE_BULK_RECV]++;
+	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_RECV);
 }
 
 void ut_passive_bulk_send_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_PASSIVE_BULK_SEND]++;
+	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_SEND);
 }
 
 void ut_active_bulk_recv_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_ACTIVE_BULK_RECV]++;
+	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_RECV);
 }
 
 void ut_active_bulk_send_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_event *ev)
 {
-	ut_cb_calls[C2_NET_QT_ACTIVE_BULK_SEND]++;
+	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_SEND);
 }
 
 static int ut_event_cb_calls = 0;
 void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	ut_event_cb_calls++;
+	if (ev->nev_qtype != C2_NET_QT_NR) {
+		UT_CB_CALL(ev->nev_qtype);
+		ut_cb_calls[ev->nev_qtype]--;
+	}
 }
 
 static int ut_tm_event_cb_calls = 0;
 void ut_tm_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	ut_tm_event_cb_calls++;
+	if (ev->nev_qtype != C2_NET_QT_NR){
+		UT_CB_CALL(ev->nev_qtype);
+		ut_cb_calls[ev->nev_qtype]--;
+	}
 }
 
 /* UT transfer machine */
@@ -536,6 +556,9 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(ut_buf_register_called);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED);
+		num_adds[i] = 0;
+		num_dels[i] = 0;
+		total_bytes[i] = 0;
 	}
 
 	/* TM init with callbacks */
@@ -581,6 +604,9 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_buf_add_called);
 	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
 	C2_UT_ASSERT(nb->nb_tm == tm);
+	num_adds[nb->nb_qtype]++;
+	max_bytes[nb->nb_qtype] = max64u(nb->nb_length,
+					 max_bytes[nb->nb_qtype]);
 
 	/* clean up; real xprt would handle this itself */
 	c2_thread_join(&ut_tm_thread);
@@ -622,6 +648,9 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
 		C2_UT_ASSERT(nb->nb_tm == tm);
+		num_adds[nb->nb_qtype]++;
+		max_bytes[nb->nb_qtype] = max64u(nb->nb_length,
+						 max_bytes[nb->nb_qtype]);
 	}
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 5);
 
@@ -665,6 +694,9 @@ void test_net_bulk_if(void)
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
+	num_adds[nb->nb_qtype]++;
+	max_bytes[nb->nb_qtype] = max64u(nb->nb_length,
+					 max_bytes[nb->nb_qtype]);
 
 	ut_buf_del_called = false;
 	c2_clink_add(&tm->ntm_chan, &tmwait);
@@ -672,6 +704,7 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_buf_del_called);
 	C2_UT_ASSERT(nb->nb_flags | C2_NET_BUF_CANCELLED);
+	num_dels[nb->nb_qtype]++;
 
 	/* wait on channel for post */
 	c2_chan_wait(&tmwait);
@@ -698,16 +731,53 @@ void test_net_bulk_if(void)
 
 	/* get stats */
 	struct c2_net_qstats qs[C2_NET_QT_NR];
-	rc = c2_net_tm_stats_get(tm,
-				 C2_NET_QT_PASSIVE_BULK_SEND,
-				 &qs[0],
-				 false);
+	i = C2_NET_QT_PASSIVE_BULK_SEND;
+	rc = c2_net_tm_stats_get(tm, i, &qs[0], false);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(qs[0].nqs_num_adds == num_adds[i]);
+	C2_UT_ASSERT(qs[0].nqs_num_dels == num_dels[i]);
+	C2_UT_ASSERT(qs[0].nqs_total_bytes == total_bytes[i]);
+	C2_UT_ASSERT(qs[0].nqs_max_bytes == max_bytes[i]);
+	C2_UT_ASSERT((qs[0].nqs_num_f_events + qs[0].nqs_num_s_events)
+		     == num_adds[i]);
+	C2_UT_ASSERT((qs[0].nqs_num_f_events + qs[0].nqs_num_s_events) > 0 &&
+		     (qs[0].nqs_time_in_queue.ts.tv_sec +
+		      qs[0].nqs_time_in_queue.ts.tv_nsec) > 0);
+
 	rc = c2_net_tm_stats_get(tm,
 				 C2_NET_QT_NR,
 				 qs,
 				 true);
 	C2_UT_ASSERT(rc == 0);
+	for(i=0; i < C2_NET_QT_NR; i++) {
+		C2_UT_ASSERT(qs[i].nqs_num_adds == num_adds[i]);
+		C2_UT_ASSERT(qs[i].nqs_num_dels == num_dels[i]);
+		C2_UT_ASSERT(qs[i].nqs_total_bytes == total_bytes[i]);		
+		C2_UT_ASSERT(qs[i].nqs_total_bytes >= qs[i].nqs_max_bytes);
+		C2_UT_ASSERT(qs[i].nqs_max_bytes == max_bytes[i]);
+		C2_UT_ASSERT((qs[i].nqs_num_f_events + qs[i].nqs_num_s_events)
+			     == num_adds[i]);
+		C2_UT_ASSERT((qs[i].nqs_num_f_events + 
+			      qs[i].nqs_num_s_events) > 0 &&
+			     (qs[i].nqs_time_in_queue.ts.tv_sec +
+			      qs[i].nqs_time_in_queue.ts.tv_nsec) > 0);
+	}
+
+	rc = c2_net_tm_stats_get(tm,
+				 C2_NET_QT_NR,
+				 qs,
+				 false);
+	C2_UT_ASSERT(rc == 0);
+	for(i=0; i < C2_NET_QT_NR; i++) {
+		C2_UT_ASSERT(qs[i].nqs_num_adds == 0);
+		C2_UT_ASSERT(qs[i].nqs_num_dels == 0);
+		C2_UT_ASSERT(qs[i].nqs_num_f_events == 0);
+		C2_UT_ASSERT(qs[i].nqs_num_s_events == 0);
+		C2_UT_ASSERT(qs[i].nqs_total_bytes == 0);
+		C2_UT_ASSERT(qs[i].nqs_max_bytes == 0);
+		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_sec == 0);		
+		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_nsec == 0);		
+	}
 
 	/* fini the TM */
 	rc = c2_net_tm_fini(tm);

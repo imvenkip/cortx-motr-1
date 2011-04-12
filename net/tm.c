@@ -43,16 +43,17 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		buf->nb_status = ev->nev_status;
 
 		q = &tm->ntm_qstats[ev->nev_qtype];
-		q->nqs_num_dels++;
-		if (ev->nev_status < 0)
+		if (ev->nev_status < 0) {
 			q->nqs_num_f_events++;
-		else
+			buf->nb_length = 0; /* may not be valid */
+		} else {
 			q->nqs_num_s_events++;
+		}
 		c2_time_sub(&ev->nev_time, &buf->nb_add_time, &timediff);
 		c2_time_add(&q->nqs_time_in_queue, &timediff,
 			    &q->nqs_time_in_queue);
 		q->nqs_total_bytes += buf->nb_length;
-		q->nqs_max_bytes += max64u(q->nqs_max_bytes, buf->nb_length);
+		q->nqs_max_bytes = max64u(q->nqs_max_bytes, buf->nb_length);
 	}
 	tm->ntm_callback_counter++;
 	c2_mutex_unlock(&tm->ntm_mutex);
