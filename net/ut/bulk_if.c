@@ -317,7 +317,7 @@ allocate_buffers(c2_bcount_t buf_size,
 				sz = buf_size/buf_segs;
 			}
 		}
-		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz, 12);
+		rc = c2_bufvec_alloc(&nb->nb_buffer, nr, sz);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_buffer.ov_vec.v_nr == nr);
 		C2_UT_ASSERT(c2_vec_count(&nb->nb_buffer.ov_vec) == (sz * nr));

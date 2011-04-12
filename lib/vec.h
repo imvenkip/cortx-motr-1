@@ -111,21 +111,18 @@ struct c2_bufvec {
    Allocates memory for a struct c2_bufvec.  All segments are of equal
    size and aligned as specified.
    The internal struct c2_vec is also allocated by this routine.
-   The c2_alloc_aligned() subroutine is used to allocate memory in both cases.
    @pre num_segs > 0 && seg_size > 0
 
    @param bufvec Pointer to buffer vector to be initialized.
    @param num_segs Number of memory segments.
    @param seg_size Size of each segment.
-   @param shift    Alignment on a (2^shift)-byte boundary
    @retval 0 On success.
    @retval -errno On failure.
    @see c2_bufvec_free()
  */
 int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size,
-		    unsigned          shift);
+		    c2_bcount_t       seg_size);
 
 /**
    Frees the buffers pointed to by c2_bufvec.ov_buf and 

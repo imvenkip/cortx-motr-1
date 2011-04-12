@@ -9,8 +9,7 @@
 enum {
 	NR = 255,
 	IT = 6,
-	SEGSIZE = 128,
-	SEGSHIFT = 4
+	SEGSIZE = 128
 };
 
 static c2_bcount_t segs[NR * IT];
@@ -71,12 +70,11 @@ void test_vec(void)
 	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
 
 	struct c2_bufvec bv;
-	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, SEGSIZE, SEGSHIFT) == 0);
+	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, SEGSIZE) == 0);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
 		C2_UT_ASSERT(bv.ov_vec.v_count[i] == SEGSIZE);
 		C2_UT_ASSERT(bv.ov_buf[i] != NULL);
-		C2_UT_ASSERT(ffsl((long) bv.ov_buf[i]) >= SEGSHIFT);
 	}
 	c2_bufvec_free(&bv);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == 0);

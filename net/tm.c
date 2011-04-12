@@ -17,37 +17,30 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	struct c2_net_buffer *buf = NULL;
 
 	C2_ASSERT(tm == ev->nev_tm);
+	C2_ASSERT((ev->nev_qtype == C2_NET_QT_NR) ^ (ev->nev_buffer != NULL));
 
 	/* pre-callback, in mutex:
 	   update buffer (if present), state and statistics
 	 */
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_lock(&tm->ntm_mutex);
 	if (ev->nev_qtype == C2_NET_QT_NR) {
 		/* errors < 0, state change == 0, diagnostics > 0 */
 		if (ev->nev_status == 0)
 			tm->ntm_state = (enum c2_net_tm_state) ev->nev_payload;
 	} else {
-		struct c2_thread_handle myid;
 		struct c2_net_qstats *q;
 		struct c2_time timediff;
 
 		buf = ev->nev_buffer;
-		c2_thread_self(&myid);
-
-		if (c2_thread_handle_eq(&buf->nb_cb_thread, &myid)) {
-			c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
-			return -EDEADLK;
-		}
 
 		while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
-			c2_cond_wait(&tm->ntm_cond, &tm->ntm_dom->nd_mutex);
+			c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
 		if ((buf->nb_flags & C2_NET_BUF_QUEUED) != 0)
 			c2_list_del(&buf->nb_tm_linkage);
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED);
 		buf->nb_flags |= C2_NET_BUF_IN_CALLBACK;
 		buf->nb_status = ev->nev_status;
-		buf->nb_cb_thread = myid;
 
 		q = &tm->ntm_qstats[ev->nev_qtype];
 		q->nqs_num_dels++;
@@ -62,7 +55,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		q->nqs_max_bytes += max64u(q->nqs_max_bytes, buf->nb_length);
 	}
 	tm->ntm_callback_counter++;
-	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	/* find callback: buffer callback takes precedence */
 	const struct c2_net_tm_callbacks *cbs;
@@ -120,14 +113,14 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	   decrement ref counts,
 	   signal waiters
 	 */
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_lock(&tm->ntm_mutex);
 	tm->ntm_callback_counter--;
 	if (buf != NULL) {
 		buf->nb_flags &= ~C2_NET_BUF_IN_CALLBACK;
-		c2_cond_signal(&tm->ntm_cond, &tm->ntm_dom->nd_mutex);
+		c2_cond_signal(&tm->ntm_cond, &tm->ntm_mutex);
 	}
 	c2_chan_broadcast(&tm->ntm_chan);
-	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	/* c2_net_buffer_add called _get(), put re-gets mutex */
 	if (check_ep)
@@ -177,9 +170,9 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	struct c2_net_domain *dom = tm->ntm_dom;
 	int i;
 
+	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STOPPED);
 
-	c2_mutex_lock(&dom->nd_mutex);
 	for(i=0; i < C2_NET_QT_NR; ++i) {
 		C2_ASSERT(c2_list_is_empty(&tm->ntm_q[i]));
 	}
@@ -217,10 +210,10 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 {
 	int result;
 
-	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_ASSERT(ep != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
 	c2_ref_get(&ep->nep_ref);
 	tm->ntm_ep = ep;
 	tm->ntm_state = C2_NET_TM_STARTING;
@@ -231,7 +224,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		tm->ntm_ep = NULL;
 		c2_ref_put(&ep->nep_ref);
 	}
-	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return result;
 }
@@ -242,17 +235,17 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	int result;
 	enum c2_net_tm_state oldstate;
 
+	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
 
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
 	oldstate = tm->ntm_state;
 	tm->ntm_state = C2_NET_TM_STOPPING;
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
 	if (result < 0)
 		tm->ntm_state = oldstate;
-	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return result;
 }
@@ -266,7 +259,7 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 	C2_PRE(tm->ntm_state >= C2_NET_TM_INITIALIZED);
 	C2_ASSERT(reset || qs != NULL);
 
-	c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_lock(&tm->ntm_mutex);
 	if (qtype == C2_NET_QT_NR) {
 		if (qs != NULL)
 			memcpy(qs, tm->ntm_qstats, sizeof(tm->ntm_qstats));
@@ -278,7 +271,7 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 		if (reset)
 			C2_SET0(&tm->ntm_qstats[qtype]);
 	}
-	c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return 0;
 }

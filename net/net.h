@@ -1237,15 +1237,6 @@ struct c2_net_buffer {
 	   reference after the event callback completes.
 	 */
 	int32_t                    nb_status;
-
-	/**
-	   The current thread id during a callback. This is to
-	   prevent simple deadlocks made by recursive calls to
-	   this buffer.
-
-	   The application should not modify this field.
-	 */
-	struct c2_thread_handle    nb_cb_thread;
 };
 
 /**

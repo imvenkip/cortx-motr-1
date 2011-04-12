@@ -87,8 +87,7 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 
 int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
-		    c2_bcount_t       seg_size,
-		    unsigned          shift)
+		    c2_bcount_t       seg_size)
 {
 	uint32_t i;
 
@@ -103,7 +102,7 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		goto fail;
 
 	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		bufvec->ov_buf[i] = c2_alloc_aligned(seg_size, shift);
+		bufvec->ov_buf[i] = c2_alloc(seg_size);
 		if (bufvec->ov_buf[i] == NULL)
 			goto fail;
 		bufvec->ov_vec.v_count[i] = seg_size;
