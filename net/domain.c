@@ -94,47 +94,6 @@ DOM_GET_PARAM(max_buffer_size, c2_bcount_t);
 DOM_GET_PARAM(max_buffer_segment_size, c2_bcount_t);
 DOM_GET_PARAM(max_buffer_segments, int32_t);
 
-#if 0
-int c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom,
-				      c2_bcount_t *size)
-{
-	int rc;
-	C2_PRE(dom != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
-	C2_PRE(dom->nd_xprt != NULL);
-	rc = dom->nd_xprt->nx_ops->xo_get_max_buffer_size(dom, size);
-	c2_mutex_unlock(&dom->nd_mutex);
-	return rc;
-}
-C2_EXPORTED(c2_net_domain_get_max_buffer_size);
-
-int c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain *dom,
-					      c2_bcount_t *size)
-{
-	int rc;
-	C2_PRE(dom != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
-	C2_PRE(dom->nd_xprt != NULL);
-	rc = dom->nd_xprt->nx_ops->xo_get_max_buffer_segment_size(dom, size);
-	c2_mutex_unlock(&dom->nd_mutex);
-	return rc;
-}
-C2_EXPORTED(c2_net_domain_get_max_buffer_segment_size);
-
-int c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom,
-					  int32_t *num_segs)
-{
-	int rc;
-	C2_PRE(dom != NULL );
-	c2_mutex_lock(&dom->nd_mutex);
-	C2_PRE(dom->nd_xprt != NULL);
-	rc = dom->nd_xprt->nx_ops->xo_get_max_buffer_segments(dom, num_segs);
-	c2_mutex_unlock(&dom->nd_mutex);
-	return rc;
-}
-C2_EXPORTED(c2_net_domain_get_max_buffer_segments);
-#endif
-
 /** @} end of net group */
 
 /*

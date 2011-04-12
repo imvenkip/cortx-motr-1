@@ -164,7 +164,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	if (tm->ntm_state != C2_NET_TM_STARTED) {
 		if (buf->nb_qtype != C2_NET_QT_MSG_RECV ||
 		    !(tm->ntm_state == C2_NET_TM_INITIALIZED ||
-		      tm->ntm_state == C2_NET_TM_STARTING) ) {
+		      tm->ntm_state == C2_NET_TM_STARTING)) {
 			rc = -EPERM;
 			goto m_err_exit;
 		}
@@ -192,7 +192,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
 	/* validate end point usage */
 	if (todo->check_ep) {
-		if (buf->nb_ep == NULL){
+		if (buf->nb_ep == NULL) {
 			rc = -EINVAL;
 			goto m_err_exit;
 		}
@@ -264,12 +264,16 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
+	C2_PRE(buf->nb_tm == tm );
+
+	/* wait for callbacks to clear */
+	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
+		c2_cond_wait(&tm->ntm_cond, &tm->ntm_dom->nd_mutex);
 
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
 		rc = 0; /* completion race condition? no error */
 		goto m_err_exit;
 	}
-	C2_PRE(buf->nb_tm == tm );
 	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype));
 
 	/* the transport may not support operation cancellation */
