@@ -10,6 +10,7 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
+#include "stob/stob.h"
 
 #ifdef __KERNEL__
 # include "addb_k.h"
@@ -17,11 +18,20 @@
 # include "addb_u.h"
 #endif
 
+#ifndef __KERNEL__
+
+c2_bindex_t addb_stob_offset = 0;
+
 int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_addb_record        rec;
-	int rc;
+	uint32_t    bshift;
+	uint64_t    bmask;
+	void        *addr[2];
+	c2_bcount_t count[2];
+	c2_bindex_t offset[2];
+	int      rc;
 
 	if (ops->aeo_pack == NULL)
 		return 0;
@@ -38,32 +48,80 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 	rc = ops->aeo_pack(dp, &rec);
 	if (rc == 0) {
 		/* use stob io routines to write the addb */
-#ifndef __KERNEL__
-		/*
-		   XXX Write to file just for an example in DLD phase.
-		   Writing into stob file should be implemented in code phase.
-		 */
-		FILE * log_file = (FILE*)stob;
+		struct c2_stob_io io;
+		struct c2_clink   clink;
 
-		/* apend this record into the stob */
-		fwrite(&rec.ar_header, sizeof (struct c2_addb_record_header),
-			1, log_file);
-		fwrite(rec.ar_data.cmb_value, rec.ar_data.cmb_count,
-			1, log_file);
-#endif
+		bshift = stob->so_op->sop_block_shift(stob);
+		bmask  = (1 << bshift) - 1;
+
+		C2_ASSERT(((sizeof rec.ar_header) & bmask) == 0);
+		C2_ASSERT((rec.ar_header.arh_len & bmask) == 0);
+		C2_ASSERT((addb_stob_offset & bmask) == 0);
+
+		addr[0]   = c2_stob_addr_pack(&rec.ar_header, bshift);
+		count[0]  = (sizeof rec.ar_header) >> bshift;
+		offset[0] =  addb_stob_offset >> bshift;
+
+		c2_stob_io_init(&io);
+
+		io.si_user.div_vec.ov_vec.v_nr    = 1;
+		io.si_user.div_vec.ov_vec.v_count = count;
+		io.si_user.div_vec.ov_buf         = addr;
+
+		io.si_stob.iv_vec.v_nr    = 1;
+		io.si_stob.iv_vec.v_count = count;
+		io.si_stob.iv_index       = offset;
+
+		if (rec.ar_data.cmb_count != 0) {
+			char *   event_data = rec.ar_data.cmb_value;
+			uint32_t data_len   = rec.ar_data.cmb_count;
+
+			addr[1]   = c2_stob_addr_pack(event_data, bshift);
+			count[1]  = data_len >> bshift;
+			offset[1] = (addb_stob_offset + data_len) >> bshift;
+			io.si_user.div_vec.ov_vec.v_nr = 2;
+			io.si_stob.iv_vec.v_nr = 2;
+		}
+		io.si_opcode = SIO_WRITE;
+		io.si_flags  = 0;
+
+		c2_clink_init(&clink, NULL);
+		c2_clink_add(&io.si_wait, &clink);
+
+		rc = c2_stob_io_launch(&io, stob, NULL, NULL);
+
+		if (rc == 0)
+			c2_chan_wait(&clink);
+
+		if (rc == 0 && io.si_rc == 0)
+			addb_stob_offset += io.si_count << bshift;
+
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+
+		c2_stob_io_fini(&io);
 	}
 	c2_free(rec.ar_data.cmb_value);
 	return rc;
 }
-C2_EXPORTED(c2_addb_stob_add);
 
 int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
 {
-	/*
-	 TODO store this addb record into db.
-	 */
 	return 0;
 }
+#else
+
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
+{
+	return 0;
+}
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
+{
+	return 0;
+}
+
+#endif
+C2_EXPORTED(c2_addb_stob_add);
 C2_EXPORTED(c2_addb_db_add);
 
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
