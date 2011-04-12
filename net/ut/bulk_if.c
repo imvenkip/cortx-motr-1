@@ -134,6 +134,7 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 static bool ut_buf_register_called = false;
 static int ut_buf_register(struct c2_net_buffer *nb)
 {
+	C2_ASSERT(c2_mutex_is_locked(&nb->nb_dom->nd_mutex));
 	ut_buf_register_called = true;
 	return 0;
 }
@@ -141,6 +142,7 @@ static int ut_buf_register(struct c2_net_buffer *nb)
 static bool ut_buf_deregister_called = false;
 static int ut_buf_deregister(struct c2_net_buffer *nb)
 {
+	C2_ASSERT(c2_mutex_is_locked(&nb->nb_dom->nd_mutex));
 	ut_buf_deregister_called = true;
 	return 0;
 }
@@ -201,6 +203,7 @@ static bool ut_tm_init_called = false;
 static int ut_tm_init(struct c2_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
+	C2_ASSERT(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex));
 	C2_ALLOC_PTR(tmp);
 	tmp->tm = tm;
 	tm->ntm_xprt_private = tmp;
@@ -212,6 +215,7 @@ static bool ut_tm_fini_called = false;
 static int ut_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
+	C2_ASSERT(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex));
 	tmp = tm->ntm_xprt_private;
 	C2_UT_ASSERT(tmp->tm == tm);
 	c2_free(tmp);
