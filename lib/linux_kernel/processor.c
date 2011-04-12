@@ -242,7 +242,7 @@ static uint32_t c2_processor_get_x86cache_leaves(c2_processor_nr_t id)
 	if (p->x86_vendor == X86_VENDOR_INTEL) {
 		do {
 			count++;
-			cpuid_count(C2_PROCESSOR_INTEL_CPUID4_OP, leaves,
+			cpuid_count(C2_PROCESSOR_INTEL_CPUID4_OP, count,
 				    &eax, &ebx, &ecx, &edx);
 			cachetype = eax & C2_PROCESSOR_INTEL_CTYPE_MASK;
 
@@ -491,6 +491,7 @@ static void c2_processor_x86_info(void *arg)
 	struct c2_processor_node *pinfo = (struct c2_processor_node *)arg;
 
 	cpu = smp_processor_id();
+
 	/*
 	 * Fetch other generic properties.
 	 */
