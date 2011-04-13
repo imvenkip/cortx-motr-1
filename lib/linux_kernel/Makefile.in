@@ -5,16 +5,13 @@ shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c chan.c misc.c buf.c\
                cond.c
 kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c \
                semaphore.c main.c processor.c
-shared_ut   := ut/chan.c ut/thread.c
-klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o) $(shared_ut:.c=.o)
+klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig_src    := $(shared_src:%=../%)
-orig_ut     := $(shared_ut:%=../../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	ln -fs $(orig_src) .
-	ln -fs $(orig_ut) ut/
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/libc2 -C @LINUX_OBJ@ M=`pwd` modules_install

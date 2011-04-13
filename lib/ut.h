@@ -3,6 +3,8 @@
 
 #ifndef __KERNEL__
 # include <CUnit/Basic.h>
+#else
+# include "lib/types.h"
 #endif
 
 /**
@@ -16,15 +18,7 @@
 #ifndef __KERNEL__
 # define C2_UT_ASSERT(a)	CU_ASSERT(a)
 #else
-# define C2_UT_ASSERT(a)	__C2_UT_ASSERTIMPL((a), __LINE__, #a, __FILE__)
-# define __C2_UT_ASSERTIMPL(c, l, s, f)					      \
-({									      \
-	bool __r = (c);						              \
-	if (!__r)							      \
-		printk(KERN_INFO					      \
-		       "Unit test assertion failed: %s at %s:%d\n", s, f, l); \
-	__r;								      \
-})
+# define C2_UT_ASSERT(a)	c2_ut_assertimpl((a), __LINE__, #a, __FILE__)
 #endif
 
 /**
@@ -92,6 +86,19 @@ void c2_ut_run(const char *log_file);
  commonly used test database reset function
  */
 int c2_ut_db_reset(const char *db_name);
+
+#ifdef __KERNEL__
+/**
+   Implements UT assert logic in the kernel, where there is no CUnit.
+   Similar to CUnit UT assert, this logs failures but does not terminate
+   the process.
+   @param c the result of the boolean condition, evaluated by caller
+   @param lno line number of the assertion, eg __LINE__
+   @param str_c string representation of the condition, c
+   @param file path of the file, eg __FILE__
+ */
+bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file);
+#endif
 
 /** @} end of ut group. */
 
