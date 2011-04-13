@@ -18,7 +18,7 @@
  */
 
 struct c2_thread_handle {
-	pid_t h_id;
+	struct task_struct *h_t;
 };
 
 /** @} end of thread group */

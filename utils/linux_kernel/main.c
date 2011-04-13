@@ -6,6 +6,7 @@
 #include "lib/bitmap.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
+#include "lib/ut.h"
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Unit Test Module");
@@ -30,19 +31,19 @@ static void c2_kernel_bitmap_ut(void)
 	}
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
-		C2_ASSERT(c2_bitmap_get(&bm, idx) == false);
+		C2_UT_ASSERT(c2_bitmap_get(&bm, idx) == false);
 	}
 
 	c2_bitmap_set(&bm, 1, true);
-	C2_ASSERT(c2_bitmap_get(&bm, 1) == true);
-	C2_ASSERT(c2_bitmap_get(&bm, 0) == false);
-	C2_ASSERT(c2_bitmap_get(&bm, 64) == false);
+	C2_UT_ASSERT(c2_bitmap_get(&bm, 1) == true);
+	C2_UT_ASSERT(c2_bitmap_get(&bm, 0) == false);
+	C2_UT_ASSERT(c2_bitmap_get(&bm, 64) == false);
 	c2_bitmap_set(&bm, 1, false);
-	C2_ASSERT(c2_bitmap_get(&bm, 1) == false);
+	C2_UT_ASSERT(c2_bitmap_get(&bm, 1) == false);
 
 	c2_bitmap_fini(&bm);
-	C2_ASSERT(bm.b_nr == 0);
-	C2_ASSERT(bm.b_words == NULL);
+	C2_UT_ASSERT(bm.b_nr == 0);
+	C2_UT_ASSERT(bm.b_words == NULL);
         printk(KERN_INFO "bitmap: passed\n");
 }
 
@@ -59,7 +60,7 @@ static void c2_kernel_thread_ut(void)
 	*/
 	C2_ALLOC_PTR(t);
 	t->t_state = TS_RUNNING;
-	t->t_h.h_id = current->pid;
+	t->t_h.h_t = current;
 
 	/* set affinity (confine) to CPU 0 */
 	c2_bitmap_init(&cpus, 3);
@@ -79,11 +80,15 @@ static void c2_kernel_thread_ut(void)
 /* lib/ut/chan.c */
 extern void test_chan(void);
 
+/* lib/ut/thread.c */
+extern void test_thread(void);
+
 static void c2_run_kernel_ut(void)
 {
 	c2_kernel_bitmap_ut();
 	c2_kernel_thread_ut();
 	test_chan();
+	test_thread();
 
         printk(KERN_INFO "Colibri Kernel UT: all passed\n");
 }
@@ -100,3 +105,13 @@ int init_module(void)
 void cleanup_module(void)
 {
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

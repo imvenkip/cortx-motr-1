@@ -174,6 +174,8 @@ void c2_thread_fini(struct c2_thread *q);
    @pre q->t_state == TS_RUNNING
    @pre q is different from the calling thread
    @post (result == 0) == (q->t_state == TS_PARKED)
+   @retval 0 thread joined (thread is terminated)
+   @retval -errno failed to join, not exit status of thread
  */
 int  c2_thread_join(struct c2_thread *q);
 

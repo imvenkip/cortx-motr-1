@@ -43,7 +43,11 @@ static void t3(int n)
 	c2_bitmap_set(&t3bm, 0, true);
 
 	result = c2_thread_confine(&t[n], &t3bm);
+#ifndef __KERNEL__
 	C2_UT_ASSERT(result == 0);
+#else
+	C2_UT_ASSERT(result != 0);
+#endif
 
 	c2_bitmap_fini(&t3bm);
 
@@ -68,17 +72,17 @@ void test_thread(void)
 	t0place = 0;
 	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
 	C2_UT_ASSERT(result == 0);
-	
+
 	C2_UT_ASSERT(!c2_thread_handle_eq(&myhandle, &t[0].t_h));
 	C2_UT_ASSERT(c2_thread_handle_eq(&t[0].t_h, &t[0].t_h));
 
-	c2_thread_join(&t[0]);
+	C2_UT_ASSERT(c2_thread_join(&t[0]) == 0);
 	c2_thread_fini(&t[0]);
 	C2_UT_ASSERT(t0place == 42);
 
-	result = C2_THREAD_INIT(&t[0], const char *, NULL, 
-				LAMBDA(void, (const char *s) { 
-						strcpy(t1place, s); } ), 
+	result = C2_THREAD_INIT(&t[0], const char *, NULL,
+				LAMBDA(void, (const char *s) {
+						strcpy(t1place, s); } ),
 				(const char *)"forty-two");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
@@ -95,14 +99,14 @@ void test_thread(void)
 	}
 
 	/* test init functions */
-	result = C2_THREAD_INIT(&t[0], int, 
+	result = C2_THREAD_INIT(&t[0], int,
 				LAMBDA(int, (int x) { return 0; } ),
 				LAMBDA(void, (int x) { ; } ), 42);
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 
-	result = C2_THREAD_INIT(&t[0], int, 
+	result = C2_THREAD_INIT(&t[0], int,
 				LAMBDA(int, (int x) { return -42; } ),
 				LAMBDA(void, (int x) { ; } ), 42);
 	C2_UT_ASSERT(result == -42);
@@ -114,6 +118,7 @@ void test_thread(void)
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 }
+C2_EXPORTED(test_thread);
 
 enum {
 	UB_ITER = 10000
@@ -175,18 +180,18 @@ struct c2_ub_set c2_thread_ub = {
 	.us_name = "thread-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
-	.us_run  = { 
-		{ .ut_name  = "spawn", 
-		  .ut_iter  = UB_ITER, 
+	.us_run  = {
+		{ .ut_name  = "spawn",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_spawn },
 
-		{ .ut_name  = "join", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "join",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_join,
 		  .ut_fini  = ub_init /* sic */ },
 
-		{ .ut_name  = "spawn-init", 
-		  .ut_iter  = UB_ITER, 
+		{ .ut_name  = "spawn-init",
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_spawn_init,
 		  .ut_fini  = ub_join_all },
 
@@ -195,7 +200,7 @@ struct c2_ub_set c2_thread_ub = {
 };
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

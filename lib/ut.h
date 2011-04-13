@@ -16,7 +16,15 @@
 #ifndef __KERNEL__
 # define C2_UT_ASSERT(a)	CU_ASSERT(a)
 #else
-# define C2_UT_ASSERT(a)	C2_ASSERT(a)
+# define C2_UT_ASSERT(a)	__C2_UT_ASSERTIMPL((a), __LINE__, #a, __FILE__)
+# define __C2_UT_ASSERTIMPL(c, l, s, f)					      \
+({									      \
+	bool __r = (c);						              \
+	if (!__r)							      \
+		printk(KERN_INFO					      \
+		       "Unit test assertion failed: %s at %s:%d\n", s, f, l); \
+	__r;								      \
+})
 #endif
 
 /**
