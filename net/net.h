@@ -96,11 +96,13 @@ struct c2_net_xprt_ops {
 	/**
 	   Initialise transport specific part of a domain (e.g., start threads,
 	   initialise portals).
+	   Both the nd_mutex and the c2_net_mutex are held across this call.
 	 */
 	int  (*xo_dom_init)(struct c2_net_xprt *xprt,
 			    struct c2_net_domain *dom);
 	/**
 	   Finalise transport resources in a domain.
+	   Both the nd_mutex and the c2_net_mutex are held across this call.
 	 */
 	void (*xo_dom_fini)(struct c2_net_domain *dom);
 

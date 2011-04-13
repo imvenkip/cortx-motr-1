@@ -1,6 +1,6 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_NET_BULK_MEM_PVT_H__
-#define __COLIBRI_NET_BULK_MEM_PVT_H__
+#ifndef __COLIBRI_NET_BULK_MEM_XPRT_H__
+#define __COLIBRI_NET_BULK_MEM_XPRT_H__
 
 #include "lib/thread.h"
 #include "net/bulk_mem.h"
@@ -8,14 +8,49 @@
 /**
    @addtogroup bulkmem
 
-   It can be used directly for testing purposes. It can also serve as a
-   "base" module for derived transports.
+   This transport can be used directly for testing purposes.  It permits the
+   creation of multiple domains, each with multiple transfer machines, and
+   provides support for message passing and bulk data transfer between transfer
+   machines of different domains.  Data is copied between buffers.
 
-   The sunrpc transport derives from this module by overriding
-   the "xo_" domain operations, setting the right sizes in its domain
-   and replacing the work functions
-   described in the domain private data structure.  See \ref bulksunrpc 
-   for details.
+   It uses a pool of background threads per transfer machine to provide the
+   required threading semantics of the messaging API and the illusion of
+   independent domains.
+
+   It can also serve as a "base" module for derived transports that wish
+   to reuse the threading and buffer management support of this module.
+   Derivation is done as follows:
+   - Define derived versions of data structures as required,
+     with the corresponding base data structure embedded within.
+   - Override the xo_ domain operations and reuse those that apply - in some
+     cases the base xo_ routines can be called from their derived versions.
+     The following must be replaced:
+        - xo_dom_init()
+	- xo_buf_add()
+	- xo_end_point_create()
+  
+   - The derived xo_dom_init() subroutine should allocate the private domain
+     structure, set the value in the nd_xprt_private field, and then call the
+     base domain initialization subroutine.
+     On return, adjust the following:
+        - Size values in the base domain private structure
+	- The number of threads in a transfer machine pool
+	- Worker functions, especially for the following opcodes:
+          C2_NET_XOP_STATE_CHANGE, C2_NET_XOP_MSG_SEND, C2_NET_XOP_ACTIVE_BULK.
+          New worker functions can invoke the base worker functions if
+          desired.
+
+   - The xo_buf_add() subroutine must do what it takes to prepare a buffer
+     for an operation.  This is domain specific.  The base
+     version of the subroutine can be called to handle the queuing.
+
+   - The xo_end_point_create() subroutine must do what it takes to create
+     a domain specific end point. The base subroutine may be used if there
+     is value in its parsing of IP address and port number; it is capable of
+     allocating sufficient space in the end point data structure for the
+     derived transport.
+
+   See \ref bulksunrpc for an example of a derived transport.
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
@@ -132,11 +167,8 @@ struct c2_net_bulk_emul_end_point {
    work function per work item opcode.  Each function has a
    signature described by this typedef.
  */
-typedef void (*c2_net_bulk_emul_work_fn)(struct c2_net_bulk_emul_work_item *wi);
-
-enum {
-	C2_NET_XD_MAGIC = 0x6c42536b526e4350ULL;
-};
+typedef void (*c2_net_bulk_emul_work_fn_t)(struct c2_net_bulk_emul_work_item 
+					   *wi);
 
 /**
    Domain private data structure.
@@ -144,30 +176,42 @@ enum {
    after xo_dom_init() method is called on the in-memory transport.
  */
 struct c2_net_bulk_emul_domain_pvt {
-	/** Magic constant to validate private data */
-	uint64_t                   xd_magic;
+	/** Domain pointer */
+	struct c2_net_domain      *xd_dom;
 
-        /** Work functions. 
-	*/
-	c2_net_bulk_emul_work_fn xd_work_fn[C2_NET_XOP_NR];
+        /** Work functions. */
+	c2_net_bulk_emul_work_fn_t xd_work_fn[C2_NET_XOP_NR];
 
 	/**
 	   Size of the end point structure. 
 	   Initialized to the size of c2_net_bulk_emul_end_point.
 	 */
-	size_t                   xd_sizeof_ep;
+	size_t                     xd_sizeof_ep;
 
 	/**
 	   Size of the transfer machine private data.
 	   Initialized to the size of c2_net_bulk_emul_tm_pvt.
 	 */
-	size_t                   xd_sizeof_tm_pvt;
+	size_t                     xd_sizeof_tm_pvt;
 
 	/**
 	   Size of the buffer private data.
 	   Initialized to the size of c2_net_buf_emul_buf_pvt.
 	 */
-	size_t                   xd_sizeof_buf_pvt;
+	size_t                     xd_sizeof_buf_pvt;
+
+	/**
+	   Number of threads in a transfer machine pool.
+	*/
+	size_t                     xd_num_tm_threads;
+
+	/**
+	   Linkage of in-memory c2_net_domain objects for in-memory
+	   communication.
+	   This is only done if the nd_xprt_private field was not
+	   set when the xo_dom_init() method was invoked.
+	 */
+	struct c2_list_link        xd_dom_linkage;
 };
 
 
@@ -176,7 +220,7 @@ struct c2_net_bulk_emul_domain_pvt {
 */
 
 
-#endif /* __COLIBRI_NET_BULK_MEM_PVT_H__ */
+#endif /* __COLIBRI_NET_BULK_MEM_XPRT_H__ */
 
 /*
  *  Local variables:

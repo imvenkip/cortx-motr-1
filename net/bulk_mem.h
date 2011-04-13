@@ -8,7 +8,7 @@
    @defgroup bulkmem In-Memory Messaging and Bulk Transfer Emulation Transport
 
    @brief This module provides a network transport with messaging and bulk
-   transfer emulation within a single process.
+   data transfer across domains within a single process.
 
    @{
 **/

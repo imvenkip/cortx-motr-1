@@ -12,11 +12,7 @@ extern const struct c2_addb_loc c2_net_addb_loc;
 extern const struct c2_addb_ctx_type c2_net_addb_ctx;
 extern struct c2_addb_ctx c2_net_addb;
 extern const struct c2_addb_ctx_type c2_net_dom_addb_ctx;
-
-/*
-  Domain version of xo_get_param().
- */
-int c2_net__domain_get_param(struct c2_net_domain *dom, int param, ...);
+extern struct c2_mutex c2_net_mutex;
 
 /*
   Validates the value of queue type.

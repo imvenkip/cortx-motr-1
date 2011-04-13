@@ -1,6 +1,6 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_NET_BULK_SUNRPC_PVT_H__
-#define __COLIBRI_NET_BULK_SUNRPC_PVT_H__
+#ifndef __COLIBRI_NET_BULK_SUNRPC_XPRT_H__
+#define __COLIBRI_NET_BULK_SUNRPC_XPRT_H__
 
 #include "net/bulk_sunrpc.h"
 #include "net/bulk_emulation/mem_xprt.h"
@@ -10,9 +10,7 @@
 /**
    @addtogroup bulksunrpc
 
-   This module shares much of the logic with the \ref bulkmem
-   module. It overrides the domain "xo_" methods and replaces the work
-   functions of the base module.
+   This module is derived from the \ref bulkmem module. 
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
@@ -78,7 +76,7 @@ struct c2_net_bulk_sunrpc_end_point {
    @}
 */
 
-#endif /* __COLIBRI_NET_BULK_SUNRPC_PVT_H__ */
+#endif /* __COLIBRI_NET_BULK_SUNRPC_XPRT_H__ */
 
 /*
  *  Local variables:

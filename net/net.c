@@ -12,7 +12,20 @@
 
 /**
    @addtogroup net Networking.
+   @{
  */
+
+/**
+   Network module global mutex.
+   This mutex is used to serialize domain init and fini.
+   It is defined here so that it can get initialized and fini'd 
+   by the general initialization mechanism.
+   Transport that deal with multiple domains can rely on this mutex being held
+   across their xo_dom_init() and xo_dom_fini() methods.
+ */
+struct c2_mutex c2_net_mutex;
+
+/** @} net */
 
 const struct c2_addb_loc c2_net_addb_loc = {
 	.al_name = "net"
@@ -33,6 +46,7 @@ static struct c2_fop_type_format *fmts[] = {
 int c2_net_init()
 {
 	int rc;
+	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
 	rc = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 	return rc;
@@ -41,6 +55,7 @@ int c2_net_init()
 void c2_net_fini()
 {
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_mutex_fini(&c2_net_mutex);
 }
 
 int c2_net_xprt_init(struct c2_net_xprt *xprt)
@@ -79,8 +94,6 @@ void c2_net_desc_free(struct c2_net_buf_desc *desc)
 	desc->nbd_data = NULL;
 }
 C2_EXPORTED(c2_net_desc_free);
-
-/** @} end of net group */
 
 /* 
  *  Local variables:

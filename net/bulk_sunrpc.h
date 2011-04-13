@@ -5,12 +5,12 @@
 #include "net/net.h"
 
 /**
-@defgroup bulksunrpc Sunrpc based Messaging and Bulk Transfer Emulation Transport
+@defgroup bulksunrpc Sunrpc Messaging and Bulk Transfer Emulation Transport
 
    @brief This module provides a network transport with messaging and bulk
    transfer capabilites implemented over the legacy and now deprecated
    Sunrpc transport.  The bulk transfer support does not provide 0 copy
-   semantics like, say LNET.
+   semantics.
 
    @{
 **/
