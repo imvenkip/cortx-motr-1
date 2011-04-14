@@ -23,6 +23,17 @@ enum {
 */
 extern struct c2_list  c2_net_bulk_mem_domains;
 
+bool c2_net_bulk_mem_dom_invariant(struct c2_net_domain *dom);
+bool c2_net_bulk_mem_ep_invariant(struct c2_net_end_point *ep);
+bool c2_net_bulk_mem_buffer_invariant(struct c2_net_buffer *nb);
+bool c2_net_bulk_mem_tm_invariant(struct c2_net_transfer_mc *tm);
+
+/**
+   Create a network buffer descriptor from an in-memory end point.
+ */
+int c2_net_bulk_mem_ep_create_desc(struct c2_net_end_point *ep,
+				   struct c2_net_buf_desc *desc);
+
 /**
    @}
 */

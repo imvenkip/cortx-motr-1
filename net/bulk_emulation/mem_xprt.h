@@ -127,10 +127,10 @@ struct c2_net_bulk_mem_work_item {
 */
 struct c2_net_bulk_mem_buffer_pvt {
 	/** Points back to its buffer */
-	struct c2_net_buffer                *nb_buffer;
+	struct c2_net_buffer                *xb_buffer;
 
 	/** Work item linked on the transfer machine work list */
-	struct c2_net_bulk_mem_work_item     nb_wi;
+	struct c2_net_bulk_mem_work_item     xb_wi;
 };
 
 /**
@@ -198,7 +198,7 @@ struct c2_net_bulk_mem_domain_pvt {
 	   Size of the buffer private data.
 	   Initialized to the size of c2_net_buf_emul_buf_pvt.
 	 */
-	size_t                     xd_sizeof_buf_pvt;
+	size_t                     xd_sizeof_buffer_pvt;
 
 	/**
 	   Number of threads in a transfer machine pool.
