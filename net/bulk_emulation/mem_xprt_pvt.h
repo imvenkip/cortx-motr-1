@@ -11,11 +11,17 @@
    @{
 */
 
+enum {
+	C2_NET_BULK_MEM_MAX_BUFFER_SIZE = (1<<20),
+	C2_NET_BULK_MEM_MAX_SEGMENT_SIZE = (1<<20),
+	C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS = 256
+};
+
 /**
    List of in-memory network domains.
    Protected by struct c2_net_mutex.
 */
-struct c2_list  c2_net_bulk_mem_domains;
+extern struct c2_list  c2_net_bulk_mem_domains;
 
 /**
    @}

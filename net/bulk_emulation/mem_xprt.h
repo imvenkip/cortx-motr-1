@@ -156,7 +156,7 @@ struct c2_net_bulk_mem_end_point {
 	uint64_t                 xep_magic;
 
 	/** Socket address */
-	struct sockaddr_in       xep_address;
+	struct sockaddr_in       xep_sa;
 
 	/** Externally visible end point in the TM. */
 	struct c2_net_end_point  xep_ep;
@@ -208,15 +208,14 @@ struct c2_net_bulk_mem_domain_pvt {
 	/**
 	   Linkage of in-memory c2_net_domain objects for in-memory
 	   communication.
-	   This is only done if the xd_derived is false or the 
-	   private data structure is allocated in xo_dom_init().
+	   This is only done if the xd_derived is false.
 	 */
 	struct c2_list_link        xd_dom_linkage;
 
 	/**
 	   Indicator of a derived transport.
-	   Should be set to true before calling xo_dom_init()
-	   in a derived transport.
+	   Will be set to true if the transport pointer provided to
+	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
 	 */
 	bool                       xd_derived;
 };
