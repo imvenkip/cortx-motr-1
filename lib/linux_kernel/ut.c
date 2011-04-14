@@ -34,6 +34,7 @@ int c2_uts_init(void)
 	c2_list_init(&suites);
 	return 0;
 }
+C2_EXPORTED(c2_uts_init);
 
 void c2_uts_fini(void)
 {
@@ -47,6 +48,7 @@ void c2_uts_fini(void)
 	}
 	c2_list_fini(&suites);
 }
+C2_EXPORTED(c2_uts_fini);
 
 void c2_ut_add(const struct c2_test_suite *ts)
 {
@@ -57,6 +59,7 @@ void c2_ut_add(const struct c2_test_suite *ts)
 	c2_list_link_init(&elem->tse_link);
 	c2_list_add_tail(&suites, &elem->tse_link);
 }
+C2_EXPORTED(c2_ut_add);
 
 /**
    Generate a run summary similar in appearance to a CUnit run summary.
@@ -147,6 +150,7 @@ void c2_ut_run(const char *log_file)
 
 	uts_summary();
 }
+C2_EXPORTED(c2_ut_run);
 
 bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file)
 {
@@ -158,6 +162,7 @@ bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file)
 		passed++;
 	return c;
 }
+C2_EXPORTED(c2_ut_assertimpl);
 
 /** @} end of ut group. */
 
