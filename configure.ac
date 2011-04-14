@@ -519,6 +519,7 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  mw/Makefile
                  net/Makefile
+		 net/bulk_emulation/Makefile
                  net/ksunrpc/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile

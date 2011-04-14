@@ -2,6 +2,7 @@
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
 
+#include "lib/errno.h"
 #include "net/bulk_emulation/mem_xprt.h"
 
 /**
