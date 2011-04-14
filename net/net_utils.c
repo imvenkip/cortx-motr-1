@@ -106,7 +106,7 @@ int c2_net_domain_stats_get(struct c2_net_domain *dom,
 
         /* Load based on data rate only, bytes/sec */
         rate = c2_atomic64_get(&dom->nd_stats[dir].ns_bytes) *
-                          ONE_BILLION / interval_usec;
+                          C2_TIME_ONE_BILLION / interval_usec;
         max = max64u(dom->nd_stats[dir].ns_max, rate);
         rv = (int)((rate * 10000) / max);
 
