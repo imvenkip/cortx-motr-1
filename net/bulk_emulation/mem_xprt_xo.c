@@ -17,7 +17,7 @@
    @addtogroup bulkmem
    @{
  */
-
+static bool mem_domains_initialized = false;
 struct c2_list  c2_net_bulk_mem_domains;
 
 bool c2_net_bulk_mem_dom_invariant(struct c2_net_domain *dom)
@@ -43,7 +43,8 @@ bool c2_net_bulk_mem_buffer_invariant(struct c2_net_buffer *nb)
 bool c2_net_bulk_mem_tm_invariant(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	return tp != NULL && tp->xtm_tm == tm;
+	return (tp != NULL && tp->xtm_tm == tm &&
+		c2_net_bulk_mem_dom_invariant(tm->ntm_dom));
 }
 
 /**
@@ -88,6 +89,10 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		dp->xd_derived = true;
 	} else {
 		dp->xd_derived = false;
+		if (!mem_domains_initialized) {
+			c2_list_init(&c2_net_bulk_mem_domains);
+			mem_domains_initialized = true;
+		}
 		c2_list_add(&c2_net_bulk_mem_domains, &dp->xd_dom_linkage);
 	}
 	C2_POST(c2_net_bulk_mem_dom_invariant(dom));
@@ -443,13 +448,77 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
 	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+
+	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	if (tp->xtm_state == C2_NET_XTM_STARTED) 
+		return 0;
+	if (tp->xtm_state == C2_NET_XTM_STARTING) 
+		return 0;
+	if (tp->xtm_state != C2_NET_XTM_INITIALIZED)
+		return -EPERM;
+
+	/* allocate a state change work item */
+	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	C2_ALLOC_PTR(wi_st_chg);
+	if (wi_st_chg == NULL)
+		return -ENOMEM;
+	C2_SET0(wi_st_chg);
+	c2_list_link_init(&wi_st_chg->xwi_link);
+	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
+	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
+
+	/* start worker threads */
+
+	/* set transition state and add the state change work item */
+	tp->xtm_state = C2_NET_XTM_STARTING;
+	c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
+	c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+
 	return -ENOSYS;
 }
 
 static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
 	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
-	return -ENOSYS;
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+
+	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	if (tp->xtm_state >= C2_NET_XTM_STOPPING) 
+		return 0;
+
+	/* allocate a state change work item */
+	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	C2_ALLOC_PTR(wi_st_chg);
+	if (wi_st_chg == NULL)
+		return -ENOMEM;
+	C2_SET0(wi_st_chg);
+	c2_list_link_init(&wi_st_chg->xwi_link);
+	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
+	wi_st_chg->xwi_next_state = C2_NET_XTM_STOPPED;
+
+	/* walk through the queues and cancel every buffer */
+	int rc;
+	int qt;
+	struct c2_net_buffer *nb;
+	for(qt = 0; qt < C2_NET_QT_NR; qt++) {
+		c2_list_for_each_entry(&tm->ntm_q[qt], nb,
+				       struct c2_net_buffer,
+				       nb_tm_linkage) {
+			rc = mem_xo_buf_del(nb);
+			if (!rc) {
+				/* bump the del stat count */
+				tm->ntm_qstats[qt].nqs_num_dels += 1;
+			}
+		}
+	}
+
+	/* set transition state and add the state change work item */
+	tp->xtm_state = C2_NET_XTM_STOPPING;
+	c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
+	c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+
+	return 0;
 }
 
 static const struct c2_net_xprt_ops mem_xo_xprt_ops = {
