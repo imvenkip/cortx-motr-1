@@ -221,7 +221,6 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	/** allocate a new end point of appropriate size */
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	mep = c2_alloc(dp->xd_sizeof_ep);
-	memset(mep, 0, dp->xd_sizeof_ep);
 	mep->xep_magic = C2_NET_XEP_MAGIC;
 	mep->xep_sa.sin_addr = addr;
 	mep->xep_sa.sin_port = port;
@@ -266,7 +265,6 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
 	if (bp == NULL)
 		return -ENOMEM;
 
-	memset(bp, 0, dp->xd_sizeof_buffer_pvt);
 	bp->xb_buffer = nb;
 	c2_list_link_init(&bp->xb_wi.xwi_link);
 	bp->xb_wi.xwi_op = C2_NET_XOP_NR;
@@ -408,7 +406,6 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 	tp = c2_alloc(dp->xd_sizeof_tm_pvt);
 	if (tp == NULL)
 		return -ENOMEM;
-	memset(tp, 0, dp->xd_sizeof_tm_pvt);
 	tp->xtm_num_workers = dp->xd_num_tm_threads;
 	C2_ALLOC_ARR(tp->xtm_worker_threads, tp->xtm_num_workers);
 	if (tp->xtm_worker_threads == NULL) {
@@ -464,7 +461,6 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	C2_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
 		return -ENOMEM;
-	C2_SET0(wi_st_chg);
 	c2_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
@@ -494,7 +490,6 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	C2_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
 		return -ENOMEM;
-	C2_SET0(wi_st_chg);
 	c2_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STOPPED;
