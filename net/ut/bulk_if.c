@@ -340,6 +340,16 @@ void make_desc(struct c2_net_buf_desc *desc)
 }
 
 /* callback subs */
+#define UT_CB_CALL(qt)							 \
+({									 \
+	C2_UT_ASSERT(ev->nev_qtype == qt);				 \
+	C2_UT_ASSERT(ev->nev_buffer != NULL);				 \
+	C2_UT_ASSERT(ev->nev_buffer->nb_qtype == ev->nev_qtype);	 \
+	ut_cb_calls[qt]++;						 \
+	total_bytes[qt] += ev->nev_buffer->nb_length;			 \
+	max_bytes[qt] = max64u(ev->nev_buffer->nb_length,max_bytes[qt]); \
+})
+
 static int ut_cb_calls[C2_NET_QT_NR];
 static int num_adds[C2_NET_QT_NR];
 static int num_dels[C2_NET_QT_NR];
@@ -347,14 +357,6 @@ static c2_bcount_t total_bytes[C2_NET_QT_NR];
 static c2_bcount_t max_bytes[C2_NET_QT_NR];
 void ut_msg_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-#define UT_CB_CALL(qt)							\
-	C2_UT_ASSERT(ev->nev_qtype == qt);				\
-	C2_UT_ASSERT(ev->nev_buffer != NULL);				\
-	C2_UT_ASSERT(ev->nev_buffer->nb_qtype == ev->nev_qtype);	\
-	ut_cb_calls[qt]++;						\
-	total_bytes[qt] += ev->nev_buffer->nb_length;			\
-	max_bytes[qt] = max64u(ev->nev_buffer->nb_length,max_bytes[qt]);
-
 	UT_CB_CALL(C2_NET_QT_MSG_RECV);
 }
 
