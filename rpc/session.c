@@ -1,6 +1,57 @@
 /* -*- C -*- */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include "rpc/session.h"
+#include "db/db.h"
+#include "fop/fom.h"
+
+
+void c2_rpc_conn_init(struct c2_rpc_conn * rpc_conn,
+                        struct c2_net_conn *net_conn)
+{
+
+}
+
+int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)
+{
+       return 0;
+}
+
+void c2_rpc_conn_timedwait(struct c2_rpc_conn *rpc_conn, uint64_t state_flags,
+                        const struct c2_time *time)
+{
+
+}
+
+bool c2_rpc_conn_invariant(const struct c2_rpc_conn *rpc_conn)
+{
+       return true;
+}
+
+int c2_rpc_session_create(struct c2_rpc_conn *rpc_conn, 
+                               struct c2_rpc_session *out)
+{
+       return 0;
+}
+
+int c2_rpc_session_terminate(struct c2_rpc_session *session)
+{
+       return 0;
+}
+
+void c2_rpc_session_timedwait(struct c2_rpc_session *session,
+                uint64_t state_flags,
+                const struct c2_time *abs_timeout)
+{
+
+}
+
+bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
+{
+       return true;
+}
 
 /**
    Change size of slot table in 'session' to 'nr_slots'.
@@ -11,7 +62,11 @@
         it just marks slots above nr_slots as 'dont use'
  */
 int c2_rpc_session_slot_table_resize(struct c2_rpc_session *session,
-					uint32_t nr_slots);
+					uint32_t nr_slots)
+{
+	return 0;
+}
+
 
 /**
    Fill all the session related fields of c2_rpc_item.
@@ -28,7 +83,11 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session *session,
    Assumption: c2_rpc_item has a field giving service_id of
                 destination service.
  */
-int c2_rpc_session_item_prepare(struct c2_rpc_item *);
+int c2_rpc_session_item_prepare(struct c2_rpc_item *rpc_item)
+{
+	return 0;
+}
+
 
 /**
    Inform session module that a reply item is received.
@@ -36,7 +95,10 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *);
    rpc-core can call this function when it receives an item. session module
    can then mark corresponding slot "unbusy", move the item to replay list etc.
  */
-void c2_rpc_session_reply_item_received(struct c2_rpc_item *);
+void c2_rpc_session_reply_item_received(struct c2_rpc_item *rpc_item)
+{
+
+}
 
 /**
    Start session recovery.
@@ -45,7 +107,11 @@ void c2_rpc_session_reply_item_received(struct c2_rpc_item *);
    @post c2_rpc_session->s_state == SESSION_RECOVERING
    
  */
-int c2_rpc_session_recovery_start(struct c2_rpc_session *);
+int c2_rpc_session_recovery_start(struct c2_rpc_session *session)
+{
+	return 0;
+}
+
 
 /**
    All session specific parameters except slot table
@@ -61,10 +127,16 @@ struct c2_rpc_session_params {
 };
 
 int c2_rpc_session_params_get(uint64_t sender_id, uint64_t session_id,
-                                struct c2_rpc_session_params **out);
+                                struct c2_rpc_session_params **out)
+{
+	return 0;
+}
 
 int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
-                                struct c2_rpc_session_params *param);
+                                struct c2_rpc_session_params *param)
+{
+	return 0;
+}
 
 /**
     Key into c2_rpc_in_core_slot_table.
@@ -103,7 +175,10 @@ struct c2_rpc_in_core_slot_table_value {
    the cache contains the pointer (block address) to the location
    of the data.
  */
-int c2_rpc_reply_cache_insert(struct c2_rpc_item *, struct c2_db_tx *);
+int c2_rpc_reply_cache_insert(struct c2_rpc_item *rpc_item, struct c2_db_tx *tx)
+{
+	return 0;
+}
 
 enum c2_rpc_session_seq_check_result {
 	/** item is valid in sequence. accept it */
@@ -124,30 +199,57 @@ enum c2_rpc_session_seq_check_result {
    'reply_out' is valid only if return value is RESEND_REPLY.
  */
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
-		struct c2_rpc_item *, struct c2_rpc_item **reply_out);
+		struct c2_rpc_item *rpc_item, struct c2_rpc_item **reply_out)
+{
+	return RSSC_ACCEPT_ITEM;
+}
 
 /**
    Receiver side SESSION_CREATE handler
  */
-int c2_rpc_session_create_handler(struct c2_fom *);
+int c2_rpc_session_create_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
 /**
    Destroys all the information associated with the session on the receiver
    including reply cache entries.
  */
-int c2_rpc_session_destroy_handler(struct c2_fom *);
+int c2_rpc_session_destroy_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_session_create_rep_handler(struct c2_fom *);
+int c2_rpc_session_create_rep_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_session_destroy_rep_handler(struct c2_fom *);
+int c2_rpc_session_destroy_rep_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_conn_create_handler(struct c2_fom *);
+int c2_rpc_conn_create_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_conn_create_rep_handler(struct c2_fom *);
+int c2_rpc_conn_create_rep_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_conn_terminate_handler(struct c2_fom *);
+int c2_rpc_conn_terminate_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
-int c2_rpc_conn_terminate_rep_handler(struct c2_fom *);
+int c2_rpc_conn_terminate_rep_handler(struct c2_fom *fom)
+{
+	return 0;
+}
 
 /** @} end of session group */
 

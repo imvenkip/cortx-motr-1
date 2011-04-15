@@ -1,3 +1,4 @@
+UT_SRCDIR=@SRCDIR@/rpc/ut
 noinst_PROGRAMS   = rclient rserver
 
 rclient_SOURCES   = rpc-client.c

@@ -141,6 +141,10 @@ When an item is received, following conditions are possible:
 @{
 
 */
+#include "lib/list.h"
+#include "lib/chan.h"
+#include "lib/mutex.h"
+#include "dtm/verno.h"
 
 /* Imports */
 struct c2_rpc_item;
@@ -164,35 +168,35 @@ enum c2_rpc_conn_state {
            A newly allocated c2_rpc_conn object is in
            UNINITIALIZED state.
          */
-        CONN_UNINITIALIZED = 0,
+        RCS_CONN_UNINITIALIZED = 0,
         /**
            When sender is waiting for receiver reply to get its sender ID it is
            in INITIALIZIG state.
          */
-        CONN_INITIALIZING = (1 << 0),
+        RCS_CONN_INITIALIZING = (1 << 0),
         /**
 	   When initialization is successfull connection enters in IN_USE state.
 	   It stays in this state for until termination.
          */
-        CONN_IN_USE = (1 << 1),
+        RCS_CONN_IN_USE = (1 << 1),
         /**
            If c2_rpc_conn is in INITIALIZING state and sender doesn't receive
            sender-id from receiver within a specific time then c2_rpc_conn
            moves to TIMED_OUT state
         */
-        CONN_TIMED_OUT = (1 << 2),
+        RCS_CONN_TIMED_OUT = (1 << 2),
 	/**
 	   When client calls c2_rpc_conn_fini(), the c2_rpc_conn goes in
 	   finalizing state. It has to communicate to receiver in order to
 	   terminate the connection
 	 */
-        CONN_FINALIZING = (1 << 3),
+        RCS_CONN_FINALIZING = (1 << 3),
 	/**
 	   When sender gets "successful" reply from receiver to
 	   "terminate rpc_conn" msg, the c2_rpc_conn object goes in
 	   FINALIZED state.
 	 */
-	CONN_FINALIZED = (1 << 4)
+	RCS_CONN_FINALIZED = (1 << 4)
 };
 
 /**
@@ -287,7 +291,7 @@ int  c2_rpc_conn_fini(struct c2_rpc_conn *);
 /**
     Wait until c2_rpc_conn state machine reached the desired state.
  */
-void c2_rpc_conn_timedwait(c2_rpc_conn *, uint64_t state_flags,
+void c2_rpc_conn_timedwait(struct c2_rpc_conn *, uint64_t,
                         const struct c2_time *);
 
 /**
@@ -400,7 +404,7 @@ struct c2_rpc_session {
     @post c2_rpc_conn->c_state == CONN_IN_USE
     @post out->s_state == SESSION_CREATING
  */
-int c2_rpc_session_create(c2_rpc_conn *conn, c2_rpc_session *out);
+int c2_rpc_session_create(struct c2_rpc_conn *conn, struct c2_rpc_session *out);
 
 /**
    Send terminate session message to receiver.
@@ -413,9 +417,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
 /**
     Wait until desired state is reached.
  */
-void c2_rpc_session_timedwait(c2_rpc_session *session,
-		uint64_t state_flags,
-		const struct c2_time *abs_timeout);
+void c2_rpc_session_timedwait(struct c2_rpc_session *session,
+		uint64_t, const struct c2_time *abs_timeout);
 
 /**
    checks internal consistency of session

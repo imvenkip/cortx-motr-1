@@ -13,7 +13,7 @@
    input.
  */
 DEF(c2_rpc_conn_create, RECORD,
-   _());
+   _(rcc_temp, U64));
 
 DEF(c2_rpc_conn_create_rep, RECORD,
    _(rccr_rc, U32),
@@ -36,7 +36,7 @@ DEF(c2_rpc_session_destroy, RECORD,
    _(rsd_session_id, U64));
 
 DEF(c2_rpc_session_destroy_rep, RECORD,
-   _(rsd_status, U32));
+   _(rsdr_status, U32));
 
 /** @} end of rpc-sessions group */
 
