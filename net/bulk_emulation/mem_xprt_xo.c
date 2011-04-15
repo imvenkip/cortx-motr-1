@@ -73,7 +73,7 @@ static bool mem_tm_invariant(struct c2_net_transfer_mc *tm)
    that the domain is not derived, and will then link the domain in a private
    list to facilitate in-memory data transfers between transfer machines.
  */
-static int mem_xo_dom_init(struct c2_net_xprt *xprt, 
+static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 			   struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp;
@@ -124,7 +124,7 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	C2_PRE(mem_dom_invariant(dom));
 
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	if(dp->xd_derived)
+	if (dp->xd_derived)
 		return;
 	c2_list_del(&dp->xd_dom_linkage);
 	c2_free(dp);
@@ -132,7 +132,7 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	return;
 }
 
-static int mem_xo_get_max_buffer_size(struct c2_net_domain *dom, 
+static int mem_xo_get_max_buffer_size(struct c2_net_domain *dom,
 				      c2_bcount_t *size)
 {
 	C2_PRE(mem_dom_invariant(dom));
@@ -167,8 +167,8 @@ static void mem_xo_end_point_release(struct c2_ref *ref)
 	struct c2_net_end_point *ep;
 	struct c2_net_bulk_mem_end_point *mep;
 
-	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
+	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	C2_PRE(mem_ep_invariant(ep));
 
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
@@ -453,11 +453,22 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	if (tp->xtm_state != C2_NET_XTM_STOPPED)
 		return -EBUSY;
+
+	c2_mutex_lock(&tm->ntm_mutex);
+	c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
+	int i;
+	for (i = 0; i < tp->xtm_num_workers; ++i) {
+		if (tp->xtm_worker_threads[i].t_state != TS_PARKED)
+			c2_thread_join(&tp->xtm_worker_threads[i]);
+	}
+
 	tm->ntm_xprt_private = NULL;
 	c2_free(tp->xtm_worker_threads);
-	c2_cond_init(&tp->xtm_work_list_cv);
-	c2_list_init(&tp->xtm_work_list);
+	c2_cond_fini(&tp->xtm_work_list_cv);
+	c2_list_fini(&tp->xtm_work_list);
 	tp->xtm_tm = NULL;
+	tm->ntm_xprt_private = NULL;
 	c2_free(tp);
 	return 0;
 }
@@ -468,9 +479,9 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	if (tp->xtm_state == C2_NET_XTM_STARTED) 
+	if (tp->xtm_state == C2_NET_XTM_STARTED)
 		return 0;
-	if (tp->xtm_state == C2_NET_XTM_STARTING) 
+	if (tp->xtm_state == C2_NET_XTM_STARTING)
 		return 0;
 	if (tp->xtm_state != C2_NET_XTM_INITIALIZED)
 		return -EPERM;
@@ -485,14 +496,24 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
 
 	/* start worker threads */
-	return -ENOSYS;
+	int rc = 0;
+	int i;
+	for (i = 0; i < tp->xtm_num_workers && rc == 0; ++i)
+		rc = C2_THREAD_INIT(&tp->xtm_worker_threads[i],
+				    struct c2_net_transfer_mc *, NULL,
+				    &mem_xo_tm_worker, tm);
 
-	/* set transition state and add the state change work item */
-	tp->xtm_state = C2_NET_XTM_STARTING;
-	c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
-	c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+	if (rc == 0) {
+		/* set transition state and add the state change work item */
+		tp->xtm_state = C2_NET_XTM_STARTING;
+		c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
+		c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+	} else {
+		tp->xtm_state = C2_NET_XTM_FAILED;
+		c2_free(wi_st_chg); /* fini cleans up threads */
+	}
 
-	return 0;
+	return rc;
 }
 
 static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
@@ -501,7 +522,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	if (tp->xtm_state >= C2_NET_XTM_STOPPING) 
+	if (tp->xtm_state >= C2_NET_XTM_STOPPING)
 		return 0;
 
 	/* allocate a state change work item */
@@ -517,7 +538,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	int rc;
 	int qt;
 	struct c2_net_buffer *nb;
-	for(qt = 0; qt < C2_NET_QT_NR; qt++) {
+	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
 		c2_list_for_each_entry(&tm->ntm_q[qt], nb,
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
@@ -563,7 +584,7 @@ struct c2_net_xprt c2_net_bulk_mem_xprt = {
    @} bulkmem
 */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

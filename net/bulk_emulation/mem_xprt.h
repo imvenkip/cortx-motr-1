@@ -28,7 +28,7 @@
         - xo_dom_init()
 	- xo_buf_add()
 	- xo_end_point_create()
-  
+
    - The derived xo_dom_init() subroutine should allocate the private domain
      structure, set the value in the nd_xprt_private field, and then call the
      base domain initialization subroutine.
@@ -100,6 +100,7 @@ enum c2_net_bulk_mem_tm_state {
 	C2_NET_XTM_STARTED     = C2_NET_TM_STARTED,
 	C2_NET_XTM_STOPPING    = C2_NET_TM_STOPPING,
 	C2_NET_XTM_STOPPED     = C2_NET_TM_STOPPED,
+	C2_NET_XTM_FAILED      = C2_NET_TM_FAILED,
 };
 
 /**
@@ -114,7 +115,7 @@ struct c2_net_bulk_mem_work_item {
 	struct c2_list_link                 xwi_link;
 
 	/** Work opcode. All opcodes other than C2_NET_XOP_STATE_CHANGE
-	    and C2_NET_XOP_NR relate to buffers. 
+	    and C2_NET_XOP_NR relate to buffers.
 	*/
 	enum c2_net_bulk_mem_work_opcode    xwi_op;
 
@@ -183,7 +184,7 @@ struct c2_net_bulk_mem_domain_pvt {
 	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
 
 	/**
-	   Size of the end point structure. 
+	   Size of the end point structure.
 	   Initialized to the size of c2_net_bulk_mem_end_point.
 	 */
 	size_t                     xd_sizeof_ep;

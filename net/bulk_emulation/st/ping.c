@@ -121,6 +121,7 @@ void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Client Event CB: type == %d\n", ev->nev_qtype);
 }
 
 struct c2_net_tm_callbacks ctm_cb = {
@@ -160,6 +161,7 @@ void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void s_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Server Event CB: type == %d\n", ev->nev_qtype);
 }
 
 struct c2_net_tm_callbacks stm_cb = {
@@ -280,6 +282,9 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		goto fail;
 	}
 
+	struct c2_clink tmwait;
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->pc_tm, ctx->pc_ep);
 	if (rc != 0) {
 		fprintf(stderr, "transfer machine start failed: %d\n", rc);
@@ -287,6 +292,11 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 	}
 
 	c2_atomic64_set(&ctx->pc_stop, 0);
+
+	/* wait for tm to notify it has started */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	
 	return 0;
 fail:
 	ping_fini(ctx);
@@ -297,15 +307,21 @@ void ping_fini(struct ping_ctx *ctx)
 {
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		struct c2_clink tmwait;
+		struct c2_time delay, rem;
 		c2_clink_init(&tmwait, NULL);
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 
 		c2_net_tm_stop(&ctx->pc_tm, true);
-		do {
-			c2_chan_wait(&tmwait);
-		} while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED ||
-			 c2_net_tm_fini(&ctx->pc_tm) == -EBUSY);
+		c2_chan_wait(&tmwait); /* wait for it to stop */
 		c2_clink_del(&tmwait);
+
+		while (1) {
+			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED &&
+			    c2_net_tm_fini(&ctx->pc_tm) != -EBUSY)
+				break;
+			c2_time_set(&delay, 0, 1000L);
+			c2_nanosleep(&delay, &rem);
+		}
 	}
 	if (ctx->pc_ep != NULL)
 		c2_net_end_point_put(ctx->pc_ep);
@@ -334,6 +350,9 @@ void server(struct ping_ctx *ctx)
 	/*
 	  TODO: Insert actual code to do something here.
 	 */
+	struct c2_time delay, rem;
+	c2_time_set(&delay, 2, 0);
+	c2_nanosleep(&delay, &rem);
 
 	ping_fini(ctx);
 }
@@ -348,6 +367,9 @@ void client(struct ping_ctx *ctx)
 	/*
 	  TODO: Insert actual code to do something here.
 	 */
+	struct c2_time delay, rem;
+	c2_time_set(&delay, 2, 0);
+	c2_nanosleep(&delay, &rem);
 
 	ping_fini(ctx);
 }

@@ -852,7 +852,8 @@ enum c2_net_tm_state {
 	C2_NET_TM_STARTING,    /**< Startup in progress */
 	C2_NET_TM_STARTED,     /**< Active */
 	C2_NET_TM_STOPPING,    /**< Shutdown in progress */
-	C2_NET_TM_STOPPED      /**< Stopped */
+	C2_NET_TM_STOPPED,     /**< Stopped */
+	C2_NET_TM_FAILED       /**< Failed TM, must be fini'd */
 };
 
 /**
