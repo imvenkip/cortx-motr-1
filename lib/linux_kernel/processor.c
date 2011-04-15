@@ -62,7 +62,7 @@ enum cache_size {
 
 /**
    A node in the linked list describing processor properties. It
-   encapsulates 'struct c2_processor_descr'. This will used to cache
+   encapsulates 'struct c2_processor_descr'. This will be used to cache
    attributes of x86 processors.
    @see lib/processor.h
  */
@@ -199,7 +199,7 @@ static inline uint32_t c2_processor_get_x86cache_level(uint32_t eax)
    @param eax -> value in eax register for INTEL x86.
 
    @retval number of intel x86 processors sharing the cache (within
-           the core or the physical package)..
+           the core or the physical package).
  */
 static inline uint32_t c2_processor_get_x86cache_shares(uint32_t eax)
 {
@@ -212,7 +212,7 @@ static inline uint32_t c2_processor_get_x86cache_shares(uint32_t eax)
 
 /**
    Get the number cache leaves for x86 processor. For Intel use cpuid4
-   instruction. For AMD (or other x86 vendors) assume that L2 is supported..
+   instruction. For AMD (or other x86 vendors) assume that L2 is supported.
 
    @param id -> id of the processor for which caches leaves are requested.
 
@@ -533,7 +533,7 @@ static void c2_processor_x86_info(void *arg)
 
  */
 static int c2_processor_find_x86info(c2_processor_nr_t id,
-			  	    struct c2_processor_descr *pd)
+				     struct c2_processor_descr *pd)
 {
 	int rc = -EINVAL;
 	struct c2_processor_node *pinfo;
@@ -614,7 +614,7 @@ static int c2_processor_x86cache_create(void)
 static void c2_processor_x86cache_destroy(void)
 {
 	struct c2_list_link *node;
-	struct c2_processor_node *pinfo;	
+	struct c2_processor_node *pinfo;
 
 	/*
 	 * Remove all the processor nodes.
@@ -663,7 +663,7 @@ static uint32_t c2_processor_get_cacheid(c2_processor_nr_t id,
    @see c2_processor_find_x86info
  */
 static int c2_processor_get_info(c2_processor_nr_t id,
-			  	  struct c2_processor_descr *pd)
+				 struct c2_processor_descr *pd)
 {
 	C2_PRE(pd != NULL);
 	C2_PRE(c2_processor_is_initialized() == true);
