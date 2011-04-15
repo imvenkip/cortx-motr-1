@@ -524,6 +524,7 @@ AC_CONFIG_FILES([
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
+		 net/bulk_emulation/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
