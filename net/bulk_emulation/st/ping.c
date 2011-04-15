@@ -50,7 +50,7 @@ int lookup_xprt(const char *xprt_name, struct c2_net_xprt **xprt)
 
 	for (i = 0; xprts[i] != NULL; ++i) {
 		if (strcmp(xprt_name, xprts[i]->nx_name) == 0) {
-			*xprt = &c2_net_bulk_mem_xprt;
+			*xprt = xprts[i];
 			return 0;
 		}
 	}
