@@ -167,8 +167,8 @@ struct c2_net_bulk_mem_end_point {
    work function per work item opcode.  Each function has a
    signature described by this typedef.
  */
-typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_bulk_mem_work_item 
-					  *wi);
+typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
+					  struct c2_net_bulk_mem_work_item *wi);
 
 /**
    Domain private data structure.

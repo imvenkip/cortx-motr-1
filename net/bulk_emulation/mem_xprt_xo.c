@@ -18,69 +18,49 @@
    @{
  */
 static bool mem_domains_initialized = false;
-struct c2_list  c2_net_bulk_mem_domains;
 
-bool c2_net_bulk_mem_dom_invariant(struct c2_net_domain *dom)
+/**
+   List of in-memory network domains.
+   Protected by struct c2_net_mutex.
+*/
+static struct c2_list  c2_net_bulk_mem_domains;
+
+/* To reduce global symbols, yet make the code readable, we
+   include other .c files with static symbols into this file.
+   Dependency information must be captured in Makefile.am.
+
+   Static functions should be declared in the private header file
+   so that the order of their definiton does not matter.
+*/
+#include "mem_xprt_tm.c"
+#include "mem_xprt_msg.c"
+#include "mem_xprt_bulk.c"
+
+static bool mem_dom_invariant(struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	return dp != NULL && dp->xd_dom == dom;
 }
 
-bool c2_net_bulk_mem_ep_invariant(struct c2_net_end_point *ep)
+static bool mem_ep_invariant(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	return mep->xep_magic == C2_NET_XEP_MAGIC;
 }
 
-bool c2_net_bulk_mem_buffer_invariant(struct c2_net_buffer *nb)
+static bool mem_buffer_invariant(struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
 	return  (bp != NULL && bp->xb_buffer == nb &&
-		 c2_net_bulk_mem_dom_invariant(nb->nb_dom));
+		 mem_dom_invariant(nb->nb_dom));
 }
 
-bool c2_net_bulk_mem_tm_invariant(struct c2_net_transfer_mc *tm)
+static bool mem_tm_invariant(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	return (tp != NULL && tp->xtm_tm == tm &&
-		c2_net_bulk_mem_dom_invariant(tm->ntm_dom));
-}
-
-/**
- */
-static void mem_wf_state_change(struct c2_net_bulk_mem_work_item *wi)
-{
-}
-
-/**
- */
-static void mem_wf_cancel_cb(struct c2_net_bulk_mem_work_item *wi)
-{
-}
-
-/**
- */
-static void mem_wf_msg_recv_cb(struct c2_net_bulk_mem_work_item *wi)
-{
-}
-
-/**
- */
-static void mem_wf_msg_send(struct c2_net_bulk_mem_work_item *wi)
-{
-}
-
-/**
- */
-static void mem_wf_passive_bulk_cb(struct c2_net_bulk_mem_work_item *wi)
-{
-}
-
-/**
- */
-static void mem_wf_active_bulk(struct c2_net_bulk_mem_work_item *wi)
-{
+		mem_dom_invariant(tm->ntm_dom));
 }
 
 /**
@@ -131,7 +111,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		}
 		c2_list_add(&c2_net_bulk_mem_domains, &dp->xd_dom_linkage);
 	}
-	C2_POST(c2_net_bulk_mem_dom_invariant(dom));
+	C2_POST(mem_dom_invariant(dom));
 	return 0;
 }
 
@@ -141,7 +121,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
  */
 static void mem_xo_dom_fini(struct c2_net_domain *dom)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(dom));
+	C2_PRE(mem_dom_invariant(dom));
 
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	if(dp->xd_derived)
@@ -155,7 +135,7 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 static int mem_xo_get_max_buffer_size(struct c2_net_domain *dom, 
 				      c2_bcount_t *size)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(dom));
+	C2_PRE(mem_dom_invariant(dom));
 	*size = C2_NET_BULK_MEM_MAX_BUFFER_SIZE;
 	return 0;
 }
@@ -163,7 +143,7 @@ static int mem_xo_get_max_buffer_size(struct c2_net_domain *dom,
 static int mem_xo_get_max_buffer_segment_size(struct c2_net_domain *dom,
 					      c2_bcount_t *size)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(dom));
+	C2_PRE(mem_dom_invariant(dom));
 	*size = C2_NET_BULK_MEM_MAX_SEGMENT_SIZE;
 	return 0;
 }
@@ -171,7 +151,7 @@ static int mem_xo_get_max_buffer_segment_size(struct c2_net_domain *dom,
 static int mem_xo_get_max_buffer_segments(struct c2_net_domain *dom,
 					  int32_t *num_segs)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(dom));
+	C2_PRE(mem_dom_invariant(dom));
 	*num_segs= C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS;
 	return 0;
 }
@@ -189,7 +169,7 @@ static void mem_xo_end_point_release(struct c2_ref *ref)
 
 	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
-	C2_PRE(c2_net_bulk_mem_ep_invariant(ep));
+	C2_PRE(mem_ep_invariant(ep));
 
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	c2_list_del(&ep->nep_dom_linkage);
@@ -217,7 +197,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
 				   va_list varargs)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(dom));
+	C2_PRE(mem_dom_invariant(dom));
 
 	struct c2_net_end_point *ep;
 	struct c2_net_bulk_mem_end_point *mep;
@@ -244,7 +224,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	c2_list_for_each_entry(&dom->nd_end_points, ep,
 			       struct c2_net_end_point,
 			       nep_dom_linkage) {
-		C2_ASSERT(c2_net_bulk_mem_ep_invariant(ep));
+		C2_ASSERT(mem_ep_invariant(ep));
 		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
 		if (mep->xep_sa.sin_addr.s_addr == addr.s_addr &&
 		    mep->xep_sa.sin_port == port ){
@@ -265,15 +245,18 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	ep->nep_dom = dom;
 	c2_list_link_init(&ep->nep_dom_linkage);
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
-	C2_POST(c2_net_bulk_mem_ep_invariant(ep));
+	C2_POST(mem_ep_invariant(ep));
 	*epp = ep;
 	return 0;
 }
 
-int c2_net_bulk_mem_ep_create_desc(struct c2_net_end_point *ep,
+/**
+   Create a network buffer descriptor from an in-memory end point.
+ */
+static int mem_ep_create_desc(struct c2_net_end_point *ep,
 			      struct c2_net_buf_desc *desc)
 {
-	C2_PRE(c2_net_bulk_mem_ep_invariant(ep));
+	C2_PRE(mem_ep_invariant(ep));
 	desc->nbd_len = sizeof(struct sockaddr_in);
 	desc->nbd_data = c2_alloc(desc->nbd_len);
 	if (desc->nbd_data == NULL) {
@@ -293,7 +276,7 @@ int c2_net_bulk_mem_ep_create_desc(struct c2_net_end_point *ep,
  */
 static int mem_xo_buf_register(struct c2_net_buffer *nb)
 {
-	C2_PRE(nb->nb_dom != NULL && c2_net_bulk_mem_dom_invariant(nb->nb_dom));
+	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
 	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
 	struct c2_net_bulk_mem_buffer_pvt *bp;
@@ -305,7 +288,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
 	c2_list_link_init(&bp->xb_wi.xwi_link);
 	bp->xb_wi.xwi_op = C2_NET_XOP_NR;
 	nb->nb_xprt_private = bp;
-	C2_POST(c2_net_bulk_mem_buffer_invariant(nb));
+	C2_POST(mem_buffer_invariant(nb));
 	return 0;
 }
 
@@ -314,7 +297,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
  */
 static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	C2_PRE(c2_net_bulk_mem_buffer_invariant(nb));
+	C2_PRE(mem_buffer_invariant(nb));
 
 	struct c2_net_bulk_mem_buffer_pvt *bp;
 	bp = nb->nb_xprt_private;
@@ -329,12 +312,12 @@ static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
  */
 static int mem_xo_buf_add(struct c2_net_buffer *nb)
 {
-	C2_PRE(c2_net_bulk_mem_buffer_invariant(nb));
+	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED &&
 	       (nb->nb_flags & ~C2_NET_BUF_IN_USE) == 0);
 
 	struct c2_net_transfer_mc *tm = nb->nb_tm;
-	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 
@@ -359,7 +342,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	case C2_NET_QT_ACTIVE_BULK_SEND:
 		wi->xwi_op = C2_NET_XOP_ACTIVE_BULK;
 		C2_ASSERT(nb->nb_ep != NULL);
-		rc = c2_net_bulk_mem_ep_create_desc(nb->nb_ep, &nb->nb_desc);
+		rc = mem_ep_create_desc(nb->nb_ep, &nb->nb_desc);
 		if (!rc)
 			return rc;
 		break;
@@ -385,11 +368,11 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
  */
 static int mem_xo_buf_del(struct c2_net_buffer *nb)
 {
-	C2_PRE(c2_net_bulk_mem_buffer_invariant(nb));
+	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED);
 
 	struct c2_net_transfer_mc *tm = nb->nb_tm;
-	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 
@@ -435,7 +418,7 @@ static int mem_xo_buf_del(struct c2_net_buffer *nb)
  */
 static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
-	C2_PRE(c2_net_bulk_mem_dom_invariant(tm->ntm_dom));
+	C2_PRE(mem_dom_invariant(tm->ntm_dom));
 
 	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
 	struct c2_net_bulk_mem_tm_pvt *tp;
@@ -453,7 +436,7 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 	c2_list_init(&tp->xtm_work_list);
 	c2_cond_init(&tp->xtm_work_list_cv);
 	tm->ntm_xprt_private = tp;
-	C2_POST(c2_net_bulk_mem_tm_invariant(tm));
+	C2_POST(mem_tm_invariant(tm));
 	return 0;
 }
 
@@ -465,7 +448,7 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
  */
 static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
-	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(mem_tm_invariant(tm));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	if (tp->xtm_state != C2_NET_XTM_STOPPED)
@@ -481,7 +464,7 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 
 static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
-	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
@@ -514,7 +497,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 
 static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
-	C2_PRE(c2_net_bulk_mem_tm_invariant(tm));
+	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
