@@ -227,6 +227,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	mep->xep_sa.sin_port = port;
 	ep = &mep->xep_ep;
 	c2_ref_init(&ep->nep_ref, 1, mem_xo_end_point_release);
+	ep->nep_dom = dom;
 	c2_list_link_init(&ep->nep_dom_linkage);
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
 	C2_POST(c2_net_bulk_mem_ep_invariant(ep));
@@ -469,13 +470,14 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
 
 	/* start worker threads */
+	return -ENOSYS;
 
 	/* set transition state and add the state change work item */
 	tp->xtm_state = C2_NET_XTM_STARTING;
 	c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
 	c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
-	return -ENOSYS;
+	return 0;
 }
 
 static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
