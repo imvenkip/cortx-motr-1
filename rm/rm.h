@@ -19,9 +19,9 @@
 
    Resource management is split into two parts:
 
-   - generic functionality, implemented by the code in rm/ directory and
+       - generic functionality, implemented by the code in rm/ directory and
 
-   - resource type specific functionality.
+       - resource type specific functionality.
 
    These parts interacts by the operation vectors (c2_rm_resource_ops,
    c2_rm_resource_type_ops and c2_rm_right_ops) provided by a resource type
@@ -31,6 +31,37 @@
 
    In the documentation below, responsibilities of generic and type specific
    parts of the resource manager are delineated.
+
+   <b>Overview.</b>
+
+   A resource (c2_rm_resource) is associated with various file system entities:
+
+       - file meta-data. Rights to use this resource can be thought of as locks
+         on file attributes that allow them to be cached or modified locally;
+
+       - file data. Rights to use this resource are extents in the file plus
+         access mode bits (read, write);
+
+       - free storage space on a server (a "grant" in Lustre
+         terminology). Right to use this resource is a reservation of a given
+         number of bytes;
+
+       - quota;
+
+       - many more, see the HLD for examples.
+
+   A resource owner (c2_rm_owner) represents a collection of rights to use a
+   particular resource.
+
+   To use a resource, an incoming resource request is created (c2_rm_incoming),
+   that describes a wanted usage right. Sometimes the request can be fulfilled
+   immediately, sometimes it takes a network communication to gather the wanted
+   usage right at the owner. When incoming request processing is complete, it
+   "pins" the wanted right. This right can be used until the request structure
+   is destroyed and the pin is released.
+
+   See the documentation for individual resource management data-types and
+   interfaces for more detailed description of their behaviour.
 
    <b>Resource identification and location.</b>
 
@@ -49,12 +80,13 @@ struct c2_rm_resource_ops;
 struct c2_rm_resource_type;
 struct c2_rm_resource_type_ops;
 struct c2_rm_owner;
-struct c2_rm_owner_proxy;
+struct c2_rm_remote;
 struct c2_rm_loan;
 struct c2_rm_group;
 struct c2_rm_right;
 struct c2_rm_right_ops;
-struct c2_rm_request;
+struct c2_rm_incoming;
+struct c2_rm_outgoing;
 struct c2_rm_lease;
 
 enum {
@@ -122,6 +154,8 @@ struct c2_rm_resource_ops {
 	int (*rop_right_decode)(struct c2_rm_resource *resource,
 				struct c2_rm_right *right,
 				struct c2_vec_cursor *bufvec);
+	void (*rop_policy)(struct c2_rm_resource *resource,
+			   struct c2_rm_incoming *in);
 };
 
 /**
@@ -177,8 +211,8 @@ struct c2_rm_resource_type {
 };
 
 struct c2_rm_resource_type_ops {
-	bool (*rto_eq)(const struct c2_rm_resource_type *rt0,
-		       const struct c2_rm_resource_type *rt1);
+	bool (*rto_eq)(const struct c2_rm_resource *resource0,
+		       const struct c2_rm_resource *resource1);
 	int  (*rto_decode)(struct c2_vec_cursor *bufvec,
 			   struct c2_rm_resource **resource);
 };
@@ -197,15 +231,30 @@ struct c2_rm_resource_type_ops {
    A right can be something simple as a single bit (conveying, for example,
    an exclusive ownership of some datum) or a collection of extents tagged
    with access masks.
+
+   A right is said to be "pinned" or "held" when its c2_rm_right::ri_users
+   count is greater than 0.
+
+   Rights are typically linked into one of c2_rm_owner lists. Pinned rights can
+   only happen on c2_rm_owner::ro_owned[OWOS_HELD] list. They cannot be moved
+   out of this list until unpinned.
  */
 struct c2_rm_right {
 	struct c2_rm_resource        *ri_resource;
 	const struct c2_rm_right_ops *ri_ops;
-	/** number of active right users. */
-	uint32_t                      ri_users;
 	/** resource type private field. By convention, 0 means "empty"
 	    right. */
 	uint64_t                      ri_datum;
+	/**
+	   Linkage of a right (and the corresponding loan, if applicable) to a
+	   list hanging off c2_rm_owner.
+	 */
+	struct c2_list_link           ri_linkage;
+	/**
+	   A list of pins, linked through c2_rm_pins::rp_right, stuck into this
+	   right.
+	 */
+	struct c2_list                ri_pins;
 };
 
 struct c2_rm_right_ops {
@@ -251,7 +300,7 @@ struct c2_rm_right_ops {
 	 */
 	void (*rro_diff)   (struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
-	/** true, iff r0 is "less than or equal to" r1. */
+	/** true, iff r1 is "less than or equal to" r0. */
 	bool (*rro_implies)(const struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
 	/** @} end of Rights ordering */
@@ -304,6 +353,7 @@ enum c2_rm_remote_state {
 	 identification can be piggy-backed to the first operation on the
 	 remote owner.
 
+   @verbatim
        	     fini
        	+----------------INITIALISED
 	|           	      |
@@ -327,6 +377,7 @@ enum c2_rm_remote_state {
 	|    fini      	      V
 	+--------------RESOURCE_LOCATED
 
+   @endverbatim
  */
 struct c2_rm_remote {
 	enum c2_rm_remote_state  rem_state;
@@ -365,7 +416,14 @@ struct c2_rm_group {
 };
 
 enum {
-	C2_RM_REQUEST_PRIORITY_MAX = 3
+	C2_RM_REQUEST_PRIORITY_MAX = 3,
+	C2_RM_REQUEST_PRIORITY_NR
+};
+
+enum c2_rm_owner_owned_state {
+	OWOS_HELD,
+	OWOS_CACHED,
+	OWOS_NR
 };
 
 /**
@@ -400,13 +458,40 @@ enum {
       means "no rights on which conflicts cannot be resolved afterwards by
       the optimistic conflict resolution policy".
 
+   Owners of rights for a particular resource are arranged in a cluster-wide
+   hierarchy. Originally, all rights belong to a single owner (or a set of
+   owners), residing on some well-known servers. Proxy servers request and
+   cache rights from there. Lower level proxies and client request rights in
+   turn. According to the order in this hierarchy, one distinguishes "upward"
+   and "downward" owners relative to a given one.
+
    c2_rm_owner is a generic structure, created and maintained by the
    generic resource manager code.
 
+   Off a c2_rm_owner hang several arrays of lists for rights book-keeping:
+   c2_rm_owner::ro_borrowed[], c2_rm_owner::ro_sublet[] and
+   c2_rm_owner::ro_owned[], further subdivided by states.
+
+   As rights form a lattice (see c2_rm_right_ops), it is always possible to
+   represent the cumulative sum of all rights on a list as a single
+   c2_rm_right. The reason the lists are needed is that rights in the lists
+   have some additional state associated with them (e.g., loans for
+   c2_rm_owner::ro_borrowed[], c2_rm_owner::ro_sublet[] or users
+   (c2_rm_right::ri_users) for c2_rm_owner::ro_owned[]) that can be manipulated
+   independently.
+
    @invariant under ->ro_lock { // keep books balanced at all times
-           join of ->ro_owned and
+           join of rights on ->ro_owned[] and
                    rights on ->ro_sublet equals to
-           join of rights on ->ro_borrowed
+           join of rights on ->ro_borrowed           &&
+
+           meet of (join of rights on ->ro_owned[]) and
+	           (join of rights on ->ro_sublet) is empty.
+   }
+
+   @invariant under ->ro_lock {
+           ->ro_owned[OWOS_HELD] is exactly the list of all held rights (ones
+           with elevated user count)
    }
  */
 struct c2_rm_owner {
@@ -422,36 +507,37 @@ struct c2_rm_owner {
 	 */
 	struct c2_rm_group    *ro_group;
 	/**
-	   A list of loans, linked through c2_rm_load::rl_linkage that this
-	   owner borrowed from other owners.
+	   A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
+	   this owner borrowed from other owners.
 	 */
 	struct c2_list         ro_borrowed;
 	/**
-	   A list of loans, linked through c2_rm_load::rl_linkage that this
-	   owner extended to other owners. Rights on this list are not longer
-	   possessed by this owner: they are counted in
+	   A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
+	   this owner extended to other owners. Rights on this list are not
+	   longer possessed by this owner: they are counted in
 	   c2_rm_owner::ro_granted, but not in c2_rm_owner::ro_owned.
 	 */
 	struct c2_list         ro_sublet;
 	/**
-	   Right that is possessed by the owner.
+	   A list of rights, linked through c2_rm_right::ri_linkage possessed
+	   by the owner.
 	 */
-	struct c2_rm_right     ro_owned;
+	struct c2_list         ro_owned[OWOS_NR];
 	/**
 	   An array of lists, sorted by priority, of incoming requests, not yet
 	   satisfied. Requests are linked through
-	   c2_rm_request::rq_want::rl_linkage.
+	   c2_rm_incoming::rin_want::rl_right:ri_linkage.
 
 	   @see c2_rm_owner::ro_outgoing
 	 */
-	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_MAX + 1];
+	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR];
 	/**
 	   An array of lists, sorted by priority, of outgoing, not yet
 	   completed, requests.
 
 	   @see c2_rm_owner::ro_incoming
 	 */
-	struct c2_list         ro_outgoing[C2_RM_REQUEST_PRIORITY_MAX + 1];
+	struct c2_list         ro_outgoing;
 	struct c2_mutex        ro_lock;
 };
 
@@ -459,16 +545,11 @@ struct c2_rm_owner {
    A loan (of a right) from one owner to another.
 
    c2_rm_loan is always on some list (to which it is linked through
-   c2_rm_loan::rl_linkage field) in an owner structure. This owner is one party
-   of the loan. Another party is c2_rm_loan::rl_other. Which party is creditor
-   and which is debtor is determined by the list the loan is on.
+   c2_rm_loan::rl_right:ri_linkage field) in an owner structure. This owner is
+   one party of the loan. Another party is c2_rm_loan::rl_other. Which party is
+   creditor and which is debtor is determined by the list the loan is on.
  */
 struct c2_rm_loan {
-	/**
-	   A linkage to the list of all loads given out by an owner and hanging
-	   off either c2_rm_owner::ro_sublet or c2_rm_owner::ro_borrowed.
-	 */
-	struct c2_list_link rl_linkage;
 	struct c2_rm_right  rl_right;
 	/**
 	   Other party in the loan. Either an "upward" creditor or "downward"
@@ -483,16 +564,258 @@ struct c2_rm_loan {
 };
 
 /**
+   States of incoming request.
+ */
+enum c2_rm_incoming_state {
+	RI_INITIALISED = 1,
+	RI_CHECK,
+	RI_SUCCESS,
+	RI_FAILURE,
+	RI_WAIT
+};
+
+enum c2_rm_incoming_type {
+	RIT_LOCAL,
+	RIT_LOAN,
+	RIT_REVOKE
+};
+
+enum c2_rm_incoming_policy {
+	RIP_NONE = 1,
+	RIP_INPLACE,
+	RIP_STRICT,
+	RIP_JOIN,
+	RIP_MAX,
+	RIP_RESOURCE_TYPE_BASE
+};
+
+enum c2_rm_incoming_flags {
+	RIF_MAY_REVOKE = (1 << 0),
+	RIF_MAY_BORROW = (1 << 1),
+	RIF_WAIT_LOCAL = (1 << 2)
+};
+
+/**
    Resource usage right request.
 
-   The same c2_rm_request structure is used to track state of the outgoing and
-   incoming requests.
+   The same c2_rm_incoming structure is used to track state of the incoming
+   requests both "local", i.e., from the same domain where the owner resides
+   and "remote".
+
+   An incoming request is created for
+
+       - local right request, when some user wants to use the resource;
+
+       - remote right request from a "downward" owner which asks to sub-let
+         some rights;
+
+       - remote right request from an "upward" owner which wants to revoke some
+         rights.
+
+   These usages are differentiated by c2_rm_incoming::rin_type.
+
+   An incoming request is a state machine, going through the following stages:
+
+       - [CHECK]   this stage determines whether the request can be fulfilled
+                   immediately. Local request can be fulfilled immediately if
+                   the wanted right is possessed by the owner, that is, if
+                   in->rin_want is implied by a join of owner->ro_owned[].
+
+		   A non-local (loan or revoke) request can be fulfilled
+		   immediately if the wanted right is implied by a join of
+		   owner->ro_owned[OWOS_CACHED], that is, if the owner has
+		   enough rights to grant the loan and the wanted right does
+		   not conflict with locally held rights.
+
+       - [POLICY]  If the request can be fulfilled immediately, the "policy" is
+                   invoked which decides which right should be actually grated,
+                   sublet or revoked. That right can be larger than
+                   requested. A policy is, generally, resource type dependent,
+                   with a few universal policies defined by enum
+                   c2_rm_incoming_policy.
+
+       - [SUCCESS] Finally, fulfilled request succeeds.
+
+       - [ISSUE]   Otherwise, if the request can not be fulfilled immediately,
+                   "pins" (c2_rm_pin) are added which will notify the request
+                   when the fulfillment check might succeed.
+
+                   Pins are added to:
+
+		       - every conflicting right held by this owner (when
+                         RIF_WAIT_LOCAL flag is set on the request and always
+                         for a remote request);
+
+                       - outgoing requests to revoke conflicting rights sub-let
+                         to remote owners (when RIF_MAY_REVOKE flag is set);
+
+		       - outgoing requests to borrow missing rights from remote
+                         owners (when RIF_MAY_BORROW flag is set);
+
+		   Outgoing requests mentioned above are created as necessary
+		   in the ISSUE stage.
+
+       - [CYCLE]   When all the pins stuck in the ISSUE state are released
+                   (either when a local right is released or when an outgoing
+                   request completes), go back to the CHECK state.
+
+   Looping back to the CHECK state is necessary, because possessed rights are
+   not "pinned" during wait and can go away (be revoked or sub-let). The rights
+   are not pinned to avoid dependencies between rights that can lead to
+   dead-locks and "cascading evictions". The alternative is to pin rights and
+   issue outgoing requests synchronously one by one and in a strict order (to
+   avoid dead-locks). The rationale behind current decision is that probability
+   of a live-lock is low enough and the advantage of issuing concurrent
+   asynchronous outgoing requests is important.
+
+   @todo Should live-locks prove to be a practical issue, RPF_BARRIER pins can
+   be used to reduce concurrency and assure state machine progress.
+
+   It's a matter of policy how many outgoing requests are sent out in ISSUE
+   state. The fewer requests are sent, the more CHECK-ISSUE-WAIT loop
+   iterations would typically happen. An extreme case of sending no more than a
+   single request is also possible and has some advantages: outgoing request
+   can be allocated as part of incoming request, simplifying memory management.
+
+   It is also a matter is policy, how exactly the request is satisfied after a
+   successful CHECK state. Suppose, for example, that the owner possesses
+   rights R0 and R1 such that wanted right W is implied by join(R0, R1), but
+   neither R0 nor R1 alone imply W. Some possible CHECK outcomes are:
+
+       - increase user counts in both R0 and R1;
+
+       - insert a new right equal to W into owner->ro_owned[];
+
+       - insert a new right equal to join(R0, R1) into owner->ro_owned[].
+
+   All have their advantages and drawbacks:
+
+       - elevating R0 and R1 user counts keeps owner->ro_owned[] smaller, but
+         pins more rights than strictly necessary;
+
+       - inserting W behaves badly in a standard use case where a thread doing
+         sequential IO requests a right on each iteration;
+
+       - inserting the join pins more rights than strictly necessary.
+
+   All policy questions are settled by per-request flags and owner settings,
+   based on access pattern analysis.
+
+   Following is a state diagram, where are stages that are performed without
+   blocking (for network communication) are lumped into a single state:
+
+   @verbatim
+       	       	       	       	   SUCCESS
+       	       	       	       	      ^
+	       too many iterations    |
+		    live-lock         |	   last completion
+       	          +-----------------CHECK<-----------------+
+		  |    	       	      |                    |
+		  |    	      	      |	                   |
+		  V    	      	      |	                   |
+	       FAILURE                | pins placed        |
+	       	  ^    	      	      |                    |
+	       	  |    	      	      |	  		   |
+	       	  |    	      	      V	       	       	   |
+	          +----------------WAITING-----------------+
+		       timeout	    ^  	|
+       	       	       	       	    |  	| completion
+				    |   |
+				    +---+
+   @endverbatim
+
+   c2_rm_incoming fields and state transitions are protected by the owner's
+   mutex.
 
    @note a cedent can grant a usage right larger than requested.
  */
-struct c2_rm_request {
-	struct c2_rm_loan  rq_want;
-	struct c2_rm_right rq_have;
+struct c2_rm_incoming {
+	enum c2_rm_incoming_type   rin_type;
+	enum c2_rm_incoming_state  rin_state;
+	enum c2_rm_incoming_policy rin_policy;
+	enum c2_rm_incoming_flags  rin_flags;
+	struct c2_rm_owner        *rin_owner;
+	/** The right requested. */
+	struct c2_rm_right         rin_want;
+	/**
+	   List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
+	   rights held to satisfy this request.
+
+	   @invariant meaning of this list depends on the request state:
+
+	       - RI_CHECK, RI_SUCCESS: a list of pins on rights in
+                 ->rin_owner->ro_owned[];
+
+	       - RI_ISSUE, RI_WAIT: a list of pins on outgoing requests
+	         (through c2_rm_outgoing::rog_want::rl_right::ri_pins) and held
+	         rights in ->rin_owner->ro_owned[OWOS_HELD];
+
+	       - other states: empty.
+	 */
+	struct c2_list             rin_pins;
+};
+
+enum c2_rm_outgoing_type {
+	ROT_BORROW = 1,
+	ROT_CANCEL,
+	ROT_REVOKE
+}
+
+/**
+   An outgoing request is created on behalf of some incoming request to track
+   the state of right transfer from some remote domain.
+
+   An outgoing request is created to:
+
+       - borrow a new right from some remote owner (an "upward" request) or
+
+       - revoke a right sublet to some remote owner (a "downward" request) or
+
+       - cancel this owner's right and return it to an upward owner.
+
+   When a new outgoing request is created, a list of already existing outgoing
+   requests (c2_rm_owner::ro_outgoing[]) is scanned. If an outgoing request for
+   a greater or equal right exists, the new request is linked into
+   rog_depend.d_head list hanging off the existing outgoing request.
+
+   c2_rm_outgoing fields and state transitions are protected by the owner's
+   mutex.
+ */
+struct c2_rm_outgoing {
+	enum c2_rm_outgoing_type rog_type;
+	/** a right that is to be transferred. */
+	struct c2_rm_loan        rog_want;
+};
+
+enum c2_rm_pin_flags {
+	RPF_TRACK   = (1 << 0),
+	RPF_PROTECT = (1 << 1),
+	RPF_BARRIER = (1 << 2)
+};
+
+/**
+   A pin is used to
+
+       - track when a right (or an object such as a loan or outgoing request
+         which the right is embedded into) changes its state;
+
+       - to protect a right from revocation;
+
+       - to prohibit other pins from being added to the right.
+
+   Fields of this struct are protected by the owner's lock.
+ */
+struct c2_rm_pin {
+	uint32_t               rp_flags;
+	struct c2_rm_right    *rp_right;
+	/** An incoming request that stuck this pin. */
+	struct c2_rm_incoming *rp_incoming;
+	/** Linkage into a list of all pins for a right, hanging off
+	    c2_rm_right::ri_pins. */
+	struct c2_list_link    rp_right_linkage;
+	/** Linkage into a list of all pins, held to satisfy an incoming
+	    request. This list hangs off c2_rm_incoming::rin_pins. */
+	struct c2_list_link    rp_incoming_linkage;
 };
 
 struct c2_rm_lease {
