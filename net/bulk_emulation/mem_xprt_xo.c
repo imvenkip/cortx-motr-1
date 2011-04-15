@@ -48,6 +48,42 @@ bool c2_net_bulk_mem_tm_invariant(struct c2_net_transfer_mc *tm)
 }
 
 /**
+ */
+static void mem_wf_state_change(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
+ */
+static void mem_wf_cancel_cb(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
+ */
+static void mem_wf_msg_recv_cb(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
+ */
+static void mem_wf_msg_send(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
+ */
+static void mem_wf_passive_bulk_cb(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
+ */
+static void mem_wf_active_bulk(struct c2_net_bulk_mem_work_item *wi)
+{
+}
+
+/**
    This routine will allocate and initialize the private domain data and attach
    it to the domain. It will assume that the domains private pointer is
    allocated if not NULL. This allows for a derived transport to pre-allocate
@@ -73,12 +109,12 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		dom->nd_xprt_private = dp;
 	}
 	dp->xd_dom = dom;
-	dp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = NULL;
-	dp->xd_work_fn[C2_NET_XOP_CANCEL_CB]       = NULL;
-	dp->xd_work_fn[C2_NET_XOP_MSG_RECV_CB]     = NULL;
-	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = NULL;
-	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = NULL;
-	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = NULL;
+	dp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change;
+	dp->xd_work_fn[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb;
+	dp->xd_work_fn[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb;
+	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
+	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
+	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
 	dp->xd_sizeof_ep = sizeof(struct c2_net_bulk_mem_end_point);
 	dp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_mem_tm_pvt);
 	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
