@@ -38,7 +38,8 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 
 		if ((buf->nb_flags & C2_NET_BUF_QUEUED) != 0)
 			c2_list_del(&buf->nb_tm_linkage);
-		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED);
+		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
+				   C2_NET_BUF_IN_USE);
 		buf->nb_flags |= C2_NET_BUF_IN_CALLBACK;
 		buf->nb_status = ev->nev_status;
 

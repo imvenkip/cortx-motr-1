@@ -23,7 +23,7 @@ static bool mem_domains_initialized = false;
    List of in-memory network domains.
    Protected by struct c2_net_mutex.
 */
-static struct c2_list  c2_net_bulk_mem_domains;
+static struct c2_list  mem_domains;
 
 /* To reduce global symbols, yet make the code readable, we
    include other .c files with static symbols into this file.
@@ -32,9 +32,61 @@ static struct c2_list  c2_net_bulk_mem_domains;
    Static functions should be declared in the private header file
    so that the order of their definiton does not matter.
 */
+#include "mem_xprt_ep.c"
 #include "mem_xprt_tm.c"
 #include "mem_xprt_msg.c"
 #include "mem_xprt_bulk.c"
+
+static c2_bcount_t mem_buffer_length(struct c2_net_buffer *nb)
+{
+	return c2_vec_count(&nb->nb_buffer.ov_vec);
+}
+
+/**
+   Check buffer size limits.
+ */
+static bool mem_buffer_in_bounds(struct c2_net_buffer *nb)
+{
+	struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	if (v->v_nr > C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS)
+		return false;
+	int i;
+	c2_bcount_t len=0;
+	for (i=0; i < v->v_nr; i++) {
+		if (v->v_count[i] > C2_NET_BULK_MEM_MAX_SEGMENT_SIZE)
+			return false;
+		len += v->v_count[i];
+	}
+	if (len > C2_NET_BULK_MEM_MAX_BUFFER_SIZE)
+		return false;
+	return true;
+}
+
+/**
+   Copy from one buffer to another. Each buffer may have different
+   number of segments and segment sizes.
+ */
+static int mem_copy_buffer(struct c2_net_buffer *dest_nb,
+			   struct c2_net_buffer *src_nb,
+			   c2_bcount_t num_bytes)
+{
+	if (mem_buffer_length(dest_nb) < num_bytes) {
+		return -EFBIG;
+	}
+	C2_ASSERT(mem_buffer_length(src_nb) <= num_bytes);
+
+	return -ENOSYS;
+}
+
+/**
+   Add a work item to the work list
+*/
+static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
+		       struct c2_net_bulk_mem_tm_pvt *tp)
+{
+	c2_list_add_tail(&tp->xtm_work_list, &wi->xwi_link);
+	c2_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);	
+}
 
 static bool mem_dom_invariant(struct c2_net_domain *dom)
 {
@@ -106,10 +158,10 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	} else {
 		dp->xd_derived = false;
 		if (!mem_domains_initialized) {
-			c2_list_init(&c2_net_bulk_mem_domains);
+			c2_list_init(&mem_domains);
 			mem_domains_initialized = true;
 		}
-		c2_list_add(&c2_net_bulk_mem_domains, &dp->xd_dom_linkage);
+		c2_list_add(&mem_domains, &dp->xd_dom_linkage);
 	}
 	C2_POST(mem_dom_invariant(dom));
 	return 0;
@@ -157,27 +209,6 @@ static int mem_xo_get_max_buffer_segments(struct c2_net_domain *dom,
 }
 
 /**
-   End point release subroutine invoked when the reference count goes
-   to 0.
-   Unlinks the end point from the domain, and releases the memory.
-   Must be called holding the domain mutex.
-*/
-static void mem_xo_end_point_release(struct c2_ref *ref)
-{
-	struct c2_net_end_point *ep;
-	struct c2_net_bulk_mem_end_point *mep;
-
-	ep = container_of(ref, struct c2_net_end_point, nep_ref);
-	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
-	C2_PRE(mem_ep_invariant(ep));
-
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	c2_list_del(&ep->nep_dom_linkage);
-	ep->nep_dom = NULL;
-	c2_free(mep);
-}
-
-/**
    This routine will search for an existing end point in the domain, and if not
    found, will allocate and zero out space for a new end point using the
    xd_sizeof_ep field to determine the size. It will fill in the xep_address
@@ -197,76 +228,25 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
 				   va_list varargs)
 {
-	C2_PRE(mem_dom_invariant(dom));
-
-	struct c2_net_end_point *ep;
-	struct c2_net_bulk_mem_end_point *mep;
 	char *dot_ip;
-	int port; /* user: in_port_t, kernel: __be16 */
-	struct in_addr addr;
+	struct sockaddr_in sa;
 
 	dot_ip = va_arg(varargs, char *);
 	if (dot_ip == NULL)
 		return -EINVAL;
-	port = htons(va_arg(varargs, int));
-	if (port == 0)
+	/* user: in_port_t, kernel: __be16 */
+	sa.sin_port = htons(va_arg(varargs, int));
+	if (sa.sin_port == 0)
 		return -EINVAL;
 #ifdef __KERNEL__
-	addr.s_addr = in_aton(dot_ip);
-	if (addr.s_addr == 0)
+	sa.sin_addr.s_addr = in_aton(dot_ip);
+	if (sa.sin_addr.s_addr == 0)
 		return -EINVAL;
 #else
-	if (inet_aton(dot_ip, &addr) == 0)
+	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-
-	/* check if its already on the domain list */
-	c2_list_for_each_entry(&dom->nd_end_points, ep,
-			       struct c2_net_end_point,
-			       nep_dom_linkage) {
-		C2_ASSERT(mem_ep_invariant(ep));
-		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
-		if (mep->xep_sa.sin_addr.s_addr == addr.s_addr &&
-		    mep->xep_sa.sin_port == port ){
-			c2_ref_get(&ep->nep_ref); /* refcnt++ */
-			*epp = ep;
-			return 0;
-		}
-	}
-
-	/** allocate a new end point of appropriate size */
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	mep = c2_alloc(dp->xd_sizeof_ep);
-	mep->xep_magic = C2_NET_XEP_MAGIC;
-	mep->xep_sa.sin_addr = addr;
-	mep->xep_sa.sin_port = port;
-	ep = &mep->xep_ep;
-	c2_ref_init(&ep->nep_ref, 1, mem_xo_end_point_release);
-	ep->nep_dom = dom;
-	c2_list_link_init(&ep->nep_dom_linkage);
-	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
-	C2_POST(mem_ep_invariant(ep));
-	*epp = ep;
-	return 0;
-}
-
-/**
-   Create a network buffer descriptor from an in-memory end point.
- */
-static int mem_ep_create_desc(struct c2_net_end_point *ep,
-			      struct c2_net_buf_desc *desc)
-{
-	C2_PRE(mem_ep_invariant(ep));
-	desc->nbd_len = sizeof(struct sockaddr_in);
-	desc->nbd_data = c2_alloc(desc->nbd_len);
-	if (desc->nbd_data == NULL) {
-		desc->nbd_len = 0;
-		return -ENOMEM;
-	}
-	struct c2_net_bulk_mem_end_point *mep;
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	memcpy(desc->nbd_data, &mep->xep_sa, desc->nbd_len);
-	return 0;
+	return mem_ep_create(epp, dom, &sa);
 }
 
 /**
@@ -277,6 +257,9 @@ static int mem_ep_create_desc(struct c2_net_end_point *ep,
 static int mem_xo_buf_register(struct c2_net_buffer *nb)
 {
 	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
+
+	if (!mem_buffer_in_bounds(nb))
+		return -EFBIG;
 
 	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
 	struct c2_net_bulk_mem_buffer_pvt *bp;
@@ -351,10 +334,10 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		break;
 	}
 	nb->nb_flags &= ~C2_NET_BUF_CANCELLED;
+	nb->nb_status = -1;
 
 	if (wi->xwi_op != C2_NET_XOP_NR) {
-		c2_list_add_tail(&tp->xtm_work_list, &wi->xwi_link);
-		c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+		mem_wi_add(wi, tp);
 	}
 
 	return 0;
@@ -376,9 +359,8 @@ static int mem_xo_buf_del(struct c2_net_buffer *nb)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 
-	if (nb->nb_flags & C2_NET_BUF_IN_USE) {
+	if (nb->nb_flags & C2_NET_BUF_IN_USE)
 		return -EBUSY;
-	}
 
 	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
 	struct c2_net_bulk_mem_work_item *wi = &bp->xb_wi;
@@ -391,8 +373,7 @@ static int mem_xo_buf_del(struct c2_net_buffer *nb)
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		/* must be added to the work list */
 		C2_ASSERT(!c2_list_contains(&tp->xtm_work_list,&wi->xwi_link));
-		c2_list_add_tail(&tp->xtm_work_list, &wi->xwi_link);
-		c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+		mem_wi_add(wi, tp);
 		break;
 
 	case C2_NET_QT_MSG_SEND:
@@ -506,8 +487,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	if (rc == 0) {
 		/* set transition state and add the state change work item */
 		tp->xtm_state = C2_NET_XTM_STARTING;
-		c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
-		c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+		mem_wi_add(wi_st_chg, tp);
 	} else {
 		tp->xtm_state = C2_NET_XTM_FAILED;
 		c2_free(wi_st_chg); /* fini cleans up threads */
@@ -552,8 +532,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	/* set transition state and add the state change work item */
 	tp->xtm_state = C2_NET_XTM_STOPPING;
-	c2_list_add_tail(&tp->xtm_work_list, &wi_st_chg->xwi_link);
-	c2_cond_signal(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+	mem_wi_add(wi_st_chg, tp);
 
 	return 0;
 }

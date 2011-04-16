@@ -87,7 +87,7 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 	struct c2_net_bulk_mem_work_item *wi;
 	c2_net_bulk_mem_work_fn_t fn;
 
-	while (1) {
+	while (tp->xtm_state != C2_NET_XTM_STOPPED) {
 		link = c2_list_first(&tp->xtm_work_list);
 		/* link may be NULL while transitioning to STOPPED */
 		if (link != NULL) {
@@ -100,7 +100,12 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 				if (wi->xwi_op == C2_NET_XOP_STATE_CHANGE)
 					fn(tm, wi);
 				else {
-					/* others expect mutex to be released */
+					/* others expect mutex to be released 
+					   and the C2_NET_BUF_IN_USE flag set.
+					 */
+					struct c2_net_buffer *nb =
+						MEM_WI_TO_BUFFER(wi);
+					nb->nb_flags |= C2_NET_BUF_IN_USE;
 					c2_mutex_unlock(&tm->ntm_mutex);
 					fn(tm, wi);
 					c2_mutex_lock(&tm->ntm_mutex);
@@ -111,8 +116,6 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 		}
 		if (tp->xtm_state != C2_NET_XTM_STOPPED)
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
-		else
-			break;
 	}
 
 	c2_mutex_unlock(&tm->ntm_mutex);

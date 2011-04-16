@@ -203,6 +203,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	 */
 	c2_list_link_init(&buf->nb_tm_linkage);
 	c2_list_add_tail(ql, &buf->nb_tm_linkage);
+	buf->nb_flags &= ~C2_NET_BUF_IN_USE; /* for transport use */
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
 	(void)c2_time_now(&buf->nb_add_time); /* record time added */
 

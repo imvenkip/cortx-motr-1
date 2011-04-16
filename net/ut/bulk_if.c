@@ -151,6 +151,7 @@ static bool ut_buf_add_called = false;
 static int ut_buf_add(struct c2_net_buffer *nb)
 {
 	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
+	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_PASSIVE_BULK_RECV:
 	case C2_NET_QT_PASSIVE_BULK_SEND:
@@ -646,9 +647,11 @@ void test_net_bulk_if(void)
 			make_desc(&nb->nb_desc);
 			break;
 		}
+		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		rc = c2_net_buffer_add(nb, tm);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
+		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
 		C2_UT_ASSERT(nb->nb_tm == tm);
 		num_adds[nb->nb_qtype]++;
 		max_bytes[nb->nb_qtype] = max64u(nb->nb_length,
@@ -676,10 +679,12 @@ void test_net_bulk_if(void)
 			rc = c2_net_end_point_get(ep2);
 			C2_UT_ASSERT(rc == 0);
 		}
-
+		
+		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		rc = c2_net_tm_event_post(tm, &ev);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(ut_cb_calls[i] == 1);
+		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
 
 		if (i == C2_NET_QT_MSG_RECV) {
 			/* simulate transport removing ep from buf */
