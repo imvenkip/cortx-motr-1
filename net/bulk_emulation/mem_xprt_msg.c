@@ -12,6 +12,26 @@
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
+	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
+
+	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	C2_PRE(nb != NULL && 
+	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
+	       nb->nb_tm == tm &&
+	       (nb->nb_status < 0 ||  /* failed or we have a non-zero msg*/
+		(nb->nb_ep != NULL && nb->nb_length >0)));
+	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+
+	/* post the recv completion callback (will clear C2_NET_BUF_IN_USE) */
+	struct c2_net_event ev = {
+		.nev_qtype   = nb->nb_qtype,
+		.nev_tm      = tm,
+		.nev_buffer  = nb,
+		.nev_status  = nb->nb_status,
+		.nev_payload = wi
+	};
+	(void)c2_net_tm_event_post(tm, &ev);
+	return;
 }
 
 /**
@@ -34,15 +54,16 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_domain *mydom = tm->ntm_dom;
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-
-	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(!c2_mutex_is_locked(&mydom->nd_mutex));
 	C2_PRE(!c2_mutex_is_locked(&c2_net_mutex));
+
+	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
 	C2_PRE(nb != NULL && 
 	       nb->nb_qtype == C2_NET_QT_MSG_SEND &&
+	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
+	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* iterate over in-mem domains to find the destination TM */
 	struct c2_net_transfer_mc *dest_tm = NULL;
@@ -135,6 +156,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	(void)c2_net_tm_event_post(tm, &ev);
+	return;
 }
 
 /**
