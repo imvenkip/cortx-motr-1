@@ -79,7 +79,7 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	case C2_ADDB_REC_STORE_DB:
 		C2_ASSERT(c2_addb_store_table != NULL);
 		C2_ASSERT(c2_addb_db_add_p != NULL);
-		c2_addb_db_add_p(dp, c2_addb_store_table);
+		c2_addb_db_add_p(dp, c2_addb_store_tx, c2_addb_store_table);
 		break;
 	case C2_ADDB_REC_STORE_NETWORK:
 		C2_ASSERT(c2_addb_store_net_conn != NULL);
@@ -232,6 +232,7 @@ C2_EXPORTED(c2_addb_global_ctx);
 enum c2_addb_rec_store_type c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
 struct c2_stob             *c2_addb_store_stob     = NULL;
 struct c2_table            *c2_addb_store_table    = NULL;
+struct c2_db_tx 	   *c2_addb_store_tx	   = NULL;
 struct c2_net_conn         *c2_addb_store_net_conn = NULL;
 
 c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
@@ -241,6 +242,7 @@ c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
 C2_EXPORTED(c2_addb_store_type);
 C2_EXPORTED(c2_addb_store_stob);
 C2_EXPORTED(c2_addb_store_table);
+C2_EXPORTED(c2_addb_store_tx);
 C2_EXPORTED(c2_addb_store_net_conn);
 C2_EXPORTED(c2_addb_stob_add_p);
 C2_EXPORTED(c2_addb_db_add_p);

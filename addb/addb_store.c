@@ -9,8 +9,9 @@
 #include "lib/errno.h"
 #include "fop/fop.h"
 #include "net/net.h"
-#include "addb/addb.h"
 #include "stob/stob.h"
+#include "db/db.h"
+#include "addb/addb.h"
 
 #ifdef __KERNEL__
 # include "addb_k.h"
@@ -105,9 +106,58 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 	return rc;
 }
 
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
+uint64_t c2_addb_db_seq = 0;
+
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+		   struct c2_table *table)
 {
-	return 0;
+	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+	struct c2_addb_record rec;
+	struct c2_db_pair     pair;
+	uint32_t	      keysize;
+	uint32_t	      recsize;
+	char 		      *data;
+	int      rc;
+
+	if (ops->aeo_pack == NULL)
+		return 0;
+
+	C2_SET0(&rec);
+	/* get size */
+	rec.ar_data.cmb_count = ops->aeo_getsize(dp);
+	if (rec.ar_data.cmb_count != 0) {
+		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
+		if (rec.ar_data.cmb_value == NULL)
+			return -ENOMEM;
+	}
+	/* packing */
+	rc = ops->aeo_pack(dp, &rec);
+	if (rc == 0) {
+		/* use db routines to write the addb */
+		keysize = sizeof c2_addb_db_seq;
+		recsize = sizeof (struct c2_addb_record_header) + rec.ar_data.cmb_count;
+
+		data = c2_alloc(recsize);
+		if (data == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+
+		memcpy(data, &rec.ar_header, sizeof (rec.ar_header));
+		memcpy(data + sizeof (rec.ar_header), rec.ar_data.cmb_value,
+			rec.ar_data.cmb_count);
+		++c2_addb_db_seq;
+		c2_db_pair_setup(&pair, table,
+				 &c2_addb_db_seq, keysize,
+				 data, recsize);
+		rc = c2_table_insert(tx, &pair);
+		c2_db_pair_fini(&pair);
+
+		c2_free(data);
+	}
+out:
+	c2_free(rec.ar_data.cmb_value);
+	return rc;
 }
 #else
 
@@ -115,7 +165,8 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 {
 	return 0;
 }
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *table)
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+		   struct c2_table *table)
 {
 	return 0;
 }
