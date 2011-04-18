@@ -212,7 +212,7 @@ struct c2_net_xprt_ops {
 	   or C2_NET_QT_PASSIVE_BULK_SEND queues, the method should set
 	   the network buffer descriptor in the specified buffer.
 
-	   The C2_NET_BUF_IN_USE flag will not be set before invoking the
+	   The C2_NET_BUF_IN_USE flag will be cleared before invoking the
 	   method.   This allows the transport to use this flag to defer
 	   operations until later, which is useful if buffers are added
 	   during transfer machine state transitions.
@@ -653,7 +653,7 @@ struct c2_net_event {
 	   Status or error code associated with the event.
 
 	   When the value of c2_net_event.nev_qtype is not C2_NET_QT_NR the
-	   event has posted for the buffer specified with the
+	   event has been posted for the buffer specified with the
 	   c2_net_event.nev_buffer field.
 	   A 0 in this field implies successful completion.
 	   Negative error numbers are used to indicate the reasons for
@@ -709,8 +709,8 @@ struct c2_net_event {
    it is being called recursively on the same buffer it will fail with a
    EDEADLK indication.
    The subroutine will remove the buffer from its queue, and clear its
-   C2_NET_BUF_QUEUED and C2_NET_BUF_CANCELLED flags prior to invoking the
-   callback.
+   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags 
+   prior to invoking the callback.
 
    The subroutine will also signal to all waiters on the
    c2_net_transfer_mc.ntm_chan field after delivery of the callback.
@@ -852,7 +852,8 @@ enum c2_net_tm_state {
 	C2_NET_TM_STARTING,    /**< Startup in progress */
 	C2_NET_TM_STARTED,     /**< Active */
 	C2_NET_TM_STOPPING,    /**< Shutdown in progress */
-	C2_NET_TM_STOPPED      /**< Stopped */
+	C2_NET_TM_STOPPED,     /**< Stopped */
+	C2_NET_TM_FAILED       /**< Failed TM, must be fini'd */
 };
 
 /**

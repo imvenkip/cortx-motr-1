@@ -519,10 +519,12 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  mw/Makefile
                  net/Makefile
+		 net/bulk_emulation/Makefile
                  net/ksunrpc/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
+		 net/bulk_emulation/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
@@ -537,6 +539,7 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/linux_kernel/Makefile
 		 utils/ploss/Makefile
+		 ioservice/Makefile
 		 sns/linux_kernel/Makefile
 		 galois/linux_kernel/Makefile
 		 layout/linux_kernel/Makefile

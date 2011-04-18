@@ -28,7 +28,7 @@
         - xo_dom_init()
 	- xo_buf_add()
 	- xo_end_point_create()
-  
+
    - The derived xo_dom_init() subroutine should allocate the private domain
      structure, set the value in the nd_xprt_private field, and then call the
      base domain initialization subroutine.
@@ -58,17 +58,17 @@
    @{
 */
 
-struct c2_net_bulk_emul_domain_pvt;
-struct c2_net_bulk_emul_tm_pvt;
-struct c2_net_bulk_emul_buffer_pvt;
-struct c2_net_bulk_emul_end_point;
-struct c2_net_bulk_emul_work_item;
+struct c2_net_bulk_mem_domain_pvt;
+struct c2_net_bulk_mem_tm_pvt;
+struct c2_net_bulk_mem_buffer_pvt;
+struct c2_net_bulk_mem_end_point;
+struct c2_net_bulk_mem_work_item;
 
 /**
    The worker threads associated with a transfer machine perform units
    of work described by the opcodes in this enumeration.
  */
-enum c2_net_bulk_emul_work_opcode {
+enum c2_net_bulk_mem_work_opcode {
 	/** Perform a transfer machine state change operation */
 	C2_NET_XOP_STATE_CHANGE=0,
 	/** Perform a buffer operation cancellation callback */
@@ -93,13 +93,14 @@ enum c2_net_bulk_emul_work_opcode {
    transfer machine - the external state changes only through the state
    change callback.
  */
-enum c2_net_bulk_emul_tm_state {
+enum c2_net_bulk_mem_tm_state {
 	C2_NET_XTM_UNDEFINED   = C2_NET_TM_UNDEFINED,
 	C2_NET_XTM_INITIALIZED = C2_NET_TM_INITIALIZED,
 	C2_NET_XTM_STARTING    = C2_NET_TM_STARTING,
-	C2_NET_XTM_STARTED     = C2_NET_TM_STRARTED,
+	C2_NET_XTM_STARTED     = C2_NET_TM_STARTED,
 	C2_NET_XTM_STOPPING    = C2_NET_TM_STOPPING,
 	C2_NET_XTM_STOPPED     = C2_NET_TM_STOPPED,
+	C2_NET_XTM_FAILED      = C2_NET_TM_FAILED,
 };
 
 /**
@@ -109,36 +110,36 @@ enum c2_net_bulk_emul_tm_state {
    but they will be explicitly allocated for non-buffer related work items,
    and must be freed.
  */
-struct c2_net_bulk_emul_work_item {
+struct c2_net_bulk_mem_work_item {
 	/** transfer machine work list link */
 	struct c2_list_link                 xwi_link;
 
 	/** Work opcode. All opcodes other than C2_NET_XOP_STATE_CHANGE
-	    and C2_NET_XOP_NR relate to buffers. 
+	    and C2_NET_XOP_NR relate to buffers.
 	*/
-	enum c2_net_bulk_emul_work_opcode   xwi_op;
+	enum c2_net_bulk_mem_work_opcode    xwi_op;
 
 	/** The next state value for a C2_NET_XOP_STATE_CHANGE opcode */
-	enum c2_net_bulk_emul_tm_state      xwi_next_state;
+	enum c2_net_bulk_mem_tm_state       xwi_next_state;
 };
 
 /**
    Buffer private data.
 */
-struct c2_net_bulk_emul_buffer_pvt {
+struct c2_net_bulk_mem_buffer_pvt {
 	/** Points back to its buffer */
-	struct c2_net_buffer                *nb_buffer;
+	struct c2_net_buffer                *xb_buffer;
 
 	/** Work item linked on the transfer machine work list */
-	struct c2_net_bulk_emul_work_item    nb_wi;
+	struct c2_net_bulk_mem_work_item     xb_wi;
 };
 
 /**
    Transfer machine private data.
 */
-struct c2_net_bulk_emul_tm_pvt {
+struct c2_net_bulk_mem_tm_pvt {
 	struct c2_net_transfer_mc        *xtm_tm;
-	enum c2_net_bulk_emul_tm_state    xtm_state;
+	enum c2_net_bulk_mem_tm_state     xtm_state;
 	struct c2_list                    xtm_work_list;
 	struct c2_cond                    xtm_work_list_cv;
 	struct c2_thread                 *xtm_worker_threads;
@@ -149,14 +150,14 @@ struct c2_net_bulk_emul_tm_pvt {
    End point. It tracks an IP/port number address.
 */
 enum {
-	C2_NET_XEP_MAGIC = 0x6e455064696f746eULL;
+	C2_NET_XEP_MAGIC = 0x6e455064696f746eULL,
 };
-struct c2_net_bulk_emul_end_point {
+struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
 	uint64_t                 xep_magic;
 
 	/** Socket address */
-	struct sockaddr_in       xep_address;
+	struct sockaddr_in       xep_sa;
 
 	/** Externally visible end point in the TM. */
 	struct c2_net_end_point  xep_ep;
@@ -167,30 +168,30 @@ struct c2_net_bulk_emul_end_point {
    work function per work item opcode.  Each function has a
    signature described by this typedef.
  */
-typedef void (*c2_net_bulk_emul_work_fn_t)(struct c2_net_bulk_emul_work_item 
-					   *wi);
+typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
+					  struct c2_net_bulk_mem_work_item *wi);
 
 /**
    Domain private data structure.
    The fields of this structure can be reset by a derived transort
    after xo_dom_init() method is called on the in-memory transport.
  */
-struct c2_net_bulk_emul_domain_pvt {
+struct c2_net_bulk_mem_domain_pvt {
 	/** Domain pointer */
 	struct c2_net_domain      *xd_dom;
 
         /** Work functions. */
-	c2_net_bulk_emul_work_fn_t xd_work_fn[C2_NET_XOP_NR];
+	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
 
 	/**
-	   Size of the end point structure. 
-	   Initialized to the size of c2_net_bulk_emul_end_point.
+	   Size of the end point structure.
+	   Initialized to the size of c2_net_bulk_mem_end_point.
 	 */
 	size_t                     xd_sizeof_ep;
 
 	/**
 	   Size of the transfer machine private data.
-	   Initialized to the size of c2_net_bulk_emul_tm_pvt.
+	   Initialized to the size of c2_net_bulk_mem_tm_pvt.
 	 */
 	size_t                     xd_sizeof_tm_pvt;
 
@@ -198,7 +199,7 @@ struct c2_net_bulk_emul_domain_pvt {
 	   Size of the buffer private data.
 	   Initialized to the size of c2_net_buf_emul_buf_pvt.
 	 */
-	size_t                     xd_sizeof_buf_pvt;
+	size_t                     xd_sizeof_buffer_pvt;
 
 	/**
 	   Number of threads in a transfer machine pool.
@@ -208,10 +209,16 @@ struct c2_net_bulk_emul_domain_pvt {
 	/**
 	   Linkage of in-memory c2_net_domain objects for in-memory
 	   communication.
-	   This is only done if the nd_xprt_private field was not
-	   set when the xo_dom_init() method was invoked.
+	   This is only done if the xd_derived is false.
 	 */
 	struct c2_list_link        xd_dom_linkage;
+
+	/**
+	   Indicator of a derived transport.
+	   Will be set to true if the transport pointer provided to
+	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
+	 */
+	bool                       xd_derived;
 };
 
 

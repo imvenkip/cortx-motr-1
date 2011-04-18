@@ -1,7 +1,7 @@
 netdir                     = $(includedir)/net
 net_HEADERS                = net.h net_otw_types_u.h net_otw_types_k.h xdr.h
 
-SUBDIRS                    = . usunrpc
+SUBDIRS                    = . usunrpc bulk_emulation
 
 noinst_LTLIBRARIES         = libcolibri-net.la
 libcolibri_net_la_SOURCES  = net.c net.h domain.c ep.c buf.c tm.c \

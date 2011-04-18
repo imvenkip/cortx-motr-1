@@ -38,7 +38,8 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 
 		if ((buf->nb_flags & C2_NET_BUF_QUEUED) != 0)
 			c2_list_del(&buf->nb_tm_linkage);
-		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED);
+		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
+				   C2_NET_BUF_IN_USE);
 		buf->nb_flags |= C2_NET_BUF_IN_CALLBACK;
 		buf->nb_status = ev->nev_status;
 
@@ -172,7 +173,8 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	int i;
 
 	c2_mutex_lock(&dom->nd_mutex);
-	C2_PRE(tm->ntm_state == C2_NET_TM_STOPPED);
+	C2_PRE(tm->ntm_state == C2_NET_TM_STOPPED ||
+	       tm->ntm_state == C2_NET_TM_FAILED);
 
 	for(i=0; i < C2_NET_QT_NR; ++i) {
 		C2_ASSERT(c2_list_is_empty(&tm->ntm_q[i]));
@@ -220,8 +222,8 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 	tm->ntm_state = C2_NET_TM_STARTING;
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm);
 	if (result < 0) {
-		/* undo, allow retry */
-		tm->ntm_state = C2_NET_TM_INITIALIZED;
+		/* xprt did not start, no retry supported */
+		tm->ntm_state = C2_NET_TM_FAILED;
 		tm->ntm_ep = NULL;
 		c2_ref_put(&ep->nep_ref);
 	}
