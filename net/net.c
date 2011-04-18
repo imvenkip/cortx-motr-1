@@ -18,7 +18,7 @@
 /**
    Network module global mutex.
    This mutex is used to serialize domain init and fini.
-   It is defined here so that it can get initialized and fini'd 
+   It is defined here so that it can get initialized and fini'd
    by the general initialization mechanism.
    Transport that deal with multiple domains can rely on this mutex being held
    across their xo_dom_init() and xo_dom_fini() methods.
@@ -69,7 +69,7 @@ void c2_net_xprt_fini(struct c2_net_xprt *xprt)
 }
 C2_EXPORTED(c2_net_xprt_fini);
 
-int c2_net_desc_copy(struct c2_net_buf_desc *from_desc,
+int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 		     struct c2_net_buf_desc *to_desc)
 {
 	C2_PRE(from_desc->nbd_len > 0);
@@ -95,7 +95,7 @@ void c2_net_desc_free(struct c2_net_buf_desc *desc)
 }
 C2_EXPORTED(c2_net_desc_free);
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

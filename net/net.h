@@ -251,7 +251,7 @@ struct c2_net_xprt_ops {
 	   @retval -errno (failure)
 	   @see c2_net_domain_get_max_buffer_size()
 	 */
-	int (*xo_get_max_buffer_size)(struct c2_net_domain *dom, 
+	int (*xo_get_max_buffer_size)(struct c2_net_domain *dom,
 				      c2_bcount_t *size);
 
 	/**
@@ -262,7 +262,7 @@ struct c2_net_xprt_ops {
 	   @retval -errno (failure)
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int (*xo_get_max_buffer_segment_size)(struct c2_net_domain *dom, 
+	int (*xo_get_max_buffer_segment_size)(struct c2_net_domain *dom,
 					      c2_bcount_t *size);
 
 	/**
@@ -273,7 +273,7 @@ struct c2_net_xprt_ops {
 	   @retval -errno (failure)
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int (*xo_get_max_buffer_segments)(struct c2_net_domain *dom, 
+	int (*xo_get_max_buffer_segments)(struct c2_net_domain *dom,
 					  int32_t *num_segs);
 
 	/**
@@ -523,7 +523,7 @@ int c2_net_end_point_get(struct c2_net_end_point *ep);
    @pre @code
 ep->nep_ref->ref_cnt >= 1
 @endcode
-   @note The domain lock will be obtained internaly to synchronize the 
+   @note The domain lock will be obtained internaly to synchronize the
    transport provided release() method in case the end point gets released.
    @retval 0 (success)
    @retval -errno (failure)
@@ -709,7 +709,7 @@ struct c2_net_event {
    it is being called recursively on the same buffer it will fail with a
    EDEADLK indication.
    The subroutine will remove the buffer from its queue, and clear its
-   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags 
+   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
    prior to invoking the callback.
 
    The subroutine will also signal to all waiters on the
@@ -880,7 +880,7 @@ struct c2_net_transfer_mc {
 	   provides a tighter locus of memory accesses to the data
 	   structures associated with the operation of a single transfer
 	   machine, than would occur were the domain mutex used.
-	   It also reduces the memory access overlaps between individual 
+	   It also reduces the memory access overlaps between individual
 	   transfer machines.  Transports could use this memory
 	   access pattern to provide processor-affinity support for
 	   buffer operation on a per-transfer-machine-per-processor basis,
@@ -1362,7 +1362,7 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
    @retval 0 (success)
    @retval -errno (failure)
 */
-int c2_net_desc_copy(struct c2_net_buf_desc *from_desc,
+int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 		     struct c2_net_buf_desc *to_desc);
 
 /**
