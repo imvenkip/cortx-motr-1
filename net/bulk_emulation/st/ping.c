@@ -184,7 +184,6 @@ struct ping_ctx {
 	struct c2_net_buffer       *pc_nbs;
 	struct c2_net_end_point    *pc_ep;
 	struct c2_net_transfer_mc   pc_tm;
-	struct c2_atomic64	    pc_stop;
 };
 
 struct ping_ctx cctx = {
@@ -200,6 +199,10 @@ struct ping_ctx sctx = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
+
+struct c2_mutex server_mutex;
+struct c2_cond server_cond;
+bool server_stop = false;
 
 void ping_fini(struct ping_ctx *ctx);
 
@@ -268,7 +271,6 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		}
 	}
 
-	/* TODO: verify correct varargs for mem and sunrpc xprt */
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom,
 				     hostname, port, 0);
 	if (rc != 0) {
@@ -290,8 +292,6 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		fprintf(stderr, "transfer machine start failed: %d\n", rc);
 		goto fail;
 	}
-
-	c2_atomic64_set(&ctx->pc_stop, 0);
 
 	/* wait for tm to notify it has started */
 	c2_chan_wait(&tmwait);
@@ -347,12 +347,13 @@ void server(struct ping_ctx *ctx)
 	rc = ping_init("localhost", SERVER_PORT, ctx);
 	C2_ASSERT(rc == 0);
 
-	/*
-	  TODO: Insert actual code to do something here.
+	/* real work happens in callbacks from xprt worker threads, just
+	   wait here to be notified that it is time to terminate.
 	 */
-	struct c2_time delay, rem;
-	c2_time_set(&delay, 2, 0);
-	c2_nanosleep(&delay, &rem);
+	c2_mutex_lock(&server_mutex);
+	while (!server_stop)
+		c2_cond_wait(&server_cond, &server_mutex);
+	c2_mutex_unlock(&server_mutex);
 
 	ping_fini(ctx);
 }
@@ -418,6 +419,8 @@ int main(int argc, char *argv[])
 	C2_ASSERT(c2_net_xprt_init(xprt) == 0);
 
 	/* start server in background thread */
+	c2_mutex_init(&server_mutex);
+	c2_cond_init(&server_cond);
 	sctx.pc_xprt = xprt;
 	sctx.pc_nr_bufs = nr_bufs;
 	C2_SET0(&server_thread);
@@ -426,11 +429,13 @@ int main(int argc, char *argv[])
 	C2_ASSERT(rc == 0);
 	cctx.pc_xprt = xprt;
 	cctx.pc_nr_bufs = nr_bufs;
+	/* client returns when the test is complete */
 	client(&cctx);
 
-	/* TODO: really figure out how to tell server thread to stop */
-	c2_atomic64_set(&sctx.pc_stop, 1);
-
+	c2_mutex_lock(&server_mutex);
+	server_stop = true;
+	c2_cond_signal(&server_cond, &server_mutex);
+	c2_mutex_unlock(&server_mutex);
 	c2_thread_join(&server_thread);
 
 	c2_net_xprt_fini(xprt);
