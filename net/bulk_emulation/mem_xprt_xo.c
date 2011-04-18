@@ -69,8 +69,8 @@ static bool mem_buffer_in_bounds(struct c2_net_buffer *nb)
    @param s_nb  The source buffer pointer.
    @param num_bytes The number of bytes to copy.
    @pre @code
-mem_buffer_length(d_nb) < num_bytes &&
-mem_buffer_length(s_nb) <= num_bytes
+mem_buffer_length(d_nb) >= num_bytes &&
+mem_buffer_length(s_nb) >= num_bytes
 @endcode
    @post @code
 d_nb->nb_length = num_bytes
@@ -83,7 +83,7 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 	if (mem_buffer_length(d_nb) < num_bytes) {
 		return -EFBIG;
 	}
-	C2_ASSERT(mem_buffer_length(s_nb) <= num_bytes);
+	C2_ASSERT(mem_buffer_length(s_nb) >= num_bytes);
 
 	d_nb->nb_length = num_bytes;
 
