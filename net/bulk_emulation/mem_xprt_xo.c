@@ -65,15 +65,48 @@ static bool mem_buffer_in_bounds(struct c2_net_buffer *nb)
 /**
    Copy from one buffer to another. Each buffer may have different
    number of segments and segment sizes.
+   @param d_nb  The destination buffer pointer.
+   @param s_nb  The source buffer pointer.
+   @param num_bytes The number of bytes to copy.
+   @pre @code
+mem_buffer_length(d_nb) >= num_bytes &&
+mem_buffer_length(s_nb) >= num_bytes
+@endcode
+   @post @code
+d_nb->nb_length = num_bytes
+@endcode
  */
-static int mem_copy_buffer(struct c2_net_buffer *dest_nb,
-			   struct c2_net_buffer *src_nb,
+static int mem_copy_buffer(struct c2_net_buffer *d_nb,
+			   struct c2_net_buffer *s_nb,
 			   c2_bcount_t num_bytes)
 {
-	if (mem_buffer_length(dest_nb) < num_bytes) {
+	if (mem_buffer_length(d_nb) < num_bytes) {
 		return -EFBIG;
 	}
-	C2_ASSERT(mem_buffer_length(src_nb) <= num_bytes);
+	C2_ASSERT(mem_buffer_length(s_nb) >= num_bytes);
+
+	d_nb->nb_length = num_bytes;
+
+	struct c2_vec_cursor s_cur;
+	struct c2_vec_cursor d_cur;
+	c2_vec_cursor_init(&s_cur, &s_nb->nb_buffer.ov_vec);
+	c2_vec_cursor_init(&d_cur, &d_nb->nb_buffer.ov_vec);
+
+#define CUR_ADDR(nb,cur) \
+ (&(nb)->nb_buffer.ov_buf[(cur)->vc_seg] + (cur)->vc_offset)
+
+	c2_bcount_t frag_size;
+	while (num_bytes) {
+		frag_size = min3(c2_vec_cursor_step(&s_cur),
+				 c2_vec_cursor_step(&d_cur),
+				 num_bytes);
+		memcpy(CUR_ADDR(d_nb,&d_cur), CUR_ADDR(s_nb,&s_cur), frag_size);
+		c2_vec_cursor_move(&s_cur, frag_size);
+		c2_vec_cursor_move(&d_cur, frag_size);
+		num_bytes -= frag_size;
+	}
+
+#undef CUR_ADDR
 
 	return -ENOSYS;
 }
