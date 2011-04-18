@@ -710,7 +710,7 @@ void test_net_bulk_if(void)
 	rc = c2_net_buffer_del(nb, tm);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_buf_del_called);
-	C2_UT_ASSERT(nb->nb_flags | C2_NET_BUF_CANCELLED);
+	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_CANCELLED);
 	num_dels[nb->nb_qtype]++;
 
 	/* wait on channel for post */
