@@ -105,7 +105,7 @@ struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
    @param cur Cursor pointer (struct c2_vec_cursor *)
  */
 #define MEM_CUR_ADDR(nb,cur)    \
- (&(nb)->nb_buffer.ov_buf[(cur)->vc_seg] + (cur)->vc_offset)
+ ((nb)->nb_buffer.ov_buf[(cur)->vc_seg] + (cur)->vc_offset)
 
 #ifdef MEM_SA_EQ
 #undef MEM_SA_EQ
