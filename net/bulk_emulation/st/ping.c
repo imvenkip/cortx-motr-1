@@ -362,8 +362,12 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
 	printf("Server Msg Recv CB: type == %d, status = %d\n", ev->nev_qtype,
 	       ev->nev_status);
-	printf("Server: ep ref cnt = %ld\n",
-	       c2_atomic64_get(&ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
+	if (ev->nev_buffer->nb_ep != NULL)
+		printf("Server: ep ref cnt = %ld\n",
+		       c2_atomic64_get(
+				      &ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
+	else
+		printf("Server: ep is NULL\n");
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
