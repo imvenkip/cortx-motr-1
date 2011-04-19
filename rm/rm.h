@@ -468,16 +468,16 @@ enum c2_rm_owner_owned_state {
    c2_rm_owner is a generic structure, created and maintained by the
    generic resource manager code.
 
-   Off a c2_rm_owner hang several arrays of lists for rights book-keeping:
-   c2_rm_owner::ro_borrowed[], c2_rm_owner::ro_sublet[] and
+   Off a c2_rm_owner hang several lists and arrays of lists for rights
+   book-keeping: c2_rm_owner::ro_borrowed, c2_rm_owner::ro_sublet and
    c2_rm_owner::ro_owned[], further subdivided by states.
 
    As rights form a lattice (see c2_rm_right_ops), it is always possible to
    represent the cumulative sum of all rights on a list as a single
    c2_rm_right. The reason the lists are needed is that rights in the lists
    have some additional state associated with them (e.g., loans for
-   c2_rm_owner::ro_borrowed[], c2_rm_owner::ro_sublet[] or users
-   (c2_rm_right::ri_users) for c2_rm_owner::ro_owned[]) that can be manipulated
+   c2_rm_owner::ro_borrowed, c2_rm_owner::ro_sublet or pins
+   (c2_rm_right::ri_pins) for c2_rm_owner::ro_owned[]) that can be manipulated
    independently.
 
    @invariant under ->ro_lock { // keep books balanced at all times
@@ -527,15 +527,10 @@ struct c2_rm_owner {
 	   An array of lists, sorted by priority, of incoming requests, not yet
 	   satisfied. Requests are linked through
 	   c2_rm_incoming::rin_want::rl_right:ri_linkage.
-
-	   @see c2_rm_owner::ro_outgoing
 	 */
 	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR];
 	/**
-	   An array of lists, sorted by priority, of outgoing, not yet
-	   completed, requests.
-
-	   @see c2_rm_owner::ro_incoming
+	   An array of lists, of outgoing, not yet completed, requests.
 	 */
 	struct c2_list         ro_outgoing;
 	struct c2_mutex        ro_lock;
@@ -763,7 +758,7 @@ enum c2_rm_outgoing_type {
 
 /**
    An outgoing request is created on behalf of some incoming request to track
-   the state of right transfer from some remote domain.
+   the state of right transfer with some remote domain.
 
    An outgoing request is created to:
 
@@ -773,10 +768,11 @@ enum c2_rm_outgoing_type {
 
        - cancel this owner's right and return it to an upward owner.
 
-   When a new outgoing request is created, a list of already existing outgoing
-   requests (c2_rm_owner::ro_outgoing[]) is scanned. If an outgoing request for
-   a greater or equal right exists, the new request is linked into
-   rog_depend.d_head list hanging off the existing outgoing request.
+   Before a new outgoing request is created, a list of already existing
+   outgoing requests (c2_rm_owner::ro_outgoing) is scanned. If an outgoing
+   request of a matching type for a greater or equal right exists, new request
+   is not created. Instead, the incoming request pins existing outgoing
+   request.
 
    c2_rm_outgoing fields and state transitions are protected by the owner's
    mutex.

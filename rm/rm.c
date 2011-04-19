@@ -47,7 +47,7 @@
  */
 /** @{ */
 
-incoming(struct c2_rm_owner *o, struct c2_rm_incoming *in)
+incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right rest;
 	struct c2_rm_right join;
@@ -56,10 +56,9 @@ incoming(struct c2_rm_owner *o, struct c2_rm_incoming *in)
 	bool               need_local;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
-	C2_PRE(in->rin_state == RI_INITIALISED);
+	C2_PRE(in->rin_state == RI_CHECK);
 
-	in->rin_owner = o;
-	in->rin_state = RI_CHECK;
+	o = in->rin_owner;
 	rest = right_copy(&in->rin_want);
 	need_local = (in->rin_flags & RIF_WAIT_LOCAL) ||
 		in->rin_type != RIT_LOCAL;
