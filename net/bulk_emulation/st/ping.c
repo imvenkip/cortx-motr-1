@@ -29,6 +29,7 @@ enum {
 	DEF_BUFS = 20,
 	DEF_CLIENT_THREADS = 1,
 	DEF_LOOPS = 1,
+	SEND_RETRIES = 3,
 
 	PING_BUFSIZE = 4096,
 	PING_SEGMENTS = 4,
@@ -322,7 +323,25 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
 	printf("Client: Msg Send CB\n");
 
-	ping_buf_put(ctx, ev->nev_buffer);
+	if (ev->nev_status < 0) {
+		if (ev->nev_status == -ECANCELED)
+			printf("Client: msg send canceled\n");
+		else
+			printf("Client: msg send error: %d\n", ev->nev_status);
+
+		/* let main app deal with it */
+		struct ping_work_item *wi;
+		C2_ALLOC_PTR(wi);
+		c2_list_link_init(&wi->pwi_link);
+		wi->pwi_type = C2_NET_QT_MSG_SEND;
+		wi->pwi_nb = ev->nev_buffer;
+
+		c2_mutex_lock(&ctx->pc_mutex);
+		c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
+		c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+		c2_mutex_unlock(&ctx->pc_mutex);
+	} else
+		ping_buf_put(ctx, ev->nev_buffer);
 }
 
 void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
@@ -366,7 +385,6 @@ void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 }
 
 bool server_stop = false;
-bool server_ready = false;
 
 struct c2_net_tm_callbacks ctm_cb = {
 	.ntc_msg_recv_cb	  = c_m_recv_cb,
@@ -394,6 +412,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			printf("Server: msg recv canceled on shutdown\n");
 		else {
 			printf("Service: msg recv error: %d\n", ev->nev_status);
+			ev->nev_buffer->nb_timeout = C2_TIME_NEVER;
 			rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
 			C2_ASSERT(rc == 0);
 		}
@@ -432,6 +451,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
 			c2_mutex_unlock(&ctx->pc_mutex);
 		}
+		ev->nev_buffer->nb_timeout = C2_TIME_NEVER;
 		rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
 		C2_ASSERT(rc == 0);
 
@@ -708,15 +728,11 @@ void server(struct ping_ctx *ctx)
 	for (i = 0; i < 4; ++i) {
 		nb = &ctx->pc_nbs[i];
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
+		nb->nb_timeout = C2_TIME_NEVER;
 		rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
 	}
-	/* A real client would need to handle timeouts, retransmissions... */
-	c2_mutex_lock(&cctx.pc_mutex);
-	server_ready = true;
-	c2_cond_signal(&cctx.pc_cond, &cctx.pc_mutex);
-	c2_mutex_unlock(&cctx.pc_mutex);
 
 	while (!server_stop) {
 		struct c2_list_link *link;
@@ -727,6 +743,7 @@ void server(struct ping_ctx *ctx)
 					   pwi_link);
 			switch (wi->pwi_type) {
 			case C2_NET_QT_MSG_SEND:
+				wi->pwi_nb->nb_timeout = C2_TIME_NEVER;
 				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 				break;
@@ -774,15 +791,11 @@ void client(struct ping_ctx *ctx)
 				     hostbuf, SERVER_PORT, 0);
 	C2_ASSERT(rc == 0);
 
-	c2_mutex_lock(&ctx->pc_mutex);
-	while (!server_ready)
-		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
-	c2_mutex_unlock(&ctx->pc_mutex);
-
 	/* queue buffer for response, must do before sending msg */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	nb->nb_timeout = C2_TIME_NEVER;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
@@ -792,12 +805,14 @@ void client(struct ping_ctx *ctx)
 	nb->nb_qtype = C2_NET_QT_MSG_SEND;
 	nb->nb_ep = server_ep;
 	C2_ASSERT(rc == 0);
+	nb->nb_timeout = C2_TIME_NEVER;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
 	bool recv_done = false;
+	int retries = SEND_RETRIES;
 
 	/* wait for receive response to complete */
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -809,12 +824,28 @@ void client(struct ping_ctx *ctx)
 			c2_list_del(&wi->pwi_link);
 			if (wi->pwi_type == C2_NET_QT_MSG_RECV)
 				recv_done = true;
+			else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
+				/* implies send error, retry a few times */
+				if (retries == 0) {
+					printf("Client: send failed, "
+					       "no more retries\n");
+					goto fail;
+				}
+				struct c2_time delay, rem;
+				c2_time_set(&delay,
+					    SEND_RETRIES + 1 - retries, 0);
+				--retries;
+				c2_nanosleep(&delay, &rem);
+				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
+				C2_ASSERT(rc == 0);
+			}
 			c2_free(wi);
 		}
 		if (recv_done)
 			break;
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
+fail:
 	c2_mutex_unlock(&ctx->pc_mutex);
 
 	/*

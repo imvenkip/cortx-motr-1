@@ -46,7 +46,10 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		q = &tm->ntm_qstats[ev->nev_qtype];
 		if (ev->nev_status < 0) {
 			q->nqs_num_f_events++;
-			buf->nb_length = 0; /* may not be valid */
+			if (ev->nev_qtype == C2_NET_QT_MSG_RECV ||
+			    ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
+			    ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV)
+				buf->nb_length = 0; /* may not be valid */
 		} else {
 			q->nqs_num_s_events++;
 		}
