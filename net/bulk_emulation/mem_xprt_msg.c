@@ -83,14 +83,17 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 		c2_list_for_each_entry(&dp->xd_dom->nd_tms, itm,
 				       struct c2_net_transfer_mc,
 				       ntm_dom_linkage) {
-			if (!mem_eps_are_equal(itm->ntm_ep, match_ep))
-				continue;
+			c2_mutex_lock(&itm->ntm_mutex);
+			do {
+				if (itm->ntm_state != C2_NET_TM_STARTED)
+					break; /* ignore */
+				if (!mem_eps_are_equal(itm->ntm_ep, match_ep))
+					break;
 
-			/* Found the matching TM. */
-			if (itm->ntm_state != C2_NET_TM_STARTED) {
-				/* fail on non-active TMs */
-				rc = -ENETUNREACH;
-			} else if (p_dest_ep != NULL) {
+				/* Found the matching TM. */
+				dest_tm = itm;
+				if (p_dest_ep == NULL)
+					break; 
 				/* We need to create an EP for the local TM 
 				   address in the remote DOM. Do this now, 
 				   before giving up the DOM mutex.
@@ -100,25 +103,31 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 						   struct 
 						   c2_net_bulk_mem_end_point, 
 						   xep_ep);
-				rc = mem_ep_create(&dest_ep, itm->ntm_dom,
+				rc = mem_ep_create(&dest_ep, dest_tm->ntm_dom,
 						   &mep->xep_sa);
+			} while(0);
+			if (dest_tm != NULL) {
+				/* found the TM */
+				if (rc) {
+					/* ... but failed on EP */
+					c2_mutex_unlock(&dest_tm->ntm_mutex);
+					dest_tm = NULL;
+				}
+				break;
 			}
-			if (!rc) {
-				/* lock the remote TM */
-				dest_tm = itm;
-				c2_mutex_lock(&dest_tm->ntm_mutex);
-			}
-			break;
+			c2_mutex_unlock(&itm->ntm_mutex);
 		}
 		c2_mutex_unlock(&dp->xd_dom->nd_mutex);
 		if (dest_tm != NULL || rc)
 			break;
 	}
+	if (!rc && dest_tm == NULL)
+		rc = -ENETUNREACH; /* search exhausted */
 	c2_mutex_unlock(&c2_net_mutex);
 	C2_ASSERT(rc ||
 		  (dest_tm != NULL && 
 		   c2_mutex_is_locked(&dest_tm->ntm_mutex) &&
-		   dest_tm->ntm_state & C2_NET_TM_STARTED));
+		   dest_tm->ntm_state == C2_NET_TM_STARTED));
 	if (!rc) {
 		C2_ASSERT(mem_tm_invariant(dest_tm));
 		*p_dest_tm = dest_tm;
