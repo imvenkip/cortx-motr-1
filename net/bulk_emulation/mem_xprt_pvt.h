@@ -30,6 +30,8 @@ struct mem_desc {
 	enum c2_net_queue_type md_qt;
 	/** Data length */
 	c2_bcount_t            md_len;
+	/** buffer id */
+	int64_t                md_buf_id;
 };
 
 /* forward references to other static functions */
@@ -48,7 +50,8 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 			   struct c2_net_end_point *ep,
 			   struct c2_net_transfer_mc *tm,
 			   enum c2_net_queue_type qt,
-			   c2_bcount_t buflen);
+			   c2_bcount_t buflen,
+			   int64_t buf_id);
 static int mem_desc_decode(struct c2_net_buf_desc *desc,
 			   struct mem_desc **p_md);
 static bool mem_desc_equal(struct c2_net_buf_desc *d1,

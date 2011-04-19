@@ -2,6 +2,7 @@
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_H__
 
+#include "lib/atomic.h"
 #include "lib/thread.h"
 #include "net/bulk_mem.h"
 
@@ -132,6 +133,11 @@ struct c2_net_bulk_mem_buffer_pvt {
 
 	/** Work item linked on the transfer machine work list */
 	struct c2_net_bulk_mem_work_item     xb_wi;
+
+	/** Buffer id. This is set each time the buffer is used for
+	    a passive bulk transfer operation.
+	*/
+	int64_t                              xb_buf_id;
 };
 
 /**
@@ -219,6 +225,11 @@ struct c2_net_bulk_mem_domain_pvt {
 	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
 	 */
 	bool                       xd_derived;
+
+	/**
+	   Counter for passive bulk buffer identifiers.
+	*/
+	struct c2_atomic64         xd_buf_id_counter;
 };
 
 

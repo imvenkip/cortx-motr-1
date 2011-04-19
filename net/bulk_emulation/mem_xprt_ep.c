@@ -118,13 +118,15 @@ static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
    @param tm Transfer machine holding the passive buffer
    @param qt The queue type
    @param buflen The amount data to transfer.
+   @param buf_id The buffer identifier.
    @param desc Returns the descriptor
  */
 static int mem_desc_create(struct c2_net_buf_desc *desc,
 			   struct c2_net_end_point *ep,
 			   struct c2_net_transfer_mc *tm,
 			   enum c2_net_queue_type qt,
-			   c2_bcount_t buflen)
+			   c2_bcount_t buflen,
+			   int64_t buf_id)
 {
 	C2_PRE(mem_ep_invariant(ep));
 	struct mem_desc *md;
@@ -149,6 +151,7 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 
 	md->md_qt = qt;
 	md->md_len = buflen;
+	md->md_buf_id = buf_id;
 
 	return 0;
 }
@@ -172,9 +175,13 @@ static int mem_desc_decode(struct c2_net_buf_desc *desc,
 	return 0;
 }
 
+/**
+   Compares if two descriptors are equal.
+ */
 static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 			   struct c2_net_buf_desc *d2)
 {
+	/* could do a byte comparison too */
 	struct mem_desc *md1, *md2;
 	int rc;
 	rc = mem_desc_decode(d1, &md1);
@@ -182,7 +189,8 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 		rc = mem_desc_decode(d2, &md2);
 	if (rc)
 		return false;
-	if (MEM_SA_EQ(&md1->md_active,  &md2->md_active) &&
+	if (md1->md_buf_id == md2->md_buf_id &&
+	    MEM_SA_EQ(&md1->md_active,  &md2->md_active) &&
 	    MEM_SA_EQ(&md1->md_passive, &md2->md_passive))
 		return true;
 	return false;

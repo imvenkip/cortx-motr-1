@@ -180,6 +180,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_mem_tm_pvt);
 	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
 	dp->xd_num_tm_threads = 1;
+	c2_atomic64_set(&dp->xd_buf_id_counter, 1);
 	c2_list_link_init(&dp->xd_dom_linkage);
 
 	if (xprt != &c2_net_bulk_mem_xprt) {
@@ -353,9 +354,12 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	case C2_NET_QT_PASSIVE_BULK_RECV:
 		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
+		bp->xb_buf_id = c2_atomic64_add_return(&dp->xd_buf_id_counter,
+						       1);
 		if (!dp->xd_derived) {
 			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm, 
-					     nb->nb_qtype, nb->nb_length);
+					     nb->nb_qtype, nb->nb_length,
+					     bp->xb_buf_id);
 			if (!rc)
 				return rc;
 		}
