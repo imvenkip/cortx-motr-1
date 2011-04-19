@@ -434,6 +434,7 @@ int main(int argc, char **argv)
 	struct c2_service       service;
 	struct c2_net_domain    ndom;
 	struct c2_dbenv         db;
+	struct c2_stob	       *addb_stob;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -469,11 +470,10 @@ int main(int argc, char **argv)
 	/* create or open a stob in which to store the record.
 	 * XXX we use file for demo
 	 */
-	c2_addb_store_stob = (struct c2_stob*)fopen("server_addb_log", "a");
-	C2_ASSERT(c2_addb_store_stob != NULL);
+	addb_stob = (struct c2_stob*)fopen("server_addb_log", "a");
+	C2_ASSERT(addb_stob != NULL);
 	/* write addb record into stob */
-	c2_addb_stob_add_p = c2_addb_stob_add;
-	c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add, addb_stob);
 
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);
@@ -569,7 +569,8 @@ int main(int argc, char **argv)
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_addb_ctx_fini(&server_addb_ctx);
-	fclose((FILE*)c2_addb_store_stob);
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+	fclose((FILE*)addb_stob);
 	c2_fini();
 	return 0;
 }

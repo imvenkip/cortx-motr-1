@@ -31,6 +31,23 @@ int c2_addb_level_default = AEL_NOTE;
 C2_EXPORTED(c2_addb_level_default);
 
 
+/**
+   ADDB record store type.
+
+   This type is inited while system startup. For clients, we may configure it
+   as network; while for servers, we may configure it to store record into stob.
+   Along with this variable, corresponding parameter should be configured below.
+*/
+static enum c2_addb_rec_store_type c2_addb_store_type  = C2_ADDB_REC_STORE_NONE;
+static struct c2_stob             *c2_addb_store_stob  = NULL;
+static struct c2_table            *c2_addb_store_table = NULL;
+static struct c2_db_tx            *c2_addb_store_tx    = NULL;
+static struct c2_net_conn         *c2_addb_store_net_conn = NULL;
+
+static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
+static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
+static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
+
 int c2_addb_init(void)
 {
 	return 0;
@@ -229,25 +246,49 @@ struct c2_addb_ctx c2_addb_global_ctx = {
 };
 C2_EXPORTED(c2_addb_global_ctx);
 
-enum c2_addb_rec_store_type c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
-struct c2_stob             *c2_addb_store_stob     = NULL;
-struct c2_table            *c2_addb_store_table    = NULL;
-struct c2_db_tx 	   *c2_addb_store_tx	   = NULL;
-struct c2_net_conn         *c2_addb_store_net_conn = NULL;
+int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
+{
+	va_list varargs;
 
-c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
-c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
-c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
+	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
+	c2_addb_store_stob     = NULL;
+	c2_addb_store_table    = NULL;
+	c2_addb_store_tx       = NULL;
+	c2_addb_store_net_conn = NULL;
 
-C2_EXPORTED(c2_addb_store_type);
-C2_EXPORTED(c2_addb_store_stob);
-C2_EXPORTED(c2_addb_store_table);
-C2_EXPORTED(c2_addb_store_tx);
-C2_EXPORTED(c2_addb_store_net_conn);
-C2_EXPORTED(c2_addb_stob_add_p);
-C2_EXPORTED(c2_addb_db_add_p);
-C2_EXPORTED(c2_addb_net_add_p);
+	c2_addb_stob_add_p = NULL;
+	c2_addb_db_add_p   = NULL;
+	c2_addb_net_add_p  = NULL;
 
+        va_start(varargs, type);
+
+	switch (type) {
+	case C2_ADDB_REC_STORE_STOB:
+		c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
+		c2_addb_stob_add_p = va_arg(varargs, c2_addb_stob_add_t);
+		c2_addb_store_stob = va_arg(varargs, struct c2_stob*);
+		break;
+
+	case C2_ADDB_REC_STORE_DB:
+		c2_addb_store_type  = C2_ADDB_REC_STORE_DB;
+		c2_addb_db_add_p    = va_arg(varargs, c2_addb_db_add_t);
+		c2_addb_store_table = va_arg(varargs, struct c2_table*);
+		c2_addb_store_tx    = va_arg(varargs, struct c2_db_tx*);
+		break;
+
+	case C2_ADDB_REC_STORE_NETWORK:
+		c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
+		c2_addb_net_add_p      = va_arg(varargs, c2_addb_net_add_t);
+		c2_addb_store_net_conn = va_arg(varargs, struct c2_net_conn*);
+		break;
+	default:
+		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
+	}
+
+        va_end(varargs);
+	return 0;
+}
+C2_EXPORTED(c2_addb_choose_store_media);
 /** @} end of addb group */
 
 /* 

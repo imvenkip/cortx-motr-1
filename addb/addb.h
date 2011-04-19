@@ -78,22 +78,8 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
 typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
 
-extern c2_addb_stob_add_t c2_addb_stob_add_p;
-extern c2_addb_db_add_t   c2_addb_db_add_p;
-extern c2_addb_net_add_t  c2_addb_net_add_p;
+int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
 
-/**
-   ADDB record store type.
-
-   This type is inited while system startup. For clients, we may configure it
-   as network; while for servers, we may configure it to store record into stob.
-   Along with this variable, corresponding parameter should be configured below.
-*/
-extern enum c2_addb_rec_store_type c2_addb_store_type;
-extern struct c2_stob             *c2_addb_store_stob;
-extern struct c2_table            *c2_addb_store_table;
-extern struct c2_db_tx            *c2_addb_store_tx;
-extern struct c2_net_conn         *c2_addb_store_net_conn;
 
 
 /**
