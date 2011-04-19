@@ -71,44 +71,121 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 }
 
 /**
-   Compare two end points for equality.
+   Compare an end point with a sockaddr_in for equality.
+   @param ep End point
+   @param sa sockaddr_in pointer
+   @param true Match
+   @param false Do not match
  */
-static bool mem_ep_is_equal(struct c2_net_end_point *ep1,
-			    struct c2_net_end_point *ep2)
+static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
+			       struct sockaddr_in *sa)
 {
-	C2_ASSERT(ep1 != NULL && ep2 != NULL);
-	C2_ASSERT(mem_ep_invariant(ep1));
-	C2_ASSERT(mem_ep_invariant(ep2));
-	if (ep1 == ep2)
-		return true;
+	C2_ASSERT(mem_ep_invariant(ep));
+	struct c2_net_bulk_mem_end_point *mep;
+	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
-	struct c2_net_bulk_mem_end_point *mep1;
-	mep1 = container_of(ep1, struct c2_net_bulk_mem_end_point, xep_ep);
-	struct c2_net_bulk_mem_end_point *mep2;
-	mep2 = container_of(ep2, struct c2_net_bulk_mem_end_point, xep_ep);
-	if (mep1->xep_sa.sin_addr.s_addr == mep2->xep_sa.sin_addr.s_addr &&
-	    mep1->xep_sa.sin_port == mep2->xep_sa.sin_port)
+	if (MEM_SA_EQ(&mep->xep_sa, sa))
 		return true;
 	return false;
 }
 
 /**
-   Create a network buffer descriptor from an in-memory end point.
+   Compare two end points for equality.
+   @param ep1 First end point
+   @param ep2 Second end point
+   @param true Match
+   @param false Do not match
  */
-static int mem_ep_create_desc(struct c2_net_end_point *ep,
-			      struct c2_net_buf_desc *desc)
+static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
+			      struct c2_net_end_point *ep2)
+{
+	C2_ASSERT(ep1 != NULL && ep2 != NULL);
+	C2_ASSERT(mem_ep_invariant(ep1));
+	if (ep1 == ep2)
+		return true;
+
+	struct c2_net_bulk_mem_end_point *mep1;
+	mep1 = container_of(ep1, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mem_ep_equals_addr(ep2, &mep1->xep_sa);
+}
+
+/**
+   Create a network buffer descriptor from an in-memory end point.
+
+   The descriptor used by the in-memory transport is not encoded as it
+   is never accessed out of the processs.
+   @param ep Remote end point allowed active access
+   @param tm Transfer machine holding the passive buffer
+   @param qt The queue type
+   @param buflen The amount data to transfer.
+   @param desc Returns the descriptor
+ */
+static int mem_desc_create(struct c2_net_buf_desc *desc,
+			   struct c2_net_end_point *ep,
+			   struct c2_net_transfer_mc *tm,
+			   enum c2_net_queue_type qt,
+			   c2_bcount_t buflen)
 {
 	C2_PRE(mem_ep_invariant(ep));
-	desc->nbd_len = sizeof(struct sockaddr_in);
-	desc->nbd_data = c2_alloc(desc->nbd_len);
+	struct mem_desc *md;
+
+	desc->nbd_len = sizeof(*md);
+	md = c2_alloc(desc->nbd_len);
+	desc->nbd_data = (char *) md;
 	if (desc->nbd_data == NULL) {
 		desc->nbd_len = 0;
 		return -ENOMEM;
 	}
+
 	struct c2_net_bulk_mem_end_point *mep;
+
+	/* copy the active end point address */
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	memcpy(desc->nbd_data, &mep->xep_sa, desc->nbd_len);
+	md->md_active = mep->xep_sa;
+
+	/* copy the passive end point address */
+	mep = container_of(tm->ntm_ep,struct c2_net_bulk_mem_end_point,xep_ep);
+	md->md_passive = mep->xep_sa;
+
+	md->md_qt = qt;
+	md->md_len = buflen;
+
 	return 0;
+}
+
+/**
+   Decodes a network buffer descriptor.
+   @param desc Network buffer descriptor pointer.
+   @param md Returns the desctriptor contents. The pointer does not
+   allocate memory but instead points to within the network buffer
+   descriptor, so don't free it.
+   @retval 0 On success
+   @retval -EINVAL Invalid transfer descriptor
+ */
+static int mem_desc_decode(struct c2_net_buf_desc *desc,
+			   struct mem_desc **p_md)
+{
+	if (desc->nbd_len != sizeof(**p_md) ||
+	    desc->nbd_data == NULL)
+		return -EINVAL;
+	*p_md = (struct mem_desc *) desc->nbd_data;
+	return 0;
+}
+
+static bool mem_desc_equal(struct c2_net_buf_desc *d1,
+			   struct c2_net_buf_desc *d2)
+{
+	struct mem_desc *md1, *md2;
+	int rc;
+	rc = mem_desc_decode(d1, &md1);
+	if (!rc)
+		rc = mem_desc_decode(d2, &md2);
+	if (rc)
+		return false;
+	if (MEM_SA_EQ(&md1->md_active,  &md2->md_active) &&
+	    MEM_SA_EQ(&md1->md_passive, &md2->md_passive))
+		return true;
+	return false;
 }
 
 /**

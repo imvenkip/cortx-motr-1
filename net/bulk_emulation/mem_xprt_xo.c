@@ -92,23 +92,19 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 	c2_vec_cursor_init(&s_cur, &s_nb->nb_buffer.ov_vec);
 	c2_vec_cursor_init(&d_cur, &d_nb->nb_buffer.ov_vec);
 
-#define CUR_ADDR(nb,cur) \
- (&(nb)->nb_buffer.ov_buf[(cur)->vc_seg] + (cur)->vc_offset)
-
 	c2_bcount_t frag_size;
 	while (num_bytes) {
 		frag_size = min3(c2_vec_cursor_step(&s_cur),
 				 c2_vec_cursor_step(&d_cur),
 				 num_bytes);
-		memcpy(CUR_ADDR(d_nb,&d_cur), CUR_ADDR(s_nb,&s_cur), frag_size);
+		memcpy(MEM_CUR_ADDR(d_nb,&d_cur), 
+		       MEM_CUR_ADDR(s_nb,&s_cur), frag_size);
 		c2_vec_cursor_move(&s_cur, frag_size);
 		c2_vec_cursor_move(&d_cur, frag_size);
 		num_bytes -= frag_size;
 	}
 
-#undef CUR_ADDR
-
-	return -ENOSYS;
+	return 0;
 }
 
 /**
@@ -340,6 +336,8 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	if (tp->xtm_state > C2_NET_XTM_STARTED)
 		return -EPERM;
 
+	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+
 	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
 	struct c2_net_bulk_mem_work_item *wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_NR;
@@ -349,18 +347,22 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	case C2_NET_QT_MSG_RECV:
 		break;
 	case C2_NET_QT_MSG_SEND:
+		C2_ASSERT(nb->nb_ep != NULL);
 		wi->xwi_op = C2_NET_XOP_MSG_SEND;
 		break;
 	case C2_NET_QT_PASSIVE_BULK_RECV:
+		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
+		if (!dp->xd_derived) {
+			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm, 
+					     nb->nb_qtype, nb->nb_length);
+			if (!rc)
+				return rc;
+		}
 		break;
 	case C2_NET_QT_ACTIVE_BULK_RECV:
 	case C2_NET_QT_ACTIVE_BULK_SEND:
 		wi->xwi_op = C2_NET_XOP_ACTIVE_BULK;
-		C2_ASSERT(nb->nb_ep != NULL);
-		rc = mem_ep_create_desc(nb->nb_ep, &nb->nb_desc);
-		if (!rc)
-			return rc;
 		break;
 	default:
 		C2_IMPOSSIBLE("invalid queue type");
