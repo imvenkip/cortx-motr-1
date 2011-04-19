@@ -38,6 +38,29 @@ enum {
 	SERVER_PORT = 27183
 };
 
+/**
+   Context for a ping client or server.
+ */
+struct ping_ctx {
+	struct c2_net_xprt         *pc_xprt;
+	struct c2_net_domain        pc_dom;
+	uint32_t                    pc_nr_bufs;
+	struct c2_net_buffer       *pc_nbs;
+	struct c2_bitmap	    pc_nbbm;
+	struct c2_net_end_point    *pc_ep;
+	struct c2_net_transfer_mc   pc_tm;
+	struct c2_mutex		    pc_mutex;
+	struct c2_cond		    pc_cond;
+	struct c2_list              pc_work_queue;
+};
+
+struct ping_work_item {
+	struct c2_net_buffer       *pwi_nb;
+	enum c2_net_queue_type      pwi_type;
+	struct c2_net_end_point    *pwi_peer_ep;
+	struct c2_list_link         pwi_link;
+};
+
 struct c2_net_xprt *xprts[3] = {
 	&c2_net_bulk_mem_xprt,
 	&c2_net_bulk_sunrpc_xprt,
@@ -94,29 +117,226 @@ int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 	return rc;
 }
 
+/**
+   Get a unused buffer from the context buffer list.
+   On success, marks the buffer as in-use and returns it.
+   @retval ptr the buffer
+   @retval NULL failure
+ */
+struct c2_net_buffer *ping_buf_get(struct ping_ctx *ctx)
+{
+	int i;
+
+	c2_mutex_lock(&ctx->pc_mutex);
+	for (i = 0; i < ctx->pc_nr_bufs; ++i)
+		if (!c2_bitmap_get(&ctx->pc_nbbm, i)) {
+			c2_bitmap_set(&ctx->pc_nbbm, i, true);
+			break;
+		}
+	c2_mutex_unlock(&ctx->pc_mutex);
+
+	if (i == ctx->pc_nr_bufs)
+		return NULL;
+
+	struct c2_net_buffer *nb = &ctx->pc_nbs[i];
+	C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
+	return nb;
+}
+
+/**
+   Releases a buffer back to the free buffer pool.
+   The buffer is marked as not in-use.
+ */
+void ping_buf_put(struct ping_ctx *ctx, struct c2_net_buffer *nb)
+{
+	int i = nb - &ctx->pc_nbs[0];
+	C2_ASSERT(i >= 0 && i < ctx->pc_nr_bufs);
+	C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
+
+	c2_mutex_lock(&ctx->pc_mutex);
+	C2_ASSERT(c2_bitmap_get(&ctx->pc_nbbm, i));
+	c2_bitmap_set(&ctx->pc_nbbm, i, false);
+	c2_mutex_unlock(&ctx->pc_mutex);
+}
+
+/** encode a string message into a net buffer, not zero-copy */
+int encode_msg(struct c2_net_buffer *nb, const char *str)
+{
+	struct c2_vec_cursor cur;
+	char *bp;
+	size_t len = strlen(str) + 1; /* include trailing nul */
+	c2_bcount_t step;
+
+	nb->nb_length = len + 1;
+
+	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
+	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+	*bp++ = 'm';
+	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+	while (len > 0) {
+		step = c2_vec_cursor_step(&cur);
+		if (len > step) {
+			memcpy(bp, str, step);
+			str += step;
+			len -= step;
+			C2_ASSERT(!c2_vec_cursor_move(&cur, step));
+			C2_ASSERT(cur.vc_offset == 0);
+			bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+		} else {
+			memcpy(bp, str, len);
+			len = 0;
+		}
+	}
+	return 0;
+}
+
+/** encode a descriptor into a net buffer, not zero-copy */
+int encode_desc(struct c2_net_buffer *nb, const struct c2_net_buf_desc *desc)
+{
+	struct c2_vec_cursor cur;
+	char *bp;
+	c2_bcount_t step;
+
+	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
+	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+	*bp++ = 'd';
+	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+
+	step = c2_vec_cursor_step(&cur);
+	C2_ASSERT(step >= 9 + desc->nbd_len);
+	nb->nb_length = 10 + desc->nbd_len;
+
+	bp += sprintf(bp, "%08d", desc->nbd_len);
+	++bp;				/* +nul */
+	memcpy(bp, desc->nbd_data, desc->nbd_len);
+	return 0;
+}
+
+struct ping_msg {
+	bool pm_is_desc;
+	union {
+		char *pm_str;
+		struct c2_net_buf_desc pm_desc;
+	} pm_u;
+};
+
+/** decode a net buffer, allocates memory and copies payout */
+int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
+{
+	struct c2_vec_cursor cur;
+	char *bp;
+	c2_bcount_t step;
+
+	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
+	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+	C2_ASSERT(*bp == 'm' || *bp == 'd');
+	if (*bp == 'm') {
+		size_t len = nb->nb_length - 1;
+		char *str;
+
+		msg->pm_is_desc = false;
+		str = msg->pm_u.pm_str = c2_alloc(len);
+		while (len > 0) {
+			step = c2_vec_cursor_step(&cur);
+			if (len > step) {
+				memcpy(str, bp, step);
+				str += step;
+				len -= step;
+				C2_ASSERT(!c2_vec_cursor_move(&cur, step));
+				C2_ASSERT(cur.vc_offset == 0);
+				bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+			} else {
+				memcpy(str, bp, len);
+				len = 0;
+			}
+		}
+	} else {
+		int len;
+		msg->pm_is_desc = false;
+		step = c2_vec_cursor_step(&cur);
+		C2_ASSERT(step >= 9 && bp[8] == 0);
+		C2_ASSERT(sscanf(bp, "%d", &len) == 1);
+		msg->pm_u.pm_desc.nbd_len = len;
+		C2_ASSERT(step == 9 + msg->pm_u.pm_desc.nbd_len);
+		bp += 9;
+		msg->pm_u.pm_desc.nbd_data = c2_alloc(len);
+		memcpy(msg->pm_u.pm_desc.nbd_data, bp, len);
+	}
+	return 0;
+}
+
+void msg_free(struct ping_msg *msg)
+{
+	if (msg->pm_is_desc) {
+		c2_net_desc_free(&msg->pm_u.pm_desc);
+	} else {
+		c2_free(msg->pm_u.pm_str);
+	}
+}
+
 /* client callbacks */
 void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
+	printf("Client Msg Recv CB: type == %d\n", ev->nev_qtype);
+
+	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
+	int rc;
+	struct ping_work_item *wi;
+	struct ping_msg msg;
+
+	rc = decode_msg(ev->nev_buffer, &msg);
+	C2_ASSERT(rc == 0);
+
+	if (msg.pm_is_desc) {
+		printf("Client: got desc\n");
+		/* TODO: implement this branch? */
+		C2_IMPOSSIBLE("Client: desc get not implemented");
+	} else
+		printf("Client: got msg: %s\n", msg.pm_u.pm_str);
+	msg_free(&msg);
+
+	ping_buf_put(ctx, ev->nev_buffer);
+
+	C2_ALLOC_PTR(wi);
+	c2_list_link_init(&wi->pwi_link);
+	wi->pwi_type = C2_NET_QT_MSG_RECV;
+
+	c2_mutex_lock(&ctx->pc_mutex);
+	c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
+	c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
 void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
+
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
+	printf("Client Msg Send CB: type == %d\n", ev->nev_qtype);
+
+	ping_buf_put(ctx, ev->nev_buffer);
 }
 
 void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Client Passive Recv CB: type == %d\n", ev->nev_qtype);
 }
 
 void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Client Passive Send CB: type == %d\n", ev->nev_qtype);
 }
 
 void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Client Active Recv CB: type == %d\n", ev->nev_qtype);
 }
 
 void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Client Active Send CB: type == %d\n", ev->nev_qtype);
 }
 
 void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
@@ -137,26 +357,84 @@ struct c2_net_tm_callbacks ctm_cb = {
 /* server callbacks */
 void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
+	printf("Server Msg Recv CB: type == %d\n", ev->nev_qtype);
+
+	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
+	int rc;
+	struct ping_work_item *wi;
+	struct ping_msg msg;
+
+	rc = decode_msg(ev->nev_buffer, &msg);
+	C2_ASSERT(rc == 0);
+
+	struct c2_net_buffer *nb = ping_buf_get(ctx);
+	if (nb == NULL) {
+		printf("Server: dropped msg response, no buffer available\n");
+	} else {
+		C2_ALLOC_PTR(wi);
+		wi->pwi_peer_ep = ev->nev_buffer->nb_ep;
+		rc = c2_net_end_point_get(wi->pwi_peer_ep);
+		C2_ASSERT(rc == 0);
+		c2_list_link_init(&wi->pwi_link);
+		wi->pwi_nb = nb;
+		if (msg.pm_is_desc) {
+			printf("Server: got desc\n");
+			/* TODO: implement this branch */
+			C2_IMPOSSIBLE("Server: desc get not implemented");
+		} else {
+			printf("Server: got msg: %s\n", msg.pm_u.pm_str);
+
+			/* queue wi to send back ping response */
+			wi->pwi_type = C2_NET_QT_MSG_SEND;
+			rc = encode_msg(nb, "pong");
+			C2_ASSERT(rc == 0);
+		}
+		c2_mutex_lock(&ctx->pc_mutex);
+		c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
+		c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+		c2_mutex_unlock(&ctx->pc_mutex);
+	}
+	rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
+	C2_ASSERT(rc == 0);
+
+	msg_free(&msg);
 }
 
 void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
+	printf("Server Msg Send CB: type == %d\n", ev->nev_qtype);
+
+	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
+	int rc;
+
+	rc = c2_net_end_point_put(ev->nev_buffer->nb_ep);
+	C2_ASSERT(rc == 0);
+	ev->nev_buffer->nb_ep = NULL;
+
+	ping_buf_put(ctx, ev->nev_buffer);
 }
 
 void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Server Passive Recv CB: type == %d\n", ev->nev_qtype);
 }
 
 void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Server Passive Send CB: type == %d\n", ev->nev_qtype);
 }
 
 void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Server Active Recv CB: type == %d\n", ev->nev_qtype);
 }
 
 void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
+	printf("Server Active Send CB: type == %d\n", ev->nev_qtype);
 }
 
 void s_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
@@ -174,19 +452,6 @@ struct c2_net_tm_callbacks stm_cb = {
 	.ntc_event_cb = s_event_cb
 };
 
-/**
-   Context for a ping client or server.
- */
-struct ping_ctx {
-	struct c2_net_xprt         *pc_xprt;
-	struct c2_net_domain        pc_dom;
-	int                         pc_nr_bufs;
-	struct c2_net_buffer       *pc_nbs;
-	struct c2_net_end_point    *pc_ep;
-	struct c2_net_transfer_mc   pc_tm;
-	struct c2_atomic64	    pc_stop;
-};
-
 struct ping_ctx cctx = {
 	.pc_tm = {
 		.ntm_callbacks = &ctm_cb,
@@ -201,24 +466,20 @@ struct ping_ctx sctx = {
 	}
 };
 
+bool server_stop = false;
+
 void ping_fini(struct ping_ctx *ctx);
 
 /**
-   Initialise a ping client or server.
-   Calls all the required c2_net APIs in the correct order, with
-   cleanup on failure.
-   On success, the transfer machine is started.
-   @param ctx the client/server context.  pc_xprt, pc_nr_bufs and pc_tm
-   must be initialised by the caller.
+   Resolve hostname into a dotted quad.  The result is stored in buf.
    @retval 0 success
    @retval -errno failure
  */
-int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
+int canon_host(const char *hostname, char *buf, size_t bufsiz)
 {
 	int                i;
-	int                rc;
+	int		   rc = 0;
 	struct in_addr     ipaddr;
-	char               hostbuf[16]; /* big enough for 255.255.255.255 */
 
 	/* c2_net_end_point_create requires string IPv4 address, not name */
 	if (inet_aton(hostname, &ipaddr) == 0) {
@@ -245,8 +506,44 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 				hostname);
 			return -EPFNOSUPPORT;
 		}
-		hostname = inet_ntop(hp->h_addrtype, hp->h_addr, hostbuf, 16);
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
 	}
+	return rc;
+}
+
+/**
+   Initialise a ping client or server.
+   Calls all the required c2_net APIs in the correct order, with
+   cleanup on failure.
+   On success, the transfer machine is started.
+   @param ctx the client/server context.  pc_xprt, pc_nr_bufs and pc_tm
+   must be initialised by the caller.
+   @retval 0 success
+   @retval -errno failure
+ */
+int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
+{
+	int                i;
+	int                rc;
+	char               hostbuf[16]; /* big enough for 255.255.255.255 */
+
+	c2_list_init(&ctx->pc_work_queue);
+
+	rc = canon_host(hostname, hostbuf, sizeof(hostbuf));
+	if (rc != 0)
+		goto fail;
 
 	rc = c2_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
 	if (rc != 0) {
@@ -260,6 +557,7 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		fprintf(stderr, "buffer allocation failed: %d\n", rc);
 		goto fail;
 	}
+	c2_bitmap_init(&ctx->pc_nbbm, ctx->pc_nr_bufs);
 	for (i = 0; i < ctx->pc_nr_bufs; ++i) {
 		rc = c2_net_buffer_register(&ctx->pc_nbs[i], &ctx->pc_dom);
 		if (rc != 0) {
@@ -268,9 +566,8 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		}
 	}
 
-	/* TODO: verify correct varargs for mem and sunrpc xprt */
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom,
-				     hostname, port, 0);
+				     hostbuf, port, 0);
 	if (rc != 0) {
 		fprintf(stderr, "end point create failed: %d\n", rc);
 		goto fail;
@@ -291,12 +588,10 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		goto fail;
 	}
 
-	c2_atomic64_set(&ctx->pc_stop, 0);
-
 	/* wait for tm to notify it has started */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
-	
+
 	return 0;
 fail:
 	ping_fini(ctx);
@@ -338,21 +633,58 @@ void ping_fini(struct ping_ctx *ctx)
 	}
 	if (ctx->pc_dom.nd_xprt != NULL)
 		c2_net_domain_fini(&ctx->pc_dom);
+
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+
+	while ((link = c2_list_first(&ctx->pc_work_queue)) != NULL) {
+		wi = c2_list_entry(link, struct ping_work_item, pwi_link);
+		c2_list_del(&wi->pwi_link);
+		c2_free(wi);
+	}
+	c2_list_fini(&ctx->pc_work_queue);
 }
 
 void server(struct ping_ctx *ctx)
 {
+	int i;
 	int rc;
+	struct c2_net_buffer *nb;
 
+	C2_ASSERT(ctx->pc_nr_bufs >= 20);
 	rc = ping_init("localhost", SERVER_PORT, ctx);
 	C2_ASSERT(rc == 0);
 
-	/*
-	  TODO: Insert actual code to do something here.
-	 */
-	struct c2_time delay, rem;
-	c2_time_set(&delay, 2, 0);
-	c2_nanosleep(&delay, &rem);
+	c2_mutex_lock(&ctx->pc_mutex);
+	for (i = 0; i < 4; ++i) {
+		nb = &ctx->pc_nbs[i];
+		nb->nb_qtype = C2_NET_QT_MSG_RECV;
+		rc = c2_net_buffer_add(nb, &ctx->pc_tm);
+		c2_bitmap_set(&ctx->pc_nbbm, i, true);
+		C2_ASSERT(rc == 0);
+	}
+
+	while (!server_stop) {
+		struct c2_list_link *link = c2_list_first(&ctx->pc_work_queue);
+		struct ping_work_item *wi;
+
+		if (link != NULL) {
+			wi = c2_list_entry(link, struct ping_work_item,
+					   pwi_link);
+			switch (wi->pwi_type) {
+			case C2_NET_QT_MSG_SEND:
+				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
+				C2_ASSERT(rc == 0);
+				break;
+			default:
+				C2_IMPOSSIBLE("unexpected wi->pwi_type");
+			}
+			c2_list_del(&wi->pwi_link);
+			c2_free(wi);
+		}
+		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+	}
+	c2_mutex_unlock(&ctx->pc_mutex);
 
 	ping_fini(ctx);
 }
@@ -360,17 +692,63 @@ void server(struct ping_ctx *ctx)
 void client(struct ping_ctx *ctx)
 {
 	int rc;
+	struct c2_net_buffer *nb;
+	struct c2_net_end_point *server_ep;
+	char               hostbuf[16];
 
 	rc = ping_init("localhost", CLIENT_PORT, ctx);
 	C2_ASSERT(rc == 0);
 
-	/*
-	  TODO: Insert actual code to do something here.
-	 */
-	struct c2_time delay, rem;
-	c2_time_set(&delay, 2, 0);
-	c2_nanosleep(&delay, &rem);
+	/* need end point for the server */
+	rc = canon_host("localhost", hostbuf, sizeof(hostbuf));
+	C2_ASSERT(rc == 0);
+	rc = c2_net_end_point_create(&server_ep, &ctx->pc_dom,
+				     hostbuf, SERVER_PORT, 0);
+	C2_ASSERT(rc == 0);
 
+	/* queue buffer for response, must do before sending msg */
+	nb = ping_buf_get(ctx);
+	C2_ASSERT(nb != NULL);
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
+	C2_ASSERT(rc == 0);
+
+	nb = ping_buf_get(ctx);
+	C2_ASSERT(nb != NULL);
+	rc = encode_msg(nb, "ping");
+	nb->nb_qtype = C2_NET_QT_MSG_SEND;
+	nb->nb_ep = server_ep;
+	C2_ASSERT(rc == 0);
+	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
+	C2_ASSERT(rc == 0);
+
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+	bool recv_done = false;
+
+	/* wait for receive response to complete */
+	c2_mutex_lock(&ctx->pc_mutex);
+	while (1) {
+		while ((link = c2_list_first(&ctx->pc_work_queue)) != NULL) {
+			wi = c2_list_entry(link, struct ping_work_item,
+					   pwi_link);
+			c2_list_del(&wi->pwi_link);
+			if (wi->pwi_type == C2_NET_QT_MSG_RECV)
+				recv_done = true;
+			c2_free(wi);
+		}
+		if (recv_done)
+			break;
+		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+	}
+	c2_mutex_unlock(&ctx->pc_mutex);
+
+	/*
+	  TODO: Insert code to do bulk here.
+	 */
+
+	C2_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) == 1);
+	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
 }
 
@@ -418,20 +796,30 @@ int main(int argc, char *argv[])
 	C2_ASSERT(c2_net_xprt_init(xprt) == 0);
 
 	/* start server in background thread */
+	c2_mutex_init(&sctx.pc_mutex);
+	c2_cond_init(&sctx.pc_cond);
 	sctx.pc_xprt = xprt;
 	sctx.pc_nr_bufs = nr_bufs;
 	C2_SET0(&server_thread);
 	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 			    &server, &sctx);
 	C2_ASSERT(rc == 0);
+	c2_mutex_init(&cctx.pc_mutex);
+	c2_cond_init(&cctx.pc_cond);
 	cctx.pc_xprt = xprt;
 	cctx.pc_nr_bufs = nr_bufs;
+	/* client returns when the test is complete */
 	client(&cctx);
+	c2_cond_fini(&cctx.pc_cond);
+	c2_mutex_fini(&cctx.pc_mutex);
 
-	/* TODO: really figure out how to tell server thread to stop */
-	c2_atomic64_set(&sctx.pc_stop, 1);
-
+	c2_mutex_lock(&sctx.pc_mutex);
+	server_stop = true;
+	c2_cond_signal(&sctx.pc_cond, &sctx.pc_mutex);
+	c2_mutex_unlock(&sctx.pc_mutex);
 	c2_thread_join(&server_thread);
+	c2_cond_fini(&sctx.pc_cond);
+	c2_mutex_fini(&sctx.pc_mutex);
 
 	c2_net_xprt_fini(xprt);
 	c2_fini();

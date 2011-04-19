@@ -3,7 +3,7 @@ KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
 obj-m       := kutc2.o
 orig_ut     := ../../lib/ut/bitmap.c ../../lib/ut/chan.c ../../lib/ut/thread.c
 shared_ut   := $(notdir $(orig_ut))
-kutc2-y     := main.o ut.o $(shared_ut:.c=.o)
+kutc2-y     := main.o $(shared_ut:.c=.o)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
@@ -22,5 +22,4 @@ distclean clean:
 
 distdir:
 	cp $(KUTC2_SRCDIR)/Makefile.in $(KUTC2_SRCDIR)/main.c \
-	$(KUTC2_SRCDIR)/ut.c \
 @top_builddir@/@PACKAGE@-@VERSION@/utils/linux_kernel
