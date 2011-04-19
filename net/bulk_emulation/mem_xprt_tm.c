@@ -88,9 +88,9 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 	c2_net_bulk_mem_work_fn_t fn;
 
 	while (tp->xtm_state != C2_NET_XTM_STOPPED) {
-		link = c2_list_first(&tp->xtm_work_list);
-		/* link may be NULL while transitioning to STOPPED */
-		if (link != NULL) {
+		while (tp->xtm_state != C2_NET_XTM_STOPPED &&
+		       !c2_list_is_empty(&tp->xtm_work_list)) {
+			link = c2_list_first(&tp->xtm_work_list);
 			wi = c2_list_entry(link,
 					   struct c2_net_bulk_mem_work_item,
 					   xwi_link);

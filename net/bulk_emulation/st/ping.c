@@ -55,9 +55,8 @@ struct ping_ctx {
 };
 
 struct ping_work_item {
-	struct c2_net_buffer       *pwi_nb;
 	enum c2_net_queue_type      pwi_type;
-	struct c2_net_end_point    *pwi_peer_ep;
+	struct c2_net_buffer       *pwi_nb;
 	struct c2_list_link         pwi_link;
 };
 
@@ -71,12 +70,11 @@ int lookup_xprt(const char *xprt_name, struct c2_net_xprt **xprt)
 {
 	int i;
 
-	for (i = 0; xprts[i] != NULL; ++i) {
+	for (i = 0; xprts[i] != NULL; ++i)
 		if (strcmp(xprt_name, xprts[i]->nx_name) == 0) {
 			*xprt = xprts[i];
 			return 0;
 		}
-	}
 	return -ENOENT;
 }
 
@@ -151,7 +149,8 @@ void ping_buf_put(struct ping_ctx *ctx, struct c2_net_buffer *nb)
 {
 	int i = nb - &ctx->pc_nbs[0];
 	C2_ASSERT(i >= 0 && i < ctx->pc_nr_bufs);
-	C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
+	C2_ASSERT((nb->nb_flags &
+		   ~(C2_NET_BUF_REGISTERED | C2_NET_BUF_IN_CALLBACK)) == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	C2_ASSERT(c2_bitmap_get(&ctx->pc_nbbm, i));
@@ -220,7 +219,7 @@ struct ping_msg {
 	} pm_u;
 };
 
-/** decode a net buffer, allocates memory and copies payout */
+/** decode a net buffer, allocates memory and copies payload */
 int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 {
 	struct c2_vec_cursor cur;
@@ -235,6 +234,7 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 		size_t len = nb->nb_length - 1;
 		char *str;
 
+		++bp;
 		msg->pm_is_desc = false;
 		str = msg->pm_u.pm_str = c2_alloc(len);
 		while (len > 0) {
@@ -253,6 +253,7 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 		}
 	} else {
 		int len;
+		++bp;
 		msg->pm_is_desc = false;
 		step = c2_vec_cursor_step(&cur);
 		C2_ASSERT(step >= 9 && bp[8] == 0);
@@ -268,11 +269,10 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 
 void msg_free(struct ping_msg *msg)
 {
-	if (msg->pm_is_desc) {
+	if (msg->pm_is_desc)
 		c2_net_desc_free(&msg->pm_u.pm_desc);
-	} else {
+	else
 		c2_free(msg->pm_u.pm_str);
-	}
 }
 
 /* client callbacks */
@@ -369,12 +369,12 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_ASSERT(rc == 0);
 
 	struct c2_net_buffer *nb = ping_buf_get(ctx);
-	if (nb == NULL) {
+	if (nb == NULL)
 		printf("Server: dropped msg response, no buffer available\n");
-	} else {
+	else {
 		C2_ALLOC_PTR(wi);
-		wi->pwi_peer_ep = ev->nev_buffer->nb_ep;
-		rc = c2_net_end_point_get(wi->pwi_peer_ep);
+		nb->nb_ep = ev->nev_buffer->nb_ep;
+		rc = c2_net_end_point_get(nb->nb_ep);
 		C2_ASSERT(rc == 0);
 		c2_list_link_init(&wi->pwi_link);
 		wi->pwi_nb = nb;
@@ -387,6 +387,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 			/* queue wi to send back ping response */
 			wi->pwi_type = C2_NET_QT_MSG_SEND;
+			nb->nb_qtype = C2_NET_QT_MSG_SEND;
 			rc = encode_msg(nb, "pong");
 			C2_ASSERT(rc == 0);
 		}
@@ -467,6 +468,7 @@ struct ping_ctx sctx = {
 };
 
 bool server_stop = false;
+bool server_ready = false;
 
 void ping_fini(struct ping_ctx *ctx);
 
@@ -495,12 +497,11 @@ int canon_host(const char *hostname, char *buf, size_t bufsiz)
 				hostname);
 			return -ENOENT;
 		}
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i) {
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
 			/* take 1st IPv4 address found */
 			if (hp->h_addrtype == AF_INET &&
 			    hp->h_length == sizeof(ipaddr))
 				break;
-		}
 		if (hp->h_addr_list[i] == NULL) {
 			fprintf(stderr, "No IPv4 address for %s\n",
 				hostname);
@@ -637,7 +638,8 @@ void ping_fini(struct ping_ctx *ctx)
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
 
-	while ((link = c2_list_first(&ctx->pc_work_queue)) != NULL) {
+	while (!c2_list_is_empty(&ctx->pc_work_queue)) {
+		link = c2_list_first(&ctx->pc_work_queue);
 		wi = c2_list_entry(link, struct ping_work_item, pwi_link);
 		c2_list_del(&wi->pwi_link);
 		c2_free(wi);
@@ -663,16 +665,22 @@ void server(struct ping_ctx *ctx)
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
 	}
+	/* A real client would need to handle timeouts, retransmissions... */
+	c2_mutex_lock(&cctx.pc_mutex);
+	server_ready = true;
+	c2_cond_signal(&cctx.pc_cond, &cctx.pc_mutex);
+	c2_mutex_unlock(&cctx.pc_mutex);
 
 	while (!server_stop) {
-		struct c2_list_link *link = c2_list_first(&ctx->pc_work_queue);
+		struct c2_list_link *link;
 		struct ping_work_item *wi;
-
-		if (link != NULL) {
+		while (!c2_list_is_empty(&ctx->pc_work_queue)) {
+			link = c2_list_first(&ctx->pc_work_queue);
 			wi = c2_list_entry(link, struct ping_work_item,
 					   pwi_link);
 			switch (wi->pwi_type) {
 			case C2_NET_QT_MSG_SEND:
+				printf("SERVER: work item\n");
 				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 				break;
@@ -713,6 +721,11 @@ void client(struct ping_ctx *ctx)
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
+	c2_mutex_lock(&ctx->pc_mutex);
+	while (!server_ready)
+		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+	c2_mutex_unlock(&ctx->pc_mutex);
+
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
 	rc = encode_msg(nb, "ping");
@@ -729,7 +742,8 @@ void client(struct ping_ctx *ctx)
 	/* wait for receive response to complete */
 	c2_mutex_lock(&ctx->pc_mutex);
 	while (1) {
-		while ((link = c2_list_first(&ctx->pc_work_queue)) != NULL) {
+		while (!c2_list_is_empty(&ctx->pc_work_queue)) {
+			link = c2_list_first(&ctx->pc_work_queue);
 			wi = c2_list_entry(link, struct ping_work_item,
 					   pwi_link);
 			c2_list_del(&wi->pwi_link);
@@ -747,7 +761,6 @@ void client(struct ping_ctx *ctx)
 	  TODO: Insert code to do bulk here.
 	 */
 
-	C2_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) == 1);
 	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
 }
