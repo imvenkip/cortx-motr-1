@@ -520,11 +520,12 @@ AC_CONFIG_FILES([
                  mw/Makefile
                  net/Makefile
 		 net/bulk_emulation/Makefile
+		 net/bulk_emulation/st/Makefile
+		 net/bulk_emulation/ut/Makefile
                  net/ksunrpc/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
-		 net/bulk_emulation/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile

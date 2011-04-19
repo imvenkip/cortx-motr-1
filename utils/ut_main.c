@@ -22,6 +22,7 @@ extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite net_client_ut; /* deprecated */
 extern const struct c2_test_suite net_bulk_if_ut;
+extern const struct c2_test_suite net_bulk_mem_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
@@ -46,6 +47,7 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		c2_ut_add(&net_bulk_if_ut); /* TEMPORARILY FIRST */
+		c2_ut_add(&net_bulk_mem_ut); /* TEMPORARILY HERE */
 		/* sort test suites in alphabetic order */
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&adieu_ut);
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);
 		/* c2_ut_add(&net_bulk_if_ut); */
+		/* c2_ut_add(&net_bulk_mem_ut); */
 		c2_ut_add(&net_client_ut);
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&stobio_ut);
