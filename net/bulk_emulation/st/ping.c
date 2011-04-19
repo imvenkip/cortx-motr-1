@@ -280,6 +280,8 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
 	printf("Client Msg Recv CB: type == %d\n", ev->nev_qtype);
+	printf("Client: ep ref cnt = %ld\n",
+	       c2_atomic64_get(&ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -358,7 +360,10 @@ struct c2_net_tm_callbacks ctm_cb = {
 void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
-	printf("Server Msg Recv CB: type == %d\n", ev->nev_qtype);
+	printf("Server Msg Recv CB: type == %d, status = %d\n", ev->nev_qtype,
+	       ev->nev_status);
+	printf("Server: ep ref cnt = %ld\n",
+	       c2_atomic64_get(&ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -625,6 +630,7 @@ void ping_fini(struct ping_ctx *ctx)
 		int i;
 		for (i = 0; i < ctx->pc_nr_bufs; ++i) {
 			struct c2_net_buffer *nb = &ctx->pc_nbs[i];
+			C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
 			if (nb->nb_flags == C2_NET_BUF_REGISTERED) {
 				c2_net_buffer_deregister(nb, &ctx->pc_dom);
 				c2_bufvec_free(&nb->nb_buffer);
@@ -694,6 +700,20 @@ void server(struct ping_ctx *ctx)
 	}
 	c2_mutex_unlock(&ctx->pc_mutex);
 
+	/* dequeue recv buffers */
+	struct c2_clink tmwait;
+	c2_clink_init(&tmwait, NULL);
+
+	for (i = 0; i < 4; ++i) {
+		nb = &ctx->pc_nbs[i];
+		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+		rc = c2_net_buffer_del(nb, &ctx->pc_tm);
+		c2_bitmap_set(&ctx->pc_nbbm, i, false);
+		C2_ASSERT(rc == 0);
+		c2_chan_wait(&tmwait);
+		c2_clink_del(&tmwait);
+	}
+
 	ping_fini(ctx);
 }
 
@@ -714,17 +734,20 @@ void client(struct ping_ctx *ctx)
 				     hostbuf, SERVER_PORT, 0);
 	C2_ASSERT(rc == 0);
 
+	c2_mutex_lock(&ctx->pc_mutex);
+	while (!server_ready)
+		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
+	c2_mutex_unlock(&ctx->pc_mutex);
+
+#if 1
+	nb = NULL;
+#else
 	/* queue buffer for response, must do before sending msg */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
-
-	c2_mutex_lock(&ctx->pc_mutex);
-	while (!server_ready)
-		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
-	c2_mutex_unlock(&ctx->pc_mutex);
 
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
@@ -756,11 +779,14 @@ void client(struct ping_ctx *ctx)
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
 	c2_mutex_unlock(&ctx->pc_mutex);
-
+#endif
 	/*
 	  TODO: Insert code to do bulk here.
 	 */
 
+	printf("Client: ep ref cnt = %ld\n",
+	       c2_atomic64_get(&server_ep->nep_ref.ref_cnt));
+	/*C2_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) == 1);*/
 	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
 }

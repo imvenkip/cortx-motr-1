@@ -107,8 +107,10 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		C2_ASSERT(ep != NULL &&
 			  c2_atomic64_get(&ep->nep_ref.ref_cnt) >= 1);
 		/* only check received msg buf ep, do not change refcount */
+#if 0
 		if (ev->nev_qtype == C2_NET_QT_MSG_RECV)
 			check_ep = false;
+#endif
 	}
 
 	cb(tm, ev);

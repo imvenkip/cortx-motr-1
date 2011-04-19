@@ -689,7 +689,7 @@ void test_net_bulk_if(void)
 		if (i == C2_NET_QT_MSG_RECV) {
 			/* simulate transport removing ep from buf */
 			nb->nb_ep = NULL;
-			rc = c2_net_end_point_put(ep2);
+			/* rc = c2_net_end_point_put(ep2); */
 			C2_UT_ASSERT(rc == 0);
 		}
 	}
