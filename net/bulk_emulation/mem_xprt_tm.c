@@ -64,10 +64,27 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 }
 
 /**
+   Deliver a callback during operation cancel.
  */
 static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_bulk_mem_work_item *wi)
 {
+	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
+
+	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+
+	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
+	C2_POST(nb->nb_status <= 0);
+	struct c2_net_event ev = {
+		.nev_qtype   = nb->nb_qtype,
+		.nev_tm      = tm,
+		.nev_buffer  = nb,
+		.nev_status  = -ECANCELED,
+		.nev_payload = wi
+	};
+	(void)c2_net_tm_event_post(tm, &ev);
+	return;
 }
 
 /**

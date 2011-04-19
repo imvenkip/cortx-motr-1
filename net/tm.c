@@ -103,14 +103,9 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	}
 	C2_ASSERT(cb != NULL);
 	if (check_ep) {
-		ep = buf->nb_ep;
-		C2_ASSERT(ep != NULL &&
+		ep = buf->nb_ep; /* save pointer to decrement ref post cb */
+		C2_ASSERT(ep == NULL ||
 			  c2_atomic64_get(&ep->nep_ref.ref_cnt) >= 1);
-		/* only check received msg buf ep, do not change refcount */
-#if 0
-		if (ev->nev_qtype == C2_NET_QT_MSG_RECV)
-			check_ep = false;
-#endif
 	}
 
 	cb(tm, ev);
@@ -128,8 +123,8 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	/* c2_net_buffer_add called _get(), put re-gets mutex */
-	if (check_ep)
+	/* Decrement the transport reference to an EP; put re-gets mutex */
+	if (check_ep && ep)
 		c2_net_end_point_put(ep);
 
 	return 0;
