@@ -279,25 +279,29 @@ void msg_free(struct ping_msg *msg)
 void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
-	printf("Client Msg Recv CB: type == %d\n", ev->nev_qtype);
-	printf("Client: ep ref cnt = %ld\n",
-	       c2_atomic64_get(&ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
+	printf("Client: Msg Recv CB\n");
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
-	rc = decode_msg(ev->nev_buffer, &msg);
-	C2_ASSERT(rc == 0);
+	if (ev->nev_status < 0) {
+		if (ev->nev_status == -ECANCELED)
+			printf("Client: msg recv canceled\n");
+		else
+			printf("Client: msg recv error: %d\n", ev->nev_status);
+	} else {
+		rc = decode_msg(ev->nev_buffer, &msg);
+		C2_ASSERT(rc == 0);
 
-	if (msg.pm_is_desc) {
-		printf("Client: got desc\n");
-		/* TODO: implement this branch? */
-		C2_IMPOSSIBLE("Client: desc get not implemented");
-	} else
-		printf("Client: got msg: %s\n", msg.pm_u.pm_str);
-	msg_free(&msg);
+		if (msg.pm_is_desc) {
+			C2_IMPOSSIBLE("Client: got desc\n");
+			/* TODO: implement this branch? */
+		} else
+			printf("Client: got msg: %s\n", msg.pm_u.pm_str);
+		msg_free(&msg);
+	}
 
 	ping_buf_put(ctx, ev->nev_buffer);
 
@@ -316,35 +320,53 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
-	printf("Client Msg Send CB: type == %d\n", ev->nev_qtype);
+	printf("Client: Msg Send CB\n");
 
 	ping_buf_put(ctx, ev->nev_buffer);
 }
 
 void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Client Passive Recv CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	printf("Client: Passive Recv CB\n");
 }
 
 void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Client Passive Send CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	printf("Client: Passive Send CB\n");
 }
 
 void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Client Active Recv CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	printf("Client: Active Recv CB\n");
 }
 
 void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Client Active Send CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	printf("Client: Active Send CB\n");
 }
 
 void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Client Event CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_NR);
+	if (ev->nev_status == 0) {
+		const char *s = "unexpected";
+		if (ev->nev_payload == (void *) C2_NET_TM_STARTED)
+			s = "started";
+		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
+			s = "stopped";
+		printf("Client: Event CB state change to %s\n", s);
+	} else if (ev->nev_status < 0)
+		printf("Client: Event CB for error %d\n", ev->nev_status);
+	else
+		printf("Client: Event CB for diagnostic %d\n", ev->nev_status);
 }
+
+bool server_stop = false;
+bool server_ready = false;
 
 struct c2_net_tm_callbacks ctm_cb = {
 	.ntc_msg_recv_cb	  = c_m_recv_cb,
@@ -360,62 +382,67 @@ struct c2_net_tm_callbacks ctm_cb = {
 void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
-	printf("Server Msg Recv CB: type == %d, status = %d\n", ev->nev_qtype,
-	       ev->nev_status);
-	if (ev->nev_buffer->nb_ep != NULL)
-		printf("Server: ep ref cnt = %ld\n",
-		       c2_atomic64_get(
-				      &ev->nev_buffer->nb_ep->nep_ref.ref_cnt));
-	else
-		printf("Server: ep is NULL\n");
+	printf("Server: Msg Recv CB\n");
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
-	rc = decode_msg(ev->nev_buffer, &msg);
-	C2_ASSERT(rc == 0);
-
-	struct c2_net_buffer *nb = ping_buf_get(ctx);
-	if (nb == NULL)
-		printf("Server: dropped msg response, no buffer available\n");
-	else {
-		C2_ALLOC_PTR(wi);
-		nb->nb_ep = ev->nev_buffer->nb_ep;
-		rc = c2_net_end_point_get(nb->nb_ep);
-		C2_ASSERT(rc == 0);
-		c2_list_link_init(&wi->pwi_link);
-		wi->pwi_nb = nb;
-		if (msg.pm_is_desc) {
-			printf("Server: got desc\n");
-			/* TODO: implement this branch */
-			C2_IMPOSSIBLE("Server: desc get not implemented");
-		} else {
-			printf("Server: got msg: %s\n", msg.pm_u.pm_str);
-
-			/* queue wi to send back ping response */
-			wi->pwi_type = C2_NET_QT_MSG_SEND;
-			nb->nb_qtype = C2_NET_QT_MSG_SEND;
-			rc = encode_msg(nb, "pong");
+	if (ev->nev_status < 0) {
+		if (ev->nev_status == -ECANCELED && server_stop)
+			printf("Server: msg recv canceled on shutdown\n");
+		else {
+			printf("Service: msg recv error: %d\n", ev->nev_status);
+			rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
 			C2_ASSERT(rc == 0);
 		}
-		c2_mutex_lock(&ctx->pc_mutex);
-		c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-		c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
-		c2_mutex_unlock(&ctx->pc_mutex);
-	}
-	rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
-	C2_ASSERT(rc == 0);
+	} else {
+		rc = decode_msg(ev->nev_buffer, &msg);
+		C2_ASSERT(rc == 0);
 
-	msg_free(&msg);
+		struct c2_net_buffer *nb = ping_buf_get(ctx);
+		if (nb == NULL)
+			printf("Server: dropped msg, no buffer available\n");
+		else {
+			C2_ALLOC_PTR(wi);
+			nb->nb_ep = ev->nev_buffer->nb_ep;
+			ev->nev_buffer->nb_ep = NULL;
+			rc = c2_net_end_point_get(nb->nb_ep);
+			C2_ASSERT(rc == 0);
+			c2_list_link_init(&wi->pwi_link);
+			wi->pwi_nb = nb;
+			if (msg.pm_is_desc) {
+				printf("Server: got desc\n");
+				/* TODO: implement this branch */
+				C2_IMPOSSIBLE("Server: recv desc "
+					      "not implemented");
+			} else {
+				printf("Server: got msg: %s\n",
+				       msg.pm_u.pm_str);
+
+				/* queue wi to send back ping response */
+				wi->pwi_type = C2_NET_QT_MSG_SEND;
+				nb->nb_qtype = C2_NET_QT_MSG_SEND;
+				rc = encode_msg(nb, "pong");
+				C2_ASSERT(rc == 0);
+			}
+			c2_mutex_lock(&ctx->pc_mutex);
+			c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
+			c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+			c2_mutex_unlock(&ctx->pc_mutex);
+		}
+		rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
+		C2_ASSERT(rc == 0);
+
+		msg_free(&msg);
+	}
 }
 
 void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
-	printf("Server Msg Send CB: type == %d\n", ev->nev_qtype);
+	printf("Server: Msg Send CB\n");
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -429,27 +456,42 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Server Passive Recv CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	printf("Server: Passive Recv CB\n");
 }
 
 void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Server Passive Send CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	printf("Server: Passive Send CB\n");
 }
 
 void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Server Active Recv CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	printf("Server: Active Recv CB\n");
 }
 
 void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Server Active Send CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	printf("Server: Active Send CB\n");
 }
 
 void s_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	printf("Server Event CB: type == %d\n", ev->nev_qtype);
+	C2_ASSERT(ev->nev_qtype == C2_NET_QT_NR);
+	if (ev->nev_status == 0) {
+		const char *s = "unexpected";
+		if (ev->nev_payload == (void *) C2_NET_TM_STARTED)
+			s = "started";
+		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
+			s = "stopped";
+		printf("Server: Event CB state change to %s\n", s);
+	} else if (ev->nev_status < 0)
+		printf("Server: Event CB for error %d\n", ev->nev_status);
+	else
+		printf("Server: Event CB for diagnostic %d\n", ev->nev_status);
 }
 
 struct c2_net_tm_callbacks stm_cb = {
@@ -475,9 +517,6 @@ struct ping_ctx sctx = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
-
-bool server_stop = false;
-bool server_ready = false;
 
 void ping_fini(struct ping_ctx *ctx);
 
@@ -635,10 +674,8 @@ void ping_fini(struct ping_ctx *ctx)
 		for (i = 0; i < ctx->pc_nr_bufs; ++i) {
 			struct c2_net_buffer *nb = &ctx->pc_nbs[i];
 			C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
-			if (nb->nb_flags == C2_NET_BUF_REGISTERED) {
-				c2_net_buffer_deregister(nb, &ctx->pc_dom);
-				c2_bufvec_free(&nb->nb_buffer);
-			}
+			c2_net_buffer_deregister(nb, &ctx->pc_dom);
+			c2_bufvec_free(&nb->nb_buffer);
 		}
 		c2_free(ctx->pc_nbs);
 	}
@@ -690,7 +727,6 @@ void server(struct ping_ctx *ctx)
 					   pwi_link);
 			switch (wi->pwi_type) {
 			case C2_NET_QT_MSG_SEND:
-				printf("SERVER: work item\n");
 				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 				break;
@@ -743,9 +779,6 @@ void client(struct ping_ctx *ctx)
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	c2_mutex_unlock(&ctx->pc_mutex);
 
-#if 1
-	nb = NULL;
-#else
 	/* queue buffer for response, must do before sending msg */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
@@ -783,14 +816,11 @@ void client(struct ping_ctx *ctx)
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
 	c2_mutex_unlock(&ctx->pc_mutex);
-#endif
+
 	/*
 	  TODO: Insert code to do bulk here.
 	 */
 
-	printf("Client: ep ref cnt = %ld\n",
-	       c2_atomic64_get(&server_ep->nep_ref.ref_cnt));
-	/*C2_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) == 1);*/
 	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
 }
