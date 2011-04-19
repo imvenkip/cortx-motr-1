@@ -99,7 +99,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 						   struct 
 						   c2_net_bulk_mem_end_point, 
 						   xep_ep);
-				rc = mem_ep_create(&dest_ep, dest_tm->ntm_dom,
+				rc = mem_ep_create(&dest_ep, itm->ntm_dom,
 						   &mep->xep_sa);
 			}
 			if (!rc) {

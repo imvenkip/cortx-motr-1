@@ -326,7 +326,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 {
 	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED &&
-	       (nb->nb_flags & ~C2_NET_BUF_IN_USE) == 0);
+	       (nb->nb_flags & C2_NET_BUF_IN_USE) == 0);
 
 	struct c2_net_transfer_mc *tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
