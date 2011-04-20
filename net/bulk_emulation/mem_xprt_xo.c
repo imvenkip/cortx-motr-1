@@ -360,7 +360,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm, 
 					     nb->nb_qtype, nb->nb_length,
 					     bp->xb_buf_id);
-			if (!rc)
+			if (rc != 0)
 				return rc;
 		}
 		break;
@@ -562,7 +562,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
 			rc = mem_xo_buf_del(nb);
-			if (!rc) {
+			if (rc == 0) {
 				/* bump the del stat count */
 				tm->ntm_qstats[qt].nqs_num_dels += 1;
 			}

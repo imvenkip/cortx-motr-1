@@ -69,7 +69,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		/* decode the descriptor */
 		struct mem_desc *md;
 		rc = mem_desc_decode(&nb->nb_desc, &md);
-		if (!rc)
+		if (rc != 0)
 			break;
 
 		if (!mem_ep_equals_addr(tm->ntm_ep, &md->md_active)) {
@@ -85,14 +85,14 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
 		rc = mem_ep_create(&match_ep, tm->ntm_dom, &md->md_passive);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
-		if (!rc) {
+		if (rc != 0) {
 			match_ep = NULL;
 			break;
 		}
 
 		/* Search for a remote TM matching this EP address. */
 		rc = mem_find_remote_tm(tm, match_ep, &passive_tm, NULL);
-		if (!rc)
+		if (rc != 0)
 			break;
 
 		/* We're now operating on the destination TM while holding

@@ -108,7 +108,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			} while(0);
 			if (dest_tm != NULL) {
 				/* found the TM */
-				if (rc) {
+				if (rc != 0) {
 					/* ... but failed on EP */
 					c2_mutex_unlock(&dest_tm->ntm_mutex);
 					dest_tm = NULL;
@@ -118,13 +118,13 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			c2_mutex_unlock(&itm->ntm_mutex);
 		}
 		c2_mutex_unlock(&dp->xd_dom->nd_mutex);
-		if (dest_tm != NULL || rc)
+		if (dest_tm != NULL || rc != 0)
 			break;
 	}
-	if (!rc && dest_tm == NULL)
+	if (rc == 0 && dest_tm == NULL)
 		rc = -ENETUNREACH; /* search exhausted */
 	c2_mutex_unlock(&c2_net_mutex);
-	C2_ASSERT(rc ||
+	C2_ASSERT(rc != 0 ||
 		  (dest_tm != NULL && 
 		   c2_mutex_is_locked(&dest_tm->ntm_mutex) &&
 		   dest_tm->ntm_state == C2_NET_TM_STARTED));
@@ -194,7 +194,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
 		c2_list_del(&dest_nb->nb_tm_linkage);
 		rc = mem_copy_buffer(dest_nb, nb, nb->nb_length);
-		if(!rc) {
+		if(rc == 0) {
 			/* commit to using the destination EP */
 			dest_nb->nb_ep = dest_ep;
 			dest_ep = NULL; /* do not release below */
