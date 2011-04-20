@@ -10,17 +10,24 @@
 
 void test_buf_copy(void)
 {
-	/* Create buffers with different shapes but same total size */
-	enum { NR_BUFS = 5 };
+	/* Create buffers with different shapes but same total size.
+	   Also create identical buffers for exact shape testing.
+	 */
+	enum { NR_BUFS = 10 };
 	static struct {
 		uint32_t    num_segs;
 		c2_bcount_t seg_size;
 	} shapes[NR_BUFS] = {
 		[0] = { 1, 48 },
-		[1] = { 2, 24 },
-		[2] = { 3, 16 },
-		[3] = { 4, 12 },
-		[4] = { 6,  8 },
+		[1] = { 1, 48 },
+		[2] = { 2, 24 },
+		[3] = { 2, 24 },
+		[4] = { 3, 16 },
+		[5] = { 3, 16 },
+		[6] = { 4, 12 },
+		[7] = { 4, 12 },
+		[8] = { 6,  8 },
+		[9] = { 6,  8 },
 	};
 	static const char *msg = "abcdefghijklmnopqrstuvwxyz0123456789"
 		"ABCDEFGHIJK";
