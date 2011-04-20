@@ -781,9 +781,6 @@ void test_processor(void)
 	verify_all_params();
 	clean_test_dataset();
 
-	processor_info_dirp = "/root/test1";
-	setenv("C2_PROCESSORS_INFO_DIR", "/root/test1", 1);
-	verify_all_params();
 }
 
 struct c2_ub_set c2_processor_ub = {
