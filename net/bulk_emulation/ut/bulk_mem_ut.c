@@ -48,9 +48,10 @@ void test_buf_copy(void)
 	memcpy(nb->nb_buffer.ov_buf[0], msg, msglen);
 	C2_UT_ASSERT(memcmp(nb->nb_buffer.ov_buf[0], msg, msglen) == 0);
 	for (i=1; i < NR_BUFS; i++) {
-		C2_UT_ASSERT(mem_copy_buffer(&bufs[i],&bufs[i-1],msglen) == 0);
 		int j;
 		const char *p = msg;
+		C2_UT_ASSERT(mem_copy_buffer(&bufs[i],&bufs[i-1],msglen) == 0);
+		C2_UT_ASSERT(bufs[i].nb_length == msglen);
 		for (j=0; j<bufs[i].nb_buffer.ov_vec.v_nr; j++) {
 			int k;
 			char *q;
