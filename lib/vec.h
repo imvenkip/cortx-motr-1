@@ -132,6 +132,64 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
  */
 void c2_bufvec_free(struct c2_bufvec *bufvec);
 
+/** Cursor to traverse a bufvec */
+struct c2_bufvec_cursor {
+	/** the buffer vector */
+	struct c2_bufvec     *bc_bufvec;
+	/** vector cursor used to track position */
+	struct c2_vec_cursor  bc_vc;
+};
+
+/**
+   Initialize a struct c2_bufvec cursor.
+   @param cur Pointer to the struct c2_bufvec_cursor.
+   @param bvec Pointer to the struct c2_bufvec.
+ */
+void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur, 
+			    struct c2_bufvec *bvec);
+
+/**
+   Move the cursor count bytes further through the buffer vector.
+   @see c2_vec_cursor_move()
+   @param cur Pointer to the struct c2_bufvec_cursor.
+   @return true, iff the end of the vector has been reached while moving. The
+   cursor is in end of the vector position in this case.
+   @return false otherwise
+ */
+bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
+
+/**
+   Return number of bytes that the cursor have to be moved to reach the next
+   segment in its vector (or to move into end of the vector position, when the
+   cursor is already at the last segment).
+
+   @see c2_vec_cursor_step()
+   @param cur Pointer to the struct c2_bufvec_cursor.
+   @retval Count
+ */
+c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
+
+/**
+   Return the buffer address at the cursor's current position.
+   @param cur Pointer to the struct c2_bufvec_cursor.
+   @retval Pointer into buffer.
+   @retval NULL  Cursor is positioned at the end of the buffer.
+ */
+void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
+
+/**
+   Copy bytes from one buffer to another using cursors.
+   @param dcur Pointer to the destination buffer cursor positioned 
+   appropriately.
+   @param scur Pointer to the source buffer cursor positioned appropriately.
+   @param num_bytes The number of bytes to copy.
+   @retval bytes_copied The number of bytes actually copied. This will be equal
+   to num_bytes only if there was adequate space in the buffers.
+ */
+c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
+				  struct c2_bufvec_cursor *scur,
+				  c2_bcount_t num_bytes);
+
 struct c2_dio_cookie;
 struct c2_dio_engine;
 

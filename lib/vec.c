@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/arith.h"
 #include "lib/cdefs.h"     /* NULL */
 #include "lib/vec.h"
 #include "lib/assert.h"
@@ -128,6 +129,59 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 		c2_free(bufvec->ov_vec.v_count);
 		C2_SET0(bufvec);
 	}
+}
+
+void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur, 
+			    struct c2_bufvec *bvec)
+{
+	C2_PRE(cur != NULL);
+	C2_PRE(bvec != NULL && 
+	       bvec->ov_vec.v_nr != 0 && bvec->ov_vec.v_count != NULL &&
+	       bvec->ov_buf != NULL);
+	cur->bc_bufvec = bvec;
+	c2_vec_cursor_init(&cur->bc_vc, &bvec->ov_vec);
+}
+
+bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count)
+{
+	return c2_vec_cursor_move(&cur->bc_vc, count);
+}
+
+c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
+{
+	return c2_vec_cursor_step(&cur->bc_vc);
+}
+
+void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+{
+	struct c2_vec_cursor *vc = &cur->bc_vc;
+	if (c2_bufvec_cursor_move(cur, 0))
+		return NULL; /* at end */
+	return cur->bc_bufvec->ov_buf[vc->vc_seg] + vc->vc_offset;
+}
+
+c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
+				  struct c2_bufvec_cursor *scur,
+				  c2_bcount_t num_bytes)
+{
+	c2_bcount_t frag_size;
+	c2_bcount_t bytes_copied=0;
+	while (num_bytes > 0) {
+		if (c2_bufvec_cursor_move(dcur,0) ||
+		    c2_bufvec_cursor_move(scur,0))
+			break;
+		frag_size = min3(c2_bufvec_cursor_step(dcur),
+				 c2_bufvec_cursor_step(scur),
+				 num_bytes);
+		memcpy(c2_bufvec_cursor_addr(dcur),
+		       c2_bufvec_cursor_addr(scur),
+		       frag_size);
+		c2_bufvec_cursor_move(dcur, frag_size);
+		c2_bufvec_cursor_move(scur, frag_size);
+		num_bytes -= frag_size;
+		bytes_copied += frag_size;
+	}
+	return bytes_copied;
 }
 
 /** @} end of vec group */
