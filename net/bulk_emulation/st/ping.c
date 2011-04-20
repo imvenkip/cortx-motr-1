@@ -276,7 +276,7 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 		C2_ASSERT(step >= 9 && bp[8] == 0);
 		C2_ASSERT(sscanf(bp, "%d", &len) == 1);
 		msg->pm_u.pm_desc.nbd_len = len;
-		C2_ASSERT(step == 9 + msg->pm_u.pm_desc.nbd_len);
+		C2_ASSERT(step >= 9 + msg->pm_u.pm_desc.nbd_len);
 		bp += 9;
 		msg->pm_u.pm_desc.nbd_data = c2_alloc(len);
 		memcpy(msg->pm_u.pm_desc.nbd_data, bp, len);
@@ -500,10 +500,8 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			printf("Server: dropped msg, no buffer available\n");
 		else {
 			C2_ALLOC_PTR(wi);
-			nb->nb_ep = ev->nev_buffer->nb_ep;
+			nb->nb_ep = ev->nev_buffer->nb_ep; /* save for later */
 			ev->nev_buffer->nb_ep = NULL;
-			rc = c2_net_end_point_get(nb->nb_ep);
-			C2_ASSERT(rc == 0);
 			c2_list_link_init(&wi->pwi_link);
 			wi->pwi_nb = nb;
 			if (msg.pm_type == PM_SEND_DESC) {
@@ -512,6 +510,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
 						 &nb->nb_desc);
+				nb->nb_ep = NULL; /* not needed */
 				C2_ASSERT(rc == 0);
 			} else if (msg.pm_type == PM_RECV_DESC) {
 				printf("Server: got desc for active send\n");
@@ -519,6 +518,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
 						 &nb->nb_desc);
+				nb->nb_ep = NULL; /* not needed */
 				rc = encode_msg(nb, "active pong");
 				C2_ASSERT(rc == 0);
 			} else {
@@ -526,6 +526,8 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				       msg.pm_u.pm_str);
 
 				/* queue wi to send back ping response */
+				rc = c2_net_end_point_get(nb->nb_ep);
+				C2_ASSERT(rc == 0);
 				wi->pwi_type = C2_NET_QT_MSG_SEND;
 				nb->nb_qtype = C2_NET_QT_MSG_SEND;
 				rc = encode_msg(nb, "pong");
