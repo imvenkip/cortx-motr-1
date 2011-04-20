@@ -80,13 +80,22 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 			   struct c2_net_buffer *s_nb,
 			   c2_bcount_t num_bytes)
 {
+	struct c2_bufvec_cursor s_cur;
+	struct c2_bufvec_cursor d_cur;
+	c2_bcount_t bytes_copied;
+
 	if (mem_buffer_length(d_nb) < num_bytes) {
 		return -EFBIG;
 	}
 	C2_ASSERT(mem_buffer_length(s_nb) >= num_bytes);
 
 	d_nb->nb_length = num_bytes;
+	c2_bufvec_cursor_init(&s_cur, &s_nb->nb_buffer);
+	c2_bufvec_cursor_init(&d_cur, &d_nb->nb_buffer);
+	bytes_copied = c2_bufvec_cursor_copy(&d_cur, &s_cur, num_bytes);
+	C2_ASSERT(bytes_copied == num_bytes);
 
+#if 0
 	struct c2_vec_cursor s_cur;
 	struct c2_vec_cursor d_cur;
 	c2_vec_cursor_init(&s_cur, &s_nb->nb_buffer.ov_vec);
@@ -103,6 +112,7 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 		c2_vec_cursor_move(&d_cur, frag_size);
 		num_bytes -= frag_size;
 	}
+#endif
 
 	return 0;
 }
