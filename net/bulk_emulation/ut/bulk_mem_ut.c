@@ -461,7 +461,7 @@ void test_ping(void)
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		}
 	};
-	
+
 	c2_mutex_init(&sctx.pc_mutex);
 	c2_cond_init(&sctx.pc_cond);
 	c2_mutex_init(&cctx.pc_mutex);
@@ -474,10 +474,8 @@ void test_ping(void)
 	struct c2_thread	 server_thread;
 
 	C2_UT_ASSERT(ping_client_init(&cctx, &server_ep) == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) == 1);
 	/* client times out because server is not ready */
 	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) != 0);
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) >= 1);
 	/* server runs in background thread */
 	C2_SET0(&server_thread);
 	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
@@ -488,13 +486,18 @@ void test_ping(void)
 	} else
 		C2_UT_PASS("started ping server");
 
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) >= 1);
 	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) >= 1);
 	C2_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) >= 1);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep) == 0);
-	C2_UT_ASSERT(c2_atomic64_get(&server_ep->nep_ref.ref_cnt) >= 1);
+
+	/* test sending/receiving a bigger payload */
+	int i;
+	char *data = c2_alloc(PING_CLIENT_SEGMENTS * PING_CLIENT_SEGMENT_SIZE);
+	int len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
+
+	for (i = 0; i < len; ++i)
+		data[i] = "abcdefghi"[i % 9];
+	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 
 	C2_UT_ASSERT(ping_client_fini(&cctx, server_ep) == 0);
 

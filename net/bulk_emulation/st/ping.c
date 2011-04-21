@@ -109,26 +109,26 @@ void ping_buf_put(struct ping_ctx *ctx, struct c2_net_buffer *nb)
 /** encode a string message into a net buffer, not zero-copy */
 int encode_msg(struct c2_net_buffer *nb, const char *str)
 {
-	struct c2_vec_cursor cur;
+	struct c2_bufvec_cursor cur;
 	char *bp;
 	size_t len = strlen(str) + 1; /* include trailing nul */
 	c2_bcount_t step;
 
 	nb->nb_length = len + 1;
 
-	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
-	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
-	*bp++ = 'm';
-	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	bp = c2_bufvec_cursor_addr(&cur);
+	*bp = 'm';
+	C2_ASSERT(!c2_bufvec_cursor_move(&cur, 1));
 	while (len > 0) {
-		step = c2_vec_cursor_step(&cur);
+		bp = c2_bufvec_cursor_addr(&cur);
+		step = c2_bufvec_cursor_step(&cur);
 		if (len > step) {
 			memcpy(bp, str, step);
 			str += step;
 			len -= step;
-			C2_ASSERT(!c2_vec_cursor_move(&cur, step));
-			C2_ASSERT(cur.vc_offset == 0);
-			bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+			C2_ASSERT(!c2_bufvec_cursor_move(&cur, step));
+			C2_ASSERT(cur.bc_vc.vc_offset == 0);
 		} else {
 			memcpy(bp, str, len);
 			len = 0;
@@ -142,19 +142,18 @@ int encode_desc(struct c2_net_buffer *nb,
 		bool send_desc,
 		const struct c2_net_buf_desc *desc)
 {
-	struct c2_vec_cursor cur;
+	struct c2_bufvec_cursor cur;
 	char *bp;
 	c2_bcount_t step;
 
-	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
-	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
-	if (send_desc)
-		*bp++ = 's';
-	else
-		*bp++ = 'r';
-	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	bp = c2_bufvec_cursor_addr(&cur);
+	*bp = send_desc ? 's' : 'r';
+	C2_ASSERT(!c2_bufvec_cursor_move(&cur, 1));
+	bp = c2_bufvec_cursor_addr(&cur);
 
-	step = c2_vec_cursor_step(&cur);
+	/* only support sending net_desc in single chunks in this test */
+	step = c2_bufvec_cursor_step(&cur);
 	C2_ASSERT(step >= 9 + desc->nbd_len);
 	nb->nb_length = 10 + desc->nbd_len;
 
@@ -183,30 +182,29 @@ struct ping_msg {
 /** decode a net buffer, allocates memory and copies payload */
 int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 {
-	struct c2_vec_cursor cur;
+	struct c2_bufvec_cursor cur;
 	char *bp;
 	c2_bcount_t step;
 
-	c2_vec_cursor_init(&cur, &nb->nb_buffer.ov_vec);
-	bp = nb->nb_buffer.ov_buf[cur.vc_seg];
-	C2_ASSERT(!c2_vec_cursor_move(&cur, 1));
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	bp = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(*bp == 'm' || *bp == 's' || *bp == 'r');
+	C2_ASSERT(!c2_bufvec_cursor_move(&cur, 1));
 	if (*bp == 'm') {
 		size_t len = nb->nb_length - 1;
 		char *str;
 
-		++bp;
 		msg->pm_type = PM_MSG;
 		str = msg->pm_u.pm_str = c2_alloc(len);
 		while (len > 0) {
-			step = c2_vec_cursor_step(&cur);
+			bp = c2_bufvec_cursor_addr(&cur);
+			step = c2_bufvec_cursor_step(&cur);
 			if (len > step) {
 				memcpy(str, bp, step);
 				str += step;
 				len -= step;
-				C2_ASSERT(!c2_vec_cursor_move(&cur, step));
-				C2_ASSERT(cur.vc_offset == 0);
-				bp = nb->nb_buffer.ov_buf[cur.vc_seg];
+				C2_ASSERT(!c2_bufvec_cursor_move(&cur, step));
+				C2_ASSERT(cur.bc_vc.vc_offset == 0);
 			} else {
 				memcpy(str, bp, len);
 				len = 0;
@@ -214,12 +212,9 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 		}
 	} else {
 		int len;
-		if (*bp == 's')
-			msg->pm_type = PM_SEND_DESC;
-		else
-			msg->pm_type = PM_RECV_DESC;
-		++bp;
-		step = c2_vec_cursor_step(&cur);
+		msg->pm_type = (*bp == 's') ? PM_SEND_DESC : PM_RECV_DESC;
+		bp = c2_bufvec_cursor_addr(&cur);
+		step = c2_bufvec_cursor_step(&cur);
 		C2_ASSERT(step >= 9 && bp[8] == 0);
 		C2_ASSERT(sscanf(bp, "%d", &len) == 1);
 		msg->pm_u.pm_desc.nbd_len = len;
@@ -264,9 +259,18 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 		if (msg.pm_type != PM_MSG) {
 			C2_IMPOSSIBLE("Client: got desc\n");
 			/* TODO: implement this branch? */
-		} else
+		} else {
 			ctx->pc_ops->pf("Client: got msg: %s\n",
 					msg.pm_u.pm_str);
+			if (ctx->pc_compare_buf != NULL) {
+				int l = strlen(ctx->pc_compare_buf);
+				C2_ASSERT(strlen(msg.pm_u.pm_str) == l + 5);
+				C2_ASSERT(strncmp(ctx->pc_compare_buf,
+						  msg.pm_u.pm_str, l) == 0);
+				C2_ASSERT(strcmp(&msg.pm_u.pm_str[l],
+						 " pong") == 0);
+			}
+		}
 		msg_free(&msg);
 	}
 
@@ -455,10 +459,10 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 		C2_ASSERT(rc == 0);
 
 		struct c2_net_buffer *nb = ping_buf_get(ctx);
-		if (nb == NULL)
+		if (nb == NULL) {
 			ctx->pc_ops->pf("Server: dropped msg, "
 					"no buffer available\n");
-		else {
+		} else {
 			C2_ALLOC_PTR(wi);
 			nb->nb_ep = ev->nev_buffer->nb_ep; /* save for later */
 			ev->nev_buffer->nb_ep = NULL;
@@ -485,15 +489,19 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				rc = encode_msg(nb, "active pong");
 				C2_ASSERT(rc == 0);
 			} else {
+				char *data;
 				ctx->pc_ops->pf("Server: got msg: %s\n",
 						msg.pm_u.pm_str);
 
 				/* queue wi to send back ping response */
+				data = c2_alloc(strlen(msg.pm_u.pm_str) + 6);
 				rc = c2_net_end_point_get(nb->nb_ep);
 				C2_ASSERT(rc == 0);
 				wi->pwi_type = C2_NET_QT_MSG_SEND;
 				nb->nb_qtype = C2_NET_QT_MSG_SEND;
-				rc = encode_msg(nb, "pong");
+				strcpy(data, msg.pm_u.pm_str);
+				strcat(data, " pong");
+				rc = encode_msg(nb, data);
 				C2_ASSERT(rc == 0);
 			}
 			c2_mutex_lock(&ctx->pc_mutex);
@@ -892,6 +900,10 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 	int rc;
 	struct c2_net_buffer *nb;
 
+	if (data == NULL)
+		data = "ping";
+	ctx->pc_compare_buf = data;
+
 	ctx->pc_ops->pf("Client: starting msg send/recv sequence\n");
 	/* queue buffer for response, must do before sending msg */
 	nb = ping_buf_get(ctx);
@@ -904,7 +916,7 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
-	rc = encode_msg(nb, "ping");
+	rc = encode_msg(nb, data);
 	nb->nb_qtype = C2_NET_QT_MSG_SEND;
 	nb->nb_ep = server_ep;
 	C2_ASSERT(rc == 0);
@@ -925,11 +937,13 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 			wi = c2_list_entry(link, struct ping_work_item,
 					   pwi_link);
 			c2_list_del(&wi->pwi_link);
-			if (wi->pwi_type == C2_NET_QT_MSG_RECV)
+			if (wi->pwi_type == C2_NET_QT_MSG_RECV) {
+				ctx->pc_compare_buf = NULL;
 				recv_done = true;
-			else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
+			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
 				/* implies send error, retry a few times */
 				if (retries == 0) {
+					ctx->pc_compare_buf = NULL;
 					ctx->pc_ops->pf("Client: send failed, "
 							"no more retries\n");
 					c2_mutex_unlock(&ctx->pc_mutex);

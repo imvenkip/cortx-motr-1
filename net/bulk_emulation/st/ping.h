@@ -3,7 +3,7 @@
 #define __COLIBRI_NET_BULK_MEM_PING_H__
 
 struct ping_ops {
-    int (*pf)(const char *format, ...);
+	int (*pf)(const char *format, ...);
 };
 
 /**
@@ -23,6 +23,7 @@ struct ping_ctx {
 	struct c2_mutex		    pc_mutex;
 	struct c2_cond		    pc_cond;
 	struct c2_list              pc_work_queue;
+	const char *                pc_compare_buf;
 };
 
 void ping_server(struct ping_ctx *ctx);
