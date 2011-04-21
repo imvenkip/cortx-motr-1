@@ -23,7 +23,8 @@
 
 c2_bindex_t addb_stob_offset = 0;
 
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+		     struct c2_stob *stob)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
 	struct c2_addb_record        rec;
@@ -89,7 +90,7 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
 		c2_clink_init(&clink, NULL);
 		c2_clink_add(&io.si_wait, &clink);
 
-		rc = c2_stob_io_launch(&io, stob, NULL, NULL);
+		rc = c2_stob_io_launch(&io, stob, tx, NULL);
 
 		if (rc == 0)
 			c2_chan_wait(&clink);
@@ -161,7 +162,8 @@ out:
 }
 #else
 
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob)
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+		     struct c2_stob *stob)
 {
 	return 0;
 }

@@ -39,9 +39,10 @@ C2_EXPORTED(c2_addb_level_default);
    Along with this variable, corresponding parameter should be configured below.
 */
 static enum c2_addb_rec_store_type c2_addb_store_type  = C2_ADDB_REC_STORE_NONE;
-static struct c2_stob             *c2_addb_store_stob  = NULL;
-static struct c2_table            *c2_addb_store_table = NULL;
-static struct c2_db_tx            *c2_addb_store_tx    = NULL;
+static struct c2_stob             *c2_addb_store_stob     = NULL;
+static struct c2_dtx              *c2_addb_store_stob_tx  = NULL;
+static struct c2_table            *c2_addb_store_table    = NULL;
+static struct c2_db_tx            *c2_addb_store_db_tx    = NULL;
 static struct c2_net_conn         *c2_addb_store_net_conn = NULL;
 
 static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
@@ -91,12 +92,12 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	case C2_ADDB_REC_STORE_STOB:
 		C2_ASSERT(c2_addb_store_stob != NULL);
 		C2_ASSERT(c2_addb_stob_add_p != NULL);
-		c2_addb_stob_add_p(dp, c2_addb_store_stob);
+		c2_addb_stob_add_p(dp, c2_addb_store_stob_tx, c2_addb_store_stob);
 		break;
 	case C2_ADDB_REC_STORE_DB:
 		C2_ASSERT(c2_addb_store_table != NULL);
 		C2_ASSERT(c2_addb_db_add_p != NULL);
-		c2_addb_db_add_p(dp, c2_addb_store_tx, c2_addb_store_table);
+		c2_addb_db_add_p(dp, c2_addb_store_db_tx, c2_addb_store_table);
 		break;
 	case C2_ADDB_REC_STORE_NETWORK:
 		C2_ASSERT(c2_addb_store_net_conn != NULL);
@@ -252,8 +253,9 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 
 	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
 	c2_addb_store_stob     = NULL;
+	c2_addb_store_stob_tx  = NULL;
 	c2_addb_store_table    = NULL;
-	c2_addb_store_tx       = NULL;
+	c2_addb_store_db_tx    = NULL;
 	c2_addb_store_net_conn = NULL;
 
 	c2_addb_stob_add_p = NULL;
@@ -264,16 +266,17 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 
 	switch (type) {
 	case C2_ADDB_REC_STORE_STOB:
-		c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
-		c2_addb_stob_add_p = va_arg(varargs, c2_addb_stob_add_t);
-		c2_addb_store_stob = va_arg(varargs, struct c2_stob*);
+		c2_addb_store_type    = C2_ADDB_REC_STORE_STOB;
+		c2_addb_stob_add_p    = va_arg(varargs, c2_addb_stob_add_t);
+		c2_addb_store_stob    = va_arg(varargs, struct c2_stob*);
+		c2_addb_store_stob_tx = va_arg(varargs, struct c2_dtx*);
 		break;
 
 	case C2_ADDB_REC_STORE_DB:
 		c2_addb_store_type  = C2_ADDB_REC_STORE_DB;
 		c2_addb_db_add_p    = va_arg(varargs, c2_addb_db_add_t);
 		c2_addb_store_table = va_arg(varargs, struct c2_table*);
-		c2_addb_store_tx    = va_arg(varargs, struct c2_db_tx*);
+		c2_addb_store_db_tx = va_arg(varargs, struct c2_db_tx*);
 		break;
 
 	case C2_ADDB_REC_STORE_NETWORK:

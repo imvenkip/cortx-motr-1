@@ -473,7 +473,8 @@ int main(int argc, char **argv)
 	addb_stob = (struct c2_stob*)fopen("server_addb_log", "a");
 	C2_ASSERT(addb_stob != NULL);
 	/* write addb record into stob */
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add, addb_stob);
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+				   addb_stob, NULL);
 
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);
