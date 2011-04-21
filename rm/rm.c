@@ -115,10 +115,12 @@ static void pin_remove(struct c2_rm_pin *pin)
 }
 
 /**
+   Main owner state machine function.
+
    Goes through the lists of excited incoming and outgoing requests until all
-   excitement is gone.
+   the excitement is gone.
  */
-void owner_balance(struct c2_rm_owner *o)
+static void owner_balance(struct c2_rm_owner *o)
 {
 	int prio;
 
@@ -160,7 +162,7 @@ void owner_balance(struct c2_rm_owner *o)
    This function leaves the request either in RI_WAIT, RI_SUCCESS or RI_FAILURE
    state.
  */
-incoming_check(struct c2_rm_incoming *in)
+static void incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right rest;
 	struct c2_rm_right join;
@@ -255,7 +257,7 @@ incoming_check(struct c2_rm_incoming *in)
    Goes through the locally possessed rights intersecting with the request and
    pins them if necessary.
  */
-incoming_check_local(struct c2_rm_incoming *in)
+static void incoming_check_local(struct c2_rm_incoming *in)
 {
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(in->rin_state == RI_CHECK);
@@ -299,7 +301,10 @@ incoming_check_local(struct c2_rm_incoming *in)
 	}
 }
 
-sublet_revoke(struct c2_rm_incoming *in, struct c2_rm_right *right)
+/**
+   Revokes @right (or parts thereof) sub-let to downward owners.
+ */
+static void sublet_revoke(struct c2_rm_incoming *in, struct c2_rm_right *right)
 {
 	for_each_right(scan, &o->ro_sublet[]) {
 		if (scan intersects rest) {
@@ -316,6 +321,10 @@ sublet_revoke(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	}
 }
 
+/**
+   Sticks a tracking pin on @right. When @right is released, the all incoming
+   requests that stuck pins into it are notified.
+ */
 int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 {
 	struct c2_rm_pin *pin;
@@ -331,6 +340,10 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	return 0;
 }
 
+/**
+   Sends an outgoing request of type @otype to a remote owner specified by
+   @loan and with requested (or cancelled) right @right.
+ */
 int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	   struct c2_rm_loan *loan, struct c2_rm_right *right)
 {

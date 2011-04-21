@@ -416,18 +416,55 @@ struct c2_rm_group {
 };
 
 enum {
+	/**
+	   Incoming requests are assigned a priority (greater numerical value
+	   is higher). When multiple requests are ready to be fulfilled, higher
+	   priority ones have a preference.
+	 */
 	C2_RM_REQUEST_PRIORITY_MAX = 3,
 	C2_RM_REQUEST_PRIORITY_NR
 };
 
+/**
+   c2_rm_owner::ro_owned[] list of usage rights possessed by the owner is split
+   into sub-lists enumerated by this enum.
+ */
 enum c2_rm_owner_owned_state {
+	/**
+	   Sub-list of pinned rights.
+
+	   @see c2_rm_right
+	 */
 	OWOS_HELD,
+	/**
+	   Not-pinned right is "cached". Such right can be returned to an
+	   upward owner from which it was previously borrowed (i.e., right can
+	   be "cancelled") or sub-let to downward owners.
+	 */
 	OWOS_CACHED,
 	OWOS_NR
 };
 
+/**
+   Lists of incoming and outgoing requests are subdivided into sub-lists.
+ */
 enum c2_rm_owner_queue_state {
+	/**
+	   "Ground" request is not excited.
+	 */
 	OQS_GROUND,
+	/**
+	   Excited requests are those for which something has to be done. An
+	   outgoing request is excited when it completes (or times out). An
+	   incoming request is excited when it's ready to go from RI_WAIT to
+	   RI_CHECK state.
+
+	   Resource owner state machine goes through lists of excited requests
+	   processing them. This processing can result in more excitement
+	   somewhere, but eventually terminates.
+
+	   @see http://en.wikipedia.org/wiki/Excited_state
+	 */
 	OQS_EXCITED,
 	OQS_NR
 };
