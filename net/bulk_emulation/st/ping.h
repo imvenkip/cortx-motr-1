@@ -14,6 +14,8 @@ struct ping_ctx {
 	struct c2_net_xprt         *pc_xprt;
 	struct c2_net_domain        pc_dom;
 	uint32_t                    pc_nr_bufs;
+	uint32_t                    pc_segments;
+	uint32_t                    pc_seg_size;
 	struct c2_net_buffer       *pc_nbs;
 	struct c2_bitmap	    pc_nbbm;
 	struct c2_net_end_point    *pc_ep;
@@ -27,12 +29,13 @@ void ping_server(struct ping_ctx *ctx);
 void ping_server_should_stop(struct ping_ctx *ctx);
 int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep);
 int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep);
-void ping_client_msg_send_recv(struct ping_ctx *ctx,
-			       struct c2_net_end_point *server_ep);
-void ping_client_passive_recv(struct ping_ctx *ctx,
-			      struct c2_net_end_point *server_ep);
-void ping_client_passive_send(struct ping_ctx *ctx,
-			      struct c2_net_end_point *server_ep);
+int ping_client_msg_send_recv(struct ping_ctx *ctx,
+			      struct c2_net_end_point *server_ep,
+			      const char *data);
+int ping_client_passive_recv(struct ping_ctx *ctx,
+			     struct c2_net_end_point *server_ep);
+int ping_client_passive_send(struct ping_ctx *ctx,
+			     struct c2_net_end_point *server_ep);
 
 #endif /* __COLIBRI_NET_BULK_MEM_PING_H__ */
 

@@ -20,13 +20,10 @@
 #include "net/net.h"
 #include "net/bulk_mem.h"
 #include "net/bulk_sunrpc.h"
-#include "ping.h"
+#include "net/bulk_emulation/st/ping.h"
 
 enum {
 	SEND_RETRIES = 3,
-
-	PING_SEGMENTS = 4,
-	PING_SEGMENT_SIZE = 1024,
 
 	CLIENT_PORT = 31416,
 	SERVER_PORT = 27183
@@ -388,18 +385,14 @@ void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
-
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
-	ctx->pc_ops->pf("Client: Active Recv CB\n");
+	C2_IMPOSSIBLE("Client: Active Recv CB\n");
 }
 
 void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
-
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
-	ctx->pc_ops->pf("Client: Active Send CB\n");
+	C2_IMPOSSIBLE("Client: Active Send CB\n");
 }
 
 void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
@@ -453,6 +446,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			ctx->pc_ops->pf("Service: msg recv error: %d\n",
 					ev->nev_status);
 			ev->nev_buffer->nb_timeout = C2_TIME_NEVER;
+			ev->nev_buffer->nb_ep = NULL;
 			rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
 			C2_ASSERT(rc == 0);
 		}
@@ -487,6 +481,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
 						 &nb->nb_desc);
 				nb->nb_ep = NULL; /* not needed */
+				/* reuse encode_msg for convenience */
 				rc = encode_msg(nb, "active pong");
 				C2_ASSERT(rc == 0);
 			} else {
@@ -507,6 +502,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			c2_mutex_unlock(&ctx->pc_mutex);
 		}
 		ev->nev_buffer->nb_timeout = C2_TIME_NEVER;
+		ev->nev_buffer->nb_ep = NULL;
 		rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
 		C2_ASSERT(rc == 0);
 
@@ -540,18 +536,14 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
-
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
-	ctx->pc_ops->pf("Server: Passive Recv CB\n");
+	C2_IMPOSSIBLE("Server: Passive Recv CB\n");
 }
 
 void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
-
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
-	ctx->pc_ops->pf("Server: Passive Send CB\n");
+	C2_IMPOSSIBLE("Server: Passive Send CB\n");
 }
 
 void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
@@ -718,7 +710,7 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 		goto fail;
 	}
 
-	rc = alloc_buffers(ctx->pc_nr_bufs, PING_SEGMENTS, PING_SEGMENT_SIZE,
+	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   &ctx->pc_nbs);
 	if (rc != 0) {
 		fprintf(stderr, "buffer allocation failed: %d\n", rc);
@@ -828,6 +820,7 @@ void ping_server(struct ping_ctx *ctx)
 		nb = &ctx->pc_nbs[i];
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
+		nb->nb_ep = NULL;
 		rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, true);
 		C2_ASSERT(rc == 0);
@@ -883,8 +876,18 @@ void ping_server_should_stop(struct ping_ctx *ctx)
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
-void ping_client_msg_send_recv(struct ping_ctx *ctx,
-			       struct c2_net_end_point *server_ep)
+/**
+   Test an RPC-like exchange, sending data in a message to the server and
+   getting back a response.
+   @param ctx client context
+   @param server_ep endpoint of the server
+   @param data data to send, or NULL to send a default "ping"
+   @retval 0 successful test
+   @retval -errno failed to send to server
+ */
+int ping_client_msg_send_recv(struct ping_ctx *ctx,
+			      struct c2_net_end_point *server_ep,
+			      const char *data)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -895,6 +898,7 @@ void ping_client_msg_send_recv(struct ping_ctx *ctx,
 	C2_ASSERT(nb != NULL);
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_timeout = C2_TIME_NEVER;
+	nb->nb_ep = NULL;
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
@@ -928,7 +932,9 @@ void ping_client_msg_send_recv(struct ping_ctx *ctx,
 				if (retries == 0) {
 					ctx->pc_ops->pf("Client: send failed, "
 							"no more retries\n");
-					goto fail;
+					c2_mutex_unlock(&ctx->pc_mutex);
+					ping_buf_put(ctx, nb);
+					return -ETIMEDOUT;
 				}
 				struct c2_time delay, rem;
 				c2_time_set(&delay,
@@ -944,12 +950,13 @@ void ping_client_msg_send_recv(struct ping_ctx *ctx,
 			break;
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
-fail:
+
 	c2_mutex_unlock(&ctx->pc_mutex);
+	return rc;
 }
 
-void ping_client_passive_recv(struct ping_ctx *ctx,
-			      struct c2_net_end_point *server_ep)
+int ping_client_passive_recv(struct ping_ctx *ctx,
+			     struct c2_net_end_point *server_ep)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -999,7 +1006,10 @@ void ping_client_passive_recv(struct ping_ctx *ctx,
 				if (retries == 0) {
 					ctx->pc_ops->pf("Client: send failed, "
 							"no more retries\n");
-					goto fail;
+					c2_net_desc_free(&nb->nb_desc);
+					c2_mutex_unlock(&ctx->pc_mutex);
+					ping_buf_put(ctx, nb);
+					return -ETIMEDOUT;
 				}
 				struct c2_time delay, rem;
 				c2_time_set(&delay,
@@ -1015,12 +1025,13 @@ void ping_client_passive_recv(struct ping_ctx *ctx,
 			break;
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
-fail:
+
 	c2_mutex_unlock(&ctx->pc_mutex);
+	return rc;
 }
 
-void ping_client_passive_send(struct ping_ctx *ctx,
-			      struct c2_net_end_point *server_ep)
+int ping_client_passive_send(struct ping_ctx *ctx,
+			     struct c2_net_end_point *server_ep)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1030,6 +1041,7 @@ void ping_client_passive_send(struct ping_ctx *ctx,
 	/* queue our passive receive buffer */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
+	/* reuse encode_msg for convenience */
 	rc = encode_msg(nb, "passive ping");
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	nb->nb_ep = server_ep;
@@ -1071,7 +1083,10 @@ void ping_client_passive_send(struct ping_ctx *ctx,
 				if (retries == 0) {
 					ctx->pc_ops->pf("Client: send failed, "
 							"no more retries\n");
-					goto fail;
+					c2_net_desc_free(&nb->nb_desc);
+					c2_mutex_unlock(&ctx->pc_mutex);
+					ping_buf_put(ctx, nb);
+					return -ETIMEDOUT;
 				}
 				struct c2_time delay, rem;
 				c2_time_set(&delay,
@@ -1087,8 +1102,9 @@ void ping_client_passive_send(struct ping_ctx *ctx,
 			break;
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 	}
-fail:
+
 	c2_mutex_unlock(&ctx->pc_mutex);
+	return rc;
 }
 
 int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)

@@ -21,17 +21,19 @@
 enum {
 	DEF_BUFS = 20,
 	DEF_CLIENT_THREADS = 1,
-	DEF_LOOPS = 1
+	DEF_LOOPS = 1,
+
+	PING_CLIENT_SEGMENTS = 8,
+	PING_CLIENT_SEGMENT_SIZE = 512,
+
+	PING_SERVER_SEGMENTS = 4,
+	PING_SERVER_SEGMENT_SIZE = 1024,
 };
 
 struct c2_net_xprt *xprts[3] = {
 	&c2_net_bulk_mem_xprt,
 	&c2_net_bulk_sunrpc_xprt,
 	NULL
-};
-
-struct ping_ops bulkping_ops = {
-    .pf = printf
 };
 
 struct ping_ctx cctx = {
@@ -67,6 +69,19 @@ void list_xprt_names(FILE *s, struct c2_net_xprt *def)
 		fprintf(s, "    %s%s\n", xprts[i]->nx_name,
 			(xprts[i] == def) ? " [default]" : "");
 }
+
+int quiet_printf(const char *fmt, ...)
+{
+	return 0;
+}
+
+struct ping_ops verbose_ops = {
+    .pf = printf
+};
+
+struct ping_ops quiet_ops = {
+    .pf = quiet_printf
+};
 
 int main(int argc, char *argv[])
 {
@@ -115,27 +130,41 @@ int main(int argc, char *argv[])
 	/* start server in background thread */
 	c2_mutex_init(&sctx.pc_mutex);
 	c2_cond_init(&sctx.pc_cond);
-	sctx.pc_ops = &bulkping_ops;
+	if (verbose)
+		sctx.pc_ops = &verbose_ops;
+	else
+		sctx.pc_ops = &quiet_ops;
 	sctx.pc_xprt = xprt;
 	sctx.pc_nr_bufs = nr_bufs;
+	sctx.pc_segments = PING_SERVER_SEGMENTS;
+	sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 	C2_SET0(&server_thread);
 	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 			    &ping_server, &sctx);
 	C2_ASSERT(rc == 0);
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
-	cctx.pc_ops = &bulkping_ops;
+	if (verbose)
+		cctx.pc_ops = &verbose_ops;
+	else
+		cctx.pc_ops = &quiet_ops;
 	cctx.pc_xprt = xprt;
 	cctx.pc_nr_bufs = nr_bufs;
+	cctx.pc_segments = PING_CLIENT_SEGMENTS;
+	cctx.pc_seg_size = PING_CLIENT_SEGMENT_SIZE;
 	rc = ping_client_init(&cctx, &server_ep);
 	C2_ASSERT(rc == 0);
 
 	int i;
 	for (i = 1; i <= loops; ++i) {
-		printf("Client: Loop %d\n", i);
-		ping_client_msg_send_recv(&cctx, server_ep);
-		ping_client_passive_recv(&cctx, server_ep);
-		ping_client_passive_send(&cctx, server_ep);
+		if (verbose)
+			printf("Client: Loop %d\n", i);
+		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
+		C2_ASSERT(rc == 0);
+		rc = ping_client_passive_recv(&cctx, server_ep);
+		C2_ASSERT(rc == 0);
+		rc = ping_client_passive_send(&cctx, server_ep);
+		C2_ASSERT(rc == 0);
 	}
 
 	rc = ping_client_fini(&cctx, server_ep);
