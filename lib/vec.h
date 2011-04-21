@@ -134,9 +134,9 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
-	/** the buffer vector */
-	struct c2_bufvec     *bc_bufvec;
-	/** vector cursor used to track position */
+	/** Vector cursor used to track position in the vector
+	    embedded in the associated bufvec.
+	 */
 	struct c2_vec_cursor  bc_vc;
 };
 
