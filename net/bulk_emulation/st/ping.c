@@ -128,7 +128,8 @@ struct c2_net_buffer *ping_buf_get(struct ping_ctx *ctx)
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	for (i = 0; i < ctx->pc_nr_bufs; ++i)
-		if (!c2_bitmap_get(&ctx->pc_nbbm, i)) {
+		if (!c2_bitmap_get(&ctx->pc_nbbm, i) &&
+		    !(ctx->pc_nbs[i].nb_flags & C2_NET_BUF_IN_CALLBACK)) {
 			c2_bitmap_set(&ctx->pc_nbbm, i, true);
 			break;
 		}
