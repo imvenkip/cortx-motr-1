@@ -109,7 +109,7 @@ struct c2_bufvec {
 
 /**
    Allocates memory for a struct c2_bufvec.  All segments are of equal
-   size and aligned as specified.
+   size.
    The internal struct c2_vec is also allocated by this routine.
    @pre num_segs > 0 && seg_size > 0
 
@@ -125,7 +125,7 @@ int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    c2_bcount_t       seg_size);
 
 /**
-   Frees the buffers pointed to by c2_bufvec.ov_buf and 
+   Frees the buffers pointed to by c2_bufvec.ov_buf and
    the c2_bufvec.ov_vec vector, using c2_free().
    @param bufvec Pointer to the c2_bufvec.
    @see c2_bufvec_alloc()
@@ -134,9 +134,9 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {
-	/** the buffer vector */
-	struct c2_bufvec     *bc_bufvec;
-	/** vector cursor used to track position */
+	/** Vector cursor used to track position in the vector
+	    embedded in the associated bufvec.
+	 */
 	struct c2_vec_cursor  bc_vc;
 };
 
@@ -145,11 +145,11 @@ struct c2_bufvec_cursor {
    @param cur Pointer to the struct c2_bufvec_cursor.
    @param bvec Pointer to the struct c2_bufvec.
  */
-void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur, 
+void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 			    struct c2_bufvec *bvec);
 
 /**
-   Move the cursor count bytes further through the buffer vector.
+   Advance the cursor "count" bytes further through the buffer vector.
    @see c2_vec_cursor_move()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @return true, iff the end of the vector has been reached while moving. The
@@ -163,6 +163,11 @@ bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
    segment in its vector (or to move into end of the vector position, when the
    cursor is already at the last segment).
 
+   Both cursors are advanced by the number of bytes copied.
+
+   @pre @code
+c2_bufvec_cursor_move(cur,0) == false
+@endcode
    @see c2_vec_cursor_step()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Count
@@ -171,15 +176,18 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
 
 /**
    Return the buffer address at the cursor's current position.
+   @pre @code
+c2_bufvec_cursor_move(cur,0) == false
+@endcode
+   @see c2_bufvec_cursor_copy()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Pointer into buffer.
-   @retval NULL  Cursor is positioned at the end of the buffer.
  */
 void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
 
 /**
    Copy bytes from one buffer to another using cursors.
-   @param dcur Pointer to the destination buffer cursor positioned 
+   @param dcur Pointer to the destination buffer cursor positioned
    appropriately.
    @param scur Pointer to the source buffer cursor positioned appropriately.
    @param num_bytes The number of bytes to copy.
@@ -209,10 +217,10 @@ enum {
 	C2_DIOVEC_MASK  = ~(c2_bcount_t)(C2_DIOVEC_ALIGN - 1)
 };
 
-int         c2_diovec_alloc   (struct c2_diovec *vec, 
+int         c2_diovec_alloc   (struct c2_diovec *vec,
 			       void *start, c2_bcount_t nob);
 void        c2_diovec_free    (struct c2_diovec *vec);
-int         c2_diovec_register(struct c2_diovec *vec, 
+int         c2_diovec_register(struct c2_diovec *vec,
 			       struct c2_dio_engine *eng);
 /** @} end of vec group */
 
