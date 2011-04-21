@@ -426,6 +426,12 @@ enum c2_rm_owner_owned_state {
 	OWOS_NR
 };
 
+enum c2_rm_owner_queue_state {
+	OQS_GROUND,
+	OQS_EXCITED,
+	OQS_NR
+};
+
 /**
    Resource ownership is used for two purposes:
 
@@ -528,11 +534,11 @@ struct c2_rm_owner {
 	   satisfied. Requests are linked through
 	   c2_rm_incoming::rin_want::rl_right:ri_linkage.
 	 */
-	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR];
+	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
 	/**
 	   An array of lists, of outgoing, not yet completed, requests.
 	 */
-	struct c2_list         ro_outgoing;
+	struct c2_list         ro_outgoing[OQS_NR];
 	struct c2_mutex        ro_lock;
 };
 
@@ -559,27 +565,64 @@ struct c2_rm_loan {
 };
 
 /**
-   States of incoming request.
+   States of incoming request. See c2_rm_incoming for description.
  */
 enum c2_rm_incoming_state {
 	RI_INITIALISED = 1,
+	/** Ready to check whether the request can be fulfilled. */
 	RI_CHECK,
+	/** Request has been fulfilled. */
 	RI_SUCCESS,
+	/** Request cannot be fulfilled. */
 	RI_FAILURE,
+	/** Has to wait for some future event, like outgoing request completion
+	    or release of a locally held usage right. */
 	RI_WAIT
 };
 
+/**
+   Types of an incoming usage right request.
+ */
 enum c2_rm_incoming_type {
+	/**
+	   A request for a usage right from a local user. When the request
+	   succeeds, the right is held by the owner.
+	 */
 	RIT_LOCAL,
+	/**
+	   A request to loan a usage right to a remote owner. Fulfillment of
+	   this request might cause further outgoing requests to be sent, e.g.,
+	   to revoke rights sub-let to remote owner.
+	 */
 	RIT_LOAN,
+	/**
+	   A request to return a usage right previously sub-let to this owner.
+	 */
 	RIT_REVOKE
 };
 
+/**
+   Some universal (i.e., not depending on a resource type) granting policies.
+ */
 enum c2_rm_incoming_policy {
 	RIP_NONE = 1,
+	/**
+	   Don't insert a new right into the list of possessed rights. Instead,
+	   pin possessed rights overlapping with the requested right.
+	 */
 	RIP_INPLACE,
+	/**
+	   Insert a new right into the list of possessed rights, equal to the
+	   requested right.
+	 */
 	RIP_STRICT,
+	/**
+	   ...
+	 */
 	RIP_JOIN,
+	/**
+	   Grant maximal possible right, not conflicting with others.
+	 */
 	RIP_MAX,
 	RIP_RESOURCE_TYPE_BASE
 };
@@ -723,6 +766,13 @@ enum c2_rm_incoming_flags {
    mutex.
 
    @note a cedent can grant a usage right larger than requested.
+
+   @todo a new type of incoming request RIT_GRANT (RIT_FOIEGRAS?) can be added
+   to forcibly grant new rights to the owner, for example, as part of a
+   coordinated global distributed resource usage balancing between
+   owners. Processing of requests of this type would be very simple, because
+   adding new rights never blocks. Similarly, a new outgoing request type
+   ROT_TAKE could be added.
  */
 struct c2_rm_incoming {
 	enum c2_rm_incoming_type   rin_type;
@@ -748,11 +798,30 @@ struct c2_rm_incoming {
 	       - other states: empty.
 	 */
 	struct c2_list             rin_pins;
+	/**
+	   Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
+	 */
+	int                        rin_priority;
 };
 
+/**
+   Types of outgoing requests sent by the request manager.
+ */
 enum c2_rm_outgoing_type {
+	/**
+	   A request to borrow a right from an upward resource owner. This
+	   translates into a RIT_LOAN incoming request there.
+	 */
 	ROT_BORROW = 1,
+	/**
+	   A request returning a previously borrowed right. This is sent in
+	   response to an incoming RIT_REVOKE request.
+	 */
 	ROT_CANCEL,
+	/**
+	   A request to return previously borrowed right. This translates into
+	   a RIT_REVOKE incoming request on the remote owner.
+	 */
 	ROT_REVOKE
 }
 
@@ -779,6 +848,7 @@ enum c2_rm_outgoing_type {
  */
 struct c2_rm_outgoing {
 	enum c2_rm_outgoing_type rog_type;
+	struct c2_rm_owner      *rog_owner;
 	/** a right that is to be transferred. */
 	struct c2_rm_loan        rog_want;
 };
@@ -797,7 +867,7 @@ enum c2_rm_pin_flags {
 
        - to protect a right from revocation;
 
-       - to prohibit other pins from being added to the right.
+       - to prohibit RPF_PROTECT pins from being added to the right.
 
    Fields of this struct are protected by the owner's lock.
  */
