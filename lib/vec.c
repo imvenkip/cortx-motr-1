@@ -28,7 +28,7 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 
 static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 {
-	return 
+	return
 		cur->vc_vec != NULL &&
 		cur->vc_seg <= cur->vc_vec->v_nr &&
 		ergo(cur->vc_seg < cur->vc_vec->v_nr,
@@ -40,9 +40,9 @@ static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 /**
    Skips over empty segments, restoring cursor invariant.
  */
-static void c2_vec_cursor_normalize(struct c2_vec_cursor *cur) 
+static void c2_vec_cursor_normalize(struct c2_vec_cursor *cur)
 {
-	while (cur->vc_seg < cur->vc_vec->v_nr && 
+	while (cur->vc_seg < cur->vc_vec->v_nr &&
 	       cur->vc_vec->v_count[cur->vc_seg] == 0) {
 		++cur->vc_seg;
 		cur->vc_offset = 0;
@@ -131,11 +131,11 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 	}
 }
 
-void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur, 
+void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 			    struct c2_bufvec *bvec)
 {
 	C2_PRE(cur != NULL);
-	C2_PRE(bvec != NULL && 
+	C2_PRE(bvec != NULL &&
 	       bvec->ov_vec.v_nr != 0 && bvec->ov_vec.v_count != NULL &&
 	       bvec->ov_buf != NULL);
 	cur->bc_bufvec = bvec;
@@ -152,12 +152,16 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
 	return c2_vec_cursor_step(&cur->bc_vc);
 }
 
-void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+static void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	struct c2_vec_cursor *vc = &cur->bc_vc;
-	if (c2_bufvec_cursor_move(cur, 0))
-		return NULL; /* at end */
 	return cur->bc_bufvec->ov_buf[vc->vc_seg] + vc->vc_offset;
+}
+
+void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+{
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
+	return bufvec_cursor_addr(cur);
 }
 
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
@@ -165,7 +169,7 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  c2_bcount_t num_bytes)
 {
 	c2_bcount_t frag_size;
-	c2_bcount_t bytes_copied=0;
+	c2_bcount_t bytes_copied = 0;
 	while (num_bytes > 0) {
 		if (c2_bufvec_cursor_move(dcur,0) ||
 		    c2_bufvec_cursor_move(scur,0))
@@ -173,8 +177,8 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 		frag_size = min3(c2_bufvec_cursor_step(dcur),
 				 c2_bufvec_cursor_step(scur),
 				 num_bytes);
-		memcpy(c2_bufvec_cursor_addr(dcur),
-		       c2_bufvec_cursor_addr(scur),
+		memcpy(bufvec_cursor_addr(dcur),
+		       bufvec_cursor_addr(scur),
 		       frag_size);
 		c2_bufvec_cursor_move(dcur, frag_size);
 		c2_bufvec_cursor_move(scur, frag_size);

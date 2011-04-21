@@ -51,7 +51,7 @@ void test_vec(void)
 	}
 
 	c2_vec_cursor_init(&c, &t);
-	count = 0; 
+	count = 0;
 	it = 1;
 	sum1 = 0;
 	while (!c2_vec_cursor_move(&c, 0)) {
@@ -118,7 +118,7 @@ static void test_bufvec_cursor(void)
 	C2_SET_ARR0(bufs);
 	for (i=0; i < NR_BUFS; i++) {
 		C2_UT_ASSERT(msglen == shapes[i].num_segs * shapes[i].seg_size);
-		C2_UT_ASSERT(c2_bufvec_alloc(&bufs[i], 
+		C2_UT_ASSERT(c2_bufvec_alloc(&bufs[i],
 					     shapes[i].num_segs,
 					     shapes[i].seg_size) == 0);
 	}
@@ -137,6 +137,11 @@ static void test_bufvec_cursor(void)
 		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
 			     == msglen);
 
+		/* verify cursor positions */
+		C2_UT_ASSERT(c2_bufvec_cursor_move(&s_cur,0));
+		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
+
+		/* verify data */
 		for (j=0; j < bufs[i].ov_vec.v_nr; j++) {
 			int k;
 			char *q;
@@ -145,17 +150,6 @@ static void test_bufvec_cursor(void)
 				C2_UT_ASSERT(*p++ == *q);
 			}
 		}
-	}
-	
-	/* test for no seeking beyond the buffer */
-	{
-		struct c2_bufvec_cursor cur;
-		c2_bufvec_cursor_init(&cur, &bufs[0]);
-		C2_UT_ASSERT(c2_bufvec_cursor_step(&cur) == msglen);
-		C2_UT_ASSERT(!c2_bufvec_cursor_move(&cur, msglen-1));
-		C2_UT_ASSERT(c2_bufvec_cursor_addr(&cur) != NULL);
-		C2_UT_ASSERT(c2_bufvec_cursor_move(&cur, 1));
-		C2_UT_ASSERT(c2_bufvec_cursor_addr(&cur) == NULL);
 	}
 
 	/* bounded copy - dest buffer smaller */
@@ -178,6 +172,10 @@ static void test_bufvec_cursor(void)
 
 		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, msglen)
 			     == buflen);
+
+		/* verify cursor positions */
+		C2_UT_ASSERT(!c2_bufvec_cursor_move(&s_cur,0));
+		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
 
 		/* check partial copy correct */
 		len = 0;
@@ -214,12 +212,16 @@ static void test_bufvec_cursor(void)
 		C2_UT_ASSERT(c2_bufvec_cursor_copy(&d_cur, &s_cur, buflen)
 			     == msglen);
 
+		/* verify cursor positions */
+		C2_UT_ASSERT(c2_bufvec_cursor_move(&s_cur,0));
+		C2_UT_ASSERT(!c2_bufvec_cursor_move(&d_cur,0));
+
 		/* check partial copy correct */
 		len = 0;
 		for (j=0; j < buf.ov_vec.v_nr; j++) {
 			int k;
 			char *q;
-			for (k=0; k < buf.ov_vec.v_count[j] && len < msglen; 
+			for (k=0; k < buf.ov_vec.v_count[j] && len < msglen;
 			     k++){
 				q = buf.ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
