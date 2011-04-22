@@ -118,7 +118,7 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 				if (wi->xwi_op == C2_NET_XOP_STATE_CHANGE)
 					fn(tm, wi);
 				else {
-					/* others expect mutex to be released 
+					/* others expect mutex to be released
 					   and the C2_NET_BUF_IN_USE flag set.
 					 */
 					struct c2_net_buffer *nb =
