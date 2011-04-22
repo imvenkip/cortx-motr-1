@@ -313,7 +313,6 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EFBIG);
 
-	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb2, &d2tm1));
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);

@@ -257,10 +257,11 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 
 	/* wait for callbacks to clear */
 	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
-		c2_cond_wait(&tm->ntm_cond, &tm->ntm_dom->nd_mutex);
+		c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
 		rc = 0; /* completion race condition? no error */
+		c2_chan_broadcast(&tm->ntm_chan);
 		goto m_err_exit;
 	}
 	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype));

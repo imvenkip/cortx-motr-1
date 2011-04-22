@@ -1268,7 +1268,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 /**
    Deregisters a previously registered buffer and releases any transport
    specific resources associated with it.
-   The buffer should not be in use.
+   The buffer should not be in use, nor should this subroutine be
+   invoked from a callback.
    @pre @code
 (buf->nb_flags == C2_NET_BUF_REGISTERED) &&
 (buf->nb_dom == dom)
@@ -1336,7 +1337,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    It is not guaranteed that cancellation will always be supported, and
    even if it is, there are race conditions in the execution of this
    request and the concurrent invocation of the completion callback on
-   the buffer.
+   the buffer.  Howerver, it is guaranteed that if the subroutine returns
+   with success, the transfer machine channel will be signalled.
 
    If the transport supports cancellation, then the C2_NET_BUF_CANCELLED
    flag will be set in the buffer if the operation is in progress.
