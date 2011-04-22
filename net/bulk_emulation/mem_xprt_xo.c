@@ -95,25 +95,6 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 	bytes_copied = c2_bufvec_cursor_copy(&d_cur, &s_cur, num_bytes);
 	C2_ASSERT(bytes_copied == num_bytes);
 
-#if 0
-	struct c2_vec_cursor s_cur;
-	struct c2_vec_cursor d_cur;
-	c2_vec_cursor_init(&s_cur, &s_nb->nb_buffer.ov_vec);
-	c2_vec_cursor_init(&d_cur, &d_nb->nb_buffer.ov_vec);
-
-	c2_bcount_t frag_size;
-	while (num_bytes) {
-		frag_size = min3(c2_vec_cursor_step(&s_cur),
-				 c2_vec_cursor_step(&d_cur),
-				 num_bytes);
-		memcpy(MEM_CUR_ADDR(d_nb,&d_cur), 
-		       MEM_CUR_ADDR(s_nb,&s_cur), frag_size);
-		c2_vec_cursor_move(&s_cur, frag_size);
-		c2_vec_cursor_move(&d_cur, frag_size);
-		num_bytes -= frag_size;
-	}
-#endif
-
 	return 0;
 }
 
@@ -124,7 +105,7 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 		       struct c2_net_bulk_mem_tm_pvt *tp)
 {
 	c2_list_add_tail(&tp->xtm_work_list, &wi->xwi_link);
-	c2_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);	
+	c2_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);
 }
 
 static bool mem_dom_invariant(struct c2_net_domain *dom)
@@ -367,7 +348,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		bp->xb_buf_id = c2_atomic64_add_return(&dp->xd_buf_id_counter,
 						       1);
 		if (!dp->xd_derived) {
-			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm, 
+			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm,
 					     nb->nb_qtype, nb->nb_length,
 					     bp->xb_buf_id);
 			if (rc != 0)

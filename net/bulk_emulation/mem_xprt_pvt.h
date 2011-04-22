@@ -96,17 +96,6 @@ struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
 	&bp->xb_wi;				\
 })
 
-#ifdef MEM_CUR_ADDR
-#undef MEM_CUR_ADDR
-#endif
-/**
-   Macro to get the buffer address from a vector cursor.
-   @param nb Buffer pointer (struct c2_net_buffer *)
-   @param cur Cursor pointer (struct c2_vec_cursor *)
- */
-#define MEM_CUR_ADDR(nb,cur)    \
- ((nb)->nb_buffer.ov_buf[(cur)->vc_seg] + (cur)->vc_offset)
-
 #ifdef MEM_SA_EQ
 #undef MEM_SA_EQ
 #endif
