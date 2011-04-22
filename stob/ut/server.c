@@ -402,6 +402,13 @@ static struct mock_balloc mb = {
 	}
 };
 
+static const struct c2_table_ops c2_addb_record_ops = {
+	.to = {
+		[TO_KEY] = { .max_size = sizeof (uint64_t) },
+		[TO_REC] = { .max_size = 4096 }
+	},
+	.key_cmp = NULL
+};
 
 /**
    Simple server for unit-test purposes.
@@ -424,8 +431,9 @@ int main(int argc, char **argv)
 	const char *path;
 	char        opath[64];
 	char        dpath[64];
+	char        addbpath[64];
 	int         port;
-        int         i = 0;
+	int         i = 0;
 
 	struct c2_stob_domain  *bdom;
 	struct c2_stob_id       backid;
@@ -435,6 +443,12 @@ int main(int argc, char **argv)
 	struct c2_net_domain    ndom;
 	struct c2_dbenv         db;
 	struct c2_stob	       *addb_stob;
+	struct c2_dtx           addb_tx;
+	struct c2_fop_fid       addb_fid = {
+					.f_seq = 0xADDBADDBADDBADDB,
+					.f_oid = 0x210B210B210B210B};
+	struct c2_table	        addb_table;
+	struct c2_db_tx	        addb_db_tx;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -467,15 +481,6 @@ int main(int argc, char **argv)
 	result = c2_init();
 	C2_ASSERT(result == 0);
 
-	/* create or open a stob in which to store the record.
-	 * XXX we use file for demo
-	 */
-	addb_stob = (struct c2_stob*)fopen("server_addb_log", "a");
-	C2_ASSERT(addb_stob != NULL);
-	/* write addb record into stob */
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
-				   addb_stob, NULL);
-
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
@@ -490,6 +495,7 @@ int main(int argc, char **argv)
 	result = mkdir(opath, 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
+	sprintf(addbpath, "%s/addb", path);
 	sprintf(dpath, "%s/d", path);
 
 	/*
@@ -528,6 +534,32 @@ int main(int argc, char **argv)
 
 	c2_stob_put(bstore);
 
+	/* create or open a stob into which to store the record. */
+	/* XXX we use file for demo
+	   addb_stob = (struct c2_stob*)fopen("server_addb_log", "a");
+	   C2_ASSERT(addb_stob != NULL);
+	 */
+
+	result = dom->sd_ops->sdo_tx_make(dom, &addb_tx);
+	C2_ASSERT(result == 0);
+
+	addb_stob = object_find(&addb_fid, &addb_tx);
+
+	result = c2_stob_create(addb_stob, &addb_tx);
+	C2_ASSERT(result == 0);
+
+	/* write addb record into stob */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+				   addb_stob, &addb_tx);
+
+	result = c2_table_init(&addb_table, &db,
+			       "addb_record", 0,
+			       &c2_addb_record_ops);
+	C2_ASSERT(result == 0);
+
+	result = c2_db_tx_init(&addb_db_tx, &db, 0);
+	C2_ASSERT(result == 0);
+
 	/*
 	 * Set up the service.
 	 */
@@ -564,14 +596,25 @@ int main(int argc, char **argv)
 	c2_net_domain_fini(&ndom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+
+	c2_table_fini(&addb_table);
+	result = c2_db_tx_commit(&addb_db_tx);
+	C2_ASSERT(result == 0);
+
+	c2_stob_put(addb_stob);
+	result = c2_db_tx_commit(&addb_tx.tx_dbtx);
+	C2_ASSERT(result == 0);
+
+	/* fclose((FILE*)addb_stob); */
+
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_addb_ctx_fini(&server_addb_ctx);
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
-	fclose((FILE*)addb_stob);
+
 	c2_fini();
 	return 0;
 }
