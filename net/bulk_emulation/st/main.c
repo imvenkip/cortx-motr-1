@@ -95,7 +95,7 @@ void client(struct client_params *params)
 	struct c2_net_end_point *server_ep;
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt,
-		.pc_port = CLIENT_BASE_PORT + i,
+		.pc_port = CLIENT_BASE_PORT + params->client_id,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
