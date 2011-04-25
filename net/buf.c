@@ -126,12 +126,13 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	struct c2_net_domain *dom;
 	c2_bcount_t blen;
 	struct c2_list *ql = NULL;
-	static const struct {
+	struct buf_add_checks {
 		bool check_length;
 		bool check_ep;
 		bool check_desc;
 		bool post_check_desc;
-	} *todo, checks[C2_NET_QT_NR] = {
+	};
+	static const struct buf_add_checks checks[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = { false, false, false, false },
 		[C2_NET_QT_MSG_SEND]          = { true,  true,  false, false },
 		[C2_NET_QT_PASSIVE_BULK_RECV] = { false, true,  false, true  },
@@ -139,6 +140,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = { false, false, true,  false },
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = { true,  false, true,  false }
 	};
+	const struct buf_add_checks *todo;
 
 	C2_PRE(tm != NULL && tm->ntm_dom != NULL);
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
