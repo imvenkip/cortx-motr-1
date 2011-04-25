@@ -10,7 +10,7 @@
 /**
    @addtogroup bulksunrpc
 
-   This module is derived from the \ref bulkmem module. 
+   This module is derived from the \ref bulkmem module.
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
@@ -48,7 +48,7 @@ struct c2_net_bulk_sunrpc_tm_pvt {
 
 /**
    End point of the transport.  It embeds a service id and a network
-   connection.  
+   connection.
 
    The network connection creation is deferred until first
    use, because the end point data structure is also passed to a TM
@@ -69,7 +69,7 @@ struct c2_net_bulk_sunrpc_end_point {
 	/** Service id */
 	struct c2_service_id             xep_sid;
 
-	/** 
+	/**
 	    Network connector.  The creation of this is deferred
 	    until first use. It must be protected by the
 	    transfer machine mutex during creation and setting

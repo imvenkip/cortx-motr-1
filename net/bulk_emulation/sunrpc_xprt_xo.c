@@ -8,7 +8,7 @@
    @{
  */
 
-static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt, 
+static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)
 {
 	return -ENOSYS;
@@ -18,22 +18,20 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 {
 }
 
-static int sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom, 
-					 c2_bcount_t *size)
+static c2_bcount_t sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom)
 {
-	return -ENOSYS;
+	return 0;
 }
 
-static int sunrpc_xo_get_max_buffer_segment_size(struct c2_net_domain *dom,
-						 c2_bcount_t *size)
+static c2_bcount_t sunrpc_xo_get_max_buffer_segment_size(struct c2_net_domain
+							 *dom)
 {
-	return -ENOSYS;
+	return 0;
 }
 
-static int sunrpc_xo_get_max_buffer_segments(struct c2_net_domain *dom,
-					     int32_t *num_segs)
+static int32_t sunrpc_xo_get_max_buffer_segments(struct c2_net_domain *dom)
 {
-	return -ENOSYS;
+	return 0;
 }
 
 static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
@@ -109,7 +107,7 @@ struct c2_net_xprt c2_net_bulk_sunrpc_xprt = {
    @} bulkmem
 */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

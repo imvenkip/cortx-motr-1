@@ -59,7 +59,7 @@ bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
 	return true;
 }
 
-int c2_net_buffer_register(struct c2_net_buffer *buf, 
+int c2_net_buffer_register(struct c2_net_buffer *buf,
 			   struct c2_net_domain *dom)
 {
 	int rc;
@@ -69,9 +69,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf != NULL &&
-	       buf->nb_flags == 0 && 
-	       buf->nb_buffer.ov_buf != NULL && 
-	       buf->nb_buffer.ov_vec.v_nr > 0 && 
+	       buf->nb_flags == 0 &&
+	       buf->nb_buffer.ov_buf != NULL &&
+	       buf->nb_buffer.ov_vec.v_nr > 0 &&
 	       buf->nb_buffer.ov_vec.v_count != NULL);
 
 	buf->nb_dom = dom;
@@ -86,7 +86,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	}
-	C2_POST(c2_net__buffer_invariant(buf));
+	C2_POST(ergo(rc == 0,c2_net__buffer_invariant(buf)));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
@@ -119,7 +119,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf, 
+int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm)
 {
 	int rc;

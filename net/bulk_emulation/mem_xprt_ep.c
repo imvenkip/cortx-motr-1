@@ -200,7 +200,7 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
    @} bulkmem
 */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

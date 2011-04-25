@@ -30,7 +30,7 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 	/* either we failed or we got back a properly initialized end point
 	   with reference count of at least 1
 	*/
-	C2_POST(rc || 
+	C2_POST(rc ||
 		(*epp != NULL &&
 		 c2_atomic64_get(&((*epp)->nep_ref.ref_cnt)) >= 1 &&
 		 (*epp)->nep_ref.release != NULL &&

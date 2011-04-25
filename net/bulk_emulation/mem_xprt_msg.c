@@ -15,7 +15,7 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL && 
+	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
 	       nb->nb_tm == tm &&
 	       (nb->nb_status < 0 ||  /* failed or we have a non-zero msg*/
@@ -49,7 +49,7 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
    @param match_ep End point of remote TM
    @param p_dest_tm Returns remote TM pointer, with TM mutex held.
    @param p_dest_ep Returns end point in remote TM's domain, with local
-   TM's address. Optional - only msg send requires this. 
+   TM's address. Optional - only msg send requires this.
    The option exists because the end point object has
    to be created while holding the remote DOM's mutex.
    @retval 0 On success
@@ -93,15 +93,15 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				/* Found the matching TM. */
 				dest_tm = itm;
 				if (p_dest_ep == NULL)
-					break; 
-				/* We need to create an EP for the local TM 
-				   address in the remote DOM. Do this now, 
+					break;
+				/* We need to create an EP for the local TM
+				   address in the remote DOM. Do this now,
 				   before giving up the DOM mutex.
 				*/
 				struct c2_net_bulk_mem_end_point *mep;
-				mep = container_of(tm->ntm_ep, 
-						   struct 
-						   c2_net_bulk_mem_end_point, 
+				mep = container_of(tm->ntm_ep,
+						   struct
+						   c2_net_bulk_mem_end_point,
 						   xep_ep);
 				rc = mem_ep_create(&dest_ep, dest_tm->ntm_dom,
 						   &mep->xep_sa);
@@ -125,7 +125,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 		rc = -ENETUNREACH; /* search exhausted */
 	c2_mutex_unlock(&c2_net_mutex);
 	C2_ASSERT(rc != 0 ||
-		  (dest_tm != NULL && 
+		  (dest_tm != NULL &&
 		   c2_mutex_is_locked(&dest_tm->ntm_mutex) &&
 		   dest_tm->ntm_state == C2_NET_TM_STARTED));
 	if (!rc) {
@@ -156,7 +156,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL && 
+	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_SEND &&
 	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
@@ -185,7 +185,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			rc = -ENOBUFS;
 			break;
 		}
-		struct c2_net_buffer *dest_nb = 
+		struct c2_net_buffer *dest_nb =
 			container_of(link, struct c2_net_buffer, nb_tm_linkage);
 		if( nb->nb_length > mem_buffer_length(dest_nb)) {
 			rc = -EMSGSIZE;
@@ -200,13 +200,13 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			dest_ep = NULL; /* do not release below */
 		}
 		dest_nb->nb_status = rc; /* recv error code */
-	
+
 		/* schedule the receive msg callback */
-		struct c2_net_bulk_mem_work_item *dest_wi = 
+		struct c2_net_bulk_mem_work_item *dest_wi =
 			MEM_BUFFER_TO_WI(dest_nb);
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
-		struct c2_net_bulk_mem_tm_pvt *dest_tp = 
+		struct c2_net_bulk_mem_tm_pvt *dest_tp =
 			dest_tm->ntm_xprt_private;
 		mem_wi_add(dest_wi, dest_tp);
 
@@ -218,8 +218,8 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 	if (dest_tm != NULL)
 		c2_mutex_unlock(&dest_tm->ntm_mutex);
 
-	/* release the destination EP, if still referenced, 
-	   outside of any mutex 
+	/* release the destination EP, if still referenced,
+	   outside of any mutex
 	*/
 	if (dest_ep != NULL)
 		c2_net_end_point_put(dest_ep);
@@ -242,7 +242,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
    @} bulkmem
 */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

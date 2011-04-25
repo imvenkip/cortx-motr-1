@@ -29,7 +29,7 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_list_init(&dom->nd_end_points);
 	c2_list_init(&dom->nd_registered_bufs);
 	c2_list_init(&dom->nd_tms);
-	
+
 	dom->nd_xprt_private = NULL;
  	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
@@ -82,17 +82,17 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_domain_fini);
 
-#define DOM_GET_PARAM(Fn, Type)						\
-int c2_net_domain_get_##Fn(struct c2_net_domain *dom, Type *param)	\
-{									\
-	int rc;								\
-	C2_PRE(dom != NULL );						\
-	c2_mutex_lock(&dom->nd_mutex);					\
-	C2_PRE(dom->nd_xprt != NULL);					\
-	rc = dom->nd_xprt->nx_ops->xo_get_##Fn(dom, param);		\
-	c2_mutex_unlock(&dom->nd_mutex);				\
-	return rc;							\
-}									\
+#define DOM_GET_PARAM(Fn, Type)				\
+Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
+{							\
+	Type rc;					\
+	C2_PRE(dom != NULL );				\
+	c2_mutex_lock(&dom->nd_mutex);			\
+	C2_PRE(dom->nd_xprt != NULL);			\
+	rc = dom->nd_xprt->nx_ops->xo_get_##Fn(dom);	\
+	c2_mutex_unlock(&dom->nd_mutex);		\
+	return rc;					\
+}
 C2_EXPORTED(c2_net_domain_get_##Fn)
 
 DOM_GET_PARAM(max_buffer_size, c2_bcount_t);

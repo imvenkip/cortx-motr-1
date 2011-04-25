@@ -49,27 +49,22 @@ enum {
 	UT_MAX_BUF_SEGMENTS=4,
 };
 static bool ut_get_max_buffer_size_called = false;
-static int ut_get_max_buffer_size(struct c2_net_domain *dom, c2_bcount_t *size)
+static c2_bcount_t ut_get_max_buffer_size(struct c2_net_domain *dom)
 {
 	ut_get_max_buffer_size_called = true;
-	*size = UT_MAX_BUF_SIZE;
-	return 0;
+	return UT_MAX_BUF_SIZE;
 }
 static bool ut_get_max_buffer_segment_size_called = false;
-static int ut_get_max_buffer_segment_size(struct c2_net_domain *dom,
-					  c2_bcount_t *size)
+static c2_bcount_t ut_get_max_buffer_segment_size(struct c2_net_domain *dom)
 {
 	ut_get_max_buffer_segment_size_called = true;
-	*size = UT_MAX_BUF_SEGMENT_SIZE;
-	return 0;
+	return UT_MAX_BUF_SEGMENT_SIZE;
 }
 static bool ut_get_max_buffer_segments_called = false;
-static int ut_get_max_buffer_segments(struct c2_net_domain *dom,
-				      int32_t *num_segs)
+static int32_t ut_get_max_buffer_segments(struct c2_net_domain *dom)
 {
 	ut_get_max_buffer_segments_called = true;
-	*num_segs = UT_MAX_BUF_SEGMENTS;
-	return 0;
+	return UT_MAX_BUF_SEGMENTS;
 }
 
 struct ut_ep {
@@ -473,8 +468,7 @@ void test_net_bulk_if(void)
 	/* get max buffer size */
 	C2_UT_ASSERT(ut_get_max_buffer_size_called == false);
 	buf_size = 0;
-	rc = c2_net_domain_get_max_buffer_size(dom, &buf_size);
-	C2_UT_ASSERT(rc == 0);
+	buf_size = c2_net_domain_get_max_buffer_size(dom);
 	C2_UT_ASSERT(ut_get_max_buffer_size_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_size == UT_MAX_BUF_SIZE);
@@ -482,8 +476,7 @@ void test_net_bulk_if(void)
 	/* get max buffer segment size */
 	C2_UT_ASSERT(ut_get_max_buffer_segment_size_called == false);
 	buf_seg_size = 0;
-	rc = c2_net_domain_get_max_buffer_segment_size(dom, &buf_seg_size);
-	C2_UT_ASSERT(rc == 0);
+	buf_seg_size = c2_net_domain_get_max_buffer_segment_size(dom);
 	C2_UT_ASSERT(ut_get_max_buffer_segment_size_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_seg_size == UT_MAX_BUF_SEGMENT_SIZE);
@@ -491,8 +484,7 @@ void test_net_bulk_if(void)
 	/* get max buffer segments */
 	C2_UT_ASSERT(ut_get_max_buffer_segments_called == false);
 	buf_segs = 0;
-	rc = c2_net_domain_get_max_buffer_segments(dom, &buf_segs);
-	C2_UT_ASSERT(rc == 0);
+	buf_segs = c2_net_domain_get_max_buffer_segments(dom);
 	C2_UT_ASSERT(ut_get_max_buffer_segments_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
@@ -679,7 +671,7 @@ void test_net_bulk_if(void)
 			rc = c2_net_end_point_get(ep2);
 			C2_UT_ASSERT(rc == 0);
 		}
-		
+
 		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		rc = c2_net_tm_event_post(tm, &ev);
 		C2_UT_ASSERT(rc == 0);
@@ -759,12 +751,12 @@ void test_net_bulk_if(void)
 	for(i=0; i < C2_NET_QT_NR; i++) {
 		C2_UT_ASSERT(qs[i].nqs_num_adds == num_adds[i]);
 		C2_UT_ASSERT(qs[i].nqs_num_dels == num_dels[i]);
-		C2_UT_ASSERT(qs[i].nqs_total_bytes == total_bytes[i]);		
+		C2_UT_ASSERT(qs[i].nqs_total_bytes == total_bytes[i]);
 		C2_UT_ASSERT(qs[i].nqs_total_bytes >= qs[i].nqs_max_bytes);
 		C2_UT_ASSERT(qs[i].nqs_max_bytes == max_bytes[i]);
 		C2_UT_ASSERT((qs[i].nqs_num_f_events + qs[i].nqs_num_s_events)
 			     == num_adds[i]);
-		C2_UT_ASSERT((qs[i].nqs_num_f_events + 
+		C2_UT_ASSERT((qs[i].nqs_num_f_events +
 			      qs[i].nqs_num_s_events) > 0 &&
 			     (qs[i].nqs_time_in_queue.ts.tv_sec +
 			      qs[i].nqs_time_in_queue.ts.tv_nsec) > 0);
@@ -782,8 +774,8 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(qs[i].nqs_num_s_events == 0);
 		C2_UT_ASSERT(qs[i].nqs_total_bytes == 0);
 		C2_UT_ASSERT(qs[i].nqs_max_bytes == 0);
-		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_sec == 0);		
-		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_nsec == 0);		
+		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_sec == 0);
+		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_nsec == 0);
 	}
 
 	/* fini the TM */

@@ -246,35 +246,27 @@ struct c2_net_xprt_ops {
 	/**
 	   Retrieve the maximum buffer size (includes all segments).
 	   @param dom     Domain pointer.
-	   @param size    Returns the maximum buffer size.
-           @retval 0 (success)
-	   @retval -errno (failure)
+	   @retval size    Returns the maximum buffer size.
 	   @see c2_net_domain_get_max_buffer_size()
 	 */
-	int (*xo_get_max_buffer_size)(struct c2_net_domain *dom,
-				      c2_bcount_t *size);
+	c2_bcount_t (*xo_get_max_buffer_size)(struct c2_net_domain *dom);
 
 	/**
 	   Retrieve the maximum buffer segment size.
 	   @param dom     Domain pointer.
-	   @param size    Returns the maximum segment size.
-           @retval 0 (success)
-	   @retval -errno (failure)
+	   @retval size    Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int (*xo_get_max_buffer_segment_size)(struct c2_net_domain *dom,
-					      c2_bcount_t *size);
+	c2_bcount_t (*xo_get_max_buffer_segment_size)(struct c2_net_domain
+						      *dom);
 
 	/**
 	   Retrieve the maximum number of buffer segments.
 	   @param dom      Domain pointer.
-	   @param num_segs Returns the maximum segment size.
-           @retval 0 (success)
-	   @retval -errno (failure)
+	   @retval num_segs Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int (*xo_get_max_buffer_segments)(struct c2_net_domain *dom,
-					  int32_t *num_segs);
+	int32_t (*xo_get_max_buffer_segments)(struct c2_net_domain *dom);
 
 	/**
 	   <b>Deprecated.</b>
@@ -423,34 +415,25 @@ void c2_net_domain_fini(struct c2_net_domain *dom);
    This subroutine is used to determine the maximum buffer size.
    This includes all segments.
    @param dom     Pointer to the domain.
-   @param size    Returns the maximum buffer size.
-   @retval 0 (success)
-   @retval -errno (failure)
+   @retval size    Returns the maximum buffer size.
  */
-int c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom,
-				      c2_bcount_t *size);
+c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
 
 /**
    This subroutine is used to determine the maximum buffer segment size.
    @param dom     Pointer to the domain.
-   @param size    Returns the maximum buffer size.
-   @retval 0 (success)
-   @retval -errno (failure)
+   @retval size    Returns the maximum buffer size.
  */
-int c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain *dom,
-					      c2_bcount_t *size);
+c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
+						      *dom);
 
 /**
    This subroutine is used to determine the maximum number of
    buffer segments.
    @param dom      Pointer to the domain.
-   @param num_segs Returns the number of segments.
-   @retval 0 (success)
-   @retval -errno (failure)
+   @retval num_segs Returns the number of segments.
  */
-int c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom,
-					  int32_t *num_segs);
-
+int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
 
 /**
    This represents an addressable network end point. Memory for this data
@@ -492,9 +475,7 @@ struct c2_net_end_point {
    Transports must be able to distinguish this terminating 0 from any
    valid use of 0 as an argument, if permitted.
    @see c2_net_end_point_get(), c2_net_end_point_put()
-   @post @code
-(*epp)->nep_ref->ref_cnt >= 1
-@endcode
+   @post (*epp)->nep_ref->ref_cnt >= 1
  */
 int c2_net_end_point_create(struct c2_net_end_point   **epp,
 			    struct c2_net_domain       *dom,
@@ -507,9 +488,7 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
    c2_net_end_point_put().
 
    @param ep End point data structure pointer.
-   @pre @code
-ep->nep_ref->ref_cnt >= 1
-@endcode
+   @pre ep->nep_ref->ref_cnt >= 1
    @retval 0 (success)
    @retval -errno (failure)
 */
@@ -520,9 +499,7 @@ int c2_net_end_point_get(struct c2_net_end_point *ep);
    The structure will be released when the count goes to 0.
    @param ep End point data structure pointer.
    Do not dereference this pointer after this call.
-   @pre @code
-ep->nep_ref->ref_cnt >= 1
-@endcode
+   @pre ep->nep_ref->ref_cnt >= 1
    @note The domain lock will be obtained internaly to synchronize the
    transport provided release() method in case the end point gets released.
    @retval 0 (success)
@@ -732,11 +709,10 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
    @param tm Pointer to the transfer machine.
    @param ev Pointer to the event. The event data structure is
    released upon return from the subroutine.
-   @pre @code
+   @pre
 ((ev->nev_qtype == C2_NET_QT_NR) && (ev->nev_buffer == NULL)) ||
 ((ev->nev_buffer != NULL) &&
  (ev->nev_buffer->nb_flags & (C2_NET_BUF_QUEUED|C2_NET_BUF_CANCELLED)) == 0)
-@endcode
 */
 typedef void (*c2_net_tm_cb_proc_t)(struct c2_net_transfer_mc *tm,
 				    struct c2_net_event *ev);
@@ -961,9 +937,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 /**
    Finalize a transfer machine, releasing any associated
    transport specific resources.
-   @pre @code
-tm->ntm_state == C2_NET_TM_STOPPED
-@endcode
+   @pre tm->ntm_state == C2_NET_TM_STOPPED
    @param tm Transfer machine pointer.
    @retval 0 (success)
    @retval -errno (failure)
@@ -982,9 +956,7 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
    subroutine returns.
    It is guaranteed that the event will be posted on a different thread.
 
-   @pre @code
-tm->ntm_state == C2_NET_TM_INITIALIZED
-@endcode
+   @pre tm->ntm_state == C2_NET_TM_INITIALIZED
    @param tm  Transfer machine pointer.
    @param ep  End point to associate with the transfer machine.
    @retval 0 (success)
@@ -1007,11 +979,10 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
    subroutine returns.
    It is guaranteed that the event will be posted on a different thread.
 
-   @pre @code
+   @pre
 (tm->ntm_state == C2_NET_TM_INITIALIZED) ||
 (tm->ntm_state == C2_NET_TM_STARTING) ||
 (tm->ntm_state == C2_NET_TM_STARTED)
-@endcode
    @param tm  Transfer machine pointer.
    @param abort Cancel pending operations.
    Support for the implementation of this option is transport specific.
@@ -1024,9 +995,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
    Retrieve transfer machine statistics for all or for a single logical queue,
    optionally resetting the data.  The operation is performed atomically
    with respect to on-going transfer machine activity.
-   @pre @code
-tm->ntm_state >= C2_NET_TM_INITIALIZED
-@endcode
+   @pre tm->ntm_state >= C2_NET_TM_INITIALIZED
    @param tm     Transfer machine pointer
    @param qtype  Logical queue identifier of the queue concerned.
    Specify C2_NET_QT_NR instead if all the queues are to be considered.
@@ -1245,15 +1214,12 @@ struct c2_net_buffer {
 /**
    Register a buffer with the domain. The domain could perform some
    optimizations under the covers.
-   @pre @code
+   @pre
 (buf->nb_flags == 0) &&
 (buf->nb_buffer.ov_buf != NULL) &&
 (buf->nb_buffer.ov_vec.v_nr > 0) &&
 (buf->nb_buffer.ov_vec.v_count != NULL)
-@endcode
-   @post @code
-(buf->nb_flags & C2_NET_BUF_REGISTERED)
-@endcode
+   @post ergo(result == 0, buf->nb_flags & C2_NET_BUF_REGISTERED)
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
    - c2_net_buffer.nb_buffer should be initialized to point to the buffer
@@ -1270,10 +1236,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
    specific resources associated with it.
    The buffer should not be in use, nor should this subroutine be
    invoked from a callback.
-   @pre @code
+   @pre
 (buf->nb_flags == C2_NET_BUF_REGISTERED) &&
 (buf->nb_dom == dom)
-@endcode
    @param buf Specify the buffer pointer.
    @param dom Specify the domain pointer.
    @retval 0 (success)
@@ -1310,13 +1275,12 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
 
-   @pre @code
+   @pre
 (buf->nb_dom == tm->ntm_dom) &&
 (buf->nb_qtype != C2_NET_QT_NR) &&
 (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
 ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
 (buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL)
-@endcode
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
@@ -1346,9 +1310,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
 
-   @pre @code
-(buf->nb_flags & C2_NET_BUF_REGISTERED)
-@endcode
+   @pre (buf->nb_flags & C2_NET_BUF_REGISTERED)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer.
    @retval 0 (success)

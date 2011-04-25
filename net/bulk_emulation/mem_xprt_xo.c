@@ -68,13 +68,11 @@ static bool mem_buffer_in_bounds(struct c2_net_buffer *nb)
    @param d_nb  The destination buffer pointer.
    @param s_nb  The source buffer pointer.
    @param num_bytes The number of bytes to copy.
-   @pre @code
+   @pre
 mem_buffer_length(d_nb) >= num_bytes &&
 mem_buffer_length(s_nb) >= num_bytes
-@endcode
-   @post @code
+   @post
 d_nb->nb_length = num_bytes
-@endcode
  */
 static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 			   struct c2_net_buffer *s_nb,
@@ -205,28 +203,23 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	return;
 }
 
-static int mem_xo_get_max_buffer_size(struct c2_net_domain *dom,
-				      c2_bcount_t *size)
+static c2_bcount_t mem_xo_get_max_buffer_size(struct c2_net_domain *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
-	*size = C2_NET_BULK_MEM_MAX_BUFFER_SIZE;
-	return 0;
+	return C2_NET_BULK_MEM_MAX_BUFFER_SIZE;
 }
 
-static int mem_xo_get_max_buffer_segment_size(struct c2_net_domain *dom,
-					      c2_bcount_t *size)
+static c2_bcount_t mem_xo_get_max_buffer_segment_size(struct c2_net_domain
+						      *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
-	*size = C2_NET_BULK_MEM_MAX_SEGMENT_SIZE;
-	return 0;
+	return C2_NET_BULK_MEM_MAX_SEGMENT_SIZE;
 }
 
-static int mem_xo_get_max_buffer_segments(struct c2_net_domain *dom,
-					  int32_t *num_segs)
+static int32_t mem_xo_get_max_buffer_segments(struct c2_net_domain *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
-	*num_segs= C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS;
-	return 0;
+	return C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS;
 }
 
 /**

@@ -16,7 +16,7 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
 
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL && 
+	C2_PRE(nb != NULL &&
 	       (nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 		nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND) &&
 	       nb->nb_tm == tm);
@@ -46,7 +46,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL && 
+	C2_PRE(nb != NULL &&
 	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
 		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
 	       nb->nb_tm == tm &&
@@ -98,7 +98,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		/* We're now operating on the destination TM while holding
 		   its mutex.  The destination TM is operative.
 		*/
-		
+
 		/* locate the passive buffer */
 		struct c2_net_buffer *passive_nb = NULL;
 		struct c2_net_buffer *inb;
@@ -127,7 +127,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 			d_buf = nb;
 			datalen = md->md_len;
 		}
-		/* 
+		/*
 		   Copy the buffer.
 		   The length check was delayed until here so both buffers
 		   can get released with appropriate error code.
@@ -136,11 +136,11 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* schedule the passive callback */
 		passive_nb->nb_status = rc;
-		struct c2_net_bulk_mem_work_item *passive_wi = 
+		struct c2_net_bulk_mem_work_item *passive_wi =
 			MEM_BUFFER_TO_WI(passive_nb);
 		passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
 
-		struct c2_net_bulk_mem_tm_pvt *passive_tp = 
+		struct c2_net_bulk_mem_tm_pvt *passive_tp =
 			passive_tm->ntm_xprt_private;
 		mem_wi_add(passive_wi, passive_tp);
 
@@ -173,7 +173,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
    @} bulkmem
 */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
