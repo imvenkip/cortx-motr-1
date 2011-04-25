@@ -13,6 +13,7 @@ struct ping_ctx {
 	const struct ping_ops	   *pc_ops;
 	struct c2_net_xprt         *pc_xprt;
 	struct c2_net_domain        pc_dom;
+	short			    pc_port;
 	uint32_t                    pc_nr_bufs;
 	uint32_t                    pc_segments;
 	uint32_t                    pc_seg_size;

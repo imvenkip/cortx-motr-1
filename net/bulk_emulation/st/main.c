@@ -11,6 +11,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
+#include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
 #include "net/net.h"
@@ -28,18 +29,14 @@ enum {
 
 	PING_SERVER_SEGMENTS = 4,
 	PING_SERVER_SEGMENT_SIZE = 1024,
+
+	CLIENT_BASE_PORT = 31416,
 };
 
 struct c2_net_xprt *xprts[3] = {
 	&c2_net_bulk_mem_xprt,
 	&c2_net_bulk_sunrpc_xprt,
 	NULL
-};
-
-struct ping_ctx cctx = {
-	.pc_tm = {
-		.ntm_state     = C2_NET_TM_UNDEFINED
-	}
 };
 
 struct ping_ctx sctx = {
@@ -83,6 +80,56 @@ struct ping_ops quiet_ops = {
     .pf = quiet_printf
 };
 
+struct client_params {
+	struct c2_net_xprt *xprt;
+	bool verbose;
+	int loops;
+	int nr_bufs;
+	int client_id;
+};
+
+void client(struct client_params *params)
+{
+	int			 i;
+	int			 rc;
+	struct c2_net_end_point *server_ep;
+	struct ping_ctx		 cctx = {
+		.pc_xprt = params->xprt,
+		.pc_port = CLIENT_BASE_PORT + i,
+		.pc_nr_bufs = params->nr_bufs,
+		.pc_segments = PING_CLIENT_SEGMENTS,
+		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
+		.pc_tm = {
+			.ntm_state     = C2_NET_TM_UNDEFINED
+		}
+	};
+
+	if (params->verbose)
+		cctx.pc_ops = &verbose_ops;
+	else
+		cctx.pc_ops = &quiet_ops;
+	c2_mutex_init(&cctx.pc_mutex);
+	c2_cond_init(&cctx.pc_cond);
+	rc = ping_client_init(&cctx, &server_ep);
+	C2_ASSERT(rc == 0);
+
+	for (i = 1; i <= params->loops; ++i) {
+		if (params->verbose)
+			printf("Client: Loop %d\n", i);
+		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
+		C2_ASSERT(rc == 0);
+		rc = ping_client_passive_recv(&cctx, server_ep);
+		C2_ASSERT(rc == 0);
+		rc = ping_client_passive_send(&cctx, server_ep);
+		C2_ASSERT(rc == 0);
+	}
+
+	rc = ping_client_fini(&cctx, server_ep);
+	C2_ASSERT(rc == 0);
+	c2_cond_fini(&cctx.pc_cond);
+	c2_mutex_fini(&cctx.pc_mutex);
+}
+
 int main(int argc, char *argv[])
 {
 	int			 rc;
@@ -90,10 +137,10 @@ int main(int argc, char *argv[])
 	bool			 verbose = false;
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
+	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 
 	struct c2_net_xprt	*xprt;
-	struct c2_net_end_point *server_ep;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -102,6 +149,8 @@ int main(int argc, char *argv[])
 	rc = C2_GETOPTS("bulkping", argc, argv,
 			C2_FLAGARG('i', "interactive client mode", &interact),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
+			C2_FORMATARG('n', "number of client threads", "%i",
+				     &nr_clients),
 			C2_STRINGARG('t', "transport-name or \"list\" to "
 				     "list supported transports.",
 				     LAMBDA(void, (const char *str) {
@@ -142,35 +191,31 @@ int main(int argc, char *argv[])
 	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 			    &ping_server, &sctx);
 	C2_ASSERT(rc == 0);
-	c2_mutex_init(&cctx.pc_mutex);
-	c2_cond_init(&cctx.pc_cond);
-	if (verbose)
-		cctx.pc_ops = &verbose_ops;
-	else
-		cctx.pc_ops = &quiet_ops;
-	cctx.pc_xprt = xprt;
-	cctx.pc_nr_bufs = nr_bufs;
-	cctx.pc_segments = PING_CLIENT_SEGMENTS;
-	cctx.pc_seg_size = PING_CLIENT_SEGMENT_SIZE;
-	rc = ping_client_init(&cctx, &server_ep);
-	C2_ASSERT(rc == 0);
 
-	int i;
-	for (i = 1; i <= loops; ++i) {
-		if (verbose)
-			printf("Client: Loop %d\n", i);
-		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
-		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_recv(&cctx, server_ep);
-		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_send(&cctx, server_ep);
+	int		      i;
+	struct c2_thread     *client_thread;
+	struct client_params *params;
+	C2_ALLOC_ARR(client_thread, nr_clients);
+	C2_ALLOC_ARR(params, nr_clients);
+
+	/* start all the client threads */
+	for (i = 0; i < nr_clients; ++i) {
+		params[i].xprt = xprt;
+		params[i].verbose = verbose;
+		params[i].loops = loops;
+		params[i].nr_bufs = nr_bufs;
+		params[i].client_id = i;
+
+		rc = C2_THREAD_INIT(&client_thread[i], struct client_params *,
+				    NULL, &client, &params[i]);
 		C2_ASSERT(rc == 0);
 	}
 
-	rc = ping_client_fini(&cctx, server_ep);
-	C2_ASSERT(rc == 0);
-	c2_cond_fini(&cctx.pc_cond);
-	c2_mutex_fini(&cctx.pc_mutex);
+	/* ...and wait for them */
+	for (i = 0; i < nr_clients; ++i)
+		c2_thread_join(&client_thread[i]);
+	c2_free(client_thread);
+	c2_free(params);
 
 	ping_server_should_stop(&sctx);
 	c2_thread_join(&server_thread);

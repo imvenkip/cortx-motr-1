@@ -695,12 +695,12 @@ int canon_host(const char *hostname, char *buf, size_t bufsiz)
    Calls all the required c2_net APIs in the correct order, with
    cleanup on failure.
    On success, the transfer machine is started.
-   @param ctx the client/server context.  pc_xprt, pc_nr_bufs and pc_tm
-   must be initialised by the caller.
+   @param ctx the client/server context.  pc_xprt, pc_nr_bufs, pc_tm
+   and pc_port must be initialised by the caller.
    @retval 0 success
    @retval -errno failure
  */
-int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
+int ping_init(const char *hostname, struct ping_ctx *ctx)
 {
 	int                i;
 	int                rc;
@@ -734,7 +734,7 @@ int ping_init(const char *hostname, short port, struct ping_ctx *ctx)
 	}
 
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom,
-				     hostbuf, port, 0);
+				     hostbuf, ctx->pc_port, 0);
 	if (rc != 0) {
 		fprintf(stderr, "end point create failed: %d\n", rc);
 		goto fail;
@@ -819,8 +819,9 @@ void ping_server(struct ping_ctx *ctx)
 	struct c2_net_buffer *nb;
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
+	ctx->pc_port = SERVER_PORT;
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
-	rc = ping_init("localhost", SERVER_PORT, ctx);
+	rc = ping_init("localhost", ctx);
 	C2_ASSERT(rc == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -1127,7 +1128,9 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	char hostbuf[16];
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
-	rc = ping_init("localhost", CLIENT_PORT, ctx);
+	if (ctx->pc_port == 0)
+		ctx->pc_port = CLIENT_PORT;
+	rc = ping_init("localhost", ctx);
 	if (rc != 0)
 		return rc;
 
@@ -1146,3 +1149,13 @@ int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep)
 	ping_fini(ctx);
 	return rc;
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
