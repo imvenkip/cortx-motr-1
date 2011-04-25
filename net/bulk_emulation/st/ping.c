@@ -244,14 +244,15 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_msg msg;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
-	ctx->pc_ops->pf("Client: Msg Recv CB\n");
+	ctx->pc_ops->pf("%s: Msg Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Client: msg recv canceled\n");
+			ctx->pc_ops->pf("%s: msg recv canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Client: msg recv error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: msg recv error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	} else {
 		rc = decode_msg(ev->nev_buffer, &msg);
 		C2_ASSERT(rc == 0);
@@ -260,8 +261,8 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			C2_IMPOSSIBLE("Client: got desc\n");
 			/* TODO: implement this branch? */
 		} else {
-			ctx->pc_ops->pf("Client: got msg: %s\n",
-					msg.pm_u.pm_str);
+			ctx->pc_ops->pf("%s: got msg: %s\n",
+					ctx->pc_ident, msg.pm_u.pm_str);
 			if (ctx->pc_compare_buf != NULL) {
 				int l = strlen(ctx->pc_compare_buf);
 				C2_ASSERT(strlen(msg.pm_u.pm_str) == l + 5);
@@ -291,14 +292,15 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
-	ctx->pc_ops->pf("Client: Msg Send CB\n");
+	ctx->pc_ops->pf("%s: Msg Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Client: msg send canceled\n");
+			ctx->pc_ops->pf("%s: msg send canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Client: msg send error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: msg send error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 
 		/* let main app deal with it */
 		struct ping_work_item *wi;
@@ -325,14 +327,15 @@ void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_msg msg;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
-	ctx->pc_ops->pf("Client: Passive Recv CB\n");
+	ctx->pc_ops->pf("%s: Passive Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Client: passive recv canceled\n");
+			ctx->pc_ops->pf("%s: passive recv canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Client: passive recv error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: passive recv error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	} else {
 		rc = decode_msg(ev->nev_buffer, &msg);
 		C2_ASSERT(rc == 0);
@@ -340,8 +343,8 @@ void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Client: got desc\n");
 		else
-			ctx->pc_ops->pf("Client: got data: %s\n",
-					msg.pm_u.pm_str);
+			ctx->pc_ops->pf("%s: got data: %s\n",
+					ctx->pc_ident, msg.pm_u.pm_str);
 		msg_free(&msg);
 	}
 
@@ -364,14 +367,15 @@ void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_work_item *wi;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
-	ctx->pc_ops->pf("Client: Passive Send CB\n");
+	ctx->pc_ops->pf("%s: Passive Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Client: passive send canceled\n");
+			ctx->pc_ops->pf("%s: passive send canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Client: passive send error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: passive send error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	}
 
 	c2_net_desc_free(&ev->nev_buffer->nb_desc);
@@ -410,13 +414,14 @@ void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			s = "started";
 		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
 			s = "stopped";
-		ctx->pc_ops->pf("Client: Event CB state change to %s\n", s);
+		ctx->pc_ops->pf("%s: Event CB state change to %s\n",
+				ctx->pc_ident, s);
 	} else if (ev->nev_status < 0)
-		ctx->pc_ops->pf("Client: Event CB for error %d\n",
-				ev->nev_status);
+		ctx->pc_ops->pf("%s: Event CB for error %d\n",
+				ctx->pc_ident, ev->nev_status);
 	else
-		ctx->pc_ops->pf("Client: Event CB for diagnostic %d\n",
-				ev->nev_status);
+		ctx->pc_ops->pf("%s: Event CB for diagnostic %d\n",
+				ctx->pc_ident, ev->nev_status);
 }
 
 bool server_stop = false;
@@ -440,15 +445,15 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_msg msg;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
-	ctx->pc_ops->pf("Server: Msg Recv CB\n");
+	ctx->pc_ops->pf("%s: Msg Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		if (ev->nev_status == -ECANCELED && server_stop)
-			ctx->pc_ops->pf("Server: "
-					"msg recv canceled on shutdown\n");
+			ctx->pc_ops->pf("%s: msg recv canceled on shutdown\n",
+					ctx->pc_ident);
 		else {
-			ctx->pc_ops->pf("Service: msg recv error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: msg recv error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 			ev->nev_buffer->nb_timeout = C2_TIME_NEVER;
 			ev->nev_buffer->nb_ep = NULL;
 			rc = c2_net_buffer_add(ev->nev_buffer, &ctx->pc_tm);
@@ -460,8 +465,9 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 		struct c2_net_buffer *nb = ping_buf_get(ctx);
 		if (nb == NULL) {
-			ctx->pc_ops->pf("Server: dropped msg, "
-					"no buffer available\n");
+			ctx->pc_ops->pf("%s: dropped msg, "
+					"no buffer available\n",
+					ctx->pc_ident);
 		} else {
 			C2_ALLOC_PTR(wi);
 			nb->nb_ep = ev->nev_buffer->nb_ep; /* save for later */
@@ -469,8 +475,9 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			c2_list_link_init(&wi->pwi_link);
 			wi->pwi_nb = nb;
 			if (msg.pm_type == PM_SEND_DESC) {
-				ctx->pc_ops->pf("Server: "
-						"got desc for active recv\n");
+				ctx->pc_ops->pf("%s: "
+						"got desc for active recv\n",
+						ctx->pc_ident);
 				wi->pwi_type = C2_NET_QT_ACTIVE_BULK_RECV;
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
@@ -478,8 +485,9 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				nb->nb_ep = NULL; /* not needed */
 				C2_ASSERT(rc == 0);
 			} else if (msg.pm_type == PM_RECV_DESC) {
-				ctx->pc_ops->pf("Server: "
-						"got desc for active send\n");
+				ctx->pc_ops->pf("%s: "
+						"got desc for active send\n",
+						ctx->pc_ident);
 				wi->pwi_type = C2_NET_QT_ACTIVE_BULK_SEND;
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
@@ -490,8 +498,8 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				C2_ASSERT(rc == 0);
 			} else {
 				char *data;
-				ctx->pc_ops->pf("Server: got msg: %s\n",
-						msg.pm_u.pm_str);
+				ctx->pc_ops->pf("%s: got msg: %s\n",
+						ctx->pc_ident, msg.pm_u.pm_str);
 
 				/* queue wi to send back ping response */
 				data = c2_alloc(strlen(msg.pm_u.pm_str) + 6);
@@ -524,15 +532,16 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	int rc;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
-	ctx->pc_ops->pf("Server: Msg Send CB\n");
+	ctx->pc_ops->pf("%s: Msg Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		/* no retries here */
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Server: msg send canceled\n");
+			ctx->pc_ops->pf("%s: msg send canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Server: msg send error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: msg send error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	}
 
 	rc = c2_net_end_point_put(ev->nev_buffer->nb_ep);
@@ -561,15 +570,16 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_msg msg;
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
-	ctx->pc_ops->pf("Server: Active Recv CB\n");
+	ctx->pc_ops->pf("%s: Active Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		/* no retries here */
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Server: active send canceled\n");
+			ctx->pc_ops->pf("%s: active send canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Server: active send error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: active send error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	} else {
 		rc = decode_msg(ev->nev_buffer, &msg);
 		C2_ASSERT(rc == 0);
@@ -577,8 +587,8 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Server: got desc\n");
 		else
-			ctx->pc_ops->pf("Server: got data: %s\n",
-					msg.pm_u.pm_str);
+			ctx->pc_ops->pf("%s: got data: %s\n",
+					ctx->pc_ident, msg.pm_u.pm_str);
 		msg_free(&msg);
 	}
 
@@ -591,15 +601,16 @@ void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
-	ctx->pc_ops->pf("Server: Active Send CB\n");
+	ctx->pc_ops->pf("%s: Active Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
 		/* no retries here */
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("Server: active send canceled\n");
+			ctx->pc_ops->pf("%s: active send canceled\n",
+					ctx->pc_ident);
 		else
-			ctx->pc_ops->pf("Server: active send error: %d\n",
-					ev->nev_status);
+			ctx->pc_ops->pf("%s: active send error: %d\n",
+					ctx->pc_ident, ev->nev_status);
 	}
 
 	c2_net_desc_free(&ev->nev_buffer->nb_desc);
@@ -617,13 +628,14 @@ void s_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 			s = "started";
 		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
 			s = "stopped";
-		ctx->pc_ops->pf("Server: Event CB state change to %s\n", s);
+		ctx->pc_ops->pf("%s: Event CB state change to %s\n",
+				ctx->pc_ident, s);
 	} else if (ev->nev_status < 0)
-		ctx->pc_ops->pf("Server: Event CB for error %d\n",
-				ev->nev_status);
+		ctx->pc_ops->pf("%s: Event CB for error %d\n",
+				ctx->pc_ident, ev->nev_status);
 	else
-		ctx->pc_ops->pf("Server: Event CB for diagnostic %d\n",
-				ev->nev_status);
+		ctx->pc_ops->pf("%s: Event CB for diagnostic %d\n",
+				ctx->pc_ident, ev->nev_status);
 }
 
 struct c2_net_tm_callbacks stm_cb = {
@@ -820,6 +832,7 @@ void ping_server(struct ping_ctx *ctx)
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	ctx->pc_port = SERVER_PORT;
+	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
 	rc = ping_init("localhost", ctx);
 	C2_ASSERT(rc == 0);
@@ -905,7 +918,7 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 		data = "ping";
 	ctx->pc_compare_buf = data;
 
-	ctx->pc_ops->pf("Client: starting msg send/recv sequence\n");
+	ctx->pc_ops->pf("%s: starting msg send/recv sequence\n", ctx->pc_ident);
 	/* queue buffer for response, must do before sending msg */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
@@ -945,8 +958,9 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 				/* implies send error, retry a few times */
 				if (retries == 0) {
 					ctx->pc_compare_buf = NULL;
-					ctx->pc_ops->pf("Client: send failed, "
-							"no more retries\n");
+					ctx->pc_ops->pf("%s: send failed, "
+							"no more retries\n",
+							ctx->pc_ident);
 					c2_mutex_unlock(&ctx->pc_mutex);
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
@@ -977,7 +991,7 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 	struct c2_net_buffer *nb;
 	struct c2_net_buf_desc nbd;
 
-	ctx->pc_ops->pf("Client: starting passive recv sequence\n");
+	ctx->pc_ops->pf("%s: starting passive recv sequence\n", ctx->pc_ident);
 	/* queue our passive receive buffer */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
@@ -1019,8 +1033,9 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 			else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
 				/* implies send error, retry a few times */
 				if (retries == 0) {
-					ctx->pc_ops->pf("Client: send failed, "
-							"no more retries\n");
+					ctx->pc_ops->pf("%s: send failed, "
+							"no more retries\n",
+							ctx->pc_ident);
 					c2_net_desc_free(&nb->nb_desc);
 					c2_mutex_unlock(&ctx->pc_mutex);
 					ping_buf_put(ctx, nb);
@@ -1052,7 +1067,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	struct c2_net_buffer *nb;
 	struct c2_net_buf_desc nbd;
 
-	ctx->pc_ops->pf("Client: starting passive send sequence\n");
+	ctx->pc_ops->pf("%s: starting passive send sequence\n", ctx->pc_ident);
 	/* queue our passive receive buffer */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
@@ -1096,8 +1111,9 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 			else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
 				/* implies send error, retry a few times */
 				if (retries == 0) {
-					ctx->pc_ops->pf("Client: send failed, "
-							"no more retries\n");
+					ctx->pc_ops->pf("%s: send failed, "
+							"no more retries\n",
+							ctx->pc_ident);
 					c2_net_desc_free(&nb->nb_desc);
 					c2_mutex_unlock(&ctx->pc_mutex);
 					ping_buf_put(ctx, nb);
@@ -1130,6 +1146,8 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	if (ctx->pc_port == 0)
 		ctx->pc_port = CLIENT_PORT;
+	if (ctx->pc_ident == NULL)
+		ctx->pc_ident = "Client";
 	rc = ping_init("localhost", ctx);
 	if (rc != 0)
 		return rc;

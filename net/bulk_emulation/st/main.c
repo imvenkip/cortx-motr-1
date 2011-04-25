@@ -93,17 +93,20 @@ void client(struct client_params *params)
 	int			 i;
 	int			 rc;
 	struct c2_net_end_point *server_ep;
+	char                     ident[16];
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt,
-		.pc_port = CLIENT_BASE_PORT + i,
+		.pc_port = CLIENT_BASE_PORT + params->client_id,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
+		.pc_ident = ident,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		}
 	};
 
+	sprintf(ident, "Client %d", params->client_id);
 	if (params->verbose)
 		cctx.pc_ops = &verbose_ops;
 	else
@@ -212,8 +215,11 @@ int main(int argc, char *argv[])
 	}
 
 	/* ...and wait for them */
-	for (i = 0; i < nr_clients; ++i)
+	for (i = 0; i < nr_clients; ++i) {
 		c2_thread_join(&client_thread[i]);
+		if (verbose)
+			printf("Client %d: joined\n", i);
+	}
 	c2_free(client_thread);
 	c2_free(params);
 

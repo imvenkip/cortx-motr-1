@@ -24,6 +24,7 @@ struct ping_ctx {
 	struct c2_mutex		    pc_mutex;
 	struct c2_cond		    pc_cond;
 	struct c2_list              pc_work_queue;
+	const char *                pc_ident;
 	const char *                pc_compare_buf;
 };
 
