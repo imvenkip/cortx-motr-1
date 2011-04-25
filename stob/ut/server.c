@@ -310,10 +310,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		return rc;
 	}
 	else
-/*
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
-*/
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
 	return rc;
@@ -431,7 +429,6 @@ int main(int argc, char **argv)
 	const char *path;
 	char        opath[64];
 	char        dpath[64];
-	char        addbpath[64];
 	int         port;
 	int         i = 0;
 
@@ -442,11 +439,14 @@ int main(int argc, char **argv)
 	struct c2_service       service;
 	struct c2_net_domain    ndom;
 	struct c2_dbenv         db;
+	struct c2_stob_id       addb_stob_id = {
+					.si_bits = {
+						.u_hi = 0xADDBADDBADDBADDB,
+						.u_lo = 0x210B210B210B210B
+					}
+				};
 	struct c2_stob	       *addb_stob;
-	struct c2_dtx           addb_tx;
-	struct c2_fop_fid       addb_fid = {
-					.f_seq = 0xADDBADDBADDBADDB,
-					.f_oid = 0x210B210B210B210B};
+
 	struct c2_table	        addb_table;
 	struct c2_db_tx	        addb_db_tx;
 
@@ -495,7 +495,6 @@ int main(int argc, char **argv)
 	result = mkdir(opath, 0700);
 	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
-	sprintf(addbpath, "%s/addb", path);
 	sprintf(dpath, "%s/d", path);
 
 	/*
@@ -535,22 +534,17 @@ int main(int argc, char **argv)
 	c2_stob_put(bstore);
 
 	/* create or open a stob into which to store the record. */
-	/* XXX we use file for demo
-	   addb_stob = (struct c2_stob*)fopen("server_addb_log", "a");
-	   C2_ASSERT(addb_stob != NULL);
-	 */
-
-	result = dom->sd_ops->sdo_tx_make(dom, &addb_tx);
+	result = bdom->sd_ops->sdo_stob_find(bdom, &addb_stob_id, &addb_stob);
 	C2_ASSERT(result == 0);
+	C2_ASSERT(addb_stob->so_state == CSS_UNKNOWN);
 
-	addb_stob = object_find(&addb_fid, &addb_tx);
-
-	result = c2_stob_create(addb_stob, &addb_tx);
+	result = c2_stob_create(addb_stob, NULL);
 	C2_ASSERT(result == 0);
+	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
 
 	/* write addb record into stob */
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
-				   addb_stob, &addb_tx);
+				   addb_stob, NULL);
 
 	result = c2_table_init(&addb_table, &db,
 			       "addb_record", 0,
@@ -603,10 +597,6 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(addb_stob);
-	result = c2_db_tx_commit(&addb_tx.tx_dbtx);
-	C2_ASSERT(result == 0);
-
-	/* fclose((FILE*)addb_stob); */
 
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);

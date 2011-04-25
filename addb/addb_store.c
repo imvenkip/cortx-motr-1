@@ -80,7 +80,7 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 
 			addr[1]   = c2_stob_addr_pack(event_data, bshift);
 			count[1]  = data_len >> bshift;
-			offset[1] = (addb_stob_offset + data_len) >> bshift;
+			offset[1] = (offset[0] + count[0]) >> bshift;
 			io.si_user.div_vec.ov_vec.v_nr = 2;
 			io.si_stob.iv_vec.v_nr = 2;
 		}
