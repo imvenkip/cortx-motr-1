@@ -312,12 +312,17 @@ static void maptostr(struct c2_bitmap *map, char **buf)
 static void verify_getcpu()
 {
 	int	id;
+	int	rc;
 	bool	val;
 
 	struct c2_bitmap	map;
 	c2_processor_nr_t	num;
 
-	c2_processors_init();
+	rc = c2_processors_init();
+	if (rc != 0) {
+		return;
+	}
+
 	num = c2_processor_nr_max();
 	c2_bitmap_init(&map, num);
 
@@ -343,7 +348,11 @@ static void verify_map(int mapid)
 	struct c2_bitmap	map;
 	c2_processor_nr_t	num;
 
-	c2_processors_init();
+	rc = c2_processors_init();
+	if (rc != 0) {
+		return;
+	}
+
 	num = c2_processor_nr_max();
 	c2_bitmap_init(&map, num);
 
@@ -386,11 +395,13 @@ static void verify_max_processors()
 	c2_processor_nr_t	num,
 				result;
 
+	rc = c2_processors_init();
+	if (rc != 0) {
+		return;
+	}
+
 	sprintf(filename, "%s/%s", processor_info_dirp, MAX_PROCESSOR_FILE);
 	result = (c2_processor_nr_t) get_num_from_file(filename);
-
-	rc = c2_processors_init();
-	C2_UT_ASSERT(rc == 0);
 
 	num = c2_processor_nr_max();
 	C2_UT_ASSERT(num == result);
@@ -471,7 +482,11 @@ static void verify_processors()
 	struct c2_bitmap		onln_map;
 	struct c2_processor_descr	pd;
 
-	c2_processors_init();
+	rc = c2_processors_init();
+	if (rc != 0) {
+		return;
+	}
+
 	num = c2_processor_nr_max();
 	c2_bitmap_init(&onln_map, num);
 	c2_processors_online(&onln_map);
