@@ -63,6 +63,43 @@
    See the documentation for individual resource management data-types and
    interfaces for more detailed description of their behaviour.
 
+   <b>Concurrency control.</b>
+
+   Generic resource manager makes no assumptions about threading model used by
+   its callers. Generic resource data-structures and code are thread safe.
+
+   3 types of locks protect all generic resource manager state:
+
+       - per domain c2_rm_domain::rd_lock. This lock serialises addition and
+         removal of resource types. Typically, it won't be contended much after
+         the system start-up;
+
+       - per resource type c2_rm_resource_type::rt_lock. This lock is taken
+         whenever a resource or a resource owner is created or
+         destroyed. Typically, that would be when a file system object is
+         accessed which is not in the cache;
+
+       - per resource owner c2_rm_owner::ro_lock. These locks protect a bulk of
+         generic resource management state:
+
+	     - lists of possessed, borrowed and sub-let usage rights;
+
+	     - incoming requests and their state transitions;
+
+	     - outgoing requests and their state transitions;
+
+	     - pins (c2_rm_pin).
+
+	 Owner lock is accessed (taken and released) at least once during
+	 processing of an incoming request. Main owner state machine logic
+	 (owner_balance()) is structured in a way that is easily adaptable to a
+	 finer grained logic.
+
+   None of these locks are ever held while waiting for a network communication
+   to complete.
+
+   Lock ordering: these locks do not nest.
+
    <b>Resource identification and location.</b>
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
