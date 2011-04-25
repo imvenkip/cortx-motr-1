@@ -540,6 +540,7 @@ int main(int argc, char **argv)
 	result = c2_stob_create(addb_stob, NULL);
 	C2_ASSERT(result == 0);
 	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
+	/* XXX The stob tail postion should be maintained & initialized */
 
 	/* write addb record into stob */
 //	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
@@ -549,6 +550,7 @@ int main(int argc, char **argv)
 			       "addb_record", 0,
 			       &c2_addb_record_ops);
 	C2_ASSERT(result == 0);
+	/* XXX The db addb seqno should be initialized */
 
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB, c2_addb_db_add,
 				   &addb_table, &db);
