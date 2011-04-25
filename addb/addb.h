@@ -22,7 +22,7 @@ struct c2_addb_ev;
 struct c2_addb_dp;
 struct c2_addb_rec;
 enum c2_addb_ev_level;
-struct c2_db_tx;
+struct c2_dbenv;
 struct c2_dtx;
 
 
@@ -70,9 +70,9 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 /**
     Write addb records into this db.
  */
-typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 				struct c2_table *db);
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		   struct c2_table *db);
 
 /**

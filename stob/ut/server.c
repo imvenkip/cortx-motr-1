@@ -448,7 +448,6 @@ int main(int argc, char **argv)
 	struct c2_stob	       *addb_stob;
 
 	struct c2_table	        addb_table;
-	struct c2_db_tx	        addb_db_tx;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -543,17 +542,16 @@ int main(int argc, char **argv)
 	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
 
 	/* write addb record into stob */
-	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
-				   addb_stob, NULL);
+//	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+//				   addb_stob, NULL);
 
 	result = c2_table_init(&addb_table, &db,
 			       "addb_record", 0,
 			       &c2_addb_record_ops);
 	C2_ASSERT(result == 0);
 
-	result = c2_db_tx_init(&addb_db_tx, &db, 0);
-	C2_ASSERT(result == 0);
-
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB, c2_addb_db_add,
+				   &addb_table, &db);
 	/*
 	 * Set up the service.
 	 */
@@ -593,8 +591,6 @@ int main(int argc, char **argv)
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 
 	c2_table_fini(&addb_table);
-	result = c2_db_tx_commit(&addb_db_tx);
-	C2_ASSERT(result == 0);
 
 	c2_stob_put(addb_stob);
 

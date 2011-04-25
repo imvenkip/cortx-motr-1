@@ -109,7 +109,7 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 
 uint64_t c2_addb_db_seq = 0;
 
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
 		   struct c2_table *table)
 {
 	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
@@ -118,6 +118,7 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
 	uint32_t	      keysize;
 	uint32_t	      recsize;
 	char 		      *data;
+	struct c2_db_tx	       tx;
 	int      rc;
 
 	if (ops->aeo_pack == NULL)
@@ -144,6 +145,8 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
 			goto out;
 		}
 
+		rc = c2_db_tx_init(&tx, env, 0);
+
 		memcpy(data, &rec.ar_header, sizeof (rec.ar_header));
 		memcpy(data + sizeof (rec.ar_header), rec.ar_data.cmb_value,
 			rec.ar_data.cmb_count);
@@ -151,10 +154,12 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
 		c2_db_pair_setup(&pair, table,
 				 &c2_addb_db_seq, keysize,
 				 data, recsize);
-		rc = c2_table_insert(tx, &pair);
+		rc = c2_table_insert(&tx, &pair);
 		c2_db_pair_fini(&pair);
 
 		c2_free(data);
+
+		c2_db_tx_commit(&tx);
 	}
 out:
 	c2_free(rec.ar_data.cmb_value);
@@ -167,7 +172,7 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 {
 	return 0;
 }
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_db_tx *tx,
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
 		   struct c2_table *table)
 {
 	return 0;
