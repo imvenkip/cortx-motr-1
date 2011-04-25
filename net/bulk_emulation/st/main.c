@@ -118,7 +118,7 @@ void client(struct client_params *params)
 
 	for (i = 1; i <= params->loops; ++i) {
 		if (params->verbose)
-			printf("Client: Loop %d\n", i);
+			printf("%s: Loop %d\n", ident, i);
 		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
