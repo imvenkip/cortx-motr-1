@@ -1,6 +1,8 @@
 /* -*- C -*- */
 
+#include "lib/assert.h"
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "fop/fop_format_def.h"
 
@@ -53,6 +55,7 @@ static struct c2_fop_type_format *fmts[] = {
    Static functions should be declared in the private header file
    so that the order of their definiton does not matter.
 */
+#include "sunrpc_xprt_ep.c"
 #include "sunrpc_xprt_bulk.c"
 #include "sunrpc_xprt_msg.c"
 
@@ -79,6 +82,15 @@ int c2_sunrpc_fop_init(void)
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)
 {
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+
+	C2_PRE(dom->nd_xprt_private == NULL);
+	C2_ALLOC_PTR(dp);
+	if (dp == NULL)
+		return -ENOMEM;
+	dom->nd_xprt_private = dp;
+	dp->xd_base_work_fn[C2_NET_XOP_ACTIVE_BULK] = sunrpc_wf_active_bulk;
+
 	return -ENOSYS;
 }
 
@@ -121,6 +133,21 @@ static int sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
 
 static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 {
+	struct c2_net_transfer_mc *tm = nb->nb_tm;
+	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+
+	int rc;
+	switch (nb->nb_qtype) {
+	case C2_NET_QT_PASSIVE_BULK_SEND:
+		rc = sunrpc_desc_create(&nb->nb_desc, nb->nb_ep, tm,
+					nb->nb_qtype, nb->nb_length,
+					bp->xb_buf_id);
+		if (rc != 0)
+			return rc;
+	default:
+		return -ENOSYS;
+	}
+
 	return -ENOSYS;
 }
 
@@ -172,7 +199,7 @@ struct c2_net_xprt c2_net_bulk_sunrpc_xprt = {
 };
 
 /**
-   @} bulkmem
+   @} bulksunrpc
 */
 
 /*

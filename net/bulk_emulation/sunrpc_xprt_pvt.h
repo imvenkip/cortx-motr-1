@@ -3,7 +3,7 @@
 #define __COLIBRI_NET_BULK_SUNRPC_XPRT_PVT_H__
 
 /**
-   @addtogroup bulkmem
+   @addtogroup bulksunrpc
 
    @{
 */

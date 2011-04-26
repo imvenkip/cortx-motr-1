@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /**
-   @addtogroup bulkmem
+   @addtogroup bulksunrpc
    @{
  */
 
