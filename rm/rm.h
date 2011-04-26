@@ -4,6 +4,7 @@
 #define __COLIBRI_RM_RM_H__
 
 #include "net/net.h"         /* c2_service_id */
+#include "lib/time.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
@@ -99,6 +100,10 @@
    to complete.
 
    Lock ordering: these locks do not nest.
+
+   <b>Liveness.</b>
+
+
 
    <b>Resource identification and location.</b>
 
@@ -969,10 +974,10 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom);
 
    @pre  rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
          rtype->rt_dom == NULL
-   @post ergo(result == 0, IS_IN_ARRAY(rtype->rt_id, dom->rd_types) &&
-                           rtype->rt_dom == dom)
+   @post IS_IN_ARRAY(rtype->rt_id, dom->rd_types) && rtype->rt_dom == dom
  */
-int c2_rm_register(struct c2_rm_domain *dom, struct c2_rm_resource_type *rt);
+void c2_rm_type_register(struct c2_rm_domain *dom,
+			 struct c2_rm_resource_type *rt);
 
 /**
    Deregister a resource type.
@@ -981,7 +986,29 @@ int c2_rm_register(struct c2_rm_domain *dom, struct c2_rm_resource_type *rt);
    @post rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID &&
          rtype->rt_dom == NULL
  */
-void c2_rm_deregister(struct c2_rm_resource_type *rtype);
+void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
+
+int  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+			struct c2_rm_resource *res);
+void c2_rm_resource_del(struct c2_rm_resource *res);
+
+int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
+int c2_rm_owner_init_with(struct c2_rm_owner *owner,
+			  struct c2_rm_resource *res, struct c2_rm_right *r);
+void c2_rm_owner_fini(struct c2_rm_owner *owner);
+
+void c2_rm_right_init(struct c2_rm_right *right);
+void c2_rm_right_fini(struct c2_rm_right *right);
+
+void c2_rm_incoming_init(struct c2_rm_incoming *in);
+void c2_rm_incoming_fini(struct c2_rm_incoming *in);
+
+int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+int c2_rm_right_timedwait(struct c2_rm_incoming *in,
+			  const struct c2_time *deadline);
+int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+
+void c2_rm_right_put(struct c2_rm_incoming *in);
 
 /**
    @name Resource type interface
