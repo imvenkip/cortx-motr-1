@@ -4,6 +4,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
+#include "net/net_internal.h"
 #include "fop/fop_format_def.h"
 
 /**
@@ -56,6 +57,7 @@ static struct c2_fop_type_format *fmts[] = {
    so that the order of their definiton does not matter.
 */
 #include "sunrpc_xprt_ep.c"
+#include "sunrpc_xprt_tm.c"
 #include "sunrpc_xprt_bulk.c"
 #include "sunrpc_xprt_msg.c"
 
@@ -83,19 +85,58 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	struct c2_net_bulk_mem_domain_pvt *bdp;
+	int i;
+	int rc;
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_ALLOC_PTR(dp);
 	if (dp == NULL)
 		return -ENOMEM;
 	dom->nd_xprt_private = dp;
-	dp->xd_base_work_fn[C2_NET_XOP_ACTIVE_BULK] = sunrpc_wf_active_bulk;
+	rc = c2_net_bulk_mem_xprt.nx_ops->xo_dom_init(xprt, dom);
+	if (rc != 0)
+		goto err_exit;
+	bdp = &dp->xd_base;
 
-	return -ENOSYS;
+	/* save the work functions of the base */
+	for (i=0; i < C2_NET_XOP_NR; i++) {
+		dp->xd_base_work_fn[i] = bdp->xd_work_fn[i];
+	}
+
+	/* override base work functions */
+	bdp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = sunrpc_wf_state_change;
+	bdp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = sunrpc_wf_msg_send;
+	bdp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = sunrpc_wf_active_bulk;
+
+	/* override tunable parameters */
+	bdp->xd_sizeof_ep = sizeof(struct c2_net_bulk_sunrpc_end_point);
+	bdp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_sunrpc_tm_pvt);
+	bdp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
+	bdp->xd_num_tm_threads = 2;
+
+	/* create the rpc domain (use in-mutex version of domain init) */
+#ifdef __KERNEL__
+	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_ksunrpc_xprt);
+#else
+	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_usunrpc_xprt);
+#endif
+	if (rc != 0)
+		goto err_exit;
+	rc = 0;
+ err_exit:
+	if (rc != 0) {
+		if (dp != NULL)
+			c2_free(dp);
+	}
+	return rc;
 }
 
 static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 {
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
+	c2_net__domain_fini(&dp->xd_rpc_dom);
+	c2_net_bulk_mem_xprt.nx_ops->xo_dom_fini(dom);
 }
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom)

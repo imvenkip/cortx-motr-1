@@ -242,6 +242,37 @@ struct c2_net_bulk_mem_domain_pvt {
 	struct c2_atomic64         xd_buf_id_counter;
 };
 
+#ifdef MEM_WI_TO_BUFFER
+#undef MEM_WI_TO_BUFFER
+#endif
+/**
+   Macro to obtain the c2_net_buffer pointer from its related work item.
+@code
+struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+@endcode
+ */
+#define MEM_WI_TO_BUFFER(wi)						\
+({									\
+	struct c2_net_bulk_mem_buffer_pvt *bp;				\
+	bp = container_of(wi, struct c2_net_bulk_mem_buffer_pvt, xb_wi);\
+	bp->xb_buffer;							\
+})
+
+#ifdef MEM_BUFFER_TO_WI
+#undef MEM_BUFFER_TO_WI
+#endif
+/**
+   Macro to obtain the work item from a c2_net_buffer pointer.
+@code
+struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
+@endcode
+ */
+#define MEM_BUFFER_TO_WI(buf)			\
+({						\
+	struct c2_net_bulk_mem_buffer_pvt *bp;	\
+	bp = buf->nb_xprt_private;		\
+	&bp->xb_wi;				\
+})
 
 /**
    @}

@@ -21,7 +21,7 @@ bulksunrpc_K_sources              = sunrpc_io_k.h sunrpc_io_k.c
 
 # depend on included .c files (do not add to _SOURCES) and pvt header
 sunrpc_xprt_xo.c: sunrpc_xprt_bulk.c sunrpc_xprt_ep.c sunrpc_xprt_msg.c \
-		sunrpc_xprt_pvt.h
+		sunrpc_xprt_tm.c sunrpc_xprt_pvt.h
 
 MOSTLYCLEANFILES           = $(bulksunrpc_U_SOURCES) $(bulksunrpc_K_sources)
 

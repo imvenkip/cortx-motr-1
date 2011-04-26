@@ -5,12 +5,12 @@
    @{
  */
 
-int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	return -ENOSYS;
 }
 
-int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
 	return -ENOSYS;
 }
