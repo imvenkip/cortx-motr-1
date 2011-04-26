@@ -8,10 +8,9 @@
  */
 
 /**
-   Create a network buffer descriptor from an in-memory end point.
+   Create a network buffer descriptor from a sunrpc end point.
+   The descriptor is XDR encoded and returned as opaque data.
 
-   The descriptor used by the in-memory transport is not encoded as it
-   is never accessed out of the processs.
    @param desc Returns the descriptor
    @param ep Remote end point allowed active access
    @param tm Transfer machine holding the passive buffer
