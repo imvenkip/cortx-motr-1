@@ -1,12 +1,80 @@
 /* -*- C -*- */
 
 #include "lib/errno.h"
-#include "net/bulk_emulation/sunrpc_xprt.h"
+#include "net/bulk_emulation/sunrpc_xprt_pvt.h"
+#include "fop/fop_format_def.h"
 
 /**
    @addtogroup bulksunrpc
    @{
  */
+
+#include "net/bulk_emulation/sunrpc_io.ff"
+
+static struct c2_fop_type_ops sunrpc_msg_ops = {
+	.fto_execute = sunrpc_msg_handler,
+};
+
+static struct c2_fop_type_ops sunrpc_get_ops = {
+	.fto_execute = sunrpc_get_handler,
+};
+
+static struct c2_fop_type_ops sunrpc_put_ops = {
+	.fto_execute = sunrpc_put_handler,
+};
+
+C2_FOP_TYPE_DECLARE(sunrpc_msg,      "sunrpc_msg", 30, &sunrpc_msg_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_get,      "sunrpc_get", 31, &sunrpc_get_ops);
+C2_FOP_TYPE_DECLARE(sunrpc_put,      "sunrpc_put", 32, &sunrpc_put_ops);
+
+C2_FOP_TYPE_DECLARE(sunrpc_msg_resp, "sunrpc_msg reply", 35, NULL);
+C2_FOP_TYPE_DECLARE(sunrpc_get_resp, "sunrpc_get reply", 36, NULL);
+C2_FOP_TYPE_DECLARE(sunrpc_put_resp, "sunrpc_put reply", 37, NULL);
+
+static struct c2_fop_type *fops[] = {
+	&sunrpc_msg_fopt,
+	&sunrpc_get_fopt,
+	&sunrpc_put_fopt,
+
+	&sunrpc_msg_resp_fopt,
+	&sunrpc_get_resp_fopt,
+	&sunrpc_put_resp_fopt,
+};
+
+static struct c2_fop_type_format *fmts[] = {
+	&sunrpc_buf_desc_tfmt,
+	&sunrpc_buffer_tfmt,
+};
+
+/* To reduce global symbols, yet make the code readable, we
+   include other .c files with static symbols into this file.
+   Dependency information must be captured in Makefile.am.
+
+   Static functions should be declared in the private header file
+   so that the order of their definiton does not matter.
+*/
+#include "sunrpc_xprt_bulk.c"
+#include "sunrpc_xprt_msg.c"
+
+void c2_sunrpc_fop_fini(void)
+{
+	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+}
+
+int c2_sunrpc_fop_init(void)
+{
+	int result;
+
+	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
+	if (result == 0) {
+		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+		/* TODO: need to call c2_fop_object_init? */
+	}
+	if (result != 0)
+		c2_sunrpc_fop_fini();
+	return result;
+}
 
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)

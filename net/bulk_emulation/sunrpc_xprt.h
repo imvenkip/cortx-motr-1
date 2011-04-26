@@ -7,6 +7,12 @@
 
 #include <arpa/inet.h>
 
+#ifdef __KERNEL__
+#include "net/bulk_emulation/sunrpc_io_k.h"
+#else
+#include "net/bulk_emulation/sunrpc_io_u.h"
+#endif
+
 /**
    @addtogroup bulksunrpc
 
@@ -77,6 +83,9 @@ struct c2_net_bulk_sunrpc_end_point {
 	/** The in-memory base end point */
 	struct c2_net_bulk_mem_end_point xep_base;
 };
+
+int c2_sunrpc_fop_init(void);
+void c2_sunrpc_fop_fini(void);
 
 /**
    @}
