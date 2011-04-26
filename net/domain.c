@@ -15,6 +15,24 @@ const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
 int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 {
 	int rc;
+	c2_mutex_lock(&c2_net_mutex);
+	rc = c2_net__domain_init(dom, xprt);
+	c2_mutex_unlock(&c2_net_mutex);
+	return rc;
+}
+C2_EXPORTED(c2_net_domain_init);
+
+void c2_net_domain_fini(struct c2_net_domain *dom)
+{
+	c2_mutex_lock(&c2_net_mutex);
+	c2_net__domain_fini(dom);
+	c2_mutex_unlock(&c2_net_mutex);
+}
+C2_EXPORTED(c2_net_domain_fini);
+
+int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
+{
+	int rc;
 
 	/* begin deprecated */
 	c2_list_init(&dom->nd_conn);
@@ -22,8 +40,6 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_rwlock_init(&dom->nd_lock);
         c2_net_domain_stats_init(dom);
 	/* end deprecated */
-
-	c2_mutex_lock(&c2_net_mutex);
 
 	c2_mutex_init(&dom->nd_mutex);
 	c2_list_init(&dom->nd_end_points);
@@ -37,28 +53,25 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	/* must hold the mutex when calling xo_ */
 	c2_mutex_lock(&dom->nd_mutex);
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
-	if ( rc ) {
+	if (rc != 0) {
 		dom->nd_xprt = NULL;
 	}
 	c2_mutex_unlock(&dom->nd_mutex);
-	c2_mutex_unlock(&c2_net_mutex);
-	if ( rc ) {
-		c2_net_domain_fini(dom);
-	}
+	if (rc != 0)
+		c2_net__domain_fini(dom);
 	return rc;
 }
-C2_EXPORTED(c2_net_domain_init);
+C2_EXPORTED(c2_net__domain_init);
 
-void c2_net_domain_fini(struct c2_net_domain *dom)
+void c2_net__domain_fini(struct c2_net_domain *dom)
 {
-	c2_mutex_lock(&c2_net_mutex);
 	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_ASSERT(c2_list_is_empty(&dom->nd_tms));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
-	if ( dom->nd_xprt ) {
+	if (dom->nd_xprt) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 	}
 	c2_addb_ctx_fini(&dom->nd_addb);
@@ -71,7 +84,6 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	c2_mutex_fini(&dom->nd_mutex);
-	c2_mutex_unlock(&c2_net_mutex);
 
 	/* begin deprecated */
         c2_net_domain_stats_fini(dom);
@@ -80,7 +92,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
 	c2_list_fini(&dom->nd_conn);
 	/* end deprecated */
 }
-C2_EXPORTED(c2_net_domain_fini);
+C2_EXPORTED(c2_net__domain_fini);
 
 #define DOM_GET_PARAM(Fn, Type)				\
 Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
