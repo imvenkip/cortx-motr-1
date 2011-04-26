@@ -107,6 +107,25 @@ struct c2_rpc_form_item_summary_unit {
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
 	int 				endp_state;
+	/* List of coalesced rpc items. */
+	struct c2_list			coalesced_items;
+};
+
+/**
+   An internal data structure to connect coalesced rpc items with
+   its constituent rpc items. When a reply is received for a 
+   coalesced rpc item, it will find out the requesting coalesced 
+   rpc item and using this data structure, it will find out the 
+   constituent rpc items and invoke their callbacks accordingly. */
+struct c2_rpc_form_item_coalesced {
+	/* Linkage to list of such coalesced rpc items. */
+	struct c2_list_link		*linkage;
+	/* Resultant coalesced rpc item*/
+	struct c2_rpc_item		*resultant_item;
+	/* No of constituent rpc items. */
+	uint64_t			nmembers;
+	/* List of constituent rpc items for this coalesced item. */
+	struct c2_list			member_list;
 };
 
 /** 
@@ -177,29 +196,35 @@ enum c2_rpc_form_int_event {
 (int (*ptr)(struct c2_rpc_item*, int)) c2_rpc_form_stateTable
 [C2_RPC_FORM_N_STATES][C2_RPC_FORM_EXTEVT_N_EVENTS + C2_RPC_FORM_INTEVT_N_EVENTS] = {
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_updating_state, c2_rpc_form_updating_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_waiting_state},
+	{ c2_rpc_form_updating_state, c2_rpc_form_updating_state, 
+	  c2_rpc_form_updating_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_waiting_state},
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state, 
-	  c2_rpc_form_checking_state, c2_rpc_form_updating_state},
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, 
+	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_checking_state, 
+	  c2_rpc_form_updating_state},
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_forming_state, c2_rpc_form_waiting_state},
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, 
+	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_forming_state, 
+	  c2_rpc_form_waiting_state},
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_posting_state, c2_rpc_form_forming_state},
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, 
+	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_posting_state, 
+	  c2_rpc_form_forming_state},
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_posting_state},
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, 
+	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_posting_state},
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_waiting_state, c2_rpc_form_waiting_state}
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state, 
+	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state, 
+	  c2_rpc_form_waiting_state}
 };
 
 /**
@@ -320,6 +345,16 @@ int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event);
    Core of formation algorithm. This state scans the rpc items cache and 
    internal data structure to form an RPC object by cooperation 
    of multiple policies.
+   For updates streams, formation algorithm checks their status. 
+   If update stream is FREE(Not Busy), it will be considered for
+   formation. 
+   Coalescing Policy: 
+   Groups and coalescing: Formation algorithm will try to coalesce rpc items
+   from same rpc groups as far as possible, otherwise items from different
+   groups will be coalesced.
+   Update streams and coalescing: Formation algorithm will not coalesce rpc
+   items across update streams. Rpc items belonging to same update stream 
+   will be coalesced if possible.
    @param item - input rpc item.
    @param event - Since CHECKING state handles a lot of events,
    it needs some way of identifying the events. */
@@ -333,6 +368,11 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event);
    sessions details in each rpc item. If there are any unbounded items, 
    sessions component will be queried to fetch sessions information 
    for such items. 
+   Sessions information: Formation algorithm will call a sessions API 
+   c2_rpc_session_item_prepare() for all rpc items which will give 
+   the needed sessions information. This way unbound items will also
+   get the sessions information. For items for which this API fails,
+   they will evicted out of the formed rpc object.
    @param item - input rpc item.
    @param event - Since FORMING state handles a lot of events,
    it needs some way of identifying the events. */
