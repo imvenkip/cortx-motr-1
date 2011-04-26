@@ -144,11 +144,17 @@ struct c2_net_bulk_mem_buffer_pvt {
    Transfer machine private data.
 */
 struct c2_net_bulk_mem_tm_pvt {
+	/** The transfer machine pointer */
 	struct c2_net_transfer_mc        *xtm_tm;
+	/** Internal state of the transfer machine */
 	enum c2_net_bulk_mem_tm_state     xtm_state;
+	/** Prioritized list of pending work items */
 	struct c2_list                    xtm_work_list;
+	/** Condition variable for the work item list */
 	struct c2_cond                    xtm_work_list_cv;
+	/** Array of worker threads allocated during startup */
 	struct c2_thread                 *xtm_worker_threads;
+	/** Number of worker threads */
 	size_t                            xtm_num_workers;
 };
 
@@ -156,7 +162,8 @@ struct c2_net_bulk_mem_tm_pvt {
    End point. It tracks an IP/port number address.
 */
 enum {
-	C2_NET_XEP_MAGIC = 0x6e455064696f746eULL,
+	C2_NET_XEP_MAGIC    = 0x6e455064696f746eULL,
+	C2_NET_XEP_ADDR_LEN = 24
 };
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
@@ -167,6 +174,9 @@ struct c2_net_bulk_mem_end_point {
 
 	/** Externally visible end point in the TM. */
 	struct c2_net_end_point  xep_ep;
+
+	/** Storage for the printable address */
+	char                     xep_addr[C2_NET_XEP_ADDR_LEN];
 };
 
 /**

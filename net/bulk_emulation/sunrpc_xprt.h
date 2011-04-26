@@ -57,9 +57,6 @@ struct c2_net_bulk_sunrpc_tm_pvt {
    to the yet undefined service.
  */
 struct c2_net_bulk_sunrpc_end_point {
-	/** The in-memory base end point */
-	struct c2_net_bulk_mem_end_point xep_base;
-
 	/** Indicator that xep_sid has been initialized */
 	bool                             xep_sid_valid;
 
@@ -76,6 +73,9 @@ struct c2_net_bulk_sunrpc_end_point {
 	    of the xep_conn_valid flag.
 	 */
 	struct c2_net_conn               xep_conn;
+
+	/** The in-memory base end point */
+	struct c2_net_bulk_mem_end_point xep_base;
 };
 
 /**

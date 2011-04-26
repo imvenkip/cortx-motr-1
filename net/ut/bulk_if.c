@@ -118,6 +118,7 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	/* allocate a new end point */
 	C2_ALLOC_PTR(utep);
 	utep->addr = ap; /* avoid strdup; this is a ut! */
+	utep->uep.nep_addr = ap;
 	c2_ref_init(&utep->uep.nep_ref, 1, ut_end_point_release);
 	utep->uep.nep_dom = dom;
 	c2_list_link_init(&utep->uep.nep_dom_linkage);

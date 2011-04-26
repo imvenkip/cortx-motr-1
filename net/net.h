@@ -455,6 +455,10 @@ struct c2_net_end_point {
 	struct c2_net_domain  *nep_dom;
 	/** Linkage in the domain list */
 	struct c2_list_link    nep_dom_linkage;
+	/** Transport specific printable representation of the
+	    end point address.
+	*/
+	const char            *nep_addr;
 };
 
 /**
@@ -468,14 +472,19 @@ struct c2_net_end_point {
    will be at least 1.
    @param dom Network domain pointer.
    @param ... Transport specific variable arguments describing the
-   end point address. These are optional, and if missing, the transport
-   will assign an end point with a dynamic, new address.
-   The list must terminate with a 0 - i.e. it is not permitted to not
-   have at least one argument in the variable length list.
-   Transports must be able to distinguish this terminating 0 from any
-   valid use of 0 as an argument, if permitted.
+   end point address.
+   These are optional, and if missing, the transport may support assignment
+   of an end point with a dynamic, new address; however this is not
+   guaranteed.
+   It is recommended that a transport accept a single argument string
+   with an address in the same printable representation form it produces
+   in the end point nep_addr field.
+   The variable argument list must terminate with a 0 - i.e. it is not
+   permitted to not have at least one argument in the list.  Transports
+   must be able to distinguish this terminating 0 from any valid use of
+   0 as an argument, if permitted.
    @see c2_net_end_point_get(), c2_net_end_point_put()
-   @post (*epp)->nep_ref->ref_cnt >= 1
+   @post (*epp)->nep_ref->ref_cnt >= 1 && (*epp)->nep_addr != NULL
  */
 int c2_net_end_point_create(struct c2_net_end_point   **epp,
 			    struct c2_net_domain       *dom,

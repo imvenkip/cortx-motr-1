@@ -116,7 +116,8 @@ static bool mem_ep_invariant(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	return mep->xep_magic == C2_NET_XEP_MAGIC;
+	return (mep->xep_magic == C2_NET_XEP_MAGIC &&
+		mep->xep_ep.nep_addr == &mep->xep_addr[0]);
 }
 
 static bool mem_buffer_invariant(struct c2_net_buffer *nb)
@@ -234,15 +235,19 @@ static int32_t mem_xo_get_max_buffer_segments(struct c2_net_domain *dom)
    @param dom  Domain pointer.
    @param varargs Variable length argument list. The following arguments are
    expected:
-   - @a ip  Dotted decimal IP address string (char *).
+   - @a ip  Dotted decimal IP address string (char *), or string in the
+   form of "dottedIP:PortNumber".
    The string is not referenced after returning from this method.
-   - @a port Port number (int)
+   - @a port Port number (int). Optional - required only if port number not
+   in the string.
+   - @a 0  The list must be terminated by a 0.
  */
 static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
 				   va_list varargs)
 {
-	char *dot_ip;
+	char buf[24];
+	const char *dot_ip;
 	struct sockaddr_in sa;
 
 	dot_ip = va_arg(varargs, char *);
@@ -250,8 +255,21 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 		return -EINVAL;
 	/* user: in_port_t, kernel: __be16 */
 	sa.sin_port = htons(va_arg(varargs, int));
-	if (sa.sin_port == 0)
-		return -EINVAL;
+	if (sa.sin_port == 0) {
+		/* dot_ip may be in printable form */
+		char *p;
+		int pnum;
+		strncpy(buf, dot_ip, sizeof(buf)-1); /* copy to modify */
+		buf[sizeof(buf)-1] = '\0';
+		for (p=buf; *p; p++)
+			if (*p == ':') break;
+		if (*p == '\0')
+			return -EINVAL;
+		*p++ = '\0'; /* zap the : */
+		sscanf(p, "%d", &pnum);
+		sa.sin_port = htons(pnum);
+		dot_ip = buf;
+	}
 #ifdef __KERNEL__
 	sa.sin_addr.s_addr = in_aton(dot_ip);
 	if (sa.sin_addr.s_addr == 0)

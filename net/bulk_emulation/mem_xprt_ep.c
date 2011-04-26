@@ -60,11 +60,31 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	mep->xep_magic = C2_NET_XEP_MAGIC;
 	mep->xep_sa.sin_addr = sa->sin_addr;
 	mep->xep_sa.sin_port = sa->sin_port;
+	/* create the printable representation */
+	{
+		char dot_ip[17];
+		int i;
+		size_t len = 0;
+		in_addr_t a = ntohl(sa->sin_addr.s_addr);
+		int nib[4];
+		for (i=3; i>=0; i--) {
+			nib[i] = a & 0xff;
+			a >>= 8;
+		}
+		for (i=0; i<4; i++) {
+			len += sprintf(&dot_ip[len], "%d.", nib[i]);
+		}
+		C2_ASSERT(len < sizeof(dot_ip));
+		dot_ip[len-1] = '\0';
+		sprintf(mep->xep_addr, "%s:%d", dot_ip, ntohs(sa->sin_port));
+		C2_ASSERT(strlen(mep->xep_addr) < C2_NET_XEP_ADDR_LEN);
+	}
 	ep = &mep->xep_ep;
 	c2_ref_init(&ep->nep_ref, 1, mem_xo_end_point_release);
 	ep->nep_dom = dom;
 	c2_list_link_init(&ep->nep_dom_linkage);
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
+	ep->nep_addr = &mep->xep_addr[0];
 	C2_POST(mem_ep_invariant(ep));
 	*epp = ep;
 	return 0;
