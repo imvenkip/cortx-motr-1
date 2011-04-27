@@ -19,7 +19,7 @@
    Each list contains rpc items destined for given endpoint.
    These lists are sorted by timeouts. So the items with least timeout
    will be at the HEAD of list.
-   Refer to the HLD of RPC Formation - 
+   Refer to the HLD of RPC Formation -
    https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en
 
    Formation is done on basis of various criterion
@@ -108,7 +108,7 @@ struct c2_rpc_form_fid_summary {
 	/** List of read requests on this fid. */
 	struct c2_list			 fs_read_list;
 	/** List of write requests on this fid. */
-	struct c2_list 			 fs_write_list;
+	struct c2_list			 fs_write_list;
 	/** Linkage into list of fids for this endpoint. */
 	struct c2_list_link		*fs_linkage;
 };
