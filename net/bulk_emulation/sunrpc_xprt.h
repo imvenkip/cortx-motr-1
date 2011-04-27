@@ -43,6 +43,15 @@ struct c2_net_bulk_sunrpc_domain_pvt {
         struct c2_net_domain              xd_rpc_dom;
 };
 
+/** Buffer private data. */
+struct c2_net_bulk_sunrpc_buffer_pvt {
+	/** The in-memory base private data */
+	struct c2_net_bulk_mem_buffer_pvt xsb_base;
+
+	/** The peer transport info, set on received operations */
+	struct sockaddr_in                xsb_peer_sa;
+};
+
 /** Transfer machine private data */
 struct c2_net_bulk_sunrpc_tm_pvt {
 	/** The in-memory base private data */

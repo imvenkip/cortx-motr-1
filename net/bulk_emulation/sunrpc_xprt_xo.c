@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/arith.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -81,6 +82,17 @@ int c2_sunrpc_fop_init(void)
 	return result;
 }
 
+/**
+   Add a work item to the work list
+*/
+static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
+			  struct c2_net_bulk_sunrpc_tm_pvt *tp)
+{
+	c2_list_add_tail(&tp->xtm_base.xtm_work_list, &wi->xwi_link);
+	c2_cond_signal(&tp->xtm_base.xtm_work_list_cv,
+		       &tp->xtm_base.xtm_tm->ntm_mutex);
+}
+
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)
 {
@@ -112,7 +124,8 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	/* override tunable parameters */
 	bdp->xd_sizeof_ep = sizeof(struct c2_net_bulk_sunrpc_end_point);
 	bdp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_sunrpc_tm_pvt);
-	bdp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
+	bdp->xd_sizeof_buffer_pvt =
+	    sizeof(struct c2_net_bulk_sunrpc_buffer_pvt);
 	bdp->xd_num_tm_threads = 2;
 
 	/* create the rpc domain (use in-mutex version of domain init) */
@@ -175,14 +188,14 @@ static int sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
 static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 {
 	struct c2_net_transfer_mc *tm = nb->nb_tm;
-	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+	struct c2_net_bulk_sunrpc_buffer_pvt *bp = nb->nb_xprt_private;
 
 	int rc;
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		rc = sunrpc_desc_create(&nb->nb_desc, nb->nb_ep, tm,
 					nb->nb_qtype, nb->nb_length,
-					bp->xb_buf_id);
+					bp->xsb_base.xb_buf_id);
 		if (rc != 0)
 			return rc;
 	default:
