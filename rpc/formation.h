@@ -63,7 +63,7 @@
 
 /**
    This structure is an internal data structure which builds up the 
-   summary form of data for each endpoint. 
+   summary form of data for all endpoints. 
    It contains a list of sub structures, one for each endpoint. */
 struct c2_rpc_form_item_summary {
 	/** List of internal data structures containing data for each 
@@ -79,8 +79,23 @@ struct c2_rpc_form_item_summary {
    So if, an rpc group contains IO requests on 2 files, this list 
    will contain these 2 fids. */
 struct c2_rpc_form_file_list {
-	/** List of file ids for those requests are made. */
-	struct c2_list		file_list;
+	/** List of file ids for IO requests to this endpoint. */
+	struct c2_list		io_list;
+};
+
+/**
+   Structure containing fid for io requests. 
+   This will help to make quick decisions to select candidates 
+   for coalescing of io requests. */
+struct c2_rpc_form_fid_summary {
+	/* File id on which IO request has come. */
+	struct c2_fid		*fid;
+	/* List of read requests on this fid. */
+	struct c2_list 		read_list;
+	/* List of write requests on this fid. */
+	struct c2_list 		write_list;
+	/* Linkage into list of fids for this endpoint. */
+	struct c2_list_link 	*linkage;
 };
 
 /**
@@ -100,7 +115,7 @@ struct c2_rpc_form_item_summary_unit {
 	struct c2_list_link 		*linkage;
 	/** List of structures containing data for each group. */
 	struct c2_list			groups_list;
-	/** List of files being operated upon in this rpc group. */
+	/** List of files being operated upon, for this endpoint. */
 	struct c2_rpc_form_file_list	file_list;
 	/** State of the state machine for this endpoint. 
 	    Threads will have to take the unit_lock above before
@@ -116,10 +131,14 @@ struct c2_rpc_form_item_summary_unit {
    its constituent rpc items. When a reply is received for a 
    coalesced rpc item, it will find out the requesting coalesced 
    rpc item and using this data structure, it will find out the 
-   constituent rpc items and invoke their callbacks accordingly. */
+   constituent rpc items and invoke their completion callbacks accordingly. 
+   Formation does not bother about splitting of reply for coalesced 
+   rpc item into sub replies for constituent rpc items. */
 struct c2_rpc_form_item_coalesced {
 	/* Linkage to list of such coalesced rpc items. */
 	struct c2_list_link		*linkage;
+	/* Intent of operation, read or write */
+	int				op_intent;
 	/* Resultant coalesced rpc item*/
 	struct c2_rpc_item		*resultant_item;
 	/* No of constituent rpc items. */
@@ -145,6 +164,12 @@ struct c2_rpc_form_item_summary_unit_group {
 	    This does not inlcude urgent items, they are 
 	    handled elsewhere. */
 	uint64_t 		 priority_items;
+	/** Average time out for items in this group. This number 
+	    gives an indication about relative position of group
+	    within the cache list. */
+	uint64_t		avg_timeout;
+	/** Cumulative size of rpc items in this group so far. */
+	uint64_t		total_size;
 };
 
 /** 
@@ -319,11 +344,24 @@ int c2_rpc_form_intevt_state_failed(int state)
 	   for state succeeded event. */
 }
 
+/**
+   Function to do the coalescing of related rpc items. 
+   This is invoked from FORMING state, so a list of selected 
+   rpc items is input to this function which coalesces 
+   possible items and shrinks the list. */
+int c2_rpc_form_coalesce_items(struct c2_list *items)
+{
+}
+
 /** 
    State function for WAITING state. 
-   If current rpcs in flight ares less than max_rpcs_in_flight, 
-   this state can transition into next state. 
-   Formation is waiting for any event to trigger. During this state, 
+   Formation is waiting for any event to trigger.
+   1. At first, this state will handle the "reply received" event and if 
+   reply is for a coalesced item, it will call completion callbacks for
+   all constituent rpc items by referring internal structure 
+   c2_rpc_form_item_coalesced.
+   2. If current rpcs in flight ares less than max_rpcs_in_flight, 
+   this state can transition into next state. During this state, 
    rpc objects could be in flight. If current rpcs in flight [n] 
    is less than max_rpcs_in_flight, state transitions to UPDATING, 
    else keeps waiting till n is less than max_rpcs_in_flight.
@@ -343,31 +381,66 @@ int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event);
 /** 
    State function for CHECKING state. 
    Core of formation algorithm. This state scans the rpc items cache and 
-   internal data structure to form an RPC object by cooperation 
-   of multiple policies.
-   For updates streams, formation algorithm checks their status. 
+   structure c2_rpc_form_item_summary_unit to form an RPC object by 
+   cooperation of multiple policies.
+   Formation algorithm will take hints from rpc groups and will try to
+   form rpc objects by keeping all group member rpc items together.
+   For update streams, formation algorithm checks their status. 
    If update stream is FREE(Not Busy), it will be considered for
-   formation. 
+   formation. Checking state will take care of coalescing of items. 
    Coalescing Policy: 
    Groups and coalescing: Formation algorithm will try to coalesce rpc items
    from same rpc groups as far as possible, otherwise items from different
    groups will be coalesced.
    Update streams and coalescing: Formation algorithm will not coalesce rpc
    items across update streams. Rpc items belonging to same update stream 
-   will be coalesced if possible.
+   will be coalesced if possible since there is no sequence number assigned
+   yet to the rpc items.
    @param item - input rpc item.
    @param event - Since CHECKING state handles a lot of events,
    it needs some way of identifying the events. */
-int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event);
+int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
+{
+	/**
+	   Formation Algorithm. 
+	   1. Read rpc items from the cache for this endpoint. 
+	   2. If the item deadline is zero(urgent), add it to a local
+	      list of rpc items to be formed. 
+	   3. Check size of formed rpc object so far to see if its optimal.
+	      Here size of rpc is compared with max_message_size. If size of
+	      rpc is far less than max_message_size, goto #1. 
+	   4. If #3 is true and if the number of disjoint memory buffers 
+	      is less than parameter max_fragment_size, a probable rpc object 
+	      is in making. The selected rpc items are put on a list
+	      and the state machine transitions to next state.
+	   5. Consult the structure c2_rpc_form_item_summary_unit to find out
+	      data about all rpc groups. Select groups that have combination of 
+	      lowest average timeout and highest size that fits into optimal
+	      size. Keep selecting such groups till optimal size rpc is 
+	      not formed.
+	   6. Consult the structure c2_rpc_form_file_list to find out files
+	      on which IO requests have come for this endpoint. Do coalescing
+	      within groups selected for formation according to read/write 
+	      intents. Later if rpc has still not reached its optimal size,
+	      coalescing across rpc groups will be done.
+	   7. Negate the data of selected rpc items from internal data 
+	      structure. 
+	   8. If the formed rpc object is sub optimal but it contains
+	      an urgent item, it will be formed immediately. Else, it will
+	      be discarded.
+	 
+	 
+	 
+	 */
+}
 
 /** 
    State function for FORMING state. 
-   This state actually creates an RPC object structure (struct c2_rpc) 
-   by putting selected rpc items into the rpc object. This state will 
-   take care of coalescing necessary rpc items. It will also check for 
-   sessions details in each rpc item. If there are any unbounded items, 
-   sessions component will be queried to fetch sessions information 
-   for such items. 
+   This state creates an RPC object structure (struct c2_rpc) 
+   by putting selected rpc items into the rpc object. 
+   It will also check for sessions details in each rpc item. 
+   If there are any unbounded items, sessions component will be 
+   queried to fetch sessions information for such items. 
    Sessions information: Formation algorithm will call a sessions API 
    c2_rpc_session_item_prepare() for all rpc items which will give 
    the needed sessions information. This way unbound items will also
