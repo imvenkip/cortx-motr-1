@@ -297,16 +297,17 @@ enum c2_rpc_form_int_event {
 	  c2_rpc_form_waiting_state}
 };
 
+typedef int (*stateFunc)(struct c2_rpc_item*, int);
+
 /**
    Return the function pointer to next state given the current state
    and current event as input. 
    @param current_state - current state of state machine.
    @param current_event - current event posted to the state machine.
  */
-(int (*ptr) (struct c2_rpc_item*, int)) c2_rpc_form_next_state
-	(int current_state, int current_event)
+stateFunc c2_rpc_form_next_state(int current_state, int current_event)
 {
-	/** Return the next state by consulting the state table. */
+	 /** Return the next state by consulting the state table. */
 }
 
 /** 
@@ -422,9 +423,7 @@ int c2_rpc_form_intevt_state_failed(int state)
    possible items and shrinks the list. 
    @param items - list of items to be coalesced.
  */
-int c2_rpc_form_coalesce_items(struct c2_list *items)
-{
-}
+int c2_rpc_form_coalesce_items(struct c2_list *items);
 
 /** 
    State function for WAITING state. 
