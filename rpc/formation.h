@@ -1,18 +1,28 @@
 #ifndef __C2_RPC_FORMATION_H__
 #define __C2_RPC_FORMATION_H__
 
+#include <rpccore.h>
+#include <session.h>
+
 /**
-  Formation component runs as a state machine driven by external events. 
-  There are no internal threads belonging to formation component.
-  Formation component uses the "RPC Items cache" as input and sends out
-  RPC objects which are containers of rpc items as soon as they are ready.
-  The grouping component populates the rpc items cache which is then
-  used by formation component to form them into rpc objects.
-  The rpc items cache is grouped into several lists, one per endpoint.
-  Each list contains rpc items destined for given endpoint.
-  These lists are sorted by timeouts. So the items with least timeout
-  will be at the HEAD of list.
-  Formation is done on basis of various criterion
+   @defgroup rpc_formation Formation sub component from RPC layer.
+   @{
+   Formation component runs as a state machine driven by external events. 
+   The state machine is run per endpoint and it maintains state and its
+   internal data per endpoint.
+   There are no internal threads belonging to formation component.
+   Formation component uses the "RPC Items cache" as input and sends out
+   RPC objects which are containers of rpc items as soon as they are ready.
+   The grouping component populates the rpc items cache which is then
+   used by formation component to form them into rpc objects.
+   The rpc items cache is grouped into several lists, one per endpoint.
+   Each list contains rpc items destined for given endpoint.
+   These lists are sorted by timeouts. So the items with least timeout
+   will be at the HEAD of list.
+   Refer to the HLD of RPC Formation -  
+   https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en
+
+   Formation is done on basis of various criterion
    * timeout
    * priority
    * rpc group
@@ -20,82 +30,87 @@
    * max_message_size (max permissible size of RPC object)
    * max_rpcs_in_flight (max number of RPCs that could be in flight)
    * max_message_fragments (max number of disjoint memory buffers)
-  The Formation component will use an internal data structure that gives 
-  summary of data in the input list. This data structure will help in 
-  making quick decisions so as to select best candidates for rpc formation
-  and can prevent multiple scans of the rpc items list.
-  There are a multitude of external events that can come to formation and
-  it handles them and moves the state machine to appropriate states as 
-  a result.
-  The external events are
-  * addition of an rpc item to the input list.
-  * deletion of rpc item from the input list.
-  * change of parameter for an rpc item.
-  * reply received.
-  * deadline expired(timeout) of an rpc item.
-  Also, there are a number of states through which the formation state
-  machine transitions.
-  * WAITING (waiting for an event to trigger)
-  * UPDATING (updates the internal data structure)
-  * CHECKING (core of formation algorithm)
-  * FORMING (Forming an rpc object in memory)
-  * POSTING (Sending the rpc object over wire?)
-  Along with these external events, there are some implicit internal 
-  events which are used to transition the state machine from one state 
-  to the next state on the back of same thread.
-  These internal events are
-  * state succeeded.
-  * state failed.
-  The formation component maintains its current state in a state variable
-  which is protected by a lock. At any time, the state machine can only be
-  in one state.
-  The lifecycle of any thread executing the formation state machine is 
-  something like this
-  * execute a state function as a result of triggering of some event.
-  * acquire the state lock.
-  * change the state of state machine.
-  * release the state lock.
-  * lock the internal data structure.
-  * operate on the internal data structure.
-  * release the internal data structure lock.
-  * pass through the sub sequent states as states succeed and exit 
-  */
+
+   The Formation component will use an internal data structure that gives 
+   summary of data in the input list. This data structure will help in 
+   making quick decisions so as to select best candidates for rpc formation
+   and can prevent multiple scans of the rpc items list.
+   There are a multitude of external events that can come to formation and
+   it handles them and moves the state machine to appropriate states as 
+   a result.
+
+   The external events are
+   * addition of an rpc item to the input list.
+   * deletion of rpc item from the input list.
+   * change of parameter for an rpc item.
+   * reply received.
+   * deadline expired(timeout) of an rpc item.
+   Also, there are a number of states through which the formation state
+   machine transitions.
+   * WAITING (waiting for an event to trigger)
+   * UPDATING (updates the internal data structure)
+   * CHECKING (core of formation algorithm)
+   * FORMING (Forming an rpc object in memory)
+   * POSTING (Sending the rpc object over wire?)
+
+   Along with these external events, there are some implicit internal 
+   events which are used to transition the state machine from one state 
+   to the next state on the back of same thread.
+   These internal events are
+   * state succeeded.
+   * state failed.
+   The formation component maintains its current state in a state variable
+   which is protected by a lock. At any time, the state machine can only be
+   in one state.
+   The lifecycle of any thread executing the formation state machine is 
+   something like this
+   * execute a state function as a result of triggering of some event.
+   * acquire the state lock.
+   * change the state of state machine.
+   * release the state lock.
+   * lock the internal data structure.
+   * operate on the internal data structure.
+   * release the internal data structure lock.
+   * pass through the sub sequent states as states succeed and exit 
+ */
 
 /**
    This structure is an internal data structure which builds up the 
    summary form of data for all endpoints. 
-   It contains a list of sub structures, one for each endpoint. */
+   It contains a list of sub structures, one for each endpoint. 
+ */
 struct c2_rpc_form_item_summary {
-	/** List of internal data structures containing data for each 
-	    endpoint. */
-	struct c2_list 		endp_list;
+	/** List of internal data structures with data for each endpoint */
+	struct c2_list 			is_endp_list;
 	/** Mutex protecting the list from concurrent access. */
-	struct c2_mutex 	endp_list_lock;
+	struct c2_mutex 		is_endp_list_lock;
 };
 
 /** 
    This structure contains the files involved in any IO operation 
    in a given rpc group. 
    So if, an rpc group contains IO requests on 2 files, this list 
-   will contain these 2 fids. */
+   will contain these 2 fids. 
+ */
 struct c2_rpc_form_file_list {
 	/** List of file ids for IO requests to this endpoint. */
-	struct c2_list		io_list;
+	struct c2_list			fl_io_list;
 };
 
 /**
    Structure containing fid for io requests. 
    This will help to make quick decisions to select candidates 
-   for coalescing of io requests. */
+   for coalescing of io requests. 
+ */
 struct c2_rpc_form_fid_summary {
-	/* File id on which IO request has come. */
-	struct c2_fid		*fid;
-	/* List of read requests on this fid. */
-	struct c2_list 		read_list;
-	/* List of write requests on this fid. */
-	struct c2_list 		write_list;
-	/* Linkage into list of fids for this endpoint. */
-	struct c2_list_link 	*linkage;
+	/** File id on which IO request has come. */
+	struct c2_fid	       	       *fs_fid;
+	/** List of read requests on this fid. */
+	struct c2_list 			fs_read_list;
+	/** List of write requests on this fid. */
+	struct c2_list 			fs_write_list;
+	/** Linkage into list of fids for this endpoint. */
+	struct c2_list_link            *fs_linkage;
 };
 
 /**
@@ -107,23 +122,24 @@ struct c2_rpc_form_fid_summary {
    This will help to ensure that requests belonging to different 
    endpoints can proceed in their own state machines. Only the 
    requests belonging to same endpoint will contest for the 
-   state variable. */
+   state variable. 
+ */
 struct c2_rpc_form_item_summary_unit {
 	/** Mutex protecting the unit from concurrent access. */
-	struct c2_mutex			unit_lock;
+	struct c2_mutex			isu_unit_lock;
 	/** Linkage into the endpoint list. */
-	struct c2_list_link 		*linkage;
+	struct c2_list_link 	       *isu_linkage;
 	/** List of structures containing data for each group. */
-	struct c2_list			groups_list;
+	struct c2_list			isu_groups_list;
 	/** List of files being operated upon, for this endpoint. */
-	struct c2_rpc_form_file_list	file_list;
+	struct c2_rpc_form_file_list	isu_file_list;
 	/** State of the state machine for this endpoint. 
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
-	int 				endp_state;
-	/* List of coalesced rpc items. */
-	struct c2_list			coalesced_items;
+	int 				isu_endp_state;
+	/** List of coalesced rpc items. */
+	struct c2_list			isu_coalesced_items;
 };
 
 /**
@@ -133,91 +149,120 @@ struct c2_rpc_form_item_summary_unit {
    rpc item and using this data structure, it will find out the 
    constituent rpc items and invoke their completion callbacks accordingly. 
    Formation does not bother about splitting of reply for coalesced 
-   rpc item into sub replies for constituent rpc items. */
+   rpc item into sub replies for constituent rpc items. 
+ */
 struct c2_rpc_form_item_coalesced {
-	/* Linkage to list of such coalesced rpc items. */
-	struct c2_list_link		*linkage;
-	/* Intent of operation, read or write */
-	int				op_intent;
-	/* Resultant coalesced rpc item*/
-	struct c2_rpc_item		*resultant_item;
-	/* No of constituent rpc items. */
-	uint64_t			nmembers;
-	/* List of constituent rpc items for this coalesced item. */
-	struct c2_list			member_list;
+	/** Linkage to list of such coalesced rpc items. */
+	struct c2_list_link	       *ic_linkage;
+	/** Intent of operation, read or write */
+	int				ic_op_intent;
+	/** Resultant coalesced rpc item*/
+	struct c2_rpc_item	       *ic_resultant_item;
+	/** No of constituent rpc items. */
+	uint64_t			ic_nmembers;
+	/** List of constituent rpc items for this coalesced item. */
+	struct c2_list			ic_member_list;
 };
 
 /** 
    This structure represents the summary data for a given rpc group 
-   destined for a given endpoint. */
+   destined for a given endpoint. 
+ */
 struct c2_rpc_form_item_summary_unit_group {
 	/** Linkage into the list of groups belonging to this 
 	    endpoint. */
-	struct c2_list_link	*linkage;
+	struct c2_list_link	       *sug_linkage;
 	/** The group number this data belongs to. */
-	uint64_t		 group_no;
+	uint64_t		 	sug_group_no;
 	/** Number of items from this group found so far. */
-	uint64_t		 nitems;
+	uint64_t		 	sug_nitems;
 	/** Number of expected items from this group. */
-	uint64_t		 expected_items;
+	uint64_t		 	sug_expected_items;
 	/** Number of highest priority items from this group. 
 	    This does not inlcude urgent items, they are 
 	    handled elsewhere. */
-	uint64_t 		 priority_items;
+	uint64_t 		 	sug_priority_items;
 	/** Average time out for items in this group. This number 
 	    gives an indication about relative position of group
 	    within the cache list. */
-	uint64_t		avg_timeout;
+	uint64_t			sug_avg_timeout;
 	/** Cumulative size of rpc items in this group so far. */
-	uint64_t		total_size;
+	uint64_t			sug_total_size;
 };
 
 /** 
    This structure contains the list of rpc objects which are formed
    but not yet sent on wire. It contains a lock to protect concurrent
-   access to the structure. */
+   access to the structure. 
+ */
 struct c2_rpc_form_rpcobj_list {
 	/** Mutex protecting the list of rpc objects from concurrent access. */
-	struct c2_mutex		rpcobj_lock;
+	struct c2_mutex			rl_lock;
 	/** List of rpc objects formed but not yet sent on wire. */
-	struct c2_list		rpcobj_list;
+	struct c2_list			rl_list;
 };
 
 /**
-   Enumeration of all possible states. */
+   Enumeration of all possible states. 
+ */
 enum c2_rpc_form_state {
+	/** WAITING state for state machine, where it waits for 
+	    any event to trigger. */
 	C2_RPC_FORM_STATE_WAITING = 0,
+	/** UPDATING state for state machine, where it updates 
+	    internal data structure (struct c2_rpc_form_item_summary_unit) */
 	C2_RPC_FORM_STATE_UPDATING,
+	/** CHECKING state for state machine, which employs formation
+	    algorithm. */
 	C2_RPC_FORM_STATE_CHECKING,
+	/** FORMING state for state machine, which forms the struct c2_rpc
+	    object from a list of member rpc items. */
 	C2_RPC_FORM_STATE_FORMING,
+	/** POSTING state for state machine, which posts the formed rpc
+	    object to output component. */
 	C2_RPC_FORM_STATE_POSTING,
+	/** REMOVING state for state machine, which changes the internal 
+	    data structure according to the changed rpc item. */
 	C2_RPC_FORM_STATE_REMOVING,
+	/** MAX States of state machine. */
 	C2_RPC_FORM_N_STATES
 };
 
 /** 
-   Enumeration of external events. */
+   Enumeration of external events. 
+ */
 enum c2_rpc_form_ext_event {
+	/** RPC Item added to cache. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_ADDED = 0,
+	/** RPC item removed from cache. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED,
+	/** Parameter change for rpc item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED,
+	/** Reply received for an rpc item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED,
+	/** Deadline expired for rpc item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT,
+	/** Max external events. */
 	C2_RPC_FORM_EXTEVT_N_EVENTS
 };
 
 /**
-   Enumeration of internal events. */
+   Enumeration of internal events. 
+ */
 enum c2_rpc_form_int_event {
+	/** Execution succeeded in current state. */
 	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = 0,
+	/** Execution failed in current state. */
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
+	/** Max internal events. */
 	C2_RPC_FORM_INTEVT_N_EVENTS
 };
 
 /**
    A state table guiding resultant states on arrival of events 
    on earlier states. 
-   next_state = stateTable[current_state][current_event] */
+   next_state = stateTable[current_state][current_event] 
+ */
 (int (*ptr)(struct c2_rpc_item*, int)) c2_rpc_form_stateTable
 [C2_RPC_FORM_N_STATES][C2_RPC_FORM_EXTEVT_N_EVENTS + C2_RPC_FORM_INTEVT_N_EVENTS] = {
 
@@ -254,101 +299,129 @@ enum c2_rpc_form_int_event {
 
 /**
    Return the function pointer to next state given the current state
-   and current event as input. */
+   and current event as input. 
+   @param current_state - current state of state machine.
+   @param current_event - current event posted to the state machine.
+ */
 (int (*ptr) (struct c2_rpc_item*, int)) c2_rpc_form_next_state
 	(int current_state, int current_event)
 {
-	/* Return the next state by consulting the state table. */
+	/** Return the next state by consulting the state table. */
 }
 
 /** 
    A default handler function for invoking all state functions
-   based on incoming event. */
+   based on incoming event. 
+   @param item - incoming rpc item needed for external events.
+   @param event - event posted to the state machine.
+ */
 void c2_rpc_form_default_handler(struct c2_rpc_item *item, int event)
 {
-	/* Find out the endpoint for given rpc item. */
-	/* Lock the c2_rpc_form_item_summary_unit data structure. */
-	/* Fetch the state for this endpoint and find out the resulting state
-	   from the state table given this event.*/
-	/* Call the respective state function for resulting state. */
-	/* Release the lock. */
-	/* Handle further events on basis of return value of 
-	   recent state function. */
+	/** 
+	    1. Find out the endpoint for given rpc item. 
+	    2. Lock the c2_rpc_form_item_summary_unit data structure. 
+	    3. Fetch the state for this endpoint and find out the resulting state
+	       from the state table given this event.
+	    4. Call the respective state function for resulting state. 
+	    5. Release the lock. 
+	    6. Handle further events on basis of return value of 
+	       recent state function.
+	 */
 }
 
 /** 
-   Callback functions for handling of external events. 
-   These functions call the default handler which calls corresponding 
-   state functions. */
-
-/** 
-   Callback function for addition of an rpc item to the rpc items cache. */
+   Callback function for addition of an rpc item to the rpc items cache. 
+   @param item - incoming rpc item.
+ */
 int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item) 
 {
-	/* Call the default handler function passing the rpc item and 
-	   the corresponding event enum. */
+	/** 
+	   Call the default handler function passing the rpc item and 
+	   the corresponding event enum. 
+	 */
 }
 
 /** 
-   Callback function for deletion of an rpc item from the rpc items cache. */
+   Callback function for deletion of an rpc item from the rpc items cache. 
+   @param item - incoming rpc item.
+ */
 int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item) 
 {
-	/* Call the default handler function passing the rpc item and 
-	   the corresponding event enum. */
+	/** 
+	   Call the default handler function passing the rpc item and 
+	   the corresponding event enum. 
+	 */
 }
 
 /** 
-   Callback function for change in parameter of an rpc item. */
+   Callback function for change in parameter of an rpc item. 
+   @param item - incoming rpc item.
+ */
 int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item) 
 {
-	/* Call the default handler function passing the rpc item and 
-	   the corresponding event enum. */
+	/** 
+	   Call the default handler function passing the rpc item and 
+	   the corresponding event enum. 
+	 */
 }
 
 /** 
-   Callback function for reply received of an rpc item. */
+   Callback function for reply received of an rpc item. 
+   @param item - incoming rpc item.
+ */
 int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *item) 
 {
-	/* Call the default handler function passing the rpc item and 
-	   the corresponding event enum. */
+	/** 
+	   Call the default handler function passing the rpc item and 
+	   the corresponding event enum. 
+	 */
 }
 
 /** 
-   Callback function for deadline expiry of an rpc item. */
+   Callback function for deadline expiry of an rpc item. 
+   @param item - incoming rpc item.
+ */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item) 
 {
-	/* Call the default handler function passing the rpc item and 
-	   the corresponding event enum. */
+	/** 
+	   Call the default handler function passing the rpc item and 
+	   the corresponding event enum. 
+	 */
 }
 
-/** 
-   Callback functions for handling of internal events. 
-   These functions call the default handler which calls corresponding
-   state functions. */
-
 /**
-   Callback function for successful completion of a state. */
+   Callback function for successful completion of a state. 
+   @param state - previous state of state machine.
+ */
 int c2_rpc_form_intevt_state_succeeded(int state)
 {
-	/* Call the default handler function. Depending upon the 
+	/** 
+	   Call the default handler function. Depending upon the 
 	   input state, the default handler will invoke the next state
-	   for state succeeded event. */
+	   for state succeeded event. 
+	 */
 }
 
 /**
-   Callback function for failure of a state. */
+   Callback function for failure of a state. 
+   @param state - previous state of state machine.
+ */
 int c2_rpc_form_intevt_state_failed(int state)
 {
-	/* Call the default handler function. Depending upon the 
+	/** 
+	   Call the default handler function. Depending upon the 
 	   input state, the default handler will invoke the next state
-	   for state succeeded event. */
+	   for state succeeded event. 
+	 */
 }
 
 /**
    Function to do the coalescing of related rpc items. 
    This is invoked from FORMING state, so a list of selected 
    rpc items is input to this function which coalesces 
-   possible items and shrinks the list. */
+   possible items and shrinks the list. 
+   @param items - list of items to be coalesced.
+ */
 int c2_rpc_form_coalesce_items(struct c2_list *items)
 {
 }
@@ -367,7 +440,8 @@ int c2_rpc_form_coalesce_items(struct c2_list *items)
    else keeps waiting till n is less than max_rpcs_in_flight.
    @param item - input rpc item.
    @param event - Since WAITING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_waiting_state(struct c2_rpc_item *item, int event);
 
 /** 
@@ -375,7 +449,8 @@ int c2_rpc_form_waiting_state(struct c2_rpc_item *item, int event);
    Formation is updating its internal data structure by taking necessary locks.
    @param item - input rpc item.
    @param event - Since UPDATING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event);
 
 /** 
@@ -398,7 +473,8 @@ int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event);
    yet to the rpc items.
    @param item - input rpc item.
    @param event - Since CHECKING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
 {
 	/**
@@ -428,9 +504,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
 	   8. If the formed rpc object is sub optimal but it contains
 	      an urgent item, it will be formed immediately. Else, it will
 	      be discarded.
-	 
-	 
-	 
+	   9. This process is repeated until the size of formed rpc object
+	      is sub optimal or there is no urgent item in the list.  
 	 */
 }
 
@@ -448,7 +523,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
    they will evicted out of the formed rpc object.
    @param item - input rpc item.
    @param event - Since FORMING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_forming_state(struct c2_rpc_item *item, int event);
 
 /** 
@@ -456,7 +532,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_item *item, int event);
    This state will post the formed rpc object to the output component.
    @param item - input rpc item.
    @param event - Since POSTING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_posting_state(struct c2_rpc_item *item, int event);
 
 /** 
@@ -466,8 +543,11 @@ int c2_rpc_form_posting_state(struct c2_rpc_item *item, int event);
    if it is selected to be a part of rpc object.
    @param item - input rpc item.
    @param event - Since REMOVING state handles a lot of events,
-   it needs some way of identifying the events. */
+   it needs some way of identifying the events. 
+ */
 int c2_rpc_form_removing_state(struct c2_rpc_item *item, int event);
 
-#endif 
+/** @} endgroup of rpc_formation */
+
+#endif /* __C2_RPC_FORMATION_H__ */
 
