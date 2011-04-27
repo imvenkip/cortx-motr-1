@@ -28,16 +28,25 @@ struct c2_net_bulk_sunrpc_domain_pvt;
 struct c2_net_bulk_sunrpc_tm_pvt;
 struct c2_net_bulk_sunrpc_end_point;
 
+enum {
+	C2_NET_BULK_SUNRPC_XDP_MAGIC = 0x53756e7270634450ULL,
+	C2_NET_BULK_SUNRPC_XTM_MAGIC = 0x53756e727063544dULL,
+	C2_NET_BULK_SUNRPC_XEP_MAGIC = 0x53756e7270634550ULL,
+};
+
+
 /** Domain private data. */
 struct c2_net_bulk_sunrpc_domain_pvt {
 	/** The in-memory base domain */
 	struct c2_net_bulk_mem_domain_pvt xd_base;
 
+	uint64_t                          xd_magic;
+
         /** Copy of in-mem work functions. */
 	c2_net_bulk_mem_work_fn_t         xd_base_work_fn[C2_NET_XOP_NR];
 
-	/** Pointer to in-mem xo_ functions */
-	struct c2_net_xprt_ops           *xd_base_ops;
+	/** Copy of in-mem subroutines */
+	struct c2_net_bulk_mem_ops        xd_base_ops;
 
 	/** The {uk}sunrpc domain */
         struct c2_net_domain              xd_rpc_dom;
@@ -47,6 +56,8 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 struct c2_net_bulk_sunrpc_tm_pvt {
 	/** The in-memory base private data */
 	struct c2_net_bulk_mem_tm_pvt xtm_base;
+
+	uint64_t                      xtm_magic;
 
 	/** The rpc service */
 	struct c2_service             xtm_service;
@@ -63,6 +74,11 @@ struct c2_net_bulk_sunrpc_tm_pvt {
    to the yet undefined service.
  */
 struct c2_net_bulk_sunrpc_end_point {
+	/** The in-memory base end point */
+	struct c2_net_bulk_mem_end_point xep_base;
+
+	uint64_t                         xep_magic;
+
 	/** Indicator that xep_sid has been initialized */
 	bool                             xep_sid_valid;
 
@@ -78,10 +94,7 @@ struct c2_net_bulk_sunrpc_end_point {
 	    transfer machine mutex during creation and setting
 	    of the xep_conn_valid flag.
 	 */
-	struct c2_net_conn               xep_conn;
-
-	/** The in-memory base end point */
-	struct c2_net_bulk_mem_end_point xep_base;
+	struct c2_net_conn              *xep_conn;
 };
 
 int c2_sunrpc_fop_init(void);

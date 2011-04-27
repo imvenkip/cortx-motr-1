@@ -14,6 +14,9 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
+static int sunrpc_ep_mutex_initialized;
+static struct c2_mutex sunrpc_ep_mutex;
+
 /**
    @}
 */
