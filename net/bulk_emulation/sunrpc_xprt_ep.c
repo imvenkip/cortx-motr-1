@@ -8,8 +8,19 @@
  */
 
 static int sunrpc_ep_mutex_initialized = 0;
+
+/**
+   Mutex used to serialize the creation of a service id and
+   network connection for an end point.
+ */
 static struct c2_mutex sunrpc_ep_mutex;
 
+/**
+   The uuid of a service will be created by using the following sprintf
+   format string and providing the port number as its argument.
+   It has to be unique on a given node.
+ */
+static const char *c2_net_bulk_sunrpc_uuid_fmt = "BulkSunrpc-%d";
 
 /**
    End point release subroutine for sunrpc.
@@ -55,6 +66,8 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
    It sets the magic number, builds the service id and replaces the
    base transport release subroutine.
 
+   Must be called within the domain mutex.
+
    @param ep  The newly created end point.
    @param dom The domain pointer.
    @retval 0 on success
@@ -70,6 +83,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
 
 	C2_PRE(sunrpc_dom_invariant(dom));
+	/* create the base transport ep first */
 	rc = (*dp->xd_base_ops.bmo_ep_create)(epp, dom, sa);
 	if (rc != 0)
 		return rc;
@@ -82,14 +96,18 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	if (!sep->xep_sid_valid) {
 		char host[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 		char *p;
+		int port = ntohs(mep->xep_sa.sin_port);
+		/* create the service uuid */
+		sprintf(sep->xep_sid.si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
+		C2_ASSERT(strlen(sep->xep_sid.si_uuid) <
+			  sizeof(sep->xep_sid.si_uuid));
 		/* copy the printable addr ("dotted_ip_addr:port") */
 		strncpy(host, (*epp)->nep_addr, sizeof(host)-1);
 		host[sizeof(host)-1] = '\0';
 		for (p=host; *p && *p != ':'; p++);
 		*p = '\0'; /* isolate the hostname */
 		rc = c2_service_id_init(&sep->xep_sid, &dp->xd_rpc_dom,
-					host,
-					ntohs(mep->xep_sa.sin_port));
+					host, port);
 		if (rc == 0)
 			sep->xep_sid_valid = true;
 	}
@@ -104,16 +122,21 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	return rc;
 }
 
-#if 0
 /**
    This subroutine ensures that the xep_conn pointer in the end point
    points to a network connection.
+
+   Do not release the connection. It will get released when the end
+   point is released.
+   @param ep End point pointer
+   @param conn Optional - returns the value of xep_conn on success.
    @retval 0 Success, xep_conn can be used.
    @retval -errno Failure
  */
-static int sunrpc_ep_make_conn(struct c2_net_end_point *ep)
+static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
+			       struct c2_net_conn **conn_p)
 {
-	int rc = 0;
+	int rc;
 	struct c2_net_bulk_mem_end_point *mep;
 	struct c2_net_bulk_sunrpc_end_point *sep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
@@ -121,14 +144,18 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep)
 
 	C2_PRE(sunrpc_ep_invariant(ep));
 	C2_PRE(sep->xep_sid_valid);
+	/* the connection may already be available */
 	if (sep->xep_conn_valid) {
 		C2_ASSERT(sep->xep_conn != NULL);
+		if (conn_p != NULL)
+			*conn_p = sep->xep_conn;
 		return 0;
 	}
-	/* open a connection */
+	/* create the connection in the mutex */
 	c2_mutex_lock(&sunrpc_ep_mutex);
+	rc = 0;
 	do {
-		if (sep->xep_conn_valid)
+		if (sep->xep_conn_valid) /* check again */
 			break;
 		rc = c2_net_conn_create(&sep->xep_sid);
 		if (rc != 0)
@@ -143,9 +170,10 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep)
 	} while(0);
 	c2_mutex_unlock(&sunrpc_ep_mutex);
 	C2_POST(ergo(rc == 0, sep->xep_conn != NULL));
+	if (rc == 0 && conn_p != NULL)
+		*conn_p = sep->xep_conn;
 	return rc;
 }
-#endif
 
 /**
    Create a network buffer descriptor from a sunrpc end point.

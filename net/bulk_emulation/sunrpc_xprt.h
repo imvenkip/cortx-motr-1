@@ -36,7 +36,6 @@ enum {
 	C2_NET_BULK_SUNRPC_XBP_MAGIC = 0x53756e7270634250ULL,
 };
 
-
 /** Domain private data. */
 struct c2_net_bulk_sunrpc_domain_pvt {
 	/** The in-memory base domain */
@@ -50,7 +49,7 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 	/** Copy of in-mem subroutines */
 	struct c2_net_bulk_mem_ops        xd_base_ops;
 
-	/** The {uk}sunrpc domain */
+	/** The user or kernel space sunrpc domain */
         struct c2_net_domain              xd_rpc_dom;
 };
 
@@ -102,10 +101,12 @@ struct c2_net_bulk_sunrpc_end_point {
 	struct c2_service_id             xep_sid;
 
 	/**
-	    Network connector.  The creation of this is deferred
-	    until first use. It must be protected by the
-	    transfer machine mutex during creation and setting
-	    of the xep_conn_valid flag.
+	    Network connection.  The creation of this is deferred
+	    until first use. Its existence is defined by the
+	    value of the xep_conn_valid field.
+	    Use the sunrpc_ep_make_conn() subroutine to ensure that
+	    the connection exists prior to use.
+	    @see sunrpc_ep_make_conn()
 	 */
 	struct c2_net_conn              *xep_conn;
 };
