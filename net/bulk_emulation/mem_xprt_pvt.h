@@ -76,6 +76,19 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
  (sa1)->sin_addr.s_addr == (sa2)->sin_addr.s_addr &&	\
  (sa1)->sin_port        == (sa2)->sin_port
 
+#ifdef MEM_EP_CREATE
+#undef MEM_EP_CREATE
+#endif
+/**
+   Macro to indirectly invoke the mem_ep_create subroutine via the domain
+   function pointer, to support derived transports.
+ */
+#define MEM_EP_CREATE(epp, dom, sa)					\
+({									\
+	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;	\
+	dp->xd_ep_create(epp, dom, sa);					\
+ })
+
 /**
    @}
 */

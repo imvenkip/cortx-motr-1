@@ -162,8 +162,8 @@ struct c2_net_bulk_mem_tm_pvt {
    End point. It tracks an IP/port number address.
 */
 enum {
-	C2_NET_XEP_MAGIC    = 0x6e455064696f746eULL,
-	C2_NET_XEP_ADDR_LEN = 24
+	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
+	C2_NET_BULK_MEM_XEP_ADDR_LEN = 24
 };
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
@@ -176,7 +176,7 @@ struct c2_net_bulk_mem_end_point {
 	struct c2_net_end_point  xep_ep;
 
 	/** Storage for the printable address */
-	char                     xep_addr[C2_NET_XEP_ADDR_LEN];
+	char                     xep_addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 };
 
 /**
@@ -190,6 +190,7 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
 				     struct c2_net_domain *dom,
 				     struct sockaddr_in *sa);
+typedef void (*c2_mem_ep_release_fn_t)(struct c2_ref *ref);
 typedef bool (*c2_mem_eps_are_equal_fn_t)(struct c2_net_end_point *ep1,
 					  struct c2_net_end_point *ep2);
 typedef bool (*c2_mem_ep_equals_addr_fn_t)(struct c2_net_end_point *ep,
@@ -207,7 +208,11 @@ struct c2_net_bulk_mem_domain_pvt {
 	/** Work functions. */
 	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
 
+	/** Subroutine to create an end point. Can be used or
+	    intercepted by a derived transport.
+	 */
 	c2_mem_ep_create_fn_t      xd_ep_create;
+	c2_mem_ep_release_fn_t     xd_ep_release;
 	c2_mem_eps_are_equal_fn_t  xd_eps_are_equal;
 	c2_mem_ep_equals_addr_fn_t xd_ep_equals_addr;
 

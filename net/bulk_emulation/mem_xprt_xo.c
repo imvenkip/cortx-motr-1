@@ -116,7 +116,7 @@ static bool mem_ep_invariant(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	return (mep->xep_magic == C2_NET_XEP_MAGIC &&
+	return (mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
 		mep->xep_ep.nep_addr == &mep->xep_addr[0]);
 }
 
@@ -167,6 +167,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
 	dp->xd_ep_create = &mem_ep_create;
+	dp->xd_ep_release = &mem_xo_end_point_release;
 	dp->xd_eps_are_equal = &mem_eps_are_equal;
 	dp->xd_ep_equals_addr = &mem_ep_equals_addr;
 	dp->xd_sizeof_ep = sizeof(struct c2_net_bulk_mem_end_point);
@@ -281,7 +282,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return mem_ep_create(epp, dom, &sa);
+	return MEM_EP_CREATE(epp, dom, &sa);
 }
 
 /**
