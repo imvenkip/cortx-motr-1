@@ -187,17 +187,29 @@ struct c2_net_bulk_mem_end_point {
 typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 					  struct c2_net_bulk_mem_work_item *wi);
 
+typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
+				     struct c2_net_domain *dom,
+				     struct sockaddr_in *sa);
+typedef bool (*c2_mem_eps_are_equal_fn_t)(struct c2_net_end_point *ep1,
+					  struct c2_net_end_point *ep2);
+typedef bool (*c2_mem_ep_equals_addr_fn_t)(struct c2_net_end_point *ep,
+					   struct sockaddr_in *sa);
+
 /**
    Domain private data structure.
-   The fields of this structure can be reset by a derived transort
+   The fields of this structure can be reset by a derived transport
    after xo_dom_init() method is called on the in-memory transport.
  */
 struct c2_net_bulk_mem_domain_pvt {
 	/** Domain pointer */
 	struct c2_net_domain      *xd_dom;
 
-        /** Work functions. */
+	/** Work functions. */
 	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
+
+	c2_mem_ep_create_fn_t      xd_ep_create;
+	c2_mem_eps_are_equal_fn_t  xd_eps_are_equal;
+	c2_mem_ep_equals_addr_fn_t xd_ep_equals_addr;
 
 	/**
 	   Size of the end point structure.

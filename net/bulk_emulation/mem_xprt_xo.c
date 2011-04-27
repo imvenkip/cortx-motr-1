@@ -166,6 +166,9 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
 	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
+	dp->xd_ep_create = &mem_ep_create;
+	dp->xd_eps_are_equal = &mem_eps_are_equal;
+	dp->xd_ep_equals_addr = &mem_ep_equals_addr;
 	dp->xd_sizeof_ep = sizeof(struct c2_net_bulk_mem_end_point);
 	dp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_mem_tm_pvt);
 	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
