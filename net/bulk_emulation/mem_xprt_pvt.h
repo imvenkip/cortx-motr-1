@@ -86,7 +86,7 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 #define MEM_EP_CREATE(epp, dom, sa)					\
 ({									\
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;	\
-	dp->xd_ep_create(epp, dom, sa);					\
+	dp->xd_ops.bmo_ep_create(epp, dom, sa);				\
  })
 
 /**

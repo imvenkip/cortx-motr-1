@@ -197,6 +197,24 @@ typedef bool (*c2_mem_ep_equals_addr_fn_t)(struct c2_net_end_point *ep,
 					   struct sockaddr_in *sa);
 
 /**
+   These subroutines are exposed by the transport as they may need to be
+   intercepted by a derived transport.
+*/
+struct c2_net_bulk_mem_ops {
+	/** Subroutine to create an end point. */
+	c2_mem_ep_create_fn_t      bmo_ep_create;
+
+	/** Subroutine to release an end point. */
+	c2_mem_ep_release_fn_t     bmo_ep_release;
+
+	/** Subroutine to compare two end points */
+	c2_mem_eps_are_equal_fn_t  bmo_eps_are_equal;
+
+	/** Subroutine to compare an end point to an address */
+	c2_mem_ep_equals_addr_fn_t bmo_ep_equals_addr;
+};
+
+/**
    Domain private data structure.
    The fields of this structure can be reset by a derived transport
    after xo_dom_init() method is called on the in-memory transport.
@@ -208,13 +226,8 @@ struct c2_net_bulk_mem_domain_pvt {
 	/** Work functions. */
 	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
 
-	/** Subroutine to create an end point. Can be used or
-	    intercepted by a derived transport.
-	 */
-	c2_mem_ep_create_fn_t      xd_ep_create;
-	c2_mem_ep_release_fn_t     xd_ep_release;
-	c2_mem_eps_are_equal_fn_t  xd_eps_are_equal;
-	c2_mem_ep_equals_addr_fn_t xd_ep_equals_addr;
+	/** Exposed subroutines - derived transports may need to intercept */
+	struct c2_net_bulk_mem_ops xd_ops;
 
 	/**
 	   Size of the end point structure.

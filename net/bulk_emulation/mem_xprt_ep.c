@@ -80,7 +80,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		C2_ASSERT(strlen(mep->xep_addr) < C2_NET_BULK_MEM_XEP_ADDR_LEN);
 	}
 	ep = &mep->xep_ep;
-	c2_ref_init(&ep->nep_ref, 1, dp->xd_ep_release);
+	c2_ref_init(&ep->nep_ref, 1, dp->xd_ops.bmo_ep_release);
 	ep->nep_dom = dom;
 	c2_list_link_init(&ep->nep_dom_linkage);
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
