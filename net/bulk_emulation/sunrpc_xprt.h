@@ -27,11 +27,13 @@
 struct c2_net_bulk_sunrpc_domain_pvt;
 struct c2_net_bulk_sunrpc_tm_pvt;
 struct c2_net_bulk_sunrpc_end_point;
+struct c2_net_bulk_sunrpc_buffer_pvt;
 
 enum {
 	C2_NET_BULK_SUNRPC_XDP_MAGIC = 0x53756e7270634450ULL,
 	C2_NET_BULK_SUNRPC_XTM_MAGIC = 0x53756e727063544dULL,
 	C2_NET_BULK_SUNRPC_XEP_MAGIC = 0x53756e7270634550ULL,
+	C2_NET_BULK_SUNRPC_XBP_MAGIC = 0x53756e7270634250ULL,
 };
 
 
@@ -56,6 +58,8 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 struct c2_net_bulk_sunrpc_buffer_pvt {
 	/** The in-memory base private data */
 	struct c2_net_bulk_mem_buffer_pvt xsb_base;
+
+	uint64_t                          xsb_magic;
 
 	/** The peer transport info, set on received operations */
 	struct sockaddr_in                xsb_peer_sa;

@@ -73,6 +73,14 @@ static bool sunrpc_tm_invariant(struct c2_net_transfer_mc *tm)
 		sunrpc_dom_invariant(tm->ntm_dom));
 }
 
+static bool sunrpc_buffer_invariant(struct c2_net_buffer *nb)
+{
+	struct c2_net_bulk_sunrpc_buffer_pvt *sbp = nb->nb_xprt_private;
+	return (sbp != NULL &&
+		sbp->xsb_magic == C2_NET_BULK_SUNRPC_XBP_MAGIC &&
+		sunrpc_dom_invariant(nb->nb_dom));
+}
+
 /* To reduce global symbols, yet make the code readable, we
    include other .c files with static symbols into this file.
    Dependency information must be captured in Makefile.am.
@@ -246,15 +254,24 @@ static bool sunrpc_buffer_in_bounds(struct c2_net_buffer *nb)
 
 static int sunrpc_xo_buf_register(struct c2_net_buffer *nb)
 {
+	int rc;
 	C2_PRE(sunrpc_dom_invariant(nb->nb_dom));
 	if (!sunrpc_buffer_in_bounds(nb))
 		return -EFBIG;
-	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_register(nb);
+	rc = c2_net_bulk_mem_xprt.nx_ops->xo_buf_register(nb);
+	if (rc == 0) {
+		struct c2_net_bulk_sunrpc_buffer_pvt *sbp =
+			nb->nb_xprt_private;
+		C2_POST(sbp != NULL);
+		sbp->xsb_magic = C2_NET_BULK_SUNRPC_XBP_MAGIC;
+		C2_POST(sunrpc_buffer_invariant(nb));
+	}
+	return rc;
 }
 
 static int sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	C2_PRE(sunrpc_dom_invariant(nb->nb_dom));
+	C2_PRE(sunrpc_buffer_invariant(nb));
 	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_deregister(nb);
 }
 
@@ -264,6 +281,7 @@ static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 	struct c2_net_bulk_sunrpc_buffer_pvt *bp = nb->nb_xprt_private;
 	int rc;
 
+	C2_PRE(sunrpc_buffer_invariant(nb));
 	C2_PRE(sunrpc_tm_invariant(tm));
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_PASSIVE_BULK_SEND:
@@ -281,6 +299,7 @@ static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 
 static int sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 {
+	C2_PRE(sunrpc_buffer_invariant(nb));
 	C2_PRE(sunrpc_tm_invariant(nb->nb_tm));
 	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_del(nb);
 }
