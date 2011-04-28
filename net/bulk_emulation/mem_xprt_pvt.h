@@ -89,6 +89,32 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 	dp->xd_ops.bmo_ep_create(epp, dom, sa);				\
  })
 
+#ifdef MEM_BUFFER_IN_BOUNDS
+#undef MEM_BUFFER_IN_BOUNDS
+#endif
+/**
+   Macro to indirectly invoke the mem_buffer_in_bounds subroutine via the
+   domain function pointer, to support derived transports.
+ */
+#define MEM_BUFFER_IN_BOUNDS(nb)					\
+({									\
+	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;\
+	dp->xd_ops.bmo_buffer_in_bounds(nb);				\
+ })
+
+#ifdef MEM_DESC_CREATE
+#undef MEM_DESC_CREATE
+#endif
+/**
+   Macro to indirectly invoke the mem_desc_create subroutine via the domain
+   function pointer, to support derived transports.
+ */
+#define MEM_DESC_CREATE(desc, ep, tm, qt, buflen, buf_id)		\
+({									\
+	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;\
+	dp->xd_ops.bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);	\
+ })
+
 /**
    @}
 */

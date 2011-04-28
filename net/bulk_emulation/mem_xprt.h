@@ -195,23 +195,40 @@ typedef bool (*c2_mem_eps_are_equal_fn_t)(struct c2_net_end_point *ep1,
 					  struct c2_net_end_point *ep2);
 typedef bool (*c2_mem_ep_equals_addr_fn_t)(struct c2_net_end_point *ep,
 					   struct sockaddr_in *sa);
-
+typedef void (*c2_mem_wi_add_fn_t)(struct c2_net_bulk_mem_work_item *wi,
+				   struct c2_net_bulk_mem_tm_pvt *tp);
+typedef bool (*c2_mem_buffer_in_bounds_fn_t)(struct c2_net_buffer *nb);
+typedef int  (*c2_mem_desc_create_fn_t)(struct c2_net_buf_desc *desc,
+					struct c2_net_end_point *ep,
+					struct c2_net_transfer_mc *tm,
+					enum c2_net_queue_type qt,
+					c2_bcount_t buflen,
+					int64_t buf_id);
 /**
    These subroutines are exposed by the transport as they may need to be
    intercepted by a derived transport.
 */
 struct c2_net_bulk_mem_ops {
 	/** Subroutine to create an end point. */
-	c2_mem_ep_create_fn_t      bmo_ep_create;
+	c2_mem_ep_create_fn_t        bmo_ep_create;
 
 	/** Subroutine to release an end point. */
-	c2_mem_ep_release_fn_t     bmo_ep_release;
+	c2_mem_ep_release_fn_t       bmo_ep_release;
 
 	/** Subroutine to compare two end points */
-	c2_mem_eps_are_equal_fn_t  bmo_eps_are_equal;
+	c2_mem_eps_are_equal_fn_t    bmo_eps_are_equal;
 
 	/** Subroutine to compare an end point to an address */
-	c2_mem_ep_equals_addr_fn_t bmo_ep_equals_addr;
+	c2_mem_ep_equals_addr_fn_t   bmo_ep_equals_addr;
+
+	/** Subroutine to add a work item to the work list */
+	c2_mem_wi_add_fn_t           bmo_wi_add;
+
+	/** Subroutine to check if a buffer size is within bounds */
+	c2_mem_buffer_in_bounds_fn_t bmo_buffer_in_bounds;
+
+	/** Subroutine to create a buffer descriptor */
+	c2_mem_desc_create_fn_t      bmo_desc_create;
 };
 
 /**

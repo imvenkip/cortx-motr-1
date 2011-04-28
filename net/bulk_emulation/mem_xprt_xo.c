@@ -160,20 +160,28 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		dom->nd_xprt_private = dp;
 	}
 	dp->xd_dom = dom;
+
+	/* set function pointers for indirectly invoked subroutines */
 	dp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change;
 	dp->xd_work_fn[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb;
 	dp->xd_work_fn[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb;
 	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
 	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
-	dp->xd_ops.bmo_ep_create      = &mem_ep_create;
-	dp->xd_ops.bmo_ep_release     = &mem_xo_end_point_release;
-	dp->xd_ops.bmo_eps_are_equal  = &mem_eps_are_equal;
-	dp->xd_ops.bmo_ep_equals_addr = &mem_ep_equals_addr;
+	dp->xd_ops.bmo_ep_create        = &mem_ep_create;
+	dp->xd_ops.bmo_ep_release       = &mem_xo_end_point_release;
+	dp->xd_ops.bmo_eps_are_equal    = &mem_eps_are_equal;
+	dp->xd_ops.bmo_ep_equals_addr   = &mem_ep_equals_addr;
+	dp->xd_ops.bmo_wi_add           = &mem_wi_add;
+	dp->xd_ops.bmo_buffer_in_bounds = &mem_buffer_in_bounds;
+	dp->xd_ops.bmo_desc_create      = &mem_desc_create;
+
+	/* tunable parameters */
 	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
 	dp->xd_sizeof_tm_pvt     = sizeof(struct c2_net_bulk_mem_tm_pvt);
 	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
 	dp->xd_num_tm_threads    = 1;
+
 	c2_atomic64_set(&dp->xd_buf_id_counter, 1);
 	c2_list_link_init(&dp->xd_dom_linkage);
 
@@ -294,7 +302,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
 {
 	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
-	if (!mem_buffer_in_bounds(nb))
+	if (!MEM_BUFFER_IN_BOUNDS(nb))
 		return -EFBIG;
 
 	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
@@ -362,13 +370,11 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = c2_atomic64_add_return(&dp->xd_buf_id_counter,
 						       1);
-		if (!dp->xd_derived) {
-			rc = mem_desc_create(&nb->nb_desc, nb->nb_ep, tm,
-					     nb->nb_qtype, nb->nb_length,
-					     bp->xb_buf_id);
-			if (rc != 0)
-				return rc;
-		}
+		rc = MEM_DESC_CREATE(&nb->nb_desc, nb->nb_ep, tm,
+				     nb->nb_qtype, nb->nb_length,
+				     bp->xb_buf_id);
+		if (rc != 0)
+			return rc;
 		break;
 	case C2_NET_QT_ACTIVE_BULK_RECV:
 	case C2_NET_QT_ACTIVE_BULK_SEND:
