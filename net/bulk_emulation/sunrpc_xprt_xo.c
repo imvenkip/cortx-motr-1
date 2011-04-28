@@ -119,9 +119,9 @@ int c2_sunrpc_fop_init(void)
 static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 			  struct c2_net_bulk_sunrpc_tm_pvt *tp)
 {
-	c2_list_add_tail(&tp->xtm_base.xtm_work_list, &wi->xwi_link);
-	c2_cond_signal(&tp->xtm_base.xtm_work_list_cv,
-		       &tp->xtm_base.xtm_tm->ntm_mutex);
+	struct c2_net_bulk_sunrpc_domain_pvt *dp =
+		tp->xtm_base.xtm_tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops.bmo_wi_add)(wi, &tp->xtm_base);
 }
 
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
@@ -156,8 +156,10 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_base_ops = bdp->xd_ops;
 
 	/* override the base internal subs */
-	bdp->xd_ops.bmo_ep_create  = &sunrpc_ep_create;
-	bdp->xd_ops.bmo_ep_release = &sunrpc_xo_end_point_release;
+	bdp->xd_ops.bmo_ep_create        = &sunrpc_ep_create;
+	bdp->xd_ops.bmo_ep_release       = &sunrpc_xo_end_point_release;
+	bdp->xd_ops.bmo_buffer_in_bounds = &sunrpc_buffer_in_bounds;
+	bdp->xd_ops.bmo_desc_create      = &sunrpc_desc_create;
 
 	/* override tunable parameters */
 	bdp->xd_sizeof_ep = sizeof(struct c2_net_bulk_sunrpc_end_point);
@@ -256,8 +258,6 @@ static int sunrpc_xo_buf_register(struct c2_net_buffer *nb)
 {
 	int rc;
 	C2_PRE(sunrpc_dom_invariant(nb->nb_dom));
-	if (!sunrpc_buffer_in_bounds(nb))
-		return -EFBIG;
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_buf_register(nb);
 	if (rc == 0) {
 		struct c2_net_bulk_sunrpc_buffer_pvt *sbp =
@@ -277,24 +277,9 @@ static int sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
 
 static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 {
-	struct c2_net_transfer_mc *tm = nb->nb_tm;
-	struct c2_net_bulk_sunrpc_buffer_pvt *bp = nb->nb_xprt_private;
-	int rc;
-
 	C2_PRE(sunrpc_buffer_invariant(nb));
-	C2_PRE(sunrpc_tm_invariant(tm));
-	switch (nb->nb_qtype) {
-	case C2_NET_QT_PASSIVE_BULK_SEND:
-		rc = sunrpc_desc_create(&nb->nb_desc, nb->nb_ep, tm,
-					nb->nb_qtype, nb->nb_length,
-					bp->xsb_base.xb_buf_id);
-		if (rc != 0)
-			return rc;
-	default:
-		return -ENOSYS;
-	}
-
-	return -ENOSYS;
+	C2_PRE(sunrpc_tm_invariant(nb->nb_tm));
+	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_add(nb);
 }
 
 static int sunrpc_xo_buf_del(struct c2_net_buffer *nb)
