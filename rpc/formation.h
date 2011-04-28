@@ -87,17 +87,6 @@ struct c2_rpc_form_item_summary {
 };
 
 /**
-   This structure contains the files involved in any IO operation
-   in a given rpc group.
-   So if, an rpc group contains IO requests on 2 files, this list
-   will contain these 2 fids.
- */
-struct c2_rpc_form_file_list {
-	/** List of file ids for IO requests to this endpoint. */
-	struct c2_list			fl_io_list;
-};
-
-/**
    Structure containing fid for io requests.
    This will help to make quick decisions to select candidates
    for coalescing of io requests.
@@ -132,7 +121,7 @@ struct c2_rpc_form_item_summary_unit {
 	/** List of structures containing data for each group. */
 	struct c2_list			 isu_groups_list;
 	/** List of files being operated upon, for this endpoint. */
-	struct c2_rpc_form_file_list	 isu_file_list;
+	struct c2_list			 isu_file_list;
 	/** State of the state machine for this endpoint.
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
@@ -413,7 +402,7 @@ int c2_rpc_form_intevt_state_failed(int state)
 	/**
 	   Call the default handler function. Depending upon the
 	   input state, the default handler will invoke the next state
-	   for state succeeded event.
+	   for state failed event.
 	 */
 }
 
@@ -484,7 +473,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
 	      list of rpc items to be formed.
 	   3. Check size of formed rpc object so far to see if its optimal.
 	      Here size of rpc is compared with max_message_size. If size of
-	      rpc is far less than max_message_size, goto #1.
+	      rpc is far less than max_message_size and no urgent item, goto #1.
 	   4. If #3 is true and if the number of disjoint memory buffers
 	      is less than parameter max_fragment_size, a probable rpc object
 	      is in making. The selected rpc items are put on a list
@@ -492,20 +481,20 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
 	   5. Consult the structure c2_rpc_form_item_summary_unit to find out
 	      data about all rpc groups. Select groups that have combination of
 	      lowest average timeout and highest size that fits into optimal
-	      size. Keep selecting such groups till optimal size rpc is
-	      not formed.
-	   6. Consult the structure c2_rpc_form_file_list to find out files
+	      size. Keep selecting such groups till optimal size rpc is formed.
+	   6. Consult the list of files from internal data to find out files
 	      on which IO requests have come for this endpoint. Do coalescing
 	      within groups selected for formation according to read/write
 	      intents. Later if rpc has still not reached its optimal size,
 	      coalescing across rpc groups will be done.
-	   7. Negate the data of selected rpc items from internal data
-	      structure.
+	   7. Remove the data of selected rpc items from internal data
+	      structure so that it will not be considered for processing
+	      henceforth.
 	   8. If the formed rpc object is sub optimal but it contains
 	      an urgent item, it will be formed immediately. Else, it will
 	      be discarded.
 	   9. This process is repeated until the size of formed rpc object
-	      is sub optimal or there is no urgent item in the list.
+	      is sub optimal and there is no urgent item in the list.
 	 */
 }
 
