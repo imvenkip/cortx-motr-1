@@ -240,7 +240,7 @@ enum c2_rpc_form_ext_event {
  */
 enum c2_rpc_form_int_event {
 	/** Execution succeeded in current state. */
-	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = 0,
+	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = C2_RPC_FORM_EXTEVT_N_EVENTS,
 	/** Execution failed in current state. */
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
 	/** Max internal events. */
@@ -255,7 +255,7 @@ typedef int (*stateFunc)(struct c2_rpc_item*, int);
    next_state = stateTable[current_state][current_event]
  */
 stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_N_STATES][C2_RPC_FORM_EXTEVT_N_EVENTS + C2_RPC_FORM_INTEVT_N_EVENTS] = {
+[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS] = {
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_updating_state,
 	  c2_rpc_form_updating_state, c2_rpc_form_waiting_state,
@@ -295,30 +295,23 @@ stateFunc c2_rpc_form_stateTable
    @param current_state - current state of state machine.
    @param current_event - current event posted to the state machine.
  */
-stateFunc c2_rpc_form_next_state(int current_state, int current_event)
-{
-	 /** Return the next state by consulting the state table. */
-}
+stateFunc c2_rpc_form_next_state(int current_state, int current_event);
 
 /**
    A default handler function for invoking all state functions
    based on incoming event.
+   1. Find out the endpoint for given rpc item.
+   2. Lock the c2_rpc_form_item_summary_unit data structure.
+   3. Fetch the state for this endpoint and find out the resulting state
+   from the state table given this event.
+   4. Call the respective state function for resulting state.
+   5. Release the lock.
+   6. Handle further events on basis of return value of
+   recent state function.
    @param item - incoming rpc item needed for external events.
    @param event - event posted to the state machine.
  */
-void c2_rpc_form_default_handler(struct c2_rpc_item *item, int event)
-{
-	/**
-	    1. Find out the endpoint for given rpc item.
-	    2. Lock the c2_rpc_form_item_summary_unit data structure.
-	    3. Fetch the state for this endpoint and find out the resulting state
-	       from the state table given this event.
-	    4. Call the respective state function for resulting state.
-	    5. Release the lock.
-	    6. Handle further events on basis of return value of
-	       recent state function.
-	 */
-}
+void c2_rpc_form_default_handler(struct c2_rpc_item *item, int event);
 
 /**
    Callback function for addition of an rpc item to the rpc items cache.
