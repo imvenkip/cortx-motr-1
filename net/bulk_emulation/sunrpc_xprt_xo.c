@@ -63,7 +63,9 @@ static bool sunrpc_ep_invariant(struct c2_net_end_point *ep)
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 	return (sunrpc_dom_invariant(ep->nep_dom) &&
-		sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC);
+		sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC &&
+		sep->xep_sid_valid &&
+		ergo(sep->xep_conn_valid, sep->xep_conn != NULL));
 }
 
 static bool sunrpc_tm_invariant(struct c2_net_transfer_mc *tm)
@@ -97,6 +99,7 @@ void c2_sunrpc_fop_fini(void)
 {
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	return;
 }
 
 int c2_sunrpc_fop_init(void)
@@ -122,6 +125,7 @@ static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 	struct c2_net_bulk_sunrpc_domain_pvt *dp =
 		tp->xtm_base.xtm_tm->ntm_dom->nd_xprt_private;
 	(*dp->xd_base_ops.bmo_wi_add)(wi, &tp->xtm_base);
+	return;
 }
 
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
@@ -162,11 +166,11 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	bdp->xd_ops.bmo_desc_create      = &sunrpc_desc_create;
 
 	/* override tunable parameters */
-	bdp->xd_sizeof_ep = sizeof(struct c2_net_bulk_sunrpc_end_point);
-	bdp->xd_sizeof_tm_pvt = sizeof(struct c2_net_bulk_sunrpc_tm_pvt);
+	bdp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_sunrpc_end_point);
+	bdp->xd_sizeof_tm_pvt     = sizeof(struct c2_net_bulk_sunrpc_tm_pvt);
 	bdp->xd_sizeof_buffer_pvt =
 	    sizeof(struct c2_net_bulk_sunrpc_buffer_pvt);
-	bdp->xd_num_tm_threads = 2;
+	bdp->xd_num_tm_threads    = C2_NET_BULK_SUNRPC_TM_THREADS;
 
 	/* create the rpc domain (use in-mutex version of domain init) */
 #ifdef __KERNEL__
@@ -183,6 +187,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	}
 	sunrpc_ep_mutex_initialized++;
 
+	dp->xd_magic = C2_NET_BULK_SUNRPC_XDP_MAGIC;
 	C2_POST(sunrpc_dom_invariant(dom));
 	rc = 0;
  err_exit:
@@ -196,41 +201,49 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
+
+	/* fini the RPC domain (use in-mutex version of domain fini) */
 	c2_net__domain_fini(&dp->xd_rpc_dom);
+
+	/* fini the base */
 	c2_net_bulk_mem_xprt.nx_ops->xo_dom_fini(dom);
+
+	/* free the pvt structure */
+	c2_free(dp);
+	dom->nd_xprt_private = NULL;
+
 	/* remove the ep mutex when done */
 	C2_ASSERT(sunrpc_ep_mutex_initialized >= 1);
 	--sunrpc_ep_mutex_initialized;
 	if (sunrpc_ep_mutex_initialized == 0) {
 		c2_mutex_fini(&sunrpc_ep_mutex);
 	}
+	return;
 }
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom)
 {
-	return c2_net_bulk_mem_xprt.nx_ops->xo_get_max_buffer_size(dom);
+	return C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE;
 }
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_segment_size(struct c2_net_domain
 							 *dom)
 {
-	return c2_net_bulk_mem_xprt.nx_ops->xo_get_max_buffer_segment_size(dom);
+	return C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE;
 }
 
 static int32_t sunrpc_xo_get_max_buffer_segments(struct c2_net_domain *dom)
 {
-	return c2_net_bulk_mem_xprt.nx_ops->xo_get_max_buffer_segments(dom);
+	return C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS;
 }
 
 static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
 				      struct c2_net_domain *dom,
 				      va_list varargs)
 {
-	int rc = c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, dom,
-								  varargs);
-	if (rc == 0)
-		C2_POST(sunrpc_ep_invariant(*epp));
-	return rc;
+	/* calls sunrpc_ep_create */
+	return c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, dom,
+								varargs);
 }
 
 /**
@@ -239,17 +252,16 @@ static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
 static bool sunrpc_buffer_in_bounds(struct c2_net_buffer *nb)
 {
 	struct c2_vec *v = &nb->nb_buffer.ov_vec;
-	if (v->v_nr > sunrpc_xo_get_max_buffer_segments(nb->nb_dom))
+	if (v->v_nr > C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS)
 		return false;
 	int i;
 	c2_bcount_t len=0;
 	for (i=0; i < v->v_nr; i++) {
-		if (v->v_count[i] >
-		    sunrpc_xo_get_max_buffer_segment_size(nb->nb_dom))
+		if (v->v_count[i] > C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE)
 			return false;
 		len += v->v_count[i];
 	}
-	if (len > sunrpc_xo_get_max_buffer_size(nb->nb_dom))
+	if (len > C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE)
 		return false;
 	return true;
 }
@@ -258,11 +270,12 @@ static int sunrpc_xo_buf_register(struct c2_net_buffer *nb)
 {
 	int rc;
 	C2_PRE(sunrpc_dom_invariant(nb->nb_dom));
+	/* calls sunrpc_buffer_in_bounds */
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_buf_register(nb);
 	if (rc == 0) {
 		struct c2_net_bulk_sunrpc_buffer_pvt *sbp =
 			nb->nb_xprt_private;
-		C2_POST(sbp != NULL);
+		C2_ASSERT(sbp != NULL);
 		sbp->xsb_magic = C2_NET_BULK_SUNRPC_XBP_MAGIC;
 		C2_POST(sunrpc_buffer_invariant(nb));
 	}
@@ -279,6 +292,7 @@ static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 {
 	C2_PRE(sunrpc_buffer_invariant(nb));
 	C2_PRE(sunrpc_tm_invariant(nb->nb_tm));
+	/* may call sunrpc_desc_create */
 	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_add(nb);
 }
 

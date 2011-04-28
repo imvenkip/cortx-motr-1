@@ -72,7 +72,9 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
    @param dom The domain pointer.
    @retval 0 on success
    @retval -errno on failure.
- */
+   @post (ergo(rc == 0, sunrpc_ep_invariant(*epp)));
+
+*/
 static int sunrpc_ep_create(struct c2_net_end_point **epp,
 			    struct c2_net_domain *dom,
 			    struct sockaddr_in *sa)
@@ -88,11 +90,11 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	if (rc != 0)
 		return rc;
 
-	c2_mutex_lock(&sunrpc_ep_mutex);
 	mep = container_of(*epp, struct c2_net_bulk_mem_end_point, xep_ep);
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
-	/* create the sid */
+
+	/* create the sid (first time only) */
 	if (!sep->xep_sid_valid) {
 		char host[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 		char *p;
@@ -108,23 +110,24 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 		*p = '\0'; /* isolate the hostname */
 		rc = c2_service_id_init(&sep->xep_sid, &dp->xd_rpc_dom,
 					host, port);
-		if (rc == 0)
+		if (rc == 0) {
 			sep->xep_sid_valid = true;
+		} else {
+			/* directly release the ep (we're in the dom mutex) */
+			c2_ref_put(&(*epp)->nep_ref);
+			*epp = NULL;
+		}
 	}
-	c2_mutex_unlock(&sunrpc_ep_mutex);
-	if (rc == 0)
-		C2_POST(sunrpc_ep_invariant(*epp));
-	else {
-		/* directly release the ep (we're in the dom mutex) */
-		c2_ref_put(&(*epp)->nep_ref);
-		*epp = NULL;
-	}
+
+	C2_POST(ergo(rc == 0, sunrpc_ep_invariant(*epp)));
 	return rc;
 }
 
 /**
    This subroutine ensures that the xep_conn pointer in the end point
-   points to a network connection.
+   points to a network connection.  It serializes against multiple
+   concurrent invocations of itself. The EP itself is protected
+   by its reference count.
 
    Do not release the connection. It will get released when the end
    point is released.
@@ -132,6 +135,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
    @param conn Optional - returns the value of xep_conn on success.
    @retval 0 Success, xep_conn can be used.
    @retval -errno Failure
+   @post ergo(rc == 0, sep->xep_con_valid && sep->xep_conn != NULL)
  */
 static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 			       struct c2_net_conn **conn_p)
@@ -143,10 +147,11 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 
 	C2_PRE(sunrpc_ep_invariant(ep));
-	C2_PRE(sep->xep_sid_valid);
-	/* the connection may already be available */
+
+	/* The connection may already be valid, so check before
+	   entering the critical section.
+	 */
 	if (sep->xep_conn_valid) {
-		C2_ASSERT(sep->xep_conn != NULL);
 		if (conn_p != NULL)
 			*conn_p = sep->xep_conn;
 		return 0;
@@ -155,7 +160,7 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 	c2_mutex_lock(&sunrpc_ep_mutex);
 	rc = 0;
 	do {
-		if (sep->xep_conn_valid) /* check again */
+		if (sep->xep_conn_valid) /* racy: check again */
 			break;
 		rc = c2_net_conn_create(&sep->xep_sid);
 		if (rc != 0)
@@ -169,7 +174,7 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 		rc = 0;
 	} while(0);
 	c2_mutex_unlock(&sunrpc_ep_mutex);
-	C2_POST(ergo(rc == 0, sep->xep_conn != NULL));
+	C2_POST(ergo(rc == 0, sep->xep_conn_valid && sep->xep_conn != NULL));
 	if (rc == 0 && conn_p != NULL)
 		*conn_p = sep->xep_conn;
 	return rc;
