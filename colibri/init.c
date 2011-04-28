@@ -6,7 +6,7 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/usunrpc/usunrpc.h"
-/* #include "rpc/rpclib.h" */
+#include "rpc/rpccore.h"
 #include "fop/fop.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
@@ -41,7 +41,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_db_init,       &c2_db_fini,      "db" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
-/*	{ &c2_rpclib_init,   &c2_rpclib_fini,  "rpc" }, */
+	{ &c2_rpc_core_init, &c2_rpc_core_fini, "rpc"},
 	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },

@@ -16,6 +16,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/udb/ut/libudb-ut.la \
                $(top_builddir)/capa/ut/libcapa-ut.la
+#               $(top_builddir)/rpc/ut/librpccore-ut.la
 
 
 ub_SOURCES   = ub_main.c common.c common.h 

@@ -80,7 +80,7 @@ int main()
 	result = c2_init();
 	C2_ASSERT(result == 0);
 	
-	result = rpc_fop_init();
+	result = c2_rpc_session_fop_init();
         C2_ASSERT(result == 0);
 
 	 C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
@@ -152,7 +152,7 @@ int main()
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
 	bdom->sd_ops->sdo_fini(bdom);
-	rpc_fop_fini();
+	c2_rpc_session_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_fini();			

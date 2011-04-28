@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         result = c2_init();
         C2_ASSERT(result == 0);
 
-        result = rpc_fop_init();
+        result = c2_rpc_session_fop_init();
         C2_ASSERT(result == 0);
 	
 	result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
         c2_service_id_fini(&sid);
         c2_net_domain_fini(&ndom);
         c2_net_xprt_fini(&c2_net_usunrpc_xprt);
-        rpc_fop_fini();
+        c2_rpc_session_fop_fini();
         c2_fini();
 
         return 0;

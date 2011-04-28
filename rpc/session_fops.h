@@ -41,9 +41,9 @@ extern struct c2_fop_type c2_rpc_session_create_rep_fopt;
 extern struct c2_fop_type c2_rpc_session_destroy_fopt;
 extern struct c2_fop_type c2_rpc_session_destroy_rep_fopt;
 
-int rpc_fop_init(void);
+extern int c2_rpc_session_fop_init(void);
 
-void rpc_fop_fini(void);
+extern void c2_rpc_session_fop_fini(void);
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */
 #endif

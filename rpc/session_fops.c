@@ -91,19 +91,21 @@ static struct c2_fop_type *fops[] = {
         &c2_rpc_session_destroy_rep_fopt,
 };
 
-void rpc_fop_fini(void)
+void c2_rpc_session_fop_fini(void)
 {
+	printf("session fop fini called\n");
         c2_fop_object_fini();
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
-int rpc_fop_init(void)
+int c2_rpc_session_fop_init(void)
 {
 	int result;
 
+	printf("Session fop init called\n");
 	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 	if (result != 0)
-		rpc_fop_fini();
+		c2_rpc_session_fop_fini();
 	return result;
 }
 
