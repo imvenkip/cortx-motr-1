@@ -7,14 +7,6 @@
    @{
  */
 
-static int sunrpc_ep_mutex_initialized = 0;
-
-/**
-   Mutex used to serialize the creation of a service id and
-   network connection for an end point.
- */
-static struct c2_mutex sunrpc_ep_mutex;
-
 /**
    The uuid of a service will be created by using the following sprintf
    format string and providing the port number as its argument.
@@ -43,8 +35,6 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 	C2_PRE(sunrpc_ep_invariant(ep));
 	dp = ep->nep_dom->nd_xprt_private;
-
-	/* sunrpc_ep_mutex not needed as this is during release */
 
 	/* free the conn and sid */
 	if (sep->xep_conn_valid) {
@@ -124,10 +114,10 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 }
 
 /**
-   This subroutine ensures that the xep_conn pointer in the end point
-   points to a network connection.  It serializes against multiple
-   concurrent invocations of itself. The EP itself is protected
-   by its reference count.
+   This subroutine ensures that the xep_conn pointer in the end point points to
+   a network connection.  It serializes against multiple concurrent invocations
+   of itself using the domain mutex, so do not invoke while holding a
+   transfer machine mutex.
 
    Do not release the connection. It will get released when the end
    point is released.
@@ -156,8 +146,8 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 			*conn_p = sep->xep_conn;
 		return 0;
 	}
-	/* create the connection in the mutex */
-	c2_mutex_lock(&sunrpc_ep_mutex);
+	/* create the connection within the mutex */
+	c2_mutex_lock(&ep->nep_dom->nd_mutex);
 	rc = 0;
 	do {
 		if (sep->xep_conn_valid) /* racy: check again */
@@ -173,7 +163,7 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 		sep->xep_conn_valid = true;
 		rc = 0;
 	} while(0);
-	c2_mutex_unlock(&sunrpc_ep_mutex);
+	c2_mutex_unlock(&ep->nep_dom->nd_mutex);
 	C2_POST(ergo(rc == 0, sep->xep_conn_valid && sep->xep_conn != NULL));
 	if (rc == 0 && conn_p != NULL)
 		*conn_p = sep->xep_conn;

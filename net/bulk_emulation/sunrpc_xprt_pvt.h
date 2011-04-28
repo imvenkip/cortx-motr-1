@@ -29,8 +29,6 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 			  struct c2_net_bulk_sunrpc_tm_pvt *tp);
 static bool sunrpc_buffer_in_bounds(struct c2_net_buffer *nb);
-static int sunrpc_ep_mutex_initialized;
-static struct c2_mutex sunrpc_ep_mutex;
 
 /**
    @}

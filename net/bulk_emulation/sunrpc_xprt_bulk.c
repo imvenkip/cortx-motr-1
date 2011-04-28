@@ -170,9 +170,9 @@ done:
 	return rc;
 }
 
-int sunrpc_active_send(struct c2_net_buffer *nb,
-		       struct sunrpc_buf_desc *sd,
-		       struct c2_net_end_point *ep)
+static int sunrpc_active_send(struct c2_net_buffer *nb,
+			      struct sunrpc_buf_desc *sd,
+			      struct c2_net_end_point *ep)
 {
 	int                     rc = 0;
 	struct c2_net_conn     *conn;
@@ -227,9 +227,9 @@ int sunrpc_active_send(struct c2_net_buffer *nb,
 	return rc;
 }
 
-int sunrpc_active_recv(struct c2_net_buffer *nb,
-		       struct sunrpc_buf_desc *sd,
-		       struct c2_net_end_point *ep)
+static int sunrpc_active_recv(struct c2_net_buffer *nb,
+			      struct sunrpc_buf_desc *sd,
+			      struct c2_net_end_point *ep)
 {
 	int                     rc;
 	struct c2_net_conn     *conn;

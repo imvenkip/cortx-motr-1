@@ -95,13 +95,20 @@ static bool sunrpc_buffer_invariant(struct c2_net_buffer *nb)
 #include "sunrpc_xprt_bulk.c"
 #include "sunrpc_xprt_msg.c"
 
+/**
+   Transport finalization subroutine called from c2_fini().
+ */
 void c2_sunrpc_fop_fini(void)
 {
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 	return;
 }
+C2_EXPORTED(c2_sunrpc_fop_fini);
 
+/**
+   Transport initialization subroutine called from c2_init().
+ */
 int c2_sunrpc_fop_init(void)
 {
 	int result;
@@ -115,6 +122,7 @@ int c2_sunrpc_fop_init(void)
 		c2_sunrpc_fop_fini();
 	return result;
 }
+C2_EXPORTED(c2_sunrpc_fop_init);
 
 /**
    Add a work item to the work list
@@ -181,12 +189,6 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	if (rc != 0)
 		goto err_exit;
 
-	/* initialize the ep mutex if needed */
-	if (sunrpc_ep_mutex_initialized == 0) {
-		c2_mutex_init(&sunrpc_ep_mutex);
-	}
-	sunrpc_ep_mutex_initialized++;
-
 	dp->xd_magic = C2_NET_BULK_SUNRPC_XDP_MAGIC;
 	C2_POST(sunrpc_dom_invariant(dom));
 	rc = 0;
@@ -212,12 +214,6 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
 
-	/* remove the ep mutex when done */
-	C2_ASSERT(sunrpc_ep_mutex_initialized >= 1);
-	--sunrpc_ep_mutex_initialized;
-	if (sunrpc_ep_mutex_initialized == 0) {
-		c2_mutex_fini(&sunrpc_ep_mutex);
-	}
 	return;
 }
 
