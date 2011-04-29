@@ -87,6 +87,11 @@ struct c2_rpc_form_item_summary {
 };
 
 /**
+   The global instance of summary data structure. 
+ */
+extern struct c2_rpc_form_item_summary	formation_summary;
+
+/**
    Structure containing fid for io requests.
    This will help to make quick decisions to select candidates
    for coalescing of io requests.
@@ -114,6 +119,8 @@ struct c2_rpc_form_fid_summary {
    state variable.
  */
 struct c2_rpc_form_item_summary_unit {
+	/** Referenced Endpoint */
+	int				 isu_endp_id;
 	/** Mutex protecting the unit from concurrent access. */
 	struct c2_mutex			 isu_unit_lock;
 	/** Linkage into the endpoint list. */
@@ -302,7 +309,6 @@ stateFunc c2_rpc_form_stateTable
 	  c2_rpc_form_waiting_state}
 };
 
-
 /**
    Return the function pointer to next state given the current state
    and current event as input.
@@ -310,6 +316,16 @@ stateFunc c2_rpc_form_stateTable
    @param current_event - current event posted to the state machine.
  */
 stateFunc c2_rpc_form_next_state(int current_state, int current_event);
+
+/**
+   Get the endpoint given an rpc item.
+   This is a placeholder and will be replaced when a concrete
+   definition of endpoint is available.
+ */
+int c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
+{
+	return item->endpoint;
+}
 
 /**
    A default handler function for invoking all state functions
@@ -325,7 +341,7 @@ stateFunc c2_rpc_form_next_state(int current_state, int current_event);
    @param item - incoming rpc item needed for external events.
    @param event - event posted to the state machine.
  */
-void c2_rpc_form_default_handler(struct c2_rpc_item *item, int event);
+int c2_rpc_form_default_handler(struct c2_rpc_item *item, int state, int event);
 
 /**
    Callback function for addition of an rpc item to the rpc items cache.
@@ -391,7 +407,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item)
    Callback function for successful completion of a state.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_succeeded(int state)
+int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_item *item, int state)
 {
 	/**
 	   Call the default handler function. Depending upon the
@@ -404,7 +420,7 @@ int c2_rpc_form_intevt_state_succeeded(int state)
    Callback function for failure of a state.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_failed(int state)
+int c2_rpc_form_intevt_state_failed(struct c2_rpc_item *item, int state)
 {
 	/**
 	   Call the default handler function. Depending upon the
@@ -434,6 +450,7 @@ int c2_rpc_form_coalesce_items(struct c2_list *items);
    rpc objects could be in flight. If current rpcs in flight [n]
    is less than max_rpcs_in_flight, state transitions to UPDATING,
    else keeps waiting till n is less than max_rpcs_in_flight.
+   ** WAITING state should be a nop for internal events. **
    @param item - input rpc item.
    @param event - Since WAITING state handles a lot of events,
    it needs some way of identifying the events.
