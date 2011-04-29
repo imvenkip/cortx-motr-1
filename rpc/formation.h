@@ -247,6 +247,20 @@ enum c2_rpc_form_int_event {
 	C2_RPC_FORM_INTEVT_N_EVENTS
 };
 
+/**
+   Initialization for formation component in rpc. 
+   This will register necessary callbacks and initialize
+   necessary data structures.
+ */
+int c2_rpc_form_init();
+
+/**
+   Finish method for formation component in rpc.
+   This will deallocate all memory claimed by formation
+   and do necessary cleanup.
+ */
+int c2_rpc_form_fini();
+
 typedef int (*stateFunc)(struct c2_rpc_item*, int);
 
 /**

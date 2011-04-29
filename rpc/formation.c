@@ -8,8 +8,8 @@
  */
 stateFunc c2_rpc_form_next_state(int current_state, int current_event)
 {
-	C2_PRE(current_state > C2_RPC_FORM_N_STATES);
-	C2_PRE(current_event > C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(current_state < C2_RPC_FORM_N_STATES);
+	C2_PRE(current_event < C2_RPC_FORM_INTEVT_N_EVENTS);
 	return c2_rpc_form_stateTable[current_state][current_event];
 }
 
@@ -29,5 +29,7 @@ stateFunc c2_rpc_form_next_state(int current_state, int current_event)
  */
 void c2_rpc_form_default_handler(struct c2_rpc_item *item, int event)
 {
+	C2_PRE(event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	/* Find out the endpoint from incoming rpc. */
 }
 
