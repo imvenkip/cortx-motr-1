@@ -11,11 +11,18 @@
  *
  */
 
+/* end point address */
+DEF(sunrpc_ep, RECORD,
+    _(sep_addr, U32),
+    _(sep_port, U32)); /* really 16 bits */
+
 /* appropriate network buffer descriptor */
 DEF(sunrpc_buf_desc, RECORD,
-    _(sbd_id,    U64),
-    _(sbd_qtype, U32),
-    _(sbd_total, U32));
+    _(sbd_id,         U64),
+    _(sbd_active_ep,  sunrpc_ep),
+    _(sbd_passive_ep, sunrpc_ep),
+    _(sbd_qtype,      U32),
+    _(sbd_total,      U32));
 
 /* buffer representation */
 DEF(sunrpc_buffer, SEQUENCE,
@@ -24,12 +31,14 @@ DEF(sunrpc_buffer, SEQUENCE,
 
 /* the message send call and response */
 DEF(sunrpc_msg, RECORD,
-    _(sm_buf, sunrpc_buffer));
+    _(sm_sender, sunrpc_ep),
+    _(sm_buf,    sunrpc_buffer));
 DEF(sunrpc_msg_resp, RECORD,
     _(smr_rc, U32));
 
 /* the get call and response */
 DEF(sunrpc_get, RECORD,
+    _(sg_sender,  sunrpc_ep),
     _(sg_desc,    sunrpc_buf_desc),
     _(sg_offset,  U32));
 DEF(sunrpc_get_resp, RECORD,
@@ -39,6 +48,7 @@ DEF(sunrpc_get_resp, RECORD,
 
 /* the put call and response */
 DEF(sunrpc_put, RECORD,
+    _(sp_sender, sunrpc_ep),
     _(sp_desc,   sunrpc_buf_desc),
     _(sp_offset, U32),
     _(sp_buf,    sunrpc_buffer));

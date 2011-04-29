@@ -191,9 +191,14 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 			      int64_t buf_id)
 {
 	struct sunrpc_buf_desc sd = {
-	    .sbd_id    = buf_id,
-	    .sbd_qtype = qt,
-	    .sbd_total = buflen
+	    .sbd_id                  = buf_id,
+	    .sbd_qtype               = qt,
+	    .sbd_total               = buflen,
+	    /* address and port numbers in network byte order */
+	    .sbd_active_ep.sep_addr  = MEM_EP_ADDR(ep),
+	    .sbd_active_ep.sep_port  = MEM_EP_PORT(ep),
+	    .sbd_passive_ep.sep_addr = MEM_EP_ADDR(tm->ntm_ep),
+	    .sbd_passive_ep.sep_port = MEM_EP_PORT(tm->ntm_ep),
 	};
 
 	desc->nbd_len = sizeof(sd);
@@ -210,7 +215,8 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 
 /**
    Decodes a network buffer descriptor.
-   @param desc Network buffer descriptor pointer.
+   @param desc Network buffer descriptor pointer. Address and port
+   numbers are in network byte order.
    @param sd Returns the descriptor contents.
    @retval 0 On success
    @retval -EINVAL Invalid transfer descriptor

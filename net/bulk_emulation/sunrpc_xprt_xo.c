@@ -46,6 +46,7 @@ static struct c2_fop_type *fops[] = {
 };
 
 static struct c2_fop_type_format *fmts[] = {
+	&sunrpc_ep_tfmt,
 	&sunrpc_buf_desc_tfmt,
 	&sunrpc_buffer_tfmt,
 };

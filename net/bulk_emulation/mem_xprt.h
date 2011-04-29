@@ -321,6 +321,36 @@ struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
 	&bp->xb_wi;				\
 })
 
+#ifdef MEM_EP_ADDR
+#undef MEM_EP_ADDR
+#endif
+/**
+   Macro to return the IP address of the end point.
+   @param ep End point pointer
+   @retval address In network byte order.
+ */
+#define MEM_EP_ADDR(ep)							\
+({									\
+	struct c2_net_bulk_mem_end_point *mep =				\
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
+	mep->xep_sa.sin_addr.s_addr;					\
+ })
+
+#ifdef MEM_EP_PORT
+#undef MEM_EP_PORT
+#endif
+/**
+   Macro to return the port number of the end point.
+   @param ep End point pointer
+   @retval port In network byte order.
+ */
+#define MEM_EP_PORT(ep)							\
+({									\
+	struct c2_net_bulk_mem_end_point *mep =				\
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
+	mep->xep_sa.sin_port;						\
+ })
+
 /**
    @}
 */

@@ -24,10 +24,11 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	do {
-		struct c2_net_conn     *conn;
-		struct c2_bufvec_cursor cur;
-		struct sunrpc_msg      *fop;
-		struct sunrpc_msg_resp *rep;
+		struct c2_net_conn      *conn;
+		struct c2_bufvec_cursor  cur;
+		struct sunrpc_msg       *fop;
+		struct sunrpc_msg_resp  *rep;
+		struct c2_net_end_point *tm_ep;
 
 		/* get a connection for this end point */
 		rc = sunrpc_ep_make_conn(nb->nb_ep, &conn);
@@ -44,6 +45,9 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		fop = c2_fop_data(f);
 
 		/* Set up the outgoing fop. */
+		tm_ep = nb->nb_tm->ntm_ep;
+		fop->sm_sender.sep_addr = MEM_EP_ADDR(tm_ep); /* network byte */
+		fop->sm_sender.sep_port = MEM_EP_PORT(tm_ep); /* order */
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
 		fop->sm_buf.sb_len = nb->nb_length;
@@ -120,13 +124,25 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	if (rc == 0) {
+		/* got a buffer */
 		struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb);
+		struct c2_net_domain *dom = tm->ntm_dom;
+		struct sockaddr_in sa = {
+			.sin_addr.s_addr = in->sm_sender.sep_addr, /* network */
+			.sin_port        = in->sm_sender.sep_port, /* order */
+		};
 
-		/* copy the message to the buffer */
-		memcpy(c2_bufvec_cursor_addr(&cur), in->sm_buf.sb_buf,
-		       in->sm_buf.sb_len);
-		nb->nb_length = in->sm_buf.sb_len;
-		/* TODO: get sender's EP from cookie */
+		/* create an end point for the message sender */
+		c2_mutex_lock(&dom->nd_mutex);
+		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa);
+		c2_mutex_unlock(&dom->nd_mutex);
+
+		if (rc == 0) {
+			/* copy the message to the buffer */
+			memcpy(c2_bufvec_cursor_addr(&cur), in->sm_buf.sb_buf,
+			       in->sm_buf.sb_len);
+			nb->nb_length = in->sm_buf.sb_len;
+		}
 
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
