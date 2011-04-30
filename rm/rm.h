@@ -274,8 +274,9 @@ struct c2_rm_resource_type_ops {
    an exclusive ownership of some datum) or a collection of extents tagged
    with access masks.
 
-   A right is said to be "pinned" or "held" when its c2_rm_right::ri_users
-   count is greater than 0.
+   A right is said to be "pinned" or "held" when it is necessary for some
+   ongoing operation. A pinned right has RPF_PROTECT pins (c2_rm_pin) on its
+   c2_rm_right::ri_pins list.
 
    Rights are typically linked into one of c2_rm_owner lists. Pinned rights can
    only happen on c2_rm_owner::ro_owned[OWOS_HELD] list. They cannot be moved
@@ -600,7 +601,7 @@ struct c2_rm_owner {
 	   A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
 	   this owner extended to other owners. Rights on this list are not
 	   longer possessed by this owner: they are counted in
-	   c2_rm_owner::ro_granted, but not in c2_rm_owner::ro_owned.
+	   c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
 	 */
 	struct c2_list         ro_sublet;
 	/**
