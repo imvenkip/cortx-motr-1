@@ -3,23 +3,21 @@
 #endif
 
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
-#include "session_u.h"
+#include "fop/fop_format_def.h"
+#include "rpc/session_u.h"
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
+#include "rpc/session_foms.h"
+#include "rpc/session.ff"
 
-extern struct c2_fop_type_format c2_rpc_conn_create_tfmt;
-extern struct c2_fop_type_format c2_rpc_conn_terminate_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_create_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_destroy_tfmt;
-
-extern struct c2_fop_type_format c2_rpc_conn_create_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_conn_terminate_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_create_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_destroy_rep_tfmt;
-
-int c2_rpc_fom_init(struct c2_fop *fop, struct c2_fom **m);
+int c2_rpc_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	printf("rpc_fom_init called\n");
+	return 0;
+}
 /*
 int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
@@ -28,8 +26,37 @@ int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m);
 int c2_rpc_session_destroy_fom_init(struct c2_fop *fop, struct c2_fom **m);
 */
 
+int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	struct c2_rpc_fom_conn_create		*fom_obj;
+	struct c2_fom				*fom;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(fom != NULL);
+
+	printf ("conn_create fom init called\n");
+	C2_ALLOC_PTR(fom_obj);
+	if (fom_obj == NULL)
+		return -ENOMEM;
+
+	fop->f_type->ft_fom_type = c2_rpc_fom_conn_create_type;
+	fom = &fom_obj->fcc_gen;
+	fom->fo_type = &c2_rpc_fom_conn_create_type;
+	fom->fo_ops = &c2_rpc_fom_conn_create_ops;
+
+	fom_obj->fcc_fop_rep = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	if (fom_obj->fcc_fop_rep == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
+	fom_obj->fcc_dom = (struct c2_cob_domain *)0xABCDEF;
+
+	*m = fom;
+	printf ("conn_create fom init call finished\n");
+	return 0;
+}
 struct c2_fop_type_ops c2_rpc_conn_create_ops = {
-	.fto_fom_init = c2_rpc_fom_init,
+	.fto_fom_init = &c2_rpc_conn_create_fom_init,
 };
 
 struct c2_fop_type_ops c2_rpc_conn_terminate_ops = {
@@ -93,7 +120,6 @@ static struct c2_fop_type *fops[] = {
 void c2_rpc_session_fop_fini(void)
 {
 	printf("session fop fini called\n");
-        //c2_fop_object_fini();
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
