@@ -143,6 +143,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			       in->sm_buf.sb_len);
 			nb->nb_length = in->sm_buf.sb_len;
 		}
+		nb->nb_status = rc;
 
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
