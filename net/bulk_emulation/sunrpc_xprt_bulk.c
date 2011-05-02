@@ -39,9 +39,8 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_list_for_each_entry(&tm->ntm_q[in->sg_desc.sbd_qtype], inb,
 			       struct c2_net_buffer,
 			       nb_tm_linkage) {
-		struct c2_net_bulk_sunrpc_buffer_pvt *bp = inb->nb_xprt_private;
-		if (bp->xsb_base.xb_buf_id == in->sg_desc.sbd_id &&
-		    nb->nb_length == in->sg_desc.sbd_total) {
+		if (sunrpc_desc_equal(&inb->nb_desc, &in->sg_desc) &&
+		    inb->nb_length == in->sg_desc.sbd_total) {
 			nb = inb;
 			break;
 		}
@@ -124,8 +123,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_list_for_each_entry(&tm->ntm_q[in->sp_desc.sbd_qtype], inb,
 			       struct c2_net_buffer,
 			       nb_tm_linkage) {
-		struct c2_net_bulk_sunrpc_buffer_pvt *bp = inb->nb_xprt_private;
-		if (bp->xsb_base.xb_buf_id == in->sp_desc.sbd_id) {
+		if (sunrpc_desc_equal(&inb->nb_desc, &in->sp_desc)) {
 			nb = inb;
 			break;
 		}
@@ -350,23 +348,26 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	struct c2_net_end_point *match_ep = NULL;
 	do {
 		/* decode the descriptor */
-		struct c2_net_bulk_sunrpc_domain_pvt *dp =
-		    tm->ntm_dom->nd_xprt_private;
-		struct c2_net_bulk_sunrpc_buffer_pvt *bp = nb->nb_xprt_private;
 		struct sunrpc_buf_desc sd;
+		struct sockaddr_in si;
 
 		rc = sunrpc_desc_decode(&nb->nb_desc, &sd);
 		if (rc != 0)
 			break;
+		if (!sunrpc_ep_equals_addr(tm->ntm_ep, &sd.sbd_active_ep)) {
+			rc = -EACCES;   /* wrong destination */
+			break;
+		}
 		if (nb->nb_qtype != inverse_qt[sd.sbd_qtype]) {
 			rc = -EPERM;    /* wrong operation */
 			break;
 		}
 
 		/* Make a local end point matching the remote address */
+		si.sin_addr.s_addr = sd.sbd_passive_ep.sep_addr;
+		si.sin_port = sd.sbd_passive_ep.sep_port;
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = dp->xd_base.xd_ops.bmo_ep_create(&match_ep, tm->ntm_dom,
-						      &bp->xsb_peer_sa);
+		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 		if (rc != 0) {
 			match_ep = NULL;

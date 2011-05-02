@@ -171,6 +171,24 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 }
 
 /**
+   Compare an end point with a sunrpc_ep for equality.
+   @param ep End point
+   @param sep sunrpc_ep pointer
+   @param true Match
+   @param false Do not match
+ */
+static bool sunrpc_ep_equals_addr(struct c2_net_end_point *ep,
+				  struct sunrpc_ep *sep)
+{
+	C2_ASSERT(sunrpc_ep_invariant(ep));
+	struct c2_net_bulk_mem_end_point *mep;
+	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+
+	return (mep->xep_sa.sin_addr.s_addr == sep->sep_addr &&
+		mep->xep_sa.sin_port        == sep->sep_port);
+}
+
+/**
    Create a network buffer descriptor from a sunrpc end point.
    The descriptor is XDR encoded and returned as opaque data.
 
@@ -207,10 +225,12 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    return -ENOMEM;
 
 	XDR xdrs;
+	int rc = 0;
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_ENCODE);
-	C2_ASSERT(sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd));
+	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd))
+		rc = -EINVAL;
 	xdr_destroy(&xdrs);
-	return 0;
+	return rc;
 }
 
 /**
@@ -225,10 +245,31 @@ static int sunrpc_desc_decode(struct c2_net_buf_desc *desc,
 			      struct sunrpc_buf_desc *sd)
 {
 	XDR xdrs;
+	int rc = 0;
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_DECODE);
-	C2_ASSERT(sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd));
+	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd))
+		rc = -EINVAL;
 	xdr_destroy(&xdrs);
-	return 0;
+	return rc;
+}
+
+/**
+   Compares if two descriptors are equal.
+ */
+static bool sunrpc_desc_equal(struct c2_net_buf_desc *d1,
+			      struct sunrpc_buf_desc *sd2)
+{
+	/* could do a byte comparison too */
+	struct sunrpc_buf_desc sd1;
+	if (sunrpc_desc_decode(d1, &sd1))
+		return false;
+	if (sd1.sbd_id == sd2->sbd_id &&
+	    sd1.sbd_active_ep.sep_addr == sd2->sbd_active_ep.sep_addr &&
+	    sd1.sbd_active_ep.sep_port == sd2->sbd_active_ep.sep_port &&
+	    sd1.sbd_passive_ep.sep_addr == sd2->sbd_passive_ep.sep_addr &&
+	    sd1.sbd_passive_ep.sep_port == sd2->sbd_passive_ep.sep_port)
+		return true;
+	return false;
 }
 
 /**

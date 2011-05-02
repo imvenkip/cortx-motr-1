@@ -60,9 +60,6 @@ struct c2_net_bulk_sunrpc_buffer_pvt {
 	struct c2_net_bulk_mem_buffer_pvt xsb_base;
 
 	uint64_t                          xsb_magic;
-
-	/** The peer transport info, set on received operations */
-	struct sockaddr_in                xsb_peer_sa;
 };
 
 /** Transfer machine private data */
