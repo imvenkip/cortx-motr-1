@@ -191,10 +191,6 @@ typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
 				     struct c2_net_domain *dom,
 				     struct sockaddr_in *sa);
 typedef void (*c2_mem_ep_release_fn_t)(struct c2_ref *ref);
-typedef bool (*c2_mem_eps_are_equal_fn_t)(struct c2_net_end_point *ep1,
-					  struct c2_net_end_point *ep2);
-typedef bool (*c2_mem_ep_equals_addr_fn_t)(struct c2_net_end_point *ep,
-					   struct sockaddr_in *sa);
 typedef void (*c2_mem_wi_add_fn_t)(struct c2_net_bulk_mem_work_item *wi,
 				   struct c2_net_bulk_mem_tm_pvt *tp);
 typedef bool (*c2_mem_buffer_in_bounds_fn_t)(struct c2_net_buffer *nb);
@@ -214,12 +210,6 @@ struct c2_net_bulk_mem_ops {
 
 	/** Subroutine to release an end point. */
 	c2_mem_ep_release_fn_t       bmo_ep_release;
-
-	/** Subroutine to compare two end points */
-	c2_mem_eps_are_equal_fn_t    bmo_eps_are_equal;
-
-	/** Subroutine to compare an end point to an address */
-	c2_mem_ep_equals_addr_fn_t   bmo_ep_equals_addr;
 
 	/** Subroutine to add a work item to the work list */
 	c2_mem_wi_add_fn_t           bmo_wi_add;

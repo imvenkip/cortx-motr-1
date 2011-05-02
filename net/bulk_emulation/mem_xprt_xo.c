@@ -170,8 +170,6 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
 	dp->xd_ops.bmo_ep_create        = &mem_ep_create;
 	dp->xd_ops.bmo_ep_release       = &mem_xo_end_point_release;
-	dp->xd_ops.bmo_eps_are_equal    = &mem_eps_are_equal;
-	dp->xd_ops.bmo_ep_equals_addr   = &mem_ep_equals_addr;
 	dp->xd_ops.bmo_wi_add           = &mem_wi_add;
 	dp->xd_ops.bmo_buffer_in_bounds = &mem_buffer_in_bounds;
 	dp->xd_ops.bmo_desc_create      = &mem_desc_create;
