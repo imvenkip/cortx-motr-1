@@ -74,6 +74,14 @@
    * pass through the sub sequent states as states succeed and exit
  */
 
+/* XXX A lot of data structures here, use a c2_list. Instead a 
+   hash function will be used to enhance the performance. This will
+   be done after UT of rpc formation. */
+
+/**
+   XXX There are no retries in the state machine. Any failure event will
+   take the executing thread out of this state machine. */
+
 /**
    This structure is an internal data structure which builds up the
    summary form of data for all endpoints.
@@ -82,8 +90,8 @@
 struct c2_rpc_form_item_summary {
 	/** List of internal data structures with data for each endpoint */
 	struct c2_list			is_endp_list;
-	/** Mutex protecting the list from concurrent access. */
-	struct c2_mutex			is_endp_list_lock;
+	/** Read/Write lock protecting the list from concurrent access. */
+	struct c2_rwlock		is_endp_list_lock;
 };
 
 /**
@@ -133,9 +141,13 @@ struct c2_rpc_form_item_summary_unit {
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
+	/* XXX Put a state machine object per summary_unit and move
+	   the state to the state machine object. */
 	int				 isu_endp_state;
+	/* Refcount for this summary unit */
+	struct c2_ref			 isu_ref;
 	/** List of coalesced rpc items. */
-	struct c2_list			 isu_coalesced_items;
+	struct c2_list			 isu_coalesced_items_list;
 };
 
 /**
@@ -286,7 +298,7 @@ stateFunc c2_rpc_form_stateTable
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
 	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_checking_state,
-	  c2_rpc_form_updating_state},
+	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
 	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
@@ -296,12 +308,12 @@ stateFunc c2_rpc_form_stateTable
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
 	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_posting_state,
-	  c2_rpc_form_forming_state},
+	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
 	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state,
-	  c2_rpc_form_posting_state},
+	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
 	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
@@ -318,6 +330,12 @@ stateFunc c2_rpc_form_stateTable
 stateFunc c2_rpc_form_next_state(int current_state, int current_event);
 
 /**
+   Exit path from a state machine. An incoming thread which executed
+   the formation state machine so far, is let go and it will return
+   to do its own job. */
+bool c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit *endp_unit, int state, int event);
+
+/**
    Get the endpoint given an rpc item.
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
@@ -326,6 +344,17 @@ int c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 {
 	return item->endpoint;
 }
+
+/**
+   Destroy an endpoint structure since it no longer contains
+   any rpc items.
+ */
+void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
+
+/**
+   Add an endpoint structure when the first rpc item gets added
+   for an endpoint. */
+struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp);
 
 /**
    A default handler function for invoking all state functions
@@ -345,89 +374,61 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item, int state, int event);
 
 /**
    Callback function for addition of an rpc item to the rpc items cache.
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item)
-{
-	/**
-	   Call the default handler function passing the rpc item and
-	   the corresponding event enum.
-	 */
-}
+int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item);
 
 /**
    Callback function for deletion of an rpc item from the rpc items cache.
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item)
-{
-	/**
-	   Call the default handler function passing the rpc item and
-	   the corresponding event enum.
-	 */
-}
+int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item);
 
 /**
    Callback function for change in parameter of an rpc item.
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item)
-{
-	/**
-	   Call the default handler function passing the rpc item and
-	   the corresponding event enum.
-	 */
-}
+int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item);
 
 /**
    Callback function for reply received of an rpc item.
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *item)
-{
-	/**
-	   Call the default handler function passing the rpc item and
-	   the corresponding event enum.
-	 */
-}
+int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *item);
 
 /**
    Callback function for deadline expiry of an rpc item.
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item)
-{
-	/**
-	   Call the default handler function passing the rpc item and
-	   the corresponding event enum.
-	 */
-}
+int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
 
 /**
    Callback function for successful completion of a state.
+   Call the default handler function. Depending upon the
+   input state, the default handler will invoke the next state
+   for state succeeded event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_item *item, int state)
-{
-	/**
-	   Call the default handler function. Depending upon the
-	   input state, the default handler will invoke the next state
-	   for state succeeded event.
-	 */
-}
+int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_item *item, int state);
 
 /**
    Callback function for failure of a state.
+   Call the default handler function. Depending upon the
+   input state, the default handler will invoke the next state
+   for state failed event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_failed(struct c2_rpc_item *item, int state)
-{
-	/**
-	   Call the default handler function. Depending upon the
-	   input state, the default handler will invoke the next state
-	   for state failed event.
-	 */
-}
+int c2_rpc_form_intevt_state_failed(struct c2_rpc_item *item, int state);
 
 /**
    Function to do the coalescing of related rpc items.
@@ -484,43 +485,39 @@ int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event);
    items across update streams. Rpc items belonging to same update stream
    will be coalesced if possible since there is no sequence number assigned
    yet to the rpc items.
+   Formation Algorithm.
+   1. Read rpc items from the cache for this endpoint.
+   2. If the item deadline is zero(urgent), add it to a local
+   list of rpc items to be formed.
+   3. Check size of formed rpc object so far to see if its optimal.
+   Here size of rpc is compared with max_message_size. If size of
+   rpc is far less than max_message_size and no urgent item, goto #1.
+   4. If #3 is true and if the number of disjoint memory buffers
+   is less than parameter max_fragment_size, a probable rpc object
+   is in making. The selected rpc items are put on a list
+   and the state machine transitions to next state.
+   5. Consult the structure c2_rpc_form_item_summary_unit to find out
+   data about all rpc groups. Select groups that have combination of
+   lowest average timeout and highest size that fits into optimal
+   size. Keep selecting such groups till optimal size rpc is formed.
+   6. Consult the list of files from internal data to find out files
+   on which IO requests have come for this endpoint. Do coalescing
+   within groups selected for formation according to read/write
+   intents. Later if rpc has still not reached its optimal size,
+   coalescing across rpc groups will be done.
+   7. Remove the data of selected rpc items from internal data
+   structure so that it will not be considered for processing
+   henceforth.
+   8. If the formed rpc object is sub optimal but it contains
+   an urgent item, it will be formed immediately. Else, it will
+   be discarded.
+   9. This process is repeated until the size of formed rpc object
+   is sub optimal and there is no urgent item in the list.
    @param item - input rpc item.
    @param event - Since CHECKING state handles a lot of events,
    it needs some way of identifying the events.
  */
-int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
-{
-	/**
-	   Formation Algorithm.
-	   1. Read rpc items from the cache for this endpoint.
-	   2. If the item deadline is zero(urgent), add it to a local
-	      list of rpc items to be formed.
-	   3. Check size of formed rpc object so far to see if its optimal.
-	      Here size of rpc is compared with max_message_size. If size of
-	      rpc is far less than max_message_size and no urgent item, goto #1.
-	   4. If #3 is true and if the number of disjoint memory buffers
-	      is less than parameter max_fragment_size, a probable rpc object
-	      is in making. The selected rpc items are put on a list
-	      and the state machine transitions to next state.
-	   5. Consult the structure c2_rpc_form_item_summary_unit to find out
-	      data about all rpc groups. Select groups that have combination of
-	      lowest average timeout and highest size that fits into optimal
-	      size. Keep selecting such groups till optimal size rpc is formed.
-	   6. Consult the list of files from internal data to find out files
-	      on which IO requests have come for this endpoint. Do coalescing
-	      within groups selected for formation according to read/write
-	      intents. Later if rpc has still not reached its optimal size,
-	      coalescing across rpc groups will be done.
-	   7. Remove the data of selected rpc items from internal data
-	      structure so that it will not be considered for processing
-	      henceforth.
-	   8. If the formed rpc object is sub optimal but it contains
-	      an urgent item, it will be formed immediately. Else, it will
-	      be discarded.
-	   9. This process is repeated until the size of formed rpc object
-	      is sub optimal and there is no urgent item in the list.
-	 */
-}
+int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event);
 
 /**
    State function for FORMING state.
