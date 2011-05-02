@@ -149,7 +149,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 {
 	struct c2_net_bulk_mem_domain_pvt *dp;
 
-	if (dom->nd_xprt_private) {
+	if (dom->nd_xprt_private != NULL) {
 		C2_PRE(xprt != &c2_net_bulk_mem_xprt);
 		dp = dom->nd_xprt_private;
 	} else {

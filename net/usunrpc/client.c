@@ -287,11 +287,12 @@ int usunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 
 	C2_ALLOC_PTR(xsid);
 	if (xsid != NULL) {
+		const char *hostname;
 		sid->si_xport_private = xsid;
 		xsid->ssi_id = sid;
 
-		/* N.B. they have different order than kernelspace's ones */
-		xsid->ssi_host = va_arg(varargs, char *);
+		hostname = va_arg(varargs, char *);
+		strncpy(xsid->ssi_host, hostname, ARRAY_SIZE(xsid->ssi_host)-1);
 		xsid->ssi_port = va_arg(varargs, int);
 		xsid->ssi_prog = C2_SESSION_PROGRAM;
 		xsid->ssi_ver  = C2_DEF_RPC_VER;

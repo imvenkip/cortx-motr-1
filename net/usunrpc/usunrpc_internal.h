@@ -70,7 +70,7 @@ static inline bool udom_is_shutting(const struct c2_net_domain *dom)
  */
 struct usunrpc_service_id {
 	struct c2_service_id *ssi_id;
-	char                 *ssi_host;	    /**< server hostname */
+	char                  ssi_host[256];/**< server hostname */
 	struct sockadd_in    *ssi_sockaddr; /**< server ip_addr  */
 	int 	              ssi_addrlen;  /**< server ip_addr  */
 	uint16_t              ssi_port;     /**< server tcp port */
