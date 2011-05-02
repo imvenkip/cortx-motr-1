@@ -3,10 +3,30 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
+#include "lib/memory.h"
+#include "lib/misc.h"
 #include "rpc/session.h"
-#include "db/db.h"
-#include "fop/fom.h"
+#include "lib/bitstring.h"
+#include "cob/cob.h"
+#include "fop/fop.h"
+#include "fop/fop_format_def.h"
+#include "rpc/session_u.h" 
+//#include "rpc/session.ff"
+#include "rpc/session_int.h"
 
+int c2_rpc_session_module_init(void)
+{
+	int		rc;
+
+	rc = c2_rpc_session_fop_init();
+	return rc;
+}
+
+void c2_rpc_session_module_fini(void)
+{
+	c2_rpc_session_fop_fini();
+}
 
 void c2_rpc_conn_init(struct c2_rpc_conn * rpc_conn,
                         struct c2_net_conn *net_conn)

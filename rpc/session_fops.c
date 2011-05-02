@@ -2,12 +2,12 @@
 #include <config.h>
 #endif
 
-#include "session_fops.h"
 #include "lib/errno.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "session_u.h"
 #include "fop/fop_iterator.h"
+#include "rpc/session_fops.h"
 
 extern struct c2_fop_type_format c2_rpc_conn_create_tfmt;
 extern struct c2_fop_type_format c2_rpc_conn_terminate_tfmt;
@@ -18,7 +18,6 @@ extern struct c2_fop_type_format c2_rpc_conn_create_rep_tfmt;
 extern struct c2_fop_type_format c2_rpc_conn_terminate_rep_tfmt;
 extern struct c2_fop_type_format c2_rpc_session_create_rep_tfmt;
 extern struct c2_fop_type_format c2_rpc_session_destroy_rep_tfmt;
-
 
 int c2_rpc_fom_init(struct c2_fop *fop, struct c2_fom **m);
 /*
@@ -94,7 +93,7 @@ static struct c2_fop_type *fops[] = {
 void c2_rpc_session_fop_fini(void)
 {
 	printf("session fop fini called\n");
-        c2_fop_object_fini();
+        //c2_fop_object_fini();
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 

@@ -20,6 +20,7 @@
 #include "desim/sim.h"
 
 #include "colibri/init.h"
+#include "rpc/session_int.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
@@ -48,7 +49,8 @@ struct init_fini_call subsystem[] = {
 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
 	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
-	{ &sim_global_init,  &sim_global_fini,  "desim" }
+	{ &sim_global_init,  &sim_global_fini,  "desim" },
+	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini, "session"}
 };
 
 static void fini_nr(int i)
