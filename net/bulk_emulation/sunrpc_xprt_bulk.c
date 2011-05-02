@@ -54,7 +54,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	/* copy up to 1 segment from passive buffer into the reply,
 	   and set sgr_eof if end of net buffer is reached.
 	*/
-	size_t len = nb->nb_length;
+	c2_bcount_t len = nb->nb_length;
 	struct c2_bufvec_cursor cur;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bool eof = c2_bufvec_cursor_move(&cur, in->sg_offset);
@@ -68,11 +68,20 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		if (ex->sgr_buf.sb_buf == NULL)
 			rc = -ENOMEM;
 		else {
-			memcpy(ex->sgr_buf.sb_buf,
-			       c2_bufvec_cursor_addr(&cur), step);
-			len -= step;
-			if (len == 0)
-				eof = true;
+			struct c2_bufvec dtmp = {
+				.ov_vec = {
+					.v_nr = 1,
+					.v_count = &step
+				},
+				.ov_buf = (void**) &ex->sgr_buf.sb_buf
+			};
+			struct c2_bufvec_cursor dcur;
+			c2_bcount_t copied;
+
+			c2_bufvec_cursor_init(&dcur, &dtmp);
+			copied = c2_bufvec_cursor_copy(&dcur, &cur, step);
+			C2_ASSERT(copied == step);
+			eof = c2_bufvec_cursor_move(&cur, 0);
 		}
 	} else {
 		eof = true;
@@ -131,32 +140,24 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	   are performed sequentially, so the passive callback can be
 	   made as soon as the final put operation is performed.
 	*/
-	size_t len = in->sp_buf.sb_len;
+	c2_bcount_t len = in->sp_buf.sb_len;
 	struct c2_bufvec_cursor cur;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 
-	if (!c2_bufvec_cursor_move(&cur, in->sp_offset)) {
-		c2_bcount_t step;
-		char *sbp = in->sp_buf.sb_buf;
-		char *dbp;
+	struct c2_bufvec stmp = {
+		.ov_vec = {
+			.v_nr = 1,
+			.v_count = &len
+		},
+		.ov_buf = (void**) &in->sp_buf.sb_buf
+	};
+	struct c2_bufvec_cursor scur;
+	c2_bcount_t copied;
 
-		while (len > 0) {
-			dbp = c2_bufvec_cursor_addr(&cur);
-			step = c2_bufvec_cursor_step(&cur);
-			if (len > step) {
-				memcpy(dbp, sbp, step);
-				sbp += step;
-				len -= step;
-				if (c2_bufvec_cursor_move(&cur, step))
-					break;
-				C2_ASSERT(cur.bc_vc.vc_offset == 0);
-			} else {
-				memcpy(dbp, sbp, len);
-				len = 0;
-			}
-		}
-	}
-	if (len > 0) {
+	c2_bufvec_cursor_init(&scur, &stmp);
+	c2_bufvec_cursor_move(&cur, in->sp_offset);
+	copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+	if (copied < len) {
 		rc = -EFBIG;
 		sunrpc_queue_passive_cb(nb, rc);
 	} else if (in->sp_offset + in->sp_buf.sb_len == in->sp_desc.sbd_total) {
@@ -176,8 +177,8 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 {
 	int                     rc = 0;
 	struct c2_net_conn      *conn;
-	struct c2_fop           *f;
-	struct c2_fop           *r;
+	struct c2_fop           *f = NULL;
+	struct c2_fop           *r = NULL;
 	struct sunrpc_put       *fop;
 	struct sunrpc_put_resp  *rep;
 	struct c2_net_end_point *tm_ep;
@@ -188,8 +189,12 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		return rc;
 
 	f = c2_fop_alloc(&sunrpc_put_fopt, NULL);
-	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
+	if (f == NULL || r == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	fop = c2_fop_data(f);
 
 	struct c2_net_call call = {
 		.ac_arg = f,
@@ -226,8 +231,11 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		C2_ASSERT(len == 0 || !c2_bufvec_cursor_move(&cur, step));
 	}
 
-	c2_fop_free(r);
-	c2_fop_free(f);
+done:
+	if (r != NULL)
+		c2_fop_free(r);
+	if (f != NULL)
+		c2_fop_free(f);
 
 	return rc;
 }
@@ -238,8 +246,8 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 {
 	int                      rc;
 	struct c2_net_conn      *conn;
-	struct c2_fop           *f;
-	struct c2_fop           *r;
+	struct c2_fop           *f = NULL;
+	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
 	struct sunrpc_get_resp  *rep;
 	struct c2_net_end_point *tm_ep;
@@ -250,8 +258,12 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 		return rc;
 
 	f = c2_fop_alloc(&sunrpc_get_fopt, NULL);
-	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
+	if (f == NULL || r == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	fop = c2_fop_data(f);
 
 	struct c2_net_call call = {
 		.ac_arg = f,
@@ -263,15 +275,13 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	fop->sg_sender.sep_port = MEM_EP_PORT(tm_ep); /* order */
 
 	/*
-	  TODO: Walk each buf in our bufvec, receiving data
-	  from remote until complete bufvec is transferred.
+	  Receive data from remote and copy to our bufvec
+	  until complete bufvec is transferred.
 	*/
 	struct c2_bufvec_cursor cur;
-	char *sbp;
-	char *dbp;
-	size_t len;
+	c2_bcount_t len;
 	size_t off = 0;
-	c2_bcount_t step;
+	c2_bcount_t copied;
 	bool eof = false;
 
 	fop->sg_desc = *sd;
@@ -289,32 +299,29 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 			break;
 
 		len = rep->sgr_buf.sb_len;
-		sbp = rep->sgr_buf.sb_buf;
-		while (len > 0) {
-			dbp = c2_bufvec_cursor_addr(&cur);
-			step = c2_bufvec_cursor_step(&cur);
-			if (len > step) {
-				memcpy(dbp, sbp, step);
-				sbp += step;
-				len -= step;
-				if (c2_bufvec_cursor_move(&cur, step))
-					break;
-				C2_ASSERT(cur.bc_vc.vc_offset == 0);
-			} else {
-				memcpy(dbp, sbp, len);
-				c2_bufvec_cursor_move(&cur, len);
-				len = 0;
-			}
-		}
-		if (len > 0) {
+		struct c2_bufvec stmp = {
+			.ov_vec = {
+				.v_nr = 1,
+				.v_count = &len
+			},
+			.ov_buf = (void**) &rep->sgr_buf.sb_buf
+		};
+		struct c2_bufvec_cursor scur;
+
+		c2_bufvec_cursor_init(&scur, &stmp);
+		copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+		if (copied < len) {
 			rc = -EFBIG;
 			break;
 		}
-		off += rep->sgr_buf.sb_len;
+		off += len;
 	}
 
-	c2_fop_free(r);
-	c2_fop_free(f);
+done:
+	if (r != NULL)
+		c2_fop_free(r);
+	if (f != NULL)
+		c2_fop_free(f);
 
 	return rc;
 }
