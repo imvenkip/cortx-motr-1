@@ -221,7 +221,6 @@ static void usunrpc_service_worker(struct c2_service *service)
 	struct work_item        *wi;
 	struct c2_queue_link    *ql;
 	struct c2_fop           *ret;
-	struct c2_usunrpc_cookie cookie;
         bool                     sleeping = false;
 
 	xs = service->s_xport_private;
@@ -241,10 +240,8 @@ static void usunrpc_service_worker(struct c2_service *service)
                         wi->wi_arg->f_type->ft_top->fft_layout->fm_sizeof,
                         &sleeping);
 
-		cookie.uc_ret = NULL;
-		cookie.uc_transp = wi->wi_transp;
-		service->s_handler(service, wi->wi_arg, &cookie);
-		ret = cookie.uc_ret;
+		ret = NULL;
+		service->s_handler(service, wi->wi_arg, &ret);
 
 		c2_rwlock_read_lock(&xs->s_guard);
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,
@@ -609,10 +606,10 @@ int usunrpc_service_init(struct c2_service *service)
 static void usunrpc_reply_post(struct c2_service *service,
 			       struct c2_fop *fop, void *cookie)
 {
-	struct c2_usunrpc_cookie *ret = cookie;
+	struct c2_fop **ret = cookie;
 
-	C2_ASSERT(ret->uc_ret == NULL);
-	ret->uc_ret = fop;
+	C2_ASSERT(*ret == NULL);
+	*ret = fop;
 }
 
 int usunrpc_server_init(void)
