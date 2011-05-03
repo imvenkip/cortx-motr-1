@@ -317,6 +317,19 @@ static int sunrpc_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_fini(tm);
 }
 
+int c2_net_bulk_sunrpc_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+					  size_t num)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return c2_net_bulk_mem_tm_set_num_threads(tm, num);
+}
+
+size_t c2_net_bulk_sunrpc_tm_get_num_threads(struct c2_net_transfer_mc *tm)
+{
+	C2_PRE(sunrpc_tm_invariant(tm));
+	return c2_net_bulk_mem_tm_get_num_threads(tm);
+}
+
 static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
 	C2_PRE(sunrpc_tm_invariant(tm));

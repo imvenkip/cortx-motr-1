@@ -456,11 +456,7 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 	if (tp == NULL)
 		return -ENOMEM;
 	tp->xtm_num_workers = dp->xd_num_tm_threads;
-	C2_ALLOC_ARR(tp->xtm_worker_threads, tp->xtm_num_workers);
-	if (tp->xtm_worker_threads == NULL) {
-		c2_free(tp);
-		return -ENOMEM;
-	}
+	/* defer allocation of thread array to start time */
 	tp->xtm_tm = tm;
 	tp->xtm_state = C2_NET_XTM_INITIALIZED;
 	c2_list_init(&tp->xtm_work_list);
@@ -487,20 +483,43 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	c2_mutex_lock(&tm->ntm_mutex);
 	c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	int i;
-	for (i = 0; i < tp->xtm_num_workers; ++i) {
-		if (tp->xtm_worker_threads[i].t_state != TS_PARKED)
-			c2_thread_join(&tp->xtm_worker_threads[i]);
+	if (tp->xtm_worker_threads != NULL) {
+		int i;
+		for (i = 0; i < tp->xtm_num_workers; ++i) {
+			if (tp->xtm_worker_threads[i].t_state != TS_PARKED)
+				c2_thread_join(&tp->xtm_worker_threads[i]);
+		}
+		c2_free(tp->xtm_worker_threads);
 	}
-
 	tm->ntm_xprt_private = NULL;
-	c2_free(tp->xtm_worker_threads);
 	c2_cond_fini(&tp->xtm_work_list_cv);
 	c2_list_fini(&tp->xtm_work_list);
 	tp->xtm_tm = NULL;
 	tm->ntm_xprt_private = NULL;
 	c2_free(tp);
 	return 0;
+}
+
+int c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+				       size_t num)
+{
+	int rc;
+	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	C2_PRE(mem_tm_invariant(tm));
+	c2_mutex_lock(&tm->ntm_mutex);
+	if (tp->xtm_state == C2_NET_XTM_INITIALIZED) {
+		tp->xtm_num_workers = num;
+	} else {
+		rc = -EPERM;
+	}
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return rc;
+}
+
+size_t c2_net_bulk_mem_tm_get_num_threads(struct c2_net_transfer_mc *tm) {
+	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	C2_PRE(mem_tm_invariant(tm));
+	return tp->xtm_num_workers;
 }
 
 static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
@@ -515,6 +534,13 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 		return 0;
 	if (tp->xtm_state != C2_NET_XTM_INITIALIZED)
 		return -EPERM;
+
+	/* allocate worker thread array */
+	if (tp->xtm_worker_threads == NULL) {
+		C2_ALLOC_ARR(tp->xtm_worker_threads, tp->xtm_num_workers);
+		if (tp->xtm_worker_threads == NULL)
+			return -ENOMEM;
+	}
 
 	/* allocate a state change work item */
 	struct c2_net_bulk_mem_work_item *wi_st_chg;
