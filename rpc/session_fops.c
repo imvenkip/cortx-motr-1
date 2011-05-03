@@ -44,12 +44,12 @@ int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_type = &c2_rpc_fom_conn_create_type;
 	fom->fo_ops = &c2_rpc_fom_conn_create_ops;
 
+	fom_obj->fcc_fop = fop;
 	fom_obj->fcc_fop_rep = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	if (fom_obj->fcc_fop_rep == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
-	fom_obj->fcc_dom = (struct c2_cob_domain *)0xABCDEF;
 
 	*m = fom;
 	printf ("conn_create fom init call finished\n");

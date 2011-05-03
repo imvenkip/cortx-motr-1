@@ -16,7 +16,7 @@
 #endif
 
 #include "fop/fop_format_def.h"
-
+#include "rpc/session_int.h"
 
 
 struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
@@ -32,10 +32,88 @@ struct c2_fom_type c2_rpc_fom_conn_create_type = {
 	.ft_ops = &c2_rpc_fom_conn_create_type_ops
 };
 
-int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 {
+	struct c2_fop			*fop;
+	struct c2_fop			*fop_rep;
+	struct c2_rpc_conn_create	*fop_in;
+	struct c2_rpc_conn_create_rep	*fop_out;
+	//struct c2_cob_domain		*dom;
+	struct c2_rpc_fom_conn_create	*fom;
+	uint64_t			sender_id;
+	struct c2_rpc_slot_table_key	key;
+	struct c2_rpc_slot_table_value	value;
+	struct c2_db_pair		db_pair;
+	int				rc;
+
+	fom = (struct c2_rpc_fom_conn_create *)fom_in;
+
 	printf("Called conn_create_state\n");
-	return 0;
+	C2_PRE(fom != NULL && fom->fcc_fop != NULL &&
+			fom->fcc_fop_rep != NULL &&
+			fom->fcc_dbenv != NULL &&
+			fom->fcc_slot_table != NULL);
+
+	fop = fom->fcc_fop;
+	fop_in = c2_fop_data(fop);
+	C2_ASSERT(fop_in != NULL);
+
+	fop_rep = fom->fcc_fop_rep;
+	fop_out = c2_fop_data(fop_rep);
+	C2_ASSERT(fop_out != NULL);
+
+	printf("Cookie = %lx\n", fop_in->rcc_cookie);
+
+	/*
+	 * XXX Decide how to calculate sender_id
+	 */
+	sender_id = 20;
+
+	/*
+	 * Create entry for session0/slot0
+	 */
+	key.stk_sender_id = sender_id;
+	key.stk_session_id = SESSION_0;
+	key.stk_slot_id = 0;
+	key.stk_slot_generation = 0;
+
+	value.stv_verno.vn_lsn = 0;
+	value.stv_verno.vn_vc = 0;
+	value.stv_reply_len = 0;
+
+	c2_db_pair_setup(&db_pair, fom->fcc_slot_table, &key, sizeof key,
+				&value, sizeof value);
+	rc = c2_db_tx_init(&fom->fcc_tx, fom->fcc_dbenv, 0);
+	if (rc != 0) {
+		printf("conn_create_state: Error while initializing tx\n");
+		goto errout;
+	}
+	rc = c2_table_insert(&fom->fcc_tx, &db_pair);
+	if (rc != 0 && rc != -EEXIST) {
+		printf("conn_create_state: error while inserting record\n");
+		goto errabort;
+	}
+	rc = c2_db_tx_commit(&fom->fcc_tx);
+	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
+
+	fop_out->rccr_snd_id = sender_id;
+	fop_out->rccr_rc = 0;		/* successful */
+	fop_out->rccr_cookie = fop_in->rcc_cookie; 
+
+	printf("conn_create_state: conn created\n");
+	fom_in->fo_phase = FOPH_DONE;
+	return FSO_AGAIN;
+errabort:
+	if (rc != 0) {
+		c2_db_tx_abort(&fom->fcc_tx);
+	}
+errout:
+	fop_out->rccr_snd_id = SENDER_ID_INVALID;
+	fop_out->rccr_rc = rc;
+	fop_out->rccr_cookie = fop_in->rcc_cookie;
+	fom_in->fo_phase = FOPH_FAILED;
+	return FSO_AGAIN;
 }
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
 {

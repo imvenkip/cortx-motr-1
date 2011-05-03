@@ -9,6 +9,7 @@
 #include "lib/rwlock.h"
 #include "lib/refs.h"
 #include "lib/adt.h"
+#include "lib/bitstring.h"
 #include "addb/addb.h"
 #include "db/db.h"
 #include "stob/stob.h"

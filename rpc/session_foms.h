@@ -20,7 +20,9 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fom		fcc_gen;
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
-	struct c2_cob_domain	*fcc_dom;
+	struct c2_dbenv		*fcc_dbenv;
+	struct c2_table		*fcc_slot_table;
+	struct c2_db_tx		fcc_tx;
 };
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
 extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;

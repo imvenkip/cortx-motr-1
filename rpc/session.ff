@@ -13,11 +13,12 @@
    input.
  */
 DEF(c2_rpc_conn_create, RECORD,
-   _(rcc_temp, U64));
+   _(rcc_cookie, U64));
 
 DEF(c2_rpc_conn_create_rep, RECORD,
    _(rccr_rc, U32),
-   _(rccr_snd_id, U64));
+   _(rccr_snd_id, U64),
+   _(rccr_cookie, U64));
 
 DEF(c2_rpc_conn_terminate, RECORD,
     _(ct_snd_id, U64));

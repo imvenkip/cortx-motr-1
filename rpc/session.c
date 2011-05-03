@@ -15,6 +15,41 @@
 //#include "rpc/session.ff"
 #include "rpc/session_int.h"
 
+const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
+
+int c2_rpc_slot_table_key_cmp(struct c2_table *table, const void *key0,
+				const void *key1)
+{
+	const struct c2_rpc_slot_table_key *stk0 = key0;
+	const struct c2_rpc_slot_table_key *stk1 = key1;
+	int rc;
+
+	rc = C2_3WAY(stk0->stk_sender_id, stk1->stk_sender_id);
+	if (rc == 0) {
+		rc = C2_3WAY(stk0->stk_session_id, stk1->stk_session_id);
+		if (rc == 0) {
+			rc = C2_3WAY(stk0->stk_slot_id, stk1->stk_slot_id);
+			if (rc == 0) {
+				rc = C2_3WAY(stk0->stk_slot_generation,
+						stk1->stk_slot_generation);
+			}
+		}
+	}
+	return rc;
+}
+
+const struct c2_table_ops c2_rpc_slot_table_ops = {
+        .to = {
+                [TO_KEY] = {
+                        .max_size = sizeof(struct c2_rpc_slot_table_key)
+                },
+                [TO_REC] = {
+                        .max_size = ~0
+                }
+        },
+        .key_cmp = c2_rpc_slot_table_key_cmp
+};
+
 int c2_rpc_session_module_init(void)
 {
 	int		rc;
@@ -157,21 +192,6 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
 {
 	return 0;
 }
-
-/**
-    Key into c2_rpc_in_core_slot_table.
-    Receiver side.
-
-    session_id is not unique on receiver.
-    For each sender_id, receiver has session 0 associated with it.
-    Hence snd_id (sender_id) is also a part of key.
- */
-struct c2_rpc_slot_table_key {
-        uint64_t        stk_snd_id;
-        uint64_t        stk_session_id;
-        uint32_t        stk_slot_id;
-        uint64_t        stk_generation;
-};
 
 /**
    In core slot table stores attributes of slots which
