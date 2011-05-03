@@ -29,4 +29,25 @@ extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 
 extern int c2_rpc_fom_conn_create_state(struct c2_fom *);
 extern void c2_rpc_fom_conn_create_fini(struct c2_fom *);
+
+// =========
+enum c2_rpc_session_create_phase {
+	FOPH_SESSION_CREATE
+};
+
+struct c2_rpc_fom_session_create {
+	struct c2_fom		fsc_gen;
+	struct c2_fop		*fsc_fop;
+	struct c2_fop		*fsc_fop_rep;
+	struct c2_dbenv		*fsc_dbenv;
+	struct c2_table		*fsc_slot_table;
+	struct c2_db_tx		fsc_tx;
+};
+
+extern struct c2_fom_type c2_rpc_fom_session_create_type;
+extern struct c2_fom_ops c2_rpc_fom_session_create_ops;
+
+extern int c2_rpc_fom_session_create_state(struct c2_fom *);
+extern void c2_rpc_fom_session_create_fini(struct c2_fom *);
+
 #endif

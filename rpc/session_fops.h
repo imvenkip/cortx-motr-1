@@ -43,6 +43,9 @@ extern struct c2_fop_type c2_rpc_session_destroy_rep_fopt;
 
 extern int c2_rpc_conn_create_fom_init(struct c2_fop *fop,
 					struct c2_fom **m);
+extern int c2_rpc_session_create_fom_init(struct c2_fop *fop,
+					struct c2_fom **m);
+
 extern int c2_rpc_session_fop_init(void);
 
 extern void c2_rpc_session_fop_fini(void);

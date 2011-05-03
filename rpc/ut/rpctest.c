@@ -76,6 +76,11 @@ int main(void)
 	struct c2_rpc_fom_conn_create	*fom_cc;
 	struct c2_rpc_conn_create	*fop_cc;
 	struct c2_rpc_conn_create_rep	*fop_reply;
+
+	struct c2_rpc_fom_session_create	*fom_sc;
+	struct c2_rpc_session_create		*fop_sc;
+	struct c2_rpc_session_create_rep	*fop_sc_reply;
+
 	printf("Program start\n");
 	c2_init();
 
@@ -97,6 +102,24 @@ int main(void)
 	printf("Main: sender id %lu\n", fop_reply->rccr_snd_id);
 	fom->fo_ops->fo_fini(fom);
 	traverse_slot_table();	
+
+	fop = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+	fop_sc = c2_fop_data(fop);
+	C2_ASSERT(fop_sc != NULL);
+	fop_sc->rsc_snd_id = fop_reply->rccr_snd_id;
+	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+	C2_ASSERT(fom != NULL);
+	fom_sc = (struct c2_rpc_fom_session_create *)fom;
+	fom_sc->fsc_dbenv = db;
+	fom_sc->fsc_slot_table = slot_table;
+	fom->fo_ops->fo_state(fom);
+	fom->fo_ops->fo_fini(fom);
+
+	fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
+	C2_ASSERT(fop_sc_reply != NULL);
+	printf("Main: session id %lu\n", fop_sc_reply->rscr_session_id);
+	traverse_slot_table();
 	c2_fini();
 	printf("program end\n");
 	return 0;
