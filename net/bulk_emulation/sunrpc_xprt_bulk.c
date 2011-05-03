@@ -97,6 +97,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 done:
 	c2_mutex_unlock(&tm->ntm_mutex);
 	ex->sgr_rc = rc;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return rc;
 }
 
@@ -166,6 +167,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 done:
 	c2_mutex_unlock(&tm->ntm_mutex);
 	ex->spr_rc = rc;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return rc;
 }
 
