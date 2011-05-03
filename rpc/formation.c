@@ -300,6 +300,7 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
 	printf("In state: waiting\n");
+	endp_unit->isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	/* Internal events will invoke a nop from waiting state. */
 	if ((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) ||
 			(event == C2_RPC_FORM_INTEVT_STATE_FAILED))
@@ -326,6 +327,8 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 						printf("Failed to process a coalesced rpc item.\n");
 				}
 			}
+			endp_unit->isu_curr_rpcs_in_flight--;
+			/* XXX Post a done event and exit the state machine. */
 	};
 }
 
