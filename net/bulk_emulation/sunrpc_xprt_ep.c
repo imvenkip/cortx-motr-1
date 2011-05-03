@@ -39,6 +39,7 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	/* free the conn and sid */
 	if (sep->xep_conn_valid) {
 		c2_net_conn_release(sep->xep_conn);
+		c2_net_conn_unlink(sep->xep_conn);
 	}
 	if (sep->xep_sid_valid) {
 		c2_service_id_fini(&sep->xep_sid);
