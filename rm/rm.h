@@ -122,7 +122,9 @@
    an owner (which can be associated with a file, or a client, or a similar
    entity) is safe to be finalised.
 
-   When a resource owner is finalised it
+   When a resource owner is finalised (ROS_FINALISING) it tears down the credit
+   network by revoking the loans it sublet to and by retuning the loans it
+   borrowed from other owners.
 
    <b>Resource identification and location.</b>
 
