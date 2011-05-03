@@ -141,9 +141,10 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 			prev_state = sm_state;
 		}
 	}
-	res = c2_rpc_form_next_state(prev_state, sm_event);
+	res = (c2_rpc_form_next_state(prev_state, sm_event))(endp_unit, item, sm_event);
 	prev_state = endp_unit->isu_endp_state;
 	c2_mutex_unlock(endp_unit->isu_unit_lock);
+	/*XXX Handle exit path as an event. */
 	/* Exit point for state machine. */
 	exit = c2_rpc_form_state_machine_exit(endp_unit, prev_state, sm_event);
 	if(exit == true)
@@ -260,17 +261,79 @@ int c2_rpc_form_intevt_state_failed(struct c2_rpc_item *item, int state)
 }
 
 /**
-   State function for WAITING state.
+   Call the completion callbacks for member rpc items of 
+   a coalesced rpc item. 
  */
-int c2_rpc_form_waiting_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_form_item_coalesced *coalesced_struct)
 {
+	int 						rc = 0;
+	struct c2_rpc_form_item_coalesced_member	*member;
+	struct c2_rpc_form_item_coalesced_member	*next_member;
+	C2_PRE(coalesced_struct != NULL);
+
+	c2_list_for_each_entry_safe(&coalesced_struct->ic_member_list->l_head, member, next_member, struct c2_rpc_form_item_coalesced_member, ic_member_list) {
+		/* XXX what is rc for completion callback?*/
+		member->im_member_item->rio_replied(member->im_member, rc);
+		c2_list_del(member->im_linkage);
+		member->ic_nmembers--;
+	}
+	c2_list_fini(coalesced_struct->ic_member_list);
+	c2_list_del(coalesced_struct->ic_linkage);
+	c2_free(coalesced_struct);
+	return 0;
+}
+
+/**
+   State function for WAITING state.
+   endp_unit is locked.
+ */
+int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
+{
+	int 					 res = 0;
+	struct c2_rpc_item 			*req_item = NULL;
+	struct c2_rpc_form_item_coalesced	*coalesced_item = NULL;
+
+	C2_PRE(item != NULL);
+	C2_PRE(event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
+
 	printf("In state: waiting\n");
+	/* Internal events will invoke a nop from waiting state. */
+	if ((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) ||
+			(event == C2_RPC_FORM_INTEVT_STATE_FAILED))
+		return 0;
+
+	switch(event) {
+		case C2_RPC_FORM_INTEVT_STATE_SUCCEEDED:
+			return 0;
+		case C2_RPC_FORM_INTEVT_STATE_FAILED:
+			return 0;
+		case C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED:
+			/* Find out the request rpc item, given the reply
+			   rpc item. */
+			res = c2_rpc_session_reply_item_received(item, &req_item);
+			if (res != 0) {
+				printf("Error finding out request rpc item for the given reply rpc item. Error = %d\n", res);
+				return res;
+			}
+			C2_ASSERT(req_item != NULL);
+			c2_list_for_each_entry(&endp_unit->isu_coalesced_items_list->l_head, coalesced_item, struct c2_rpc_form_item_coalesced, isu_coalesced_items_list) {
+				if (coalesced_item->ic_resultant_item == req_item) {
+					res = c2_rpc_form_item_coalesced_reply_post(endp_unit, coalesced_item);
+					if (res != 0)
+						printf("Failed to process a coalesced rpc item.\n");
+				}
+			}
+	};
 }
 
 /**
    State function for UPDATING state.
  */
-int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
 {
 	printf("In state: updating\n");
 }
@@ -278,7 +341,8 @@ int c2_rpc_form_updating_state(struct c2_rpc_item *item, int event)
 /**
    State function for CHECKING state.
  */
-int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
 {
 	printf("In state: checking\n");
 }
@@ -286,7 +350,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_item *item, int event)
 /**
    State function for FORMING state.
  */
-int c2_rpc_form_forming_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
 {
 	printf("In state: forming\n");
 }
@@ -294,7 +359,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_item *item, int event)
 /**
    State function for POSTING state.
  */
-int c2_rpc_form_posting_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
 {
 	printf("In state: posting\n");
 }
@@ -302,7 +368,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_item *item, int event)
 /**
    State function for REMOVING state.
  */
-int c2_rpc_form_removing_state(struct c2_rpc_item *item, int event)
+int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit
+		,struct c2_rpc_item *item, int event)
 {
 	printf("In state: removing\n");
 }
