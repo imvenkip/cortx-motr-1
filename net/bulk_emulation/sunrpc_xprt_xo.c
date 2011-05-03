@@ -4,6 +4,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
