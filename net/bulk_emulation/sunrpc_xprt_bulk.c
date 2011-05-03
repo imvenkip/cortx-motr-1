@@ -371,7 +371,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 			rc = sunrpc_active_send(nb, &sd, match_ep);
 		else
 			rc = sunrpc_active_recv(nb, &sd, match_ep);
-	} while(0);
+	} while (0);
 
 	/* free the local match end point */
 	if (match_ep != NULL)
