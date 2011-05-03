@@ -217,7 +217,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	fop->sp_desc = *sd;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	while (len > 0 && rc == 0) {
-		step = c2_bufvec_cursor_step(&cur);
+		step = min32u(c2_bufvec_cursor_step(&cur), len);
 		fop->sp_offset = off;
 		fop->sp_buf.sb_len = step;
 		fop->sp_buf.sb_buf = c2_bufvec_cursor_addr(&cur);

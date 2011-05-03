@@ -8,7 +8,7 @@
  */
 
 /* only call fops listed here, not reply fops */
-static struct c2_fop_type *sunrpc_fops[] = {
+static struct c2_fop_type *s_fops[] = {
 	&sunrpc_msg_fopt,
 	&sunrpc_get_fopt,
 	&sunrpc_put_fopt,
@@ -55,18 +55,26 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 
 	if (wi->xwi_next_state == C2_NET_XTM_STARTED) {
-		/* c2_service_id_init is done by sunrpc_ep_create */
+		/*
+		  Application can call c2_net_tm_stop
+		  before the C2_NET_XTM_STARTED work item gets processed.
+		  If that happens, ignore the C2_NET_XTM_STARTED item.
+		 */
+		if (tp->xtm_base.xtm_state < C2_NET_XTM_STOPPING) {
+			/* c2_service_id_init is done by sunrpc_ep_create */
 
-		/* c2_service initialization */
-		tp->xtm_service.s_table.not_start = sunrpc_fops[0]->ft_code;
-		tp->xtm_service.s_table.not_nr    = ARRAY_SIZE(sunrpc_fops);
-		tp->xtm_service.s_table.not_fopt  = sunrpc_fops;
-		tp->xtm_service.s_handler         = &sunrpc_bulk_handler;
+			/* c2_service initialization */
+			tp->xtm_service.s_table.not_start = s_fops[0]->ft_code;
+			tp->xtm_service.s_table.not_nr = ARRAY_SIZE(s_fops);
+			tp->xtm_service.s_table.not_fopt  = s_fops;
+			tp->xtm_service.s_handler = &sunrpc_bulk_handler;
 
-		rc = c2_service_start(&tp->xtm_service, &sep->xep_sid);
-		C2_ASSERT(rc >= 0);
+			rc = c2_service_start(&tp->xtm_service, &sep->xep_sid);
+			C2_ASSERT(rc >= 0);
+		}
 	} else {
-		c2_service_stop(&tp->xtm_service);
+		if (tp->xtm_service.s_id != NULL)
+			c2_service_stop(&tp->xtm_service);
 		C2_SET0(&tp->xtm_service);
 
 		/* c2_service_id_fini() is done when tm_ep is released */
