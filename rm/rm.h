@@ -103,9 +103,32 @@
 
    <b>Liveness.</b>
 
+   None of the resource manager structures, except for c2_rm_resource, require
+   reference counting, because their liveness is strictly determined by the
+   liveness of an "owning" structure into which they are logically embedded.
 
+   The resource structure (c2_rm_resource) can be shared between multiple
+   resource owners (c2_rm_owner) and its liveness is determined by the
+   reference counting (c2_rm_resource::r_ref).
+
+   As in many other places in Colibri, liveness of "global" long-living
+   structures (c2_rm_domain, c2_rm_resource_type) is managed by the upper
+   layers which are responsible fore determining when it is safe to finalise
+   the structures. Typically, an upper layer would achieve this by first
+   stopping and finalising all possible resource manager users.
+
+   Similarly, a resource owner (c2_rm_owner) liveness is not explicitly
+   determined by the resource manager. It is up to the user to determine when
+   an owner (which can be associated with a file, or a client, or a similar
+   entity) is safe to be finalised.
+
+   When a resource owner is finalised it
 
    <b>Resource identification and location.</b>
+
+   <b>Persistent state.</b>
+
+   <b>Network protocol.</b>
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
 
@@ -128,6 +151,7 @@ struct c2_rm_group;
 struct c2_rm_right;
 struct c2_rm_right_ops;
 struct c2_rm_incoming;
+struct c2_rm_incoming_ops;
 struct c2_rm_outgoing;
 struct c2_rm_lease;
 
@@ -458,6 +482,38 @@ struct c2_rm_remote {
 struct c2_rm_group {
 };
 
+/**
+   c2_rm_owner state machine states.
+ */
+enum c2_rm_owner_state {
+	/**
+	    Terminal and initial state.
+
+	    In this state owner rights lists are empty (including incoming and
+	    outgoing request lists).
+	 */
+	ROS_FINAL = 1,
+	/**
+	   Initial network setup state:
+
+	       - registering with the resource data-base;
+
+	       - &c.
+	 */
+	ROS_INITIALISING,
+	/**
+	   Active request processing state. Once an owner reached this state it
+	   must pass through the finalising state.
+	 */
+	ROS_ACTIVE,
+	/**
+	   No new requests are allowed in this state.
+
+	   The owner collects from debtors and repays owners.
+	 */
+	ROS_FINALISING
+};
+
 enum {
 	/**
 	   Incoming requests are assigned a priority (greater numerical value
@@ -566,6 +622,28 @@ enum c2_rm_owner_queue_state {
    (c2_rm_right::ri_pins) for c2_rm_owner::ro_owned[]) that can be manipulated
    independently.
 
+   Owner state diagram:
+
+   @verbatim
+
+			      +----->FINAL<---------+
+			      |	       |  	    |
+			      |	       | 	    |
+			      |	       V	    |
+			      +---INITIALISING	    |
+				       |       	    |
+				       |	    |
+				       |	    |
+				       V	    |
+				     ACTIVE	    |
+				       |  	    |
+				       |	    |
+				       |	    |
+				       V	    |
+				   FINALISING-------+
+
+   @endverbatim
+
    @invariant under ->ro_lock { // keep books balanced at all times
            join of rights on ->ro_owned[] and
                    rights on ->ro_sublet equals to
@@ -581,6 +659,7 @@ enum c2_rm_owner_queue_state {
    }
  */
 struct c2_rm_owner {
+	enum c2_rm_owner_state ro_state;
 	/**
 	   Resource this owner possesses the rights on.
 	 */
@@ -855,13 +934,13 @@ enum c2_rm_incoming_flags {
    ROT_TAKE could be added.
  */
 struct c2_rm_incoming {
-	enum c2_rm_incoming_type   rin_type;
-	enum c2_rm_incoming_state  rin_state;
-	enum c2_rm_incoming_policy rin_policy;
-	enum c2_rm_incoming_flags  rin_flags;
-	struct c2_rm_owner        *rin_owner;
+	enum c2_rm_incoming_type         rin_type;
+	enum c2_rm_incoming_state        rin_state;
+	enum c2_rm_incoming_policy       rin_policy;
+	enum c2_rm_incoming_flags        rin_flags;
+	struct c2_rm_owner              *rin_owner;
 	/** The right requested. */
-	struct c2_rm_right         rin_want;
+	struct c2_rm_right               rin_want;
 	/**
 	   List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
 	   rights held to satisfy this request.
@@ -877,11 +956,30 @@ struct c2_rm_incoming {
 
 	       - other states: empty.
 	 */
-	struct c2_list             rin_pins;
+	struct c2_list                   rin_pins;
 	/**
 	   Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
 	 */
-	int                        rin_priority;
+	int                              rin_priority;
+	const struct c2_rm_incoming_ops *rin_ops;
+};
+
+/**
+   Operations assigned by a resource manager user to an incoming
+   request. Resource manager calls methods in this operation vector when events
+   related to the request happen.
+ */
+struct c2_rm_incoming_ops {
+	/**
+	   This is called when incoming request processing completes either
+	   successfully (rc == 0) or with an error (-ve rc).
+	 */
+	void (*rio_complete)(struct c2_rm_incoming *in, int32_t rc);
+	/**
+	   This is called when a request arrives that conflicts with the right
+	   held by this incoming request.
+	 */
+	void (*rio_conflict)(struct c2_rm_incoming *in);
 };
 
 /**

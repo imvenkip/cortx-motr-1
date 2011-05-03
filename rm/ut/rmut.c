@@ -243,6 +243,7 @@ const struct c2_test_suite rm_ut = {
 	.ts_fini = rm_reset,
 	.ts_tests = {
 		{ "basic", basic_test },
+		{ "right_get", right_get_test },
 		{ "intent mode", intent_mode_test },
 		{ "wbc", wbc_mode_test },
 		{ "separate", separate_test },
