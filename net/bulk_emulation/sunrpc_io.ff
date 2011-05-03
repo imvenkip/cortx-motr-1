@@ -38,7 +38,6 @@ DEF(sunrpc_msg_resp, RECORD,
 
 /* the get call and response */
 DEF(sunrpc_get, RECORD,
-    _(sg_sender,  sunrpc_ep),
     _(sg_desc,    sunrpc_buf_desc),
     _(sg_offset,  U32));
 DEF(sunrpc_get_resp, RECORD,
@@ -48,7 +47,6 @@ DEF(sunrpc_get_resp, RECORD,
 
 /* the put call and response */
 DEF(sunrpc_put, RECORD,
-    _(sp_sender, sunrpc_ep),
     _(sp_desc,   sunrpc_buf_desc),
     _(sp_offset, U32),
     _(sp_buf,    sunrpc_buffer));

@@ -104,7 +104,6 @@ void c2_sunrpc_fop_fini(void)
 {
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
-	return;
 }
 C2_EXPORTED(c2_sunrpc_fop_fini);
 
@@ -135,7 +134,6 @@ static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 	struct c2_net_bulk_sunrpc_domain_pvt *dp =
 		tp->xtm_base.xtm_tm->ntm_dom->nd_xprt_private;
 	(*dp->xd_base_ops.bmo_wi_add)(wi, &tp->xtm_base);
-	return;
 }
 
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
@@ -215,8 +213,6 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	/* free the pvt structure */
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
-
-	return;
 }
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom)

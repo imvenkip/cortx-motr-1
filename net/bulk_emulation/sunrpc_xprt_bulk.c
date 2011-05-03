@@ -181,7 +181,6 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	struct c2_fop           *r = NULL;
 	struct sunrpc_put       *fop;
 	struct sunrpc_put_resp  *rep;
-	struct c2_net_end_point *tm_ep;
 
 	/* get a connection for this end point */
 	rc = sunrpc_ep_make_conn(ep, &conn);
@@ -200,10 +199,6 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		.ac_arg = f,
 		.ac_ret = r
 	};
-
-	tm_ep = nb->nb_tm->ntm_ep;
-	fop->sp_sender.sep_addr = MEM_EP_ADDR(tm_ep); /* network byte */
-	fop->sp_sender.sep_port = MEM_EP_PORT(tm_ep); /* order */
 
 	/*
 	  Walk each buf in our bufvec, sending data
@@ -251,7 +246,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
 	struct sunrpc_get_resp  *rep;
-	struct c2_net_end_point *tm_ep;
 
 	/* get a connection for this end point */
 	rc = sunrpc_ep_make_conn(ep, &conn);
@@ -270,10 +264,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 		.ac_arg = f,
 		.ac_ret = r
 	};
-
-	tm_ep = nb->nb_tm->ntm_ep;
-	fop->sg_sender.sep_addr = MEM_EP_ADDR(tm_ep); /* network byte */
-	fop->sg_sender.sep_port = MEM_EP_PORT(tm_ep); /* order */
 
 	/*
 	  Receive data from remote and copy to our bufvec
