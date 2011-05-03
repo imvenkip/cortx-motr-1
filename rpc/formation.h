@@ -223,6 +223,7 @@ struct c2_rpc_form_rpcobj_list {
 	/** Mutex protecting the list of rpc objects from concurrent access. */
 	struct c2_mutex			rl_lock;
 	/** List of rpc objects formed but not yet sent on wire. */
+	/** c2_list <struct c2_rpc> */
 	struct c2_list			rl_list;
 };
 
@@ -278,6 +279,8 @@ enum c2_rpc_form_int_event {
 	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = C2_RPC_FORM_EXTEVT_N_EVENTS,
 	/** Execution failed in current state. */
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
+	/** Execution completed, exit the state machine. */
+	C2_RPC_FORM_INTEVT_STATE_DONE,
 	/** Max internal events. */
 	C2_RPC_FORM_INTEVT_N_EVENTS
 };
@@ -349,7 +352,7 @@ stateFunc c2_rpc_form_next_state(int current_state, int current_event);
    Exit path from a state machine. An incoming thread which executed
    the formation state machine so far, is let go and it will return
    to do its own job. */
-bool c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit *endp_unit, int state, int event);
+void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit *endp_unit, int state, int event);
 
 /**
    Get the endpoint given an rpc item.

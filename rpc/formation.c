@@ -6,6 +6,13 @@
  */
 struct c2_rpc_form_item_summary 	formation_summary;
 
+/**
+   A global list of formed RPC objects kept with formation. 
+   The POSTING state will send RPC objects from this list
+   to the output component. 
+ */
+struct c2_rpc_form_rpcobj_list		formation_rpcobj_list;
+
 /**     
    Initialization for formation component in rpc. 
    This will register necessary callbacks and initialize
@@ -13,6 +20,7 @@ struct c2_rpc_form_item_summary 	formation_summary;
  */     
 int c2_rpc_form_init()
 {
+	c2_mutex_init(formation_rpcobj_list.rl_lock);
 	c2_rwlock_init(&formation_summary.is_endp_list_lock);
 }
 
@@ -24,6 +32,7 @@ int c2_rpc_form_init()
 int c2_rpc_form_fini()
 {
 	c2_rwlock_fini(&formation_summary.is_endp_list_lock);
+	c2_mutex_fini(formation_rpcobj_list.rl_lock);
 }
 
 /**
@@ -31,18 +40,12 @@ int c2_rpc_form_fini()
    the formation state machine so far, is let go and it will return
    to do its own job. 
  */
-bool c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit 
-		*endp_unit, int state, int event)
+void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit 
+		*endp_unit)
 {
-	if ((state == C2_RPC_FORM_STATE_WAITING) && 
-			((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) ||
-			(event == C2_RPC_FORM_INTEVT_STATE_FAILED))) {
-		c2_rwlock_write_lock(&formation_summary.is_endp_list_lock);
-		c2_ref_put(&endp_unit->isu_ref);
-		c2_rwlock_write_unlock(&formation_summary.is_endp_list_lock);
-		return true;
-	}
-	return false;
+	c2_rwlock_write_lock(&formation_summary.is_endp_list_lock);
+	c2_ref_put(&endp_unit->isu_ref);
+	c2_rwlock_write_unlock(&formation_summary.is_endp_list_lock);
 }
 
 /**
@@ -146,8 +149,7 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	c2_mutex_unlock(endp_unit->isu_unit_lock);
 	/*XXX Handle exit path as an event. */
 	/* Exit point for state machine. */
-	exit = c2_rpc_form_state_machine_exit(endp_unit, prev_state, sm_event);
-	if(exit == true)
+	if(res == C2_RPC_FORM_INTEVT_STATE_DONE)
 		return 0;
 
 	if (res != 0) {
@@ -308,9 +310,11 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 
 	switch(event) {
 		case C2_RPC_FORM_INTEVT_STATE_SUCCEEDED:
-			return 0;
+			c2_rpc_form_state_machine_exit(endp_unit);
+			return C2_RPC_FORM_INTEVT_STATE_DONE;
 		case C2_RPC_FORM_INTEVT_STATE_FAILED:
-			return 0;
+			c2_rpc_form_state_machine_exit(endp_unit);
+			return C2_RPC_FORM_INTEVT_STATE_DONE;
 		case C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED:
 			/* Find out the request rpc item, given the reply
 			   rpc item. */
@@ -320,7 +324,11 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				return res;
 			}
 			C2_ASSERT(req_item != NULL);
-			c2_list_for_each_entry(&endp_unit->isu_coalesced_items_list->l_head, coalesced_item, struct c2_rpc_form_item_coalesced, isu_coalesced_items_list) {
+			c2_list_for_each_entry(&endp_unit->
+					isu_coalesced_items_list->l_head, 
+					coalesced_item, 
+					struct c2_rpc_form_item_coalesced, 
+					isu_coalesced_items_list) {
 				if (coalesced_item->ic_resultant_item == req_item) {
 					res = c2_rpc_form_item_coalesced_reply_post(endp_unit, coalesced_item);
 					if (res != 0)
@@ -328,7 +336,9 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				}
 			}
 			endp_unit->isu_curr_rpcs_in_flight--;
-			/* XXX Post a done event and exit the state machine. */
+			/* Post a done event and exit the state machine. */
+			c2_rpc_form_state_machine_exit(endp_unit);
+			return C2_RPC_FORM_INTEVT_STATE_DONE;
 	};
 }
 
@@ -365,7 +375,19 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event)
 {
+	int res = 0;
 	printf("In state: posting\n");
+
+	C2_PRE(item != NULL);
+	C2_PRE(event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
+
+	/* Iterate over the rpc object list and send all rpc objects 
+	   to the output component. */
+	c2_mutex_lock(&formation_rpcobj_list.rl_lock);
+	for_each_
+	c2_net_send();
 }
 
 /**
