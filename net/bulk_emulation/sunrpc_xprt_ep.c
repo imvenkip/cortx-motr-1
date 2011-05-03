@@ -247,7 +247,7 @@ static int sunrpc_desc_decode(struct c2_net_buf_desc *desc,
 	XDR xdrs;
 	int rc = 0;
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_DECODE);
-	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd))
+	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, sd))
 		rc = -EINVAL;
 	xdr_destroy(&xdrs);
 	return rc;
