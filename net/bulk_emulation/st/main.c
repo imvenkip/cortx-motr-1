@@ -136,6 +136,8 @@ void client(struct client_params *params)
 int main(int argc, char *argv[])
 {
 	int			 rc;
+	bool			 client_only = false;
+	bool			 server_only = false;
 	bool			 interact = false;
 	bool			 verbose = false;
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
@@ -150,6 +152,8 @@ int main(int argc, char *argv[])
 	C2_ASSERT(rc == 0);
 
 	rc = C2_GETOPTS("bulkping", argc, argv,
+			C2_FLAGARG('s', "run server only", &server_only),
+			C2_FLAGARG('c', "run client only", &client_only),
 			C2_FLAGARG('i', "interactive client mode", &interact),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('n', "number of client threads", "%i",
@@ -176,57 +180,84 @@ int main(int argc, char *argv[])
 		list_xprt_names(stderr, &c2_net_bulk_mem_xprt);
 		return rc;
 	}
+	if (strcmp(xprt_name, c2_net_bulk_mem_xprt.nx_name) == 0 &&
+	    (client_only || server_only)) {
+		fprintf(stderr,
+			"Transport %s does not support client or server only\n",
+			xprt_name);
+		return 1;
+	}
+	if (client_only && server_only) {
+		fprintf(stderr,
+			"Client and server only are mutually exclusive\n");
+		return 1;
+	}
 
 	C2_ASSERT(c2_net_xprt_init(xprt) == 0);
 
-	/* start server in background thread */
-	c2_mutex_init(&sctx.pc_mutex);
-	c2_cond_init(&sctx.pc_cond);
-	if (verbose)
-		sctx.pc_ops = &verbose_ops;
-	else
-		sctx.pc_ops = &quiet_ops;
-	sctx.pc_xprt = xprt;
-	sctx.pc_nr_bufs = nr_bufs;
-	sctx.pc_segments = PING_SERVER_SEGMENTS;
-	sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
-	C2_SET0(&server_thread);
-	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
-			    &ping_server, &sctx);
-	C2_ASSERT(rc == 0);
-
-	int		      i;
-	struct c2_thread     *client_thread;
-	struct client_params *params;
-	C2_ALLOC_ARR(client_thread, nr_clients);
-	C2_ALLOC_ARR(params, nr_clients);
-
-	/* start all the client threads */
-	for (i = 0; i < nr_clients; ++i) {
-		params[i].xprt = xprt;
-		params[i].verbose = verbose;
-		params[i].loops = loops;
-		params[i].nr_bufs = nr_bufs;
-		params[i].client_id = i;
-
-		rc = C2_THREAD_INIT(&client_thread[i], struct client_params *,
-				    NULL, &client, &params[i]);
+	if (!client_only) {
+		/* start server in background thread */
+		c2_mutex_init(&sctx.pc_mutex);
+		c2_cond_init(&sctx.pc_cond);
+		if (verbose)
+			sctx.pc_ops = &verbose_ops;
+		else
+			sctx.pc_ops = &quiet_ops;
+		sctx.pc_xprt = xprt;
+		sctx.pc_nr_bufs = nr_bufs;
+		sctx.pc_segments = PING_SERVER_SEGMENTS;
+		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
+		C2_SET0(&server_thread);
+		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
+				    &ping_server, &sctx);
 		C2_ASSERT(rc == 0);
 	}
 
-	/* ...and wait for them */
-	for (i = 0; i < nr_clients; ++i) {
-		c2_thread_join(&client_thread[i]);
-		if (verbose)
-			printf("Client %d: joined\n", i);
-	}
-	c2_free(client_thread);
-	c2_free(params);
+	if (server_only) {
+		char readbuf[BUFSIZ];
 
-	ping_server_should_stop(&sctx);
-	c2_thread_join(&server_thread);
-	c2_cond_fini(&sctx.pc_cond);
-	c2_mutex_fini(&sctx.pc_mutex);
+		printf("Type \"quit\" or ^D to cause server to terminate\n");
+		while (fgets(readbuf, BUFSIZ, stdin)) {
+			if (strcmp(readbuf, "quit\n") == 0)
+				break;
+		}
+	} else {
+		int		      i;
+		struct c2_thread     *client_thread;
+		struct client_params *params;
+		C2_ALLOC_ARR(client_thread, nr_clients);
+		C2_ALLOC_ARR(params, nr_clients);
+
+		/* start all the client threads */
+		for (i = 0; i < nr_clients; ++i) {
+			params[i].xprt = xprt;
+			params[i].verbose = verbose;
+			params[i].loops = loops;
+			params[i].nr_bufs = nr_bufs;
+			params[i].client_id = i;
+
+			rc = C2_THREAD_INIT(&client_thread[i],
+					    struct client_params *,
+					    NULL, &client, &params[i]);
+			C2_ASSERT(rc == 0);
+		}
+
+		/* ...and wait for them */
+		for (i = 0; i < nr_clients; ++i) {
+			c2_thread_join(&client_thread[i]);
+			if (verbose)
+				printf("Client %d: joined\n", i);
+		}
+		c2_free(client_thread);
+		c2_free(params);
+	}
+
+	if (!client_only) {
+		ping_server_should_stop(&sctx);
+		c2_thread_join(&server_thread);
+		c2_cond_fini(&sctx.pc_cond);
+		c2_mutex_fini(&sctx.pc_mutex);
+	}
 
 	c2_net_xprt_fini(xprt);
 	c2_fini();
