@@ -147,7 +147,9 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
+		c2_mutex_lock(&tm->ntm_mutex);
 		sunrpc_wi_add(wi, tp);
+		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 
 	/* send the RPC response (note: not delivered yet, but enqueued) */
