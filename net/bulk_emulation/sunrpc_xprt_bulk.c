@@ -176,14 +176,14 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 			      struct c2_net_end_point *ep)
 {
 	int                     rc = 0;
-	struct c2_net_conn      *conn;
+	struct c2_net_conn      *conn = NULL;
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_put       *fop;
 	struct sunrpc_put_resp  *rep;
 
 	/* get a connection for this end point */
-	rc = sunrpc_ep_make_conn(ep, &conn);
+	rc = sunrpc_ep_get_conn(ep, &conn);
 	if (rc != 0)
 		return rc;
 
@@ -232,6 +232,8 @@ done:
 		c2_fop_free(r);
 	if (f != NULL)
 		c2_fop_free(f);
+	if (conn != NULL)
+		c2_net_conn_release(conn);
 
 	return rc;
 }
@@ -241,14 +243,14 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 			      struct c2_net_end_point *ep)
 {
 	int                      rc;
-	struct c2_net_conn      *conn;
+	struct c2_net_conn      *conn = NULL;
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
 	struct sunrpc_get_resp  *rep;
 
 	/* get a connection for this end point */
-	rc = sunrpc_ep_make_conn(ep, &conn);
+	rc = sunrpc_ep_get_conn(ep, &conn);
 	if (rc != 0)
 		return rc;
 
@@ -313,6 +315,8 @@ done:
 		c2_fop_free(r);
 	if (f != NULL)
 		c2_fop_free(f);
+	if (conn != NULL)
+		c2_net_conn_release(conn);
 
 	return rc;
 }

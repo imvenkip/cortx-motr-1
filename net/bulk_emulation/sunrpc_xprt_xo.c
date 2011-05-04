@@ -66,8 +66,7 @@ static bool sunrpc_ep_invariant(struct c2_net_end_point *ep)
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 	return (sunrpc_dom_invariant(ep->nep_dom) &&
 		sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC &&
-		sep->xep_sid_valid &&
-		ergo(sep->xep_conn_valid, sep->xep_conn != NULL));
+		sep->xep_sid_valid);
 }
 
 static bool sunrpc_tm_invariant(struct c2_net_transfer_mc *tm)

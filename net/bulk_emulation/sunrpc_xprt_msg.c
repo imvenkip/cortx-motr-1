@@ -12,9 +12,10 @@
 static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer   *nb = MEM_WI_TO_BUFFER(wi);
-	struct c2_fop          *f  = NULL;
-	struct c2_fop          *r  = NULL;
+	struct c2_net_buffer   *nb   = MEM_WI_TO_BUFFER(wi);
+	struct c2_fop          *f    = NULL;
+	struct c2_fop          *r    = NULL;
+	struct c2_net_conn     *conn = NULL;
 	int rc;
 
 	C2_PRE(nb != NULL &&
@@ -24,14 +25,13 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	do {
-		struct c2_net_conn      *conn;
 		struct c2_bufvec_cursor  cur;
 		struct sunrpc_msg       *fop;
 		struct sunrpc_msg_resp  *rep;
 		struct c2_net_end_point *tm_ep;
 
 		/* get a connection for this end point */
-		rc = sunrpc_ep_make_conn(nb->nb_ep, &conn);
+		rc = sunrpc_ep_get_conn(nb->nb_ep, &conn);
 		if (rc != 0)
 			break;
 
@@ -69,6 +69,8 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		c2_fop_free(f);
 	if (r != NULL)
 		c2_fop_free(r);
+	if (conn != NULL)
+		c2_net_conn_release(conn);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	C2_POST(rc <= 0);

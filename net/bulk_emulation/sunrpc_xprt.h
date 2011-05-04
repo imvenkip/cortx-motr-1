@@ -92,21 +92,13 @@ struct c2_net_bulk_sunrpc_end_point {
 	/** Indicator that xep_sid has been initialized */
 	bool                             xep_sid_valid;
 
-	/** Indicator that xep_conn has been initialized */
-	bool                             xep_conn_valid;
+	/** Indicator that a connection has been created
+	    for the sid in the underlying transport.
+	 */
+	bool                             xep_conn_created;
 
 	/** Service id */
 	struct c2_service_id             xep_sid;
-
-	/**
-	    Network connection.  The creation of this is deferred
-	    until first use. Its existence is defined by the
-	    value of the xep_conn_valid field.
-	    Use the sunrpc_ep_make_conn() subroutine to ensure that
-	    the connection exists prior to use.
-	    @see sunrpc_ep_make_conn()
-	 */
-	struct c2_net_conn              *xep_conn;
 };
 
 int c2_sunrpc_fop_init(void);

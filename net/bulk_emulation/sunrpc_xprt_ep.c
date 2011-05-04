@@ -37,9 +37,12 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	dp = ep->nep_dom->nd_xprt_private;
 
 	/* free the conn and sid */
-	if (sep->xep_conn_valid) {
-		c2_net_conn_release(sep->xep_conn);
-		c2_net_conn_unlink(sep->xep_conn);
+	if (sep->xep_conn_created) {
+		struct c2_net_conn *conn = c2_net_conn_find(&sep->xep_sid);
+		if (conn != NULL) {
+			c2_net_conn_release(conn);
+			c2_net_conn_unlink(conn);
+		}
 	}
 	if (sep->xep_sid_valid) {
 		c2_service_id_fini(&sep->xep_sid);
@@ -115,21 +118,22 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 }
 
 /**
-   This subroutine ensures that the xep_conn pointer in the end point points to
-   a network connection.  It serializes against multiple concurrent invocations
+   This subroutine returns a c2_net_conn pointer for the end point.
+   It serializes against multiple concurrent invocations
    of itself using the domain mutex, so do not invoke while holding a
    transfer machine mutex.
 
-   Do not release the connection. It will get released when the end
-   point is released.
+   The caller is responsible for releasing the connection with the
+   c2_net_conn_release() subroutine.
+
    @param ep End point pointer
-   @param conn Optional - returns the value of xep_conn on success.
-   @retval 0 Success, xep_conn can be used.
+   @param conn Returns the connection.
+   @retval 0 Success
    @retval -errno Failure
-   @post ergo(rc == 0, sep->xep_con_valid && sep->xep_conn != NULL)
+   @post ergo(rc == 0, sep->xep_con_valid)
  */
-static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
-			       struct c2_net_conn **conn_p)
+static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
+			      struct c2_net_conn **conn_p)
 {
 	int rc;
 	struct c2_net_bulk_mem_end_point *mep;
@@ -139,35 +143,30 @@ static int sunrpc_ep_make_conn(struct c2_net_end_point *ep,
 
 	C2_PRE(sunrpc_ep_invariant(ep));
 
-	/* The connection may already be valid, so check before
-	   entering the critical section.
-	 */
-	if (sep->xep_conn_valid) {
-		if (conn_p != NULL)
-			*conn_p = sep->xep_conn;
-		return 0;
-	}
-	/* create the connection within the mutex */
-	c2_mutex_lock(&ep->nep_dom->nd_mutex);
 	rc = 0;
-	do {
-		if (sep->xep_conn_valid) /* racy: check again */
-			break;
-		rc = c2_net_conn_create(&sep->xep_sid);
-		if (rc != 0)
-			break;
-		sep->xep_conn = c2_net_conn_find(&sep->xep_sid);
-		if (sep->xep_conn == NULL) {
-			rc = -ECONNRESET;
-			break;
-		}
-		sep->xep_conn_valid = true;
+	if (!sep->xep_conn_created) { /* already exists? */
+		/* create the connection in the mutex */
+		c2_mutex_lock(&ep->nep_dom->nd_mutex);
+		do {
+			if (sep->xep_conn_created) /* racy, so check again */
+				break;
+			rc = c2_net_conn_create(&sep->xep_sid);
+			if (rc != 0)
+				break;
+			sep->xep_conn_created = true;
+		} while(0);
+		c2_mutex_unlock(&ep->nep_dom->nd_mutex);
 		rc = 0;
-	} while(0);
-	c2_mutex_unlock(&ep->nep_dom->nd_mutex);
-	C2_POST(ergo(rc == 0, sep->xep_conn_valid && sep->xep_conn != NULL));
-	if (rc == 0 && conn_p != NULL)
-		*conn_p = sep->xep_conn;
+	}
+	if (rc == 0) {
+		*conn_p = c2_net_conn_find(&sep->xep_sid);
+		if (*conn_p == NULL) {
+			rc = -ECONNRESET;
+			sep->xep_conn_created = false;
+		}
+	}
+
+	C2_POST(ergo(rc == 0, sep->xep_conn_created));
 	return rc;
 }
 
