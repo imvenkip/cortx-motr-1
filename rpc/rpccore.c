@@ -229,17 +229,17 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 /** simple vector of RPC-item operations */
 static void rpc_item_op_sent(struct c2_rpc_item *item)
 {
-	DBG("item: xid: %lu, SENT\n", item->ri_xid);
+	DBG("item: xid: %lu, SENT\n", item->ri_verno.vn_vc);
 }
 
 static void rpc_item_op_added(struct c2_rpc *rpc, struct c2_rpc_item *item)
 {
-	DBG("item: xid: %lu, ADDED\n", item->ri_xid);
+	DBG("item: xid: %lu, ADDED\n", item->ri_verno.vn_vc);
 }
 
 static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
 {
-	DBG("item: xid: %lu, REPLIED\n", item->ri_xid);
+	DBG("item: xid: %lu, REPLIED\n", item->ri_verno.vn_vc);
 }
 
 static const struct c2_rpc_item_type_ops rpc_item_ops = {

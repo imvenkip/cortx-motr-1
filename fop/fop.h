@@ -9,6 +9,7 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "rpc/rpccore.h"
 
 /**
    @defgroup fop File operation packet
