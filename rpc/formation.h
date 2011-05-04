@@ -126,6 +126,8 @@ struct c2_rpc_form_fid_summary {
    requests belonging to same endpoint will contest for the
    state variable.
  */
+/** XXX Need to put a linkage in struct c2_rpc_item to track
+    the unformed items. */
 struct c2_rpc_form_item_summary_unit {
 	/** Referenced Endpoint */
 	int				 isu_endp_id;
@@ -153,6 +155,18 @@ struct c2_rpc_form_item_summary_unit {
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 isu_max_rpcs_in_flight;
 	uint64_t			 isu_curr_rpcs_in_flight;
+	/** List of formed RPC objects kept with formation. The 
+	    POSTING state will send RPC objects from this list
+	    to the output component. */
+	struct c2_rpc_form_rpcobj_list	isu_rpcobj_formed_list;
+	/** A list of checked rpc objects. This list is populated
+	    by CHECKING state while FORMING state removes rpc objects
+	    from this list, populates sessions information for all
+	    member rpc items and puts the rpc object on formed list of
+	    rpc objects. */
+	struct c2_rpc_form_rpcobj_list	isu_rpcobj_checked_list;
+	/** List of unformed rpc items. */
+	struct c2_list			isu_unformed_items;
 };
 
 /**
@@ -229,7 +243,8 @@ struct c2_rpc_form_rpcobj_list {
 
 /**
    This is a wrapper structure around struct c2_rpc to engage 
-   rpc objects in a list. */
+   rpc objects in a list. 
+ */
 struct c2_rpc_form_rpcobj {
 	/** Linkage into list of c2_rpc 
 	    from struct c2_rpc_form_rpcobj_list */
@@ -563,9 +578,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 
 /**
    State function for FORMING state.
-   This state creates an RPC object structure (struct c2_rpc)
-   by putting selected rpc items into the rpc object.
-   It will also check for sessions details in each rpc item.
+   This state will iterate through list of checked rpc objects
+   which are ready to be sent but don't have sessions information yet.
+   It will check for sessions details for each rpc item in an rpc object.
    If there are any unbounded items, sessions component will be
    queried to fetch sessions information for such items.
    Sessions information: Formation algorithm will call a sessions API

@@ -6,13 +6,6 @@
  */
 struct c2_rpc_form_item_summary 	formation_summary;
 
-/**
-   A global list of formed RPC objects kept with formation. 
-   The POSTING state will send RPC objects from this list
-   to the output component. 
- */
-struct c2_rpc_form_rpcobj_list		formation_rpcobj_list;
-
 /**     
    Initialization for formation component in rpc. 
    This will register necessary callbacks and initialize
@@ -20,7 +13,6 @@ struct c2_rpc_form_rpcobj_list		formation_rpcobj_list;
  */     
 int c2_rpc_form_init()
 {
-	c2_mutex_init(formation_rpcobj_list.rl_lock);
 	c2_rwlock_init(&formation_summary.is_endp_list_lock);
 }
 
@@ -32,7 +24,6 @@ int c2_rpc_form_init()
 int c2_rpc_form_fini()
 {
 	c2_rwlock_fini(&formation_summary.is_endp_list_lock);
-	c2_mutex_fini(formation_rpcobj_list.rl_lock);
 }
 
 /**
@@ -62,6 +53,8 @@ void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	c2_list_fini(endp_unit->isu_file_list);
 	c2_list_fini(endp_unit->isu_groups_list);
 	c2_list_fini(endp_unit->isu_coalesced_items_list);
+	c2_mutex_fini(&endp_unit->isu_rpcobj_formed_list.rl_lock);
+	c2_mutex_fini(&endp_unit->isu_rpcobj_checked_list.rl_lock);
 	c2_free(endp_unit);
 }
 
@@ -78,6 +71,8 @@ struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp
 	c2_list_init(endp_unit->isu_groups_list);
 	c2_list_init(endp_unit->isu_files_list);
 	c2_list_init(endp_unit->isu_coalesced_items_list);
+	c2_mutex_init(&endp_unit->isu_rpcobj_formed_list.rl_lock);
+	c2_mutex_init(&endp_unit->isu_rpcobj_checked_list.rl_lock);
 	c2_ref_init(&endp_unit->isu_ref, 1, c2_rpc_form_item_summary_unit_destroy);
 }
 
@@ -152,11 +147,11 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	if(res == C2_RPC_FORM_INTEVT_STATE_DONE)
 		return 0;
 
-	if (res != 0) {
+	if (res == C2_RPC_FORM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
 		c2_rpc_form_intevt_state_failed(item, prev_state);
 	}
-	else {
+	else if (res == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED){
 		/** Post a state succeeded event. */
 		c2_rpc_form_intevt_state_succeeded(item, prev_state);
 	}
@@ -335,7 +330,9 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 						printf("Failed to process a coalesced rpc item.\n");
 				}
 			}
-			endp_unit->isu_curr_rpcs_in_flight--;
+			/* XXX curr rpcs in flight will be taken care by
+			   output component. */
+			//endp_unit->isu_curr_rpcs_in_flight--;
 			/* Post a done event and exit the state machine. */
 			c2_rpc_form_state_machine_exit(endp_unit);
 			return C2_RPC_FORM_INTEVT_STATE_DONE;
@@ -366,7 +363,38 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event)
 {
+	int 				 res = 0;
+	struct c2_rpc_form_rpcobj	 *rpcobj = NULL;
+	struct c2_rpc_form_rpcobj	 *rpcobj_next = NULL;
+	struct c2_rpc_item		 *rpc_item = NULL;
+
+	C2_PRE(item != NULL);
+	C2_PRE(event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 	printf("In state: forming\n");
+
+	endp_unit->isu_endp_state = C2_RPC_FORM_STATE_FORMING;
+
+	c2_mutex_lock(&endp_unit->isu_rpcobj_checked_list.rl_lock);
+	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_checked_list.rl_list.l_head, rpcobj, rpcobj_next, struct c2_rpc_form_rpcobj, ro_linkage) {
+		c2_list_for_each_entry(rpcobj->ro_rpcobj->r_items.l_head, rpc_item, struct c2_rpc_item, ri_linkage) {
+			res = c2_rpc_session_item_prepare(rpc_item);
+			if (res != 0) {
+				c2_list_del(&rpc_item->ri_linkage);
+				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
+				/* XXX Need to add ri_unformed_linkage 
+				   in c2_rpc_item to keep track of 
+				   unformed rpc items. */
+				c2_list_add(&endp_unit->isu_unformed_items.l_head, rpc_item->ri_unformed_linkage);
+				c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
+			}
+		}
+		c2_list_del(rpcobj->ro_linkage);
+		c2_list_add(&endp_unit->isu_rpcobj_formed_list.l_head, rpcobj->ro_linkage);
+	}
+	c2_mutex_unlock(&endp_unit->isu_rpcobj_checked_list.rl_lock);
+	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
 /**
@@ -375,23 +403,42 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event)
 {
-	int res = 0;
+	int 				 res = 0;
+	int 				 ret = 0;
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	printf("In state: posting\n");
 
 	C2_PRE(item != NULL);
-	C2_PRE(event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	/* POSTING state is reached only by a state succeeded event with
+	   FORMING as previous state. */
+	C2_PRE(event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
 	/* Iterate over the rpc object list and send all rpc objects 
 	   to the output component. */
-	c2_mutex_lock(&formation_rpcobj_list.rl_lock);
-	c2_list_for_each_entry_safe(&formation_rpcobj_list.rl_list.l_head, rpc_obj, rpc_obj_next, struct c2_rpc_form_rpcobj, ro_rpcobj) {
-		c2_net_send(rpc_obj->ro_rpcobj);
+	c2_mutex_lock(&endp_unit->isu_rpcobj_formed_list.rl_lock);
+	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_formed_list.rl_list.l_head, rpc_obj, rpc_obj_next, struct c2_rpc_form_rpcobj, ro_rpcobj) {
+		endp = c2_rpc_session_get_endpoint(rpc_obj->rp_rpcobj);
+		if (endp_unit->isu_curr_rpcs_in_flight < endp_unit->isu_max_rpcs_in_flight) {
+			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
+			/* XXX curr rpcs in flight will be taken care by
+			   output component. */
+			//endp_unit->isu_curr_rpcs_in_flight++;
+			if(res == 0) {
+				c2_list_del(rpc_obj->ro_linkage);
+				c2_free(rpc_obj);
+				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+			}
+			else {
+				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+				break;
+			}
+		}
 	}
-	c2_mutex_unlock(&formation_rpcobj_list.rl_lock);
+	c2_mutex_unlock(&endp_unit->isu_rpcobj_formed_list.rl_lock);
+	return ret;
 }
 
 /**
