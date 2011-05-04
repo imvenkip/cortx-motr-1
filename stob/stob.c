@@ -31,7 +31,7 @@ static const struct c2_addb_ctx_type c2_stob_addb = {
 int c2_stob_type_init(struct c2_stob_type *kind)
 {
 	c2_list_init(&kind->st_domains);
-	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb, 
+	c2_addb_ctx_init(&kind->st_addb, &c2_stob_type_addb,
 			 &c2_addb_global_ctx);
 	return 0;
 }
@@ -193,7 +193,6 @@ void c2_stob_io_init(struct c2_stob_io *io)
 	io->si_opcode = SIO_INVALID;
 	io->si_state  = SIS_IDLE;
 	c2_chan_init(&io->si_wait);
-	c2_sm_init(&io->si_mach);
 
 	C2_POST(io->si_state == SIS_IDLE);
 }
@@ -202,12 +201,11 @@ void c2_stob_io_fini(struct c2_stob_io *io)
 {
 	C2_PRE(io->si_state == SIS_IDLE);
 
-	c2_sm_fini(&io->si_mach);
 	c2_chan_fini(&io->si_wait);
 	c2_stob_io_private_fini(io);
 }
 
-int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj, 
+int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 		      struct c2_dtx *tx, struct c2_io_scope *scope)
 {
 	int result;
@@ -217,7 +215,7 @@ int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
 	C2_PRE(io->si_obj == NULL);
 	C2_PRE(io->si_state == SIS_IDLE);
 	C2_PRE(io->si_opcode != SIO_INVALID);
-	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) == 
+	C2_PRE(c2_vec_count(&io->si_user.div_vec.ov_vec) ==
 	       c2_vec_count(&io->si_stob.iv_vec));
 	C2_PRE(c2_stob_io_user_is_valid(&io->si_user));
 	C2_PRE(c2_stob_io_stob_is_valid(&io->si_stob));
@@ -282,7 +280,7 @@ void *c2_stob_addr_open(const void *buf, uint32_t shift)
 
 /** @} end group stob */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

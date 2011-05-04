@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/arith.h"              /* c2_is_po2 */
 #include "sm.h"
 
 /**
@@ -20,7 +21,7 @@ static bool belongs(uint64_t a, uint64_t b)
 
 static bool c2_sm_invariant(const struct c2_sm *mach)
 {
-	struct c2_sm_conf *c;
+	const struct c2_sm_conf *c;
 
 	c = mach->sm_conf;
 	return is_subset(c->scf_start | c->scf_failure | c->scf_terminal |
@@ -42,7 +43,7 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf)
 void c2_sm_fini(struct c2_sm *mach)
 {
 	C2_ASSERT(c2_sm_invariant(mach));
-	C2_ASSERT(is_subset(mach->sm_state, mach->sm_conf.scf_final));
+	C2_ASSERT(is_subset(mach->sm_state, mach->sm_conf->scf_final));
 	c2_chan_fini(&mach->sm_chan);
 	c2_mutex_fini(&mach->sm_lock);
 }
@@ -58,7 +59,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 	c2_mutex_lock(&mach->sm_lock);
 	C2_ASSERT(c2_sm_invariant(mach));
 	while (!belongs(mach->sm_state,
-			states | mach->sm_conf.scf_terminal)) {
+			states | mach->sm_conf->scf_terminal)) {
 		c2_mutex_unlock(&mach->sm_lock);
 		c2_chan_timedwait(&wait, deadline);
 		c2_mutex_lock(&mach->sm_lock);

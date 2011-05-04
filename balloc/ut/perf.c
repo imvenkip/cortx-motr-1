@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <err.h>
 
+#include "dtm/dtm.h"      /* c2_dtx */
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"
@@ -20,7 +21,7 @@ const int DEF = 1000 * 1;
 
 
 unsigned long timesub(struct timeval *begin, struct timeval *end) {
-	unsigned long interval = 
+	unsigned long interval =
 		(unsigned long)((end->tv_sec - begin->tv_sec) * 1000000 +
 		                end->tv_usec - begin->tv_usec
 			        );
@@ -58,7 +59,7 @@ int main(int argc, char **argv)
                                                db_name = string; })),
                             C2_FORMATARG('l', "loops to run", "%i", &loops),
                             C2_FORMATARG('r', "randomize the result", "%i", &r),
-                            C2_FORMATARG('c', "count to alloc", "%lu", 
+                            C2_FORMATARG('c', "count to alloc", "%lu",
 					 &count),
                             C2_FLAGARG('v', "verbose", &verbose),
                             C2_FLAGARG('g', "use goal or not", &g));

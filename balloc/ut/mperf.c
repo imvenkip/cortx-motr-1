@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <err.h>
 
+#include "dtm/dtm.h"      /* c2_dtx */
 #include "lib/arith.h"    /* C2_3WAY, c2_uint128 */
 #include "lib/misc.h"     /* C2_SET0 */
 #include "lib/assert.h"
@@ -22,7 +23,7 @@ int		      loops;
 c2_bcount_t	      count = 32;
 
 unsigned long timesub(struct timeval *begin, struct timeval *end) {
-	unsigned long interval = 
+	unsigned long interval =
 		(unsigned long)((end->tv_sec - begin->tv_sec) * 1000000 +
 		                end->tv_usec - begin->tv_usec
 			        );

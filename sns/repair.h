@@ -10,6 +10,8 @@
 
 struct c2_io_req;
 struct c2_fop;
+struct c2_dtm;
+struct c2_dtx;
 
 /**
    @page snsrepair SNS repair detailed level design specification.
@@ -194,7 +196,7 @@ struct c2_poolmach_state {
    write mode.
 */
 struct c2_poolmach {
-	struct c2_persistent_sm  pm_mach;
+	/* struct c2_persistent_sm  pm_mach; */
 	struct c2_poolmach_state pm_state;
 	struct c2_rwlock         pm_lock;
 };
@@ -216,7 +218,7 @@ int  c2_poolmach_node_leave(struct c2_poolmach *pm, struct c2_poolnode *node);
    @{
 */
 
-/** 
+/**
    resource limit
 
    Data structure to describe the fraction of resource usage limitation:
@@ -231,7 +233,7 @@ struct c2_rlimit {
        int rl_network_throughput;
 };
 
-/** 
+/**
    pool server
 
    Pool server represents a pool node plus its state machines, lives locally on
@@ -241,7 +243,7 @@ struct c2_rlimit {
 */
 struct c2_poolserver {
 	struct c2_poolnode      ps_node;
-	struct c2_persistent_sm ps_mach;
+	/* struct c2_persistent_sm ps_mach; */
 	struct c2_rlimit	ps_rl_usage; /**< the current resource usage */
 };
 
@@ -251,9 +253,9 @@ int  c2_poolserver_reset(struct c2_poolserver *srv);
 int  c2_poolserver_on(struct c2_poolserver *srv);
 int  c2_poolserver_off(struct c2_poolserver *srv);
 int  c2_poolserver_io_req(struct c2_poolserver *srv, struct c2_io_req *req);
-int  c2_poolserver_device_join(struct c2_poolserver *srv, 
+int  c2_poolserver_device_join(struct c2_poolserver *srv,
 			       struct c2_pooldev *dev);
-int  c2_poolserver_device_leave(struct c2_poolserver *srv, 
+int  c2_poolserver_device_leave(struct c2_poolserver *srv,
 				struct c2_pooldev *dev);
 
 /** @} end of servermachine group */
@@ -287,7 +289,7 @@ int  c2_cm_oset_init(struct c2_cm_oset *oset);
 void c2_cm_oset_fini(struct c2_cm_oset *oset);
 
 struct c2_cm_copy_packet;
-/** 
+/**
    copy machine operations
 
    A copy machine has a handler which handles FOP requests. A copy machine is
@@ -367,7 +369,7 @@ struct c2_cm_aggrg_group {
 	struct c2_cm_copy_packet *cag_buffer;
 
 	/**
-	  XXX TODO How to represent all the containers/devices in this 
+	  XXX TODO How to represent all the containers/devices in this
 	  aggregation group? Some are on remote nodes, and some are local.
 	*/
 	struct c2_device        **cag_devices;
@@ -408,7 +410,7 @@ struct c2_cm_xform {
 		      struct c2_cm_copy_packet *cp);
 };
 
-/** 
+/**
    copy packet
 
    Copy packet is the data structure used to describe the packet flowing between
@@ -432,7 +434,7 @@ struct c2_cm_copy_packet {
 
 /** copy machine */
 struct c2_cm {
-	struct c2_persistent_sm cm_mach;          /**< persistent state machine */
+	/* struct c2_persistent_sm cm_mach; */          /**< persistent state machine */
 	struct c2_cm_stats	cm_stats;         /**< stats */
 	struct c2_rlimit  	cm_rlimit;        /**< resource limitation */
 	struct c2_cm_iset	cm_iset;          /**< input set description */
@@ -444,7 +446,7 @@ struct c2_cm {
 struct c2_cm_agent;
 struct c2_cm_agent_config { /* TODO */ };
 
-/** 
+/**
    copy machine agent operations
 
    A copy machine has a handler which handles FOP requests. A copy machine is
@@ -480,7 +482,7 @@ enum c2_cm_agent_type {
    should go onto persistent storage.
 */
 struct c2_cm_agent {
-	struct c2_persistent_sm       ag_mach;
+	/* struct c2_persistent_sm       ag_mach; */
 	struct c2_cm		     *ag_parent; /**< pointer to parent cm */
 	enum c2_cm_agent_type	      ag_type;   /**< agent type */
 
@@ -490,7 +492,7 @@ struct c2_cm_agent {
 
 	/** copy packet in flight of this agent */
 	struct c2_list	      	      ag_cp_in_flight; /**< list of all cp */
-	
+
 	bool			      ag_quit:1; /** flag to quit */
 };
 
@@ -567,7 +569,7 @@ int c2_cm_cp_refdel(struct c2_cm_copy_packet *cp);
 /* __COLIBRI_SNS_REPAIR_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -8,6 +8,7 @@
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
 
+#include "dtm/dtm.h"     /* c2_dtx */
 #include "lib/arith.h"   /* min64u */
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
