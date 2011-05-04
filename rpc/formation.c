@@ -376,6 +376,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event)
 {
 	int res = 0;
+	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
+	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	printf("In state: posting\n");
 
 	C2_PRE(item != NULL);
@@ -386,8 +388,10 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	/* Iterate over the rpc object list and send all rpc objects 
 	   to the output component. */
 	c2_mutex_lock(&formation_rpcobj_list.rl_lock);
-	for_each_
-	c2_net_send();
+	c2_list_for_each_entry_safe(&formation_rpcobj_list.rl_list.l_head, rpc_obj, rpc_obj_next, struct c2_rpc_form_rpcobj, ro_rpcobj) {
+		c2_net_send(rpc_obj->ro_rpcobj);
+	}
+	c2_mutex_unlock(&formation_rpcobj_list.rl_lock);
 }
 
 /**

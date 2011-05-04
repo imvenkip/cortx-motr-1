@@ -223,9 +223,20 @@ struct c2_rpc_form_rpcobj_list {
 	/** Mutex protecting the list of rpc objects from concurrent access. */
 	struct c2_mutex			rl_lock;
 	/** List of rpc objects formed but not yet sent on wire. */
-	/** c2_list <struct c2_rpc> */
+	/** c2_list <struct c2_rpc_form_rpcobj> */
 	struct c2_list			rl_list;
 };
+
+/**
+   This is a wrapper structure around struct c2_rpc to engage 
+   rpc objects in a list. */
+struct c2_rpc_form_rpcobj {
+	/** Linkage into list of c2_rpc 
+	    from struct c2_rpc_form_rpcobj_list */
+	struct c2_list_link		*ro_linkage;
+	/** Actual rpc object. */
+	struct c2_rpc			*ro_rpcobj;
+}
 
 /**
    Enumeration of all possible states.
