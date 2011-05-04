@@ -62,9 +62,9 @@ struct c2_list {
    same layout as.
  */
 
-C2_BASSERT(offsetof(struct c2_list, l_head) == 
+C2_BASSERT(offsetof(struct c2_list, l_head) ==
 	   offsetof(struct c2_list_link, ll_next));
-C2_BASSERT(offsetof(struct c2_list, l_tail) == 
+C2_BASSERT(offsetof(struct c2_list, l_tail) ==
 	   offsetof(struct c2_list_link, ll_prev));
 
 /**
