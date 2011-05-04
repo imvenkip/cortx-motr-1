@@ -529,7 +529,7 @@ void test_ping(void)
 
 	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) == 0);
 	C2_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
-	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep) == 0);
+	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, NULL) == 0);
 
 	/* test sending/receiving a bigger payload */
 	int i;
@@ -539,6 +539,7 @@ void test_ping(void)
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
 	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
+	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	C2_UT_ASSERT(ping_client_fini(&cctx, server_ep) == 0);
 

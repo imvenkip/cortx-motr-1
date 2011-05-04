@@ -124,7 +124,7 @@ void client(struct client_params *params)
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_send(&cctx, server_ep);
+		rc = ping_client_passive_send(&cctx, server_ep, NULL);
 		C2_ASSERT(rc == 0);
 	}
 

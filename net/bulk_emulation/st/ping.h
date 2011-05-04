@@ -39,7 +39,8 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 int ping_client_passive_recv(struct ping_ctx *ctx,
 			     struct c2_net_end_point *server_ep);
 int ping_client_passive_send(struct ping_ctx *ctx,
-			     struct c2_net_end_point *server_ep);
+			     struct c2_net_end_point *server_ep,
+			     const char *data);
 
 #endif /* __COLIBRI_NET_BULK_MEM_PING_H__ */
 

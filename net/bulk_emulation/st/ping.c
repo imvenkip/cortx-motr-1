@@ -916,6 +916,7 @@ void ping_server(struct ping_ctx *ctx)
 	}
 
 	ping_fini(ctx);
+	server_stop = false;
 }
 
 void ping_server_should_stop(struct ping_ctx *ctx)
@@ -1095,18 +1096,21 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 }
 
 int ping_client_passive_send(struct ping_ctx *ctx,
-			     struct c2_net_end_point *server_ep)
+			     struct c2_net_end_point *server_ep,
+			     const char *data)
 {
 	int rc;
 	struct c2_net_buffer *nb;
 	struct c2_net_buf_desc nbd;
 
+	if (data == NULL)
+		data = "passive ping";
 	ctx->pc_ops->pf("%s: starting passive send sequence\n", ctx->pc_ident);
 	/* queue our passive receive buffer */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
 	/* reuse encode_msg for convenience */
-	rc = encode_msg(nb, "passive ping");
+	rc = encode_msg(nb, data);
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	nb->nb_ep = server_ep;
 	nb->nb_timeout = C2_TIME_NEVER;
