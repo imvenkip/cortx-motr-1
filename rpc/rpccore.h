@@ -121,6 +121,7 @@
 #include "lib/refs.h"
 #include "lib/chan.h"
 #include "net/net.h"
+#include "dtm/verno.h"		/* for c2_verno */
 
 struct c2_fop;
 struct c2_rpc;
@@ -270,9 +271,13 @@ struct c2_rpc_item {
 
 	enum c2_rpc_item_state     ri_state;
 
-	/* An item is assigned "a xid" by the sessions module
-	   once it is bound to a particular slot. */
-	uint64_t ri_xid;
+	/** Session related fields. Should be included in on wire rpc-item */
+	uint64_t			ri_sender_id;
+	uint64_t			ri_session_id;
+	uint32_t			ri_slot_id;
+	/** ri_verno acts as sequence counter */
+	struct c2_verno			ri_verno;
+	
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type *ri_type;
 	struct c2_chan ri_chan;
