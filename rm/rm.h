@@ -964,6 +964,7 @@ struct c2_rm_incoming {
 	 */
 	int                              rin_priority;
 	const struct c2_rm_incoming_ops *rin_ops;
+	struct c2_chan                   rin_signal;
 };
 
 /**
