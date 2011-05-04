@@ -184,7 +184,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 #ifdef __KERNEL__
 	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_ksunrpc_xprt);
 #else
-	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_usunrpc_xprt);
+	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_usunrpc_minimal_xprt);
 #endif
 	if (rc != 0)
 		goto err_exit;

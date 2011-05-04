@@ -27,7 +27,7 @@
 #include "lib/thread.h"
 #include "lib/cond.h"
 #include "fop/fop.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 #include "addb/addb.h"
 
 #include "usunrpc.h"
@@ -43,7 +43,8 @@
  */
 
 enum {
-	SERVER_THR_NR = 8
+	SERVER_THR_NR = 8,
+	MIN_SERVER_THR_NR = 2
 };
 
 /**
@@ -591,7 +592,12 @@ int usunrpc_service_init(struct c2_service *service)
 		xid = service->s_id->si_xport_private;
 		xservice->s_socket = -1;
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
-		result = usunrpc_service_start(service, xid, SERVER_THR_NR);
+		int num_threads;
+		if (service->s_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt)
+			num_threads = MIN_SERVER_THR_NR;
+		else
+			num_threads = SERVER_THR_NR;
+		result = usunrpc_service_start(service, xid, num_threads);
 	} else {
 		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server,
 			    c2_addb_oom);

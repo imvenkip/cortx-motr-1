@@ -29,7 +29,7 @@
 #include "lib/queue.h"
 #include "lib/thread.h"
 #include "lib/cond.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 
 #include "usunrpc_internal.h"
 
@@ -38,7 +38,7 @@
    @{
  */
 
-/* 
+/*
  * Maximum bulk IO size
  */
 enum {
@@ -66,7 +66,7 @@ static void usunrpc_dom_fini(struct c2_net_domain *dom)
 		c2_mutex_lock(&xdom->sd_guard);
 		c2_cond_broadcast(&xdom->sd_gotwork, &xdom->sd_guard);
 		c2_mutex_unlock(&xdom->sd_guard);
-		for (i = 0; i < ARRAY_SIZE(xdom->sd_workers); ++i) {
+		for (i = 0; i < xdom->sd_nr_workers; ++i) {
 			if (xdom->sd_workers[i].t_func != NULL) {
 				int rc;
 
@@ -95,10 +95,20 @@ static int usunrpc_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		c2_cond_init(&xdom->sd_gotwork);
 		c2_mutex_init(&xdom->sd_guard);
 		c2_queue_init(&xdom->sd_queue);
+		if (xprt == &c2_net_usunrpc_minimal_xprt) {
+			xdom->sd_client_count = 1;
+			xdom->sd_nr_workers = 0;
+			result = 0;
+		} else {
+			xdom->sd_client_count = USUNRPC_CONN_CLIENT_COUNT;
+			xdom->sd_nr_workers = USUNRPC_CONN_CLIENT_THR_NR;
+			C2_ASSERT(ARRAY_SIZE(xdom->sd_workers) ==
+				  xdom->sd_nr_workers);
+		}
 
-		for (i = 0; i < ARRAY_SIZE(xdom->sd_workers); ++i) {
-			result = C2_THREAD_INIT(&xdom->sd_workers[i], 
-						struct c2_net_domain *, 
+		for (i = 0; i < xdom->sd_nr_workers; ++i) {
+			result = C2_THREAD_INIT(&xdom->sd_workers[i],
+						struct c2_net_domain *,
 						NULL,
 						&usunrpc_client_worker,
 						dom);
@@ -126,8 +136,27 @@ static const struct c2_net_xprt_ops usunrpc_xprt_ops = {
 	.xo_net_bulk_size   = usunrpc_net_bulk_size
 };
 
+/**
+   Default version of the usunrpc transport with a total of 25 threads
+   when run with a server:
+   - 16 client threads with support for c2_net_client_send
+   - 8 socket per client connection
+   - 9 server threads (scheduler + 8 workers)
+ */
 struct c2_net_xprt c2_net_usunrpc_xprt = {
 	.nx_name = "sunrpc/user",
+	.nx_ops  = &usunrpc_xprt_ops
+};
+
+/**
+   Minimal version of the usunrpc transport with a total of 4 threads
+   when run with a server:
+   - 0 client threads (i.e. no support for c2_net_client_send)
+   - 1 socket per client connection
+   - 3 server threads (scheduler + 2 workers)
+ */
+struct c2_net_xprt c2_net_usunrpc_minimal_xprt = {
+	.nx_name = "minimal-sunrpc/user",
 	.nx_ops  = &usunrpc_xprt_ops
 };
 

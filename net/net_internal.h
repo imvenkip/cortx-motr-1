@@ -37,6 +37,9 @@ bool c2_net__qtype_is_valid(enum c2_net_queue_type qt);
 */
 bool c2_net__buffer_invariant(struct c2_net_buffer *buf);
 
+/* this shouldn't really be here but it parallels the extern in net/net.h */
+extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
+
 #endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
 
 /*

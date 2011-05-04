@@ -53,6 +53,8 @@ struct usunrpc_dom {
 	struct c2_cond   sd_gotwork;
 	struct c2_mutex  sd_guard;
 	struct c2_queue  sd_queue;
+	int              sd_client_count;
+	int              sd_nr_workers;
 	struct c2_thread sd_workers[USUNRPC_CONN_CLIENT_THR_NR];
 
 	/*

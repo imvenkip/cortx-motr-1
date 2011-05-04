@@ -169,7 +169,10 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 	C2_ALLOC_PTR(xconn);
 
 	if (xconn != NULL) {
-		C2_ALLOC_ARR(pool, USUNRPC_CONN_CLIENT_COUNT);
+		struct usunrpc_dom *xdom = conn->nc_domain->nd_xprt_private;
+		size_t pool_size = xdom->sd_client_count;
+
+		C2_ALLOC_ARR(pool, pool_size);
 		if (pool != NULL) {
 			size_t i;
 
@@ -177,11 +180,11 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 			c2_queue_init(&xconn->nsc_idle);
 			c2_cond_init(&xconn->nsc_gotfree);
 			xconn->nsc_pool       = pool;
-			xconn->nsc_nr         = USUNRPC_CONN_CLIENT_COUNT;
+			xconn->nsc_nr         = pool_size;
 			conn->nc_ops          = &usunrpc_conn_ops;
 			conn->nc_xprt_private = xconn;
 
-			for (i = 0; i < USUNRPC_CONN_CLIENT_COUNT; ++i) {
+			for (i = 0; i < pool_size; ++i) {
 				result = usunrpc_conn_init_one
 					(id->si_xport_private, conn, xconn,
 					 &xconn->nsc_pool[i]);
