@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
 			if (verbose)
-				printf("Client %d: joined\n", i);
+				printf("Client %d: joined\n", base_port + i);
 		}
 		c2_free(client_thread);
 		c2_free(params);

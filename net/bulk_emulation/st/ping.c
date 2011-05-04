@@ -603,9 +603,9 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	if (ev->nev_status < 0) {
 		/* no retries here */
 		if (ev->nev_status == -ECANCELED)
-			ctx->pc_ops->pf("%s: active send canceled\n", idbuf);
+			ctx->pc_ops->pf("%s: active recv canceled\n", idbuf);
 		else
-			ctx->pc_ops->pf("%s: active send error: %d\n",
+			ctx->pc_ops->pf("%s: active recv error: %d\n",
 					idbuf, ev->nev_status);
 	} else {
 		rc = decode_msg(ev->nev_buffer, &msg);
