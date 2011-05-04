@@ -3,7 +3,8 @@
 #define __COLIBRI_NET_BULK_MEM_PING_H__
 
 struct ping_ops {
-	int (*pf)(const char *format, ...);
+	int (*pf)(const char *format, ...)
+		__attribute__ ((format (printf, 1, 2)));
 };
 
 /**

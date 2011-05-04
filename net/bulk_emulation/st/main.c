@@ -83,6 +83,7 @@ struct ping_ops quiet_ops = {
 struct client_params {
 	struct c2_net_xprt *xprt;
 	bool verbose;
+	int base_port;
 	int loops;
 	int nr_bufs;
 	int client_id;
@@ -96,7 +97,7 @@ void client(struct client_params *params)
 	char                     ident[16];
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt,
-		.pc_port = CLIENT_BASE_PORT + params->client_id,
+		.pc_port = params->base_port + params->client_id,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -106,7 +107,7 @@ void client(struct client_params *params)
 		}
 	};
 
-	sprintf(ident, "Client %d", params->client_id);
+	sprintf(ident, "Client %d", cctx.pc_port);
 	if (params->verbose)
 		cctx.pc_ops = &verbose_ops;
 	else
@@ -142,6 +143,7 @@ int main(int argc, char *argv[])
 	bool			 verbose = false;
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
+	int			 base_port = CLIENT_BASE_PORT;
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 
@@ -154,6 +156,7 @@ int main(int argc, char *argv[])
 	rc = C2_GETOPTS("bulkping", argc, argv,
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
+			C2_FORMATARG('p', "base client port", "%i", &base_port),
 			C2_FLAGARG('i', "interactive client mode", &interact),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('n', "number of client threads", "%i",
@@ -232,6 +235,7 @@ int main(int argc, char *argv[])
 		for (i = 0; i < nr_clients; ++i) {
 			params[i].xprt = xprt;
 			params[i].verbose = verbose;
+			params[i].base_port = base_port;
 			params[i].loops = loops;
 			params[i].nr_bufs = nr_bufs;
 			params[i].client_id = i;
