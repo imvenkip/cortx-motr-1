@@ -96,7 +96,7 @@ static int usunrpc_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 		c2_mutex_init(&xdom->sd_guard);
 		c2_queue_init(&xdom->sd_queue);
 		if (xprt == &c2_net_usunrpc_minimal_xprt) {
-			xdom->sd_client_count = 1;
+			xdom->sd_client_count = 4;
 			xdom->sd_nr_workers = 0;
 			result = 0;
 		} else {
@@ -152,7 +152,7 @@ struct c2_net_xprt c2_net_usunrpc_xprt = {
    Minimal version of the usunrpc transport with a total of 4 threads
    when run with a server:
    - 0 client threads (i.e. no support for c2_net_client_send)
-   - 1 socket per client connection
+   - 4 sockets per client connection
    - 3 server threads (scheduler + 2 workers)
  */
 struct c2_net_xprt c2_net_usunrpc_minimal_xprt = {
