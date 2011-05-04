@@ -128,7 +128,7 @@ void test_sunrpc_ping(void)
 {
 	struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
-		.pc_xprt = &c2_net_bulk_mem_xprt,
+		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -138,7 +138,7 @@ void test_sunrpc_ping(void)
 	};
 	struct ping_ctx sctx = {
 		.pc_ops = &quiet_ops,
-		.pc_xprt = &c2_net_bulk_mem_xprt,
+		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_SERVER_SEGMENTS,
 		.pc_seg_size = PING_SERVER_SEGMENT_SIZE,
@@ -152,7 +152,7 @@ void test_sunrpc_ping(void)
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
 
-	C2_UT_ASSERT(c2_net_xprt_init(&c2_net_bulk_mem_xprt) == 0);
+	C2_UT_ASSERT(c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt) == 0);
 
 	int                      rc;
 	struct c2_net_end_point *server_ep;
@@ -182,7 +182,6 @@ void test_sunrpc_ping(void)
 
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
-	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	C2_UT_ASSERT(ping_client_fini(&cctx, server_ep) == 0);
@@ -194,7 +193,7 @@ void test_sunrpc_ping(void)
 	c2_mutex_fini(&cctx.pc_mutex);
 	c2_cond_fini(&sctx.pc_cond);
 	c2_mutex_fini(&sctx.pc_mutex);
-	c2_net_xprt_fini(&c2_net_bulk_mem_xprt);
+	c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
 }
 
 const struct c2_test_suite net_bulk_sunrpc_ut = {
