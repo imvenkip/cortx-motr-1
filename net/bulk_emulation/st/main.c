@@ -106,7 +106,7 @@ void client(struct client_params *params)
 		}
 	};
 
-	sprintf(ident, "Client %d", params->client_id);
+	sprintf(ident, "Client %d", cctx.pc_port);
 	if (params->verbose)
 		cctx.pc_ops = &verbose_ops;
 	else
