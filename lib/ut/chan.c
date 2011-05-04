@@ -34,14 +34,21 @@ static void t0(int self)
 
 static int flag;
 
-static void cb1(struct c2_clink *clink)
+static bool cb1(struct c2_clink *clink)
 {
 	flag += 1;
+	return false;
 }
 
-static void cb2(struct c2_clink *clink)
+static bool cb2(struct c2_clink *clink)
 {
 	flag += 2;
+	return false;
+}
+
+static bool cb_filter(struct c2_clink *clink)
+{
+	return flag == 1;
 }
 
 unsigned long signal_the_chan_in_timer(unsigned long data)
@@ -56,6 +63,7 @@ void test_chan(void)
 	struct c2_chan  chan;
 	struct c2_clink clink1;
 	struct c2_clink clink2;
+	struct c2_clink clink3;
 	struct c2_time  now;
 	struct c2_time  delta;
 	struct c2_time  expire;
@@ -145,6 +153,23 @@ void test_chan(void)
 
 	c2_clink_del(&clink1);
 	c2_clink_fini(&clink1);
+
+	/* test filtered events. */
+	c2_clink_init(&clink3, &cb_filter);
+	c2_clink_add(&chan, &clink3);
+
+	flag = 1;
+	c2_chan_signal(&chan);
+	got = c2_chan_trywait(&clink3);
+	C2_UT_ASSERT(got);
+
+	flag = 0;
+	c2_chan_signal(&chan);
+	got = c2_chan_trywait(&clink3);
+	C2_UT_ASSERT(!got);
+
+	c2_clink_del(&clink3);
+	c2_clink_fini(&clink3);
 
 	c2_chan_fini(&chan);
 

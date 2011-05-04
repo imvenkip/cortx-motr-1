@@ -104,9 +104,7 @@ static void clink_signal(struct c2_clink *clink)
 {
 	C2_ASSERT(clink->cl_chan != NULL);
 
-	if (clink->cl_cb != NULL)
-		clink->cl_cb(clink);
-	else
+	if (clink->cl_cb == NULL || !clink->cl_cb(clink))
 		c2_semaphore_up(&clink->cl_wait);
 }
 
@@ -234,7 +232,6 @@ bool c2_chan_trywait(struct c2_clink *link)
 {
 	bool result;
 
-	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	result = c2_semaphore_trydown(&link->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
@@ -245,7 +242,6 @@ C2_EXPORTED(c2_chan_trywait);
 void c2_chan_wait(struct c2_clink *link)
 {
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	C2_ASSERT(link->cl_cb == NULL);
 	c2_semaphore_down(&link->cl_wait);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
@@ -255,7 +251,6 @@ bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout)
 {
 	bool result;
 
-	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	C2_ASSERT(abs_timeout != NULL);
 

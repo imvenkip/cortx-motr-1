@@ -18,17 +18,17 @@
    can wait or register a call-back for.
 
    A clink (c2_clink) is a record of interest in events on a particular
-   channel. A user adds a clink to a channel and appearance of new events in the
-   stream is recorded in the clink.
+   channel. A user adds a clink to a channel and appearance of new events in
+   the stream is recorded in the clink.
 
    There are two interfaces related to channels:
 
-   @li producer interface. It consists of c2_chan_signal() and
-   c2_chan_broadcast() functions. These functions are called to declare that new
-   asynchronous event happened in the stream.
+       - producer interface. It consists of c2_chan_signal() and
+         c2_chan_broadcast() functions. These functions are called to declare
+         that new asynchronous event happened in the stream.
 
-   @li consumer interface. It consists of c2_clink_add(), c2_clink_del(),
-   c2_clink_wait() and c2_clink_trywait() functions.
+       - consumer interface. It consists of c2_clink_add(), c2_clink_del(),
+         c2_clink_wait() and c2_clink_trywait() functions.
 
    When a producer declares an event on a channel, this event is delivered. If
    event is a broadcast (c2_chan_broadcast()) it is delivered to all clinks
@@ -37,20 +37,67 @@
    delivery of consecutive signals are selected in a round-robin manner.
 
    The method of delivery depends on the clink interface used (c2_clink). If
-   clink has a call-back, the delivery consists in calling this call-back. If a
-   clink has no call-back, the delivered event becomes pending on the
-   clink. Pending events can be consumed by calls to c2_chan_wait() and
-   c2_chan_trywait().
+   clink has a call-back, the delivery starts with calling this call-back. If a
+   clink has no call-back or the call-back returns false, the delivered event
+   becomes pending on the clink. Pending events can be consumed by calls to
+   c2_chan_wait(), c2_chan_timedwait() and c2_chan_trywait().
+
+   <b>Filtered wake-ups.</b>
+
+   By returning true from a call-back, it is possible to "filter" some events
+   out and avoid potentially expensive thread wake-up. A typical use case for
+   this is the following:
+
+   @code
+   struct wait_state {
+           struct c2_clink f_clink;
+	   ...
+   };
+
+   static bool callback(struct c2_clink *clink)
+   {
+           struct wait_state *f = container_of(clink, struct foo, f_clink);
+	   return !condition_is_right(f);
+   }
+
+   {
+           struct wait_state g;
+
+	   c2_clink_init(&g.f_clink, &callback);
+	   c2_clink_add(chan, &g.f_clink);
+	   ...
+	   while (!condition_is_right(g)) {
+	           c2_chan_wait(&g.f_clink);
+	   }
+   }
+   @endcode
+
+   The idea behind this idiom is that the call-back is called in the same
+   context where the event is declared and it is much cheaper to test whether a
+   condition is right than to wake up a waiting thread that would check this
+   and go back to sleep if it is not.
 
    @note An interface similar to c2_chan was a part of historical UNIX kernel
    implementations. It is where "CHAN" field in ps(1) output comes from.
+
+   @todo The next scalability improvement is to allow c2_chan to use an
+   externally specified mutex instead of a built-in one. This would allow
+   larger state machines with multiple channels to operate under fewer locks,
+   reducing coherency bus traffic.
 
    @{
 */
 
 struct c2_chan;
 struct c2_clink;
-typedef void (*c2_chan_cb_t)(struct c2_clink *link);
+
+/**
+   Clink call-back called when event is delivered to the clink. The call-back
+   returns true iff the event has been "consumed". Otherwise, the event will
+   remain pending on the clink for future consumption by the waiting
+   interfaces.
+ */
+typedef bool (*c2_chan_cb_t)(struct c2_clink *link);
 
 /**
    A stream of asynchronous events.
