@@ -325,7 +325,8 @@ int c2_rpc_form_init();
  */
 int c2_rpc_form_fini();
 
-typedef int (*stateFunc)(struct c2_rpc_item*, int);
+typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *,
+		struct c2_rpc_item*, int, void *);
 
 /**
    A state table guiding resultant states on arrival of events
@@ -335,33 +336,33 @@ typedef int (*stateFunc)(struct c2_rpc_item*, int);
 stateFunc c2_rpc_form_stateTable
 [C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS] = {
 
-	{ c2_rpc_form_updating_state, c2_rpc_form_updating_state,
-	  c2_rpc_form_updating_state, c2_rpc_form_waiting_state,
-	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state,
+	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
+	  c2_rpc_form_checking_state, c2_rpc_form_updating_state,
 	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_forming_state,
 	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_posting_state,
 	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state,
 	  c2_rpc_form_waiting_state},
 
 	{ c2_rpc_form_updating_state, c2_rpc_form_removing_state,
-	  c2_rpc_form_removing_state, c2_rpc_form_waiting_state,
+	  c2_rpc_form_removing_state, c2_rpc_form_checking_state,
 	  c2_rpc_form_checking_state, c2_rpc_form_waiting_state,
 	  c2_rpc_form_waiting_state}
 };
@@ -421,7 +422,16 @@ struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp
    @param item - incoming rpc item needed for external events.
    @param event - event posted to the state machine.
  */
-int c2_rpc_form_default_handler(struct c2_rpc_item *item, int state, int event);
+int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
+		struct c2_rpc_form_item_summary_unit *endp_unit, 
+		int state, int event, void *pvt);
+
+struct c2_rpc_form_item_change_req {
+	/* Specifies which field is going to change. */
+	enum 			 field_type;
+	/* New value of the field. */
+	void			*value;
+};
 
 /**
    Callback function for addition of an rpc item to the rpc items cache.
@@ -445,7 +455,7 @@ int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item, int field_type, void *value);
 
 /**
    Callback function for reply received of an rpc item.
@@ -470,7 +480,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
    for state succeeded event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_item *item, int state);
+int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, int state);
 
 /**
    Callback function for failure of a state.
@@ -479,7 +489,7 @@ int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_item *item, int state);
    for state failed event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_failed(struct c2_rpc_item *item, int state);
+int c2_rpc_form_intevt_state_failed(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, int state);
 
 /**
    Function to do the coalescing of related rpc items.
@@ -509,7 +519,7 @@ int c2_rpc_form_coalesce_items(struct c2_list *items);
    it needs some way of identifying the events.
  */
 int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event);
+		struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    State function for UPDATING state.
@@ -520,7 +530,7 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit,
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event);
+		,struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    State function for CHECKING state.
@@ -574,7 +584,7 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event);
+		,struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    State function for FORMING state.
@@ -594,7 +604,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event);
+		,struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    State function for POSTING state.
@@ -605,7 +615,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event);
+		,struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    State function for REMOVING state.
@@ -618,7 +628,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event);
+		,struct c2_rpc_item *item, int event, void *pvt);
 
 /** @} endgroup of rpc_formation */
 
