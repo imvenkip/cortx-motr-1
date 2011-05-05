@@ -169,7 +169,6 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
         c2_mutex_lock(&owner->ro_lock);
 
         if (c2_list_is_empty(&owner->ro_borrowed)) {
-                c2_list_for_each_entry
         }
 
         if (c2_list_is_empty(&owner->ro_sublet)) {
@@ -301,8 +300,8 @@ int right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
  */
 void right_put(struct c2_rm_incoming *in)
 {
-	struct c2_list		*pin
-	struct c2_list		*pin2
+	struct c2_list_link	*pin;
+	struct c2_list_link	*pin2;
 	struct c2_rm_right 	*right;
 
 	C2_PRE(in != NULL);
