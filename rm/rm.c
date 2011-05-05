@@ -128,13 +128,11 @@ int c2_rm_owner_init_with(struct c2_rm_owner *owner,
         struct c2_rm_resource_type      *rtype = res->r_type;
         int                             result = 0;
 
-
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 
         owner->ro_resource = res;
         res->r_ref = 0;
-
         owner->ro_state = ROS_FINAL;
         owner->ro_group = NULL;
 
@@ -152,7 +150,6 @@ int c2_rm_owner_init_with(struct c2_rm_owner *owner,
         }
 
         c2_mutex_init(&owner->ro_lock);
-
         c2_list_add(&owner->ro_owned[OWOS_HELD], r->ri_linkage);
         res->r_ref++;
 
@@ -200,15 +197,12 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 void c2_rm_right_init(struct c2_rm_right *right)
 {
         C2_PRE(right != NULL);
-
         c2_list_init(&right->ri_pins);
-
 }
 
 void c2_rm_right_fini(struct c2_rm_right *right)
 {
         C2_PRE(right != NULL);
-
         if (c2_list_is_empty(right->ri_pins)){
         }
         c2_list_fini(&right->ri_pins);
@@ -216,12 +210,17 @@ void c2_rm_right_fini(struct c2_rm_right *right)
 
 void c2_rm_incoming_init(struct c2_rm_incoming *in)
 {
-
+        C2_PRE(in != NULL);
+	c2_list_init(&in->rin_pins);
 }
 
 void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
+        C2_PRE(in != NULL);
 
+	if (c2_list_is_empty(&in->rin_pins)) {
+	}
+	c2_list_fini(&in->rin_pins);
 }
 
 int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
@@ -293,7 +292,7 @@ int right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 	c2_mutex_lock(&owner->ro_lock);
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 		    &in->rin_want.ri_linkage);
-	owner_balance();
+	owner_balance(owner);
 	c2_mutex_lock(&owner->ro_lock);
 }
 
@@ -302,10 +301,16 @@ int right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
  */
 void right_put(struct c2_rm_incoming *in)
 {
+	struct c2_list		*pin
+	struct c2_list		*pin2
+	struct c2_rm_right 	*right;
+
+	C2_PRE(in != NULL);
+
 	c2_mutex_lock(&in->rin_owner->ro_lock);
-	c2_list_for_each(pin, &in->rin_pins) {
+	c2_list_for_each(&in->rin_pins, pin) {
 		right = pin->rp_right;
-		c2_list_for_each(pin2, &right->ri_pins) {
+		c2_list_for_each(&right->ri_pins, pin2) {
 			if (pin2->rp_flags & RPF_TRACK) {
 				pin_remove(pin2);
 			}
