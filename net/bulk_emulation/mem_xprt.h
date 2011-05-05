@@ -352,6 +352,21 @@ struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
 	mep->xep_sa.sin_port;						\
  })
 
+#ifdef MEM_EP_SID
+#undef MEM_EP_SID
+#endif
+/**
+   Macro to return the service id of the end point.
+   @param ep End point pointer
+   @retval service id in network byte order
+ */
+#define MEM_EP_SID(ep)							\
+({									\
+	struct c2_net_bulk_mem_end_point *mep =				\
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
+	mep->xep_service_id;						\
+ })
+
 /**
    @}
 */

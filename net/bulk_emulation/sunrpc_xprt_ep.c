@@ -226,7 +226,8 @@ static bool sunrpc_ep_equals_addr(struct c2_net_end_point *ep,
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
 	return (mep->xep_sa.sin_addr.s_addr == sep->sep_addr &&
-		mep->xep_sa.sin_port        == sep->sep_port);
+		mep->xep_sa.sin_port        == sep->sep_port &&
+		mep->xep_service_id         == sep->sep_id);
 }
 
 /**
@@ -256,8 +257,10 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    /* address and port numbers in network byte order */
 	    .sbd_active_ep.sep_addr  = MEM_EP_ADDR(ep),
 	    .sbd_active_ep.sep_port  = MEM_EP_PORT(ep),
+	    .sbd_active_ep.sep_id    = MEM_EP_SID(ep),
 	    .sbd_passive_ep.sep_addr = MEM_EP_ADDR(tm->ntm_ep),
 	    .sbd_passive_ep.sep_port = MEM_EP_PORT(tm->ntm_ep),
+	    .sbd_passive_ep.sep_id   = MEM_EP_SID(tm->ntm_ep),
 	};
 
 	desc->nbd_len = sizeof(sd);
@@ -307,8 +310,10 @@ static bool sunrpc_desc_equal(struct c2_net_buf_desc *d1,
 	if (sd1.sbd_id == sd2->sbd_id &&
 	    sd1.sbd_active_ep.sep_addr == sd2->sbd_active_ep.sep_addr &&
 	    sd1.sbd_active_ep.sep_port == sd2->sbd_active_ep.sep_port &&
+	    sd1.sbd_active_ep.sep_id == sd2->sbd_active_ep.sep_id &&
 	    sd1.sbd_passive_ep.sep_addr == sd2->sbd_passive_ep.sep_addr &&
-	    sd1.sbd_passive_ep.sep_port == sd2->sbd_passive_ep.sep_port)
+	    sd1.sbd_passive_ep.sep_port == sd2->sbd_passive_ep.sep_port &&
+	    sd1.sbd_passive_ep.sep_id == sd2->sbd_passive_ep.sep_id)
 		return true;
 	return false;
 }

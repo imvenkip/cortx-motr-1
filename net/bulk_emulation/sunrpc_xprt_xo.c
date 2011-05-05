@@ -141,6 +141,48 @@ int c2_sunrpc_fop_init(void)
 C2_EXPORTED(c2_sunrpc_fop_init);
 
 /**
+   Search the list of existing transfer machines for the one whose end point
+   has the given service ID and return it.
+   @param sid service ID of the desired transfer machine
+   @retval NULL transfer machine not found
+   @retval !NULL transfer machine pointer, the transfer machine mutex
+   is locked.
+ */
+static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
+{
+	struct c2_net_bulk_sunrpc_tm_pvt *tp;
+	struct c2_net_transfer_mc *ret = NULL;
+
+	c2_rwlock_read_lock(&sunrpc_server_lock);
+	c2_list_for_each_entry(&sunrpc_server_tms, tp,
+			       struct c2_net_bulk_sunrpc_tm_pvt,
+			       xtm_tm_linkage) {
+		struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
+
+		c2_mutex_lock(&tm->ntm_mutex);
+
+		struct c2_net_end_point *ep = tm->ntm_ep;
+		if (ep == NULL) {
+			c2_mutex_unlock(&tm->ntm_mutex);
+			continue;
+		}
+
+		struct c2_net_bulk_mem_end_point *mep =
+		    container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+
+		if (mep->xep_service_id == sid) {
+			/* leave mutex locked */
+			ret = tm;
+			break;
+		}
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+	c2_rwlock_read_unlock(&sunrpc_server_lock);
+
+	return ret;
+}
+
+/**
    Add a work item to the work list
 */
 static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,

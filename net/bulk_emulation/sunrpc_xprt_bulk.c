@@ -27,13 +27,13 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	struct c2_net_bulk_sunrpc_tm_pvt *tp = 0;
-#if 0
-	    container_of(ctx->ft_service,
-			 struct c2_net_bulk_sunrpc_tm_pvt, xtm_service);
-#endif
-	struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
-	c2_mutex_lock(&tm->ntm_mutex);
+	/* locate the tm, identified by its sid in the buffer desc */
+	struct c2_net_transfer_mc *tm =
+	    sunrpc_find_tm(in->sg_desc.sbd_passive_ep.sep_id);
+	if (tm == NULL) {
+		rc = -ENXIO;
+		goto done2;
+	}
 
 	/* locate the passive buffer */
 	struct c2_net_buffer *nb = NULL;
@@ -98,6 +98,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 done:
 	c2_mutex_unlock(&tm->ntm_mutex);
+done2:
 	ex->sgr_rc = rc;
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return rc;
@@ -114,13 +115,13 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	struct c2_net_bulk_sunrpc_tm_pvt *tp = 0;
-#if 0
-	    container_of(ctx->ft_service,
-			 struct c2_net_bulk_sunrpc_tm_pvt, xtm_service);
-#endif
-	struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
-	c2_mutex_lock(&tm->ntm_mutex);
+	/* locate the tm, identified by its sid in the buffer desc */
+	struct c2_net_transfer_mc *tm =
+	    sunrpc_find_tm(in->sp_desc.sbd_passive_ep.sep_id);
+	if (tm == NULL) {
+		rc = -ENXIO;
+		goto done2;
+	}
 
 	/* locate the passive buffer */
 	struct c2_net_buffer *nb = NULL;
@@ -170,6 +171,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 done:
 	c2_mutex_unlock(&tm->ntm_mutex);
+done2:
 	ex->spr_rc = rc;
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return rc;
@@ -351,6 +353,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		/* decode the descriptor */
 		struct sunrpc_buf_desc sd;
 		struct sockaddr_in si;
+		uint32_t sid;
 
 		rc = sunrpc_desc_decode(&nb->nb_desc, &sd);
 		if (rc != 0)
@@ -367,8 +370,9 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		/* Make a local end point matching the remote address */
 		si.sin_addr.s_addr = sd.sbd_passive_ep.sep_addr;
 		si.sin_port = sd.sbd_passive_ep.sep_port;
+		sid = sd.sbd_passive_ep.sep_id;
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si, 0);
+		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si, sid);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 		if (rc != 0) {
 			match_ep = NULL;

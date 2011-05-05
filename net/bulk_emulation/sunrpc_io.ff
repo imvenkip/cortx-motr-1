@@ -14,7 +14,8 @@
 /* end point address */
 DEF(sunrpc_ep, RECORD,
     _(sep_addr, U32),
-    _(sep_port, U32)); /* really 16 bits */
+    _(sep_port, U32), /* really 16 bits */
+    _(sep_id,   U32));
 
 /* appropriate network buffer descriptor */
 DEF(sunrpc_buf_desc, RECORD,
