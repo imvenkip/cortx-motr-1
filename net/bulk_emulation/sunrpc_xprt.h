@@ -69,8 +69,7 @@ struct c2_net_bulk_sunrpc_tm_pvt {
 
 	uint64_t                      xtm_magic;
 
-	/** The rpc service */
-	struct c2_service             xtm_service;
+	struct c2_list_link           xtm_tm_linkage;
 };
 
 /**

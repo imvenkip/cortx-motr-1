@@ -32,6 +32,70 @@ static int sunrpc_bulk_handler(struct c2_service *service, struct c2_fop *fop,
 }
 
 /**
+   Starts the common service if necessary.
+ */
+static int sunrpc_start_service(struct c2_net_end_point *ep)
+{
+	int rc = 0;
+	bool dom_init = false;
+	bool sid_init = false;
+	c2_mutex_lock(&sunrpc_server_mutex);
+	do {
+		struct c2_net_domain *dom = &sunrpc_server_domain;
+		struct c2_service    *svc = &sunrpc_server_service;
+		if (++sunrpc_server_active_tms > 1)
+			break; /* started */
+		/* initialize the domain */
+#ifdef __KERNEL__
+		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_xprt);
+#else
+		rc = c2_net_domain_init(dom, &c2_net_usunrpc_xprt);
+#endif
+		if (rc != 0)
+			break;
+		dom_init = true;
+
+		/* initialize the sid using supplied EP */
+		rc = sunrpc_ep_init_sid(&sunrpc_server_id, dom, ep);
+		if (rc != 0)
+			break;
+		sid_init = true;
+
+		/* initialize the service */
+		svc->s_table.not_start = s_fops[0]->ft_code;
+		svc->s_table.not_nr    = ARRAY_SIZE(s_fops);
+		svc->s_table.not_fopt  = s_fops;
+		svc->s_handler         = &sunrpc_bulk_handler;
+		rc = c2_service_start(svc, &sunrpc_server_id);
+	} while(0);
+	if (rc != 0) {
+		if (sid_init)
+			c2_service_id_fini(&sunrpc_server_id);
+		if (dom_init)
+			c2_net_domain_fini(&sunrpc_server_domain);
+	}
+	c2_mutex_unlock(&sunrpc_server_mutex);
+	return rc;
+}
+
+/**
+   Stops the common service if necessary.
+ */
+static void sunrpc_stop_service()
+{
+	c2_mutex_lock(&sunrpc_server_mutex);
+	do {
+		if (--sunrpc_server_active_tms > 0)
+			break; /* started */
+		c2_service_stop(&sunrpc_server_service);
+		c2_service_id_fini(&sunrpc_server_id);
+		c2_net_domain_fini(&sunrpc_server_domain);
+	} while(0);
+	c2_mutex_unlock(&sunrpc_server_mutex);
+	return;
+}
+
+/**
    Work function for the C2_NET_XOP_STATE_CHANGE work item.
    @param tm the corresponding transfer machine
    @param wi the work item, this will be freed
@@ -61,23 +125,11 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		  If that happens, ignore the C2_NET_XTM_STARTED item.
 		 */
 		if (tp->xtm_base.xtm_state < C2_NET_XTM_STOPPING) {
-			/* c2_service_id_init is done by sunrpc_ep_create */
-
-			/* c2_service initialization */
-			tp->xtm_service.s_table.not_start = s_fops[0]->ft_code;
-			tp->xtm_service.s_table.not_nr = ARRAY_SIZE(s_fops);
-			tp->xtm_service.s_table.not_fopt  = s_fops;
-			tp->xtm_service.s_handler = &sunrpc_bulk_handler;
-
-			rc = c2_service_start(&tp->xtm_service, &sep->xep_sid);
+			rc = sunrpc_start_service(tm->ntm_ep);
 			C2_ASSERT(rc >= 0);
 		}
 	} else {
-		if (tp->xtm_service.s_id != NULL)
-			c2_service_stop(&tp->xtm_service);
-		C2_SET0(&tp->xtm_service);
-
-		/* c2_service_id_fini() is done when tm_ep is released */
+		sunrpc_stop_service();
 	}
 	/* invoke the base work function */
 	(*dp->xd_base_work_fn[C2_NET_XOP_STATE_CHANGE])(tm, wi);

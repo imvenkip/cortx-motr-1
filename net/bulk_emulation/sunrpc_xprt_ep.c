@@ -54,6 +54,40 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 }
 
 /**
+   Internal subroutine to initialize a side from an end point.
+   @param sid Pointer to service id
+   @param rpc_dom Domain of the underlying sunrpc transport.
+   @param ep An end point pointer from any bulk sunrpc domain.
+*/
+static int sunrpc_ep_init_sid(struct c2_service_id *sid,
+			      struct c2_net_domain *rpc_dom,
+			      struct c2_net_end_point *ep)
+{
+	int rc = 0;
+	struct c2_net_bulk_mem_end_point *mep;
+	struct c2_net_bulk_sunrpc_end_point *sep;
+	char host[C2_NET_BULK_MEM_XEP_ADDR_LEN];
+	char *p;
+	int port;
+
+	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
+	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
+
+	port = ntohs(mep->xep_sa.sin_port);
+	/* create the service uuid */
+	sprintf(sid->si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
+	C2_ASSERT(strlen(sid->si_uuid) < sizeof(sid->si_uuid));
+	/* copy the printable addr ("dotted_ip_addr:port:service_id") */
+	strncpy(host, ep->nep_addr, sizeof(host)-1);
+	host[sizeof(host)-1] = '\0';
+	for (p=host; *p && *p != ':'; p++);
+	*p = '\0'; /* isolate the hostname */
+	rc = c2_service_id_init(sid, rpc_dom, host, port);
+	return rc;
+}
+
+/**
    Internal subroutine to create an end point. It corresponds to and
    replaces the base mem_ep_create subroutine.
 
@@ -94,6 +128,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 
 	/* create the sid (first time only) */
 	if (!sep->xep_sid_valid) {
+#if 0
 		char host[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 		char *p;
 		int port = ntohs(mep->xep_sa.sin_port);
@@ -101,13 +136,15 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 		sprintf(sep->xep_sid.si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
 		C2_ASSERT(strlen(sep->xep_sid.si_uuid) <
 			  sizeof(sep->xep_sid.si_uuid));
-		/* copy the printable addr ("dotted_ip_addr:port") */
+		/* copy the printable addr ("dotted_ip_addr:port:service_id") */
 		strncpy(host, (*epp)->nep_addr, sizeof(host)-1);
 		host[sizeof(host)-1] = '\0';
 		for (p=host; *p && *p != ':'; p++);
 		*p = '\0'; /* isolate the hostname */
 		rc = c2_service_id_init(&sep->xep_sid, &dp->xd_rpc_dom,
 					host, port);
+#endif
+		rc = sunrpc_ep_init_sid(&sep->xep_sid, &dp->xd_rpc_dom, *epp);
 		if (rc == 0) {
 			sep->xep_sid_valid = true;
 		} else {

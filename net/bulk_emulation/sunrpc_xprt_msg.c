@@ -95,9 +95,11 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
-	struct c2_net_bulk_sunrpc_tm_pvt *tp =
+	struct c2_net_bulk_sunrpc_tm_pvt *tp = 0;
+#if 0
 	    container_of(ctx->ft_service,
 			 struct c2_net_bulk_sunrpc_tm_pvt, xtm_service);
+#endif
 	struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
 
 	int rc;

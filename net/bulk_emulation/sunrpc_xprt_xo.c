@@ -5,6 +5,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/rwlock.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
@@ -51,6 +52,14 @@ static struct c2_fop_type_format *fmts[] = {
 	&sunrpc_buf_desc_tfmt,
 	&sunrpc_buffer_tfmt,
 };
+
+static struct c2_rwlock      sunrpc_server_lock;
+static struct c2_mutex       sunrpc_server_mutex;
+static struct c2_list        sunrpc_server_tms;
+static struct c2_net_domain  sunrpc_server_domain;
+static struct c2_service_id  sunrpc_server_id;
+static struct c2_service     sunrpc_server_service;
+static uint32_t              sunrpc_server_active_tms = 0;
 
 static bool sunrpc_dom_invariant(struct c2_net_domain *dom)
 {
@@ -101,6 +110,9 @@ static bool sunrpc_buffer_invariant(struct c2_net_buffer *nb)
  */
 void c2_sunrpc_fop_fini(void)
 {
+	c2_list_init(&sunrpc_server_tms);
+	c2_mutex_fini(&sunrpc_server_mutex);
+	c2_rwlock_fini(&sunrpc_server_lock);
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }
@@ -116,10 +128,14 @@ int c2_sunrpc_fop_init(void)
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 	if (result == 0) {
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-		/* TODO: need to call c2_fop_object_init? */
 	}
 	if (result != 0)
 		c2_sunrpc_fop_fini();
+	else {
+		c2_rwlock_init(&sunrpc_server_lock);
+		c2_mutex_init(&sunrpc_server_mutex);
+		c2_list_init(&sunrpc_server_tms);
+	}
 	return result;
 }
 C2_EXPORTED(c2_sunrpc_fop_init);
@@ -299,18 +315,27 @@ static int sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 
 static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
-	int rc = c2_net_bulk_mem_xprt.nx_ops->xo_tm_init(tm);
+	int rc;
+	c2_rwlock_write_lock(&sunrpc_server_lock);
+	rc = c2_net_bulk_mem_xprt.nx_ops->xo_tm_init(tm);
 	if (rc == 0) {
 		struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
 		tp->xtm_magic = C2_NET_BULK_SUNRPC_XTM_MAGIC;
+		c2_list_link_init(&tp->xtm_tm_linkage);
+		c2_list_add_tail(&sunrpc_server_tms, &tp->xtm_tm_linkage);
 		C2_POST(sunrpc_tm_invariant(tm));
 	}
+	c2_rwlock_write_unlock(&sunrpc_server_lock);
 	return rc;
 }
 
 static int sunrpc_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
+	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
 	C2_PRE(sunrpc_tm_invariant(tm));
+	c2_rwlock_write_lock(&sunrpc_server_lock);
+	c2_list_del(&tp->xtm_tm_linkage);
+	c2_rwlock_write_unlock(&sunrpc_server_lock);
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_fini(tm);
 }
 
