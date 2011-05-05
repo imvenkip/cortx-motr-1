@@ -17,6 +17,7 @@ extern struct c2_ub_set c2_db_ub;
 extern struct c2_ub_set c2_emap_ub;
 extern struct c2_ub_set c2_fol_ub;
 extern struct c2_ub_set c2_parity_math_ub;
+extern struct c2_ub_set c2_rm_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
@@ -44,6 +45,7 @@ int main(int argc, char *argv[])
                 c2_ub_set_add(&c2_parity_math_ub);
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_trace_ub);
+		c2_ub_set_add(&c2_rm_ub);
 		c2_ub_run(rounds);
 
 		unit_end(UB_SANDBOX);

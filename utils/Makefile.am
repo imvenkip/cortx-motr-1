@@ -15,7 +15,8 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/udb/ut/libudb-ut.la \
-               $(top_builddir)/capa/ut/libcapa-ut.la
+               $(top_builddir)/capa/ut/libcapa-ut.la \
+               $(top_builddir)/rm/ut/librm-ut.la
 
 
 ub_SOURCES   = ub_main.c common.c common.h 
@@ -25,5 +26,6 @@ ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/db/ut/libdb-ut.la     \
                $(top_builddir)/cob/ut/libcob-ut.la     \
                $(top_builddir)/fol/ut/libfol-ut.la   \
-               $(top_builddir)/sns/ut/libparity-ut.la
+               $(top_builddir)/sns/ut/libparity-ut.la \
+               $(top_builddir)/rm/ut/librm-ut.la
 

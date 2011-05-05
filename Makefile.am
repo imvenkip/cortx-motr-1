@@ -4,11 +4,16 @@ SUBDIRS_BASE = m4 doc man patches
 # list built in order to use fop2c
 # addb_pseudo is used only for build fop2c, with which full addb can be built
 SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop addb sm stob net dtm nrs \
+<<<<<<< .merge_file_tS5gkK
                sns mw reqh layout pool balloc desim cob capa udb ioservice # rpc
+=======
+               sns mw reqh layout pool balloc desim cob capa udb rm # rpc
+>>>>>>> .merge_file_DA9kqD
 
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut #rpc/ut
+            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut \
+            rm/ut #rpc/ut
 SUBDIR_ST = 
 SUBDIR_UB = 
 SUBDIR_BIN = mds utils

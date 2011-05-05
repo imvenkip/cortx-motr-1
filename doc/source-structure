@@ -93,8 +93,9 @@ INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 In core/Makefile.am add "foo" to SUBDIRS_LIBS, and, if necessary,
 "foo/ut", "foo/st" and "foo/ub" to SUBDIRS_{UT,ST,UB} respectively.
 
-Add "core/Makefile" and (if necessary) "core/{ut,st,ub}/Makefile" to
-AC_CONFIG_FILES section at the end of core/configure.ac.
+Add "core/foo/Makefile" and (if necessary)
+"core/foo/{ut,st,ub}/Makefile" to AC_CONFIG_FILES section at the end
+of core/configure.ac.
 
 Finally, add $(top_builddir)/foo/libcolibri-foo.la to
 libcolibri_la_LIBADD in core/colibri/Makefile.am
@@ -137,7 +138,7 @@ in core/foo/foo.h, add
 
 #include "foo/foo.h"
 
-to core/colibri/init.c and add { &foo_init, &foo_fini } to the
+to core/colibri/init.c and add { &foo_init, &foo_fini, "foo" } to the
 subsystem[] array, defined in core/colibri/init.c. foo_init() must
 follow standard return conventions: 0 on success, negated errno value
 on failure.
