@@ -22,6 +22,7 @@
 enum {
 	DEF_BUFS = 20,
 	DEF_CLIENT_THREADS = 1,
+	MAX_CLIENT_THREADS = 4196,
 	DEF_LOOPS = 1,
 
 	PING_CLIENT_SEGMENTS = 8,
@@ -30,13 +31,30 @@ enum {
 	PING_SERVER_SEGMENTS = 4,
 	PING_SERVER_SEGMENT_SIZE = 1024,
 
-	CLIENT_BASE_PORT = 31416,
+	MEM_CLIENT_BASE_PORT = PING_PORT2,
+	SUNRPC_CLIENT_BASE_PORT = PING_PORT1,
 };
 
-struct c2_net_xprt *xprts[3] = {
-	&c2_net_bulk_mem_xprt,
-	&c2_net_bulk_sunrpc_xprt,
-	NULL
+struct ping_xprt {
+	struct c2_net_xprt *px_xprt;
+	bool                px_dual_only;
+	bool                px_3part_addr;
+	short               px_client_port;
+};
+
+struct ping_xprt xprts[2] = {
+	{
+		.px_xprt = &c2_net_bulk_mem_xprt,
+		.px_dual_only = true,
+		.px_3part_addr = false,
+		.px_client_port = MEM_CLIENT_BASE_PORT,
+	},
+	{
+		.px_xprt = &c2_net_bulk_sunrpc_xprt,
+		.px_dual_only = false,
+		.px_3part_addr = false,
+		.px_client_port = SUNRPC_CLIENT_BASE_PORT,
+	}
 };
 
 struct ping_ctx sctx = {
@@ -45,26 +63,26 @@ struct ping_ctx sctx = {
 	}
 };
 
-int lookup_xprt(const char *xprt_name, struct c2_net_xprt **xprt)
+int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
 {
 	int i;
 
-	for (i = 0; xprts[i] != NULL; ++i)
-		if (strcmp(xprt_name, xprts[i]->nx_name) == 0) {
-			*xprt = xprts[i];
+	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
+		if (strcmp(xprt_name, xprts[i].px_xprt->nx_name) == 0) {
+			*xprt = &xprts[i];
 			return 0;
 		}
 	return -ENOENT;
 }
 
-void list_xprt_names(FILE *s, struct c2_net_xprt *def)
+void list_xprt_names(FILE *s, struct ping_xprt *def)
 {
 	int i;
 
 	fprintf(s, "Supported transports:\n");
-	for (i = 0; xprts[i] != NULL; ++i)
-		fprintf(s, "    %s%s\n", xprts[i]->nx_name,
-			(xprts[i] == def) ? " [default]" : "");
+	for (i = 0; ARRAY_SIZE(xprts); ++i)
+		fprintf(s, "    %s%s\n", xprts[i].px_xprt->nx_name,
+			(&xprts[i] == def) ? " [default]" : "");
 }
 
 int quiet_printf(const char *fmt, ...)
@@ -81,7 +99,7 @@ struct ping_ops quiet_ops = {
 };
 
 struct client_params {
-	struct c2_net_xprt *xprt;
+	struct ping_xprt *xprt;
 	bool verbose;
 	int base_port;
 	int loops;
@@ -94,10 +112,9 @@ void client(struct client_params *params)
 	int			 i;
 	int			 rc;
 	struct c2_net_end_point *server_ep;
-	char                     ident[16];
+	char                     ident[24];
 	struct ping_ctx		 cctx = {
-		.pc_xprt = params->xprt,
-		.pc_port = params->base_port + params->client_id,
+		.pc_xprt = params->xprt->px_xprt,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -107,7 +124,15 @@ void client(struct client_params *params)
 		}
 	};
 
-	sprintf(ident, "Client %d", cctx.pc_port);
+	if (params->xprt->px_3part_addr) {
+		cctx.pc_port = params->base_port;
+		cctx.pc_id   = params->client_id;
+		sprintf(ident, "Client %d:%d", cctx.pc_port, cctx.pc_id);
+	} else {
+		cctx.pc_port = params->base_port + params->client_id;
+		cctx.pc_id = 0;
+		sprintf(ident, "Client %d", cctx.pc_port);
+	}
 	if (params->verbose)
 		cctx.pc_ops = &verbose_ops;
 	else
@@ -118,8 +143,7 @@ void client(struct client_params *params)
 	C2_ASSERT(rc == 0);
 
 	for (i = 1; i <= params->loops; ++i) {
-		if (params->verbose)
-			printf("%s: Loop %d\n", ident, i);
+		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
 		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
@@ -143,11 +167,11 @@ int main(int argc, char *argv[])
 	bool			 verbose = false;
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
-	int			 base_port = CLIENT_BASE_PORT;
+	int			 base_port = 0;
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 
-	struct c2_net_xprt	*xprt;
+	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -174,29 +198,32 @@ int main(int argc, char *argv[])
 	}
 
 	if (strcmp(xprt_name, "list") == 0) {
-		list_xprt_names(stdout, &c2_net_bulk_mem_xprt);
+		list_xprt_names(stdout, &xprts[0]);
 		return 0;
 	}
 	rc = lookup_xprt(xprt_name, &xprt);
 	if (rc != 0) {
 		fprintf(stderr, "Unknown transport-name.\n");
-		list_xprt_names(stderr, &c2_net_bulk_mem_xprt);
+		list_xprt_names(stderr, &xprts[0]);
 		return rc;
 	}
-	if (strcmp(xprt_name, c2_net_bulk_mem_xprt.nx_name) == 0 &&
-	    (client_only || server_only)) {
+	if (xprt->px_dual_only && (client_only || server_only)) {
 		fprintf(stderr,
 			"Transport %s does not support client or server only\n",
 			xprt_name);
 		return 1;
 	}
-	if (client_only && server_only) {
-		fprintf(stderr,
-			"Client and server only are mutually exclusive\n");
+	if (nr_clients > MAX_CLIENT_THREADS) {
+		fprintf(stderr, "Max of %d client threads supported\n",
+			MAX_CLIENT_THREADS);
 		return 1;
 	}
+	if (client_only && server_only)
+		client_only = server_only = false;
+	if (base_port == 0)
+		base_port = xprt->px_client_port;
 
-	C2_ASSERT(c2_net_xprt_init(xprt) == 0);
+	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 
 	if (!client_only) {
 		/* start server in background thread */
@@ -206,7 +233,12 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_xprt = xprt;
+		sctx.pc_xprt = xprt->px_xprt;
+		sctx.pc_port = PING_PORT1;
+		if (xprt->px_3part_addr)
+			sctx.pc_id = PART3_SERVER_ID;
+		else
+			sctx.pc_id = 0;
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
@@ -238,7 +270,7 @@ int main(int argc, char *argv[])
 			params[i].base_port = base_port;
 			params[i].loops = loops;
 			params[i].nr_bufs = nr_bufs;
-			params[i].client_id = i;
+			params[i].client_id = i + 1;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
@@ -250,7 +282,8 @@ int main(int argc, char *argv[])
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
 			if (verbose)
-				printf("Client %d: joined\n", base_port + i);
+				printf("Client %d: joined\n",
+				       base_port + params[i].client_id);
 		}
 		c2_free(client_thread);
 		c2_free(params);
@@ -263,7 +296,7 @@ int main(int argc, char *argv[])
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
-	c2_net_xprt_fini(xprt);
+	c2_net_xprt_fini(xprt->px_xprt);
 	c2_fini();
 
 	return 0;

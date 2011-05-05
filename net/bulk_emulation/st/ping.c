@@ -24,9 +24,6 @@
 
 enum {
 	SEND_RETRIES = 3,
-
-	CLIENT_PORT = 31416,
-	SERVER_PORT = 27183
 };
 
 struct ping_work_item {
@@ -774,7 +771,7 @@ int ping_init(const char *hostname, struct ping_ctx *ctx)
 	}
 
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom,
-				     hostbuf, ctx->pc_port, 0);
+				     hostbuf, ctx->pc_port, ctx->pc_id, 0);
 	if (rc != 0) {
 		fprintf(stderr, "end point create failed: %d\n", rc);
 		goto fail;
@@ -859,7 +856,7 @@ void ping_server(struct ping_ctx *ctx)
 	struct c2_net_buffer *nb;
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
-	ctx->pc_port = SERVER_PORT;
+	ctx->pc_port = PING_PORT1;
 	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
 	rc = ping_init("localhost", ctx);
@@ -1183,10 +1180,11 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 {
 	int rc;
 	char hostbuf[16];
+	uint32_t srvid;
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	if (ctx->pc_port == 0)
-		ctx->pc_port = CLIENT_PORT;
+		ctx->pc_port = PING_PORT2;
 	if (ctx->pc_ident == NULL)
 		ctx->pc_ident = "Client";
 	rc = ping_init("localhost", ctx);
@@ -1197,8 +1195,12 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	rc = canon_host("localhost", hostbuf, sizeof(hostbuf));
 	if (rc != 0)
 		return rc;
+	if (ctx->pc_id != 0)
+		srvid = PART3_SERVER_ID;
+	else
+		srvid = 0;
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom,
-				     hostbuf, SERVER_PORT, 0);
+				     hostbuf, PING_PORT1, srvid, 0);
 	return rc;
 }
 

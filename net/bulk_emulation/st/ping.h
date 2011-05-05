@@ -15,6 +15,7 @@ struct ping_ctx {
 	struct c2_net_xprt         *pc_xprt;
 	struct c2_net_domain        pc_dom;
 	short			    pc_port;
+	uint32_t		    pc_id;
 	uint32_t                    pc_nr_bufs;
 	uint32_t                    pc_segments;
 	uint32_t                    pc_seg_size;
@@ -27,6 +28,12 @@ struct ping_ctx {
 	struct c2_list              pc_work_queue;
 	const char *                pc_ident;
 	const char *                pc_compare_buf;
+};
+
+enum {
+	PING_PORT1 = 31416,
+	PING_PORT2 = 27183,
+	PART3_SERVER_ID = 141421,
 };
 
 void ping_server(struct ping_ctx *ctx);
