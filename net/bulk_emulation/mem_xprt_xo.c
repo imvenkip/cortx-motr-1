@@ -178,6 +178,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
 	dp->xd_sizeof_tm_pvt     = sizeof(struct c2_net_bulk_mem_tm_pvt);
 	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
+	dp->xd_addr_tuples       = 2;
 	dp->xd_num_tm_threads    = 1;
 
 	c2_atomic64_set(&dp->xd_buf_id_counter, 1);
@@ -256,9 +257,13 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
 				   va_list varargs)
 {
-	char buf[24];
+	char buf[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 	const char *dot_ip;
 	struct sockaddr_in sa;
+	uint32_t id=0;
+	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
+
+	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
 	dot_ip = va_arg(varargs, char *);
 	if (dot_ip == NULL)
@@ -267,7 +272,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	sa.sin_port = htons(va_arg(varargs, int));
 	if (sa.sin_port == 0) {
 		/* dot_ip may be in printable form */
-		char *p;
+		char *p, *pp;
 		int pnum;
 		strncpy(buf, dot_ip, sizeof(buf)-1); /* copy to modify */
 		buf[sizeof(buf)-1] = '\0';
@@ -276,9 +281,24 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 		if (*p == '\0')
 			return -EINVAL;
 		*p++ = '\0'; /* zap the : */
-		sscanf(p, "%d", &pnum);
+		pp = p;
+		if (dp->xd_addr_tuples == 3) {
+			for (p=pp; *p; p++)
+				if (*p == ':') break;
+			*p++ = '\0'; /* zap the : */
+			sscanf(p, "%u", &id);
+			if (id == 0)
+				return -EINVAL;
+		}
+		sscanf(pp, "%d", &pnum);
 		sa.sin_port = htons(pnum);
 		dot_ip = buf;
+	} else {
+		id = va_arg(varargs, uint32_t);
+		if (dp->xd_addr_tuples == 3 && id == 0)
+			return -EINVAL;
+		else if (dp->xd_addr_tuples == 2 && id != 0)
+			return -EINVAL;
 	}
 #ifdef __KERNEL__
 	sa.sin_addr.s_addr = in_aton(dot_ip);
@@ -288,7 +308,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return MEM_EP_CREATE(epp, dom, &sa);
+	return MEM_EP_CREATE(epp, dom, &sa, id);
 }
 
 /**

@@ -75,6 +75,9 @@ void test_ep(void)
 	struct c2_net_end_point *ep3;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
+	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &dom1,
+					     "255.255.255.255", 65535,
+					     4294967295U, 0) == -EINVAL);
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,
 					      "255.255.255.255", 65535, 0));
 	C2_UT_ASSERT(strcmp(ep1->nep_addr,"255.255.255.255:65535")==0);

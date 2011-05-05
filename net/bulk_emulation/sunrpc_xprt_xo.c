@@ -177,6 +177,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	bdp->xd_sizeof_tm_pvt     = sizeof(struct c2_net_bulk_sunrpc_tm_pvt);
 	bdp->xd_sizeof_buffer_pvt =
 	    sizeof(struct c2_net_bulk_sunrpc_buffer_pvt);
+	bdp->xd_addr_tuples       = 3;
 	bdp->xd_num_tm_threads    = C2_NET_BULK_SUNRPC_TM_THREADS;
 
 	/* create the rpc domain (use in-mutex version of domain init) */

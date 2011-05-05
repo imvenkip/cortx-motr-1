@@ -364,7 +364,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		si.sin_addr.s_addr = sd.sbd_passive_ep.sep_addr;
 		si.sin_port = sd.sbd_passive_ep.sep_port;
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si);
+		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si, 0);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 		if (rc != 0) {
 			match_ep = NULL;

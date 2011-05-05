@@ -64,6 +64,8 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 
    @param ep  The newly created end point.
    @param dom The domain pointer.
+   @param sa  Pointer to the struct sockaddr_in
+   @param id  Service id (non-zero)
    @retval 0 on success
    @retval -errno on failure.
    @post (ergo(rc == 0, sunrpc_ep_invariant(*epp)));
@@ -71,7 +73,8 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 */
 static int sunrpc_ep_create(struct c2_net_end_point **epp,
 			    struct c2_net_domain *dom,
-			    struct sockaddr_in *sa)
+			    struct sockaddr_in *sa,
+			    uint32_t id)
 {
 	int rc = 0;
 	struct c2_net_bulk_mem_end_point *mep;
@@ -79,8 +82,9 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
 
 	C2_PRE(sunrpc_dom_invariant(dom));
+	/* C2_PRE(id > 0);*/
 	/* create the base transport ep first */
-	rc = (*dp->xd_base_ops.bmo_ep_create)(epp, dom, sa);
+	rc = (*dp->xd_base_ops.bmo_ep_create)(epp, dom, sa, id);
 	if (rc != 0)
 		return rc;
 

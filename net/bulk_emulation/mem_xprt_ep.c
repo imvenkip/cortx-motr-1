@@ -33,7 +33,8 @@ static void mem_xo_end_point_release(struct c2_ref *ref)
  */
 static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_domain *dom,
-			 struct sockaddr_in *sa)
+			 struct sockaddr_in *sa,
+			 uint32_t id)
 {
 	C2_PRE(mem_dom_invariant(dom));
 
@@ -47,7 +48,8 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
 		if (mep->xep_sa.sin_addr.s_addr == sa->sin_addr.s_addr &&
-		    mep->xep_sa.sin_port == sa->sin_port ){
+		    mep->xep_sa.sin_port        == sa->sin_port &&
+		    mep->xep_service_id         == id){
 			c2_ref_get(&ep->nep_ref); /* refcnt++ */
 			*epp = ep;
 			return 0;
@@ -60,6 +62,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	mep->xep_magic = C2_NET_BULK_MEM_XEP_MAGIC;
 	mep->xep_sa.sin_addr = sa->sin_addr;
 	mep->xep_sa.sin_port = sa->sin_port;
+	mep->xep_service_id  = id;
 	/* create the printable representation */
 	{
 		char dot_ip[17];
@@ -76,7 +79,12 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		}
 		C2_ASSERT(len < sizeof(dot_ip));
 		dot_ip[len-1] = '\0';
-		sprintf(mep->xep_addr, "%s:%d", dot_ip, ntohs(sa->sin_port));
+		if (id > 0)
+			sprintf(mep->xep_addr, "%s:%d:%u", dot_ip,
+				ntohs(sa->sin_port), id);
+		else
+			sprintf(mep->xep_addr, "%s:%d", dot_ip,
+				ntohs(sa->sin_port));
 		C2_ASSERT(strlen(mep->xep_addr) < C2_NET_BULK_MEM_XEP_ADDR_LEN);
 	}
 	ep = &mep->xep_ep;
@@ -91,7 +99,8 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 }
 
 /**
-   Compare an end point with a sockaddr_in for equality.
+   Compare an end point with a sockaddr_in for equality. The id field
+   is not considered.
    @param ep End point
    @param sa sockaddr_in pointer
    @param true Match
@@ -110,7 +119,7 @@ static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
 }
 
 /**
-   Compare two end points for equality.
+   Compare two end points for equality. Only the addresses are matched.
    @param ep1 First end point
    @param ep2 Second end point
    @param true Match

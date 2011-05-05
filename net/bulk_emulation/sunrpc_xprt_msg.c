@@ -136,7 +136,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		/* create an end point for the message sender */
 		c2_mutex_lock(&dom->nd_mutex);
-		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa);
+		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa, 0);
 		c2_mutex_unlock(&dom->nd_mutex);
 
 		if (rc == 0) {

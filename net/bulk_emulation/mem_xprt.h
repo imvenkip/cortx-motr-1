@@ -163,7 +163,7 @@ struct c2_net_bulk_mem_tm_pvt {
 */
 enum {
 	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
-	C2_NET_BULK_MEM_XEP_ADDR_LEN = 24
+	C2_NET_BULK_MEM_XEP_ADDR_LEN = 36
 };
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
@@ -171,6 +171,11 @@ struct c2_net_bulk_mem_end_point {
 
 	/** Socket address */
 	struct sockaddr_in       xep_sa;
+
+	/** Service id. Set to 0 in the in-memory transport but usable
+	    in derived transports.
+	*/
+	uint32_t                 xep_service_id;
 
 	/** Externally visible end point in the TM. */
 	struct c2_net_end_point  xep_ep;
@@ -189,7 +194,8 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 
 typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
 				     struct c2_net_domain *dom,
-				     struct sockaddr_in *sa);
+				     struct sockaddr_in *sa,
+				     uint32_t id);
 typedef void (*c2_mem_ep_release_fn_t)(struct c2_ref *ref);
 typedef void (*c2_mem_wi_add_fn_t)(struct c2_net_bulk_mem_work_item *wi,
 				   struct c2_net_bulk_mem_tm_pvt *tp);
@@ -253,6 +259,11 @@ struct c2_net_bulk_mem_domain_pvt {
 	   Initialized to the size of c2_net_buf_emul_buf_pvt.
 	 */
 	size_t                     xd_sizeof_buffer_pvt;
+
+	/**
+	   Number of tuples in the address.
+	 */
+	size_t                     xd_addr_tuples;
 
 	/**
 	   Number of threads in a transfer machine pool.

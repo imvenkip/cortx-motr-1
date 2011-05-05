@@ -41,7 +41,8 @@ static bool mem_buffer_invariant(struct c2_net_buffer *nb);
 static bool mem_tm_invariant(struct c2_net_transfer_mc *tm);
 static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_domain *dom,
-			 struct sockaddr_in *sa);
+			 struct sockaddr_in *sa,
+			 uint32_t id);
 static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
 			      struct c2_net_end_point *ep2);
 static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
@@ -83,10 +84,10 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
    Macro to indirectly invoke the mem_ep_create subroutine via the domain
    function pointer, to support derived transports.
  */
-#define MEM_EP_CREATE(epp, dom, sa)					\
+#define MEM_EP_CREATE(epp, dom, sa, id)					\
 ({									\
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;	\
-	dp->xd_ops.bmo_ep_create(epp, dom, sa);				\
+	dp->xd_ops.bmo_ep_create(epp, dom, sa, id);			\
  })
 
 #ifdef MEM_BUFFER_IN_BOUNDS
