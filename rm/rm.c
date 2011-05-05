@@ -10,6 +10,238 @@
    @{
  */
 
+void c2_rm_domain_init(struct c2_rm_domain *dom)
+{
+        C2_PRE(dom != NULL);
+        c2_mutex_init(&dom->rd_lock);
+}
+
+void c2_rm_domain_fini(struct c2_rm_domain *dom)
+{
+        C2_PRE(dom != NULL);
+        c2_mutex_fini(&dom->rd_lock);
+}
+
+void c2_rm_type_register(struct c2_rm_domain *dom,
+                         struct c2_rm_resource_type *rt)
+{
+        C2_PRE(dom != NULL);
+        C2_PRE(rt->rt_dom == NULL);
+        C2_PRE(rt->rt_id != C2_RM_RESOURCE_TYPE_ID_INVALID);
+
+        c2_mutex_lock(&dom->rd_lock);
+
+        dom->rd_types[rt->rt_id] = rt;
+        rt->rt_dom = dom;
+
+        rtype->rt_ref = 0;
+        c2_mutex_init(&rt->rt_lock);
+        c2_list_init(&rt->rt_resources)
+
+        c2_mutex_unlock(&dom->rd_lock);
+}
+
+void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
+{
+        struct c2_rm_domain *dom = rtype->rt_dom;
+
+        C2_PRE(dom != NULL);
+        C2_PRE(rtype->rt_id != C2_RM_RESOURCE_TYPE_ID_INVALID);
+        IS_IN_ARRAY(rtype->rt_id, dom->rd_type);
+
+        c2_mutex_lock(&dom->rd_lock);
+
+        dom->rd_types[rtype->rt_id] = NULL;
+        rtype->rt_dom = NULL;
+        rtype->rt_id = C2_RM_RESOURCE_TYPE_ID_INVALID;
+
+        if (c2_list_is_empty(&rtype->rt_resources)) {
+        }
+
+        c2_list_fini(&rtype->rt_resources);
+        c2_mutex_fini(&rtype->rd_lock);
+        rtype->rt_ref = 0;
+
+        c2_mutex_unlock(&dom->rd_lock);
+}
+
+int  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+                        struct c2_rm_resource *res)
+{
+        int     result = 0;
+
+        C2_PRE(rtype != NULL);
+        C2_PRE(res != NULL);
+
+        c2_mutes_lock(&rtype->rt_lock);
+        c2_list_add(rtype->rt_resources, res->r_linkage);
+        c2_mutes_unlock(&rtype->rt_lock);
+
+        return result;
+}
+
+void c2_rm_resource_del(struct c2_rm_resource *res)
+{
+        C2_PRE(res != NULL);
+
+        c2_mutes_lock(&rtype->rt_lock);
+        c2_list_del(res->r_linkage);
+        c2_mutes_unlock(&rtype->rt_lock);
+}
+
+int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
+{
+        struct c2_rm_resource_type      *rtype = res->r_type;
+        int                             result = 0;
+
+
+        C2_PRE(owner != NULL);
+        C2_PRE(res != NULL);
+
+        owner->ro_resource = res;
+        res->r_ref = 0;
+
+        owner->ro_state = ROS_FINAL;
+        owner->ro_group = NULL;
+
+        c2_list_init(&owner->ro_borrowed);
+        c2_list_init(&owner->ro_sublet);
+
+        for (int i = 0; i < ARRAY_SIZE(owner->ro_owned), i++)
+                c2_list_init(&owner->ro_owned[i]);
+
+        for (int j = 0; j < OQS_NR; j++) {
+                for (int i = 0; i < C2_RM_REQUEST_PRIORITY_NR, i++)
+                        c2_list_init(&owner->ro_incoming[i][j]);
+
+                c2_list_init(&owner->ro_outgoing[j]);
+        }
+
+        c2_mutex_init(&owner->ro_lock);
+
+        return result;
+}
+
+int c2_rm_owner_init_with(struct c2_rm_owner *owner,
+                          struct c2_rm_resource *res, struct c2_rm_right *r)
+{
+        struct c2_rm_resource_type      *rtype = res->r_type;
+        int                             result = 0;
+
+
+        C2_PRE(owner != NULL);
+        C2_PRE(res != NULL);
+
+        owner->ro_resource = res;
+        res->r_ref = 0;
+
+        owner->ro_state = ROS_FINAL;
+        owner->ro_group = NULL;
+
+        c2_list_init(&owner->ro_borrowed);
+        c2_list_init(&owner->ro_sublet);
+
+        for (int i = 0; i < ARRAY_SIZE(owner->ro_owned), i++)
+                c2_list_init(&owner->ro_owned[i]);
+
+        for (int j = 0; j < OQS_NR; j++) {
+                for (int i = 0; i < C2_RM_REQUEST_PRIORITY_NR, i++)
+                        c2_list_init(&owner->ro_incoming[i][j]);
+
+                c2_list_init(&owner->ro_outgoing[j]);
+        }
+
+        c2_mutex_init(&owner->ro_lock);
+
+        c2_list_add(&owner->ro_owned[OWOS_HELD], r->ri_linkage);
+        res->r_ref++;
+
+        return result;
+}
+
+void c2_rm_owner_fini(struct c2_rm_owner *owner)
+{
+        struct c2_rm_resource_type      *rtype = res->r_type;
+        int                             result = 0;
+
+        C2_PRE(owner != NULL);
+        owner->ro_resource = NULL;
+        res->r_ref = 0;
+        owner->ro_state = ROS_FINAL;
+        owner->ro_group = NULL;
+        c2_mutex_lock(&owner->ro_lock);
+
+        if (c2_list_is_empty(&owner->ro_borrowed)) {
+                c2_list_for_each_entry
+        }
+
+        if (c2_list_is_empty(&owner->ro_sublet)) {
+        }
+
+        for (int i = 0; i < ARRAY_SIZE(owner->ro_owned), i++) {
+                if(c2_list_is_empty(&owner->ro_owned[i])) {
+                }
+        }
+
+        for (int j = 0; j < OQS_NR; j++) {
+                for (int i = 0; i < C2_RM_REQUEST_PRIORITY_NR, i++) {
+                        if (c2_list_is_empty(&owner->ro_incoming[i][j])) {
+                        }
+                }
+                if (c2_list_is_empty(&owner->ro_outgoing[j])) {
+                }
+        }
+
+        res->r_ref = 0;
+        c2_mutex_unlock(&owner->ro_lock);
+        c2_mutex_fini(&owner->ro_lock);
+}
+
+void c2_rm_right_init(struct c2_rm_right *right)
+{
+        C2_PRE(right != NULL);
+
+        c2_list_init(&right->ri_pins);
+
+}
+
+void c2_rm_right_fini(struct c2_rm_right *right)
+{
+        C2_PRE(right != NULL);
+
+        if (c2_list_is_empty(right->ri_pins)){
+        }
+        c2_list_fini(&right->ri_pins);
+}
+
+void c2_rm_incoming_init(struct c2_rm_incoming *in)
+{
+
+}
+
+void c2_rm_incoming_fini(struct c2_rm_incoming *in)
+{
+
+}
+
+int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+{
+}
+
+int c2_rm_right_timedwait(struct c2_rm_incoming *in,
+                          const struct c2_time *deadline)
+{
+}
+
+int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+{
+}
+
+void c2_rm_right_put(struct c2_rm_incoming *in)
+{
+}
+
+
 /**
    @name Owner state machine
 
