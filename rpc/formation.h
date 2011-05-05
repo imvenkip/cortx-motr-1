@@ -209,23 +209,23 @@ struct c2_rpc_form_item_coalesced_member {
 struct c2_rpc_form_item_summary_unit_group {
 	/** Linkage into the list of groups belonging to this
 	    endpoint. */
-	struct c2_list_link	       *sug_linkage;
-	/** The group number this data belongs to. */
-	uint64_t			sug_group_no;
+	struct c2_list_link		*sug_linkage;
+	/** The rpc group, this data belongs to. */
+	struct c2_rpc_group		*sug_group;
 	/** Number of items from this group found so far. */
-	uint64_t			sug_nitems;
+	uint64_t			 sug_nitems;
 	/** Number of expected items from this group. */
-	uint64_t			sug_expected_items;
+	uint64_t			 sug_expected_items;
 	/** Number of highest priority items from this group.
 	    This does not inlcude urgent items, they are
 	    handled elsewhere. */
-	uint64_t			sug_priority_items;
+	uint64_t			 sug_priority_items;
 	/** Average time out for items in this group. This number
 	    gives an indication about relative position of group
 	    within the cache list. */
-	uint64_t			sug_avg_timeout;
+	uint64_t			 sug_avg_timeout;
 	/** Cumulative size of rpc items in this group so far. */
-	uint64_t			sug_total_size;
+	uint64_t			 sug_total_size;
 };
 
 /**

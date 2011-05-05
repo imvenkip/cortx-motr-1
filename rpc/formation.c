@@ -295,12 +295,9 @@ int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_summary_unit *
 int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
-	int 					 res = 0;
-	struct c2_rpc_item 			*req_item = NULL;
-	struct c2_rpc_form_item_coalesced	*coalesced_item = NULL;
-
 	C2_PRE(item != NULL);
-	C2_PRE(event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) || 
+			(event == C2_RPC_FORM_INTEVT_STATE_FAILED));
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
@@ -308,39 +305,31 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	endp_unit->isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	/* Internal events will invoke a nop from waiting state. */
 
-	switch(event) {
-		case C2_RPC_FORM_INTEVT_STATE_SUCCEEDED:
-			c2_rpc_form_state_machine_exit(endp_unit);
-			return C2_RPC_FORM_INTEVT_STATE_DONE;
-		case C2_RPC_FORM_INTEVT_STATE_FAILED:
-			c2_rpc_form_state_machine_exit(endp_unit);
-			return C2_RPC_FORM_INTEVT_STATE_DONE;
-		case C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED:
-			/* Find out the request rpc item, given the reply
-			   rpc item. */
-			res = c2_rpc_session_reply_item_received(item, &req_item);
-			if (res != 0) {
-				printf("Error finding out request rpc item for the given reply rpc item. Error = %d\n", res);
-				return res;
-			}
-			C2_ASSERT(req_item != NULL);
-			c2_list_for_each_entry(&endp_unit->
-					isu_coalesced_items_list->l_head, 
-					coalesced_item, 
-					struct c2_rpc_form_item_coalesced, 
-					isu_coalesced_items_list) {
-				if (coalesced_item->ic_resultant_item == req_item) {
-					res = c2_rpc_form_item_coalesced_reply_post(endp_unit, coalesced_item);
-					if (res != 0)
-						printf("Failed to process a coalesced rpc item.\n");
-				}
-			}
-			/* XXX curr rpcs in flight will be taken care by
-			   output component. */
-			//endp_unit->isu_curr_rpcs_in_flight--;
-			return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
-	};
+	c2_rpc_form_state_machine_exit(endp_unit);
+	return C2_RPC_FORM_INTEVT_STATE_DONE;
 }
+
+/**
+   Update the summary_unit data structure on addition of
+   an rpc item. */
+int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item)
+{
+	int				res = 0;
+	C2_PRE(item != NULL);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
+	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
+
+	/*
+	  1. Search for the group of rpc item in list of rpc groups in
+	     summary_unit.
+	  2. If found, add data from rpc item like priority, deadline,
+	     size, rpc item type. 
+	  3. If not found, create a c2_rpc_form_item_summary_unit_group
+	     structure and fill necessary data.
+	 */
+}
+
 
 /**
    State function for UPDATING state.
@@ -349,13 +338,23 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
 	int 				res = 0;
+	int 				ret = 0;
 
 	C2_PRE(item != NULL);
-	C2_PRE(event );
+	C2_PRE(event == C2_RPC_FORM_EXTEVT_RPCITEM_ADDED);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
 	printf("In state: updating\n");
+	endp_unit->isu_endp_state = C2_RPC_FORM_STATE_UPDATING;
+
+	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
+	if (res == 0)
+		ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	else
+		ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+
+	return ret;
 }
 
 /**
@@ -364,7 +363,35 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
+	int 					 res = 0;
+	struct c2_rpc_item 			*req_item = NULL;
+	struct c2_rpc_form_item_coalesced	*coalesced_item = NULL;
+
 	printf("In state: checking\n");
+	/* reply received event */
+	/* Find out the request rpc item, given the reply
+	   rpc item. */
+	res = c2_rpc_session_reply_item_received(item, &req_item);
+	if (res != 0) {
+		printf("Error finding out request rpc item for the given reply rpc item. Error = %d\n", res);
+		return res;
+	}
+	C2_ASSERT(req_item != NULL);
+	c2_list_for_each_entry(&endp_unit->
+			isu_coalesced_items_list->l_head, 
+			coalesced_item, 
+			struct c2_rpc_form_item_coalesced, 
+			isu_coalesced_items_list) {
+		if (coalesced_item->ic_resultant_item == req_item) {
+			res = c2_rpc_form_item_coalesced_reply_post(endp_unit, coalesced_item);
+			if (res != 0)
+				printf("Failed to process a coalesced rpc item.\n");
+		}
+	}
+	/* XXX curr rpcs in flight will be taken care by
+	   output component. */
+	//endp_unit->isu_curr_rpcs_in_flight--;
+	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
 /**
