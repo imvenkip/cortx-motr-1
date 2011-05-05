@@ -34,6 +34,20 @@ struct c2_rpc_slot_table_value {
 
 extern const struct c2_table_ops c2_rpc_slot_table_ops;
 
+/**
+   Register session ops
+   C2_PRE(session->s_ops == NULL)
+   C2_POST(session->s_ops == ops)
+ */
+extern void c2_rpc_session_ops_register(struct c2_rpc_session *session,
+				struct c2_rpc_session_ops *ops);
+/**
+   Unregisters session ops
+   C2_PRE(session->s_ops != NULL)
+   C2_POST(session->s_ops == NULL)
+ */
+extern void c2_rpc_session_ops_unregister(struct c2_rpc_session *session);
+
 extern int c2_rpc_session_module_init(void);
 extern void c2_rpc_session_module_fini(void);
 #endif

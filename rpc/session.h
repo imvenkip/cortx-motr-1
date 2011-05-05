@@ -156,6 +156,7 @@ struct c2_rpc_conn;
 
 /* Internal: required for declaration of c2_rpc_session */
 struct c2_rpc_snd_slot;
+struct c2_rpc_session_ops;
 
 enum {
 	SESSION_0 = 0,
@@ -393,6 +394,21 @@ struct c2_rpc_session {
 	uint32_t 			 s_highest_used_slot_id;
 	/** Array of pointers to slots */
 	struct c2_rpc_snd_slot 		**s_slot_table;
+	/** Session ops */
+	struct c2_rpc_session_ops	 *s_ops;
+};
+
+/**
+   Session operation vector
+ */
+struct c2_rpc_session_ops {
+	/**
+	   Called after each state change of @session object.
+	   Previous state of @session is given by @prev_state
+	   New state of @session can be retrieved from @session->s_state
+	 */
+	void (*session_state_changed)(struct c2_rpc_session *session,
+			enum c2_rpc_session_state prev_state);
 };
 
 /**

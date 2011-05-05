@@ -193,6 +193,18 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
 	return 0;
 }
 
+void c2_rpc_session_ops_register(struct c2_rpc_session *session,
+                                struct c2_rpc_session_ops *ops)
+{
+        C2_PRE(session != NULL && session->s_ops == NULL);
+        session->s_ops = ops;
+}
+
+void c2_rpc_session_ops_unregister(struct c2_rpc_session *session)
+{
+        session->s_ops = NULL;
+}
+
 /**
    In core slot table stores attributes of slots which
    are not needed to be persistent.
