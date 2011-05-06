@@ -87,8 +87,20 @@
    summary form of data for all endpoints.
    It contains a list of sub structures, one for each endpoint.
  */
+
+/**
+   Hierarchy of data structures in formation component.
+
+   c2_rpc_form_item_summary
+
+     +--> c2_list <c2_rpc_form_item_summary_unit>
+
+	    +--> c2_rpc_form_item_summary_unit_group
+ */
+
 struct c2_rpc_form_item_summary {
 	/** List of internal data structures with data for each endpoint */
+	/** c2_list <struct c2_rpc_form_item_summary_unit> */
 	struct c2_list			is_endp_list;
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		is_endp_list_lock;
@@ -99,20 +111,42 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	formation_summary;
 
+struct c2_rpc_form_fid_summary {
+	/** List of fid_summary_unit structures for all endpoints. */
+	/** c2_list <struct c2_rpc_form_fid_summary_unit>*/
+	struct c2_list			 fs_fid_list;
+};
+
 /**
    Structure containing fid for io requests.
    This will help to make quick decisions to select candidates
    for coalescing of io requests.
  */
-struct c2_rpc_form_fid_summary {
+struct c2_rpc_form_fid_summary_unit {
 	/** File id on which IO request has come. */
 	struct c2_fid			*fs_fid;
 	/** List of read requests on this fid. */
+	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
 	struct c2_list			 fs_read_list;
 	/** List of write requests on this fid. */
+	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
 	struct c2_list			 fs_write_list;
-	/** Linkage into list of fids for this endpoint. */
+	/** Linkage into list of fids. */
 	struct c2_list_link		*fs_linkage;
+};
+
+/**
+   Structure that will help do effective coalescing.
+ */
+struct c2_rpc_form_fid_summary_member {
+	/** Linkage into list of same fid and same intent (read/write) */
+	struct c2_list_link		*fsm_fid_linkage;
+	/** Linkage into list of IO requests on same rpc group. */
+	struct c2_list_link		*fsm_rpcgroup_linkage;
+	/** RPC Group identifier */
+	struct c2_rpc_group		*fsm_group;
+	/** Number of IO requests on given fid in rpc group mentioned above. */
+	uint64_t			 nitems;
 };
 
 /**
@@ -136,8 +170,10 @@ struct c2_rpc_form_item_summary_unit {
 	/** Linkage into the endpoint list. */
 	struct c2_list_link		*isu_linkage;
 	/** List of structures containing data for each group. */
+	/** c2_list <struct >*/
 	struct c2_list			 isu_groups_list;
 	/** List of files being operated upon, for this endpoint. */
+	/** c2_list <struct >*/
 	struct c2_list			 isu_file_list;
 	/** State of the state machine for this endpoint.
 	    Threads will have to take the unit_lock above before
@@ -166,7 +202,11 @@ struct c2_rpc_form_item_summary_unit {
 	    rpc objects. */
 	struct c2_rpc_form_rpcobj_list	isu_rpcobj_checked_list;
 	/** List of unformed rpc items. */
+	/** c2_list <struct >*/
 	struct c2_list			isu_unformed_items;
+	/** List of fids on which IO requests are made in this rpc group. */
+	/** c2_list <struct > */
+	struct c2_list			isu_fid_list;
 };
 
 /**

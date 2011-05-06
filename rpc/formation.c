@@ -310,6 +310,16 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 }
 
 /**
+   Callback used to trigger the "deadline expired" event
+   for an rpc item. */
+unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
+{
+	struct c2_rpc_item	*item;
+	item = (struct c2_rpc_item*)data;
+	c2_rpc_form_extevt_rpcitem_deadline_expired(item);
+}
+
+/**
    Update the summary_unit data structure on addition of
    an rpc item. */
 int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item)
@@ -317,6 +327,7 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	int						 res = 0;
 	struct c2_rpc_form_item_summary_unit_group	*summary_group = NULL;
 	bool						 found = false;
+	struct c2_timer					 *item_timer = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -344,7 +355,7 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 		summary_group = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit_group));
 		if(summary_group == NULL) {
 			printf("Failed to allocate memory for a new c2_rpc_form_item_summary_unit_group structure.\n");
-			return C2_RPC_FORM_INTEVT_STATE_FAILED;
+			return -1;
 		}
 	}
 
@@ -354,6 +365,21 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	/*XXX struct c2_rpc_item_type_ops will have a rio_item_size
 	 method to find out size of rpc item. */
 	summary_group->sug_total_size += item->ri_type->rit_ops->rio_item_size(item);
+	summary_group->sug_avg_timeout = ((summary_group->sug_nitems * summary_group->sug_avg_timeout) + item->ri_deadline.tv_sec) / (summary_group->sug_nitems + 1);
+	summary_group->sug_nitems++;
+	/* Inint and start the timer for rpc item. */
+	item_timer = c2_alloc(sizeof(struct c2_timer));
+	if (item_timer == NULL) {
+		printf("Failed to allocate memory for a new c2_timer struct.\n");
+		return -1;
+	}
+	c2_timer_init(&item_timer, C2_TIMER_HARD, &item->ri_deadline, 0, c2_rpc_form_item_timer_callback, (unsigned long)item);
+	res = c2_timer_start(&item_timer);
+	if (res != 0) {
+		printf("Failed to start the timer for rpc item.\n");
+		return -1;
+	}
+	return 0;
 }
 
 
