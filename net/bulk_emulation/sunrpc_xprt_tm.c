@@ -33,6 +33,11 @@ static int sunrpc_bulk_handler(struct c2_service *service, struct c2_fop *fop,
 
 /**
    Starts the common service if necessary.
+   @param ep End point of TM in context.
+   @retva 0 on success
+   @retval -EADDRNOTAVAIL if the address of this TM does not match the
+   address of the service.
+   @retval -errno Other errors.
  */
 static int sunrpc_start_service(struct c2_net_end_point *ep)
 {
@@ -43,13 +48,25 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 	do {
 		struct c2_net_domain *dom = &sunrpc_server_domain;
 		struct c2_service    *svc = &sunrpc_server_service;
-		if (++sunrpc_server_active_tms > 1)
-			break; /* started */
+		if (++sunrpc_server_active_tms > 1) {
+			/* previously started - match address */
+			struct c2_net_bulk_mem_end_point *mep;
+			struct c2_net_bulk_sunrpc_end_point *sep;
+			mep = container_of(ep, struct c2_net_bulk_mem_end_point,
+					   xep_ep);
+			sep = container_of(mep,
+					   struct c2_net_bulk_sunrpc_end_point,
+					   xep_base);
+			if (!c2_services_are_same(&sunrpc_server_id,
+						  &sep->xep_sid))
+				rc = -EADDRNOTAVAIL;
+			break;
+		}
 		/* initialize the domain */
 #ifdef __KERNEL__
 		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_xprt);
 #else
-		rc = c2_net_domain_init(dom, &c2_net_usunrpc_xprt);
+		rc = c2_net_domain_init(dom, &c2_net_usunrpc_minimal_xprt);
 #endif
 		if (rc != 0)
 			break;
@@ -69,6 +86,7 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 		rc = c2_service_start(svc, &sunrpc_server_id);
 	} while(0);
 	if (rc != 0) {
+		sunrpc_server_active_tms--;
 		if (sid_init)
 			c2_service_id_fini(&sunrpc_server_id);
 		if (dom_init)
@@ -105,18 +123,12 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
 	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
-	struct c2_net_bulk_mem_end_point *mep;
-	struct c2_net_bulk_sunrpc_end_point *sep;
-	int rc;
+	int rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_ASSERT(wi->xwi_next_state == C2_NET_XTM_STARTED ||
 		  wi->xwi_next_state == C2_NET_XTM_STOPPED);
 	C2_ASSERT(sunrpc_ep_invariant(tm->ntm_ep));
-
-	mep = container_of(tm->ntm_ep,
-			   struct c2_net_bulk_mem_end_point, xep_ep);
-	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 
 	if (wi->xwi_next_state == C2_NET_XTM_STARTED) {
 		/*
@@ -126,7 +138,8 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		 */
 		if (tp->xtm_base.xtm_state < C2_NET_XTM_STOPPING) {
 			rc = sunrpc_start_service(tm->ntm_ep);
-			C2_ASSERT(rc >= 0);
+			if (rc != 0)
+				wi->xwi_state_change_status = rc; /* fail TM */
 		}
 	} else {
 		sunrpc_stop_service();

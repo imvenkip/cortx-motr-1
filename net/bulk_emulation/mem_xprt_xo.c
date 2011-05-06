@@ -570,6 +570,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	c2_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
+	wi_st_chg->xwi_state_change_status = 0;
 
 	/* start worker threads */
 	int rc = 0;

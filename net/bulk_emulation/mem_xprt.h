@@ -122,6 +122,11 @@ struct c2_net_bulk_mem_work_item {
 
 	/** The next state value for a C2_NET_XOP_STATE_CHANGE opcode */
 	enum c2_net_bulk_mem_tm_state       xwi_next_state;
+
+	/** State change status. Provided for derived classes to
+	    pass on status to the base worker function.
+	*/
+	int                                 xwi_state_change_status;
 };
 
 /**

@@ -38,9 +38,14 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 		 */
 		if (tp->xtm_state < C2_NET_XTM_STOPPING) {
 			C2_ASSERT(tp->xtm_state == C2_NET_XTM_STARTING);
-			tp->xtm_state = wi->xwi_next_state;
-			ev.nev_payload = (void *) C2_NET_TM_STARTED;
-
+			if (wi->xwi_state_change_status != 0) {
+				tp->xtm_state = C2_NET_XTM_FAILED;
+				ev.nev_payload = (void *) C2_NET_TM_FAILED;
+				ev.nev_status = wi->xwi_state_change_status;
+			} else {
+				tp->xtm_state = wi->xwi_next_state;
+				ev.nev_payload = (void *) C2_NET_TM_STARTED;
+			}
 			c2_mutex_unlock(&tm->ntm_mutex);
 			rc = c2_net_tm_event_post(ev.nev_tm, &ev);
 			c2_mutex_lock(&tm->ntm_mutex);

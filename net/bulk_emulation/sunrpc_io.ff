@@ -32,8 +32,9 @@ DEF(sunrpc_buffer, SEQUENCE,
 
 /* the message send call and response */
 DEF(sunrpc_msg, RECORD,
-    _(sm_sender, sunrpc_ep),
-    _(sm_buf,    sunrpc_buffer));
+    _(sm_sender,   sunrpc_ep),
+    _(sm_receiver, sunrpc_ep),
+    _(sm_buf,      sunrpc_buffer));
 DEF(sunrpc_msg_resp, RECORD,
     _(smr_rc, U32));
 

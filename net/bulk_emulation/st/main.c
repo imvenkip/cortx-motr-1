@@ -52,7 +52,7 @@ struct ping_xprt xprts[2] = {
 	{
 		.px_xprt = &c2_net_bulk_sunrpc_xprt,
 		.px_dual_only = false,
-		.px_3part_addr = false,
+		.px_3part_addr = true,
 		.px_client_port = SUNRPC_CLIENT_BASE_PORT,
 	}
 };
