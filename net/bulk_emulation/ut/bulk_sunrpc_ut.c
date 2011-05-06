@@ -68,9 +68,9 @@ void test_sunrpc_desc(void)
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,
-					      "127.0.0.1", 31111, 0));
+					      "127.0.0.1", 31111, 1));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &dom1,
-					      "127.0.0.1", 31112, 0));
+					      "127.0.0.1", 31111, 2));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
 	/* start tm and wait for tm to notify it has started */
@@ -98,9 +98,11 @@ void test_sunrpc_desc(void)
 	C2_UT_ASSERT(sd.sbd_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(sd.sbd_total == 2345);
 	C2_UT_ASSERT(sd.sbd_active_ep.sep_addr == htonl(0x7f000001));
-	C2_UT_ASSERT(sd.sbd_active_ep.sep_port == htons(31112));
+	C2_UT_ASSERT(sd.sbd_active_ep.sep_port == htons(31111));
+	C2_UT_ASSERT(sd.sbd_active_ep.sep_id == 2);
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_addr == htonl(0x7f000001));
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(31111));
+	C2_UT_ASSERT(sd.sbd_passive_ep.sep_id == 1);
 	c2_net_desc_free(&desc1);
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
@@ -137,6 +139,8 @@ void test_sunrpc_ping(void)
 	struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
 		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
+		.pc_port = PING_PORT1,
+		.pc_id = 1,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -147,6 +151,8 @@ void test_sunrpc_ping(void)
 	struct ping_ctx sctx = {
 		.pc_ops = &quiet_ops,
 		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
+		.pc_port = PING_PORT1,
+		.pc_id = PART3_SERVER_ID,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_SERVER_SEGMENTS,
 		.pc_seg_size = PING_SERVER_SEGMENT_SIZE,
@@ -210,10 +216,8 @@ const struct c2_test_suite net_bulk_sunrpc_ut = {
         .ts_fini = NULL,
         .ts_tests = {
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
-#if 0
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
-#endif
                 { NULL, NULL }
         }
 };
