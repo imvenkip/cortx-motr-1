@@ -155,7 +155,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
    @param conn Returns the connection.
    @retval 0 Success
    @retval -errno Failure
-   @post ergo(rc == 0, sep->xep_con_valid)
+   @post ergo(rc == 0, sep->xep_con_created)
  */
 static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
 			      struct c2_net_conn **conn_p)
