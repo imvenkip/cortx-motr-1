@@ -105,6 +105,8 @@ struct client_params {
 	int loops;
 	int nr_bufs;
 	int client_id;
+	const char *local_host;
+	const char *remote_host;
 };
 
 void client(struct client_params *params)
@@ -115,6 +117,9 @@ void client(struct client_params *params)
 	char                     ident[24];
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt->px_xprt,
+		.pc_hostname = params->local_host,
+		.pc_rhostname = params->remote_host,
+		.pc_rport = PING_PORT1,
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
@@ -128,9 +133,11 @@ void client(struct client_params *params)
 		cctx.pc_port = params->base_port;
 		cctx.pc_id   = params->client_id;
 		sprintf(ident, "Client %d:%d", cctx.pc_port, cctx.pc_id);
+		cctx.pc_rid  = PART3_SERVER_ID;
 	} else {
 		cctx.pc_port = params->base_port + params->client_id;
-		cctx.pc_id = 0;
+		cctx.pc_id   = 0;
+		cctx.pc_rid  = 0;
 		sprintf(ident, "Client %d", cctx.pc_port);
 	}
 	if (params->verbose)
@@ -163,8 +170,9 @@ int main(int argc, char *argv[])
 	int			 rc;
 	bool			 client_only = false;
 	bool			 server_only = false;
-	bool			 interact = false;
 	bool			 verbose = false;
+	const char              *local_name = NULL;
+	const char              *remote_name = NULL;
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
 	int			 base_port = 0;
@@ -180,8 +188,13 @@ int main(int argc, char *argv[])
 	rc = C2_GETOPTS("bulkping", argc, argv,
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
+			C2_STRINGARG('h', "hostname to listen on",
+				     LAMBDA(void, (const char *str) {
+						     local_name = str; })),
+			C2_STRINGARG('r', "name of remote server host",
+				     LAMBDA(void, (const char *str) {
+						     remote_name = str; })),
 			C2_FORMATARG('p', "base client port", "%i", &base_port),
-			C2_FLAGARG('i', "interactive client mode", &interact),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
@@ -192,10 +205,6 @@ int main(int argc, char *argv[])
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
-	if (interact) {
-		fprintf(stderr, "Interactive client not yet implemented.\n");
-		return 1;
-	}
 
 	if (strcmp(xprt_name, "list") == 0) {
 		list_xprt_names(stdout, &xprts[0]);
@@ -237,6 +246,7 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
+		sctx.pc_hostname = local_name;
 		sctx.pc_xprt = xprt->px_xprt;
 		sctx.pc_port = PING_PORT1;
 		if (xprt->px_3part_addr)
@@ -275,6 +285,8 @@ int main(int argc, char *argv[])
 			params[i].loops = loops;
 			params[i].nr_bufs = nr_bufs;
 			params[i].client_id = i + 1;
+			params[i].local_host = local_name;
+			params[i].remote_host = remote_name;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
@@ -285,9 +297,14 @@ int main(int argc, char *argv[])
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (verbose)
-				printf("Client %d: joined\n",
-				       base_port + params[i].client_id);
+			if (verbose) {
+				if (xprt->px_3part_addr)
+					printf("Client %d:%d: joined\n",
+					       base_port, params[i].client_id);
+				else
+					printf("Client %d: joined\n",
+					       base_port + params[i].client_id);
+			}
 		}
 		c2_free(client_thread);
 		c2_free(params);

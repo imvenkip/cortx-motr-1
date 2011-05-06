@@ -732,12 +732,12 @@ int canon_host(const char *hostname, char *buf, size_t bufsiz)
    Calls all the required c2_net APIs in the correct order, with
    cleanup on failure.
    On success, the transfer machine is started.
-   @param ctx the client/server context.  pc_xprt, pc_nr_bufs, pc_tm
-   and pc_port must be initialised by the caller.
+   @param ctx the client/server context.  pc_xprt, pc_nr_bufs, pc_tm,
+   pc_hostname, pc_port and pc_id must be initialised by the caller.
    @retval 0 success
    @retval -errno failure
  */
-int ping_init(const char *hostname, struct ping_ctx *ctx)
+int ping_init(struct ping_ctx *ctx)
 {
 	int                i;
 	int                rc;
@@ -745,7 +745,7 @@ int ping_init(const char *hostname, struct ping_ctx *ctx)
 
 	c2_list_init(&ctx->pc_work_queue);
 
-	rc = canon_host(hostname, hostbuf, sizeof(hostbuf));
+	rc = canon_host(ctx->pc_hostname, hostbuf, sizeof(hostbuf));
 	if (rc != 0)
 		goto fail;
 
@@ -856,10 +856,12 @@ void ping_server(struct ping_ctx *ctx)
 	struct c2_net_buffer *nb;
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
+	if (ctx->pc_hostname == NULL)
+		ctx->pc_hostname = "localhost";
 	ctx->pc_port = PING_PORT1;
 	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
-	rc = ping_init("localhost", ctx);
+	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -1180,27 +1182,28 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 {
 	int rc;
 	char hostbuf[16];
-	uint32_t srvid;
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
+	if (ctx->pc_hostname == NULL)
+		ctx->pc_hostname = "localhost";
+	if (ctx->pc_rhostname == NULL)
+		ctx->pc_rhostname = "localhost";
 	if (ctx->pc_port == 0)
 		ctx->pc_port = PING_PORT2;
+	if (ctx->pc_rport == 0)
+		ctx->pc_rport = PING_PORT1;
 	if (ctx->pc_ident == NULL)
 		ctx->pc_ident = "Client";
-	rc = ping_init("localhost", ctx);
+	rc = ping_init(ctx);
 	if (rc != 0)
 		return rc;
 
 	/* need end point for the server */
-	rc = canon_host("localhost", hostbuf, sizeof(hostbuf));
+	rc = canon_host(ctx->pc_rhostname, hostbuf, sizeof(hostbuf));
 	if (rc != 0)
 		return rc;
-	if (ctx->pc_id != 0)
-		srvid = PART3_SERVER_ID;
-	else
-		srvid = 0;
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom,
-				     hostbuf, PING_PORT1, srvid, 0);
+				     hostbuf, ctx->pc_rport, ctx->pc_rid, 0);
 	return rc;
 }
 

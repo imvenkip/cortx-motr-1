@@ -141,6 +141,7 @@ void test_sunrpc_ping(void)
 		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
 		.pc_port = PING_PORT1,
 		.pc_id = 1,
+		.pc_rid = PART3_SERVER_ID,
 		.pc_nr_bufs = PING_NR_BUFS,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,

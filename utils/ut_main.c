@@ -47,9 +47,6 @@ int main(int argc, char *argv[])
 		return result;
 
 	if (unit_start(UT_SANDBOX) == 0) {
-		c2_ut_add(&net_bulk_if_ut); /* TEMPORARILY FIRST */
-		c2_ut_add(&net_bulk_sunrpc_ut); /* TEMPORARILY HERE */
-		c2_ut_add(&net_bulk_mem_ut); /* TEMPORARILY HERE */
 		/* sort test suites in alphabetic order */
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&adieu_ut);
@@ -61,9 +58,9 @@ int main(int argc, char *argv[])
 		c2_ut_add(&fit_ut);
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);
-		/* c2_ut_add(&net_bulk_if_ut); */
-		/* c2_ut_add(&net_bulk_mem_ut); */
-		/* c2_ut_add(&net_bulk_sunrpc_ut); */
+		c2_ut_add(&net_bulk_if_ut);
+		c2_ut_add(&net_bulk_mem_ut);
+		c2_ut_add(&net_bulk_sunrpc_ut);
 		c2_ut_add(&net_client_ut);
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&stobio_ut);
