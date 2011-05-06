@@ -14,8 +14,12 @@ struct ping_ctx {
 	const struct ping_ops	   *pc_ops;
 	struct c2_net_xprt         *pc_xprt;
 	struct c2_net_domain        pc_dom;
+	const char                 *pc_hostname;
 	short			    pc_port;
 	uint32_t		    pc_id;
+	const char                 *pc_rhostname;
+	short			    pc_rport;
+	uint32_t		    pc_rid;
 	uint32_t                    pc_nr_bufs;
 	uint32_t                    pc_segments;
 	uint32_t                    pc_seg_size;
@@ -26,8 +30,8 @@ struct ping_ctx {
 	struct c2_mutex		    pc_mutex;
 	struct c2_cond		    pc_cond;
 	struct c2_list              pc_work_queue;
-	const char *                pc_ident;
-	const char *                pc_compare_buf;
+	const char                 *pc_ident;
+	const char                 *pc_compare_buf;
 };
 
 enum {

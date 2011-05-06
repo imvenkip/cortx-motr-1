@@ -106,6 +106,7 @@ static void sunrpc_stop_service()
 		if (--sunrpc_server_active_tms > 0)
 			break; /* started */
 		c2_service_stop(&sunrpc_server_service);
+		sunrpc_server_service.s_id = NULL;
 		c2_service_id_fini(&sunrpc_server_id);
 		c2_net_domain_fini(&sunrpc_server_domain);
 	} while(0);
