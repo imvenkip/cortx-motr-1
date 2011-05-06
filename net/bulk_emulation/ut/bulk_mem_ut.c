@@ -320,6 +320,8 @@ void test_failure(void)
 	   Set up a passive receive buffer in one dom, and
 	   try to actively send from an unauthorized dom
 	*/
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
 					      "127.0.0.1", 30, 0));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:30")==0);
@@ -333,6 +335,8 @@ void test_failure(void)
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb1.nb_desc, &d1nb1.nb_desc));
 	d1nb1.nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 	d1nb1.nb_length = 10;
@@ -346,6 +350,12 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EACCES);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
 	c2_chan_wait(&tmwait2);
@@ -353,11 +363,19 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 1);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
 	   try to actively receive from it.
 	*/
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
 					      "127.0.0.1", 10, 0));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
@@ -371,6 +389,8 @@ void test_failure(void)
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_RECV,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb1.nb_desc, &d1nb1.nb_desc));
 	d1nb1.nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
 	d1nb1.nb_length = 10;
@@ -384,6 +404,12 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EPERM);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_RECV,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
 	c2_chan_wait(&tmwait2);
@@ -391,11 +417,19 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 1);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and
 	   try to send a larger message from the other dom.
 	*/
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
 					      "127.0.0.1", 10, 0));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
@@ -409,6 +443,8 @@ void test_failure(void)
 	C2_UT_ASSERT(d2nb2.nb_desc.nbd_len != 0);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb2.nb_desc, &d1nb1.nb_desc));
 	d1nb1.nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 	d1nb1.nb_length = 40; /* larger than d2nb2 */
@@ -422,12 +458,24 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EFBIG);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb2);
 	C2_UT_ASSERT(d2nb2.nb_status == -EFBIG);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	/* TEST
 	   Setup a passive send buffer and add it. Save the descriptor in the
@@ -436,7 +484,8 @@ void test_failure(void)
 	   passive operation. Try the active operation in the other dom, using
 	   the original desc. Should fail because buffer id changes per add.
 	 */
-
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
 					      "127.0.0.1", 10, 0));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
@@ -478,6 +527,8 @@ void test_failure(void)
 			    d1nb1.nb_desc.nbd_len) != 0);
 
 	/* start the active operation */
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
 	d1nb1.nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
 	d1nb1.nb_length = 10;
 	c2_clink_init(&tmwait1, NULL);
@@ -490,6 +541,12 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -ENOENT);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
 	c2_chan_wait(&tmwait2);
@@ -497,6 +554,12 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
+					  &qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 2);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 2);
+	C2_UT_ASSERT(qs.nqs_num_dels == 2);
 
 	/* fini */
 	C2_UT_ASSERT(!c2_net_buffer_deregister(&d1nb1, &dom1));
