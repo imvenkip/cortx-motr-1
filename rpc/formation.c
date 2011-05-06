@@ -314,7 +314,10 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    an rpc item. */
 int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item)
 {
-	int				res = 0;
+	int						 res = 0;
+	struct c2_rpc_form_item_summary_unit_group	*summary_group = NULL;
+	bool						 found = false;
+
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
@@ -325,9 +328,31 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	     summary_unit.
 	  2. If found, add data from rpc item like priority, deadline,
 	     size, rpc item type. 
+	     XXX To find out the size of rpc item, find out the size of
+	     fop it is carrying, as well as size of fop structure itself.
 	  3. If not found, create a c2_rpc_form_item_summary_unit_group
 	     structure and fill necessary data.
 	 */
+
+	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, summary_group, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		if (summary_group->sug_group == item->ri_group) {
+			found = true;
+			break;
+		}
+	}
+	if (found == false) {
+		summary_group = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit_group));
+		if(summary_group == NULL) {
+			printf("Failed to allocate memory for a new c2_rpc_form_item_summary_unit_group structure.\n");
+			return C2_RPC_FORM_INTEVT_STATE_FAILED;
+		}
+	}
+
+	summary_group->sug_expected_items = item->ri_group->rg_expected;
+	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX)
+		summary_group->sug_priority_items++;
+	/*XXX struct c2_rpc_item_type_ops will have a rio_item_size
+	 method to find out size of rpc item. */
 }
 
 
