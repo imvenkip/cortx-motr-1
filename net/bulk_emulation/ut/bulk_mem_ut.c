@@ -147,6 +147,7 @@ void test_failure(void)
 	struct c2_clink tmwait2;
 
 	struct c2_net_end_point *ep;
+	struct c2_net_qstats qs;
 
 	/* setup the first dom */
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
@@ -231,7 +232,12 @@ void test_failure(void)
 	/* TEST
 	   Send a message from d1tm1 to d2tm2 - should fail because
 	   no receive buffers available.
+	   The failure count on the receive queue of d2tm2 should
+	   be bumpted.
 	*/
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
 					      "127.0.0.1", 20, 0));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
@@ -249,6 +255,66 @@ void test_failure(void)
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -ENOBUFS);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 0);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+
+	/* TEST
+	   Add a receive buffer in d2tm2.
+	   Send a larger message from d1tm1 to d2tm2.
+	   Both buffers should fail with -EMSGSIZE.
+	*/
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	d2nb2.nb_qtype = C2_NET_QT_MSG_RECV;
+	d2nb2.nb_ep = NULL;
+	c2_clink_init(&tmwait2, NULL);
+	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_qt2 = C2_NET_QT_NR;
+	cb_nb2 = NULL;
+	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
+
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
+					      "127.0.0.1", 20, 0));
+	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
+	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
+	d1nb1.nb_ep = ep;
+	d1nb1.nb_length = 40;
+	c2_clink_init(&tmwait1, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_qt1 = C2_NET_QT_NR;
+	cb_nb1 = NULL;
+	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
+	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
+	C2_UT_ASSERT(cb_nb1 == &d1nb1);
+	C2_UT_ASSERT(d1nb1.nb_status == -EMSGSIZE);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+
+	c2_chan_wait(&tmwait2);
+	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_nb2 == &d2nb2);
+	C2_UT_ASSERT(d2nb2.nb_status == -EMSGSIZE);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
 	/* TEST
 	   Set up a passive receive buffer in one dom, and

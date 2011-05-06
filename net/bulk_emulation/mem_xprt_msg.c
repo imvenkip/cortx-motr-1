@@ -190,13 +190,13 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		}
 		struct c2_net_buffer *dest_nb =
 			container_of(link, struct c2_net_buffer, nb_tm_linkage);
-		if( nb->nb_length > mem_buffer_length(dest_nb)) {
-			rc = -EMSGSIZE;
-			break;
-		}
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
 		c2_list_del(&dest_nb->nb_tm_linkage);
-		rc = mem_copy_buffer(dest_nb, nb, nb->nb_length);
+		if( nb->nb_length > mem_buffer_length(dest_nb)) {
+			rc = -EMSGSIZE;
+			dest_nb->nb_length = nb->nb_length; /* desired length */
+		} else
+			rc = mem_copy_buffer(dest_nb, nb, nb->nb_length);
 		if(rc == 0) {
 			/* commit to using the destination EP */
 			dest_nb->nb_ep = dest_ep;
@@ -212,9 +212,6 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		struct c2_net_bulk_mem_tm_pvt *dest_tp =
 			dest_tm->ntm_xprt_private;
 		mem_wi_add(dest_wi, dest_tp);
-
-		/* send succeeded, even if receive may have failed */
-		rc = 0;
 	} while(0);
 
 	/* release the destination TM mutex */
