@@ -10,7 +10,10 @@
    @brief This module provides a network transport with messaging and bulk
    transfer capabilites implemented over the legacy and now deprecated
    Sunrpc transport.  The bulk transfer support does not provide 0 copy
-   semantics.
+   semantics. 3-tuple addressing of (host, port, service-id) is used for
+   end points, with the further constraint that all transfer machines within
+   the same process must use the same host and port, regardless of how many
+   bulksunrpc domains are created.
 
    @{
 **/
