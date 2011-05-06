@@ -585,6 +585,19 @@ enum c2_net_queue_type {
 };
 
 /**
+   A transfer machine exists in one of the following states.
+ */
+enum c2_net_tm_state {
+	C2_NET_TM_UNDEFINED=0, /**< Undefined, prior to initialization */
+	C2_NET_TM_INITIALIZED, /**< Initialized */
+	C2_NET_TM_STARTING,    /**< Startup in progress */
+	C2_NET_TM_STARTED,     /**< Active */
+	C2_NET_TM_STOPPING,    /**< Shutdown in progress */
+	C2_NET_TM_STOPPED,     /**< Stopped */
+	C2_NET_TM_FAILED       /**< Failed TM, must be fini'd */
+};
+
+/**
    Event data structure.
 
    The following categories of events are defined:
@@ -594,15 +607,22 @@ enum c2_net_queue_type {
      - Successful termination of the operation.
      - Failure of the operation, including cancellation.
      - Expiry of the timeout period associated with the buffer.
+
    - <b>State transition events</b> for the associated transfer machine.
-   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
-   field is set to 0.
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_next_state
+   field is set to a valid transfer machine state
+   (i.e. it is not C2_NET_TM_UNDEFINED)
+   Any associated error is set in the nev_status field.
+
    - <b>Error events.</b>
-   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
-   field is set to a negative error code.
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_next_state
+   field is set to C2_NET_TM_UNDEFINED.
+   The nev_status field carries the error code as negative integer.
+
    - <b>Diagnostic events.</b>
-   The nev_qtype field is set to C2_NET_QT_NR and the nev_status
-   field is set to a non-zero value.
+   The nev_qtype field is set to C2_NET_QT_NR and the nev_next_state
+   field is set to C2_NET_TM_UNDEFINED and the nev_status field is set
+   to a positive integer value.
    These events are transport specific and are intended for diagnostic
    applications.
 
@@ -636,6 +656,20 @@ struct c2_net_event {
 	struct c2_time             nev_time;
 
 	/**
+	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
+	   value of this field is not C2_NET_TM_UNDEFINED, then the event
+	   indicates a transfer machine state change.
+	   The next state of the transfer machine is set in this field.
+	   Any associated error condition defined by the nev_status field.
+
+	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
+	   value of this field is C2_NET_TM_UNDEFINED, then the event
+	   is either an error event or a diagnostic event, depending on
+	   the value of the nev_status field.
+	 */
+	enum c2_net_tm_state       nev_next_state;
+
+	/**
 	   Status or error code associated with the event.
 
 	   When the value of c2_net_event.nev_qtype is not C2_NET_QT_NR the
@@ -645,17 +679,24 @@ struct c2_net_event {
 	   Negative error numbers are used to indicate the reasons for
 	   failure.
 
-	   When the value of c2_net_event.nev_qtype is C2_NET_QT_NR the
-	   callback is made to report non-buffer related errors,
-	   transfer machine state changes or for diagnostic purposes.
-	   The value of this field is used to distinguish these cases:
-	   - <b>State changes</b> The value of this field is 0.
-	   - <b>Errors</b> The value of this field is a negative
-	   integer. The following errors are well defined:
+	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
+	   value of the nev_next_state field is not C2_NET_TM_UNDEFINED,
+	   then the event is a state change event, and the value of this
+	   field, if negative, indicates a reason for failure.
+
+	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
+	   value of the nev_next_state field is C2_NET_TM_UNDEFINED,
+	   and the value of this field is less than 0, then the event
+	   indicates a general error.
+	   The following errors are well defined:
 	   	- <b>-ENOBUFS</b> This indicates that the transfer machine
 		lost messages due to a lack of receive buffers.
-	   - <b>Diagnostic events</b> The value of this field is a
-	   positive integer.
+
+	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
+	   value of the nev_next_state field is C2_NET_TM_UNDEFINED,
+	   and the value of this field is >= 0, then the event is a
+	   diagnostic event.
+	   The value of 0 in is reserved at this time.
 	   The c2_net_event.nev_payload field contains transport specific
 	   diagnostic information.
 	 */
@@ -663,9 +704,6 @@ struct c2_net_event {
 
 	/**
 	   Event specific payload - not always a pointer.
-
-	   State transition events set the value to that of the
-	   transition state.
 
 	   Transports may use this to point to internal data; they
 	   could also choose to embed the event data structure
@@ -834,19 +872,6 @@ struct c2_net_qstats {
 };
 
 /**
-   A transfer machine exists in one of the following states.
- */
-enum c2_net_tm_state {
-	C2_NET_TM_UNDEFINED=0, /**< Undefined, prior to initialization */
-	C2_NET_TM_INITIALIZED, /**< Initialized */
-	C2_NET_TM_STARTING,    /**< Startup in progress */
-	C2_NET_TM_STARTED,     /**< Active */
-	C2_NET_TM_STOPPING,    /**< Shutdown in progress */
-	C2_NET_TM_STOPPED,     /**< Stopped */
-	C2_NET_TM_FAILED       /**< Failed TM, must be fini'd */
-};
-
-/**
    This data structure tracks message buffers and supports callbacks to notify
    the application of changes in state associated with these buffers.
 */
@@ -942,6 +967,7 @@ struct c2_net_transfer_mc {
 
    All fields in the structure other then the above will be set to their
    appropriate initial values.
+   @note An initialized TM cannot be fini'd without first starting it.
    @param dom Network domain pointer.
    @retval 0 (success)
    @retval -errno (failure)

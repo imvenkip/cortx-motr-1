@@ -40,11 +40,11 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			C2_ASSERT(tp->xtm_state == C2_NET_XTM_STARTING);
 			if (wi->xwi_state_change_status != 0) {
 				tp->xtm_state = C2_NET_XTM_FAILED;
-				ev.nev_payload = (void *) C2_NET_TM_FAILED;
+				ev.nev_next_state = C2_NET_TM_FAILED;
 				ev.nev_status = wi->xwi_state_change_status;
 			} else {
 				tp->xtm_state = wi->xwi_next_state;
-				ev.nev_payload = (void *) C2_NET_TM_STARTED;
+				ev.nev_next_state = C2_NET_TM_STARTED;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
 			rc = c2_net_tm_event_post(ev.nev_tm, &ev);
@@ -53,7 +53,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 	} else { /* C2_NET_XTM_STOPPED, as per assert */
 		C2_ASSERT(tp->xtm_state == C2_NET_XTM_STOPPING);
 		tp->xtm_state = wi->xwi_next_state;
-		ev.nev_payload = (void *) C2_NET_TM_STOPPED;
+		ev.nev_next_state = C2_NET_TM_STOPPED;
 
 		/* broadcast on cond and wait for work item queue to empty */
 		c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);

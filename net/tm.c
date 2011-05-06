@@ -24,9 +24,9 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
 	if (ev->nev_qtype == C2_NET_QT_NR) {
-		/* errors < 0, state change == 0, diagnostics > 0 */
-		if (ev->nev_status == 0)
-			tm->ntm_state = (enum c2_net_tm_state) ev->nev_payload;
+		if (ev->nev_next_state != C2_NET_TM_UNDEFINED) {
+			tm->ntm_state = ev->nev_next_state;
+		}
 	} else {
 		struct c2_net_qstats *q;
 		struct c2_time timediff;

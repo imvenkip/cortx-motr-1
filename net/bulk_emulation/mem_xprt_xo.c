@@ -497,10 +497,12 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	C2_PRE(mem_tm_invariant(tm));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	if (tp->xtm_state != C2_NET_XTM_STOPPED)
+	if (tp->xtm_state != C2_NET_XTM_STOPPED &&
+	    tp->xtm_state != C2_NET_XTM_FAILED)
 		return -EBUSY;
 
 	c2_mutex_lock(&tm->ntm_mutex);
+	tp->xtm_state = C2_NET_XTM_STOPPED; /* to stop the workers */
 	c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	if (tp->xtm_worker_threads != NULL) {

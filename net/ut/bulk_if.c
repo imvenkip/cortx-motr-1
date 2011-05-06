@@ -221,7 +221,7 @@ static int ut_tm_fini(struct c2_net_transfer_mc *tm)
 }
 
 struct c2_thread ut_tm_thread;
-static void ut_post_ev_thread(int n)
+static void ut_post_state_change_ev_thread(int n)
 {
 	int rc;
 	struct c2_net_event ev = {
@@ -229,11 +229,11 @@ static void ut_post_ev_thread(int n)
 		.nev_tm = &ut_tm,
 		.nev_buffer = NULL,
 		.nev_status = 0,
-		.nev_payload = (void *) (enum c2_net_tm_state) n
+		.nev_next_state = (enum c2_net_tm_state) n
 	};
 	c2_time_now(&ev.nev_time);
 
-	/* post requested event */
+	/* post state change event */
 	rc = c2_net_tm_event_post(ev.nev_tm, &ev);
 	C2_UT_ASSERT(rc == 0);
 }
@@ -249,7 +249,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm)
 	   cannot do it here: we are in dom lock, post would assert.
 	 */
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
-			    &ut_post_ev_thread, C2_NET_TM_STARTED);
+			    &ut_post_state_change_ev_thread, C2_NET_TM_STARTED);
 	C2_UT_ASSERT(rc == 0);
 	return rc;
 }
@@ -262,7 +262,7 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
-			    &ut_post_ev_thread, C2_NET_TM_STOPPED);
+			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(rc == 0);
 	return rc;
 }
