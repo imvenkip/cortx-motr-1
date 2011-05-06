@@ -220,8 +220,12 @@ int main(int argc, char *argv[])
 	}
 	if (client_only && server_only)
 		client_only = server_only = false;
-	if (base_port == 0)
+	if (base_port == 0) {
+		/* be nice and pick the non-server port by default */
 		base_port = xprt->px_client_port;
+		if (client_only && base_port == PING_PORT1)
+			base_port = PING_PORT2;
+	}
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 

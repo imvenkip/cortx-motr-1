@@ -140,10 +140,11 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			.sin_addr.s_addr = in->sm_sender.sep_addr, /* network */
 			.sin_port        = in->sm_sender.sep_port, /* order */
 		};
+		uint32_t sid = in->sm_sender.sep_id;
 
 		/* create an end point for the message sender */
 		c2_mutex_lock(&dom->nd_mutex);
-		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa, 0);
+		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa, sid);
 		c2_mutex_unlock(&dom->nd_mutex);
 
 		if (rc == 0) {
