@@ -79,6 +79,7 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 		sid_init = true;
 
 		/* initialize the service */
+		C2_SET0(svc);
 		svc->s_table.not_start = s_fops[0]->ft_code;
 		svc->s_table.not_nr    = ARRAY_SIZE(s_fops);
 		svc->s_table.not_fopt  = s_fops;
