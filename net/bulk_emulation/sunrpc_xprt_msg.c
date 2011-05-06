@@ -120,13 +120,22 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			break;
 		}
 		nb = container_of(link, struct c2_net_buffer, nb_tm_linkage);
-		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
-			rc = -EMSGSIZE;
-			break;
-		}
 		C2_ASSERT(sunrpc_buffer_invariant(nb));
 		c2_list_del(&nb->nb_tm_linkage);
+		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
+			struct c2_net_bulk_mem_work_item *wi =
+				MEM_BUFFER_TO_WI(nb);
+			struct c2_net_bulk_sunrpc_tm_pvt *tp =
+				nb->nb_tm->ntm_xprt_private;
+			rc = -EMSGSIZE;
+			nb->nb_status = rc;
+			nb->nb_length = in->sm_buf.sb_len; /* desired length */
+			/* schedule the receive msg callback */
+			wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
+			sunrpc_wi_add(wi, tp);
+			break;
+		}
 		rc = 0;
 	} while(0);
 	c2_mutex_unlock(&tm->ntm_mutex);
