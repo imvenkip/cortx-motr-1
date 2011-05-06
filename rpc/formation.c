@@ -353,6 +353,7 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 		summary_group->sug_priority_items++;
 	/*XXX struct c2_rpc_item_type_ops will have a rio_item_size
 	 method to find out size of rpc item. */
+	summary_group->sug_total_size += item->ri_type->rit_ops->rio_item_size(item);
 }
 
 
