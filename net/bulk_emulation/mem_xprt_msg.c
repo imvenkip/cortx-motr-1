@@ -183,6 +183,8 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		struct c2_list_link *link;
 		link = c2_list_first(&dest_tm->ntm_q[C2_NET_QT_MSG_RECV]);
 		if (link == NULL) {
+			dest_tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events
+				++;
 			rc = -ENOBUFS;
 			break;
 		}

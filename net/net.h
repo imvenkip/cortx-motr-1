@@ -804,7 +804,12 @@ struct c2_net_qstats {
 	/** The number of successful events posted on buffers in the queue */
 	uint64_t        nqs_num_s_events;
 
-	/** The number of failure events posted on buffers in the queue */
+	/** The number of failure events posted on buffers in the queue.
+
+	    In the case of the C2_NET_QT_MSG_RECV queue, the failure
+	    counter is also incremented when the queue is empty when a
+	    message arrives.
+	 */
 	uint64_t        nqs_num_f_events;
 
 	/**

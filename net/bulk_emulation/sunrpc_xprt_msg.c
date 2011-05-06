@@ -115,6 +115,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		struct c2_list_link *link;
 		link = c2_list_first(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
 		if (link == NULL) {
+			tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events++;
 			rc = -ENOBUFS;
 			break;
 		}
