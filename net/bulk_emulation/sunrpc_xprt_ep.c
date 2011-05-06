@@ -128,22 +128,6 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 
 	/* create the sid (first time only) */
 	if (!sep->xep_sid_valid) {
-#if 0
-		char host[C2_NET_BULK_MEM_XEP_ADDR_LEN];
-		char *p;
-		int port = ntohs(mep->xep_sa.sin_port);
-		/* create the service uuid */
-		sprintf(sep->xep_sid.si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
-		C2_ASSERT(strlen(sep->xep_sid.si_uuid) <
-			  sizeof(sep->xep_sid.si_uuid));
-		/* copy the printable addr ("dotted_ip_addr:port:service_id") */
-		strncpy(host, (*epp)->nep_addr, sizeof(host)-1);
-		host[sizeof(host)-1] = '\0';
-		for (p=host; *p && *p != ':'; p++);
-		*p = '\0'; /* isolate the hostname */
-		rc = c2_service_id_init(&sep->xep_sid, &dp->xd_rpc_dom,
-					host, port);
-#endif
 		rc = sunrpc_ep_init_sid(&sep->xep_sid, &dp->xd_rpc_dom, *epp);
 		if (rc == 0) {
 			sep->xep_sid_valid = true;
