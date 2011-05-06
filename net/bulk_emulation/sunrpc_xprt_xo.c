@@ -162,7 +162,7 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 		c2_mutex_lock(&tm->ntm_mutex);
 
 		struct c2_net_end_point *ep = tm->ntm_ep;
-		if (ep == NULL) {
+		if (ep == NULL || tm->ntm_state != C2_NET_TM_STARTED) {
 			c2_mutex_unlock(&tm->ntm_mutex);
 			continue;
 		}
