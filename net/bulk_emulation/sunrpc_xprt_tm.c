@@ -57,8 +57,8 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 			sep = container_of(mep,
 					   struct c2_net_bulk_sunrpc_end_point,
 					   xep_base);
-			if (!c2_services_are_same(&sunrpc_server_id,
-						  &sep->xep_sid))
+			if (strcmp(sunrpc_server_id.si_uuid,
+				   sep->xep_sid.si_uuid) != 0)
 				rc = -EADDRNOTAVAIL;
 			break;
 		}
