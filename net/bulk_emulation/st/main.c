@@ -33,6 +33,10 @@ enum {
 
 	MEM_CLIENT_BASE_PORT = PING_PORT2,
 	SUNRPC_CLIENT_BASE_PORT = PING_PORT1,
+
+	ONE_MILLION = 1000000ULL,
+	SEC_PER_HR = 60 * 60,
+	SEC_PER_MIN = 60,
 };
 
 struct ping_xprt {
@@ -165,6 +169,41 @@ void client(struct client_params *params)
 	c2_mutex_fini(&cctx.pc_mutex);
 }
 
+void print_qstats(struct ping_ctx *ctx, bool reset)
+{
+	int i, rc;
+	uint64_t hr, min, sec, msec;
+	struct c2_net_qstats qs[C2_NET_QT_NR], *qp;
+	static const char *qnames[C2_NET_QT_NR] = {
+		"msg_recv", "msg_send",
+		"pas_recv", "pas_send",
+		"act_recv", "act_send",
+	};
+	char tbuf[16];
+
+	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
+		return;
+	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
+	C2_ASSERT(rc == 0);
+	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
+		qp = &qs[i];
+		sec = c2_time_seconds(&qp->nqs_time_in_queue);
+		hr = sec / SEC_PER_HR;
+		min = sec % SEC_PER_HR / SEC_PER_MIN;
+		sec %= SEC_PER_MIN;
+		msec = (c2_time_nanoseconds(&qp->nqs_time_in_queue) +
+			ONE_MILLION / 2) / ONE_MILLION;
+		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
+			hr, min, sec, msec);
+		printf("%s add=%lu del=%lu succ_ev=%lu fail_ev=%lu "
+		       "qtime=%s bytes=%lu max=%lu\n",
+		       qnames[i],
+		       qp->nqs_num_adds, qp->nqs_num_dels,
+		       qp->nqs_num_s_events, qp->nqs_num_f_events,
+		       tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int			 rc;
@@ -269,6 +308,10 @@ int main(int argc, char *argv[])
 		while (fgets(readbuf, BUFSIZ, stdin)) {
 			if (strcmp(readbuf, "quit\n") == 0)
 				break;
+			if (strcmp(readbuf, "\n") == 0)
+				print_qstats(&sctx, false);
+			if (strcmp(readbuf, "reset_stats\n") == 0)
+				print_qstats(&sctx, true);
 		}
 	} else {
 		int		      i;
