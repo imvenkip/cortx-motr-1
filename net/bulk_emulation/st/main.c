@@ -354,6 +354,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (!client_only) {
+		if (verbose)
+			print_qstats(&sctx, false);
 		ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
