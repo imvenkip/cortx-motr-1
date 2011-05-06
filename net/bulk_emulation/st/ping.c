@@ -914,6 +914,16 @@ void ping_server(struct ping_ctx *ctx)
 		c2_clink_del(&tmwait);
 	}
 
+	/* wait for active buffers to flush */
+	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+	for (i = 0; i < C2_NET_QT_NR; ++i)
+		while (!c2_list_is_empty(&ctx->pc_tm.ntm_q[i])) {
+			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
+			c2_chan_wait(&tmwait);
+		}
+	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
+
 	ping_fini(ctx);
 	server_stop = false;
 }
