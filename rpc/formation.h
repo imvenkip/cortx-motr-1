@@ -95,7 +95,7 @@
 
      +--> c2_list <c2_rpc_form_item_summary_unit>
 
-	    +--> c2_rpc_form_item_summary_unit_group
+	    +--> c2_list <c2_rpc_form_item_summary_unit_group>
  */
 
 struct c2_rpc_form_item_summary {
@@ -111,26 +111,24 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	formation_summary;
 
-struct c2_rpc_form_fid_summary {
-	/** List of fid_summary_unit structures for all endpoints. */
-	/** c2_list <struct c2_rpc_form_fid_summary_unit>*/
-	struct c2_list			 fs_fid_list;
-};
-
 /**
    Structure containing fid for io requests.
    This will help to make quick decisions to select candidates
    for coalescing of io requests.
  */
 struct c2_rpc_form_fid_summary_unit {
-	/** File id on which IO request has come. */
-	struct c2_fid			*fs_fid;
+	/** fid on which IO requests have come. */
+	struct c2_fid			 fs_fid;
 	/** List of read requests on this fid. */
 	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
 	struct c2_list			 fs_read_list;
+	/** Total size of IO requests for same fid with read intent. */
+	uint64_t			 fs_read_total_size;
 	/** List of write requests on this fid. */
 	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
 	struct c2_list			 fs_write_list;
+	/** Total size of IO requests for same fid with write intent. */
+	uint64_t			 fs_write_total_size;
 	/** Linkage into list of fids. */
 	struct c2_list_link		*fs_linkage;
 };
@@ -139,14 +137,32 @@ struct c2_rpc_form_fid_summary_unit {
    Structure that will help do effective coalescing.
  */
 struct c2_rpc_form_fid_summary_member {
-	/** Linkage into list of same fid and same intent (read/write) */
-	struct c2_list_link		*fsm_fid_linkage;
-	/** Linkage into list of IO requests on same rpc group. */
-	struct c2_list_link		*fsm_rpcgroup_linkage;
+	/** Linkage to list of IO operations with same fid and same intent. */
+	struct c2_list_link		 fsm_linkage;
 	/** RPC Group identifier */
 	struct c2_rpc_group		*fsm_group;
 	/** Number of IO requests on given fid in rpc group mentioned above. */
-	uint64_t			 nitems;
+	uint64_t			 fsm_nitems;
+	/** Size of IO requests in this rpc group and fid with same intent. */
+	uint64_t			 fsm_total_size;
+	/** Max priority within this group. */
+	int				 fsm_max_prio;
+	/** Average priority of IO requests in this group. */
+	int				 fsm_avg_prio;
+};
+
+/** XXX The cache of rpc items. Ideally, it should
+  come from grouping component, which does not exist at the
+  moment. Hence emulating this list here.
+ */
+struct c2_rpc_form_items_cache {
+	/** Destination Endpoint */
+	struct c2_net_endpoint		*ic_endp;
+	/** Mutex to protect the list from concurrent access. */
+	struct c2_mutex			 ic_mutex;
+	/** List of rpc items destined for this endpoint. */
+	/** c2_list <struct c2_rpc_item> */
+	struct c2_list			 ic_cache_list;
 };
 
 /**
@@ -162,9 +178,11 @@ struct c2_rpc_form_fid_summary_member {
  */
 /** XXX Need to put a linkage in struct c2_rpc_item to track
     the unformed items. */
+/** XXX Need another linkage (c2_list_link) in struct c2_rpc_item
+    to keep track of formed items in an rpc object. */
 struct c2_rpc_form_item_summary_unit {
 	/** Referenced Endpoint */
-	int				 isu_endp_id;
+	struct c2_net_endpoint		*isu_endp_id;
 	/** Mutex protecting the unit from concurrent access. */
 	struct c2_mutex			 isu_unit_lock;
 	/** Linkage into the endpoint list. */
@@ -205,8 +223,13 @@ struct c2_rpc_form_item_summary_unit {
 	/** c2_list <struct >*/
 	struct c2_list			isu_unformed_items;
 	/** List of fids on which IO requests are made in this rpc group. */
-	/** c2_list <struct > */
+	/** c2_list <struct c2_rpc_form_fid_summary_unit> */
 	struct c2_list			isu_fid_list;
+	/** These numbers will be subsequently kept with the statistics
+	  component. Defining here for the sake of UT.
+	 */
+	uint64_t			isu_max_message_size;
+	uint64_t			isu_max_fragments_size;
 };
 
 /**
@@ -426,8 +449,9 @@ void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit *endp_u
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
  */
-int c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 {
+	/* XXX Need to be defined */
 	return item->endpoint;
 }
 
