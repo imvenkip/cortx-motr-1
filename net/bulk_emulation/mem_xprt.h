@@ -157,6 +157,8 @@ struct c2_net_bulk_mem_tm_pvt {
 	struct c2_list                    xtm_work_list;
 	/** Condition variable for the work item list */
 	struct c2_cond                    xtm_work_list_cv;
+	/** Worker callback activity is tracked by this counter. */
+	uint32_t                          xtm_callback_counter;
 	/** Array of worker threads allocated during startup */
 	struct c2_thread                 *xtm_worker_threads;
 	/** Number of worker threads */

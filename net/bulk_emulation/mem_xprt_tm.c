@@ -57,7 +57,8 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 
 		/* broadcast on cond and wait for work item queue to empty */
 		c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
-		while (!c2_list_is_empty(&tp->xtm_work_list))
+		while (!c2_list_is_empty(&tp->xtm_work_list) &&
+		       tp->xtm_callback_counter > 1)
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
 		c2_mutex_unlock(&tm->ntm_mutex);
@@ -120,18 +121,22 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 			c2_list_del(&wi->xwi_link);
 			fn = dp->xd_work_fn[wi->xwi_op];
 			if (fn != NULL) {
-				if (wi->xwi_op == C2_NET_XOP_STATE_CHANGE)
+				if (wi->xwi_op == C2_NET_XOP_STATE_CHANGE) {
+					tp->xtm_callback_counter++;
 					fn(tm, wi);
-				else {
+					tp->xtm_callback_counter--;
+				} else {
 					/* others expect mutex to be released
 					   and the C2_NET_BUF_IN_USE flag set.
 					 */
 					struct c2_net_buffer *nb =
 						MEM_WI_TO_BUFFER(wi);
 					nb->nb_flags |= C2_NET_BUF_IN_USE;
+					tp->xtm_callback_counter++;
 					c2_mutex_unlock(&tm->ntm_mutex);
 					fn(tm, wi);
 					c2_mutex_lock(&tm->ntm_mutex);
+					tp->xtm_callback_counter--;
 				}
 			}
 			/* signal that wi was removed from queue */
