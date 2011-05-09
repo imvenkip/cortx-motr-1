@@ -66,12 +66,16 @@ unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 }
 
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const struct c2_time *abs_timeout)
+			    const c2_time_t abs_timeout)
 {
+	struct timespec ts = {
+			.tv_sec  = c2_time_seconds(abs_timeout),
+			.tv_nsec = c2_time_nanoseconds(abs_timeout)
+		};
 	int rc;
 
 	do
-		rc = sem_timedwait(&semaphore->s_sem, &abs_timeout->ts);
+		rc = sem_timedwait(&semaphore->s_sem, &ts);
 	while (rc == -1 && errno == EINTR);
 	C2_ASSERT(rc == 0 || (rc == -1 && errno == ETIMEDOUT));
 	if (rc == -1 && errno == ETIMEDOUT)

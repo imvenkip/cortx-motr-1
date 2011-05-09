@@ -5,21 +5,6 @@
 
 #include <linux/time.h>
 
-/**
-   @addtogroup time
-
-   <b>Linux kernel time.</a>
-   @{
- */
-
-/* kernel and userspace both happen to have a struct timespec, but defined in
- different headers */
-struct c2_time {
-	struct timespec ts;
-};
-
-/** @} end of time group */
-
 /* __COLIBRI_LIB_LINUX_KERNEL_TIME_H__ */
 #endif
 

@@ -63,7 +63,7 @@ enum c2_timer_type {
    @return 0 means success, other values mean error.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  struct c2_time *interval, uint64_t repeat,
+		  c2_time_t interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data);
 
 /**

@@ -227,7 +227,7 @@ bool c2_chan_trywait(struct c2_clink *link);
    @return false if there is no events pending and timeout expires;
  */
 bool c2_chan_timedwait(struct c2_clink *link,
-		       const struct c2_time *abs_timeout);
+		       const c2_time_t abs_timeout);
 
 
 /** @} end of chan group */

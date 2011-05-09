@@ -239,13 +239,12 @@ void c2_chan_wait(struct c2_clink *link)
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 }
 
-bool c2_chan_timedwait(struct c2_clink *link, const struct c2_time *abs_timeout)
+bool c2_chan_timedwait(struct c2_clink *link, const c2_time_t abs_timeout)
 {
 	bool result;
 
 	C2_ASSERT(link->cl_cb == NULL);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
-	C2_ASSERT(abs_timeout != NULL);
 
 	result = c2_semaphore_timeddown(&link->cl_wait, abs_timeout);
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
