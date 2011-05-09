@@ -264,6 +264,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
  */
 int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 {
+	int result = 0;
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 
 	c2_mutex_lock(&owner->ro_lock);
@@ -271,6 +272,8 @@ int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 		    &in->rin_want.ri_linkage);
 	c2_rm_owner_balance(owner);
 	c2_mutex_lock(&owner->ro_lock);
+
+	return result;
 }
 
 /**
@@ -324,12 +327,13 @@ static void c2_rm_pin_remove(struct c2_rm_pin *pin)
 
 	in = pin->rp_incoming;
 	c2_list_del(&pin->rp_incoming_linkage);
-	if (c2_list_is_empty(&in->rin_pins))
+	if (c2_list_is_empty(&in->rin_pins)) {
 		/*
 		 * Last pin removed, excite the request.
 		 */
 		c2_list_move(&o->ro_incoming[in->rin_priority][OQS_EXCITED],
 			     &in->rin_want.rl_linkage);
+	}
 }
 
 /**
@@ -340,19 +344,26 @@ static void c2_rm_pin_remove(struct c2_rm_pin *pin)
  */
 static void c2_rm_owner_balance(struct c2_rm_owner *o)
 {
-	int prio;
+	struct c2_rm_right	*out;
+	struct c2_rm_right	*tmp;
+	struct c2_rm_pin	*pin;
+	int 			prio;
+	bool 			todo;
+
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	do {
 		todo = false;
-		c2_list_for_each_safe(out, &o->ro_outgoing[OQS_EXCITED]) {
+		c2_list_for_each_entry_safe(&o->ro_outgoing[OQS_EXCITED], out, 
+				tmp, struct c2_rm_right, rog_linkage) {
 			todo = true;
 			/*
 			 * Outgoing request completes.
 			 */
-			c2_list_for_each(pin, &o->rog_want.rl_right.ri_pins)
+			c2_list_for_each_entry(&out->rog_want.rl_right.ri_pins, 
+					   pin, struct c2_rm_right, ri_linkage)
 				c2_rm_pin_remove(pin);
-			outgoing_delete(out);
+			c2_rm_outgoing_delete(out);
 		}
 		for (prio = C2_RM_REQUEST_PRIORITY_MAX; prio >= 0; prio--) {
 			c2_list_for_each(in,
