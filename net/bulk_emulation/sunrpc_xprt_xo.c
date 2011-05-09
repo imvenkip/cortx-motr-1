@@ -144,20 +144,31 @@ C2_EXPORTED(c2_sunrpc_fop_init);
    Search the list of existing transfer machines for the one whose end point
    has the given service ID and return it.
    @param sid service ID of the desired transfer machine
+   @param lock_shared True if a shared lock should be used.
+   @param skip_tm TM to skip while searching.
+   Specify NULL if no TM to be skipped.
    @retval NULL transfer machine not found
    @retval !NULL transfer machine pointer, the transfer machine mutex
    is locked.
  */
-static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
+static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid,
+						 bool lock_shared,
+						 struct c2_net_transfer_mc
+						 *skip_tm)
 {
 	struct c2_net_bulk_sunrpc_tm_pvt *tp;
 	struct c2_net_transfer_mc *ret = NULL;
 
-	c2_rwlock_read_lock(&sunrpc_server_lock);
+	if (lock_shared)
+		c2_rwlock_read_lock(&sunrpc_server_lock);
+	else
+		c2_rwlock_write_lock(&sunrpc_server_lock);
 	c2_list_for_each_entry(&sunrpc_server_tms, tp,
 			       struct c2_net_bulk_sunrpc_tm_pvt,
 			       xtm_tm_linkage) {
 		struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
+		if (skip_tm != NULL && tm == skip_tm)
+			continue;
 
 		c2_mutex_lock(&tm->ntm_mutex);
 
@@ -177,7 +188,10 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
-	c2_rwlock_read_unlock(&sunrpc_server_lock);
+	if (lock_shared)
+		c2_rwlock_read_unlock(&sunrpc_server_lock);
+	else
+		c2_rwlock_write_unlock(&sunrpc_server_lock);
 
 	return ret;
 }
@@ -396,7 +410,17 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(struct c2_net_transfer_mc *tm)
 
 static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
+	struct c2_net_transfer_mc *found_tm;
+	struct c2_net_end_point *ep = tm->ntm_ep;
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+
 	C2_PRE(sunrpc_tm_invariant(tm));
+	found_tm = sunrpc_find_tm(mep->xep_service_id, false, tm);
+	if (found_tm != NULL) {
+		c2_mutex_unlock(&found_tm->ntm_mutex);
+		return -EADDRINUSE;
+	}
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_start(tm);
 }
 

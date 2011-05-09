@@ -103,7 +103,8 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	ex = c2_fop_data(reply);
 
 	/* locate the tm, identified by its sid in the buffer desc */
-	struct c2_net_transfer_mc *tm = sunrpc_find_tm(in->sm_receiver.sep_id);
+	struct c2_net_transfer_mc *tm = sunrpc_find_tm(in->sm_receiver.sep_id,
+						       true, NULL);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto err_exit;
