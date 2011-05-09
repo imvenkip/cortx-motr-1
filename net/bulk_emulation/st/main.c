@@ -89,6 +89,46 @@ void list_xprt_names(FILE *s, struct ping_xprt *def)
 			(&xprts[i] == def) ? " [default]" : "");
 }
 
+struct c2_mutex qstats_mutex;
+
+void print_qstats(struct ping_ctx *ctx, bool reset)
+{
+	int i, rc;
+	uint64_t hr, min, sec, msec;
+	struct c2_net_qstats qs[C2_NET_QT_NR], *qp;
+	static const char *qnames[C2_NET_QT_NR] = {
+		"msg_recv", "msg_send",
+		"pas_recv", "pas_send",
+		"act_recv", "act_send",
+	};
+	char tbuf[16];
+
+	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
+		return;
+	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
+	C2_ASSERT(rc == 0);
+	c2_mutex_lock(&qstats_mutex);
+	printf("%s statistics:\n", ctx->pc_ident);
+	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
+		qp = &qs[i];
+		sec = c2_time_seconds(&qp->nqs_time_in_queue);
+		hr = sec / SEC_PER_HR;
+		min = sec % SEC_PER_HR / SEC_PER_MIN;
+		sec %= SEC_PER_MIN;
+		msec = (c2_time_nanoseconds(&qp->nqs_time_in_queue) +
+			ONE_MILLION / 2) / ONE_MILLION;
+		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
+			hr, min, sec, msec);
+		printf("%s add=%lu del=%lu succ_ev=%lu fail_ev=%lu "
+		       "qtime=%s bytes=%lu max=%lu\n",
+		       qnames[i],
+		       qp->nqs_num_adds, qp->nqs_num_dels,
+		       qp->nqs_num_s_events, qp->nqs_num_f_events,
+		       tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
+	}
+	c2_mutex_unlock(&qstats_mutex);
+}
+
 int quiet_printf(const char *fmt, ...)
 {
 	return 0;
@@ -174,47 +214,14 @@ void client(struct client_params *params)
 		C2_ASSERT(rc == 0);
 	}
 
+	if (params->verbose)
+		print_qstats(&cctx, false);
 	rc = ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
 	C2_ASSERT(rc == 0);
 fail:
 	c2_cond_fini(&cctx.pc_cond);
 	c2_mutex_fini(&cctx.pc_mutex);
-}
-
-void print_qstats(struct ping_ctx *ctx, bool reset)
-{
-	int i, rc;
-	uint64_t hr, min, sec, msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR], *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
-		"msg_recv", "msg_send",
-		"pas_recv", "pas_send",
-		"act_recv", "act_send",
-	};
-	char tbuf[16];
-
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
-		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
-		qp = &qs[i];
-		sec = c2_time_seconds(&qp->nqs_time_in_queue);
-		hr = sec / SEC_PER_HR;
-		min = sec % SEC_PER_HR / SEC_PER_MIN;
-		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(&qp->nqs_time_in_queue) +
-			ONE_MILLION / 2) / ONE_MILLION;
-		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
-			hr, min, sec, msec);
-		printf("%s add=%lu del=%lu succ_ev=%lu fail_ev=%lu "
-		       "qtime=%s bytes=%lu max=%lu\n",
-		       qnames[i],
-		       qp->nqs_num_adds, qp->nqs_num_dels,
-		       qp->nqs_num_s_events, qp->nqs_num_f_events,
-		       tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
-	}
 }
 
 int main(int argc, char *argv[])
@@ -299,6 +306,7 @@ int main(int argc, char *argv[])
 	}
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
+	c2_mutex_init(&qstats_mutex);
 
 	if (!client_only) {
 		/* start server in background thread */
@@ -388,6 +396,7 @@ int main(int argc, char *argv[])
 	}
 
 	c2_net_xprt_fini(xprt->px_xprt);
+	c2_mutex_fini(&qstats_mutex);
 	c2_fini();
 
 	return 0;
