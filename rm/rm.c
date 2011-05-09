@@ -344,13 +344,13 @@ static void c2_rm_pin_remove(struct c2_rm_pin *pin)
  */
 static void c2_rm_owner_balance(struct c2_rm_owner *o)
 {
+	struct c2_rm_pin	*pin;
+	struct c2_rm_loan	*loan;
 	struct c2_rm_right	*right;
 	struct c2_rm_right	*tmp;
-	struct c2_rm_outgoing	*out;
-	struct c2_rm_loan	*loan;
-	struct c2_rm_incoming	*in;
 	struct c2_list_link	*link;
-	struct c2_rm_pin	*pin;
+	struct c2_rm_outgoing	*out;
+	struct c2_rm_incoming	*in;
 	bool 			todo;
 	int 			prio;
 
@@ -457,15 +457,15 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 			 *
 			 * Apply the policy.
 			 */
-			apply_policy(in);
+			c2_rm_apply_policy(in);
 			switch (in->rin_type) {
 			case RIT_LOAN:
-				move_to_sublet(in);
-				reply_to_loan_request(in);
+				c2_rm_move_to_sublet(in);
+				c2_rm_reply_to_loan_request(in);
 			case RIT_LOCAL:
 				break;
 			case RIT_REVOKE:
-				remove_rights(in);
+				c2_rm_remove_rights(in);
 				c2_rm_go_out(in, ROT_CANCEL, &in->rin_want,
 				       &in->rin_want.rl_right);
 			}
@@ -510,6 +510,8 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 {
 	struct c2_rm_right *scan;
 	struct c2_rm_owner *o = in->rin_owner;
+	bool track_local = false;
+	bool coverage = false;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(in->rin_state == RI_CHECK);
@@ -523,7 +525,8 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 	 * request can be fulfilled. For a local request track_local can also
 	 * be true, depending on the policy.
 	 */
-	bool track_local = ...;
+	if (in->rin_type != RIT_LOCAL)
+		track_local = true;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
 	 * possessed rights which together imply (i.e., cover) the wanted
@@ -533,14 +536,15 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 	 * Typically, revoke and loan requests have coverage set to true, and
 	 * local requests have coverage set to false.
 	 */
-	bool coverage = ...;
+	if (in->rin_type != RIT_LOCAL)
+		coverage = true;
 
 	if (!track_local)
 		return;
 
 	for (int i = 0; i < OWOS_NR; ++i) {
-		c2_list_for_each_entry(&o->ro_owned[i],scan,
-					struct c2_rm_right, ri_linkage) {
+		c2_list_for_each_entry(&o->ro_owned[i],
+					scan, struct c2_rm_right, ri_linkage) {
 			if (scan intersects rest) {
 				if (!coverage) {
 					rest = c2_rm_right_diff(rest, scan);
@@ -556,9 +560,14 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 /**
    Revokes @right (or parts thereof) sub-let to downward owners.
  */
-static void c2_rm_sublet_revoke(struct c2_rm_incoming *in, struct c2_rm_right *right)
+static void c2_rm_sublet_revoke(struct c2_rm_incoming *in,
+				struct c2_rm_right *right)
 {
-	for_each_right(scan, &o->ro_sublet[]) {
+	struct c2_rm_right *scan;
+	struct c2_rm_owner *o = in->rin_owner;
+
+	c2_list_for_each_entry(&o->ro_sublet, scan,
+				struct c2_rm_right, ri_linkage) {
 		if (scan intersects rest) {
 			rest = c2_rm_right_diff(rest, scan);
 			loan = container_of(scan, ...);
@@ -628,7 +637,8 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 {
 }
 
-int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+int c2_rm_right_get_wait(struct c2_rm_owner *owner,
+			 struct c2_rm_incoming *in)
 {
 }
 
