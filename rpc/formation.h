@@ -145,8 +145,6 @@ struct c2_rpc_form_fid_summary_member {
 	uint64_t			 fsm_nitems;
 	/** Size of IO requests in this rpc group and fid with same intent. */
 	uint64_t			 fsm_total_size;
-	/** Max priority within this group. */
-	int				 fsm_max_prio;
 	/** Average priority of IO requests in this group. */
 	int				 fsm_avg_prio;
 };

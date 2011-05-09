@@ -469,7 +469,6 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	return 0;
 }
 
-
 /**
    State function for UPDATING state.
  */
@@ -507,12 +506,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_item_coalesced	*coalesced_item = NULL;
 	struct c2_list				*forming_list = NULL;
 	struct c2_rpc_form_items_cache		*cache_list = NULL;
-	uint64_t				rpcobj_size = 0;
+	uint64_t				 rpcobj_size = 0;
+	uint64_t				 item_size = 0;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
 	C2_PRE((event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) ||
-			(event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT));
+			(event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) ||
+			(event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED));
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
@@ -548,6 +549,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
 		c2_list_add(forming_list.l_head, item->rpcobject_linkage);
 		rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
+		item->ri_state = RPC_ITEM_ADDED;
 	}
 	/* XXX curr rpcs in flight will be taken care by
 	   output component. */
@@ -562,20 +564,27 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			   with just one rpc item too often. */
 		}
 		else
-			return C2_RPC_FORM_INTEVT_STATE_DONE;
+			return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_mutex_lock(&cache_list->ic_mutex);
 	c2_list_for_each_entry(cache_list->ic_cache_list.l_head, rpc_item, 
 			struct c2_rpc_item, rpcobject_linkage) {
+		item_size = rpc_item->ri_type->rit_ops->rio_item_size(item);
+		/* 1. If there are urgent items, form them immediately. */
 		if ((rpc_item->ri_deadline.tv_sec == 0) &&
 				(rpc_item->ri_deadline.tv_nsec == 0)) {
-			c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
-			rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
-			if (rpcobj_size > endp_unit->isu_max_message_size) {
-				c2_list_del(rpc_item->rpcobject_linkage);
-				rpcobj_size -= rpc_item->ri_type->rit_ops->rio_item_size(item);
+			if ((rpcobj_size + item_size) < endp_unit->isu_max_message_size) {
+				c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
+				rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
+				item->ri_state = RPC_ITEM_ADDED;
+				
+			}
+			else {
+				/* Forming list complete.*/
+				break;
 			}
 		}
+		/* 2. */
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
 
