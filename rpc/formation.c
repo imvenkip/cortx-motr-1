@@ -319,6 +319,106 @@ unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
 	c2_rpc_form_extevt_rpcitem_deadline_expired(item);
 }
 
+
+int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item)
+{
+	int						  res = 0;
+	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
+	bool						  found = false;
+	struct c2_timer					 *item_timer = NULL;
+	struct c2_fid					  fid = NULL;
+	struct c2_rpc_form_fid_summary_unit		 *fid_unit = NULL;
+	struct c2_rpc_form_fid_summary_member		 *fid_member = NULL;
+	struct c2_rpc_form_fid_summary_member		 *fid_member_new = NULL;
+	struct c2_list					 *io_list = NULL;
+	int 						  opcode = 0;
+	uint64_t					  item_size = 0;
+	bool						  fid_found = false;
+
+	C2_PRE(item != NULL);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
+	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
+
+	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, summary_group, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		if (summary_group->sug_group == item->ri_group) {
+			found = true;
+			break;
+		}
+	}
+	if (found == false) {
+			return 0;
+		}
+
+	summary_group->sug_expected_items -= item->ri_group->rg_expected;
+	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX && 
+			summary_group->sug_priority_items > 0) {
+		summary_group->sug_priority_items--;
+	}
+	/*XXX struct c2_rpc_item_type_ops will have a rio_item_size
+	 method to find out size of rpc item. */
+	summary_group->sug_total_size -= item->ri_type->rit_ops->rio_item_size(item);
+	summary_group->sug_avg_timeout = ((summary_group->sug_nitems * summary_group->sug_avg_timeout) - item->ri_deadline.tv_sec) / (summary_group->sug_nitems);
+	summary_group->sug_nitems--;
+
+	/* XXX If the current rpc item is an IO request, note down its
+	   data in the fid list per rpc group as well as the global 
+	   fid list. */
+	res = item->ri_type->rit_ops->rio_is_io_req(item);
+	if (res != 0)
+		return 0;
+	/* Assumption: c2_rpc_item_type_ops methods can access
+	   the fields of corresponding fop. */
+	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	fid = item->ri_type->rit_ops->rio_io_get_fid(item);
+	/* Search through the list of fid_summary_unit in endp_unit. */
+	c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head, 
+			fid_unit, struct c2_rpc_form_fid_summary_unit,
+			fs_linkage) {
+		if (fid_unit->fs_fid == fid) {
+			fid_found = true;
+			break;
+		}
+	}
+	/* If no IO requests have come so far for given fid, 
+	   create a new struct c2_rpc_form_fid_summary_unit. */
+	if (fid_found == false) {
+			return 0;
+	}
+	/* Find out the opcode of IO request - read or write. */
+	opcode = item->ri_type->rit_ops->rio_io_is_read(item);
+	if (opcode == 0) {
+		io_list = &fid_unit->fs_read_list;
+		fid_unit->fs_read_total_size -= item_size;
+	}
+	else {
+		io_list = &fid_unit->fs_write_list;
+		fid_unit->fs_write_total_size -= item_size;
+	}
+
+	/* Search through the list of read or write requests 
+	   for given fid. */
+	c2_list_for_each_entry(io_list.l_head, fid_member, 
+			struct c2_rpc_form_fid_summary_member, fsm_linkage) {
+		if (fid_member->fsm_group == item->ri_group) {
+			found = true;
+			break;
+		}
+	}
+	/* If no IO requests have come so far for this opcode and 
+	 given fid, create a new struct c2_rpc_form_fid_summary_member. */
+	if (found == false) {
+			return 0;
+	}
+	fid_member->fsm_avg_prio = ((fid_member->fsm_nitems * fid_member->
+				fsm_avg_prio) - item->ri_priority) /
+		(fid_member->fsm_nitems);
+	fid_member->fsm_total_size -= item_size;
+	fid_member->fsm_nitems--;
+	return 0;
+}
+
+
 /**
    Update the summary_unit data structure on addition of
    an rpc item. */
@@ -455,10 +555,6 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 		}
 		c2_list_add(io_list.l_head, fid_member_new->fsm_linkage);
 		fid_member_new->fsm_group = item->ri_group;
-	}
-	/* Populate the struct c2_rpc_form_fid_summary_member. */
-	if (fid_member->fsm_max_prio < item->ri_priority) {
-		fid_member->fsm_max_prio = item->ri_priority;
 	}
 	fid_member->fsm_avg_prio = ((fid_member->fsm_nitems * fid_member->
 				fsm_avg_prio) + item->ri_priority) /
