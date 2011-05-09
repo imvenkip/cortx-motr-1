@@ -788,10 +788,46 @@ enum c2_rm_incoming_policy {
 	RIP_RESOURCE_TYPE_BASE
 };
 
+/**
+   Flags controlling incoming usage right request processing. These flags are
+   stored in c2_rm_incoming::rin_flags and analysed in c2_rm_right_get().
+ */
 enum c2_rm_incoming_flags {
+	/**
+	   Previously sub-let rights may be revoked, if necessary, to fulfill
+	   this request.
+	 */
 	RIF_MAY_REVOKE = (1 << 0),
+	/**
+	   More rights may be borrowed, if necessary, to fulfill this request.
+	 */
 	RIF_MAY_BORROW = (1 << 1),
-	RIF_WAIT_LOCAL = (1 << 2)
+	/**
+	   The interaction between the request and locally possessed rights is
+	   the following:
+
+	       - by default, locally possessed rights are ignored. This scenario
+	         is typical for a local request (RIT_LOCAL), because local users
+	         resolve conflicts by some other means (usually some form of
+	         concurrency control, like locking);
+
+	       - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
+	         once there is no locally possessed rights conflicting with the
+	         wanted right. This is typical for a remote request (RIT_LOAN or
+	         RIT_REVOKE);
+
+	       - if RIF_LOCAL_TRY is set, the request will be immediately
+                 denied, if there are conflicting local rights. This allows to
+                 implement a "try-lock" like functionality.
+	 */
+	RIF_LOCAL_WAIT = (1 << 2),
+	/**
+	   Fail the request if it cannot be fulfilled because of the local
+	   conflicts.
+
+	   @see RIF_LOCAL_WAIT
+	 */
+	RIF_LOCAL_TRY  = (1 << 3),
 };
 
 /**
@@ -842,7 +878,7 @@ enum c2_rm_incoming_flags {
                    Pins are added to:
 
 		       - every conflicting right held by this owner (when
-                         RIF_WAIT_LOCAL flag is set on the request and always
+                         RIF_LOCAL_WAIT flag is set on the request and always
                          for a remote request);
 
                        - outgoing requests to revoke conflicting rights sub-let
@@ -1105,9 +1141,15 @@ void c2_rm_right_fini(struct c2_rm_right *right);
 void c2_rm_incoming_init(struct c2_rm_incoming *in);
 void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
-int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
-int c2_rm_right_timedwait(struct c2_rm_incoming *in,
-			  const struct c2_time *deadline);
+/**
+   @pre IS_IN_ARRAY(in->rin_priority, owner->ro_incoming)
+   @pre in->rin_state == RI_INITIALISED
+   @pre c2_list_is_empty(&in->rin_want.ri_linkage)
+
+ */
+void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+int  c2_rm_right_timedwait(struct c2_rm_incoming *in,
+			   const struct c2_time *deadline);
 int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
 
 void c2_rm_right_put(struct c2_rm_incoming *in);
