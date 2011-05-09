@@ -125,7 +125,6 @@ static int c2_rm_owner_init_internal(struct c2_rm_owner **o,
 
 int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
 {
-
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 	
@@ -143,6 +142,9 @@ int c2_rm_owner_init_with(struct c2_rm_owner *owner,
 	result = c2_rm_owner_init_internal(&owner, &res);
 	C2_ASSERT(result == 0);
 
+	/** 
+	* Add The right to the woner in held list.
+	*/
         c2_list_add(&owner->ro_owned[OWOS_HELD], r->ri_linkage);
         res->r_ref++;
 
@@ -213,23 +215,6 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	if (c2_list_is_empty(&in->rin_pins)) {
 	}
 	c2_list_fini(&in->rin_pins);
-}
-
-int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
-{
-}
-
-int c2_rm_right_timedwait(struct c2_rm_incoming *in,
-                          const struct c2_time *deadline)
-{
-}
-
-int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
-{
-}
-
-void c2_rm_right_put(struct c2_rm_incoming *in)
-{
 }
 
 
@@ -304,7 +289,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 		right = pin->rp_right;
 		c2_list_for_each(&right->ri_pins, pin2) {
 			if (pin2->rp_flags & RPF_TRACK) {
-				pin_remove(pin2);
+				c2_rm_pin_remove(pin2);
 			}
 		}
 	}
@@ -366,7 +351,7 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 			 * Outgoing request completes.
 			 */
 			c2_list_for_each(pin, &o->rog_want.rl_right.ri_pins)
-				pin_remove(pin);
+				c2_rm_pin_remove(pin);
 			outgoing_delete(out);
 		}
 		for (prio = C2_RM_REQUEST_PRIORITY_MAX; prio >= 0; prio--) {
@@ -602,6 +587,15 @@ int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
 		    &out->rog_want.rl_right.ri_linkage);
 	c2_rm_pin_add(in, &out->rog_want.rl_right);
+}
+
+int c2_rm_right_timedwait(struct c2_rm_incoming *in,
+                          const struct c2_time *deadline)
+{
+}
+
+int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+{
 }
 
 /** @} end of Owner state machine group */
