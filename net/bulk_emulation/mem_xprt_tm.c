@@ -57,7 +57,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 
 		/* broadcast on cond and wait for work item queue to empty */
 		c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
-		while (!c2_list_is_empty(&tp->xtm_work_list) &&
+		while (!c2_list_is_empty(&tp->xtm_work_list) ||
 		       tp->xtm_callback_counter > 1)
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
