@@ -14,8 +14,15 @@
 #include "rpc/session_u.h" 
 //#include "rpc/session.ff"
 #include "rpc/session_int.h"
+#include "db/db.h"
 
 const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
+const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
+
+/**
+   Global reply cache 
+ */
+struct c2_rpc_reply_cache	c2_rpc_reply_cache;
 
 int c2_rpc_slot_table_key_cmp(struct c2_table *table, const void *key0,
 				const void *key1)
@@ -49,6 +56,60 @@ const struct c2_table_ops c2_rpc_slot_table_ops = {
         },
         .key_cmp = c2_rpc_slot_table_key_cmp
 };
+
+int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
+			struct c2_dbenv *dbenv)
+{
+	int	rc;
+
+	printf("reply_cache_init: called\n");
+
+	C2_PRE(dbenv != NULL);
+	rcache->rc_dbenv = dbenv;
+
+	C2_ALLOC_PTR(rcache->rc_slot_table);
+	C2_ALLOC_PTR(rcache->rc_inmem_slot_table);
+
+	C2_ASSERT(rcache->rc_slot_table != NULL &&
+			rcache->rc_inmem_slot_table != NULL);
+
+	c2_list_init(&rcache->rc_item_list);
+
+	rc = c2_table_init(rcache->rc_slot_table, rcache->rc_dbenv,
+			C2_RPC_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
+	if (rc != 0)
+		goto errout;
+
+	/*
+	  XXX find out how to create an in memory c2_table
+	 */
+	rc = c2_table_init(rcache->rc_inmem_slot_table, rcache->rc_dbenv,
+			C2_RPC_INMEM_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
+	if (rc != 0) {
+		c2_table_fini(rcache->rc_slot_table);
+		goto errout;
+	}
+	return 0;		/* success */
+
+errout:
+	if (rcache->rc_slot_table != NULL)
+		c2_free(rcache->rc_slot_table);
+	if (rcache->rc_inmem_slot_table != NULL)
+		c2_free(rcache->rc_inmem_slot_table);
+	return rc;
+}
+
+void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache)
+{
+	printf("reply_cache_fini called \n");
+
+	C2_ASSERT(rcache != NULL && rcache->rc_dbenv != NULL &&
+			rcache->rc_slot_table != NULL &&
+			rcache->rc_inmem_slot_table != NULL);
+
+	c2_table_fini(rcache->rc_inmem_slot_table);
+	c2_table_fini(rcache->rc_slot_table);
+}
 
 int c2_rpc_session_module_init(void)
 {
@@ -194,24 +255,6 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
 }
 
 /**
-   In core slot table stores attributes of slots which
-   are not needed to be persistent.
-   Key is same as c2_rpc_slot_table_key.
-   Value is modified in transaction. So no explicit lock required.
- */
-struct c2_rpc_in_core_slot_table_value {
-	/** A request is being executed on this slot */
-	bool		ics_busy;
-};
-
-/**
-   Temporary mechanism to cache reply items.
-   We don't yet have methods to serialize rpc-item in a buffer, so as to be
-   able to store them in db table.
- */
-struct c2_list		c2_reply_cache_list;
-
-/**
    Insert a reply item in reply cache and advance slot version.
    
    In the absence of stable transaction APIs, we're using
@@ -231,12 +274,7 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 	int				rc;
 
 	printf("Called reply cache insert\n");
-	C2_ALLOC_PTR(slot_table);
-	C2_ASSERT(slot_table != NULL);
-	/* XXX need a better way to obtain a pointer to c2_table * slot table*/
-	rc = c2_table_init(slot_table, tx->dt_env, C2_RPC_SLOT_TABLE_NAME, 0,
-				&c2_rpc_slot_table_ops);
-	C2_ASSERT(rc == 0);
+	slot_table = c2_rpc_reply_cache.rc_slot_table;
 
 	key.stk_sender_id = item->ri_sender_id;
 	key.stk_session_id = item->ri_session_id;
@@ -257,13 +295,11 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 	if (rc != 0)
 		goto out;
 
-	c2_list_add(&c2_reply_cache_list, &(item->ri_rc_link));
+	c2_list_add(&c2_rpc_reply_cache.rc_item_list, &(item->ri_rc_link));
 
 out:
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-	c2_table_fini(slot_table);
-	c2_free(slot_table);
 	return 0;
 }
 
@@ -294,15 +330,15 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
 
 enum c2_rpc_session_seq_check_result {
 	/** item is valid in sequence. accept it */
-	RSSC_ACCEPT_ITEM,
+	SCR_ACCEPT_ITEM,
 	/** item is duplicate of request whose reply is cached in reply cache*/
-	RSSC_RESEND_REPLY,
+	SCR_RESEND_REPLY,
 	/** Already received this item and its processing is in progress */
-	RSSC_IGNORE_ITEM,
+	SCR_IGNORE_ITEM,
 	/** Item is not in seq. send err msg to sender */
-	RSSC_SEND_ERROR_MISORDERED,
+	SCR_SEND_ERROR_MISORDERED,
 	/** Invalid session or slot */
-	RSSC_SESSION_INVALID
+	SCR_SESSION_INVALID
 };
 
 /**
@@ -311,9 +347,29 @@ enum c2_rpc_session_seq_check_result {
    'reply_out' is valid only if return value is RESEND_REPLY.
  */
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
-		struct c2_rpc_item *rpc_item, struct c2_rpc_item **reply_out)
+		struct c2_rpc_item *item, struct c2_rpc_item **reply_out)
 {
-	return RSSC_ACCEPT_ITEM;
+/*
+	struct c2_table			*slot_table;
+	struct c2_table			*inmem_slot_table;
+	struct c2_rpc_slot_table_key	key;
+	struct c2_rpc_slot_table_value	value;
+	struct c2_db_tx			tx;
+	int				rc;
+
+	printf("item_received called\n");
+	C2_PRE(item != NULL);
+
+	if (item->ri_sender_id == SENDER_ID_INVALID) {
+		printf("Sender id is invalid. accepting item\n");
+		return SCR_ACCEPT_ITEM;
+	}
+	key.stk_sender_id = item->ri_sender_id;
+	key.stk_session_id = item->ri_session_id;
+	key.stk_slot_id = item->ri_slot_id;
+	key.stk_slot_generation = item->ri_generation_id;
+*/
+	return SCR_ACCEPT_ITEM;
 }
 
 /**

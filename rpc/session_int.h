@@ -32,6 +32,17 @@ struct c2_rpc_slot_table_value {
 	char		stv_data[0];
 };
 
+/**
+   In core slot table stores attributes of slots which
+   are not needed to be persistent.
+   Key is same as c2_rpc_slot_table_key.
+   Value is modified in transaction. So no explicit lock required.
+ */
+struct c2_rpc_in_core_slot_table_value {
+        /** A request is being executed on this slot */
+        bool            ics_busy;
+};
+
 extern const struct c2_table_ops c2_rpc_slot_table_ops;
 
 /**
@@ -45,13 +56,31 @@ extern int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
 extern int c2_rpc_session_module_init(void);
 extern void c2_rpc_session_module_fini(void);
 
-
 /**
-   Temporary mechanism to cache reply items.
-   We don't yet have methods to serialize rpc-item in a buffer, so as to be
-   able to store them in db table.
+   Temporary reply cache arrangement until we implement reply cache
+   in cob framework.
+   There will be only one global object of this type.
  */
-extern struct c2_list          c2_reply_cache_list;
+struct c2_rpc_reply_cache {
+	/** dbenv to which slot table belong */
+	struct c2_dbenv		*rc_dbenv;
+	/** persistent slot table
+	    XXX currently we don't store reply items in this table
+	 */
+	struct c2_table		*rc_slot_table;
+	/** In memory slot table */
+	struct c2_table		*rc_inmem_slot_table;
+	/**
+	   Temporary mechanism to cache reply items.
+	   We don't yet have methods to serialize rpc-item in a buffer, so as to be
+	   able to store them in db table.
+ 	*/
+	struct c2_list          rc_item_list;
+};
+extern struct c2_rpc_reply_cache c2_rpc_reply_cache;
+int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
+				struct c2_dbenv *dbenv);
+void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache);
 
 #endif
 

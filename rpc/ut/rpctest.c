@@ -20,39 +20,35 @@
 char db_name[] = "rpc_test_db";
 
 struct c2_dbenv			*db;
-struct c2_table			*slot_table;
+
 void init()
 {
 	int				rc;
 
 	C2_ALLOC_PTR(db);
-	C2_ALLOC_PTR(slot_table);
-	C2_ASSERT(db != NULL && slot_table != NULL);
+	C2_ASSERT(db != NULL);
 
 	rc = c2_dbenv_init(db, db_name, 0);
 	C2_ASSERT(rc == 0);
 
+	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 	C2_ASSERT(rc == 0);
-
-	rc = c2_table_init(slot_table, db, C2_RPC_SLOT_TABLE_NAME, 0,
-		&c2_rpc_slot_table_ops);
-	C2_ASSERT(rc == 0);
-
-	/* XXX temporary reply cache */
-	c2_list_init(&c2_reply_cache_list);
 
 	printf("dbenv created\n");
 }
 void traverse_slot_table()
 {
+	struct c2_table			*slot_table;
 	struct c2_db_cursor		cursor;
 	struct c2_db_pair		db_pair;
 	struct c2_rpc_slot_table_key	key;
 	struct c2_rpc_slot_table_value	value;
 	struct c2_db_tx			tx;
 	int				rc;
-
 	printf("========= SLOT TABLE ==============\n");
+
+	slot_table = c2_rpc_reply_cache.rc_slot_table;
+
 	rc = c2_db_tx_init(&tx, db, 0);
 	C2_ASSERT(rc == 0);
 
@@ -109,7 +105,6 @@ int main(void)
 	fom_cc = (struct c2_rpc_fom_conn_create *)fom;
 
 	fom_cc->fcc_dbenv = db;
-	fom_cc->fcc_slot_table = slot_table;
 	c2_db_tx_init(&fom_cc->fcc_tx, db, 0);
 
 	fom->fo_ops->fo_state(fom);
@@ -152,7 +147,6 @@ int main(void)
 
 	fom_sc = (struct c2_rpc_fom_session_create *)fom;
 	fom_sc->fsc_dbenv = db;
-	fom_sc->fsc_slot_table = slot_table;
 	c2_db_tx_init(&fom_sc->fsc_tx, db, 0);
 
 	fom->fo_ops->fo_state(fom);
@@ -177,6 +171,8 @@ int main(void)
 	fom->fo_ops->fo_fini(fom);
 
 	traverse_slot_table();
+
+	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();
 	printf("program end\n");
 	return 0;

@@ -54,8 +54,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 	printf("Called conn_create_state\n");
 	C2_PRE(fom != NULL && fom->fcc_fop != NULL &&
 			fom->fcc_fop_rep != NULL &&
-			fom->fcc_dbenv != NULL &&
-			fom->fcc_slot_table != NULL);
+			fom->fcc_dbenv != NULL);
 
 	fop = fom->fcc_fop;
 	fop_in = c2_fop_data(fop);
@@ -84,7 +83,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 	value.stv_verno.vn_vc = 0;
 	value.stv_reply_len = 0;
 
-	c2_db_pair_setup(&db_pair, fom->fcc_slot_table, &key, sizeof key,
+	c2_db_pair_setup(&db_pair, c2_rpc_reply_cache.rc_slot_table,
+				&key, sizeof key,
 				&value, sizeof value);
 
 	rc = c2_table_insert(&fom->fcc_tx, &db_pair);
@@ -150,8 +150,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	printf("Called session_create_state\n");
 	C2_PRE(fom != NULL && fom->fsc_fop != NULL &&
 			fom->fsc_fop_rep != NULL &&
-			fom->fsc_dbenv != NULL &&
-			fom->fsc_slot_table != NULL);
+			fom->fsc_dbenv != NULL); 
 
 	fop = fom->fsc_fop;
 	fop_in = c2_fop_data(fop);
@@ -178,7 +177,8 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	value.stv_verno.vn_vc = 0;
 	value.stv_reply_len = 0;
 
-	c2_db_pair_setup(&db_pair, fom->fsc_slot_table, &key, sizeof key,
+	c2_db_pair_setup(&db_pair, c2_rpc_reply_cache.rc_slot_table,
+				&key, sizeof key,
 				&value, sizeof value);
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
 		key.stk_slot_id = i;

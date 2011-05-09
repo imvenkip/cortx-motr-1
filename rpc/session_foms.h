@@ -21,7 +21,6 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
 	struct c2_dbenv		*fcc_dbenv;
-	struct c2_table		*fcc_slot_table;
 	struct c2_db_tx		fcc_tx;
 };
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
@@ -40,7 +39,6 @@ struct c2_rpc_fom_session_create {
 	struct c2_fop		*fsc_fop;
 	struct c2_fop		*fsc_fop_rep;
 	struct c2_dbenv		*fsc_dbenv;
-	struct c2_table		*fsc_slot_table;
 	struct c2_db_tx		fsc_tx;
 };
 
