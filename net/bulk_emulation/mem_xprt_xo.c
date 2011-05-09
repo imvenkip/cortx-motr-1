@@ -498,7 +498,8 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	if (tp->xtm_state != C2_NET_XTM_STOPPED &&
-	    tp->xtm_state != C2_NET_XTM_FAILED)
+	    tp->xtm_state != C2_NET_XTM_FAILED &&
+	    tp->xtm_state != C2_NET_XTM_INITIALIZED)
 		return -EBUSY;
 
 	c2_mutex_lock(&tm->ntm_mutex);
