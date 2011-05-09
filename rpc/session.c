@@ -193,18 +193,6 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
 	return 0;
 }
 
-void c2_rpc_session_ops_register(struct c2_rpc_session *session,
-                                struct c2_rpc_session_ops *ops)
-{
-        C2_PRE(session != NULL && session->s_ops == NULL);
-        session->s_ops = ops;
-}
-
-void c2_rpc_session_ops_unregister(struct c2_rpc_session *session)
-{
-        session->s_ops = NULL;
-}
-
 /**
    In core slot table stores attributes of slots which
    are not needed to be persistent.
@@ -217,6 +205,13 @@ struct c2_rpc_in_core_slot_table_value {
 };
 
 /**
+   Temporary mechanism to cache reply items.
+   We don't yet have methods to serialize rpc-item in a buffer, so as to be
+   able to store them in db table.
+ */
+struct c2_list		c2_reply_cache_list;
+
+/**
    Insert a reply item in reply cache and advance slot version.
    
    In the absence of stable transaction APIs, we're using
@@ -227,8 +222,73 @@ struct c2_rpc_in_core_slot_table_value {
    the cache contains the pointer (block address) to the location
    of the data.
  */
-int c2_rpc_reply_cache_insert(struct c2_rpc_item *rpc_item, struct c2_db_tx *tx)
+int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 {
+	struct c2_table			*slot_table;
+	struct c2_db_pair		pair;
+	struct c2_rpc_slot_table_key	key;
+	struct c2_rpc_slot_table_value	value;
+	int				rc;
+
+	printf("Called reply cache insert\n");
+	C2_ALLOC_PTR(slot_table);
+	C2_ASSERT(slot_table != NULL);
+	/* XXX need a better way to obtain a pointer to c2_table * slot table*/
+	rc = c2_table_init(slot_table, tx->dt_env, C2_RPC_SLOT_TABLE_NAME, 0,
+				&c2_rpc_slot_table_ops);
+	C2_ASSERT(rc == 0);
+
+	key.stk_sender_id = item->ri_sender_id;
+	key.stk_session_id = item->ri_session_id;
+	key.stk_slot_id = item->ri_slot_id;
+	key.stk_slot_generation = item->ri_slot_generation;
+
+	C2_SET0(&value);
+
+	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
+				&value, sizeof value);
+	rc = c2_table_lookup(tx, &pair);
+	if (rc != 0)
+		goto out;
+
+	printf("rc_insert: current value: %lu\n", value.stv_verno.vn_vc);
+	value.stv_verno.vn_vc++;
+	rc = c2_table_update(tx, &pair);
+	if (rc != 0)
+		goto out;
+
+	c2_list_add(&c2_reply_cache_list, &(item->ri_rc_link));
+
+out:
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_table_fini(slot_table);
+	c2_free(slot_table);
+	return 0;
+}
+
+int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
+				struct c2_rpc_item *reply,
+				struct c2_db_tx *tx)
+{
+	C2_PRE(req != NULL && reply != NULL && tx != NULL);
+
+	printf("Called prepare reply item\n");
+	reply->ri_sender_id = req->ri_sender_id;
+	reply->ri_session_id = req->ri_session_id;
+	reply->ri_slot_id = req->ri_slot_id;
+	reply->ri_slot_generation = req->ri_slot_generation;
+	reply->ri_verno = req->ri_verno;
+
+	/*
+	  rpc_conn_create request comes with ri_sender_id set to
+	  SENDER_ID_INVALID. Don't cache reply of such requests.
+	 */
+	if (req->ri_sender_id != SENDER_ID_INVALID) {
+		c2_rpc_reply_cache_insert(reply, tx);
+	} else {
+		printf("it's conn create req. not caching reply\n");
+	}	
 	return 0;
 }
 

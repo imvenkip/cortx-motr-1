@@ -347,13 +347,14 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 	.rto_pack       = fol_pack
 };
 
-inline struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
+struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 {
-	return (struct c2_rpc_item *)fop;
+	return &fop->f_item;
 }
-inline struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item)
+
+struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item)
 {
-	return (struct c2_fop *)item;
+	return container_of(item, struct c2_fop, f_item);
 }
 
 #endif /* __KERNEL__ */

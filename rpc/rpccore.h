@@ -275,8 +275,11 @@ struct c2_rpc_item {
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
 	uint32_t			ri_slot_id;
+	uint64_t			ri_slot_generation;
 	/** ri_verno acts as sequence counter */
 	struct c2_verno			ri_verno;
+	/** XXX temporary field to put item on in-core reply cache list */
+	struct c2_list_link			ri_rc_link;
 	
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type *ri_type;

@@ -86,17 +86,12 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 
 	c2_db_pair_setup(&db_pair, fom->fcc_slot_table, &key, sizeof key,
 				&value, sizeof value);
-	rc = c2_db_tx_init(&fom->fcc_tx, fom->fcc_dbenv, 0);
-	if (rc != 0) {
-		printf("conn_create_state: Error while initializing tx\n");
-		goto errout;
-	}
+
 	rc = c2_table_insert(&fom->fcc_tx, &db_pair);
 	if (rc != 0 && rc != -EEXIST) {
 		printf("conn_create_state: error while inserting record\n");
-		goto errabort;
+		goto errout;
 	}
-	rc = c2_db_tx_commit(&fom->fcc_tx);
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 
@@ -107,10 +102,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 	printf("conn_create_state: conn created\n");
 	fom_in->fo_phase = FOPH_DONE;
 	return FSO_AGAIN;
-errabort:
-	if (rc != 0) {
-		c2_db_tx_abort(&fom->fcc_tx);
-	}
+
 errout:
 	fop_out->rccr_snd_id = SENDER_ID_INVALID;
 	fop_out->rccr_rc = rc;
@@ -188,20 +180,14 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 
 	c2_db_pair_setup(&db_pair, fom->fsc_slot_table, &key, sizeof key,
 				&value, sizeof value);
-	rc = c2_db_tx_init(&fom->fsc_tx, fom->fsc_dbenv, 0);
-	if (rc != 0) {
-		printf("session_create_state: Error while initializing tx\n");
-		goto errout;
-	}
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
 		key.stk_slot_id = i;
 		rc = c2_table_insert(&fom->fsc_tx, &db_pair);
 		if (rc != 0 && rc != -EEXIST) {
 			printf("conn_create_state: error while inserting record\n");
-			goto errabort;
+			goto errout;
 		}
 	}
-	rc = c2_db_tx_commit(&fom->fsc_tx);
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 
@@ -210,8 +196,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	fom_in->fo_phase = FOPH_DONE;
 	printf("Session create finished\n");
 	return FSO_AGAIN;
-errabort:
-	c2_db_tx_abort(&fom->fsc_tx);
+
 errout:
 	fop_out->rscr_rc = rc;
 	fop_out->rscr_session_id = SESSION_ID_INVALID;

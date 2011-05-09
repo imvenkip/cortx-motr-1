@@ -35,20 +35,23 @@ struct c2_rpc_slot_table_value {
 extern const struct c2_table_ops c2_rpc_slot_table_ops;
 
 /**
-   Register session ops
-   C2_PRE(session->s_ops == NULL)
-   C2_POST(session->s_ops == ops)
+   Copies all session related information from @req to @reply.
+   Caches reply item @reply in persistent cache in the context of @tx.
  */
-extern void c2_rpc_session_ops_register(struct c2_rpc_session *session,
-				struct c2_rpc_session_ops *ops);
-/**
-   Unregisters session ops
-   C2_PRE(session->s_ops != NULL)
-   C2_POST(session->s_ops == NULL)
- */
-extern void c2_rpc_session_ops_unregister(struct c2_rpc_session *session);
+extern int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
+				struct c2_rpc_item *reply,
+                                struct c2_db_tx *tx);
 
 extern int c2_rpc_session_module_init(void);
 extern void c2_rpc_session_module_fini(void);
+
+
+/**
+   Temporary mechanism to cache reply items.
+   We don't yet have methods to serialize rpc-item in a buffer, so as to be
+   able to store them in db table.
+ */
+extern struct c2_list          c2_reply_cache_list;
+
 #endif
 

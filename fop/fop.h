@@ -259,8 +259,9 @@ struct c2_fop_field_instance {
 int  c2_fops_init(void);
 void c2_fops_fini(void);
 
-extern inline struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *);
-extern inline struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *);
+struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
+struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item);
+
 #include "fop/fop_format.h"
 
 /** @} end of fop group */

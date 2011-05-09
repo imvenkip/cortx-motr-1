@@ -395,7 +395,7 @@ struct c2_rpc_session {
 	/** Array of pointers to slots */
 	struct c2_rpc_snd_slot 		**s_slot_table;
 	/** Session ops */
-	struct c2_rpc_session_ops	 *s_ops;
+	const struct c2_rpc_session_ops	 *s_ops;
 };
 
 /**
