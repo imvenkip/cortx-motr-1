@@ -50,9 +50,10 @@ void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	endp_unit = container_of(ref, struct c2_rpc_form_item_summary_unit, isu_ref);
 	c2_mutex_fini(endp_unit->isu_unit_lock);
 	c2_list_del(endp_unit->isu_linkage);
-	c2_list_fini(endp_unit->isu_file_list);
 	c2_list_fini(endp_unit->isu_groups_list);
 	c2_list_fini(endp_unit->isu_coalesced_items_list);
+	c2_list_fini(endp_unit->isu_fid_list);
+	c2_list_fini(endp_unit->isu_unformed_items);
 	c2_mutex_fini(&endp_unit->isu_rpcobj_formed_list.rl_lock);
 	c2_mutex_fini(&endp_unit->isu_rpcobj_checked_list.rl_lock);
 	c2_free(endp_unit);
@@ -69,8 +70,9 @@ struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(struct c
 	endp_unit = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit));
 	c2_list_add(formation_summary.is_endp_list.l_head, endp_unit->isu_linkage);
 	c2_list_init(endp_unit->isu_groups_list);
-	c2_list_init(endp_unit->isu_files_list);
 	c2_list_init(endp_unit->isu_coalesced_items_list);
+	c2_list_init(endp_unit->isu_unformed_list);
+	c2_list_init(endp_unit->isu_fid_list);
 	c2_mutex_init(&endp_unit->isu_rpcobj_formed_list.rl_lock);
 	c2_mutex_init(&endp_unit->isu_rpcobj_checked_list.rl_lock);
 	c2_ref_init(&endp_unit->isu_ref, 1, c2_rpc_form_item_summary_unit_destroy);
@@ -453,6 +455,8 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	     structure and fill necessary data.
 	 */
 
+	c2_list_add(&endp_unit->isu_unformed_items.l_head, 
+			item->ri_unformed_linkage);
 	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, summary_group, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
 		if (summary_group->sug_group == item->ri_group) {
 			found = true;
@@ -646,6 +650,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		c2_list_add(forming_list.l_head, item->rpcobject_linkage);
 		rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
 		item->ri_state = RPC_ITEM_ADDED;
+		c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+		c2_list_del(item->rio_unformed_linkage);
 	}
 	/* XXX curr rpcs in flight will be taken care by
 	   output component. */
@@ -663,8 +669,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_mutex_lock(&cache_list->ic_mutex);
-	c2_list_for_each_entry(cache_list->ic_cache_list.l_head, rpc_item, 
-			struct c2_rpc_item, rpcobject_linkage) {
+	c2_list_for_each_entry(endp_unit->isu_unformed_items.l_head, rpc_item, struct c2_rpc_item, rio_unformed_linkage) {
 		item_size = rpc_item->ri_type->rit_ops->rio_item_size(item);
 		/* 1. If there are urgent items, form them immediately. */
 		if ((rpc_item->ri_deadline.tv_sec == 0) &&
@@ -673,7 +678,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
 				rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
 				item->ri_state = RPC_ITEM_ADDED;
-				
+				c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+				c2_list_del(item->rio_unformed_linkage);
 			}
 			else {
 				/* Forming list complete.*/
