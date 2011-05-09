@@ -151,7 +151,8 @@ void client(struct client_params *params)
 	c2_mutex_init(&cctx.pc_mutex);
 	c2_cond_init(&cctx.pc_cond);
 	rc = ping_client_init(&cctx, &server_ep);
-	C2_ASSERT(rc == 0);
+	if (rc != 0)
+		goto fail;
 
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
@@ -165,6 +166,7 @@ void client(struct client_params *params)
 
 	rc = ping_client_fini(&cctx, server_ep);
 	C2_ASSERT(rc == 0);
+fail:
 	c2_cond_fini(&cctx.pc_cond);
 	c2_mutex_fini(&cctx.pc_mutex);
 }

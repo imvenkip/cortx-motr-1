@@ -410,19 +410,22 @@ void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_IMPOSSIBLE("Client: Active Send CB\n");
 }
 
-void c_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
 	C2_ASSERT(ev->nev_qtype == C2_NET_QT_NR);
-	if (ev->nev_status == 0) {
+	if (ev->nev_next_state != C2_NET_TM_UNDEFINED) {
 		const char *s = "unexpected";
-		if (ev->nev_payload == (void *) C2_NET_TM_STARTED)
+		if (ev->nev_next_state == C2_NET_TM_STARTED)
 			s = "started";
-		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
+		else if (ev->nev_next_state == C2_NET_TM_STOPPED)
 			s = "stopped";
-		ctx->pc_ops->pf("%s: Event CB state change to %s\n",
-				ctx->pc_ident, s);
+		else if (ev->nev_next_state == C2_NET_TM_FAILED)
+			s = "FAILED";
+		ctx->pc_ops->pf("%s: Event CB state change to %s, status %d\n",
+				ctx->pc_ident, s, ev->nev_status);
+		ctx->pc_status = ev->nev_status;
 	} else if (ev->nev_status < 0)
 		ctx->pc_ops->pf("%s: Event CB for error %d\n",
 				ctx->pc_ident, ev->nev_status);
@@ -440,7 +443,7 @@ struct c2_net_tm_callbacks ctm_cb = {
 	.ntc_passive_bulk_send_cb = c_p_send_cb,
 	.ntc_active_bulk_recv_cb  = c_a_recv_cb,
 	.ntc_active_bulk_send_cb  = c_a_send_cb,
-	.ntc_event_cb		  = c_event_cb
+	.ntc_event_cb		  = event_cb
 };
 
 static void server_event_ident(char *buf, const char *ident,
@@ -642,27 +645,6 @@ void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	ping_buf_put(ctx, ev->nev_buffer);
 }
 
-void s_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
-{
-	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
-
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_NR);
-	if (ev->nev_status == 0) {
-		const char *s = "unexpected";
-		if (ev->nev_payload == (void *) C2_NET_TM_STARTED)
-			s = "started";
-		else if (ev->nev_payload == (void *) C2_NET_TM_STOPPED)
-			s = "stopped";
-		ctx->pc_ops->pf("%s: Event CB state change to %s\n",
-				ctx->pc_ident, s);
-	} else if (ev->nev_status < 0)
-		ctx->pc_ops->pf("%s: Event CB for error %d\n",
-				ctx->pc_ident, ev->nev_status);
-	else
-		ctx->pc_ops->pf("%s: Event CB for diagnostic %d\n",
-				ctx->pc_ident, ev->nev_status);
-}
-
 struct c2_net_tm_callbacks stm_cb = {
 	.ntc_msg_recv_cb = s_m_recv_cb,
 	.ntc_msg_send_cb = s_m_send_cb,
@@ -670,7 +652,7 @@ struct c2_net_tm_callbacks stm_cb = {
 	.ntc_passive_bulk_send_cb = s_p_send_cb,
 	.ntc_active_bulk_recv_cb = s_a_recv_cb,
 	.ntc_active_bulk_send_cb = s_a_send_cb,
-	.ntc_event_cb = s_event_cb
+	.ntc_event_cb = event_cb
 };
 
 void ping_fini(struct ping_ctx *ctx);
@@ -795,8 +777,15 @@ int ping_init(struct ping_ctx *ctx)
 	/* wait for tm to notify it has started */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	if (ctx->pc_tm.ntm_state != C2_NET_TM_STARTED) {
+		rc = ctx->pc_status;
+		if (rc == 0)
+			rc = -EINVAL;
+		fprintf(stderr, "transfer machine start failed: %d\n", rc);
+		goto fail;
+	}
 
-	return 0;
+	return rc;
 fail:
 	ping_fini(ctx);
 	return rc;
@@ -805,17 +794,20 @@ fail:
 void ping_fini(struct ping_ctx *ctx)
 {
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
-		struct c2_clink tmwait;
+		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
+			struct c2_clink tmwait;
+			c2_clink_init(&tmwait, NULL);
+			c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+
+			c2_net_tm_stop(&ctx->pc_tm, true);
+			c2_chan_wait(&tmwait); /* wait for it to stop */
+			c2_clink_del(&tmwait);
+		}
+
 		struct c2_time delay, rem;
-		c2_clink_init(&tmwait, NULL);
-		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
-
-		c2_net_tm_stop(&ctx->pc_tm, true);
-		c2_chan_wait(&tmwait); /* wait for it to stop */
-		c2_clink_del(&tmwait);
-
 		while (1) {
-			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED &&
+			if ((ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
+			     ctx->pc_tm.ntm_state == C2_NET_TM_FAILED) &&
 			    c2_net_tm_fini(&ctx->pc_tm) != -EBUSY)
 				break;
 			c2_time_set(&delay, 0, 1000L);

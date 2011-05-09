@@ -17,6 +17,7 @@ struct ping_ctx {
 	const char                 *pc_hostname;
 	short			    pc_port;
 	uint32_t		    pc_id;
+	int32_t			    pc_status;
 	const char                 *pc_rhostname;
 	short			    pc_rport;
 	uint32_t		    pc_rid;
