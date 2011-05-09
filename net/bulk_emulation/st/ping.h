@@ -24,6 +24,7 @@ struct ping_ctx {
 	uint32_t                    pc_nr_bufs;
 	uint32_t                    pc_segments;
 	uint32_t                    pc_seg_size;
+	int32_t			    pc_passive_size;
 	struct c2_net_buffer       *pc_nbs;
 	struct c2_bitmap	    pc_nbbm;
 	struct c2_net_end_point    *pc_ep;

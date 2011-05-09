@@ -109,6 +109,7 @@ struct client_params {
 	int loops;
 	int nr_bufs;
 	int client_id;
+	int passive_size;
 	const char *local_host;
 	const char *remote_host;
 };
@@ -119,6 +120,7 @@ void client(struct client_params *params)
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char                     ident[24];
+	char			*bp = NULL;
 	struct ping_ctx		 cctx = {
 		.pc_xprt = params->xprt->px_xprt,
 		.pc_hostname = params->local_host,
@@ -127,6 +129,7 @@ void client(struct client_params *params)
 		.pc_nr_bufs = params->nr_bufs,
 		.pc_segments = PING_CLIENT_SEGMENTS,
 		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
+		.pc_passive_size = params->passive_size,
 		.pc_ident = ident,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
@@ -154,17 +157,25 @@ void client(struct client_params *params)
 	if (rc != 0)
 		goto fail;
 
+	if (params->passive_size != 0) {
+		bp = c2_alloc(params->passive_size);
+		C2_ASSERT(bp != NULL);
+		for (i = 0; i < params->passive_size; ++i)
+			bp[i] = "abcdefghi"[i % 9];
+	}
+
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
 		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
 		C2_ASSERT(rc == 0);
-		rc = ping_client_passive_send(&cctx, server_ep, NULL);
+		rc = ping_client_passive_send(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
 	}
 
 	rc = ping_client_fini(&cctx, server_ep);
+	c2_free(bp);
 	C2_ASSERT(rc == 0);
 fail:
 	c2_cond_fini(&cctx.pc_cond);
@@ -219,6 +230,7 @@ int main(int argc, char *argv[])
 	int			 base_port = 0;
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
+	int			 passive_size = 0;
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
@@ -237,6 +249,8 @@ int main(int argc, char *argv[])
 						     remote_name = str; })),
 			C2_FORMATARG('p', "base client port", "%i", &base_port),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
+			C2_FORMATARG('d', "passive data size", "%i",
+				     &passive_size),
 			C2_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
 			C2_STRINGARG('t', "transport-name or \"list\" to "
@@ -268,6 +282,13 @@ int main(int argc, char *argv[])
 			MAX_CLIENT_THREADS);
 		return 1;
 	}
+	if (passive_size < 0 || passive_size >
+	    (PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE) {
+		/* need to leave room for encoding overhead */
+		fprintf(stderr, "Max supported passive data size: %d\n",
+			(PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE);
+		return 1;
+	}
 	if (client_only && server_only)
 		client_only = server_only = false;
 	if (base_port == 0) {
@@ -297,6 +318,7 @@ int main(int argc, char *argv[])
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
+		sctx.pc_passive_size = passive_size;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx);
@@ -330,6 +352,7 @@ int main(int argc, char *argv[])
 			params[i].loops = loops;
 			params[i].nr_bufs = nr_bufs;
 			params[i].client_id = i + 1;
+			params[i].passive_size = passive_size;
 			params[i].local_host = local_name;
 			params[i].remote_host = remote_name;
 

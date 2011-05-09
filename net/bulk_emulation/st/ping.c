@@ -349,9 +349,12 @@ void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Client: got desc\n");
-		else
+		else if (strlen(msg.pm_u.pm_str) < 32)
 			ctx->pc_ops->pf("%s: got data: %s\n",
 					ctx->pc_ident, msg.pm_u.pm_str);
+		else
+			ctx->pc_ops->pf("%s: got data: %lu bytes\n",
+					ctx->pc_ident, strlen(msg.pm_u.pm_str));
 		msg_free(&msg);
 	}
 
@@ -519,7 +522,19 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 						 &nb->nb_desc);
 				nb->nb_ep = NULL; /* not needed */
 				/* reuse encode_msg for convenience */
-				rc = encode_msg(nb, "active pong");
+				if (ctx->pc_passive_size == 0)
+					rc = encode_msg(nb, "active pong");
+				else {
+					char *bp;
+					int i;
+					bp = c2_alloc(ctx->pc_passive_size);
+					C2_ASSERT(bp != NULL);
+					for (i = 0;
+					     i < ctx->pc_passive_size; ++i)
+						bp[i] = "abcdefghi"[i % 9];
+					rc = encode_msg(nb, bp);
+					c2_free(bp);
+				}
 				C2_ASSERT(rc == 0);
 			} else {
 				char *data;
@@ -613,9 +628,12 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Server: got desc\n");
-		else
+		else if (strlen(msg.pm_u.pm_str) < 32)
 			ctx->pc_ops->pf("%s: got data: %s\n",
 					idbuf, msg.pm_u.pm_str);
+		else
+			ctx->pc_ops->pf("%s: got data: %lu bytes\n",
+					idbuf, strlen(msg.pm_u.pm_str));
 		msg_free(&msg);
 	}
 
