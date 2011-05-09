@@ -570,7 +570,7 @@ static void c2_rm_sublet_revoke(struct c2_rm_incoming *in,
 				struct c2_rm_right, ri_linkage) {
 		if (scan intersects rest) {
 			rest = c2_rm_right_diff(rest, scan);
-			loan = container_of(scan, ...);
+			loan = container_of(scan, struct c2_rm_loan, rl_right);
 			/*
 			 * It is possible that this loop emits multiple
 			 * outgoing requests toward the same remote
@@ -608,14 +608,16 @@ int c2_rm_pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	   struct c2_rm_loan *loan, struct c2_rm_right *right)
 {
-	struct c2_rm_outgoint *out;
+	struct c2_rm_outgoint 	*out;
+	int 			result = 0;
 
 	/* first check for existing outgoing requests */
 	for_each_right(scan, in->rin_owner->ro_outgoing[*]) {
 		if (scan->rog_type == otype && scan intersects right) {
 			/* @todo adjust outgoing requests priority (priority
 			   inheritance) */
-			c2_rm_pin_add(in, scan);
+			result = c2_rm_pin_add(in, scan);
+			C2_ASSERT(result == 0);
 			rest = c2_rm_right_diff(rest, scan);
 			break;
 		}
@@ -629,7 +631,10 @@ int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	out->rog_want.rl_right = c2_rm_right_copy(right);
 	c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
 		    &out->rog_want.rl_right.ri_linkage);
-	c2_rm_pin_add(in, &out->rog_want.rl_right);
+	result = c2_rm_pin_add(in, &out->rog_want.rl_right);
+	C2_ASSERT(result == 0);
+
+	return result;
 }
 
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
