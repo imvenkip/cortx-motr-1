@@ -29,7 +29,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	/* locate the tm, identified by its sid in the buffer desc */
 	struct c2_net_transfer_mc *tm =
-		sunrpc_find_tm(in->sg_desc.sbd_passive_ep.sep_id, true, NULL);
+		sunrpc_find_tm(in->sg_desc.sbd_passive_ep.sep_id);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto done2;
@@ -117,7 +117,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	/* locate the tm, identified by its sid in the buffer desc */
 	struct c2_net_transfer_mc *tm =
-		sunrpc_find_tm(in->sp_desc.sbd_passive_ep.sep_id, true, NULL);
+		sunrpc_find_tm(in->sp_desc.sbd_passive_ep.sep_id);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto done2;

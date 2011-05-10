@@ -60,6 +60,7 @@ static struct c2_net_domain  sunrpc_server_domain;
 static struct c2_service_id  sunrpc_server_id;
 static struct c2_service     sunrpc_server_service;
 static uint32_t              sunrpc_server_active_tms = 0;
+static struct c2_mutex       sunrpc_tm_start_mutex;
 
 static bool sunrpc_dom_invariant(struct c2_net_domain *dom)
 {
@@ -110,6 +111,7 @@ static bool sunrpc_buffer_invariant(struct c2_net_buffer *nb)
  */
 void c2_sunrpc_fop_fini(void)
 {
+	c2_mutex_fini(&sunrpc_tm_start_mutex);
 	c2_list_init(&sunrpc_server_tms);
 	c2_mutex_fini(&sunrpc_server_mutex);
 	c2_rwlock_fini(&sunrpc_server_lock);
@@ -135,6 +137,7 @@ int c2_sunrpc_fop_init(void)
 		c2_rwlock_init(&sunrpc_server_lock);
 		c2_mutex_init(&sunrpc_server_mutex);
 		c2_list_init(&sunrpc_server_tms);
+		c2_mutex_init(&sunrpc_tm_start_mutex);
 	}
 	return result;
 }
@@ -144,31 +147,20 @@ C2_EXPORTED(c2_sunrpc_fop_init);
    Search the list of existing transfer machines for the one whose end point
    has the given service ID and return it.
    @param sid service ID of the desired transfer machine
-   @param lock_shared True if a shared lock should be used.
-   @param skip_tm TM to skip while searching.
-   Specify NULL if no TM to be skipped.
    @retval NULL transfer machine not found
    @retval !NULL transfer machine pointer, the transfer machine mutex
    is locked.
  */
-static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid,
-						 bool lock_shared,
-						 struct c2_net_transfer_mc
-						 *skip_tm)
+static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 {
 	struct c2_net_bulk_sunrpc_tm_pvt *tp;
 	struct c2_net_transfer_mc *ret = NULL;
 
-	if (lock_shared)
-		c2_rwlock_read_lock(&sunrpc_server_lock);
-	else
-		c2_rwlock_write_lock(&sunrpc_server_lock);
+	c2_rwlock_read_lock(&sunrpc_server_lock);
 	c2_list_for_each_entry(&sunrpc_server_tms, tp,
 			       struct c2_net_bulk_sunrpc_tm_pvt,
 			       xtm_tm_linkage) {
 		struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
-		if (skip_tm != NULL && tm == skip_tm)
-			continue;
 
 		c2_mutex_lock(&tm->ntm_mutex);
 
@@ -188,10 +180,7 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid,
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
-	if (lock_shared)
-		c2_rwlock_read_unlock(&sunrpc_server_lock);
-	else
-		c2_rwlock_write_unlock(&sunrpc_server_lock);
+	c2_rwlock_read_unlock(&sunrpc_server_lock);
 
 	return ret;
 }
@@ -410,17 +399,32 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(struct c2_net_transfer_mc *tm)
 
 static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
-	struct c2_net_transfer_mc *found_tm;
+	int rc = 0;
 	struct c2_net_end_point *ep = tm->ntm_ep;
-	struct c2_net_bulk_mem_end_point *mep =
-		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	const char *tm_addr = ep->nep_addr;
+	struct c2_net_bulk_sunrpc_tm_pvt *tp;
 
 	C2_PRE(sunrpc_tm_invariant(tm));
-	found_tm = sunrpc_find_tm(mep->xep_service_id, false, tm);
-	if (found_tm != NULL) {
-		c2_mutex_unlock(&found_tm->ntm_mutex);
-		return -EADDRINUSE;
+	c2_mutex_lock(&sunrpc_tm_start_mutex); /* serialize invocation */
+	c2_rwlock_read_lock(&sunrpc_server_lock); /* protect list */
+	c2_list_for_each_entry(&sunrpc_server_tms, tp,
+			       struct c2_net_bulk_sunrpc_tm_pvt,
+			       xtm_tm_linkage) {
+		struct c2_net_transfer_mc *ltm = tp->xtm_base.xtm_tm;
+		if (ltm == tm)
+			continue; /* skip self */
+		ep = ltm->ntm_ep;
+		if (ep == NULL)
+			continue; /* not yet started */
+		if (strcmp(tm_addr, ep->nep_addr) == 0) {
+			rc = -EADDRINUSE;
+			break;
+		}
 	}
+	c2_rwlock_read_unlock(&sunrpc_server_lock);
+	c2_mutex_unlock(&sunrpc_tm_start_mutex);
+	if (rc != 0)
+		return rc;
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_start(tm);
 }
 
