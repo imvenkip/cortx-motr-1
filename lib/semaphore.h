@@ -4,6 +4,7 @@
 #define __COLIBRI_LIB_SEMAPHORE_H__
 
 #include "lib/types.h"
+#include "lib/time.h"
 
 /**
    @defgroup semaphore Dijkstra semaphore
@@ -56,8 +57,6 @@ int c2_semaphore_trydown(struct c2_semaphore *semaphore);
  */
 unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
 
-struct c2_time;
-
 /**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
    given.
@@ -68,7 +67,7 @@ struct c2_time;
 
  */
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const struct c2_time *abs_timeout);
+			    const c2_time_t abs_timeout);
 
 /** @} end of semaphore group */
 

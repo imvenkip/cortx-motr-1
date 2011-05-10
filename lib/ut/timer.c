@@ -13,13 +13,13 @@ static int verbose = 0;
 
 unsigned long tick(unsigned long data)
 {
-	struct c2_time now;
+	c2_time_t now;
 
 	c2_time_now(&now);
 	count ++;
 	if (verbose)
 		printf("%lu.%lu: timer1 tick = %d\n",
-		       c2_time_seconds(&now), c2_time_nanoseconds(&now), count);
+		       c2_time_seconds(now), c2_time_nanoseconds(now), count);
 
 	return 0;
 }
@@ -27,13 +27,13 @@ unsigned long tick(unsigned long data)
 unsigned long tack(unsigned long data)
 {
 	static int tack;
-	struct c2_time now;
+	c2_time_t  now;
 
 	c2_time_now(&now);
 	tack += data;
 	if (verbose)
 		printf("%lu.%lu:    timer2 tack = %d\n",
-			c2_time_seconds(&now), c2_time_nanoseconds(&now), tack);
+			c2_time_seconds(now), c2_time_nanoseconds(now), tack);
 
 	return 0;
 }
@@ -42,33 +42,33 @@ void test_2_timers()
 {
 	struct c2_timer timer1;
 	struct c2_timer timer2;
-	struct c2_time  i1;
-	struct c2_time  i2;
-	struct c2_time  wait;
+	c2_time_t       i1;
+	c2_time_t       i2;
+	c2_time_t       wait;
 
 	c2_time_set(&i1, 1, 0);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, &i1, 5, tick, 0);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, 5, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&i2, 3, 0);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, &i2, 5, tack, 10000);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, 5, tack, 10000);
 	c2_timer_start(&timer2);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
 	/* let's do something, e.g. just waiting */
 	while (count < 5)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer1);
 
 	/* start timer1 again, and do something, e.g. just waiting */
 	c2_timer_start(&timer1);
 	while (count < 8)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer2);
 	c2_timer_fini(&timer2);
 
 	while (count < 10)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 
 	c2_timer_stop(&timer1);
 	c2_timer_fini(&timer1);
@@ -77,24 +77,24 @@ void test_2_timers()
 void timer1_thread(int unused)
 {
 	struct c2_timer timer1;
-	struct c2_time  i1;
-	struct c2_time  wait;
+	c2_time_t       i1;
+	c2_time_t       wait;
 
 	c2_time_set(&i1, 1, 0);
-	c2_timer_init(&timer1, C2_TIMER_SOFT, &i1, 5, tick, 0);
+	c2_timer_init(&timer1, C2_TIMER_SOFT, i1, 5, tick, 0);
 	c2_timer_start(&timer1);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
 	/* let's do something, e.g. just waiting */
 	while (count < 5)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 
 	/* stop and start timer1 again, and do something, e.g. just waiting */
 	c2_timer_stop(&timer1);
 	c2_timer_start(&timer1);
 
 	while (count < 10)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 
 	c2_timer_stop(&timer1);
 	c2_timer_fini(&timer1);
@@ -105,16 +105,16 @@ void timer1_thread(int unused)
 void timer2_thread(int unused)
 {
 	struct c2_timer timer2;
-	struct c2_time  i2;
-	struct c2_time  wait;
+	c2_time_t       i2;
+	c2_time_t       wait;
 
 	c2_time_set(&i2, 3, 0);
-	c2_timer_init(&timer2, C2_TIMER_SOFT, &i2, 5, tack, 10000);
+	c2_timer_init(&timer2, C2_TIMER_SOFT, i2, 5, tack, 10000);
 	c2_timer_start(&timer2);
 
 	c2_time_set(&wait, 0, 500000000); /* 0.5 second */
 	while (count < 8)
-		c2_nanosleep(&wait, NULL);
+		c2_nanosleep(wait, NULL);
 	c2_timer_stop(&timer2);
 	c2_timer_fini(&timer2);
 	if (verbose)

@@ -324,7 +324,7 @@ struct c2_net_stats {
          All counters are 64 bits wide and wrap naturally. We re-zero
          the counters every time we examine the stats so that we have a known
          timebase for rate calculations. */
-        struct c2_time     ns_time;
+        c2_time_t        ns_time;
         /** Counts how many FOPs have been seen by the service workers */
         struct c2_atomic64 ns_reqs;
         /** Bytes inside FOPs, as determined by fop type layout */
