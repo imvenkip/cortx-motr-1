@@ -186,7 +186,7 @@ struct c2_rpc_form_item_summary_unit {
 	/** Linkage into the endpoint list. */
 	struct c2_list_link		*isu_linkage;
 	/** List of structures containing data for each group. */
-	/** c2_list <struct >*/
+	/** c2_list <struct c2_rpc_form_item_summary_unit_group>*/
 	struct c2_list			 isu_groups_list;
 	/** List of files being operated upon, for this endpoint. */
 	/** c2_list <struct >*/
@@ -284,7 +284,7 @@ struct c2_rpc_form_item_summary_unit_group {
 	/** Average time out for items in this group. This number
 	    gives an indication about relative position of group
 	    within the cache list. */
-	uint64_t			 sug_avg_timeout;
+	double				 sug_avg_timeout;
 	/** Cumulative size of rpc items in this group so far. */
 	uint64_t			 sug_total_size;
 };

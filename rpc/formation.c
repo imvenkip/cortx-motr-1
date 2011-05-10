@@ -120,7 +120,7 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 
 	endpoint = c2_rpc_form_get_endpoint(item);
 	if (endp_unit == NULL) {
-		c2_rwlock_read_lock(&formation_summary.is_endp_list_lock);
+		c2_rwlock_write_lock(&formation_summary.is_endp_list_lock);
 		c2_list_for_each_entry(&formation_summary.is_endp_list.l_head, endp_unit, struct c2_rpc_form_item_summary_unit, isu_linkage) {
 			if (endp_unit->isu_endp_id == endpoint) {
 				found = true;
@@ -130,13 +130,13 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		if (found == true) {
 			c2_mutex_lock(endp_unit->isu_unit_lock);
 			c2_ref_get(&endp_unit->isu_ref);
-			c2_rwlock_read_unlock(&formation_summary.is_endp_list_lock);
+			c2_rwlock_write_unlock(&formation_summary.is_endp_list_lock);
 			prev_state = endp_unit->isu_endp_state;
 		}
 		else {
 			/** XXX Add a new summary unit */
 			endp_unit = c2_rpc_form_item_summary_unit_add(endpoint);
-			c2_rwlock_read_unlock(&formation_summary.is_endp_list_lock);
+			c2_rwlock_write_unlock(&formation_summary.is_endp_list_lock);
 			c2_mutex_lock(endp_unit->isu_unit_lock);
 			prev_state = sm_state;
 		}
@@ -420,6 +420,30 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary
 	return 0;
 }
 
+/**
+   Sort the c2_rpc_form_item_summary_unit_group structs according to 
+   increasing value of average timeout.
+ */
+int c2_rpc_form_summary_groups_sort(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_form_item_summary_unit_group *summary_group)
+{
+	int 	list_length = 0;
+	int	i = 0;
+	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(summary_group != NULL);
+
+	c2_list_del(summary_group->sug_linkage);
+	/* Do a simple incremental search for a group having 
+	   average timeout value bigger than that of given group. */
+	list_length = c2_list_length(&endp_unit->isu_groups_list);
+	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, sg, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		if (sg->sug_avg_timeout > summary_group->sug_avg_timeout) {
+			c2_list_add_before(sg->sug_linkage, summary_group->sug_linkage);
+		}
+	}
+	return 0;
+}
 
 /**
    Update the summary_unit data structure on addition of
@@ -479,6 +503,11 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	summary_group->sug_total_size += item->ri_type->rit_ops->rio_item_size(item);
 	summary_group->sug_avg_timeout = ((summary_group->sug_nitems * summary_group->sug_avg_timeout) + item->ri_deadline.tv_sec) / (summary_group->sug_nitems + 1);
 	summary_group->sug_nitems++;
+	/* Put the corresponding c2_rpc_form_item_summary_unit_group
+	   struct in its correct position on least value first basis of
+	   average timeout of group. */
+	res = c2_rpc_form_summary_groups_sort(endp_unit, summary_group);
+
 	/* Init and start the timer for rpc item. */
 	item_timer = c2_alloc(sizeof(struct c2_timer));
 	if (item_timer == NULL) {
@@ -596,6 +625,43 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
 }
 
 /**
+   Add an rpc item to the formed list of an rpc object.
+ */
+int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item,
+		uint64_t *rpcobj_size, struct c2_list *forming_list)
+{
+	int 					 res = 0;
+	uint64_t				 item_size = 0;
+	struct c2_update_stream			*item_update_stream = NULL;
+	bool					 update_stream_busy = false;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
+	C2_PRE(rpcobj_size != NULL);
+
+	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	if ((*rpcobj_size + item_size) < endp_unit->isu_max_message_size) {
+		/** XXX Need this API from rpc-core. */
+		item_update_stream = c2_rpc_get_update_stream(item);
+		/** XXX Need this API from rpc-core. */
+		update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
+		if(update_stream_busy != true) {
+			/** XXX Need this API from rpc-core. */
+			c2_rpc_set_update_stream_status(item_update_stream, BUSY);
+			c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
+			*rpcobj_size += item_size;
+			item->ri_state = RPC_ITEM_ADDED;
+			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+			c2_list_del(item->rio_unformed_linkage);
+		}
+		return 0;
+	}
+	else {
+		return -1;
+	}
+}
+
+/**
    State function for CHECKING state.
  */
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
@@ -608,7 +674,10 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_items_cache		*cache_list = NULL;
 	uint64_t				 rpcobj_size = 0;
 	uint64_t				 item_size = 0;
-	struct c2_update_stream			*item_update_stream = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
+	uint64_t				 group_size = 0;
+	uint64_t				 partial_size = 0;
+	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
@@ -648,20 +717,21 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		}
 	}
 	else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
-		/** XXX Need this API from sessions */
-		item_update_stream = c2_rpc_get_update_stream(item);
-		/** XXX Need this API from sessions */
-		update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
-		if(update_stream_busy != true) {
-			/** XXX Need this API from sessions */
-			c2_rpc_set_update_stream_status(item_update_stream,BUSY);
-			c2_list_add(forming_list.l_head, item->rpcobject_linkage);
-			rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
-			item->ri_state = RPC_ITEM_ADDED;
-			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
-			c2_list_del(item->rio_unformed_linkage);
+		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, &rpcobj_size, forming_list);
+	}
+	/* Iterate over the c2_rpc_form_item_summary_unit_group list in the 
+	   endpoint structure to find out which rpc groups can be included
+	   in the rpc object. */
+	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, sg, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		if ((group_size + sg->sug_total_size) < endp_unit->isu_max_message_size) {
+			group_size += sg->sug_total_size;
+		}
+		else {
+			partial_size = (group_size + sg->sug_total_size) - endp_unit->isu_max_message_size;
+			break;
 		}
 	}
+
 	/* XXX curr rpcs in flight will be taken care by
 	   output component. */
 	/* Core of formation algorithm. */
@@ -683,28 +753,36 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		/* 1. If there are urgent items, form them immediately. */
 		if ((rpc_item->ri_deadline.tv_sec == 0) &&
 				(rpc_item->ri_deadline.tv_nsec == 0)) {
-			if ((rpcobj_size + item_size) < endp_unit->isu_max_message_size) {
-				/** XXX Need this API from sessions */
-				item_update_stream = c2_rpc_get_update_stream(item);
-				/** XXX Need this API from sessions */
-				update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
-				if(update_stream_busy != true) {
-					/** XXX Need this API from sessions */
-					c2_rpc_set_update_stream_status(item_update_stream,BUSY);
-					c2_list_add(&endp_unit->isu_busy_update_streams.l_head, item_update_stream);
-					c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
-					rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
-					item->ri_state = RPC_ITEM_ADDED;
-					c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
-					c2_list_del(item->rio_unformed_linkage);
-				}
-			}
-			else {
+			res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
+			if (res != 0) {
 				/* Forming list complete.*/
 				break;
 			}
 		}
-		/* 2. */
+		/* 2. Check if current rpc item belongs to any of the selected
+		   groups. If yes, add it to forming list. For the last partial
+		   group (if any), check if current rpc item belongs to this
+		   partial group and add the item till size of items in this
+		   partial group reaches its limit within max_message_size. */
+		c2_list_for_each_entry(&endp_unit->isu_groups_list, group, 
+				struct c2_rpc_form_item_summary_unit_group,
+				sug_linkage) {
+			if (item->ri_group == sg->sug_group) {
+				if ((partial_size - item_size) > 0) {
+					partial_size -= item_size;
+					res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
+					if (res != 0) {
+						break;
+					}
+				}
+			}
+			else if (item->ri_group == group->sug_group) {
+				res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
+				if (res != 0) {
+					break;
+				}
+			}
+		}
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
 
