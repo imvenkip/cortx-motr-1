@@ -640,19 +640,28 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
    Add an rpc item to the formed list of an rpc object.
  */
 int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item,
-		uint64_t *rpcobj_size, struct c2_list *forming_list)
+		uint64_t *rpcobj_size, unit64_t *nfragments, struct c2_list *forming_list)
 {
 	int 					 res = 0;
 	uint64_t				 item_size = 0;
 	struct c2_update_stream			*item_update_stream = NULL;
 	bool					 update_stream_busy = false;
+	bool					 io_op = false;
+	uint64_t				 current_fragments = 0;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(rpcobj_size != NULL);
 
+	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
+	if (io_op == true) {
+		/* XXX Implement a method to find out disjoint memory buffers. */
+		current_fragments = item->ri_type->rit_ops->rio_get_fragments(item);
+		if ((*nfragments + current_fragments) > endp_unit->isu_max_fragments_size)
+			return 0;
+	}
 	item_size = item->ri_type->rit_ops->rio_item_size(item);
-	if ((*rpcobj_size + item_size) < endp_unit->isu_max_message_size) {
+	if (((*rpcobj_size + item_size) < endp_unit->isu_max_message_size)) {
 		/** XXX Need this API from rpc-core. */
 		item_update_stream = c2_rpc_get_update_stream(item);
 		/** XXX Need this API from rpc-core. */
@@ -662,6 +671,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 			c2_rpc_set_update_stream_status(item_update_stream, BUSY);
 			c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
 			*rpcobj_size += item_size;
+			*nfragments += current_fragments;
 			item->ri_state = RPC_ITEM_ADDED;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
 			c2_list_del(item->rio_unformed_linkage);
@@ -671,6 +681,16 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 	else {
 		return -1;
 	}
+}
+
+int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
+		struct c2_list *forming_list, uint64_t *rpcobj_size)
+{
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(forming_list != NULL);
+	C2_PRE(rpcobj_size != NULL);
+
+
 }
 
 /**
@@ -692,6 +712,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
 	uint64_t				 nselected_groups = 0;
 	uint64_t				 ncurrent_groups = 0;
+	uint64_t				 nfragments = 0;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
@@ -731,7 +752,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		}
 	}
 	else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
-		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, &rpcobj_size, forming_list);
+		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, &rpcobj_size, &nfragments, forming_list);
 	}
 	/* Iterate over the c2_rpc_form_item_summary_unit_group list in the 
 	   endpoint structure to find out which rpc groups can be included
@@ -768,7 +789,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		/* 1. If there are urgent items, form them immediately. */
 		if ((rpc_item->ri_deadline.tv_sec == 0) &&
 				(rpc_item->ri_deadline.tv_nsec == 0)) {
-			res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
+			res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, &nfragments, forming_list);
 			if (res != 0) {
 				/* Forming list complete.*/
 				break;
@@ -794,7 +815,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 						((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
 				}
-				res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
+				res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, &nfragments, forming_list);
 				if (res != 0) {
 					break;
 				}
@@ -802,6 +823,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		}
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
+	/* Try to do IO colescing for items in forming list. */
+	res = c2_rpc_form_items_coalesce(endp_unit, forming_list, &rpcobj_size);
+	/* Create an rpc object in endp_unit->isu_rpcobj_checked_list. */
 }
 
 /**
