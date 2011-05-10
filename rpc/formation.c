@@ -608,6 +608,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_items_cache		*cache_list = NULL;
 	uint64_t				 rpcobj_size = 0;
 	uint64_t				 item_size = 0;
+	struct c2_update_stream			*item_update_stream = NULL;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
@@ -647,11 +648,19 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		}
 	}
 	else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
-		c2_list_add(forming_list.l_head, item->rpcobject_linkage);
-		rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
-		item->ri_state = RPC_ITEM_ADDED;
-		c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
-		c2_list_del(item->rio_unformed_linkage);
+		/** XXX Need this API from sessions */
+		item_update_stream = c2_rpc_get_update_stream(item);
+		/** XXX Need this API from sessions */
+		update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
+		if(update_stream_busy != true) {
+			/** XXX Need this API from sessions */
+			c2_rpc_set_update_stream_status(item_update_stream,BUSY);
+			c2_list_add(forming_list.l_head, item->rpcobject_linkage);
+			rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
+			item->ri_state = RPC_ITEM_ADDED;
+			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+			c2_list_del(item->rio_unformed_linkage);
+		}
 	}
 	/* XXX curr rpcs in flight will be taken care by
 	   output component. */
@@ -669,17 +678,26 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_mutex_lock(&cache_list->ic_mutex);
-	c2_list_for_each_entry(endp_unit->isu_unformed_items.l_head, rpc_item, struct c2_rpc_item, rio_unformed_linkage) {
+	c2_list_for_each_entry(&endp_unit->isu_unformed_items.l_head, rpc_item, struct c2_rpc_item, rio_unformed_linkage) {
 		item_size = rpc_item->ri_type->rit_ops->rio_item_size(item);
 		/* 1. If there are urgent items, form them immediately. */
 		if ((rpc_item->ri_deadline.tv_sec == 0) &&
 				(rpc_item->ri_deadline.tv_nsec == 0)) {
 			if ((rpcobj_size + item_size) < endp_unit->isu_max_message_size) {
-				c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
-				rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
-				item->ri_state = RPC_ITEM_ADDED;
-				c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
-				c2_list_del(item->rio_unformed_linkage);
+				/** XXX Need this API from sessions */
+				item_update_stream = c2_rpc_get_update_stream(item);
+				/** XXX Need this API from sessions */
+				update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
+				if(update_stream_busy != true) {
+					/** XXX Need this API from sessions */
+					c2_rpc_set_update_stream_status(item_update_stream,BUSY);
+					c2_list_add(&endp_unit->isu_busy_update_streams.l_head, item_update_stream);
+					c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
+					rpcobj_size += rpc_item->ri_type->rit_ops->rio_item_size(item);
+					item->ri_state = RPC_ITEM_ADDED;
+					c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+					c2_list_del(item->rio_unformed_linkage);
+				}
 			}
 			else {
 				/* Forming list complete.*/
@@ -702,6 +720,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	 *rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	 *rpcobj_next = NULL;
 	struct c2_rpc_item		 *rpc_item = NULL;
+	struct c2_update_stream		 *item_update_stream = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
@@ -716,6 +735,10 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		c2_list_for_each_entry(rpcobj->ro_rpcobj->r_items.l_head, rpc_item, struct c2_rpc_item, ri_linkage) {
 			res = c2_rpc_session_item_prepare(rpc_item);
 			if (res != 0) {
+				/** XXX Need this API from sessions */
+				item_update_stream = c2_rpc_get_update_stream(item);
+				/** XXX Need this API from sessions */
+				c2_rpc_set_update_stream_status(item_update_stream, FREE);
 				c2_list_del(&rpc_item->ri_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
 				/* XXX Need to add ri_unformed_linkage 
