@@ -113,7 +113,7 @@
 
    As in many other places in Colibri, liveness of "global" long-living
    structures (c2_rm_domain, c2_rm_resource_type) is managed by the upper
-   layers which are responsible fore determining when it is safe to finalise
+   layers which are responsible for determining when it is safe to finalise
    the structures. Typically, an upper layer would achieve this by first
    stopping and finalising all possible resource manager users.
 
@@ -127,6 +127,8 @@
    borrowed from other owners.
 
    <b>Resource identification and location.</b>
+
+   @see c2_rm_remote
 
    <b>Persistent state.</b>
 
