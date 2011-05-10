@@ -100,7 +100,7 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
 	   errno is ETIMEDOUT;
  */
 bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
-		       const struct c2_time *abs_timeout);
+		       const c2_time_t abs_timeout);
 
 /**
    Wakes up no more than one thread waiting on the condition variable.

@@ -52,7 +52,7 @@ unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 C2_EXPORTED(c2_semaphore_value);
 
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const struct c2_time *abs_timeout)
+			    const c2_time_t abs_timeout)
 {
 	/* not implemented, until kernel lib/time.h supports a notion of current
 	   time. */

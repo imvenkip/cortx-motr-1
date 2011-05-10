@@ -17,11 +17,15 @@
 
 void c2_timer_trampoline_callback(unsigned long data)
 {
-	struct c2_timer *timer = (struct c2_timer*)data;
+	struct c2_timer   *timer = (struct c2_timer*)data;
 	struct timer_list *tl = &timer->t_timer;
+	struct timespec    ts = {
+			.tv_sec  = c2_time_seconds(timer->t_interval),
+			.tv_nsec = c2_time_nanoseconds(timer->t_interval)
+		};
 
 	/* new expire */
-	tl->expires += timespec_to_jiffies(&timer->t_interval.ts);
+	tl->expires += timespec_to_jiffies(&ts);
 
 	/* call the user callback */
 	C2_ASSERT(timer->t_callback != NULL);
@@ -38,7 +42,7 @@ void c2_timer_trampoline_callback(unsigned long data)
    Init the timer data structure.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  struct c2_time *interval, uint64_t repeat,
+		  c2_time_t interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
 	struct timer_list *tl;
@@ -47,7 +51,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
 
 	timer->t_type     = type;
-	timer->t_interval = *interval;
+	timer->t_interval = interval;
 	timer->t_repeat   = repeat;
 	timer->t_left     = 0;
 	timer->t_callback = callback;
@@ -67,6 +71,10 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
+	struct timespec ts = {
+			.tv_sec  = c2_time_seconds(timer->t_interval),
+			.tv_nsec = c2_time_nanoseconds(timer->t_interval)
+		};
 	if (timer->t_left > 0) {
 		return -EBUSY;
 	}
@@ -76,7 +84,7 @@ int c2_timer_start(struct c2_timer *timer)
 	timer->t_left = timer->t_repeat;
 	if (timer->t_left > 0) {
 		timer->t_timer.expires = jiffies +
-				 timespec_to_jiffies(&timer->t_interval.ts);
+				 timespec_to_jiffies(&ts);
 		add_timer(&timer->t_timer);
 	}
 	return 0;
