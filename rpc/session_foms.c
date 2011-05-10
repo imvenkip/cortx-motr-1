@@ -7,6 +7,7 @@
 #include "rpc/session_fops.h"
 #include "stob/stob.h"
 #include "lib/errno.h"
+#include "lib/misc.h"
 #include "net/net.h"
 
 #ifdef __KERNEL__
@@ -37,17 +38,19 @@ struct c2_fom_type c2_rpc_fom_conn_create_type = {
 
 int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 {
-	struct c2_fop			*fop;
-	struct c2_fop			*fop_rep;
-	struct c2_rpc_conn_create	*fop_in;
-	struct c2_rpc_conn_create_rep	*fop_out;
+	struct c2_fop				*fop;
+	struct c2_fop				*fop_rep;
+	struct c2_rpc_conn_create		*fop_in;
+	struct c2_rpc_conn_create_rep		*fop_out;
 	//struct c2_cob_domain		*dom;
-	struct c2_rpc_fom_conn_create	*fom;
-	uint64_t			sender_id;
-	struct c2_rpc_slot_table_key	key;
-	struct c2_rpc_slot_table_value	value;
-	struct c2_db_pair		db_pair;
-	int				rc;
+	struct c2_rpc_fom_conn_create		*fom;
+	uint64_t				sender_id;
+	struct c2_rpc_slot_table_key		key;
+	struct c2_rpc_slot_table_value		value;
+	struct c2_db_pair			db_pair;
+	struct c2_rpc_inmem_slot_table_value	inmem_value;
+	struct c2_db_pair			inmem_pair;
+	int					rc;
 
 	fom = (struct c2_rpc_fom_conn_create *)fom_in;
 
@@ -72,14 +75,15 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 	sender_id = 20;
 
 	/*
-	 * Create entry for session0/slot0
+	 * Create entry for session0/slot0 in persistent and in core
+	 * slot table
 	 */
 	key.stk_sender_id = sender_id;
 	key.stk_session_id = SESSION_0;
 	key.stk_slot_id = 0;
 	key.stk_slot_generation = 0;
 
-	value.stv_verno.vn_lsn = 0;
+	value.stv_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	value.stv_verno.vn_vc = 0;
 	value.stv_reply_len = 0;
 
@@ -87,13 +91,27 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 				&key, sizeof key,
 				&value, sizeof value);
 
+	c2_db_pair_setup(&inmem_pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+				&key, sizeof key,
+				&inmem_value, sizeof inmem_value);
+
 	rc = c2_table_insert(&fom->fcc_tx, &db_pair);
+	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
+
 	if (rc != 0 && rc != -EEXIST) {
 		printf("conn_create_state: error while inserting record\n");
 		goto errout;
 	}
-	c2_db_pair_release(&db_pair);
-	c2_db_pair_fini(&db_pair);
+
+	C2_SET0(&inmem_value);
+	rc = c2_table_insert(&fom->fcc_tx, &inmem_pair);
+	c2_db_pair_release(&inmem_pair);
+	c2_db_pair_fini(&inmem_pair);
+	if (rc != 0 && rc != -EEXIST) {
+		printf("conn_create_state: error while inserting record 1\n");
+		goto errout;
+	}
 
 	fop_out->rccr_snd_id = sender_id;
 	fop_out->rccr_rc = 0;		/* successful */
@@ -139,9 +157,11 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	struct c2_rpc_fom_session_create	*fom;
 	uint64_t				session_id;
 	uint64_t				sender_id;
+	struct c2_db_pair			db_pair;
 	struct c2_rpc_slot_table_key		key;
 	struct c2_rpc_slot_table_value		value;
-	struct c2_db_pair			db_pair;
+	struct c2_db_pair			inmem_pair;
+	struct c2_rpc_inmem_slot_table_value	inmem_value;
 	int					rc;
 	int					i;
 
@@ -173,13 +193,19 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	key.stk_session_id = session_id;
 	key.stk_slot_generation = 0;
 
-	value.stv_verno.vn_lsn = 0;
+	value.stv_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	value.stv_verno.vn_vc = 0;
 	value.stv_reply_len = 0;
+
+	C2_SET0(&inmem_value);
 
 	c2_db_pair_setup(&db_pair, c2_rpc_reply_cache.rc_slot_table,
 				&key, sizeof key,
 				&value, sizeof value);
+	c2_db_pair_setup(&inmem_pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+				&key, sizeof key,
+				&inmem_value, sizeof inmem_value);
+
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
 		key.stk_slot_id = i;
 		rc = c2_table_insert(&fom->fsc_tx, &db_pair);
@@ -187,6 +213,13 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 			printf("conn_create_state: error while inserting record\n");
 			goto errout;
 		}
+
+		rc = c2_table_insert(&fom->fsc_tx, &inmem_pair);
+		if (rc != 0 && rc != -EEXIST) {
+			printf("conn_create_state: error while inserting record 1\n");
+			goto errout;
+		}
+
 	}
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);

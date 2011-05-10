@@ -32,7 +32,7 @@ int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom				*fom;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(fom != NULL);
+	C2_PRE(m != NULL);
 
 	printf ("conn_create fom init called\n");
 	C2_ALLOC_PTR(fom_obj);
@@ -65,7 +65,7 @@ int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom				*fom;
 
 	C2_PRE(fop != NULL);
-	C2_PRE(fom != NULL);
+	C2_PRE(m != NULL);
 
 	printf ("session_create fom init called\n");
 	C2_ALLOC_PTR(fom_obj);

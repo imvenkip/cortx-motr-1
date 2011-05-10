@@ -81,13 +81,14 @@ int main(void)
 	struct c2_rpc_session_create		*fop_sc;
 	struct c2_rpc_session_create_rep	*fop_sc_reply;
 	struct c2_rpc_item			*item_in;
-//	struct c2_rpc_item			*item_out;
+	struct c2_rpc_item			*cached_item;
+	enum c2_rpc_session_seq_check_result	sc;
 
 	printf("Program start\n");
 	c2_init();
 
 	init();
-
+	/* create conn_create fop */
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
@@ -96,36 +97,46 @@ int main(void)
 
 	fop_cc->rcc_cookie = 0xC00CEE;
 
-	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	C2_ASSERT(fom != NULL);
-
+	/* Processing that happens when fop is submitted */
 	item_in = c2_fop_to_rpc_item(fop);
 	item_in->ri_sender_id = SENDER_ID_INVALID;
 
-	fom_cc = (struct c2_rpc_fom_conn_create *)fom;
+	/* item is received on receiver side */
+	sc = c2_rpc_session_item_received(item_in, &cached_item);
 
-	fom_cc->fcc_dbenv = db;
-	c2_db_tx_init(&fom_cc->fcc_tx, db, 0);
+	if (sc == SCR_ACCEPT_ITEM) {
+		/* If item is accepted then fop is created and executed */
+		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+		C2_ASSERT(fom != NULL);
 
-	fom->fo_ops->fo_state(fom);
+	
+		fom_cc = (struct c2_rpc_fom_conn_create *)fom;
 
-	c2_rpc_session_reply_prepare(&fom_cc->fcc_fop->f_item,
-			&fom_cc->fcc_fop_rep->f_item,
-			&fom_cc->fcc_tx);
+		fom_cc->fcc_dbenv = db;
+		/* It is reqh generic phases that init/commit/abort a transaction */
+		c2_db_tx_init(&fom_cc->fcc_tx, db, 0);
 
-	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
-			fom->fo_phase == FOPH_FAILED);
+		fom->fo_ops->fo_state(fom);
 
-	if (fom->fo_phase == FOPH_DONE) {
-		c2_db_tx_commit(&fom_cc->fcc_tx);
-	} else if (fom->fo_phase == FOPH_FAILED) {
-		c2_db_tx_abort(&fom_cc->fcc_tx);
-	}
+		/* When reply is submitted to rpc layer, this routine is called */
+		c2_rpc_session_reply_prepare(&fom_cc->fcc_fop->f_item,
+				&fom_cc->fcc_fop_rep->f_item,
+				&fom_cc->fcc_tx);
+
+		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+				fom->fo_phase == FOPH_FAILED);
+
+		if (fom->fo_phase == FOPH_DONE) {
+			c2_db_tx_commit(&fom_cc->fcc_tx);
+		} else if (fom->fo_phase == FOPH_FAILED) {
+			c2_db_tx_abort(&fom_cc->fcc_tx);
+		}
 		
-	fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
-	C2_ASSERT(fop_reply != NULL);
-	printf("Main: sender id %lu\n", fop_reply->rccr_snd_id);
-	fom->fo_ops->fo_fini(fom);
+		fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
+		C2_ASSERT(fop_reply != NULL);
+		printf("Main: sender id %lu\n", fop_reply->rccr_snd_id);
+		fom->fo_ops->fo_fini(fom);
+	}
 	traverse_slot_table();	
 /*=======================================================================*/
 	fop = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
@@ -141,37 +152,42 @@ int main(void)
 	item_in->ri_session_id = SESSION_0;
 	item_in->ri_slot_id = 0;
 	item_in->ri_slot_generation = 0;
+	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
+	item_in->ri_verno.vn_vc = 10;
 
-	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	C2_ASSERT(fom != NULL);
+	sc = c2_rpc_session_item_received(item_in, &cached_item);
 
-	fom_sc = (struct c2_rpc_fom_session_create *)fom;
-	fom_sc->fsc_dbenv = db;
-	c2_db_tx_init(&fom_sc->fsc_tx, db, 0);
+	if (sc == SCR_ACCEPT_ITEM) {
+		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+		C2_ASSERT(fom != NULL);
 
-	fom->fo_ops->fo_state(fom);
+		fom_sc = (struct c2_rpc_fom_session_create *)fom;
+		fom_sc->fsc_dbenv = db;
+		c2_db_tx_init(&fom_sc->fsc_tx, db, 0);
 
-	c2_rpc_session_reply_prepare(&fom_sc->fsc_fop->f_item,
+		fom->fo_ops->fo_state(fom);
+
+		c2_rpc_session_reply_prepare(&fom_sc->fsc_fop->f_item,
 			&fom_sc->fsc_fop_rep->f_item,
 			&fom_sc->fsc_tx);
 
-	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 			fom->fo_phase == FOPH_FAILED);
 
-	if (fom->fo_phase == FOPH_DONE) {
-		c2_db_tx_commit(&fom_sc->fsc_tx);
-	} else if (fom->fo_phase == FOPH_FAILED) {
-		c2_db_tx_abort(&fom_sc->fsc_tx);
+		if (fom->fo_phase == FOPH_DONE) {
+			c2_db_tx_commit(&fom_sc->fsc_tx);
+		} else if (fom->fo_phase == FOPH_FAILED) {
+			c2_db_tx_abort(&fom_sc->fsc_tx);
+		}
+
+		fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
+		C2_ASSERT(fop_sc_reply != NULL);
+		printf("Main: session id %lu\n", fop_sc_reply->rscr_session_id);
+
+		fom->fo_ops->fo_fini(fom);
+
+		traverse_slot_table();
 	}
-
-	fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
-	C2_ASSERT(fop_sc_reply != NULL);
-	printf("Main: session id %lu\n", fop_sc_reply->rscr_session_id);
-
-	fom->fo_ops->fo_fini(fom);
-
-	traverse_slot_table();
-
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();
 	printf("program end\n");

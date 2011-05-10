@@ -15,6 +15,7 @@
 //#include "rpc/session.ff"
 #include "rpc/session_int.h"
 #include "db/db.h"
+#include "dtm/verno.h"
 
 const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
@@ -267,40 +268,68 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
  */
 int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 {
-	struct c2_table			*slot_table;
-	struct c2_db_pair		pair;
-	struct c2_rpc_slot_table_key	key;
-	struct c2_rpc_slot_table_value	value;
+	struct c2_table				*slot_table;
+	struct c2_table				*inmem_slot_table;
+	struct c2_db_pair			pair;
+	struct c2_rpc_slot_table_key		key;
+	struct c2_rpc_slot_table_value		slot;
+	struct c2_rpc_inmem_slot_table_value	inmem_slot;
+	struct c2_db_pair			inmem_pair;
 	int				rc;
 
 	printf("Called reply cache insert\n");
 	slot_table = c2_rpc_reply_cache.rc_slot_table;
+	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
 
 	key.stk_sender_id = item->ri_sender_id;
 	key.stk_session_id = item->ri_session_id;
 	key.stk_slot_id = item->ri_slot_id;
 	key.stk_slot_generation = item->ri_slot_generation;
 
-	C2_SET0(&value);
+	C2_SET0(&slot);
 
+	/*
+	 * Increment version count of slot and cache the reply
+	 */
 	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
-				&value, sizeof value);
+				&slot, sizeof slot);
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0)
 		goto out;
 
-	printf("rc_insert: current value: %lu\n", value.stv_verno.vn_vc);
-	value.stv_verno.vn_vc++;
+	printf("rc_insert: current value: %lu\n", slot.stv_verno.vn_vc);
+	slot.stv_verno.vn_vc++;
+	slot.stv_verno.vn_lsn++;
 	rc = c2_table_update(tx, &pair);
 	if (rc != 0)
 		goto out;
 
+	/*
+	 * Mark in core slot as "not busy"
+	 */
+	c2_db_pair_setup(&inmem_pair, inmem_slot_table, &key, sizeof key,
+			&inmem_slot, sizeof inmem_slot);
+	rc = c2_table_lookup(tx, &inmem_pair);
+	if (rc != 0)
+		goto out1;
+
+	C2_ASSERT(inmem_slot.istv_busy);
+	inmem_slot.istv_busy = false;
+
+	rc = c2_table_update(tx, &inmem_pair);
+	if (rc != 0)
+		goto out1;
+
 	c2_list_add(&c2_rpc_reply_cache.rc_item_list, &(item->ri_rc_link));
+
+out1:
+	c2_db_pair_release(&inmem_pair);
+	c2_db_pair_fini(&inmem_pair);
 
 out:
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-	return 0;
+	return rc;
 }
 
 int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
@@ -328,19 +357,6 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
 	return 0;
 }
 
-enum c2_rpc_session_seq_check_result {
-	/** item is valid in sequence. accept it */
-	SCR_ACCEPT_ITEM,
-	/** item is duplicate of request whose reply is cached in reply cache*/
-	SCR_RESEND_REPLY,
-	/** Already received this item and its processing is in progress */
-	SCR_IGNORE_ITEM,
-	/** Item is not in seq. send err msg to sender */
-	SCR_SEND_ERROR_MISORDERED,
-	/** Invalid session or slot */
-	SCR_SESSION_INVALID
-};
-
 /**
    Checks whether received item is correct in sequence or not and suggests
    action to be taken.
@@ -349,27 +365,126 @@ enum c2_rpc_session_seq_check_result {
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 		struct c2_rpc_item *item, struct c2_rpc_item **reply_out)
 {
-/*
-	struct c2_table			*slot_table;
-	struct c2_table			*inmem_slot_table;
-	struct c2_rpc_slot_table_key	key;
-	struct c2_rpc_slot_table_value	value;
-	struct c2_db_tx			tx;
-	int				rc;
+	struct c2_table				*slot_table;
+	struct c2_table				*inmem_slot_table;
+	struct c2_rpc_slot_table_key		key;
+	struct c2_rpc_slot_table_value		slot;
+	struct c2_db_pair			pair;
+	/* pair for inmem slot table */
+	struct c2_db_pair			im_pair; 
+	struct c2_rpc_inmem_slot_table_value	inmem_slot;
+	struct c2_db_tx				tx;
+	struct c2_rpc_item			*citem;	/* cached rpc item */
+	enum c2_rpc_session_seq_check_result	rc = SCR_ERROR;
+	int					undoable;
+	int					redoable;
+	bool					slot_is_busy;
+	int					err;
 
 	printf("item_received called\n");
 	C2_PRE(item != NULL);
 
+	*reply_out = NULL;
+
+	/*
+	 * No seq check for items with sender_id SENDER_ID_INVALID
+	 *	e.g. rpc_conn_create request
+	 */
 	if (item->ri_sender_id == SENDER_ID_INVALID) {
 		printf("Sender id is invalid. accepting item\n");
 		return SCR_ACCEPT_ITEM;
 	}
+
+	slot_table = c2_rpc_reply_cache.rc_slot_table;
+	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
+
+	/*
+	 * Read persistent slot table value
+	 */
 	key.stk_sender_id = item->ri_sender_id;
 	key.stk_session_id = item->ri_session_id;
 	key.stk_slot_id = item->ri_slot_id;
-	key.stk_slot_generation = item->ri_generation_id;
-*/
-	return SCR_ACCEPT_ITEM;
+	key.stk_slot_generation = item->ri_slot_generation;
+
+	err = c2_db_tx_init(&tx, c2_rpc_reply_cache.rc_dbenv, 0);
+	if (err != 0)
+		goto errout;
+
+	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
+				&slot, sizeof slot);
+	err = c2_table_lookup(&tx, &pair);
+	if (err != 0) {
+		rc = SCR_ERROR;
+		goto errabort;
+	}
+	printf("item_received: slot verno = %lu\n", slot.stv_verno.vn_vc);
+
+	/*
+	 * Read in memory slot table value
+	 */
+	c2_db_pair_setup(&im_pair, inmem_slot_table, &key, sizeof key,
+				&inmem_slot, sizeof inmem_slot);
+	err = c2_table_lookup(&tx, &im_pair);
+	if (err != 0) {
+		printf("err occured while reading inmem_slot_tbl %d\n", err);
+		rc = SCR_SESSION_INVALID;
+		goto errabort;
+	}
+	printf("item_received: slot.busy %d\n", (int)inmem_slot.istv_busy);
+
+	undoable = c2_verno_is_undoable(&slot.stv_verno, &item->ri_verno, 0);
+	redoable = c2_verno_is_redoable(&slot.stv_verno, &item->ri_verno, 0);
+	slot_is_busy = inmem_slot.istv_busy;
+
+	if (undoable == 0) {
+		bool		found = false;
+		// Search reply in reply cache list
+		c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list,
+		    item, struct c2_rpc_item, ri_rc_link) {
+			if (citem->ri_sender_id == item->ri_sender_id &&
+			     citem->ri_session_id == item->ri_session_id &&
+			     citem->ri_slot_id == item->ri_slot_id &&
+			     citem->ri_slot_generation == item->ri_slot_generation) {
+				*reply_out = citem;
+				rc = SCR_RESEND_REPLY;
+				found = true;
+			}
+		}
+		/* Reply MUST be present in reply cache */
+		//C2_ASSERT(found);
+		printf("item_received: reply fetched from reply cache\n");
+	} else {
+		if (redoable == 0) {
+			if (slot_is_busy) {
+				printf("request already in progress\n");
+				rc = SCR_IGNORE_ITEM;
+			} else {
+				/* Mark slot as busy and accept the item */
+				inmem_slot.istv_busy = true;
+				err = c2_table_update(&tx, &im_pair);
+				if (err != 0)
+					goto errabort;
+				rc = SCR_ACCEPT_ITEM;
+				printf("item accepted\n");
+			}
+		} else if (redoable == -EALREADY || redoable == -EAGAIN) {
+			printf("misordered entry\n");
+			rc = SCR_SEND_ERROR_MISORDERED;
+		}
+	}
+
+errabort:
+	if (rc == SCR_ERROR || rc == SCR_SESSION_INVALID)
+		c2_db_tx_abort(&tx);
+	else
+		c2_db_tx_commit(&tx);
+	
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_pair_release(&im_pair);
+	c2_db_pair_fini(&im_pair);
+errout:
+	return rc;
 }
 
 /**

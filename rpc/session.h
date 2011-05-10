@@ -100,26 +100,26 @@ item.verno
 When an item is received, following conditions are possible:
 
     - New item:
-	if c2_rpc_is_redoable(slot.verno, item.verno) == 0 and
+	if c2_verno_is_redoable(slot.verno, item.verno) == 0 and
 			NOT slot.busy
 	then
 		accept item as new item
 		slot.busy = true
 	end if
     - Retransmitted item:
-	if c2_rpc_is_undoable(slot.verno, item.verno) == 0
+	if c2_verno_is_undoable(slot.verno, item.verno) == 0
 	then
 		item is retransmitted.
 		obtain reply from reply cache and send to sender
 	end if
     - Misordered retry:
-	if c2_rpc_is_redoable(slot.verno, item.verno) == -EALREADY
+	if c2_verno_is_redoable(slot.verno, item.verno) == -EALREADY
 	then
 		it is a misordered item.
 		send error RPC_ITEM_MISORDERED
 	end if
     - Misordered new item:
-	if c2_rpc_is_redoable(slot.verno, item.verno) == -EAGAIN
+	if c2_verno_is_redoable(slot.verno, item.verno) == -EAGAIN
 	then
 		it is misordered new item.
 		send error RPC_ITEM_MISORDERED

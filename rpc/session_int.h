@@ -38,9 +38,9 @@ struct c2_rpc_slot_table_value {
    Key is same as c2_rpc_slot_table_key.
    Value is modified in transaction. So no explicit lock required.
  */
-struct c2_rpc_in_core_slot_table_value {
+struct c2_rpc_inmem_slot_table_value {
         /** A request is being executed on this slot */
-        bool            ics_busy;
+        bool            istv_busy;
 };
 
 extern const struct c2_table_ops c2_rpc_slot_table_ops;
@@ -81,6 +81,29 @@ extern struct c2_rpc_reply_cache c2_rpc_reply_cache;
 int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
 				struct c2_dbenv *dbenv);
 void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache);
+
+enum c2_rpc_session_seq_check_result {
+        /** item is valid in sequence. accept it */
+        SCR_ACCEPT_ITEM,
+        /** item is duplicate of request whose reply is cached in reply cache*/
+        SCR_RESEND_REPLY,
+        /** Already received this item and its processing is in progress */
+        SCR_IGNORE_ITEM,
+        /** Item is not in seq. send err msg to sender */
+        SCR_SEND_ERROR_MISORDERED,
+        /** Invalid session or slot */
+        SCR_SESSION_INVALID,
+        /** Error occured which checking rpc item */
+        SCR_ERROR
+};
+
+/**
+   Checks whether received item is correct in sequence or not and suggests
+   action to be taken.
+   'reply_out' is valid only if return value is RESEND_REPLY.
+ */
+enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
+                struct c2_rpc_item *item, struct c2_rpc_item **reply_out);
 
 #endif
 
