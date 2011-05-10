@@ -22,7 +22,7 @@ static int test_passed;
 static int test_failed;
 static int passed;
 static int failed;
-static struct c2_time started;
+static c2_time_t started;
 static struct c2_list suites;
 
 enum {
@@ -67,12 +67,12 @@ C2_EXPORTED(c2_ut_add);
 static void uts_summary(void)
 {
 	int ran;
-	struct c2_time now, diff;
+	c2_time_t now, diff;
 	int64_t msec;
 
 	c2_time_now(&now);
-	c2_time_sub(&now, &started, &diff);
-	msec = (c2_time_nanoseconds(&diff) + ONE_MILLION / 2) / ONE_MILLION;
+	diff = c2_time_sub(now, started);
+	msec = (c2_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
 	printk(KERN_INFO "Run Summary:    Type  Total    Ran Passed Failed\n");
 	/* initial "." keeps syslog from trimming leading spaces */
@@ -85,7 +85,7 @@ static void uts_summary(void)
 	printk(KERN_INFO ".%19s%7d%7d%7d%7d\n",
 	       "asserts", ran, ran, passed, failed);
 	printk(KERN_INFO "Elapsed time = %4lld.%03lld seconds\n",
-	       c2_time_seconds(&diff), msec);
+	       c2_time_seconds(diff), msec);
 }
 
 void c2_ut_run(const char *log_file)

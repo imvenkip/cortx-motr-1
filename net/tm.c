@@ -29,7 +29,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		}
 	} else {
 		struct c2_net_qstats *q;
-		struct c2_time timediff;
+		c2_time_t tdiff;
 
 		buf = ev->nev_buffer;
 
@@ -53,9 +53,8 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		} else {
 			q->nqs_num_s_events++;
 		}
-		c2_time_sub(&ev->nev_time, &buf->nb_add_time, &timediff);
-		c2_time_add(&q->nqs_time_in_queue, &timediff,
-			    &q->nqs_time_in_queue);
+		tdiff = c2_time_sub(ev->nev_time, buf->nb_add_time);
+		q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
 		q->nqs_total_bytes += buf->nb_length;
 		q->nqs_max_bytes = max64u(q->nqs_max_bytes, buf->nb_length);
 	}

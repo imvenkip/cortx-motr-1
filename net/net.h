@@ -653,7 +653,7 @@ struct c2_net_event {
 	/**
 	   Time the event is posted.
 	*/
-	struct c2_time             nev_time;
+	c2_time_t                  nev_time;
 
 	/**
 	   If the value of the nev_qtype field is C2_NET_QT_NR, and the
@@ -855,7 +855,7 @@ struct c2_net_qstats {
 	    measured from when they were added to the queue
 	    to the time their completion event got posted.
 	 */
-	struct c2_time  nqs_time_in_queue;
+	c2_time_t       nqs_time_in_queue;
 
 	/**
 	   The total number of bytes processed by buffers in the queue.
@@ -1157,14 +1157,14 @@ struct c2_net_buffer {
 	   <b>Support for this is transport specific.</b>
 	   Set the value to C2_TIME_NEVER to disable the timeout.
 	*/
-	struct c2_time             nb_timeout;
+	c2_time_t                  nb_timeout;
 
 	/**
 	   Time at which the buffer was added to its logical queue.
 	   Set by the c2_net_buffer_add() subroutine and used to
 	   compute the time spent in the queue.
 	*/
-	struct c2_time             nb_add_time;
+	c2_time_t                  nb_add_time;
 
 	/**
 	   Network transport descriptor.

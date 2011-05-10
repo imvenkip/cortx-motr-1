@@ -827,14 +827,14 @@ void ping_fini(struct ping_ctx *ctx)
 		if (ctx->pc_ops->pqs != NULL)
 			(*ctx->pc_ops->pqs)(ctx, false);
 
-		struct c2_time delay, rem;
+		c2_time_t delay;
 		while (1) {
 			if ((ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
 			     ctx->pc_tm.ntm_state == C2_NET_TM_FAILED) &&
 			    c2_net_tm_fini(&ctx->pc_tm) != -EBUSY)
 				break;
 			c2_time_set(&delay, 0, 1000L);
-			c2_nanosleep(&delay, &rem);
+			c2_nanosleep(delay, NULL);
 		}
 	}
 	if (ctx->pc_ep != NULL)
@@ -1020,11 +1020,11 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 					c2_free(wi);
 					return -ETIMEDOUT;
 				}
-				struct c2_time delay, rem;
+				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
-				c2_nanosleep(&delay, &rem);
+				c2_nanosleep(delay, NULL);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
@@ -1099,11 +1099,11 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				struct c2_time delay, rem;
+				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
-				c2_nanosleep(&delay, &rem);
+				c2_nanosleep(delay, NULL);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {
@@ -1183,11 +1183,11 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				struct c2_time delay, rem;
+				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
-				c2_nanosleep(&delay, &rem);
+				c2_nanosleep(delay, NULL);
 				rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 				C2_ASSERT(rc == 0);
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND) {

@@ -117,11 +117,11 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	ctx->pc_ops->pf(hfmt);
 	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
 		qp = &qs[i];
-		sec = c2_time_seconds(&qp->nqs_time_in_queue);
+		sec = c2_time_seconds(qp->nqs_time_in_queue);
 		hr = sec / SEC_PER_HR;
 		min = sec % SEC_PER_HR / SEC_PER_MIN;
 		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(&qp->nqs_time_in_queue) +
+		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
 			ONE_MILLION / 2) / ONE_MILLION;
 		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
 			hr, min, sec, msec);

@@ -740,9 +740,8 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(qs[0].nqs_max_bytes == max_bytes[i]);
 	C2_UT_ASSERT((qs[0].nqs_num_f_events + qs[0].nqs_num_s_events)
 		     == num_adds[i]);
-	C2_UT_ASSERT((qs[0].nqs_num_f_events + qs[0].nqs_num_s_events) > 0 &&
-		     (qs[0].nqs_time_in_queue.ts.tv_sec +
-		      qs[0].nqs_time_in_queue.ts.tv_nsec) > 0);
+	C2_UT_ASSERT(qs[0].nqs_num_f_events + qs[0].nqs_num_s_events > 0 &&
+		     qs[0].nqs_time_in_queue > 0);
 
 	rc = c2_net_tm_stats_get(tm,
 				 C2_NET_QT_NR,
@@ -757,10 +756,9 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(qs[i].nqs_max_bytes == max_bytes[i]);
 		C2_UT_ASSERT((qs[i].nqs_num_f_events + qs[i].nqs_num_s_events)
 			     == num_adds[i]);
-		C2_UT_ASSERT((qs[i].nqs_num_f_events +
-			      qs[i].nqs_num_s_events) > 0 &&
-			     (qs[i].nqs_time_in_queue.ts.tv_sec +
-			      qs[i].nqs_time_in_queue.ts.tv_nsec) > 0);
+		C2_UT_ASSERT(qs[i].nqs_num_f_events +
+			     qs[i].nqs_num_s_events > 0 &&
+			     qs[i].nqs_time_in_queue > 0);
 	}
 
 	rc = c2_net_tm_stats_get(tm,
@@ -775,8 +773,7 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(qs[i].nqs_num_s_events == 0);
 		C2_UT_ASSERT(qs[i].nqs_total_bytes == 0);
 		C2_UT_ASSERT(qs[i].nqs_max_bytes == 0);
-		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_sec == 0);
-		C2_UT_ASSERT(qs[i].nqs_time_in_queue.ts.tv_nsec == 0);
+		C2_UT_ASSERT(qs[i].nqs_time_in_queue == 0);
 	}
 
 	/* fini the TM */
