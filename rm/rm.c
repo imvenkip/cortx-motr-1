@@ -262,18 +262,28 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
    External resource manager entry point: request a right from the resource
    owner.
  */
+<<<<<<< .merge_file_WSPhmv
 int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+=======
+void right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+>>>>>>> .merge_file_55E4bp
 {
 	int result = 0;
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
+	C2_PRE(in->rin_state == RI_INITIALISED);
+	C2_PRE(c2_list_is_empty(&in->rin_want.ri_linkage));
 
 	c2_mutex_lock(&owner->ro_lock);
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 		    &in->rin_want.ri_linkage);
 	c2_rm_owner_balance(owner);
 	c2_mutex_lock(&owner->ro_lock);
+<<<<<<< .merge_file_WSPhmv
 
 	return result;
+=======
+	return 0;
+>>>>>>> .merge_file_55E4bp
 }
 
 /**
@@ -379,6 +389,7 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 			c2_list_for_each(&o->ro_incoming[prio][OQS_EXCITED], 
 								link) {
 				todo = true;
+<<<<<<< .merge_file_WSPhmv
 
 				right = c2_list_entry(link, struct c2_rm_right, 
 								ri_linkage);
@@ -389,6 +400,11 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 				C2_ASSERT(in != NULL);
 				C2_ASSERT(in->rin_state == RI_WAIT);
 				C2_ASSERT(c2_list_is_empty(&in->rin_pins));
+=======
+				C2_ASSERT(in->rin_state == RI_WAIT ||
+					  in->rin_state == RI_INITIALISED);
+				C2_ASSERT(c2_list_empty(&in->rin_pins));
+>>>>>>> .merge_file_55E4bp
 				/*
 				 * All waits completed, go to CHECK
 				 * state.
@@ -477,7 +493,14 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 		 * necessary to fulfill the request.
 		 */
 		/* @todo employ rpc grouping here. */
-		/* revoke sub-let rights */
+		/*
+		 * revoke sub-let rights.
+		 *
+		 * The actual implementation should be somewhat different: if
+		 * some right, conflicting with the wanted one is sub-let, but
+		 * RIF_MAY_REVOKE is cleared, the request should fail instead of
+		 * borrowing more rights.
+		 */
 		if (in->rin_flags & RIF_MAY_REVOKE)
 			c2_rm_sublet_revoke(in, rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {

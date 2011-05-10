@@ -84,6 +84,7 @@ static struct c2_rm_owner men;
 
 static int                   result;
 static struct c2_rm_incoming in;
+static struct c2_rm_incoming inother;
 
 const struct c2_rm_resource_type_ops rtops = {
 	.rto_eq     = NULL,
@@ -108,10 +109,14 @@ static void rm_init(void)
 	c2_rm_owner_init(&elves);
 	c2_rm_owner_init(&dwarves);
 	c2_rm_owner_init(&men);
+	c2_rm_incoming_init(&in);
+	c2_rm_incoming_init(&inother);
 }
 
 static void rm_fini(void)
 {
+	c2_rm_incoming_fini(&inother);
+	c2_rm_incoming_fini(&in);
 	c2_rm_owner_fini(&men);
 	c2_rm_owner_fini(&dwarves);
 	c2_rm_owner_fini(&elves);
@@ -137,9 +142,81 @@ static void basic_test(void)
 }
 
 /**
-   <b>right_get.</b>
+   <b>right_get 0.</b>
+
+   Simple get a right and immediately release it.
  */
-static void right_get_test(void)
+static void right_get_test0(void)
+{
+
+	rm_init();
+
+	in.rin_want.ri_datum = NARYA;
+	result = c2_rm_right_get_wait(&Sauron, &in);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(in.rin_state == RI_SUCCESS);
+	c2_rm_right_put(&in);
+	rm_fini();
+}
+
+/**
+   <b>right_get 1.</b>
+
+   Get a right and then get a non-conflicting right.
+ */
+static void right_get_test1(void)
+{
+
+	rm_init();
+
+	in.rin_want.ri_datum = NARYA;
+	result = c2_rm_right_get_wait(&Sauron, &in);
+	C2_UT_ASSERT(result == 0);
+
+	inother.rin_want.ri_datum = KHAMUL;
+	result = c2_rm_right_get_wait(&Sauron, &in);
+	C2_UT_ASSERT(result == 0);
+
+	c2_rm_right_put(&inother);
+	c2_rm_right_put(&in);
+	rm_fini();
+}
+
+/**
+   <b>right_get 2.</b>
+
+   Get a right and get a conflicting right. This should succeed, because local
+   requests do not conflict by default.
+
+   @see RIF_LOCAL_WAIT
+ */
+static void right_get_test2(void)
+{
+
+	rm_init();
+
+	in.rin_want.ri_datum = NARYA;
+	result = c2_rm_right_get_wait(&Sauron, &in);
+	C2_UT_ASSERT(result == 0);
+
+	inother.rin_want.ri_datum = NARYA;
+	result = c2_rm_right_get_wait(&Sauron, &inother);
+	C2_UT_ASSERT(result == 0);
+
+	c2_rm_right_put(&inother);
+	c2_rm_right_put(&in);
+	rm_fini();
+}
+
+/**
+   <b>right_get 3.</b>
+
+   Get a right and get a conflicting right with RIF_LOCAL_TRY flag. This should
+   fail.
+
+   @see RIF_LOCAL_TRY
+ */
+static void right_get_test3(void)
 {
 
 	rm_init();
@@ -148,12 +225,26 @@ static void right_get_test(void)
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
 	C2_UT_ASSERT(result == 0);
+
+	c2_rm_incoming_init(&inother);
+	inother.rin_want.ri_datum = NARYA;
+	inother.rin_flags |= RIF_LOCAL_TRY;
+	result = c2_rm_right_get_wait(&Sauron, &inother);
+	C2_UT_ASSERT(result == -EWOULDBLOCK);
+
+	c2_rm_right_put(&inother);
 	c2_rm_right_put(&in);
 	rm_fini();
 }
 
 /**
    <b>Intent mode.</b>
+
+   - setup two resource domains CLIENT and SERVER;
+
+   - acquire a right on SERVER (on client's behalf) and return it to CLIENT;
+
+   - release the right on CLIENT.
  */
 static void intent_mode_test(void)
 {
@@ -161,6 +252,12 @@ static void intent_mode_test(void)
 
 /**
    <b>WBC mode.</b>
+
+   - setup two resource domains CLIENT and SERVER;
+
+   - borrow a right from SERVER to client. Use it;
+
+   - release the right.
  */
 static void wbc_mode_test(void)
 {
@@ -203,6 +300,14 @@ static void multiple_test(void)
 
 /**
    <b>Cancellation.</b>
+
+   - setup two resource domains CLIENT and SERVER;
+
+   - borrow a right R from SERVER to CLIENT;
+
+   - cancel R;
+
+   - witness SERVER possesses R.
  */
 static void cancel_test(void)
 {
@@ -210,6 +315,14 @@ static void cancel_test(void)
 
 /**
    <b>Caching.</b>
+
+   - setup two resource domains CLIENT and SERVER;
+
+   - borrow a right R from SERVER to CLIENT;
+
+   - release R;
+
+   - get R again on CLIENT, witness it is found in cache.
  */
 static void caching_test(void)
 {
@@ -217,6 +330,20 @@ static void caching_test(void)
 
 /**
    <b>Call-back.</b>
+
+   - setup 3 resource domains: SERVER, CLIENT0 and CLIENT1;
+
+   - borrow a right from SERVER to CLIENT0;
+
+   - request a conflicting right to CLIENT1;
+
+   - witness a REVOKE call-back to CLIENT0;
+
+   - cancel the right on CLIENT0;
+
+   - obtain the right on CLIENT1;
+
+   - release the right on CLIENT1.
  */
 static void callback_test(void)
 {
@@ -243,7 +370,10 @@ const struct c2_test_suite rm_ut = {
 	.ts_fini = rm_reset,
 	.ts_tests = {
 		{ "basic", basic_test },
-		{ "right_get", right_get_test },
+		{ "right_get0", right_get_test0 },
+		{ "right_get1", right_get_test1 },
+		{ "right_get2", right_get_test2 },
+		{ "right_get3", right_get_test2 },
 		{ "intent mode", intent_mode_test },
 		{ "wbc", wbc_mode_test },
 		{ "separate", separate_test },
