@@ -163,23 +163,23 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
         owner->ro_group = NULL;
         c2_mutex_lock(&owner->ro_lock);
 
-        if (c2_list_is_empty(&owner->ro_borrowed)) {
+        if (!c2_list_is_empty(&owner->ro_borrowed)) {
         }
 
-        if (c2_list_is_empty(&owner->ro_sublet)) {
+        if (!c2_list_is_empty(&owner->ro_sublet)) {
         }
 
         for (int i = 0; i < ARRAY_SIZE(owner->ro_owned), i++) {
-                if(c2_list_is_empty(&owner->ro_owned[i])) {
+                if(!c2_list_is_empty(&owner->ro_owned[i])) {
                 }
         }
 
         for (int j = 0; j < OQS_NR; j++) {
                 for (int i = 0; i < C2_RM_REQUEST_PRIORITY_NR, i++) {
-                        if (c2_list_is_empty(&owner->ro_incoming[i][j])) {
+                        if (!c2_list_is_empty(&owner->ro_incoming[i][j])) {
                         }
                 }
-                if (c2_list_is_empty(&owner->ro_outgoing[j])) {
+                if (!c2_list_is_empty(&owner->ro_outgoing[j])) {
                 }
         }
 
@@ -212,7 +212,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
         C2_PRE(in != NULL);
 
-	if (c2_list_is_empty(&in->rin_pins)) {
+	if (!c2_list_is_empty(&in->rin_pins)) {
 	}
 	c2_list_fini(&in->rin_pins);
 }
@@ -262,11 +262,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
    External resource manager entry point: request a right from the resource
    owner.
  */
-<<<<<<< .merge_file_WSPhmv
 int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
-=======
-void right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
->>>>>>> .merge_file_55E4bp
 {
 	int result = 0;
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
@@ -278,12 +274,8 @@ void right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 		    &in->rin_want.ri_linkage);
 	c2_rm_owner_balance(owner);
 	c2_mutex_lock(&owner->ro_lock);
-<<<<<<< .merge_file_WSPhmv
 
 	return result;
-=======
-	return 0;
->>>>>>> .merge_file_55E4bp
 }
 
 /**
@@ -291,16 +283,18 @@ void right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
  */
 void c2_rm_right_put(struct c2_rm_incoming *in)
 {
-	struct c2_list_link	*pin;
-	struct c2_list_link	*pin2;
+	struct c2_rm_pin	*pin;
+	struct c2_rm_pin	*pin2;
 	struct c2_rm_right 	*right;
 
 	C2_PRE(in != NULL);
 
 	c2_mutex_lock(&in->rin_owner->ro_lock);
-	c2_list_for_each(&in->rin_pins, pin) {
+	c2_list_for_each_entry(&in->rin_pins, pin,
+			       struct c2_rm_pin, rp_incoming_linkage) {
 		right = pin->rp_right;
-		c2_list_for_each(&right->ri_pins, pin2) {
+		c2_list_for_each_entry(&right->ri_pins, pin2,
+				       struct c2_rm_pin, rp_right_linkage) {
 			if (pin2->rp_flags & RPF_TRACK) {
 				c2_rm_pin_remove(pin2);
 			}
@@ -317,6 +311,10 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
  */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc)
 {
+	struct c2_rm_owner *owner;
+
+	C2_PRE(og != NULL);
+
 	owner = &og->rog_owner;
 	c2_mutex_lock(&owner->ro_lock);
 	c2_list_move(&owner->ro_outgoing[OQS_EXCITED],
@@ -389,8 +387,6 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 			c2_list_for_each(&o->ro_incoming[prio][OQS_EXCITED], 
 								link) {
 				todo = true;
-<<<<<<< .merge_file_WSPhmv
-
 				right = c2_list_entry(link, struct c2_rm_right, 
 								ri_linkage);
 				C2_ASSERT(right != NULL);
@@ -398,13 +394,9 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 				in = container_of(right, struct c2_rm_incoming, 
 								rin_want);
 				C2_ASSERT(in != NULL);
-				C2_ASSERT(in->rin_state == RI_WAIT);
-				C2_ASSERT(c2_list_is_empty(&in->rin_pins));
-=======
-				C2_ASSERT(in->rin_state == RI_WAIT ||
+				C2_ASSERT(in->rin_state == RI_WAIT || 
 					  in->rin_state == RI_INITIALISED);
-				C2_ASSERT(c2_list_empty(&in->rin_pins));
->>>>>>> .merge_file_55E4bp
+				C2_ASSERT(c2_list_is_empty(&in->rin_pins));
 				/*
 				 * All waits completed, go to CHECK
 				 * state.
