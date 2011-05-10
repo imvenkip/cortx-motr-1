@@ -172,6 +172,15 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 
+	if (rc < 0 && nb == NULL) {
+		/* post the error to the TM */
+		struct c2_net_bulk_sunrpc_domain_pvt *dp;
+		dp = tm->ntm_dom->nd_xprt_private;
+		c2_mutex_lock(&tm->ntm_mutex);
+		(*dp->xd_base_ops.bmo_post_error)(tm, rc);
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+
  err_exit:
 	/* send the RPC response (note: not delivered yet, but enqueued) */
 	ex->smr_rc = rc;

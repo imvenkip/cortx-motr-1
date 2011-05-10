@@ -399,10 +399,13 @@ void test_sunrpc_failure(void)
 	/* TEST
 	   Send a message from d1tm1 to d2tm1 - should fail because
 	   no receive buffers available.
-	   The failure count on the receive queue of d2tm2 should
-	   be bumpted.
+	   The failure count on the receive queue of d2tm1 should
+	   be bumped, and an -ENOBUFS error callback delivered.
 	*/
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	cb_status2 = 0;
+	c2_clink_init(&tmwait2, NULL);
+	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
@@ -428,11 +431,16 @@ void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
+	c2_chan_wait(&tmwait2);
+	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
 	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 0);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(cb_nb2 == NULL);
+	C2_UT_ASSERT(cb_tms2 == C2_NET_TM_UNDEFINED);
+	C2_UT_ASSERT(cb_status2 == -ENOBUFS);
 
 	/* TEST
 	   Add a receive buffer in d2tm1.

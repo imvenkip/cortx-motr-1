@@ -82,6 +82,8 @@ enum c2_net_bulk_mem_work_opcode {
 	C2_NET_XOP_PASSIVE_BULK_CB,
 	/** perform an active bulk buffer transfer operation and callback */
 	C2_NET_XOP_ACTIVE_BULK,
+	/** Perform an error callback */
+	C2_NET_XOP_ERROR_CB,
 
 	C2_NET_XOP_NR
 };
@@ -123,10 +125,11 @@ struct c2_net_bulk_mem_work_item {
 	/** The next state value for a C2_NET_XOP_STATE_CHANGE opcode */
 	enum c2_net_bulk_mem_tm_state       xwi_next_state;
 
-	/** State change status. Provided for derived classes to
+	/** Status. Used for C2_NET_ERROR_CB, C2_NET_XOP_STATE_CHANGE,
+	    and a generic way for derived classes to
 	    pass on status to the base worker function.
 	*/
-	int                                 xwi_state_change_status;
+	int32_t                             xwi_status;
 };
 
 /**
@@ -213,6 +216,9 @@ typedef int  (*c2_mem_desc_create_fn_t)(struct c2_net_buf_desc *desc,
 					enum c2_net_queue_type qt,
 					c2_bcount_t buflen,
 					int64_t buf_id);
+typedef void (*c2_mem_post_error_fn_t)(struct c2_net_transfer_mc *tm,
+				       int status);
+
 /**
    These subroutines are exposed by the transport as they may need to be
    intercepted by a derived transport.
@@ -232,6 +238,9 @@ struct c2_net_bulk_mem_ops {
 
 	/** Subroutine to create a buffer descriptor */
 	c2_mem_desc_create_fn_t      bmo_desc_create;
+
+	/** Subroutine to post an error */
+	c2_mem_post_error_fn_t       bmo_post_error;
 };
 
 /**

@@ -168,11 +168,13 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
 	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
+	dp->xd_work_fn[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb;
 	dp->xd_ops.bmo_ep_create        = &mem_ep_create;
 	dp->xd_ops.bmo_ep_release       = &mem_xo_end_point_release;
 	dp->xd_ops.bmo_wi_add           = &mem_wi_add;
 	dp->xd_ops.bmo_buffer_in_bounds = &mem_buffer_in_bounds;
 	dp->xd_ops.bmo_desc_create      = &mem_desc_create;
+	dp->xd_ops.bmo_post_error       = &mem_post_error;
 
 	/* tunable parameters */
 	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
@@ -573,7 +575,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	c2_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
-	wi_st_chg->xwi_state_change_status = 0;
+	wi_st_chg->xwi_status = 0;
 
 	/* start worker threads */
 	int rc = 0;

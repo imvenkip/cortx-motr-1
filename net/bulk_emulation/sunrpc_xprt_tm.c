@@ -141,7 +141,7 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		if (tp->xtm_base.xtm_state < C2_NET_XTM_STOPPING) {
 			rc = sunrpc_start_service(tm->ntm_ep);
 			if (rc != 0)
-				wi->xwi_state_change_status = rc; /* fail TM */
+				wi->xwi_status = rc; /* fail TM */
 		}
 	} else {
 		sunrpc_stop_service();

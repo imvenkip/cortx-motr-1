@@ -186,6 +186,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			dest_tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events
 				++;
 			rc = -ENOBUFS;
+			mem_post_error(dest_tm, rc);
 			break;
 		}
 		struct c2_net_buffer *dest_nb =
