@@ -822,6 +822,9 @@ void ping_fini(struct ping_ctx *ctx)
 			c2_clink_del(&tmwait);
 		}
 
+		if (ctx->pc_ops->pqs != NULL)
+			(*ctx->pc_ops->pqs)(ctx, false);
+
 		struct c2_time delay, rem;
 		while (1) {
 			if ((ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||

@@ -97,18 +97,24 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	uint64_t hr, min, sec, msec;
 	struct c2_net_qstats qs[C2_NET_QT_NR], *qp;
 	static const char *qnames[C2_NET_QT_NR] = {
-		"msg_recv", "msg_send",
-		"pas_recv", "pas_send",
-		"act_recv", "act_send",
+		"mRECV", "mSEND",
+		"pRECV", "pSEND",
+		"aRECV", "aSEND",
 	};
 	char tbuf[16];
+	const char *lfmt =
+"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
+	const char *hfmt =
+"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes   Max Buffer Sz\n"
+"----- ------ ------ ------ ------ ------------- --------------- -------------\n";
 
 	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
 		return;
 	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
 	C2_ASSERT(rc == 0);
 	c2_mutex_lock(&qstats_mutex);
-	printf("%s statistics:\n", ctx->pc_ident);
+	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
+	ctx->pc_ops->pf(hfmt);
 	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
 		qp = &qs[i];
 		sec = c2_time_seconds(&qp->nqs_time_in_queue);
@@ -119,12 +125,11 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 			ONE_MILLION / 2) / ONE_MILLION;
 		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
 			hr, min, sec, msec);
-		printf("%s add=%lu del=%lu succ_ev=%lu fail_ev=%lu "
-		       "qtime=%s bytes=%lu max=%lu\n",
-		       qnames[i],
-		       qp->nqs_num_adds, qp->nqs_num_dels,
-		       qp->nqs_num_s_events, qp->nqs_num_f_events,
-		       tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
+		ctx->pc_ops->pf(lfmt,
+				qnames[i],
+				qp->nqs_num_adds, qp->nqs_num_dels,
+				qp->nqs_num_s_events, qp->nqs_num_f_events,
+				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
 	}
 	c2_mutex_unlock(&qstats_mutex);
 }
@@ -135,11 +140,13 @@ int quiet_printf(const char *fmt, ...)
 }
 
 struct ping_ops verbose_ops = {
-    .pf = printf
+	.pf  = printf,
+	.pqs = print_qstats
 };
 
 struct ping_ops quiet_ops = {
-    .pf = quiet_printf
+	.pf  = quiet_printf,
+	.pqs = print_qstats
 };
 
 struct client_params {

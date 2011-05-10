@@ -2,9 +2,11 @@
 #ifndef __COLIBRI_NET_BULK_MEM_PING_H__
 #define __COLIBRI_NET_BULK_MEM_PING_H__
 
+struct ping_ctx;
 struct ping_ops {
 	int (*pf)(const char *format, ...)
 		__attribute__ ((format (printf, 1, 2)));
+	void (*pqs)(struct ping_ctx *ctx, bool reset);
 };
 
 /**
