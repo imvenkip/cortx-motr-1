@@ -34,9 +34,9 @@ void c2_rm_type_register(struct c2_rm_domain *dom,
         dom->rd_types[rt->rt_id] = rt;
         rt->rt_dom = dom;
 
-        rtype->rt_ref = 0;
+        rt->rt_ref = 0;
         c2_mutex_init(&rt->rt_lock);
-        c2_list_init(&rt->rt_resources)
+        c2_list_init(&rt->rt_resources);
 
         c2_mutex_unlock(&dom->rd_lock);
 }
@@ -47,7 +47,7 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 
         C2_PRE(dom != NULL);
         C2_PRE(rtype->rt_id != C2_RM_RESOURCE_TYPE_ID_INVALID);
-        IS_IN_ARRAY(rtype->rt_id, dom->rd_type);
+        IS_IN_ARRAY(rtype->rt_id, dom->rd_types);
 
         c2_mutex_lock(&dom->rd_lock);
 
@@ -265,6 +265,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 {
 	int result = 0;
+
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 	C2_PRE(in->rin_state == RI_INITIALISED);
 	C2_PRE(c2_list_is_empty(&in->rin_want.ri_linkage));
@@ -283,8 +284,8 @@ int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
  */
 void c2_rm_right_put(struct c2_rm_incoming *in)
 {
-	struct c2_rm_pin	*pin;
-	struct c2_rm_pin	*pin2;
+	struct c2_rm_pin	*in_pin;
+	struct c2_rm_pin	*ri_pin;
 	struct c2_rm_right 	*right;
 
 	C2_PRE(in != NULL);
@@ -292,11 +293,11 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	c2_mutex_lock(&in->rin_owner->ro_lock);
 	c2_list_for_each_entry(&in->rin_pins, pin,
 			       struct c2_rm_pin, rp_incoming_linkage) {
-		right = pin->rp_right;
-		c2_list_for_each_entry(&right->ri_pins, pin2,
+		right = in_pin->rp_right;
+		c2_list_for_each_entry(&right->ri_pins, ri_pin,
 				       struct c2_rm_pin, rp_right_linkage) {
 			if (pin2->rp_flags & RPF_TRACK) {
-				c2_rm_pin_remove(pin2);
+				c2_rm_pin_remove(ri_pin);
 			}
 		}
 	}
@@ -447,7 +448,7 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 	 */
 	c2_rm_incoming_check_local(in, &rest);
 
-	if (rest is empty) {
+	if (!rest->ri_datum) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
@@ -497,7 +498,7 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 			c2_rm_sublet_revoke(in, rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
-			while (rest is not empty) {
+			while (rest->ri_datum) {
 				struct c2_rm_loan borrow;
 
 				c2_rm_net_locate(rest, &borrow);
@@ -505,7 +506,7 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 				       &borrow, borrow.rl_right);
 			}
 		}
-		if (rest is empty) {
+		if (!rest->ri_datum) {
 			in->rin_state = RI_WAIT;
 		} else {
 			/* cannot fulfill the request. */
@@ -563,7 +564,7 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 			if (scan intersects rest) {
 				if (!coverage) {
 					rest = c2_rm_right_diff(rest, scan);
-					if (rest is empty)
+					if (!rest->ri_datum)
 						return;
 				}
 				c2_rm_pin_add(in, scan);
