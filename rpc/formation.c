@@ -493,9 +493,14 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 			printf("Failed to allocate memory for a new c2_rpc_form_item_summary_unit_group structure.\n");
 			return -1;
 		}
+		if (item->ri_group == NULL) {
+			printf("Creating a c2_rpc_form_item_summary_unit_group\
+					struct for items with no groups.\n");
+		}
 	}
 
 	summary_group->sug_expected_items = item->ri_group->rg_expected;
+	summary_group->sug_group = item->ri_group;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX)
 		summary_group->sug_priority_items++;
 	/*XXX struct c2_rpc_item_type_ops will have a rio_item_size
@@ -506,7 +511,14 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	/* Put the corresponding c2_rpc_form_item_summary_unit_group
 	   struct in its correct position on least value first basis of
 	   average timeout of group. */
-	res = c2_rpc_form_summary_groups_sort(endp_unit, summary_group);
+	if (item->ri_group != NULL) {
+		res = c2_rpc_form_summary_groups_sort(endp_unit, summary_group);
+	}
+	/* Special handling for group of items which belong to no group,
+	   so that they are handled as the last option for formation. */
+	if (item->ri_group == NULL) {
+		c2_list_move_tail(summary_group->sug_linkage);
+	}
 
 	/* Init and start the timer for rpc item. */
 	item_timer = c2_alloc(sizeof(struct c2_timer));
@@ -678,6 +690,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	uint64_t				 group_size = 0;
 	uint64_t				 partial_size = 0;
 	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
+	uint64_t				 nselected_groups = 0;
+	uint64_t				 ncurrent_groups = 0;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
@@ -723,6 +737,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	   endpoint structure to find out which rpc groups can be included
 	   in the rpc object. */
 	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, sg, struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		nselected_groups++;
 		if ((group_size + sg->sug_total_size) < endp_unit->isu_max_message_size) {
 			group_size += sg->sug_total_size;
 		}
@@ -767,16 +782,18 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		c2_list_for_each_entry(&endp_unit->isu_groups_list, group, 
 				struct c2_rpc_form_item_summary_unit_group,
 				sug_linkage) {
-			if (item->ri_group == sg->sug_group) {
-				if ((partial_size - item_size) > 0) {
+			ncurrent_groups++;
+			/* If selected groups are exhausted, break the loop. */
+			if (ncurrent_groups > nselected_groups)
+				break;
+			if (item->ri_group == group->sug_group) {
+				/* If the size of selected groups is bigger than
+				   max_message_size, the last group will be 
+				   partially selected and is present in variable 'sg'. */
+				if ((item->ri_group == sg->sug_group) &&
+						((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
-					res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
-					if (res != 0) {
-						break;
-					}
 				}
-			}
-			else if (item->ri_group == group->sug_group) {
 				res = c2_rpc_form_item_add_to_forming_list(endp_unit, rpc_item, &rpcobj_size, forming_list);
 				if (res != 0) {
 					break;
@@ -785,7 +802,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		}
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
-
 }
 
 /**
