@@ -10,7 +10,7 @@
 #include "net/bulk_emulation/mem_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.c"
 
-void test_buf_copy(void)
+static void test_buf_copy(void)
 {
 	/* Create buffers with different shapes but same total size.
 	   Also create identical buffers for exact shape testing.
@@ -66,7 +66,7 @@ void test_buf_copy(void)
 	}
 }
 
-void test_ep(void)
+static void test_ep(void)
 {
 	/* dom1 */
 	struct c2_net_domain dom1;
@@ -102,7 +102,7 @@ void test_ep(void)
 	c2_net_domain_fini(&dom1);
 }
 
-void test_failure(void)
+static void test_failure(void)
 {
 	/* dom1 */
 	struct c2_net_domain dom1;
@@ -628,7 +628,7 @@ static struct ping_ops quiet_ops = {
     .pf = quiet_printf
 };
 
-void test_ping(void)
+static void test_ping(void)
 {
 	struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
@@ -701,6 +701,65 @@ void test_ping(void)
 	c2_net_xprt_fini(&c2_net_bulk_mem_xprt);
 }
 
+static void test_tm(void)
+{
+	struct c2_net_domain dom1;
+	struct c2_net_tm_callbacks cbs1 = {
+		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
+					     struct c2_net_event *ev){
+				       }),
+	};
+	struct c2_net_transfer_mc d1tm1 = {
+		.ntm_callbacks = &cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
+	struct c2_clink tmwait1;
+	struct c2_net_end_point *ep;
+
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+
+	/* should be able to fini it immediately */
+	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_UNDEFINED);
+
+	/* should be able to init it again */
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom1.nd_tms, &d1tm1.ntm_dom_linkage));
+
+	/* check thread counts */
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 1);
+	C2_UT_ASSERT(!c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2));
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
+
+	/* should not be able to modify thread count once TM starts */
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
+					      "127.0.0.1", 99, 0));
+	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:99")==0);
+	c2_clink_init(&tmwait1, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep));
+	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2) == -EPERM);
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
+
+	/* fini */
+	if (d1tm1.ntm_state > C2_NET_TM_INITIALIZED) {
+		c2_clink_init(&tmwait1, NULL);
+		c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+		C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+		c2_chan_wait(&tmwait1);
+		c2_clink_del(&tmwait1);
+		C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+	}
+	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_domain_fini(&dom1);
+}
+
 const struct c2_test_suite net_bulk_mem_ut = {
         .ts_name = "net-bulk-mem",
         .ts_init = NULL,
@@ -709,6 +768,7 @@ const struct c2_test_suite net_bulk_mem_ut = {
                 { "net_bulk_mem_buf_copy_test", test_buf_copy },
                 { "net_bulk_mem_ep",            test_ep },
                 { "net_bulk_mem_failure_tests", test_failure },
+		{ "net_bulk_mem_tm_test",       test_tm},
                 { "net_bulk_mem_ping_tests",    test_ping },
                 { NULL, NULL }
         }

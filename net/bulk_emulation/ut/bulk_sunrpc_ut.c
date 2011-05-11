@@ -6,7 +6,7 @@
 #include "net/bulk_emulation/sunrpc_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.h"
 
-void test_sunrpc_ep(void)
+static void test_sunrpc_ep(void)
 {
 	/* dom1 */
 	struct c2_net_domain dom1;
@@ -47,7 +47,7 @@ void test_sunrpc_ep(void)
 	c2_net_domain_fini(&dom1);
 }
 
-void test_sunrpc_desc(void)
+static void test_sunrpc_desc(void)
 {
 	struct c2_net_domain dom1;
 	struct c2_net_end_point *ep1, *ep2;
@@ -134,7 +134,7 @@ static struct ping_ops quiet_ops = {
     .pf = quiet_printf
 };
 
-void test_sunrpc_ping(void)
+static void test_sunrpc_ping(void)
 {
 	struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
@@ -211,7 +211,7 @@ void test_sunrpc_ping(void)
 	c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
 }
 
-void test_sunrpc_failure(void)
+static void test_sunrpc_failure(void)
 {
 	/* dom1 */
 	struct c2_net_domain dom1;
@@ -773,6 +773,66 @@ void test_sunrpc_failure(void)
 	c2_net_domain_fini(&dom2);
 }
 
+static void test_sunrpc_tm(void)
+{
+	struct c2_net_domain dom1;
+	struct c2_net_tm_callbacks cbs1 = {
+		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
+					     struct c2_net_event *ev){
+				       }),
+	};
+	struct c2_net_transfer_mc d1tm1 = {
+		.ntm_callbacks = &cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
+	struct c2_clink tmwait1;
+	struct c2_net_end_point *ep;
+
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+
+	/* should be able to fini it immediately */
+	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_UNDEFINED);
+
+	/* should be able to init it again */
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom1.nd_tms, &d1tm1.ntm_dom_linkage));
+
+	/* check thread counts */
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1)
+		     == C2_NET_BULK_SUNRPC_TM_THREADS);
+	C2_UT_ASSERT(!c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2));
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
+
+	/* should not be able to modify thread count once TM starts */
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
+					      "127.0.0.1", 9000, 1, 0));
+	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:9000:1")==0);
+	c2_clink_init(&tmwait1, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep));
+	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2) == -EPERM);
+	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
+
+	/* fini */
+	if (d1tm1.ntm_state > C2_NET_TM_INITIALIZED) {
+		c2_clink_init(&tmwait1, NULL);
+		c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+		C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+		c2_chan_wait(&tmwait1);
+		c2_clink_del(&tmwait1);
+		C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+	}
+	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_domain_fini(&dom1);
+}
+
 const struct c2_test_suite net_bulk_sunrpc_ut = {
         .ts_name = "net-bulk-sunrpc",
         .ts_init = NULL,
@@ -781,6 +841,7 @@ const struct c2_test_suite net_bulk_sunrpc_ut = {
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
                 { "net_bulk_sunrpc_failure",    test_sunrpc_failure },
+		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
                 { NULL, NULL }
         }
