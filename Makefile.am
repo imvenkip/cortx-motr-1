@@ -1,6 +1,6 @@
-SUBDIRS_BASE = m4 doc man patches 
+SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fop is reached. Fop needs all libs before it in the 
+# Order is important until fop is reached. Fop needs all libs before it in the
 # list built in order to use fop2c
 # addb_pseudo is used only for build fop2c, with which full addb can be built
 SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop addb sm stob net dtm nrs \
@@ -11,7 +11,7 @@ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
             udb/ut capa/ut #rpc/ut
 SUBDIR_ST = net/st net/bulk_emulation/st
-SUBDIR_UB = 
+SUBDIR_UB =
 SUBDIR_BIN = mds utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_KERNEL) \
