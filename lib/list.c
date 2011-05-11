@@ -57,6 +57,19 @@ size_t c2_list_length(const struct c2_list *list)
 }
 C2_EXPORTED(c2_list_length);
 
+bool c2_list_contains(const struct c2_list *list,
+		      const struct c2_list_link *link)
+{
+	struct c2_list_link *scan;
+
+	C2_ASSERT(c2_list_invariant(list));
+	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
+		if (scan == link)
+			return true;
+	return false;
+}
+C2_EXPORTED(c2_list_contains);
+
 static inline void __c2_list_add(struct c2_list_link *next,
 				 struct c2_list_link *prev,
 			         struct c2_list_link *new)
@@ -65,7 +78,7 @@ static inline void __c2_list_add(struct c2_list_link *next,
 	C2_ASSERT(c2_list_link_invariant(next));
 	new->ll_next = next;
 	new->ll_prev = prev;
-	
+
 	next->ll_prev = new;
 	prev->ll_next = new;
 	C2_ASSERT(c2_list_link_invariant(next));
