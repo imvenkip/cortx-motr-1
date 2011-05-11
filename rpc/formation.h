@@ -131,6 +131,8 @@ struct c2_rpc_form_fid_summary_member {
 	int				 fsm_rw;
 	/** Number of IO requests on given fid in rpc group mentioned above. */
 	uint64_t			 fsm_nitems;
+	/** Cumulative size of member rpc items. */
+	uint64_t			 fsm_total_size;
 	/** Array of rpc items that can be coalesced. */
 	/* c2_list <struct c2_rpc_form_fid_units > */
 	struct c2_list			 fsm_items;
@@ -474,6 +476,18 @@ struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp
 int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
 		int state, int event, void *pvt);
+
+/**
+   Enumeration of fields which are subject to change.
+ */
+enum c2_rpc_form_item_change_fields {
+	/** Change priority of item. */
+	C2_RPC_ITEM_CHANGE_PRIORITY,
+	/** Change deadline of item. */
+	C2_RPC_ITEM_CHANGE_DEADLINE,
+	/** Change rpc group of item. */
+	C2_RPC_ITEM_CHANGE_RPCGROUP
+};
 
 struct c2_rpc_form_item_change_req {
 	/* Specifies which field is going to change. */

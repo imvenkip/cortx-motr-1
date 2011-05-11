@@ -313,7 +313,8 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 
 /**
    Callback used to trigger the "deadline expired" event
-   for an rpc item. */
+   for an rpc item.
+ */
 unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
 {
 	struct c2_rpc_item	*item;
@@ -321,7 +322,53 @@ unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
 	c2_rpc_form_extevt_rpcitem_deadline_expired(item);
 }
 
+/**
+   Change the data of an rpc item embedded within the endpoint unit
+   structure.
+ */
+int c2_rpc_form_change_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, void *pvt)
+{
+	int					 res = 0;
+	struct c2_rpc_form_item_change_req 	*chng_req = NULL;
+	int					 field_type = 0;
 
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
+	C2_PRE(pvt != NULL);
+
+	chng_req = (struct c2_rpc_form_item_change_req*)pvt;
+	field_type = chng_req->field_type;
+
+	res = c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+	if (res != 0) {
+		printf("Failed to remove data of an rpc item from summary unit.\n");
+		return -1;
+	}
+	switch (field_type) {
+		case C2_RPC_ITEM_CHANGE_PRIORITY:
+			item->ri_prio = (enum c2_rpc_item_priority)chng_req->value;
+		case C2_RPC_ITEM_CHANGE_DEADLINE:
+			if (item->ri_state == RPC_ITEM_SUBMITTED) {
+				c2_timer_stop(item->timer);
+				c2_timer_fini(item->timer);
+				item->ri_deadline = (struct c2_time_t)chng_req->value;
+			}
+		case C2_RPC_ITEM_CHANGE_RPCGROUP:
+			item->ri_group = (struct c2_rpc_group*)chng_req->value;
+
+	}
+	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
+	if (res != 0) {
+		printf("Failed to add data of an rpc item to summary unit.\n");
+		return -1;
+	}
+	return res;
+}
+
+/**
+   Remove the data of an rpc item embedded within the endpoint unit 
+   structure.
+ */
 int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item)
 {
 	int						  res = 0;
@@ -342,8 +389,8 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary
 		}
 	}
 	if (found == false) {
-			return 0;
-		}
+		return 0;
+	}
 
 	summary_group->sug_expected_items -= item->ri_group->rg_expected;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX && 
@@ -458,12 +505,15 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 		printf("Failed to allocate memory for a new c2_timer struct.\n");
 		return -1;
 	}
-	c2_timer_init(&item_timer, C2_TIMER_HARD, &item->ri_deadline, 0, c2_rpc_form_item_timer_callback, (unsigned long)item);
+	/* C2_TIMER_SOFT creates a different thread to handle the
+	   callback. */
+	c2_timer_init(&item_timer, C2_TIMER_SOFT, &item->ri_deadline, 0, c2_rpc_form_item_timer_callback, (unsigned long)item);
 	res = c2_timer_start(&item_timer);
 	if (res != 0) {
 		printf("Failed to start the timer for rpc item.\n");
 		return -1;
 	}
+	item->timer = item_timer;
 	/* Assumption: c2_rpc_item_type_ops methods can access
 	   the fields of corresponding fop. */
 	return 0;
@@ -507,6 +557,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 	bool					 update_stream_busy = false;
 	bool					 io_op = false;
 	uint64_t				 current_fragments = 0;
+	struct c2_time_t			 now;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
@@ -534,6 +585,11 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 			*nfragments += current_fragments;
 			item->ri_state = RPC_ITEM_ADDED;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
+			c2_time_now(&now);
+			if (c2_time_after(rpc_item->timer->t_expire, now))
+				rpc_item->ri_deadline = c2_time_sub(rpc_item->timer->t_expire, now);
+			c2_timer_stop(item->timer);
+			c2_timer_fini(item->timer);
 			c2_list_del(item->rio_unformed_linkage);
 		}
 		return 0;
@@ -546,12 +602,16 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 		struct c2_list *forming_list, uint64_t *rpcobj_size)
 {
-	int		res = 0;
-	struct		c2_rpc_item *item = NULL;
-	struct 		c2_fid fid;
-	bool		item_rw = false;
-	struct		c2_rpc_form_fid_units *fid_unit = NULL;
-	bool		fid_found = false;
+	int				 res = 0;
+	struct c2_rpc_item 		*item = NULL;
+	struct c2_fid 			 fid;
+	bool				 item_rw = false;
+	struct c2_rpc_form_fid_units 	*fid_unit = NULL;
+	bool				 fid_found = false;
+	struct c2_rpc_form_fid_summary_member	*fid_member = NULL;
+	struct c2_rpc_form_fid_summary_member	*fid_member_next = NULL;
+	uint64_t			 item_size = 0;
+	struct c2_rpc_form_item_coalesced_member *item_member = NULL;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(forming_list != NULL);
@@ -568,6 +628,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 		if (item->ri_type->rit_ops->rio_is_io_req(item)) {
 			fid = item->ri_type->rit_ops->rio_io_get_fid(item);
 			item_rw = item->ri_type->rit_ops->rio_io_is_read(item);
+			item_size = item->ri_type->rit_ops->rio_item_size(item);
 			c2_list_for_each_entry(endp_unit->isu_fid_list.l_head, fid_member, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
 				if ((fid_member->fsm_fid == fid) && 
 						(fid_member->fsm_rw == item_rw)) {
@@ -590,23 +651,53 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 			}
 			fid_unit->fu_item = item;
 			c2_list_add(fid_member->fsm_items.l_head, fid_unit->fu_linkage);
+			fid_member->fsm_total_size += item_size;
 		}
 	}
 	/* 4. Now, traverse the endp_unit->isu_fid_list and coalesce the
 	      rpc items from the list of rpc items in each struct
 	      c2_rpc_form_fid_summary_member. */
-	c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head, fid_member, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
-		if () {
+	c2_list_for_each_entry_safe(&endp_unit->isu_fid_list.l_head, fid_member, fid_member_next, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
+		if (fid_member->fsm_nitems > 1) {
+			/* 5. For every possible coalescing situation, create a struct
+			   c2_rpc_form_item_coalesced and populate it.*/
+			coalesced_item = c2_alloc(sizeof(struct c2_rpc_form_item_coalesced));
+			if (coalesced_item == NULL) {
+				printf("Failed to allocate memory for struct c2_rpc_form_item_coalesced.\n");
+				return -1;
+			}
+			coalesced_item->ic_op_intent = fid_member->fsm_rw;
+			coalesced_item->ic_nmembers = fid_member->fsm_nitems;
+			new_item = c2_alloc(sizeof(struct c2_rpc_item));
+			if (new_item == NULL) {
+				printf("Failed to allocate memory for struct c2_rpc_item.\n");
+				return -1;
+			}
+			coalesced_item->ic_resultant_item = new_item;
+			coalesced_item->ic_member_list = fid_member->fsm_items;
+			rpcobj_size -= fid_member->fsm_total_size;
+
+			/*XXX Need to coalesce IO vectors into one. */
+			res = c2_rpc_form_io_items_coalesce(coalesced_item->ic_member_list, &coalesced_item->ic_resultant_item);
+			if (res == 0) {
+				/*delete fid member*/
+				c2_list_del(fid_member->fsm_linkage);
+				c2_free(fid_member);
+				coalesced_item->ic_resultant_item->ri_state = RPC_ITEM_ADDED;
+				/* 6. Remove the corresponding member rpc items from 
+				   forming list, calculate their cumulative size and deduct
+				   it from rpcobj_size. */
+				rpcobj_size += coalesced_item->ic_resultant_item->ri_type->rit_ops->rio_item_size(coalesced_item->ic_resultant_item);
+			}
+			/* 7. Add the newly formed rpc item into the forming list and
+			   increment rpcobj_size by its size. */
+			c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, item_member, struct c2_rpc_form_item_coalesced_member, im_linkage) {
+				c2_list_del(item_member->im_member_item->rpcobject_linkage);
+			}
+			c2_list_add(forming_list->l_head, coalesced_item->ic_resultant_item);
 		}
 	}
-	/* 5. For every possible coalescing situation, create a struct
-	      c2_rpc_form_item_coalesced and populate it.*/
-	/* 6. Remove the corresponding member rpc items from 
-	      forming list, calculate their cumulative size and deduct
-	      it from rpcobj_size. */
-	/* 7. Add the newly formed rpc item into the forming list and
-	      increment rpcobj_size by its size. */
-	/* 8. Repeat the procedure until all fids are exhausted. */
+	return 0;
 }
 
 /**
