@@ -3,6 +3,7 @@
 #include "lib/mutex.h"
 #include "lib/list.h"
 #include "lib/memory.h"
+#include "lib/errno.h"
 
 #include "rm/rm.h"
 
@@ -25,8 +26,8 @@ static void c2_rm_remove_rights(struct c2_rm_incoming *in);
 static void c2_rm_sublet_revoke(struct c2_rm_incoming *in,
 				struct c2_rm_right *right);
 
-static struct c2_rm_right *c2_rm_right_diff(struct c2_rm_right *scan,
-					    struct c2_rm_right *right);
+static struct c2_rm_right *c2_rm_right_diff(struct c2_rm_right *rest,
+					    struct c2_rm_right *scan);
 static bool c2_rm_right_intersects(struct c2_rm_right *scan,
 				   struct c2_rm_right *right);
 static struct c2_rm_right *c2_rm_right_meet(struct c2_rm_right *scan,
@@ -34,6 +35,9 @@ static struct c2_rm_right *c2_rm_right_meet(struct c2_rm_right *scan,
 int c2_rm_pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	   struct c2_rm_loan *loan, struct c2_rm_right *right);
+
+static bool c2_rm_local_rights_held(struct c2_rm_incoming *in);
+static bool c2_rm_right_empty(struct c2_rm_right *rest);
 
 
 void c2_rm_domain_init(struct c2_rm_domain *dom)
@@ -478,13 +482,13 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 	 */
 	c2_rm_incoming_check_local(in, &rest);
 
-	if (!rest.ri_datum) {
+	if (c2_rm_right_empty(&rest)) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
 		 */
 		//if (some local rights on &in->rin_pins are held) {
-		if (c2_rm_local_rights_held(&in->rin_pins)) {
+		if (c2_rm_local_rights_held(in)) {
 			/*
 			 * conflicting held rights were found, has to
 			 * wait until local rights are released.
@@ -529,7 +533,7 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 			c2_rm_sublet_revoke(in, &rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
-			while (rest.ri_datum) {
+			while (!c2_rm_right_empty(&rest)) {
 				struct c2_rm_loan borrow;
 
 				c2_rm_net_locate(rest, &borrow);
@@ -537,7 +541,7 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 				       &borrow, &borrow.rl_right);
 			}
 		}
-		if (!rest.ri_datum) {
+		if (c2_rm_right_empty(&rest)) {
 			in->rin_state = RI_WAIT;
 		} else {
 			/* cannot fulfill the request. */
@@ -596,7 +600,7 @@ static void c2_rm_incoming_check_local(struct c2_rm_incoming *in,
 			if (c2_rm_right_intersects(scan,rest)) {
 				if (!coverage) {
 					rest = c2_rm_right_diff(rest, scan);
-					if (!rest->ri_datum)
+					if (c2_rm_right_empty(rest))
 						return;
 				}
 				c2_rm_pin_add(in, scan);
@@ -657,9 +661,10 @@ int c2_rm_pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	   struct c2_rm_loan *loan, struct c2_rm_right *right)
 {
-	struct c2_rm_outgoing	*out
+	struct c2_rm_outgoing	*out;
 	struct c2_rm_outgoing	*ex_out;
 	struct c2_rm_right 	*scan;
+	struct c2_rm_loan	*out_loan;
 	int 			result = 0;
 	int			i;
 
@@ -667,14 +672,16 @@ int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	for (i = 0; i< OQS_NR; i++) {
 		c2_list_for_each_entry(&in->rin_owner->ro_outgoing[i], scan,
 					struct c2_rm_right, ri_linkage) {
-			ex_out = 
+			out_loan = container_of(scan, struct c2_rm_loan, rl_right);
+			ex_out = container_of(out_loan, struct c2_rm_outgoing,
+								rog_want);
 			if (ex_out->rog_type == otype && c2_rm_right_intersects(
 							scan, right)) {
 				/* @todo adjust outgoing requests priority (priority
 			  	 inheritance) */
 				result = c2_rm_pin_add(in, scan);
 				C2_ASSERT(result == 0);
-				rest = c2_rm_right_diff(rest, scan);
+				right = c2_rm_right_diff(right, scan);
 				break;
 			}
 		}
@@ -697,11 +704,13 @@ int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
                           const struct c2_time *deadline)
 {
+	return 0;
 }
 
 int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 			 struct c2_rm_incoming *in)
 {
+	return 0;
 }
 
 /** @} end of Owner state machine group */
