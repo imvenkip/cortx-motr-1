@@ -28,9 +28,17 @@ void test_list(void)
 	c2_list_link_init(&t3.t_link);
 	t3.c = 15;
 
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t3.t_link));
+
 	c2_list_add(&test_head, &t1.t_link);
 	c2_list_add_tail(&test_head, &t2.t_link);
 	c2_list_add(&test_head, &t3.t_link);
+
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t3.t_link));
 
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
@@ -40,7 +48,10 @@ void test_list(void)
 	C2_UT_ASSERT(!c2_list_contains(&test_head, &t4.t_link));
 
 	c2_list_del(&t2.t_link);
+
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t1.t_link));
 	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
 
 	t_sum = 0;
 	c2_list_for_each(&test_head, pos) {
@@ -50,6 +61,11 @@ void test_list(void)
 	C2_UT_ASSERT(t_sum == 20);
 
 	c2_list_del(&t1.t_link);
+
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
+
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
@@ -57,6 +73,11 @@ void test_list(void)
 	C2_UT_ASSERT(t_sum == 15);
 
 	c2_list_del(&t3.t_link);
+
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t3.t_link));
+
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
@@ -106,20 +127,20 @@ struct c2_ub_set c2_list_ub = {
 	.us_name = "list-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
-	.us_run  = { 
-		{ .ut_name = "insert", 
-		  .ut_iter = UB_ITER, 
+	.us_run  = {
+		{ .ut_name = "insert",
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_insert },
 
-		{ .ut_name = "delete", 
-		  .ut_iter = UB_ITER, 
+		{ .ut_name = "delete",
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_delete },
 
 		{ .ut_name = NULL }
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
