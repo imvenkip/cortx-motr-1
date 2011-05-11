@@ -534,6 +534,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 						bp[i] = "abcdefghi"[i % 9];
 					rc = encode_msg(nb, bp);
 					c2_free(bp);
+					C2_ASSERT(rc == 0);
 				}
 				C2_ASSERT(rc == 0);
 			} else {
@@ -550,6 +551,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 				strcpy(data, msg.pm_u.pm_str);
 				strcat(data, " pong");
 				rc = encode_msg(nb, data);
+				c2_free(data);
 				C2_ASSERT(rc == 0);
 			}
 			c2_mutex_lock(&ctx->pc_mutex);
@@ -1015,6 +1017,7 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 							ctx->pc_ident);
 					c2_mutex_unlock(&ctx->pc_mutex);
 					ping_buf_put(ctx, nb);
+					c2_free(wi);
 					return -ETIMEDOUT;
 				}
 				struct c2_time delay, rem;
