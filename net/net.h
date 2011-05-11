@@ -977,7 +977,9 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 /**
    Finalize a transfer machine, releasing any associated
    transport specific resources.
-   @pre tm->ntm_state == C2_NET_TM_STOPPED
+   @pre tm->ntm_state == C2_NET_TM_STOPPED ||
+        tm->ntm_state == C2_NET_TM_FAILED ||
+	tm->ntm_state == C2_NET_TM_INITIALIZED
    @param tm Transfer machine pointer.
    @retval 0 (success)
    @retval -errno (failure)

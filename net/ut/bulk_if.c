@@ -564,6 +564,21 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
+	/* should be able to fini it immediately */
+	rc = c2_net_tm_fini(tm);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_fini_called);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_UNDEFINED);
+
+	/* should be able to init it again */
+	ut_tm_init_called = false;
+	ut_tm_fini_called = false;
+	rc = c2_net_tm_init(tm, dom);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_tm_init_called);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
+
 	/* add MSG_RECV buf - should fail as not started */
 	nb = &nbs[C2_NET_QT_MSG_RECV];
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));

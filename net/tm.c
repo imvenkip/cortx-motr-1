@@ -175,7 +175,8 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 
 	c2_mutex_lock(&dom->nd_mutex);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STOPPED ||
-	       tm->ntm_state == C2_NET_TM_FAILED);
+	       tm->ntm_state == C2_NET_TM_FAILED ||
+	       tm->ntm_state == C2_NET_TM_INITIALIZED);
 
 	for(i=0; i < C2_NET_QT_NR; ++i) {
 		C2_ASSERT(c2_list_is_empty(&tm->ntm_q[i]));
