@@ -21,7 +21,7 @@ DEF(c2_rpc_conn_create_rep, RECORD,
    _(rccr_cookie, U64));
 
 DEF(c2_rpc_conn_terminate, RECORD,
-    _(ct_snd_id, U64));
+    _(ct_sender_id, U64));
 
 DEF(c2_rpc_conn_terminate_rep, RECORD,
    _(ctr_rc, U32));
@@ -34,10 +34,11 @@ DEF(c2_rpc_session_create_rep, RECORD,
    _(rscr_session_id, U64));
 
 DEF(c2_rpc_session_destroy, RECORD,
+   _(rsd_sender_id, U64),
    _(rsd_session_id, U64));
 
 DEF(c2_rpc_session_destroy_rep, RECORD,
-   _(rsdr_status, U32));
+   _(rsdr_rc, U32));
 
 /** @} end of rpc-sessions group */
 

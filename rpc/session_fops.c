@@ -45,7 +45,7 @@ int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_conn_create_ops;
 
 	fom_obj->fcc_fop = fop;
-	fom_obj->fcc_fop_rep = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	fom_obj->fcc_fop_rep = c2_fop_alloc(&c2_rpc_conn_create_rep_fopt, NULL);
 	if (fom_obj->fcc_fop_rep == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
@@ -78,7 +78,7 @@ int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_session_create_ops;
 
 	fom_obj->fsc_fop = fop;
-	fom_obj->fsc_fop_rep = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
+	fom_obj->fsc_fop_rep = c2_fop_alloc(&c2_rpc_session_create_rep_fopt, NULL);
 	if (fom_obj->fsc_fop_rep == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
@@ -88,17 +88,12 @@ int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	printf ("session_create fom init call finished\n");
 	return 0;
 }
-struct c2_fop_type_ops c2_rpc_conn_terminate_ops = {
-	.fto_fom_init = c2_rpc_fom_init,
-};
-
 struct c2_fop_type_ops c2_rpc_session_create_ops = {
 	.fto_fom_init = c2_rpc_session_create_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_session_destroy_ops = {
-	.fto_fom_init = c2_rpc_fom_init,
-};
+
+
 
 static int c2_rpc_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
@@ -109,6 +104,77 @@ struct c2_fop_type_ops c2_rpc_rep_ops = {
 	.fto_fom_init = c2_rpc_rep_fom_init,
 };
 
+/* ================================== */
+int c2_rpc_session_destroy_fom_init(struct c2_fop *fop,
+					struct c2_fom **m)
+{
+	struct c2_rpc_fom_session_destroy	*fom_obj;
+	struct c2_fom				*fom;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(m != NULL);
+
+	printf ("session_destroy fom init called\n");
+	C2_ALLOC_PTR(fom_obj);
+	if (fom_obj == NULL)
+		return -ENOMEM;
+
+	fop->f_type->ft_fom_type = c2_rpc_fom_session_destroy_type;
+	fom = &fom_obj->fsd_gen;
+	fom->fo_type = &c2_rpc_fom_session_destroy_type;
+	fom->fo_ops = &c2_rpc_fom_session_destroy_ops;
+
+	fom_obj->fsd_fop = fop;
+	fom_obj->fsd_fop_rep = c2_fop_alloc(&c2_rpc_session_destroy_rep_fopt, NULL);
+	if (fom_obj->fsd_fop_rep == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
+
+	*m = fom;
+	printf ("session_destroy fom init call finished\n");
+	return 0;
+
+}
+struct c2_fop_type_ops c2_rpc_session_destroy_ops = {
+	.fto_fom_init = c2_rpc_session_destroy_fom_init,
+};
+
+//========================
+
+struct c2_fop_type_ops c2_rpc_conn_terminate_ops = {
+	.fto_fom_init = c2_rpc_conn_terminate_fom_init,
+};
+
+int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	struct c2_rpc_fom_conn_terminate	*fom_obj;
+	struct c2_fom				*fom;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(m != NULL);
+
+	printf ("conn terminate fom init called\n");
+	C2_ALLOC_PTR(fom_obj);
+	if (fom_obj == NULL)
+		return -ENOMEM;
+
+	fop->f_type->ft_fom_type = c2_rpc_fom_conn_terminate_type;
+	fom = &fom_obj->fct_gen;
+	fom->fo_type = &c2_rpc_fom_conn_terminate_type;
+	fom->fo_ops = &c2_rpc_fom_conn_terminate_ops;
+
+	fom_obj->fct_fop = fop;
+	fom_obj->fct_fop_rep = c2_fop_alloc(&c2_rpc_conn_terminate_rep_fopt, NULL);
+	if (fom_obj->fct_fop_rep == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
+
+	*m = fom;
+	printf ("conn terminate fom init call finished\n");
+	return 0;
+}
 /** 
    REQUEST
  */

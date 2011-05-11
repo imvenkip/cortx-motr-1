@@ -69,6 +69,91 @@ void traverse_slot_table()
 	c2_db_tx_commit(&tx);
 	
 }
+void test_session_destroy(uint64_t sender_id, uint64_t session_id)
+{
+	struct c2_fop				*fop;
+	struct c2_rpc_session_destroy		*fop_in;
+	struct c2_fom				*fom;
+	struct c2_rpc_fom_session_destroy	*fom_sd;
+	struct c2_rpc_item			*item;
+	struct c2_rpc_item			*cached_item;
+	enum c2_rpc_session_seq_check_result	sc;
+
+	/*
+	 * Allocate and fill FOP
+	 */
+	fop = c2_fop_alloc(&c2_rpc_session_destroy_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_in = c2_fop_data(fop);
+	C2_ASSERT(fop_in != NULL);
+
+	fop_in->rsd_sender_id = sender_id;
+	fop_in->rsd_session_id = session_id;
+
+	/*
+	 * Initialize rpc item
+	 */
+	item = c2_fop_to_rpc_item(fop);
+	item->ri_sender_id = sender_id;
+	item->ri_session_id = SESSION_0;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	item->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
+	item->ri_verno.vn_vc = 1;
+
+	/*
+	 * "Receive" the item 
+	 */
+	sc = c2_rpc_session_item_received(item, &cached_item);
+
+	/*
+	 * Instantiate fom
+	 */
+	if (sc == SCR_ACCEPT_ITEM) {
+		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+		C2_ASSERT(fom != NULL);
+
+		/*
+		 * Initialize type-specific fields of fom along with tx
+	 	 */
+		fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy,
+					fsd_gen);
+		C2_ASSERT(fom_sd != NULL);
+		fom_sd->fsd_dbenv = db;
+		c2_db_tx_init(&fom_sd->fsd_tx, db, 0);
+
+		/*
+		 * Execute fom
+		 */
+		fom->fo_ops->fo_state(fom);
+
+		/*
+		 * store reply in reply-cache
+		 */
+		c2_rpc_session_reply_prepare(&fom_sd->fsd_fop->f_item,
+				&fom_sd->fsd_fop_rep->f_item,
+				&fom_sd->fsd_tx);
+
+		/*
+		 * commit/abort tx
+		 */
+		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+				fom->fo_phase == FOPH_FAILED);
+
+		if (fom->fo_phase == FOPH_DONE) {
+			c2_db_tx_commit(&fom_sd->fsd_tx);
+		} else if (fom->fo_phase == FOPH_FAILED) {
+			c2_db_tx_abort(&fom_sd->fsd_tx);
+		}
+	
+		/*
+		 * test reply contents
+		 */
+		traverse_slot_table();
+	}
+	
+}
 int main(void)
 {
 	struct c2_fop				*fop;
@@ -110,7 +195,7 @@ int main(void)
 		C2_ASSERT(fom != NULL);
 
 	
-		fom_cc = (struct c2_rpc_fom_conn_create *)fom;
+		fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
 
 		fom_cc->fcc_dbenv = db;
 		/* It is reqh generic phases that init/commit/abort a transaction */
@@ -153,7 +238,7 @@ int main(void)
 	item_in->ri_slot_id = 0;
 	item_in->ri_slot_generation = 0;
 	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
-	item_in->ri_verno.vn_vc = 10;
+	item_in->ri_verno.vn_vc = 0;
 
 	sc = c2_rpc_session_item_received(item_in, &cached_item);
 
@@ -188,6 +273,8 @@ int main(void)
 
 		traverse_slot_table();
 	}
+//=====================================================================
+	test_session_destroy(20, 100);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();
 	printf("program end\n");

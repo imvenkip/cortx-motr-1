@@ -26,8 +26,8 @@ struct c2_rpc_fom_conn_create {
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
 extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 
-extern int c2_rpc_fom_conn_create_state(struct c2_fom *);
-extern void c2_rpc_fom_conn_create_fini(struct c2_fom *);
+int c2_rpc_fom_conn_create_state(struct c2_fom *);
+void c2_rpc_fom_conn_create_fini(struct c2_fom *);
 
 // =========
 enum c2_rpc_session_create_phase {
@@ -45,7 +45,46 @@ struct c2_rpc_fom_session_create {
 extern struct c2_fom_type c2_rpc_fom_session_create_type;
 extern struct c2_fom_ops c2_rpc_fom_session_create_ops;
 
-extern int c2_rpc_fom_session_create_state(struct c2_fom *);
-extern void c2_rpc_fom_session_create_fini(struct c2_fom *);
+int c2_rpc_fom_session_create_state(struct c2_fom *);
+void c2_rpc_fom_session_create_fini(struct c2_fom *);
 
+//==========
+
+enum c2_rpc_fom_session_destroy_phase {
+	FOPH_SESSION_DESTROYING
+};
+
+struct c2_rpc_fom_session_destroy {
+	struct c2_fom		fsd_gen;
+	struct c2_fop		*fsd_fop;
+	struct c2_fop		*fsd_fop_rep;
+	struct c2_dbenv		*fsd_dbenv;
+	struct c2_db_tx		fsd_tx;
+};
+
+extern struct c2_fom_type c2_rpc_fom_session_destroy_type;
+extern struct c2_fom_ops c2_rpc_fom_session_destroy_ops;
+
+int c2_rpc_fom_session_destroy_state(struct c2_fom *);
+void c2_rpc_fom_session_destroy_fini(struct c2_fom *);
+
+//===========
+
+enum c2_rpc_fom_conn_terminate_phase {
+	FOPH_CONN_TERMINATING
+};
+
+struct c2_rpc_fom_conn_terminate {
+	struct c2_fom		fct_gen;
+	struct c2_fop		*fct_fop;
+	struct c2_fop		*fct_fop_rep;
+	struct c2_dbenv		*fct_dbenv;
+	struct c2_db_tx		fct_tx;
+};
+
+extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
+extern struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
+
+int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
+void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);
 #endif

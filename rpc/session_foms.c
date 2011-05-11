@@ -240,3 +240,182 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
 {
 	printf("called session_create_fini\n");
 }
+
+//====================
+
+
+struct c2_fom_ops c2_rpc_fom_session_destroy_ops = {
+	.fo_fini = &c2_rpc_fom_session_destroy_fini,
+	.fo_state = &c2_rpc_fom_session_destroy_state
+};
+
+static struct c2_fom_type_ops c2_rpc_fom_session_destroy_type_ops = {
+	.fto_create = NULL
+};
+
+struct c2_fom_type c2_rpc_fom_session_destroy_type = {
+	.ft_ops = &c2_rpc_fom_session_destroy_type_ops
+};
+
+int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
+{
+	struct c2_rpc_session_destroy		*fop_in;
+
+	struct c2_rpc_session_destroy_rep	*fop_out;
+	struct c2_rpc_fom_session_destroy	*fom_sd;
+	struct c2_db_pair			pair;
+	struct c2_rpc_slot_table_key		key;
+	struct c2_rpc_slot_table_value		slot;
+	struct c2_rpc_inmem_slot_table_value	inmem_slot;
+	struct c2_db_cursor			cursor;
+	struct c2_db_tx				*tx;
+	struct c2_rpc_item			*item;
+	int					rc;
+
+	printf("Session destroy state called\n");
+	fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy, fsd_gen);
+	C2_ASSERT(fom_sd != NULL && fom_sd->fsd_fop != NULL &&
+			fom_sd->fsd_fop_rep != NULL &&
+			fom_sd->fsd_dbenv != NULL);
+
+	fop_in = c2_fop_data(fom_sd->fsd_fop);
+	C2_ASSERT(fop_in != NULL);
+
+	fop_out = c2_fop_data(fom_sd->fsd_fop_rep);
+	C2_ASSERT(fop_out != NULL);
+
+	tx = &fom_sd->fsd_tx;
+	C2_ASSERT(tx != NULL);
+
+	printf("destroy [%lu:%lu]\n", fop_in->rsd_sender_id,
+			fop_in->rsd_session_id);
+
+	/*
+	 * Create key <sender_id, session_id>
+	 */
+	key.stk_sender_id = fop_in->rsd_sender_id;
+	key.stk_session_id = fop_in->rsd_session_id;
+	key.stk_slot_id = 0;
+	key.stk_slot_generation = 0;
+
+	C2_SET0(&slot);
+
+	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_slot_table,
+				&key, sizeof key,
+				&slot, sizeof slot);
+
+	/*
+	 * Delete all slot entries from persistent slot table
+	 */
+	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_slot_table, tx);
+	if (rc != 0)
+		goto errout;
+
+	while ((rc = c2_db_cursor_get(&cursor, &pair)) == 0) {
+		printf("Key [%lu:%lu:%u]\n", key.stk_sender_id,
+			key.stk_session_id, key.stk_slot_id);
+		if (key.stk_sender_id == fop_in->rsd_sender_id &&
+			key.stk_session_id == fop_in->rsd_session_id) {
+			rc = c2_db_cursor_del(&cursor);
+			if (rc != 0)
+				goto errout;
+
+			printf("Deleted\n");
+		} else {
+			printf("Finished records\n");
+			break;
+		}
+	}
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+
+	/*
+	 * Delete entries from in-core slot table.
+	 * reuse variables pair and cursor to traverse in in-memory slot_table
+	 */
+	key.stk_slot_id = 0;
+	key.stk_slot_generation = 0;
+
+	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+				&key, sizeof key,
+				&inmem_slot, sizeof inmem_slot);
+
+	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table, tx);
+	if (rc != 0)
+		goto errout;
+
+	while ((rc = c2_db_cursor_get(&cursor, &pair)) == 0) {
+		printf("Key [%lu:%lu:%u]\n", key.stk_sender_id,
+			key.stk_session_id, key.stk_slot_id);
+		if (key.stk_sender_id == fop_in->rsd_sender_id &&
+			key.stk_session_id == fop_in->rsd_session_id) {
+			rc = c2_db_cursor_del(&cursor);
+			if (rc != 0)
+				goto errout;
+
+			printf("Deleted in mem rec\n");
+		} else {
+			printf("Finished records in in-mem slot table\n");
+			break;
+		}
+	}				
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+	
+	c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list, item,
+				struct c2_rpc_item, ri_rc_link) {
+		if (item->ri_sender_id == fop_in->rsd_sender_id &&
+			item->ri_session_id == fop_in->rsd_session_id) {
+			c2_list_del(&item->ri_rc_link);
+			printf("session_destroy_state: removed entry from reply cache\n");
+		}
+	}
+
+	fop_out->rsdr_rc = 0;	/* Report success */
+	fom->fo_phase = FOPH_DONE;
+	printf("Session destroy successful\n");
+	return FSO_AGAIN;
+errout:
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+
+	fop_out->rsdr_rc = rc;	/* Report failure */
+	fom->fo_phase = FOPH_FAILED;
+	printf("session destroy failed\n");
+	return FSO_AGAIN;
+}
+
+void c2_rpc_fom_session_destroy_fini(struct c2_fom *fom)
+{
+	printf("Session destroy fini called\n");
+}
+
+//==============
+
+struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
+	.fo_fini = &c2_rpc_fom_conn_terminate_fini,
+	.fo_state = &c2_rpc_fom_conn_terminate_state
+};
+
+static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
+	.fto_create = NULL
+};
+
+struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
+	.ft_ops = &c2_rpc_fom_conn_terminate_type_ops
+};
+
+int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+{
+	printf("conn create state called\n");
+	return FSO_AGAIN;
+}
+
+void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)
+{
+	printf("conn create fini called\n");
+}
+
