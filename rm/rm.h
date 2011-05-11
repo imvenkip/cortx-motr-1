@@ -113,7 +113,7 @@
 
    As in many other places in Colibri, liveness of "global" long-living
    structures (c2_rm_domain, c2_rm_resource_type) is managed by the upper
-   layers which are responsible fore determining when it is safe to finalise
+   layers which are responsible for determining when it is safe to finalise
    the structures. Typically, an upper layer would achieve this by first
    stopping and finalising all possible resource manager users.
 
@@ -127,6 +127,8 @@
    borrowed from other owners.
 
    <b>Resource identification and location.</b>
+
+   @see c2_rm_remote
 
    <b>Persistent state.</b>
 
@@ -693,7 +695,7 @@ struct c2_rm_owner {
 	/**
 	   An array of lists, sorted by priority, of incoming requests, not yet
 	   satisfied. Requests are linked through
-	   c2_rm_incoming::rin_want::rl_right:ri_linkage.
+	   c2_rm_incoming::rin_want::ri_linkage.
 	 */
 	struct c2_list         ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
 	/**
@@ -1126,19 +1128,87 @@ void c2_rm_type_register(struct c2_rm_domain *dom,
  */
 void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
 
-int  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+/**
+   Adds a resource to the list of resources and increment resource type
+   reference count.
+
+   @pre c2_list_is_empty(res->r_linkage) && res->r_ref == 0
+   @pre rtype->rt_resources does not contain a resource equal (in the
+        c2_rm_resource_type_ops::rto_eq() sense) to res
+
+   @post res->r_ref > 0
+   @post res->r_type == rtype
+   @post c2_list_contains(&rtype->rt_resources, &res->r_linkage)
+ */
+void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 			struct c2_rm_resource *res);
+/**
+   Removes a resource from the list of resources. Dual to c2_rm_resource_add().
+
+   @pre res->r_type->rt_ref > 0
+   @pre c2_list_contains(&rtype->rt_resources, &res->r_linkage)
+
+   @post !c2_list_contains(&rtype->rt_resources, &res->r_linkage)
+ */
 void c2_rm_resource_del(struct c2_rm_resource *res);
 
+/**
+   Initialises owner fields and increments resource reference counter.
+
+   The owner's right lists are initially empty.
+
+   @pre owner->ro_state == ROS_FINAL
+
+   @post ergo(result == 0, (owner->ro_state == ROS_INITIALISING ||
+                            owner->ro_state == ROS_ACTIVE) &&
+			   c2_list_is_empty(owner->ro_borrowed) &&
+			   c2_list_is_empty(owner->ro_sublet) &&
+			   c2_list_is_empty(owner->ro_owned[*]) &&
+			   c2_list_is_empty(owner->ro_incoming[*][*]) &&
+			   c2_list_is_empty(owner->ro_outgoing[*]) &&
+			   owner->ro_resource == res)
+ */
 int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
+
+/**
+   Initialises owner so that it initially possesses @r.
+
+   @see c2_rm_owner_init()
+
+   @post ergo(result == 0, c2_list_contains(&owner->ro_owned[OWOS_CACHED],
+                                            &r->ri_linkage))
+ */
 int c2_rm_owner_init_with(struct c2_rm_owner *owner,
 			  struct c2_rm_resource *res, struct c2_rm_right *r);
+/**
+   Finalises the owner. Dual to c2_rm_owner_init().
+
+   @pre owner->ro_state == ROS_FINAL
+   @pre c2_list_is_empty(owner->ro_borrowed) &&
+   c2_list_is_empty(owner->ro_sublet) &&
+			   c2_list_is_empty(owner->ro_owned[*]) &&
+			   c2_list_is_empty(owner->ro_incoming[*][*]) &&
+			   c2_list_is_empty(owner->ro_outgoing[*]) &&
+
+ */
 void c2_rm_owner_fini(struct c2_rm_owner *owner);
 
+/**
+   Initialises generic fields in @right.
+ */
 void c2_rm_right_init(struct c2_rm_right *right);
+/**
+   Finalised generic fields in @right. Dual to c2_rm_right_init().
+ */
 void c2_rm_right_fini(struct c2_rm_right *right);
 
+/**
+   Initialises the fields of @in.
+ */
 void c2_rm_incoming_init(struct c2_rm_incoming *in);
+/**
+   Finalises the fields of @in. Dual to c2_rm_incoming_init().
+ */
 void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
 /**
@@ -1148,10 +1218,28 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
  */
 void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
-int  c2_rm_right_timedwait(struct c2_rm_incoming *in,
-			   const struct c2_time *deadline);
+
+/**
+   Waits until @in enters RI_SUCCESS or RI_FAILURE state or deadline expires.
+
+   @post ergo(result == 0, in->rin_state == RI_SUCCESS ||
+                           in->rin_state == RU_FAILURE)
+ */
+int c2_rm_right_timedwait(struct c2_rm_incoming *in,
+			  const struct c2_time *deadline);
+
+/**
+   A helper function combining c2_rm_right_get() and c2_rm_right_timedwait()
+   with an infinite timeout.
+ */
 int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
 
+/**
+   Releases the right pinned by @in.
+
+   @pre in->rin_state == RI_SUCCESS
+   @post c2_list_empty(&in->rin_pins)
+ */
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
 /**
@@ -1166,6 +1254,14 @@ void c2_rm_right_put(struct c2_rm_incoming *in);
  */
 /** @{ */
 
+/**
+   Constructs a remote owner associated with @right.
+
+   After this function returns, @other is in the process of locating the remote
+   service and remote owner, as described in the comment on c2_rm_remote.
+
+   @post ergo(result == 0, other->rem_resource == right->ri_resource)
+ */
 int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
 
 /** @} end of Resource manager networking */
