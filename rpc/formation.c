@@ -328,14 +328,7 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary
 	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
 	bool						  found = false;
 	struct c2_timer					 *item_timer = NULL;
-	struct c2_fid					  fid = NULL;
-	struct c2_rpc_form_fid_summary_unit		 *fid_unit = NULL;
-	struct c2_rpc_form_fid_summary_member		 *fid_member = NULL;
-	struct c2_rpc_form_fid_summary_member		 *fid_member_new = NULL;
-	struct c2_list					 *io_list = NULL;
-	int 						  opcode = 0;
 	uint64_t					  item_size = 0;
-	bool						  fid_found = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -363,60 +356,6 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary
 	summary_group->sug_avg_timeout = ((summary_group->sug_nitems * summary_group->sug_avg_timeout) - item->ri_deadline.tv_sec) / (summary_group->sug_nitems);
 	summary_group->sug_nitems--;
 
-	/* XXX If the current rpc item is an IO request, note down its
-	   data in the fid list per rpc group as well as the global 
-	   fid list. */
-	res = item->ri_type->rit_ops->rio_is_io_req(item);
-	if (res != 0)
-		return 0;
-	/* Assumption: c2_rpc_item_type_ops methods can access
-	   the fields of corresponding fop. */
-	item_size = item->ri_type->rit_ops->rio_item_size(item);
-	fid = item->ri_type->rit_ops->rio_io_get_fid(item);
-	/* Search through the list of fid_summary_unit in endp_unit. */
-	c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head, 
-			fid_unit, struct c2_rpc_form_fid_summary_unit,
-			fs_linkage) {
-		if (fid_unit->fs_fid == fid) {
-			fid_found = true;
-			break;
-		}
-	}
-	/* If no IO requests have come so far for given fid, 
-	   create a new struct c2_rpc_form_fid_summary_unit. */
-	if (fid_found == false) {
-			return 0;
-	}
-	/* Find out the opcode of IO request - read or write. */
-	opcode = item->ri_type->rit_ops->rio_io_is_read(item);
-	if (opcode == 0) {
-		io_list = &fid_unit->fs_read_list;
-		fid_unit->fs_read_total_size -= item_size;
-	}
-	else {
-		io_list = &fid_unit->fs_write_list;
-		fid_unit->fs_write_total_size -= item_size;
-	}
-
-	/* Search through the list of read or write requests 
-	   for given fid. */
-	c2_list_for_each_entry(io_list.l_head, fid_member, 
-			struct c2_rpc_form_fid_summary_member, fsm_linkage) {
-		if (fid_member->fsm_group == item->ri_group) {
-			found = true;
-			break;
-		}
-	}
-	/* If no IO requests have come so far for this opcode and 
-	 given fid, create a new struct c2_rpc_form_fid_summary_member. */
-	if (found == false) {
-			return 0;
-	}
-	fid_member->fsm_avg_prio = ((fid_member->fsm_nitems * fid_member->
-				fsm_avg_prio) - item->ri_priority) /
-		(fid_member->fsm_nitems);
-	fid_member->fsm_total_size -= item_size;
-	fid_member->fsm_nitems--;
 	return 0;
 }
 
@@ -455,13 +394,6 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 	bool						  found = false;
 	struct c2_timer					 *item_timer = NULL;
 	struct c2_fid					  fid = NULL;
-	struct c2_rpc_form_fid_summary_unit		 *fid_unit = NULL;
-	struct c2_rpc_form_fid_summary_member		 *fid_member = NULL;
-	struct c2_rpc_form_fid_summary_member		 *fid_member_new = NULL;
-	struct c2_list					 *io_list = NULL;
-	int 						  opcode = 0;
-	uint64_t					  item_size = 0;
-	bool						  fid_found = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -532,81 +464,8 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 		printf("Failed to start the timer for rpc item.\n");
 		return -1;
 	}
-	/* XXX If the current rpc item is an IO request, note down its
-	   data in the fid list per rpc group as well as the global 
-	   fid list. */
-	res = item->ri_type->rit_ops->rio_is_io_req(item);
-	if (res != 0)
-		return 0;
 	/* Assumption: c2_rpc_item_type_ops methods can access
 	   the fields of corresponding fop. */
-	item_size = item->ri_type->rit_ops->rio_item_size(item);
-	fid = item->ri_type->rit_ops->rio_io_get_fid(item);
-	/* Search through the list of fid_summary_unit in endp_unit. */
-	c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head, 
-			fid_unit, struct c2_rpc_form_fid_summary_unit,
-			fs_linkage) {
-		if (fid_unit->fs_fid == fid) {
-			fid_found = true;
-			break;
-		}
-	}
-	/* If no IO requests have come so far for given fid, 
-	   create a new struct c2_rpc_form_fid_summary_unit. */
-	if (fid_found == false) {
-		fid_unit_new = c2_alloc(sizeof(struct 
-					c2_rpc_form_fid_summary_unit));
-		if(fid_unit_new == NULL) {
-			printf("Failed to allocate memory for struct 
-					c2_rpc_form_fid_summary_unit.\n");
-			return -1;
-		}
-		c2_list_link_init(fid_unit_new->fs_linkage);
-		c2_list_add(&endp_unit->isu_fid_list.l_head,
-				fid_unit_new->fs_linkage);
-		c2_list_init(&fid_unit_new->fs_read_list);
-		c2_list_init(&fid_unit_new->fs_write_list);
-		fid_unit_new->fs_fid = item->ri_type->rit_ops->
-			rio_io_get_fid(item);
-		fid_unit = fid_unit_new;
-	}
-	/* Find out the opcode of IO request - read or write. */
-	opcode = item->ri_type->rit_ops->rio_io_is_read(item);
-	if (opcode == 0) {
-		io_list = &fid_unit->fs_read_list;
-		fid_unit->fs_read_total_size += item_size;
-	}
-	else {
-		io_list = &fid_unit->fs_write_list;
-		fid_unit->fs_write_total_size += item_size;
-	}
-
-	/* Search through the list of read or write requests 
-	   for given fid. */
-	c2_list_for_each_entry(io_list.l_head, fid_member, 
-			struct c2_rpc_form_fid_summary_member, fsm_linkage) {
-		if (fid_member->fsm_group == item->ri_group) {
-			found = true;
-			break;
-		}
-	}
-	/* If no IO requests have come so far for this opcode and 
-	 given fid, create a new struct c2_rpc_form_fid_summary_member. */
-	if (found == false) {
-		fid_member_new = c2_alloc(sizeof(struct c2_rpc_form_fid_summary_member));
-		if (fid_member_new == NULL) {
-			printf("Failed to allocate memory for struct c2_rpc_form_fid_summary_unit.\n");
-			return -1;
-		}
-		c2_list_add(io_list.l_head, fid_member_new->fsm_linkage);
-		fid_member_new->fsm_group = item->ri_group;
-	}
-	fid_member->fsm_avg_prio = ((fid_member->fsm_nitems * fid_member->
-				fsm_avg_prio) + item->ri_priority) /
-		(fid_member->fsm_nitems + 1);
-	fid_member->fsm_total_size += item_size;
-	fid_member->fsm_nitems++;
-
 	return 0;
 }
 
@@ -669,6 +528,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 		if(update_stream_busy != true) {
 			/** XXX Need this API from rpc-core. */
 			c2_rpc_set_update_stream_status(item_update_stream, BUSY);
+			/* XXX Need a rpbobject_linkage in c2_rpc_item. */
 			c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
 			*rpcobj_size += item_size;
 			*nfragments += current_fragments;
@@ -686,11 +546,67 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 		struct c2_list *forming_list, uint64_t *rpcobj_size)
 {
+	int		res = 0;
+	struct		c2_rpc_item *item = NULL;
+	struct 		c2_fid fid;
+	bool		item_rw = false;
+	struct		c2_rpc_form_fid_units *fid_unit = NULL;
+	bool		fid_found = false;
+
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(forming_list != NULL);
 	C2_PRE(rpcobj_size != NULL);
 
-
+	/* 1. Iterate over the forming list to find out fids from 
+	      IO requests it contains. */
+	/* 2. For each found fid, check its read and write list to
+	   see if it belongs to any of the selected rpc groups. */
+	/* 3. For every unique combination of fid and intent(read/write)
+	   locate/create a struct c2_rpc_form_fid_summary_member and put
+	   it in endp_unit->isu_fid_list. */
+	c2_list_for_each_entry(forming_list->l_head, item, struct c2_rpc_item, rpcobject_linkage) {
+		if (item->ri_type->rit_ops->rio_is_io_req(item)) {
+			fid = item->ri_type->rit_ops->rio_io_get_fid(item);
+			item_rw = item->ri_type->rit_ops->rio_io_is_read(item);
+			c2_list_for_each_entry(endp_unit->isu_fid_list.l_head, fid_member, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
+				if ((fid_member->fsm_fid == fid) && 
+						(fid_member->fsm_rw == item_rw)) {
+					fid_found = true;
+					break;
+				}
+			}
+			if (fid_found == false) {
+				fid_member = c2_alloc(sizeof(struct c2_rpc_form_fid_summary_member));
+				if (fid_member == NULL) {
+					printf("Failed to allocate memory for struct c2_rpc_form_fid_summary_member\n");
+					return -1;
+				}
+			}
+			fid_member->fsm_nitems++;
+			fid_unit = c2_alloc(sizeof(struct c2_rpc_form_fid_units));
+			if (fid_unit == NULL) {
+				printf("Failed to allocate memory for struct c2_rpc_form_fid_units\n");
+				return -1;
+			}
+			fid_unit->fu_item = item;
+			c2_list_add(fid_member->fsm_items.l_head, fid_unit->fu_linkage);
+		}
+	}
+	/* 4. Now, traverse the endp_unit->isu_fid_list and coalesce the
+	      rpc items from the list of rpc items in each struct
+	      c2_rpc_form_fid_summary_member. */
+	c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head, fid_member, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
+		if () {
+		}
+	}
+	/* 5. For every possible coalescing situation, create a struct
+	      c2_rpc_form_item_coalesced and populate it.*/
+	/* 6. Remove the corresponding member rpc items from 
+	      forming list, calculate their cumulative size and deduct
+	      it from rpcobj_size. */
+	/* 7. Add the newly formed rpc item into the forming list and
+	      increment rpcobj_size by its size. */
+	/* 8. Repeat the procedure until all fids are exhausted. */
 }
 
 /**

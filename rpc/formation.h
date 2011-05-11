@@ -111,26 +111,12 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	formation_summary;
 
-/**
-   Structure containing fid for io requests.
-   This will help to make quick decisions to select candidates
-   for coalescing of io requests.
- */
-struct c2_rpc_form_fid_summary_unit {
-	/** fid on which IO requests have come. */
-	struct c2_fid			 fs_fid;
-	/** List of read requests on this fid. */
-	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
-	struct c2_list			 fs_read_list;
-	/** Total size of IO requests for same fid with read intent. */
-	uint64_t			 fs_read_total_size;
-	/** List of write requests on this fid. */
-	/** c2_list <struct c2_rpc_form_fid_summary_member>*/
-	struct c2_list			 fs_write_list;
-	/** Total size of IO requests for same fid with write intent. */
-	uint64_t			 fs_write_total_size;
-	/** Linkage into list of fids. */
-	struct c2_list_link		*fs_linkage;
+/** The list of rpc items that can be coalesced. */
+struct c2_rpc_form_fid_units {
+	/** Linkage into list of similar requests with same fid and intent. */
+	struct c2_list_link		fu_linkage;
+	/** Member rpc item. */
+	struct c2_rpc_item		*fu_item;
 };
 
 /**
@@ -139,14 +125,15 @@ struct c2_rpc_form_fid_summary_unit {
 struct c2_rpc_form_fid_summary_member {
 	/** Linkage to list of IO operations with same fid and same intent. */
 	struct c2_list_link		 fsm_linkage;
-	/** RPC Group identifier */
-	struct c2_rpc_group		*fsm_group;
+	/** fid on which IO requests have come. */
+	struct c2_fid			 fsm_fid;
+	/** Intent of IO request - read/write */
+	int				 fsm_rw;
 	/** Number of IO requests on given fid in rpc group mentioned above. */
 	uint64_t			 fsm_nitems;
-	/** Size of IO requests in this rpc group and fid with same intent. */
-	uint64_t			 fsm_total_size;
-	/** Average priority of IO requests in this group. */
-	int				 fsm_avg_prio;
+	/** Array of rpc items that can be coalesced. */
+	/* c2_list <struct c2_rpc_form_fid_units > */
+	struct c2_list			 fsm_items;
 };
 
 /** XXX The cache of rpc items. Ideally, it should
@@ -221,7 +208,7 @@ struct c2_rpc_form_item_summary_unit {
 	/** c2_list <struct >*/
 	struct c2_list			isu_unformed_items;
 	/** List of fids on which IO requests are made in this rpc group. */
-	/** c2_list <struct c2_rpc_form_fid_summary_unit> */
+	/** c2_list <struct c2_rpc_form_fid_summary_member > */
 	struct c2_list			isu_fid_list;
 	/** These numbers will be subsequently kept with the statistics
 	  component. Defining here for the sake of UT.
