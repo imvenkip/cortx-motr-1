@@ -151,7 +151,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * state.
 				 */
 				c2_list_move(o->ro_incoming[prio][OQS_GROUND],
-					     &in->rin_want.rl_right.ri_linkage);
+					     &in->rin_want.ri_linkage);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
 			}
