@@ -20,6 +20,7 @@ extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;
 extern struct c2_fop_type_format c2_fop_segment_tfmt;
+extern struct c2_fop_type_format c2_fop_segment_seq_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 
