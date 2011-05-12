@@ -298,6 +298,7 @@ void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 	C2_PRE(in->rin_state == RI_INITIALISED);
 	//C2_PRE(c2_list_is_empty(&in->rin_want.ri_linkage));
+	C2_PRE(c2_list_is_empty(&in->rin_pins));
 
 	c2_mutex_lock(&owner->ro_lock);
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
@@ -451,11 +452,8 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right rest;
-	//struct c2_rm_right join;
-	struct c2_rm_owner *owner = in->rin_owner;
-	//bool               track_local;
-	//bool               wait_local;
-	//bool               need_local;
+	struct c2_rm_owner *owner;
+	struct c2_rm_loan *loan;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_state == RI_CHECK);
@@ -506,9 +504,13 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 				break;
 			case RIT_REVOKE:
 				c2_rm_remove_rights(in);
-				/*@todo for rog_want*/
-				//c2_rm_go_out(in, ROT_CANCEL, &in->rog_want,
-				  //     &in->rin_want);
+				/* Incoming request got rigth which is means 
+				 * right should part of loan/barrowed list.
+				 */
+				loan = container_of(&in->rin_want, 
+						struct c2_rm_loan, rl_right);
+				c2_rm_go_out(in, ROT_CANCEL, loan,
+				       		&in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -640,6 +642,15 @@ int c2_rm_pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 {
 	struct c2_rm_pin *pin;
 
+	/*
+	* Check whether pin can be added to given right
+	*/
+	c2_list_for_each_entry(&right->ri_pins, pin, 
+				struct c2_rm_pin, rp_right_linkage) {	
+		if (pin->rp_flags == RPF_BARRIER)
+			return -EPERM;
+	}
+
 	C2_ALLOC_PTR(pin);
 	if (pin == NULL)
 		return -ENOMEM;
@@ -648,6 +659,7 @@ int c2_rm_pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	pin->rp_incoming = in;
 	c2_list_add(&right->ri_pins, &pin->rp_right_linkage);
 	c2_list_add(&in->rin_pins, &pin->rp_incoming_linkage);
+
 	return 0;
 }
 
@@ -664,36 +676,44 @@ int c2_rm_go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	struct c2_rm_loan	*out_loan;
 	int 			result = 0;
 	int			i;
+	bool			found = false;
 
 	/* first check for existing outgoing requests */
-	for (i = 0; i< OQS_NR; i++) {
+	for (i = 0; i < OQS_NR; i++) {
 		c2_list_for_each_entry(&in->rin_owner->ro_outgoing[i], scan,
 					struct c2_rm_right, ri_linkage) {
 			out_loan = container_of(scan, struct c2_rm_loan, rl_right);
-			ex_out = container_of(out_loan, struct c2_rm_outgoing,
-								rog_want);
-			if (ex_out->rog_type == otype && c2_rm_right_intersects(
-							scan, right)) {
+			ex_out = container_of(out_loan, 
+					      struct c2_rm_outgoing, rog_want);
+			if (ex_out->rog_type == otype && \
+					c2_rm_right_intersects(scan, right)) {
 				/* @todo adjust outgoing requests priority (priority
 			  	 inheritance) */
 				result = c2_rm_pin_add(in, scan);
 				C2_ASSERT(result == 0);
 				right = c2_rm_right_diff(right, scan);
+				found = true;
 				break;
 			}
 		}
+
+		if (found)
+			break;
 	}
-	C2_ALLOC_PTR(out);
-	if (out == NULL)
-		return -ENOMEM;
-	out->rog_type = otype;
-	out->rog_want.rl_other = loan->rl_other;
-	out->rog_want.rl_id    = loan->rl_id;
-	out->rog_want.rl_right = c2_rm_right_copy(right);
-	c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
-		    &out->rog_want.rl_right.ri_linkage);
-	result = c2_rm_pin_add(in, &out->rog_want.rl_right);
-	C2_ASSERT(result == 0);
+
+	if (!found) {
+		C2_ALLOC_PTR(out);
+		if (out == NULL)
+			return -ENOMEM;
+		out->rog_type = otype;
+		out->rog_want.rl_other = loan->rl_other;
+		out->rog_want.rl_id    = loan->rl_id;
+		out->rog_want.rl_right = c2_rm_right_copy(right);
+		c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
+		    	&out->rog_want.rl_right.ri_linkage);
+		result = c2_rm_pin_add(in, &out->rog_want.rl_right);
+		C2_ASSERT(result == 0);
+	}
 
 	return result;
 }
