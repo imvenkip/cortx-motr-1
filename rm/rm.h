@@ -1042,7 +1042,7 @@ enum c2_rm_outgoing_type {
 	   a RIT_REVOKE incoming request on the remote owner.
 	 */
 	ROT_REVOKE
-}
+};
 
 /**
    An outgoing request is created on behalf of some incoming request to track

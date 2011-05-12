@@ -95,19 +95,15 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
         c2_mutex_unlock(&dom->rd_lock);
 }
 
-int  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
+void  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
                         struct c2_rm_resource *res)
 {
-        int     result = 0;
-
         C2_PRE(rtype != NULL);
         C2_PRE(res != NULL);
 
         c2_mutex_lock(&rtype->rt_lock);
         c2_list_add(&rtype->rt_resources, &res->r_linkage);
         c2_mutex_unlock(&rtype->rt_lock);
-
-        return result;
 }
 
 void c2_rm_resource_del(struct c2_rm_resource *res)
@@ -455,11 +451,11 @@ static void c2_rm_owner_balance(struct c2_rm_owner *o)
 static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right rest;
-	struct c2_rm_right join;
+	//struct c2_rm_right join;
 	struct c2_rm_owner *owner = in->rin_owner;
-	bool               track_local;
-	bool               wait_local;
-	bool               need_local;
+	//bool               track_local;
+	//bool               wait_local;
+	//bool               need_local;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_state == RI_CHECK);
@@ -510,8 +506,9 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 				break;
 			case RIT_REVOKE:
 				c2_rm_remove_rights(in);
-				c2_rm_go_out(in, ROT_CANCEL, &in->rog_want,
-				       &in->rin_want);
+				/*@todo for rog_want*/
+				//c2_rm_go_out(in, ROT_CANCEL, &in->rog_want,
+				  //     &in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -535,8 +532,8 @@ static void c2_rm_incoming_check(struct c2_rm_incoming *in)
 			/* borrow more */
 			while (!c2_rm_right_empty(&rest)) {
 				struct c2_rm_loan borrow;
-
-				c2_rm_net_locate(rest, &borrow);
+				/** @todo implement net_locate */
+				//c2_rm_net_locate(rest, &borrow);
 				c2_rm_go_out(in, ROT_BORROW,
 				       &borrow, &borrow.rl_right);
 			}
