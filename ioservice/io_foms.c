@@ -278,18 +278,18 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
 	else {
-		C2_ASSERT((read_fop->frd_ioseg.f_offset & bmask) == 0);
-		C2_ASSERT((read_fop->frd_ioseg.f_count & bmask) == 0);
+		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_offset & bmask) == 0);
+		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_count & bmask) == 0);
 
 		/* 
 		 * Allocate the read buffer. 
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.f_count);     
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.fs_segs->f_count);     
 		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
 		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, 
 					 bshift);
-		count = read_fop->frd_ioseg.f_count;
-		offset = read_fop->frd_ioseg.f_offset; 
+		count = read_fop->frd_ioseg.fs_segs->f_count;
+		offset = read_fop->frd_ioseg.fs_segs->f_offset; 
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
 
