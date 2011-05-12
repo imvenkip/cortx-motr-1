@@ -17,7 +17,7 @@
 #include "rpc/session_foms.h"
 #include "rpc/session_int.h"
 
-char db_name[] = "rpc_test_db";
+char db_name[] = "test_db";
 
 struct c2_dbenv			*db;
 
@@ -154,6 +154,91 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	}
 	
 }
+
+void test_conn_terminate(uint64_t sender_id)
+{
+	struct c2_fop				*fop;
+	struct c2_rpc_conn_terminate		*fop_in;
+	struct c2_fom				*fom;
+	struct c2_rpc_fom_conn_terminate	*fom_ct;
+	struct c2_rpc_item			*item;
+	struct c2_rpc_item			*cached_item;
+	enum c2_rpc_session_seq_check_result	sc;
+
+	/*
+	 * Allocate and fill FOP
+	 */
+	fop = c2_fop_alloc(&c2_rpc_conn_terminate_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_in = c2_fop_data(fop);
+	C2_ASSERT(fop_in != NULL);
+
+	fop_in->ct_sender_id = sender_id;
+
+	/*
+	 * Initialize rpc item
+	 */
+	item = c2_fop_to_rpc_item(fop);
+	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_session_id = SESSION_ID_INVALID;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	item->ri_verno.vn_lsn = 0;
+	item->ri_verno.vn_vc = 0;
+
+	/*
+	 * "Receive" the item 
+	 */
+	sc = c2_rpc_session_item_received(item, &cached_item);
+
+	/*
+	 * Instantiate fom
+	 */
+	if (sc == SCR_ACCEPT_ITEM) {
+		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+		C2_ASSERT(fom != NULL);
+
+		/*
+		 * Initialize type-specific fields of fom along with tx
+	 	 */
+		fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate,
+					fct_gen);
+		C2_ASSERT(fom_ct != NULL);
+		fom_ct->fct_dbenv = db;
+		c2_db_tx_init(&fom_ct->fct_tx, db, 0);
+
+		/*
+		 * Execute fom
+		 */
+		fom->fo_ops->fo_state(fom);
+
+		/*
+		 * store reply in reply-cache
+		 */
+		c2_rpc_session_reply_prepare(&fom_ct->fct_fop->f_item,
+				&fom_ct->fct_fop_rep->f_item,
+				&fom_ct->fct_tx);
+
+		/*
+		 * commit/abort tx
+		 */
+		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+				fom->fo_phase == FOPH_FAILED);
+
+		if (fom->fo_phase == FOPH_DONE) {
+			c2_db_tx_commit(&fom_ct->fct_tx);
+		} else if (fom->fo_phase == FOPH_FAILED) {
+			c2_db_tx_abort(&fom_ct->fct_tx);
+		}
+	
+		/*
+		 * test reply contents
+		 */
+		traverse_slot_table();
+	}
+	
+}
 int main(void)
 {
 	struct c2_fop				*fop;
@@ -275,6 +360,7 @@ int main(void)
 	}
 //=====================================================================
 	test_session_destroy(20, 100);
+	test_conn_terminate(20);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();
 	printf("program end\n");

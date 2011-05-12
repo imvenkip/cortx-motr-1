@@ -296,7 +296,7 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0)
 		goto out;
-
+	
 	printf("rc_insert: current value: %lu\n", slot.stv_verno.vn_vc);
 	slot.stv_verno.vn_vc++;
 	slot.stv_verno.vn_lsn++;
@@ -352,7 +352,7 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
 	if (req->ri_sender_id != SENDER_ID_INVALID) {
 		c2_rpc_reply_cache_insert(reply, tx);
 	} else {
-		printf("it's conn create req. not caching reply\n");
+		printf("it's conn create/terminate req. not caching reply\n");
 	}	
 	return 0;
 }

@@ -61,10 +61,12 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 
 	fop = fom->fcc_fop;
 	fop_in = c2_fop_data(fop);
+
 	C2_ASSERT(fop_in != NULL);
 
 	fop_rep = fom->fcc_fop_rep;
 	fop_out = c2_fop_data(fop_rep);
+
 	C2_ASSERT(fop_out != NULL);
 
 	printf("Cookie = %lx\n", fop_in->rcc_cookie);
@@ -174,10 +176,12 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 
 	fop = fom->fsc_fop;
 	fop_in = c2_fop_data(fop);
+
 	C2_ASSERT(fop_in != NULL);
 
 	fop_rep = fom->fsc_fop_rep;
 	fop_out = c2_fop_data(fop_rep);
+
 	C2_ASSERT(fop_out != NULL);
 
 	/*
@@ -260,7 +264,6 @@ struct c2_fom_type c2_rpc_fom_session_destroy_type = {
 int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 {
 	struct c2_rpc_session_destroy		*fop_in;
-
 	struct c2_rpc_session_destroy_rep	*fop_out;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_db_pair			pair;
@@ -270,21 +273,26 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	struct c2_db_cursor			cursor;
 	struct c2_db_tx				*tx;
 	struct c2_rpc_item			*item;
+	int					count = 0;
 	int					rc;
 
 	printf("Session destroy state called\n");
 	fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy, fsd_gen);
+
 	C2_ASSERT(fom_sd != NULL && fom_sd->fsd_fop != NULL &&
 			fom_sd->fsd_fop_rep != NULL &&
 			fom_sd->fsd_dbenv != NULL);
 
 	fop_in = c2_fop_data(fom_sd->fsd_fop);
+
 	C2_ASSERT(fop_in != NULL);
 
 	fop_out = c2_fop_data(fom_sd->fsd_fop_rep);
+
 	C2_ASSERT(fop_out != NULL);
 
 	tx = &fom_sd->fsd_tx;
+
 	C2_ASSERT(tx != NULL);
 
 	printf("destroy [%lu:%lu]\n", fop_in->rsd_sender_id,
@@ -317,6 +325,7 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 		if (key.stk_sender_id == fop_in->rsd_sender_id &&
 			key.stk_session_id == fop_in->rsd_session_id) {
 			rc = c2_db_cursor_del(&cursor);
+			count++;
 			if (rc != 0)
 				goto errout;
 
@@ -326,6 +335,29 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 			break;
 		}
 	}
+
+	/*
+	 * If we've ran out of records then the above loop is 
+	 * complete without any error
+	 */
+	if (rc == DB_NOTFOUND || rc == -ENOENT)
+		rc = 0;
+
+	if (rc != 0)
+		goto errout;
+
+	/*
+	 * If session with @session_id is not present then we must not
+	 * have deleted any record from slot table
+	 */
+	if (count == 0) {
+		printf("Session destroy count == 0\n");
+		rc = -ENOENT;
+		goto errout;
+	}
+
+	C2_ASSERT(count > 0);
+
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
@@ -359,7 +391,18 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 			printf("Finished records in in-mem slot table\n");
 			break;
 		}
-	}				
+	}
+
+	/*
+	 * If we've ran out of records then the above loop is 
+	 * complete without any error
+	 */
+	if (rc == DB_NOTFOUND || rc == -ENOENT)
+		rc = 0;
+
+	if (rc != 0)
+		goto errout;
+
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
@@ -377,14 +420,17 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	fom->fo_phase = FOPH_DONE;
 	printf("Session destroy successful\n");
 	return FSO_AGAIN;
+
 errout:
+	C2_ASSERT(rc != 0);
+
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
 
 	fop_out->rsdr_rc = rc;	/* Report failure */
 	fom->fo_phase = FOPH_FAILED;
-	printf("session destroy failed\n");
+	printf("session destroy failed %d\n", rc);
 	return FSO_AGAIN;
 }
 
@@ -410,7 +456,155 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
-	printf("conn create state called\n");
+	struct c2_fop				*fop;
+	struct c2_rpc_conn_terminate		*fop_in;
+	struct c2_fop				*fop_rep;
+	struct c2_rpc_conn_terminate_rep	*fop_out;
+	struct c2_rpc_fom_conn_terminate	*fom_ct;
+	struct c2_rpc_slot_table_key		key;
+	struct c2_rpc_slot_table_value		slot;
+	struct c2_rpc_inmem_slot_table_value	inmem_slot;
+	struct c2_db_pair			pair;
+	struct c2_db_tx				*tx;
+	struct c2_db_cursor			cursor;
+	int					rc;
+	uint64_t				sender_id;
+
+	printf("conn terminate state called\n");
+
+	C2_ASSERT(fom != NULL);
+
+	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate, fct_gen);
+
+	C2_ASSERT(fom_ct != NULL && fom_ct->fct_fop != NULL &&
+			fom_ct->fct_fop_rep != NULL &&
+			fom_ct->fct_dbenv != NULL);
+
+	fop = fom_ct->fct_fop;
+	fop_in = c2_fop_data(fop);
+	
+	C2_ASSERT(fop_in != NULL);
+
+	fop_rep = fom_ct->fct_fop_rep;
+	fop_out = c2_fop_data(fop);
+
+	C2_ASSERT(fop_out != NULL);
+
+	sender_id = fop_in->ct_sender_id;
+	printf("conn terminate request: %lu\n", fop_in->ct_sender_id);
+
+	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+
+	tx = &fom_ct->fct_tx;
+
+	/*
+	 * prepare key, value and pair
+	 */
+	key.stk_sender_id = sender_id;
+	key.stk_session_id = 0;
+	key.stk_slot_id = 0;
+	key.stk_slot_generation = 0;
+
+	C2_SET0(&slot);
+
+	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_slot_table,
+				&key, sizeof key,
+				&slot, sizeof slot);
+
+	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_slot_table, tx);
+	if (rc != 0)
+		goto errout;
+
+	rc = c2_db_cursor_get(&cursor, &pair);
+	if (rc != 0)
+		goto errout;
+
+	if (key.stk_sender_id != sender_id) {
+		rc = -ENOENT;
+		goto errout;
+	}
+
+	rc = c2_db_cursor_del(&cursor);
+	if (rc != 0)
+		goto errout;
+
+	/*
+	 * Check is there any other record having same sender_id
+	 */
+	rc = c2_db_cursor_get(&cursor, &pair);
+	if (rc != 0 && rc != DB_NOTFOUND && rc != -ENOENT)
+		goto errout;
+
+	if (rc == 0) {
+		if (key.stk_sender_id == sender_id) {
+			printf("Can't terminate conn. session [%lu]\n",
+					key.stk_session_id);
+			rc = -EBUSY;
+			goto errout;
+		}
+	}
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+
+	/*
+	 * Remove slot 0 entry from in core slot table
+	 */
+	key.stk_sender_id = sender_id;
+	key.stk_session_id = 0;
+	key.stk_slot_id = 0;
+	key.stk_slot_generation = 0;
+
+	C2_SET0(&inmem_slot);
+
+	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+				&key, sizeof key,
+				&inmem_slot, sizeof inmem_slot);
+
+	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table,
+					 tx);
+	if (rc != 0)
+		goto errout;
+
+	printf("Deleting in core slot table entry\n");
+	rc = c2_db_cursor_get(&cursor, &pair);
+
+	/*
+	 * If slot 0 was present in persistent table then
+	 * it must be present in in-core slot table
+	 */
+
+	C2_ASSERT(rc != -ENOENT && rc != DB_NOTFOUND);
+
+	if (rc != 0)
+		goto errout;
+
+	C2_ASSERT(key.stk_sender_id == sender_id);
+
+	rc = c2_db_cursor_del(&cursor);
+	if (rc != 0)
+		goto errout;
+
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+
+	printf("Conn terminate successful\n");
+	fop_out->ctr_rc = 0;	/* Success */
+
+	fom->fo_phase = FOPH_DONE;
+	return FSO_AGAIN;
+
+errout:
+	C2_ASSERT(rc != 0);
+
+	printf("Conn terminate failed rc %d\n", rc);
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+
+	fop_out->ctr_rc = rc;
+	fom->fo_phase = FOPH_FAILED;
 	return FSO_AGAIN;
 }
 
