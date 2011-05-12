@@ -163,11 +163,7 @@ bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
    segment in its vector (or to move into end of the vector position, when the
    cursor is already at the last segment).
 
-   Both cursors are advanced by the number of bytes copied.
-
-   @pre @code
-c2_bufvec_cursor_move(cur,0) == false
-@endcode
+   @pre !c2_bufvec_cursor_move(cur, 0)
    @see c2_vec_cursor_step()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Count
@@ -176,9 +172,7 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
 
 /**
    Return the buffer address at the cursor's current position.
-   @pre @code
-c2_bufvec_cursor_move(cur,0) == false
-@endcode
+   @pre !c2_bufvec_cursor_move(cur, 0)
    @see c2_bufvec_cursor_copy()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Pointer into buffer.
@@ -187,6 +181,7 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
 
 /**
    Copy bytes from one buffer to another using cursors.
+   Both cursors are advanced by the number of bytes copied.
    @param dcur Pointer to the destination buffer cursor positioned
    appropriately.
    @param scur Pointer to the source buffer cursor positioned appropriately.

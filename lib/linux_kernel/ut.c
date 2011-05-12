@@ -67,7 +67,8 @@ C2_EXPORTED(c2_ut_add);
 static void uts_summary(void)
 {
 	int ran;
-	c2_time_t now, diff;
+	c2_time_t now;
+	c2_time_t diff;
 	int64_t msec;
 
 	c2_time_now(&now);
@@ -115,7 +116,8 @@ void c2_ut_run(const char *log_file)
 		if (ts->tse_suite->ts_init != NULL) {
 			ret = ts->tse_suite->ts_init();
 			if (ret != 0) {
-				printk(KERN_INFO "Suite Prepare: failed\n");
+				printk(KERN_ERR "Suite Prepare: failed %d\n",
+				       ret);
 				suite_failed++;
 				continue;
 			}
@@ -130,7 +132,7 @@ void c2_ut_run(const char *log_file)
 				       t->t_name, "passed");
 				test_passed++;
 			} else {
-				printk(KERN_INFO ". Test: %s...%s\n",
+				printk(KERN_ERR ". Test: %s...%s\n",
 				       t->t_name, "failed");
 				test_failed++;
 				suite_ok = false;
@@ -139,7 +141,8 @@ void c2_ut_run(const char *log_file)
 		if (ts->tse_suite->ts_fini != NULL) {
 			ret = ts->tse_suite->ts_fini();
 			if (ret != 0) {
-				printk(KERN_INFO "Suite Cleanup: failed\n");
+				printk(KERN_ERR "Suite Cleanup: failed %d\n",
+				       ret);
 				suite_failed++;
 				continue;
 			}
@@ -155,7 +158,7 @@ C2_EXPORTED(c2_ut_run);
 bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file)
 {
 	if (!c) {
-		printk(KERN_INFO "Unit test assertion failed: %s at %s:%d\n",
+		printk(KERN_ERR "Unit test assertion failed: %s at %s:%d\n",
 		       str_c, file, lno);
 		failed++;
 	} else

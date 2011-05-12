@@ -1,11 +1,11 @@
 /* -*- C -*- */
 
-#include "lib/arith.h"
+#include "lib/arith.h"     /* min3 */
 #include "lib/cdefs.h"     /* NULL */
 #include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/misc.h"
+#include "lib/misc.h"      /* C2_SET0, memcpy */
 #include "lib/errno.h"
 
 /**
@@ -155,6 +155,8 @@ static void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	struct c2_vec_cursor *vc = &cur->bc_vc;
 	struct c2_bufvec *bv = container_of(vc->vc_vec,struct c2_bufvec,ov_vec);
+
+	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	return bv->ov_buf[vc->vc_seg] + vc->vc_offset;
 }
 

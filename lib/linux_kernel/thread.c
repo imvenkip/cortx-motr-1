@@ -52,10 +52,12 @@ static int kthread_trampoline(void *arg)
 }
 
 int c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		   void (*func)(void *), void *arg)
+		   void (*func)(void *), void *arg, const char *name, ...)
 {
 	int             result;
 	struct c2_clink wait;
+	char            commbuf[TASK_COMM_LEN];
+	va_list         varargs;
 
 	C2_PRE(q->t_func == NULL);
 	C2_PRE(q->t_state == TS_PARKED);
@@ -64,6 +66,11 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	q->t_init  = init;
 	q->t_func  = func;
 	q->t_arg   = arg;
+
+	va_start(varargs, name);
+	vsnprintf(commbuf, sizeof(commbuf), name, varargs);
+	va_end(varargs);
+
 	/*
 	  Always set up and wait on initwait. Ensures thread actually starts
 	  before kthread_stop can be called.
@@ -71,7 +78,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	c2_clink_init(&wait, NULL);
 	c2_chan_init(&q->t_initwait);
 	c2_clink_add(&q->t_initwait, &wait);
-	q->t_h.h_t = kthread_create(kthread_trampoline, q, "c2_thread");
+	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", commbuf);
 	if (IS_ERR(q->t_h.h_t)) {
 		result = PTR_ERR(q->t_h.h_t);
 	} else {

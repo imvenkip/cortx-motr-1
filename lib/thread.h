@@ -106,7 +106,8 @@ struct c2_thread {
 	c2_thread_init(thread,				\
                        (int  (*)(void *))init,  	\
 		       (void (*)(void *))__func,	\
-		       (void *)(unsigned long)__arg);	\
+		       (void *)(unsigned long)__arg,	\
+		       "%s", #func);			\
 })
 
 /**
@@ -152,7 +153,8 @@ struct c2_thread {
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
 int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		    void (*func)(void *), void *arg);
+		    void (*func)(void *), void *arg, const char *name, ...)
+	__attribute__ ((format (printf, 5, 6)));
 
 /**
    Releases resources associated with the thread.
