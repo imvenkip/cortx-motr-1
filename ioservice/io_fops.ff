@@ -69,7 +69,7 @@ DEF(c2_fop_io_seg, RECORD,
  * @li Array of IO segments.
  * @li count: Number of segments in array.
  */
-DEF(c2_fop_io_vec, RECORD,
+DEF(c2_fop_io_vec, SEQUENCE,
 	_(iov_count, U32),
 	_(iov_seg, c2_fop_io_seg));
 

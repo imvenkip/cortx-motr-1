@@ -269,12 +269,12 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * required for the stob io. 
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_offset & bmask) == 0);
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg.f_buf.f_count & bmask) == 0);
+		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_offset & bmask) == 0);
+		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_buf.f_count & bmask) == 0);
 		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
-					 iov_seg.f_buf.f_buf, bshift);
-		count = write_fop->fwr_iovec.iov_seg.f_buf.f_count;
-		offset = write_fop->fwr_iovec.iov_seg.f_offset;
+					 iov_seg->f_buf.f_buf, bshift);
+		count = write_fop->fwr_iovec.iov_seg->f_buf.f_count;
+		offset = write_fop->fwr_iovec.iov_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
 	else {

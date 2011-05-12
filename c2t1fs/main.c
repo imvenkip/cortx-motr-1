@@ -197,10 +197,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->fwr_iovec.iov_count 	= 1;
  
  		/* Populate the vector of write FOP */
-		arg->fwr_iovec.iov_seg.f_offset = pos;
-		arg->fwr_iovec.iov_seg.f_buf.cfib_pgoff = off;
-		arg->fwr_iovec.iov_seg.f_buf.f_buf = pages;
-		arg->fwr_iovec.iov_seg.f_buf.f_count = len;
+		arg->fwr_iovec.iov_seg = kmalloc(sizeof(struct c2_fop_io_seg), GFP_KERNEL);
+		arg->fwr_iovec.iov_seg->f_offset = pos;
+		arg->fwr_iovec.iov_seg->f_buf.cfib_pgoff = off;
+		arg->fwr_iovec.iov_seg->f_buf.f_buf = pages;
+		arg->fwr_iovec.iov_seg->f_buf.f_count = len;
 
  		arg->fwr_uid = c2_get_uid();
  		arg->fwr_gid = c2_get_gid();
@@ -213,6 +214,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 DBG("write to server returns %d\n", rc);
 
+		kfree(arg->fwr_iovec.iov_seg);
                 if (rc)
                         return rc;
                 rc = ret->fwrr_rc ? : ret->fwrr_count;
