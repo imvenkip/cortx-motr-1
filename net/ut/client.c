@@ -160,7 +160,9 @@ void test_net_client(void)
 
 	/* write addb record onto network */
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn1);
-	//c2_addb_level_default  = AEL_ERROR;
+	/* choose a default level for addb event */
+	/* c2_addb_choose_default_level(AEL_ERROR); */
+	c2_addb_choose_default_level(AEL_NONE);
 
 	for (i = 0; i < 100; ++i) {
 		sprintf(node_arg.si_uuid, "%d", i);

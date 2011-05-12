@@ -123,7 +123,8 @@ enum c2_addb_ev_level {
 	AEL_NOTE,
 	AEL_WARN,
 	AEL_ERROR,
-	AEL_FATAL
+	AEL_FATAL,
+	AEL_MAX = AEL_FATAL
 };
 
 /**
@@ -318,7 +319,8 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 		c2_addb_add(&__dp);				\
 })
 
-extern int c2_addb_level_default;
+extern enum c2_addb_ev_level c2_addb_level_default;
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
 /**
    Declare addb event operations vector with a given collection of formal

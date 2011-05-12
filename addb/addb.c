@@ -27,9 +27,8 @@
 /*
  * This can be changed.
  */
-int c2_addb_level_default = AEL_NOTE;
+enum c2_addb_ev_level c2_addb_level_default = AEL_NOTE;
 C2_EXPORTED(c2_addb_level_default);
-
 
 /**
    ADDB record store type.
@@ -59,6 +58,19 @@ void c2_addb_fini(void)
 {
 }
 C2_EXPORTED(c2_addb_fini);
+
+/**
+   Choose default addb event level, return the original level.
+*/
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
+{
+	enum c2_addb_ev_level orig = c2_addb_level_default;
+
+	C2_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
+
+	c2_addb_level_default = level;
+	return orig;
+}
 
 void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
 		      struct c2_addb_ctx *parent)

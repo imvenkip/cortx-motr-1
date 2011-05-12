@@ -423,6 +423,8 @@ static const struct c2_table_ops c2_addb_record_ops = {
 
    Server supports create, read and write commands.
  */
+extern c2_bindex_t addb_stob_offset;
+extern uint64_t c2_addb_db_seq;
 int main(int argc, char **argv)
 {
 	int         result;
@@ -543,15 +545,27 @@ int main(int argc, char **argv)
 	/* XXX The stob tail postion should be maintained & initialized */
 
 	/* write addb record into stob */
-//	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
-//				   addb_stob, NULL);
+	/*
+	 * TODO
+	 * Init the stob appending file offset position.
+	 * This should be stored somewhere transactionally.
+	 */
+	/*
+	addb_stob_offset = 0;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+				   addb_stob, NULL);
+	*/
 
 	result = c2_table_init(&addb_table, &db,
 			       "addb_record", 0,
 			       &c2_addb_record_ops);
 	C2_ASSERT(result == 0);
-	/* XXX The db addb seqno should be initialized */
+	/*
+	 * TODO
+	 * The db addb seqno should be loaded and initialized.
+	 */
 
+	c2_addb_db_seq = 0;
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB, c2_addb_db_add,
 				   &addb_table, &db);
 	/*
@@ -590,6 +604,11 @@ int main(int argc, char **argv)
 	c2_net_domain_fini(&ndom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
+	/*
+	 * TODO
+	 * the stob file offset or db seqno should be updated and
+	 * stored somewhere, e.g. in global configuration db.
+	 */
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 
 	c2_table_fini(&addb_table);
