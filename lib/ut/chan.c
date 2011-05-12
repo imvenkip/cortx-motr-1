@@ -56,9 +56,9 @@ void test_chan(void)
 	struct c2_chan  chan;
 	struct c2_clink clink1;
 	struct c2_clink clink2;
-	struct c2_time  now;
-	struct c2_time  delta;
-	struct c2_time  expire;
+	c2_time_t       now;
+	c2_time_t       delta;
+	c2_time_t       expire;
 	struct c2_timer timer;
 	int i;
 	bool got;
@@ -115,17 +115,17 @@ void test_chan(void)
 
 	/* wait will expire after 2 seconds */
 	c2_time_set(&delta, 2, 0);
-	c2_time_add(c2_time_now(&now), &delta, &expire);
-	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	expire = c2_time_add(c2_time_now(&now), delta);
+	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(!got);
 
 	/* chan is signaled after 1 second. so the wait will return true */
 	c2_time_set(&expire, 1, 0);
-	c2_timer_init(&timer, C2_TIMER_SOFT, &expire, 1,
+	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
 		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
-	c2_time_add(c2_time_now(&now), &delta, &expire);
-	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	expire = c2_time_add(c2_time_now(&now), delta);
+	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(got);
 	c2_timer_stop(&timer);
 	c2_timer_fini(&timer);
@@ -133,11 +133,11 @@ void test_chan(void)
 	/* chan is signaled after 3 seconds. so the wait will timeout and
 	   return false. Another wait should work.*/
 	c2_time_set(&expire, 3, 0);
-	c2_timer_init(&timer, C2_TIMER_SOFT, &expire, 1,
+	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
 		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
-	c2_time_add(c2_time_now(&now), &delta, &expire);
-	got = c2_chan_timedwait(&clink1, &expire); /* wait 2 seconds */
+	expire = c2_time_add(c2_time_now(&now), delta);
+	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(!got);
 	c2_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
 	c2_timer_stop(&timer);

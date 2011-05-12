@@ -10,12 +10,12 @@ extern int nanosleep(const struct timespec *req, struct timespec *rem);
 /**
    @addtogroup time
 
-   Implementation of c2_time on top of userspace struct timespec
+   Implementation of c2_time_t on top of userspace struct timespec
 
    @{
 */
 
-struct c2_time *c2_time_now(struct c2_time *time)
+c2_time_t c2_time_now(c2_time_t *time)
 {
         struct timeval tv;
 
@@ -23,23 +23,26 @@ struct c2_time *c2_time_now(struct c2_time *time)
         /* We could use clock_gettime(CLOCK_REALTIME, time) for nanoseconds,
          but we would have to link librt... */
         gettimeofday(&tv, NULL);
-        time->ts.tv_sec = tv.tv_sec;
-        time->ts.tv_nsec = tv.tv_usec * 1000;
-	return time;
+        c2_time_set(time, tv.tv_sec, tv.tv_usec * 1000);
+	return *time;
 }
 C2_EXPORTED(c2_time_now);
 
 /**
    Sleep for requested time
 */
-int c2_nanosleep(const struct c2_time *req, struct c2_time *rem)
+int c2_nanosleep(const c2_time_t req, c2_time_t *rem)
 {
-	struct timespec remaining = req->ts;
+	struct timespec reqts = {
+			.tv_sec  = c2_time_seconds(req),
+			.tv_nsec = c2_time_nanoseconds(req)
+			};
+	struct timespec remts = { 0 };
 	int rc;
 
-	rc = nanosleep(&req->ts, &remaining);
+	rc = nanosleep(&reqts, &remts);
 	if (rem != NULL)
-		rem->ts = remaining;
+		c2_time_set(rem, remts.tv_sec, remts.tv_nsec);
 	return rc;
 }
 C2_EXPORTED(c2_nanosleep);

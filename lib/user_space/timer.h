@@ -22,7 +22,7 @@ struct c2_timer {
 	/**
 	   The interval to trigger the timer callback.
 	 */
-	struct c2_time t_interval;
+	c2_time_t t_interval;
 
 	/**
 	   the repeat count for this timer.
@@ -54,7 +54,7 @@ struct c2_timer {
 	/**
 	   expire time in future of this timer.
 	 */
-	struct c2_time t_expire;
+	c2_time_t t_expire;
 
 	/**
 	   working thread

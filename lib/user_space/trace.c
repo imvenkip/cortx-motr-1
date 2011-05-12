@@ -1,6 +1,7 @@
 /* -*- C -*- */
 
 #include <sys/mman.h> /* mmap */
+#include <time.h>
 #include <unistd.h>   /* getpagesize */
 #include <fcntl.h>    /* open, O_RDWR|O_CREAT|O_TRUNC */
 #include <string.h>   /* memset */

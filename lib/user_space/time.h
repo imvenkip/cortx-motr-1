@@ -6,19 +6,6 @@
 #include <sys/time.h>
 #include_next <time.h>
 
-/**
-   @addtogroup time
-
-   <b>User space time.</b>
-   @{
-*/
-
-struct c2_time {
-        struct timespec ts;
-};
-
-/** @} end of time group */
-
 /* __COLIBRI_LIB_USER_SPACE_TIME_H__ */
 #endif
 
