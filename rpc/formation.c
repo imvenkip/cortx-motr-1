@@ -599,19 +599,44 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 	}
 }
 
+/**
+   This is a rpc_item_type_op and is registered with associated
+   rpc item.
+   Coalesce IO vectors from a list of rpc items into one
+   and arrange the IO vector in increasing order of file offset.
+ */
+int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced *coalesced_item)
+{
+	int				res = 0;
+	int				opcode;
+
+	C2_PRE(coalesced_item != NULL);
+	C2_PRE(coalesced_item->ic_resultant_item != NULL);
+	C2_PRE(c2_list_length(coalesced_item->ic_member_list) > 1);
+	opcode = coalesced_item->ic_op_intent;
+	c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, member, struct c2_rpc_form_item_coalesced_member, im_linkage) {
+		C2_PRE((member->im_member_item.ri_type->rit_ops->rio_io_get_opcode(&member->im_member_item)) == opcode);
+	}
+}
+
+/**
+   Coalesce possible rpc items and replace them by a aggregated
+   rpc item.
+ */
 int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 		struct c2_list *forming_list, uint64_t *rpcobj_size)
 {
 	int				 res = 0;
 	struct c2_rpc_item 		*item = NULL;
 	struct c2_fid 			 fid;
-	bool				 item_rw = false;
+	int				 item_rw;
 	struct c2_rpc_form_fid_units 	*fid_unit = NULL;
 	bool				 fid_found = false;
 	struct c2_rpc_form_fid_summary_member	*fid_member = NULL;
 	struct c2_rpc_form_fid_summary_member	*fid_member_next = NULL;
 	uint64_t			 item_size = 0;
 	struct c2_rpc_form_item_coalesced_member *item_member = NULL;
+	struct c2_rpc_form_item_coalesced	*coalesced_item = NULL;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(forming_list != NULL);
@@ -627,7 +652,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 	c2_list_for_each_entry(forming_list->l_head, item, struct c2_rpc_item, rpcobject_linkage) {
 		if (item->ri_type->rit_ops->rio_is_io_req(item)) {
 			fid = item->ri_type->rit_ops->rio_io_get_fid(item);
-			item_rw = item->ri_type->rit_ops->rio_io_is_read(item);
+			item_rw = item->ri_type->rit_ops->rio_io_get_opcode(item);
 			item_size = item->ri_type->rit_ops->rio_item_size(item);
 			c2_list_for_each_entry(endp_unit->isu_fid_list.l_head, fid_member, struct c2_rpc_form_fid_summary_member, fsm_linkage) {
 				if ((fid_member->fsm_fid == fid) && 
@@ -642,6 +667,9 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 					printf("Failed to allocate memory for struct c2_rpc_form_fid_summary_member\n");
 					return -1;
 				}
+				fid_member->fsm_rw = item_rw;
+				fid_member->fsm_fid = fid;
+				c2_list_init(&fid_member->fsm_items);
 			}
 			fid_member->fsm_nitems++;
 			fid_unit = c2_alloc(sizeof(struct c2_rpc_form_fid_units));
@@ -649,7 +677,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 				printf("Failed to allocate memory for struct c2_rpc_form_fid_units\n");
 				return -1;
 			}
-			fid_unit->fu_item = item;
+			fid_unit->fu_item = *item;
 			c2_list_add(fid_member->fsm_items.l_head, fid_unit->fu_linkage);
 			fid_member->fsm_total_size += item_size;
 		}
@@ -668,17 +696,11 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 			}
 			coalesced_item->ic_op_intent = fid_member->fsm_rw;
 			coalesced_item->ic_nmembers = fid_member->fsm_nitems;
-			new_item = c2_alloc(sizeof(struct c2_rpc_item));
-			if (new_item == NULL) {
-				printf("Failed to allocate memory for struct c2_rpc_item.\n");
-				return -1;
-			}
-			coalesced_item->ic_resultant_item = new_item;
 			coalesced_item->ic_member_list = fid_member->fsm_items;
 			rpcobj_size -= fid_member->fsm_total_size;
 
 			/*XXX Need to coalesce IO vectors into one. */
-			res = c2_rpc_form_io_items_coalesce(coalesced_item->ic_member_list, &coalesced_item->ic_resultant_item);
+			res = c2_rpc_form_io_items_coalesce(coalesced_item);
 			if (res == 0) {
 				/*delete fid member*/
 				c2_list_del(fid_member->fsm_linkage);

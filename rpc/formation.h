@@ -116,7 +116,7 @@ struct c2_rpc_form_fid_units {
 	/** Linkage into list of similar requests with same fid and intent. */
 	struct c2_list_link		fu_linkage;
 	/** Member rpc item. */
-	struct c2_rpc_item		*fu_item;
+	struct c2_rpc_item		fu_item;
 };
 
 /**
@@ -173,7 +173,7 @@ struct c2_rpc_form_item_summary_unit {
 	/** Mutex protecting the unit from concurrent access. */
 	struct c2_mutex			 isu_unit_lock;
 	/** Linkage into the endpoint list. */
-	struct c2_list_link		*isu_linkage;
+	struct c2_list_link		 isu_linkage;
 	/** List of structures containing data for each group. */
 	/** c2_list <struct c2_rpc_form_item_summary_unit_group>*/
 	struct c2_list			 isu_groups_list;
@@ -220,6 +220,14 @@ struct c2_rpc_form_item_summary_unit {
 };
 
 /**
+   An enumeration of IO opcodes.
+ */
+enum c2_rpc_form_io_opcode {
+	C2_RPC_FORM_IO_READ = 1,
+	C2_RPC_FORM_IO_WRITE = 2
+};
+
+/**
    An internal data structure to connect coalesced rpc items with
    its constituent rpc items. When a reply is received for a
    coalesced rpc item, it will find out the requesting coalesced
@@ -230,7 +238,7 @@ struct c2_rpc_form_item_summary_unit {
  */
 struct c2_rpc_form_item_coalesced {
 	/** Linkage to list of such coalesced rpc items. */
-	struct c2_list_link	       *ic_linkage;
+	struct c2_list_link	        ic_linkage;
 	/** Intent of operation, read or write */
 	int				ic_op_intent;
 	/** Resultant coalesced rpc item */
@@ -247,9 +255,9 @@ struct c2_rpc_form_item_coalesced {
  */
 struct c2_rpc_form_item_coalesced_member {
 	/** Linkage into list of such member rpc items. */
-	struct c2_list_link		*im_linkage;
+	struct c2_list_link		im_linkage;
 	/** c2_rpc_item */
-	struct c2_rpc_item		*im_member_item;
+	struct c2_rpc_item		im_member_item;
 };
 
 /**
@@ -259,7 +267,7 @@ struct c2_rpc_form_item_coalesced_member {
 struct c2_rpc_form_item_summary_unit_group {
 	/** Linkage into the list of groups belonging to this
 	    endpoint. */
-	struct c2_list_link		*sug_linkage;
+	struct c2_list_link		 sug_linkage;
 	/** The rpc group, this data belongs to. */
 	struct c2_rpc_group		*sug_group;
 	/** Number of items from this group found so far. */
@@ -298,7 +306,7 @@ struct c2_rpc_form_rpcobj_list {
 struct c2_rpc_form_rpcobj {
 	/** Linkage into list of c2_rpc 
 	    from struct c2_rpc_form_rpcobj_list */
-	struct c2_list_link		*ro_linkage;
+	struct c2_list_link		 ro_linkage;
 	/** Actual rpc object. */
 	struct c2_rpc			*ro_rpcobj;
 }
