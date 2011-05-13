@@ -444,7 +444,10 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 
 	if (undoable == 0) {
 		bool		found = false;
-		// Search reply in reply cache list
+
+		/*
+		 * Search reply in reply cache list
+		 */
 		c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list,
 		    item, struct c2_rpc_item, ri_rc_link) {
 			if (citem->ri_sender_id == item->ri_sender_id &&
@@ -456,7 +459,12 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 				found = true;
 			}
 		}
-		/* Reply MUST be present in reply cache */
+
+		/*
+		 * Reply MUST be present in reply cache
+		 * XXX Following assert is disabled for testing, but it is valid one
+		 * and should be enabled
+		 */
 		//C2_ASSERT(found);
 		printf("item_received: reply fetched from reply cache\n");
 	} else {
