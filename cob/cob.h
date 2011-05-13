@@ -270,6 +270,14 @@ void c2_cob_get(struct c2_cob *obj);
 void c2_cob_put(struct c2_cob *obj);
 
 
+/**
+   Helper routine to allocate and initialize c2_cob_nskey
+
+   If memory allocation fails then *keyh is set to NULL
+ */
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
+                        char *name);
+
 /** @} end group cob */
 
 /* __COLIBRI_COB_COB_H__ */

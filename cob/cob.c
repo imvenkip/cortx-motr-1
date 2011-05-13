@@ -660,6 +660,22 @@ out:
 	return rc;
 }
 
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
+			char *name)
+{
+        struct c2_cob_nskey *key;
+
+        key = c2_alloc(sizeof(*key) + strlen(name));
+	if (key == NULL)
+		return;
+
+        key->cnk_pfid.si_bits.u_hi = hi;
+        key->cnk_pfid.si_bits.u_lo = lo;
+        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, strlen(name));
+        c2_bitstring_len_set(&key->cnk_name, strlen(name));
+        *keyh = key;
+}
+
 /** @} end group cob */
 
 /*
