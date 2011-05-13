@@ -13,7 +13,7 @@
 static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 				   struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
 	C2_PRE(nb != NULL &&
