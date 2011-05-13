@@ -249,7 +249,7 @@ struct c2_net_xprt_ops {
 	   @retval size    Returns the maximum buffer size.
 	   @see c2_net_domain_get_max_buffer_size()
 	 */
-	c2_bcount_t (*xo_get_max_buffer_size)(struct c2_net_domain *dom);
+	c2_bcount_t (*xo_get_max_buffer_size)(const struct c2_net_domain *dom);
 
 	/**
 	   Retrieve the maximum buffer segment size.
@@ -257,7 +257,7 @@ struct c2_net_xprt_ops {
 	   @retval size    Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	c2_bcount_t (*xo_get_max_buffer_segment_size)(struct c2_net_domain
+	c2_bcount_t (*xo_get_max_buffer_segment_size)(const struct c2_net_domain
 						      *dom);
 
 	/**
@@ -266,7 +266,7 @@ struct c2_net_xprt_ops {
 	   @retval num_segs Returns the maximum segment size.
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
-	int32_t (*xo_get_max_buffer_segments)(struct c2_net_domain *dom);
+	int32_t (*xo_get_max_buffer_segments)(const struct c2_net_domain *dom);
 
 	/**
 	   <b>Deprecated.</b>
@@ -1241,7 +1241,7 @@ struct c2_net_buffer {
 	   The application should not modify these flags again until
 	   after de-registration.
 	 */
-	enum c2_net_buf_flags      nb_flags;
+	uint64_t                   nb_flags;
 
 	/**
 	   The status value posted in the last completion event on

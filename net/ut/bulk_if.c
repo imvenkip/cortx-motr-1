@@ -49,19 +49,20 @@ enum {
 	UT_MAX_BUF_SEGMENTS=4,
 };
 static bool ut_get_max_buffer_size_called = false;
-static c2_bcount_t ut_get_max_buffer_size(struct c2_net_domain *dom)
+static c2_bcount_t ut_get_max_buffer_size(const struct c2_net_domain *dom)
 {
 	ut_get_max_buffer_size_called = true;
 	return UT_MAX_BUF_SIZE;
 }
 static bool ut_get_max_buffer_segment_size_called = false;
-static c2_bcount_t ut_get_max_buffer_segment_size(struct c2_net_domain *dom)
+static c2_bcount_t ut_get_max_buffer_segment_size(const struct c2_net_domain
+						  *dom)
 {
 	ut_get_max_buffer_segment_size_called = true;
 	return UT_MAX_BUF_SEGMENT_SIZE;
 }
 static bool ut_get_max_buffer_segments_called = false;
-static int32_t ut_get_max_buffer_segments(struct c2_net_domain *dom)
+static int32_t ut_get_max_buffer_segments(const struct c2_net_domain *dom)
 {
 	ut_get_max_buffer_segments_called = true;
 	return UT_MAX_BUF_SEGMENTS;
@@ -440,6 +441,8 @@ void test_net_bulk_if(void)
 	struct c2_net_buffer *nb;
 	struct c2_net_end_point *ep1, *ep2, *ep;
 	struct c2_net_buf_desc d1, d2;
+	struct c2_clink tmwait;
+	struct c2_net_qstats qs[C2_NET_QT_NR];
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -579,7 +582,6 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
 	/* TM start */
-	struct c2_clink tmwait;
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 
@@ -735,7 +737,6 @@ void test_net_bulk_if(void)
 	c2_clink_fini(&tmwait);
 
 	/* get stats */
-	struct c2_net_qstats qs[C2_NET_QT_NR];
 	i = C2_NET_QT_PASSIVE_BULK_SEND;
 	rc = c2_net_tm_stats_get(tm, i, &qs[0], false);
 	C2_UT_ASSERT(rc == 0);
@@ -748,12 +749,9 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(qs[0].nqs_num_f_events + qs[0].nqs_num_s_events > 0 &&
 		     qs[0].nqs_time_in_queue > 0);
 
-	rc = c2_net_tm_stats_get(tm,
-				 C2_NET_QT_NR,
-				 qs,
-				 true);
+	rc = c2_net_tm_stats_get(tm, C2_NET_QT_NR, qs, true);
 	C2_UT_ASSERT(rc == 0);
-	for(i=0; i < C2_NET_QT_NR; i++) {
+	for (i = 0; i < C2_NET_QT_NR; i++) {
 		C2_UT_ASSERT(qs[i].nqs_num_adds == num_adds[i]);
 		C2_UT_ASSERT(qs[i].nqs_num_dels == num_dels[i]);
 		C2_UT_ASSERT(qs[i].nqs_total_bytes == total_bytes[i]);
@@ -766,12 +764,9 @@ void test_net_bulk_if(void)
 			     qs[i].nqs_time_in_queue > 0);
 	}
 
-	rc = c2_net_tm_stats_get(tm,
-				 C2_NET_QT_NR,
-				 qs,
-				 false);
+	rc = c2_net_tm_stats_get(tm, C2_NET_QT_NR, qs, false);
 	C2_UT_ASSERT(rc == 0);
-	for(i=0; i < C2_NET_QT_NR; i++) {
+	for (i = 0; i < C2_NET_QT_NR; i++) {
 		C2_UT_ASSERT(qs[i].nqs_num_adds == 0);
 		C2_UT_ASSERT(qs[i].nqs_num_dels == 0);
 		C2_UT_ASSERT(qs[i].nqs_num_f_events == 0);

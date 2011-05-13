@@ -106,7 +106,7 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 	c2_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);
 }
 
-static bool mem_dom_invariant(struct c2_net_domain *dom)
+static bool mem_dom_invariant(const struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	return dp != NULL && dp->xd_dom == dom;
@@ -217,20 +217,20 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	return;
 }
 
-static c2_bcount_t mem_xo_get_max_buffer_size(struct c2_net_domain *dom)
+static c2_bcount_t mem_xo_get_max_buffer_size(const struct c2_net_domain *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
 	return C2_NET_BULK_MEM_MAX_BUFFER_SIZE;
 }
 
-static c2_bcount_t mem_xo_get_max_buffer_segment_size(struct c2_net_domain
-						      *dom)
+static c2_bcount_t mem_xo_get_max_buffer_segment_size(
+					      const struct c2_net_domain *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
 	return C2_NET_BULK_MEM_MAX_SEGMENT_SIZE;
 }
 
-static int32_t mem_xo_get_max_buffer_segments(struct c2_net_domain *dom)
+static int32_t mem_xo_get_max_buffer_segments(const struct c2_net_domain *dom)
 {
 	C2_PRE(mem_dom_invariant(dom));
 	return C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS;

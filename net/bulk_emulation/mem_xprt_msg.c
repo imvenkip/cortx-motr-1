@@ -12,7 +12,7 @@
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
 	C2_PRE(nb != NULL &&
@@ -61,9 +61,9 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			      struct c2_net_end_point   **p_dest_ep)
 {
 	struct c2_net_domain *mydom = tm->ntm_dom;
-	C2_PRE(!c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_PRE(!c2_mutex_is_locked(&mydom->nd_mutex));
-	C2_PRE(!c2_mutex_is_locked(&c2_net_mutex));
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
+	C2_PRE(c2_mutex_is_not_locked(&mydom->nd_mutex));
+	C2_PRE(c2_mutex_is_not_locked(&c2_net_mutex));
 
 	/* iterate over in-mem domains to find the destination TM */
 	struct c2_net_transfer_mc *dest_tm = NULL;

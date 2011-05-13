@@ -4,6 +4,8 @@
 #  include <config.h>
 #endif
 
+#include <stdarg.h>
+
 #include "lib/arith.h" /* max_check */
 #include "lib/memory.h"/*c2_alloc/c2_free */
 #include "lib/cdefs.h" /* C2_EXPORTED */
@@ -27,9 +29,26 @@
 /*
  * This can be changed.
  */
-int c2_addb_level_default = AEL_NOTE;
+enum c2_addb_ev_level c2_addb_level_default = AEL_NOTE;
 C2_EXPORTED(c2_addb_level_default);
 
+/**
+   ADDB record store type.
+
+   This type is inited while system startup. For clients, we may configure it
+   as network; while for servers, we may configure it to store record into stob.
+   Along with this variable, corresponding parameter should be configured below.
+*/
+static enum c2_addb_rec_store_type c2_addb_store_type  = C2_ADDB_REC_STORE_NONE;
+static struct c2_stob             *c2_addb_store_stob     = NULL;
+static struct c2_dtx              *c2_addb_store_stob_tx  = NULL;
+static struct c2_table            *c2_addb_store_table    = NULL;
+static struct c2_dbenv            *c2_addb_store_db_env   = NULL;
+static struct c2_net_conn         *c2_addb_store_net_conn = NULL;
+
+static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
+static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
+/* USE RPC: static c2_addb_net_add_t  c2_addb_net_add_p  = NULL; */
 
 int c2_addb_init(void)
 {
@@ -41,6 +60,19 @@ void c2_addb_fini(void)
 {
 }
 C2_EXPORTED(c2_addb_fini);
+
+/**
+   Choose default addb event level, return the original level.
+*/
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
+{
+	enum c2_addb_ev_level orig = c2_addb_level_default;
+
+	C2_ASSERT(AEL_NONE <= level && level <= AEL_MAX);
+
+	c2_addb_level_default = level;
+	return orig;
+}
 
 void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
 		      struct c2_addb_ctx *parent)
@@ -74,12 +106,12 @@ void c2_addb_add(struct c2_addb_dp *dp)
 	case C2_ADDB_REC_STORE_STOB:
 		C2_ASSERT(c2_addb_store_stob != NULL);
 		C2_ASSERT(c2_addb_stob_add_p != NULL);
-		c2_addb_stob_add_p(dp, c2_addb_store_stob);
+		c2_addb_stob_add_p(dp, c2_addb_store_stob_tx, c2_addb_store_stob);
 		break;
 	case C2_ADDB_REC_STORE_DB:
 		C2_ASSERT(c2_addb_store_table != NULL);
 		C2_ASSERT(c2_addb_db_add_p != NULL);
-		c2_addb_db_add_p(dp, c2_addb_store_table);
+		c2_addb_db_add_p(dp, c2_addb_store_db_env, c2_addb_store_table);
 		break;
 	/* Use RPC */
 	/* case C2_ADDB_REC_STORE_NETWORK: */
@@ -230,23 +262,53 @@ struct c2_addb_ctx c2_addb_global_ctx = {
 };
 C2_EXPORTED(c2_addb_global_ctx);
 
-enum c2_addb_rec_store_type c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
-struct c2_stob             *c2_addb_store_stob     = NULL;
-struct c2_table            *c2_addb_store_table    = NULL;
-/* Use RPC: struct c2_net_conn         *c2_addb_store_net_conn = NULL; */
+int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
+{
+	va_list varargs;
 
-c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
-c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
-/* USE RPC: c2_addb_net_add_t  c2_addb_net_add_p  = NULL; */
+	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
+	c2_addb_store_stob     = NULL;
+	c2_addb_store_stob_tx  = NULL;
+	c2_addb_store_table    = NULL;
+	c2_addb_store_db_env   = NULL;
+	c2_addb_store_net_conn = NULL;
 
-C2_EXPORTED(c2_addb_store_type);
-C2_EXPORTED(c2_addb_store_stob);
-C2_EXPORTED(c2_addb_store_table);
-/* Use RPC: C2_EXPORTED(c2_addb_store_net_conn); */
-C2_EXPORTED(c2_addb_stob_add_p);
-C2_EXPORTED(c2_addb_db_add_p);
-/* USE RPC: C2_EXPORTED(c2_addb_net_add_p); */
+	c2_addb_stob_add_p = NULL;
+	c2_addb_db_add_p   = NULL;
+	/* USE RPC: c2_addb_net_add_p  = NULL; */
 
+        va_start(varargs, type);
+
+	switch (type) {
+	case C2_ADDB_REC_STORE_STOB:
+		c2_addb_store_type    = C2_ADDB_REC_STORE_STOB;
+		c2_addb_stob_add_p    = va_arg(varargs, c2_addb_stob_add_t);
+		c2_addb_store_stob    = va_arg(varargs, struct c2_stob*);
+		c2_addb_store_stob_tx = va_arg(varargs, struct c2_dtx*);
+		break;
+
+	case C2_ADDB_REC_STORE_DB:
+		c2_addb_store_type   = C2_ADDB_REC_STORE_DB;
+		c2_addb_db_add_p     = va_arg(varargs, c2_addb_db_add_t);
+		c2_addb_store_table  = va_arg(varargs, struct c2_table*);
+		c2_addb_store_db_env = va_arg(varargs, struct c2_dbenv*);
+		break;
+
+	case C2_ADDB_REC_STORE_NETWORK:
+		c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
+		/* USE RPC: 
+		c2_addb_net_add_p      = va_arg(varargs, c2_addb_net_add_t);
+		*/
+		c2_addb_store_net_conn = va_arg(varargs, struct c2_net_conn*);
+		break;
+	default:
+		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
+	}
+
+        va_end(varargs);
+	return 0;
+}
+C2_EXPORTED(c2_addb_choose_store_media);
 /** @} end of addb group */
 
 /* 
