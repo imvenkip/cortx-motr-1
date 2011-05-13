@@ -527,6 +527,8 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  pool/Makefile
                  reqh/Makefile
+		 rm/Makefile
+		 rm/ut/Makefile
                  sm/Makefile
                  sns/Makefile
                  sns/ut/Makefile
@@ -543,8 +545,6 @@ AC_CONFIG_FILES([
 		 layout/linux_kernel/Makefile
 		 pool/linux_kernel/Makefile
 		 stob/linux_kernel/Makefile
-		 rm/Makefile
-		 rm/ut/Makefile
                 ])
                 
                 #rpc/Makefile
