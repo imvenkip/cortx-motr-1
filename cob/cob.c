@@ -465,7 +465,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
                   struct c2_cob       **out,
                   struct c2_db_tx      *tx)
 {
-        struct c2_cob      *cob;
+        struct c2_cob      *cob = NULL;
         struct c2_cob_oikey oikey;
         struct c2_db_pair   pair;
 	int rc;
@@ -538,7 +538,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
 	return 0;
 
 out_free:
-        c2_cob_put(*out);
+        c2_cob_put(cob);
         C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
         return rc;
 }
