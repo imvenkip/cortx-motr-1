@@ -47,7 +47,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	c2_list_init(&dom->nd_tms);
 
 	dom->nd_xprt_private = NULL;
- 	dom->nd_xprt = xprt;
+	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
 
 	/* must hold the mutex when calling xo_ */
@@ -71,7 +71,7 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
-	if (dom->nd_xprt) {
+	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 	}
 	c2_addb_ctx_fini(&dom->nd_addb);
@@ -98,7 +98,7 @@ C2_EXPORTED(c2_net__domain_fini);
 Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
 {							\
 	Type rc;					\
-	C2_PRE(dom != NULL );				\
+	C2_PRE(dom != NULL);				\
 	c2_mutex_lock(&dom->nd_mutex);			\
 	C2_PRE(dom->nd_xprt != NULL);			\
 	rc = dom->nd_xprt->nx_ops->xo_get_##Fn(dom);	\

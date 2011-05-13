@@ -544,8 +544,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 				/* queue wi to send back ping response */
 				data = c2_alloc(strlen(msg.pm_u.pm_str) + 6);
-				rc = c2_net_end_point_get(nb->nb_ep);
-				C2_ASSERT(rc == 0);
+				c2_net_end_point_get(nb->nb_ep);
 				wi->pwi_type = C2_NET_QT_MSG_SEND;
 				nb->nb_qtype = C2_NET_QT_MSG_SEND;
 				strcpy(data, msg.pm_u.pm_str);

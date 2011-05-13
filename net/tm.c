@@ -106,8 +106,13 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	C2_ASSERT(cb != NULL);
 	if (check_ep) {
 		ep = buf->nb_ep; /* save pointer to decrement ref post cb */
-		C2_ASSERT(ep == NULL ||
-			  c2_atomic64_get(&ep->nep_ref.ref_cnt) >= 1);
+
+		C2_ASSERT(ep == NULL || ({
+			  bool eprc;
+			  c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+			  eprc = c2_net__ep_invariant(ep, tm->ntm_dom, true);
+			  c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+			  eprc; }));
 	}
 
 	cb(tm, ev);

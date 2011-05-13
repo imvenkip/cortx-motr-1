@@ -12,7 +12,7 @@
 
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
-	return (qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR);
+	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
 }
 
 bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
@@ -52,6 +52,10 @@ bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
 	if (buf->nb_tm == NULL)
 		return false;
 
+	/* TM's domain must be the buffer's domain */
+	if (buf->nb_dom != buf->nb_tm->ntm_dom)
+		return false;
+
 	/* EXPENSIVE: on the right TM list */
 	if (!c2_list_contains(&buf->nb_tm->ntm_q[buf->nb_qtype],
 			      &buf->nb_tm_linkage))
@@ -82,7 +86,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	   segments, and optimize it for future use.
 	*/
 	rc = dom->nd_xprt->nx_ops->xo_buf_register(buf);
-	if ( rc == 0 ) {
+	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	}
@@ -102,13 +106,12 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
 
-	C2_PRE(buf != NULL &&
-	       buf->nb_flags == C2_NET_BUF_REGISTERED &&
+	C2_PRE(buf != NULL && c2_net__buffer_invariant(buf) &&
 	       buf->nb_dom == dom);
 	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
 	rc = dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
-	if (!rc) {
+	if (rc == 0) {
 		buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
 		c2_list_del(&buf->nb_dom_linkage);
 		buf->nb_xprt_private = NULL;
@@ -124,7 +127,6 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 {
 	int rc;
 	struct c2_net_domain *dom;
-	c2_bcount_t blen;
 	struct c2_list *ql = NULL;
 	struct buf_add_checks {
 		bool check_length;
@@ -164,43 +166,27 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	todo = &checks[buf->nb_qtype];
 	ql = &tm->ntm_q[buf->nb_qtype];
 
-	/* Check that length is set and is within buffer bounds.
+	/* Validate that that length is set and is within buffer bounds.
 	   The transport will make other checks on the buffer, such
 	   as the max size and number of segments.
 	 */
-	if (todo->check_length) {
-		if (buf->nb_length == 0) {
-			rc = -EINVAL;
-			goto m_err_exit;
-		}
-		blen = c2_vec_count(&buf->nb_buffer.ov_vec);
-		if (buf->nb_length > blen) {
-			rc = -EFBIG;
-			goto m_err_exit;
-		}
-	}
+	C2_PRE(ergo(todo->check_length,
+		    buf->nb_length > 0 &&
+		    buf->nb_length <= c2_vec_count(&buf->nb_buffer.ov_vec)));
 
-	/* validate end point usage */
-	if (todo->check_ep) {
-		if (buf->nb_ep == NULL) {
-			rc = -EINVAL;
-			goto m_err_exit;
-		}
-		/* increment count later */
-	}
+	/* validate end point usage; increment ref count later */
+	C2_PRE(ergo(todo->check_ep,
+		    buf->nb_ep != NULL &&
+		    c2_net__ep_invariant(buf->nb_ep, buf->nb_dom, false)));
 
 	/* validate that the descriptor is present */
 	if (todo->post_check_desc) {
 		buf->nb_desc.nbd_len = 0;
 		buf->nb_desc.nbd_data = NULL;
 	}
-	if (todo->check_desc) {
-		if ( buf->nb_desc.nbd_len == 0 ||
-		     buf->nb_desc.nbd_data == NULL ) {
-			rc = -EINVAL;
-			goto m_err_exit;
-		}
-	}
+	C2_PRE(ergo(todo->check_desc,
+		    buf->nb_desc.nbd_len > 0 &&
+		    buf->nb_desc.nbd_data != NULL));
 
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
@@ -214,15 +200,10 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	/* call the transport */
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
-	if (rc) {
+	if (rc != 0) {
 		c2_list_del(&buf->nb_tm_linkage);
 		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
-	}
-
-	if (todo->post_check_desc) {
-		C2_POST(buf->nb_desc.nbd_len != 0 &&
-			buf->nb_desc.nbd_data != NULL);
 	}
 
 	tm->ntm_qstats[buf->nb_qtype].nqs_num_adds += 1;
@@ -234,6 +215,9 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		c2_net_end_point_get(buf->nb_ep); /* mutex not used */
 	}
 
+	C2_POST(ergo(todo->post_check_desc,
+		     buf->nb_desc.nbd_len != 0 &&
+		     buf->nb_desc.nbd_data != NULL));
 	C2_POST(c2_net__buffer_invariant(buf));
 
  m_err_exit:
@@ -249,13 +233,14 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	struct c2_net_domain *dom;
 
 	C2_PRE(tm != NULL && tm->ntm_dom != NULL);
-	C2_PRE(buf != NULL && buf->nb_dom == tm->ntm_dom);
-	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);
+	C2_PRE(buf != NULL);
 
-	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
+
+	C2_PRE(c2_net__buffer_invariant(buf));
+	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
 
 	/* wait for callbacks to clear */
 	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
@@ -270,7 +255,7 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 
 	/* the transport may not support operation cancellation */
 	rc = dom->nd_xprt->nx_ops->xo_buf_del(buf);
-	if (rc) {
+	if (rc != 0) {
 		goto m_err_exit;
 	}
 

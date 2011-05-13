@@ -498,10 +498,8 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 
    @param ep End point data structure pointer.
    @pre ep->nep_ref->ref_cnt >= 1
-   @retval 0 (success)
-   @retval -errno (failure)
 */
-int c2_net_end_point_get(struct c2_net_end_point *ep);
+void c2_net_end_point_get(struct c2_net_end_point *ep);
 
 /**
    Decrement the reference count of an end point data structure.
