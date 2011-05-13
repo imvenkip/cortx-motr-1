@@ -9,7 +9,7 @@
 #include "lib/mutex.h"
 #include "lib/ut.h"
 
-#include "net/net.h"
+#include "net/net_internal.h"
 
 static struct c2_net_domain utdom;
 static struct c2_net_transfer_mc ut_tm;
@@ -29,7 +29,8 @@ static bool ut_dom_init_called=false;
 static int ut_dom_init(struct c2_net_xprt *xprt,
 		       struct c2_net_domain *dom)
 {
-	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
+	C2_ASSERT(c2_mutex_is_locked(&c2_net_mutex));
+	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	ut_dom_init_called = true;
 	dom->nd_xprt_private = &ut_xprt_pvt;
 	return 0;
@@ -38,7 +39,8 @@ static int ut_dom_init(struct c2_net_xprt *xprt,
 static bool ut_dom_fini_called=false;
 static void ut_dom_fini(struct c2_net_domain *dom)
 {
-	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
+	C2_ASSERT(c2_mutex_is_locked(&c2_net_mutex));
+	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	ut_dom_fini_called = true;
 }
 

@@ -52,13 +52,10 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
 
-	/* must hold the mutex when calling xo_ */
-	c2_mutex_lock(&dom->nd_mutex);
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
 		dom->nd_xprt = NULL;
 	}
-	c2_mutex_unlock(&dom->nd_mutex);
 	if (rc != 0)
 		c2_net__domain_fini(dom);
 	return rc;
@@ -73,6 +70,8 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
+	c2_mutex_unlock(&dom->nd_mutex);
+
 	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 	}
@@ -84,7 +83,6 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	c2_list_fini(&dom->nd_registered_bufs);
 	c2_list_fini(&dom->nd_end_points);
 
-	c2_mutex_unlock(&dom->nd_mutex);
 	c2_mutex_fini(&dom->nd_mutex);
 
 	/* begin deprecated */
