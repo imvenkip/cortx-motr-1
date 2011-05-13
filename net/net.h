@@ -399,6 +399,7 @@ struct c2_net_domain {
    Initialize a domain.
  @param dom Domain pointer.
  @param xprt Tranport pointer.
+ @pre dom->nd_xprt == NULL
  @retval 0 (success)
  @retval -errno (failure)
  */

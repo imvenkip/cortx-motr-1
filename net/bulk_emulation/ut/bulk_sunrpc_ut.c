@@ -9,7 +9,9 @@
 static void test_sunrpc_ep(void)
 {
 	/* dom1 */
-	struct c2_net_domain dom1;
+	struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
 	struct c2_net_end_point *ep1;
 	struct c2_net_end_point *ep2;
 	struct c2_net_end_point *ep3;
@@ -49,7 +51,9 @@ static void test_sunrpc_ep(void)
 
 static void test_sunrpc_desc(void)
 {
-	struct c2_net_domain dom1;
+	struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
 	struct c2_net_end_point *ep1, *ep2;
 
 	enum c2_net_queue_type cb_qt1;
@@ -214,7 +218,9 @@ static void test_sunrpc_ping(void)
 static void test_sunrpc_failure(void)
 {
 	/* dom1 */
-	struct c2_net_domain dom1;
+	struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
 	enum c2_net_queue_type cb_qt1;
 	struct c2_net_buffer *cb_nb1;
 	enum c2_net_tm_state cb_tms1;
@@ -237,7 +243,9 @@ static void test_sunrpc_failure(void)
 	struct c2_clink tmwait1;
 
 	/* dom 2 */
- 	struct c2_net_domain dom2;
+ 	struct c2_net_domain dom2 = {
+		.nd_xprt = NULL
+	};
 	enum c2_net_queue_type cb_qt2;
 	struct c2_net_buffer *cb_nb2;
 	enum c2_net_tm_state cb_tms2;
@@ -775,7 +783,9 @@ static void test_sunrpc_failure(void)
 
 static void test_sunrpc_tm(void)
 {
-	struct c2_net_domain dom1;
+	struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
 	struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
 					     struct c2_net_event *ev){

@@ -34,6 +34,8 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 {
 	int rc;
 
+	C2_PRE(dom->nd_xprt == NULL);
+
 	/* begin deprecated */
 	c2_list_init(&dom->nd_conn);
 	c2_list_init(&dom->nd_service);

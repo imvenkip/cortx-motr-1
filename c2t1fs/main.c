@@ -1475,6 +1475,7 @@ int init_module(void)
 	if (rc)
 		return rc;
 
+	dom->nd_xprt = NULL;
 	rc = c2_net_domain_init(dom, &c2_net_ksunrpc_xprt);
 	if (rc) {
 		c2_net_xprt_fini(&c2_net_ksunrpc_xprt);
