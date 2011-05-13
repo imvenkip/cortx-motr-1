@@ -612,6 +612,53 @@ out:
         return rc;
 }
 
+int c2_cob_update(struct c2_cob		*cob,
+		  struct c2_cob_nsrec	*nsrec,
+		  struct c2_cob_fabrec	*fabrec,
+		  struct c2_db_tx	*tx)
+{
+	struct c2_db_pair	pair;
+	int			rc;
+
+	C2_PRE(c2_cob_is_valid(cob));
+	C2_PRE(cob->co_valid & CA_NSKEY);
+
+	if (nsrec != NULL) {
+		cob->co_nsrec = *nsrec;
+		cob->co_valid |= CA_NSREC;
+
+		c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+				cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+				&cob->co_nsrec, sizeof cob->co_nsrec);
+
+		rc = c2_table_update(tx, &pair);
+
+		c2_db_pair_release(&pair);
+		c2_db_pair_fini(&pair);
+
+		if (rc)
+			goto out;
+	}
+
+	if (fabrec != NULL) {
+		cob->co_fabrec = *fabrec;
+		cob->co_valid |= CA_FABREC;
+
+		c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+			&cob->co_stob->so_id, sizeof cob->co_stob->so_id,
+			&cob->co_fabrec, sizeof cob->co_fabrec);
+
+		rc = c2_table_update(tx, &pair);
+
+		c2_db_pair_release(&pair);
+		c2_db_pair_fini(&pair);
+	}
+
+out:
+	C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
+			c2_addb_func_fail, "cob_update", rc);
+	return rc;
+}
 
 /** @} end group cob */
 

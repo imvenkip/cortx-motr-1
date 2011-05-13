@@ -245,6 +245,14 @@ int c2_cob_create(struct c2_cob_domain *dom,
 int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
+   Update file attributes of passed cob with @nsrec, @fabrec 
+   and @omgrec fields.
+*/
+int c2_cob_update(struct c2_cob *cob, 
+                  struct c2_cob_nsrec  *nsrec,
+                  struct c2_cob_fabrec *fabrec,
+                  struct c2_db_tx      *tx);
+/**
    Acquires an additional reference on the object.
 
    @see c2_cob_put()
