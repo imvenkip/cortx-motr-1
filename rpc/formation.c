@@ -12,7 +12,7 @@ struct c2_rpc_form_item_summary 	formation_summary;
  */
 int c2_rpc_item_io_get_opcode (struct c2_rpc_item *item)
 {
-	struct c2_fop		*fop;
+	struct c2_fop		*fop = NULL;
 	int opcode		 opcode = 0;
 
 	C2_PRE(item != NULL);
@@ -46,11 +46,11 @@ static void c2_rpc_item_io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fi
  */
 struct c2_fid c2_rpc_item_io_get_fid (struct c2_rpc_item *item)
 {
-	struct c2_fop			*fop;
+	struct c2_fop			*fop = NULL;
 	struct c2_fid			 fid;
-	struct c2_fop_file_fid		*ffid;
-	struct c2_fop_cob_writev	*write_fop;
-	struct c2_fop_cob_readv		*read_fop;
+	struct c2_fop_file_fid		*ffid = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
 	int opcode			 opcode;
 
 	C2_PRE(item != NULL);
@@ -78,7 +78,7 @@ struct c2_fid c2_rpc_item_io_get_fid (struct c2_rpc_item *item)
  */
 bool c2_rpc_item_is_io_req (struct c2_rpc_item *item)
 {
-	struct c2_fop		*fop;
+	struct c2_fop		*fop = NULL;
 	int opcode		 opcode = 0;
 
 	C2_PRE(item != NULL);
@@ -93,6 +93,96 @@ bool c2_rpc_item_is_io_req (struct c2_rpc_item *item)
 	}
 	return false;
 }
+
+
+/**
+   RPC item ops function
+   Function to find out number of fragmented buffers in IO request 
+ */
+uint64_t c2_rpc_item_get_io_fragment_count (struct c2_rpc_item *item)
+{
+
+	struct c2_fop			*fop;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	int opcode			 opcode;
+	uint64_t 			 nfragments = 0;
+	uint64_t 			 seg_offset = 0;
+	uint64_t 			 seg_count = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		seg_count = read_fop->frd_ioseg.fs_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		seg_count = write_fop->fwr_iovec.iov_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	return nfragments;
+}
+
+/**
+   RPC item ops function
+   Function to return segment for read fop from given rpc item 
+ */
+struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment_seq	*seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	read_fop = c2_fop_data(fop);
+	seg = read_fop->frd_ioseg;
+	C2_ASSERT(seg != NULL);
+
+	return seg;
+ }
+
+/**
+   RPC item ops function
+   Function to return segment for write fop from given rpc item 
+ */
+struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_io_vec		*vec = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	write_fop = c2_fop_data(fop);
+	vec = write_fop->fwr_iovec;
+	C2_ASSERT(vec != NULL);
+
+	return vec;
+ }
 
 /**     
    Initialization for formation component in rpc. 
@@ -654,7 +744,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
 	if (io_op == true) {
 		/* XXX Implement a method to find out disjoint memory buffers. */
-		current_fragments = item->ri_type->rit_ops->rio_get_fragments(item);
+		current_fragments = item->ri_type->rit_ops->rio_get_io_fragment_count(item);
 		if ((*nfragments + current_fragments) > endp_unit->isu_max_fragments_size)
 			return 0;
 	}
