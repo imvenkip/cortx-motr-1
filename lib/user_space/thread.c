@@ -41,7 +41,7 @@ static void *pthread_trampoline(void *arg)
 }
 
 int c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		   void (*func)(void *), void *arg)
+		   void (*func)(void *), void *arg, const char *name, ...)
 {
 	int             result;
 	struct c2_clink wait;
