@@ -6,6 +6,94 @@
  */
 struct c2_rpc_form_item_summary 	formation_summary;
 
+/**
+   RPC item ops function
+   Function to return the opcode given an rpc item
+ */
+int c2_rpc_item_io_get_opcode (struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode ) {
+		return C2_RPC_FORM_IO_READ;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		return C2_RPC_FORM_IO_WRITE;
+	}
+	return opcode;
+}
+
+/**
+   RPC item ops function
+   Function to map the on-wire FOP format to in-core FOP format.
+ */
+static void c2_rpc_item_io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+{
+        out->f_container = in->f_seq;
+        out->f_key = in->f_oid;
+}
+
+/**
+   RPC item ops function
+   Function to get the fid for an IO request from the rpc item
+ */
+struct c2_fid c2_rpc_item_io_get_fid (struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop;
+	struct c2_fid			 fid;
+	struct c2_fop_file_fid		*ffid;
+	struct c2_fop_cob_writev	*write_fop;
+	struct c2_fop_cob_readv		*read_fop;
+	int opcode			 opcode;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		ffid = &read_fop->frd_fid;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		ffid = &write_fop->fwr_fid;
+	}
+	c2_rpc_item_io_fid_wire2mem(ffid, &fid);
+	return fid;
+}
+
+/**
+   RPC item ops function
+   Function to find out if the item belongs to an IO request or not 
+ */
+bool c2_rpc_item_is_io_req (struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode || 
+		opcode == c2_io_service_writev_opcode) {
+		return true;
+	}
+	return false;
+}
+
 /**     
    Initialization for formation component in rpc. 
    This will register necessary callbacks and initialize
@@ -717,11 +805,11 @@ int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced *coalesced_i
 			struct c2_rpc_form_item_coalesced_member, im_linkage) {
 		item = member->ic_member_item;
 		if (opcode == C2_RPC_FORM_IO_READ) {
-			item_read_vec = item.ri_type->rit_ops->item_rio_io_get_vector(&item);
+			item_read_vec = item.ri_type->rit_ops->rio_io_get_vector(&item);
 			res = c2_rpc_form_coalesce_readio_vector(item_read_vec, aggr_vec_list, &curr_segs);
 		}
 		else if (opcode == C2_RPC_FORM_IO_WRITE) {
-			item_write_vec = item.ri_type->rit_ops->item_rio_io_get_vector(&item);
+			item_write_vec = item.ri_type->rit_ops->rio_io_get_vector(&item);
 			res = c2_rpc_form_coalesce_writeio_vector(item_write_vec, aggr_vec_list, &curr_segs);
 		}
 	}

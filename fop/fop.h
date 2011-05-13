@@ -132,6 +132,10 @@ struct c2_fop {
 	   ADDB context for events related to this fop.
 	 */
 	struct c2_addb_ctx  f_addb;
+	/** 
+	   RPC item for this FOP
+	 */  
+	struct c2_rpc_item  f_item;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
