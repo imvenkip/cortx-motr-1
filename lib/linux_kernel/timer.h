@@ -21,7 +21,7 @@ struct c2_timer {
 	/**
 	   The interval to trigger the timer callback.
 	 */
-	struct c2_time t_interval;
+	c2_time_t t_interval;
 
 	/**
 	   the repeat count for this timer.
@@ -50,12 +50,6 @@ struct c2_timer {
 	   User data.
 	 */
 	unsigned long t_data;
-
-	/**
-	   Helper field. Last time triggered the callback. This is used to have
-	   higher resolution.
-	struct c2_time t_last_triggered;
-	 */
 
 	struct timer_list t_timer;
 };

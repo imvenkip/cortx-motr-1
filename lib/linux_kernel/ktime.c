@@ -11,26 +11,33 @@
 /**
    @addtogroup time
 
-   <b>Implementation of c2_time on top of kernel struct timespec
+   <b>Implementation of c2_time_t on top of kernel struct timespec
 
    @{
 */
 
-struct c2_time *c2_time_now(struct c2_time *time)
+c2_time_t c2_time_now(c2_time_t *time)
 {
+	struct timespec ts;
+
 	C2_PRE(time != NULL);
-        time->ts = current_kernel_time();
-	return time;
+	ts = current_kernel_time();
+	c2_time_set(time, ts.tv_sec,  ts.tv_nsec);
+	return *time;
 }
 C2_EXPORTED(c2_time_now);
 
 /**
    Sleep for requested time
 */
-int c2_nanosleep(const struct c2_time *req, struct c2_time *rem)
+int c2_nanosleep(const c2_time_t req, c2_time_t *rem)
 {
+	struct timespec ts = {
+			.tv_sec  = c2_time_seconds(req),
+			.tv_nsec = c2_time_nanoseconds(req)
+		};
 	int rc = 0;
-	unsigned long tj = timespec_to_jiffies(&req->ts);
+	unsigned long tj = timespec_to_jiffies(&ts);
 
 	/* this may use TASK_INTERRUPTIBLE to capture signals */
         set_current_state(TASK_UNINTERRUPTIBLE);

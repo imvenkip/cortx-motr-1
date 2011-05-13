@@ -782,8 +782,8 @@ static void dbenv_thread(struct c2_dbenv *env)
 		int                     nr_pages;
 		struct c2_db_tx_waiter *w;
 		struct c2_db_tx_waiter *tmp;
-		struct c2_time          deadline;
-		struct c2_time          delay;
+		c2_time_t               deadline;
+		c2_time_t               delay;
 
 		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
 		rc = DBENV_CALL(env, log_stat, &st, 0);
@@ -808,8 +808,8 @@ static void dbenv_thread(struct c2_dbenv *env)
 		}
 		c2_time_now(&deadline);
 		c2_time_set(&delay, 1, 0);
-		c2_time_add(&deadline, &delay, &deadline);
-		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, &deadline);
+		deadline = c2_time_add(deadline, delay);
+		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, deadline);
 		c2_mutex_unlock(&di->d_lock);
 	} while (!last);
 	C2_ASSERT(c2_list_is_empty(&env->d_i.d_waiters));
