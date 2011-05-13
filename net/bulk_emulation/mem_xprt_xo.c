@@ -274,7 +274,8 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	sa.sin_port = htons(va_arg(varargs, int));
 	if (sa.sin_port == 0) {
 		/* dot_ip may be in printable form */
-		char *p, *pp;
+		char *p;
+		char *pp;
 		int pnum;
 		strncpy(buf, dot_ip, sizeof(buf)-1); /* copy to modify */
 		buf[sizeof(buf)-1] = '\0';

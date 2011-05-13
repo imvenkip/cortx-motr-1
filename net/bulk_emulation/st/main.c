@@ -93,9 +93,14 @@ struct c2_mutex qstats_mutex;
 
 void print_qstats(struct ping_ctx *ctx, bool reset)
 {
-	int i, rc;
-	uint64_t hr, min, sec, msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR], *qp;
+	int i;
+	int rc;
+	uint64_t hr;
+	uint64_t min;
+	uint64_t sec;
+	uint64_t msec;
+	struct c2_net_qstats qs[C2_NET_QT_NR];
+	struct c2_net_qstats *qp;
 	static const char *qnames[C2_NET_QT_NR] = {
 		"mRECV", "mSEND",
 		"pRECV", "pSEND",

@@ -35,7 +35,8 @@ struct ping_work_item {
 int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 		  struct c2_net_buffer **out)
 {
-	struct c2_net_buffer *nbs, *nb;
+	struct c2_net_buffer *nbs;
+	struct c2_net_buffer *nb;
 	int                   i;
 	int                   rc = 0;
 

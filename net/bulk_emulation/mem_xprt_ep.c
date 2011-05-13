@@ -211,12 +211,13 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 			   struct c2_net_buf_desc *d2)
 {
 	/* could do a byte comparison too */
-	struct mem_desc *md1, *md2;
+	struct mem_desc *md1;
+	struct mem_desc *md2;
 	int rc;
 	rc = mem_desc_decode(d1, &md1);
-	if (!rc)
+	if (rc == 0)
 		rc = mem_desc_decode(d2, &md2);
-	if (rc)
+	if (rc != 0)
 		return false;
 	if (md1->md_buf_id == md2->md_buf_id &&
 	    MEM_SA_EQ(&md1->md_active,  &md2->md_active) &&
