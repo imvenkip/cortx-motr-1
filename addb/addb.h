@@ -22,6 +22,8 @@ struct c2_addb_ev;
 struct c2_addb_dp;
 struct c2_addb_rec;
 enum c2_addb_ev_level;
+struct c2_dbenv;
+struct c2_dtx;
 
 
 /* these are needed earlier than they are defined */
@@ -60,14 +62,18 @@ struct c2_addb_ctx_type {
 /**
     Write addb records into this stob.
  */
-typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_stob *stob);
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
+typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_dtx *tx,
+				  struct c2_stob *stob);
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+		     struct c2_stob *stob);
 
 /**
     Write addb records into this db.
  */
-typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_table *db);
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
+typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+				struct c2_table *db);
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+		   struct c2_table *db);
 
 /* USE RPC */
 /**
@@ -77,22 +83,7 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
 */
 
-extern c2_addb_stob_add_t c2_addb_stob_add_p;
-extern c2_addb_db_add_t   c2_addb_db_add_p;
-/* Use RPC: extern c2_addb_net_add_t  c2_addb_net_add_p; */
-
-/**
-   ADDB record store type.
-
-   This type is inited while system startup. For clients, we may configure it
-   as network; while for servers, we may configure it to store record into stob.
-   Along with this variable, corresponding parameter should be configured below.
-*/
-extern enum c2_addb_rec_store_type c2_addb_store_type;
-extern struct c2_stob             *c2_addb_store_stob;
-extern struct c2_table            *c2_addb_store_table;
-/* Use RPC extern struct c2_net_conn         *c2_addb_store_net_conn;*/
-
+int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
 
 /**
    Activity in context on which addb event happens.
@@ -132,7 +123,8 @@ enum c2_addb_ev_level {
 	AEL_NOTE,
 	AEL_WARN,
 	AEL_ERROR,
-	AEL_FATAL
+	AEL_FATAL,
+	AEL_MAX = AEL_FATAL
 };
 
 /**
@@ -327,7 +319,8 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 		c2_addb_add(&__dp);				\
 })
 
-extern int c2_addb_level_default;
+extern enum c2_addb_ev_level c2_addb_level_default;
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
 /**
    Declare addb event operations vector with a given collection of formal
