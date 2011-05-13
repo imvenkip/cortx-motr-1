@@ -198,14 +198,16 @@ struct c2_rpc_form_item_summary_unit {
 	uint64_t			 isu_curr_rpcs_in_flight;
 	/** List of formed RPC objects kept with formation. The 
 	    POSTING state will send RPC objects from this list
-	    to the output component. */
-	struct c2_rpc_form_rpcobj_list	isu_rpcobj_formed_list;
+	    to the output component.
+	    c2_list <struct c2_rpc_form_rpcobj> */
+	struct c2_list			isu_rpcobj_formed_list;
 	/** A list of checked rpc objects. This list is populated
 	    by CHECKING state while FORMING state removes rpc objects
 	    from this list, populates sessions information for all
 	    member rpc items and puts the rpc object on formed list of
-	    rpc objects. */
-	struct c2_rpc_form_rpcobj_list	isu_rpcobj_checked_list;
+	    rpc objects. 
+	    c2_list <struct c2_rpc_form_rpcobj>*/
+	struct c2_list			isu_rpcobj_checked_list;
 	/** List of unformed rpc items. */
 	/** c2_list <struct >*/
 	struct c2_list			isu_unformed_items;
@@ -261,6 +263,26 @@ struct c2_rpc_form_item_coalesced_member {
 };
 
 /**
+   Member structure of a list containing read IO segments.
+ */
+struct c2_rpc_form_read_segment {
+	/** Linkage to the list of such structures. */
+	struct c2_list_link		rs_linkage;
+	/** The read IO segment. */
+	struct c2_fop_segment		rs_seg;
+};
+
+/**
+   Member structure of a list containing write IO segments.
+ */
+struct c2_rpc_form_write_segment {
+	/** Linkage to the list of such structures. */
+	struct c2_list_link		ws_linkage;
+	/** The read IO segment. */
+	struct c2_fop_io_seg		ws_seg;
+};
+
+/**
    This structure represents the summary data for a given rpc group
    destined for a given endpoint.
  */
@@ -284,19 +306,6 @@ struct c2_rpc_form_item_summary_unit_group {
 	double				 sug_avg_timeout;
 	/** Cumulative size of rpc items in this group so far. */
 	uint64_t			 sug_total_size;
-};
-
-/**
-   This structure contains the list of rpc objects which are formed
-   but not yet sent on wire. It contains a lock to protect concurrent
-   access to the structure.
- */
-struct c2_rpc_form_rpcobj_list {
-	/** Mutex protecting the list of rpc objects from concurrent access. */
-	struct c2_mutex			rl_lock;
-	/** List of rpc objects formed but not yet sent on wire. */
-	/** c2_list <struct c2_rpc_form_rpcobj> */
-	struct c2_list			rl_list;
 };
 
 /**
