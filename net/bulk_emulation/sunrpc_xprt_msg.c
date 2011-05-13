@@ -111,17 +111,20 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	/* TM mutex is locked */
 
 	do {
-		/* get the first receive buffer */
-		struct c2_list_link *link;
-		link = c2_list_first(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
-		if (link == NULL) {
+		/* get the first available receive buffer */
+		c2_list_for_each_entry(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
+				       struct c2_net_buffer,
+				       nb_tm_linkage) {
+			if ((nb->nb_flags & C2_NET_BUF_IN_USE) == 0)
+				break;
+		}
+		if (nb == NULL) {
 			tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events++;
 			rc = -ENOBUFS;
 			break;
 		}
-		nb = container_of(link, struct c2_net_buffer, nb_tm_linkage);
 		C2_ASSERT(sunrpc_buffer_invariant(nb));
-		c2_list_del(&nb->nb_tm_linkage);
+		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
 			struct c2_net_bulk_mem_work_item *wi =

@@ -166,6 +166,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 	int rc;
 	struct c2_net_transfer_mc *dest_tm = NULL;
 	struct c2_net_end_point   *dest_ep = NULL;
+	struct c2_net_buffer      *dest_nb = NULL;
 	do {
 		/* Search for a remote TM matching the destination address,
 		   and if found, create an EP in the remote TM's domain with
@@ -179,20 +180,22 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		   its mutex.  The destination TM is operative.
 		*/
 
-		/* get the first receive buffer */
-		struct c2_list_link *link;
-		link = c2_list_first(&dest_tm->ntm_q[C2_NET_QT_MSG_RECV]);
-		if (link == NULL) {
+		/* get the first available receive buffer */
+		c2_list_for_each_entry(&dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
+				       dest_nb, struct c2_net_buffer,
+				       nb_tm_linkage) {
+			if ((dest_nb->nb_flags & C2_NET_BUF_IN_USE) == 0)
+				break;
+		}
+		if (dest_nb == NULL) {
 			dest_tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events
 				++;
 			rc = -ENOBUFS;
 			mem_post_error(dest_tm, rc);
 			break;
 		}
-		struct c2_net_buffer *dest_nb =
-			container_of(link, struct c2_net_buffer, nb_tm_linkage);
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
-		c2_list_del(&dest_nb->nb_tm_linkage);
+		dest_nb->nb_flags |= C2_NET_BUF_IN_USE;
 		if( nb->nb_length > mem_buffer_length(dest_nb)) {
 			rc = -EMSGSIZE;
 			dest_nb->nb_length = nb->nb_length; /* desired length */

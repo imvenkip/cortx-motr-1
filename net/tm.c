@@ -19,8 +19,9 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	c2_net_tm_cb_proc_t cb;
 	struct c2_net_end_point *ep;
 	bool check_ep;
-
-	C2_PRE(ev->nev_qtype <= C2_NET_QT_NR);
+	C2_PRE(ev->nev_qtype == C2_NET_QT_NR ||
+	       c2_net__qtype_is_valid(ev->nev_qtype));
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_ASSERT(tm == ev->nev_tm);
 	C2_ASSERT((ev->nev_qtype == C2_NET_QT_NR) == (ev->nev_buffer == NULL));
 
@@ -42,6 +43,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
 			c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
+		C2_PRE(c2_net__buffer_invariant(buf));
 		C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
 		c2_list_del(&buf->nb_tm_linkage);
 
@@ -273,7 +275,7 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			bool reset)
 {
 	C2_PRE(tm->ntm_state >= C2_NET_TM_INITIALIZED);
-	C2_PRE(qtype <= C2_NET_QT_NR);
+	C2_PRE(qtype == C2_NET_QT_NR || c2_net__qtype_is_valid(qtype));
 	C2_ASSERT(reset || qs != NULL);
 
 	c2_mutex_lock(&tm->ntm_mutex);
