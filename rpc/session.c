@@ -63,9 +63,8 @@ int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
 {
 	int	rc;
 
-	printf("reply_cache_init: called\n");
-
 	C2_PRE(dbenv != NULL);
+
 	rcache->rc_dbenv = dbenv;
 
 	C2_ALLOC_PTR(rcache->rc_slot_table);
@@ -102,9 +101,7 @@ errout:
 
 void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache)
 {
-	printf("reply_cache_fini called \n");
-
-	C2_ASSERT(rcache != NULL && rcache->rc_dbenv != NULL &&
+	C2_PRE(rcache != NULL && rcache->rc_dbenv != NULL &&
 			rcache->rc_slot_table != NULL &&
 			rcache->rc_inmem_slot_table != NULL);
 
@@ -277,7 +274,8 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 	struct c2_db_pair			inmem_pair;
 	int				rc;
 
-	printf("Called reply cache insert\n");
+	C2_PRE(item != NULL && tx != NULL);
+
 	slot_table = c2_rpc_reply_cache.rc_slot_table;
 	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
 
@@ -298,8 +296,13 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 		goto out;
 	
 	printf("rc_insert: current value: %lu\n", slot.stv_verno.vn_vc);
+
+	C2_ASSERT(item->ri_verno.vn_vc == slot.stv_verno.vn_vc);
+
 	slot.stv_verno.vn_vc++;
+	/* XXX temporary: when integrated with FOL will get proper lsn */
 	slot.stv_verno.vn_lsn++;
+
 	rc = c2_table_update(tx, &pair);
 	if (rc != 0)
 		goto out;
@@ -314,6 +317,7 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 		goto out1;
 
 	C2_ASSERT(inmem_slot.istv_busy);
+
 	inmem_slot.istv_busy = false;
 
 	rc = c2_table_update(tx, &inmem_pair);
@@ -407,8 +411,10 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 	key.stk_slot_generation = item->ri_slot_generation;
 
 	err = c2_db_tx_init(&tx, c2_rpc_reply_cache.rc_dbenv, 0);
-	if (err != 0)
+	if (err != 0) {
+		rc = SCR_ERROR;
 		goto errout;
+	}
 
 	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
 				&slot, sizeof slot);
@@ -487,52 +493,6 @@ errout:
 	return rc;
 }
 
-/**
-   Receiver side SESSION_CREATE handler
- */
-int c2_rpc_session_create_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-/**
-   Destroys all the information associated with the session on the receiver
-   including reply cache entries.
- */
-int c2_rpc_session_destroy_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_session_create_rep_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_session_destroy_rep_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_conn_create_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_conn_create_rep_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_conn_terminate_handler(struct c2_fom *fom)
-{
-	return 0;
-}
-
-int c2_rpc_conn_terminate_rep_handler(struct c2_fom *fom)
-{
-	return 0;
-}
 
 /** @} end of session group */
 

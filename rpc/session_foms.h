@@ -12,6 +12,10 @@
 
 #include "fop/fom.h"
 
+/*
+ * FOM to execute "RPC connection create" request
+ */
+
 enum c2_rpc_fom_conn_create_phase {
 	FOPH_CONN_CREATE
 };
@@ -29,7 +33,10 @@ extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 int c2_rpc_fom_conn_create_state(struct c2_fom *);
 void c2_rpc_fom_conn_create_fini(struct c2_fom *);
 
-// =========
+/*
+ * FOM to execute "Session Create" request
+ */
+
 enum c2_rpc_session_create_phase {
 	FOPH_SESSION_CREATE
 };
@@ -48,7 +55,9 @@ extern struct c2_fom_ops c2_rpc_fom_session_create_ops;
 int c2_rpc_fom_session_create_state(struct c2_fom *);
 void c2_rpc_fom_session_create_fini(struct c2_fom *);
 
-//==========
+/*
+ * FOM to execute session destroy request
+ */
 
 enum c2_rpc_fom_session_destroy_phase {
 	FOPH_SESSION_DESTROYING
@@ -68,7 +77,9 @@ extern struct c2_fom_ops c2_rpc_fom_session_destroy_ops;
 int c2_rpc_fom_session_destroy_state(struct c2_fom *);
 void c2_rpc_fom_session_destroy_fini(struct c2_fom *);
 
-//===========
+/*
+ * FOM to execute RPC connection terminate request
+ */
 
 enum c2_rpc_fom_conn_terminate_phase {
 	FOPH_CONN_TERMINATING
@@ -87,4 +98,5 @@ extern struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);
+
 #endif

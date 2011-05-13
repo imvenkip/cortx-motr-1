@@ -53,6 +53,11 @@ extern int c2_rpc_session_destroy_fom_init(struct c2_fop *fop,
 extern int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop,
 					struct c2_fom **m);
 
+/*
+ * Temporary routine for all session related fop's reply
+ */
+extern int c2_rpc_rep_fom_init(struct c2_fop *fop,
+					struct c2_fom **m);
 extern int c2_rpc_session_fop_init(void);
 
 extern void c2_rpc_session_fop_fini(void);

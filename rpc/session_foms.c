@@ -36,14 +36,13 @@ struct c2_fom_type c2_rpc_fom_conn_create_type = {
 	.ft_ops = &c2_rpc_fom_conn_create_type_ops
 };
 
-int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
+int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 {
 	struct c2_fop				*fop;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_conn_create		*fop_in;
 	struct c2_rpc_conn_create_rep		*fop_out;
-	//struct c2_cob_domain		*dom;
-	struct c2_rpc_fom_conn_create		*fom;
+	struct c2_rpc_fom_conn_create		*fom_cc;
 	uint64_t				sender_id;
 	struct c2_rpc_slot_table_key		key;
 	struct c2_rpc_slot_table_value		value;
@@ -52,19 +51,19 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 	struct c2_db_pair			inmem_pair;
 	int					rc;
 
-	fom = (struct c2_rpc_fom_conn_create *)fom_in;
+	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
 
 	printf("Called conn_create_state\n");
-	C2_PRE(fom != NULL && fom->fcc_fop != NULL &&
-			fom->fcc_fop_rep != NULL &&
-			fom->fcc_dbenv != NULL);
+	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
+			fom_cc->fcc_fop_rep != NULL &&
+			fom_cc->fcc_dbenv != NULL);
 
-	fop = fom->fcc_fop;
+	fop = fom_cc->fcc_fop;
 	fop_in = c2_fop_data(fop);
 
 	C2_ASSERT(fop_in != NULL);
 
-	fop_rep = fom->fcc_fop_rep;
+	fop_rep = fom_cc->fcc_fop_rep;
 	fop_out = c2_fop_data(fop_rep);
 
 	C2_ASSERT(fop_out != NULL);
@@ -97,37 +96,55 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom_in)
 				&key, sizeof key,
 				&inmem_value, sizeof inmem_value);
 
-	rc = c2_table_insert(&fom->fcc_tx, &db_pair);
+	rc = c2_table_insert(&fom_cc->fcc_tx, &db_pair);
+
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 
+	/*
+	 * XXX Todo: handle EEXIST properly.
+	 * We shouldn't choose 'sender_id' that is already present in slot_table
+	 */
 	if (rc != 0 && rc != -EEXIST) {
 		printf("conn_create_state: error while inserting record\n");
 		goto errout;
 	}
 
 	C2_SET0(&inmem_value);
-	rc = c2_table_insert(&fom->fcc_tx, &inmem_pair);
+
+	rc = c2_table_insert(&fom_cc->fcc_tx, &inmem_pair);
+
 	c2_db_pair_release(&inmem_pair);
 	c2_db_pair_fini(&inmem_pair);
+
+	/*
+	 * XXX Todo: handle EEXIST properly.
+	 * We shouldn't choose 'sender_id' that is already present in slot_table
+	 */
 	if (rc != 0 && rc != -EEXIST) {
 		printf("conn_create_state: error while inserting record 1\n");
 		goto errout;
 	}
+
+	C2_ASSERT(rc == 0);
 
 	fop_out->rccr_snd_id = sender_id;
 	fop_out->rccr_rc = 0;		/* successful */
 	fop_out->rccr_cookie = fop_in->rcc_cookie; 
 
 	printf("conn_create_state: conn created\n");
-	fom_in->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_DONE;
 	return FSO_AGAIN;
 
 errout:
+	C2_ASSERT(rc != 0);
+
 	fop_out->rccr_snd_id = SENDER_ID_INVALID;
 	fop_out->rccr_rc = rc;
 	fop_out->rccr_cookie = fop_in->rcc_cookie;
-	fom_in->fo_phase = FOPH_FAILED;
+
+	fom->fo_phase = FOPH_FAILED;
+
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
@@ -135,7 +152,9 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
 	printf("called conn_create_fini\n");
 }
 
-//=============================
+/*
+ * FOM session create
+ */
 
 struct c2_fom_ops c2_rpc_fom_session_create_ops = {
 	.fo_fini = &c2_rpc_fom_session_create_fini,
@@ -150,13 +169,13 @@ struct c2_fom_type c2_rpc_fom_session_create_type = {
 	.ft_ops = &c2_rpc_fom_session_create_type_ops
 };
 
-int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
+int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 {
 	struct c2_fop				*fop;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_session_create		*fop_in;
 	struct c2_rpc_session_create_rep	*fop_out;
-	struct c2_rpc_fom_session_create	*fom;
+	struct c2_rpc_fom_session_create	*fom_sc;
 	uint64_t				session_id;
 	uint64_t				sender_id;
 	struct c2_db_pair			db_pair;
@@ -167,19 +186,19 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	int					rc;
 	int					i;
 
-	fom = (struct c2_rpc_fom_session_create *)fom_in;
+	fom_sc = container_of(fom, struct c2_rpc_fom_session_create, fsc_gen);
 
 	printf("Called session_create_state\n");
-	C2_PRE(fom != NULL && fom->fsc_fop != NULL &&
-			fom->fsc_fop_rep != NULL &&
-			fom->fsc_dbenv != NULL); 
+	C2_PRE(fom != NULL && fom_sc != NULL && fom_sc->fsc_fop != NULL &&
+			fom_sc->fsc_fop_rep != NULL &&
+			fom_sc->fsc_dbenv != NULL); 
 
-	fop = fom->fsc_fop;
+	fop = fom_sc->fsc_fop;
 	fop_in = c2_fop_data(fop);
 
 	C2_ASSERT(fop_in != NULL);
 
-	fop_rep = fom->fsc_fop_rep;
+	fop_rep = fom_sc->fsc_fop_rep;
 	fop_out = c2_fop_data(fop_rep);
 
 	C2_ASSERT(fop_out != NULL);
@@ -212,13 +231,18 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
 		key.stk_slot_id = i;
-		rc = c2_table_insert(&fom->fsc_tx, &db_pair);
+		rc = c2_table_insert(&fom_sc->fsc_tx, &db_pair);
+
+		/*
+		 * XXX Todo: Handle EEXIST properly
+		 * We shouldn't choose existing session_id at all
+		 */
 		if (rc != 0 && rc != -EEXIST) {
 			printf("conn_create_state: error while inserting record\n");
 			goto errout;
 		}
 
-		rc = c2_table_insert(&fom->fsc_tx, &inmem_pair);
+		rc = c2_table_insert(&fom_sc->fsc_tx, &inmem_pair);
 		if (rc != 0 && rc != -EEXIST) {
 			printf("conn_create_state: error while inserting record 1\n");
 			goto errout;
@@ -228,16 +252,21 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom_in)
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 
+	C2_ASSERT(rc == 0);
+
 	fop_out->rscr_rc = 0; 		/* success */
 	fop_out->rscr_session_id = session_id;
-	fom_in->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_DONE;
 	printf("Session create finished\n");
 	return FSO_AGAIN;
 
 errout:
+	C2_ASSERT(rc != 0);
+
 	fop_out->rscr_rc = rc;
 	fop_out->rscr_session_id = SESSION_ID_INVALID;
-	fom_in->fo_phase = FOPH_FAILED;
+
+	fom->fo_phase = FOPH_FAILED;
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
@@ -245,8 +274,9 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
 	printf("called session_create_fini\n");
 }
 
-//====================
-
+/*
+ * FOM session destroy
+ */
 
 struct c2_fom_ops c2_rpc_fom_session_destroy_ops = {
 	.fo_fini = &c2_rpc_fom_session_destroy_fini,
@@ -279,7 +309,7 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	printf("Session destroy state called\n");
 	fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy, fsd_gen);
 
-	C2_ASSERT(fom_sd != NULL && fom_sd->fsd_fop != NULL &&
+	C2_ASSERT(fom != NULL && fom_sd != NULL && fom_sd->fsd_fop != NULL &&
 			fom_sd->fsd_fop_rep != NULL &&
 			fom_sd->fsd_dbenv != NULL);
 
@@ -339,6 +369,8 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	/*
 	 * If we've ran out of records then the above loop is 
 	 * complete without any error
+	 * If no record was present with supplied session_id
+	 * we will detect it with count == 0
 	 */
 	if (rc == DB_NOTFOUND || rc == -ENOENT)
 		rc = 0;
@@ -351,7 +383,6 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	 * have deleted any record from slot table
 	 */
 	if (count == 0) {
-		printf("Session destroy count == 0\n");
 		rc = -ENOENT;
 		goto errout;
 	}
@@ -416,8 +447,11 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 		}
 	}
 
+	C2_ASSERT(rc == 0);
+
 	fop_out->rsdr_rc = 0;	/* Report success */
 	fom->fo_phase = FOPH_DONE;
+
 	printf("Session destroy successful\n");
 	return FSO_AGAIN;
 
@@ -439,8 +473,9 @@ void c2_rpc_fom_session_destroy_fini(struct c2_fom *fom)
 	printf("Session destroy fini called\n");
 }
 
-//==============
-
+/*
+ * FOM RPC connection terminate
+ */
 struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_fini = &c2_rpc_fom_conn_terminate_fini,
 	.fo_state = &c2_rpc_fom_conn_terminate_state

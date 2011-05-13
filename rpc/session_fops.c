@@ -13,18 +13,25 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 
-int c2_rpc_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	printf("rpc_fom_init called\n");
-	return 0;
-}
-/*
-int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m);
+struct c2_fop_type_ops c2_rpc_conn_create_ops = {
+	.fto_fom_init = &c2_rpc_conn_create_fom_init,
+};
 
-int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m);
+struct c2_fop_type_ops c2_rpc_session_create_ops = {
+	.fto_fom_init = c2_rpc_session_create_fom_init,
+};
 
-int c2_rpc_session_destroy_fom_init(struct c2_fop *fop, struct c2_fom **m);
-*/
+struct c2_fop_type_ops c2_rpc_session_destroy_ops = {
+	.fto_fom_init = c2_rpc_session_destroy_fom_init,
+};
+
+struct c2_fop_type_ops c2_rpc_conn_terminate_ops = {
+	.fto_fom_init = c2_rpc_conn_terminate_fom_init,
+};
+
+struct c2_fop_type_ops c2_rpc_rep_ops = {
+	.fto_fom_init = c2_rpc_rep_fom_init
+};
 
 int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
@@ -55,10 +62,7 @@ int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	printf ("conn_create fom init call finished\n");
 	return 0;
 }
-struct c2_fop_type_ops c2_rpc_conn_create_ops = {
-	.fto_fom_init = &c2_rpc_conn_create_fom_init,
-};
-//===================================
+
 int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_session_create	*fom_obj;
@@ -88,23 +92,8 @@ int c2_rpc_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	printf ("session_create fom init call finished\n");
 	return 0;
 }
-struct c2_fop_type_ops c2_rpc_session_create_ops = {
-	.fto_fom_init = c2_rpc_session_create_fom_init,
-};
 
 
-
-
-static int c2_rpc_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-struct c2_fop_type_ops c2_rpc_rep_ops = {
-	.fto_fom_init = c2_rpc_rep_fom_init,
-};
-
-/* ================================== */
 int c2_rpc_session_destroy_fom_init(struct c2_fop *fop,
 					struct c2_fom **m)
 {
@@ -136,15 +125,6 @@ int c2_rpc_session_destroy_fom_init(struct c2_fop *fop,
 	return 0;
 
 }
-struct c2_fop_type_ops c2_rpc_session_destroy_ops = {
-	.fto_fom_init = c2_rpc_session_destroy_fom_init,
-};
-
-//========================
-
-struct c2_fop_type_ops c2_rpc_conn_terminate_ops = {
-	.fto_fom_init = c2_rpc_conn_terminate_fom_init,
-};
 
 int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
@@ -175,30 +155,38 @@ int c2_rpc_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	printf ("conn terminate fom init call finished\n");
 	return 0;
 }
-/** 
-   REQUEST
+
+int c2_rpc_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	printf("Temporary placeholder for reply fops\n");
+	*m = NULL;
+	return -ENOTTY;
+}
+
+/* 
+ *  REQUEST fops
  */
 
-C2_FOP_TYPE_DECLARE(c2_rpc_conn_create, "RPC CONN CREATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_conn_create, "rpc_conn_create",
 			c2_rpc_conn_create_opcode, &c2_rpc_conn_create_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_conn_terminate, "RPC CONN TERMINATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_conn_terminate, "rpc_conn_terminate",
 			c2_rpc_conn_terminate_opcode, &c2_rpc_conn_terminate_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_session_create, "RPC SESSION CREATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_session_create, "rpc_session_create",
 			c2_rpc_session_create_opcode, &c2_rpc_session_create_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_session_destroy, "RPC SESSION DESTROY REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_session_destroy, "rpc_session_destroy",
 			c2_rpc_session_destroy_opcode, &c2_rpc_session_destroy_ops);
 
-/**
-   REPLY
+/*
+ *  REPLY fops
  */
 
-C2_FOP_TYPE_DECLARE(c2_rpc_conn_create_rep, "RPC CONN CREATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_conn_create_rep, "rpc_conn_create_reply",
 			c2_rpc_conn_create_rep_opcode, &c2_rpc_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_conn_terminate_rep, "RPC CONN TERMINATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_conn_terminate_rep, "rpc_conn_terminate_reply",
 			c2_rpc_conn_terminate_rep_opcode, &c2_rpc_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_session_create_rep, "RPC SESSION CREATE REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_session_create_rep, "rpc_session_create_reply",
 			c2_rpc_session_create_rep_opcode, &c2_rpc_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_rpc_session_destroy_rep, "RPC SESSION DESTROY REQUEST",
+C2_FOP_TYPE_DECLARE(c2_rpc_session_destroy_rep, "rpc_session_destroy_reply",
 			c2_rpc_session_destroy_rep_opcode, &c2_rpc_rep_ops);
 
 static struct c2_fop_type *fops[] = {
