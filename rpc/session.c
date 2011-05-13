@@ -501,6 +501,121 @@ errout:
 	return rc;
 }
 
+int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
+			     uint64_t			pfid_hi,
+			     uint64_t			pfid_lo,
+			     char			*name,
+			     struct c2_cob		**out,
+			     struct c2_db_tx		*tx)
+{
+	struct c2_cob_nskey		*key;
+	struct c2_cob_nsrec		nsrec;
+	struct c2_cob_fabrec		fabrec;
+	struct c2_cob			*cob;
+	int				rc;
 
+	C2_PRE(dom != NULL && name != NULL && out != NULL);
+
+	*out = NULL;
+
+	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
+	if (key == NULL)
+		return -ENOMEM;
+
+	/*
+	 * How to get unique stob_id for new cob?
+	 */
+	nsrec.cnr_stobid.si_bits.u_hi = random();
+	nsrec.cnr_stobid.si_bits.u_lo = random();
+	nsrec.cnr_nlink = 1;
+
+	/*
+	 * Temporary assignment for lsn
+	 */
+	fabrec.cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
+	fabrec.cfb_version.vn_vc = 0;
+
+	rc = c2_cob_create(dom, key, &nsrec, &fabrec, CA_NSKEY_FREE | CA_FABREC,
+				&cob, tx);
+
+	if (rc == 0)
+		*out = cob;
+	
+	return rc;
+}
+
+int c2_rpc_cob_lookup_helper(struct c2_cob	*pcob,
+			      char		*name,
+			      struct c2_cob	**out,
+			      struct c2_db_tx	*tx)
+{
+	struct c2_cob_nskey	*key = NULL;
+	int			rc;
+
+	C2_PRE(pcob != NULL && name != NULL && out != NULL && tx != NULL);
+
+	c2_cob_nskey_make(&key, COB_GET_PFID_HI(pcob), COB_GET_PFID_LO(pcob),
+				name);
+	if (key == NULL)
+		return -ENOMEM;
+
+	rc = c2_cob_lookup(pcob->co_dom, key, CA_NSKEY_FREE, out, tx);
+
+	return rc;
+}
+int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
+				 struct c2_cob		**out,
+				 struct c2_db_tx	*tx)
+{
+	return 0;
+}
+
+int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
+			   uint64_t		sender_id,
+			   struct c2_cob	**out,
+			   struct c2_db_tx	*tx)
+{
+	return 0;
+}
+
+int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
+			   uint64_t		sender_id,
+			   struct c2_cob	**out,
+			   struct c2_db_tx	*tx)
+{
+	return 0;
+}
+
+int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
+			      uint64_t			session_id,
+			      struct c2_cob		**session_cob,
+			      struct c2_db_tx		*tx)
+{
+	return 0;
+}
+
+
+int c2_rpc_rcv_session_create(struct c2_cob		*conn_cob,
+			      uint64_t			session_id,
+			      struct c2_cob		**session_cob,
+			      struct c2_db_tx		*tx)
+{
+	return 0;
+}
+
+int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
+			   uint32_t		slot_id,
+			   uint64_t		slot_generation,
+			   struct c2_cob	**slot_cob,
+			   struct c2_db_tx	*tx)
+{
+	return 0;
+}
+
+void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
+				    struct c2_verno	*verno)
+{
+
+}
 /** @} end of session group */
 

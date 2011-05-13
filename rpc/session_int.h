@@ -105,5 +105,54 @@ enum c2_rpc_session_seq_check_result {
 enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
                 struct c2_rpc_item *item, struct c2_rpc_item **reply_out);
 
+
+int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
+			     uint64_t			pfid_hi,
+			     uint64_t			pfid_lo,
+			     char			*name,
+			     struct c2_cob		**out,
+			     struct c2_db_tx		*tx);
+
+#define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
+#define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
+
+int c2_rpc_cob_lookup_helper(struct c2_cob	*pcob,
+			     char		*name,
+			     struct c2_cob	**out,
+			     struct c2_db_tx	*tx);
+
+int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
+				 struct c2_cob		**out,
+				 struct c2_db_tx	*tx);
+
+int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
+			   uint64_t		sender_id,
+			   struct c2_cob	**out,
+			   struct c2_db_tx	*tx);
+
+int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
+			   uint64_t		sender_id,
+			   struct c2_cob	**out,
+			   struct c2_db_tx	*tx);
+
+int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
+			      uint64_t			session_id,
+			      struct c2_cob		**session_cob,
+			      struct c2_db_tx		*tx);
+
+int c2_rpc_rcv_session_create(struct c2_cob	*conn_cob,
+			      uint64_t		session_id,
+			      struct c2_cob	**session_cob,
+			      struct c2_db_tx	*tx);
+
+int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
+			   uint32_t		slot_id,
+			   uint64_t		slot_generation,
+			   struct c2_cob	**slot_cob,
+			   struct c2_db_tx	*tx);
+
+void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
+				    struct c2_verno	*verno);
+
 #endif
 
