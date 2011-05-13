@@ -578,14 +578,6 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
-	/* add MSG_RECV buf - should fail as not started */
-	nb = &nbs[C2_NET_QT_MSG_RECV];
-	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
-	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	rc = c2_net_buffer_add(nb, tm);
-	C2_UT_ASSERT(rc == -EPERM);
-	C2_UT_ASSERT(ut_buf_add_called == false);
-
 	/* TM start */
 	struct c2_clink tmwait;
 	c2_clink_init(&tmwait, NULL);

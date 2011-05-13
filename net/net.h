@@ -1317,6 +1317,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 
    @pre
 (buf->nb_dom == tm->ntm_dom) &&
+(tm->ntm_state == C2_NET_TM_STARTED) &&
 (buf->nb_qtype != C2_NET_QT_NR) &&
 (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
 ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
@@ -1324,10 +1325,6 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
-   @retval -EPERM Transfer machine not in correct state.
-   @retval -EINVAL Required fields are not set.
-   @retval -EFBIG  In send operations, the length field exceeds the
-   size of the buffer.
    @retval -errno (failure)
 */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
