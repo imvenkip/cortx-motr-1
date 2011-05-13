@@ -146,6 +146,11 @@ struct c2_net_bulk_mem_buffer_pvt {
 	    a passive bulk transfer operation.
 	*/
 	int64_t                              xb_buf_id;
+
+	/** Set to true if a xo_buf_del() call occurs when the
+	    the buffer is in use.
+	 */
+	bool                                 xb_cancel_requested;
 };
 
 /**

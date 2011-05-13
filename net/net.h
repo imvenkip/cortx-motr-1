@@ -233,15 +233,16 @@ struct c2_net_xprt_ops {
 	   Cancel an operation involving a buffer.
 	   The method should cancel the operation involving use of the
 	   buffer, as described by the value of the c2_net_buffer.nb_qtype
-	   field, or return an error if this is not possible.
+	   field.
+	   The C2_NET_BUF_CANCELLED flag should be set in buffers whose
+	   operations get cancelled, so c2_net_tm_event_post() can
+	   force the right error status.
 	   <b>Serialized using the transfer machine mutex.</b>
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm and
 	   c2_net_buffer.nb_qtype set.
-           @retval 0 (success)
-	   @retval -errno (failure)
 	   @see c2_net_buffer_del()
 	 */
-	int (*xo_buf_del)(struct c2_net_buffer *nb);
+	void (*xo_buf_del)(struct c2_net_buffer *nb);
 
 	/**
 	   Retrieve the maximum buffer size (includes all segments).
@@ -731,9 +732,11 @@ struct c2_net_event {
    C2_NET_BUF_IN_CALLBACK bit being cleared).  If the subroutine detects that
    it is being called recursively on the same buffer it will fail with a
    EDEADLK indication.
+
    The subroutine will remove the buffer from its queue, and clear its
    C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
-   prior to invoking the callback.
+   prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
+   set, then the status is forced to -ECANCELED.
 
    The subroutine will also signal to all waiters on the
    c2_net_transfer_mc.ntm_chan field after delivery of the callback.
@@ -1067,7 +1070,7 @@ enum c2_net_buf_flags {
 	C2_NET_BUF_IN_USE      = 1<<2,
 	/** Set for the duration of a callback on the buffer */
 	C2_NET_BUF_IN_CALLBACK = 1<<3,
-	/** Indicates that the buffer operation is being cancelled */
+	/** Indicates that the buffer operation has been cancelled */
 	C2_NET_BUF_CANCELLED   = 1<<4,
 };
 
@@ -1248,6 +1251,9 @@ struct c2_net_buffer {
 	   the buffer.  The value is placed there just prior to invoking
 	   the completion callback on the buffer for application
 	   reference after the event callback completes.
+
+	   A value of -ECANCELED is set if the buffer operation was
+	   cancelled with c2_net_buffer_del().
 	 */
 	int32_t                    nb_status;
 };
@@ -1335,15 +1341,15 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    Remove a registered buffer from a logical queue, if possible,
    cancelling any operation in progess.
 
-   <b>Cancellation support is provided by the underlying transport.</b>
-   It is not guaranteed that cancellation will always be supported, and
-   even if it is, there are race conditions in the execution of this
-   request and the concurrent invocation of the completion callback on
-   the buffer.  Howerver, it is guaranteed that if the subroutine returns
-   with success, the transfer machine channel will be signalled.
+   <b>Cancellation support is provided by the underlying transport.</b> It is
+   not guaranteed that actual cancellation of the operation in progress will
+   always be supported, and even if it is, there are race conditions in the
+   execution of this request and the concurrent invocation of the completion
+   callback on the buffer.
 
-   If the transport supports cancellation, then the C2_NET_BUF_CANCELLED
-   flag will be set in the buffer if the operation is in progress.
+   The transport should set the C2_NET_BUF_CANCELLED flag in the buffer if
+   the operation has not yet started.  The flag will be cleared by
+   c2_net_tm_event_post().
 
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
@@ -1351,11 +1357,9 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer.
-   @retval 0 (success)
-   @retval -errno (failure)
 */
-int c2_net_buffer_del(struct c2_net_buffer *buf,
-		      struct c2_net_transfer_mc *tm);
+void c2_net_buffer_del(struct c2_net_buffer *buf,
+		       struct c2_net_transfer_mc *tm);
 
 /**
    Copy a network buffer descriptor.

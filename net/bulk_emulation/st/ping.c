@@ -922,7 +922,7 @@ void ping_server(struct ping_ctx *ctx)
 	for (i = 0; i < 4; ++i) {
 		nb = &ctx->pc_nbs[i];
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
-		rc = c2_net_buffer_del(nb, &ctx->pc_tm);
+		c2_net_buffer_del(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, false);
 		C2_ASSERT(rc == 0);
 		c2_chan_wait(&tmwait);

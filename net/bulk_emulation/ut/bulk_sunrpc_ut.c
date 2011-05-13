@@ -540,7 +540,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
-	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
+	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
@@ -594,7 +594,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
-	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
+	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
@@ -686,7 +686,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb1.nb_desc, &d1nb1.nb_desc));
 
 	/* cancel the original passive operation */
-	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
+	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
@@ -731,7 +731,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_adds == 1);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
 
-	C2_UT_ASSERT(!c2_net_buffer_del(&d2nb1, &d2tm1));
+	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);

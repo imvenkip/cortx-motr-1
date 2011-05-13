@@ -406,6 +406,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		break;
 	}
 	nb->nb_flags &= ~C2_NET_BUF_CANCELLED;
+	bp->xb_cancel_requested = false;
 	nb->nb_status = -1;
 
 	if (wi->xwi_op != C2_NET_XOP_NR) {
@@ -418,11 +419,11 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 /**
    Cancel ongoing buffer operations.
    @param nb Buffer pointer
-   @retval 0 on success
-   @retval -EBUSY if operation not cancellable
  */
-static int mem_xo_buf_del(struct c2_net_buffer *nb)
+static void mem_xo_buf_del(struct c2_net_buffer *nb)
 {
+	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+
 	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED);
 
@@ -431,10 +432,11 @@ static int mem_xo_buf_del(struct c2_net_buffer *nb)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 
-	if (nb->nb_flags & C2_NET_BUF_IN_USE)
-		return -EBUSY;
+	if (nb->nb_flags & C2_NET_BUF_IN_USE) {
+		bp->xb_cancel_requested = true;
+		return;
+	}
 
-	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
 	struct c2_net_bulk_mem_work_item *wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_CANCEL_CB;
 	nb->nb_flags |= C2_NET_BUF_CANCELLED;
@@ -460,7 +462,7 @@ static int mem_xo_buf_del(struct c2_net_buffer *nb)
 		break;
 	}
 
-	return 0;
+	return;
 }
 
 /**
@@ -617,18 +619,15 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STOPPED;
 
 	/* walk through the queues and cancel every buffer */
-	int rc;
 	int qt;
 	struct c2_net_buffer *nb;
 	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
 		c2_list_for_each_entry(&tm->ntm_q[qt], nb,
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
-			rc = mem_xo_buf_del(nb);
-			if (rc == 0) {
-				/* bump the del stat count */
-				tm->ntm_qstats[qt].nqs_num_dels += 1;
-			}
+			mem_xo_buf_del(nb);
+			/* bump the del stat count */
+			tm->ntm_qstats[qt].nqs_num_dels += 1;
 		}
 	}
 

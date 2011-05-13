@@ -353,11 +353,12 @@ static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
 	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_add(nb);
 }
 
-static int sunrpc_xo_buf_del(struct c2_net_buffer *nb)
+static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 {
 	C2_PRE(sunrpc_buffer_invariant(nb));
 	C2_PRE(sunrpc_tm_invariant(nb->nb_tm));
-	return c2_net_bulk_mem_xprt.nx_ops->xo_buf_del(nb);
+	c2_net_bulk_mem_xprt.nx_ops->xo_buf_del(nb);
+	return;
 }
 
 static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)

@@ -183,7 +183,7 @@ static void ut_post_del_thread(struct c2_net_buffer *nb)
 }
 
 static bool ut_buf_del_called = false;
-static int ut_buf_del(struct c2_net_buffer *nb)
+static void ut_buf_del(struct c2_net_buffer *nb)
 {
 	int rc;
 	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
@@ -193,7 +193,7 @@ static int ut_buf_del(struct c2_net_buffer *nb)
 	rc = C2_THREAD_INIT(&ut_del_thread, struct c2_net_buffer *, NULL,
 			    &ut_post_del_thread, nb);
 	C2_UT_ASSERT(rc == 0);
-	return rc;
+	return;
 }
 
 struct ut_tm_pvt {
@@ -709,10 +709,8 @@ void test_net_bulk_if(void)
 
 	ut_buf_del_called = false;
 	c2_clink_add(&tm->ntm_chan, &tmwait);
-	rc = c2_net_buffer_del(nb, tm);
-	C2_UT_ASSERT(rc == 0);
+	c2_net_buffer_del(nb, tm);
 	C2_UT_ASSERT(ut_buf_del_called);
-	C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_CANCELLED);
 	num_dels[nb->nb_qtype]++;
 
 	/* wait on channel for post */

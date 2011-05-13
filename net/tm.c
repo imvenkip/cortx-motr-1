@@ -37,16 +37,19 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		c2_time_t tdiff;
 
 		buf = ev->nev_buffer;
+		buf->nb_status = ev->nev_status;
 
 		while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
 			c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
-		if ((buf->nb_flags & C2_NET_BUF_QUEUED) != 0)
-			c2_list_del(&buf->nb_tm_linkage);
+		C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
+		c2_list_del(&buf->nb_tm_linkage);
+
+		if (buf->nb_flags & C2_NET_BUF_CANCELLED)
+			buf->nb_status = -ECANCELED;
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE);
 		buf->nb_flags |= C2_NET_BUF_IN_CALLBACK;
-		buf->nb_status = ev->nev_status;
 
 		q = &tm->ntm_qstats[ev->nev_qtype];
 		if (ev->nev_status < 0) {

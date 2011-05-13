@@ -221,8 +221,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_add);
 
-int c2_net_buffer_del(struct c2_net_buffer *buf,
-		      struct c2_net_transfer_mc *tm)
+void c2_net_buffer_del(struct c2_net_buffer *buf,
+		       struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -248,14 +248,8 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 	}
 	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype));
 
-	/* the transport may not support operation cancellation */
-	rc = dom->nd_xprt->nx_ops->xo_buf_del(buf);
-	if (rc != 0) {
-		goto m_err_exit;
-	}
-
-	c2_list_del(&buf->nb_tm_linkage);
-	buf->nb_flags &= ~C2_NET_BUF_QUEUED;
+	/* tell the transport to cancel */
+	dom->nd_xprt->nx_ops->xo_buf_del(buf);
 
 	tm->ntm_qstats[buf->nb_qtype].nqs_num_dels += 1;
 
@@ -263,7 +257,7 @@ int c2_net_buffer_del(struct c2_net_buffer *buf,
 
  m_err_exit:
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return;
 }
 C2_EXPORTED(c2_net_buffer_del);
 
