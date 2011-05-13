@@ -276,18 +276,20 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	dom->nd_xprt_private = NULL;
 }
 
-static c2_bcount_t sunrpc_xo_get_max_buffer_size(struct c2_net_domain *dom)
+static c2_bcount_t sunrpc_xo_get_max_buffer_size(
+					      const struct c2_net_domain *dom)
 {
 	return C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE;
 }
 
-static c2_bcount_t sunrpc_xo_get_max_buffer_segment_size(struct c2_net_domain
-							 *dom)
+static c2_bcount_t sunrpc_xo_get_max_buffer_segment_size(
+					      const struct c2_net_domain *dom)
 {
 	return C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE;
 }
 
-static int32_t sunrpc_xo_get_max_buffer_segments(struct c2_net_domain *dom)
+static int32_t sunrpc_xo_get_max_buffer_segments(
+					      const struct c2_net_domain *dom)
 {
 	return C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS;
 }

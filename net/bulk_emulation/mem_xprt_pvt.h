@@ -35,7 +35,7 @@ struct mem_desc {
 };
 
 /* forward references to other static functions */
-static bool mem_dom_invariant(struct c2_net_domain *dom);
+static bool mem_dom_invariant(const struct c2_net_domain *dom);
 static bool mem_ep_invariant(struct c2_net_end_point *ep);
 static bool mem_buffer_invariant(struct c2_net_buffer *nb);
 static bool mem_tm_invariant(struct c2_net_transfer_mc *tm);

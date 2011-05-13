@@ -15,7 +15,7 @@ bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
 }
 
-bool c2_net__buffer_invariant(struct c2_net_buffer *buf)
+bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 {
 	C2_ASSERT(buf != NULL);
 
