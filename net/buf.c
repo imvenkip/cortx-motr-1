@@ -155,12 +155,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
-
-	/* the TM has to be started */
-	if (tm->ntm_state != C2_NET_TM_STARTED) {
-		rc = -EPERM;
-		goto m_err_exit;
-	}
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
 
 	/* determine what to do by queue type */
 	todo = &checks[buf->nb_qtype];
