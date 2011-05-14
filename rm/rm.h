@@ -8,6 +8,7 @@
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
+#include "lib/time.h"
 
 /**
    @defgroup rm Resource management
@@ -1226,7 +1227,7 @@ void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
                            in->rin_state == RU_FAILURE)
  */
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
-			  const struct c2_time *deadline);
+			  const c2_time_t deadline);
 
 /**
    A helper function combining c2_rm_right_get() and c2_rm_right_timedwait()

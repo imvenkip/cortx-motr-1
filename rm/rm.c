@@ -22,13 +22,13 @@ static void outgoing_delete(struct c2_rm_outgoing *out);
 static void incoming_check(struct c2_rm_incoming *in);
 static void incoming_check_local(struct c2_rm_incoming *in,
 					struct c2_rm_right *rest);
+static void sublet_revoke(struct c2_rm_incoming *in,
+				struct c2_rm_right *right);
 
 static void apply_policy(struct c2_rm_incoming *in);
 static void move_to_sublet(struct c2_rm_incoming *in);
 static void reply_to_loan_request(struct c2_rm_incoming *in);
 static void remove_rights(struct c2_rm_incoming *in);
-static void sublet_revoke(struct c2_rm_incoming *in,
-				struct c2_rm_right *right);
 
 static int right_copy(const struct c2_rm_right *right,
 			struct c2_rm_right *rest);
@@ -64,14 +64,11 @@ void c2_rm_type_register(struct c2_rm_domain *dom,
 	C2_PRE(dom->rd_types[rt->rt_id] == NULL);
 
         c2_mutex_lock(&dom->rd_lock);
-
         dom->rd_types[rt->rt_id] = rt;
         rt->rt_dom = dom;
-
         rt->rt_ref = 0;
         c2_mutex_init(&rt->rt_lock);
         c2_list_init(&rt->rt_resources);
-
         c2_mutex_unlock(&dom->rd_lock);
 }
 
@@ -84,7 +81,6 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
         IS_IN_ARRAY(rtype->rt_id, dom->rd_types);
 
         c2_mutex_lock(&dom->rd_lock);
-
         dom->rd_types[rtype->rt_id] = NULL;
         rtype->rt_dom = NULL;
         rtype->rt_id = C2_RM_RESOURCE_TYPE_ID_INVALID;
@@ -95,7 +91,6 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
         c2_list_fini(&rtype->rt_resources);
         c2_mutex_fini(&rtype->rt_lock);
         rtype->rt_ref = 0;
-
         c2_mutex_unlock(&dom->rd_lock);
 }
 
@@ -107,6 +102,7 @@ void  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 
         c2_mutex_lock(&rtype->rt_lock);
         c2_list_add(&rtype->rt_resources, &res->r_linkage);
+	rtype->rt_ref++;
         c2_mutex_unlock(&rtype->rt_lock);
 }
 
@@ -118,26 +114,26 @@ void c2_rm_resource_del(struct c2_rm_resource *res)
 	C2_PRE(rtype != NULL);
 
         c2_mutex_lock(&rtype->rt_lock);
-	C2_PRE(c2_list_contains())
+	C2_PRE(c2_list_contains(&rtype->rt_resources, &res->r_linkage));
         c2_list_del(&res->r_linkage);
+	rtype->rt_ref--;
         c2_mutex_unlock(&rtype->rt_lock);
 }
 
 static int c2_rm_owner_init_internal(struct c2_rm_owner **o, 
 				     struct c2_rm_resource **r)
 {
-	struct c2_rm_owner 		*owner = *o;
-	struct c2_rm_resource		*res = *r;
-	int 				result = 0;
-	int				i;
-	int				j;
+	struct c2_rm_owner 	*owner = *o;
+	struct c2_rm_resource	*res = *r;
+	int 			result = 0;
+	int			i;
+	int			j;
 
 
         owner->ro_resource = res;
-        res->r_ref = 0;
-
         owner->ro_state = ROS_FINAL;
         owner->ro_group = NULL;
+        res->r_ref = 0;
 
         c2_list_init(&owner->ro_borrowed);
         c2_list_init(&owner->ro_sublet);
@@ -148,10 +144,8 @@ static int c2_rm_owner_init_internal(struct c2_rm_owner **o,
         for (j = 0; j < OQS_NR; j++) {
                 for (i = 0; i < C2_RM_REQUEST_PRIORITY_NR; i++)
                         c2_list_init(&owner->ro_incoming[i][j]);
-
                 c2_list_init(&owner->ro_outgoing[j]);
         }
-
         c2_mutex_init(&owner->ro_lock);
 
         return result;
@@ -254,6 +248,62 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	c2_list_fini(&in->rin_pins);
 }
 
+static void apply_policy(struct c2_rm_incoming *in)
+{
+
+}
+
+static void move_to_sublet(struct c2_rm_incoming *in)
+{
+}
+
+static void reply_to_loan_request(struct c2_rm_incoming *in)
+{
+
+}
+
+static void remove_rights(struct c2_rm_incoming *in)
+{
+}
+
+static int right_copy(const struct c2_rm_right *right,
+			struct c2_rm_right *rest)
+{
+}
+
+static struct c2_rm_right *right_diff(const struct c2_rm_right *rest,
+				      const struct c2_rm_right *scan)
+{
+}
+
+
+static bool right_intersects(const struct c2_rm_right *scan,
+			     const struct c2_rm_right *right)
+{
+}
+
+
+static struct c2_rm_right *right_meet(struct c2_rm_right *scan,
+				   struct c2_rm_right *right)
+{
+
+}
+
+static bool local_rights_held(const struct c2_rm_incoming *in)
+{
+}
+
+/* 
+ * resource type private field. By convention, 0 means "empty"
+ * right. 
+ */
+static bool right_empty(const struct c2_rm_right *rest)
+{
+	if (rest->ri_datum)
+		return false;
+	else
+		return true;
+}
 
 /**
    @name Owner state machine
@@ -324,11 +374,11 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	C2_PRE(in != NULL);
 
 	c2_mutex_lock(&in->rin_owner->ro_lock);
-	c2_list_for_each_entry(&in->rin_pins, in_pin,
-		struct c2_rm_pin, rp_incoming_linkage) {
+	c2_list_for_each_entry(&in->rin_pins, in_pin, struct c2_rm_pin,
+			       rp_incoming_linkage) {
 		right = in_pin->rp_right;
 		c2_list_for_each_entry(&right->ri_pins, ri_pin,
-			struct c2_rm_pin, rp_right_linkage) {
+				       struct c2_rm_pin, rp_right_linkage) {
 			if (ri_pin->rp_flags & RPF_TRACK) {
 				pin_remove(ri_pin);
 			}
@@ -438,11 +488,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * All waits completed, go to CHECK
 				 * state.
 				 */
-<<<<<<< .merge_file_GGl2Y9
 				c2_list_move(&o->ro_incoming[prio][OQS_GROUND],
-=======
-				c2_list_move(o->ro_incoming[prio][OQS_GROUND],
->>>>>>> .merge_file_mZNy60
 					     &in->rin_want.ri_linkage);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
@@ -514,7 +560,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 			case RIT_REVOKE:
 				remove_rights(in);
 				/* Incoming request got rigth which is means 
-				 * right should part of loan/barrowed list.
+				 * right should be part of loan/barrowed list.
 				 */
 				loan = container_of(&in->rin_want, 
 						struct c2_rm_loan, rl_right);
@@ -611,7 +657,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 					if (right_empty(rest))
 						return;
 				}
-				pin_add(in, delta);
+				pin_add(in, right);
 			}
 		}
 	}
@@ -728,7 +774,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 }
 
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
-                          const struct c2_time *deadline)
+                          const c2_time_t deadline)
 {
 	return 0;
 }
