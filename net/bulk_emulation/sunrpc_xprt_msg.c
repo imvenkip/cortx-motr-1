@@ -112,15 +112,19 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	do {
 		/* get the first available receive buffer */
+		bool found_nb = false;
 		c2_list_for_each_entry(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
-			if ((nb->nb_flags & C2_NET_BUF_IN_USE) == 0)
+			if ((nb->nb_flags & C2_NET_BUF_IN_USE) == 0) {
+				found_nb = true;
 				break;
+			}
 		}
-		if (nb == NULL) {
+		if (!found_nb) {
 			tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events++;
 			rc = -ENOBUFS;
+			nb = NULL;
 			break;
 		}
 		C2_ASSERT(sunrpc_buffer_invariant(nb));

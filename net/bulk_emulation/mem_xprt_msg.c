@@ -181,13 +181,16 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		*/
 
 		/* get the first available receive buffer */
+		bool found_dest_nb = false;
 		c2_list_for_each_entry(&dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
 				       dest_nb, struct c2_net_buffer,
 				       nb_tm_linkage) {
-			if ((dest_nb->nb_flags & C2_NET_BUF_IN_USE) == 0)
+			if ((dest_nb->nb_flags & C2_NET_BUF_IN_USE) == 0) {
+				found_dest_nb = true;
 				break;
+			}
 		}
-		if (dest_nb == NULL) {
+		if (!found_dest_nb) {
 			dest_tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events
 				++;
 			rc = -ENOBUFS;
