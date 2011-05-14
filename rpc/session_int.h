@@ -107,8 +107,7 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
-			     uint64_t			pfid_hi,
-			     uint64_t			pfid_lo,
+			     struct c2_cob		*pcob,
 			     char			*name,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx);
@@ -116,10 +115,11 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 #define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
 #define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
 
-int c2_rpc_cob_lookup_helper(struct c2_cob	*pcob,
-			     char		*name,
-			     struct c2_cob	**out,
-			     struct c2_db_tx	*tx);
+int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
+			     struct c2_cob		*pcob,
+			     char			*name,
+			     struct c2_cob		**out,
+			     struct c2_db_tx		*tx);
 
 int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
@@ -153,6 +153,8 @@ int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
 
 void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
 				    struct c2_verno	*verno);
+
+extern struct c2_stob_id	c2_root_stob_id;
 
 #endif
 

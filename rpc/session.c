@@ -20,6 +20,11 @@
 const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
+struct c2_stob_id c2_root_stob_id = {
+        .si_bits = {1, 1}
+};
+
+
 /**
    Global reply cache 
  */
@@ -502,8 +507,7 @@ errout:
 }
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
-			     uint64_t			pfid_hi,
-			     uint64_t			pfid_lo,
+			     struct c2_cob		*pcob,
 			     char			*name,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx)
@@ -512,11 +516,20 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	struct c2_cob_nsrec		nsrec;
 	struct c2_cob_fabrec		fabrec;
 	struct c2_cob			*cob;
+	uint64_t			pfid_hi;
+	uint64_t			pfid_lo;
 	int				rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
+
+	if (pcob == NULL) {
+		pfid_hi = pfid_lo = 1;
+	} else {
+		pfid_hi = COB_GET_PFID_HI(pcob);
+		pfid_lo = COB_GET_PFID_LO(pcob);
+	}
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL)
@@ -544,22 +557,31 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	return rc;
 }
 
-int c2_rpc_cob_lookup_helper(struct c2_cob	*pcob,
-			      char		*name,
-			      struct c2_cob	**out,
-			      struct c2_db_tx	*tx)
+int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
+			     struct c2_cob		*pcob,
+			     char			*name,
+			     struct c2_cob		**out,
+			     struct c2_db_tx		*tx)
 {
 	struct c2_cob_nskey	*key = NULL;
+	uint64_t		pfid_hi;
+	uint64_t		pfid_lo;
 	int			rc;
 
-	C2_PRE(pcob != NULL && name != NULL && out != NULL && tx != NULL);
+	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
-	c2_cob_nskey_make(&key, COB_GET_PFID_HI(pcob), COB_GET_PFID_LO(pcob),
-				name);
+	if (pcob == NULL) {
+		pfid_hi = pfid_lo = 1;
+	} else {
+		pfid_hi = COB_GET_PFID_HI(pcob);
+		pfid_lo = COB_GET_PFID_LO(pcob);
+	}
+
+	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL)
 		return -ENOMEM;
 
-	rc = c2_cob_lookup(pcob->co_dom, key, CA_NSKEY_FREE, out, tx);
+	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE, out, tx);
 
 	return rc;
 }
@@ -567,7 +589,7 @@ int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx)
 {
-	return 0;
+	return c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS", out, tx);
 }
 
 int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
@@ -575,7 +597,22 @@ int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx)
 {
-	return 0;
+	struct c2_cob	*root_session_cob;
+	char		name[20];
+	int		rc;
+
+	C2_PRE(sender_id != SENDER_ID_INVALID);
+
+	rc = c2_rpc_rcv_sessions_root_get(dom, &root_session_cob, tx);
+	if (rc != 0)
+		return rc;
+	
+	sprintf(name, "SENDER_%lu", sender_id);
+
+	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, out, tx);
+	c2_cob_put(root_session_cob);
+
+	return rc;
 }
 
 int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
@@ -583,7 +620,48 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx)
 {
-	return 0;
+	struct c2_cob	*conn_cob = NULL;
+	struct c2_cob	*root_session_cob = NULL;
+	char		name[20];
+	int		rc;
+
+	C2_PRE(dom != NULL && out != NULL);
+	C2_PRE(sender_id != SENDER_ID_INVALID);
+
+	sprintf(name, "SENDER_%lu", sender_id);
+	*out = NULL;
+
+	/*
+	 * check whether sender_id already exists
+	 */
+	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS", &root_session_cob, tx);
+	if (rc != 0)
+		return rc;
+	
+	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, &conn_cob, tx);
+
+	if (rc == 0) {
+		rc = -EEXIST;
+		c2_cob_put(conn_cob);
+		c2_cob_put(root_session_cob);
+		return rc;
+	}
+
+	if (rc != -ENOENT) {
+		c2_cob_put(root_session_cob);
+		return rc;
+	}
+
+	C2_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Connection with @sender_id is not present. create it
+	 */
+	rc = c2_rpc_cob_create_helper(dom, root_session_cob, name, &conn_cob, tx);
+	if (rc == 0)
+		*out = conn_cob;
+	c2_cob_put(root_session_cob);
+	return rc;
 }
 
 int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
