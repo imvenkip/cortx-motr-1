@@ -109,7 +109,6 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 		goto errout;
 	}
 
-	printf("conn_create: record inserted in slot table\n");
 	C2_ASSERT(rc == 0);
 
 	rc = c2_rpc_rcv_conn_create(dom, sender_id, &conn_cob, tx);
@@ -328,14 +327,20 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	struct c2_rpc_session_destroy		*fop_in;
 	struct c2_rpc_session_destroy_rep	*fop_out;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
-	struct c2_db_pair			pair;
 	struct c2_rpc_slot_table_key		key;
-	struct c2_rpc_slot_table_value		slot;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
+	struct c2_db_pair			pair;
 	struct c2_db_cursor			cursor;
 	struct c2_db_tx				*tx;
 	struct c2_rpc_item			*item;
+	struct c2_cob_domain			*dom;
+	struct c2_cob				*conn_cob;
+	struct c2_cob				*session_cob;
+	struct c2_cob				*slot_cob;
+	uint64_t				sender_id;
+	uint64_t				session_id;
 	int					count = 0;
+	int					i;
 	int					rc;
 
 	printf("Session destroy state called\n");
@@ -354,6 +359,9 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	C2_ASSERT(fop_out != NULL);
 
 	tx = &fom_sd->fsd_tx;
+	dom = fom_sd->fsd_dom;
+	sender_id = fop_in->rsd_sender_id;
+	session_id = fop_in->rsd_session_id;
 
 	C2_ASSERT(tx != NULL);
 
@@ -368,69 +376,10 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	key.stk_slot_id = 0;
 	key.stk_slot_generation = 0;
 
-	C2_SET0(&slot);
-
-	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_slot_table,
-				&key, sizeof key,
-				&slot, sizeof slot);
-
-	/*
-	 * Delete all slot entries from persistent slot table
-	 */
-	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_slot_table, tx);
-	if (rc != 0)
-		goto errout;
-
-	while ((rc = c2_db_cursor_get(&cursor, &pair)) == 0) {
-		printf("Key [%lu:%lu:%u]\n", key.stk_sender_id,
-			key.stk_session_id, key.stk_slot_id);
-		if (key.stk_sender_id == fop_in->rsd_sender_id &&
-			key.stk_session_id == fop_in->rsd_session_id) {
-			rc = c2_db_cursor_del(&cursor);
-			count++;
-			if (rc != 0)
-				goto errout;
-
-			printf("Deleted\n");
-		} else {
-			printf("Finished records\n");
-			break;
-		}
-	}
-
-	/*
-	 * If we've ran out of records then the above loop is 
-	 * complete without any error
-	 * If no record was present with supplied session_id
-	 * we will detect it with count == 0
-	 */
-	if (rc == DB_NOTFOUND || rc == -ENOENT)
-		rc = 0;
-
-	if (rc != 0)
-		goto errout;
-
-	/*
-	 * If session with @session_id is not present then we must not
-	 * have deleted any record from slot table
-	 */
-	if (count == 0) {
-		rc = -ENOENT;
-		goto errout;
-	}
-
-	C2_ASSERT(count > 0);
-
-	c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-	c2_db_cursor_fini(&cursor);
-
 	/*
 	 * Delete entries from in-core slot table.
 	 * reuse variables pair and cursor to traverse in in-memory slot_table
 	 */
-	key.stk_slot_id = 0;
-	key.stk_slot_generation = 0;
 
 	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
 				&key, sizeof key,
@@ -446,6 +395,7 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 		if (key.stk_sender_id == fop_in->rsd_sender_id &&
 			key.stk_session_id == fop_in->rsd_session_id) {
 			rc = c2_db_cursor_del(&cursor);
+			count++;
 			if (rc != 0)
 				goto errout;
 
@@ -466,10 +416,63 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	if (rc != 0)
 		goto errout;
 
+	/*
+	 * If session with @session_id is not present then we must not
+	 * have deleted any record from slot table
+	 */
+	if (count == 0) {
+		rc = -ENOENT;
+		goto errout;
+	}
+
+	C2_ASSERT(count > 0);
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
 	
+	rc = c2_rpc_rcv_conn_lookup(dom, sender_id, &conn_cob, tx);
+	if (rc != 0) {
+		printf("session_destroy: failed to lookup conn %lu %d\n",
+				sender_id, rc);
+		goto errout;
+	}
+
+	rc = c2_rpc_rcv_session_lookup(conn_cob, session_id, &session_cob, tx);
+	if (rc != 0) {
+		printf("session_destroy: failed to lookup session %lu %d\n",
+				session_id, rc);
+		c2_cob_put(conn_cob);
+	}
+
+	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
+		rc = c2_rpc_rcv_slot_lookup(session_cob, i, 0, &slot_cob, tx);
+		if (rc != 0) {
+			printf("session_destroy: failed to lookup slot %d %d\n",
+					i, rc);
+			c2_cob_put(session_cob);
+			c2_cob_put(conn_cob);
+			goto errout;
+		}
+		rc = c2_cob_delete(slot_cob, tx);
+		if (rc != 0) {
+			printf("session_destroy: failed to delete slot %d %d\n",
+					i, rc);
+			c2_cob_put(session_cob);
+			c2_cob_put(conn_cob);
+			goto errout;
+		}
+		slot_cob = NULL;
+	}
+	rc = c2_cob_delete(session_cob, tx);
+	if (rc != 0) {
+		printf("session_destroy: failed to delete session cob %lu\n",
+				session_id);
+		c2_cob_put(session_cob);
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+	printf("session_destroy: all cobs related to session %lu deleted\n",
+			session_id);
 	c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list, item,
 				struct c2_rpc_item, ri_rc_link) {
 		if (item->ri_sender_id == fop_in->rsd_sender_id &&

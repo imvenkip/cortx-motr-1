@@ -70,6 +70,7 @@ struct c2_rpc_fom_session_destroy {
 	struct c2_fop		*fsd_fop;
 	struct c2_fop		*fsd_fop_rep;
 	struct c2_dbenv		*fsd_dbenv;
+	struct c2_cob_domain	*fsd_dom;
 	struct c2_db_tx		fsd_tx;
 };
 

@@ -41,9 +41,10 @@ void init()
 
 	c2_db_tx_init(&tx, db, 0);
 	rc = c2_rpc_cob_create_helper(dom, NULL, "SESSIONS", &cob, &tx);
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0 || rc == -EEXIST);
 	c2_db_tx_commit(&tx);
-	c2_cob_put(cob);
+	if(rc == 0)
+		c2_cob_put(cob);
 	cob = NULL;
 
 	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
@@ -91,7 +92,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_rpc_item			*item;
-	struct c2_rpc_item			*cached_item;
+	//struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	/*
@@ -120,7 +121,8 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	/*
 	 * "Receive" the item 
 	 */
-	sc = c2_rpc_session_item_received(item, &cached_item);
+//	sc = c2_rpc_session_item_received(item, &cached_item);
+	sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -137,6 +139,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		C2_ASSERT(fom_sd != NULL);
 		fom_sd->fsd_dbenv = db;
 		c2_db_tx_init(&fom_sd->fsd_tx, db, 0);
+		fom_sd->fsd_dom = dom;
 
 		/*
 		 * Execute fom
@@ -146,10 +149,11 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		/*
 		 * store reply in reply-cache
 		 */
+/*
 		c2_rpc_session_reply_prepare(&fom_sd->fsd_fop->f_item,
 				&fom_sd->fsd_fop_rep->f_item,
 				&fom_sd->fsd_tx);
-
+*/
 		/*
 		 * commit/abort tx
 		 */
@@ -166,6 +170,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		 * test reply contents
 		 */
 		traverse_slot_table();
+		c2_cob_namespace_traverse(dom);
 	}
 	
 }
@@ -382,7 +387,7 @@ int main(void)
 
 
 //=====================================================================
-	//test_session_destroy(20, 100);
+	test_session_destroy(20, 100);
 	//test_conn_terminate(20);
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
