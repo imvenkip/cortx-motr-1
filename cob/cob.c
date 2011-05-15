@@ -676,6 +676,37 @@ void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
         *keyh = key;
 }
 
+void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
+{
+	struct c2_db_cursor	cursor;
+	struct c2_db_pair	pair;
+	struct c2_cob_nskey	nskey;
+	struct c2_cob_nsrec	nsrec;
+	int			rc;
+
+	rc = c2_db_cursor_init(&cursor, &dom->cd_namespace, NULL);
+	if (rc != 0) {
+		printf("ns_traverse: error during cursor init %d\n", rc);
+		return;
+	}
+
+	printf("=============== Namespace Table ================\n");
+	c2_db_pair_setup(&pair, &dom->cd_namespace, &nskey, sizeof nskey,
+				&nsrec, sizeof nsrec);
+	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+		printf("[%lx:%lx:%s] -> [%lx:%lx]", nskey.cnk_pfid.si_bits.u_hi,
+				nskey.cnk_pfid.si_bits.u_lo,
+				nskey.cnk_name.b_data,
+				nsrec.cnr_stobid.si_bits.u_hi,
+				nsrec.cnr_stobid.si_bits.u_lo);
+	}
+
+	printf("=================================================\n");
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_cursor_fini(&cursor);
+	
+}	
 /** @} end group cob */
 
 /*

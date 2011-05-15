@@ -278,6 +278,7 @@ void c2_cob_put(struct c2_cob *obj);
 void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
                         char *name);
 
+void c2_cob_namespace_traverse(struct c2_cob_domain *dom);
 /** @} end group cob */
 
 /* __COLIBRI_COB_COB_H__ */
