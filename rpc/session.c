@@ -669,7 +669,20 @@ int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
 			      struct c2_cob		**session_cob,
 			      struct c2_db_tx		*tx)
 {
-	return 0;
+	struct c2_cob	*cob = NULL;
+	char		name[20];
+	int		rc = 0;
+
+	C2_PRE(conn_cob != NULL && session_id != SESSION_ID_INVALID &&
+			session_cob != NULL);
+
+	*session_cob = NULL;
+	sprintf(name, "SESSION_%lu", session_id);
+
+	rc = c2_rpc_cob_lookup_helper(conn_cob->co_dom, conn_cob, name,
+					&cob, tx);
+	*session_cob = cob;
+	return rc;
 }
 
 
@@ -678,7 +691,20 @@ int c2_rpc_rcv_session_create(struct c2_cob		*conn_cob,
 			      struct c2_cob		**session_cob,
 			      struct c2_db_tx		*tx)
 {
-	return 0;
+	struct c2_cob	*cob = NULL;
+	char		name[20];
+	int		rc = 0;
+
+	C2_PRE(conn_cob != NULL && session_id != SESSION_ID_INVALID &&
+			session_cob != NULL);
+
+	*session_cob = NULL;
+	sprintf(name, "SESSION_%lu", session_id);
+
+	rc = c2_rpc_cob_create_helper(conn_cob->co_dom, conn_cob, name,
+					&cob, tx);
+	*session_cob = cob;
+	return rc;
 }
 
 int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
@@ -687,7 +713,41 @@ int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx)
 {
-	return 0;
+	struct c2_cob	*cob = NULL;
+	char		name[20];
+	int		rc = 0;
+
+	C2_PRE(session_cob != NULL && slot_cob != NULL);
+
+	*slot_cob = NULL;
+	sprintf(name, "SLOT_%u:%lu", slot_id, slot_generation);
+
+	rc = c2_rpc_cob_lookup_helper(session_cob->co_dom, session_cob, name,
+					&cob, tx);
+	*slot_cob = cob;
+	return rc;
+}
+
+
+int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
+			   uint32_t		slot_id,
+			   uint64_t		slot_generation,
+			   struct c2_cob	**slot_cob,
+			   struct c2_db_tx	*tx)
+{
+	struct c2_cob	*cob = NULL;
+	char		name[20];
+	int		rc = 0;
+
+	C2_PRE(session_cob != NULL && slot_cob != NULL);
+
+	*slot_cob = NULL;
+	sprintf(name, "SLOT_%u:%lu", slot_id, slot_generation);
+
+	rc = c2_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
+					&cob, tx);
+	*slot_cob = cob;
+	return rc;
 }
 
 void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
