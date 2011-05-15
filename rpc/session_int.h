@@ -151,6 +151,11 @@ int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
+			   uint32_t		slot_id,
+			   uint64_t		slot_generation,
+			   struct c2_cob	**slot_cob,
+			   struct c2_db_tx	*tx);
 void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
 				    struct c2_verno	*verno);
 

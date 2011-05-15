@@ -520,6 +520,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	uint64_t			pfid_lo;
 	int				rc;
 
+	printf("create_helper called: %s\n", name);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -554,6 +555,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	if (rc == 0)
 		*out = cob;
 	
+	printf("cob_create: rc %d\n", rc);
 	return rc;
 }
 
