@@ -159,10 +159,10 @@ void test_net_client(void)
 	C2_UT_ASSERT(conn1 != NULL);
 
 	/* write addb record onto network */
-	c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
-	c2_addb_net_add_p      = c2_addb_net_add;
-	c2_addb_store_net_conn = conn1;
-	//c2_addb_level_default  = AEL_ERROR;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn1);
+	/* choose a default level for addb event */
+	/* c2_addb_choose_default_level(AEL_ERROR); */
+	c2_addb_choose_default_level(AEL_NONE);
 
 	for (i = 0; i < 100; ++i) {
 		sprintf(node_arg.si_uuid, "%d", i);
@@ -172,6 +172,7 @@ void test_net_client(void)
 	/* printf("rc = %d\n", rc); */
 	/* printf("%s\n", node_ret.si_uuid); */
 
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
 	c2_service_stop(&s1);

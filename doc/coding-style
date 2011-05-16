@@ -116,7 +116,11 @@ try to adhere to some higher level idioms.
               return q != 0;            to     return q;
               return expr ? 0 : 1;      to     return !expr;
 
-      Use !!x to convert "boolean" integer into an "arithmetic" integer;
+      Specifically, never use (x == true) or (x == false) instead of
+      (x) or (!x) respectively. Rationale: if (x == true) is clearer
+      than (x), then ((x == true) == true) is even more clearer.
+
+      Use !!x to convert a "boolean" integer into an "arithmetic" integer;
 
     * use C99 bool type;
 
@@ -228,3 +232,5 @@ try to adhere to some higher level idioms.
         {static|extern|auto} {const|volatile} typename;
 
     * when using long or long long qualifiers, omit int;
+
+    * declare one variable per line.
