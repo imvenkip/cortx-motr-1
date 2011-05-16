@@ -148,6 +148,7 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int status)
 static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 {
 	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
@@ -184,6 +185,7 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 					c2_mutex_unlock(&tm->ntm_mutex);
 					fn(tm, wi);
 					c2_mutex_lock(&tm->ntm_mutex);
+					C2_ASSERT(c2_net__tm_invariant(tm));
 					tp->xtm_callback_counter--;
 				}
 			}

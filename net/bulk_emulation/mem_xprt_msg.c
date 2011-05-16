@@ -84,6 +84,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				       struct c2_net_transfer_mc,
 				       ntm_dom_linkage) {
 			c2_mutex_lock(&itm->ntm_mutex);
+			C2_ASSERT(c2_net__tm_invariant(itm));
 			do {
 				if (itm->ntm_state != C2_NET_TM_STARTED)
 					break; /* ignore */

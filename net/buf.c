@@ -144,12 +144,12 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	};
 	const struct buf_add_checks *todo;
 
-	C2_PRE(tm != NULL && tm->ntm_dom != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
-	c2_mutex_lock(&tm->ntm_mutex);
 
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
@@ -214,6 +214,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		     buf->nb_desc.nbd_len != 0 &&
 		     buf->nb_desc.nbd_data != NULL));
 	C2_POST(c2_net__buffer_invariant(buf));
+	C2_POST(c2_net__tm_invariant(tm));
 
  m_err_exit:
 	c2_mutex_unlock(&tm->ntm_mutex);
@@ -254,6 +255,7 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 	tm->ntm_qstats[buf->nb_qtype].nqs_num_dels += 1;
 
 	C2_POST(c2_net__buffer_invariant(buf));
+	C2_POST(c2_net__tm_invariant(tm));
 
  m_err_exit:
 	c2_mutex_unlock(&tm->ntm_mutex);

@@ -11,6 +11,27 @@
    @{
  */
 
+bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
+{
+	if (tm == NULL || tm->ntm_callbacks == NULL || tm->ntm_dom == NULL)
+		return false;
+	if (tm->ntm_state < C2_NET_TM_INITIALIZED ||
+	    tm->ntm_state > C2_NET_TM_FAILED)
+		return false;
+	if ((tm->ntm_state == C2_NET_TM_STARTING ||
+	     tm->ntm_state == C2_NET_TM_STARTED) &&
+	    tm->ntm_ep == NULL)
+		return false;
+	if (tm->ntm_state != C2_NET_TM_STARTED &&
+	    tm->ntm_state != C2_NET_TM_STOPPING) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
+			if (!c2_list_is_empty(&tm->ntm_q[i]))
+				return false;
+	}
+	return true;
+}
+
 int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 			 struct c2_net_event *ev)
 {
@@ -43,6 +64,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 		while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
 			c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
+		C2_PRE(c2_net__tm_invariant(tm));
 		C2_PRE(c2_net__buffer_invariant(buf));
 		C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
 		c2_list_del(&buf->nb_tm_linkage);
@@ -231,6 +253,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 
 	C2_ASSERT(ep != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
 	c2_ref_get(&ep->nep_ref);
@@ -243,6 +266,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		tm->ntm_ep = NULL;
 		c2_ref_put(&ep->nep_ref);
 	}
+	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return result;
@@ -255,6 +279,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	enum c2_net_tm_state oldstate;
 
 	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
@@ -264,6 +289,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
 	if (result < 0)
 		tm->ntm_state = oldstate;
+	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return result;
@@ -275,11 +301,11 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			struct c2_net_qstats *qs,
 			bool reset)
 {
-	C2_PRE(tm->ntm_state >= C2_NET_TM_INITIALIZED);
 	C2_PRE(qtype == C2_NET_QT_NR || c2_net__qtype_is_valid(qtype));
 	C2_ASSERT(reset || qs != NULL);
 
 	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
 	if (qtype == C2_NET_QT_NR) {
 		if (qs != NULL)
 			memcpy(qs, tm->ntm_qstats, sizeof(tm->ntm_qstats));
