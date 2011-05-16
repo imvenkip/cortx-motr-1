@@ -282,9 +282,10 @@ static bool local_rights_held(const struct c2_rm_incoming *in)
 static void remove_rights(struct c2_rm_incoming *in)
 {
 	struct c2_rm_pin *pin;
+	struct c2_rm_pin *tmp;
 
-	c2_list_for_each_entry(&in->ri_pins, pin, struct c2_rm_pin,
-			 rp_incoming_linkage)
+	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp, struct c2_rm_pin,
+			 	    rp_incoming_linkage)
 		c2_list_del(&pin->rp_incoming_linkage);
 }
 
@@ -556,7 +557,6 @@ static void owner_balance(struct c2_rm_owner *o)
 	struct c2_rm_loan	*loan;
 	struct c2_rm_right	*right;
 	struct c2_rm_right	*tmp;
-	struct c2_list_link	*link;
 	struct c2_rm_outgoing	*out;
 	struct c2_rm_incoming	*in;
 	bool 			todo;
@@ -586,14 +586,13 @@ static void owner_balance(struct c2_rm_owner *o)
 
 			outgoing_delete(out);
 		}
-		for (prio = C2_RM_REQUEST_PRIORITY_MAX; prio >= 0; prio--) {
-			c2_list_for_each(&o->ro_incoming[prio][OQS_EXCITED], 
-								link) {
-				todo = true;
-				right = c2_list_entry(link, struct c2_rm_right,
-						      ri_linkage);
-				C2_ASSERT(right != NULL);
+		for (prio = ARRAY_SIZE(o->ro_incoming); prio >= 0; prio--) {
+			c2_list_for_each_entry_safe(&o->ro_incoming[prio]
+						    [OQS_EXCITED],right, tmp,
+						    struct c2_rm_right,
+						    ri_linkage) {
 
+				todo = true;
 				in = container_of(right, struct c2_rm_incoming, 
 								     rin_want);
 				C2_ASSERT(in != NULL);
@@ -652,7 +651,6 @@ static void incoming_check(struct c2_rm_incoming *in)
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
 		 */
-		//if (some local rights on &in->rin_pins are held) {
 		if (local_rights_held(in)) {
 			/*
 			 * conflicting held rights were found, has to
@@ -679,9 +677,9 @@ static void incoming_check(struct c2_rm_incoming *in)
 				 * right should be part of loan/barrowed list.
 				 */
 				loan = container_of(&in->rin_want, 
-						struct c2_rm_loan, rl_right);
-				go_out(in, ROT_CANCEL, loan,
-				       		&in->rin_want);
+						    struct c2_rm_loan,
+						    rl_right);
+				go_out(in, ROT_CANCEL, loan, &in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -764,12 +762,12 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	if (!track_local)
 		return;
 
-	for (i = 0; i < OWOS_NR; ++i) {
-		c2_list_for_each_entry(&o->ro_owned[i],
-			right, struct c2_rm_right, ri_linkage) {
+	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
+		c2_list_for_each_entry(&o->ro_owned[i], right,
+				       struct c2_rm_right, ri_linkage) {
 			if (right_intersects(right,rest)) {
 				if (!coverage) {
-					rest = right_diff(rest, right);
+					rest = right_diff(rest,right);
 					if (right_empty(rest))
 						return;
 				}
@@ -822,6 +820,7 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 			return -EPERM;
 	}
 
+	/*@todo Error handling */
 	C2_ALLOC_PTR(pin);
 	if (pin == NULL)
 		return -ENOMEM;
@@ -844,6 +843,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	struct c2_rm_outgoing	*out;
 	struct c2_rm_outgoing	*ex_out;
 	struct c2_rm_right 	*out_right;
+	struct c2_rm_right 	*tmp;
 	struct c2_rm_loan	*out_loan;
 	int 			result = 0;
 	int			i;
@@ -851,8 +851,9 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 
 	/* first check for existing outgoing requests */
 	for (i = 0; i < ARRAY_SIZE(in->rin_owner->ro_outgoing); i++) {
-		c2_list_for_each_entry(&in->rin_owner->ro_outgoing[i],
-				out_right, struct c2_rm_right, ri_linkage) {
+		c2_list_for_each_entry_safe(&in->rin_owner->ro_outgoing[i],
+				       out_right, tmp, struct c2_rm_right,
+				       ri_linkage) {
 			out_loan = container_of(out_right, 
 						struct c2_rm_loan, rl_right);
 			ex_out = container_of(out_loan, 
