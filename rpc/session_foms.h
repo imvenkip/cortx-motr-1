@@ -93,6 +93,7 @@ struct c2_rpc_fom_conn_terminate {
 	struct c2_fop		*fct_fop;
 	struct c2_fop		*fct_fop_rep;
 	struct c2_dbenv		*fct_dbenv;
+	struct c2_cob_domain	*fct_dom;
 	struct c2_db_tx		fct_tx;
 };
 

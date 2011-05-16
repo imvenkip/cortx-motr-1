@@ -182,7 +182,7 @@ void test_conn_terminate(uint64_t sender_id)
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_item			*item;
-	struct c2_rpc_item			*cached_item;
+	//struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	/*
@@ -210,7 +210,8 @@ void test_conn_terminate(uint64_t sender_id)
 	/*
 	 * "Receive" the item 
 	 */
-	sc = c2_rpc_session_item_received(item, &cached_item);
+//	sc = c2_rpc_session_item_received(item, &cached_item);
+	sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -227,6 +228,7 @@ void test_conn_terminate(uint64_t sender_id)
 		C2_ASSERT(fom_ct != NULL);
 		fom_ct->fct_dbenv = db;
 		c2_db_tx_init(&fom_ct->fct_tx, db, 0);
+		fom_ct->fct_dom = dom;
 
 		/*
 		 * Execute fom
@@ -236,10 +238,11 @@ void test_conn_terminate(uint64_t sender_id)
 		/*
 		 * store reply in reply-cache
 		 */
+/*
 		c2_rpc_session_reply_prepare(&fom_ct->fct_fop->f_item,
 				&fom_ct->fct_fop_rep->f_item,
 				&fom_ct->fct_tx);
-
+*/
 		/*
 		 * commit/abort tx
 		 */
@@ -256,6 +259,7 @@ void test_conn_terminate(uint64_t sender_id)
 		 * test reply contents
 		 */
 		traverse_slot_table();
+		c2_cob_namespace_traverse(dom);
 	}
 	
 }
@@ -388,7 +392,7 @@ int main(void)
 
 //=====================================================================
 	test_session_destroy(20, 100);
-	//test_conn_terminate(20);
+	test_conn_terminate(20);
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();

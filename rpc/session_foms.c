@@ -532,11 +532,14 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_conn_terminate_rep	*fop_out;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_slot_table_key		key;
-	struct c2_rpc_slot_table_value		slot;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_pair			pair;
 	struct c2_db_tx				*tx;
 	struct c2_db_cursor			cursor;
+	struct c2_cob_domain			*dom;
+	struct c2_cob				*conn_cob;
+	struct c2_cob				*session0_cob;
+	struct c2_cob				*slot0_cob;
 	int					rc;
 	uint64_t				sender_id;
 
@@ -566,22 +569,23 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
 	tx = &fom_ct->fct_tx;
+	dom = fom_ct->fct_dom;
 
 	/*
 	 * prepare key, value and pair
 	 */
 	key.stk_sender_id = sender_id;
-	key.stk_session_id = 0;
+	key.stk_session_id = SESSION_0;
 	key.stk_slot_id = 0;
 	key.stk_slot_generation = 0;
 
-	C2_SET0(&slot);
+	C2_SET0(&inmem_slot);
 
-	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_slot_table,
+	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
 				&key, sizeof key,
-				&slot, sizeof slot);
+				&inmem_slot, sizeof inmem_slot);
 
-	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_slot_table, tx);
+	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table, tx);
 	if (rc != 0)
 		goto errout;
 
@@ -617,47 +621,50 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
 
-	/*
-	 * Remove slot 0 entry from in core slot table
-	 */
-	key.stk_sender_id = sender_id;
-	key.stk_session_id = 0;
-	key.stk_slot_id = 0;
-	key.stk_slot_generation = 0;
-
-	C2_SET0(&inmem_slot);
-
-	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
-				&key, sizeof key,
-				&inmem_slot, sizeof inmem_slot);
-
-	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table,
-					 tx);
-	if (rc != 0)
+	rc = c2_rpc_rcv_conn_lookup(dom, sender_id, &conn_cob, tx);
+	if (rc != 0) {
+		printf("conn_term: failed to lookup sender_id %lu %d\n",
+				sender_id, rc);
 		goto errout;
+	}
 
-	printf("Deleting in core slot table entry\n");
-	rc = c2_db_cursor_get(&cursor, &pair);
-
-	/*
-	 * If slot 0 was present in persistent table then
-	 * it must be present in in-core slot table
-	 */
-
-	C2_ASSERT(rc != -ENOENT && rc != DB_NOTFOUND);
-
-	if (rc != 0)
+	rc = c2_rpc_rcv_session_lookup(conn_cob, SESSION_0, &session0_cob, tx);
+	if (rc != 0) {
+		printf("conn_term: failed to lookup session 0 %d\n", rc);
+		c2_cob_put(conn_cob);
 		goto errout;
+	}
 
-	C2_ASSERT(key.stk_sender_id == sender_id);
-
-	rc = c2_db_cursor_del(&cursor);
-	if (rc != 0)
+	rc = c2_rpc_rcv_slot_lookup(session0_cob, 0, 0, &slot0_cob, tx);
+	if (rc != 0) {
+		printf("conn_term: failed to lookup slot 0 %d\n", rc);
+		c2_cob_put(session0_cob);
+		c2_cob_put(conn_cob);
 		goto errout;
+	}
 
-	c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-	c2_db_cursor_fini(&cursor);
+	rc = c2_cob_delete(slot0_cob, tx);
+	if (rc != 0) {
+		c2_cob_put(slot0_cob);
+		c2_cob_put(session0_cob);
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+
+	rc = c2_cob_delete(session0_cob, tx);
+	if (rc != 0) {
+		c2_cob_put(session0_cob);
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+	
+	rc = c2_cob_delete(conn_cob, tx);
+	if (rc != 0) {
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+
+	C2_ASSERT(rc == 0);
 
 	printf("Conn terminate successful\n");
 	fop_out->ctr_rc = 0;	/* Success */
