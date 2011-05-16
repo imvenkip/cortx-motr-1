@@ -29,7 +29,7 @@ struct c2_dtx;
 /* these are needed earlier than they are defined */
 struct c2_stob;
 struct c2_table;
-/* Use RPC struct c2_net_conn; */
+struct c2_net_conn;
 
 /**
    ADDB record store type
@@ -75,15 +75,15 @@ typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 		   struct c2_table *db);
 
-/* USE RPC */
 /**
     Send addb records through this network connection.
  */
-/* typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
+typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
-*/
 
 int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+
+
 
 /**
    Activity in context on which addb event happens.

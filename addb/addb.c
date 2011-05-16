@@ -14,7 +14,6 @@
 #include "lib/rwlock.h"
 #include "stob/stob.h"
 #include "db/db.h"
-/* Deprecated #include "net/net.h" */
 
 #include "addb/addb.h"
 
@@ -48,7 +47,7 @@ static struct c2_net_conn         *c2_addb_store_net_conn = NULL;
 
 static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
 static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
-/* USE RPC: static c2_addb_net_add_t  c2_addb_net_add_p  = NULL; */
+static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
 
 int c2_addb_init(void)
 {
@@ -113,12 +112,11 @@ void c2_addb_add(struct c2_addb_dp *dp)
 		C2_ASSERT(c2_addb_db_add_p != NULL);
 		c2_addb_db_add_p(dp, c2_addb_store_db_env, c2_addb_store_table);
 		break;
-	/* Use RPC */
-	/* case C2_ADDB_REC_STORE_NETWORK: */
-	/* 	C2_ASSERT(c2_addb_store_net_conn != NULL); */
-	/* 	C2_ASSERT(c2_addb_net_add_p != NULL); */
-	/* 	c2_addb_net_add_p(dp, c2_addb_store_net_conn); */
-	/* 	break; */
+	case C2_ADDB_REC_STORE_NETWORK:
+		C2_ASSERT(c2_addb_store_net_conn != NULL);
+		C2_ASSERT(c2_addb_net_add_p != NULL);
+		c2_addb_net_add_p(dp, c2_addb_store_net_conn);
+		break;
 	default:
 		C2_ASSERT(c2_addb_store_type == C2_ADDB_REC_STORE_NONE);
 		break;
@@ -275,7 +273,7 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 
 	c2_addb_stob_add_p = NULL;
 	c2_addb_db_add_p   = NULL;
-	/* USE RPC: c2_addb_net_add_p  = NULL; */
+	c2_addb_net_add_p  = NULL;
 
         va_start(varargs, type);
 
@@ -296,9 +294,7 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
 
 	case C2_ADDB_REC_STORE_NETWORK:
 		c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
-		/* USE RPC: 
 		c2_addb_net_add_p      = va_arg(varargs, c2_addb_net_add_t);
-		*/
 		c2_addb_store_net_conn = va_arg(varargs, struct c2_net_conn*);
 		break;
 	default:

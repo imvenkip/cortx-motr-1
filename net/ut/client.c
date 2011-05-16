@@ -159,8 +159,7 @@ void test_net_client(void)
 	C2_UT_ASSERT(conn1 != NULL);
 
 	/* write addb record onto network */
-	/* Use RPC */
-	/* c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn1); */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn1);
 	/* choose a default level for addb event */
 	/* c2_addb_choose_default_level(AEL_ERROR); */
 	c2_addb_choose_default_level(AEL_NONE);

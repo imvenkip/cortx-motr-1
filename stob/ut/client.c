@@ -213,8 +213,7 @@ int main(int argc, char **argv)
 	C2_ASSERT(conn != NULL);
 
 	/* write addb record onto network */
-	/* Use RPC */
-	/* c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn); */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn);
 
 	while (!feof(stdin)) {
 		struct c2_fop_fid fid;

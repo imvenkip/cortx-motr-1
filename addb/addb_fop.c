@@ -8,7 +8,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "fop/fop.h"
-/* Use RPC #include "net/net.h" */
+#include "net/net.h"
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
@@ -131,7 +131,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		ex->ar_rc = 0;
 	}
 
-	/* Use RPC c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie); */
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 1;
 }
 #endif
