@@ -7,6 +7,7 @@
 #include "lib/misc.h"
 
 #include "rm/rm.h"
+#include <stdlib.h>
 
 /**
    @addtogroup rm
@@ -17,30 +18,12 @@ static void owner_balance(struct c2_rm_owner *o);
 static void pin_remove(struct c2_rm_pin *pin);
 static int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 static int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
-	   struct c2_rm_loan *loan, struct c2_rm_right *right);
-static void outgoing_delete(struct c2_rm_outgoing *out);
+	   	  struct c2_rm_loan *loan, struct c2_rm_right *right);
 static void incoming_check(struct c2_rm_incoming *in);
 static void incoming_check_local(struct c2_rm_incoming *in,
-					struct c2_rm_right *rest);
+				 struct c2_rm_right *rest);
 static void sublet_revoke(struct c2_rm_incoming *in,
-				struct c2_rm_right *right);
-
-static void apply_policy(struct c2_rm_incoming *in);
-static void move_to_sublet(struct c2_rm_incoming *in);
-static void reply_to_loan_request(struct c2_rm_incoming *in);
-static void remove_rights(struct c2_rm_incoming *in);
-
-static int right_copy(const struct c2_rm_right *right,
-			struct c2_rm_right *rest);
-static struct c2_rm_right *right_diff(const struct c2_rm_right *rest,
-				      const struct c2_rm_right *scan);
-static bool right_intersects(const struct c2_rm_right *scan,
-			     const struct c2_rm_right *right);
-static struct c2_rm_right *right_meet(struct c2_rm_right *scan,
-				   struct c2_rm_right *right);
-static bool local_rights_held(const struct c2_rm_incoming *in);
-static bool right_empty(const struct c2_rm_right *rest);
-
+			  struct c2_rm_right *right);
 
 void c2_rm_domain_init(struct c2_rm_domain *dom)
 {
@@ -120,8 +103,8 @@ void c2_rm_resource_del(struct c2_rm_resource *res)
         c2_mutex_unlock(&rtype->rt_lock);
 }
 
-static int c2_rm_owner_init_internal(struct c2_rm_owner **o, 
-				     struct c2_rm_resource **r)
+static int owner_init_internal(struct c2_rm_owner **o, 
+			       struct c2_rm_resource **r)
 {
 	struct c2_rm_owner 	*owner = *o;
 	struct c2_rm_resource	*res = *r;
@@ -141,11 +124,13 @@ static int c2_rm_owner_init_internal(struct c2_rm_owner **o,
         for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++)
                 c2_list_init(&owner->ro_owned[i]);
 
-        for (j = 0; j < OQS_NR; j++) {
-                for (i = 0; i < C2_RM_REQUEST_PRIORITY_NR; i++)
+	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++)
+		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++)
                         c2_list_init(&owner->ro_incoming[i][j]);
-                c2_list_init(&owner->ro_outgoing[j]);
-        }
+
+	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
+                c2_list_init(&owner->ro_outgoing[i]);
+
         c2_mutex_init(&owner->ro_lock);
 
         return result;
@@ -157,7 +142,7 @@ int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 	
-	return c2_rm_owner_init_internal(&owner, &res);
+	return owner_init_internal(&owner, &res);
 }
 
 int c2_rm_owner_init_with(struct c2_rm_owner *owner,
@@ -169,7 +154,7 @@ int c2_rm_owner_init_with(struct c2_rm_owner *owner,
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 
-	result = c2_rm_owner_init_internal(&owner, &res);
+	result = owner_init_internal(&owner, &res);
 	C2_ASSERT(result == 0);
 
 	/** 
@@ -191,30 +176,24 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 
         C2_PRE(owner != NULL);
         owner->ro_resource = NULL;
-        res->r_ref = 0;
         owner->ro_state = ROS_FINAL;
         owner->ro_group = NULL;
+        res->r_ref = 0;
+
         c2_mutex_lock(&owner->ro_lock);
+	c2_list_fini(&owner->ro_borrowed);
+	c2_list_fini(&owner->ro_sublet);
 
-        if (!c2_list_is_empty(&owner->ro_borrowed)) {
-        }
+        for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++)
+		c2_list_fini(&owner->ro_owned[i]);
 
-        if (!c2_list_is_empty(&owner->ro_sublet)) {
-        }
+	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++) {
+		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++)
+                        c2_list_fini(&owner->ro_incoming[i][j]);
+	}
 
-        for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++) {
-                if(!c2_list_is_empty(&owner->ro_owned[i])) {
-                }
-        }
-
-        for (j = 0; j < OQS_NR; j++) {
-                for (i = 0; i < C2_RM_REQUEST_PRIORITY_NR; i++) {
-                        if (!c2_list_is_empty(&owner->ro_incoming[i][j])) {
-                        }
-                }
-                if (!c2_list_is_empty(&owner->ro_outgoing[j])) {
-                }
-        }
+	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
+                c2_list_fini(&owner->ro_outgoing[i]);
 
         res->r_ref = 0;
         c2_mutex_unlock(&owner->ro_lock);
@@ -242,61 +221,198 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in)
 void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
         C2_PRE(in != NULL);
-
-	if (!c2_list_is_empty(&in->rin_pins)) {
-	}
 	c2_list_fini(&in->rin_pins);
 }
 
+/**
+* @brief 
+*
+* @param out
+*/
+static void outgoing_delete(struct c2_rm_outgoing *out)
+{
+}
+
+/**
+* @brief 
+*
+* @param in
+*/
 static void apply_policy(struct c2_rm_incoming *in)
 {
 
 }
 
+/**
+* @brief 
+*
+* @param in
+*/
 static void move_to_sublet(struct c2_rm_incoming *in)
 {
 }
 
+/**
+* @brief 
+*
+* @param in
+*/
 static void reply_to_loan_request(struct c2_rm_incoming *in)
 {
 
 }
 
-static void remove_rights(struct c2_rm_incoming *in)
-{
-}
-
-static int right_copy(const struct c2_rm_right *right,
-			struct c2_rm_right *rest)
-{
-}
-
-static struct c2_rm_right *right_diff(const struct c2_rm_right *rest,
-				      const struct c2_rm_right *scan)
-{
-}
-
-
-static bool right_intersects(const struct c2_rm_right *scan,
-			     const struct c2_rm_right *right)
-{
-}
-
-
-static struct c2_rm_right *right_meet(struct c2_rm_right *scan,
-				   struct c2_rm_right *right)
-{
-
-}
-
+/**
+* @brief 
+*
+* @param in
+*
+* @return 
+*/
 static bool local_rights_held(const struct c2_rm_incoming *in)
 {
+	return true;
 }
 
-/* 
- * resource type private field. By convention, 0 means "empty"
- * right. 
- */
+/**
+* @brief 
+*
+* @param in
+*/
+static void remove_rights(struct c2_rm_incoming *in)
+{
+	struct c2_rm_pin *pin;
+
+	c2_list_for_each_entry(&in->ri_pins, pin, struct c2_rm_pin,
+			 rp_incoming_linkage)
+		c2_list_del(&pin->rp_incoming_linkage);
+}
+
+/**
+* @brief 
+*
+* @param right
+* @param rest
+*
+* @return 
+*/
+static int right_copy(const struct c2_rm_right *right,
+		      struct c2_rm_right *rest)
+{
+	bcopy(right, rest, sizeof(struct c2_rm_right));
+	if (rest->ri_datum == right->ri_datum)
+		return 0;
+	else
+		return -1;
+}
+
+
+/**
+* @brief 
+*
+* @param r0
+* @param r1
+*
+* @return true if r0 implies r1.
+*/
+static bool right_intersects(const struct c2_rm_right *r0,
+			     const struct c2_rm_right *r1)
+{
+	if (r1->ri_datum <= r0->ri_datum)
+		return true;
+	else
+		return false;
+}
+
+static int shift_count(uint64_t value)
+{
+	int shifts = 0;
+
+	do {
+		value = value >> 1;
+		shifts++;
+	} while (value != 0x1);
+
+	return shifts;
+}
+
+/**
+* @brief 
+*
+* @pre r0 implies r1(Intersects)
+* @param r0
+* @param r1
+*
+* @return 
+*/
+static struct c2_rm_right *right_diff(struct c2_rm_right *r0,
+				      const struct c2_rm_right *r1)
+{
+	int r0_value;
+	int r1_value;
+
+	if (right_intersects(r0, r1)) {
+		r0_value = shift_count(r0->ri_datum);
+		r1_value = shift_count(r1->ri_datum);
+		if (r1_value == r0_value)
+			r0->ri_datum = 0;
+		else
+			r0->ri_datum = 1 << (r1_value - r0_value);
+	}
+
+	return r0;
+}
+
+
+/**
+* @brief Intersection ("meet") is defined as a largest right
+*        implied by both original rights
+*
+* @param r0
+* @param r1
+*
+* @return 
+*/
+static struct c2_rm_right *right_meet(struct c2_rm_right *r0,
+				      const struct c2_rm_right *r1)
+{
+	if(r1->ri_datum <= r0->ri_datum)
+		r0->ri_datum = r1->ri_datum >> 1;
+	else
+		r0->ri_datum = r0->ri_datum >> 1;
+		
+	return r0;
+}
+
+/**
+* @brief Union ("join") is defined as a smallest right that implies
+*        both original rights
+*
+* @param r0
+* @param r1
+*
+* @return 
+*/
+#if 0
+static struct c2_rm_right *right_join(struct c2_rm_right *r0,
+				      const struct c2_rm_right *r1)
+{
+	if(r1->ri_datum >= r0->ri_datum)
+		r0->ri_datum = r1->ri_datum << 1;
+	else
+		r0->ri_datum = r0->ri_datum << 1;
+		
+	return r0;
+}
+#endif
+
+/**
+* @brief resource type private field. By convention, 0 means "empty"
+*        right. 
+* @param rest
+*
+* @return 
+*/
 static bool right_empty(const struct c2_rm_right *rest)
 {
 	if (rest->ri_datum)
@@ -611,7 +727,7 @@ static void incoming_check(struct c2_rm_incoming *in)
    pins them if necessary.
  */
 static void incoming_check_local(struct c2_rm_incoming *in,
-					struct c2_rm_right *rest)
+			  	 struct c2_rm_right *rest)
 {
 	struct c2_rm_right *right;
 	struct c2_rm_owner *o = in->rin_owner;
@@ -734,7 +850,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	bool			found = false;
 
 	/* first check for existing outgoing requests */
-	for (i = 0; i < ARRAY_SIZE(&in->rin_owner->ro_outgoing); i++) {
+	for (i = 0; i < ARRAY_SIZE(in->rin_owner->ro_outgoing); i++) {
 		c2_list_for_each_entry(&in->rin_owner->ro_outgoing[i],
 				out_right, struct c2_rm_right, ri_linkage) {
 			out_loan = container_of(out_right, 
@@ -743,8 +859,8 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 					      struct c2_rm_outgoing, rog_want);
 			if (ex_out->rog_type == otype && 
 					right_intersects(out_right, right)) {
-				/* @todo adjust outgoing requests priority (priority
-			  	 inheritance) */
+				/* @todo adjust outgoing requests priority 
+				 * (priority inheritance) */
 				result = pin_add(in, out_right);
 				C2_ASSERT(result == 0);
 				right = right_diff(right, out_right);
