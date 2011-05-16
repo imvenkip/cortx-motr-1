@@ -25,12 +25,14 @@ int c2_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
 	res_fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 	C2_ASSERT(res_fop != NULL);
 	read_fop_res = c2_fop_data(res_fop);
+	/* Assumption: Currently, the code is coalescing irrespective
+	   of member's uid and gid. This might change in future.*/
 	read_fop_res->frd_ioseg = seg;
-	read_fop_res->frd_fid =  read_fop_curr->frd_fid;
-	read_fop_res->frd_uid =  read_fop_curr->frd_uid;
-	read_fop_res->frd_gid =  read_fop_curr->frd_gid;
-	read_fop_res->frd_nid =  read_fop_curr->frd_nid;
-	read_fop_res->frd_flags =  read_fop_curr->frd_flags;
+	read_fop_res->frd_fid = read_fop_curr->frd_fid;
+	read_fop_res->frd_uid = read_fop_curr->frd_uid;
+	read_fop_res->frd_gid = read_fop_curr->frd_gid;
+	read_fop_res->frd_nid = read_fop_curr->frd_nid;
+	read_fop_res->frd_flags = read_fop_curr->frd_flags;
 
 	return 0;
 }
@@ -77,6 +79,8 @@ int c2_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
 	res_fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 	C2_ASSERT(res_fop != NULL);
 	write_fop_res = c2_fop_data(res_fop);
+	/* Assumption: Currently, the code is coalescing irrespective
+	   of member's uid and gid. This might change in future.*/
 	write_fop_res->fwr_iovec = vec;
 	write_fop_res->fwr_fid =  write_fop_curr->fwr_fid;
 	write_fop_res->fwr_uid =  write_fop_curr->fwr_uid;
