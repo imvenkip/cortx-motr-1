@@ -87,6 +87,16 @@ static const struct c2_table_ops cob_oi_ops = {
 	.key_cmp = oi_cmp
 };
 
+static int fb_cmp(struct c2_table *table, const void *key0, const void *key1)
+{
+	const struct c2_stob_id	*id0 = key0;
+	const struct c2_stob_id *id1 = key1;
+
+	C2_PRE(c2_stob_id_is_set(id0));
+	C2_PRE(c2_stob_id_is_set(id1));
+
+	return c2_stob_id_cmp(id0, id1);
+}
 static const struct c2_table_ops cob_fab_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -96,7 +106,7 @@ static const struct c2_table_ops cob_fab_ops = {
                         .max_size = sizeof(struct c2_cob_fabrec)
 		}
 	},
-	.key_cmp = oi_cmp
+	.key_cmp = fb_cmp
 };
 
 static char *cob_dom_id_make(char *buf, const struct c2_cob_domain_id *id,
@@ -593,7 +603,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         rc = c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-#if 0
+
         /* Remove from the fileattr_basic table */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
 			 &cob->co_stobid, sizeof cob->co_stobid,
@@ -602,7 +612,6 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-#endif
 
 out:
         /* If the op failed, assume we're not going to do anything else about
@@ -645,7 +654,7 @@ int c2_cob_update(struct c2_cob		*cob,
 		cob->co_valid |= CA_FABREC;
 
 		c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-			&cob->co_stob->so_id, sizeof cob->co_stob->so_id,
+			&cob->co_nsrec.cnr_stobid, sizeof cob->co_nsrec.cnr_stobid,
 			&cob->co_fabrec, sizeof cob->co_fabrec);
 
 		rc = c2_table_update(tx, &pair);
@@ -703,6 +712,40 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 				nskey->cnk_name.b_data,
 				nsrec.cnr_stobid.si_bits.u_hi,
 				nsrec.cnr_stobid.si_bits.u_lo);
+	}
+
+	printf("=================================================\n");
+	c2_db_cursor_fini(&cursor);
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+	c2_db_tx_commit(&tx);
+	
+}	
+
+void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
+{
+	struct c2_db_cursor	cursor;
+	struct c2_db_pair	pair;
+	struct c2_stob_id	key;
+	struct c2_cob_fabrec	rec;
+	struct c2_db_tx		tx;
+	int			rc;
+
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	rc = c2_db_cursor_init(&cursor, &dom->cd_fileattr_basic, &tx);
+	if (rc != 0) {
+		printf("fb_traverse: error during cursor init %d\n", rc);
+		return;
+	}
+
+	printf("=============== FB Table ================\n");
+	c2_db_pair_setup(&pair, &dom->cd_fileattr_basic, &key, sizeof key,
+				&rec, sizeof rec);
+	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
+		printf("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
+				key.si_bits.u_lo,
+				rec.cfb_version.vn_lsn,
+				rec.cfb_version.vn_vc);
 	}
 
 	printf("=================================================\n");

@@ -22,6 +22,11 @@ char db_name[] = "test_db";
 struct c2_dbenv			*db;
 struct c2_cob_domain		*dom;
 
+enum {
+	SESSION_CREATE_VC = 0,
+	SESSION_DESTROY_VC = 1
+};
+
 void init()
 {
 	struct c2_cob_domain_id dom_id = { 42 };
@@ -92,7 +97,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_rpc_item			*item;
-	//struct c2_rpc_item			*cached_item;
+	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	/*
@@ -116,13 +121,13 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	item->ri_slot_id = 0;
 	item->ri_slot_generation = 0;
 	item->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
-	item->ri_verno.vn_vc = 1;
+	item->ri_verno.vn_vc = SESSION_DESTROY_VC;
 
 	/*
 	 * "Receive" the item 
 	 */
-//	sc = c2_rpc_session_item_received(item, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
+	sc = c2_rpc_session_item_received(item, dom, &cached_item);
+	//sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -149,11 +154,11 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		/*
 		 * store reply in reply-cache
 		 */
-/*
+
 		c2_rpc_session_reply_prepare(&fom_sd->fsd_fop->f_item,
-				&fom_sd->fsd_fop_rep->f_item,
+				&fom_sd->fsd_fop_rep->f_item, dom,
 				&fom_sd->fsd_tx);
-*/
+
 		/*
 		 * commit/abort tx
 		 */
@@ -171,6 +176,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		 */
 		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
+		c2_cob_fb_traverse(dom);
 	}
 	
 }
@@ -182,7 +188,7 @@ void test_conn_terminate(uint64_t sender_id)
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_item			*item;
-	//struct c2_rpc_item			*cached_item;
+	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	/*
@@ -210,8 +216,8 @@ void test_conn_terminate(uint64_t sender_id)
 	/*
 	 * "Receive" the item 
 	 */
-//	sc = c2_rpc_session_item_received(item, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
+	sc = c2_rpc_session_item_received(item, dom, &cached_item);
+	//sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -238,11 +244,9 @@ void test_conn_terminate(uint64_t sender_id)
 		/*
 		 * store reply in reply-cache
 		 */
-/*
 		c2_rpc_session_reply_prepare(&fom_ct->fct_fop->f_item,
-				&fom_ct->fct_fop_rep->f_item,
+				&fom_ct->fct_fop_rep->f_item, dom,
 				&fom_ct->fct_tx);
-*/
 		/*
 		 * commit/abort tx
 		 */
@@ -260,6 +264,7 @@ void test_conn_terminate(uint64_t sender_id)
 		 */
 		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
+		c2_cob_fb_traverse(dom);
 	}
 	
 }
@@ -275,7 +280,7 @@ int main(void)
 	struct c2_rpc_session_create		*fop_sc;
 	struct c2_rpc_session_create_rep	*fop_sc_reply;
 	struct c2_rpc_item			*item_in;
-	//struct c2_rpc_item			*cached_item;
+	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	printf("Program start\n");
@@ -296,8 +301,8 @@ int main(void)
 	item_in->ri_sender_id = SENDER_ID_INVALID;
 
 	/* item is received on receiver side */
-	//sc = c2_rpc_session_item_received(item_in, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
+	sc = c2_rpc_session_item_received(item_in, dom, &cached_item);
+	//sc = SCR_ACCEPT_ITEM;
 
 	if (sc == SCR_ACCEPT_ITEM) {
 		/* If item is accepted then fop is created and executed */
@@ -314,11 +319,10 @@ int main(void)
 		fom->fo_ops->fo_state(fom);
 
 		/* When reply is submitted to rpc layer, this routine is called */
-/*
 		c2_rpc_session_reply_prepare(&fom_cc->fcc_fop->f_item,
-				&fom_cc->fcc_fop_rep->f_item,
+				&fom_cc->fcc_fop_rep->f_item, dom,
 				&fom_cc->fcc_tx);
-*/
+
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 				fom->fo_phase == FOPH_FAILED);
 
@@ -335,6 +339,7 @@ int main(void)
 	}
 	traverse_slot_table();	
 	c2_cob_namespace_traverse(dom);
+	c2_cob_fb_traverse(dom);
 /*=======================================================================*/
 
 	fop = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
@@ -351,10 +356,10 @@ int main(void)
 	item_in->ri_slot_id = 0;
 	item_in->ri_slot_generation = 0;
 	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
-	item_in->ri_verno.vn_vc = 0;
+	item_in->ri_verno.vn_vc = SESSION_CREATE_VC;
 
-//	sc = c2_rpc_session_item_received(item_in, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
+	sc = c2_rpc_session_item_received(item_in, dom, &cached_item);
+	//sc = SCR_ACCEPT_ITEM;
 	if (sc == SCR_ACCEPT_ITEM) {
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 		C2_ASSERT(fom != NULL);
@@ -365,11 +370,11 @@ int main(void)
 		fom_sc->fsc_dom = dom;
 
 		fom->fo_ops->fo_state(fom);
-/*
+
 		c2_rpc_session_reply_prepare(&fom_sc->fsc_fop->f_item,
-			&fom_sc->fsc_fop_rep->f_item,
+			&fom_sc->fsc_fop_rep->f_item, dom,
 			&fom_sc->fsc_tx);
-*/
+
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 			fom->fo_phase == FOPH_FAILED);
 
@@ -387,6 +392,7 @@ int main(void)
 
 		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
+		c2_cob_fb_traverse(dom);
 	}
 
 

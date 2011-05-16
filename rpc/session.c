@@ -30,8 +30,9 @@ struct c2_stob_id c2_root_stob_id = {
  */
 struct c2_rpc_reply_cache	c2_rpc_reply_cache;
 
-int c2_rpc_slot_table_key_cmp(struct c2_table *table, const void *key0,
-				const void *key1)
+int c2_rpc_slot_table_key_cmp(struct c2_table	*table,
+			      const void	*key0,
+			      const void	*key1)
 {
 	const struct c2_rpc_slot_table_key *stk0 = key0;
 	const struct c2_rpc_slot_table_key *stk1 = key1;
@@ -63,8 +64,8 @@ const struct c2_table_ops c2_rpc_slot_table_ops = {
         .key_cmp = c2_rpc_slot_table_key_cmp
 };
 
-int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
-			struct c2_dbenv *dbenv)
+int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
+			    struct c2_dbenv 		*dbenv)
 {
 	int	rc;
 
@@ -127,8 +128,8 @@ void c2_rpc_session_module_fini(void)
 	c2_rpc_session_fop_fini();
 }
 
-void c2_rpc_conn_init(struct c2_rpc_conn * rpc_conn,
-                        struct c2_net_conn *net_conn)
+void c2_rpc_conn_init(struct c2_rpc_conn	*rpc_conn,
+		      struct c2_net_conn	*net_conn)
 {
 
 }
@@ -138,8 +139,9 @@ int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)
        return 0;
 }
 
-void c2_rpc_conn_timedwait(struct c2_rpc_conn *rpc_conn, uint64_t state_flags,
-                        const struct c2_time *time)
+void c2_rpc_conn_timedwait(struct c2_rpc_conn	*rpc_conn,
+			   uint64_t		state_flags,
+                           const struct c2_time	*time)
 {
 
 }
@@ -149,8 +151,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *rpc_conn)
        return true;
 }
 
-int c2_rpc_session_create(struct c2_rpc_conn *rpc_conn, 
-                               struct c2_rpc_session *out)
+int c2_rpc_session_create(struct c2_rpc_conn	*rpc_conn, 
+			  struct c2_rpc_session	*out)
 {
        return 0;
 }
@@ -160,9 +162,9 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
        return 0;
 }
 
-void c2_rpc_session_timedwait(struct c2_rpc_session *session,
-                uint64_t state_flags,
-                const struct c2_time *abs_timeout)
+void c2_rpc_session_timedwait(struct c2_rpc_session	*session,
+			      uint64_t			state_flags,
+			      const struct c2_time	*abs_timeout)
 {
 
 }
@@ -180,8 +182,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
    else
         it just marks slots above nr_slots as 'dont use'
  */
-int c2_rpc_session_slot_table_resize(struct c2_rpc_session *session,
-					uint32_t nr_slots)
+int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
+				     uint32_t			nr_slots)
 {
 	return 0;
 }
@@ -245,14 +247,16 @@ struct c2_rpc_session_params {
         uint32_t        sp_enforced_highest_slot_id;
 };
 
-int c2_rpc_session_params_get(uint64_t sender_id, uint64_t session_id,
-                                struct c2_rpc_session_params **out)
+int c2_rpc_session_params_get(uint64_t				sender_id,
+			      uint64_t				session_id,
+			      struct c2_rpc_session_params	**out)
 {
 	return 0;
 }
 
-int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
-                                struct c2_rpc_session_params *param)
+int c2_rpc_session_params_set(uint64_t				sender_id,
+			      uint64_t				session_id,
+			      struct c2_rpc_session_params	*param)
 {
 	return 0;
 }
@@ -268,20 +272,19 @@ int c2_rpc_session_params_set(uint64_t sender_id, uint64_t session_id,
    the cache contains the pointer (block address) to the location
    of the data.
  */
-int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
+int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
+			      struct c2_cob_domain	*dom,
+			      struct c2_db_tx		*tx)
 {
-	struct c2_table				*slot_table;
 	struct c2_table				*inmem_slot_table;
-	struct c2_db_pair			pair;
 	struct c2_rpc_slot_table_key		key;
-	struct c2_rpc_slot_table_value		slot;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_pair			inmem_pair;
+	struct c2_cob				*slot_cob;
 	int				rc;
 
 	C2_PRE(item != NULL && tx != NULL);
 
-	slot_table = c2_rpc_reply_cache.rc_slot_table;
 	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
 
 	key.stk_sender_id = item->ri_sender_id;
@@ -289,28 +292,30 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item *item, struct c2_db_tx *tx)
 	key.stk_slot_id = item->ri_slot_id;
 	key.stk_slot_generation = item->ri_slot_generation;
 
-	C2_SET0(&slot);
+	/*
+	 * Update version of cob representing slot
+	 */
+	rc = c2_rpc_rcv_slot_lookup_by_item(dom, item, &slot_cob, tx);
+	if (rc != 0)
+		goto out;
+
+	printf("cache_insert: current slot ver: %lu\n",
+			slot_cob->co_fabrec.cfb_version.vn_vc);
 
 	/*
-	 * Increment version count of slot and cache the reply
+	 * When integrated with fol assign proper lsn 
+	 * instead of just increamenting it
 	 */
-	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
-				&slot, sizeof slot);
-	rc = c2_table_lookup(tx, &pair);
-	if (rc != 0)
+	slot_cob->co_fabrec.cfb_version.vn_lsn++;
+	slot_cob->co_fabrec.cfb_version.vn_vc++;
+
+	rc = c2_cob_update(slot_cob, NULL, &slot_cob->co_fabrec, tx);
+	if (rc != 0) {
+		printf("cache_insert: failed to update cob %d\n", rc);
 		goto out;
-	
-	printf("rc_insert: current value: %lu\n", slot.stv_verno.vn_vc);
+	}
 
-	C2_ASSERT(item->ri_verno.vn_vc == slot.stv_verno.vn_vc);
-
-	slot.stv_verno.vn_vc++;
-	/* XXX temporary: when integrated with FOL will get proper lsn */
-	slot.stv_verno.vn_lsn++;
-
-	rc = c2_table_update(tx, &pair);
-	if (rc != 0)
-		goto out;
+	c2_cob_put(slot_cob);
 
 	/*
 	 * Mark in core slot as "not busy"
@@ -336,14 +341,13 @@ out1:
 	c2_db_pair_fini(&inmem_pair);
 
 out:
-	c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
 	return rc;
 }
 
-int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
-				struct c2_rpc_item *reply,
-				struct c2_db_tx *tx)
+int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
+				 struct c2_rpc_item	*reply,
+				 struct c2_cob_domain	*dom,
+				 struct c2_db_tx	*tx)
 {
 	C2_PRE(req != NULL && reply != NULL && tx != NULL);
 
@@ -359,7 +363,7 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
 	  SENDER_ID_INVALID. Don't cache reply of such requests.
 	 */
 	if (req->ri_sender_id != SENDER_ID_INVALID) {
-		c2_rpc_reply_cache_insert(reply, tx);
+		c2_rpc_reply_cache_insert(reply, dom, tx);
 	} else {
 		printf("it's conn create/terminate req. not caching reply\n");
 	}	
@@ -371,19 +375,20 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
    action to be taken.
    'reply_out' is valid only if return value is RESEND_REPLY.
  */
-enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
-		struct c2_rpc_item *item, struct c2_rpc_item **reply_out)
+enum c2_rpc_session_seq_check_result
+c2_rpc_session_item_received(struct c2_rpc_item 	*item,
+			     struct c2_cob_domain	*dom,
+			     struct c2_rpc_item 	**reply_out)
 {
 	struct c2_table				*slot_table;
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
-	struct c2_rpc_slot_table_value		slot;
-	struct c2_db_pair			pair;
 	/* pair for inmem slot table */
 	struct c2_db_pair			im_pair; 
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_tx				tx;
 	struct c2_rpc_item			*citem;	/* cached rpc item */
+	struct c2_cob				*slot_cob = NULL;
 	enum c2_rpc_session_seq_check_result	rc = SCR_ERROR;
 	int					undoable;
 	int					redoable;
@@ -421,15 +426,6 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 		goto errout;
 	}
 
-	c2_db_pair_setup(&pair, slot_table, &key, sizeof key,
-				&slot, sizeof slot);
-	err = c2_table_lookup(&tx, &pair);
-	if (err != 0) {
-		rc = SCR_ERROR;
-		goto errabort;
-	}
-	printf("item_received: slot verno = %lu\n", slot.stv_verno.vn_vc);
-
 	/*
 	 * Read in memory slot table value
 	 */
@@ -443,8 +439,21 @@ enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
 	}
 	printf("item_received: slot.busy %d\n", (int)inmem_slot.istv_busy);
 
-	undoable = c2_verno_is_undoable(&slot.stv_verno, &item->ri_verno, 0);
-	redoable = c2_verno_is_redoable(&slot.stv_verno, &item->ri_verno, 0);
+	err = c2_rpc_rcv_slot_lookup_by_item(dom, item, &slot_cob, &tx);
+	if (err != 0) {
+		rc = SCR_ERROR;
+		goto errabort;
+	}
+
+	printf("Current slot verno: [%lu:%lu]\n", slot_cob->co_fabrec.cfb_version.vn_lsn,
+			slot_cob->co_fabrec.cfb_version.vn_vc);
+	printf("Current item verno: [%lu:%lu]\n", item->ri_verno.vn_lsn,
+			item->ri_verno.vn_vc);
+
+	C2_ASSERT(slot_cob->co_valid & CA_FABREC);
+
+	undoable = c2_verno_is_undoable(&slot_cob->co_fabrec.cfb_version, &item->ri_verno, 0);
+	redoable = c2_verno_is_redoable(&slot_cob->co_fabrec.cfb_version, &item->ri_verno, 0);
 	slot_is_busy = inmem_slot.istv_busy;
 
 	if (undoable == 0) {
@@ -498,13 +507,16 @@ errabort:
 	else
 		c2_db_tx_commit(&tx);
 	
-	c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
+	if (slot_cob != NULL)
+		c2_cob_put(slot_cob);
+
 	c2_db_pair_release(&im_pair);
 	c2_db_pair_fini(&im_pair);
 errout:
 	return rc;
 }
+
+int global_slot_id_counter = 0;
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -539,8 +551,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	/*
 	 * How to get unique stob_id for new cob?
 	 */
-	nsrec.cnr_stobid.si_bits.u_hi = random();
-	nsrec.cnr_stobid.si_bits.u_lo = random();
+	nsrec.cnr_stobid.si_bits.u_hi = ++global_slot_id_counter;
+	nsrec.cnr_stobid.si_bits.u_lo = global_slot_id_counter;
 	nsrec.cnr_nlink = 1;
 
 	/*
@@ -583,7 +595,7 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 	if (key == NULL)
 		return -ENOMEM;
 
-	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE, out, tx);
+	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
 
 	return rc;
 }
@@ -752,10 +764,44 @@ int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
 	return rc;
 }
 
-void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
-				    struct c2_verno	*verno)
+int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
+				    struct c2_rpc_item		*item,
+				    struct c2_cob		**cob,
+				    struct c2_db_tx		*tx)
 {
+	struct c2_cob		*conn_cob;
+	struct c2_cob		*session_cob;
+	struct c2_cob		*slot_cob;
+	int			rc;
+	
+	C2_PRE(dom != NULL && item != NULL && slot_cob != NULL);
 
+	C2_PRE(item->ri_sender_id != SENDER_ID_INVALID &&
+		item->ri_session_id != SESSION_ID_INVALID);
+
+	printf("slot_lookup_by_item [%lu:%lu:%u]\n", item->ri_sender_id,
+			item->ri_session_id, item->ri_slot_id);
+
+	rc = c2_rpc_rcv_conn_lookup(dom, item->ri_sender_id, &conn_cob, tx);
+	if (rc != 0)
+		goto out;
+
+	rc = c2_rpc_rcv_session_lookup(conn_cob, item->ri_session_id,
+					&session_cob, tx);
+	if (rc != 0)
+		goto putconn;
+
+	rc = c2_rpc_rcv_slot_lookup(session_cob, item->ri_slot_id,
+					item->ri_slot_generation,
+					&slot_cob, tx);
+	*cob = slot_cob;
+	printf("read cob with : [%lu:%lu]\n", slot_cob->co_nsrec.cnr_stobid.si_bits.u_hi, 
+			slot_cob->co_nsrec.cnr_stobid.si_bits.u_lo);
+	c2_cob_put(session_cob);
+putconn:
+	c2_cob_put(conn_cob);
+out:
+	return rc;
 }
 /** @} end of session group */
 

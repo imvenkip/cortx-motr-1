@@ -49,9 +49,10 @@ extern const struct c2_table_ops c2_rpc_slot_table_ops;
    Copies all session related information from @req to @reply.
    Caches reply item @reply in persistent cache in the context of @tx.
  */
-extern int c2_rpc_session_reply_prepare(struct c2_rpc_item *req,
-				struct c2_rpc_item *reply,
-                                struct c2_db_tx *tx);
+extern int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
+					struct c2_rpc_item	*reply,
+					struct c2_cob_domain	*dom,
+                                	struct c2_db_tx		*tx);
 
 extern int c2_rpc_session_module_init(void);
 extern void c2_rpc_session_module_fini(void);
@@ -102,8 +103,10 @@ enum c2_rpc_session_seq_check_result {
    action to be taken.
    'reply_out' is valid only if return value is RESEND_REPLY.
  */
-enum c2_rpc_session_seq_check_result c2_rpc_session_item_received(
-                struct c2_rpc_item *item, struct c2_rpc_item **reply_out);
+enum c2_rpc_session_seq_check_result
+c2_rpc_session_item_received(struct c2_rpc_item		*item,
+			     struct c2_cob_domain 	*dom,
+			     struct c2_rpc_item 	**reply_out);
 
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
@@ -156,8 +159,11 @@ int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
-void c2_rpc_rcv_current_version_get(struct c2_cob	*cob,
-				    struct c2_verno	*verno);
+
+int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
+                                    struct c2_rpc_item          *item,
+                                    struct c2_cob               **slot_cob,
+                                    struct c2_db_tx             *tx);
 
 extern struct c2_stob_id	c2_root_stob_id;
 
