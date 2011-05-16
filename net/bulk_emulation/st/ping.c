@@ -241,7 +241,9 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
 	ctx->pc_ops->pf("%s: Msg Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
@@ -289,7 +291,9 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_SEND);
 	ctx->pc_ops->pf("%s: Msg Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
@@ -334,7 +338,9 @@ void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	ctx->pc_ops->pf("%s: Passive Recv CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
@@ -377,7 +383,9 @@ void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	struct ping_work_item *wi;
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
 	ctx->pc_ops->pf("%s: Passive Send CB\n", ctx->pc_ident);
 
 	if (ev->nev_status < 0) {
@@ -404,13 +412,17 @@ void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
 	C2_IMPOSSIBLE("Client: Active Recv CB\n");
 }
 
 void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_IMPOSSIBLE("Client: Active Send CB\n");
 }
 
@@ -418,8 +430,8 @@ void event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_NR);
-	if (ev->nev_next_state != C2_NET_TM_UNDEFINED) {
+	C2_ASSERT(ev->nev_type != C2_NET_EV_BUFFER_RELEASE);
+	if (ev->nev_type == C2_NET_EV_STATE_CHANGE) {
 		const char *s = "unexpected";
 		if (ev->nev_next_state == C2_NET_TM_STARTED)
 			s = "started";
@@ -430,10 +442,10 @@ void event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 		ctx->pc_ops->pf("%s: Event CB state change to %s, status %d\n",
 				ctx->pc_ident, s, ev->nev_status);
 		ctx->pc_status = ev->nev_status;
-	} else if (ev->nev_status < 0)
+	} else if (ev->nev_type == C2_NET_EV_ERROR)
 		ctx->pc_ops->pf("%s: Event CB for error %d\n",
 				ctx->pc_ident, ev->nev_status);
-	else
+	else if (ev->nev_type == C2_NET_EV_DIAGNOSTIC)
 		ctx->pc_ops->pf("%s: Event CB for diagnostic %d\n",
 				ctx->pc_ident, ev->nev_status);
 }
@@ -474,7 +486,9 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	int64_t count;
 	char idbuf[64];
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	count = c2_atomic64_add_return(&s_msg_recv_counter, 1);
 	ctx->pc_ops->pf("%s: Msg Recv CB %ld\n", idbuf, count);
@@ -574,7 +588,9 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	int rc;
 	char idbuf[64];
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_MSG_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_SEND);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	ctx->pc_ops->pf("%s: Msg Send CB\n", idbuf);
 
@@ -596,13 +612,17 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 
 void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_IMPOSSIBLE("Server: Passive Recv CB\n");
 }
 
 void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND);
 	C2_IMPOSSIBLE("Server: Passive Send CB\n");
 }
 
@@ -613,7 +633,9 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_msg msg;
 	char idbuf[64];
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	ctx->pc_ops->pf("%s: Active Recv CB\n", idbuf);
 
@@ -648,7 +670,9 @@ void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	char idbuf[64];
 
-	C2_ASSERT(ev->nev_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+		  ev->nev_buffer != NULL &&
+		  ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	ctx->pc_ops->pf("%s: Active Send CB\n", idbuf);
 

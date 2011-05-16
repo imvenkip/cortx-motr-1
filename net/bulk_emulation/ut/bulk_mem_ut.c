@@ -104,24 +104,52 @@ static void test_ep(void)
 	c2_net_domain_fini(&dom1);
 }
 
+static enum c2_net_ev_type cb_evt1;
+static enum c2_net_queue_type cb_qt1;
+static struct c2_net_buffer *cb_nb1;
+static enum c2_net_tm_state cb_tms1;
+static int32_t cb_status1;
+void tf_cb1(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	cb_evt1 = ev->nev_type;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
+		cb_nb1 = ev->nev_buffer;
+		cb_qt1 = cb_nb1->nb_qtype;
+	} else {
+		cb_nb1 = NULL;
+		cb_qt1 = C2_NET_QT_NR;
+	}
+	cb_tms1 = ev->nev_next_state;
+	cb_status1 = ev->nev_status;
+}
+
+static enum c2_net_ev_type cb_evt2;
+static enum c2_net_queue_type cb_qt2;
+static struct c2_net_buffer *cb_nb2;
+static enum c2_net_tm_state cb_tms2;
+static int32_t cb_status2;
+void tf_cb2(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	cb_evt2 = ev->nev_type;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
+		cb_nb2 = ev->nev_buffer;
+		cb_qt2 = cb_nb2->nb_qtype;
+	} else {
+		cb_nb2 = NULL;
+		cb_qt2 = C2_NET_QT_NR;
+	}
+	cb_tms2 = ev->nev_next_state;
+	cb_status2 = ev->nev_status;
+}
+
 static void test_failure(void)
 {
 	/* dom1 */
 	struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	enum c2_net_queue_type cb_qt1;
-	struct c2_net_buffer *cb_nb1;
-	enum c2_net_tm_state cb_tms1;
-	int32_t cb_status1;
 	struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
-					       cb_qt1 = ev->nev_qtype;
-					       cb_nb1 = ev->nev_buffer;
-					       cb_tms1 = ev->nev_next_state;
-					       cb_status1 = ev->nev_status;
-				       }),
+		.ntc_event_cb = tf_cb1
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,
@@ -135,18 +163,8 @@ static void test_failure(void)
  	struct c2_net_domain dom2 = {
 		.nd_xprt = NULL
 	};
-	enum c2_net_queue_type cb_qt2;
-	struct c2_net_buffer *cb_nb2;
-	enum c2_net_tm_state cb_tms2;
-	int32_t cb_status2;
 	struct c2_net_tm_callbacks cbs2 = {
-		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
-					       cb_qt2 = ev->nev_qtype;
-					       cb_nb2 = ev->nev_buffer;
-					       cb_tms2 = ev->nev_next_state;
-					       cb_status2 = ev->nev_status;
-				       }),
+		.ntc_event_cb = tf_cb2
 	};
 	struct c2_net_transfer_mc d2tm1 = {
 		.ntm_callbacks = &cbs2,
@@ -220,12 +238,14 @@ static void test_failure(void)
 	d1nb1.nb_length = 10; /* don't care */
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -ENETUNREACH);
@@ -263,12 +283,14 @@ static void test_failure(void)
 	d1nb1.nb_length = 10; /* don't care */
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -ENOBUFS);
@@ -285,8 +307,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 0);
 	C2_UT_ASSERT(qs.nqs_num_dels == 0);
-	C2_UT_ASSERT(cb_nb2 == NULL);
-	C2_UT_ASSERT(cb_tms2 == C2_NET_TM_UNDEFINED);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_ERROR);
 	C2_UT_ASSERT(cb_status2 == -ENOBUFS);
 
 	/* TEST
@@ -299,6 +320,7 @@ static void test_failure(void)
 	d2nb2.nb_ep = NULL;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
@@ -312,12 +334,14 @@ static void test_failure(void)
 	d1nb1.nb_length = 40;
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EMSGSIZE);
@@ -329,9 +353,11 @@ static void test_failure(void)
 
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb2);
 	C2_UT_ASSERT(d2nb2.nb_status == -EMSGSIZE);
+	C2_UT_ASSERT(cb_status2 == d2nb2.nb_status);
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
 	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
@@ -351,6 +377,7 @@ static void test_failure(void)
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
@@ -364,11 +391,13 @@ static void test_failure(void)
 	d1nb1.nb_length = 10;
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EACCES);
@@ -382,6 +411,7 @@ static void test_failure(void)
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
@@ -405,6 +435,7 @@ static void test_failure(void)
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
@@ -418,11 +449,13 @@ static void test_failure(void)
 	d1nb1.nb_length = 10;
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EPERM);
@@ -436,6 +469,7 @@ static void test_failure(void)
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
@@ -459,6 +493,7 @@ static void test_failure(void)
 	d2nb2.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
@@ -472,11 +507,13 @@ static void test_failure(void)
 	d1nb1.nb_length = 40; /* larger than d2nb2 */
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -EFBIG);
@@ -489,6 +526,7 @@ static void test_failure(void)
 
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb2);
 	C2_UT_ASSERT(d2nb2.nb_status == -EFBIG);
@@ -515,6 +553,7 @@ static void test_failure(void)
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
@@ -528,6 +567,7 @@ static void test_failure(void)
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);
@@ -537,6 +577,7 @@ static void test_failure(void)
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	cb_evt2 = C2_NET_EV_NR;
 	cb_qt2 = C2_NET_QT_NR;
 	cb_nb2 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
@@ -555,11 +596,13 @@ static void test_failure(void)
 	d1nb1.nb_length = 10;
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
+	cb_evt1 = C2_NET_EV_NR;
 	cb_qt1 = C2_NET_QT_NR;
 	cb_nb1 = NULL;
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(cb_evt1 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_ACTIVE_BULK_SEND);
 	C2_UT_ASSERT(cb_nb1 == &d1nb1);
 	C2_UT_ASSERT(d1nb1.nb_status == -ENOENT);
@@ -573,6 +616,7 @@ static void test_failure(void)
 	c2_net_buffer_del(&d2nb1, &d2tm1);
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(cb_evt2 == C2_NET_EV_BUFFER_RELEASE);
 	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(cb_nb2 == &d2nb1);
 	C2_UT_ASSERT(d2nb1.nb_status == -ECANCELED);

@@ -27,9 +27,24 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
 void c2_net__domain_fini(struct c2_net_domain *dom);
 
 /*
-  Validates the value of queue type.
+  Validates the value of buffer queue type.
  */
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt);
+
+/*
+  Validate transfer machine state
+*/
+bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts);
+
+/*
+  Event invariant
+*/
+bool c2_net__event_invariant(struct c2_net_event *ev);
+
+/*
+  Validates the event type.
+*/
+bool c2_net__ev_type_is_valid(enum c2_net_ev_type et);
 
 /*
   Buffer checks for a registered buffer.

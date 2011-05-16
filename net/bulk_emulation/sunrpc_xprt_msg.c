@@ -79,7 +79,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	C2_POST(rc <= 0);
 	struct c2_net_event ev = {
-		.nev_qtype   = nb->nb_qtype,
+		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm      = tm,
 		.nev_buffer  = nb,
 		.nev_status  = rc,

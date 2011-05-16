@@ -25,7 +25,7 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
 	C2_PRE(nb->nb_status <= 0);
 	struct c2_net_event ev = {
-		.nev_qtype   = nb->nb_qtype,
+		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm      = tm,
 		.nev_buffer  = nb,
 		.nev_status  = nb->nb_status,
@@ -157,7 +157,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	C2_POST(rc <= 0);
 	struct c2_net_event ev = {
-		.nev_qtype   = nb->nb_qtype,
+		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm      = tm,
 		.nev_buffer  = nb,
 		.nev_status  = rc,

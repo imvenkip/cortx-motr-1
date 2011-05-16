@@ -49,6 +49,44 @@ static void test_sunrpc_ep(void)
 	c2_net_domain_fini(&dom1);
 }
 
+static enum c2_net_ev_type cb_evt1;
+static enum c2_net_queue_type cb_qt1;
+static struct c2_net_buffer *cb_nb1;
+static enum c2_net_tm_state cb_tms1;
+static int32_t cb_status1;
+void sunrpc_tf_cb1(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	cb_evt1 = ev->nev_type;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
+		cb_nb1 = ev->nev_buffer;
+		cb_qt1 = cb_nb1->nb_qtype;
+	} else {
+		cb_nb1 = NULL;
+		cb_qt1 = C2_NET_QT_NR;
+	}
+	cb_tms1 = ev->nev_next_state;
+	cb_status1 = ev->nev_status;
+}
+
+static enum c2_net_ev_type cb_evt2;
+static enum c2_net_queue_type cb_qt2;
+static struct c2_net_buffer *cb_nb2;
+static enum c2_net_tm_state cb_tms2;
+static int32_t cb_status2;
+void sunrpc_tf_cb2(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+{
+	cb_evt2 = ev->nev_type;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
+		cb_nb2 = ev->nev_buffer;
+		cb_qt2 = cb_nb2->nb_qtype;
+	} else {
+		cb_nb2 = NULL;
+		cb_qt2 = C2_NET_QT_NR;
+	}
+	cb_tms2 = ev->nev_next_state;
+	cb_status2 = ev->nev_status;
+}
+
 static void test_sunrpc_desc(void)
 {
 	struct c2_net_domain dom1 = {
@@ -56,14 +94,8 @@ static void test_sunrpc_desc(void)
 	};
 	struct c2_net_end_point *ep1, *ep2;
 
-	enum c2_net_queue_type cb_qt1;
-	struct c2_net_buffer *cb_nb1;
 	struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
-					       cb_qt1 = ev->nev_qtype;
-					       cb_nb1 = ev->nev_buffer;
-				       }),
+		.ntc_event_cb = sunrpc_tf_cb1
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,
@@ -221,18 +253,8 @@ static void test_sunrpc_failure(void)
 	struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	enum c2_net_queue_type cb_qt1;
-	struct c2_net_buffer *cb_nb1;
-	enum c2_net_tm_state cb_tms1;
-	int32_t cb_status1;
 	struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
-					       cb_qt1 = ev->nev_qtype;
-					       cb_nb1 = ev->nev_buffer;
-					       cb_tms1 = ev->nev_next_state;
-					       cb_status1 = ev->nev_status;
-				       }),
+		.ntc_event_cb = sunrpc_tf_cb1
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,
@@ -246,18 +268,8 @@ static void test_sunrpc_failure(void)
  	struct c2_net_domain dom2 = {
 		.nd_xprt = NULL
 	};
-	enum c2_net_queue_type cb_qt2;
-	struct c2_net_buffer *cb_nb2;
-	enum c2_net_tm_state cb_tms2;
-	int32_t cb_status2;
 	struct c2_net_tm_callbacks cbs2 = {
-		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
-					       cb_qt2 = ev->nev_qtype;
-					       cb_nb2 = ev->nev_buffer;
-					       cb_tms2 = ev->nev_next_state;
-					       cb_status2 = ev->nev_status;
-				       }),
+		.ntc_event_cb = sunrpc_tf_cb2
 	};
 	struct c2_net_transfer_mc d2tm1 = {
 		.ntm_callbacks = &cbs2,

@@ -23,9 +23,8 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	int rc;
 	struct c2_net_event ev = {
-		.nev_qtype = C2_NET_QT_NR,
-		.nev_tm = tm,
-		.nev_buffer = NULL,
+		.nev_type   = C2_NET_EV_STATE_CHANGE,
+		.nev_tm     = tm,
 		.nev_status = 0
 	};
 	c2_time_now(&ev.nev_time);
@@ -83,7 +82,7 @@ static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
 	C2_POST(nb->nb_status <= 0);
 	struct c2_net_event ev = {
-		.nev_qtype   = nb->nb_qtype,
+		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm      = tm,
 		.nev_buffer  = nb,
 		.nev_status  = -ECANCELED,
@@ -103,10 +102,8 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_event ev = {
-		.nev_qtype = C2_NET_QT_NR,
-		.nev_tm = tm,
-		.nev_buffer = NULL,
-		.nev_next_state = C2_NET_TM_UNDEFINED,
+		.nev_type   = C2_NET_EV_ERROR,
+		.nev_tm     = tm,
 		.nev_status = wi->xwi_status,
 	};
 

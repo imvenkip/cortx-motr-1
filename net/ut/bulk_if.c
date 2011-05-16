@@ -169,7 +169,7 @@ static void ut_post_del_thread(struct c2_net_buffer *nb)
 {
 	int rc;
 	struct c2_net_event ev = {
-		.nev_qtype = nb->nb_qtype,
+		.nev_type = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm = nb->nb_tm,
 		.nev_buffer = nb,
 		.nev_status = 0,
@@ -228,9 +228,8 @@ static void ut_post_state_change_ev_thread(int n)
 {
 	int rc;
 	struct c2_net_event ev = {
-		.nev_qtype = C2_NET_QT_NR,
+		.nev_type = C2_NET_EV_STATE_CHANGE,
 		.nev_tm = &ut_tm,
-		.nev_buffer = NULL,
 		.nev_status = 0,
 		.nev_next_state = (enum c2_net_tm_state) n
 	};
@@ -342,9 +341,9 @@ void make_desc(struct c2_net_buf_desc *desc)
 /* callback subs */
 #define UT_CB_CALL(qt)							 \
 ({									 \
-	C2_UT_ASSERT(ev->nev_qtype == qt);				 \
+	C2_UT_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE);		 \
 	C2_UT_ASSERT(ev->nev_buffer != NULL);				 \
-	C2_UT_ASSERT(ev->nev_buffer->nb_qtype == ev->nev_qtype);	 \
+	C2_UT_ASSERT(ev->nev_buffer->nb_qtype == qt); 			 \
 	ut_cb_calls[qt]++;						 \
 	total_bytes[qt] += ev->nev_buffer->nb_length;			 \
 	max_bytes[qt] = max64u(ev->nev_buffer->nb_length,max_bytes[qt]); \
@@ -393,9 +392,10 @@ static int ut_event_cb_calls = 0;
 void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	ut_event_cb_calls++;
-	if (ev->nev_qtype != C2_NET_QT_NR) {
-		UT_CB_CALL(ev->nev_qtype);
-		ut_cb_calls[ev->nev_qtype]--;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {
+		C2_UT_ASSERT(ev->nev_buffer != NULL);
+		UT_CB_CALL(ev->nev_buffer->nb_qtype);
+		ut_cb_calls[ev->nev_buffer->nb_qtype]--;
 	}
 }
 
@@ -403,9 +403,10 @@ static int ut_tm_event_cb_calls = 0;
 void ut_tm_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 {
 	ut_tm_event_cb_calls++;
-	if (ev->nev_qtype != C2_NET_QT_NR){
-		UT_CB_CALL(ev->nev_qtype);
-		ut_cb_calls[ev->nev_qtype]--;
+	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {
+		C2_UT_ASSERT(ev->nev_buffer != NULL);
+		UT_CB_CALL(ev->nev_buffer->nb_qtype);
+		ut_cb_calls[ev->nev_buffer->nb_qtype]--;
 	}
 }
 
@@ -668,11 +669,10 @@ void test_net_bulk_if(void)
 	for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		struct c2_net_event ev = {
-			.nev_qtype = i,
+			.nev_type = C2_NET_EV_BUFFER_RELEASE,
 			.nev_tm = tm,
 			.nev_buffer = nb,
 			.nev_status = 0,
-			.nev_payload = NULL
 		};
 		c2_time_now(&ev.nev_time);
 
