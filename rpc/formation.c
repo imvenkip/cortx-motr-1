@@ -594,9 +594,9 @@ unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
  */
 int c2_rpc_form_change_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, void *pvt)
 {
-	int									 res = 0;
+	int					 res = 0;
 	struct c2_rpc_form_item_change_req	*chng_req = NULL;
-	int									 field_type = 0;
+	int					 field_type = 0;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
@@ -815,14 +815,14 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
    Add an rpc item to the formed list of an rpc object.
  */
 int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item,
-		uint64_t *rpcobj_size, unit64_t *nfragments, struct c2_list *forming_list)
+		uint64_t *rpcobj_size, uint64_t *nfragments, struct c2_list *forming_list)
 {
-	int						 res = 0;
-	uint64_t				 item_size = 0;
-	struct c2_update_stream	*item_update_stream = NULL;
-	bool					 update_stream_busy = false;
-	bool					 io_op = false;
-	uint64_t				 current_fragments = 0;
+	int				 res = 0;
+	uint64_t			 item_size = 0;
+	struct c2_update_stream		*item_update_stream = NULL;
+	bool				 update_stream_busy = false;
+	bool				 io_op = false;
+	uint64_t			 current_fragments = 0;
 	struct c2_time_t		 now;
 
 	C2_PRE(endp_unit != NULL);
@@ -903,6 +903,7 @@ int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 	}
 	return 0;
 }
+
 /**
    Coalesce the multiple read IO vectors into one.
  */
@@ -1160,21 +1161,21 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
-	int											 res = 0;
-	struct c2_rpc_item							*req_item = NULL;
+	int							 res = 0;
+	struct c2_rpc_item					*req_item = NULL;
 	struct c2_rpc_form_item_coalesced			*coalesced_item = NULL;
-	struct c2_list								*forming_list = NULL;
+	struct c2_list						*forming_list = NULL;
 	struct c2_rpc_form_items_cache				*cache_list = NULL;
-	uint64_t									 rpcobj_size = 0;
-	uint64_t									 item_size = 0;
-	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
-	uint64_t									 group_size = 0;
-	uint64_t									 partial_size = 0;
-	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
-	uint64_t									 nselected_groups = 0;
-	uint64_t									 ncurrent_groups = 0;
-	uint64_t									 nfragments = 0;
-	struct c2_rpc_form_rpcobj					*rpcobj = NULL;
+	uint64_t						 rpcobj_size = 0;
+	uint64_t						 item_size = 0;
+	struct c2_rpc_form_item_summary_unit_group		*sg = NULL;
+	uint64_t						 group_size = 0;
+	uint64_t						 partial_size = 0;
+	struct c2_rpc_form_item_summary_unit_group		*group= NULL;
+	uint64_t						 nselected_groups = 0;
+	uint64_t						 ncurrent_groups = 0;
+	uint64_t						 nfragments = 0;
+	struct c2_rpc_form_rpcobj				*rpcobj = NULL;
 
 	printf("In state: checking\n");
 	C2_PRE(item != NULL);
@@ -1307,10 +1308,10 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
-	int							 res = 0;
+	int				 res = 0;
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	*rpcobj_next = NULL;
-	struct c2_rpc_item			*rpc_item = NULL;
+	struct c2_rpc_item		*rpc_item = NULL;
 	struct c2_update_stream		*item_update_stream = NULL;
 
 	C2_PRE(item != NULL);
@@ -1350,8 +1351,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		,struct c2_rpc_item *item, int event, void *pvt)
 {
-	int							 res = 0;
-	int							 ret = 0;
+	int				 res = 0;
+	int				 ret = 0;
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	printf("In state: posting\n");

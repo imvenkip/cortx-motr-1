@@ -3,6 +3,13 @@
 
 #include "rpc/rpccore.h"
 #include "rpc/session.h"
+#include "lib/timer.h"
+#include "lib/list.h"
+#include "lib/mutex.h"
+#include "lib/rwlock.h"
+#include "ioservice/io_fops_u.h"
+#include "ioservice/io_fops.h"
+#include "lib/refs.h"
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -469,6 +476,80 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
    Add an endpoint structure when the first rpc item gets added
    for an endpoint. */
 static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(const struct c2_net_endpoint *endp);
+
+/**
+   Callback used to trigger the "deadline expired" event
+   for an rpc item.
+ */
+unsigned long c2_rpc_form_item_timer_callback(unsigned long data);
+
+/**
+   Change the data of an rpc item embedded within the
+   endpoint unit structure.
+ */
+int c2_rpc_form_change_rpcitem_from_summary_unit(struct
+		c2_rpc_form_item_summ ary_unit *endp_unit,
+		struct c2_rpc_item *item, void *pvt);
+
+/**
+   Remove the data of an rpc item embedded within the endpoint unit
+   structure.
+ */
+int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item);
+
+/**
+   Sort the c2_rpc_form_item_summary_unit_group structs according to
+   increasing value of average timeout.
+ */
+int c2_rpc_form_summary_groups_sort(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_form_item_summary_unit_group *summary_group);
+
+
+/**
+   Update the summary_unit data structure on addition of
+   an rpc item.
+ */
+int c2_rpc_form_add_rpcitem_to_summary_unit(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item);
+
+/**
+   Add an rpc item to the formed list of an rpc object.
+ */
+int c2_rpc_form_item_add_to_forming_list(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item, uint64_t *rpcobj_size,
+		uint64_t *nfragments, struct c2_list *forming_list);
+/**
+   Coalesce the multiple write IO vectors into one.
+ */
+int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
+		struct c2_list *aggr_list, int *res_segs);
+
+/**
+   Coalesce the multiple read IO vectors into one.
+ */
+int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_vec,
+		struct c2_list *aggr_list, int *res_segs);
+
+/**
+   This is a rpc_item_type_op and is registered with associated
+   rpc item. Coalesce IO vectors from a list of rpc items into one
+   and arrange the IO vector in increasing order of file offset.
+ */
+int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
+		*coalesced_item);
+
+/**
+   Coalesce possible rpc items and replace them by a aggregated
+   rpc item.
+ */
+int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
+		struct c2_list *forming_list, uint64_t *rpcobj_size);
+
 
 /**
    A default handler function for invoking all state functions
