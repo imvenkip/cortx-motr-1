@@ -74,7 +74,7 @@
    * pass through the sub sequent states as states succeed and exit
  */
 
-/* XXX A lot of data structures here, use a c2_list. Instead a 
+/* XXX A lot of data structures here, use a c2_list. Instead a
    hash function will be used to enhance the performance. This will
    be done after UT of rpc formation. */
 
@@ -107,7 +107,7 @@ struct c2_rpc_form_item_summary {
 };
 
 /**
-   The global instance of summary data structure. 
+   The global instance of summary data structure.
  */
 extern struct c2_rpc_form_item_summary	formation_summary;
 
@@ -193,7 +193,7 @@ struct c2_rpc_form_item_summary_unit {
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 isu_max_rpcs_in_flight;
 	uint64_t			 isu_curr_rpcs_in_flight;
-	/** List of formed RPC objects kept with formation. The 
+	/** List of formed RPC objects kept with formation. The
 	    POSTING state will send RPC objects from this list
 	    to the output component.
 	    c2_list <struct c2_rpc_form_rpcobj> */
@@ -202,7 +202,7 @@ struct c2_rpc_form_item_summary_unit {
 	    by CHECKING state while FORMING state removes rpc objects
 	    from this list, populates sessions information for all
 	    member rpc items and puts the rpc object on formed list of
-	    rpc objects. 
+	    rpc objects.
 	    c2_list <struct c2_rpc_form_rpcobj>*/
 	struct c2_list			isu_rpcobj_checked_list;
 	/** List of unformed rpc items. */
@@ -250,7 +250,7 @@ struct c2_rpc_form_item_coalesced {
 };
 
 /**
-   Member rpc item coalesced into one rpc item. 
+   Member rpc item coalesced into one rpc item.
  */
 struct c2_rpc_form_item_coalesced_member {
 	/** Linkage into list of such member rpc items. */
@@ -306,11 +306,11 @@ struct c2_rpc_form_item_summary_unit_group {
 };
 
 /**
-   This is a wrapper structure around struct c2_rpc to engage 
-   rpc objects in a list. 
+   This is a wrapper structure around struct c2_rpc to engage
+   rpc objects in a list.
  */
 struct c2_rpc_form_rpcobj {
-	/** Linkage into list of c2_rpc 
+	/** Linkage into list of c2_rpc
 	    from struct c2_rpc_form_rpcobj_list */
 	struct c2_list_link		 ro_linkage;
 	/** Actual rpc object. */
@@ -376,7 +376,7 @@ enum c2_rpc_form_int_event {
 };
 
 /**
-   Initialization for formation component in rpc. 
+   Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
    necessary data structures.
  */
@@ -454,8 +454,8 @@ static void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit
 struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
 
 /**
-   Call the completion callbacks for member rpc items of 
-   a coalesced rpc item. 
+   Call the completion callbacks for member rpc items of
+   a coalesced rpc item.
  */
 static int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesced *coalesced_struct);
 
@@ -484,8 +484,8 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(c
    @param item - incoming rpc item needed for external events.
    @param event - event posted to the state machine.
  */
-static int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
-		struct c2_rpc_form_item_summary_unit *endp_unit, 
+static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
+		struct c2_rpc_form_item_summary_unit *endp_unit,
 		int state, int event, void *pvt);
 
 /**
@@ -504,7 +504,7 @@ enum c2_rpc_form_item_change_fields {
 
 struct c2_rpc_form_item_change_req {
 	/* Specifies which field is going to change. */
-	enum 			 field_type;
+	enum			 field_type;
 	/* New value of the field. */
 	void			*value;
 };
