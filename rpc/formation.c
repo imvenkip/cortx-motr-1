@@ -459,7 +459,7 @@ int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 				break;
 			}
 		}
-		if (found == true) {
+		if (found) {
 			c2_mutex_lock(endp_unit->isu_unit_lock);
 			c2_ref_get(&endp_unit->isu_ref);
 			c2_rwlock_write_unlock(&formation_summary.is_endp_list_lock);
@@ -720,7 +720,7 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct c2_rpc_form_item_summary
 			break;
 		}
 	}
-	if (found == false) {
+	if (!found) {
 		return 0;
 	}
 
@@ -798,7 +798,7 @@ int c2_rpc_form_add_rpcitem_to_summary_unit(struct c2_rpc_form_item_summary_unit
 			break;
 		}
 	}
-	if (found == false) {
+	if (!found) {
 		summary_group = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit_group));
 		if(summary_group == NULL) {
 			printf("Failed to allocate memory for a new c2_rpc_form_item_summary_unit_group structure.\n");
@@ -896,7 +896,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 	C2_PRE(rpcobj_size != NULL);
 
 	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
-	if (io_op == true) {
+	if (io_op) {
 		/* XXX Implement a method to find out disjoint memory buffers. */
 		current_fragments = item->ri_type->rit_ops->rio_get_io_fragment_count(item);
 		if ((*nfragments + current_fragments) > endp_unit->isu_max_fragments_size)
@@ -908,7 +908,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 		item_update_stream = c2_rpc_get_update_stream(item);
 		/** XXX Need this API from rpc-core. */
 		update_stream_busy = c2_rpc_get_update_stream_status(item_update_stream);
-		if(update_stream_busy != true) {
+		if(!update_stream_busy) {
 			/** XXX Need this API from rpc-core. */
 			c2_rpc_set_update_stream_status(item_update_stream, BUSY);
 			/* XXX Need a rpbobject_linkage in c2_rpc_item. */
@@ -1159,7 +1159,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 					break;
 				}
 			}
-			if (fid_found == false) {
+			if (!fid_found) {
 				fid_member = c2_alloc(sizeof(struct c2_rpc_form_fid_summary_member));
 				if (fid_member == NULL) {
 					printf("Failed to allocate memory for struct c2_rpc_form_fid_summary_member\n");
