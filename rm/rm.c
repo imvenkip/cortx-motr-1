@@ -307,106 +307,6 @@ static int right_copy(const struct c2_rm_right *right,
 		return -1;
 }
 
-
-/**
-* @brief 
-*
-* @param r0
-* @param r1
-*
-* @return true if r0 implies r1.
-*/
-static bool right_intersects(const struct c2_rm_right *r0,
-			     const struct c2_rm_right *r1)
-{
-	if (r1->ri_datum <= r0->ri_datum)
-		return true;
-	else
-		return false;
-}
-
-static int shift_count(uint64_t value)
-{
-	int shifts = 0;
-
-	do {
-		value = value >> 1;
-		shifts++;
-	} while (value != 0x1);
-
-	return shifts;
-}
-
-/**
-* @brief 
-*
-* @pre r0 implies r1(Intersects)
-* @param r0
-* @param r1
-*
-* @return 
-*/
-static struct c2_rm_right *right_diff(struct c2_rm_right *r0,
-				      const struct c2_rm_right *r1)
-{
-	int r0_value;
-	int r1_value;
-
-	if (right_intersects(r0, r1)) {
-		r0_value = shift_count(r0->ri_datum);
-		r1_value = shift_count(r1->ri_datum);
-		if (r1_value == r0_value)
-			r0->ri_datum = 0;
-		else
-			r0->ri_datum = 1 << (r1_value - r0_value);
-	}
-
-	return r0;
-}
-
-
-/**
-* @brief Intersection ("meet") is defined as a largest right
-*        implied by both original rights
-*
-* @param r0
-* @param r1
-*
-* @return 
-*/
-static struct c2_rm_right *right_meet(struct c2_rm_right *r0,
-				      const struct c2_rm_right *r1)
-{
-	if(r1->ri_datum <= r0->ri_datum)
-		r0->ri_datum = r1->ri_datum >> 1;
-	else
-		r0->ri_datum = r0->ri_datum >> 1;
-		
-	return r0;
-}
-
-/**
-* @brief Union ("join") is defined as a smallest right that implies
-*        both original rights
-*
-* @param r0
-* @param r1
-*
-* @return 
-*/
-#if 0
-static struct c2_rm_right *right_join(struct c2_rm_right *r0,
-				      const struct c2_rm_right *r1)
-{
-	if(r1->ri_datum >= r0->ri_datum)
-		r0->ri_datum = r1->ri_datum << 1;
-	else
-		r0->ri_datum = r0->ri_datum << 1;
-		
-	return r0;
-}
-#endif
-
 /**
 * @brief resource type private field. By convention, 0 means "empty"
 *        right. 
@@ -765,9 +665,9 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		c2_list_for_each_entry(&o->ro_owned[i], right,
 				       struct c2_rm_right, ri_linkage) {
-			if (right_intersects(right,rest)) {
+			if (rest->ri_ops->rro_implies(right,rest)) {
 				if (!coverage) {
-					rest = right_diff(rest,right);
+					rest->ri_ops->rro_diff(rest,right);
 					if (right_empty(rest))
 						return;
 				}
@@ -788,9 +688,9 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 	struct c2_rm_owner *o = in->rin_owner;
 
 	c2_list_for_each_entry(&o->ro_sublet, right,
-				struct c2_rm_right, ri_linkage) {
-		if (right_intersects(right,rest)) {
-			rest = right_diff(rest, right);
+			       struct c2_rm_right, ri_linkage) {
+		if (rest->ri_ops->rro_implies(right,rest)) {
+			rest->ri_ops->rro_diff(rest, right);
 			loan = container_of(right, struct c2_rm_loan, rl_right);
 			/*
 			 * It is possible that this loop emits multiple
@@ -798,7 +698,8 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 			 * owner. Don't bother to coalesce them here. The rpc
 			 * layer would do this more efficiently.
 			 */
-			go_out(in, ROT_REVOKE, loan, right_meet(rest, right));
+			rest->ri_ops->rro_meet(rest, right);
+			go_out(in, ROT_REVOKE, loan, rest);
 		}
 	}
 }
@@ -859,12 +760,12 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 			ex_out = container_of(out_loan, 
 					      struct c2_rm_outgoing, rog_want);
 			if (ex_out->rog_type == otype && 
-					right_intersects(out_right, right)) {
+				right->ri_ops->rro_implies(out_right, right)) {
 				/* @todo adjust outgoing requests priority 
 				 * (priority inheritance) */
 				result = pin_add(in, out_right);
 				C2_ASSERT(result == 0);
-				right = right_diff(right, out_right);
+				right->ri_ops->rro_diff(right, out_right);
 				found = true;
 				break;
 			}
