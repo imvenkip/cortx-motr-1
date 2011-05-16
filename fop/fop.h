@@ -111,6 +111,10 @@ struct c2_fop_type_ops {
 	/** fol record type operations for this fop type, or NULL is standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+	/** Create a new IO fop (read/write) and populate it with the
+	    IO vector given as an input.*/
+	int (*fto_get_io_fop)(struct c2_fop *in, struct c2_fop *res,
+			void *seg);
 };
 
 /**

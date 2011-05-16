@@ -397,7 +397,53 @@ static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_recovery_complete = us_recovery_complete
 };
 
+/**
+   RPC Item type ops
+ */
 
+/**
+   RPC item ops function
+   Function to return new rpc item embedding the given read segment, 
+   by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item, 
+		struct c2_rpc_item *res_item, struct c2_fop_segment_seq *seg)
+{
+	struct c2_fop			*fop = NULL;
+	struct c2_fop			*res_fop = NULL;
+	int 				 res = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_io_fop(fop, &res_fop, seg);
+	res_item = res_fop->f_item;
+	return 0;
+}
+
+/**
+   RPC item ops function
+   Function to return new rpc item embedding the given write vector, 
+   by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item, 
+		struct c2_rpc_item *res_item, struct c2_fop_io_vec *vec)
+{
+	struct c2_fop			*fop = NULL;
+	struct c2_fop			*res_fop = NULL;
+	int 				 res = 0;
+	
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_io_fop(&res_fop, vec);
+	res_item = res_fop->f_item;
+	return 0;
+}
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
