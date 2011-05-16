@@ -177,9 +177,6 @@ struct c2_rpc_form_item_summary_unit {
 	/** List of structures containing data for each group. */
 	/** c2_list <struct c2_rpc_form_item_summary_unit_group>*/
 	struct c2_list			 isu_groups_list;
-	/** List of files being operated upon, for this endpoint. */
-	/** c2_list <struct >*/
-	struct c2_list			 isu_file_list;
 	/** State of the state machine for this endpoint.
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
@@ -209,8 +206,8 @@ struct c2_rpc_form_item_summary_unit {
 	    c2_list <struct c2_rpc_form_rpcobj>*/
 	struct c2_list			isu_rpcobj_checked_list;
 	/** List of unformed rpc items. */
-	/** c2_list <struct >*/
-	struct c2_list			isu_unformed_items;
+	/** c2_list <struct c2_rpc_item>*/
+	struct c2_list			isu_unformed_list;
 	/** List of fids on which IO requests are made in this rpc group. */
 	/** c2_list <struct c2_rpc_form_fid_summary_member > */
 	struct c2_list			isu_fid_list;
@@ -440,41 +437,38 @@ stateFunc c2_rpc_form_stateTable
    @param current_state - current state of state machine.
    @param current_event - current event posted to the state machine.
  */
-stateFunc c2_rpc_form_next_state(int current_state, int current_event);
+static stateFunc c2_rpc_form_next_state(const int current_state, const int current_event);
 
 /**
    Exit path from a state machine. An incoming thread which executed
    the formation state machine so far, is let go and it will return
    to do its own job. */
-void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit *endp_unit, int state, int event);
+static void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit
+		*endp_unit);
 
 /**
    Get the endpoint given an rpc item.
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
  */
-struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
-{
-	/* XXX Need to be defined */
-	return item->endpoint;
-}
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
 
 /**
    Call the completion callbacks for member rpc items of 
    a coalesced rpc item. 
  */
-int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesced *coalesced_struct);
+static int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesced *coalesced_struct);
 
 /**
    Destroy an endpoint structure since it no longer contains
    any rpc items.
  */
-void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
+static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
 
 /**
    Add an endpoint structure when the first rpc item gets added
    for an endpoint. */
-struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp);
+static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(const struct c2_net_endpoint *endp);
 
 /**
    A default handler function for invoking all state functions
@@ -490,7 +484,7 @@ struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(int endp
    @param item - incoming rpc item needed for external events.
    @param event - event posted to the state machine.
  */
-int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
+static int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
 		int state, int event, void *pvt);
 
@@ -503,7 +497,9 @@ enum c2_rpc_form_item_change_fields {
 	/** Change deadline of item. */
 	C2_RPC_ITEM_CHANGE_DEADLINE,
 	/** Change rpc group of item. */
-	C2_RPC_ITEM_CHANGE_RPCGROUP
+	C2_RPC_ITEM_CHANGE_RPCGROUP,
+	/** Max number of fields subject to change.*/
+	C2_RPC_ITEM_N_CHANGES,
 };
 
 struct c2_rpc_form_item_change_req {
@@ -519,7 +515,7 @@ struct c2_rpc_form_item_change_req {
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_added_in_cache(const struct c2_rpc_item *item);
 
 /**
    Callback function for deletion of an rpc item from the rpc items cache.
@@ -527,7 +523,7 @@ int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_deleted_from_cache(const struct c2_rpc_item *item);
 
 /**
    Callback function for change in parameter of an rpc item.
@@ -535,7 +531,8 @@ int c2_rpc_form_extevt_rpcitem_deleted_from_cache(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item, int field_type, void *value);
+int c2_rpc_form_extevt_rpcitem_changed(const struct c2_rpc_item *item,
+		const int field_type, const void *value);
 
 /**
    Callback function for reply received of an rpc item.
@@ -543,7 +540,7 @@ int c2_rpc_form_extevt_rpcitem_changed(struct c2_rpc_item *item, int field_type,
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_reply_received(const struct c2_rpc_item *rep_item, const struct c2_rpc_item *req_item);
 
 /**
    Callback function for deadline expiry of an rpc item.
@@ -551,7 +548,7 @@ int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_deadline_expired(const struct c2_rpc_item *item);
 
 /**
    Callback function for successful completion of a state.
@@ -560,7 +557,9 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
    for state succeeded event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, int state);
+int c2_rpc_form_intevt_state_succeeded(const struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		const struct c2_rpc_item *item, const int state);
 
 /**
    Callback function for failure of a state.
@@ -569,7 +568,9 @@ int c2_rpc_form_intevt_state_succeeded(struct c2_rpc_form_item_summary_unit *end
    for state failed event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_failed(struct c2_rpc_form_item_summary_unit *endp_unit, struct c2_rpc_item *item, int state);
+int c2_rpc_form_intevt_state_failed(const struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		const struct c2_rpc_item *item, const int state);
 
 /**
    Function to do the coalescing of related rpc items.
