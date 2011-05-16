@@ -23,7 +23,7 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(nb->nb_status <= 0);
+	C2_PRE(nb->nb_status <= 0);
 	struct c2_net_event ev = {
 		.nev_qtype   = nb->nb_qtype,
 		.nev_tm      = tm,
@@ -33,7 +33,6 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 	};
 	c2_time_now(&ev.nev_time);
 	(void)c2_net_tm_event_post(tm, &ev);
-	return;
 }
 
 /**
@@ -97,7 +96,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* We're now operating on the destination TM while holding
 		   its mutex.  The destination TM is operative.
-		*/
+		 */
 
 		/* locate the passive buffer */
 		struct c2_net_buffer *passive_nb = NULL;
@@ -145,7 +144,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */
-	} while(0);
+	} while (0);
 
 	/* release the destination TM mutex */
 	if (passive_tm != NULL)
@@ -165,8 +164,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
-	return;
+	(void) c2_net_tm_event_post(tm, &ev);
 }
 
 /**

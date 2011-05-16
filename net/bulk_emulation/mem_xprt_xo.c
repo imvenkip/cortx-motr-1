@@ -30,7 +30,7 @@ static struct c2_list  mem_domains;
    Dependency information must be captured in Makefile.am.
 
    Static functions should be declared in the private header file
-   so that the order of their definiton does not matter.
+   so that the order of their definition does not matter.
 */
 #include "mem_xprt_ep.c"
 #include "mem_xprt_tm.c"
@@ -495,7 +495,7 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
    Finalize a transfer machine.
    @param tm Transfer machine pointer
    @retval 0 on success
-   @retval -EBUSY if cannot be finialized.
+   @retval -EBUSY if cannot be finalized.
  */
 static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {

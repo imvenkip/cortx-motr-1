@@ -76,7 +76,7 @@ enum c2_net_bulk_mem_work_opcode {
 	C2_NET_XOP_CANCEL_CB,
 	/** perform a message received callback */
 	C2_NET_XOP_MSG_RECV_CB,
-	/** permform a message send operation and callback */
+	/** perform a message send operation and callback */
 	C2_NET_XOP_MSG_SEND,
 	/** perform a passive bulk buffer completion callback */
 	C2_NET_XOP_PASSIVE_BULK_CB,
@@ -192,7 +192,7 @@ struct c2_net_bulk_mem_end_point {
 	*/
 	uint32_t                 xep_service_id;
 
-	/** Externally visible end point in the TM. */
+	/** Externally visible end point in the domain. */
 	struct c2_net_end_point  xep_ep;
 
 	/** Storage for the printable address */

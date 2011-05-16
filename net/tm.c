@@ -199,8 +199,9 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 		goto done;
 	}
 
-	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_fini(tm);
-	if (result >= 0) {
+	result = dom->nd_xprt->nx_ops->xo_tm_fini(tm);
+	C2_ASSERT(result <= 0);
+	if (result == 0) {
 		if (tm->ntm_ep != NULL) {
 			c2_ref_put(&tm->ntm_ep->nep_ref);
 			tm->ntm_ep = NULL;

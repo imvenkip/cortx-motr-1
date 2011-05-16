@@ -47,18 +47,18 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 			       nep_dom_linkage) {
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
-		if (mep->xep_sa.sin_addr.s_addr == sa->sin_addr.s_addr &&
-		    mep->xep_sa.sin_port        == sa->sin_port &&
-		    mep->xep_service_id         == id){
-			c2_ref_get(&ep->nep_ref); /* refcnt++ */
+		if (MEM_SA_EQ(&mep->xep_sa, sa) && mep->xep_service_id == id) {
+			c2_ref_get(&ep->nep_ref);
 			*epp = ep;
 			return 0;
 		}
 	}
 
-	/** allocate a new end point of appropriate size */
+	/* allocate a new end point of appropriate size */
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	mep = c2_alloc(dp->xd_sizeof_ep);
+	if (mep == NULL)
+		return -ENOMEM;
 	mep->xep_magic = C2_NET_BULK_MEM_XEP_MAGIC;
 	mep->xep_sa.sin_addr = sa->sin_addr;
 	mep->xep_sa.sin_port = sa->sin_port;
@@ -70,11 +70,11 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		size_t len = 0;
 		in_addr_t a = ntohl(sa->sin_addr.s_addr);
 		int nib[4];
-		for (i=3; i>=0; i--) {
+		for (i = 3; i >= 0; i--) {
 			nib[i] = a & 0xff;
 			a >>= 8;
 		}
-		for (i=0; i<4; i++) {
+		for (i = 0; i < 4; ++i) {
 			len += sprintf(&dot_ip[len], "%d.", nib[i]);
 		}
 		C2_ASSERT(len < sizeof(dot_ip));
@@ -142,7 +142,7 @@ static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
    Create a network buffer descriptor from an in-memory end point.
 
    The descriptor used by the in-memory transport is not encoded as it
-   is never accessed out of the processs.
+   is never accessed out of the process.
    @param ep Remote end point allowed active access
    @param tm Transfer machine holding the passive buffer
    @param qt The queue type
@@ -188,7 +188,7 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 /**
    Decodes a network buffer descriptor.
    @param desc Network buffer descriptor pointer.
-   @param md Returns the desctriptor contents. The pointer does not
+   @param md Returns the descriptor contents. The pointer does not
    allocate memory but instead points to within the network buffer
    descriptor, so don't free it.
    @retval 0 On success
