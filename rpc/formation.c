@@ -916,7 +916,7 @@ int c2_rpc_form_item_add_to_forming_list(struct c2_rpc_form_item_summary_unit *e
 			/** XXX Need this API from rpc-core. */
 			c2_rpc_set_update_stream_status(item_update_stream, BUSY);
 			/* XXX Need a rpbobject_linkage in c2_rpc_item. */
-			c2_list_add(&forming_list.l_head, rpc_item->rpcobject_linkage);
+			c2_list_add(&forming_list.l_head, item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
 			*nfragments += current_fragments;
 			item->ri_state = RPC_ITEM_ADDED;
@@ -1151,7 +1151,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 	/* 3. For every unique combination of fid and intent(read/write)
 	   locate/create a struct c2_rpc_form_fid_summary_member and put
 	   it in endp_unit->isu_fid_list. */
-	c2_list_for_each_entry(forming_list->l_head, item, struct c2_rpc_item, rpcobject_linkage) {
+	c2_list_for_each_entry(forming_list->l_head, item, struct c2_rpc_item, ri_rpcobject_linkage) {
 		if (item->ri_type->rit_ops->rio_is_io_req(item)) {
 			fid = item->ri_type->rit_ops->rio_io_get_fid(item);
 			item_rw = item->ri_type->rit_ops->rio_io_get_opcode(item);
@@ -1216,7 +1216,7 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 			/* 7. Add the newly formed rpc item into the forming list and
 			   increment rpcobj_size by its size. */
 			c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, item_member, struct c2_rpc_form_item_coalesced_member, im_linkage) {
-				c2_list_del(item_member->im_member_item->rpcobject_linkage);
+				c2_list_del(item_member->im_member_item->ri_rpcobject_linkage);
 			}
 			c2_list_add(forming_list->l_head, coalesced_item->ic_resultant_item);
 		}
