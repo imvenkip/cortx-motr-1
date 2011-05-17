@@ -207,7 +207,7 @@ void test_conn_terminate(uint64_t sender_id)
 	 */
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_INVALID;
+	item->ri_session_id = SESSION_ID_NOSESSION;
 	item->ri_slot_id = 0;
 	item->ri_slot_generation = 0;
 	item->ri_verno.vn_lsn = 0;
@@ -268,25 +268,19 @@ void test_conn_terminate(uint64_t sender_id)
 	}
 	
 }
-int main(void)
+uint64_t	g_sender_id;
+
+void test_conn_create()
 {
 	struct c2_fop				*fop;
 	struct c2_fom				*fom = NULL;
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	struct c2_rpc_conn_create		*fop_cc;
 	struct c2_rpc_conn_create_rep		*fop_reply;
-
-	struct c2_rpc_fom_session_create	*fom_sc;
-	struct c2_rpc_session_create		*fop_sc;
-	struct c2_rpc_session_create_rep	*fop_sc_reply;
 	struct c2_rpc_item			*item_in;
 	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
-	printf("Program start\n");
-	c2_init();
-
-	init();
 	/* create conn_create fop */
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
@@ -299,6 +293,7 @@ int main(void)
 	/* Processing that happens when fop is submitted */
 	item_in = c2_fop_to_rpc_item(fop);
 	item_in->ri_sender_id = SENDER_ID_INVALID;
+	item_in->ri_session_id = SESSION_ID_NOSESSION;
 
 	/* item is received on receiver side */
 	sc = c2_rpc_session_item_received(item_in, dom, &cached_item);
@@ -335,12 +330,24 @@ int main(void)
 		fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
 		C2_ASSERT(fop_reply != NULL);
 		printf("Main: sender id %lu\n", fop_reply->rccr_snd_id);
+		g_sender_id = fop_reply->rccr_snd_id;
 		fom->fo_ops->fo_fini(fom);
 	}
 	traverse_slot_table();	
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
-/*=======================================================================*/
+}
+
+void test_session_create()
+{
+	struct c2_fop				*fop;
+	struct c2_fom				*fom = NULL;
+	struct c2_rpc_fom_session_create	*fom_sc;
+	struct c2_rpc_session_create		*fop_sc;
+	struct c2_rpc_session_create_rep	*fop_sc_reply;
+	struct c2_rpc_item			*item_in;
+	struct c2_rpc_item			*cached_item;
+	enum c2_rpc_session_seq_check_result	sc;
 
 	fop = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
@@ -348,10 +355,10 @@ int main(void)
 	fop_sc = c2_fop_data(fop);
 	C2_ASSERT(fop_sc != NULL);
 
-	fop_sc->rsc_snd_id = fop_reply->rccr_snd_id;
+	fop_sc->rsc_snd_id = g_sender_id;
 
 	item_in = c2_fop_to_rpc_item(fop);
-	item_in->ri_sender_id = fop_reply->rccr_snd_id;
+	item_in->ri_sender_id = g_sender_id;
 	item_in->ri_session_id = SESSION_0;
 	item_in->ri_slot_id = 0;
 	item_in->ri_slot_generation = 0;
@@ -395,10 +402,50 @@ int main(void)
 		c2_cob_fb_traverse(dom);
 	}
 
+}
+void test_snd_conn_create()
+{
+	struct c2_rpc_conn		conn;
+	struct c2_service_id		svc_id;
+	struct c2_fop			*fop;
+	struct c2_rpc_conn_create_rep	*fop_ccr;
 
-//=====================================================================
+	C2_SET0(&svc_id);
+
+	printf("testing conn_create\n");
+	c2_rpc_conn_init(&conn, &svc_id);
+	C2_ASSERT(conn.c_state == CS_CONN_INITIALIZING ||
+			conn.c_state == CS_CONN_INIT_FAILED);
+
+	fop = c2_fop_alloc(&c2_rpc_conn_create_rep_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_ccr = c2_fop_data(fop);
+	C2_ASSERT(fop_ccr != NULL);
+
+	fop_ccr->rccr_rc = 0;
+	fop_ccr->rccr_snd_id = 20;
+	fop_ccr->rccr_cookie = (uint64_t)&conn;
+
+	fop->f_type->ft_ops->fto_execute(fop, NULL);
+
+}
+int main(void)
+{
+
+
+	printf("Program start\n");
+	c2_init();
+
+	init();
+/*
+	test_conn_create();
+	test_session_create();
 	test_session_destroy(20, 100);
 	test_conn_terminate(20);
+*/
+	test_snd_conn_create();
+
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();

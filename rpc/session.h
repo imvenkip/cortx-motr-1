@@ -161,6 +161,7 @@ struct c2_rpc_session_ops;
 enum {
 	SESSION_0 = 0,
 	SESSION_ID_INVALID = ~0,
+	SESSION_ID_NOSESSION = ~0 - 1,
 	SENDER_ID_INVALID = 0
 };
 
@@ -169,35 +170,35 @@ enum c2_rpc_conn_state {
            A newly allocated c2_rpc_conn object is in
            UNINITIALIZED state.
          */
-        RCS_CONN_UNINITIALIZED = 0,
+        CS_CONN_UNINITIALIZED = 0,
         /**
            When sender is waiting for receiver reply to get its sender ID it is
            in INITIALIZIG state.
          */
-        RCS_CONN_INITIALIZING = (1 << 0),
+        CS_CONN_INITIALIZING = (1 << 0),
         /**
-	   When initialization is successfull connection enters in IN_USE state.
+	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
          */
-        RCS_CONN_IN_USE = (1 << 1),
+        CS_CONN_ACTIVE = (1 << 1),
         /**
            If c2_rpc_conn is in INITIALIZING state and sender doesn't receive
            sender-id from receiver within a specific time then c2_rpc_conn
            moves to TIMED_OUT state
         */
-        RCS_CONN_TIMED_OUT = (1 << 2),
+        CS_CONN_INIT_FAILED = (1 << 2),
 	/**
 	   When client calls c2_rpc_conn_fini(), the c2_rpc_conn goes in
 	   finalizing state. It has to communicate to receiver in order to
 	   terminate the connection
 	 */
-        RCS_CONN_FINALIZING = (1 << 3),
+        CS_CONN_FINALIZING = (1 << 3),
 	/**
 	   When sender gets "successful" reply from receiver to
 	   "terminate rpc_conn" msg, the c2_rpc_conn object goes in
 	   FINALIZED state.
 	 */
-	RCS_CONN_FINALIZED = (1 << 4)
+	CS_CONN_FINALIZED = (1 << 4)
 };
 
 /**
@@ -249,19 +250,21 @@ struct c2_rpc_conn {
         /** Every c2_rpc_conn is stored on a global list */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
-        /** Id of the service with which this c2_rpc_conn is associated */
+        /**
+	    XXX Deprecated: c2_service_id 
+	    Id of the service with which this c2_rpc_conn is associated
+	*/
         struct c2_service_id            *c_service_id;
         /** Sender ID (aka client ID) */
-        uint64_t                         c_snd_id;
+        uint64_t                         c_sender_id;
         /** List of all the sessions for this <sender,receiver> */
         struct c2_list                   c_sessions;
         /** Counts number of sessions (excluding session 0) */
         uint64_t                         c_nr_sessions;
-        /** Deprecated: connection with receiver.
-		All sessions share this connection */
-        struct c2_net_conn              *c_conn;
         struct c2_chan                   c_chan;
         struct c2_mutex                  c_mutex;
+	/** stores conn_create fop pointer during initialization */
+	void				*c_private;
 };
 
 /**
@@ -278,8 +281,8 @@ struct c2_rpc_conn {
           c2_rpc_conn->c_state == CONN_IN_USE       ||
           c2_rpc_conn->c_state == CONN_TIMEOUT
  */
-void c2_rpc_conn_init(struct c2_rpc_conn *,
-                        struct c2_net_conn *);
+int c2_rpc_conn_init(struct c2_rpc_conn	*rpc_conn,
+		      struct c2_service_id	*svc_id);
 
 /**
    Destroy c2_rpc_conn object.
@@ -477,13 +480,13 @@ struct c2_rpc_snd_slot {
 	uint64_t		 ss_generation;
 	/** List of items queued for this slot. These are the items to which
 	slot is assigned but verno is not filled */
-	struct c2_list		*ss_ready_list;
+	struct c2_list		 ss_ready_list;
 	/** reference to the last sent item for which the
 	reply is not received (In case need to resend) */
 	struct c2_rpc_item 	*ss_sent_item;
 	/** list of items for which we've received reply from receiver but
 	their effects not persistent on receiver */
-	struct c2_list		*ss_replay_queue;
+	struct c2_list		 ss_replay_list;
 };
 
 /** @} end of session group */	

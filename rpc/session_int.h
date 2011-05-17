@@ -167,5 +167,6 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
 
 extern struct c2_stob_id	c2_root_stob_id;
 
+void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
 #endif
 

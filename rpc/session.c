@@ -25,6 +25,9 @@ struct c2_stob_id c2_root_stob_id = {
 };
 
 
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot);
+static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn);
+
 /**
    Global reply cache 
  */
@@ -128,10 +131,130 @@ void c2_rpc_session_module_fini(void)
 	c2_rpc_session_fop_fini();
 }
 
-void c2_rpc_conn_init(struct c2_rpc_conn	*rpc_conn,
-		      struct c2_net_conn	*net_conn)
+int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
+		     struct c2_service_id	*svc_id)
 {
+	struct c2_fop			*fop;
+	struct c2_rpc_conn_create	*fop_cc;
+	struct c2_rpc_item		*item;
+	struct c2_time			deadline;
+	int				rc;
 
+	C2_PRE(conn != NULL);
+
+	printf("conn_create: called\n");
+	C2_SET0(conn);
+	/* Deprecated: service_id */
+	conn->c_service_id = svc_id;
+	conn->c_sender_id = SENDER_ID_INVALID;
+	c2_list_init(&conn->c_sessions);
+	conn->c_nr_sessions = 0;
+	c2_chan_init(&conn->c_chan);
+	c2_mutex_init(&conn->c_mutex);
+
+	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	if (fop == NULL)
+		return -ENOMEM;
+	conn->c_private = fop;
+
+	fop_cc = c2_fop_data(fop);
+
+	C2_ASSERT(fop_cc != NULL);
+
+	/*
+	 * Receiver will copy this cookie in conn_create reply
+	 */
+	fop_cc->rcc_cookie = (uint64_t)conn;
+
+	item = c2_fop_to_rpc_item(fop);
+
+	/*
+	 * Send conn_create request "out of any session"
+	 */
+	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_session_id = SESSION_ID_NOSESSION;
+
+	C2_SET0(&deadline);
+	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+
+	if (rc == 0)
+		conn->c_state = CS_CONN_INITIALIZING;
+	else
+		conn->c_state = CS_CONN_INIT_FAILED;
+
+	printf("conn_create: finished %d\n", rc);
+	return rc;
+}
+
+void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
+{
+	struct c2_rpc_conn_create_rep	*fop_ccr;
+	struct c2_rpc_conn		*conn;
+
+	C2_PRE(fop != NULL);
+
+	printf("conn_create_reply_received\n");
+	fop_ccr = c2_fop_data(fop);
+
+	C2_ASSERT(fop_ccr != NULL);
+
+	conn = (struct c2_rpc_conn *)fop_ccr->rccr_cookie;
+
+	c2_mutex_lock(&conn->c_mutex);
+
+	C2_ASSERT(conn != NULL);
+	C2_ASSERT(conn->c_state == CS_CONN_INITIALIZING &&
+			conn->c_private != NULL);
+
+	if (fop_ccr->rccr_rc != 0) {
+		/*
+		 * Receiver has reported conn create failure
+		 */
+		conn->c_state = CS_CONN_INIT_FAILED;
+		conn->c_sender_id = SENDER_ID_INVALID;
+	} else {
+		conn->c_sender_id = fop_ccr->rccr_snd_id;
+		c2_rpc_session_zero_attach(conn);
+		conn->c_state = CS_CONN_ACTIVE;
+	}
+	c2_mutex_unlock(&conn->c_mutex);
+	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
+			conn->c_state == CS_CONN_ACTIVE);
+	c2_chan_broadcast(&conn->c_chan);
+	printf("conn_create_reply_received: finished\n");
+}
+static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
+{
+	struct c2_rpc_session   *session;
+
+	printf("Creating session 0\n");
+	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_INITIALIZING);
+
+	C2_ALLOC_PTR(session);
+	C2_SET0(session);
+
+	c2_list_link_init(&session->s_link);
+	session->s_session_id = SESSION_0;
+	session->s_conn = conn;
+	c2_chan_init(&session->s_chan);
+	c2_mutex_init(&session->s_mutex);
+	session->s_nr_slots = 1;
+	session->s_slot_table_capacity = 1;
+	C2_ALLOC_ARR(session->s_slot_table, 1);
+	C2_ASSERT(session->s_slot_table != NULL);
+	C2_ALLOC_PTR(session->s_slot_table[0]);
+	c2_rpc_snd_slot_init(session->s_slot_table[0]);
+	session->s_state = SESSION_ALIVE;
+
+	c2_list_add(&conn->c_sessions, &session->s_link);
+	printf("Session zero attached\n");
+}
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot)
+{
+        C2_SET0(slot);
+        slot->ss_flags = SLOT_IN_USE;
+        c2_list_init(&slot->ss_ready_list);
+        c2_list_init(&slot->ss_replay_list);
 }
 
 int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)
@@ -359,10 +482,10 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 	reply->ri_verno = req->ri_verno;
 
 	/*
-	  rpc_conn_create request comes with ri_sender_id set to
-	  SENDER_ID_INVALID. Don't cache reply of such requests.
+	  rpc_conn_create request comes with ri_session_id set to
+	  SESSION_ID_NOSESSION. Don't cache reply of such requests.
 	 */
-	if (req->ri_sender_id != SENDER_ID_INVALID) {
+	if (req->ri_session_id != SESSION_ID_NOSESSION) {
 		c2_rpc_reply_cache_insert(reply, dom, tx);
 	} else {
 		printf("it's conn create/terminate req. not caching reply\n");
@@ -401,11 +524,11 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	*reply_out = NULL;
 
 	/*
-	 * No seq check for items with sender_id SENDER_ID_INVALID
+	 * No seq check for items with session_id SESSION_ID_NOSESSION
 	 *	e.g. rpc_conn_create request
 	 */
-	if (item->ri_sender_id == SENDER_ID_INVALID) {
-		printf("Sender id is invalid. accepting item\n");
+	if (item->ri_session_id == SESSION_ID_NOSESSION) {
+		printf("Item out of session. Accepting item\n");
 		return SCR_ACCEPT_ITEM;
 	}
 
@@ -777,7 +900,8 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
 	C2_PRE(dom != NULL && item != NULL && slot_cob != NULL);
 
 	C2_PRE(item->ri_sender_id != SENDER_ID_INVALID &&
-		item->ri_session_id != SESSION_ID_INVALID);
+		item->ri_session_id != SESSION_ID_INVALID &&
+		item->ri_session_id != SESSION_ID_NOSESSION);
 
 	printf("slot_lookup_by_item [%lu:%lu:%u]\n", item->ri_sender_id,
 			item->ri_session_id, item->ri_slot_id);
