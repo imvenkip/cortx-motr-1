@@ -17,7 +17,8 @@ bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 
 bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 {
-	C2_ASSERT(buf != NULL);
+	if (buf == NULL)
+		return false;
 
 	/* must be a registered buffer */
 	if (!(buf->nb_flags & C2_NET_BUF_REGISTERED))
@@ -79,7 +80,6 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	       buf->nb_buffer.ov_vec.v_count != NULL);
 
 	buf->nb_dom = dom;
-	c2_list_link_init(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 
 	/* The transport will validate buffer size and number of
@@ -90,7 +90,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	}
-	C2_POST(ergo(rc == 0,c2_net__buffer_invariant(buf)));
+	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
@@ -127,7 +127,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 {
 	int rc;
 	struct c2_net_domain *dom;
-	struct c2_list *ql = NULL;
+	struct c2_list *ql;
 	struct buf_add_checks {
 		bool check_length;
 		bool check_ep;
@@ -186,7 +186,6 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
 	 */
-	c2_list_link_init(&buf->nb_tm_linkage);
 	c2_list_add_tail(ql, &buf->nb_tm_linkage);
 	buf->nb_flags &= ~C2_NET_BUF_IN_USE; /* for transport use */
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
@@ -206,8 +205,9 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	if (todo->check_ep) {
 		/* Bump the reference count.
 		   Should be decremented in c2_net_tm_event_post().
+		   The caller holds a reference to the end point.
 		*/
-		c2_net_end_point_get(buf->nb_ep); /* mutex not used */
+		c2_net_end_point_get(buf->nb_ep);
 	}
 
 	C2_POST(ergo(todo->post_check_desc,

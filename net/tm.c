@@ -217,7 +217,6 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		c2_list_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
-	c2_list_link_init(&tm->ntm_dom_linkage);
 	tm->ntm_xprt_private = NULL;
 
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);

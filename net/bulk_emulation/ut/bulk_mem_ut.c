@@ -766,7 +766,6 @@ static void test_tm(void)
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
 	struct c2_clink tmwait1;
-	struct c2_net_end_point *ep;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
@@ -782,21 +781,7 @@ static void test_tm(void)
 
 	/* check thread counts */
 	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 1);
-	C2_UT_ASSERT(!c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2));
-	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
-
-	/* should not be able to modify thread count once TM starts */
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
-					      "127.0.0.1", 99, 0));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:99")==0);
-	c2_clink_init(&tmwait1, NULL);
-	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
-	c2_chan_wait(&tmwait1);
-	c2_clink_del(&tmwait1);
-	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
-	C2_UT_ASSERT(c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2) == -EPERM);
+	c2_net_bulk_mem_tm_set_num_threads(&d1tm1, 2);
 	C2_UT_ASSERT(c2_net_bulk_mem_tm_get_num_threads(&d1tm1) == 2);
 
 	/* fini */

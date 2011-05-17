@@ -214,7 +214,7 @@ typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
 typedef void (*c2_mem_ep_release_fn_t)(struct c2_ref *ref);
 typedef void (*c2_mem_wi_add_fn_t)(struct c2_net_bulk_mem_work_item *wi,
 				   struct c2_net_bulk_mem_tm_pvt *tp);
-typedef bool (*c2_mem_buffer_in_bounds_fn_t)(struct c2_net_buffer *nb);
+typedef bool (*c2_mem_buffer_in_bounds_fn_t)(const struct c2_net_buffer *nb);
 typedef int  (*c2_mem_desc_create_fn_t)(struct c2_net_buf_desc *desc,
 					struct c2_net_end_point *ep,
 					struct c2_net_transfer_mc *tm,

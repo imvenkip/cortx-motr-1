@@ -55,9 +55,8 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
 		dom->nd_xprt = NULL;
-	}
-	if (rc != 0)
 		c2_net__domain_fini(dom);
+	}
 	return rc;
 }
 C2_EXPORTED(c2_net__domain_init);
