@@ -10,6 +10,9 @@
 #include "ioservice/io_fops_u.h"
 #include "ioservice/io_fops.h"
 #include "lib/refs.h"
+#include "lib/errno.h"
+#include "lib/cdefs.h"
+#include "lib/memory.h"
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -90,12 +93,6 @@
    take the executing thread out of this state machine. */
 
 /**
-   This structure is an internal data structure which builds up the
-   summary form of data for all endpoints.
-   It contains a list of sub structures, one for each endpoint.
- */
-
-/**
    Hierarchy of data structures in formation component.
 
    c2_rpc_form_item_summary
@@ -105,6 +102,23 @@
 	    +--> c2_list <c2_rpc_form_item_summary_unit_group>
  */
 
+/**
+   Locking order =>
+   This order will ensure there are no deadlocks due to locking
+   order reversal.
+   1. Always take the is_endp_list_lock rwlock from struct
+      c2_rpc_form_item_summary first and release when not
+      needed any more.
+   2. Always take the isu_unit_lock mutex from struct
+      c2_rpc_form_item_summary_unit next and release when
+      not needed any more.
+ */
+
+/**
+   This structure is an internal data structure which builds up the
+   summary form of data for all endpoints.
+   It contains a list of sub structures, one for each endpoint.
+ */
 struct c2_rpc_form_item_summary {
 	/** List of internal data structures with data for each endpoint */
 	/** c2_list <struct c2_rpc_form_item_summary_unit> */
@@ -116,9 +130,11 @@ struct c2_rpc_form_item_summary {
 /**
    The global instance of summary data structure.
  */
-extern struct c2_rpc_form_item_summary	formation_summary;
+extern struct c2_rpc_form_item_summary	*formation_summary;
 
-/** The list of rpc items that can be coalesced. */
+/**
+   The list of rpc items that can be coalesced.
+ */
 struct c2_rpc_form_fid_units {
 	/** Linkage into list of similar requests with same fid and intent. */
 	struct c2_list_link		fu_linkage;
@@ -160,6 +176,21 @@ struct c2_rpc_form_items_cache {
 };
 
 /**
+   State machine object for rpc formation.
+   There is one state machine per c2_rpc_form_item_summary_unit
+   structure.
+ */
+struct c2_rpc_form_state_machine {
+	/** State of the state machine for this endpoint.
+	    Threads will have to take the unit_lock above before
+	    state can be changed. This variable will bear one value
+	    from enum c2_rpc_form_state. */
+	int				 isu_endp_state;
+	/** Refcount for this summary unit */
+	struct c2_ref			 isu_ref;
+};
+
+/**
    This structure represents the summary data for a given endpoint.
    It contains a list containing the summary data for each rpc group
    and a list of files involved in any IO operations destined for
@@ -170,36 +201,21 @@ struct c2_rpc_form_items_cache {
    requests belonging to same endpoint will contest for the
    state variable.
  */
-/** XXX Need to put a linkage in struct c2_rpc_item to track
-    the unformed items. */
-/** XXX Need another linkage (c2_list_link) in struct c2_rpc_item
-    to keep track of formed items in an rpc object. */
 struct c2_rpc_form_item_summary_unit {
-	/** Referenced Endpoint */
-	struct c2_net_endpoint		*isu_endp_id;
 	/** Mutex protecting the unit from concurrent access. */
 	struct c2_mutex			 isu_unit_lock;
 	/** Linkage into the endpoint list. */
 	struct c2_list_link		 isu_linkage;
+	/** Referenced Endpoint */
+	struct c2_net_endpoint		*isu_endp_id;
+	/** State machine for this endpoint. */
+	struct c2_rpc_form_state_machine isu_sm;
 	/** List of structures containing data for each group. */
 	/** c2_list <struct c2_rpc_form_item_summary_unit_group>*/
 	struct c2_list			 isu_groups_list;
-	/** State of the state machine for this endpoint.
-	    Threads will have to take the unit_lock above before
-	    state can be changed. This variable will bear one value
-	    from enum c2_rpc_form_state. */
-	/** XXX Put a state machine object per summary_unit and move
-	    the state to the state machine object. */
-	int				 isu_endp_state;
-	/** Refcount for this summary unit */
-	struct c2_ref			 isu_ref;
 	/** List of coalesced rpc items. */
 	/** c2_list <c2_rpc_form_item_coalesced> */
 	struct c2_list			 isu_coalesced_items_list;
-	/** Statistics data. Currently stationed with formation but
-	    later will be moved to Output sub component from rpc. */
-	uint64_t			 isu_max_rpcs_in_flight;
-	uint64_t			 isu_curr_rpcs_in_flight;
 	/** List of formed RPC objects kept with formation. The
 	    POSTING state will send RPC objects from this list
 	    to the output component.
@@ -219,11 +235,80 @@ struct c2_rpc_form_item_summary_unit {
 	/** c2_list <struct c2_rpc_form_fid_summary_member > */
 	struct c2_list			isu_fid_list;
 	/** These numbers will be subsequently kept with the statistics
-	  component. Defining here for the sake of UT.
-	 */
+	  component. Defining here for the sake of UT. */
 	uint64_t			isu_max_message_size;
 	uint64_t			isu_max_fragments_size;
+	/** Statistics data. Currently stationed with formation but
+	    later will be moved to Output sub component from rpc. */
+	uint64_t			 isu_max_rpcs_in_flight;
+	uint64_t			 isu_curr_rpcs_in_flight;
 };
+
+/**
+   Destroy an endpoint structure since it no longer contains
+   any rpc items.
+   @param ref - ref count for given endpoint.
+ */
+static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
+
+/**
+   Add an endpoint structure when the first rpc item gets added
+   for an endpoint.
+   @param endp - endpoint structure
+ */
+static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(const struct c2_net_endpoint *endp);
+
+/**
+   Change the data of an rpc item embedded within the
+   endpoint unit structure.
+   @param endp_unit - given item_summary_unit structure.
+   @param item - incoming rpc item.
+   @param pvt - private data of item.
+ */
+int c2_rpc_form_change_rpcitem_from_summary_unit(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item, void *pvt);
+
+/**
+   Remove the data of an rpc item embedded within the endpoint unit
+   structure.
+   @param endp_unit - given item_summary_unit structure.
+   @param item - incoming rpc item.
+ */
+int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item);
+
+/**
+   Update the summary_unit data structure on addition of
+   an rpc item.
+   @param endp_unit - given item_summary_unit structure.
+   @param item - incoming rpc item.
+ */
+int c2_rpc_form_add_rpcitem_to_summary_unit(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item);
+
+/**
+   Get the endpoint given an rpc item.
+   This is a placeholder and will be replaced when a concrete
+   association between rpc item and endpoint is available.
+   @param item - incoming rpc item.
+ */
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
+
+/**
+   Add an rpc item to the formed list of an rpc object.
+   @param endp_unit - given item_summary_unit structure.
+   @param item - incoming rpc item.
+   @param rpcobj_size - current size of rpc object.
+   @param nfragments - current count of fragments. 
+   @param forming_list - list of rpc items in an rpc object.
+ */
+int c2_rpc_form_item_add_to_forming_list(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item, uint64_t *rpcobj_size,
+		uint64_t *nfragments, struct c2_list *forming_list);
 
 /**
    An enumeration of IO opcodes.
@@ -267,6 +352,34 @@ struct c2_rpc_form_item_coalesced_member {
 };
 
 /**
+   Call the completion callbacks for member rpc items of
+   a coalesced rpc item.
+   @param coalesced_struct - struct containing a resultant rpc item
+   and its member rpc items.
+ */
+static int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesced *coalesced_struct);
+
+/**
+   This is a rpc_item_type_op and is registered with associated
+   rpc item. Coalesce IO vectors from a list of rpc items into one
+   and arrange the IO vector in increasing order of file offset.
+   @param coalesced_item - struct containing a resultant rpc item
+   and its member rpc items.
+ */
+int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
+		*coalesced_item);
+
+/**
+   Coalesce possible rpc items and replace them by a aggregated
+   rpc item.
+   @param endp_unit - given item_summary_unit structure.
+   @param forming_list - list of rpc items in an rpc object.
+   @param rpcobj_size - current size of rpc object.
+ */
+int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
+		struct c2_list *forming_list, uint64_t *rpcobj_size);
+
+/**
    Member structure of a list containing read IO segments.
  */
 struct c2_rpc_form_read_segment {
@@ -277,6 +390,15 @@ struct c2_rpc_form_read_segment {
 };
 
 /**
+   Coalesce the multiple read IO vectors into one.
+   @param item_vec - IO vector for read request.
+   @param aggr_list - list of resultant segments.
+   @param res_segs - number of resultant segments.
+ */
+int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_vec,
+		struct c2_list *aggr_list, int *res_segs);
+
+/**
    Member structure of a list containing write IO segments.
  */
 struct c2_rpc_form_write_segment {
@@ -285,6 +407,15 @@ struct c2_rpc_form_write_segment {
 	/** The read IO segment. */
 	struct c2_fop_io_seg		ws_seg;
 };
+
+/**
+   Coalesce the multiple write IO vectors into one.
+   @param item_vec - IO vector for write request.
+   @param aggr_list - list of resultant segments.
+   @param res_segs - number of resultant segments.
+ */
+int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
+		struct c2_list *aggr_list, int *res_segs);
 
 /**
    This structure represents the summary data for a given rpc group
@@ -311,6 +442,17 @@ struct c2_rpc_form_item_summary_unit_group {
 	/** Cumulative size of rpc items in this group so far. */
 	uint64_t			 sug_total_size;
 };
+
+/**
+   Sort the c2_rpc_form_item_summary_unit_group structs according to
+   increasing value of average timeout.
+   @param endp_unit - given item_summary_unit structure.
+   @param summary_group - array of c2_rpc_form_item_summary_unit_group
+   structures to be sorted.
+ */
+int c2_rpc_form_summary_groups_sort(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_form_item_summary_unit_group *summary_group);
 
 /**
    This is a wrapper structure around struct c2_rpc to engage
@@ -396,8 +538,15 @@ int c2_rpc_form_init();
  */
 int c2_rpc_form_fini();
 
-typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *,
-		struct c2_rpc_item*, int, void *);
+/**
+   Type definition of a state function.
+   @param endp_unit - given item_summary_unit structure.
+   @param item - incoming rpc item.
+   @param event - triggered event.
+   @param pvt - private data of rpc item.
+ */
+typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item, int event, void *pvt);
 
 /**
    A state table guiding resultant states on arrival of events
@@ -449,106 +598,19 @@ static stateFunc c2_rpc_form_next_state(const int current_state, const int curre
 /**
    Exit path from a state machine. An incoming thread which executed
    the formation state machine so far, is let go and it will return
-   to do its own job. */
+   to do its own job.
+   @param endp_unit - given item_summary_unit structure.
+ */
 static void c2_rpc_form_state_machine_exit(struct c2_rpc_form_item_summary_unit
 		*endp_unit);
 
-/**
-   Get the endpoint given an rpc item.
-   This is a placeholder and will be replaced when a concrete
-   definition of endpoint is available.
- */
-struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
-
-/**
-   Call the completion callbacks for member rpc items of
-   a coalesced rpc item.
- */
-static int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesced *coalesced_struct);
-
-/**
-   Destroy an endpoint structure since it no longer contains
-   any rpc items.
- */
-static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref);
-
-/**
-   Add an endpoint structure when the first rpc item gets added
-   for an endpoint. */
-static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(const struct c2_net_endpoint *endp);
 
 /**
    Callback used to trigger the "deadline expired" event
    for an rpc item.
+   @param data - private data of user of timer.
  */
 unsigned long c2_rpc_form_item_timer_callback(unsigned long data);
-
-/**
-   Change the data of an rpc item embedded within the
-   endpoint unit structure.
- */
-int c2_rpc_form_change_rpcitem_from_summary_unit(struct
-		c2_rpc_form_item_summ ary_unit *endp_unit,
-		struct c2_rpc_item *item, void *pvt);
-
-/**
-   Remove the data of an rpc item embedded within the endpoint unit
-   structure.
- */
-int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
-		c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item);
-
-/**
-   Sort the c2_rpc_form_item_summary_unit_group structs according to
-   increasing value of average timeout.
- */
-int c2_rpc_form_summary_groups_sort(struct
-		c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_form_item_summary_unit_group *summary_group);
-
-
-/**
-   Update the summary_unit data structure on addition of
-   an rpc item.
- */
-int c2_rpc_form_add_rpcitem_to_summary_unit(struct
-		c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item);
-
-/**
-   Add an rpc item to the formed list of an rpc object.
- */
-int c2_rpc_form_item_add_to_forming_list(struct
-		c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, uint64_t *rpcobj_size,
-		uint64_t *nfragments, struct c2_list *forming_list);
-/**
-   Coalesce the multiple write IO vectors into one.
- */
-int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
-		struct c2_list *aggr_list, int *res_segs);
-
-/**
-   Coalesce the multiple read IO vectors into one.
- */
-int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_vec,
-		struct c2_list *aggr_list, int *res_segs);
-
-/**
-   This is a rpc_item_type_op and is registered with associated
-   rpc item. Coalesce IO vectors from a list of rpc items into one
-   and arrange the IO vector in increasing order of file offset.
- */
-int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
-		*coalesced_item);
-
-/**
-   Coalesce possible rpc items and replace them by a aggregated
-   rpc item.
- */
-int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
-		struct c2_list *forming_list, uint64_t *rpcobj_size);
 
 
 /**
@@ -563,7 +625,10 @@ int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
    6. Handle further events on basis of return value of
    recent state function.
    @param item - incoming rpc item needed for external events.
+   @param endp_unit - given item_summary_unit structure.
+   @param state - current state of state machine.
    @param event - event posted to the state machine.
+   @param pvt - private data of rpc item.
  */
 static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		struct c2_rpc_form_item_summary_unit *endp_unit,
@@ -583,6 +648,9 @@ enum c2_rpc_form_item_change_fields {
 	C2_RPC_ITEM_N_CHANGES,
 };
 
+/**
+   Used to track the parameter changes in an rpc item.
+ */
 struct c2_rpc_form_item_change_req {
 	/* Specifies which field is going to change. */
 	enum			 field_type;
