@@ -30,6 +30,9 @@ struct c2_list_link {
 /**
  initialize list link entry
 
+ It is not necessary to call this function if the first operation on the link is
+ any of c2_list_add*() functions.
+
  @param link - pointer to link enty
 */
 void c2_list_link_init(struct c2_list_link *link);
@@ -103,20 +106,40 @@ size_t c2_list_length(const struct c2_list *list);
 /**
  add list to top on the list
 
+ This function can be called on an uninitialised @new link. All @new fields are
+ overwritten.
+
  @param head pointer to list head
  @param new  pointer to list entry
+
  */
 void c2_list_add(struct c2_list *head, struct c2_list_link *new);
 
 /**
  add list to tail on the list
 
+ This function can be called on an uninitialised @new link. All @new fields are
+ overwritten.
+
  @param head pointer to list head
  @param new  pointer to list entry
  */
 void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
 
+/**
+   Adds an element to the list right after the specified element.
+
+   This function can be called on an uninitialised @new link. All @new fields
+   are overwritten.
+ */
 void c2_list_add_after (struct c2_list_link *anchor, struct c2_list_link *new);
+
+/**
+   Adds an element to the list right before the specified element.
+
+   This function can be called on an uninitialised @new link. All @new fields
+   are overwritten.
+ */
 void c2_list_add_before(struct c2_list_link *anchor, struct c2_list_link *new);
 
 /**
