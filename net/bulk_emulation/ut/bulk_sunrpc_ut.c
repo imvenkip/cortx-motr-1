@@ -215,7 +215,7 @@ static void test_sunrpc_ping(void)
 	/* server runs in background thread */
 	C2_SET0(&server_thread);
 	rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
-			    &ping_server, &sctx);
+			    &ping_server, &sctx, "ping_server");
 	if (rc != 0) {
 		C2_UT_FAIL("failed to start ping server");
 		return;

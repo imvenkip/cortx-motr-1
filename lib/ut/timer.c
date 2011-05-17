@@ -135,9 +135,9 @@ void test_timer(void)
 
 	count = 0;
 
-	rc = C2_THREAD_INIT(&t1, int, NULL, &timer1_thread, 0);
+	rc = C2_THREAD_INIT(&t1, int, NULL, &timer1_thread, 0, "timer1_thread");
 	C2_ASSERT(rc == 0);
-	rc = C2_THREAD_INIT(&t2, int, NULL, &timer2_thread, 0);
+	rc = C2_THREAD_INIT(&t2, int, NULL, &timer2_thread, 0, "timer2_thread");
 	C2_ASSERT(rc == 0);
 
 	c2_thread_join(&t1);

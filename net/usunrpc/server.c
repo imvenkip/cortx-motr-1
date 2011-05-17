@@ -535,7 +535,7 @@ static int usunrpc_service_start(struct c2_service *service,
 	/* create the scheduler thread */
 	rc = C2_THREAD_INIT(&xservice->s_scheduler_thread, struct c2_service *,
 		            &usunrpc_scheduler_init, &usunrpc_scheduler,
-			    service);
+			    service, "usunrpc_sched");
         if (rc != 0) {
 		ADDB_CALL(service, "scheduler_thread", rc);
 		goto err;
@@ -545,7 +545,8 @@ static int usunrpc_service_start(struct c2_service *service,
         for (i = 0; i < nr_workers; i++) {
                 rc = C2_THREAD_INIT(&xservice->s_workers[i],
 				    struct c2_service *, NULL,
-				    &usunrpc_service_worker, service);
+				    &usunrpc_service_worker, service,
+				    "usunrpc_serv%d", i);
                 if (rc) {
 			ADDB_CALL(service, "worker_thread", rc);
                         goto err;

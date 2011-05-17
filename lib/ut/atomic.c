@@ -91,7 +91,7 @@ void test_atomic(void)
 	c2_atomic64_set(&atom, 0);
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &worker, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &worker, i, "worker");
 		C2_UT_ASSERT(result == 0);
 	}
 

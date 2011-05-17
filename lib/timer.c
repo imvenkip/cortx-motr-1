@@ -93,7 +93,7 @@ int c2_timer_start(struct c2_timer *timer)
 	timer->t_left = timer->t_repeat;
 
 	rc = C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,
-			    &c2_timer_working_thread, timer);
+			    &c2_timer_working_thread, timer, "c2_timer_worker");
 	return rc;
 }
 C2_EXPORTED(c2_timer_start);

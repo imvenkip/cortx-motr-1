@@ -533,9 +533,10 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 	result = io_setup(IOQ_RING_SIZE, &ldom->ioq_ctx);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
-			result = C2_THREAD_INIT(&ldom->ioq[i], 
+			result = C2_THREAD_INIT(&ldom->ioq[i],
 						struct linux_domain *,
-						NULL, &ioq_thread, ldom);
+						NULL, &ioq_thread, ldom,
+						"ioq_thread%d", i);
 			if (result != 0)
 				break;
 		}
@@ -548,7 +549,7 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 
 /** @} end group stoblinux */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

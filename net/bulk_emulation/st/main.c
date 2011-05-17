@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
 		sctx.pc_passive_size = passive_size;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
-				    &ping_server, &sctx);
+				    &ping_server, &sctx, "ping_server");
 		C2_ASSERT(rc == 0);
 	}
 
@@ -378,7 +378,8 @@ int main(int argc, char *argv[])
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,
-					    NULL, &client, &params[i]);
+					    NULL, &client, &params[i],
+					    "client_%d", params[i].client_id);
 			C2_ASSERT(rc == 0);
 		}
 

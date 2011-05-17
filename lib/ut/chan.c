@@ -157,7 +157,7 @@ void test_chan(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i);
+		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i, "t0");
 		C2_UT_ASSERT(got == 0);
 	}
 

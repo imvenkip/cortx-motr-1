@@ -111,7 +111,8 @@ static int usunrpc_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 						struct c2_net_domain *,
 						NULL,
 						&usunrpc_client_worker,
-						dom);
+						dom,
+						"usunrpc_clnt%d", i);
 			if (result != 0)
 				break;
 		}

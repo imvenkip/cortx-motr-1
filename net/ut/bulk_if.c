@@ -191,7 +191,7 @@ static void ut_buf_del(struct c2_net_buffer *nb)
 	if (!(nb->nb_flags & C2_NET_BUF_IN_USE))
 		nb->nb_flags |= C2_NET_BUF_CANCELLED;
 	rc = C2_THREAD_INIT(&ut_del_thread, struct c2_net_buffer *, NULL,
-			    &ut_post_del_thread, nb);
+			    &ut_post_del_thread, nb, "ut_post_del");
 	C2_UT_ASSERT(rc == 0);
 	return;
 }
@@ -251,7 +251,8 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm)
 	   cannot do it here: we are in dom lock, post would assert.
 	 */
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
-			    &ut_post_state_change_ev_thread, C2_NET_TM_STARTED);
+			    &ut_post_state_change_ev_thread, C2_NET_TM_STARTED,
+			    "state_change%d", C2_NET_TM_STARTED);
 	C2_UT_ASSERT(rc == 0);
 	return rc;
 }
@@ -264,7 +265,8 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
-			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED);
+			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED,
+			    "state_change%d", C2_NET_TM_STOPPED);
 	C2_UT_ASSERT(rc == 0);
 	return rc;
 }

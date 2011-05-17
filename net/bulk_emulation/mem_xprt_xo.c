@@ -586,7 +586,8 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	for (i = 0; i < tp->xtm_num_workers && rc == 0; ++i)
 		rc = C2_THREAD_INIT(&tp->xtm_worker_threads[i],
 				    struct c2_net_transfer_mc *, NULL,
-				    &mem_xo_tm_worker, tm);
+				    &mem_xo_tm_worker, tm,
+				    "mem_tm_worker%d", i);
 
 	if (rc == 0) {
 		/* set transition state and add the state change work item */

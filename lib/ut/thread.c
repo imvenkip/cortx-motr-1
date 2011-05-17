@@ -26,7 +26,7 @@ static void t2(int n)
 	int result;
 
 	if (n > 0) {
-		result = C2_THREAD_INIT(&t[n - 1], int, NULL, &t2, n - 1);
+		result = C2_THREAD_INIT(&t[n - 1], int, NULL, &t2, n - 1, "t2");
 		C2_UT_ASSERT(result == 0);
 	}
 	r[n] = n;
@@ -70,7 +70,7 @@ void test_thread(void)
 
 	C2_SET_ARR0(r);
 	t0place = 0;
-	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42);
+	result = C2_THREAD_INIT(&t[0], int, NULL, &t0, 42, "t0");
 	C2_UT_ASSERT(result == 0);
 
 	C2_UT_ASSERT(!c2_thread_handle_eq(&myhandle, &t[0].t_h));
@@ -83,7 +83,7 @@ void test_thread(void)
 	result = C2_THREAD_INIT(&t[0], const char *, NULL,
 				LAMBDA(void, (const char *s) {
 						strcpy(t1place, s); } ),
-				(const char *)"forty-two");
+				(const char *)"forty-two", "fourty-two");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
@@ -101,19 +101,19 @@ void test_thread(void)
 	/* test init functions */
 	result = C2_THREAD_INIT(&t[0], int,
 				LAMBDA(int, (int x) { return 0; } ),
-				LAMBDA(void, (int x) { ; } ), 42);
+				LAMBDA(void, (int x) { ; } ), 42, "lambda42");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 
 	result = C2_THREAD_INIT(&t[0], int,
 				LAMBDA(int, (int x) { return -42; } ),
-				LAMBDA(void, (int x) { ; } ), 42);
+				LAMBDA(void, (int x) { ; } ), 42, "lambda-42");
 	C2_UT_ASSERT(result == -42);
 	c2_thread_fini(&t[0]);
 
 	/* test confine */
-	result = C2_THREAD_INIT(&t[0], int, NULL, &t3, 0);
+	result = C2_THREAD_INIT(&t[0], int, NULL, &t3, 0, "t3");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
@@ -146,7 +146,7 @@ static void ub0(int x)
 static void ub_spawn(int i)
 {
 	int result;
-	result = C2_THREAD_INIT(&ubt[i], int, NULL, &ub0, 0);
+	result = C2_THREAD_INIT(&ubt[i], int, NULL, &ub0, 0, "ub0");
 	C2_ASSERT(result == 0);
 }
 
@@ -163,7 +163,8 @@ static int ub_spawn_initcall(int x)
 static void ub_spawn_init(int i)
 {
 	int result;
-	result = C2_THREAD_INIT(&ubt[i], int, &ub_spawn_initcall, &ub0, 0);
+	result = C2_THREAD_INIT(&ubt[i], int, &ub_spawn_initcall, &ub0, 0,
+				"ub0");
 	C2_ASSERT(result == 0);
 }
 

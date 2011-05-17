@@ -89,25 +89,25 @@ struct c2_thread {
    static void worker(struct foo *arg) { ... }
    static struct c2_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg);
+   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg, "worker");
    @endcode
 
    C2_THREAD_INIT() checks that type of the argument matches function prototype.
 
    @note TYPE cannot be void.
  */
-#define C2_THREAD_INIT(thread, TYPE, init, func, arg)	\
-({							\
-	typeof(func) __func = (func);			\
-	typeof(arg)  __arg  = (arg);			\
-	TYPE         __dummy;				\
-	(void)(__func == (void (*)(TYPE))NULL);		\
-	(void)(&__arg == &__dummy);			\
-	c2_thread_init(thread,				\
-                       (int  (*)(void *))init,  	\
-		       (void (*)(void *))__func,	\
-		       (void *)(unsigned long)__arg,	\
-		       "%s", #func);			\
+#define C2_THREAD_INIT(thread, TYPE, init, func, arg, namefmt, ...)	\
+({									\
+	typeof(func) __func = (func);					\
+	typeof(arg)  __arg  = (arg);					\
+	TYPE         __dummy;						\
+	(void)(__func == (void (*)(TYPE))NULL);				\
+	(void)(&__arg == &__dummy);					\
+	c2_thread_init(thread,						\
+                       (int  (*)(void *))init,				\
+		       (void (*)(void *))__func,			\
+		       (void *)(unsigned long)__arg,			\
+		       namefmt , ## __VA_ARGS__);			\
 })
 
 /**
@@ -119,7 +119,8 @@ struct c2_thread {
    int x;
 
    result = C2_THREAD_INIT(&tcb, int, NULL,
-                           LAMBDA(void, (int y) { printf("%i", x + y); } ));
+                           LAMBDA(void, (int y) { printf("%i", x + y); } ), 1,
+			   "add_%d", 1);
    @endcode
 
    LAMBDA is useful to create an "ad-hoc" function that can be passed as a
@@ -144,6 +145,9 @@ struct c2_thread {
    Otherwise (or in the case where "init" is NULL), c2_thread_init() returns 0
    and the thread calls (*func)(arg) and exits when this call completes.
 
+   The namefmt and its arguments are used to name the thread.  The formatted
+   name is truncated to 15 characters (based on TASK_COMM_LEN).
+
    @note it is possible that after successful return from c2_thread_init() the
    thread hasn't yet entered "func" code, it is also possible that the thread
    has finished its execution.
@@ -153,7 +157,7 @@ struct c2_thread {
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
 int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		    void (*func)(void *), void *arg, const char *name, ...)
+		    void (*func)(void *), void *arg, const char *namefmt, ...)
 	__attribute__ ((format (printf, 5, 6)));
 
 /**
