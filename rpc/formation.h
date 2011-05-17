@@ -404,7 +404,7 @@ static int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_ve
 struct c2_rpc_form_write_segment {
 	/** Linkage to the list of such structures. */
 	struct c2_list_link		ws_linkage;
-	/** The read IO segment. */
+	/** The write IO segment. */
 	struct c2_fop_io_seg		ws_seg;
 };
 

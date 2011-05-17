@@ -7,6 +7,45 @@
 struct c2_rpc_form_item_summary		*formation_summary;
 
 /**
+   rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+int c2_rpc_item_replied(struct c2_rpc_item *item)
+{
+	int				 res = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment		*read_seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	uint32_t			 nsegs = 0;
+
+	C2_PRE(item != NULL);
+	/* Find out fop from the rpc item,
+	   Find out opcode of rpc item,
+	   Deallocate the io vector of rpc item accordingly.
+	 */
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
+			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
+		}
+		c2_fop_free(fop);
+	}
+	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
+			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
+		}
+		c2_fop_free(fop);
+	}
+	return 0;
+}
+
+/**
   XXX Need to move to appropriate file
    RPC item ops function
    Function to return size of fop
@@ -625,6 +664,10 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 		c2_list_del(member->im_linkage);
 		member->ic_nmembers--;
 	}
+	/* XXX Need to implement rpc item completion callback.*/
+	//coalesced_struct->ic_resultant_item->ri_type->rit_ops->rio_replied(
+	//		coalesced_struct->ic_resultant_item);
+	c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
 	c2_list_fini(&coalesced_struct->ic_member_list);
 	c2_list_del(&coalesced_struct->ic_linkage);
 	c2_free(coalesced_struct);
@@ -743,6 +786,10 @@ static int c2_rpc_form_remove_rpcitem_from_summary_unit(
 		return 0;
 	}
 
+	if (--summary_group->sug_nitems == 0) {
+		c2_free(summary_group);
+		return 0;
+	}
 	summary_group->sug_expected_items -= item->ri_group->rg_expected;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX &&
 			summary_group->sug_priority_items > 0) {
@@ -756,7 +803,6 @@ static int c2_rpc_form_remove_rpcitem_from_summary_unit(
 	summary_group->sug_avg_timeout = 
 		((summary_group->sug_nitems * summary_group->sug_avg_timeout) 
 		 - item->ri_deadline.tv_sec) / (summary_group->sug_nitems);
-	summary_group->sug_nitems--;
 
 	return 0;
 }
