@@ -217,6 +217,7 @@ int  c2_rpcmachine_init(struct c2_rpcmachine *machine)
 		rpc_proc_fini(&machine->cr_processing);
 	}
 
+	c2_list_init(&machine->cr_rpc_conn_list);
 	return 0;
 }
 

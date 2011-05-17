@@ -250,6 +250,7 @@ struct c2_rpc_conn {
         /** Every c2_rpc_conn is stored on a global list */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
+	struct c2_rpcmachine		*c_rpcmachine;
         /**
 	    XXX Deprecated: c2_service_id 
 	    Id of the service with which this c2_rpc_conn is associated
@@ -281,8 +282,8 @@ struct c2_rpc_conn {
           c2_rpc_conn->c_state == CONN_IN_USE       ||
           c2_rpc_conn->c_state == CONN_TIMEOUT
  */
-int c2_rpc_conn_init(struct c2_rpc_conn	*rpc_conn,
-		      struct c2_service_id	*svc_id);
+int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
+		     struct c2_service_id	*svc_id);
 
 /**
    Destroy c2_rpc_conn object.

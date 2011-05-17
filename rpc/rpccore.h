@@ -362,6 +362,8 @@ struct c2_rpcmachine {
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
+	/** List of rpc connections */
+	struct c2_list		   cr_rpc_conn_list;
 };
 
 /**

@@ -20,6 +20,8 @@
 const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
+struct c2_rpcmachine g_rpcmachine;
+
 struct c2_stob_id c2_root_stob_id = {
         .si_bits = {1, 1}
 };
@@ -151,6 +153,11 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	conn->c_nr_sessions = 0;
 	c2_chan_init(&conn->c_chan);
 	c2_mutex_init(&conn->c_mutex);
+	/*
+	 * XXX temporary:
+	 * TODO: Find out how to get reference to rpcmachine from rpc-core
+	 */
+	conn->c_rpcmachine = &g_rpcmachine;
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	if (fop == NULL)
@@ -216,7 +223,13 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		c2_rpc_session_zero_attach(conn);
 		conn->c_state = CS_CONN_ACTIVE;
+		c2_list_add(&conn->c_rpcmachine->cr_rpc_conn_list,
+				&conn->c_link);
 	}
+	c2_fop_free(conn->c_private);
+	conn->c_private = NULL;
+	c2_fop_free(fop);
+
 	c2_mutex_unlock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
 			conn->c_state == CS_CONN_ACTIVE);

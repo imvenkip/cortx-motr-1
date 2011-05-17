@@ -55,6 +55,7 @@ void init()
 	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 	C2_ASSERT(rc == 0);
 
+	c2_rpcmachine_init(&g_rpcmachine);
 	printf("dbenv created\n");
 }
 void traverse_slot_table()
