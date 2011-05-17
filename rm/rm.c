@@ -68,9 +68,6 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
         rtype->rt_dom = NULL;
         rtype->rt_id = C2_RM_RESOURCE_TYPE_ID_INVALID;
 
-        if (c2_list_is_empty(&rtype->rt_resources)) {
-        }
-
         c2_list_fini(&rtype->rt_resources);
         c2_mutex_fini(&rtype->rt_lock);
         rtype->rt_ref = 0;
@@ -124,9 +121,10 @@ static int owner_init_internal(struct c2_rm_owner **o,
         for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++)
                 c2_list_init(&owner->ro_owned[i]);
 
-	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++)
+	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++) {
 		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++)
                         c2_list_init(&owner->ro_incoming[i][j]);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
                 c2_list_init(&owner->ro_outgoing[i]);
@@ -250,6 +248,21 @@ static void apply_policy(struct c2_rm_incoming *in)
 */
 static void move_to_sublet(struct c2_rm_incoming *in)
 {
+	struct c2_rm_owner *owner = in->rin_owner;
+	struct c2_rm_pin   *pin;
+	struct c2_rm_right *right;
+	struct c2_rm_loan  *loan;
+
+	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
+
+	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pins,
+			       rp_right_linkage) {
+		right = pin->rp_right;
+		C2_ALLOC_PTR(loan);
+		C2_ASSERT(loan != NULL);
+		bcopy(right, &loan->rl_right, sizeof(struct c2_rm_right));
+		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
+	}
 }
 
 /**
@@ -259,7 +272,6 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 */
 static void reply_to_loan_request(struct c2_rm_incoming *in)
 {
-
 }
 
 /**
@@ -271,7 +283,20 @@ static void reply_to_loan_request(struct c2_rm_incoming *in)
 */
 static bool local_rights_held(const struct c2_rm_incoming *in)
 {
-	return true;
+	struct c2_rm_owner *owner = in->rin_owner;
+	struct c2_rm_pin   *pin;
+	struct c2_rm_right *right;
+
+	if (in->rin_type != RIT_LOCAL) {
+		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin, 
+				       rp_incoming_linkage) {
+			right = pin->rp_right;
+			if (c2_list_contains(&owner->ro_owned[OWOS_HELD],
+					     &right->ri_linkage))
+				return true;
+		}
+	}
+	return false;
 }
 
 /**
@@ -683,11 +708,11 @@ static void incoming_check_local(struct c2_rm_incoming *in,
    Revokes @right (or parts thereof) sub-let to downward owners.
  */
 static void sublet_revoke(struct c2_rm_incoming *in,
-				struct c2_rm_right *rest)
+			  struct c2_rm_right *rest)
 {
-	struct c2_rm_right *right;
-	struct c2_rm_loan *loan;
 	struct c2_rm_owner *o = in->rin_owner;
+	struct c2_rm_right *right;
+	struct c2_rm_loan  *loan;
 
 	c2_list_for_each_entry(&o->ro_sublet, right,
 			       struct c2_rm_right, ri_linkage) {
@@ -717,8 +742,8 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	/*
 	* Check whether pin can be added to given right
 	*/
-	c2_list_for_each_entry(&right->ri_pins, pin, 
-				struct c2_rm_pin, rp_right_linkage) {	
+	c2_list_for_each_entry(&right->ri_pins, pin, struct c2_rm_pin,
+			       rp_right_linkage) {	
 		if (pin->rp_flags == RPF_BARRIER)
 			return -EPERM;
 	}
