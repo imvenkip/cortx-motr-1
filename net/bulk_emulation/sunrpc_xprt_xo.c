@@ -62,16 +62,16 @@ static struct c2_service     sunrpc_server_service;
 static uint32_t              sunrpc_server_active_tms = 0;
 static struct c2_mutex       sunrpc_tm_start_mutex;
 
-static bool sunrpc_dom_invariant(struct c2_net_domain *dom)
+static bool sunrpc_dom_invariant(const struct c2_net_domain *dom)
 {
-	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
+	const struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
 	return (dp != NULL && dp->xd_magic == C2_NET_BULK_SUNRPC_XDP_MAGIC);
 }
 
-static bool sunrpc_ep_invariant(struct c2_net_end_point *ep)
+static bool sunrpc_ep_invariant(const struct c2_net_end_point *ep)
 {
-	struct c2_net_bulk_mem_end_point *mep;
-	struct c2_net_bulk_sunrpc_end_point *sep;
+	const struct c2_net_bulk_mem_end_point *mep;
+	const struct c2_net_bulk_sunrpc_end_point *sep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 	return (sunrpc_dom_invariant(ep->nep_dom) &&
@@ -79,16 +79,16 @@ static bool sunrpc_ep_invariant(struct c2_net_end_point *ep)
 		sep->xep_sid_valid);
 }
 
-static bool sunrpc_tm_invariant(struct c2_net_transfer_mc *tm)
+static bool sunrpc_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
-	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
+	const struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
 	return (tp != NULL && tp->xtm_magic == C2_NET_BULK_SUNRPC_XTM_MAGIC &&
 		sunrpc_dom_invariant(tm->ntm_dom));
 }
 
-static bool sunrpc_buffer_invariant(struct c2_net_buffer *nb)
+static bool sunrpc_buffer_invariant(const struct c2_net_buffer *nb)
 {
-	struct c2_net_bulk_sunrpc_buffer_pvt *sbp = nb->nb_xprt_private;
+	const struct c2_net_bulk_sunrpc_buffer_pvt *sbp = nb->nb_xprt_private;
 	return (sbp != NULL &&
 		sbp->xsb_magic == C2_NET_BULK_SUNRPC_XBP_MAGIC &&
 		sunrpc_dom_invariant(nb->nb_dom));
@@ -307,9 +307,9 @@ static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
 /**
    Check buffer size limits.
  */
-static bool sunrpc_buffer_in_bounds(struct c2_net_buffer *nb)
+static bool sunrpc_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
-	struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
 	if (v->v_nr > C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS)
 		return false;
 	int i;
@@ -388,14 +388,16 @@ static int sunrpc_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_fini(tm);
 }
 
-int c2_net_bulk_sunrpc_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+void c2_net_bulk_sunrpc_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 					  size_t num)
 {
 	C2_PRE(sunrpc_tm_invariant(tm));
-	return c2_net_bulk_mem_tm_set_num_threads(tm, num);
+	c2_net_bulk_mem_tm_set_num_threads(tm, num);
+	return;
 }
 
-size_t c2_net_bulk_sunrpc_tm_get_num_threads(struct c2_net_transfer_mc *tm)
+size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
+					     *tm)
 {
 	C2_PRE(sunrpc_tm_invariant(tm));
 	return c2_net_bulk_mem_tm_get_num_threads(tm);

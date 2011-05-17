@@ -31,7 +31,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 			  struct c2_net_bulk_sunrpc_tm_pvt *tp);
-static bool sunrpc_buffer_in_bounds(struct c2_net_buffer *nb);
+static bool sunrpc_buffer_in_bounds(const struct c2_net_buffer *nb);
 static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid);
 
 /**

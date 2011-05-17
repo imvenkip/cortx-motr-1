@@ -36,9 +36,9 @@ struct mem_desc {
 
 /* forward references to other static functions */
 static bool mem_dom_invariant(const struct c2_net_domain *dom);
-static bool mem_ep_invariant(struct c2_net_end_point *ep);
-static bool mem_buffer_invariant(struct c2_net_buffer *nb);
-static bool mem_tm_invariant(struct c2_net_transfer_mc *tm);
+static bool mem_ep_invariant(const struct c2_net_end_point *ep);
+static bool mem_buffer_invariant(const struct c2_net_buffer *nb);
+static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm);
 static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_domain *dom,
 			 struct sockaddr_in *sa,
@@ -57,8 +57,8 @@ static int mem_desc_decode(struct c2_net_buf_desc *desc,
 			   struct mem_desc **p_md);
 static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 			   struct c2_net_buf_desc *d2);
-static c2_bcount_t mem_buffer_length(struct c2_net_buffer *nb);
-static bool mem_buffer_in_bounds(struct c2_net_buffer *nb);
+static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb);
+static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb);
 static int mem_copy_buffer(struct c2_net_buffer *dest_nb,
 			   struct c2_net_buffer *src_nb,
 			   c2_bcount_t num_bytes);

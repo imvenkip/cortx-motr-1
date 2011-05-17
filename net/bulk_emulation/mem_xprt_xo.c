@@ -37,7 +37,7 @@ static struct c2_list  mem_domains;
 #include "mem_xprt_msg.c"
 #include "mem_xprt_bulk.c"
 
-static c2_bcount_t mem_buffer_length(struct c2_net_buffer *nb)
+static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb)
 {
 	return c2_vec_count(&nb->nb_buffer.ov_vec);
 }
@@ -45,9 +45,9 @@ static c2_bcount_t mem_buffer_length(struct c2_net_buffer *nb)
 /**
    Check buffer size limits.
  */
-static bool mem_buffer_in_bounds(struct c2_net_buffer *nb)
+static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
-	struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
 	if (v->v_nr > C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS)
 		return false;
 	int i;
@@ -112,24 +112,24 @@ static bool mem_dom_invariant(const struct c2_net_domain *dom)
 	return dp != NULL && dp->xd_dom == dom;
 }
 
-static bool mem_ep_invariant(struct c2_net_end_point *ep)
+static bool mem_ep_invariant(const struct c2_net_end_point *ep)
 {
-	struct c2_net_bulk_mem_end_point *mep;
+	const struct c2_net_bulk_mem_end_point *mep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	return (mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
 		mep->xep_ep.nep_addr == &mep->xep_addr[0]);
 }
 
-static bool mem_buffer_invariant(struct c2_net_buffer *nb)
+static bool mem_buffer_invariant(const struct c2_net_buffer *nb)
 {
-	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+	const struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
 	return  (bp != NULL && bp->xb_buffer == nb &&
 		 mem_dom_invariant(nb->nb_dom));
 }
 
-static bool mem_tm_invariant(struct c2_net_transfer_mc *tm)
+static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	const struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	return (tp != NULL && tp->xtm_tm == tm &&
 		mem_dom_invariant(tm->ntm_dom));
 }
@@ -528,23 +528,20 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	return 0;
 }
 
-int c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
+void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 				       size_t num)
 {
-	int rc;
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	C2_PRE(mem_tm_invariant(tm));
 	c2_mutex_lock(&tm->ntm_mutex);
-	if (tp->xtm_state == C2_NET_XTM_INITIALIZED) {
-		tp->xtm_num_workers = num;
-	} else {
-		rc = -EPERM;
-	}
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_PRE(tp->xtm_state == C2_NET_XTM_INITIALIZED);
+	tp->xtm_num_workers = num;
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return;
 }
 
-size_t c2_net_bulk_mem_tm_get_num_threads(struct c2_net_transfer_mc *tm) {
+size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	C2_PRE(mem_tm_invariant(tm));
 	return tp->xtm_num_workers;
