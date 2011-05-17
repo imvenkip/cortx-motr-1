@@ -285,8 +285,10 @@ static void remove_rights(struct c2_rm_incoming *in)
 	struct c2_rm_pin *tmp;
 
 	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp, struct c2_rm_pin,
-			 	    rp_incoming_linkage)
+			 	    rp_incoming_linkage) {
 		c2_list_del(&pin->rp_incoming_linkage);
+		c2_list_del(&pin->rp_right_linkage);
+	}
 }
 
 /**
@@ -573,7 +575,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 				break;
 			case RIT_REVOKE:
 				remove_rights(in);
-				/* Incoming request got rigth which is means 
+				/* Incoming request got rigths which is means 
 				 * right should be part of loan/barrowed list.
 				 */
 				loan = container_of(&in->rin_want, 

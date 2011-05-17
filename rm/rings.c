@@ -14,13 +14,13 @@ static void rings_policy(struct c2_rm_resource *resource,
 }
 
 struct c2_rm_resource_ops rings_ops = {
-	.rto_encode = NULL,
+	.rto_encode 	  = NULL,
 	.rop_right_decode = NULL,
-	.rop_policy = rings_policy
+	.rop_policy 	  = rings_policy
 };
 
 struct c2_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq = NULL,
+	.rto_eq     = NULL,
 	.rto_decode = NULL
 };
 
@@ -77,11 +77,11 @@ static bool right_implies(const struct c2_rm_right *r0,
 }
 
 struct c2_rm_right_ops rings_right_ops = {
-	.rro_free = NULL,
-	.rro_encode = NULL,
-	.rro_meet = right_meet,
-	.rro_join = right_join,
-	.rro_diff = right_diff,
+	.rro_free    = NULL,
+	.rro_encode  = NULL,
+	.rro_meet    = right_meet,
+	.rro_join    = right_join,
+	.rro_diff    = right_diff,
 	.rro_implies = right_implies
 };
 
