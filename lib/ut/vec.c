@@ -116,7 +116,7 @@ static void test_bufvec_cursor(void)
 	int i;
 
 	C2_SET_ARR0(bufs);
-	for (i=0; i < NR_BUFS; i++) {
+	for (i = 0; i < NR_BUFS; ++i) {
 		C2_UT_ASSERT(msglen == shapes[i].num_segs * shapes[i].seg_size);
 		C2_UT_ASSERT(c2_bufvec_alloc(&bufs[i],
 					     shapes[i].num_segs,
@@ -126,7 +126,7 @@ static void test_bufvec_cursor(void)
 	C2_UT_ASSERT(b->ov_vec.v_nr == 1);
 	memcpy(b->ov_buf[0], msg, msglen);
 	C2_UT_ASSERT(memcmp(b->ov_buf[0], msg, msglen) == 0);
-	for (i=1; i < NR_BUFS; i++) {
+	for (i = 1; i < NR_BUFS; ++i) {
 		struct c2_bufvec_cursor s_cur;
 		struct c2_bufvec_cursor d_cur;
 		int j;
@@ -142,10 +142,10 @@ static void test_bufvec_cursor(void)
 		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
 
 		/* verify data */
-		for (j=0; j < bufs[i].ov_vec.v_nr; j++) {
+		for (j = 0; j < bufs[i].ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < bufs[i].ov_vec.v_count[j]; k++){
+			for (k = 0; k < bufs[i].ov_vec.v_count[j]; ++k) {
 				q = bufs[i].ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 			}
@@ -179,10 +179,10 @@ static void test_bufvec_cursor(void)
 
 		/* check partial copy correct */
 		len = 0;
-		for (j=0; j < buf.ov_vec.v_nr; j++) {
+		for (j = 0; j < buf.ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < buf.ov_vec.v_count[j]; k++){
+			for (k = 0; k < buf.ov_vec.v_count[j]; ++k) {
 				q = buf.ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 				len++;
@@ -218,11 +218,11 @@ static void test_bufvec_cursor(void)
 
 		/* check partial copy correct */
 		len = 0;
-		for (j=0; j < buf.ov_vec.v_nr; j++) {
+		for (j = 0; j < buf.ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < buf.ov_vec.v_count[j] && len < msglen;
-			     k++){
+			for (k = 0; k < buf.ov_vec.v_count[j] && len < msglen;
+			     k++) {
 				q = buf.ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 				len++;
