@@ -370,7 +370,6 @@ static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)
 	if (rc == 0) {
 		struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
 		tp->xtm_magic = C2_NET_BULK_SUNRPC_XTM_MAGIC;
-		c2_list_link_init(&tp->xtm_tm_linkage);
 		c2_list_add_tail(&sunrpc_server_tms, &tp->xtm_tm_linkage);
 		C2_POST(sunrpc_tm_invariant(tm));
 	}

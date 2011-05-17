@@ -80,7 +80,6 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	       buf->nb_buffer.ov_vec.v_count != NULL);
 
 	buf->nb_dom = dom;
-	c2_list_link_init(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 
 	/* The transport will validate buffer size and number of
