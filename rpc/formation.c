@@ -6,319 +6,6 @@
  */
 struct c2_rpc_form_item_summary		*formation_summary;
 
-/**
-   rio_replied op from rpc type ops.
-   If this is an IO request, free the IO vector
-   and free the fop.
- */
-int c2_rpc_item_replied(struct c2_rpc_item *item)
-{
-	int				 res = 0;
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_segment		*read_seg = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	uint32_t			 nsegs = 0;
-
-	C2_PRE(item != NULL);
-	/* Find out fop from the rpc item,
-	   Find out opcode of rpc item,
-	   Deallocate the io vector of rpc item accordingly.
-	 */
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
-			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
-		}
-		c2_fop_free(fop);
-	}
-	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
-			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
-		}
-		c2_fop_free(fop);
-	}
-	return 0;
-}
-
-/**
-  XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return size of fop
- */
-uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
-{
-	struct c2_fop			*fop = NULL;
-	int opcode			 opcode = 0;
-	uint64_t			 size = 0;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
-	uint64_t			 vec_count = 0;
-	int				 i = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	/** Size of fop layout */
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	opcode = fop->f_type->ft_code;
-
-	/** Add buffer payload for read reply */
-	if(opcode == c2_io_service_readv_rep_opcode ) {
-		read_rep_fop = c2_fop_data(fop);
-		size += read_rep_fop->frdr_buf.f_count;
-	}
-	/** Add buffer payload for write request */
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		vec_count = write_fop->fwr_iovec.iov_count;
-		for(i = 0; i < vec_count; i++) {
-			size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
-		}
-	}
-
-	return size;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return the opcode given an rpc item
- */
-int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop = NULL;
-	int opcode		 opcode = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-	if(opcode == c2_io_service_readv_opcode ) {
-		return C2_RPC_FORM_IO_READ;
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		return C2_RPC_FORM_IO_WRITE;
-	}
-	return opcode;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to map the on-wire FOP format to in-core FOP format.
- */
-static void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in, 
-		struct c2_fid *out)
-{
-        out->f_container = in->f_seq;
-        out->f_key = in->f_oid;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to get the fid for an IO request from the rpc item
- */
-struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
-{
-	struct c2_fop			*fop = NULL;
-	struct c2_fid			 fid;
-	struct c2_fop_file_fid		*ffid = NULL;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	int opcode			 opcode;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-
-	if(opcode == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		ffid = &read_fop->frd_fid;
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		ffid = &write_fop->fwr_fid;
-	}
-	c2_rpc_form_item_io_fid_wire2mem(ffid, &fid);
-	return fid;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to find out if the item belongs to an IO request or not 
- */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop = NULL;
-	int opcode		 opcode = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-	if(opcode == c2_io_service_readv_opcode ||
-		opcode == c2_io_service_writev_opcode) {
-		return true;
-	}
-	return false;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to find out number of fragmented buffers in IO request 
- */
-uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
-{
-
-	struct c2_fop			*fop;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	int opcode			 opcode;
-	uint64_t			 nfragments = 0;
-	uint64_t			 seg_offset = 0;
-	uint64_t			 seg_count = 0;
-	int				 i = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-
-	if(opcode == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		seg_count = read_fop->frd_ioseg.fs_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
-			if(seg_offset != 0) {
-				nfragments++;
-			}
-		}
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		seg_count = write_fop->fwr_iovec.iov_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
-			if(seg_offset != 0) {
-				nfragments++;
-			}
-		}
-	}
-	return nfragments;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return segment for read fop from given rpc item 
- */
-struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
- {
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_segment_seq	*seg = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	read_fop = c2_fop_data(fop);
-	seg = read_fop->frd_ioseg;
-	C2_ASSERT(seg != NULL);
-
-	return seg;
- }
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return segment for write fop from given rpc item 
- */
-struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item)
- {
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_io_vec		*vec = NULL;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	write_fop = c2_fop_data(fop);
-	vec = write_fop->fwr_iovec;
-	C2_ASSERT(vec != NULL);
-
-	return vec;
- }
-
-/**
-  XXX Need to move to appropriate file
-  RPC item ops function
-  Function to return new rpc item embedding the given write vector,
-  by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item, struct c2_fop_io_vec *vec)
-{
-	struct c2_fop                   *fop = NULL;
-	struct c2_fop                   *res_fop = NULL;
-	int                              res = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(curr_item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	res = fop->f_type->ft_ops->fto_get_write_fop(&res_fop, vec);
-	res_item = res_fop->f_item;
-	return 0;
-}
-
-/**
-  XXX Need to move to appropriate file
-  RPC item ops function
-  Function to return new rpc item embedding the given read segment,
-  by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item, struct c2_fop_segment_seq *seg)
-{
-	struct c2_fop                   *fop = NULL;
-	struct c2_fop                   *res_fop = NULL;
-	int                              res = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(curr_item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	res = fop->f_type->ft_ops->fto_get_read_fop(fop, &res_fop, seg);
-	res_item = res_fop->f_item;
-	return 0;
-}
-
 /**     
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
@@ -377,16 +64,19 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	sm = container_of(ref, struct c2_rpc_form_state_machine, isu_ref);
 	endp_unit = container_of(sm, struct c2_rpc_form_item_summary_unit, 
 			isu_sm);
-	c2_mutex_fini(&endp_unit->isu_unit_lock);
-	c2_list_del(&endp_unit->isu_linkage);
-	c2_list_fini(&endp_unit->isu_groups_list.l_head);
-	c2_list_fini(&endp_unit->isu_coalesced_items_list.l_head);
-	c2_list_fini(&endp_unit->isu_fid_list.l_head);
-	c2_list_fini(&endp_unit->isu_unformed_list.l_head);
-	c2_list_fini(&endp_unit->isu_rpcobj_formed_list.l_head);
-	c2_list_fini(&endp_unit->isu_rpcobj_checked_list.l_head);
-	endp_unit->isu_endp_id = NULL;
-	c2_free(endp_unit);
+	/* Delete the endp_unit only if it contains no valid data.*/
+	if (c2_list_is_empty(&endp_unit->isu_unformed_list.l_head)) {
+		c2_mutex_fini(&endp_unit->isu_unit_lock);
+		c2_list_del(&endp_unit->isu_linkage);
+		c2_list_fini(&endp_unit->isu_groups_list.l_head);
+		c2_list_fini(&endp_unit->isu_coalesced_items_list.l_head);
+		c2_list_fini(&endp_unit->isu_fid_list.l_head);
+		c2_list_fini(&endp_unit->isu_unformed_list.l_head);
+		c2_list_fini(&endp_unit->isu_rpcobj_formed_list.l_head);
+		c2_list_fini(&endp_unit->isu_rpcobj_checked_list.l_head);
+		endp_unit->isu_endp_id = NULL;
+		c2_free(endp_unit);
+	}
 }
 
 /**
@@ -505,8 +195,10 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	c2_mutex_unlock(endp_unit->isu_unit_lock);
 	/*XXX Handle exit path as an event. */
 	/* Exit point for state machine. */
-	if(res == C2_RPC_FORM_INTEVT_STATE_DONE)
+	if(res == C2_RPC_FORM_INTEVT_STATE_DONE) {
+		c2_rpc_form_state_machine_exit(endp_unit);
 		return 0;
+	}
 
 	if (res == C2_RPC_FORM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
@@ -691,7 +383,6 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	/* Internal events will invoke a nop from waiting state. */
 
-	c2_rpc_form_state_machine_exit(endp_unit);
 	return C2_RPC_FORM_INTEVT_STATE_DONE;
 }
 
@@ -1739,3 +1430,315 @@ int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	}
 }
 
+/**
+   XXX rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+int c2_rpc_item_replied(struct c2_rpc_item *item)
+{
+	int				 res = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment		*read_seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	uint32_t			 nsegs = 0;
+
+	C2_PRE(item != NULL);
+	/* Find out fop from the rpc item,
+	   Find out opcode of rpc item,
+	   Deallocate the io vector of rpc item accordingly.
+	 */
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
+			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
+		}
+		c2_fop_free(fop);
+	}
+	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
+			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
+		}
+		c2_fop_free(fop);
+	}
+	return 0;
+}
+
+/**
+  XXX Need to move to appropriate file
+   RPC item ops function
+   Function to return size of fop
+ */
+uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	int opcode			 opcode = 0;
+	uint64_t			 size = 0;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
+	uint64_t			 vec_count = 0;
+	int				 i = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	/** Size of fop layout */
+	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+
+	opcode = fop->f_type->ft_code;
+
+	/** Add buffer payload for read reply */
+	if(opcode == c2_io_service_readv_rep_opcode ) {
+		read_rep_fop = c2_fop_data(fop);
+		size += read_rep_fop->frdr_buf.f_count;
+	}
+	/** Add buffer payload for write request */
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		vec_count = write_fop->fwr_iovec.iov_count;
+		for(i = 0; i < vec_count; i++) {
+			size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
+		}
+	}
+
+	return size;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return the opcode given an rpc item
+ */
+int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode ) {
+		return C2_RPC_FORM_IO_READ;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		return C2_RPC_FORM_IO_WRITE;
+	}
+	return opcode;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to map the on-wire FOP format to in-core FOP format.
+ */
+static void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in, 
+		struct c2_fid *out)
+{
+        out->f_container = in->f_seq;
+        out->f_key = in->f_oid;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to get the fid for an IO request from the rpc item
+ */
+struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	struct c2_fid			 fid;
+	struct c2_fop_file_fid		*ffid = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	int opcode			 opcode;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		ffid = &read_fop->frd_fid;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		ffid = &write_fop->fwr_fid;
+	}
+	c2_rpc_form_item_io_fid_wire2mem(ffid, &fid);
+	return fid;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out if the item belongs to an IO request or not 
+ */
+bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode ||
+		opcode == c2_io_service_writev_opcode) {
+		return true;
+	}
+	return false;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out number of fragmented buffers in IO request 
+ */
+uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
+{
+
+	struct c2_fop			*fop;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	int opcode			 opcode;
+	uint64_t			 nfragments = 0;
+	uint64_t			 seg_offset = 0;
+	uint64_t			 seg_count = 0;
+	int				 i = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		seg_count = read_fop->frd_ioseg.fs_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		seg_count = write_fop->fwr_iovec.iov_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	return nfragments;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return segment for read fop from given rpc item 
+ */
+struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment_seq	*seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	read_fop = c2_fop_data(fop);
+	seg = read_fop->frd_ioseg;
+	C2_ASSERT(seg != NULL);
+
+	return seg;
+ }
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return segment for write fop from given rpc item 
+ */
+struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_io_vec		*vec = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	write_fop = c2_fop_data(fop);
+	vec = write_fop->fwr_iovec;
+	C2_ASSERT(vec != NULL);
+
+	return vec;
+ }
+
+/**
+  XXX Need to move to appropriate file
+  RPC item ops function
+  Function to return new rpc item embedding the given write vector,
+  by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item, struct c2_fop_io_vec *vec)
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop                   *res_fop = NULL;
+	int                              res = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_write_fop(&res_fop, vec);
+	res_item = res_fop->f_item;
+	return 0;
+}
+
+/**
+  XXX Need to move to appropriate file
+  RPC item ops function
+  Function to return new rpc item embedding the given read segment,
+  by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item, struct c2_fop_segment_seq *seg)
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop                   *res_fop = NULL;
+	int                              res = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_read_fop(fop, &res_fop, seg);
+	res_item = res_fop->f_item;
+	return 0;
+}
