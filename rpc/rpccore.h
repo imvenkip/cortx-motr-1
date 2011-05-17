@@ -164,6 +164,35 @@ struct c2_rpc_item_type_ops {
 	   @pre rio_sent() called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item, int rc);
+	/**
+	   Find out the size of rpc item.
+	 */
+	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
+	/**
+	   Find out if the item belongs to an IO request or not.
+	 */
+	bool (*rio_is_io_req)(struct c2_rpc_item *item);
+	/**
+	   Find out the count of fragmented buffers.
+	 */
+	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
+	/**
+	   Find out if the IO is read or write.
+	 */
+	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	/**
+	   Return the IO vector from the IO request. 
+	 */
+	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
+	/**
+	   Get new coalesced rpc item.
+	 */
+	int (*rio_get_new_io_item)(struct c2_rpc_item *item1,
+			struct c2_rpc_item *item2, void *pvt);
+	/**
+	   Return the fid of request.
+	 */
+	void *(*rio_io_get_fid)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {

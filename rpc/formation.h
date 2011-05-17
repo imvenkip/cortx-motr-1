@@ -265,7 +265,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(c
    @param item - incoming rpc item.
    @param pvt - private data of item.
  */
-int c2_rpc_form_change_rpcitem_from_summary_unit(struct
+static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item, void *pvt);
 
@@ -275,7 +275,7 @@ int c2_rpc_form_change_rpcitem_from_summary_unit(struct
    @param endp_unit - given item_summary_unit structure.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
+static int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item);
 
@@ -285,7 +285,7 @@ int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
    @param endp_unit - given item_summary_unit structure.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_add_rpcitem_to_summary_unit(struct
+static int c2_rpc_form_add_rpcitem_to_summary_unit(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item);
 
@@ -305,7 +305,7 @@ struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
    @param nfragments - current count of fragments. 
    @param forming_list - list of rpc items in an rpc object.
  */
-int c2_rpc_form_item_add_to_forming_list(struct
+static int c2_rpc_form_item_add_to_forming_list(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item, uint64_t *rpcobj_size,
 		uint64_t *nfragments, struct c2_list *forming_list);
@@ -366,7 +366,7 @@ static int c2_rpc_form_item_coalesced_reply_post(struct c2_rpc_form_item_coalesc
    @param coalesced_item - struct containing a resultant rpc item
    and its member rpc items.
  */
-int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
+static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 		*coalesced_item);
 
 /**
@@ -376,7 +376,7 @@ int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
    @param forming_list - list of rpc items in an rpc object.
    @param rpcobj_size - current size of rpc object.
  */
-int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
+static int c2_rpc_form_items_coalesce(struct c2_rpc_item_summary_unit *endp_unit,
 		struct c2_list *forming_list, uint64_t *rpcobj_size);
 
 /**
@@ -395,7 +395,7 @@ struct c2_rpc_form_read_segment {
    @param aggr_list - list of resultant segments.
    @param res_segs - number of resultant segments.
  */
-int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_vec,
+static int c2_rpc_form_coalesce_readio_vector(struct c2_fop_segment_seq *item_vec,
 		struct c2_list *aggr_list, int *res_segs);
 
 /**
@@ -414,7 +414,7 @@ struct c2_rpc_form_write_segment {
    @param aggr_list - list of resultant segments.
    @param res_segs - number of resultant segments.
  */
-int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
+static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 		struct c2_list *aggr_list, int *res_segs);
 
 /**
@@ -450,7 +450,7 @@ struct c2_rpc_form_item_summary_unit_group {
    @param summary_group - array of c2_rpc_form_item_summary_unit_group
    structures to be sorted.
  */
-int c2_rpc_form_summary_groups_sort(struct
+static int c2_rpc_form_summary_groups_sort(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_form_item_summary_unit_group *summary_group);
 
@@ -706,7 +706,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(const struct c2_rpc_item *item);
    for state succeeded event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_succeeded(const struct
+static int c2_rpc_form_intevt_state_succeeded(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state);
 
@@ -717,7 +717,7 @@ int c2_rpc_form_intevt_state_succeeded(const struct
    for state failed event.
    @param state - previous state of state machine.
  */
-int c2_rpc_form_intevt_state_failed(const struct
+static int c2_rpc_form_intevt_state_failed(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state);
 
