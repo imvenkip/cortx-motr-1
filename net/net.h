@@ -720,9 +720,7 @@ struct c2_net_event {
    transfer machine queue.  The invoking process will block on the transfer
    machine's c2_net_transfer_mc.ntm_cond condition variable until the
    outstanding event callback on the buffer completes (indicated by the
-   C2_NET_BUF_IN_CALLBACK bit being cleared).  If the subroutine detects that
-   it is being called recursively on the same buffer it will fail with a
-   EDEADLK indication.
+   C2_NET_BUF_IN_CALLBACK bit being cleared).
 
    The subroutine will remove the buffer from its queue, and clear its
    C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
