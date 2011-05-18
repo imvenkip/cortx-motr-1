@@ -4,7 +4,7 @@
 #define __COLIBRI_LIB_THREAD_H__
 
 #include "cdefs.h"
-#include "chan.h"
+#include "semaphore.h"
 
 #ifndef __KERNEL__
 #include "user_space/thread.h"
@@ -39,7 +39,8 @@
  */
 enum c2_thread_state {
 	TS_PARKED = 0,
-	TS_RUNNING
+	TS_RUNNING,	
+	TS_DONE
 };
 
 /**
@@ -55,6 +56,9 @@ enum c2_thread_state {
    @li RUNNING: the thread started execution of c2_thread::t_func function, but
    hasn't yet been joined. Note that the thread can be in this state after
    return from c2_thread::t_func.
+
+   @li DONE: the thread returned from execution of c2_thread::t_func
+   function, but hasn't yet been joined.
 
    <b>Concurrency control</b>
 
@@ -75,7 +79,7 @@ struct c2_thread {
 	int                   (*t_init)(void *);
 	void                  (*t_func)(void *);
 	void                   *t_arg;
-	struct c2_chan          t_initwait;
+	struct c2_semaphore     t_wait;
 	int                     t_initrc;
 };
 
@@ -136,6 +140,27 @@ struct c2_thread {
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
 
 /**
+   Internal helper for c2_thread_init() that creates the user or kernel thread
+   after the c2_thread q has been initialised.
+   @pre q->t_state == TS_RUNNING
+   @retval 0 thread created
+   @retval -errno failed
+ */
+int  c2_thread_init_impl(struct c2_thread *q, const char *name);
+
+/**
+   Threads created by c2_thread_init_impl execute this function to
+   perform common bookkeeping, executing t->t_init if appropriate,
+   and then executing t->t_func.
+   @pre t->t_state == TS_RUNNING && t->t_initrc == 0
+   @post t->t_state == TS_DONE
+   @param t a c2_thread*, passed as void* to be compatible with
+   pthread_create function argument.
+   @retval NULL
+ */
+void *c2_thread_trampoline(void *t);
+
+/**
    Creates a new thread.
 
    If "init" is not NULL, the created thread starts execution by calling
@@ -154,7 +179,7 @@ struct c2_thread {
 
    @pre q->t_state == TS_PARKED
    @post (result != 0) == (q->t_state == TS_PARKED)
-   @post (result == 0) == (q->t_state == TS_RUNNING)
+   @post (result == 0) == (q->t_state == TS_RUNNING || q->t_state == TS_DONE)
  */
 int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		    void (*func)(void *), void *arg, const char *namefmt, ...)
@@ -177,7 +202,7 @@ void c2_thread_fini(struct c2_thread *q);
    thread function), because the thread might be still executing instructions
    after it returns from c2_thread::t_func.
 
-   @pre q->t_state == TS_RUNNING
+   @pre q->t_state == TS_RUNNING || q->t_state == TS_DONE
    @pre q is different from the calling thread
    @post (result == 0) == (q->t_state == TS_PARKED)
    @retval 0 thread joined (thread is terminated)

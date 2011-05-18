@@ -21,6 +21,10 @@ struct c2_thread_handle {
 	struct task_struct *h_t;
 };
 
+enum {
+	C2_THREAD_NAME_LEN = TASK_COMM_LEN
+};
+
 /** @} end of thread group */
 
 /* __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__ */

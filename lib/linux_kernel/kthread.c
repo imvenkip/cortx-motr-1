@@ -31,16 +31,17 @@
 static int kthread_trampoline(void *arg)
 {
 	struct c2_thread *t = arg;
+	c2_thread_trampoline(arg);
 
-	C2_ASSERT(t->t_state == TS_RUNNING);
-	C2_ASSERT(t->t_initrc == 0);
-
-	if (t->t_init != NULL)
-		t->t_initrc = t->t_init(t->t_arg);
-	c2_chan_signal(&t->t_initwait);
-	if (t->t_initrc == 0)
-		t->t_func(t->t_arg);
-
+	/* Required for correct c2_thread_join() behavior in kernel:
+	   kthread_stop() will not stop if the thread has been created but
+	   has not yet started executing.  So, c2_thread_join() blocks
+	   on the semaphore until t_state == TS_DONE before it calls
+	   kthread_stop().  kthread_stop(), in turn, requires that the
+	   thread not exit until kthread_stop() is called, so we must loop on
+	   kthread_should_stop() to satisfy that API requirement.
+	 */
+	c2_semaphore_up(&t->t_wait);
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (!kthread_should_stop()) {
 		schedule();
@@ -51,69 +52,32 @@ static int kthread_trampoline(void *arg)
 	return 0;
 }
 
-int c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		   void (*func)(void *), void *arg, const char *name, ...)
+int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
-	int             result;
-	struct c2_clink wait;
-	char            commbuf[TASK_COMM_LEN];
-	va_list         varargs;
+	int result;
 
-	C2_PRE(q->t_func == NULL);
-	C2_PRE(q->t_state == TS_PARKED);
+	C2_PRE(q->t_state == TS_RUNNING);
 
-	q->t_state = TS_RUNNING;
-	q->t_init  = init;
-	q->t_func  = func;
-	q->t_arg   = arg;
-
-	va_start(varargs, name);
-	vsnprintf(commbuf, sizeof(commbuf), name, varargs);
-	va_end(varargs);
-
-	/*
-	  Always set up and wait on initwait. Ensures thread actually starts
-	  before kthread_stop can be called.
-	 */
-	c2_clink_init(&wait, NULL);
-	c2_chan_init(&q->t_initwait);
-	c2_clink_add(&q->t_initwait, &wait);
-	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", commbuf);
+	q->t_h.h_t = kthread_create(kthread_trampoline, q, "%s", namebuf);
 	if (IS_ERR(q->t_h.h_t)) {
 		result = PTR_ERR(q->t_h.h_t);
 	} else {
 		result = 0;
 		wake_up_process(q->t_h.h_t);
 	}
-	if (result == 0) {
-		c2_chan_wait(&wait);
-		result = q->t_initrc;
-		if (result != 0)
-			c2_thread_join(q);
-	}
-	c2_clink_del(&wait);
-	c2_clink_fini(&wait);
-	c2_chan_fini(&q->t_initwait);
-	if (result != 0)
-		q->t_state = TS_PARKED;
 	return result;
 }
-C2_EXPORTED(c2_thread_init);
-
-void c2_thread_fini(struct c2_thread *q)
-{
-	C2_PRE(q->t_state == TS_PARKED);
-	C2_SET0(q);
-}
-C2_EXPORTED(c2_thread_fini);
 
 int c2_thread_join(struct c2_thread *q)
 {
 	int result;
 
-	C2_PRE(q->t_state == TS_RUNNING);
+	C2_PRE(q->t_state == TS_RUNNING || q->t_state == TS_DONE);
 	C2_PRE(q->t_h.h_t != current);
 
+	/* see comment in kthread_trampoline */
+	while (q->t_state != TS_DONE)
+		c2_semaphore_down(&q->t_wait);
 	/*
 	  c2_thread provides no wrappers for kthread_should_stop() or
 	  do_exit(), so this will block until the thread exits by returning
