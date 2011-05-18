@@ -48,11 +48,12 @@ static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb)
 static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
 	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	int i;
+	c2_bcount_t len = 0;
+
 	if (v->v_nr > C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS)
 		return false;
-	int i;
-	c2_bcount_t len=0;
-	for (i=0; i < v->v_nr; i++) {
+	for (i = 0; i < v->v_nr; ++i) {
 		if (v->v_count[i] > C2_NET_BULK_MEM_MAX_SEGMENT_SIZE)
 			return false;
 		len += v->v_count[i];
@@ -206,15 +207,14 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
  */
 static void mem_xo_dom_fini(struct c2_net_domain *dom)
 {
+	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	C2_PRE(mem_dom_invariant(dom));
 
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 	if (dp->xd_derived)
 		return;
 	c2_list_del(&dp->xd_dom_linkage);
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
-	return;
 }
 
 static c2_bcount_t mem_xo_get_max_buffer_size(const struct c2_net_domain *dom)
@@ -262,7 +262,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	char buf[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 	const char *dot_ip;
 	struct sockaddr_in sa;
-	uint32_t id=0;
+	uint32_t id = 0;
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 
 	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
@@ -321,13 +321,15 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
  */
 static int mem_xo_buf_register(struct c2_net_buffer *nb)
 {
+	struct c2_net_bulk_mem_domain_pvt *dp;
+	struct c2_net_bulk_mem_buffer_pvt *bp;
+
 	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
 	if (!MEM_BUFFER_IN_BOUNDS(nb))
 		return -EFBIG;
 
-	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
-	struct c2_net_bulk_mem_buffer_pvt *bp;
+	dp = nb->nb_dom->nd_xprt_private;
 	bp = c2_alloc(dp->xd_sizeof_buffer_pvt);
 	if (bp == NULL)
 		return -ENOMEM;
@@ -345,9 +347,9 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
  */
 static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	C2_PRE(mem_buffer_invariant(nb));
-
 	struct c2_net_bulk_mem_buffer_pvt *bp;
+
+	C2_PRE(mem_buffer_invariant(nb));
 	bp = nb->nb_xprt_private;
 	c2_list_link_fini(&bp->xb_wi.xwi_link);
 	c2_free(bp);
@@ -360,25 +362,30 @@ static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
  */
 static int mem_xo_buf_add(struct c2_net_buffer *nb)
 {
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_bulk_mem_tm_pvt *tp;
+	struct c2_net_bulk_mem_domain_pvt *dp;
+	struct c2_net_bulk_mem_buffer_pvt *bp;
+	struct c2_net_bulk_mem_work_item *wi;
+	int rc;
+
 	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED &&
 	       (nb->nb_flags & C2_NET_BUF_IN_USE) == 0);
 
-	struct c2_net_transfer_mc *tm = nb->nb_tm;
+	tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	tp = tm->ntm_xprt_private;
 
 	if (tp->xtm_state > C2_NET_XTM_STARTED)
 		return -EPERM;
 
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-
-	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
-	struct c2_net_bulk_mem_work_item *wi = &bp->xb_wi;
+	dp = tm->ntm_dom->nd_xprt_private;
+	bp = nb->nb_xprt_private;
+	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_NR;
 
-	int rc;
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
 		break;
@@ -423,21 +430,24 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 static void mem_xo_buf_del(struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_bulk_mem_tm_pvt *tp;
+	struct c2_net_bulk_mem_work_item *wi;
 
 	C2_PRE(mem_buffer_invariant(nb));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED);
 
-	struct c2_net_transfer_mc *tm = nb->nb_tm;
+	tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	tp = tm->ntm_xprt_private;
 
 	if (nb->nb_flags & C2_NET_BUF_IN_USE) {
 		bp->xb_cancel_requested = true;
 		return;
 	}
 
-	struct c2_net_bulk_mem_work_item *wi = &bp->xb_wi;
+	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_CANCEL_CB;
 	nb->nb_flags |= C2_NET_BUF_CANCELLED;
 
@@ -461,8 +471,6 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 		C2_IMPOSSIBLE("invalid queue type");
 		break;
 	}
-
-	return;
 }
 
 /**
@@ -473,10 +481,12 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
  */
 static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
+	struct c2_net_bulk_mem_domain_pvt *dp;
+	struct c2_net_bulk_mem_tm_pvt *tp;
+
 	C2_PRE(mem_dom_invariant(tm->ntm_dom));
 
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	struct c2_net_bulk_mem_tm_pvt *tp;
+	dp = tm->ntm_dom->nd_xprt_private;
 	tp = c2_alloc(dp->xd_sizeof_tm_pvt);
 	if (tp == NULL)
 		return -ENOMEM;
@@ -497,9 +507,9 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
  */
 static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
-	C2_PRE(mem_tm_invariant(tm));
-
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+
+	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(tp->xtm_state == C2_NET_XTM_STOPPED ||
 	       tp->xtm_state == C2_NET_XTM_FAILED  ||
 	       tp->xtm_state == C2_NET_XTM_INITIALIZED);
@@ -522,7 +532,6 @@ static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	tp->xtm_tm = NULL;
 	tm->ntm_xprt_private = NULL;
 	c2_free(tp);
-	return;
 }
 
 void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
@@ -535,7 +544,6 @@ void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 	C2_PRE(tp->xtm_state == C2_NET_XTM_INITIALIZED);
 	tp->xtm_num_workers = num;
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return;
 }
 
 size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
@@ -546,10 +554,15 @@ size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
 
 static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 {
+	struct c2_net_bulk_mem_tm_pvt *tp;
+	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	int rc = 0;
+	int i;
+
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	tp = tm->ntm_xprt_private;
 	if (tp->xtm_state == C2_NET_XTM_STARTED)
 		return 0;
 	if (tp->xtm_state == C2_NET_XTM_STARTING)
@@ -565,7 +578,6 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	}
 
 	/* allocate a state change work item */
-	struct c2_net_bulk_mem_work_item *wi_st_chg;
 	C2_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
 		return -ENOMEM;
@@ -575,8 +587,6 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	wi_st_chg->xwi_status = 0;
 
 	/* start worker threads */
-	int rc = 0;
-	int i;
 	for (i = 0; i < tp->xtm_num_workers && rc == 0; ++i)
 		rc = C2_THREAD_INIT(&tp->xtm_worker_threads[i],
 				    struct c2_net_transfer_mc *, NULL,
@@ -597,15 +607,19 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 
 static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 {
+	struct c2_net_bulk_mem_tm_pvt *tp;
+	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	struct c2_net_buffer *nb;
+	int qt;
+
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	tp = tm->ntm_xprt_private;
 	if (tp->xtm_state >= C2_NET_XTM_STOPPING)
 		return 0;
 
 	/* allocate a state change work item */
-	struct c2_net_bulk_mem_work_item *wi_st_chg;
 	C2_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
 		return -ENOMEM;
@@ -614,8 +628,6 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STOPPED;
 
 	/* walk through the queues and cancel every buffer */
-	int qt;
-	struct c2_net_buffer *nb;
 	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
 		c2_list_for_each_entry(&tm->ntm_q[qt], nb,
 				       struct c2_net_buffer,
@@ -664,7 +676,7 @@ struct c2_net_xprt c2_net_bulk_mem_xprt = {
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

@@ -36,10 +36,11 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct sockaddr_in *sa,
 			 uint32_t id)
 {
-	C2_PRE(mem_dom_invariant(dom));
-
 	struct c2_net_end_point *ep;
 	struct c2_net_bulk_mem_end_point *mep;
+	struct c2_net_bulk_mem_domain_pvt *dp;
+
+	C2_PRE(mem_dom_invariant(dom));
 
 	/* check if its already on the domain list */
 	c2_list_for_each_entry(&dom->nd_end_points, ep,
@@ -55,7 +56,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	}
 
 	/* allocate a new end point of appropriate size */
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
+	dp = dom->nd_xprt_private;
 	mep = c2_alloc(dp->xd_sizeof_ep);
 	if (mep == NULL)
 		return -ENOMEM;
@@ -108,8 +109,9 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
 			       struct sockaddr_in *sa)
 {
-	C2_ASSERT(mem_ep_invariant(ep));
 	struct c2_net_bulk_mem_end_point *mep;
+
+	C2_ASSERT(mem_ep_invariant(ep));
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
 	if (MEM_SA_EQ(&mep->xep_sa, sa))
@@ -127,12 +129,13 @@ static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
 static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
 			      struct c2_net_end_point *ep2)
 {
+	struct c2_net_bulk_mem_end_point *mep1;
+
 	C2_ASSERT(ep1 != NULL && ep2 != NULL);
 	C2_ASSERT(mem_ep_invariant(ep1));
 	if (ep1 == ep2)
 		return true;
 
-	struct c2_net_bulk_mem_end_point *mep1;
 	mep1 = container_of(ep1, struct c2_net_bulk_mem_end_point, xep_ep);
 	return mem_ep_equals_addr(ep2, &mep1->xep_sa);
 }
@@ -156,8 +159,10 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 			   c2_bcount_t buflen,
 			   int64_t buf_id)
 {
-	C2_PRE(mem_ep_invariant(ep));
 	struct mem_desc *md;
+	struct c2_net_bulk_mem_end_point *mep;
+
+	C2_PRE(mem_ep_invariant(ep));
 
 	desc->nbd_len = sizeof(*md);
 	md = c2_alloc(desc->nbd_len);
@@ -166,8 +171,6 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 		desc->nbd_len = 0;
 		return -ENOMEM;
 	}
-
-	struct c2_net_bulk_mem_end_point *mep;
 
 	/* copy the active end point address */
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
@@ -234,7 +237,7 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

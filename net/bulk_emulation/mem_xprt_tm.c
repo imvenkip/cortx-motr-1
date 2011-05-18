@@ -16,16 +16,16 @@
 static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	C2_ASSERT(wi->xwi_next_state == C2_NET_XTM_STARTED ||
-		  wi->xwi_next_state == C2_NET_XTM_STOPPED);
-
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	struct c2_net_event ev = {
 		.nev_type   = C2_NET_EV_STATE_CHANGE,
 		.nev_tm     = tm,
 		.nev_status = 0
 	};
+
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_ASSERT(wi->xwi_next_state == C2_NET_XTM_STARTED ||
+		  wi->xwi_next_state == C2_NET_XTM_STOPPED);
 
 	if (wi->xwi_next_state == C2_NET_XTM_STARTED) {
 		/*
@@ -74,9 +74,9 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 			     struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
-
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
@@ -112,7 +112,6 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
 	c2_time_now(&ev.nev_time);
 	c2_net_tm_event_post(&ev);
 	c2_free(wi);
-	return;
 }
 
 /**
@@ -144,14 +143,16 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int status)
  */
 static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 {
-	c2_mutex_lock(&tm->ntm_mutex);
-	C2_PRE(c2_net__tm_invariant(tm));
-
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+	struct c2_net_bulk_mem_tm_pvt *tp;
+	struct c2_net_bulk_mem_domain_pvt *dp;
 	struct c2_list_link *link;
 	struct c2_net_bulk_mem_work_item *wi;
 	c2_net_bulk_mem_work_fn_t fn;
+
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
+	dp = tm->ntm_dom->nd_xprt_private;
 
 	while (tp->xtm_state != C2_NET_XTM_STOPPED) {
 		while (tp->xtm_state != C2_NET_XTM_STOPPED &&
@@ -205,7 +206,7 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

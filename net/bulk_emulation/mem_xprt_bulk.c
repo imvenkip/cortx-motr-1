@@ -13,9 +13,9 @@
 static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 				   struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
-
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
 	       (nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 		nb->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND) &&
@@ -44,15 +44,6 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL &&
-	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
-		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
-	       nb->nb_tm == tm &&
-	       nb->nb_desc.nbd_len != 0 &&
-	       nb->nb_desc.nbd_data != NULL);
-	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
-
 	static const enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = C2_NET_QT_NR,
 		[C2_NET_QT_MSG_SEND]          = C2_NET_QT_NR,
@@ -61,12 +52,30 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = C2_NET_QT_NR,
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = C2_NET_QT_NR,
 	};
+	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
 	int rc;
 	struct c2_net_transfer_mc *passive_tm = NULL;
 	struct c2_net_end_point     *match_ep = NULL;
+
+	C2_PRE(nb != NULL &&
+	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
+		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
+	       nb->nb_tm == tm &&
+	       nb->nb_desc.nbd_len != 0 &&
+	       nb->nb_desc.nbd_data != NULL);
+	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+
 	do {
-		/* decode the descriptor */
 		struct mem_desc *md;
+		struct c2_net_buffer *passive_nb = NULL;
+		struct c2_net_buffer *inb;
+		struct c2_net_buffer *s_buf;
+		struct c2_net_buffer *d_buf;
+		c2_bcount_t datalen;
+		struct c2_net_bulk_mem_work_item *passive_wi;
+		struct c2_net_bulk_mem_tm_pvt *passive_tp;
+
+		/* decode the descriptor */
 		rc = mem_desc_decode(&nb->nb_desc, &md);
 		if (rc != 0)
 			break;
@@ -99,8 +108,6 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		 */
 
 		/* locate the passive buffer */
-		struct c2_net_buffer *passive_nb = NULL;
-		struct c2_net_buffer *inb;
 		c2_list_for_each_entry(&passive_tm->ntm_q[md->md_qt], inb,
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
@@ -114,9 +121,6 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 			break;
 		}
 
-		struct c2_net_buffer *s_buf;
-		struct c2_net_buffer *d_buf;
-		c2_bcount_t datalen;
 		if (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) {
 			s_buf = nb;
 			d_buf = passive_nb;
@@ -135,12 +139,10 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* schedule the passive callback */
 		passive_nb->nb_status = rc;
-		struct c2_net_bulk_mem_work_item *passive_wi =
-			MEM_BUFFER_TO_WI(passive_nb);
+		passive_wi = MEM_BUFFER_TO_WI(passive_nb);
 		passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
 
-		struct c2_net_bulk_mem_tm_pvt *passive_tp =
-			passive_tm->ntm_xprt_private;
+		passive_tp = passive_tm->ntm_xprt_private;
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */
@@ -176,7 +178,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

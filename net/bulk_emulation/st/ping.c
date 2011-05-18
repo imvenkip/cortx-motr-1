@@ -69,6 +69,7 @@ int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 struct c2_net_buffer *ping_buf_get(struct ping_ctx *ctx)
 {
 	int i;
+	struct c2_net_buffer *nb;
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	for (i = 0; i < ctx->pc_nr_bufs; ++i)
@@ -82,7 +83,7 @@ struct c2_net_buffer *ping_buf_get(struct ping_ctx *ctx)
 	if (i == ctx->pc_nr_bufs)
 		return NULL;
 
-	struct c2_net_buffer *nb = &ctx->pc_nbs[i];
+	nb = &ctx->pc_nbs[i];
 	C2_ASSERT(nb->nb_flags == C2_NET_BUF_REGISTERED);
 	return nb;
 }
@@ -290,6 +291,7 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 void c_m_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
+	struct ping_work_item *wi;
 
 	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 		  ev->nev_buffer != NULL &&
@@ -305,7 +307,6 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 					ctx->pc_ident, ev->nev_status);
 
 		/* let main app deal with it */
-		struct ping_work_item *wi;
 		C2_ALLOC_PTR(wi);
 		c2_list_link_init(&wi->pwi_link);
 		wi->pwi_type = C2_NET_QT_MSG_SEND;
@@ -319,7 +320,6 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 		c2_net_desc_free(&ev->nev_buffer->nb_desc);
 		ping_buf_put(ctx, ev->nev_buffer);
 
-		struct ping_work_item *wi;
 		C2_ALLOC_PTR(wi);
 		c2_list_link_init(&wi->pwi_link);
 		wi->pwi_type = C2_NET_QT_MSG_SEND;
@@ -506,10 +506,12 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 			C2_ASSERT(rc == 0);
 		}
 	} else {
+		struct c2_net_buffer *nb;
+
 		rc = decode_msg(ev->nev_buffer, &msg);
 		C2_ASSERT(rc == 0);
 
-		struct c2_net_buffer *nb = ping_buf_get(ctx);
+		nb = ping_buf_get(ctx);
 		if (nb == NULL) {
 			ctx->pc_ops->pf("%s: dropped msg, "
 					"no buffer available\n", idbuf);
@@ -768,6 +770,7 @@ int ping_init(struct ping_ctx *ctx)
 	int                i;
 	int                rc;
 	char               hostbuf[16]; /* big enough for 255.255.255.255 */
+	struct c2_clink    tmwait;
 
 	c2_list_init(&ctx->pc_work_queue);
 
@@ -809,7 +812,6 @@ int ping_init(struct ping_ctx *ctx)
 		goto fail;
 	}
 
-	struct c2_clink tmwait;
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->pc_tm, ctx->pc_ep);
@@ -837,6 +839,9 @@ fail:
 
 void ping_fini(struct ping_ctx *ctx)
 {
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
 			struct c2_clink tmwait;
@@ -851,8 +856,8 @@ void ping_fini(struct ping_ctx *ctx)
 		if (ctx->pc_ops->pqs != NULL)
 			(*ctx->pc_ops->pqs)(ctx, false);
 
-		c2_time_t delay;
 		while (1) {
+			c2_time_t delay;
 			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
 			    ctx->pc_tm.ntm_state == C2_NET_TM_FAILED)
 				break;
@@ -876,9 +881,6 @@ void ping_fini(struct ping_ctx *ctx)
 	if (ctx->pc_dom.nd_xprt != NULL)
 		c2_net_domain_fini(&ctx->pc_dom);
 
-	struct c2_list_link *link;
-	struct ping_work_item *wi;
-
 	while (!c2_list_is_empty(&ctx->pc_work_queue)) {
 		link = c2_list_first(&ctx->pc_work_queue);
 		wi = c2_list_entry(link, struct ping_work_item, pwi_link);
@@ -893,6 +895,7 @@ void ping_server(struct ping_ctx *ctx)
 	int i;
 	int rc;
 	struct c2_net_buffer *nb;
+	struct c2_clink tmwait;
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	if (ctx->pc_hostname == NULL)
@@ -940,7 +943,6 @@ void ping_server(struct ping_ctx *ctx)
 	c2_mutex_unlock(&ctx->pc_mutex);
 
 	/* dequeue recv buffers */
-	struct c2_clink tmwait;
 	c2_clink_init(&tmwait, NULL);
 
 	for (i = 0; i < 4; ++i) {
@@ -990,6 +992,10 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 {
 	int rc;
 	struct c2_net_buffer *nb;
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+	int recv_done = 0;
+	int retries = SEND_RETRIES;
 
 	if (data == NULL)
 		data = "ping";
@@ -1015,11 +1021,6 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
-	struct c2_list_link *link;
-	struct ping_work_item *wi;
-	int recv_done = 0;
-	int retries = SEND_RETRIES;
-
 	/* wait for receive response to complete */
 	c2_mutex_lock(&ctx->pc_mutex);
 	while (1) {
@@ -1033,6 +1034,7 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 				recv_done++;
 			} else if (wi->pwi_type == C2_NET_QT_MSG_SEND &&
 				   wi->pwi_nb != NULL) {
+				c2_time_t delay;
 				/* send error, retry a few times */
 				if (retries == 0) {
 					ctx->pc_compare_buf = NULL;
@@ -1044,7 +1046,6 @@ int ping_client_msg_send_recv(struct ping_ctx *ctx,
 					c2_free(wi);
 					return -ETIMEDOUT;
 				}
-				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
@@ -1071,6 +1072,10 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 	int rc;
 	struct c2_net_buffer *nb;
 	struct c2_net_buf_desc nbd;
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+	int recv_done = 0;
+	int retries = SEND_RETRIES;
 
 	ctx->pc_ops->pf("%s: starting passive recv sequence\n", ctx->pc_ident);
 	/* queue our passive receive buffer */
@@ -1096,11 +1101,6 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
-	struct c2_list_link *link;
-	struct ping_work_item *wi;
-	int recv_done = 0;
-	int retries = SEND_RETRIES;
-
 	/* wait for receive to complete */
 	c2_mutex_lock(&ctx->pc_mutex);
 	while (1) {
@@ -1113,6 +1113,7 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 				recv_done++;
 			else if (wi->pwi_type == C2_NET_QT_MSG_SEND &&
 				 wi->pwi_nb != NULL) {
+				c2_time_t delay;
 				/* send error, retry a few times */
 				if (retries == 0) {
 					ctx->pc_ops->pf("%s: send failed, "
@@ -1123,7 +1124,6 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;
@@ -1151,6 +1151,10 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	int rc;
 	struct c2_net_buffer *nb;
 	struct c2_net_buf_desc nbd;
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+	int send_done = 0;
+	int retries = SEND_RETRIES;
 
 	if (data == NULL)
 		data = "passive ping";
@@ -1180,11 +1184,6 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 
-	struct c2_list_link *link;
-	struct ping_work_item *wi;
-	int send_done = 0;
-	int retries = SEND_RETRIES;
-
 	/* wait for send to complete */
 	c2_mutex_lock(&ctx->pc_mutex);
 	while (1) {
@@ -1197,6 +1196,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 				send_done++;
 			else if (wi->pwi_type == C2_NET_QT_MSG_SEND &&
 				 wi->pwi_nb != NULL) {
+				c2_time_t delay;
 				/* send error, retry a few times */
 				if (retries == 0) {
 					ctx->pc_ops->pf("%s: send failed, "
@@ -1207,7 +1207,6 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 					ping_buf_put(ctx, nb);
 					return -ETIMEDOUT;
 				}
-				c2_time_t delay;
 				c2_time_set(&delay,
 					    SEND_RETRIES + 1 - retries, 0);
 				--retries;

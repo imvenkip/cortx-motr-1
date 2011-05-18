@@ -101,6 +101,9 @@ static void test_sunrpc_desc(void)
 		.ntm_callbacks = &cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
+	struct c2_clink tmwait;
+	struct c2_net_buf_desc desc1;
+	struct sunrpc_buf_desc sd;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,
@@ -110,16 +113,12 @@ static void test_sunrpc_desc(void)
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
 	/* start tm and wait for tm to notify it has started */
-	struct c2_clink tmwait;
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
 	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep1));
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
-
-	struct c2_net_buf_desc desc1;
-	struct sunrpc_buf_desc sd;
 
 	C2_SET0(&desc1);
 	C2_SET0(&sd);
@@ -167,7 +166,7 @@ static int quiet_printf(const char *fmt, ...)
 }
 
 static struct ping_ops quiet_ops = {
-    .pf = quiet_printf
+	.pf = quiet_printf
 };
 
 static void test_sunrpc_ping(void)
@@ -197,6 +196,12 @@ static void test_sunrpc_ping(void)
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		}
 	};
+	int rc;
+	struct c2_net_end_point *server_ep;
+	struct c2_thread server_thread;
+	int i;
+	char *data;
+	int len;
 
 	c2_mutex_init(&sctx.pc_mutex);
 	c2_cond_init(&sctx.pc_cond);
@@ -204,10 +209,6 @@ static void test_sunrpc_ping(void)
 	c2_cond_init(&cctx.pc_cond);
 
 	C2_UT_ASSERT(c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt) == 0);
-
-	int                      rc;
-	struct c2_net_end_point *server_ep;
-	struct c2_thread	 server_thread;
 
 	C2_UT_ASSERT(ping_client_init(&cctx, &server_ep) == 0);
 	/* client times out because server is not ready */
@@ -227,10 +228,9 @@ static void test_sunrpc_ping(void)
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, NULL) == 0);
 
 	/* test sending/receiving a bigger payload */
-	int i;
-	char *data = c2_alloc(PING_CLIENT_SEGMENTS * PING_CLIENT_SEGMENT_SIZE);
-	int len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
-
+	data = c2_alloc(PING_CLIENT_SEGMENTS * PING_CLIENT_SEGMENT_SIZE);
+	C2_UT_ASSERT(data != NULL);
+	len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
@@ -859,7 +859,7 @@ const struct c2_test_suite net_bulk_sunrpc_ut = {
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

@@ -205,8 +205,8 @@ static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
 static bool sunrpc_ep_equals_addr(struct c2_net_end_point *ep,
 				  struct sunrpc_ep *sep)
 {
-	C2_ASSERT(sunrpc_ep_invariant(ep));
 	struct c2_net_bulk_mem_end_point *mep;
+	C2_ASSERT(sunrpc_ep_invariant(ep));
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
 	return (mep->xep_sa.sin_addr.s_addr == sep->sep_addr &&
@@ -246,14 +246,14 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    .sbd_passive_ep.sep_port = MEM_EP_PORT(tm->ntm_ep),
 	    .sbd_passive_ep.sep_id   = MEM_EP_SID(tm->ntm_ep),
 	};
+	XDR xdrs;
+	int rc = 0;
 
 	desc->nbd_len = sizeof(sd);
 	desc->nbd_data = c2_alloc(desc->nbd_len);
 	if (desc->nbd_data == NULL)
 	    return -ENOMEM;
 
-	XDR xdrs;
-	int rc = 0;
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_ENCODE);
 	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd))
 		rc = -EINVAL;
@@ -311,7 +311,7 @@ static bool sunrpc_desc_equal(struct c2_net_buf_desc *d1,
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

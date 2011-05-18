@@ -32,6 +32,7 @@ void test_vec(void)
 	bool        eov;
 
 	struct c2_vec_cursor c;
+	struct c2_bufvec     bv;
 
 	for (count = 0, it = 1, sum0 = i = 0; i < ARRAY_SIZE(segs); ++i) {
 		segs[i] = count * it;
@@ -71,7 +72,6 @@ void test_vec(void)
 	c2_vec_cursor_move(&c, sum0);
 	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
 
-	struct c2_bufvec bv;
 	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, SEGSIZE) == 0);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
