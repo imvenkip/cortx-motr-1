@@ -475,9 +475,32 @@ void test_snd_session_terminate()
 	fop_sdr = c2_fop_data(fop);
 	C2_ASSERT(fop_sdr != NULL);
 
-	fop_sdr->rsdr_rc = 1;
+	fop_sdr->rsdr_rc = 0;
 	fop_sdr->rsdr_sender_id = conn.c_sender_id;
 	fop_sdr->rsdr_session_id = session.s_session_id;
+
+	fop->f_type->ft_ops->fto_execute(fop, NULL);
+}
+void test_snd_conn_terminate()
+{
+	struct c2_fop				*fop;
+	struct c2_rpc_conn_terminate_rep	*fop_ctr;
+	int					rc;
+
+	rc = c2_rpc_conn_terminate(&conn);
+	if (rc != 0) {
+		printf("test: conn terminate failed with %d\n", rc);
+		return;
+	}
+
+	fop = c2_fop_alloc(&c2_rpc_conn_terminate_rep_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_ctr = c2_fop_data(fop);
+	C2_ASSERT(fop_ctr != NULL);
+
+	fop_ctr->ctr_rc = 0;
+	fop_ctr->ctr_sender_id = conn.c_sender_id;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
@@ -499,7 +522,7 @@ int main(void)
 	test_snd_conn_create();
 	test_snd_session_create();
 	test_snd_session_terminate();
-	test_snd_session_terminate();
+	test_snd_conn_terminate();
 
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);

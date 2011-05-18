@@ -162,7 +162,10 @@ enum {
 	SESSION_0 = 0,
 	SESSION_ID_INVALID = ~0,
 	SESSION_ID_NOSESSION = ~0 - 1,
-	SENDER_ID_INVALID = 0
+	SENDER_ID_INVALID = 0,
+	/* CF_.* values for c2_rpc_conn->c_flags */
+	CF_WAITING_FOR_CONN_CREATE_REPLY = 1,
+	CF_WAITING_FOR_CONN_TERM_REPLY = (1 << 1)
 };
 
 enum c2_rpc_conn_state {
@@ -258,6 +261,7 @@ struct c2_rpc_conn {
         /** Every c2_rpc_conn is stored on a global list */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
+	uint64_t			 c_flags;
 	struct c2_rpcmachine		*c_rpcmachine;
         /**
 	    XXX Deprecated: c2_service_id 

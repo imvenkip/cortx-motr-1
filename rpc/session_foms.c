@@ -565,6 +565,8 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(fop_out != NULL);
 
 	sender_id = fop_in->ct_sender_id;
+	fop_out->ctr_sender_id = sender_id;
+
 	printf("conn terminate request: %lu\n", fop_in->ct_sender_id);
 
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);

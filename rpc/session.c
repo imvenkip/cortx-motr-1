@@ -191,6 +191,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	conn->c_nr_sessions = 0;
 	c2_chan_init(&conn->c_chan);
 	c2_mutex_init(&conn->c_mutex);
+	conn->c_flags = 0;
+
 	/*
 	 * XXX temporary:
 	 * TODO: Find out how to get reference to rpcmachine from rpc-core
@@ -222,11 +224,12 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
 
-	if (rc == 0)
+	if (rc == 0) {
 		conn->c_state = CS_CONN_INITIALIZING;
-	else
+		conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
+	} else {
 		conn->c_state = CS_CONN_INIT_FAILED;
-
+	}
 	printf("conn_create: finished %d\n", rc);
 	return rc;
 }
@@ -245,9 +248,21 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 	conn = (struct c2_rpc_conn *)fop_ccr->rccr_cookie;
 
+	C2_ASSERT(conn != NULL);
+
 	c2_mutex_lock(&conn->c_mutex);
 
-	C2_ASSERT(conn != NULL);
+	if ((conn->c_flags & CF_WAITING_FOR_CONN_CREATE_REPLY) == 0) {
+		/*
+		 * This is a duplicated reply. Don't do any processing.
+		 * Just run away from here.
+		 */
+		c2_mutex_unlock(&conn->c_mutex);
+		return;
+	} else {
+		conn->c_flags &= ~CF_WAITING_FOR_CONN_CREATE_REPLY;
+	}
+
 	C2_ASSERT(conn->c_state == CS_CONN_INITIALIZING &&
 			conn->c_private != NULL);
 
@@ -264,9 +279,9 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		c2_list_add(&conn->c_rpcmachine->cr_rpc_conn_list,
 				&conn->c_link);
 	}
-	c2_fop_free(conn->c_private);
+	c2_fop_free(conn->c_private);	/* conn_create req fop */
 	conn->c_private = NULL;
-	c2_fop_free(fop);
+	c2_fop_free(fop);	/* reply fop */
 
 	c2_mutex_unlock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
@@ -302,11 +317,123 @@ static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot)
 
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
-	return 0;
+	struct c2_fop			*fop;
+	struct c2_rpc_conn_terminate	*fop_ct;
+	struct c2_rpc_item		*item;
+	struct c2_time			deadline;
+	int				rc;
+
+	C2_PRE(conn != NULL);
+
+	printf("Called conn_terminate %p %lu\n", conn, conn->c_sender_id);
+	c2_mutex_lock(&conn->c_mutex);
+
+	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID);
+
+	if (conn->c_state != CS_CONN_ACTIVE) {
+		printf("Attempt to terminate non-ACTIVE conn\n");
+		rc = -EINVAL;
+		goto out;
+	}
+
+	if (conn->c_nr_sessions > 0) {
+		printf("There are alive sessions. can't terminate conn\n");
+		rc = -EBUSY;
+		goto out;
+	}
+
+	fop = c2_fop_alloc(&c2_rpc_conn_terminate_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	C2_ASSERT(conn->c_private == NULL);
+	conn->c_private = fop;
+
+	fop_ct = c2_fop_data(fop);
+	C2_ASSERT(fop_ct != NULL);
+
+	fop_ct->ct_sender_id = conn->c_sender_id;
+
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL);
+
+	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_session_id = SESSION_ID_NOSESSION;
+
+	C2_SET0(&deadline);
+	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+
+	if (rc == 0) {
+		conn->c_state = CS_CONN_TERMINATING;
+		conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
+	} else {
+		conn->c_state = CS_CONN_ACTIVE;
+	}
+
+out:
+	c2_mutex_unlock(&conn->c_mutex);
+	c2_chan_broadcast(&conn->c_chan);
+	printf("conn terminate finished: %d\n", rc);
+	return rc;
 }
 
 void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 {
+	struct c2_rpc_conn_terminate_rep	*fop_ctr;
+	struct c2_rpc_conn			*conn;
+	uint64_t				sender_id;
+
+	printf("conn terminate reply received\n");
+	C2_PRE(fop != NULL);
+
+	fop_ctr = c2_fop_data(fop);
+	C2_ASSERT(fop_ctr != NULL);
+
+	sender_id = fop_ctr->ctr_sender_id;
+	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+
+	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+
+	C2_ASSERT(conn != NULL);
+
+	printf("found conn %p %lu\n", conn, conn->c_sender_id);
+
+	c2_mutex_lock(&conn->c_mutex);
+
+	if ((conn->c_flags & CF_WAITING_FOR_CONN_TERM_REPLY) == 0) {
+		/*
+		 * This is a duplicate reply. Don't do any processing.
+		 */
+		printf("Duplicated conn_term_reply\n");
+		c2_mutex_unlock(&conn->c_mutex);
+		return;
+	} else {
+		conn->c_flags &= ~CF_WAITING_FOR_CONN_TERM_REPLY;
+	}
+	C2_ASSERT(conn->c_state == CS_CONN_TERMINATING &&
+			conn->c_nr_sessions == 0);
+
+	if (fop_ctr->ctr_rc == 0) {
+		printf("connection termination successful\n");
+		conn->c_state = CS_CONN_TERMINATED;
+		/* XXX Need a lock to protect conn list in rpcmachine */
+		c2_list_del(&conn->c_link);
+	} else {
+		/*
+		 * Connection termination is failed
+		 * XXX
+		 * what if rc == -EEXIST, i.e. we asked to terminate conn with
+		 * given @sender_id and there is no rpc_connection active on 
+		 * receiver side with @sender_id
+		 */
+		printf("conn termination failed\n");
+		conn->c_state = CS_CONN_ACTIVE;
+	}
+	c2_mutex_unlock(&conn->c_mutex);
+	c2_chan_broadcast(&conn->c_chan);
+	printf("conn_term_reply_rcvd: finished\n");
 }
 
 int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)

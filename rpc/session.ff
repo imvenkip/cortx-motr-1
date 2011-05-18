@@ -24,7 +24,8 @@ DEF(c2_rpc_conn_terminate, RECORD,
     _(ct_sender_id, U64));
 
 DEF(c2_rpc_conn_terminate_rep, RECORD,
-   _(ctr_rc, U32));
+   _(ctr_rc, U32),
+   _(ctr_sender_id, U64));
 
 DEF(c2_rpc_session_create, RECORD,
    _(rsc_snd_id, U64));
