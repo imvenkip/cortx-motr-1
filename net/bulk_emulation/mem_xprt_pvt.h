@@ -78,44 +78,46 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
  (sa1)->sin_addr.s_addr == (sa2)->sin_addr.s_addr &&	\
  (sa1)->sin_port        == (sa2)->sin_port
 
-#ifdef MEM_EP_CREATE
-#undef MEM_EP_CREATE
-#endif
 /**
-   Macro to indirectly invoke the mem_ep_create subroutine via the domain
+   Function to indirectly invoke the mem_ep_create subroutine via the domain
    function pointer, to support derived transports.
+   @see mem_ep_create()
  */
-#define MEM_EP_CREATE(epp, dom, sa, id)					\
-({									\
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;	\
-	dp->xd_ops.bmo_ep_create(epp, dom, sa, id);			\
- })
+static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
+				struct c2_net_domain *dom,
+				struct sockaddr_in *sa,
+				uint32_t id)
+{
+	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
+	return dp->xd_ops.bmo_ep_create(epp, dom, sa, id);
+}
 
-#ifdef MEM_BUFFER_IN_BOUNDS
-#undef MEM_BUFFER_IN_BOUNDS
-#endif
 /**
-   Macro to indirectly invoke the mem_buffer_in_bounds subroutine via the
+   Function to indirectly invoke the mem_buffer_in_bounds subroutine via the
    domain function pointer, to support derived transports.
+   @see mem_buffer_in_bounds()
  */
-#define MEM_BUFFER_IN_BOUNDS(nb)					\
-({									\
-	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;\
-	dp->xd_ops.bmo_buffer_in_bounds(nb);				\
- })
+static inline bool MEM_BUFFER_IN_BOUNDS(const struct c2_net_buffer *nb)
+{
+	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
+	return dp->xd_ops.bmo_buffer_in_bounds(nb);
+}
 
-#ifdef MEM_DESC_CREATE
-#undef MEM_DESC_CREATE
-#endif
 /**
-   Macro to indirectly invoke the mem_desc_create subroutine via the domain
+   Function to indirectly invoke the mem_desc_create subroutine via the domain
    function pointer, to support derived transports.
+   @see mem_desc_create()
  */
-#define MEM_DESC_CREATE(desc, ep, tm, qt, buflen, buf_id)		\
-({									\
-	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;\
-	dp->xd_ops.bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);	\
- })
+static int MEM_DESC_CREATE(struct c2_net_buf_desc *desc,
+			   struct c2_net_end_point *ep,
+			   struct c2_net_transfer_mc *tm,
+			   enum c2_net_queue_type qt,
+			   c2_bcount_t buflen,
+			   int64_t buf_id)
+{
+	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+	return dp->xd_ops.bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
+}
 
 /**
    @}

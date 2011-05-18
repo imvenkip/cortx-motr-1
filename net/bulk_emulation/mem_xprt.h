@@ -311,82 +311,72 @@ struct c2_net_bulk_mem_domain_pvt {
 	struct c2_atomic64         xd_buf_id_counter;
 };
 
-#ifdef MEM_WI_TO_BUFFER
-#undef MEM_WI_TO_BUFFER
-#endif
 /**
-   Macro to obtain the c2_net_buffer pointer from its related work item.
-@code
-struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-@endcode
+   Function obtain the c2_net_buffer pointer from its related work item.
+   (Used to be a macro, hence the upper case.)
+   @param wi Work item pointer in embedded buffer private data
+   @retval bufferPointer
  */
-#define MEM_WI_TO_BUFFER(wi)						\
-({									\
-	struct c2_net_bulk_mem_buffer_pvt *bp;				\
-	bp = container_of(wi, struct c2_net_bulk_mem_buffer_pvt, xb_wi);\
-	bp->xb_buffer;							\
-})
+static inline struct c2_net_buffer *
+MEM_WI_TO_BUFFER(struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_mem_buffer_pvt *bp;
+	bp = container_of(wi, struct c2_net_bulk_mem_buffer_pvt, xb_wi);
+	return bp->xb_buffer;
+}
 
-#ifdef MEM_BUFFER_TO_WI
-#undef MEM_BUFFER_TO_WI
-#endif
 /**
-   Macro to obtain the work item from a c2_net_buffer pointer.
-@code
-struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb)
-@endcode
+   Function to obtain the work item from a c2_net_buffer pointer.
+   (Used to be a macro, hence the upper case.)
+   @param bufferPointer
+   @retval WorkItemPointer in buffer private data
  */
-#define MEM_BUFFER_TO_WI(buf)			\
-({						\
-	struct c2_net_bulk_mem_buffer_pvt *bp;	\
-	bp = buf->nb_xprt_private;		\
-	&bp->xb_wi;				\
-})
+static inline struct c2_net_bulk_mem_work_item *
+MEM_BUFFER_TO_WI(struct c2_net_buffer *buf)
+{
+	struct c2_net_bulk_mem_buffer_pvt *bp;
+	bp = buf->nb_xprt_private;
+	return &bp->xb_wi;
+}
 
-#ifdef MEM_EP_ADDR
-#undef MEM_EP_ADDR
-#endif
 /**
-   Macro to return the IP address of the end point.
+   Function to return the IP address of the end point.
+   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval address In network byte order.
  */
-#define MEM_EP_ADDR(ep)							\
-({									\
-	struct c2_net_bulk_mem_end_point *mep =				\
-		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
-	mep->xep_sa.sin_addr.s_addr;					\
- })
+static inline in_addr_t MEM_EP_ADDR(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_sa.sin_addr.s_addr;
+}
 
-#ifdef MEM_EP_PORT
-#undef MEM_EP_PORT
-#endif
 /**
-   Macro to return the port number of the end point.
+   Function to return the port number of the end point.
+   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval port In network byte order.
  */
-#define MEM_EP_PORT(ep)							\
-({									\
-	struct c2_net_bulk_mem_end_point *mep =				\
-		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
-	mep->xep_sa.sin_port;						\
- })
+static inline in_port_t MEM_EP_PORT(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_sa.sin_port;
+}
 
-#ifdef MEM_EP_SID
-#undef MEM_EP_SID
-#endif
 /**
-   Macro to return the service id of the end point.
+   Function to return the service id of the end point.
+   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval service id in network byte order
  */
-#define MEM_EP_SID(ep)							\
-({									\
-	struct c2_net_bulk_mem_end_point *mep =				\
-		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep); \
-	mep->xep_service_id;						\
- })
+static inline uint32_t MEM_EP_SID(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_service_id;
+}
 
 /**
    @}
