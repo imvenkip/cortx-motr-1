@@ -63,13 +63,9 @@ C2_EXPORTED(c2_net__domain_init);
 
 void c2_net__domain_fini(struct c2_net_domain *dom)
 {
-	c2_mutex_lock(&dom->nd_mutex);
-
 	C2_ASSERT(c2_list_is_empty(&dom->nd_tms));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
-
-	c2_mutex_unlock(&dom->nd_mutex);
 
 	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
