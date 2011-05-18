@@ -225,7 +225,6 @@ C2_EXPORTED(c2_net_buffer_add);
 void c2_net_buffer_del(struct c2_net_buffer *buf,
 		       struct c2_net_transfer_mc *tm)
 {
-	int rc;
 	struct c2_net_domain *dom;
 
 	C2_PRE(tm != NULL && tm->ntm_dom != NULL);
@@ -243,8 +242,7 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 		c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
-		rc = 0; /* completion race condition? no error */
-		c2_chan_broadcast(&tm->ntm_chan);
+		/* completion race condition? no error */
 		goto m_err_exit;
 	}
 	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype));
