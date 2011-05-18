@@ -233,7 +233,7 @@ void msg_free(struct ping_msg *msg)
 }
 
 /* client callbacks */
-void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_m_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
@@ -287,7 +287,7 @@ void c_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
-void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_m_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
@@ -331,7 +331,7 @@ void c_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	}
 }
 
-void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_p_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -378,7 +378,7 @@ void c_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
-void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_p_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	struct ping_work_item *wi;
@@ -410,7 +410,7 @@ void c_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
-void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_a_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 		  ev->nev_buffer != NULL &&
@@ -418,7 +418,7 @@ void c_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_IMPOSSIBLE("Client: Active Recv CB\n");
 }
 
-void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void c_a_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 		  ev->nev_buffer != NULL &&
@@ -426,7 +426,7 @@ void c_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_IMPOSSIBLE("Client: Active Send CB\n");
 }
 
-void event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void event_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 
@@ -477,7 +477,7 @@ static void server_event_ident(char *buf, const char *ident,
 static struct c2_atomic64 s_msg_recv_counter;
 
 /* server callbacks */
-void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_m_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -582,7 +582,7 @@ void s_m_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	}
 }
 
-void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_m_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -610,7 +610,7 @@ void s_m_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	ping_buf_put(ctx, ev->nev_buffer);
 }
 
-void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_p_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 		  ev->nev_buffer != NULL &&
@@ -618,7 +618,7 @@ void s_p_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_IMPOSSIBLE("Server: Passive Recv CB\n");
 }
 
-void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_p_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	C2_ASSERT(ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 		  ev->nev_buffer != NULL &&
@@ -626,7 +626,7 @@ void s_p_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	C2_IMPOSSIBLE("Server: Passive Send CB\n");
 }
 
-void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_a_recv_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	int rc;
@@ -665,7 +665,7 @@ void s_a_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 	ping_buf_put(ctx, ev->nev_buffer);
 }
 
-void s_a_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void s_a_send_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	struct ping_ctx *ctx = container_of(tm, struct ping_ctx, pc_tm);
 	char idbuf[64];

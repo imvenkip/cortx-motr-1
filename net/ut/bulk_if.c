@@ -356,42 +356,44 @@ static int num_adds[C2_NET_QT_NR];
 static int num_dels[C2_NET_QT_NR];
 static c2_bcount_t total_bytes[C2_NET_QT_NR];
 static c2_bcount_t max_bytes[C2_NET_QT_NR];
-void ut_msg_recv_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void ut_msg_recv_cb(struct c2_net_transfer_mc *tm,
+		    const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_MSG_RECV);
 }
 
-void ut_msg_send_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void ut_msg_send_cb(struct c2_net_transfer_mc *tm,
+		    const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_MSG_SEND);
 }
 
 void ut_passive_bulk_recv_cb(struct c2_net_transfer_mc *tm,
-			     struct c2_net_event *ev)
+			     const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_RECV);
 }
 
 void ut_passive_bulk_send_cb(struct c2_net_transfer_mc *tm,
-			     struct c2_net_event *ev)
+			     const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_SEND);
 }
 
 void ut_active_bulk_recv_cb(struct c2_net_transfer_mc *tm,
-			    struct c2_net_event *ev)
+			    const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_RECV);
 }
 
 void ut_active_bulk_send_cb(struct c2_net_transfer_mc *tm,
-			    struct c2_net_event *ev)
+			    const struct c2_net_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_SEND);
 }
 
 static int ut_event_cb_calls = 0;
-void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void ut_event_cb(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	ut_event_cb_calls++;
 	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {
@@ -402,7 +404,8 @@ void ut_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
 }
 
 static int ut_tm_event_cb_calls = 0;
-void ut_tm_event_cb(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void ut_tm_event_cb(struct c2_net_transfer_mc *tm,
+		    const struct c2_net_event *ev)
 {
 	ut_tm_event_cb_calls++;
 	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {

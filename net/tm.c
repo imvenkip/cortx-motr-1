@@ -20,7 +20,7 @@ bool c2_net__ev_type_is_valid(enum c2_net_ev_type et)
 	return et >= C2_NET_EV_ERROR && et < C2_NET_EV_NR;
 }
 
-bool c2_net__event_invariant(struct c2_net_event *ev)
+bool c2_net__event_invariant(const struct c2_net_event *ev)
 {
 	if (!c2_net__ev_type_is_valid(ev->nev_type))
 		return false;
@@ -61,7 +61,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 }
 
 int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
-			 struct c2_net_event *ev)
+			 const struct c2_net_event *ev)
 {
 	struct c2_net_buffer *buf = NULL;
 	const struct c2_net_tm_callbacks *cbs;

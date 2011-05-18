@@ -39,7 +39,7 @@ bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts);
 /*
   Event invariant
 */
-bool c2_net__event_invariant(struct c2_net_event *ev);
+bool c2_net__event_invariant(const struct c2_net_event *ev);
 
 /*
   Validates the event type.

@@ -54,7 +54,7 @@ static enum c2_net_queue_type cb_qt1;
 static struct c2_net_buffer *cb_nb1;
 static enum c2_net_tm_state cb_tms1;
 static int32_t cb_status1;
-void sunrpc_tf_cb1(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void sunrpc_tf_cb1(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	cb_evt1 = ev->nev_type;
 	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
@@ -73,7 +73,7 @@ static enum c2_net_queue_type cb_qt2;
 static struct c2_net_buffer *cb_nb2;
 static enum c2_net_tm_state cb_tms2;
 static int32_t cb_status2;
-void sunrpc_tf_cb2(struct c2_net_transfer_mc *tm, struct c2_net_event *ev)
+void sunrpc_tf_cb2(struct c2_net_transfer_mc *tm, const struct c2_net_event *ev)
 {
 	cb_evt2 = ev->nev_type;
 	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE){
@@ -800,7 +800,7 @@ static void test_sunrpc_tm(void)
 	};
 	struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = LAMBDA(void,(struct c2_net_transfer_mc *tm,
-					     struct c2_net_event *ev){
+					     const struct c2_net_event *ev){
 				       }),
 	};
 	struct c2_net_transfer_mc d1tm1 = {

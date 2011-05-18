@@ -741,7 +741,7 @@ struct c2_net_event {
    @retval -errno (failure)
  */
 int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
-			 struct c2_net_event *ev);
+			 const struct c2_net_event *ev);
 
 
 /**
@@ -751,7 +751,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
    released upon return from the subroutine.
 */
 typedef void (*c2_net_tm_cb_proc_t)(struct c2_net_transfer_mc *tm,
-				    struct c2_net_event *ev);
+				    const struct c2_net_event *ev);
 
 /**
    This data structure contains application callback function pointers.
