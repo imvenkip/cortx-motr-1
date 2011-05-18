@@ -133,6 +133,11 @@ struct c2_rpc_form_item_summary {
 extern struct c2_rpc_form_item_summary	*formation_summary;
 
 /**
+   Check if refcounts of all endpoints are zero.
+ */
+bool c2_rpc_form_wait_for_completion();
+
+/**
    The list of rpc items that can be coalesced.
  */
 struct c2_rpc_form_fid_units {
@@ -223,6 +228,8 @@ struct c2_rpc_form_item_summary_unit {
 	struct c2_list_link		 isu_linkage;
 	/** Referenced Endpoint */
 	struct c2_net_endpoint		*isu_endp_id;
+	/** Flag indicating the formation component is still active. */
+	bool				 isu_form_active;
 	/** State machine for this endpoint. */
 	struct c2_rpc_form_state_machine isu_sm;
 	/** List of structures containing data for each group. */
