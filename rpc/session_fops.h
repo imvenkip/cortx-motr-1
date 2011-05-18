@@ -59,6 +59,9 @@ int c2_rpc_conn_create_rep_execute(struct c2_fop	*fop,
 int c2_rpc_session_create_rep_execute(struct c2_fop	*fop,
 				      struct c2_fop_ctx	*ctx);
 				
+int c2_rpc_session_destroy_rep_execute(struct c2_fop		*fop,
+				       struct c2_fop_ctx	*ctx);
+
 /*
  * Temporary routine for all session related fop's reply
  */

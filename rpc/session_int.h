@@ -182,6 +182,8 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop);
 
 void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop);
 
+void c2_rpc_session_terminate_reply_received(struct c2_fop *fop);
+
 void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
 			uint64_t		sender_id,
 			struct c2_rpc_conn	**out);

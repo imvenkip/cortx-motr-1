@@ -405,6 +405,7 @@ void test_session_create()
 
 }
 struct c2_rpc_conn		conn;
+struct c2_rpc_session			session;
 void test_snd_conn_create()
 {
 	struct c2_service_id		svc_id;
@@ -433,7 +434,6 @@ void test_snd_conn_create()
 }
 void test_snd_session_create()
 {
-	struct c2_rpc_session			session;
 	struct c2_fop				*fop;
 	struct c2_rpc_session_create_rep	*fop_scr;
 	int					rc;
@@ -456,6 +456,32 @@ void test_snd_session_create()
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 }
+
+void test_snd_session_terminate()
+{
+	struct c2_fop				*fop;
+	struct c2_rpc_session_destroy_rep	*fop_sdr;
+	int					rc;
+
+	rc = c2_rpc_session_terminate(&session);
+	if (rc != 0) {
+		printf("test Session terminate failed\n");
+		return;
+	}
+
+	fop = c2_fop_alloc(&c2_rpc_session_destroy_rep_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_sdr = c2_fop_data(fop);
+	C2_ASSERT(fop_sdr != NULL);
+
+	fop_sdr->rsdr_rc = 1;
+	fop_sdr->rsdr_sender_id = conn.c_sender_id;
+	fop_sdr->rsdr_session_id = session.s_session_id;
+
+	fop->f_type->ft_ops->fto_execute(fop, NULL);
+
+}
 int main(void)
 {
 
@@ -472,6 +498,9 @@ int main(void)
 */
 	test_snd_conn_create();
 	test_snd_session_create();
+	test_snd_session_terminate();
+	test_snd_session_terminate();
+
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();

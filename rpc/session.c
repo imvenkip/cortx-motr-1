@@ -159,6 +159,7 @@ void c2_rpc_session_search(struct c2_rpc_conn           *conn,
 {
 	struct c2_rpc_session		*session;
 
+	C2_PRE(c2_mutex_is_locked(&conn->c_mutex));
 	*out = NULL;
 
 	c2_list_for_each_entry(&conn->c_sessions, session,
@@ -168,7 +169,6 @@ void c2_rpc_session_search(struct c2_rpc_conn           *conn,
 			break;
 		}
 	}
-
 }
 
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
@@ -280,6 +280,7 @@ static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
 
 	printf("Creating session 0\n");
 	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_INITIALIZING);
+	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 
 	C2_ALLOC_PTR(session);
 	C2_SET0(session);
@@ -393,7 +394,11 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	}
 	c2_mutex_lock(&conn->c_mutex);
 	c2_list_add(&conn->c_sessions, &session->s_link);
+	conn->c_nr_sessions++;
 	c2_mutex_unlock(&conn->c_mutex);
+
+	c2_chan_broadcast(&session->s_chan);
+
 	return rc;
 }
 
@@ -467,10 +472,16 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
-	if (session->s_state != SESSION_ALIVE)
-		return -EINVAL;
+	printf("Session terminate called for %lu\n", session->s_session_id);
 
 	c2_mutex_lock(&session->s_mutex);
+
+	if (session->s_state != SESSION_ALIVE) {
+		printf("attempt to terminate non-ALIVE session\n");
+		rc = -EINVAL;
+		goto out;
+	}
+
 	for (i = 0; i < session->s_nr_slots; i++) {
 		if (c2_rpc_snd_slot_is_busy(session->s_slot_table[i])) {
 			rc = -EBUSY;
@@ -520,12 +531,58 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 out:
 	c2_mutex_unlock(&session->s_mutex);
+	c2_chan_broadcast(&session->s_chan);
+
+	printf("session_terminate: complete %d\n", rc);
 	return rc;
 }
 
 void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 {
+	struct c2_rpc_session_destroy_rep	*fop_sdr;
+	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session;
+	uint64_t				sender_id;
+	uint64_t				session_id;
 
+	C2_PRE(fop != NULL);
+
+	fop_sdr = c2_fop_data(fop);
+	C2_ASSERT(fop_sdr != NULL);
+
+	sender_id = fop_sdr->rsdr_sender_id;
+	session_id = fop_sdr->rsdr_session_id;		
+
+	printf("session_term_reply: %lu %lu %d\n", sender_id, session_id,
+			fop_sdr->rsdr_rc);
+	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
+			session_id != SESSION_ID_INVALID &&
+			session_id != 0);
+
+	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+	C2_ASSERT(conn != NULL);
+
+	c2_mutex_lock(&conn->c_mutex);
+
+	c2_rpc_session_search(conn, session_id, &session);
+
+	C2_ASSERT(session != NULL && session->s_state == SESSION_TERMINATING);
+	C2_ASSERT(conn->c_nr_sessions > 0);
+
+	c2_mutex_lock(&session->s_mutex);
+
+	if (fop_sdr->rsdr_rc == 0) {
+		session->s_state = SESSION_TERMINATED;
+		conn->c_nr_sessions--;
+		c2_list_del(&session->s_link);
+	} else {
+		session->s_state = SESSION_ALIVE;
+	}
+
+	c2_mutex_unlock(&session->s_mutex);
+	c2_mutex_unlock(&conn->c_mutex);
+	c2_chan_broadcast(&session->s_chan);
+	printf("Session terminate reply received finished\n");
 }
 
 void c2_rpc_session_timedwait(struct c2_rpc_session	*session,

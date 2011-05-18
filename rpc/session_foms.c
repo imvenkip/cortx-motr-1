@@ -361,6 +361,9 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	sender_id = fop_in->rsd_sender_id;
 	session_id = fop_in->rsd_session_id;
 
+	fop_out->rsdr_sender_id = sender_id;
+	fop_out->rsdr_session_id = session_id;
+
 	C2_ASSERT(tx != NULL);
 
 	printf("destroy [%lu:%lu]\n", fop_in->rsd_sender_id,

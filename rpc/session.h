@@ -359,11 +359,11 @@ enum c2_rpc_session_state {
 	*/
 	SESSION_TERMINATING = (1 << 5),
 	/**
-	   Once sender gets reply for successful SESSION_DESTROY it moves
-	   session in DEAD state.
-	   Sender cannot use a DEAD session.
+	   When sender gets reply to session_terminate fop and reply informs
+	   the session termination is successful then the session enters in
+	   TERMINATED state
 	 */
-	SESSION_DEAD = (1 << 6),
+	SESSION_TERMINATED = (1 << 6)
 };
 
 /**
@@ -378,7 +378,7 @@ enum c2_rpc_session_state {
           +-------------------------CREATING
 	  |            		      |
 	  V       		      | create successful
-	TIMED_OUT		      |
+	CREATE_FAILED                 |
 	  |      		      V		Recovery complete
 	  |			    ALIVE <-----------------------------------+
 	  |			      |	|				      |
@@ -391,8 +391,11 @@ enum c2_rpc_session_state {
 	  |			      |  |		   |
 	  |			      |  |                 | timed-out/retry
 	  |			      |  +-----------------+
+	  |		              |session_terminated
+	  |		              V
+	  |		         TERMINATED
 	  |		              |
-	  |			      | Session_terminated
+	  |			      | fini()
 	  |			      V
 	  +-----------------------> UNINITIALIZED 
 
