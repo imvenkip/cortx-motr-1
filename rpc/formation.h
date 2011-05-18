@@ -186,8 +186,23 @@ struct c2_rpc_form_state_machine {
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
 	int				 isu_endp_state;
-	/** Refcount for this summary unit */
+	/** Refcount for this summary unit.
+	    Refcount is related to an incoming thread as well as
+	    the number of rpc items it refers to.
+	    Only when the endpoint unit doesn't contain any
+	    data about unformed rpc items and there are no threads
+	    operating on the endpoint unit, will it be deallocated. */
 	struct c2_ref			 isu_ref;
+};
+
+/**
+   Event object for rpc formation state machine.
+ */
+struct c2_rpc_form_sm_event {
+	/** Event identifier. */
+	int				 se_event;
+	/** Private data of event. */
+	void				*se_pvt;
 };
 
 /**
@@ -220,29 +235,35 @@ struct c2_rpc_form_item_summary_unit {
 	    POSTING state will send RPC objects from this list
 	    to the output component.
 	    c2_list <struct c2_rpc_form_rpcobj> */
-	struct c2_list			isu_rpcobj_formed_list;
+	struct c2_list			 isu_rpcobj_formed_list;
 	/** A list of checked rpc objects. This list is populated
 	    by CHECKING state while FORMING state removes rpc objects
 	    from this list, populates sessions information for all
 	    member rpc items and puts the rpc object on formed list of
 	    rpc objects.
 	    c2_list <struct c2_rpc_form_rpcobj>*/
-	struct c2_list			isu_rpcobj_checked_list;
+	struct c2_list			 isu_rpcobj_checked_list;
 	/** List of unformed rpc items. */
 	/** c2_list <struct c2_rpc_item>*/
-	struct c2_list			isu_unformed_list;
+	struct c2_list			 isu_unformed_list;
 	/** List of fids on which IO requests are made in this rpc group. */
 	/** c2_list <struct c2_rpc_form_fid_summary_member > */
-	struct c2_list			isu_fid_list;
+	struct c2_list			 isu_fid_list;
 	/** These numbers will be subsequently kept with the statistics
 	  component. Defining here for the sake of UT. */
-	uint64_t			isu_max_message_size;
-	uint64_t			isu_max_fragments_size;
+	uint64_t			 isu_max_message_size;
+	uint64_t			 isu_max_fragments_size;
 	/** Statistics data. Currently stationed with formation but
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 isu_max_rpcs_in_flight;
 	uint64_t			 isu_curr_rpcs_in_flight;
 };
+
+/**
+   Check if the endpoint unit structure is empty.
+   @param endp_unit - endpoint structure
+   */
+static bool c2_rpc_form_is_endp_empty(struct c2_rpc_form_item_summary_unit *endp_unit);
 
 /**
    Destroy an endpoint structure since it no longer contains
@@ -295,7 +316,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(struct
    association between rpc item and endpoint is available.
    @param item - incoming rpc item.
  */
-struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(const struct c2_rpc_item *item);
 
 /**
    Add an rpc item to the formed list of an rpc object.
@@ -546,7 +567,8 @@ int c2_rpc_form_fini();
    @param pvt - private data of rpc item.
  */
 typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt);
+		struct c2_rpc_item *item,
+		const struct c2_rpc_form_sm_event *event);
 
 /**
    A state table guiding resultant states on arrival of events
@@ -632,7 +654,7 @@ unsigned long c2_rpc_form_item_timer_callback(unsigned long data);
  */
 static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		struct c2_rpc_form_item_summary_unit *endp_unit,
-		int state, int event, void *pvt);
+		int state, const struct c2_rpc_form_sm_event *event);
 
 /**
    Enumeration of fields which are subject to change.
@@ -749,7 +771,7 @@ int c2_rpc_form_coalesce_items(struct c2_list *items);
    it needs some way of identifying the events.
  */
 int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt);
+		struct c2_rpc_item *item, const c2_rpc_form_sm_event *event);
 
 /**
    State function for UPDATING state.
@@ -760,7 +782,7 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit,
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt);
+		,struct c2_rpc_item *item, const c2_rpc_form_sm_event *event);
 
 /**
    State function for CHECKING state.
@@ -814,7 +836,8 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt);
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event);
 
 /**
    State function for FORMING state.
@@ -834,7 +857,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt);
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event);
 
 /**
    State function for POSTING state.
@@ -845,7 +869,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt);
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event);
 
 /**
    State function for REMOVING state.
@@ -858,7 +883,83 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    @param endp_unit - Corresponding summary_unit structure for given rpc item.
  */
 int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt);
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event);
+
+/**
+   XXX Some rpc item type ops.
+   These will be moved to appropriate place during rpc integration.
+ */
+/**
+   XXX rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+int c2_rpc_item_replied(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file
+   RPC item ops function
+   Function to return size of fop
+ */
+uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return the opcode given an rpc item
+ */
+int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to map the on-wire FOP format to in-core FOP format.
+ */
+static void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
+		                struct c2_fid *out);
+
+/**
+   XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to get the fid for an IO request from the rpc item
+ */
+struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out if the item belongs to an IO request or not 
+ */
+bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out number of fragmented buffers in IO request 
+ */
+uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
+
+/**
+   XXX Need to move to appropriate file
+   RPC item ops function
+   Function to return new rpc item embedding the given write vector,
+   by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item,
+		struct c2_fop_io_vec *vec);
+
+/**
+   XXX Need to move to appropriate file
+   RPC item ops function
+   Function to return new rpc item embedding the given read segment,
+   by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item,
+		struct c2_fop_segment_seq *seg);
+
 
 /** @} endgroup of rpc_formation */
 

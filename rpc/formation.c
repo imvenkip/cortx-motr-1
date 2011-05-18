@@ -47,8 +47,34 @@ static void c2_rpc_form_state_machine_exit(struct
 		c2_rpc_form_item_summary_unit *endp_unit)
 {
 	c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
+	/** Since the behavior is undefined for fini of mutex
+	    when the mutex is locked, it is not locked here
+	    for endp_unit.*/
 	c2_ref_put(&endp_unit->isu_sm.isu_ref);
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
+}
+
+/**
+   Check if the endpoint unit structure is empty.
+ */
+static bool c2_rpc_form_is_endp_empty(struct c2_rpc_form_item_summary_unit
+		*endp_unit)
+{
+	C2_PRE(endp_unit != NULL);
+
+	if (!c2_list_is_empty(&endp_unit->isu_groups_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_fid_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_unformed_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_checked_list.l_head))
+		return false;
+	return true;
 }
 
 /**
@@ -64,8 +90,8 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	sm = container_of(ref, struct c2_rpc_form_state_machine, isu_ref);
 	endp_unit = container_of(sm, struct c2_rpc_form_item_summary_unit, 
 			isu_sm);
-	/* Delete the endp_unit only if it contains no valid data.*/
-	if (c2_list_is_empty(&endp_unit->isu_unformed_list.l_head)) {
+	/* Delete the endp_unit only if all lists are empty.*/
+	if (c2_rpc_form_is_endp_empty(endp_unit)) {
 		c2_mutex_fini(&endp_unit->isu_unit_lock);
 		c2_list_del(&endp_unit->isu_linkage);
 		c2_list_fini(&endp_unit->isu_groups_list.l_head);
@@ -88,6 +114,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 {
 	struct c2_rpc_form_item_summary_unit	*endp_unit;
 
+	C2_PRE(endp != NULL);
 	endp_unit = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit));
 	if (endp_unit == NULL) {
 		printf("Failed to allocate memory to 
@@ -107,6 +134,11 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 			c2_rpc_form_item_summary_unit_destroy);
 	endp_unit->isu_endp_id = endp;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
+	/* XXX Need appropriate values.*/
+	endp_unit->isu_max_message_size = 1;
+	endp_unit->isu_max_fragments_size = 1;
+	endp_unit->isu_max_rpcs_in_flight = 1;
+	endp_unit->isu_curr_rpcs_in_flight = 1;
 	return endp_unit;
 }
 
@@ -129,7 +161,7 @@ static stateFunc c2_rpc_form_next_state(const int current_state,
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
  */
-struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(const struct c2_rpc_item *item)
 {
 	/* XXX Need to be defined by sessions. */
 	return &item->ri_endp;
@@ -151,7 +183,7 @@ struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
  */
 static int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
-		int sm_state, int sm_event, void *pvt)
+		int sm_state, const struct c2_rpc_form_sm_event *sm_event)
 {
 	struct c2_net_endpoint			*endpoint = NULL;
 	int					 res = 0;
@@ -160,9 +192,16 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	bool					 exit = false;
 
 	C2_PRE(item != NULL);
-	C2_PRE(current_event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(sm_state <= C2_RPC_FORM_N_STATES);
 
 	endpoint = c2_rpc_form_get_endpoint(item);
+
+	/* If endpoint unit is NULL, locate it from list in
+	   formation summary. If found, take its lock and
+	   increment its refcount. If not found, create a
+	   new endpoint unit structure. In any case, find out
+	   the previous state of endpoint unit. */
 	if (endp_unit == NULL) {
 		c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
 		c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
@@ -178,22 +217,25 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 			c2_ref_get(&endp_unit->isu_sm.isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
-			prev_state = endp_unit->isu_sm.isu_endp_state;
 		}
 		else {
-			/** XXX Add a new summary unit */
+			/** Add a new endpoint summary unit */
 			endp_unit = c2_rpc_form_item_summary_unit_add(endpoint);
+			c2_mutex_lock(endp_unit->isu_unit_lock);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
-			c2_mutex_lock(endp_unit->isu_unit_lock);
-			prev_state = sm_state;
 		}
+		prev_state = endp_unit->isu_sm.isu_endp_state;
 	}
-	res = (c2_rpc_form_next_state(prev_state, sm_event))(endp_unit, item, 
-			sm_event, pvt);
+	else {
+		prev_state = sm_state;
+	}
+	/* Transition to next state.*/
+	res = (c2_rpc_form_next_state(prev_state, sm_event->se_event))
+		(endp_unit, item, sm_event);
+	/* Get latest state of state machine. */
 	prev_state = endp_unit->isu_sm.isu_endp_state;
 	c2_mutex_unlock(endp_unit->isu_unit_lock);
-	/*XXX Handle exit path as an event. */
 	/* Exit point for state machine. */
 	if(res == C2_RPC_FORM_INTEVT_STATE_DONE) {
 		c2_rpc_form_state_machine_exit(endp_unit);
@@ -218,11 +260,15 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
  */
 int c2_rpc_form_extevt_rpcitem_added_in_cache(const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_added_in_cache\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_ADDED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_ADDED, NULL);
+			&sm_event);
 }
 
 /**
@@ -234,11 +280,15 @@ int c2_rpc_form_extevt_rpcitem_added_in_cache(const struct c2_rpc_item *item)
 int c2_rpc_form_extevt_rpcitem_deleted_from_cache(
 		const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_deleted_from_cache\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED, NULL);
+			&sm_event);
 }
 
 /**
@@ -250,18 +300,22 @@ int c2_rpc_form_extevt_rpcitem_deleted_from_cache(
 int c2_rpc_form_extevt_rpcitem_changed(const struct c2_rpc_item *item,
 		const int field_type, const void *pvt)
 {
+	struct c2_rpc_form_sm_event		sm_event;
 	struct c2_rpc_form_item_change_req	req;
+
 	C2_PRE(item != NULL);
 	C2_PRE(pvt != NULL);
 	C2_PRE(field_type < C2_RPC_ITEM_N_CHANGES);
 
 	printf("In callback: c2_rpc_form_extevt_rpcitem_changed\n");
 
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED;
 	req.field_type = field_type;
 	req.value = pvt;
+	sm_event.se_pvt = &req;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED, &req);
+			&sm_event);
 }
 
 /**
@@ -274,13 +328,16 @@ int c2_rpc_form_extevt_rpcitem_reply_received(
 		const struct c2_rpc_item *reply_item,
 		const struct c2_rpc_item *req_item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(req_item != NULL);
 	C2_PRE(reply_item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_reply_received\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(req_item, NULL, C2_RPC_FORM_N_STATES,
-
-			C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED, NULL);
+			&sm_event);
 }
 
 /**
@@ -291,11 +348,15 @@ int c2_rpc_form_extevt_rpcitem_reply_received(
  */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_deadline_expired\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT, NULL);
+			&sm_event);
 }
 
 /**
@@ -309,10 +370,16 @@ static int c2_rpc_form_intevt_state_succeeded(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_intevt_state_succeeded\n");
+	sm_event.se_event = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, endp_unit,
-			state, C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
+			state, &sm_event);
 }
 
 /**
@@ -326,10 +393,16 @@ static int c2_rpc_form_intevt_state_failed(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
+	sm_event.se_event = C2_RPC_FORM_INTEVT_STATE_FAILED;
+	sm_event.se_pvt = NULL;
 	printf("In callback: c2_rpc_form_intevt_state_failed\n");
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, endp_unit,
-			state, C2_RPC_FORM_INTEVT_STATE_FAILED);
+			state, &sm_event);
 }
 
 /**
@@ -371,7 +444,8 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
    endp_unit is locked.
  */
 int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	C2_PRE(item != NULL);
 	C2_PRE((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) || 
@@ -636,7 +710,8 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
    State function for UPDATING state.
  */
 int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int		res = 0;
 	int		ret = 0;
@@ -1120,7 +1195,8 @@ static int c2_rpc_form_items_coalesce(
    State function for CHECKING state.
  */
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int						 res = 0;
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
@@ -1290,7 +1366,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
    State function for FORMING state.
  */
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int				 res = 0;
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
@@ -1341,7 +1418,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
    State function for POSTING state.
  */
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int				 res = 0;
 	int				 ret = 0;
@@ -1389,7 +1467,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    State function for REMOVING state.
  */
 int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int		res = 0;
 
@@ -1421,7 +1500,7 @@ int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 		else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED) {
 			res = c2_rpc_form_change_rpcitem_from_summary_unit(
-					endp_unit, item, pvt);
+					endp_unit, item, event->se_pvt);
 		}
 		if (res == 0)
 			return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
