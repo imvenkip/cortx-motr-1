@@ -749,10 +749,6 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
    @param tm Pointer to the transfer machine.
    @param ev Pointer to the event. The event data structure is
    released upon return from the subroutine.
-   @pre
-((ev->nev_qtype == C2_NET_QT_NR) && (ev->nev_buffer == NULL)) ||
-((ev->nev_buffer != NULL) &&
- (ev->nev_buffer->nb_flags & (C2_NET_BUF_QUEUED|C2_NET_BUF_CANCELLED)) == 0)
 */
 typedef void (*c2_net_tm_cb_proc_t)(struct c2_net_transfer_mc *tm,
 				    struct c2_net_event *ev);
@@ -772,12 +768,18 @@ struct c2_net_tm_callbacks {
 	/**
 	   Optional callback for buffers on the C2_NET_QT_MSG_RECV queue.
 	   Invoked when a message is received.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_RECV
 	*/
 	c2_net_tm_cb_proc_t ntc_msg_recv_cb;
 
 	/**
 	   Optional callback for buffers on the C2_NET_QT_MSG_SEND queue.
 	   Invoked when a message is sent.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_SEND
 	*/
 	c2_net_tm_cb_proc_t ntc_msg_send_cb;
 
@@ -786,6 +788,9 @@ struct c2_net_tm_callbacks {
 	   queue.
 	   Invoked when data has been written to the buffer on the completion
 	   of a remotely initiated bulk transfer operation.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV
 	 */
 	c2_net_tm_cb_proc_t ntc_passive_bulk_recv_cb;
 
@@ -794,6 +799,9 @@ struct c2_net_tm_callbacks {
 	   queue.
 	   Invoked when data has been read from the buffer on the completion
 	   of a remotely initiated bulk transfer operation.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND
 	 */
 	c2_net_tm_cb_proc_t ntc_passive_bulk_send_cb;
 
@@ -802,14 +810,20 @@ struct c2_net_tm_callbacks {
 	   queue.
 	   Invoked when data has been written to the buffer on the completion
 	   of a locally initiated bulk transfer operation.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV
 	 */
 	c2_net_tm_cb_proc_t ntc_active_bulk_recv_cb;
 
 	/**
-	   Optional callback for buffers on the C2_NET_QT_ACTIVE_BULK_RECV
+	   Optional callback for buffers on the C2_NET_QT_ACTIVE_BULK_SEND
 	   queue.
 	   Invoked when data has been sent from the buffer on the completion
 	   of a locally initiated bulk transfer operation.
+	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
+	        ev->nev_buffer != NULL &&
+		ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND
 	 */
 	c2_net_tm_cb_proc_t ntc_active_bulk_send_cb;
 
