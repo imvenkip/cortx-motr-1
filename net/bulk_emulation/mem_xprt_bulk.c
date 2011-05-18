@@ -53,7 +53,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	       nb->nb_desc.nbd_data != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
-	static enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
+	static const enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = C2_NET_QT_NR,
 		[C2_NET_QT_MSG_SEND]          = C2_NET_QT_NR,
 		[C2_NET_QT_PASSIVE_BULK_RECV] = C2_NET_QT_ACTIVE_BULK_SEND,
