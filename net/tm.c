@@ -230,9 +230,8 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 }
 C2_EXPORTED(c2_net_tm_init);
 
-int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
+void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 {
-	int result;
 	struct c2_net_domain *dom = tm->ntm_dom;
 	int i;
 
@@ -242,35 +241,30 @@ int c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	       tm->ntm_state == C2_NET_TM_INITIALIZED);
 
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
-		C2_ASSERT(c2_list_is_empty(&tm->ntm_q[i]));
+		C2_PRE(c2_list_is_empty(&tm->ntm_q[i]));
 	}
-	if (tm->ntm_callback_counter != 0) {
-		result = -EBUSY;
-		goto done;
-	}
+	C2_PRE(tm->ntm_callback_counter == 0);
 
-	result = dom->nd_xprt->nx_ops->xo_tm_fini(tm);
-	C2_ASSERT(result <= 0);
-	if (result == 0) {
-		if (tm->ntm_ep != NULL) {
-			c2_ref_put(&tm->ntm_ep->nep_ref);
-			tm->ntm_ep = NULL;
-		}
-		c2_list_del(&tm->ntm_dom_linkage);
-		tm->ntm_state = C2_NET_TM_UNDEFINED;
-		c2_cond_fini(&tm->ntm_cond);
-		c2_mutex_fini(&tm->ntm_mutex);
-		tm->ntm_dom = NULL;
-		c2_chan_fini(&tm->ntm_chan);
-		for (i = 0; i < C2_NET_QT_NR; ++i) {
-			c2_list_fini(&tm->ntm_q[i]);
-		}
-		c2_list_link_fini(&tm->ntm_dom_linkage);
-		tm->ntm_xprt_private = NULL;
+	dom->nd_xprt->nx_ops->xo_tm_fini(tm);
+
+	if (tm->ntm_ep != NULL) {
+		c2_ref_put(&tm->ntm_ep->nep_ref);
+		tm->ntm_ep = NULL;
 	}
-done:
+	c2_list_del(&tm->ntm_dom_linkage);
+	tm->ntm_state = C2_NET_TM_UNDEFINED;
+	c2_cond_fini(&tm->ntm_cond);
+	c2_mutex_fini(&tm->ntm_mutex);
+	tm->ntm_dom = NULL;
+	c2_chan_fini(&tm->ntm_chan);
+	for (i = 0; i < C2_NET_QT_NR; ++i) {
+		c2_list_fini(&tm->ntm_q[i]);
+	}
+	c2_list_link_fini(&tm->ntm_dom_linkage);
+	tm->ntm_xprt_private = NULL;
+
 	c2_mutex_unlock(&dom->nd_mutex);
-	return result;
+	return;
 }
 C2_EXPORTED(c2_net_tm_fini);
 

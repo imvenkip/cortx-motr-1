@@ -160,11 +160,9 @@ struct c2_net_xprt_ops {
              @li ntm_dom
 	     @li ntm_xprt_private - The method should free any
 	     allocated memory tracked by this pointer.
-           @retval 0 (success)
-	   @retval -errno (failure)
 	   @see c2_net_tm_fini()
 	 */
-	int (*xo_tm_fini)(struct c2_net_transfer_mc *tm);
+	void (*xo_tm_fini)(struct c2_net_transfer_mc *tm);
 
 	/**
 	   Create an end point with a specific address based on the
@@ -976,10 +974,8 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
         tm->ntm_state == C2_NET_TM_FAILED ||
 	tm->ntm_state == C2_NET_TM_INITIALIZED
    @param tm Transfer machine pointer.
-   @retval 0 (success)
-   @retval -errno (failure)
 */
-int c2_net_tm_fini(struct c2_net_transfer_mc *tm);
+void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
    Start a transfer machine.

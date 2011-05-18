@@ -377,14 +377,15 @@ static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)
 	return rc;
 }
 
-static int sunrpc_xo_tm_fini(struct c2_net_transfer_mc *tm)
+static void sunrpc_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
 	C2_PRE(sunrpc_tm_invariant(tm));
 	c2_rwlock_write_lock(&sunrpc_server_lock);
 	c2_list_del(&tp->xtm_tm_linkage);
 	c2_rwlock_write_unlock(&sunrpc_server_lock);
-	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_fini(tm);
+	c2_net_bulk_mem_xprt.nx_ops->xo_tm_fini(tm);
+	return;
 }
 
 void c2_net_bulk_sunrpc_tm_set_num_threads(struct c2_net_transfer_mc *tm,

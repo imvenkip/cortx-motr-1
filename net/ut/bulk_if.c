@@ -212,7 +212,7 @@ static int ut_tm_init(struct c2_net_transfer_mc *tm)
 }
 
 static bool ut_tm_fini_called = false;
-static int ut_tm_fini(struct c2_net_transfer_mc *tm)
+static void ut_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct ut_tm_pvt *tmp;
 	C2_ASSERT(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex));
@@ -220,7 +220,7 @@ static int ut_tm_fini(struct c2_net_transfer_mc *tm)
 	C2_UT_ASSERT(tmp->tm == tm);
 	c2_free(tmp);
 	ut_tm_fini_called = true;
-	return 0;
+	return;
 }
 
 struct c2_thread ut_tm_thread;
@@ -572,8 +572,8 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
 
 	/* should be able to fini it immediately */
-	rc = c2_net_tm_fini(tm);
-	C2_UT_ASSERT(rc == 0);
+	ut_tm_fini_called = false;
+	c2_net_tm_fini(tm);
 	C2_UT_ASSERT(ut_tm_fini_called);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_UNDEFINED);
 
@@ -779,8 +779,8 @@ void test_net_bulk_if(void)
 	}
 
 	/* fini the TM */
-	rc = c2_net_tm_fini(tm);
-	C2_UT_ASSERT(rc == 0);
+	ut_tm_fini_called = false;
+	c2_net_tm_fini(tm);
 	C2_UT_ASSERT(ut_tm_fini_called);
 
 	/* free end points */

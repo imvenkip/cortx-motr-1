@@ -853,13 +853,13 @@ void ping_fini(struct ping_ctx *ctx)
 
 		c2_time_t delay;
 		while (1) {
-			if ((ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
-			     ctx->pc_tm.ntm_state == C2_NET_TM_FAILED) &&
-			    c2_net_tm_fini(&ctx->pc_tm) != -EBUSY)
+			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
+			    ctx->pc_tm.ntm_state == C2_NET_TM_FAILED)
 				break;
 			c2_time_set(&delay, 0, 1000L);
 			c2_nanosleep(delay, NULL);
 		}
+		c2_net_tm_fini(&ctx->pc_tm);
 	}
 	if (ctx->pc_ep != NULL)
 		c2_net_end_point_put(ctx->pc_ep);

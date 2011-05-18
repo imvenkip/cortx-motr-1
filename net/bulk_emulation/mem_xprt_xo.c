@@ -494,18 +494,15 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 /**
    Finalize a transfer machine.
    @param tm Transfer machine pointer
-   @retval 0 on success
-   @retval -EBUSY if cannot be finalized.
  */
-static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
+static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	C2_PRE(mem_tm_invariant(tm));
 
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	if (tp->xtm_state != C2_NET_XTM_STOPPED &&
-	    tp->xtm_state != C2_NET_XTM_FAILED &&
-	    tp->xtm_state != C2_NET_XTM_INITIALIZED)
-		return -EBUSY;
+	C2_PRE(tp->xtm_state == C2_NET_XTM_STOPPED ||
+	       tp->xtm_state == C2_NET_XTM_FAILED  ||
+	       tp->xtm_state == C2_NET_XTM_INITIALIZED);
 
 	c2_mutex_lock(&tm->ntm_mutex);
 	tp->xtm_state = C2_NET_XTM_STOPPED; /* to stop the workers */
@@ -525,7 +522,7 @@ static int mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 	tp->xtm_tm = NULL;
 	tm->ntm_xprt_private = NULL;
 	c2_free(tp);
-	return 0;
+	return;
 }
 
 void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,

@@ -654,9 +654,9 @@ static void test_failure(void)
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(d2tm2.ntm_state == C2_NET_TM_STOPPED);
 
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm1));
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm2));
+	c2_net_tm_fini(&d1tm1);
+	c2_net_tm_fini(&d2tm1);
+	c2_net_tm_fini(&d2tm2);
 
 	c2_net_domain_fini(&dom1);
 	c2_net_domain_fini(&dom2);
@@ -771,7 +771,7 @@ static void test_tm(void)
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
 	/* should be able to fini it immediately */
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_tm_fini(&d1tm1);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_UNDEFINED);
 
 	/* should be able to init it again */
@@ -793,7 +793,7 @@ static void test_tm(void)
 		c2_clink_del(&tmwait1);
 		C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
 	}
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_tm_fini(&d1tm1);
 	c2_net_domain_fini(&dom1);
 }
 

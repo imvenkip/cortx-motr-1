@@ -146,7 +146,7 @@ static void test_sunrpc_desc(void)
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_tm_fini(&d1tm1);
 
 	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
@@ -353,7 +353,7 @@ static void test_sunrpc_failure(void)
 	   Start a second TM in the second domain, using the same port
 	   number and the same service id.
 	*/
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm2));
+	c2_net_tm_fini(&d2tm2);
 	d2tm2.ntm_state = C2_NET_TM_UNDEFINED;
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
@@ -369,7 +369,7 @@ static void test_sunrpc_failure(void)
 	   Bulksunrpc requires a single port number for all TMs, per process,
 	   regardless of domain.
 	*/
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm2));
+	c2_net_tm_fini(&d2tm2);
 	d2tm2.ntm_state = C2_NET_TM_UNDEFINED;
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
@@ -402,7 +402,7 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(d1nb1.nb_status == -ENXIO);
 
 	/* start the TM with id 4 in the second dom */
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm2));
+	c2_net_tm_fini(&d2tm2);
 	d2tm2.ntm_state = C2_NET_TM_UNDEFINED;
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
 	c2_clink_init(&tmwait2, NULL);
@@ -785,9 +785,9 @@ static void test_sunrpc_failure(void)
 		C2_UT_ASSERT(d2tm2.ntm_state == C2_NET_TM_STOPPED);
 	}
 
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm1));
-	C2_UT_ASSERT(!c2_net_tm_fini(&d2tm2));
+	c2_net_tm_fini(&d1tm1);
+	c2_net_tm_fini(&d2tm1);
+	c2_net_tm_fini(&d2tm2);
 
 	c2_net_domain_fini(&dom1);
 	c2_net_domain_fini(&dom2);
@@ -813,7 +813,7 @@ static void test_sunrpc_tm(void)
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
 	/* should be able to fini it immediately */
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_tm_fini(&d1tm1);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_UNDEFINED);
 
 	/* should be able to init it again */
@@ -836,7 +836,7 @@ static void test_sunrpc_tm(void)
 		c2_clink_del(&tmwait1);
 		C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
 	}
-	C2_UT_ASSERT(!c2_net_tm_fini(&d1tm1));
+	c2_net_tm_fini(&d1tm1);
 	c2_net_domain_fini(&dom1);
 }
 
