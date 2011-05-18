@@ -161,18 +161,20 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 			       struct c2_net_bulk_sunrpc_tm_pvt,
 			       xtm_tm_linkage) {
 		struct c2_net_transfer_mc *tm = tp->xtm_base.xtm_tm;
+		struct c2_net_end_point *ep;
+		struct c2_net_bulk_mem_end_point *mep;
 
 		c2_mutex_lock(&tm->ntm_mutex);
 		C2_ASSERT(c2_net__tm_invariant(tm));
 
-		struct c2_net_end_point *ep = tm->ntm_ep;
+		ep = tm->ntm_ep;
 		if (ep == NULL || tm->ntm_state != C2_NET_TM_STARTED) {
 			c2_mutex_unlock(&tm->ntm_mutex);
 			continue;
 		}
 
-		struct c2_net_bulk_mem_end_point *mep =
-		    container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+		mep = container_of(ep,
+				   struct c2_net_bulk_mem_end_point, xep_ep);
 
 		if (mep->xep_service_id == sid) {
 			/* leave mutex locked */
@@ -216,7 +218,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	bdp = &dp->xd_base;
 
 	/* save the work functions of the base */
-	for (i=0; i < C2_NET_XOP_NR; i++) {
+	for (i = 0; i < C2_NET_XOP_NR; ++i) {
 		dp->xd_base_work_fn[i] = bdp->xd_work_fn[i];
 	}
 
@@ -310,11 +312,12 @@ static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
 static bool sunrpc_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
 	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
+	int i;
+	c2_bcount_t len = 0;
+
 	if (v->v_nr > C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS)
 		return false;
-	int i;
-	c2_bcount_t len=0;
-	for (i=0; i < v->v_nr; i++) {
+	for (i = 0; i < v->v_nr; ++i) {
 		if (v->v_count[i] > C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE)
 			return false;
 		len += v->v_count[i];
@@ -471,7 +474,7 @@ struct c2_net_xprt c2_net_bulk_sunrpc_xprt = {
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

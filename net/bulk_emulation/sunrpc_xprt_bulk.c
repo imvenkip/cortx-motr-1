@@ -18,26 +18,29 @@ static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc)
 
 static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct sunrpc_get      *in = c2_fop_data(fop);
-	struct sunrpc_get_resp *ex;
-	struct c2_fop          *reply;
-	int                     rc = 0;
+	struct sunrpc_get         *in = c2_fop_data(fop);
+	struct sunrpc_get_resp    *ex;
+	struct c2_fop             *reply;
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_buffer      *nb = NULL;
+	struct c2_net_buffer      *inb;
+	c2_bcount_t                len;
+	struct c2_bufvec_cursor    cur;
+	bool                       eof;
+	int                        rc = 0;
 
 	reply = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
 	/* locate the tm, identified by its sid in the buffer desc */
-	struct c2_net_transfer_mc *tm =
-		sunrpc_find_tm(in->sg_desc.sbd_passive_ep.sep_id);
+	tm = sunrpc_find_tm(in->sg_desc.sbd_passive_ep.sep_id);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto done2;
 	}
 
 	/* locate the passive buffer */
-	struct c2_net_buffer *nb = NULL;
-	struct c2_net_buffer *inb;
 	c2_list_for_each_entry(&tm->ntm_q[in->sg_desc.sbd_qtype], inb,
 			       struct c2_net_buffer,
 			       nb_tm_linkage) {
@@ -55,14 +58,14 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	/* copy up to 1 segment from passive buffer into the reply,
 	   and set sgr_eof if end of net buffer is reached.
 	*/
-	c2_bcount_t len = nb->nb_length;
-	struct c2_bufvec_cursor cur;
+	len = nb->nb_length;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-	bool eof = c2_bufvec_cursor_move(&cur, in->sg_offset);
+	eof = c2_bufvec_cursor_move(&cur, in->sg_offset);
 
 	if (!eof && len > in->sg_offset) {
+		c2_bcount_t step;
 		len -= in->sg_offset;
-		c2_bcount_t step = min32u(c2_bufvec_cursor_step(&cur), len);
+		step = min32u(c2_bufvec_cursor_step(&cur), len);
 
 		ex->sgr_buf.sb_len = step;
 		C2_ALLOC_ARR(ex->sgr_buf.sb_buf, step);
@@ -106,26 +109,30 @@ done2:
 
 static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct sunrpc_put      *in = c2_fop_data(fop);
-	struct sunrpc_put_resp *ex;
-	struct c2_fop          *reply;
-	int                     rc = 0;
+	struct sunrpc_put         *in = c2_fop_data(fop);
+	struct sunrpc_put_resp    *ex;
+	struct c2_fop             *reply;
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_buffer      *nb = NULL;
+	struct c2_net_buffer      *inb;
+	struct c2_bufvec_cursor    cur;
+	struct c2_bufvec_cursor    scur;
+	c2_bcount_t                len;
+	c2_bcount_t                copied;
+	int                        rc = 0;
 
 	reply = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
 	C2_ASSERT(reply != NULL);
 	ex = c2_fop_data(reply);
 
 	/* locate the tm, identified by its sid in the buffer desc */
-	struct c2_net_transfer_mc *tm =
-		sunrpc_find_tm(in->sp_desc.sbd_passive_ep.sep_id);
+	tm = sunrpc_find_tm(in->sp_desc.sbd_passive_ep.sep_id);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto done2;
 	}
 
 	/* locate the passive buffer */
-	struct c2_net_buffer *nb = NULL;
-	struct c2_net_buffer *inb;
 	c2_list_for_each_entry(&tm->ntm_q[in->sp_desc.sbd_qtype], inb,
 			       struct c2_net_buffer,
 			       nb_tm_linkage) {
@@ -144,8 +151,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	   are performed sequentially, so the passive callback can be
 	   made as soon as the final put operation is performed.
 	*/
-	c2_bcount_t len = in->sp_buf.sb_len;
-	struct c2_bufvec_cursor cur;
+	len = in->sp_buf.sb_len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 
 	struct c2_bufvec stmp = {
@@ -155,8 +161,6 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		},
 		.ov_buf = (void**) &in->sp_buf.sb_buf
 	};
-	struct c2_bufvec_cursor scur;
-	c2_bcount_t copied;
 
 	c2_bufvec_cursor_init(&scur, &stmp);
 	c2_bufvec_cursor_move(&cur, in->sp_offset);
@@ -181,12 +185,16 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 			      struct sunrpc_buf_desc *sd,
 			      struct c2_net_end_point *ep)
 {
-	int                     rc = 0;
+	int                      rc = 0;
 	struct c2_net_conn      *conn = NULL;
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_put       *fop;
 	struct sunrpc_put_resp  *rep;
+	struct c2_bufvec_cursor  cur;
+	size_t                   len = nb->nb_length;
+	size_t                   off = 0;
+	c2_bcount_t              step;
 
 	/* get a connection for this end point */
 	rc = sunrpc_ep_get_conn(ep, &conn);
@@ -210,11 +218,6 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	  Walk each buf in our bufvec, sending data
 	  to remote until complete bufvec is transferred.
 	*/
-	struct c2_bufvec_cursor cur;
-	size_t len = nb->nb_length;
-	size_t off = 0;
-	c2_bcount_t step;
-
 	fop->sp_desc = *sd;
 	fop->sp_desc.sbd_total = len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
@@ -254,6 +257,11 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
 	struct sunrpc_get_resp  *rep;
+	struct c2_bufvec_cursor  cur;
+	c2_bcount_t              len;
+	size_t                   off = 0;
+	c2_bcount_t              copied;
+	bool                     eof = false;
 
 	/* get a connection for this end point */
 	rc = sunrpc_ep_get_conn(ep, &conn);
@@ -277,16 +285,11 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	  Receive data from remote and copy to our bufvec
 	  until complete bufvec is transferred.
 	*/
-	struct c2_bufvec_cursor cur;
-	c2_bcount_t len;
-	size_t off = 0;
-	c2_bcount_t copied;
-	bool eof = false;
-
 	fop->sg_desc = *sd;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	nb->nb_length = sd->sbd_total;
 	while (!eof) {
+		struct c2_bufvec_cursor scur;
 		fop->sg_offset = off;
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
@@ -305,7 +308,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 			},
 			.ov_buf = (void**) &rep->sgr_buf.sb_buf
 		};
-		struct c2_bufvec_cursor scur;
 
 		c2_bufvec_cursor_init(&scur, &stmp);
 		copied = c2_bufvec_cursor_copy(&cur, &scur, len);
@@ -330,15 +332,6 @@ done:
 static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 				  struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	C2_PRE(nb != NULL &&
-	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
-		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
-	       nb->nb_tm == tm &&
-	       nb->nb_desc.nbd_len != 0 &&
-	       nb->nb_desc.nbd_data != NULL);
-	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
-
 	static enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = C2_NET_QT_NR,
 		[C2_NET_QT_MSG_SEND]          = C2_NET_QT_NR,
@@ -347,8 +340,18 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = C2_NET_QT_NR,
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = C2_NET_QT_NR,
 	};
-	int rc;
+	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
 	struct c2_net_end_point *match_ep = NULL;
+	int rc;
+
+	C2_PRE(nb != NULL &&
+	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
+		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
+	       nb->nb_tm == tm &&
+	       nb->nb_desc.nbd_len != 0 &&
+	       nb->nb_desc.nbd_data != NULL);
+	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+
 	do {
 		/* decode the descriptor */
 		struct sunrpc_buf_desc sd;
@@ -411,7 +414,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

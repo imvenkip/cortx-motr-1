@@ -67,7 +67,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 			rep = c2_fop_data(r);
 			rc = rep->smr_rc;
 		}
-	} while(0);
+	} while (0);
 
 	if (f != NULL)
 		c2_fop_free(f);
@@ -91,11 +91,12 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	struct sunrpc_msg      *in = c2_fop_data(fop);
-	struct sunrpc_msg_resp *ex;
-	struct c2_fop          *reply;
-	struct c2_net_buffer   *nb = NULL;
-	struct c2_bufvec_cursor cur;
+	struct sunrpc_msg         *in = c2_fop_data(fop);
+	struct sunrpc_msg_resp    *ex;
+	struct c2_fop             *reply;
+	struct c2_net_buffer      *nb = NULL;
+	struct c2_bufvec_cursor    cur;
+	struct c2_net_transfer_mc *tm;
 	int rc;
 
 	reply = c2_fop_alloc(&sunrpc_msg_resp_fopt, NULL);
@@ -103,7 +104,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	ex = c2_fop_data(reply);
 
 	/* locate the tm, identified by its sid in the buffer desc */
-	struct c2_net_transfer_mc *tm = sunrpc_find_tm(in->sm_receiver.sep_id);
+	tm = sunrpc_find_tm(in->sm_receiver.sep_id);
 	if (tm == NULL) {
 		rc = -ENXIO;
 		goto err_exit;
@@ -144,7 +145,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			break;
 		}
 		rc = 0;
-	} while(0);
+	} while (0);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	if (rc == 0) {
@@ -205,7 +206,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

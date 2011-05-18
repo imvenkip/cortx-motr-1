@@ -12,9 +12,9 @@
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
-
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
 	       nb->nb_tm == tm &&
@@ -33,7 +33,6 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 	};
 	c2_time_now(&ev.nev_time);
 	(void)c2_net_tm_event_post(tm, &ev);
-	return;
 }
 
 /**
@@ -61,17 +60,20 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			      struct c2_net_end_point   **p_dest_ep)
 {
 	struct c2_net_domain *mydom = tm->ntm_dom;
+	struct c2_net_transfer_mc *dest_tm = NULL;
+	struct c2_net_end_point   *dest_ep = NULL;
+	struct c2_net_bulk_mem_domain_pvt *dp;
+	struct c2_net_transfer_mc *itm;
+	struct c2_net_bulk_mem_end_point *mep;
+	int rc = 0;
+
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(c2_mutex_is_not_locked(&mydom->nd_mutex));
 	C2_PRE(c2_mutex_is_not_locked(&c2_net_mutex));
 
 	/* iterate over in-mem domains to find the destination TM */
-	struct c2_net_transfer_mc *dest_tm = NULL;
-	struct c2_net_end_point   *dest_ep = NULL;
 
-	int rc = 0;
 	c2_mutex_lock(&c2_net_mutex);
-	struct c2_net_bulk_mem_domain_pvt *dp;
 	c2_list_for_each_entry(&mem_domains, dp,
 			       struct c2_net_bulk_mem_domain_pvt,
 			       xd_dom_linkage) {
@@ -79,7 +81,6 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			continue; /* skip self */
 		/* iterate over TM's in domain */
 		c2_mutex_lock(&dp->xd_dom->nd_mutex);
-		struct c2_net_transfer_mc *itm;
 		c2_list_for_each_entry(&dp->xd_dom->nd_tms, itm,
 				       struct c2_net_transfer_mc,
 				       ntm_dom_linkage) {
@@ -99,7 +100,6 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				   address in the remote DOM. Do this now,
 				   before giving up the DOM mutex.
 				*/
-				struct c2_net_bulk_mem_end_point *mep;
 				mep = container_of(tm->ntm_ep,
 						   struct
 						   c2_net_bulk_mem_end_point,
@@ -158,17 +158,22 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	int rc;
+	struct c2_net_transfer_mc *dest_tm = NULL;
+	struct c2_net_end_point   *dest_ep = NULL;
+	struct c2_net_buffer      *dest_nb = NULL;
+
 	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_SEND &&
 	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
-	int rc;
-	struct c2_net_transfer_mc *dest_tm = NULL;
-	struct c2_net_end_point   *dest_ep = NULL;
-	struct c2_net_buffer      *dest_nb = NULL;
 	do {
+		bool found_dest_nb = false;
+		struct c2_net_bulk_mem_work_item *dest_wi;
+		struct c2_net_bulk_mem_tm_pvt *dest_tp;
+
 		/* Search for a remote TM matching the destination address,
 		   and if found, create an EP in the remote TM's domain with
 		   the local TM's address.
@@ -182,7 +187,6 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		*/
 
 		/* get the first available receive buffer */
-		bool found_dest_nb = false;
 		c2_list_for_each_entry(&dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
 				       dest_nb, struct c2_net_buffer,
 				       nb_tm_linkage) {
@@ -213,14 +217,12 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		dest_nb->nb_status = rc; /* recv error code */
 
 		/* schedule the receive msg callback */
-		struct c2_net_bulk_mem_work_item *dest_wi =
-			MEM_BUFFER_TO_WI(dest_nb);
+		dest_wi = MEM_BUFFER_TO_WI(dest_nb);
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
-		struct c2_net_bulk_mem_tm_pvt *dest_tp =
-			dest_tm->ntm_xprt_private;
+		dest_tp = dest_tm->ntm_xprt_private;
 		mem_wi_add(dest_wi, dest_tp);
-	} while(0);
+	} while (0);
 
 	/* release the destination TM mutex */
 	if (dest_tm != NULL)
@@ -243,7 +245,6 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 	};
 	c2_time_now(&ev.nev_time);
 	(void)c2_net_tm_event_post(tm, &ev);
-	return;
 }
 
 /**
@@ -255,7 +256,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
