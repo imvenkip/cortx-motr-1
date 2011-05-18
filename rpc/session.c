@@ -229,6 +229,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
 	} else {
 		conn->c_state = CS_CONN_INIT_FAILED;
+		conn->c_private = NULL;
+		c2_fop_free(fop);
 	}
 	printf("conn_create: finished %d\n", rc);
 	return rc;
@@ -283,9 +285,9 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	conn->c_private = NULL;
 	c2_fop_free(fop);	/* reply fop */
 
-	c2_mutex_unlock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
 			conn->c_state == CS_CONN_ACTIVE);
+	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&conn->c_chan);
 	printf("conn_create_reply_received: finished\n");
 }
@@ -370,6 +372,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
 	} else {
 		conn->c_state = CS_CONN_ACTIVE;
+		conn->c_private = NULL;
+		c2_fop_free(fop);
 	}
 
 out:
@@ -431,8 +435,15 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		printf("conn termination failed\n");
 		conn->c_state = CS_CONN_ACTIVE;
 	}
+
+	C2_ASSERT(conn->c_private != NULL);
+	c2_fop_free(conn->c_private); /* request fop */
+	conn->c_private = NULL;
+
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&conn->c_chan);
+
+	c2_fop_free(fop);	/* reply fop */
 	printf("conn_term_reply_rcvd: finished\n");
 }
 
