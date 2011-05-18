@@ -60,8 +60,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 	return true;
 }
 
-int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
-			 const struct c2_net_event *ev)
+void c2_net_tm_event_post(const struct c2_net_event *ev)
 {
 	struct c2_net_buffer *buf = NULL;
 	const struct c2_net_tm_callbacks *cbs;
@@ -69,9 +68,11 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	struct c2_net_end_point *ep;
 	bool check_ep;
 	enum c2_net_queue_type qtype = C2_NET_QT_NR;
+	struct c2_net_transfer_mc *tm;
 
-	C2_PRE(tm != NULL && ev != NULL);
-	C2_ASSERT(tm == ev->nev_tm);
+	C2_PRE(ev != NULL);
+	tm = ev->nev_tm;
+	C2_PRE(tm != NULL);
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	/* pre-callback, in mutex:
@@ -193,7 +194,7 @@ int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
 	if (check_ep && ep)
 		c2_net_end_point_put(ep);
 
-	return 0;
+	return;
 }
 C2_EXPORTED(c2_net_tm_event_post);
 

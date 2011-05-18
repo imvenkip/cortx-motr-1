@@ -399,7 +399,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
+	c2_net_tm_event_post(&ev);
 }
 
 /**
