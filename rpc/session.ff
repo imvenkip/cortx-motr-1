@@ -31,7 +31,8 @@ DEF(c2_rpc_session_create, RECORD,
 
 DEF(c2_rpc_session_create_rep, RECORD,
    _(rscr_rc, U32),
-   _(rscr_session_id, U64));
+   _(rscr_session_id, U64),
+   _(rscr_sender_id, U64));
 
 DEF(c2_rpc_session_destroy, RECORD,
    _(rsd_sender_id, U64),

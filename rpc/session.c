@@ -26,6 +26,9 @@ struct c2_stob_id c2_root_stob_id = {
         .si_bits = {1, 1}
 };
 
+static void session_fields_init(struct c2_rpc_session	*session,
+				struct c2_rpc_conn	*conn,
+				uint32_t		nr_slots);
 
 static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot);
 static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn);
@@ -131,6 +134,41 @@ int c2_rpc_session_module_init(void)
 void c2_rpc_session_module_fini(void)
 {
 	c2_rpc_session_fop_fini();
+}
+
+void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
+                        uint64_t                sender_id,
+                        struct c2_rpc_conn      **out)
+{
+	struct c2_rpc_conn	*conn;
+
+	*out = NULL;
+
+	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
+				struct c2_rpc_conn, c_link) {
+		if (conn->c_sender_id == sender_id) {
+			*out = conn;
+			break;
+		}
+	}
+}
+
+void c2_rpc_session_search(struct c2_rpc_conn           *conn,
+                           uint64_t                     session_id,
+                           struct c2_rpc_session        **out)
+{
+	struct c2_rpc_session		*session;
+
+	*out = NULL;
+
+	c2_list_for_each_entry(&conn->c_sessions, session,
+				struct c2_rpc_session, s_link) {
+		if (session->s_session_id == session_id) {
+			*out = session;
+			break;
+		}
+	}
+
 }
 
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
@@ -246,17 +284,8 @@ static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
 	C2_ALLOC_PTR(session);
 	C2_SET0(session);
 
-	c2_list_link_init(&session->s_link);
+	session_fields_init(session, conn, 1);
 	session->s_session_id = SESSION_0;
-	session->s_conn = conn;
-	c2_chan_init(&session->s_chan);
-	c2_mutex_init(&session->s_mutex);
-	session->s_nr_slots = 1;
-	session->s_slot_table_capacity = 1;
-	C2_ALLOC_ARR(session->s_slot_table, 1);
-	C2_ASSERT(session->s_slot_table != NULL);
-	C2_ALLOC_PTR(session->s_slot_table[0]);
-	c2_rpc_snd_slot_init(session->s_slot_table[0]);
 	session->s_state = SESSION_ALIVE;
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
@@ -268,6 +297,15 @@ static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot)
         slot->ss_flags = SLOT_IN_USE;
         c2_list_init(&slot->ss_ready_list);
         c2_list_init(&slot->ss_replay_list);
+}
+
+int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
+{
+	return 0;
+}
+
+void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
+{
 }
 
 int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)
@@ -287,15 +325,207 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *rpc_conn)
        return true;
 }
 
-int c2_rpc_session_create(struct c2_rpc_conn	*rpc_conn, 
-			  struct c2_rpc_session	*out)
+static void session_fields_init(struct c2_rpc_session	*session,
+				struct c2_rpc_conn	*conn,
+				uint32_t		nr_slots)
 {
-       return 0;
+	int	i;
+
+	C2_PRE(session != NULL && nr_slots >= 1);
+
+	c2_list_link_init(&session->s_link);
+	session->s_session_id = SESSION_ID_INVALID;
+	session->s_conn = conn;
+	c2_chan_init(&session->s_chan);
+	c2_mutex_init(&session->s_mutex);
+	session->s_nr_slots = nr_slots;
+	session->s_slot_table_capacity = nr_slots;
+	C2_ALLOC_ARR(session->s_slot_table, nr_slots);
+
+	C2_ASSERT(session->s_slot_table != NULL);
+
+	for (i = 0; i < nr_slots; i++) {
+		C2_ALLOC_PTR(session->s_slot_table[i]);
+		c2_rpc_snd_slot_init(session->s_slot_table[0]);
+	}
+}
+int c2_rpc_session_create(struct c2_rpc_session	*session,
+			  struct c2_rpc_conn	*conn)
+{
+	struct c2_fop			*fop;
+	struct c2_rpc_session_create	*fop_sc;
+	struct c2_rpc_item		*item;
+	struct c2_time			deadline;
+	int				rc;
+
+	C2_PRE(conn != NULL && session != NULL);
+	C2_PRE(conn->c_state == CS_CONN_ACTIVE &&
+		session->s_state == SESSION_UNINITIALIZED);
+
+	printf("session_Create: session object %p\n", session);
+	session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
+
+	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	if (fop == NULL)
+		return -ENOMEM;
+
+	fop_sc = c2_fop_data(fop);
+	C2_ASSERT(fop_sc != NULL);
+
+	fop_sc->rsc_snd_id = conn->c_sender_id;
+
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL);
+
+	item->ri_sender_id = conn->c_sender_id;
+	item->ri_session_id = SESSION_0;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	/* item->ri_verno should be filled in c2_rpc_item_prepare() */
+
+	C2_SET0(&deadline);
+	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+
+	if (rc != 0) {
+		session->s_state = SESSION_CREATE_FAILED;
+	} else {
+		session->s_state = SESSION_CREATING;
+	}
+	c2_mutex_lock(&conn->c_mutex);
+	c2_list_add(&conn->c_sessions, &session->s_link);
+	c2_mutex_unlock(&conn->c_mutex);
+	return rc;
+}
+
+void c2_rpc_session_create_reply_received(struct c2_fop *fop)
+{
+	struct c2_rpc_session_create_rep	*fop_scr;
+	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session = NULL;
+	struct c2_rpc_session			*s;
+	uint64_t				sender_id;
+	uint64_t				session_id;
+
+	printf("session_create_reply_received: called\n");
+	C2_PRE(fop != NULL);
+
+	fop_scr = c2_fop_data(fop);
+	C2_ASSERT(fop_scr != NULL);
+
+	sender_id = fop_scr->rscr_sender_id;
+	session_id = fop_scr->rscr_session_id;
+
+	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+	C2_ASSERT(conn != NULL);
+
+	c2_mutex_lock(&conn->c_mutex);
+	/*
+	 * For a c2_rpc_conn
+	 * There can be only session create in progress at any given point
+	 */
+	c2_list_for_each_entry(&conn->c_sessions, s,
+				struct c2_rpc_session, s_link) {
+		if (s->s_state == SESSION_CREATING) {
+			session = s;
+			break;
+		}
+	}
+
+	/*
+	 * Duplicate reply message will be filtered by
+	 * c2_rpc_session_reply_recieved().
+	 * If this function is called then there must be ONE session
+	 * with state == CREATING. If not then it is a bug.
+	 */
+	C2_ASSERT(session != NULL);
+
+	printf("Found session object %p\n", session);
+	c2_mutex_unlock(&conn->c_mutex);
+
+	if (fop_scr->rscr_rc != 0) {
+		session->s_state = SESSION_CREATE_FAILED;
+	} else {
+		printf("setting session id to %lu\n", fop_scr->rscr_session_id);
+		session->s_session_id = fop_scr->rscr_session_id;
+		session->s_state = SESSION_ALIVE;
+	}
+	c2_chan_broadcast(&session->s_chan);
+
+	C2_ASSERT(session->s_state == SESSION_ALIVE ||
+			session->s_state == SESSION_CREATE_FAILED);
+	return;
 }
 
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
 {
-       return 0;
+	struct c2_fop			*fop;
+	struct c2_rpc_session_destroy	*fop_sd;
+	struct c2_rpc_item		*item;
+	struct c2_time			deadline;
+	int				i;
+	int				rc;
+
+	C2_PRE(session != NULL && session->s_conn != NULL);
+
+	if (session->s_state != SESSION_ALIVE)
+		return -EINVAL;
+
+	c2_mutex_lock(&session->s_mutex);
+	for (i = 0; i < session->s_nr_slots; i++) {
+		if (c2_rpc_snd_slot_is_busy(session->s_slot_table[i])) {
+			rc = -EBUSY;
+			goto out;
+		}
+	}
+
+	/*
+	 * XXX TODO:
+	 * Add a check to confirm that there is no active update_stream
+	 * present. Can A counter that count number of active update_stream
+	 * help? Then we need two routines update_stream_created() and 
+	 * update_stream_terminated() to report the events to session module
+	 */
+
+	fop = c2_fop_alloc(&c2_rpc_session_destroy_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	fop_sd = c2_fop_data(fop);
+
+	C2_ASSERT(fop_sd != NULL);
+
+	fop_sd->rsd_sender_id = session->s_conn->c_sender_id;
+	fop_sd->rsd_session_id = session->s_session_id;
+
+	item = c2_fop_to_rpc_item(fop);
+
+	C2_ASSERT(item != NULL);
+
+	item->ri_sender_id = session->s_conn->c_sender_id;
+	item->ri_session_id = SESSION_0;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	/* item->ri_verno should be filled in c2_rpc_item_prepare() */
+
+	C2_SET0(&deadline);
+	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+
+	if (rc != 0) {
+		session->s_state = SESSION_ALIVE;
+	} else {
+		session->s_state = SESSION_TERMINATING;
+	}
+
+out:
+	c2_mutex_unlock(&session->s_mutex);
+	return rc;
+}
+
+void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
+{
+
 }
 
 void c2_rpc_session_timedwait(struct c2_rpc_session	*session,
@@ -940,5 +1170,11 @@ putconn:
 out:
 	return rc;
 }
+
+bool c2_rpc_snd_slot_is_busy(const struct c2_rpc_snd_slot *slot)
+{
+        return (slot->ss_flags & SLOT_WAITING_FOR_REPLY) != 0;
+}
+
 /** @} end of session group */
 

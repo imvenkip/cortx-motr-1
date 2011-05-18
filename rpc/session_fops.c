@@ -33,6 +33,10 @@ struct c2_fop_type_ops c2_rpc_conn_create_rep_ops = {
 	.fto_execute = c2_rpc_conn_create_rep_execute
 };
 
+struct c2_fop_type_ops c2_rpc_session_create_rep_ops = {
+	.fto_execute = c2_rpc_session_create_rep_execute
+};
+
 struct c2_fop_type_ops c2_rpc_rep_ops = {
 	.fto_fom_init = c2_rpc_rep_fom_init
 };
@@ -166,6 +170,14 @@ int c2_rpc_conn_create_rep_execute(struct c2_fop	*fop,
 	c2_rpc_conn_create_reply_received(fop);
 	return 0;
 }
+
+int c2_rpc_session_create_rep_execute(struct c2_fop	*fop,
+				      struct c2_fop_ctx	*ctx)
+{
+	c2_rpc_session_create_reply_received(fop);
+	return 0;
+}
+
 int c2_rpc_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	printf("Temporary placeholder for reply fops\n");
@@ -195,7 +207,7 @@ C2_FOP_TYPE_DECLARE(c2_rpc_conn_create_rep, "rpc_conn_create_reply",
 C2_FOP_TYPE_DECLARE(c2_rpc_conn_terminate_rep, "rpc_conn_terminate_reply",
 			c2_rpc_conn_terminate_rep_opcode, &c2_rpc_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_rpc_session_create_rep, "rpc_session_create_reply",
-			c2_rpc_session_create_rep_opcode, &c2_rpc_rep_ops);
+			c2_rpc_session_create_rep_opcode, &c2_rpc_session_create_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_rpc_session_destroy_rep, "rpc_session_destroy_reply",
 			c2_rpc_session_destroy_rep_opcode, &c2_rpc_rep_ops);
 

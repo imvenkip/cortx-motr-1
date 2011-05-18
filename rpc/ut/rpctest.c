@@ -404,9 +404,9 @@ void test_session_create()
 	}
 
 }
+struct c2_rpc_conn		conn;
 void test_snd_conn_create()
 {
-	struct c2_rpc_conn		conn;
 	struct c2_service_id		svc_id;
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_create_rep	*fop_ccr;
@@ -431,6 +431,31 @@ void test_snd_conn_create()
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
 }
+void test_snd_session_create()
+{
+	struct c2_rpc_session			session;
+	struct c2_fop				*fop;
+	struct c2_rpc_session_create_rep	*fop_scr;
+	int					rc;
+
+	C2_SET0(&session);
+	rc = c2_rpc_session_create(&session, &conn);
+	if (rc != 0) {
+		printf("test_sc: failed to create session\n");
+		return;
+	}
+	fop = c2_fop_alloc(&c2_rpc_session_create_rep_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+
+	fop_scr = c2_fop_data(fop);
+	C2_ASSERT(fop_scr != NULL);
+
+	fop_scr->rscr_rc = 0;
+	fop_scr->rscr_sender_id = conn.c_sender_id;
+	fop_scr->rscr_session_id = 100;
+
+	fop->f_type->ft_ops->fto_execute(fop, NULL);
+}
 int main(void)
 {
 
@@ -446,7 +471,7 @@ int main(void)
 	test_conn_terminate(20);
 */
 	test_snd_conn_create();
-
+	test_snd_session_create();
 	c2_cob_domain_fini(dom);
 	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();

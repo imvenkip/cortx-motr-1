@@ -8,6 +8,10 @@
 #include "rpc/session_fops.h"
 #include "dtm/verno.h"
 
+enum {
+	DEFAULT_SLOT_COUNT = 4
+};
+
 extern const char *C2_RPC_SLOT_TABLE_NAME;
 
 /**
@@ -171,6 +175,21 @@ extern struct c2_stob_id	c2_root_stob_id;
  * XXX temporary global rpc machine
  */
 extern struct c2_rpcmachine	g_rpcmachine;
+
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
+
+void c2_rpc_session_create_reply_received(struct c2_fop *fop);
+
+void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop);
+
+void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
+			uint64_t		sender_id,
+			struct c2_rpc_conn	**out);
+
+void c2_rpc_session_search(struct c2_rpc_conn		*conn,
+			   uint64_t			session_id,
+			   struct c2_rpc_session	**out);
+
+bool c2_rpc_snd_slot_is_busy(const struct c2_rpc_snd_slot *slot);
 #endif
 

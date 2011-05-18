@@ -19,9 +19,6 @@
 #include "fop/fop_format_def.h"
 #include "rpc/session_int.h"
 
-enum {
-	DEFAULT_SLOT_COUNT = 4
-};
 
 struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
 	.fo_fini = &c2_rpc_fom_conn_create_fini,
@@ -227,6 +224,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	 */
 	session_id = 100;
 	sender_id = fop_in->rsc_snd_id;
+	fop_out->rscr_sender_id = fop_in->rsc_snd_id;
 
 	/*
 	 * Create entry for session0/slot0
