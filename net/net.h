@@ -720,11 +720,10 @@ struct c2_net_event {
    transfer machine queue.  The invoking process will block on the transfer
    machine's c2_net_transfer_mc.ntm_cond condition variable until the
    outstanding event callback on the buffer completes (indicated by the
-   C2_NET_BUF_IN_CALLBACK bit being cleared).  If the subroutine detects that
-   it is being called recursively on the same buffer it will fail with a
-   EDEADLK indication.
+   C2_NET_BUF_IN_CALLBACK bit being cleared).
 
-   The subroutine will remove the buffer from its queue, and clear its
+   If the event type is C2_NET_EV_BUFFER_RELEASE, then the
+   subroutine will remove the buffer from its queue, and clear its
    C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
    prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
    set, then the status is forced to -ECANCELED.
@@ -735,13 +734,9 @@ struct c2_net_event {
    The invoking process should be aware that the callback subroutine could
    end up making re-entrant calls to the transport layer.
 
-   @param tm Transfer machine pointer.
-   @param ev Event pointer
-   @retval 0 (success)
-   @retval -errno (failure)
+   @param ev Event pointer. The nev_tm field identifies the transfer machine.
  */
-int c2_net_tm_event_post(struct c2_net_transfer_mc *tm,
-			 const struct c2_net_event *ev);
+void c2_net_tm_event_post(const struct c2_net_event *ev);
 
 
 /**

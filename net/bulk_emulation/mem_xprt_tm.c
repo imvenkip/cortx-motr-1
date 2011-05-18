@@ -17,13 +17,11 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	int rc;
 	struct c2_net_event ev = {
 		.nev_type   = C2_NET_EV_STATE_CHANGE,
 		.nev_tm     = tm,
 		.nev_status = 0
 	};
-	c2_time_now(&ev.nev_time);
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_ASSERT(wi->xwi_next_state == C2_NET_XTM_STARTED ||
@@ -46,7 +44,8 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				ev.nev_next_state = C2_NET_TM_STARTED;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
-			rc = c2_net_tm_event_post(ev.nev_tm, &ev);
+			c2_time_now(&ev.nev_time);
+			c2_net_tm_event_post(&ev);
 			c2_mutex_lock(&tm->ntm_mutex);
 		}
 	} else { /* C2_NET_XTM_STOPPED, as per assert */
@@ -61,7 +60,8 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
 		c2_mutex_unlock(&tm->ntm_mutex);
-		rc = c2_net_tm_event_post(ev.nev_tm, &ev);
+		c2_time_now(&ev.nev_time);
+		c2_net_tm_event_post(&ev);
 		c2_mutex_lock(&tm->ntm_mutex);
 	}
 
@@ -89,7 +89,8 @@ static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
+	c2_net_tm_event_post(&ev);
+	return;
 }
 
 /**
@@ -109,7 +110,7 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(wi->xwi_op == C2_NET_XOP_ERROR_CB);
 	C2_PRE(wi->xwi_status < 0);
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(ev.nev_tm, &ev);
+	c2_net_tm_event_post(&ev);
 	c2_free(wi);
 }
 

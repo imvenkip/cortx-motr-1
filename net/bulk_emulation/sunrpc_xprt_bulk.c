@@ -332,7 +332,7 @@ done:
 static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 				  struct c2_net_bulk_mem_work_item *wi)
 {
-	static enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
+	static const enum c2_net_queue_type inverse_qt[C2_NET_QT_NR] = {
 		[C2_NET_QT_MSG_RECV]          = C2_NET_QT_NR,
 		[C2_NET_QT_MSG_SEND]          = C2_NET_QT_NR,
 		[C2_NET_QT_PASSIVE_BULK_RECV] = C2_NET_QT_ACTIVE_BULK_SEND,
@@ -402,7 +402,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
+	c2_net_tm_event_post(&ev);
 }
 
 /**

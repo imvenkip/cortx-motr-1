@@ -167,7 +167,6 @@ static int ut_buf_add(struct c2_net_buffer *nb)
 struct c2_thread ut_del_thread;
 static void ut_post_del_thread(struct c2_net_buffer *nb)
 {
-	int rc;
 	struct c2_net_event ev = {
 		.nev_type = C2_NET_EV_BUFFER_RELEASE,
 		.nev_tm = nb->nb_tm,
@@ -178,8 +177,7 @@ static void ut_post_del_thread(struct c2_net_buffer *nb)
 	c2_time_now(&ev.nev_time);
 
 	/* post requested event */
-	rc = c2_net_tm_event_post(ev.nev_tm, &ev);
-	C2_UT_ASSERT(rc == 0);
+	c2_net_tm_event_post(&ev);
 }
 
 static bool ut_buf_del_called = false;
@@ -226,7 +224,6 @@ static void ut_tm_fini(struct c2_net_transfer_mc *tm)
 struct c2_thread ut_tm_thread;
 static void ut_post_state_change_ev_thread(int n)
 {
-	int rc;
 	struct c2_net_event ev = {
 		.nev_type = C2_NET_EV_STATE_CHANGE,
 		.nev_tm = &ut_tm,
@@ -236,8 +233,7 @@ static void ut_post_state_change_ev_thread(int n)
 	c2_time_now(&ev.nev_time);
 
 	/* post state change event */
-	rc = c2_net_tm_event_post(ev.nev_tm, &ev);
-	C2_UT_ASSERT(rc == 0);
+	c2_net_tm_event_post(&ev);
 }
 
 static bool ut_tm_start_called = false;
@@ -688,8 +684,7 @@ void test_net_bulk_if(void)
 		}
 
 		nb->nb_flags |= C2_NET_BUF_IN_USE;
-		rc = c2_net_tm_event_post(tm, &ev);
-		C2_UT_ASSERT(rc == 0);
+		c2_net_tm_event_post(&ev);
 		C2_UT_ASSERT(ut_cb_calls[i] == 1);
 		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
 

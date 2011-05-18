@@ -32,7 +32,8 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
+	c2_net_tm_event_post(&ev);
+	return;
 }
 
 /**
@@ -244,7 +245,8 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		.nev_payload = wi
 	};
 	c2_time_now(&ev.nev_time);
-	(void)c2_net_tm_event_post(tm, &ev);
+	c2_net_tm_event_post(&ev);
+	return;
 }
 
 /**
