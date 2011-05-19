@@ -1262,8 +1262,7 @@ struct c2_net_buffer {
    @pre
 (buf->nb_flags == 0) &&
 (buf->nb_buffer.ov_buf != NULL) &&
-(buf->nb_buffer.ov_vec.v_nr > 0) &&
-(buf->nb_buffer.ov_vec.v_count != NULL)
+c2_vec_count(&buf->nb_buffer.ov_vec) > 0
    @post ergo(result == 0, buf->nb_flags & C2_NET_BUF_REGISTERED)
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
