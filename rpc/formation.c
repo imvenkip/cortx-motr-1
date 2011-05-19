@@ -895,7 +895,10 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_UPDATING;
 
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
-	if (res == 0) {
+	/* If rpcobj_formed_list already contains formed rpc objects,
+	   send them as well.*/
+	if (res == 0) || ((!c2_list_is_empty(
+			endp_unit->isu_rpcobj_formed_list.l_head))) {
 		ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
 	else {
@@ -1270,6 +1273,11 @@ static int c2_rpc_form_items_coalesce(
 			/* item_size = item->ri_type->rit_ops->
 			   rio_item_size(item); */
 			item_size = c2_rpc_form_item_size(item);
+			/* If item belongs to an update stream, do not
+			   consier it for coalescing.*/
+			if (c2_rpc_get_update_stream(item) != NULL) {
+				continue;
+			}
 			c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head,
 					fid_member, 
 					struct c2_rpc_form_fid_summary_member, 
@@ -1319,8 +1327,8 @@ static int c2_rpc_form_items_coalesce(
 			fsm_linkage) {
 		if (fid_member->fsm_nitems > 1) {
 			/* 5. For every possible coalescing situation, 
-			   create a struct
-			   c2_rpc_form_item_coalesced and populate it.*/
+			   create a struct c2_rpc_form_item_coalesced
+			   and populate it.*/
 			coalesced_item = c2_alloc(sizeof(struct 
 						c2_rpc_form_item_coalesced));
 			if (coalesced_item == NULL) {
@@ -1343,15 +1351,12 @@ static int c2_rpc_form_items_coalesce(
 				coalesced_item->ic_resultant_item->ri_state = 
 					RPC_ITEM_ADDED;
 				/* 6. Remove the corresponding member rpc items
-				   from
-				   forming list, calculate their cumulative 
-				   size and deduct
-				   it from rpcobj_size. */
+				   from forming list, calculate their cumulative
+				   size and deduct it from rpcobj_size. */
 				/* rpcobj_size += coalesced_item->
-				   ic_resultant_item->
-				   ri_type->rit_ops->
-				   rio_item_size(
-				   coalesced_item->ic_resultant_item);*/
+				   ic_resultant_item-> ri_type->rit_ops->
+				   rio_item_size( coalesced_item->
+				   ic_resultant_item);*/
 				rpcobj_size += c2_rpc_form_item_size(item);
 			}
 			/* 7. Add the newly formed rpc item into the 
@@ -1396,14 +1401,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	struct c2_rpc_form_rpcobj			*rpcobj = NULL;
 	bool						 item_coalesced = false;
 
-	printf("In state: checking\n");
-	/** Returning failure will lead the state machine to 
-	    waiting state and then the thread will exit the
-	    state machine. */
-	if (endp_unit->isu_curr_rpcs_in_flight == 
-			endp_unit->isu_max_rpcs_in_flight) {
-		return C2_RPC_FORM_INTEVT_STATE_FAILED;
-	}
 	C2_PRE(item != NULL);
 	C2_PRE((event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) ||
 			(event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) ||
@@ -1412,6 +1409,19 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_CHECKING;
+
+	if(!c2_list_is_empty(endp_unit->isu_rpcobj_formed_list.l_head)) {
+		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	}
+	printf("In state: checking\n");
+	/** Returning failure will lead the state machine to 
+	    waiting state and then the thread will exit the
+	    state machine. */
+	if (endp_unit->isu_curr_rpcs_in_flight == 
+			endp_unit->isu_max_rpcs_in_flight) {
+		return C2_RPC_FORM_INTEVT_STATE_FAILED;
+	}
+
 	forming_list = c2_alloc(sizeof(struct c2_list));
 	if (forming_list == NULL) {
 		printf("Failed to allocate memory for struct c2_list.\n");
@@ -1437,12 +1447,19 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			}
 		}
 		if (item_coalesced == false) {
-			item->ri_type->rit_ops->rio_replied(item);
+			//item->ri_type->rit_ops->rio_replied(item);
+			c2_rpc_item_replied(item);
 		}
 	}
 	else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
 		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, 
 				&rpcobj_size, &nfragments, forming_list);
+		/* If item can not be added due to size restrictions, move it
+		   to the head of unformed list and it will be handled on
+		   next formation attempt.*/
+		if (res != 0) {
+			c2_list_move(endp_unit->isu_unformed_list.l_head, item->ri_unformed_linkage);
+		}
 	}
 	/* Iterate over the c2_rpc_form_item_summary_unit_group list in the
 	   endpoint structure to find out which rpc groups can be included
@@ -1450,6 +1467,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, 
 			sg, struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
+		/* nselected_groups number includes the last partial
+		   rpc group(if any).*/
 		nselected_groups++;
 		if ((group_size + sg->sug_total_size) < 
 				endp_unit->isu_max_message_size) {
@@ -1465,19 +1484,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	/* XXX curr rpcs in flight will be taken care by
 	   output component. */
 	/* Core of formation algorithm. */
-	res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
-			&cache_list);
-	if ((res != 0) || (cache_list == NULL)) {
-		printf("Input rpc items cache list is empty.\n");
-		if (event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
-			/* XXX Form the rpc object with just one
-			   item and send it on wire. */
-			/* Need to take care of not sending rpc objects
-			   with just one rpc item too often. */
-		}
-		else
-			return C2_RPC_FORM_INTEVT_STATE_FAILED;
-	}
+	//res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
+	//		&cache_list);
 	c2_mutex_lock(&cache_list->ic_mutex);
 	c2_list_for_each_entry(&endp_unit->isu_unformed_list.l_head, rpc_item, 
 			struct c2_rpc_item, ri_unformed_linkage) {
@@ -1485,8 +1493,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   rio_item_size(item);*/
 		item_size = c2_rpc_form_item_size(item);
 		/* 1. If there are urgent items, form them immediately. */
-		if ((rpc_item->ri_deadline.tv_sec == 0) &&
-				(rpc_item->ri_deadline.tv_nsec == 0)) {
+		if (rpc_item->ri_deadline == 0) {
 			res = c2_rpc_form_item_add_to_forming_list(endp_unit, 
 					rpc_item, &rpcobj_size, 
 					&nfragments, forming_list);
@@ -1507,12 +1514,12 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			/* If selected groups are exhausted, break the loop. */
 			if (ncurrent_groups > nselected_groups)
 				break;
-			if (item->ri_group == group->sug_group) {
+			if (rpc_item->ri_group == group->sug_group) {
 				/* If the size of selected groups is bigger than
 				   max_message_size, the last group will be
 				   partially selected and is present in variable
 				   'sg'. */
-				if ((item->ri_group == sg->sug_group) &&
+				if ((rpc_item->ri_group == sg->sug_group) &&
 					((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
 				}
@@ -1542,6 +1549,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		return -ENOMEM;
 	}
 	rpcobj->ro_rpcobj->r_items = *forming_list;
+	c2_list_add(endp_unit->isu_rpcobj_checked_list.l_head,
+			rpcobj->ro_linkage);
+	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
 /**
@@ -1555,7 +1565,6 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	*rpcobj_next = NULL;
 	struct c2_rpc_item		*rpc_item = NULL;
-	struct c2_update_stream		*item_update_stream = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
@@ -1564,24 +1573,18 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	printf("In state: forming\n");
 
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_FORMING;
+	if(!c2_list_is_empty(endp_unit->isu_rpcobj_formed_list.l_head)) {
+		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	}
 
 	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_checked_list.rl_list.l_head, rpcobj, rpcobj_next, struct c2_rpc_form_rpcobj, ro_linkage) {
 		c2_list_for_each_entry(&rpcobj->ro_rpcobj->r_items.l_head, 
 				rpc_item, struct c2_rpc_item, 
-				ri_linkage) {
+				ri_rpcobject_linkage) {
 			res = c2_rpc_session_item_prepare(rpc_item);
 			if (res != 0) {
-				/** XXX Need this API from sessions */
-				item_update_stream = c2_rpc_get_update_stream(
-						item);
-				/** XXX Need this API from sessions */
-				c2_rpc_set_update_stream_status(
-						item_update_stream, FREE);
-				c2_list_del(&rpc_item->ri_linkage);
+				c2_list_del(&rpc_item->ri_rpcobject_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
-				/* XXX Need to add ri_unformed_linkage
-				   in c2_rpc_item to keep track of
-				   unformed rpc items. */
 				c2_list_add(&endp_unit->isu_unformed_list.
 						l_head, 
 						rpc_item->ri_unformed_linkage);
@@ -1616,6 +1619,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
+	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_POSTING;
+
 	/* Iterate over the rpc object list and send all rpc objects
 	   to the output component. */
 	c2_mutex_lock(&endp_unit->isu_rpcobj_formed_list.rl_lock);
@@ -1632,13 +1637,19 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			//endp_unit->isu_curr_rpcs_in_flight++;
 			if(res == 0) {
 				c2_list_del(rpc_obj->ro_linkage);
-				c2_free(rpc_obj);
+				//c2_free(rpc_obj);
 				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 			}
 			else {
 				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 				break;
 			}
+		}
+		else {
+			printf("Formation could not send rpc items to
+					output since max_rpcs_in_flight
+					limit is reached.\n");
+			ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 		}
 	}
 	c2_mutex_unlock(&endp_unit->isu_rpcobj_formed_list.rl_lock);

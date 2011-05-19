@@ -303,7 +303,7 @@ struct c2_rpc_item {
 	struct c2_ref ri_ref;
 
 	enum c2_rpc_item_priority  ri_prio;
-	struct c2_time		   ri_deadline;
+	struct c2_time_t	   ri_deadline;
 	struct c2_rpc_group       *ri_group;
 
 	enum c2_rpc_item_state     ri_state;
