@@ -214,7 +214,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_dom = dom;
 	tm->ntm_ep = NULL;
 	c2_chan_init(&tm->ntm_chan);
-	for (i = 0; i < C2_NET_QT_NR; ++i) {
+	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		c2_list_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
