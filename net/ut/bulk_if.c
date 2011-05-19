@@ -94,7 +94,7 @@ static void ut_end_point_release(struct c2_ref *ref)
 static bool ut_end_point_create_called = false;
 static int ut_end_point_create(struct c2_net_end_point **epp,
 			       struct c2_net_domain *dom,
-			       va_list varargs)
+			       const char *addr)
 {
 	char *ap;
 	struct ut_ep *utep;
@@ -102,11 +102,11 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 
 	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
 	ut_end_point_create_called = true;
-	ap = va_arg(varargs, char *);
-	if (ap == NULL) {
-		/* end of args - don't support dynamic */
+	if (addr == NULL) {
+		/* don't support dynamic */
 		return -ENOSYS;
 	}
+	ap = (char *)addr;  /* avoid strdup; this is a ut! */
 	/* check if its already on the domain list */
 	c2_list_for_each_entry(&dom->nd_end_points, ep,
 			       struct c2_net_end_point,
@@ -120,7 +120,7 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	}
 	/* allocate a new end point */
 	C2_ALLOC_PTR(utep);
-	utep->addr = ap; /* avoid strdup; this is a ut! */
+	utep->addr = ap;
 	utep->uep.nep_addr = ap;
 	c2_ref_init(&utep->uep.nep_ref, 1, ut_end_point_release);
 	utep->uep.nep_dom = dom;
@@ -502,25 +502,25 @@ void test_net_bulk_if(void)
 	   reference counts this way, but ought to do so.
 	 */
 	C2_UT_ASSERT(ut_end_point_create_called == false);
-	rc = c2_net_end_point_create(&ep1, dom, 0);
+	rc = c2_net_end_point_create(&ep1, dom, NULL);
 	C2_UT_ASSERT(rc != 0); /* no dynamic */
 	C2_UT_ASSERT(ut_end_point_create_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
 	ut_end_point_create_called = false;
-	rc = c2_net_end_point_create(&ep1, dom, "addr1", 0);
+	rc = c2_net_end_point_create(&ep1, dom, "addr1");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_end_point_create_called);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_ASSERT(!c2_list_is_empty(&dom->nd_end_points));
 	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
 
-	rc = c2_net_end_point_create(&ep2, dom, "addr2", 0);
+	rc = c2_net_end_point_create(&ep2, dom, "addr2");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ep2 != ep1);
 
-	rc = c2_net_end_point_create(&ep, dom, "addr1", 0);
+	rc = c2_net_end_point_create(&ep, dom, "addr1");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ep == ep1);
 	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);

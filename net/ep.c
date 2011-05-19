@@ -29,12 +29,11 @@ bool c2_net__ep_invariant(struct c2_net_end_point *ep,
 	return true;
 }
 
-int c2_net_end_point_create(struct c2_net_end_point   **epp,
-			    struct c2_net_domain       *dom,
-			    ...)
+int c2_net_end_point_create(struct c2_net_end_point **epp,
+			    struct c2_net_domain     *dom,
+			    const char               *addr)
 {
 	int rc;
-	va_list varargs;
 
 	C2_PRE(dom != NULL);
 	C2_PRE(epp != NULL);
@@ -44,9 +43,7 @@ int c2_net_end_point_create(struct c2_net_end_point   **epp,
 
 	*epp = NULL;
 
-	va_start(varargs, dom);
-	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, dom, varargs);
-	va_end(varargs);
+	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, dom, addr);
 
 	/* either we failed or we got back a properly initialized end point
 	   with reference count of at least 1

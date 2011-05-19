@@ -76,25 +76,28 @@ static void test_ep(void)
 	struct c2_net_end_point *ep1;
 	struct c2_net_end_point *ep2;
 	struct c2_net_end_point *ep3;
+	const char *addr;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
-	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &dom1,
-					     "255.255.255.255", 65535,
-					     4294967295U, 0) == -EINVAL);
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,
-					      "255.255.255.255", 65535, 0));
-	C2_UT_ASSERT(strcmp(ep1->nep_addr,"255.255.255.255:65535")==0);
+	addr = "255.255.255.255:65535:4294967295";
+	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &dom1, addr) == -EINVAL);
+	addr = "255.255.255.255:65535";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
 	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
 
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &dom1,
-					      "255.255.255.255", 65535, 0));
-	C2_UT_ASSERT(strcmp(ep2->nep_addr,"255.255.255.255:65535")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep2->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep2->nep_addr != addr);
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 	C2_UT_ASSERT(ep1 == ep2);
 
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep3, &dom1,
-					      "255.255.255.255:65535", 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep3, &dom1, addr));
+
 	C2_UT_ASSERT(strcmp(ep3->nep_addr,"255.255.255.255:65535")==0);
+	C2_UT_ASSERT(strcmp(ep3->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep3->nep_addr != addr);
 	C2_UT_ASSERT(c2_atomic64_get(&ep3->nep_ref.ref_cnt) == 3);
 	C2_UT_ASSERT(ep1 == ep3);
 
@@ -184,8 +187,7 @@ static void test_failure(void)
 
 	/* setup the first dom */
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
-					      "127.0.0.1", 10, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1, "127.0.0.1:10"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 	c2_clink_init(&tmwait1, NULL);
@@ -209,8 +211,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm2.ntm_chan, &tmwait2);
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1:21", 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:21"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:21")==0);
 	C2_UT_ASSERT(!c2_net_tm_start(&d2tm2, ep));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
@@ -231,8 +232,7 @@ static void test_failure(void)
 	   Send a message from d1tm1 to d2tm1 - should fail because
 	   the destination TM not started.
 	*/
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
-					      "127.0.0.1", 20, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1, "127.0.0.1:20"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
@@ -254,8 +254,7 @@ static void test_failure(void)
 	/* start the TM on port 20 in the second dom */
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1:20", 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:20"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
 	C2_UT_ASSERT(!c2_net_tm_start(&d2tm1, ep));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep));
@@ -276,8 +275,7 @@ static void test_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
-					      "127.0.0.1", 20, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1, "127.0.0.1:20"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
@@ -327,8 +325,7 @@ static void test_failure(void)
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,
-					      "127.0.0.1", 20, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1, "127.0.0.1:20"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:20")==0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
@@ -371,8 +368,7 @@ static void test_failure(void)
 	*/
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1", 30, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:30"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:30")==0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;
@@ -429,8 +425,7 @@ static void test_failure(void)
 	*/
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1", 10, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:10"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;
@@ -487,8 +482,7 @@ static void test_failure(void)
 	*/
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1", 10, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:10"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
 	d2nb2.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb2.nb_ep = ep;
@@ -547,8 +541,7 @@ static void test_failure(void)
 	 */
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,
-					      "127.0.0.1", 10, 0));
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2, "127.0.0.1:10"));
 	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10")==0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;

@@ -299,11 +299,10 @@ static int32_t sunrpc_xo_get_max_buffer_segments(
 
 static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
 				      struct c2_net_domain *dom,
-				      va_list varargs)
+				      const char *addr)
 {
 	/* calls sunrpc_ep_create */
-	return c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, dom,
-								varargs);
+	return c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, dom, addr);
 }
 
 /**

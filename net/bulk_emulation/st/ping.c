@@ -770,6 +770,7 @@ int ping_init(struct ping_ctx *ctx)
 	int                i;
 	int                rc;
 	char               hostbuf[16]; /* big enough for 255.255.255.255 */
+	char               addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 	struct c2_clink    tmwait;
 
 	c2_list_init(&ctx->pc_work_queue);
@@ -799,8 +800,13 @@ int ping_init(struct ping_ctx *ctx)
 		}
 	}
 
-	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom,
-				     hostbuf, ctx->pc_port, ctx->pc_id, 0);
+	if (rc != 0)
+		return rc;
+	if (ctx->pc_id != 0)
+		sprintf(addr, "%s:%u:%u", hostbuf, ctx->pc_port, ctx->pc_id);
+	else
+		sprintf(addr, "%s:%u", hostbuf, ctx->pc_port);
+	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom, addr);
 	if (rc != 0) {
 		fprintf(stderr, "end point create failed: %d\n", rc);
 		goto fail;
@@ -1231,6 +1237,7 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 {
 	int rc;
 	char hostbuf[16];
+	char addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	if (ctx->pc_hostname == NULL)
@@ -1251,8 +1258,11 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 	rc = canon_host(ctx->pc_rhostname, hostbuf, sizeof(hostbuf));
 	if (rc != 0)
 		return rc;
-	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom,
-				     hostbuf, ctx->pc_rport, ctx->pc_rid, 0);
+	if (ctx->pc_rid != 0)
+		sprintf(addr, "%s:%u:%u", hostbuf, ctx->pc_rport, ctx->pc_rid);
+	else
+		sprintf(addr, "%s:%u", hostbuf, ctx->pc_rport);
+	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom, addr);
 	return rc;
 }
 

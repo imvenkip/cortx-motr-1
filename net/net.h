@@ -165,18 +165,18 @@ struct c2_net_xprt_ops {
 	void (*xo_tm_fini)(struct c2_net_transfer_mc *tm);
 
 	/**
-	   Create an end point with a specific address based on the
-	   variable arguments, or else dynamically assign one.
+	   Create an end point with a specific address.
 	   @param epp     Returned end point data structure.
 	   @param dom     Specify the domain pointer.
-	   @param varargs Variable arguments. Could be empty.
+	   @param addr    Address string.  Could be NULL to
+	                  indicate dynamic addressing.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_end_point_create()
 	 */
 	int (*xo_end_point_create)(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
-				   va_list varargs);
+				   const char *addr);
 
 	/**
 	   Register the buffer for use with a transfer machine in
@@ -471,24 +471,21 @@ struct c2_net_end_point {
    set upon return.  The reference count of the returned data structure
    will be at least 1.
    @param dom Network domain pointer.
-   @param ... Transport specific variable arguments describing the
-   end point address.
-   These are optional, and if missing, the transport may support assignment
-   of an end point with a dynamic, new address; however this is not
-   guaranteed.
-   It is recommended that a transport accept a single argument string
-   with an address in the same printable representation form it produces
-   in the end point nep_addr field.
-   The variable argument list must terminate with a 0 - i.e. it is not
-   permitted to not have at least one argument in the list.  Transports
-   must be able to distinguish this terminating 0 from any valid use of
-   0 as an argument, if permitted.
+   @param addr String describing the end point address in a transport specific
+   manner.  The format of this address string is the same as the printable
+   representation form stored in the end point nep_addr field.  It is optional,
+   and if NULL, the transport may support assignment of an end point with a
+   dynamic address; however this is not guaranteed.
+   The address string, if specified, is not referenced again after return from
+   this subroutine.
    @see c2_net_end_point_get(), c2_net_end_point_put()
    @post (*epp)->nep_ref->ref_cnt >= 1 && (*epp)->nep_addr != NULL
+   @retval 0 on success
+   @retval -errno on failure
  */
-int c2_net_end_point_create(struct c2_net_end_point   **epp,
-			    struct c2_net_domain       *dom,
-			    ...);
+int c2_net_end_point_create(struct c2_net_end_point **epp,
+			    struct c2_net_domain     *dom,
+			    const char               *addr);
 
 /**
    Increment the reference count of an end point data structure.
@@ -1653,7 +1650,7 @@ extern struct c2_net_xprt c2_net_ksunrpc_xprt;
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */

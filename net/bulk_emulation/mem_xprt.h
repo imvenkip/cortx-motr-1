@@ -178,7 +178,6 @@ struct c2_net_bulk_mem_tm_pvt {
 */
 enum {
 	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
-	C2_NET_BULK_MEM_XEP_ADDR_LEN = 36
 };
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */

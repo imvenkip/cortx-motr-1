@@ -81,10 +81,10 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		C2_ASSERT(len < sizeof(dot_ip));
 		dot_ip[len-1] = '\0';
 		if (id > 0)
-			sprintf(mep->xep_addr, "%s:%d:%u", dot_ip,
+			sprintf(mep->xep_addr, "%s:%u:%u", dot_ip,
 				ntohs(sa->sin_port), id);
 		else
-			sprintf(mep->xep_addr, "%s:%d", dot_ip,
+			sprintf(mep->xep_addr, "%s:%u", dot_ip,
 				ntohs(sa->sin_port));
 		C2_ASSERT(strlen(mep->xep_addr) < C2_NET_BULK_MEM_XEP_ADDR_LEN);
 	}

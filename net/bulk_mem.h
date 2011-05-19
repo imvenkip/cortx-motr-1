@@ -10,8 +10,19 @@
    @brief This module provides a network transport with messaging and bulk
    data transfer across domains within a single process.
 
+   An end point address is a string with two tuples separated by a colon (:).
+   The first tuple is the dotted decimal representation of an IPv4 address,
+   and the second is an IP port number.
+
+   When used as a base for a derived transport, a third tuple representing
+   an unsigned 32 bit service identifier is supported in the address.
+
    @{
 **/
+
+enum {
+	C2_NET_BULK_MEM_XEP_ADDR_LEN = 36 /**< Max addr length, 3-tuple */
+};
 
 /**
    The bulk in-memory transport pointer to be used in c2_net_domain_init().

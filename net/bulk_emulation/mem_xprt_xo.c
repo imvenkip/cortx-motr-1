@@ -246,63 +246,47 @@ static int32_t mem_xo_get_max_buffer_segments(const struct c2_net_domain *dom)
    Dynamic address assignment is not supported.
    @param epp  Returns the pointer to the end point.
    @param dom  Domain pointer.
-   @param varargs Variable length argument list. The following arguments are
-   expected:
-   - @a ip  Dotted decimal IP address string (char *), or string in the
-   form of "dottedIP:PortNumber".
-   The string is not referenced after returning from this method.
-   - @a port Port number (int). Optional - required only if port number not
-   in the string.
-   - @a 0  The list must be terminated by a 0.
+   @param addr Address string in one of the following two formats:
+   - "dottedIP:portNumber" if 2-tuple addressing used.
+   - "dottedIP:portNumber:serviceId" if 3-tuple addressing used.
  */
 static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 				   struct c2_net_domain *dom,
-				   va_list varargs)
+				   const char *addr)
 {
 	char buf[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 	const char *dot_ip;
+	char *p;
+	char *pp;
+	int pnum;
 	struct sockaddr_in sa;
 	uint32_t id = 0;
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
 
 	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
-	dot_ip = va_arg(varargs, char *);
-	if (dot_ip == NULL)
+	if (addr == NULL)
+		return -ENOSYS; /* no dynamic addressing */
+
+	strncpy(buf, addr, sizeof(buf)-1); /* copy to modify */
+	buf[sizeof(buf)-1] = '\0';
+	for (p=buf; *p && *p != ':'; p++);
+	if (*p == '\0')
 		return -EINVAL;
-	/* user: in_port_t, kernel: __be16 */
-	sa.sin_port = htons(va_arg(varargs, int));
-	if (sa.sin_port == 0) {
-		/* dot_ip may be in printable form */
-		char *p;
-		char *pp;
-		int pnum;
-		strncpy(buf, dot_ip, sizeof(buf)-1); /* copy to modify */
-		buf[sizeof(buf)-1] = '\0';
-		for (p=buf; *p; p++)
-			if (*p == ':') break;
-		if (*p == '\0')
-			return -EINVAL;
-		*p++ = '\0'; /* zap the : */
-		pp = p;
-		if (dp->xd_addr_tuples == 3) {
-			for (p=pp; *p; p++)
-				if (*p == ':') break;
-			*p++ = '\0'; /* zap the : */
-			sscanf(p, "%u", &id);
-			if (id == 0)
-				return -EINVAL;
-		}
-		sscanf(pp, "%d", &pnum);
-		sa.sin_port = htons(pnum);
-		dot_ip = buf;
-	} else {
-		id = va_arg(varargs, uint32_t);
-		if (dp->xd_addr_tuples == 3 && id == 0)
-			return -EINVAL;
-		else if (dp->xd_addr_tuples == 2 && id != 0)
+	*p++ = '\0'; /* terminate the ip address : */
+	pp = p;
+	for (p=pp; *p && *p != ':'; p++);
+	if (dp->xd_addr_tuples == 3) {
+		*p++ = '\0'; /* terminate the port number */
+		sscanf(p, "%u", &id);
+		if (id == 0)
 			return -EINVAL;
 	}
+	else if (*p == ':')
+		return -EINVAL; /* 3-tuple where expecting 2 */
+	sscanf(pp, "%d", &pnum);
+	sa.sin_port = htons(pnum);
+	dot_ip = buf;
 #ifdef __KERNEL__
 	sa.sin_addr.s_addr = in_aton(dot_ip);
 	if (sa.sin_addr.s_addr == 0)
