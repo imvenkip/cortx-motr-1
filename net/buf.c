@@ -74,6 +74,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf != NULL &&
+	       buf->nb_dom == NULL &&
 	       buf->nb_flags == 0 &&
 	       buf->nb_buffer.ov_buf != NULL &&
 	       buf->nb_buffer.ov_vec.v_nr > 0 &&

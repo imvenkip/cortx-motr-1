@@ -175,7 +175,7 @@ void c2_net_tm_event_post(const struct c2_net_event *ev)
 			  eprc; }));
 	}
 
-	cb(tm, ev);
+	cb(ev);
 
 	/* post callback, in mutex:
 	   decrement ref counts,
