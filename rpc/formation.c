@@ -49,6 +49,9 @@ bool c2_rpc_form_wait_for_completion()
 	return ret;
 }
 
+/** 
+  Delete the group info list in endpoint unit
+ */
 static void c2_rpc_form_empty_groups_list(struct c2_list *list)
 {
 	struct c2_rpc_form_item_summary_unit_group	*group = NULL;
@@ -60,6 +63,9 @@ static void c2_rpc_form_empty_groups_list(struct c2_list *list)
 	}
 }
 
+/** 
+  Delete the coalesced items list in endpoint unit
+ */
 static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 {
 	struct c2_rpc_form_item_coalesced 		*coalesced_item = NULL;
@@ -82,6 +88,9 @@ static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 	}
 }
 
+/** 
+  Delete the rpcobj items list in endpoint unit
+ */
 static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list)
 {
 	struct c2_rpc_form_rpcobj		*obj = NULL;
@@ -94,6 +103,9 @@ static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list)
 	}
 }
 
+/** 
+  Delete the unformed items list in endpoint unit
+ */
 static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
 {
 	struct c2_rpc_item		*item = NULL;
@@ -106,6 +118,9 @@ static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
 	}
 }
 
+/** 
+  Delete the fid list in endpoint unit
+ */
 static void c2_rpc_form_empty_fid_list(struct c2_list *list)
 {
 	struct c2_rpc_form_fid_summary_member	*fid_member = NULL;

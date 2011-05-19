@@ -317,6 +317,36 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item);
 
+/** 
+   Delete the group info list in endpoint unit
+   @param list - group info list in endpoint unit 
+ */
+static void c2_rpc_form_empty_groups_list(struct c2_list *list);
+
+/** 
+   Delete the coalesced items list in endpoint unit
+   @param list - coalesced items list in endpoint unit 
+ */
+static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list);
+
+/** 
+   Delete the rpcobj items list in endpoint unit
+   @param list - rpcobj items list in endpoint unit 
+ */
+static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list);
+
+/** 
+   Delete the unformed items list in endpoint unit
+   @param list - unformed items list in endpoint unit 
+ */
+static void c2_rpc_form_empty_unformed_list(struct c2_list *list);
+
+/** 
+   Delete the fid list in endpoint unit
+   @param list - fid list in endpoint unit 
+ */
+static void c2_rpc_form_empty_fid_list(struct c2_list *list);
+
 /**
    Get the endpoint given an rpc item.
    This is a placeholder and will be replaced when a concrete
