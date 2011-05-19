@@ -21,6 +21,7 @@ char db_name[] = "test_db";
 
 struct c2_dbenv			*db;
 struct c2_cob_domain		*dom;
+struct c2_rpcmachine		*machine;
 
 enum {
 	SESSION_CREATE_VC = 0,
@@ -36,7 +37,8 @@ void init()
 
 	C2_ALLOC_PTR(db);
 	C2_ALLOC_PTR(dom);
-	C2_ASSERT(db != NULL && dom != NULL);
+	C2_ALLOC_PTR(machine);
+	C2_ASSERT(db != NULL && dom != NULL && machine != NULL);
 
 	rc = c2_dbenv_init(db, db_name, 0);
 	C2_ASSERT(rc == 0);
@@ -55,7 +57,7 @@ void init()
 	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 	C2_ASSERT(rc == 0);
 
-	c2_rpcmachine_init(&g_rpcmachine);
+	c2_rpcmachine_init(machine);
 	printf("dbenv created\n");
 }
 void traverse_slot_table()
@@ -123,6 +125,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	item->ri_slot_generation = 0;
 	item->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
 	item->ri_verno.vn_vc = SESSION_DESTROY_VC;
+	item->ri_mach = machine;
 
 	/*
 	 * "Receive" the item 
@@ -213,6 +216,7 @@ void test_conn_terminate(uint64_t sender_id)
 	item->ri_slot_generation = 0;
 	item->ri_verno.vn_lsn = 0;
 	item->ri_verno.vn_vc = 0;
+	item->ri_mach = machine;
 
 	/*
 	 * "Receive" the item 
@@ -415,7 +419,7 @@ void test_snd_conn_create()
 	C2_SET0(&svc_id);
 
 	printf("testing conn_create\n");
-	c2_rpc_conn_init(&conn, &svc_id);
+	c2_rpc_conn_init(&conn, &svc_id, machine);
 	C2_ASSERT(conn.c_state == CS_CONN_INITIALIZING ||
 			conn.c_state == CS_CONN_INIT_FAILED);
 
@@ -436,6 +440,7 @@ void test_snd_session_create()
 {
 	struct c2_fop				*fop;
 	struct c2_rpc_session_create_rep	*fop_scr;
+	struct c2_rpc_item			*item;
 	int					rc;
 
 	C2_SET0(&session);
@@ -454,6 +459,10 @@ void test_snd_session_create()
 	fop_scr->rscr_sender_id = conn.c_sender_id;
 	fop_scr->rscr_session_id = 100;
 
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL);
+	item->ri_mach = machine;
+
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 }
 
@@ -461,6 +470,7 @@ void test_snd_session_terminate()
 {
 	struct c2_fop				*fop;
 	struct c2_rpc_session_destroy_rep	*fop_sdr;
+	struct c2_rpc_item			*item;
 	int					rc;
 
 	rc = c2_rpc_session_terminate(&session);
@@ -479,12 +489,17 @@ void test_snd_session_terminate()
 	fop_sdr->rsdr_sender_id = conn.c_sender_id;
 	fop_sdr->rsdr_session_id = session.s_session_id;
 
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL);
+	item->ri_mach = machine;
+
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 }
 void test_snd_conn_terminate()
 {
 	struct c2_fop				*fop;
 	struct c2_rpc_conn_terminate_rep	*fop_ctr;
+	struct c2_rpc_item			*item;
 	int					rc;
 
 	rc = c2_rpc_conn_terminate(&conn);
@@ -501,6 +516,10 @@ void test_snd_conn_terminate()
 
 	fop_ctr->ctr_rc = 0;
 	fop_ctr->ctr_sender_id = conn.c_sender_id;
+
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL);
+	item->ri_mach = machine;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 

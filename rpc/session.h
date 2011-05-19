@@ -293,7 +293,8 @@ struct c2_rpc_conn {
     @post c2_rpc_conn->c_state == CONN_INITIALIZING
  */
 int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
-		     struct c2_service_id	*svc_id);
+		     struct c2_service_id	*svc_id,
+		     struct c2_rpcmachine	*machine);
 
 /**
    Destroy c2_rpc_conn object.

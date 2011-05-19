@@ -20,8 +20,6 @@
 const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
-struct c2_rpcmachine g_rpcmachine;
-
 struct c2_stob_id c2_root_stob_id = {
         .si_bits = {1, 1}
 };
@@ -172,7 +170,8 @@ void c2_rpc_session_search(struct c2_rpc_conn           *conn,
 }
 
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     struct c2_service_id	*svc_id)
+		     struct c2_service_id	*svc_id,
+		     struct c2_rpcmachine	*machine)
 {
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_create	*fop_cc;
@@ -184,7 +183,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
 	printf("conn_create: called\n");
 	C2_SET0(conn);
-	/* Deprecated: service_id */
+	/* XXX Deprecated: service_id */
 	conn->c_service_id = svc_id;
 	conn->c_sender_id = SENDER_ID_INVALID;
 	c2_list_init(&conn->c_sessions);
@@ -197,7 +196,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	 * XXX temporary:
 	 * TODO: Find out how to get reference to rpcmachine from rpc-core
 	 */
-	conn->c_rpcmachine = &g_rpcmachine;
+	conn->c_rpcmachine = machine;
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	if (fop == NULL)
@@ -387,6 +386,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 {
 	struct c2_rpc_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_conn			*conn;
+	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 
 	printf("conn terminate reply received\n");
@@ -398,7 +398,16 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	sender_id = fop_ctr->ctr_sender_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
-	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+	item = c2_fop_to_rpc_item(fop);
+
+	/*
+	 * XXX Assumption:
+	 * item->ri_rpcmachine is properly assigned to all the 
+	 * received rpc items.
+	 */
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 
 	C2_ASSERT(conn != NULL);
 
@@ -546,6 +555,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session = NULL;
 	struct c2_rpc_session			*s;
+	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
@@ -558,7 +568,16 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	sender_id = fop_scr->rscr_sender_id;
 	session_id = fop_scr->rscr_session_id;
 
-	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+	item = c2_fop_to_rpc_item(fop);
+
+	/*
+	 * XXX Assumption:
+	 * item->ri_rpcmachine is properly assigned to all the 
+	 * received rpc items.
+	 */
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
@@ -680,6 +699,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_session_destroy_rep	*fop_sdr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session;
+	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
@@ -697,7 +717,16 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 			session_id != SESSION_ID_INVALID &&
 			session_id != 0);
 
-	c2_rpc_conn_search(&g_rpcmachine, sender_id, &conn);
+	item = c2_fop_to_rpc_item(fop);
+
+	/*
+	 * XXX Assumption:
+	 * item->ri_rpcmachine is properly assigned to all the 
+	 * received rpc items.
+	 */
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
