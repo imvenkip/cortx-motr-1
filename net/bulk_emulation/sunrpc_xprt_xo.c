@@ -99,7 +99,7 @@ static bool sunrpc_buffer_invariant(const struct c2_net_buffer *nb)
    Dependency information must be captured in Makefile.am.
 
    Static functions should be declared in the private header file
-   so that the order of their definiton does not matter.
+   so that the order of their definition does not matter.
 */
 #include "sunrpc_xprt_ep.c"
 #include "sunrpc_xprt_tm.c"
