@@ -229,6 +229,8 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 */
 static void outgoing_delete(struct c2_rm_outgoing *out)
 {
+	c2_list_del(&out->rog_want.rl_right.ri_linkage);
+	c2_free(out);
 }
 
 /**
@@ -238,7 +240,7 @@ static void outgoing_delete(struct c2_rm_outgoing *out)
 */
 static void apply_policy(struct c2_rm_incoming *in)
 {
-
+	in->rin_policy = RIP_NONE;
 }
 
 /**
@@ -255,7 +257,7 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
-	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pins,
+	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
 			       rp_right_linkage) {
 		right = pin->rp_right;
 		C2_ALLOC_PTR(loan);
@@ -821,12 +823,23 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
                           const c2_time_t deadline)
 {
+	struct c2_clink clink;
+
+	c2_chan_init(&in->rin_signal);
+	c2_clink_add(&in->rin_signal, &clink);
+
 	return 0;
 }
 
 int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 			 struct c2_rm_incoming *in)
 {
+	c2_time_t expire;
+	c2_time_set(&expire, 10, 0);
+
+	c2_rm_right_timedwait(in, expire);
+
+	c2_rm_right_get(owner, in);
 	return 0;
 }
 
