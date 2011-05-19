@@ -205,7 +205,7 @@ static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 	c2_mutex_fini(&tm->ntm_mutex);
 	tm->ntm_dom = NULL;
 	c2_chan_fini(&tm->ntm_chan);
-	for (i = 0; i < C2_NET_QT_NR; ++i) {
+	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		c2_list_fini(&tm->ntm_q[i]);
 	}
 	tm->ntm_xprt_private = NULL;
@@ -221,7 +221,6 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_PRE(tm->ntm_callbacks != NULL &&
 	       tm->ntm_callbacks->ntc_event_cb != NULL);
 
-	c2_mutex_lock(&dom->nd_mutex);
 	c2_mutex_init(&tm->ntm_mutex);
 	c2_cond_init(&tm->ntm_cond);
 	tm->ntm_callback_counter = 0;
@@ -234,6 +233,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_SET_ARR0(tm->ntm_qstats);
 	tm->ntm_xprt_private = NULL;
 
+	c2_mutex_lock(&dom->nd_mutex);
 	result = dom->nd_xprt->nx_ops->xo_tm_init(tm);
 	if (result >= 0) {
 		c2_list_add_tail(&dom->nd_tms, &tm->ntm_dom_linkage);
