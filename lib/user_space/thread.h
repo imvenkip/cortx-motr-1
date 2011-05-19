@@ -24,6 +24,10 @@ struct c2_thread_handle {
 	pthread_t h_id;
 };
 
+enum {
+	C2_THREAD_NAME_LEN = 16
+};
+
 int  c2_threads_init(void);
 void c2_threads_fini(void);
 
