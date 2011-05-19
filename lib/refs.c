@@ -21,3 +21,9 @@ void c2_ref_put(struct c2_ref *ref)
 	}
 }
 C2_EXPORTED(c2_ref_put);
+
+struct c2_atomic64 c2_ref_read(struct c2_ref *ref)
+{
+	return c2_atomic64_get(&ref->ref_cnt);
+}
+

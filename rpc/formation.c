@@ -6,319 +6,6 @@
  */
 struct c2_rpc_form_item_summary		*formation_summary;
 
-/**
-   rio_replied op from rpc type ops.
-   If this is an IO request, free the IO vector
-   and free the fop.
- */
-int c2_rpc_item_replied(struct c2_rpc_item *item)
-{
-	int				 res = 0;
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_segment		*read_seg = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	uint32_t			 nsegs = 0;
-
-	C2_PRE(item != NULL);
-	/* Find out fop from the rpc item,
-	   Find out opcode of rpc item,
-	   Deallocate the io vector of rpc item accordingly.
-	 */
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
-			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
-		}
-		c2_fop_free(fop);
-	}
-	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
-			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
-		}
-		c2_fop_free(fop);
-	}
-	return 0;
-}
-
-/**
-  XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return size of fop
- */
-uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
-{
-	struct c2_fop			*fop = NULL;
-	int opcode			 opcode = 0;
-	uint64_t			 size = 0;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
-	uint64_t			 vec_count = 0;
-	int				 i = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	/** Size of fop layout */
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	opcode = fop->f_type->ft_code;
-
-	/** Add buffer payload for read reply */
-	if(opcode == c2_io_service_readv_rep_opcode ) {
-		read_rep_fop = c2_fop_data(fop);
-		size += read_rep_fop->frdr_buf.f_count;
-	}
-	/** Add buffer payload for write request */
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		vec_count = write_fop->fwr_iovec.iov_count;
-		for(i = 0; i < vec_count; i++) {
-			size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
-		}
-	}
-
-	return size;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return the opcode given an rpc item
- */
-int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop = NULL;
-	int opcode		 opcode = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-	if(opcode == c2_io_service_readv_opcode ) {
-		return C2_RPC_FORM_IO_READ;
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		return C2_RPC_FORM_IO_WRITE;
-	}
-	return opcode;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to map the on-wire FOP format to in-core FOP format.
- */
-static void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in, 
-		struct c2_fid *out)
-{
-        out->f_container = in->f_seq;
-        out->f_key = in->f_oid;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to get the fid for an IO request from the rpc item
- */
-struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
-{
-	struct c2_fop			*fop = NULL;
-	struct c2_fid			 fid;
-	struct c2_fop_file_fid		*ffid = NULL;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	int opcode			 opcode;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-
-	if(opcode == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		ffid = &read_fop->frd_fid;
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		ffid = &write_fop->fwr_fid;
-	}
-	c2_rpc_form_item_io_fid_wire2mem(ffid, &fid);
-	return fid;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to find out if the item belongs to an IO request or not 
- */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop = NULL;
-	int opcode		 opcode = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-	if(opcode == c2_io_service_readv_opcode ||
-		opcode == c2_io_service_writev_opcode) {
-		return true;
-	}
-	return false;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to find out number of fragmented buffers in IO request 
- */
-uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
-{
-
-	struct c2_fop			*fop;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-	int opcode			 opcode;
-	uint64_t			 nfragments = 0;
-	uint64_t			 seg_offset = 0;
-	uint64_t			 seg_count = 0;
-	int				 i = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	opcode = fop->f_type->ft_code;
-
-	if(opcode == c2_io_service_readv_opcode) {
-		read_fop = c2_fop_data(fop);
-		seg_count = read_fop->frd_ioseg.fs_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
-			if(seg_offset != 0) {
-				nfragments++;
-			}
-		}
-	}
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		seg_count = write_fop->fwr_iovec.iov_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
-			if(seg_offset != 0) {
-				nfragments++;
-			}
-		}
-	}
-	return nfragments;
-}
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return segment for read fop from given rpc item 
- */
-struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
- {
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_segment_seq	*seg = NULL;
-	struct c2_fop_cob_readv		*read_fop = NULL;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	read_fop = c2_fop_data(fop);
-	seg = read_fop->frd_ioseg;
-	C2_ASSERT(seg != NULL);
-
-	return seg;
- }
-
-/**
-  XXX Need to move to appropriate file 
-   RPC item ops function
-   Function to return segment for write fop from given rpc item 
- */
-struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item)
- {
-	struct c2_fop			*fop = NULL;
-	struct c2_fop_io_vec		*vec = NULL;
-	struct c2_fop_cob_writev	*write_fop = NULL;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	write_fop = c2_fop_data(fop);
-	vec = write_fop->fwr_iovec;
-	C2_ASSERT(vec != NULL);
-
-	return vec;
- }
-
-/**
-  XXX Need to move to appropriate file
-  RPC item ops function
-  Function to return new rpc item embedding the given write vector,
-  by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item, struct c2_fop_io_vec *vec)
-{
-	struct c2_fop                   *fop = NULL;
-	struct c2_fop                   *res_fop = NULL;
-	int                              res = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(curr_item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	res = fop->f_type->ft_ops->fto_get_write_fop(&res_fop, vec);
-	res_item = res_fop->f_item;
-	return 0;
-}
-
-/**
-  XXX Need to move to appropriate file
-  RPC item ops function
-  Function to return new rpc item embedding the given read segment,
-  by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item, struct c2_fop_segment_seq *seg)
-{
-	struct c2_fop                   *fop = NULL;
-	struct c2_fop                   *res_fop = NULL;
-	int                              res = 0;
-
-	C2_PRE(item != NULL);
-
-	fop = container_of(curr_item, struct c2_fop, f_item);
-	C2_ASSERT(fop != NULL);
-
-	res = fop->f_type->ft_ops->fto_get_read_fop(fop, &res_fop, seg);
-	res_item = res_fop->f_item;
-	return 0;
-}
-
 /**     
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
@@ -338,12 +25,158 @@ int c2_rpc_form_init()
 }
 
 /**
+   Check if refcounts of all endpoints are zero.
+ */
+bool c2_rpc_form_wait_for_completion()
+{
+	bool				ret = true;
+	struct c2_atomic64		refcount;
+	struct c2_rpc_form_item_summary_unit	*endp_unit = NULL;
+	c2_rwlock_read_lock(formation_summary->is_endp_list_lock);
+	c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
+			endp_unit, struct c2_rpc_form_item_summary_unit,
+			isu_linkage) {
+		c2_mutex_lock(endp_unit->isu_unit_lock);
+		refcount = c2_ref_read(&endp_unit->isu_sm.isu_ref);
+		if (refcount.a_value != 0) {
+			ret = false;
+			c2_mutex_unlock(endp_unit->isu_unit_lock);
+			break;
+		}
+		c2_mutex_unlock(endp_unit->isu_unit_lock);
+	}
+	c2_rwlock_read_unlock(formation_summary->is_endp_list_lock);
+	return ret;
+}
+
+static void c2_rpc_form_empty_groups_list(struct c2_list *list)
+{
+	struct c2_rpc_form_item_summary_unit_group	*group = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*group_next = NULL;
+	c2_list_for_each_entry_safe(list->l_head, group, group_next,
+			struct c2_rpc_form_item_summary_unit_group, sug_linkage) {
+		c2_list_del(&group->sug_linkage);
+		c2_free(group);
+	}
+}
+
+static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
+{
+	struct c2_rpc_form_item_coalesced 		*coalesced_item = NULL;
+	struct c2_rpc_form_item_coalesced 		*coalesced_item_next = NULL;
+	struct c2_rpc_form_item_coalesced_member 	*coalesced_member = NULL;
+	struct c2_rpc_form_item_coalesced_member 	*coalesced_member_next = NULL;
+
+	c2_list_for_each_entry_safe(list->l_head, coalesced_item,
+			coalesced_item_next,
+			struct c2_rpc_form_item_coalesced, ic_linkage) {
+		c2_list_del(&coalesced_item->ic_linkage);
+		c2_list_for_each_entry_safe(&coalesced_item->ic_member_list.
+				l_head, coalsced_member, coalesced_member_next,
+				struct c2_rpc_form_item_coalesced_member,
+				im_linkage) {
+			c2_list_del(&coalesced_member->im_linkage);
+			c2_free(coalesced_member);
+		}
+		c2_free(coalesced_item);
+	}
+}
+
+static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list)
+{
+	struct c2_rpc_form_rpcobj		*obj = NULL;
+	struct c2_rpc_form_rpcobj		*obj_next = NULL;
+
+	c2_list_for_each_entry_safe(list->l_head, obj, obj_next,
+			struct c2_rpc_form_rpcobj, ro_linkage) {
+		c2_list_del(&obj->ro_linkage);
+		c2_free(obj);
+	}
+}
+
+static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
+{
+	struct c2_rpc_item		*item = NULL;
+	struct c2_rpc_item		*item_next = NULL;
+
+	c2_list_for_each_entry_safe(list->l_head, item, item_next,
+			struct c2_rpc_item, ri_unformed_linkage) {
+		c2_list_del(&item->ri_unformed_linkage);
+		c2_free(item);
+	}
+}
+
+static void c2_rpc_form_empty_fid_list(struct c2_list *list)
+{
+	struct c2_rpc_form_fid_summary_member	*fid_member = NULL;
+	struct c2_rpc_form_fid_summary_member	*fid_member_next = NULL;
+	struct c2_rpc_form_fid_units		*fid_units = NULL;
+	struct c2_rpc_form_fid_units		*fid_units_next = NULL;
+
+	c2_list_for_each_entry_safe(list->l_head, fid_member, fid_member_next,
+			struct c2_rpc_form_fid_summary_member, fsm_linkage) {
+		c2_list_del(&fid_member->fsm_linkage);
+		c2_list_for_each_entry_safe(&fid_member->fsm_items.l_head,
+				fid_units, fid_units_next,
+				struct c2_rpc_form_fid_units, fu_linkage) {
+			c2_list_del(&fid_units->fu_linkage);
+			c2_free(fid_units);
+		}
+		c2_free(fid_member);
+	}
+}
+
+/**
    Finish method for formation component in rpc.
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
  */
 int c2_rpc_form_fini()
 {
+	/* stime = 10ms */
+	struct c2_time_t			 stime = 10000000;
+	struct c2_rpc_form_item_summary_unit	*endp_unit = NULL;
+	struct c2_rpc_form_item_summary_unit	*endp_unit_next = NULL;
+
+	/* Set the active flag of all endpoints to false indicating
+	   formation component is about to finish.
+	   This will help to block all new threads from entering
+	   the formation component.*/
+	c2_rwlock_read_lock(formation_summary->is_endp_list_lock);
+	c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
+			endp_unit, struct c2_rpc_form_item_summary_unit,
+			isu_linkage) {
+		c2_mutex_lock(endp_unit->isu_unit_lock);
+		endp_unit->isu_form_active = false;
+		c2_mutex_unlock(endp_unit->isu_unit_lock);
+	}
+	c2_rwlock_read_unlock(formation_summary->is_endp_list_lock);
+
+	/* Iterate over the list of endpoints until refcounts of all
+	   become zero. */
+	while(!c2_rpc_form_wait_for_completion()) {
+		c2_nanosleep(stime, NULL);
+	}
+
+	/* Delete all endpoint units, all lists within each endpoint unit. */
+	c2_rwlock_write_lock(&formation_summary->isu_endp_list_lock);
+	c2_list_for_each_entry_safe(&formation_summary->is_endp_list.l_head,
+			endp_unit, endp_unit_next, struct
+			c2_rpc_form_item_summary_unit, isu_linkage) {
+		c2_mutex_lock(endp_unit->isu_unit_lock);
+		c2_rpc_form_empty_groups_list(&endp_unit->isu_groups_list);
+		c2_rpc_form_empty_coalesced_items_list(&endp_unit->
+				isu_coalesced_items_list);
+		c2_rpc_form_empty_rpcobj_list(&endp_unit->
+				isu_rpcobj_formed_list);
+		c2_rpc_form_empty_rpcobj_list(&endp_unit->
+				isu_rpcobj_checked_list);
+		c2_rpc_form_empty_unformed_list(&endp_unit->isu_unformed_list);
+		c2_rpc_form_empty_fid_list(&endp_unit->isu_fid_list);
+		c2_mutex_unlock(&endp_unit->isu_unit_lock);
+	}
+	c2_rwlock_write_unlock(&formation_summary->isu_endp_list_lock);
+
 	c2_rwlock_fini(&formation_summary->is_endp_list_lock);
 	c2_list_fini(&formation_summary->is_endp_list.l_head);
 	c2_free(formation_summary);
@@ -360,8 +193,34 @@ static void c2_rpc_form_state_machine_exit(struct
 		c2_rpc_form_item_summary_unit *endp_unit)
 {
 	c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
+	/** Since the behavior is undefined for fini of mutex
+	    when the mutex is locked, it is not locked here
+	    for endp_unit.*/
 	c2_ref_put(&endp_unit->isu_sm.isu_ref);
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
+}
+
+/**
+   Check if the endpoint unit structure is empty.
+ */
+static bool c2_rpc_form_is_endp_empty(struct c2_rpc_form_item_summary_unit
+		*endp_unit)
+{
+	C2_PRE(endp_unit != NULL);
+
+	if (!c2_list_is_empty(&endp_unit->isu_groups_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_fid_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_unformed_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list.l_head))
+		return false;
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_checked_list.l_head))
+		return false;
+	return true;
 }
 
 /**
@@ -377,16 +236,19 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	sm = container_of(ref, struct c2_rpc_form_state_machine, isu_ref);
 	endp_unit = container_of(sm, struct c2_rpc_form_item_summary_unit, 
 			isu_sm);
-	c2_mutex_fini(&endp_unit->isu_unit_lock);
-	c2_list_del(&endp_unit->isu_linkage);
-	c2_list_fini(&endp_unit->isu_groups_list.l_head);
-	c2_list_fini(&endp_unit->isu_coalesced_items_list.l_head);
-	c2_list_fini(&endp_unit->isu_fid_list.l_head);
-	c2_list_fini(&endp_unit->isu_unformed_list.l_head);
-	c2_list_fini(&endp_unit->isu_rpcobj_formed_list.l_head);
-	c2_list_fini(&endp_unit->isu_rpcobj_checked_list.l_head);
-	endp_unit->isu_endp_id = NULL;
-	c2_free(endp_unit);
+	/* Delete the endp_unit only if all lists are empty.*/
+	if (c2_rpc_form_is_endp_empty(endp_unit)) {
+		c2_mutex_fini(&endp_unit->isu_unit_lock);
+		c2_list_del(&endp_unit->isu_linkage);
+		c2_list_fini(&endp_unit->isu_groups_list.l_head);
+		c2_list_fini(&endp_unit->isu_coalesced_items_list.l_head);
+		c2_list_fini(&endp_unit->isu_fid_list.l_head);
+		c2_list_fini(&endp_unit->isu_unformed_list.l_head);
+		c2_list_fini(&endp_unit->isu_rpcobj_formed_list.l_head);
+		c2_list_fini(&endp_unit->isu_rpcobj_checked_list.l_head);
+		endp_unit->isu_endp_id = NULL;
+		c2_free(endp_unit);
+	}
 }
 
 /**
@@ -398,6 +260,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 {
 	struct c2_rpc_form_item_summary_unit	*endp_unit;
 
+	C2_PRE(endp != NULL);
 	endp_unit = c2_alloc(sizeof(struct c2_rpc_form_item_summary_unit));
 	if (endp_unit == NULL) {
 		printf("Failed to allocate memory to 
@@ -417,6 +280,12 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 			c2_rpc_form_item_summary_unit_destroy);
 	endp_unit->isu_endp_id = endp;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
+	endp_unit->isu_form_active = true;
+	/* XXX Need appropriate values.*/
+	endp_unit->isu_max_message_size = 1;
+	endp_unit->isu_max_fragments_size = 1;
+	endp_unit->isu_max_rpcs_in_flight = 1;
+	endp_unit->isu_curr_rpcs_in_flight = 1;
 	return endp_unit;
 }
 
@@ -439,7 +308,7 @@ static stateFunc c2_rpc_form_next_state(const int current_state,
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
  */
-struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
+struct c2_net_endpoint *c2_rpc_form_get_endpoint(const struct c2_rpc_item *item)
 {
 	/* XXX Need to be defined by sessions. */
 	return &item->ri_endp;
@@ -461,7 +330,7 @@ struct c2_net_endpoint *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
  */
 static int c2_rpc_form_default_handler(struct c2_rpc_item *item, 
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
-		int sm_state, int sm_event, void *pvt)
+		int sm_state, const struct c2_rpc_form_sm_event *sm_event)
 {
 	struct c2_net_endpoint			*endpoint = NULL;
 	int					 res = 0;
@@ -470,9 +339,16 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	bool					 exit = false;
 
 	C2_PRE(item != NULL);
-	C2_PRE(current_event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_N_EVENTS);
+	C2_PRE(sm_state <= C2_RPC_FORM_N_STATES);
 
 	endpoint = c2_rpc_form_get_endpoint(item);
+
+	/* If endpoint unit is NULL, locate it from list in
+	   formation summary. If found, take its lock and
+	   increment its refcount. If not found, create a
+	   new endpoint unit structure. In any case, find out
+	   the previous state of endpoint unit. */
 	if (endp_unit == NULL) {
 		c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
 		c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
@@ -488,25 +364,37 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 			c2_ref_get(&endp_unit->isu_sm.isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
-			prev_state = endp_unit->isu_sm.isu_endp_state;
 		}
 		else {
-			/** XXX Add a new summary unit */
+			/** Add a new endpoint summary unit */
 			endp_unit = c2_rpc_form_item_summary_unit_add(endpoint);
+			c2_mutex_lock(endp_unit->isu_unit_lock);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
-			c2_mutex_lock(endp_unit->isu_unit_lock);
-			prev_state = sm_state;
 		}
+		prev_state = endp_unit->isu_sm.isu_endp_state;
 	}
-	res = (c2_rpc_form_next_state(prev_state, sm_event))(endp_unit, item, 
-			sm_event, pvt);
+	else {
+		prev_state = sm_state;
+	}
+	/* If the formation component is not active (form_fini is called)
+	   exit the state machine and return back. */
+	if (endp_unit->isu_form_active == false) {
+		c2_mutex_unlock(endp_unit->isu_unit_lock);
+		c2_rpc_form_state_machine_exit(endp_unit);
+		return 0;
+	}
+	/* Transition to next state.*/
+	res = (c2_rpc_form_next_state(prev_state, sm_event->se_event))
+		(endp_unit, item, sm_event);
+	/* Get latest state of state machine. */
 	prev_state = endp_unit->isu_sm.isu_endp_state;
 	c2_mutex_unlock(endp_unit->isu_unit_lock);
-	/*XXX Handle exit path as an event. */
 	/* Exit point for state machine. */
-	if(res == C2_RPC_FORM_INTEVT_STATE_DONE)
+	if(res == C2_RPC_FORM_INTEVT_STATE_DONE) {
+		c2_rpc_form_state_machine_exit(endp_unit);
 		return 0;
+	}
 
 	if (res == C2_RPC_FORM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
@@ -526,11 +414,15 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
  */
 int c2_rpc_form_extevt_rpcitem_added_in_cache(const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_added_in_cache\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_ADDED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_ADDED, NULL);
+			&sm_event);
 }
 
 /**
@@ -542,11 +434,15 @@ int c2_rpc_form_extevt_rpcitem_added_in_cache(const struct c2_rpc_item *item)
 int c2_rpc_form_extevt_rpcitem_deleted_from_cache(
 		const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_deleted_from_cache\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED, NULL);
+			&sm_event);
 }
 
 /**
@@ -558,18 +454,22 @@ int c2_rpc_form_extevt_rpcitem_deleted_from_cache(
 int c2_rpc_form_extevt_rpcitem_changed(const struct c2_rpc_item *item,
 		const int field_type, const void *pvt)
 {
+	struct c2_rpc_form_sm_event		sm_event;
 	struct c2_rpc_form_item_change_req	req;
+
 	C2_PRE(item != NULL);
 	C2_PRE(pvt != NULL);
 	C2_PRE(field_type < C2_RPC_ITEM_N_CHANGES);
 
 	printf("In callback: c2_rpc_form_extevt_rpcitem_changed\n");
 
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED;
 	req.field_type = field_type;
 	req.value = pvt;
+	sm_event.se_pvt = &req;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED, &req);
+			&sm_event);
 }
 
 /**
@@ -582,13 +482,16 @@ int c2_rpc_form_extevt_rpcitem_reply_received(
 		const struct c2_rpc_item *reply_item,
 		const struct c2_rpc_item *req_item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(req_item != NULL);
 	C2_PRE(reply_item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_reply_received\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(req_item, NULL, C2_RPC_FORM_N_STATES,
-
-			C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED, NULL);
+			&sm_event);
 }
 
 /**
@@ -599,11 +502,15 @@ int c2_rpc_form_extevt_rpcitem_reply_received(
  */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(const struct c2_rpc_item *item)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_deadline_expired\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
-			C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT, NULL);
+			&sm_event);
 }
 
 /**
@@ -617,10 +524,15 @@ static int c2_rpc_form_intevt_state_succeeded(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_intevt_state_succeeded\n");
+	sm_event.se_event = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
-	return c2_rpc_form_default_handler(item, endp_unit,
-			state, C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
+	return c2_rpc_form_default_handler(item, endp_unit, state, &sm_event);
 }
 
 /**
@@ -634,10 +546,15 @@ static int c2_rpc_form_intevt_state_failed(const struct
 		c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_item *item, const int state)
 {
+	struct c2_rpc_form_sm_event		sm_event;
+
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(item != NULL);
+	sm_event.se_event = C2_RPC_FORM_INTEVT_STATE_FAILED;
+	sm_event.se_pvt = NULL;
 	printf("In callback: c2_rpc_form_intevt_state_failed\n");
 	/* Curent state is not known at the moment. */
-	return c2_rpc_form_default_handler(item, endp_unit,
-			state, C2_RPC_FORM_INTEVT_STATE_FAILED);
+	return c2_rpc_form_default_handler(item, endp_unit, state, &sm_event);
 }
 
 /**
@@ -659,17 +576,17 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 			member, next_member, 
 			struct c2_rpc_form_item_coalesced_member, 
 			ic_member_list) {
-		/* XXX what is rc for completion callback?*/
-		member->im_member_item->rio_replied(member->im_member, rc);
+		//member->im_member_item->rio_replied(member->im_member, rc);
 		c2_list_del(member->im_linkage);
-		member->ic_nmembers--;
+		c2_rpc_item_replied(member->im_member_item);
+		coalesced_struct->ic_nmembers--;
 	}
-	/* XXX Need to implement rpc item completion callback.*/
 	//coalesced_struct->ic_resultant_item->ri_type->rit_ops->rio_replied(
 	//		coalesced_struct->ic_resultant_item);
+	C2_ASSERT(coalesced_struct->ic_nmembers == 0);
+	c2_list_del(&coalesced_struct->ic_linkage);
 	c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
 	c2_list_fini(&coalesced_struct->ic_member_list);
-	c2_list_del(&coalesced_struct->ic_linkage);
 	c2_free(coalesced_struct);
 	return 0;
 }
@@ -679,7 +596,8 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
    endp_unit is locked.
  */
 int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	C2_PRE(item != NULL);
 	C2_PRE((event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) || 
@@ -691,7 +609,6 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	/* Internal events will invoke a nop from waiting state. */
 
-	c2_rpc_form_state_machine_exit(endp_unit);
 	return C2_RPC_FORM_INTEVT_STATE_DONE;
 }
 
@@ -945,7 +862,8 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
    State function for UPDATING state.
  */
 int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int		res = 0;
 	int		ret = 0;
@@ -1429,7 +1347,8 @@ static int c2_rpc_form_items_coalesce(
    State function for CHECKING state.
  */
 int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int						 res = 0;
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
@@ -1599,7 +1518,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
    State function for FORMING state.
  */
 int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int				 res = 0;
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
@@ -1650,7 +1570,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
    State function for POSTING state.
  */
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
-		,struct c2_rpc_item *item, int event, void *pvt)
+		,struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int				 res = 0;
 	int				 ret = 0;
@@ -1698,7 +1619,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    State function for REMOVING state.
  */
 int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_rpc_item *item, int event, void *pvt)
+		struct c2_rpc_item *item, const struct c2_rpc_form_sm_event
+		*event)
 {
 	int		res = 0;
 
@@ -1730,7 +1652,7 @@ int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 		else if (event == C2_RPC_FORM_EXTEVT_RPCITEM_CHANGED) {
 			res = c2_rpc_form_change_rpcitem_from_summary_unit(
-					endp_unit, item, pvt);
+					endp_unit, item, event->se_pvt);
 		}
 		if (res == 0)
 			return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
@@ -1739,3 +1661,314 @@ int c2_rpc_form_removing_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	}
 }
 
+/**
+   XXX rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+int c2_rpc_item_replied(struct c2_rpc_item *item)
+{
+	int				 res = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment		*read_seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	uint32_t			 nsegs = 0;
+
+	C2_PRE(item != NULL);
+	/* Find out fop from the rpc item,
+	   Find out opcode of rpc item,
+	   Deallocate the io vector of rpc item accordingly.
+	 */
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
+			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
+		}
+	}
+	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
+			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
+		}
+	}
+	c2_fop_free(fop);
+	return 0;
+}
+
+/**
+  XXX Need to move to appropriate file
+   RPC item ops function
+   Function to return size of fop
+ */
+uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	int opcode			 opcode = 0;
+	uint64_t			 size = 0;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
+	uint64_t			 vec_count = 0;
+	int				 i = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	/** Size of fop layout */
+	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+
+	opcode = fop->f_type->ft_code;
+
+	/** Add buffer payload for read reply */
+	if(opcode == c2_io_service_readv_rep_opcode ) {
+		read_rep_fop = c2_fop_data(fop);
+		size += read_rep_fop->frdr_buf.f_count;
+	}
+	/** Add buffer payload for write request */
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		vec_count = write_fop->fwr_iovec.iov_count;
+		for(i = 0; i < vec_count; i++) {
+			size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
+		}
+	}
+
+	return size;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return the opcode given an rpc item
+ */
+int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode ) {
+		return C2_RPC_FORM_IO_READ;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		return C2_RPC_FORM_IO_WRITE;
+	}
+	return opcode;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to map the on-wire FOP format to in-core FOP format.
+ */
+static void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in, 
+		struct c2_fid *out)
+{
+        out->f_container = in->f_seq;
+        out->f_key = in->f_oid;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to get the fid for an IO request from the rpc item
+ */
+struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	struct c2_fid			 fid;
+	struct c2_fop_file_fid		*ffid = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	int opcode			 opcode;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		ffid = &read_fop->frd_fid;
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		ffid = &write_fop->fwr_fid;
+	}
+	c2_rpc_form_item_io_fid_wire2mem(ffid, &fid);
+	return fid;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out if the item belongs to an IO request or not 
+ */
+bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int opcode		 opcode = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+	if(opcode == c2_io_service_readv_opcode ||
+		opcode == c2_io_service_writev_opcode) {
+		return true;
+	}
+	return false;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to find out number of fragmented buffers in IO request 
+ */
+uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
+{
+
+	struct c2_fop			*fop;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+	int opcode			 opcode;
+	uint64_t			 nfragments = 0;
+	uint64_t			 seg_offset = 0;
+	uint64_t			 seg_count = 0;
+	int				 i = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	opcode = fop->f_type->ft_code;
+
+	if(opcode == c2_io_service_readv_opcode) {
+		read_fop = c2_fop_data(fop);
+		seg_count = read_fop->frd_ioseg.fs_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	else if (opcode == c2_io_service_writev_opcode) {
+		write_fop = c2_fop_data(fop);
+		seg_count = write_fop->fwr_iovec.iov_count;
+		for (i = 0; i < seg_count; i++) {
+			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
+			if(seg_offset != 0) {
+				nfragments++;
+			}
+		}
+	}
+	return nfragments;
+}
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return segment for read fop from given rpc item 
+ */
+struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_segment_seq	*seg = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	read_fop = c2_fop_data(fop);
+	seg = read_fop->frd_ioseg;
+	C2_ASSERT(seg != NULL);
+
+	return seg;
+ }
+
+/**
+  XXX Need to move to appropriate file 
+   RPC item ops function
+   Function to return segment for write fop from given rpc item 
+ */
+struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item)
+ {
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_io_vec		*vec = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	write_fop = c2_fop_data(fop);
+	vec = write_fop->fwr_iovec;
+	C2_ASSERT(vec != NULL);
+
+	return vec;
+ }
+
+/**
+  XXX Need to move to appropriate file
+  RPC item ops function
+  Function to return new rpc item embedding the given write vector,
+  by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item, struct c2_fop_io_vec *vec)
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop                   *res_fop = NULL;
+	int                              res = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_write_fop(&res_fop, vec);
+	res_item = res_fop->f_item;
+	return 0;
+}
+
+/**
+  XXX Need to move to appropriate file
+  RPC item ops function
+  Function to return new rpc item embedding the given read segment,
+  by creating a new fop calling new fop op
+ */
+int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
+		struct c2_rpc_item *res_item, struct c2_fop_segment_seq *seg)
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop                   *res_fop = NULL;
+	int                              res = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = container_of(curr_item, struct c2_fop, f_item);
+	C2_ASSERT(fop != NULL);
+
+	res = fop->f_type->ft_ops->fto_get_read_fop(fop, &res_fop, seg);
+	res_item = res_fop->f_item;
+	return 0;
+}
