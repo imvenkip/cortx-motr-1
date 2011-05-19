@@ -226,7 +226,6 @@ enum c2_rpc_conn_state {
    to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
    non-idempotent, they also need EOS and FIFO guarantees.
 
-XXX incorporate INIT_FAILED state in this diagram
 
    +-------------------------> UNINITIALIZED
                                     |
@@ -303,7 +302,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
 	c2_rpc_conn->c_state == CONN_TERMINATED
    @post c2_rpc_conn->c_state == CONN_UNINITIALIZED
  */
-int  c2_rpc_conn_fini(struct c2_rpc_conn *);
+void c2_rpc_conn_fini(struct c2_rpc_conn *);
 
 /**
    Send "conn_terminate" FOP to receiver.
@@ -465,6 +464,15 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
  */
 void c2_rpc_session_timedwait(struct c2_rpc_session *session,
 		uint64_t, const struct c2_time *abs_timeout);
+
+/**
+   Finalize session object
+
+   @pre session->s_state == SESSION_TERMINATED ||
+	session->s_state == SESSION_INIT_FAILED
+   @post session->s_state == SESSION_UNINITIALIZED
+ */
+void c2_rpc_session_fini(struct c2_rpc_session *session);
 
 /**
    checks internal consistency of session

@@ -387,6 +387,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session0;
 	uint64_t				sender_id;
 
 	printf("conn terminate reply received\n");
@@ -433,6 +434,11 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_state = CS_CONN_TERMINATED;
 		/* XXX Need a lock to protect conn list in rpcmachine */
 		c2_list_del(&conn->c_link);
+		c2_rpc_session_search(conn, 0, &session0);
+		C2_ASSERT(session0 != NULL);
+		session0->s_state = SESSION_TERMINATED;
+		c2_list_del(&session0->s_link);
+		c2_rpc_session_fini(session0);
 	} else {
 		/*
 		 * Connection termination is failed
@@ -456,9 +462,19 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	printf("conn_term_reply_rcvd: finished\n");
 }
 
-int  c2_rpc_conn_fini(struct c2_rpc_conn *rpc_conn)
+void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
-       return 0;
+	printf("conn fini called\n");
+
+	C2_PRE(conn->c_state == CS_CONN_TERMINATED ||
+		conn->c_state == CS_CONN_INIT_FAILED);
+
+	c2_list_link_fini(&conn->c_link);
+	c2_list_fini(&conn->c_sessions);
+	c2_chan_fini(&conn->c_chan);
+	c2_mutex_fini(&conn->c_mutex);
+
+	C2_SET0(conn);
 }
 
 void c2_rpc_conn_timedwait(struct c2_rpc_conn	*rpc_conn,
@@ -759,6 +775,29 @@ void c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 
 }
 
+void c2_rpc_session_fini(struct c2_rpc_session *session)
+{
+	int	i;
+
+	printf("session fini called\n");
+	C2_PRE(session->s_state == SESSION_TERMINATED ||
+			session->s_state == SESSION_CREATE_FAILED);
+	c2_list_link_fini(&session->s_link);
+	session->s_session_id = SESSION_ID_INVALID;
+	session->s_conn = NULL;
+	c2_chan_fini(&session->s_chan);
+	c2_mutex_fini(&session->s_mutex);
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		c2_free(session->s_slot_table[i]);
+	}
+	c2_free(session->s_slot_table);
+	session->s_slot_table = NULL;
+	session->s_nr_slots = session->s_slot_table_capacity = 0;
+	
+	session->s_state = SESSION_UNINITIALIZED;
+}
+	
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
        return true;

@@ -494,6 +494,7 @@ void test_snd_session_terminate()
 	item->ri_mach = machine;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
+	c2_rpc_session_fini(&session);
 }
 void test_snd_conn_terminate()
 {
@@ -522,7 +523,7 @@ void test_snd_conn_terminate()
 	item->ri_mach = machine;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
-
+	c2_rpc_conn_fini(&conn);
 }
 int main(void)
 {
