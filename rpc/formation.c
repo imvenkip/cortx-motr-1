@@ -26,7 +26,7 @@ int c2_rpc_form_init()
 		return -ENOMEM;
 	}
 	c2_rwlock_init(&formation_summary->is_endp_list_lock);
-	c2_list_init(formation_summary->is_endp_list.l_head);
+	c2_list_init(&formation_summary->is_endp_list);
 	return 0;
 }
 
@@ -289,14 +289,14 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 		return -ENOMEM;
 	}
 	c2_mutex_init(&endp_unit->isu_unit_lock);
-	c2_list_add(&formation_summary->is_endp_list.l_head, 
+	c2_list_add(&formation_summary->is_endp_list, 
 			&endp_unit->isu_linkage);
-	c2_list_init(&endp_unit->isu_groups_list.l_head);
-	c2_list_init(&endp_unit->isu_coalesced_items_list.l_head);
-	c2_list_init(&endp_unit->isu_fid_list.l_head);
-	c2_list_init(&endp_unit->isu_unformed_list.l_head);
-	c2_list_init(&endp_unit->isu_rpcobj_formed_list.l_head);
-	c2_list_init(&endp_unit->isu_rpcobj_checked_list.l_head);
+	c2_list_init(&endp_unit->isu_groups_list);
+	c2_list_init(&endp_unit->isu_coalesced_items_list);
+	c2_list_init(&endp_unit->isu_fid_list);
+	c2_list_init(&endp_unit->isu_unformed_list);
+	c2_list_init(&endp_unit->isu_rpcobj_formed_list);
+	c2_list_init(&endp_unit->isu_rpcobj_checked_list);
 	c2_ref_init(&endp_unit->isu_sm.isu_ref, 1, 
 			c2_rpc_form_item_summary_unit_destroy);
 	endp_unit->isu_endp_id = endp;
@@ -598,7 +598,7 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 			struct c2_rpc_form_item_coalesced_member, 
 			ic_member_list) {
 		//member->im_member_item->rio_replied(member->im_member, rc);
-		c2_list_del(member->im_linkage);
+		c2_list_del(&member->im_linkage);
 		c2_rpc_item_replied(member->im_member_item);
 		coalesced_struct->ic_nmembers--;
 	}
@@ -758,15 +758,15 @@ static int c2_rpc_form_summary_groups_sort(
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(summary_group != NULL);
 
-	c2_list_del(summary_group->sug_linkage);
+	c2_list_del(&summary_group->sug_linkage);
 	/* Do a simple incremental search for a group having
 	   average timeout value bigger than that of given group. */
 	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, sg, 
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
 		if (sg->sug_avg_timeout > summary_group->sug_avg_timeout) {
-			c2_list_add_before(sg->sug_linkage, 
-					summary_group->sug_linkage);
+			c2_list_add_before(&sg->sug_linkage, 
+					&summary_group->sug_linkage);
 		}
 	}
 	return 0;
@@ -802,8 +802,8 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	     structure and fill necessary data.
 	 */
 
-	c2_list_add(&endp_unit->isu_unformed_list.l_head,
-			item->ri_unformed_linkage);
+	c2_list_add(&endp_unit->isu_unformed_list,
+			&item->ri_unformed_linkage);
 	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, 
 			summary_group, 
 			struct c2_rpc_form_item_summary_unit_group, 
@@ -953,8 +953,8 @@ static int c2_rpc_form_item_add_to_forming_list(
 			c2_rpc_set_update_stream_status(item_update_stream, 
 					BUSY);
 			/* XXX Need a rpbobject_linkage in c2_rpc_item. */
-			c2_list_add(&forming_list.l_head, 
-					item->ri_rpcobject_linkage);
+			c2_list_add(forming_list, 
+					&item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
 			*nfragments += current_fragments;
 			item->ri_state = RPC_ITEM_ADDED;
@@ -968,7 +968,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 			}
 			c2_timer_stop(item->timer);
 			c2_timer_fini(item->timer);
-			c2_list_del(item->ri_unformed_linkage);
+			c2_list_del(&item->ri_unformed_linkage);
 		}
 		return 0;
 	}
@@ -1021,8 +1021,8 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 					return -ENOMEM;
 				}
 				*nsegs++;
-				c2_list_add_before(write_seg->ws_linkage,
-						new_seg->ws_linkage);
+				c2_list_add_before(&write_seg->ws_linkage,
+						&new_seg->ws_linkage);
 			}
 		}
 	}
@@ -1074,8 +1074,8 @@ static int c2_rpc_form_coalesce_readio_vector(
 					return -ENOMEM;
 				}
 				*res_segs++;
-				c2_list_add_before(read_seg->ws_linkage, 
-						new_seg->rs_linkage);
+				c2_list_add_before(&read_seg->ws_linkage, 
+						&new_seg->rs_linkage);
 			}
 		}
 	}
@@ -1111,7 +1111,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 	C2_PRE(coalesced_item != NULL);
 	C2_PRE(coalesced_item->ic_resultant_item != NULL);
 
-	c2_list_init(aggr_vec_list.l_head);
+	c2_list_init(&aggr_vec_list);
 	opcode = coalesced_item->ic_op_intent;
 	c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, 
 			member, 
@@ -1175,7 +1175,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 				read_seg_next, struct c2_rpc_form_read_segment, 
 				rs_linkage) {
 			*read_vec->fs_segs[i] = read_seg->rs_seg;
-			c2_list_del(read_seg->rs_linkage);
+			c2_list_del(&read_seg->rs_linkage);
 			c2_free(read_seg);
 			i++;
 		}
@@ -1208,7 +1208,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 				write_seg_next,
 				struct c2_rpc_form_write_segment, ws_linkage) {
 			*write_vec->iov_seg[i] = write_seg->ws_seg;
-			c2_list_del(write_seg->ws_linkage);
+			c2_list_del(&write_seg->ws_linkage);
 			c2_free(write_seg);
 			i++;
 		}
@@ -1313,8 +1313,8 @@ static int c2_rpc_form_items_coalesce(
 				return -ENOMEM;
 			}
 			fid_unit->fu_item = *item;
-			c2_list_add(fid_member->fsm_items.l_head, 
-					fid_unit->fu_linkage);
+			c2_list_add(&fid_member->fsm_items, 
+					&fid_unit->fu_linkage);
 			fid_member->fsm_total_size += item_size;
 		}
 	}
@@ -1346,7 +1346,7 @@ static int c2_rpc_form_items_coalesce(
 			res = c2_rpc_form_io_items_coalesce(coalesced_item);
 			if (res == 0) {
 				/*delete fid member*/
-				c2_list_del(fid_member->fsm_linkage);
+				c2_list_del(&fid_member->fsm_linkage);
 				c2_free(fid_member);
 				coalesced_item->ic_resultant_item->ri_state = 
 					RPC_ITEM_ADDED;
@@ -1367,11 +1367,11 @@ static int c2_rpc_form_items_coalesce(
 					item_member, struct 
 					c2_rpc_form_item_coalesced_member, 
 					im_linkage) {
-				c2_list_del(item_member->im_member_item->
+				c2_list_del(&item_member->im_member_item->
 						ri_rpcobject_linkage);
 			}
-			c2_list_add(forming_list->l_head, 
-					coalesced_item->ic_resultant_item);
+			c2_list_add(forming_list, 
+					&coalesced_item->ic_resultant_item->ri_rpcobject_linkage);
 		}
 	}
 	return 0;
@@ -1549,8 +1549,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		return -ENOMEM;
 	}
 	rpcobj->ro_rpcobj->r_items = *forming_list;
-	c2_list_add(endp_unit->isu_rpcobj_checked_list.l_head,
-			rpcobj->ro_linkage);
+	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
+			&rpcobj->ro_linkage);
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
@@ -1585,16 +1585,15 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			if (res != 0) {
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
-				c2_list_add(&endp_unit->isu_unformed_list.
-						l_head, 
-						rpc_item->ri_unformed_linkage);
+				c2_list_add(&endp_unit->isu_unformed_list, 
+						&rpc_item->ri_unformed_linkage);
 				c2_rpc_form_add_rpcitem_to_summary_unit(
 						endp_unit, rpc_item);
 			}
 		}
-		c2_list_del(rpcobj->ro_linkage);
-		c2_list_add(&endp_unit->isu_rpcobj_formed_list.l_head, 
-				rpcobj->ro_linkage);
+		c2_list_del(&rpcobj->ro_linkage);
+		c2_list_add(&endp_unit->isu_rpcobj_formed_list, 
+				&rpcobj->ro_linkage);
 	}
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
@@ -1636,7 +1635,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			   output component. */
 			//endp_unit->isu_curr_rpcs_in_flight++;
 			if(res == 0) {
-				c2_list_del(rpc_obj->ro_linkage);
+				c2_list_del(&rpc_obj->ro_linkage);
 				//c2_free(rpc_obj);
 				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 			}
