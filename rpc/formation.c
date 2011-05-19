@@ -39,7 +39,7 @@ bool c2_rpc_form_wait_for_completion()
 	struct c2_atomic64		refcount;
 	struct c2_rpc_form_item_summary_unit	*endp_unit = NULL;
 	c2_rwlock_read_lock(formation_summary->is_endp_list_lock);
-	c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
+	c2_list_for_each_entry(formation_summary->is_endp_list.l_head,
 			endp_unit, struct c2_rpc_form_item_summary_unit,
 			isu_linkage) {
 		c2_mutex_lock(endp_unit->isu_unit_lock);
@@ -83,7 +83,7 @@ static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 			coalesced_item_next,
 			struct c2_rpc_form_item_coalesced, ic_linkage) {
 		c2_list_del(&coalesced_item->ic_linkage);
-		c2_list_for_each_entry_safe(&coalesced_item->ic_member_list.
+		c2_list_for_each_entry_safe(coalesced_item->ic_member_list.
 				l_head, coalsced_member, coalesced_member_next,
 				struct c2_rpc_form_item_coalesced_member,
 				im_linkage) {
@@ -164,7 +164,7 @@ int c2_rpc_form_fini()
 	   This will help to block all new threads from entering
 	   the formation component.*/
 	c2_rwlock_read_lock(formation_summary->is_endp_list_lock);
-	c2_list_for_each_entry(&formation_summary->is_endp_list.l_head,
+	c2_list_for_each_entry(formation_summary->is_endp_list.l_head,
 			endp_unit, struct c2_rpc_form_item_summary_unit,
 			isu_linkage) {
 		c2_mutex_lock(endp_unit->isu_unit_lock);
@@ -181,7 +181,7 @@ int c2_rpc_form_fini()
 
 	/* Delete all endpoint units, all lists within each endpoint unit. */
 	c2_rwlock_write_lock(&formation_summary->isu_endp_list_lock);
-	c2_list_for_each_entry_safe(&formation_summary->is_endp_list.l_head,
+	c2_list_for_each_entry_safe(formation_summary->is_endp_list.l_head,
 			endp_unit, endp_unit_next, struct
 			c2_rpc_form_item_summary_unit, isu_linkage) {
 		c2_mutex_lock(endp_unit->isu_unit_lock);
@@ -199,7 +199,7 @@ int c2_rpc_form_fini()
 	c2_rwlock_write_unlock(&formation_summary->isu_endp_list_lock);
 
 	c2_rwlock_fini(&formation_summary->is_endp_list_lock);
-	c2_list_fini(&formation_summary->is_endp_list.l_head);
+	c2_list_fini(&formation_summary->is_endp_list);
 	c2_free(formation_summary);
 	formation_summary = NULL;
 	return 0;
@@ -229,17 +229,17 @@ static bool c2_rpc_form_is_endp_empty(struct c2_rpc_form_item_summary_unit
 {
 	C2_PRE(endp_unit != NULL);
 
-	if (!c2_list_is_empty(&endp_unit->isu_groups_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_groups_list))
 		return false;
-	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list))
 		return false;
-	if (!c2_list_is_empty(&endp_unit->isu_fid_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_fid_list))
 		return false;
-	if (!c2_list_is_empty(&endp_unit->isu_unformed_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_unformed_list))
 		return false;
-	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list))
 		return false;
-	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_checked_list.l_head))
+	if (!c2_list_is_empty(&endp_unit->isu_rpcobj_checked_list))
 		return false;
 	return true;
 }
@@ -261,12 +261,12 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
 	if (c2_rpc_form_is_endp_empty(endp_unit)) {
 		c2_mutex_fini(&endp_unit->isu_unit_lock);
 		c2_list_del(&endp_unit->isu_linkage);
-		c2_list_fini(&endp_unit->isu_groups_list.l_head);
-		c2_list_fini(&endp_unit->isu_coalesced_items_list.l_head);
-		c2_list_fini(&endp_unit->isu_fid_list.l_head);
-		c2_list_fini(&endp_unit->isu_unformed_list.l_head);
-		c2_list_fini(&endp_unit->isu_rpcobj_formed_list.l_head);
-		c2_list_fini(&endp_unit->isu_rpcobj_checked_list.l_head);
+		c2_list_fini(&endp_unit->isu_groups_list);
+		c2_list_fini(&endp_unit->isu_coalesced_items_list);
+		c2_list_fini(&endp_unit->isu_fid_list);
+		c2_list_fini(&endp_unit->isu_unformed_list);
+		c2_list_fini(&endp_unit->isu_rpcobj_formed_list);
+		c2_list_fini(&endp_unit->isu_rpcobj_checked_list);
 		endp_unit->isu_endp_id = NULL;
 		c2_free(endp_unit);
 	}
