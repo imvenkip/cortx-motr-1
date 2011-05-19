@@ -1,14 +1,10 @@
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#  include <config.h>
 #endif
 
 #include "lib/assert.h"
-#include "lib/memory.h"
 #include "stob/stob.h"
 #include "fop/fop.h"
-#include "fop/fom.h"
-#include "fop/fop_iterator.h"
-#include "dtm/dtm.h"
 
 #include "reqh.h"
 
@@ -17,89 +13,184 @@
    @{
  */
 
-/** 
- * Function to initialize request handler and fom domain
-*/
-int  c2_reqh_init(struct c2_reqh *reqh,
+int  c2_reqh_init(struct c2_reqh *reqh, 
 		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		  struct c2_stob_domain *dom, struct c2_dbenv *db_env, struct c2_fol *fol, struct c2_service *serv)
+		  struct c2_stob_domain *dom)
 {
-
-	if(reqh != NULL) {
-
-		printf("\nMandar: In c2_reqh_init\n");
-		
-	        int result = 0;
-        	size_t nr = 0;
-
-		reqh->rh_rpc = rpc;
-		reqh->rh_dtm = dtm;
-		reqh->rh_dom = dom;
-		reqh->rh_fol = fol;
-		reqh->rh_serv = serv;
-		reqh->rh_dbenv = db_env;
-
-        	result = c2_fom_domain_init(&reqh->rh_fom_dom, nr);
-
-        	if(!result && !reqh->rh_fom_dom)
-            		return 1;
-
-	}
-
+	reqh->rh_rpc = rpc;
+	reqh->rh_dtm = dtm;
+	reqh->rh_dom = dom;
 	return 0;
 }
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
-	C2_ASSERT(reqh != NULL);
-	C2_ASSERT(reqh->rh_fom_dom);
-	c2_fom_domain_fini(reqh->rh_fom_dom);	
-	
 }
 
-/** 
- * Function to accept fop and create corresponding fom 
- * and submit it for further processing.
-*/
-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
+/**
+   First do "standard actions":
+
+   @li authenticity checks: reqh verifies that protected state in the fop is
+   authentic. Various bits of information in C2 are protected by cryptographic
+   signatures made by a node that issued this information: object identifiers
+   (including container identifiers and fids), capabilities, locks, layout
+   identifiers, other resources identifiers, etc. reqh verifies authenticity of
+   such information by fetching corresponding node keys, re-computing the
+   signature locally and checking it with one in the fop;
+
+   @li resource limits: reqh estimates local resources (memory, cpu cycles,
+   storage and network bandwidths) necessary for operation execution. The
+   execution of operation is delayed if it would overload the server or exhaust
+   resource quotas associated with operation source (client, group of clients,
+   user, group of users, job, etc.);
+
+   @li resource usage and conflict resolution: reqh determines what distributed
+   resources will be consumed by the operation execution and call resource
+   management infrastructure to request the resources and deal with resource
+   usage conflicts (by calling DLM if necessary);
+
+   @li object existence: reqh extracts identities of file system objects
+   affected by the fop and requests appropriate stores to load object
+   representations together with their basic attributes;
+
+   @li authorization control: reqh extracts the identity of a user (or users) on
+   whose behalf the operation is executed. reqh then uses enterprise user data
+   base to map user identities into internal form. Resulting internal user
+   identifiers are matched against protection and authorization information
+   stored in the file system objects (loaded on the previous step);
+
+   @li distributed transactions: for operations mutating file system state, reqh
+   sets up local transaction context where the rest of the operation is
+   executed.
+
+   Once the standard actions are performed successfully, request handler creates
+   a fom for this fop type and delegates the rest of operation execution to the
+   fom.
+ */
+void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
 {
-	struct c2_fom *fom = NULL;
-        struct c2_fop_ctx       *ctx;
-	struct c2_dtx	*tx;
-        int                     result = 0;
-		
-	tx = c2_alloc(sizeof(struct c2_dtx));
+#if 0
+	struct c2_fop_iterator    it;
+	struct c2_fom            *fom;
+	struct c2_fop_field_value val;
+	struct c2_res_set         sack;
+	struct c2_res            *res;
+	struct c2_obj_set         bag;
+	struct c2_obj            *obj;
+	struct c2_principal      *usr;
 
-	/** initialize database **/
-        result = c2_db_tx_init(&tx->tx_dbtx, reqh->rh_dbenv, 0);
+	c2_fop_iterator_init(&it, fop);
 
-	ctx = c2_alloc(sizeof(struct c2_fop_ctx));
-        ctx->ft_service = reqh->rh_serv;
-        ctx->fc_cookie  = cookie;
-	ctx->fc_fol = reqh->rh_fol;
-	ctx->fc_domain = reqh->rh_dom;
-       	ctx->fc_tx = tx;
+	/*
+	 * Iterate over all protected state in the fop and verify signatures.
+	 */
+	c2_fop_for_each(&it, &val, PROTECTED_STATE) {
+		if (!c2_sec_is_valid(&val)) {
+			fop_error(-EPERM);
+			return;
+		}
+	}
 
-	if(fop != NULL) {
-	
-		/*
-		 * Initialize fom for fop processing
-		 */
-		result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-		C2_ASSERT(fom != NULL);
+	/*
+	 * Iterate over local resources that fop execution might need at wait
+	 * until resources are available.
+	 */
+	c2_fop_for_each(&it, &val, LOCAL_RESOURCES) {
+		res = c2_fop_field_as_res(&val);
+		while (!c2_res_can_grab(res))
+			c2_res_wait(res);
+	}
 
-		if(fom != NULL) {
-			c2_fom_init(fom);
-		        fom->fo_fop_ctx = ctx;
-			if(reqh->rh_fom_dom != NULL) {
-				/* 
-				 * find locality and submit fom for further processing
-				 */		
-				c2_fom_queue(reqh->rh_fom_dom, fom);
-			}
-		}	
-	}	
-	
+	/*
+	 * Iterate over global resources that fop execution might need...
+	 */
+	c2_fop_for_each(&it, &val, GLOBAL_RESOURCES) {
+		res = c2_fop_field_as_res(&val);
+		c2_res_portfolio_add(&sack, res);
+	}
+
+	/*
+	 * ... sort required resource.
+	 */
+	c2_res_portfolio_sort(&sack);
+
+	/*
+	 * ... enqueue resources in the sorted order to avoid dead-locks.
+	 */
+	c2_res_portfolio_for_each(&sack, res) {
+		if (c2_res_has_conflict(res))
+			c2_res_enqueue(res);
+	}
+
+	/*
+	 * ... and wait for resources.
+	 */
+	c2_res_portfolio_for_each(&sack, res) {
+		while (!c2_res_available(res))
+			c2_res_wait(res);
+	}
+
+	/*
+	 * Iterate over all file system objects that the operation will
+	 * affect...
+	 */
+	c2_fop_for_each(&it, &val, OBJECT) {
+		obj = c2_fop_field_as_obj(&val);
+		c2_obj_set_add(&bag, obj);
+	}
+
+	/*
+	 * ... sort objects
+	 */
+	c2_obj_set_sort(&bag);
+
+	/*
+	 * ... load object attributes in the sorted order to optimize storage
+	 * IO.
+	 */
+	c2_obj_set_load(&bag);
+
+	/*
+	 * ... check that objects exist or do not exist as required.
+	 */
+	c2_obj_set_for_each(&bag, obj) {
+		bool needed;
+
+		needed = c2_fop_obj_must_exist(fop, obj);
+		if (c2_obj_exists(obj) != needed) {
+			fop_error(needed ? -ENOENT : -EEXIST);
+			return;
+		}
+	}
+
+	/*
+	 * Iterate over all user identities in the operation, map user
+	 * identities to internal identifiers by calling userdb_map() and check
+	 * that users are authorised to perform the operation requested.
+	 */
+	c2_fop_for_each(&it, &val, PRINCIPAL) {
+		usr = c2_fop_field_as_principal(&val);
+		c2_userdb_map(usr);
+		if (!c2_sec_authorised(usr, fop)) {
+			fop_error(-EPERM);
+			return;
+		}
+	}
+
+	/*
+	 * Start a transaction until the operation is read-only.
+	 */
+	if (c2_fop_is_update(fop))
+		reqh->rh_dtm->dtx_start(fop);
+
+	c2_fop_iterator_fini(&it);
+
+	/*
+	 * Create a fom and delegate the rest of operation execution to it.
+	 */
+	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+	fom->fm_ops->fmo_run(fom);
+#endif
 }
 
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
@@ -107,238 +198,9 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 {
 }
 
-/**
- * Function to authenticate fop.
- */
-int c2_fom_authen(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	return 0;
-}
-
-/**
- * Function to identify local resources
- * required for fop execution.
- */
-int c2_fom_loc_resource(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	return 0;
-}
-
-/** 
- * Function to identify distributed resources
- * required for fop execution.
- */
-int c2_fom_dist_resource(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	return 0;
-}
-
-/**
- * Function to locate and load file
- * system object, required for fop
- * execution.
- */
-int c2_fom_obj_check(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	return 0;
-}
-
-/**
- * Function to authorise fop in fom
- */
-int c2_fom_auth(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	return 0;
-}
-
-/**
- * Funtion to create local transactional context.
- */
-int c2_create_loc_ctx(struct c2_fom *fom)
-{	
-  	C2_ASSERT(fom != NULL);
-	int rc = 0;
-	rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fop_ctx->fc_fol, 
-	                        &fom->fo_fop_ctx->fc_tx->tx_dbtx);
-	
-return 0;				
-}
-/**
- * Function to handle generic operations of fom
- * like authentication, authorisation, acquiring resources, &tc
-*/
-int c2_fom_state_generic(struct c2_fom *fom)
-{
-	C2_ASSERT(fom != NULL);
-	int rc = 0;
-		
-	if(fom != NULL)
-	{	
-		switch(fom->fo_phase) {
-			case FOPH_INIT:
-			{	
-                                /** Start with fop authentication **/
-				fom->fo_phase = FOPH_AUTHENTICATE;
-			 
-				rc = c2_fom_authen(fom);
-				if(fom->fo_phase == FOPH_AUTHENTICATE_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-					c2_fom_block_at(fom, &fom->chan_gen_wait);
-					break;
-				}
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-			}
-			case FOPH_AUTHENTICATE:
-			{	
-				/* If done with authentication phase proceed with
-				 * acquiring local resource information, change phase
-				 * to FOPH_RESOURCE_LOCAL.
-				 */
-				fom->fo_phase = FOPH_RESOURCE_LOCAL;
-
-				/* collect local resources information for this fom */
-				rc = c2_fom_loc_resource(fom);
-				if(fom->fo_phase == FOPH_RESOURCE_LOCAL_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-					c2_fom_block_at(fom, &fom->chan_gen_wait);
-					break;
-				}
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-									
-			}
-			case FOPH_RESOURCE_LOCAL:
-			{	
-				/* If done with acquiring local resource information, proceed with 
-				 * acquiring distributed resource information, change phase to
-				 * FOPH_RESOURCE_DISTRIBUTED. 
-				 */
-				fom->fo_phase = FOPH_RESOURCE_DISTRIBUTED;
-
-				/* collect distributed resources information for this fom */
-				rc = c2_fom_dist_resource(fom);
-				if(fom->fo_phase == FOPH_RESOURCE_DISTRIBUTED_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-					c2_fom_block_at(fom, &fom->chan_gen_wait);
-					break;
-				}
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-			}
-			case FOPH_RESOURCE_DISTRIBUTED:
-			{
-				/* If done with acquiring distributed resource information, 
-				 * proceed with locating effective file system objects, 
-				 * and loading them, change phase to FOPH_OBJECT_CHECK.
-				 */
-				fom->fo_phase = FOPH_OBJECT_CHECK;
-
-				/* Locate and load various effective file system objects */
-				rc = c2_fom_obj_check(fom);
-				if(fom->fo_phase == FOPH_OBJECT_CHECK_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-					c2_fom_block_at(fom, &fom->chan_gen_wait);
-					break;
-				}
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-			}
-			case FOPH_OBJECT_CHECK:
-			{
-                                /* If done with object checking, proceed to fop authorisation,
-				 * change phase to FOPH_AUTHORISATION.
-				 */
-                                fom->fo_phase = FOPH_AUTHORISATION;
-				
-                                /* Authorise fop */
-                                rc = c2_fom_auth(fom);
-				if(fom->fo_phase == FOPH_AUTHORISATION_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-                                        c2_fom_block_at(fom, &fom->chan_gen_wait);
-                                        break;
-                                }
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-			}
-			case FOPH_AUTHORISATION:
-			{
-				/* If done with fop authorisation, create local transactional
-				 * context, change phase to FOPH_TXN_CONTEXT.
-				 */ 
-		
-                                fom->fo_phase = FOPH_TXN_CONTEXT;
-
-                                /* create local transactional context for this fom */
-				rc = c2_create_loc_ctx(fom);
-
-                                if(fom->fo_phase == FOPH_TXN_CONTEXT_WAIT) {
-                                        /* Operation is blocking,
-					 * register fom with the wait channel.
-					 */ 
-                                        c2_fom_block_at(fom, &fom->chan_gen_wait);
-                                        break;
-                                }
-				else
-				if(fom->fo_phase == FOPH_FAILED)
-					/* fop failed in generic phase, return the 
-					 * error code in reply fop.
-					 */
-					 break;
-			}
-			case FOPH_TXN_CONTEXT:
-			{
-                                /* If local transaction context created, proceed with 
-				 * fop execution.
-				 */
-                                fom->fo_phase = FOPH_EXEC;
-				break;
-			}
-			
-		}
-	
-	}
-	
-	return rc;
-}
 /** @} endgroup reqh */
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

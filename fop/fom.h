@@ -58,7 +58,6 @@ struct c2_fom_ops;
 
    @todo lock ordering.
  */
-
 struct c2_fom_locality {
 	struct c2_fom_domain *fl_dom;
 
@@ -111,17 +110,13 @@ struct c2_fom_domain {
 	size_t                          fd_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops *fd_ops;
-	/** flag to help locality threads termination
-	 * during clean up.
-	**/
-	bool 				fd_clean;
 };
 
 /** Operations vector attached to a domain. */
 struct c2_fom_domain_ops {
 	/** Called to select a home locality for a (new) fom. */
 	size_t (*fdo_home_locality)(const struct c2_fom_domain *dom,
-				     struct c2_fom *fom);
+				    const struct c2_fom *fom);
 	/** Returns true iff waiting (FOS_WAITING) fom timed out and should be
 	    moved into FOPH_TIMEOUT phase. */
 	bool   (*fdo_time_is_out)(const struct c2_fom_domain *dom,
@@ -171,18 +166,14 @@ enum c2_fom_phase {
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
 	FOPH_FAILED,                /*< fom failed. */
-
-	FOPH_EXEC,		    /*< start fop specific execution */
-	FOPH_EXEC_WAIT, 	    /*< waiting for fop execution */
 	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */
 };
 
-int  c2_fom_domain_init(struct c2_fom_domain **dom, size_t nr);
+int  c2_fom_domain_init(struct c2_fom_domain *dom, size_t nr);
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
-size_t fdo_find_home_loc(const struct c2_fom_domain *dom, struct c2_fom *fom);
 
 /**
    Queues a fom for the execution in a domain.
@@ -207,12 +198,10 @@ struct c2_fom {
 	struct c2_clink          fo_clink;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
-	/** request fop object, this fom belongs to **/
-	struct c2_fop		*fo_fop;
-	/* Temporary channel used to simulate generic phases of reqh */
-	struct c2_chan		chan_gen_wait;
-	struct c2_queue_link	fom_linkage;
-	struct c2_list_link     fom_link;
+	/** FOL object to make transactions of update operations. */
+	struct c2_fol		*fo_fol;
+	/** Stob domain in which this FOM is operating. */
+	struct c2_stob_domain	*fo_domain;
 };
 
 void c2_fom_init(struct c2_fom *fom);
