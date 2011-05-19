@@ -132,6 +132,7 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	*formation_summary;
 
+
 /**
    Check if refcounts of all endpoints are zero.
  */
@@ -165,6 +166,11 @@ struct c2_rpc_form_fid_summary_member {
 	/* c2_list <struct c2_rpc_form_fid_units > */
 	struct c2_list			 fsm_items;
 };
+
+/**
+   The global instance of rpc items cache.
+ */
+extern struct c2_rpc_form_items_cache	*items_cache;
 
 /** XXX The cache of rpc items. Ideally, it should
   come from grouping component, which does not exist at the

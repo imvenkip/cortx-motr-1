@@ -312,7 +312,7 @@ struct c2_rpc_item {
 	   once it is bound to a particular slot. */
 	uint64_t ri_xid;
 	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type *ri_type;
+	struct c2_rpc_item_type	*ri_type;
 	struct c2_chan ri_chan;
 	/** Linkage to the forming list, needed for formation */
 	struct c2_list_link	ri_rpcobject_linkage;
@@ -320,6 +320,8 @@ struct c2_rpc_item {
 	struct c2_list_link	ri_unformed_linkage;
 	/** Destination endpoint. */
 	struct c2_net_endpoint	ri_endp;
+	/** Timer associated with this rpc item.*/
+	struct c2_timer		ri_timer;
 };
 
 /**
