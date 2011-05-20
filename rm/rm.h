@@ -1134,7 +1134,7 @@ enum c2_rm_pin_flags {
    When the last RPF_PROTECT pin is removed from a right, the right becomes
    "cached" and the list of pins to the right is scanned. For each RPF_TRACK pin
    on the list, its incoming request is checked to see whether this was the
-   tracking pin the request is waiting for.
+   last tracking pin the request is waiting for.
 
    An incoming request might also issue an outgoing request to borrow or revoke
    some rights, necessary to fulfill the request. An RPF_TRACK pin is added from
