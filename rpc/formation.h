@@ -1,6 +1,7 @@
 #ifndef __C2_RPC_FORMATION_H__
 #define __C2_RPC_FORMATION_H__
 
+#include "fop/fop.h"
 #include "rpc/rpccore.h"
 #include "rpc/session.h"
 #include "lib/timer.h"

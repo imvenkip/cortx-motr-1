@@ -36,7 +36,7 @@ int c2_rpc_form_init()
 bool c2_rpc_form_wait_for_completion()
 {
 	bool				ret = true;
-	struct c2_atomic64		refcount;
+	int64_t				refcount;
 	struct c2_rpc_form_item_summary_unit	*endp_unit = NULL;
 	c2_rwlock_read_lock(formation_summary->is_endp_list_lock);
 	c2_list_for_each_entry(formation_summary->is_endp_list.l_head,
@@ -44,7 +44,7 @@ bool c2_rpc_form_wait_for_completion()
 			isu_linkage) {
 		c2_mutex_lock(endp_unit->isu_unit_lock);
 		refcount = c2_ref_read(&endp_unit->isu_sm.isu_ref);
-		if (refcount.a_value != 0) {
+		if (refcount != 0) {
 			ret = false;
 			c2_mutex_unlock(endp_unit->isu_unit_lock);
 			break;
@@ -137,7 +137,7 @@ static void c2_rpc_form_empty_fid_list(struct c2_list *list)
 	c2_list_for_each_entry_safe(list->l_head, fid_member, fid_member_next,
 			struct c2_rpc_form_fid_summary_member, fsm_linkage) {
 		c2_list_del(&fid_member->fsm_linkage);
-		c2_list_for_each_entry_safe(&fid_member->fsm_items.l_head,
+		c2_list_for_each_entry_safe(fid_member->fsm_items.l_head,
 				fid_units, fid_units_next,
 				struct c2_rpc_form_fid_units, fu_linkage) {
 			c2_list_del(&fid_units->fu_linkage);
@@ -593,7 +593,7 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(coalesced_struct != NULL);
 
-	c2_list_for_each_entry_safe(&coalesced_struct->ic_member_list->l_head, 
+	c2_list_for_each_entry_safe(coalesced_struct->ic_member_list->l_head, 
 			member, next_member, 
 			struct c2_rpc_form_item_coalesced_member, 
 			ic_member_list) {
@@ -709,7 +709,7 @@ static int c2_rpc_form_remove_rpcitem_from_summary_unit(
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
 
-	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, 
+	c2_list_for_each_entry(endp_unit->isu_groups_list.l_head, 
 			summary_group, 
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
@@ -761,7 +761,7 @@ static int c2_rpc_form_summary_groups_sort(
 	c2_list_del(&summary_group->sug_linkage);
 	/* Do a simple incremental search for a group having
 	   average timeout value bigger than that of given group. */
-	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, sg, 
+	c2_list_for_each_entry(endp_unit->isu_groups_list.l_head, sg, 
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
 		if (sg->sug_avg_timeout > summary_group->sug_avg_timeout) {
@@ -804,7 +804,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 
 	c2_list_add(&endp_unit->isu_unformed_list,
 			&item->ri_unformed_linkage);
-	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, 
+	c2_list_for_each_entry(endp_unit->isu_groups_list.l_head, 
 			summary_group, 
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
@@ -1113,7 +1113,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 
 	c2_list_init(&aggr_vec_list);
 	opcode = coalesced_item->ic_op_intent;
-	c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, 
+	c2_list_for_each_entry(coalesced_item->ic_member_list.l_head, 
 			member, 
 			struct c2_rpc_form_item_coalesced_member, 
 			im_linkage) {
@@ -1129,7 +1129,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 	/* 2. Create a new IO vector and put all IO segments from
 	   the retrieved IO vector in the new IO vector in a
 	   sorted fashion.*/
-	c2_list_for_each_entry(&coalesced_item->ic_member_list.l_head, member,
+	c2_list_for_each_entry(coalesced_item->ic_member_list.l_head, member,
 			struct c2_rpc_form_item_coalesced_member, im_linkage) {
 		item = member->ic_member_item;
 		if (opcode == C2_RPC_FORM_IO_READ) {
@@ -1164,8 +1164,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 					struct c2_fop_segment_seq.\n");
 			return -ENOMEM;
 		}
-		read_vec->fs_segs = c2_alloc(curr_segs * 
-				sizeof(struct c2_fop_segment*));
+		C2_ALLOC_ARR(read_vec->fs_segs, curr_segs);
 		if (read_vec->fs_segs == NULL) {
 			printf("Failed to allocate memory for 
 					struct c2_fop_segment.\n");
@@ -1197,8 +1196,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 					struct c2_fop_io_vec.\n");
 			return -ENOMEM;
 		}
-		write_vec->iov_seg = c2_alloc(curr_segs * 
-				sizeof(struct c2_fop_io_seg*));
+		C2_ALLOC_ARR(write_vec->iov_seg, curr_segs);
 		if (write_vec->iov_seg == NULL) {
 			printf("Failed to allocate memory for 
 					struct c2_fop_io_seg.\n");
@@ -1261,7 +1259,7 @@ static int c2_rpc_form_items_coalesce(
 	/* 3. For every unique combination of fid and intent(read/write)
 	   locate/create a struct c2_rpc_form_fid_summary_member and put
 	   it in endp_unit->isu_fid_list. */
-	c2_list_for_each_entry(&forming_list->l_head, item, 
+	c2_list_for_each_entry(forming_list->l_head, item, 
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		/* if (item->ri_type->rit_ops->rio_is_io_req(item)) { */
 		if(c2_rpc_item_is_io_req(item)) { 
@@ -1278,7 +1276,7 @@ static int c2_rpc_form_items_coalesce(
 			if (c2_rpc_get_update_stream(item) != NULL) {
 				continue;
 			}
-			c2_list_for_each_entry(&endp_unit->isu_fid_list.l_head,
+			c2_list_for_each_entry(endp_unit->isu_fid_list.l_head,
 					fid_member, 
 					struct c2_rpc_form_fid_summary_member, 
 					fsm_linkage) {
@@ -1321,7 +1319,7 @@ static int c2_rpc_form_items_coalesce(
 	/* 4. Now, traverse the endp_unit->isu_fid_list and coalesce the
 	      rpc items from the list of rpc items in each struct
 	      c2_rpc_form_fid_summary_member. */
-	c2_list_for_each_entry_safe(&endp_unit->isu_fid_list.l_head, 
+	c2_list_for_each_entry_safe(endp_unit->isu_fid_list.l_head, 
 			fid_member, fid_member_next, 
 			struct c2_rpc_form_fid_summary_member, 
 			fsm_linkage) {
@@ -1363,7 +1361,7 @@ static int c2_rpc_form_items_coalesce(
 			   forming list and
 			   increment rpcobj_size by its size. */
 			c2_list_for_each_entry(
-					&coalesced_item->ic_member_list.l_head, 
+					coalesced_item->ic_member_list.l_head, 
 					item_member, struct 
 					c2_rpc_form_item_coalesced_member, 
 					im_linkage) {
@@ -1430,7 +1428,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	c2_list_init(forming_list);
 
 	if (event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) {
-		c2_list_for_each_entry(&endp_unit->
+		c2_list_for_each_entry(endp_unit->
 				isu_coalesced_items_list->l_head,
 				coalesced_item,
 				struct c2_rpc_form_item_coalesced,
@@ -1464,7 +1462,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	/* Iterate over the c2_rpc_form_item_summary_unit_group list in the
 	   endpoint structure to find out which rpc groups can be included
 	   in the rpc object. */
-	c2_list_for_each_entry(&endp_unit->isu_groups_list.l_head, 
+	c2_list_for_each_entry(endp_unit->isu_groups_list.l_head, 
 			sg, struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
 		/* nselected_groups number includes the last partial
@@ -1487,7 +1485,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	//res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
 	//		&cache_list);
 	c2_mutex_lock(&cache_list->ic_mutex);
-	c2_list_for_each_entry(&endp_unit->isu_unformed_list.l_head, rpc_item, 
+	c2_list_for_each_entry(endp_unit->isu_unformed_list.l_head, rpc_item, 
 			struct c2_rpc_item, ri_unformed_linkage) {
 		/* item_size = rpc_item->ri_type->rit_ops->
 		   rio_item_size(item);*/
@@ -1507,7 +1505,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   group (if any), check if current rpc item belongs to this
 		   partial group and add the item till size of items in this
 		   partial group reaches its limit within max_message_size. */
-		c2_list_for_each_entry(&endp_unit->isu_groups_list, group,
+		c2_list_for_each_entry(endp_unit->isu_groups_list.l_head, group,
 				struct c2_rpc_form_item_summary_unit_group,
 				sug_linkage) {
 			ncurrent_groups++;
@@ -1577,8 +1575,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
 
-	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_checked_list.rl_list.l_head, rpcobj, rpcobj_next, struct c2_rpc_form_rpcobj, ro_linkage) {
-		c2_list_for_each_entry(&rpcobj->ro_rpcobj->r_items.l_head, 
+	c2_list_for_each_entry_safe(endp_unit->isu_rpcobj_checked_list.rl_list.l_head, rpcobj, rpcobj_next, struct c2_rpc_form_rpcobj, ro_linkage) {
+		c2_list_for_each_entry(rpcobj->ro_rpcobj->r_items.l_head, 
 				rpc_item, struct c2_rpc_item, 
 				ri_rpcobject_linkage) {
 			res = c2_rpc_session_item_prepare(rpc_item);
@@ -1623,10 +1621,10 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	/* Iterate over the rpc object list and send all rpc objects
 	   to the output component. */
 	c2_mutex_lock(&endp_unit->isu_rpcobj_formed_list.rl_lock);
-	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_formed_list.
+	c2_list_for_each_entry_safe(endp_unit->isu_rpcobj_formed_list.
 			rl_list.l_head, rpc_obj, 
 			rpc_obj_next, struct c2_rpc_form_rpcobj, 
-			ro_rpcobj) {
+			ro_linkage) {
 		endp = c2_rpc_session_get_endpoint(rpc_obj->rp_rpcobj);
 		if (endp_unit->isu_curr_rpcs_in_flight < 
 				endp_unit->isu_max_rpcs_in_flight) {
@@ -1712,28 +1710,22 @@ int c2_rpc_item_replied(struct c2_rpc_item *item)
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_segment		*read_seg = NULL;
 	struct c2_fop_cob_readv		*read_fop = NULL;
-	uint32_t			 nsegs = 0;
 
 	C2_PRE(item != NULL);
 	/* Find out fop from the rpc item,
 	   Find out opcode of rpc item,
-	   Deallocate the io vector of rpc item accordingly.
-	 */
+	   Deallocate the io vector of rpc item accordingly.*/
 
 	fop = container_of(item, struct c2_fop, f_item);
 	C2_ASSERT(fop != NULL);
 
 	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
 		read_fop = c2_fop_data(fop);
-		for (1; nsegs < read_fop->frd_ioseg.fs_count; nsegs++) {
-			c2_free(read_fop->frd_ioseg.fs_segs[nsegs]);
-		}
+		c2_free(read_fop->frd_ioseg.fs_segs);
 	}
 	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		write_fop = c2_fop_data(fop);
-		for (1; nsegs < write_fop->fwr_iovec.iov_count; nsegs++) {
-			c2_free(write_fop->fwr_iovec.iov_seg[nsegs]);
-		}
+		c2_free(write_fop->fwr_iovec.iov_seg);
 	}
 	c2_fop_free(fop);
 	return 0;
@@ -1751,6 +1743,7 @@ uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
 	uint64_t			 size = 0;
 	struct c2_fop_cob_writev	*write_fop = NULL;
 	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
 	uint64_t			 vec_count = 0;
 	int				 i = 0;
 
@@ -1761,22 +1754,35 @@ uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
 
 	/** Size of fop layout */
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	size += sizeof(struct c2_fop_type);
+	size += sizeof(struct c2_fop);
 
 	opcode = fop->f_type->ft_code;
-
-	/** Add buffer payload for read reply */
-	if(opcode == c2_io_service_readv_rep_opcode ) {
-		read_rep_fop = c2_fop_data(fop);
-		size += read_rep_fop->frdr_buf.f_count;
-	}
-	/** Add buffer payload for write request */
-	else if (opcode == c2_io_service_writev_opcode) {
-		write_fop = c2_fop_data(fop);
-		vec_count = write_fop->fwr_iovec.iov_count;
-		for(i = 0; i < vec_count; i++) {
-			size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
-		}
-	}
+	switch (opcode) {
+		case c2_io_service_readv_opcode:
+			/* Buffer payload for read request. */
+			read_fop = c2_fop_data(fop);
+			/* Size of holding structure. */
+			size += (read_fop->frd_ioseg.fs_count *
+					sizeof(struct c2_fop_segment));
+		case c2_io_service_readv_rep_opcode:
+			/** Add buffer payload for read reply */
+			read_rep_fop = c2_fop_data(fop);
+			/* Size of actual user data. */
+			size += read_rep_fop->frdr_buf.f_count;
+			/* For read reply type, there is only one buffer.*/
+		case c2_io_service_writev_opcode:
+			/** Add buffer payload for write request */
+			write_fop = c2_fop_data(fop);
+			vec_count = write_fop->fwr_iovec.iov_count;
+			/* Size of actual user data. */
+			for(i = 0; i < vec_count; i++) {
+				size += write_fop->fwr_iovec.iov_seg[i].f_buf.fcount;
+			}
+			/* Size of holding structure. */
+			size += write_fop->fwr_iovec.iov_count *
+				sizeof(c2_fop_io_seg);
+	};
 
 	return size;
 }
@@ -1887,7 +1893,9 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
 	struct c2_fop_cob_readv		*read_fop = NULL;
 	int opcode			 opcode;
 	uint64_t			 nfragments = 0;
-	uint64_t			 seg_offset = 0;
+	uint64_t			 s_offset = 0;
+	uint64_t			 s_count = 0;
+	uint64_t			 next_s_offset = 0;
 	uint64_t			 seg_count = 0;
 	int				 i = 0;
 
@@ -1901,9 +1909,12 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
 	if(opcode == c2_io_service_readv_opcode) {
 		read_fop = c2_fop_data(fop);
 		seg_count = read_fop->frd_ioseg.fs_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
-			if(seg_offset != 0) {
+		for (i = 0; i < seg_count - 1; i++) {
+			s_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
+			s_count = read_fop->frd_ioseg.fs_segs[i].f_count;
+			next_s_offset = read_fop->frd_ioseg.fs_segs[i+1].
+				f_offset;
+			if ((s_offset + s_count) != next_s_offset) {
 				nfragments++;
 			}
 		}
@@ -1911,9 +1922,12 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
 	else if (opcode == c2_io_service_writev_opcode) {
 		write_fop = c2_fop_data(fop);
 		seg_count = write_fop->fwr_iovec.iov_count;
-		for (i = 0; i < seg_count; i++) {
-			seg_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
-			if(seg_offset != 0) {
+		for (i = 0; i < seg_count - 1; i++) {
+			s_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
+			s_count = write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
+			next_s_offset = write_fop->fwr_iovec.iov_seg[i+1].
+				f_offset;
+			if((s_offset + s_count) != next_s_offset) {
 				nfragments++;
 			}
 		}
@@ -1985,8 +1999,8 @@ int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
 	fop = container_of(curr_item, struct c2_fop, f_item);
 	C2_ASSERT(fop != NULL);
 
-	res = fop->f_type->ft_ops->fto_get_write_fop(&res_fop, vec);
-	res_item = res_fop->f_item;
+	res = fop->f_type->ft_ops->fto_get_io_fop(&res_fop, vec);
+	res_item = &res_fop->f_item;
 	return 0;
 }
 
@@ -2008,7 +2022,7 @@ int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
 	fop = container_of(curr_item, struct c2_fop, f_item);
 	C2_ASSERT(fop != NULL);
 
-	res = fop->f_type->ft_ops->fto_get_read_fop(fop, &res_fop, seg);
-	res_item = res_fop->f_item;
+	res = fop->f_type->ft_ops->fto_get_io_fop(fop, &res_fop, seg);
+	res_item = &res_fop->f_item;
 	return 0;
 }

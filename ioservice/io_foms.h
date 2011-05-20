@@ -105,6 +105,13 @@ enum c2_io_fom_cob_readv_phases {
 /** Finish method of read FOM object */
 void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
 
+/** Some extern methods used in rpc subsystem.*/
+int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+		void *ioseg);
+
+int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+		void *iovec);
+
 /** @} end of io_foms */
 
 /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
