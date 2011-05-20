@@ -121,6 +121,8 @@
 #include "lib/refs.h"
 #include "lib/chan.h"
 #include "net/net.h"
+#include "lib/time.h"
+#include "lib/timer.h"
 
 struct c2_fop;
 struct c2_rpc;
@@ -303,7 +305,7 @@ struct c2_rpc_item {
 	struct c2_ref ri_ref;
 
 	enum c2_rpc_item_priority  ri_prio;
-	struct c2_time_t	   ri_deadline;
+	c2_time_t	   ri_deadline;
 	struct c2_rpc_group       *ri_group;
 
 	enum c2_rpc_item_state     ri_state;
@@ -451,7 +453,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
    @return <0 failure
  */
 int c2_rpc_submit(struct c2_update_stream *us, struct c2_rpc_item *item,
-		  enum c2_rpc_item_priority prio,
+		  c2_rpc_item_priority prio,
 		  const struct c2_time *deadline);
 
 /**
@@ -512,7 +514,7 @@ int c2_rpc_group_close(struct c2_rpcmachine *machine, struct c2_rpc_group *group
 int c2_rpc_group_submit(struct c2_rpc_group *group,
 			struct c2_rpc_item *item,
 			struct c2_update_stream *us,
-			enum c2_rpc_item_priority prio,
+			c2_rpc_item_priority prio,
 			const struct c2_time *deadline);
 
 /**
