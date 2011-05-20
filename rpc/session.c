@@ -493,6 +493,8 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
                  * If got_event == false then TIME_OUT has occured.
                  * break the loop
                  */
+		printf("conn_timedwait: got %s\n",
+				got_event ? "event" : "timeout");
         }
 
         c2_clink_del(&clink);

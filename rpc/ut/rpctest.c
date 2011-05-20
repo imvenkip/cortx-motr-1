@@ -410,6 +410,24 @@ void test_session_create()
 }
 struct c2_rpc_conn		conn;
 struct c2_rpc_session			session;
+struct c2_thread	thread;
+
+void conn_status_check(void *arg)
+{
+	struct c2_time		timeout;
+	bool			got_event;
+
+	printf("Thread about to start wait on conn ACTIVE\n");
+	c2_time_now(&timeout);
+	timeout.ts.tv_sec += 3;
+	got_event = c2_rpc_conn_timedwait(&conn, CS_CONN_ACTIVE,
+			&timeout);
+	if (got_event && conn.c_state == CS_CONN_ACTIVE) {
+		printf("thread: conn is active %lu\n", conn.c_sender_id);
+	} else {
+		printf("thread: time out during conn creation\n");
+	}
+}
 void test_snd_conn_create()
 {
 	struct c2_service_id		svc_id;
@@ -423,6 +441,10 @@ void test_snd_conn_create()
 	C2_ASSERT(conn.c_state == CS_CONN_INITIALIZING ||
 			conn.c_state == CS_CONN_INIT_FAILED);
 
+	c2_thread_init(&thread, NULL, conn_status_check, NULL);
+
+	sleep(5);
+
 	fop = c2_fop_alloc(&c2_rpc_conn_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
@@ -434,9 +456,9 @@ void test_snd_conn_create()
 	fop_ccr->rccr_cookie = (uint64_t)&conn;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
-
+	c2_thread_join(&thread);
+	c2_thread_fini(&thread);
 }
-struct c2_thread	thread;
 static void thread_entry(void *arg)
 {
 	struct c2_time		timeout;
@@ -485,6 +507,7 @@ void test_snd_session_create()
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
 	c2_thread_join(&thread);
+	c2_thread_fini(&thread);
 }
 
 void test_snd_session_terminate()
