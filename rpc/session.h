@@ -313,9 +313,17 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
 /**
     Wait until c2_rpc_conn state machine reached the desired state.
+
+    @param state_flags can specify multiple states by ORing 
+    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @return true if @conn reaches in one of the state(s) specified by 
+                @state_flags
+    @return false if time out has occured before @conn reaches in desired 
+                state.
  */
-void c2_rpc_conn_timedwait(struct c2_rpc_conn *, uint64_t,
-                        const struct c2_time *);
+bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
+			   uint64_t		state_flags,
+			   const struct c2_time	*abs_timeout);
 
 /**
    checks internal consistency of c2_rpc_conn
@@ -461,9 +469,17 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
 
 /**
     Wait until desired state is reached.
+
+    @param state_flags can specify multiple states by ORing 
+    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @return true if session reaches in one of the state(s) specified by 
+		@state_flags
+    @return false if time out has occured before session reaches in desired 
+		state.
  */
-void c2_rpc_session_timedwait(struct c2_rpc_session *session,
-		uint64_t, const struct c2_time *abs_timeout);
+bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
+			      uint64_t 			state_flags,
+			      const struct c2_time 	*abs_timeout);
 
 /**
    Finalize session object

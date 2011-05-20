@@ -477,11 +477,28 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	C2_SET0(conn);
 }
 
-void c2_rpc_conn_timedwait(struct c2_rpc_conn	*rpc_conn,
+bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 			   uint64_t		state_flags,
-                           const struct c2_time	*time)
+                           const struct c2_time	*abs_timeout)
 {
+        struct c2_clink         clink;
+        bool                    got_event = true;
 
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&conn->c_chan, &clink);
+
+        while ((conn->c_state & state_flags) == 0 && got_event) {
+                got_event = c2_chan_timedwait(&clink, abs_timeout);
+                /*
+                 * If got_event == false then TIME_OUT has occured.
+                 * break the loop
+                 */
+        }
+
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
+
+        return got_event;
 }
 
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *rpc_conn)
@@ -554,12 +571,12 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 		session->s_state = SESSION_CREATE_FAILED;
 	} else {
 		session->s_state = SESSION_CREATING;
-	}
-	c2_mutex_lock(&conn->c_mutex);
-	c2_list_add(&conn->c_sessions, &session->s_link);
-	conn->c_nr_sessions++;
-	c2_mutex_unlock(&conn->c_mutex);
 
+		c2_mutex_lock(&conn->c_mutex);
+		c2_list_add(&conn->c_sessions, &session->s_link);
+		conn->c_nr_sessions++;
+		c2_mutex_unlock(&conn->c_mutex);
+	}
 	c2_chan_broadcast(&session->s_chan);
 
 	return rc;
@@ -597,6 +614,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
+
 	/*
 	 * For a c2_rpc_conn
 	 * There can be only session create in progress at any given point
@@ -617,20 +635,27 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	 */
 	C2_ASSERT(session != NULL);
 
+	c2_mutex_lock(&session->s_mutex);
 	printf("Found session object %p\n", session);
-	c2_mutex_unlock(&conn->c_mutex);
 
 	if (fop_scr->rscr_rc != 0) {
 		session->s_state = SESSION_CREATE_FAILED;
+
+		c2_list_del(&session->s_link);
+		conn->c_nr_sessions--;
 	} else {
 		printf("setting session id to %lu\n", fop_scr->rscr_session_id);
 		session->s_session_id = fop_scr->rscr_session_id;
 		session->s_state = SESSION_ALIVE;
 	}
-	c2_chan_broadcast(&session->s_chan);
 
 	C2_ASSERT(session->s_state == SESSION_ALIVE ||
 			session->s_state == SESSION_CREATE_FAILED);
+
+	c2_mutex_unlock(&session->s_mutex);
+	c2_mutex_unlock(&conn->c_mutex);
+	c2_chan_broadcast(&session->s_chan);
+
 	return;
 }
 
@@ -646,6 +671,13 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
 	printf("Session terminate called for %lu\n", session->s_session_id);
+
+	/*
+	 * Make sure session does not have any "reserved" session id
+	 */
+	C2_ASSERT(session->s_session_id != SESSION_ID_INVALID &&
+			session->s_session_id != SESSION_0 &&
+			session->s_session_id != SESSION_ID_NOSESSION);
 
 	c2_mutex_lock(&session->s_mutex);
 
@@ -768,11 +800,30 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	printf("Session terminate reply received finished\n");
 }
 
-void c2_rpc_session_timedwait(struct c2_rpc_session	*session,
+bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 			      uint64_t			state_flags,
 			      const struct c2_time	*abs_timeout)
 {
+	struct c2_clink		clink;
+	bool 			got_event = true;
 
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&session->s_chan, &clink);
+
+	while ((session->s_state & state_flags) == 0 && got_event) {
+		got_event = c2_chan_timedwait(&clink, abs_timeout);
+		/*
+		 * If got_event == false then TIME_OUT has occured.
+		 * break the loop
+		 */
+		printf("Session_timedwait: got_event %s\n",
+				got_event ? "event" : "timeout");
+	}
+
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	return got_event;
 }
 
 void c2_rpc_session_fini(struct c2_rpc_session *session)

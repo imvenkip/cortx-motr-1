@@ -436,6 +436,23 @@ void test_snd_conn_create()
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
 }
+struct c2_thread	thread;
+static void thread_entry(void *arg)
+{
+	struct c2_time		timeout;
+	bool			got_event;
+
+	printf("Thread about to start wait on session ALIVE\n");
+	c2_time_now(&timeout);
+	timeout.ts.tv_sec += 3;
+	got_event = c2_rpc_session_timedwait(&session, SESSION_ALIVE,
+			&timeout);
+	if (got_event && session.s_state == SESSION_ALIVE) {
+		printf("thread: session got created %lu\n", session.s_session_id);
+	} else {
+		printf("thread: time out during session creation\n");
+	}
+}
 void test_snd_session_create()
 {
 	struct c2_fop				*fop;
@@ -449,6 +466,8 @@ void test_snd_session_create()
 		printf("test_sc: failed to create session\n");
 		return;
 	}
+	c2_thread_init(&thread, NULL, thread_entry, NULL);
+	sleep(1);
 	fop = c2_fop_alloc(&c2_rpc_session_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
@@ -464,6 +483,8 @@ void test_snd_session_create()
 	item->ri_mach = machine;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
+
+	c2_thread_join(&thread);
 }
 
 void test_snd_session_terminate()
@@ -527,8 +548,6 @@ void test_snd_conn_terminate()
 }
 int main(void)
 {
-
-
 	printf("Program start\n");
 	c2_init();
 
