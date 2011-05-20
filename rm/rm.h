@@ -1114,7 +1114,7 @@ enum c2_rm_pin_flags {
    it and a right has a list of pins "to" it. Let's look at the typical use
    cases.
 
-   <b>Protection.<b>
+   <b>Protection.</b>
 
    While a right is actively used, it cannot be revoked. For example, while file
    write is going on, the right to write in the target file extent must be
