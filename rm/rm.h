@@ -84,7 +84,7 @@
    In a given ownership transfer operation, a downward owner is "debtor" and
    upward owner is "creditor". The right being transferred is called a "loan"
    (note that this word is used only as a noun). When a right is transferred
-   from a creditor to a debtor, the former "borrows" and the latter "sub-lets"
+   from a creditor to a debtor, the latter "borrows" and the former "sub-lets"
    the loan. When a right is transferred in the other direction, the creditor
    "revokes" and debtor "returns" the loan.
 
