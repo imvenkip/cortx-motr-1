@@ -1151,7 +1151,7 @@ enum c2_rm_pin_flags {
    @verbatim
 
 
-       ->ro_owned[]--->R------>R         R<------R<----------+
+        ->ro_owned[]--->R------>R        R<------R<----------+
                         |       |        |       |           |
  ->ro_incoming[]        |       |        |       |           |
         |               |       |        |       |           |
