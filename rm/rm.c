@@ -178,7 +178,6 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
         owner->ro_group = NULL;
         res->r_ref = 0;
 
-        c2_mutex_lock(&owner->ro_lock);
 	c2_list_fini(&owner->ro_borrowed);
 	c2_list_fini(&owner->ro_sublet);
 
@@ -194,7 +193,6 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
                 c2_list_fini(&owner->ro_outgoing[i]);
 
         res->r_ref = 0;
-        c2_mutex_unlock(&owner->ro_lock);
         c2_mutex_fini(&owner->ro_lock);
 }
 
@@ -236,11 +234,43 @@ static void outgoing_delete(struct c2_rm_outgoing *out)
 /**
 * @brief 
 *
+* @param right
+* @param rest
+*
+* @return 
+*/
+static int right_copy(struct c2_rm_right *dest, 
+		      const struct c2_rm_right *src)
+{
+	memcpy(dest, src, sizeof (struct c2_rm_right));
+	if (dest->ri_datum == src->ri_datum)
+		return 0;
+	else
+		return -1;
+}
+
+/**
+* @brief 
+*
 * @param in
 */
 static void apply_policy(struct c2_rm_incoming *in)
 {
-	in->rin_policy = RIP_NONE;
+
+	switch (in->rin_policy) {
+		case RIP_INPLACE:
+			break;	
+		case RIP_STRICT:
+			break;	
+		case RIP_JOIN:
+			break;	
+		case RIP_MAX:
+			break;	
+		case RIP_NONE:
+			break;	
+		default:
+			break;	
+	}
 }
 
 /**
@@ -262,7 +292,7 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 		right = pin->rp_right;
 		C2_ALLOC_PTR(loan);
 		C2_ASSERT(loan != NULL);
-		bcopy(right, &loan->rl_right, sizeof(struct c2_rm_right));
+		right_copy(&loan->rl_right, right);
 		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
 	}
 }
@@ -318,23 +348,6 @@ static void remove_rights(struct c2_rm_incoming *in)
 	}
 }
 
-/**
-* @brief 
-*
-* @param right
-* @param rest
-*
-* @return 
-*/
-static int right_copy(const struct c2_rm_right *right,
-		      struct c2_rm_right *rest)
-{
-	bcopy(right, rest, sizeof(struct c2_rm_right));
-	if (rest->ri_datum == right->ri_datum)
-		return 0;
-	else
-		return -1;
-}
 
 /**
 * @brief resource type private field. By convention, 0 means "empty"
@@ -343,12 +356,9 @@ static int right_copy(const struct c2_rm_right *right,
 *
 * @return 
 */
-static bool right_empty(const struct c2_rm_right *rest)
+static bool right_is_empty(const struct c2_rm_right *right)
 {
-	if (rest->ri_datum)
-		return false;
-	else
-		return true;
+	return right->ri_datum == 0;
 }
 
 /**
@@ -536,6 +546,12 @@ static void owner_balance(struct c2_rm_owner *o)
 					     &in->rin_want.ri_linkage);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
+
+				if (in->rin_state == RI_SUCCESS || 
+				    in->rin_state == RI_FAILURE) {
+				    in->rin_ops->rio_complete(in,
+				    			      in->rin_state);
+				}
 			}
 		}
 	} while (todo);
@@ -568,14 +584,14 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 */
 
 	owner = in->rin_owner;
-	right_copy(&in->rin_want, &rest);
+	right_copy(&rest, &in->rin_want);
 
 	/*
 	 * Check for "local" wait conditions.
 	 */
 	incoming_check_local(in, &rest);
 
-	if (right_empty(&rest)) {
+	if (right_is_empty(&rest)) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
@@ -630,7 +646,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 			sublet_revoke(in, &rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
-			while (!right_empty(&rest)) {
+			while (!right_is_empty(&rest)) {
 				struct c2_rm_loan borrow;
 				/** @todo implement net_locate */
 				//c2_rm_net_locate(rest, &borrow);
@@ -638,7 +654,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 				       &borrow, &borrow.rl_right);
 			}
 		}
-		if (right_empty(&rest)) {
+		if (right_is_empty(&rest)) {
 			in->rin_state = RI_WAIT;
 		} else {
 			/* cannot fulfill the request. */
@@ -697,7 +713,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 			if (rest->ri_ops->rro_implies(right,rest)) {
 				if (!coverage) {
 					rest->ri_ops->rro_diff(rest,right);
-					if (right_empty(rest))
+					if (right_is_empty(rest))
 						return;
 				}
 				pin_add(in, right);
@@ -810,7 +826,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		out->rog_type = otype;
 		out->rog_want.rl_other = loan->rl_other;
 		out->rog_want.rl_id    = loan->rl_id;
-		right_copy(right, &out->rog_want.rl_right);
+		right_copy(&out->rog_want.rl_right, right);
 		c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
 		    	&out->rog_want.rl_right.ri_linkage);
 		result = pin_add(in, &out->rog_want.rl_right);
@@ -823,24 +839,50 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 int c2_rm_right_timedwait(struct c2_rm_incoming *in,
                           const c2_time_t deadline)
 {
-	struct c2_clink clink;
+	struct c2_rm_owner *owner = in->rin_owner;
+	struct c2_clink    clink;
+	bool		   retval;
+	int		   result = 0;
 
-	c2_chan_init(&in->rin_signal);
-	c2_clink_add(&in->rin_signal, &clink);
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&in->rin_signal, &clink);
+	c2_rm_right_get(owner,in);
+	while(in->rin_state != RI_SUCCESS ||
+	      in->rin_state != RI_FAILURE) {
+        	retval = c2_chan_timedwait(&clink, deadline);
 
-	return 0;
+		if(retval)
+			break;
+	}
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
+
+	if (in->rin_state != RI_SUCCESS)
+		result = -ETIMEDOUT;
+
+	return result;
 }
 
 int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 			 struct c2_rm_incoming *in)
 {
-	c2_time_t expire;
-	c2_time_set(&expire, 10, 0);
+	struct c2_clink clink;
+	int		result;
 
-	c2_rm_right_timedwait(in, expire);
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&in->rin_signal, &clink);
+	c2_rm_right_get(owner,in);
+	while(in->rin_state != RI_SUCCESS ||
+	      in->rin_state != RI_FAILURE) {
+        	c2_chan_wait(&clink);
+	}
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
 
-	c2_rm_right_get(owner, in);
-	return 0;
+	if (in->rin_state != RI_SUCCESS)
+		result = -ECANCELED;
+
+	return result;
 }
 
 /** @} end of Owner state machine group */

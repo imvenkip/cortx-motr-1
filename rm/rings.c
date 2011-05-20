@@ -5,6 +5,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/chan.h"
 
 #include "rm/rm.h"
 
@@ -24,56 +25,25 @@ struct c2_rm_resource_type_ops rings_rtype_ops = {
 	.rto_decode = NULL
 };
 
-static int shift_count(uint64_t value)
-{
-        int shifts = 0;
-
-        do {
-                value = value >> 1;
-                shifts++;
-        } while (value != 0x1);
-
-        return shifts;
-}
-
 static void right_meet(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	if(r1->ri_datum <= r0->ri_datum)
-                r0->ri_datum = r1->ri_datum >> 1;
-        else
-                r0->ri_datum = r0->ri_datum >> 1;
+	r0->ri_datum = r0->ri_datum & r1->ri_datum ;
 }
 
 static void right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	if(r1->ri_datum >= r0->ri_datum)
-                r0->ri_datum = r1->ri_datum << 1;
-        else
-                r0->ri_datum = r0->ri_datum << 1;
+	r0->ri_datum = r0->ri_datum | r1->ri_datum ;
 }
 
 static void right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	int r0_value;
-        int r1_value;
-
-        if (r0->ri_ops->rro_implies(r0, r1)) {
-                r0_value = shift_count(r0->ri_datum);
-                r1_value = shift_count(r1->ri_datum);
-                if (r1_value == r0_value)
-                        r0->ri_datum = 0;
-                else
-                        r0->ri_datum = 1 << (r1_value - r0_value);
-        }
+	r0->ri_datum = r0->ri_datum & ~r1->ri_datum ;
 }
 
 static bool right_implies(const struct c2_rm_right *r0,
 			  const struct c2_rm_right *r1)
 {
-	if (r1->ri_datum <= r0->ri_datum)
-                return true;
-        else
-                return false;
+	return ((r0->ri_datum & r1->ri_datum) == r0->ri_datum);
 }
 
 struct c2_rm_right_ops rings_right_ops = {
@@ -87,6 +57,7 @@ struct c2_rm_right_ops rings_right_ops = {
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
+	c2_chan_broadcast(&in->rin_signal);
 }
 
 static void incoming_conflict(struct c2_rm_incoming *in)
