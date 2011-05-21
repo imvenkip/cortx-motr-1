@@ -433,17 +433,18 @@ void test_snd_conn_create()
 	struct c2_service_id		svc_id;
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_create_rep	*fop_ccr;
+	struct c2_rpc_item		*item;
 
 	C2_SET0(&svc_id);
 
-	printf("testing conn_create\n");
+	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
 	C2_ASSERT(conn.c_state == CS_CONN_INITIALIZING ||
 			conn.c_state == CS_CONN_INIT_FAILED);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL);
 
-	sleep(5);
+	sleep(1);
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
@@ -455,6 +456,9 @@ void test_snd_conn_create()
 	fop_ccr->rccr_snd_id = 20;
 	fop_ccr->rccr_cookie = (uint64_t)&conn;
 
+	item = c2_fop_to_rpc_item(fop);
+	item->ri_mach = machine;
+	
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_thread_join(&thread);
 	c2_thread_fini(&thread);

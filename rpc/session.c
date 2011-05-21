@@ -179,7 +179,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	struct c2_time			deadline;
 	int				rc;
 
-	C2_PRE(conn != NULL);
+	C2_PRE(conn != NULL && conn->c_state == CS_CONN_UNINITIALIZED);
 
 	printf("conn_create: called\n");
 	C2_SET0(conn);
@@ -190,12 +190,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	conn->c_nr_sessions = 0;
 	c2_chan_init(&conn->c_chan);
 	c2_mutex_init(&conn->c_mutex);
+	c2_list_link_init(&conn->c_link);
 	conn->c_flags = 0;
-
-	/*
-	 * XXX temporary:
-	 * TODO: Find out how to get reference to rpcmachine from rpc-core
-	 */
 	conn->c_rpcmachine = machine;
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
@@ -220,16 +216,18 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	item->ri_sender_id = SENDER_ID_INVALID;
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
+	conn->c_state = CS_CONN_INITIALIZING;
+	conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
+	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
+
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
 
-	if (rc == 0) {
-		conn->c_state = CS_CONN_INITIALIZING;
-		conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
-	} else {
+	if (rc != 0) {
 		conn->c_state = CS_CONN_INIT_FAILED;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
+		c2_list_del(&conn->c_link);
 	}
 	printf("conn_create: finished %d\n", rc);
 	return rc;
@@ -238,7 +236,11 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 {
 	struct c2_rpc_conn_create_rep	*fop_ccr;
+	struct c2_rpc_conn_create	*fop_conn_create;
 	struct c2_rpc_conn		*conn;
+	struct c2_rpc_item		*item;
+	struct c2_rpcmachine		*machine;
+	bool				found = false;
 
 	C2_PRE(fop != NULL);
 
@@ -247,8 +249,34 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 	C2_ASSERT(fop_ccr != NULL);
 
-	conn = (struct c2_rpc_conn *)fop_ccr->rccr_cookie;
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
+	machine = item->ri_mach;
+
+	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
+				struct c2_rpc_conn, c_link) {
+		if (conn->c_state == CS_CONN_INITIALIZING) {
+			C2_ASSERT(conn->c_private != NULL);
+
+			fop_conn_create = c2_fop_data(conn->c_private);
+			C2_ASSERT(fop_conn_create != NULL);
+
+			if (fop_conn_create->rcc_cookie ==
+				fop_ccr->rccr_cookie) {
+				C2_ASSERT(fop_conn_create->rcc_cookie ==
+						(uint64_t)conn);
+				printf("found conn: %p\n", conn);
+				found = true;
+				break;
+			}
+		}
+	}
+	if (!found) {
+		printf("Couldn't find conn object\n");
+		C2_ASSERT(0);
+		return;
+	}
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
@@ -273,12 +301,11 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		 */
 		conn->c_state = CS_CONN_INIT_FAILED;
 		conn->c_sender_id = SENDER_ID_INVALID;
+		c2_list_del(&conn->c_link);
 	} else {
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		c2_rpc_session_zero_attach(conn);
 		conn->c_state = CS_CONN_ACTIVE;
-		c2_list_add(&conn->c_rpcmachine->cr_rpc_conn_list,
-				&conn->c_link);
 	}
 	c2_fop_free(conn->c_private);	/* conn_create req fop */
 	conn->c_private = NULL;
@@ -363,14 +390,15 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_sender_id = SENDER_ID_INVALID;
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
+	conn->c_state = CS_CONN_TERMINATING;
+	conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
+
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
 
-	if (rc == 0) {
-		conn->c_state = CS_CONN_TERMINATING;
-		conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
-	} else {
+	if (rc != 0) {
 		conn->c_state = CS_CONN_ACTIVE;
+		conn->c_flags &= ~CF_WAITING_FOR_CONN_TERM_REPLY;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
 	}
@@ -403,7 +431,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	/*
 	 * XXX Assumption:
-	 * item->ri_rpcmachine is properly assigned to all the 
+	 * item->ri_mach is properly assigned to all the 
 	 * received rpc items.
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
@@ -607,7 +635,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 	/*
 	 * XXX Assumption:
-	 * item->ri_rpcmachine is properly assigned to all the 
+	 * item->ri_mach is properly assigned to all the 
 	 * received rpc items.
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
@@ -771,7 +799,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 
 	/*
 	 * XXX Assumption:
-	 * item->ri_rpcmachine is properly assigned to all the 
+	 * item->ri_mach is properly assigned to all the 
 	 * received rpc items.
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
@@ -842,6 +870,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	c2_mutex_fini(&session->s_mutex);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
+		C2_ASSERT(!c2_rpc_snd_slot_is_busy(session->s_slot_table[i]));
 		c2_free(session->s_slot_table[i]);
 	}
 	c2_free(session->s_slot_table);
@@ -886,11 +915,26 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
    Assumption: c2_rpc_item has a field giving service_id of
                 destination service.
  */
-int c2_rpc_session_item_prepare(struct c2_rpc_item *rpc_item)
+int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
+	C2_ASSERT(item != NULL);
+
+	/*
+	 * XXX Important: Whenever an c2_rpc_item is init-ed
+	 * ri_sender_id and ri_session_id should be set to 
+	 * SENDER_ID_INVALID and SESSION_ID_INVALID respectively.
+	 */
+	if (item->ri_session_id == SESSION_ID_NOSESSION) {
+		/*
+		 * This item needs to be sent out of any session.
+		 * e.g. conn_create/conn_terminate request
+		 */
+		return 0;
+	}
+	if (item->ri_session_id == SESSION_0) {
+	}
 	return 0;
 }
-
 
 /**
    Inform session module that a reply item is received.
