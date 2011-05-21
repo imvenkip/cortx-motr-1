@@ -36,7 +36,7 @@ int c2_thread_join(struct c2_thread *q)
 {
 	int result;
 
-	C2_PRE(q->t_state == TS_RUNNING || q->t_state == TS_DONE);
+	C2_PRE(q->t_state == TS_RUNNING);
 	C2_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
 	result = pthread_join(q->t_h.h_id, NULL);
 	if (result == 0)

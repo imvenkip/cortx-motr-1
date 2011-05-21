@@ -34,12 +34,12 @@ static int kthread_trampoline(void *arg)
 	c2_thread_trampoline(arg);
 
 	/* Required for correct c2_thread_join() behavior in kernel:
-	   kthread_stop() will not stop if the thread has been created but
-	   has not yet started executing.  So, c2_thread_join() blocks
-	   on the semaphore until t_state == TS_DONE before it calls
-	   kthread_stop().  kthread_stop(), in turn, requires that the
-	   thread not exit until kthread_stop() is called, so we must loop on
-	   kthread_should_stop() to satisfy that API requirement.
+	   kthread_stop() will not stop if the thread has been created but has
+	   not yet started executing.  So, c2_thread_join() blocks on the
+	   semaphore to ensure the thread can be stopped. kthread_stop(), in
+	   turn, requires that the thread not exit until kthread_stop() is
+	   called, so we must loop on kthread_should_stop() to satisfy that API
+	   requirement.
 	 */
 	c2_semaphore_up(&t->t_wait);
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -72,12 +72,11 @@ int c2_thread_join(struct c2_thread *q)
 {
 	int result;
 
-	C2_PRE(q->t_state == TS_RUNNING || q->t_state == TS_DONE);
+	C2_PRE(q->t_state == TS_RUNNING);
 	C2_PRE(q->t_h.h_t != current);
 
 	/* see comment in kthread_trampoline */
-	while (q->t_state != TS_DONE)
-		c2_semaphore_down(&q->t_wait);
+	c2_semaphore_down(&q->t_wait);
 	/*
 	  c2_thread provides no wrappers for kthread_should_stop() or
 	  do_exit(), so this will block until the thread exits by returning
