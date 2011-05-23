@@ -12,7 +12,7 @@
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
@@ -158,7 +158,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 	int rc;
 	struct c2_net_transfer_mc *dest_tm = NULL;
 	struct c2_net_end_point   *dest_ep = NULL;
@@ -218,7 +218,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		dest_nb->nb_status = rc; /* recv error code */
 
 		/* schedule the receive msg callback */
-		dest_wi = MEM_BUFFER_TO_WI(dest_nb);
+		dest_wi = mem_buffer_to_wi(dest_nb);
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
 		dest_tp = dest_tm->ntm_xprt_private;

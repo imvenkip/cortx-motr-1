@@ -239,12 +239,12 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    .sbd_qtype               = qt,
 	    .sbd_total               = buflen,
 	    /* address and port numbers in network byte order */
-	    .sbd_active_ep.sep_addr  = MEM_EP_ADDR(ep),
-	    .sbd_active_ep.sep_port  = MEM_EP_PORT(ep),
-	    .sbd_active_ep.sep_id    = MEM_EP_SID(ep),
-	    .sbd_passive_ep.sep_addr = MEM_EP_ADDR(tm->ntm_ep),
-	    .sbd_passive_ep.sep_port = MEM_EP_PORT(tm->ntm_ep),
-	    .sbd_passive_ep.sep_id   = MEM_EP_SID(tm->ntm_ep),
+	    .sbd_active_ep.sep_addr  = mem_ep_addr(ep),
+	    .sbd_active_ep.sep_port  = mem_ep_port(ep),
+	    .sbd_active_ep.sep_id    = mem_ep_sid(ep),
+	    .sbd_passive_ep.sep_addr = mem_ep_addr(tm->ntm_ep),
+	    .sbd_passive_ep.sep_port = mem_ep_port(tm->ntm_ep),
+	    .sbd_passive_ep.sep_id   = mem_ep_sid(tm->ntm_ep),
 	};
 	XDR xdrs;
 	int rc = 0;

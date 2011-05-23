@@ -305,12 +305,11 @@ struct c2_net_bulk_mem_domain_pvt {
 
 /**
    Function obtain the c2_net_buffer pointer from its related work item.
-   (Used to be a macro, hence the upper case.)
    @param wi Work item pointer in embedded buffer private data
    @retval bufferPointer
  */
 static inline struct c2_net_buffer *
-MEM_WI_TO_BUFFER(struct c2_net_bulk_mem_work_item *wi)
+mem_wi_to_buffer(struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_bulk_mem_buffer_pvt *bp;
 	bp = container_of(wi, struct c2_net_bulk_mem_buffer_pvt, xb_wi);
@@ -319,12 +318,11 @@ MEM_WI_TO_BUFFER(struct c2_net_bulk_mem_work_item *wi)
 
 /**
    Function to obtain the work item from a c2_net_buffer pointer.
-   (Used to be a macro, hence the upper case.)
    @param bufferPointer
    @retval WorkItemPointer in buffer private data
  */
 static inline struct c2_net_bulk_mem_work_item *
-MEM_BUFFER_TO_WI(struct c2_net_buffer *buf)
+mem_buffer_to_wi(struct c2_net_buffer *buf)
 {
 	struct c2_net_bulk_mem_buffer_pvt *bp;
 	bp = buf->nb_xprt_private;
@@ -333,11 +331,10 @@ MEM_BUFFER_TO_WI(struct c2_net_buffer *buf)
 
 /**
    Function to return the IP address of the end point.
-   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval address In network byte order.
  */
-static inline in_addr_t MEM_EP_ADDR(struct c2_net_end_point *ep)
+static inline in_addr_t mem_ep_addr(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep =
 		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
@@ -346,11 +343,10 @@ static inline in_addr_t MEM_EP_ADDR(struct c2_net_end_point *ep)
 
 /**
    Function to return the port number of the end point.
-   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval port In network byte order.
  */
-static inline in_port_t MEM_EP_PORT(struct c2_net_end_point *ep)
+static inline in_port_t mem_ep_port(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep =
 		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
@@ -359,11 +355,10 @@ static inline in_port_t MEM_EP_PORT(struct c2_net_end_point *ep)
 
 /**
    Function to return the service id of the end point.
-   (Used to be a macro, hence the upper case.)
    @param ep End point pointer
    @retval service id in network byte order
  */
-static inline uint32_t MEM_EP_SID(struct c2_net_end_point *ep)
+static inline uint32_t mem_ep_sid(struct c2_net_end_point *ep)
 {
 	struct c2_net_bulk_mem_end_point *mep =
 		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
