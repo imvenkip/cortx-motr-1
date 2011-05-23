@@ -45,11 +45,9 @@ static struct c2_fop_type_format *fmts[] = {
 
 int c2_net_init()
 {
-	int rc;
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
-	rc = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	return rc;
+	return c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 }
 
 void c2_net_fini()
