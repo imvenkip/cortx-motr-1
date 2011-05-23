@@ -164,7 +164,7 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 
 	C2_PRE(mem_ep_invariant(ep));
 
-	desc->nbd_len = sizeof(*md);
+	desc->nbd_len = sizeof *md;
 	md = c2_alloc(desc->nbd_len);
 	desc->nbd_data = (char *) md;
 	if (desc->nbd_data == NULL) {
@@ -199,7 +199,7 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 static int mem_desc_decode(struct c2_net_buf_desc *desc,
 			   struct mem_desc **p_md)
 {
-	if (desc->nbd_len != sizeof(**p_md) ||
+	if (desc->nbd_len != sizeof **p_md ||
 	    desc->nbd_data == NULL)
 		return -EINVAL;
 	*p_md = (struct mem_desc *) desc->nbd_data;
