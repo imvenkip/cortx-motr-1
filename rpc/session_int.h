@@ -188,5 +188,19 @@ void c2_rpc_session_search(struct c2_rpc_conn		*conn,
 			   struct c2_rpc_session	**out);
 
 bool c2_rpc_snd_slot_is_busy(const struct c2_rpc_snd_slot *slot);
+void c2_rpc_snd_slot_mark_busy(struct c2_rpc_snd_slot *slot);
+
+/**
+   Insert the item at the end of c2_rpc_snd_slot::ss_ready_list
+
+   @pre session->s_state == SESSION_ALIVE
+   @pre slot_id < session->s_nr_slots
+   @pre c2_mutex_is_locked(&session->s_mutex)
+ */
+void c2_rpc_snd_slot_enq(struct c2_rpc_session		*session,
+			 uint32_t			slot_id,
+			 struct c2_rpc_item		*item);
+
+void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink);
 #endif
 

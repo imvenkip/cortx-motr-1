@@ -80,6 +80,7 @@ int c2_rpc_submit(struct c2_service_id		*srvid,
 		  enum c2_rpc_item_priority	prio,
 		  const struct c2_time		*deadline)
 {
+	printf("Received item %p for sending\n", item);
 	return 0;
 }
 

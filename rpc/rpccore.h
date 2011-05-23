@@ -271,6 +271,7 @@ struct c2_rpc_item {
 
 	enum c2_rpc_item_state     ri_state;
 
+	struct c2_service_id		*ri_service_id;
 	/** Session related fields. Should be included in on wire rpc-item */
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
@@ -278,6 +279,9 @@ struct c2_rpc_item {
 	uint64_t			ri_slot_generation;
 	/** ri_verno acts as sequence counter */
 	struct c2_verno			ri_verno;
+	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
+	    on c2_rpc_snd_slot::ss_replay_list */
+	struct c2_list_link		ri_slot_link;
 	/** XXX temporary field to put item on in-core reply cache list */
 	struct c2_list_link			ri_rc_link;
 	

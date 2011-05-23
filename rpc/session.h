@@ -162,7 +162,8 @@ enum {
 	SESSION_0 = 0,
 	SESSION_ID_INVALID = ~0,
 	SESSION_ID_NOSESSION = ~0 - 1,
-	SENDER_ID_INVALID = 0,
+	SENDER_ID_INVALID = ~0,
+	SLOT_ID_INVALID = ~0,
 	/* CF_.* values for c2_rpc_conn->c_flags */
 	CF_WAITING_FOR_CONN_CREATE_REPLY = 1,
 	CF_WAITING_FOR_CONN_TERM_REPLY = (1 << 1)
@@ -538,6 +539,10 @@ struct c2_rpc_snd_slot {
 	/** list of items for which we've received reply from receiver but
 	their effects not persistent on receiver */
 	struct c2_list		 ss_replay_list;
+	struct c2_mutex		 ss_mutex;
+	/** When an item is inserted in ready_list OR WAITING_FOR_REPLY flag
+	    is reset, the notification is broadcasted on this channel */
+	struct c2_chan		 ss_chan;
 };
 
 /** @} end of session group */	
