@@ -12,7 +12,7 @@
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
@@ -60,12 +60,12 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 			      struct c2_net_transfer_mc **p_dest_tm,
 			      struct c2_net_end_point   **p_dest_ep)
 {
-	struct c2_net_domain *mydom = tm->ntm_dom;
-	struct c2_net_transfer_mc *dest_tm = NULL;
-	struct c2_net_end_point   *dest_ep = NULL;
+	struct c2_net_domain              *mydom = tm->ntm_dom;
+	struct c2_net_transfer_mc         *dest_tm = NULL;
+	struct c2_net_end_point           *dest_ep = NULL;
 	struct c2_net_bulk_mem_domain_pvt *dp;
-	struct c2_net_transfer_mc *itm;
-	struct c2_net_bulk_mem_end_point *mep;
+	struct c2_net_transfer_mc         *itm;
+	struct c2_net_bulk_mem_end_point  *mep;
 	int rc = 0;
 
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
@@ -87,7 +87,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				       ntm_dom_linkage) {
 			c2_mutex_lock(&itm->ntm_mutex);
 			C2_ASSERT(c2_net__tm_invariant(itm));
-			do {
+			do { /* provides break context */
 				if (itm->ntm_state != C2_NET_TM_STARTED)
 					break; /* ignore */
 				if (!mem_eps_are_equal(itm->ntm_ep, match_ep))
@@ -158,8 +158,8 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
-	int rc;
+	struct c2_net_buffer      *nb = mem_wi_to_buffer(wi);
+	int                        rc;
 	struct c2_net_transfer_mc *dest_tm = NULL;
 	struct c2_net_end_point   *dest_ep = NULL;
 	struct c2_net_buffer      *dest_nb = NULL;
@@ -205,12 +205,12 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		}
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
 		dest_nb->nb_flags |= C2_NET_BUF_IN_USE;
-		if( nb->nb_length > mem_buffer_length(dest_nb)) {
+		if (nb->nb_length > mem_buffer_length(dest_nb)) {
 			rc = -EMSGSIZE;
 			dest_nb->nb_length = nb->nb_length; /* desired length */
 		} else
 			rc = mem_copy_buffer(dest_nb, nb, nb->nb_length);
-		if(rc == 0) {
+		if (rc == 0) {
 			/* commit to using the destination EP */
 			dest_nb->nb_ep = dest_ep;
 			dest_ep = NULL; /* do not release below */
@@ -218,7 +218,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		dest_nb->nb_status = rc; /* recv error code */
 
 		/* schedule the receive msg callback */
-		dest_wi = MEM_BUFFER_TO_WI(dest_nb);
+		dest_wi = mem_buffer_to_wi(dest_nb);
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
 		dest_tp = dest_tm->ntm_xprt_private;

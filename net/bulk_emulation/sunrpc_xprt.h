@@ -16,7 +16,7 @@
 /**
    @addtogroup bulksunrpc
 
-   This module is derived from the \ref bulkmem module.
+   This module is derived from the @ref bulkmem module.
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.

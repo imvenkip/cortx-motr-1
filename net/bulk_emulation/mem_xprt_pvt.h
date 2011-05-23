@@ -66,17 +66,16 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 		       struct c2_net_bulk_mem_tm_pvt *tp);
 static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
 
-#ifdef MEM_SA_EQ
-#undef MEM_SA_EQ
-#endif
 /**
    Macro to compare two struct sockaddr_in structures.
    @param sa1 Pointer to first structure.
    @param sa2 Pointer to second structure.
  */
-#define MEM_SA_EQ(sa1,sa2)				\
- (sa1)->sin_addr.s_addr == (sa2)->sin_addr.s_addr &&	\
- (sa1)->sin_port        == (sa2)->sin_port
+static inline bool mem_sa_eq(struct sockaddr_in *sa1, struct sockaddr_in *sa2)
+{
+	return sa1->sin_addr.s_addr == sa2->sin_addr.s_addr &&
+	       sa1->sin_port        == sa2->sin_port;
+}
 
 /**
    Function to indirectly invoke the mem_ep_create subroutine via the domain

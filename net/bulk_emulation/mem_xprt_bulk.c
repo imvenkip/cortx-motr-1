@@ -13,7 +13,7 @@
 static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 				   struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
@@ -52,7 +52,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = C2_NET_QT_NR,
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = C2_NET_QT_NR,
 	};
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 	int rc;
 	struct c2_net_transfer_mc *passive_tm = NULL;
 	struct c2_net_end_point     *match_ep = NULL;
@@ -65,7 +65,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	       nb->nb_desc.nbd_data != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
-	do {
+	do { /* provide a break context */
 		struct mem_desc *md;
 		struct c2_net_buffer *passive_nb = NULL;
 		struct c2_net_buffer *inb;
@@ -139,7 +139,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* schedule the passive callback */
 		passive_nb->nb_status = rc;
-		passive_wi = MEM_BUFFER_TO_WI(passive_nb);
+		passive_wi = mem_buffer_to_wi(passive_nb);
 		passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
 
 		passive_tp = passive_tm->ntm_xprt_private;

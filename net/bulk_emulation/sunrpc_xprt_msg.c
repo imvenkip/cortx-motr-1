@@ -12,7 +12,7 @@
 static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_buffer   *nb   = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer   *nb   = mem_wi_to_buffer(wi);
 	struct c2_fop          *f    = NULL;
 	struct c2_fop          *r    = NULL;
 	struct c2_net_conn     *conn = NULL;
@@ -46,12 +46,12 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 		/* Set up the outgoing fop. */
 		tm_ep = nb->nb_tm->ntm_ep;
-		fop->sm_sender.sep_addr = MEM_EP_ADDR(tm_ep); /* network byte */
-		fop->sm_sender.sep_port = MEM_EP_PORT(tm_ep); /* order */
-		fop->sm_sender.sep_id   = MEM_EP_SID(tm_ep);
-		fop->sm_receiver.sep_addr = MEM_EP_ADDR(nb->nb_ep); /* NBO */
-		fop->sm_receiver.sep_port = MEM_EP_PORT(nb->nb_ep); /* NBO */
-		fop->sm_receiver.sep_id   = MEM_EP_SID(nb->nb_ep);
+		fop->sm_sender.sep_addr = mem_ep_addr(tm_ep); /* network byte */
+		fop->sm_sender.sep_port = mem_ep_port(tm_ep); /* order */
+		fop->sm_sender.sep_id   = mem_ep_sid(tm_ep);
+		fop->sm_receiver.sep_addr = mem_ep_addr(nb->nb_ep); /* NBO */
+		fop->sm_receiver.sep_port = mem_ep_port(nb->nb_ep); /* NBO */
+		fop->sm_receiver.sep_id   = mem_ep_sid(nb->nb_ep);
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
 		fop->sm_buf.sb_len = nb->nb_length;
@@ -133,7 +133,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
 			struct c2_net_bulk_mem_work_item *wi =
-				MEM_BUFFER_TO_WI(nb);
+				mem_buffer_to_wi(nb);
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
 				nb->nb_tm->ntm_xprt_private;
 			rc = -EMSGSIZE;
@@ -150,7 +150,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	if (rc == 0) {
 		/* got a buffer */
-		struct c2_net_bulk_mem_work_item *wi = MEM_BUFFER_TO_WI(nb);
+		struct c2_net_bulk_mem_work_item *wi = mem_buffer_to_wi(nb);
 		struct c2_net_domain *dom = tm->ntm_dom;
 		struct c2_net_bulk_sunrpc_tm_pvt *tp =
 			nb->nb_tm->ntm_xprt_private;

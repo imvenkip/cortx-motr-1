@@ -7,7 +7,7 @@
 
 static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc)
 {
-	struct c2_net_bulk_mem_work_item *passive_wi = MEM_BUFFER_TO_WI(nb);
+	struct c2_net_bulk_mem_work_item *passive_wi = mem_buffer_to_wi(nb);
 	struct c2_net_bulk_sunrpc_tm_pvt *passive_tp =
 	    nb->nb_tm->ntm_xprt_private;
 
@@ -340,7 +340,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		[C2_NET_QT_ACTIVE_BULK_RECV]  = C2_NET_QT_NR,
 		[C2_NET_QT_ACTIVE_BULK_SEND]  = C2_NET_QT_NR,
 	};
-	struct c2_net_buffer *nb = MEM_WI_TO_BUFFER(wi);
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 	struct c2_net_end_point *match_ep = NULL;
 	int rc;
 
