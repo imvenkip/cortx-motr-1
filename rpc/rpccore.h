@@ -410,9 +410,11 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_submit(struct c2_update_stream *us, struct c2_rpc_item *item,
-		  enum c2_rpc_item_priority prio,
-		  const struct c2_time *deadline);
+int c2_rpc_submit(struct c2_service_id		*srvid,
+		  struct c2_update_stream	*us,
+		  struct c2_rpc_item 		*item,
+		  enum c2_rpc_item_priority	prio,
+		  const struct c2_time		*deadline);
 
 /**
    Cancel submitted RPC-item

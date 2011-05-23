@@ -74,9 +74,11 @@ void c2_rpc_core_fini(void)
 {
 }
 
-int c2_rpc_submit(struct c2_update_stream *us, struct c2_rpc_item *item,
-		  enum c2_rpc_item_priority prio,
-		  const struct c2_time *deadline)
+int c2_rpc_submit(struct c2_service_id		*srvid,
+		  struct c2_update_stream	*us,
+		  struct c2_rpc_item		*item,
+		  enum c2_rpc_item_priority	prio,
+		  const struct c2_time		*deadline)
 {
 	return 0;
 }

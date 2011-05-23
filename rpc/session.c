@@ -221,7 +221,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
 
 	C2_SET0(&deadline);
-	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
+				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
 		conn->c_state = CS_CONN_INIT_FAILED;
@@ -394,7 +395,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
 
 	C2_SET0(&deadline);
-	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
+				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
 		conn->c_state = CS_CONN_ACTIVE;
@@ -595,7 +597,8 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	/* item->ri_verno should be filled in c2_rpc_item_prepare() */
 
 	C2_SET0(&deadline);
-	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
+				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
 		session->s_state = SESSION_CREATE_FAILED;
@@ -751,12 +754,10 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	item->ri_sender_id = session->s_conn->c_sender_id;
 	item->ri_session_id = SESSION_0;
-	item->ri_slot_id = 0;
-	item->ri_slot_generation = 0;
-	/* item->ri_verno should be filled in c2_rpc_item_prepare() */
 
 	C2_SET0(&deadline);
-	rc = c2_rpc_submit(NULL, item, C2_RPC_ITEM_PRIO_MAX, &deadline);
+	rc = c2_rpc_submit(session->s_conn->c_service_id, NULL, item,
+				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
 		session->s_state = SESSION_ALIVE;
