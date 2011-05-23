@@ -55,6 +55,7 @@ int c2_net_init()
 void c2_net_fini()
 {
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_addb_ctx_fini(&c2_net_addb);
 	c2_mutex_fini(&c2_net_mutex);
 }
 
