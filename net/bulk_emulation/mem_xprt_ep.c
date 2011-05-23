@@ -48,7 +48,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 			       nep_dom_linkage) {
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
-		if (MEM_SA_EQ(&mep->xep_sa, sa) && mep->xep_service_id == id) {
+		if (mem_sa_eq(&mep->xep_sa, sa) && mep->xep_service_id == id) {
 			c2_ref_get(&ep->nep_ref);
 			*epp = ep;
 			return 0;
@@ -114,7 +114,7 @@ static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
 	C2_ASSERT(mem_ep_invariant(ep));
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
-	if (MEM_SA_EQ(&mep->xep_sa, sa))
+	if (mem_sa_eq(&mep->xep_sa, sa))
 		return true;
 	return false;
 }
@@ -222,8 +222,8 @@ static bool mem_desc_equal(struct c2_net_buf_desc *d1,
 	if (rc != 0)
 		return false;
 	if (md1->md_buf_id == md2->md_buf_id &&
-	    MEM_SA_EQ(&md1->md_active,  &md2->md_active) &&
-	    MEM_SA_EQ(&md1->md_passive, &md2->md_passive))
+	    mem_sa_eq(&md1->md_active,  &md2->md_active) &&
+	    mem_sa_eq(&md1->md_passive, &md2->md_passive))
 		return true;
 	return false;
 }
