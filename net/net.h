@@ -1317,7 +1317,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    @pre
 (buf->nb_dom == tm->ntm_dom) &&
 (tm->ntm_state == C2_NET_TM_STARTED) &&
-(buf->nb_qtype != C2_NET_QT_NR) &&
+c2_net__qtype_is_valid(buf->nb_qtype) &&
 (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
 ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
 (buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL)
