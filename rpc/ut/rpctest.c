@@ -484,6 +484,7 @@ void test_snd_session_create()
 	struct c2_fop				*fop;
 	struct c2_rpc_session_create_rep	*fop_scr;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_item			*req_item = NULL;
 	int					rc;
 
 	C2_SET0(&session);
@@ -507,7 +508,14 @@ void test_snd_session_create()
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 	item->ri_mach = machine;
+	item->ri_sender_id = conn.c_sender_id;
+	item->ri_session_id = SESSION_0;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	item->ri_verno.vn_vc = 0;
 
+	c2_rpc_session_reply_item_received(item, &req_item);
+	printf("test_snd_session_create: req item %p\n", req_item);
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
 	c2_thread_join(&thread);
@@ -519,6 +527,7 @@ void test_snd_session_terminate()
 	struct c2_fop				*fop;
 	struct c2_rpc_session_destroy_rep	*fop_sdr;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_item			*req_item;
 	int					rc;
 
 	rc = c2_rpc_session_terminate(&session);
@@ -540,6 +549,14 @@ void test_snd_session_terminate()
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 	item->ri_mach = machine;
+	item->ri_sender_id = conn.c_sender_id;
+	item->ri_session_id = SESSION_0;
+	item->ri_slot_id = 0;
+	item->ri_slot_generation = 0;
+	item->ri_verno.vn_vc = 1;
+
+	c2_rpc_session_reply_item_received(item, &req_item);
+	printf("test_snd_session_create: req item %p\n", req_item);
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_rpc_session_fini(&session);

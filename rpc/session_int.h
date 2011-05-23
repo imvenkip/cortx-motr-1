@@ -189,6 +189,7 @@ void c2_rpc_session_search(struct c2_rpc_conn		*conn,
 
 bool c2_rpc_snd_slot_is_busy(const struct c2_rpc_snd_slot *slot);
 void c2_rpc_snd_slot_mark_busy(struct c2_rpc_snd_slot *slot);
+void c2_rpc_snd_slot_mark_unbusy(struct c2_rpc_snd_slot *slot);
 
 /**
    Insert the item at the end of c2_rpc_snd_slot::ss_ready_list
@@ -202,5 +203,8 @@ void c2_rpc_snd_slot_enq(struct c2_rpc_session		*session,
 			 struct c2_rpc_item		*item);
 
 void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink);
+
+int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
+				       struct c2_rpc_item	**out);
 #endif
 
