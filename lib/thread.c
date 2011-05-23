@@ -61,7 +61,6 @@ void *c2_thread_trampoline(void *arg)
 	}
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
-	t->t_state = TS_DONE;
 	return NULL;
 }
 
