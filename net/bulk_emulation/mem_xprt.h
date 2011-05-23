@@ -51,7 +51,7 @@
      allocating sufficient space in the end point data structure for the
      derived transport.
 
-   See \ref bulksunrpc for an example of a derived transport.
+   See @ref bulksunrpc for an example of a derived transport.
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
@@ -206,45 +206,38 @@ struct c2_net_bulk_mem_end_point {
 typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 					  struct c2_net_bulk_mem_work_item *wi);
 
-typedef int (*c2_mem_ep_create_fn_t)(struct c2_net_end_point **epp,
-				     struct c2_net_domain *dom,
-				     struct sockaddr_in *sa,
-				     uint32_t id);
-typedef void (*c2_mem_ep_release_fn_t)(struct c2_ref *ref);
-typedef void (*c2_mem_wi_add_fn_t)(struct c2_net_bulk_mem_work_item *wi,
-				   struct c2_net_bulk_mem_tm_pvt *tp);
-typedef bool (*c2_mem_buffer_in_bounds_fn_t)(const struct c2_net_buffer *nb);
-typedef int  (*c2_mem_desc_create_fn_t)(struct c2_net_buf_desc *desc,
-					struct c2_net_end_point *ep,
-					struct c2_net_transfer_mc *tm,
-					enum c2_net_queue_type qt,
-					c2_bcount_t buflen,
-					int64_t buf_id);
-typedef void (*c2_mem_post_error_fn_t)(struct c2_net_transfer_mc *tm,
-				       int status);
-
 /**
    These subroutines are exposed by the transport as they may need to be
    intercepted by a derived transport.
 */
 struct c2_net_bulk_mem_ops {
 	/** Subroutine to create an end point. */
-	c2_mem_ep_create_fn_t        bmo_ep_create;
+	int (*bmo_ep_create)(struct c2_net_end_point **epp,
+			     struct c2_net_domain *dom,
+			     struct sockaddr_in *sa,
+			     uint32_t id);
 
 	/** Subroutine to release an end point. */
-	c2_mem_ep_release_fn_t       bmo_ep_release;
+	void (*bmo_ep_release)(struct c2_ref *ref);
 
 	/** Subroutine to add a work item to the work list */
-	c2_mem_wi_add_fn_t           bmo_wi_add;
+	void (*bmo_wi_add)(struct c2_net_bulk_mem_work_item *wi,
+			   struct c2_net_bulk_mem_tm_pvt *tp);
 
 	/** Subroutine to check if a buffer size is within bounds */
-	c2_mem_buffer_in_bounds_fn_t bmo_buffer_in_bounds;
+	bool (*bmo_buffer_in_bounds)(const struct c2_net_buffer *nb);
 
 	/** Subroutine to create a buffer descriptor */
-	c2_mem_desc_create_fn_t      bmo_desc_create;
+	int  (*bmo_desc_create)(struct c2_net_buf_desc *desc,
+				struct c2_net_end_point *ep,
+				struct c2_net_transfer_mc *tm,
+				enum c2_net_queue_type qt,
+				c2_bcount_t buflen,
+				int64_t buf_id);
 
 	/** Subroutine to post an error */
-	c2_mem_post_error_fn_t       bmo_post_error;
+	void (*bmo_post_error)(struct c2_net_transfer_mc *tm,
+			       int status);
 };
 
 /**
