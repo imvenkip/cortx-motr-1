@@ -55,15 +55,41 @@
    A resource owner (c2_rm_owner) represents a collection of rights to use a
    particular resource.
 
-   To use a resource, an incoming resource request is created (c2_rm_incoming),
-   that describes a wanted usage right. Sometimes the request can be fulfilled
-   immediately, sometimes it takes a network communication to gather the wanted
-   usage right at the owner. When incoming request processing is complete, it
-   "pins" the wanted right. This right can be used until the request structure
-   is destroyed and the pin is released.
+   To use a resource, a user of the resource manager creates an incoming
+   resource request (c2_rm_incoming), that describes a wanted usage right
+   (c2_rm_right_get())). Sometimes the request can be fulfilled immediately,
+   sometimes it requires changes in the right ownership. In the latter case
+   outgoing requests are directed to the remote resource owners (which typically
+   means a network communication) to collect the wanted usage right at the
+   owner. When an outgoing request reaches its target remote domain, an incoming
+   request is created and processed (which in turn might result in sending
+   further outgoing requests). Eventually, a reply is received for the outgoing
+   request. When incoming request processing is complete, it "pins" the wanted
+   right. This right can be used until the incoming request structure is
+   destroyed (c2_rm_right_put()) and the pin is released.
 
    See the documentation for individual resource management data-types and
    interfaces for more detailed description of their behaviour.
+
+   <b>Terminology.</b>
+
+   Various terms are used to described right ownership flow in a cluster.
+
+   Owners of rights for a particular resource are arranged in a cluster-wide
+   hierarchy. Originally, all rights on the resource belong to a single owner or
+   a set of owners, residing on some well-known servers. Proxy servers request
+   and cache rights from there. Lower level proxies and client request rights in
+   turn. According to the order in this hierarchy, one distinguishes "upward"
+   and "downward" owners relative to a given one.
+
+   In a given ownership transfer operation, a downward owner is "debtor" and
+   upward owner is "creditor". The right being transferred is called a "loan"
+   (note that this word is used only as a noun). When a right is transferred
+   from a creditor to a debtor, the latter "borrows" and the former "sub-lets"
+   the loan. When a right is transferred in the other direction, the creditor
+   "revokes" and debtor "returns" the loan.
+
+   A debtor can voluntary return a loan. This is called a "cancel" operation.
 
    <b>Concurrency control.</b>
 
@@ -215,8 +241,6 @@ struct c2_rm_resource {
 };
 
 struct c2_rm_resource_ops {
-        int (*rto_encode)(struct c2_vec_cursor *bufvec,
-                          struct c2_rm_resource **resource);
         /**
            Called when a new right is allocated for the resource. The resource
            specific code should parse the right description stored in the
@@ -286,6 +310,8 @@ struct c2_rm_resource_type_ops {
                        const struct c2_rm_resource *resource1);
         int  (*rto_decode)(struct c2_vec_cursor *bufvec,
                            struct c2_rm_resource **resource);
+        int  (*rto_encode)(struct c2_vec_cursor *bufvec,
+                           struct c2_rm_resource **resource);
 };
 
 /**
@@ -305,7 +331,7 @@ struct c2_rm_resource_type_ops {
 
    A right is said to be "pinned" or "held" when it is necessary for some
    ongoing operation. A pinned right has RPF_PROTECT pins (c2_rm_pin) on its
-   c2_rm_right::ri_pins list.
+   c2_rm_right::ri_pins list. Otherwise a right is simply "cached".
 
    Rights are typically linked into one of c2_rm_owner lists. Pinned rights can
    only happen on c2_rm_owner::ro_owned[OWOS_HELD] list. They cannot be moved
@@ -604,13 +630,6 @@ enum c2_rm_owner_queue_state {
     - in a case of optimistic conflict resolution, "no conflicting rights"
       means "no rights on which conflicts cannot be resolved afterwards by
       the optimistic conflict resolution policy".
-
-   Owners of rights for a particular resource are arranged in a cluster-wide
-   hierarchy. Originally, all rights belong to a single owner (or a set of
-   owners), residing on some well-known servers. Proxy servers request and
-   cache rights from there. Lower level proxies and client request rights in
-   turn. According to the order in this hierarchy, one distinguishes "upward"
-   and "downward" owners relative to a given one.
 
    c2_rm_owner is a generic structure, created and maintained by the
    generic resource manager code.
@@ -1082,14 +1101,89 @@ enum c2_rm_pin_flags {
 /**
    A pin is used to
 
-       - track when a right (or an object such as a loan or outgoing request
-         which the right is embedded into) changes its state;
+       - RPF_TRACK: track when a right changes its state;
 
-       - to protect a right from revocation;
+       - RPF_PROTECT: to protect a right from revocation;
 
-       - to prohibit RPF_PROTECT pins from being added to the right.
+       - RPF_BARRIER: to prohibit RPF_PROTECT pins from being added to the
+         right.
 
    Fields of this struct are protected by the owner's lock.
+
+   Abstractly speaking, pins allow N:M (many to many) relationships between
+   incoming requests and rights: an incoming request has a list of pins "from"
+   it and a right has a list of pins "to" it. Let's look at the typical use
+   cases.
+
+   <b>Protection.</b>
+
+   While a right is actively used, it cannot be revoked. For example, while file
+   write is going on, the right to write in the target file extent must be
+   held. A right is held (or pinned) from the return from c2_rm_right_get()
+   until the matching call to c2_rm_right_put(). To mark the right as pinned,
+   c2_rm_right_get() adds a RPF_PROTECT pin from the incoming request to the
+   returned right (generally, more than one right can be pinned as result on
+   c2_rm_right_get()). This pin is removed by the call to
+   c2_rm_right_put(). Multiple incoming requests can pin the same right.
+
+   <b>Tracking.</b>
+
+   An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
+   conflicting pinned right becomes unpinned. To this end, an RPF_TRACK pin is
+   added from the incoming request to the right.
+
+   When the last RPF_PROTECT pin is removed from a right, the right becomes
+   "cached" and the list of pins to the right is scanned. For each RPF_TRACK pin
+   on the list, its incoming request is checked to see whether this was the
+   last tracking pin the request is waiting for.
+
+   An incoming request might also issue an outgoing request to borrow or revoke
+   some rights, necessary to fulfill the request. An RPF_TRACK pin is added from
+   the incoming request to the right embedded in the outgoing request
+   (c2_rm_outgoing::rog_want::rl_right). Multiple incoming requests can pin the
+   same outgoing request. When the outgoing request completes, the incoming
+   requests waiting for it are checked as above.
+
+   <b>Barrier.</b>
+
+   Not currently used. The idea is to avoid live-locks and guarantee progress of
+   incoming request processing by pinning the rights with a RPF_BARRIER pin.
+
+   @verbatim
+
+
+        ->ro_owned[]--->R------>R        R<------R<----------+
+                        |       |        |       |           |
+ ->ro_incoming[]        |       |        |       |           |
+        |               |       |        |       |           |
+        |               |       |        |       |    ->ro_outgoing[]
+        V               |       |        |       |
+    INC[CHECK]----------T-------T--------T-------T
+        |                       |                |
+        |                       |                |
+        V                       |                |
+    INC[SUCCESS]----------------P                |
+        |                                        |
+        |                                        |
+        V                                        |
+    INC[CHECK]-----------------------------------T
+
+   @endverbatim
+
+   On this diagram, INC[S] is an incoming request in a state S, R is a right, T
+   is an RPF_TRACK pin and P is an RPF_PROTECT pin.
+
+   The incoming request in the middle has been processed successfully and now
+   protects its right.
+
+   The topmost incoming request waits for 2 possessed rights to become unpinned
+   and also waiting for completion of 2 outgoing requests. The incoming request
+   an the bottom waits for completion of the same outgoing request.
+
+   c2_rm_right_put() scans the request's pin list (horizontal direction) and
+   removes all pins. If the last pin was removed from a right, right's pin list
+   is scanned (vertical direction), checking incoming requests for possible
+   state transitions.
  */
 struct c2_rm_pin {
         uint32_t               rp_flags;
