@@ -1,6 +1,42 @@
 #include "rpc/formation.h"
+#include "rpc/rpccore.h"
 #include "stob/ut/io_fop.h"
 #include "colibri/init.h"
+
+/**
+  Assign a group to a given RPC item
+ */
+int c2_rpc_form_item_assign_group(struct c2_rpc_item *item,
+		struct c2_rpc_group *grp)
+{
+	C2_PRE(item !=NULL);
+
+	item->ri_group = grp;
+	return 0;
+}
+
+/**
+  Assign a deadline to a given RPC item
+ */
+int c2_rpc_form_item_assign_deadline(struct c2_rpc_item *item,
+		c2_time_t deadline)
+{
+	C2_PRE(item !=NULL);
+
+	item->ri_deadline = deadline;
+	return 0;
+}
+
+/**
+  Assign a priority to a given RPC item
+ */
+int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
+{
+	C2_PRE(item !=NULL);
+
+	item->ri_prio = prio;
+	return 0;
+}
 
 /*
    *** Current scenario ***
