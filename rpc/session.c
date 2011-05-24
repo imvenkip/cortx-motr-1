@@ -595,12 +595,22 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	//struct c2_time			deadline;
 	int				rc = 0;
 
-	C2_PRE(conn != NULL && session != NULL);
-	C2_PRE(conn->c_state == CS_CONN_ACTIVE &&
+	C2_PRE(conn != NULL && session != NULL &&
 		session->s_state == SESSION_UNINITIALIZED);
+
+	c2_mutex_lock(&conn->c_mutex);
+	if (conn->c_state != CS_CONN_ACTIVE) {
+		c2_mutex_unlock(&conn->c_mutex);
+		/*
+		 * XXX Assert is just for testing purpose
+		 */
+		C2_ASSERT(0);
+		return -EINVAL;
+	}
 
 	printf("session_Create: session object %p\n", session);
 	session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
+
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	if (fop == NULL)
@@ -614,7 +624,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 
-	c2_mutex_lock(&conn->c_mutex);
 	c2_rpc_session_search(conn, SESSION_0, &session_0);
 	/* session_0 is locked */
 	C2_ASSERT(session_0 != NULL && session_0->s_state == SESSION_ALIVE);
@@ -948,10 +957,15 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
 	struct c2_rpc_conn		*conn = NULL;
+	struct c2_rpc_conn		*saved_conn = NULL;
 	struct c2_rpc_session		*session = NULL;
 	struct c2_rpc_snd_slot		*slot = NULL;
 	bool				found = false;
+	bool				conn_exists = false;
+	bool				session_exists = false;
+	bool				slots_scanned = false;
 	int				i;
+	int				rc = 0;
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
@@ -985,18 +999,36 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 				struct c2_rpc_conn, c_link) {
 		c2_mutex_lock(&conn->c_mutex);
 
-		if (conn->c_state == CS_CONN_ACTIVE &&
-			c2_services_are_same(conn->c_service_id,
-						item->ri_service_id)) {
+		/*
+		 * Does any conn exists to destination end-point?
+		 */
+		if (c2_services_are_same(conn->c_service_id,
+			item->ri_service_id)) {
+			conn_exists = true;
+			saved_conn = conn;
+		} else {
+			c2_mutex_unlock(&conn->c_mutex);
+			continue;
+		}
+		
+		if (conn->c_state == CS_CONN_ACTIVE) {
+
 			c2_list_for_each_entry(&conn->c_sessions, session,
 					       struct c2_rpc_session, s_link) {
+
+				if (session->s_session_id != SESSION_0)
+					session_exists = true;
+
 				c2_mutex_lock(&session->s_mutex);
+
 				if (session->s_state != SESSION_ALIVE ||
 					session->s_session_id == SESSION_0) {
 					c2_mutex_unlock(&session->s_mutex);
 					continue;
 				}
+
 				for (i = 0; i < session->s_nr_slots; i++) {
+					slots_scanned = true;
 					slot = session->s_slot_table[i];
 					C2_ASSERT(slot != NULL);
 					
@@ -1014,6 +1046,9 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 
 out_of_loops:
 	if (found) {
+		C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
+		C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
+
 		item->ri_sender_id = conn->c_sender_id;
 		item->ri_session_id = session->s_session_id;
 		item->ri_slot_id = i;
@@ -1030,10 +1065,84 @@ out_of_loops:
 		c2_mutex_unlock(&conn->c_mutex);
 
 		return 0;
-	} else {
-		printf("Couldn't find any unbusy slot\n");
+	} 
+
+	/*
+	 * XXX Important
+	 * To send first unbound item to a particular destination, will require
+	 * multiple calls to c2_rpc_session_item_prepare() until the call
+	 * returns 0.
+	 * On first call, when it doesn't find any rpc_conn object present,
+	 * this function triggers rpc_conn create with the destination and
+	 * returns -EAGAIN
+	 * Assume by the time the next call is made to item_prepare() the
+	 * conn_create is successfully completed.
+	 * Then item_prepare() triggers rpc_session create and returns -EAGAIN
+	 * When next time item_prepare() is called with same unbound item and
+	 * assuming session creation is completed successfully, the item will
+	 * get <sender_id, session_id, slot_id, verno>
+	 * XXX It is possible to optimize this sequence of events. But is optimization 
+	 * necessary, as this is going to happen just ONCE with each receiver?
+	 */
+
+	if (slots_scanned) {
+		/*
+		 * This implies, there is at least one active rpc connection
+		 * and alive session.
+		 */
+		C2_ASSERT(conn_exists && session_exists);
+		printf("Slots scanned but none was available\n");
+		return -EBUSY;
 	}
-	return 0;
+	if (session_exists && !slots_scanned) {
+		/*
+		 * This can happen only if session is present but not in
+		 * ALIVE state.
+		 * !slots_scanned is redundant part of condition.
+		 */
+		printf("session exists but can be 'not-ALIVE'\n");
+		return -EAGAIN;
+	}
+	if (conn_exists && !session_exists) {
+		C2_ASSERT(saved_conn != NULL);
+
+
+		c2_mutex_lock(&saved_conn->c_mutex);
+
+		if (saved_conn->c_state == CS_CONN_ACTIVE &&
+			c2_services_are_same(saved_conn->c_service_id,
+						item->ri_service_id)) {
+			printf("session doesn't exists. creating one within conn %lu\n",
+				saved_conn->c_sender_id);
+			C2_ALLOC_PTR(session);
+			if (session == NULL) {
+				c2_mutex_unlock(&saved_conn->c_mutex);
+				return -ENOMEM;
+			}
+			c2_mutex_unlock(&saved_conn->c_mutex);
+			rc = c2_rpc_session_create(session, saved_conn);
+			
+			return rc != 0 ? rc : -EAGAIN;
+		}
+		printf("conn exists but not ACTIVE\n");
+		c2_mutex_unlock(&saved_conn->c_mutex);
+		return -EAGAIN;
+	}
+	if (!conn_exists) {
+		printf("conn doesn't exist. creating one\n");
+		C2_ALLOC_PTR(conn);
+		if (conn == NULL)
+			return -ENOMEM;
+
+		rc = c2_rpc_conn_init(conn, item->ri_service_id, item->ri_mach);
+		return rc != 0 ? rc : -EAGAIN;
+	}
+	/*
+	 * Control shouldn't reach here. All the cases where a slot is not 
+	 * assigned are covered above.
+	 */
+	C2_ASSERT(0);
+	return -EAGAIN;
 }
 
 /**
