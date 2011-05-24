@@ -206,5 +206,8 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink);
 
 int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 				       struct c2_rpc_item	**out);
+
+int c2_rpc_session_item_prepare(struct c2_rpc_item	*item);
+
 #endif
 

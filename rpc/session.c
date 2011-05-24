@@ -947,7 +947,13 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
  */
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
-	C2_ASSERT(item != NULL);
+	struct c2_rpc_conn		*conn = NULL;
+	struct c2_rpc_session		*session = NULL;
+	struct c2_rpc_snd_slot		*slot = NULL;
+	bool				found = false;
+	int				i;
+
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	/*
 	 * XXX Important: Whenever an c2_rpc_item is init-ed
@@ -961,7 +967,71 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 		 */
 		return 0;
 	}
-	if (item->ri_session_id == SESSION_0) {
+	if (item->ri_sender_id != SENDER_ID_INVALID) {
+		/*
+		 * This item already has all the session related information
+		 * Nothing to do.
+		 */
+		C2_ASSERT(item->ri_session_id != SESSION_ID_INVALID &&
+				item->ri_slot_id != SLOT_ID_INVALID);
+		return 0;
+	}
+
+	/*
+	 * Find out any unbusy slot which can go to destination pointed by
+	 * item->ri_service_id
+	 */
+	c2_list_for_each_entry(&item->ri_mach->cr_rpc_conn_list, conn,
+				struct c2_rpc_conn, c_link) {
+		c2_mutex_lock(&conn->c_mutex);
+
+		if (conn->c_state == CS_CONN_ACTIVE &&
+			c2_services_are_same(conn->c_service_id,
+						item->ri_service_id)) {
+			c2_list_for_each_entry(&conn->c_sessions, session,
+					       struct c2_rpc_session, s_link) {
+				c2_mutex_lock(&session->s_mutex);
+				if (session->s_state != SESSION_ALIVE ||
+					session->s_session_id == SESSION_0) {
+					c2_mutex_unlock(&session->s_mutex);
+					continue;
+				}
+				for (i = 0; i < session->s_nr_slots; i++) {
+					slot = session->s_slot_table[i];
+					C2_ASSERT(slot != NULL);
+					
+					if (c2_rpc_snd_slot_is_busy(slot))
+						continue;
+
+					found = true;
+					goto out_of_loops;
+				}
+				c2_mutex_unlock(&session->s_mutex);
+			}
+		}
+		c2_mutex_unlock(&conn->c_mutex);
+	}
+
+out_of_loops:
+	if (found) {
+		item->ri_sender_id = conn->c_sender_id;
+		item->ri_session_id = session->s_session_id;
+		item->ri_slot_id = i;
+		item->ri_slot_generation = slot->ss_generation;
+		item->ri_verno = slot->ss_verno;
+
+		printf("item bound: [%lu:%lu:%u->%lu]\n", item->ri_sender_id,
+			item->ri_session_id, item->ri_slot_id,
+			item->ri_verno.vn_vc);
+		slot->ss_sent_item = item;
+		c2_rpc_snd_slot_mark_busy(slot);
+
+		c2_mutex_unlock(&session->s_mutex);
+		c2_mutex_unlock(&conn->c_mutex);
+
+		return 0;
+	} else {
+		printf("Couldn't find any unbusy slot\n");
 	}
 	return 0;
 }

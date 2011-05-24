@@ -23,6 +23,8 @@ struct c2_dbenv			*db;
 struct c2_cob_domain		*dom;
 struct c2_rpcmachine		*machine;
 
+struct c2_service_id		svc_id;
+
 enum {
 	SESSION_CREATE_VC = 0,
 	SESSION_DESTROY_VC = 1
@@ -430,12 +432,12 @@ void conn_status_check(void *arg)
 }
 void test_snd_conn_create()
 {
-	struct c2_service_id		svc_id;
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_create_rep	*fop_ccr;
 	struct c2_rpc_item		*item;
 
 	C2_SET0(&svc_id);
+	strcpy(svc_id.si_uuid, "rpc_test_uuid");
 
 	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
@@ -590,6 +592,37 @@ void test_snd_conn_terminate()
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_rpc_conn_fini(&conn);
 }
+void test_item_prepare()
+{
+	struct c2_rpc_item	item[5];
+	struct c2_rpc_item	reply_item;
+	struct c2_rpc_item	*req_item = NULL;
+	int			rc;
+	int			i;
+
+	for (i = 0; i < 5; i++) {
+		c2_rpc_item_init(&item[i], machine);
+
+		item[i].ri_service_id = &svc_id;
+		rc = c2_rpc_session_item_prepare(&item[i]);
+
+		printf("test_item_prepare: item_prepare() returned %d\n", rc);
+	}
+	reply_item.ri_sender_id = item[0].ri_sender_id;
+	reply_item.ri_session_id = item[0].ri_session_id;
+	reply_item.ri_slot_id = item[0].ri_slot_id;
+	reply_item.ri_slot_generation = item[0].ri_slot_generation;
+	reply_item.ri_verno = item[0].ri_verno;
+	reply_item.ri_mach = machine;
+
+	c2_rpc_session_reply_item_received(&reply_item, &req_item);
+	C2_ASSERT(req_item == &item[0]);
+
+	c2_rpc_item_init(&item[0], machine);
+	item[0].ri_service_id = &svc_id;
+	rc = c2_rpc_session_item_prepare(&item[0]);
+	
+}
 int main(void)
 {
 	printf("Program start\n");
@@ -604,6 +637,7 @@ int main(void)
 */
 	test_snd_conn_create();
 	test_snd_session_create();
+	test_item_prepare();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 
