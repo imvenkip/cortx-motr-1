@@ -213,6 +213,10 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	if (dp->xd_derived)
 		return;
 	c2_list_del(&dp->xd_dom_linkage);
+	if (c2_list_is_empty(&mem_domains)) {
+		c2_list_fini(&mem_domains);
+		mem_domains_initialized = false;
+	}
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
 }

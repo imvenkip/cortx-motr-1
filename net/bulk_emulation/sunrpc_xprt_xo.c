@@ -122,7 +122,7 @@ static bool sunrpc_buffer_invariant(const struct c2_net_buffer *nb)
 void c2_sunrpc_fop_fini(void)
 {
 	c2_mutex_fini(&sunrpc_tm_start_mutex);
-	c2_list_init(&sunrpc_server_tms);
+	c2_list_fini(&sunrpc_server_tms);
 	c2_mutex_fini(&sunrpc_server_mutex);
 	c2_rwlock_fini(&sunrpc_server_lock);
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
@@ -137,18 +137,16 @@ int c2_sunrpc_fop_init(void)
 {
 	int result;
 
+	c2_rwlock_init(&sunrpc_server_lock);
+	c2_mutex_init(&sunrpc_server_mutex);
+	c2_list_init(&sunrpc_server_tms);
+	c2_mutex_init(&sunrpc_tm_start_mutex);
+
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	if (result == 0) {
+	if (result == 0)
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-	}
 	if (result != 0)
 		c2_sunrpc_fop_fini();
-	else {
-		c2_rwlock_init(&sunrpc_server_lock);
-		c2_mutex_init(&sunrpc_server_mutex);
-		c2_list_init(&sunrpc_server_tms);
-		c2_mutex_init(&sunrpc_tm_start_mutex);
-	}
 	return result;
 }
 C2_EXPORTED(c2_sunrpc_fop_init);
