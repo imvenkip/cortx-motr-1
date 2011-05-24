@@ -113,9 +113,6 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	struct c2_net_bulk_sunrpc_end_point *sep;
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
 
-	/* base pvt structure must be at the top of our pvt structure */
-	C2_ASSERT(container_of(0, struct c2_net_bulk_sunrpc_end_point, xep_base)
-		  == NULL);
 	C2_PRE(sunrpc_dom_invariant(dom));
 	/* C2_PRE(id > 0);*/
 	/* create the base transport ep first */

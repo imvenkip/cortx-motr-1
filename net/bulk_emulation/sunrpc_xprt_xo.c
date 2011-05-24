@@ -62,6 +62,16 @@ static struct c2_service     sunrpc_server_service;
 static uint32_t              sunrpc_server_active_tms = 0;
 static struct c2_mutex       sunrpc_tm_start_mutex;
 
+/* base pvt structures must be at the top of our pvt structure */
+C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_domain_pvt, xd_base)
+	   == NULL);
+C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_buffer_pvt,xsb_base)
+	   == NULL);
+C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_tm_pvt, xtm_base)
+	   == NULL);
+C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_end_point, xep_base)
+	   == NULL);
+
 static bool sunrpc_dom_invariant(const struct c2_net_domain *dom)
 {
 	const struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
@@ -207,9 +217,6 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	int i;
 	int rc;
 
-	/* base pvt structure must be at the top of our pvt structure */
-	C2_ASSERT(container_of(0, struct c2_net_bulk_sunrpc_domain_pvt, xd_base)
-		  == NULL);
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_ALLOC_PTR(dp);
 	if (dp == NULL)
@@ -333,9 +340,6 @@ static bool sunrpc_buffer_in_bounds(const struct c2_net_buffer *nb)
 static int sunrpc_xo_buf_register(struct c2_net_buffer *nb)
 {
 	int rc;
-	/* base pvt structure must be at the top of our pvt structure */
-	C2_ASSERT(container_of(0, struct c2_net_bulk_sunrpc_buffer_pvt,xsb_base)
-		  == NULL);
 	C2_PRE(sunrpc_dom_invariant(nb->nb_dom));
 	/* calls sunrpc_buffer_in_bounds */
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_buf_register(nb);
@@ -374,9 +378,6 @@ static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
 	int rc;
-	/* base pvt structure must be at the top of our pvt structure */
-	C2_ASSERT(container_of(0, struct c2_net_bulk_sunrpc_tm_pvt, xtm_base)
-		  == NULL);
 	c2_rwlock_write_lock(&sunrpc_server_lock);
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_tm_init(tm);
 	if (rc == 0) {
