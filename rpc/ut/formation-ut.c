@@ -2,6 +2,35 @@
 #include "rpc/rpccore.h"
 #include "stob/ut/io_fop.h"
 #include "colibri/init.h"
+#include "lib/cdefs.h"
+#include "lib/memory.h"
+
+struct c2_rpc_form_items_cache *input_cache;
+
+/**
+  Alloc and initialize the items cache
+ */
+struct c2_rpc_form_items_cache *c2_rpc_form_item_cache_create(void)
+{
+	input_cache = c2_alloc(sizeof(struct c2_rpc_form_items_cache));
+	if(input_cache == NULL){
+		return NULL;
+	}
+	c2_mutex_init(&input_cache->ic_mutex);
+	c2_list_init(&input_cache->ic_cache_list);
+	return input_cache;
+}
+
+/**
+  Insert a rpc item to the cache based on sorted deadline value
+ */
+int c2_rpc_form_item_cache_insert(struct c2_rpc_form_items_cache *cache,
+		struct c2_rpc_item *item)
+{
+	C2_PRE(cache != NULL);	
+	C2_PRE(item !=NULL);
+	return 0;
+}
 
 /**
   Assign a group to a given RPC item
@@ -35,6 +64,36 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 	C2_PRE(item !=NULL);
 
 	item->ri_prio = prio;
+	return 0;
+}
+
+/**
+  Insert an rpc item to the global input cache such that it is sorted
+  according to timeout
+  */
+int c2_rpc_form_add_rpc_to_cache(struct c2_rpc_item *item)
+{
+	struct c2_rpc_item	*rpc_item;
+	struct c2_rpc_item	*rpc_item_next;
+	bool			 item_inserted = false;
+	C2_PRE(item != NULL);
+
+	c2_mutex_lock(&input_cache->ic_mutex);
+	c2_list_for_each_entry_safe(&input_cache->ic_cache_list, 
+			rpc_item, rpc_item_next,
+			struct c2_rpc_item, ri_linkage){
+		if (item->ri_deadline < rpc_item->ri_deadline) {
+			c2_list_add_before(&rpc_item->ri_linkage, &item->ri_linkage);
+			item_inserted = true;
+			break;
+		}
+
+	}
+	if(!item_inserted) {
+		c2_list_add(&input_cache->ic_cache_list, &item->ri_linkage);
+	}
+	c2_mutex_unlock(&input_cache->ic_mutex);
+
 	return 0;
 }
 
