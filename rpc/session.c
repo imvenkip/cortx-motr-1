@@ -12,7 +12,6 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "rpc/session_u.h" 
-//#include "rpc/session.ff"
 #include "rpc/session_int.h"
 #include "db/db.h"
 #include "dtm/verno.h"
@@ -556,9 +555,55 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
         return got_event;
 }
 
-bool c2_rpc_conn_invariant(const struct c2_rpc_conn *rpc_conn)
+bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
-       return true;
+	int			count = 0;
+	struct c2_rpc_session	*session;
+
+	if (conn == NULL)
+		return false;
+
+	switch (conn->c_state) {
+		case CS_CONN_UNINITIALIZED:
+		case CS_CONN_INIT_FAILED:
+		case CS_CONN_TERMINATED:
+			if (conn->c_sender_id != SENDER_ID_INVALID)
+				return false;
+
+		case CS_CONN_INITIALIZING:
+			if (conn->c_sender_id != SENDER_ID_INVALID || 
+				conn->c_nr_sessions > 0 ||
+				conn->c_service_id == NULL ||
+				conn->c_rpcmachine == NULL)
+				return false;
+			
+		case CS_CONN_ACTIVE:
+			if (conn->c_sender_id == SENDER_ID_INVALID ||
+			   (conn->c_flags & CF_WAITING_FOR_CONN_CREATE_REPLY) != 0 ||
+			   (conn->c_flags & CF_WAITING_FOR_CONN_TERM_REPLY) != 0 ||
+			   conn->c_service_id == NULL ||
+			   conn->c_rpcmachine == NULL)
+				return false; 
+			
+			if (!c2_list_invariant(&conn->c_sessions))
+				return false;
+
+			c2_list_for_each_entry(&conn->c_sessions, session,
+					    struct c2_rpc_session, s_link) {
+				count++;
+			}
+			if (count != conn->c_nr_sessions)
+				return false;
+			return true;
+
+		case CS_CONN_TERMINATING:
+			if (conn->c_nr_sessions > 0 ||
+				conn->c_sender_id == SENDER_ID_INVALID)
+				return false;
+		default:
+			return false;
+	}
+	return true;
 }
 
 static void session_fields_init(struct c2_rpc_session	*session,
@@ -610,7 +655,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 
 	printf("session_Create: session object %p\n", session);
 	session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
-
 
 	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
 	if (fop == NULL)
@@ -905,8 +949,8 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	for (i = 0; i < session->s_nr_slots; i++) {
 		/*
 		 * XXX Is this assert is valid?
-		 * we sent an item. destination crashed and never came up.
-		 * we decided to terminate session. slot can be busy in
+		 * sender sent an item. receiver crashed and never came up.
+		 * sender decided to terminate session. slot can be busy in
 		 * that case
 		 */
 		C2_ASSERT(!c2_rpc_snd_slot_is_busy(session->s_slot_table[i]));
@@ -921,7 +965,35 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
-       return true;
+	int		i;
+
+	if (session == NULL)
+		return false;
+
+	switch (session->s_state) {
+		case SESSION_UNINITIALIZED:
+		case SESSION_CREATING:
+		case SESSION_CREATE_FAILED:
+		case SESSION_TERMINATED:
+			if (session->s_session_id != SESSION_ID_INVALID)
+				return false;
+		case SESSION_ALIVE:
+		case SESSION_TERMINATING:
+			if (session->s_session_id == SESSION_ID_INVALID)
+				return false;
+			if (session->s_conn == NULL ||
+				session->s_conn->c_state != CS_CONN_ACTIVE)
+				return false;
+			if (session->s_nr_slots == 0)
+				return false;
+			for (i = 0; i < session->s_nr_slots; i++) {
+				if (session->s_slot_table[i] == NULL)
+					return false;
+			}
+		default:
+			return false;
+	}
+	return true;
 }
 
 /**
