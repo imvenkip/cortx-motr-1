@@ -1,11 +1,3 @@
-noinst_PROGRAMS   = rclient rserver
-
-rclient_SOURCES   = rpc-client.c
-rclient_LDFLAGS   = -pthread
-rclient_LDADD     = $(top_builddir)/colibri/libcolibri.la
-
-rserver_SOURCES   = rpc-server.c
-rserver_LDFLAGS   = -pthread
-rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
-
-
+noinst_LTLIBRARIES   = libformation-ut.la
+libformation_ut_la_SOURCES   = formation-ut.c 
+INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include

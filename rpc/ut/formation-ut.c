@@ -1,4 +1,6 @@
 #include "rpc/formation.h"
+#include "stob/ut/io_fop.h"
+#include "colibri/init.h"
 
 /*
    *** Current scenario ***
@@ -25,7 +27,16 @@
       multiple IO requests on same files.
    5. Create FOPs for these requests (metadata/IO), assign
  */
-int main()
+int main(int argc, char **argv)
 {
+	int result = 0;
+
+	result = c2_init();
+	C2_ASSERT(result == 0);
+
+	result = io_fop_init();
+	C2_ASSERT(result == 0);
+
+	return 0;
 }
 

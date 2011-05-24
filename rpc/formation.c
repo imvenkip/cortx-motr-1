@@ -17,6 +17,26 @@ struct c2_rpc_form_item_summary		*formation_summary;
  */
 struct c2_rpc_form_items_cache		*items_cache;
 
+/**
+    Forward declarations of local static functions 
+ */
+static int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
+              c2_rpc_form_item_summary_unit *endp_unit,
+              struct c2_rpc_item *item);
+
+static int c2_rpc_form_intevt_state_failed(struct
+		c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_rpc_item *item, const int state);
+
+static int c2_rpc_form_intevt_state_succeeded(struct
+                c2_rpc_form_item_summary_unit *endp_unit,
+                struct c2_rpc_item *item, const int state);
+
+static int c2_rpc_form_add_rpcitem_to_summary_unit(
+                struct c2_rpc_form_item_summary_unit *endp_unit,
+                struct c2_rpc_item *item);
+
+
 /**     
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
