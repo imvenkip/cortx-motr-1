@@ -101,7 +101,7 @@ Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
 	rc = dom->nd_xprt->nx_ops->xo_get_##Fn(dom);	\
 	c2_mutex_unlock(&dom->nd_mutex);		\
 	return rc;					\
-}
+}							\
 C2_EXPORTED(c2_net_domain_get_##Fn)
 
 DOM_GET_PARAM(max_buffer_size, c2_bcount_t);
