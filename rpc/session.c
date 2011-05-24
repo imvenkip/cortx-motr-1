@@ -133,6 +133,16 @@ void c2_rpc_session_module_fini(void)
 	c2_rpc_session_fop_fini();
 }
 
+/**
+   Search for a c2_rpc_conn object having sender_id equal to
+   @sender_id in machine->cr_rpc_conn_list.
+
+   If NOT found then *out is set to NULL
+   If found then *out contains pointer to LOCKED c2_rpc_conn object
+
+   @pre c2_mutex_is_locked(&machine->cr_session_mutex)
+   @post *out == NULL || c2_mutex_is_locked(&(*out)->c_mutex)
+*/
 void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
                         uint64_t                sender_id,
                         struct c2_rpc_conn      **out)
@@ -144,11 +154,14 @@ void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
 
 	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
 				struct c2_rpc_conn, c_link) {
+		c2_mutex_lock(&conn->c_mutex);
 		if (conn->c_sender_id == sender_id) {
 			*out = conn;
 			break;
 		}
+		c2_mutex_unlock(&conn->c_mutex);
 	}
+	C2_ASSERT(*out == NULL || c2_mutex_is_locked(&(*out)->c_mutex));
 }
 
 /**
@@ -157,6 +170,7 @@ void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
    If found *out contains pointer to session LOCKED object
 
    @pre c2_mutex_is_locked(&conn->c_mutex)
+   @post *out == NULL || c2_mutex_is_locked(*out)
  */
 void c2_rpc_session_search(struct c2_rpc_conn           *conn,
                            uint64_t                     session_id,
@@ -477,11 +491,9 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 
-	C2_ASSERT(conn != NULL);
+	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
 	printf("found conn %p %lu\n", conn, conn->c_sender_id);
-
-	c2_mutex_lock(&conn->c_mutex);
 
 	if ((conn->c_flags & CF_WAITING_FOR_CONN_TERM_REPLY) == 0) {
 		/*
@@ -743,11 +755,9 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
-	C2_ASSERT(conn != NULL);
+	C2_ASSERT(conn != NULL  && c2_mutex_is_locked(&conn->c_mutex));
 
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
-
-	c2_mutex_lock(&conn->c_mutex);
 
 	/*
 	 * For a c2_rpc_conn
@@ -913,12 +923,10 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
-	C2_ASSERT(conn != NULL);
+	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 	
-	c2_mutex_lock(&conn->c_mutex);
-
 	c2_rpc_session_search(conn, session_id, &session);
 	/* session is locked */
 	C2_ASSERT(session != NULL && session->s_state == SESSION_TERMINATING);
@@ -1298,9 +1306,10 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 		return -1;
 	}
 
+	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
+
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 	
-	c2_mutex_lock(&conn->c_mutex);
 	c2_rpc_session_search(conn, item->ri_session_id, &session);
 
 	if (session == NULL) {
