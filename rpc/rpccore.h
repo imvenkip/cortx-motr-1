@@ -368,6 +368,8 @@ struct c2_rpcmachine {
 	struct c2_rpc_statistics   cr_statistics;
 	/** List of rpc connections */
 	struct c2_list		   cr_rpc_conn_list;
+	/** mutex that protects conn_list */
+	struct c2_mutex		   cr_session_mutex;
 };
 
 /**

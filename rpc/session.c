@@ -139,6 +139,7 @@ void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
 {
 	struct c2_rpc_conn	*conn;
 
+	C2_ASSERT(c2_mutex_is_locked(&machine->cr_session_mutex));
 	*out = NULL;
 
 	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
@@ -229,7 +230,10 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
 	conn->c_state = CS_CONN_INITIALIZING;
 	conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
+
+	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
@@ -239,7 +243,10 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		conn->c_state = CS_CONN_INIT_FAILED;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
+
+		c2_mutex_lock(&machine->cr_session_mutex);
 		c2_list_del(&conn->c_link);
+		c2_mutex_unlock(&machine->cr_session_mutex);
 	}
 	printf("conn_create: finished %d\n", rc);
 	return rc;
@@ -266,8 +273,13 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 	machine = item->ri_mach;
 
+	c2_mutex_lock(&machine->cr_session_mutex);
+
 	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
 				struct c2_rpc_conn, c_link) {
+
+		c2_mutex_lock(&conn->c_mutex);
+
 		if (conn->c_state == CS_CONN_INITIALIZING) {
 			C2_ASSERT(conn->c_private != NULL);
 
@@ -283,15 +295,16 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 				break;
 			}
 		}
+		c2_mutex_unlock(&conn->c_mutex);
 	}
+
 	if (!found) {
 		printf("Couldn't find conn object\n");
 		C2_ASSERT(0);
+		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	}
-	C2_ASSERT(conn != NULL);
-
-	c2_mutex_lock(&conn->c_mutex);
+	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
 	if ((conn->c_flags & CF_WAITING_FOR_CONN_CREATE_REPLY) == 0) {
 		/*
@@ -299,6 +312,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		 * Just run away from here.
 		 */
 		c2_mutex_unlock(&conn->c_mutex);
+		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	} else {
 		conn->c_flags &= ~CF_WAITING_FOR_CONN_CREATE_REPLY;
@@ -326,6 +340,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
 			conn->c_state == CS_CONN_ACTIVE);
 	c2_mutex_unlock(&conn->c_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 	c2_chan_broadcast(&conn->c_chan);
 	printf("conn_create_reply_received: finished\n");
 }
@@ -459,6 +474,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 
 	C2_ASSERT(conn != NULL);
@@ -473,6 +489,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		 */
 		printf("Duplicated conn_term_reply\n");
 		c2_mutex_unlock(&conn->c_mutex);
+		c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 		return;
 	} else {
 		conn->c_flags &= ~CF_WAITING_FOR_CONN_TERM_REPLY;
@@ -485,11 +502,16 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_state = CS_CONN_TERMINATED;
 		/* XXX Need a lock to protect conn list in rpcmachine */
 		c2_list_del(&conn->c_link);
+
 		c2_rpc_session_search(conn, SESSION_0, &session0);
-		C2_ASSERT(session0 != NULL);
+		C2_ASSERT(session0 != NULL &&
+			c2_mutex_is_locked(&session0->s_mutex));
+
 		session0->s_state = SESSION_TERMINATED;
+
 		c2_list_del(&session0->s_link);
 		c2_mutex_unlock(&session0->s_mutex);
+
 		c2_rpc_session_fini(session0);
 	} else {
 		/*
@@ -508,6 +530,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	conn->c_private = NULL;
 
 	c2_mutex_unlock(&conn->c_mutex);
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 	c2_chan_broadcast(&conn->c_chan);
 
 	c2_fop_free(fop);	/* reply fop */
@@ -717,8 +740,12 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
+
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 	C2_ASSERT(conn != NULL);
+
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 
 	c2_mutex_lock(&conn->c_mutex);
 
@@ -883,9 +910,13 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
+
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 	C2_ASSERT(conn != NULL);
 
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	
 	c2_mutex_lock(&conn->c_mutex);
 
 	c2_rpc_session_search(conn, session_id, &session);
@@ -1067,6 +1098,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	 * Find out any unbusy slot which can go to destination pointed by
 	 * item->ri_service_id
 	 */
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_list_for_each_entry(&item->ri_mach->cr_rpc_conn_list, conn,
 				struct c2_rpc_conn, c_link) {
 		c2_mutex_lock(&conn->c_mutex);
@@ -1117,6 +1149,8 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	}
 
 out_of_loops:
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+
 	if (found) {
 		C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
 		C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
@@ -1254,6 +1288,7 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 
 	*out = NULL;
 
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_rpc_conn_search(item->ri_mach, item->ri_sender_id, &conn);
 	if (conn == NULL) {
 		printf("couldn't find conn %lu\n", item->ri_sender_id);
@@ -1263,6 +1298,8 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 		return -1;
 	}
 
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	
 	c2_mutex_lock(&conn->c_mutex);
 	c2_rpc_session_search(conn, item->ri_session_id, &session);
 
