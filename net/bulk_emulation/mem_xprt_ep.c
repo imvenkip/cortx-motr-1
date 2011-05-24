@@ -28,6 +28,34 @@ static void mem_xo_end_point_release(struct c2_ref *ref)
 	c2_free(mep);
 }
 
+/** create the printable representation */
+static void mem_ep_printable(struct c2_net_bulk_mem_end_point *mep,
+			     const struct sockaddr_in *sa,
+			     uint32_t id)
+{
+	char dot_ip[17];
+	int i;
+	size_t len = 0;
+	in_addr_t a = ntohl(sa->sin_addr.s_addr);
+	int nib[4];
+	for (i = 3; i >= 0; i--) {
+		nib[i] = a & 0xff;
+		a >>= 8;
+	}
+	for (i = 0; i < 4; ++i) {
+		len += sprintf(&dot_ip[len], "%d.", nib[i]);
+	}
+	C2_ASSERT(len < sizeof(dot_ip));
+	dot_ip[len-1] = '\0';
+	if (id > 0)
+		sprintf(mep->xep_addr, "%s:%u:%u", dot_ip,
+			ntohs(sa->sin_port), id);
+	else
+		sprintf(mep->xep_addr, "%s:%u", dot_ip,
+			ntohs(sa->sin_port));
+	C2_ASSERT(strlen(mep->xep_addr) < C2_NET_BULK_MEM_XEP_ADDR_LEN);
+}
+
 /**
    Internal implementation of mem_xo_end_point_create().
  */
@@ -64,30 +92,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	mep->xep_sa.sin_addr = sa->sin_addr;
 	mep->xep_sa.sin_port = sa->sin_port;
 	mep->xep_service_id  = id;
-	/* create the printable representation */
-	{
-		char dot_ip[17];
-		int i;
-		size_t len = 0;
-		in_addr_t a = ntohl(sa->sin_addr.s_addr);
-		int nib[4];
-		for (i = 3; i >= 0; i--) {
-			nib[i] = a & 0xff;
-			a >>= 8;
-		}
-		for (i = 0; i < 4; ++i) {
-			len += sprintf(&dot_ip[len], "%d.", nib[i]);
-		}
-		C2_ASSERT(len < sizeof(dot_ip));
-		dot_ip[len-1] = '\0';
-		if (id > 0)
-			sprintf(mep->xep_addr, "%s:%u:%u", dot_ip,
-				ntohs(sa->sin_port), id);
-		else
-			sprintf(mep->xep_addr, "%s:%u", dot_ip,
-				ntohs(sa->sin_port));
-		C2_ASSERT(strlen(mep->xep_addr) < C2_NET_BULK_MEM_XEP_ADDR_LEN);
-	}
+	mem_ep_printable(mep, sa, id);
 	ep = &mep->xep_ep;
 	c2_ref_init(&ep->nep_ref, 1, dp->xd_ops.bmo_ep_release);
 	ep->nep_dom = dom;
