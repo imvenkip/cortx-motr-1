@@ -761,6 +761,10 @@ static void test_tm(void)
 	};
 	struct c2_clink tmwait1;
 
+	/* should be able to init/fini a dom back-to-back */
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
+	c2_net_domain_fini(&dom1);
+
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 

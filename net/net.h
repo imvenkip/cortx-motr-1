@@ -504,7 +504,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @param ep End point data structure pointer.
    Do not dereference this pointer after this call.
    @pre ep->nep_ref->ref_cnt >= 1
-   @note The domain lock will be obtained internaly to synchronize the
+   @note The domain lock will be obtained internally to synchronize the
    transport provided release() method in case the end point gets released.
    @retval 0 (success)
    @retval -errno (failure)
@@ -1331,7 +1331,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
 /**
    Remove a registered buffer from a logical queue, if possible,
-   cancelling any operation in progess.
+   cancelling any operation in progress.
 
    <b>Cancellation support is provided by the underlying transport.</b> It is
    not guaranteed that actual cancellation of the operation in progress will

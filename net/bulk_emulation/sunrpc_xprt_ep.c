@@ -30,10 +30,10 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
+	C2_PRE(sunrpc_ep_invariant(ep));
 	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
-	C2_PRE(sunrpc_ep_invariant(ep));
 	dp = ep->nep_dom->nd_xprt_private;
 
 	/* free the conn and sid */
@@ -44,9 +44,7 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 			c2_net_conn_unlink(conn);
 		}
 	}
-	if (sep->xep_sid_valid) {
-		c2_service_id_fini(&sep->xep_sid);
-	}
+	c2_service_id_fini(&sep->xep_sid);
 	sep->xep_magic = 0;
 
 	/* release the end point with the base method */
@@ -54,7 +52,7 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 }
 
 /**
-   Internal subroutine to initialize a side from an end point.
+   Internal subroutine to initialize a sid from an end point.
    @param sid Pointer to service id
    @param rpc_dom Domain of the underlying sunrpc transport.
    @param ep An end point pointer from any bulk sunrpc domain.
