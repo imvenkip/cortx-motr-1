@@ -221,8 +221,7 @@ enum c2_rpc_conn_state {
    is no need to communicate to receiver in order to create this session.
    Receiver assumes that there always exists a session 0 for each sender_id.
    Session 0 always have exactly 1 slot within it.
-   When receiver receives first item on session 0 for any sender_id,
-   it creates an entry of slot of session 0 in its slot table.
+   Receiver creates session 0 while creating the rpc connection itself.
    Session 0 is required to send other SESSION_CREATE/SESSION_TERMINATE requests
    to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
    non-idempotent, they also need EOS and FIFO guarantees.
@@ -287,8 +286,6 @@ struct c2_rpc_conn {
     end of the connection. When reply is received, the c2_rpc_conn is
     moved into INITIALIZED state.
 
-    @note c2_net_conn argument will be removed in future.
-
     @pre c2_rpc_conn->c_state == CONN_UNINITIALIZED
     @post c2_rpc_conn->c_state == CONN_INITIALIZING
  */
@@ -329,7 +326,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 /**
    checks internal consistency of c2_rpc_conn
  */
-bool c2_rpc_conn_invariant(const struct c2_rpc_conn *session);
+bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 
 /**
    Possible states of a session object

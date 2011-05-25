@@ -9,6 +9,7 @@
 #include "dtm/verno.h"
 
 enum {
+	/* XXX need to set some proper value to this constant */
 	DEFAULT_SLOT_COUNT = 4
 };
 
