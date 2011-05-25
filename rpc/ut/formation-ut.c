@@ -1,6 +1,6 @@
 #include "rpc/formation.h"
 #include "stob/ut/io_fop.h"
-#include "colibri/init.h"
+#include <stdlib.h>
 
 /*
    *** Current scenario ***
@@ -32,23 +32,104 @@ uint64_t			c2_rpc_max_message_size;
 uint64_t			c2_rpc_max_fragments_size;
 uint64_t			c2_rpc_max_rpcs_in_flight;
 
-static int			nthreads = 8;
-static struct c2_thread		form_ut_threads[nthreads];
-static int			nfops = 256;
+static int			 nthreads = 8;
+static struct c2_thread		 form_ut_threads;
+
+static int			 nfops = 256;
+static c2_fop			*form_fops;
+
+static int			 nrpcgroups = 16;
+static struct c2_rpc_group	*form_groups;
+
+static int			 nfiles = 64;
+static c2_fop_fid		*form_fids;
 
 static void form_ut_thread_init(int a)
 {
 #ifndef __KERNEL__
 	printf("Thread id %d initialized.\n", form_ut_threads[a].t_h.h_id);
 #endif
+	/* Call its function. */
+}
+
+struct c2_fop_fid *form_get_fid(int i)
+{
+	C2_ASSERT(i < nfiles);
+	return form_fids[i];
+}
+
+struct c2_rpc_group *form_get_rpcgroup(int i)
+{
+	C2_ASSERT(i < nrpcgroups);
+	return form_groups[i];
+}
+
+struct c2_fop *form_create_file_create_fop()
+{
+	int 				 i = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_file_create	*create_fop = NULL;
+
+	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
+	if (fop == NULL) {
+		printf("Failed to allocate struct c2_fop.\n");
+		return NULL;
+	}
+	create_fop = c2_fop_data(fop);
+	i = (rand()) % nfiles;
+	create_fop->fcr_fid = form_get_fid(i);
+	return fop;
+}
+
+struct c2_fop_io_vec *form_get_new_iovec(int i)
+{
+	struct c2_fop_io_vec		*iovec = NULL;
+
+	C2_ASSERT(i < nfiles);
+	C2_ALLOC_PTR(iovec);
+	if (iovec == NULL) {
+		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
+		return NULL;
+	}
+	for () {
+	}
+}
+
+struct c2_fop *form_create_write_fop()
+{
+	int				 i = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_cob_writev	*write_fop = NULL;
+
+	fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
+	if (fop == NULL) {
+		printf("Failed to allocate struct c2_fop.\n");
+		return NULL;
+	}
+	write_fop = c2_fop_data(fop);
+	i = (rand()) % nfiles;
+	write_fop->fwr_fid = form_get_fid(i);
+	write_fop->fwr_iovec = form_get_new_iovec(i);;
+}
+
+struct c2_fop *form_create_write_fop()
+{
+	int				 i = 0;
+	struct c2_fop			*fop = NULL;
+	struct c2_fop_cob_readv		*read_fop = NULL;
+
+	fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+	if (fop == NULL) {
+		printf("Failed to allocate struct c2_fop.\n");
+		return NULL;
+	}
 }
 
 int main(int argc, char **argv)
 {
-	int result = 0;
-
-	result = c2_init();
-	C2_ASSERT(result == 0);
+	int		result = 0;
+	int		grp_no = 0;
+	int		file_no = 0;
 
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
@@ -74,9 +155,29 @@ int main(int argc, char **argv)
 		C2_ASSERT(result == 0);
 	}
 	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the 
-	    number of files to opeate upon. Decide how to assign items to 
-	    rpc groups and have multiple IO requests within or across groups.
-	 4. Populate the associated rpc items.
+	    number of files to operate upon. Decide how to assign items to 
+	    rpc groups and have multiple IO requests within or across groups.*/
+	/* Init the fid structures and rpc groups. */
+	C2_ALLOC_ARR(form_fids, nfiles);
+	if (form_fids == NULL) {
+		printf("Failed to allocate memory for array of struct \
+				c2_fop_file_fid.\n");
+		return -1;
+	}
+
+	C2_ALLOC_ARR(form_groups, nrpcgroups);
+	if (form_groups == NULL) {
+		printf("Failed to allocate memory for array of struct \
+				c2_rpc_group.\n");
+		return -1;
+	}
+
+	for (f = 0; f < nfops; f++) {
+		/* Total random data. */
+		/* 1. Create a FOP of type "create". */
+
+	}
+	/* 4. Populate the associated rpc items.
 	 5. Assign priority and timeout for all rpc items. The thumb rule
 	    for this is - meta data FOPs should have higher priority and
 	    shorted timeout while IO FOPs can have lower priority than

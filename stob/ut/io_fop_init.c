@@ -97,6 +97,7 @@ static struct c2_fop_type *fops[] = {
 	&c2_fop_cob_writev_fopt,
 	&c2_fop_cob_writev_rep_fopt,
 	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_file_create_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
@@ -113,6 +114,7 @@ static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_io_vec_tfmt,
 	&c2_fop_segment_tfmt,
 	&c2_fop_segment_seq_tfmt,
+	&c2_fop_file_create_tfmt,
 };
 
 void io_fop_fini(void)

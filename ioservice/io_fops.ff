@@ -148,6 +148,11 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(fwr_nid, U64),
 	_(fwr_flags, U64));
 
+/**
+ * <b> c2_fop_file_create </b>
+ */
+DEF(c2_fop_file_create, RECORD,
+	_(fcr_fid, c2_fop_file_fid));
 
 /** @} end of FOP_data_ops */
 
