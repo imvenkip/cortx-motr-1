@@ -790,7 +790,11 @@ int ping_init(struct ping_ctx *ctx)
 		fprintf(stderr, "buffer allocation failed: %d\n", rc);
 		goto fail;
 	}
-	c2_bitmap_init(&ctx->pc_nbbm, ctx->pc_nr_bufs);
+	rc = c2_bitmap_init(&ctx->pc_nbbm, ctx->pc_nr_bufs);
+	if (rc != 0) {
+		fprintf(stderr, "buffer bitmap allocation failed: %d\n", rc);
+		goto fail;
+	}
 	for (i = 0; i < ctx->pc_nr_bufs; ++i) {
 		rc = c2_net_buffer_register(&ctx->pc_nbs[i], &ctx->pc_dom);
 		if (rc != 0) {
@@ -799,8 +803,6 @@ int ping_init(struct ping_ctx *ctx)
 		}
 	}
 
-	if (rc != 0)
-		return rc;
 	if (ctx->pc_id != 0)
 		sprintf(addr, "%s:%u:%u", hostbuf, ctx->pc_port, ctx->pc_id);
 	else

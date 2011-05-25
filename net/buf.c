@@ -8,7 +8,7 @@
 /**
    @addtogroup net
    @{
-*/
+ */
 
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
@@ -30,8 +30,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 
 	/* bufvec must be set */
 	if (buf->nb_buffer.ov_buf == NULL ||
-	    buf->nb_buffer.ov_vec.v_nr == 0 ||
-	    buf->nb_buffer.ov_vec.v_count == NULL)
+	    c2_vec_count(&buf->nb_buffer.ov_vec) == 0)
 		return false;
 
 	/* optional callbacks, but if provided then ntc_event_cb required */
@@ -77,15 +76,14 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	       buf->nb_dom == NULL &&
 	       buf->nb_flags == 0 &&
 	       buf->nb_buffer.ov_buf != NULL &&
-	       buf->nb_buffer.ov_vec.v_nr > 0 &&
-	       buf->nb_buffer.ov_vec.v_count != NULL);
+	       c2_vec_count(&buf->nb_buffer.ov_vec) > 0);
 
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
 
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
-	*/
+	 */
 	rc = dom->nd_xprt->nx_ops->xo_buf_register(buf);
 	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
@@ -207,7 +205,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		/* Bump the reference count.
 		   Should be decremented in c2_net_tm_event_post().
 		   The caller holds a reference to the end point.
-		*/
+		 */
 		c2_net_end_point_get(buf->nb_ep);
 	}
 

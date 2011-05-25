@@ -32,7 +32,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	q->t_arg   = arg;
 	c2_semaphore_init(&q->t_wait, 0);
 	va_start(varargs, name);
-	vsnprintf(namebuf, sizeof(namebuf), name, varargs);
+	vsnprintf(namebuf, sizeof namebuf, name, varargs);
 	va_end(varargs);
 
 	result = c2_thread_init_impl(q, namebuf);
