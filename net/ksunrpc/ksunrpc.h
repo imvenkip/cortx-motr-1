@@ -28,6 +28,7 @@ struct c2_fop;
 
 
 int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
+int ksunrpc_service_init(struct c2_service *service);
 
 extern const struct c2_service_id_ops ksunrpc_service_id_ops;
 extern const struct c2_net_conn_ops   ksunrpc_conn_ops;
@@ -66,6 +67,12 @@ struct ksunrpc_service_id {
 	uint32_t              ssi_prog;     /**< server program number */
 	uint32_t              ssi_ver;      /**< server program version */
 };
+
+int c2_ksunrpc_init(void);
+void c2_ksunrpc_fini(void);
+
+extern const struct c2_service_id_ops ksunrpc_service_id_ops;
+extern const struct c2_net_conn_ops ksunrpc_conn_ops;
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif
