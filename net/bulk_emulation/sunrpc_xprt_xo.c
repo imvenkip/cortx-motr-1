@@ -63,14 +63,10 @@ static uint32_t              sunrpc_server_active_tms = 0;
 static struct c2_mutex       sunrpc_tm_start_mutex;
 
 /* base pvt structures must be at the top of our pvt structure */
-C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_domain_pvt, xd_base)
-	   == NULL);
-C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_buffer_pvt,xsb_base)
-	   == NULL);
-C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_tm_pvt, xtm_base)
-	   == NULL);
-C2_BASSERT(container_of(NULL, struct c2_net_bulk_sunrpc_end_point, xep_base)
-	   == NULL);
+C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_domain_pvt, xd_base) == 0);
+C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_buffer_pvt,xsb_base) == 0);
+C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_tm_pvt, xtm_base) == 0);
+C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_end_point, xep_base) == 0);
 
 static bool sunrpc_dom_invariant(const struct c2_net_domain *dom)
 {
