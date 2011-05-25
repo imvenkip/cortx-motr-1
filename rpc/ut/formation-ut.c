@@ -27,6 +27,22 @@
       multiple IO requests on same files.
    5. Create FOPs for these requests (metadata/IO), assign
  */
+
+uint64_t			c2_rpc_max_message_size;
+uint64_t			c2_rpc_max_fragments_size;
+uint64_t			c2_rpc_max_rpcs_in_flight;
+
+static int			nthreads = 8;
+static struct c2_thread		form_ut_threads[nthreads];
+static int			nfops = 256;
+
+static void form_ut_thread_init(int a)
+{
+#ifndef __KERNEL__
+	printf("Thread id %d initialized.\n", form_ut_threads[a].t_h.h_id);
+#endif
+}
+
 int main(int argc, char **argv)
 {
 	int result = 0;
@@ -38,10 +54,26 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	/*
-	 1. Initialize the threasholds like max_message_size, max_fragements
-	    and max_rpcs_in_flight.
-	 2. Create a pool of threads so this UT can be made multi-threaded.
-	 3. Create a number of meta-data and IO FOPs. For IO, decide the 
+	 1. Initialize the thresholds like max_message_size, max_fragements
+	    and max_rpcs_in_flight.*/
+
+	/* Lustre limits the rpc size(actually the number of pages in rpc)
+	   by the MTU(Max Transferrable Unit) of LNET which is defined
+	   to be 1M. !! Not sure of this is right !! */
+	c2_rpc_max_message_size = 1024*1024;
+	/* We start with a default value of 8. The max value in Lustre, is
+	   limited to 32. */
+	c2_rpc_max_rpcs_in_flight = 8;
+	c2_rpc_max_fragements_size = ;
+	
+	/* 2. Create a pool of threads so this UT can be made multi-threaded.*/
+	C2_SET_ARR0(&form_ut_threads);
+	for (i = 0; i < nthreads; i++) {
+		result = C2_THREAD_INIT(&form_ut_threads[i], int, NULL,
+				&form_ut_thread_init, i);
+		C2_ASSERT(result == 0);
+	}
+	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the 
 	    number of files to opeate upon. Decide how to assign items to 
 	    rpc groups and have multiple IO requests within or across groups.
 	 4. Populate the associated rpc items.
@@ -57,6 +89,10 @@ int main(int argc, char **argv)
 	 9. Grab output produced by formation algorithm and analyze the
 	    statistics.
 	 */
+	for (i = 0; i < nthreads; i++) {
+		c2_thread_join(&form_ut_threads[i]);
+		c2_thread_fini(&form_ut_threads[i]);
+	}
 	return 0;
 }
 
