@@ -2047,11 +2047,22 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 
 uint64_t c2_rpc_sender_id_get()
 {
-	return random() % 100;
+	uint64_t	sender_id;
+
+	do {
+		sender_id = random();
+	} while (sender_id == SENDER_ID_INVALID || sender_id == 0);
+	return sender_id;
 }
 uint64_t c2_rpc_session_id_get()
 {
-	return random() % 1000;
+	uint64_t	session_id;
+
+	do {
+		session_id = random();
+	} while (session_id == SESSION_ID_INVALID ||
+			session_id == SESSION_ID_NOSESSION);
+	return session_id;
 }
 /** @} end of session group */
 
