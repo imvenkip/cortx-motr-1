@@ -5,31 +5,44 @@
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 
-struct c2_rpc_form_items_cache *input_cache;
+/* Some random deadline values for testing purpose only */
+#define MIN_NONIO_DEADLINE	0 		// 0 ms
+#define MAX_NONIO_DEADLINE	1		// 10 ms 
+//#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
+#define MIN_IO_DEADLINE		10000000  	// 10 ms
+#define MAX_IO_DEADLINE		100000000 	// 100 ms
+
+/* Some random priority values for testing purpose only */
+#define MIN_NONIO_PRIO		0
+#define MAX_NONIO_PRIO		5
+#define MIN_IO_PRIO		6
+#define MAX_IO_PRIO 		10
 
 /**
   Alloc and initialize the items cache
  */
-struct c2_rpc_form_items_cache *c2_rpc_form_item_cache_create(void)
+int c2_rpc_form_item_cache_init(void)
 {
-	input_cache = c2_alloc(sizeof(struct c2_rpc_form_items_cache));
-	if(input_cache == NULL){
-		return NULL;
+	printf("Inside c2_rpc_form_item_cache_init \n");
+
+	items_cache = c2_alloc(sizeof(struct c2_rpc_form_items_cache));
+	if(items_cache == NULL){
+		return -1;
 	}
-	c2_mutex_init(&input_cache->ic_mutex);
-	c2_list_init(&input_cache->ic_cache_list);
-	return input_cache;
+	c2_mutex_init(&items_cache->ic_mutex);
+	c2_list_init(&items_cache->ic_cache_list);
+	return 0;
 }
 
 /**
-  Insert a rpc item to the cache based on sorted deadline value
+  Deallocate the items cache
  */
-int c2_rpc_form_item_cache_insert(struct c2_rpc_form_items_cache *cache,
-		struct c2_rpc_item *item)
+void c2_rpc_form_item_cache_fini(void)
 {
-	C2_PRE(cache != NULL);	
-	C2_PRE(item !=NULL);
-	return 0;
+	printf("Inside c2_rpc_form_item_cache_fini \n");
+	c2_mutex_fini(&items_cache->ic_mutex);
+	c2_list_fini(&items_cache->ic_cache_list);
+	c2_free(items_cache);
 }
 
 /**
@@ -38,6 +51,7 @@ int c2_rpc_form_item_cache_insert(struct c2_rpc_form_items_cache *cache,
 int c2_rpc_form_item_assign_group(struct c2_rpc_item *item,
 		struct c2_rpc_group *grp)
 {
+	printf("Inside c2_rpc_form_item_assign_group \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_group = grp;
@@ -50,6 +64,7 @@ int c2_rpc_form_item_assign_group(struct c2_rpc_item *item,
 int c2_rpc_form_item_assign_deadline(struct c2_rpc_item *item,
 		c2_time_t deadline)
 {
+	printf("Inside c2_rpc_form_item_assign_deadline \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_deadline = deadline;
@@ -61,6 +76,7 @@ int c2_rpc_form_item_assign_deadline(struct c2_rpc_item *item,
  */
 int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 {
+	printf("Inside c2_rpc_form_item_assign_prio \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_prio = prio;
@@ -68,18 +84,20 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 }
 
 /**
-  Insert an rpc item to the global input cache such that it is sorted
+  Insert an rpc item to the global items cache such that it is sorted
   according to timeout
   */
-int c2_rpc_form_add_rpc_to_cache(struct c2_rpc_item *item)
+int c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item	*rpc_item;
 	struct c2_rpc_item	*rpc_item_next;
 	bool			 item_inserted = false;
+
+	printf("Inside c2_rpc_form_add_rpc_to_cache \n");
 	C2_PRE(item != NULL);
 
-	c2_mutex_lock(&input_cache->ic_mutex);
-	c2_list_for_each_entry_safe(&input_cache->ic_cache_list, 
+	c2_mutex_lock(&items_cache->ic_mutex);
+	c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_linkage){
 		if (item->ri_deadline < rpc_item->ri_deadline) {
@@ -90,10 +108,74 @@ int c2_rpc_form_add_rpc_to_cache(struct c2_rpc_item *item)
 
 	}
 	if(!item_inserted) {
-		c2_list_add(&input_cache->ic_cache_list, &item->ri_linkage);
+		c2_list_add_after(&rpc_item->ri_linkage, &item->ri_linkage);
 	}
-	c2_mutex_unlock(&input_cache->ic_mutex);
+	item->ri_state = RPC_ITEM_SUBMITTED;
+	c2_mutex_unlock(&items_cache->ic_mutex);
 
+	return 0;
+}
+
+/**
+  Populate the rpc item parameters specific to IO FOPs
+ */
+int c2_rpc_form_item_io_populate_param(struct c2_rpc_item *item)
+{
+	int		prio;
+	c2_time_t	deadline;
+
+	printf("Inside c2_rpc_form_item_io_populate_param \n");
+	C2_PRE(item != NULL);
+
+	prio = rand() % MAX_IO_PRIO + MIN_IO_PRIO;
+	c2_rpc_form_item_assign_prio(item, prio);
+	deadline = rand() % (MAX_IO_DEADLINE-1) + MIN_IO_DEADLINE;
+	c2_rpc_form_item_assign_deadline(item, deadline);
+
+	return 0;
+}
+
+/**
+  Populate the rpc item parameters specific to Non-IO FOPs
+ */
+int c2_rpc_form_item_nonio_populate_param(struct c2_rpc_item *item)
+{
+	int		prio;
+	c2_time_t	deadline;
+
+	printf("Inside c2_rpc_form_item_nonio_populate_param \n");
+	C2_PRE(item != NULL);
+
+	prio = rand() % MAX_NONIO_PRIO + MIN_NONIO_PRIO;
+	c2_rpc_form_item_assign_prio(item, prio);
+	deadline = rand() % MAX_NONIO_DEADLINE + MIN_NONIO_DEADLINE;
+	c2_rpc_form_item_assign_deadline(item, deadline);
+
+	item->ri_group = NULL;
+
+	return 0;
+}
+
+/**
+  Populate the rpc item parameters based on the FOP type
+ */
+int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
+{
+	bool 		io_req = false;
+	int		res = 0;
+
+	printf("Inside c2_rpc_form_item_populate_param \n");
+	C2_PRE(item != NULL);
+	
+	io_req = c2_rpc_item_is_io_req(item);
+	if(io_req) {
+		res = c2_rpc_form_item_io_populate_param(item);
+		C2_ASSERT(res!=0);
+	}
+	else {
+		res = c2_rpc_form_item_nonio_populate_param(item);
+		C2_ASSERT(res!=0);
+	}
 	return 0;
 }
 
@@ -122,15 +204,13 @@ int c2_rpc_form_add_rpc_to_cache(struct c2_rpc_item *item)
       multiple IO requests on same files.
    5. Create FOPs for these requests (metadata/IO), assign
  */
-int main(int argc, char **argv)
+
+void c2_rpc_test_single_item_addition()
 {
-	int result = 0;
+	int			 result = 0;
+	struct c2_rpc_item	*item;
 
-	result = c2_init();
-	C2_ASSERT(result == 0);
-
-	result = io_fop_init();
-	C2_ASSERT(result == 0);
+	item = c2_alloc(sizeof(struct c2_rpc_item));
 
 	/*
 	 1. Initialize the threasholds like max_message_size, max_fragements
@@ -152,6 +232,58 @@ int main(int argc, char **argv)
 	 9. Grab output produced by formation algorithm and analyze the
 	    statistics.
 	 */
-	return 0;
+
+	result = c2_rpc_form_init();
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_form_item_cache_init();
+	C2_ASSERT(result == 0);
+
+	/**
+	  XXX Call FOP creation and population routines here. Extract rpc item 
+	  from the fop.
+	 */
+
+	result = c2_rpc_form_item_nonio_populate_param(item);	
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_form_item_add_to_cache(item);
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_form_extevt_rpcitem_added_in_cache(item);
+	C2_ASSERT(result == 0);
+
+	result = c2_rpc_form_init();
+	C2_ASSERT(result == 0);
+
 }
 
+int main(int argc, char **argv)
+{
+
+	/*
+	 1. Initialize the threasholds like max_message_size, max_fragements
+	    and max_rpcs_in_flight.
+	 2. Create a pool of threads so this UT can be made multi-threaded.
+	 3. Create a number of meta-data and IO FOPs. For IO, decide the 
+	    number of files to opeate upon. Decide how to assign items to 
+	    rpc groups and have multiple IO requests within or across groups.
+	 4. Populate the associated rpc items.
+	 5. Assign priority and timeout for all rpc items. The thumb rule
+	    for this is - meta data FOPs should have higher priority and
+	    shorted timeout while IO FOPs can have lower priority than
+	    meta data FOPs and relatively larger timeouts.
+	 6. Assign a thread each time from the thread pool to do the 
+	    rpc submission. This will give ample opportunity to test the
+	    formation algorithm in multi threaded environment.
+	 7. Simulate necessary behavior of grouping component.
+	 8. This will trigger execution of formation algorithm. 
+	 9. Grab output produced by formation algorithm and analyze the
+	    statistics.
+	 */
+
+
+	c2_rpc_test_single_item_addition();
+
+	return 0;
+}

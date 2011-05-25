@@ -330,7 +330,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	/* XXX Need appropriate values.*/
 	endp_unit->isu_max_message_size = 1;
 	endp_unit->isu_max_fragments_size = 1;
-	endp_unit->isu_max_rpcs_in_flight = 1;
+	endp_unit->isu_max_rpcs_in_flight = 2;
 	endp_unit->isu_curr_rpcs_in_flight = 1;
 	return endp_unit;
 }
@@ -422,6 +422,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		prev_state = endp_unit->isu_sm.isu_endp_state;
 	}
 	else {
+		c2_mutex_lock(&endp_unit->isu_unit_lock);
 		prev_state = sm_state;
 	}
 	/* If the formation component is not active (form_fini is called)
@@ -845,13 +846,16 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 					structure.\n");
 			return -ENOMEM;
 		}
+		c2_list_add(&endp_unit->isu_groups_list, &summary_group->sug_linkage);
 		if (item->ri_group == NULL) {
 			printf("Creating a c2_rpc_form_item_summary_unit_group \
 					struct for items with no groups.\n");
 		}
 	}
 
-	summary_group->sug_expected_items = item->ri_group->rg_expected;
+	if(item->ri_group != NULL) {
+		summary_group->sug_expected_items = item->ri_group->rg_expected;
+	}
 	summary_group->sug_group = item->ri_group;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX) {
 		summary_group->sug_priority_items++;
@@ -878,22 +882,28 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 				&summary_group->sug_linkage);
 	}
 
-	/* Init and start the timer for rpc item. */
-	item_timer = c2_alloc(sizeof(struct c2_timer));
-	if (item_timer == NULL) {
-		printf("Failed to allocate memory for a new c2_timer struct.\n");
-		return -ENOMEM;
+	/* Initialize the timer only when the deadline value is non-zero
+	   i.e. dont initialize the timer for URGENT items */
+	if(item->ri_deadline != 0) {
+		/* Init and start the timer for rpc item. */
+		item_timer = c2_alloc(sizeof(struct c2_timer));
+		if (item_timer == NULL) {
+			printf("Failed to allocate memory for a new c2_timer\
+					struct.\n");
+			return -ENOMEM;
+		}
+		/* C2_TIMER_SOFT creates a different thread to handle the
+		   callback. */
+		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 0, 
+				c2_rpc_form_item_timer_callback, 
+				(unsigned long)item);
+		res = c2_timer_start(item_timer);
+		if (res != 0) {
+			printf("Failed to start the timer for rpc item.\n");
+			return -1;
+		}
+		item->ri_timer = *item_timer;
 	}
-	/* C2_TIMER_SOFT creates a different thread to handle the
-	   callback. */
-	c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 0, 
-			c2_rpc_form_item_timer_callback, (unsigned long)item);
-	res = c2_timer_start(item_timer);
-	if (res != 0) {
-		printf("Failed to start the timer for rpc item.\n");
-		return -1;
-	}
-	item->ri_timer = *item_timer;
 	/* Assumption: c2_rpc_item_type_ops methods can access
 	   the fields of corresponding fop. */
 	return 0;
@@ -964,6 +974,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 	}
 	/* item_size = item->ri_type->rit_ops->rio_item_size(item); */
 	item_size = c2_rpc_form_item_size(item);
+	
 	if (((*rpcobj_size + item_size) < endp_unit->isu_max_message_size)) {
 		/** XXX Need this API from rpc-core. */
 		//item_update_stream = c2_rpc_get_update_stream(item);
@@ -979,17 +990,19 @@ static int c2_rpc_form_item_add_to_forming_list(
 					&item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
 			*nfragments += current_fragments;
-			item->ri_state = RPC_ITEM_ADDED;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit,
 					item);
-			c2_time_now(&now);
-			if (c2_time_after(item->ri_timer.t_expire, now)) {
-				item->ri_deadline = 
-					c2_time_sub(item->ri_timer.t_expire, 
-							now);
+			item->ri_state = RPC_ITEM_ADDED;
+			if(item->ri_deadline != 0) {
+				c2_time_now(&now);
+				if (c2_time_after(item->ri_timer.t_expire, now)) {
+					item->ri_deadline = 
+						c2_time_sub(item->ri_timer.t_expire, 
+								now);
+				}
+				c2_timer_stop(&item->ri_timer);
+				c2_timer_fini(&item->ri_timer);
 			}
-			c2_timer_stop(&item->ri_timer);
-			c2_timer_fini(&item->ri_timer);
 			c2_list_del(&item->ri_unformed_linkage);
 		//}
 		return 0;
