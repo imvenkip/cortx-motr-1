@@ -236,10 +236,6 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
 
-	/* wait for callbacks to clear */
-	while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
-		c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
-
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
 		/* completion race condition? no error */
 		goto m_err_exit;

@@ -714,11 +714,7 @@ struct c2_net_event {
    The subroutine provides the following concurrency semantics for event
    delivery:
    - Multiple concurrent events may be delivered for a given transfer machine.
-   - Only one event may be delivered at a time for a given buffer on a
-   transfer machine queue.  The invoking process will block on the transfer
-   machine's c2_net_transfer_mc.ntm_cond condition variable until the
-   outstanding event callback on the buffer completes (indicated by the
-   C2_NET_BUF_IN_CALLBACK bit being cleared).
+   - Multiple concurrent events may be delivered for a given buffer.
 
    If the event type is C2_NET_EV_BUFFER_RELEASE, then the
    subroutine will remove the buffer from its queue, and clear its
@@ -906,12 +902,6 @@ struct c2_net_transfer_mc {
 	struct c2_mutex             ntm_mutex;
 
 	/**
-	   Condition variable associated with the transfer machine.
-	   Use it with the network domain's mutex.
-	 */
-	struct c2_cond              ntm_cond;
-
-	/**
 	   Callback activity is tracked by this counter.
 	   It is incremented by c2_net_tm_post_event() before invoking
 	   a callback, and decremented when it returns.
@@ -1062,10 +1052,8 @@ enum c2_net_buf_flags {
 	C2_NET_BUF_QUEUED      = 1<<1,
 	/** Set when the transport starts using the buffer */
 	C2_NET_BUF_IN_USE      = 1<<2,
-	/** Set for the duration of a callback on the buffer */
-	C2_NET_BUF_IN_CALLBACK = 1<<3,
 	/** Indicates that the buffer operation has been cancelled */
-	C2_NET_BUF_CANCELLED   = 1<<4,
+	C2_NET_BUF_CANCELLED   = 1<<3,
 };
 
 /**
