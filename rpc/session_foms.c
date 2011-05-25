@@ -84,7 +84,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	/*
 	 * XXX Decide how to calculate sender_id
 	 */
-	sender_id = 20;
+retry:
+	sender_id = c2_rpc_sender_id_get();
 
 	/*
 	 * Create entry for session0/slot0 in in core
@@ -110,7 +111,10 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * XXX Todo: handle EEXIST properly.
 	 * We shouldn't choose 'sender_id' that is already present in slot_table
 	 */
-	if (rc != 0 && rc != -EEXIST) {
+	if (rc == -EEXIST) {
+		goto retry;
+	}
+	if (rc != 0)  {
 		printf("conn_create_state: error while inserting record\n");
 		goto errout;
 	}
@@ -240,7 +244,8 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	/*
 	 * XXX Decide how to calculate session_id
 	 */
-	session_id = 100;
+retry:
+	session_id = c2_rpc_session_id_get();
 	sender_id = fop_in->rsc_snd_id;
 	fop_out->rscr_sender_id = fop_in->rsc_snd_id;
 
@@ -261,8 +266,13 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 		key.stk_slot_id = i;
 
 		rc = c2_table_insert(&fom_sc->fsc_tx, &inmem_pair);
-		if (rc != 0 && rc != -EEXIST) {
-			printf("conn_create_state: error while inserting record 1\n");
+		if (rc == -EEXIST) {
+			c2_db_pair_release(&inmem_pair);
+			c2_db_pair_fini(&inmem_pair);
+			goto retry;
+		}
+		if (rc != 0) {
+			printf("sesssion_create_state: error while inserting record 1\n");
 			goto errout;
 		}
 	}

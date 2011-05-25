@@ -274,6 +274,7 @@ void test_conn_terminate(uint64_t sender_id)
 	
 }
 uint64_t	g_sender_id;
+uint64_t	g_session_id;
 
 void test_conn_create()
 {
@@ -333,7 +334,7 @@ void test_conn_create()
 		
 		fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
 		C2_ASSERT(fop_reply != NULL);
-		printf("Main: sender id %lu\n", fop_reply->rccr_snd_id);
+		printf("test_conn_create: sender id %lu\n", fop_reply->rccr_snd_id);
 		g_sender_id = fop_reply->rccr_snd_id;
 		fom->fo_ops->fo_fini(fom);
 	}
@@ -397,8 +398,8 @@ void test_session_create()
 
 		fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
 		C2_ASSERT(fop_sc_reply != NULL);
-		printf("Main: session id %lu\n", fop_sc_reply->rscr_session_id);
-
+		printf("test_session_create: session id %lu\n", fop_sc_reply->rscr_session_id);
+		g_session_id = fop_sc_reply->rscr_session_id;
 		fom->fo_ops->fo_fini(fom);
 
 		traverse_slot_table();
@@ -628,8 +629,8 @@ int main(void)
 	init();
 	test_conn_create();
 	test_session_create();
-	test_session_destroy(20, 100);
-	test_conn_terminate(20);
+	test_session_destroy(g_sender_id, g_session_id);
+	test_conn_terminate(g_sender_id);
 
 	test_snd_conn_create();
 	test_snd_session_create();

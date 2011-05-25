@@ -1580,7 +1580,9 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 				&inmem_slot, sizeof inmem_slot);
 	err = c2_table_lookup(&tx, &im_pair);
 	if (err != 0) {
-		printf("err occured while reading inmem_slot_tbl %d\n", err);
+		printf("err occured while reading inmem_slot_tbl %d [%lu:%lu:%u:%lu]\n", err,
+			item->ri_sender_id, item->ri_session_id, item->ri_slot_id,
+			item->ri_slot_generation);
 		rc = SCR_SESSION_INVALID;
 		goto errabort;
 	}
@@ -2041,6 +2043,15 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 		c2_rpc_submit(item->ri_service_id, NULL, item, item->ri_prio,
 				&item->ri_deadline);
 	}
+}
+
+uint64_t c2_rpc_sender_id_get()
+{
+	return random() % 100;
+}
+uint64_t c2_rpc_session_id_get()
+{
+	return random() % 1000;
 }
 /** @} end of session group */
 

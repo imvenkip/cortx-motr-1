@@ -197,5 +197,7 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 
 int c2_rpc_session_item_prepare(struct c2_rpc_item	*item);
 
+uint64_t c2_rpc_sender_id_get(void);
+uint64_t c2_rpc_session_id_get(void);
 #endif
 
