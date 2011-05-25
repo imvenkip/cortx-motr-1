@@ -107,10 +107,6 @@ retry:
 	c2_db_pair_release(&inmem_pair);
 	c2_db_pair_fini(&inmem_pair);
 
-	/*
-	 * XXX Todo: handle EEXIST properly.
-	 * We shouldn't choose 'sender_id' that is already present in slot_table
-	 */
 	if (rc == -EEXIST) {
 		goto retry;
 	}

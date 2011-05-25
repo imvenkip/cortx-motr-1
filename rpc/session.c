@@ -469,11 +469,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	item = c2_fop_to_rpc_item(fop);
 
-	/*
-	 * XXX Assumption:
-	 * item->ri_mach is properly assigned to all the 
-	 * received rpc items.
-	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
@@ -500,7 +495,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	if (fop_ctr->ctr_rc == 0) {
 		printf("connection termination successful\n");
 		conn->c_state = CS_CONN_TERMINATED;
-		/* XXX Need a lock to protect conn list in rpcmachine */
 		c2_list_del(&conn->c_link);
 
 		c2_rpc_session_search(conn, SESSION_0, &session0);
@@ -733,11 +727,6 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 	item = c2_fop_to_rpc_item(fop);
 
-	/*
-	 * XXX Assumption:
-	 * item->ri_mach is properly assigned to all the 
-	 * received rpc items.
-	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
@@ -901,11 +890,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 
 	item = c2_fop_to_rpc_item(fop);
 
-	/*
-	 * XXX Assumption:
-	 * item->ri_mach is properly assigned to all the 
-	 * received rpc items.
-	 */
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
@@ -1171,14 +1155,16 @@ out_of_loops:
 
 	/*
 	 * XXX Important
-	 * To send first unbound item to a particular destination, will require
+	 * If there is no rpc-connection and alive session to the destination,
+	 * to send first unbound item to such a destination, will require
 	 * multiple calls to c2_rpc_session_item_prepare() until the call
 	 * returns 0.
 	 * On first call, when it doesn't find any rpc_conn object present,
 	 * this function triggers rpc_conn create with the destination and
 	 * returns -EAGAIN
 	 * Assume by the time the next call is made to item_prepare() the
-	 * conn_create is successfully completed.
+	 * conn_create is successfully completed. (even if conn_create is in
+	 * progress there is no issue. item_prepare() will return -EAGAIN)
 	 * Then item_prepare() triggers rpc_session create and returns -EAGAIN
 	 * When next time item_prepare() is called with same unbound item and
 	 * assuming session creation is completed successfully, the item will
