@@ -161,7 +161,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		 */
 
 		c2_rpc_session_reply_prepare(&fom_sd->fsd_fop->f_item,
-				&fom_sd->fsd_fop_rep->f_item, dom,
+				&fom_sd->fsd_fop_rep->f_item,
 				&fom_sd->fsd_tx);
 
 		/*
@@ -250,7 +250,7 @@ void test_conn_terminate(uint64_t sender_id)
 		 * store reply in reply-cache
 		 */
 		c2_rpc_session_reply_prepare(&fom_ct->fct_fop->f_item,
-				&fom_ct->fct_fop_rep->f_item, dom,
+				&fom_ct->fct_fop_rep->f_item,
 				&fom_ct->fct_tx);
 		/*
 		 * commit/abort tx
@@ -320,7 +320,7 @@ void test_conn_create()
 
 		/* When reply is submitted to rpc layer, this routine is called */
 		c2_rpc_session_reply_prepare(&fom_cc->fcc_fop->f_item,
-				&fom_cc->fcc_fop_rep->f_item, dom,
+				&fom_cc->fcc_fop_rep->f_item,
 				&fom_cc->fcc_tx);
 
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
@@ -384,7 +384,7 @@ void test_session_create()
 		fom->fo_ops->fo_state(fom);
 
 		c2_rpc_session_reply_prepare(&fom_sc->fsc_fop->f_item,
-			&fom_sc->fsc_fop_rep->f_item, dom,
+			&fom_sc->fsc_fop_rep->f_item,
 			&fom_sc->fsc_tx);
 
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||

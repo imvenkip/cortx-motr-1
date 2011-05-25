@@ -50,7 +50,6 @@ extern const struct c2_table_ops c2_rpc_slot_table_ops;
  */
 extern int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 					struct c2_rpc_item	*reply,
-					struct c2_cob_domain	*dom,
                                 	struct c2_db_tx		*tx);
 
 extern int c2_rpc_session_module_init(void);

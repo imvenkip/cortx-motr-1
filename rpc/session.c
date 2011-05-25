@@ -1471,7 +1471,6 @@ out:
  */
 int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply,
-				 struct c2_cob_domain	*dom,
 				 struct c2_db_tx	*tx)
 {
 	C2_PRE(req != NULL && reply != NULL && tx != NULL);
