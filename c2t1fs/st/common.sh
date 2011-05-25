@@ -4,7 +4,7 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          addb/linux_kernel/kaddb.ko \
          db/linux_kernel/kdb.ko \
          fop/linux_kernel/kfop.ko \
-         net/ksunrpc/ksunrpc.ko \
+         net/linux_kernel/knetc2.ko \
          galois/linux_kernel/kgalois.ko \
          sns/linux_kernel/ksns.ko \
          stob/linux_kernel/kstob.ko \

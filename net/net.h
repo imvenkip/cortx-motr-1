@@ -18,7 +18,7 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-#include "net/net_otw_types_k.h"
+#include "net/linux_kernel/net_otw_types_k.h"
 #else
 #include "net/net_otw_types_u.h"
 #endif

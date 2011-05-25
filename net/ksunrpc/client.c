@@ -373,17 +373,9 @@ static void __exit remove_ut_proc_entry(void)
 		remove_proc_entry(UT_PROC_NAME, NULL);
 }
 
-#else
-
-static void __init create_ut_proc_entry(void) {}
-static void __exit remove_ut_proc_entry(void) {}
-
-#endif
-
 /*******************************************************************************
  *                       End of UT                                             *
  ******************************************************************************/
-
 
 static int __init kernel_sunrpc_init(void)
 {
@@ -404,6 +396,7 @@ module_exit(kernel_sunrpc_fini)
 MODULE_AUTHOR("Huang Hua <hua.huang@clusterstor.com>");
 MODULE_DESCRIPTION("C2 Kernel Client RPC");
 MODULE_LICENSE("GPL");
+#endif
 
 /** @} end of group ksunrpc */
 

@@ -21,11 +21,13 @@ void c2_cond_init(struct c2_cond *cond)
 {
 	c2_chan_init(&cond->c_chan);
 }
+C2_EXPORTED(c2_cond_init);
 
 void c2_cond_fini(struct c2_cond *cond)
 {
 	c2_chan_fini(&cond->c_chan);
 }
+C2_EXPORTED(c2_cond_fini);
 
 void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 {
@@ -47,6 +49,7 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex)
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 }
+C2_EXPORTED(c2_cond_wait);
 
 bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
 		       const c2_time_t abs_timeout)
@@ -66,23 +69,25 @@ bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
 
 	return retval;
 }
-
+C2_EXPORTED(c2_cond_timedwait);
 
 void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex)
 {
 	C2_PRE(c2_mutex_is_locked(mutex));
 	c2_chan_signal(&cond->c_chan);
 }
+C2_EXPORTED(c2_cond_signal);
 
 void c2_cond_broadcast(struct c2_cond *cond, struct c2_mutex *mutex)
 {
 	C2_PRE(c2_mutex_is_locked(mutex));
 	c2_chan_broadcast(&cond->c_chan);
 }
+C2_EXPORTED(c2_cond_broadcast);
 
 /** @} end of cond group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
