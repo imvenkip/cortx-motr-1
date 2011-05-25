@@ -16,7 +16,6 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 
-const char *C2_RPC_SLOT_TABLE_NAME = "slot_table";
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
 struct c2_stob_id c2_root_stob_id = {
@@ -78,18 +77,11 @@ int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
 
 	rcache->rc_dbenv = dbenv;
 
-	C2_ALLOC_PTR(rcache->rc_slot_table);
 	C2_ALLOC_PTR(rcache->rc_inmem_slot_table);
 
-	C2_ASSERT(rcache->rc_slot_table != NULL &&
-			rcache->rc_inmem_slot_table != NULL);
+	C2_ASSERT(rcache->rc_inmem_slot_table != NULL);
 
 	c2_list_init(&rcache->rc_item_list);
-
-	rc = c2_table_init(rcache->rc_slot_table, rcache->rc_dbenv,
-			C2_RPC_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
-	if (rc != 0)
-		goto errout;
 
 	/*
 	  XXX find out how to create an in memory c2_table
@@ -97,14 +89,11 @@ int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
 	rc = c2_table_init(rcache->rc_inmem_slot_table, rcache->rc_dbenv,
 			C2_RPC_INMEM_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
 	if (rc != 0) {
-		c2_table_fini(rcache->rc_slot_table);
 		goto errout;
 	}
 	return 0;		/* success */
 
 errout:
-	if (rcache->rc_slot_table != NULL)
-		c2_free(rcache->rc_slot_table);
 	if (rcache->rc_inmem_slot_table != NULL)
 		c2_free(rcache->rc_inmem_slot_table);
 	return rc;
@@ -113,11 +102,9 @@ errout:
 void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache)
 {
 	C2_PRE(rcache != NULL && rcache->rc_dbenv != NULL &&
-			rcache->rc_slot_table != NULL &&
 			rcache->rc_inmem_slot_table != NULL);
 
 	c2_table_fini(rcache->rc_inmem_slot_table);
-	c2_table_fini(rcache->rc_slot_table);
 }
 
 int c2_rpc_session_module_init(void)
@@ -1521,7 +1508,6 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 			     struct c2_cob_domain	*dom,
 			     struct c2_rpc_item 	**reply_out)
 {
-	struct c2_table				*slot_table;
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
 	/* pair for inmem slot table */
@@ -1550,7 +1536,6 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 		return SCR_ACCEPT_ITEM;
 	}
 
-	slot_table = c2_rpc_reply_cache.rc_slot_table;
 	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
 
 	/*

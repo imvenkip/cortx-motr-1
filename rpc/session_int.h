@@ -30,12 +30,6 @@ struct c2_rpc_slot_table_key {
 	uint64_t	stk_slot_generation;
 };
 
-struct c2_rpc_slot_table_value {
-	struct c2_verno	stv_verno;
-	uint64_t	stv_reply_len;
-	char		stv_data[0];
-};
-
 /**
    In core slot table stores attributes of slots which
    are not needed to be persistent.
@@ -69,16 +63,12 @@ extern void c2_rpc_session_module_fini(void);
 struct c2_rpc_reply_cache {
 	/** dbenv to which slot table belong */
 	struct c2_dbenv		*rc_dbenv;
-	/** persistent slot table
-	    XXX currently we don't store reply items in this table
-	 */
-	struct c2_table		*rc_slot_table;
 	/** In memory slot table */
 	struct c2_table		*rc_inmem_slot_table;
 	/**
-	   Temporary mechanism to cache reply items.
-	   We don't yet have methods to serialize rpc-item in a buffer, so as to be
-	   able to store them in db table.
+	   XXX Temporary mechanism to cache reply items.
+	   We don't yet have methods to serialize rpc-item in a buffer,
+	   so as to be able to store them in db table.
  	*/
 	struct c2_list          rc_item_list;
 };
