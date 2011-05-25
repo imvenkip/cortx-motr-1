@@ -56,10 +56,10 @@ void init()
 		c2_cob_put(cob);
 	cob = NULL;
 
-	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
-	C2_ASSERT(rc == 0);
+//	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
+//	C2_ASSERT(rc == 0);
 
-	c2_rpcmachine_init(machine);
+	c2_rpcmachine_init(machine, dom, NULL);
 	printf("dbenv created\n");
 }
 void traverse_slot_table()
@@ -73,7 +73,7 @@ void traverse_slot_table()
 	int				rc;
 	printf("========= SLOT TABLE ==============\n");
 
-	slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
+	slot_table = machine->cr_rcache.rc_inmem_slot_table;
 
 	rc = c2_db_tx_init(&tx, db, 0);
 	C2_ASSERT(rc == 0);
@@ -132,7 +132,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	/*
 	 * "Receive" the item 
 	 */
-	sc = c2_rpc_session_item_received(item, dom, &cached_item);
+	sc = c2_rpc_session_item_received(item, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
 
 	/*
@@ -150,7 +150,6 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		C2_ASSERT(fom_sd != NULL);
 		fom_sd->fsd_dbenv = db;
 		c2_db_tx_init(&fom_sd->fsd_tx, db, 0);
-		fom_sd->fsd_dom = dom;
 
 		/*
 		 * Execute fom
@@ -223,7 +222,7 @@ void test_conn_terminate(uint64_t sender_id)
 	/*
 	 * "Receive" the item 
 	 */
-	sc = c2_rpc_session_item_received(item, dom, &cached_item);
+	sc = c2_rpc_session_item_received(item, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
 
 	/*
@@ -241,7 +240,6 @@ void test_conn_terminate(uint64_t sender_id)
 		C2_ASSERT(fom_ct != NULL);
 		fom_ct->fct_dbenv = db;
 		c2_db_tx_init(&fom_ct->fct_tx, db, 0);
-		fom_ct->fct_dom = dom;
 
 		/*
 		 * Execute fom
@@ -301,9 +299,9 @@ void test_conn_create()
 	item_in = c2_fop_to_rpc_item(fop);
 	item_in->ri_sender_id = SENDER_ID_INVALID;
 	item_in->ri_session_id = SESSION_ID_NOSESSION;
-
+	item_in->ri_mach = machine;
 	/* item is received on receiver side */
-	sc = c2_rpc_session_item_received(item_in, dom, &cached_item);
+	sc = c2_rpc_session_item_received(item_in, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
 
 	if (sc == SCR_ACCEPT_ITEM) {
@@ -314,7 +312,6 @@ void test_conn_create()
 		fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
 
 		fom_cc->fcc_dbenv = db;
-		fom_cc->fcc_dom = dom;
 		/* It is reqh generic phases that init/commit/abort a transaction */
 		c2_db_tx_init(&fom_cc->fcc_tx, db, 0);
 
@@ -371,8 +368,9 @@ void test_session_create()
 	item_in->ri_slot_generation = 0;
 	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
 	item_in->ri_verno.vn_vc = SESSION_CREATE_VC;
+	item_in->ri_mach = machine;
 
-	sc = c2_rpc_session_item_received(item_in, dom, &cached_item);
+	sc = c2_rpc_session_item_received(item_in, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
 	if (sc == SCR_ACCEPT_ITEM) {
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -381,7 +379,6 @@ void test_session_create()
 		fom_sc = (struct c2_rpc_fom_session_create *)fom;
 		fom_sc->fsc_dbenv = db;
 		c2_db_tx_init(&fom_sc->fsc_tx, db, 0);
-		fom_sc->fsc_dom = dom;
 
 		fom->fo_ops->fo_state(fom);
 
@@ -629,20 +626,19 @@ int main(void)
 	c2_init();
 
 	init();
-/*
 	test_conn_create();
 	test_session_create();
 	test_session_destroy(20, 100);
 	test_conn_terminate(20);
-*/
+
 	test_snd_conn_create();
 	test_snd_session_create();
 	test_item_prepare();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 
+	c2_rpcmachine_fini(machine);
 	c2_cob_domain_fini(dom);
-	c2_rpc_reply_cache_fini(&c2_rpc_reply_cache);
 	c2_fini();
 	printf("program end\n");
 	return 0;

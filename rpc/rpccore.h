@@ -1,3 +1,8 @@
+#include "cob/cob.h"
+#include "fol/fol.h"
+#include "fop/fop.h"
+#include "rpc/session_int.h"
+
 /**
    @defgroup rpc_layer_core RPC layer core
    @page rpc-layer-core-dld RPC layer core DLD
@@ -370,6 +375,7 @@ struct c2_rpcmachine {
 	struct c2_list		   cr_rpc_conn_list;
 	/** mutex that protects conn_list */
 	struct c2_mutex		   cr_session_mutex;
+	struct c2_rpc_reply_cache  cr_rcache;
 };
 
 /**
@@ -385,11 +391,15 @@ void c2_rpc_core_fini(void);
    Construct rpcmachine.
 
    @param machine rpcmachine operation applied to.
+   @param dom cob domain that contains cobs representing slots
+   @param fol reply items are cached in fol
    @pre c2_rpc_core_init().
    @return 0 success
    @return -ENOMEM failure
  */
-int  c2_rpcmachine_init(struct c2_rpcmachine *machine);
+int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
+			struct c2_cob_domain	*dom,
+			struct c2_fol		*fol);
 
 /**
    Destruct rpcmachine

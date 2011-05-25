@@ -1,8 +1,10 @@
+#include "cob/cob.h"
 #include "rpc/rpccore.h"
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "rpc/session.h"
+#include "rpc/session_int.h"
 
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
@@ -212,7 +214,9 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 {
 }
 
-int  c2_rpcmachine_init(struct c2_rpcmachine *machine)
+int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
+			struct c2_cob_domain	*dom,
+			struct c2_fol		*fol)
 {
 	int rc;
 
@@ -227,15 +231,19 @@ int  c2_rpcmachine_init(struct c2_rpcmachine *machine)
 
 	c2_list_init(&machine->cr_rpc_conn_list);
 	c2_mutex_init(&machine->cr_session_mutex);
-	return 0;
+
+	rc = c2_rpc_reply_cache_init(&machine->cr_rcache, dom, fol);
+
+	return rc;
 }
 
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
-	c2_list_fini(&machine->cr_rpc_conn_list);
+	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_mutex_fini(&machine->cr_session_mutex);
+	c2_rpc_reply_cache_fini(&machine->cr_rcache);
 }
 
 /** simple vector of RPC-item operations */

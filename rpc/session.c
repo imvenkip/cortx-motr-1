@@ -15,6 +15,7 @@
 #include "rpc/session_int.h"
 #include "db/db.h"
 #include "dtm/verno.h"
+#include "rpc/session_fops.h"
 
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
@@ -28,11 +29,6 @@ static void session_fields_init(struct c2_rpc_session	*session,
 
 static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot);
 static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn);
-
-/**
-   Global reply cache 
- */
-struct c2_rpc_reply_cache	c2_rpc_reply_cache;
 
 int c2_rpc_slot_table_key_cmp(struct c2_table	*table,
 			      const void	*key0,
@@ -69,17 +65,21 @@ const struct c2_table_ops c2_rpc_slot_table_ops = {
 };
 
 int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
-			    struct c2_dbenv 		*dbenv)
+			    struct c2_cob_domain	*dom,
+			    struct c2_fol		*fol)
 {
 	int	rc;
 
-	C2_PRE(dbenv != NULL);
-
-	rcache->rc_dbenv = dbenv;
+	C2_PRE(dom != NULL);
+	//C2_PRE(fol != NULL);
+	rcache->rc_dbenv = dom->cd_dbenv;
+	rcache->rc_dom = dom;
+	rcache->rc_fol = fol;
 
 	C2_ALLOC_PTR(rcache->rc_inmem_slot_table);
 
-	C2_ASSERT(rcache->rc_inmem_slot_table != NULL);
+	if (rcache->rc_inmem_slot_table == NULL)
+		return -ENOMEM;
 
 	c2_list_init(&rcache->rc_item_list);
 
@@ -105,6 +105,7 @@ void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache)
 			rcache->rc_inmem_slot_table != NULL);
 
 	c2_table_fini(rcache->rc_inmem_slot_table);
+	C2_SET0(rcache);
 }
 
 int c2_rpc_session_module_init(void)
@@ -1401,19 +1402,26 @@ int c2_rpc_session_params_set(uint64_t				sender_id,
    of the data.
  */
 int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
-			      struct c2_cob_domain	*dom,
 			      struct c2_db_tx		*tx)
 {
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_pair			inmem_pair;
+	struct c2_cob_domain			*dom;
+	struct c2_rpcmachine			*machine;
 	struct c2_cob				*slot_cob;
-	int				rc;
+	int					rc;
 
 	C2_PRE(item != NULL && tx != NULL);
 
-	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
+	machine = item->ri_mach;
+	C2_ASSERT(machine != NULL);
+
+	dom = machine->cr_rcache.rc_dom;
+	C2_ASSERT(dom != NULL);
+
+	inmem_slot_table = machine->cr_rcache.rc_inmem_slot_table;
 
 	key.stk_sender_id = item->ri_sender_id;
 	key.stk_session_id = item->ri_session_id;
@@ -1462,7 +1470,7 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 	if (rc != 0)
 		goto out1;
 
-	c2_list_add(&c2_rpc_reply_cache.rc_item_list, &(item->ri_rc_link));
+	c2_list_add(&machine->cr_rcache.rc_item_list, &(item->ri_rc_link));
 
 out1:
 	c2_db_pair_release(&inmem_pair);
@@ -1472,12 +1480,18 @@ out:
 	return rc;
 }
 
+/**
+   @pre c2_rpc_item_init() must have been called on reply item
+ */
 int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply,
 				 struct c2_cob_domain	*dom,
 				 struct c2_db_tx	*tx)
 {
 	C2_PRE(req != NULL && reply != NULL && tx != NULL);
+
+	//C2_ASSERT(reply->ri_mach != NULL);
+	reply->ri_mach = req->ri_mach;
 
 	printf("Called prepare reply item\n");
 	reply->ri_sender_id = req->ri_sender_id;
@@ -1491,7 +1505,7 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 	  SESSION_ID_NOSESSION. Don't cache reply of such requests.
 	 */
 	if (req->ri_session_id != SESSION_ID_NOSESSION) {
-		c2_rpc_reply_cache_insert(reply, dom, tx);
+		c2_rpc_reply_cache_insert(reply, tx);
 	} else {
 		printf("it's conn create/terminate req. not caching reply\n");
 	}	
@@ -1505,9 +1519,10 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
  */
 enum c2_rpc_session_seq_check_result
 c2_rpc_session_item_received(struct c2_rpc_item 	*item,
-			     struct c2_cob_domain	*dom,
 			     struct c2_rpc_item 	**reply_out)
 {
+	struct c2_rpcmachine			*machine;
+	struct c2_cob_domain			*dom;
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
 	/* pair for inmem slot table */
@@ -1536,7 +1551,13 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 		return SCR_ACCEPT_ITEM;
 	}
 
-	inmem_slot_table = c2_rpc_reply_cache.rc_inmem_slot_table;
+	machine = item->ri_mach;
+	C2_ASSERT(machine != NULL);
+
+	dom = machine->cr_rcache.rc_dom;
+	C2_ASSERT(dom != NULL);
+
+	inmem_slot_table = machine->cr_rcache.rc_inmem_slot_table;
 
 	/*
 	 * Read persistent slot table value
@@ -1546,7 +1567,7 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	key.stk_slot_id = item->ri_slot_id;
 	key.stk_slot_generation = item->ri_slot_generation;
 
-	err = c2_db_tx_init(&tx, c2_rpc_reply_cache.rc_dbenv, 0);
+	err = c2_db_tx_init(&tx, machine->cr_rcache.rc_dbenv, 0);
 	if (err != 0) {
 		rc = SCR_ERROR;
 		goto errout;
@@ -1588,7 +1609,7 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 		/*
 		 * Search reply in reply cache list
 		 */
-		c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list,
+		c2_list_for_each_entry(&machine->cr_rcache.rc_item_list,
 		    item, struct c2_rpc_item, ri_rc_link) {
 			if (citem->ri_sender_id == item->ri_sender_id &&
 			     citem->ri_session_id == item->ri_session_id &&
@@ -1900,7 +1921,7 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
 	struct c2_cob		*slot_cob;
 	int			rc;
 	
-	C2_PRE(dom != NULL && item != NULL && slot_cob != NULL);
+	C2_PRE(dom != NULL && item != NULL && cob != NULL);
 
 	C2_PRE(item->ri_sender_id != SENDER_ID_INVALID &&
 		item->ri_session_id != SESSION_ID_INVALID &&

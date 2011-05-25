@@ -5,7 +5,7 @@
 
 #include "cob/cob.h"
 #include "rpc/session.h"
-#include "rpc/session_fops.h"
+//#include "rpc/session_fops.h"
 #include "dtm/verno.h"
 
 enum {
@@ -65,6 +65,10 @@ struct c2_rpc_reply_cache {
 	struct c2_dbenv		*rc_dbenv;
 	/** In memory slot table */
 	struct c2_table		*rc_inmem_slot_table;
+	/** cob domain containing slot cobs */
+	struct c2_cob_domain	*rc_dom;
+	/** replies are cached in FOL */
+	struct c2_fol		*rc_fol;
 	/**
 	   XXX Temporary mechanism to cache reply items.
 	   We don't yet have methods to serialize rpc-item in a buffer,
@@ -73,8 +77,11 @@ struct c2_rpc_reply_cache {
 	struct c2_list          rc_item_list;
 };
 extern struct c2_rpc_reply_cache c2_rpc_reply_cache;
-int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache *rcache,
-				struct c2_dbenv *dbenv);
+
+int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
+			    struct c2_cob_domain	*dom,
+			    struct c2_fol		*fol);
+
 void c2_rpc_reply_cache_fini(struct c2_rpc_reply_cache *rcache);
 
 enum c2_rpc_session_seq_check_result {
@@ -99,7 +106,6 @@ enum c2_rpc_session_seq_check_result {
  */
 enum c2_rpc_session_seq_check_result
 c2_rpc_session_item_received(struct c2_rpc_item		*item,
-			     struct c2_cob_domain 	*dom,
 			     struct c2_rpc_item 	**reply_out);
 
 
@@ -160,14 +166,6 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
                                     struct c2_db_tx             *tx);
 
 extern struct c2_stob_id	c2_root_stob_id;
-
-void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
-
-void c2_rpc_session_create_reply_received(struct c2_fop *fop);
-
-void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop);
-
-void c2_rpc_session_terminate_reply_received(struct c2_fop *fop);
 
 void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
 			uint64_t		sender_id,

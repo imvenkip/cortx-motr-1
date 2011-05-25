@@ -36,6 +36,8 @@ struct c2_fom_type c2_rpc_fom_conn_create_type = {
 int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 {
 	struct c2_fop				*fop;
+	struct c2_rpc_item			*item;
+	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_conn_create		*fop_in;
 	struct c2_rpc_conn_create_rep		*fop_out;
@@ -68,7 +70,14 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 
 	C2_ASSERT(fop_out != NULL);
 
-	dom = fom_cc->fcc_dom;
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	machine = item->ri_mach;
+
+	dom = machine->cr_rcache.rc_dom;
+	C2_ASSERT(dom != NULL);
+
 	tx = &fom_cc->fcc_tx;
 	printf("Cookie = %lx\n", fop_in->rcc_cookie);
 
@@ -88,7 +97,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 
 	inmem_value.istv_busy = false;
 
-	c2_db_pair_setup(&inmem_pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+	c2_db_pair_setup(&inmem_pair, machine->cr_rcache.rc_inmem_slot_table,
 				&key, sizeof key,
 				&inmem_value, sizeof inmem_value);
 
@@ -181,6 +190,8 @@ struct c2_fom_type c2_rpc_fom_session_create_type = {
 
 int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 {
+	struct c2_rpc_item			*item;
+	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_session_create		*fop_in;
@@ -216,8 +227,15 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 
 	C2_ASSERT(fop_out != NULL);
 
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	machine = item->ri_mach;
+
 	tx = &fom_sc->fsc_tx;
-	dom = fom_sc->fsc_dom;
+
+	dom = machine->cr_rcache.rc_dom;
+	C2_ASSERT(dom != NULL);
 
 	/*
 	 * XXX Decide how to calculate session_id
@@ -235,7 +253,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 
 	inmem_value.istv_busy = false;
 
-	c2_db_pair_setup(&inmem_pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+	c2_db_pair_setup(&inmem_pair, machine->cr_rcache.rc_inmem_slot_table,
 				&key, sizeof key,
 				&inmem_value, sizeof inmem_value);
 
@@ -322,6 +340,7 @@ struct c2_fom_type c2_rpc_fom_session_destroy_type = {
 
 int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 {
+	struct c2_rpcmachine			*machine;
 	struct c2_rpc_session_destroy		*fop_in;
 	struct c2_rpc_session_destroy_rep	*fop_out;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
@@ -356,8 +375,13 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 
 	C2_ASSERT(fop_out != NULL);
 
+	item = c2_fop_to_rpc_item(fom_sd->fsd_fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	machine = item->ri_mach;
+
 	tx = &fom_sd->fsd_tx;
-	dom = fom_sd->fsd_dom;
+	dom = machine->cr_rcache.rc_dom;
 	sender_id = fop_in->rsd_sender_id;
 	session_id = fop_in->rsd_session_id;
 
@@ -382,11 +406,11 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	 * reuse variables pair and cursor to traverse in in-memory slot_table
 	 */
 
-	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+	c2_db_pair_setup(&pair, machine->cr_rcache.rc_inmem_slot_table,
 				&key, sizeof key,
 				&inmem_slot, sizeof inmem_slot);
 
-	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table, tx);
+	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table, tx);
 	if (rc != 0)
 		goto errout;
 
@@ -474,7 +498,7 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	}
 	printf("session_destroy: all cobs related to session %lu deleted\n",
 			session_id);
-	c2_list_for_each_entry(&c2_rpc_reply_cache.rc_item_list, item,
+	c2_list_for_each_entry(&machine->cr_rcache.rc_item_list, item,
 				struct c2_rpc_item, ri_rc_link) {
 		if (item->ri_sender_id == fop_in->rsd_sender_id &&
 			item->ri_session_id == fop_in->rsd_session_id) {
@@ -527,6 +551,8 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
+	struct c2_rpc_item			*item;
+	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
 	struct c2_rpc_conn_terminate		*fop_in;
 	struct c2_fop				*fop_rep;
@@ -571,8 +597,12 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	machine = item->ri_mach;
 	tx = &fom_ct->fct_tx;
-	dom = fom_ct->fct_dom;
+	dom = machine->cr_rcache.rc_dom;
 
 	/*
 	 * prepare key, value and pair
@@ -584,11 +614,11 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	C2_SET0(&inmem_slot);
 
-	c2_db_pair_setup(&pair, c2_rpc_reply_cache.rc_inmem_slot_table,
+	c2_db_pair_setup(&pair, machine->cr_rcache.rc_inmem_slot_table,
 				&key, sizeof key,
 				&inmem_slot, sizeof inmem_slot);
 
-	rc = c2_db_cursor_init(&cursor, c2_rpc_reply_cache.rc_inmem_slot_table, tx);
+	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table, tx);
 	if (rc != 0)
 		goto errout;
 

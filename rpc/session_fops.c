@@ -45,10 +45,6 @@ struct c2_fop_type_ops c2_rpc_conn_terminate_rep_ops = {
 	.fto_execute = c2_rpc_conn_terminate_rep_execute
 };
 
-struct c2_fop_type_ops c2_rpc_rep_ops = {
-	.fto_fom_init = c2_rpc_rep_fom_init
-};
-
 int c2_rpc_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_create		*fom_obj;

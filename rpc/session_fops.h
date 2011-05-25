@@ -65,11 +65,14 @@ int c2_rpc_session_destroy_rep_execute(struct c2_fop		*fop,
 int c2_rpc_conn_terminate_rep_execute(struct c2_fop	*fop,
 				      struct c2_fop_ctx	*ctx);
 
-/*
- * Temporary routine for all session related fop's reply
- */
-extern int c2_rpc_rep_fom_init(struct c2_fop *fop,
-					struct c2_fom **m);
+void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
+
+void c2_rpc_session_create_reply_received(struct c2_fop *fop);
+
+void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop);
+
+void c2_rpc_session_terminate_reply_received(struct c2_fop *fop);
+
 extern int c2_rpc_session_fop_init(void);
 
 extern void c2_rpc_session_fop_fini(void);
