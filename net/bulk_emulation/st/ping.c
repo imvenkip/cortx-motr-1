@@ -915,7 +915,7 @@ void ping_server(struct ping_ctx *ctx)
 	C2_ASSERT(rc == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
-	for (i = 0; i < 4; ++i) {
+	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
 		nb = &ctx->pc_nbs[i];
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
@@ -953,7 +953,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* dequeue recv buffers */
 	c2_clink_init(&tmwait, NULL);
 
-	for (i = 0; i < 4; ++i) {
+	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
 		nb = &ctx->pc_nbs[i];
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, &ctx->pc_tm);

@@ -267,6 +267,7 @@ int main(int argc, char *argv[])
 				     LAMBDA(void, (const char *str) {
 						     remote_name = str; })),
 			C2_FORMATARG('p', "base client port", "%i", &base_port),
+			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('d', "passive data size", "%i",
 				     &passive_size),
@@ -299,6 +300,10 @@ int main(int argc, char *argv[])
 	if (nr_clients > MAX_CLIENT_THREADS) {
 		fprintf(stderr, "Max of %d client threads supported\n",
 			MAX_CLIENT_THREADS);
+		return 1;
+	}
+	if (nr_bufs < DEF_BUFS) {
+		fprintf(stderr, "Minimum of %d buffers required\n", DEF_BUFS);
 		return 1;
 	}
 	if (passive_size < 0 || passive_size >
