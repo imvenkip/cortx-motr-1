@@ -905,7 +905,8 @@ void ping_server(struct ping_ctx *ctx)
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	if (ctx->pc_hostname == NULL)
 		ctx->pc_hostname = "localhost";
-	ctx->pc_port = PING_PORT1;
+	if (ctx->pc_port == 0)
+		ctx->pc_port = PING_PORT1;
 	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs >= 20);
 	rc = ping_init(ctx);
