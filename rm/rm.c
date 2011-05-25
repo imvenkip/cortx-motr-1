@@ -155,9 +155,9 @@ int c2_rm_owner_init_with(struct c2_rm_owner *owner,
 	result = owner_init_internal(&owner, &res);
 	C2_ASSERT(result == 0);
 
-	/** 
-	* Add The right to the woner in held list.
-	*/
+	/*
+	 * Add The right to the woner in held list.
+	 */
         c2_list_add(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage);
 	c2_mutex_lock(&rtype->rt_lock);
         res->r_ref++;
@@ -256,13 +256,39 @@ static int right_copy(struct c2_rm_right *dest,
 */
 static void apply_policy(struct c2_rm_incoming *in)
 {
+	struct c2_rm_right *right;
+	struct c2_rm_right *pin_right;
+	struct c2_rm_pin   *pin;
 
 	switch (in->rin_policy) {
 		case RIP_INPLACE:
+			right_copy(right, &in->rin_want);
 			break;	
 		case RIP_STRICT:
+			c2_list_for_each_entry(&in->rin_pins, pin,
+					       struct c2_rm_pin,
+					       rp_incoming_linkage) {
+				c2_list_move(&in->rin_want.ri_pins,
+					     &pin->rp_right_linkage);
+				pin->rp_right = in->rin_want;
+
+			}
+			c2_list_add(&in->rin_owner->ro_owned[OWOS_CACHED], 
+				    &in->rin_want.ri_linkage);
+
 			break;	
 		case RIP_JOIN:
+			pin = c2_list_first(&in->rin_pins);
+			right = container_of(&pin->rp_right_linkage);
+			c2_list_for_each_entry(&in->pins, pin, struct c2_rm_pin,
+					       rp_incoming_linkage) {
+				pin_right = container_of(&pin->rp_right_linkage);
+				right->ri_ops->rro_join(right, pin_right);
+				pin->rp_right = right;
+				c2_list_move(&right->ri_pins,
+					     &pin->rp_right_linkage);
+			}
+			right_copy(right, &in->rin_want);
 			break;	
 		case RIP_MAX:
 			break;	
@@ -343,8 +369,10 @@ static void remove_rights(struct c2_rm_incoming *in)
 
 	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp, struct c2_rm_pin,
 			 	    rp_incoming_linkage) {
-		c2_list_del(&pin->rp_incoming_linkage);
-		c2_list_del(&pin->rp_right_linkage);
+		if (pin->rp_flags & RPF_TRACK) {
+			c2_list_del(&pin->rp_incoming_linkage);
+			c2_list_del(&pin->rp_right_linkage);
+		}
 	}
 }
 
@@ -762,7 +790,7 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	*/
 	c2_list_for_each_entry(&right->ri_pins, pin, struct c2_rm_pin,
 			       rp_right_linkage) {	
-		if (pin->rp_flags == RPF_BARRIER)
+		if (pin->rp_flags & RPF_BARRIER)
 			return -EPERM;
 	}
 

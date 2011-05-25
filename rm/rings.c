@@ -15,7 +15,6 @@ static void rings_policy(struct c2_rm_resource *resource,
 }
 
 struct c2_rm_resource_ops rings_ops = {
-	.rto_encode 	  = NULL,
 	.rop_right_decode = NULL,
 	.rop_policy 	  = rings_policy
 };
