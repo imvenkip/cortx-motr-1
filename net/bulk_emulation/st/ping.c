@@ -73,8 +73,7 @@ struct c2_net_buffer *ping_buf_get(struct ping_ctx *ctx)
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	for (i = 0; i < ctx->pc_nr_bufs; ++i)
-		if (!c2_bitmap_get(&ctx->pc_nbbm, i) &&
-		    !(ctx->pc_nbs[i].nb_flags & C2_NET_BUF_IN_CALLBACK)) {
+		if (!c2_bitmap_get(&ctx->pc_nbbm, i)) {
 			c2_bitmap_set(&ctx->pc_nbbm, i, true);
 			break;
 		}
@@ -96,8 +95,7 @@ void ping_buf_put(struct ping_ctx *ctx, struct c2_net_buffer *nb)
 {
 	int i = nb - &ctx->pc_nbs[0];
 	C2_ASSERT(i >= 0 && i < ctx->pc_nr_bufs);
-	C2_ASSERT((nb->nb_flags &
-		   ~(C2_NET_BUF_REGISTERED | C2_NET_BUF_IN_CALLBACK)) == 0);
+	C2_ASSERT((nb->nb_flags & ~C2_NET_BUF_REGISTERED) == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
 	C2_ASSERT(c2_bitmap_get(&ctx->pc_nbbm, i));
@@ -856,7 +854,8 @@ void ping_fini(struct ping_ctx *ctx)
 			c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 
 			c2_net_tm_stop(&ctx->pc_tm, true);
-			c2_chan_wait(&tmwait); /* wait for it to stop */
+			while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED)
+				c2_chan_wait(&tmwait); /* wait for it to stop */
 			c2_clink_del(&tmwait);
 		}
 
@@ -915,7 +914,7 @@ void ping_server(struct ping_ctx *ctx)
 	C2_ASSERT(rc == 0);
 
 	c2_mutex_lock(&ctx->pc_mutex);
-	for (i = 0; i < 4; ++i) {
+	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
 		nb = &ctx->pc_nbs[i];
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_timeout = C2_TIME_NEVER;
@@ -953,7 +952,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* dequeue recv buffers */
 	c2_clink_init(&tmwait, NULL);
 
-	for (i = 0; i < 4; ++i) {
+	for (i = 0; i < (ctx->pc_nr_bufs / 4); ++i) {
 		nb = &ctx->pc_nbs[i];
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, &ctx->pc_tm);

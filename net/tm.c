@@ -88,8 +88,6 @@ void c2_net_tm_event_post(const struct c2_net_event *ev)
 		c2_time_t tdiff;
 
 		buf = ev->nev_buffer;
-		while ((buf->nb_flags & C2_NET_BUF_IN_CALLBACK) != 0)
-			c2_cond_wait(&tm->ntm_cond, &tm->ntm_mutex);
 		C2_PRE(c2_net__tm_invariant(tm));
 		C2_PRE(c2_net__buffer_invariant(buf));
 		C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
@@ -101,7 +99,6 @@ void c2_net_tm_event_post(const struct c2_net_event *ev)
 			buf->nb_status = -ECANCELED;
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE);
-		buf->nb_flags |= C2_NET_BUF_IN_CALLBACK;
 
 		q = &tm->ntm_qstats[qtype];
 		if (ev->nev_status < 0) {
@@ -183,10 +180,6 @@ void c2_net_tm_event_post(const struct c2_net_event *ev)
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
 	tm->ntm_callback_counter--;
-	if (buf != NULL) {
-		buf->nb_flags &= ~C2_NET_BUF_IN_CALLBACK;
-		c2_cond_signal(&tm->ntm_cond, &tm->ntm_mutex);
-	}
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
@@ -201,7 +194,6 @@ C2_EXPORTED(c2_net_tm_event_post);
 static void c2_net__tm_cleanup(struct c2_net_transfer_mc *tm)
 {
 	int i;
-	c2_cond_fini(&tm->ntm_cond);
 	c2_mutex_fini(&tm->ntm_mutex);
 	tm->ntm_dom = NULL;
 	c2_chan_fini(&tm->ntm_chan);
@@ -224,7 +216,6 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	       tm->ntm_callbacks->ntc_event_cb != NULL);
 
 	c2_mutex_init(&tm->ntm_mutex);
-	c2_cond_init(&tm->ntm_cond);
 	tm->ntm_callback_counter = 0;
 	tm->ntm_dom = dom;
 	tm->ntm_ep = NULL;
