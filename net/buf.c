@@ -30,8 +30,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 
 	/* bufvec must be set */
 	if (buf->nb_buffer.ov_buf == NULL ||
-	    buf->nb_buffer.ov_vec.v_nr == 0 ||
-	    buf->nb_buffer.ov_vec.v_count == NULL)
+	    c2_vec_count(&buf->nb_buffer.ov_vec) == 0)
 		return false;
 
 	/* optional callbacks, but if provided then ntc_event_cb required */
@@ -77,8 +76,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	       buf->nb_dom == NULL &&
 	       buf->nb_flags == 0 &&
 	       buf->nb_buffer.ov_buf != NULL &&
-	       buf->nb_buffer.ov_vec.v_nr > 0 &&
-	       buf->nb_buffer.ov_vec.v_count != NULL);
+	       c2_vec_count(&buf->nb_buffer.ov_vec) > 0);
 
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
