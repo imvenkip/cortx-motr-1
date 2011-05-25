@@ -8,7 +8,7 @@
 /**
    @addtogroup net
    @{
-*/
+ */
 
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
@@ -85,7 +85,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
-	*/
+	 */
 	rc = dom->nd_xprt->nx_ops->xo_buf_register(buf);
 	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
@@ -207,7 +207,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 		/* Bump the reference count.
 		   Should be decremented in c2_net_tm_event_post().
 		   The caller holds a reference to the end point.
-		*/
+		 */
 		c2_net_end_point_get(buf->nb_ep);
 	}
 

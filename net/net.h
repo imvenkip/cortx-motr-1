@@ -91,7 +91,7 @@ struct c2_net_xprt {
 /**
    Network transport operations. The network domain mutex must be
    held to invoke these methods, unless explicitly stated otherwise.
-*/
+ */
 struct c2_net_xprt_ops {
 	/**
 	   Initialise transport specific part of a domain (e.g., start threads,
@@ -296,7 +296,7 @@ struct c2_net_xprt_ops {
  @param xprt Tranport pointer.
  @retval 0 (success)
  @retval -errno (failure)
-*/
+ */
 int  c2_net_xprt_init(struct c2_net_xprt *xprt);
 
 /**
@@ -304,13 +304,13 @@ int  c2_net_xprt_init(struct c2_net_xprt *xprt);
  All associated network domains should be cleaned up at this point.
  @pre Network domains should have been finalized.
  @param xprt Tranport pointer.
-*/
+ */
 void c2_net_xprt_fini(struct c2_net_xprt *xprt);
 
 /** @}
    @defgroup netDep Networking (Deprecated Interfaces)
    @{
-*/
+ */
 enum c2_net_stats_direction {
         NS_STATS_IN  = 0,
         NS_STATS_OUT = 1,
@@ -322,7 +322,8 @@ struct c2_net_stats {
         /**
          All counters are 64 bits wide and wrap naturally. We re-zero
          the counters every time we examine the stats so that we have a known
-         timebase for rate calculations. */
+         timebase for rate calculations.
+	 */
         c2_time_t        ns_time;
         /** Counts how many FOPs have been seen by the service workers */
         struct c2_atomic64 ns_reqs;
@@ -345,7 +346,7 @@ struct c2_net_stats {
 /** @}
  @addtogroup net Networking.
  @{
-*/
+ */
 
 /**
    A collection of network resources.
@@ -359,17 +360,17 @@ struct c2_net_domain {
 
 	/**
 	   List of c2_net_end_point structures. Managed by the transport.
-	*/
+	 */
 	struct c2_list      nd_end_points;
 
 	/**
 	   List of c2_net_buffer structures registered with the domain.
-	*/
+	 */
 	struct c2_list      nd_registered_bufs;
 
 	/**
 	   List of c2_net_transfer_mc structures.
-	*/
+	 */
 	struct c2_list      nd_tms;
 
 	/** <b>Deprecated.</b> Network read-write lock */
@@ -457,7 +458,7 @@ struct c2_net_end_point {
 	struct c2_list_link    nep_dom_linkage;
 	/** Transport specific printable representation of the
 	    end point address.
-	*/
+	 */
 	const char            *nep_addr;
 };
 
@@ -495,7 +496,7 @@ int c2_net_end_point_create(struct c2_net_end_point **epp,
 
    @param ep End point data structure pointer.
    @pre ep->nep_ref->ref_cnt >= 1
-*/
+ */
 void c2_net_end_point_get(struct c2_net_end_point *ep);
 
 /**
@@ -508,7 +509,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    transport provided release() method in case the end point gets released.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
@@ -540,40 +541,40 @@ int c2_net_end_point_put(struct c2_net_end_point *ep);
 enum c2_net_queue_type {
 	/**
 	   Queue with buffers to receive messages.
-	*/
+	 */
 	C2_NET_QT_MSG_RECV=0,
 
 	/**
 	   Queue with buffers with messages to send.
-	*/
+	 */
 	C2_NET_QT_MSG_SEND,
 
 	/**
 	   Queue with buffers awaiting completion of
 	   remotly initiated bulk data send operations
 	   that will read from these buffers.
-	*/
+	 */
 	C2_NET_QT_PASSIVE_BULK_RECV,
 
 	/**
 	   Queue with buffers awaiting completion of
 	   remotly initiated bulk data receive operations
 	   that will write to these buffers.
-	*/
+	 */
 	C2_NET_QT_PASSIVE_BULK_SEND,
 
 	/**
 	   Queue with buffers awaiting completion of
 	   locally initiated bulk data receive operations
 	   that will read from passive buffers.
-	*/
+	 */
 	C2_NET_QT_ACTIVE_BULK_RECV,
 
 	/**
 	   Queue with buffers awaiting completion of
 	   locally initiated bulk data send operations
 	   to passive buffers.
-	*/
+	 */
 	C2_NET_QT_ACTIVE_BULK_SEND,
 
 	C2_NET_QT_NR
@@ -650,12 +651,12 @@ struct c2_net_event {
 
 	/**
 	   Transfer machine pointer.
-	*/
+	 */
 	struct c2_net_transfer_mc *nev_tm;
 
 	/**
 	   Time the event is posted.
-	*/
+	 */
 	c2_time_t                  nev_time;
 
 	/**
@@ -679,7 +680,7 @@ struct c2_net_event {
 	   Valid only if the nev_type is C2_NET_EV_BUFFER_RELEASE.
 
 	   Pointer to the buffer concerned.
-	*/
+	 */
 	struct c2_net_buffer      *nev_buffer;
 
 	/**
@@ -740,7 +741,7 @@ void c2_net_tm_event_post(const struct c2_net_event *ev);
    Callback function pointer type.
    @param ev Pointer to the event. The event data structure is
    released upon return from the subroutine.
-*/
+ */
 typedef void (*c2_net_tm_cb_proc_t)(const struct c2_net_event *ev);
 
 /**
@@ -761,7 +762,7 @@ struct c2_net_tm_callbacks {
 	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 	        ev->nev_buffer != NULL &&
 		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_RECV
-	*/
+	 */
 	c2_net_tm_cb_proc_t ntc_msg_recv_cb;
 
 	/**
@@ -770,7 +771,7 @@ struct c2_net_tm_callbacks {
 	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
 	        ev->nev_buffer != NULL &&
 		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_SEND
-	*/
+	 */
 	c2_net_tm_cb_proc_t ntc_msg_send_cb;
 
 	/**
@@ -828,7 +829,7 @@ struct c2_net_tm_callbacks {
    Statistical data maintained for each transfer machine queue.
    It is up to the higher level layers to retrieve the data and
    reset the statistical counters.
-*/
+ */
 struct c2_net_qstats {
 	/** The number of add operations performed */
 	uint64_t        nqs_num_adds;
@@ -864,18 +865,18 @@ struct c2_net_qstats {
 	   The maximum number of bytes processed in a single
 	   buffer in the queue.
 	   Computed at completion.
-	*/
+	 */
 	uint64_t        nqs_max_bytes;
 };
 
 /**
    This data structure tracks message buffers and supports callbacks to notify
    the application of changes in state associated with these buffers.
-*/
+ */
 struct c2_net_transfer_mc {
 	/** Pointer to application callbacks. Should be set before
 	    initialization.
-	*/
+	 */
 	const struct c2_net_tm_callbacks *ntm_callbacks;
 
 	/** Specifies the transfer machine state */
@@ -907,14 +908,14 @@ struct c2_net_transfer_mc {
 	/**
 	   Condition variable associated with the transfer machine.
 	   Use it with the network domain's mutex.
-	*/
+	 */
 	struct c2_cond              ntm_cond;
 
 	/**
 	   Callback activity is tracked by this counter.
 	   It is incremented by c2_net_tm_post_event() before invoking
 	   a callback, and decremented when it returns.
-	*/
+	 */
 	uint32_t                    ntm_callback_counter;
 
 	/** Network domain pointer */
@@ -928,7 +929,7 @@ struct c2_net_transfer_mc {
 	   call to c2_net_tm_start().
 	   @note The assumption here is that the transport can maintain
 	   separate receive message buffer pools for each transfer machine.
-	*/
+	 */
         struct c2_net_end_point    *ntm_ep;
 
 	/**
@@ -968,7 +969,7 @@ struct c2_net_transfer_mc {
    @param dom Network domain pointer.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 
 /**
@@ -978,7 +979,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
         tm->ntm_state == C2_NET_TM_FAILED ||
 	tm->ntm_state == C2_NET_TM_INITIALIZED
    @param tm Transfer machine pointer.
-*/
+ */
 void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
@@ -998,7 +999,7 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
    @param ep  End point to associate with the transfer machine.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 		    struct c2_net_end_point *ep);
 
@@ -1025,7 +1026,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
    Support for the implementation of this option is transport specific.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
 
 /**
@@ -1045,7 +1046,7 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
    should be reset at the same time. Otherwise specify <b>false</b>.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			enum c2_net_queue_type qtype,
 			struct c2_net_qstats *qs,
@@ -1096,7 +1097,7 @@ struct c2_net_buffer {
 	   Vector pointing to memory associated with this data structure.
 	   Initialized by the application prior to registration.
 	   It should not be modified until after registration.
-	*/
+	 */
 	struct c2_bufvec           nb_buffer;
 
 	/**
@@ -1109,26 +1110,26 @@ struct c2_net_buffer {
 	   completion event is posted for a buffer on the
 	   C2_NET_QT_MSG_RECV, C2_NET_QT_PASSIVE_BULK_RECV or
 	   C2_NET_QT_ACTIVE_BULK_RECV queues.
-	*/
+	 */
 	c2_bcount_t                nb_length;
 
 	/**
 	   Domain pointer. It is set automatically when the buffer
-	   is registered with c2_net_tm_buffer_register().
+	   is registered with c2_net_buffer_register().
 	   The application should not modify this field.
-	*/
+	 */
 	struct c2_net_domain      *nb_dom;
 
 	/**
 	   Transfer machine pointer. It is set automatically with
 	   every call to c2_net_buffer_add().
-	*/
+	 */
 	struct c2_net_transfer_mc *nb_tm;
 
 	/**
 	   The application should set this value to identify the logical
 	   transfer machine queue before calling c2_net_buffer_add().
-	*/
+	 */
         enum c2_net_queue_type     nb_qtype;
 
 	/**
@@ -1142,7 +1143,7 @@ struct c2_net_buffer {
 	    If specified, these callbacks will be used for buffer completion
 	    events instead of the callbacks specified in the transfer machine.
 	    This helps improve the modularity of the upper protocol layers.
-	*/
+	 */
 	const struct c2_net_tm_callbacks *nb_callbacks;
 
 	/**
@@ -1153,14 +1154,14 @@ struct c2_net_buffer {
 
 	   <b>Support for this is transport specific.</b>
 	   Set the value to C2_TIME_NEVER to disable the timeout.
-	*/
+	 */
 	c2_time_t                  nb_timeout;
 
 	/**
 	   Time at which the buffer was added to its logical queue.
 	   Set by the c2_net_buffer_add() subroutine and used to
 	   compute the time spent in the queue.
-	*/
+	 */
 	c2_time_t                  nb_add_time;
 
 	/**
@@ -1180,7 +1181,7 @@ struct c2_net_buffer {
 	   In both cases, applications are responsible for freeing the
 	   memory used by this descriptor with the c2_net_desc_free()
 	   subroutine.
-	*/
+	 */
 	struct c2_net_buf_desc     nb_desc;
 
 	/**
@@ -1199,7 +1200,7 @@ struct c2_net_buffer {
 	   transfer.
 
 	   The field is not used for the active bulk cases.
-	*/
+	 */
 	struct c2_net_end_point   *nb_ep;
 
 	/**
@@ -1209,14 +1210,14 @@ struct c2_net_buffer {
 	   can only be used for one type of operation at a time.
 
 	   The application should not modify this field.
-	*/
+	 */
 	struct c2_list_link        nb_tm_linkage;
 
 	/**
 	   Linkage into one of the domain list that tracks registered buffers.
 
 	   The application should not modify this field.
-	*/
+	 */
 	struct c2_list_link        nb_dom_linkage;
 
 	/**
@@ -1224,7 +1225,7 @@ struct c2_net_buffer {
 	   Will be freed when the buffer is deregistered, if not earlier.
 
 	   The application should not modify this field.
-	*/
+	 */
         void                      *nb_xprt_private;
 
 	/**
@@ -1266,12 +1267,12 @@ c2_vec_count(&buf->nb_buffer.ov_vec) > 0
    @param dom Pointer to the domain.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_buffer_register(struct c2_net_buffer *buf,
 			   struct c2_net_domain *dom);
 
 /**
-   Deregisters a previously registered buffer and releases any transport
+   Deregister a previously registered buffer and releases any transport
    specific resources associated with it.
    The buffer should not be in use, nor should this subroutine be
    invoked from a callback.
@@ -1282,7 +1283,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
    @param dom Specify the domain pointer.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 			     struct c2_net_domain *dom);
 
@@ -1325,7 +1326,7 @@ c2_net__qtype_is_valid(buf->nb_qtype) &&
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
 
@@ -1349,7 +1350,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    @pre (buf->nb_flags & C2_NET_BUF_REGISTERED)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer.
-*/
+ */
 void c2_net_buffer_del(struct c2_net_buffer *buf,
 		       struct c2_net_transfer_mc *tm);
 
@@ -1359,7 +1360,7 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
    @param to_desc Specifies the destination descriptor data structure.
    @retval 0 (success)
    @retval -errno (failure)
-*/
+ */
 int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 		     struct c2_net_buf_desc *to_desc);
 
@@ -1367,7 +1368,7 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
    Free a network buffer descriptor.
    @param desc Specify the network buffer descriptor. Its fields will be
    cleared after this operation.
-*/
+ */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
 /** @} end of networking group
@@ -1375,7 +1376,7 @@ void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
    @addtogroup netDep Networking (Deprecated Interfaces)
    @{
-*/
+ */
 void c2_net_domain_stats_init(struct c2_net_domain *dom);
 void c2_net_domain_stats_fini(struct c2_net_domain *dom);
 
@@ -1388,7 +1389,7 @@ void c2_net_domain_stats_collect(struct c2_net_domain *dom,
                                  bool *sleeping);
 /**
  Report the network loading rate for a direction (in/out).
- @returnval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
+ @retval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
  */
 int c2_net_domain_stats_get(struct c2_net_domain *dom,
                             enum c2_net_stats_direction dir);
@@ -1467,7 +1468,7 @@ struct c2_service {
 						   void *cookie);
 	/**
 	    linkage in the list of all services running in the domain
-	*/
+	 */
 	struct c2_list_link             s_linkage;
 	/** pointer to transport private service data */
 	void                           *s_xport_private;
@@ -1541,7 +1542,7 @@ struct c2_net_conn_ops {
 
    @retval 0 is OK
    @retval <0 error is hit
-*/
+ */
 int c2_net_conn_create(struct c2_service_id *nid);
 
 /**
@@ -1562,7 +1563,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
 
    Releases a reference on network connection. Reference to transport connection
    is released when the last reference to network connection has been released.
-*/
+ */
 void c2_net_conn_release(struct c2_net_conn *conn);
 
 /**
@@ -1607,7 +1608,7 @@ int c2_net_cli_call(struct c2_net_conn *conn, struct c2_net_call *call);
 
    @retval 0 OK
    @retval <0 ERROR
-*/
+ */
 int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_call *call);
 
 

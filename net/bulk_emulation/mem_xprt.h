@@ -57,7 +57,7 @@
    for details on the implementation.
 
    @{
-*/
+ */
 
 struct c2_net_bulk_mem_domain_pvt;
 struct c2_net_bulk_mem_tm_pvt;
@@ -119,7 +119,7 @@ struct c2_net_bulk_mem_work_item {
 
 	/** Work opcode. All opcodes other than C2_NET_XOP_STATE_CHANGE
 	    and C2_NET_XOP_NR relate to buffers.
-	*/
+	 */
 	enum c2_net_bulk_mem_work_opcode    xwi_op;
 
 	/** The next state value for a C2_NET_XOP_STATE_CHANGE opcode */
@@ -128,13 +128,13 @@ struct c2_net_bulk_mem_work_item {
 	/** Status. Used for C2_NET_ERROR_CB, C2_NET_XOP_STATE_CHANGE,
 	    and a generic way for derived classes to
 	    pass on status to the base worker function.
-	*/
+	 */
 	int32_t                             xwi_status;
 };
 
 /**
    Buffer private data.
-*/
+ */
 struct c2_net_bulk_mem_buffer_pvt {
 	/** Points back to its buffer */
 	struct c2_net_buffer                *xb_buffer;
@@ -144,18 +144,18 @@ struct c2_net_bulk_mem_buffer_pvt {
 
 	/** Buffer id. This is set each time the buffer is used for
 	    a passive bulk transfer operation.
-	*/
+	 */
 	int64_t                              xb_buf_id;
 
 	/** Set to true if a xo_buf_del() call occurs when the
-	    the buffer is in use.
+	    buffer is in use.
 	 */
 	bool                                 xb_cancel_requested;
 };
 
 /**
    Transfer machine private data.
-*/
+ */
 struct c2_net_bulk_mem_tm_pvt {
 	/** The transfer machine pointer */
 	struct c2_net_transfer_mc        *xtm_tm;
@@ -175,7 +175,7 @@ struct c2_net_bulk_mem_tm_pvt {
 
 /**
    End point. It tracks an IP/port number address.
-*/
+ */
 enum {
 	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
 };
@@ -188,7 +188,7 @@ struct c2_net_bulk_mem_end_point {
 
 	/** Service id. Set to 0 in the in-memory transport but usable
 	    in derived transports.
-	*/
+	 */
 	uint32_t                 xep_service_id;
 
 	/** Externally visible end point in the domain. */
@@ -209,7 +209,7 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 /**
    These subroutines are exposed by the transport as they may need to be
    intercepted by a derived transport.
-*/
+ */
 struct c2_net_bulk_mem_ops {
 	/** Subroutine to create an end point. */
 	int (*bmo_ep_create)(struct c2_net_end_point **epp,
@@ -269,7 +269,7 @@ struct c2_net_bulk_mem_domain_pvt {
 
 	/**
 	   Size of the buffer private data.
-	   Initialized to the size of c2_net_buf_emul_buf_pvt.
+	   Initialized to the size of c2_net_bulk_mem_buffer_pvt.
 	 */
 	size_t                     xd_sizeof_buffer_pvt;
 
@@ -280,7 +280,7 @@ struct c2_net_bulk_mem_domain_pvt {
 
 	/**
 	   Number of threads in a transfer machine pool.
-	*/
+	 */
 	size_t                     xd_num_tm_threads;
 
 	/**
@@ -299,7 +299,7 @@ struct c2_net_bulk_mem_domain_pvt {
 
 	/**
 	   Counter for passive bulk buffer identifiers.
-	*/
+	 */
 	struct c2_atomic64         xd_buf_id_counter;
 };
 
@@ -367,8 +367,7 @@ static inline uint32_t mem_ep_sid(struct c2_net_end_point *ep)
 
 /**
    @}
-*/
-
+ */
 
 #endif /* __COLIBRI_NET_BULK_MEM_XPRT_H__ */
 
