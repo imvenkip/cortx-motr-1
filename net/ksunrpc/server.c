@@ -34,7 +34,7 @@ struct ksunrpc_service {
 	/**
 	   SUNRPC transport handle for this service
 	*/
-	svc_xprt	       *s_transp;
+	struct svc_xprt	       *s_transp;
 
 	/**
 	   scheduler thread handle
@@ -73,11 +73,13 @@ static void ksunrpc_op(struct c2_service *service,
 static void ksunrpc_dispatch(struct svc_rqst *req)
 {
 	C2_IMPOSSIBLE("implement me");
+	ksunrpc_op(NULL, NULL, NULL);
 }
 
 static int ksunrpc_scheduler_init(struct c2_service *service)
 {
 	C2_IMPOSSIBLE("implement me");
+	ksunrpc_dispatch(NULL);
 	return -ENOSYS;
 }
 
@@ -95,17 +97,22 @@ static int ksunrpc_service_start(struct c2_service *service,
 				 struct ksunrpc_service_id *xid, int nr_workers)
 {
 	C2_IMPOSSIBLE("implement me");
+	ksunrpc_scheduler_init(service);
+	ksunrpc_scheduler(service);
+	ksunrpc_service_worker(NULL);
 	return -ENOSYS;
 }
 
 static void ksunrpc_service_fini(struct c2_service *service)
 {
 	C2_IMPOSSIBLE("implement me");
+	ksunrpc_service_stop(NULL);
 }
 
 int ksunrpc_service_init(struct c2_service *service)
 {
 	C2_IMPOSSIBLE("implement me");
+	ksunrpc_service_start(service, NULL, 0);	
 	return -ENOSYS;
 }
 

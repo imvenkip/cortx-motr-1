@@ -29,6 +29,8 @@ struct c2_fop;
 
 int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
 int ksunrpc_service_init(struct c2_service *service);
+int ksunrpc_server_init(void);
+void ksunrpc_server_fini(void);
 
 extern const struct c2_service_id_ops ksunrpc_service_id_ops;
 extern const struct c2_net_conn_ops   ksunrpc_conn_ops;
