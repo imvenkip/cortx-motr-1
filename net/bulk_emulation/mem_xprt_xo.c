@@ -560,6 +560,8 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 
 	/* allocate worker thread array */
 	if (tp->xtm_worker_threads == NULL) {
+		/* allocation creates parked threads in case of failure */
+		C2_CASSERT(TS_PARKED == 0);
 		C2_ALLOC_ARR(tp->xtm_worker_threads, tp->xtm_num_workers);
 		if (tp->xtm_worker_threads == NULL)
 			return -ENOMEM;
@@ -587,6 +589,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 		mem_wi_add(wi_st_chg, tp);
 	} else {
 		tp->xtm_state = C2_NET_XTM_FAILED;
+		c2_list_link_fini(&wi_st_chg->xwi_link);
 		c2_free(wi_st_chg); /* fini cleans up threads */
 	}
 

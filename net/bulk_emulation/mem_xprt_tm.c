@@ -65,6 +65,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 		c2_mutex_lock(&tm->ntm_mutex);
 	}
 
+	c2_list_link_fini(&wi->xwi_link);
 	c2_free(wi);
 }
 
