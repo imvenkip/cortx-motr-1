@@ -23,16 +23,8 @@ static void mem_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_PRE(nb->nb_status <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = nb->nb_status,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	mem_wi_post_buffer_event(wi);
+	return;
 }
 
 /**
@@ -138,14 +130,17 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		rc = mem_copy_buffer(d_buf, s_buf, datalen);
 
 		/* schedule the passive callback */
-		passive_nb->nb_status = rc;
 		passive_wi = mem_buffer_to_wi(passive_nb);
 		passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
+		passive_wi->xwi_status = rc;
+		passive_wi->xwi_nbe_length = datalen;
 
 		passive_tp = passive_tm->ntm_xprt_private;
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */
+		wi->xwi_status = rc;
+		wi->xwi_nbe_length = datalen;
 	} while (0);
 
 	/* release the destination TM mutex */
@@ -157,16 +152,9 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		c2_net_end_point_put(match_ep);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(rc <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = rc,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	wi->xwi_status = rc;
+	mem_wi_post_buffer_event(wi);
+	return;
 }
 
 /**

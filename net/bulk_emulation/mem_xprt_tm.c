@@ -7,7 +7,6 @@
    @{
  */
 
-
 /**
    Work function for the C2_NET_XOP_STATE_CHANGE work item.
    @param tm the corresponding transfer machine
@@ -17,10 +16,10 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	struct c2_net_event ev = {
-		.nev_type   = C2_NET_EV_STATE_CHANGE,
-		.nev_tm     = tm,
-		.nev_status = 0
+	struct c2_net_tm_event ev = {
+		.nte_type   = C2_NET_TEV_STATE_CHANGE,
+		.nte_tm     = tm,
+		.nte_status = 0
 	};
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
@@ -37,21 +36,21 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			C2_ASSERT(tp->xtm_state == C2_NET_XTM_STARTING);
 			if (wi->xwi_status != 0) {
 				tp->xtm_state = C2_NET_XTM_FAILED;
-				ev.nev_next_state = C2_NET_TM_FAILED;
-				ev.nev_status = wi->xwi_status;
+				ev.nte_next_state = C2_NET_TM_FAILED;
+				ev.nte_status = wi->xwi_status;
 			} else {
 				tp->xtm_state = wi->xwi_next_state;
-				ev.nev_next_state = C2_NET_TM_STARTED;
+				ev.nte_next_state = C2_NET_TM_STARTED;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
-			c2_time_now(&ev.nev_time);
+			c2_time_now(&ev.nte_time);
 			c2_net_tm_event_post(&ev);
 			c2_mutex_lock(&tm->ntm_mutex);
 		}
 	} else { /* C2_NET_XTM_STOPPED, as per assert */
 		C2_ASSERT(tp->xtm_state == C2_NET_XTM_STOPPING);
 		tp->xtm_state = wi->xwi_next_state;
-		ev.nev_next_state = C2_NET_TM_STOPPED;
+		ev.nte_next_state = C2_NET_TM_STOPPED;
 
 		/* broadcast on cond and wait for work item queue to empty */
 		c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
@@ -60,7 +59,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
 		c2_mutex_unlock(&tm->ntm_mutex);
-		c2_time_now(&ev.nev_time);
+		c2_time_now(&ev.nte_time);
 		c2_net_tm_event_post(&ev);
 		c2_mutex_lock(&tm->ntm_mutex);
 	}
@@ -81,16 +80,8 @@ static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(nb->nb_status <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = -ECANCELED,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	wi->xwi_status = -ECANCELED;
+	mem_wi_post_buffer_event(wi);
 	return;
 }
 
@@ -102,15 +93,15 @@ static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_event ev = {
-		.nev_type   = C2_NET_EV_ERROR,
-		.nev_tm     = tm,
-		.nev_status = wi->xwi_status,
+	struct c2_net_tm_event ev = {
+		.nte_type   = C2_NET_TEV_ERROR,
+		.nte_tm     = tm,
+		.nte_status = wi->xwi_status,
 	};
 
 	C2_PRE(wi->xwi_op == C2_NET_XOP_ERROR_CB);
 	C2_PRE(wi->xwi_status < 0);
-	c2_time_now(&ev.nev_time);
+	c2_time_now(&ev.nte_time);
 	c2_net_tm_event_post(&ev);
 	c2_free(wi);
 }
@@ -121,7 +112,7 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
    @param status The error code.
    @pre c2_mutex_is_locked(&tm->ntm_mutex)
  */
-static void mem_post_error(struct c2_net_transfer_mc *tm, int status)
+static void mem_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
 	struct c2_net_bulk_mem_work_item *wi;

@@ -33,16 +33,17 @@
    Major data-types in C2 networking are:
    @li Network buffer (c2_net_buffer);
    @li Network buffer descriptor (c2_net_buf_desc);
+   @li Network buffer event (c2_net_buffer_event);
    @li Network domain (c2_net_domain);
    @li Network end point (c2_net_end_point);
-   @li Network event (c2_net_event);
    @li Network transfer machine (c2_net_transfer_mc);
+   @li Network transfer machine event (c2_net_tm_event);
    @li Network transport (c2_net_xprt);
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
-   for details on the usage.
+   for details on the design and usage.
 
-   See \ref netDep for older interfaces.
+   See @ref netDep for older interfaces.
 
    @{
 
@@ -56,11 +57,13 @@ struct c2_net_xprt;
 struct c2_net_xprt_ops;
 struct c2_net_domain;
 struct c2_net_transfer_mc;
+struct c2_net_tm_event;
+struct c2_net_tm_callbacks;
 struct c2_net_end_point;
 struct c2_net_buffer;
 struct c2_net_buf_desc;
-struct c2_net_event;
-struct c2_net_tm_callbacks;
+struct c2_net_buffer_event;
+struct c2_net_buffer_callbacks;
 struct c2_net_qstats;
 
 struct c2_service_id;     /* deprecated */
@@ -233,7 +236,7 @@ struct c2_net_xprt_ops {
 	   buffer, as described by the value of the c2_net_buffer.nb_qtype
 	   field.
 	   The C2_NET_BUF_CANCELLED flag should be set in buffers whose
-	   operations get cancelled, so c2_net_tm_event_post() can
+	   operations get cancelled, so c2_net_buffer_event_post() can
 	   force the right error status.
 	   <b>Serialized using the transfer machine mutex.</b>
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm and
@@ -594,14 +597,13 @@ enum c2_net_tm_state {
 };
 
 /**
-   Event types are defined by this enumeration.
+   Transfer machine event types are defined by this enumeration.
  */
-enum c2_net_ev_type {
-	C2_NET_EV_ERROR=0,        /**< General error */
-	C2_NET_EV_STATE_CHANGE,   /**< Transfer machine state change event */
-	C2_NET_EV_BUFFER_RELEASE, /**< Buffer operation completion event */
-	C2_NET_EV_DIAGNOSTIC,     /**< Diagnostic event */
-	C2_NET_EV_NR
+enum c2_net_tm_ev_type {
+	C2_NET_TEV_ERROR=0,        /**< General error */
+	C2_NET_TEV_STATE_CHANGE,   /**< Transfer machine state change event */
+	C2_NET_TEV_DIAGNOSTIC,     /**< Diagnostic event */
+	C2_NET_TEV_NR
 };
 
 /**
@@ -610,27 +612,24 @@ enum c2_net_ev_type {
    transfer machine state changes and general errors.
 
    All events have the following fields set:
-   - nev_type
-   - nev_tm
-   - nev_time
-   - nev_status
+   - nte_type
+   - nte_tm
+   - nte_time
+   - nte_status
 
-   The nev_type field should be referenced to determine the type of
+   The nte_type field should be referenced to determine the type of
    event, and which other fields of this structure get set:
 
-   - C2_NET_EV_ERROR provides error notification, out of the context of
+   - C2_NET_TEV_ERROR provides error notification, out of the context of
      any buffer operation completion, or a transfer machine state change.
      No additional fields are set.
-   - C2_NET_EV_STATE_CHANGE provides notification of a transfer machine
+   - C2_NET_TEV_STATE_CHANGE provides notification of a transfer machine
      state change.
-     The nev_next_state field describes the destination state.
-     Refer to the nev_status field to determine if the operation succeeded.
-   - C2_NET_EV_BUFFER_RELEASE provides notification of the completion of
-     a buffer operation.
-     The nev_buffer field points to the buffer.
-     Refer to the nev_status field to determine if the operation succeeded.
-   - C2_NET_EV_DIAGNOSTIC provides diagnostic information.
-     The nev_payload field may point to transport specific data.
+     The nte_next_state field describes the destination state.
+     Refer to the nte_status field to determine if the operation succeeded.
+     Refer to the nte_status field to determine if the operation succeeded.
+   - C2_NET_TEV_DIAGNOSTIC provides diagnostic information.
+     The nte_payload field may point to transport specific data.
      The API does not require nor specify how a transport produces
      diagnostic information, but does require that diagnostic events
      not be produced unless explicitly requested.
@@ -642,183 +641,67 @@ enum c2_net_ev_type {
 
    @see c2_net_tm_event_post() for details on event delivery concurrency.
  */
-struct c2_net_event {
+struct c2_net_tm_event {
 	/**
 	   Indicates the type of event.
 	   Other fields get set depending on the value of this field.
 	 */
-	enum c2_net_ev_type        nev_type;
+	enum c2_net_tm_ev_type     nte_type;
 
 	/**
 	   Transfer machine pointer.
 	 */
-	struct c2_net_transfer_mc *nev_tm;
+	struct c2_net_transfer_mc *nte_tm;
 
 	/**
 	   Time the event is posted.
 	 */
-	c2_time_t                  nev_time;
+	c2_time_t                  nte_time;
 
 	/**
 	   Status or error code associated with the event.
 
-	   In all event types other than C2_NET_EV_DIAGNOSTIC, a 0 in this
+	   In all event types other than C2_NET_TEV_DIAGNOSTIC, a 0 in this
 	   field implies successful completion, and a negative error number
 	   is used to indicate the reasons for failure.
 	   The following errors are well defined:
 	   	- <b>-ENOBUFS</b> This indicates that the transfer machine
 		lost messages due to a lack of receive buffers.
-	   	- <b>-ECANCELED</b> This is used in buffer release events to
-		indicate that the associated buffer operation was
-		cancelled by a call to c2_net_buffer_del().
 
 	   Diagnostic events are free to make any use of this field.
 	 */
-	int32_t                    nev_status;
+	int32_t                    nte_status;
 
 	/**
-	   Valid only if the nev_type is C2_NET_EV_BUFFER_RELEASE.
-
-	   Pointer to the buffer concerned.
-	 */
-	struct c2_net_buffer      *nev_buffer;
-
-	/**
-	   Valid only if the nev_type is C2_NET_EV_STATE_CHANGE.
+	   Valid only if the nte_type is C2_NET_TEV_STATE_CHANGE.
 
 	   The next state of the transfer machine is set in this field.
-	   Any associated error condition defined by the nev_status field.
+	   Any associated error condition defined by the nte_status field.
 	 */
-	enum c2_net_tm_state       nev_next_state;
+	enum c2_net_tm_state       nte_next_state;
 
 	/**
-	   Valid only if the nev_type is C2_NET_EV_STATE_DIAGNOSTIC.
+	   Valid only if the nte_type is C2_NET_TEV_STATE_DIAGNOSTIC.
 
 	   Transports may use this to point to internal data; they
 	   could also choose to embed the event data structure
 	   in a transport specific structure appropriate to the event.
 	   Either approach would be of use to a diagnostic application.
 	 */
-	void                      *nev_payload;
+	void                      *nte_payload;
 };
 
 /**
-   A transfer machine is notified of events of interest with this subroutine.
-   Typically, the subroutine is invoked by the transport associated with
-   the transfer machine.
-
-   The event data structure is not referenced from
-   elsewhere after this subroutine returns, so may be allocated on the
-   stack of the calling thread.
-
-   The subroutine provides the following concurrency semantics for event
-   delivery:
-   - Multiple concurrent events may be delivered for a given transfer machine.
-   - Multiple concurrent events may be delivered for a given buffer.
-
-   If the event type is C2_NET_EV_BUFFER_RELEASE, then the
-   subroutine will remove the buffer from its queue, and clear its
-   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
-   prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
-   set, then the status is forced to -ECANCELED.
-
-   The subroutine will also signal to all waiters on the
-   c2_net_transfer_mc.ntm_chan field after delivery of the callback.
-
-   The invoking process should be aware that the callback subroutine could
-   end up making re-entrant calls to the transport layer.
-
-   @param ev Event pointer. The nev_tm field identifies the transfer machine.
- */
-void c2_net_tm_event_post(const struct c2_net_event *ev);
-
-
-/**
-   Callback function pointer type.
-   @param ev Pointer to the event. The event data structure is
-   released upon return from the subroutine.
- */
-typedef void (*c2_net_tm_cb_proc_t)(const struct c2_net_event *ev);
-
-/**
-   This data structure contains application callback function pointers.
-
-   Every struct c2_net_transfer_mc requires a pointer to one such structure.
-   Additionally, a struct c2_net_buffer also permits the application to
-   specify a pointer to callbacks appropriate to the buffer.
-
-   Multiple objects can point to a single instance of such a structure.
-
-   @see c2_net_tm_event_post() for the concurrency semantics.
+   Callbacks associated with a transfer machine.
+   Multiple transfer machines can reference an instance of this structure.
  */
 struct c2_net_tm_callbacks {
 	/**
-	   Optional callback for buffers on the C2_NET_QT_MSG_RECV queue.
-	   Invoked when a message is received.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_RECV
+	   Event callback.
+	   @param ev Pointer to the transfer machine event. The pointer
+	   is not valid after return from the subroutine.
 	 */
-	c2_net_tm_cb_proc_t ntc_msg_recv_cb;
-
-	/**
-	   Optional callback for buffers on the C2_NET_QT_MSG_SEND queue.
-	   Invoked when a message is sent.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_MSG_SEND
-	 */
-	c2_net_tm_cb_proc_t ntc_msg_send_cb;
-
-	/**
-	   Optional callback for buffers on the C2_NET_QT_PASSIVE_BULK_RECV
-	   queue.
-	   Invoked when data has been written to the buffer on the completion
-	   of a remotely initiated bulk transfer operation.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_RECV
-	 */
-	c2_net_tm_cb_proc_t ntc_passive_bulk_recv_cb;
-
-	/**
-	   Optional callback for buffers on the C2_NET_QT_PASSIVE_BULK_SEND
-	   queue.
-	   Invoked when data has been read from the buffer on the completion
-	   of a remotely initiated bulk transfer operation.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_PASSIVE_BULK_SEND
-	 */
-	c2_net_tm_cb_proc_t ntc_passive_bulk_send_cb;
-
-	/**
-	   Optional callback for buffers on the C2_NET_QT_ACTIVE_BULK_RECV
-	   queue.
-	   Invoked when data has been written to the buffer on the completion
-	   of a locally initiated bulk transfer operation.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV
-	 */
-	c2_net_tm_cb_proc_t ntc_active_bulk_recv_cb;
-
-	/**
-	   Optional callback for buffers on the C2_NET_QT_ACTIVE_BULK_SEND
-	   queue.
-	   Invoked when data has been sent from the buffer on the completion
-	   of a locally initiated bulk transfer operation.
-	   @pre ev->nev_type == C2_NET_EV_BUFFER_RELEASE &&
-	        ev->nev_buffer != NULL &&
-		ev->nev_buffer->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND
-	 */
-	c2_net_tm_cb_proc_t ntc_active_bulk_send_cb;
-
-	/**
-	   Required callback. Invoked in case of error and when
-	   an optional buffer specific callback is missing.
-	 */
-	c2_net_tm_cb_proc_t ntc_event_cb;
+	void (*ntc_event_cb)(const struct c2_net_tm_event *ev);
 };
 
 /**
@@ -1043,6 +926,110 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 			bool reset);
 
 /**
+   A transfer machine is notified of non-buffer related events of interest
+   with this subroutine.
+   Typically, the subroutine is invoked by the transport associated with
+   the transfer machine.
+
+   The event data structure is not referenced from
+   elsewhere after this subroutine returns, so may be allocated on the
+   stack of the calling thread.
+
+   Multiple concurrent events may be delivered for a given transfer machine.
+
+   The subroutine will also signal to all waiters on the
+   c2_net_transfer_mc.ntm_chan field after delivery of the callback.
+
+   The invoking process should be aware that the callback subroutine could
+   end up making re-entrant calls to the transport layer.
+
+   @param ev Event pointer. The nte_tm field identifies the transfer machine.
+
+   @see c2_net_tm_buffer_post()
+ */
+void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
+
+/**
+   Buffer completion events are described by this data structure.
+ */
+struct c2_net_buffer_event {
+	/** Pointer to the buffer */
+	struct c2_net_buffer      *nbe_buffer;
+
+	/**
+	   Time the event is posted.
+	 */
+	c2_time_t                  nbe_time;
+
+	/**
+	   Status or error code associated with the event.
+	   A 0 in this field implies successful completion, and a negative
+	   error number is used to indicate the reasons for failure.
+
+	   The following errors are well defined:
+	   	- <b>-ECANCELED</b> This is used in buffer release events to
+		indicate that the associated buffer operation was
+		cancelled by a call to c2_net_buffer_del().
+	 */
+	int32_t                    nbe_status;
+
+	/**
+	   Length of the buffer data associated with this event.
+	   The field is valid only if the event is posted
+	   for the C2_NET_QT_MSG_RECV, C2_NET_QT_PASSIVE_BULK_RECV or
+	   C2_NET_QT_ACTIVE_BULK_RECV queues.
+	 */
+	c2_bcount_t                nbe_length;
+
+	/**
+	   Starting offset of the buffer data associated with this event,
+	   if the event is posted for the
+	   C2_NET_QT_MSG_RECV, C2_NET_QT_PASSIVE_BULK_RECV or
+	   C2_NET_QT_ACTIVE_BULK_RECV queues.
+
+	   Provided for future support of multi-delivery buffer transports.
+	   The value will be set to 0 for now, but applications should
+	   take it into consideration when determining the starting location
+	   of the event data in the buffer.
+	 */
+	c2_bcount_t                nbe_offset;
+
+	/**
+	   This field is used only in successful completion of buffers
+	   in the received message queue (C2_NET_QT_MSG_RECV).
+	   The transport will set the end point to identify the sender
+	   of the message before invoking the completion callback on the buffer.
+
+	   The end point will be released when the callback returns, so
+	   applications should increment the reference count on the end
+	   point with c2_net_end_point_get(), if they wish to dereference
+	   the pointer in a different context.
+	 */
+	struct c2_net_end_point   *nbe_ep;
+};
+
+/**
+   Buffer callback function pointer type.
+   @param ev Pointer to the buffer event. The pointer is not valid after
+   the callback returns.
+ */
+typedef void (*c2_net_buffer_cb_proc_t)(const struct c2_net_buffer_event *ev);
+
+/**
+   This data structure contains application callback function pointers
+   for buffer completion callbacks, one function per type of buffer queue.
+
+   Applications should provide a pointer to an instance of such a
+   structure in the nb_callbacks field of the struct c2_net_buffer.
+   Multiple objects can point to a single instance of such a structure.
+
+   @see c2_net_buffer_event_post() for the concurrency semantics.
+ */
+struct c2_net_buffer_callbacks {
+	c2_net_buffer_cb_proc_t nbc_cb[C2_NET_QT_NR];
+};
+
+/**
    Buffer state is tracked using these bitmap flags.
  */
 enum c2_net_buf_flags {
@@ -1089,17 +1076,26 @@ struct c2_net_buffer {
 	struct c2_bufvec           nb_buffer;
 
 	/**
-	   The actual amount of data received or to be transferred.
-	   Its usage varies by context:
-	   - The application should set the value before adding a buffer
-	   to the C2_NET_QT_MSG_SEND, C2_NET_QT_PASSIVE_BULK_SEND or
+	   The actual amount of data to be transferred in the case of adding
+	   the buffer to the C2_NET_QT_MSG_SEND, C2_NET_QT_PASSIVE_BULK_SEND or
 	   C2_NET_QT_ACTIVE_BULK_SEND queues.
-	   - This value is set by the transport at the time the
-	   completion event is posted for a buffer on the
+
+	   The actual amount of valid data received, upon completion of
 	   C2_NET_QT_MSG_RECV, C2_NET_QT_PASSIVE_BULK_RECV or
-	   C2_NET_QT_ACTIVE_BULK_RECV queues.
+	   C2_NET_QT_ACTIVE_BULK_RECV queue operations, is not set here, but in
+	   the nbe_length field of the c2_net_buffer_event instead.
 	 */
 	c2_bcount_t                nb_length;
+
+	/**
+	   The starting offset in the buffer from which the data should
+	   be read, in the case of adding a buffer to the
+	   C2_NET_QT_MSG_SEND, C2_NET_QT_PASSIVE_BULK_SEND or
+	   C2_NET_QT_ACTIVE_BULK_SEND queues.
+
+	   It is transport specific if a non-zero value is supported.
+	 */
+	c2_bcount_t                nb_offset;
 
 	/**
 	   Domain pointer. It is set automatically when the buffer
@@ -1122,17 +1118,9 @@ struct c2_net_buffer {
 
 	/**
 	    Pointer to application callbacks. Should be set
-	    before adding the buffer to a transfer machine logical queue.
-
-	    This is an optional field - set it to NULL if no buffer
-	    specific callbacks are desired. Instead, the callbacks from
-	    the associated transfer machine will be invoked.
-
-	    If specified, these callbacks will be used for buffer completion
-	    events instead of the callbacks specified in the transfer machine.
-	    This helps improve the modularity of the upper protocol layers.
+	    prior to adding the buffer to a transfer machine queue.
 	 */
-	const struct c2_net_tm_callbacks *nb_callbacks;
+	const struct c2_net_buffer_callbacks *nb_callbacks;
 
 	/**
 	   Absolute time by which an operation involving the buffer should
@@ -1179,6 +1167,7 @@ struct c2_net_buffer {
 	   will set the end point to identify the sender of the message
 	   before invoking the completion callback on the buffer.
 	   The end point will be released when the callback returns.
+
 	   - When sending messages
 	   the application should specify the end point of the destination
 	   before adding the buffer to the C2_NET_QT_MSG_SEND queue.
@@ -1227,17 +1216,6 @@ struct c2_net_buffer {
 	   after de-registration.
 	 */
 	uint64_t                   nb_flags;
-
-	/**
-	   The status value posted in the last completion event on
-	   the buffer.  The value is placed there just prior to invoking
-	   the completion callback on the buffer for application
-	   reference after the event callback completes.
-
-	   A value of -ECANCELED is set if the buffer operation was
-	   cancelled with c2_net_buffer_del().
-	 */
-	int32_t                    nb_status;
 };
 
 /**
@@ -1296,6 +1274,8 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
    C2_NET_ACTIVE_BULK_SEND queues must have their c2_net_buffer.nb_desc
    field set to the network buffer descriptor associated with the passive
    buffer.
+   - The callback function pointer for the appropriate queue type
+   must be set in nb_callbacks.
 
    The buffer should not be modified until the operation completion
    callback is invoked for the buffer.
@@ -1309,6 +1289,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 c2_net__qtype_is_valid(buf->nb_qtype) &&
 (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
 ((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
+buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
 (buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer
@@ -1330,7 +1311,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
    The transport should set the C2_NET_BUF_CANCELLED flag in the buffer if
    the operation has not yet started.  The flag will be cleared by
-   c2_net_tm_event_post().
+   c2_net_buffer_event_post().
 
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
@@ -1341,6 +1322,40 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
  */
 void c2_net_buffer_del(struct c2_net_buffer *buf,
 		       struct c2_net_transfer_mc *tm);
+
+/**
+   A transfer machine is notified of buffer related events with this
+   subroutine.
+   Typically, the subroutine is invoked by the transport associated with
+   the transfer machine.
+
+   The event data structure is not referenced from
+   elsewhere after this subroutine returns, so may be allocated on the
+   stack of the calling thread.
+
+   Multiple concurrent events may be delivered for a given buffer.
+
+   The subroutine will remove the buffer from its queue, and clear its
+   C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
+   prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
+   set, then the status is forced to -ECANCELED.
+
+   The subroutine will perform a c2_end_point_put() on the nbe_ep field
+   in the event structure, if the queue type is C2_NET_QT_MSG_RECV and
+   the nbe_status value is 0.
+
+   The subroutine will also signal to all waiters on the
+   c2_net_transfer_mc.ntm_chan field after delivery of the callback.
+
+   The invoking process should be aware that the callback subroutine could
+   end up making re-entrant calls to the transport layer.
+
+   @param ev Event pointer. The nbe_buffer field identifies the buffer,
+   and the buffer's nb_tm field identifies the associated transfer machine.
+
+   @see c2_net_tm_event_post()
+ */
+void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
 
 /**
    Copy a network buffer descriptor.

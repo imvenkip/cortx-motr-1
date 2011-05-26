@@ -18,21 +18,12 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
 	       nb->nb_tm == tm &&
-	       (nb->nb_status < 0 ||  /* failed or we have a non-zero msg*/
-		(nb->nb_ep != NULL && nb->nb_length >0)));
+	       (wi->xwi_status < 0 ||  /* failed or we have a non-zero msg*/
+		(wi->xwi_nbe_ep != NULL && wi->xwi_nbe_length >0)));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the recv completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(nb->nb_status <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = nb->nb_status,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	mem_wi_post_buffer_event(wi);
 	return;
 }
 
@@ -205,20 +196,23 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		}
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
 		dest_nb->nb_flags |= C2_NET_BUF_IN_USE;
+		dest_wi = mem_buffer_to_wi(dest_nb);
 		if (nb->nb_length > mem_buffer_length(dest_nb)) {
 			rc = -EMSGSIZE;
-			dest_nb->nb_length = nb->nb_length; /* desired length */
-		} else
+			/* set the desired length in the event */
+			dest_wi->xwi_nbe_length = nb->nb_length;
+		} else {
 			rc = mem_copy_buffer(dest_nb, nb, nb->nb_length);
+			dest_wi->xwi_nbe_length = nb->nb_length;
+		}
 		if (rc == 0) {
 			/* commit to using the destination EP */
-			dest_nb->nb_ep = dest_ep;
+			dest_wi->xwi_nbe_ep = dest_ep;
 			dest_ep = NULL; /* do not release below */
 		}
-		dest_nb->nb_status = rc; /* recv error code */
+		dest_wi->xwi_status = rc; /* recv error code */
 
 		/* schedule the receive msg callback */
-		dest_wi = mem_buffer_to_wi(dest_nb);
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
 		dest_tp = dest_tm->ntm_xprt_private;
@@ -236,16 +230,8 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		c2_net_end_point_put(dest_ep);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(rc <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = rc,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	wi->xwi_status = rc;
+	mem_wi_post_buffer_event(wi);
 	return;
 }
 

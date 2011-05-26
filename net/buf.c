@@ -33,17 +33,18 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 	    c2_vec_count(&buf->nb_buffer.ov_vec) == 0)
 		return false;
 
-	/* optional callbacks, but if provided then ntc_event_cb required */
-	if (buf->nb_callbacks != NULL &&
-	    buf->nb_callbacks->ntc_event_cb == NULL)
-		return false;
-
 	/* is it queued? */
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED))
 		return true;
 
 	/* must have a valid queue type */
 	if (!c2_net__qtype_is_valid(buf->nb_qtype))
+		return false;
+
+	/* if queued, must have the appropriate callback */
+	if (buf->nb_callbacks == NULL)
+		return false;
+	if (buf->nb_callbacks->nbc_cb[buf->nb_qtype] == NULL)
 		return false;
 
 	/* Must be associated with a TM.
@@ -166,7 +167,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	 */
 	C2_PRE(ergo(todo->check_length,
 		    buf->nb_length > 0 &&
-		    buf->nb_length <= c2_vec_count(&buf->nb_buffer.ov_vec)));
+		    (buf->nb_length + buf->nb_offset) <=
+		    c2_vec_count(&buf->nb_buffer.ov_vec)));
 
 	/* validate end point usage; increment ref count later */
 	C2_PRE(ergo(todo->check_ep,
@@ -256,6 +258,120 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_del);
 
+bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
+{
+	if (ev == NULL)
+		return false;
+	if (ev->nbe_status > 0)
+		return false;
+	if (ev->nbe_buffer == NULL)
+		return false; /* can't check buf invariant here */
+	if (!ergo(ev->nbe_status == 0 &&
+		  ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV,
+		  ev->nbe_ep != NULL))
+		return false; /* don't check ep invariant here */
+	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_CANCELLED,
+		  ev->nbe_status == -ECANCELED))
+		return false;
+	return true;
+}
+
+void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
+{
+	struct c2_net_buffer *buf = NULL;
+	struct c2_net_end_point *ep;
+	bool check_ep;
+	enum c2_net_queue_type qtype = C2_NET_QT_NR;
+	struct c2_net_transfer_mc *tm;
+	struct c2_net_qstats *q;
+	c2_time_t tdiff;
+	c2_net_buffer_cb_proc_t cb;
+
+	C2_PRE(c2_net__buffer_event_invariant(ev));
+	buf = ev->nbe_buffer;
+	tm = buf->nb_tm;
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
+
+	/* pre-callback, in mutex:
+	   update buffer (if present), state and statistics
+	 */
+	c2_mutex_lock(&tm->ntm_mutex);
+
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(c2_net__buffer_invariant(buf));
+	C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
+	c2_list_del(&buf->nb_tm_linkage);
+
+	qtype = buf->nb_qtype;
+	buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
+			   C2_NET_BUF_IN_USE);
+
+	q = &tm->ntm_qstats[qtype];
+	if (ev->nbe_status < 0) {
+		q->nqs_num_f_events++;
+		if (qtype == C2_NET_QT_MSG_RECV ||
+		    qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
+		    qtype == C2_NET_QT_ACTIVE_BULK_RECV)
+			buf->nb_length = 0; /* may not be valid */
+	} else {
+		q->nqs_num_s_events++;
+	}
+	tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
+	q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
+	q->nqs_total_bytes += buf->nb_length;
+	q->nqs_max_bytes = max_check(q->nqs_max_bytes, buf->nb_length);
+
+	cb = buf->nb_callbacks->nbc_cb[qtype];
+
+	tm->ntm_callback_counter++;
+	c2_mutex_unlock(&tm->ntm_mutex);
+
+	ep = NULL;
+	check_ep = false;
+	switch (qtype) {
+	case C2_NET_QT_MSG_RECV:
+		if (ev->nbe_status == 0) {
+			check_ep = true;
+			ep = ev->nbe_ep; /* from event */
+		}
+		break;
+	case C2_NET_QT_MSG_SEND:
+	case C2_NET_QT_PASSIVE_BULK_RECV:
+	case C2_NET_QT_PASSIVE_BULK_SEND:
+		/* must put() ep to match get in buffer_add() */
+		ep = buf->nb_ep;   /* from buffer */
+		break;
+	default:
+		break;
+	}
+
+	if (check_ep) {
+		C2_ASSERT(({
+			  bool eprc;
+			  c2_mutex_lock(&tm->ntm_dom->nd_mutex);
+			  eprc = c2_net__ep_invariant(ep, tm->ntm_dom, true);
+			  c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+			  eprc; }));
+	}
+
+	cb(ev);
+
+	/* post callback, in mutex:
+	   decrement ref counts,
+	   signal waiters
+	 */
+	c2_mutex_lock(&tm->ntm_mutex);
+	tm->ntm_callback_counter--;
+	c2_chan_broadcast(&tm->ntm_chan);
+	c2_mutex_unlock(&tm->ntm_mutex);
+
+	/* Decrement the reference to the ep */
+	if (ep != NULL)
+		c2_net_end_point_put(ep);
+
+	return;
+}
+C2_EXPORTED(c2_net_buffer_event_post);
 
 /** @} end of net group */
 

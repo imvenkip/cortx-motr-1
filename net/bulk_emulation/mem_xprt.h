@@ -126,10 +126,17 @@ struct c2_net_bulk_mem_work_item {
 	enum c2_net_bulk_mem_tm_state       xwi_next_state;
 
 	/** Status. Used for C2_NET_ERROR_CB, C2_NET_XOP_STATE_CHANGE,
+	    buffer operation completion status,
 	    and a generic way for derived classes to
 	    pass on status to the base worker function.
 	 */
 	int32_t                             xwi_status;
+
+	/** Length of buffer */
+	c2_bcount_t                         xwi_nbe_length;
+
+	/** End point in received buffers */
+	struct c2_net_end_point            *xwi_nbe_ep;
 };
 
 /**
@@ -238,6 +245,9 @@ struct c2_net_bulk_mem_ops {
 	/** Subroutine to post an error */
 	void (*bmo_post_error)(struct c2_net_transfer_mc *tm,
 			       int status);
+
+	/** Subroutine to post a buffer event */
+	void (*bmo_wi_post_buffer_event)(struct c2_net_bulk_mem_work_item *wi);
 };
 
 /**
