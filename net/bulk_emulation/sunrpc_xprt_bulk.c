@@ -5,14 +5,16 @@
    @{
  */
 
-static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc)
+static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc,
+				    c2_bcount_t length)
 {
 	struct c2_net_bulk_mem_work_item *passive_wi = mem_buffer_to_wi(nb);
 	struct c2_net_bulk_sunrpc_tm_pvt *passive_tp =
 	    nb->nb_tm->ntm_xprt_private;
 
-	nb->nb_status = rc;
+	passive_wi->xwi_status = rc;
 	passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
+	passive_wi->xwi_nbe_length = length;
 	sunrpc_wi_add(passive_wi, passive_tp);
 }
 
@@ -97,7 +99,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	ex->sgr_eof = eof;
 
 	if (eof || rc != 0)
-		sunrpc_queue_passive_cb(nb, rc);
+		sunrpc_queue_passive_cb(nb, rc, 0);
 
 done:
 	c2_mutex_unlock(&tm->ntm_mutex);
@@ -167,10 +169,9 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	copied = c2_bufvec_cursor_copy(&cur, &scur, len);
 	if (copied < len) {
 		rc = -EFBIG;
-		sunrpc_queue_passive_cb(nb, rc);
+		sunrpc_queue_passive_cb(nb, rc, in->sp_desc.sbd_total);
 	} else if (in->sp_offset + in->sp_buf.sb_len == in->sp_desc.sbd_total) {
-		nb->nb_length = in->sp_desc.sbd_total;
-		sunrpc_queue_passive_cb(nb, rc);
+		sunrpc_queue_passive_cb(nb, rc, in->sp_desc.sbd_total);
 	}
 
 done:
@@ -249,7 +250,8 @@ done:
 
 static int sunrpc_active_recv(struct c2_net_buffer *nb,
 			      struct sunrpc_buf_desc *sd,
-			      struct c2_net_end_point *ep)
+			      struct c2_net_end_point *ep,
+			      c2_bcount_t *lengthp)
 {
 	int                      rc;
 	struct c2_net_conn      *conn = NULL;
@@ -287,7 +289,7 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	*/
 	fop->sg_desc = *sd;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-	nb->nb_length = sd->sbd_total;
+	*lengthp = sd->sbd_total;
 	while (!eof) {
 		struct c2_bufvec_cursor scur;
 		fop->sg_offset = off;
@@ -343,6 +345,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
 	struct c2_net_end_point *match_ep = NULL;
 	int rc;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
 	C2_PRE(nb != NULL &&
 	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
@@ -351,6 +354,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	       nb->nb_desc.nbd_len != 0 &&
 	       nb->nb_desc.nbd_data != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+	dp = nb->nb_dom->nd_xprt_private;
 
 	do {
 		/* decode the descriptor */
@@ -385,7 +389,8 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		if (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND)
 			rc = sunrpc_active_send(nb, &sd, match_ep);
 		else
-			rc = sunrpc_active_recv(nb, &sd, match_ep);
+			rc = sunrpc_active_recv(nb, &sd, match_ep,
+						&wi->xwi_nbe_length);
 	} while (0);
 
 	/* free the local match end point */
@@ -393,16 +398,9 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		c2_net_end_point_put(match_ep);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(rc <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = rc,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	wi->xwi_status = rc;
+	(*dp->xd_base_ops.bmo_wi_post_buffer_event)(wi);
+	return;
 }
 
 /**

@@ -65,6 +65,7 @@ static int mem_copy_buffer(struct c2_net_buffer *dest_nb,
 static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 		       struct c2_net_bulk_mem_tm_pvt *tp);
 static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
+static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi);
 
 /**
    Macro to compare two struct sockaddr_in structures.

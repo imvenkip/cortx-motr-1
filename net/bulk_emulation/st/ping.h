@@ -28,6 +28,8 @@ struct ping_ctx {
 	uint32_t                    pc_seg_size;
 	int32_t			    pc_passive_size;
 	struct c2_net_buffer       *pc_nbs;
+	const struct c2_net_buffer_callbacks
+	                           *pc_buf_callbacks;
 	struct c2_bitmap	    pc_nbbm;
 	struct c2_net_end_point    *pc_ep;
 	struct c2_net_transfer_mc   pc_tm;

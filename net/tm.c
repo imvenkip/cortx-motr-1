@@ -15,26 +15,20 @@ bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts)
 	return ts >= C2_NET_TM_UNDEFINED && ts <= C2_NET_TM_FAILED;
 }
 
-bool c2_net__ev_type_is_valid(enum c2_net_ev_type et)
+bool c2_net__tm_ev_type_is_valid(enum c2_net_tm_ev_type et)
 {
-	return et >= C2_NET_EV_ERROR && et < C2_NET_EV_NR;
+	return et >= C2_NET_TEV_ERROR && et < C2_NET_TEV_NR;
 }
 
-bool c2_net__event_invariant(const struct c2_net_event *ev)
+bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev)
 {
-	if (!c2_net__ev_type_is_valid(ev->nev_type))
+	if (!c2_net__tm_ev_type_is_valid(ev->nte_type))
 		return false;
-	if (ev->nev_tm == NULL ||
-	    !c2_net__tm_invariant(ev->nev_tm))
+	if (ev->nte_tm == NULL ||
+	    !c2_net__tm_invariant(ev->nte_tm))
 		return false;
-	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {
-		if (ev->nev_buffer == NULL)
-			return false;
-		if (!c2_net__buffer_invariant(ev->nev_buffer))
-			return false;
-	}
-	if (ev->nev_type == C2_NET_EV_STATE_CHANGE &&
-	    !c2_net__tm_state_is_valid(ev->nev_next_state))
+	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE &&
+	    !c2_net__tm_state_is_valid(ev->nte_next_state))
 		return false;
 	return true;
 }
@@ -42,6 +36,8 @@ bool c2_net__event_invariant(const struct c2_net_event *ev)
 bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 {
 	if (tm == NULL || tm->ntm_callbacks == NULL || tm->ntm_dom == NULL)
+		return false;
+	if (tm->ntm_callbacks->ntc_event_cb == NULL)
 		return false;
 	if (tm->ntm_state < C2_NET_TM_INITIALIZED ||
 	    tm->ntm_state > C2_NET_TM_FAILED)
@@ -60,119 +56,27 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 	return true;
 }
 
-void c2_net_tm_event_post(const struct c2_net_event *ev)
+void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 {
-	struct c2_net_buffer *buf = NULL;
-	const struct c2_net_tm_callbacks *cbs;
-	c2_net_tm_cb_proc_t cb;
-	struct c2_net_end_point *ep;
-	bool check_ep;
-	enum c2_net_queue_type qtype = C2_NET_QT_NR;
 	struct c2_net_transfer_mc *tm;
 
 	C2_PRE(ev != NULL);
-	tm = ev->nev_tm;
+	tm = ev->nte_tm;
 	C2_PRE(tm != NULL);
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
-	/* pre-callback, in mutex:
-	   update buffer (if present), state and statistics
-	 */
+	/* pre-callback, in mutex */
 	c2_mutex_lock(&tm->ntm_mutex);
-	C2_PRE(c2_net__event_invariant(ev));
+	C2_PRE(c2_net__tm_event_invariant(ev));
 
-	cbs = tm->ntm_callbacks; /* by default use the TM callbacks */
-
-	if (ev->nev_type == C2_NET_EV_BUFFER_RELEASE) {
-		struct c2_net_qstats *q;
-		c2_time_t tdiff;
-
-		buf = ev->nev_buffer;
-		C2_PRE(c2_net__tm_invariant(tm));
-		C2_PRE(c2_net__buffer_invariant(buf));
-		C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
-		c2_list_del(&buf->nb_tm_linkage);
-
-		qtype = buf->nb_qtype;
-		buf->nb_status = ev->nev_status;
-		if (buf->nb_flags & C2_NET_BUF_CANCELLED)
-			buf->nb_status = -ECANCELED;
-		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
-				   C2_NET_BUF_IN_USE);
-
-		q = &tm->ntm_qstats[qtype];
-		if (ev->nev_status < 0) {
-			q->nqs_num_f_events++;
-			if (qtype == C2_NET_QT_MSG_RECV ||
-			    qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
-			    qtype == C2_NET_QT_ACTIVE_BULK_RECV)
-				buf->nb_length = 0; /* may not be valid */
-		} else {
-			q->nqs_num_s_events++;
-		}
-		tdiff = c2_time_sub(ev->nev_time, buf->nb_add_time);
-		q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
-		q->nqs_total_bytes += buf->nb_length;
-		q->nqs_max_bytes = max_check(q->nqs_max_bytes, buf->nb_length);
-
-		/* buffer callback takes precedence */
-		if (buf->nb_callbacks != NULL)
-			cbs = buf->nb_callbacks;
-
-	} else if (ev->nev_type == C2_NET_EV_STATE_CHANGE) {
-		tm->ntm_state = ev->nev_next_state;
+	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE) {
+		tm->ntm_state = ev->nte_next_state;
 	}
 
 	tm->ntm_callback_counter++;
 	c2_mutex_unlock(&tm->ntm_mutex);
 
-	cb = cbs->ntc_event_cb; /* default to general callback */
-	check_ep = false;
-	switch (qtype) {
-	case C2_NET_QT_MSG_RECV:
-		check_ep = true;	/* special case */
-		if (cbs->ntc_msg_recv_cb != NULL)
-			cb = cbs->ntc_msg_recv_cb;
-		break;
-	case C2_NET_QT_MSG_SEND:
-		check_ep = true;
-		if (cbs->ntc_msg_send_cb != NULL)
-			cb = cbs->ntc_msg_send_cb;
-		break;
-	case C2_NET_QT_PASSIVE_BULK_RECV:
-		check_ep = true;
-		if (cbs->ntc_passive_bulk_recv_cb != NULL)
-			cb = cbs->ntc_passive_bulk_recv_cb;
-		break;
-	case C2_NET_QT_PASSIVE_BULK_SEND:
-		check_ep = true;
-		if (cbs->ntc_passive_bulk_send_cb != NULL)
-			cb = cbs->ntc_passive_bulk_send_cb;
-		break;
-	case C2_NET_QT_ACTIVE_BULK_RECV:
-		if (cbs->ntc_active_bulk_recv_cb != NULL)
-			cb = cbs->ntc_active_bulk_recv_cb;
-		break;
-	case C2_NET_QT_ACTIVE_BULK_SEND:
-		if (cbs->ntc_active_bulk_send_cb != NULL)
-			cb = cbs->ntc_active_bulk_send_cb;
-		break;
-	default:
-		break;
-	}
-	C2_ASSERT(cb != NULL);
-	if (check_ep) {
-		ep = buf->nb_ep; /* save pointer to decrement ref post cb */
-
-		C2_ASSERT(ep == NULL || ({
-			  bool eprc;
-			  c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-			  eprc = c2_net__ep_invariant(ep, tm->ntm_dom, true);
-			  c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
-			  eprc; }));
-	}
-
-	cb(ev);
+	(*tm->ntm_callbacks->ntc_event_cb)(ev);
 
 	/* post callback, in mutex:
 	   decrement ref counts,
@@ -182,10 +86,6 @@ void c2_net_tm_event_post(const struct c2_net_event *ev)
 	tm->ntm_callback_counter--;
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
-
-	/* Decrement the transport reference to an EP; put re-gets mutex */
-	if (check_ep && ep)
-		c2_net_end_point_put(ep);
 
 	return;
 }

@@ -17,12 +17,14 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	struct c2_fop          *r    = NULL;
 	struct c2_net_conn     *conn = NULL;
 	int rc;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
 	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_SEND &&
 	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
+	dp = nb->nb_dom->nd_xprt_private;
 
 	do {
 		struct c2_bufvec_cursor  cur;
@@ -77,16 +79,9 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		c2_net_conn_release(conn);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
-	C2_POST(rc <= 0);
-	struct c2_net_event ev = {
-		.nev_type    = C2_NET_EV_BUFFER_RELEASE,
-		.nev_tm      = tm,
-		.nev_buffer  = nb,
-		.nev_status  = rc,
-		.nev_payload = wi
-	};
-	c2_time_now(&ev.nev_time);
-	c2_net_tm_event_post(&ev);
+	wi->xwi_status = rc;
+	(*dp->xd_base_ops.bmo_wi_post_buffer_event)(wi);
+	return;
 }
 
 static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -137,10 +132,11 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
 				nb->nb_tm->ntm_xprt_private;
 			rc = -EMSGSIZE;
-			nb->nb_status = rc;
-			nb->nb_length = in->sm_buf.sb_len; /* desired length */
+			/* set desired length */
+			wi->xwi_nbe_length = in->sm_buf.sb_len;
 			/* schedule the receive msg callback */
 			wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
+			wi->xwi_status = rc;
 			sunrpc_wi_add(wi, tp);
 			break;
 		}
@@ -162,16 +158,16 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		/* create an end point for the message sender */
 		c2_mutex_lock(&dom->nd_mutex);
-		rc = sunrpc_ep_create(&nb->nb_ep, dom, &sa, sid);
+		rc = sunrpc_ep_create(&wi->xwi_nbe_ep, dom, &sa, sid);
 		c2_mutex_unlock(&dom->nd_mutex);
 
 		if (rc == 0) {
 			/* copy the message to the buffer */
 			memcpy(c2_bufvec_cursor_addr(&cur), in->sm_buf.sb_buf,
 			       in->sm_buf.sb_len);
-			nb->nb_length = in->sm_buf.sb_len;
+			wi->xwi_nbe_length = in->sm_buf.sb_len;
 		}
-		nb->nb_status = rc;
+		wi->xwi_status = rc;
 
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;

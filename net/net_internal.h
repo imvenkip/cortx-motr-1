@@ -37,14 +37,19 @@ bool c2_net__qtype_is_valid(enum c2_net_queue_type qt);
 bool c2_net__tm_state_is_valid(enum c2_net_tm_state ts);
 
 /*
-  Event invariant
+  TM event invariant
 */
-bool c2_net__event_invariant(const struct c2_net_event *ev);
+bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev);
 
 /*
-  Validates the event type.
+  Validates the TM event type.
 */
-bool c2_net__ev_type_is_valid(enum c2_net_ev_type et);
+bool c2_net__tm_ev_type_is_valid(enum c2_net_tm_ev_type et);
+
+/*
+  Buffer event invariant
+*/
+bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev);
 
 /*
   Buffer checks for a registered buffer.
