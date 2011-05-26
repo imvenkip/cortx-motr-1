@@ -36,13 +36,30 @@ static int			 nthreads = 8;
 static struct c2_thread		 form_ut_threads;
 
 static int			 nfops = 256;
-static c2_fop			*form_fops;
+static c2_fop			*form_fops = NULL;
 
 static int			 nrpcgroups = 16;
-static struct c2_rpc_group	*form_groups;
+static struct c2_rpc_group	*form_groups = NULL;
 
 static int			 nfiles = 64;
-static c2_fop_fid		*form_fids;
+static c2_fop_fid		*form_fids = NULL;
+uint64_t			*file_offsets = NULL;
+static int			 io_size = 8192;
+static int			 nsegs = 8;
+/* At the moment, we are sending only 3 different types of FOPs,
+   namely - file create, file read and file write. */
+static int			 nopcodes = 3;
+/* Function pointer to different FOP creation methods. */
+typedef struct c2_fop * (*fopFuncPtr)(void);
+/* Array of function pointers. */
+fopFuncPtr form_fop_table[nopcodes] = {
+	&form_create_write_fop, &form_create_read_fop,
+	&form_create_file_create_fop
+};
+
+static int			 niopatterns = 8;
+static int			 pattern_length = 4;
+char				 file_data_patterns[niopatterns][pattern_length];
 
 static void form_ut_thread_init(int a)
 {
@@ -84,15 +101,62 @@ struct c2_fop *form_create_file_create_fop()
 struct c2_fop_io_vec *form_get_new_iovec(int i)
 {
 	struct c2_fop_io_vec		*iovec = NULL;
+	uint64_t			 offset = 0;
+	uint64_t			 seg_size = 0;
+	int				 a = 0;
+	int				 j = 0;
+	int				 k = 0;
+	bool				 status = true;
 
 	C2_ASSERT(i < nfiles);
 	C2_ALLOC_PTR(iovec);
 	if (iovec == NULL) {
 		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
+		status = false;
 		return NULL;
 	}
-	for () {
+	iovec->iov_count = nsegs;
+	C2_ALLOC_ARR(iovec->iov_seg, iovec->iov_count);
+	if (iovec->iov_seg == NULL) {
+		printf("Failed to allocate memory for struct \
+				c2_fop_io_seg.\n");
+		status = false;
+		goto last;
+		return NULL;
 	}
+	C2_SET_ARR0(iovec->iov_seg);
+	seg_size = io_size / nsegs;
+	for (offset = file_offsets[i]; a < nsegs; a++) {
+		iovec->iov_seg[a].f_offset = offset;
+		iovec->iov_seg[a].f_buf.f_count = seg_size;
+		C2_ALLOC_ARR(iovec->iov_seg[a].f_buf.f_buf, seg_size);
+		if (iovec->iov_seg[a].f_buf.f_buf == NULL) {
+			printf("Failed to allocate memory for char array.\n");
+			status = false;
+			goto last;
+			return NULL;
+		}
+		k = (rand()) % niopatterns;
+		for (j = 0; j < (seg_size / pattern_length); j+=pattern_length) {
+			memcpy(iovec->iov_seg[a].f_buf.f_buf,
+					file_data_patterns[k], pattern_length);
+		}
+		offset += seg_size;
+	}
+last:
+	if (status == false) {
+		for (j = 0; j < nsegs; j++) {
+			c2_free(iovec->iov_seg[j].f_buf_f_buf);
+		}
+		c2_free(iovec->iov_seg);
+		c2_free(iovec);
+		iovec = NULL;
+	}
+	else {
+		file_offsets[i] = iovec->iov_seg[a].f_offset +
+			iovec->iov_seg[a].f_buf.f_count
+	}
+	return iovec;
 }
 
 struct c2_fop *form_create_write_fop()
@@ -110,11 +174,20 @@ struct c2_fop *form_create_write_fop()
 	i = (rand()) % nfiles;
 	write_fop->fwr_fid = form_get_fid(i);
 	write_fop->fwr_iovec = form_get_new_iovec(i);;
+	if (write_fop->fwr_iovec == NULL) {
+		printf("Failed to allocate an IO vector for write fop.\n");
+		c2_fop_free(fop);
+		fop = NULL;
+	}
+	return fop;
 }
 
-struct c2_fop *form_create_write_fop()
+struct c2_fop *form_create_read_fop()
 {
 	int				 i = 0;
+	int				 j = 0;
+	int				 k = 0;
+	int				 seg_size = 0;
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_cob_readv		*read_fop = NULL;
 
@@ -123,6 +196,39 @@ struct c2_fop *form_create_write_fop()
 		printf("Failed to allocate struct c2_fop.\n");
 		return NULL;
 	}
+	read_fop = c2_fop_data(fop);
+	i = (rand()) % nfiles;
+	read_fop->frd_fid = form_get_fid(i);
+	read_fop->frd_ioseg.fs_count = nsegs;
+	C2_ALLOC_ARR(read_fop->frd_ioseg.fs_segs, nsegs);
+	if (read_fop->frd_ioseg.fs_segs == NULL) {
+		printf("Failed to allocate memory for IO segment\n");
+		c2_fop_free(fop);
+		fop = NULL;
+	}
+	else {
+		seg_size = io_size / nsegs;
+		for (j = file_offsets[i]; k < nsegs; k++) {
+			read_fop->frd_ioseg.fs_segs[k].f_offset = j;
+			read_fop->frd_ioseg.fs_segs[k].f_count = seg_size;
+			j += seg_size;
+		}
+		file_offsets[i] = read_fop->frd_ioseg.fs_segs[k].f_offset +
+			read_fop->frd_ioseg.fs_segs[k].f_count;
+	}
+	return fop;
+}
+
+void init_file_io_patterns()
+{
+	file_data_patterns[0] = "a1b2";
+	file_data_patterns[1] = "b1c2";
+	file_data_patterns[2] = "c1d2";
+	file_data_patterns[3] = "d1e2";
+	file_data_patterns[4] = "e1f2";
+	file_data_patterns[5] = "f1g2";
+	file_data_patterns[6] = "g1h2";
+	file_data_patterns[7] = "h1i2";
 }
 
 int main(int argc, char **argv)
@@ -164,6 +270,7 @@ int main(int argc, char **argv)
 				c2_fop_file_fid.\n");
 		return -1;
 	}
+	C2_SET_ARR0(form_fids);
 
 	C2_ALLOC_ARR(form_groups, nrpcgroups);
 	if (form_groups == NULL) {
@@ -171,12 +278,23 @@ int main(int argc, char **argv)
 				c2_rpc_group.\n");
 		return -1;
 	}
+	C2_SET_ARR0(form_groups);
 
-	for (f = 0; f < nfops; f++) {
-		/* Total random data. */
-		/* 1. Create a FOP of type "create". */
-
+	C2_ALLOC_ARR(file_offsets, nfiles);
+	if (file_offsets == NULL) {
+		printf("Failed to allocate memory for array of uint64_t.\n");
+		return -1;
 	}
+	C2_SET_ARR0(file_offsets);
+
+	for (i = 0; i < niopatterns; i++) {
+		C2_SET_ARR0(file_data_patterns[i]);
+	}
+	init_file_io_patterns();
+
+	for (i = 0; i < nrpcgroups; i++) {
+	}
+
 	/* 4. Populate the associated rpc items.
 	 5. Assign priority and timeout for all rpc items. The thumb rule
 	    for this is - meta data FOPs should have higher priority and
