@@ -7,7 +7,8 @@
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	0 		// 0 ms
-#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
+#define MAX_NONIO_DEADLINE	1		// 1 ns 
+//#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
 #define MIN_IO_DEADLINE		10000000  	// 10 ms
 #define MAX_IO_DEADLINE		100000000 	// 100 ms
 
@@ -18,10 +19,8 @@
 #define MAX_IO_PRIO 		10
 
 /* Array of groups */
-#define MAX_NONIO_GRPS		2
-struct c2_rpc_group		*rgroup_nonio[MAX_NONIO_GRPS];
-#define MAX_IO_GRPS		5
-struct c2_rpc_group		*rgroup_io[MAX_IO_GRPS];
+#define MAX_GRPS		5
+struct c2_rpc_group		*rgroup[MAX_GRPS];
 
 /**
   Alloc and initialize the global array of groups used for UT
@@ -31,25 +30,15 @@ int c2_rpc_form_groups_alloc(void)
 	int		i = 0;
 	printf("Inside c2_rpc_form_groups_alloc \n");
 
-	for(i = 0; i < MAX_NONIO_GRPS; i++) {
-		rgroup_nonio[i] = c2_alloc(sizeof(struct c2_rpc_group));
-		if(rgroup_nonio[i] == NULL) {
+	for(i = 0; i < MAX_GRPS; i++) {
+		rgroup[i] = c2_alloc(sizeof(struct c2_rpc_group));
+		if(rgroup[i] == NULL) {
 			return -1;
 		}
-		c2_list_init(&rgroup_nonio[i]->rg_items);
-		c2_mutex_init(&rgroup_nonio[i]->rg_guard);
-		rgroup_nonio[i]->rg_expected = 0;
-		rgroup_nonio[i]->nr_residual = 0;
-	}
-	for(i = 0; i < MAX_IO_GRPS; i++) {
-		rgroup_io[i] = c2_alloc(sizeof(struct c2_rpc_group));
-		if(rgroup_io[i] == NULL) {
-			return -1;
-		}
-		c2_list_init(&rgroup_io[i]->rg_items);
-		c2_mutex_init(&rgroup_io[i]->rg_guard);
-		rgroup_io[i]->rg_expected = 0;
-		rgroup_io[i]->nr_residual = 0;
+		c2_list_init(&rgroup[i]->rg_items);
+		c2_mutex_init(&rgroup[i]->rg_guard);
+		rgroup[i]->rg_expected = 0;
+		rgroup[i]->nr_residual = 0;
 	}
 	return 0;
 }
@@ -62,15 +51,10 @@ int c2_rpc_form_groups_free(void)
 	int		i = 0;
 	printf("Inside c2_rpc_form_groups_free \n");
 
-	for(i = 0; i < MAX_NONIO_GRPS; i++) {
-		c2_list_fini(&rgroup_nonio[i]->rg_items);
-		c2_mutex_fini(&rgroup_nonio[i]->rg_guard);
-		c2_free(rgroup_nonio[i]);
-	}
-	for(i = 0; i < MAX_IO_GRPS; i++) {
-		c2_list_fini(&rgroup_io[i]->rg_items);
-		c2_mutex_fini(&rgroup_io[i]->rg_guard);
-		c2_free(rgroup_io[i]);
+	for(i = 0; i < MAX_GRPS; i++) {
+		c2_list_fini(&rgroup[i]->rg_items);
+		c2_mutex_fini(&rgroup[i]->rg_guard);
+		c2_free(rgroup[i]);
 	}
 	return 0;
 }

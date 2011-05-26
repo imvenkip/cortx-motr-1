@@ -1600,6 +1600,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	*rpcobj_next = NULL;
 	struct c2_rpc_item		*rpc_item = NULL;
+	struct c2_rpc_item		*rpc_item_next = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
@@ -1615,9 +1616,9 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_checked_list,
 			rpcobj, rpcobj_next, struct c2_rpc_form_rpcobj,
 			ro_linkage) {
-		c2_list_for_each_entry(&rpcobj->ro_rpcobj->r_items, 
-				rpc_item, struct c2_rpc_item, 
-				ri_rpcobject_linkage) {
+		c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items, 
+				rpc_item, rpc_item_next,
+				struct c2_rpc_item, ri_rpcobject_linkage) {
 			res = c2_rpc_session_item_prepare(rpc_item);
 			if (res != 0) {
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
