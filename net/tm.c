@@ -279,7 +279,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
-	c2_ref_get(&ep->nep_ref);
+	c2_net_end_point_get(ep);
 	tm->ntm_ep = ep;
 	tm->ntm_state = C2_NET_TM_STARTING;
 	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm);

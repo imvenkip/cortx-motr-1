@@ -41,12 +41,12 @@ static bool mem_buffer_invariant(const struct c2_net_buffer *nb);
 static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm);
 static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_domain *dom,
-			 struct sockaddr_in *sa,
+			 const struct sockaddr_in *sa,
 			 uint32_t id);
-static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
-			      struct c2_net_end_point *ep2);
-static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
-			       struct sockaddr_in *sa);
+static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
+			      const struct c2_net_end_point *ep2);
+static bool mem_ep_equals_addr(const struct c2_net_end_point *ep,
+			       const struct sockaddr_in *sa);
 static int mem_desc_create(struct c2_net_buf_desc *desc,
 			   struct c2_net_end_point *ep,
 			   struct c2_net_transfer_mc *tm,
@@ -71,7 +71,8 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
    @param sa1 Pointer to first structure.
    @param sa2 Pointer to second structure.
  */
-static inline bool mem_sa_eq(struct sockaddr_in *sa1, struct sockaddr_in *sa2)
+static inline bool mem_sa_eq(const struct sockaddr_in *sa1,
+			     const struct sockaddr_in *sa2)
 {
 	return sa1->sin_addr.s_addr == sa2->sin_addr.s_addr &&
 	       sa1->sin_port        == sa2->sin_port;
@@ -84,7 +85,7 @@ static inline bool mem_sa_eq(struct sockaddr_in *sa1, struct sockaddr_in *sa2)
  */
 static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
 				struct c2_net_domain *dom,
-				struct sockaddr_in *sa,
+				const struct sockaddr_in *sa,
 				uint32_t id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;

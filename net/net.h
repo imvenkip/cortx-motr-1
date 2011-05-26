@@ -1308,7 +1308,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 (tm->ntm_state == C2_NET_TM_STARTED) &&
 c2_net__qtype_is_valid(buf->nb_qtype) &&
 (buf->nb_flags & C2_NET_BUF_REGISTERED) &&
-((buf->nb_flags & C2_NET_BUF_QUEUED) == 0) &&
+!(buf->nb_flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE)) &&
 (buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL)
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer

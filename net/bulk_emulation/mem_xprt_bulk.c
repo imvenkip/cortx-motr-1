@@ -57,6 +57,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	struct c2_net_transfer_mc *passive_tm = NULL;
 	struct c2_net_end_point     *match_ep = NULL;
 
+	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb != NULL &&
 	       (nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_RECV ||
 		nb->nb_qtype == C2_NET_QT_ACTIVE_BULK_SEND) &&
@@ -65,8 +66,16 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	       nb->nb_desc.nbd_data != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
+	/* Note: this function, like all the mem buffer work functions, is
+	   called without holding the tm or domain mutex.  That means this
+	   function cannot modify the tm without obtaining a lock (it also
+	   means this function can lock a different tm or domain without
+	   causing deadlock).  It can access members of tm, like ntm_ep, that
+	   do not change while the tm is C2_NET_TM_STARTED.
+	 */
+
 	do { /* provide a break context */
-		struct mem_desc *md;
+ 		struct mem_desc *md;
 		struct c2_net_buffer *passive_nb = NULL;
 		struct c2_net_buffer *inb;
 		struct c2_net_buffer *s_buf;

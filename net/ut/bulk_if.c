@@ -645,11 +645,9 @@ void test_net_bulk_if(void)
 			make_desc(&nb->nb_desc);
 			break;
 		}
-		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		rc = c2_net_buffer_add(nb, tm);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
-		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
 		C2_UT_ASSERT(nb->nb_tm == tm);
 		num_adds[nb->nb_qtype]++;
 		max_bytes[nb->nb_qtype] = max64u(nb->nb_length,

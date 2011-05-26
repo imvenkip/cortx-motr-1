@@ -105,7 +105,7 @@ static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 */
 static int sunrpc_ep_create(struct c2_net_end_point **epp,
 			    struct c2_net_domain *dom,
-			    struct sockaddr_in *sa,
+			    const struct sockaddr_in *sa,
 			    uint32_t id)
 {
 	int rc = 0;
@@ -200,8 +200,8 @@ static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
    @param true Match
    @param false Do not match
  */
-static bool sunrpc_ep_equals_addr(struct c2_net_end_point *ep,
-				  struct sunrpc_ep *sep)
+static bool sunrpc_ep_equals_addr(const struct c2_net_end_point *ep,
+				  const struct sunrpc_ep *sep)
 {
 	struct c2_net_bulk_mem_end_point *mep;
 	C2_ASSERT(sunrpc_ep_invariant(ep));
@@ -267,7 +267,7 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
    @retval 0 On success
    @retval -EINVAL Invalid transfer descriptor
  */
-static int sunrpc_desc_decode(struct c2_net_buf_desc *desc,
+static int sunrpc_desc_decode(const struct c2_net_buf_desc *desc,
 			      struct sunrpc_buf_desc *sd)
 {
 	XDR xdrs;
@@ -282,8 +282,8 @@ static int sunrpc_desc_decode(struct c2_net_buf_desc *desc,
 /**
    Compares if two descriptors are equal.
  */
-static bool sunrpc_desc_equal(struct c2_net_buf_desc *d1,
-			      struct sunrpc_buf_desc *sd2)
+static bool sunrpc_desc_equal(const struct c2_net_buf_desc *d1,
+			      const struct sunrpc_buf_desc *sd2)
 {
 	/* could do a byte comparison too */
 	struct sunrpc_buf_desc sd1;

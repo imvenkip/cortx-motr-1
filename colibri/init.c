@@ -6,6 +6,7 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
+#include "net/bulk_emulation/mem_xprt.h"
 #include "net/usunrpc/usunrpc.h"
 /* #include "rpc/rpclib.h" */
 #include "fop/fop.h"
@@ -45,6 +46,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
+	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },

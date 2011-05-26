@@ -161,7 +161,7 @@ struct c2_net_bulk_mem_tm_pvt {
 	struct c2_net_transfer_mc        *xtm_tm;
 	/** Internal state of the transfer machine */
 	enum c2_net_bulk_mem_tm_state     xtm_state;
-	/** Prioritized list of pending work items */
+	/** FIFO of pending work items */
 	struct c2_list                    xtm_work_list;
 	/** Condition variable for the work item list */
 	struct c2_cond                    xtm_work_list_cv;
@@ -173,12 +173,12 @@ struct c2_net_bulk_mem_tm_pvt {
 	size_t                            xtm_num_workers;
 };
 
-/**
-   End point. It tracks an IP/port number address.
- */
 enum {
 	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
 };
+/**
+   End point. It tracks an IP/port number address.
+ */
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
 	uint64_t                 xep_magic;
@@ -214,10 +214,12 @@ struct c2_net_bulk_mem_ops {
 	/** Subroutine to create an end point. */
 	int (*bmo_ep_create)(struct c2_net_end_point **epp,
 			     struct c2_net_domain *dom,
-			     struct sockaddr_in *sa,
+			     const struct sockaddr_in *sa,
 			     uint32_t id);
 
-	/** Subroutine to release an end point. */
+	/** Subroutine to release an end point.  Used as the destructor
+	    function for c2_net_end_point::nep_ref.
+	 */
 	void (*bmo_ep_release)(struct c2_ref *ref);
 
 	/** Subroutine to add a work item to the work list */
@@ -298,9 +300,10 @@ struct c2_net_bulk_mem_domain_pvt {
 	bool                       xd_derived;
 
 	/**
-	   Counter for passive bulk buffer identifiers.
+	   Counter for passive bulk buffer identifiers.  The ntm_mutex must be
+	   held while operating on this counter.
 	 */
-	struct c2_atomic64         xd_buf_id_counter;
+	uint64_t                   xd_buf_id_counter;
 };
 
 /**
@@ -364,6 +367,9 @@ static inline uint32_t mem_ep_sid(struct c2_net_end_point *ep)
 		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	return mep->xep_service_id;
 }
+
+int c2_mem_xprt_init(void);
+void c2_mem_xprt_fini(void);
 
 /**
    @}

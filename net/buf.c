@@ -107,6 +107,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 
 	C2_PRE(buf != NULL && c2_net__buffer_invariant(buf) &&
 	       buf->nb_dom == dom);
+	C2_PRE(buf->nb_flags == C2_NET_BUF_REGISTERED);
 	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
 	rc = dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
@@ -151,7 +152,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(c2_net__buffer_invariant(buf));
-	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
+	C2_PRE(!(buf->nb_flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE)));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
@@ -186,7 +187,6 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	   Post will unlink on completion, or del on cancel.
 	 */
 	c2_list_add_tail(ql, &buf->nb_tm_linkage);
-	buf->nb_flags &= ~C2_NET_BUF_IN_USE; /* for transport use */
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
 	(void)c2_time_now(&buf->nb_add_time); /* record time added */
 

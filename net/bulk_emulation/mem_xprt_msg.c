@@ -19,7 +19,7 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
 	       nb->nb_tm == tm &&
 	       (nb->nb_status < 0 ||  /* failed or we have a non-zero msg*/
-		(nb->nb_ep != NULL && nb->nb_length >0)));
+		(nb->nb_ep != NULL && nb->nb_length > 0)));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the recv completion callback (will clear C2_NET_BUF_IN_USE) */
@@ -204,6 +204,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			break;
 		}
 		C2_ASSERT(mem_buffer_invariant(dest_nb));
+		C2_ASSERT(dest_nb->nb_flags & C2_NET_BUF_QUEUED);
 		dest_nb->nb_flags |= C2_NET_BUF_IN_USE;
 		if (nb->nb_length > mem_buffer_length(dest_nb)) {
 			rc = -EMSGSIZE;
