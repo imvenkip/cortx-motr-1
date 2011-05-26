@@ -1433,6 +1433,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	struct c2_rpc_form_rpcobj			*rpcobj = NULL;
 	bool						 item_coalesced = false;
 	struct c2_rpc_item				*rpc_item = NULL;
+	struct c2_rpc_item				*rpc_item_next = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) ||
@@ -1520,8 +1521,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	//res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
 	//		&cache_list);
 	c2_mutex_lock(&cache_list->ic_mutex);
-	c2_list_for_each_entry(&endp_unit->isu_unformed_list, rpc_item, 
-			struct c2_rpc_item, ri_unformed_linkage) {
+	c2_list_for_each_entry_safe(&endp_unit->isu_unformed_list, rpc_item,
+			rpc_item_next, struct c2_rpc_item, 
+			ri_unformed_linkage) {
 		/* item_size = rpc_item->ri_type->rit_ops->
 		   rio_item_size(item);*/
 		item_size = c2_rpc_form_item_size(item);
