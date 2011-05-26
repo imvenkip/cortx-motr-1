@@ -18,8 +18,8 @@ static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(nb != NULL &&
 	       nb->nb_qtype == C2_NET_QT_MSG_RECV &&
 	       nb->nb_tm == tm &&
-	       (nb->nb_status < 0 ||  /* failed or we have a non-zero msg*/
-		(nb->nb_ep != NULL && nb->nb_length > 0)));
+	       (wi->xwi_status < 0 ||  /* failed or we have a non-zero msg*/
+		(wi->xwi_nbe_ep != NULL && wi->xwi_nbe_length > 0)));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
 	/* post the recv completion callback (will clear C2_NET_BUF_IN_USE) */
