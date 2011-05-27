@@ -471,9 +471,9 @@ static void server_event_ident(char *buf, const char *ident,
 		if (ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV) {
 			if (ev->nbe_status == 0)
 				ep = ev->nbe_ep;
-		}
-		else
+		} else {
 			ep = ev->nbe_buffer->nb_ep;
+		}
 	}
 	if (ep != NULL)
 		sprintf(buf, "%s (peer %s)", ident, ep->nep_addr);

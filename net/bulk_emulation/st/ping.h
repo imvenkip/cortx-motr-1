@@ -13,31 +13,30 @@ struct ping_ops {
    Context for a ping client or server.
  */
 struct ping_ctx {
-	const struct ping_ops	   *pc_ops;
-	struct c2_net_xprt         *pc_xprt;
-	struct c2_net_domain        pc_dom;
-	const char                 *pc_hostname;
-	short			    pc_port;
-	uint32_t		    pc_id;
-	int32_t			    pc_status;
-	const char                 *pc_rhostname;
-	short			    pc_rport;
-	uint32_t		    pc_rid;
-	uint32_t                    pc_nr_bufs;
-	uint32_t                    pc_segments;
-	uint32_t                    pc_seg_size;
-	int32_t			    pc_passive_size;
-	struct c2_net_buffer       *pc_nbs;
-	const struct c2_net_buffer_callbacks
-	                           *pc_buf_callbacks;
-	struct c2_bitmap	    pc_nbbm;
-	struct c2_net_end_point    *pc_ep;
-	struct c2_net_transfer_mc   pc_tm;
-	struct c2_mutex		    pc_mutex;
-	struct c2_cond		    pc_cond;
-	struct c2_list              pc_work_queue;
-	const char                 *pc_ident;
-	const char                 *pc_compare_buf;
+	const struct ping_ops		     *pc_ops;
+	struct c2_net_xprt		     *pc_xprt;
+	struct c2_net_domain		      pc_dom;
+	const char		             *pc_hostname;
+	short				      pc_port;
+	uint32_t			      pc_id;
+	int32_t				      pc_status;
+	const char			     *pc_rhostname;
+	short				      pc_rport;
+	uint32_t			      pc_rid;
+	uint32_t		              pc_nr_bufs;
+	uint32_t		              pc_segments;
+	uint32_t		              pc_seg_size;
+	int32_t				      pc_passive_size;
+	struct c2_net_buffer		     *pc_nbs;
+	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
+	struct c2_bitmap		      pc_nbbm;
+	struct c2_net_end_point		     *pc_ep;
+	struct c2_net_transfer_mc	      pc_tm;
+	struct c2_mutexi		      pc_mutex;
+	struct c2_cond			      pc_cond;
+	struct c2_list			      pc_work_queue;
+	const char		             *pc_ident;
+	const char		             *pc_compare_buf;
 };
 
 enum {
