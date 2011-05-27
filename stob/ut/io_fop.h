@@ -10,6 +10,7 @@ extern struct c2_fop_type c2_io_quit_fopt;
 extern struct c2_fop_type c2_io_write_rep_fopt;
 extern struct c2_fop_type c2_io_read_rep_fopt;
 extern struct c2_fop_type c2_io_create_rep_fopt;
+extern struct c2_fop_type c2_fop_file_create_fopt;
 //extern struct c2_fop_type c2_fop_cob_readv_fopt;
 //extern struct c2_fop_type c2_fop_cob_writev_fopt;
 
