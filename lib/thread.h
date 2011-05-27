@@ -166,7 +166,7 @@ void *c2_thread_trampoline(void *t);
    and the thread calls (*func)(arg) and exits when this call completes.
 
    The namefmt and its arguments are used to name the thread.  The formatted
-   name is truncated to 15 characters (based on TASK_COMM_LEN).
+   name is truncated to C2_THREAD_NAME_LEN characters (based on TASK_COMM_LEN).
 
    @note it is possible that after successful return from c2_thread_init() the
    thread hasn't yet entered "func" code, it is also possible that the thread

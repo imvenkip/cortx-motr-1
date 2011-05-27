@@ -61,7 +61,7 @@ static void mem_ep_printable(struct c2_net_bulk_mem_end_point *mep,
  */
 static int mem_ep_create(struct c2_net_end_point **epp,
 			 struct c2_net_domain *dom,
-			 struct sockaddr_in *sa,
+			 const struct sockaddr_in *sa,
 			 uint32_t id)
 {
 	struct c2_net_end_point *ep;
@@ -77,7 +77,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
 		if (mem_sa_eq(&mep->xep_sa, sa) && mep->xep_service_id == id) {
-			c2_ref_get(&ep->nep_ref);
+			c2_net_end_point_get(ep);
 			*epp = ep;
 			return 0;
 		}
@@ -111,17 +111,15 @@ static int mem_ep_create(struct c2_net_end_point **epp,
    @param true Match
    @param false Do not match
  */
-static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
-			       struct sockaddr_in *sa)
+static bool mem_ep_equals_addr(const struct c2_net_end_point *ep,
+			       const struct sockaddr_in *sa)
 {
-	struct c2_net_bulk_mem_end_point *mep;
+	const struct c2_net_bulk_mem_end_point *mep;
 
 	C2_ASSERT(mem_ep_invariant(ep));
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 
-	if (mem_sa_eq(&mep->xep_sa, sa))
-		return true;
-	return false;
+	return mem_sa_eq(&mep->xep_sa, sa);
 }
 
 /**
@@ -131,8 +129,8 @@ static bool mem_ep_equals_addr(struct c2_net_end_point *ep,
    @param true Match
    @param false Do not match
  */
-static bool mem_eps_are_equal(struct c2_net_end_point *ep1,
-			      struct c2_net_end_point *ep2)
+static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
+			      const struct c2_net_end_point *ep2)
 {
 	struct c2_net_bulk_mem_end_point *mep1;
 

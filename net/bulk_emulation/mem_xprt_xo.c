@@ -17,13 +17,29 @@
    @addtogroup bulkmem
    @{
  */
-static bool mem_domains_initialized = false;
 
 /**
    List of in-memory network domains.
    Protected by struct c2_net_mutex.
 */
 static struct c2_list  mem_domains;
+
+/**
+   Transport initialization subroutine called from c2_init().
+ */
+int c2_mem_xprt_init(void)
+{
+	c2_list_init(&mem_domains);
+	return 0;
+}
+
+/**
+   Transport finalization subroutine called from c2_fini().
+ */
+void c2_mem_xprt_fini(void)
+{
+	c2_list_fini(&mem_domains);
+}
 
 /* To reduce global symbols, yet make the code readable, we
    include other .c files with static symbols into this file.
@@ -48,7 +64,7 @@ static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb)
 static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
 	const struct c2_vec *v = &nb->nb_buffer.ov_vec;
-	int i;
+	uint32_t i;
 	c2_bcount_t len = 0;
 
 	if (v->v_nr > C2_NET_BULK_MEM_MAX_BUFFER_SEGMENTS)
@@ -56,24 +72,22 @@ static bool mem_buffer_in_bounds(const struct c2_net_buffer *nb)
 	for (i = 0; i < v->v_nr; ++i) {
 		if (v->v_count[i] > C2_NET_BULK_MEM_MAX_SEGMENT_SIZE)
 			return false;
+		C2_ASSERT(len + v->v_count[i] >= len);
 		len += v->v_count[i];
 	}
-	if (len > C2_NET_BULK_MEM_MAX_BUFFER_SIZE)
-		return false;
-	return true;
+	return len <= C2_NET_BULK_MEM_MAX_BUFFER_SIZE;
 }
 
 /**
    Copy from one buffer to another. Each buffer may have different
    number of segments and segment sizes.
+   The subroutine does not set the nb_length field of the d_nb buffer.
    @param d_nb  The destination buffer pointer.
    @param s_nb  The source buffer pointer.
    @param num_bytes The number of bytes to copy.
    @pre
 mem_buffer_length(d_nb) >= num_bytes &&
 mem_buffer_length(s_nb) >= num_bytes
-   @post
-d_nb->nb_length = num_bytes
  */
 static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 			   struct c2_net_buffer *s_nb,
@@ -88,7 +102,6 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 	}
 	C2_ASSERT(mem_buffer_length(s_nb) >= num_bytes);
 
-	d_nb->nb_length = num_bytes;
 	c2_bufvec_cursor_init(&s_cur, &s_nb->nb_buffer);
 	c2_bufvec_cursor_init(&d_cur, &d_nb->nb_buffer);
 	bytes_copied = c2_bufvec_cursor_copy(&d_cur, &s_cur, num_bytes);
@@ -107,6 +120,25 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 	c2_cond_signal(&tp->xtm_work_list_cv, &tp->xtm_tm->ntm_mutex);
 }
 
+/**
+   Post a buffer event.
+ */
+static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
+	C2_POST(wi->xwi_status <= 0);
+	struct c2_net_buffer_event ev = {
+		.nbe_buffer = nb,
+		.nbe_status = wi->xwi_status,
+		.nbe_offset = 0,
+		.nbe_length = wi->xwi_nbe_length,
+		.nbe_ep     = wi->xwi_nbe_ep
+	};
+	c2_time_now(&ev.nbe_time);
+	c2_net_buffer_event_post(&ev);
+	return;
+}
+
 static bool mem_dom_invariant(const struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
@@ -117,22 +149,21 @@ static bool mem_ep_invariant(const struct c2_net_end_point *ep)
 {
 	const struct c2_net_bulk_mem_end_point *mep;
 	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	return (mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
-		mep->xep_ep.nep_addr == &mep->xep_addr[0]);
+	return mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
+		mep->xep_ep.nep_addr == &mep->xep_addr[0];
 }
 
 static bool mem_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
-	return  (bp != NULL && bp->xb_buffer == nb &&
-		 mem_dom_invariant(nb->nb_dom));
+	return bp != NULL && bp->xb_buffer == nb &&
+		mem_dom_invariant(nb->nb_dom);
 }
 
 static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
 	const struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	return (tp != NULL && tp->xtm_tm == tm &&
-		mem_dom_invariant(tm->ntm_dom));
+	return tp != NULL && tp->xtm_tm == tm && mem_dom_invariant(tm->ntm_dom);
 }
 
 /**
@@ -170,12 +201,13 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
 	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
 	dp->xd_work_fn[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb;
-	dp->xd_ops.bmo_ep_create        = &mem_ep_create;
-	dp->xd_ops.bmo_ep_release       = &mem_xo_end_point_release;
-	dp->xd_ops.bmo_wi_add           = &mem_wi_add;
-	dp->xd_ops.bmo_buffer_in_bounds = &mem_buffer_in_bounds;
-	dp->xd_ops.bmo_desc_create      = &mem_desc_create;
-	dp->xd_ops.bmo_post_error       = &mem_post_error;
+	dp->xd_ops.bmo_ep_create            = &mem_ep_create;
+	dp->xd_ops.bmo_ep_release           = &mem_xo_end_point_release;
+	dp->xd_ops.bmo_wi_add               = &mem_wi_add;
+	dp->xd_ops.bmo_buffer_in_bounds     = &mem_buffer_in_bounds;
+	dp->xd_ops.bmo_desc_create          = &mem_desc_create;
+	dp->xd_ops.bmo_post_error           = &mem_post_error;
+	dp->xd_ops.bmo_wi_post_buffer_event = &mem_wi_post_buffer_event;
 
 	/* tunable parameters */
 	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
@@ -184,17 +216,13 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_addr_tuples       = 2;
 	dp->xd_num_tm_threads    = 1;
 
-	c2_atomic64_set(&dp->xd_buf_id_counter, 1);
+	dp->xd_buf_id_counter = 0;
 	c2_list_link_init(&dp->xd_dom_linkage);
 
 	if (xprt != &c2_net_bulk_mem_xprt) {
 		dp->xd_derived = true;
 	} else {
 		dp->xd_derived = false;
-		if (!mem_domains_initialized) {
-			c2_list_init(&mem_domains);
-			mem_domains_initialized = true;
-		}
 		c2_list_add(&mem_domains, &dp->xd_dom_linkage);
 	}
 	C2_POST(mem_dom_invariant(dom));
@@ -213,10 +241,6 @@ static void mem_xo_dom_fini(struct c2_net_domain *dom)
 	if (dp->xd_derived)
 		return;
 	c2_list_del(&dp->xd_dom_linkage);
-	if (c2_list_is_empty(&mem_domains)) {
-		c2_list_fini(&mem_domains);
-		mem_domains_initialized = false;
-	}
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
 }
@@ -361,6 +385,8 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	C2_PRE(nb->nb_flags & C2_NET_BUF_QUEUED &&
 	       (nb->nb_flags & C2_NET_BUF_IN_USE) == 0);
 
+	C2_PRE(nb->nb_offset == 0); /* don't support any other value */
+
 	tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
@@ -384,8 +410,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	case C2_NET_QT_PASSIVE_BULK_RECV:
 		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
-		bp->xb_buf_id = c2_atomic64_add_return(&dp->xd_buf_id_counter,
-						       1);
+		bp->xb_buf_id = ++dp->xd_buf_id_counter;
 		rc = MEM_DESC_CREATE(&nb->nb_desc, nb->nb_ep, tm,
 				     nb->nb_qtype, nb->nb_length,
 				     bp->xb_buf_id);
@@ -402,7 +427,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	}
 	nb->nb_flags &= ~C2_NET_BUF_CANCELLED;
 	bp->xb_cancel_requested = false;
-	nb->nb_status = -1;
+	wi->xwi_status = -1;
 
 	if (wi->xwi_op != C2_NET_XOP_NR) {
 		mem_wi_add(wi, tp);
