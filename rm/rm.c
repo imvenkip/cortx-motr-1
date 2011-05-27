@@ -42,8 +42,8 @@
 
        - c2_rm_owner::ro_lock is released.
 
-   Event handling is serialised by the owner lock. It not legal to wait for
-   networking on IO events under this lock.
+   Event handling is serialised by the owner lock. It is not legal to wait for
+   networking or IO events under this lock.
 
    Pseudo-code below omits error checking and some details too prolix to
    narrate in a design specification.
@@ -61,10 +61,13 @@ void right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 	C2_PRE(c2_list_is_empty(&in->rin_want.ri_linkage));
 
 	c2_mutex_lock(&owner->ro_lock);
+	/*
+	 * Mark incoming request "excited". owner_balance() will process it.
+	 */
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 		    &in->rin_want.ri_linkage);
 	owner_balance();
-	c2_mutex_lock(&owner->ro_lock);
+	c2_mutex_unlock(&owner->ro_lock);
 	return 0;
 }
 
@@ -150,7 +153,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * All waits completed, go to CHECK
 				 * state.
 				 */
-				c2_list_move(o->ro_incoming[prio][OQS_GROUND],
+				c2_list_move(&o->ro_incoming[prio][OQS_GROUND],
 					     &in->rin_want.ri_linkage);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
@@ -175,6 +178,8 @@ static void incoming_check(struct c2_rm_incoming *in)
 	bool               need_local;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
+	C2_PRE(c2_list_contains(&o->ro_incoming[prio][OQS_GROUND],
+				&in->rin_want.ri_linkage));
 	C2_PRE(in->rin_state == RI_CHECK);
 	C2_PRE(c2_list_empty(&in->rin_pins));
 
@@ -301,12 +306,12 @@ static void incoming_check_local(struct c2_rm_incoming *in)
 	for (i = 0; i < OWOS_NR; ++i) {
 		for_each_right(scan, &o->ro_owned[i]) {
 			if (scan intersects rest) {
+				pin_add(in, scan);
 				if (!coverage) {
 					rest = right_diff(rest, scan);
 					if (rest is empty)
 						return;
 				}
-				pin_add(in, scan);
 			}
 		}
 	}
