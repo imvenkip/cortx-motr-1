@@ -320,9 +320,16 @@ static void apply_policy(struct c2_rm_incoming *in)
 }
 
 /**
-* @brief 
-*
-* @param in
+* Info about remote domain is filled.
+*/
+static void remote_copy(const struct c2_rm_incoming *in,
+			struct c2_rm_remote *rem) 
+{
+}
+
+/**
+* The rights(as loan) are moved to sublet list of owner as the quest 
+* came for loan.
 */
 static int move_to_sublet(struct c2_rm_incoming *in)
 {
@@ -340,6 +347,7 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 		if (loan == NULL)
 			return -ENOMEM;
 		right_copy(&loan->rl_right, right);
+		remote_copy(in, &loan->rl_other);
 		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
 	}
 
@@ -357,15 +365,20 @@ static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
 }
 
 /**
-* @brief 
-*
-* @param in
+* Reply to the incoming loan request when wanted rights granted
 */
-static void reply_to_loan_request(struct c2_rm_incoming *in)
+static int reply_to_loan_request(struct c2_rm_incoming *in)
 {
-	struct c2_rm_right *right;
-	struct c2_rm_pin   *pin;
-	struct c2_rm_loan  *loan;
+	struct c2_rm_right	    *right;
+	struct c2_rm_pin   	    *pin;
+	struct c2_rm_loan  	    *loan;
+        struct c2_fop        	    *f;
+        struct c2_fop		    *r;
+        struct c2_rm_loan_reply_fop *fop;
+        struct c2_rm_loan_reply_fop *rep;
+        struct c2_net_conn	    *conn;
+	struct c2_service_id 	    sid;
+        int			    result;
 
 	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
                                rp_right_linkage) {
@@ -374,7 +387,25 @@ static void reply_to_loan_request(struct c2_rm_incoming *in)
 		/*@todo Form fop for each loan and reply or
 		 * we can apply rpc grouping and send reply 
 		 */
+
+		sid = loan->rl_other.rem_service;
+		conn = c2_net_conn_find(&sid);
+		C2_ASSERT(conn != NULL);
+		
+		f = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+        	fop = c2_fop_data(f);
+        	r = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+        	rep = c2_fop_data(r);
+
+        	fop->loan_id = loan->rl_id;
+        	fop->rem_id = loan->rl_other.rem_id;
+        	/*May be right_copy used later*/
+        	fop->ri_datum = loan->rl_right.ri_datum;
+
+        	result = netcall(conn, f, r);
 	}
+
+	return result;
 }
 
 static int send_out_request(struct c2_rm_outgoing *out)
