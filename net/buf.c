@@ -1,5 +1,6 @@
 /* -*- C -*- */
 
+#include "lib/arith.h" /* max_check */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
