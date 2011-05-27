@@ -4,6 +4,21 @@
 
 #include "lib/atomic.h"
 #include "lib/thread.h"
+
+#ifdef __KERNEL__
+#include <linux/in.h>
+#include <linux/inet.h>
+
+/* The kernel does not define these types */
+typedef __be32 in_addr_t;
+typedef __be16 in_port_t;
+
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
 #include "net/bulk_mem.h"
 
 /**

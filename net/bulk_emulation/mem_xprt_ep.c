@@ -169,7 +169,7 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 
 	desc->nbd_len = sizeof *md;
 	md = c2_alloc(desc->nbd_len);
-	desc->nbd_data = (char *) md;
+	desc->nbd_data = (typeof(desc->nbd_data)) md;
 	if (desc->nbd_data == NULL) {
 		desc->nbd_len = 0;
 		return -ENOMEM;

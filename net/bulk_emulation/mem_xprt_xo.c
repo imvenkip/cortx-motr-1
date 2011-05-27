@@ -4,15 +4,6 @@
 #include "lib/misc.h"
 #include "net/bulk_emulation/mem_xprt_pvt.h"
 
-#ifdef __KERNEL__
-#include <linux/in.h>
-#include <linux/inet.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
 /**
    @addtogroup bulkmem
    @{
@@ -48,10 +39,10 @@ void c2_mem_xprt_fini(void)
    Static functions should be declared in the private header file
    so that the order of their definition does not matter.
 */
-#include "mem_xprt_ep.c"
-#include "mem_xprt_tm.c"
-#include "mem_xprt_msg.c"
-#include "mem_xprt_bulk.c"
+#include "net/bulk_emulation/mem_xprt_ep.c"
+#include "net/bulk_emulation/mem_xprt_tm.c"
+#include "net/bulk_emulation/mem_xprt_msg.c"
+#include "net/bulk_emulation/mem_xprt_bulk.c"
 
 static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb)
 {
@@ -126,7 +117,6 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
-	C2_POST(wi->xwi_status <= 0);
 	struct c2_net_buffer_event ev = {
 		.nbe_buffer = nb,
 		.nbe_status = wi->xwi_status,
@@ -134,6 +124,7 @@ static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 		.nbe_length = wi->xwi_nbe_length,
 		.nbe_ep     = wi->xwi_nbe_ep
 	};
+	C2_PRE(wi->xwi_status <= 0);
 	c2_time_now(&ev.nbe_time);
 	c2_net_buffer_event_post(&ev);
 	return;

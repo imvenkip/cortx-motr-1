@@ -8,8 +8,10 @@ otw_k_o      := $(otw_k_c:.c=.o)
 
 local_src    := main.c
 kernel_src   := $(local_src) $(otw_k_c)
-shared_src   := buf.c domain.c ep.c net.c tm.c
-orig_shared  := $(shared_src:%=../%)
+net_src      := buf.c domain.c ep.c net.c tm.c
+orig_net     := $(net_src:%=../%)
+bulk_src     := mem_xprt_xo.c
+orig_bulk    := $(bulk_src:%=../bulk_emulation/%)
 
 # rename the ksunrpc files when sym linking to avoid name clashes
 depr_Ksrc    := client.c kxdr.c domain.c server.c
@@ -17,7 +19,7 @@ depr_ksrc    := $(depr_Ksrc:%=k%)
 depr_src     := connection.c net.c net_cli.c net_utils.c
 orig_depr    := $(depr_src:%=../%)
 
-all_src      := $(kernel_src) $(shared_src) $(depr_src) $(depr_ksrc)
+all_src      := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)
 all_obj      := $(all_src:.c=.o)
 
 obj-m        := $(NET_MOD).o
@@ -28,7 +30,7 @@ dist_src     := Makefile.in $(local_src)
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc @KCFLAGS@
 
 prepare: $(otw_k_c) $(otw_k_h)
-	ln -fs $(orig_shared) .
+	ln -fs $(orig_net) $(orig_bulk) .
 	ln -fs $(orig_depr) .
 	for f in $(depr_Ksrc) ; do ln -fs ../ksunrpc/$$f k$$f; done
 
@@ -39,7 +41,7 @@ uninstall:
 	rm -fr @LUNUX_MOD@/kernel/fs/$(NET_MOD)
 
 clean distclean:
-	$(RM) $(shared_src) $(otw_k_c) $(otw_k_h)
+	$(RM) $(net_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
 	$(RM) $(depr_src) $(depr_ksrc)
 	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
