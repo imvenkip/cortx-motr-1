@@ -1456,11 +1456,19 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 
-	forming_list = c2_alloc(sizeof(struct c2_list));
-	if (forming_list == NULL) {
-		printf("Failed to allocate memory for struct c2_list.\n");
-		return C2_RPC_FORM_INTEVT_STATE_DONE;
+	/* Create an rpc object in endp_unit->isu_rpcobj_checked_list. */
+	rpcobj = c2_alloc(sizeof(struct c2_rpc_form_rpcobj));
+	if (rpcobj == NULL) {
+		printf("Failed to allocate memory for \
+				struct c2_rpc_form_rpcobj.\n");
+		return -ENOMEM;
 	}
+	rpcobj->ro_rpcobj = c2_alloc(sizeof(struct c2_rpc));
+	if (rpcobj->ro_rpcobj == NULL) {
+		printf("Failed to allocate memory for struct c2_rpc.\n");
+		return -ENOMEM;
+	}
+	forming_list = &rpcobj->ro_rpcobj->r_items;
 	c2_list_init(forming_list);
 
 	if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) {
@@ -1571,19 +1579,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	c2_mutex_unlock(&cache_list->ic_mutex);
 	/* Try to do IO colescing for items in forming list. */
 	res = c2_rpc_form_items_coalesce(endp_unit, forming_list, &rpcobj_size);
-	/* Create an rpc object in endp_unit->isu_rpcobj_checked_list. */
-	rpcobj = c2_alloc(sizeof(struct c2_rpc_form_rpcobj));
-	if (rpcobj == NULL) {
-		printf("Failed to allocate memory for \
-				struct c2_rpc_form_rpcobj.\n");
-		return -ENOMEM;
-	}
-	rpcobj->ro_rpcobj = c2_alloc(sizeof(struct c2_rpc));
-	if (rpcobj->ro_rpcobj == NULL) {
-		printf("Failed to allocate memory for struct c2_rpc.\n");
-		return -ENOMEM;
-	}
-	rpcobj->ro_rpcobj->r_items = *forming_list;
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
 			&rpcobj->ro_linkage);
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
