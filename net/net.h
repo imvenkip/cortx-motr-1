@@ -239,7 +239,7 @@ struct c2_net_xprt_ops {
 	   field.
 	   The C2_NET_BUF_CANCELLED flag should be set in buffers whose
 	   operations get cancelled, so c2_net_buffer_event_post() can
-	   force the right error status.
+	   enforce the right error status.
 	   <b>Serialized using the transfer machine mutex.</b>
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm and
 	   c2_net_buffer.nb_qtype set.

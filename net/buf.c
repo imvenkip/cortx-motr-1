@@ -286,6 +286,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	struct c2_net_qstats *q;
 	c2_time_t tdiff;
 	c2_net_buffer_cb_proc_t cb;
+	c2_bcount_t len = 0;
 
 	C2_PRE(c2_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
@@ -309,17 +310,20 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	q = &tm->ntm_qstats[qtype];
 	if (ev->nbe_status < 0) {
 		q->nqs_num_f_events++;
+		len = 0; /* length not counted on failure */
+	} else {
+		q->nqs_num_s_events++;
 		if (qtype == C2_NET_QT_MSG_RECV ||
 		    qtype == C2_NET_QT_PASSIVE_BULK_RECV ||
 		    qtype == C2_NET_QT_ACTIVE_BULK_RECV)
-			buf->nb_length = 0; /* may not be valid */
-	} else {
-		q->nqs_num_s_events++;
+			len = ev->nbe_length;
+		else
+			len = buf->nb_length;
 	}
 	tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
 	q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
-	q->nqs_total_bytes += buf->nb_length;
-	q->nqs_max_bytes = max_check(q->nqs_max_bytes, buf->nb_length);
+	q->nqs_total_bytes += len;
+	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
 
 	cb = buf->nb_callbacks->nbc_cb[qtype];
 
