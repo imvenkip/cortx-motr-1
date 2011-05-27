@@ -1,37 +1,46 @@
 KNETC2_SRCDIR = @SRCDIR@/net/linux_kernel
-NET_MOD      := knetc2
+NET_MOD       := knetc2
 
-otw_ff       := net_otw_types.ff
-otw_k_h      := $(otw_ff:.ff=_k.h)
-otw_k_c      := $(otw_ff:.ff=_k.c)
-otw_k_o      := $(otw_k_c:.c=.o)
+otw_ff        := net_otw_types.ff
+otw_k_h       := $(otw_ff:.ff=_k.h)
+otw_k_c       := $(otw_ff:.ff=_k.c)
+otw_k_o       := $(otw_k_c:.c=.o)
 
-local_src    := main.c
-kernel_src   := $(local_src) $(otw_k_c)
-net_src      := buf.c domain.c ep.c net.c tm.c
-orig_net     := $(net_src:%=../%)
-bulk_src     := mem_xprt_xo.c
-orig_bulk    := $(bulk_src:%=../bulk_emulation/%)
+local_src     := main.c
+kernel_src    := $(local_src) $(otw_k_c)
+net_src       := buf.c domain.c ep.c net.c tm.c
+link_net      := $(net_src:%=../%)
+bulk_src      := mem_xprt_xo.c
+link_bulk     := $(bulk_src:%=../bulk_emulation/%)
 
 # rename the ksunrpc files when sym linking to avoid name clashes
-depr_Ksrc    := client.c kxdr.c domain.c server.c
-depr_ksrc    := $(depr_Ksrc:%=k%)
-depr_src     := connection.c net.c net_cli.c net_utils.c
-orig_depr    := $(depr_src:%=../%)
+depr_Ksrc     := client.c kxdr.c domain.c server.c
+depr_ksrc     := $(depr_Ksrc:%=k%)
+depr_src      := connection.c net.c net_cli.c net_utils.c
+link_depr     := $(depr_src:%=../%)
 
-all_src      := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)
-all_obj      := $(all_src:.c=.o)
+sio_ff        := sunrpc_io.ff
+sio_k_h       := $(sio_ff:.ff=_k.h)
+sio_k_c       := $(sio_ff:.ff=_k.c)
+sio_k_o       := $(sio_k_c:.c=.o)
+deprbulk_lsrc := sunrpc_xprt_xo.c
+deprbulk_src  := $(deprbulk_lsrc) $(sio_k_c)
+link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%)
 
-obj-m        := $(NET_MOD).o
-$(NET_MOD)-y := $(all_obj)
+all_src       := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)\
+                 $(deprbulk_src)
+all_obj       := $(all_src:.c=.o)
 
-dist_src     := Makefile.in $(local_src)
+obj-m         := $(NET_MOD).o
+$(NET_MOD)-y  := $(all_obj)
+
+dist_src      := Makefile.in $(local_src)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ -I@SRCDIR@/net/ksunrpc @KCFLAGS@
 
-prepare: $(otw_k_c) $(otw_k_h)
-	ln -fs $(orig_net) $(orig_bulk) .
-	ln -fs $(orig_depr) .
+prepare: $(otw_k_c) $(otw_k_h) $(sio_k_c) $(sio_k_h)
+	ln -fs $(link_net) $(link_bulk) .
+	ln -fs $(link_depr) $(link_deprbulk) .
 	for f in $(depr_Ksrc) ; do ln -fs ../ksunrpc/$$f k$$f; done
 
 install modules_install:
@@ -42,13 +51,15 @@ uninstall:
 
 clean distclean:
 	$(RM) $(net_src) $(bulk_src) $(otw_k_c) $(otw_k_h)
-	$(RM) $(depr_src) $(depr_ksrc)
+	$(RM) $(depr_src) $(depr_ksrc) $(deprbulk_src) $(sio_k_h)
 	$(RM) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
 	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/$(NET_MOD)/linux_kernel
 
-$(all_obj): $(otw_k_h)
+$(all_obj): $(otw_k_h) $(sio_k_h)
 $(otw_k_c) $(otw_k_h): ../$(otw_ff)
 	@SRCDIR@/fop/fop2c -k ../$(otw_ff)
+$(sio_k_c) $(sio_k_h): ../bulk_emulation/$(sio_ff)
+	@SRCDIR@/fop/fop2c -k ../bulk_emulation/$(sio_ff)

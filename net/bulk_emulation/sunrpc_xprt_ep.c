@@ -233,6 +233,10 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 			      c2_bcount_t buflen,
 			      int64_t buf_id)
 {
+#ifdef __KERNEL__
+	C2_IMPOSSIBLE("Port in progress");
+	return 0;
+#else
 	struct sunrpc_buf_desc sd = {
 	    .sbd_id                  = buf_id,
 	    .sbd_qtype               = qt,
@@ -258,6 +262,7 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 		rc = -EINVAL;
 	xdr_destroy(&xdrs);
 	return rc;
+#endif
 }
 
 /**
@@ -271,6 +276,10 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 static int sunrpc_desc_decode(const struct c2_net_buf_desc *desc,
 			      struct sunrpc_buf_desc *sd)
 {
+#ifdef __KERNEL__
+	C2_IMPOSSIBLE("Port in progress");
+	return 0;
+#else
 	XDR xdrs;
 	int rc = 0;
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_DECODE);
@@ -278,6 +287,7 @@ static int sunrpc_desc_decode(const struct c2_net_buf_desc *desc,
 		rc = -EINVAL;
 	xdr_destroy(&xdrs);
 	return rc;
+#endif
 }
 
 /**

@@ -156,17 +156,19 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	len = in->sp_buf.sb_len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 
-	struct c2_bufvec stmp = {
-		.ov_vec = {
-			.v_nr = 1,
-			.v_count = &len
-		},
-		.ov_buf = (void**) &in->sp_buf.sb_buf
-	};
+	{
+		struct c2_bufvec stmp = {
+			.ov_vec = {
+				.v_nr = 1,
+				.v_count = &len
+			},
+			.ov_buf = (void**) &in->sp_buf.sb_buf
+		};
 
-	c2_bufvec_cursor_init(&scur, &stmp);
-	c2_bufvec_cursor_move(&cur, in->sp_offset);
-	copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+		c2_bufvec_cursor_init(&scur, &stmp);
+		c2_bufvec_cursor_move(&cur, in->sp_offset);
+		copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+	}
 	if (copied < len) {
 		rc = -EFBIG;
 		sunrpc_queue_passive_cb(nb, rc, in->sp_desc.sbd_total);
@@ -210,11 +212,6 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	}
 	fop = c2_fop_data(f);
 
-	struct c2_net_call call = {
-		.ac_arg = f,
-		.ac_ret = r
-	};
-
 	/*
 	  Walk each buf in our bufvec, sending data
 	  to remote until complete bufvec is transferred.
@@ -223,6 +220,11 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	fop->sp_desc.sbd_total = len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	while (len > 0 && rc == 0) {
+		struct c2_net_call call = {
+			.ac_arg = f,
+			.ac_ret = r
+		};
+
 		step = min32u(c2_bufvec_cursor_step(&cur), len);
 		fop->sp_offset = off;
 		fop->sp_buf.sb_len = step;
@@ -278,11 +280,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	}
 	fop = c2_fop_data(f);
 
-	struct c2_net_call call = {
-		.ac_arg = f,
-		.ac_ret = r
-	};
-
 	/*
 	  Receive data from remote and copy to our bufvec
 	  until complete bufvec is transferred.
@@ -292,6 +289,11 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	*lengthp = sd->sbd_total;
 	while (!eof) {
 		struct c2_bufvec_cursor scur;
+		struct c2_net_call call = {
+			.ac_arg = f,
+			.ac_ret = r
+		};
+
 		fop->sg_offset = off;
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
@@ -303,16 +305,18 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 			break;
 
 		len = rep->sgr_buf.sb_len;
-		struct c2_bufvec stmp = {
-			.ov_vec = {
-				.v_nr = 1,
-				.v_count = &len
-			},
-			.ov_buf = (void**) &rep->sgr_buf.sb_buf
-		};
+		{
+			struct c2_bufvec stmp = {
+				.ov_vec = {
+					.v_nr = 1,
+					.v_count = &len
+				},
+				.ov_buf = (void**) &rep->sgr_buf.sb_buf
+			};
 
-		c2_bufvec_cursor_init(&scur, &stmp);
-		copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+			c2_bufvec_cursor_init(&scur, &stmp);
+			copied = c2_bufvec_cursor_copy(&cur, &scur, len);
+		}
 		if (copied < len) {
 			rc = -EFBIG;
 			break;

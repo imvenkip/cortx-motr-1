@@ -107,10 +107,10 @@ static bool sunrpc_buffer_invariant(const struct c2_net_buffer *nb)
    Static functions should be declared in the private header file
    so that the order of their definition does not matter.
 */
-#include "sunrpc_xprt_ep.c"
-#include "sunrpc_xprt_tm.c"
-#include "sunrpc_xprt_bulk.c"
-#include "sunrpc_xprt_msg.c"
+#include "net/bulk_emulation/sunrpc_xprt_ep.c"
+#include "net/bulk_emulation/sunrpc_xprt_tm.c"
+#include "net/bulk_emulation/sunrpc_xprt_bulk.c"
+#include "net/bulk_emulation/sunrpc_xprt_msg.c"
 
 /**
    Transport finalization subroutine called from c2_fini().

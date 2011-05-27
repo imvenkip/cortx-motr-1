@@ -5,11 +5,11 @@
 #include "net/bulk_sunrpc.h"
 #include "net/bulk_emulation/mem_xprt.h"
 
-#include <arpa/inet.h>
 
 #ifdef __KERNEL__
 #include "net/bulk_emulation/sunrpc_io_k.h"
 #else
+#include <arpa/inet.h>
 #include "net/bulk_emulation/sunrpc_io_u.h"
 #endif
 

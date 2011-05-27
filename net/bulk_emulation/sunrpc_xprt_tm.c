@@ -100,8 +100,12 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 /**
    Stops the common service if necessary.
  */
-static void sunrpc_stop_service()
+static void sunrpc_stop_service(void)
 {
+#ifdef __KERNEL__
+	C2_IMPOSSIBLE("Port in progress");
+	return;
+#else
 	c2_mutex_lock(&sunrpc_server_mutex);
 	do {
 		if (--sunrpc_server_active_tms > 0)
@@ -113,6 +117,7 @@ static void sunrpc_stop_service()
 	} while(0);
 	c2_mutex_unlock(&sunrpc_server_mutex);
 	return;
+#endif
 }
 
 /**
