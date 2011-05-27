@@ -1,16 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <memory.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#include <rpc/rpc.h>
+/* -*- C -*- */
 
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -19,7 +7,7 @@
 #include "lib/memory.h"
 #include "fop/fop.h"
 
-#include "net.h"
+#include "net/net.h"
 
 /**
    @addtogroup netDep Networking (Deprecated Interfaces)

@@ -11,6 +11,7 @@ net.c
 net_cli.c
 net_otw_types_k.c
 net_otw_types_k.h
+net_srv.c
 net_utils.c
 sunrpc_io_k.c
 sunrpc_io_k.h
