@@ -32,7 +32,7 @@ struct ping_ctx {
 	struct c2_bitmap		      pc_nbbm;
 	struct c2_net_end_point		     *pc_ep;
 	struct c2_net_transfer_mc	      pc_tm;
-	struct c2_mutexi		      pc_mutex;
+	struct c2_mutex			      pc_mutex;
 	struct c2_cond			      pc_cond;
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
