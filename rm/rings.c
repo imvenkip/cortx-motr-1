@@ -56,6 +56,12 @@ struct c2_rm_right_ops rings_right_ops = {
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
+	struct c2_rm_owner *owner;
+
+        C2_PRE(in != NULL);
+
+        owner = in->rin_owner;
+	c2_list_del(&in->rin_want.ri_linkage);
 	c2_chan_broadcast(&in->rin_signal);
 }
 

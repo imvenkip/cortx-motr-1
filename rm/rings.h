@@ -13,6 +13,7 @@ extern const struct c2_rm_right_ops rings_right_ops;
 
 extern const struct c2_rm_incoming_ops rings_incoming_ops;
 
+/* __COLIBRI_RM_RINGS_H__ */
 #endif
 
 /*

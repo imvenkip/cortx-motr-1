@@ -1263,7 +1263,7 @@ void c2_rm_resource_del(struct c2_rm_resource *res);
                            c2_list_is_empty(owner->ro_outgoing[*]) &&
                            owner->ro_resource == res)
  */
-int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
+void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
 
 /**
    Initialises owner so that it initially possesses @r.
@@ -1273,7 +1273,7 @@ int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
    @post ergo(result == 0, c2_list_contains(&owner->ro_owned[OWOS_CACHED],
                                             &r->ri_linkage))
  */
-int c2_rm_owner_init_with(struct c2_rm_owner *owner,
+void c2_rm_owner_init_with(struct c2_rm_owner *owner,
                           struct c2_rm_resource *res, struct c2_rm_right *r);
 /**
    Finalises the owner. Dual to c2_rm_owner_init().

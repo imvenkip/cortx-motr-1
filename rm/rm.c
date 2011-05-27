@@ -5,10 +5,12 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/cdefs.h"
+#include "fop/fop.h"
 
 #include "rm/rm.h"
-#include <stdlib.h>
-
+#include "rm/rm_u.h"
+#include "rm/rm_fop.h"
 /**
    @addtogroup rm
    @{
@@ -34,15 +36,22 @@ void c2_rm_domain_init(struct c2_rm_domain *dom)
 
 void c2_rm_domain_fini(struct c2_rm_domain *dom)
 {
-        C2_PRE(dom != NULL);
+	bool found = false;
+	int  i;
+
+	for (i = 0; i < ARRAY_SIZE(dom->rd_types); i++) {
+		if (dom->rd_types[i] != NULL) {
+			found = true;
+			break;
+		}
+	}
+	C2_PRE(!found);
         c2_mutex_fini(&dom->rd_lock);
 }
 
 void c2_rm_type_register(struct c2_rm_domain *dom,
                          struct c2_rm_resource_type *rt)
 {
-        C2_PRE(dom != NULL);
-        C2_PRE(rt->rt_dom == NULL);
 	C2_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
 	C2_PRE(dom->rd_types[rt->rt_id] == NULL);
 
@@ -100,14 +109,11 @@ void c2_rm_resource_del(struct c2_rm_resource *res)
         c2_mutex_unlock(&rtype->rt_lock);
 }
 
-static int owner_init_internal(struct c2_rm_owner **o, 
-			       struct c2_rm_resource **r)
+static void owner_init_internal(struct c2_rm_owner *owner, 
+			       struct c2_rm_resource *res)
 {
-	struct c2_rm_owner 	*owner = *o;
-	struct c2_rm_resource	*res = *r;
-	int 			result = 0;
-	int			i;
-	int			j;
+	int i;
+	int j;
 
 
         owner->ro_resource = res;
@@ -131,52 +137,44 @@ static int owner_init_internal(struct c2_rm_owner **o,
 
         c2_mutex_init(&owner->ro_lock);
 
-        return result;
 }
 
 
-int c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
+void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
 {
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 	
-	return owner_init_internal(&owner, &res);
+	owner_init_internal(owner, res);
 }
 
-int c2_rm_owner_init_with(struct c2_rm_owner *owner,
-                          struct c2_rm_resource *res, struct c2_rm_right *r)
+void c2_rm_owner_init_with(struct c2_rm_owner *owner,
+                           struct c2_rm_resource *res, struct c2_rm_right *r)
 {
 	struct c2_rm_resource_type *rtype = res->r_type;
-        int			   result;
 
         C2_PRE(owner != NULL);
         C2_PRE(res != NULL);
 
-	result = owner_init_internal(&owner, &res);
-	C2_ASSERT(result == 0);
-
 	/*
-	 * Add The right to the woner in held list.
+	 * Add The right to the woner's cached list.
 	 */
+	owner_init_internal(owner, res); 
         c2_list_add(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage);
 	c2_mutex_lock(&rtype->rt_lock);
         res->r_ref++;
 	c2_mutex_unlock(&rtype->rt_lock);
 
-        return result;
 }
 
 void c2_rm_owner_fini(struct c2_rm_owner *owner)
 {
-        struct c2_rm_resource	*res = owner->ro_resource;
-	int			i;
-	int			j;
+        struct c2_rm_resource	   *res = owner->ro_resource;
+	struct c2_rm_resource_type *rtype = res->r_type;
+	int			   i;
+	int			   j;
 
         C2_PRE(owner != NULL);
-        owner->ro_resource = NULL;
-        owner->ro_state = ROS_FINAL;
-        owner->ro_group = NULL;
-        res->r_ref = 0;
 
 	c2_list_fini(&owner->ro_borrowed);
 	c2_list_fini(&owner->ro_sublet);
@@ -192,7 +190,9 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
                 c2_list_fini(&owner->ro_outgoing[i]);
 
-        res->r_ref = 0;
+	c2_mutex_lock(&rtype->rt_lock);
+        res->r_ref--;
+	c2_mutex_unlock(&rtype->rt_lock);
         c2_mutex_fini(&owner->ro_lock);
 }
 
@@ -239,14 +239,13 @@ static void outgoing_delete(struct c2_rm_outgoing *out)
 *
 * @return 
 */
-static int right_copy(struct c2_rm_right *dest, 
-		      const struct c2_rm_right *src)
+static void right_copy(struct c2_rm_right *dest, 
+		       const struct c2_rm_right *src)
 {
-	memcpy(dest, src, sizeof (struct c2_rm_right));
-	if (dest->ri_datum == src->ri_datum)
-		return 0;
-	else
-		return -1;
+	dest->ri_resource = src->ri_resource;
+	dest->ri_ops = src->ri_ops;
+	c2_list_init(&dest->ri_pins);
+	src->ri_ops->rro_diff(dest, src);
 }
 
 /**
@@ -259,10 +258,18 @@ static void apply_policy(struct c2_rm_incoming *in)
 	struct c2_rm_right *right;
 	struct c2_rm_right *pin_right;
 	struct c2_rm_pin   *pin;
+	struct c2_rm_owner *owner = in->rin_owner;
+	bool 		   first;
 
 	switch (in->rin_policy) {
 		case RIP_INPLACE:
-			right_copy(right, &in->rin_want);
+			c2_list_for_each_entry(&in->rin_pins, pin,
+					       struct c2_rm_pin,
+					       rp_incoming_linkage) {
+				c2_list_move(&in->rin_want.ri_pins,
+					     &pin->rp_right_linkage);
+				pin->rp_right = &in->rin_want;
+			}
 			break;	
 		case RIP_STRICT:
 			c2_list_for_each_entry(&in->rin_pins, pin,
@@ -270,32 +277,45 @@ static void apply_policy(struct c2_rm_incoming *in)
 					       rp_incoming_linkage) {
 				c2_list_move(&in->rin_want.ri_pins,
 					     &pin->rp_right_linkage);
-				pin->rp_right = in->rin_want;
+				pin->rp_right = &in->rin_want;
 
 			}
-			c2_list_add(&in->rin_owner->ro_owned[OWOS_CACHED], 
+			c2_list_add(&owner->ro_owned[OWOS_CACHED], 
 				    &in->rin_want.ri_linkage);
 
 			break;	
 		case RIP_JOIN:
-			pin = c2_list_first(&in->rin_pins);
-			right = container_of(&pin->rp_right_linkage);
-			c2_list_for_each_entry(&in->pins, pin, struct c2_rm_pin,
+			first = true;
+			c2_list_for_each_entry(&in->rin_pins, pin, 
+					       struct c2_rm_pin,
 					       rp_incoming_linkage) {
-				pin_right = container_of(&pin->rp_right_linkage);
+				if (first) {
+					right = pin->rp_right;
+					first = false;
+					continue;
+				}
+				pin_right = pin->rp_right;
 				right->ri_ops->rro_join(right, pin_right);
-				pin->rp_right = right;
-				c2_list_move(&right->ri_pins,
-					     &pin->rp_right_linkage);
+				c2_list_del(&pin->rp_right_linkage);
 			}
 			right_copy(right, &in->rin_want);
 			break;	
 		case RIP_MAX:
-			break;	
+			c2_list_for_each_entry(&owner->ro_owned[OWOS_CACHED],
+					       right, struct c2_rm_right,
+					       ri_linkage) {
+				c2_list_for_each_entry(&in->rin_pins, pin,
+						       struct c2_rm_pin,
+						       rp_incoming_linkage) {
+					if (!c2_list_contains(&right->ri_pins,
+							      &pin->rp_right_linkage))
+                                		pin_add(in, right);
+				}
+			}	
 		case RIP_NONE:
-			break;	
-		default:
-			break;	
+			break;
+		case RIP_RESOURCE_TYPE_BASE:
+			break;
 	}
 }
 
@@ -304,7 +324,7 @@ static void apply_policy(struct c2_rm_incoming *in)
 *
 * @param in
 */
-static void move_to_sublet(struct c2_rm_incoming *in)
+static int move_to_sublet(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_pin   *pin;
@@ -317,10 +337,23 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 			       rp_right_linkage) {
 		right = pin->rp_right;
 		C2_ALLOC_PTR(loan);
-		C2_ASSERT(loan != NULL);
+		if (loan == NULL)
+			return -ENOMEM;
 		right_copy(&loan->rl_right, right);
 		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
 	}
+
+	return 0;
+}
+
+static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
+                   struct c2_fop *ret)
+{       
+        struct c2_net_call call = {
+                .ac_arg = arg,
+                .ac_ret = ret
+        };
+        return c2_net_cli_call(conn, &call);
 }
 
 /**
@@ -330,7 +363,51 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 */
 static void reply_to_loan_request(struct c2_rm_incoming *in)
 {
+	struct c2_rm_right *right;
+	struct c2_rm_pin   *pin;
+	struct c2_rm_loan  *loan;
+
+	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
+                               rp_right_linkage) {
+		right = pin->rp_right;
+		loan = container_of(right, struct c2_rm_loan, rl_right);
+		/*@todo Form fop for each loan and reply or
+		 * we can apply rpc grouping and send reply 
+		 */
+	}
 }
+
+static int send_out_request(struct c2_rm_outgoing *out)
+{
+	struct c2_service_id sid;
+        struct c2_fop	     *f;
+        struct c2_fop	     *r;
+        struct c2_rm_send_fop     *fop;  
+        struct c2_rm_send_fop     *rep;
+	struct c2_net_conn   *conn;
+	int 		     result;
+
+	sid = out->rog_want.rl_other.rem_service;
+	conn = c2_net_conn_find(&sid);
+	C2_ASSERT(conn != NULL);
+
+        f = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+        fop = c2_fop_data(f);        
+        r = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+        rep = c2_fop_data(r);
+
+	fop->req_type = out->rog_type;
+	fop->loan_id = out->rog_want.rl_id;
+	fop->rem_id = out->rog_want.rl_other.rem_id;
+	/*May be right_copy used later*/
+	fop->ri_datum = out->rog_want.rl_right.ri_datum;
+	fop->rem_state = out->rog_want.rl_other.rem_state;
+
+        result = netcall(conn, f, r);
+
+	return result;
+}
+
 
 /**
 * @brief 
@@ -364,16 +441,20 @@ static bool local_rights_held(const struct c2_rm_incoming *in)
 */
 static void remove_rights(struct c2_rm_incoming *in)
 {
-	struct c2_rm_pin *pin;
-	struct c2_rm_pin *tmp;
+	struct c2_rm_right *right;
+	struct c2_rm_pin   *in_pin;
+	struct c2_rm_pin   *ri_pin;
 
-	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp, struct c2_rm_pin,
-			 	    rp_incoming_linkage) {
-		if (pin->rp_flags & RPF_TRACK) {
-			c2_list_del(&pin->rp_incoming_linkage);
-			c2_list_del(&pin->rp_right_linkage);
-		}
-	}
+	c2_list_for_each_entry(&in->rin_pins, in_pin, struct c2_rm_pin,
+                               rp_incoming_linkage) {
+                right = in_pin->rp_right;
+                c2_list_for_each_entry(&right->ri_pins, ri_pin,
+                                       struct c2_rm_pin, rp_right_linkage) {
+                        if (ri_pin->rp_flags & RPF_TRACK) {
+                                pin_remove(ri_pin);
+                        }
+                }
+        }
 }
 
 
@@ -475,7 +556,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
  */
-void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc)
+static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 {
 	struct c2_rm_owner *owner;
 
@@ -647,7 +728,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 			case RIT_REVOKE:
 				remove_rights(in);
 				/* Incoming request got rigths which is means 
-				 * right should be part of loan/barrowed list.
+				 * right should be part of loan/borrowed list.
 				 */
 				loan = container_of(&in->rin_want, 
 						    struct c2_rm_loan,
@@ -794,7 +875,6 @@ int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right)
 			return -EPERM;
 	}
 
-	/*@todo Error handling */
 	C2_ALLOC_PTR(pin);
 	if (pin == NULL)
 		return -ENOMEM;
@@ -815,7 +895,6 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	   struct c2_rm_loan *loan, struct c2_rm_right *right)
 {
 	struct c2_rm_outgoing	*out;
-	struct c2_rm_outgoing	*ex_out;
 	struct c2_rm_right 	*out_right;
 	struct c2_rm_right 	*tmp;
 	struct c2_rm_loan	*out_loan;
@@ -830,14 +909,15 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 				       ri_linkage) {
 			out_loan = container_of(out_right, 
 						struct c2_rm_loan, rl_right);
-			ex_out = container_of(out_loan, 
+			out = container_of(out_loan, 
 					      struct c2_rm_outgoing, rog_want);
-			if (ex_out->rog_type == otype && 
+			if (out->rog_type == otype && 
 				right->ri_ops->rro_implies(out_right, right)) {
 				/* @todo adjust outgoing requests priority 
 				 * (priority inheritance) */
 				result = pin_add(in, out_right);
-				C2_ASSERT(result == 0);
+				if (result)
+					return result;
 				right->ri_ops->rro_diff(right, out_right);
 				found = true;
 				break;
@@ -858,8 +938,11 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
 		    	&out->rog_want.rl_right.ri_linkage);
 		result = pin_add(in, &out->rog_want.rl_right);
-		C2_ASSERT(result == 0);
 	}
+
+	result = send_out_request(out);
+
+	outgoing_complete(out, result);
 
 	return result;
 }
@@ -875,12 +958,9 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
         c2_clink_init(&clink, NULL);
         c2_clink_add(&in->rin_signal, &clink);
 	c2_rm_right_get(owner,in);
-	while(in->rin_state != RI_SUCCESS ||
-	      in->rin_state != RI_FAILURE) {
+	if (in->rin_state != RI_SUCCESS ||
+	    in->rin_state != RI_FAILURE) {
         	retval = c2_chan_timedwait(&clink, deadline);
-
-		if(retval)
-			break;
 	}
         c2_clink_del(&clink);
         c2_clink_fini(&clink);
@@ -900,8 +980,8 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner,
         c2_clink_init(&clink, NULL);
         c2_clink_add(&in->rin_signal, &clink);
 	c2_rm_right_get(owner,in);
-	while(in->rin_state != RI_SUCCESS ||
-	      in->rin_state != RI_FAILURE) {
+	if (in->rin_state != RI_SUCCESS ||
+	    in->rin_state != RI_FAILURE) {
         	c2_chan_wait(&clink);
 	}
         c2_clink_del(&clink);
