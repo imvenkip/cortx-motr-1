@@ -41,9 +41,11 @@
    @li Network transport (c2_net_xprt);
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
-   for details on the design and usage.
+   for details on the design and use of this API.  If you are writing a
+   transport, then the document is the reference for the internal threading and
+   serialization model.
 
-   See @ref netDep for older interfaces.
+   See @ref netDep for the older interfaces.
 
    @{
 
@@ -778,9 +780,6 @@ struct c2_net_transfer_mc {
 	   buffer operation on a per-transfer-machine-per-processor basis,
 	   by invoking the buffer operation callbacks on the same
 	   processor used to submit the buffer operation.
-
-	   It is not permitted to obtain this mutex when holding the
-	   domain mutex. The inverse locking order is permitted.
 	 */
 	struct c2_mutex             ntm_mutex;
 
