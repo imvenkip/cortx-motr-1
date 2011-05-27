@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 
 #include "net/net.h"
+#include "net/bulk_emulation/mem_xprt.h"
 
 /**
    @addtogroup net Networking
@@ -20,6 +21,9 @@ static int __init c2_net_init_k(void)
 	rc = c2_net_init();
 	if (rc != 0)
 		return rc;
+	rc = c2_mem_xprt_init();
+	if (rc != 0)
+		return rc;
 	printk(KERN_INFO "Colibri Kernel Messaging initialized");
 	return 0;
 }
@@ -27,6 +31,7 @@ static int __init c2_net_init_k(void)
 static void __exit c2_net_fini_k(void)
 {
 	printk(KERN_INFO "Colibri Kernel Messaging removed\n");
+	c2_mem_xprt_fini();
 	c2_net_fini();
 }
 
@@ -35,6 +40,7 @@ module_exit(c2_net_fini_k)
 
 MODULE_AUTHOR("Xyratex");
 MODULE_DESCRIPTION("Colibri Kernel Messaging");
+/* GPL license required as long as kernel sunrpc is used */
 MODULE_LICENSE("GPL");
 
 /** @} end of group net */
