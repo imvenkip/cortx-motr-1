@@ -6,7 +6,10 @@ kclient.c
 kdomain.c
 kkxdr.c
 kserver.c
+mem_xprt_xo.c
 net.c
 net_cli.c
+net_otw_types_k.c
+net_otw_types_k.h
 net_utils.c
 tm.c
