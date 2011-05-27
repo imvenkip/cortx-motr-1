@@ -77,10 +77,11 @@ static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 	sprintf(sid->si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
 	C2_ASSERT(strlen(sid->si_uuid) < sizeof(sid->si_uuid));
 	/* copy the printable addr ("dotted_ip_addr:port:service_id") */
-	strncpy(host, ep->nep_addr, sizeof(host)-1);
-	host[sizeof(host)-1] = '\0';
-	for (p=host; *p && *p != ':'; p++);
-	*p = '\0'; /* isolate the hostname */
+	strncpy(host, ep->nep_addr, sizeof(host) - 1);
+	host[sizeof(host) - 1] = '\0';
+	p = strchr(host, ':');
+	if (p != NULL)
+		*p = '\0'; /* isolate the hostname */
 	rc = c2_service_id_init(sid, rpc_dom, host, port);
 	return rc;
 }
