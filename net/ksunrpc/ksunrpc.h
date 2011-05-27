@@ -75,6 +75,8 @@ void c2_ksunrpc_fini(void);
 
 extern const struct c2_service_id_ops ksunrpc_service_id_ops;
 extern const struct c2_net_conn_ops ksunrpc_conn_ops;
+extern const struct c2_service_ops ksunrpc_service_ops;
+extern struct c2_net_xprt c2_net_ksunrpc_minimal_xprt;
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

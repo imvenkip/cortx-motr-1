@@ -10,8 +10,9 @@
 
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "fop/fop.h"
+#include "lib/memory.h"
 #include "lib/thread.h"
+#include "fop/fop.h"
 #include "addb/addb.h"
 
 #include "ksunrpc.h"
@@ -33,26 +34,30 @@ enum {
 struct ksunrpc_service {
 	/**
 	   SUNRPC transport handle for this service
-	*/
+	 */
 	struct svc_xprt	       *s_transp;
 
 	/**
 	   scheduler thread handle
-	*/
+	 */
 	struct c2_thread	s_scheduler_thread;
 
 	/**
 	   number of worker threads
-	*/
+	 */
 	int			s_nr_workers;
 	/**
 	   worker thread array
-	*/
+	 */
 	struct c2_thread       *s_workers;
 	/**
 	   The service is being shut down.
-	*/
+	 */
 	bool			s_shutdown;
+	/**
+	   Service mutex, must be held across various sunrpc svc calls.
+	 */
+	struct c2_mutex         s_svc_mutex;
 };
 
 static const struct c2_addb_loc ksunrpc_addb_server = {
@@ -105,15 +110,42 @@ static int ksunrpc_service_start(struct c2_service *service,
 
 static void ksunrpc_service_fini(struct c2_service *service)
 {
-	C2_IMPOSSIBLE("implement me");
-	ksunrpc_service_stop(NULL);
+	struct ksunrpc_service *xs;
+
+	xs = service->s_xport_private;
+
+	ksunrpc_service_stop(xs);
+
+	C2_ASSERT(xs->s_workers == NULL);
+	c2_mutex_fini(&xs->s_svc_mutex);
+	c2_free(xs);
 }
 
 int ksunrpc_service_init(struct c2_service *service)
 {
-	C2_IMPOSSIBLE("implement me");
-	ksunrpc_service_start(service, NULL, 0);	
-	return -ENOSYS;
+	struct ksunrpc_service    *xservice;
+	struct ksunrpc_service_id *xid;
+	int                        result;
+
+	C2_ALLOC_PTR(xservice);
+	if (xservice != NULL) {
+		int num_threads;
+		c2_mutex_init(&xservice->s_svc_mutex);
+		service->s_xport_private = xservice;
+		service->s_ops = &ksunrpc_service_ops;
+		xid = service->s_id->si_xport_private;
+		C2_ASSERT(service->s_id->si_ops == &ksunrpc_service_id_ops);
+		if (service->s_domain->nd_xprt == &c2_net_ksunrpc_minimal_xprt)
+			num_threads = MIN_SERVER_THR_NR;
+		else
+			num_threads = SERVER_THR_NR;
+		result = ksunrpc_service_start(service, xid, num_threads);
+	} else {
+		C2_ADDB_ADD(&service->s_domain->nd_addb, &ksunrpc_addb_server,
+			    c2_addb_oom);
+		result = -ENOMEM;
+	}
+	return result;
 }
 
 /**
@@ -130,7 +162,7 @@ static void ksunrpc_reply_post(struct c2_service *service,
 
 int ksunrpc_server_init(void)
 {
-	return -ENOSYS;
+	return 0;
 }
 
 void ksunrpc_server_fini(void)
