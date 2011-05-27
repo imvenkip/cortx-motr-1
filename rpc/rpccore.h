@@ -332,6 +332,8 @@ struct c2_rpc_item {
 	struct c2_list_link	ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
 	struct c2_list_link	ri_unformed_linkage;
+	/** Linkage to the group c2_rpc_group, needed for grouping */
+	struct c2_list_link	ri_group_linkage;
 	/** Destination endpoint. */
 	struct c2_net_end_point	ri_endp;
 	/** Timer associated with this rpc item.*/

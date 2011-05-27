@@ -1,9 +1,5 @@
 #include "rpc/formation.h"
 #include "rpc/rpccore.h"
-#include "stob/ut/io_fop.h"
-#include "colibri/init.h"
-#include "lib/cdefs.h"
-#include "lib/memory.h"
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	0 		// 0 ms
@@ -89,13 +85,36 @@ void c2_rpc_form_item_cache_fini(void)
 /**
   Assign a group to a given RPC item
  */
-int c2_rpc_form_item_assign_group(struct c2_rpc_item *item,
-		struct c2_rpc_group *grp)
+int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp, 
+		struct c2_rpc_item *item)
 {
-	printf("Inside c2_rpc_form_item_assign_group \n");
+	struct c2_rpc_item	*rpc_item = NULL;
+	struct c2_rpc_item	*rpc_item_next = NULL;
+	bool			 item_inserted = false;
+
+	printf("Inside c2_rpc_form_item_assign_to_group \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_group = grp;
+	c2_mutex_lock(&grp->rg_guard);
+	grp->rg_expected++;
+	/* Insert by sorted priority in groups list */
+	c2_list_for_each_entry_safe(&grp->rg_items, 
+			rpc_item, rpc_item_next,
+			struct c2_rpc_item, ri_group_linkage){
+		if (item->ri_prio <= rpc_item->ri_prio) {
+			c2_list_add_before(&rpc_item->ri_group_linkage, 
+					&item->ri_group_linkage);
+			item_inserted = true;
+			break;
+		}
+
+	}
+	if(!item_inserted) {
+		c2_list_add_after(&rpc_item->ri_group_linkage, 
+				&item->ri_group_linkage);
+	}
+	c2_mutex_unlock(&grp->rg_guard);
 	return 0;
 }
 
@@ -141,8 +160,9 @@ int c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_linkage){
-		if (item->ri_deadline < rpc_item->ri_deadline) {
-			c2_list_add_before(&rpc_item->ri_linkage, &item->ri_linkage);
+		if (item->ri_deadline <= rpc_item->ri_deadline) {
+			c2_list_add_before(&rpc_item->ri_linkage, 
+					&item->ri_linkage);
 			item_inserted = true;
 			break;
 		}
