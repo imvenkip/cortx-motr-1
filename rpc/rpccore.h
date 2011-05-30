@@ -50,7 +50,7 @@
    // USAGE (a):
    // sending rpc_items
    item.ri_type = &fop_item_type;
-   ret = c2_rpc_submit(&update_stream, &item,
+   ret = c2_rpc_submit(&srvid, &update_stream, &item,
 	C2_RPC_ITEM_PRIO_MIN, C2_RPC_CACHING_TYPE);
    // waiting for reply:
    ret = c2_rpc_reply_timedwait(&item, &timeout);
@@ -62,7 +62,7 @@
    // send group of items
    for (i = 0; i < ARRAY_SIZE(item); ++i) {
       item[i].ri_type = &fop_item_type;
-      ret = c2_rpc_group_submit(&mach, group, &item[i], &update_stream,
+      ret = c2_rpc_group_submit(&mach, group, &item[i], &srvid, &update_stream,
 	C2_RPC_ITEM_PRIO_MIN, C2_RPC_CACHING_TYPE);
    }
 
@@ -130,6 +130,15 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 
+/*Macro to enable RPC grouping test and debug code */
+
+#ifdef RPC_GRP_DEBUG
+#define MAX_RPC_ITEMS 6
+#define NO_OF_ENDPOINTS 3
+int32_t rpc_arr_index;
+int seed_val;
+#endif
+
 struct c2_fop;
 struct c2_rpc;
 struct c2_rpc_conn;
@@ -152,6 +161,10 @@ struct c2_net_end_point {
         const char            *nep_addr;
 };
 
+/*Just a placeholder for endpoint, will be removed later */
+struct c2_net_endpoint {
+	int endpoint_val;
+};
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */
@@ -377,6 +390,9 @@ struct c2_rpc_formation_list {
 
 	/** listss of c2_rpc_items going to the same endpoint */
 	struct c2_list re_items;
+	struct c2_net_endpoint *endpoint;
+	/*Mutex to guard this list */
+	struct c2_mutex re_guard;
 };
 
 /** Group of rpc items to be transmitted in the same
