@@ -2,6 +2,8 @@
 #include "stob/ut/io_fop.h"
 #include "lib/thread.h"
 #include "lib/misc.h"
+#include "colibri/init.h"
+#include "lib/ut.h"
 #include <stdlib.h>
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -510,6 +512,9 @@ int main(int argc, char **argv)
 {
 	int		result = 0;
 	int		i = 0;
+
+	result = c2_init();
+	C2_ASSERT(result == 0);
 
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
