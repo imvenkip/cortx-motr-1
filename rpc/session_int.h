@@ -165,8 +165,6 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
                                     struct c2_cob               **slot_cob,
                                     struct c2_db_tx             *tx);
 
-extern struct c2_stob_id	c2_root_stob_id;
-
 void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
 			uint64_t		sender_id,
 			struct c2_rpc_conn	**out);

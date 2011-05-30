@@ -131,10 +131,18 @@ When an item is received, following conditions are possible:
 
 
     @note TODO : -
-	- Design protocol to generate sender id.(similar to EXCHANGE_ID
-		protocol in NFSv4.1)
+	- Currently sender_id and session_id are chosen to be random.
+	  Need a better way.
+	- How to get unique stob_id for session and slot cobs?
+	- On receiver side currently replies are cached in an in core list.
+	  Instead they should be cached in FOL.
+	- On sender side instead of putting item on c2_rpc_snd_slot::replay_list
+	  it should be placed in sender side FOL.
+	- session recovery needs to be implemented.
+	- Find out how to create in-memory c2_table? And make receiver side
+	  slot table as in-memory table.
 	- Design protocol to dynamically adjust the no. of slots.
-	- Update Streams.
+	- Integrate with ADDB
 
 @defgroup session RPC SESSIONS
 
@@ -257,7 +265,7 @@ enum c2_rpc_conn_state {
 
  */
 struct c2_rpc_conn {
-        /** Every c2_rpc_conn is stored on a global list */
+        /** Every c2_rpc_conn is stored on a list in rpc_conn*/
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
 	uint64_t			 c_flags;

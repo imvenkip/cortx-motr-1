@@ -19,10 +19,6 @@
 
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
-struct c2_stob_id c2_root_stob_id = {
-        .si_bits = {1, 1}
-};
-
 static void session_fields_init(struct c2_rpc_session	*session,
 				struct c2_rpc_conn	*conn,
 				uint32_t		nr_slots);
@@ -1650,7 +1646,7 @@ errout:
 	return rc;
 }
 
-int global_slot_id_counter = 0;
+int global_stob_id_counter = 1;
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -1685,8 +1681,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	/*
 	 * How to get unique stob_id for new cob?
 	 */
-	nsrec.cnr_stobid.si_bits.u_hi = ++global_slot_id_counter;
-	nsrec.cnr_stobid.si_bits.u_lo = global_slot_id_counter;
+	nsrec.cnr_stobid.si_bits.u_hi = ++global_stob_id_counter;
+	nsrec.cnr_stobid.si_bits.u_lo = global_stob_id_counter;
 	nsrec.cnr_nlink = 1;
 
 	/*
