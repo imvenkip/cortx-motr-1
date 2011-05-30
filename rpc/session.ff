@@ -1,0 +1,58 @@
+/* -*- C -*- */
+
+/**
+   @addtogroup rpc-sessions
+
+   XXX Todo: define fop format for c2_rpc_conn_create, c2_rpc_conn_create_rep
+		c2_rpc_conn_terminate, c2_rpc_conn_terminate_rep
+   @{
+ */
+
+/**
+   "Exchange ID" protocol is not yet decided. So don't know what should be
+   input.
+ */
+DEF(c2_rpc_conn_create, RECORD,
+   _(rcc_cookie, U64));
+
+DEF(c2_rpc_conn_create_rep, RECORD,
+   _(rccr_rc, U32),
+   _(rccr_snd_id, U64),
+   _(rccr_cookie, U64));
+
+DEF(c2_rpc_conn_terminate, RECORD,
+    _(ct_sender_id, U64));
+
+DEF(c2_rpc_conn_terminate_rep, RECORD,
+   _(ctr_rc, U32),
+   _(ctr_sender_id, U64));
+
+DEF(c2_rpc_session_create, RECORD,
+   _(rsc_snd_id, U64));
+
+DEF(c2_rpc_session_create_rep, RECORD,
+   _(rscr_rc, U32),
+   _(rscr_session_id, U64),
+   _(rscr_sender_id, U64));
+
+DEF(c2_rpc_session_destroy, RECORD,
+   _(rsd_sender_id, U64),
+   _(rsd_session_id, U64));
+
+DEF(c2_rpc_session_destroy_rep, RECORD,
+   _(rsdr_rc, U32),
+   _(rsdr_session_id, U64),
+   _(rsdr_sender_id, U64));
+
+/** @} end of rpc-sessions group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

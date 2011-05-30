@@ -543,10 +543,10 @@ AC_CONFIG_FILES([
 		 layout/linux_kernel/Makefile
 		 pool/linux_kernel/Makefile
 		 stob/linux_kernel/Makefile
+                 rpc/Makefile
+                 rpc/ut/Makefile
                 ])
                 
-                #rpc/Makefile
-                #rpc/ut/Makefile
                 #net/ut/Makefile
 AC_OUTPUT
 

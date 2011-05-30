@@ -9,6 +9,7 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "rpc/rpccore.h"
 
 /**
    @defgroup fop File operation packet
@@ -124,14 +125,15 @@ struct c2_fop_data {
 
 /** fop. */
 struct c2_fop {
-	struct c2_fop_type *f_type;
+	struct c2_rpc_item	f_item;
+	struct c2_fop_type 	*f_type;
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
-	struct c2_fop_data  f_data;
+	struct c2_fop_data  	f_data;
 	/**
 	   ADDB context for events related to this fop.
 	 */
-	struct c2_addb_ctx  f_addb;
+	struct c2_addb_ctx  	f_addb;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
@@ -256,6 +258,9 @@ struct c2_fop_field_instance {
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
+
+struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
+struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item);
 
 #include "fop/fop_format.h"
 
