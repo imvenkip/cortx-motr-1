@@ -85,7 +85,7 @@ int c2_rpc_submit(struct c2_service_id		*srvid,
 		  struct c2_update_stream	*us,
 		  struct c2_rpc_item		*item,
 		  enum c2_rpc_item_priority	prio,
-		  const struct c2_time		*deadline)
+		  const c2_time_t		*deadline)
 {
 	printf("Received item %p for sending\n", item);
 	return 0;
@@ -111,17 +111,17 @@ int c2_rpc_group_submit(struct c2_rpc_group *group,
 			struct c2_rpc_item *item,
 			struct c2_update_stream *us,
 			enum c2_rpc_item_priority prio,
-			const struct c2_time *deadline)
+			const c2_time_t *deadline)
 {
 	return 0;
 }
 
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const struct c2_time *timeout)
+int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout)
 {
 	return 0;
 }
 
-int c2_rpc_group_timedwait(struct c2_rpc_group *group, const struct c2_time *timeout)
+int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 {
 	return 0;
 }
@@ -167,7 +167,7 @@ size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine)
 }
 
 void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
-			      struct c2_time *time)
+			      c2_time_t *time)
 {
 }
 

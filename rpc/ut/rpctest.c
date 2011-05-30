@@ -414,14 +414,15 @@ struct c2_thread	thread;
 
 void conn_status_check(void *arg)
 {
-	struct c2_time		timeout;
+	c2_time_t		timeout;
 	bool			got_event;
 
 	printf("Thread about to start wait on conn ACTIVE\n");
 	c2_time_now(&timeout);
-	timeout.ts.tv_sec += 3;
+	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+				c2_time_nanoseconds(timeout));
 	got_event = c2_rpc_conn_timedwait(&conn, CS_CONN_ACTIVE,
-			&timeout);
+			timeout);
 	if (got_event && conn.c_state == CS_CONN_ACTIVE) {
 		printf("thread: conn is active %lu\n", conn.c_sender_id);
 	} else {
@@ -465,14 +466,15 @@ void test_snd_conn_create()
 }
 static void thread_entry(void *arg)
 {
-	struct c2_time		timeout;
+	c2_time_t		timeout;
 	bool			got_event;
 
 	printf("Thread about to start wait on session ALIVE\n");
 	c2_time_now(&timeout);
-	timeout.ts.tv_sec += 3;
+	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+				c2_time_nanoseconds(timeout));
 	got_event = c2_rpc_session_timedwait(&session, SESSION_ALIVE,
-			&timeout);
+			timeout);
 	if (got_event && session.s_state == SESSION_ALIVE) {
 		printf("thread: session got created %lu\n", session.s_session_id);
 	} else {

@@ -186,7 +186,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_create	*fop_cc;
 	struct c2_rpc_item		*item;
-	struct c2_time			deadline;
+	c2_time_t			deadline;
 	int				rc;
 
 	C2_PRE(conn != NULL && conn->c_state == CS_CONN_UNINITIALIZED);
@@ -383,7 +383,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	struct c2_fop			*fop;
 	struct c2_rpc_conn_terminate	*fop_ct;
 	struct c2_rpc_item		*item;
-	struct c2_time			deadline;
+	c2_time_t			deadline;
 	int				rc;
 
 	C2_PRE(conn != NULL);
@@ -544,7 +544,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 
 bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 			   uint64_t		state_flags,
-                           const struct c2_time	*abs_timeout)
+                           const c2_time_t	abs_timeout)
 {
         struct c2_clink         clink;
         bool                    got_event = true;
@@ -650,7 +650,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	struct c2_rpc_session_create	*fop_sc;
 	struct c2_rpc_item		*item;
 	struct c2_rpc_session		*session_0 = NULL;
-	//struct c2_time			deadline;
 	int				rc = 0;
 
 	C2_PRE(conn != NULL && session != NULL &&
@@ -781,7 +780,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	struct c2_fop			*fop;
 	struct c2_rpc_session_destroy	*fop_sd;
 	struct c2_rpc_item		*item;
-	//struct c2_time			deadline;
 	struct c2_rpc_session		*session_0 = NULL;
 	int				i;
 	int				rc = 0;
@@ -916,7 +914,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 
 bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 			      uint64_t			state_flags,
-			      const struct c2_time	*abs_timeout)
+			      const c2_time_t		abs_timeout)
 {
 	struct c2_clink		clink;
 	bool 			got_event = true;

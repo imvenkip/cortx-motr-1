@@ -329,7 +329,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
  */
 bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 			   uint64_t		state_flags,
-			   const struct c2_time	*abs_timeout);
+			   const c2_time_t	abs_timeout);
 
 /**
    checks internal consistency of c2_rpc_conn
@@ -485,7 +485,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
  */
 bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 			      uint64_t 			state_flags,
-			      const struct c2_time 	*abs_timeout);
+			      const c2_time_t		abs_timeout);
 
 /**
    Finalize session object
