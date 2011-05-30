@@ -12,6 +12,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
  */
 struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
+	.fto_get_io_fop = c2_io_fop_get_read_fop,
 };
 
 /**
@@ -19,6 +20,7 @@ struct c2_fop_type_ops c2_io_cob_readv_ops = {
  */
 struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
+	.fto_get_io_fop = c2_io_fop_get_write_fop,
 };
 
 /**
@@ -37,6 +39,17 @@ struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_rep_fom_init,
 };
 
+/* Init function for file create request. */
+static int c2_fop_file_create_request(struct c2_fop *fop, struct c2_fom **m)
+{
+	return 0;
+}
+
+/* Ops vector for file create request. */
+struct c2_fop_type_ops c2_fop_file_create_ops = {
+	.fto_fom_init = c2_fop_file_create_request,
+};
+
 /**
  * FOP definitions for readv and writev operations.
  */
@@ -44,6 +57,8 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
 		    c2_io_service_readv_opcode, &c2_io_cob_readv_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request", 
 		    c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_file_create, "File Create",
+		    19, &c2_fop_file_create_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
  */

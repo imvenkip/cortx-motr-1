@@ -46,8 +46,15 @@ DEF(c2_fop_segment, RECORD,
 	_(f_count, U64));
 
 /**
+ * c2_fop_segment_seq is sequence of c2_fop_segments.
+ */
+DEF(c2_fop_segment_seq, SEQUENCE,
+	_(fs_count, U32),
+	_(fs_segs, c2_fop_segment));
+
+/**
  * c2_fop_io_seg is a record containing details of an IO operation.
- * <br> List of fields  
+ * <br> List of fields
  * @li offset : offset within component object.
  * @li count : count in bytes.
  * @li Data buffer
@@ -58,11 +65,11 @@ DEF(c2_fop_io_seg, RECORD,
 
 /**
  * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- * <br> List of fields  
+ * <br> List of fields 
  * @li Array of IO segments.
  * @li count: Number of segments in array.
  */
-DEF(c2_fop_io_vec, RECORD,
+DEF(c2_fop_io_vec, SEQUENCE,
 	_(iov_count, U32),
 	_(iov_seg, c2_fop_io_seg));
 
@@ -94,7 +101,7 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 DEF(c2_fop_cob_readv, RECORD,
 	_(frd_foprep, U64),
 	_(frd_fid, c2_fop_file_fid),
-	_(frd_ioseg, c2_fop_segment),
+	_(frd_ioseg, c2_fop_segment_seq),
 	_(frd_uid, U64),
 	_(frd_gid, U64),
 	_(frd_nid, U64),
@@ -141,6 +148,11 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(fwr_nid, U64),
 	_(fwr_flags, U64));
 
+/**
+ * <b> c2_fop_file_create </b>
+ */
+DEF(c2_fop_file_create, RECORD,
+	_(fcr_fid, c2_fop_file_fid));
 
 /** @} end of FOP_data_ops */
 

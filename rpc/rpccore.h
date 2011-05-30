@@ -29,7 +29,7 @@
    struct c2_rpc_item item[] = {DUMMY_INITIALIZER, DUMMY_INITIALIZER, ...};
    struct c2_rpc_group *group;
    struct c2_rpc_item_type_ops item_ops = { .rito_item_cb = item_callback };
-   c2_time_t timeout = DUMMY_TIMEOUT;
+   struct c2_time timeout = DUMMY_TIMEOUT;
    // initialising fop operations vectors:
    static struct c2_rpc_item_type_ops fop_item_type_ops;
    static struct c2_rpc_item_type fop_item_type;
@@ -127,6 +127,8 @@
 #include "lib/chan.h"
 #include "net/net.h"
 #include "dtm/verno.h"		/* for c2_verno */
+#include "lib/time.h"
+#include "lib/timer.h"
 
 struct c2_fop;
 struct c2_rpc;
@@ -137,11 +139,23 @@ struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
 
+struct c2_net_end_point {
+        /** Keeps track of usage */
+        struct c2_ref          nep_ref;
+        /** Pointer to the network domain */
+        //struct c2_net_domain  *nep_dom;
+        /** Linkage in the domain list */
+        struct c2_list_link    nep_dom_linkage;
+        /** Transport specific printable representation of the
+            end point address.
+        */
+        const char            *nep_addr;
+};
 
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */
-	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
+	C2_UPDATE_STREAM_DEDICATED_SLOT = 0, 
 	/* several update streams share the same slot */
 	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
 };
@@ -170,6 +184,35 @@ struct c2_rpc_item_type_ops {
 	   @pre rio_sent() called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item, int rc);
+	/**
+	   Find out the size of rpc item.
+	 */
+	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
+	/**
+	   Find out if the item belongs to an IO request or not.
+	 */
+	bool (*rio_is_io_req)(struct c2_rpc_item *item);
+	/**
+	   Find out the count of fragmented buffers.
+	 */
+	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
+	/**
+	   Find out if the IO is read or write.
+	 */
+	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	/**
+	   Return the IO vector from the IO request. 
+	 */
+	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
+	/**
+	   Get new coalesced rpc item.
+	 */
+	int (*rio_get_new_io_item)(struct c2_rpc_item *item1,
+			struct c2_rpc_item *item2, void *pvt);
+	/**
+	   Return the fid of request.
+	 */
+	void *(*rio_io_get_fid)(struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -194,9 +237,18 @@ enum c2_update_stream_state {
 	UPDATE_STREAM_FINALIZED = (1 << 4)
 };
 
+/**
+   Update streams is an abstraction that serves the following goals:
+   @li Hides the sessions and slots abstractions;
+   @li Multiplexes several update streams which the the only one session;
+   @li Signal about events (state transitions, etc.) happened in sessions layer.
+ */
 struct c2_update_stream {
+	/* linkage to c2_rpcmachine::c2_rpc_processing::crp_us_list */
+	struct c2_list_link		   us_linkage;
+
 	uint64_t			   us_session_id;
-	uint32_t		           us_slot_id;
+	uint64_t		           us_slot_id;
 	const struct c2_update_stream_ops *us_ops;
 	struct c2_rpcmachine		  *us_mach;
 	enum c2_update_stream_state        us_state;
@@ -271,7 +323,7 @@ struct c2_rpc_item {
 	struct c2_ref ri_ref;
 
 	enum c2_rpc_item_priority  ri_prio;
-	c2_time_t		   ri_deadline;
+	c2_time_t	   ri_deadline;
 	struct c2_rpc_group       *ri_group;
 
 	enum c2_rpc_item_state     ri_state;
@@ -293,6 +345,19 @@ struct c2_rpc_item {
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type *ri_type;
 	struct c2_chan ri_chan;
+	/* An item is assigned "a xid" by the sessions module
+	   once it is bound to a particular slot. */
+	uint64_t ri_xid;
+	/** Linkage to the forming list, needed for formation */
+	struct c2_list_link	ri_rpcobject_linkage;
+	/** Linkage to the unformed rpc items list, needed for formation */
+	struct c2_list_link	ri_unformed_linkage;
+	/** Linkage to the group c2_rpc_group, needed for grouping */
+	struct c2_list_link	ri_group_linkage;
+	/** Destination endpoint. */
+	struct c2_net_end_point	ri_endp;
+	/** Timer associated with this rpc item.*/
+	struct c2_timer		ri_timer;
 };
 
 /**
@@ -354,6 +419,10 @@ struct c2_rpc_processing {
 	/** FORMATION RELATED DATA: */
 	/** c2_list<c2_rpc>: list of formed RPC items */
 	struct c2_list crp_form;
+
+	struct c2_list crp_us_list; /* list of update streams in this machine */
+
+	struct c2_mutex crp_guard; /* lock protecting fields of the struct */
 
 	/** OUTPUT RELATED DATA: */
 };

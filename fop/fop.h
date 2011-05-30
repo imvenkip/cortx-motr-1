@@ -112,6 +112,10 @@ struct c2_fop_type_ops {
 	/** fol record type operations for this fop type, or NULL is standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+	/** Create a new IO fop (read/write) and populate it with the
+	    IO vector given as an input.*/
+	int (*fto_get_io_fop)(struct c2_fop *in, struct c2_fop *res,
+			void *seg);
 };
 
 /**
@@ -125,7 +129,6 @@ struct c2_fop_data {
 
 /** fop. */
 struct c2_fop {
-	struct c2_rpc_item	f_item;
 	struct c2_fop_type 	*f_type;
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
@@ -133,7 +136,11 @@ struct c2_fop {
 	/**
 	   ADDB context for events related to this fop.
 	 */
-	struct c2_addb_ctx  	f_addb;
+	struct c2_addb_ctx	f_addb;
+	/**
+	   RPC item for this FOP
+	 */
+	struct c2_rpc_item	f_item;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);

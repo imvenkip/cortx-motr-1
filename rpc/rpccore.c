@@ -271,11 +271,11 @@ static const struct c2_rpc_item_type_ops rpc_item_ops = {
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)
 {
-	DBG("us: ssid: %lu, slotid: %u, TIMEOUT\n", us->us_session_id, us->us_slot_id);
+	DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
 }
 void us_recovery_complete(struct c2_update_stream *us)
 {
-	DBG("us: ssid: %lu, slotid: %u, RECOVERED\n", us->us_session_id, us->us_slot_id);
+	DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
 static const struct c2_update_stream_ops update_stream_ops = {
