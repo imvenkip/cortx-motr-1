@@ -5,6 +5,7 @@
 #include "colibri/init.h"
 #include "lib/ut.h"
 #include <stdlib.h>
+#include "colibri/init.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
