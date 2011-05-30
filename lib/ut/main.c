@@ -18,6 +18,7 @@ extern void test_time(void);
 extern void test_timer(void);
 extern void test_trace(void);
 extern void test_vec(void);
+extern void test_rw(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",
@@ -31,6 +32,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "list",      test_list      },
 		{ "memory",    test_memory    },
 		{ "mutex",     test_mutex     },
+		{ "rwlock",    test_rw        },
 		{ "queue",     test_queue     },
 		{ "refs",      test_refs      },
 		{ "processor", test_processor },
@@ -43,7 +45,7 @@ const struct c2_test_suite libc2_ut = {
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

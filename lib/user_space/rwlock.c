@@ -5,7 +5,11 @@
 #include "rwlock.h"
 
 /**
-   @defgroup rwlock Read-write lock
+   @addtogroup rwlock Read-write lock
+
+   User space implementation is based on a posix rwlock
+   (pthread_rwlock_init(3))
+
    @{
  */
 
@@ -60,7 +64,7 @@ void c2_rwlock_read_unlock(struct c2_rwlock *lock)
 /** @} end of rwlock group */
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

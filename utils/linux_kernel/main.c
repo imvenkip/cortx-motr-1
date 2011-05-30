@@ -78,11 +78,15 @@ static void c2_kernel_thread_ut(void)
 
 /* lib/ut/chan.c */
 extern void test_chan(void);
+/* lib/ut/rwlock.c */
+extern void test_rw(void);
 
 static void c2_run_kernel_ut(void)
 {
 	c2_kernel_bitmap_ut();
 	c2_kernel_thread_ut();
+
+	test_rw();
 	test_chan();
 
         printk(KERN_INFO "Colibri Kernel UT: all passed\n");
