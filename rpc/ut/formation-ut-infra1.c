@@ -59,7 +59,7 @@ uint64_t			 c2_rpc_max_message_size;
 uint64_t			 c2_rpc_max_fragments_size;
 uint64_t			 c2_rpc_max_rpcs_in_flight;
 
-#define nthreads 		16
+#define nthreads 		256
 struct c2_thread		 form_ut_threads[nthreads];
 uint64_t			thread_no = 0;
 
@@ -294,6 +294,7 @@ int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
 	/* Item addition is done on a new thread every time. */
 	c2_list_for_each_entry(&group->rg_items, item, struct c2_rpc_item,
 			ri_group_linkage) {
+		C2_ASSERT(thread_no < nfops);
 		res = C2_THREAD_INIT(&form_ut_threads[thread_no],
 				struct c2_rpc_item*,
 				NULL, &c2_rpc_form_item_add_to_cache,
@@ -358,11 +359,11 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	io_req = c2_rpc_item_is_io_req(item);
 	if(io_req) {
 		res = c2_rpc_form_item_io_populate_param(item);
-		C2_ASSERT(res!=0);
+		C2_ASSERT(res==0);
 	}
 	else {
 		res = c2_rpc_form_item_nonio_populate_param(item);
-		C2_ASSERT(res!=0);
+		C2_ASSERT(res==0);
 	}
 	return 0;
 }
