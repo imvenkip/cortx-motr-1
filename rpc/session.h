@@ -194,21 +194,21 @@ enum {
 enum c2_rpc_conn_state {
         /**
            A newly allocated c2_rpc_conn object is in
-           UNINITIALIZED state.
+           UNINITIALISED state.
          */
-        CS_CONN_UNINITIALIZED = 0,
+        CS_CONN_UNINITIALISED = 0,
         /**
            When sender is waiting for receiver reply to get its sender ID it is
-           in INITIALIZIG state.
+           in INITIALISING state.
          */
-        CS_CONN_INITIALIZING = (1 << 0),
+        CS_CONN_INITIALISING = (1 << 0),
         /**
 	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
          */
         CS_CONN_ACTIVE = (1 << 1),
         /**
-           If c2_rpc_conn is in INITIALIZING state and sender doesn't receive
+           If c2_rpc_conn is in INITIALISING state and sender doesn't receive
            sender-id from receiver within a specific time OR if sender receives
 	   reply stating "error occured during conn create"
 	   then c2_rpc_conn moves to INIT_FAILED state
@@ -250,13 +250,13 @@ enum c2_rpc_conn_state {
 
    <PRE>
 
-   +-------------------------> UNINITIALIZED
+   +-------------------------> UNINITIALISED
                                     |
                                     |  c2_rpc_conn_init()
    +----------------------------+   |
    |                            |   |
    |                            V   V
-   |     +-------------------- INITIALIZING
+   |     +-------------------- INITIALISING
  R |     | time-out || rc != 0      |
  E |     |                          | init_successful
  T |     |                          |
@@ -276,7 +276,7 @@ enum c2_rpc_conn_state {
 	 |                          |
 	 |			    |  fini()
 	 |	fini()		    V
-	 +--------------------> UNINITIALIZED
+	 +--------------------> UNINITIALISED
 
 </PRE>
   Concurrency:
@@ -311,10 +311,10 @@ struct c2_rpc_conn {
 
     This function asynchronously sends an initial hand-shake fop to the other
     end of the connection. When reply is received, the c2_rpc_conn is
-    moved into INITIALIZED state.
+    moved into INITIALISED state.
 
-    @pre c2_rpc_conn->c_state == CONN_UNINITIALIZED
-    @post c2_rpc_conn->c_state == CONN_INITIALIZING
+    @pre c2_rpc_conn->c_state == CONN_UNINITIALISED
+    @post c2_rpc_conn->c_state == CONN_INITIALISING
  */
 int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
 		     struct c2_service_id	*svc_id,
@@ -325,7 +325,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
    No network communication involved.
    @pre c2_rpc_conn->c_state == CONN_INIT_FAILED ||
 	c2_rpc_conn->c_state == CONN_TERMINATED
-   @post c2_rpc_conn->c_state == CONN_UNINITIALIZED
+   @post c2_rpc_conn->c_state == CONN_UNINITIALISED
  */
 void c2_rpc_conn_fini(struct c2_rpc_conn *);
 
@@ -361,9 +361,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 enum c2_rpc_session_state {
 	/**
 	   When a session object is newly instantiated it is in
-	   UNINITIALIZED state.
+	   UNINITIALISED state.
 	 */
-	SESSION_UNINITIALIZED = 0,
+	SESSION_UNINITIALISED = 0,
 	/**
 	   When sender sends a SESSION_CREATE FOP to reciever it
 	   is in CREATING state
@@ -408,7 +408,7 @@ enum c2_rpc_session_state {
    It is opaque for the client like c2t1fs.
 <PRE>
 
-            +------------------> UNINITIALIZED
+            +------------------> UNINITIALISED
 				      |
 				      | c2_rpc_session_create()
 				      |
@@ -435,7 +435,7 @@ enum c2_rpc_session_state {
 	  |		              |
 	  |			      | fini()
 	  |			      V
-	  +-----------------------> UNINITIALIZED
+	  +-----------------------> UNINITIALISED
 
 </PRE>
  */
@@ -479,7 +479,7 @@ struct c2_rpc_session_ops {
     Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
 
     @pre c2_rpc_conn->c_state == CONN_ACTIVE
-    @pre session->s_state == SESSION_UNINITIALIZED
+    @pre session->s_state == SESSION_UNINITIALISED
     @post c2_rpc_conn->c_state == CONN_ACTIVE
     @post session->s_state == SESSION_CREATING
  */
@@ -513,7 +513,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 
    @pre session->s_state == SESSION_TERMINATED ||
 	session->s_state == SESSION_INIT_FAILED
-   @post session->s_state == SESSION_UNINITIALIZED
+   @post session->s_state == SESSION_UNINITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
 

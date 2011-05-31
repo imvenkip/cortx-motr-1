@@ -196,7 +196,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	c2_time_t			deadline;
 	int				rc;
 
-	C2_PRE(conn != NULL && conn->c_state == CS_CONN_UNINITIALIZED);
+	C2_PRE(conn != NULL && conn->c_state == CS_CONN_UNINITIALISED);
 	C2_PRE(svc_id != NULL && machine != NULL);
 
 	/*
@@ -241,7 +241,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	item->ri_sender_id = SENDER_ID_INVALID;
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
-	conn->c_state = CS_CONN_INITIALIZING;
+	conn->c_state = CS_CONN_INITIALISING;
 
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
@@ -292,7 +292,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 		c2_mutex_lock(&conn->c_mutex);
 
-		if (conn->c_state == CS_CONN_INITIALIZING) {
+		if (conn->c_state == CS_CONN_INITIALISING) {
 			C2_ASSERT(conn->c_private != NULL);
 
 			fop_conn_create = c2_fop_data(conn->c_private);
@@ -321,7 +321,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	}
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
-	C2_ASSERT(conn->c_state == CS_CONN_INITIALIZING &&
+	C2_ASSERT(conn->c_state == CS_CONN_INITIALISING &&
 			conn->c_private != NULL);
 
 	if (fop_ccr->rccr_rc != 0) {
@@ -352,7 +352,7 @@ static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_session   *session;
 
 	printf("Creating session 0\n");
-	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_INITIALIZING);
+	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_INITIALISING);
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 
 	C2_ALLOC_PTR(session);
@@ -579,13 +579,12 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		return false;
 
 	switch (conn->c_state) {
-		case CS_CONN_UNINITIALIZED:
 		case CS_CONN_INIT_FAILED:
 		case CS_CONN_TERMINATED:
 			if (conn->c_sender_id != SENDER_ID_INVALID)
 				return false;
 
-		case CS_CONN_INITIALIZING:
+		case CS_CONN_INITIALISING:
 			if (conn->c_sender_id != SENDER_ID_INVALID ||
 				conn->c_nr_sessions > 0 ||
 				conn->c_service_id == NULL ||
@@ -613,6 +612,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			if (conn->c_nr_sessions > 0 ||
 				conn->c_sender_id == SENDER_ID_INVALID)
 				return false;
+		case CS_CONN_UNINITIALISED:
+			return true;
 		default:
 			return false;
 	}
@@ -653,7 +654,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	int					rc = 0;
 
 	C2_PRE(conn != NULL && session != NULL &&
-		session->s_state == SESSION_UNINITIALIZED);
+		session->s_state == SESSION_UNINITIALISED);
 
 	c2_mutex_lock(&conn->c_mutex);
 	if (conn->c_state != CS_CONN_ACTIVE) {
@@ -965,7 +966,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	session->s_slot_table = NULL;
 	session->s_nr_slots = session->s_slot_table_capacity = 0;
 	
-	session->s_state = SESSION_UNINITIALIZED;
+	session->s_state = SESSION_UNINITIALISED;
 }
 	
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
@@ -976,7 +977,6 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		return false;
 
 	switch (session->s_state) {
-		case SESSION_UNINITIALIZED:
 		case SESSION_CREATING:
 		case SESSION_CREATE_FAILED:
 		case SESSION_TERMINATED:
@@ -995,6 +995,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 				if (session->s_slot_table[i] == NULL)
 					return false;
 			}
+		case SESSION_UNINITIALISED:
+			return true;
 		default:
 			return false;
 	}
@@ -2044,8 +2046,8 @@ uint64_t c2_rpc_session_id_get()
 
 	do {
 		session_id = random();
-	} while (session_id == SESSION_ID_INVALID ||
-			session_id == SESSION_ID_NOSESSION);
+	} while (session_id < SESSION_ID_MIN ||
+			session_id > SESSION_ID_MAX);
 	return session_id;
 }
 /** @} end of session group */

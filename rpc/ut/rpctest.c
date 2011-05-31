@@ -447,7 +447,7 @@ void test_snd_conn_create()
 
 	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
-	C2_ASSERT(conn.c_state == CS_CONN_INITIALIZING ||
+	C2_ASSERT(conn.c_state == CS_CONN_INITIALISING ||
 			conn.c_state == CS_CONN_INIT_FAILED);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL);
