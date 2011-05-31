@@ -19,7 +19,7 @@ enum {
 
 	/* A number of "starvers" acquiring and releasing the lock (in the
 	   required mode) in an infinite loop. */
-	S = 20,
+	S = 8,
 	/* A number of "checkers" which try to squeeze between starvers and
 	   acquire the lock in a different mode at least once. */
 	C = 3
