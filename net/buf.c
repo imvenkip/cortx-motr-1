@@ -70,7 +70,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 {
 	int rc;
 
-	C2_PRE(dom != NULL );
+	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
 
@@ -103,12 +103,11 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 {
 	int rc;
 
-	C2_PRE(dom != NULL );
+	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
 
-	C2_PRE(buf != NULL && c2_net__buffer_invariant(buf) &&
-	       buf->nb_dom == dom);
+	C2_PRE(c2_net__buffer_invariant(buf) && buf->nb_dom == dom);
 	C2_PRE(buf->nb_flags == C2_NET_BUF_REGISTERED);
 	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
@@ -146,6 +145,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	};
 	const struct buf_add_checks *todo;
 
+	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
@@ -206,7 +206,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 
 	if (todo->check_ep) {
 		/* Bump the reference count.
-		   Should be decremented in c2_net_tm_event_post().
+		   Should be decremented in c2_net_buffer_event_post().
 		   The caller holds a reference to the end point.
 		 */
 		c2_net_end_point_get(buf->nb_ep);
@@ -237,13 +237,12 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 	c2_mutex_lock(&tm->ntm_mutex);
 
 	C2_PRE(c2_net__buffer_invariant(buf));
-	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm );
+	C2_PRE(buf->nb_tm == NULL || buf->nb_tm == tm);
 
 	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
 		/* completion race condition? no error */
 		goto m_err_exit;
 	}
-	C2_PRE(c2_net__qtype_is_valid(buf->nb_qtype));
 
 	/* tell the transport to cancel */
 	dom->nd_xprt->nx_ops->xo_buf_del(buf);
