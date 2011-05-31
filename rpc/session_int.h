@@ -22,7 +22,7 @@ enum {
 extern const char *C2_RPC_SLOT_TABLE_NAME;
 
 /**
-    Key into c2_rpc_in_core_slot_table.
+    Key into c2_rpc_inmem_slot_table.
     Receiver side.
 
     session_id is not unique on receiver.
@@ -40,7 +40,7 @@ struct c2_rpc_slot_table_key {
 /**
    In core slot table stores attributes of slots which
    are not needed to be persistent.
-   Key is same as c2_rpc_slot_table_key.
+   Key is c2_rpc_slot_table_key.
    Value is modified in transaction. So no explicit lock required.
  */
 struct c2_rpc_inmem_slot_table_value {
@@ -62,9 +62,9 @@ extern int c2_rpc_session_module_init(void);
 extern void c2_rpc_session_module_fini(void);
 
 /**
-   Temporary reply cache arrangement until we implement reply cache
-   in cob framework.
-   There will be only one global object of this type.
+   All reply cache related objects are included in this structure.
+
+   c2_rpcmachine CONTAINS one object of c2_rpc_reply_cache.
  */
 struct c2_rpc_reply_cache {
 	/** dbenv to which slot table belong */
@@ -73,7 +73,7 @@ struct c2_rpc_reply_cache {
 	struct c2_table		*rc_inmem_slot_table;
 	/** cob domain containing slot cobs */
 	struct c2_cob_domain	*rc_dom;
-	/** replies are cached in FOL */
+	/** replies are cached in FOL. Currently not used */
 	struct c2_fol		*rc_fol;
 	/**
 	   XXX Temporary mechanism to cache reply items.
@@ -82,7 +82,6 @@ struct c2_rpc_reply_cache {
  	*/
 	struct c2_list          rc_item_list;
 };
-extern struct c2_rpc_reply_cache c2_rpc_reply_cache;
 
 int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
 			    struct c2_cob_domain	*dom,
@@ -97,11 +96,11 @@ enum c2_rpc_session_seq_check_result {
         SCR_RESEND_REPLY,
         /** Already received this item and its processing is in progress */
         SCR_IGNORE_ITEM,
-        /** Item is not in seq. send err msg to sender */
+        /** Item is not in sequence. send err msg to sender */
         SCR_SEND_ERROR_MISORDERED,
         /** Invalid session or slot */
         SCR_SESSION_INVALID,
-        /** Error occured which checking rpc item */
+        /** Error occured while checking rpc item */
         SCR_ERROR
 };
 
@@ -113,7 +112,6 @@ enum c2_rpc_session_seq_check_result {
 enum c2_rpc_session_seq_check_result
 c2_rpc_session_item_received(struct c2_rpc_item		*item,
 			     struct c2_rpc_item 	**reply_out);
-
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -166,10 +164,17 @@ int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+/**
+  Locates cob associated with slot identified by
+  <item->ri_sender_id, item->ri_session_id, item->ri_slot_id, item->ri_slot_gen>
+
+  @return 0 if successful. slot_cob != NULL
+  @return < 0 if unsuccessful. slot_cob == NULL
+ */
 int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
-                                    struct c2_rpc_item          *item,
-                                    struct c2_cob               **slot_cob,
-                                    struct c2_db_tx             *tx);
+                                   struct c2_rpc_item          *item,
+                                   struct c2_cob               **slot_cob,
+                                   struct c2_db_tx             *tx);
 
 void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
 			uint64_t		sender_id,
@@ -194,11 +199,39 @@ void c2_rpc_snd_slot_enq(struct c2_rpc_session		*session,
 			 uint32_t			slot_id,
 			 struct c2_rpc_item		*item);
 
+/**
+   Called when an item is enqueued in the slot OR slot becomes "unbusy"
+ */
 void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink);
 
+/**
+   Checks whether reply item is valid in sequence.
+   Used on sender side.
+
+   @param item is received item
+   @return 0 if reply item is valid and can be accepted. out != NULL and
+		contains reference to item whose reply it is.
+   @return < 0 if reply item is not valid and should be discarded. out == NULL
+ */
 int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 				       struct c2_rpc_item	**out);
 
+/**
+   Fill all session related information in item.
+
+   Doesn't do anything if item already has session related fields assigned.
+   If there is no connection with target end-point, then
+   c2_rpc_session_item_prepare() initiates connection establishing. Same with
+   session.
+
+   If the item is assigned to a slot successfuly then the slot is marked as
+   busy.
+
+   @pre item->ri_service_id != NULL
+   @return -EBUSY if there is no slot available
+   @return -EAGAIN if there is no existing ACTIVE connection or ALIVE session.
+   @return 0 if item is filled with session related fields
+ */
 int c2_rpc_session_item_prepare(struct c2_rpc_item	*item);
 
 uint64_t c2_rpc_sender_id_get(void);

@@ -56,15 +56,15 @@ int c2_rpc_slot_table_key_cmp(struct c2_table	*table,
 }
 
 const struct c2_table_ops c2_rpc_slot_table_ops = {
-        .to = {
-                [TO_KEY] = {
-                        .max_size = sizeof(struct c2_rpc_slot_table_key)
-                },
-                [TO_REC] = {
-                        .max_size = ~0
-                }
-        },
-        .key_cmp = c2_rpc_slot_table_key_cmp
+	.to = {
+		[TO_KEY] = {
+			.max_size = sizeof (struct c2_rpc_slot_table_key)
+		},
+		[TO_REC] = {
+			.max_size = sizeof (struct c2_rpc_inmem_slot_table_value)
+		}
+	},
+	.key_cmp = c2_rpc_slot_table_key_cmp
 };
 
 int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
@@ -90,7 +90,7 @@ int c2_rpc_reply_cache_init(struct c2_rpc_reply_cache	*rcache,
 	  XXX find out how to create an in memory c2_table
 	 */
 	rc = c2_table_init(rcache->rc_inmem_slot_table, rcache->rc_dbenv,
-			C2_RPC_INMEM_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
+		       C2_RPC_INMEM_SLOT_TABLE_NAME, 0, &c2_rpc_slot_table_ops);
 	if (rc != 0) {
 		goto errout;
 	}
@@ -191,7 +191,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		     struct c2_rpcmachine	*machine)
 {
 	struct c2_fop			*fop;
-	struct c2_rpc_conn_create	*fop_cc;
+	struct c2_rpc_fop_conn_create	*fop_cc;
 	struct c2_rpc_item		*item;
 	c2_time_t			deadline;
 	int				rc;
@@ -211,7 +211,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	conn->c_flags = 0;
 	conn->c_rpcmachine = machine;
 
-	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
 	conn->c_private = fop;
@@ -234,7 +234,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
 	conn->c_state = CS_CONN_INITIALIZING;
-	conn->c_flags |= CF_WAITING_FOR_CONN_CREATE_REPLY;
+	conn->c_flags |= CF_WAITING_FOR_CREATE_REPLY;
 
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
@@ -259,12 +259,12 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 {
-	struct c2_rpc_conn_create_rep	*fop_ccr;
-	struct c2_rpc_conn_create	*fop_conn_create;
-	struct c2_rpc_conn		*conn;
-	struct c2_rpc_item		*item;
-	struct c2_rpcmachine		*machine;
-	bool				found = false;
+	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_create		*fop_conn_create;
+	struct c2_rpc_conn			*conn;
+	struct c2_rpc_item			*item;
+	struct c2_rpcmachine			*machine;
+	bool					found = false;
 
 	C2_PRE(fop != NULL);
 
@@ -311,7 +311,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	}
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
-	if ((conn->c_flags & CF_WAITING_FOR_CONN_CREATE_REPLY) == 0) {
+	if ((conn->c_flags & CF_WAITING_FOR_CREATE_REPLY) == 0) {
 		/*
 		 * This is a duplicated reply. Don't do any processing.
 		 * Just run away from here.
@@ -320,7 +320,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	} else {
-		conn->c_flags &= ~CF_WAITING_FOR_CONN_CREATE_REPLY;
+		conn->c_flags &= ~CF_WAITING_FOR_CREATE_REPLY;
 	}
 
 	C2_ASSERT(conn->c_state == CS_CONN_INITIALIZING &&
@@ -387,11 +387,11 @@ static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot)
 
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
-	struct c2_fop			*fop;
-	struct c2_rpc_conn_terminate	*fop_ct;
-	struct c2_rpc_item		*item;
-	c2_time_t			deadline;
-	int				rc;
+	struct c2_fop				*fop;
+	struct c2_rpc_fop_conn_terminate	*fop_ct;
+	struct c2_rpc_item			*item;
+	c2_time_t				deadline;
+	int					rc;
 
 	C2_PRE(conn != NULL);
 
@@ -412,7 +412,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out;
 	}
 
-	fop = c2_fop_alloc(&c2_rpc_conn_terminate_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -433,7 +433,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
 	conn->c_state = CS_CONN_TERMINATING;
-	conn->c_flags |= CF_WAITING_FOR_CONN_TERM_REPLY;
+	conn->c_flags |= CF_WAITING_FOR_TERM_REPLY;
 
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
@@ -441,7 +441,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	if (rc != 0) {
 		conn->c_state = CS_CONN_ACTIVE;
-		conn->c_flags &= ~CF_WAITING_FOR_CONN_TERM_REPLY;
+		conn->c_flags &= ~CF_WAITING_FOR_TERM_REPLY;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
 	}
@@ -455,7 +455,7 @@ out:
 
 void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 {
-	struct c2_rpc_conn_terminate_rep	*fop_ctr;
+	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_session			*session0;
@@ -481,7 +481,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	printf("found conn %p %lu\n", conn, conn->c_sender_id);
 
-	if ((conn->c_flags & CF_WAITING_FOR_CONN_TERM_REPLY) == 0) {
+	if ((conn->c_flags & CF_WAITING_FOR_TERM_REPLY) == 0) {
 		/*
 		 * This is a duplicate reply. Don't do any processing.
 		 */
@@ -490,7 +490,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 		return;
 	} else {
-		conn->c_flags &= ~CF_WAITING_FOR_CONN_TERM_REPLY;
+		conn->c_flags &= ~CF_WAITING_FOR_TERM_REPLY;
 	}
 	C2_ASSERT(conn->c_state == CS_CONN_TERMINATING &&
 			conn->c_nr_sessions == 0);
@@ -599,10 +599,10 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			
 		case CS_CONN_ACTIVE:
 			if (conn->c_sender_id == SENDER_ID_INVALID ||
-			   (conn->c_flags & CF_WAITING_FOR_CONN_CREATE_REPLY) != 0 ||
-			   (conn->c_flags & CF_WAITING_FOR_CONN_TERM_REPLY) != 0 ||
-			   conn->c_service_id == NULL ||
-			   conn->c_rpcmachine == NULL)
+		      (conn->c_flags & CF_WAITING_FOR_CREATE_REPLY) != 0 ||
+		      (conn->c_flags & CF_WAITING_FOR_TERM_REPLY) != 0 ||
+		      conn->c_service_id == NULL ||
+		      conn->c_rpcmachine == NULL)
 				return false; 
 			
 			if (!c2_list_invariant(&conn->c_sessions))
@@ -653,11 +653,11 @@ static void session_fields_init(struct c2_rpc_session	*session,
 int c2_rpc_session_create(struct c2_rpc_session	*session,
 			  struct c2_rpc_conn	*conn)
 {
-	struct c2_fop			*fop;
-	struct c2_rpc_session_create	*fop_sc;
-	struct c2_rpc_item		*item;
-	struct c2_rpc_session		*session_0 = NULL;
-	int				rc = 0;
+	struct c2_fop				*fop;
+	struct c2_rpc_fop_session_create	*fop_sc;
+	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session_0 = NULL;
+	int					rc = 0;
 
 	C2_PRE(conn != NULL && session != NULL &&
 		session->s_state == SESSION_UNINITIALIZED);
@@ -675,7 +675,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	printf("session_Create: session object %p\n", session);
 	session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
 
-	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
 
@@ -710,7 +710,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 
 void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 {
-	struct c2_rpc_session_create_rep	*fop_scr;
+	struct c2_rpc_fop_session_create_rep	*fop_scr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session = NULL;
 	struct c2_rpc_session			*s;
@@ -784,12 +784,12 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
 {
-	struct c2_fop			*fop;
-	struct c2_rpc_session_destroy	*fop_sd;
-	struct c2_rpc_item		*item;
-	struct c2_rpc_session		*session_0 = NULL;
-	int				i;
-	int				rc = 0;
+	struct c2_fop				*fop;
+	struct c2_rpc_fop_session_destroy	*fop_sd;
+	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session_0 = NULL;
+	int					i;
+	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
@@ -831,7 +831,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	 * update_stream_terminated() to report the events to session module
 	 */
 
-	fop = c2_fop_alloc(&c2_rpc_session_destroy_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_destroy_fopt, NULL);
 	if (fop == NULL) {
 		c2_mutex_unlock(&session->s_mutex);
 		rc = -ENOMEM;
@@ -868,7 +868,7 @@ out:
 
 void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 {
-	struct c2_rpc_session_destroy_rep	*fop_sdr;
+	struct c2_rpc_fop_session_destroy_rep	*fop_sdr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session;
 	struct c2_rpc_item			*item;
@@ -1051,7 +1051,8 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	int				i;
 	int				rc = 0;
 
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL &&
+			item->ri_service_id != NULL);
 
 	/*
 	 * XXX Important: Whenever an c2_rpc_item is init-ed
@@ -1170,8 +1171,9 @@ out_of_loops:
 	 * When next time item_prepare() is called with same unbound item and
 	 * assuming session creation is completed successfully, the item will
 	 * get <sender_id, session_id, slot_id, verno>
-	 * XXX It is possible to optimize this sequence of events. But is optimization 
-	 * necessary, as this is going to happen just ONCE with each receiver?
+	 * XXX It is possible to optimize this sequence of events. But is 
+	 * optimization necessary, as this is going to happen just ONCE with 
+	 * each receiver?
 	 */
 
 	if (slots_scanned) {
@@ -1600,9 +1602,9 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 		c2_list_for_each_entry(&machine->cr_rcache.rc_item_list,
 		    item, struct c2_rpc_item, ri_rc_link) {
 			if (citem->ri_sender_id == item->ri_sender_id &&
-			     citem->ri_session_id == item->ri_session_id &&
-			     citem->ri_slot_id == item->ri_slot_id &&
-			     citem->ri_slot_generation == item->ri_slot_generation) {
+			    citem->ri_session_id == item->ri_session_id &&
+			    citem->ri_slot_id == item->ri_slot_id &&
+			citem->ri_slot_generation == item->ri_slot_generation) {
 				*reply_out = citem;
 				rc = SCR_RESEND_REPLY;
 				found = true;
@@ -1611,8 +1613,8 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 
 		/*
 		 * Reply MUST be present in reply cache
-		 * XXX Following assert is disabled for testing, but it is valid one
-		 * and should be enabled
+		 * XXX Following assert is disabled for testing, but it is valid
+		 * one and should be enabled
 		 */
 		//C2_ASSERT(found);
 		printf("item_received: reply fetched from reply cache\n");
@@ -1783,11 +1785,13 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 	/*
 	 * check whether sender_id already exists
 	 */
-	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS", &root_session_cob, tx);
+	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS", &root_session_cob,
+						tx);
 	if (rc != 0)
 		return rc;
 	
-	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, &conn_cob, tx);
+	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, &conn_cob,
+					tx);
 
 	if (rc == 0) {
 		rc = -EEXIST;
@@ -1806,7 +1810,8 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 	/*
 	 * Connection with @sender_id is not present. create it
 	 */
-	rc = c2_rpc_cob_create_helper(dom, root_session_cob, name, &conn_cob, tx);
+	rc = c2_rpc_cob_create_helper(dom, root_session_cob, name, &conn_cob,
+					tx);
 	if (rc == 0)
 		*out = conn_cob;
 	c2_cob_put(root_session_cob);
@@ -2006,8 +2011,8 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 		/*
 		 * obtain item at the head of the list
 		 */
-		item = c2_list_entry(slot->ss_ready_list.l_head, struct c2_rpc_item,
-					ri_slot_link);
+		item = c2_list_entry(slot->ss_ready_list.l_head,
+					struct c2_rpc_item, ri_slot_link);
 		C2_ASSERT(item != NULL);
 		c2_list_del(&item->ri_slot_link);
 

@@ -46,8 +46,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_item			*item;
 	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_conn_create		*fop_in;
-	struct c2_rpc_conn_create_rep		*fop_out;
+	struct c2_rpc_fop_conn_create		*fop_in;
+	struct c2_rpc_fop_conn_create_rep	*fop_out;
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	uint64_t				sender_id;
 	struct c2_rpc_slot_table_key		key;
@@ -201,8 +201,8 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_session_create		*fop_in;
-	struct c2_rpc_session_create_rep	*fop_out;
+	struct c2_rpc_fop_session_create	*fop_in;
+	struct c2_rpc_fop_session_create_rep	*fop_out;
 	struct c2_rpc_fom_session_create	*fom_sc;
 	uint64_t				session_id;
 	uint64_t				sender_id;
@@ -354,8 +354,8 @@ struct c2_fom_type c2_rpc_fom_session_destroy_type = {
 int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 {
 	struct c2_rpcmachine			*machine;
-	struct c2_rpc_session_destroy		*fop_in;
-	struct c2_rpc_session_destroy_rep	*fop_out;
+	struct c2_rpc_fop_session_destroy	*fop_in;
+	struct c2_rpc_fop_session_destroy_rep	*fop_out;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_rpc_slot_table_key		key;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
@@ -423,7 +423,8 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 				&key, sizeof key,
 				&inmem_slot, sizeof inmem_slot);
 
-	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table, tx);
+	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table,
+					tx);
 	if (rc != 0)
 		goto errout;
 
@@ -567,9 +568,9 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_item			*item;
 	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
-	struct c2_rpc_conn_terminate		*fop_in;
+	struct c2_rpc_fop_conn_terminate	*fop_in;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_conn_terminate_rep	*fop_out;
+	struct c2_rpc_fop_conn_terminate_rep	*fop_out;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_slot_table_key		key;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
@@ -631,7 +632,8 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 				&key, sizeof key,
 				&inmem_slot, sizeof inmem_slot);
 
-	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table, tx);
+	rc = c2_db_cursor_init(&cursor, machine->cr_rcache.rc_inmem_slot_table,
+					tx);
 	if (rc != 0)
 		goto errout;
 

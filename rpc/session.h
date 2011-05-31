@@ -183,8 +183,8 @@ enum {
 	SENDER_ID_INVALID = ~0,
 	SLOT_ID_INVALID = ~0,
 	/* CF_.* values for c2_rpc_conn->c_flags */
-	CF_WAITING_FOR_CONN_CREATE_REPLY = 1,
-	CF_WAITING_FOR_CONN_TERM_REPLY = (1 << 1)
+	CF_WAITING_FOR_CREATE_REPLY = 1,
+	CF_WAITING_FOR_TERM_REPLY = (1 << 1)
 };
 
 enum c2_rpc_conn_state {
@@ -266,7 +266,7 @@ enum c2_rpc_conn_state {
          |           |              V
          |           +----------TERMINATING
 	 |                          |
-         |                          |  conn_terminate_reply_received() && rc == 0
+         |                          | conn_terminate_reply_received() && r c== 0
 	 |                          V
 	 |			TERMINATED
 	 |                          |

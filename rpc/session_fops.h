@@ -14,63 +14,62 @@ struct fom;
 struct c2_fom_type;
 
 enum c2_rpc_opcodes {
-	c2_rpc_conn_create_opcode = 30,
-	c2_rpc_conn_terminate_opcode,
-	c2_rpc_session_create_opcode,
-	c2_rpc_session_destroy_opcode,
-	c2_rpc_conn_create_rep_opcode,
-	c2_rpc_conn_terminate_rep_opcode,
-	c2_rpc_session_create_rep_opcode,
-	c2_rpc_session_destroy_rep_opcode
+	c2_rpc_fop_conn_create_opcode = 30,
+	c2_rpc_fop_conn_terminate_opcode,
+	c2_rpc_fop_session_create_opcode,
+	c2_rpc_fop_session_destroy_opcode,
+	c2_rpc_fop_conn_create_rep_opcode,
+	c2_rpc_fop_conn_terminate_rep_opcode,
+	c2_rpc_fop_session_create_rep_opcode,
+	c2_rpc_fop_session_destroy_rep_opcode
 };
 
-extern struct c2_fop_type_ops c2_rpc_conn_create_ops;
-extern struct c2_fop_type_ops c2_rpc_conn_terminate_ops;
-extern struct c2_fop_type_ops c2_rpc_session_create_ops;
-extern struct c2_fop_type_ops c2_rpc_session_destroy_ops;
-extern struct c2_fop_type_ops c2_rpc_rep_ops;
+extern struct c2_fop_type_ops c2_rpc_fop_conn_create_ops;
+extern struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;
+extern struct c2_fop_type_ops c2_rpc_fop_session_create_ops;
+extern struct c2_fop_type_ops c2_rpc_fop_session_destroy_ops;
 
-extern struct c2_fop_type_format c2_rpc_conn_create_tfmt;
-extern struct c2_fop_type_format c2_rpc_conn_create_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_conn_terminate_tfmt;
-extern struct c2_fop_type_format c2_rpc_conn_terminate_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_create_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_create_rep_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_destroy_tfmt;
-extern struct c2_fop_type_format c2_rpc_session_destroy_rep_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_conn_create_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_conn_create_rep_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_conn_terminate_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_conn_terminate_rep_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_session_create_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_session_create_rep_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_session_destroy_tfmt;
+extern struct c2_fop_type_format c2_rpc_fop_session_destroy_rep_tfmt;
 
-extern struct c2_fop_type c2_rpc_conn_create_fopt;
-extern struct c2_fop_type c2_rpc_conn_create_rep_fopt;
-extern struct c2_fop_type c2_rpc_conn_terminate_fopt;
-extern struct c2_fop_type c2_rpc_conn_terminate_rep_fopt;
-extern struct c2_fop_type c2_rpc_session_create_fopt;
-extern struct c2_fop_type c2_rpc_session_create_rep_fopt;
-extern struct c2_fop_type c2_rpc_session_destroy_fopt;
-extern struct c2_fop_type c2_rpc_session_destroy_rep_fopt;
+extern struct c2_fop_type c2_rpc_fop_conn_create_fopt;
+extern struct c2_fop_type c2_rpc_fop_conn_create_rep_fopt;
+extern struct c2_fop_type c2_rpc_fop_conn_terminate_fopt;
+extern struct c2_fop_type c2_rpc_fop_conn_terminate_rep_fopt;
+extern struct c2_fop_type c2_rpc_fop_session_create_fopt;
+extern struct c2_fop_type c2_rpc_fop_session_create_rep_fopt;
+extern struct c2_fop_type c2_rpc_fop_session_destroy_fopt;
+extern struct c2_fop_type c2_rpc_fop_session_destroy_rep_fopt;
 
-int c2_rpc_conn_create_fom_init(struct c2_fop	*fop,
-				struct c2_fom 	**m);
-
-int c2_rpc_session_create_fom_init(struct c2_fop	*fop,
-				   struct c2_fom 	**m);
-
-int c2_rpc_session_destroy_fom_init(struct c2_fop	*fop,
+int c2_rpc_fop_conn_create_fom_init(struct c2_fop	*fop,
 				    struct c2_fom 	**m);
 
-int c2_rpc_conn_terminate_fom_init(struct c2_fop	*fop,
-				   struct c2_fom 	**m);
+int c2_rpc_fop_session_create_fom_init(struct c2_fop	*fop,
+				       struct c2_fom 	**m);
 
-int c2_rpc_conn_create_rep_execute(struct c2_fop	*fop,
-				   struct c2_fop_ctx 	*ctx);
+int c2_rpc_fop_session_destroy_fom_init(struct c2_fop	*fop,
+				        struct c2_fom 	**m);
 
-int c2_rpc_session_create_rep_execute(struct c2_fop	*fop,
-				      struct c2_fop_ctx	*ctx);
+int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop	*fop,
+				       struct c2_fom 	**m);
+
+int c2_rpc_fop_conn_create_rep_execute(struct c2_fop		*fop,
+				       struct c2_fop_ctx 	*ctx);
+
+int c2_rpc_fop_session_create_rep_execute(struct c2_fop		*fop,
+				          struct c2_fop_ctx	*ctx);
 				
-int c2_rpc_session_destroy_rep_execute(struct c2_fop		*fop,
-				       struct c2_fop_ctx	*ctx);
+int c2_rpc_fop_session_destroy_rep_execute(struct c2_fop	*fop,
+				           struct c2_fop_ctx	*ctx);
 
-int c2_rpc_conn_terminate_rep_execute(struct c2_fop	*fop,
-				      struct c2_fop_ctx	*ctx);
+int c2_rpc_fop_conn_terminate_rep_execute(struct c2_fop		*fop,
+				          struct c2_fop_ctx	*ctx);
 
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
 

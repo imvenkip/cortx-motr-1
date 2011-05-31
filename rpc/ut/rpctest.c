@@ -105,7 +105,7 @@ void traverse_slot_table()
 void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_session_destroy		*fop_in;
+	struct c2_rpc_fop_session_destroy	*fop_in;
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_rpc_item			*item;
@@ -115,7 +115,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	/*
 	 * Allocate and fill FOP
 	 */
-	fop = c2_fop_alloc(&c2_rpc_session_destroy_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_destroy_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_in = c2_fop_data(fop);
@@ -196,7 +196,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 void test_conn_terminate(uint64_t sender_id)
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_conn_terminate		*fop_in;
+	struct c2_rpc_fop_conn_terminate	*fop_in;
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_item			*item;
@@ -206,7 +206,7 @@ void test_conn_terminate(uint64_t sender_id)
 	/*
 	 * Allocate and fill FOP
 	 */
-	fop = c2_fop_alloc(&c2_rpc_conn_terminate_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_in = c2_fop_data(fop);
@@ -288,14 +288,14 @@ void test_conn_create()
 	struct c2_fop				*fop;
 	struct c2_fom				*fom = NULL;
 	struct c2_rpc_fom_conn_create		*fom_cc;
-	struct c2_rpc_conn_create		*fop_cc;
-	struct c2_rpc_conn_create_rep		*fop_reply;
+	struct c2_rpc_fop_conn_create		*fop_cc;
+	struct c2_rpc_fop_conn_create_rep	*fop_reply;
 	struct c2_rpc_item			*item_in;
 	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
 	/* create conn_create fop */
-	fop = c2_fop_alloc(&c2_rpc_conn_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_cc = c2_fop_data(fop);
@@ -355,13 +355,13 @@ void test_session_create()
 	struct c2_fop				*fop;
 	struct c2_fom				*fom = NULL;
 	struct c2_rpc_fom_session_create	*fom_sc;
-	struct c2_rpc_session_create		*fop_sc;
-	struct c2_rpc_session_create_rep	*fop_sc_reply;
+	struct c2_rpc_fop_session_create	*fop_sc;
+	struct c2_rpc_fop_session_create_rep	*fop_sc_reply;
 	struct c2_rpc_item			*item_in;
 	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
 
-	fop = c2_fop_alloc(&c2_rpc_session_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_sc = c2_fop_data(fop);
@@ -416,8 +416,8 @@ void test_session_create()
 
 }
 struct c2_rpc_conn		conn;
-struct c2_rpc_session			session;
-struct c2_thread	thread;
+struct c2_rpc_session		session;
+struct c2_thread		thread;
 
 void conn_status_check(void *arg)
 {
@@ -438,9 +438,9 @@ void conn_status_check(void *arg)
 }
 void test_snd_conn_create()
 {
-	struct c2_fop			*fop;
-	struct c2_rpc_conn_create_rep	*fop_ccr;
-	struct c2_rpc_item		*item;
+	struct c2_fop				*fop;
+	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
+	struct c2_rpc_item			*item;
 
 	C2_SET0(&svc_id);
 	strcpy(svc_id.si_uuid, "rpc_test_uuid");
@@ -454,7 +454,7 @@ void test_snd_conn_create()
 
 	sleep(1);
 
-	fop = c2_fop_alloc(&c2_rpc_conn_create_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_ccr = c2_fop_data(fop);
@@ -491,7 +491,7 @@ static void thread_entry(void *arg)
 void test_snd_session_create()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_session_create_rep	*fop_scr;
+	struct c2_rpc_fop_session_create_rep	*fop_scr;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_item			*req_item = NULL;
 	int					rc;
@@ -504,7 +504,7 @@ void test_snd_session_create()
 	}
 	c2_thread_init(&thread, NULL, thread_entry, NULL);
 	sleep(1);
-	fop = c2_fop_alloc(&c2_rpc_session_create_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_scr = c2_fop_data(fop);
@@ -534,7 +534,7 @@ void test_snd_session_create()
 void test_snd_session_terminate()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_session_destroy_rep	*fop_sdr;
+	struct c2_rpc_fop_session_destroy_rep	*fop_sdr;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_item			*req_item;
 	int					rc;
@@ -545,7 +545,7 @@ void test_snd_session_terminate()
 		return;
 	}
 
-	fop = c2_fop_alloc(&c2_rpc_session_destroy_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_destroy_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_sdr = c2_fop_data(fop);
@@ -573,7 +573,7 @@ void test_snd_session_terminate()
 void test_snd_conn_terminate()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_conn_terminate_rep	*fop_ctr;
+	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_item			*item;
 	int					rc;
 
@@ -583,7 +583,7 @@ void test_snd_conn_terminate()
 		return;
 	}
 
-	fop = c2_fop_alloc(&c2_rpc_conn_terminate_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_ctr = c2_fop_data(fop);

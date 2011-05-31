@@ -43,7 +43,7 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *);
  * FOM to execute "Session Create" request
  */
 
-enum c2_rpc_session_create_phase {
+enum c2_rpc_fom_session_create_phase {
 	FOPH_SESSION_CREATE
 };
 
