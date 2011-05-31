@@ -175,6 +175,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm,
 	int result;
 
 	C2_ASSERT(ep != NULL);
+	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
