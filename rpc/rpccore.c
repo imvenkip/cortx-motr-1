@@ -81,41 +81,6 @@ void c2_rpc_core_fini(void)
 {
 }
 
-int c2_rpc_submit(struct c2_service_id		*srvid,
-		  struct c2_update_stream	*us,
-		  struct c2_rpc_item		*item,
-		  enum c2_rpc_item_priority	prio,
-		  const c2_time_t		*deadline)
-{
-	printf("Received item %p for sending\n", item);
-	return 0;
-}
-
-int c2_rpc_cancel(struct c2_rpc_item *item)
-{
-	return 0;
-}
-
-int c2_rpc_group_open(struct c2_rpcmachine *machine,
-		      struct c2_rpc_group **group)
-{
-	return 0;
-}
-
-int c2_rpc_group_close(struct c2_rpcmachine *machine, struct c2_rpc_group *group)
-{
-	return 0;
-}
-
-int c2_rpc_group_submit(struct c2_rpc_group *group,
-			struct c2_rpc_item *item,
-			struct c2_update_stream *us,
-			enum c2_rpc_item_priority prio,
-			const c2_time_t *deadline)
-{
-	return 0;
-}
-
 int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout)
 {
 	return 0;

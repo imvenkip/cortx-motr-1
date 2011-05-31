@@ -114,7 +114,6 @@ static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_io_vec_tfmt,
 	&c2_fop_segment_tfmt,
 	&c2_fop_segment_seq_tfmt,
-	&c2_fop_file_create_tfmt,
 };
 
 void io_fop_fini(void)

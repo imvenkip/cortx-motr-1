@@ -2,6 +2,8 @@
 #include "stob/ut/io_fop.h"
 #include "lib/thread.h"
 #include "lib/misc.h"
+#include "colibri/init.h"
+#include "lib/ut.h"
 #include <stdlib.h>
 #include "colibri/init.h"
 #ifdef __KERNEL__
@@ -50,7 +52,7 @@
 #define MAX_IO_PRIO 		10
 
 /* Array of groups */
-#define MAX_GRPS		5
+#define MAX_GRPS		16
 struct c2_rpc_group		*rgroup[MAX_GRPS];
 
 uint64_t			 c2_rpc_max_message_size;
@@ -61,13 +63,13 @@ uint64_t			 c2_rpc_max_rpcs_in_flight;
 struct c2_thread		 form_ut_threads[nthreads];
 
 #define nfops 256
-struct c2_fop		*form_fops = NULL;
+struct c2_fop			*form_fops[nfops];
 
-#define nrpcgroups 16
-struct c2_rpc_group	*form_groups = NULL;
+uint64_t			 nwrite_iovecs = 0;
+struct c2_fop_io_vec		**form_write_iovecs = NULL;
 
 #define nfiles 64
-struct c2_fop_file_fid	*form_fids = NULL;
+struct c2_fop_file_fid		*form_fids = NULL;
 uint64_t			*file_offsets = NULL;
 #define	io_size 8192
 #define nsegs 8
@@ -353,8 +355,8 @@ struct c2_fop_file_fid *form_get_fid(int i)
 
 struct c2_rpc_group *form_get_rpcgroup(int i)
 {
-	C2_ASSERT(i < nrpcgroups);
-	return &form_groups[i];
+	C2_ASSERT(i < MAX_GRPS);
+	return rgroup[i];
 }
 
 struct c2_fop *form_create_file_create_fop()
@@ -374,6 +376,12 @@ struct c2_fop *form_create_file_create_fop()
 	fid = form_get_fid(i);
 	create_fop->fcr_fid = *fid;
 	return fop;
+}
+
+void form_fini_fop(struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+	c2_fop_free(fop);
 }
 
 struct c2_fop_io_vec *form_get_new_iovec(int i)
@@ -430,8 +438,28 @@ last:
 	else {
 		file_offsets[i] = iovec->iov_seg[a].f_offset +
 			iovec->iov_seg[a].f_buf.f_count;
+		form_write_iovecs[nwrite_iovecs] = iovec;
+		nwrite_iovecs++;
 	}
 	return iovec;
+}
+
+void form_write_iovec_fini()
+{
+	int			i = 0;
+	int			j = 0;
+	struct c2_fop_io_vec	*iovec = NULL;
+
+	C2_PRE(form_write_iovecs != NULL);
+	for (j = 0; j < nwrite_iovecs; j++) {
+		iovec = form_write_iovecs[j];
+		for (i = 0; i < iovec->iov_count; i++) {
+			c2_free(iovec->iov_seg[i].f_buf.f_buf);
+			iovec->iov_seg[i].f_buf.f_buf = NULL;
+		}
+		c2_free(iovec->iov_seg);
+		c2_free(iovec);
+	}
 }
 
 struct c2_fop *form_create_write_fop()
@@ -495,6 +523,42 @@ struct c2_fop *form_create_read_fop()
 	return fop;
 }
 
+void form_fini_read_fop(struct c2_fop *fop)
+{
+	struct c2_fop_cob_readv			*read_fop = NULL;
+
+	C2_PRE(fop != NULL);
+	read_fop = c2_fop_data(fop);
+	c2_free(read_fop->frd_ioseg.fs_segs);
+	c2_fop_free(fop);
+}
+
+void form_fini_fops()
+{
+	int			opcode = 0;
+	int			i = 0;
+
+	C2_PRE(form_fops != NULL);
+	for (i = 0; i < nfops; i++) {
+		if (form_fops[i]) {
+			opcode = c2_rpc_item_io_get_opcode(
+					&form_fops[i]->f_item);
+			switch (opcode) {
+				case C2_RPC_FORM_IO_READ: 
+					form_fini_read_fop(form_fops[i]);
+					break;
+
+				case C2_RPC_FORM_IO_WRITE:
+					form_fini_fop(form_fops[i]);
+					break;
+
+				default:
+					form_fini_fop(form_fops[i]);
+			};
+		}
+	}
+}
+
 void init_file_io_patterns()
 {
 	strcpy(file_data_patterns[0], "a1b2");
@@ -531,6 +595,9 @@ int main(int argc, char **argv)
 	c2_rpc_max_rpcs_in_flight = 8;
 	//c2_rpc_max_fragements_size = ;
 	
+	result = c2_rpc_form_item_cache_init();
+	C2_ASSERT(result == 0);
+
 	/* 2. Create a pool of threads so this UT can be made multi-threaded.*/
 	for (i = 0; i < nthreads; i++) {
 		result = C2_THREAD_INIT(&form_ut_threads[i], int, NULL,
@@ -548,13 +615,6 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	C2_ALLOC_ARR(form_groups, nrpcgroups);
-	if (form_groups == NULL) {
-		printf("Failed to allocate memory for array of struct \
-				c2_rpc_group.\n");
-		return -1;
-	}
-
 	C2_ALLOC_ARR(file_offsets, nfiles);
 	if (file_offsets == NULL) {
 		printf("Failed to allocate memory for array of uint64_t.\n");
@@ -565,7 +625,12 @@ int main(int argc, char **argv)
 	}
 	init_file_io_patterns();
 
-	for (i = 0; i < nrpcgroups; i++) {
+	C2_ALLOC_ARR(form_write_iovecs, nfops);
+
+	result = c2_rpc_form_groups_alloc();
+	C2_ASSERT(result == 0);
+
+	for (i = 0; i < MAX_GRPS; i++) {
 	}
 
 	/* 4. Populate the associated rpc items.
@@ -585,6 +650,14 @@ int main(int argc, char **argv)
 		c2_thread_join(&form_ut_threads[i]);
 		c2_thread_fini(&form_ut_threads[i]);
 	}
+
+	c2_free(form_fids);
+	form_fids = NULL;
+	form_write_iovec_fini();
+	c2_free(form_write_iovecs);
+	form_fini_fops();
+	c2_rpc_form_item_cache_fini();
+	c2_rpc_form_groups_free();
 	return 0;
 }
 
