@@ -1,4 +1,5 @@
 /* -*- C -*- */
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -16,6 +17,12 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
+
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
 
 const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
 
@@ -2044,4 +2051,14 @@ uint64_t c2_rpc_session_id_get()
 	return session_id;
 }
 /** @} end of session group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
 

@@ -1,7 +1,14 @@
+/* -*- C -*- */
 #ifndef __COLIBRI_RPC_SESSION_FOPS_H__
 #define __COLIBRI_RPC_SESSION_FOPS_H__
 
 #include "fop/fop.h"
+
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
 
 struct fom;
 struct c2_fom_type;
@@ -78,6 +85,8 @@ extern int c2_rpc_session_fop_init(void);
 extern void c2_rpc_session_fop_fini(void);
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */
+
+/** @}  End of rpc_session group */
 #endif
 /* 
  *  Local variables:

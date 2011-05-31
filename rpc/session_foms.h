@@ -1,6 +1,7 @@
+/* -*- C -*- */
+
 #ifndef _C2_RPC_SESSION_FOM_H
 #define _C2_RPC_SESSION_FOM_H
-
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
@@ -11,6 +12,11 @@
 #endif
 
 #include "fop/fom.h"
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
 
 /*
  * FOM to execute "RPC connection create" request
@@ -100,3 +106,15 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);
 
 #endif
+
+/** @} end of rpc_session group */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

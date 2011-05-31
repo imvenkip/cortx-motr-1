@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -19,6 +21,11 @@
 #include "fop/fop_format_def.h"
 #include "rpc/session_int.h"
 
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
 
 struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
 	.fo_fini = &c2_rpc_fom_conn_create_fini,
@@ -728,4 +735,16 @@ void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)
 {
 	printf("conn create fini called\n");
 }
+
+/** @} End of rpc_session group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
 

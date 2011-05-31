@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -13,6 +15,13 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_int.h"
+
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
+
 struct c2_fop_type_ops c2_rpc_conn_create_ops = {
 	.fto_fom_init = &c2_rpc_conn_create_fom_init,
 };
@@ -257,6 +266,7 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
+/** @} End of rpc_session group */
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

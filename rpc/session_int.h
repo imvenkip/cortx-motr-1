@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 /* Declarations of functions that are private to rpc-layer */
 
 #ifndef _COLIBRI_RPC_SESSION_INT_H
@@ -5,9 +7,13 @@
 
 #include "cob/cob.h"
 #include "rpc/session.h"
-//#include "rpc/session_fops.h"
 #include "dtm/verno.h"
 
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
 enum {
 	/* XXX need to set some proper value to this constant */
 	DEFAULT_SLOT_COUNT = 4
@@ -197,5 +203,17 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item	*item);
 
 uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
+
+/** @}  End of rpc_session group */
 #endif
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
 

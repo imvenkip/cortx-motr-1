@@ -1,8 +1,14 @@
+/* -*- C -*- */
 #ifndef __COLIBRI_RPC_SESSION_H__
 
 #define __COLIBRI_RPC_SESSION_H__
 
 /**
+
+@defgroup rpc_session RPC Sessions
+
+@{
+
 @page rpc-session rpc sessions Detailed Level Design Specification
 
 @section Overview
@@ -65,8 +71,8 @@ Some definitions : -
 
 @section sessionlogspec Logical specification
 
-<b> Reply cache: </b>
-------------
+<b> Reply cache: </b><BR>
+
 Receiver maintains reply cache. For each slot, "reply cache" caches reply item
 of last executed item. Reply cache is persistent on receiver.
 
@@ -87,7 +93,7 @@ Version number of slot is same as version number of cob that represents
 the slot.
 
 <b> Ensuring FIFO and EOS: </b>
----------------------
+<BR>
 A version number is a pair <lsn, version_count>. Each slot has associated
 version number (slot.verno).
 Before sending first item associated with a slot, following condition holds.
@@ -98,7 +104,7 @@ number (item.verno). Before sending an item, slot.verno is copied into
 item.verno
 
 When an item is received, following conditions are possible:
-
+    @code
     - New item:
 	if c2_verno_is_redoable(slot.verno, item.verno) == 0 and
 			NOT slot.busy
@@ -124,13 +130,14 @@ When an item is received, following conditions are possible:
 		it is misordered new item.
 		send error RPC_ITEM_MISORDERED
 	end if
+    @endcode
 
 	@note Future Optimization : - We can put misordered new
 	rpc item request in some (memory-only) queue with the timeout
 	hoping that the preceding rpc item will arrive soon.
 
 
-    @note TODO : -
+    @todo
 	- Currently sender_id and session_id are chosen to be random.
 	  Need a better way.
 	- How to get unique stob_id for session and slot cobs?
@@ -138,15 +145,18 @@ When an item is received, following conditions are possible:
 	  Instead they should be cached in FOL.
 	- On sender side instead of putting item on c2_rpc_snd_slot::replay_list
 	  it should be placed in sender side FOL.
+	- Currently c2_rpc_session::s_mutex is used to synchronize access to
+	  all c2_rpc_snd_slot object in that session. This limits concurrency.
+	  Instead c2_rpc_snd_slot should be protected by its own mutex.
+	- Default slot count is currently set to 4. Nothing special about 4.
+	  Needs a proper value.
 	- session recovery needs to be implemented.
 	- Find out how to create in-memory c2_table? And make receiver side
 	  slot table as in-memory table.
 	- Design protocol to dynamically adjust the no. of slots.
 	- Integrate with ADDB
 
-@defgroup session RPC SESSIONS
 
-@{
 
 */
 #include "lib/list.h"
@@ -195,7 +205,7 @@ enum c2_rpc_conn_state {
         CS_CONN_ACTIVE = (1 << 1),
         /**
            If c2_rpc_conn is in INITIALIZING state and sender doesn't receive
-           sender-id from receiver within a specific time OR if sender receives 
+           sender-id from receiver within a specific time OR if sender receives
 	   reply stating "error occured during conn create"
 	   then c2_rpc_conn moves to INIT_FAILED state
         */
@@ -234,6 +244,7 @@ enum c2_rpc_conn_state {
    to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
    non-idempotent, they also need EOS and FIFO guarantees.
 
+   <PRE>
 
    +-------------------------> UNINITIALIZED
                                     |
@@ -246,12 +257,12 @@ enum c2_rpc_conn_state {
  E |     |                          | init_successful
  T |     |                          |
  R |     V                          |
- Y +--- INIT_FAILED                 | 
-         |                          V            
+ Y +--- INIT_FAILED                 |
+         |                          V
          |           +---------> ACTIVE
          |           |              |
          |           |failed        | conn_terminate()
-         |           |              |          
+         |           |              |
          |           |              V
          |           +----------TERMINATING
 	 |                          |
@@ -260,9 +271,13 @@ enum c2_rpc_conn_state {
 	 |			TERMINATED
 	 |                          |
 	 |			    |  fini()
-	 |	fini()		    V  
+	 |	fini()		    V
 	 +--------------------> UNINITIALIZED
 
+</PRE>
+  Concurrency:
+  * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
+  * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
  */
 struct c2_rpc_conn {
         /** Every c2_rpc_conn is stored on a list in rpc_conn*/
@@ -271,7 +286,7 @@ struct c2_rpc_conn {
 	uint64_t			 c_flags;
 	struct c2_rpcmachine		*c_rpcmachine;
         /**
-	    XXX Deprecated: c2_service_id 
+	    XXX Deprecated: c2_service_id
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
         struct c2_service_id            *c_service_id;
@@ -320,11 +335,11 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 /**
     Wait until c2_rpc_conn state machine reached the desired state.
 
-    @param state_flags can specify multiple states by ORing 
+    @param state_flags can specify multiple states by ORing
     @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
-    @return true if @conn reaches in one of the state(s) specified by 
+    @return true if @conn reaches in one of the state(s) specified by
                 @state_flags
-    @return false if time out has occured before @conn reaches in desired 
+    @return false if time out has occured before @conn reaches in desired
                 state.
  */
 bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
@@ -387,6 +402,7 @@ enum c2_rpc_session_state {
 /**
    Session object at the sender side.
    It is opaque for the client like c2t1fs.
+<PRE>
 
             +------------------> UNINITIALIZED
 				      |
@@ -415,8 +431,9 @@ enum c2_rpc_session_state {
 	  |		              |
 	  |			      | fini()
 	  |			      V
-	  +-----------------------> UNINITIALIZED 
+	  +-----------------------> UNINITIALIZED
 
+</PRE>
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
@@ -476,11 +493,11 @@ int c2_rpc_session_terminate(struct c2_rpc_session *);
 /**
     Wait until desired state is reached.
 
-    @param state_flags can specify multiple states by ORing 
+    @param state_flags can specify multiple states by ORing
     @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
-    @return true if session reaches in one of the state(s) specified by 
+    @return true if session reaches in one of the state(s) specified by
 		@state_flags
-    @return false if time out has occured before session reaches in desired 
+    @return false if time out has occured before session reaches in desired
 		state.
  */
 bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
@@ -553,3 +570,14 @@ struct c2_rpc_snd_slot {
 /** @} end of session group */	
 
 #endif
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+

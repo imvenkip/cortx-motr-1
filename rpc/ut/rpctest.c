@@ -1,3 +1,9 @@
+/* -*- C -*- */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -16,6 +22,7 @@
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_int.h"
+
 
 char db_name[] = "test_db";
 
@@ -646,3 +653,14 @@ int main(void)
 	printf("program end\n");
 	return 0;
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+
