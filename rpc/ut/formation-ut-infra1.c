@@ -173,8 +173,17 @@ int c2_rpc_form_item_cache_init(void)
  */
 void c2_rpc_form_item_cache_fini(void)
 {
+	struct c2_rpc_item *item;
+	struct c2_rpc_item *item_next;
+
 	printf("Inside c2_rpc_form_item_cache_fini \n");
 	c2_mutex_fini(&items_cache->ic_mutex);
+	if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
+		c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
+				item, item_next, struct c2_rpc_item , 
+				ri_linkage)
+			c2_list_del(&item->ri_linkage);
+	}
 	c2_list_fini(&items_cache->ic_cache_list);
 	c2_free(items_cache);
 }
