@@ -76,7 +76,11 @@
    Various terms are used to described right ownership flow in a cluster.
 
    Owners of rights for a particular resource are arranged in a cluster-wide
-   hierarchy. Originally, all rights on the resource belong to a single owner or
+   hierarchy. This hierarchical arrangement depends on system structure (e.g.,
+   where devices are connected, how network topology looks like) and dynamic
+   system behaviour (how accesses to a resource are distributed).
+
+   Originally, all rights on the resource belong to a single owner or
    a set of owners, residing on some well-known servers. Proxy servers request
    and cache rights from there. Lower level proxies and client request rights in
    turn. According to the order in this hierarchy, one distinguishes "upward"
@@ -197,8 +201,10 @@ enum {
    All other resource manager data-structures (resource types, resources,
    owners, rights, &c.) belong to some domain, directly or indirectly.
 
-   Domains are needed to support multiple independent services within the
-   same address space.
+   Domains are needed to support multiple independent services within the same
+   address space. Typically, there will be a domain per service, which means a
+   domain per address space, however multiple services can, in principle, run in
+   the same address space.
  */
 struct c2_rm_domain {
         /**
@@ -298,7 +304,7 @@ struct c2_rm_resource_type {
            (c2_rm_owner::ro_resource). Protected by
            c2_rm_resource_type::rt_lock.
          */
-        uint32_t                              rt_ref;
+        uint32_t                              rt_nr_resources;
         /**
            Domain this resource type is registered with.
          */
@@ -418,7 +424,7 @@ enum c2_rm_remote_state {
 
    This is a generic structure.
 
-   c2_rm_remote as a portal through which interaction with the remote resource
+   c2_rm_remote is a portal through which interaction with the remote resource
    owners is transacted. c2_rm_remote state transitions happen under its
    resource's lock.
 
@@ -540,7 +546,7 @@ enum c2_rm_owner_state {
         /**
            No new requests are allowed in this state.
 
-           The owner collects from debtors and repays owners.
+           The owner collects from debtors and repays creditors.
          */
         ROS_FINALISING
 };
@@ -790,8 +796,9 @@ enum c2_rm_incoming_type {
 enum c2_rm_incoming_policy {
         RIP_NONE = 1,
         /**
-           Don't insert a new right into the list of possessed rights. Instead,
-           pin possessed rights overlapping with the requested right.
+           If possible, don't insert a new right into the list of possessed
+           rights. Instead, pin possessed rights overlapping with the requested
+           right.
          */
         RIP_INPLACE,
         /**
@@ -1240,7 +1247,7 @@ void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 /**
    Removes a resource from the list of resources. Dual to c2_rm_resource_add().
 
-   @pre res->r_type->rt_ref > 0
+   @pre res->r_type->rt_nr_resources > 0
    @pre c2_list_contains(&rtype->rt_resources, &res->r_linkage)
 
    @post !c2_list_contains(&rtype->rt_resources, &res->r_linkage)
@@ -1307,6 +1314,10 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in);
 void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
 /**
+   Starts a state machine for a resource usage right request. Will add pins for
+   this request. Asynchronous operation - the right will not generally be held
+   at exit.
+
    @pre IS_IN_ARRAY(in->rin_priority, owner->ro_incoming)
    @pre in->rin_state == RI_INITIALISED
    @pre c2_list_is_empty(&in->rin_want.ri_linkage)

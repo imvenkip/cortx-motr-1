@@ -38,7 +38,7 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom)
 {
 	bool found = false;
 	int  i;
-
+	
 	for (i = 0; i < ARRAY_SIZE(dom->rd_types); i++) {
 		if (dom->rd_types[i] != NULL) {
 			found = true;
@@ -52,61 +52,85 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom)
 void c2_rm_type_register(struct c2_rm_domain *dom,
                          struct c2_rm_resource_type *rt)
 {
-	C2_PRE(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
+	C2_PRE(rt->rt_dom == NULL);
 	C2_PRE(dom->rd_types[rt->rt_id] == NULL);
 
         c2_mutex_lock(&dom->rd_lock);
         dom->rd_types[rt->rt_id] = rt;
         rt->rt_dom = dom;
-        rt->rt_ref = 0;
         c2_mutex_init(&rt->rt_lock);
         c2_list_init(&rt->rt_resources);
         c2_mutex_unlock(&dom->rd_lock);
+        rt->rt_nr_resources = 0;
+
+	C2_POST(IS_IN_ARRAY(rt->rt_id, dom->rd_types));
+	C2_POST(rt->rt_dom == dom);
 }
 
 void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 {
         struct c2_rm_domain *dom = rtype->rt_dom;
 
-        C2_PRE(dom != NULL);
+	C2_PRE(rtype->rt_dom != NULL);
+        C2_PRE(IS_IN_ARRAY(rtype->rt_id, dom->rd_types));
 	C2_PRE(dom->rd_types[rtype->rt_id] == rtype);
-        IS_IN_ARRAY(rtype->rt_id, dom->rd_types);
 
         c2_mutex_lock(&dom->rd_lock);
         dom->rd_types[rtype->rt_id] = NULL;
         rtype->rt_dom = NULL;
         rtype->rt_id = C2_RM_RESOURCE_TYPE_ID_INVALID;
-
         c2_list_fini(&rtype->rt_resources);
         c2_mutex_fini(&rtype->rt_lock);
-        rtype->rt_ref = 0;
+        rtype->rt_nr_resources = 0;
         c2_mutex_unlock(&dom->rd_lock);
+
+	C2_POST(rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID);
+	C2_POST(rtype->rt_dom == NULL);
 }
 
 void  c2_rm_resource_add(struct c2_rm_resource_type *rtype,
                         struct c2_rm_resource *res)
 {
-        C2_PRE(rtype != NULL);
-        C2_PRE(res != NULL);
+	struct c2_rm_resource *r;
+	bool		      found = false;
+
+        C2_PRE(res->r_ref == 0);
 
         c2_mutex_lock(&rtype->rt_lock);
-        c2_list_add(&rtype->rt_resources, &res->r_linkage);
-	rtype->rt_ref++;
+	/* rtype->rt_resources does not contain a resource equal to res */
+	c2_list_for_each_entry(&rtype->rt_resources, r, struct c2_rm_resource,
+			    r_linkage) {
+		if (rtype->rt_ops->rto_eq(r, res)) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		res->r_type = rtype;
+        	c2_list_add(&rtype->rt_resources, &res->r_linkage);
+		rtype->rt_nr_resources++;
+	}
         c2_mutex_unlock(&rtype->rt_lock);
+
+	C2_POST(rtype->rt_nr_resources > 0);
+	C2_POST(res->r_type == rtype);
+	C2_POST(c2_list_contains(&rtype->rt_resources, &res->r_linkage));
 }
 
 void c2_rm_resource_del(struct c2_rm_resource *res)
 {
 	struct c2_rm_resource_type *rtype = res->r_type;
 
-        C2_PRE(res != NULL);
-	C2_PRE(rtype != NULL);
+	C2_POST(rtype->rt_nr_resources > 0);
+	C2_POST(c2_list_contains(&rtype->rt_resources, &res->r_linkage));
 
         c2_mutex_lock(&rtype->rt_lock);
 	C2_PRE(c2_list_contains(&rtype->rt_resources, &res->r_linkage));
         c2_list_del(&res->r_linkage);
-	rtype->rt_ref--;
+	rtype->rt_nr_resources--;
         c2_mutex_unlock(&rtype->rt_lock);
+
+	C2_POST(!c2_list_contains(&rtype->rt_resources, &res->r_linkage));
 }
 
 static void owner_init_internal(struct c2_rm_owner *owner, 
@@ -115,10 +139,8 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 	int i;
 	int j;
 
-
         owner->ro_resource = res;
-        owner->ro_state = ROS_FINAL;
-        owner->ro_group = NULL;
+	owner->ro_state = ROS_INITIALISING;
         res->r_ref = 0;
 
         c2_list_init(&owner->ro_borrowed);
@@ -142,10 +164,13 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 
 void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res)
 {
-        C2_PRE(owner != NULL);
-        C2_PRE(res != NULL);
-	
+	C2_PRE(owner->ro_state == ROS_FINAL);
+
 	owner_init_internal(owner, res);
+
+	C2_POST((owner->ro_state == ROS_INITIALISING ||
+		 owner->ro_state == ROS_ACTIVE) &&
+		 (owner->ro_resource == res));
 }
 
 void c2_rm_owner_init_with(struct c2_rm_owner *owner,
@@ -153,18 +178,21 @@ void c2_rm_owner_init_with(struct c2_rm_owner *owner,
 {
 	struct c2_rm_resource_type *rtype = res->r_type;
 
-        C2_PRE(owner != NULL);
-        C2_PRE(res != NULL);
+	C2_PRE(owner->ro_state == ROS_FINAL);
 
-	/*
-	 * Add The right to the woner's cached list.
-	 */
+	/* Add The right to the woner's cached list.*/
 	owner_init_internal(owner, res); 
+	owner->ro_state = ROS_ACTIVE;
         c2_list_add(&owner->ro_owned[OWOS_CACHED], &r->ri_linkage);
 	c2_mutex_lock(&rtype->rt_lock);
         res->r_ref++;
 	c2_mutex_unlock(&rtype->rt_lock);
 
+	C2_POST((owner->ro_state == ROS_INITIALISING ||
+		 owner->ro_state == ROS_ACTIVE) &&
+		 (owner->ro_resource == res));
+	C2_POST(c2_list_contains(&owner->ro_owned[OWOS_CACHED],
+				 &r->ri_linkage));
 }
 
 void c2_rm_owner_fini(struct c2_rm_owner *owner)
@@ -174,22 +202,30 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 	int			   i;
 	int			   j;
 
-        C2_PRE(owner != NULL);
+	C2_PRE(owner->ro_state == ROS_FINAL);
+	C2_PRE(c2_list_is_empty(&owner->ro_borrowed));
+	C2_PRE(c2_list_is_empty(&owner->ro_sublet));
 
 	c2_list_fini(&owner->ro_borrowed);
 	c2_list_fini(&owner->ro_sublet);
 
-        for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++)
+        for (i = 0; i < ARRAY_SIZE(owner->ro_owned); i++) {
+		C2_PRE(c2_list_is_empty(&owner->ro_owned[i]));
 		c2_list_fini(&owner->ro_owned[i]);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++) {
 		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++)
+			C2_PRE(c2_list_is_empty(&owner->ro_incoming[i][j]));
                         c2_list_fini(&owner->ro_incoming[i][j]);
 	}
 
-	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++)
+	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++) {
+		C2_PRE(c2_list_is_empty(&owner->ro_outgoing[i]));
                 c2_list_fini(&owner->ro_outgoing[i]);
+	}
 
+	owner->ro_resource = NULL;
 	c2_mutex_lock(&rtype->rt_lock);
         res->r_ref--;
 	c2_mutex_unlock(&rtype->rt_lock);
@@ -204,7 +240,7 @@ void c2_rm_right_init(struct c2_rm_right *right)
 
 void c2_rm_right_fini(struct c2_rm_right *right)
 {
-        C2_PRE(right != NULL);
+	C2_PRE(c2_list_is_empty(&right->ri_pins));
         c2_list_fini(&right->ri_pins);
 }
 
@@ -216,15 +252,13 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in)
 
 void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
-        C2_PRE(in != NULL);
+	C2_PRE(c2_list_is_empty(&in->rin_pins));
 	c2_list_fini(&in->rin_pins);
 }
 
 /**
-* @brief 
-*
-* @param out
-*/
+ * Frees the outgoing request after completion.
+ */
 static void outgoing_delete(struct c2_rm_outgoing *out)
 {
 	c2_list_del(&out->rog_want.rl_right.ri_linkage);
@@ -232,16 +266,13 @@ static void outgoing_delete(struct c2_rm_outgoing *out)
 }
 
 /**
-* @brief 
-*
-* @param right
-* @param rest
-*
-* @return 
-*/
+ * Just make another copy of right struct.
+ */
 static void right_copy(struct c2_rm_right *dest, 
 		       const struct c2_rm_right *src)
 {
+	C2_PRE(src != NULL);
+
 	dest->ri_resource = src->ri_resource;
 	dest->ri_ops = src->ri_ops;
 	c2_list_init(&dest->ri_pins);
@@ -249,16 +280,14 @@ static void right_copy(struct c2_rm_right *dest,
 }
 
 /**
-* @brief 
-*
-* @param in
-*/
+ * Universal igranting policies
+ */
 static void apply_policy(struct c2_rm_incoming *in)
 {
+	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_right *right;
 	struct c2_rm_right *pin_right;
 	struct c2_rm_pin   *pin;
-	struct c2_rm_owner *owner = in->rin_owner;
 	bool 		   first;
 
 	switch (in->rin_policy) {
@@ -320,17 +349,18 @@ static void apply_policy(struct c2_rm_incoming *in)
 }
 
 /**
-* Info about remote domain is filled.
-*/
+ * Info about remote domain is filled.
+ */
 static void remote_copy(const struct c2_rm_incoming *in,
 			struct c2_rm_remote *rem) 
 {
+	rem->rem_resource->r_ref++;
 }
 
 /**
-* The rights(as loan) are moved to sublet list of owner as the quest 
-* came for loan.
-*/
+ * The rights(as loan) are moved to sublet list of owner as the quest 
+ * came for loan.
+ */
 static int move_to_sublet(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
@@ -365,8 +395,8 @@ static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
 }
 
 /**
-* Reply to the incoming loan request when wanted rights granted
-*/
+ * Reply to the incoming loan request when wanted rights granted
+ */
 static int reply_to_loan_request(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right	    *right;
@@ -407,7 +437,9 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 
 	return result;
 }
-
+/**
+ * It sends out outgoing excited requests
+ */
 static int send_out_request(struct c2_rm_outgoing *out)
 {
 	struct c2_service_id sid;
@@ -441,12 +473,8 @@ static int send_out_request(struct c2_rm_outgoing *out)
 
 
 /**
-* @brief 
-*
-* @param in
-*
-* @return 
-*/
+ * Check for conflict.
+ */
 static bool local_rights_held(const struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
@@ -466,10 +494,8 @@ static bool local_rights_held(const struct c2_rm_incoming *in)
 }
 
 /**
-* @brief 
-*
-* @param in
-*/
+ * Revoke or cacelation of rights will require this.
+ */
 static void remove_rights(struct c2_rm_incoming *in)
 {
 	struct c2_rm_right *right;
@@ -490,12 +516,9 @@ static void remove_rights(struct c2_rm_incoming *in)
 
 
 /**
-* @brief resource type private field. By convention, 0 means "empty"
-*        right. 
-* @param rest
-*
-* @return 
-*/
+ * resource type private field. By convention, 0 means "empty"
+ * right. 
+ */
 static bool right_is_empty(const struct c2_rm_right *right)
 {
 	return right->ri_datum == 0;
@@ -533,8 +556,8 @@ static bool right_is_empty(const struct c2_rm_right *right)
 
        - c2_rm_owner::ro_lock is released.
 
-   Event handling is serialised by the owner lock. It not legal to wait for
-   networking on IO events under this lock.
+   Event handling is serialised by the owner lock. It is not legal to wait for
+   networking or IO events under this lock.
 
    Pseudo-code below omits error checking and some details too prolix to
    narrate in a design specification.
@@ -552,6 +575,9 @@ void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 	C2_PRE(c2_list_is_empty(&in->rin_pins));
 
 	c2_mutex_lock(&owner->ro_lock);
+	/*
+	 * Mark incoming request "excited". owner_balance() will process it.
+	 */
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 		    &in->rin_want.ri_linkage);
 	owner_balance(owner);
@@ -706,11 +732,13 @@ static void owner_balance(struct c2_rm_owner *o)
  */
 static void incoming_check(struct c2_rm_incoming *in)
 {
+	struct c2_rm_owner *o = in->rin_owner;
 	struct c2_rm_right rest;
-	struct c2_rm_owner *owner;
-	struct c2_rm_loan *loan;
+	struct c2_rm_loan  *loan;
 
-	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
+	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
+	C2_PRE(c2_list_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
+				&in->rin_want.ri_linkage));
 	C2_PRE(in->rin_state == RI_CHECK);
 	C2_PRE(c2_list_is_empty(&in->rin_pins));
 
@@ -723,7 +751,6 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 * immediately or fails.
 	 */
 
-	owner = in->rin_owner;
 	right_copy(&rest, &in->rin_want);
 
 	/*
@@ -851,12 +878,12 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 		c2_list_for_each_entry(&o->ro_owned[i], right,
 				       struct c2_rm_right, ri_linkage) {
 			if (rest->ri_ops->rro_implies(right,rest)) {
+				pin_add(in, right);
 				if (!coverage) {
 					rest->ri_ops->rro_diff(rest,right);
 					if (right_is_empty(rest))
 						return;
 				}
-				pin_add(in, right);
 			}
 		}
 	}
