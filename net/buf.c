@@ -123,8 +123,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf,
-		      struct c2_net_transfer_mc *tm)
+int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -154,7 +153,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(c2_net__buffer_invariant(buf));
-	C2_PRE(!(buf->nb_flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE)));
+	C2_PRE(!(buf->nb_flags &
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);

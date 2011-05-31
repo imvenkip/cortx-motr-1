@@ -416,7 +416,6 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		C2_IMPOSSIBLE("invalid queue type");
 		break;
 	}
-	nb->nb_flags &= ~C2_NET_BUF_CANCELLED;
 	wi->xwi_status = -1;
 
 	if (wi->xwi_op != C2_NET_XOP_NR) {
