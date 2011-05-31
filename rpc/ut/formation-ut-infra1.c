@@ -141,10 +141,19 @@ int c2_rpc_form_groups_alloc(void)
  */
 int c2_rpc_form_groups_free(void)
 {
-	int		i = 0;
+	int			 i = 0;
+	struct c2_rpc_item	*item;
+	struct c2_rpc_item	*item_next;
+
 	printf("Inside c2_rpc_form_groups_free \n");
 
 	for(i = 0; i < MAX_GRPS; i++) {
+	        if (!c2_list_is_empty(&rgroup[i]->rg_items)) {
+			c2_list_for_each_entry_safe(&rgroup[i]->rg_items,
+					item, item_next, struct c2_rpc_item ,
+					ri_group_linkage)
+					c2_list_del(&item->ri_group_linkage);
+		}
 		c2_list_fini(&rgroup[i]->rg_items);
 		c2_mutex_fini(&rgroup[i]->rg_guard);
 		c2_free(rgroup[i]);
