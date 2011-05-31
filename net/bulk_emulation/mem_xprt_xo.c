@@ -100,7 +100,7 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 	if (mem_buffer_length(d_nb) < num_bytes) {
 		return -EFBIG;
 	}
-	C2_ASSERT(mem_buffer_length(s_nb) >= num_bytes);
+	C2_PRE(mem_buffer_length(s_nb) >= num_bytes);
 
 	c2_bufvec_cursor_init(&s_cur, &s_nb->nb_buffer);
 	c2_bufvec_cursor_init(&d_cur, &d_nb->nb_buffer);
@@ -426,7 +426,6 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		break;
 	}
 	nb->nb_flags &= ~C2_NET_BUF_CANCELLED;
-	bp->xb_cancel_requested = false;
 	wi->xwi_status = -1;
 
 	if (wi->xwi_op != C2_NET_XOP_NR) {
@@ -455,10 +454,8 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	tp = tm->ntm_xprt_private;
 
-	if (nb->nb_flags & C2_NET_BUF_IN_USE) {
-		bp->xb_cancel_requested = true;
+	if (nb->nb_flags & C2_NET_BUF_IN_USE)
 		return;
-	}
 
 	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_CANCEL_CB;

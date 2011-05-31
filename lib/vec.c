@@ -178,9 +178,9 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 		frag_size = min3(c2_bufvec_cursor_step(dcur),
 				 c2_bufvec_cursor_step(scur),
 				 num_bytes);
-		memcpy(bufvec_cursor_addr(dcur),
-		       bufvec_cursor_addr(scur),
-		       frag_size);
+		memmove(bufvec_cursor_addr(dcur),
+			bufvec_cursor_addr(scur),
+			frag_size);
 		num_bytes -= frag_size;
 		bytes_copied += frag_size;
 	}
