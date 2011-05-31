@@ -84,13 +84,11 @@ For each slot, session module will create a cob named
 Where $SENDER_ID, $SESSION_ID, $SLOT_ID and $GEN are place-holders for actual
 identifier values.
 
-"Contents" of this file will be "cached reply item". Every time a new reply
-item is cached, it overwrites previous reply item and version number of
-slot file is advanced. These modifications take place in the same transaction
-in which the item is processed (e.g. the transaction in which fop is executed).
-
 Version number of slot is same as version number of cob that represents
 the slot.
+
+The cached item is stored in the fol to which the slot-cob refers through its 
+version number
 
 <b> Ensuring FIFO and EOS: </b>
 <BR>
@@ -177,14 +175,20 @@ struct c2_rpc_snd_slot;
 struct c2_rpc_session_ops;
 
 enum {
+	/** session_[create|destroy] items go on session 0 */
 	SESSION_0 = 0,
+	/** UNINITIALISED session has id SESSION_ID_INVALID */
 	SESSION_ID_INVALID = ~0,
-	SESSION_ID_NOSESSION = ~0 - 1,
+	/** conn_[create_terminate] fops are sent out of session.
+	    Such items have session id as SESSION_ID_NOSESSION */
+	SESSION_ID_NOSESSION = SESSION_ID_INVALID - 1,
+	/** Range of valid session ids */
+	SESSION_ID_MIN = SESSION_0 + 1,
+	SESSION_ID_MAX = SESSION_ID_NOSESSION - 1,
+	/** UNINITIALISED c2_rpc_conn object has sender id as
+	    SENDER_ID_INVALID */
 	SENDER_ID_INVALID = ~0,
 	SLOT_ID_INVALID = ~0,
-	/* CF_.* values for c2_rpc_conn->c_flags */
-	CF_WAITING_FOR_CREATE_REPLY = 1,
-	CF_WAITING_FOR_TERM_REPLY = (1 << 1)
 };
 
 enum c2_rpc_conn_state {

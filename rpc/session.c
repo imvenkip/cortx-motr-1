@@ -12,7 +12,7 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
-#include "rpc/session_u.h" 
+#include "rpc/session_u.h"
 #include "rpc/session_int.h"
 #include "db/db.h"
 #include "dtm/verno.h"
@@ -183,7 +183,7 @@ void c2_rpc_session_search(struct c2_rpc_conn           *conn,
 	}
 
 	C2_ASSERT(*out == NULL || !((*out)->s_session_id == session_id) ||
-			c2_mutex_is_locked(&session->s_mutex)); 
+			c2_mutex_is_locked(&session->s_mutex));
 }
 
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
@@ -197,9 +197,17 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	int				rc;
 
 	C2_PRE(conn != NULL && conn->c_state == CS_CONN_UNINITIALIZED);
+	C2_PRE(svc_id != NULL && machine != NULL);
+
+	/*
+	 * XXX Add assert to confirm @machine is in valid state
+	 */
+
+	if (conn == NULL || svc_id == NULL || machine == NULL)
+		return -EINVAL;
 
 	printf("conn_create: called\n");
-	C2_SET0(conn);
+	C2_SET0(conn);			/* is it required? */
 	/* XXX Deprecated: service_id */
 	conn->c_service_id = svc_id;
 	conn->c_sender_id = SENDER_ID_INVALID;
@@ -234,7 +242,6 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
 	conn->c_state = CS_CONN_INITIALIZING;
-	conn->c_flags |= CF_WAITING_FOR_CREATE_REPLY;
 
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_rpc_conn_list, &conn->c_link);
@@ -304,24 +311,15 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	}
 
 	if (!found) {
+		/*
+		 * This can be a duplicate reply. That's why 
+		 * cannot find an INITIALISING conn
+		 */
 		printf("Couldn't find conn object\n");
-		C2_ASSERT(0);
 		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	}
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
-
-	if ((conn->c_flags & CF_WAITING_FOR_CREATE_REPLY) == 0) {
-		/*
-		 * This is a duplicated reply. Don't do any processing.
-		 * Just run away from here.
-		 */
-		c2_mutex_unlock(&conn->c_mutex);
-		c2_mutex_unlock(&machine->cr_session_mutex);
-		return;
-	} else {
-		conn->c_flags &= ~CF_WAITING_FOR_CREATE_REPLY;
-	}
 
 	C2_ASSERT(conn->c_state == CS_CONN_INITIALIZING &&
 			conn->c_private != NULL);
@@ -433,7 +431,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_session_id = SESSION_ID_NOSESSION;
 
 	conn->c_state = CS_CONN_TERMINATING;
-	conn->c_flags |= CF_WAITING_FOR_TERM_REPLY;
 
 	C2_SET0(&deadline);
 	rc = c2_rpc_submit(conn->c_service_id, NULL, item,
@@ -441,7 +438,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	if (rc != 0) {
 		conn->c_state = CS_CONN_ACTIVE;
-		conn->c_flags &= ~CF_WAITING_FOR_TERM_REPLY;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
 	}
@@ -477,21 +473,20 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_rpc_conn_search(item->ri_mach, sender_id, &conn);
 
+	if (conn == NULL) {
+		/*
+		 * This can be a duplicate reply. That's why the
+		 * c2_rpc_conn object might have already been
+		 * finalised
+		 */
+		c2_fop_free(fop);
+		c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+		return;
+	}
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
 	printf("found conn %p %lu\n", conn, conn->c_sender_id);
 
-	if ((conn->c_flags & CF_WAITING_FOR_TERM_REPLY) == 0) {
-		/*
-		 * This is a duplicate reply. Don't do any processing.
-		 */
-		printf("Duplicated conn_term_reply\n");
-		c2_mutex_unlock(&conn->c_mutex);
-		c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
-		return;
-	} else {
-		conn->c_flags &= ~CF_WAITING_FOR_TERM_REPLY;
-	}
 	C2_ASSERT(conn->c_state == CS_CONN_TERMINATING &&
 			conn->c_nr_sessions == 0);
 
@@ -515,7 +510,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		 * Connection termination is failed
 		 * XXX
 		 * what if rc == -EEXIST, i.e. we asked to terminate conn with
-		 * given @sender_id and there is no rpc_connection active on 
+		 * given @sender_id and there is no rpc_connection active on
 		 * receiver side with @sender_id
 		 */
 		printf("conn termination failed\n");
@@ -591,7 +586,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				return false;
 
 		case CS_CONN_INITIALIZING:
-			if (conn->c_sender_id != SENDER_ID_INVALID || 
+			if (conn->c_sender_id != SENDER_ID_INVALID ||
 				conn->c_nr_sessions > 0 ||
 				conn->c_service_id == NULL ||
 				conn->c_rpcmachine == NULL)
@@ -599,11 +594,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			
 		case CS_CONN_ACTIVE:
 			if (conn->c_sender_id == SENDER_ID_INVALID ||
-		      (conn->c_flags & CF_WAITING_FOR_CREATE_REPLY) != 0 ||
-		      (conn->c_flags & CF_WAITING_FOR_TERM_REPLY) != 0 ||
-		      conn->c_service_id == NULL ||
-		      conn->c_rpcmachine == NULL)
-				return false; 
+		            conn->c_service_id == NULL ||
+		            conn->c_rpcmachine == NULL)
+				return false;
 			
 			if (!c2_list_invariant(&conn->c_sessions))
 				return false;
@@ -827,7 +820,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	 * XXX TODO:
 	 * Add a check to confirm that there is no active update_stream
 	 * present. Can A counter that count number of active update_stream
-	 * help? Then we need two routines update_stream_created() and 
+	 * help? Then we need two routines update_stream_created() and
 	 * update_stream_terminated() to report the events to session module
 	 */
 
@@ -1056,7 +1049,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 
 	/*
 	 * XXX Important: Whenever an c2_rpc_item is init-ed
-	 * ri_sender_id and ri_session_id should be set to 
+	 * ri_sender_id and ri_session_id should be set to
 	 * SENDER_ID_INVALID and SESSION_ID_INVALID respectively.
 	 */
 	if (item->ri_session_id == SESSION_ID_NOSESSION) {
@@ -1153,7 +1146,7 @@ out_of_loops:
 		c2_mutex_unlock(&conn->c_mutex);
 
 		return 0;
-	} 
+	}
 
 	/*
 	 * XXX Important
@@ -1171,8 +1164,8 @@ out_of_loops:
 	 * When next time item_prepare() is called with same unbound item and
 	 * assuming session creation is completed successfully, the item will
 	 * get <sender_id, session_id, slot_id, verno>
-	 * XXX It is possible to optimize this sequence of events. But is 
-	 * optimization necessary, as this is going to happen just ONCE with 
+	 * XXX It is possible to optimize this sequence of events. But is
+	 * optimization necessary, as this is going to happen just ONCE with
 	 * each receiver?
 	 */
 
@@ -1229,7 +1222,7 @@ out_of_loops:
 		return rc != 0 ? rc : -EAGAIN;
 	}
 	/*
-	 * Control shouldn't reach here. All the cases where a slot is not 
+	 * Control shouldn't reach here. All the cases where a slot is not
 	 * assigned are covered above.
 	 */
 	C2_ASSERT(0);
@@ -1344,7 +1337,7 @@ out:
 
    @pre c2_rpc_session->s_state == SESSION_ALIVE
    @post c2_rpc_session->s_state == SESSION_RECOVERING
-   
+
  */
 int c2_rpc_session_recovery_start(struct c2_rpc_session *session)
 {
@@ -1381,10 +1374,10 @@ int c2_rpc_session_params_set(uint64_t				sender_id,
 
 /**
    Insert a reply item in reply cache and advance slot version.
-   
+
    In the absence of stable transaction APIs, we're using
    db5 transaction apis as place holder
-    
+
    @note that for certain fop types eg. READ, reply cache does not
    contain the whole reply state, because it is too large. Instead
    the cache contains the pointer (block address) to the location
@@ -1428,7 +1421,7 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 			slot_cob->co_fabrec.cfb_version.vn_vc);
 
 	/*
-	 * When integrated with fol assign proper lsn 
+	 * When integrated with fol assign proper lsn
 	 * instead of just increamenting it
 	 */
 	slot_cob->co_fabrec.cfb_version.vn_lsn++;
@@ -1514,7 +1507,7 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
 	/* pair for inmem slot table */
-	struct c2_db_pair			im_pair; 
+	struct c2_db_pair			im_pair;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_tx				tx;
 	struct c2_rpc_item			*citem;	/* cached rpc item */
@@ -1936,7 +1929,7 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
 					item->ri_slot_generation,
 					&slot_cob, tx);
 	*cob = slot_cob;
-	printf("read cob with : [%lu:%lu]\n", slot_cob->co_nsrec.cnr_stobid.si_bits.u_hi, 
+	printf("read cob with : [%lu:%lu]\n", slot_cob->co_nsrec.cnr_stobid.si_bits.u_hi,
 			slot_cob->co_nsrec.cnr_stobid.si_bits.u_lo);
 	c2_cob_put(session_cob);
 putconn:
