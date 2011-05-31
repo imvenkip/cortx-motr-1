@@ -106,6 +106,7 @@ static void c2_rpc_form_empty_groups_list(struct c2_list *list)
 		c2_list_del(&group->sug_linkage);
 		c2_free(group);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -131,6 +132,7 @@ static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 		}
 		c2_free(coalesced_item);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -146,6 +148,7 @@ static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list)
 		c2_list_del(&obj->ro_linkage);
 		c2_free(obj);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -159,8 +162,9 @@ static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
 	c2_list_for_each_entry_safe(list, item, item_next,
 			struct c2_rpc_item, ri_unformed_linkage) {
 		c2_list_del(&item->ri_unformed_linkage);
-		c2_free(item);
+		//c2_free(item);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -184,6 +188,7 @@ static void c2_rpc_form_empty_fid_list(struct c2_list *list)
 		}
 		c2_free(fid_member);
 	}
+	c2_list_fini(list);
 }
 
 /**
@@ -234,6 +239,8 @@ int c2_rpc_form_fini()
 		c2_rpc_form_empty_unformed_list(&endp_unit->isu_unformed_list);
 		c2_rpc_form_empty_fid_list(&endp_unit->isu_fid_list);
 		c2_mutex_unlock(&endp_unit->isu_unit_lock);
+		c2_list_del(&endp_unit->isu_linkage);
+		c2_free(endp_unit);
 	}
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
 
