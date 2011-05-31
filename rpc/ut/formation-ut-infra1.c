@@ -59,20 +59,20 @@ uint64_t			 c2_rpc_max_message_size;
 uint64_t			 c2_rpc_max_fragments_size;
 uint64_t			 c2_rpc_max_rpcs_in_flight;
 
-#define nthreads 8
+#define nthreads 		16
 struct c2_thread		 form_ut_threads[nthreads];
 
-#define nfops 256
+#define nfops 			256
 struct c2_fop			*form_fops[nfops];
 
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec		**form_write_iovecs = NULL;
 
-#define nfiles 64
+#define nfiles 			64
 struct c2_fop_file_fid		*form_fids = NULL;
 uint64_t			*file_offsets = NULL;
-#define	io_size 8192
-#define nsegs 8
+#define	io_size 		8192
+#define nsegs 			8
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
 #define nopcodes 3
@@ -89,9 +89,9 @@ fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_file_create_fop
 };
 
-#define niopatterns 8
-#define pattern_length 4
-char				 file_data_patterns[niopatterns][pattern_length];
+#define niopatterns 		8
+#define pattern_length 		4
+char				file_data_patterns[niopatterns][pattern_length];
 
 /* Defining functions here to avoid linking errors. */
 int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -269,7 +269,25 @@ int c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	}
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_mutex_unlock(&items_cache->ic_mutex);
+	c2_rpc_form_extevt_rpcitem_added_in_cache(item);
 
+	return 0;
+}
+
+/**
+   Add rpc items from an rpc group.
+ */
+int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
+{
+	struct c2_rpc_item		*item = NULL;
+
+	C2_PRE(group != NULL);
+	c2_list_for_each_entry(&group->rg_items, item, struct c2_rpc_item,
+			ri_group_linkage) {
+		res = C2_THREAD_INIT();
+		res = c2_rpc_form_item_add_to_cache(item);
+		C2_ASSERT(res == 0);
+	}
 	return 0;
 }
 
@@ -571,10 +589,23 @@ void init_file_io_patterns()
 	strcpy(file_data_patterns[7], "h1i2");
 }
 
+struct c2_fop *form_get_new_fop()
+{
+	struct c2_fop		*fop = NULL;
+	fopFuncPtr		*funcPtr = NULL;
+	int			 i = 0;
+
+	i = (rand()) % nopcodes;
+	funcPtr = form_fop_table[i];
+	fop = funcPtr();
+	return fop;
+}
+
 int main(int argc, char **argv)
 {
 	int		result = 0;
 	int		i = 0;
+	struct c2_fop	*fop = NULL;
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
@@ -630,7 +661,21 @@ int main(int argc, char **argv)
 	result = c2_rpc_form_groups_alloc();
 	C2_ASSERT(result == 0);
 
+	/* For every group, create a fop in a random manner
+	   and populate its constituent rpc item. 
+	   Wait till all items in the group are populated.
+	   And submit the whole group at once.*/
 	for (i = 0; i < MAX_GRPS; i++) {
+		for (j = 0; j < nfops/MAX_GRPS; j++) {
+			fop = form_get_new_fop();
+			C2_ASSERT(fop != NULL);
+			res = c2_rpc_form_item_populate_param(&fop->f_item);
+			C2_ASSERT(result == 0);
+			res = c2_rpc_form_item_assign_to_group(rgroup[i],
+					&fop->f_item);
+		}
+		res = c2_rpc_form_rpcgroup_add_to_cache(rgroup[i]);
+		C2_ASSERT(res == 0);
 	}
 
 	/* 4. Populate the associated rpc items.
