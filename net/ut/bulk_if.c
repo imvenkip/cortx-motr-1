@@ -345,18 +345,30 @@ static c2_bcount_t max_bytes[C2_NET_QT_NR];
 void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
 			      enum c2_net_queue_type qt)
 {
+	c2_bcount_t len = 0;
 	C2_UT_ASSERT(ev->nbe_buffer != NULL);
 	C2_UT_ASSERT(ev->nbe_buffer->nb_qtype == qt);
 	ut_cb_calls[qt]++;
-	if (ev->nbe_status == 0 &&
-	    (qt == C2_NET_QT_MSG_RECV ||
-	     qt == C2_NET_QT_PASSIVE_BULK_RECV ||
-	     qt == C2_NET_QT_ACTIVE_BULK_RECV)) {
+	/* Collect stats to test the q stats.
+	   Length counted only on success.
+	   Receive buffer lengths are in the event.
+	*/
+	if (qt == C2_NET_QT_MSG_RECV ||
+	    qt == C2_NET_QT_PASSIVE_BULK_RECV ||
+	    qt == C2_NET_QT_ACTIVE_BULK_RECV) {
 		/* assert that the buffer length not set by the API */
 		C2_UT_ASSERT(ev->nbe_buffer->nb_length == 0);
-		ev->nbe_buffer->nb_length = ev->nbe_length;
+		if (ev->nbe_status == 0) {
+			len = ev->nbe_length;
+			C2_UT_ASSERT(len != 0);
+			ev->nbe_buffer->nb_length = ev->nbe_length;
+		}
+	} else {
+		if (ev->nbe_status == 0) {
+			len = ev->nbe_buffer->nb_length;
+		}
 	}
-	total_bytes[qt] += ev->nbe_buffer->nb_length;
+	total_bytes[qt] += len;
 	max_bytes[qt] = max64u(ev->nbe_buffer->nb_length,max_bytes[qt]);
 }
 
@@ -623,6 +635,7 @@ void test_net_bulk_if(void)
 			nb->nb_length = buf_size;
 			break;
 		case C2_NET_QT_PASSIVE_BULK_RECV:
+			C2_UT_ASSERT(nb->nb_length == 0);
 			nb->nb_ep = ep2;
 			break;
 		case C2_NET_QT_PASSIVE_BULK_SEND:
@@ -630,6 +643,7 @@ void test_net_bulk_if(void)
 			nb->nb_length = buf_size;
 			break;
 		case C2_NET_QT_ACTIVE_BULK_RECV:
+			C2_UT_ASSERT(nb->nb_length == 0);
 			make_desc(&nb->nb_desc);
 			break;
 		case C2_NET_QT_ACTIVE_BULK_SEND:
@@ -642,7 +656,7 @@ void test_net_bulk_if(void)
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
 		C2_UT_ASSERT(nb->nb_tm == tm);
 		num_adds[nb->nb_qtype]++;
-		max_bytes[nb->nb_qtype] = max64u(nb->nb_length,
+		max_bytes[nb->nb_qtype] = max64u(buf_size,
 						 max_bytes[nb->nb_qtype]);
 	}
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 5);
@@ -662,6 +676,13 @@ void test_net_bulk_if(void)
 			/* simulate transport ep in recv msg */
 			ev.nbe_ep = ep2;
 			c2_net_end_point_get(ep2);
+		}
+
+		if (i == C2_NET_QT_MSG_RECV ||
+		    i == C2_NET_QT_PASSIVE_BULK_RECV ||
+		    i == C2_NET_QT_ACTIVE_BULK_RECV) {
+			/* fake the length in the event */
+			ev.nbe_length = buf_size;
 		}
 
 		nb->nb_flags |= C2_NET_BUF_IN_USE;
