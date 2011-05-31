@@ -18,6 +18,13 @@ struct c2_rpc_form_item_summary		*formation_summary;
 struct c2_rpc_form_items_cache		*items_cache;
 
 /**
+   Temporary threashold values.
+ */
+uint64_t				max_msg_size;
+uint64_t				max_fragments_size;
+uint64_t				max_rpcs_in_flight;
+
+/**
     Forward declarations of local static functions 
  */
 static int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
@@ -36,6 +43,13 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
                 struct c2_rpc_form_item_summary_unit *endp_unit,
                 struct c2_rpc_item *item);
 
+void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
+		uint64_t max_fragments)
+{
+	max_msg_size = msg_size;
+	max_rpcs_in_flight = max_rpcs;
+	max_fragments_size = max_fragments;
+}
 
 /**     
    Initialization for formation component in rpc.
@@ -328,10 +342,10 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	endp_unit->isu_form_active = true;
 	/* XXX Need appropriate values.*/
-	endp_unit->isu_max_message_size = 1;
-	endp_unit->isu_max_fragments_size = 1;
-	endp_unit->isu_max_rpcs_in_flight = 2;
-	endp_unit->isu_curr_rpcs_in_flight = 1;
+	endp_unit->isu_max_message_size = max_msg_size;
+	endp_unit->isu_max_fragments_size = max_fragments_size;
+	endp_unit->isu_max_rpcs_in_flight = max_rpcs_in_flight;
+	endp_unit->isu_curr_rpcs_in_flight = 0;
 	return endp_unit;
 }
 
