@@ -24,7 +24,7 @@
    @{
  */
 
-const char *C2_RPC_INMEM_SLOT_TABLE_NAME = "inmem_slot_table";
+const char C2_RPC_INMEM_SLOT_TABLE_NAME[] = "inmem_slot_table";
 
 static void session_fields_init(struct c2_rpc_session	*session,
 				struct c2_rpc_conn	*conn,
@@ -132,7 +132,7 @@ void c2_rpc_session_module_fini(void)
    If found then *out contains pointer to LOCKED c2_rpc_conn object
 
    @pre c2_mutex_is_locked(&machine->cr_session_mutex)
-   @post *out == NULL || c2_mutex_is_locked(&(*out)->c_mutex)
+   @post ergo(*out != NULL, c2_mutex_is_locked(&(*out)->c_mutex))
 */
 void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
                         uint64_t                sender_id,
@@ -161,7 +161,7 @@ void c2_rpc_conn_search(struct c2_rpcmachine    *machine,
    If found *out contains pointer to session LOCKED object
 
    @pre c2_mutex_is_locked(&conn->c_mutex)
-   @post *out == NULL || c2_mutex_is_locked(*out)
+   @post ergo(*out == NULL, c2_mutex_is_locked(*out))
  */
 void c2_rpc_session_search(struct c2_rpc_conn           *conn,
                            uint64_t                     session_id,
@@ -182,8 +182,8 @@ void c2_rpc_session_search(struct c2_rpc_conn           *conn,
 		c2_mutex_unlock(&session->s_mutex);
 	}
 
-	C2_ASSERT(*out == NULL || !((*out)->s_session_id == session_id) ||
-			c2_mutex_is_locked(&session->s_mutex));
+	C2_POST(ergo(*out != NULL, (*out)->s_session_id == session_id &&
+				c2_mutex_is_locked(&(*out)->s_mutex)));
 }
 
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
@@ -1337,8 +1337,8 @@ out:
 /**
    Start session recovery.
 
-   @pre c2_rpc_session->s_state == SESSION_ALIVE
-   @post c2_rpc_session->s_state == SESSION_RECOVERING
+   @pre session->s_state == SESSION_ALIVE
+   @post ergo(result == 0, session->s_state == SESSION_RECOVERING)
 
  */
 int c2_rpc_session_recovery_start(struct c2_rpc_session *session)
@@ -1376,9 +1376,6 @@ int c2_rpc_session_params_set(uint64_t				sender_id,
 
 /**
    Insert a reply item in reply cache and advance slot version.
-
-   In the absence of stable transaction APIs, we're using
-   db5 transaction apis as place holder
 
    @note that for certain fop types eg. READ, reply cache does not
    contain the whole reply state, because it is too large. Instead
@@ -1465,6 +1462,7 @@ out:
 }
 
 /**
+   XXX express following precondition as a function of req->ri_state
    @pre c2_rpc_item_init() must have been called on reply item
  */
 int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,

@@ -19,7 +19,7 @@ enum {
 	DEFAULT_SLOT_COUNT = 4
 };
 
-extern const char *C2_RPC_SLOT_TABLE_NAME;
+extern const char C2_RPC_SLOT_TABLE_NAME[];
 
 /**
     Key into c2_rpc_inmem_slot_table.

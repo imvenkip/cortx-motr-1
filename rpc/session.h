@@ -138,6 +138,8 @@ When an item is received, following conditions are possible:
     @todo
 	- Currently sender_id and session_id are chosen to be random.
 	  Need a better way.
+	- XXX resend item on timeout
+	- XXX report last-persistent-verno in reply item
 	- How to get unique stob_id for session and slot cobs?
 	- On receiver side currently replies are cached in an in core list.
 	  Instead they should be cached in FOL.
@@ -153,10 +155,8 @@ When an item is received, following conditions are possible:
 	  slot table as in-memory table.
 	- Design protocol to dynamically adjust the no. of slots.
 	- Integrate with ADDB
+ */
 
-
-
-*/
 #include "lib/list.h"
 #include "lib/chan.h"
 #include "lib/mutex.h"
@@ -313,26 +313,27 @@ struct c2_rpc_conn {
     end of the connection. When reply is received, the c2_rpc_conn is
     moved into INITIALISED state.
 
-    @pre c2_rpc_conn->c_state == CONN_UNINITIALISED
-    @post c2_rpc_conn->c_state == CONN_INITIALISING
+    @pre conn->c_state == CS_CONN_UNINITIALISED
+    @post ergo(result == 0, conn->c_state == CS_CONN_INITIALISING)
+    @post ergo(result != 0, conn->c_state == CS_CONN_UNINITIALISED)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn		*rpc_conn,
+int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		     struct c2_service_id	*svc_id,
 		     struct c2_rpcmachine	*machine);
 
 /**
-   Destroy c2_rpc_conn object.
+   Finalize c2_rpc_conn
    No network communication involved.
-   @pre c2_rpc_conn->c_state == CONN_INIT_FAILED ||
-	c2_rpc_conn->c_state == CONN_TERMINATED
-   @post c2_rpc_conn->c_state == CONN_UNINITIALISED
+   @pre conn->c_state == CS_CONN_INIT_FAILED ||
+	conn->c_state == CS_CONN_TERMINATED
+   @post conn->c_state == CS_CONN_UNINITIALISED
  */
-void c2_rpc_conn_fini(struct c2_rpc_conn *);
+void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
 
 /**
    Send "conn_terminate" FOP to receiver.
-   @pre conn->c_state == CONN_ACTIVE && conn->c_nr_sessions == 0
-   @post conn->c_state == TERMINATING
+   @pre conn->c_state == CS_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @post ergo(result == 0, conn->c_state == CS_CONN_TERMINATING)
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -478,10 +479,10 @@ struct c2_rpc_session_ops {
 /**
     Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
 
-    @pre c2_rpc_conn->c_state == CONN_ACTIVE
+    @pre conn->c_state == CS_CONN_ACTIVE
     @pre session->s_state == SESSION_UNINITIALISED
-    @post c2_rpc_conn->c_state == CONN_ACTIVE
-    @post session->s_state == SESSION_CREATING
+    @post conn->c_state == CS_CONN_ACTIVE
+    @post ergo(result == 0, session->s_state == SESSION_CREATING)
  */
 int c2_rpc_session_create(struct c2_rpc_session	*session,
 			  struct c2_rpc_conn	*conn);
@@ -489,10 +490,10 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 /**
    Send terminate session message to receiver.
 
-   @pre c2_rpc_session->s_state == SESSION_ALIVE && no slot is busy
-   @post c2_rpc_session->s_state == SESSION_TERMINATING
+   @pre session->s_state == SESSION_ALIVE && no slot is busy
+   @post ergo(result == 0, session->s_state == SESSION_TERMINATING)
  */
-int c2_rpc_session_terminate(struct c2_rpc_session *);
+int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
 /**
     Wait until desired state is reached.
@@ -565,6 +566,8 @@ struct c2_rpc_snd_slot {
 	/** list of items for which we've received reply from receiver but
 	their effects not persistent on receiver */
 	struct c2_list		 ss_replay_list;
+	/** XXX Currently unused. slot state is protected by
+	    c2_rpc_session::s_mutex. */
 	struct c2_mutex		 ss_mutex;
 	/** When an item is inserted in ready_list OR WAITING_FOR_REPLY flag
 	    is reset, the notification is broadcasted on this channel */
