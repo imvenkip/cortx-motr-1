@@ -1034,6 +1034,12 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item);
    XXX Needs to be implemented.
  */
 int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
+
+/**
+  XXX Temporary fix.
+ */
+void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
+		uint64_t max_fragments);
 /** @} endgroup of rpc_formation */
 
 #endif /* __C2_RPC_FORMATION_H__ */

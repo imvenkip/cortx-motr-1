@@ -18,6 +18,13 @@ struct c2_rpc_form_item_summary		*formation_summary;
 struct c2_rpc_form_items_cache		*items_cache;
 
 /**
+   Temporary threashold values.
+ */
+uint64_t				max_msg_size;
+uint64_t				max_fragments_size;
+uint64_t				max_rpcs_in_flight;
+
+/**
     Forward declarations of local static functions 
  */
 static int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
@@ -36,6 +43,13 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
                 struct c2_rpc_form_item_summary_unit *endp_unit,
                 struct c2_rpc_item *item);
 
+void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
+		uint64_t max_fragments)
+{
+	max_msg_size = msg_size;
+	max_rpcs_in_flight = max_rpcs;
+	max_fragments_size = max_fragments;
+}
 
 /**     
    Initialization for formation component in rpc.
@@ -92,6 +106,7 @@ static void c2_rpc_form_empty_groups_list(struct c2_list *list)
 		c2_list_del(&group->sug_linkage);
 		c2_free(group);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -117,6 +132,7 @@ static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 		}
 		c2_free(coalesced_item);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -132,6 +148,7 @@ static void c2_rpc_form_empty_rpcobj_list(struct c2_list *list)
 		c2_list_del(&obj->ro_linkage);
 		c2_free(obj);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -145,8 +162,9 @@ static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
 	c2_list_for_each_entry_safe(list, item, item_next,
 			struct c2_rpc_item, ri_unformed_linkage) {
 		c2_list_del(&item->ri_unformed_linkage);
-		c2_free(item);
+		//c2_free(item);
 	}
+	c2_list_fini(list);
 }
 
 /** 
@@ -170,6 +188,7 @@ static void c2_rpc_form_empty_fid_list(struct c2_list *list)
 		}
 		c2_free(fid_member);
 	}
+	c2_list_fini(list);
 }
 
 /**
@@ -220,6 +239,8 @@ int c2_rpc_form_fini()
 		c2_rpc_form_empty_unformed_list(&endp_unit->isu_unformed_list);
 		c2_rpc_form_empty_fid_list(&endp_unit->isu_fid_list);
 		c2_mutex_unlock(&endp_unit->isu_unit_lock);
+		c2_list_del(&endp_unit->isu_linkage);
+		c2_free(endp_unit);
 	}
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
 
@@ -328,10 +349,10 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	endp_unit->isu_form_active = true;
 	/* XXX Need appropriate values.*/
-	endp_unit->isu_max_message_size = 1;
-	endp_unit->isu_max_fragments_size = 1;
-	endp_unit->isu_max_rpcs_in_flight = 2;
-	endp_unit->isu_curr_rpcs_in_flight = 1;
+	endp_unit->isu_max_message_size = max_msg_size;
+	endp_unit->isu_max_fragments_size = max_fragments_size;
+	endp_unit->isu_max_rpcs_in_flight = max_rpcs_in_flight;
+	endp_unit->isu_curr_rpcs_in_flight = 0;
 	return endp_unit;
 }
 

@@ -59,20 +59,21 @@ uint64_t			 c2_rpc_max_message_size;
 uint64_t			 c2_rpc_max_fragments_size;
 uint64_t			 c2_rpc_max_rpcs_in_flight;
 
-#define nthreads 8
+#define nthreads 		256
 struct c2_thread		 form_ut_threads[nthreads];
+uint64_t			thread_no = 0;
 
-#define nfops 256
+#define nfops 			256
 struct c2_fop			*form_fops[nfops];
 
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec		**form_write_iovecs = NULL;
 
-#define nfiles 64
+#define nfiles 			64
 struct c2_fop_file_fid		*form_fids = NULL;
 uint64_t			*file_offsets = NULL;
-#define	io_size 8192
-#define nsegs 8
+#define	io_size 		8192
+#define nsegs 			8
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
 #define nopcodes 3
@@ -89,9 +90,9 @@ fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_file_create_fop
 };
 
-#define niopatterns 8
-#define pattern_length 4
-char				 file_data_patterns[niopatterns][pattern_length];
+#define niopatterns 		8
+#define pattern_length 		4
+char				file_data_patterns[niopatterns][pattern_length];
 
 /* Defining functions here to avoid linking errors. */
 int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -140,10 +141,19 @@ int c2_rpc_form_groups_alloc(void)
  */
 int c2_rpc_form_groups_free(void)
 {
-	int		i = 0;
+	int			 i = 0;
+	struct c2_rpc_item	*item;
+	struct c2_rpc_item	*item_next;
+
 	printf("Inside c2_rpc_form_groups_free \n");
 
 	for(i = 0; i < MAX_GRPS; i++) {
+	        if (!c2_list_is_empty(&rgroup[i]->rg_items)) {
+			c2_list_for_each_entry_safe(&rgroup[i]->rg_items,
+					item, item_next, struct c2_rpc_item ,
+					ri_group_linkage)
+					c2_list_del(&item->ri_group_linkage);
+		}
 		c2_list_fini(&rgroup[i]->rg_items);
 		c2_mutex_fini(&rgroup[i]->rg_guard);
 		c2_free(rgroup[i]);
@@ -172,8 +182,17 @@ int c2_rpc_form_item_cache_init(void)
  */
 void c2_rpc_form_item_cache_fini(void)
 {
+	struct c2_rpc_item *item;
+	struct c2_rpc_item *item_next;
+
 	printf("Inside c2_rpc_form_item_cache_fini \n");
 	c2_mutex_fini(&items_cache->ic_mutex);
+	if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
+		c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
+				item, item_next, struct c2_rpc_item , 
+				ri_linkage)
+			c2_list_del(&item->ri_linkage);
+	}
 	c2_list_fini(&items_cache->ic_cache_list);
 	c2_free(items_cache);
 }
@@ -243,7 +262,7 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
   Insert an rpc item to the global items cache such that it is sorted
   according to timeout
   */
-int c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
+void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item	*rpc_item;
 	struct c2_rpc_item	*rpc_item_next;
@@ -269,7 +288,29 @@ int c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	}
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_mutex_unlock(&items_cache->ic_mutex);
+	c2_rpc_form_extevt_rpcitem_added_in_cache(item);
+}
 
+/**
+   Add rpc items from an rpc group.
+ */
+int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
+{
+	int				 res = 0;
+	struct c2_rpc_item		*item = NULL;
+
+	C2_PRE(group != NULL);
+	/* Item addition is done on a new thread every time. */
+	c2_list_for_each_entry(&group->rg_items, item, struct c2_rpc_item,
+			ri_group_linkage) {
+		C2_ASSERT(thread_no < nfops);
+		res = C2_THREAD_INIT(&form_ut_threads[thread_no],
+				struct c2_rpc_item*,
+				NULL, &c2_rpc_form_item_add_to_cache,
+				item);
+		C2_ASSERT(res == 0);
+		thread_no++;
+	}
 	return 0;
 }
 
@@ -327,11 +368,11 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	io_req = c2_rpc_item_is_io_req(item);
 	if(io_req) {
 		res = c2_rpc_form_item_io_populate_param(item);
-		C2_ASSERT(res!=0);
+		C2_ASSERT(res==0);
 	}
 	else {
 		res = c2_rpc_form_item_nonio_populate_param(item);
-		C2_ASSERT(res!=0);
+		C2_ASSERT(res==0);
 	}
 	return 0;
 }
@@ -571,16 +612,32 @@ void init_file_io_patterns()
 	strcpy(file_data_patterns[7], "h1i2");
 }
 
+struct c2_fop *form_get_new_fop()
+{
+	struct c2_fop		*fop = NULL;
+	fopFuncPtr		funcPtr;
+	int			 i = 0;
+
+	i = (rand()) % nopcodes;
+	funcPtr = form_fop_table[i];
+	fop = funcPtr();
+	return fop;
+}
+
 int main(int argc, char **argv)
 {
 	int		result = 0;
 	int		i = 0;
+	int		j = 0;
+	struct c2_fop	*fop = NULL;
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
 
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
+
+	result = c2_rpc_form_init();
 
 	/*
 	 1. Initialize the thresholds like max_message_size, max_fragements
@@ -593,17 +650,14 @@ int main(int argc, char **argv)
 	/* We start with a default value of 8. The max value in Lustre, is
 	   limited to 32. */
 	c2_rpc_max_rpcs_in_flight = 8;
-	//c2_rpc_max_fragements_size = ;
+	c2_rpc_max_fragments_size = 16;
+
+	c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
+			c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 	
 	result = c2_rpc_form_item_cache_init();
 	C2_ASSERT(result == 0);
 
-	/* 2. Create a pool of threads so this UT can be made multi-threaded.*/
-	for (i = 0; i < nthreads; i++) {
-		result = C2_THREAD_INIT(&form_ut_threads[i], int, NULL,
-				&form_ut_thread_init, i);
-		C2_ASSERT(result == 0);
-	}
 	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the 
 	    number of files to operate upon. Decide how to assign items to 
 	    rpc groups and have multiple IO requests within or across groups.*/
@@ -630,7 +684,21 @@ int main(int argc, char **argv)
 	result = c2_rpc_form_groups_alloc();
 	C2_ASSERT(result == 0);
 
+	/* For every group, create a fop in a random manner
+	   and populate its constituent rpc item. 
+	   Wait till all items in the group are populated.
+	   And submit the whole group at once.*/
 	for (i = 0; i < MAX_GRPS; i++) {
+		for (j = 0; j < nfops/MAX_GRPS; j++) {
+			fop = form_get_new_fop();
+			C2_ASSERT(fop != NULL);
+			result = c2_rpc_form_item_populate_param(&fop->f_item);
+			C2_ASSERT(result == 0);
+			result = c2_rpc_form_item_assign_to_group(rgroup[i],
+					&fop->f_item);
+		}
+		result = c2_rpc_form_rpcgroup_add_to_cache(rgroup[i]);
+		C2_ASSERT(result == 0);
 	}
 
 	/* 4. Populate the associated rpc items.
@@ -646,11 +714,15 @@ int main(int argc, char **argv)
 	 9. Grab output produced by formation algorithm and analyze the
 	    statistics.
 	 */
-	for (i = 0; i < nthreads; i++) {
+
+	/* Joining all threads will take care of releasing all references
+	   to rpc items(and fops inherently) and then formation component
+	   can be "fini"ed. */
+	for (i = 0; i < thread_no; i++) {
 		c2_thread_join(&form_ut_threads[i]);
 		c2_thread_fini(&form_ut_threads[i]);
 	}
-
+	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;
 	form_write_iovec_fini();
