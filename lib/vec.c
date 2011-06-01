@@ -172,7 +172,10 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 {
 	c2_bcount_t frag_size    = 0;
 	c2_bcount_t bytes_copied = 0;
-	while (!(c2_bufvec_cursor_move(dcur, frag_size) | /* <- bitwise OR */
+	/* bitwise OR used below to ensure both cursors get moved
+	   without short-circuit logic, also why cursor move is before
+	   simpler num_bytes check */
+	while (!(c2_bufvec_cursor_move(dcur, frag_size) |
 		 c2_bufvec_cursor_move(scur, frag_size)) &&
 	       num_bytes > 0) {
 		frag_size = min3(c2_bufvec_cursor_step(dcur),
