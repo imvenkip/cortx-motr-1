@@ -171,7 +171,7 @@ static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
 	if (!sep->xep_conn_created) { /* already exists? */
 		/* create the connection in the mutex */
 		c2_mutex_lock(&ep->nep_dom->nd_mutex);
-		if (sep->xep_conn_created) { /* racy, so check again */
+		if (!sep->xep_conn_created) { /* racy, so check again */
 			rc = c2_net_conn_create(&sep->xep_sid);
 			if (rc == 0)
 				sep->xep_conn_created = true;
