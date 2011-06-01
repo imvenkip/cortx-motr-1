@@ -15,6 +15,7 @@ MODULE_LICENSE("proprietary");
 /* lib/ut */
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_rw(void);
 extern void test_thread(void);
 
 static const struct c2_test_suite klibc2_ut = {

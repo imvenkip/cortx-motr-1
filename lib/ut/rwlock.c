@@ -99,7 +99,8 @@ static void test_rw_writers(void)
 	counter = 0;
 
 	for (sum = 0, i = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &writer, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &writer, i,
+					"writer[%i]", i);
 		C2_UT_ASSERT(result == 0);
 		sum += i * NR;
 	}
@@ -122,7 +123,8 @@ static void test_rw_readers(void)
 	counter = 0;
 
 	for (i = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &reader, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &reader, i,
+					"reader[%i]", i);
 		C2_UT_ASSERT(result == 0);
 		c2_semaphore_down(&p);
 	}
@@ -144,13 +146,15 @@ static void test_rw_excl(void)
 	int result;
 
 	for (i = 0; i < NR / 2; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &reader, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &reader, i,
+					"reader[%i]", i);
 		C2_UT_ASSERT(result == 0);
 		c2_semaphore_down(&p);
 	}
 
 	for (sum = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &writer, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &writer, i,
+					"writer[%i]", i);
 		C2_UT_ASSERT(result == 0);
 		sum += i * NR;
 	}
@@ -180,12 +184,14 @@ static void test_rw_rstarve(void)
 	stop = false;
 
 	for (i = 0; i < S; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &wstarver, 0);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &wstarver, 0,
+					"wstarver[%i]", i);
 		C2_UT_ASSERT(result == 0);
 	}
 
 	for (i = S; i < S + C; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &rcheck, 0);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &rcheck, 0,
+					"rcheck[%i]", i);
 		C2_UT_ASSERT(result == 0);
 	}
 
@@ -210,12 +216,14 @@ static void test_rw_wstarve(void)
 	int result;
 
 	for (i = 0; i < S; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &rstarver, 0);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &rstarver, 0,
+					"rstarver[%i]", i);
 		C2_UT_ASSERT(result == 0);
 	}
 
 	for (i = S; i < S + C; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &wcheck, 0);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &wcheck, 0,
+					"wcheck[%i]", i);
 		C2_UT_ASSERT(result == 0);
 	}
 
