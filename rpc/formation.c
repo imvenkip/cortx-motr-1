@@ -1602,6 +1602,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	res = c2_rpc_form_items_coalesce(endp_unit, forming_list, &rpcobj_size);
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
 			&rpcobj->ro_linkage);
+	/* XXX TBD: Check if the formed RPC object is optimal enough. */
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
@@ -1686,6 +1687,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		endp = c2_rpc_form_get_endpoint(first_item);
 		if (endp_unit->isu_curr_rpcs_in_flight < 
 				endp_unit->isu_max_rpcs_in_flight) {
+			/*XXX TBD: Before sending the c2_rpc on wire,
+			   it needs to be serialized into one buffer. */
 			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
 			/* XXX curr rpcs in flight will be taken care by
 			   output component. */
