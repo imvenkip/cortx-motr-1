@@ -4,6 +4,7 @@
 
 #include "lib/assert.h"
 #include "lib/bitmap.h"
+#include "lib/rwlock.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
 
@@ -14,6 +15,7 @@ MODULE_LICENSE("proprietary");
 /* lib/ut */
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_rw(void);
 extern void test_thread(void);
 
 static const struct c2_test_suite klibc2_ut = {
@@ -23,6 +25,7 @@ static const struct c2_test_suite klibc2_ut = {
 	.ts_tests = {
 		{ "bitmap",    test_bitmap    },
 		{ "chan",      test_chan      },
+		{ "rwlock",    test_rw        },
 		{ "thread",    test_thread    },
 		{ NULL,        NULL           }
 	}

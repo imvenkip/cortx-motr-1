@@ -1,7 +1,8 @@
 KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
 
 obj-m       := kutc2.o
-orig_ut     := ../../lib/ut/bitmap.c ../../lib/ut/chan.c ../../lib/ut/thread.c
+orig_ut     := ../../lib/ut/bitmap.c ../../lib/ut/chan.c \
+               ../../lib/ut/rwlock.c ../../lib/ut/thread.c
 shared_ut   := $(notdir $(orig_ut))
 kutc2-y     := main.o $(shared_ut:.c=.o)
 

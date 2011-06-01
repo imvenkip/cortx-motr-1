@@ -147,12 +147,12 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 
-	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(!(buf->nb_flags &
 	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)));
 

@@ -1,3 +1,4 @@
 bitmap.c
 chan.c
+rwlock.c
 thread.c
