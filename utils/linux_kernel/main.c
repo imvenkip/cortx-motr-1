@@ -4,6 +4,7 @@
 
 #include "lib/assert.h"
 #include "lib/bitmap.h"
+#include "lib/rwlock.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
 
@@ -23,6 +24,7 @@ static const struct c2_test_suite klibc2_ut = {
 	.ts_tests = {
 		{ "bitmap",    test_bitmap    },
 		{ "chan",      test_chan      },
+		{ "rwlock",    test_rw        },
 		{ "thread",    test_thread    },
 		{ NULL,        NULL           }
 	}
