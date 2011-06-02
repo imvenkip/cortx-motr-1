@@ -820,7 +820,9 @@ static int c2_rpc_form_summary_groups_sort(
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
 		struct c2_rpc_form_item_summary_unit_group *summary_group)
 {
+	bool						 placed = false;
 	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*sg_next = NULL;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(summary_group != NULL);
@@ -828,13 +830,18 @@ static int c2_rpc_form_summary_groups_sort(
 	c2_list_del(&summary_group->sug_linkage);
 	/* Do a simple incremental search for a group having
 	   average timeout value bigger than that of given group. */
-	c2_list_for_each_entry(&endp_unit->isu_groups_list, sg, 
+	c2_list_for_each_entry_safe(&endp_unit->isu_groups_list, sg, sg_next,
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
 		if (sg->sug_avg_timeout > summary_group->sug_avg_timeout) {
+			placed = true;
 			c2_list_add_before(&sg->sug_linkage, 
 					&summary_group->sug_linkage);
 		}
+	}
+	if (!placed) {
+		c2_list_add_after(&sg->sug_linkage,
+				&summary_group->sug_linkage);
 	}
 	return 0;
 }

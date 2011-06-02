@@ -898,7 +898,7 @@ stateFunc c2_rpc_form_stateTable
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_waiting_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
