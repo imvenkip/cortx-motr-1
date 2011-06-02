@@ -420,6 +420,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	int					 res = 0;
 	int					 prev_state = 0;
 	bool					 found = false;
+	struct c2_rpc_form_item_summary_unit	*endp = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_N_EVENTS);
@@ -435,60 +436,61 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	if (endp_unit == NULL) {
 		c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
 		c2_list_for_each_entry(&formation_summary->is_endp_list,
-				endp_unit, struct c2_rpc_form_item_summary_unit,
+				endp, struct c2_rpc_form_item_summary_unit,
 				isu_linkage) {
-			if (c2_rpc_form_end_point_equal(endp_unit->isu_endp_id,
+			if (c2_rpc_form_end_point_equal(endp->isu_endp_id,
 						endpoint)) {
 				found = true;
 				break;
 			}
 		}
 		if (found) {
-			c2_mutex_lock(&endp_unit->isu_unit_lock);
-			c2_ref_get(&endp_unit->isu_sm.isu_ref);
+			c2_mutex_lock(&endp->isu_unit_lock);
+			c2_ref_get(&endp->isu_sm.isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
 		}
 		else {
 			/** Add a new endpoint summary unit */
 			printf("New endpoint unit created.\n");
-			endp_unit = c2_rpc_form_item_summary_unit_add(endpoint);
-			c2_mutex_lock(&endp_unit->isu_unit_lock);
+			endp = c2_rpc_form_item_summary_unit_add(endpoint);
+			c2_mutex_lock(&endp->isu_unit_lock);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
 		}
-		prev_state = endp_unit->isu_sm.isu_endp_state;
+		prev_state = endp->isu_sm.isu_endp_state;
 	}
 	else {
 		c2_mutex_lock(&endp_unit->isu_unit_lock);
 		prev_state = sm_state;
+		endp = endp_unit;
 	}
 	/* If the formation component is not active (form_fini is called)
 	   exit the state machine and return back. */
-	if (endp_unit->isu_form_active == false) {
-		c2_mutex_unlock(&endp_unit->isu_unit_lock);
-		c2_rpc_form_state_machine_exit(endp_unit);
+	if (endp->isu_form_active == false) {
+		c2_mutex_unlock(&endp->isu_unit_lock);
+		c2_rpc_form_state_machine_exit(endp);
 		return 0;
 	}
 	/* Transition to next state.*/
 	res = (c2_rpc_form_next_state(prev_state, sm_event->se_event))
-		(endp_unit, item, sm_event);
+		(endp, item, sm_event);
 	/* Get latest state of state machine. */
-	prev_state = endp_unit->isu_sm.isu_endp_state;
-	c2_mutex_unlock(&endp_unit->isu_unit_lock);
+	prev_state = endp->isu_sm.isu_endp_state;
+	c2_mutex_unlock(&endp->isu_unit_lock);
 	/* Exit point for state machine. */
 	if(res == C2_RPC_FORM_INTEVT_STATE_DONE) {
-		c2_rpc_form_state_machine_exit(endp_unit);
+		c2_rpc_form_state_machine_exit(endp);
 		return 0;
 	}
 
 	if (res == C2_RPC_FORM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
-		c2_rpc_form_intevt_state_failed(endp_unit, item, prev_state);
+		c2_rpc_form_intevt_state_failed(endp, item, prev_state);
 	}
 	else if (res == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED){
 		/** Post a state succeeded event. */
-		c2_rpc_form_intevt_state_succeeded(endp_unit, item, prev_state);
+		c2_rpc_form_intevt_state_succeeded(endp, item, prev_state);
 	}
 	return 0;
 }
