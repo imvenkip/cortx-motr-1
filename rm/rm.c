@@ -277,9 +277,9 @@ static void right_copy(struct c2_rm_right *dest,
 	dest->ri_resource = src->ri_resource;
 	dest->ri_ops = src->ri_ops;
 	c2_list_init(&dest->ri_pins);
-	src->ri_ops->rro_diff(dest, src);
+	src->ri_ops->rro_copy(dest, src);
 
-	/* Two right are equal when both implies to each other */
+	/* Two rights are equal when both rights implies to each other */
 	C2_POST(src->ri_ops->rro_implies(dest, src) &&
 		src->ri_ops->rro_implies(src, dest));
 }
@@ -356,8 +356,8 @@ static void remote_copy(const struct c2_rm_incoming *in,
 }
 
 /**
- * The rights(as loan) are moved to sublet list of owner as the quest
- * came for loan.
+ * The rights(as loan) are moved to sublet list of owner
+ * as the request came for loan.
  */
 static int move_to_sublet(struct c2_rm_incoming *in)
 {
@@ -617,6 +617,7 @@ static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 
 	C2_PRE(og != NULL);
 
+	/*@todo rc return related things */
 	owner = og->rog_owner;
 	c2_mutex_lock(&owner->ro_lock);
 	c2_list_move(&owner->ro_outgoing[OQS_EXCITED],
@@ -748,7 +749,6 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 * If there is nothing to wait for, the request is either fulfilled
 	 * immediately or fails.
 	 */
-
 	right_copy(&rest, &in->rin_want);
 
 	/*
@@ -1008,30 +1008,28 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_clink    clink;
-	bool		   retval;
-	int		   result = 0;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
 	c2_rm_right_get(owner,in);
 	if (in->rin_state != RI_SUCCESS ||
 	    in->rin_state != RI_FAILURE) {
-		retval = c2_chan_timedwait(&clink, deadline);
+		c2_chan_timedwait(&clink, deadline);
 	}
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	if (in->rin_state != RI_SUCCESS)
-		result = -ETIMEDOUT;
+	if (in->rin_state != RI_SUCCESS ||
+	    in->rin_state != RI_FAILURE)
+		return -ETIMEDOUT;
 
-	return result;
+	return in->rin_state;
 }
 
 int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 			 struct c2_rm_incoming *in)
 {
 	struct c2_clink clink;
-	int		result;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
@@ -1043,10 +1041,11 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	if (in->rin_state != RI_SUCCESS)
-		result = -ECANCELED;
+	if (in->rin_state != RI_SUCCESS ||
+	    in->rin_state != RI_FAILURE)
+		return -ETIMEDOUT;
 
-	return result;
+	return in->rin_state;
 }
 
 /** @} end of Owner state machine group */

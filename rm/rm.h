@@ -407,10 +407,9 @@ struct c2_rm_right_ops {
         /** true, iff r1 is "less than or equal to" r0. */
         bool (*rro_implies)(const struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
-	/* Copy generic fields of c2_rm_right and call the operation
-	 * to copy the resource type specific part. */
-	void (*rro_copy) (struct c2_rm_right r0,
-			  const struct c2_rm_right r1);
+	/* Copy the resource type specific part. */
+	void (*rro_copy)   (struct c2_rm_right r0,
+			    const struct c2_rm_right r1);
         /** @} end of Rights ordering */
 };
 
