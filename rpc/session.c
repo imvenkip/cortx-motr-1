@@ -753,7 +753,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	/*
 	 * Duplicate reply message will be filtered by
 	 * c2_rpc_session_reply_recieved().
-	 * If this function is called then there must be ONE session
+	 * If current function is called then there must be ONE session
 	 * with state == CREATING. If not then it is a bug.
 	 */
 	C2_ASSERT(session != NULL);
@@ -762,8 +762,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	printf("Found session object %p\n", session);
 
 	if (fop_scr->rscr_rc != 0) {
-		session->s_state = SESSION_CREATE_FAILED;
-
+		session->s_state = SESSION_FAILED;
 		c2_list_del(&session->s_link);
 		conn->c_nr_sessions--;
 	} else {
@@ -771,9 +770,10 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 		session->s_session_id = fop_scr->rscr_session_id;
 		session->s_state = SESSION_ALIVE;
 	}
+	session->s_rc = fop_scr->rscr_rc;
 
 	C2_ASSERT(session->s_state == SESSION_ALIVE ||
-			session->s_state == SESSION_CREATE_FAILED);
+			session->s_state == SESSION_FAILED);
 
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
@@ -913,11 +913,12 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&session->s_mutex);
 	if (fop_sdr->rsdr_rc == 0) {
 		session->s_state = SESSION_TERMINATED;
-		conn->c_nr_sessions--;
-		c2_list_del(&session->s_link);
 	} else {
-		session->s_state = SESSION_ALIVE;
+		session->s_state = SESSION_FAILED;
 	}
+	conn->c_nr_sessions--;
+	c2_list_del(&session->s_link);
+	session->s_rc = fop_sdr->rsdr_rc;
 
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
@@ -957,7 +958,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 
 	printf("session fini called\n");
 	C2_PRE(session->s_state == SESSION_TERMINATED ||
-			session->s_state == SESSION_CREATE_FAILED);
+			session->s_state == SESSION_FAILED);
 	c2_list_link_fini(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
 	session->s_conn = NULL;
@@ -990,7 +991,6 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 
 	switch (session->s_state) {
 		case SESSION_CREATING:
-		case SESSION_CREATE_FAILED:
 		case SESSION_TERMINATED:
 			if (session->s_session_id != SESSION_ID_INVALID)
 				return false;
@@ -1009,6 +1009,9 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 			}
 		case SESSION_UNINITIALISED:
 			return true;
+		case SESSION_FAILED:
+			if (session->s_rc == 0)
+				return false;
 		default:
 			return false;
 	}

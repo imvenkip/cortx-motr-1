@@ -384,9 +384,9 @@ enum c2_rpc_session_state {
 	 */
 	SESSION_ALIVE = (1 << 1),
 	/**
-	   Creation of session failed
+	   Creation/termination of session failed
 	 */
-	SESSION_CREATE_FAILED = (1 << 2),
+	SESSION_FAILED = (1 << 2),
 	/**
 	   When recovery is in progress (i.e. replay or resend) the
 	   session is in RECOVERING state. New requests coming on this
@@ -394,21 +394,16 @@ enum c2_rpc_session_state {
 	 */
 	SESSION_RECOVERING = (1 << 3),
 	/**
-	   If sender does not get reply for SESSION_CREATE within specific
-	   time then session goes in TIMED_OUT state.
-	 */
-	SESSION_TIMED_OUT = (1 << 4),
-	/**
 	   When sender sends SESSION_DESTROY fop to receiver and is waiting
 	   for reply, then it is in state TERMINATING.
 	*/
-	SESSION_TERMINATING = (1 << 5),
+	SESSION_TERMINATING = (1 << 4),
 	/**
 	   When sender gets reply to session_terminate fop and reply informs
 	   the session termination is successful then the session enters in
 	   TERMINATED state
 	 */
-	SESSION_TERMINATED = (1 << 6)
+	SESSION_TERMINATED = (1 << 5)
 };
 
 /**
@@ -422,21 +417,21 @@ enum c2_rpc_session_state {
 				      |
 		timed-out	      V
           +-------------------------CREATING
-	  |            		      |
+	  |   create_failed           |
 	  V       		      | create successful
-	CREATE_FAILED                 |
-	  |      		      V		Recovery complete
-	  |			    ALIVE <-----------------------------------+
-	  |			      |	|				      |
-	  |			      | | receiver or nw failure              |
-	  |			      | +-------------------> RECOVERING -----+
-	  |			      |
-	  | fini 		      | session_terminate
-	  |			      V
-	  |		         TERMINATING <-------------+
-	  |			      |  |		   |
-	  |			      |  |                 | timed-out/retry
-	  |			      |  +-----------------+
+	FAILED <------+               |
+	  |           |               V		Recovery complete
+	  |           |             ALIVE <-----------------------------------+
+	  |           |failed         |	|				      |
+	  |           |               | | receiver or nw failure              |
+	  |           |               | +-------------------> RECOVERING -----+
+	  |           |               |
+	  | fini      |               | session_terminate
+	  |	      |               V
+	  |           +----------TERMINATING                
+	  |			      |   		    
+	  |			      |                                     
+	  |			      |                      
 	  |		              |session_terminated
 	  |		              V
 	  |		         TERMINATED
