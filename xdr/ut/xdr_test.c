@@ -27,7 +27,7 @@ enum {
 	if(ub_flag)					\
 		C2_ASSERT(cond);			\
 	else						\
-		C2_UT_ASSERT(cond);			
+		C2_UT_ASSERT(cond);
 
 /* The various tests */
 #define XDR_ENCODE_TESTS                                \
@@ -94,7 +94,8 @@ enum {
 
 struct xdr_test_handle {
         int                     xt_sock;
-        /** The XDR stream handle for this connection to be used for marshalling/unmarshalling */
+        /* The XDR stream handle for this connection to be used for
+	   marshalling/unmarshalling */
         XDR                     xt_xdrs;
 };
 
@@ -139,15 +140,15 @@ static int read_file(char *cptr, char *buf, int len)
 
 static void ub_xdr_init()
 {
-        ub_flag = true;
+	ub_flag = true;
 	C2_ALLOC_PTR(xt);
-        fd = open("xdr_stream.txt", O_CREAT|O_RDWR);
-        XDR_TEST_ASSERT(fd);
-        xt->xt_sock = fd;
-        xdrs = &(xt->xt_xdrs);
-        xdrrec_create(xdrs, SEND_SIZE, RECV_SIZE,
-        (caddr_t)xt, read_file, write_file);
-        xdrs->x_ops = (struct xdr_ops *)&c2_xdrrec_ops;
+	fd = open("xdr_stream.txt", O_CREAT|O_RDWR, S_IRUSR | S_IWUSR);
+	XDR_TEST_ASSERT(fd >= 0);
+	xt->xt_sock = fd;
+	xdrs = &(xt->xt_xdrs);
+	xdrrec_create(xdrs, SEND_SIZE, RECV_SIZE,
+	(caddr_t)xt, read_file, write_file);
+	xdrs->x_ops = (struct xdr_ops *)&c2_xdrrec_ops;
 }
 
 static void ub_xdr_fin()
@@ -162,7 +163,7 @@ static void ub_xdr_fin()
 
 static void ub_encode_init()
 {
-        ub_xdr_init();
+	ub_xdr_init();
 	xdrs->x_op = XDR_ENCODE;
 }
 
@@ -194,7 +195,7 @@ static void ub_encode_uint32(int i)
 static void ub_encode_uint64(int i)
 {
 	uint64_t test_uint64_t;
-	int 	 result;
+	int	 result;
 	TEST_XDR_ENCODE(uint64_t, ULLONG_MAX);
 }
 
@@ -235,28 +236,28 @@ static void ub_decode_uint32(int i)
 
 static void ub_decode_uint64(int i)
 {
-	uint64_t test_uint64_t; 
+	uint64_t test_uint64_t;
 	int      result;
 	TEST_XDR_DECODE(uint64_t, ULLONG_MAX);
 }
 
 static void ub_decode_uint16(int i)
 {
-	uint16_t test_uint16_t; 
+	uint16_t test_uint16_t;
 	int      result;
 	TEST_XDR_DECODE(uint16_t, USHRT_MAX);
 }
 
 static void ub_decode_uchar(int i)
 {
-	u_char test_u_char; 
+	u_char test_u_char;
 	int    result;
 	TEST_XDR_DECODE(u_char, UCHAR_MAX);
 }
 
 static void ub_decode_bool(int i)
 {
-	bool_t test_bool; 
+	bool_t test_bool;
 	int    result;
 	TEST_XDR_DECODE(bool, true);
 }
@@ -301,8 +302,8 @@ static void xdr_client( void )
         C2_ALLOC_PTR(xt);
         C2_ALLOC_ARR( buf, MAX_BUF_SIZE );
 
-        fd = open("xdr_stream.txt", O_CREAT | O_RDWR);
-        C2_UT_ASSERT(fd);
+        fd = open("xdr_stream.txt", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+        C2_UT_ASSERT(fd >= 0 );
         xt->xt_sock = fd;
         xdrs = &(xt->xt_xdrs);
         xdrrec_create(xdrs, SEND_SIZE, RECV_SIZE,
@@ -351,11 +352,11 @@ static void xdr_server( void )
         C2_ALLOC_ARR(buf, MAX_BUF_SIZE );
         C2_ALLOC_ARR(in_buf, MAX_BUF_SIZE );
 
-        fd = open("xdr_stream.txt", O_CREAT | O_RDWR);
-        C2_UT_ASSERT(fd);
+        fd = open("xdr_stream.txt", O_RDWR);
+        C2_UT_ASSERT(fd >= 0);
         xt->xt_sock = fd;
         xdrs = &(xt->xt_xdrs);
-        xdrrec_create(xdrs, SEND_SIZE, RECV_SIZE,(caddr_t) xt, 
+        xdrrec_create(xdrs, SEND_SIZE, RECV_SIZE,(caddr_t) xt,
                      read_file, write_file);
         xdrs->x_op = XDR_DECODE;
         xdrs->x_ops = (struct xdr_ops *)&c2_xdrrec_ops;
@@ -368,7 +369,7 @@ static void xdr_server( void )
         fill_buf(buf);
         len = MAX_BUF_SIZE;
         result = xdr_bytes(xdrs, &in_buf, &len, MAX_BUF_SIZE);
-        C2_UT_ASSERT(result == 1); 
+        C2_UT_ASSERT(result == 1);
         result = memcmp(buf, in_buf, MAX_BUF_SIZE);
         C2_UT_ASSERT(result == 0);
 
@@ -395,14 +396,14 @@ const struct c2_ub_set c2_xdr_ub = {
 	.us_name = "xdr-ub",
 	.us_init = NULL,
 	.us_fini = NULL,
-	.us_run  = { 
+	.us_run  = {
 		{ .ut_name  = "encode int16",
 		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_encode_uint16,
 		  .ut_init  = ub_encode_init },
 
 		{ .ut_name  = "encode int32",
-		  .ut_iter  = UB_ITER, 
+		  .ut_iter  = UB_ITER,
 		  .ut_round = ub_encode_uint32 },
 
 		{ .ut_name  = "encode int64",
