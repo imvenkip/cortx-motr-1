@@ -54,9 +54,22 @@ C2_EXPORTED(c2_semaphore_value);
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
 			    const c2_time_t abs_timeout)
 {
-	/* not implemented, until kernel lib/time.h supports a notion of current
-	   time. */
-	return -ENOSYS;
+	c2_time_t nowtime;
+	c2_time_t reltime;
+	unsigned long reljiffies;
+	struct timespec ts;
+
+	c2_time_now(&nowtime);
+	/* same semantics as user_space semaphore: allow abs_time < now */
+	if (c2_time_after(abs_timeout, nowtime))
+		reltime = c2_time_sub(abs_timeout, nowtime);
+	else
+		reltime = 0;
+	ts.tv_sec  = c2_time_seconds(reltime);
+	ts.tv_nsec = c2_time_nanoseconds(reltime);
+	reljiffies = timespec_to_jiffies(&ts);
+
+	return down_timeout(&semaphore->s_sem, reljiffies) == 0;
 }
 C2_EXPORTED(c2_semaphore_timeddown);
 

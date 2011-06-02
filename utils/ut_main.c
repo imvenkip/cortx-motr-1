@@ -27,6 +27,7 @@ extern const struct c2_test_suite net_bulk_sunrpc_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
+extern const struct c2_test_suite xdr_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
+		c2_ut_add(&xdr_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);
