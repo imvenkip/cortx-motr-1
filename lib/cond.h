@@ -94,6 +94,11 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
    This is the same as c2_cond_wait, except that it has a timeout value. If the
    time expires before event is pending, this function will return false.
 
+   @note Unlike pthread_cond_timedwait, c2_cond_timedwait can succeed if the
+   event is immediately pending, even if the abs_timeout is in the past.  If
+   blocking occurs and abs_timeout is in the past, c2_cond_timedwait will return
+   false.  pthread_cond_timedwait always fails when abs_timeout is in the past.
+
    @param abs_timeout this is the time since Epoch (00:00:00, 1 January 1970).
    @return true if condition is signaled before timeout.
    @return false if condition variable is not signaled but timeout expires.
