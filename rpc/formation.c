@@ -393,8 +393,9 @@ bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
 {
 	bool		status = false;
 
-	if (!memcmp(ep1, ep2, sizeof(struct c2_net_end_point)))
+	if (!memcmp(ep1, ep2, sizeof(struct c2_net_end_point))) {
 		status = true;
+	}
 	return status;
 }
 
