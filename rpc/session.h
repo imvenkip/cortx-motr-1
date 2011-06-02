@@ -137,7 +137,7 @@ When an item is received, following conditions are possible:
 
     @todo
 	- Currently sender_id and session_id are chosen to be random.
-	  Need a better way.
+	  Is it enough?
 	- XXX resend item on timeout
 	- XXX report last-persistent-verno in reply item
 	- How to get unique stob_id for session and slot cobs?
@@ -151,6 +151,7 @@ When an item is received, following conditions are possible:
 	- Default slot count is currently set to 4. Nothing special about 4.
 	  Needs a proper value.
 	- session recovery needs to be implemented.
+	- slot table resize needs to be implemented.
 	- Find out how to create in-memory c2_table? And make receiver side
 	  slot table as in-memory table.
 	- Design protocol to dynamically adjust the no. of slots.
@@ -197,23 +198,24 @@ enum c2_rpc_conn_state {
            UNINITIALISED state.
          */
         CS_CONN_UNINITIALISED = 0,
+
         /**
            When sender is waiting for receiver reply to get its sender ID it is
            in INITIALISING state.
          */
         CS_CONN_INITIALISING = (1 << 0),
+
         /**
 	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
          */
         CS_CONN_ACTIVE = (1 << 1),
+
         /**
-           If c2_rpc_conn is in INITIALISING state and sender doesn't receive
-           sender-id from receiver within a specific time OR if sender receives
-	   reply stating "error occured during conn create"
-	   then c2_rpc_conn moves to INIT_FAILED state
+	   If conn init or terminate fails or time-outs connection enters in
+	   FAILED state. c2_rpc_conn::c_rc gives reason for failure.
         */
-        CS_CONN_INIT_FAILED = (1 << 2),
+        CS_CONN_FAILED = (1 << 2),
 
 	/**
 	   When sender calls c2_rpc_conn_terminate() on c2_rpc_conn object
@@ -253,24 +255,24 @@ enum c2_rpc_conn_state {
    +-------------------------> UNINITIALISED
                                     |
                                     |  c2_rpc_conn_init()
-   +----------------------------+   |
-   |                            |   |
-   |                            V   V
-   |     +-------------------- INITIALISING
- R |     | time-out || rc != 0      |
- E |     |                          | init_successful
- T |     |                          |
- R |     V                          |
- Y +--- INIT_FAILED                 |
-         |                          V
-         |           +---------> ACTIVE
-         |           |              |
-         |           |failed        | conn_terminate()
-         |           |              |
-         |           |              V
-         |           +----------TERMINATING
+                                    |
+                                    |
+                                    V
+         +-------------------- INITIALISING
+         | time-out ||              |
+         |     reply.rc != 0        | conn_create_reply_received() &&
+         |                          |    reply.rc == 0
+         V                          |
+       FAILED                       |
+         |  ^                       V
+         |  |                    ACTIVE
+         |  |                       |
+         |  |                       | conn_terminate()
+         |  | failed || timeout     |
+         |  |                       V
+         |  +-------------------TERMINATING
 	 |                          |
-         |                          | conn_terminate_reply_received() && r c== 0
+         |                          | conn_terminate_reply_received() && rc== 0
 	 |                          V
 	 |			TERMINATED
 	 |                          |
@@ -284,7 +286,10 @@ enum c2_rpc_conn_state {
   * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
  */
 struct c2_rpc_conn {
-        /** Every c2_rpc_conn is stored on a list in rpc_conn*/
+        /** Every c2_rpc_conn is stored on a list
+	    c2_rpcmachine::cr_rpc_conn_list
+	    conn is in the list if c_state is not in {CONN_UNINITIALIZED,
+	    CONN_FAILED, CONN_TERMINATED} */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
 	uint64_t			 c_flags;
@@ -304,6 +309,8 @@ struct c2_rpc_conn {
         struct c2_mutex                  c_mutex;
 	/** stores conn_create fop pointer during initialization */
 	void				*c_private;
+	/** if c_state == CS_CONN_FAILED then c_rc contains error code */
+	int				 c_rc;
 };
 
 /**
@@ -455,8 +462,12 @@ struct c2_rpc_session {
 	uint32_t 			 s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t			 s_slot_table_capacity;
-	/** highest slot id for which the sender has the outstanding request */
+	/** highest slot id for which the sender has the outstanding request
+	    XXX currently unused */
 	uint32_t 			 s_highest_used_slot_id;
+	/** if s_state == SESSION_FAILED then s_rc contains error code
+		denoting cause of failure */
+	int				 s_rc;
 	/** Array of pointers to slots */
 	struct c2_rpc_snd_slot 		**s_slot_table;
 	/** Session ops */

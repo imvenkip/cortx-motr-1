@@ -246,7 +246,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
-		conn->c_state = CS_CONN_INIT_FAILED;
+		conn->c_state = CS_CONN_FAILED;
+		conn->c_rc = rc;
 		conn->c_private = NULL;
 		c2_fop_free(fop);
 
@@ -315,14 +316,13 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	}
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
 
-	C2_ASSERT(conn->c_state == CS_CONN_INITIALISING &&
-			conn->c_private != NULL);
+	C2_ASSERT(conn->c_state == CS_CONN_INITIALISING);
 
 	if (fop_ccr->rccr_rc != 0) {
 		/*
 		 * Receiver has reported conn create failure
 		 */
-		conn->c_state = CS_CONN_INIT_FAILED;
+		conn->c_state = CS_CONN_FAILED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
 	} else {
@@ -330,11 +330,15 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		c2_rpc_session_zero_attach(conn);
 		conn->c_state = CS_CONN_ACTIVE;
 	}
+	conn->c_rc = fop_ccr->rccr_rc;
+
+	C2_ASSERT(conn->c_private != NULL);
 	c2_fop_free(conn->c_private);	/* conn_create req fop */
 	conn->c_private = NULL;
+
 	c2_fop_free(fop);	/* reply fop */
 
-	C2_ASSERT(conn->c_state == CS_CONN_INIT_FAILED ||
+	C2_ASSERT(conn->c_state == CS_CONN_FAILED ||
 			conn->c_state == CS_CONN_ACTIVE);
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
@@ -506,14 +510,11 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	} else {
 		/*
 		 * Connection termination is failed
-		 * XXX
-		 * what if rc == -EEXIST, i.e. we asked to terminate conn with
-		 * given @sender_id and there is no rpc_connection active on
-		 * receiver side with @sender_id
 		 */
 		printf("conn termination failed\n");
-		conn->c_state = CS_CONN_ACTIVE;
+		conn->c_state = CS_CONN_FAILED;
 	}
+	conn->c_rc = fop_ctr->ctr_rc;
 
 	C2_ASSERT(conn->c_private != NULL);
 	c2_fop_free(conn->c_private); /* request fop */
@@ -532,7 +533,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	printf("conn fini called\n");
 
 	C2_PRE(conn->c_state == CS_CONN_TERMINATED ||
-		conn->c_state == CS_CONN_INIT_FAILED);
+		conn->c_state == CS_CONN_FAILED);
 
 	c2_list_link_fini(&conn->c_link);
 	c2_list_fini(&conn->c_sessions);
@@ -577,7 +578,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		return false;
 
 	switch (conn->c_state) {
-		case CS_CONN_INIT_FAILED:
 		case CS_CONN_TERMINATED:
 			if (conn->c_sender_id != SENDER_ID_INVALID)
 				return false;
@@ -612,6 +612,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				return false;
 		case CS_CONN_UNINITIALISED:
 			return true;
+		case CS_CONN_FAILED:
+			if (conn->c_rc == 0)
+				return false;
 		default:
 			return false;
 	}
@@ -1997,7 +2000,10 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 	struct c2_rpc_snd_slot	*slot;
 	struct c2_rpc_item	*item;
 
-			
+	/*
+	 * XXX need assert to confirm whethere session->s_mutex is held or
+	 * not. For that need a reverse mapping from slot to session.
+	 */
 	chan = clink->cl_chan;
 	C2_ASSERT(chan != NULL);
 

@@ -448,7 +448,7 @@ void test_snd_conn_create()
 	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
 	C2_ASSERT(conn.c_state == CS_CONN_INITIALISING ||
-			conn.c_state == CS_CONN_INIT_FAILED);
+			conn.c_state == CS_CONN_FAILED);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL);
 
@@ -568,6 +568,8 @@ void test_snd_session_terminate()
 	printf("test_snd_session_create: req item %p\n", req_item);
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
+	printf("snd_session_create_test: state %d rc %d\n", session.s_state,
+			session.s_rc);
 	c2_rpc_session_fini(&session);
 }
 void test_snd_conn_terminate()
@@ -597,6 +599,9 @@ void test_snd_conn_terminate()
 	item->ri_mach = machine;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
+
+	printf("conn_terminate_test: state = %d, rc = %d\n", conn.c_state,
+				conn.c_rc);
 	c2_rpc_conn_fini(&conn);
 }
 void test_item_prepare()
