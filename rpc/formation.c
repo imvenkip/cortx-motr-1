@@ -837,6 +837,7 @@ static int c2_rpc_form_summary_groups_sort(
 			placed = true;
 			c2_list_add_before(&sg->sug_linkage, 
 					&summary_group->sug_linkage);
+			break;
 		}
 	}
 	if (!placed) {
