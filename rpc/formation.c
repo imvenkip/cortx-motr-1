@@ -854,6 +854,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 
 	c2_list_add(&endp_unit->isu_unformed_list,
 			&item->ri_unformed_linkage);
+	printf("Inside c2_rpc_form_add_rpcitem_to_summary_unit, isu_groups_list_length = %lu\n", c2_list_length(&endp_unit->isu_groups_list));
 	c2_list_for_each_entry(&endp_unit->isu_groups_list, 
 			summary_group, 
 			struct c2_rpc_form_item_summary_unit_group, 
@@ -878,12 +879,13 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 			printf("Creating a c2_rpc_form_item_summary_unit_group \
 					struct for items with no groups.\n");
 		}
+		summary_group->sug_group = item->ri_group;
 	}
 
+	printf("Inside c2_rpc_form_add_rpcitem_to_summary_unit, grpid = %d\n", item->ri_group->rg_grpid);
 	if(item->ri_group != NULL) {
 		summary_group->sug_expected_items = item->ri_group->rg_expected;
 	}
-	summary_group->sug_group = item->ri_group;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX) {
 		summary_group->sug_priority_items++;
 	}
@@ -988,6 +990,8 @@ static int c2_rpc_form_item_add_to_forming_list(
 	C2_PRE(item != NULL);
 	C2_PRE(rpcobj_size != NULL);
 
+	printf("Inside add_to_forming_list \n");
+
 	/* io_op = item->ri_type->rit_ops->rio_is_io_req(item); */
 	io_op = c2_rpc_item_is_io_req(item); 
 	if (io_op) {
@@ -1001,7 +1005,8 @@ static int c2_rpc_form_item_add_to_forming_list(
 	}
 	/* item_size = item->ri_type->rit_ops->rio_item_size(item); */
 	item_size = c2_rpc_form_item_size(item);
-	
+		
+	printf("1. rpc object size updated. rpcobjsize = %lu, item_size = %lu\n", *rpcobj_size, item_size);
 	if (((*rpcobj_size + item_size) < endp_unit->isu_max_message_size)) {
 		/** XXX Need this API from rpc-core. */
 		//item_update_stream = c2_rpc_get_update_stream(item);
@@ -1016,6 +1021,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 			c2_list_add(forming_list, 
 					&item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
+			printf("2. rpc object size updated. rpcobjsize = %lu, item_size = %lu\n", *rpcobj_size, item_size);
 			*nfragments += current_fragments;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit,
 					item);
@@ -1599,13 +1605,13 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 					((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
 				}
-				res = c2_rpc_form_item_add_to_forming_list(
-						endp_unit, rpc_item, 
-						&rpcobj_size, &nfragments, 
-						forming_list);
-				if (res != 0) {
-					break;
 				}
+			res = c2_rpc_form_item_add_to_forming_list(
+					endp_unit, rpc_item, 
+					&rpcobj_size, &nfragments, 
+					forming_list);
+			if (res != 0) {
+				break;
 			}
 		}
 	}
@@ -1615,7 +1621,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   max_message_size, discard the rpc object. */
 		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
-					it is sub-optimal size.\n");
+					it is sub-optimal size rpcobj_size = %lu.\n",rpcobj_size);
 			/* Delete the formed RPC object. */
 			c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items,
 					rpc_item, rpc_item_next,
