@@ -62,6 +62,9 @@ static struct c2_service     sunrpc_server_service;
 static uint32_t              sunrpc_server_active_tms = 0;
 static struct c2_mutex       sunrpc_tm_start_mutex;
 
+/* forward reference */
+static const struct c2_net_bulk_mem_ops sunrpc_xprt_methods;
+
 /* base pvt structures must be at the top of our pvt structure */
 C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_domain_pvt, xd_base) == 0);
 C2_BASSERT(offsetof(struct c2_net_bulk_sunrpc_buffer_pvt,xsb_base) == 0);
@@ -193,14 +196,27 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 }
 
 /**
-   Add a work item to the work list
+   Inherit the wi add method.
 */
 static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
-			  struct c2_net_bulk_sunrpc_tm_pvt *tp)
+			  struct c2_net_bulk_mem_tm_pvt *tp)
 {
-	struct c2_net_bulk_sunrpc_domain_pvt *dp =
-		tp->xtm_base.xtm_tm->ntm_dom->nd_xprt_private;
-	(*dp->xd_base_ops.bmo_wi_add)(wi, &tp->xtm_base);
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tp->xtm_tm->ntm_dom));
+	dp = tp->xtm_tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_wi_add)(wi, tp);
+}
+
+/**
+   Inherit the post buffer event method.
+ */
+static void sunrpc_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_buffer_invariant(nb));
+	dp = nb->nb_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_wi_post_buffer_event)(wi);
 }
 
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
@@ -208,7 +224,6 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	struct c2_net_bulk_mem_domain_pvt *bdp;
-	int i;
 	int rc;
 
 	C2_PRE(dom->nd_xprt_private == NULL);
@@ -221,24 +236,11 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 		goto err_exit;
 	bdp = &dp->xd_base;
 
-	/* save the work functions of the base */
-	for (i = 0; i < C2_NET_XOP_NR; ++i) {
-		dp->xd_base_work_fn[i] = bdp->xd_work_fn[i];
-	}
-
-	/* override base work functions */
-	bdp->xd_work_fn[C2_NET_XOP_STATE_CHANGE] = sunrpc_wf_state_change;
-	bdp->xd_work_fn[C2_NET_XOP_MSG_SEND]     = sunrpc_wf_msg_send;
-	bdp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]  = sunrpc_wf_active_bulk;
-
 	/* save the base internal subs */
 	dp->xd_base_ops = bdp->xd_ops;
 
-	/* override the base internal subs */
-	bdp->xd_ops.bmo_ep_create        = &sunrpc_ep_create;
-	bdp->xd_ops.bmo_ep_release       = &sunrpc_xo_end_point_release;
-	bdp->xd_ops.bmo_buffer_in_bounds = &sunrpc_buffer_in_bounds;
-	bdp->xd_ops.bmo_desc_create      = &sunrpc_desc_create;
+	/* Replace the base ops pointer to override some of the methods. */
+	bdp->xd_ops = &sunrpc_xprt_methods;
 
 	/* override tunable parameters */
 	bdp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_sunrpc_end_point);
@@ -447,6 +449,27 @@ static int sunrpc_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_stop(tm, cancel);
 }
 
+/* Internal methods of this transport. */
+static const struct c2_net_bulk_mem_ops sunrpc_xprt_methods = {
+	.bmo_work_fn = {
+		[C2_NET_XOP_STATE_CHANGE]    = sunrpc_wf_state_change,
+		[C2_NET_XOP_CANCEL_CB]       = sunrpc_wf_cancel_cb,
+		[C2_NET_XOP_MSG_RECV_CB]     = sunrpc_wf_msg_recv_cb,
+		[C2_NET_XOP_MSG_SEND]        = sunrpc_wf_msg_send,
+		[C2_NET_XOP_PASSIVE_BULK_CB] = sunrpc_wf_passive_bulk_cb,
+		[C2_NET_XOP_ACTIVE_BULK]     = sunrpc_wf_active_bulk,
+		[C2_NET_XOP_ERROR_CB]        = sunrpc_wf_error_cb,
+	},
+	.bmo_ep_create                       = &sunrpc_ep_create,
+	.bmo_ep_release                      = &sunrpc_xo_end_point_release,
+	.bmo_wi_add                          = &sunrpc_wi_add,
+	.bmo_buffer_in_bounds                = &sunrpc_buffer_in_bounds,
+	.bmo_desc_create                     = &sunrpc_desc_create,
+	.bmo_post_error                      = &sunrpc_post_error,
+	.bmo_wi_post_buffer_event            = &sunrpc_wi_post_buffer_event,
+};
+
+/* External interface */
 static const struct c2_net_xprt_ops sunrpc_xo_xprt_ops = {
 	.xo_dom_init                    = sunrpc_xo_dom_init,
 	.xo_dom_fini                    = sunrpc_xo_dom_fini,

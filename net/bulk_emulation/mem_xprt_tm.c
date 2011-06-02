@@ -154,7 +154,7 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 					   struct c2_net_bulk_mem_work_item,
 					   xwi_link);
 			c2_list_del(&wi->xwi_link);
-			fn = dp->xd_work_fn[wi->xwi_op];
+			fn = dp->xd_ops->bmo_work_fn[wi->xwi_op];
 			C2_ASSERT(fn != NULL);
 
 			tp->xtm_callback_counter++;

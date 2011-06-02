@@ -94,7 +94,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	mep->xep_service_id  = id;
 	mem_ep_printable(mep, sa, id);
 	ep = &mep->xep_ep;
-	c2_ref_init(&ep->nep_ref, 1, dp->xd_ops.bmo_ep_release);
+	c2_ref_init(&ep->nep_ref, 1, dp->xd_ops->bmo_ep_release);
 	ep->nep_dom = dom;
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
 	ep->nep_addr = &mep->xep_addr[0];

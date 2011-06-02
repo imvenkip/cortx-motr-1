@@ -90,7 +90,7 @@ static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
 				uint32_t id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	return dp->xd_ops.bmo_ep_create(epp, dom, sa, id);
+	return dp->xd_ops->bmo_ep_create(epp, dom, sa, id);
 }
 
 /**
@@ -101,7 +101,7 @@ static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
 static inline bool MEM_BUFFER_IN_BOUNDS(const struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
-	return dp->xd_ops.bmo_buffer_in_bounds(nb);
+	return dp->xd_ops->bmo_buffer_in_bounds(nb);
 }
 
 /**
@@ -117,7 +117,7 @@ static int MEM_DESC_CREATE(struct c2_net_buf_desc *desc,
 			   int64_t buf_id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	return dp->xd_ops.bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
+	return dp->xd_ops->bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
 }
 
 /**

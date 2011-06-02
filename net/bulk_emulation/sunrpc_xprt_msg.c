@@ -6,6 +6,18 @@
  */
 
 /**
+   Inherit the message receive callback method.
+*/
+static void sunrpc_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
+				  struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_MSG_RECV_CB])(tm, wi);
+}
+
+/**
    Work function to send a message using an RPC call.
    Messages must fit within the first buffer segment.
  */
@@ -80,7 +92,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	wi->xwi_status = rc;
-	(*dp->xd_base_ops.bmo_wi_post_buffer_event)(wi);
+	(*dp->xd_base_ops->bmo_wi_post_buffer_event)(wi);
 	return;
 }
 
@@ -137,7 +149,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			/* schedule the receive msg callback */
 			wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 			wi->xwi_status = rc;
-			sunrpc_wi_add(wi, tp);
+			sunrpc_wi_add(wi, &tp->xtm_base);
 			break;
 		}
 		rc = 0;
@@ -172,7 +184,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 		c2_mutex_lock(&tm->ntm_mutex);
-		sunrpc_wi_add(wi, tp);
+		sunrpc_wi_add(wi, &tp->xtm_base);
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 
@@ -181,7 +193,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		struct c2_net_bulk_sunrpc_domain_pvt *dp;
 		dp = tm->ntm_dom->nd_xprt_private;
 		c2_mutex_lock(&tm->ntm_mutex);
-		(*dp->xd_base_ops.bmo_post_error)(tm, rc);
+		(*dp->xd_base_ops->bmo_post_error)(tm, rc);
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 

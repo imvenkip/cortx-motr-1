@@ -48,7 +48,7 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	sep->xep_magic = 0;
 
 	/* release the end point with the base method */
-	(*dp->xd_base_ops.bmo_ep_release)(ref);
+	(*dp->xd_base_ops->bmo_ep_release)(ref);
 }
 
 /**
@@ -117,7 +117,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 	C2_PRE(sunrpc_dom_invariant(dom));
 	/* C2_PRE(id > 0);*/
 	/* create the base transport ep first */
-	rc = (*dp->xd_base_ops.bmo_ep_create)(epp, dom, sa, id);
+	rc = (*dp->xd_base_ops->bmo_ep_create)(epp, dom, sa, id);
 	if (rc != 0)
 		return rc;
 

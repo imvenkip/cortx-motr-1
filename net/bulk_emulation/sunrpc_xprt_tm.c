@@ -147,7 +147,42 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		sunrpc_stop_service();
 	}
 	/* invoke the base work function */
-	(*dp->xd_base_work_fn[C2_NET_XOP_STATE_CHANGE])(tm, wi);
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_STATE_CHANGE])(tm, wi);
+}
+
+/**
+   Inherit the cancel callback method.
+ */
+static void sunrpc_wf_cancel_cb(struct c2_net_transfer_mc *tm,
+				struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_CANCEL_CB])(tm, wi);
+}
+
+/**
+   Inherit the error callback method.
+ */
+static void sunrpc_wf_error_cb(struct c2_net_transfer_mc *tm,
+				struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_ERROR_CB])(tm, wi);
+}
+
+/**
+   Inherit the post error method.
+ */
+static void sunrpc_post_error(struct c2_net_transfer_mc *tm, int32_t status)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_post_error)(tm, status);
 }
 
 /**

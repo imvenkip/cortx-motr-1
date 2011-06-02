@@ -44,11 +44,8 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 
 	uint64_t                          xd_magic;
 
-        /** Copy of in-mem work functions. */
-	c2_net_bulk_mem_work_fn_t         xd_base_work_fn[C2_NET_XOP_NR];
-
-	/** Copy of in-mem subroutines */
-	struct c2_net_bulk_mem_ops        xd_base_ops;
+	/** Pointer to in-mem methods */
+	const struct c2_net_bulk_mem_ops *xd_base_ops;
 
 	/** The user or kernel space sunrpc domain */
         struct c2_net_domain              xd_rpc_dom;

@@ -5,6 +5,18 @@
    @{
  */
 
+/**
+   Inherit the passive bulk callback method.
+ */
+static void sunrpc_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
+				      struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = tm->ntm_dom->nd_xprt_private;
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_PASSIVE_BULK_CB])(tm, wi);
+}
+
 static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc,
 				    c2_bcount_t length)
 {
@@ -15,7 +27,7 @@ static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc,
 	passive_wi->xwi_status = rc;
 	passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
 	passive_wi->xwi_nbe_length = length;
-	sunrpc_wi_add(passive_wi, passive_tp);
+	sunrpc_wi_add(passive_wi, &passive_tp->xtm_base);
 }
 
 static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -399,7 +411,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	wi->xwi_status = rc;
-	(*dp->xd_base_ops.bmo_wi_post_buffer_event)(wi);
+	(*dp->xd_base_ops->bmo_wi_post_buffer_event)(wi);
 	return;
 }
 
