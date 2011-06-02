@@ -51,6 +51,10 @@ void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 	max_fragments_size = max_fragments;
 }
 
+/**
+   TBD Add addb data points and log events.
+ */
+
 /**     
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
@@ -1455,6 +1459,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	bool						 item_coalesced = false;
 	struct c2_rpc_item				*rpc_item = NULL;
 	struct c2_rpc_item				*rpc_item_next = NULL;
+	bool						 urgent_items = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) ||
@@ -1558,6 +1563,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		item_size = c2_rpc_form_item_size(item);
 		/* 1. If there are urgent items, form them immediately. */
 		if (rpc_item->ri_deadline == 0) {
+			if (urgent_items == false) {
+				urgent_items = true;
+			}
 			res = c2_rpc_form_item_add_to_forming_list(endp_unit, 
 					rpc_item, &rpcobj_size, 
 					&nfragments, forming_list);
@@ -1598,6 +1606,27 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
+	if (!urgent_items) {
+		/* If size of formed rpc object is less than 90% of 
+		   max_message_size, discard the rpc object. */
+		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
+			printf("Discarding the formed rpc object since \
+					it is sub-optimal size.\n");
+			/* Delete the formed RPC object. */
+			c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items,
+					rpc_item, rpc_item_next,
+					struct c2_rpc_item,
+					ri_rpcobject_linkage) {
+				c2_list_del(&rpc_item->ri_rpcobject_linkage);
+			}
+			c2_list_del(&rpcobj->ro_rpcobj->r_linkage);
+			c2_free(rpcobj->ro_rpcobj);
+			c2_list_del(&rpcobj->ro_linkage);
+			c2_free(rpcobj);
+			rpcobj = NULL;
+			return C2_RPC_FORM_INTEVT_STATE_FAILED;
+		}
+	}
 	/* Try to do IO colescing for items in forming list. */
 	res = c2_rpc_form_items_coalesce(endp_unit, forming_list, &rpcobj_size);
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
