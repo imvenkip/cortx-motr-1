@@ -727,14 +727,16 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 		case C2_RPC_ITEM_CHANGE_PRIORITY:
 			item->ri_prio = 
 				(enum c2_rpc_item_priority)chng_req->value;
+			break;
 		case C2_RPC_ITEM_CHANGE_DEADLINE:
 			c2_timer_stop(&item->ri_timer);
 			c2_timer_fini(&item->ri_timer);
 			item->ri_deadline = (c2_time_t)chng_req->value;
+			break;
 		case C2_RPC_ITEM_CHANGE_RPCGROUP:
 			item->ri_group = (struct c2_rpc_group*)chng_req->value;
 
-	}
+	};
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
 	if (res != 0) {
 		printf("Failed to add data of an rpc item to summary unit.\n");
@@ -1489,11 +1491,13 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				struct c2_rpc_form_rpcobj.\n");
 		return -ENOMEM;
 	}
+	c2_list_link_init(&rpcobj->ro_linkage);
 	rpcobj->ro_rpcobj = c2_alloc(sizeof(struct c2_rpc));
 	if (rpcobj->ro_rpcobj == NULL) {
 		printf("Failed to allocate memory for struct c2_rpc.\n");
 		return -ENOMEM;
 	}
+	c2_list_link_init(&rpcobj->ro_rpcobj->r_linkage);
 	forming_list = &rpcobj->ro_rpcobj->r_items;
 	c2_list_init(forming_list);
 
