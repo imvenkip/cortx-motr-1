@@ -228,6 +228,9 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
    intercepted by a derived transport.
  */
 struct c2_net_bulk_mem_ops {
+	/** Work functions. */
+	c2_net_bulk_mem_work_fn_t  bmo_work_fn[C2_NET_XOP_NR];
+
 	/** Subroutine to create an end point. */
 	int (*bmo_ep_create)(struct c2_net_end_point **epp,
 			     struct c2_net_domain *dom,
@@ -269,61 +272,58 @@ struct c2_net_bulk_mem_ops {
  */
 struct c2_net_bulk_mem_domain_pvt {
 	/** Domain pointer */
-	struct c2_net_domain      *xd_dom;
+	struct c2_net_domain             *xd_dom;
 
-	/** Work functions. */
-	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
-
-	/** Exposed subroutines - derived transports may need to intercept */
-	struct c2_net_bulk_mem_ops xd_ops;
+	/** Methods that may be replaced by derived transports */
+	const struct c2_net_bulk_mem_ops *xd_ops;
 
 	/**
 	   Size of the end point structure.
 	   Initialized to the size of c2_net_bulk_mem_end_point.
 	 */
-	size_t                     xd_sizeof_ep;
+	size_t                            xd_sizeof_ep;
 
 	/**
 	   Size of the transfer machine private data.
 	   Initialized to the size of c2_net_bulk_mem_tm_pvt.
 	 */
-	size_t                     xd_sizeof_tm_pvt;
+	size_t                            xd_sizeof_tm_pvt;
 
 	/**
 	   Size of the buffer private data.
 	   Initialized to the size of c2_net_bulk_mem_buffer_pvt.
 	 */
-	size_t                     xd_sizeof_buffer_pvt;
+	size_t                            xd_sizeof_buffer_pvt;
 
 	/**
 	   Number of tuples in the address.
 	 */
-	size_t                     xd_addr_tuples;
+	size_t                            xd_addr_tuples;
 
 	/**
 	   Number of threads in a transfer machine pool.
 	 */
-	size_t                     xd_num_tm_threads;
+	size_t                            xd_num_tm_threads;
 
 	/**
 	   Linkage of in-memory c2_net_domain objects for in-memory
 	   communication.
 	   This is only done if the xd_derived is false.
 	 */
-	struct c2_list_link        xd_dom_linkage;
+	struct c2_list_link               xd_dom_linkage;
 
 	/**
 	   Indicator of a derived transport.
 	   Will be set to true if the transport pointer provided to
 	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
 	 */
-	bool                       xd_derived;
+	bool                              xd_derived;
 
 	/**
 	   Counter for passive bulk buffer identifiers.  The ntm_mutex must be
 	   held while operating on this counter.
 	 */
-	uint64_t                   xd_buf_id_counter;
+	uint64_t                          xd_buf_id_counter;
 };
 
 /**

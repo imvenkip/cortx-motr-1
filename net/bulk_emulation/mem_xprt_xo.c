@@ -15,6 +15,9 @@
 */
 static struct c2_list  mem_domains;
 
+/* forward reference */
+static const struct c2_net_bulk_mem_ops mem_xprt_methods;
+
 /**
    Transport initialization subroutine called from c2_init().
  */
@@ -183,22 +186,7 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		dom->nd_xprt_private = dp;
 	}
 	dp->xd_dom = dom;
-
-	/* set function pointers for indirectly invoked subroutines */
-	dp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change;
-	dp->xd_work_fn[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb;
-	dp->xd_work_fn[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb;
-	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
-	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
-	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
-	dp->xd_work_fn[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb;
-	dp->xd_ops.bmo_ep_create            = &mem_ep_create;
-	dp->xd_ops.bmo_ep_release           = &mem_xo_end_point_release;
-	dp->xd_ops.bmo_wi_add               = &mem_wi_add;
-	dp->xd_ops.bmo_buffer_in_bounds     = &mem_buffer_in_bounds;
-	dp->xd_ops.bmo_desc_create          = &mem_desc_create;
-	dp->xd_ops.bmo_post_error           = &mem_post_error;
-	dp->xd_ops.bmo_wi_post_buffer_event = &mem_wi_post_buffer_event;
+	dp->xd_ops = &mem_xprt_methods;
 
 	/* tunable parameters */
 	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
@@ -648,6 +636,27 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return 0;
 }
 
+/* Internal methods of this transport; visible to derived transports. */
+static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
+	.bmo_work_fn = {
+		[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change,
+		[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb,
+		[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb,
+		[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send,
+		[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb,
+		[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk,
+		[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb,
+	},
+	.bmo_ep_create                       = &mem_ep_create,
+	.bmo_ep_release                      = &mem_xo_end_point_release,
+	.bmo_wi_add                          = &mem_wi_add,
+	.bmo_buffer_in_bounds                = &mem_buffer_in_bounds,
+	.bmo_desc_create                     = &mem_desc_create,
+	.bmo_post_error                      = &mem_post_error,
+	.bmo_wi_post_buffer_event            = &mem_wi_post_buffer_event,
+};
+
+/* External interface */
 static const struct c2_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_dom_init                    = mem_xo_dom_init,
 	.xo_dom_fini                    = mem_xo_dom_fini,
