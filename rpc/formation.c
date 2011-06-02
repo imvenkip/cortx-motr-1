@@ -1016,6 +1016,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 			c2_list_add(forming_list, 
 					&item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
+			printf("New rpcobj size = %lu\n", *rpcobj_size);
 			*nfragments += current_fragments;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit,
 					item);
@@ -1599,13 +1600,13 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 					((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
 				}
-				res = c2_rpc_form_item_add_to_forming_list(
-						endp_unit, rpc_item, 
-						&rpcobj_size, &nfragments, 
-						forming_list);
-				if (res != 0) {
-					break;
-				}
+			}
+			res = c2_rpc_form_item_add_to_forming_list(
+					endp_unit, rpc_item, 
+					&rpcobj_size, &nfragments, 
+					forming_list);
+			if (res != 0) {
+				break;
 			}
 		}
 	}
