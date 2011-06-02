@@ -837,6 +837,7 @@ static int c2_rpc_form_summary_groups_sort(
 			placed = true;
 			c2_list_add_before(&sg->sug_linkage, 
 					&summary_group->sug_linkage);
+			break;
 		}
 	}
 	if (!placed) {
@@ -950,7 +951,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 		}
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 0, 
+		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 1, 
 				c2_rpc_form_item_timer_callback, 
 				(unsigned long)item);
 		res = c2_timer_start(item_timer);
@@ -1487,7 +1488,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
 	uint64_t					 group_size = 0;
 	uint64_t					 partial_size = 0;
-	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
+	struct c2_rpc_form_item_summary_unit_group	*group = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*group_next = NULL;
 	uint64_t					 nselected_groups = 0;
 	uint64_t					 ncurrent_groups = 0;
 	uint64_t					 nfragments = 0;
@@ -1617,8 +1619,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   group (if any), check if current rpc item belongs to this
 		   partial group and add the item till size of items in this
 		   partial group reaches its limit within max_message_size. */
-		c2_list_for_each_entry(&endp_unit->isu_groups_list, group,
-				struct c2_rpc_form_item_summary_unit_group,
+		c2_list_for_each_entry_safe(&endp_unit->isu_groups_list, group,
+				group_next, struct
+				c2_rpc_form_item_summary_unit_group,
 				sug_linkage) {
 			ncurrent_groups++;
 			/* If selected groups are exhausted, break the loop. */
@@ -1656,6 +1659,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 					struct c2_rpc_item,
 					ri_rpcobject_linkage) {
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
+				c2_list_add(&rpc_item->ri_unformed_linkage);
 			}
 			c2_list_del(&rpcobj->ro_rpcobj->r_linkage);
 			c2_free(rpcobj->ro_rpcobj);
