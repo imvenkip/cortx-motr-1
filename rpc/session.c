@@ -30,7 +30,7 @@ static void session_fields_init(struct c2_rpc_session	*session,
 				struct c2_rpc_conn	*conn,
 				uint32_t		nr_slots);
 
-static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot,
 				 struct c2_rpc_session	*session);
 
 static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn);
@@ -365,7 +365,7 @@ static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
 	c2_list_add(&conn->c_sessions, &session->s_link);
 	printf("Session zero attached\n");
 }
-static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot,
 				 struct c2_rpc_session	*session)
 {
 	struct c2_clink		*clink;
