@@ -378,6 +378,8 @@ struct c2_rpc_group {
 	/** signalled when a reply is received or an error happens
 	     (usually a timeout). */
 	struct c2_chan rg_chan;
+	/** Flag to debug */
+	int rg_grpid;
 };
 
 /**
