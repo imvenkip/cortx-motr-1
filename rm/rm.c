@@ -398,16 +398,16 @@ static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
  */
 static int reply_to_loan_request(struct c2_rm_incoming *in)
 {
-	struct c2_rm_right	    *right;
-	struct c2_rm_pin   	    *pin;
-	struct c2_rm_loan  	    *loan;
-	struct c2_fop        	    *f;
-	struct c2_fop		    *r;
-	struct c2_rm_loan_reply_fop *fop;
-	struct c2_rm_loan_reply_fop *rep;
-	struct c2_net_conn	    *conn;
-	struct c2_service_id 	     sid;
-	int			     result;
+	struct c2_rm_right	*right;
+	struct c2_rm_pin	*pin;
+	struct c2_rm_loan	*loan;
+	struct c2_fop		*f;
+	struct c2_fop		*r;
+	struct c2_rm_loan_reply *fop;
+	struct c2_rm_loan_reply *rep;
+	struct c2_net_conn	*conn;
+	struct c2_service_id	 sid;
+	int			 result;
 
 	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
 			       rp_right_linkage) {
@@ -421,9 +421,9 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 		conn = c2_net_conn_find(&sid);
 		C2_ASSERT(conn != NULL);
 
-		f = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+		f = c2_fop_alloc(&c2_rm_loan_reply_fopt, NULL);
 		fop = c2_fop_data(f);
-		r = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+		r = c2_fop_alloc(&c2_rm_loan_reply_fopt, NULL);
 		rep = c2_fop_data(r);
 
 		fop->loan_id = loan->rl_id;
@@ -443,8 +443,8 @@ static int send_out_request(struct c2_rm_outgoing *out)
 {
 	struct c2_fop	      *f;
 	struct c2_fop	      *r;
-	struct c2_rm_send_fop *fop;
-	struct c2_rm_send_fop *rep;
+	struct c2_rm_out_send *fop;
+	struct c2_rm_out_send *rep;
 	struct c2_net_conn    *conn;
 	struct c2_service_id   sid;
 	int 		       result;
@@ -453,9 +453,9 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
 
-	f = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+	f = c2_fop_alloc(&c2_rm_out_send_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_rm_send_fopt, NULL);
+	r = c2_fop_alloc(&c2_rm_out_send_fopt, NULL);
 	rep = c2_fop_data(r);
 
 	fop->req_type = out->rog_type;
