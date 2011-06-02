@@ -1854,12 +1854,14 @@ uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
 			/* Size of holding structure. */
 			size += (read_fop->frd_ioseg.fs_count *
 					sizeof(struct c2_fop_segment));
+			break;
 		case c2_io_service_readv_rep_opcode:
 			/** Add buffer payload for read reply */
 			read_rep_fop = c2_fop_data(fop);
 			/* Size of actual user data. */
 			size += read_rep_fop->frdr_buf.f_count;
 			/* For read reply type, there is only one buffer.*/
+			break;
 		case c2_io_service_writev_opcode:
 			/** Add buffer payload for write request */
 			write_fop = c2_fop_data(fop);
