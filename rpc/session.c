@@ -30,7 +30,9 @@ static void session_fields_init(struct c2_rpc_session	*session,
 				struct c2_rpc_conn	*conn,
 				uint32_t		nr_slots);
 
-static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot);
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot
+				 struct c2_rpc_session	*session);
+
 static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn);
 
 int c2_rpc_slot_table_key_cmp(struct c2_table	*table,
@@ -363,11 +365,13 @@ static void c2_rpc_session_zero_attach(struct c2_rpc_conn *conn)
 	c2_list_add(&conn->c_sessions, &session->s_link);
 	printf("Session zero attached\n");
 }
-static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot *slot)
+static void c2_rpc_snd_slot_init(struct c2_rpc_snd_slot	*slot
+				 struct c2_rpc_session	*session)
 {
 	struct c2_clink		*clink;
 
         C2_SET0(slot);
+	slot->ss_session = session;
         slot->ss_flags = SLOT_IN_USE;
         c2_list_init(&slot->ss_ready_list);
         c2_list_init(&slot->ss_replay_list);
@@ -642,7 +646,7 @@ static void session_fields_init(struct c2_rpc_session	*session,
 
 	for (i = 0; i < nr_slots; i++) {
 		C2_ALLOC_PTR(session->s_slot_table[i]);
-		c2_rpc_snd_slot_init(session->s_slot_table[0]);
+		c2_rpc_snd_slot_init(session->s_slot_table[0], session);
 	}
 }
 int c2_rpc_session_create(struct c2_rpc_session	*session,
@@ -1995,7 +1999,7 @@ void c2_rpc_snd_slot_enq(struct c2_rpc_session	*session,
 }
 
 /**
-   Called when c2_rpc_snd_slot::ss_chan channel is broadcasted
+   Called when there is signal on c2_rpc_snd_slot::ss_chan
  */
 void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 {
@@ -2003,10 +2007,6 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 	struct c2_rpc_snd_slot	*slot;
 	struct c2_rpc_item	*item;
 
-	/*
-	 * XXX need assert to confirm whethere session->s_mutex is held or
-	 * not. For that need a reverse mapping from slot to session.
-	 */
 	chan = clink->cl_chan;
 	C2_ASSERT(chan != NULL);
 
@@ -2017,6 +2017,7 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 		c2_rpc_snd_slot_is_busy(slot) ? "true" : "false",
 		c2_list_is_empty(&slot->ss_ready_list) ? "true" : "false");
 
+	C2_ASSERT(c2_mutex_is_locked(&slot->ss_session->s_mutex));
 	if (!c2_rpc_snd_slot_is_busy(slot) &&
 		!c2_list_is_empty(&slot->ss_ready_list)) {
 		/*
@@ -2032,8 +2033,7 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 		 * slot id
 		 */
 		C2_ASSERT(item->ri_sender_id != SENDER_ID_INVALID &&
-				item->ri_session_id != SESSION_ID_INVALID &&
-				item->ri_session_id != SESSION_ID_NOSESSION &&
+				item->ri_session_id <= SESSION_ID_MAX &&
 				item->ri_slot_id != SLOT_ID_INVALID);
 
 		item->ri_slot_generation = slot->ss_generation;
@@ -2041,6 +2041,9 @@ void c2_rpc_snd_slot_state_changed(struct c2_clink	*clink)
 		c2_rpc_snd_slot_mark_busy(slot);
 		slot->ss_sent_item = item;
 
+		/*
+		 * XXX TODO confirm that this doesn't lead to self deadlock.
+		 */
 		printf("slot_state_changed: submitting item %p\n", item);
 		c2_rpc_submit(item->ri_service_id, NULL, item, item->ri_prio,
 				&item->ri_deadline);

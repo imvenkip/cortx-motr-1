@@ -221,19 +221,19 @@ int c2_rpc_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
  */
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_create, "rpc_conn_create",
-			c2_rpc_fop_conn_create_opcode,
+			C2_RPC_FOP_CONN_CREATE_OPCODE,
 			&c2_rpc_fop_conn_create_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
-			c2_rpc_fop_conn_terminate_opcode,
+			C2_RPC_FOP_CONN_TERMINATE_OPCODE,
 			&c2_rpc_fop_conn_terminate_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create, "rpc_session_create",
-			c2_rpc_fop_session_create_opcode,
+			C2_RPC_FOP_SESSION_CREATE_OPCODE,
 			&c2_rpc_fop_session_create_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy, "rpc_session_destroy",
-			c2_rpc_fop_session_destroy_opcode,
+			C2_RPC_FOP_SESSION_DESTROY_OPCODE,
 			&c2_rpc_fop_session_destroy_ops);
 
 /*
@@ -241,19 +241,19 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy, "rpc_session_destroy",
  */
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_create_rep, "rpc_conn_create_reply",
-			c2_rpc_fop_conn_create_rep_opcode,
+			C2_RPC_FOP_CONN_CREATE_REP_OPCODE,
 			&c2_rpc_fop_conn_create_rep_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate_rep, "rpc_conn_terminate_reply",
-			c2_rpc_fop_conn_terminate_rep_opcode,
+			C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
 			&c2_rpc_fop_conn_terminate_rep_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create_rep, "rpc_session_create_reply",
-			c2_rpc_fop_session_create_rep_opcode,
+			C2_RPC_FOP_SESSION_CREATE_REP_OPCODE,
 			&c2_rpc_fop_session_create_rep_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy_rep, "rpc_session_destroy_reply",
-			c2_rpc_fop_session_destroy_rep_opcode,
+			C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE,
 			&c2_rpc_fop_session_destroy_rep_ops);
 
 static struct c2_fop_type *fops[] = {

@@ -14,14 +14,14 @@ struct fom;
 struct c2_fom_type;
 
 enum c2_rpc_opcodes {
-	c2_rpc_fop_conn_create_opcode = 30,
-	c2_rpc_fop_conn_terminate_opcode,
-	c2_rpc_fop_session_create_opcode,
-	c2_rpc_fop_session_destroy_opcode,
-	c2_rpc_fop_conn_create_rep_opcode,
-	c2_rpc_fop_conn_terminate_rep_opcode,
-	c2_rpc_fop_session_create_rep_opcode,
-	c2_rpc_fop_session_destroy_rep_opcode
+	C2_RPC_FOP_CONN_CREATE_OPCODE = 30,
+	C2_RPC_FOP_CONN_TERMINATE_OPCODE,
+	C2_RPC_FOP_SESSION_CREATE_OPCODE,
+	C2_RPC_FOP_SESSION_DESTROY_OPCODE,
+	C2_RPC_FOP_CONN_CREATE_REP_OPCODE,
+	C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
+	C2_RPC_FOP_SESSION_CREATE_REP_OPCODE,
+	C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE
 };
 
 extern struct c2_fop_type_ops c2_rpc_fop_conn_create_ops;

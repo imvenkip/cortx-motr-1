@@ -234,3 +234,12 @@ try to adhere to some higher level idioms.
     * when using long or long long qualifiers, omit int;
 
     * declare one variable per line.
+
+    * prefer
+	const char strvar[] = "somestring";
+      instead of
+	const char *strvar = "somestring";
+
+      The former initialises an array, while the later initialises a pointer,
+      which point to an anonymous array.
+

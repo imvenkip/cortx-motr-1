@@ -557,6 +557,8 @@ enum {
 	we will require stob_id of "slot file"
 */
 struct c2_rpc_snd_slot {
+	/** session in which this slot is contained */
+	struct c2_rpc_session	*ss_session;
 	uint64_t		 ss_flags;
 	struct c2_verno		 ss_verno;
 	/** effects upto last_persistent_verno have reached persistent
@@ -576,7 +578,9 @@ struct c2_rpc_snd_slot {
 	    c2_rpc_session::s_mutex. */
 	struct c2_mutex		 ss_mutex;
 	/** When an item is inserted in ready_list OR WAITING_FOR_REPLY flag
-	    is reset, the notification is broadcasted on this channel */
+	    is reset, the notification is broadcasted on this channel.
+	    XXX Make sure session->s_mutex is held before broadcasting on this
+	    channel*/
 	struct c2_chan		 ss_chan;
 };
 
