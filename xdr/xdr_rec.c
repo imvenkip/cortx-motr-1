@@ -163,7 +163,8 @@ void xdrrec_create(XDR *xdrs, u_int sendsize,
  */
 bool_t xdrrec_getlong(XDR *xdrs, long *lp)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         int32_t *buflp = (int32_t *)rstrm->in_finger;
         int32_t mylong;
 
@@ -184,7 +185,8 @@ bool_t xdrrec_getlong(XDR *xdrs, long *lp)
 
 bool_t xdrrec_putlong(XDR *xdrs, const long *lp)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         int32_t *dest_lp = (int32_t *)rstrm->out_finger;
 
         if ((rstrm->out_finger += BYTES_PER_XDR_UNIT) > rstrm->out_boundry) {
@@ -205,7 +207,8 @@ bool_t xdrrec_putlong(XDR *xdrs, const long *lp)
 
 bool_t xdrrec_getbytes(XDR *xdrs, caddr_t addr, u_int len)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         u_int current;
 
         while (len > 0) {
@@ -229,7 +232,8 @@ bool_t xdrrec_getbytes(XDR *xdrs, caddr_t addr, u_int len)
 
 bool_t xdrrec_putbytes(XDR *xdrs, const char *addr, u_int len)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         u_int current;
 
         while (len > 0) {
@@ -250,7 +254,8 @@ bool_t xdrrec_putbytes(XDR *xdrs, const char *addr, u_int len)
 
 u_int xdrrec_getpos(const XDR *xdrs)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         long pos;
 
         pos = lseek((int)(long) rstrm->tcp_handle, (long) 0, 1);
@@ -271,7 +276,8 @@ u_int xdrrec_getpos(const XDR *xdrs)
 
 bool_t xdrrec_setpos(XDR *xdrs, u_int pos)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         u_int currpos = xdrrec_getpos(xdrs);
         int delta = currpos - pos;
         caddr_t newpos;
@@ -304,7 +310,8 @@ bool_t xdrrec_setpos(XDR *xdrs, u_int pos)
 
 int32_t* xdrrec_inline(XDR *xdrs, u_int len)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         int32_t *buf = NULL;
 
         switch (xdrs->x_op) {
@@ -331,7 +338,8 @@ int32_t* xdrrec_inline(XDR *xdrs, u_int len)
 
 void xdrrec_destroy(XDR *xdrs)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
 
         mem_free (rstrm->the_buffer, rstrm->sendsize + rstrm->recvsize
                   + BYTES_PER_XDR_UNIT);
@@ -340,7 +348,8 @@ void xdrrec_destroy(XDR *xdrs)
 
 bool_t xdrrec_getint32(XDR *xdrs, int32_t *ip)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         int32_t *bufip =(int32_t *)rstrm->in_finger;
         int32_t mylong;
 
@@ -361,7 +370,8 @@ bool_t xdrrec_getint32(XDR *xdrs, int32_t *ip)
 
 bool_t xdrrec_putint32(XDR *xdrs, const int32_t *ip)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         int32_t *dest_ip = (int32_t *)rstrm->out_finger;
 
         if ((rstrm->out_finger += BYTES_PER_XDR_UNIT) > rstrm->out_boundry) {
@@ -388,7 +398,8 @@ bool_t xdrrec_putint32(XDR *xdrs, const int32_t *ip)
  */
 bool_t xdrrec_skiprecord(XDR *xdrs)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
 
         while (rstrm->fbtbc > 0 || (!rstrm->last_frag)) {
                 if (!skip_input_bytes(rstrm, rstrm->fbtbc))
@@ -407,7 +418,8 @@ bool_t xdrrec_skiprecord(XDR *xdrs)
  */
 bool_t xdrrec_eof(XDR *xdrs)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
 
         while (rstrm->fbtbc > 0 || (!rstrm->last_frag)) {
                 if (!skip_input_bytes(rstrm, rstrm->fbtbc))
@@ -429,7 +441,8 @@ bool_t xdrrec_eof(XDR *xdrs)
  */
 bool_t xdrrec_endofrecord(XDR *xdrs, bool_t sendnow)
 {
-        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)xdrs->x_private;
+        struct c2_xdr_rec_strm *rstrm = (struct c2_xdr_rec_strm *)
+					 xdrs->x_private;
         u_long len;
 
         if (sendnow || rstrm->frag_sent
@@ -486,7 +499,8 @@ static bool_t fill_input_buf(struct c2_xdr_rec_strm *rstrm)
         return TRUE;
 }
 
-static bool_t get_input_bytes(struct c2_xdr_rec_strm *rstrm, caddr_t addr, int len)
+static bool_t get_input_bytes(struct c2_xdr_rec_strm *rstrm, caddr_t addr,
+			      int len)
 {
         int current;
 

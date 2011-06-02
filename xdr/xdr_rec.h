@@ -11,7 +11,8 @@
 
    @section req Requirements.
 
-   For colibri, we need to implement little-endianness in XDR for both kernel and user layer code.
+   For colibri, we need to implement little-endianness in XDR for both kernel
+   and user layer code.
 
    @section defn Definitions.
 
@@ -40,40 +41,44 @@
 	uint32 - xdr_uint32_t (.....)
 	uint64 - xdr_uint64_t (.....)
 
-	- Each of the aggregation fields is composed of childs and the corresponding XDR filters
-	are used for conversion for each child based on their types.
+	- Each of the aggregation fields is composed of childs and the
+	corresponding XDR filters are used for conversion for each child based
+	on their types.
 
-	- li In addition to the above, xdr_bytes( ... ), xdr_array ( ... ) and xdr_u_int ( ... ) filters have
-	been used in 'union' and 'sequence' aggregation fields.
+	- li In addition to the above, xdr_bytes( ... ), xdr_array ( ... ) and
+	xdr_u_int ( ... ) filters have been used in 'union' and 'sequence'
+	aggregation fields.
 
 
    @section spec Functional and Logical Specifications
 
    @subsection Kernel-layer-XDR
-   For the kernel layer little endianness, we replace htonl() and ntohl() with inbuilt linux kernel macros
-   cpu_to_le32() and le32_to_cpu()
+   For the kernel layer little endianness, we replace htonl() and ntohl() with
+   inbuilt linux kernel macros cpu_to_le32() and le32_to_cpu()
 
    @subsection User-Layer-XDR
 
    - An XDR stream is obtained by calling the appropriate creation routine which
-	creates an instance of an XDR object/handle that is tailored to the specific
-	properties of the stream.
+     creates an instance of an XDR object/handle that is tailored to the
+     specific properties of the stream.
 
    - Streams currently exist for  deserialization of data to or from standard
-	I/O FILE streams ( xdr_stdio.c ), record streams ( xdr_rec.c ) and memory ( xdr_mem.c ).
+     I/O FILE streams ( xdr_stdio.c ), record streams ( xdr_rec.c ) and memory
+     ( xdr_mem.c ).
 
-   - For colibri, currently, we use sunrpc over TCP ( though this might change soon ).The XDR stream
-       is created by the sunrpc by internally calling xdrrec_create() function defined in xdr_rec.c
-       On the client side the call sequence is : clnttcp_create () --> xdrrec_create().
+   - For colibri, currently, we use sunrpc over TCP ( though this might change
+     soon ).The XDR stream is created by the sunrpc by internally calling
+     xdrrec_create() function defined in xdr_rec.c. On the client side the call
+     sequence is : clnttcp_create () --> xdrrec_create().
 
    - In future, once the use of sunrpc is deprecated in colibri,
-	we can use xdrrec_create to register our own functions tailored to the specific 
-	transport used ( eg: RDMA ).
+     we can use xdrrec_create to register our own functions tailored to the
+     specific transport used ( eg: RDMA ).
 
    - The various  xdr operation vectors would be initialized
-    	to the functions defined in c2_xdr_rec.c. The actual conversion
-    	of little endian to big endian and vice versa takes place in
-	these functions. The operation vectors defined in c2_xdr_rec.c are :-
+     to the functions defined in c2_xdr_rec.c. The actual conversion
+     of little endian to big endian and vice versa takes place in
+     these functions. The operation vectors defined in c2_xdr_rec.c are :-
 
 	xdrrec_getlong,
 	xdrrec_putlong,
@@ -87,21 +92,22 @@
 	xdrrec_putint32
 
     - For making the XDR library as little endian, we need to replace the
-	htonl and ntohl macros in the various xdr_ops defined in xdr_rec.c ( from the
-	glibc rpc source ) with the c2_le().The rewritten xdr_rec.c with 
-	our little endian macros would be compiled to build a "xdr-little-endidan"library. The various
- 	operation vectors shown above would be exported by our library.
+      htonl and ntohl macros in the various xdr_ops defined in xdr_rec.c
+      ( from the glibc rpc source ) with the c2_le().The rewritten xdr_rec.c
+      with our little endian macros would be compiled to build a
+      "xdr-little-endian"library. The various operation vectors shown above
+      would be exported by our library.
 
     - The symbols that would be exported by this library would be
-	internally invoked by the various xdr filters used in colibri fops.
-	For eg: xdr_uint32_t ( ... ) will invoke the xdrrec_getlong ( ... )
-	and xdrrec_putlong ( ... ) for decoding and encoding from and to an
-	XDR stream. Similarly xdr_bytes ( ... ) internally will invoke
-	xdrrec_getbytes( ... ) and xdr_putbytes( ... ) exported from our library.
+      internally invoked by the various xdr filters used in colibri fops.
+      For eg: xdr_uint32_t ( ... ) will invoke the xdrrec_getlong ( ... )
+      and xdrrec_putlong ( ... ) for decoding and encoding from and to an
+      XDR stream. Similarly xdr_bytes ( ... ) internally will invoke
+      xdrrec_getbytes( ... ) and xdr_putbytes(...) exported from our library.
 
-    - In future, once the use of sunrpc is deprecated in colibri, 
-	we can use xdrrec_create to register our own functions tailored to the specific 
-	transport used ( eg: RDMA ).
+    - In future, once the use of sunrpc is deprecated in colibri, we can use
+      xdrrec_create to register our own functions tailored to the specific
+      transport used ( eg: RDMA ).
 */
 #include <rpc/xdr.h>
 #include <rpc/rpc.h>
@@ -110,11 +116,13 @@
 #define MCALL_MSG_SIZE 24
 
 /**
-   A record is composed of one or more record fragments.A record fragment is a two-byte header
-   followed by zero to 2**32-1 bytes.  The header is treated as a long unsigned The low order 31 bits are a
-   byte count of the fragment.  The highest order bit is a boolean:1 => this fragment is the last
-   fragment of the record, 0 => this fragment is followed by more fragment(s).The fragment/record machinery
-   is not general;  it is constructed to meet the needs of xdr and rpc based on tcp
+   A record is composed of one or more record fragments.A record fragment is a
+   two-byte header followed by zero to 2**32-1 bytes.  The header is treated as
+   a long unsigned The low order 31 bits are a byte count of the fragment.
+   The highest order bit is a boolean:1 => this fragment is the last
+   fragment of the record, 0 => this fragment is followed by more fragment(s).
+   The fragment/record machinery is not general;  it is constructed to meet the
+   needs of xdr and rpc based on tcp
 */
 struct c2_xdr_rec_strm {
         /** The opaque tcp connection handle which is passed as a parameter
@@ -178,7 +186,7 @@ bool_t xdrrec_putint32 (XDR *, const int32_t *);
 const struct xdr_ops c2_xdrrec_ops;
 
 /**
-   Convert the incoming 4 byte data to little endian format. This inline function
+   Convert the incoming 4 byte data to little endian format. This inline func
    will replace the existing htonl() and ntohl() macrosin colibri's XDR library
    On most of the CPUs today, this will just return the passed data without any
    conversion, thus savinga few processor and bus cycles spent on converting
