@@ -3,12 +3,12 @@ SUBDIRS_BASE = m4 doc man patches
 # Order is important until fop is reached. Fop needs all libs before it in the
 # list built in order to use fop2c
 # addb_pseudo is used only for build fop2c, with which full addb can be built
-SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop sm stob net addb dtm nrs \
+SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop sm stob xdr net addb dtm nrs \
                sns mw reqh layout pool balloc desim cob capa udb ioservice # rpc
 
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
+            fol/ut sns/ut desim/ut cob/ut xdr/ut net/ut net/bulk_emulation/ut \
             udb/ut capa/ut #rpc/ut
 SUBDIR_ST = net/st net/bulk_emulation/st
 SUBDIR_UB =
