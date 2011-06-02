@@ -11,6 +11,7 @@
 #include "rm/rm.h"
 #include "rm/rm_u.h"
 #include "rm/rm_fop.h"
+
 /**
    @addtogroup rm
    @{
@@ -92,7 +93,7 @@ void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
 			struct c2_rm_resource *res)
 {
 	struct c2_rm_resource *r;
-	bool		      found = false;
+	bool		       found = false;
 
 	C2_PRE(res->r_ref == 0);
 
@@ -198,8 +199,8 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 {
 	struct c2_rm_resource	   *res = owner->ro_resource;
 	struct c2_rm_resource_type *rtype = res->r_type;
-	int			   i;
-	int			   j;
+	int			    i;
+	int			    j;
 
 	C2_PRE(owner->ro_state == ROS_FINAL);
 	C2_PRE(c2_list_is_empty(&owner->ro_borrowed));
@@ -293,7 +294,7 @@ static void apply_policy(struct c2_rm_incoming *in)
 	struct c2_rm_right *right;
 	struct c2_rm_right *pin_right;
 	struct c2_rm_pin   *pin;
-	bool 		   first;
+	bool 		    first;
 
 	switch (in->rin_policy) {
 		case RIP_INPLACE:
@@ -405,8 +406,8 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 	struct c2_rm_loan_reply_fop *fop;
 	struct c2_rm_loan_reply_fop *rep;
 	struct c2_net_conn	    *conn;
-	struct c2_service_id 	    sid;
-	int			    result;
+	struct c2_service_id 	     sid;
+	int			     result;
 
 	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
 			       rp_right_linkage) {
@@ -440,13 +441,13 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
  */
 static int send_out_request(struct c2_rm_outgoing *out)
 {
-	struct c2_service_id  sid;
 	struct c2_fop	      *f;
 	struct c2_fop	      *r;
 	struct c2_rm_send_fop *fop;
 	struct c2_rm_send_fop *rep;
 	struct c2_net_conn    *conn;
-	int 		      result;
+	struct c2_service_id   sid;
+	int 		       result;
 
 	sid = out->rog_want.rl_other.rem_service;
 	conn = c2_net_conn_find(&sid);
@@ -591,7 +592,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	struct c2_rm_pin	*ri_pin;
 	struct c2_rm_right 	*right;
 
-	C2_PRE(in != NULL);
+	C2_PRE(in->rin_state == RI_SUCCESS);
 
 	c2_mutex_lock(&in->rin_owner->ro_lock);
 	c2_list_for_each_entry(&in->rin_pins, in_pin, struct c2_rm_pin,
@@ -605,6 +606,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 		}
 	}
 	c2_mutex_unlock(&in->rin_owner->ro_lock);
+	C2_POST(c2_list_is_empty(&in->rin_pins));
 }
 
 /**
@@ -663,8 +665,8 @@ static void owner_balance(struct c2_rm_owner *o)
 	struct c2_rm_right	*tmp;
 	struct c2_rm_outgoing	*out;
 	struct c2_rm_incoming	*in;
-	bool			todo;
-	int			prio;
+	bool			 todo;
+	int			 prio;
 
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
@@ -839,9 +841,9 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 {
 	struct c2_rm_right *right;
 	struct c2_rm_owner *o = in->rin_owner;
-	bool 		   track_local = false;
-	bool 		   coverage = false;
-	int		   i;
+	bool 		    track_local = false;
+	bool 		    coverage = false;
+	int		    i;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(in->rin_state == RI_CHECK);
@@ -954,9 +956,9 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 	struct c2_rm_right 	*out_right;
 	struct c2_rm_right 	*tmp;
 	struct c2_rm_loan	*out_loan;
-	int 			result = 0;
-	int			i;
-	bool			found = false;
+	int 			 result = 0;
+	int			 i;
+	bool			 found = false;
 
 	/* first check for existing outgoing requests */
 	for (i = 0; i < ARRAY_SIZE(in->rin_owner->ro_outgoing); i++) {
@@ -1007,7 +1009,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 			  const c2_time_t deadline)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
-	struct c2_clink    clink;
+	struct c2_clink     clink;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
@@ -1023,7 +1025,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 	    in->rin_state != RI_FAILURE)
 		return -ETIMEDOUT;
 
-	return in->rin_state;
+	return in->rin_state == RI_SUCCESS;
 }
 
 int c2_rm_right_get_wait(struct c2_rm_owner *owner,
@@ -1041,11 +1043,7 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	if (in->rin_state != RI_SUCCESS ||
-	    in->rin_state != RI_FAILURE)
-		return -ETIMEDOUT;
-
-	return in->rin_state;
+	return in->rin_state == RI_SUCCESS;
 }
 
 /** @} end of Owner state machine group */

@@ -6,6 +6,7 @@
 #include "lib/ub.h"
 #include "rm/rm.h"
 
+#include "rings.h"
 /**
    @addtogroup rm
 
@@ -72,7 +73,7 @@ enum {
 
 	ALLRINGS = NARYA | NENYA | VILYA | DURIN | THROR | GR_2 |
 	GR_3 | GR_4 | GR_5 | GR_6 | ANGMAR | KHAMUL | MR_2 | MR_3 | MR_4 |
-	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE;
+	MR_5 | MR_6 | MR_7 | MR_8 | THE_ONE
 
 };
 
@@ -86,13 +87,8 @@ static int                   result;
 static struct c2_rm_incoming in;
 static struct c2_rm_incoming inother;
 
-const struct c2_rm_resource_type_ops rtops = {
-	.rto_eq     = NULL,
-	.rto_decode = NULL
-};
-
 static struct c2_rm_resource_type rt = {
-	.rt_ops  = &rtops,
+	.rt_ops  = &rings_rtype_ops,
 	.rt_name = "rm ut resource type",
 	.rt_id   = 1
 };
@@ -101,14 +97,14 @@ static void rm_init(void)
 {
 	c2_rm_domain_init(&dom);
 	c2_rm_type_register(&dom, &rt);
-	result = c2_rm_resource_add(&rt, &r0);
+	c2_rm_resource_add(&rt, &R.rs_resource);
 	C2_UT_ASSERT(result == 0);
 	c2_rm_right_init(&everything);
 	everything.ri_datum = ALLRINGS;
-	c2_rm_owner_init_with(&Sauron, &everything);
-	c2_rm_owner_init(&elves);
-	c2_rm_owner_init(&dwarves);
-	c2_rm_owner_init(&men);
+	c2_rm_owner_init_with(&Sauron, &R.rs_resource, &everything);
+	c2_rm_owner_init(&elves, &R.rs_resource);
+	c2_rm_owner_init(&dwarves, &R.rs_resource);
+	c2_rm_owner_init(&men, &R.rs_resource);
 	c2_rm_incoming_init(&in);
 	c2_rm_incoming_init(&inother);
 }
@@ -122,7 +118,7 @@ static void rm_fini(void)
 	c2_rm_owner_fini(&elves);
 	c2_rm_owner_fini(&Sauron);
 	c2_rm_right_fini(&everything);
-	c2_rm_resource_del(&r0);
+	c2_rm_resource_del(&R.rs_resource);
 	c2_rm_type_deregister(&rt);
 	c2_rm_domain_fini(&dom);
 }
@@ -373,7 +369,7 @@ const struct c2_test_suite rm_ut = {
 		{ "right_get0", right_get_test0 },
 		{ "right_get1", right_get_test1 },
 		{ "right_get2", right_get_test2 },
-		{ "right_get3", right_get_test2 },
+		{ "right_get3", right_get_test3 },
 		{ "intent mode", intent_mode_test },
 		{ "wbc", wbc_mode_test },
 		{ "separate", separate_test },

@@ -408,8 +408,8 @@ struct c2_rm_right_ops {
         bool (*rro_implies)(const struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
 	/* Copy the resource type specific part. */
-	void (*rro_copy)   (struct c2_rm_right r0,
-			    const struct c2_rm_right r1);
+	void (*rro_copy)   (struct c2_rm_right *r0,
+			    const struct c2_rm_right *r1);
         /** @} end of Rights ordering */
 };
 
