@@ -852,6 +852,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	     structure and fill necessary data.
 	 */
 
+	c2_list_link_init(&item->ri_unformed_linkage);
 	c2_list_add(&endp_unit->isu_unformed_list,
 			&item->ri_unformed_linkage);
 	c2_list_for_each_entry(&endp_unit->isu_groups_list, 
@@ -873,17 +874,20 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 					structure.\n");
 			return -ENOMEM;
 		}
+		c2_list_link_init(&summary_group->sug_linkage);
 		c2_list_add(&endp_unit->isu_groups_list, &summary_group->sug_linkage);
+		printf("New summary unit group added.\n");
 		if (item->ri_group == NULL) {
 			printf("Creating a c2_rpc_form_item_summary_unit_group \
 					struct for items with no groups.\n");
 		}
+		summary_group->sug_group = item->ri_group;
+		printf("Length of groups list = %lu\n", c2_list_length(&endp_unit->isu_groups_list));
 	}
 
 	if(item->ri_group != NULL) {
 		summary_group->sug_expected_items = item->ri_group->rg_expected;
 	}
-	summary_group->sug_group = item->ri_group;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX) {
 		summary_group->sug_priority_items++;
 	}
