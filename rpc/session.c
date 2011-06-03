@@ -26,14 +26,14 @@
 
 const char C2_RPC_INMEM_SLOT_TABLE_NAME[] = "inmem_slot_table";
 
-static void session_fields_init(struct c2_rpc_session	*session,
-				struct c2_rpc_conn	*conn,
-				uint32_t		nr_slots);
+static int session_fields_init(struct c2_rpc_session	*session,
+			       struct c2_rpc_conn	*conn,
+			       uint32_t			nr_slots);
 
-static void slot_init(struct c2_rpc_snd_slot	*slot,
+static int slot_init(struct c2_rpc_snd_slot	*slot,
 		      struct c2_rpc_session	*session);
 
-static void session_zero_attach(struct c2_rpc_conn *conn);
+static int session_zero_attach(struct c2_rpc_conn *conn);
 
 static void conn_search(const struct c2_rpcmachine	*machine,
                         uint64_t			sender_id,
@@ -224,9 +224,19 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	conn->c_rpcmachine = machine;
 	conn->c_rc = 0;
 
+	rc = session_zero_attach(conn);
+	if (rc != 0) {
+		conn->c_state = CS_CONN_FAILED;
+		conn->c_rc = rc;
+		return rc;
+	}
+
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
-	if (fop == NULL)
-		return -ENOMEM;
+	if (fop == NULL) {
+		conn->c_state = CS_CONN_FAILED;
+		conn->c_rc = rc;
+		return rc;
+	}
 
 	fop_cc = c2_fop_data(fop);
 	C2_ASSERT(fop_cc != NULL);
@@ -358,11 +368,6 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	} else {
 		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID);
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
-
-		C2_ASSERT(c2_list_is_empty(&conn->c_sessions));
-		session_zero_attach(conn);
-		C2_ASSERT(!c2_list_is_empty(&conn->c_sessions));
-
 		conn->c_state = CS_CONN_ACTIVE;
 	}
 	conn->c_rc = fop_ccr->rccr_rc;
@@ -381,25 +386,32 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	c2_chan_broadcast(&conn->c_chan);
 	return;
 }
-static void session_zero_attach(struct c2_rpc_conn *conn)
+static int session_zero_attach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session   *session;
+	int			rc;
 
-	printf("Creating session 0\n");
 	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_INITIALISING);
-	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 
 	C2_ALLOC_PTR(session);
+	if (session == NULL)
+		return -ENOMEM;
+
 	C2_SET0(session);
 
-	session_fields_init(session, conn, 1);
+	rc = session_fields_init(session, conn, 1);   /* 1 => number of slots */
+	if (rc != 0) {
+		c2_free(session);
+		return rc;
+	}
+
 	session->s_session_id = SESSION_0;
 	session->s_state = SESSION_ALIVE;
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
-	printf("Session zero attached\n");
+	return 0;
 }
-static void slot_init(struct c2_rpc_snd_slot	*slot,
+static int slot_init(struct c2_rpc_snd_slot	*slot,
 		      struct c2_rpc_session	*session)
 {
 	struct c2_clink		*clink;
@@ -413,10 +425,13 @@ static void slot_init(struct c2_rpc_snd_slot	*slot,
 	c2_chan_init(&slot->ss_chan);
 
 	C2_ALLOC_PTR(clink);
-	C2_ASSERT(clink != NULL);
+	if (clink == NULL) {
+		return -ENOMEM;
+	}
 
 	c2_clink_init(clink, c2_rpc_snd_slot_state_changed);
 	c2_clink_add(&slot->ss_chan, clink);
+	return 0;
 }
 
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
@@ -538,14 +553,10 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		 * Every conn has session 0
 		 */
 		C2_ASSERT(session0 != NULL);
+
 		c2_mutex_lock(&session0->s_mutex);
-
 		session0->s_state = SESSION_TERMINATED;
-
-		c2_list_del(&session0->s_link);
 		c2_mutex_unlock(&session0->s_mutex);
-
-		c2_rpc_session_fini(session0);
 	} else {
 		/*
 		 * Connection termination is failed
@@ -569,11 +580,21 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
-	printf("conn fini called\n");
-
+	struct c2_rpc_session	*session;
+	
 	C2_PRE(conn->c_state == CS_CONN_TERMINATED ||
 		conn->c_state == CS_CONN_FAILED);
 
+	c2_mutex_lock(&conn->c_mutex);
+	session_search(conn, SESSION_0, &session);
+	c2_mutex_unlock(&conn->c_mutex);
+
+	if (session != NULL) {
+		session->s_state = SESSION_TERMINATED;
+		c2_list_del(&session->s_link);
+		c2_rpc_session_fini(session);
+		c2_free(session);
+	}
 	c2_list_link_fini(&conn->c_link);
 	c2_list_fini(&conn->c_sessions);
 	c2_chan_fini(&conn->c_chan);
@@ -662,11 +683,12 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	return true;
 }
 
-static void session_fields_init(struct c2_rpc_session	*session,
-				struct c2_rpc_conn	*conn,
-				uint32_t		nr_slots)
+static int session_fields_init(struct c2_rpc_session	*session,
+			       struct c2_rpc_conn	*conn,
+			       uint32_t			nr_slots)
 {
 	int	i;
+	int	rc = 0;
 
 	C2_PRE(session != NULL && nr_slots >= 1);
 
@@ -677,14 +699,38 @@ static void session_fields_init(struct c2_rpc_session	*session,
 	c2_mutex_init(&session->s_mutex);
 	session->s_nr_slots = nr_slots;
 	session->s_slot_table_capacity = nr_slots;
+
 	C2_ALLOC_ARR(session->s_slot_table, nr_slots);
+	if (session->s_slot_table == NULL) {
+		rc = -ENOMEM;
+		goto out_err;
+	}
 
-	C2_ASSERT(session->s_slot_table != NULL);
-
+	C2_SET0(session->s_slot_table);
 	for (i = 0; i < nr_slots; i++) {
 		C2_ALLOC_PTR(session->s_slot_table[i]);
-		slot_init(session->s_slot_table[0], session);
+		if (session->s_slot_table[i] == NULL) {
+			rc = -ENOMEM;
+			goto out_err;
+		}
+		rc = slot_init(session->s_slot_table[0], session);
+		if (rc != 0)
+			goto out_err;
 	}
+	return 0;
+
+out_err:
+	C2_ASSERT(rc != 0);
+	if (session->s_slot_table != NULL) {
+		for (i = 0; i < nr_slots; i++) {
+			if (session->s_slot_table[i] != NULL)
+				c2_free(session->s_slot_table[i]);
+		}
+		session->s_nr_slots = 0;
+		session->s_slot_table_capacity = 0;
+		c2_free(session->s_slot_table);
+	}
+	return rc;
 }
 int c2_rpc_session_create(struct c2_rpc_session	*session,
 			  struct c2_rpc_conn	*conn)
@@ -701,15 +747,14 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 	c2_mutex_lock(&conn->c_mutex);
 	if (conn->c_state != CS_CONN_ACTIVE) {
 		c2_mutex_unlock(&conn->c_mutex);
-		/*
-		 * XXX Assert is just for testing purpose
-		 */
-		C2_ASSERT(0);
 		return -EINVAL;
 	}
 
-	printf("session_Create: session object %p\n", session);
-	session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
+	rc = session_fields_init(session, conn, DEFAULT_SLOT_COUNT);
+	if (rc != 0) {
+		c2_mutex_unlock(&conn->c_mutex);
+		return rc;
+	}
 
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
 	if (fop == NULL)
