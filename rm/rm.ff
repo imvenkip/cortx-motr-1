@@ -1,0 +1,42 @@
+/* -*- C -*- */
+
+/**
+   @addtogroup rm
+   @{
+ */
+
+/** @file rm.ff
+ *
+ * <b>Simplistic RM fop formats</b>
+ *
+ */
+
+DEF(c2_rm_fop_sid, RECORD,
+    _(sid_count, U64),
+    _(sid_value, BYTE));
+
+DEF(c2_rm_loan_reply, RECORD,
+    _(ri_datum, U64),
+    _(loan_id, U64),
+    _(rem_id, U64),
+    _(serv_sid, c2_rm_fop_sid));
+
+DEF(c2_rm_send_out, RECORD,
+    _(ri_datum, U64),
+    _(loan_id, U64),
+    _(rem_id, U64),
+    _(req_type, U32),
+    _(rem_state, U32),
+    _(serv_sid, c2_rm_fop_sid));
+
+/** @} end of rm group */
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

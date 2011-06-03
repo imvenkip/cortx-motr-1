@@ -1,0 +1,257 @@
+rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
+  /usr/include/stdint.h /usr/include/features.h /usr/include/sys/cdefs.h \
+  /usr/include/bits/wordsize.h /usr/include/gnu/stubs.h \
+  /usr/include/gnu/stubs-64.h /usr/include/bits/wchar.h \
+  /usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdbool.h \
+  /usr/include/sys/types.h /usr/include/bits/types.h \
+  /usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stddef.h \
+  /usr/include/bits/typesizes.h /usr/include/time.h /usr/include/endian.h \
+  /usr/include/bits/endian.h /usr/include/sys/select.h \
+  /usr/include/bits/select.h /usr/include/bits/sigset.h \
+  /usr/include/bits/time.h /usr/include/sys/sysmacros.h \
+  /usr/include/bits/pthreadtypes.h ../../lib/ut.h \
+  /usr/local/include/CUnit/Basic.h /usr/local/include/CUnit/CUnit.h \
+  /usr/include/string.h /usr/include/xlocale.h /usr/include/math.h \
+  /usr/include/bits/huge_val.h /usr/include/bits/huge_valf.h \
+  /usr/include/bits/huge_vall.h /usr/include/bits/inf.h \
+  /usr/include/bits/nan.h /usr/include/bits/mathdef.h \
+  /usr/include/bits/mathcalls.h /usr/local/include/CUnit/CUError.h \
+  /usr/include/errno.h /usr/include/bits/errno.h \
+  /usr/include/linux/errno.h /usr/include/asm/errno.h \
+  /usr/include/asm-x86_64/errno.h /usr/include/asm-generic/errno.h \
+  /usr/include/asm-generic/errno-base.h /usr/local/include/CUnit/TestDB.h \
+  /usr/include/setjmp.h /usr/include/bits/setjmp.h \
+  /usr/local/include/CUnit/TestRun.h /usr/include/stdio.h \
+  /usr/include/libio.h /usr/include/_G_config.h /usr/include/wchar.h \
+  /usr/include/gconv.h \
+  /usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdarg.h \
+  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
+  ../../lib/ub.h ../../lib/types.h ../../lib/cdefs.h \
+  ../../lib/user_space/cdefs.h ../../rm/rm.h ../../net/net.h \
+  ../../lib/cdefs.h ../../lib/rwlock.h ../../lib/user_space/rwlock.h \
+  /usr/include/pthread.h /usr/include/sched.h /usr/include/bits/sched.h \
+  /usr/include/signal.h ../../lib/list.h ../../lib/assert.h \
+  ../../lib/user_space/assert.h ../../lib/queue.h ../../lib/refs.h \
+  ../../lib/cdefs.h ../../lib/atomic.h ../../lib/assert.h \
+  ../../lib/user_space/user_x86_64_atomic.h ../../lib/types.h \
+  ../../lib/cdefs.h ../../lib/assert.h ../../lib/chan.h ../../lib/list.h \
+  ../../lib/mutex.h ../../lib/user_space/mutex.h ../../lib/time.h \
+  ../../lib/types.h ../../lib/user_space/time.h /usr/include/sys/time.h \
+  /usr/include/time.h ../../lib/semaphore.h \
+  ../../lib/user_space/semaphore.h /usr/include/semaphore.h \
+  /usr/include/bits/semaphore.h ../../lib/time.h ../../addb/addb.h \
+  ../../lib/cdefs.h ../../lib/assert.h ../../lib/adt.h ../../lib/buf.h \
+  ../../lib/list.h ../../lib/time.h ../../lib/list.h ../../lib/mutex.h \
+  ../../lib/chan.h rings.h
+
+../../lib/types.h:
+
+../../lib/user_space/types.h:
+
+/usr/include/stdint.h:
+
+/usr/include/features.h:
+
+/usr/include/sys/cdefs.h:
+
+/usr/include/bits/wordsize.h:
+
+/usr/include/gnu/stubs.h:
+
+/usr/include/gnu/stubs-64.h:
+
+/usr/include/bits/wchar.h:
+
+/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdbool.h:
+
+/usr/include/sys/types.h:
+
+/usr/include/bits/types.h:
+
+/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stddef.h:
+
+/usr/include/bits/typesizes.h:
+
+/usr/include/time.h:
+
+/usr/include/endian.h:
+
+/usr/include/bits/endian.h:
+
+/usr/include/sys/select.h:
+
+/usr/include/bits/select.h:
+
+/usr/include/bits/sigset.h:
+
+/usr/include/bits/time.h:
+
+/usr/include/sys/sysmacros.h:
+
+/usr/include/bits/pthreadtypes.h:
+
+../../lib/ut.h:
+
+/usr/local/include/CUnit/Basic.h:
+
+/usr/local/include/CUnit/CUnit.h:
+
+/usr/include/string.h:
+
+/usr/include/xlocale.h:
+
+/usr/include/math.h:
+
+/usr/include/bits/huge_val.h:
+
+/usr/include/bits/huge_valf.h:
+
+/usr/include/bits/huge_vall.h:
+
+/usr/include/bits/inf.h:
+
+/usr/include/bits/nan.h:
+
+/usr/include/bits/mathdef.h:
+
+/usr/include/bits/mathcalls.h:
+
+/usr/local/include/CUnit/CUError.h:
+
+/usr/include/errno.h:
+
+/usr/include/bits/errno.h:
+
+/usr/include/linux/errno.h:
+
+/usr/include/asm/errno.h:
+
+/usr/include/asm-x86_64/errno.h:
+
+/usr/include/asm-generic/errno.h:
+
+/usr/include/asm-generic/errno-base.h:
+
+/usr/local/include/CUnit/TestDB.h:
+
+/usr/include/setjmp.h:
+
+/usr/include/bits/setjmp.h:
+
+/usr/local/include/CUnit/TestRun.h:
+
+/usr/include/stdio.h:
+
+/usr/include/libio.h:
+
+/usr/include/_G_config.h:
+
+/usr/include/wchar.h:
+
+/usr/include/gconv.h:
+
+/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdarg.h:
+
+/usr/include/bits/stdio_lim.h:
+
+/usr/include/bits/sys_errlist.h:
+
+../../lib/ub.h:
+
+../../lib/types.h:
+
+../../lib/cdefs.h:
+
+../../lib/user_space/cdefs.h:
+
+../../rm/rm.h:
+
+../../net/net.h:
+
+../../lib/cdefs.h:
+
+../../lib/rwlock.h:
+
+../../lib/user_space/rwlock.h:
+
+/usr/include/pthread.h:
+
+/usr/include/sched.h:
+
+/usr/include/bits/sched.h:
+
+/usr/include/signal.h:
+
+../../lib/list.h:
+
+../../lib/assert.h:
+
+../../lib/user_space/assert.h:
+
+../../lib/queue.h:
+
+../../lib/refs.h:
+
+../../lib/cdefs.h:
+
+../../lib/atomic.h:
+
+../../lib/assert.h:
+
+../../lib/user_space/user_x86_64_atomic.h:
+
+../../lib/types.h:
+
+../../lib/cdefs.h:
+
+../../lib/assert.h:
+
+../../lib/chan.h:
+
+../../lib/list.h:
+
+../../lib/mutex.h:
+
+../../lib/user_space/mutex.h:
+
+../../lib/time.h:
+
+../../lib/types.h:
+
+../../lib/user_space/time.h:
+
+/usr/include/sys/time.h:
+
+/usr/include/time.h:
+
+../../lib/semaphore.h:
+
+../../lib/user_space/semaphore.h:
+
+/usr/include/semaphore.h:
+
+/usr/include/bits/semaphore.h:
+
+../../lib/time.h:
+
+../../addb/addb.h:
+
+../../lib/cdefs.h:
+
+../../lib/assert.h:
+
+../../lib/adt.h:
+
+../../lib/buf.h:
+
+../../lib/list.h:
+
+../../lib/time.h:
+
+../../lib/list.h:
+
+../../lib/mutex.h:
+
+../../lib/chan.h:
+
+rings.h:
