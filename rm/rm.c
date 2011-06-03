@@ -443,8 +443,8 @@ static int send_out_request(struct c2_rm_outgoing *out)
 {
 	struct c2_fop	      *f;
 	struct c2_fop	      *r;
-	struct c2_rm_out_send *fop;
-	struct c2_rm_out_send *rep;
+	struct c2_rm_send_out *fop;
+	struct c2_rm_send_out *rep;
 	struct c2_net_conn    *conn;
 	struct c2_service_id   sid;
 	int 		       result;
@@ -453,9 +453,9 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
 
-	f = c2_fop_alloc(&c2_rm_out_send_fopt, NULL);
+	f = c2_fop_alloc(&c2_rm_send_out_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_rm_out_send_fopt, NULL);
+	r = c2_fop_alloc(&c2_rm_send_out_fopt, NULL);
 	rep = c2_fop_data(r);
 
 	fop->req_type = out->rog_type;

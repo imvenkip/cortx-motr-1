@@ -18,7 +18,6 @@
 #include "stob/ad.h"
 #include "fol/fol.h"
 #include "desim/sim.h"
-
 #include "colibri/init.h"
 
 extern int  c2_memory_init(void);
