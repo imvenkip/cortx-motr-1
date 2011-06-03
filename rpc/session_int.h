@@ -176,14 +176,6 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
                                    struct c2_cob               **slot_cob,
                                    struct c2_db_tx             *tx);
 
-void c2_rpc_conn_search(struct c2_rpcmachine	*machine,
-			uint64_t		sender_id,
-			struct c2_rpc_conn	**out);
-
-void c2_rpc_session_search(struct c2_rpc_conn		*conn,
-			   uint64_t			session_id,
-			   struct c2_rpc_session	**out);
-
 bool c2_rpc_snd_slot_is_busy(const struct c2_rpc_snd_slot *slot);
 void c2_rpc_snd_slot_mark_busy(struct c2_rpc_snd_slot *slot);
 void c2_rpc_snd_slot_mark_unbusy(struct c2_rpc_snd_slot *slot);
