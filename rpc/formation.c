@@ -1659,9 +1659,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 					struct c2_rpc_item,
 					ri_rpcobject_linkage) {
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
-				c2_list_add(&endp_unit->isu_unformed_list, 
-						&rpc_item->ri_unformed_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
+				c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
 			}
 			c2_list_del(&rpcobj->ro_rpcobj->r_linkage);
 			c2_free(rpcobj->ro_rpcobj);
