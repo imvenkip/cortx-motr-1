@@ -144,7 +144,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		passive_wi->xwi_status = rc;
 		passive_wi->xwi_nbe_length = datalen;
 
-		passive_tp = passive_tm->ntm_xprt_private;
+		passive_tp = mem_tm_to_pvt(passive_tm);
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */

@@ -16,16 +16,16 @@
 static void mem_xo_end_point_release(struct c2_ref *ref)
 {
 	struct c2_net_end_point *ep;
-	struct c2_net_bulk_mem_end_point *mep;
+	struct c2_net_bulk_mem_domain_pvt *dp;
 
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
 	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	C2_PRE(mem_ep_invariant(ep));
 
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	dp = mem_dom_to_pvt(ep->nep_dom);
 	c2_list_del(&ep->nep_dom_linkage);
 	ep->nep_dom = NULL;
-	c2_free(mep);
+	dp->xd_ops->bmo_ep_free(mem_ep_to_pvt(ep)); /* indirect free */
 }
 
 /** create the printable representation */
@@ -57,6 +57,23 @@ static void mem_ep_printable(struct c2_net_bulk_mem_end_point *mep,
 }
 
 /**
+   Allocate memory for a transport end point.
+*/
+static struct c2_net_bulk_mem_end_point *mem_ep_alloc(void)
+{
+	struct c2_net_bulk_mem_end_point *mep = c2_alloc(sizeof *mep);
+	return mep;
+}
+
+/**
+   Free memory for a transport end point.
+*/
+static void mem_ep_free(struct c2_net_bulk_mem_end_point *mep)
+{
+	c2_free(mep);
+}
+
+/**
    Internal implementation of mem_xo_end_point_create().
  */
 static int mem_ep_create(struct c2_net_end_point **epp,
@@ -75,7 +92,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 			       struct c2_net_end_point,
 			       nep_dom_linkage) {
 		C2_ASSERT(mem_ep_invariant(ep));
-		mep = container_of(ep,struct c2_net_bulk_mem_end_point,xep_ep);
+		mep = mem_ep_to_pvt(ep);
 		if (mem_sa_eq(&mep->xep_sa, sa) && mep->xep_service_id == id) {
 			c2_net_end_point_get(ep);
 			*epp = ep;
@@ -84,8 +101,8 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	}
 
 	/* allocate a new end point of appropriate size */
-	dp = dom->nd_xprt_private;
-	mep = c2_alloc(dp->xd_sizeof_ep);
+	dp = mem_dom_to_pvt(dom);
+	mep = dp->xd_ops->bmo_ep_alloc(); /* indirect alloc */
 	if (mep == NULL)
 		return -ENOMEM;
 	mep->xep_magic = C2_NET_BULK_MEM_XEP_MAGIC;
@@ -98,6 +115,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	ep->nep_dom = dom;
 	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
 	ep->nep_addr = &mep->xep_addr[0];
+	C2_ASSERT(mem_ep_to_pvt(ep) == mep);
 	C2_POST(mem_ep_invariant(ep));
 	*epp = ep;
 	return 0;
@@ -117,7 +135,7 @@ static bool mem_ep_equals_addr(const struct c2_net_end_point *ep,
 	const struct c2_net_bulk_mem_end_point *mep;
 
 	C2_ASSERT(mem_ep_invariant(ep));
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	mep = mem_ep_to_pvt(ep);
 
 	return mem_sa_eq(&mep->xep_sa, sa);
 }
@@ -139,7 +157,7 @@ static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
 	if (ep1 == ep2)
 		return true;
 
-	mep1 = container_of(ep1, struct c2_net_bulk_mem_end_point, xep_ep);
+	mep1 = mem_ep_to_pvt(ep1);
 	return mem_ep_equals_addr(ep2, &mep1->xep_sa);
 }
 
@@ -176,11 +194,11 @@ static int mem_desc_create(struct c2_net_buf_desc *desc,
 	}
 
 	/* copy the active end point address */
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	mep = mem_ep_to_pvt(ep);
 	md->md_active = mep->xep_sa;
 
 	/* copy the passive end point address */
-	mep = container_of(tm->ntm_ep,struct c2_net_bulk_mem_end_point,xep_ep);
+	mep = mem_ep_to_pvt(tm->ntm_ep);
 	md->md_passive = mep->xep_sa;
 
 	md->md_qt = qt;

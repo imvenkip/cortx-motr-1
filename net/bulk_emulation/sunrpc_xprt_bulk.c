@@ -13,7 +13,7 @@ static void sunrpc_wf_passive_bulk_cb(struct c2_net_transfer_mc *tm,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
-	dp = tm->ntm_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_PASSIVE_BULK_CB])(tm, wi);
 }
 
@@ -22,7 +22,7 @@ static void sunrpc_queue_passive_cb(struct c2_net_buffer *nb, int rc,
 {
 	struct c2_net_bulk_mem_work_item *passive_wi = mem_buffer_to_wi(nb);
 	struct c2_net_bulk_sunrpc_tm_pvt *passive_tp =
-	    nb->nb_tm->ntm_xprt_private;
+		sunrpc_tm_to_pvt(nb->nb_tm);
 
 	passive_wi->xwi_status = rc;
 	passive_wi->xwi_op = C2_NET_XOP_PASSIVE_BULK_CB;
@@ -366,7 +366,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	       nb->nb_desc.nbd_len != 0 &&
 	       nb->nb_desc.nbd_data != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
-	dp = nb->nb_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(nb->nb_dom);
 
 	do {
 		/* decode the descriptor */

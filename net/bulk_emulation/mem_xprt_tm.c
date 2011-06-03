@@ -16,7 +16,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				struct c2_net_bulk_mem_work_item *wi)
 {
 	enum c2_net_bulk_mem_tm_state next_state = wi->xwi_next_state;
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	struct c2_net_tm_event ev = {
 		.nte_type   = C2_NET_TEV_STATE_CHANGE,
 		.nte_tm     = tm,
@@ -115,7 +115,7 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
  */
 static void mem_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 {
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	struct c2_net_bulk_mem_work_item *wi;
 	C2_PRE(status < 0);
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
@@ -144,8 +144,8 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
-	tp = tm->ntm_xprt_private;
-	dp = tm->ntm_dom->nd_xprt_private;
+	tp = mem_tm_to_pvt(tm);
+	dp = mem_dom_to_pvt(tm->ntm_dom);
 
 	while (1) {
 		while (!c2_list_is_empty(&tp->xtm_work_list)) {

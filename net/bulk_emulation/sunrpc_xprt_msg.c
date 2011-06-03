@@ -13,7 +13,7 @@ static void sunrpc_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
-	dp = tm->ntm_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_MSG_RECV_CB])(tm, wi);
 }
 
@@ -36,7 +36,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
-	dp = nb->nb_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(nb->nb_dom);
 
 	do {
 		struct c2_bufvec_cursor  cur;
@@ -142,7 +142,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			struct c2_net_bulk_mem_work_item *wi =
 				mem_buffer_to_wi(nb);
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
-				nb->nb_tm->ntm_xprt_private;
+				sunrpc_tm_to_pvt(nb->nb_tm);
 			rc = -EMSGSIZE;
 			/* set desired length */
 			wi->xwi_nbe_length = in->sm_buf.sb_len;
@@ -161,7 +161,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		struct c2_net_bulk_mem_work_item *wi = mem_buffer_to_wi(nb);
 		struct c2_net_domain *dom = tm->ntm_dom;
 		struct c2_net_bulk_sunrpc_tm_pvt *tp =
-			nb->nb_tm->ntm_xprt_private;
+			sunrpc_tm_to_pvt(nb->nb_tm);
 		struct sockaddr_in sa = {
 			.sin_addr.s_addr = in->sm_sender.sep_addr, /* network */
 			.sin_port        = in->sm_sender.sep_port, /* order */
@@ -191,7 +191,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	if (rc < 0 && nb == NULL) {
 		/* post the error to the TM */
 		struct c2_net_bulk_sunrpc_domain_pvt *dp;
-		dp = tm->ntm_dom->nd_xprt_private;
+		dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 		c2_mutex_lock(&tm->ntm_mutex);
 		(*dp->xd_base_ops->bmo_post_error)(tm, rc);
 		c2_mutex_unlock(&tm->ntm_mutex);

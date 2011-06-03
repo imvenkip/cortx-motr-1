@@ -217,7 +217,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		/* schedule the receive msg callback */
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
-		dest_tp = dest_tm->ntm_xprt_private;
+		dest_tp = mem_tm_to_pvt(dest_tm);
 		mem_wi_add(dest_wi, dest_tp);
 	} while (0);
 

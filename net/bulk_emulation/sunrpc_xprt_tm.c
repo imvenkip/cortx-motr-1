@@ -50,13 +50,8 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 		struct c2_service    *svc = &sunrpc_server_service;
 		if (++sunrpc_server_active_tms > 1) {
 			/* previously started - match address */
-			struct c2_net_bulk_mem_end_point *mep;
 			struct c2_net_bulk_sunrpc_end_point *sep;
-			mep = container_of(ep, struct c2_net_bulk_mem_end_point,
-					   xep_ep);
-			sep = container_of(mep,
-					   struct c2_net_bulk_sunrpc_end_point,
-					   xep_base);
+			sep = sunrpc_ep_to_pvt(ep);
 			if (strcmp(sunrpc_server_id.si_uuid,
 				   sep->xep_sid.si_uuid) != 0)
 				rc = -EADDRNOTAVAIL;
@@ -123,8 +118,9 @@ static void sunrpc_stop_service()
 static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 				   struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_bulk_sunrpc_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp =
+		sunrpc_dom_to_pvt(tm->ntm_dom);
+	struct c2_net_bulk_sunrpc_tm_pvt *tp = sunrpc_tm_to_pvt(tm);
 	int rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
@@ -158,7 +154,7 @@ static void sunrpc_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
-	dp = tm->ntm_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_CANCEL_CB])(tm, wi);
 }
 
@@ -170,7 +166,7 @@ static void sunrpc_wf_error_cb(struct c2_net_transfer_mc *tm,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
-	dp = tm->ntm_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_ERROR_CB])(tm, wi);
 }
 
@@ -181,7 +177,7 @@ static void sunrpc_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
-	dp = tm->ntm_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_post_error)(tm, status);
 }
 
