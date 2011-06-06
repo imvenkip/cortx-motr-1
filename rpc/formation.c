@@ -1,4 +1,5 @@
 #include "formation.h"
+#include <string.h>
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
@@ -50,6 +51,10 @@ void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 	max_rpcs_in_flight = max_rpcs;
 	max_fragments_size = max_fragments;
 }
+
+/**
+   TBD Add addb data points and log events.
+ */
 
 /**     
    Initialization for formation component in rpc.
@@ -383,6 +388,17 @@ struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 	return ep;
 }
 
+bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
+		struct c2_net_end_point *ep2)
+{
+	bool		status = false;
+
+	if (!memcmp(ep1, ep2, sizeof(struct c2_net_end_point))) {
+		status = true;
+	}
+	return status;
+}
+
 /**
    A default handler function for invoking all state functions
    based on incoming event.
@@ -405,11 +421,15 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	int					 res = 0;
 	int					 prev_state = 0;
 	bool					 found = false;
+	struct c2_rpc_form_item_summary_unit	*endp = NULL;
+	int					 ls = 0;
 
 	C2_PRE(item != NULL);
 	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_N_EVENTS);
 	C2_PRE(sm_state <= C2_RPC_FORM_N_STATES);
 
+	printf("default_handler: item state = %d\n", item->ri_state);
+	ls = item->ri_state;
 	endpoint = c2_rpc_form_get_endpoint(item);
 
 	/* If endpoint unit is NULL, locate it from list in
@@ -420,58 +440,61 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	if (endp_unit == NULL) {
 		c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
 		c2_list_for_each_entry(&formation_summary->is_endp_list,
-				endp_unit, struct c2_rpc_form_item_summary_unit,
+				endp, struct c2_rpc_form_item_summary_unit,
 				isu_linkage) {
-			if (endp_unit->isu_endp_id == endpoint) {
+			if (c2_rpc_form_end_point_equal(endp->isu_endp_id,
+						endpoint)) {
 				found = true;
 				break;
 			}
 		}
 		if (found) {
-			c2_mutex_lock(&endp_unit->isu_unit_lock);
-			c2_ref_get(&endp_unit->isu_sm.isu_ref);
+			c2_mutex_lock(&endp->isu_unit_lock);
+			c2_ref_get(&endp->isu_sm.isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
 		}
 		else {
 			/** Add a new endpoint summary unit */
-			endp_unit = c2_rpc_form_item_summary_unit_add(endpoint);
-			c2_mutex_lock(&endp_unit->isu_unit_lock);
+			printf("New endpoint unit created.\n");
+			endp = c2_rpc_form_item_summary_unit_add(endpoint);
+			c2_mutex_lock(&endp->isu_unit_lock);
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
 		}
-		prev_state = endp_unit->isu_sm.isu_endp_state;
+		prev_state = endp->isu_sm.isu_endp_state;
 	}
 	else {
 		c2_mutex_lock(&endp_unit->isu_unit_lock);
 		prev_state = sm_state;
+		endp = endp_unit;
 	}
 	/* If the formation component is not active (form_fini is called)
 	   exit the state machine and return back. */
-	if (endp_unit->isu_form_active == false) {
-		c2_mutex_unlock(&endp_unit->isu_unit_lock);
-		c2_rpc_form_state_machine_exit(endp_unit);
+	if (endp->isu_form_active == false) {
+		c2_mutex_unlock(&endp->isu_unit_lock);
+		c2_rpc_form_state_machine_exit(endp);
 		return 0;
 	}
 	/* Transition to next state.*/
 	res = (c2_rpc_form_next_state(prev_state, sm_event->se_event))
-		(endp_unit, item, sm_event);
+		(endp, item, sm_event);
 	/* Get latest state of state machine. */
-	prev_state = endp_unit->isu_sm.isu_endp_state;
-	c2_mutex_unlock(&endp_unit->isu_unit_lock);
+	prev_state = endp->isu_sm.isu_endp_state;
+	c2_mutex_unlock(&endp->isu_unit_lock);
 	/* Exit point for state machine. */
 	if(res == C2_RPC_FORM_INTEVT_STATE_DONE) {
-		c2_rpc_form_state_machine_exit(endp_unit);
+		c2_rpc_form_state_machine_exit(endp);
 		return 0;
 	}
 
 	if (res == C2_RPC_FORM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
-		c2_rpc_form_intevt_state_failed(endp_unit, item, prev_state);
+		c2_rpc_form_intevt_state_failed(endp, item, prev_state);
 	}
 	else if (res == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED){
 		/** Post a state succeeded event. */
-		c2_rpc_form_intevt_state_succeeded(endp_unit, item, prev_state);
+		c2_rpc_form_intevt_state_succeeded(endp, item, prev_state);
 	}
 	return 0;
 }
@@ -485,9 +508,12 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item)
 {
 	struct c2_rpc_form_sm_event		sm_event;
+	int					ls = 0;
 
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_added_in_cache\n");
+	printf("rpcitem_added_in_cache: item state = %d\n", item->ri_state);
+	ls = item->ri_state;
 	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_ADDED;
 	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */
@@ -688,8 +714,11 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
 {
 	struct c2_rpc_item	*item;
+
 	item = (struct c2_rpc_item*)data;
-	c2_rpc_form_extevt_rpcitem_deadline_expired(item);
+	if (item->ri_state == RPC_ITEM_SUBMITTED) {
+		c2_rpc_form_extevt_rpcitem_deadline_expired(item);
+	}
 	return 0;
 }
 
@@ -723,14 +752,16 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 		case C2_RPC_ITEM_CHANGE_PRIORITY:
 			item->ri_prio = 
 				(enum c2_rpc_item_priority)chng_req->value;
+			break;
 		case C2_RPC_ITEM_CHANGE_DEADLINE:
 			c2_timer_stop(&item->ri_timer);
 			c2_timer_fini(&item->ri_timer);
 			item->ri_deadline = (c2_time_t)chng_req->value;
+			break;
 		case C2_RPC_ITEM_CHANGE_RPCGROUP:
 			item->ri_group = (struct c2_rpc_group*)chng_req->value;
 
-	}
+	};
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
 	if (res != 0) {
 		printf("Failed to add data of an rpc item to summary unit.\n");
@@ -798,7 +829,9 @@ static int c2_rpc_form_summary_groups_sort(
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
 		struct c2_rpc_form_item_summary_unit_group *summary_group)
 {
+	bool						 placed = false;
 	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*sg_next = NULL;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(summary_group != NULL);
@@ -806,13 +839,19 @@ static int c2_rpc_form_summary_groups_sort(
 	c2_list_del(&summary_group->sug_linkage);
 	/* Do a simple incremental search for a group having
 	   average timeout value bigger than that of given group. */
-	c2_list_for_each_entry(&endp_unit->isu_groups_list, sg, 
+	c2_list_for_each_entry_safe(&endp_unit->isu_groups_list, sg, sg_next,
 			struct c2_rpc_form_item_summary_unit_group, 
 			sug_linkage) {
 		if (sg->sug_avg_timeout > summary_group->sug_avg_timeout) {
+			placed = true;
 			c2_list_add_before(&sg->sug_linkage, 
 					&summary_group->sug_linkage);
+			break;
 		}
+	}
+	if (!placed) {
+		c2_list_add_after(&sg->sug_linkage,
+				&summary_group->sug_linkage);
 	}
 	return 0;
 }
@@ -828,7 +867,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	int						  res = 0;
 	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
 	bool						  found = false;
-	struct c2_timer					 *item_timer = NULL;
+	//struct c2_timer					 *item_timer = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -846,8 +885,10 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	     structure and fill necessary data.
 	 */
 
+	//c2_list_link_init(&item->ri_unformed_linkage);
 	c2_list_add(&endp_unit->isu_unformed_list,
 			&item->ri_unformed_linkage);
+	printf("Inside c2_rpc_form_add_rpcitem_to_summary_unit, isu_groups_list_length = %lu\n", c2_list_length(&endp_unit->isu_groups_list));
 	c2_list_for_each_entry(&endp_unit->isu_groups_list, 
 			summary_group, 
 			struct c2_rpc_form_item_summary_unit_group, 
@@ -867,17 +908,22 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 					structure.\n");
 			return -ENOMEM;
 		}
+		c2_list_link_init(&summary_group->sug_linkage);
 		c2_list_add(&endp_unit->isu_groups_list, &summary_group->sug_linkage);
+		printf("New summary unit group added.\n");
 		if (item->ri_group == NULL) {
 			printf("Creating a c2_rpc_form_item_summary_unit_group \
 					struct for items with no groups.\n");
 		}
+		summary_group->sug_group = item->ri_group;
+		printf("Length of groups list = %lu\n", c2_list_length(&endp_unit->isu_groups_list));
+		printf("Length of unformed list = %lu\n", c2_list_length(&endp_unit->isu_unformed_list));
 	}
 
+	printf("Inside c2_rpc_form_add_rpcitem_to_summary_unit, grpid = %d\n", item->ri_group->rg_grpid);
 	if(item->ri_group != NULL) {
 		summary_group->sug_expected_items = item->ri_group->rg_expected;
 	}
-	summary_group->sug_group = item->ri_group;
 	if (item->ri_prio == C2_RPC_ITEM_PRIO_MAX) {
 		summary_group->sug_priority_items++;
 	}
@@ -905,6 +951,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 
 	/* Initialize the timer only when the deadline value is non-zero
 	   i.e. dont initialize the timer for URGENT items */
+#if 0
 	if(item->ri_deadline != 0) {
 		/* Init and start the timer for rpc item. */
 		item_timer = c2_alloc(sizeof(struct c2_timer));
@@ -915,7 +962,8 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 		}
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 0, 
+#if 0
+		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 1, 
 				c2_rpc_form_item_timer_callback, 
 				(unsigned long)item);
 		res = c2_timer_start(item_timer);
@@ -924,7 +972,9 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 			return -1;
 		}
 		item->ri_timer = *item_timer;
+#endif
 	}
+#endif
 	/* Assumption: c2_rpc_item_type_ops methods can access
 	   the fields of corresponding fop. */
 	return 0;
@@ -939,6 +989,7 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 {
 	int		res = 0;
 	int		ret = 0;
+	int		ls = 0;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_ADDED);
@@ -946,6 +997,8 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
 	printf("In state: updating\n");
+	printf("updating_state: item state = %d\n", item->ri_state);
+	ls = item->ri_state;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_UPDATING;
 
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
@@ -969,18 +1022,22 @@ static int c2_rpc_form_item_add_to_forming_list(
 		struct c2_rpc_form_item_summary_unit *endp_unit, 
 		struct c2_rpc_item *item,
 		uint64_t *rpcobj_size, uint64_t *nfragments, 
-		struct c2_list *forming_list)
+		struct c2_rpc *rpc)
 {
 	uint64_t			 item_size = 0;
 	//struct c2_update_stream		*item_update_stream = NULL;
 	//bool				 update_stream_busy = false;
 	bool				 io_op = false;
 	uint64_t			 current_fragments = 0;
-	c2_time_t			 now;
+	//c2_time_t			 now;
+	int				 ls = 0;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(rpcobj_size != NULL);
+
+	printf("Inside add_to_forming_list \n");
+	ls = item->ri_state;
 
 	/* io_op = item->ri_type->rit_ops->rio_is_io_req(item); */
 	io_op = c2_rpc_item_is_io_req(item); 
@@ -995,7 +1052,8 @@ static int c2_rpc_form_item_add_to_forming_list(
 	}
 	/* item_size = item->ri_type->rit_ops->rio_item_size(item); */
 	item_size = c2_rpc_form_item_size(item);
-	
+		
+	printf("1. rpc object size updated. rpcobjsize = %lu, item_size = %lu\n", *rpcobj_size, item_size);
 	if (((*rpcobj_size + item_size) < endp_unit->isu_max_message_size)) {
 		/** XXX Need this API from rpc-core. */
 		//item_update_stream = c2_rpc_get_update_stream(item);
@@ -1007,25 +1065,31 @@ static int c2_rpc_form_item_add_to_forming_list(
 			//c2_rpc_set_update_stream_status(item_update_stream, 
 			//		BUSY);
 			/* XXX Need a rpbobject_linkage in c2_rpc_item. */
-			c2_list_add(forming_list, 
+			c2_list_add(&rpc->r_items, 
 					&item->ri_rpcobject_linkage);
 			*rpcobj_size += item_size;
+			printf("2. rpc object size updated. rpcobjsize = %lu, item_size = %lu\n", *rpcobj_size, item_size);
+			printf("New rpcobj size = %lu\n", *rpcobj_size);
 			*nfragments += current_fragments;
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit,
 					item);
 			item->ri_state = RPC_ITEM_ADDED;
+#if 0
 			if(item->ri_deadline != 0) {
 				c2_time_now(&now);
 				if (c2_time_after(item->ri_timer.t_expire, now)) {
 					item->ri_deadline = 
 						c2_time_sub(item->ri_timer.t_expire, 
 								now);
+					//c2_timer_stop(&item->ri_timer);
 				}
-				c2_timer_stop(&item->ri_timer);
-				c2_timer_fini(&item->ri_timer);
+				//c2_timer_fini(&item->ri_timer);
 			}
+#endif
 			c2_list_del(&item->ri_unformed_linkage);
 		//}
+			printf("No of elements in rpcobject list = %lu.\n",
+					c2_list_length(&rpc->r_items));
 		return 0;
 	}
 	else {
@@ -1285,7 +1349,7 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
  */
 static int c2_rpc_form_items_coalesce(
 		struct c2_rpc_form_item_summary_unit *endp_unit,
-		struct c2_list *forming_list, uint64_t *rpcobj_size)
+		struct c2_rpc *rpc, uint64_t *rpcobj_size)
 {
 	int						 res = 0;
 	struct c2_rpc_item				*item = NULL;
@@ -1300,7 +1364,7 @@ static int c2_rpc_form_items_coalesce(
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
 
 	C2_PRE(endp_unit != NULL);
-	C2_PRE(forming_list != NULL);
+	C2_PRE(rpc != NULL);
 	C2_PRE(rpcobj_size != NULL);
 
 	/* 1. Iterate over the forming list to find out fids from
@@ -1310,7 +1374,7 @@ static int c2_rpc_form_items_coalesce(
 	/* 3. For every unique combination of fid and intent(read/write)
 	   locate/create a struct c2_rpc_form_fid_summary_member and put
 	   it in endp_unit->isu_fid_list. */
-	c2_list_for_each_entry(forming_list, item, 
+	c2_list_for_each_entry(&rpc->r_items, item, 
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		/* if (item->ri_type->rit_ops->rio_is_io_req(item)) { */
 		if(c2_rpc_item_is_io_req(item)) { 
@@ -1423,7 +1487,7 @@ static int c2_rpc_form_items_coalesce(
 				c2_list_del(&item_member->im_member_item.
 						ri_rpcobject_linkage);
 			}
-			c2_list_add(forming_list, 
+			c2_list_add(&rpc->r_items, 
 					&coalesced_item->ic_resultant_item->ri_rpcobject_linkage);
 		}
 	}
@@ -1438,8 +1502,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		*event)
 {
 	int						 res = 0;
+	int						 ls = 0;
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
-	struct c2_list					*forming_list = NULL;
 	struct c2_rpc_form_items_cache			*cache_list =
 		items_cache;
 	uint64_t					 rpcobj_size = 0;
@@ -1447,7 +1511,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
 	uint64_t					 group_size = 0;
 	uint64_t					 partial_size = 0;
-	struct c2_rpc_form_item_summary_unit_group	*group= NULL;
+	struct c2_rpc_form_item_summary_unit_group	*group = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*group_next = NULL;
 	uint64_t					 nselected_groups = 0;
 	uint64_t					 ncurrent_groups = 0;
 	uint64_t					 nfragments = 0;
@@ -1455,6 +1520,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	bool						 item_coalesced = false;
 	struct c2_rpc_item				*rpc_item = NULL;
 	struct c2_rpc_item				*rpc_item_next = NULL;
+	bool						 urgent_items = false;
+	bool						 item_added = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) ||
@@ -1469,6 +1536,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
 	printf("In state: checking\n");
+	printf("checking_state : item state = %d\n", item->ri_state);
+	ls = item->ri_state;
 	/** Returning failure will lead the state machine to 
 	    waiting state and then the thread will exit the
 	    state machine. */
@@ -1484,13 +1553,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				struct c2_rpc_form_rpcobj.\n");
 		return -ENOMEM;
 	}
+	c2_list_link_init(&rpcobj->ro_linkage);
 	rpcobj->ro_rpcobj = c2_alloc(sizeof(struct c2_rpc));
 	if (rpcobj->ro_rpcobj == NULL) {
 		printf("Failed to allocate memory for struct c2_rpc.\n");
 		return -ENOMEM;
 	}
-	forming_list = &rpcobj->ro_rpcobj->r_items;
-	c2_list_init(forming_list);
+	c2_list_link_init(&rpcobj->ro_rpcobj->r_linkage);
+	c2_list_init(&rpcobj->ro_rpcobj->r_items);
 
 	if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED) {
 		c2_list_for_each_entry(&endp_unit->
@@ -1516,7 +1586,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	}
 	else if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
 		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, 
-				&rpcobj_size, &nfragments, forming_list);
+				&rpcobj_size, &nfragments, rpcobj->ro_rpcobj);
 		/* If item can not be added due to size restrictions, move it
 		   to the head of unformed list and it will be handled on
 		   next formation attempt.*/
@@ -1550,6 +1620,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	//res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
 	//		&cache_list);
 	c2_mutex_lock(&cache_list->ic_mutex);
+	printf("Unformed list length = %lu \n", c2_list_length(&endp_unit->isu_unformed_list));
 	c2_list_for_each_entry_safe(&endp_unit->isu_unformed_list, rpc_item,
 			rpc_item_next, struct c2_rpc_item, 
 			ri_unformed_linkage) {
@@ -1558,9 +1629,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		item_size = c2_rpc_form_item_size(item);
 		/* 1. If there are urgent items, form them immediately. */
 		if (rpc_item->ri_deadline == 0) {
+			if (urgent_items == false) {
+				urgent_items = true;
+			}
 			res = c2_rpc_form_item_add_to_forming_list(endp_unit, 
 					rpc_item, &rpcobj_size, 
-					&nfragments, forming_list);
+					&nfragments, rpcobj->ro_rpcobj);
+			printf("1. Size of rpc object in checking state = %lu\n",
+					rpcobj_size);
 			if (res != 0) {
 				/* Forming list complete.*/
 				break;
@@ -1571,8 +1647,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   group (if any), check if current rpc item belongs to this
 		   partial group and add the item till size of items in this
 		   partial group reaches its limit within max_message_size. */
-		c2_list_for_each_entry(&endp_unit->isu_groups_list, group,
-				struct c2_rpc_form_item_summary_unit_group,
+		c2_list_for_each_entry_safe(&endp_unit->isu_groups_list, group,
+				group_next, struct
+				c2_rpc_form_item_summary_unit_group,
 				sug_linkage) {
 			ncurrent_groups++;
 			/* If selected groups are exhausted, break the loop. */
@@ -1587,21 +1664,54 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 					((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
 				}
-				res = c2_rpc_form_item_add_to_forming_list(
-						endp_unit, rpc_item, 
-						&rpcobj_size, &nfragments, 
-						forming_list);
-				if (res != 0) {
-					break;
-				}
+				item_added = true;
+				ncurrent_groups = 0;
+				break;
 			}
+		}
+		if(item_added) {
+			res = c2_rpc_form_item_add_to_forming_list(
+					endp_unit, rpc_item, 
+					&rpcobj_size, &nfragments, 
+					rpcobj->ro_rpcobj);
+			if (res != 0) {
+				break;
+			}
+			item_added = false;
+			printf("2. Size of rpc object in checking state = %lu\n",
+					rpcobj_size);
 		}
 	}
 	c2_mutex_unlock(&cache_list->ic_mutex);
+	if (!urgent_items) {
+		/* If size of formed rpc object is less than 90% of 
+		   max_message_size, discard the rpc object. */
+		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
+			printf("Discarding the formed rpc object since \
+					it is sub-optimal size rpcobj_size = %lu.\n",rpcobj_size);
+			/* Delete the formed RPC object. */
+			c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items,
+					rpc_item, rpc_item_next,
+					struct c2_rpc_item,
+					ri_rpcobject_linkage) {
+				c2_list_del(&rpc_item->ri_rpcobject_linkage);
+				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
+				c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
+			}
+			c2_list_del(&rpcobj->ro_rpcobj->r_linkage);
+			c2_free(rpcobj->ro_rpcobj);
+			c2_list_del(&rpcobj->ro_linkage);
+			c2_free(rpcobj);
+			rpcobj = NULL;
+			return C2_RPC_FORM_INTEVT_STATE_FAILED;
+		}
+	}
 	/* Try to do IO colescing for items in forming list. */
-	res = c2_rpc_form_items_coalesce(endp_unit, forming_list, &rpcobj_size);
+	res = c2_rpc_form_items_coalesce(endp_unit, rpcobj->ro_rpcobj,
+			&rpcobj_size);
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
 			&rpcobj->ro_linkage);
+	/* XXX TBD: Check if the formed RPC object is optimal enough. */
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
@@ -1686,6 +1796,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		endp = c2_rpc_form_get_endpoint(first_item);
 		if (endp_unit->isu_curr_rpcs_in_flight < 
 				endp_unit->isu_max_rpcs_in_flight) {
+			/*XXX TBD: Before sending the c2_rpc on wire,
+			   it needs to be serialized into one buffer. */
 			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
 			/* XXX curr rpcs in flight will be taken care by
 			   output component. */
@@ -1822,12 +1934,14 @@ uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item)
 			/* Size of holding structure. */
 			size += (read_fop->frd_ioseg.fs_count *
 					sizeof(struct c2_fop_segment));
+			break;
 		case c2_io_service_readv_rep_opcode:
 			/** Add buffer payload for read reply */
 			read_rep_fop = c2_fop_data(fop);
 			/* Size of actual user data. */
 			size += read_rep_fop->frdr_buf.f_count;
 			/* For read reply type, there is only one buffer.*/
+			break;
 		case c2_io_service_writev_opcode:
 			/** Add buffer payload for write request */
 			write_fop = c2_fop_data(fop);

@@ -40,8 +40,8 @@
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	0 		// 0 ms
-#define MAX_NONIO_DEADLINE	1		// 1 ns 
-//#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
+//#define MAX_NONIO_DEADLINE	1		// 1 ns 
+#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
 #define MIN_IO_DEADLINE		10000000  	// 10 ms
 #define MAX_IO_DEADLINE		100000000 	// 100 ms
 
@@ -77,6 +77,10 @@ uint64_t			*file_offsets = NULL;
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
 #define nopcodes 3
+
+struct c2_net_end_point		ep;
+
+
 /* Function pointer to different FOP creation methods. */
 typedef struct c2_fop * (*fopFuncPtr)(void);
 
@@ -201,18 +205,20 @@ void c2_rpc_form_item_cache_fini(void)
   Assign a group to a given RPC item
  */
 int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp, 
-		struct c2_rpc_item *item)
+		struct c2_rpc_item *item, int grpno)
 {
 	struct c2_rpc_item	*rpc_item = NULL;
 	struct c2_rpc_item	*rpc_item_next = NULL;
 	bool			 item_inserted = false;
 
 	printf("Inside c2_rpc_form_item_assign_to_group \n");
+	printf("Inside c2_rpc_form_item_assign_to_group, grpid = %d \n", grpno);
 	C2_PRE(item !=NULL);
 
 	item->ri_group = grp;
 	c2_mutex_lock(&grp->rg_guard);
 	grp->rg_expected++;
+	grp->rg_grpid = grpno;
 	/* Insert by sorted priority in groups list */
 	c2_list_for_each_entry_safe(&grp->rg_items, 
 			rpc_item, rpc_item_next,
@@ -374,6 +380,11 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 		res = c2_rpc_form_item_nonio_populate_param(item);
 		C2_ASSERT(res==0);
 	}
+	item->ri_endp = ep;
+	c2_list_link_init(&item->ri_unformed_linkage);
+	c2_list_link_init(&item->ri_group_linkage);
+	c2_list_link_init(&item->ri_linkage);
+	c2_list_link_init(&item->ri_rpcobject_linkage);
 	return 0;
 }
 
@@ -646,7 +657,8 @@ int main(int argc, char **argv)
 	/* Lustre limits the rpc size(actually the number of pages in rpc)
 	   by the MTU(Max Transferrable Unit) of LNET which is defined
 	   to be 1M. !! Not sure of this is right !! */
-	c2_rpc_max_message_size = 1024*1024;
+	//c2_rpc_max_message_size = 1024*1024;
+	c2_rpc_max_message_size = 1024 * 100;
 	/* We start with a default value of 8. The max value in Lustre, is
 	   limited to 32. */
 	c2_rpc_max_rpcs_in_flight = 8;
@@ -695,7 +707,7 @@ int main(int argc, char **argv)
 			result = c2_rpc_form_item_populate_param(&fop->f_item);
 			C2_ASSERT(result == 0);
 			result = c2_rpc_form_item_assign_to_group(rgroup[i],
-					&fop->f_item);
+					&fop->f_item, i);
 		}
 		result = c2_rpc_form_rpcgroup_add_to_cache(rgroup[i]);
 		C2_ASSERT(result == 0);
