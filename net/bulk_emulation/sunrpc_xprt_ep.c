@@ -25,16 +25,14 @@ static const char *c2_net_bulk_sunrpc_uuid_fmt = "BulkSunrpc-%d";
 static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 {
 	struct c2_net_end_point *ep;
-	struct c2_net_bulk_mem_end_point *mep;
 	struct c2_net_bulk_sunrpc_end_point *sep;
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
 	C2_PRE(sunrpc_ep_invariant(ep));
 	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
-	dp = ep->nep_dom->nd_xprt_private;
+	sep = sunrpc_ep_to_pvt(ep);
+	dp = sunrpc_dom_to_pvt(ep->nep_dom);
 
 	/* free the conn and sid */
 	if (sep->xep_conn_created) {
@@ -45,10 +43,9 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 		}
 	}
 	c2_service_id_fini(&sep->xep_sid);
-	sep->xep_magic = 0;
 
 	/* release the end point with the base method */
-	(*dp->xd_base_ops.bmo_ep_release)(ref);
+	(*dp->xd_base_ops->bmo_ep_release)(ref);
 }
 
 /**
@@ -68,13 +65,13 @@ static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 	char *p;
 	int port;
 
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
-	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
-
+	sep = sunrpc_ep_to_pvt(ep);
+	C2_PRE(sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC);
+	/* get the port number from the base end point */
+	mep = mem_ep_to_pvt(ep);
 	port = ntohs(mep->xep_sa.sin_port);
 	/* create the service uuid */
-	sprintf(sid->si_uuid,c2_net_bulk_sunrpc_uuid_fmt,port);
+	sprintf(sid->si_uuid, c2_net_bulk_sunrpc_uuid_fmt, port);
 	C2_ASSERT(strlen(sid->si_uuid) < sizeof(sid->si_uuid));
 	/* copy the printable addr ("dotted_ip_addr:port:service_id") */
 	strncpy(host, ep->nep_addr, sizeof(host) - 1);
@@ -84,6 +81,28 @@ static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 		*p = '\0'; /* isolate the hostname */
 	rc = c2_service_id_init(sid, rpc_dom, host, port);
 	return rc;
+}
+
+/**
+   Allocate memory for a transport end point.
+*/
+static struct c2_net_bulk_mem_end_point *sunrpc_ep_alloc(void)
+{
+	struct c2_net_bulk_sunrpc_end_point *sep = c2_alloc(sizeof *sep);
+	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
+	return &sep->xep_base; /* base pointer required */
+}
+
+/**
+   Free memory for a transport end point.
+*/
+static void sunrpc_ep_free(struct c2_net_bulk_mem_end_point *mep)
+{
+	struct c2_net_bulk_sunrpc_end_point *sep =
+		sunrpc_ep_to_pvt(&mep->xep_ep);
+	C2_ASSERT(sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC);
+	sep->xep_magic = 0;
+	c2_free(sep);
 }
 
 /**
@@ -110,20 +129,19 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
 			    uint32_t id)
 {
 	int rc = 0;
-	struct c2_net_bulk_mem_end_point *mep;
 	struct c2_net_bulk_sunrpc_end_point *sep;
-	struct c2_net_bulk_sunrpc_domain_pvt *dp = dom->nd_xprt_private;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
 	C2_PRE(sunrpc_dom_invariant(dom));
+	dp = sunrpc_dom_to_pvt(dom);
 	/* C2_PRE(id > 0);*/
-	/* create the base transport ep first */
-	rc = (*dp->xd_base_ops.bmo_ep_create)(epp, dom, sa, id);
+	/* create the base transport ep first - sunrpc_ep_alloc invoked */
+	rc = (*dp->xd_base_ops->bmo_ep_create)(epp, dom, sa, id);
 	if (rc != 0)
 		return rc;
 
-	mep = container_of(*epp, struct c2_net_bulk_mem_end_point, xep_ep);
-	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
-	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
+	sep = sunrpc_ep_to_pvt(*epp);
+	C2_ASSERT(sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC);
 
 	/* create the sid (first time only) */
 	if (!sep->xep_sid_valid) {
@@ -160,10 +178,8 @@ static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
 			      struct c2_net_conn **conn_p)
 {
 	int rc;
-	struct c2_net_bulk_mem_end_point *mep;
 	struct c2_net_bulk_sunrpc_end_point *sep;
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
-	sep = container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
+	sep = sunrpc_ep_to_pvt(ep);
 
 	C2_PRE(sunrpc_ep_invariant(ep));
 
@@ -202,7 +218,7 @@ static bool sunrpc_ep_equals_addr(const struct c2_net_end_point *ep,
 {
 	struct c2_net_bulk_mem_end_point *mep;
 	C2_ASSERT(sunrpc_ep_invariant(ep));
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	mep = mem_ep_to_pvt(ep);
 
 	return (mep->xep_sa.sin_addr.s_addr == sep->sep_addr &&
 		mep->xep_sa.sin_port        == sep->sep_port &&

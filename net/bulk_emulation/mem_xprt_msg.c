@@ -96,9 +96,10 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 						   struct
 						   c2_net_bulk_mem_end_point,
 						   xep_ep);
-				rc = MEM_EP_CREATE(&dest_ep, dest_tm->ntm_dom,
-						   &mep->xep_sa,
-						   mep->xep_service_id);
+				rc = mem_bmo_ep_create(&dest_ep,
+						       dest_tm->ntm_dom,
+						       &mep->xep_sa,
+						       mep->xep_service_id);
 			} while(0);
 			if (dest_tm != NULL) {
 				/* found the TM */
@@ -217,7 +218,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		/* schedule the receive msg callback */
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
-		dest_tp = dest_tm->ntm_xprt_private;
+		dest_tp = mem_tm_to_pvt(dest_tm);
 		mem_wi_add(dest_wi, dest_tp);
 	} while (0);
 

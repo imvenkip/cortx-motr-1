@@ -24,6 +24,9 @@
 */
 static struct c2_list  mem_domains;
 
+/* forward reference */
+static const struct c2_net_bulk_mem_ops mem_xprt_methods;
+
 /**
    Transport initialization subroutine called from c2_init().
  */
@@ -141,29 +144,33 @@ static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 
 static bool mem_dom_invariant(const struct c2_net_domain *dom)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	return dp != NULL && dp->xd_dom == dom;
+	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
+	return dp != NULL && dp->xd_dom == dom &&
+		dom->nd_xprt_private == dp;
 }
 
 static bool mem_ep_invariant(const struct c2_net_end_point *ep)
 {
-	const struct c2_net_bulk_mem_end_point *mep;
-	mep = container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	const struct c2_net_bulk_mem_end_point *mep = mem_ep_to_pvt(ep);
 	return mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
+		ep == &mep->xep_ep &&
 		mep->xep_ep.nep_addr == &mep->xep_addr[0];
 }
 
 static bool mem_buffer_invariant(const struct c2_net_buffer *nb)
 {
-	const struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+	const struct c2_net_bulk_mem_buffer_pvt *bp = mem_buffer_to_pvt(nb);
 	return bp != NULL && bp->xb_buffer == nb &&
+		nb->nb_xprt_private == bp &&
 		mem_dom_invariant(nb->nb_dom);
 }
 
 static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
-	const struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
-	return tp != NULL && tp->xtm_tm == tm && mem_dom_invariant(tm->ntm_dom);
+	const struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
+	return tp != NULL && tp->xtm_tm == tm &&
+		tm->ntm_xprt_private == tp &&
+		mem_dom_invariant(tm->ntm_dom);
 }
 
 /**
@@ -191,28 +198,11 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 		}
 		dom->nd_xprt_private = dp;
 	}
+	C2_ASSERT(mem_dom_to_pvt(dom) == dp);
 	dp->xd_dom = dom;
-
-	/* set function pointers for indirectly invoked subroutines */
-	dp->xd_work_fn[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change;
-	dp->xd_work_fn[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb;
-	dp->xd_work_fn[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb;
-	dp->xd_work_fn[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send;
-	dp->xd_work_fn[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb;
-	dp->xd_work_fn[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk;
-	dp->xd_work_fn[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb;
-	dp->xd_ops.bmo_ep_create            = &mem_ep_create;
-	dp->xd_ops.bmo_ep_release           = &mem_xo_end_point_release;
-	dp->xd_ops.bmo_wi_add               = &mem_wi_add;
-	dp->xd_ops.bmo_buffer_in_bounds     = &mem_buffer_in_bounds;
-	dp->xd_ops.bmo_desc_create          = &mem_desc_create;
-	dp->xd_ops.bmo_post_error           = &mem_post_error;
-	dp->xd_ops.bmo_wi_post_buffer_event = &mem_wi_post_buffer_event;
+	dp->xd_ops = &mem_xprt_methods;
 
 	/* tunable parameters */
-	dp->xd_sizeof_ep         = sizeof(struct c2_net_bulk_mem_end_point);
-	dp->xd_sizeof_tm_pvt     = sizeof(struct c2_net_bulk_mem_tm_pvt);
-	dp->xd_sizeof_buffer_pvt = sizeof(struct c2_net_bulk_mem_buffer_pvt);
 	dp->xd_addr_tuples       = 2;
 	dp->xd_num_tm_threads    = 1;
 
@@ -230,12 +220,14 @@ static int mem_xo_dom_init(struct c2_net_xprt *xprt,
 }
 
 /**
-   This is a no-op if derived.
+   This subroutine releases references from the private data.
    If not derived, it will unlink the domain and free the private data.
+   Derived transports should free the private data upon return from this
+   subroutine.
  */
 static void mem_xo_dom_fini(struct c2_net_domain *dom)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
+	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
 	C2_PRE(mem_dom_invariant(dom));
 
 	if (dp->xd_derived)
@@ -289,7 +281,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	int pnum;
 	struct sockaddr_in sa;
 	uint32_t id = 0;
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
+	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
 
 	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
@@ -323,13 +315,16 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return MEM_EP_CREATE(epp, dom, &sa, id);
+	return mem_bmo_ep_create(epp, dom, &sa, id);
 }
 
 /**
-   This routine allocate the private data associated with the buffer.
-   The size of the private data is defined by the xd_sizeof_buffer_pvt
-   value in the domain private structure.
+   This routine initializes the private data associated with the buffer.
+
+   The private data is allocated here when the transport is used directly.
+   Derived transports should allocate the buffer private data before
+   invoking this method. The nb_xprt_private field should be set to
+   point to this transports private data.
  */
 static int mem_xo_buf_register(struct c2_net_buffer *nb)
 {
@@ -338,34 +333,48 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
 
 	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
-	if (!MEM_BUFFER_IN_BOUNDS(nb))
+	if (!mem_bmo_buffer_in_bounds(nb))
 		return -EFBIG;
 
-	dp = nb->nb_dom->nd_xprt_private;
-	bp = c2_alloc(dp->xd_sizeof_buffer_pvt);
-	if (bp == NULL)
-		return -ENOMEM;
+	dp = mem_dom_to_pvt(nb->nb_dom);
+	if (dp->xd_derived) {
+		C2_PRE(nb->nb_xprt_private != NULL);
+		bp = nb->nb_xprt_private;
+	} else {
+		C2_PRE(nb->nb_xprt_private == NULL);
+		C2_ALLOC_PTR(bp);
+		if (bp == NULL)
+			return -ENOMEM;
+		nb->nb_xprt_private = bp;
+	}
+	C2_ASSERT(mem_buffer_to_pvt(nb) == bp);
 
 	bp->xb_buffer = nb;
 	c2_list_link_init(&bp->xb_wi.xwi_link);
 	bp->xb_wi.xwi_op = C2_NET_XOP_NR;
-	nb->nb_xprt_private = bp;
 	C2_POST(mem_buffer_invariant(nb));
 	return 0;
 }
 
 /**
-   This routine releases the private data associated with the buffer.
+   This routine releases references from the private data associated with
+   the buffer, and frees the private data if the transport was used directly.
+   Derived transports should free the private data upon return from this
+   subroutine.
  */
 static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
 {
+	struct c2_net_bulk_mem_domain_pvt *dp;
 	struct c2_net_bulk_mem_buffer_pvt *bp;
 
 	C2_PRE(mem_buffer_invariant(nb));
-	bp = nb->nb_xprt_private;
+	dp = mem_dom_to_pvt(nb->nb_dom);
+	bp = mem_buffer_to_pvt(nb);
 	c2_list_link_fini(&bp->xb_wi.xwi_link);
-	c2_free(bp);
-	nb->nb_xprt_private = NULL;
+	if (!dp->xd_derived) {
+		c2_free(bp);
+		nb->nb_xprt_private = NULL;
+	}
 	return 0;
 }
 
@@ -390,13 +399,13 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 	tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	tp = tm->ntm_xprt_private;
+	tp = mem_tm_to_pvt(tm);
 
 	if (tp->xtm_state > C2_NET_XTM_STARTED)
 		return -EPERM;
 
-	dp = tm->ntm_dom->nd_xprt_private;
-	bp = nb->nb_xprt_private;
+	dp = mem_dom_to_pvt(tm->ntm_dom);
+	bp = mem_buffer_to_pvt(nb);
 	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_NR;
 
@@ -411,9 +420,9 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = ++dp->xd_buf_id_counter;
-		rc = MEM_DESC_CREATE(&nb->nb_desc, nb->nb_ep, tm,
-				     nb->nb_qtype, nb->nb_length,
-				     bp->xb_buf_id);
+		rc = mem_bmo_desc_create(&nb->nb_desc, nb->nb_ep, tm,
+					 nb->nb_qtype, nb->nb_length,
+					 bp->xb_buf_id);
 		if (rc != 0)
 			return rc;
 		break;
@@ -440,7 +449,7 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
  */
 static void mem_xo_buf_del(struct c2_net_buffer *nb)
 {
-	struct c2_net_bulk_mem_buffer_pvt *bp = nb->nb_xprt_private;
+	struct c2_net_bulk_mem_buffer_pvt *bp = mem_buffer_to_pvt(nb);
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_bulk_mem_tm_pvt *tp;
 	struct c2_net_bulk_mem_work_item *wi;
@@ -451,7 +460,7 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 	tm = nb->nb_tm;
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-	tp = tm->ntm_xprt_private;
+	tp = mem_tm_to_pvt(tm);
 
 	if (nb->nb_flags & C2_NET_BUF_IN_USE)
 		return;
@@ -484,6 +493,11 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 
 /**
    Initialize a transfer machine.
+
+   The private data is allocated here if the transport is used directly.
+   Derived transports should allocate their private data prior to calling
+   this subroutine, and set the TM private pointer to point to the embedded
+   private structure of this transport.
    @param tm Transfer machine pointer
    @retval 0 on success
    @retval -ENOMEM if memory not available
@@ -495,34 +509,46 @@ static int mem_xo_tm_init(struct c2_net_transfer_mc *tm)
 
 	C2_PRE(mem_dom_invariant(tm->ntm_dom));
 
-	dp = tm->ntm_dom->nd_xprt_private;
-	tp = c2_alloc(dp->xd_sizeof_tm_pvt);
-	if (tp == NULL)
-		return -ENOMEM;
+	dp = mem_dom_to_pvt(tm->ntm_dom);
+	if (dp->xd_derived) {
+		C2_PRE(tm->ntm_xprt_private != NULL);
+		tp = tm->ntm_xprt_private;
+	} else {
+		C2_PRE(tm->ntm_xprt_private == NULL);
+		C2_ALLOC_PTR(tp);
+		if (tp == NULL)
+			return -ENOMEM;
+		tm->ntm_xprt_private = tp;
+	}
+	C2_ASSERT(mem_tm_to_pvt(tm) == tp);
+
 	tp->xtm_num_workers = dp->xd_num_tm_threads;
 	/* defer allocation of thread array to start time */
 	tp->xtm_tm = tm;
 	tp->xtm_state = C2_NET_XTM_INITIALIZED;
 	c2_list_init(&tp->xtm_work_list);
 	c2_cond_init(&tp->xtm_work_list_cv);
-	tm->ntm_xprt_private = tp;
 	C2_POST(mem_tm_invariant(tm));
 	return 0;
 }
 
 /**
    Finalize a transfer machine.
+   Derived transports should free the private data upon return from this
+   subroutine.
    @param tm Transfer machine pointer
  */
 static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_mem_domain_pvt *dp;
+	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(tp->xtm_state == C2_NET_XTM_STOPPED ||
 	       tp->xtm_state == C2_NET_XTM_FAILED  ||
 	       tp->xtm_state == C2_NET_XTM_INITIALIZED);
 
+	dp = mem_dom_to_pvt(tm->ntm_dom);
 	c2_mutex_lock(&tm->ntm_mutex);
 	tp->xtm_state = C2_NET_XTM_STOPPED; /* to stop the workers */
 	c2_cond_broadcast(&tp->xtm_work_list_cv, &tm->ntm_mutex);
@@ -535,18 +561,19 @@ static void mem_xo_tm_fini(struct c2_net_transfer_mc *tm)
 		}
 		c2_free(tp->xtm_worker_threads);
 	}
-	tm->ntm_xprt_private = NULL;
 	c2_cond_fini(&tp->xtm_work_list_cv);
 	c2_list_fini(&tp->xtm_work_list);
 	tp->xtm_tm = NULL;
-	tm->ntm_xprt_private = NULL;
-	c2_free(tp);
+	if (!dp->xd_derived) {
+		tm->ntm_xprt_private = NULL;
+		c2_free(tp);
+	}
 }
 
 void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 				       size_t num)
 {
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	C2_PRE(mem_tm_invariant(tm));
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
@@ -556,7 +583,7 @@ void c2_net_bulk_mem_tm_set_num_threads(struct c2_net_transfer_mc *tm,
 }
 
 size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
-	struct c2_net_bulk_mem_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	C2_PRE(mem_tm_invariant(tm));
 	return tp->xtm_num_workers;
 }
@@ -571,7 +598,7 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
-	tp = tm->ntm_xprt_private;
+	tp = mem_tm_to_pvt(tm);
 	if (tp->xtm_state == C2_NET_XTM_STARTED)
 		return 0;
 	if (tp->xtm_state == C2_NET_XTM_STARTING)
@@ -627,7 +654,7 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	C2_PRE(mem_tm_invariant(tm));
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
-	tp = tm->ntm_xprt_private;
+	tp = mem_tm_to_pvt(tm);
 	if (tp->xtm_state >= C2_NET_XTM_STOPPING)
 		return 0;
 
@@ -657,6 +684,29 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return 0;
 }
 
+/* Internal methods of this transport; visible to derived transports. */
+static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
+	.bmo_work_fn = {
+		[C2_NET_XOP_STATE_CHANGE]    = mem_wf_state_change,
+		[C2_NET_XOP_CANCEL_CB]       = mem_wf_cancel_cb,
+		[C2_NET_XOP_MSG_RECV_CB]     = mem_wf_msg_recv_cb,
+		[C2_NET_XOP_MSG_SEND]        = mem_wf_msg_send,
+		[C2_NET_XOP_PASSIVE_BULK_CB] = mem_wf_passive_bulk_cb,
+		[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk,
+		[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb,
+	},
+ 	.bmo_ep_create                       = mem_ep_create,
+	.bmo_ep_alloc                        = mem_ep_alloc,
+	.bmo_ep_free                         = mem_ep_free,
+	.bmo_ep_release                      = mem_xo_end_point_release,
+	.bmo_wi_add                          = mem_wi_add,
+	.bmo_buffer_in_bounds                = mem_buffer_in_bounds,
+	.bmo_desc_create                     = mem_desc_create,
+	.bmo_post_error                      = mem_post_error,
+	.bmo_wi_post_buffer_event            = mem_wi_post_buffer_event,
+};
+
+/* External interface */
 static const struct c2_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_dom_init                    = mem_xo_dom_init,
 	.xo_dom_fini                    = mem_xo_dom_fini,
