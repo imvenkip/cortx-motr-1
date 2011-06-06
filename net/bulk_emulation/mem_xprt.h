@@ -156,6 +156,15 @@ struct c2_net_bulk_mem_buffer_pvt {
 };
 
 /**
+   Recover the buffer private pointer from the buffer pointer.
+ */
+static inline struct c2_net_bulk_mem_buffer_pvt *
+mem_buffer_to_pvt(const struct c2_net_buffer *nb)
+{
+	return nb->nb_xprt_private;
+}
+
+/**
    Transfer machine private data.
  */
 struct c2_net_bulk_mem_tm_pvt {
@@ -174,6 +183,15 @@ struct c2_net_bulk_mem_tm_pvt {
 	/** Number of worker threads */
 	size_t                            xtm_num_workers;
 };
+
+/**
+   Recover the TM private pointer from a pointer to the TM.
+*/
+static inline struct c2_net_bulk_mem_tm_pvt *
+mem_tm_to_pvt(const struct c2_net_transfer_mc *tm)
+{
+	return tm->ntm_xprt_private;
+}
 
 enum {
 	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
@@ -201,6 +219,15 @@ struct c2_net_bulk_mem_end_point {
 };
 
 /**
+   Recover the end point private from a pointer to the end point.
+*/
+static inline struct c2_net_bulk_mem_end_point *
+mem_ep_to_pvt(const struct c2_net_end_point *ep)
+{
+	return container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+}
+
+/**
    Work functions are invoked from worker threads. There is one
    work function per work item opcode.  Each function has a
    signature described by this typedef.
@@ -213,11 +240,20 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
    intercepted by a derived transport.
  */
 struct c2_net_bulk_mem_ops {
+	/** Work functions. */
+	c2_net_bulk_mem_work_fn_t  bmo_work_fn[C2_NET_XOP_NR];
+
 	/** Subroutine to create an end point. */
 	int (*bmo_ep_create)(struct c2_net_end_point **epp,
 			     struct c2_net_domain *dom,
 			     const struct sockaddr_in *sa,
 			     uint32_t id);
+
+	/** Subroutine to allocate memory for an end point */
+	struct c2_net_bulk_mem_end_point *(*bmo_ep_alloc)(void);
+
+	/** Subroutine to free memory for an end point */
+	void (*bmo_ep_free)(struct c2_net_bulk_mem_end_point *mep);
 
 	/** Subroutine to release an end point.  Used as the destructor
 	    function for c2_net_end_point::nep_ref.
@@ -254,62 +290,50 @@ struct c2_net_bulk_mem_ops {
  */
 struct c2_net_bulk_mem_domain_pvt {
 	/** Domain pointer */
-	struct c2_net_domain      *xd_dom;
+	struct c2_net_domain             *xd_dom;
 
-	/** Work functions. */
-	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
-
-	/** Exposed subroutines - derived transports may need to intercept */
-	struct c2_net_bulk_mem_ops xd_ops;
-
-	/**
-	   Size of the end point structure.
-	   Initialized to the size of c2_net_bulk_mem_end_point.
-	 */
-	size_t                     xd_sizeof_ep;
-
-	/**
-	   Size of the transfer machine private data.
-	   Initialized to the size of c2_net_bulk_mem_tm_pvt.
-	 */
-	size_t                     xd_sizeof_tm_pvt;
-
-	/**
-	   Size of the buffer private data.
-	   Initialized to the size of c2_net_bulk_mem_buffer_pvt.
-	 */
-	size_t                     xd_sizeof_buffer_pvt;
+	/** Methods that may be replaced by derived transports */
+	const struct c2_net_bulk_mem_ops *xd_ops;
 
 	/**
 	   Number of tuples in the address.
 	 */
-	size_t                     xd_addr_tuples;
+	size_t                            xd_addr_tuples;
 
 	/**
 	   Number of threads in a transfer machine pool.
 	 */
-	size_t                     xd_num_tm_threads;
+	size_t                            xd_num_tm_threads;
 
 	/**
 	   Linkage of in-memory c2_net_domain objects for in-memory
 	   communication.
 	   This is only done if the xd_derived is false.
 	 */
-	struct c2_list_link        xd_dom_linkage;
+	struct c2_list_link               xd_dom_linkage;
 
 	/**
 	   Indicator of a derived transport.
 	   Will be set to true if the transport pointer provided to
 	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
 	 */
-	bool                       xd_derived;
+	bool                              xd_derived;
 
 	/**
 	   Counter for passive bulk buffer identifiers.  The ntm_mutex must be
 	   held while operating on this counter.
 	 */
-	uint64_t                   xd_buf_id_counter;
+	uint64_t                          xd_buf_id_counter;
 };
+
+/**
+   Recover the domain private from a pointer to the domain.
+*/
+static inline struct c2_net_bulk_mem_domain_pvt *
+mem_dom_to_pvt(const struct c2_net_domain *dom)
+{
+	return dom->nd_xprt_private;
+}
 
 /**
    Function obtain the c2_net_buffer pointer from its related work item.
@@ -332,8 +356,7 @@ mem_wi_to_buffer(struct c2_net_bulk_mem_work_item *wi)
 static inline struct c2_net_bulk_mem_work_item *
 mem_buffer_to_wi(struct c2_net_buffer *buf)
 {
-	struct c2_net_bulk_mem_buffer_pvt *bp;
-	bp = buf->nb_xprt_private;
+	struct c2_net_bulk_mem_buffer_pvt *bp = mem_buffer_to_pvt(buf);
 	return &bp->xb_wi;
 }
 
