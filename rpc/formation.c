@@ -1663,15 +1663,10 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				if ((rpc_item->ri_group == sg->sug_group) &&
 					((partial_size - item_size) > 0)) {
 					partial_size -= item_size;
-					item_added = true;
-					ncurrent_groups = 0;
-					break;
 				}
-				else {
-					item_added = true;
-					ncurrent_groups = 0;
-					break;
-				}
+				item_added = true;
+				ncurrent_groups = 0;
+				break;
 			}
 		}
 		if(item_added) {
