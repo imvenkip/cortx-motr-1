@@ -61,7 +61,8 @@ static void mem_ep_printable(struct c2_net_bulk_mem_end_point *mep,
 */
 static struct c2_net_bulk_mem_end_point *mem_ep_alloc(void)
 {
-	struct c2_net_bulk_mem_end_point *mep = c2_alloc(sizeof *mep);
+	struct c2_net_bulk_mem_end_point *mep;
+	C2_ALLOC_PTR(mep);
 	return mep;
 }
 
