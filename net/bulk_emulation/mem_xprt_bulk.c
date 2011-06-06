@@ -92,7 +92,8 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* Make a local end point matching the passive address.*/
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = MEM_EP_CREATE(&match_ep, tm->ntm_dom, &md->md_passive, 0);
+		rc = mem_bmo_ep_create(&match_ep, tm->ntm_dom, &md->md_passive,
+				       0);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 		if (rc != 0) {
 			match_ep = NULL;
@@ -144,7 +145,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		passive_wi->xwi_status = rc;
 		passive_wi->xwi_nbe_length = datalen;
 
-		passive_tp = passive_tm->ntm_xprt_private;
+		passive_tp = mem_tm_to_pvt(passive_tm);
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */
