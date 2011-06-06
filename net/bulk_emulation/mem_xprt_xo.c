@@ -315,7 +315,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return MEM_EP_CREATE(epp, dom, &sa, id);
+	return mem_bmo_ep_create(epp, dom, &sa, id);
 }
 
 /**
@@ -333,7 +333,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
 
 	C2_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
-	if (!MEM_BUFFER_IN_BOUNDS(nb))
+	if (!mem_bmo_buffer_in_bounds(nb))
 		return -EFBIG;
 
 	dp = mem_dom_to_pvt(nb->nb_dom);
@@ -420,9 +420,9 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 		nb->nb_length = 0;
 	case C2_NET_QT_PASSIVE_BULK_SEND:
 		bp->xb_buf_id = ++dp->xd_buf_id_counter;
-		rc = MEM_DESC_CREATE(&nb->nb_desc, nb->nb_ep, tm,
-				     nb->nb_qtype, nb->nb_length,
-				     bp->xb_buf_id);
+		rc = mem_bmo_desc_create(&nb->nb_desc, nb->nb_ep, tm,
+					 nb->nb_qtype, nb->nb_length,
+					 bp->xb_buf_id);
 		if (rc != 0)
 			return rc;
 		break;
