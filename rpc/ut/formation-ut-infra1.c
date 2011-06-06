@@ -658,7 +658,7 @@ int main(int argc, char **argv)
 	   by the MTU(Max Transferrable Unit) of LNET which is defined
 	   to be 1M. !! Not sure of this is right !! */
 	//c2_rpc_max_message_size = 1024*1024;
-	c2_rpc_max_message_size = 1024;
+	c2_rpc_max_message_size = 1024 * 100;
 	/* We start with a default value of 8. The max value in Lustre, is
 	   limited to 32. */
 	c2_rpc_max_rpcs_in_flight = 8;
