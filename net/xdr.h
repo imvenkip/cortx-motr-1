@@ -4,7 +4,7 @@
 #define __COLIBRI_NET_XDR_H__
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
  */
 
 struct c2_service_id;

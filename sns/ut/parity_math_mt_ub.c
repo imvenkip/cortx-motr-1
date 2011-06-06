@@ -156,7 +156,9 @@ static void ub_mt_test(uint32_t data_count,
 
 	for (i = 0; i < num_threads; i++) {
 		tb_cfg_init(&cfg[i], data_count, parity_count, block_size);
-		result = C2_THREAD_INIT(&threads[i], struct tb_cfg*, NULL, &tb_thread, &cfg[i]);
+		result = C2_THREAD_INIT(&threads[i], struct tb_cfg*, NULL,
+					&tb_thread, &cfg[i],
+					"tb_thread%d", i);
 		C2_ASSERT(result == 0);
 	}
 

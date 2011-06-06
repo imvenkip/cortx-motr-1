@@ -169,7 +169,9 @@ int main(int argc, char **argv)
 	result = colibri_balloc.cb_ballroom.ab_ops->bo_init(&colibri_balloc.cb_ballroom, &db, 12);
 	C2_ASSERT(result == 0);
 	for (i = 0; i < num_threads; i++) {
-		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL, &alloc_free, &colibri_balloc);
+		result = C2_THREAD_INIT(&threads[i], struct c2_balloc*, NULL,
+					&alloc_free, &colibri_balloc,
+					"alloc_free%d", i);
 		C2_ASSERT(result == 0);
 	}
 	for (i = 0; i < num_threads; i++) {

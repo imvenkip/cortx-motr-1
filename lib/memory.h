@@ -12,7 +12,9 @@
 */
 
 /**
- * Allocates zero-filled memory
+ * Allocates zero-filled memory.
+ * The memory allocated is guaranteed to be suitably aligned
+ * for any kind of variable.
  * @param size - memory size
  *
  * @retval NULL - allocation failed

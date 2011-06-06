@@ -28,7 +28,9 @@ static void capa_test(void) {
 	struct c2_capa_issuer    issuer;
 
         struct c2_service_id    *sid;
-        struct c2_net_domain     ndom;
+        struct c2_net_domain     ndom = {
+		.nd_xprt = NULL
+	};
 	int		         port = 10001;
 	char                    *addr = "127.0.0.1";
 
@@ -46,7 +48,7 @@ static void capa_test(void) {
 
 	ret = cog_init(&guard);
 	C2_UT_ASSERT(ret == 0);
-	
+
 	ret = c2_capa_ctxt_init(&ctx);
 	C2_UT_ASSERT(ret == 0);
 
@@ -85,7 +87,7 @@ static void capa_test(void) {
 	C2_UT_ASSERT(ret != 0);
 
 	ret = c2_capa_auth(&ctx, &write_capa, C2_CAPA_OP_DATA_READ);
-	C2_UT_ASSERT(ret != 0);	
+	C2_UT_ASSERT(ret != 0);
 #endif
 
 	cog_fini(&guard);

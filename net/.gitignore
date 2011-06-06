@@ -1,1 +1,4 @@
-net_otw_types_[uk].[ch]
+net_otw_types_k.c
+net_otw_types_k.h
+net_otw_types_u.c
+net_otw_types_u.h

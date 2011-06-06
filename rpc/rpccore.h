@@ -80,6 +80,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
+
       UNINITIALIZED
            | update_stream_init()
            |
@@ -168,7 +169,7 @@ struct c2_net_endpoint {
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */
-	C2_UPDATE_STREAM_DEDICATED_SLOT = 0, 
+	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
 	/* several update streams share the same slot */
 	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
 };
@@ -214,7 +215,7 @@ struct c2_rpc_item_type_ops {
 	 */
 	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
 	/**
-	   Return the IO vector from the IO request. 
+	   Return the IO vector from the IO request.
 	 */
 	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
 	/**
@@ -354,7 +355,7 @@ struct c2_rpc_item {
 	struct c2_list_link		ri_slot_link;
 	/** XXX temporary field to put item on in-core reply cache list */
 	struct c2_list_link			ri_rc_link;
-	
+
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type *ri_type;
 	struct c2_chan ri_chan;

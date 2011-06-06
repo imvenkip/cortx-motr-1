@@ -18,7 +18,11 @@
  */
 
 struct c2_thread_handle {
-	pid_t h_id;
+	struct task_struct *h_t;
+};
+
+enum {
+	C2_THREAD_NAME_LEN = TASK_COMM_LEN
 };
 
 /** @} end of thread group */
