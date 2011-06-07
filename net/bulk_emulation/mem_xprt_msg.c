@@ -92,10 +92,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				   address in the remote DOM. Do this now,
 				   before giving up the DOM mutex.
 				*/
-				mep = container_of(tm->ntm_ep,
-						   struct
-						   c2_net_bulk_mem_end_point,
-						   xep_ep);
+				mep = mem_ep_to_pvt(tm->ntm_ep);
 				rc = mem_bmo_ep_create(&dest_ep,
 						       dest_tm->ntm_dom,
 						       &mep->xep_sa,

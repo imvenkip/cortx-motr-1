@@ -145,15 +145,13 @@ static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 static bool mem_dom_invariant(const struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
-	return dp != NULL && dp->xd_dom == dom &&
-		dom->nd_xprt_private == dp;
+	return dp != NULL && dp->xd_dom == dom;
 }
 
 static bool mem_ep_invariant(const struct c2_net_end_point *ep)
 {
 	const struct c2_net_bulk_mem_end_point *mep = mem_ep_to_pvt(ep);
 	return mep->xep_magic == C2_NET_BULK_MEM_XEP_MAGIC &&
-		ep == &mep->xep_ep &&
 		mep->xep_ep.nep_addr == &mep->xep_addr[0];
 }
 
@@ -161,7 +159,6 @@ static bool mem_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct c2_net_bulk_mem_buffer_pvt *bp = mem_buffer_to_pvt(nb);
 	return bp != NULL && bp->xb_buffer == nb &&
-		nb->nb_xprt_private == bp &&
 		mem_dom_invariant(nb->nb_dom);
 }
 
@@ -169,7 +166,6 @@ static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
 	const struct c2_net_bulk_mem_tm_pvt *tp = mem_tm_to_pvt(tm);
 	return tp != NULL && tp->xtm_tm == tm &&
-		tm->ntm_xprt_private == tp &&
 		mem_dom_invariant(tm->ntm_dom);
 }
 
