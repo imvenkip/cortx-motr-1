@@ -222,6 +222,28 @@ void c2_rpc_form_invoke_reply_received(void)
 			}
         }
 }
+
+/**
+  Invoke item removed callback for all the items in the cache which 
+  are in submitted state
+*/
+void c2_rpc_form_invoke_item_removed(void)
+{
+        struct c2_rpc_item *item;
+        struct c2_rpc_item *item_next;
+
+        printf("Inside c2_rpc_form_invoke_item_removed \n");
+        if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
+                c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
+                                item, item_next, struct c2_rpc_item ,
+                                ri_linkage)
+			if(item->ri_state == RPC_ITEM_SUBMITTED) {
+				printf("Calling callback for item removed\n");
+				c2_rpc_form_extevt_rpcitem_deleted_from_cache(item);
+			}
+        }
+}
+
 /**
   Assign a group to a given RPC item
  */
@@ -760,6 +782,7 @@ int main(int argc, char **argv)
 	c2_rpc_form_invoke_reply_received();
 	printf("No. of items in items cache after invoking reply recd:%lu\n", 
 			c2_list_length(&items_cache->ic_cache_list)); 
+	c2_rpc_form_invoke_item_removed();
 	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;
