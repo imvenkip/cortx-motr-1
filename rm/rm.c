@@ -256,7 +256,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 }
 
 /**
- * Revoke or cacelation of rights will require this.
+ * Revoke or cancelation of rights will require this.
  */
 static void remove_rights(struct c2_rm_incoming *in)
 {
@@ -265,15 +265,24 @@ static void remove_rights(struct c2_rm_incoming *in)
 	struct c2_rm_pin   *in_tmp;
 	struct c2_rm_pin   *ri_tmp;
 	struct c2_rm_right *right;
+	struct c2_rm_owner *owner = in->rin_owner;
 
 	c2_list_for_each_entry_safe(&in->rin_pins, in_pin, in_tmp,
 				    struct c2_rm_pin, rp_incoming_linkage) {
 		right = in_pin->rp_right;
 		c2_list_for_each_entry_safe(&right->ri_pins, ri_pin, ri_tmp,
-					    struct c2_rm_pin, rp_right_linkage) {
+					    struct c2_rm_pin,
+					    rp_right_linkage) {
 			if (ri_pin->rp_flags & RPF_TRACK) {
 				pin_remove(ri_pin);
 			}
+		}
+		if (!c2_list_contains(&owner->ro_owned[OWOS_CACHED],
+				      &right->ri_linkage) &&
+		    !c2_list_contains(&owner->ro_owned[OWOS_HELD],
+		    		      &right->ri_linkage)) {
+			c2_list_move(&owner->ro_owned[OWOS_CACHED],
+				     &right->ri_linkage);
 		}
 	}
 }
@@ -320,85 +329,85 @@ static int apply_policy(struct c2_rm_incoming *in)
 	bool 		    first;
 
 	switch (in->rin_policy) {
-		case RIP_NONE:
-		case RIP_RESOURCE_TYPE_BASE:
+	case RIP_NONE:
+	case RIP_RESOURCE_TYPE_BASE:
+		break;
+	case RIP_INPLACE:
+		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
+				       rp_incoming_linkage) {
+			c2_list_move(&in->rin_want.ri_pins,
+				     &pin->rp_right_linkage);
+			pin->rp_right = &in->rin_want;
+			pin->rp_right->ri_ops->rro_diff(pin->rp_right,
+							&in->rin_want);
+			c2_list_move(&in->rin_want.ri_pins,
+				     &pin->rp_right_linkage);
+		}
+		break;
+	case RIP_STRICT:
+		/* 
+	 	 * Remove all pined rights and insert right equivalent
+	 	 * to requested right.
+	 	 */
+		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
+				       rp_incoming_linkage) {
+			c2_list_move(&in->rin_want.ri_pins,
+				     &pin->rp_right_linkage);
+			pin->rp_right->ri_ops->rro_diff(pin->rp_right,
+			&in->rin_want);
+		}
+
+		remove_rights(in);
+		C2_ALLOC_PTR(right);
+		if (right == NULL)
+			return -ENOMEM;
+		right_copy(right, &in->rin_want);
+		pin_add(in, right);
+		c2_list_add(&owner->ro_owned[OWOS_CACHED],
+			    &right->ri_linkage);
+
+		break;
+	case RIP_JOIN:
+		/* 
+		 * New right equivalent to joined rights of granted
+		 * rights is inserted into owned rights list.
+		 */
+		if (c2_list_length(&in->rin_pins) <= 1)
 			break;
-		case RIP_INPLACE:
+
+		first = true;
+		c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
+					    struct c2_rm_pin,
+					    rp_incoming_linkage) {
+			if (first) {
+				right = pin->rp_right;
+				first = false;
+				continue;
+			}
+			pin_right = pin->rp_right;
+			right->ri_ops->rro_join(right, pin_right);
+			pin_remove(pin);
+		}
+		c2_list_add(&owner->ro_owned[OWOS_CACHED],
+			    &right->ri_linkage);
+		break;
+	case RIP_MAX:
+		/* 
+		 * Maxinum rights which implies to requested right
+		 * are granted from cached right list.
+		 */
+		c2_list_for_each_entry(&owner->ro_owned[OWOS_CACHED], right,
+				       struct c2_rm_right, ri_linkage) {
 			c2_list_for_each_entry(&in->rin_pins, pin,
 					       struct c2_rm_pin,
 					       rp_incoming_linkage) {
-				c2_list_move(&in->rin_want.ri_pins,
-					     &pin->rp_right_linkage);
-				pin->rp_right = &in->rin_want;
-
+				if (right->ri_ops->rro_implies(right,
+					&in->rin_want) &&
+					!c2_list_contains(&right->ri_pins,
+					    	&pin->rp_right_linkage))
+					pin_add(in, right);
 			}
-			break;
-		case RIP_STRICT:
-			/* 
-			 * Remove all pined rights and insert right equivalent
-			 * to requested right.
-			 */
-			remove_rights(in);
-			C2_ALLOC_PTR(right);
-			if (right == NULL)
-				return -ENOMEM;
-			right_copy(right, &in->rin_want);
-			pin_add(in, right);
-			c2_list_add(&owner->ro_owned[OWOS_CACHED],
-				    &right->ri_linkage);
-
-			break;
-		case RIP_JOIN:
-			/* 
-			 * New right equivalent to joined rights of granted
-			 * rights is inserted into owned rights list.
-			 */
-			if (c2_list_length(&in->rin_pins) <= 1)
-				break;
-
-			first = true;
-			C2_ALLOC_PTR(right);
-			if (right == NULL)
-				return -ENOMEM;
-			c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
-						    struct c2_rm_pin,
-						    rp_incoming_linkage) {
-				pin_right = pin->rp_right;
-				if (first) {
-					pin_right->ri_ops->rro_copy(right,
-								    pin_right);
-					first = false;
-					pin_remove(pin);
-					continue;
-				}
-				right->ri_ops->rro_join(right, pin_right);
-				pin_remove(pin);
-			}
-			pin_add(in, right);
-			c2_list_add(&owner->ro_owned[OWOS_CACHED],
-				    &right->ri_linkage);
-			break;
-		case RIP_MAX:
-			/* 
-			 * Maxinum rights which implies to requested right
-			 * are granted.
-			 */
-			c2_list_for_each_entry(&owner->ro_owned[OWOS_CACHED],
-					       right, struct c2_rm_right,
-					       ri_linkage) {
-				c2_list_for_each_entry(&in->rin_pins, pin,
-						       struct c2_rm_pin,
-						       rp_incoming_linkage) {
-					if (right->ri_ops->rro_implies(right,
-								       &in->
-								       rin_want)
-								       &&
-					    !c2_list_contains(&right->ri_pins,
-					    		      &pin->
-							      rp_right_linkage))
-						pin_add(in, right);
-				}
-			}
+		}
 	}
 
 	return 0;
@@ -531,15 +540,15 @@ static int send_out_request(struct c2_rm_outgoing *out)
 #endif
 
 /**
- * Check for conflict.
+ * Check for held conflict rights.
  */
-static bool local_rights_held(const struct c2_rm_incoming *in)
+static bool local_rights_are_held(const struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
 
-	if (in->rin_type != RIT_LOCAL) {
+	//if (in->rin_type != RIT_LOCAL) {
 		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
 				       rp_incoming_linkage) {
 			right = pin->rp_right;
@@ -547,7 +556,7 @@ static bool local_rights_held(const struct c2_rm_incoming *in)
 					     &right->ri_linkage))
 				return true;
 		}
-	}
+	//}
 	return false;
 }
 
@@ -760,12 +769,13 @@ static void owner_balance(struct c2_rm_owner *o)
    This function leaves the request either in RI_WAIT, RI_SUCCESS or RI_FAILURE
    state.
  */
-static void incoming_check(struct c2_rm_incoming *in)
+static int incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *o = in->rin_owner;
 	struct c2_rm_loan  *loan;
 	struct c2_rm_right  rest;
 	int		    result;
+	bool		    held;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(c2_list_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
@@ -793,7 +803,13 @@ static void incoming_check(struct c2_rm_incoming *in)
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
 		 */
-		if (local_rights_held(in)) {
+		held = local_rights_are_held(in);
+		if (held && in->rin_flags & RIF_LOCAL_TRY) {
+			remove_rights(in);
+			return -EWOULDBLOCK;
+		}
+
+		if (held && in->rin_flags & RIF_LOCAL_WAIT) {
 			/*
 			 * conflicting held rights were found, has to
 			 * wait until local rights are released.
@@ -808,12 +824,15 @@ static void incoming_check(struct c2_rm_incoming *in)
 			 */
 			result = apply_policy(in);
 			C2_ASSERT(result == 0);
+
 			switch (in->rin_type) {
 			case RIT_LOAN:
 				move_to_sublet(in);
 				/*@todo uncomment when producer consumer is ready*/
 				//reply_to_loan_request(in);
 			case RIT_LOCAL:
+				/* Granted right are moved to held list */
+				move_to_held(in);
 				break;
 			case RIT_REVOKE:
 				remove_rights(in);
@@ -860,6 +879,8 @@ static void incoming_check(struct c2_rm_incoming *in)
 			in->rin_state = RI_FAILURE;
 		}
 	}
+
+	return 0;
 }
 
 /**
@@ -889,7 +910,8 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	 * request can be fulfilled. For a local request track_local can also
 	 * be true, depending on the policy.
 	 */
-	if (in->rin_type != RIT_LOCAL)
+	if (in->rin_type != RIT_LOCAL ||
+	    in->rin_policy != RIP_MAX)
 		track_local = true;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
@@ -911,7 +933,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 				       struct c2_rm_right, ri_linkage) {
 			if (rest->ri_ops->rro_implies(right, rest)) {
 				pin_add(in, right);
-				if (coverage) {
+				if (!coverage) {
 					rest->ri_ops->rro_diff(rest, right);
 					if (right_is_empty(rest))
 						return;
@@ -1074,6 +1096,8 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 	}
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
+
+	printf("State %d\n",in->rin_state);
 
 	return in->rin_state != RI_SUCCESS;
 }
