@@ -176,9 +176,7 @@ static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid)
 			continue;
 		}
 
-		mep = container_of(ep,
-				   struct c2_net_bulk_mem_end_point, xep_ep);
-
+		mep = mem_ep_to_pvt(ep);
 		if (mep->xep_service_id == sid) {
 			/* leave mutex locked */
 			ret = tm;
