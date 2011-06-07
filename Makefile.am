@@ -1,16 +1,20 @@
 SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fop is reached. Fop needs all libs before it in the
-# list built in order to use fop2c
-# addb_pseudo is used only for build fop2c, with which full addb can be built
+# Order is important until fop/rt is reached. Fop needs all libs
+# before it in the list built in order to use fop2c addb_pseudo is
+# used only for build fop2c, with which full addb can be built. Keep
+# this list alphabetically sorted after "net".
+
 SUBDIRS_LIBS = \
                lib \
                addb/addb_pseudo \
                fol \
                db \
                fid \
-               fop \ # keep this list alphabetically sorted after this point.
-
+               fop/rt \
+               \
+               net \
+               fop \
                addb \
                balloc \
                capa \
@@ -20,7 +24,6 @@ SUBDIRS_LIBS = \
                ioservice \
                layout \
                mw \
-               net \
                nrs \
                pool \
                reqh \
@@ -32,7 +35,8 @@ SUBDIRS_LIBS = \
                xdr
 
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_UT = \ # keep this list alphabetically sorted
+# keep this list alphabetically sorted
+SUBDIR_UT = \ 
                balloc/ut \
                capa/ut \
                cob/ut \
@@ -45,9 +49,9 @@ SUBDIR_UT = \ # keep this list alphabetically sorted
                net/bulk_emulation/ut \
                net/st \
                net/ut \
-               rpc/ut \
                sns/ut \
                stob/ut \
+               rpc/ut \
                udb/ut \
                xdr/ut
 

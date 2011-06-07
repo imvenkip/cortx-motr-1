@@ -8,6 +8,7 @@
 #include "lib/rwlock.h"
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "net/net_internal.h"
+#include "fop/fop.h"
 #include "fop/fop_format_def.h"
 
 /**

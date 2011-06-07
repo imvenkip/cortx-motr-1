@@ -149,23 +149,6 @@ struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
 
-struct c2_net_end_point {
-        /** Keeps track of usage */
-        struct c2_ref          nep_ref;
-        /** Pointer to the network domain */
-        //struct c2_net_domain  *nep_dom;
-        /** Linkage in the domain list */
-        struct c2_list_link    nep_dom_linkage;
-        /** Transport specific printable representation of the
-            end point address.
-        */
-        const char            *nep_addr;
-};
-
-/*Just a placeholder for endpoint, will be removed later */
-struct c2_net_endpoint {
-	int endpoint_val;
-};
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */

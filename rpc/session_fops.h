@@ -14,7 +14,7 @@ struct fom;
 struct c2_fom_type;
 
 enum c2_rpc_opcodes {
-	C2_RPC_FOP_CONN_CREATE_OPCODE = 30,
+	C2_RPC_FOP_CONN_CREATE_OPCODE = 50,
 	C2_RPC_FOP_CONN_TERMINATE_OPCODE,
 	C2_RPC_FOP_SESSION_CREATE_OPCODE,
 	C2_RPC_FOP_SESSION_DESTROY_OPCODE,
@@ -64,7 +64,7 @@ int c2_rpc_fop_conn_create_rep_execute(struct c2_fop		*fop,
 
 int c2_rpc_fop_session_create_rep_execute(struct c2_fop		*fop,
 				          struct c2_fop_ctx	*ctx);
-				
+
 int c2_rpc_fop_session_destroy_rep_execute(struct c2_fop	*fop,
 				           struct c2_fop_ctx	*ctx);
 
@@ -87,7 +87,7 @@ extern void c2_rpc_session_fop_fini(void);
 
 /** @}  End of rpc_session group */
 #endif
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

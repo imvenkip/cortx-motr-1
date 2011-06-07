@@ -10,9 +10,9 @@
 #include <rpc/xdr.h>
 #include "colibri/init.h"
 #include "lib/memory.h"
-#include "lib/bitstring.h" 
+#include "lib/bitstring.h"
 #include "lib/misc.h"
-#include "db/db.h" 
+#include "db/db.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
@@ -100,7 +100,7 @@ void traverse_slot_table()
 	c2_db_pair_fini(&db_pair);
 	c2_db_cursor_fini(&cursor);
 	c2_db_tx_commit(&tx);
-	
+
 }
 void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 {
@@ -137,7 +137,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	item->ri_mach = machine;
 
 	/*
-	 * "Receive" the item 
+	 * "Receive" the item
 	 */
 	sc = c2_rpc_session_item_received(item, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
@@ -182,7 +182,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		} else if (fom->fo_phase == FOPH_FAILED) {
 			c2_db_tx_abort(&fom_sd->fsd_tx);
 		}
-	
+
 		/*
 		 * test reply contents
 		 */
@@ -190,7 +190,7 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		c2_cob_namespace_traverse(dom);
 		c2_cob_fb_traverse(dom);
 	}
-	
+
 }
 
 void test_conn_terminate(uint64_t sender_id)
@@ -227,7 +227,7 @@ void test_conn_terminate(uint64_t sender_id)
 	item->ri_mach = machine;
 
 	/*
-	 * "Receive" the item 
+	 * "Receive" the item
 	 */
 	sc = c2_rpc_session_item_received(item, &cached_item);
 	//sc = SCR_ACCEPT_ITEM;
@@ -270,7 +270,7 @@ void test_conn_terminate(uint64_t sender_id)
 		} else if (fom->fo_phase == FOPH_FAILED) {
 			c2_db_tx_abort(&fom_ct->fct_tx);
 		}
-	
+
 		/*
 		 * test reply contents
 		 */
@@ -278,7 +278,7 @@ void test_conn_terminate(uint64_t sender_id)
 		c2_cob_namespace_traverse(dom);
 		c2_cob_fb_traverse(dom);
 	}
-	
+
 }
 uint64_t	g_sender_id;
 uint64_t	g_session_id;
@@ -338,14 +338,14 @@ void test_conn_create()
 		} else if (fom->fo_phase == FOPH_FAILED) {
 			c2_db_tx_abort(&fom_cc->fcc_tx);
 		}
-		
+
 		fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
 		C2_ASSERT(fop_reply != NULL);
 		printf("test_conn_create: sender id %lu\n", fop_reply->rccr_snd_id);
 		g_sender_id = fop_reply->rccr_snd_id;
 		fom->fo_ops->fo_fini(fom);
 	}
-	traverse_slot_table();	
+	traverse_slot_table();
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
 }
@@ -450,7 +450,8 @@ void test_snd_conn_create()
 	C2_ASSERT(conn.c_state == CS_CONN_INITIALISING ||
 			conn.c_state == CS_CONN_FAILED);
 
-	c2_thread_init(&thread, NULL, conn_status_check, NULL);
+	c2_thread_init(&thread, NULL, conn_status_check, NULL,
+		       "conn_status_check");
 
 	sleep(1);
 
@@ -466,7 +467,7 @@ void test_snd_conn_create()
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;
-	
+
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_thread_join(&thread);
 	c2_thread_fini(&thread);
@@ -502,7 +503,7 @@ void test_snd_session_create()
 		printf("test_sc: failed to create session\n");
 		return;
 	}
-	c2_thread_init(&thread, NULL, thread_entry, NULL);
+	c2_thread_init(&thread, NULL, thread_entry, NULL, "thread_entry");
 	sleep(1);
 	fop = c2_fop_alloc(&c2_rpc_fop_session_create_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
@@ -633,7 +634,7 @@ void test_item_prepare()
 	c2_rpc_item_init(&item[0], machine);
 	item[0].ri_service_id = &svc_id;
 	rc = c2_rpc_session_item_prepare(&item[0]);
-	
+
 }
 int main(void)
 {

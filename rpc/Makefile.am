@@ -1,9 +1,8 @@
-<<<<<<< HEAD:rpc/Makefile.am
 rpcdir			= @SRCDIR@/rpc
 rpc_HEADERS		= session.h session_fops.h session_foms.h
 
 session_u.h session_u.c session_k.h session_k.c: session.ff \
-				$(top_builddir)/fop/libc2rt.la \
+				$(top_builddir)/fop/rt/libc2rt.la \
 				$(top_builddir)/fop/fop2c
 				$(top_builddir)/fop/fop2c -ku $<
 

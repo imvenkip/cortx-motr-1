@@ -5,7 +5,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "fop/fop_iterator.h"
 
 /**
