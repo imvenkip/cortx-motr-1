@@ -282,7 +282,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		c2_mutex_unlock(&machine->cr_session_mutex);
 	}
 	C2_POST(ergo(rc == 0, conn->c_state == CS_CONN_INITIALISING &&
-		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link)));
+			c2_rpc_conn_invariant(conn)));
 	C2_POST(ergo(rc != 0, conn->c_state == CS_CONN_UNINITIALISED));
 	return rc;
 }
@@ -355,7 +355,8 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	}
 
 	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
-	C2_ASSERT(conn->c_state == CS_CONN_INITIALISING);
+	C2_ASSERT(conn->c_state == CS_CONN_INITIALISING &&
+			c2_rpc_conn_invariant(conn));
 
 	/*
 	 * machine->cr_session_mutex is not dropped yet, because we might
@@ -370,13 +371,14 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		conn->c_state = CS_CONN_FAILED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
+		conn->c_rc = fop_ccr->rccr_rc;
 	} else {
 		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID &&
 				conn->c_sender_id == SENDER_ID_INVALID);
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		conn->c_state = CS_CONN_ACTIVE;
+		conn->c_rc = 0;
 	}
-	conn->c_rc = fop_ccr->rccr_rc;
 
 	C2_ASSERT(saved_fop != NULL);
 	c2_fop_free(saved_fop);	/* conn_create req fop */
@@ -386,7 +388,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 	C2_ASSERT(conn->c_state == CS_CONN_FAILED ||
 			conn->c_state == CS_CONN_ACTIVE);
-
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
 	c2_chan_broadcast(&conn->c_chan);
@@ -429,6 +431,7 @@ void session_zero_detach(struct c2_rpc_conn	*conn)
 	if (session != NULL) {
 		session->s_state = SESSION_TERMINATED;
 		c2_list_del(&session->s_link);
+		session->s_conn = NULL;
 		c2_rpc_session_fini(session);
 		c2_free(session);
 	}
@@ -471,7 +474,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	c2_mutex_lock(&conn->c_mutex);
 
-	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID);
+	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
+			c2_rpc_conn_invariant(conn));
 
 	if (conn->c_state != CS_CONN_ACTIVE) {
 		rc = -EINVAL;
@@ -523,6 +527,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	}
 
 out:
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&conn->c_chan);
 	return rc;
@@ -567,7 +572,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&conn->c_mutex);
 
 	C2_ASSERT(conn->c_state == CS_CONN_TERMINATING &&
-			conn->c_nr_sessions == 0);
+			c2_rpc_conn_invariant(conn));
 
 	if (fop_ctr->ctr_rc == 0) {
 		printf("connection termination successful\n");
@@ -575,6 +580,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
 		conn->c_rc = 0;
+		conn->c_rpcmachine = NULL;
+		conn->c_service_id = NULL;
 		/*
 		 * session 0 will be cleaned up in c2_rpc_conn_fini()
 		 */
@@ -591,11 +598,9 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	c2_fop_free(conn->c_private); /* request fop */
 	conn->c_private = NULL;
 
-	C2_POST(!c2_list_contains(&machine->cr_rpc_conn_list,
-			&conn->c_link));
 	C2_POST(conn->c_state == CS_CONN_TERMINATED ||
 			conn->c_state == CS_CONN_FAILED);
-
+	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
 
@@ -609,6 +614,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_PRE(conn->c_state == CS_CONN_TERMINATED ||
 		conn->c_state == CS_CONN_FAILED);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);
 	c2_list_link_fini(&conn->c_link);
@@ -624,24 +630,25 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 			   uint64_t		state_flags,
                            const c2_time_t	abs_timeout)
 {
-        struct c2_clink         clink;
-        bool                    got_event = true;
+	struct c2_clink         clink;
+	bool                    got_event = true;
 
-        c2_clink_init(&clink, NULL);
-        c2_clink_add(&conn->c_chan, &clink);
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&conn->c_chan, &clink);
 
-        while ((conn->c_state & state_flags) == 0 && got_event) {
-                got_event = c2_chan_timedwait(&clink, abs_timeout);
-                /*
-                 * If got_event == false then TIME_OUT has occured.
-                 * break the loop
-                 */
-        }
+	while ((conn->c_state & state_flags) == 0 && got_event) {
+		got_event = c2_chan_timedwait(&clink, abs_timeout);
+		/*
+		 * If got_event == false then TIME_OUT has occured.
+		 * break the loop
+		 */
+		C2_ASSERT(c2_rpc_conn_invariant(conn));
+	}
 
-        c2_clink_del(&clink);
-        c2_clink_fini(&clink);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
 
-        return got_event;
+	return got_event;
 }
 C2_EXPORTED(c2_rpc_conn_fini);
 
@@ -649,33 +656,37 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
 	int			count = 0;
 	struct c2_rpc_session	*session;
+	bool			result;
 
 	if (conn == NULL)
 		return false;
 
 	switch (conn->c_state) {
 		case CS_CONN_TERMINATED:
-			if (conn->c_sender_id != SENDER_ID_INVALID)
-				return false;
-			break;
+			return !c2_list_link_is_in(&conn->c_link) &&
+				conn->c_rpcmachine == NULL &&
+				conn->c_rc == 0;
 
 		case CS_CONN_INITIALISING:
-			if (conn->c_sender_id != SENDER_ID_INVALID ||
-				conn->c_nr_sessions > 0 ||
-				conn->c_service_id == NULL ||
-				conn->c_rpcmachine == NULL)
-				return false;
-			break;
+			return conn->c_sender_id == SENDER_ID_INVALID &&
+			conn->c_nr_sessions == 0 &&
+			conn->c_service_id != NULL &&
+			conn->c_rpcmachine != NULL &&
+			conn->c_private != NULL &&
+			c2_list_contains(&conn->c_rpcmachine->cr_rpc_conn_list,
+				&conn->c_link);
 			
 		case CS_CONN_ACTIVE:
-			if (conn->c_sender_id == SENDER_ID_INVALID ||
-		            conn->c_service_id == NULL ||
-		            conn->c_rpcmachine == NULL)
-				return false;
+			result = conn->c_sender_id != SENDER_ID_INVALID &&
+		        	    conn->c_service_id != NULL &&
+		        	    conn->c_rpcmachine != NULL &&
+				    c2_list_invariant(&conn->c_sessions) &&
+			c2_list_contains(&conn->c_rpcmachine->cr_rpc_conn_list,
+				&conn->c_link) &&
+				    conn->c_private == NULL;
 			
-			if (!c2_list_invariant(&conn->c_sessions))
-				return false;
-
+			if (!result)
+				return result;
 			c2_list_for_each_entry(&conn->c_sessions, session,
 					    struct c2_rpc_session, s_link) {
 				count++;
@@ -684,27 +695,27 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			 * session 0 is not taken into account in nr_sessions
 			 */
 			count--;
-			if (count != conn->c_nr_sessions)
-				return false;
-			break;
+			return count == conn->c_nr_sessions;
 
 		case CS_CONN_TERMINATING:
-			if (conn->c_nr_sessions > 0 ||
-				conn->c_sender_id == SENDER_ID_INVALID)
-				return false;
-			break;
+			return conn->c_nr_sessions == 0 &&
+				conn->c_sender_id != SENDER_ID_INVALID &&
+				conn->c_rpcmachine != NULL &&
+			c2_list_contains(&conn->c_rpcmachine->cr_rpc_conn_list,
+				&conn->c_link) &&
+				conn->c_private != NULL;
 
 		case CS_CONN_UNINITIALISED:
 			return true;
 		case CS_CONN_FAILED:
-			if (conn->c_rc == 0)
-				return false;
-			break;
-
+			return conn->c_rc != 0 &&
+				!c2_list_link_is_in(&conn->c_link) &&
+				conn->c_rpcmachine == NULL &&
+				conn->c_private == NULL;
 		default:
 			return false;
 	}
-	return true;
+	C2_ASSERT(0);
 }
 
 static int session_fields_init(struct c2_rpc_session	*session,
@@ -810,7 +821,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session,
 out:
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_POST(ergo(rc == 0, session->s_state == SESSION_CREATING &&
-			c2_list_contains(&conn->c_sessions, &session->s_link)));
+			c2_rpc_session_invariant(session)));
 	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_chan_broadcast(&session->s_chan);
@@ -853,6 +864,8 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	C2_ASSERT(conn != NULL && conn->c_state == CS_CONN_ACTIVE);
 
 	c2_mutex_lock(&conn->c_mutex);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 
 	/*
@@ -874,6 +887,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	 * with state == CREATING. If not then it is a bug.
 	 */
 	C2_ASSERT(session != NULL && session->s_state == SESSION_CREATING);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_mutex_lock(&session->s_mutex);
 
@@ -892,7 +906,8 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 	C2_ASSERT(session->s_state == SESSION_ALIVE ||
 			session->s_state == SESSION_FAILED);
-
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
@@ -920,6 +935,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 			session->s_session_id <= SESSION_ID_MAX);
 
 	c2_mutex_lock(&session->s_mutex);
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	if (session->s_state != SESSION_ALIVE) {
 		c2_mutex_unlock(&session->s_mutex);
@@ -988,6 +1005,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_chan_broadcast(&session->s_chan);
 out:
 	C2_POST(ergo(rc == 0, session->s_state == SESSION_TERMINATING));
+	C2_POST(c2_rpc_session_invariant(session));
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
@@ -1009,11 +1027,9 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	sender_id = fop_sdr->rsdr_sender_id;
 	session_id = fop_sdr->rsdr_session_id;		
 
-	printf("session_term_reply: %lu %lu %d\n", sender_id, session_id,
-			fop_sdr->rsdr_rc);
 	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
-			session_id != SESSION_ID_INVALID &&
-			session_id != 0);
+			session_id >= SESSION_ID_MIN &&
+			session_id <= SESSION_ID_MAX);
 
 	item = c2_fop_to_rpc_item(fop);
 
@@ -1032,24 +1048,31 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	c2_mutex_lock(&conn->c_mutex);
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 	
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
 	session_search(conn, session_id, &session);
 	C2_ASSERT(session != NULL && session->s_state == SESSION_TERMINATING);
 	C2_ASSERT(conn->c_nr_sessions > 0);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_mutex_lock(&session->s_mutex);
 	if (fop_sdr->rsdr_rc == 0) {
 		session->s_state = SESSION_TERMINATED;
+		session->s_rc = 0;
 	} else {
 		session->s_state = SESSION_FAILED;
+		session->s_rc = fop_sdr->rsdr_rc;
 	}
-	conn->c_nr_sessions--;
 	c2_list_del(&session->s_link);
-	session->s_rc = fop_sdr->rsdr_rc;
+	session->s_conn = NULL;
+	conn->c_nr_sessions--;
 
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
-	printf("Session terminate reply received finished\n");
+	return;
 }
 
 bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
@@ -1068,8 +1091,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 		 * If got_event == false then TIME_OUT has occured.
 		 * break the loop
 		 */
-		printf("Session_timedwait: got_event %s\n",
-				got_event ? "event" : "timeout");
+		C2_ASSERT(c2_rpc_session_invariant(session));
 	}
 
 	c2_clink_del(&clink);
@@ -1083,9 +1105,9 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 {
 	int	i;
 
-	printf("session fini called\n");
 	C2_PRE(session->s_state == SESSION_TERMINATED ||
 			session->s_state == SESSION_FAILED);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_list_link_fini(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
 	session->s_conn = NULL;
@@ -1113,41 +1135,45 @@ C2_EXPORTED(c2_rpc_session_fini);
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
 	int		i;
+	bool		result;
 
 	if (session == NULL)
 		return false;
 
 	switch (session->s_state) {
 		case SESSION_CREATING:
+			return session->s_session_id == SESSION_ID_INVALID &&
+				session->s_conn != NULL &&
+				c2_list_contains(&session->s_conn->c_sessions,
+					&session->s_link);
 		case SESSION_TERMINATED:
-			if (session->s_session_id != SESSION_ID_INVALID)
-				return false;
-			break;
+			return  !c2_list_link_is_in(&session->s_link) &&
+				session->s_conn == NULL;
 
 		case SESSION_ALIVE:
 		case SESSION_TERMINATING:
-			if (session->s_session_id == SESSION_ID_INVALID)
-				return false;
-			if (session->s_conn == NULL ||
-				session->s_conn->c_state != CS_CONN_ACTIVE)
-				return false;
-			if (session->s_nr_slots == 0)
-				return false;
+			result = session->s_session_id <= SESSION_ID_MAX &&
+				session->s_conn != NULL &&
+				session->s_conn->c_state == CS_CONN_ACTIVE &&
+				session->s_nr_slots >= 0 &&
+				c2_list_contains(&session->s_conn->c_sessions,
+						&session->s_link);
+			if (!result)
+				return result;
 			for (i = 0; i < session->s_nr_slots; i++) {
 				if (session->s_slot_table[i] == NULL)
 					return false;
 			}
-			break;
 		case SESSION_UNINITIALISED:
 			return true;
 		case SESSION_FAILED:
-			if (session->s_rc == 0)
-				return false;
-			break;
+			return session->s_rc != 0 &&
+				!c2_list_link_is_in(&session->s_link) &&
+				session->s_conn == NULL;
 		default:
 			return false;
 	}
-	return true;
+	C2_ASSERT(0);
 }
 
 /**

@@ -648,7 +648,7 @@ int main(void)
 
 	test_snd_conn_create();
 	test_snd_session_create();
-	//test_item_prepare();
+	test_item_prepare();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 
