@@ -204,7 +204,7 @@ static void c2_rpc_form_empty_fid_list(struct c2_list *list)
 int c2_rpc_form_fini()
 {
 	/* stime = 10ms */
-	c2_time_t			 	 stime = 10000000;
+	//c2_time_t			 	 stime = 10000000;
 	struct c2_rpc_form_item_summary_unit	*endp_unit = NULL;
 	struct c2_rpc_form_item_summary_unit	*endp_unit_next = NULL;
 
@@ -224,9 +224,9 @@ int c2_rpc_form_fini()
 
 	/* Iterate over the list of endpoints until refcounts of all
 	   become zero. */
-	while(!c2_rpc_form_wait_for_completion()) {
-		c2_nanosleep(stime, NULL);
-	}
+	//while(!c2_rpc_form_wait_for_completion()) {
+	//	c2_nanosleep(stime, NULL);
+	//}
 
 	/* Delete all endpoint units, all lists within each endpoint unit. */
 	c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
@@ -673,14 +673,14 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 			im_linkage) {
 		//member->im_member_item->rio_replied(member->im_member, rc);
 		c2_list_del(&member->im_linkage);
-		c2_rpc_item_replied(&member->im_member_item);
+		//c2_rpc_item_replied(&member->im_member_item);
 		coalesced_struct->ic_nmembers--;
 	}
 	//coalesced_struct->ic_resultant_item->ri_type->rit_ops->rio_replied(
 	//		coalesced_struct->ic_resultant_item);
 	C2_ASSERT(coalesced_struct->ic_nmembers == 0);
 	c2_list_del(&coalesced_struct->ic_linkage);
-	c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
+	//c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
 	c2_list_fini(&coalesced_struct->ic_member_list);
 	c2_free(coalesced_struct);
 	return 0;
@@ -1581,7 +1581,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 		if (item_coalesced == false) {
 			//item->ri_type->rit_ops->rio_replied(item);
-			c2_rpc_item_replied(item);
+			//XXX c2_rpc_item_replied(item);
 		}
 	}
 	else if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
@@ -1626,7 +1626,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			ri_unformed_linkage) {
 		/* item_size = rpc_item->ri_type->rit_ops->
 		   rio_item_size(item);*/
-		item_size = c2_rpc_form_item_size(item);
+		item_size = c2_rpc_form_item_size(rpc_item);
 		/* 1. If there are urgent items, form them immediately. */
 		if (rpc_item->ri_deadline == 0) {
 			if (urgent_items == false) {
@@ -1798,6 +1798,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				endp_unit->isu_max_rpcs_in_flight) {
 			/*XXX TBD: Before sending the c2_rpc on wire,
 			   it needs to be serialized into one buffer. */
+			   printf("posting list length = %lu\n",c2_list_length(&rpc_obj->ro_rpcobj->r_items));
 			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
 			/* XXX curr rpcs in flight will be taken care by
 			   output component. */
@@ -2211,8 +2212,29 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	return 0;
 }*/
 
+/**
+  This routine will 
+  - Call the encode routine 
+  - Change the state of each rpc item in the rpc object to RPC_ITEM_SENT
+ */
 int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc)
 {
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(rpc != NULL);
+
+	/** XXX call the encode routine which will perform wire encoding
+	  into an preallocated buffer and send the rpc object on wire*/
+
+	/** Change the state of each rpc item in the 
+	    rpc object to RPC_ITEM_SENT */
+
+	c2_list_for_each_entry(&rpc->r_items, item, 
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
+		item->ri_state = RPC_ITEM_SENT;
+	}
+
 	return 0;
 }
 

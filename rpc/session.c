@@ -35,6 +35,8 @@ static int slot_init(struct c2_rpc_snd_slot	*slot,
 
 static int session_zero_attach(struct c2_rpc_conn *conn);
 
+static void session_zero_detach(struct c2_rpc_conn *conn);
+
 static void conn_search(const struct c2_rpcmachine	*machine,
                         uint64_t			sender_id,
                         struct c2_rpc_conn		**out);
@@ -166,7 +168,8 @@ static void conn_search(const struct c2_rpcmachine	*machine,
    If not found *out is set to NULL
    If found *out contains pointer to session object
 
-   @pre c2_mutex_is_locked(&conn->c_mutex)
+   Caller is expected to decide whether conn will be locked or not
+
    @post ergo(*out != NULL, (*out)->s_session_id == session_id)
  */
 static void session_search(const struct c2_rpc_conn	*conn,
@@ -175,7 +178,6 @@ static void session_search(const struct c2_rpc_conn	*conn,
 {
 	struct c2_rpc_session		*session;
 
-	C2_PRE(c2_mutex_is_locked(&conn->c_mutex));
 	*out = NULL;
 
 	if (session_id > SESSION_ID_MAX)
@@ -226,15 +228,14 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
 	rc = session_zero_attach(conn);
 	if (rc != 0) {
-		conn->c_state = CS_CONN_FAILED;
-		conn->c_rc = rc;
+		conn->c_state = CS_CONN_UNINITIALISED;
 		return rc;
 	}
 
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
 	if (fop == NULL) {
-		conn->c_state = CS_CONN_FAILED;
-		conn->c_rc = rc;
+		conn->c_state = CS_CONN_UNINITIALISED;
+		session_zero_detach(conn);
 		return rc;
 	}
 
@@ -270,8 +271,9 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 				C2_RPC_ITEM_PRIO_MAX, &deadline);
 
 	if (rc != 0) {
-		conn->c_state = CS_CONN_FAILED;
-		conn->c_rc = rc;
+		conn->c_state = CS_CONN_UNINITIALISED;
+		session_zero_detach(conn);
+
 		conn->c_private = NULL;
 		c2_fop_free(fop);
 
@@ -279,6 +281,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		c2_list_del(&conn->c_link);
 		c2_mutex_unlock(&machine->cr_session_mutex);
 	}
+	C2_POST(ergo(rc == 0, conn->c_state == CS_CONN_INITIALISING));
+	C2_POST(ergo(rc != 0, conn->c_state == CS_CONN_UNINITIALISED));
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_init);
@@ -315,7 +319,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 
 		if (conn->c_state == CS_CONN_INITIALISING) {
 			/*
-			 * during conn_create() the fop is stored in
+			 * during conn_init() the fop is stored in
 			 * conn->c_private
 			 */
 			saved_fop = conn->c_private;
@@ -366,7 +370,8 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
 	} else {
-		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID);
+		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID &&
+				conn->c_sender_id == SENDER_ID_INVALID);
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		conn->c_state = CS_CONN_ACTIVE;
 	}
@@ -411,6 +416,22 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	c2_list_add(&conn->c_sessions, &session->s_link);
 	return 0;
 }
+void session_zero_detach(struct c2_rpc_conn	*conn)
+{
+	struct c2_rpc_session	*session = NULL;
+
+	C2_ASSERT(conn != NULL);
+
+	session_search(conn, SESSION_0, &session);
+	C2_ASSERT(session != NULL);
+
+	if (session != NULL) {
+		session->s_state = SESSION_TERMINATED;
+		c2_list_del(&session->s_link);
+		c2_rpc_session_fini(session);
+		c2_free(session);
+	}
+}
 static int slot_init(struct c2_rpc_snd_slot	*slot,
 		      struct c2_rpc_session	*session)
 {
@@ -443,20 +464,20 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	int					rc;
 
 	C2_PRE(conn != NULL);
+	if (conn == NULL) {
+		return -EINVAL;
+	}
 
-	printf("Called conn_terminate %p %lu\n", conn, conn->c_sender_id);
 	c2_mutex_lock(&conn->c_mutex);
 
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID);
 
 	if (conn->c_state != CS_CONN_ACTIVE) {
-		printf("Attempt to terminate non-ACTIVE conn\n");
 		rc = -EINVAL;
 		goto out;
 	}
 
 	if (conn->c_nr_sessions > 0) {
-		printf("There are alive sessions. can't terminate conn\n");
 		rc = -EBUSY;
 		goto out;
 	}
@@ -467,6 +488,10 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out;
 	}
 
+	/*
+	 * will free the fop when reply is received. In case we might
+	 * need to resend it so store address of fop in conn->c_private
+	 */
 	C2_ASSERT(conn->c_private == NULL);
 	conn->c_private = fop;
 
@@ -475,6 +500,9 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	fop_ct->ct_sender_id = conn->c_sender_id;
 
+	/*
+	 * Send conn terminate fop "out of session"
+	 */
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 
@@ -496,7 +524,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 out:
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&conn->c_chan);
-	printf("conn terminate finished: %d\n", rc);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
@@ -506,10 +533,9 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
-	struct c2_rpc_session			*session0;
+	struct c2_rpcmachine			*machine;
 	uint64_t				sender_id;
 
-	printf("conn terminate reply received\n");
 	C2_PRE(fop != NULL);
 
 	fop_ctr = c2_fop_data(fop);
@@ -522,9 +548,10 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
-	conn_search(item->ri_mach, sender_id, &conn);
+	machine = item->ri_mach;
+	c2_mutex_lock(&machine->cr_session_mutex);
 
+	conn_search(machine, sender_id, &conn);
 	if (conn == NULL) {
 		/*
 		 * This can be a duplicate reply. That's why the
@@ -532,13 +559,11 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		 * finalised
 		 */
 		c2_fop_free(fop);
-		c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	}
 
 	c2_mutex_lock(&conn->c_mutex);
-
-	printf("found conn %p %lu\n", conn, conn->c_sender_id);
 
 	C2_ASSERT(conn->c_state == CS_CONN_TERMINATING &&
 			conn->c_nr_sessions == 0);
@@ -546,55 +571,40 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	if (fop_ctr->ctr_rc == 0) {
 		printf("connection termination successful\n");
 		conn->c_state = CS_CONN_TERMINATED;
+		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
-
-		session_search(conn, SESSION_0, &session0);
+		conn->c_rc = 0;
 		/*
-		 * Every conn has session 0
+		 * session 0 will be cleaned up in c2_rpc_conn_fini()
 		 */
-		C2_ASSERT(session0 != NULL);
-
-		c2_mutex_lock(&session0->s_mutex);
-		session0->s_state = SESSION_TERMINATED;
-		c2_mutex_unlock(&session0->s_mutex);
 	} else {
 		/*
-		 * Connection termination is failed
+		 * Connection termination failed
 		 */
 		printf("conn termination failed\n");
 		conn->c_state = CS_CONN_FAILED;
+		conn->c_rc = fop_ctr->ctr_rc;
 	}
-	conn->c_rc = fop_ctr->ctr_rc;
 
 	C2_ASSERT(conn->c_private != NULL);
 	c2_fop_free(conn->c_private); /* request fop */
 	conn->c_private = NULL;
 
 	c2_mutex_unlock(&conn->c_mutex);
-	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
+
 	c2_chan_broadcast(&conn->c_chan);
 
 	c2_fop_free(fop);	/* reply fop */
-	printf("conn_term_reply_rcvd: finished\n");
+	return;
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
-	struct c2_rpc_session	*session;
-
 	C2_PRE(conn->c_state == CS_CONN_TERMINATED ||
 		conn->c_state == CS_CONN_FAILED);
 
-	c2_mutex_lock(&conn->c_mutex);
-	session_search(conn, SESSION_0, &session);
-	c2_mutex_unlock(&conn->c_mutex);
-
-	if (session != NULL) {
-		session->s_state = SESSION_TERMINATED;
-		c2_list_del(&session->s_link);
-		c2_rpc_session_fini(session);
-		c2_free(session);
-	}
+	session_zero_detach(conn);
 	c2_list_link_fini(&conn->c_link);
 	c2_list_fini(&conn->c_sessions);
 	c2_chan_fini(&conn->c_chan);
