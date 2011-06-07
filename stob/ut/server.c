@@ -439,7 +439,9 @@ int main(int argc, char **argv)
 	struct c2_stob         *bstore;
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
 	struct c2_service       service;
-	struct c2_net_domain    ndom;
+	struct c2_net_domain    ndom = {
+		.nd_xprt = NULL
+	};
 	struct c2_dbenv         db;
 	struct c2_stob_id       addb_stob_id = {
 					.si_bits = {

@@ -2206,10 +2206,11 @@ struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item)
 	return NULL;
 }
 
+/*
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
 	return 0;
-}
+}*/
 
 /**
   This routine will 

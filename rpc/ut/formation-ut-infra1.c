@@ -16,7 +16,7 @@
    *** Current scenario ***
    1. The rpc core component is not ready completely. So this UT tries to
       simulate the things which are not available.
-   2. The RPC Formation component 
+   2. The RPC Formation component
 
    *** Requirements for UT of formation component. ***
    1. Simulate the end user access pattern.[C2_RPC_FORM_ACCESS_PATERN]
@@ -40,8 +40,8 @@
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	0 		// 0 ms
-//#define MAX_NONIO_DEADLINE	1		// 1 ns 
-#define MAX_NONIO_DEADLINE	10000000	// 10 ms 
+//#define MAX_NONIO_DEADLINE	1		// 1 ns
+#define MAX_NONIO_DEADLINE	10000000	// 10 ms
 #define MIN_IO_DEADLINE		10000000  	// 10 ms
 #define MAX_IO_DEADLINE		100000000 	// 100 ms
 
@@ -192,8 +192,8 @@ void c2_rpc_form_item_cache_fini(void)
 	printf("Inside c2_rpc_form_item_cache_fini \n");
 	c2_mutex_fini(&items_cache->ic_mutex);
 	if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
-		c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
-				item, item_next, struct c2_rpc_item , 
+		c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
+				item, item_next, struct c2_rpc_item ,
 				ri_linkage)
 			c2_list_del(&item->ri_linkage);
 	}
@@ -247,7 +247,7 @@ void c2_rpc_form_invoke_item_removed(void)
 /**
   Assign a group to a given RPC item
  */
-int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp, 
+int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 		struct c2_rpc_item *item, int grpno)
 {
 	struct c2_rpc_item	*rpc_item = NULL;
@@ -263,11 +263,11 @@ int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 	grp->rg_expected++;
 	grp->rg_grpid = grpno;
 	/* Insert by sorted priority in groups list */
-	c2_list_for_each_entry_safe(&grp->rg_items, 
+	c2_list_for_each_entry_safe(&grp->rg_items,
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_group_linkage){
 		if (item->ri_prio <= rpc_item->ri_prio) {
-			c2_list_add_before(&rpc_item->ri_group_linkage, 
+			c2_list_add_before(&rpc_item->ri_group_linkage,
 					&item->ri_group_linkage);
 			item_inserted = true;
 			break;
@@ -275,7 +275,7 @@ int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 
 	}
 	if(!item_inserted) {
-		c2_list_add_after(&rpc_item->ri_group_linkage, 
+		c2_list_add_after(&rpc_item->ri_group_linkage,
 				&item->ri_group_linkage);
 	}
 	c2_mutex_unlock(&grp->rg_guard);
@@ -321,11 +321,11 @@ void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	c2_mutex_lock(&items_cache->ic_mutex);
-	c2_list_for_each_entry_safe(&items_cache->ic_cache_list, 
+	c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_linkage){
 		if (item->ri_deadline <= rpc_item->ri_deadline) {
-			c2_list_add_before(&rpc_item->ri_linkage, 
+			c2_list_add_before(&rpc_item->ri_linkage,
 					&item->ri_linkage);
 			item_inserted = true;
 			break;
@@ -356,7 +356,7 @@ int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
 		res = C2_THREAD_INIT(&form_ut_threads[thread_no],
 				struct c2_rpc_item*,
 				NULL, &c2_rpc_form_item_add_to_cache,
-				item);
+				     item, "form_ut_%p", item);
 		C2_ASSERT(res == 0);
 		thread_no++;
 	}
@@ -413,7 +413,7 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 
 	printf("Inside c2_rpc_form_item_populate_param \n");
 	C2_PRE(item != NULL);
-	
+
 	io_req = c2_rpc_item_is_io_req(item);
 	if(io_req) {
 		res = c2_rpc_form_item_io_populate_param(item);
@@ -639,7 +639,7 @@ void form_fini_fops()
 			opcode = c2_rpc_item_io_get_opcode(
 					&form_fops[i]->f_item);
 			switch (opcode) {
-				case C2_RPC_FORM_IO_READ: 
+				case C2_RPC_FORM_IO_READ:
 					form_fini_read_fop(form_fops[i]);
 					break;
 
@@ -709,12 +709,12 @@ int main(int argc, char **argv)
 
 	c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
 			c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
-	
+
 	result = c2_rpc_form_item_cache_init();
 	C2_ASSERT(result == 0);
 
-	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the 
-	    number of files to operate upon. Decide how to assign items to 
+	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the
+	    number of files to operate upon. Decide how to assign items to
 	    rpc groups and have multiple IO requests within or across groups.*/
 	/* Init the fid structures and rpc groups. */
 	C2_ALLOC_ARR(form_fids, nfiles);
@@ -740,7 +740,7 @@ int main(int argc, char **argv)
 	C2_ASSERT(result == 0);
 
 	/* For every group, create a fop in a random manner
-	   and populate its constituent rpc item. 
+	   and populate its constituent rpc item.
 	   Wait till all items in the group are populated.
 	   And submit the whole group at once.*/
 	for (i = 0; i < MAX_GRPS; i++) {
@@ -761,11 +761,11 @@ int main(int argc, char **argv)
 	    for this is - meta data FOPs should have higher priority and
 	    shorted timeout while IO FOPs can have lower priority than
 	    meta data FOPs and relatively larger timeouts.
-	 6. Assign a thread each time from the thread pool to do the 
+	 6. Assign a thread each time from the thread pool to do the
 	    rpc submission. This will give ample opportunity to test the
 	    formation algorithm in multi threaded environment.
 	 7. Simulate necessary behavior of grouping component.
-	 8. This will trigger execution of formation algorithm. 
+	 8. This will trigger execution of formation algorithm.
 	 9. Grab output produced by formation algorithm and analyze the
 	    statistics.
 	 */

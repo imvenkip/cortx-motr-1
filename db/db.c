@@ -293,7 +293,8 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 			if (result == 0) {
 				result = C2_THREAD_INIT(&di->d_thread,
 							struct c2_dbenv *, NULL,
-							&dbenv_thread, env);
+							&dbenv_thread, env,
+							"dbenv_thread");
 				if (result == 0)
 					DBENV_CALL(env, log_cursor,
 						   &di->d_logc, 0);

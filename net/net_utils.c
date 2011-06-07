@@ -13,7 +13,7 @@
 
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
  */
 
 bool c2_services_are_same(const struct c2_service_id *c1,

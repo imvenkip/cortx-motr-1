@@ -6,6 +6,7 @@
 #include "lib/misc.h"                /* C2_SET0 */
 #include "lib/cdefs.h"               /* C2_EXPORTED */
 #include "fid/fid.h"
+#include "fop/fop.h"
 #include "fop/fop_iterator.h"
 
 /**

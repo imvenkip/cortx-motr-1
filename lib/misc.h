@@ -4,9 +4,10 @@
 #define __COLIBRI_LIB_MISC_H__
 
 #ifndef __KERNEL__
-#include <string.h>               /* memset */
+#include <string.h>               /* memset, ffs */
 #else
 #include <linux/string.h>         /* memset */
+#include <linux/bitops.h>         /* ffs */
 #endif
 
 #include "lib/assert.h"           /* C2_CASSERT */

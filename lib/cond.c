@@ -1,8 +1,8 @@
 /* -*- C -*- */
 
-#include "cond.h"
-#include "mutex.h"
-#include "assert.h"
+#include "lib/cond.h"
+#include "lib/mutex.h"
+#include "lib/assert.h"
 
 /**
    @addtogroup cond

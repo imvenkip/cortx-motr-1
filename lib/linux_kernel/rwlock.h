@@ -3,17 +3,20 @@
 #ifndef __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__
 #define __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__
 
-#include <linux/mutex.h>
+#include <linux/rwsem.h>
 
 /**
    @addtogroup rwlock
 
    <b>Linux kernel rwlock.</a>
+
+   Linux kernel implementation is based on rw_semaphore (linux/rwsem.h).
+
    @{
  */
 
 struct c2_rwlock {
-	rwlock_t m_rwlock;
+	struct rw_semaphore rw_sem;
 };
 
 /** @} end of mutex group */
@@ -21,7 +24,7 @@ struct c2_rwlock {
 /* __COLIBRI_LIB_LINUX_KERNEL_RWLOCK_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

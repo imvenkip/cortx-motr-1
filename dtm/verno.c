@@ -12,9 +12,10 @@
 
 int c2_verno_cmp(const struct c2_verno *vn0, const struct c2_verno *vn1)
 {
-	C2_ASSERT(c2_verno_cmp_invariant(vn0, vn1));
+	//C2_ASSERT(c2_verno_cmp_invariant(vn0, vn1));
 
-	return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn);
+	//return c2_lsn_cmp(vn0->vn_lsn, vn1->vn_lsn);
+	return C2_3WAY(vn0->vn_vc, vn1->vn_vc);
 }
 
 int c2_verno_is_redoable(const struct c2_verno *unit, 
@@ -23,7 +24,8 @@ int c2_verno_is_redoable(const struct c2_verno *unit,
 	int result;
 	int cmp;
 
-	C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
+	// XXX don't need lsn for now
+	//C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
 
 	cmp = c2_verno_cmp(unit, before_update);
 	if (cmp < 0)
@@ -41,7 +43,8 @@ int c2_verno_is_undoable(const struct c2_verno *unit,
 	int result;
 	int cmp;
 
-	C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
+	// XXX don't require lsn for now
+	//C2_ASSERT(c2_verno_cmp_invariant(unit, before_update));
 
 	cmp = c2_verno_cmp(unit, before_update);
 	if (cmp <= 0)
