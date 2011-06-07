@@ -321,7 +321,8 @@ struct c2_rpc_conn {
     moved into INITIALISED state.
 
     @pre conn->c_state == CS_CONN_UNINITIALISED
-    @post ergo(result == 0, conn->c_state == CS_CONN_INITIALISING)
+    @post ergo(result == 0, conn->c_state == CS_CONN_INITIALISING &&
+		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link))
     @post ergo(result != 0, conn->c_state == CS_CONN_UNINITIALISED)
  */
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
@@ -488,8 +489,8 @@ struct c2_rpc_session_ops {
 
     @pre conn->c_state == CS_CONN_ACTIVE
     @pre session->s_state == SESSION_UNINITIALISED
-    @post conn->c_state == CS_CONN_ACTIVE
-    @post ergo(result == 0, session->s_state == SESSION_CREATING)
+    @post ergo(result == 0, session->s_state == SESSION_CREATING &&
+			c2_list_contains(conn->c_sessions, &session->s_link))
  */
 int c2_rpc_session_create(struct c2_rpc_session	*session,
 			  struct c2_rpc_conn	*conn);
