@@ -27,7 +27,7 @@
 #include "lib/thread.h"
 #include "lib/cond.h"
 #include "fop/fop.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 #include "addb/addb.h"
 
 #include "usunrpc.h"
@@ -43,7 +43,8 @@
  */
 
 enum {
-	SERVER_THR_NR = 8
+	SERVER_THR_NR = 8,
+	MIN_SERVER_THR_NR = 2
 };
 
 /**
@@ -534,7 +535,7 @@ static int usunrpc_service_start(struct c2_service *service,
 	/* create the scheduler thread */
 	rc = C2_THREAD_INIT(&xservice->s_scheduler_thread, struct c2_service *,
 		            &usunrpc_scheduler_init, &usunrpc_scheduler,
-			    service);
+			    service, "usunrpc_sched");
         if (rc != 0) {
 		ADDB_CALL(service, "scheduler_thread", rc);
 		goto err;
@@ -544,7 +545,8 @@ static int usunrpc_service_start(struct c2_service *service,
         for (i = 0; i < nr_workers; i++) {
                 rc = C2_THREAD_INIT(&xservice->s_workers[i],
 				    struct c2_service *, NULL,
-				    &usunrpc_service_worker, service);
+				    &usunrpc_service_worker, service,
+				    "usunrpc_serv%d", i);
                 if (rc) {
 			ADDB_CALL(service, "worker_thread", rc);
                         goto err;
@@ -582,6 +584,7 @@ int usunrpc_service_init(struct c2_service *service)
 
 	C2_ALLOC_PTR(xservice);
 	if (xservice != NULL) {
+		int num_threads;
 		c2_queue_init(&xservice->s_requests);
 		c2_mutex_init(&xservice->s_req_guard);
 		c2_rwlock_init(&xservice->s_guard);
@@ -591,7 +594,11 @@ int usunrpc_service_init(struct c2_service *service)
 		xid = service->s_id->si_xport_private;
 		xservice->s_socket = -1;
 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
-		result = usunrpc_service_start(service, xid, SERVER_THR_NR);
+		if (service->s_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt)
+			num_threads = MIN_SERVER_THR_NR;
+		else
+			num_threads = SERVER_THR_NR;
+		result = usunrpc_service_start(service, xid, num_threads);
 	} else {
 		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server,
 			    c2_addb_oom);

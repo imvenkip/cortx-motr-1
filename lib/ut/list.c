@@ -81,6 +81,7 @@ void test_list(void)
 	}
 	C2_UT_ASSERT(t_sum == 0);
 
+	C2_UT_ASSERT(c2_list_is_empty(&test_head));
 	c2_list_fini(&test_head);
 }
 

@@ -80,6 +80,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
+
       UNINITIALIZED
            | update_stream_init()
            |
@@ -148,27 +149,10 @@ struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
 
-struct c2_net_end_point {
-        /** Keeps track of usage */
-        struct c2_ref          nep_ref;
-        /** Pointer to the network domain */
-        //struct c2_net_domain  *nep_dom;
-        /** Linkage in the domain list */
-        struct c2_list_link    nep_dom_linkage;
-        /** Transport specific printable representation of the
-            end point address.
-        */
-        const char            *nep_addr;
-};
-
-/*Just a placeholder for endpoint, will be removed later */
-struct c2_net_endpoint {
-	int endpoint_val;
-};
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */
-	C2_UPDATE_STREAM_DEDICATED_SLOT = 0, 
+	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
 	/* several update streams share the same slot */
 	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
 };
@@ -214,7 +198,7 @@ struct c2_rpc_item_type_ops {
 	 */
 	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
 	/**
-	   Return the IO vector from the IO request. 
+	   Return the IO vector from the IO request.
 	 */
 	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
 	/**
@@ -354,7 +338,7 @@ struct c2_rpc_item {
 	struct c2_list_link		ri_slot_link;
 	/** XXX temporary field to put item on in-core reply cache list */
 	struct c2_list_link			ri_rc_link;
-	
+
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type *ri_type;
 	struct c2_chan ri_chan;

@@ -293,7 +293,8 @@ void test_stobio(void)
 		result = C2_THREAD_INIT
 			(&thread[i], int, NULL,
 			 LAMBDA(void, (int x) 
-				{ overlapped_rw_test(&test[x], x*100); } ), i);
+				{ overlapped_rw_test(&test[x], x*100); } ), i,
+			 "overlap_test%d", i);
 		C2_UT_ASSERT(result == 0);
 	}
 

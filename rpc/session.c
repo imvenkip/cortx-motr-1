@@ -494,7 +494,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	}
 
 	/*
-	 * will free the fop when reply is received. In case we might 
+	 * will free the fop when reply is received. In case we might
 	 * need to resend it so store address of fop in conn->c_private
 	 */
 	C2_ASSERT(conn->c_private == NULL);
@@ -687,6 +687,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			
 			if (!result)
 				return result;
+
 			c2_list_for_each_entry(&conn->c_sessions, session,
 					    struct c2_rpc_session, s_link) {
 				count++;
@@ -998,7 +999,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	c2_mutex_lock(&session_0->s_mutex);
 	c2_rpc_snd_slot_enq(session_0, 0, item);
-	c2_mutex_unlock(&session_0->s_mutex);	
+	c2_mutex_unlock(&session_0->s_mutex);
 
 	c2_mutex_unlock(&session->s_conn->c_mutex);
 
@@ -1025,7 +1026,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	C2_ASSERT(fop_sdr != NULL);
 
 	sender_id = fop_sdr->rsdr_sender_id;
-	session_id = fop_sdr->rsdr_session_id;		
+	session_id = fop_sdr->rsdr_session_id;
 
 	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
 			session_id >= SESSION_ID_MIN &&
@@ -1127,7 +1128,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	c2_free(session->s_slot_table);
 	session->s_slot_table = NULL;
 	session->s_nr_slots = session->s_slot_table_capacity = 0;
-	
+
 	session->s_state = SESSION_UNINITIALISED;
 }
 C2_EXPORTED(c2_rpc_session_fini);
@@ -1264,7 +1265,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 		} else {
 			continue;
 		}
-		
+
 		c2_mutex_lock(&conn->c_mutex);
 		if (conn->c_state == CS_CONN_ACTIVE) {
 
@@ -1286,7 +1287,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 					slots_scanned = true;
 					slot = session->s_slot_table[i];
 					C2_ASSERT(slot != NULL);
-					
+
 					if (c2_rpc_snd_slot_is_busy(slot))
 						continue;
 
@@ -1381,7 +1382,7 @@ out_of_loops:
 			}
 			c2_mutex_unlock(&saved_conn->c_mutex);
 			rc = c2_rpc_session_create(session, saved_conn);
-			
+
 			return rc != 0 ? rc : -EAGAIN;
 		}
 		printf("conn exists but not ACTIVE\n");
@@ -1454,7 +1455,7 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 
 	c2_mutex_lock(&conn->c_mutex);
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
-	
+
 	session_search(conn, item->ri_session_id, &session);
 
 	if (session == NULL) {
@@ -1662,7 +1663,7 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 		c2_rpc_reply_cache_insert(reply, tx);
 	} else {
 		printf("it's conn create/terminate req. not caching reply\n");
-	}	
+	}
 	return 0;
 }
 
@@ -1764,6 +1765,7 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	if (undoable == 0) {
 		bool		found = false;
 
+		citem = NULL; /* XXX Huh? */
 		/*
 		 * Search reply in reply cache list
 		 */
@@ -1811,7 +1813,7 @@ errabort:
 		c2_db_tx_abort(&tx);
 	else
 		c2_db_tx_commit(&tx);
-	
+
 	if (slot_cob != NULL)
 		c2_cob_put(slot_cob);
 
@@ -1871,7 +1873,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 
 	if (rc == 0)
 		*out = cob;
-	
+
 	printf("cob_create: rc %d\n", rc);
 	return rc;
 }
@@ -1925,7 +1927,7 @@ int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
 	rc = c2_rpc_rcv_sessions_root_get(dom, &root_session_cob, tx);
 	if (rc != 0)
 		return rc;
-	
+
 	sprintf(name, "SENDER_%lu", sender_id);
 
 	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, out, tx);
@@ -1957,7 +1959,7 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 						tx);
 	if (rc != 0)
 		return rc;
-	
+
 	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, &conn_cob,
 					tx);
 
@@ -2081,7 +2083,7 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
 	struct c2_cob		*session_cob;
 	struct c2_cob		*slot_cob;
 	int			rc;
-	
+
 	C2_PRE(dom != NULL && item != NULL && cob != NULL);
 
 	C2_PRE(item->ri_sender_id != SENDER_ID_INVALID &&
@@ -2143,7 +2145,7 @@ void c2_rpc_snd_slot_enq(struct c2_rpc_session	*session,
 	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 	C2_PRE(session->s_state == SESSION_ALIVE);
 	C2_PRE(slot_id < session->s_nr_slots);
-	
+
 	printf("slot_enq: enquing item %p on slot %u\n", item, slot_id);
 	slot = session->s_slot_table[slot_id];
 	C2_ASSERT(slot != NULL);

@@ -32,7 +32,7 @@ void test_trace(void)
 			for (j = 0; j < NR_INNER; ++j)
 				C2_TRACE_POINT({ uint32_t c; uint64_t d; }, 
 					       d, d * j); 
-						}), i);
+						}), i, "test_trace_%i", i);
 	}
 	for (i = 0; i < NR; ++i) {
 		c2_thread_join(&t[i]);

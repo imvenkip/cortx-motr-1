@@ -48,7 +48,7 @@ void test_mutex(void)
 
 	for (sum = i = 0; i < NR; ++i) {
 		c2_mutex_init(&m[i]);
-		result = C2_THREAD_INIT(&t[i], int, NULL, &t0, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &t0, i, "t0");
 		C2_UT_ASSERT(result == 0);
 		sum += i;
 	}
@@ -63,7 +63,7 @@ void test_mutex(void)
 	counter = 0;
 
 	for (sum = i = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL, &t1, i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &t1, i, "t1");
 		C2_UT_ASSERT(result == 0);
 		sum += i;
 	}
