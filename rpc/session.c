@@ -657,6 +657,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		case CS_CONN_TERMINATED:
 			if (conn->c_sender_id != SENDER_ID_INVALID)
 				return false;
+			break;
 
 		case CS_CONN_INITIALISING:
 			if (conn->c_sender_id != SENDER_ID_INVALID ||
@@ -664,6 +665,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				conn->c_service_id == NULL ||
 				conn->c_rpcmachine == NULL)
 				return false;
+			break;
 			
 		case CS_CONN_ACTIVE:
 			if (conn->c_sender_id == SENDER_ID_INVALID ||
@@ -684,17 +686,21 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			count--;
 			if (count != conn->c_nr_sessions)
 				return false;
-			return true;
+			break;
 
 		case CS_CONN_TERMINATING:
 			if (conn->c_nr_sessions > 0 ||
 				conn->c_sender_id == SENDER_ID_INVALID)
 				return false;
+			break;
+
 		case CS_CONN_UNINITIALISED:
 			return true;
 		case CS_CONN_FAILED:
 			if (conn->c_rc == 0)
 				return false;
+			break;
+
 		default:
 			return false;
 	}
@@ -818,12 +824,11 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	struct c2_rpc_fop_session_create_rep	*fop_scr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session = NULL;
-	struct c2_rpc_session			*s;
+	struct c2_rpc_session			*s = NULL;
 	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
-	printf("session_create_reply_received: called\n");
 	C2_PRE(fop != NULL);
 
 	fop_scr = c2_fop_data(fop);
@@ -831,6 +836,8 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 	sender_id = fop_scr->rscr_sender_id;
 	session_id = fop_scr->rscr_session_id;
+
+	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
 	item = c2_fop_to_rpc_item(fop);
 
@@ -866,21 +873,22 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	 * If current function is called then there must be ONE session
 	 * with state == CREATING. If not then it is a bug.
 	 */
-	C2_ASSERT(session != NULL);
+	C2_ASSERT(session != NULL && session->s_state == SESSION_CREATING);
 
 	c2_mutex_lock(&session->s_mutex);
-	printf("Found session object %p\n", session);
 
 	if (fop_scr->rscr_rc != 0) {
 		session->s_state = SESSION_FAILED;
 		c2_list_del(&session->s_link);
 		conn->c_nr_sessions--;
+		session->s_rc = fop_scr->rscr_rc;
 	} else {
-		printf("setting session id to %lu\n", fop_scr->rscr_session_id);
-		session->s_session_id = fop_scr->rscr_session_id;
+		C2_ASSERT(session_id >= SESSION_ID_MIN &&
+				session_id <= SESSION_ID_MAX);
+		session->s_session_id = session_id;
 		session->s_state = SESSION_ALIVE;
+		session->s_rc = 0;
 	}
-	session->s_rc = fop_scr->rscr_rc;
 
 	C2_ASSERT(session->s_state == SESSION_ALIVE ||
 			session->s_state == SESSION_FAILED);
@@ -898,31 +906,35 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	struct c2_rpc_fop_session_destroy	*fop_sd;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_session			*session_0 = NULL;
+	bool					slot_is_busy;
+	struct c2_rpc_snd_slot			*slot;
 	int					i;
 	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
-	printf("Session terminate called for %lu\n", session->s_session_id);
-
 	/*
 	 * Make sure session does not have any "reserved" session id
 	 */
-	C2_ASSERT(session->s_session_id != SESSION_ID_INVALID &&
-			session->s_session_id != SESSION_0 &&
-			session->s_session_id != SESSION_ID_NOSESSION);
+	C2_ASSERT(session->s_session_id >= SESSION_ID_MIN &&
+			session->s_session_id <= SESSION_ID_MAX);
 
 	c2_mutex_lock(&session->s_mutex);
 
 	if (session->s_state != SESSION_ALIVE) {
-		printf("attempt to terminate non-ALIVE session\n");
 		c2_mutex_unlock(&session->s_mutex);
 		rc = -EINVAL;
 		goto out;
 	}
 
+	/*
+	 * Make sure no slot is "busy"
+	 */
 	for (i = 0; i < session->s_nr_slots; i++) {
-		if (c2_rpc_snd_slot_is_busy(session->s_slot_table[i])) {
+		slot = session->s_slot_table[i];
+		C2_ASSERT(slot != NULL);
+		slot_is_busy = c2_rpc_snd_slot_is_busy(slot);
+		if (slot_is_busy) {
 			c2_mutex_unlock(&session->s_mutex);
 			rc = -EBUSY;
 			goto out;
@@ -945,7 +957,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	}
 
 	fop_sd = c2_fop_data(fop);
-
 	C2_ASSERT(fop_sd != NULL);
 
 	fop_sd->rsd_sender_id = session->s_conn->c_sender_id;
@@ -956,6 +967,11 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	C2_ASSERT(item != NULL);
 
 	session->s_state = SESSION_TERMINATING;
+	/*
+	 * We need ptr to session 0 to submit the item.
+	 * To search session 0 need a lock on conn. And locking
+	 * order is conn => session. Hence release lock on session.
+	 */
 	c2_mutex_unlock(&session->s_mutex);
 
 	c2_mutex_lock(&session->s_conn->c_mutex);
@@ -971,8 +987,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	c2_chan_broadcast(&session->s_chan);
 out:
-
-	printf("session_terminate: complete %d\n", rc);
+	C2_POST(ergo(rc == 0, session->s_state == SESSION_TERMINATING));
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
@@ -1107,6 +1122,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		case SESSION_TERMINATED:
 			if (session->s_session_id != SESSION_ID_INVALID)
 				return false;
+			break;
+
 		case SESSION_ALIVE:
 		case SESSION_TERMINATING:
 			if (session->s_session_id == SESSION_ID_INVALID)
@@ -1120,11 +1137,13 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 				if (session->s_slot_table[i] == NULL)
 					return false;
 			}
+			break;
 		case SESSION_UNINITIALISED:
 			return true;
 		case SESSION_FAILED:
 			if (session->s_rc == 0)
 				return false;
+			break;
 		default:
 			return false;
 	}
@@ -2090,6 +2109,10 @@ void c2_rpc_snd_slot_enq(struct c2_rpc_session	*session,
 {
 	struct c2_rpc_snd_slot		*slot;
 
+	/*
+	 * Should we return -EINVAL if any of following
+	 * preconditions is false?
+	 */
 	C2_PRE(session != NULL);
 	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 	C2_PRE(session->s_state == SESSION_ALIVE);
