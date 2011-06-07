@@ -144,9 +144,9 @@ bool c2_rpc_form_wait_for_completion();
  */
 struct c2_rpc_form_fid_units {
 	/** Linkage into list of similar requests with same fid and intent. */
-	struct c2_list_link		fu_linkage;
+	struct c2_list_link		 fu_linkage;
 	/** Member rpc item. */
-	struct c2_rpc_item		fu_item;
+	struct c2_rpc_item		*fu_item;
 };
 
 /**
@@ -411,9 +411,9 @@ struct c2_rpc_form_item_coalesced {
  */
 struct c2_rpc_form_item_coalesced_member {
 	/** Linkage into list of such member rpc items. */
-	struct c2_list_link		im_linkage;
+	struct c2_list_link		 im_linkage;
 	/** c2_rpc_item */
-	struct c2_rpc_item		im_member_item;
+	struct c2_rpc_item		*im_member_item;
 };
 
 /**
@@ -993,7 +993,7 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
    by creating a new fop calling new fop op
  */
 int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item,
+		struct c2_rpc_item **res_item,
 		struct c2_fop_io_vec *vec);
 
 /**
@@ -1003,7 +1003,7 @@ int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
    by creating a new fop calling new fop op
  */
 int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item,
+		struct c2_rpc_item **res_item,
 		struct c2_fop_segment_seq *seg);
 
 /**

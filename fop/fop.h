@@ -114,7 +114,7 @@ struct c2_fop_type_ops {
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Create a new IO fop (read/write) and populate it with the
 	    IO vector given as an input.*/
-	int (*fto_get_io_fop)(struct c2_fop *in, struct c2_fop *res,
+	int (*fto_get_io_fop)(struct c2_fop *in, struct c2_fop **res,
 			void *seg);
 };
 
