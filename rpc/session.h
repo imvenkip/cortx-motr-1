@@ -310,7 +310,7 @@ struct c2_rpc_conn {
 	/** stores conn_create fop pointer during initialization */
 	void				*c_private;
 	/** if c_state == CS_CONN_FAILED then c_rc contains error code */
-	int				 c_rc;
+	int32_t				 c_rc;
 };
 
 /**
@@ -341,6 +341,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
    Send "conn_terminate" FOP to receiver.
    @pre conn->c_state == CS_CONN_ACTIVE && conn->c_nr_sessions == 0
    @post ergo(result == 0, conn->c_state == CS_CONN_TERMINATING)
+   @post if result != 0 then conn->c_state is left unchanged
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -462,7 +463,7 @@ struct c2_rpc_session {
 	uint32_t 			 s_highest_used_slot_id;
 	/** if s_state == SESSION_FAILED then s_rc contains error code
 		denoting cause of failure */
-	int				 s_rc;
+	int32_t				 s_rc;
 	/** Array of pointers to slots */
 	struct c2_rpc_snd_slot 		**s_slot_table;
 	/** Session ops */
