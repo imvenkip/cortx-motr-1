@@ -586,6 +586,20 @@ struct c2_rpc_snd_slot {
 	struct c2_chan		 ss_chan;
 };
 
+/**
+   Iterate over all the rpc connections present in rpcmachine
+ */
+#define c2_rpc_for_each_conn(machine, conn)	\
+	c2_list_for_each_entry(&(machine)->cr_rpc_conn_list, (conn), \
+		struct c2_rpc_conn, c_link)
+
+/**
+   Iterate over all the sessions in rpc connection
+ */
+#define c2_rpc_for_each_session(conn, session)	\
+	c2_list_for_each_entry(&(conn)->c_sessions, (session),	\
+		struct c2_rpc_session, s_link)
+
 /** @} end of session group */	
 
 #endif

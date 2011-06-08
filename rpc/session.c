@@ -153,8 +153,7 @@ static void conn_search(const struct c2_rpcmachine	*machine,
 	if (sender_id == SENDER_ID_INVALID)
 		return;
 
-	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
-				struct c2_rpc_conn, c_link) {
+	c2_rpc_for_each_conn(machine, conn) {
 		if (conn->c_sender_id == sender_id) {
 			*out = conn;
 			break;
@@ -183,8 +182,7 @@ static void session_search(const struct c2_rpc_conn	*conn,
 	if (session_id > SESSION_ID_MAX)
 		return;
 
-	c2_list_for_each_entry(&conn->c_sessions, session,
-				struct c2_rpc_session, s_link) {
+	c2_rpc_for_each_session(conn, session) {
 		if (session->s_session_id == session_id) {
 			*out = session;
 			break;
@@ -313,11 +311,8 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	machine = item->ri_mach;
 	c2_mutex_lock(&machine->cr_session_mutex);
 
-	c2_list_for_each_entry(&machine->cr_rpc_conn_list, conn,
-				struct c2_rpc_conn, c_link) {
-
+	c2_rpc_for_each_conn(machine, conn) {
 		c2_mutex_lock(&conn->c_mutex);
-
 		if (conn->c_state == C2_RPC_CONN_INITIALISING) {
 			/*
 			 * during conn_init() the fop is stored in
@@ -372,12 +367,15 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
 		conn->c_rc = fop_ccr->rccr_rc;
+		printf("ccrr: conn create failed %d\n",
+			fop_ccr->rccr_rc);
 	} else {
 		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID &&
 				conn->c_sender_id == SENDER_ID_INVALID);
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
 		conn->c_rc = 0;
+		printf("ccrr: conn created %lu\n", fop_ccr->rccr_snd_id);
 	}
 
 	C2_ASSERT(saved_fop != NULL);
@@ -575,7 +573,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 			c2_rpc_conn_invariant(conn));
 
 	if (fop_ctr->ctr_rc == 0) {
-		printf("connection termination successful\n");
+		printf("ctrr: connection terminated %lu\n", conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
@@ -589,7 +587,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		/*
 		 * Connection termination failed
 		 */
-		printf("conn termination failed\n");
+		printf("ctrr: conn termination failed %lu\n", conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
@@ -648,7 +646,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	return got_event;
+	return (conn->c_state & state_flags) != 0;
 }
 C2_EXPORTED(c2_rpc_conn_fini);
 
@@ -688,8 +686,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			if (!result)
 				return result;
 
-			c2_list_for_each_entry(&conn->c_sessions, session,
-					    struct c2_rpc_session, s_link) {
+			c2_rpc_for_each_session(conn, session) {
 				count++;
 			}
 			/*
@@ -871,8 +868,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	 * For a c2_rpc_conn
 	 * There can be only session create in progress at any given point
 	 */
-	c2_list_for_each_entry(&conn->c_sessions, s,
-				struct c2_rpc_session, s_link) {
+	c2_rpc_for_each_session(conn, s) {
 		if (s->s_state == C2_RPC_SESSION_CREATING) {
 			session = s;
 			break;
@@ -896,12 +892,14 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 		c2_list_del(&session->s_link);
 		conn->c_nr_sessions--;
 		session->s_rc = fop_scr->rscr_rc;
+		printf("scrr: Session create failed\n");
 	} else {
 		C2_ASSERT(session_id >= SESSION_ID_MIN &&
 				session_id <= SESSION_ID_MAX);
 		session->s_session_id = session_id;
 		session->s_state = C2_RPC_SESSION_ALIVE;
 		session->s_rc = 0;
+		printf("scrr: session created %lu\n", session_id);
 	}
 
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_ALIVE ||
@@ -1017,6 +1015,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session;
 	struct c2_rpc_item			*item;
+	struct c2_rpcmachine			*machine;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
@@ -1033,12 +1032,12 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 			session_id <= SESSION_ID_MAX);
 
 	item = c2_fop_to_rpc_item(fop);
-
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
+	machine = item->ri_mach;
+	c2_mutex_lock(&machine->cr_session_mutex);
 
-	conn_search(item->ri_mach, sender_id, &conn);
+	conn_search(machine, sender_id, &conn);
 
 	/*
 	 * If session terminate is in progress then there must be
@@ -1047,7 +1046,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	c2_mutex_lock(&conn->c_mutex);
-	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 	
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
@@ -1055,15 +1054,18 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	C2_ASSERT(session != NULL &&
 			session->s_state == C2_RPC_SESSION_TERMINATING);
 	C2_ASSERT(conn->c_nr_sessions > 0);
-	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_mutex_lock(&session->s_mutex);
+	C2_ASSERT(c2_rpc_session_invariant(session));
+
 	if (fop_sdr->rsdr_rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATED;
 		session->s_rc = 0;
+		printf("strr: session terminated %lu\n", session_id);
 	} else {
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = fop_sdr->rsdr_rc;
+		printf("strr: session terminate failed %lu\n", session_id);
 	}
 	c2_list_del(&session->s_link);
 	session->s_conn = NULL;
@@ -1099,7 +1101,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	return got_event;
+	return (session->s_state & state_flags) != 0;
 }
 C2_EXPORTED(c2_rpc_session_timedwait);
 
@@ -1157,6 +1159,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 			result = session->s_session_id <= SESSION_ID_MAX &&
 			       session->s_conn != NULL &&
 			       session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
+			       session->s_conn->c_nr_sessions > 0 &&
 			       session->s_nr_slots >= 0 &&
 			       c2_list_contains(&session->s_conn->c_sessions,
 						&session->s_link);
@@ -1205,11 +1208,16 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
    rpc-core can call this routine whenever it finds it appropriate to
    assign slot and session info to an item.
 
+   If no rpc conn or rpc session exists to target endpoint, this routine
+   triggers creation of conn or session respectively and return -EAGAIN.
+   Caller is expected to call this routine again the same item.
+
    Assumption: c2_rpc_item has a field giving service_id of
                 destination service.
  */
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
+	struct c2_rpcmachine		*machine = NULL;
 	struct c2_rpc_conn		*conn = NULL;
 	struct c2_rpc_conn		*saved_conn = NULL;
 	struct c2_rpc_session		*session = NULL;
@@ -1250,9 +1258,10 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	 * Find out any unbusy slot which can go to destination pointed by
 	 * item->ri_service_id
 	 */
-	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
-	c2_list_for_each_entry(&item->ri_mach->cr_rpc_conn_list, conn,
-				struct c2_rpc_conn, c_link) {
+	machine = item->ri_mach;
+	c2_mutex_lock(&machine->cr_session_mutex);
+
+	c2_rpc_for_each_conn(machine, conn) {
 
 		/*
 		 * Does any conn exists to destination end-point?
@@ -1260,7 +1269,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 		 * does not change in lifetime of conn
 		 */
 		if (c2_services_are_same(conn->c_service_id,
-			item->ri_service_id)) {
+				item->ri_service_id)) {
 			conn_exists = true;
 			saved_conn = conn;
 		} else {
@@ -1270,9 +1279,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 		c2_mutex_lock(&conn->c_mutex);
 		if (conn->c_state == C2_RPC_CONN_ACTIVE) {
 
-			c2_list_for_each_entry(&conn->c_sessions, session,
-					       struct c2_rpc_session, s_link) {
-
+			c2_rpc_for_each_session(conn, session) {
 				if (session->s_session_id != SESSION_0)
 					session_exists = true;
 
@@ -1302,7 +1309,7 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 	}
 
 out_of_loops:
-	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 
 	if (found) {
 		C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
