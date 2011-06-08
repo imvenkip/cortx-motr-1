@@ -2,6 +2,7 @@
 
 #include "lib/types.h"            /* uint64_t */
 
+#include "lib/user_space/assert.h"
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "rm/rm.h"
@@ -18,6 +19,7 @@
  */
 
 /** @{ */
+
 
 static struct c2_rm_domain dom;
 
@@ -98,12 +100,16 @@ static void rm_init(void)
 	c2_rm_domain_init(&dom);
 	c2_rm_type_register(&dom, &rt);
 	c2_rm_resource_add(&rt, &R.rs_resource);
-	C2_UT_ASSERT(result == 0);
 	c2_rm_right_init(&everything);
+	everything.ri_ops = &rings_right_ops;
 	everything.ri_datum = ALLRINGS;
+	Sauron.ro_state = ROS_FINAL;
 	c2_rm_owner_init_with(&Sauron, &R.rs_resource, &everything);
+	elves.ro_state = ROS_FINAL;
 	c2_rm_owner_init(&elves, &R.rs_resource);
+	dwarves.ro_state = ROS_FINAL;
 	c2_rm_owner_init(&dwarves, &R.rs_resource);
+	men.ro_state = ROS_FINAL;
 	c2_rm_owner_init(&men, &R.rs_resource);
 	c2_rm_incoming_init(&in);
 	c2_rm_incoming_init(&inother);
@@ -113,9 +119,14 @@ static void rm_fini(void)
 {
 	c2_rm_incoming_fini(&inother);
 	c2_rm_incoming_fini(&in);
+	men.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&men);
+	dwarves.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&dwarves);
+	elves.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&elves);
+	Sauron.ro_state = ROS_FINAL;
+	c2_list_del(&everything.ri_linkage);
 	c2_rm_owner_fini(&Sauron);
 	c2_rm_right_fini(&everything);
 	c2_rm_resource_del(&R.rs_resource);
@@ -144,14 +155,30 @@ static void basic_test(void)
  */
 static void right_get_test0(void)
 {
-
+	rt.rt_id = 1;
 	rm_init();
+
+	c2_chan_init(&in.rin_signal);
+	c2_rm_right_init(&in.rin_want);
+	in.rin_state = RI_INITIALISED;
+	in.rin_owner = &Sauron;
+	in.rin_priority = 0;
+	in.rin_ops = &rings_incoming_ops;
+	in.rin_want.ri_ops = &rings_right_ops;
+	in.rin_type = RIT_LOAN;
+	in.rin_policy = RIP_NONE;
+	in.rin_flags = RIF_LOCAL_WAIT;
 
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
-	C2_UT_ASSERT(result == 0);
-	C2_UT_ASSERT(in.rin_state == RI_SUCCESS);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(in.rin_state == RI_SUCCESS);
+
 	c2_rm_right_put(&in);
+	c2_list_del(&in.rin_want.ri_linkage);
+	c2_rm_right_fini(&in.rin_want);
+	c2_chan_fini(&in.rin_signal);
+
 	rm_fini();
 }
 
@@ -163,18 +190,50 @@ static void right_get_test0(void)
 static void right_get_test1(void)
 {
 
+	rt.rt_id = 1;
 	rm_init();
+
+	c2_chan_init(&in.rin_signal);
+	c2_rm_right_init(&in.rin_want);
+	in.rin_state = RI_INITIALISED;
+	in.rin_owner = &Sauron;
+	in.rin_priority = 0;
+	in.rin_ops = &rings_incoming_ops;
+	in.rin_want.ri_ops = &rings_right_ops;
+	in.rin_type = RIT_LOAN;
+	in.rin_policy = RIP_NONE;
+	in.rin_flags = RIF_LOCAL_WAIT;
 
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
+
+	c2_rm_right_put(&in);
+	c2_list_del(&in.rin_want.ri_linkage);
+	c2_rm_right_fini(&in.rin_want);
+	c2_chan_fini(&in.rin_signal);
+
+	c2_chan_init(&inother.rin_signal);
+	c2_rm_right_init(&inother.rin_want);
+	inother.rin_state = RI_INITIALISED;
+	inother.rin_owner = &Sauron;
+	inother.rin_priority = 0;
+	inother.rin_ops = &rings_incoming_ops;
+	inother.rin_want.ri_ops = &rings_right_ops;
+	inother.rin_type = RIT_LOAN;
+	inother.rin_policy = RIP_NONE;
+	inother.rin_flags = RIF_LOCAL_WAIT;
 
 	inother.rin_want.ri_datum = KHAMUL;
-	result = c2_rm_right_get_wait(&Sauron, &in);
-	C2_UT_ASSERT(result == 0);
+	result = c2_rm_right_get_wait(&Sauron, &inother);
+	C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&inother);
-	c2_rm_right_put(&in);
+	c2_list_del(&inother.rin_want.ri_linkage);
+	c2_rm_right_fini(&inother.rin_want);
+	c2_chan_fini(&inother.rin_signal);
+
+
 	rm_fini();
 }
 
@@ -193,11 +252,11 @@ static void right_get_test2(void)
 
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	inother.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &inother);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&inother);
 	c2_rm_right_put(&in);
@@ -220,13 +279,13 @@ static void right_get_test3(void)
 	c2_rm_incoming_init(&in);
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	c2_rm_incoming_init(&inother);
 	inother.rin_want.ri_datum = NARYA;
 	inother.rin_flags |= RIF_LOCAL_TRY;
 	result = c2_rm_right_get_wait(&Sauron, &inother);
-	C2_UT_ASSERT(result == -EWOULDBLOCK);
+	C2_ASSERT(result == -EWOULDBLOCK);
 
 	c2_rm_right_put(&inother);
 	c2_rm_right_put(&in);
@@ -245,6 +304,7 @@ static void right_get_test3(void)
 static void intent_mode_test(void)
 {
 }
+
 
 /**
    <b>WBC mode.</b>

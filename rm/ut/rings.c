@@ -19,8 +19,14 @@ const struct c2_rm_resource_ops rings_ops = {
 	.rop_policy 	  = rings_policy
 };
 
+static bool resources_are_equal(const struct c2_rm_resource *r0,
+				const struct c2_rm_resource *r1)
+{
+	return false;
+}
+
 const struct c2_rm_resource_type_ops rings_rtype_ops = {
-	.rto_eq     = NULL,
+	.rto_eq     = resources_are_equal,
 	.rto_decode = NULL
 };
 
@@ -42,7 +48,7 @@ static void right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 static bool right_implies(const struct c2_rm_right *r0,
 			  const struct c2_rm_right *r1)
 {
-	return (r0->ri_datum & r1->ri_datum) == r0->ri_datum;
+	return (r0->ri_datum & r1->ri_datum) == r1->ri_datum;
 }
 
 static void right_copy(struct c2_rm_right *dest,

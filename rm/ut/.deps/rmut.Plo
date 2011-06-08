@@ -9,21 +9,21 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
   /usr/include/bits/endian.h /usr/include/sys/select.h \
   /usr/include/bits/select.h /usr/include/bits/sigset.h \
   /usr/include/bits/time.h /usr/include/sys/sysmacros.h \
-  /usr/include/bits/pthreadtypes.h ../../lib/ut.h \
-  /usr/local/include/CUnit/Basic.h /usr/local/include/CUnit/CUnit.h \
-  /usr/include/string.h /usr/include/xlocale.h /usr/include/math.h \
-  /usr/include/bits/huge_val.h /usr/include/bits/huge_valf.h \
-  /usr/include/bits/huge_vall.h /usr/include/bits/inf.h \
-  /usr/include/bits/nan.h /usr/include/bits/mathdef.h \
-  /usr/include/bits/mathcalls.h /usr/local/include/CUnit/CUError.h \
-  /usr/include/errno.h /usr/include/bits/errno.h \
-  /usr/include/linux/errno.h /usr/include/asm/errno.h \
-  /usr/include/asm-x86_64/errno.h /usr/include/asm-generic/errno.h \
-  /usr/include/asm-generic/errno-base.h /usr/local/include/CUnit/TestDB.h \
-  /usr/include/setjmp.h /usr/include/bits/setjmp.h \
-  /usr/local/include/CUnit/TestRun.h /usr/include/stdio.h \
-  /usr/include/libio.h /usr/include/_G_config.h /usr/include/wchar.h \
-  /usr/include/gconv.h \
+  /usr/include/bits/pthreadtypes.h ../../lib/user_space/assert.h \
+  ../../lib/ut.h /usr/local/include/CUnit/Basic.h \
+  /usr/local/include/CUnit/CUnit.h /usr/include/string.h \
+  /usr/include/xlocale.h /usr/include/math.h /usr/include/bits/huge_val.h \
+  /usr/include/bits/huge_valf.h /usr/include/bits/huge_vall.h \
+  /usr/include/bits/inf.h /usr/include/bits/nan.h \
+  /usr/include/bits/mathdef.h /usr/include/bits/mathcalls.h \
+  /usr/local/include/CUnit/CUError.h /usr/include/errno.h \
+  /usr/include/bits/errno.h /usr/include/linux/errno.h \
+  /usr/include/asm/errno.h /usr/include/asm-x86_64/errno.h \
+  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
+  /usr/local/include/CUnit/TestDB.h /usr/include/setjmp.h \
+  /usr/include/bits/setjmp.h /usr/local/include/CUnit/TestRun.h \
+  /usr/include/stdio.h /usr/include/libio.h /usr/include/_G_config.h \
+  /usr/include/wchar.h /usr/include/gconv.h \
   /usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdarg.h \
   /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
   ../../lib/ub.h ../../lib/types.h ../../lib/cdefs.h \
@@ -89,6 +89,8 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
 /usr/include/sys/sysmacros.h:
 
 /usr/include/bits/pthreadtypes.h:
+
+../../lib/user_space/assert.h:
 
 ../../lib/ut.h:
 
