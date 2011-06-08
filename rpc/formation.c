@@ -25,6 +25,8 @@ uint64_t				max_msg_size;
 uint64_t				max_fragments_size;
 uint64_t				max_rpcs_in_flight;
 
+uint64_t				refcnt = 0;
+
 /**
     Forward declarations of local static functions 
  */
@@ -270,6 +272,8 @@ static void c2_rpc_form_state_machine_exit(struct
 	    when the mutex is locked, it is not locked here
 	    for endp_unit.*/
 	c2_ref_put(&endp_unit->isu_sm.isu_ref);
+	refcnt++;
+	printf("Endp reference decreased, refcnt = %lu.\n", refcnt);
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
 }
 
@@ -452,6 +456,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		if (found) {
 			c2_mutex_lock(&endp->isu_unit_lock);
 			c2_ref_get(&endp->isu_sm.isu_ref);
+			printf("Endp reference increased.\n");
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
 		}
@@ -1653,13 +1658,13 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if (rpcobj == NULL) {
 		printf("Failed to allocate memory for \
 				struct c2_rpc_form_rpcobj.\n");
-		return -ENOMEM;
+		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_list_link_init(&rpcobj->ro_linkage);
 	rpcobj->ro_rpcobj = c2_alloc(sizeof(struct c2_rpc));
 	if (rpcobj->ro_rpcobj == NULL) {
 		printf("Failed to allocate memory for struct c2_rpc.\n");
-		return -ENOMEM;
+		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_list_link_init(&rpcobj->ro_rpcobj->r_linkage);
 	c2_list_init(&rpcobj->ro_rpcobj->r_items);
@@ -1722,7 +1727,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	//res = c2_rpc_form_get_items_cache_list(endp_unit->isu_endp_id, 
 	//		&cache_list);
 	c2_mutex_lock(&cache_list->ic_mutex);
-	printf("Unformed list length = %lu \n", c2_list_length(&endp_unit->isu_unformed_list));
+	printf("Unformed list length = %lu \n",
+			c2_list_length(&endp_unit->isu_unformed_list));
 	c2_list_for_each_entry_safe(&endp_unit->isu_unformed_list, rpc_item,
 			rpc_item_next, struct c2_rpc_item, 
 			ri_unformed_linkage) {
@@ -1790,7 +1796,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   max_message_size, discard the rpc object. */
 		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
-					it is sub-optimal size rpcobj_size = %lu.\n",rpcobj_size);
+					it is sub-optimal size \
+					rpcobj_size = %lu.\n",rpcobj_size);
 			/* Delete the formed RPC object. */
 			c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items,
 					rpc_item, rpc_item_next,
@@ -1813,7 +1820,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			&rpcobj_size);
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
 			&rpcobj->ro_linkage);
-	/* XXX TBD: Check if the formed RPC object is optimal enough. */
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
@@ -1893,7 +1899,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_formed_list,
 			rpc_obj, rpc_obj_next, struct c2_rpc_form_rpcobj, 
 			ro_linkage) {
-		first_item = c2_list_entry((c2_list_first(&rpc_obj->ro_rpcobj->r_items)),
+		first_item = c2_list_entry((c2_list_first(&rpc_obj->
+						ro_rpcobj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
 		endp = c2_rpc_form_get_endpoint(first_item);
 		if (endp_unit->isu_curr_rpcs_in_flight < 
@@ -1919,6 +1926,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 					output since max_rpcs_in_flight \
 					limit is reached.\n");
 			ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+			break;
 		}
 	}
 	return ret;

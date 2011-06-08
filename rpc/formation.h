@@ -115,6 +115,8 @@
       not needed any more.
  */
 
+/*XXX For testing. */
+uint64_t reftrack[256];
 /**
    This structure is an internal data structure which builds up the
    summary form of data for all endpoints.
@@ -894,7 +896,7 @@ typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
    next_state = stateTable[current_state][current_event]
  */
 stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS] = {
+[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS-1] = {
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,

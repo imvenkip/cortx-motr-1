@@ -267,7 +267,7 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 /**
   Insert an rpc item to the global items cache such that it is sorted
   according to timeout
-  */
+ */
 void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item	*rpc_item;
@@ -287,7 +287,6 @@ void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 			item_inserted = true;
 			break;
 		}
-
 	}
 	if(!item_inserted) {
 		c2_list_add_after(&rpc_item->ri_linkage, &item->ri_linkage);
