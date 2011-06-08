@@ -1,10 +1,11 @@
 KSUNRPC_SRCDIR = @SRCDIR@/net/ksunrpc
+OTW_K_HEADERS = net_otw_types_k.h
 
 obj-m := ksunrpc.o
-shared_src  := connection.c net.c net_cli.c net_utils.c
-kernel_src  := client.o kxdr.o domain.o 
+shared_src  := connection.c net.c net_cli.c net_utils.c net_otw_types_k.c
+kernel_src  := client.c kxdr.c domain.c
 ksunrpc-y   := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-orig        := $(shared_src:%=../%)
+orig        := $(shared_src:%=../%) $(OTW_K_HEADERS:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@ -O2
 
@@ -19,7 +20,7 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr $(shared_src) Module.symvers
+	rm -fr $(shared_src) $(OTW_K_HEADERS) Module.symvers
 
 distdir:
 	cp $(KSUNRPC_SRCDIR)/Makefile.in $(KSUNRPC_SRCDIR)/ksunrpc.h \

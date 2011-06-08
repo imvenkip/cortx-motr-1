@@ -1,0 +1,22 @@
+/* -*- C -*- */
+
+/**
+ @addtogroup net
+ @{
+ */
+
+DEF(c2_net_buf_desc, SEQUENCE,
+    _(nbd_len,  U32),
+    _(nbd_data, BYTE));
+
+/** @} end of net group */
+
+/* 
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

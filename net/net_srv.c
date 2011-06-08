@@ -22,7 +22,7 @@
 #include "net.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    @{
  */

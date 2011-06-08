@@ -178,7 +178,9 @@ int main(int argc, char **argv)
 	int result;
 
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
-	struct c2_net_domain    ndom;
+	struct c2_net_domain    ndom = {
+		.nd_xprt = NULL
+	};
 	struct c2_net_conn     *conn;
 
 	setbuf(stdout, NULL);

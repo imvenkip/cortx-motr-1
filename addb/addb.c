@@ -4,6 +4,8 @@
 #  include <config.h>
 #endif
 
+#include <stdarg.h>
+
 #include "lib/arith.h" /* max_check */
 #include "lib/memory.h"/*c2_alloc/c2_free */
 #include "lib/cdefs.h" /* C2_EXPORTED */
@@ -12,7 +14,6 @@
 #include "lib/rwlock.h"
 #include "stob/stob.h"
 #include "db/db.h"
-#include "net/net.h"
 
 #include "addb/addb.h"
 

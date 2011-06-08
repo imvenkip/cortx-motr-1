@@ -116,7 +116,14 @@
  */
 
 /*XXX For testing. */
-uint64_t reftrack[256];
+struct c2_rpc_form_ut_thread_reftrack {
+	struct c2_thread_handle		handle;
+	int				refcount;
+};
+
+struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[256];
+int	n_ut_threads;
+
 /**
    This structure is an internal data structure which builds up the
    summary form of data for all endpoints.

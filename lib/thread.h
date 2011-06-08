@@ -4,7 +4,7 @@
 #define __COLIBRI_LIB_THREAD_H__
 
 #include "cdefs.h"
-#include "chan.h"
+#include "semaphore.h"
 
 #ifndef __KERNEL__
 #include "user_space/thread.h"
@@ -75,7 +75,7 @@ struct c2_thread {
 	int                   (*t_init)(void *);
 	void                  (*t_func)(void *);
 	void                   *t_arg;
-	struct c2_chan          t_initwait;
+	struct c2_semaphore     t_wait;
 	int                     t_initrc;
 };
 
@@ -89,24 +89,25 @@ struct c2_thread {
    static void worker(struct foo *arg) { ... }
    static struct c2_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg);
+   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg, "worker");
    @endcode
 
    C2_THREAD_INIT() checks that type of the argument matches function prototype.
 
    @note TYPE cannot be void.
  */
-#define C2_THREAD_INIT(thread, TYPE, init, func, arg)	\
-({							\
-	typeof(func) __func = (func);			\
-	typeof(arg)  __arg  = (arg);			\
-	TYPE         __dummy;				\
-	(void)(__func == (void (*)(TYPE))NULL);		\
-	(void)(&__arg == &__dummy);			\
-	c2_thread_init(thread,				\
-                       (int  (*)(void *))init,  	\
-		       (void (*)(void *))__func,	\
-		       (void *)(unsigned long)__arg);	\
+#define C2_THREAD_INIT(thread, TYPE, init, func, arg, namefmt, ...)	\
+({									\
+	typeof(func) __func = (func);					\
+	typeof(arg)  __arg  = (arg);					\
+	TYPE         __dummy;						\
+	(void)(__func == (void (*)(TYPE))NULL);				\
+	(void)(&__arg == &__dummy);					\
+	c2_thread_init(thread,						\
+                       (int  (*)(void *))init,				\
+		       (void (*)(void *))__func,			\
+		       (void *)(unsigned long)__arg,			\
+		       namefmt , ## __VA_ARGS__);			\
 })
 
 /**
@@ -118,7 +119,8 @@ struct c2_thread {
    int x;
 
    result = C2_THREAD_INIT(&tcb, int, NULL,
-                           LAMBDA(void, (int y) { printf("%i", x + y); } ));
+                           LAMBDA(void, (int y) { printf("%i", x + y); } ), 1,
+			   "add_%d", 1);
    @endcode
 
    LAMBDA is useful to create an "ad-hoc" function that can be passed as a
@@ -134,6 +136,26 @@ struct c2_thread {
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
 
 /**
+   Internal helper for c2_thread_init() that creates the user or kernel thread
+   after the c2_thread q has been initialised.
+   @pre q->t_state == TS_RUNNING
+   @retval 0 thread created
+   @retval -errno failed
+ */
+int  c2_thread_init_impl(struct c2_thread *q, const char *name);
+
+/**
+   Threads created by c2_thread_init_impl execute this function to
+   perform common bookkeeping, executing t->t_init if appropriate,
+   and then executing t->t_func.
+   @pre t->t_state == TS_RUNNING && t->t_initrc == 0
+   @param t a c2_thread*, passed as void* to be compatible with
+   pthread_create function argument.
+   @retval NULL
+ */
+void *c2_thread_trampoline(void *t);
+
+/**
    Creates a new thread.
 
    If "init" is not NULL, the created thread starts execution by calling
@@ -142,6 +164,9 @@ struct c2_thread {
 
    Otherwise (or in the case where "init" is NULL), c2_thread_init() returns 0
    and the thread calls (*func)(arg) and exits when this call completes.
+
+   The namefmt and its arguments are used to name the thread.  The formatted
+   name is truncated to C2_THREAD_NAME_LEN characters (based on TASK_COMM_LEN).
 
    @note it is possible that after successful return from c2_thread_init() the
    thread hasn't yet entered "func" code, it is also possible that the thread
@@ -152,7 +177,8 @@ struct c2_thread {
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
 int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		    void (*func)(void *), void *arg);
+		    void (*func)(void *), void *arg, const char *namefmt, ...)
+	__attribute__ ((format (printf, 5, 6)));
 
 /**
    Releases resources associated with the thread.
@@ -174,6 +200,8 @@ void c2_thread_fini(struct c2_thread *q);
    @pre q->t_state == TS_RUNNING
    @pre q is different from the calling thread
    @post (result == 0) == (q->t_state == TS_PARKED)
+   @retval 0 thread joined (thread is terminated)
+   @retval -errno failed to join, not exit status of thread
  */
 int  c2_thread_join(struct c2_thread *q);
 
@@ -201,6 +229,20 @@ struct c2_bitmap;
    @retval !0 failed to set affinity, -errno
  */
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
+
+/**
+   Returns the handle of the current thread.
+   @pre The kernel code will assert !in_interrupt().
+*/
+void c2_thread_self(struct c2_thread_handle *id);
+
+/**
+   Tests whether two thread handles are identical.
+   @ret true if h1 == h2
+   @ret false if h1 != h2
+*/
+bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+			 struct c2_thread_handle *h2);
 
 /** @} end of thread group */
 

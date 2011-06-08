@@ -1,3 +1,8 @@
+#include "cob/cob.h"
+#include "fol/fol.h"
+#include "fop/fop.h"
+#include "rpc/session_int.h"
+
 /**
    @defgroup rpc_layer_core RPC layer core
    @page rpc-layer-core-dld RPC layer core DLD
@@ -45,7 +50,7 @@
    // USAGE (a):
    // sending rpc_items
    item.ri_type = &fop_item_type;
-   ret = c2_rpc_submit(&update_stream, &item,
+   ret = c2_rpc_submit(&srvid, &update_stream, &item,
 	C2_RPC_ITEM_PRIO_MIN, C2_RPC_CACHING_TYPE);
    // waiting for reply:
    ret = c2_rpc_reply_timedwait(&item, &timeout);
@@ -57,7 +62,7 @@
    // send group of items
    for (i = 0; i < ARRAY_SIZE(item); ++i) {
       item[i].ri_type = &fop_item_type;
-      ret = c2_rpc_group_submit(&mach, group, &item[i], &update_stream,
+      ret = c2_rpc_group_submit(&mach, group, &item[i], &srvid, &update_stream,
 	C2_RPC_ITEM_PRIO_MIN, C2_RPC_CACHING_TYPE);
    }
 
@@ -75,6 +80,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
+
       UNINITIALIZED
            | update_stream_init()
            |
@@ -121,8 +127,18 @@
 #include "lib/refs.h"
 #include "lib/chan.h"
 #include "net/net.h"
+#include "dtm/verno.h"		/* for c2_verno */
 #include "lib/time.h"
 #include "lib/timer.h"
+
+/*Macro to enable RPC grouping test and debug code */
+
+#ifdef RPC_GRP_DEBUG
+#define MAX_RPC_ITEMS 6
+#define NO_OF_ENDPOINTS 3
+int32_t rpc_arr_index;
+int seed_val;
+#endif
 
 struct c2_fop;
 struct c2_rpc;
@@ -133,23 +149,10 @@ struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
 
-struct c2_net_end_point {
-        /** Keeps track of usage */
-        struct c2_ref          nep_ref;
-        /** Pointer to the network domain */
-        //struct c2_net_domain  *nep_dom;
-        /** Linkage in the domain list */
-        struct c2_list_link    nep_dom_linkage;
-        /** Transport specific printable representation of the
-            end point address.
-        */
-        const char            *nep_addr;
-};
-
 /** TBD in sessions header */
 enum c2_update_stream_flags {
 	/* one slot per one update stream */
-	C2_UPDATE_STREAM_DEDICATED_SLOT = 0, 
+	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
 	/* several update streams share the same slot */
 	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
 };
@@ -195,7 +198,7 @@ struct c2_rpc_item_type_ops {
 	 */
 	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
 	/**
-	   Return the IO vector from the IO request. 
+	   Return the IO vector from the IO request.
 	 */
 	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
 	/**
@@ -322,12 +325,26 @@ struct c2_rpc_item {
 
 	enum c2_rpc_item_state     ri_state;
 
+	struct c2_service_id		*ri_service_id;
+	/** Session related fields. Should be included in on wire rpc-item */
+	uint64_t			ri_sender_id;
+	uint64_t			ri_session_id;
+	uint32_t			ri_slot_id;
+	uint64_t			ri_slot_generation;
+	/** ri_verno acts as sequence counter */
+	struct c2_verno			ri_verno;
+	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
+	    on c2_rpc_snd_slot::ss_replay_list */
+	struct c2_list_link		ri_slot_link;
+	/** XXX temporary field to put item on in-core reply cache list */
+	struct c2_list_link			ri_rc_link;
+
+	/** Pointer to the type object for this item */
+	struct c2_rpc_item_type *ri_type;
+	struct c2_chan ri_chan;
 	/* An item is assigned "a xid" by the sessions module
 	   once it is bound to a particular slot. */
 	uint64_t ri_xid;
-	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type	*ri_type;
-	struct c2_chan ri_chan;
 	/** Linkage to the forming list, needed for formation */
 	struct c2_list_link	ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
@@ -357,6 +374,9 @@ struct c2_rpc_formation_list {
 
 	/** listss of c2_rpc_items going to the same endpoint */
 	struct c2_list re_items;
+	struct c2_net_endpoint *endpoint;
+	/*Mutex to guard this list */
+	struct c2_mutex re_guard;
 };
 
 /** Group of rpc items to be transmitted in the same
@@ -422,6 +442,13 @@ struct c2_rpcmachine {
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
+	/** List of rpc connections
+	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
+	    CONN_FAILED, CONN_TERMINATED} */
+	struct c2_list		   cr_rpc_conn_list;
+	/** mutex that protects conn_list */
+	struct c2_mutex		   cr_session_mutex;
+	struct c2_rpc_reply_cache  cr_rcache;
 };
 
 /**
@@ -437,11 +464,15 @@ void c2_rpc_core_fini(void);
    Construct rpcmachine.
 
    @param machine rpcmachine operation applied to.
+   @param dom cob domain that contains cobs representing slots
+   @param fol reply items are cached in fol
    @pre c2_rpc_core_init().
    @return 0 success
    @return -ENOMEM failure
  */
-int  c2_rpcmachine_init(struct c2_rpcmachine *machine);
+int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
+			struct c2_cob_domain	*dom,
+			struct c2_fol		*fol);
 
 /**
    Destruct rpcmachine
@@ -468,9 +499,11 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_submit(struct c2_update_stream *us, struct c2_rpc_item *item,
-		  int prio,
-		  const c2_time_t *deadline);
+int c2_rpc_submit(struct c2_service_id		*srvid,
+		  struct c2_update_stream	*us,
+		  struct c2_rpc_item 		*item,
+		  enum c2_rpc_item_priority	prio,
+		  const c2_time_t		*deadline);
 
 /**
    Cancel submitted RPC-item
@@ -527,11 +560,11 @@ int c2_rpc_group_close(struct c2_rpcmachine *machine, struct c2_rpc_group *group
    @return 0  success
    @return <0 failure
  */
-int c2_rpc_group_submit(struct c2_rpc_group *group,
-			struct c2_rpc_item *item,
-			struct c2_update_stream *us,
-			int prio,
-			const c2_time_t *deadline);
+int c2_rpc_group_submit(struct c2_rpc_group		*group,
+			struct c2_rpc_item		*item,
+			struct c2_update_stream		*us,
+			enum c2_rpc_item_priority	prio,
+			const c2_time_t 		*deadline);
 
 /**
    Wait for the reply on item being sent.
@@ -606,7 +639,7 @@ void c2_rpc_update_stream_put(struct c2_update_stream *us);
    @return itmes count in cache selected by priority
  */
 size_t c2_rpc_cache_item_count(struct c2_rpcmachine *machine,
-			       int prio);
+			       enum c2_rpc_item_priority prio);
 
 /**
    Returns count of RPC items in processing
@@ -626,7 +659,7 @@ size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine);
    @param time[out] average time spent in processing on one RPC
  */
 void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
-			      c2_time_t *time);
+			      c2_time_t		   *time);
 
 /**
    Returns transmission speed in bytes per second.

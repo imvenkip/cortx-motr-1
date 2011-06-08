@@ -3,7 +3,7 @@
 #include "lib/memory.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    @{
  */

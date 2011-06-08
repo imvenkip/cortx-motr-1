@@ -1,16 +1,63 @@
-SUBDIRS_BASE = m4 doc man patches 
+SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fop is reached. Fop needs all libs before it in the 
-# list built in order to use fop2c
-# addb_pseudo is used only for build fop2c, with which full addb can be built
-SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop addb sm stob net dtm nrs \
-               sns mw reqh layout pool balloc desim cob capa udb ioservice rpc
+# Order is important until fop/rt is reached. Fop needs all libs
+# before it in the list built in order to use fop2c addb_pseudo is
+# used only for build fop2c, with which full addb can be built. Keep
+# this list alphabetically sorted after "net".
+
+SUBDIRS_LIBS = \
+               lib \
+               addb/addb_pseudo \
+               fol \
+               db \
+               fid \
+               fop/rt \
+               \
+               net \
+               fop \
+               addb \
+               balloc \
+               capa \
+               cob \
+               desim \
+               dtm \
+               ioservice \
+               layout \
+               mw \
+               nrs \
+               pool \
+               reqh \
+               rpc \
+               sm \
+               sns \
+               stob \
+               udb \
+               xdr
 
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
-            fol/ut sns/ut desim/ut cob/ut net/ut net/st udb/ut capa/ut rpc/ut
+# keep this list alphabetically sorted
+SUBDIR_UT = \ 
+               balloc/ut \
+               capa/ut \
+               cob/ut \
+               db/ut \
+               desim/ut \
+               fol/ut \
+               fop/ut \
+               layout/ut \
+               lib/ut \
+               net/bulk_emulation/ut \
+               net/st \
+               net/ut \
+               sns/ut \
+               stob/ut \
+               rpc/ut \
+               udb/ut \
+               xdr/ut
+
 SUBDIR_ST = 
 SUBDIR_UB = 
+
 SUBDIR_BIN = mds utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_KERNEL) \

@@ -6,7 +6,7 @@
 #include "xdr.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    @{
  */
@@ -20,4 +20,4 @@ bool c2_xdr_service_id (void *x, struct c2_service_id *objp)
 			  sizeof (char), (xdrproc_t) xdr_char);
 }
 
-/** @} end of net group */
+/** @} end of net deprecated group */

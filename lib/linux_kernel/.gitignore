@@ -1,6 +1,7 @@
 list.c
 queue.c
 vec.c
+thread.c
 time.c
 refs.c
 bitmap.c

@@ -65,6 +65,7 @@ void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
  */
 int c2_rpc_form_init()
 {
+	int		i = 0;
 	formation_summary = c2_alloc(sizeof(struct c2_rpc_form_item_summary));
 	if (formation_summary == NULL) {
 		printf("Failed to allocate memory for \
@@ -73,7 +74,50 @@ int c2_rpc_form_init()
 	}
 	c2_rwlock_init(&formation_summary->is_endp_list_lock);
 	c2_list_init(&formation_summary->is_endp_list);
+	for (i = 0; i < 256; i++) {
+		memset(&thrd_reftrack[i], 0,
+				sizeof(struct c2_rpc_form_ut_thread_reftrack));
+	}
+	n_ut_threads = 0;
 	return 0;
+}
+
+void add_ref_log()
+{
+	struct c2_thread_handle		handle;
+	int				i = 0;
+	bool				found = false;
+
+	C2_ASSERT(n_ut_threads < 256);
+	c2_thread_self(&handle);
+	for (i = 0; i < n_ut_threads; i++) {
+		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
+			found = true;
+			thrd_reftrack[i].refcount++;
+		}
+	}
+	if (!found) {
+		thrd_reftrack[n_ut_threads].handle = handle;
+		thrd_reftrack[n_ut_threads].refcount = 1;
+		n_ut_threads++;
+	}
+}
+
+void dec_ref_log()
+{
+	struct c2_thread_handle		handle;
+	int 				i = 0;
+	bool				found = false;
+
+	C2_ASSERT(n_ut_threads <= 256);
+	c2_thread_self(&handle);
+	for (i = 0; i < n_ut_threads; i++) {
+		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
+			found = true;
+			thrd_reftrack[i].refcount--;
+		}
+	}
+	C2_ASSERT(found);
 }
 
 /**
@@ -272,6 +316,7 @@ static void c2_rpc_form_state_machine_exit(struct
 	    when the mutex is locked, it is not locked here
 	    for endp_unit.*/
 	c2_ref_put(&endp_unit->isu_sm.isu_ref);
+	dec_ref_log();
 	refcnt++;
 	printf("Endp reference decreased, refcnt = %lu.\n", refcnt);
 	c2_rwlock_write_unlock(&formation_summary->is_endp_list_lock);
@@ -355,6 +400,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	c2_list_init(&endp_unit->isu_rpcobj_checked_list);
 	c2_ref_init(&endp_unit->isu_sm.isu_ref, 1, 
 			c2_rpc_form_item_summary_unit_destroy);
+	add_ref_log();
 	endp_unit->isu_endp_id = (struct c2_net_end_point*)endp;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	endp_unit->isu_form_active = true;
@@ -428,6 +474,8 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	bool					 found = false;
 	struct c2_rpc_form_item_summary_unit	*endp = NULL;
 	int					 ls = 0;
+	struct c2_thread_handle			 handle;
+	int					 i = 0;
 
 	C2_PRE(item != NULL);
 	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_N_EVENTS);
@@ -456,6 +504,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		if (found) {
 			c2_mutex_lock(&endp->isu_unit_lock);
 			c2_ref_get(&endp->isu_sm.isu_ref);
+			add_ref_log();
 			printf("Endp reference increased.\n");
 			c2_rwlock_write_unlock(&formation_summary->
 					is_endp_list_lock);
@@ -485,6 +534,10 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	/* Transition to next state.*/
 	res = (c2_rpc_form_next_state(prev_state, sm_event->se_event))
 		(endp, item, sm_event);
+	/* The return value should be an internal event.
+	   Assert if its not. */
+	C2_ASSERT((res >= C2_RPC_FORM_INTEVT_STATE_SUCCEEDED) ||
+			(res <= C2_RPC_FORM_INTEVT_STATE_DONE));
 	/* Get latest state of state machine. */
 	prev_state = endp->isu_sm.isu_endp_state;
 	c2_mutex_unlock(&endp->isu_unit_lock);
@@ -501,6 +554,13 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	else if (res == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED){
 		/** Post a state succeeded event. */
 		c2_rpc_form_intevt_state_succeeded(endp, item, prev_state);
+	}
+	c2_thread_self(&handle);
+	for (i = 0; i < n_ut_threads; i++) {
+		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
+			if (thrd_reftrack[i].refcount != 0)
+				C2_ASSERT(0);
+		}
 	}
 	return 0;
 }
@@ -679,14 +739,14 @@ static int c2_rpc_form_item_coalesced_reply_post(struct
 			im_linkage) {
 		//member->im_member_item->rio_replied(member->im_member, rc);
 		c2_list_del(&member->im_linkage);
-		c2_rpc_item_replied(member->im_member_item);
+		//c2_rpc_item_replied(&member->im_member_item);
 		coalesced_struct->ic_nmembers--;
 	}
 	//coalesced_struct->ic_resultant_item->ri_type->rit_ops->rio_replied(
 	//		coalesced_struct->ic_resultant_item);
 	C2_ASSERT(coalesced_struct->ic_nmembers == 0);
 	c2_list_del(&coalesced_struct->ic_linkage);
-	c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
+	//c2_rpc_item_replied(coalesced_struct->ic_resultant_item);
 	c2_list_fini(&coalesced_struct->ic_member_list);
 	c2_free(coalesced_struct);
 	return 0;
@@ -1688,7 +1748,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 		if (item_coalesced == false) {
 			//item->ri_type->rit_ops->rio_replied(item);
-			c2_rpc_item_replied(item);
+			//XXX c2_rpc_item_replied(item);
 		}
 	}
 	else if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
@@ -1853,7 +1913,8 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items, 
 				rpc_item, rpc_item_next,
 				struct c2_rpc_item, ri_rpcobject_linkage) {
-			res = c2_rpc_session_item_prepare(rpc_item);
+			//res = c2_rpc_session_item_prepare(rpc_item);
+			res = 0;
 			if (res != 0) {
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
@@ -1878,7 +1939,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		*event)
 {
 	int				 res = 0;
-	int				 ret = 0;
+	int				 ret =
+		C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	struct c2_net_end_point		*endp = NULL;
@@ -1907,6 +1969,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				endp_unit->isu_max_rpcs_in_flight) {
 			/*XXX TBD: Before sending the c2_rpc on wire,
 			   it needs to be serialized into one buffer. */
+			   printf("posting list length = %lu\n",c2_list_length(&rpc_obj->ro_rpcobj->r_items));
 			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
 			/* XXX curr rpcs in flight will be taken care by
 			   output component. */
@@ -2313,13 +2376,35 @@ struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item)
 	return NULL;
 }
 
+/*
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 {
 	return 0;
-}
+}*/
 
+/**
+  This routine will 
+  - Call the encode routine 
+  - Change the state of each rpc item in the rpc object to RPC_ITEM_SENT
+ */
 int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc)
 {
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(rpc != NULL);
+
+	/** XXX call the encode routine which will perform wire encoding
+	  into an preallocated buffer and send the rpc object on wire*/
+
+	/** Change the state of each rpc item in the 
+	    rpc object to RPC_ITEM_SENT */
+
+	c2_list_for_each_entry(&rpc->r_items, item, 
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
+		item->ri_state = RPC_ITEM_SENT;
+	}
+
 	return 0;
 }
 

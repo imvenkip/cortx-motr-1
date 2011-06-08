@@ -234,7 +234,6 @@ int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 		sid->si_xport_private = ksid;
 		ksid->ssi_id = sid;
 
-		/* N.B. they have different order than kernelspace's ones */
 		hostname = va_arg(varargs, char *);
 		strncpy(ksid->ssi_host, hostname, ARRAY_SIZE(ksid->ssi_host)-1);
 		ksid->ssi_port = va_arg(varargs, int);
