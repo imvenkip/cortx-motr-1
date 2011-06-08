@@ -10,12 +10,6 @@
 
 #include "net/bulk_emulation/sunrpc_xprt.h"
 
-enum {
-	C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE     = (1<<20),
-	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<20),
-	C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS = 256,
-};
-
 /* forward references to other static functions */
 static int sunrpc_ep_init_sid(struct c2_service_id *sid,
 			      struct c2_net_domain *rpc_dom,

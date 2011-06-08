@@ -5,6 +5,7 @@
 
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/sunrpc/svcsock.h>
 
@@ -15,7 +16,9 @@
 #include "fop/fop.h"
 #include "addb/addb.h"
 
-#include "net/ksunrpc/ksunrpc.h"
+#include "ksunrpc.h"
+#include "sunrpc_io_k.h"
+#include "net/bulk_emulation/sunrpc_xprt.h"
 
 /**
    @addtogroup ksunrpc Sun RPC
@@ -29,7 +32,9 @@
 enum {
 	C2_SESSION_PROGRAM = 0x20000001,
 	C2_DEF_RPC_VER = 1,
-	KSUNRPC_XDRSIZE = 9999, /* XXX what is this really? */
+	KSUNRPC_XDRSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
+	KSUNRPC_BUFSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
+	KSUNRPC_MAXCONN = 1024,
 	SERVER_THR_NR = 8,
 	MIN_SERVER_THR_NR = 2
 };
@@ -78,6 +83,42 @@ static int ksunrpc_encode_msg_resp(void *rqstp, __be32 *data, void *obj)
 }
 
 static int ksunrpc_encode_msg_rel(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_decode_get(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_encode_get_resp(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_encode_get_rel(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_decode_put(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_encode_put_resp(void *rqstp, __be32 *data, void *obj)
+{
+	C2_IMPOSSIBLE("implement me");
+	return 0;
+}
+
+static int ksunrpc_encode_put_rel(void *rqstp, __be32 *data, void *obj)
 {
 	C2_IMPOSSIBLE("implement me");
 	return 0;
@@ -133,7 +174,7 @@ static struct svc_stat ksunrpc_svc_stats;
    Sunrpc service program information
  */
 #define KSUNRPC_NRVERS	ARRAY_SIZE(ksunrpc_versions)
-static struct svc_program	ksunrpc_program = {
+static struct svc_program ksunrpc_program = {
 	.pg_prog		= C2_SESSION_PROGRAM,
 	.pg_nvers		= C2_DEF_RPC_VER,
 	.pg_vers		= ksunrpc_versions,
@@ -145,15 +186,17 @@ static struct svc_program	ksunrpc_program = {
 
 struct ksunrpc_service {
 	/**
-	   SUNRPC transport handle for this service
+	   SUNRPC service handle for this service
 	 */
-	struct svc_xprt	       *s_transp;
-
+	struct svc_serv	       *s_serv;
+	/**
+	   SUNRPC request handle for this service
+	 */
+	struct svc_rqst	       *s_rqst;
 	/**
 	   scheduler thread handle
 	 */
 	struct c2_thread	s_scheduler_thread;
-
 	/**
 	   number of worker threads
 	 */
@@ -169,7 +212,7 @@ struct ksunrpc_service {
 	/**
 	   Service mutex, must be held across various sunrpc svc calls.
 	 */
-	struct c2_mutex         s_svc_mutex;
+	struct c2_mutex		s_svc_mutex;
 };
 
 static const struct c2_addb_loc ksunrpc_addb_server = {
@@ -214,14 +257,55 @@ static int ksunrpc_service_start(struct c2_service *service,
 				 struct ksunrpc_service_id *xid, int nr_workers)
 {
 	struct ksunrpc_service *xservice;
+	struct svc_serv *serv;
+	struct svc_xprt *xprt;
+	struct svc_rqst *rqst;
+	int rc = 0;
 
 	xservice = service->s_xport_private;
+	c2_mutex_lock(&xservice->s_svc_mutex);
+	serv = svc_create(&ksunrpc_program, KSUNRPC_BUFSIZE, NULL);
+	if (serv == NULL) {
+		printk(KERN_ERR
+		       "ksunrpc_service_start: create service failed\n");
+		rc = -ENOMEM;
+		goto done;
+	}
+	xservice->s_serv = serv;
+
+	xprt = svc_find_xprt(serv, "tcp", PF_INET, 0);
+	if (xprt != NULL) {
+		svc_xprt_put(xprt);
+	} else {
+		rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
+				     SVC_SOCK_DEFAULTS);
+		if (rc != 0)
+			goto done;
+	}
+	rqst = svc_prepare_thread(serv, &serv->sv_pools[0]);
+	if (IS_ERR(rqst)) {
+		rc = PTR_ERR(rqst);
+		printk(KERN_ERR "ksunrpc_service_start: "
+		       "svc_rqst allocation failed, error=%d\n", rc);
+		goto done;
+	}
+	xservice->s_rqst = rqst;
+	svc_sock_update_bufs(serv);
+	serv->sv_maxconn = KSUNRPC_MAXCONN;
 
 	C2_IMPOSSIBLE("implement me");
 	ksunrpc_scheduler_init(service);
 	ksunrpc_scheduler(service);
 	ksunrpc_service_worker(NULL);
-	return -ENOSYS;
+done:
+	if (rc != 0) {
+		if (xservice->s_serv != NULL) {
+			svc_destroy(xservice->s_serv);
+			xservice->s_serv = NULL;
+		}
+	}
+	c2_mutex_unlock(&xservice->s_svc_mutex);
+	return rc;
 }
 
 static void ksunrpc_service_fini(struct c2_service *service)
@@ -251,16 +335,6 @@ int ksunrpc_service_init(struct c2_service *service)
 		service->s_ops = &ksunrpc_service_ops;
 		xid = service->s_id->si_xport_private;
 		C2_ASSERT(service->s_id->si_ops == &ksunrpc_service_id_ops);
-		service->s_version
-	struct svc_version      s_version;
-	/**
-	   Service statistics
-	 */
-	struct svc_stat         s_stat;
-	/**
-	   Service program information
-	 */
-	struct svc_program      s_program;
 		if (service->s_domain->nd_xprt == &c2_net_ksunrpc_minimal_xprt)
 			num_threads = MIN_SERVER_THR_NR;
 		else

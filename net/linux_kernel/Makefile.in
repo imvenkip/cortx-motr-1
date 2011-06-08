@@ -14,7 +14,7 @@ bulk_src      := mem_xprt_xo.c
 link_bulk     := $(bulk_src:%=../bulk_emulation/%)
 
 # rename the ksunrpc files when sym linking to avoid name clashes
-depr_Ksrc     := client.c kxdr.c domain.c server.c
+depr_Ksrc     := client.c kxdr.c domain.c
 depr_ksrc     := $(depr_Ksrc:%=k%)
 depr_src      := connection.c net.c net_cli.c net_utils.c net_srv.c
 link_depr     := $(depr_src:%=../%)
@@ -23,7 +23,7 @@ sio_ff        := sunrpc_io.ff
 sio_k_h       := $(sio_ff:.ff=_k.h)
 sio_k_c       := $(sio_ff:.ff=_k.c)
 sio_k_o       := $(sio_k_c:.c=.o)
-deprbulk_lsrc := sunrpc_xprt_xo.c
+deprbulk_lsrc := sunrpc_xprt_xo.c ksunrpc_server.c
 deprbulk_src  := $(deprbulk_lsrc) $(sio_k_c)
 link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%)
 
