@@ -1271,6 +1271,10 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 		if (c2_services_are_same(conn->c_service_id,
 				item->ri_service_id)) {
 			conn_exists = true;
+			/*
+			 * If conn does not have any session then we can use
+			 * saved_conn to initiate session creation.
+			 */
 			saved_conn = conn;
 		} else {
 			continue;
@@ -1281,10 +1285,19 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 
 			c2_rpc_for_each_session(conn, session) {
 				if (session->s_session_id != SESSION_0)
+					/*
+					 * there exists a non-zero session in 
+					 * conn. So no need to trigger session
+					 * creation
+					 */
 					session_exists = true;
 
 				c2_mutex_lock(&session->s_mutex);
 
+				/*
+				 * We don't use session 0 to send anything except
+				 * session_create and session_termiante items
+				 */
 				if (session->s_state != C2_RPC_SESSION_ALIVE ||
 					session->s_session_id == SESSION_0) {
 					c2_mutex_unlock(&session->s_mutex);
@@ -1300,13 +1313,17 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item *item)
 						continue;
 
 					found = true;
+					/*
+					 * jump out of loop leaving conn and
+					 * session "locked"
+					 */
 					goto out_of_loops;
 				}
 				c2_mutex_unlock(&session->s_mutex);
-			}
+			} /* end of c2_rpc_for_each_session() */
 		}
 		c2_mutex_unlock(&conn->c_mutex);
-	}
+	}	/* end of c2_rpc_for_each_conn() */
 
 out_of_loops:
 	c2_mutex_unlock(&machine->cr_session_mutex);
@@ -1335,7 +1352,7 @@ out_of_loops:
 
 	/*
 	 * XXX Important
-	 * If there is no rpc-connection and alive session to the destination,
+	 * If there is no rpc-connection or alive session to the destination,
 	 * to send first unbound item to such a destination, will require
 	 * multiple calls to c2_rpc_session_item_prepare() until the call
 	 * returns 0.
@@ -1360,29 +1377,24 @@ out_of_loops:
 		 * and alive session.
 		 */
 		C2_ASSERT(conn_exists && session_exists);
-		printf("Slots scanned but none was available\n");
 		return -EBUSY;
 	}
 	if (session_exists && !slots_scanned) {
 		/*
 		 * This can happen only if session is present but not in
 		 * ALIVE state.
-		 * !slots_scanned is redundant part of condition.
+		 * !slots_scanned is redundant part of condition and is written
+		 * for better understanding.
 		 */
-		printf("session exists but can be 'not-ALIVE'\n");
 		return -EAGAIN;
 	}
 	if (conn_exists && !session_exists) {
-		C2_ASSERT(saved_conn != NULL);
-
-
+		C2_ASSERT(saved_conn != NULL &&
+			c2_services_are_same(saved_conn->c_service_id,
+						item->ri_service_id));
 		c2_mutex_lock(&saved_conn->c_mutex);
 
-		if (saved_conn->c_state == C2_RPC_CONN_ACTIVE &&
-			c2_services_are_same(saved_conn->c_service_id,
-						item->ri_service_id)) {
-			printf("session doesn't exists. creating one within conn %lu\n",
-				saved_conn->c_sender_id);
+		if (saved_conn->c_state == C2_RPC_CONN_ACTIVE) { 
 			C2_ALLOC_PTR(session);
 			if (session == NULL) {
 				c2_mutex_unlock(&saved_conn->c_mutex);
@@ -1391,27 +1403,32 @@ out_of_loops:
 			c2_mutex_unlock(&saved_conn->c_mutex);
 			rc = c2_rpc_session_create(session, saved_conn);
 
-			return rc != 0 ? rc : -EAGAIN;
+			return rc ?: -EAGAIN;
 		}
-		printf("conn exists but not ACTIVE\n");
+		/*
+		 * conn exists but is not ACTIVE. So cannot trigger session
+		 * creation
+		 */
 		c2_mutex_unlock(&saved_conn->c_mutex);
 		return -EAGAIN;
 	}
 	if (!conn_exists) {
-		printf("conn doesn't exist. creating one\n");
+		/*
+		 * No connection exists to the destination. create one
+		 */
+		C2_ASSERT(!session_exists && !slots_scanned);
 		C2_ALLOC_PTR(conn);
 		if (conn == NULL)
 			return -ENOMEM;
 
-		rc = c2_rpc_conn_init(conn, item->ri_service_id, item->ri_mach);
-		return rc != 0 ? rc : -EAGAIN;
+		rc = c2_rpc_conn_init(conn, item->ri_service_id, machine);
+		return rc ?: -EAGAIN;
 	}
 	/*
 	 * Control shouldn't reach here. All the cases where a slot is not
 	 * assigned are covered above.
 	 */
 	C2_ASSERT(0);
-	return -EAGAIN;
 }
 
 /**
