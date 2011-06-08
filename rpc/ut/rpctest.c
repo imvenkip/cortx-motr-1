@@ -40,8 +40,6 @@ enum {
 void init()
 {
 	struct c2_cob_domain_id dom_id = { 42 };
-	struct c2_cob			*cob = NULL;
-	struct c2_db_tx			tx;
 	int				rc;
 
 	C2_ALLOC_PTR(db);
@@ -54,14 +52,6 @@ void init()
 
 	rc = c2_cob_domain_init(dom, db, &dom_id);
 	C2_ASSERT(rc == 0);
-
-	c2_db_tx_init(&tx, db, 0);
-	rc = c2_rpc_cob_create_helper(dom, NULL, "SESSIONS", &cob, &tx);
-	C2_ASSERT(rc == 0 || rc == -EEXIST);
-	c2_db_tx_commit(&tx);
-	if(rc == 0)
-		c2_cob_put(cob);
-	cob = NULL;
 
 //	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 //	C2_ASSERT(rc == 0);
@@ -649,7 +639,7 @@ int main(void)
 
 	test_snd_conn_create();
 	test_snd_session_create();
-	test_item_prepare();
+	//test_item_prepare();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 

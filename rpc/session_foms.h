@@ -23,7 +23,7 @@
  */
 
 enum c2_rpc_fom_conn_create_phase {
-	FOPH_CONN_CREATE
+	FOPH_CONN_CREATE = FOPH_NR + 1
 };
 
 struct c2_rpc_fom_conn_create {
@@ -44,7 +44,7 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *);
  */
 
 enum c2_rpc_fom_session_create_phase {
-	FOPH_SESSION_CREATE
+	FOPH_SESSION_CREATE = FOPH_NR + 1
 };
 
 struct c2_rpc_fom_session_create {
@@ -66,7 +66,7 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *);
  */
 
 enum c2_rpc_fom_session_destroy_phase {
-	FOPH_SESSION_DESTROYING
+	FOPH_SESSION_DESTROYING = FOPH_NR + 1
 };
 
 struct c2_rpc_fom_session_destroy {
@@ -88,7 +88,7 @@ void c2_rpc_fom_session_destroy_fini(struct c2_fom *);
  */
 
 enum c2_rpc_fom_conn_terminate_phase {
-	FOPH_CONN_TERMINATING
+	FOPH_CONN_TERMINATING = FOPH_NR + 1
 };
 
 struct c2_rpc_fom_conn_terminate {

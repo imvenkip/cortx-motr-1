@@ -3,6 +3,7 @@
 #define __COLIBRI_RPC_SESSION_FOPS_H__
 
 #include "fop/fop.h"
+#include "fop/fom.h"
 
 /**
    @addtogroup rpc_session
@@ -10,10 +11,7 @@
    @{
  */
 
-struct fom;
-struct c2_fom_type;
-
-enum c2_rpc_opcodes {
+enum c2_rpc_session_opcodes {
 	C2_RPC_FOP_CONN_CREATE_OPCODE = 50,
 	C2_RPC_FOP_CONN_TERMINATE_OPCODE,
 	C2_RPC_FOP_SESSION_CREATE_OPCODE,
@@ -58,6 +56,11 @@ int c2_rpc_fop_session_destroy_fom_init(struct c2_fop	*fop,
 
 int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop	*fop,
 				       struct c2_fom 	**m);
+
+/*
+ * No fom is defined for handling reply fops.
+ * Instead each reply fop has ->fto_execute() handler defined
+ */
 
 int c2_rpc_fop_conn_create_rep_execute(struct c2_fop		*fop,
 				       struct c2_fop_ctx 	*ctx);
