@@ -428,9 +428,9 @@ void conn_status_check(void *arg)
 	c2_time_now(&timeout);
 	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
 				c2_time_nanoseconds(timeout));
-	got_event = c2_rpc_conn_timedwait(&conn, CS_CONN_ACTIVE,
+	got_event = c2_rpc_conn_timedwait(&conn, C2_RPC_CONN_ACTIVE,
 			timeout);
-	if (got_event && conn.c_state == CS_CONN_ACTIVE) {
+	if (got_event && conn.c_state == C2_RPC_CONN_ACTIVE) {
 		printf("thread: conn is active %lu\n", conn.c_sender_id);
 	} else {
 		printf("thread: time out during conn creation\n");
@@ -447,8 +447,8 @@ void test_snd_conn_create()
 
 	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
-	C2_ASSERT(conn.c_state == CS_CONN_INITIALISING ||
-			conn.c_state == CS_CONN_FAILED);
+	C2_ASSERT(conn.c_state == C2_RPC_CONN_INITIALISING ||
+			conn.c_state == C2_RPC_CONN_FAILED);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL,
 		       "conn_status_check");
@@ -481,9 +481,9 @@ static void thread_entry(void *arg)
 	c2_time_now(&timeout);
 	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
 				c2_time_nanoseconds(timeout));
-	got_event = c2_rpc_session_timedwait(&session, SESSION_ALIVE,
+	got_event = c2_rpc_session_timedwait(&session, C2_RPC_SESSION_ALIVE,
 			timeout);
-	if (got_event && session.s_state == SESSION_ALIVE) {
+	if (got_event && session.s_state == C2_RPC_SESSION_ALIVE) {
 		printf("thread: session got created %lu\n", session.s_session_id);
 	} else {
 		printf("thread: time out during session creation\n");
@@ -649,7 +649,7 @@ int main(void)
 
 	test_snd_conn_create();
 	test_snd_session_create();
-	test_item_prepare();
+	//test_item_prepare();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 
