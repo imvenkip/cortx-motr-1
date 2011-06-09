@@ -310,7 +310,7 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 /**
   Insert an rpc item to the global items cache such that it is sorted
   according to timeout
-  */
+ */
 void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item	*rpc_item;
@@ -330,7 +330,6 @@ void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 			item_inserted = true;
 			break;
 		}
-
 	}
 	if(!item_inserted) {
 		c2_list_add_after(&rpc_item->ri_linkage, &item->ri_linkage);
@@ -779,10 +778,10 @@ int main(int argc, char **argv)
 	}
 	printf("No. of items in items cache before invoking reply recd:%lu\n",
 			c2_list_length(&items_cache->ic_cache_list)); 
-	c2_rpc_form_invoke_reply_received();
+	//c2_rpc_form_invoke_reply_received();
 	printf("No. of items in items cache after invoking reply recd:%lu\n", 
 			c2_list_length(&items_cache->ic_cache_list)); 
-	c2_rpc_form_invoke_item_removed();
+	//c2_rpc_form_invoke_item_removed();
 	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;

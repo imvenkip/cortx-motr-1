@@ -75,13 +75,13 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 		void *ioseg)
 {
 	return 0;
 }
 
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 		void *iovec)
 {
 	return 0;
