@@ -1702,6 +1702,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if(!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list)) {
 		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
+	if(c2_list_is_empty(&endp_unit->isu_unformed_list)) {
+		return C2_RPC_FORM_INTEVT_STATE_FAILED;
+	}
 	printf("In state: checking\n");
 	printf("checking_state : item state = %d\n", item->ri_state);
 	ls = item->ri_state;
