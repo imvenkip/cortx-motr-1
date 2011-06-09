@@ -17,12 +17,12 @@
    @{
  */
 
-static void owner_balance(struct c2_rm_owner *o);
+static int owner_balance(struct c2_rm_owner *o);
 static void pin_remove(struct c2_rm_pin *pin);
 static int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 static int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		  struct c2_rm_loan *loan, struct c2_rm_right *right);
-static void incoming_check(struct c2_rm_incoming *in);
+static int incoming_check(struct c2_rm_incoming *in);
 static void incoming_check_local(struct c2_rm_incoming *in,
 				 struct c2_rm_right *rest);
 static void sublet_revoke(struct c2_rm_incoming *in,
@@ -278,8 +278,6 @@ static void remove_rights(struct c2_rm_incoming *in)
 			}
 		}
 		if (!c2_list_contains(&owner->ro_owned[OWOS_CACHED],
-				      &right->ri_linkage) &&
-		    !c2_list_contains(&owner->ro_owned[OWOS_HELD],
 		    		      &right->ri_linkage)) {
 			c2_list_move(&owner->ro_owned[OWOS_CACHED],
 				     &right->ri_linkage);
@@ -333,13 +331,13 @@ static int apply_policy(struct c2_rm_incoming *in)
 	case RIP_RESOURCE_TYPE_BASE:
 		break;
 	case RIP_INPLACE:
-		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
-				       rp_incoming_linkage) {
-			c2_list_move(&in->rin_want.ri_pins,
-				     &pin->rp_right_linkage);
+		c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
+					    struct c2_rm_pin,
+					    rp_incoming_linkage) {
+			pin_right = pin->rp_right;
+			pin_right->ri_ops->rro_diff(pin->rp_right,
+						    &in->rin_want);
 			pin->rp_right = &in->rin_want;
-			pin->rp_right->ri_ops->rro_diff(pin->rp_right,
-							&in->rin_want);
 			c2_list_move(&in->rin_want.ri_pins,
 				     &pin->rp_right_linkage);
 		}
@@ -349,12 +347,14 @@ static int apply_policy(struct c2_rm_incoming *in)
 	 	 * Remove all pined rights and insert right equivalent
 	 	 * to requested right.
 	 	 */
-		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
-				       rp_incoming_linkage) {
+		c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
+					    struct c2_rm_pin,
+					    rp_incoming_linkage) {
+			pin_right = pin->rp_right;
+			pin_right->ri_ops->rro_diff(pin->rp_right,
+						    &in->rin_want);
 			c2_list_move(&in->rin_want.ri_pins,
 				     &pin->rp_right_linkage);
-			pin->rp_right->ri_ops->rro_diff(pin->rp_right,
-			&in->rin_want);
 		}
 
 		remove_rights(in);
@@ -422,6 +422,22 @@ static void remote_copy(const struct c2_rm_incoming *in,
 	/*@todo locate remote domain of request
 	 * and init c2_rm_remote members */
 	//rem->rem_resource->r_ref++;
+}
+
+/**
+ * When local user gets right they are moved to held list.
+ */
+static void move_to_held(struct c2_rm_incoming *in)
+{
+	struct c2_rm_owner *owner = in->rin_owner;
+	struct c2_rm_pin   *pin;
+	struct c2_rm_pin   *pin_tmp;
+	
+	c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
+				    struct c2_rm_pin, rp_incoming_linkage) {
+		c2_list_move(&owner->ro_owned[OWOS_HELD],
+			     &pin->rp_right->ri_linkage);
+	}
 }
 
 /**
@@ -548,18 +564,19 @@ static bool local_rights_are_held(const struct c2_rm_incoming *in)
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
 
-	//if (in->rin_type != RIT_LOCAL) {
-		c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
-				       rp_incoming_linkage) {
-			right = pin->rp_right;
-			if (c2_list_contains(&owner->ro_owned[OWOS_HELD],
-					     &right->ri_linkage))
-				return true;
-		}
-	//}
+	if (in->rin_type == RIT_LOCAL)
+		return false;
+	
+	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
+			       rp_incoming_linkage) {
+		right = pin->rp_right;
+		if (c2_list_contains(&owner->ro_owned[OWOS_HELD],
+				     &right->ri_linkage))
+			return true;
+	}
+
 	return false;
 }
-
 
 
 /**
@@ -615,8 +632,10 @@ static bool right_is_empty(const struct c2_rm_right *right)
    External resource manager entry point: request a right from the resource
    owner.
  */
-void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
+int c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 {
+	int result;
+
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
 	C2_PRE(in->rin_state == RI_INITIALISED);
 	C2_PRE(c2_list_is_empty(&in->rin_pins));
@@ -627,8 +646,10 @@ void c2_rm_right_get(struct c2_rm_owner *owner, struct c2_rm_incoming *in)
 	 */
 	c2_list_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 		    &in->rin_want.ri_linkage);
-	owner_balance(owner);
+	result = owner_balance(owner);
 	c2_mutex_unlock(&owner->ro_lock);
+
+	return result;
 }
 
 /**
@@ -694,7 +715,7 @@ static void pin_remove(struct c2_rm_pin *pin)
    Goes through the lists of excited incoming and outgoing requests until all
    the excitement is gone.
  */
-static void owner_balance(struct c2_rm_owner *o)
+static int owner_balance(struct c2_rm_owner *o)
 {
 	struct c2_rm_pin	*pin;
 	struct c2_rm_pin	*pin_tmp;
@@ -705,6 +726,7 @@ static void owner_balance(struct c2_rm_owner *o)
 	struct c2_rm_incoming	*in;
 	bool			 todo;
 	int			 prio;
+	int			 result;
 
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
@@ -750,7 +772,10 @@ static void owner_balance(struct c2_rm_owner *o)
 				c2_list_move(&o->ro_incoming[prio][OQS_GROUND],
 					     &in->rin_want.ri_linkage);
 				in->rin_state = RI_CHECK;
-				incoming_check(in);
+				result = incoming_check(in);
+
+				if (result != 0)
+					return result;
 
 				if (in->rin_state == RI_SUCCESS ||
 				    in->rin_state == RI_FAILURE) {
@@ -760,6 +785,8 @@ static void owner_balance(struct c2_rm_owner *o)
 			}
 		}
 	} while (todo);
+
+	return 0;
 }
 
 /**
@@ -797,18 +824,19 @@ static int incoming_check(struct c2_rm_incoming *in)
 	 * Check for "local" wait conditions.
 	 */
 	incoming_check_local(in, &rest);
+		
+	/* Try Lock */
+	held = local_rights_are_held(in);
+	if (held && in->rin_flags & RIF_LOCAL_TRY) {
+		remove_rights(in);
+		return -EWOULDBLOCK;
+	}
 
 	if (right_is_empty(&rest)) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
 		 */
-		held = local_rights_are_held(in);
-		if (held && in->rin_flags & RIF_LOCAL_TRY) {
-			remove_rights(in);
-			return -EWOULDBLOCK;
-		}
-
 		if (held && in->rin_flags & RIF_LOCAL_WAIT) {
 			/*
 			 * conflicting held rights were found, has to
@@ -1064,10 +1092,19 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_clink     clink;
+	int		    result;
+
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
-	c2_rm_right_get(owner,in);
+
+	result = c2_rm_right_get(owner, in);
+	if (result != 0) {
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+		return result;
+	}
+
 	if (in->rin_state != RI_SUCCESS ||
 	    in->rin_state != RI_FAILURE) {
 		c2_chan_timedwait(&clink, deadline);
@@ -1086,18 +1123,24 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner,
 			 struct c2_rm_incoming *in)
 {
 	struct c2_clink clink;
+	int		result;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
-	c2_rm_right_get(owner,in);
+
+	result = c2_rm_right_get(owner, in);
+	if (result != 0) {
+		c2_clink_del(&clink);
+		c2_clink_fini(&clink);
+		return result;
+	}
+
 	if (in->rin_state != RI_SUCCESS ||
 	    in->rin_state != RI_FAILURE) {
 		c2_chan_wait(&clink);
 	}
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
-
-	printf("State %d\n",in->rin_state);
 
 	return in->rin_state != RI_SUCCESS;
 }

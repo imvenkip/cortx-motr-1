@@ -317,7 +317,7 @@ static void right_get_test3(void)
 	in.rin_type = RIT_LOCAL;
 	in.rin_policy = RIP_INPLACE;
 
-	in.rin_flags |= RIF_LOCAL_WAIT;
+	in.rin_flags |= RIF_LOCAL_TRY;
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
 	C2_ASSERT(result == 0);
@@ -329,7 +329,7 @@ static void right_get_test3(void)
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
-	inother.rin_type = RIT_LOCAL;
+	inother.rin_type = RIT_LOAN;
 	inother.rin_policy = RIP_INPLACE;
 
 	inother.rin_want.ri_datum = NARYA;
@@ -337,15 +337,15 @@ static void right_get_test3(void)
 	result = c2_rm_right_get_wait(&Sauron, &inother);
 	C2_ASSERT(result == -EWOULDBLOCK);
 
+	//c2_rm_right_put(&inother);
+	c2_list_del(&inother.rin_want.ri_linkage);
+	c2_rm_right_fini(&inother.rin_want);
+	c2_chan_fini(&inother.rin_signal);
+
 	c2_rm_right_put(&in);
 	c2_list_del(&in.rin_want.ri_linkage);
 	c2_rm_right_fini(&in.rin_want);
 	c2_chan_fini(&in.rin_signal);
-
-	c2_rm_right_put(&inother);
-	c2_list_del(&inother.rin_want.ri_linkage);
-	c2_rm_right_fini(&inother.rin_want);
-	c2_chan_fini(&inother.rin_signal);
 
 	rm_fini();
 }
