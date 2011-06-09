@@ -373,6 +373,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	 */
 
 	if (fop_ccr->rccr_rc != 0) {
+		C2_ASSERT(fop_ccr->rccr_snd_id == SENDER_ID_INVALID);
 		/*
 		 * Receiver has reported conn create failure
 		 */

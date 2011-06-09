@@ -136,7 +136,7 @@ When an item is received, following conditions are possible:
 
 
     @todo
-	- Currently sender_id and session_id are chosen to be random.
+	- Currently sender_id and session_id are chosen to be random().
 	  Is it enough?
 	- XXX <HIGH_PRIO> resend item on timeout
 	- XXX <HIGH_PRIO> report last-persistent-verno in reply item
@@ -154,7 +154,7 @@ When an item is received, following conditions are possible:
 	- slot table resize needs to be implemented.
 	- Find out how to create in-memory c2_table? And make receiver side
 	  slot table as in-memory table.
-	- Design protocol to dynamically adjust the no. of slots.
+	- Design protocol to dynamically adjust number of slots.
 	- Integrate with ADDB
  */
 

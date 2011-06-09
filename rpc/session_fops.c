@@ -200,7 +200,7 @@ int c2_rpc_fop_conn_terminate_rep_execute(struct c2_fop		*fop,
 	return 0;
 }
 
-/* 
+/*
  *  REQUEST fops
  */
 
@@ -267,7 +267,7 @@ int c2_rpc_session_fop_init(void)
 }
 
 /** @} End of rpc_session group */
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
