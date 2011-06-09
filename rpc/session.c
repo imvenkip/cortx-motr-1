@@ -1509,8 +1509,9 @@ int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
 	slot = session->s_slot_table[item->ri_slot_id];
 	C2_ASSERT(slot != NULL);
 
-	if (item->ri_slot_generation != slot->ss_generation ||
-			c2_verno_cmp(&item->ri_verno, &slot->ss_verno) != 0) {
+	if (!c2_rpc_snd_slot_is_busy(slot) ||
+	    item->ri_slot_generation != slot->ss_generation ||
+	    c2_verno_cmp(&item->ri_verno, &slot->ss_verno) != 0) {
 		rc = -1;
 		goto out;
 	}
