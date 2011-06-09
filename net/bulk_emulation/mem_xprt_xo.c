@@ -695,6 +695,7 @@ static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 	.bmo_ep_alloc                        = mem_ep_alloc,
 	.bmo_ep_free                         = mem_ep_free,
 	.bmo_ep_release                      = mem_xo_end_point_release,
+	.bmo_ep_get                          = mem_ep_get,
 	.bmo_wi_add                          = mem_wi_add,
 	.bmo_buffer_in_bounds                = mem_buffer_in_bounds,
 	.bmo_desc_create                     = mem_desc_create,

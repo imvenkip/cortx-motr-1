@@ -88,7 +88,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	if (r != NULL)
 		c2_fop_free(r);
 	if (conn != NULL)
-		c2_net_conn_release(conn);
+		sunrpc_ep_put_conn(nb->nb_ep, conn, rc);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	wi->xwi_status = rc;

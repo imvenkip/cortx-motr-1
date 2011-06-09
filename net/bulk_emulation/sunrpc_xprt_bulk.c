@@ -255,7 +255,7 @@ done:
 	if (f != NULL)
 		c2_fop_free(f);
 	if (conn != NULL)
-		c2_net_conn_release(conn);
+		sunrpc_ep_put_conn(ep, conn, rc);
 
 	return rc;
 }
@@ -338,7 +338,7 @@ done:
 	if (f != NULL)
 		c2_fop_free(f);
 	if (conn != NULL)
-		c2_net_conn_release(conn);
+		sunrpc_ep_put_conn(ep, conn, rc);
 
 	return rc;
 }

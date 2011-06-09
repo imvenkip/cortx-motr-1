@@ -790,6 +790,12 @@ int ping_init(struct ping_ctx *ctx)
 		goto fail;
 	}
 
+	if (ctx->pc_sunrpc_ep_delay >= 0 &&
+	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
+		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
+			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
+	}
+
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   &ctx->pc_nbs);
 	if (rc != 0) {

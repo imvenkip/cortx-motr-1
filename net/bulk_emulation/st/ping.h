@@ -37,6 +37,7 @@ struct ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
+	int                                   pc_sunrpc_ep_delay;
 };
 
 enum {

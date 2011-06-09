@@ -15,9 +15,22 @@ static void test_sunrpc_ep(void)
 	struct c2_net_end_point *ep1;
 	struct c2_net_end_point *ep2;
 	struct c2_net_end_point *ep3;
+	struct c2_net_end_point *ep4;
+	struct c2_net_end_point *ep5;
 	const char *addr;
+	struct c2_net_bulk_sunrpc_end_point *sep;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	c2_time_t t1;
+	c2_time_t t2;
+	c2_time_t t3;
+	uint32_t hb;
 
+	/* TEST: Multiple create calls on the same address return the
+	   same object.
+	*/
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
 	addr = "255.255.255.255:65535";
 	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &dom1, addr) == -EINVAL);
 	addr = "255.255.255.255:65535:4294967295";
@@ -38,9 +51,124 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep3->nep_ref.ref_cnt) == 3);
 	C2_UT_ASSERT(ep1 == ep3);
 
+	/* TEST: end points cached internally if connections were used */
+
+	/* fake a "touch" on the end point to induce caching */
+	sep = sunrpc_ep_to_pvt(ep1);
+	c2_time_now(&t1);
+	c2_atomic64_set(&sep->xep_last_use, t1);
+
+	/* release the EP references */
 	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
 	C2_UT_ASSERT(!c2_net_end_point_put(ep3));
+
+	/* The EP is still cached because the default delay is about 20 sec */
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
+	C2_UT_ASSERT(c2_list_contains(&dom1.nd_end_points,
+				      &ep1->nep_dom_linkage));
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 0);
+
+	/* should be able to get the same end point */
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep4, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep4->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep4->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(ep1 == ep4);
+
+	/* touch and release it */
+	sep = sunrpc_ep_to_pvt(ep4);
+	c2_time_now(&t1);
+	c2_atomic64_set(&sep->xep_last_use, t1);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep4));
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
+	C2_UT_ASSERT(c2_list_contains(&dom1.nd_end_points,
+				      &ep4->nep_dom_linkage));
+	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 0);
+
+	/* TEST: caching only works if the last use is non zero */
+	addr = "255.255.255.255:65535:1234";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep5, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep5->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep5->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep5->nep_ref.ref_cnt) == 1);
+	sep = sunrpc_ep_to_pvt(ep5);
+	C2_UT_ASSERT(c2_atomic64_get(&sep->xep_last_use) == 0);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep5)); /* not cached */
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
+	C2_UT_ASSERT(!c2_list_contains(&dom1.nd_end_points,
+				       &ep5->nep_dom_linkage));
+
+	/* fini still works because the cache gets flushed */
+	c2_net_domain_fini(&dom1);
+
+	/* TEST: End point caching can be disabled. The act of
+	   disabling flushes cached end points.
+	*/
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
+
+	addr = "255.255.255.255:65535:3534";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	sep = sunrpc_ep_to_pvt(ep1);
+	c2_time_now(&t1);
+	c2_atomic64_set(&sep->xep_last_use, t1);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
+
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 0);
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == 0);
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* flushed */
+
+	addr = "255.255.255.255:65535:3535";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	sep = sunrpc_ep_to_pvt(ep1);
+	c2_time_now(&t1);
+	c2_atomic64_set(&sep->xep_last_use, t1);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* not cached */
+
+	c2_net_domain_fini(&dom1);
+
+	/* TEST: skulker thread cleans up the cache */
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == 1000);
+
+	dp = sunrpc_dom_to_pvt(&dom1);
+	while (dp->xd_skulker_hb == 0)
+		sleep(1); /* wait until skulker thread starts */
+
+	addr = "255.255.255.255:65535:9876";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	sep = sunrpc_ep_to_pvt(ep1);
+	c2_time_now(&t1);
+	c2_time_set(&t2, 1001, 0);
+	t3 = c2_time_sub(t1, t2);  /* now - 1001 */
+	c2_atomic64_set(&sep->xep_last_use, t3);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1); /* cached */
+
+	/* force the skulker thread to wakeup */
+	hb = dp->xd_skulker_hb;
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
+	while (dp->xd_skulker_hb == hb)
+		sleep(1); /* wait for the skulker heartbeat to advance */
+	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* flushed */
 
 	c2_net_domain_fini(&dom1);
 }

@@ -15,6 +15,48 @@
 static const char *c2_net_bulk_sunrpc_uuid_fmt = "BulkSunrpc-%d";
 
 /**
+   Subroutine to be invoked by the domain skulker thread to
+   age cached end points.
+   @param dom The domain pointer.  The domain mutex is held.
+   @param now The epoch time value, or C2_TIME_NEVER to force the aging.
+ */
+static void sunrpc_skulker_process_end_points(struct c2_net_domain *dom,
+					      c2_time_t now)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	struct c2_net_end_point *ep;
+	struct c2_net_end_point *ep_next;
+	struct c2_net_bulk_sunrpc_end_point *sep;
+	c2_time_t free_if_before;
+	c2_time_t t;
+
+	C2_PRE(c2_mutex_is_locked(&dom->nd_mutex));
+
+	dp = sunrpc_dom_to_pvt(dom);
+	if (dp->xd_ep_release_delay == 0)
+		now = C2_TIME_NEVER; /* switched off: force aging */
+	if (now != C2_TIME_NEVER) {
+		free_if_before = now - dp->xd_ep_release_delay;
+	} else {
+		free_if_before = C2_TIME_NEVER; /* force aging */
+	}
+	/* walk the ep list, potentially deleting entries as we go */
+	c2_list_for_each_entry_safe(&dom->nd_end_points, ep, ep_next,
+				    struct c2_net_end_point,
+				    nep_dom_linkage) {
+		sep = sunrpc_ep_to_pvt(ep);
+		t = c2_atomic64_get(&sep->xep_last_use);
+		if (c2_time_after(t, free_if_before))
+			continue;
+		c2_ref_get(&ep->nep_ref);
+		c2_atomic64_set(&sep->xep_last_use, 0);
+		/* Release the reference, potentially freeing the entry */
+		c2_ref_put(&ep->nep_ref);
+	}
+	return;
+}
+
+/**
    End point release subroutine for sunrpc.
    It corresponds to the base transports mem_xo_end_point_release
    subroutine.
@@ -33,6 +75,15 @@ static void sunrpc_xo_end_point_release(struct c2_ref *ref)
 	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
 	sep = sunrpc_ep_to_pvt(ep);
 	dp = sunrpc_dom_to_pvt(ep->nep_dom);
+
+	/* If end point release delay is enabled, we delay the release if the
+	   connection last_use time is set.
+	   Note that this feature relies on logic in the underlying sunrpc
+	   transport to silently reset a stale CLIENT structure on ECONNRESET.
+	*/
+	if (dp->xd_ep_release_delay != 0 &&
+	    c2_atomic64_get(&sep->xep_last_use) > 0)
+		return;
 
 	/* free the conn and sid */
 	if (sep->xep_conn_created) {
@@ -90,6 +141,7 @@ static struct c2_net_bulk_mem_end_point *sunrpc_ep_alloc(void)
 {
 	struct c2_net_bulk_sunrpc_end_point *sep = c2_alloc(sizeof *sep);
 	sep->xep_magic = C2_NET_BULK_SUNRPC_XEP_MAGIC;
+	c2_atomic64_set(&sep->xep_last_use, 0);
 	return &sep->xep_base; /* base pointer required */
 }
 
@@ -103,6 +155,14 @@ static void sunrpc_ep_free(struct c2_net_bulk_mem_end_point *mep)
 	C2_ASSERT(sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC);
 	sep->xep_magic = 0;
 	c2_free(sep);
+}
+
+static void sunrpc_ep_get(struct c2_net_end_point *ep)
+{
+	/* Directly obtain the ref count to avoid the non-zero ref count
+	   assertion in c2_net_end_point_get().
+	*/
+	c2_ref_get(&ep->nep_ref);
 }
 
 /**
@@ -166,7 +226,7 @@ static int sunrpc_ep_create(struct c2_net_end_point **epp,
    transfer machine mutex.
 
    The caller is responsible for releasing the connection with the
-   c2_net_conn_release() subroutine.
+   sunrpc_ep_put_conn() subroutine.
 
    @param ep End point pointer
    @param conn Returns the connection.
@@ -204,6 +264,35 @@ static int sunrpc_ep_get_conn(struct c2_net_end_point *ep,
 
 	C2_POST(ergo(rc == 0, sep->xep_conn_created));
 	return rc;
+}
+
+/**
+   Release the c2_net_conn structure returned by sunrpc_ep_get_conn().
+   The subroutine records the time the connection was released.
+   The end point will be cached for a while after last use, unless the
+   error code is non-zero.
+   @param ep End point pointer
+   @param conn The connection.
+   @param rc  The error code encountered during use.
+ */
+static void sunrpc_ep_put_conn(struct c2_net_end_point *ep,
+			       struct c2_net_conn *conn,
+			       int rc)
+{
+	struct c2_net_bulk_sunrpc_end_point *sep;
+	c2_time_t t;
+	sep = sunrpc_ep_to_pvt(ep);
+	C2_PRE(sunrpc_ep_invariant(ep));
+
+	c2_net_conn_release(conn);
+
+	if (rc == 0)
+		c2_time_now(&t);
+	else
+		t = 0;
+	C2_CASSERT(sizeof t == sizeof sep->xep_last_use);
+	c2_atomic64_set(&sep->xep_last_use, t);
+	return;
 }
 
 /**

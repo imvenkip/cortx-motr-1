@@ -260,6 +260,12 @@ struct c2_net_bulk_mem_ops {
 	 */
 	void (*bmo_ep_release)(struct c2_ref *ref);
 
+	/** Subroutine to obtain a persistent reference to an end point
+	    on the end point list.  This is to aid derived transports that
+	    cache end points.
+	*/
+	void (*bmo_ep_get)(struct c2_net_end_point *ep);
+
 	/** Subroutine to add a work item to the work list */
 	void (*bmo_wi_add)(struct c2_net_bulk_mem_work_item *wi,
 			   struct c2_net_bulk_mem_tm_pvt *tp);

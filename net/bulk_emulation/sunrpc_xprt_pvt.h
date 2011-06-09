@@ -8,6 +8,7 @@
    @{
 */
 
+#include "lib/time.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 
 enum {

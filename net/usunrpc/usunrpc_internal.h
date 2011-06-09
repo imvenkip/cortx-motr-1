@@ -90,6 +90,7 @@ int  usunrpc_service_init(struct c2_service *service);
 extern const struct c2_service_id_ops usunrpc_service_id_ops;
 extern const struct c2_net_conn_ops usunrpc_conn_ops;
 extern const struct c2_service_ops usunrpc_service_ops;
+extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
 
 /** @} end of group usunrpc */
 

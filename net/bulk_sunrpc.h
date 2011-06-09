@@ -42,6 +42,32 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
 					     *tm);
 
 /**
+   Control how long unused end points are cached before release.
+
+   The delay allows potential reuse of the underlying network connection at a
+   later time.  This avoids exhaustion of the local dynamic port space,
+   as a port normally goes into TIMED_WAIT when the socket closes and won't
+   be made available for reuse until much later.  It also has the added
+   benefit of reducing the number of TCP connections established.
+
+   @param dom The domain pointer.
+   @param secs The duration of the delay in seconds.  Specify 0 for no
+   delay.  The default is to delay.
+   @pre secs >= 0
+ */
+void
+c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
+						   int secs);
+
+/**
+   Return the end point release delay value.
+   @param dom The domain pointer.
+   @retval secs Returns the seconds of delay, or 0 if delay is disabled.
+*/
+int
+c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
+
+/**
    @}
 */
 

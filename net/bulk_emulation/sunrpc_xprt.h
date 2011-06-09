@@ -35,6 +35,7 @@ enum {
 	C2_NET_BULK_SUNRPC_XEP_MAGIC  = 0x53756e7270634550ULL,
 	C2_NET_BULK_SUNRPC_XBP_MAGIC  = 0x53756e7270634250ULL,
 	C2_NET_BULK_SUNRPC_TM_THREADS = 2,
+	C2_NET_BULK_SUNRPC_EP_DELAY_S = 20, /* in seconds */
 };
 
 /** Domain private data. */
@@ -49,6 +50,21 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 
 	/** The user or kernel space sunrpc domain */
         struct c2_net_domain              xd_rpc_dom;
+
+	/** The delay before releasing an EP */
+	c2_time_t                         xd_ep_release_delay;
+
+	/** The skulker thread */
+	struct c2_thread                  xd_skulker_thread;
+
+	/** Skulker CV */
+	struct c2_cond                    xd_skulker_cv;
+
+	/** Skulker control */
+	bool                              xd_skulker_run;
+
+	/** Skulker heart beat counter (for UT) */
+	uint32_t                          xd_skulker_hb;
 };
 
 /**
@@ -128,6 +144,16 @@ struct c2_net_bulk_sunrpc_end_point {
 
 	/** Service id */
 	struct c2_service_id             xep_sid;
+
+	/** The time the connection was last used, and used to
+	    control the duration of end point caching.
+	    A value of C2_NEVER implies that the connection encountered
+	    an error and hence the end point should not be cached.
+
+	    The value is maintained as an atomic variable to avoid
+	    the need to acquire the domain mutex when setting the value.
+	*/
+	struct c2_atomic64               xep_last_use;
 };
 
 /**

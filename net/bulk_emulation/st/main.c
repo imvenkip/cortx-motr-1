@@ -164,6 +164,7 @@ struct client_params {
 	int passive_size;
 	const char *local_host;
 	const char *remote_host;
+	int sunrpc_ep_delay;
 };
 
 void client(struct client_params *params)
@@ -185,7 +186,8 @@ void client(struct client_params *params)
 		.pc_ident = ident,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
-		}
+		},
+		.pc_sunrpc_ep_delay = params->sunrpc_ep_delay,
 	};
 
 	if (params->xprt->px_3part_addr) {
@@ -250,6 +252,7 @@ int main(int argc, char *argv[])
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
+	int                      sunrpc_ep_delay = -1;
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
@@ -277,6 +280,8 @@ int main(int argc, char *argv[])
 				     "list supported transports.",
 				     LAMBDA(void, (const char *str) {
 						     xprt_name = str; })),
+			C2_FORMATARG('E', "sunrpc endpoint release delay",
+				     "%i", &sunrpc_ep_delay),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -344,6 +349,7 @@ int main(int argc, char *argv[])
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
+		sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
@@ -380,6 +386,7 @@ int main(int argc, char *argv[])
 			params[i].passive_size = passive_size;
 			params[i].local_host = local_name;
 			params[i].remote_host = remote_name;
+			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,

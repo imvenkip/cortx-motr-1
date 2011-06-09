@@ -67,12 +67,13 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	C2_PRE(c2_mutex_is_locked(&c2_net_mutex));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_tms));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
-	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
 	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 		dom->nd_xprt = NULL;
 	}
+	/* allow xo_dom_fini to flush end point caches */
+	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 	c2_addb_ctx_fini(&dom->nd_addb);
 	dom->nd_xprt_private = NULL;
 
