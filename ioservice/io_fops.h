@@ -22,10 +22,10 @@ enum c2_io_service_opcodes {
 /**
  * Helper functions to operate on fops. Used in rpc formation.
  */
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 		void *seg);
 
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop *res_fop,
+int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 		void *vec);
 
 

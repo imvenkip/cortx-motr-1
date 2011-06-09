@@ -115,6 +115,15 @@
       not needed any more.
  */
 
+/*XXX For testing. */
+struct c2_rpc_form_ut_thread_reftrack {
+	struct c2_thread_handle		handle;
+	int				refcount;
+};
+
+struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[256];
+int	n_ut_threads;
+
 /**
    This structure is an internal data structure which builds up the
    summary form of data for all endpoints.
@@ -144,9 +153,9 @@ bool c2_rpc_form_wait_for_completion();
  */
 struct c2_rpc_form_fid_units {
 	/** Linkage into list of similar requests with same fid and intent. */
-	struct c2_list_link		fu_linkage;
+	struct c2_list_link		 fu_linkage;
 	/** Member rpc item. */
-	struct c2_rpc_item		fu_item;
+	struct c2_rpc_item		*fu_item;
 };
 
 /**
@@ -411,9 +420,9 @@ struct c2_rpc_form_item_coalesced {
  */
 struct c2_rpc_form_item_coalesced_member {
 	/** Linkage into list of such member rpc items. */
-	struct c2_list_link		im_linkage;
+	struct c2_list_link		 im_linkage;
 	/** c2_rpc_item */
-	struct c2_rpc_item		im_member_item;
+	struct c2_rpc_item		*im_member_item;
 };
 
 /**
@@ -894,7 +903,7 @@ typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
    next_state = stateTable[current_state][current_event]
  */
 stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS] = {
+[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS-1] = {
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
@@ -993,7 +1002,7 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
    by creating a new fop calling new fop op
  */
 int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item,
+		struct c2_rpc_item **res_item,
 		struct c2_fop_io_vec *vec);
 
 /**
@@ -1003,7 +1012,7 @@ int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
    by creating a new fop calling new fop op
  */
 int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item *res_item,
+		struct c2_rpc_item **res_item,
 		struct c2_fop_segment_seq *seg);
 
 /**
