@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nathan Rutman, Nikita Danilov
+ * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 06/15/2010
  */
 

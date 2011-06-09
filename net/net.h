@@ -14,7 +14,9 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov, Nikita Danilov, Carl Braganza
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Carl Braganza <Carl_Braganza@us.xyratex.com>
  * Original creation date: 04/01/2010
  */
 

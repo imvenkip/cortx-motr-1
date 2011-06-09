@@ -14,13 +14,11 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: $NAME
- * Original creation date: MM/DD/YYYY
  */
 /*
  * Copyright 2010 ClusterStor.
  *
- * Nikita Danilov.
+ * Nikita Danilov
  */
 #ifndef CHS_H
 #define CHS_H

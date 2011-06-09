@@ -13,7 +13,9 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov, Nikita Danilov, Huang Hua
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 05/14/2010
  */
 

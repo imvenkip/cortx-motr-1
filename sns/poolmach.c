@@ -1,4 +1,3 @@
-#ifdef HAVE_CONFIG_H
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -9,14 +8,16 @@
  * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
  * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
  * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
-
+ *
  * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
-
- * Original author: $NAME
- * Original creation date: MM/DD/YYYY
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/28/2010
  */
+
+#ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 

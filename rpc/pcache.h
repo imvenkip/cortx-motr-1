@@ -13,7 +13,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
  * Original creation date: 05/12/2010
  */
 

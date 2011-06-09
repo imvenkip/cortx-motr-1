@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Rajesh Bhalerao, Nikita Danilov
+ * Original author: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 02/18/2011
  */
 

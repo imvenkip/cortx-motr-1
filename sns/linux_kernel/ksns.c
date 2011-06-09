@@ -13,8 +13,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: $NAME
- * Original creation date: MM/DD/YYYY
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 11/03/2010
  */
 
 void __sns_dummy_foo(void)

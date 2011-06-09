@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Rajesh Bhalerao
+ * Original author: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
  * Original creation date: 03/11/2011
  */
 

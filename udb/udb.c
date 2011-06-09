@@ -13,7 +13,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Huang Hua
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 01/04/2011
  */
 

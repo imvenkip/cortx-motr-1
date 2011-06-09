@@ -13,7 +13,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya
+ * Original author: Subhash Arya <Subhash Arya@xyratex.com>
  * Original creation date: 06/02/2011
  */
 

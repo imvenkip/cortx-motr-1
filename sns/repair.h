@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov, Huang Hua
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 03/30/2010
  */
 

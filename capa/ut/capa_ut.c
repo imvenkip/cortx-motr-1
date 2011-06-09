@@ -13,7 +13,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Belinko
+ * Original author: Anatoliy Belinko <Anatoliy_Belinko@xyratex.com>
  * Original creation date: 01/24/2011
  */
 

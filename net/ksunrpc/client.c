@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Huang Hua
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 05/30/2010
  */
 
@@ -420,7 +420,7 @@ static void __exit kernel_sunrpc_fini(void)
 module_init(kernel_sunrpc_init)
 module_exit(kernel_sunrpc_fini)
 
-MODULE_AUTHOR("Huang Hua <hua.huang@clusterstor.com>");
+MODULE_AUTHOR("Huang Hua <Hua_Huang@xyratex.com>");
 MODULE_DESCRIPTION("C2 Kernel Client RPC");
 MODULE_LICENSE("GPL");
 

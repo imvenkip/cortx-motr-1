@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov, Dave Cohrs
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
  * Original creation date: 05/01/2010
  */
 
