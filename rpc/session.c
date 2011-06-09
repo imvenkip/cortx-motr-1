@@ -1615,21 +1615,16 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 	if (rc != 0)
 		goto out;
 
-	printf("cache_insert: current slot ver: %lu\n",
-			slot_cob->co_fabrec.cfb_version.vn_vc);
-
 	/*
-	 * When integrated with fol assign proper lsn
+	 * XXX When integrated with fol assign proper lsn
 	 * instead of just increamenting it
 	 */
 	slot_cob->co_fabrec.cfb_version.vn_lsn++;
 	slot_cob->co_fabrec.cfb_version.vn_vc++;
 
 	rc = c2_cob_update(slot_cob, NULL, &slot_cob->co_fabrec, tx);
-	if (rc != 0) {
-		printf("cache_insert: failed to update cob %d\n", rc);
+	if (rc != 0)
 		goto out;
-	}
 
 	c2_cob_put(slot_cob);
 
@@ -1673,7 +1668,6 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 	//C2_ASSERT(reply->ri_mach != NULL);
 	reply->ri_mach = req->ri_mach;
 
-	printf("Called prepare reply item\n");
 	reply->ri_sender_id = req->ri_sender_id;
 	reply->ri_session_id = req->ri_session_id;
 	reply->ri_slot_id = req->ri_slot_id;
@@ -1686,8 +1680,6 @@ int c2_rpc_session_reply_prepare(struct c2_rpc_item	*req,
 	 */
 	if (req->ri_session_id != SESSION_ID_NOSESSION) {
 		c2_rpc_reply_cache_insert(reply, tx);
-	} else {
-		printf("it's conn create/terminate req. not caching reply\n");
 	}
 	return 0;
 }
