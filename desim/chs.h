@@ -18,7 +18,7 @@
 /*
  * Copyright 2010 ClusterStor.
  *
- * Nikita Danilov
+ * Nikita Danilov.
  */
 #ifndef CHS_H
 #define CHS_H
