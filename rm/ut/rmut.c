@@ -350,6 +350,65 @@ static void right_get_test3(void)
 	rm_fini();
 }
 
+static struct c2_rm_domain server;
+static struct c2_rm_domain client;
+static struct rings S;
+static struct rings C0;
+
+static struct c2_rm_resource_type rts = {
+	.rt_ops  = &rings_rtype_ops,
+	.rt_name = "rm ut resource type",
+	.rt_id   = 1
+};
+
+static struct c2_rm_resource_type rtc = {
+	.rt_ops  = &rings_rtype_ops,
+	.rt_name = "rm ut resource type",
+	.rt_id   = 2
+};
+
+
+static void rm_server_init(void)
+{
+	c2_rm_domain_init(&server);
+	c2_rm_type_register(&server, &rts);
+	c2_rm_resource_add(&rts, &S.rs_resource);
+	c2_rm_right_init(&everything);
+	everything.ri_ops = &rings_right_ops;
+	everything.ri_datum = ALLRINGS;
+	Sauron.ro_state = ROS_FINAL;
+	c2_rm_owner_init_with(&Sauron, &S.rs_resource, &everything);
+}
+
+static void rm_server_fini(void)
+{
+	Sauron.ro_state = ROS_FINAL;
+	c2_list_del(&everything.ri_linkage);
+	c2_rm_owner_fini(&Sauron);
+	c2_rm_right_fini(&everything);
+	c2_rm_resource_del(&S.rs_resource);
+	c2_rm_type_deregister(&rts);
+	c2_rm_domain_fini(&server);
+}
+
+static void rm_client_init(void)
+{
+	c2_rm_domain_init(&client);
+	c2_rm_type_register(&client, &rtc);
+	c2_rm_resource_add(&rtc, &C0.rs_resource);
+	elves.ro_state = ROS_FINAL;
+	c2_rm_owner_init(&elves, &C0.rs_resource);
+}
+
+static void rm_client_fini(void)
+{
+	elves.ro_state = ROS_FINAL;
+	c2_rm_owner_fini(&elves);
+	c2_rm_resource_del(&C0.rs_resource);
+	c2_rm_type_deregister(&rtc);
+	c2_rm_domain_fini(&client);
+}
+
 /**
    <b>Intent mode.</b>
 
@@ -361,8 +420,12 @@ static void right_get_test3(void)
  */
 static void intent_mode_test(void)
 {
-}
+	rm_server_init();
+	rm_client_init();
 
+	rm_server_fini();
+	rm_client_fini();
+}
 
 /**
    <b>WBC mode.</b>
