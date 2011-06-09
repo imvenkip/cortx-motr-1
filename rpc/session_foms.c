@@ -440,32 +440,23 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 		goto errout;
 
 	rc = c2_rpc_rcv_session_lookup(conn_cob, session_id, &session_cob, tx);
-	if (rc != 0) {
-		c2_cob_put(conn_cob);
-		goto errout;
-	}
+	if (rc != 0)
+		goto err_put_conn;
 
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
 		rc = c2_rpc_rcv_slot_lookup(session_cob, i, 0, &slot_cob, tx);
-		if (rc != 0) {
-			c2_cob_put(session_cob);
-			c2_cob_put(conn_cob);
-			goto errout;
-		}
+		if (rc != 0)
+			goto err_put_session;
+
 		rc = c2_cob_delete(slot_cob, tx);
-		if (rc != 0) {
-			c2_cob_put(session_cob);
-			c2_cob_put(conn_cob);
-			goto errout;
-		}
+		if (rc != 0)
+			goto err_put_session;
+
 		slot_cob = NULL;
 	}
 	rc = c2_cob_delete(session_cob, tx);
-	if (rc != 0) {
-		c2_cob_put(session_cob);
-		c2_cob_put(conn_cob);
-		goto errout;
-	}
+	if (rc != 0)
+		goto err_put_session;
 
 	c2_list_for_each_entry(&machine->cr_rcache.rc_item_list, item,
 				struct c2_rpc_item, ri_rc_link) {
@@ -483,6 +474,10 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	printf("Session destroy successful\n");
 	return FSO_AGAIN;
 
+err_put_session:
+	c2_cob_put(session_cob);
+err_put_conn:
+	c2_cob_put(conn_cob);
 errout:
 	C2_ASSERT(rc != 0);
 
@@ -671,7 +666,6 @@ errout:
 
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)
 {
-	printf("conn create fini called\n");
 }
 
 /** @} End of rpc_session group */

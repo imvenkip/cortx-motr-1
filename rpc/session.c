@@ -1705,11 +1705,10 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	struct c2_cob_domain			*dom;
 	struct c2_table				*inmem_slot_table;
 	struct c2_rpc_slot_table_key		key;
-	/* pair for inmem slot table */
-	struct c2_db_pair			im_pair;
+	struct c2_db_pair			pair;
 	struct c2_rpc_inmem_slot_table_value	inmem_slot;
 	struct c2_db_tx				tx;
-	struct c2_rpc_item			*citem;	/* cached rpc item */
+	struct c2_rpc_item			*citem = NULL;	/* cached rpc item */
 	struct c2_cob				*slot_cob = NULL;
 	enum c2_rpc_session_seq_check_result	rc = SCR_ERROR;
 	int					undoable;
@@ -1717,19 +1716,15 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	bool					slot_is_busy;
 	int					err;
 
-	printf("item_received called\n");
 	C2_PRE(item != NULL);
-
 	*reply_out = NULL;
 
 	/*
 	 * No seq check for items with session_id SESSION_ID_NOSESSION
 	 *	e.g. rpc_conn_create request
 	 */
-	if (item->ri_session_id == SESSION_ID_NOSESSION) {
-		printf("Item out of session. Accepting item\n");
+	if (item->ri_session_id == SESSION_ID_NOSESSION)
 		return SCR_ACCEPT_ITEM;
-	}
 
 	machine = item->ri_mach;
 	C2_ASSERT(machine != NULL);
@@ -1740,7 +1735,7 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	inmem_slot_table = machine->cr_rcache.rc_inmem_slot_table;
 
 	/*
-	 * Read persistent slot table value
+	 * Is slot already busy?
 	 */
 	key.stk_sender_id = item->ri_sender_id;
 	key.stk_session_id = item->ri_session_id;
@@ -1756,28 +1751,19 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	/*
 	 * Read in memory slot table value
 	 */
-	c2_db_pair_setup(&im_pair, inmem_slot_table, &key, sizeof key,
+	c2_db_pair_setup(&pair, inmem_slot_table, &key, sizeof key,
 				&inmem_slot, sizeof inmem_slot);
-	err = c2_table_lookup(&tx, &im_pair);
+	err = c2_table_lookup(&tx, &pair);
 	if (err != 0) {
-		printf("err occured while reading inmem_slot_tbl %d [%lu:%lu:%u:%lu]\n", err,
-			item->ri_sender_id, item->ri_session_id, item->ri_slot_id,
-			item->ri_slot_generation);
 		rc = SCR_SESSION_INVALID;
 		goto errabort;
 	}
-	printf("item_received: slot.busy %d\n", (int)inmem_slot.istv_busy);
 
 	err = c2_rpc_rcv_slot_lookup_by_item(dom, item, &slot_cob, &tx);
 	if (err != 0) {
 		rc = SCR_ERROR;
 		goto errabort;
 	}
-
-	printf("Current slot verno: [%lu:%lu]\n", slot_cob->co_fabrec.cfb_version.vn_lsn,
-			slot_cob->co_fabrec.cfb_version.vn_vc);
-	printf("Current item verno: [%lu:%lu]\n", item->ri_verno.vn_lsn,
-			item->ri_verno.vn_vc);
 
 	C2_ASSERT(slot_cob->co_valid & CA_FABREC);
 
@@ -1790,12 +1776,11 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 	if (undoable == 0) {
 		bool		found = false;
 
-		citem = NULL; /* XXX Huh? */
 		/*
-		 * Search reply in reply cache list
+		 * Reply should be fetched from reply cache
 		 */
 		c2_list_for_each_entry(&machine->cr_rcache.rc_item_list,
-		    item, struct c2_rpc_item, ri_rc_link) {
+		    citem, struct c2_rpc_item, ri_rc_link) {
 			if (citem->ri_sender_id == item->ri_sender_id &&
 			    citem->ri_session_id == item->ri_session_id &&
 			    citem->ri_slot_id == item->ri_slot_id &&
@@ -1812,38 +1797,45 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 		 * one and should be enabled
 		 */
 		//C2_ASSERT(found);
-		printf("item_received: reply fetched from reply cache\n");
 	} else {
 		if (redoable == 0) {
 			if (slot_is_busy) {
-				printf("request already in progress\n");
+				/*
+				 * Same item is already in process.
+				 */
 				rc = SCR_IGNORE_ITEM;
 			} else {
-				/* Mark slot as busy and accept the item */
+				/*
+				 * Mark slot as busy and accept the item
+				 */
 				inmem_slot.istv_busy = true;
-				err = c2_table_update(&tx, &im_pair);
+				err = c2_table_update(&tx, &pair);
 				if (err != 0)
 					goto errabort;
 				rc = SCR_ACCEPT_ITEM;
-				printf("item accepted\n");
 			}
 		} else if (redoable == -EALREADY || redoable == -EAGAIN) {
-			printf("misordered entry\n");
+			/*
+			 * This is misordered entry
+			 */
 			rc = SCR_SEND_ERROR_MISORDERED;
 		}
 	}
 
 errabort:
-	if (rc == SCR_ERROR || rc == SCR_SESSION_INVALID)
-		c2_db_tx_abort(&tx);
-	else
+	/*
+	 * state of slot is marked as busy only in case item is accepted
+	 */
+	if (rc == SCR_ACCEPT_ITEM)
 		c2_db_tx_commit(&tx);
+	else
+		c2_db_tx_abort(&tx);
 
 	if (slot_cob != NULL)
 		c2_cob_put(slot_cob);
 
-	c2_db_pair_release(&im_pair);
-	c2_db_pair_fini(&im_pair);
+	c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
 errout:
 	return rc;
 }
