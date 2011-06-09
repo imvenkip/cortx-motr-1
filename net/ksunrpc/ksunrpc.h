@@ -51,6 +51,9 @@ struct ksunrpc_conn {
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_net_call *call);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
+
+int c2_svc_rqst_dec(void *rqstp, __be32 *data, struct c2_fop *arg);
+int c2_svc_rqst_enc(void *rqstp, __be32 *data, struct c2_fop *arg);
 /* #else __KERNEL__ */
 #else
 # include <netinet/in.h>

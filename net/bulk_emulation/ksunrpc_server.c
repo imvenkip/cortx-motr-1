@@ -119,87 +119,55 @@ static int ksunrpc_authenticate(struct svc_rqst *req)
 	return SVC_OK;
 }
 
-static __be32 ksunrpc_proc_msg(struct svc_rqst *req, void *argp, void *resp)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static __be32 ksunrpc_proc_get(struct svc_rqst *req, void *argp, void *resp)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static __be32 ksunrpc_proc_put(struct svc_rqst *req, void *argp, void *resp)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-/*
- * This is the generic XDR function. rqstp is either a rpc_rqst (client
- * side) or svc_rqst pointer (server side).
- * Encode functions always assume there's enough room in the buffer.
+/**
+   Process a single RPC request.
  */
-static int ksunrpc_decode_msg(void *rqstp, __be32 *data, void *obj)
+static int ksunrpc_proc(struct c2_service *service,
+			struct c2_fop *arg, struct c2_fop **ret)
 {
-	C2_IMPOSSIBLE("implement me");
-	return 0;
+        bool sleeping = false;
+	c2_net_domain_stats_collect(service->s_domain, NS_STATS_IN,
+				    arg->f_type->ft_top->fft_layout->fm_sizeof,
+				    &sleeping);
+	*ret = NULL;
+	return service->s_handler(service, arg, ret);
 }
 
-static int ksunrpc_encode_msg_resp(void *rqstp, __be32 *data, void *obj)
+static int ksunrpc_op(struct c2_service *service,
+		      struct c2_fop_type *fopt, struct svc_rqst *req)
 {
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
+	struct c2_fop *arg;
+	struct c2_fop *ret;
+	int rc;
 
-static int ksunrpc_encode_msg_rel(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
+	arg = c2_fop_alloc(fopt, NULL);
+	if (arg != NULL) {
+		struct kvec *argv = &req->rq_arg.head[0];
+		struct kvec *resv = &req->rq_res.head[0];
 
-static int ksunrpc_decode_get(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static int ksunrpc_encode_get_resp(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static int ksunrpc_encode_get_rel(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static int ksunrpc_decode_put(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static int ksunrpc_encode_put_resp(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static int ksunrpc_encode_put_rel(void *rqstp, __be32 *data, void *obj)
-{
-	C2_IMPOSSIBLE("implement me");
-	return 0;
-}
-
-static void ksunrpc_op(struct c2_service *service,
-		       struct c2_fop_type *fopt, struct svc_rqst *req)
-{
-	C2_IMPOSSIBLE("implement me");
+		rc = c2_svc_rqst_dec(req, argv->iov_base, arg);
+		if (rc == 0) {
+			rc = ksunrpc_proc(service, arg, &ret);
+			if (rc == 0) {
+				rc = c2_svc_rqst_enc(req,
+					resv->iov_base+resv->iov_len, ret);
+				if (rc != 0)
+					ADDB_CALL(service, "rqst_enc", 0);
+			} else {
+				ADDB_CALL(service, "ksunrpc_proc", 0);
+			}
+			c2_fop_free(ret);
+			c2_fop_free(arg);
+		} else {
+			ADDB_CALL(service, "rqst_dec", 0);
+		}
+		if (rc != 0)
+			c2_fop_free(arg);
+	} else {
+		ADDB_ADD(service, c2_addb_oom);
+		rc = -ENOMEM;
+	}
+	return rc;
 }
 
 static int ksunrpc_dispatch(struct svc_rqst *req, __be32 *statp)
@@ -224,14 +192,17 @@ static int ksunrpc_dispatch(struct svc_rqst *req, __be32 *statp)
 	tab = &service->s_table;
 	if (tab->not_start <= req->rq_proc &&
 	    req->rq_proc < tab->not_start + tab->not_nr) {
+		int rc;
 		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
 		C2_ASSERT(fopt != NULL);
-		ksunrpc_op(service, fopt, req);
-		*statp = rpc_success;
+		rc = ksunrpc_op(service, fopt, req);
+		if (rc == 0)
+			*statp = rpc_success;
+		else
+			*statp = rpc_system_err;
 	} else {
 		ADDB_ADD(service, ksunrpc_addb_opnotsupp, -EOPNOTSUPP);
 		*statp = rpc_proc_unavail;
-		C2_IMPOSSIBLE("how to really handle this?");
 	}
 	/* 0 == dropit, non-zero means send response */
 	return 1;
@@ -419,20 +390,25 @@ const struct c2_service_ops ksunrpc_service_ops = {
 	.so_reply_post = ksunrpc_reply_post
 };
 
+/*
+   Note: because a custom dispatch is used, none of the functions in the table
+   below are called by svc_process(), but the svc_process() internals still
+   require the pointers to be non-NULL, even though they are not called.
+ */
 #define PROC(num, name, respsize)				\
  [num] = {							\
-   .pc_func	= (svc_procfunc) ksunrpc_proc_##name,		\
-   .pc_decode	= (kxdrproc_t) ksunrpc_decode_##name,		\
-   .pc_encode	= (kxdrproc_t) ksunrpc_encode_##name##_resp,	\
-   .pc_release	= (kxdrproc_t) ksunrpc_encode_##name##_rel,	\
-   .pc_argsize	= sizeof(struct sunrpc_##name),			\
-   .pc_ressize	= sizeof(struct sunrpc_##name##_resp),		\
+   .pc_func	  = (svc_procfunc) ksunrpc_proc,		\
+   .pc_decode	  = (kxdrproc_t) c2_svc_rqst_dec,		\
+   .pc_encode	  = (kxdrproc_t) c2_svc_rqst_enc,		\
+   .pc_argsize	  = sizeof(struct sunrpc_##name),		\
+   .pc_ressize	  = sizeof(struct sunrpc_##name##_resp),	\
    .pc_xdrressize = respsize,					\
  }
 
 /**
-   This would be generated by fop2c, but sunrpc is deprecated so this
-   table, required by kernel sunrpc, is hard-coded.
+   Kernel sunrpc procedure table.  This would be generated by fop2c, but sunrpc
+   is deprecated so this table, required by kernel sunrpc, is hard-coded.
+   Only bulk emulation procedures are supported.
  */
 static struct svc_procedure ksunrpc_procedures[] = {
 	PROC(30, msg, 0),

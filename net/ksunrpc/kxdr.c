@@ -1,6 +1,7 @@
 /* -*- C -*- */
 
 #include <linux/sunrpc/clnt.h>
+#include <linux/sunrpc/svc.h>
 
 #include "lib/cdefs.h"
 #include "fop/fop.h"
@@ -16,8 +17,9 @@
    This file defines "universal" fop xdr functions for the Linux kernel.
 
    Main entry points c2_kcall_dec() and c2_kcall_enc() decode and encode rpc
-   calls respectively. For each fop type there are three xdr-related operations
-   (see enum kxdr_what):
+   calls respectively. The entry points c2_svc_rqst_dec() and c2_svc_rqst_enc()
+   decode and encode service requests respectively.  For each fop type there are
+   three xdr-related operations (see enum kxdr_what):
 
    @li encoding (KENC): serialize fop data to the rpc send buffer, according to
    fop type. This operation is called on c2_knet_call::ac_arg fop before rpc is
@@ -371,6 +373,46 @@ int c2_kcall_enc(void *req, __be32 *data, struct c2_net_call *kcall)
 int c2_kcall_dec(void *req, __be32 *data, struct c2_net_call *kcall)
 {
 	return c2_fop_kdec(req, data, kcall->ac_ret);
+}
+
+int c2_svc_rqst_dec(void *req, __be32 *data, struct c2_fop *fop)
+{
+	int nob = 0;
+	enum kxdr_what what = KDEC;
+	const struct c2_fop_field_type *ftype = fop->f_type->ft_top;
+	struct svc_rqst *rqstp = req;
+	struct xdr_stream xdr;
+	struct kxdr_ctx   ctx = {
+		.kc_type = ftype,
+		.kc_xdr   = &xdr,
+		.kc_req   = NULL, /* not used */
+		.kc_what  = what,
+		.kc_nob   = &nob
+	};
+
+	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
+	xdr_init_decode(&xdr, &rqstp->rq_arg, data);
+	return kxdr_disp[what][ftype->fft_aggr](&ctx, c2_fop_data(fop));
+}
+
+int c2_svc_rqst_enc(void *req, __be32 *data, struct c2_fop *fop)
+{
+	int nob = 0;
+	enum kxdr_what what = KENC;
+	const struct c2_fop_field_type *ftype = fop->f_type->ft_top;
+	struct svc_rqst *rqstp = req;
+	struct xdr_stream xdr;
+	struct kxdr_ctx   ctx = {
+		.kc_type = ftype,
+		.kc_xdr   = &xdr,
+		.kc_req   = NULL, /* not used */
+		.kc_what  = what,
+		.kc_nob   = &nob
+	};
+
+	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
+	xdr_init_encode(&xdr, &rqstp->rq_res, data);
+	return kxdr_disp[what][ftype->fft_aggr](&ctx, c2_fop_data(fop));
 }
 
 /** @} end of group ksunrpc */
