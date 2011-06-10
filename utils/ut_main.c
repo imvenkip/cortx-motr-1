@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 07/19/2010
+ */
 
 #include <stdlib.h>        /* exit */
 #include <CUnit/CUnit.h>
@@ -27,6 +45,7 @@ extern const struct c2_test_suite net_bulk_sunrpc_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
+extern const struct c2_test_suite xdr_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -65,6 +84,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&parity_math_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
+		c2_ut_add(&xdr_ut);
 		c2_ut_run("c2ut.log");
 		if (!keep)
 			unit_end(UT_SANDBOX);
