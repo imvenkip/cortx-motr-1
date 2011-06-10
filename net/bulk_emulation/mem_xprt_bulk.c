@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 /* This file is included into mem_xprt_xo.c */
 
@@ -92,7 +111,8 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 
 		/* Make a local end point matching the passive address.*/
 		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = MEM_EP_CREATE(&match_ep, tm->ntm_dom, &md->md_passive, 0);
+		rc = mem_bmo_ep_create(&match_ep, tm->ntm_dom, &md->md_passive,
+				       0);
 		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
 		if (rc != 0) {
 			match_ep = NULL;
@@ -144,7 +164,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		passive_wi->xwi_status = rc;
 		passive_wi->xwi_nbe_length = datalen;
 
-		passive_tp = passive_tm->ntm_xprt_private;
+		passive_tp = mem_tm_to_pvt(passive_tm);
 		mem_wi_add(passive_wi, passive_tp);
 
 		/* active side gets same status */

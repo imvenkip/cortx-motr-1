@@ -759,30 +759,30 @@ int c2_rpc_item_replied(struct c2_rpc_item *item);
 uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
    Function to return the opcode given an rpc item
  */
 int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
    Function to get the fid for an IO request from the rpc item
  */
 struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
-   Function to find out if the item belongs to an IO request or not 
+   Function to find out if the item belongs to an IO request or not
  */
 bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
-   Function to find out number of fragmented buffers in IO request 
+   Function to find out number of fragmented buffers in IO request
  */
 uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
 
@@ -807,16 +807,16 @@ int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
 		struct c2_fop_segment_seq *seg);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
-   Function to return segment for read fop from given rpc item 
+   Function to return segment for read fop from given rpc item
  */
 struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file 
+   XXX Need to move to appropriate file
    RPC item ops function
-   Function to return segment for write fop from given rpc item 
+   Function to return segment for write fop from given rpc item
  */
 struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item);
 
@@ -847,7 +847,7 @@ struct c2_rpc_form_ut_thread_reftrack {
 	int				refcount;
 };
 
-/* nthreads in UT  = 256,  + 256 * ((rpcitem_changed | rpcitem_replied) && 
+/* nthreads in UT  = 256,  + 256 * ((rpcitem_changed | rpcitem_replied) &&
    rpcitem_deadline_expired)  = 256*3. */
 #define rpc_form_ut_threads	256*3
 

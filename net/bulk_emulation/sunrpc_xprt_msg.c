@@ -1,9 +1,40 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 /**
    @addtogroup bulksunrpc
    @{
  */
+
+/**
+   Inherit the message receive callback method.
+*/
+static void sunrpc_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
+				  struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_MSG_RECV_CB])(tm, wi);
+}
 
 /**
    Work function to send a message using an RPC call.
@@ -24,7 +55,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	       nb->nb_tm == tm &&
 	       nb->nb_ep != NULL);
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
-	dp = nb->nb_dom->nd_xprt_private;
+	dp = sunrpc_dom_to_pvt(nb->nb_dom);
 
 	do {
 		struct c2_bufvec_cursor  cur;
@@ -80,7 +111,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	wi->xwi_status = rc;
-	(*dp->xd_base_ops.bmo_wi_post_buffer_event)(wi);
+	(*dp->xd_base_ops->bmo_wi_post_buffer_event)(wi);
 	return;
 }
 
@@ -130,14 +161,14 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			struct c2_net_bulk_mem_work_item *wi =
 				mem_buffer_to_wi(nb);
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
-				nb->nb_tm->ntm_xprt_private;
+				sunrpc_tm_to_pvt(nb->nb_tm);
 			rc = -EMSGSIZE;
 			/* set desired length */
 			wi->xwi_nbe_length = in->sm_buf.sb_len;
 			/* schedule the receive msg callback */
 			wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 			wi->xwi_status = rc;
-			sunrpc_wi_add(wi, tp);
+			sunrpc_wi_add(wi, &tp->xtm_base);
 			break;
 		}
 		rc = 0;
@@ -149,7 +180,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		struct c2_net_bulk_mem_work_item *wi = mem_buffer_to_wi(nb);
 		struct c2_net_domain *dom = tm->ntm_dom;
 		struct c2_net_bulk_sunrpc_tm_pvt *tp =
-			nb->nb_tm->ntm_xprt_private;
+			sunrpc_tm_to_pvt(nb->nb_tm);
 		struct sockaddr_in sa = {
 			.sin_addr.s_addr = in->sm_sender.sep_addr, /* network */
 			.sin_port        = in->sm_sender.sep_port, /* order */
@@ -172,16 +203,16 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		/* schedule the receive msg callback */
 		wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 		c2_mutex_lock(&tm->ntm_mutex);
-		sunrpc_wi_add(wi, tp);
+		sunrpc_wi_add(wi, &tp->xtm_base);
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 
 	if (rc < 0 && nb == NULL) {
 		/* post the error to the TM */
 		struct c2_net_bulk_sunrpc_domain_pvt *dp;
-		dp = tm->ntm_dom->nd_xprt_private;
+		dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 		c2_mutex_lock(&tm->ntm_mutex);
-		(*dp->xd_base_ops.bmo_post_error)(tm, rc);
+		(*dp->xd_base_ops->bmo_post_error)(tm, rc);
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 
