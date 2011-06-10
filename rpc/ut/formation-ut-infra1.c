@@ -287,7 +287,9 @@ int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 	c2_mutex_lock(&grp->rg_guard);
 	grp->rg_expected++;
 	grp->rg_grpid = grpno;
-	/* Insert by sorted priority in groups list */
+	/* Insert by sorted priority in groups list 
+	   Assumption- Lower the value of priority, 
+	   higher is the actual priority  */
 	c2_list_for_each_entry_safe(&grp->rg_items,
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_group_linkage){
