@@ -1,3 +1,23 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 04/28/2011
+ */
+
 #include "formation.h"
 #include <string.h>
 #ifdef __KERNEL__
@@ -88,7 +108,6 @@ void add_ref_log()
 	int				i = 0;
 	bool				found = false;
 
-	C2_ASSERT(n_ut_threads < 256);
 	c2_thread_self(&handle);
 	for (i = 0; i < n_ut_threads; i++) {
 		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
@@ -109,7 +128,6 @@ void dec_ref_log()
 	int 				i = 0;
 	bool				found = false;
 
-	C2_ASSERT(n_ut_threads <= 256);
 	c2_thread_self(&handle);
 	for (i = 0; i < n_ut_threads; i++) {
 		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
@@ -272,7 +290,7 @@ int c2_rpc_form_fini()
 	/* Iterate over the list of endpoints until refcounts of all
 	   become zero. */
 	while(!c2_rpc_form_wait_for_completion()) {
-		//c2_nanosleep(stime, NULL);
+		c2_nanosleep(stime, NULL);
 	}
 
 	/* Delete all endpoint units, all lists within each endpoint unit. */
@@ -669,6 +687,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item)
 	printf("In callback: c2_rpc_form_extevt_rpcitem_deadline_expired\n");
 	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT;
 	sm_event.se_pvt = NULL;
+	item->ri_deadline = 0;
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
 			&sm_event);
@@ -933,7 +952,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	int						  res = 0;
 	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
 	bool						  found = false;
-	//struct c2_timer					 *item_timer = NULL;
+	struct c2_timer					 *item_timer = NULL;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -1017,7 +1036,6 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 
 	/* Initialize the timer only when the deadline value is non-zero
 	   i.e. dont initialize the timer for URGENT items */
-#if 0
 	if(item->ri_deadline != 0) {
 		/* Init and start the timer for rpc item. */
 		item_timer = c2_alloc(sizeof(struct c2_timer));
@@ -1028,7 +1046,6 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 		}
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-#if 0
 		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 1, 
 				c2_rpc_form_item_timer_callback, 
 				(unsigned long)item);
@@ -1038,9 +1055,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 			return -1;
 		}
 		item->ri_timer = *item_timer;
-#endif
 	}
-#endif
 	/* Assumption: c2_rpc_item_type_ops methods can access
 	   the fields of corresponding fop. */
 	return 0;
@@ -1095,7 +1110,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 	//bool				 update_stream_busy = false;
 	bool				 io_op = false;
 	uint64_t			 current_fragments = 0;
-	//c2_time_t			 now;
+	c2_time_t			 now;
 	int				 ls = 0;
 
 	C2_PRE(endp_unit != NULL);
@@ -1140,18 +1155,16 @@ static int c2_rpc_form_item_add_to_forming_list(
 			c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit,
 					item);
 			item->ri_state = RPC_ITEM_ADDED;
-#if 0
 			if(item->ri_deadline != 0) {
 				c2_time_now(&now);
 				if (c2_time_after(item->ri_timer.t_expire, now)) {
 					item->ri_deadline = 
 						c2_time_sub(item->ri_timer.t_expire, 
 								now);
-					//c2_timer_stop(&item->ri_timer);
+					c2_timer_stop(&item->ri_timer);
 				}
-				//c2_timer_fini(&item->ri_timer);
+				c2_timer_fini(&item->ri_timer);
 			}
-#endif
 			c2_list_del(&item->ri_unformed_linkage);
 		//}
 			printf("No of elements in rpcobject list = %lu.\n",
@@ -1755,6 +1768,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 	}
 	else if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
+		if (item->ri_state != RPC_ITEM_SUBMITTED) {
+			return C2_RPC_FORM_INTEVT_STATE_FAILED; 
+		}
 		res = c2_rpc_form_item_add_to_forming_list(endp_unit, item, 
 				&rpcobj_size, &nfragments, rpcobj->ro_rpcobj);
 		/* If item can not be added due to size restrictions, move it
@@ -1762,6 +1778,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   next formation attempt.*/
 		if (res != 0) {
 			c2_list_move(&endp_unit->isu_unformed_list, &item->ri_unformed_linkage);
+		}
+		else {
+			urgent_items = true;
 		}
 	}
 	/* Iterate over the c2_rpc_form_item_summary_unit_group list in the
@@ -1803,6 +1822,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if (urgent_items == false) {
 				urgent_items = true;
 			}
+			if (rpc_item->ri_state != RPC_ITEM_SUBMITTED) {
+				continue; 
+			}
 			res = c2_rpc_form_item_add_to_forming_list(endp_unit, 
 					rpc_item, &rpcobj_size, 
 					&nfragments, rpcobj->ro_rpcobj);
@@ -1841,6 +1863,9 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			}
 		}
 		if(item_added) {
+			if (rpc_item->ri_state != RPC_ITEM_SUBMITTED) {
+				continue; 
+			}
 			res = c2_rpc_form_item_add_to_forming_list(
 					endp_unit, rpc_item, 
 					&rpcobj_size, &nfragments, 
