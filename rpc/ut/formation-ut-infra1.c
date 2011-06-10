@@ -71,7 +71,7 @@ struct c2_fop_io_vec		**form_write_iovecs = NULL;
 
 #define nfiles 			64
 struct c2_fop_file_fid		*form_fids = NULL;
-uint64_t			*file_offsets = NULL;
+
 #define	io_size 		8192
 #define nsegs 			8
 /* At the moment, we are sending only 3 different types of FOPs,
@@ -97,6 +97,11 @@ fopFuncPtr form_fop_table[nopcodes] = {
 #define niopatterns 		8
 #define pattern_length 		4
 char				file_data_patterns[niopatterns][pattern_length];
+
+#define ndatafids		8
+struct c2_fop_file_fid		fid_data[ndatafids];
+
+uint64_t			*file_offsets = NULL;
 
 /* Defining functions here to avoid linking errors. */
 int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -478,8 +483,9 @@ void form_fini_fop(struct c2_fop *fop)
 	c2_fop_free(fop);
 }
 
-struct c2_fop_io_vec *form_get_new_iovec(int i)
+struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 {
+	int 				 i = 0;
 	struct c2_fop_io_vec		*iovec = NULL;
 	uint64_t			 offset = 0;
 	uint64_t			 seg_size = 0;
@@ -489,6 +495,13 @@ struct c2_fop_io_vec *form_get_new_iovec(int i)
 	bool				 status = true;
 
 	C2_ASSERT(i < nfiles);
+	for (a = 0; a < ndatafids; a++) {
+		if ((fid_data[a].f_seq == fid->f_seq) &&
+				(fid_data[a].f_oid == fid->f_oid)) {
+			i = a;
+			break;
+		}
+	}
 	C2_ALLOC_PTR(iovec);
 	if (iovec == NULL) {
 		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
@@ -530,8 +543,8 @@ last:
 		iovec = NULL;
 	}
 	else {
-		file_offsets[i] = iovec->iov_seg[a].f_offset +
-			iovec->iov_seg[a].f_buf.f_count;
+		file_offsets[i] = iovec->iov_seg[a-1].f_offset +
+			iovec->iov_seg[a-1].f_buf.f_count;
 		form_write_iovecs[nwrite_iovecs] = iovec;
 		nwrite_iovecs++;
 	}
@@ -573,7 +586,7 @@ struct c2_fop *form_create_write_fop()
 	i = (rand()) % nfiles;
 	fid = form_get_fid(i);
 	write_fop->fwr_fid = *fid;
-	iovec = form_get_new_iovec(i);
+	iovec = form_get_new_iovec(fid);
 	write_fop->fwr_iovec = *iovec;
 	return fop;
 }
@@ -583,6 +596,7 @@ struct c2_fop *form_create_read_fop()
 	int				 i = 0;
 	int				 j = 0;
 	int				 k = 0;
+	int				 a = 0;
 	int				 seg_size = 0;
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_cob_readv		*read_fop = NULL;
@@ -598,6 +612,13 @@ struct c2_fop *form_create_read_fop()
 	fid = form_get_fid(i);
 	read_fop->frd_fid = *fid;
 	read_fop->frd_ioseg.fs_count = nsegs;
+	for (a = 0; a < ndatafids; a++) {
+		if ((fid_data[a].f_seq == fid->f_seq) &&
+				(fid_data[a].f_oid == fid->f_oid)) {
+			i = a;
+			break;
+		}
+	}
 	C2_ALLOC_ARR(read_fop->frd_ioseg.fs_segs, nsegs);
 	if (read_fop->frd_ioseg.fs_segs == NULL) {
 		printf("Failed to allocate memory for IO segment\n");
@@ -611,8 +632,8 @@ struct c2_fop *form_create_read_fop()
 			read_fop->frd_ioseg.fs_segs[k].f_count = seg_size;
 			j += seg_size;
 		}
-		file_offsets[i] = read_fop->frd_ioseg.fs_segs[k].f_offset +
-			read_fop->frd_ioseg.fs_segs[k].f_count;
+		file_offsets[i] = read_fop->frd_ioseg.fs_segs[k-1].f_offset +
+			read_fop->frd_ioseg.fs_segs[k-1].f_count;
 	}
 	return fop;
 }
@@ -677,6 +698,40 @@ struct c2_fop *form_get_new_fop()
 	return fop;
 }
 
+void init_fids()
+{
+	fid_data[0].f_seq = 1;
+	fid_data[0].f_oid = 2;
+	fid_data[1].f_seq = 3;
+	fid_data[1].f_oid = 4;
+	fid_data[2].f_seq = 5;
+	fid_data[2].f_oid = 6;
+	fid_data[3].f_seq = 7;
+	fid_data[3].f_oid = 8;
+	fid_data[4].f_seq = 9;
+	fid_data[4].f_oid = 10;
+	fid_data[5].f_seq = 11;
+	fid_data[5].f_oid = 12;
+	fid_data[6].f_seq = 13;
+	fid_data[6].f_oid = 14;
+	fid_data[7].f_seq = 15;
+	fid_data[7].f_oid = 16;
+}
+
+void populate_fids()
+{
+	int		i = 0;
+	int		j = 0;
+
+	/* Total 64 fids to be populated. */
+	/* nfiles = 64 */
+	/* ndatafids = 8 */
+	for (i = 0; i < nfiles; i++) {
+		j = rand() % ndatafids;
+		form_fids[i] = fid_data[j];
+	}
+}
+
 int main(int argc, char **argv)
 {
 	int		result = 0;
@@ -722,8 +777,10 @@ int main(int argc, char **argv)
 				c2_fop_file_fid.\n");
 		return -1;
 	}
+	init_fids();
+	populate_fids();
 
-	C2_ALLOC_ARR(file_offsets, nfiles);
+	C2_ALLOC_ARR(file_offsets, ndatafids);
 	if (file_offsets == NULL) {
 		printf("Failed to allocate memory for array of uint64_t.\n");
 		return -1;

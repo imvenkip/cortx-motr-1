@@ -272,7 +272,7 @@ int c2_rpc_form_fini()
 	/* Iterate over the list of endpoints until refcounts of all
 	   become zero. */
 	while(!c2_rpc_form_wait_for_completion()) {
-		//c2_nanosleep(stime, NULL);
+		c2_nanosleep(stime, NULL);
 	}
 
 	/* Delete all endpoint units, all lists within each endpoint unit. */
@@ -1173,6 +1173,7 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 	struct c2_rpc_form_write_segment		*write_seg = NULL;
 	struct c2_rpc_form_write_segment		*write_seg_next = NULL;
 	struct c2_rpc_form_write_segment		*new_seg = NULL;
+	struct c2_rpc_form_write_segment		*new_seg_next = NULL;
 	bool						 list_empty = true;
 
 	C2_PRE(item_vec != NULL);
@@ -1193,6 +1194,7 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 					item_vec->iov_seg[i].f_offset;
 				write_seg->ws_seg.f_buf.f_count += 
 					item_vec->iov_seg[i].f_buf.f_count;
+				break;
 			}
 			/* If off2 + count2 = off1, then merge two segments.*/
 			else if (write_seg->ws_seg.f_offset +
@@ -1200,12 +1202,16 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 					== item_vec->iov_seg[i].f_offset) {
 				write_seg->ws_seg.f_buf.f_count +=
 					item_vec->iov_seg[i].f_buf.f_count;
+				break;
 			}
-			/* If (off1 + count1) < off2, add a new segment 
-			   in the merged list. */
-			else if ((item_vec->iov_seg[i].f_offset + 
+			/* If (off1 + count1) < off2, OR
+			   (off1 < off2),
+			   add a new segment in the merged list. */
+			else if (((item_vec->iov_seg[i].f_offset + 
 					item_vec->iov_seg[i].f_buf.f_count) <
-					write_seg->ws_seg.f_offset) {
+					write_seg->ws_seg.f_offset) ||
+					(item_vec->iov_seg[i].f_offset <
+					 write_seg->ws_seg.f_offset)) {
 				new_seg = c2_alloc(sizeof(struct 
 						c2_rpc_form_write_segment));
 				if (new_seg == NULL) {
@@ -1215,8 +1221,13 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 					return -ENOMEM;
 				}
 				(*nsegs)++;
+				new_seg->ws_seg.f_offset = item_vec->
+					iov_seg[i].f_offset;
+				new_seg->ws_seg.f_buf.f_count = item_vec->
+					iov_seg[i].f_buf.f_count;
 				c2_list_add_before(&write_seg->ws_linkage,
 						&new_seg->ws_linkage);
+				break;
 			}
 		}
 		if ((&write_seg->ws_linkage == (void*)aggr_list)
@@ -1228,13 +1239,40 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 						c2_rpc_form_write_segment.\n");
 				return -ENOMEM;
 			}
+			new_seg->ws_seg.f_offset = item_vec->
+				iov_seg[i].f_offset;
+			new_seg->ws_seg.f_buf.f_count = item_vec->
+				iov_seg[i].f_buf.f_count;
 			c2_list_link_init(&new_seg->ws_linkage);
 			c2_list_add_tail(aggr_list, &new_seg->ws_linkage);
 			(*nsegs)++;
 		}
 	}
+	/* Check if aggregate list can be contracted further. */
+	c2_list_for_each_entry_safe(aggr_list, new_seg, new_seg_next,
+			struct c2_rpc_form_write_segment, ws_linkage) {
+		if ((new_seg->ws_seg.f_offset + new_seg->ws_seg.f_buf.f_count)
+				== new_seg_next->ws_seg.f_offset) {
+			new_seg_next->ws_seg.f_offset = new_seg->
+				ws_seg.f_offset;
+			new_seg_next->ws_seg.f_buf.f_count += new_seg->
+				ws_seg.f_buf.f_count;
+			c2_list_del(&new_seg->ws_linkage);
+			c2_free(new_seg);
+			(*nsegs)--;
+		}
+	}
 	printf("Length of aggr list for write vector= %lu\n",
 			c2_list_length(aggr_list));
+	printf("Result of write IO coalescing.\n");
+	i = 0;
+	c2_list_for_each_entry(aggr_list, new_seg, struct
+			c2_rpc_form_write_segment, ws_linkage) {
+		printf("Resultant write segment %d: offset = %lu, count = %d. \
+				\n", i, new_seg->ws_seg.f_offset, new_seg->
+				ws_seg.f_buf.f_count);
+		i++;
+	}
 	return 0;
 }
 
@@ -1249,11 +1287,13 @@ static int c2_rpc_form_coalesce_readio_vector(
 	struct c2_rpc_form_read_segment			*read_seg = NULL;
 	struct c2_rpc_form_read_segment			*read_seg_next = NULL;
 	struct c2_rpc_form_read_segment			*new_seg = NULL;
+	struct c2_rpc_form_read_segment			*new_seg_next = NULL;
 	bool						 list_empty = true;
 
 	C2_PRE(item_vec != NULL);
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(res_segs != NULL);
+	printf("coalesce_readio_vector entered.\n");
 
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
@@ -1271,6 +1311,7 @@ static int c2_rpc_form_coalesce_readio_vector(
 					item_vec->fs_segs[i].f_offset;
 				read_seg->rs_seg.f_count += 
 					item_vec->fs_segs[i].f_count;
+				break;
 			}
 			/* If off2 + count2 = off1, then merge two segments.*/
 			else if ((read_seg->rs_seg.f_offset +
@@ -1278,14 +1319,17 @@ static int c2_rpc_form_coalesce_readio_vector(
 					item_vec->fs_segs[i].f_offset) {
 				read_seg->rs_seg.f_count +=
 					item_vec->fs_segs[i].f_count;
+				break;
 			}
-			/* If (off1 + count1) < off2, add a new segment 
-			   in the merged list. */
-			else if ((item_vec->fs_segs[i].f_offset + 
+			/* If (off1 + count1) < off2, OR
+			   if (off1 < off2), 
+			   add a new segment in the merged list. */
+			else if ( ((item_vec->fs_segs[i].f_offset + 
 					item_vec->fs_segs[i].f_count) < 
-					read_seg->rs_seg.f_offset) {
-				new_seg = c2_alloc(sizeof(struct 
-						c2_rpc_form_read_segment));
+					read_seg->rs_seg.f_offset) ||
+					((item_vec->fs_segs[i].f_offset <
+					  read_seg-> rs_seg.f_offset)) ) {
+				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
 					printf("Failed to allocate memory \
 						for struct \
@@ -1293,8 +1337,14 @@ static int c2_rpc_form_coalesce_readio_vector(
 					return -ENOMEM;
 				}
 				(*res_segs)++;
+				new_seg->rs_seg.f_offset = item_vec->fs_segs[i].
+					f_offset;
+				new_seg->rs_seg.f_count = item_vec->fs_segs[i].
+					f_count;
+				c2_list_link_init(&new_seg->rs_linkage);
 				c2_list_add_before(&read_seg->rs_linkage, 
 						&new_seg->rs_linkage);
+				break;
 			}
 		}
 		if ((&read_seg->rs_linkage == (void*)aggr_list) || list_empty) {
@@ -1305,13 +1355,37 @@ static int c2_rpc_form_coalesce_readio_vector(
 						c2_rpc_form_read_segment.\n");
 				return -ENOMEM;
 			}
+			new_seg->rs_seg.f_offset = item_vec->fs_segs[i].f_offset;
+			new_seg->rs_seg.f_count = item_vec->fs_segs[i].f_count;
 			c2_list_link_init(&new_seg->rs_linkage);
 			c2_list_add_tail(aggr_list, &new_seg->rs_linkage);
 			(*res_segs)++;
 		}
 	}
+	c2_list_for_each_entry_safe(aggr_list, new_seg, new_seg_next,
+			struct c2_rpc_form_read_segment, rs_linkage) {
+		if ((new_seg->rs_seg.f_offset + new_seg->rs_seg.f_count)
+				== new_seg_next->rs_seg.f_offset) {
+			new_seg_next->rs_seg.f_offset = new_seg->
+				rs_seg.f_offset;
+			new_seg_next->rs_seg.f_count += new_seg->
+				rs_seg.f_count;
+			c2_list_del(&new_seg->rs_linkage);
+			c2_free(new_seg);
+			(*res_segs)--;
+		}
+	}
 	printf("Length of aggr list for read vector= %lu\n",
 			c2_list_length(aggr_list));
+	printf("Result of read IO coalescing.\n");
+	i = 0;
+	c2_list_for_each_entry(aggr_list, new_seg, struct
+			c2_rpc_form_read_segment, rs_linkage) {
+		printf("Resultant read segment %d: offset = %lu, count = %lu. \
+				\n", i, new_seg->rs_seg.f_offset, new_seg->
+				rs_seg.f_count);
+		i++;
+	}
 	return 0;
 }
 
@@ -1404,10 +1478,14 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 					struct c2_fop_segment.\n");
 			return -ENOMEM;
 		}
+		printf("Contents of resultant read vector.\n");
 		c2_list_for_each_entry_safe(&aggr_vec_list, read_seg, 
 				read_seg_next, struct c2_rpc_form_read_segment, 
 				rs_linkage) {
 			read_vec->fs_segs[i] = read_seg->rs_seg;
+			printf("Resultant read segment %d: offset = %lu, count = %lu.\n",
+					i, read_vec->fs_segs[i].f_offset,
+					read_vec->fs_segs[i].f_count);
 			c2_list_del(&read_seg->rs_linkage);
 			c2_free(read_seg);
 			i++;
@@ -1437,10 +1515,14 @@ static int c2_rpc_form_io_items_coalesce(struct c2_rpc_form_item_coalesced
 					struct c2_fop_io_seg.\n");
 			return -ENOMEM;
 		}
+		printf("Contents of resultant write vector.\n");
 		c2_list_for_each_entry_safe(&aggr_vec_list, write_seg, 
 				write_seg_next,
 				struct c2_rpc_form_write_segment, ws_linkage) {
 			write_vec->iov_seg[i] = write_seg->ws_seg;
+			printf("Resultant write segment %d: offset = %lu, count = %d.\n",
+					i, write_vec->iov_seg[i].f_offset,
+					write_vec->iov_seg[i].f_buf.f_count);
 			c2_list_del(&write_seg->ws_linkage);
 			c2_free(write_seg);
 			i++;
@@ -1471,6 +1553,7 @@ static int c2_rpc_form_items_coalesce(
 		struct c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc *rpc, uint64_t *rpcobj_size)
 {
+	int						 i = 0;
 	int						 res = 0;
 	int						 nfsm = 0;
 	int						 ncoalesced = 0;
@@ -1488,6 +1571,8 @@ static int c2_rpc_form_items_coalesce(
 	struct c2_rpc_form_fid_units			*fsm_item_next = NULL;
 	struct c2_rpc_form_item_coalesced_member	*coalesced_member =
 		NULL;
+	struct c2_fop_segment_seq			*read_vec = NULL;
+	struct c2_fop_io_vec				*write_vec = NULL;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(rpc != NULL);
@@ -1590,14 +1675,15 @@ static int c2_rpc_form_items_coalesce(
 			coalesced_item->ic_op_intent = fid_member->fsm_rw;
 			coalesced_item->ic_nmembers = fid_member->fsm_nitems;
 			c2_list_init(&coalesced_item->ic_member_list);
+			printf("fid.f_seq = %lu, fid.f_oid = %lu\n",
+					fid_member->fsm_fid.f_container,
+					fid_member->fsm_fid.f_key);
 			/* Move the members from fid_member fsm_items list
 			   to ic_member_list of item_coalesced structure. */
 			c2_list_for_each_entry_safe(&fid_member->fsm_items,
 					fsm_item, fsm_item_next,
 					struct c2_rpc_form_fid_units,
 					fu_linkage) {
-				//c2_list_move(&coalesced_item->ic_member_list,
-					//	&fsm_item->fu_linkage);
 				C2_ALLOC_PTR(coalesced_member);
 				if (coalesced_member == NULL) {
 					printf("Failed to allocate memory for\
@@ -1614,8 +1700,37 @@ static int c2_rpc_form_items_coalesce(
 						im_linkage);
 				c2_list_del(&fsm_item->fu_linkage);
 				c2_free(fsm_item);
+				if (fid_member->fsm_rw == C2_RPC_FORM_IO_READ) {
+					read_vec = c2_rpc_item_read_get_vector
+						(coalesced_member->
+						 im_member_item);
+					for (i = 0; i < read_vec->fs_count;
+							i++) {
+						printf("Read Segment %d: offset = %lu, count = %lu.\n",
+								i, read_vec->
+								fs_segs[i].
+								f_offset,
+								read_vec->
+								fs_segs[i].
+								f_count);
+					}
+				}
+				else {
+					write_vec = c2_rpc_item_write_get_vector
+						(coalesced_member->
+						 im_member_item);
+					for (i = 0; i < write_vec->iov_count;
+							i++) {
+						printf("Write Segment %d: offset = %lu, count = %d.\n",
+								i, write_vec->
+								iov_seg[i].
+								f_offset,
+								write_vec->
+								iov_seg[i].
+								f_buf.f_count);
+					}
+				}
 			}
-
 			/* Coalesce IO vectors into one. */
 			res = c2_rpc_form_io_items_coalesce(coalesced_item);
 			if (res == 0) {
@@ -1634,27 +1749,27 @@ static int c2_rpc_form_items_coalesce(
 				   ic_resultant_item-> ri_type->rit_ops->
 				   rio_item_size( coalesced_item->
 				   ic_resultant_item);*/
+				/* 7. Add the newly formed rpc item into the 
+				   forming list and
+				   increment rpcobj_size by its size. */
 				*rpcobj_size -= fid_member->fsm_total_size;
 				*rpcobj_size += c2_rpc_form_item_size(
 						coalesced_item->
 						ic_resultant_item);
 				c2_list_add(&endp_unit->isu_coalesced_items_list
 						, &coalesced_item->ic_linkage);
-			}
-			/* 7. Add the newly formed rpc item into the 
-			   forming list and
-			   increment rpcobj_size by its size. */
-			c2_list_for_each_entry(
-					&coalesced_item->ic_member_list, 
-					item_member, struct 
-					c2_rpc_form_item_coalesced_member, 
-					im_linkage) {
-				c2_list_del(&item_member->im_member_item->
+				c2_list_for_each_entry(
+						&coalesced_item->ic_member_list,
+						item_member, struct 
+						c2_rpc_form_item_coalesced_member, im_linkage) {
+					c2_list_del(&item_member->
+							im_member_item->
+							ri_rpcobject_linkage);
+				}
+				c2_list_add(&rpc->r_items, &coalesced_item->
+						ic_resultant_item->
 						ri_rpcobject_linkage);
 			}
-			c2_list_add(&rpc->r_items, 
-					&coalesced_item->ic_resultant_item->
-					ri_rpcobject_linkage);
 		}
 	}
 	printf("Coalescing succeeded for %d iterations.\n", ncoalesced);
