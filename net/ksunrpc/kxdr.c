@@ -393,12 +393,11 @@ int c2_kcall_dec(void *req, __be32 *data, struct c2_net_call *kcall)
 	return c2_fop_kdec(req, data, kcall->ac_ret);
 }
 
-int c2_svc_rqst_dec(void *req, __be32 *data, struct c2_fop *fop)
+static int c2_svc_rqst_encdec(const struct c2_fop_field_type *ftype,
+			      struct svc_rqst *rqstp, __be32 *data, void *obj,
+			      enum kxdr_what what)
 {
 	int nob = 0;
-	enum kxdr_what what = KDEC;
-	const struct c2_fop_field_type *ftype = fop->f_type->ft_top;
-	struct svc_rqst *rqstp = req;
 	struct xdr_stream xdr;
 	struct kxdr_ctx   ctx = {
 		.kc_type = ftype,
@@ -409,28 +408,30 @@ int c2_svc_rqst_dec(void *req, __be32 *data, struct c2_fop *fop)
 	};
 
 	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
-	xdr_init_decode(&xdr, &rqstp->rq_arg, data);
-	return kxdr_disp[what][ftype->fft_aggr](&ctx, c2_fop_data(fop));
+	C2_ASSERT(what != KREP);  /* client-side only */
+
+	switch (what) {
+	case KENC:
+		xdr_init_encode(&xdr, &rqstp->rq_res, data);
+		break;
+	case KDEC:
+		xdr_init_decode(&xdr, &rqstp->rq_arg, data);
+	default:
+		break;
+	}
+	return kxdr_disp[what][ftype->fft_aggr](&ctx, obj);
+}
+
+int c2_svc_rqst_dec(void *req, __be32 *data, struct c2_fop *fop)
+{
+	return c2_svc_rqst_encdec(fop->f_type->ft_top,
+				  req, data, c2_fop_data(fop), KDEC);
 }
 
 int c2_svc_rqst_enc(void *req, __be32 *data, struct c2_fop *fop)
 {
-	int nob = 0;
-	enum kxdr_what what = KENC;
-	const struct c2_fop_field_type *ftype = fop->f_type->ft_top;
-	struct svc_rqst *rqstp = req;
-	struct xdr_stream xdr;
-	struct kxdr_ctx   ctx = {
-		.kc_type = ftype,
-		.kc_xdr   = &xdr,
-		.kc_req   = NULL, /* not used */
-		.kc_what  = what,
-		.kc_nob   = &nob
-	};
-
-	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
-	xdr_init_encode(&xdr, &rqstp->rq_res, data);
-	return kxdr_disp[what][ftype->fft_aggr](&ctx, c2_fop_data(fop));
+	return c2_svc_rqst_encdec(fop->f_type->ft_top,
+				  req, data, c2_fop_data(fop), KENC);
 }
 
 /** @} end of group ksunrpc */
