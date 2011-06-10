@@ -380,7 +380,6 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	C2_PRE(sunrpc_dom_invariant(dom));
-	C2_PRE(secs >= 0);
 	c2_mutex_lock(&dom->nd_mutex);
 	c2_time_set(&dp->xd_ep_release_delay, secs, 0);
 	if (secs == 0) /* flush cached eps now */
