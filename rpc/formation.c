@@ -1696,6 +1696,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	uint64_t					 rpcobj_size = 0;
 	uint64_t					 item_size = 0;
 	struct c2_rpc_form_item_summary_unit_group	*sg = NULL;
+	struct c2_rpc_form_item_summary_unit_group	*sg_partial = NULL;
 	uint64_t					 group_size = 0;
 	uint64_t					 partial_size = 0;
 	struct c2_rpc_form_item_summary_unit_group	*group = NULL;
@@ -1807,6 +1808,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		else {
 			partial_size = (group_size + sg->sug_total_size) - 
 				endp_unit->isu_max_message_size;
+			sg_partial = sg;
 			break;
 		}
 	}
@@ -1844,17 +1846,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				sug_linkage) {
 			ncurrent_groups++;
 			/* If selected groups are exhausted, break the loop. */
-			if (ncurrent_groups > nselected_groups)
+			if (ncurrent_groups > nselected_groups) {
 				break;
+			}
+			if (sg_partial && 
+					rpc_item->ri_group == sg_partial->sug_group) {
+				break;
+			}
 			if (rpc_item->ri_group == group->sug_group) {
-				/* If the size of selected groups is bigger than
-				   max_message_size, the last group will be
-				   partially selected and is present in variable
-				   'sg'. */
-				if ((rpc_item->ri_group == sg->sug_group) &&
-					((partial_size - item_size) > 0)) {
-					partial_size -= item_size;
-				}
 				item_added = true;
 				ncurrent_groups = 0;
 				break;
@@ -1873,6 +1872,34 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			item_added = false;
 		}
 	}
+	
+	/* Add the rpc items in the partial group to the forming 
+	   list separately. This group is sorted according to priority. 
+	   So the partial number of items will be picked up 
+	   for formation in increasing order of priority */
+	if(sg_partial != NULL) {
+		c2_mutex_lock(&sg_partial->sug_group->rg_guard);
+		c2_list_for_each_entry_safe(&sg_partial->sug_group->rg_items, 
+				rpc_item, rpc_item_next,  struct c2_rpc_item, 
+				ri_group_linkage) {
+			item_size = c2_rpc_form_item_size(rpc_item);
+			if((partial_size - item_size) <= 0){
+				break;
+			}
+			if(c2_list_contains(&endp_unit->isu_unformed_list, 
+						&rpc_item->ri_unformed_linkage)) {
+
+				partial_size -= item_size;
+				res = c2_rpc_form_item_add_to_forming_list(endp_unit, 
+						rpc_item,
+						&rpcobj_size, 
+						&nfragments, 
+						rpcobj->ro_rpcobj);
+			}	
+		}
+		c2_mutex_unlock(&sg_partial->sug_group->rg_guard);
+	}
+
 	c2_mutex_unlock(&cache_list->ic_mutex);
 	if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of 
