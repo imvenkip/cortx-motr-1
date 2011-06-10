@@ -155,19 +155,18 @@ static int ksunrpc_op(struct c2_service *service,
 			rc = ksunrpc_proc(service, arg, &ret);
 			if (rc == 0) {
 				rc = c2_svc_rqst_enc(req,
-					resv->iov_base+resv->iov_len, ret);
+					resv->iov_base + resv->iov_len, ret);
 				if (rc != 0)
-					ADDB_CALL(service, "rqst_enc", 0);
+					ADDB_CALL(service, "rqst_enc", rc);
 			} else {
-				ADDB_CALL(service, "ksunrpc_proc", 0);
+				ADDB_CALL(service, "ksunrpc_proc", rc);
 			}
-			c2_fop_free(ret);
-			c2_fop_free(arg);
+			if (ret != NULL)
+				c2_fop_free(ret);
 		} else {
-			ADDB_CALL(service, "rqst_dec", 0);
+			ADDB_CALL(service, "rqst_dec", rc);
 		}
-		if (rc != 0)
-			c2_fop_free(arg);
+		c2_fop_free(arg);
 	} else {
 		ADDB_ADD(service, c2_addb_oom);
 		rc = -ENOMEM;
@@ -225,10 +224,9 @@ static void ksunrpc_worker(struct c2_service *service)
 		long timeout = msecs_to_jiffies(1000);
 
 		rc = svc_recv(xs->s_rqst, timeout);
-		if (rc == -EAGAIN || rc == -EINTR)
+		if (rc == -EAGAIN || rc == -EINTR) {
 			continue;
-
-		if (rc < 0) {
+		} else if (rc < 0) {
 			ADDB_CALL(service, "svc_recv", rc);
 			schedule_timeout_interruptible(HZ);
 			continue;
@@ -249,7 +247,7 @@ static void ksunrpc_service_stop(struct ksunrpc_service *xs)
 	/* svc_* functions require protection by a mutex or BKL */
 	c2_mutex_lock(&xs->s_svc_mutex);
 	if (xs->s_rqst != NULL) {
-		svc_exit_thread(xs->s_rqst);
+		svc_exit_thread(xs->s_rqst); /* calls svc_destroy */
 		xs->s_rqst = NULL;
 	}
 	xs->s_serv = NULL;
@@ -286,8 +284,10 @@ static int ksunrpc_service_start(struct c2_service *service,
 	} else {
 		rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
 				     SVC_SOCK_DEFAULTS);
-		if (rc != 0)
+		if (rc != 0) {
+			ADDB_CALL(service, "svc_create_xprt", rc);
 			goto done;
+		}
 	}
 
 	/* set up for creating worker thread */
@@ -332,6 +332,7 @@ static void ksunrpc_service_fini(struct c2_service *service)
 	c2_rwlock_write_lock(&ksunrpc_lock);
 	c2_list_del(&xs->s_svc_link);
 	c2_rwlock_write_unlock(&ksunrpc_lock);
+	c2_list_link_fini(&xs->s_svc_link);
 	c2_mutex_fini(&xs->s_svc_mutex);
 	c2_free(xs);
 }
