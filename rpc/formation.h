@@ -141,7 +141,7 @@ struct c2_rpc_form_ut_thread_reftrack {
 	int				refcount;
 };
 
-struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[256];
+struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[512];
 int	n_ut_threads;
 
 /**
