@@ -214,6 +214,17 @@ int c2_rpc_submit(struct c2_service_id          *srvid,
 	return(c2_rpc_item_submitted(item));
 }
 
+int c2_rpc_reply_submit(struct c2_rpc_item	*request,
+			struct c2_rpc_item	*reply,
+			struct c2_db_tx		*tx)
+{
+	printf("reply_submit: %p %p\n", request, reply);
+	c2_rpc_session_reply_prepare(request, reply, tx);
+	/*
+	 * Add code to submit the reply item to formation
+	 */
+	return 0;
+}
 int c2_rpc_cancel(struct c2_rpc_item *item)
 {
 	return 0;

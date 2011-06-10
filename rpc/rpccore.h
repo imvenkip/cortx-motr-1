@@ -505,6 +505,10 @@ int c2_rpc_submit(struct c2_service_id		*srvid,
 		  enum c2_rpc_item_priority	prio,
 		  const c2_time_t		*deadline);
 
+int c2_rpc_reply_submit(struct c2_rpc_item	*request,
+			struct c2_rpc_item	*reply,
+			struct c2_db_tx		*tx);
+
 /**
    Cancel submitted RPC-item
    @param item rpc item being sent

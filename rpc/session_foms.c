@@ -63,8 +63,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
 
 	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
-			fom_cc->fcc_fop_rep != NULL &&
-			fom_cc->fcc_dbenv != NULL);
+			fom_cc->fcc_fop_rep != NULL);
 
 	fop = fom_cc->fcc_fop;
 	fop_in = c2_fop_data(fop);
@@ -82,6 +81,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	C2_ASSERT(dom != NULL);
 
 	tx = &fom_cc->fcc_tx;
+	c2_db_tx_init(tx, dom->cd_dbenv, 0);
 
 	/*
 	 * XXX Decide how to calculate sender_id
@@ -152,6 +152,9 @@ retry:
 
 	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep), tx);
+	c2_db_tx_commit(tx);
 	return FSO_AGAIN;
 
 errout:
@@ -163,7 +166,9 @@ errout:
 	fop_out->rccr_cookie = fop_in->rcc_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
-
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep), tx);
+	c2_db_tx_abort(tx);
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
@@ -212,8 +217,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	fom_sc = container_of(fom, struct c2_rpc_fom_session_create, fsc_gen);
 
 	C2_PRE(fom != NULL && fom_sc != NULL && fom_sc->fsc_fop != NULL &&
-			fom_sc->fsc_fop_rep != NULL &&
-			fom_sc->fsc_dbenv != NULL);
+			fom_sc->fsc_fop_rep != NULL);
 
 	fop = fom_sc->fsc_fop;
 	fop_in = c2_fop_data(fop);
@@ -227,9 +231,11 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	machine = item->ri_mach;
-	tx = &fom_sc->fsc_tx;
 	dom = machine->cr_rcache.rc_dom;
 	C2_ASSERT(dom != NULL);
+
+	tx = &fom_sc->fsc_tx;
+	c2_db_tx_init(tx, dom->cd_dbenv, 0);
 
 	/*
 	 * XXX Decide how to calculate session_id
@@ -295,8 +301,11 @@ retry:
 
 	fop_out->rscr_rc = 0; 		/* success */
 	fop_out->rscr_session_id = session_id;
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep), tx);
 	fom->fo_phase = FOPH_DONE;
 	printf("Session create finished %lu\n", session_id);
+	c2_db_tx_commit(tx);
 	return FSO_AGAIN;
 
 errout:
@@ -307,6 +316,9 @@ errout:
 	fop_out->rscr_session_id = SESSION_ID_INVALID;
 
 	fom->fo_phase = FOPH_FAILED;
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep), tx);
+	c2_db_tx_abort(tx);
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
@@ -352,11 +364,11 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 	int					i;
 	int					rc;
 
+	printf("session_destroy_state: called\n");
 	fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy, fsd_gen);
 
 	C2_ASSERT(fom != NULL && fom_sd != NULL && fom_sd->fsd_fop != NULL &&
-			fom_sd->fsd_fop_rep != NULL &&
-			fom_sd->fsd_dbenv != NULL);
+			fom_sd->fsd_fop_rep != NULL);
 
 	fop_in = c2_fop_data(fom_sd->fsd_fop);
 	C2_ASSERT(fop_in != NULL);
@@ -371,9 +383,16 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 
 	tx = &fom_sd->fsd_tx;
 	dom = machine->cr_rcache.rc_dom;
+	C2_ASSERT(dom != NULL);
+
+	c2_db_tx_init(tx, dom->cd_dbenv, 0);
+
 	sender_id = fop_in->rsd_sender_id;
 	session_id = fop_in->rsd_session_id;
 
+	/*
+	 * Copy the same sender and session id to reply fop
+	 */
 	fop_out->rsdr_sender_id = sender_id;
 	fop_out->rsdr_session_id = session_id;
 
@@ -470,7 +489,10 @@ int c2_rpc_fom_session_destroy_state(struct c2_fom *fom)
 
 	fop_out->rsdr_rc = 0;	/* Report success */
 	fom->fo_phase = FOPH_DONE;
-
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fom_sd->fsd_fop),
+				c2_fop_to_rpc_item(fom_sd->fsd_fop_rep),
+				tx);
+	c2_db_tx_commit(tx);
 	printf("Session destroy successful\n");
 	return FSO_AGAIN;
 
@@ -487,6 +509,10 @@ errout:
 
 	fop_out->rsdr_rc = rc;	/* Report failure */
 	fom->fo_phase = FOPH_FAILED;
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fom_sd->fsd_fop),
+				c2_fop_to_rpc_item(fom_sd->fsd_fop_rep),
+				tx);
+	c2_db_tx_abort(tx);
 	printf("session destroy failed %d\n", rc);
 	return FSO_AGAIN;
 }
@@ -536,8 +562,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate, fct_gen);
 
 	C2_ASSERT(fom_ct != NULL && fom_ct->fct_fop != NULL &&
-			fom_ct->fct_fop_rep != NULL &&
-			fom_ct->fct_dbenv != NULL);
+			fom_ct->fct_fop_rep != NULL);
 
 	fop = fom_ct->fct_fop;
 	fop_in = c2_fop_data(fop);
@@ -558,6 +583,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	tx = &fom_ct->fct_tx;
 	dom = machine->cr_rcache.rc_dom;
 
+	c2_db_tx_init(tx, dom->cd_dbenv, 0);
 	/*
 	 * prepare key, value and pair
 	 */
@@ -641,7 +667,10 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	printf("Conn terminate successful\n");
 	fop_out->ctr_rc = 0;	/* Success */
-
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep),
+				tx);
+	c2_db_tx_commit(tx);
 	fom->fo_phase = FOPH_DONE;
 	return FSO_AGAIN;
 
@@ -661,6 +690,10 @@ errout:
 
 	fop_out->ctr_rc = rc;
 	fom->fo_phase = FOPH_FAILED;
+	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
+				c2_fop_to_rpc_item(fop_rep),
+				tx);
+	c2_db_tx_abort(tx);
 	return FSO_AGAIN;
 }
 

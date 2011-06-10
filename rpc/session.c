@@ -1608,12 +1608,18 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 	key.stk_slot_id = item->ri_slot_id;
 	key.stk_slot_generation = item->ri_slot_generation;
 
+	printf("rci: inserting in cache: [%lu:%lu:%u]\n",
+		item->ri_sender_id,
+		item->ri_session_id,
+		item->ri_slot_id);
 	/*
 	 * Update version of cob representing slot
 	 */
 	rc = c2_rpc_rcv_slot_lookup_by_item(dom, item, &slot_cob, tx);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("rci: slot lookup failed with %d\n", rc);
 		goto out;
+	}
 
 	/*
 	 * XXX When integrated with fol assign proper lsn
@@ -1623,9 +1629,10 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 	slot_cob->co_fabrec.cfb_version.vn_vc++;
 
 	rc = c2_cob_update(slot_cob, NULL, &slot_cob->co_fabrec, tx);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("rci: cob update failed with %d\n", rc);
 		goto out;
-
+	}
 	c2_cob_put(slot_cob);
 
 	/*
@@ -1634,19 +1641,21 @@ int c2_rpc_reply_cache_insert(struct c2_rpc_item	*item,
 	c2_db_pair_setup(&inmem_pair, inmem_slot_table, &key, sizeof key,
 			&inmem_slot, sizeof inmem_slot);
 	rc = c2_table_lookup(tx, &inmem_pair);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("rci: error %d occured while looking up in slot table\n", rc);
 		goto out1;
-
+	}
 	C2_ASSERT(inmem_slot.istv_busy);
 
 	inmem_slot.istv_busy = false;
 
 	rc = c2_table_update(tx, &inmem_pair);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("rci: error %d occured while marking slot unbusy\n", rc);
 		goto out1;
-
+	}
 	c2_list_add(&machine->cr_rcache.rc_item_list, &(item->ri_rc_link));
-
+	printf("rci: reply cached\n");
 out1:
 	c2_db_pair_release(&inmem_pair);
 	c2_db_pair_fini(&inmem_pair);
@@ -1759,12 +1768,19 @@ c2_rpc_session_item_received(struct c2_rpc_item 	*item,
 
 	C2_ASSERT(slot_cob->co_valid & CA_FABREC);
 
+		
 	undoable = c2_verno_is_undoable(&slot_cob->co_fabrec.cfb_version,
 						&item->ri_verno, 0);
 	redoable = c2_verno_is_redoable(&slot_cob->co_fabrec.cfb_version,
 						&item->ri_verno, 0);
 	slot_is_busy = inmem_slot.istv_busy;
 
+	printf("item_rcvd busy: %s [%lu:%lu] == [%lu:%lu]\n",
+			slot_is_busy ? "BUSY" : "NOT_BUSY",
+			slot_cob->co_fabrec.cfb_version.vn_lsn,
+			slot_cob->co_fabrec.cfb_version.vn_vc,
+			item->ri_verno.vn_lsn,
+			item->ri_verno.vn_vc);
 	if (undoable == 0) {
 		bool		found = false;
 
@@ -1832,11 +1848,6 @@ errout:
 	return rc;
 }
 
-/*
- * XXX temporary: just to allocate unique stob id to each cob
- */
-int global_stob_id_counter = 1;
-
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
 			     char			*name,
@@ -1869,8 +1880,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	/*
 	 * How to get unique stob_id for new cob?
 	 */
-	nsrec.cnr_stobid.si_bits.u_hi = ++global_stob_id_counter;
-	nsrec.cnr_stobid.si_bits.u_lo = global_stob_id_counter;
+	nsrec.cnr_stobid.si_bits.u_hi = random() % 1000;
+	nsrec.cnr_stobid.si_bits.u_lo = random() % 1000;
 	nsrec.cnr_nlink = 1;
 
 	/*
@@ -1969,9 +1980,10 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 
 	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS",
 					&root_session_cob, tx);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_ASSERT(rc != -EEXIST);
 		return rc;
-
+	}
 	rc = c2_rpc_cob_create_helper(dom, root_session_cob, name, &conn_cob,
 					tx);
 	if (rc == 0)
