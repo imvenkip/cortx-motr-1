@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -788,6 +807,12 @@ int ping_init(struct ping_ctx *ctx)
 	if (rc != 0) {
 		fprintf(stderr, "domain init failed: %d\n", rc);
 		goto fail;
+	}
+
+	if (ctx->pc_sunrpc_ep_delay >= 0 &&
+	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
+		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
+			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
 	}
 
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,

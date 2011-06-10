@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifndef __COLIBRI_NET_BULK_SUNRPC_XPRT_H__
 #define __COLIBRI_NET_BULK_SUNRPC_XPRT_H__
 
@@ -38,6 +57,7 @@ enum {
 	C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE     = (1<<20),
 	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<20),
 	C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS = 256,
+	C2_NET_BULK_SUNRPC_EP_DELAY_S = 20, /* in seconds */
 };
 
 /** Domain private data. */
@@ -52,6 +72,21 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 
 	/** The user or kernel space sunrpc domain */
         struct c2_net_domain              xd_rpc_dom;
+
+	/** The delay before releasing an EP */
+	c2_time_t                         xd_ep_release_delay;
+
+	/** The skulker thread */
+	struct c2_thread                  xd_skulker_thread;
+
+	/** Skulker CV */
+	struct c2_cond                    xd_skulker_cv;
+
+	/** Skulker control */
+	bool                              xd_skulker_run;
+
+	/** Skulker heart beat counter (for UT) */
+	uint32_t                          xd_skulker_hb;
 };
 
 /**
@@ -131,6 +166,16 @@ struct c2_net_bulk_sunrpc_end_point {
 
 	/** Service id */
 	struct c2_service_id             xep_sid;
+
+	/** The time the internal sunrpc connection was last used.
+	    The field is used to control the duration of end point caching.
+	    A value of C2_NEVER implies that the connection encountered
+	    an error and hence the end point should not be cached.
+
+	    The value is maintained as an atomic variable to avoid
+	    the need to acquire the domain mutex when setting the value.
+	 */
+	struct c2_atomic64               xep_last_use;
 };
 
 /**

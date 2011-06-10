@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 #include "lib/arith.h"
 #include "lib/assert.h"
@@ -213,17 +232,69 @@ static void sunrpc_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 	(*dp->xd_base_ops->bmo_wi_post_buffer_event)(wi);
 }
 
+/**
+   Domain skulker thread body.
+ */
+static void sunrpc_skulker(struct c2_net_domain *dom)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	c2_time_t now;
+
+	c2_mutex_lock(&dom->nd_mutex);
+	c2_time_now(&now);
+	while (dp->xd_skulker_run) {
+		dp->xd_skulker_hb++;
+		if (dp->xd_ep_release_delay != 0) {
+			c2_time_t wakeup;
+			wakeup = c2_time_add(now, dp->xd_ep_release_delay);
+			c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex,
+					  wakeup);
+		} else {
+			c2_cond_wait(&dp->xd_skulker_cv, &dom->nd_mutex);
+		}
+		if (!dp->xd_skulker_run)
+			break;
+		c2_time_now(&now);
+		sunrpc_skulker_process_end_points(dom, now);
+	}
+	sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+	dp->xd_skulker_hb = 0;
+	c2_mutex_unlock(&dom->nd_mutex);
+	return;
+}
+
+static void sunrpc_skulker_stop(struct c2_net_domain *dom)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+
+	C2_PRE(c2_mutex_is_not_locked(&dom->nd_mutex));
+	c2_mutex_lock(&dom->nd_mutex);
+	if (!dp->xd_skulker_run) {
+		c2_mutex_unlock(&dom->nd_mutex);
+		return;
+	}
+
+	dp->xd_skulker_run = false;
+	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
+	c2_mutex_unlock(&dom->nd_mutex);
+	c2_thread_join(&dp->xd_skulker_thread);
+	return;
+}
+
 static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			      struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 	struct c2_net_bulk_mem_domain_pvt *bdp;
 	int rc;
+	bool base_dom_init = false;
+	bool rpc_dom_init = false;
 
 	C2_PRE(dom->nd_xprt_private == NULL);
 	C2_ALLOC_PTR(dp);
 	if (dp == NULL)
 		return -ENOMEM;
+	c2_cond_init(&dp->xd_skulker_cv);
 	bdp = &dp->xd_base;
 	dom->nd_xprt_private = bdp; /* base pointer required */
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_dom_init(xprt, dom);
@@ -231,6 +302,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 		goto err_exit;
 	C2_ASSERT(mem_dom_to_pvt(dom) == bdp);
 	C2_ASSERT(sunrpc_dom_to_pvt(dom) == dp);
+	base_dom_init = true;
 
 	/* save the base internal subs */
 	dp->xd_base_ops = bdp->xd_ops;
@@ -238,9 +310,10 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	/* Replace the base ops pointer to override some of the methods. */
 	bdp->xd_ops = &sunrpc_xprt_methods;
 
-	/* override tunable parameters */
+	/* set/override tunable parameters */
 	bdp->xd_addr_tuples       = 3;
 	bdp->xd_num_tm_threads    = C2_NET_BULK_SUNRPC_TM_THREADS;
+	c2_time_set(&dp->xd_ep_release_delay, C2_NET_BULK_SUNRPC_EP_DELAY_S, 0);
 
 	/* create the rpc domain (use in-mutex version of domain init) */
 #ifdef __KERNEL__
@@ -248,16 +321,32 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 #else
 	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_usunrpc_minimal_xprt);
 #endif
-	if (rc == 0) {
-		dp->xd_magic = C2_NET_BULK_SUNRPC_XDP_MAGIC;
-		C2_POST(sunrpc_dom_invariant(dom));
-	} else {
-		/* got to fini the base */
-		c2_net_bulk_mem_xprt.nx_ops->xo_dom_fini(dom);
-		C2_POST(mem_dom_to_pvt(dom) == bdp);
+	if (rc != 0)
+		goto err_exit;
+	rpc_dom_init = true;
+
+	dp->xd_magic = C2_NET_BULK_SUNRPC_XDP_MAGIC;
+	C2_POST(sunrpc_dom_invariant(dom));
+
+	dp->xd_skulker_run = true;
+	rc = C2_THREAD_INIT(&dp->xd_skulker_thread,
+			    struct c2_net_domain *, NULL,
+			    &sunrpc_skulker, dom, "sunrpc_skulker");
+	if (rc != 0) {
+		dp->xd_skulker_run = false;
+		goto err_exit;
 	}
+
  err_exit:
 	if (rc != 0 && dp != NULL) {
+		if (rpc_dom_init) {
+			c2_net__domain_fini(&dp->xd_rpc_dom);
+		}
+		if (base_dom_init) {
+			c2_net_bulk_mem_xprt.nx_ops->xo_dom_fini(dom);
+			C2_POST(mem_dom_to_pvt(dom) == bdp);
+		}
+		c2_cond_fini(&dp->xd_skulker_cv);
 		c2_free(dp);
 		dom->nd_xprt_private = NULL;
 	}
@@ -269,6 +358,8 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	C2_PRE(sunrpc_dom_invariant(dom));
 
+	sunrpc_skulker_stop(dom);
+
 	/* fini the RPC domain (use in-mutex version of domain fini) */
 	c2_net__domain_fini(&dp->xd_rpc_dom);
 
@@ -278,9 +369,35 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	/* free the pvt structure */
 	C2_ASSERT(mem_dom_to_pvt(dom) == &dp->xd_base);
 	dp->xd_magic = 0;
+	c2_cond_fini(&dp->xd_skulker_cv);
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
 }
+
+void
+c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
+						   uint64_t secs)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	c2_mutex_lock(&dom->nd_mutex);
+	c2_time_set(&dp->xd_ep_release_delay, secs, 0);
+	if (secs == 0) /* flush cached eps now */
+		sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
+	c2_mutex_unlock(&dom->nd_mutex);
+	return;
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_set_end_point_release_delay);
+
+uint64_t
+c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	return c2_time_seconds(dp->xd_ep_release_delay);
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_get_end_point_release_delay);
 
 static c2_bcount_t sunrpc_xo_get_max_buffer_size(
 					      const struct c2_net_domain *dom)
@@ -493,6 +610,7 @@ static const struct c2_net_bulk_mem_ops sunrpc_xprt_methods = {
 	.bmo_ep_alloc                        = sunrpc_ep_alloc,
 	.bmo_ep_free                         = sunrpc_ep_free,
 	.bmo_ep_release                      = sunrpc_xo_end_point_release,
+	.bmo_ep_get                          = sunrpc_ep_get,
 	.bmo_wi_add                          = sunrpc_wi_add,
 	.bmo_buffer_in_bounds                = sunrpc_buffer_in_bounds,
 	.bmo_desc_create                     = sunrpc_desc_create,

@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 /* This file is included into mem_xprt_xo.c */
 
@@ -74,6 +93,11 @@ static void mem_ep_free(struct c2_net_bulk_mem_end_point *mep)
 	c2_free(mep);
 }
 
+static void mem_ep_get(struct c2_net_end_point *ep)
+{
+	c2_net_end_point_get(ep);
+}
+
 /**
    Internal implementation of mem_xo_end_point_create().
  */
@@ -87,6 +111,7 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	struct c2_net_bulk_mem_domain_pvt *dp;
 
 	C2_PRE(mem_dom_invariant(dom));
+	dp = mem_dom_to_pvt(dom);
 
 	/* check if its already on the domain list */
 	c2_list_for_each_entry(&dom->nd_end_points, ep,
@@ -95,14 +120,13 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = mem_ep_to_pvt(ep);
 		if (mem_sa_eq(&mep->xep_sa, sa) && mep->xep_service_id == id) {
-			c2_net_end_point_get(ep);
+			dp->xd_ops->bmo_ep_get(ep);
 			*epp = ep;
 			return 0;
 		}
 	}
 
 	/* allocate a new end point of appropriate size */
-	dp = mem_dom_to_pvt(dom);
 	mep = dp->xd_ops->bmo_ep_alloc(); /* indirect alloc */
 	if (mep == NULL)
 		return -ENOMEM;

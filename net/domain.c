@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/17/2010
+ */
 
 #include "lib/assert.h"
 #include "net/net_internal.h"
@@ -67,12 +85,13 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	C2_PRE(c2_mutex_is_locked(&c2_net_mutex));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_tms));
 	C2_ASSERT(c2_list_is_empty(&dom->nd_registered_bufs));
-	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 
 	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 		dom->nd_xprt = NULL;
 	}
+	/* allow xo_dom_fini to flush end point caches */
+	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 	c2_addb_ctx_fini(&dom->nd_addb);
 	dom->nd_xprt_private = NULL;
 

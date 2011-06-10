@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_H__
 
@@ -274,6 +293,12 @@ struct c2_net_bulk_mem_ops {
 	    function for c2_net_end_point::nep_ref.
 	 */
 	void (*bmo_ep_release)(struct c2_ref *ref);
+
+	/** Subroutine to obtain a persistent reference to an end point
+	    on the end point list.  This is to aid derived transports that
+	    cache end points.
+	*/
+	void (*bmo_ep_get)(struct c2_net_end_point *ep);
 
 	/** Subroutine to add a work item to the work list */
 	void (*bmo_wi_add)(struct c2_net_bulk_mem_work_item *wi,

@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -682,10 +701,11 @@ static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 		[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk,
 		[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb,
 	},
- 	.bmo_ep_create                       = mem_ep_create,
+	.bmo_ep_create                       = mem_ep_create,
 	.bmo_ep_alloc                        = mem_ep_alloc,
 	.bmo_ep_free                         = mem_ep_free,
 	.bmo_ep_release                      = mem_xo_end_point_release,
+	.bmo_ep_get                          = mem_ep_get,
 	.bmo_wi_add                          = mem_wi_add,
 	.bmo_buffer_in_bounds                = mem_buffer_in_bounds,
 	.bmo_desc_create                     = mem_desc_create,

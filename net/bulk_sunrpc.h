@@ -1,4 +1,24 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
+
 #ifndef __COLIBRI_NET_BULK_SUNRPC_H__
 #define __COLIBRI_NET_BULK_SUNRPC_H__
 
@@ -40,6 +60,31 @@ void c2_net_bulk_sunrpc_tm_set_num_threads(struct c2_net_transfer_mc *tm,
  */
 size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
 					     *tm);
+
+/**
+   Control how long unused end points are cached before release.
+
+   The delay allows potential reuse of the underlying network connection at a
+   later time.  This avoids exhaustion of the local dynamic port space,
+   as a port normally goes into TIMED_WAIT when the socket closes and won't
+   be made available for reuse until much later.  It also has the added
+   benefit of reducing the number of TCP connections established.
+
+   @param dom The domain pointer.
+   @param secs The duration of the delay in seconds.  Specify 0 for no
+   delay.  The default is to delay.
+ */
+void
+c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
+						   uint64_t secs);
+
+/**
+   Return the end point release delay value.
+   @param dom The domain pointer.
+   @retval secs Returns the seconds of delay, or 0 if delay is disabled.
+*/
+uint64_t
+c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
 
 /**
    @}
