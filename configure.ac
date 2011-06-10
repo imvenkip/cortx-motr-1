@@ -530,6 +530,7 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  pool/Makefile
                  reqh/Makefile
+		 reqh/ut/Makefile
                  sm/Makefile
                  sns/Makefile
                  sns/ut/Makefile

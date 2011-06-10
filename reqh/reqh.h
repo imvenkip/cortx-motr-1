@@ -1,27 +1,11 @@
 /* -*- C -*- */
-/*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
- *
- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
- *
- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
- * http://www.xyratex.com/contact
- *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 05/19/2010
- */
 
 #ifndef __COLIBRI_REQH_REQH_H__
 #define __COLIBRI_REQH_REQH_H__
 
 #include <sm/sm.h>
+#include "net/net.h"
+#include "fol/fol.h"
 
 /* import */
 struct c2_fop;
@@ -47,12 +31,16 @@ struct c2_reqh {
 	   @todo for now simply use storage object domain. In the future, this
 	   will be replaced with "stores".
 	 */
-	struct c2_stob_domain *rh_dom;
+	struct c2_stob_domain	*rh_dom;
+	struct c2_service	*rh_serv;
+	struct c2_fol		*rh_fol;
+	struct c2_fom_domain	*rh_fom_dom;
 };
 
 int  c2_reqh_init(struct c2_reqh *reqh,
 		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		  struct c2_stob_domain *rh_stob_dom);
+		  struct c2_stob_domain *rh_stob_dom, 
+		  struct c2_fol *fol, struct c2_service *serv);
 void c2_reqh_fini(struct c2_reqh *reqh);
 
 /**
@@ -70,7 +58,7 @@ struct c2_fop_sortkey {
    fop processing results are reported by other means (ADDB, reply fops, error
    messages, etc.) so this function returns nothing.
  */
-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
+void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 
 /**
    Assign a sort-key to a fop.
