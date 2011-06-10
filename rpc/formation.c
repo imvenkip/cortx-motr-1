@@ -94,7 +94,7 @@ int c2_rpc_form_init()
 	}
 	c2_rwlock_init(&formation_summary->is_endp_list_lock);
 	c2_list_init(&formation_summary->is_endp_list);
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < rpc_form_ut_threads; i++) {
 		memset(&thrd_reftrack[i], 0,
 				sizeof(struct c2_rpc_form_ut_thread_reftrack));
 	}
@@ -108,6 +108,7 @@ void add_ref_log()
 	int				i = 0;
 	bool				found = false;
 
+	C2_ASSERT(n_ut_threads <= rpc_form_ut_threads);
 	c2_thread_self(&handle);
 	for (i = 0; i < n_ut_threads; i++) {
 		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {
@@ -128,6 +129,7 @@ void dec_ref_log()
 	int 				i = 0;
 	bool				found = false;
 
+	C2_ASSERT(n_ut_threads <= rpc_form_ut_threads);
 	c2_thread_self(&handle);
 	for (i = 0; i < n_ut_threads; i++) {
 		if (c2_thread_handle_eq(&thrd_reftrack[i].handle, &handle)) {

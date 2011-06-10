@@ -79,15 +79,15 @@ uint64_t			 c2_rpc_max_message_size;
 uint64_t			 c2_rpc_max_fragments_size;
 uint64_t			 c2_rpc_max_rpcs_in_flight;
 
-#define nthreads 		256
+#define nthreads		 256
 struct c2_thread		 form_ut_threads[nthreads];
-uint64_t			thread_no = 0;
+uint64_t			 thread_no = 0;
 
 #define nfops 			256
 struct c2_fop			*form_fops[nfops];
 
 uint64_t			 nwrite_iovecs = 0;
-struct c2_fop_io_vec		**form_write_iovecs = NULL;
+struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
 #define nfiles 			64
 struct c2_fop_file_fid		*form_fids = NULL;
