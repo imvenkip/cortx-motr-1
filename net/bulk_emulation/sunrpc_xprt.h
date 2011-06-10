@@ -145,14 +145,14 @@ struct c2_net_bulk_sunrpc_end_point {
 	/** Service id */
 	struct c2_service_id             xep_sid;
 
-	/** The time the connection was last used, and used to
-	    control the duration of end point caching.
+	/** The time the internal sunrpc connection was last used.
+	    The field is used to control the duration of end point caching.
 	    A value of C2_NEVER implies that the connection encountered
 	    an error and hence the end point should not be cached.
 
 	    The value is maintained as an atomic variable to avoid
 	    the need to acquire the domain mutex when setting the value.
-	*/
+	 */
 	struct c2_atomic64               xep_last_use;
 };
 

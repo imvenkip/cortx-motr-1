@@ -691,7 +691,7 @@ static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 		[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk,
 		[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb,
 	},
- 	.bmo_ep_create                       = mem_ep_create,
+	.bmo_ep_create                       = mem_ep_create,
 	.bmo_ep_alloc                        = mem_ep_alloc,
 	.bmo_ep_free                         = mem_ep_free,
 	.bmo_ep_release                      = mem_xo_end_point_release,

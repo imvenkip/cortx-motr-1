@@ -53,18 +53,17 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
    @param dom The domain pointer.
    @param secs The duration of the delay in seconds.  Specify 0 for no
    delay.  The default is to delay.
-   @pre secs >= 0
  */
 void
 c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
-						   int secs);
+						   uint64_t secs);
 
 /**
    Return the end point release delay value.
    @param dom The domain pointer.
    @retval secs Returns the seconds of delay, or 0 if delay is disabled.
 */
-int
+uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
 
 /**

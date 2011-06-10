@@ -312,8 +312,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	dp->xd_skulker_run = true;
 	rc = C2_THREAD_INIT(&dp->xd_skulker_thread,
 			    struct c2_net_domain *, NULL,
-			    &sunrpc_skulker, dom,
-			    "sunrpc_skulker_%p", dom);
+			    &sunrpc_skulker, dom, "sunrpc_skulker");
 	if (rc != 0) {
 		dp->xd_skulker_run = false;
 		goto err_exit;
@@ -358,7 +357,7 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 
 void
 c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
-						   int secs)
+						   uint64_t secs)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	C2_PRE(sunrpc_dom_invariant(dom));
@@ -373,7 +372,7 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 }
 C2_EXPORTED(c2_net_bulk_sunrpc_dom_set_end_point_release_delay);
 
-int
+uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
