@@ -432,7 +432,7 @@ static void intent_mode_test(void)
 	in.rin_type = RIT_LOAN;
 	in.rin_policy = RIP_INPLACE;
 
-	in.rin_flags |= RIF_LOCAL_WAIT;
+	in.rin_flags |= RIF_MAY_BORROW;
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
 	C2_ASSERT(result == 0);
