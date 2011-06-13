@@ -468,7 +468,6 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 	return 0;
 }
 
-#if 0
 static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
 		   struct c2_fop *ret)
 {
@@ -552,8 +551,6 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	result = netcall(conn, f, r);
 	return result;
 }
-
-#endif
 
 /**
  * Check for held conflict rights.
@@ -856,8 +853,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 			switch (in->rin_type) {
 			case RIT_LOAN:
 				move_to_sublet(in);
-				/*@todo uncomment when producer consumer is ready*/
-				//reply_to_loan_request(in);
+				reply_to_loan_request(in);
 			case RIT_LOCAL:
 				/* Granted right are moved to held list */
 				move_to_held(in);
@@ -1079,9 +1075,7 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		    	&out->rog_want.rl_right.ri_linkage);
 		result = pin_add(in, &out->rog_want.rl_right);
 	}
-	/*@todo uncomment when producer consumer is redy*/
-	//result = send_out_request(out);
-
+	result = send_out_request(out);
 	outgoing_complete(out, result);
 
 	return result;
