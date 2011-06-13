@@ -126,6 +126,7 @@ C2_EXPORTED(c2_time_nanoseconds);
 
 
 const c2_time_t C2_TIME_NEVER = ~0ULL;
+C2_EXPORTED(C2_TIME_NEVER);
 
 /** @} end of time group */
 
