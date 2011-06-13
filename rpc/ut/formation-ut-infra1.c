@@ -59,46 +59,45 @@
  */
 
 /* Some random deadline values for testing purpose only */
-#define MIN_NONIO_DEADLINE	0 		// 0 ms
-//#define MAX_NONIO_DEADLINE	1		// 1 ns
-#define MAX_NONIO_DEADLINE	10000000	// 10 ms
-#define MIN_IO_DEADLINE		10000000  	// 10 ms
-#define MAX_IO_DEADLINE		100000000 	// 100 ms
+#define MIN_NONIO_DEADLINE	 0 		// 0 ms
+#define MAX_NONIO_DEADLINE	 10000000	// 10 ms
+#define MIN_IO_DEADLINE		 10000000  	// 10 ms
+#define MAX_IO_DEADLINE		 100000000 	// 100 ms
 
 /* Some random priority values for testing purpose only */
-#define MIN_NONIO_PRIO		0
-#define MAX_NONIO_PRIO		5
-#define MIN_IO_PRIO		6
-#define MAX_IO_PRIO 		10
+#define MIN_NONIO_PRIO		 0
+#define MAX_NONIO_PRIO		 5
+#define MIN_IO_PRIO		 6
+#define MAX_IO_PRIO 		 10
 
 /* Array of groups */
-#define MAX_GRPS		16
+#define MAX_GRPS		 16
 struct c2_rpc_group		*rgroup[MAX_GRPS];
 
 uint64_t			 c2_rpc_max_message_size;
 uint64_t			 c2_rpc_max_fragments_size;
 uint64_t			 c2_rpc_max_rpcs_in_flight;
 
-#define nthreads 		256
+#define nthreads		 256
 struct c2_thread		 form_ut_threads[nthreads];
-uint64_t			thread_no = 0;
+uint64_t			 thread_no = 0;
 
-#define nfops 			256
+#define nfops			 256
 struct c2_fop			*form_fops[nfops];
 
 uint64_t			 nwrite_iovecs = 0;
-struct c2_fop_io_vec		**form_write_iovecs = NULL;
+struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-#define nfiles 			64
+#define nfiles 			 64
 struct c2_fop_file_fid		*form_fids = NULL;
-uint64_t			*file_offsets = NULL;
-#define	io_size 		8192
-#define nsegs 			8
+
+#define	io_size 		 8192
+#define nsegs 			 8
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
-#define nopcodes 3
+#define nopcodes 		 3
 
-struct c2_net_end_point		ep;
+struct c2_net_end_point		 ep;
 
 
 /* Function pointer to different FOP creation methods. */
@@ -114,9 +113,14 @@ fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_file_create_fop
 };
 
-#define niopatterns 		8
-#define pattern_length 		4
-char				file_data_patterns[niopatterns][pattern_length];
+#define niopatterns 		 8
+#define pattern_length 		 4
+char				 file_data_patterns[niopatterns][pattern_length];
+
+#define ndatafids		 8
+struct c2_fop_file_fid		 fid_data[ndatafids];
+
+uint64_t			*file_offsets = NULL;
 
 /* Defining functions here to avoid linking errors. */
 int create_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
@@ -234,11 +238,13 @@ void c2_rpc_form_invoke_reply_received(void)
                 c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
                                 item, item_next, struct c2_rpc_item ,
                                 ri_linkage)
-			/* Sending same item as req and reply for testing purpose
-			   Formation code is anyways going to pick up req item */
+			/* Sending same item as req and reply for testing 
+			   purpose. Formation code is anyways going to pick 
+			   up req item */
 			if(item->ri_state == RPC_ITEM_SENT) {
 				printf("Calling callback for reply received\n");
-				c2_rpc_form_extevt_rpcitem_reply_received(item, item);
+				c2_rpc_form_extevt_rpcitem_reply_received(item,
+						item);
 			}
         }
 }
@@ -259,7 +265,8 @@ void c2_rpc_form_invoke_item_removed(void)
                                 ri_linkage)
 			if(item->ri_state == RPC_ITEM_SUBMITTED) {
 				printf("Calling callback for item removed\n");
-				c2_rpc_form_extevt_rpcitem_deleted_from_cache(item);
+				c2_rpc_form_extevt_rpcitem_deleted_from_cache(
+						item);
 			}
         }
 }
@@ -282,7 +289,9 @@ int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 	c2_mutex_lock(&grp->rg_guard);
 	grp->rg_expected++;
 	grp->rg_grpid = grpno;
-	/* Insert by sorted priority in groups list */
+	/* Insert by sorted priority in groups list 
+	   Assumption- Lower the value of priority, 
+	   higher is the actual priority  */
 	c2_list_for_each_entry_safe(&grp->rg_items,
 			rpc_item, rpc_item_next,
 			struct c2_rpc_item, ri_group_linkage){
@@ -450,15 +459,9 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	return 0;
 }
 
-
-void form_ut_thread_init(int a)
-{
-#ifndef __KERNEL__
-	//printf("Thread id %d initialized.\n", form_ut_threads[a].t_h.h_id);
-#endif
-	/* Call its function. */
-}
-
+/**
+  Get fid from global pool of fids
+ */
 struct c2_fop_file_fid *form_get_fid(int i)
 {
 	struct c2_fop_file_fid	*fid = NULL;
@@ -467,12 +470,9 @@ struct c2_fop_file_fid *form_get_fid(int i)
 	return fid;
 }
 
-struct c2_rpc_group *form_get_rpcgroup(int i)
-{
-	C2_ASSERT(i < MAX_GRPS);
-	return rgroup[i];
-}
-
+/**
+  Create and return fop for file creation
+ */
 struct c2_fop *form_create_file_create_fop()
 {
 	int 				 i = 0;
@@ -492,14 +492,21 @@ struct c2_fop *form_create_file_create_fop()
 	return fop;
 }
 
+/**
+  Free the fop
+ */
 void form_fini_fop(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 	c2_fop_free(fop);
 }
 
-struct c2_fop_io_vec *form_get_new_iovec(int i)
+/**
+  Get new iovector for a fiven fid
+ */
+struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 {
+	int 				 i = 0;
 	struct c2_fop_io_vec		*iovec = NULL;
 	uint64_t			 offset = 0;
 	uint64_t			 seg_size = 0;
@@ -509,6 +516,13 @@ struct c2_fop_io_vec *form_get_new_iovec(int i)
 	bool				 status = true;
 
 	C2_ASSERT(i < nfiles);
+	for (a = 0; a < ndatafids; a++) {
+		if ((fid_data[a].f_seq == fid->f_seq) &&
+				(fid_data[a].f_oid == fid->f_oid)) {
+			i = a;
+			break;
+		}
+	}
 	C2_ALLOC_PTR(iovec);
 	if (iovec == NULL) {
 		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
@@ -550,14 +564,17 @@ last:
 		iovec = NULL;
 	}
 	else {
-		file_offsets[i] = iovec->iov_seg[a].f_offset +
-			iovec->iov_seg[a].f_buf.f_count;
+		file_offsets[i] = iovec->iov_seg[a-1].f_offset +
+			iovec->iov_seg[a-1].f_buf.f_count;
 		form_write_iovecs[nwrite_iovecs] = iovec;
 		nwrite_iovecs++;
 	}
 	return iovec;
 }
 
+/**
+  Deallocate the iovec
+ */
 void form_write_iovec_fini()
 {
 	int			i = 0;
@@ -576,6 +593,9 @@ void form_write_iovec_fini()
 	}
 }
 
+/**
+  Create a new write fop 
+ */
 struct c2_fop *form_create_write_fop()
 {
 	int				 i = 0;
@@ -593,16 +613,20 @@ struct c2_fop *form_create_write_fop()
 	i = (rand()) % nfiles;
 	fid = form_get_fid(i);
 	write_fop->fwr_fid = *fid;
-	iovec = form_get_new_iovec(i);
+	iovec = form_get_new_iovec(fid);
 	write_fop->fwr_iovec = *iovec;
 	return fop;
 }
 
+/**
+  Create a new read fop 
+ */
 struct c2_fop *form_create_read_fop()
 {
 	int				 i = 0;
 	int				 j = 0;
 	int				 k = 0;
+	int				 a = 0;
 	int				 seg_size = 0;
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_cob_readv		*read_fop = NULL;
@@ -618,6 +642,13 @@ struct c2_fop *form_create_read_fop()
 	fid = form_get_fid(i);
 	read_fop->frd_fid = *fid;
 	read_fop->frd_ioseg.fs_count = nsegs;
+	for (a = 0; a < ndatafids; a++) {
+		if ((fid_data[a].f_seq == fid->f_seq) &&
+				(fid_data[a].f_oid == fid->f_oid)) {
+			i = a;
+			break;
+		}
+	}
 	C2_ALLOC_ARR(read_fop->frd_ioseg.fs_segs, nsegs);
 	if (read_fop->frd_ioseg.fs_segs == NULL) {
 		printf("Failed to allocate memory for IO segment\n");
@@ -631,12 +662,15 @@ struct c2_fop *form_create_read_fop()
 			read_fop->frd_ioseg.fs_segs[k].f_count = seg_size;
 			j += seg_size;
 		}
-		file_offsets[i] = read_fop->frd_ioseg.fs_segs[k].f_offset +
-			read_fop->frd_ioseg.fs_segs[k].f_count;
+		file_offsets[i] = read_fop->frd_ioseg.fs_segs[k-1].f_offset +
+			read_fop->frd_ioseg.fs_segs[k-1].f_count;
 	}
 	return fop;
 }
 
+/**
+  Deallocate the read fop
+ */
 void form_fini_read_fop(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv			*read_fop = NULL;
@@ -647,6 +681,9 @@ void form_fini_read_fop(struct c2_fop *fop)
 	c2_fop_free(fop);
 }
 
+/**
+  Deallocate the fops which are created in global array
+ */
 void form_fini_fops()
 {
 	int			opcode = 0;
@@ -673,6 +710,9 @@ void form_fini_fops()
 	}
 }
 
+/**
+  Fill in hard coded data patterns in a global patterns array
+ */
 void init_file_io_patterns()
 {
 	strcpy(file_data_patterns[0], "a1b2");
@@ -685,6 +725,9 @@ void init_file_io_patterns()
 	strcpy(file_data_patterns[7], "h1i2");
 }
 
+/**
+  Get a random fop
+ */
 struct c2_fop *form_get_new_fop()
 {
 	struct c2_fop		*fop = NULL;
@@ -697,6 +740,49 @@ struct c2_fop *form_get_new_fop()
 	return fop;
 }
 
+/**
+  Initialize the global fid array
+ */
+void init_fids()
+{
+	fid_data[0].f_seq = 1;
+	fid_data[0].f_oid = 2;
+	fid_data[1].f_seq = 3;
+	fid_data[1].f_oid = 4;
+	fid_data[2].f_seq = 5;
+	fid_data[2].f_oid = 6;
+	fid_data[3].f_seq = 7;
+	fid_data[3].f_oid = 8;
+	fid_data[4].f_seq = 9;
+	fid_data[4].f_oid = 10;
+	fid_data[5].f_seq = 11;
+	fid_data[5].f_oid = 12;
+	fid_data[6].f_seq = 13;
+	fid_data[6].f_oid = 14;
+	fid_data[7].f_seq = 15;
+	fid_data[7].f_oid = 16;
+}
+
+/**
+  Populate the global fid array
+ */
+void populate_fids()
+{
+	int		i = 0;
+	int		j = 0;
+
+	/* Total 64 fids to be populated. */
+	/* nfiles = 64 */
+	/* ndatafids = 8 */
+	for (i = 0; i < nfiles; i++) {
+		j = rand() % ndatafids;
+		form_fids[i] = fid_data[j];
+	}
+}
+
+/** 
+  This main function tests the formation code.
+ */
 int main(int argc, char **argv)
 {
 	int		result = 0;
@@ -712,16 +798,14 @@ int main(int argc, char **argv)
 
 	result = c2_rpc_form_init();
 
-	/*
-	 1. Initialize the thresholds like max_message_size, max_fragements
-	    and max_rpcs_in_flight.*/
 
+	/* Initialize the thresholds like max_message_size, max_fragements
+	   and max_rpcs_in_flight.*/
 	/* Lustre limits the rpc size(actually the number of pages in rpc)
 	   by the MTU(Max Transferrable Unit) of LNET which is defined
 	   to be 1M. !! Not sure of this is right !! */
-	//c2_rpc_max_message_size = 1024*1024;
 	c2_rpc_max_message_size = 1024 * 100;
-	/* We start with a default value of 8. The max value in Lustre, is
+	/* Start with a default value of 8. The max value in Lustre, is
 	   limited to 32. */
 	c2_rpc_max_rpcs_in_flight = 8;
 	c2_rpc_max_fragments_size = 16;
@@ -729,12 +813,14 @@ int main(int argc, char **argv)
 	c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
 			c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
+	/* Initialize the global items cache */
 	result = c2_rpc_form_item_cache_init();
 	C2_ASSERT(result == 0);
 
-	/* 3. Create a number of meta-data and IO FOPs. For IO, decide the
-	    number of files to operate upon. Decide how to assign items to
-	    rpc groups and have multiple IO requests within or across groups.*/
+	/*Create a number of meta-data and IO FOPs. For IO, decide the
+	  number of files to operate upon. Decide how to assign items to
+	  rpc groups and have multiple IO requests within or across groups.*/
+
 	/* Init the fid structures and rpc groups. */
 	C2_ALLOC_ARR(form_fids, nfiles);
 	if (form_fids == NULL) {
@@ -742,8 +828,10 @@ int main(int argc, char **argv)
 				c2_fop_file_fid.\n");
 		return -1;
 	}
+	init_fids();
+	populate_fids();
 
-	C2_ALLOC_ARR(file_offsets, nfiles);
+	C2_ALLOC_ARR(file_offsets, ndatafids);
 	if (file_offsets == NULL) {
 		printf("Failed to allocate memory for array of uint64_t.\n");
 		return -1;
@@ -761,7 +849,17 @@ int main(int argc, char **argv)
 	/* For every group, create a fop in a random manner
 	   and populate its constituent rpc item.
 	   Wait till all items in the group are populated.
-	   And submit the whole group at once.*/
+	   And submit the whole group at once.
+	   Assign priority and timeout for all rpc items. The thumb rule
+	   for this is - meta data FOPs should have higher priority and
+	   shorted timeout while IO FOPs can have lower priority than
+	   meta data FOPs and relatively larger timeouts.
+	   Assign a thread each time from the thread pool to do the
+	   rpc submission. This will give ample opportunity to test the
+	   formation algorithm in multi threaded environment.
+	   Simulate necessary behavior of grouping component.
+	   This will trigger execution of formation algorithm.
+	 */
 	for (i = 0; i < MAX_GRPS; i++) {
 		for (j = 0; j < nfops/MAX_GRPS; j++) {
 			fop = form_get_new_fop();
@@ -775,19 +873,6 @@ int main(int argc, char **argv)
 		C2_ASSERT(result == 0);
 	}
 
-	/* 4. Populate the associated rpc items.
-	 5. Assign priority and timeout for all rpc items. The thumb rule
-	    for this is - meta data FOPs should have higher priority and
-	    shorted timeout while IO FOPs can have lower priority than
-	    meta data FOPs and relatively larger timeouts.
-	 6. Assign a thread each time from the thread pool to do the
-	    rpc submission. This will give ample opportunity to test the
-	    formation algorithm in multi threaded environment.
-	 7. Simulate necessary behavior of grouping component.
-	 8. This will trigger execution of formation algorithm.
-	 9. Grab output produced by formation algorithm and analyze the
-	    statistics.
-	 */
 
 	/* Joining all threads will take care of releasing all references
 	   to rpc items(and fops inherently) and then formation component
@@ -796,12 +881,12 @@ int main(int argc, char **argv)
 		c2_thread_join(&form_ut_threads[i]);
 		c2_thread_fini(&form_ut_threads[i]);
 	}
-	printf("No. of items in items cache before invoking reply recd:%lu\n",
-			c2_list_length(&items_cache->ic_cache_list)); 
-	//c2_rpc_form_invoke_reply_received();
-	printf("No. of items in items cache after invoking reply recd:%lu\n", 
-			c2_list_length(&items_cache->ic_cache_list)); 
-	//c2_rpc_form_invoke_item_removed();
+	/* Invoke reply received callbacks on the items in items cache*/
+	c2_rpc_form_invoke_reply_received();
+	/* Invoke item removed callbacks on the items in items cache */
+	c2_rpc_form_invoke_item_removed();
+
+        /* Do the cleanup */
 	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;

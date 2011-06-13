@@ -141,7 +141,11 @@ struct c2_rpc_form_ut_thread_reftrack {
 	int				refcount;
 };
 
-struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[512];
+/* nthreads in UT  = 256,  + 256 * ((rpcitem_changed | rpcitem_replied) && 
+   rpcitem_deadline_expired)  = 256*3. */
+#define rpc_form_ut_threads	256*3
+
+struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[rpc_form_ut_threads];
 int	n_ut_threads;
 
 /**
