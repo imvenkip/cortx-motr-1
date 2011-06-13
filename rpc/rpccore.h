@@ -333,6 +333,9 @@ struct c2_rpc_item {
 	uint64_t			ri_slot_generation;
 	/** ri_verno acts as sequence counter */
 	struct c2_verno			ri_verno;
+	struct c2_verno			ri_last_persistent_verno;
+	struct c2_verno			ri_last_seen_verno;
+	uint32_t			ri_session_err;
 	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
 	    on c2_rpc_snd_slot::ss_replay_list */
 	struct c2_list_link		ri_slot_link;
