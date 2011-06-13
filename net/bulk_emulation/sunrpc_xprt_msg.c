@@ -96,8 +96,6 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 				.ac_arg = f,
 				.ac_ret = r
 			};
-			call.ac_arg = f;
-			call.ac_ret = r;
 			rc = c2_net_cli_call(conn, &call);
 		}
 		if (rc == 0) {
