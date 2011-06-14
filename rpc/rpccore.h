@@ -275,7 +275,6 @@ struct c2_rpc_item_type {
 	const struct c2_rpc_item_type_ops *rit_ops;
 };
 
-
 enum c2_rpc_item_state {
 	/** Newly allocated object is in uninitialized state */
 	RPC_ITEM_UNINITIALIZED = 0,
@@ -292,6 +291,19 @@ enum c2_rpc_item_state {
 	/** After finalization item enters finalized state*/
 	RPC_ITEM_FINALIZED = (1 << 5)
 };
+/** transmission state of item */
+enum c2_rpc_item_tstate {
+	/** the reply for the item was received and the receiver confirmed 
+	    that the item is persistent */
+	RPC_ITEM_PAST_COMMITTED,
+	/** the reply was received, but persistence confirmation wasn't */
+	RPC_ITEM_PAST_VOLATILE,
+	/** the item was sent (i.e., placed into an rpc) and no reply is 
+	    received */
+	RPC_ITEM_UNREPLIED,
+	/** the item is not sent */
+	RPC_ITEM_FUTURE,
+};
 
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
@@ -300,6 +312,14 @@ enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_NR
 };
 
+enum c2_rpc_item_flags {
+	/** Item modifies file-system state */
+	RPC_ITEM_MUTABO = 1
+};
+enum {
+	/** Maximum number of slots to which an rpc item can be associated */
+	MAX_SLOT_REF = 1
+};
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -314,18 +334,22 @@ enum c2_rpc_item_priority {
    };
  */
 struct c2_rpc_item {
-	struct c2_rpcmachine *ri_mach;
+	struct c2_rpcmachine		*ri_mach;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
-	struct c2_list_link ri_linkage;
-	struct c2_ref ri_ref;
+	struct c2_list_link		ri_linkage;
+	struct c2_ref			ri_ref;
 
-	enum c2_rpc_item_priority  ri_prio;
-	c2_time_t	   ri_deadline;
-	struct c2_rpc_group       *ri_group;
+	enum c2_rpc_item_priority	ri_prio;
+	c2_time_t			ri_deadline;
+	struct c2_rpc_group		*ri_group;
 
-	enum c2_rpc_item_state     ri_state;
-
+	enum c2_rpc_item_state		ri_state;
+	enum c2_rpc_item_tstate		ri_tstate;
+	uint64_t			ri_flags;
+	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
 	struct c2_service_id		*ri_service_id;
+	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
+	struct c2_list_link		ri_unbound_link;
 	/** Session related fields. Should be included in on wire rpc-item */
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
@@ -333,28 +357,30 @@ struct c2_rpc_item {
 	uint64_t			ri_slot_generation;
 	/** ri_verno acts as sequence counter */
 	struct c2_verno			ri_verno;
+	struct c2_verno			ri_last_persistent_verno;
+	struct c2_verno			ri_last_seen_verno;
+	uint32_t			ri_session_err;
 	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
 	    on c2_rpc_snd_slot::ss_replay_list */
 	struct c2_list_link		ri_slot_link;
 	/** XXX temporary field to put item on in-core reply cache list */
-	struct c2_list_link			ri_rc_link;
+	struct c2_list_link		ri_rc_link;
 
 	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type *ri_type;
-	struct c2_chan ri_chan;
-	/* An item is assigned "a xid" by the sessions module
-	   once it is bound to a particular slot. */
-	uint64_t ri_xid;
+	struct c2_rpc_item_type		*ri_type;
+	struct c2_chan			ri_chan;
 	/** Linkage to the forming list, needed for formation */
-	struct c2_list_link	ri_rpcobject_linkage;
+	struct c2_list_link		ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link	ri_unformed_linkage;
+	struct c2_list_link		ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link	ri_group_linkage;
+	struct c2_list_link		ri_group_linkage;
 	/** Destination endpoint. */
-	struct c2_net_end_point	ri_endp;
+	struct c2_net_end_point		ri_endp;
 	/** Timer associated with this rpc item.*/
-	struct c2_timer		ri_timer;
+	struct c2_timer			ri_timer;
+	/** reply item */
+	struct c2_rpc_item		*ri_reply;
 };
 
 /**
@@ -363,6 +389,8 @@ struct c2_rpc_item {
  */
 int c2_rpc_item_init(struct c2_rpc_item *item,
 		     struct c2_rpcmachine *mach);
+
+bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
 
 /** DEFINITIONS of RPC layer core DLD: */
 
@@ -446,9 +474,9 @@ struct c2_rpcmachine {
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list		   cr_rpc_conn_list;
-	/** list of ready slots. */
-	struct c2_list             cr_ready_slots;
-	/** mutex that protects conn_list */
+	/** list of ready slots. */ 
+	struct c2_list		   cr_ready_slots;
+	/** mutex that protects conn_list. Better name??? */
 	struct c2_mutex		   cr_session_mutex;
 	struct c2_rpc_reply_cache  cr_rcache;
 };
@@ -506,6 +534,10 @@ int c2_rpc_submit(struct c2_service_id		*srvid,
 		  struct c2_rpc_item 		*item,
 		  enum c2_rpc_item_priority	prio,
 		  const c2_time_t		*deadline);
+
+int c2_rpc_reply_submit(struct c2_rpc_item	*request,
+			struct c2_rpc_item	*reply,
+			struct c2_db_tx		*tx);
 
 /**
    Cancel submitted RPC-item

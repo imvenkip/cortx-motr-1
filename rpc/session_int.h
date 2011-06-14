@@ -229,6 +229,18 @@ int c2_rpc_session_item_prepare(struct c2_rpc_item	*item);
 uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
 
+struct c2_rpc_slot_ref {
+	struct c2_verno		sr_verno;
+	uint64_t		sr_cookie;
+	uint64_t		sr_slot_gen;
+	struct c2_rpc_slot	*sr_slot;
+	struct c2_rpc_item	*sr_item;
+	/** Anchor to put item on c2_rpc_slot::sl_item_list */
+	struct c2_list_link	sr_link;
+	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
+	struct c2_list_link	sr_ready_link;
+};
+
 /** @}  End of rpc_session group */
 #endif
 
