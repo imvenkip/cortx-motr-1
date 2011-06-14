@@ -552,8 +552,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
 
 /** 
    Callback function for slot becoming idle.
-   Call the default handler function passing the slot and
-   the corresponding event enum.
+   Adds the slot to the list of ready slots in concerned rpcmachine. 
    @param item - slot structure for the slot which has become idle.
  */
 int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);

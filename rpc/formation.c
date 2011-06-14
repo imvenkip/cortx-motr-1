@@ -621,14 +621,77 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
  */
 int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 {
-	struct c2_rpc_form_sm_event		sm_event;
+	struct c2_rpc_form_sm_event		 sm_event;
+	struct c2_rpc_slot			*slot = NULL;
+	struct c2_rpcmachine			*rpcmachine = NULL;
 
 	C2_PRE(item != NULL);
 	printf("In callback: c2_rpc_form_extevt_rpcitem_ready\n");
 	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_READY;
 	sm_event.se_pvt = NULL;
+
+	/* Add the item to ready list of its slot. */
+	slot = item->ri_slot_refs[0].sr_slot;
+	c2_mutex_lock(&slot->sl_mutex);
+	C2_ASSERT(slot != NULL);
+	c2_list_add(&slot->sl_ready_list, &item->ri_slot_link);
+
+	/* Add the slot to list of ready slots in rpcmachine. */
+	rpcmachine = slot->sl_sesion->s_conn->c_rpcmachine;
+	c2_mutex_lock(rpcmachine->cr_ready_slots_mutex);
+	C2_ASSERT(rpcmachine != NULL);
+	c2_list_add(&rpcmachine->c2_ready_slots, &slot->sl_link);
+	c2_mutex_unlock(rpcmachine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&slot->sl_mutex);
+
 	/* Curent state is not known at the moment. */ 
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES, 
+			&sm_event);
+}
+
+/** 
+   Callback function for slot becoming idle.
+   Adds the slot to the list of ready slots in concerned rpcmachine. 
+   @param item - slot structure for the slot which has become idle.
+ */
+int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
+{
+	struct c2_rpcmachine		*rpcmachine = NULL;
+	C2_PRE(slot != NULL);
+	printf("In callback: c2_rpc_form_extevt_slot_idle\n");
+	/* Add the slot to list of ready slots in its rpcmachine. */
+	c2_mutex_lock(&slot->sl_mutex);
+	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
+	C2_ASSERT(rpcmachine != NULL);
+	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+	c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
+	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&slot->sl_mutex);
+	return 0;
+}
+
+/** 
+   Callback function for unbounded item getting added to session. 
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
+   @param item - incoming rpc item.
+ */
+int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
+{
+	struct c2_rpc_form_sm_event		sm_event;
+
+	C2_PRE(item != NULL);
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED;
+	sm_event.se_pvt = NULL;
+
+	/* Add the item to list of unbound items in its session. */
+	session = item->ri_slot_refs[0].sr_slot->sl_session;
+	C2_ASSERT(session != NULL);
+	c2_mutex_lock(&session->s_mutex);
+	c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
+	c2_mutex_unlock(&session->s_mutex);
+	/* Curent state is not known at the moment. */
+	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
 			&sm_event);
 }
 
