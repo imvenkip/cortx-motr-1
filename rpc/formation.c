@@ -1032,16 +1032,34 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 		struct c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_rpc_item *item)
 {
-	int						  res = 0;
-	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
-	bool						  found = false;
-	struct c2_timer					 *item_timer = NULL;
+	int						 res = 0;
+	struct c2_rpc_form_item_summary_unit_group	*summary_group = NULL;
+	bool						 found = false;
+	struct c2_timer					*item_timer = NULL;
+	struct c2_rpc_item				*rpc_item = NULL;
+	struct c2_rpc_item				*rpc_item_next = NULL;
+	bool						 item_inserted = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
 
+	/** Insert the item into unformed list sorted according to timeout*/
+	c2_list_for_each_entry_safe(&endp_unit->isu_unformed_list,
+			rpc_item, rpc_item_next,
+			struct c2_rpc_item, ri_unformed_linkage){
+		if(item->ri_deadline <= rpc_item->ri_deadline) {
+			c2_list_add_before(&rpc_item->ri_unformed_linkage,
+					&item->ri_unformed_linkage);
+			item_inserted = true;
+			break;
+		}
+	}
+	if(!item_inserted) {
+		c2_list_add_after(&rpc_item->ri_unformed_linkage,
+				&item->ri_unformed_linkage);
+	}
 	c2_list_add(&endp_unit->isu_unformed_list,
 			&item->ri_unformed_linkage);
 	/* Search for the group of rpc item in list of rpc groups in
