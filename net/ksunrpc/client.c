@@ -56,8 +56,6 @@
   @{
  */
 
-#define C2_DEF_RPC_VER  1
-#define C2_SESSION_PROGRAM 0x20000001
 #define UT_PROC_NAME "ksunrpc-ut"
 
 /*

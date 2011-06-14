@@ -57,8 +57,6 @@
  */
 
 enum {
-	C2_SESSION_PROGRAM = 0x20000001,
-	C2_DEF_RPC_VER = 1,
 	KSUNRPC_XDRSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
 	KSUNRPC_BUFSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
 	KSUNRPC_MAXCONN = 1024,
@@ -127,7 +125,7 @@ static int ksunrpc_authenticate(struct svc_rqst *req)
 /**
    Process a single RPC request.
  */
-static int ksunrpc_proc(struct c2_service *service,
+static void ksunrpc_proc(struct c2_service *service,
 			struct c2_fop *arg, struct c2_fop **ret)
 {
         bool sleeping = false;
@@ -135,7 +133,7 @@ static int ksunrpc_proc(struct c2_service *service,
 				    arg->f_type->ft_top->fft_layout->fm_sizeof,
 				    &sleeping);
 	*ret = NULL;
-	return service->s_handler(service, arg, ret);
+	service->s_handler(service, arg, ret);
 }
 
 static int ksunrpc_op(struct c2_service *service,
@@ -152,15 +150,11 @@ static int ksunrpc_op(struct c2_service *service,
 
 		rc = c2_svc_rqst_dec(req, argv->iov_base, arg);
 		if (rc == 0) {
-			rc = ksunrpc_proc(service, arg, &ret);
-			if (rc == 0) {
-				rc = c2_svc_rqst_enc(req,
-					resv->iov_base + resv->iov_len, ret);
-				if (rc != 0)
-					ADDB_CALL(service, "rqst_enc", rc);
-			} else {
-				ADDB_CALL(service, "ksunrpc_proc", rc);
-			}
+			ksunrpc_proc(service, arg, &ret);
+			rc = c2_svc_rqst_enc(req,
+				resv->iov_base + resv->iov_len, ret);
+			if (rc != 0)
+				ADDB_CALL(service, "rqst_enc", rc);
 			if (ret != NULL)
 				c2_fop_free(ret);
 		} else {
@@ -259,7 +253,6 @@ static int ksunrpc_service_start(struct c2_service *service,
 {
 	struct ksunrpc_service *xs = service->s_xport_private;
 	struct svc_serv *serv;
-	struct svc_xprt *xprt;
 	struct svc_rqst *rqst;
 	int rc = 0;
 
@@ -277,17 +270,12 @@ static int ksunrpc_service_start(struct c2_service *service,
 	}
 	xs->s_serv = serv;
 
-	/* create transport/socket if it does not already exist */
-	xprt = svc_find_xprt(serv, "tcp", PF_INET, 0);
-	if (xprt != NULL) {
-		svc_xprt_put(xprt);
-	} else {
-		rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
-				     SVC_SOCK_DEFAULTS);
-		if (rc != 0) {
-			ADDB_CALL(service, "svc_create_xprt", rc);
-			goto done;
-		}
+	/* create transport/socket */
+	rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
+			     SVC_SOCK_DEFAULTS);
+	if (rc != 0) {
+		ADDB_CALL(service, "svc_create_xprt", rc);
+		goto done;
 	}
 
 	/* set up for creating worker thread */
@@ -437,7 +425,7 @@ static struct svc_version ksunrpc_version1 = {
    Table of versions.
  */
 static struct svc_version *ksunrpc_versions[] = {
-	[1] = &ksunrpc_version1,
+	[C2_DEF_RPC_VER] = &ksunrpc_version1,
 };
 
 /**

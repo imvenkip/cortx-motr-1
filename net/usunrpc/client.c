@@ -44,7 +44,7 @@
 #include "lib/queue.h"
 #include "lib/thread.h"
 #include "lib/cond.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 #include "fop/fop.h"
 
 #include "usunrpc.h"
@@ -58,18 +58,6 @@
 /*
  * Client code.
  */
-
-/**
-   XXX make version for all sun rpc calls to be const
- */
-static const int C2_DEF_RPC_VER = 1;
-
-/**
-   services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
 
 struct usunrpc_xprt {
 	CLIENT              *nsx_client;

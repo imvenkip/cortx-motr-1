@@ -22,7 +22,7 @@
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
 #include "lib/mutex.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 
 #ifdef __KERNEL__
 #include <linux/in.h>
