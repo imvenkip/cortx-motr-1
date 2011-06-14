@@ -40,8 +40,6 @@ enum {
 void init()
 {
 	struct c2_cob_domain_id dom_id = { 42 };
-	struct c2_cob			*cob = NULL;
-	struct c2_db_tx			tx;
 	int				rc;
 
 	C2_ALLOC_PTR(db);
@@ -54,14 +52,6 @@ void init()
 
 	rc = c2_cob_domain_init(dom, db, &dom_id);
 	C2_ASSERT(rc == 0);
-
-	c2_db_tx_init(&tx, db, 0);
-	rc = c2_rpc_cob_create_helper(dom, NULL, "SESSIONS", &cob, &tx);
-	C2_ASSERT(rc == 0 || rc == -EEXIST);
-	c2_db_tx_commit(&tx);
-	if(rc == 0)
-		c2_cob_put(cob);
-	cob = NULL;
 
 //	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 //	C2_ASSERT(rc == 0);
@@ -107,7 +97,6 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_session_destroy	*fop_in;
 	struct c2_fom				*fom;
-	struct c2_rpc_fom_session_destroy	*fom_sd;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_item			*cached_item;
 	enum c2_rpc_session_seq_check_result	sc;
@@ -140,7 +129,6 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	 * "Receive" the item
 	 */
 	sc = c2_rpc_session_item_received(item, &cached_item);
-	//sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -149,40 +137,10 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 		C2_ASSERT(fom != NULL);
 
-		/*
-		 * Initialize type-specific fields of fom along with tx
-	 	 */
-		fom_sd = container_of(fom, struct c2_rpc_fom_session_destroy,
-					fsd_gen);
-		C2_ASSERT(fom_sd != NULL);
-		fom_sd->fsd_dbenv = db;
-		c2_db_tx_init(&fom_sd->fsd_tx, db, 0);
-
-		/*
-		 * Execute fom
-		 */
 		fom->fo_ops->fo_state(fom);
 
-		/*
-		 * store reply in reply-cache
-		 */
-
-		c2_rpc_session_reply_prepare(&fom_sd->fsd_fop->f_item,
-				&fom_sd->fsd_fop_rep->f_item,
-				&fom_sd->fsd_tx);
-
-		/*
-		 * commit/abort tx
-		 */
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 				fom->fo_phase == FOPH_FAILED);
-
-		if (fom->fo_phase == FOPH_DONE) {
-			c2_db_tx_commit(&fom_sd->fsd_tx);
-		} else if (fom->fo_phase == FOPH_FAILED) {
-			c2_db_tx_abort(&fom_sd->fsd_tx);
-		}
-
 		/*
 		 * test reply contents
 		 */
@@ -230,7 +188,6 @@ void test_conn_terminate(uint64_t sender_id)
 	 * "Receive" the item
 	 */
 	sc = c2_rpc_session_item_received(item, &cached_item);
-	//sc = SCR_ACCEPT_ITEM;
 
 	/*
 	 * Instantiate fom
@@ -238,38 +195,13 @@ void test_conn_terminate(uint64_t sender_id)
 	if (sc == SCR_ACCEPT_ITEM) {
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 		C2_ASSERT(fom != NULL);
-
-		/*
-		 * Initialize type-specific fields of fom along with tx
-	 	 */
 		fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate,
 					fct_gen);
 		C2_ASSERT(fom_ct != NULL);
-		fom_ct->fct_dbenv = db;
-		c2_db_tx_init(&fom_ct->fct_tx, db, 0);
-
-		/*
-		 * Execute fom
-		 */
 		fom->fo_ops->fo_state(fom);
 
-		/*
-		 * store reply in reply-cache
-		 */
-		c2_rpc_session_reply_prepare(&fom_ct->fct_fop->f_item,
-				&fom_ct->fct_fop_rep->f_item,
-				&fom_ct->fct_tx);
-		/*
-		 * commit/abort tx
-		 */
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 				fom->fo_phase == FOPH_FAILED);
-
-		if (fom->fo_phase == FOPH_DONE) {
-			c2_db_tx_commit(&fom_ct->fct_tx);
-		} else if (fom->fo_phase == FOPH_FAILED) {
-			c2_db_tx_abort(&fom_ct->fct_tx);
-		}
 
 		/*
 		 * test reply contents
@@ -310,34 +242,17 @@ void test_conn_create()
 	item_in->ri_mach = machine;
 	/* item is received on receiver side */
 	sc = c2_rpc_session_item_received(item_in, &cached_item);
-	//sc = SCR_ACCEPT_ITEM;
 
 	if (sc == SCR_ACCEPT_ITEM) {
 		/* If item is accepted then fop is created and executed */
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 		C2_ASSERT(fom != NULL);
-
 		fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
-
-		fom_cc->fcc_dbenv = db;
-		/* It is reqh generic phases that init/commit/abort a transaction */
-		c2_db_tx_init(&fom_cc->fcc_tx, db, 0);
 
 		fom->fo_ops->fo_state(fom);
 
-		/* When reply is submitted to rpc layer, this routine is called */
-		c2_rpc_session_reply_prepare(&fom_cc->fcc_fop->f_item,
-				&fom_cc->fcc_fop_rep->f_item,
-				&fom_cc->fcc_tx);
-
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 				fom->fo_phase == FOPH_FAILED);
-
-		if (fom->fo_phase == FOPH_DONE) {
-			c2_db_tx_commit(&fom_cc->fcc_tx);
-		} else if (fom->fo_phase == FOPH_FAILED) {
-			c2_db_tx_abort(&fom_cc->fcc_tx);
-		}
 
 		fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
 		C2_ASSERT(fop_reply != NULL);
@@ -385,23 +300,9 @@ void test_session_create()
 		C2_ASSERT(fom != NULL);
 
 		fom_sc = (struct c2_rpc_fom_session_create *)fom;
-		fom_sc->fsc_dbenv = db;
-		c2_db_tx_init(&fom_sc->fsc_tx, db, 0);
-
 		fom->fo_ops->fo_state(fom);
-
-		c2_rpc_session_reply_prepare(&fom_sc->fsc_fop->f_item,
-			&fom_sc->fsc_fop_rep->f_item,
-			&fom_sc->fsc_tx);
-
 		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 			fom->fo_phase == FOPH_FAILED);
-
-		if (fom->fo_phase == FOPH_DONE) {
-			c2_db_tx_commit(&fom_sc->fsc_tx);
-		} else if (fom->fo_phase == FOPH_FAILED) {
-			c2_db_tx_abort(&fom_sc->fsc_tx);
-		}
 
 		fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
 		C2_ASSERT(fop_sc_reply != NULL);
@@ -428,9 +329,9 @@ void conn_status_check(void *arg)
 	c2_time_now(&timeout);
 	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
 				c2_time_nanoseconds(timeout));
-	got_event = c2_rpc_conn_timedwait(&conn, CS_CONN_ACTIVE,
+	got_event = c2_rpc_conn_timedwait(&conn, C2_RPC_CONN_ACTIVE,
 			timeout);
-	if (got_event && conn.c_state == CS_CONN_ACTIVE) {
+	if (got_event && conn.c_state == C2_RPC_CONN_ACTIVE) {
 		printf("thread: conn is active %lu\n", conn.c_sender_id);
 	} else {
 		printf("thread: time out during conn creation\n");
@@ -447,8 +348,8 @@ void test_snd_conn_create()
 
 	printf("testing conn_create: conn %p\n", &conn);
 	c2_rpc_conn_init(&conn, &svc_id, machine);
-	C2_ASSERT(conn.c_state == CS_CONN_INITIALISING ||
-			conn.c_state == CS_CONN_FAILED);
+	C2_ASSERT(conn.c_state == C2_RPC_CONN_INITIALISING ||
+			conn.c_state == C2_RPC_CONN_FAILED);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL,
 		       "conn_status_check");
@@ -481,9 +382,9 @@ static void thread_entry(void *arg)
 	c2_time_now(&timeout);
 	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
 				c2_time_nanoseconds(timeout));
-	got_event = c2_rpc_session_timedwait(&session, SESSION_ALIVE,
+	got_event = c2_rpc_session_timedwait(&session, C2_RPC_SESSION_ALIVE,
 			timeout);
-	if (got_event && session.s_state == SESSION_ALIVE) {
+	if (got_event && session.s_state == C2_RPC_SESSION_ALIVE) {
 		printf("thread: session got created %lu\n", session.s_session_id);
 	} else {
 		printf("thread: time out during session creation\n");

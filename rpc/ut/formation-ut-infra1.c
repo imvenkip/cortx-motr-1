@@ -365,7 +365,7 @@ void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	}
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_mutex_unlock(&items_cache->ic_mutex);
-	c2_rpc_form_extevt_rpcitem_added_in_cache(item);
+	//c2_rpc_form_extevt_rpcitem_added_in_cache(item);
 }
 
 /**

@@ -295,7 +295,7 @@ enum c2_rpc_item_state {
 enum c2_rpc_item_tstate {
 	/** the reply for the item was received and the receiver confirmed 
 	    that the item is persistent */
-	RPC_ITEM_PAST_COMMITTED,
+	RPC_ITEM_PAST_COMMITTED = 1,
 	/** the reply was received, but persistence confirmation wasn't */
 	RPC_ITEM_PAST_VOLATILE,
 	/** the item was sent (i.e., placed into an rpc) and no reply is 

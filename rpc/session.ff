@@ -38,6 +38,9 @@ DEF(c2_rpc_fop_session_destroy_rep, RECORD,
    _(rsdr_session_id, U64),
    _(rsdr_sender_id, U64));
 
+DEF(c2_rpc_fop_noop, RECORD,
+   _(n_unused, U64));
+
 /** @} end of rpc_session group */
 
 /*

@@ -36,7 +36,7 @@ SUBDIRS_LIBS = \
 
 SUBDIR_KERNEL = build_kernel_modules
 # keep this list alphabetically sorted
-SUBDIR_UT = \ 
+SUBDIR_UT = \
                balloc/ut \
                capa/ut \
                cob/ut \

@@ -637,11 +637,11 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 	c2_list_add(&slot->sl_ready_list, &item->ri_slot_link);
 
 	/* Add the slot to list of ready slots in rpcmachine. */
-	rpcmachine = slot->sl_sesion->s_conn->c_rpcmachine;
-	c2_mutex_lock(rpcmachine->cr_ready_slots_mutex);
+	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
+	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
 	C2_ASSERT(rpcmachine != NULL);
-	c2_list_add(&rpcmachine->c2_ready_slots, &slot->sl_link);
-	c2_mutex_unlock(rpcmachine->cr_ready_slots_mutex);
+	c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
+	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 
 	/* Curent state is not known at the moment. */ 
@@ -678,7 +678,8 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
  */
 int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
 {
-	struct c2_rpc_form_sm_event		sm_event;
+	struct c2_rpc_form_sm_event		 sm_event;
+	struct c2_rpc_session			*session;
 
 	C2_PRE(item != NULL);
 	sm_event.se_event = C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED;
