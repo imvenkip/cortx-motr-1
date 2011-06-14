@@ -26,6 +26,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <sys/socket.h>
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+#include <arpa/inet.h>
+#include <netdb.h>
+
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -257,14 +264,66 @@ fail:
 	c2_mutex_fini(&cctx.pc_mutex);
 }
 
+/**
+   Resolve hostname into a dotted quad.  The result is stored in buf.
+   @retval 0 success
+   @retval -errno failure
+ */
+static int canon_host(const char *hostname, char *buf, size_t bufsiz)
+{
+	int                i;
+	int		   rc = 0;
+	struct in_addr     ipaddr;
+
+	/* c2_net_end_point_create requires string IPv4 address, not name */
+	if (inet_aton(hostname, &ipaddr) == 0) {
+		struct hostent he;
+		char he_buf[4096];
+		struct hostent *hp;
+		int herrno;
+
+		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
+				     &hp, &herrno);
+		if (rc != 0) {
+			fprintf(stderr, "Can't get address for %s\n",
+				hostname);
+			return -ENOENT;
+		}
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+			/* take 1st IPv4 address found */
+			if (hp->h_addrtype == AF_INET &&
+			    hp->h_length == sizeof(ipaddr))
+				break;
+		if (hp->h_addr_list[i] == NULL) {
+			fprintf(stderr, "No IPv4 address for %s\n",
+				hostname);
+			return -EPFNOSUPPORT;
+		}
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
+	}
+	return rc;
+}
+
 int main(int argc, char *argv[])
 {
 	int			 rc;
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 verbose = false;
-	const char              *local_name = NULL;
-	const char              *remote_name = NULL;
+	const char              *local_name = "localhost";
+	const char              *remote_name = "localhost";
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
 	int			 base_port = 0;
@@ -275,6 +334,9 @@ int main(int argc, char *argv[])
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
+	/* hostname buffers big enough for 255.255.255.255 */
+	char                     local_hostbuf[16];
+	char                     remote_hostbuf[16];
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
@@ -345,6 +407,10 @@ int main(int argc, char *argv[])
 		if (client_only && base_port == PING_PORT1)
 			base_port = PING_PORT2;
 	}
+	if (canon_host(local_name, local_hostbuf, sizeof(local_hostbuf)) != 0)
+		return 1;
+	if (canon_host(remote_name, remote_hostbuf, sizeof(remote_hostbuf)) != 0)
+		return 1;
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 	c2_mutex_init(&qstats_mutex);
@@ -357,7 +423,7 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_hostname = local_name;
+		sctx.pc_hostname = local_hostbuf;
 		sctx.pc_xprt = xprt->px_xprt;
 		sctx.pc_port = PING_PORT1;
 		if (xprt->px_3part_addr)
@@ -403,8 +469,8 @@ int main(int argc, char *argv[])
 			params[i].nr_bufs = nr_bufs;
 			params[i].client_id = i + 1;
 			params[i].passive_size = passive_size;
-			params[i].local_host = local_name;
-			params[i].remote_host = remote_name;
+			params[i].local_host = local_hostbuf;
+			params[i].remote_host = remote_hostbuf;
 			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
 
 			rc = C2_THREAD_INIT(&client_thread[i],

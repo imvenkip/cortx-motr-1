@@ -15,6 +15,9 @@ fi
 . c2t1fs/st/common.sh
 
 MODLIST="lib/linux_kernel/klibc2.ko \
+         addb/linux_kernel/kaddb.ko \
+         fop/linux_kernel/kfop.ko \
+         net/linux_kernel/knetc2.ko \
          utils/linux_kernel/kutc2.ko"
 
 tailseek=$(( $(stat -c %s /var/log/kern) + 1 ))

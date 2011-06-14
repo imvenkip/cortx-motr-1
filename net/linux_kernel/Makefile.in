@@ -10,8 +10,9 @@ local_src     := main.c
 kernel_src    := $(local_src) $(otw_k_c)
 net_src       := buf.c domain.c ep.c net.c tm.c
 link_net      := $(net_src:%=../%)
-bulk_src      := mem_xprt_xo.c
-link_bulk     := $(bulk_src:%=../bulk_emulation/%)
+# link in the unit test file as it includes mem_xprt_xo.c
+bulk_src      := bulk_mem_ut.c
+link_bulk     := $(bulk_src:%=../bulk_emulation/ut/%)
 
 # rename the ksunrpc files when sym linking to avoid name clashes
 depr_Ksrc     := client.c kxdr.c domain.c

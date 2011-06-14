@@ -6,7 +6,7 @@ kclient.c
 kdomain.c
 kkxdr.c
 ksunrpc_server.c
-mem_xprt_xo.c
+bulk_mem_ut.c
 net.c
 net_cli.c
 net_otw_types_k.c

@@ -35,11 +35,11 @@ struct ping_ctx {
 	const struct ping_ops		     *pc_ops;
 	struct c2_net_xprt		     *pc_xprt;
 	struct c2_net_domain		      pc_dom;
-	const char		             *pc_hostname;
+	const char		             *pc_hostname; /* dotted decimal */
 	short				      pc_port;
 	uint32_t			      pc_id;
 	int32_t				      pc_status;
-	const char			     *pc_rhostname;
+	const char			     *pc_rhostname; /* dotted decimal */
 	short				      pc_rport;
 	uint32_t			      pc_rid;
 	uint32_t		              pc_nr_bufs;
@@ -64,6 +64,15 @@ enum {
 	PING_PORT2 = 27183,
 	PART3_SERVER_ID = 141421,
 };
+
+/* Debug printf macro */
+#ifdef __KERNEL__
+#define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
+#define PRId64 "lld" /* from <inttypes.h> */
+#else
+#include <stdio.h>
+#define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
+#endif
 
 void ping_server(struct ping_ctx *ctx);
 void ping_server_should_stop(struct ping_ctx *ctx);
