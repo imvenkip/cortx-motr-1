@@ -442,7 +442,7 @@ enum c2_rpc_form_ext_event {
 	C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT,
 	/** Slot has become idle */
 	C2_RPC_FORM_EXTEVT_SLOT_IDLE,
-	/** Freestanding (unbounded) item added to session*/
+	/** Freestanding (unbounded) item added to session */
 	C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
 	/** Max external events. */
 	C2_RPC_FORM_EXTEVT_N_EVENTS
@@ -514,7 +514,7 @@ struct c2_rpc_form_item_change_req {
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-void c2_rpc_form_rpcitem_ready(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item);
 
 /**
    Callback function for deletion of an rpc item from the rpc items cache.
@@ -556,7 +556,7 @@ int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - slot structure for the slot which has become idle.
  */
-void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
+int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
 
 /** 
    Callback function for unbounded item getting added to session. 
@@ -564,7 +564,7 @@ void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-void c2_rpc_form_unbounded_rpcitem_added(struct c2_rpc_item *item);
+int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
 
 /**
    Function to do the coalescing of related rpc items.

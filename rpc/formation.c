@@ -619,7 +619,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-void c2_rpc_form_rpcitem_ready(struct c2_rpc_item *item)
+int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 {
 	struct c2_rpc_form_sm_event		sm_event;
 
@@ -628,7 +628,7 @@ void c2_rpc_form_rpcitem_ready(struct c2_rpc_item *item)
 	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_READY;
 	sm_event.se_pvt = NULL;
 	/* Curent state is not known at the moment. */ 
-	c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES, 
+	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES, 
 			&sm_event);
 }
 

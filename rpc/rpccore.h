@@ -446,6 +446,8 @@ struct c2_rpcmachine {
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list		   cr_rpc_conn_list;
+	/** list of ready slots. */
+	struct c2_list             cr_ready_slots;
 	/** mutex that protects conn_list */
 	struct c2_mutex		   cr_session_mutex;
 	struct c2_rpc_reply_cache  cr_rcache;
