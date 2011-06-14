@@ -28,6 +28,9 @@
 #include "net/bulk_emulation/sunrpc_xprt_pvt.h"
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
+#ifdef __KERNEL__
+#include "net/ksunrpc/ksunrpc.h"
+#endif
 
 /**
    @addtogroup bulksunrpc
@@ -317,7 +320,7 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 
 	/* create the rpc domain (use in-mutex version of domain init) */
 #ifdef __KERNEL__
-	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_ksunrpc_xprt);
+	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_ksunrpc_minimal_xprt);
 #else
 	rc = c2_net__domain_init(&dp->xd_rpc_dom, &c2_net_usunrpc_minimal_xprt);
 #endif
