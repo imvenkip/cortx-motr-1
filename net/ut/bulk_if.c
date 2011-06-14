@@ -33,7 +33,21 @@
 static struct c2_net_domain utdom;
 static struct c2_net_transfer_mc ut_tm;
 
-void make_desc(struct c2_net_buf_desc *desc);
+static void make_desc(struct c2_net_buf_desc *desc);
+
+#ifdef __KERNEL__
+#define KPRN(fmt,...) printk(KERN_ERR fmt, ## __VA_ARGS__)
+#define PRId64 "lld" /* from <inttypes.h> */
+#else
+#define KPRN(fmt,...)
+#endif
+
+#define DELAY_MS(ms)				\
+{       c2_time_t rem;				\
+	c2_time_t del;				\
+        c2_time_set(&del, 0, ms * 1000000ULL);	\
+        c2_nanosleep(del, &rem);		\
+}
 
 /*
  *****************************************************
@@ -192,6 +206,7 @@ static void ut_post_del_thread(struct c2_net_buffer *nb)
 	};
 	if (nb->nb_flags & C2_NET_BUF_CANCELLED)
 		ev.nbe_status = -ECANCELED; /* required behavior */
+	DELAY_MS(1);
 	c2_time_now(&ev.nbe_time);
 
 	/* post requested event */
@@ -248,6 +263,7 @@ static void ut_post_state_change_ev_thread(int n)
 		.nte_status = 0,
 		.nte_next_state = (enum c2_net_tm_state) n
 	};
+	DELAY_MS(1);
 	c2_time_now(&ev.nte_time);
 
 	/* post state change event */
@@ -345,24 +361,24 @@ allocate_buffers(c2_bcount_t buf_size,
 	return nbs;
 }
 
-void make_desc(struct c2_net_buf_desc *desc)
+static void make_desc(struct c2_net_buf_desc *desc)
 {
 	static const char *p = "descriptor";
 	size_t len = strlen(p)+1;
 	desc->nbd_data = c2_alloc(len);
 	desc->nbd_len = len;
-	strcpy(desc->nbd_data, p);
+	strcpy((char *)desc->nbd_data, p);
 }
 
 /* callback subs */
 static int ut_cb_calls[C2_NET_QT_NR];
-static int num_adds[C2_NET_QT_NR];
-static int num_dels[C2_NET_QT_NR];
+static uint64_t num_adds[C2_NET_QT_NR];
+static uint64_t num_dels[C2_NET_QT_NR];
 static c2_bcount_t total_bytes[C2_NET_QT_NR];
 static c2_bcount_t max_bytes[C2_NET_QT_NR];
 
-void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
-			      enum c2_net_queue_type qt)
+static void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
+				     enum c2_net_queue_type qt)
 {
 	c2_bcount_t len = 0;
 	C2_UT_ASSERT(ev->nbe_buffer != NULL);
@@ -392,32 +408,32 @@ void ut_buffer_event_callback(const struct c2_net_buffer_event *ev,
 }
 
 #define UT_CB_CALL(_qt) ut_buffer_event_callback(ev, _qt)
-void ut_msg_recv_cb(const struct c2_net_buffer_event *ev)
+static void ut_msg_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_MSG_RECV);
 }
 
-void ut_msg_send_cb(const struct c2_net_buffer_event *ev)
+static void ut_msg_send_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_MSG_SEND);
 }
 
-void ut_passive_bulk_recv_cb(const struct c2_net_buffer_event *ev)
+static void ut_passive_bulk_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_RECV);
 }
 
-void ut_passive_bulk_send_cb(const struct c2_net_buffer_event *ev)
+static void ut_passive_bulk_send_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_PASSIVE_BULK_SEND);
 }
 
-void ut_active_bulk_recv_cb(const struct c2_net_buffer_event *ev)
+static void ut_active_bulk_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_RECV);
 }
 
-void ut_active_bulk_send_cb(const struct c2_net_buffer_event *ev)
+static void ut_active_bulk_send_cb(const struct c2_net_buffer_event *ev)
 {
 	UT_CB_CALL(C2_NET_QT_ACTIVE_BULK_SEND);
 }
@@ -452,7 +468,7 @@ static struct c2_net_transfer_mc ut_tm = {
 /*
   Unit test starts
  */
-void test_net_bulk_if(void)
+static void test_net_bulk_if(void)
 {
 	int rc, i;
 	c2_bcount_t buf_size, buf_seg_size;
@@ -684,12 +700,13 @@ void test_net_bulk_if(void)
 	   xprt normally does this
 	 */
 	for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
-		nb = &nbs[i];
 		struct c2_net_buffer_event ev = {
-			.nbe_buffer = nb,
+			.nbe_buffer = &nbs[i],
 			.nbe_status = 0,
 		};
+		DELAY_MS(1);
 		c2_time_now(&ev.nbe_time);
+		nb = &nbs[i];
 
 		if (i == C2_NET_QT_MSG_RECV) {
 			/* simulate transport ep in recv msg */
@@ -750,7 +767,7 @@ void test_net_bulk_if(void)
 	/* de-register channel waiter */
 	c2_clink_fini(&tmwait);
 
-	/* get stats */
+	/* get stats (specific queue, then all queues) */
 	i = C2_NET_QT_PASSIVE_BULK_SEND;
 	rc = c2_net_tm_stats_get(tm, i, &qs[0], false);
 	C2_UT_ASSERT(rc == 0);
@@ -766,6 +783,16 @@ void test_net_bulk_if(void)
 	rc = c2_net_tm_stats_get(tm, C2_NET_QT_NR, qs, true);
 	C2_UT_ASSERT(rc == 0);
 	for (i = 0; i < C2_NET_QT_NR; i++) {
+		KPRN("i=%d\n", i);
+#define QS(x)  KPRN("\t" #x "=%"PRId64"\n", qs[i].nqs_##x)
+#define QS2(x) KPRN("\t" #x "=%"PRId64" [%"PRId64"]\n", qs[i].nqs_##x, x[i])
+		QS2(num_adds);
+		QS2(num_dels);
+		QS2(total_bytes);
+		QS(max_bytes);
+		QS(num_f_events);
+		QS(num_s_events);
+		QS(time_in_queue);
 		C2_UT_ASSERT(qs[i].nqs_num_adds == num_adds[i]);
 		C2_UT_ASSERT(qs[i].nqs_num_dels == num_dels[i]);
 		C2_UT_ASSERT(qs[i].nqs_total_bytes == total_bytes[i]);
@@ -817,7 +844,7 @@ void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_dom_fini_called);
 }
 
-const struct c2_test_suite net_bulk_if_ut = {
+const struct c2_test_suite c2_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",
         .ts_init = NULL,
         .ts_fini = NULL,
@@ -826,6 +853,7 @@ const struct c2_test_suite net_bulk_if_ut = {
                 { NULL, NULL }
         }
 };
+C2_EXPORTED(c2_net_bulk_if_ut);
 
 /*
  *  Local variables:

@@ -51,12 +51,14 @@ static const struct c2_test_suite klibc2_ut = {
 };
 
 /* other UT suites */
+extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 
 static void run_kernel_ut(void)
 {
 	c2_uts_init();
 	c2_ut_add(&klibc2_ut);
+	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_run(NULL);
 	c2_uts_fini();

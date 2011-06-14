@@ -39,7 +39,7 @@ extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite net_client_ut; /* deprecated */
-extern const struct c2_test_suite net_bulk_if_ut;
+extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite net_bulk_sunrpc_ut;
 extern const struct c2_test_suite parity_math_ut;
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&fit_ut);
 		c2_ut_add(&fol_ut);
 		c2_ut_add(&fop_ut);
-		c2_ut_add(&net_bulk_if_ut);
+		c2_ut_add(&c2_net_bulk_if_ut);
 		c2_ut_add(&c2_net_bulk_mem_ut);
 		c2_ut_add(&net_bulk_sunrpc_ut);
 		c2_ut_add(&net_client_ut);
