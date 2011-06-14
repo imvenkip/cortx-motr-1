@@ -746,6 +746,7 @@ static int session_fields_init(struct c2_rpc_session	*session,
 	c2_mutex_init(&session->s_mutex);
 	session->s_nr_slots = nr_slots;
 	session->s_slot_table_capacity = nr_slots;
+	c2_list_init(&session->s_unbound_items);
 
 	C2_ALLOC_ARR(session->s_slot_table, nr_slots);
 	if (session->s_slot_table == NULL) {
@@ -1131,6 +1132,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	session->s_conn = NULL;
 	c2_chan_fini(&session->s_chan);
 	c2_mutex_fini(&session->s_mutex);
+	c2_list_fini(&session->s_unbound_items);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		/*
