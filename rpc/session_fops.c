@@ -54,6 +54,10 @@ struct c2_fop_type_ops c2_rpc_fop_conn_terminate_rep_ops = {
 	.fto_execute = c2_rpc_fop_conn_terminate_rep_execute
 };
 
+struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
+	.fto_execute = c2_rpc_fop_noop_execute
+};
+
 int c2_rpc_fop_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_create		*fom_cc;
@@ -200,6 +204,12 @@ int c2_rpc_fop_conn_terminate_rep_execute(struct c2_fop		*fop,
 	return 0;
 }
 
+int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
+			    struct c2_fop_ctx	*ctx)
+{
+	/* Do nothing */
+	return 0;
+}
 /*
  *  REQUEST fops
  */
@@ -240,6 +250,9 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy_rep, "rpc_session_destroy_reply",
 			C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE,
 			&c2_rpc_fop_session_destroy_rep_ops);
 
+C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
+			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops);
+
 static struct c2_fop_type *fops[] = {
         &c2_rpc_fop_conn_create_fopt,
         &c2_rpc_fop_conn_terminate_fopt,
@@ -249,6 +262,7 @@ static struct c2_fop_type *fops[] = {
         &c2_rpc_fop_conn_terminate_rep_fopt,
         &c2_rpc_fop_session_create_rep_fopt,
         &c2_rpc_fop_session_destroy_rep_fopt,
+	&c2_rpc_fop_noop_fopt,
 };
 
 void c2_rpc_session_fop_fini(void)

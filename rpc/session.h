@@ -130,11 +130,6 @@ When an item is received, following conditions are possible:
 	end if
     @endcode
 
-	@note Future Optimization : - We can put misordered new
-	rpc item request in some (memory-only) queue with the timeout
-	hoping that the preceding rpc item will arrive soon.
-
-
     @todo
 	- Currently sender_id and session_id are chosen to be random().
 	  Is it enough?
@@ -455,6 +450,9 @@ struct c2_rpc_session {
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
 	struct c2_mutex 		 s_mutex;
+	/** list of items that can be sent through any available slot.
+	    items are placed using c2_rpc_item::ri_unbound_link */
+	struct c2_list			 s_unbound_items;
 	/** Number of active slots in the table */
 	uint32_t 			 s_nr_slots;
 	/** Capacity of slot table */
@@ -585,6 +583,45 @@ struct c2_rpc_snd_slot {
 	    channel*/
 	struct c2_chan		 ss_chan;
 };
+
+enum {
+	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
+};
+
+struct c2_rpc_slot {
+	struct c2_rpc_session		*sl_session;
+	uint32_t			sl_slot_id;
+	/** list anchor to put in c2_rpcmachine::ready_slots */
+	struct c2_list_link		sl_link;
+	struct c2_verno			sl_verno;
+	uint64_t			sl_slot_gen;
+	uint64_t			sl_cookie;
+	struct c2_list			sl_item_list;
+	struct c2_rpc_item		*sl_last_sent;
+	struct c2_rpc_item		*sl_last_persistent;
+	uint32_t			sl_in_flight;
+	uint32_t			sl_max_in_flight;
+	struct c2_list			sl_ready_list;
+	struct c2_mutex			sl_mutex;
+};
+
+int c2_rpc_slot_init(struct c2_rpc_slot	*slot);
+
+void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
+			  struct c2_rpc_item	*item);
+
+void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
+				struct c2_rpc_item	*reply);
+
+void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
+			     struct c2_verno	last_persistent);
+
+void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
+		       struct c2_verno		last_seen);
+
+bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
+
+void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
 
 /**
    Iterate over all the rpc connections present in rpcmachine
