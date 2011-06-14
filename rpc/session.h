@@ -601,7 +601,7 @@ struct c2_rpc_slot {
 	uint64_t			sl_slot_gen;
 	/** a monotonically increasing counter, copied in each item
 	    sent through this slot */
-	uint64_t			sl_cookie;
+	uint64_t			sl_xid;
 	/** List of items, starting from oldest */
 	struct c2_list			sl_item_list;
 	/** earliest item that the receiver possibly have seen */

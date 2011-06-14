@@ -231,7 +231,7 @@ uint64_t c2_rpc_session_id_get(void);
 
 struct c2_rpc_slot_ref {
 	struct c2_verno		sr_verno;
-	uint64_t		sr_cookie;
+	uint64_t		sr_xid;
 	uint64_t		sr_slot_gen;
 	struct c2_rpc_slot	*sr_slot;
 	struct c2_rpc_item	*sr_item;

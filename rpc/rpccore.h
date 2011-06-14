@@ -540,6 +540,33 @@ int c2_rpc_reply_submit(struct c2_rpc_item	*request,
 			struct c2_db_tx		*tx);
 
 /**
+  Posts an unbound item to the rpc layer.
+
+  The item will be send trough one of item->ri_session slots.
+
+  The rpc layer will try to send the item out not later than
+  item->ri_deadline and with priority of item->ri_priority.
+
+  If this call returns without errors, the item's reply call-back is
+  guaranteed to be called eventually.
+
+  @pre item->ri_session != NULL
+  @pre item->ri_priority is sane.
+*/
+int c2_rpc_post(struct c2_rpc_item *item);
+
+#if 0
+/**
+  Posts an item bound to the update stream.
+*/
+int c2_rpc_update_stream_post(struct c2_update_stream *str, 
+                 struct c2_rpc_item *item);
+#endif
+
+int c2_rpc_reply_post(struct c2_rpc_item *request, 
+		      struct c2_rpc_item *reply);
+
+/**
    Cancel submitted RPC-item
    @param item rpc item being sent
 

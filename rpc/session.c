@@ -2241,7 +2241,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot	*slot)
 	slot->sl_verno.vn_lsn = 4;
 	slot->sl_verno.vn_vc = 0;
 	slot->sl_slot_gen++;
-	slot->sl_cookie = 0;
+	slot->sl_xid = 0;
 	slot->sl_in_flight = 0;
 	slot->sl_max_in_flight = SLOT_DEFAULT_MAX_IN_FLIGHT;
 	c2_list_init(&slot->sl_item_list);
@@ -2264,7 +2264,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot	*slot)
 	sref = &item->ri_slot_refs[0];
 	sref->sr_slot = slot;
 	sref->sr_item = item;
-	sref->sr_cookie = 0;
+	sref->sr_xid = 0;
 	sref->sr_verno.vn_lsn = 4;
 	sref->sr_verno.vn_vc = 0;
 	sref->sr_slot_gen = slot->sl_slot_gen;
@@ -2350,7 +2350,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 		sref->sr_verno.vn_lsn = slot->sl_verno.vn_lsn;
 		sref->sr_verno.vn_vc = slot->sl_verno.vn_vc;
 	}
-	sref->sr_cookie = ++slot->sl_cookie;
+	sref->sr_xid = ++slot->sl_xid;
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	sref->sr_slot = slot;
 	sref->sr_item = item;
@@ -2387,7 +2387,7 @@ struct c2_rpc_item *get_matching_request_item(struct c2_rpc_slot	*slot,
 				ri_slot_refs[0].sr_link) {
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 			&sref->sr_verno) == 0 &&
-			item->ri_slot_refs[0].sr_cookie == sref->sr_cookie) {
+			item->ri_slot_refs[0].sr_xid == sref->sr_xid) {
 			return item;
 		}
 	}
@@ -2537,8 +2537,8 @@ bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
 		if (!ret)
 			break;
 
-		ret = (item1->ri_slot_refs[0].sr_cookie + 1 ==
-			item2->ri_slot_refs[0].sr_cookie);
+		ret = (item1->ri_slot_refs[0].sr_xid + 1 ==
+			item2->ri_slot_refs[0].sr_xid);
 		if (!ret)
 			break;
 

@@ -71,7 +71,15 @@ int c2_rpc_item_init(struct c2_rpc_item *item,
 	item->ri_mach = mach;
 	return 0;
 }
-
+int c2_rpc_post(struct c2_rpc_item	*item)
+{
+	return 0;
+}
+int c2_rpc_reply_post(struct c2_rpc_item	*request,
+		      struct c2_rpc_item	*reply)
+{
+	return 0;
+}
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
 	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;
