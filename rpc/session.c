@@ -2291,6 +2291,8 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	struct c2_list_link	*link;
 
 	C2_PRE(slot != NULL);
+	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
+	C2_PRE(c2_rpc_slot_invariant(slot));
 
 	while (slot->sl_in_flight <= slot->sl_max_in_flight) {
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
@@ -2318,6 +2320,7 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 		if (call_formation)
 			c2_rpc_form_item_ready(item);
 	}
+	C2_POST(c2_rpc_slot_invariant(slot));
 }
 
 void slot_balance(struct c2_rpc_slot	*slot)
@@ -2494,6 +2497,77 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 	C2_ASSERT(c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
 				&last_seen) == 0);
 	slot_balance(slot);
+}
+
+bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
+{
+	struct c2_rpc_item	*item1 = NULL;
+	struct c2_rpc_item	*item2 = NULL;
+	struct c2_verno		*v1;
+	struct c2_verno		*v2;
+	bool			ret = true;
+
+	/*
+	 * Traverse slot->sl_item_list using item2 ptr
+	 * item1 will be previous item of item2 i.e.
+	 * next(item1) == item2
+	 */
+	c2_list_for_each_entry(&slot->sl_item_list, item2, struct c2_rpc_item,
+				ri_slot_refs[0].sr_link) {
+		if (item1 == NULL) {
+			item1 = item2;
+			continue;
+		}
+		ret = ergo(item2->ri_tstate == RPC_ITEM_PAST_VOLATILE ||
+			   item2->ri_tstate == RPC_ITEM_PAST_COMMITTED,
+			   item2->ri_reply != NULL);
+		if (!ret)
+			break;
+
+		ret = (item1->ri_tstate <= item2->ri_tstate);
+		if (!ret)
+			break;
+
+		v1 = &item1->ri_slot_refs[0].sr_verno;
+		v2 = &item2->ri_slot_refs[0].sr_verno;
+
+		ret = c2_rpc_item_is_update(item2) ?
+			v1->vn_vc + 1 == v2->vn_vc :
+			v1->vn_vc == v2->vn_vc;
+		if (!ret)
+			break;
+
+		ret = (item1->ri_slot_refs[0].sr_cookie + 1 ==
+			item2->ri_slot_refs[0].sr_cookie);
+		if (!ret)
+			break;
+
+		item1 = item2;
+	}
+	return ret;
+}
+
+void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
+{
+	struct c2_rpc_item	*item;
+	struct c2_fop		*fop;
+
+	c2_list_link_fini(&slot->sl_link);
+	c2_list_fini(&slot->sl_ready_list);
+	/*
+	 * Remove the dummy item from the list
+	 */
+	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+	item = c2_list_entry(slot->sl_item_list.l_head, struct c2_rpc_item,
+				ri_slot_refs[0].sr_link);
+	C2_ASSERT(c2_list_link_is_in(&item->ri_slot_refs[0].sr_link));
+	c2_list_del(&item->ri_slot_refs[0].sr_link);
+	C2_ASSERT(item->ri_slot_refs[0].sr_verno.vn_vc == 0);
+	fop = c2_rpc_item_to_fop(item);
+	c2_fop_free(fop);
+
+	c2_list_fini(&slot->sl_item_list);
+	C2_SET0(slot);
 }
 /** @} end of session group */
 

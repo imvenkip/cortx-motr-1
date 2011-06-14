@@ -589,18 +589,31 @@ enum {
 };
 
 struct c2_rpc_slot {
+	/** Session to which this slot belongs */
 	struct c2_rpc_session		*sl_session;
+	/** identifier of slot, unique within the session */
 	uint32_t			sl_slot_id;
 	/** list anchor to put in c2_rpcmachine::ready_slots */
 	struct c2_list_link		sl_link;
+	/** Current version number of slot */
 	struct c2_verno			sl_verno;
+	/** slot generation */
 	uint64_t			sl_slot_gen;
+	/** a monotonically increasing counter, copied in each item
+	    sent through this slot */
 	uint64_t			sl_cookie;
+	/** List of items, starting from oldest */
 	struct c2_list			sl_item_list;
+	/** earliest item that the receiver possibly have seen */
 	struct c2_rpc_item		*sl_last_sent;
+	/** item that is most recently persistent on receiver */
 	struct c2_rpc_item		*sl_last_persistent;
+	/** Number of items in flight */
 	uint32_t			sl_in_flight;
+	/** Maximum number of items that can be in flight on this slot.
+	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t			sl_max_in_flight;
+	/** List of items ready to put in rpc */
 	struct c2_list			sl_ready_list;
 	struct c2_mutex			sl_mutex;
 };
