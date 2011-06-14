@@ -430,8 +430,8 @@ enum c2_rpc_form_state {
    Enumeration of external events.
  */
 enum c2_rpc_form_ext_event {
-	/** RPC Item added to cache. */
-	C2_RPC_FORM_EXTEVT_RPCITEM_ADDED = 0,
+	/** Slot ready to send next item. */
+	C2_RPC_FORM_EXTEVT_RPCITEM_READY = 0,
 	/** RPC item removed from cache. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_REMOVED,
 	/** Parameter change for rpc item. */
@@ -440,6 +440,10 @@ enum c2_rpc_form_ext_event {
 	C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED,
 	/** Deadline expired for rpc item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT,
+	/** Slot has become idle */
+	C2_RPC_FORM_EXTEVT_SLOT_IDLE,
+	/** Freestanding (unbounded) item added to session*/
+	C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
 	/** Max external events. */
 	C2_RPC_FORM_EXTEVT_N_EVENTS
 };
@@ -504,12 +508,13 @@ struct c2_rpc_form_item_change_req {
 };
 
 /**
-   Callback function for addition of an rpc item to the rpc items cache.
+   Callback function for addition of an rpc item to the list of 
+   its corresponding free slot. 
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item);
+void c2_rpc_form_rpcitem_ready(struct c2_rpc_item *item);
 
 /**
    Callback function for deletion of an rpc item from the rpc items cache.
@@ -544,6 +549,22 @@ int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *rep_item,
    @param item - incoming rpc item.
  */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
+
+/** 
+   Callback function for slot becoming idle.
+   Call the default handler function passing the slot and
+   the corresponding event enum.
+   @param item - slot structure for the slot which has become idle.
+ */
+void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
+
+/** 
+   Callback function for unbounded item getting added to session. 
+   Call the default handler function passing the rpc item and
+   the corresponding event enum.
+   @param item - incoming rpc item.
+ */
+void c2_rpc_form_unbounded_rpcitem_added(struct c2_rpc_item *item);
 
 /**
    Function to do the coalescing of related rpc items.
@@ -711,32 +732,38 @@ stateFunc c2_rpc_form_stateTable
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_waiting_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state, 
+	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_checking_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_updating_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_forming_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_updating_state, &c2_rpc_form_forming_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_posting_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_updating_state, &c2_rpc_form_posting_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_waiting_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
 	  &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_waiting_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
 	  &c2_rpc_form_waiting_state}
 };
 

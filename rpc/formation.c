@@ -613,21 +613,22 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 }
 
 /**
-   Callback function for addition of an rpc item to the rpc items cache.
+   Callback function for addition of an rpc item to the list of
+   its corresponding free slot. 
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_form_extevt_rpcitem_added_in_cache(struct c2_rpc_item *item)
+void c2_rpc_form_rpcitem_ready(struct c2_rpc_item *item)
 {
 	struct c2_rpc_form_sm_event		sm_event;
 
 	C2_PRE(item != NULL);
-	printf("In callback: c2_rpc_form_extevt_rpcitem_added_in_cache\n");
-	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_ADDED;
+	printf("In callback: c2_rpc_form_extevt_rpcitem_ready\n");
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_RPCITEM_READY;
 	sm_event.se_pvt = NULL;
-	/* Curent state is not known at the moment. */
-	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
+	/* Curent state is not known at the moment. */ 
+	c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES, 
 			&sm_event);
 }
 
@@ -1077,7 +1078,9 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	int		ls = 0;
 
 	C2_PRE(item != NULL);
-	C2_PRE(event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_ADDED);
+	C2_PRE(event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_READY ||
+		event->se_event == C2_RPC_FORM_EXTEVT_SLOT_IDLE ||
+		event->se_event == C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
 
