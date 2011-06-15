@@ -14,7 +14,7 @@ libc2rt_la_LIBADD             = $(top_builddir)/addb/addb_pseudo/libcolibri-addb
                                 $(top_builddir)/fol/libcolibri-fol.la \
                                 $(top_builddir)/db/libcolibri-db.la \
                                 $(top_builddir)/fid/libcolibri-fid.la \
-                                $(top_builddir)/lib/libc2.la 
+                                $(top_builddir)/lib/libc2.la
 
 INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 EXTRA_DIST                    = fop2c.in
