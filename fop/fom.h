@@ -113,10 +113,8 @@ struct c2_fom_domain {
 	size_t                          fd_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops *fd_ops;
-	/** flag to help locality threads termination
-	 * during clean up.
-	**/
-	int 				fd_clean;
+	/** flag to help locality threads termination */
+	int				fd_clean;
 };
 
 /** Operations vector attached to a domain. */
@@ -124,7 +122,7 @@ struct c2_fom_domain_ops {
 	/** Called to select a home locality for a (new) fom. */
 	size_t (*fdo_home_locality)(const struct c2_fom_domain *dom,
 				     struct c2_fom *fom);
-	/** Returns true iff waiting (FOS_WAITING) fom timed out and should be
+	/** Returns true if waiting (FOS_WAITING) fom timed out and should be
 	    moved into FOPH_TIMEOUT phase. */
 	bool   (*fdo_time_is_out)(const struct c2_fom_domain *dom,
 				  const struct c2_fom *fom);
@@ -169,15 +167,15 @@ enum c2_fom_phase {
 	FOPH_AUTHORISATION_WAIT,    /*< waiting for userdb cache miss. */
 	FOPH_TXN_CONTEXT,           /*< creating local transactional context. */
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
-	FOPH_QUEUE_REPLY,           /*< queuing reply fop-s. */
-	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
-	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_FAILED,                /*< fom failed. */
 
 	FOPH_EXEC,		    /*< start fop specific execution */
 	FOPH_EXEC_WAIT, 	    /*< temporary wait phase during fop execution 
 				     	would be replaced by fop specific wait phase. */
+	FOPH_QUEUE_REPLY,           /*< queuing reply fop-s. */
+	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_DONE,		    /*< fom succeeded. */
+	FOPH_TIMEOUT,               /*< fom timed out. */
+	FOPH_FAILED,                /*< fom failed. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */

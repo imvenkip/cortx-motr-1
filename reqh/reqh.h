@@ -32,9 +32,22 @@ struct c2_reqh {
 	   will be replaced with "stores".
 	 */
 	struct c2_stob_domain	*rh_dom;
+	/** service this request hander belongs to */
 	struct c2_service	*rh_serv;
+	/** fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
+	/** fom domain for this request handler */
 	struct c2_fom_domain	*rh_fom_dom;
+};
+
+/**
+ * Table structure to hold phase transition and execution.
+ */
+struct c2_fom_phase_table {
+	/** function pointer to phase execution routine */
+        int (*action) (struct c2_fom *fom);
+	/** next phase to transition into */
+	int next_phase;
 };
 
 int  c2_reqh_init(struct c2_reqh *reqh,

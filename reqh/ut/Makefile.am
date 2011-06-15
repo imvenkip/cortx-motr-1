@@ -9,7 +9,7 @@ fom_io_u.h fom_io_u.c : fom_io.ff \
 	$(top_builddir)/fop/fop2c -u $<
 
 libreqh_ut_la_SOURCES = fom_io_u.h fom_io_u.c \
-			fom_io_fop_init.c fom_io.ff
+			reqh_fom_ut.c fom_io.ff
 
 EXTRA_DIST = fom_io.ff
 
