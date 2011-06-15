@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 /* This file is included into mem_xprt_xo.c */
 
@@ -92,13 +111,11 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				   address in the remote DOM. Do this now,
 				   before giving up the DOM mutex.
 				*/
-				mep = container_of(tm->ntm_ep,
-						   struct
-						   c2_net_bulk_mem_end_point,
-						   xep_ep);
-				rc = MEM_EP_CREATE(&dest_ep, dest_tm->ntm_dom,
-						   &mep->xep_sa,
-						   mep->xep_service_id);
+				mep = mem_ep_to_pvt(tm->ntm_ep);
+				rc = mem_bmo_ep_create(&dest_ep,
+						       dest_tm->ntm_dom,
+						       &mep->xep_sa,
+						       mep->xep_service_id);
 			} while(0);
 			if (dest_tm != NULL) {
 				/* found the TM */
@@ -217,7 +234,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		/* schedule the receive msg callback */
 		dest_wi->xwi_op = C2_NET_XOP_MSG_RECV_CB;
 
-		dest_tp = dest_tm->ntm_xprt_private;
+		dest_tp = mem_tm_to_pvt(dest_tm);
 		mem_wi_add(dest_wi, dest_tp);
 	} while (0);
 

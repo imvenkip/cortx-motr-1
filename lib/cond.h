@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 05/17/2010
+ */
 
 #ifndef __COLIBRI_LIB_COND_H__
 #define __COLIBRI_LIB_COND_H__
@@ -93,6 +111,11 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
 /**
    This is the same as c2_cond_wait, except that it has a timeout value. If the
    time expires before event is pending, this function will return false.
+
+   @note Unlike pthread_cond_timedwait, c2_cond_timedwait can succeed if the
+   event is immediately pending, even if the abs_timeout is in the past.  If
+   blocking occurs and abs_timeout is in the past, c2_cond_timedwait will return
+   false.  pthread_cond_timedwait always fails when abs_timeout is in the past.
 
    @param abs_timeout this is the time since Epoch (00:00:00, 1 January 1970).
    @return true if condition is signaled before timeout.

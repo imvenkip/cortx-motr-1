@@ -59,16 +59,16 @@
  */
 
 /* Some random deadline values for testing purpose only */
-#define MIN_NONIO_DEADLINE	 0 		// 0 ms
+#define MIN_NONIO_DEADLINE	 0		// 0 ms
 #define MAX_NONIO_DEADLINE	 10000000	// 10 ms
-#define MIN_IO_DEADLINE		 10000000  	// 10 ms
-#define MAX_IO_DEADLINE		 100000000 	// 100 ms
+#define MIN_IO_DEADLINE		 10000000	// 10 ms
+#define MAX_IO_DEADLINE		 100000000	// 100 ms
 
 /* Some random priority values for testing purpose only */
 #define MIN_NONIO_PRIO		 0
 #define MAX_NONIO_PRIO		 5
 #define MIN_IO_PRIO		 6
-#define MAX_IO_PRIO 		 10
+#define MAX_IO_PRIO		 10
 
 /* Array of groups */
 #define MAX_GRPS		 16
@@ -88,14 +88,14 @@ struct c2_fop			*form_fops[nfops];
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-#define nfiles 			 64
+#define nfiles			 64
 struct c2_fop_file_fid		*form_fids = NULL;
 
-#define	io_size 		 8192
-#define nsegs 			 8
+#define	io_size			 8192
+#define nsegs			 8
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
-#define nopcodes 		 3
+#define nopcodes		 3
 
 struct c2_net_end_point		 ep;
 
@@ -113,8 +113,8 @@ fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_file_create_fop
 };
 
-#define niopatterns 		 8
-#define pattern_length 		 4
+#define niopatterns		 8
+#define pattern_length		 4
 char				 file_data_patterns[niopatterns][pattern_length];
 
 #define ndatafids		 8
@@ -238,8 +238,8 @@ void c2_rpc_form_invoke_reply_received(void)
                 c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
                                 item, item_next, struct c2_rpc_item ,
                                 ri_linkage)
-			/* Sending same item as req and reply for testing 
-			   purpose. Formation code is anyways going to pick 
+			/* Sending same item as req and reply for testing
+			   purpose. Formation code is anyways going to pick
 			   up req item */
 			if(item->ri_state == RPC_ITEM_SENT) {
 				printf("Calling callback for reply received\n");
@@ -250,7 +250,7 @@ void c2_rpc_form_invoke_reply_received(void)
 }
 
 /**
-  Invoke item removed callback for all the items in the cache which 
+  Invoke item removed callback for all the items in the cache which
   are in submitted state
 */
 void c2_rpc_form_invoke_item_removed(void)
@@ -289,8 +289,8 @@ int c2_rpc_form_item_assign_to_group(struct c2_rpc_group *grp,
 	c2_mutex_lock(&grp->rg_guard);
 	grp->rg_expected++;
 	grp->rg_grpid = grpno;
-	/* Insert by sorted priority in groups list 
-	   Assumption- Lower the value of priority, 
+	/* Insert by sorted priority in groups list
+	   Assumption- Lower the value of priority,
 	   higher is the actual priority  */
 	c2_list_for_each_entry_safe(&grp->rg_items,
 			rpc_item, rpc_item_next,
@@ -365,7 +365,7 @@ void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
 	}
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_mutex_unlock(&items_cache->ic_mutex);
-	c2_rpc_form_extevt_rpcitem_added_in_cache(item);
+	//c2_rpc_form_extevt_rpcitem_added_in_cache(item);
 }
 
 /**
@@ -436,7 +436,7 @@ int c2_rpc_form_item_nonio_populate_param(struct c2_rpc_item *item)
  */
 int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 {
-	bool 		io_req = false;
+	bool		io_req = false;
 	int		res = 0;
 
 	printf("Inside c2_rpc_form_item_populate_param \n");
@@ -475,7 +475,7 @@ struct c2_fop_file_fid *form_get_fid(int i)
  */
 struct c2_fop *form_create_file_create_fop()
 {
-	int 				 i = 0;
+	int				 i = 0;
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_file_create	*create_fop = NULL;
 	struct c2_fop_file_fid		*fid = NULL;
@@ -506,7 +506,7 @@ void form_fini_fop(struct c2_fop *fop)
  */
 struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 {
-	int 				 i = 0;
+	int				 i = 0;
 	struct c2_fop_io_vec		*iovec = NULL;
 	uint64_t			 offset = 0;
 	uint64_t			 seg_size = 0;
@@ -594,7 +594,7 @@ void form_write_iovec_fini()
 }
 
 /**
-  Create a new write fop 
+  Create a new write fop
  */
 struct c2_fop *form_create_write_fop()
 {
@@ -619,7 +619,7 @@ struct c2_fop *form_create_write_fop()
 }
 
 /**
-  Create a new read fop 
+  Create a new read fop
  */
 struct c2_fop *form_create_read_fop()
 {
@@ -780,7 +780,7 @@ void populate_fids()
 	}
 }
 
-/** 
+/**
   This main function tests the formation code.
  */
 int main(int argc, char **argv)
