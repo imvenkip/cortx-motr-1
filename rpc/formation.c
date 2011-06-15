@@ -686,7 +686,7 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
 	sm_event.se_pvt = NULL;
 
 	/* Add the item to list of unbound items in its session. */
-	session = item->ri_slot_refs[0].sr_slot->sl_session;
+	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	c2_mutex_lock(&session->s_mutex);
 	c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
