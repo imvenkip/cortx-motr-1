@@ -9,3 +9,7 @@ buf.c
 misc.c
 chan.c
 cond.c
+ut_bitmap.c
+ut_chan.c
+ut_rwlock.c
+ut_thread.c

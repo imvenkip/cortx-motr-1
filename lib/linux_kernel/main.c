@@ -20,6 +20,9 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include "lib/ut.h"
+#include "lib/cdefs.h" /* for C2_EXPORTED */
+
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Library");
 MODULE_LICENSE("proprietary");
@@ -32,3 +35,24 @@ int init_module(void)
 void cleanup_module(void)
 {
 }
+
+/* These unit tests are done in the kernel */
+extern void test_bitmap(void);
+extern void test_chan(void);
+extern void test_rw(void);
+extern void test_thread(void);
+
+const struct c2_test_suite c2_klibc2_ut = {
+	.ts_name = "klibc2-ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "bitmap",    test_bitmap    },
+		{ "chan",      test_chan      },
+		{ "rwlock",    test_rw        },
+		{ "thread",    test_thread    },
+		{ NULL,        NULL           }
+	}
+};
+C2_EXPORTED(c2_klibc2_ut);
+
