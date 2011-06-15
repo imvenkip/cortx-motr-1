@@ -65,9 +65,9 @@ int c2_rpc_item_init(struct c2_rpc_item *item,
 	c2_chan_init(&item->ri_chan);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 	item->ri_type = NULL;
-	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_INVALID;
-	item->ri_slot_id = SLOT_ID_INVALID;
+	//item->ri_sender_id = SENDER_ID_INVALID;
+	//item->ri_session_id = SESSION_ID_INVALID;
+	//item->ri_slot_id = SLOT_ID_INVALID;
 	item->ri_mach = mach;
 	return 0;
 }

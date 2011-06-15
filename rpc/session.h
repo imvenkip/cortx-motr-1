@@ -464,7 +464,7 @@ struct c2_rpc_session {
 		denoting cause of failure */
 	int32_t				 s_rc;
 	/** Array of pointers to slots */
-	struct c2_rpc_snd_slot 		**s_slot_table;
+	struct c2_rpc_slot 		**s_slot_table;
 	/** Session ops */
 	const struct c2_rpc_session_ops	 *s_ops;
 };
@@ -635,6 +635,9 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
 
 void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
+
+/** XXX temporary */
+void c2_rpc_form_slot_idle(struct c2_rpc_slot	*slot);
 
 /**
    Iterate over all the rpc connections present in rpcmachine
