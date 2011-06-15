@@ -39,8 +39,14 @@ void cleanup_module(void)
 /* These unit tests are done in the kernel */
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_list(void);
+extern void test_mutex(void);
+extern void test_queue(void);
+extern void test_refs(void);
 extern void test_rw(void);
 extern void test_thread(void);
+extern void test_time(void);
+extern void test_vec(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",
@@ -49,8 +55,14 @@ const struct c2_test_suite c2_klibc2_ut = {
 	.ts_tests = {
 		{ "bitmap",    test_bitmap    },
 		{ "chan",      test_chan      },
+		{ "list",      test_list      },
+		{ "mutex",     test_mutex     },
+		{ "queue",     test_queue     },
+		{ "refs",      test_refs      },
 		{ "rwlock",    test_rw        },
 		{ "thread",    test_thread    },
+		{ "time",      test_time      },
+		{ "vec",       test_vec       },
 		{ NULL,        NULL           }
 	}
 };
