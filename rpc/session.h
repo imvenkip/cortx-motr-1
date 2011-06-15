@@ -171,7 +171,7 @@ struct c2_rpc_snd_slot;
 struct c2_rpc_session_ops;
 
 enum {
-	/** session_[create|destroy] items go on session 0 */
+	/** session_[create|terminate] items go on session 0 */
 	SESSION_0 = 0,
 	/** UNINITIALISED session has id SESSION_ID_INVALID */
 	SESSION_ID_INVALID = ~0,
@@ -249,7 +249,7 @@ enum c2_rpc_conn_state {
 
    +-------------------------> UNINITIALISED
                                     |
-                                    |  c2_rpc_conn_init()
+                                    |  c2_rpc_conn_create()
                                     |
                                     |
                                     V
@@ -309,20 +309,17 @@ struct c2_rpc_conn {
 };
 
 /**
-    Send handshake fop to the remote end. The reply contains sender-id.
-
-    This function asynchronously sends an initial hand-shake fop to the other
-    end of the connection. When reply is received, the c2_rpc_conn is
-    moved into INITIALISED state.
+    Send handshake conn create fop to the remote end. The reply 
+    contains sender-id.
 
     @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
     @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISING &&
 		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_UNINITIALISED)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     struct c2_service_id	*svc_id,
-		     struct c2_rpcmachine	*machine);
+int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
+		       struct c2_service_id	*svc_id,
+		       struct c2_rpcmachine	*machine);
 
 /**
    Finalize c2_rpc_conn

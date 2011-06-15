@@ -29,14 +29,14 @@ DEF(c2_rpc_fop_session_create_rep, RECORD,
    _(rscr_session_id, U64),
    _(rscr_sender_id, U64));
 
-DEF(c2_rpc_fop_session_destroy, RECORD,
-   _(rsd_sender_id, U64),
-   _(rsd_session_id, U64));
+DEF(c2_rpc_fop_session_terminate, RECORD,
+   _(rst_sender_id, U64),
+   _(rst_session_id, U64));
 
-DEF(c2_rpc_fop_session_destroy_rep, RECORD,
-   _(rsdr_rc, U32),
-   _(rsdr_session_id, U64),
-   _(rsdr_sender_id, U64));
+DEF(c2_rpc_fop_session_terminate_rep, RECORD,
+   _(rstr_rc, U32),
+   _(rstr_session_id, U64),
+   _(rstr_sender_id, U64));
 
 DEF(c2_rpc_fop_noop, RECORD,
    _(n_unused, U64));

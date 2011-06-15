@@ -92,10 +92,10 @@ void traverse_slot_table()
 	c2_db_tx_commit(&tx);
 
 }
-void test_session_destroy(uint64_t sender_id, uint64_t session_id)
+void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_session_destroy	*fop_in;
+	struct c2_rpc_fop_session_terminate	*fop_in;
 	struct c2_fom				*fom;
 	struct c2_rpc_item			*item;
 	enum c2_rpc_session_seq_check_result	sc;
@@ -103,14 +103,14 @@ void test_session_destroy(uint64_t sender_id, uint64_t session_id)
 	/*
 	 * Allocate and fill FOP
 	 */
-	fop = c2_fop_alloc(&c2_rpc_fop_session_destroy_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
 	fop_in = c2_fop_data(fop);
 	C2_ASSERT(fop_in != NULL);
 
-	fop_in->rsd_sender_id = sender_id;
-	fop_in->rsd_session_id = session_id;
+	fop_in->rst_sender_id = sender_id;
+	fop_in->rst_session_id = session_id;
 
 	/*
 	 * Initialize rpc item
@@ -343,7 +343,7 @@ void test_snd_conn_create()
 	strcpy(svc_id.si_uuid, "rpc_test_uuid");
 
 	printf("testing conn_create: conn %p\n", &conn);
-	c2_rpc_conn_init(&conn, &svc_id, machine);
+	c2_rpc_conn_create(&conn, &svc_id, machine);
 	C2_ASSERT(conn.c_state == C2_RPC_CONN_INITIALISING ||
 			conn.c_state == C2_RPC_CONN_FAILED);
 
@@ -431,7 +431,7 @@ void test_snd_session_create()
 void test_snd_session_terminate()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_session_destroy_rep	*fop_sdr;
+	struct c2_rpc_fop_session_terminate_rep	*fop_str;
 	struct c2_rpc_item			*item;
 	int					rc;
 
@@ -441,15 +441,15 @@ void test_snd_session_terminate()
 		return;
 	}
 
-	fop = c2_fop_alloc(&c2_rpc_fop_session_destroy_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
-	fop_sdr = c2_fop_data(fop);
-	C2_ASSERT(fop_sdr != NULL);
+	fop_str = c2_fop_data(fop);
+	C2_ASSERT(fop_str != NULL);
 
-	fop_sdr->rsdr_rc = 0;
-	fop_sdr->rsdr_sender_id = conn.c_sender_id;
-	fop_sdr->rsdr_session_id = session.s_session_id;
+	fop_str->rstr_rc = 0;
+	fop_str->rstr_sender_id = conn.c_sender_id;
+	fop_str->rstr_session_id = session.s_session_id;
 
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
@@ -541,7 +541,7 @@ int main(void)
 	init();
 	//test_conn_create();
 	//test_session_create();
-	//test_session_destroy(g_sender_id, g_session_id);
+	//test_session_terminate(g_sender_id, g_session_id);
 	//test_conn_terminate(g_sender_id);
 
 	test_snd_conn_create();
