@@ -121,12 +121,12 @@ void test_ksunrpc_server(void)
 
 	rc = c2_service_id_init(&sid1, &dom, "127.0.0.1", PORT);
 	C2_UT_ASSERT(rc == 0);
-	if (rc == 99999) { /* XXX HACK */
 
 	rc = c2_service_start(&s1, &sid1);
 	C2_UT_ASSERT(rc >= 0);
 
-	c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+	c2_nanosleep(c2_time_set(&t, 10, 0), NULL);
+	if (rc == 99999) { /* XXX HACK */
 
 	rc = c2_net_conn_create(&sid1);
 	C2_UT_ASSERT(rc == 0);
@@ -144,8 +144,8 @@ void test_ksunrpc_server(void)
 
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
-	c2_service_stop(&s1);
 	} /* XXX HACK */
+	c2_service_stop(&s1);
 	c2_service_id_fini(&sid1);
 	c2_net_domain_fini(&dom);
 	c2_net_xprt_fini(&c2_net_ksunrpc_minimal_xprt);
