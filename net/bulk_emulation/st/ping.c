@@ -1,18 +1,26 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include <sys/socket.h>
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>
-#endif
-#include <arpa/inet.h>
-#include <netdb.h>
 
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -497,8 +505,7 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		  ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	count = c2_atomic64_add_return(&s_msg_recv_counter, 1);
-	ctx->pc_ops->pf("%s: Msg Recv CB %ld\n", idbuf, count);
-
+	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf, count);
 	if (ev->nbe_status < 0) {
 		if (ev->nbe_status == -ECANCELED && server_stop)
 			ctx->pc_ops->pf("%s: msg recv canceled on shutdown\n",
@@ -709,58 +716,6 @@ struct c2_net_tm_callbacks stm_cb = {
 void ping_fini(struct ping_ctx *ctx);
 
 /**
-   Resolve hostname into a dotted quad.  The result is stored in buf.
-   @retval 0 success
-   @retval -errno failure
- */
-int canon_host(const char *hostname, char *buf, size_t bufsiz)
-{
-	int                i;
-	int		   rc = 0;
-	struct in_addr     ipaddr;
-
-	/* c2_net_end_point_create requires string IPv4 address, not name */
-	if (inet_aton(hostname, &ipaddr) == 0) {
-		struct hostent he;
-		char he_buf[4096];
-		struct hostent *hp;
-		int herrno;
-
-		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
-				     &hp, &herrno);
-		if (rc != 0) {
-			fprintf(stderr, "Can't get address for %s\n",
-				hostname);
-			return -ENOENT;
-		}
-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
-			/* take 1st IPv4 address found */
-			if (hp->h_addrtype == AF_INET &&
-			    hp->h_length == sizeof(ipaddr))
-				break;
-		if (hp->h_addr_list[i] == NULL) {
-			fprintf(stderr, "No IPv4 address for %s\n",
-				hostname);
-			return -EPFNOSUPPORT;
-		}
-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
-		    NULL) {
-			fprintf(stderr, "Cannot parse network address for %s\n",
-				hostname);
-			rc = -errno;
-		}
-	} else {
-		if (strlen(hostname) >= bufsiz) {
-			fprintf(stderr, "Buffer size too small for %s\n",
-				hostname);
-			return -ENOSPC;
-		}
-		strcpy(buf, hostname);
-	}
-	return rc;
-}
-
-/**
    Initialise a ping client or server.
    Calls all the required c2_net APIs in the correct order, with
    cleanup on failure.
@@ -774,56 +729,57 @@ int ping_init(struct ping_ctx *ctx)
 {
 	int                i;
 	int                rc;
-	char               hostbuf[16]; /* big enough for 255.255.255.255 */
 	char               addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 	struct c2_clink    tmwait;
 
 	c2_list_init(&ctx->pc_work_queue);
 
-	rc = canon_host(ctx->pc_hostname, hostbuf, sizeof(hostbuf));
-	if (rc != 0)
-		goto fail;
-
 	rc = c2_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
 	if (rc != 0) {
-		fprintf(stderr, "domain init failed: %d\n", rc);
+		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;
+	}
+
+	if (ctx->pc_sunrpc_ep_delay >= 0 &&
+	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
+		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
+			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
 	}
 
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   &ctx->pc_nbs);
 	if (rc != 0) {
-		fprintf(stderr, "buffer allocation failed: %d\n", rc);
+		PING_ERR("buffer allocation failed: %d\n", rc);
 		goto fail;
 	}
 	rc = c2_bitmap_init(&ctx->pc_nbbm, ctx->pc_nr_bufs);
 	if (rc != 0) {
-		fprintf(stderr, "buffer bitmap allocation failed: %d\n", rc);
+		PING_ERR("buffer bitmap allocation failed: %d\n", rc);
 		goto fail;
 	}
 	C2_ASSERT(ctx->pc_buf_callbacks != NULL);
 	for (i = 0; i < ctx->pc_nr_bufs; ++i) {
 		rc = c2_net_buffer_register(&ctx->pc_nbs[i], &ctx->pc_dom);
 		if (rc != 0) {
-			fprintf(stderr, "buffer register failed: %d\n", rc);
+			PING_ERR("buffer register failed: %d\n", rc);
 			goto fail;
 		}
 		ctx->pc_nbs[i].nb_callbacks = ctx->pc_buf_callbacks;
 	}
 
 	if (ctx->pc_id != 0)
-		sprintf(addr, "%s:%u:%u", hostbuf, ctx->pc_port, ctx->pc_id);
+		sprintf(addr, "%s:%u:%u", ctx->pc_hostname, ctx->pc_port, ctx->pc_id);
 	else
-		sprintf(addr, "%s:%u", hostbuf, ctx->pc_port);
+		sprintf(addr, "%s:%u", ctx->pc_hostname, ctx->pc_port);
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom, addr);
 	if (rc != 0) {
-		fprintf(stderr, "end point create failed: %d\n", rc);
+		PING_ERR("end point create failed: [%s] %d\n", addr, rc);
 		goto fail;
 	}
 
 	rc = c2_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
 	if (rc != 0) {
-		fprintf(stderr, "transfer machine init failed: %d\n", rc);
+		PING_ERR("transfer machine init failed: %d\n", rc);
 		goto fail;
 	}
 
@@ -831,7 +787,7 @@ int ping_init(struct ping_ctx *ctx)
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->pc_tm, ctx->pc_ep);
 	if (rc != 0) {
-		fprintf(stderr, "transfer machine start failed: %d\n", rc);
+		PING_ERR("transfer machine start failed: %d\n", rc);
 		goto fail;
 	}
 
@@ -842,7 +798,7 @@ int ping_init(struct ping_ctx *ctx)
 		rc = ctx->pc_status;
 		if (rc == 0)
 			rc = -EINVAL;
-		fprintf(stderr, "transfer machine start failed: %d\n", rc);
+		PING_ERR("transfer machine start failed: %d\n", rc);
 		goto fail;
 	}
 
@@ -916,7 +872,7 @@ void ping_server(struct ping_ctx *ctx)
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
 	ctx->pc_buf_callbacks = &sbuf_cb;
 	if (ctx->pc_hostname == NULL)
-		ctx->pc_hostname = "localhost";
+		ctx->pc_hostname = "127.0.0.1";
 	if (ctx->pc_port == 0)
 		ctx->pc_port = PING_PORT1;
 	ctx->pc_ident = "Server";
@@ -1248,15 +1204,14 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 {
 	int rc;
-	char hostbuf[16];
 	char addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 
 	ctx->pc_tm.ntm_callbacks = &ctm_cb;
 	ctx->pc_buf_callbacks = &cbuf_cb;
 	if (ctx->pc_hostname == NULL)
-		ctx->pc_hostname = "localhost";
+		ctx->pc_hostname = "127.0.0.1";
 	if (ctx->pc_rhostname == NULL)
-		ctx->pc_rhostname = "localhost";
+		ctx->pc_rhostname = "127.0.0.1";
 	if (ctx->pc_port == 0)
 		ctx->pc_port = PING_PORT2;
 	if (ctx->pc_rport == 0)
@@ -1268,13 +1223,10 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 		return rc;
 
 	/* need end point for the server */
-	rc = canon_host(ctx->pc_rhostname, hostbuf, sizeof(hostbuf));
-	if (rc != 0)
-		return rc;
 	if (ctx->pc_rid != 0)
-		sprintf(addr, "%s:%u:%u", hostbuf, ctx->pc_rport, ctx->pc_rid);
+		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport, ctx->pc_rid);
 	else
-		sprintf(addr, "%s:%u", hostbuf, ctx->pc_rport);
+		sprintf(addr, "%s:%u", ctx->pc_rhostname, ctx->pc_rport);
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom, addr);
 	return rc;
 }

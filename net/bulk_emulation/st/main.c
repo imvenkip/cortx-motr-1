@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -6,6 +25,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <sys/socket.h>
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+#include <arpa/inet.h>
+#include <netdb.h>
 
 #include "colibri/init.h"
 #include "lib/assert.h"
@@ -164,6 +190,7 @@ struct client_params {
 	int passive_size;
 	const char *local_host;
 	const char *remote_host;
+	int sunrpc_ep_delay;
 };
 
 void client(struct client_params *params)
@@ -185,7 +212,8 @@ void client(struct client_params *params)
 		.pc_ident = ident,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
-		}
+		},
+		.pc_sunrpc_ep_delay = params->sunrpc_ep_delay,
 	};
 
 	if (params->xprt->px_3part_addr) {
@@ -236,23 +264,79 @@ fail:
 	c2_mutex_fini(&cctx.pc_mutex);
 }
 
+/**
+   Resolve hostname into a dotted quad.  The result is stored in buf.
+   @retval 0 success
+   @retval -errno failure
+ */
+static int canon_host(const char *hostname, char *buf, size_t bufsiz)
+{
+	int                i;
+	int		   rc = 0;
+	struct in_addr     ipaddr;
+
+	/* c2_net_end_point_create requires string IPv4 address, not name */
+	if (inet_aton(hostname, &ipaddr) == 0) {
+		struct hostent he;
+		char he_buf[4096];
+		struct hostent *hp;
+		int herrno;
+
+		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
+				     &hp, &herrno);
+		if (rc != 0) {
+			fprintf(stderr, "Can't get address for %s\n",
+				hostname);
+			return -ENOENT;
+		}
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+			/* take 1st IPv4 address found */
+			if (hp->h_addrtype == AF_INET &&
+			    hp->h_length == sizeof(ipaddr))
+				break;
+		if (hp->h_addr_list[i] == NULL) {
+			fprintf(stderr, "No IPv4 address for %s\n",
+				hostname);
+			return -EPFNOSUPPORT;
+		}
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
+	}
+	return rc;
+}
+
 int main(int argc, char *argv[])
 {
 	int			 rc;
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 verbose = false;
-	const char              *local_name = NULL;
-	const char              *remote_name = NULL;
+	const char              *local_name = "localhost";
+	const char              *remote_name = "localhost";
 	const char		*xprt_name = c2_net_bulk_mem_xprt.nx_name;
 	int			 loops = DEF_LOOPS;
 	int			 base_port = 0;
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
+	int                      sunrpc_ep_delay = -1;
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
+	/* hostname buffers big enough for 255.255.255.255 */
+	char                     local_hostbuf[16];
+	char                     remote_hostbuf[16];
 
 	rc = c2_init();
 	C2_ASSERT(rc == 0);
@@ -277,6 +361,8 @@ int main(int argc, char *argv[])
 				     "list supported transports.",
 				     LAMBDA(void, (const char *str) {
 						     xprt_name = str; })),
+			C2_FORMATARG('E', "sunrpc endpoint release delay",
+				     "%i", &sunrpc_ep_delay),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -321,6 +407,10 @@ int main(int argc, char *argv[])
 		if (client_only && base_port == PING_PORT1)
 			base_port = PING_PORT2;
 	}
+	if (canon_host(local_name, local_hostbuf, sizeof(local_hostbuf)) != 0)
+		return 1;
+	if (canon_host(remote_name, remote_hostbuf, sizeof(remote_hostbuf)) != 0)
+		return 1;
 
 	C2_ASSERT(c2_net_xprt_init(xprt->px_xprt) == 0);
 	c2_mutex_init(&qstats_mutex);
@@ -333,7 +423,7 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
-		sctx.pc_hostname = local_name;
+		sctx.pc_hostname = local_hostbuf;
 		sctx.pc_xprt = xprt->px_xprt;
 		sctx.pc_port = PING_PORT1;
 		if (xprt->px_3part_addr)
@@ -344,6 +434,7 @@ int main(int argc, char *argv[])
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
+		sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
@@ -378,8 +469,9 @@ int main(int argc, char *argv[])
 			params[i].nr_bufs = nr_bufs;
 			params[i].client_id = i + 1;
 			params[i].passive_size = passive_size;
-			params[i].local_host = local_name;
-			params[i].remote_host = remote_name;
+			params[i].local_host = local_hostbuf;
+			params[i].remote_host = remote_hostbuf;
+			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,

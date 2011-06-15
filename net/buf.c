@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original creation date: 04/05/2011
+ */
 
 #include "lib/arith.h" /* max_check */
 #include "lib/assert.h"
@@ -123,8 +141,7 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf,
-		      struct c2_net_transfer_mc *tm)
+int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -148,13 +165,14 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
 	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
 
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 
-	C2_PRE(c2_net__buffer_invariant(buf));
-	C2_PRE(!(buf->nb_flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE)));
+	C2_PRE(!(buf->nb_flags &
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);

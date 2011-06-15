@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 /* This file is included into sunrpc_xprt_xo.c */
 
@@ -50,13 +69,8 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 		struct c2_service    *svc = &sunrpc_server_service;
 		if (++sunrpc_server_active_tms > 1) {
 			/* previously started - match address */
-			struct c2_net_bulk_mem_end_point *mep;
 			struct c2_net_bulk_sunrpc_end_point *sep;
-			mep = container_of(ep, struct c2_net_bulk_mem_end_point,
-					   xep_ep);
-			sep = container_of(mep,
-					   struct c2_net_bulk_sunrpc_end_point,
-					   xep_base);
+			sep = sunrpc_ep_to_pvt(ep);
 			if (strcmp(sunrpc_server_id.si_uuid,
 				   sep->xep_sid.si_uuid) != 0)
 				rc = -EADDRNOTAVAIL;
@@ -128,8 +142,9 @@ static void sunrpc_stop_service(void)
 static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 				   struct c2_net_bulk_mem_work_item *wi)
 {
-	struct c2_net_bulk_sunrpc_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	struct c2_net_bulk_sunrpc_tm_pvt *tp = tm->ntm_xprt_private;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp =
+		sunrpc_dom_to_pvt(tm->ntm_dom);
+	struct c2_net_bulk_sunrpc_tm_pvt *tp = sunrpc_tm_to_pvt(tm);
 	int rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
@@ -152,7 +167,42 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		sunrpc_stop_service();
 	}
 	/* invoke the base work function */
-	(*dp->xd_base_work_fn[C2_NET_XOP_STATE_CHANGE])(tm, wi);
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_STATE_CHANGE])(tm, wi);
+}
+
+/**
+   Inherit the cancel callback method.
+ */
+static void sunrpc_wf_cancel_cb(struct c2_net_transfer_mc *tm,
+				struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_CANCEL_CB])(tm, wi);
+}
+
+/**
+   Inherit the error callback method.
+ */
+static void sunrpc_wf_error_cb(struct c2_net_transfer_mc *tm,
+				struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
+	(*dp->xd_base_ops->bmo_work_fn[C2_NET_XOP_ERROR_CB])(tm, wi);
+}
+
+/**
+   Inherit the post error method.
+ */
+static void sunrpc_post_error(struct c2_net_transfer_mc *tm, int32_t status)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
+	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
+	(*dp->xd_base_ops->bmo_post_error)(tm, status);
 }
 
 /**

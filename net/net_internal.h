@@ -1,4 +1,24 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>,
+ *                  Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original creation date: 04/04/2011
+ */
+
 #ifndef __COLIBRI_NET_NET_INTERNAL_H__
 #define __COLIBRI_NET_NET_INTERNAL_H__
 
@@ -72,6 +92,14 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm);
 
 /* this shouldn't really be here but it parallels the extern in net/net.h */
 extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
+
+/*
+  Shared constants used by (deprecated) usunrpc and ksunrpc transports.
+ */
+enum {
+	C2_SESSION_PROGRAM = 0x20000001,
+	C2_DEF_RPC_VER = 1
+};
 
 #endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
 

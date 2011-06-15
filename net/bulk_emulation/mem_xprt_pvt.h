@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_PVT_H__
 
@@ -84,13 +103,13 @@ static inline bool mem_sa_eq(const struct sockaddr_in *sa1,
    function pointer, to support derived transports.
    @see mem_ep_create()
  */
-static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
-				struct c2_net_domain *dom,
-				const struct sockaddr_in *sa,
-				uint32_t id)
+static inline int mem_bmo_ep_create(struct c2_net_end_point **epp,
+				    struct c2_net_domain *dom,
+				    const struct sockaddr_in *sa,
+				    uint32_t id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	return dp->xd_ops.bmo_ep_create(epp, dom, sa, id);
+	return dp->xd_ops->bmo_ep_create(epp, dom, sa, id);
 }
 
 /**
@@ -98,10 +117,10 @@ static inline int MEM_EP_CREATE(struct c2_net_end_point **epp,
    domain function pointer, to support derived transports.
    @see mem_buffer_in_bounds()
  */
-static inline bool MEM_BUFFER_IN_BOUNDS(const struct c2_net_buffer *nb)
+static inline bool mem_bmo_buffer_in_bounds(const struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = nb->nb_dom->nd_xprt_private;
-	return dp->xd_ops.bmo_buffer_in_bounds(nb);
+	return dp->xd_ops->bmo_buffer_in_bounds(nb);
 }
 
 /**
@@ -109,15 +128,15 @@ static inline bool MEM_BUFFER_IN_BOUNDS(const struct c2_net_buffer *nb)
    function pointer, to support derived transports.
    @see mem_desc_create()
  */
-static int MEM_DESC_CREATE(struct c2_net_buf_desc *desc,
-			   struct c2_net_end_point *ep,
-			   struct c2_net_transfer_mc *tm,
-			   enum c2_net_queue_type qt,
-			   c2_bcount_t buflen,
-			   int64_t buf_id)
+static int mem_bmo_desc_create(struct c2_net_buf_desc *desc,
+			       struct c2_net_end_point *ep,
+			       struct c2_net_transfer_mc *tm,
+			       enum c2_net_queue_type qt,
+			       c2_bcount_t buflen,
+			       int64_t buf_id)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
-	return dp->xd_ops.bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
+	return dp->xd_ops->bmo_desc_create(desc, ep, tm, qt, buflen, buf_id);
 }
 
 /**

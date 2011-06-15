@@ -1,12 +1,14 @@
 buf.c
+bulk_if.c
 connection.c
 domain.c
 ep.c
 kclient.c
 kdomain.c
 kkxdr.c
-kserver.c
-mem_xprt_xo.c
+ksunrpc_server.c
+ksunrpc_ut.c
+bulk_mem_ut.c
 net.c
 net_cli.c
 net_otw_types_k.c

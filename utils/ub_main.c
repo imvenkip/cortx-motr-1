@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 07/19/2010
+ */
 
 #include <stdlib.h>             /* atoi */
 
@@ -17,6 +35,7 @@ extern struct c2_ub_set c2_db_ub;
 extern struct c2_ub_set c2_emap_ub;
 extern struct c2_ub_set c2_fol_ub;
 extern struct c2_ub_set c2_parity_math_ub;
+extern struct c2_ub_set c2_xdr_ub;
 
 #define UB_SANDBOX "./ub-sandbox"
 
@@ -44,6 +63,7 @@ int main(int argc, char *argv[])
                 c2_ub_set_add(&c2_parity_math_ub);
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_trace_ub);
+		c2_ub_set_add(&c2_xdr_ub);
 		c2_ub_run(rounds);
 
 		unit_end(UB_SANDBOX);

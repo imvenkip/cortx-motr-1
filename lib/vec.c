@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/12/2010
+ */
 
 #include "lib/arith.h"     /* min3 */
 #include "lib/cdefs.h"     /* NULL */
@@ -182,15 +200,18 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 {
 	c2_bcount_t frag_size    = 0;
 	c2_bcount_t bytes_copied = 0;
-	while (!(c2_bufvec_cursor_move(dcur, frag_size) | /* <- bitwise OR */
+	/* bitwise OR used below to ensure both cursors get moved
+	   without short-circuit logic, also why cursor move is before
+	   simpler num_bytes check */
+	while (!(c2_bufvec_cursor_move(dcur, frag_size) |
 		 c2_bufvec_cursor_move(scur, frag_size)) &&
 	       num_bytes > 0) {
 		frag_size = min3(c2_bufvec_cursor_step(dcur),
 				 c2_bufvec_cursor_step(scur),
 				 num_bytes);
-		memcpy(bufvec_cursor_addr(dcur),
-		       bufvec_cursor_addr(scur),
-		       frag_size);
+		memmove(bufvec_cursor_addr(dcur),
+			bufvec_cursor_addr(scur),
+			frag_size);
 		num_bytes -= frag_size;
 		bytes_copied += frag_size;
 	}

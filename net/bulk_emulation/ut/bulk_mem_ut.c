@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 
 #include "lib/arith.h"
 #include "lib/assert.h"
@@ -131,7 +150,7 @@ void tf_buf_cb1(const struct c2_net_buffer_event *ev)
 	cb_status1 = ev->nbe_status;
 }
 
-void tf_cbreset1()
+void tf_cbreset1(void)
 {
 	cb_evt1    = C2_NET_TEV_NR;
 	cb_nb1     = NULL;
@@ -163,7 +182,7 @@ void tf_buf_cb2(const struct c2_net_buffer_event *ev)
 	cb_status2 = ev->nbe_status;
 }
 
-void tf_cbreset2()
+void tf_cbreset2(void)
 {
 	cb_evt2    = C2_NET_TEV_NR;
 	cb_nb2     = NULL;
@@ -172,7 +191,7 @@ void tf_cbreset2()
 	cb_status2 = 9999999;
 }
 
-void tf_cbreset()
+void tf_cbreset(void)
 {
 	tf_cbreset1();
 	tf_cbreset2();
@@ -806,7 +825,7 @@ static void test_tm(void)
 	c2_net_domain_fini(&dom1);
 }
 
-const struct c2_test_suite net_bulk_mem_ut = {
+const struct c2_test_suite c2_net_bulk_mem_ut = {
         .ts_name = "net-bulk-mem",
         .ts_init = NULL,
         .ts_fini = NULL,
@@ -819,6 +838,7 @@ const struct c2_test_suite net_bulk_mem_ut = {
                 { NULL, NULL }
         }
 };
+C2_EXPORTED(c2_net_bulk_mem_ut);
 
 /*
  *  Local variables:

@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Dave Cohrs <Dave_Cohrs@xyratex.com>
+ * Original creation date: 02/24/2011
+ */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
@@ -31,17 +49,21 @@
 static int kthread_trampoline(void *arg)
 {
 	struct c2_thread *t = arg;
-	c2_thread_trampoline(arg);
-
 	/* Required for correct c2_thread_join() behavior in kernel:
 	   kthread_stop() will not stop if the thread has been created but has
 	   not yet started executing.  So, c2_thread_join() blocks on the
-	   semaphore to ensure the thread can be stopped. kthread_stop(), in
-	   turn, requires that the thread not exit until kthread_stop() is
-	   called, so we must loop on kthread_should_stop() to satisfy that API
-	   requirement.
+	   semaphore to ensure the thread can be stopped iff t_init != NULL
+	   (when t_init == NULL, blocking occurs in c2_thread_init).
+	   kthread_stop(), in turn, requires that the thread not exit until
+	   kthread_stop() is called, so we must loop on kthread_should_stop()
+	   to satisfy that API requirement.  The semaphore is signalled before
+	   calling the thread function so that other kernel code, such
+	   as SUNRPC service code, can still depend on kthread_should_stop().
 	 */
-	c2_semaphore_up(&t->t_wait);
+	if (t->t_init == NULL)
+		c2_semaphore_up(&t->t_wait);
+	c2_thread_trampoline(arg);
+
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (!kthread_should_stop()) {
 		schedule();
@@ -76,12 +98,13 @@ int c2_thread_join(struct c2_thread *q)
 	C2_PRE(q->t_h.h_t != current);
 
 	/* see comment in kthread_trampoline */
-	c2_semaphore_down(&q->t_wait);
+	if (q->t_init == NULL)
+		c2_semaphore_down(&q->t_wait);
 	/*
-	  c2_thread provides no wrappers for kthread_should_stop() or
-	  do_exit(), so this will block until the thread exits by returning
-	  from kthread_trampoline.  kthread_trampoline always returns 0,
-	  but kthread_stop can return -errno on failure.
+	  c2_thread provides no wrappers for do_exit(), so this will block
+	  until the thread exits by returning from kthread_trampoline.
+	  kthread_trampoline() always returns 0, but kthread_stop() can return
+	  -errno on failure.
 	 */
 	result = kthread_stop(q->t_h.h_t);
 	if (result == 0)

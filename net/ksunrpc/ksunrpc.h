@@ -1,9 +1,28 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 05/30/2010
+ */
+
 #ifndef __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
 #include "lib/mutex.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 
 #ifdef __KERNEL__
 #include <linux/in.h>
@@ -51,6 +70,9 @@ struct ksunrpc_conn {
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_net_call *call);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
+
+int c2_svc_rqst_dec(void *rqstp, __be32 *data, struct c2_fop *arg);
+int c2_svc_rqst_enc(void *rqstp, __be32 *data, struct c2_fop *arg);
 /* #else __KERNEL__ */
 #else
 # include <netinet/in.h>

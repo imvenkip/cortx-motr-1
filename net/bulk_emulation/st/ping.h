@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifndef __COLIBRI_NET_BULK_MEM_PING_H__
 #define __COLIBRI_NET_BULK_MEM_PING_H__
 
@@ -16,11 +35,11 @@ struct ping_ctx {
 	const struct ping_ops		     *pc_ops;
 	struct c2_net_xprt		     *pc_xprt;
 	struct c2_net_domain		      pc_dom;
-	const char		             *pc_hostname;
+	const char		             *pc_hostname; /* dotted decimal */
 	short				      pc_port;
 	uint32_t			      pc_id;
 	int32_t				      pc_status;
-	const char			     *pc_rhostname;
+	const char			     *pc_rhostname; /* dotted decimal */
 	short				      pc_rport;
 	uint32_t			      pc_rid;
 	uint32_t		              pc_nr_bufs;
@@ -37,6 +56,7 @@ struct ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
+	int                                   pc_sunrpc_ep_delay;
 };
 
 enum {
@@ -44,6 +64,15 @@ enum {
 	PING_PORT2 = 27183,
 	PART3_SERVER_ID = 141421,
 };
+
+/* Debug printf macro */
+#ifdef __KERNEL__
+#define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
+#define PRId64 "lld" /* from <inttypes.h> */
+#else
+#include <stdio.h>
+#define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
+#endif
 
 void ping_server(struct ping_ctx *ctx);
 void ping_server_should_stop(struct ping_ctx *ctx);
