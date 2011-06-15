@@ -18,22 +18,23 @@
  * Original creation date: 06/14/2011
  */
 
+#include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/ksunrpc/ksunrpc.h"
 
 enum {
-	PORT = 10001
+	NUM = 100,
+	IPADDR = 0x7f000001,
+	PORT = 10001,
+	FAKEPORT = 10701,
+	S_EPID = 42,
+	C_EPID = 24
 };
 
-static int sunrpc_ut_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-
-static struct c2_fop_type_ops sunrpc_msg_ops = {
-	.fto_execute = sunrpc_ut_msg_handler,
-};
 
 static struct c2_fop_type_ops sunrpc_get_ops = {
 	.fto_execute = sunrpc_ut_get_handler,
@@ -45,33 +46,80 @@ static struct c2_fop_type_ops sunrpc_put_ops = {
 
 static struct c2_net_domain dom;
 
-extern struct c2_fop_type sunrpc_msg_fopt; /* opcode = 30 */
 extern struct c2_fop_type sunrpc_get_fopt; /* opcode = 31 */
 extern struct c2_fop_type sunrpc_put_fopt; /* opcode = 32 */
 
-extern struct c2_fop_type sunrpc_msg_resp_fopt; /* opcode = 35 */
 extern struct c2_fop_type sunrpc_get_resp_fopt; /* opcode = 36 */
 extern struct c2_fop_type sunrpc_put_resp_fopt; /* opcode = 37 */
 
 static struct c2_fop_type *s_fops[] = {
-	&sunrpc_msg_fopt,
 	&sunrpc_get_fopt,
 	&sunrpc_put_fopt,
 };
 
-static int sunrpc_ut_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	return -ENOSYS;
-}
+static char get_put_buf[NUM];
 
 static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	return -ENOSYS;
+	struct sunrpc_get         *in = c2_fop_data(fop);
+	struct sunrpc_get_resp    *ex;
+	struct c2_fop             *reply;
+	int                        i;
+	int                        rc;
+
+	reply = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
+	C2_UT_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
+	i = in->sg_desc.sbd_id;
+
+	C2_UT_ASSERT(in->sg_offset == 0);
+	C2_UT_ASSERT(i != 0);
+	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_addr == IPADDR);
+	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_port == PORT);
+	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_id == S_EPID);
+	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_addr == IPADDR);
+	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_port == FAKEPORT);
+	C2_UT_ASSERT(in->sg_desc.sbd_passive_ep.sep_id == C_EPID);
+	C2_UT_ASSERT(in->sg_desc.sbd_qtype == C2_NET_QT_ACTIVE_BULK_SEND);
+	C2_UT_ASSERT(in->sg_desc.sbd_total == i);
+
+	ex->sgr_rc = i + 1;
+	ex->sgr_eof = 1;
+	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 0;
 }
 
 static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
-	return -ENOSYS;
+	struct sunrpc_put         *in = c2_fop_data(fop);
+	struct sunrpc_put_resp    *ex;
+	struct c2_fop             *reply;
+	int                        i;
+
+	reply = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
+	C2_UT_ASSERT(reply != NULL);
+	ex = c2_fop_data(reply);
+	i = in->sp_desc.sbd_id;
+
+	C2_UT_ASSERT(in->sp_offset == 0);
+	C2_UT_ASSERT(i != 0);
+	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_addr == IPADDR);
+	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_port == PORT);
+	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_id == S_EPID);
+	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_addr == IPADDR);
+	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_port == FAKEPORT);
+	C2_UT_ASSERT(in->sp_desc.sbd_passive_ep.sep_id == C_EPID);
+	C2_UT_ASSERT(in->sp_desc.sbd_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_UT_ASSERT(in->sp_desc.sbd_total == i);
+	C2_UT_ASSERT(in->sp_buf.sb_len == i);
+	/* XXX TODO: verify in->sp_buf.sb_buf contents */
+
+	ex->spr_rc = i + 1;
+	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	return 0;
 }
 
 static int ksunrpc_service_handler(struct c2_service *service,
@@ -87,6 +135,113 @@ static int ksunrpc_service_handler(struct c2_service *service,
         return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
+int get_call(struct c2_net_conn *conn, int i)
+{
+	int                      rc;
+	struct c2_fop           *f;
+	struct c2_fop           *r;
+	struct sunrpc_get       *fop;
+	struct sunrpc_get_resp  *rep;
+	struct sunrpc_buf_desc   fake_desc = {
+		.sbd_id = i,
+		.sbd_active_ep.sep_addr = IPADDR,
+		.sbd_active_ep.sep_port = PORT,
+		.sbd_active_ep.sep_id = S_EPID,
+		.sbd_passive_ep.sep_addr = IPADDR,
+		.sbd_passive_ep.sep_port = FAKEPORT,
+		.sbd_passive_ep.sep_id = C_EPID,
+		.sbd_qtype = C2_NET_QT_ACTIVE_BULK_SEND,
+		.sbd_total = i
+	};
+
+	f = c2_fop_alloc(&sunrpc_get_fopt, NULL);
+	r = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
+	if (f == NULL || r == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	fop = c2_fop_data(f);
+
+	fop->sg_desc = fake_desc;
+	fop->sg_offset = 0;
+	{
+		struct c2_net_call call = {
+			.ac_arg = f,
+			.ac_ret = r
+		};
+
+		rc = c2_net_cli_call(conn, &call);
+		C2_UT_ASSERT(rc == 0);
+	}
+
+	rep = c2_fop_data(r);
+	C2_UT_ASSERT(rep->sgr_rc == i + 1);
+	C2_UT_ASSERT(rep->sgr_eof == 1);
+	C2_UT_ASSERT(rep->sgr_buf.sb_len == i);
+	/* XXX TODO: verify rep->sgr_buf.sb_buf contents */
+
+done:
+	if (r != NULL)
+		c2_fop_free(r);
+	if (f != NULL)
+		c2_fop_free(f);
+	return rc;
+}
+
+int put_call(struct c2_net_conn *conn, int i)
+{
+	int                      rc;
+	struct c2_fop           *f;
+	struct c2_fop           *r;
+	struct sunrpc_put       *fop;
+	struct sunrpc_put_resp  *rep;
+	struct sunrpc_buf_desc   fake_desc = {
+		.sbd_id = i,
+		.sbd_active_ep.sep_addr = IPADDR,
+		.sbd_active_ep.sep_port = PORT,
+		.sbd_active_ep.sep_id = S_EPID,
+		.sbd_passive_ep.sep_addr = IPADDR,
+		.sbd_passive_ep.sep_port = FAKEPORT,
+		.sbd_passive_ep.sep_id = C_EPID,
+		.sbd_qtype = C2_NET_QT_ACTIVE_BULK_RECV,
+		.sbd_total = i
+	};
+
+	f = c2_fop_alloc(&sunrpc_put_fopt, NULL);
+	r = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
+	if (f == NULL || r == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	fop = c2_fop_data(f);
+
+	fop->sp_desc = fake_desc;
+	{
+		struct c2_net_call call = {
+			.ac_arg = f,
+			.ac_ret = r
+		};
+		fop->sp_offset = 0;
+		fop->sp_buf.sb_len = i;
+		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i);
+		C2_UT_ASSERT(rc == 0);
+		rc = c2_net_cli_call(conn, &call);
+		if (rc == 0) {
+			rep = c2_fop_data(r);
+			C2_UT_ASSERT(rep->spr_rc == i + 1);
+		}
+		C2_UT_ASSERT(rc == 0);
+		sunrpc_buffer_fini(&fop->sp_buf);
+	}
+
+done:
+	if (r != NULL)
+		c2_fop_free(r);
+	if (f != NULL)
+		c2_fop_free(f);
+	return rc;
+}
+
 void test_ksunrpc_server(void)
 {
 	int rc;
@@ -100,10 +255,8 @@ void test_ksunrpc_server(void)
 	/* NB: fops used are parsed when knet2 module is loaded,
 	   override the ops vector for UT.
 	 */
-	C2_UT_ASSERT(sunrpc_msg_fopt.ft_top != NULL);
 	C2_UT_ASSERT(sunrpc_get_fopt.ft_top != NULL);
 	C2_UT_ASSERT(sunrpc_put_fopt.ft_top != NULL);
-	sunrpc_msg_fopt.ft_ops = &sunrpc_msg_ops;
 	sunrpc_get_fopt.ft_ops = &sunrpc_get_ops;
 	sunrpc_put_fopt.ft_ops = &sunrpc_put_ops;
 
@@ -133,12 +286,19 @@ void test_ksunrpc_server(void)
 	conn1 = c2_net_conn_find(&sid1);
 	C2_UT_ASSERT(conn1 != NULL);
 
-	/* call msg API, tests sending basic record and sequence */
-	for (i = 0; i < 100; ++i) {
-	}
+	for (i = 0; i < NUM; ++i)
+		get_put_buf[i] = i+1;
 
 	/* call get API, tests receiving basic record and sequence */
-	for (i = 0; i < 100; ++i) {
+	for (i = 1; i <= NUM; ++i) {
+		/* rc = get_call(conn1, i);
+		   C2_UT_ASSERT(rc == 0); */
+	}
+
+	/* call put API, tests sending basic record and sequence */
+	for (i = 1; i <= NUM; ++i) {
+		/* rc = put_call(conn1, i);
+		   C2_UT_ASSERT(rc == 0); */
 	}
 
 	c2_net_conn_unlink(conn1);
