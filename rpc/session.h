@@ -171,7 +171,7 @@ struct c2_rpc_snd_slot;
 struct c2_rpc_session_ops;
 
 enum {
-	/** session_[create|destroy] items go on session 0 */
+	/** session_[create|terminate] items go on session 0 */
 	SESSION_0 = 0,
 	/** UNINITIALISED session has id SESSION_ID_INVALID */
 	SESSION_ID_INVALID = ~0,
@@ -249,7 +249,7 @@ enum c2_rpc_conn_state {
 
    +-------------------------> UNINITIALISED
                                     |
-                                    |  c2_rpc_conn_init()
+                                    |  c2_rpc_conn_create()
                                     |
                                     |
                                     V
@@ -309,20 +309,17 @@ struct c2_rpc_conn {
 };
 
 /**
-    Send handshake fop to the remote end. The reply contains sender-id.
-
-    This function asynchronously sends an initial hand-shake fop to the other
-    end of the connection. When reply is received, the c2_rpc_conn is
-    moved into INITIALISED state.
+    Send handshake conn create fop to the remote end. The reply 
+    contains sender-id.
 
     @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
     @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISING &&
 		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_UNINITIALISED)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     struct c2_service_id	*svc_id,
-		     struct c2_rpcmachine	*machine);
+int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
+		       struct c2_service_id	*svc_id,
+		       struct c2_rpcmachine	*machine);
 
 /**
    Finalize c2_rpc_conn
@@ -464,7 +461,7 @@ struct c2_rpc_session {
 		denoting cause of failure */
 	int32_t				 s_rc;
 	/** Array of pointers to slots */
-	struct c2_rpc_snd_slot 		**s_slot_table;
+	struct c2_rpc_slot 		**s_slot_table;
 	/** Session ops */
 	const struct c2_rpc_session_ops	 *s_ops;
 };
@@ -601,7 +598,7 @@ struct c2_rpc_slot {
 	uint64_t			sl_slot_gen;
 	/** a monotonically increasing counter, copied in each item
 	    sent through this slot */
-	uint64_t			sl_cookie;
+	uint64_t			sl_xid;
 	/** List of items, starting from oldest */
 	struct c2_list			sl_item_list;
 	/** earliest item that the receiver possibly have seen */
@@ -635,6 +632,9 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
 
 void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
+
+/** XXX temporary */
+void c2_rpc_form_slot_idle(struct c2_rpc_slot	*slot);
 
 /**
    Iterate over all the rpc connections present in rpcmachine

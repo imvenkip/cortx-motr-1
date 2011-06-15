@@ -30,8 +30,8 @@ struct c2_fop_type_ops c2_rpc_fop_session_create_ops = {
 	.fto_fom_init = c2_rpc_fop_session_create_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_fop_session_destroy_ops = {
-	.fto_fom_init = c2_rpc_fop_session_destroy_fom_init,
+struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops = {
+	.fto_fom_init = c2_rpc_fop_session_terminate_fom_init,
 };
 
 struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops = {
@@ -46,8 +46,8 @@ struct c2_fop_type_ops c2_rpc_fop_session_create_rep_ops = {
 	.fto_execute = c2_rpc_fop_session_create_rep_execute
 };
 
-struct c2_fop_type_ops c2_rpc_fop_session_destroy_rep_ops = {
-	.fto_execute = c2_rpc_fop_session_destroy_rep_execute
+struct c2_fop_type_ops c2_rpc_fop_session_terminate_rep_ops = {
+	.fto_execute = c2_rpc_fop_session_terminate_rep_execute
 };
 
 struct c2_fop_type_ops c2_rpc_fop_conn_terminate_rep_ops = {
@@ -117,29 +117,29 @@ int c2_rpc_fop_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
-int c2_rpc_fop_session_destroy_fom_init(struct c2_fop *fop,
+int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 					struct c2_fom **m)
 {
-	struct c2_rpc_fom_session_destroy	*fom_sd;
+	struct c2_rpc_fom_session_terminate	*fom_st;
 	struct c2_fom				*fom;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	C2_ALLOC_PTR(fom_sd);
-	if (fom_sd == NULL)
+	C2_ALLOC_PTR(fom_st);
+	if (fom_st == NULL)
 		return -ENOMEM;
 
-	fop->f_type->ft_fom_type = c2_rpc_fom_session_destroy_type;
-	fom = &fom_sd->fsd_gen;
-	fom->fo_type = &c2_rpc_fom_session_destroy_type;
-	fom->fo_ops = &c2_rpc_fom_session_destroy_ops;
+	fop->f_type->ft_fom_type = c2_rpc_fom_session_terminate_type;
+	fom = &fom_st->fst_gen;
+	fom->fo_type = &c2_rpc_fom_session_terminate_type;
+	fom->fo_ops = &c2_rpc_fom_session_terminate_ops;
 
-	fom_sd->fsd_fop = fop;
-	fom_sd->fsd_fop_rep = c2_fop_alloc(
-				&c2_rpc_fop_session_destroy_rep_fopt, NULL);
-	if (fom_sd->fsd_fop_rep == NULL) {
-		c2_free(fom_sd);
+	fom_st->fst_fop = fop;
+	fom_st->fst_fop_rep = c2_fop_alloc(
+				&c2_rpc_fop_session_terminate_rep_fopt, NULL);
+	if (fom_st->fst_fop_rep == NULL) {
+		c2_free(fom_st);
 		return -ENOMEM;
 	}
 
@@ -190,7 +190,7 @@ int c2_rpc_fop_session_create_rep_execute(struct c2_fop		*fop,
 	return 0;
 }
 
-int c2_rpc_fop_session_destroy_rep_execute(struct c2_fop	*fop,
+int c2_rpc_fop_session_terminate_rep_execute(struct c2_fop	*fop,
 					   struct c2_fop_ctx	*ctx)
 {
 	c2_rpc_session_terminate_reply_received(fop);
@@ -226,9 +226,9 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create, "rpc_session_create",
 			C2_RPC_FOP_SESSION_CREATE_OPCODE,
 			&c2_rpc_fop_session_create_ops);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy, "rpc_session_destroy",
+C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate, "rpc_session_terminate",
 			C2_RPC_FOP_SESSION_DESTROY_OPCODE,
-			&c2_rpc_fop_session_destroy_ops);
+			&c2_rpc_fop_session_terminate_ops);
 
 /*
  *  REPLY fops
@@ -246,9 +246,9 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create_rep, "rpc_session_create_reply",
 			C2_RPC_FOP_SESSION_CREATE_REP_OPCODE,
 			&c2_rpc_fop_session_create_rep_ops);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_destroy_rep, "rpc_session_destroy_reply",
+C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate_reply",
 			C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE,
-			&c2_rpc_fop_session_destroy_rep_ops);
+			&c2_rpc_fop_session_terminate_rep_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
 			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops);
@@ -257,11 +257,11 @@ static struct c2_fop_type *fops[] = {
         &c2_rpc_fop_conn_create_fopt,
         &c2_rpc_fop_conn_terminate_fopt,
         &c2_rpc_fop_session_create_fopt,
-        &c2_rpc_fop_session_destroy_fopt,
+        &c2_rpc_fop_session_terminate_fopt,
         &c2_rpc_fop_conn_create_rep_fopt,
         &c2_rpc_fop_conn_terminate_rep_fopt,
         &c2_rpc_fop_session_create_rep_fopt,
-        &c2_rpc_fop_session_destroy_rep_fopt,
+        &c2_rpc_fop_session_terminate_rep_fopt,
 	&c2_rpc_fop_noop_fopt,
 };
 

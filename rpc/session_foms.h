@@ -62,26 +62,26 @@ int c2_rpc_fom_session_create_state(struct c2_fom *);
 void c2_rpc_fom_session_create_fini(struct c2_fom *);
 
 /*
- * FOM to execute session destroy request
+ * FOM to execute session terminate request
  */
 
-enum c2_rpc_fom_session_destroy_phase {
+enum c2_rpc_fom_session_terminate_phase {
 	FOPH_SESSION_DESTROYING = FOPH_NR + 1
 };
 
-struct c2_rpc_fom_session_destroy {
-	struct c2_fom		fsd_gen;
-	struct c2_fop		*fsd_fop;
-	struct c2_fop		*fsd_fop_rep;
-	struct c2_dbenv		*fsd_dbenv;
-	struct c2_db_tx		fsd_tx;
+struct c2_rpc_fom_session_terminate {
+	struct c2_fom		fst_gen;
+	struct c2_fop		*fst_fop;
+	struct c2_fop		*fst_fop_rep;
+	struct c2_dbenv		*fst_dbenv;
+	struct c2_db_tx		fst_tx;
 };
 
-extern struct c2_fom_type c2_rpc_fom_session_destroy_type;
-extern struct c2_fom_ops c2_rpc_fom_session_destroy_ops;
+extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
+extern struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
-int c2_rpc_fom_session_destroy_state(struct c2_fom *);
-void c2_rpc_fom_session_destroy_fini(struct c2_fom *);
+int c2_rpc_fom_session_terminate_state(struct c2_fom *);
+void c2_rpc_fom_session_terminate_fini(struct c2_fom *);
 
 /*
  * FOM to execute RPC connection terminate request

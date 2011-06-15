@@ -65,13 +65,21 @@ int c2_rpc_item_init(struct c2_rpc_item *item,
 	c2_chan_init(&item->ri_chan);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 	item->ri_type = NULL;
-	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_INVALID;
-	item->ri_slot_id = SLOT_ID_INVALID;
+	//item->ri_sender_id = SENDER_ID_INVALID;
+	//item->ri_session_id = SESSION_ID_INVALID;
+	//item->ri_slot_id = SLOT_ID_INVALID;
 	item->ri_mach = mach;
 	return 0;
 }
-
+int c2_rpc_post(struct c2_rpc_item	*item)
+{
+	return 0;
+}
+int c2_rpc_reply_post(struct c2_rpc_item	*request,
+		      struct c2_rpc_item	*reply)
+{
+	return 0;
+}
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
 	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;

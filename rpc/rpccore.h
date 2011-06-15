@@ -346,8 +346,8 @@ struct c2_rpc_item {
 	enum c2_rpc_item_state		ri_state;
 	enum c2_rpc_item_tstate		ri_tstate;
 	uint64_t			ri_flags;
+	struct c2_rpc_session		*ri_session;
 	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
-	struct c2_service_id		*ri_service_id;
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
 	struct c2_list_link		ri_unbound_link;
 	/** Session related fields. Should be included in on wire rpc-item */
@@ -365,10 +365,8 @@ struct c2_rpc_item {
 	struct c2_list_link		ri_slot_link;
 	/** XXX temporary field to put item on in-core reply cache list */
 	struct c2_list_link		ri_rc_link;
-
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
-	struct c2_chan			ri_chan;
 	/** Linkage to the forming list, needed for formation */
 	struct c2_list_link		ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
@@ -381,6 +379,8 @@ struct c2_rpc_item {
 	struct c2_timer			ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
+	/** channel to wait for reply */
+	struct c2_chan			ri_chan;
 };
 
 /**
@@ -540,6 +540,33 @@ int c2_rpc_submit(struct c2_service_id		*srvid,
 int c2_rpc_reply_submit(struct c2_rpc_item	*request,
 			struct c2_rpc_item	*reply,
 			struct c2_db_tx		*tx);
+
+/**
+  Posts an unbound item to the rpc layer.
+
+  The item will be send trough one of item->ri_session slots.
+
+  The rpc layer will try to send the item out not later than
+  item->ri_deadline and with priority of item->ri_priority.
+
+  If this call returns without errors, the item's reply call-back is
+  guaranteed to be called eventually.
+
+  @pre item->ri_session != NULL
+  @pre item->ri_priority is sane.
+*/
+int c2_rpc_post(struct c2_rpc_item *item);
+
+#if 0
+/**
+  Posts an item bound to the update stream.
+*/
+int c2_rpc_update_stream_post(struct c2_update_stream *str, 
+                 struct c2_rpc_item *item);
+#endif
+
+int c2_rpc_reply_post(struct c2_rpc_item *request, 
+		      struct c2_rpc_item *reply);
 
 /**
    Cancel submitted RPC-item
