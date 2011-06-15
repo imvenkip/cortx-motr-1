@@ -57,12 +57,16 @@
  */
 
 enum {
-	KSUNRPC_XDRSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
-	KSUNRPC_BUFSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE + 1024,
+	KSUNRPC_XDRSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE,
+	KSUNRPC_BUFSIZE = C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE,
 	KSUNRPC_MAXCONN = 1024,
 };
 
 static struct svc_program ksunrpc_program;
+
+/* dummy structures for RPC NULL procedure */
+struct sunrpc_null { int dummy; };
+struct sunrpc_null_resp { int dummy; };
 
 static const struct c2_addb_loc ksunrpc_addb_server = {
 	.al_name = "ksunrpc-server"
@@ -191,6 +195,7 @@ static int ksunrpc_dispatch(struct svc_rqst *req, __be32 *statp)
 	if (tab->not_start <= req->rq_proc &&
 	    req->rq_proc < tab->not_start + tab->not_nr) {
 		int rc;
+		printk(KERN_INFO "in ksunrpc_dispatch: proc = %d\n", req->rq_proc);
 		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
 		C2_ASSERT(fopt != NULL);
 		rc = ksunrpc_op(service, fopt, req);
@@ -198,6 +203,9 @@ static int ksunrpc_dispatch(struct svc_rqst *req, __be32 *statp)
 			*statp = rpc_success;
 		else
 			*statp = rpc_system_err;
+	} else if (req->rq_proc == 0) { /* NULLPROC */
+		printk(KERN_INFO "in ksunrpc_dispatch: nullproc\n");
+		*statp = rpc_success;
 	} else {
 		ADDB_ADD(service, ksunrpc_addb_opnotsupp, -EOPNOTSUPP);
 		*statp = rpc_proc_unavail;
@@ -212,6 +220,7 @@ static void ksunrpc_worker(struct c2_service *service)
 
 	/* try_to_freeze() is called from svc_recv() */
 	set_freezable();
+	printk(KERN_INFO "in ksunrpc_worker\n");
 
 	while (!xs->s_shutdown) {
 		int rc;
@@ -227,6 +236,7 @@ static void ksunrpc_worker(struct c2_service *service)
 		}
 		svc_process(xs->s_rqst);
 	}
+	printk(KERN_INFO "exit ksunrpc_worker\n");
 }
 
 static void ksunrpc_service_stop(struct ksunrpc_service *xs)
@@ -258,6 +268,7 @@ static int ksunrpc_service_start(struct c2_service *service,
 
 	C2_ASSERT(xs->s_serv == NULL);
 	C2_ASSERT(xid->ssi_ver == C2_DEF_RPC_VER);
+	printk(KERN_INFO "in ksunrpc_service_start\n");
 
 	/* svc_* functions require protection by a mutex or BKL */
 	c2_mutex_lock(&xs->s_svc_mutex);
@@ -269,14 +280,17 @@ static int ksunrpc_service_start(struct c2_service *service,
 		goto done;
 	}
 	xs->s_serv = serv;
+	printk(KERN_INFO "ksunrpc_service_start: created\n");
 
 	/* create transport/socket */
 	rc = svc_create_xprt(serv, "tcp", PF_INET, xid->ssi_port,
 			     SVC_SOCK_DEFAULTS);
-	if (rc != 0) {
+	if (rc < 0) {
+		printk(KERN_INFO "ksunrpc_service_start: xprt port %d FAILED: %d\n", (int)xid->ssi_port, rc);
 		ADDB_CALL(service, "svc_create_xprt", rc);
 		goto done;
 	}
+	printk(KERN_INFO "ksunrpc_service_start: xprt port %d\n", (int)xid->ssi_port);
 
 	/* set up for creating worker thread */
 	rqst = svc_prepare_thread(serv, &serv->sv_pools[0]);
@@ -285,6 +299,7 @@ static int ksunrpc_service_start(struct c2_service *service,
 		ADDB_CALL(service, "svc_prepare_thread", rc);
 		goto done;
 	}
+	printk(KERN_INFO "ksunrpc_service_start: prepared\n");
 	xs->s_rqst = rqst;
 	svc_sock_update_bufs(serv);
 	serv->sv_maxconn = KSUNRPC_MAXCONN;
@@ -305,8 +320,9 @@ done:
 		svc_destroy(xs->s_serv);
 	c2_mutex_unlock(&xs->s_svc_mutex);
 
-	if (rc != 0)
+	if (rc < 0)
 		ksunrpc_service_stop(xs);
+	printk(KERN_INFO "exit ksunrpc_service_start: rc=%d\n", rc);
 	return rc;
 }
 
@@ -329,7 +345,7 @@ int ksunrpc_service_init(struct c2_service *service)
 {
 	struct ksunrpc_service    *xs;
 	struct ksunrpc_service_id *xid;
-	int                        result;
+	int                        rc;
 
 	C2_ALLOC_PTR(xs);
 	if (xs != NULL) {
@@ -340,17 +356,18 @@ int ksunrpc_service_init(struct c2_service *service)
 		service->s_ops = &ksunrpc_service_ops;
 		xid = service->s_id->si_xport_private;
 		C2_ASSERT(service->s_id->si_ops == &ksunrpc_service_id_ops);
-		result = ksunrpc_service_start(service, xid);
-		if (result == 0) {
+		rc = ksunrpc_service_start(service, xid);
+		if (rc == 0) {
 			c2_rwlock_write_lock(&ksunrpc_lock);
 			c2_list_add(&ksunrpc_svc_list, &xs->s_svc_link);
 			c2_rwlock_write_unlock(&ksunrpc_lock);
 		}
 	} else {
 		ADDB_ADD(service, c2_addb_oom);
-		result = -ENOMEM;
+		rc = -ENOMEM;
 	}
-	return result;
+	printk(KERN_INFO "exit ksunrpc_service_init: rc=%d\n", rc);
+	return rc;
 }
 
 /**
@@ -404,6 +421,7 @@ const struct c2_service_ops ksunrpc_service_ops = {
    Only bulk emulation procedures are supported.
  */
 static struct svc_procedure ksunrpc_procedures[] = {
+	PROC(0,  null, 1),
 	PROC(30, msg, 0),
 	PROC(31, get, 0),
 	PROC(32, put, 0),
