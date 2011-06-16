@@ -12,6 +12,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "stob/stob.h"
+#include "net/net.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fop_iterator.h"
@@ -115,7 +116,6 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	result = c2_fom_domain_init(&reqh->rh_fom_dom, nr);
 	if (result)
 		printf("REQH: c2_fom_domain_init failed with result %d\n", result);
-
 	return result;
 }
 
@@ -127,7 +127,6 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 	C2_ASSERT(reqh != NULL);
 	C2_ASSERT(reqh->rh_fom_dom);
 	c2_fom_domain_fini(reqh->rh_fom_dom);
-        fclose((FILE*)c2_addb_store_stob);
 }
 
 /**
@@ -154,7 +153,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
 	fom->fo_fop_ctx = ctx;
 	fom->fo_fol = reqh->rh_fol;
-	fom->fo_stdom = reqh->rh_dom;
+	fom->fo_domain = reqh->rh_dom;
 	c2_fom_init(fom);
 
 	/* find locality and submit fom for further processing */
@@ -316,7 +315,7 @@ int c2_create_loc_ctx(struct c2_fom *fom)
 {	
   	C2_ASSERT(fom != NULL);
 	int rc = 0;
-	rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, 
+	rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 				&fom->fo_tx.tx_dbtx);
 	if (rc)
 		fom->fo_phase = FOPH_FAILED;

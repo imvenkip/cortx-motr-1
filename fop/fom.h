@@ -62,20 +62,20 @@ struct c2_fom_ops;
  */
 
 struct c2_fom_locality {
-	struct c2_fom_domain *fl_dom;
+	struct c2_fom_domain	*fl_dom;
 
 	/** run-queue */
-	struct c2_queue       fl_runq;
-	size_t                fl_runq_nr;
-	struct c2_mutex       fl_runq_lock;
+	struct c2_queue		fl_runq;
+	size_t			fl_runq_nr;
+	struct c2_mutex		fl_runq_lock;
 
 	/** wait list */
-	struct c2_list        fl_wail;
-	size_t                fl_wail_nr;
-	struct c2_mutex       fl_wail_lock;
+	struct c2_list		fl_wail;
+	size_t			fl_wail_nr;
+	struct c2_mutex		fl_wail_lock;
 
 	/** Lock for the locality fields not protected by the locks above. */
-	struct c2_mutex       fl_lock;
+	struct c2_mutex		fl_lock;
 
 	/**
 	    Re-scheduling channel that idle threads of locality wait on for new
@@ -84,18 +84,18 @@ struct c2_fom_locality {
 	    @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
 	    the explanation of the name.
 	*/
-	struct c2_chan        fl_runrun;
+	struct c2_chan		fl_runrun;
 
 	/** handler threads */
-	struct c2_list        fl_threads;
-	size_t                fl_idle_threads_nr;
-	size_t                fl_threads_nr;
+	struct c2_list		fl_threads;
+	size_t			fl_idle_threads_nr;
+	size_t			fl_threads_nr;
 
 	/*
 	 * Resources allotted to the partition.
 	 */
 
-	struct c2_bitmap      fl_processors;
+	struct c2_bitmap	fl_processors;
 
 	/*
 	 * Something for memory, see set_mempolicy(2).
@@ -108,11 +108,11 @@ struct c2_fom_locality {
  */
 struct c2_fom_domain {
 	/** An array of localities. */
-	struct c2_fom_locality         *fd_localities;
+	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
-	size_t                          fd_nr;
+	size_t				fd_nr;
 	/** Domain operations. */
-	const struct c2_fom_domain_ops *fd_ops;
+	const struct c2_fom_domain_ops	*fd_ops;
 	/** flag to help locality threads termination */
 	int				fd_clean;
 };
@@ -200,12 +200,12 @@ void c2_fom_queue(struct c2_fom_domain *dom, struct c2_fom *fom);
 
 /** Fop state machine. */
 struct c2_fom {
-	enum c2_fom_state        fo_state;
-	int 			 fo_phase;
-	struct c2_fom_locality  *fo_loc;
-	struct c2_fom_type      *fo_type;
-	const struct c2_fom_ops *fo_ops;
-	struct c2_clink          fo_clink;
+	enum c2_fom_state	fo_state;
+	int			fo_phase;
+	struct c2_fom_locality	*fo_loc;
+	struct c2_fom_type	*fo_type;
+	const struct c2_fom_ops	*fo_ops;
+	struct c2_clink		fo_clink;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
 	/** request fop object, this fom belongs to **/
@@ -213,13 +213,15 @@ struct c2_fom {
 	/** fol object for this fom **/
 	struct c2_fol		*fo_fol;
 	/** stob domain this fom is operating on **/
-	struct c2_stob_domain	*fo_stdom;
+	struct c2_stob_domain	*fo_domain;
 	/** transaction object to be used by this fom **/
-	struct c2_dtx          	fo_tx;
+	struct c2_dtx		fo_tx;
 	/* Temporary channel used to simulate generic phases of reqh */
 	struct c2_chan		chan_gen_wait;
-	struct c2_queue_link	fom_linkage;
-	struct c2_list_link     fom_link;
+	/* linkage in the locality runq */
+	struct c2_queue_link	fo_linkage;
+	/* temporary clink to listen on temporary generic channel */
+	struct c2_list_link	fo_link;
 };
 
 void c2_fom_init(struct c2_fom *fom);
@@ -283,9 +285,9 @@ struct c2_fom_ops {
 
 /** Handler thread. */
 struct c2_fom_hthread {
-	struct c2_thread    fht_thread;
+	struct c2_thread	fht_thread;
 	/** Linkage into c2_fom_locality::fl_threads. */
-	struct c2_list_link fht_linkage;
+	struct c2_list_link	fht_linkage;
 };
 
 /**

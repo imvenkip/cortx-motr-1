@@ -4,7 +4,6 @@
 #define __COLIBRI_REQH_REQH_H__
 
 #include <sm/sm.h>
-#include "net/net.h"
 #include "fol/fol.h"
 
 /* import */

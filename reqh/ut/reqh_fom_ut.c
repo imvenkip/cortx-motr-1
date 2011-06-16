@@ -4,16 +4,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>  /* mkdir */
-#include <sys/types.h> /* mkdir */
-#include <unistd.h>    /* sleep */
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <err.h>
 
 #include "lib/cdefs.h"
 #include "lib/ut.h"
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h"
 #include "lib/getopts.h"
-#include "lib/arith.h"  /* min64u */
+#include "lib/arith.h"
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -24,6 +24,7 @@
 #include "lib/processor.h"
 
 #include "colibri/init.h"
+#include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
@@ -44,7 +45,7 @@
 #include "fom_io.ff"
 
 /**
-   @addtogroup stob
+   @addtogroup reqh
    @{
  */
 
@@ -158,11 +159,6 @@ static struct c2_fom_ops read_fom_ops = {
         .fo_state = read_fom_state,
 	.fo_fail = c2_io_fom_fail,
 };
-
-/*static struct c2_fom_ops c2_io_fom_gen_read_rep = {
-        .fo_fini = NULL,
-        .fo_state = NULL,
-};*/
 
 static const struct c2_fom_type_ops create_fom_type_ops = {
         .fto_create = c2_create_fom_create,
@@ -376,7 +372,7 @@ static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
 
         id.si_bits.u_hi = fid->f_seq;
         id.si_bits.u_lo = fid->f_oid;
-        result = fom->fo_stdom->sd_ops->sdo_stob_find(fom->fo_stdom, &id, &obj);
+        result = fom->fo_domain->sd_ops->sdo_stob_find(fom->fo_domain, &id, &obj);
         C2_ASSERT(result == 0);
         result = c2_stob_locate(obj, tx);
         return obj;
@@ -490,9 +486,6 @@ int create_fom_state(struct c2_fom *fom)
         } else 
 		return 0;
 
-        /*result = fom->fo_stdom->sd_ops->sdo_tx_make(fom->fo_stdom, &fom->fo_tx);
-        C2_ASSERT(result == 0);*/
-
         fom_obj->stobj = object_find(&in_fop->sic_object, &fom->fo_tx, fom);
 
         result = c2_stob_create(fom_obj->stobj, &fom->fo_tx);
@@ -525,9 +518,6 @@ int read_fom_state(struct c2_fom *fom)
                         in_fop = c2_fop_data(fom->fo_fop);
                         out_fop = c2_fop_data(fom_obj->rep_fop);
                 }
-
-               /* result = fom->fo_stdom->sd_ops->sdo_tx_make(fom->fo_stdom, &fom->fo_tx);
-                C2_ASSERT(result == 0);*/
 
                 fom_obj->stobj = object_find(&in_fop->sir_object, &fom->fo_tx, fom);
 
@@ -608,9 +598,6 @@ int write_fom_state(struct c2_fom *fom)
                         out_fop = c2_fop_data(fom_obj->rep_fop);
         } else
                 return 0;
-
-                /*result = fom->fo_stdom->sd_ops->sdo_tx_make(fom->fo_stdom, &fom->fo_tx);
-                C2_ASSERT(result == 0);*/
 
                 fom_obj->stobj = object_find(&in_fop->siw_object, &fom->fo_tx, fom);
 
@@ -859,11 +846,6 @@ int create_net_connection(struct c2_service_id *rsid, struct c2_net_conn **conn,
         *conn = c2_net_conn_find(rsid);
         C2_UT_ASSERT(*conn != NULL);
 
-        /* write addb record onto network */
-        c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK;
-        c2_addb_net_add_p      = c2_addb_net_add;
-        c2_addb_store_net_conn = *conn;
-        //c2_addb_level_default  = AEL_ERROR;
 	return rc;
 }
 /**
@@ -883,10 +865,16 @@ void test_reqh(void)
         /* struct c2_service_id  node_ret = { .si_uuid = {0} }; */
         struct c2_service       rservice;
 	
-	struct c2_stob_domain  *bdom;
-        struct c2_stob_id       backid;
-        struct c2_stob         *bstore;
-
+	struct c2_stob_domain	*bdom;
+        struct c2_stob_id	backid;
+        struct c2_stob		*bstore;
+	struct c2_stob		*reqh_addb_stob;
+        struct c2_stob_id       reqh_addb_stob_id = {
+                                        .si_bits = {
+                                                .u_hi = 1,
+                                                .u_lo = 2
+                                        }
+                                };
         struct c2_dbenv         db;
 
         setbuf(stdout, NULL);
@@ -896,9 +884,6 @@ void test_reqh(void)
         backid.si_bits.u_lo = 0xf00baf11e;
         /* port above 1024 is for normal use access permission */
         path = "../__s";
-
-        /*result = c2_init();
-        C2_ASSERT(result == 0);*/
 
 	result = fom_io_fop_init();
         C2_ASSERT(result == 0);
@@ -949,9 +934,18 @@ void test_reqh(void)
 
         c2_stob_put(bstore);
 
-        /*
-         * Set up the network.
-         */
+        /* create or open a stob into which to store the record. */
+        result = bdom->sd_ops->sdo_stob_find(bdom, &reqh_addb_stob_id, &reqh_addb_stob);
+        C2_ASSERT(result == 0);
+        C2_ASSERT(reqh_addb_stob->so_state == CSS_UNKNOWN);
+
+        result = c2_stob_create(reqh_addb_stob, NULL);
+        C2_ASSERT(result == 0);
+        C2_ASSERT(reqh_addb_stob->so_state == CSS_EXISTS);
+
+        /* write addb record into stob */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+         	                          reqh_addb_stob, NULL);
 
 	create_net_connection(&rsid, &conn, &reqh_node_arg, &rservice);
         /*C2_SET0(&service);
@@ -982,6 +976,9 @@ void test_reqh(void)
         c2_net_domain_fini(&ndom);
         c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
+        c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+        c2_stob_put(reqh_addb_stob);
+
         c2_reqh_fini(&reqh);
         sdom->sd_ops->sdo_fini(sdom);
         bdom->sd_ops->sdo_fini(bdom);
@@ -1000,7 +997,7 @@ const struct c2_test_suite reqh_ut = {
         }
 };
 
-/** @} end group stob */
+/** @} end group reqh */
 
 /*
  *  Local variables:

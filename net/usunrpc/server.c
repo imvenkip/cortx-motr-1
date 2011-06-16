@@ -262,6 +262,8 @@ static void usunrpc_service_worker(struct c2_service *service)
 		ret = NULL;
 		service->s_handler(service, wi->wi_arg, &ret);
 
+		while(ret == NULL);
+
 		c2_rwlock_read_lock(&xs->s_guard);
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,
 					     (xdrproc_t)c2_fop_uxdrproc,
