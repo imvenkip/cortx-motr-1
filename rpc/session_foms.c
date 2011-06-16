@@ -85,17 +85,17 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 */
 	sender_id = c2_rpc_sender_id_get();
 
-	rc = c2_rpc_rcv_conn_create(dom, sender_id, &conn_cob, tx);
+	rc = c2_rpc_conn_cob_create(dom, sender_id, &conn_cob, tx);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_session_create(conn_cob, SESSION_0, &session0_cob, tx);
+	rc = c2_rpc_session_cob_create(conn_cob, SESSION_0, &session0_cob, tx);
 	if (rc != 0) {
 		c2_cob_put(conn_cob);
 		goto errout;
 	}
 
-	rc = c2_rpc_rcv_slot_create(session0_cob,
+	rc = c2_rpc_slot_cob_create(session0_cob,
 					0,	/* Slot id */
 					0,	/* slot generation */
 					&slot0_cob, tx);
@@ -206,18 +206,18 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	session_id = c2_rpc_session_id_get();
 	fop_out->rscr_sender_id = fop_in->rsc_snd_id;
 
-	rc = c2_rpc_rcv_conn_lookup(dom, sender_id, &conn_cob, tx);
+	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_session_create(conn_cob, session_id, &session_cob, tx);
+	rc = c2_rpc_session_cob_create(conn_cob, session_id, &session_cob, tx);
 	if (rc != 0) {
 		c2_cob_put(conn_cob);
 		goto errout;
 	}
 
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
-		rc = c2_rpc_rcv_slot_create(session_cob, i, 0, &slot_cob, tx);
+		rc = c2_rpc_slot_cob_create(session_cob, i, 0, &slot_cob, tx);
 		if (rc != 0) {
 			c2_cob_put(session_cob);
 			c2_cob_put(conn_cob);
@@ -323,16 +323,16 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	/*
 	 * Remove all the cobs associated with the session
 	 */
-	rc = c2_rpc_rcv_conn_lookup(dom, sender_id, &conn_cob, tx);
+	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_session_lookup(conn_cob, session_id, &session_cob, tx);
+	rc = c2_rpc_session_cob_lookup(conn_cob, session_id, &session_cob, tx);
 	if (rc != 0)
 		goto err_put_conn;
 
 	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
-		rc = c2_rpc_rcv_slot_lookup(session_cob, i, 0, &slot_cob, tx);
+		rc = c2_rpc_slot_cob_lookup(session_cob, i, 0, &slot_cob, tx);
 		if (rc != 0)
 			goto err_put_session;
 
@@ -441,15 +441,15 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	/*
 	 * Remove cobs relatedd to the connection
 	 */
-	rc = c2_rpc_rcv_conn_lookup(dom, sender_id, &conn_cob, tx);
+	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_session_lookup(conn_cob, SESSION_0, &session0_cob, tx);
+	rc = c2_rpc_session_cob_lookup(conn_cob, SESSION_0, &session0_cob, tx);
 	if (rc != 0)
 		goto err_put_conn;
 
-	rc = c2_rpc_rcv_slot_lookup(session0_cob, 0, 0, &slot0_cob, tx);
+	rc = c2_rpc_slot_cob_lookup(session0_cob, 0, 0, &slot0_cob, tx);
 	if (rc != 0)
 		goto err_put_session;
 

@@ -61,37 +61,37 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx);
 
-int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
+int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx);
 
-int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
+int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx);
 
-int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
+int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx);
 
-int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
+int c2_rpc_session_cob_lookup(struct c2_cob		*conn_cob,
 			      uint64_t			session_id,
 			      struct c2_cob		**session_cob,
 			      struct c2_db_tx		*tx);
 
-int c2_rpc_rcv_session_create(struct c2_cob	*conn_cob,
+int c2_rpc_session_cob_create(struct c2_cob	*conn_cob,
 			      uint64_t		session_id,
 			      struct c2_cob	**session_cob,
 			      struct c2_db_tx	*tx);
 
-int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
+int c2_rpc_slot_cob_lookup(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
-int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
+int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
@@ -104,7 +104,7 @@ int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
   @return 0 if successful. slot_cob != NULL
   @return < 0 if unsuccessful. slot_cob == NULL
  */
-int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain        *dom,
+int c2_rpc_slot_cob_lookup_by_item(struct c2_cob_domain        *dom,
                                    struct c2_rpc_item          *item,
                                    struct c2_cob               **slot_cob,
                                    struct c2_db_tx             *tx);

@@ -1243,7 +1243,7 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 	C2_POST(ergo(rc == 0, *out != NULL));
 	return rc;
 }
-int c2_rpc_rcv_sessions_root_get(struct c2_cob_domain	*dom,
+int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx)
 {
@@ -1254,7 +1254,7 @@ enum {
 	SESSION_COB_MAX_NAME_LEN = 40
 };
 
-int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
+int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx)
@@ -1265,7 +1265,7 @@ int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
 
 	C2_PRE(sender_id != SENDER_ID_INVALID);
 
-	rc = c2_rpc_rcv_sessions_root_get(dom, &root_session_cob, tx);
+	rc = c2_rpc_root_session_cob_get(dom, &root_session_cob, tx);
 	if (rc != 0)
 		return rc;
 
@@ -1277,7 +1277,7 @@ int c2_rpc_rcv_conn_lookup(struct c2_cob_domain	*dom,
 	return rc;
 }
 
-int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
+int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx)
@@ -1307,7 +1307,7 @@ int c2_rpc_rcv_conn_create(struct c2_cob_domain	*dom,
 	return rc;
 }
 
-int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
+int c2_rpc_session_cob_lookup(struct c2_cob		*conn_cob,
 			      uint64_t			session_id,
 			      struct c2_cob		**session_cob,
 			      struct c2_db_tx		*tx)
@@ -1329,7 +1329,7 @@ int c2_rpc_rcv_session_lookup(struct c2_cob		*conn_cob,
 }
 
 
-int c2_rpc_rcv_session_create(struct c2_cob		*conn_cob,
+int c2_rpc_session_cob_create(struct c2_cob		*conn_cob,
 			      uint64_t			session_id,
 			      struct c2_cob		**session_cob,
 			      struct c2_db_tx		*tx)
@@ -1350,7 +1350,7 @@ int c2_rpc_rcv_session_create(struct c2_cob		*conn_cob,
 	return rc;
 }
 
-int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
+int c2_rpc_slot_cob_lookup(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
@@ -1372,7 +1372,7 @@ int c2_rpc_rcv_slot_lookup(struct c2_cob	*session_cob,
 }
 
 
-int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
+int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
@@ -1393,7 +1393,7 @@ int c2_rpc_rcv_slot_create(struct c2_cob	*session_cob,
 	return rc;
 }
 
-int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
+int c2_rpc_slot_cob_lookup_by_item(struct c2_cob_domain		*dom,
 				   struct c2_rpc_item		*item,
 				   struct c2_cob		**cob,
 				   struct c2_db_tx		*tx)
@@ -1409,16 +1409,16 @@ int c2_rpc_rcv_slot_lookup_by_item(struct c2_cob_domain		*dom,
 		item->ri_session_id <= SESSION_ID_MAX);
 
 	*cob = NULL;
-	rc = c2_rpc_rcv_conn_lookup(dom, item->ri_sender_id, &conn_cob, tx);
+	rc = c2_rpc_conn_cob_lookup(dom, item->ri_sender_id, &conn_cob, tx);
 	if (rc != 0)
 		goto out;
 
-	rc = c2_rpc_rcv_session_lookup(conn_cob, item->ri_session_id,
+	rc = c2_rpc_session_cob_lookup(conn_cob, item->ri_session_id,
 					&session_cob, tx);
 	if (rc != 0)
 		goto putconn;
 
-	rc = c2_rpc_rcv_slot_lookup(session_cob, item->ri_slot_id,
+	rc = c2_rpc_slot_cob_lookup(session_cob, item->ri_slot_id,
 					item->ri_slot_generation,
 					&slot_cob, tx);
 	/*
