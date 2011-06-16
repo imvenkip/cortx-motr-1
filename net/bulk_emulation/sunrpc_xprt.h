@@ -189,7 +189,8 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
 }
 
 #ifdef __KERNEL__
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len);
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
+		       bool for_write);
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
 #endif
 

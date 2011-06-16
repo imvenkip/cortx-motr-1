@@ -510,13 +510,15 @@ static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
 	int    i;
-        size_t npages;
+        size_t np;
 
-        npages = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	for (i = 0; i < npages; ++i)
-		if (sb->sb_buf[i] != NULL)
-			put_page(sb->sb_buf[i]);
-        c2_free(sb->sb_buf);
+	if (sb->sb_buf != NULL) {
+		np = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+		for (i = 0; i < np; ++i)
+			if (sb->sb_buf[i] != NULL)
+				put_page(sb->sb_buf[i]);
+		c2_free(sb->sb_buf);
+	}
 	C2_SET0(sb);
 }
 
@@ -524,8 +526,16 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
    Populate a kernel-style struct sunrpc_buffer given a buffer pointer and
    length.  The struct sunrpc_buffer contains a kernel struct page ** which
    gets populated with the pages corresponding to the buffer.
+   @param sb buffer object to initialize
+   @param buf address of start of actual buffer
+   @param len size of actual buffer
+   @param for_write if true, user-space pages will be mapped for write-access
+   @pre sb != NULL && buf != NULL && len > 0
+   @retval 0 (success)
+   @retval -errno (failure)
  */
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
+		       bool for_write)
 {
         unsigned long  addr;
         struct page  **pages;
@@ -534,13 +544,15 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 	int            i;
 	unsigned long  va;
 
-	C2_ASSERT(buf != NULL);
-	C2_ASSERT(len > 0);
+	C2_PRE(sb != NULL);
+	C2_PRE(buf != NULL);
+	C2_PRE(len > 0);
         addr = (unsigned long) buf;
         off = addr & (PAGE_SIZE - 1);
         addr &= PAGE_MASK;
 
         npages = (off + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	C2_ASSERT(npages > 0);
 	C2_ALLOC_ARR(pages, npages);
         if (pages == NULL)
                 return -ENOMEM;
@@ -558,7 +570,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 		int rc;
                 down_read(&current->mm->mmap_sem);
                 rc = get_user_pages(current, current->mm, addr, npages,
-                                    0, 1, pages, NULL);
+                                    for_write, 1, pages, NULL);
                 up_read(&current->mm->mmap_sem);
 		if (rc != npages) {
 			sunrpc_buffer_fini(sb);
