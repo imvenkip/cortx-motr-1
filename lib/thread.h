@@ -150,6 +150,9 @@ struct c2_thread {
    the tcb thread must finish before the block where C2_THREAD_INIT() was called
    is left.
 
+   @note Do not use LAMBDA in kernel code, as the code is generated on the
+   stack and is execution protected in the kernel.
+
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
