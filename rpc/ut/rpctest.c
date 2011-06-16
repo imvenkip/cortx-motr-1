@@ -315,7 +315,7 @@ void test_session_create()
 struct c2_rpc_conn		conn;
 struct c2_rpc_session		session;
 struct c2_thread		thread;
-
+#if 0
 void conn_status_check(void *arg)
 {
 	c2_time_t		timeout;
@@ -500,6 +500,8 @@ void test_snd_conn_terminate()
 				conn.c_rc);
 	c2_rpc_conn_fini(&conn);
 }
+#endif
+
 #if 0
 void test_item_prepare()
 {
@@ -544,11 +546,11 @@ int main(void)
 	//test_session_terminate(g_sender_id, g_session_id);
 	//test_conn_terminate(g_sender_id);
 
-	test_snd_conn_create();
-	test_snd_session_create();
+	//test_snd_conn_create();
+	//test_snd_session_create();
 	//test_item_prepare();
-	test_snd_session_terminate();
-	test_snd_conn_terminate();
+	//test_snd_session_terminate();
+	//test_snd_conn_terminate();
 
 	c2_rpcmachine_fini(machine);
 	c2_cob_domain_fini(dom);

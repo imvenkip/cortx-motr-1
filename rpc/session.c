@@ -2304,7 +2304,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	c2_list_init(&slot->sl_item_list);
 	c2_list_init(&slot->sl_ready_list);
 	c2_mutex_init(&slot->sl_mutex);
-	slott->sl_cob = NULL;
+	slot->sl_cob = NULL;
 
 	/*
 	 * Add a dummy item with very low verno in item_list
