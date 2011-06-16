@@ -5,7 +5,7 @@ fop_HEADERS                   = fop.h fom.h fop_format.h fop_user.h fop_format_d
 
 fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.c fop_format.h \
                                 fop_user.h fop_format_def.h fop_format_c.c \
-                                fop_iterator.h fop_iterator.c net_otw_types_u.h
+                                fop_iterator.h fop_iterator.c
 
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 
