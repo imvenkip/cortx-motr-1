@@ -21,6 +21,8 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include "lib/assert.h"
+#include "lib/thread.h"
 #include "lib/ut.h"
 
 MODULE_AUTHOR("Xyratex International");
@@ -33,8 +35,12 @@ extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_ksunrpc_ut;
 
-static void run_kernel_ut(void)
+static struct c2_thread ut_thread;
+
+static void run_kernel_ut(int ignored)
 {
+        printk(KERN_INFO "Colibri Kernel Unit Test\n");
+
 	c2_uts_init();
 	c2_ut_add(&c2_klibc2_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
@@ -44,18 +50,24 @@ static void run_kernel_ut(void)
 	c2_uts_fini();
 }
 
-int init_module(void)
+static int __init c2_ut_module_init(void)
 {
-        printk(KERN_INFO "Colibri Kernel Unit Test\n");
+	int rc;
 
-	run_kernel_ut();
+	rc = C2_THREAD_INIT(&ut_thread, int, NULL,
+		            &run_kernel_ut, 0, "run_kernel_ut");
+	C2_ASSERT(rc == 0);
 
-	return 0;
+	return rc;
 }
 
-void cleanup_module(void)
+static void __exit c2_ut_module_fini(void)
 {
+	c2_thread_join(&ut_thread);
 }
+
+module_init(c2_ut_module_init)
+module_exit(c2_ut_module_fini)
 
 /*
  *  Local variables:
