@@ -241,6 +241,9 @@ struct c2_rpc_slot_ref {
 	struct c2_list_link	sr_ready_link;
 };
 
+int __conn_init(struct c2_rpc_conn	*conn,
+		struct c2_rpcmachine	*machine);
+
 /** @}  End of rpc_session group */
 #endif
 

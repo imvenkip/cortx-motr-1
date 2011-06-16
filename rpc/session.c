@@ -236,6 +236,7 @@ int __conn_init(struct c2_rpc_conn	*conn,
 	  ((conn->c_flags & RCF_SENDER_END) != (conn->c_flags & RCF_RECV_END)));
 
 	conn->c_sender_id = SENDER_ID_INVALID;
+	conn->c_cob = NULL;
 	c2_list_init(&conn->c_sessions);
 	conn->c_nr_sessions = 0;
 	c2_chan_init(&conn->c_chan);
@@ -672,7 +673,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
-		conn->c_state == C2_RPC_CONN_FAILED);
+		conn->c_state == C2_RPC_CONN_FAILED ||
+		conn->c_state == C2_RPC_CONN_INITIALISED);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);
@@ -805,6 +807,7 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 	session->s_nr_slots = nr_slots;
 	session->s_slot_table_capacity = nr_slots;
 	c2_list_init(&session->s_unbound_items);
+	session->s_cob = NULL;
 
 	C2_ALLOC_ARR(session->s_slot_table, nr_slots);
 	if (session->s_slot_table == NULL) {
@@ -2301,6 +2304,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	c2_list_init(&slot->sl_item_list);
 	c2_list_init(&slot->sl_ready_list);
 	c2_mutex_init(&slot->sl_mutex);
+	slott->sl_cob = NULL;
 
 	/*
 	 * Add a dummy item with very low verno in item_list

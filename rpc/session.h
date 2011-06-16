@@ -313,6 +313,7 @@ struct c2_rpc_conn {
 	*/
         struct c2_service_id            *c_service_id;
 	struct c2_net_end_point		*c_end_point;
+	struct c2_cob			*c_cob;
         /** Sender ID (aka client ID) */
         uint64_t                         c_sender_id;
         /** List of all the sessions for this <sender,receiver> */
@@ -365,6 +366,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
    Finalize c2_rpc_conn
    No network communication involved.
    @pre conn->c_state == C2_RPC_CONN_FAILED ||
+	conn->c_state == C2_RPC_CONN_INITIALISED ||
 	conn->c_state == C2_RPC_CONN_TERMINATED
    @post conn->c_state == C2_RPC_CONN_UNINITIALISED
  */
@@ -484,6 +486,7 @@ struct c2_rpc_session {
 	enum c2_rpc_session_state	 s_state;
 	/** identifies a particular session. It is not globally unique */
 	uint64_t			 s_session_id;
+	struct c2_cob			*s_cob;
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn	 	*s_conn;
 	struct c2_chan			 s_chan;
@@ -651,6 +654,7 @@ struct c2_rpc_slot {
 	struct c2_rpc_session		*sl_session;
 	/** identifier of slot, unique within the session */
 	uint32_t			sl_slot_id;
+	struct c2_cob			*sl_cob;
 	/** list anchor to put in c2_rpcmachine::ready_slots */
 	struct c2_list_link		sl_link;
 	/** Current version number of slot */
