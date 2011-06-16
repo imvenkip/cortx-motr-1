@@ -29,6 +29,7 @@
 #include "rpc/session.h"
 #include "db/db.h"
 #include "cob/cob.h"
+#include "addb/addb.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
@@ -60,6 +61,17 @@
       multiple IO requests on same files.
    5. Create FOPs for these requests (metadata/IO), assign
  */
+
+/** ADDB variables and structures */
+static const struct c2_addb_ctx_type c2_rpc_ut_addb_ctx_type = {
+        .act_name = "rpc-ut-ctx-type"
+};
+
+static const struct c2_addb_loc c2_rpc_ut_addb_loc = {
+        .al_name = "rpc-ut-loc"
+};
+
+struct c2_addb_ctx c2_rpc_ut_addb_ctx;
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	 0		// 0 ms
@@ -222,6 +234,10 @@ int c2_rpc_form_ut_init()
 	int			result = 0;
 	int			i = 0;
 
+	c2_addb_ctx_init(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_ctx_type,
+			&c2_addb_global_ctx);
+	c2_addb_choose_default_level(AEL_WARN);
+
 	result = c2_init();
 	C2_ASSERT(result == 0);
 
@@ -284,7 +300,8 @@ void c2_rpc_form_ut_fini()
 	c2_cob_domain_fini(&cob_domain);
 
 	/* Fini dbenv */
-	c2_dbenv_fini(&db);
+	//c2_dbenv_fini(&db);
+	c2_addb_ctx_fini(&c2_rpc_ut_addb_ctx);
 }
 /**
   Alloc and initialize the global array of groups used for UT
@@ -537,7 +554,7 @@ struct c2_fop *form_create_file_create_fop()
 
 	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		return NULL;
 	}
 	create_fop = c2_fop_data(fop);
@@ -580,15 +597,14 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 	}
 	C2_ALLOC_PTR(iovec);
 	if (iovec == NULL) {
-		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		status = false;
 		goto last;
 	}
 	iovec->iov_count = nsegs;
 	C2_ALLOC_ARR(iovec->iov_seg, iovec->iov_count);
 	if (iovec->iov_seg == NULL) {
-		printf("Failed to allocate memory for struct \
-				c2_fop_io_seg.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		status = false;
 		goto last;
 	}
@@ -598,7 +614,8 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 		iovec->iov_seg[a].f_buf.f_count = seg_size;
 		C2_ALLOC_ARR(iovec->iov_seg[a].f_buf.f_buf, seg_size);
 		if (iovec->iov_seg[a].f_buf.f_buf == NULL) {
-			printf("Failed to allocate memory for char array.\n");
+			C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+					c2_addb_oom);
 			status = false;
 			goto last;
 		}
@@ -661,7 +678,8 @@ struct c2_fop *form_create_write_fop()
 
 	fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return NULL;
 	}
 	write_fop = c2_fop_data(fop);
@@ -689,7 +707,8 @@ struct c2_fop *form_create_read_fop()
 
 	fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return NULL;
 	}
 	read_fop = c2_fop_data(fop);
@@ -706,7 +725,8 @@ struct c2_fop *form_create_read_fop()
 	}
 	C2_ALLOC_ARR(read_fop->frd_ioseg.fs_segs, nsegs);
 	if (read_fop->frd_ioseg.fs_segs == NULL) {
-		printf("Failed to allocate memory for IO segment\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		c2_fop_free(fop);
 		fop = NULL;
 	}
@@ -835,6 +855,7 @@ void populate_fids()
 	}
 }
 
+
 /**
   This main function tests the formation code.
  */
@@ -872,8 +893,8 @@ int main(int argc, char **argv)
 	/* Init the fid structures and rpc groups. */
 	C2_ALLOC_ARR(form_fids, nfiles);
 	if (form_fids == NULL) {
-		printf("Failed to allocate memory for array of struct \
-				c2_fop_file_fid.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return -1;
 	}
 	init_fids();
@@ -881,7 +902,8 @@ int main(int argc, char **argv)
 
 	C2_ALLOC_ARR(file_offsets, ndatafids);
 	if (file_offsets == NULL) {
-		printf("Failed to allocate memory for array of uint64_t.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return -1;
 	}
 

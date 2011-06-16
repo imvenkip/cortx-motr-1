@@ -34,6 +34,7 @@
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
+#include "addb/addb.h"
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -146,6 +147,8 @@ struct c2_rpc_form_item_summary {
 	struct c2_list			is_endp_list;
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		is_endp_list_lock;
+	/** ADDB context for this item summary */
+	struct c2_addb_ctx		is_rpc_form_addb; 
 };
 
 /**
