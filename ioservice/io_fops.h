@@ -24,6 +24,13 @@
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "lib/memory.h"
+#include "rpc/rpccore.h"
+
+#ifdef __KERNEL__
+#include "io_fops_k.h"
+#else
+#include "io_fops_u.h"
+#endif
 
 struct c2_fom;
 struct c2_fom_type;
@@ -47,6 +54,39 @@ int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 		void *vec);
 
+int c2_io_fop_cob_readv_replied(struct c2_fop *fop);
+int c2_io_fop_cob_writev_replied(struct c2_fop *fop);
+
+/**
+   A wrapper structure to have a list of fops
+   participating in IO coalescing.
+ */
+struct c2_io_fop_member {
+	/* Linkage to the list of fops. */
+	struct c2_list_link	 fop_linkage;
+	/* Actual fop object. */
+	struct c2_fop		*fop;
+};
+
+/**             
+   Member structure of a list containing read IO segments.
+ */                             
+struct c2_io_read_segment {
+        /** Linkage to the list of such structures. */
+        struct c2_list_link             rs_linkage;
+        /** The read IO segment. */     
+        struct c2_fop_segment           rs_seg;
+};                              
+                                        
+/**                             
+   Member structure of a list containing write IO segments.
+ */                             
+struct c2_io_write_segment {
+        /** Linkage to the list of such structures. */
+        struct c2_list_link             ws_linkage;
+        /** The write IO segment. */    
+        struct c2_fop_io_seg            ws_seg;
+};
 
 /** 
  * Bunch of externs needed for stob/ut/io_fop_init.c code. 

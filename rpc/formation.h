@@ -160,35 +160,6 @@ extern struct c2_rpc_form_item_summary	*formation_summary;
 bool c2_rpc_form_wait_for_completion();
 
 /**
-   The list of rpc items that can be coalesced.
- */
-struct c2_rpc_form_fid_units {
-	/** Linkage into list of similar requests with same fid and intent. */
-	struct c2_list_link		 fu_linkage;
-	/** Member rpc item. */
-	struct c2_rpc_item		*fu_item;
-};
-
-/**
-   Structure that will help do effective coalescing.
- */
-struct c2_rpc_form_fid_summary_member {
-	/** Linkage to list of IO operations with same fid and same intent. */
-	struct c2_list_link		 fsm_linkage;
-	/** fid on which IO requests have come. */
-	struct c2_fid			 fsm_fid;
-	/** Intent of IO request - read/write */
-	int				 fsm_rw;
-	/** Number of IO requests on given fid in rpc group mentioned above. */
-	uint64_t			 fsm_nitems;
-	/** Cumulative size of member rpc items. */
-	uint64_t			 fsm_total_size;
-	/** Array of rpc items that can be coalesced. */
-	/* c2_list <struct c2_rpc_form_fid_units > */
-	struct c2_list			 fsm_items;
-};
-
-/**
    The global instance of rpc items cache.
  */
 extern struct c2_rpc_form_items_cache	*items_cache;
@@ -321,6 +292,8 @@ enum c2_rpc_form_io_opcode {
 struct c2_rpc_form_item_coalesced {
 	/** Linkage to list of such coalesced rpc items. */
 	struct c2_list_link	        ic_linkage;
+	/** Concerned fid. */
+	struct c2_fid			ic_fid;
 	/** Intent of operation, read or write */
 	int				ic_op_intent;
 	/** Resultant coalesced rpc item */
@@ -340,26 +313,6 @@ struct c2_rpc_form_item_coalesced_member {
 	struct c2_list_link		 im_linkage;
 	/** c2_rpc_item */
 	struct c2_rpc_item		*im_member_item;
-};
-
-/**
-   Member structure of a list containing read IO segments.
- */
-struct c2_rpc_form_read_segment {
-	/** Linkage to the list of such structures. */
-	struct c2_list_link		rs_linkage;
-	/** The read IO segment. */
-	struct c2_fop_segment		rs_seg;
-};
-
-/**
-   Member structure of a list containing write IO segments.
- */
-struct c2_rpc_form_write_segment {
-	/** Linkage to the list of such structures. */
-	struct c2_list_link		ws_linkage;
-	/** The write IO segment. */
-	struct c2_fop_io_seg		ws_seg;
 };
 
 /**
@@ -573,6 +526,25 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
    @param items - list of items to be coalesced.
  */
 int c2_rpc_form_coalesce_items(struct c2_list *items);
+
+/**
+   Try to coalesce rpc items from the session->free list.
+   @param endp_unit - the item_summary_unit structure in which these activities
+   are taking place.
+   @param item - given bound rpc item.
+   @param rpcobj_size - current size of rpc object.
+ */
+int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
+                struct c2_rpc_item *item, uint64_t *rpcobj_size);
+
+/**
+   Try to coalesce items sharing same fid and intent(read/write).
+   @param b_item - given bound rpc item.
+   @param coalesced_item - item_coalesced structure for which coalescing
+   will be done.
+ */
+int c2_rpc_form_coalesce_fid_intent(struct c2_rpc_item *b_item,
+                struct c2_rpc_form_item_coalesced *coalesced_item);
 
 /**
    State function for WAITING state.
@@ -846,6 +818,20 @@ struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item)
  */
 struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item);
 
+/**     
+   Set the IO vector of read fop to given io vector. 
+   This deletes the old io vector and its segments and assigns new one.
+ */
+void c2_rpc_item_set_read_vec(struct c2_rpc_item *item,
+                struct c2_fop_segment_seq *iovec);
+
+/**
+   Set the IO vector of write fop to given io vector.
+   This deletes the old io vector and its segments and assigns new one.
+ */
+void c2_rpc_item_set_write_vec(struct c2_rpc_item *item,
+                struct c2_fop_io_vec *iovec);
+
 /**
    XXX Needs to be implemented.
  */
@@ -857,6 +843,22 @@ struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item);
 int c2_rpc_session_item_prepare(struct c2_rpc_item *item);
 
 /**
+   Check if two rpc items belong to same type.
+ */
+bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2);
+
+/**
+   Return opcode of a given fop referenced by this item.
+ */
+int c2_rpc_item_get_opcode(struct c2_rpc_item *item);
+
+/**
+   Try to coalesce rpc items with similar fid and intent.
+ */
+int c2_rpc_item_io_coalesce(struct c2_rpc_form_item_coalesced *coalesced_item,
+		                struct c2_rpc_item *b_item);
+
+/**
    XXX Needs to be implemented.
  */
 int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
@@ -866,6 +868,13 @@ int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
  */
 void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments);
+
+/**
+   Retrieve slot and verno information from sessions component
+   for an unbound item.
+ */
+void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item);
+
 
 /* Instrumentation for detecting reference leaks. Used for testing. */
 struct c2_rpc_form_ut_thread_reftrack {

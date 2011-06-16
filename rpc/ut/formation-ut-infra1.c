@@ -24,6 +24,7 @@
 #include "lib/misc.h"
 #include "colibri/init.h"
 #include "lib/ut.h"
+#include "ioservice/io_fops.h"
 #include <stdlib.h>
 #include "colibri/init.h"
 #ifdef __KERNEL__
@@ -692,14 +693,14 @@ void form_fini_fops()
 	C2_PRE(form_fops != NULL);
 	for (i = 0; i < nfops; i++) {
 		if (form_fops[i]) {
-			opcode = c2_rpc_item_io_get_opcode(
+			opcode = c2_rpc_item_get_opcode(
 					&form_fops[i]->f_item);
 			switch (opcode) {
-				case C2_RPC_FORM_IO_READ:
+				case c2_io_service_readv_opcode:
 					form_fini_read_fop(form_fops[i]);
 					break;
 
-				case C2_RPC_FORM_IO_WRITE:
+				case c2_io_service_writev_opcode:
 					form_fini_fop(form_fops[i]);
 					break;
 
