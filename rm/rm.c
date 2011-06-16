@@ -393,7 +393,7 @@ static int apply_policy(struct c2_rm_incoming *in)
 		break;
 	case RIP_MAX:
 		/* 
-		 * Maxinum rights which implies to requested right
+		 * Maxinum rights which intersects to requested right
 		 * are granted from cached right list.
 		 */
 		c2_list_for_each_entry(&owner->ro_owned[OWOS_CACHED], right,
@@ -401,7 +401,7 @@ static int apply_policy(struct c2_rm_incoming *in)
 			c2_list_for_each_entry(&in->rin_pins, pin,
 					       struct c2_rm_pin,
 					       rp_incoming_linkage) {
-				if (right->ri_ops->rro_implies(right,
+				if (right->ri_ops->rro_intersects(right,
 					&in->rin_want) &&
 					!c2_list_contains(&right->ri_pins,
 					    	&pin->rp_right_linkage))
@@ -486,12 +486,6 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 	struct c2_rm_right	*right;
 	struct c2_rm_pin	*pin;
 	struct c2_rm_loan	*loan;
-	struct c2_fop		*f;
-	struct c2_fop		*r;
-	struct c2_rm_loan_reply *fop;
-	struct c2_rm_loan_reply *rep;
-	struct c2_net_conn	*conn;
-	struct c2_service_id	 sid;
 	int			 result = 0;
 
 	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
@@ -501,10 +495,17 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 		/*@todo Form fop for each loan and reply or
 		 * we can apply rpc grouping and send reply
 		 */
+#if 0
+		struct c2_service_id	sid;
+		struct c2_net_conn	*conn;
+		struct c2_fop		*f;
+		struct c2_fop		*r;
+		struct c2_rm_loan_reply *fop;
+		struct c2_rm_loan_reply *rep;
+		
 		sid = loan->rl_other.rem_service;
 		conn = c2_net_conn_find(&sid);
 		C2_ASSERT(conn != NULL);
-
 		f = c2_fop_alloc(&c2_rm_loan_reply_fopt, NULL);
 		fop = c2_fop_data(f);
 		r = c2_fop_alloc(&c2_rm_loan_reply_fopt, NULL);
@@ -516,6 +517,7 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 		fop->ri_datum = loan->rl_right.ri_datum;
 
 		result = netcall(conn, f, r);
+#endif
 	}
 	return result;
 }
@@ -829,7 +831,8 @@ static int incoming_check(struct c2_rm_incoming *in)
 		return -EWOULDBLOCK;
 	}
 
-	if (right_is_empty(&rest)) {
+	if (right_is_empty(&rest) ||
+	    in->rin_type == RIT_LOCAL) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
@@ -887,6 +890,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 		if (in->rin_flags & RIF_MAY_REVOKE)
 			sublet_revoke(in, &rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {
+			//get_from_borrowed(in, &rest);
 			/* borrow more */
 			while (!right_is_empty(&rest)) {
 				struct c2_rm_loan borrow;
@@ -935,7 +939,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	 * be true, depending on the policy.
 	 */
 	if (in->rin_type != RIT_LOCAL ||
-	    in->rin_policy != RIP_MAX)
+	    in->rin_policy == RIP_INPLACE)
 		track_local = true;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
@@ -955,9 +959,9 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		c2_list_for_each_entry(&o->ro_owned[i], right,
 				       struct c2_rm_right, ri_linkage) {
-			if (rest->ri_ops->rro_implies(right, rest)) {
+			if (rest->ri_ops->rro_intersects(right, rest)) {
 				pin_add(in, right);
-				if (!coverage) {
+				if (coverage) {
 					rest->ri_ops->rro_diff(rest, right);
 					if (right_is_empty(rest))
 						return;
@@ -979,7 +983,7 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 
 	c2_list_for_each_entry(&o->ro_sublet, right,
 			       struct c2_rm_right, ri_linkage) {
-		if (rest->ri_ops->rro_implies(right, rest)) {
+		if (rest->ri_ops->rro_intersects(right, rest)) {
 			rest->ri_ops->rro_diff(rest, right);
 			loan = container_of(right, struct c2_rm_loan, rl_right);
 			/*
@@ -1048,7 +1052,8 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 			out = container_of(out_loan,
 					      struct c2_rm_outgoing, rog_want);
 			if (out->rog_type == otype &&
-				right->ri_ops->rro_implies(out_right, right)) {
+				right->ri_ops->rro_intersects(out_right,
+							      right)) {
 				/* @todo adjust outgoing requests priority
 				 * (priority inheritance) */
 				result = pin_add(in, out_right);
@@ -1069,10 +1074,10 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 			return -ENOMEM;
 		out->rog_type = otype;
 		out->rog_want.rl_other = loan->rl_other;
-		out->rog_want.rl_id    = loan->rl_id;
+		out->rog_want.rl_id = loan->rl_id;
 		right_copy(&out->rog_want.rl_right, right);
 		c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
-		    	&out->rog_want.rl_right.ri_linkage);
+			    &out->rog_want.rl_right.ri_linkage);
 		result = pin_add(in, &out->rog_want.rl_right);
 	}
 	result = send_out_request(out);

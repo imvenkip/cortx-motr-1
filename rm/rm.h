@@ -394,6 +394,8 @@ struct c2_rm_right_ops {
         /** intersection. This method updates r0 in place. */
         void (*rro_meet)   (struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
+        bool (*rro_intersects) (const struct c2_rm_right *r0,
+                                const struct c2_rm_right *r1);
         /** union. This method updates r0 in place. */
         void (*rro_join)   (struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);

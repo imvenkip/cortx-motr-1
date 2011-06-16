@@ -35,6 +35,12 @@ static void right_meet(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 	r0->ri_datum = r0->ri_datum & r1->ri_datum ;
 }
 
+static bool right_intersects(const struct c2_rm_right *r0,
+                      const struct c2_rm_right *r1)
+{
+	return (r0->ri_datum & r1->ri_datum) != 0;
+}
+
 static void right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
 	r0->ri_datum = r0->ri_datum | r1->ri_datum ;
@@ -58,13 +64,14 @@ static void right_copy(struct c2_rm_right *dest,
 }
 
 const struct c2_rm_right_ops rings_right_ops = {
-	.rro_free    = NULL,
-	.rro_encode  = NULL,
-	.rro_meet    = right_meet,
-	.rro_join    = right_join,
-	.rro_diff    = right_diff,
-	.rro_implies = right_implies,
-	.rro_copy    = right_copy
+	.rro_free	= NULL,
+	.rro_encode	= NULL,
+	.rro_meet	= right_meet,
+	.rro_intersects = right_intersects,
+	.rro_join	= right_join,
+	.rro_diff	= right_diff,
+	.rro_implies	= right_implies,
+	.rro_copy	= right_copy
 };
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)

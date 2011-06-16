@@ -5,6 +5,8 @@
 #include "lib/user_space/assert.h"
 #include "lib/ut.h"
 #include "lib/ub.h"
+#include "lib/memory.h"
+#include "lib/thread.h"
 #include "rm/rm.h"
 
 #include "rings.h"
@@ -165,8 +167,8 @@ static void right_get_test0(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
-	in.rin_policy = RIP_NONE;
+	in.rin_type = RIT_LOAN;
+	in.rin_policy = RIP_INPLACE;
 	in.rin_flags |= RIF_LOCAL_WAIT;
 
 	in.rin_want.ri_datum = NARYA;
@@ -200,7 +202,7 @@ static void right_get_test1(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = RIT_LOAN;
 	in.rin_policy = RIP_INPLACE;
 	in.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -215,7 +217,7 @@ static void right_get_test1(void)
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
-	inother.rin_type = RIT_LOCAL;
+	inother.rin_type = RIT_LOAN;
 	inother.rin_policy = RIP_INPLACE;
 	inother.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -314,7 +316,7 @@ static void right_get_test3(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = RIT_LOAN;
 	in.rin_policy = RIP_INPLACE;
 
 	in.rin_flags |= RIF_LOCAL_TRY;
@@ -355,57 +357,129 @@ static struct c2_rm_domain client;
 static struct rings RC0;
 
 static struct c2_rm_resource_type rts = {
-	.rt_ops  = &rings_rtype_ops,
-	.rt_name = "rm ut resource type",
-	.rt_id   = 1
+        .rt_ops  = &rings_rtype_ops,
+        .rt_name = "rm ut resource type",
+        .rt_id   = 1
 };
 
 static struct c2_rm_resource_type rtc = {
-	.rt_ops  = &rings_rtype_ops,
-	.rt_name = "rm ut resource type",
-	.rt_id   = 1
+        .rt_ops  = &rings_rtype_ops,
+        .rt_name = "rm ut resource type",
+        .rt_id   = 1
 };
-
 
 static void rm_server_init(void)
 {
-	c2_rm_domain_init(&server);
-	c2_rm_type_register(&server, &rts);
-	c2_rm_resource_add(&rts, &R.rs_resource);
-	c2_rm_right_init(&everything);
-	everything.ri_ops = &rings_right_ops;
-	everything.ri_datum = ALLRINGS;
-	Sauron.ro_state = ROS_FINAL;
-	c2_rm_owner_init_with(&Sauron, &R.rs_resource, &everything);
+        c2_rm_domain_init(&server);
+        c2_rm_type_register(&server, &rts);
+        c2_rm_resource_add(&rts, &R.rs_resource);
+        c2_rm_right_init(&everything);
+        everything.ri_ops = &rings_right_ops;
+        everything.ri_datum = ALLRINGS;
+        Sauron.ro_state = ROS_FINAL;
+        c2_rm_owner_init_with(&Sauron, &R.rs_resource, &everything);
 }
 
 static void rm_server_fini(void)
 {
-	Sauron.ro_state = ROS_FINAL;
-	c2_list_del(&everything.ri_linkage);
-	c2_rm_owner_fini(&Sauron);
-	c2_rm_right_fini(&everything);
-	c2_rm_resource_del(&R.rs_resource);
-	c2_rm_type_deregister(&rts);
-	c2_rm_domain_fini(&server);
+        Sauron.ro_state = ROS_FINAL;
+        c2_list_del(&everything.ri_linkage);
+        c2_rm_owner_fini(&Sauron);
+        c2_rm_right_fini(&everything);
+        c2_rm_resource_del(&R.rs_resource);
+        c2_rm_type_deregister(&rts);
+        c2_rm_domain_fini(&server);
 }
 
 static void rm_client_init(void)
 {
-	c2_rm_domain_init(&client);
-	c2_rm_type_register(&client, &rtc);
-	c2_rm_resource_add(&rtc, &RC0.rs_resource);
-	elves.ro_state = ROS_FINAL;
-	c2_rm_owner_init(&elves, &RC0.rs_resource);
+        c2_rm_domain_init(&client);
+        c2_rm_type_register(&client, &rtc);
+        c2_rm_resource_add(&rtc, &RC0.rs_resource);
+        elves.ro_state = ROS_FINAL;
+        c2_rm_owner_init(&elves, &RC0.rs_resource);
 }
 
 static void rm_client_fini(void)
 {
-	elves.ro_state = ROS_FINAL;
-	c2_rm_owner_fini(&elves);
-	c2_rm_resource_del(&RC0.rs_resource);
-	c2_rm_type_deregister(&rtc);
-	c2_rm_domain_fini(&client);
+        elves.ro_state = ROS_FINAL;
+        c2_rm_owner_fini(&elves);
+        c2_rm_resource_del(&RC0.rs_resource);
+        c2_rm_type_deregister(&rtc);
+        c2_rm_domain_fini(&client);
+}
+
+
+enum {
+	UT_SERVER,
+	UT_CLIENT0,
+	UT_CLIENT1,
+	UT_CLIENT2,
+};
+static struct c2_thread rm_handle[4];
+
+static int rm_signal = 0;
+
+static struct rm_ut_info {
+	void (*out_callback) (struct c2_rm_outgoing *out);
+	void (*reply_callback) (struct c2_rm_incoming *in);
+} rm_info;
+
+static void rm_server(struct rm_ut_info *info)
+{
+	rm_server_init();
+
+        c2_chan_init(&in.rin_signal);
+        c2_rm_right_init(&in.rin_want);
+        in.rin_state = RI_INITIALISED;
+        in.rin_owner = &Sauron;
+        in.rin_priority = 0;
+        in.rin_ops = &rings_incoming_ops;
+        in.rin_want.ri_ops = &rings_right_ops;
+        in.rin_type = RIT_LOAN;
+        in.rin_policy = RIP_INPLACE;
+
+        in.rin_flags |= RIF_LOCAL_TRY;
+        in.rin_want.ri_datum = NARYA;
+        result = c2_rm_right_get_wait(&Sauron, &in);
+        C2_ASSERT(result == 0);
+
+	while(!rm_signal) {
+	}
+
+        c2_rm_right_put(&in);
+        c2_list_del(&in.rin_want.ri_linkage);
+        c2_rm_right_fini(&in.rin_want);
+        c2_chan_fini(&in.rin_signal);
+
+	rm_server_fini();
+}
+
+static void rm_client(struct rm_ut_info *info)
+{
+	rm_client_init();
+	
+	c2_chan_init(&inother.rin_signal);
+        c2_rm_right_init(&inother.rin_want);
+        inother.rin_state = RI_INITIALISED;
+        inother.rin_owner = &Sauron;
+        inother.rin_priority = 0;
+        inother.rin_ops = &rings_incoming_ops;
+        inother.rin_want.ri_ops = &rings_right_ops;
+        inother.rin_type = RIT_LOAN;
+        inother.rin_policy = RIP_INPLACE;
+        inother.rin_want.ri_datum = NARYA;
+        inother.rin_flags |= RIF_LOCAL_TRY;
+        inother.rin_state = RI_SUCCESS;
+
+	c2_rm_right_put(&inother);
+        c2_list_del(&inother.rin_want.ri_linkage);
+        c2_rm_right_fini(&inother.rin_want);
+        c2_chan_fini(&inother.rin_signal);
+
+	rm_signal = 1;
+
+	rm_client_fini();
 }
 
 /**
@@ -419,26 +493,18 @@ static void rm_client_fini(void)
  */
 static void intent_mode_test(void)
 {
-	rm_server_init();
-	rm_client_init();
+	int i;
 
-	c2_chan_init(&in.rin_signal);
-	c2_rm_right_init(&in.rin_want);
-	in.rin_state = RI_INITIALISED;
-	in.rin_owner = &Sauron;
-	in.rin_priority = 0;
-	in.rin_ops = &rings_incoming_ops;
-	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOAN;
-	in.rin_policy = RIP_INPLACE;
-
-	in.rin_flags |= RIF_MAY_BORROW;
-	in.rin_want.ri_datum = NARYA;
-	result = c2_rm_right_get_wait(&Sauron, &in);
+	result = C2_THREAD_INIT(&rm_handle[UT_SERVER], struct rm_ut_info *,
+				NULL, &rm_server, &rm_info);
 	C2_ASSERT(result == 0);
 
-	rm_server_fini();
-	rm_client_fini();
+	result = C2_THREAD_INIT(&rm_handle[UT_CLIENT0], struct rm_ut_info *,
+				NULL, &rm_client, &rm_info);
+	C2_ASSERT(result == 0);
+
+	for (i = 0; i < 2; ++i)
+		c2_thread_join(&rm_handle[i]);
 }
 
 /**

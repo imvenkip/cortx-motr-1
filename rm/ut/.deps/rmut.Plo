@@ -27,22 +27,27 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
   /usr/lib/gcc/x86_64-redhat-linux/4.1.2/include/stdarg.h \
   /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
   ../../lib/ub.h ../../lib/types.h ../../lib/cdefs.h \
-  ../../lib/user_space/cdefs.h ../../rm/rm.h ../../net/net.h \
-  ../../lib/cdefs.h ../../lib/rwlock.h ../../lib/user_space/rwlock.h \
+  ../../lib/user_space/cdefs.h ../../lib/memory.h ../../lib/assert.h \
+  ../../lib/user_space/assert.h ../../addb/addb.h ../../lib/types.h \
+  ../../lib/cdefs.h ../../lib/assert.h ../../lib/adt.h ../../lib/buf.h \
+  ../../lib/list.h ../../lib/thread.h ../../lib/cdefs.h ../../lib/chan.h \
+  ../../lib/list.h ../../lib/mutex.h ../../lib/user_space/mutex.h \
   /usr/include/pthread.h /usr/include/sched.h /usr/include/bits/sched.h \
-  /usr/include/signal.h ../../lib/list.h ../../lib/assert.h \
-  ../../lib/user_space/assert.h ../../lib/queue.h ../../lib/refs.h \
-  ../../lib/cdefs.h ../../lib/atomic.h ../../lib/assert.h \
-  ../../lib/user_space/user_x86_64_atomic.h ../../lib/types.h \
-  ../../lib/cdefs.h ../../lib/assert.h ../../lib/chan.h ../../lib/list.h \
-  ../../lib/mutex.h ../../lib/user_space/mutex.h ../../lib/time.h \
+  /usr/include/signal.h ../../lib/cdefs.h ../../lib/time.h \
   ../../lib/types.h ../../lib/user_space/time.h /usr/include/sys/time.h \
   /usr/include/time.h ../../lib/semaphore.h \
   ../../lib/user_space/semaphore.h /usr/include/semaphore.h \
-  /usr/include/bits/semaphore.h ../../lib/time.h ../../addb/addb.h \
-  ../../lib/cdefs.h ../../lib/assert.h ../../lib/adt.h ../../lib/buf.h \
-  ../../lib/list.h ../../lib/time.h ../../lib/list.h ../../lib/mutex.h \
-  ../../lib/chan.h rings.h
+  /usr/include/bits/semaphore.h ../../lib/user_space/thread.h \
+  /usr/include/bits/signum.h /usr/include/bits/siginfo.h \
+  /usr/include/bits/sigaction.h /usr/include/bits/sigcontext.h \
+  /usr/include/bits/sigstack.h /usr/include/sys/ucontext.h \
+  /usr/include/bits/sigthread.h ../../rm/rm.h ../../net/net.h \
+  ../../lib/cdefs.h ../../lib/rwlock.h ../../lib/user_space/rwlock.h \
+  ../../lib/list.h ../../lib/queue.h ../../lib/refs.h ../../lib/atomic.h \
+  ../../lib/assert.h ../../lib/user_space/user_x86_64_atomic.h \
+  ../../lib/assert.h ../../lib/chan.h ../../lib/time.h ../../addb/addb.h \
+  ../../lib/time.h ../../lib/list.h ../../lib/mutex.h ../../lib/chan.h \
+  rings.h
 
 ../../lib/types.h:
 
@@ -166,15 +171,37 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
 
 ../../lib/user_space/cdefs.h:
 
-../../rm/rm.h:
+../../lib/memory.h:
 
-../../net/net.h:
+../../lib/assert.h:
+
+../../lib/user_space/assert.h:
+
+../../addb/addb.h:
+
+../../lib/types.h:
 
 ../../lib/cdefs.h:
 
-../../lib/rwlock.h:
+../../lib/assert.h:
 
-../../lib/user_space/rwlock.h:
+../../lib/adt.h:
+
+../../lib/buf.h:
+
+../../lib/list.h:
+
+../../lib/thread.h:
+
+../../lib/cdefs.h:
+
+../../lib/chan.h:
+
+../../lib/list.h:
+
+../../lib/mutex.h:
+
+../../lib/user_space/mutex.h:
 
 /usr/include/pthread.h:
 
@@ -184,37 +211,7 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
 
 /usr/include/signal.h:
 
-../../lib/list.h:
-
-../../lib/assert.h:
-
-../../lib/user_space/assert.h:
-
-../../lib/queue.h:
-
-../../lib/refs.h:
-
 ../../lib/cdefs.h:
-
-../../lib/atomic.h:
-
-../../lib/assert.h:
-
-../../lib/user_space/user_x86_64_atomic.h:
-
-../../lib/types.h:
-
-../../lib/cdefs.h:
-
-../../lib/assert.h:
-
-../../lib/chan.h:
-
-../../lib/list.h:
-
-../../lib/mutex.h:
-
-../../lib/user_space/mutex.h:
 
 ../../lib/time.h:
 
@@ -234,19 +231,51 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
 
 /usr/include/bits/semaphore.h:
 
-../../lib/time.h:
+../../lib/user_space/thread.h:
 
-../../addb/addb.h:
+/usr/include/bits/signum.h:
+
+/usr/include/bits/siginfo.h:
+
+/usr/include/bits/sigaction.h:
+
+/usr/include/bits/sigcontext.h:
+
+/usr/include/bits/sigstack.h:
+
+/usr/include/sys/ucontext.h:
+
+/usr/include/bits/sigthread.h:
+
+../../rm/rm.h:
+
+../../net/net.h:
 
 ../../lib/cdefs.h:
 
-../../lib/assert.h:
+../../lib/rwlock.h:
 
-../../lib/adt.h:
-
-../../lib/buf.h:
+../../lib/user_space/rwlock.h:
 
 ../../lib/list.h:
+
+../../lib/queue.h:
+
+../../lib/refs.h:
+
+../../lib/atomic.h:
+
+../../lib/assert.h:
+
+../../lib/user_space/user_x86_64_atomic.h:
+
+../../lib/assert.h:
+
+../../lib/chan.h:
+
+../../lib/time.h:
+
+../../addb/addb.h:
 
 ../../lib/time.h:
 
