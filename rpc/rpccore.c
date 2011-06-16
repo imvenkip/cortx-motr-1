@@ -193,8 +193,7 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 }
 
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_fol		*fol)
+			struct c2_cob_domain	*dom)
 {
 	int rc;
 
@@ -207,14 +206,12 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		rpc_proc_fini(&machine->cr_processing);
 	}
 
-	c2_list_init(&machine->cr_rpc_conn_list);
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
-	c2_list_init(&machine->cr_ready_slots);
 	c2_mutex_init(&machine->cr_session_mutex);
-
-	rc = c2_rpc_reply_cache_init(&machine->cr_rcache, dom, fol);
-
+	c2_list_init(&machine->cr_ready_slots);
+	c2_mutex_init(&machine->cr_ready_slots_mutex);
+	machine->cr_dom = dom;
 	return rc;
 }
 
@@ -222,12 +219,10 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
-	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_list_fini(&machine->cr_incoming_conns);
 	c2_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
-	c2_rpc_reply_cache_fini(&machine->cr_rcache);
 }
 
 /** simple vector of RPC-item operations */

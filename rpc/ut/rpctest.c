@@ -56,41 +56,8 @@ void init()
 //	rc = c2_rpc_reply_cache_init(&c2_rpc_reply_cache, db);
 //	C2_ASSERT(rc == 0);
 
-	c2_rpcmachine_init(machine, dom, NULL);
+	c2_rpcmachine_init(machine, dom);
 	printf("dbenv created\n");
-}
-void traverse_slot_table()
-{
-	struct c2_table			*slot_table;
-	struct c2_db_cursor		cursor;
-	struct c2_db_pair		db_pair;
-	struct c2_rpc_slot_table_key	key;
-	struct c2_rpc_inmem_slot_table_value	value;
-	struct c2_db_tx			tx;
-	int				rc;
-	printf("========= SLOT TABLE ==============\n");
-
-	slot_table = machine->cr_rcache.rc_inmem_slot_table;
-
-	rc = c2_db_tx_init(&tx, db, 0);
-	C2_ASSERT(rc == 0);
-
-	rc = c2_db_cursor_init(&cursor, slot_table, &tx);
-	C2_ASSERT(rc == 0);
-
-	c2_db_pair_setup(&db_pair, slot_table, &key, sizeof key,
-				&value, sizeof value);
-	while ((rc = c2_db_cursor_next(&cursor, &db_pair)) == 0) {
-		printf("[%lu:%lu:%u:%lu] -> [%s]\n",
-				key.stk_sender_id, key.stk_session_id, key.stk_slot_id,
-				key.stk_slot_generation, value.istv_busy ? "true" : "false");
-	}
-	printf("====================================\n");
-	c2_db_pair_release(&db_pair);
-	c2_db_pair_fini(&db_pair);
-	c2_db_cursor_fini(&cursor);
-	c2_db_tx_commit(&tx);
-
 }
 void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 {
@@ -143,7 +110,6 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 		/*
 		 * test reply contents
 		 */
-		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
 		c2_cob_fb_traverse(dom);
 	}
@@ -204,7 +170,6 @@ void test_conn_terminate(uint64_t sender_id)
 		/*
 		 * test reply contents
 		 */
-		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
 		c2_cob_fb_traverse(dom);
 	}
@@ -257,7 +222,6 @@ void test_conn_create()
 		g_sender_id = fop_reply->rccr_snd_id;
 		fom->fo_ops->fo_fini(fom);
 	}
-	traverse_slot_table();
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
 }
@@ -306,7 +270,6 @@ void test_session_create()
 		g_session_id = fop_sc_reply->rscr_session_id;
 		fom->fo_ops->fo_fini(fom);
 
-		traverse_slot_table();
 		c2_cob_namespace_traverse(dom);
 		c2_cob_fb_traverse(dom);
 	}

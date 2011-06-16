@@ -160,15 +160,10 @@ When an item is received, following conditions are possible:
 
 /* Imports */
 struct c2_rpc_item;
-struct c2_service_id;
 
 /* Exports */
 struct c2_rpc_session;
 struct c2_rpc_conn;
-
-/* Internal: required for declaration of c2_rpc_session */
-struct c2_rpc_snd_slot;
-struct c2_rpc_session_ops;
 
 enum {
 	/** session_[create|terminate] items go on session 0 */
@@ -507,21 +502,6 @@ struct c2_rpc_session {
 	int32_t				 s_rc;
 	/** Array of pointers to slots */
 	struct c2_rpc_slot 		**s_slot_table;
-	/** Session ops */
-	const struct c2_rpc_session_ops	 *s_ops;
-};
-
-/**
-   Session operation vector
- */
-struct c2_rpc_session_ops {
-	/**
-	   Called after each state change of @session object.
-	   Previous state of @session is given by @prev_state
-	   New state of @session can be retrieved from @session->s_state
-	 */
-	void (*session_state_changed)(struct c2_rpc_session *session,
-			enum c2_rpc_session_state prev_state);
 };
 
 /**
@@ -583,61 +563,6 @@ void c2_rpc_session_fini(struct c2_rpc_session *session);
    checks internal consistency of session
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
-
-/**
-   flag bits in c2_rpc_snd_slot::ss_flags
- */
-enum {
-	/** An item associated with this slot has been sent.
-	    Do not assign this slot until reply is received on this slot */
-	SLOT_WAITING_FOR_REPLY = 1,
-	/** A slot cannot be assigned to an item if SLOT_IN_USE flag
-	    is NOT set */
-	SLOT_IN_USE = (1 << 1)
-};
-
-/**
-   Session slot
-
-   @note
-   * Pointer to a c2_rpc_snd_slot should never go out of session module.
-     Rest of the rpc layer should always access it by slot-id because
-     size of a slot table can change and hence it may need to relocated
-     to some other location thus invalidating the pointer.
-   * ss_slot_cob_id can be specified in c2_rpc_item instead of
-	<session_id, slot_id>. This will avoid lookup of
-	/sessions/$SENDER_ID/$SESSION_ID/$SLOT_ID:$GEN for every
-	item received.
-   * When sender side session state will be integrated with FOL,
-	we will require stob_id of "slot file"
-*/
-struct c2_rpc_snd_slot {
-	/** session in which this slot is contained */
-	struct c2_rpc_session	*ss_session;
-	uint64_t		 ss_flags;
-	struct c2_verno		 ss_verno;
-	/** effects upto last_persistent_verno have reached persistent
-		store */
-	struct c2_verno		 ss_last_persistent_verno;
-	uint64_t		 ss_generation;
-	/** List of items queued for this slot. These are the items to which
-	slot is assigned but verno is not filled */
-	struct c2_list		 ss_ready_list;
-	/** reference to the last sent item for which the
-	reply is not received (In case need to resend) */
-	struct c2_rpc_item 	*ss_sent_item;
-	/** list of items for which we've received reply from receiver but
-	their effects not persistent on receiver */
-	struct c2_list		 ss_replay_list;
-	/** XXX Currently unused. slot state is protected by
-	    c2_rpc_session::s_mutex. */
-	struct c2_mutex		 ss_mutex;
-	/** When an item is inserted in ready_list OR WAITING_FOR_REPLY flag
-	    is reset, the notification is broadcasted on this channel.
-	    XXX Make sure session->s_mutex is held before broadcasting on this
-	    channel*/
-	struct c2_chan		 ss_chan;
-};
 
 enum {
 	SLOT_DEFAULT_MAX_IN_FLIGHT = 1

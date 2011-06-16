@@ -30,7 +30,6 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fom		fcc_gen;
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
-	struct c2_dbenv		*fcc_dbenv;
 	struct c2_db_tx		fcc_tx;
 };
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
@@ -51,7 +50,6 @@ struct c2_rpc_fom_session_create {
 	struct c2_fom		fsc_gen;
 	struct c2_fop		*fsc_fop;
 	struct c2_fop		*fsc_fop_rep;
-	struct c2_dbenv		*fsc_dbenv;
 	struct c2_db_tx		fsc_tx;
 };
 
@@ -73,7 +71,6 @@ struct c2_rpc_fom_session_terminate {
 	struct c2_fom		fst_gen;
 	struct c2_fop		*fst_fop;
 	struct c2_fop		*fst_fop_rep;
-	struct c2_dbenv		*fst_dbenv;
 	struct c2_db_tx		fst_tx;
 };
 
@@ -95,7 +92,6 @@ struct c2_rpc_fom_conn_terminate {
 	struct c2_fom		fct_gen;
 	struct c2_fop		*fct_fop;
 	struct c2_fop		*fct_fop_rep;
-	struct c2_dbenv		*fct_dbenv;
 	struct c2_db_tx		fct_tx;
 };
 

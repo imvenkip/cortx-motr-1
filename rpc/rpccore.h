@@ -469,19 +469,19 @@ struct c2_rpcmachine {
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
+	/** Cob domain in which cobs related to session will be stored */
+	struct c2_cob_domain	  *cr_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list		   cr_rpc_conn_list;
 	struct c2_list		   cr_incoming_conns;
 	struct c2_list		   cr_outgoing_conns;
+	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
+	struct c2_mutex		   cr_session_mutex;
 	/** Mutex to protect list of ready slots. */
 	struct c2_mutex		   cr_ready_slots_mutex;
 	/** list of ready slots. */ 
 	struct c2_list		   cr_ready_slots;
-	/** mutex that protects conn_list. Better name??? */
-	struct c2_mutex		   cr_session_mutex;
-	struct c2_rpc_reply_cache  cr_rcache;
 };
 
 /**
@@ -504,8 +504,7 @@ void c2_rpc_core_fini(void);
    @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_fol		*fol);
+			struct c2_cob_domain	*dom);
 
 /**
    Destruct rpcmachine
