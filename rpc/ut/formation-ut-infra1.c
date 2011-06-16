@@ -147,7 +147,7 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	return 0;
 }
 
-#define nslots			 16
+#define nslots			 8
 struct c2_rpc_slot		*slots[nslots];
 struct c2_rpc_session		 session;
 
@@ -155,12 +155,72 @@ struct c2_rpcmachine		 rpcmachine;
 struct c2_cob_domain		 cob_domain;
 struct c2_dbenv			 db;
 char 				 db_name[] = "rpc_form_db"; 
+struct c2_rpc_conn		 conn;
+struct c2_rpc_session		 session;
 
-/** Init of all required data structures */
+#define BOUNDED			 1
+#define UNBOUNDED		 2
+#define MIN_SLOTS		 0
+#define MAX_SLOTS		 nslots
+
+/** Function to init the slot */
+void c2_rpc_form_slot_init(struct c2_rpc_slot *slot,
+		struct c2_rpc_session *session)
+{
+	C2_PRE(session != NULL);
+	C2_PRE(slot != NULL);
+
+	c2_list_init(&slot->sl_ready_list);
+	c2_mutex_init(&slot->sl_mutex);
+	slot->sl_session =  session;
+}
+
+/** Function to fini the slot */
+void c2_rpc_form_slot_fini(struct c2_rpc_slot *slot)
+{
+	C2_PRE(slot != NULL);
+
+	if(c2_list_is_empty(&slot->sl_ready_list)){
+		c2_list_fini(&slot->sl_ready_list);
+	}
+	c2_mutex_fini(&slot->sl_mutex);
+	c2_free(slot);
+}
+
+/**
+  Function to init required values in connection
+*/
+void c2_rpc_form_conn_init(struct c2_rpc_conn *conn, 
+		struct c2_rpcmachine *rpc_mc)
+{
+	C2_PRE(rpc_mc != NULL);
+	C2_PRE(conn != NULL);
+
+	conn->c_rpcmachine = rpc_mc;
+}
+
+/**
+  Function to init required values in session 
+*/
+void c2_rpc_form_session_init(struct c2_rpc_session *session, 
+		struct c2_rpc_conn *conn)
+{
+	C2_PRE(session != NULL);
+	C2_PRE(conn != NULL);
+
+	session->s_conn = conn;
+	c2_mutex_init(&session->s_mutex);
+	c2_list_init(&session->s_unbound_items);
+}
+
+/** 
+  Init of all required data structures 
+*/
 int c2_rpc_form_ut_init()
 {
 	struct c2_cob_domain_id cob_dom_id = { 11 };
 	int			result = 0;
+	int			i = 0;
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
@@ -170,20 +230,62 @@ int c2_rpc_form_ut_init()
 
 	/* Init the db */
 	result = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	/* Init the cob domain */
 	result = c2_cob_domain_init(&cob_domain, &db, &cob_dom_id);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	/* Init the rpcmachine */
 	c2_rpcmachine_init(&rpcmachine, &cob_domain, NULL);
+
+	/* Init the connection structure */
+	c2_rpc_form_conn_init(&conn, &rpcmachine);
+
+	/* Init the sessions structure */
+	c2_rpc_form_session_init(&session, &conn);	
+
+	/* Init the slots */
+	for(i=0; i < nslots; i++)
+	{
+		slots[i] = c2_alloc(sizeof(struct c2_rpc_slot));
+		c2_rpc_form_slot_init(slots[i], &session);
+		c2_list_add(&rpcmachine.cr_ready_slots, &slots[i]->sl_link);
+	}
+
+	printf("Length of cr_ready_slots = %lu\n", c2_list_length(&rpcmachine.cr_ready_slots));
 
 	/* Init the rpc formation component */
 	result = c2_rpc_form_init();
 	return 0;
 }
 
+/** 
+  Init of all required data structures 
+ */
+
+void c2_rpc_form_ut_fini()
+{
+	int 		i = 0;
+
+	/* Fini the rpc formation component */
+	c2_rpc_form_fini();
+
+	/* Fini the slots */
+	for(i = 0; i < nslots; i++)
+	{
+		c2_rpc_form_slot_fini(slots[i]);
+	}	
+
+	/* Fini the rpcmachine */
+	//c2_rpcmachine_fini(&rpcmachine);
+
+	/* Fini cob domain */
+	c2_cob_domain_fini(&cob_domain);
+
+	/* Fini dbenv */
+	c2_dbenv_fini(&db);
+}
 /**
   Alloc and initialize the global array of groups used for UT
  */
@@ -297,6 +399,23 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 
 void c2_rpc_form_item_add_to_rpcmachine(struct c2_rpc_item *item)
 {
+	int		state = 0;
+	int		slot_no = 0;
+	/* Randomly select the state of the item to be BOUNDED or UNBOUNDED */
+	state = rand() % UNBOUNDED + BOUNDED;
+	
+	if(state == BOUNDED){
+		printf("BOUNDED ITEM \n");
+		/* Find a random slot and add to its free list */
+		slot_no = rand() % MAX_SLOTS + MIN_SLOTS;
+		c2_list_add(&slots[slot_no]->sl_ready_list,
+				&item->ri_slot_link);
+	}
+	else if (state == UNBOUNDED) {
+		printf("UNBOUNDED ITEM \n");
+		/* Add to sessions unbounded list */
+		c2_list_add(&session.s_unbound_items, &item->ri_unbound_link);
+	}
 }
 
 /**
@@ -383,10 +502,15 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 		C2_ASSERT(res==0);
 	}
 	item->ri_endp = ep;
+	item->ri_mach = &rpcmachine;
+	item->ri_session = &session;
 	c2_list_link_init(&item->ri_unformed_linkage);
 	c2_list_link_init(&item->ri_group_linkage);
 	c2_list_link_init(&item->ri_linkage);
 	c2_list_link_init(&item->ri_rpcobject_linkage);
+	c2_list_link_init(&item->ri_unbound_link);
+	c2_list_link_init(&item->ri_slot_link);
+	
 	return 0;
 }
 
@@ -716,13 +840,16 @@ void populate_fids()
  */
 int main(int argc, char **argv)
 {
-	int		result = 0;
-	int		i = 0;
-	int		j = 0;
-	struct c2_fop	*fop = NULL;
+	int			 result = 0;
+	int			 i = 0;
+	int			 j = 0;
+	int			 slot_number = 0;
+	int			 bounded_item_no = 0;
+	struct c2_fop		*fop = NULL;
+	struct c2_rpc_slot	*slot_member = NULL;
 
 	result = c2_rpc_form_ut_init();
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	/* Initialize the thresholds like max_message_size, max_fragements
 	   and max_rpcs_in_flight.*/
@@ -803,14 +930,29 @@ int main(int argc, char **argv)
 		c2_thread_fini(&form_ut_threads[i]);
 	}
 
+	printf("Number of ready slots in rpcmachine = %lu\n",
+			c2_list_length(&rpcmachine.cr_ready_slots));
+	c2_list_for_each_entry(&rpcmachine.cr_ready_slots, slot_member, 
+		struct c2_rpc_slot, sl_link){
+		bounded_item_no += c2_list_length(&slot_member->sl_ready_list);
+		printf("Number of bounded ready items for slot[%u] = %lu\n",
+			slot_number, c2_list_length(&slot_member->sl_ready_list));
+		slot_number++;
+	}
+	printf("\n\nNumber of bounded ready items   = %u\n", bounded_item_no);
+	printf("Number of unbounded ready items = %lu\n",
+			c2_list_length(&session.s_unbound_items));
+	printf("Total number of items = %lu\n",
+		(bounded_item_no + c2_list_length(&session.s_unbound_items)));
+
         /* Do the cleanup */
-	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;
 	form_write_iovec_fini();
 	c2_free(form_write_iovecs);
 	form_fini_fops();
 	c2_rpc_form_groups_free();
+	c2_rpc_form_ut_fini();
 	return 0;
 }
 
