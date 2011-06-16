@@ -294,6 +294,7 @@ struct c2_rpc_conn {
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
         struct c2_service_id            *c_service_id;
+	struct c2_net_end_point		*c_end_point;
         /** Sender ID (aka client ID) */
         uint64_t                         c_sender_id;
         /** List of all the sessions for this <sender,receiver> */
@@ -585,6 +586,12 @@ enum {
 	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
 };
 
+struct c2_rpc_slot_ops {
+	void (*so_consume_item)(struct c2_rpc_item *i);
+	void (*so_consume_reply)(struct c2_rpc_item	*req,
+				 struct c2_rpc_item	*reply);
+	void (*so_slot_idle)(struct c2_rpc_slot *slot);
+};
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */
 	struct c2_rpc_session		*sl_session;
@@ -613,9 +620,11 @@ struct c2_rpc_slot {
 	/** List of items ready to put in rpc */
 	struct c2_list			sl_ready_list;
 	struct c2_mutex			sl_mutex;
+	const struct c2_rpc_slot_ops	*sl_ops;
 };
 
-int c2_rpc_slot_init(struct c2_rpc_slot	*slot);
+int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
+		     const struct c2_rpc_slot_ops	*ops);
 
 void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
 			  struct c2_rpc_item	*item);

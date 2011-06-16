@@ -300,7 +300,7 @@ enum c2_rpc_item_tstate {
 	RPC_ITEM_PAST_VOLATILE,
 	/** the item was sent (i.e., placed into an rpc) and no reply is 
 	    received */
-	RPC_ITEM_UNREPLIED,
+	RPC_ITEM_IN_PROGRESS,
 	/** the item is not sent */
 	RPC_ITEM_FUTURE,
 };
@@ -335,6 +335,7 @@ enum {
  */
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
+	struct c2_chan			ri_chan;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
 	struct c2_list_link		ri_linkage;
 	struct c2_ref			ri_ref;
@@ -379,8 +380,6 @@ struct c2_rpc_item {
 	struct c2_timer			ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	/** channel to wait for reply */
-	struct c2_chan			ri_chan;
 };
 
 /**

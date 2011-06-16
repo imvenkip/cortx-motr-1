@@ -46,6 +46,32 @@ static void session_search(const struct c2_rpc_conn	*conn,
                            uint64_t			session_id,
                            struct c2_rpc_session	**out);
 
+/** Stub routine */
+void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
+/** Stub routine */
+void c2_rpc_form_item_ready(struct c2_rpc_item *item);
+
+void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot);
+void c2_rpc_sender_consume_item(struct c2_rpc_item *item);
+void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
+				 struct c2_rpc_item	*reply);
+
+void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot);
+void c2_rpc_rcv_consume_item(struct c2_rpc_item *item);
+void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
+			      struct c2_rpc_item  *reply);
+
+const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
+	.so_slot_idle = c2_rpc_sender_slot_idle,
+	.so_consume_item = c2_rpc_sender_consume_item,
+	.so_consume_reply = c2_rpc_sender_consume_reply
+};
+const struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops = {
+	.so_slot_idle = c2_rpc_rcv_slot_idle,
+	.so_consume_item = c2_rpc_rcv_consume_item,
+	.so_consume_reply = c2_rpc_rcv_consume_reply
+};
+
 int c2_rpc_slot_table_key_cmp(struct c2_table	*table,
 			      const void	*key0,
 			      const void	*key1)
@@ -764,7 +790,8 @@ static int session_fields_init(struct c2_rpc_session	*session,
 			rc = -ENOMEM;
 			goto out_err;
 		}
-		rc = c2_rpc_slot_init(session->s_slot_table[0]);
+		rc = c2_rpc_slot_init(session->s_slot_table[0],
+					&c2_rpc_sender_slot_ops);
 		if (rc != 0)
 			goto out_err;
 
@@ -932,7 +959,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 		for (i = 0; i < session->s_nr_slots; i++) {
 			slot = session->s_slot_table[i];
 			C2_ASSERT(slot != NULL && c2_rpc_slot_invariant(slot));
-			c2_rpc_form_slot_idle(slot);
+			slot->sl_ops->so_slot_idle(slot);
 		}
 		printf("scrr: session created %lu\n", session_id);
 	}
@@ -2217,7 +2244,8 @@ uint64_t c2_rpc_session_id_get()
 	return session_id;
 }
 
-int c2_rpc_slot_init(struct c2_rpc_slot	*slot)
+int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
+		     const struct c2_rpc_slot_ops	*ops)
 {
 	struct c2_fop		*fop;
 	struct c2_rpc_item	*item;
@@ -2260,19 +2288,12 @@ int c2_rpc_slot_init(struct c2_rpc_slot	*slot)
 
 	return 0;
 }
-/** Stub routine */
-void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot)
-{
-}
-void c2_rpc_form_item_ready(struct c2_rpc_item *item)
-{
-}
 
 /**
    @see slot_balance
  */
 void __slot_balance(struct c2_rpc_slot	*slot,
-		    bool		call_formation)
+		    bool		can_consume)
 {
 	struct c2_rpc_item	*item;
 	struct c2_list_link	*link;
@@ -2284,14 +2305,14 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	while (slot->sl_in_flight <= slot->sl_max_in_flight) {
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
 		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
-			if (call_formation)
-				c2_rpc_form_slot_idle(slot);
+			if (can_consume)
+				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
 		if (item->ri_tstate == RPC_ITEM_FUTURE)
-			item->ri_tstate = RPC_ITEM_UNREPLIED;
+			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
 			 * Don't send read only queries for which answer is
@@ -2304,8 +2325,8 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 		/*
 		 * Tell formation module that an item is ready to be put in rpc
 		 */
-		if (call_formation)
-			c2_rpc_form_item_ready(item);
+		if (can_consume)
+			slot->sl_ops->so_consume_item(item);
 	}
 	C2_POST(c2_rpc_slot_invariant(slot));
 }
@@ -2321,7 +2342,7 @@ void slot_balance(struct c2_rpc_slot	*slot)
  */
 void __slot_item_add(struct c2_rpc_slot	*slot,
 		     struct c2_rpc_item	*item,
-		     bool		call_formation)
+		     bool		can_consume)
 {
 	struct c2_rpc_slot_ref		*sref;
 
@@ -2343,7 +2364,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	sref->sr_item = item;
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
-	__slot_balance(slot, call_formation);
+	__slot_balance(slot, can_consume);
 }
 
 void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
@@ -2416,7 +2437,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 		 * XXX find out how to compare two rpc items to be same
 		 */
 	} else {
-		C2_ASSERT(req->ri_tstate == RPC_ITEM_UNREPLIED);
+		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
 		req->ri_tstate = RPC_ITEM_PAST_VOLATILE;
@@ -2553,6 +2574,35 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 
 	c2_list_fini(&slot->sl_item_list);
 	C2_SET0(slot);
+}
+void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot)
+{
+}
+void c2_rpc_form_item_ready(struct c2_rpc_item *item)
+{
+}
+void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
+{
+	c2_rpc_form_slot_idle(slot);
+}
+void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
+{
+	c2_rpc_form_item_ready(item);
+}
+void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
+				 struct c2_rpc_item	*reply)
+{
+}
+
+void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
+{
+}
+void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
+{
+}
+void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
+			      struct c2_rpc_item  *reply)
+{
 }
 /** @} end of session group */
 
