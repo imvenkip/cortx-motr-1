@@ -87,6 +87,8 @@ C2_ADDB_ADD(&(service)->s_addb, &ksunrpc_addb_server,		\
 static struct c2_list ksunrpc_svc_list;
 static struct c2_rwlock ksunrpc_lock;
 
+extern struct c2_fop_type sunrpc_get_resp_fopt;
+
 struct ksunrpc_service {
 	/**
 	   back-pointer to c2_service
@@ -100,6 +102,10 @@ struct ksunrpc_service {
 	   SUNRPC request handle for this service
 	 */
 	struct svc_rqst	       *s_rqst;
+	/**
+	   Response fop to be freed after response is sent
+	 */
+	struct c2_fop          *s_resfop;
 	/**
 	   worker thread handle
 	 */
@@ -140,9 +146,24 @@ static void ksunrpc_proc(struct c2_service *service,
 	service->s_handler(service, arg, ret);
 }
 
+/**
+   Release data allocated within a response fop. Kernel has no generic
+   xdr_free mechanism and even if it did, the pages pinned must also be
+   released.
+ */
+static void ksunrpc_fop_release(struct c2_fop *fop)
+{
+	if (fop != NULL && fop->f_type == &sunrpc_get_resp_fopt) {
+		struct sunrpc_get_resp *ex = c2_fop_data(fop);
+		if (ex->sgr_buf.sb_buf != NULL)
+			sunrpc_buffer_fini(&ex->sgr_buf);
+	}
+}
+
 static int ksunrpc_op(struct c2_service *service,
 		      struct c2_fop_type *fopt, struct svc_rqst *req)
 {
+	struct ksunrpc_service *xs = service->s_xport_private;
 	struct c2_fop *arg;
 	struct c2_fop *ret;
 	int rc;
@@ -151,19 +172,19 @@ static int ksunrpc_op(struct c2_service *service,
 	if (arg != NULL) {
 		struct kvec *argv = &req->rq_arg.head[0];
 		struct kvec *resv = &req->rq_res.head[0];
-		struct svc_procedure *procp = req->rq_procinfo;
 
 		rc = c2_svc_rqst_dec(req, argv->iov_base, arg);
 		if (rc == 0) {
 			ksunrpc_proc(service, arg, &ret);
-			rc = c2_svc_rqst_enc(req,
-				resv->iov_base + resv->iov_len, ret);
-			if (rc != 0)
-				ADDB_CALL(service, "rqst_enc", rc);
 			if (ret != NULL) {
-				if (procp->pc_release != NULL)
-					procp->pc_release(req, NULL, ret);
-				c2_fop_free(ret);
+				rc = c2_svc_rqst_enc(req,
+					resv->iov_base + resv->iov_len, ret);
+				if (rc != 0)
+					ADDB_CALL(service, "rqst_enc", rc);
+				xs->s_resfop = ret; /* delay release */
+			} else {
+				ADDB_ADD(service, c2_addb_oom);
+				rc = -ENOMEM;
 			}
 		} else {
 			ADDB_CALL(service, "rqst_dec", rc);
@@ -236,6 +257,11 @@ static void ksunrpc_worker(struct c2_service *service)
 			continue;
 		}
 		svc_process(xs->s_rqst);
+		if (xs->s_resfop != NULL) {
+			ksunrpc_fop_release(xs->s_resfop);
+			c2_fop_free(xs->s_resfop);
+			xs->s_resfop = NULL;
+		}
 	}
 }
 
@@ -393,30 +419,17 @@ const struct c2_service_ops ksunrpc_service_ops = {
 	.so_reply_post = ksunrpc_reply_post
 };
 
-/**
-   Release data allocated within a sunrpc_get_resp. Kernel has no generic
-   xdr_free mechanism and even if it did, the pages pinned must also be
-   released.
- */
-static int ksunrpc_get_release(struct svc_rqst *rqstp, __be32 *data,
-			       struct c2_fop *obj)
-{
-	struct sunrpc_get_resp *ex = c2_fop_data(obj);
-	sunrpc_buffer_fini(&ex->sgr_buf);
-	return 0;
-}
-
 /*
    Note: because a custom dispatch is used, none of the functions in the table
    below are called by svc_process(), but the svc_process() internals still
    require the pointers to be non-NULL, even though they are not called.
  */
-#define PROC(num, name, relf, respsize)				\
+#define PROC(num, name, respsize)				\
  [num] = {							\
    .pc_func	  = (svc_procfunc) ksunrpc_proc,		\
    .pc_decode	  = (kxdrproc_t) c2_svc_rqst_dec,		\
    .pc_encode	  = (kxdrproc_t) c2_svc_rqst_enc,		\
-   .pc_release    = (kxdrproc_t) relf,				\
+   .pc_release    = NULL,					\
    .pc_argsize	  = sizeof(struct sunrpc_##name),		\
    .pc_ressize	  = sizeof(struct sunrpc_##name##_resp),	\
    .pc_xdrressize = respsize,					\
@@ -428,10 +441,10 @@ static int ksunrpc_get_release(struct svc_rqst *rqstp, __be32 *data,
    Only bulk emulation procedures are supported.
  */
 static struct svc_procedure ksunrpc_procedures[] = {
-	PROC(0,  null, NULL, 1),
-	PROC(30, msg, NULL, sizeof(struct sunrpc_msg_resp)),
-	PROC(31, get, ksunrpc_get_release, 0),
-	PROC(32, put, NULL, sizeof(struct sunrpc_put_resp))
+	PROC(0,  null, 1),
+	PROC(30, msg, sizeof(struct sunrpc_msg_resp)),
+	PROC(31, get, 0),
+	PROC(32, put, sizeof(struct sunrpc_put_resp))
 };
 
 /**
