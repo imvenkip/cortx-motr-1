@@ -208,6 +208,8 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	}
 
 	c2_list_init(&machine->cr_rpc_conn_list);
+	c2_list_init(&machine->cr_incoming_conns);
+	c2_list_init(&machine->cr_outgoing_conns);
 	c2_list_init(&machine->cr_ready_slots);
 	c2_mutex_init(&machine->cr_session_mutex);
 
@@ -221,6 +223,8 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
 	//c2_list_fini(&machine->cr_rpc_conn_list);
+	c2_list_fini(&machine->cr_incoming_conns);
+	c2_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 	c2_rpc_reply_cache_fini(&machine->cr_rcache);
