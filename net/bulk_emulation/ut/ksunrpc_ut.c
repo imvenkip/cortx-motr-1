@@ -85,8 +85,10 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	ex->sgr_rc = i + 1;
 	ex->sgr_eof = 1;
-	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i);
+	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i, false);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ex->sgr_buf.sb_buf != NULL);
+	C2_UT_ASSERT(ex->sgr_buf.sb_len == i);
 
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 0;
@@ -130,14 +132,13 @@ static int ksunrpc_service_handler(struct c2_service *service,
 
         ctx.ft_service = service;
         ctx.fc_cookie  = cookie;
-        /* printf("Got fop: code = %d, name = %s\n", */
-	/*        fop->f_type->ft_code, fop->f_type->ft_name); */
         return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }
 
 int get_call(struct c2_net_conn *conn, int i)
 {
 	int                      rc;
+	char                    *buf;
 	struct c2_fop           *f;
 	struct c2_fop           *r;
 	struct sunrpc_get       *fop;
@@ -154,6 +155,8 @@ int get_call(struct c2_net_conn *conn, int i)
 		.sbd_total = i
 	};
 
+	C2_UT_ASSERT(conn != NULL);
+	C2_UT_ASSERT(i > 0);
 	f = c2_fop_alloc(&sunrpc_get_fopt, NULL);
 	r = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
 	if (f == NULL || r == NULL) {
@@ -164,6 +167,19 @@ int get_call(struct c2_net_conn *conn, int i)
 
 	fop->sg_desc = fake_desc;
 	fop->sg_offset = 0;
+
+	/* kxdr requires that caller pre-allocate buffers for sequences.
+	   This assumes client knows the max required.  When call returns,
+	   the actual length returned will be updated.
+	 */
+	rep = c2_fop_data(r);
+	buf = c2_alloc(i);
+	if (buf == NULL) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	rc = sunrpc_buffer_init(&rep->sgr_buf, buf, i, true);
+	C2_UT_ASSERT(rc == 0);
 	{
 		struct c2_net_call call = {
 			.ac_arg = f,
@@ -174,11 +190,13 @@ int get_call(struct c2_net_conn *conn, int i)
 		C2_UT_ASSERT(rc == 0);
 	}
 
-	rep = c2_fop_data(r);
+	C2_UT_ASSERT(c2_fop_data(r) == rep);
 	C2_UT_ASSERT(rep->sgr_rc == i + 1);
 	C2_UT_ASSERT(rep->sgr_eof == 1);
 	C2_UT_ASSERT(rep->sgr_buf.sb_len == i);
-	/* XXX TODO: verify rep->sgr_buf.sb_buf contents */
+	/* XXX TODO: C2_UT_ASSERT(buf[0] == 1); */
+	sunrpc_buffer_fini(&rep->sgr_buf);
+	c2_free(buf);
 
 done:
 	if (r != NULL)
@@ -207,6 +225,8 @@ int put_call(struct c2_net_conn *conn, int i)
 		.sbd_total = i
 	};
 
+	C2_UT_ASSERT(conn != NULL);
+	C2_UT_ASSERT(i > 0);
 	f = c2_fop_alloc(&sunrpc_put_fopt, NULL);
 	r = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
 	if (f == NULL || r == NULL) {
@@ -223,7 +243,7 @@ int put_call(struct c2_net_conn *conn, int i)
 		};
 		fop->sp_offset = 0;
 		fop->sp_buf.sb_len = i;
-		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i);
+		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i, false);
 		C2_UT_ASSERT(rc == 0);
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
@@ -291,14 +311,14 @@ void test_ksunrpc_server(void)
 
 	/* call get API, tests receiving basic record and sequence */
 	for (i = 1; i <= NUM; ++i) {
-		/* rc = get_call(conn1, i);
-		   C2_UT_ASSERT(rc == 0); */
+		rc = get_call(conn1, i);
+		C2_UT_ASSERT(rc == 0);
 	}
 
 	/* call put API, tests sending basic record and sequence */
 	for (i = 1; i <= NUM; ++i) {
-		/* rc = put_call(conn1, i);
-		   C2_UT_ASSERT(rc == 0); */
+		rc = put_call(conn1, i);
+		C2_UT_ASSERT(rc == 0);
 	}
 
 	c2_net_conn_unlink(conn1);
