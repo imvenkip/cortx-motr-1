@@ -74,11 +74,12 @@ static void t3(int n)
 	C2_UT_ASSERT(c2_thread_handle_eq(&myhandle, &t[n].t_h));
 }
 
+static char t1place[100];
+
 void test_thread(void)
 {
 	int i;
 	int result;
-	char t1place[100];
 	struct c2_thread_handle thandle;
 	struct c2_thread_handle myhandle;
 
