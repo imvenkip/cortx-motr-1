@@ -188,6 +188,11 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
 	return container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 }
 
+#ifdef __KERNEL__
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len);
+void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
+#endif
+
 int c2_sunrpc_fop_init(void);
 void c2_sunrpc_fop_fini(void);
 

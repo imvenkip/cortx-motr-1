@@ -505,6 +505,70 @@ static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 	return;
 }
 
+#ifdef __KERNEL__
+/** release pages pinned and memory allocated by sunrpc_buffer_init */
+void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
+{
+	int    i;
+        size_t npages;
+
+        npages = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	for (i = 0; i < npages; ++i)
+		if (sb->sb_buf[i] != NULL)
+			put_page(sb->sb_buf[i]);
+        c2_free(sb->sb_buf);
+	C2_SET0(sb);
+}
+
+/**
+   Populate a kernel-style struct sunrpc_buffer given a buffer pointer and
+   length.  The struct sunrpc_buffer contains a kernel struct page ** which
+   gets populated with the pages corresponding to the buffer.
+ */
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+{
+        unsigned long  addr;
+        struct page  **pages;
+        size_t         npages;
+        size_t         off;
+	int            i;
+	unsigned long  va;
+
+	C2_ASSERT(buf != NULL);
+	C2_ASSERT(len > 0);
+        addr = (unsigned long) buf;
+        off = addr & (PAGE_SIZE - 1);
+        addr &= PAGE_MASK;
+
+        npages = (off + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	C2_ALLOC_ARR(pages, npages);
+        if (pages == NULL)
+                return -ENOMEM;
+
+	sb->sb_len = len;
+	sb->sb_pgoff = off;
+	sb->sb_buf = pages;
+
+	if (addr > PAGE_OFFSET) {
+		for (i = 0, va = addr; i < npages; ++i, va += PAGE_SIZE) {
+			pages[i] = virt_to_page(va);
+			get_page(pages[i]);
+		}
+        } else {
+		int rc;
+                down_read(&current->mm->mmap_sem);
+                rc = get_user_pages(current, current->mm, addr, npages,
+                                    0, 1, pages, NULL);
+                up_read(&current->mm->mmap_sem);
+		if (rc != npages) {
+			sunrpc_buffer_fini(sb);
+			return -EFAULT;
+		}
+	}
+	return 0;
+}
+#endif /* __KERNEL__ */
+
 static int sunrpc_xo_tm_init(struct c2_net_transfer_mc *tm)
 {
 	struct c2_net_bulk_sunrpc_tm_pvt *tp;
