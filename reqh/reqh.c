@@ -29,67 +29,10 @@
  * Generic variable to signify wait.
  */
 static bool fo_wait;
-
-int c2_fom_phase_init(struct c2_fom *fom);
-int c2_fom_authen(struct c2_fom *fom);
-int c2_fom_authen_wait(struct c2_fom *fom);
-int c2_fom_loc_resource(struct c2_fom *fom);
-int c2_fom_loc_resource_wait(struct c2_fom *fom);
-int c2_fom_dist_resource(struct c2_fom *fom);
-int c2_fom_dist_resource_wait(struct c2_fom *fom);
-int c2_fom_obj_check(struct c2_fom *fom);
-int c2_fom_obj_check_wait(struct c2_fom *fom);
-int c2_fom_auth(struct c2_fom *fom);
-int c2_fom_auth_wait(struct c2_fom *fom);
-int c2_create_loc_ctx(struct c2_fom *fom);
-int c2_create_loc_ctx_wait(struct c2_fom *fom);
+static struct c2_fom_phase_table fp_table[FOPH_NR];
+void set_fom_phase_table(void);
 void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
 
-/**
- * Transition table holding function pointers
- * to generic fom phases and next phase to into.
- * current phase is used as the offset in this table.
- */
-static struct c2_fom_phase_table fp_table [] = {
-		{ .action = c2_fom_phase_init,
-		  .next_phase = FOPH_AUTHENTICATE },
-		{
-		  .action = c2_fom_authen,
-		  .next_phase = FOPH_RESOURCE_LOCAL },
-		{
-		  .action = c2_fom_authen_wait,
-		  .next_phase = FOPH_RESOURCE_LOCAL },
-		{
-		  .action = c2_fom_loc_resource,
-		  .next_phase = FOPH_RESOURCE_DISTRIBUTED },
-		{
-		  .action = c2_fom_loc_resource_wait,
-		  .next_phase = FOPH_RESOURCE_DISTRIBUTED },
-		{
-		  .action = c2_fom_dist_resource,
-		  .next_phase = FOPH_OBJECT_CHECK },
-		{
-		  .action = c2_fom_dist_resource_wait,
-		  .next_phase = FOPH_OBJECT_CHECK },
-		{
-		  .action = c2_fom_obj_check,
-		  .next_phase = FOPH_AUTHORISATION },
-		{
-		  .action = c2_fom_obj_check_wait,
-		  .next_phase = FOPH_AUTHORISATION },
-		{
-		  .action = c2_fom_auth,
-		  .next_phase = FOPH_EXEC },
-		{
-		  .action = c2_fom_auth_wait,
-		  .next_phase = FOPH_EXEC },
-		{
-		  .action = c2_create_loc_ctx,
-		  .next_phase = FOPH_DONE },
-		{
-		  .action = c2_create_loc_ctx_wait,
-		  .next_phase = FOPH_DONE} };
-				        		
 /** 
  * Function to initialize request handler and fom domain
  * success : returns 0
@@ -103,19 +46,22 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	int result = 0;
 	size_t nr = 0;
 
+		
 	if ((reqh == NULL) || (dom == NULL) ||
 		(fol == NULL) || (serv == NULL))
 		return -EINVAL;
 
+	set_fom_phase_table();
 	reqh->rh_rpc = rpc;
 	reqh->rh_dtm = dtm;
 	reqh->rh_dom = dom;
 	reqh->rh_fol = fol;
 	reqh->rh_serv = serv;
 
-	result = c2_fom_domain_init(&reqh->rh_fom_dom, nr);
-	if (result)
-		printf("REQH: c2_fom_domain_init failed with result %d\n", result);
+	reqh->rh_fom_dom = c2_alloc(sizeof *reqh->rh_fom_dom);
+	if (reqh->rh_fom_dom == NULL)
+		return -ENOMEM;
+	result = c2_fom_domain_init(reqh->rh_fom_dom, nr);
 	return result;
 }
 
@@ -137,7 +83,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
 	struct c2_fom *fom = NULL;
         struct c2_fop_ctx	*ctx;
-        int			result = 0;
+        int			result;
+	size_t			iloc;
 	
 	C2_ASSERT(reqh != NULL);
 	C2_ASSERT(fop != NULL);
@@ -149,16 +96,18 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
 	/* Initialize fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	C2_ASSERT(fom != NULL);
+	if (fom == NULL)
+		return;
 
 	fom->fo_fop_ctx = ctx;
 	fom->fo_fol = reqh->rh_fol;
 	fom->fo_domain = reqh->rh_dom;
 	c2_fom_init(fom);
+	iloc = fom->fo_ops->fo_home_locality(reqh->rh_fom_dom, fom);
+	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc]; 	
 
 	/* find locality and submit fom for further processing */
-	printf("REQH: fom enqueued for execution\n");
-	c2_fom_queue(reqh->rh_fom_dom, fom);
+	c2_fom_queue(fom);
 }
 
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
@@ -171,6 +120,10 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
  */
 int c2_fom_phase_init(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -182,9 +135,11 @@ int c2_fom_phase_init(struct c2_fom *fom)
  */
 int c2_fom_authen(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
-	fom->fo_phase = FOPH_AUTHENTICATE_WAIT;
-	fo_wait = true;
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
+	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
 
@@ -196,6 +151,10 @@ int c2_fom_authen(struct c2_fom *fom)
  */
 int c2_fom_authen_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	return 0;
@@ -209,7 +168,10 @@ int c2_fom_authen_wait(struct c2_fom *fom)
  */
 int c2_fom_loc_resource(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -222,6 +184,10 @@ int c2_fom_loc_resource(struct c2_fom *fom)
  */
 int c2_fom_loc_resource_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	return 0;
@@ -235,9 +201,11 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
  */
 int c2_fom_dist_resource(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
-	fom->fo_phase = FOPH_RESOURCE_DISTRIBUTED_WAIT;
-	fo_wait = true;
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
+	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
 
@@ -249,6 +217,10 @@ int c2_fom_dist_resource(struct c2_fom *fom)
  */
 int c2_fom_dist_resource_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	return 0;
@@ -262,7 +234,10 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
  */
 int c2_fom_obj_check(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -275,6 +250,10 @@ int c2_fom_obj_check(struct c2_fom *fom)
  */
 int c2_fom_obj_check_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	return 0;
@@ -287,9 +266,11 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
  */
 int c2_fom_auth(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
-	fom->fo_phase = FOPH_AUTHORISATION_WAIT;
-	fo_wait = true;
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
+	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
 
@@ -301,6 +282,10 @@ int c2_fom_auth(struct c2_fom *fom)
  */
 int c2_fom_auth_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	return 0;
@@ -313,7 +298,10 @@ int c2_fom_auth_wait(struct c2_fom *fom)
  */
 int c2_create_loc_ctx(struct c2_fom *fom)
 {	
-  	C2_ASSERT(fom != NULL);
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	int rc = 0;
 	rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 				&fom->fo_tx.tx_dbtx);
@@ -333,6 +321,10 @@ int c2_create_loc_ctx(struct c2_fom *fom)
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
 {
+	if (fom == NULL) {
+		fom->fo_phase = FOPH_FAILED;
+		return -EINVAL;
+	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
 	fom->fo_phase = FOPH_DONE;
@@ -351,16 +343,59 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	bool stop = false;
 	while (!stop) {
 		rc = fp_table[fom->fo_phase].action(fom);
-		if (rc || (fom->fo_phase == FOPH_DONE) ||
-			fo_wait || (fom->fo_phase == FOPH_EXEC))
+		if (rc || fom->fo_phase == FOPH_DONE ||
+			fo_wait || fom->fo_phase == FOPH_EXEC)
 			stop = true;
-	}
-	if (fo_wait) {
-		fo_wait = false;
- 		c2_fom_wait(fom, &fom->chan_gen_wait);
 	}
 
 	return rc;
+}
+
+/**
+ * Transition table holding function pointers
+ * to generic fom phases and next phase to into.
+ * current phase is used as the offset in this table.
+ */
+void set_fom_phase_table(void)
+{
+	fp_table[FOPH_INIT].action = c2_fom_phase_init;
+	fp_table[FOPH_INIT].next_phase = FOPH_AUTHENTICATE;
+	
+	fp_table[FOPH_AUTHENTICATE].action = c2_fom_authen;
+	fp_table[FOPH_AUTHENTICATE].next_phase = FOPH_RESOURCE_LOCAL;
+	
+	fp_table[FOPH_AUTHENTICATE_WAIT].action = c2_fom_authen_wait;
+	fp_table[FOPH_AUTHENTICATE_WAIT].next_phase = FOPH_RESOURCE_LOCAL;
+
+	fp_table[FOPH_RESOURCE_LOCAL].action = c2_fom_loc_resource;
+	fp_table[FOPH_RESOURCE_LOCAL].next_phase = FOPH_RESOURCE_DISTRIBUTED;
+
+	fp_table[FOPH_RESOURCE_LOCAL_WAIT].action = c2_fom_loc_resource_wait;
+	fp_table[FOPH_RESOURCE_LOCAL_WAIT].next_phase = FOPH_RESOURCE_DISTRIBUTED; 
+
+	fp_table[FOPH_RESOURCE_DISTRIBUTED].action = c2_fom_dist_resource;
+	fp_table[FOPH_RESOURCE_DISTRIBUTED].next_phase = FOPH_OBJECT_CHECK;
+
+	fp_table[FOPH_RESOURCE_DISTRIBUTED_WAIT].action = c2_fom_dist_resource_wait;
+	fp_table[FOPH_RESOURCE_DISTRIBUTED_WAIT].next_phase = FOPH_OBJECT_CHECK;
+
+	fp_table[FOPH_OBJECT_CHECK].action = c2_fom_obj_check;
+	fp_table[FOPH_OBJECT_CHECK].next_phase = FOPH_AUTHORISATION;
+
+	fp_table[FOPH_OBJECT_CHECK_WAIT].action = c2_fom_obj_check_wait;
+	fp_table[FOPH_OBJECT_CHECK_WAIT].next_phase = FOPH_AUTHORISATION;
+
+	fp_table[FOPH_AUTHORISATION].action = c2_fom_auth;
+	fp_table[FOPH_AUTHORISATION].next_phase = FOPH_EXEC;
+
+	fp_table[FOPH_AUTHORISATION_WAIT].action = c2_fom_auth_wait;
+	fp_table[FOPH_AUTHORISATION_WAIT].next_phase = FOPH_EXEC;
+
+        fp_table[FOPH_TXN_CONTEXT].action = c2_create_loc_ctx;
+        fp_table[FOPH_TXN_CONTEXT].next_phase = FOPH_DONE;
+
+	fp_table[FOPH_TXN_CONTEXT_WAIT].action = c2_create_loc_ctx_wait;
+	fp_table[FOPH_TXN_CONTEXT_WAIT].next_phase = FOPH_DONE;
 }
 
 /** @} endgroup reqh */

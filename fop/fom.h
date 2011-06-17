@@ -90,11 +90,13 @@ struct c2_fom_locality {
 	struct c2_list		fl_threads;
 	size_t			fl_idle_threads_nr;
 	size_t			fl_threads_nr;
-
+	size_t			fl_lo_idle_nr;
+	size_t			fl_hi_idle_nr;
+	
 	/*
 	 * Resources allotted to the partition.
 	 */
-
+	size_t			fl_proc_nr;
 	struct c2_bitmap	fl_processors;
 
 	/*
@@ -119,9 +121,6 @@ struct c2_fom_domain {
 
 /** Operations vector attached to a domain. */
 struct c2_fom_domain_ops {
-	/** Called to select a home locality for a (new) fom. */
-	size_t (*fdo_home_locality)(const struct c2_fom_domain *dom,
-				     struct c2_fom *fom);
 	/** Returns true if waiting (FOS_WAITING) fom timed out and should be
 	    moved into FOPH_TIMEOUT phase. */
 	bool   (*fdo_time_is_out)(const struct c2_fom_domain *dom,
@@ -169,8 +168,6 @@ enum c2_fom_phase {
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
 
 	FOPH_EXEC,		    /*< start fop specific execution */
-	FOPH_EXEC_WAIT, 	    /*< temporary wait phase during fop execution 
-				     	would be replaced by fop specific wait phase. */
 	FOPH_QUEUE_REPLY,           /*< queuing reply fop-s. */
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_DONE,		    /*< fom succeeded. */
@@ -181,9 +178,8 @@ enum c2_fom_phase {
 				      this. */
 };
 
-int  c2_fom_domain_init(struct c2_fom_domain **dom, size_t nr);
+int  c2_fom_domain_init(struct c2_fom_domain *dom, size_t nr);
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
-size_t fdo_find_home_loc(const struct c2_fom_domain *dom, struct c2_fom *fom);
 
 /**
    Queues a fom for the execution in a domain.
@@ -196,7 +192,7 @@ size_t fdo_find_home_loc(const struct c2_fom_domain *dom, struct c2_fom *fom);
 
    @pre fom->fo_phase == FOPH_INIT
  */
-void c2_fom_queue(struct c2_fom_domain *dom, struct c2_fom *fom);
+void c2_fom_queue(struct c2_fom *fom);
 
 /** Fop state machine. */
 struct c2_fom {
@@ -208,20 +204,18 @@ struct c2_fom {
 	struct c2_clink		fo_clink;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
-	/** request fop object, this fom belongs to **/
+	/** request fop object, this fom belongs to */
 	struct c2_fop		*fo_fop;
 	/** fol object for this fom **/
 	struct c2_fol		*fo_fol;
-	/** stob domain this fom is operating on **/
+	/** stob domain this fom is operating on */
 	struct c2_stob_domain	*fo_domain;
-	/** transaction object to be used by this fom **/
+	/** transaction object to be used by this fom */
 	struct c2_dtx		fo_tx;
-	/* Temporary channel used to simulate generic phases of reqh */
-	struct c2_chan		chan_gen_wait;
 	/* linkage in the locality runq */
-	struct c2_queue_link	fo_linkage;
-	/* temporary clink to listen on temporary generic channel */
-	struct c2_list_link	fo_link;
+	struct c2_queue_link	fo_qlink;
+	/* linkage in the locality waitlist  */
+	struct c2_list_link	fo_wlink;
 };
 
 void c2_fom_init(struct c2_fom *fom);
@@ -277,6 +271,12 @@ struct c2_fom_ops {
 	    Returns value of enum c2_fom_state_outcome or error code.
 	 */
 	int  (*fo_state)(struct c2_fom *fom);
+
+	/**
+	    Find home locality for this fom.
+	 */
+	size_t  (*fo_home_locality) (const struct c2_fom_domain *dom, 
+					const struct c2_fom *fom);
 	/**
 	    Send reply fop in case of fom failure
 	 */
@@ -310,7 +310,7 @@ void c2_fom_block_leave(struct c2_fom_locality *loc);
    Registers the fom with the channel, so that next fom's state transition would
    happen when the channel is signalised.
  */
-void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
+int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 
 /** @} end of fom group */
 

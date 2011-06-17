@@ -53,7 +53,7 @@
 enum {
         PORT = 10001
 };
-
+typedef unsigned long long U64;
 static struct c2_stob_domain *sdom;
 struct c2_net_domain    ndom;
 static struct c2_fol          fol;
@@ -141,23 +141,27 @@ void c2_io_fom_fini(struct c2_fom *fom);
 int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
 int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
 int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+size_t fom_home_locality(const struct c2_fom_domain *dom, const struct c2_fom *fom);
 
 static struct c2_fom_ops create_fom_ops = {
         .fo_fini = c2_io_fom_fini,
         .fo_state = create_fom_state,
 	.fo_fail  = c2_io_fom_fail,
+	.fo_home_locality = fom_home_locality,
 };
 
 static struct c2_fom_ops write_fom_ops = {
         .fo_fini = c2_io_fom_fini,
         .fo_state = write_fom_state,
 	.fo_fail = c2_io_fom_fail,
+	.fo_home_locality = fom_home_locality,
 };
 
 static struct c2_fom_ops read_fom_ops = {
         .fo_fini = c2_io_fom_fini,
         .fo_state = read_fom_state,
 	.fo_fail = c2_io_fom_fail,
+	.fo_home_locality = fom_home_locality,
 };
 
 static const struct c2_fom_type_ops create_fom_type_ops = {
@@ -469,8 +473,42 @@ int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 *******************************************************/
 
 /*******************************************************
-		State methods for foms
+		fom operations
 *******************************************************/
+
+size_t fom_home_locality(const struct c2_fom_domain *dom, const struct c2_fom *fom)
+{
+	size_t iloc;
+	if (dom == NULL || fom == NULL)
+		return -EINVAL;
+		
+	switch(fom->fo_fop->f_type->ft_code) {
+		case 10: {
+			struct c2_fom_io_create *fop;
+			U64 oid;
+			fop = c2_fop_data(fom->fo_fop);
+			oid = fop->sic_object.f_oid;
+			iloc = oid % dom->fd_nr;
+		}
+		case 11: {
+			struct c2_fom_io_read *fop;
+			U64 oid;
+			fop = c2_fop_data(fom->fo_fop);
+			oid = fop->sir_object.f_oid;
+			iloc = oid % dom->fd_nr;
+		}
+		case 12: {
+			struct c2_fom_io_write *fop;
+			U64 oid;
+			fop = c2_fop_data(fom->fo_fop);
+			oid = fop->siw_object.f_oid;
+			iloc = oid % dom->fd_nr;
+		}
+		
+	}
+	return iloc;
+}
+
 int create_fom_state(struct c2_fom *fom)
 {
 	struct c2_fom_io_create     *in_fop;
@@ -884,6 +922,9 @@ void test_reqh(void)
         backid.si_bits.u_lo = 0xf00baf11e;
         /* port above 1024 is for normal use access permission */
         path = "../__s";
+
+	/* initialize processors */
+	c2_processors_init();
 
 	result = fom_io_fop_init();
         C2_ASSERT(result == 0);
