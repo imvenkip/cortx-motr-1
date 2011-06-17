@@ -114,6 +114,11 @@ int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    struct c2_cob	**slot_cob_array_out,
 				    uint32_t		nr_slots,
 				    struct c2_db_tx	*tx);
+
+int session_persistent_state_destroy(struct c2_cob	*session_cob,
+				     uint32_t		nr_slots,
+				     struct c2_db_tx	*tx);
+
 /**
   Locates cob associated with slot identified by
   <item->ri_sender_id, item->ri_session_id, item->ri_slot_id, item->ri_slot_gen>

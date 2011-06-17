@@ -570,7 +570,10 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	c2_list_fini(&conn->c_sessions);
 	c2_chan_fini(&conn->c_chan);
 	c2_mutex_fini(&conn->c_mutex);
-
+	if (conn->c_cob != NULL) {
+		c2_cob_put(conn->c_cob);
+		conn->c_cob = NULL;
+	}
 	C2_SET0(conn);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
@@ -1092,7 +1095,10 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	c2_free(session->s_slot_table);
 	session->s_slot_table = NULL;
 	session->s_nr_slots = session->s_slot_table_capacity = 0;
-
+	if (session->s_cob != NULL) {
+		c2_cob_put(session->s_cob);
+		session->s_cob = NULL;
+	}
 	session->s_state = C2_RPC_SESSION_UNINITIALISED;
 }
 C2_EXPORTED(c2_rpc_session_fini);
@@ -1778,6 +1784,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item	*item;
 	struct c2_fop		*fop;
+	struct c2_list_link	*link;
 
 	c2_list_link_fini(&slot->sl_link);
 	c2_list_fini(&slot->sl_ready_list);
@@ -1785,7 +1792,9 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	 * Remove the dummy item from the list
 	 */
 	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
-	item = c2_list_entry(slot->sl_item_list.l_head, struct c2_rpc_item,
+	link = c2_list_first(&slot->sl_item_list);
+	C2_ASSERT(link != NULL);
+	item = c2_list_entry(link, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
 	C2_ASSERT(c2_list_link_is_in(&item->ri_slot_refs[0].sr_link));
 	c2_list_del(&item->ri_slot_refs[0].sr_link);
@@ -1794,6 +1803,9 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	c2_fop_free(fop);
 
 	c2_list_fini(&slot->sl_item_list);
+	if (slot->sl_cob != NULL) {
+		c2_cob_put(slot->sl_cob);
+	}
 	C2_SET0(slot);
 }
 void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot)
@@ -1904,6 +1916,12 @@ errout:
 	return rc;
 }
 
+int session_persistent_state_destroy(struct c2_cob	*session_cob,
+				     uint32_t		nr_slots,
+				     struct c2_db_tx	*tx)
+{
+	return 0;
+}
 /** @c end of session group */
 
 /*
