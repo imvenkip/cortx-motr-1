@@ -580,7 +580,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	}
 	/* If the formation component is not active (form_fini is called)
 	   exit the state machine and return back. */
-	if (endp->isu_form_active == false) {
+	if (!endp->isu_form_active) {
 		c2_mutex_unlock(&endp->isu_unit_lock);
 		c2_rpc_form_state_machine_exit(endp);
 		return 0;
@@ -1049,7 +1049,6 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	int						 res = 0;
 	struct c2_rpc_form_item_summary_unit_group	*summary_group = NULL;
 	bool						 found = false;
-	struct c2_timer					*item_timer = NULL;
 	struct c2_rpc_item				*rpc_item = NULL;
 	struct c2_rpc_item				*rpc_item_next = NULL;
 	bool						 item_inserted = false;
@@ -1140,27 +1139,21 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	/* Initialize the timer only when the deadline value is non-zero
 	   i.e. dont initialize the timer for URGENT items */
 	if(item->ri_deadline != 0) {
-		C2_ALLOC_PTR(item_timer);
-		if (item_timer == NULL) {
-			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
-					&c2_rpc_form_addb_loc, c2_addb_oom);
-			return -ENOMEM;
-		}
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 1,
+		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
+				item->ri_deadline, 1,
 				c2_rpc_form_item_timer_callback,
 				(unsigned long)item);
-		res = c2_timer_start(item_timer);
+		res = c2_timer_start(&item->ri_timer);
 		if (res != 0) {
 			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
 				&c2_rpc_form_addb_loc,
 				formation_func_fail,
 				"c2_rpc_form_add_rpcitem_to_summary_unit",
 				res);
-			return -1;
+			return res;
 		}
-		item->ri_timer = *item_timer;
 	}
 	return 0;
 }
@@ -2013,7 +2006,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of
 		   max_message_size, discard the rpc object. */
-		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
+		if (rpcobj_size < ((9/10) * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
 					it is sub-optimal size \
 					rpcobj_size = %lu.\n",rpcobj_size);
