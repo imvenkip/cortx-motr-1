@@ -78,7 +78,7 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 		}
 		/* initialize the domain */
 #ifdef __KERNEL__
-		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_xprt);
+		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_minimal_xprt);
 #else
 		rc = c2_net_domain_init(dom, &c2_net_usunrpc_minimal_xprt);
 #endif
@@ -116,10 +116,6 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
  */
 static void sunrpc_stop_service(void)
 {
-#ifdef __KERNEL__
-	C2_IMPOSSIBLE("Port in progress");
-	return;
-#else
 	c2_mutex_lock(&sunrpc_server_mutex);
 	do {
 		if (--sunrpc_server_active_tms > 0)
@@ -131,7 +127,6 @@ static void sunrpc_stop_service(void)
 	} while(0);
 	c2_mutex_unlock(&sunrpc_server_mutex);
 	return;
-#endif
 }
 
 /**
