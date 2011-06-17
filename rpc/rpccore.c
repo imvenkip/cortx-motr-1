@@ -195,6 +195,8 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom)
 {
+	struct c2_db_tx		tx;
+	struct c2_cob		*root_session_cob;
 	int rc;
 
 	rc = rpc_proc_init(&machine->cr_processing);
@@ -211,7 +213,15 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_mutex_init(&machine->cr_session_mutex);
 	c2_list_init(&machine->cr_ready_slots);
 	c2_mutex_init(&machine->cr_ready_slots_mutex);
+
 	machine->cr_dom = dom;
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
+	if (rc == 0)
+		c2_db_tx_commit(&tx);
+	else
+		c2_db_tx_abort(&tx);
+
 	return rc;
 }
 

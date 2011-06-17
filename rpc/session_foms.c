@@ -44,9 +44,9 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 {
 	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_create		*fop_in;
+	struct c2_rpc_fop_conn_create		*fop_cc;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_create_rep	*fop_out;
+	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	struct c2_db_tx				*tx;
@@ -62,13 +62,15 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
 			fom_cc->fcc_fop_rep != NULL);
 
+	/* Request fop */
 	fop = fom_cc->fcc_fop;
-	fop_in = c2_fop_data(fop);
-	C2_ASSERT(fop_in != NULL);
+	fop_cc = c2_fop_data(fop);
+	C2_ASSERT(fop_cc != NULL);
 
+	/* reply fop */
 	fop_rep = fom_cc->fcc_fop_rep;
-	fop_out = c2_fop_data(fop_rep);
-	C2_ASSERT(fop_out != NULL);
+	fop_ccr = c2_fop_data(fop_rep);
+	C2_ASSERT(fop_ccr != NULL);
 
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
@@ -84,36 +86,14 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * XXX Decide how to calculate sender_id
 	 */
 	sender_id = c2_rpc_sender_id_get();
-
-	rc = c2_rpc_conn_cob_create(dom, sender_id, &conn_cob, tx);
+	rc = conn_persistent_state_create(dom, sender_id, &conn_cob,
+					&session0_cob, &slot0_cob, tx);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_session_cob_create(conn_cob, SESSION_0, &session0_cob, tx);
-	if (rc != 0) {
-		c2_cob_put(conn_cob);
-		goto errout;
-	}
-
-	rc = c2_rpc_slot_cob_create(session0_cob,
-					0,	/* Slot id */
-					0,	/* slot generation */
-					&slot0_cob, tx);
-	if (rc != 0) {
-		c2_cob_put(session0_cob);
-		c2_cob_put(conn_cob);
-		goto errout;
-	}
-
-	C2_ASSERT(rc == 0);
-
-	c2_cob_put(slot0_cob);
-	c2_cob_put(session0_cob);
-	c2_cob_put(conn_cob);
-
-	fop_out->rccr_snd_id = sender_id;
-	fop_out->rccr_rc = 0;		/* successful */
-	fop_out->rccr_cookie = fop_in->rcc_cookie;
+	fop_ccr->rccr_snd_id = sender_id;
+	fop_ccr->rccr_rc = 0;		/* successful */
+	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
 	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
@@ -126,9 +106,9 @@ errout:
 	C2_ASSERT(rc != 0);
 
 	printf("conn_create_state: failed %d\n", rc);
-	fop_out->rccr_snd_id = SENDER_ID_INVALID;
-	fop_out->rccr_rc = rc;
-	fop_out->rccr_cookie = fop_in->rcc_cookie;
+	fop_ccr->rccr_snd_id = SENDER_ID_INVALID;
+	fop_ccr->rccr_rc = rc;
+	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
@@ -159,7 +139,6 @@ struct c2_fom_type c2_rpc_fom_session_create_type = {
 
 int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 {
-	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_session_create	*fop_in;
 	struct c2_fop				*fop_rep;
@@ -170,11 +149,10 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	struct c2_cob_domain			*dom;
 	struct c2_cob				*conn_cob = NULL;
 	struct c2_cob				*session_cob = NULL;
-	struct c2_cob				*slot_cob = NULL;
+	struct c2_cob				*slot_cobs[DEFAULT_SLOT_COUNT];
 	uint64_t				session_id;
 	uint64_t				sender_id;
 	int					rc;
-	int					i;
 
 	fom_sc = container_of(fom, struct c2_rpc_fom_session_create, fsc_gen);
 
@@ -192,8 +170,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	machine = item->ri_mach;
-	dom = machine->cr_dom;
+	dom = item->ri_mach->cr_dom;
 	C2_ASSERT(dom != NULL);
 
 	tx = &fom_sc->fsc_tx;
@@ -210,22 +187,11 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_session_cob_create(conn_cob, session_id, &session_cob, tx);
-	if (rc != 0) {
-		c2_cob_put(conn_cob);
-		goto errout;
-	}
-
-	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
-		rc = c2_rpc_slot_cob_create(session_cob, i, 0, &slot_cob, tx);
-		if (rc != 0) {
-			c2_cob_put(session_cob);
-			c2_cob_put(conn_cob);
-			goto errout;
-		}
-		c2_cob_put(slot_cob);
-	}
-
+	rc = session_persistent_state_create(conn_cob, session_id, 
+						&session_cob,
+						&slot_cobs[0],
+						DEFAULT_SLOT_COUNT,
+						tx);
 	C2_ASSERT(rc == 0);
 
 	fop_out->rscr_rc = 0; 		/* success */

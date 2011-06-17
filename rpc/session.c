@@ -1250,6 +1250,18 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 	return c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS", out, tx);
 }
 
+int c2_rpc_root_session_cob_create(struct c2_cob_domain	*dom,
+				   struct c2_cob	**out,
+				   struct c2_db_tx	*tx)
+{
+	int	rc;
+
+	rc = c2_rpc_cob_create_helper(dom, NULL, "SESSIONS", out, tx);
+	if (rc == -EEXIST)
+		rc = 0;
+
+	return rc;
+}
 enum {
 	SESSION_COB_MAX_NAME_LEN = 40
 };
@@ -1813,7 +1825,86 @@ void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
 }
-/** @} end of session group */
+
+int conn_persistent_state_create(struct c2_cob_domain	*dom,
+				 uint64_t		sender_id,
+				 struct c2_cob		**conn_cob_out,
+				 struct c2_cob		**session0_cob_out,
+				 struct c2_cob		**slot0_cob_out,
+				 struct c2_db_tx	*tx)
+{
+	struct c2_cob	*conn_cob = NULL;
+	struct c2_cob	*session0_cob = NULL;
+	struct c2_cob	*slot0_cob = NULL;
+	int		rc;
+
+	rc = c2_rpc_conn_cob_create(dom, sender_id, &conn_cob, tx);
+	if (rc != 0)
+		goto errout;
+
+	rc = c2_rpc_session_cob_create(conn_cob, SESSION_0, &session0_cob, tx);
+	if (rc != 0) {
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+
+	rc = c2_rpc_slot_cob_create(session0_cob,
+					0,      /* Slot id */
+					0,      /* slot generation */
+					&slot0_cob, tx);
+	if (rc != 0) {
+		c2_cob_put(session0_cob);
+		c2_cob_put(conn_cob);
+		goto errout;
+	}
+
+	*conn_cob_out = conn_cob;
+	*session0_cob_out = session0_cob;
+	*slot0_cob_out = slot0_cob;
+errout:
+	*conn_cob_out = *session0_cob_out = *slot0_cob_out = NULL;
+	return rc;
+}
+
+int session_persistent_state_create(struct c2_cob       *conn_cob,
+				    uint64_t            session_id,
+				    struct c2_cob       **session_cob_out,
+				    struct c2_cob       **slot_cob_array_out,
+				    uint32_t            nr_slots,
+				    struct c2_db_tx     *tx)
+{
+	struct c2_cob	*session_cob = NULL;
+	struct c2_cob	*slot_cob = NULL;
+	int		rc;
+	int		i;
+
+	for (i = 0; i < nr_slots; i++)
+		slot_cob_array_out[i] = NULL;
+
+	rc = c2_rpc_session_cob_create(conn_cob, session_id, &session_cob, tx);
+	if (rc != 0)
+		goto errout;
+
+	for (i = 0; i < nr_slots; i++) {
+		rc = c2_rpc_slot_cob_create(session_cob, i, 0, &slot_cob, tx);
+		if (rc != 0)
+			goto errout;
+		slot_cob_array_out[i] = slot_cob;
+	}
+	return 0;
+errout:
+	for (i = 0; i < nr_slots; i++)
+		if (slot_cob_array_out[i] != NULL) {
+			c2_cob_put(slot_cob_array_out[i]);
+			slot_cob_array_out[i] = NULL;
+		}
+	if (session_cob != NULL)
+		c2_cob_put(session_cob);
+
+	return rc;
+}
+
+/** @c end of session group */
 
 /*
  *  Local variables:

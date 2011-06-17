@@ -65,6 +65,10 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx);
 
+int c2_rpc_root_session_cob_create(struct c2_cob_domain	*dom,
+				   struct c2_cob	**out,
+				   struct c2_db_tx	*tx);
+
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
@@ -97,6 +101,19 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+int conn_persistent_state_create(struct c2_cob_domain   *dom,   
+				 uint64_t               sender_id,
+				 struct c2_cob          **conn_cob_out,
+				 struct c2_cob          **session0_cob_out,
+				 struct c2_cob          **slot0_cob_out,
+				 struct c2_db_tx        *tx);
+
+int session_persistent_state_create(struct c2_cob	*conn_cob,
+				    uint64_t		session_id,
+				    struct c2_cob	**session_cob_out,
+				    struct c2_cob	**slot_cob_array_out,
+				    uint32_t		nr_slots,
+				    struct c2_db_tx	*tx);
 /**
   Locates cob associated with slot identified by
   <item->ri_sender_id, item->ri_session_id, item->ri_slot_id, item->ri_slot_gen>
