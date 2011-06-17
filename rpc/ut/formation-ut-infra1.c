@@ -27,6 +27,10 @@
 #include "ioservice/io_fops.h"
 #include <stdlib.h>
 #include "colibri/init.h"
+#include "rpc/session.h"
+#include "db/db.h"
+#include "cob/cob.h"
+#include "addb/addb.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
@@ -58,6 +62,17 @@
       multiple IO requests on same files.
    5. Create FOPs for these requests (metadata/IO), assign
  */
+
+/** ADDB variables and structures */
+static const struct c2_addb_ctx_type c2_rpc_ut_addb_ctx_type = {
+        .act_name = "rpc-ut-ctx-type"
+};
+
+static const struct c2_addb_loc c2_rpc_ut_addb_loc = {
+        .al_name = "rpc-ut-loc"
+};
+
+struct c2_addb_ctx c2_rpc_ut_addb_ctx;
 
 /* Some random deadline values for testing purpose only */
 #define MIN_NONIO_DEADLINE	 0		// 0 ms
@@ -99,6 +114,7 @@ struct c2_fop_file_fid		*form_fids = NULL;
 #define nopcodes		 3
 
 struct c2_net_end_point		 ep;
+
 
 
 /* Function pointer to different FOP creation methods. */
@@ -144,6 +160,150 @@ int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	return 0;
 }
 
+#define nslots			 8
+struct c2_rpc_slot		*slots[nslots];
+struct c2_rpc_session		 session;
+
+struct c2_rpcmachine		 rpcmachine;
+struct c2_cob_domain		 cob_domain;
+struct c2_dbenv			 db;
+char 				 db_name[] = "rpc_form_db"; 
+struct c2_rpc_conn		 conn;
+struct c2_rpc_session		 session;
+
+#define BOUNDED			 1
+#define UNBOUNDED		 2
+#define MIN_SLOTS		 0
+#define MAX_SLOTS		 nslots
+
+/** Function to init the slot */
+void c2_rpc_form_slot_init(struct c2_rpc_slot *slot,
+		struct c2_rpc_session *session)
+{
+	C2_PRE(session != NULL);
+	C2_PRE(slot != NULL);
+
+	c2_list_init(&slot->sl_ready_list);
+	c2_mutex_init(&slot->sl_mutex);
+	slot->sl_session =  session;
+}
+
+/** Function to fini the slot */
+void c2_rpc_form_slot_fini(struct c2_rpc_slot *slot)
+{
+	C2_PRE(slot != NULL);
+
+	if(c2_list_is_empty(&slot->sl_ready_list)){
+		c2_list_fini(&slot->sl_ready_list);
+	}
+	c2_mutex_fini(&slot->sl_mutex);
+	c2_free(slot);
+}
+
+/**
+  Function to init required values in connection
+*/
+void c2_rpc_form_conn_init(struct c2_rpc_conn *conn, 
+		struct c2_rpcmachine *rpc_mc)
+{
+	C2_PRE(rpc_mc != NULL);
+	C2_PRE(conn != NULL);
+
+	conn->c_rpcmachine = rpc_mc;
+}
+
+/**
+  Function to init required values in session 
+*/
+void c2_rpc_form_session_init(struct c2_rpc_session *session, 
+		struct c2_rpc_conn *conn)
+{
+	C2_PRE(session != NULL);
+	C2_PRE(conn != NULL);
+
+	session->s_conn = conn;
+	c2_mutex_init(&session->s_mutex);
+	c2_list_init(&session->s_unbound_items);
+}
+
+/** 
+  Init of all required data structures 
+*/
+int c2_rpc_form_ut_init()
+{
+	struct c2_cob_domain_id cob_dom_id = { 11 };
+	int			result = 0;
+	int			i = 0;
+
+	c2_addb_ctx_init(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_ctx_type,
+			&c2_addb_global_ctx);
+	c2_addb_choose_default_level(AEL_WARN);
+
+	result = c2_init();
+	C2_ASSERT(result == 0);
+
+	result = io_fop_init();
+	C2_ASSERT(result == 0);
+
+	/* Init the db */
+	result = c2_dbenv_init(&db, db_name, 0);
+	C2_ASSERT(result == 0);
+
+	/* Init the cob domain */
+	result = c2_cob_domain_init(&cob_domain, &db, &cob_dom_id);
+	C2_ASSERT(result == 0);
+
+	/* Init the rpcmachine */
+	c2_rpcmachine_init(&rpcmachine, &cob_domain, NULL);
+
+	/* Init the connection structure */
+	c2_rpc_form_conn_init(&conn, &rpcmachine);
+
+	/* Init the sessions structure */
+	c2_rpc_form_session_init(&session, &conn);	
+
+	/* Init the slots */
+	for(i=0; i < nslots; i++)
+	{
+		slots[i] = c2_alloc(sizeof(struct c2_rpc_slot));
+		c2_rpc_form_slot_init(slots[i], &session);
+		c2_list_add(&rpcmachine.cr_ready_slots, &slots[i]->sl_link);
+	}
+
+	printf("Length of cr_ready_slots = %lu\n", c2_list_length(&rpcmachine.cr_ready_slots));
+
+	/* Init the rpc formation component */
+	result = c2_rpc_form_init();
+	return 0;
+}
+
+/** 
+  Init of all required data structures 
+ */
+
+void c2_rpc_form_ut_fini()
+{
+	int 		i = 0;
+
+	/* Fini the rpc formation component */
+	c2_rpc_form_fini();
+
+	/* Fini the slots */
+	for(i = 0; i < nslots; i++)
+	{
+		c2_rpc_form_slot_fini(slots[i]);
+	}	
+
+	/* Fini the rpcmachine */
+	//c2_rpcmachine_fini(&rpcmachine);
+
+	/* Fini cob domain */
+	c2_cob_domain_fini(&cob_domain);
+
+	/* Fini dbenv */
+	//c2_dbenv_fini(&db);
+	c2_addb_ctx_fini(&c2_rpc_ut_addb_ctx);
+}
 /**
   Alloc and initialize the global array of groups used for UT
  */
@@ -188,88 +348,6 @@ int c2_rpc_form_groups_free(void)
 		c2_free(rgroup[i]);
 	}
 	return 0;
-}
-
-/**
-  Alloc and initialize the items cache
- */
-int c2_rpc_form_item_cache_init(void)
-{
-	printf("Inside c2_rpc_form_item_cache_init \n");
-
-	items_cache = c2_alloc(sizeof(struct c2_rpc_form_items_cache));
-	if(items_cache == NULL){
-		return -1;
-	}
-	c2_mutex_init(&items_cache->ic_mutex);
-	c2_list_init(&items_cache->ic_cache_list);
-	return 0;
-}
-
-/**
-  Deallocate the items cache
- */
-void c2_rpc_form_item_cache_fini(void)
-{
-	struct c2_rpc_item *item;
-	struct c2_rpc_item *item_next;
-
-	printf("Inside c2_rpc_form_item_cache_fini \n");
-	c2_mutex_fini(&items_cache->ic_mutex);
-	if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
-		c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
-				item, item_next, struct c2_rpc_item ,
-				ri_linkage)
-			c2_list_del(&item->ri_linkage);
-	}
-	c2_list_fini(&items_cache->ic_cache_list);
-	c2_free(items_cache);
-}
-
-/**
-  Invoke Reply received callback for all the items in the cache
-*/
-void c2_rpc_form_invoke_reply_received(void)
-{
-        struct c2_rpc_item *item;
-        struct c2_rpc_item *item_next;
-
-        printf("Inside c2_rpc_form_invoke_reply_received \n");
-        if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
-                c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
-                                item, item_next, struct c2_rpc_item ,
-                                ri_linkage)
-			/* Sending same item as req and reply for testing
-			   purpose. Formation code is anyways going to pick
-			   up req item */
-			if(item->ri_state == RPC_ITEM_SENT) {
-				printf("Calling callback for reply received\n");
-				c2_rpc_form_extevt_rpcitem_reply_received(item,
-						item);
-			}
-        }
-}
-
-/**
-  Invoke item removed callback for all the items in the cache which
-  are in submitted state
-*/
-void c2_rpc_form_invoke_item_removed(void)
-{
-        struct c2_rpc_item *item;
-        struct c2_rpc_item *item_next;
-
-        printf("Inside c2_rpc_form_invoke_item_removed \n");
-        if (!c2_list_is_empty(&items_cache->ic_cache_list)) {
-                c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
-                                item, item_next, struct c2_rpc_item ,
-                                ri_linkage)
-			if(item->ri_state == RPC_ITEM_SUBMITTED) {
-				printf("Calling callback for item removed\n");
-				c2_rpc_form_extevt_rpcitem_deleted_from_cache(
-						item);
-			}
-        }
 }
 
 /**
@@ -337,42 +415,31 @@ int c2_rpc_form_item_assign_prio(struct c2_rpc_item *item, const int prio)
 	return 0;
 }
 
-/**
-  Insert an rpc item to the global items cache such that it is sorted
-  according to timeout
- */
-void c2_rpc_form_item_add_to_cache(struct c2_rpc_item *item)
+void c2_rpc_form_item_add_to_rpcmachine(struct c2_rpc_item *item)
 {
-	struct c2_rpc_item	*rpc_item;
-	struct c2_rpc_item	*rpc_item_next;
-	bool			 item_inserted = false;
-
-	printf("Inside c2_rpc_form_add_rpc_to_cache \n");
-	C2_PRE(item != NULL);
-
-	c2_mutex_lock(&items_cache->ic_mutex);
-	c2_list_for_each_entry_safe(&items_cache->ic_cache_list,
-			rpc_item, rpc_item_next,
-			struct c2_rpc_item, ri_linkage){
-		if (item->ri_deadline <= rpc_item->ri_deadline) {
-			c2_list_add_before(&rpc_item->ri_linkage,
-					&item->ri_linkage);
-			item_inserted = true;
-			break;
-		}
+	int		state = 0;
+	int		slot_no = 0;
+	/* Randomly select the state of the item to be BOUNDED or UNBOUNDED */
+	state = rand() % UNBOUNDED + BOUNDED;
+	
+	if(state == BOUNDED){
+		printf("BOUNDED ITEM \n");
+		/* Find a random slot and add to its free list */
+		slot_no = rand() % MAX_SLOTS + MIN_SLOTS;
+		c2_list_add(&slots[slot_no]->sl_ready_list,
+				&item->ri_slot_link);
 	}
-	if(!item_inserted) {
-		c2_list_add_after(&rpc_item->ri_linkage, &item->ri_linkage);
+	else if (state == UNBOUNDED) {
+		printf("UNBOUNDED ITEM \n");
+		/* Add to sessions unbounded list */
+		c2_list_add(&session.s_unbound_items, &item->ri_unbound_link);
 	}
-	item->ri_state = RPC_ITEM_SUBMITTED;
-	c2_mutex_unlock(&items_cache->ic_mutex);
-	//c2_rpc_form_extevt_rpcitem_added_in_cache(item);
 }
 
 /**
    Add rpc items from an rpc group.
  */
-int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
+int c2_rpc_form_rpcgroup_add_to_rpcmachine(struct c2_rpc_group *group)
 {
 	int				 res = 0;
 	struct c2_rpc_item		*item = NULL;
@@ -384,7 +451,7 @@ int c2_rpc_form_rpcgroup_add_to_cache(struct c2_rpc_group *group)
 		C2_ASSERT(thread_no < nfops);
 		res = C2_THREAD_INIT(&form_ut_threads[thread_no],
 				struct c2_rpc_item*,
-				NULL, &c2_rpc_form_item_add_to_cache,
+				NULL, &c2_rpc_form_item_add_to_rpcmachine,
 				     item, "form_ut_%p", item);
 		C2_ASSERT(res == 0);
 		thread_no++;
@@ -453,10 +520,15 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 		C2_ASSERT(res==0);
 	}
 	item->ri_endp = ep;
+	item->ri_mach = &rpcmachine;
+	item->ri_session = &session;
 	c2_list_link_init(&item->ri_unformed_linkage);
 	c2_list_link_init(&item->ri_group_linkage);
 	c2_list_link_init(&item->ri_linkage);
 	c2_list_link_init(&item->ri_rpcobject_linkage);
+	c2_list_link_init(&item->ri_unbound_link);
+	c2_list_link_init(&item->ri_slot_link);
+	
 	return 0;
 }
 
@@ -483,7 +555,7 @@ struct c2_fop *form_create_file_create_fop()
 
 	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		return NULL;
 	}
 	create_fop = c2_fop_data(fop);
@@ -526,15 +598,14 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 	}
 	C2_ALLOC_PTR(iovec);
 	if (iovec == NULL) {
-		printf("Failed to allocate memory for struct c2_fop_io_vec.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		status = false;
 		goto last;
 	}
 	iovec->iov_count = nsegs;
 	C2_ALLOC_ARR(iovec->iov_seg, iovec->iov_count);
 	if (iovec->iov_seg == NULL) {
-		printf("Failed to allocate memory for struct \
-				c2_fop_io_seg.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		status = false;
 		goto last;
 	}
@@ -544,7 +615,8 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 		iovec->iov_seg[a].f_buf.f_count = seg_size;
 		C2_ALLOC_ARR(iovec->iov_seg[a].f_buf.f_buf, seg_size);
 		if (iovec->iov_seg[a].f_buf.f_buf == NULL) {
-			printf("Failed to allocate memory for char array.\n");
+			C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+					c2_addb_oom);
 			status = false;
 			goto last;
 		}
@@ -607,7 +679,8 @@ struct c2_fop *form_create_write_fop()
 
 	fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return NULL;
 	}
 	write_fop = c2_fop_data(fop);
@@ -635,7 +708,8 @@ struct c2_fop *form_create_read_fop()
 
 	fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 	if (fop == NULL) {
-		printf("Failed to allocate struct c2_fop.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return NULL;
 	}
 	read_fop = c2_fop_data(fop);
@@ -652,7 +726,8 @@ struct c2_fop *form_create_read_fop()
 	}
 	C2_ALLOC_ARR(read_fop->frd_ioseg.fs_segs, nsegs);
 	if (read_fop->frd_ioseg.fs_segs == NULL) {
-		printf("Failed to allocate memory for IO segment\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		c2_fop_free(fop);
 		fop = NULL;
 	}
@@ -781,24 +856,22 @@ void populate_fids()
 	}
 }
 
+
 /**
   This main function tests the formation code.
  */
 int main(int argc, char **argv)
 {
-	int		result = 0;
-	int		i = 0;
-	int		j = 0;
-	struct c2_fop	*fop = NULL;
+	int			 result = 0;
+	int			 i = 0;
+	int			 j = 0;
+	int			 slot_number = 0;
+	int			 bounded_item_no = 0;
+	struct c2_fop		*fop = NULL;
+	struct c2_rpc_slot	*slot_member = NULL;
 
-	result = c2_init();
+	result = c2_rpc_form_ut_init();
 	C2_ASSERT(result == 0);
-
-	result = io_fop_init();
-	C2_ASSERT(result == 0);
-
-	result = c2_rpc_form_init();
-
 
 	/* Initialize the thresholds like max_message_size, max_fragements
 	   and max_rpcs_in_flight.*/
@@ -814,10 +887,6 @@ int main(int argc, char **argv)
 	c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
 			c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
-	/* Initialize the global items cache */
-	result = c2_rpc_form_item_cache_init();
-	C2_ASSERT(result == 0);
-
 	/*Create a number of meta-data and IO FOPs. For IO, decide the
 	  number of files to operate upon. Decide how to assign items to
 	  rpc groups and have multiple IO requests within or across groups.*/
@@ -825,8 +894,8 @@ int main(int argc, char **argv)
 	/* Init the fid structures and rpc groups. */
 	C2_ALLOC_ARR(form_fids, nfiles);
 	if (form_fids == NULL) {
-		printf("Failed to allocate memory for array of struct \
-				c2_fop_file_fid.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return -1;
 	}
 	init_fids();
@@ -834,7 +903,8 @@ int main(int argc, char **argv)
 
 	C2_ALLOC_ARR(file_offsets, ndatafids);
 	if (file_offsets == NULL) {
-		printf("Failed to allocate memory for array of uint64_t.\n");
+		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
+				c2_addb_oom);
 		return -1;
 	}
 
@@ -870,7 +940,7 @@ int main(int argc, char **argv)
 			result = c2_rpc_form_item_assign_to_group(rgroup[i],
 					&fop->f_item, i);
 		}
-		result = c2_rpc_form_rpcgroup_add_to_cache(rgroup[i]);
+		result = c2_rpc_form_rpcgroup_add_to_rpcmachine(rgroup[i]);
 		C2_ASSERT(result == 0);
 	}
 
@@ -882,20 +952,30 @@ int main(int argc, char **argv)
 		c2_thread_join(&form_ut_threads[i]);
 		c2_thread_fini(&form_ut_threads[i]);
 	}
-	/* Invoke reply received callbacks on the items in items cache*/
-	c2_rpc_form_invoke_reply_received();
-	/* Invoke item removed callbacks on the items in items cache */
-	c2_rpc_form_invoke_item_removed();
+
+	printf("Number of ready slots in rpcmachine = %lu\n",
+			c2_list_length(&rpcmachine.cr_ready_slots));
+	c2_list_for_each_entry(&rpcmachine.cr_ready_slots, slot_member, 
+		struct c2_rpc_slot, sl_link){
+		bounded_item_no += c2_list_length(&slot_member->sl_ready_list);
+		printf("Number of bounded ready items for slot[%u] = %lu\n",
+			slot_number, c2_list_length(&slot_member->sl_ready_list));
+		slot_number++;
+	}
+	printf("\n\nNumber of bounded ready items   = %u\n", bounded_item_no);
+	printf("Number of unbounded ready items = %lu\n",
+			c2_list_length(&session.s_unbound_items));
+	printf("Total number of items = %lu\n",
+		(bounded_item_no + c2_list_length(&session.s_unbound_items)));
 
         /* Do the cleanup */
-	c2_rpc_form_fini();
 	c2_free(form_fids);
 	form_fids = NULL;
 	form_write_iovec_fini();
 	c2_free(form_write_iovecs);
 	form_fini_fops();
-	c2_rpc_form_item_cache_fini();
 	c2_rpc_form_groups_free();
+	c2_rpc_form_ut_fini();
 	return 0;
 }
 

@@ -78,9 +78,16 @@ void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 	max_fragments_size = max_fragments;
 }
 
-/**
-   TBD Add ADDB data points and log events.
- */
+static const struct c2_addb_ctx_type c2_rpc_form_addb_ctx_type = {
+        .act_name = "rpc-formation"
+};
+
+static const struct c2_addb_loc c2_rpc_form_addb_loc = {
+        .al_name = "rpc-formation"
+};
+
+C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
+		C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 /**
    Initialization for formation component in rpc.
@@ -94,10 +101,11 @@ int c2_rpc_form_init()
 	C2_PRE(formation_summary == NULL);
 	C2_ALLOC_PTR(formation_summary);
 	if (formation_summary == NULL) {
-		printf("Failed to allocate memory for \
-				struct c2_rpc_form_item_summary.\n");
 		return -ENOMEM;
 	}
+        c2_addb_ctx_init(&formation_summary->is_rpc_form_addb,
+			&c2_rpc_form_addb_ctx_type, &c2_addb_global_ctx);
+        c2_addb_choose_default_level(AEL_WARN);
 	c2_rwlock_init(&formation_summary->is_endp_list_lock);
 	c2_list_init(&formation_summary->is_endp_list);
 	/* Init the array to keep of refcounts acquired/released by
@@ -320,6 +328,7 @@ int c2_rpc_form_fini()
 
 	c2_rwlock_fini(&formation_summary->is_endp_list_lock);
 	c2_list_fini(&formation_summary->is_endp_list);
+	c2_addb_ctx_fini(&formation_summary->is_rpc_form_addb);
 	c2_free(formation_summary);
 	formation_summary = NULL;
 	return 0;
@@ -403,8 +412,8 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	C2_PRE(endp != NULL);
 	C2_ALLOC_PTR(endp_unit);
 	if (endp_unit == NULL) {
-		printf("Failed to allocate memory to \
-				struct c2_rpc_form_item_summary_unit.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
+				&c2_rpc_form_addb_loc, c2_addb_oom);
 		return NULL;
 	}
 	c2_mutex_init(&endp_unit->isu_unit_lock);
@@ -543,7 +552,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	}
 	/* If the formation component is not active (form_fini is called)
 	   exit the state machine and return back. */
-	if (endp->isu_form_active == false) {
+	if (!endp->isu_form_active) {
 		c2_mutex_unlock(&endp->isu_unit_lock);
 		c2_rpc_form_state_machine_exit(endp);
 		return 0;
@@ -658,7 +667,7 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
 	sm_event.se_pvt = NULL;
 
 	/* Add the item to list of unbound items in its session. */
-	session = item->ri_slot_refs[0].sr_slot->sl_session;
+	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	c2_mutex_lock(&session->s_mutex);
 	c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
@@ -895,8 +904,10 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 
 	res = c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
 	if (res != 0) {
-		printf("Failed to remove data of an rpc item \
-				from summary unit.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+				&c2_rpc_form_addb_loc, formation_func_fail,
+				"c2_rpc_form_change_rpcitem_from_summary_unit",
+				res);
 		return -1;
 	}
 	switch (field_type) {
@@ -915,7 +926,10 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 	};
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
 	if (res != 0) {
-		printf("Failed to add data of an rpc item to summary unit.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+				&c2_rpc_form_addb_loc, formation_func_fail,
+				"c2_rpc_form_change_rpcitem_from_summary_unit",
+				res);
 		return -1;
 	}
 	return res;
@@ -1019,7 +1033,6 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	int						 res = 0;
 	struct c2_rpc_form_item_summary_unit_group	*summary_group = NULL;
 	bool						 found = false;
-	struct c2_timer					*item_timer = NULL;
 	struct c2_rpc_item				*rpc_item = NULL;
 	struct c2_rpc_item				*rpc_item_next = NULL;
 	bool						 item_inserted = false;
@@ -1061,9 +1074,8 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	if (!found) {
 		C2_ALLOC_PTR(summary_group);
 		if(summary_group == NULL) {
-			printf("Failed to allocate memory for a new \
-					c2_rpc_form_item_summary_unit_group \
-					structure.\n");
+			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
+					&c2_rpc_form_addb_loc, c2_addb_oom);
 			return -ENOMEM;
 		}
 		c2_list_link_init(&summary_group->sug_linkage);
@@ -1114,23 +1126,21 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	/* Initialize the timer only when the deadline value is non-zero
 	   i.e. dont initialize the timer for URGENT items */
 	if(item->ri_deadline != 0) {
-		C2_ALLOC_PTR(item_timer);
-		if (item_timer == NULL) {
-			printf("Failed to allocate memory for a new c2_timer\
-					struct.\n");
-			return -ENOMEM;
-		}
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		c2_timer_init(item_timer, C2_TIMER_SOFT, item->ri_deadline, 1,
+		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
+				item->ri_deadline, 1,
 				c2_rpc_form_item_timer_callback,
 				(unsigned long)item);
-		res = c2_timer_start(item_timer);
+		res = c2_timer_start(&item->ri_timer);
 		if (res != 0) {
-			printf("Failed to start the timer for rpc item.\n");
-			return -1;
+			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+				&c2_rpc_form_addb_loc,
+				formation_func_fail,
+				"c2_rpc_form_add_rpcitem_to_summary_unit",
+				res);
+			return res;
 		}
-		item->ri_timer = *item_timer;
 	}
 	return 0;
 }
@@ -1293,9 +1303,10 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 					 write_seg->ws_seg.f_offset)) {
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
-					printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_write_segment.\n");
+					C2_ADDB_ADD(&formation_summary->
+							is_rpc_form_addb,
+							&c2_rpc_form_addb_loc,
+							c2_addb_oom);
 					return -ENOMEM;
 				}
 				(*nsegs)++;
@@ -1315,9 +1326,11 @@ static int c2_rpc_form_coalesce_writeio_vector(struct c2_fop_io_vec *item_vec,
 				|| list_empty) {
 			C2_ALLOC_PTR(new_seg);
 			if (new_seg == NULL) {
-				printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_write_segment.\n");
+				C2_ADDB_ADD(&formation_summary->
+						is_rpc_form_addb,
+						&c2_rpc_form_addb_loc,
+						c2_addb_oom);
+
 				return -ENOMEM;
 			}
 			new_seg->ws_seg.f_offset = item_vec->
@@ -1403,9 +1416,10 @@ static int c2_rpc_form_coalesce_readio_vector(
 					  read_seg-> rs_seg.f_offset)) ) {
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
-					printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_read_segment.\n");
+					C2_ADDB_ADD(&formation_summary->
+							is_rpc_form_addb,
+							&c2_rpc_form_addb_loc,
+							c2_addb_oom);
 					return -ENOMEM;
 				}
 				(*res_segs)++;
@@ -1425,9 +1439,10 @@ static int c2_rpc_form_coalesce_readio_vector(
 		if ((&read_seg->rs_linkage == (void*)aggr_list) || list_empty) {
 			C2_ALLOC_PTR(new_seg);
 			if (new_seg == NULL) {
-				printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_read_segment.\n");
+				C2_ADDB_ADD(&formation_summary->
+						is_rpc_form_addb,
+						&c2_rpc_form_addb_loc,
+						c2_addb_oom);
 				return -ENOMEM;
 			}
 			new_seg->rs_seg.f_offset = item_vec->fs_segs[i].f_offset;
@@ -1669,9 +1684,10 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if (!coalesced_item_found) {
 				C2_ALLOC_PTR(coalesced_item);
 				if (!coalesced_item) {
-					printf("Failed to allocate memory for\
-							struct c2_rpc_form_\
-							item_coalesced.\n");
+					C2_ADDB_ADD(&formation_summary->
+							is_rpc_form_addb,
+							&c2_rpc_form_addb_loc,
+							c2_addb_oom);
 					return -ENOMEM;
 				}
 				c2_list_link_init(&coalesced_item->ic_linkage);
@@ -1691,9 +1707,10 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 			coalesced_item->ic_nmembers++;
 			C2_ALLOC_PTR(coalesced_member);
 			if (!coalesced_member) {
-				printf("Failed to allocate memory for struct\
-						c2_rpc_form_item_\
-						coalesced_member.\n");
+				C2_ADDB_ADD(&formation_summary->
+						is_rpc_form_addb,
+						&c2_rpc_form_addb_loc,
+						c2_addb_oom);
 				return -ENOMEM;
 			}
 			/* Create a new struct c2_rpc_form_item_coalesced
@@ -1727,8 +1744,8 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   coalesced_item structure so that it will be coalesced as well. */
 	C2_ALLOC_PTR(coalesced_member);
 	if (!coalesced_member) {
-		printf("Failed to allocate memory for struct\
-				c2_rpc_form_item_coalesced_member.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
+				&c2_rpc_form_addb_loc, c2_addb_oom);
 		return -ENOMEM;
 	}
 	coalesced_member->im_member_item = item;
@@ -1828,14 +1845,15 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	/* Create an rpc object in endp_unit->isu_rpcobj_checked_list. */
 	C2_ALLOC_PTR(rpcobj);
 	if (rpcobj == NULL) {
-		printf("Failed to allocate memory for struct\
-				c2_rpc_form_rpcobj.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
+				&c2_rpc_form_addb_loc, c2_addb_oom);
 		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_list_link_init(&rpcobj->ro_linkage);
 	C2_ALLOC_PTR(rpcobj->ro_rpcobj);
 	if (rpcobj->ro_rpcobj == NULL) {
-		printf("Failed to allocate memory for struct c2_rpc.\n");
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
+				&c2_rpc_form_addb_loc, c2_addb_oom);
 		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
 	c2_list_link_init(&rpcobj->ro_rpcobj->r_linkage);
@@ -2000,7 +2018,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of
 		   max_message_size, discard the rpc object. */
-		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
+		if (rpcobj_size < ((9/10) * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
 					it is sub-optimal size \
 					rpcobj_size = %lu.\n",rpcobj_size);

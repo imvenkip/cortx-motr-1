@@ -34,12 +34,13 @@
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
+#include "addb/addb.h"
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
    @{
    Formation component runs as a state machine driven by external events.
-   The state machine is run per endpoint and it maintains state and its
+   The state machine runs per endpoint and it maintains state and its
    internal data per endpoint.
    There are no internal threads belonging to formation component.
    Formation component uses the "RPC Items cache" as input and sends out
@@ -85,7 +86,7 @@
    * POSTING (Sending the rpc object over wire?)
 
    Along with these external events, there are some implicit internal
-   events which are used to transition the state machine from one state
+   events which are used to transit the state machine from one state
    to the next state on the back of same thread.
    These internal events are
    * state succeeded.
@@ -146,6 +147,8 @@ struct c2_rpc_form_item_summary {
 	struct c2_list			is_endp_list;
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		is_endp_list_lock;
+	/** ADDB context for this item summary */
+	struct c2_addb_ctx		is_rpc_form_addb; 
 };
 
 /**
@@ -179,6 +182,32 @@ struct c2_rpc_form_items_cache {
 };
 
 /**
+   Enumeration of all possible states.
+ */
+enum c2_rpc_form_state {
+	/** WAITING state for state machine, where it waits for
+	    any event to trigger. */
+	C2_RPC_FORM_STATE_WAITING = 0,
+	/** UPDATING state for state machine, where it updates
+	    internal data structure (struct c2_rpc_form_item_summary_unit) */
+	C2_RPC_FORM_STATE_UPDATING,
+	/** CHECKING state for state machine, which employs formation
+	    algorithm. */
+	C2_RPC_FORM_STATE_CHECKING,
+	/** FORMING state for state machine, which forms the struct c2_rpc
+	    object from a list of member rpc items. */
+	C2_RPC_FORM_STATE_FORMING,
+	/** POSTING state for state machine, which posts the formed rpc
+	    object to output component. */
+	C2_RPC_FORM_STATE_POSTING,
+	/** REMOVING state for state machine, which changes the internal
+	    data structure according to the changed rpc item. */
+	C2_RPC_FORM_STATE_REMOVING,
+	/** MAX States of state machine. */
+	C2_RPC_FORM_N_STATES
+};
+
+/**
    State machine object for rpc formation.
    There is one state machine per c2_rpc_form_item_summary_unit
    structure.
@@ -188,7 +217,7 @@ struct c2_rpc_form_state_machine {
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
-	int				 isu_endp_state;
+	enum c2_rpc_form_state		isu_endp_state;
 	/** Refcount for this summary unit.
 	    Refcount is related to an incoming thread as well as
 	    the number of rpc items it refers to.
@@ -351,32 +380,6 @@ struct c2_rpc_form_rpcobj {
 	struct c2_list_link		 ro_linkage;
 	/** Actual rpc object. */
 	struct c2_rpc			*ro_rpcobj;
-};
-
-/**
-   Enumeration of all possible states.
- */
-enum c2_rpc_form_state {
-	/** WAITING state for state machine, where it waits for
-	    any event to trigger. */
-	C2_RPC_FORM_STATE_WAITING = 0,
-	/** UPDATING state for state machine, where it updates
-	    internal data structure (struct c2_rpc_form_item_summary_unit) */
-	C2_RPC_FORM_STATE_UPDATING,
-	/** CHECKING state for state machine, which employs formation
-	    algorithm. */
-	C2_RPC_FORM_STATE_CHECKING,
-	/** FORMING state for state machine, which forms the struct c2_rpc
-	    object from a list of member rpc items. */
-	C2_RPC_FORM_STATE_FORMING,
-	/** POSTING state for state machine, which posts the formed rpc
-	    object to output component. */
-	C2_RPC_FORM_STATE_POSTING,
-	/** REMOVING state for state machine, which changes the internal
-	    data structure according to the changed rpc item. */
-	C2_RPC_FORM_STATE_REMOVING,
-	/** MAX States of state machine. */
-	C2_RPC_FORM_N_STATES
 };
 
 /**
@@ -554,9 +557,9 @@ int c2_rpc_form_coalesce_fid_intent(struct c2_rpc_item *b_item,
    all constituent rpc items by referring internal structure
    c2_rpc_form_item_coalesced.
    2. If current rpcs in flight ares less than max_rpcs_in_flight,
-   this state can transition into next state. During this state,
+   this state can transit into next state. During this state,
    rpc objects could be in flight. If current rpcs in flight [n]
-   is less than max_rpcs_in_flight, state transitions to UPDATING,
+   is less than max_rpcs_in_flight, state transits to UPDATING,
    else keeps waiting till n is less than max_rpcs_in_flight.
    ** WAITING state should be a nop for internal events. **
    @param item - input rpc item.
