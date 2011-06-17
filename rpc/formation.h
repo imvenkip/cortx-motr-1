@@ -739,22 +739,18 @@ stateFunc c2_rpc_form_stateTable
 };
 
 /**
-   XXX Some rpc item type ops.
-   These will be moved to appropriate place during rpc integration.
- */
-/**
    XXX rio_replied op from rpc type ops.
    If this is an IO request, free the IO vector
    and free the fop.
  */
-int c2_rpc_item_replied(struct c2_rpc_item *item);
+void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
    XXX Need to move to appropriate file
    RPC item ops function
    Function to return size of fop
  */
-uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item);
+uint64_t c2_rpc_item_size(struct c2_rpc_item *item);
 
 /**
    XXX Need to move to appropriate file
@@ -785,62 +781,9 @@ bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
 uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
 
 /**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return new rpc item embedding the given write vector,
-   by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item **res_item,
-		struct c2_fop_io_vec *vec);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return new rpc item embedding the given read segment,
-   by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item **res_item,
-		struct c2_fop_segment_seq *seg);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return segment for read fop from given rpc item
- */
-struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return segment for write fop from given rpc item
- */
-struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item);
-
-/**     
-   Set the IO vector of read fop to given io vector. 
-   This deletes the old io vector and its segments and assigns new one.
- */
-void c2_rpc_item_set_read_vec(struct c2_rpc_item *item,
-                struct c2_fop_segment_seq *iovec);
-
-/**
-   Set the IO vector of write fop to given io vector.
-   This deletes the old io vector and its segments and assigns new one.
- */
-void c2_rpc_item_set_write_vec(struct c2_rpc_item *item,
-                struct c2_fop_io_vec *iovec);
-
-/**
    XXX Needs to be implemented.
  */
 struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item);
-
-/**
-   XXX Needs to be implemented.
- */
-int c2_rpc_session_item_prepare(struct c2_rpc_item *item);
 
 /**
    Check if two rpc items belong to same type.
@@ -855,8 +798,13 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item);
 /**
    Try to coalesce rpc items with similar fid and intent.
  */
-int c2_rpc_item_io_coalesce(struct c2_rpc_form_item_coalesced *coalesced_item,
-		                struct c2_rpc_item *b_item);
+int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
+
+/**
+   Function to map the on-wire FOP format to in-core FOP format.
+ */
+void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
+		struct c2_fid *out);
 
 /**
    XXX Needs to be implemented.

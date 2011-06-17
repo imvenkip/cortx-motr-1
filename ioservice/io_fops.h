@@ -24,7 +24,6 @@
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "lib/memory.h"
-#include "rpc/rpccore.h"
 
 #ifdef __KERNEL__
 #include "io_fops_k.h"
@@ -42,7 +41,8 @@ enum c2_io_service_opcodes {
 	c2_io_service_readv_opcode = 15,
 	c2_io_service_writev_opcode,
 	c2_io_service_writev_rep_opcode,
-	c2_io_service_readv_rep_opcode
+	c2_io_service_readv_rep_opcode,
+	c2_io_service_create_opcode,
 };
 
 /**

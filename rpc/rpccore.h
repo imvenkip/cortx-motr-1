@@ -1,8 +1,3 @@
-#include "cob/cob.h"
-#include "fol/fol.h"
-#include "fop/fop.h"
-#include "rpc/session_int.h"
-
 /**
    @defgroup rpc_layer_core RPC layer core
    @page rpc-layer-core-dld RPC layer core DLD
@@ -130,6 +125,12 @@
 #include "dtm/verno.h"		/* for c2_verno */
 #include "lib/time.h"
 #include "lib/timer.h"
+#include "ioservice/io_fops.h"
+
+#include "cob/cob.h"
+#include "fol/fol.h"
+#include "fop/fop.h"
+#include "rpc/session_int.h"
 
 /*Macro to enable RPC grouping test and debug code */
 
@@ -186,6 +187,19 @@ struct c2_rpc_item_type_ops {
 	 */
 	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
 	/**
+	   Find out if given rpc items belong to same type or not.
+	 */
+	bool (*rio_items_equal)(struct c2_rpc_item *item1, struct
+			c2_rpc_item *item2);
+	/**
+	   Return the opcode of fop carried by given rpc item.
+	 */
+	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	/**
+	   Return the fid of request.
+	 */
+	struct c2_fid (*rio_io_get_fid)(struct c2_rpc_item *item);
+	/**
 	   Find out if the item belongs to an IO request or not.
 	 */
 	bool (*rio_is_io_req)(struct c2_rpc_item *item);
@@ -194,22 +208,9 @@ struct c2_rpc_item_type_ops {
 	 */
 	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
 	/**
-	   Find out if the IO is read or write.
+	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
-	/**
-	   Return the IO vector from the IO request.
-	 */
-	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
-	/**
-	   Get new coalesced rpc item.
-	 */
-	int (*rio_get_new_io_item)(struct c2_rpc_item *item1,
-			struct c2_rpc_item *item2, void *pvt);
-	/**
-	   Return the fid of request.
-	 */
-	void *(*rio_io_get_fid)(struct c2_rpc_item *item);
+	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -382,6 +383,15 @@ struct c2_rpc_item {
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
 };
+
+/**
+   Associate an rpc with its corresponding rpc_item_type.
+   Since rpc_item_type by itself can not be uniquely identified,
+   rather it is tightly bound to its fop_type, the fop_type_code
+   is passed, based on which the rpc_item is associated with its
+   rpc_item_type.
+ */
+void c2_rpc_item_type_register(struct c2_fop_type *fopt)
 
 /**
    Initialize RPC item.

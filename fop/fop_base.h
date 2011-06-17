@@ -9,6 +9,7 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "rpc/rpccore.h"
 
 /**
    @addtogroup fop
@@ -66,6 +67,9 @@ struct c2_fop_type {
 	   ADDB context for events related to this fop type.
 	 */
 	struct c2_addb_ctx                ft_addb;
+	/** The rpc_item_type associated with rpc_item
+	    embedded with this fop. */
+	struct c2_rpc_item_type		  ft_ritype;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);

@@ -619,7 +619,7 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request", 
 		    c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_file_create, "File Create",
-		    19, &c2_fop_file_create_ops);
+		    c2_io_service_create_opcode, &c2_fop_file_create_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
  */
