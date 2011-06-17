@@ -55,7 +55,7 @@ static void sunrpc_skulker_process_end_points(struct c2_net_domain *dom,
 	if (dp->xd_ep_release_delay == 0)
 		now = C2_TIME_NEVER; /* switched off: force aging */
 	if (now != C2_TIME_NEVER) {
-		free_if_before = now - dp->xd_ep_release_delay;
+		free_if_before = c2_time_sub(now, dp->xd_ep_release_delay);
 	} else {
 		free_if_before = C2_TIME_NEVER; /* force aging */
 	}
