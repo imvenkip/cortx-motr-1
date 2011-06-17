@@ -25,6 +25,14 @@
 #include "net/bulk_emulation/sunrpc_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.h"
 
+#ifdef __KERNEL__
+#define KPRN(fmt,...) printk(KERN_ERR fmt, ## __VA_ARGS__)
+#define PRId64 "lld" /* from <inttypes.h> */
+#else
+#define KPRN(fmt,...)
+#endif
+
+#ifndef __KERNEL__
 static void test_sunrpc_ep(void)
 {
 	/* dom1 */
@@ -191,6 +199,7 @@ static void test_sunrpc_ep(void)
 
 	c2_net_domain_fini(&dom1);
 }
+#endif /* !__KERNEL__ */
 
 static enum c2_net_tm_ev_type cb_evt1;
 static enum c2_net_queue_type cb_qt1;
@@ -215,7 +224,7 @@ void sunrpc_buf_cb1(const struct c2_net_buffer_event *ev)
 	cb_status1 = ev->nbe_status;
 }
 
-void sunrpc_cbreset1()
+void sunrpc_cbreset1(void)
 {
 	cb_evt1    = C2_NET_TEV_NR;
 	cb_nb1     = NULL;
@@ -247,7 +256,7 @@ void sunrpc_buf_cb2(const struct c2_net_buffer_event *ev)
 	cb_status2 = ev->nbe_status;
 }
 
-void sunrpc_cbreset2()
+void sunrpc_cbreset2(void)
 {
 	cb_evt2    = C2_NET_TEV_NR;
 	cb_nb2     = NULL;
@@ -256,7 +265,7 @@ void sunrpc_cbreset2()
 	cb_status2 = 9999999;
 }
 
-void sunrpc_cbreset()
+void sunrpc_cbreset(void)
 {
 	sunrpc_cbreset1();
 	sunrpc_cbreset2();
@@ -326,6 +335,7 @@ static void test_sunrpc_desc(void)
 	c2_net_domain_fini(&dom1);
 }
 
+#ifndef __KERNEL__
 enum {
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 512,
@@ -1003,20 +1013,26 @@ static void test_sunrpc_tm(void)
 	c2_net_tm_fini(&d1tm1);
 	c2_net_domain_fini(&dom1);
 }
+#endif /* !__KERNEL__ */
 
-const struct c2_test_suite net_bulk_sunrpc_ut = {
+const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
         .ts_name = "net-bulk-sunrpc",
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
+#ifndef __KERNEL__
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
                 { "net_bulk_sunrpc_failure",    test_sunrpc_failure },
 		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
+#else
+                { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
+#endif
                 { NULL, NULL }
         }
 };
+C2_EXPORTED(c2_net_bulk_sunrpc_ut);
 
 /*
  *  Local variables:

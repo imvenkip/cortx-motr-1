@@ -73,6 +73,12 @@ int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
 
 int c2_svc_rqst_dec(void *rqstp, __be32 *data, struct c2_fop *arg);
 int c2_svc_rqst_enc(void *rqstp, __be32 *data, struct c2_fop *arg);
+
+int c2_fop_encode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+int c2_fop_decode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+
 /* #else __KERNEL__ */
 #else
 # include <netinet/in.h>

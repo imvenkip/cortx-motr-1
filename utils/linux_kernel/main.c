@@ -33,6 +33,7 @@ MODULE_LICENSE("proprietary");
 extern const struct c2_test_suite c2_klibc2_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
+extern const struct c2_test_suite c2_net_bulk_sunrpc_ut;
 extern const struct c2_test_suite c2_net_ksunrpc_ut;
 
 static struct c2_thread ut_thread;
@@ -45,6 +46,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&c2_klibc2_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
+	c2_ut_add(&c2_net_bulk_sunrpc_ut);
 	c2_ut_add(&c2_net_ksunrpc_ut);
 	c2_ut_run(NULL);
 	c2_uts_fini();

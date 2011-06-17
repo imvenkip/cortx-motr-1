@@ -353,10 +353,6 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 			      c2_bcount_t buflen,
 			      int64_t buf_id)
 {
-#ifdef __KERNEL__
-	C2_IMPOSSIBLE("Port in progress");
-	return 0;
-#else
 	struct sunrpc_buf_desc sd = {
 	    .sbd_id                  = buf_id,
 	    .sbd_qtype               = qt,
@@ -369,20 +365,25 @@ static int sunrpc_desc_create(struct c2_net_buf_desc *desc,
 	    .sbd_passive_ep.sep_port = mem_ep_port(tm->ntm_ep),
 	    .sbd_passive_ep.sep_id   = mem_ep_sid(tm->ntm_ep),
 	};
-	XDR xdrs;
 	int rc = 0;
+#ifndef __KERNEL__
+	XDR xdrs;
+#endif
 
-	desc->nbd_len = sizeof(sd);
+	desc->nbd_len = sunrpc_buf_desc_memlayout.fm_sizeof;
 	desc->nbd_data = c2_alloc(desc->nbd_len);
 	if (desc->nbd_data == NULL)
 	    return -ENOMEM;
 
+#ifdef __KERNEL__
+	rc = c2_fop_encode_buffer(&sunrpc_buf_desc_tfmt, desc->nbd_data, &sd);
+#else
 	xdrmem_create(&xdrs, desc->nbd_data, desc->nbd_len, XDR_ENCODE);
 	if (!sunrpc_buf_desc_memlayout.fm_uxdr(&xdrs, &sd))
 		rc = -EINVAL;
 	xdr_destroy(&xdrs);
-	return rc;
 #endif
+	return rc;
 }
 
 /**
@@ -397,8 +398,7 @@ static int sunrpc_desc_decode(const struct c2_net_buf_desc *desc,
 			      struct sunrpc_buf_desc *sd)
 {
 #ifdef __KERNEL__
-	C2_IMPOSSIBLE("Port in progress");
-	return 0;
+	return c2_fop_decode_buffer(&sunrpc_buf_desc_tfmt, desc->nbd_data, sd);
 #else
 	XDR xdrs;
 	int rc = 0;

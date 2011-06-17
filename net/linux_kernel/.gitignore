@@ -1,5 +1,7 @@
 buf.c
 bulk_if.c
+bulk_mem_ut.c
+bulk_sunrpc_ut.c
 connection.c
 domain.c
 ep.c
@@ -8,7 +10,6 @@ kdomain.c
 kkxdr.c
 ksunrpc_server.c
 ksunrpc_ut.c
-bulk_mem_ut.c
 net.c
 net_cli.c
 net_otw_types_k.c
@@ -17,5 +18,4 @@ net_srv.c
 net_utils.c
 sunrpc_io_k.c
 sunrpc_io_k.h
-sunrpc_xprt_xo.c
 tm.c

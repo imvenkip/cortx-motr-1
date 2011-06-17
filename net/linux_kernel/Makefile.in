@@ -26,9 +26,12 @@ sio_ff        := sunrpc_io.ff
 sio_k_h       := $(sio_ff:.ff=_k.h)
 sio_k_c       := $(sio_ff:.ff=_k.c)
 sio_k_o       := $(sio_k_c:.c=.o)
-deprbulk_lsrc := sunrpc_xprt_xo.c ksunrpc_server.c
-deprbulk_src  := $(deprbulk_lsrc) $(sio_k_c)
-link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%)
+# link in the unit test file as it includes sunrpc_xprt_xo.c
+deprbulk_lut  := bulk_sunrpc_ut.c
+deprbulk_lsrc := ksunrpc_server.c
+deprbulk_src  := $(deprbulk_lsrc) $(sio_k_c) $(deprbulk_lut)
+link_deprbulk := $(deprbulk_lsrc:%=../bulk_emulation/%) \
+                 $(deprbulk_lut:%=../bulk_emulation/ut/%)
 
 all_src       := $(kernel_src) $(net_src) $(bulk_src) $(depr_src) $(depr_ksrc)\
                  $(deprbulk_src)

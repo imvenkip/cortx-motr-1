@@ -360,6 +360,79 @@ static int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
 	return kxdr_disp[what][ftype->fft_aggr](&ctx, obj);
 }
 
+static int c2_fop_encdec_buffer(const struct c2_fop_type_format *ftf,
+				void *buffer, void *obj, enum kxdr_what what)
+{
+	const struct c2_fop_field_type *ftype = ftf->ftf_out;
+	size_t len = ftf->ftf_layout->fm_sizeof;
+	/* see code in kernel net/sunrpc for XDR structure initialization */
+	struct xdr_buf xb = {
+		.head = {
+			[0] = {
+				.iov_base = buffer,
+				.iov_len  = len,
+			},
+		},
+		.buflen = len,
+	};
+	struct xdr_stream xdr = {
+		.buf = &xb,
+		.iov = xb.head,
+		.end = (__be32 *)((char *)buffer + len),
+		.p   = buffer,
+	};
+	int nob = 0;
+	struct kxdr_ctx   ctx = {
+		.kc_type = ftype,
+		.kc_xdr  = &xdr,
+		.kc_req  = NULL, /* unused */
+		.kc_what = what,
+		.kc_nob  = &nob
+	};
+	int rc;
+
+	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
+
+	switch (what) {
+	case KENC:
+	case KDEC:
+		break;
+	default:
+		C2_IMPOSSIBLE("only KENC and KDEC supported");
+		break;
+	}
+	rc = kxdr_disp[what][ftype->fft_aggr](&ctx, obj);
+	C2_POST(ergo(what == KENC, xb.len <= len));
+	return rc;
+}
+
+/**
+   XDR encode a record or atomic FOP into a buffer.
+   Will not work for embedded sequences.
+   @param ftype  Pointer to FOP type format.
+   @param buffer Buffer pointer.  It is assumed that the buffer is of size
+   ftype->ftf_layout->fm_sizeof and is large enough to encode the FOP.
+   @param obj    Pointer to FOP object.
+ */
+int c2_fop_encode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj)
+{
+	return c2_fop_encdec_buffer(ftf, buffer, obj, KENC);
+}
+
+/**
+   XDR decode a record or atomic FOP from a buffer previously encoded
+   with c2_fop_encode_buffer().
+   @param ftype  Pointer to FOP type format.
+   @param buffer Buffer pointer.
+   @param obj    Pointer to FOP object.
+ */
+int c2_fop_decode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj)
+{
+	return c2_fop_encdec_buffer(ftf, buffer, obj, KDEC);
+}
+
 static int c2_fop_kenc(void *req, __be32 *data, struct c2_fop *fop)
 {
 	return c2_fop_type_encdec(fop->f_type->ft_top,
