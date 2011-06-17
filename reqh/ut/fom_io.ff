@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /**
-   @addtogroup stob
+   @addtogroup reqh
    @{
  */
 
@@ -53,7 +53,7 @@ DEF(c2_fom_io_create_rep, RECORD,
 DEF(c2_fom_io_quit, RECORD,
     _(siq_rc, U32));
 
-/** @} end of stob group */
+/** @} end of reqh group */
 
 /* 
  *  Local variables:
