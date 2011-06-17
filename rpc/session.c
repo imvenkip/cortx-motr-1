@@ -32,7 +32,7 @@ static void conn_search(const struct c2_rpcmachine	*machine,
                         uint64_t			sender_id,
                         struct c2_rpc_conn		**out);
 
-static void session_search(const struct c2_rpc_conn	*conn,
+void session_search(const struct c2_rpc_conn	*conn,
                            uint64_t			session_id,
                            struct c2_rpc_session	**out);
 
@@ -118,7 +118,7 @@ static void conn_search(const struct c2_rpcmachine	*machine,
 
    @post ergo(*out != NULL, (*out)->s_session_id == session_id)
  */
-static void session_search(const struct c2_rpc_conn	*conn,
+void session_search(const struct c2_rpc_conn	*conn,
                            uint64_t			session_id,
                            struct c2_rpc_session	**out)
 {
@@ -161,6 +161,8 @@ int __conn_init(struct c2_rpc_conn	*conn,
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_UNINITIALISED;
 		return rc;
+	} else {
+		conn->c_state = C2_RPC_CONN_INITIALISED;
 	}
 	return rc;
 }
@@ -174,13 +176,31 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		return -EINVAL;
 
 	conn->c_flags = RCF_SENDER_END;
-
 	rc = __conn_init(conn, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 				conn->c_rpcmachine == machine &&
 				conn->c_sender_id == SENDER_ID_INVALID &&
 				(conn->c_flags & RCF_SENDER_END) != 0));
+	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_UNINITIALISED));
+	return rc;
+}
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
+		         struct c2_rpcmachine	*machine)
+{
+	int	rc = 0;
+
+	if (conn == NULL || machine == NULL ||
+		conn->c_state != C2_RPC_CONN_UNINITIALISED)
+		return -EINVAL;
+
+	conn->c_flags = RCF_RECV_END;
+	rc = __conn_init(conn, machine);
+
+	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+				conn->c_rpcmachine == machine &&
+				conn->c_sender_id == SENDER_ID_INVALID &&
+				(conn->c_flags & RCF_RECV_END) != 0));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_UNINITIALISED));
 	return rc;
 }
@@ -371,7 +391,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_session   *session;
 	int			rc;
 
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_CREATING);
+	C2_ASSERT(conn != NULL);
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL)
@@ -684,12 +704,14 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 	int				rc = 0;
 
 	C2_PRE(session != NULL && nr_slots >= 1);
-	if (session == NULL || conn == NULL || nr_slots == 0)
+	if (session == NULL || conn == NULL || nr_slots == 0) {
+		C2_ASSERT(0);
 		return -EINVAL;
-
-	if (session->s_state != C2_RPC_SESSION_UNINITIALISED)
+	}
+	if (session->s_state != C2_RPC_SESSION_UNINITIALISED) {
+		C2_ASSERT(0);
 		return -EINVAL;
-
+	}
 	c2_list_link_init(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
 	session->s_conn = conn;
@@ -1873,11 +1895,108 @@ int conn_persistent_state_create(struct c2_cob_domain	*dom,
 	*conn_cob_out = conn_cob;
 	*session0_cob_out = session0_cob;
 	*slot0_cob_out = slot0_cob;
+	return 0;
 errout:
 	*conn_cob_out = *session0_cob_out = *slot0_cob_out = NULL;
 	return rc;
 }
 
+int conn_persistent_state_attach(struct c2_rpc_conn     *conn,
+				 uint64_t               sender_id,
+				 struct c2_db_tx        *tx)
+{
+	struct c2_rpc_session	*session0 = NULL;
+	struct c2_rpc_slot	*slot0 = NULL;
+	struct c2_cob		*conn_cob;
+	struct c2_cob		*session0_cob;
+	struct c2_cob		*slot0_cob;
+	struct c2_cob_domain	*dom;
+	int			rc;
+
+	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_INITIALISED &&
+			conn->c_rpcmachine != NULL &&
+			conn->c_rpcmachine->cr_dom != NULL);
+	dom = conn->c_rpcmachine->cr_dom;
+	rc = conn_persistent_state_create(dom, sender_id,
+					  &conn_cob, &session0_cob, &slot0_cob,
+					  tx);
+	if (rc != 0)
+		return rc;
+
+	conn->c_cob = conn_cob;
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	session0->s_cob = session0_cob;
+
+	slot0 = session0->s_slot_table[0];
+	C2_ASSERT(slot0 != NULL);
+	slot0->sl_cob = slot0_cob;
+
+	return 0;
+}
+
+int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
+			   struct c2_net_end_point *ep)
+{
+	struct c2_rpcmachine	*machine;
+	struct c2_db_tx		tx;
+	uint64_t		sender_id;
+	int			rc;
+
+	if (conn == NULL || ep == NULL)
+		return -EINVAL;
+
+	if (conn->c_state != C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_RECV_END) == 0)
+		return -EINVAL;
+
+	machine = conn->c_rpcmachine;
+	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
+
+	c2_db_tx_init(&tx, machine->cr_dom->cd_dbenv, 0);
+	sender_id = c2_rpc_sender_id_get();
+	rc = conn_persistent_state_attach(conn, sender_id,
+					  &tx);
+	if (rc != 0) {
+		conn->c_state = C2_RPC_CONN_FAILED;
+		conn->c_rc = rc;
+		c2_db_tx_abort(&tx);
+		return rc;
+	}
+	c2_db_tx_commit(&tx);
+	conn->c_sender_id = sender_id;
+	conn->c_end_point = ep;
+	conn->c_state = C2_RPC_CONN_ACTIVE;
+	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
+	return 0;
+}
+
+int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
+{
+	struct c2_db_tx	tx;
+	uint64_t	session_id;
+	int		rc;
+
+	C2_PRE(session != NULL &&
+		session->s_state == C2_RPC_SESSION_INITIALISED &&
+		session->s_conn != NULL);
+
+	c2_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
+	session_id = c2_rpc_session_id_get();
+	rc = session_persistent_state_attach(session, session_id, &tx);
+	if (rc != 0) {
+		session->s_state = C2_RPC_SESSION_FAILED;
+		session->s_rc = rc;
+		c2_db_tx_abort(&tx);
+		return rc;
+	} 
+	c2_db_tx_commit(&tx);
+	session->s_session_id = session_id;
+	session->s_state = C2_RPC_SESSION_ALIVE;
+	c2_list_add(&session->s_conn->c_sessions, &session->s_link);
+	session->s_conn->c_nr_sessions++;
+	return 0;
+}
 int session_persistent_state_create(struct c2_cob       *conn_cob,
 				    uint64_t            session_id,
 				    struct c2_cob       **session_cob_out,
@@ -1916,6 +2035,40 @@ errout:
 	return rc;
 }
 
+int session_persistent_state_attach(struct c2_rpc_session	*session,
+				    uint64_t			session_id,
+				    struct c2_db_tx		*tx)
+{
+	struct c2_rpc_slot	*slot;
+	struct c2_cob		*session_cob;
+	struct c2_cob		**slot_cobs;
+	int			rc;
+	int			i;
+
+	C2_PRE(session != NULL && session->s_state == C2_RPC_SESSION_INITIALISED &&
+			session->s_nr_slots > 0);
+	C2_PRE(session->s_conn != NULL && session->s_conn->c_cob != NULL);
+
+	C2_ALLOC_ARR(slot_cobs, session->s_nr_slots);
+	if (slot_cobs == NULL)
+		return -ENOMEM;
+
+	rc = session_persistent_state_create(session->s_conn->c_cob, session_id,
+						&session_cob, &slot_cobs[0],
+						DEFAULT_SLOT_COUNT, tx);
+	if (rc != 0)
+		return rc;
+
+	C2_ASSERT(session->s_cob == NULL && session_cob != NULL);
+	session->s_cob = session_cob;
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
+		C2_ASSERT(slot != NULL && slot->sl_cob == NULL &&
+				slot_cobs[i] != NULL);
+		slot->sl_cob = slot_cobs[i];
+	}
+	return 0;
+}
 int session_persistent_state_destroy(struct c2_cob	*session_cob,
 				     uint32_t		nr_slots,
 				     struct c2_db_tx	*tx)

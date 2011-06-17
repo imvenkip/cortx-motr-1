@@ -36,7 +36,9 @@ enum {
 	SESSION_CREATE_VC = 0,
 	SESSION_DESTROY_VC = 1
 };
-
+extern void session_search(const struct c2_rpc_conn    *conn,  
+                           uint64_t                     session_id,
+                           struct c2_rpc_session        **out);
 void init()
 {
 	struct c2_cob_domain_id dom_id = { 42 };
@@ -175,6 +177,8 @@ void test_conn_terminate(uint64_t sender_id)
 uint64_t	g_sender_id;
 uint64_t	g_session_id;
 
+struct c2_rpc_conn	*conn;
+
 void test_conn_create()
 {
 	struct c2_fop				*fop;
@@ -195,7 +199,7 @@ void test_conn_create()
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;
-
+	item->ri_src_ep = (void *)0xBADBAD;
 	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	C2_ASSERT(fom != NULL);
 
@@ -207,6 +211,18 @@ void test_conn_create()
 	fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
 	C2_ASSERT(fop_reply != NULL);
 	printf("test_conn_create: sender id %lu\n", fop_reply->rccr_snd_id);
+	if (fop_reply->rccr_rc == 0) {
+		struct c2_list_link	*link;
+		C2_ASSERT(c2_list_length(&machine->cr_incoming_conns) == 1);
+		link = c2_list_first(&machine->cr_incoming_conns);
+		C2_ASSERT(link != NULL);
+		conn = container_of(link, struct c2_rpc_conn, c_link);
+		printf("conn->sender_id == %lu\n", conn->c_sender_id);
+		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
+			  conn->c_sender_id == fop_reply->rccr_snd_id);
+	} else {
+		printf("TEST: conn create failed %d\n", fop_reply->rccr_rc);
+	}
 	g_sender_id = fop_reply->rccr_snd_id;
 	fom->fo_ops->fo_fini(fom);
 
@@ -222,6 +238,7 @@ void test_session_create()
 	struct c2_rpc_fop_session_create	*fop_sc;
 	struct c2_rpc_fop_session_create_rep	*fop_sc_reply;
 	struct c2_rpc_item			*item_in;
+	struct c2_rpc_session			*session0;
 
 	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
 	C2_ASSERT(fop != NULL);
@@ -239,6 +256,9 @@ void test_session_create()
 	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
 	item_in->ri_verno.vn_vc = SESSION_CREATE_VC;
 */	item_in->ri_mach = machine;
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item_in->ri_session = session0;
 
 	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	C2_ASSERT(fom != NULL);
@@ -257,9 +277,9 @@ void test_session_create()
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
 }
-struct c2_rpc_conn		conn;
-struct c2_rpc_session		session;
-struct c2_thread		thread;
+//struct c2_rpc_conn		conn;
+//struct c2_rpc_session		session;
+//struct c2_thread		thread;
 #if 0
 void conn_status_check(void *arg)
 {

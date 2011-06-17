@@ -229,8 +229,9 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
-	c2_list_fini(&machine->cr_incoming_conns);
-	c2_list_fini(&machine->cr_outgoing_conns);
+	/* XXX commented following two lines for testing purpose */
+	//c2_list_fini(&machine->cr_incoming_conns);
+	//c2_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 }

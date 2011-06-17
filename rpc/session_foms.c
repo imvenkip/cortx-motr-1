@@ -9,6 +9,7 @@
 #include "rpc/session_fops.h"
 #include "stob/stob.h"
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "lib/misc.h"
 #include "net/net.h"
 
@@ -42,18 +43,13 @@ struct c2_fom_type c2_rpc_fom_conn_create_type = {
 
 int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 {
-	struct c2_rpcmachine			*machine;
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_conn_create		*fop_cc;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_fom_conn_create		*fom_cc;
-	struct c2_db_tx				*tx;
-	struct c2_cob_domain			*dom;
-	struct c2_cob				*conn_cob = NULL;
-	struct c2_cob				*session0_cob = NULL;
-	struct c2_cob				*slot0_cob = NULL;
+	struct c2_rpc_conn			*conn;
 	uint64_t				sender_id;
 	int					rc;
 
@@ -75,31 +71,28 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	machine = item->ri_mach;
-	dom = machine->cr_dom;
-	C2_ASSERT(dom != NULL);
-
-	tx = &fom_cc->fcc_tx;
-	c2_db_tx_init(tx, dom->cd_dbenv, 0);
-
-	/*
-	 * XXX Decide how to calculate sender_id
-	 */
-	sender_id = c2_rpc_sender_id_get();
-	rc = conn_persistent_state_create(dom, sender_id, &conn_cob,
-					&session0_cob, &slot0_cob, tx);
+	C2_ALLOC_PTR(conn);
+	if (conn == NULL) {
+		rc = -ENOMEM;
+		goto errout;
+	}
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach);
 	if (rc != 0)
 		goto errout;
 
-	fop_ccr->rccr_snd_id = sender_id;
+	rc = c2_rpc_rcv_conn_create(conn, item->ri_src_ep);
+	if (rc != 0)
+		goto errout;
+
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	fop_ccr->rccr_snd_id = conn->c_sender_id;
 	fop_ccr->rccr_rc = 0;		/* successful */
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
 	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep), tx);
-	c2_db_tx_commit(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
 	return FSO_AGAIN;
 
 errout:
@@ -111,9 +104,8 @@ errout:
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep), tx);
-	c2_db_tx_abort(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
@@ -145,12 +137,8 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	struct c2_rpc_fop_session_create_rep	*fop_out;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_fom_session_create	*fom_sc;
-	struct c2_db_tx				*tx;
-	struct c2_cob_domain			*dom;
-	struct c2_cob				*conn_cob = NULL;
-	struct c2_cob				*session_cob = NULL;
-	struct c2_cob				*slot_cobs[DEFAULT_SLOT_COUNT];
-	uint64_t				session_id;
+	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session;
 	uint64_t				sender_id;
 	int					rc;
 
@@ -167,40 +155,46 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	fop_out = c2_fop_data(fop_rep);
 	C2_ASSERT(fop_out != NULL);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
-
-	dom = item->ri_mach->cr_dom;
-	C2_ASSERT(dom != NULL);
-
-	tx = &fom_sc->fsc_tx;
-	c2_db_tx_init(tx, dom->cd_dbenv, 0);
-
-	/*
-	 * XXX Decide how to calculate session_id
-	 */
 	sender_id = fop_in->rsc_snd_id;
-	session_id = c2_rpc_session_id_get();
-	fop_out->rscr_sender_id = fop_in->rsc_snd_id;
 
-	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
-	if (rc != 0)
+	item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL &&
+			item->ri_session != NULL);
+
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
+			conn->c_sender_id == sender_id);
+
+	C2_ALLOC_PTR(session);
+	if (session == NULL) {
+		printf("scs: failed to allocate session\n");
+		rc = -ENOMEM;
 		goto errout;
+	}
 
-	rc = session_persistent_state_create(conn_cob, session_id, 
-						&session_cob,
-						&slot_cobs[0],
-						DEFAULT_SLOT_COUNT,
-						tx);
-	C2_ASSERT(rc == 0);
+	rc = c2_rpc_session_init(session, conn, DEFAULT_SLOT_COUNT);
+	if (rc != 0) {
+		printf("scs: failed to init session %d\n", rc);
+		goto errout;
+	}
+
+	rc = c2_rpc_rcv_session_create(session);
+	if (rc != 0) {
+		printf("scs: failed to create session: %d\n", rc);
+		goto errout;
+	}
+
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_ALIVE &&
+		  session->s_session_id != SESSION_ID_INVALID &&
+		  conn->c_nr_sessions > 0 &&
+		  c2_list_contains(&conn->c_sessions, &session->s_link));
 
 	fop_out->rscr_rc = 0; 		/* success */
-	fop_out->rscr_session_id = session_id;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep), tx);
+	fop_out->rscr_session_id = session->s_session_id;
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
 	fom->fo_phase = FOPH_DONE;
-	printf("Session create finished %lu\n", session_id);
-	c2_db_tx_commit(tx);
+	printf("Session create finished %lu\n", session->s_session_id);
 	return FSO_AGAIN;
 
 errout:
@@ -211,9 +205,8 @@ errout:
 	fop_out->rscr_session_id = SESSION_ID_INVALID;
 
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep), tx);
-	c2_db_tx_abort(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_session_create_fini(struct c2_fom *fom)

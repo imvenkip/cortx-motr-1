@@ -108,6 +108,10 @@ int conn_persistent_state_create(struct c2_cob_domain   *dom,
 				 struct c2_cob          **slot0_cob_out,
 				 struct c2_db_tx        *tx);
 
+int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
+				 uint64_t		sender_id,
+				 struct c2_db_tx	*tx);
+				 
 int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    uint64_t		session_id,
 				    struct c2_cob	**session_cob_out,
@@ -115,9 +119,42 @@ int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    uint32_t		nr_slots,
 				    struct c2_db_tx	*tx);
 
+int session_persistent_state_attach(struct c2_rpc_session	*session,
+				   uint64_t			session_id,
+				   struct c2_db_tx		*tx);
+
 int session_persistent_state_destroy(struct c2_cob	*session_cob,
 				     uint32_t		nr_slots,
 				     struct c2_db_tx	*tx);
+
+/**
+   Initalise receiver end of conn object.
+   @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+			   conn->c_rpcmachine == machine &&
+			   conn->c_sender_id == SENDER_ID_INVALID &&
+			   (conn->c_flags & RCF_RECV_END) != 0)
+ */
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
+			 struct c2_rpcmachine	*machine);
+/**
+   Creates a receiver end of conn.
+
+   @arg ep for receiver side conn, ep is end point of sender.
+   @pre conn->c_state == C2_RPC_CONN_INITIALISED
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
+			   conn->c_sender_id != SENDER_ID_INVALID &&
+			   c2_list_contains(&machine->cr_incoming_conns,
+					    &conn->c_link)
+ */
+int c2_rpc_rcv_conn_create(struct c2_rpc_conn		*conn,
+			   struct c2_net_end_point	*ep);
+/**
+   @pre session->c_state == C2_RPC_SESSION_INITIALISED &&
+	session->s_conn != NULL
+   @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
+ */
+int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
 
 /**
   Locates cob associated with slot identified by
