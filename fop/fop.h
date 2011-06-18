@@ -28,7 +28,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "fop/fop_base.h"
-#include "rpc/rpccore.h"
+//#include "rpc/rpccore.h"
 
 /**
    @defgroup fop File operation packet
@@ -106,7 +106,7 @@ struct c2_fop {
 	/**
 	   RPC item for this FOP
 	 */
-	struct c2_rpc_item	f_item;
+	//struct c2_rpc_item	f_item;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
@@ -116,8 +116,8 @@ void          *c2_fop_data(struct c2_fop *fop);
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
-struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
-struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item);
+//struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
+//struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item);
 
 #include "fop/fop_format.h"
 

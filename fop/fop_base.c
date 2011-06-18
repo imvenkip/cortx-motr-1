@@ -86,7 +86,7 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 
 	/* Associate the embedded rpc_item with its related
 	   rpc_item_type here. */
-	c2_rpc_item_type_register(fopt);
+	//c2_rpc_item_type_register(fopt);
 
 	fmt    = fopt->ft_fmt;
 	result = c2_fop_type_format_parse(fmt);

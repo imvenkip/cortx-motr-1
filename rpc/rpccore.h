@@ -125,7 +125,6 @@
 #include "dtm/verno.h"		/* for c2_verno */
 #include "lib/time.h"
 #include "lib/timer.h"
-#include "ioservice/io_fops.h"
 
 #include "cob/cob.h"
 #include "fol/fol.h"
@@ -391,7 +390,7 @@ struct c2_rpc_item {
    is passed, based on which the rpc_item is associated with its
    rpc_item_type.
  */
-void c2_rpc_item_type_register(struct c2_fop_type *fopt)
+void c2_rpc_item_type_register(struct c2_fop_type *fopt);
 
 /**
    Initialize RPC item.
@@ -412,7 +411,7 @@ struct c2_rpc_formation_list {
 
 	/** listss of c2_rpc_items going to the same endpoint */
 	struct c2_list re_items;
-	struct c2_net_endpoint *endpoint;
+	struct c2_net_end_point *endpoint;
 	/*Mutex to guard this list */
 	struct c2_mutex re_guard;
 };

@@ -17,6 +17,7 @@
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
+#include "rpc/rpccore.h"
 
 /**
    @addtogroup rpc_session
