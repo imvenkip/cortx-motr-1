@@ -212,9 +212,9 @@ struct c2_fom {
 	struct c2_stob_domain	*fo_domain;
 	/** transaction object to be used by this fom */
 	struct c2_dtx		fo_tx;
-	/* linkage in the locality runq */
+	/** linkage in the locality runq */
 	struct c2_queue_link	fo_qlink;
-	/* linkage in the locality waitlist  */
+	/** linkage in the locality waitlist  */
 	struct c2_list_link	fo_wlink;
 };
 

@@ -103,10 +103,12 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	fom->fo_fol = reqh->rh_fol;
 	fom->fo_domain = reqh->rh_dom;
 	c2_fom_init(fom);
+
+	/* locate fom's home locality */
 	iloc = fom->fo_ops->fo_home_locality(reqh->rh_fom_dom, fom);
 	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc]; 	
 
-	/* find locality and submit fom for further processing */
+	/* submit fom for further processing */
 	c2_fom_queue(fom);
 }
 
@@ -353,7 +355,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 /**
  * Transition table holding function pointers
- * to generic fom phases and next phase to into.
+ * to generic fom phases and next phase to transition into.
  * current phase is used as the offset in this table.
  */
 void set_fom_phase_table(void)

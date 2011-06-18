@@ -68,6 +68,44 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 }
 
 /**
+ * locality invariant
+ */
+bool c2_locality_invariant(const struct c2_fom_locality *loc)
+{
+	if (loc == NULL)
+		return false;
+	if (loc->fl_dom == NULL)
+		return false;
+	if (!c2_queue_invariant(&loc->fl_runq))
+		return false;
+	if (!c2_list_invariant(&loc->fl_wail))
+		return false;
+	if (!c2_list_invariant(&loc->fl_threads))
+		return false;
+	if (loc->fl_threads_nr <= 0)
+		return false;
+
+	return true;
+}
+
+/**
+ * fom invariant
+ */
+bool c2_fom_invariant(const struct c2_fom *fom)
+{
+	if (fom == NULL)
+		return false;
+	if (!c2_locality_invariant(fom->fo_loc))
+		return false;
+	if (fom->fo_type == NULL || fom->fo_ops == NULL ||
+		fom->fo_fop_ctx == NULL || fom->fo_fop == NULL ||
+		fom->fo_fol == NULL || fom->fo_domain == NULL ||
+		!c2_list_link_invariant(&fom->fo_wlink))
+		return false;
+	return true;
+}
+
+/**
  * Call back function to be invoked when the channel
  * is signalled.
  * This function removes the fom from the locality wait list
@@ -79,12 +117,18 @@ static void c2_fom_cb(struct c2_clink *clink)
 	C2_ASSERT(clink != NULL);
 
 	struct c2_fom *fom = container_of(clink, struct c2_fom, fo_clink);
-	C2_ASSERT(fom != NULL);
-	c2_list_del(&fom->fo_wlink);
+	if (!c2_fom_invariant(fom)) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+			"c2_fom_cb: Invalid fom",
+			-EINVAL);
+		return;
+	}
+
 	c2_mutex_lock(&fom->fo_loc->fl_wail_lock);
+	c2_list_del(&fom->fo_wlink);
 	--fom->fo_loc->fl_wail_nr;
-	c2_mutex_unlock(&fom->fo_loc->fl_wail_lock);
 	fom->fo_state = FOS_READY;
+	c2_mutex_unlock(&fom->fo_loc->fl_wail_lock);
 	c2_fom_queue(fom);
 }
 
@@ -96,9 +140,14 @@ static void c2_fom_cb(struct c2_clink *clink)
 void c2_fom_block_enter(struct c2_fom_locality *loc)
 {
 	int result;
+	if (!c2_locality_invariant(loc)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_block_enter: Invalid locality",
+				-EINVAL);
+		 return;
+	}
 	
 	result = 0;
-	C2_PRE(loc != NULL);
 	if (loc->fl_idle_threads_nr < loc->fl_lo_idle_nr) {
 		result = c2_loc_thr_create(loc, false);
 		C2_ASSERT(result == 0);
@@ -113,7 +162,12 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 {
 	struct c2_list_link *link = NULL;
 	struct c2_fom_hthread *th = NULL;
-	C2_ASSERT(loc != NULL);
+	if (!c2_locality_invariant(loc)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_block_leave: Invalid locality",
+				-EINVAL);
+		return;	
+	}
 
 	if (loc->fl_idle_threads_nr >= loc->fl_hi_idle_nr) {
 
@@ -144,31 +198,6 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 }
 
 /**
- * Funtion to identify and assign an appropriate home locality
- * to the fom, for execution.
- */
-/*size_t fdo_find_home_locality(const struct c2_fom_domain *dom, struct c2_fom *fom)
-{	
-	int result;
-	result = 0;
-	size_t lfd_nr = dom->fd_nr;
-	C2_ASSERT(dom != NULL);
-	C2_ASSERT(fom != NULL);
-
-	while(lfd_nr) {
-		if (dom->fd_localities[lfd_nr].fl_idle_threads_nr > 0) {
-			fom->fo_loc = &dom->fd_localities[i];
-			break;
-		}
-		--lfd_nr;
-	}
-	if (fom->fo_loc == NULL)
-		result = -EAGAIN;
-
-	return result;
-}*/
-
-/**
  * Function to enqueue ready to be executed fom into the locality
  * run queue.
  * we first indentify an appropriate locality in which fom
@@ -176,7 +205,13 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
  */
 void c2_fom_queue(struct c2_fom *fom)
 {
-	C2_PRE(fom->fo_loc != NULL);
+	if (!c2_fom_invariant(fom)) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+			"c2_fom_queue: Invalid fom",
+			-EINVAL);
+		return;
+	}
+
 	struct c2_fom_locality *loc = NULL;
 	loc = fom->fo_loc;
 	c2_mutex_lock(&loc->fl_runq_lock);
@@ -192,7 +227,13 @@ void c2_fom_queue(struct c2_fom *fom)
  */
 void c2_fom_wait(struct c2_fom *fom)
 {
-	C2_PRE(fom->fo_loc != NULL);
+	if (!c2_fom_invariant(fom)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_wait: Invalid fom",
+				-EINVAL);
+		return;
+	}
+
 	struct c2_fom_locality *loc = NULL;
 	loc = fom->fo_loc;
 	/* change fom state to FOS_WAIT */
@@ -208,8 +249,13 @@ void c2_fom_wait(struct c2_fom *fom)
  */
 int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 {
-	if (fom == NULL || chan == NULL)
+	if (!c2_fom_invariant(fom)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_block_at: Invalid fom",
+				-EINVAL);
 		return -EINVAL;
+	}
+
 	C2_PRE(!c2_clink_is_armed(&fom->fo_clink));
 	c2_clink_add(chan, &fom->fo_clink);
 	c2_fom_wait(fom);
@@ -228,8 +274,12 @@ int c2_fom_fop_exec(struct c2_fom *fom)
 
 	stresult = 0;
 	rc = 0;
-	if (fom == NULL)
+	if (!c2_fom_invariant(fom)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_fop_exec: Invalid fom",
+				-EINVAL);
 		return -EINVAL;
+	}
 
 	stresult = fom->fo_ops->fo_state(fom);
 	if (stresult ==  FSO_WAIT) {
@@ -285,8 +335,12 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 	struct c2_clink th_clink;
 
 	rc = 0;
-	if (loc == NULL)
+	if (!c2_locality_invariant(loc)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_loc_thr_start: Invalid locality",
+				-EINVAL);
 		return;
+	}
 
 	c2_clink_init(&th_clink, NULL);
 	c2_mutex_lock(&loc->fl_lock);
@@ -317,7 +371,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		/* Check if we have anything in runq, else
 		 * this could be a terminate request.
 		 */
-		if (loc->fl_runq_nr <= 0) {
+		if (loc->fl_runq_nr == 0) {
 			/* check if this is a terminate request */
 			if (loc->fl_dom->fd_clean == 1) {
 				/* we came here through c2_fom_block_enter 
@@ -328,7 +382,6 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 				c2_time_t       expire;
 				c2_time_set(&delta, 2, 0);
 				expire = c2_time_add(c2_time_now(&now), delta);
-				/* wait for 2 seconds */
 				c2_chan_timedwait(&th_clink, expire);
 				if (loc->fl_idle_threads_nr > loc->fl_lo_idle_nr)
 					break;
@@ -354,14 +407,19 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		 */
 		struct c2_fom *fom = NULL;
 		fom = container_of(fom_link, struct c2_fom, fo_qlink);
-
-		C2_ASSERT(fom->fo_loc == loc);
+		if (!c2_fom_invariant(fom)) {
+			 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+					"c2_loc_thr_start: Invalid fom",
+					-EINVAL);
+			continue;
+		}
 
 		/* Change fom state to FOS_RUNNING */
 		if (fom->fo_state == FOS_READY)
 			fom->fo_state = FOS_RUNNING;
 		
-		if (fom->fo_phase < FOPH_EXEC)
+		/* check if we need to execute generic phases */
+		if (fom->fo_phase >= FOPH_INIT && fom->fo_phase < FOPH_EXEC)
 			rc = c2_fom_state_generic(fom);
 
 		if (rc) {
@@ -377,7 +435,10 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 			/* clean up fom */
 			fom->fo_ops->fo_fini(fom);
 		}
-
+		
+		/* we reach here after the generic phases or if we come out of
+		 * fop specific wait phase, which would be greater than FOPH_NR.
+		 */
 		if (fom->fo_phase == FOPH_EXEC || fom->fo_phase > FOPH_NR) {
 			rc = c2_fom_fop_exec(fom);
 		}
@@ -399,6 +460,7 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 	int i;
 	if (loc == NULL)
 		return -EINVAL;
+
 	for(i = 0; i < loc->fl_proc_nr; ++i) {
 		struct c2_fom_hthread *locthr = NULL;
 	 
@@ -471,6 +533,12 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 {
 	struct c2_list_link *link = NULL;
 	struct c2_fom_hthread *th = NULL;
+	if (!c2_locality_invariant(loc)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_loc_fini: Invalid locality",
+				-EINVAL);
+		return;
+	}
 
 	/* First broadcast all the threads in locality, that
 	 * we are terminating.
@@ -622,8 +690,13 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	int i;
 	size_t lfd_nr;
 	lfd_nr  = dom->fd_nr;
-	C2_ASSERT(c2_fom_domain_invariant(dom) == true);
-
+	if (!c2_fom_domain_invariant(dom)) {
+		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_domain_fini: Invalid fom domain",
+				-EINVAL);
+		 return;
+	}
+	
 	for(i = 0; i < lfd_nr; ++i) {
 		c2_fom_loc_fini(&dom->fd_localities[i]);
 		--lfd_nr;
@@ -669,7 +742,13 @@ void c2_fom_init(struct c2_fom *fom)
 void c2_fom_fini(struct c2_fom *fom)
 {
 	int rc = 0;
-	C2_ASSERT(fom != NULL);
+	if (!c2_fom_invariant(fom)) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx, 
+				"c2_fom_fini: Invalid fom", 
+				-EINVAL);
+		return;	
+	}
+
 	if (fom->fo_phase == FOPH_DONE) {
 		/* Commit db transaction.*/
 		rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
