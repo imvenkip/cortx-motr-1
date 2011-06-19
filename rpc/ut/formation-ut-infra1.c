@@ -130,6 +130,10 @@ fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_file_create_fop
 };
 
+extern struct c2_rpc_item_type c2_rpc_item_type_readv;
+extern struct c2_rpc_item_type c2_rpc_item_type_writev;
+extern struct c2_rpc_item_type c2_rpc_item_type_create;
+
 #define niopatterns		 8
 #define pattern_length		 4
 char				 file_data_patterns[niopatterns][pattern_length];
@@ -169,7 +173,6 @@ struct c2_cob_domain		 cob_domain;
 struct c2_dbenv			 db;
 char 				 db_name[] = "rpc_form_db"; 
 struct c2_rpc_conn		 conn;
-struct c2_rpc_session		 session;
 
 #define BOUNDED			 1
 #define UNBOUNDED		 2
@@ -178,14 +181,19 @@ struct c2_rpc_session		 session;
 
 /** Function to init the slot */
 void c2_rpc_form_slot_init(struct c2_rpc_slot *slot,
-		struct c2_rpc_session *session)
+		struct c2_rpc_session *session, int slot_id)
 {
 	C2_PRE(session != NULL);
 	C2_PRE(slot != NULL);
 
+	slot->sl_session =  session;
+	slot->sl_slot_id = slot_id;
+	c2_list_link_init(&slot->sl_link);
+	c2_list_init(&slot->sl_item_list);
+	slot->sl_last_sent = NULL;
+	slot->sl_last_persistent = NULL;
 	c2_list_init(&slot->sl_ready_list);
 	c2_mutex_init(&slot->sl_mutex);
-	slot->sl_session =  session;
 }
 
 /** Function to fini the slot */
@@ -210,6 +218,10 @@ void c2_rpc_form_conn_init(struct c2_rpc_conn *conn,
 	C2_PRE(conn != NULL);
 
 	conn->c_rpcmachine = rpc_mc;
+	c2_mutex_init(&conn->c_mutex);
+	c2_list_link_init(&conn->c_link);
+	c2_list_init(&conn->c_sessions);
+	c2_chan_init(&conn->c_chan);
 }
 
 /**
@@ -224,6 +236,7 @@ void c2_rpc_form_session_init(struct c2_rpc_session *session,
 	session->s_conn = conn;
 	c2_mutex_init(&session->s_mutex);
 	c2_list_init(&session->s_unbound_items);
+	c2_list_link_init(&session->s_link);
 }
 
 /** 
@@ -266,11 +279,12 @@ int c2_rpc_form_ut_init()
 	for(i=0; i < nslots; i++)
 	{
 		slots[i] = c2_alloc(sizeof(struct c2_rpc_slot));
-		c2_rpc_form_slot_init(slots[i], &session);
-		c2_list_add(&rpcmachine.cr_ready_slots, &slots[i]->sl_link);
+		c2_rpc_form_slot_init(slots[i], &session, i);
+		//c2_list_add(&rpcmachine.cr_ready_slots, &slots[i]->sl_link);
 	}
 
-	printf("Length of cr_ready_slots = %lu\n", c2_list_length(&rpcmachine.cr_ready_slots));
+	printf("Length of cr_ready_slots = %lu\n",
+			c2_list_length(&rpcmachine.cr_ready_slots));
 
 	/* Init the rpc formation component */
 	result = c2_rpc_form_init();
@@ -419,20 +433,33 @@ void c2_rpc_form_item_add_to_rpcmachine(struct c2_rpc_item *item)
 {
 	int		state = 0;
 	int		slot_no = 0;
+	int		res = 0;
 	/* Randomly select the state of the item to be BOUNDED or UNBOUNDED */
 	state = rand() % UNBOUNDED + BOUNDED;
 	
-	if(state == BOUNDED){
+	if (state == BOUNDED){
 		printf("BOUNDED ITEM \n");
 		/* Find a random slot and add to its free list */
 		slot_no = rand() % MAX_SLOTS + MIN_SLOTS;
-		c2_list_add(&slots[slot_no]->sl_ready_list,
-				&item->ri_slot_link);
+		/* Since this slot is accessed by formation code by
+		   referencing rpc_item->ri_slot_refs[0].sr_slot,
+		   modify item->ri_slot_refs[0].sr_slot to point to
+		   current slot and call the event on formation module. */
+		item->ri_slot_refs[0].sr_slot = slots[slot_no];
+		item->ri_state = RPC_ITEM_SUBMITTED;
+		res = c2_rpc_form_extevt_rpcitem_ready(item);
+		if (res != 0) {
+			printf("Event RPC ITEM READY returned failure.\n");
+		}
 	}
 	else if (state == UNBOUNDED) {
 		printf("UNBOUNDED ITEM \n");
-		/* Add to sessions unbounded list */
-		c2_list_add(&session.s_unbound_items, &item->ri_unbound_link);
+		/* Call the event on formation module. */
+		item->ri_state = RPC_ITEM_SUBMITTED;
+		res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
+		if (res != 0) {
+			printf("Event UNBOUND ITEM ADDED returned failure.\n");
+		}
 	}
 }
 
@@ -456,6 +483,7 @@ int c2_rpc_form_rpcgroup_add_to_rpcmachine(struct c2_rpc_group *group)
 		C2_ASSERT(res == 0);
 		thread_no++;
 	}
+	printf("Total %lu UT threads created.\n", thread_no);
 	return 0;
 }
 
@@ -504,8 +532,10 @@ int c2_rpc_form_item_nonio_populate_param(struct c2_rpc_item *item)
  */
 int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 {
-	bool		io_req = false;
-	int		res = 0;
+	struct c2_fop	*fop = NULL;
+	bool		 io_req = false;
+	int		 res = 0;
+	int		 opcode = 0;
 
 	printf("Inside c2_rpc_form_item_populate_param \n");
 	C2_PRE(item != NULL);
@@ -528,6 +558,25 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unbound_link);
 	c2_list_link_init(&item->ri_slot_link);
+	item->ri_reply = NULL;
+	c2_chan_init(&item->ri_chan);
+
+	/* Associate an rpc item with its type. */
+	fop = c2_rpc_item_to_fop(item);
+	opcode = fop->f_type->ft_code;
+	switch (opcode) {
+		case c2_io_service_readv_opcode:
+			item->ri_type = &c2_rpc_item_type_readv;
+			break;
+		case c2_io_service_writev_opcode:
+			item->ri_type = &c2_rpc_item_type_writev;
+			break;
+		case c2_io_service_create_opcode:
+			item->ri_type = &c2_rpc_item_type_create;
+			break;
+		default:
+			break;
+	};
 	
 	return 0;
 }

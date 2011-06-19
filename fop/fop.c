@@ -43,6 +43,8 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		c2_bcount_t nob;
 
 		fop->f_type = fopt;
+		/* Associate rpc_item_type with the rpc item.
+		fop->f_item.ri_type = fopt->ft_ritype; */
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)
 			data = c2_alloc(nob);
@@ -165,7 +167,6 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 	.rto_pack       = fol_pack
 };
 
-/*
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 {
 	return &fop->f_item;
@@ -175,7 +176,6 @@ struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
-*/
 
 #endif /* __KERNEL__ */
 

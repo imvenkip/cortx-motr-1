@@ -115,6 +115,8 @@
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
+struct c2_rpc_item;
+
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -128,8 +130,9 @@
 
 #include "cob/cob.h"
 #include "fol/fol.h"
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "rpc/session_int.h"
+#include "rpc/session.h"
 
 /*Macro to enable RPC grouping test and debug code */
 
@@ -140,11 +143,11 @@ int32_t rpc_arr_index;
 int seed_val;
 #endif
 
-struct c2_fop;
 struct c2_rpc;
 struct c2_rpc_conn;
-struct c2_rpc_item;
 struct c2_addb_rec;
+struct c2_rpc_group;
+struct c2_rpcmachine;
 struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
@@ -333,6 +336,7 @@ enum {
 	//...
    };
  */
+
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
@@ -391,6 +395,10 @@ struct c2_rpc_item {
    rpc_item_type.
  */
 void c2_rpc_item_type_register(struct c2_fop_type *fopt);
+
+/*struct c2_rpc_item_type c2_rpc_item_type_readv;
+struct c2_rpc_item_type c2_rpc_item_type_writev;
+struct c2_rpc_item_type c2_rpc_item_type_create;*/
 
 /**
    Initialize RPC item.

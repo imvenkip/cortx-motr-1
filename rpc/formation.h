@@ -697,51 +697,6 @@ typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_form_sm_event *event);
 
 /**
-   A state table guiding resultant states on arrival of events
-   on earlier states.
-   next_state = stateTable[current_state][current_event]
- */
-stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS-1] = {
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state, 
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_forming_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_posting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state}
-};
-
-/**
    XXX rio_replied op from rpc type ops.
    If this is an IO request, free the IO vector
    and free the fop.

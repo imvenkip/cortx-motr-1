@@ -15,7 +15,7 @@ and some of them will be implemented during RPC integration task
 Some of the TBD items :
 (a) Proper locking interfaces
 (b) Ref count handling
-(c) Handling of endpoints - currently using c2_net_endpoint
+(c) Handling of endpoints - currently using c2_net_end_point
 (d) Timeouts - currently using c2_time
 (e) Integration of callbacks and other interfaces with RPC-formation
 (f) Asserts and error handling.
@@ -41,11 +41,11 @@ uint32_t generate_rand_endpoint()
 }
 #endif
 
-struct c2_net_endpoint *c2_get_item_endpoint(struct c2_update_stream *us)
+struct c2_net_end_point *c2_get_item_endpoint(struct c2_update_stream *us)
 {
 	/*TBD once proper definition of endpoint is available */
 #ifdef RPC_GRP_DEBUG
-	struct c2_net_endpoint *endpoint;
+	struct c2_net_end_point *endpoint;
 	C2_ALLOC_PTR(endpoint);
 	if(us) {
 		/*Submit request for a group, currently assuming they would
@@ -71,8 +71,8 @@ static struct c2_rpc_machine* c2_get_rpc_machine( )
 */
 
 /* TBD once endpoint structures are well defined, will return true when endpoints are equal */
-static bool c2_rpc_are_endpoints_same(struct c2_net_endpoint *endpoint1, 
-				      struct c2_net_endpoint *endpoint2)
+static bool c2_rpc_are_endpoints_same(struct c2_net_end_point *endpoint1, 
+				      struct c2_net_end_point *endpoint2)
 {
 #ifdef RPC_GRP_DEBUG
 	return(endpoint1->endpoint_val == endpoint2->endpoint_val);
@@ -85,7 +85,7 @@ static bool c2_rpc_are_endpoints_same(struct c2_net_endpoint *endpoint1,
     TBD : Locking interfaces */ 
 static struct c2_rpc_formation_list *c2_get_form_list(struct c2_rpcmachine 
 						*rpc_machine, struct
-						c2_net_endpoint *endpoint)
+						c2_net_end_point *endpoint)
 {
  	struct c2_rpc_processing 	*rpc_processing;
 	struct c2_rpc_formation_list 	*rpc_formation_list, *return_val;	
@@ -130,7 +130,7 @@ static bool is_more_urgent(const c2_time_t t1, const c2_time_t t2)
 
 /** Create new formation cache for an endpoint if it doesnt exist */
 static struct c2_rpc_formation_list *c2_create_new_formation_list(struct c2_rpcmachine 
-				    *rpc_machine, struct c2_net_endpoint *endpoint)
+				    *rpc_machine, struct c2_net_end_point *endpoint)
 {
 	struct c2_rpc_formation_list *rpc_formation_list;
 	struct c2_rpc_processing     *rpc_processing_context;
@@ -171,7 +171,7 @@ int c2_rpc_submit(struct c2_service_id          *srvid,
                   enum c2_rpc_item_priority     prio,
                   const c2_time_t               *deadline)
 {
-	struct c2_net_endpoint 		*endpoint;
+	struct c2_net_end_point 		*endpoint;
 	struct c2_rpc_formation_list    *rpc_formation_list;	
 	struct c2_rpcmachine		*rpc_machine;
 	struct c2_mutex			*guard;

@@ -5,7 +5,14 @@
 #include "lib/errno.h"
 #include "rpc/session.h"
 #include "rpc/session_int.h"
-#include "rpc/formation.h"
+#include "fop/fop.h"
+#include "formation.h"
+
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
 
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
@@ -384,57 +391,14 @@ uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
 	return nfragments;
 }
 
-/**
-   Coalesce rpc items that share same fid and intent(read/write)
- */
-int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
-{
-	struct c2_list					 fop_list;
-	struct c2_rpc_form_item_coalesced_member	*c_member = NULL;
-	struct c2_io_fop_member				*fop_member = NULL;
-	struct c2_io_fop_member				*fop_member_next = NULL;
-	struct c2_fop					*fop = NULL;
-	struct c2_fop					*b_fop = NULL;
-	struct c2_rpc_item				*item = NULL;
-	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
-	int 						 res = 0;
-
-	C2_PRE(coalesced_item != NULL);
-	C2_PRE(b_item != NULL);
-	coalesced_item = (struct c2_rpc_form_item_coalesced*)c_item;
-	c2_list_init(&fop_list);
-	c2_list_for_each_entry(&coalesced_item->ic_member_list, c_member,
-			struct c2_rpc_form_item_coalesced_member, im_linkage) {
-		C2_ALLOC_PTR(fop_member);
-		if (fop_member == NULL) {
-			printf("Failed to allocate memory for struct\
-					c2_io_fop_member.\n");
-			return -ENOMEM;
-		}
-		item = c_member->im_member_item;
-		fop = container_of(item, struct c2_fop, f_item);
-		fop_member->fop = fop;
-		c2_list_add(&fop_list, &fop_member->fop_linkage);
-	}
-	b_fop = container_of(b_item, struct c2_fop, f_item);
-	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop);
-
-	c2_list_for_each_entry_safe(&fop_list, fop_member, fop_member_next,
-			struct c2_io_fop_member, fop_linkage) {
-		c2_list_del(&fop_member->fop_linkage);
-		c2_free(fop_member);
-	}
-	c2_list_fini(&fop_list);
-	coalesced_item->ic_resultant_item = b_item;
-	return res;
-}
-
 static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_timeout           = us_timeout,
 	.uso_recovery_complete = us_recovery_complete
 };
 
-struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
+int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item);
+
+const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -447,7 +411,7 @@ struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
-struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
+const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -460,7 +424,7 @@ struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
 	.rio_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
-struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
+const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -473,8 +437,17 @@ struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_io_coalesce = NULL,
 };
 
-struct c2_rpc_item_type c2_rpc_item_readv_ops;
-struct c2_rpc_item_type c2_rpc_item_writev_ops;
+struct c2_rpc_item_type c2_rpc_item_type_readv = {
+	.rit_ops = &c2_rpc_item_readv_type_ops,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_writev = {
+	.rit_ops = &c2_rpc_item_writev_type_ops,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_create = {
+	.rit_ops = &c2_rpc_item_create_type_ops,
+};
 
 /**
    Associate an rpc with its corresponding rpc_item_type.
@@ -485,7 +458,6 @@ struct c2_rpc_item_type c2_rpc_item_writev_ops;
  */
 void c2_rpc_item_type_register(struct c2_fop_type *fopt)
 {
-	struct c2_rpc_item		*item = NULL;
 	uint32_t			 opcode = 0;
 
 	C2_PRE(fopt != NULL);
@@ -497,17 +469,17 @@ void c2_rpc_item_type_register(struct c2_fop_type *fopt)
 	opcode = fopt->ft_code;
 	switch (opcode) {
 		case c2_io_service_readv_opcode:
-			fopt->ft_ritype->rit_ops = c2_rpc_item_readv_type_ops; 
+			//fopt->ft_ritype.rit_ops = c2_rpc_item_readv_type_ops; 
 			break;
 		case c2_io_service_writev_opcode:
-			fopt->ft_ritype->rit_ops = c2_rpc_item_writev_type_ops; 
+			//fopt->ft_ritype.rit_ops = c2_rpc_item_writev_type_ops; 
 			break;
 		case c2_io_service_create_opcode:
-			fopt->ft_ritype->rit_ops = c2_rpc_item_create_type_ops;
+			//fopt->ft_ritype.rit_ops = c2_rpc_item_create_type_ops;
 			break;
 		default:
+			break;
 	};
-	item->ri_type = item_type;
 }
 
 

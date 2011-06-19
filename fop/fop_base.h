@@ -9,7 +9,6 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
-//#include "rpc/rpccore.h"
 
 /**
    @addtogroup fop
@@ -31,6 +30,7 @@
 /* import */
 struct c2_fol;
 struct c2_fop;
+//struct c2_rpc_item_type;
 
 /* export */
 struct c2_fop_type;
@@ -87,10 +87,6 @@ struct c2_fop_type_ops {
 	/** fol record type operations for this fop type, or NULL is standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
-	/** Create a new IO fop (read/write) and populate it with the
-	    IO vector given as an input.*/
-	int (*fto_get_io_fop)(struct c2_fop *in, struct c2_fop **res,
-			void *seg);
 	/** Action to be taken on receiving reply of a fop. */
 	int (*fto_fop_replied)(struct c2_fop *fop);
 	/** Return the size of fop object. */

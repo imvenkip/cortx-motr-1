@@ -4,6 +4,7 @@
 
    @{
  */
+#include "fop/rt/stub.h"
 
 struct c2_fop_type;
 

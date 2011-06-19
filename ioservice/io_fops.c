@@ -531,7 +531,6 @@ int c2_io_fop_get_opcode(struct c2_fop *fop)
  */
 struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_get_io_fop = c2_io_fop_get_read_fop,
 	.fto_fop_replied = c2_io_fop_cob_readv_replied,
 	.fto_getsize = c2_io_fop_cob_readv_getsize,
 	.fto_op_equal = c2_io_fop_type_equal,
@@ -548,7 +547,6 @@ struct c2_fop_type_ops c2_io_cob_readv_ops = {
  */
 struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_get_io_fop = c2_io_fop_get_write_fop,
 	.fto_fop_replied = c2_io_fop_cob_writev_replied,
 	.fto_getsize = c2_io_fop_cob_writev_getsize,
 	.fto_op_equal = c2_io_fop_type_equal,
@@ -606,9 +604,30 @@ static int c2_fop_file_create_request(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
+uint64_t c2_io_fop_create_getsize(struct c2_fop *fop)
+{
+	uint64_t			 size = 0;
+
+	C2_PRE(fop != NULL);
+	/** Size of fop layout */
+	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	size += sizeof(struct c2_fop_type);
+	size += sizeof(struct c2_fop);
+	return size;
+}
+
 /* Ops vector for file create request. */
 struct c2_fop_type_ops c2_fop_file_create_ops = {
 	.fto_fom_init = c2_fop_file_create_request,
+	.fto_fop_replied = NULL,
+	.fto_getsize = c2_io_fop_create_getsize,
+	.fto_op_equal = c2_io_fop_type_equal,
+	.fto_get_opcode = c2_io_fop_get_opcode,
+	.fto_get_fid = NULL,
+	.fto_is_io = c2_io_fop_is_rw,
+	.fto_get_nfragments = NULL,
+	.fto_io_coalesce = NULL,
+	.fto_io_segment_coalesce = NULL,
 };
 
 /**
