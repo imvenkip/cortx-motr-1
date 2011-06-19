@@ -39,6 +39,7 @@ enum {
 extern void session_search(const struct c2_rpc_conn    *conn,  
                            uint64_t                     session_id,
                            struct c2_rpc_session        **out);
+struct c2_rpc_conn	*conn;
 void init()
 {
 	struct c2_cob_domain_id dom_id = { 42 };
@@ -53,7 +54,8 @@ void init()
 	C2_ASSERT(rc == 0);
 
 	rc = c2_cob_domain_init(dom, db, &dom_id);
-	C2_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0 && dom->cd_dbenv == db);
+	printf("dom = %p\n", dom);
 
 	rc = c2_rpcmachine_init(machine, dom);
 	C2_ASSERT(rc == 0);
@@ -64,7 +66,7 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	struct c2_rpc_fop_session_terminate	*fop_in;
 	struct c2_fom				*fom;
 	struct c2_rpc_item			*item;
-	enum c2_rpc_session_seq_check_result	sc;
+	struct c2_rpc_session			*session0;
 
 	/*
 	 * Allocate and fill FOP
@@ -90,29 +92,22 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	item->ri_verno.vn_vc = SESSION_DESTROY_VC;
 	item->ri_mach = machine;
 
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
+
+	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+	C2_ASSERT(fom != NULL);
+
+	fom->fo_ops->fo_state(fom);
+
+	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+			fom->fo_phase == FOPH_FAILED);
 	/*
-	 * "Receive" the item
+	 * test reply contents
 	 */
-	//sc = c2_rpc_session_item_received(item, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
-	/*
-	 * Instantiate fom
-	 */
-	if (sc == SCR_ACCEPT_ITEM) {
-		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-		C2_ASSERT(fom != NULL);
-
-		fom->fo_ops->fo_state(fom);
-
-		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
-				fom->fo_phase == FOPH_FAILED);
-		/*
-		 * test reply contents
-		 */
-		c2_cob_namespace_traverse(dom);
-		c2_cob_fb_traverse(dom);
-	}
-
+	c2_cob_namespace_traverse(dom);
+	c2_cob_fb_traverse(dom);
 }
 
 void test_conn_terminate(uint64_t sender_id)
@@ -177,7 +172,6 @@ void test_conn_terminate(uint64_t sender_id)
 uint64_t	g_sender_id;
 uint64_t	g_session_id;
 
-struct c2_rpc_conn	*conn;
 
 void test_conn_create()
 {
@@ -508,7 +502,7 @@ int main(void)
 	init();
 	test_conn_create();
 	test_session_create();
-	//test_session_terminate(g_sender_id, g_session_id);
+	test_session_terminate(g_sender_id, g_session_id);
 	//test_conn_terminate(g_sender_id);
 
 	//test_snd_conn_create();

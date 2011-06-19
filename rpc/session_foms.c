@@ -232,19 +232,14 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpcmachine			*machine;
 	struct c2_rpc_fop_session_terminate	*fop_in;
 	struct c2_rpc_fop_session_terminate_rep	*fop_out;
 	struct c2_rpc_fom_session_terminate	*fom_st;
-	struct c2_db_tx				*tx;
 	struct c2_rpc_item			*item;
-	struct c2_cob_domain			*dom;
-	struct c2_cob				*conn_cob;
-	struct c2_cob				*session_cob;
-	struct c2_cob				*slot_cob;
+	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session;
 	uint64_t				sender_id;
 	uint64_t				session_id;
-	int					i;
 	int					rc;
 
 	printf("session_terminate_state: called\n");
@@ -259,76 +254,47 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	fop_out = c2_fop_data(fom_st->fst_fop_rep);
 	C2_ASSERT(fop_out != NULL);
 
-	item = c2_fop_to_rpc_item(fom_st->fst_fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
-
-	machine = item->ri_mach;
-
-	tx = &fom_st->fst_tx;
-	dom = machine->cr_dom;
-	C2_ASSERT(dom != NULL);
-
-	c2_db_tx_init(tx, dom->cd_dbenv, 0);
-
-	sender_id = fop_in->rst_sender_id;
-	session_id = fop_in->rst_session_id;
-
 	/*
 	 * Copy the same sender and session id to reply fop
 	 */
-	fop_out->rstr_sender_id = sender_id;
-	fop_out->rstr_session_id = session_id;
+	fop_out->rstr_sender_id = sender_id = fop_in->rst_sender_id;
+	fop_out->rstr_session_id = session_id = fop_in->rst_session_id;
 
-	/*
-	 * Remove all the cobs associated with the session
-	 */
-	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
-	if (rc != 0)
+	item = c2_fop_to_rpc_item(fom_st->fst_fop);
+	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
+			conn->c_sender_id == sender_id);
+
+	session_search(conn, session_id, &session);
+	if (session == NULL) {
+		rc = -ENOENT;
 		goto errout;
-
-	rc = c2_rpc_session_cob_lookup(conn_cob, session_id, &session_cob, tx);
-	if (rc != 0)
-		goto err_put_conn;
-
-	for (i = 0; i < DEFAULT_SLOT_COUNT; i++) {
-		rc = c2_rpc_slot_cob_lookup(session_cob, i, 0, &slot_cob, tx);
-		if (rc != 0)
-			goto err_put_session;
-
-		rc = c2_cob_delete(slot_cob, tx);
-		if (rc != 0)
-			goto err_put_session;
-
-		slot_cob = NULL;
 	}
-	rc = c2_cob_delete(session_cob, tx);
-	if (rc != 0)
-		goto err_put_session;
-
-	C2_ASSERT(rc == 0);
+	c2_mutex_lock(&session->s_mutex);
+	rc = c2_rpc_rcv_session_terminate(session);	
+	if (rc != 0) {
+		c2_mutex_unlock(&session->s_mutex);
+		goto errout;
+	}
+	c2_mutex_unlock(&session->s_mutex);
+	c2_rpc_session_fini(session);
 
 	fop_out->rstr_rc = 0;	/* Report success */
 	fom->fo_phase = FOPH_DONE;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fom_st->fst_fop),
-				c2_fop_to_rpc_item(fom_st->fst_fop_rep),
-				tx);
-	c2_db_tx_commit(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fom_st->fst_fop),
+			  c2_fop_to_rpc_item(fom_st->fst_fop_rep));
 	printf("Session terminate successful\n");
 	return FSO_AGAIN;
 
-err_put_session:
-	c2_cob_put(session_cob);
-err_put_conn:
-	c2_cob_put(conn_cob);
 errout:
 	C2_ASSERT(rc != 0);
 
 	fop_out->rstr_rc = rc;	/* Report failure */
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fom_st->fst_fop),
-				c2_fop_to_rpc_item(fom_st->fst_fop_rep),
-				tx);
-	c2_db_tx_abort(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fom_st->fst_fop),
+			  c2_fop_to_rpc_item(fom_st->fst_fop_rep));
 	printf("session terminate failed %d\n", rc);
 	return FSO_AGAIN;
 }

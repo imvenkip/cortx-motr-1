@@ -32,10 +32,6 @@ static void conn_search(const struct c2_rpcmachine	*machine,
                         uint64_t			sender_id,
                         struct c2_rpc_conn		**out);
 
-void session_search(const struct c2_rpc_conn	*conn,
-                           uint64_t			session_id,
-                           struct c2_rpc_session	**out);
-
 /** Stub routine */
 void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
 /** Stub routine */
@@ -740,7 +736,7 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 			rc = -ENOMEM;
 			goto out_err;
 		}
-		rc = c2_rpc_slot_init(session->s_slot_table[0],
+		rc = c2_rpc_slot_init(session->s_slot_table[i],
 					slot_ops);
 		if (rc != 0)
 			goto out_err;
@@ -1838,26 +1834,32 @@ void c2_rpc_form_item_ready(struct c2_rpc_item *item)
 }
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
 {
+	printf("sender_slot_idle called %p\n", slot);
 	c2_rpc_form_slot_idle(slot);
 }
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
 {
+	printf("sender_consume_item called %p\n", item);
 	c2_rpc_form_item_ready(item);
 }
 void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
+	printf("sender_consume_reply called %p %p\n", req, reply);
 }
 
 void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
 {
+	printf("rcv_slot_idle called %p\n", slot);
 }
 void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
 {
+	printf("rcv_consume_item called %p\n", item);
 }
 void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
+	printf("rcv_consume_reply called %p %p\n", req, reply);
 }
 
 int conn_persistent_state_create(struct c2_cob_domain	*dom,
@@ -2015,6 +2017,7 @@ int session_persistent_state_create(struct c2_cob       *conn_cob,
 	rc = c2_rpc_session_cob_create(conn_cob, session_id, &session_cob, tx);
 	if (rc != 0)
 		goto errout;
+	C2_ASSERT(session_cob->co_dom->cd_dbenv != NULL);
 
 	for (i = 0; i < nr_slots; i++) {
 		rc = c2_rpc_slot_cob_create(session_cob, i, 0, &slot_cob, tx);
@@ -2022,6 +2025,7 @@ int session_persistent_state_create(struct c2_cob       *conn_cob,
 			goto errout;
 		slot_cob_array_out[i] = slot_cob;
 	}
+	*session_cob_out = session_cob;
 	return 0;
 errout:
 	for (i = 0; i < nr_slots; i++)
@@ -2061,18 +2065,76 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
 
 	C2_ASSERT(session->s_cob == NULL && session_cob != NULL);
 	session->s_cob = session_cob;
+	C2_ASSERT(session->s_cob->co_dom->cd_dbenv != NULL);
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
 		C2_ASSERT(slot != NULL && slot->sl_cob == NULL &&
 				slot_cobs[i] != NULL);
 		slot->sl_cob = slot_cobs[i];
+		C2_ASSERT(slot_cobs[i]->co_dom->cd_dbenv != NULL);
 	}
 	return 0;
 }
-int session_persistent_state_destroy(struct c2_cob	*session_cob,
-				     uint32_t		nr_slots,
-				     struct c2_db_tx	*tx)
+int session_persistent_state_destroy(struct c2_rpc_session  *session,
+				     struct c2_db_tx	    *tx)
 {
+	struct c2_rpc_slot	*slot;
+	int			i;
+
+	C2_ASSERT(session != NULL);
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
+		if (slot != NULL && slot->sl_cob != NULL) {
+			/*
+			 * c2_cob_delete() "puts" the cob even if cob delete
+			 * fails. Irrespective of success/failure of 
+			 * c2_cob_delete(), the c2_cob becomes unusable. So
+			 * no need to handle the error
+			 */
+			c2_cob_delete(slot->sl_cob, tx);
+			slot->sl_cob = NULL;
+		}
+	}
+	if (session->s_cob != NULL) {
+		c2_cob_delete(session->s_cob, tx);
+		session->s_cob = NULL;
+	}
+
+	return 0;
+}
+
+int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
+{
+	struct c2_db_tx	tx;
+	int		rc;
+	int		i;
+
+	C2_ASSERT(session != NULL && session->s_state == C2_RPC_SESSION_ALIVE);
+	session->s_state = C2_RPC_SESSION_TERMINATING;
+
+	/*
+	 * Take all the slots out of c2_rpcmachine::cr_ready_slots
+	 */
+	for (i = 0; i < session->s_nr_slots; i++) {
+		//c2_list_del(&session->s_slot_table[i]->sl_link);
+	}
+
+	c2_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
+	rc = session_persistent_state_destroy(session, &tx);
+	if (rc != 0) {
+		session->s_state = C2_RPC_SESSION_FAILED;
+		session->s_rc = rc;
+		c2_db_tx_abort(&tx);
+		return rc;
+	}
+	c2_db_tx_commit(&tx);
+	c2_list_del(&session->s_link);
+	session->s_conn->c_nr_sessions--;
+	session->s_state = C2_RPC_SESSION_TERMINATED;
+	session->s_rc = 0;
+	session->s_conn = NULL;
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }
 /** @c end of session group */

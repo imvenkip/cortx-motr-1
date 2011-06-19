@@ -123,9 +123,8 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
 				   uint64_t			session_id,
 				   struct c2_db_tx		*tx);
 
-int session_persistent_state_destroy(struct c2_cob	*session_cob,
-				     uint32_t		nr_slots,
-				     struct c2_db_tx	*tx);
+int session_persistent_state_destroy(struct c2_rpc_session	*session,
+				     struct c2_db_tx		*tx);
 
 /**
    Initalise receiver end of conn object.
@@ -155,6 +154,11 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn		*conn,
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
  */
 int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
+
+/**
+   Terminate receiver end of session
+ */
+int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
 
 /**
   Locates cob associated with slot identified by
@@ -197,6 +201,10 @@ struct c2_rpc_slot_ref {
 
 int __conn_init(struct c2_rpc_conn	*conn,
 		struct c2_rpcmachine	*machine);
+
+void session_search(const struct c2_rpc_conn	*conn,
+		    uint64_t		  	session_id,
+		    struct c2_rpc_session 	**out);
 
 /** @}  End of rpc_session group */
 #endif
