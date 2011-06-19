@@ -168,8 +168,10 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	int	rc = 0;
 
 	if (conn == NULL || machine == NULL ||
-		conn->c_state != C2_RPC_CONN_UNINITIALISED)
+		conn->c_state != C2_RPC_CONN_UNINITIALISED) {
+		C2_ASSERT(0);
 		return -EINVAL;
+	}
 
 	conn->c_flags = RCF_SENDER_END;
 	rc = __conn_init(conn, machine);
@@ -210,22 +212,25 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	struct c2_rpcmachine		*machine;
 	int				rc;
 
-	if (conn == NULL || ep == NULL)
+	if (conn == NULL || ep == NULL) {
+		C2_ASSERT(0);
 		return -EINVAL;
-
-	if (conn->c_state != C2_RPC_CONN_INITIALISED &&
-	      (conn->c_flags & RCF_SENDER_END) == 0)
+	}
+	if (conn->c_state != C2_RPC_CONN_INITIALISED ||
+	      (conn->c_flags & RCF_SENDER_END) == 0) {
+		C2_ASSERT(0);
 		return -EINVAL;
-
+	}
 	conn->c_end_point = ep;
 
 	/*
 	 * fill a conn create fop and send
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
-	if (fop == NULL)
+	if (fop == NULL) {
+		C2_ASSERT(0);
 		return rc;
-
+	}
 	fop_cc = c2_fop_data(fop);
 	C2_ASSERT(fop_cc != NULL);
 
@@ -645,7 +650,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			conn->c_end_point != NULL &&
 			conn->c_rpcmachine != NULL &&
 			conn->c_private != NULL &&
-			c2_list_contains(&conn->c_rpcmachine->cr_outgoing_conns,
+			c2_list_contains((conn->c_flags & RCF_SENDER_END) ? 
+					 &conn->c_rpcmachine->cr_outgoing_conns :
+					 &conn->c_rpcmachine->cr_incoming_conns,
 				&conn->c_link);
 			
 		case C2_RPC_CONN_ACTIVE:
@@ -1507,6 +1514,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	c2_list_init(&slot->sl_ready_list);
 	c2_mutex_init(&slot->sl_mutex);
 	slot->sl_cob = NULL;
+	slot->sl_ops = ops;
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -1547,7 +1555,7 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 	C2_PRE(c2_rpc_slot_invariant(slot));
 
-	while (slot->sl_in_flight <= slot->sl_max_in_flight) {
+	while (slot->sl_in_flight < slot->sl_max_in_flight) {
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
 		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
 			if (can_consume)
@@ -1558,6 +1566,7 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 				ri_slot_refs[0].sr_link);
 		if (item->ri_tstate == RPC_ITEM_FUTURE)
 			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
+			printf("Item %p IN_PROGRESS\n", item);
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
 			 * Don't send read only queries for which answer is
@@ -1595,6 +1604,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 
 	item->ri_tstate = RPC_ITEM_FUTURE;
+	printf("Itemp %p FUTURE\n", item);
 	sref = &item->ri_slot_refs[0];
 	if (c2_rpc_item_is_update(item)) {
 		sref->sr_verno.vn_lsn = ++slot->sl_verno.vn_lsn;
@@ -1609,6 +1619,9 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	sref->sr_item = item;
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
+	printf("item %p added [%lu:%lu]\n", item,
+			sref->sr_verno.vn_vc,
+			sref->sr_xid);
 	__slot_balance(slot, can_consume);
 }
 
@@ -1681,11 +1694,13 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 		 * received in the past. Compare with the original reply.
 		 * XXX find out how to compare two rpc items to be same
 		 */
+		printf("got duplicate reply for %p\n", req);
 	} else {
 		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
 		req->ri_tstate = RPC_ITEM_PAST_VOLATILE;
+		printf("Item %p PAST_VOLATILE\n", req);
 		req->ri_reply = reply;
 		slot->sl_in_flight--;
 		slot_balance(slot);
