@@ -744,9 +744,11 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_buf_del_called);
 	num_dels[nb->nb_qtype]++;
 
-	/* wait on channel for post */
+	/* wait on channel for post (and consume UT thread) */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	rc = c2_thread_join(&ut_del_thread);
+	C2_UT_ASSERT(rc == 0);
 
 	/* TM stop */
 	c2_clink_add(&tm->ntm_chan, &tmwait);
