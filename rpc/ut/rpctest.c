@@ -86,10 +86,6 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_sender_id = sender_id;
 	item->ri_session_id = SESSION_0;
-	item->ri_slot_id = 0;
-	item->ri_slot_generation = 0;
-	item->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
-	item->ri_verno.vn_vc = SESSION_DESTROY_VC;
 	item->ri_mach = machine;
 
 	session_search(connp, SESSION_0, &session0);
@@ -136,10 +132,6 @@ void test_conn_terminate(uint64_t sender_id)
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_sender_id = SENDER_ID_INVALID;
 	item->ri_session_id = SESSION_ID_NOSESSION;
-	item->ri_slot_id = 0;
-	item->ri_slot_generation = 0;
-	item->ri_verno.vn_lsn = 0;
-	item->ri_verno.vn_vc = 0;
 	item->ri_mach = machine;
 
 	/*
@@ -245,10 +237,6 @@ void test_session_create()
 /*
 	item_in->ri_sender_id = g_sender_id;
 	item_in->ri_session_id = SESSION_0;
-	item_in->ri_slot_id = 0;
-	item_in->ri_slot_generation = 0;
-	item_in->ri_verno.vn_lsn = C2_LSN_RESERVED_NR + 10;
-	item_in->ri_verno.vn_vc = SESSION_CREATE_VC;
 */	item_in->ri_mach = machine;
 	session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
@@ -376,12 +364,7 @@ void test_snd_session_create()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
-	item->ri_slot_id = 0;
-	item->ri_slot_generation = 0;
-	item->ri_verno.vn_vc = 0;
 
-	//c2_rpc_session_reply_item_received(item, &req_item);
-	//printf("test_snd_session_create: req item %p\n", req_item);
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
 	c2_thread_join(&thread);
@@ -415,12 +398,6 @@ void test_snd_session_terminate()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
-	item->ri_slot_id = 0;
-	item->ri_slot_generation = 0;
-	item->ri_verno.vn_vc = 1;
-
-	//c2_rpc_session_reply_item_received(item, &req_item);
-	//printf("test_snd_session_create: req item %p\n", req_item);
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	printf("snd_session_create_test: state %d rc %d\n", session.s_state,
@@ -497,7 +474,7 @@ extern struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops;
 
 void test_slots()
 {
-enum { COUNT = 4 };
+	enum { COUNT = 4 };
 	struct c2_rpc_slot	slot;
 	struct c2_rpc_item	*item, *r;
 	struct c2_rpc_item	*items[COUNT];
@@ -507,6 +484,7 @@ enum { COUNT = 4 };
 	c2_rpc_slot_init(&slot, &c2_rpc_rcv_slot_ops);
 	C2_ASSERT(c2_rpc_slot_invariant(&slot));
 
+	slot.sl_max_in_flight = 2;
 	c2_mutex_lock(&slot.sl_mutex);
 	for (i = 0; i < COUNT; i++) {
 		C2_ALLOC_PTR(item);
@@ -535,7 +513,7 @@ int main(void)
 	//test_conn_create();
 	//test_session_create();
 	//test_session_terminate(g_sender_id, g_session_id);
-	//test_slots();
+	test_slots();
 	//test_conn_terminate(g_sender_id);
 
 	test_snd_conn_create();

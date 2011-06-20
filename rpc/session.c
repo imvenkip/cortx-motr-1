@@ -627,65 +627,78 @@ C2_EXPORTED(c2_rpc_conn_fini);
 
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
-	int			count = 0;
-	struct c2_rpc_session	*session;
-	bool			result;
+	struct c2_list		*conn_list;
+	bool			sender_end;
+	bool			recv_end;
 
 	if (conn == NULL)
 		return false;
+
+	sender_end = conn->c_flags & RCF_SENDER_END;
+	recv_end = conn->c_flags & RCF_RECV_END;
+
+	switch (conn->c_state) {
+		case C2_RPC_CONN_CREATING:
+		case C2_RPC_CONN_ACTIVE:
+		case C2_RPC_CONN_TERMINATING:
+			conn_list = sender_end ?
+					&conn->c_rpcmachine->cr_outgoing_conns :
+					&conn->c_rpcmachine->cr_incoming_conns;
+		default:
+			/* Do nothing */;
+	}
 
 	switch (conn->c_state) {
 		case C2_RPC_CONN_TERMINATED:
 			return !c2_list_link_is_in(&conn->c_link) &&
 				conn->c_rpcmachine == NULL &&
+				c2_list_length(&conn->c_sessions) == 1 &&
+				conn->c_nr_sessions == 0 &&
+				conn->c_cob == NULL &&
 				conn->c_rc == 0;
 
 		case C2_RPC_CONN_INITIALISED:
 			return conn->c_sender_id == SENDER_ID_INVALID &&
-				conn->c_rpcmachine != NULL;
+				conn->c_rpcmachine != NULL &&
+				c2_list_length(&conn->c_sessions) == 1 &&
+				!c2_list_link_is_in(&conn->c_link) &&
+				conn->c_nr_sessions == 0 &&
+				sender_end != recv_end;
 
 		case C2_RPC_CONN_CREATING:
 			return conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions == 0 &&
-			conn->c_end_point != NULL &&
-			conn->c_rpcmachine != NULL &&
-			conn->c_private != NULL &&
-			c2_list_contains((conn->c_flags & RCF_SENDER_END) ? 
-					 &conn->c_rpcmachine->cr_outgoing_conns :
-					 &conn->c_rpcmachine->cr_incoming_conns,
-				&conn->c_link);
+				conn->c_nr_sessions == 0 &&
+				conn->c_end_point != NULL &&
+				conn->c_rpcmachine != NULL &&
+				conn->c_private != NULL &&
+				c2_list_length(&conn->c_sessions) == 1 &&
+				c2_list_contains(conn_list, &conn->c_link) &&
+				sender_end != recv_end;
 			
 		case C2_RPC_CONN_ACTIVE:
-			result = conn->c_sender_id != SENDER_ID_INVALID &&
-		        	    conn->c_end_point != NULL &&
-		        	    conn->c_rpcmachine != NULL &&
-				    c2_list_invariant(&conn->c_sessions) &&
-			c2_list_contains(&conn->c_rpcmachine->cr_outgoing_conns,
-				&conn->c_link) &&
-				    conn->c_private == NULL;
+			return conn->c_sender_id != SENDER_ID_INVALID &&
+		        	   conn->c_end_point != NULL &&
+		        	   conn->c_rpcmachine != NULL &&
+				   c2_list_invariant(&conn->c_sessions) &&
+				   c2_list_contains(conn_list, &conn->c_link) &&
+				   conn->c_private == NULL &&
+				   sender_end != recv_end &&
+				   c2_list_length(&conn->c_sessions) ==
+					conn->c_nr_sessions + 1 &&
+				   ergo(recv_end, conn->c_cob != NULL);
 			
-			if (!result)
-				return result;
-
-			c2_rpc_for_each_session(conn, session) {
-				count++;
-			}
-			/*
-			 * session 0 is not taken into account in nr_sessions
-			 */
-			count--;
-			return count == conn->c_nr_sessions;
-
 		case C2_RPC_CONN_TERMINATING:
 			return conn->c_nr_sessions == 0 &&
 				conn->c_sender_id != SENDER_ID_INVALID &&
 				conn->c_rpcmachine != NULL &&
-			c2_list_contains(&conn->c_rpcmachine->cr_outgoing_conns,
-				&conn->c_link) &&
-				conn->c_private != NULL;
+				c2_list_contains(conn_list, &conn->c_link) &&
+				c2_list_length(&conn->c_sessions) == 1 &&
+				conn->c_private != NULL &&
+				sender_end != recv_end;
 
 		case C2_RPC_CONN_UNINITIALISED:
 			return true;
+
 		case C2_RPC_CONN_FAILED:
 			return conn->c_rc != 0 &&
 				!c2_list_link_is_in(&conn->c_link) &&
@@ -1157,7 +1170,9 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 			       session->s_conn->c_nr_sessions > 0 &&
 			       session->s_nr_slots >= 0 &&
 			       c2_list_contains(&session->s_conn->c_sessions,
-						&session->s_link);
+						&session->s_link) &&
+			       ergo((session->s_conn->c_flags & RCF_RECV_END) !=
+				 	0, session->s_cob != NULL);
 			if (!result)
 				return result;
 			for (i = 0; i < session->s_nr_slots; i++) {
@@ -1433,45 +1448,6 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 	rc = c2_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
 					&cob, tx);
 	*slot_cob = cob;
-	return rc;
-}
-
-int c2_rpc_slot_cob_lookup_by_item(struct c2_cob_domain		*dom,
-				   struct c2_rpc_item		*item,
-				   struct c2_cob		**cob,
-				   struct c2_db_tx		*tx)
-{
-	struct c2_cob		*conn_cob;
-	struct c2_cob		*session_cob;
-	struct c2_cob		*slot_cob;
-	int			rc;
-
-	C2_PRE(dom != NULL && item != NULL && cob != NULL);
-
-	C2_PRE(item->ri_sender_id != SENDER_ID_INVALID &&
-		item->ri_session_id <= SESSION_ID_MAX);
-
-	*cob = NULL;
-	rc = c2_rpc_conn_cob_lookup(dom, item->ri_sender_id, &conn_cob, tx);
-	if (rc != 0)
-		goto out;
-
-	rc = c2_rpc_session_cob_lookup(conn_cob, item->ri_session_id,
-					&session_cob, tx);
-	if (rc != 0)
-		goto putconn;
-
-	rc = c2_rpc_slot_cob_lookup(session_cob, item->ri_slot_id,
-					item->ri_slot_generation,
-					&slot_cob, tx);
-	/*
-	 * *cob will be set to NULL if rc != 0
-	 */
-	*cob = slot_cob;
-	c2_cob_put(session_cob);
-putconn:
-	c2_cob_put(conn_cob);
-out:
 	return rc;
 }
 
