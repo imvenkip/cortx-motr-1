@@ -34,7 +34,7 @@
 struct c2_fom;
 struct c2_fom_type;
 
-/** 
+/**
  * The opcode from which IO service FOPS start.
  */
 enum c2_io_service_opcodes {
@@ -68,28 +68,28 @@ struct c2_io_fop_member {
 	struct c2_fop		*fop;
 };
 
-/**             
+/**
    Member structure of a list containing read IO segments.
- */                             
+ */
 struct c2_io_read_segment {
         /** Linkage to the list of such structures. */
         struct c2_list_link             rs_linkage;
-        /** The read IO segment. */     
+        /** The read IO segment. */
         struct c2_fop_segment           rs_seg;
-};                              
-                                        
-/**                             
+};
+
+/**
    Member structure of a list containing write IO segments.
- */                             
+ */
 struct c2_io_write_segment {
         /** Linkage to the list of such structures. */
         struct c2_list_link             ws_linkage;
-        /** The write IO segment. */    
+        /** The write IO segment. */
         struct c2_fop_io_seg            ws_seg;
 };
 
-/** 
- * Bunch of externs needed for stob/ut/io_fop_init.c code. 
+/**
+ * Bunch of externs needed for stob/ut/io_fop_init.c code.
  */
 extern struct c2_fop_type_ops c2_io_cob_readv_ops;
 extern struct c2_fop_type_ops c2_io_cob_writev_ops;
@@ -114,7 +114,7 @@ extern struct c2_fop_type c2_fop_file_create_fopt;
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

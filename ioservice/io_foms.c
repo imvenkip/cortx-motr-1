@@ -279,14 +279,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Since the upper layer IO block size could differ
 	 * with IO block size of storage object, the block
-	 * alignment and mapping is necesary. 
+	 * alignment and mapping is necesary.
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
-	/* 
+	/*
 	 * Find out the buffer address, offset and count
-	 * required for the stob io. 
+	 * required for the stob io.
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_offset & bmask) == 0);
@@ -301,15 +301,16 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_offset & bmask) == 0);
 		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_count & bmask) == 0);
 
-		/* 
-		 * Allocate the read buffer. 
+		/*
+		 * Allocate the read buffer.
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.fs_segs->f_count);     
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf,
+				read_fop->frd_ioseg.fs_segs->f_count); 
 		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
 		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, 
 					 bshift);
 		count = read_fop->frd_ioseg.fs_segs->f_count;
-		offset = read_fop->frd_ioseg.fs_segs->f_offset; 
+		offset = read_fop->frd_ioseg.fs_segs->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
 
