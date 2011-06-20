@@ -33,7 +33,11 @@ rmls.o rmls.o: rmls.c /usr/include/stdio.h /usr/include/features.h \
   /usr/include/bits/semaphore.h ../../lib/time.h ../../addb/addb.h \
   ../../lib/cdefs.h ../../lib/assert.h ../../lib/adt.h ../../lib/buf.h \
   ../../lib/list.h ../../lib/time.h ../../lib/list.h ../../lib/mutex.h \
-  ../../lib/chan.h
+  ../../lib/chan.h ../../lib/thread.h ../../lib/chan.h \
+  ../../lib/user_space/thread.h /usr/include/bits/signum.h \
+  /usr/include/bits/siginfo.h /usr/include/bits/sigaction.h \
+  /usr/include/bits/sigcontext.h /usr/include/bits/sigstack.h \
+  /usr/include/sys/ucontext.h /usr/include/bits/sigthread.h
 
 /usr/include/stdio.h:
 
@@ -210,3 +214,23 @@ rmls.o rmls.o: rmls.c /usr/include/stdio.h /usr/include/features.h \
 ../../lib/mutex.h:
 
 ../../lib/chan.h:
+
+../../lib/thread.h:
+
+../../lib/chan.h:
+
+../../lib/user_space/thread.h:
+
+/usr/include/bits/signum.h:
+
+/usr/include/bits/siginfo.h:
+
+/usr/include/bits/sigaction.h:
+
+/usr/include/bits/sigcontext.h:
+
+/usr/include/bits/sigstack.h:
+
+/usr/include/sys/ucontext.h:
+
+/usr/include/bits/sigthread.h:

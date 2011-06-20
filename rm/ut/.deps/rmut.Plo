@@ -47,7 +47,7 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
   ../../lib/assert.h ../../lib/user_space/user_x86_64_atomic.h \
   ../../lib/assert.h ../../lib/chan.h ../../lib/time.h ../../addb/addb.h \
   ../../lib/time.h ../../lib/list.h ../../lib/mutex.h ../../lib/chan.h \
-  rings.h
+  ../../lib/thread.h rings.h
 
 ../../lib/types.h:
 
@@ -284,5 +284,7 @@ rmut.lo rmut.o: rmut.c ../../lib/types.h ../../lib/user_space/types.h \
 ../../lib/mutex.h:
 
 ../../lib/chan.h:
+
+../../lib/thread.h:
 
 rings.h:

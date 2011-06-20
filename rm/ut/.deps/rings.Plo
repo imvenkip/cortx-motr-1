@@ -32,7 +32,12 @@ rings.lo rings.o: rings.c ../../lib/mutex.h ../../lib/types.h \
   ../../lib/atomic.h ../../lib/assert.h \
   ../../lib/user_space/user_x86_64_atomic.h ../../lib/assert.h \
   ../../lib/chan.h ../../lib/time.h ../../addb/addb.h ../../lib/time.h \
-  ../../lib/list.h ../../lib/mutex.h ../../lib/chan.h
+  ../../lib/list.h ../../lib/mutex.h ../../lib/chan.h ../../lib/thread.h \
+  ../../lib/chan.h ../../lib/user_space/thread.h \
+  /usr/include/bits/signum.h /usr/include/bits/siginfo.h \
+  /usr/include/bits/sigaction.h /usr/include/bits/sigcontext.h \
+  /usr/include/bits/sigstack.h /usr/include/sys/ucontext.h \
+  /usr/include/bits/sigthread.h
 
 ../../lib/mutex.h:
 
@@ -209,3 +214,23 @@ rings.lo rings.o: rings.c ../../lib/mutex.h ../../lib/types.h \
 ../../lib/mutex.h:
 
 ../../lib/chan.h:
+
+../../lib/thread.h:
+
+../../lib/chan.h:
+
+../../lib/user_space/thread.h:
+
+/usr/include/bits/signum.h:
+
+/usr/include/bits/siginfo.h:
+
+/usr/include/bits/sigaction.h:
+
+/usr/include/bits/sigcontext.h:
+
+/usr/include/bits/sigstack.h:
+
+/usr/include/sys/ucontext.h:
+
+/usr/include/bits/sigthread.h:

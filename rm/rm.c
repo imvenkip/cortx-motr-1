@@ -255,6 +255,20 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	c2_list_fini(&in->rin_pins);
 }
 
+void c2_rm_remote_init(struct c2_rm_remote *rem)
+{
+	rem->rem_state = REM_INITIALIZED;
+	c2_chan_init(&rem->rem_signal);
+}
+
+void c2_rm_remote_fini(struct c2_rm_remote *rem)
+{
+	C2_PRE(rem->rem_state == REM_INITIALIZED);
+
+	rem->rem_state = REM_FREED;
+	c2_chan_fini(&rem->rem_signal);
+}
+
 /**
  * Revoke or cancelation of rights will require this.
  */
@@ -277,11 +291,7 @@ static void remove_rights(struct c2_rm_incoming *in)
 				pin_remove(ri_pin);
 			}
 		}
-		if (!c2_list_contains(&owner->ro_owned[OWOS_CACHED],
-		    		      &right->ri_linkage)) {
-			c2_list_move(&owner->ro_owned[OWOS_CACHED],
-				     &right->ri_linkage);
-		}
+		c2_list_move(&owner->ro_owned[OWOS_CACHED], &right->ri_linkage);
 	}
 }
 
@@ -413,15 +423,26 @@ static int apply_policy(struct c2_rm_incoming *in)
 	return 0;
 }
 
-/**
- * Info about remote domain is filled.
- */
-static void remote_copy(const struct c2_rm_incoming *in,
-			struct c2_rm_remote *rem)
+int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
 {
-	/*@todo locate remote domain of request
-	 * and init c2_rm_remote members */
-	//rem->rem_resource->r_ref++;
+	struct c2_rm_loan *loan;
+	int  i;
+	int result = 1;
+
+	/* This will get changed with Database lookup */
+	for (i = 0; i < 5; ++i) {
+		if (rm_info[i].rm_handle.t_h.h_id == pthread_self()) {
+			other->rem_id = rm_info[i].req_id;
+			other->rem_resource = rm_info[other->rem_id].res;
+			loan = container_of(other, struct c2_rm_loan, rl_other);
+			loan->rl_id = rm_info[i].id;
+			result = 0;
+			break;
+		}
+	}
+
+	//ergo(result == 0, other->rem_resource == right->ri_resource);
+	return result;
 }
 
 /**
@@ -460,22 +481,60 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 		C2_ALLOC_PTR(loan);
 		if (loan == NULL)
 			return -ENOMEM;
+		//c2_list_del(&right->ri_linkage);
 		right_copy(&loan->rl_right, right);
-		remote_copy(in, &loan->rl_other);
-		c2_list_move(&owner->ro_sublet, &right->ri_linkage);
+		c2_rm_remote_init(&loan->rl_other);
+		if (!c2_rm_net_locate(right, &loan->rl_other)) {
+			/* Inc remote resource ref*/
+			loan->rl_other.rem_resource->r_ref++;
+		}
+		pin->rp_right = &loan->rl_right;
+		c2_list_add(&owner->ro_sublet, &loan->rl_right.ri_linkage);
+		c2_list_move(&loan->rl_right.ri_pins, &pin->rp_right_linkage);
 	}
 
 	return 0;
 }
 
-static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
-		   struct c2_fop *ret)
+static int netcall(struct c2_rm_outgoing *out)
 {
-	struct c2_net_call call = {
-		.ac_arg = arg,
-		.ac_ret = ret
-	};
-	return c2_net_cli_call(conn, &call);
+	struct c2_rm_request *req;
+	struct c2_rm_request *tmp_req;
+	struct c2_rm_owner *owner;
+	struct c2_rm_remote *remote;
+	struct c2_clink clink;
+
+
+	C2_ALLOC_PTR(req);
+	if (req == NULL)
+		return -ENOMEM;
+	
+	remote = &out->rog_want.rl_other;
+	owner = rm_info[remote->rem_id].owner;
+	c2_mutex_lock(&rm_info[remote->rem_id].out_lock);
+	c2_list_add(&rm_info[remote->rem_id].out_list, &req->rq_link);
+	c2_mutex_unlock(&rm_info[remote->rem_id].out_lock);
+
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&rm_info[remote->rem_id].rq_signal, &clink);
+        c2_chan_wait(&clink);
+	printf("Remote ID %ld \n", remote->rem_id);
+	c2_mutex_lock(&rm_info[remote->rem_id].out_lock);
+	c2_list_for_each_entry_safe(&rm_info[remote->rem_id].out_list, req,
+				    tmp_req, struct c2_rm_request, rq_link) {
+		right_copy(&out->rog_want.rl_right, &req->right);
+		c2_list_del(&req->rq_link);
+		printf("Right **** %ld\n",req->right.ri_datum);
+	}
+	c2_mutex_unlock(&rm_info[remote->rem_id].out_lock);
+
+	printf("*** Right %ld\n",req->right.ri_datum);
+	printf("Right %ld\n",out->rog_want.rl_right.ri_datum);
+
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
+
+	return 0;
 }
 
 /**
@@ -483,13 +542,15 @@ static int netcall(struct c2_net_conn *conn, struct c2_fop *arg,
  */
 static int reply_to_loan_request(struct c2_rm_incoming *in)
 {
-	struct c2_rm_right	*right;
-	struct c2_rm_pin	*pin;
-	struct c2_rm_loan	*loan;
-	int			 result = 0;
+	struct c2_rm_right   *right;
+	struct c2_rm_pin     *pin;
+	struct c2_rm_pin     *tmp_pin;
+	struct c2_rm_loan    *loan;
+	struct c2_rm_request *request;
+	int		      result = 0;
 
-	c2_list_for_each_entry(&in->rin_pins, pin, struct c2_rm_pin,
-			       rp_right_linkage) {
+	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp_pin,
+				    struct c2_rm_pin, rp_incoming_linkage) {
 		right = pin->rp_right;
 		loan = container_of(right, struct c2_rm_loan, rl_right);
 		/*@todo Form fop for each loan and reply or
@@ -518,26 +579,43 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 
 		result = netcall(conn, f, r);
 #endif
+		if (!c2_rm_net_locate(right, &loan->rl_other)) {
+			C2_ALLOC_PTR(request);
+			if (request == NULL)
+				return -ENOMEM;
+
+			right_copy(&request->right, &loan->rl_right);
+			/*@todo this will be changed to more generic */
+			printf("In loan reply rem id %ld and loan id %ld\n",
+					loan->rl_other.rem_id, loan->rl_id);
+			c2_mutex_lock(&rm_info[loan->rl_other.rem_id].out_lock);
+			loan->rl_other.rem_resource->r_ref--;
+			c2_list_add(&rm_info[loan->rl_other.rem_id].out_list,
+				    &request->rq_link);
+			c2_mutex_unlock(&rm_info[loan->rl_other.rem_id].out_lock);
+		}
 	}
+
 	return result;
 }
+
 /**
  * It sends out outgoing excited requests
  */
 static int send_out_request(struct c2_rm_outgoing *out)
 {
+	int		       result = 0;
+#if 0
 	struct c2_fop	      *f;
 	struct c2_fop	      *r;
 	struct c2_rm_send_out *fop;
 	struct c2_rm_send_out *rep;
 	struct c2_net_conn    *conn;
 	struct c2_service_id   sid;
-	int 		       result = 0;
 
 	sid = out->rog_want.rl_other.rem_service;
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
-
 	f = c2_fop_alloc(&c2_rm_send_out_fopt, NULL);
 	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&c2_rm_send_out_fopt, NULL);
@@ -549,8 +627,11 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	/*May be right_copy used later*/
 	fop->ri_datum = out->rog_want.rl_right.ri_datum;
 	fop->rem_state = out->rog_want.rl_other.rem_state;
-
 	result = netcall(conn, f, r);
+#endif
+
+	result = netcall(out);
+	printf("Sending out request \n");
 	return result;
 }
 
@@ -676,10 +757,10 @@ static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 
 	/*@todo rc return related things */
 	owner = og->rog_owner;
-	c2_mutex_lock(&owner->ro_lock);
+	//c2_mutex_lock(&owner->ro_lock);
 	c2_list_move(&owner->ro_outgoing[OQS_EXCITED],
 		     &og->rog_want.rl_right.ri_linkage);
-	c2_mutex_unlock(&owner->ro_lock);
+	//c2_mutex_unlock(&owner->ro_lock);
 }
 
 /**
@@ -763,7 +844,7 @@ static int owner_balance(struct c2_rm_owner *o)
 				C2_ASSERT(in != NULL);
 				C2_ASSERT(in->rin_state == RI_WAIT ||
 					  in->rin_state == RI_INITIALISED);
-				C2_ASSERT(c2_list_is_empty(&in->rin_pins));
+				//C2_ASSERT(c2_list_is_empty(&in->rin_pins));
 				/*
 				 * All waits completed, go to CHECK
 				 * state.
@@ -803,11 +884,12 @@ static int incoming_check(struct c2_rm_incoming *in)
 	int		    result;
 	bool		    held;
 
+
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(c2_list_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
 				&in->rin_want.ri_linkage));
 	C2_PRE(in->rin_state == RI_CHECK);
-	C2_PRE(c2_list_is_empty(&in->rin_pins));
+	//C2_PRE(c2_list_is_empty(&in->rin_pins));
 
 	/*
 	 * This function goes through owner rights lists checking for "wait"
@@ -832,7 +914,8 @@ static int incoming_check(struct c2_rm_incoming *in)
 	}
 
 	if (right_is_empty(&rest) ||
-	    in->rin_type == RIT_LOCAL) {
+	    (in->rin_type == RIT_LOCAL &&
+	    !c2_list_is_empty(&in->rin_pins))) {
 		/*
 		 * The wanted right is completely covered by the local
 		 * rights. There are no remote conditions to wait for.
@@ -852,6 +935,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 			 */
 			result = apply_policy(in);
 			C2_ASSERT(result == 0);
+			printf("Apply Policy\n");
 
 			switch (in->rin_type) {
 			case RIT_LOAN:
@@ -890,18 +974,33 @@ static int incoming_check(struct c2_rm_incoming *in)
 		if (in->rin_flags & RIF_MAY_REVOKE)
 			sublet_revoke(in, &rest);
 		if (in->rin_flags & RIF_MAY_BORROW) {
-			//get_from_borrowed(in, &rest);
 			/* borrow more */
 			while (!right_is_empty(&rest)) {
-				struct c2_rm_loan borrow;
-				/** @todo implement net_locate */
-				//c2_rm_net_locate(rest, &borrow);
-				go_out(in, ROT_BORROW,
-				       &borrow, &borrow.rl_right);
+				printf("Borrowing \n");
+				struct c2_rm_loan *borrow;
+				C2_ALLOC_PTR(borrow);
+				if (borrow == NULL)
+					return -ENOMEM;
+				right_copy(&borrow->rl_right, &rest);
+				c2_rm_net_locate(&rest, &borrow->rl_other);
+				result = go_out(in, ROT_BORROW,
+				       borrow, &borrow->rl_right);
+				rest.ri_ops->rro_diff(&rest,
+						      &borrow->rl_right);
+				if (result == 0) {
+					pin_add(in, &borrow->rl_right);
+					c2_list_add(&o->ro_borrowed,
+					    &borrow->rl_right.ri_linkage);
+				}
 			}
 		}
 		if (right_is_empty(&rest)) {
+			right_copy(&in->rin_want, &rest);
 			in->rin_state = RI_WAIT;
+			/*@todo Remove later on*/
+			in->rin_priority = 1;
+			c2_list_move(&o->ro_incoming[in->rin_priority][OQS_EXCITED],
+				     &in->rin_want.ri_linkage);
 		} else {
 			/* cannot fulfill the request. */
 			in->rin_state = RI_FAILURE;
@@ -939,7 +1038,8 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 	 * be true, depending on the policy.
 	 */
 	if (in->rin_type != RIT_LOCAL ||
-	    in->rin_policy == RIP_INPLACE)
+	    in->rin_policy == RIP_INPLACE ||
+	    in->rin_flags & RIF_LOCAL_WAIT)
 		track_local = true;
 	/*
 	 * If coverage is true, the loop below pins some collection of locally
@@ -1073,14 +1173,20 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		if (out == NULL)
 			return -ENOMEM;
 		out->rog_type = otype;
+		out->rog_owner = in->rin_owner;
 		out->rog_want.rl_other = loan->rl_other;
 		out->rog_want.rl_id = loan->rl_id;
 		right_copy(&out->rog_want.rl_right, right);
 		c2_list_add(&in->rin_owner->ro_outgoing[OQS_GROUND],
 			    &out->rog_want.rl_right.ri_linkage);
-		result = pin_add(in, &out->rog_want.rl_right);
+		//pin_add(in, &out->rog_want.rl_right);
 	}
+	printf("Remote ID %ld and loan ID %ld\n",loan->rl_other.rem_id,
+						loan->rl_id);
 	result = send_out_request(out);
+
+	right_copy(right, &out->rog_want.rl_right);
+
 	outgoing_complete(out, result);
 
 	return result;
@@ -1109,7 +1215,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 		c2_chan_timedwait(&clink, deadline);
 	}
 	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+;	c2_clink_fini(&clink);
 
 	if (in->rin_state != RI_SUCCESS ||
 	    in->rin_state != RI_FAILURE)
