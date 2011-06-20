@@ -57,7 +57,7 @@ static struct c2_fop_type *s_fops[] = {
 	&sunrpc_put_fopt,
 };
 
-static char get_put_buf[NUM];
+static char *get_put_buf;
 
 static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 {
@@ -194,7 +194,7 @@ int get_call(struct c2_net_conn *conn, int i)
 	C2_UT_ASSERT(rep->sgr_rc == i + 1);
 	C2_UT_ASSERT(rep->sgr_eof == 1);
 	C2_UT_ASSERT(rep->sgr_buf.sb_len == i);
-	/* XXX TODO: C2_UT_ASSERT(buf[0] == 1); */
+	C2_UT_ASSERT(memcmp(buf, get_put_buf, i) == 0);
 	sunrpc_buffer_fini(&rep->sgr_buf);
 	c2_free(buf);
 
@@ -306,6 +306,8 @@ void test_ksunrpc_server(void)
 	conn1 = c2_net_conn_find(&sid1);
 	C2_UT_ASSERT(conn1 != NULL);
 
+	get_put_buf = c2_alloc(NUM);
+	C2_UT_ASSERT(get_put_buf != NULL);
 	for (i = 0; i < NUM; ++i)
 		get_put_buf[i] = i+1;
 
@@ -321,6 +323,7 @@ void test_ksunrpc_server(void)
 		C2_UT_ASSERT(rc == 0);
 	}
 
+	c2_free(get_put_buf);
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
 	c2_service_stop(&s1);

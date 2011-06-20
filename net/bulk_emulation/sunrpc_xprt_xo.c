@@ -527,10 +527,11 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
    length.  The struct sunrpc_buffer contains a kernel struct page ** which
    gets populated with the pages corresponding to the buffer.
    @param sb buffer object to initialize
-   @param buf address of start of actual buffer
+   @param buf address of start of actual buffer, must not refer to kernel high
+   memory or memory allocated using vmalloc (c2_alloc memory is acceptable)
    @param len size of actual buffer
    @param for_write if true, user-space pages will be mapped for write-access
-   @pre sb != NULL && buf != NULL && len > 0
+   @pre sb != NULL && buf != NULL && len > 0 && buf < high_memory
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -547,6 +548,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 	C2_PRE(sb != NULL);
 	C2_PRE(buf != NULL);
 	C2_PRE(len > 0);
+	C2_PRE(buf < high_memory);
         addr = (unsigned long) buf;
         off = addr & (PAGE_SIZE - 1);
         addr &= PAGE_MASK;
