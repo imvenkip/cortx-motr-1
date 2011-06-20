@@ -10,9 +10,6 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/thread.h"
-#include "lib/queue.h"
-#include "lib/chan.h"
 #include "lib/processor.h"
 #include "lib/time.h"
 #include "lib/timer.h"
@@ -31,11 +28,11 @@
  */
 
 const struct c2_addb_loc c2_reqh_addb_loc = {
-        .al_name = "reqh"
+	.al_name = "reqh"
 };
 
 const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
-        .act_name = "t1-reqh"
+	.act_name = "t1-reqh"
 };
 
 struct c2_addb_ctx c2_reqh_addb_ctx;
@@ -48,12 +45,12 @@ C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
  * for fom execution.
  */
 static struct c2_fom_domain_ops c2_fom_dom_ops = {
-        .fdo_time_is_out = NULL
+	.fdo_time_is_out = NULL
 };
 
 int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine);
 
-/** 
+/**
  * fom domain invariant 
  */
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
@@ -163,10 +160,10 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 	struct c2_list_link *link = NULL;
 	struct c2_fom_hthread *th = NULL;
 	if (!c2_locality_invariant(loc)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_block_leave: Invalid locality",
 				-EINVAL);
-		return;	
+		return;
 	}
 
 	if (loc->fl_idle_threads_nr >= loc->fl_hi_idle_nr) {
@@ -250,7 +247,7 @@ void c2_fom_wait(struct c2_fom *fom)
 int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 {
 	if (!c2_fom_invariant(fom)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_block_at: Invalid fom",
 				-EINVAL);
 		return -EINVAL;
@@ -275,7 +272,7 @@ int c2_fom_fop_exec(struct c2_fom *fom)
 	stresult = 0;
 	rc = 0;
 	if (!c2_fom_invariant(fom)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_fop_exec: Invalid fom",
 				-EINVAL);
 		return -EINVAL;
@@ -283,9 +280,9 @@ int c2_fom_fop_exec(struct c2_fom *fom)
 
 	stresult = fom->fo_ops->fo_state(fom);
 	if (stresult ==  FSO_WAIT) {
-		/* fop execution is blocked 
+		/* fop execution is blocked
 		 * specific fom state execution would invoke
-		 * c2_fom_block_at routine, to put fom on the 
+		 * c2_fom_block_at routine, to put fom on the
 		 * wait list of this locality.
 		 */
 		C2_ASSERT(c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_wlink));
@@ -315,7 +312,7 @@ int c2_fom_fop_exec(struct c2_fom *fom)
 			  * record the failure in addb and clean up the fom.
 			  */
 			rc = -ECANCELED;
-		 	REQH_ADDB_ADD(fom->fo_fop->f_addb,
+			REQH_ADDB_ADD(fom->fo_fop->f_addb,
 					"reply sent but fop execution failed",
 					rc);
 			fom->fo_ops->fo_fini(fom);
@@ -336,7 +333,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 
 	rc = 0;
 	if (!c2_locality_invariant(loc)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_loc_thr_start: Invalid locality",
 				-EINVAL);
 		return;
@@ -374,19 +371,19 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		if (loc->fl_runq_nr == 0) {
 			/* check if this is a terminate request */
 			if (loc->fl_dom->fd_clean == 1) {
-				/* we came here through c2_fom_block_enter 
+				/* we came here through c2_fom_block_enter
 				 * wait will expire after 2 seconds
 				 */
 				c2_time_t       now;
-			        c2_time_t       delta;
+				c2_time_t       delta;
 				c2_time_t       expire;
 				c2_time_set(&delta, 2, 0);
 				expire = c2_time_add(c2_time_now(&now), delta);
 				c2_chan_timedwait(&th_clink, expire);
 				if (loc->fl_idle_threads_nr > loc->fl_lo_idle_nr)
 					break;
-			} else 
-			  if (loc->fl_dom->fd_clean == 2)
+			} else
+			if (loc->fl_dom->fd_clean == 2)
 				break;
 			continue;
 		}
@@ -408,7 +405,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		struct c2_fom *fom = NULL;
 		fom = container_of(fom_link, struct c2_fom, fo_qlink);
 		if (!c2_fom_invariant(fom)) {
-			 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+			REQH_ADDB_ADD(c2_reqh_addb_ctx,
 					"c2_loc_thr_start: Invalid fom",
 					-EINVAL);
 			continue;
@@ -417,7 +414,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		/* Change fom state to FOS_RUNNING */
 		if (fom->fo_state == FOS_READY)
 			fom->fo_state = FOS_RUNNING;
-		
+
 		/* check if we need to execute generic phases */
 		if (fom->fo_phase >= FOPH_INIT && fom->fo_phase < FOPH_EXEC)
 			rc = c2_fom_state_generic(fom);
@@ -428,14 +425,14 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 			 * send fop reply, and record failure in
 			 * addb and clean up fom.
 			 */
-			 rc = fom->fo_ops->fo_fail(fom);
-			 REQH_ADDB_ADD(fom->fo_fop->f_addb,
+			rc = fom->fo_ops->fo_fail(fom);
+			REQH_ADDB_ADD(fom->fo_fop->f_addb,
 					"FOM execution failed in generic phase",
 					rc);
 			/* clean up fom */
 			fom->fo_ops->fo_fini(fom);
 		}
-		
+
 		/* we reach here after the generic phases or if we come out of
 		 * fop specific wait phase, which would be greater than FOPH_NR.
 		 */
@@ -463,10 +460,10 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 
 	for(i = 0; i < loc->fl_proc_nr; ++i) {
 		struct c2_fom_hthread *locthr = NULL;
-	 
+
 		result = 0;
 
-		C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx, 
+		C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx,
 					&c2_reqh_addb_loc);
 		if (locthr == NULL)
 			return -ENOMEM;
@@ -488,16 +485,16 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 
 /**
  * Function to initialize localities for a particular
- * fom domain. 
+ * fom domain.
  */
-int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom, 
-			c2_processor_nr_t max_proc, int fdnr) 
+int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
+			c2_processor_nr_t max_proc, int fdnr)
 {
 	int result;
 	struct c2_fom_locality *loc = NULL;
-	
+
 	loc = &dom->fd_localities[fdnr];
-	result = 0;	
+	result = 0;
 	if (loc == NULL)
 		return -EINVAL;
 	/* Initialize a locality */
@@ -507,15 +504,15 @@ int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
 		c2_queue_init(&loc->fl_runq);
 		loc->fl_runq_nr = 0;
 		c2_mutex_init(&loc->fl_runq_lock);
-	
+
 		c2_list_init(&loc->fl_wail);
 		loc->fl_wail_nr = 0;
 		c2_mutex_init(&loc->fl_wail_lock);
-	
+
 		c2_mutex_init(&loc->fl_lock);
 		c2_chan_init(&loc->fl_runrun);
 		c2_list_init(&loc->fl_threads);
-		
+
 		loc->fl_lo_idle_nr = MIN_IDLE_THREADS;
 		loc->fl_hi_idle_nr = MAX_IDLE_THREADS;
 		c2_bitmap_init(&loc->fl_processors, max_proc);
@@ -534,7 +531,7 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 	struct c2_list_link *link = NULL;
 	struct c2_fom_hthread *th = NULL;
 	if (!c2_locality_invariant(loc)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_loc_fini: Invalid locality",
 				-EINVAL);
 		return;
@@ -560,7 +557,7 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 		c2_mutex_unlock(&loc->fl_lock);
 		if (link == NULL)
 			return;
-		th = c2_list_entry(link, struct c2_fom_hthread, 
+		th = c2_list_entry(link, struct c2_fom_hthread,
 					fht_linkage);
 		if (th != NULL) {
 			c2_thread_join(&th->fht_thread);
@@ -589,9 +586,10 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 	c2_bitmap_fini(&loc->fl_processors);
 }
 
-bool is_resource_shared(struct c2_processor_descr *cpu1, struct c2_processor_descr *cpu2)
+bool is_resource_shared(struct c2_processor_descr *cpu1,
+			struct c2_processor_descr *cpu2)
 {
-	return (cpu1->pd_l2 == cpu2->pd_l2 || 
+	return (cpu1->pd_l2 == cpu2->pd_l2 ||
 		cpu1->pd_numa_node == cpu2->pd_numa_node ||
 		cpu1->pd_pipeline == cpu2->pd_pipeline);
 }
@@ -600,7 +598,6 @@ bool check_cpu(struct c2_processor_descr *cpu)
 {
 	return (cpu->pd_l1_sz > 0 ||
 		cpu->pd_l2_sz > 0 );
-
 }
 /**
  * Funtion to initialize fom domain.
@@ -611,11 +608,12 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 {
 	int	i;
 	int	j;
-	int 	i_cpu;
+	int	i_cpu;
 	int	iloc = 0;
 	int	result = 0;
 	struct  c2_processor_descr	*cpu_info;
-	c2_processor_nr_t	max_proc, rc;
+	c2_processor_nr_t	max_proc;
+	c2_processor_nr_t	rc;
 	bool	val;
 	struct c2_bitmap	onln_map;
 
@@ -644,7 +642,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 				if (rc) {
 					C2_SET0(&cpu_info[i_cpu]);
 					continue;
-				} else 
+				} else
 					++i_cpu;
 			}
 	}
@@ -655,7 +653,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 
 	int ncpus;
 	ncpus = i_cpu;
-	/* Find the processors sharing resources and 
+	/* Find the processors sharing resources and
 	 * create localities between them.
 	 */
 	for (i = 0; i < i_cpu; ++i) {
@@ -677,7 +675,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 	}
 
 	for (i = 0; i < iloc; ++i) {
-		c2_loc_thr_create(&fomdom->fd_localities[i], true);	
+		c2_loc_thr_create(&fomdom->fd_localities[i], true);
 	}
 	return result;
 }
@@ -691,12 +689,12 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	size_t lfd_nr;
 	lfd_nr  = dom->fd_nr;
 	if (!c2_fom_domain_invariant(dom)) {
-		 REQH_ADDB_ADD(c2_reqh_addb_ctx,
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_domain_fini: Invalid fom domain",
 				-EINVAL);
-		 return;
+		return;
 	}
-	
+
 	for(i = 0; i < lfd_nr; ++i) {
 		c2_fom_loc_fini(&dom->fd_localities[i]);
 		--lfd_nr;
@@ -726,7 +724,7 @@ void c2_fom_init(struct c2_fom *fom)
 	/* Initialize addb context present in fop and use it to record
 	 * fop execution path.
 	 */
-	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, 
+	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain,
 							&fom->fo_tx);
 	c2_addb_ctx_init(&fom->fo_fop->f_addb, &c2_reqh_addb_ctx_type,
 				&c2_addb_global_ctx);
@@ -743,30 +741,30 @@ void c2_fom_fini(struct c2_fom *fom)
 {
 	int rc = 0;
 	if (!c2_fom_invariant(fom)) {
-		REQH_ADDB_ADD(c2_reqh_addb_ctx, 
-				"c2_fom_fini: Invalid fom", 
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_fom_fini: Invalid fom",
 				-EINVAL);
-		return;	
+		return;
 	}
 
 	if (fom->fo_phase == FOPH_DONE) {
 		/* Commit db transaction.*/
 		rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 		if (rc)
-			REQH_ADDB_ADD(fom->fo_fop->f_addb, 
-					"DB commit failed", 
+			REQH_ADDB_ADD(fom->fo_fop->f_addb,
+					"DB commit failed",
 					rc);
 	} else {
 		/* Abort db transaction in case of failure.*/
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc)
-			REQH_ADDB_ADD(fom->fo_fop->f_addb, 
-					"DB abort failed", 
+			REQH_ADDB_ADD(fom->fo_fop->f_addb,
+					"DB abort failed",
 					rc);
 	}
 
 	c2_addb_ctx_fini(&fom->fo_fop->f_addb);
-	if(c2_clink_is_armed(&fom->fo_clink))
+	if (c2_clink_is_armed(&fom->fo_clink))
 		c2_clink_del(&fom->fo_clink);
 	c2_clink_fini(&fom->fo_clink);
 	c2_queue_link_fini(&fom->fo_qlink);

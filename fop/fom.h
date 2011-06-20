@@ -92,7 +92,7 @@ struct c2_fom_locality {
 	size_t			fl_threads_nr;
 	size_t			fl_lo_idle_nr;
 	size_t			fl_hi_idle_nr;
-	
+
 	/*
 	 * Resources allotted to the partition.
 	 */

@@ -33,6 +33,10 @@ static struct c2_fom_phase_table fp_table[FOPH_NR];
 void set_fom_phase_table(void);
 void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
 
+#define INIT_PHASE(curr_phase, act, np) \
+	fp_table[curr_phase].action = act; \
+	fp_table[curr_phase].next_phase = np; \
+
 /** 
  * Function to initialize request handler and fom domain
  * success : returns 0
@@ -40,13 +44,13 @@ void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *dom, struct c2_fol *fol, 
+		struct c2_stob_domain *dom, struct c2_fol *fol,
 		struct c2_service *serv)
 {
-	int result = 0;
-	size_t nr = 0;
+	int result;
+	size_t nr;
 
-		
+	nr = 0;	
 	if ((reqh == NULL) || (dom == NULL) ||
 		(fol == NULL) || (serv == NULL))
 		return -EINVAL;
@@ -92,7 +96,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	/* initialize database */
 	ctx = c2_alloc(sizeof *ctx);
 	ctx->fc_cookie = cookie;
-        ctx->ft_service = reqh->rh_serv;
+	ctx->ft_service = reqh->rh_serv;
 
 	/* Initialize fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -106,7 +110,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
 	/* locate fom's home locality */
 	iloc = fom->fo_ops->fo_home_locality(reqh->rh_fom_dom, fom);
-	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc]; 	
+	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
 
 	/* submit fom for further processing */
 	c2_fom_queue(fom);
@@ -360,44 +364,19 @@ int c2_fom_state_generic(struct c2_fom *fom)
  */
 void set_fom_phase_table(void)
 {
-	fp_table[FOPH_INIT].action = c2_fom_phase_init;
-	fp_table[FOPH_INIT].next_phase = FOPH_AUTHENTICATE;
-	
-	fp_table[FOPH_AUTHENTICATE].action = c2_fom_authen;
-	fp_table[FOPH_AUTHENTICATE].next_phase = FOPH_RESOURCE_LOCAL;
-	
-	fp_table[FOPH_AUTHENTICATE_WAIT].action = c2_fom_authen_wait;
-	fp_table[FOPH_AUTHENTICATE_WAIT].next_phase = FOPH_RESOURCE_LOCAL;
-
-	fp_table[FOPH_RESOURCE_LOCAL].action = c2_fom_loc_resource;
-	fp_table[FOPH_RESOURCE_LOCAL].next_phase = FOPH_RESOURCE_DISTRIBUTED;
-
-	fp_table[FOPH_RESOURCE_LOCAL_WAIT].action = c2_fom_loc_resource_wait;
-	fp_table[FOPH_RESOURCE_LOCAL_WAIT].next_phase = FOPH_RESOURCE_DISTRIBUTED; 
-
-	fp_table[FOPH_RESOURCE_DISTRIBUTED].action = c2_fom_dist_resource;
-	fp_table[FOPH_RESOURCE_DISTRIBUTED].next_phase = FOPH_OBJECT_CHECK;
-
-	fp_table[FOPH_RESOURCE_DISTRIBUTED_WAIT].action = c2_fom_dist_resource_wait;
-	fp_table[FOPH_RESOURCE_DISTRIBUTED_WAIT].next_phase = FOPH_OBJECT_CHECK;
-
-	fp_table[FOPH_OBJECT_CHECK].action = c2_fom_obj_check;
-	fp_table[FOPH_OBJECT_CHECK].next_phase = FOPH_AUTHORISATION;
-
-	fp_table[FOPH_OBJECT_CHECK_WAIT].action = c2_fom_obj_check_wait;
-	fp_table[FOPH_OBJECT_CHECK_WAIT].next_phase = FOPH_AUTHORISATION;
-
-	fp_table[FOPH_AUTHORISATION].action = c2_fom_auth;
-	fp_table[FOPH_AUTHORISATION].next_phase = FOPH_EXEC;
-
-	fp_table[FOPH_AUTHORISATION_WAIT].action = c2_fom_auth_wait;
-	fp_table[FOPH_AUTHORISATION_WAIT].next_phase = FOPH_EXEC;
-
-        fp_table[FOPH_TXN_CONTEXT].action = c2_create_loc_ctx;
-        fp_table[FOPH_TXN_CONTEXT].next_phase = FOPH_DONE;
-
-	fp_table[FOPH_TXN_CONTEXT_WAIT].action = c2_create_loc_ctx_wait;
-	fp_table[FOPH_TXN_CONTEXT_WAIT].next_phase = FOPH_DONE;
+	INIT_PHASE(FOPH_INIT, c2_fom_phase_init, FOPH_AUTHENTICATE)
+	INIT_PHASE(FOPH_AUTHENTICATE, c2_fom_authen, FOPH_RESOURCE_LOCAL)
+	INIT_PHASE(FOPH_AUTHENTICATE_WAIT, c2_fom_authen_wait, FOPH_RESOURCE_LOCAL)
+	INIT_PHASE(FOPH_RESOURCE_LOCAL, c2_fom_loc_resource, FOPH_RESOURCE_DISTRIBUTED)
+	INIT_PHASE(FOPH_RESOURCE_LOCAL_WAIT, c2_fom_loc_resource_wait, FOPH_RESOURCE_DISTRIBUTED)
+	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED, c2_fom_dist_resource, FOPH_OBJECT_CHECK)
+	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED_WAIT, c2_fom_dist_resource_wait, FOPH_OBJECT_CHECK)
+	INIT_PHASE(FOPH_OBJECT_CHECK, c2_fom_obj_check, FOPH_AUTHORISATION)
+	INIT_PHASE(FOPH_OBJECT_CHECK_WAIT, c2_fom_obj_check_wait, FOPH_AUTHORISATION)
+	INIT_PHASE(FOPH_AUTHORISATION, c2_fom_auth, FOPH_EXEC)
+	INIT_PHASE(FOPH_AUTHORISATION_WAIT, c2_fom_auth_wait, FOPH_EXEC)
+	INIT_PHASE(FOPH_TXN_CONTEXT, c2_create_loc_ctx, FOPH_DONE)
+	INIT_PHASE(FOPH_TXN_CONTEXT_WAIT, c2_create_loc_ctx_wait, FOPH_DONE)
 }
 
 /** @} endgroup reqh */

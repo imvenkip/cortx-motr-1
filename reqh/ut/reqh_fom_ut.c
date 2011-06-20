@@ -924,7 +924,8 @@ void test_reqh(void)
         path = "../__s";
 
 	/* initialize processors */
-	c2_processors_init();
+	if (!c2_processor_is_initialized())
+		c2_processors_init();
 
 	result = fom_io_fop_init();
         C2_ASSERT(result == 0);
@@ -1026,6 +1027,9 @@ void test_reqh(void)
         c2_fol_fini(&fol);
         c2_dbenv_fini(&db);
         fom_io_fop_fini();
+        if (c2_processor_is_initialized())
+                c2_processors_fini();
+
 }
 
 const struct c2_test_suite reqh_ut = {
