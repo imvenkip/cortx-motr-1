@@ -35,7 +35,7 @@ static struct c2_net_transfer_mc ut_tm;
 
 static void make_desc(struct c2_net_buf_desc *desc);
 
-#ifdef __KERNEL__
+#if 0
 #define KPRN(fmt,...) printk(KERN_ERR fmt, ## __VA_ARGS__)
 #define PRId64 "lld" /* from <inttypes.h> */
 #else
