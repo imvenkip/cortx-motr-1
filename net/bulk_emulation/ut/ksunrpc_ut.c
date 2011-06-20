@@ -24,6 +24,8 @@
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/ksunrpc/ksunrpc.h"
 
+#include <linux/highmem.h> /* kmap, kunmap */
+
 enum {
 	NUM = 100,
 	IPADDR = 0x7f000001,
@@ -100,6 +102,7 @@ static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct sunrpc_put_resp    *ex;
 	struct c2_fop             *reply;
 	int                        i;
+	const char                *buf;
 
 	reply = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
 	C2_UT_ASSERT(reply != NULL);
@@ -117,7 +120,11 @@ static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_UT_ASSERT(in->sp_desc.sbd_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
 	C2_UT_ASSERT(in->sp_desc.sbd_total == i);
 	C2_UT_ASSERT(in->sp_buf.sb_len == i);
-	/* XXX TODO: verify in->sp_buf.sb_buf contents */
+
+	buf = kmap(in->sp_buf.sb_buf[0]);
+	buf += in->sp_buf.sb_pgoff;
+	C2_UT_ASSERT(memcmp(buf, get_put_buf, i) == 0);
+	kunmap(in->sp_buf.sb_buf[0]);
 
 	ex->spr_rc = i + 1;
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);

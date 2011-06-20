@@ -37,14 +37,14 @@
    Main entry points c2_kcall_dec() and c2_kcall_enc() decode and encode rpc
    calls respectively. The entry points c2_svc_rqst_dec() and c2_svc_rqst_enc()
    decode and encode service requests respectively.  For each fop type there are
-   three xdr-related operations (see enum kxdr_what):
+   four xdr-related operations (see enum kxdr_what):
 
    @li encoding (KENC): serialize fop data to the rpc send buffer, according to
    fop type. This operation is called on c2_knet_call::ac_arg fop before rpc is
    sent;
 
-   @li decoding (KDEC): read data from the rpc receive buffer and build fop
-   instance. This operation is called on c2_knet_call::ac_ret for after rpc
+   @li client decoding (KDEC): read data from the rpc receive buffer and build
+   fop instance. This operation is called on c2_knet_call::ac_ret for after rpc
    reply was received;
 
    @li reply preparing (KREP): prepare for receipt a fop of this type as a
@@ -53,7 +53,14 @@
    stored. For example "read" type operations must attach data pages to the
    reply buffer, see kxdr_sequence_rep().
 
-   All three xdr operations are implemented similarly, by recursively descending
+   @li service decoding (KARG): read data from the rpc service arg buffer and
+   build fop instance. This operation is called on fop of appropriate
+   c2_net_op_table::top_fopt type after rpc request was received in server.
+   Internally, this is very similar to KDEC, except for sequence handling,
+   since there is no way to pre-allocate pages as is done in KREP.  Only
+   a single sequence is supported per service request.
+
+   All four xdr operations are implemented similarly, by recursively descending
    through the fop format tree.
 
    When handling a non-leaf (i.e., "aggregating") node of a fop format tree,
@@ -91,13 +98,15 @@ enum kxdr_what {
 	KENC,
 	KDEC,
 	KREP,
+	KARG,
 	KNR
 };
 
 struct kxdr_ctx {
 	const struct c2_fop_field_type *kc_type;
 	struct xdr_stream              *kc_xdr;
-	struct rpc_rqst                *kc_req;
+	struct rpc_rqst                *kc_creq;
+	struct svc_rqst                *kc_sreq;
 	enum kxdr_what                  kc_what;
 	uint32_t                       *kc_nob;
 };
@@ -261,14 +270,37 @@ static int kxdr_sequence_rep(struct kxdr_ctx *ctx, void *obj)
 
 		/* Believe or not this is how kernel rpc users are supposed to
 		   indicate size of a reply. */
-		auth = ctx->kc_req->rq_task->tk_msg.rpc_cred->cr_auth;
+		auth = ctx->kc_creq->rq_task->tk_msg.rpc_cred->cr_auth;
 		offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) +
 			*ctx->kc_nob;
-		xdr_inline_pages(&ctx->kc_req->rq_rcv_buf, offset,
+		xdr_inline_pages(&ctx->kc_creq->rq_rcv_buf, offset,
 				 ps->ps_pages, ps->ps_pgoff, ps->ps_nr);
 		result = 0;
 	} else {
 		result = -EIO;
+	}
+	return result;
+}
+
+static int kxdr_sequence_arg(struct kxdr_ctx *ctx, void *obj)
+{
+	int result;
+	struct page_sequence *ps = obj;
+
+	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr, obj);
+	if (result != 0)
+		return result;
+
+	if (kxdr_is_byte_array(ctx)) {
+		/* Only supports bulk service with a single sequence */
+		ps->ps_pgoff = (unsigned long) ctx->kc_xdr->p & (PAGE_SIZE - 1);
+		ps->ps_pages = ctx->kc_sreq->rq_pages;
+		xdr_read_pages(ctx->kc_xdr, ps->ps_nr);
+	} else {
+		uint32_t i;
+
+		for (result = 0, i = 0; result == 0 && i < ps->ps_nr; ++i)
+			result = ftype_subxdr(ctx, obj, 1, i);
 	}
 	return result;
 }
@@ -286,6 +318,12 @@ static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
 		[FPF_U64]  = (void *)&c2_ku64_encode
 	},
 	[KDEC] = {
+		[FPF_VOID] = (void *)&c2_kvoid_decode,
+		[FPF_BYTE] = NULL,
+		[FPF_U32]  = (void *)&c2_ku32_decode,
+		[FPF_U64]  = (void *)&c2_ku64_decode
+	},
+	[KARG] = {
 		[FPF_VOID] = (void *)&c2_kvoid_decode,
 		[FPF_BYTE] = NULL,
 		[FPF_U32]  = (void *)&c2_ku32_decode,
@@ -329,6 +367,13 @@ static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] =
 		[FFA_SEQUENCE] = kxdr_sequence_rep,
 		[FFA_TYPEDEF]  = kxdr_typedef,
 		[FFA_ATOM]     = kxdr_atom_rep
+	},
+	[KARG] = {
+		[FFA_RECORD]   = kxdr_record,
+		[FFA_UNION]    = kxdr_union,
+		[FFA_SEQUENCE] = kxdr_sequence_arg,
+		[FFA_TYPEDEF]  = kxdr_typedef,
+		[FFA_ATOM]     = kxdr_atom
 	}
 };
 
@@ -341,7 +386,7 @@ static int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
 	struct kxdr_ctx   ctx = {
 		.kc_type = ftype,
 		.kc_xdr   = &xdr,
-		.kc_req   = req,
+		.kc_creq  = req,
 		.kc_what  = what,
 		.kc_nob   = &nob
 	};
@@ -355,6 +400,7 @@ static int c2_fop_type_encdec(const struct c2_fop_field_type *ftype,
 	case KDEC:
 		xdr_init_decode(&xdr, &req->rq_rcv_buf, data);
 	default:
+		C2_ASSERT(what != KARG);
 		break;
 	}
 	return kxdr_disp[what][ftype->fft_aggr](&ctx, obj);
@@ -385,7 +431,6 @@ static int c2_fop_encdec_buffer(const struct c2_fop_type_format *ftf,
 	struct kxdr_ctx   ctx = {
 		.kc_type = ftype,
 		.kc_xdr  = &xdr,
-		.kc_req  = NULL, /* unused */
 		.kc_what = what,
 		.kc_nob  = &nob
 	};
@@ -475,19 +520,19 @@ static int c2_svc_rqst_encdec(const struct c2_fop_field_type *ftype,
 	struct kxdr_ctx   ctx = {
 		.kc_type = ftype,
 		.kc_xdr   = &xdr,
-		.kc_req   = NULL, /* not used */
+		.kc_sreq  = rqstp,
 		.kc_what  = what,
 		.kc_nob   = &nob
 	};
 
 	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(kxdr_disp));
-	C2_ASSERT(what != KREP);  /* client-side only */
+	C2_ASSERT(what == KENC || what == KARG);
 
 	switch (what) {
 	case KENC:
 		xdr_init_encode(&xdr, &rqstp->rq_res, data);
 		break;
-	case KDEC:
+	case KARG:
 		xdr_init_decode(&xdr, &rqstp->rq_arg, data);
 	default:
 		break;
@@ -498,7 +543,7 @@ static int c2_svc_rqst_encdec(const struct c2_fop_field_type *ftype,
 int c2_svc_rqst_dec(void *req, __be32 *data, struct c2_fop *fop)
 {
 	return c2_svc_rqst_encdec(fop->f_type->ft_top,
-				  req, data, c2_fop_data(fop), KDEC);
+				  req, data, c2_fop_data(fop), KARG);
 }
 
 int c2_svc_rqst_enc(void *req, __be32 *data, struct c2_fop *fop)
