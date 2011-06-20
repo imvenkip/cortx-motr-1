@@ -280,7 +280,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
 	   Find out opcode of rpc item,
 	   Deallocate the io vector of rpc item accordingly.*/
 
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	fop->f_type->ft_ops->fto_fop_replied(fop);
 }
@@ -296,7 +296,7 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	size = fop->f_type->ft_ops->fto_getsize(fop);
 	return size;
@@ -328,7 +328,7 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
 	int			 opcode = 0;
 
 	C2_PRE(item != NULL);
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	opcode = fop->f_type->ft_ops->fto_get_opcode(fop);
 	return opcode;
@@ -347,7 +347,7 @@ struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 
 	ffid = fop->f_type->ft_ops->fto_get_fid(fop);
@@ -366,7 +366,7 @@ bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	io_req = fop->f_type->ft_ops->fto_is_io(fop);
 	return io_req;
@@ -378,13 +378,12 @@ bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
  */
 uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
 {
-
 	struct c2_fop			*fop;
 	uint64_t			 nfragments = 0;
 
 	C2_PRE(item != NULL);
 
-	fop = container_of(item, struct c2_fop, f_item);
+	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 
 	nfragments = fop->f_type->ft_ops->fto_get_nfragments(fop);

@@ -1245,7 +1245,10 @@ static int c2_rpc_form_item_add_to_forming_list(
 	uint64_t			 item_size = 0;
 	bool				 io_op = false;
 	uint64_t			 current_fragments = 0;
+	struct c2_rpc_slot		*slot = NULL;
+	struct c2_rpc_session		*session = NULL;
 	c2_time_t			 now;
+	bool				 session_locked = false;
 
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
@@ -1290,6 +1293,35 @@ static int c2_rpc_form_item_add_to_forming_list(
 			//c2_timer_fini(&item->ri_timer);
 		}
 		c2_list_del(&item->ri_unformed_linkage);
+
+		session = item->ri_session;
+		C2_ASSERT(session != NULL);
+		if (c2_mutex_is_not_locked(&session->s_mutex)) {
+			c2_mutex_lock(&session->s_mutex);
+			session_locked = true;
+		}
+		/* If current added rpc item is unbound, remove it from
+		   session->unbound_items list.*/
+		if (c2_list_contains(&session->s_unbound_items,
+					&item->ri_unbound_link)) {
+			c2_list_del(&item->ri_unbound_link);
+		}
+		/* OR If current added rpc item is bound, remove it from
+		   slot->ready_items list AND if slot->ready_items list
+		   is empty, remove slot from rpcmachine->ready_slots list.*/
+		else {
+			slot = item->ri_slot_refs[0].sr_slot;
+			C2_ASSERT(slot != NULL);
+			c2_list_del(&item->ri_slot_link);
+			c2_mutex_lock(&slot->sl_mutex);
+			if (c2_list_is_empty(&slot->sl_ready_list)) {
+				c2_list_del(&slot->sl_link);
+			}
+			c2_mutex_unlock(&slot->sl_mutex);
+		}
+		if (session_locked) {
+			c2_mutex_unlock(&session->s_mutex);
+		}
 		return 0;
 	}
 	else {
@@ -1546,6 +1578,7 @@ int c2_rpc_form_coalesce_fid_intent(struct c2_rpc_item *b_item,
 	C2_PRE(b_item != NULL);
 	C2_PRE(coalesced_item != NULL);
 
+	printf("c2_rpc_form_coalesce_fid_intent entered.\n");
 	res = b_item->ri_type->rit_ops->
 		rio_io_coalesce((void*)coalesced_item, b_item);
 	//res = c2_rpc_item_io_coalesce((void*)coalesced_item, b_item);
@@ -1671,6 +1704,7 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 	old_size = item->ri_type->rit_ops->rio_item_size(item);
 	//old_size = c2_rpc_item_size(item);
 
+	printf("c2_rpc_form_try_coalesce entered.\n");
 	/* If there are no unbound items to coalesce,
 	   return right away. */
 	c2_mutex_lock(&session->s_mutex);
@@ -1788,6 +1822,7 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 		return 0;
 	}
 
+	printf("A coalesced_item struct created successfully.\n");
 	/* Add the bound item to the list of member rpc items in
 	   coalesced_item structure so that it will be coalesced as well. */
 	C2_ALLOC_PTR(coalesced_member);
@@ -1852,11 +1887,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	struct c2_rpc_item				*rpc_item_next = NULL;
 	bool						 urgent_items = false;
 	bool						 item_added = false;
+	struct c2_rpcmachine				*rpcmachine = NULL;
 	struct c2_rpc_session				*session = NULL;
 	struct c2_rpc_slot				*slot = NULL;
+	struct c2_rpc_slot				*slot_next = NULL;
 	struct c2_rpc_item				*ub_item = NULL;
 	struct c2_rpc_item				*ub_item_next = NULL;
 	uint64_t					 counter = 0;
+	bool						 slot_found = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED)
@@ -2032,7 +2070,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   list separately. This group is sorted according to priority.
 	   So the partial number of items will be picked up
 	   for formation in increasing order of priority */
-	if(sg_partial != NULL) {
+	if (sg_partial != NULL) {
 		c2_mutex_lock(&sg_partial->sug_group->rg_guard);
 		c2_list_for_each_entry_safe(&sg_partial->sug_group->rg_items,
 				rpc_item, rpc_item_next,  struct c2_rpc_item,
@@ -2040,7 +2078,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			item_size = rpc_item->ri_type->rit_ops->
 				rio_item_size(rpc_item);
 			//item_size = c2_rpc_item_size(rpc_item);
-			if((partial_size - item_size) <= 0) {
+			if ((partial_size - item_size) <= 0) {
 				break;
 			}
 			if(c2_list_contains(&endp_unit->isu_unformed_list,
@@ -2056,6 +2094,44 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		c2_mutex_unlock(&sg_partial->sug_group->rg_guard);
 	}
 
+	/* Get slot and verno info from sessions component for
+	   any unbound items in session->free list. */
+	session = item->ri_session;
+	C2_ASSERT(session != NULL);
+	c2_mutex_lock(&session->s_mutex);
+	rpcmachine = session->s_conn->c_rpcmachine;
+	C2_ASSERT(rpcmachine != NULL);
+	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+	c2_list_for_each_entry_safe(&session->s_unbound_items, ub_item,
+			ub_item_next, struct c2_rpc_item, ri_unbound_link) {
+		/* Get rpcmachine from item.
+		   Get first ready slot from rpcmachine->ready_slots list.
+		   (Meaning, a slot whose ready_items list is empty = IDLE.)
+		   Send it to item_add_internal and then remove it
+		   from rpcmachine->ready_slots list. */
+		c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
+				slot_next, struct c2_rpc_slot, sl_link) {
+			if (!c2_list_length(&slot->sl_ready_list)) {
+				slot_found = true;
+				break;
+			}
+		}
+		if (!slot_found) {
+			printf("No ready slots found in rpcmachine.\n");
+			break;
+		}
+		/* Now that the item is bound, remove it from
+		   session->free list. */
+		res = c2_rpc_form_item_add_to_forming_list(endp_unit, ub_item,
+				&rpcobj_size, &nfragments, rpcobj->ro_rpcobj);
+		if (res != 0) {
+			break;
+		}
+		item_add_internal(slot, ub_item);
+	}
+	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&session->s_mutex);
+
 	/* If there are no urgent items in the formed rpc object,
 	   send the rpc for submission only if it is optimal. 
 	   For rpc objects containing urgent items, there are chances
@@ -2064,7 +2140,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of
 		   max_message_size, discard the rpc object. */
-		if (rpcobj_size < ((9/10) * endp_unit->isu_max_message_size)) {
+		if (rpcobj_size < ((0.9) * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
 					it is sub-optimal size \
 					rpcobj_size = %lu.\n",rpcobj_size);
@@ -2085,21 +2161,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			return C2_RPC_FORM_INTEVT_STATE_FAILED;
 		}
 	}
-
-	/* Get slot and verno info from sessions component for
-	   any unbound items in session->free list. */
-	session = item->ri_session;
-	C2_ASSERT(session != NULL);
-	c2_mutex_lock(&session->s_mutex);
-	c2_list_for_each_entry_safe(&session->s_unbound_items, ub_item,
-			ub_item_next, struct c2_rpc_item, ri_unbound_link) {
-		slot = ub_item->ri_slot_refs[0].sr_slot;
-		item_add_internal(slot, ub_item);
-		/* Now that the item is bound, remove it from
-		   session->free list. */
-		c2_list_del(&ub_item->ri_unbound_link);
-	}
-	c2_mutex_unlock(&session->s_mutex);
 
 	/* Try to do IO colescing for items in forming list. */
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
@@ -2334,6 +2395,7 @@ int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
 	int 						 res = 0;
 
+	printf("c2_rpc_item_io_coalesce entered.\n");
 	C2_PRE(coalesced_item != NULL);
 	C2_PRE(b_item != NULL);
 	coalesced_item = (struct c2_rpc_form_item_coalesced*)c_item;
@@ -2347,7 +2409,7 @@ int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 			return -ENOMEM;
 		}
 		item = c_member->im_member_item;
-		fop = container_of(item, struct c2_fop, f_item);
+		fop = c2_rpc_item_to_fop(item);
 		fop_member->fop = fop;
 		c2_list_add(&fop_list, &fop_member->fop_linkage);
 	}

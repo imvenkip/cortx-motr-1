@@ -104,7 +104,8 @@ struct c2_fop			*form_fops[nfops];
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-#define nfiles			 64
+//#define nfiles			 64
+#define nfiles			 1
 struct c2_fop_file_fid		*form_fids = NULL;
 
 #define	io_size			 8192
@@ -455,6 +456,7 @@ void c2_rpc_form_item_add_to_rpcmachine(struct c2_rpc_item *item)
 	else if (state == UNBOUNDED) {
 		printf("UNBOUNDED ITEM \n");
 		/* Call the event on formation module. */
+		item->ri_slot_refs[0].sr_slot = NULL;
 		item->ri_state = RPC_ITEM_SUBMITTED;
 		res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
 		if (res != 0) {

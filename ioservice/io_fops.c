@@ -205,6 +205,9 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(res_segs != NULL);
 	iovec = (struct c2_fop_segment_seq*)vec;
+#ifndef __KERNEL__
+	printf("c2_io_fop_read_segments_coalesce entered\n");
+#endif
 
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
@@ -291,6 +294,18 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 			(*res_segs)--;
 		}
 	}
+
+#ifndef __KERNEL__
+	i = 0;
+	printf("Resultant read IO coalesced segments.\n");
+	c2_list_for_each_entry(aggr_list, new_seg, struct c2_io_read_segment,
+			rs_linkage) {
+		printf("Segment %d : Offset = %lu, count = %lu\n", i,
+				new_seg->rs_seg.f_offset,
+				new_seg->rs_seg.f_count);
+		i++;
+	}
+#endif
 	return 0;
 }
 
@@ -306,10 +321,26 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	uint64_t			 curr_segs = 0;
 	int				 res = 0;
 	int				 i = 0;
+	int				 j = 0;
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
 	c2_list_init(&aggr_list);
+
+#ifndef __KERNEL__
+	printf("c2_io_fop_read_coalesce entered.\n");
+#endif
+	c2_list_for_each_entry(list, fop_member, struct c2_io_fop_member,
+			fop_linkage) {
+		fop = fop_member->fop;
+		read_fop = c2_fop_data(fop);
+		for (j = 0; j < read_fop->frd_ioseg.fs_count; j++) {
+#ifndef __KERNEL__
+			printf("Input read segment %d: offset = %lu, count = %lu\n", j, read_fop->frd_ioseg.fs_segs[j].f_offset, read_fop->frd_ioseg.
+					fs_segs[j].f_count);
+#endif
+		}
+	}
 
 	/* Traverse the list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
@@ -367,6 +398,9 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(nsegs != NULL);
 	iovec = (struct c2_fop_io_vec*)vec;
+#ifndef __KERNEL__
+	printf("c2_io_fop_write_segments_coalesce entered\n");
+#endif
 
 	/* For all write segments in the write vector, check if they
 	   can be merged with any of the segments from the aggregate list.
@@ -456,6 +490,17 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 			(*nsegs)--;
 		}
 	}
+#ifndef __KERNEL__
+	i = 0;
+	printf("Resultant write IO coalesced segments.\n");
+	c2_list_for_each_entry(aggr_list, new_seg, struct c2_io_write_segment,
+			ws_linkage) {
+		printf("Segment %d : Offset = %lu, count = %d\n", i,
+				new_seg->ws_seg.f_offset,
+				new_seg->ws_seg.f_buf.f_count);
+		i++;
+	}
+#endif
 	return 0;
 }
 
@@ -471,10 +516,26 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	uint64_t			 curr_segs = 0;
 	int				 res = 0;
 	int				 i = 0;
+	int				 j = 0;
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
 	c2_list_init(&aggr_list);
+
+#ifndef __KERNEL__
+	printf("c2_io_fop_write_coalesce entered.\n");
+#endif
+	c2_list_for_each_entry(list, fop_member, struct c2_io_fop_member,
+			fop_linkage) {
+		fop = fop_member->fop;
+		write_fop = c2_fop_data(fop);
+		for (j = 0; j < write_fop->fwr_iovec.iov_count; j++) {
+#ifndef __KERNEL__
+			printf("Input write segment %d: offset = %lu, count = %d\n", j, write_fop->fwr_iovec.iov_seg[j].f_offset, write_fop->fwr_iovec.
+					iov_seg[j].f_buf.f_count);
+#endif
+		}
+	}
 
 	/* Traverse the list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
