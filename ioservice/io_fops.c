@@ -571,7 +571,7 @@ uint64_t c2_io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
 	uint64_t			 size = 0;
-	
+
 	C2_PRE(fop != NULL);
 
 	/** Size of fop layout */
@@ -633,18 +633,18 @@ struct c2_fop_type_ops c2_fop_file_create_ops = {
 /**
  * FOP definitions for readv and writev operations.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
 		    c2_io_service_readv_opcode, &c2_io_cob_readv_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
 		    c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_file_create, "File Create",
 		    c2_io_service_create_opcode, &c2_fop_file_create_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    c2_io_service_writev_rep_opcode, &c2_io_rwv_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply", 
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    c2_io_service_readv_rep_opcode, &c2_io_rwv_rep_ops);
 
 /**
@@ -690,7 +690,7 @@ int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
