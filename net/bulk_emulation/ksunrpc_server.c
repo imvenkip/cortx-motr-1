@@ -381,6 +381,9 @@ int ksunrpc_service_init(struct c2_service *service)
 			c2_rwlock_write_lock(&ksunrpc_lock);
 			c2_list_add(&ksunrpc_svc_list, &xs->s_svc_link);
 			c2_rwlock_write_unlock(&ksunrpc_lock);
+		} else {
+			c2_free(xs);
+			service->s_xport_private = NULL;
 		}
 	} else {
 		ADDB_ADD(service, c2_addb_oom);
