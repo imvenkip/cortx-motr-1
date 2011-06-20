@@ -1638,7 +1638,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 	reply->ri_slot_refs[0].sr_xid = item->ri_slot_refs[0].sr_xid;
 	reply->ri_slot_refs[0].sr_verno = item->ri_slot_refs[0].sr_verno;
 	reply->ri_slot_refs[0].sr_last_seen_verno = slot->sl_verno;
-	reply->ri_session_err = -EBADR;
+	reply->ri_error = -EBADR;
 
 	printf("Misordered item: %p, sending reply: %p\n", item, reply);
 	slot->sl_ops->so_consume_reply(item, reply);
@@ -1654,6 +1654,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 
 	C2_ASSERT(slot != NULL && item != NULL);
 	C2_ASSERT(c2_mutex_is_locked(&slot->sl_mutex));
+	C2_ASSERT(c2_rpc_slot_invariant(slot));
 
 	printf("Applying item [%lu:%lu] on slot [%lu:%lu]\n",
 			item->ri_slot_refs[0].sr_verno.vn_vc,
@@ -1709,6 +1710,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 			rc = c2_rpc_slot_misordered_item_received(slot, item);
 			break;
 	}
+	C2_ASSERT(c2_rpc_slot_invariant(slot));
 	return rc;
 }
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,

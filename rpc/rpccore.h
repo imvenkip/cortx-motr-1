@@ -353,7 +353,7 @@ struct c2_rpc_item {
 	struct c2_list_link		ri_unbound_link;
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
-	int32_t				ri_session_err;
+	int32_t				ri_error;
 	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
 	    on c2_rpc_snd_slot::ss_replay_list */
 	struct c2_list_link		ri_slot_link;

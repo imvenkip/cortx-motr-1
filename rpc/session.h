@@ -471,6 +471,8 @@ struct c2_rpc_session {
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
 	struct c2_mutex 		 s_mutex;
+	/** Number of items in flight, posted over this session */
+	int64_t				 s_in_flight;
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
 	struct c2_list			 s_unbound_items;
