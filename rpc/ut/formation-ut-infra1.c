@@ -104,8 +104,7 @@ struct c2_fop			*form_fops[nfops];
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-//#define nfiles			 64
-#define nfiles			 1
+#define nfiles			 64
 struct c2_fop_file_fid		*form_fids = NULL;
 
 #define	io_size			 8192

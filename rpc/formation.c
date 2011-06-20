@@ -1197,6 +1197,7 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	int			 res = 0;
 	int			 ret = 0;
 	struct c2_rpc_session	*session = NULL;
+	bool			 item_unbound = true;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_READY ||
@@ -1213,9 +1214,13 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   add it to the c2_rpc_form_item_summary_unit data structure.*/
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
-	if (!c2_list_contains(&session->s_unbound_items,
-				&item->ri_unbound_link)) {
+	c2_mutex_lock(&session->s_mutex);
+	item_unbound = c2_list_contains(&session->s_unbound_items,
+				&item->ri_unbound_link);
+	c2_mutex_unlock(&session->s_mutex);
+	if (!item_unbound) {
 		res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
+		printf("Bound item %p added to unformed list.\n", item);
 	}
 	/* If rpcobj_formed_list already contains formed rpc objects,
 	   succeed the state and let it proceed to posting state. */
@@ -1722,6 +1727,46 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 	item_size = item->ri_type->rit_ops->rio_item_size(item);
 	//item_size = c2_rpc_item_size(item);
 
+
+	/* Find out/Create the coalesced_item struct for this bound item. */
+	/* If fid and intent(read/write) of current unbound item matches
+	   with fid and intent of the bound item, see if a corresponding
+	   struct c2_rpc_form_item_coalesced exists for this
+	   {fid, intent} tuple. */
+	c2_list_for_each_entry(&endp_unit->isu_coalesced_items_list,
+			coalesced_item, struct c2_rpc_form_item_coalesced,
+			ic_linkage) {
+		item_rw = item->ri_type->rit_ops->rio_io_get_opcode(item);
+		if (c2_fid_eq(&fid, &coalesced_item->ic_fid)
+				&& (coalesced_item->ic_op_intent == item_rw)) {
+			coalesced_item_found = true;
+			break;
+		}
+	}
+	/* If such a coalesced_item does not exist, create one. */
+	if (!coalesced_item_found) {
+		C2_ALLOC_PTR(coalesced_item);
+		if (!coalesced_item) {
+			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb
+					, &c2_rpc_form_addb_loc, c2_addb_oom);
+			return -ENOMEM;
+		}
+		c2_list_link_init(&coalesced_item->ic_linkage);
+		coalesced_item->ic_fid = fid;
+		coalesced_item->ic_op_intent = item->ri_type->
+			rit_ops->rio_io_get_opcode(item);
+		//coalesced_item->ic_op_intent =
+		//	c2_rpc_item_get_opcode(item);
+		coalesced_item->ic_resultant_item = NULL;
+		coalesced_item->ic_nmembers = 0;
+		c2_list_init(&coalesced_item->ic_member_list);
+		/* Add newly created coalesced_item into list of
+		   isu_coalesced_items_list in endp_unit.*/
+		c2_list_add(&endp_unit->isu_coalesced_items_list,
+				&coalesced_item->ic_linkage);
+	}
+	C2_ASSERT(coalesced_item != NULL);
+
 	c2_mutex_lock(&session->s_mutex);
 	c2_list_for_each_entry(&session->s_unbound_items, ub_item,
 			struct c2_rpc_item, ri_unbound_link) {
@@ -1736,49 +1781,6 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 			rio_items_equal(item, ub_item);
 		if (c2_fid_eq(&fid, &ufid) && item_equal)
 		{
-			/* If fid and intent(read/write) of current unbound
-			   item matches with fid and intent of the bound
-			   item, see if a corresponding struct
-			   c2_rpc_form_item_coalesced exists for this
-			   {fid, intent} tuple. */
-			c2_list_for_each_entry(&endp_unit->
-					isu_coalesced_items_list,
-					coalesced_item, struct
-					c2_rpc_form_item_coalesced,
-					ic_linkage) {
-				item_rw = item->ri_type->rit_ops->
-					rio_io_get_opcode(item);
-				if (c2_fid_eq(&fid, &coalesced_item->ic_fid)
-						&& (coalesced_item->
-							ic_op_intent ==
-							item_rw)) {
-					coalesced_item_found = true;
-					break;
-				}
-			}
-			/* If such a coalesced_item does not exist,
-			   create one. */
-			if (!coalesced_item_found) {
-				C2_ALLOC_PTR(coalesced_item);
-				if (!coalesced_item) {
-					C2_ADDB_ADD(&formation_summary->
-							is_rpc_form_addb,
-							&c2_rpc_form_addb_loc,
-							c2_addb_oom);
-					return -ENOMEM;
-				}
-				c2_list_link_init(&coalesced_item->ic_linkage);
-				coalesced_item->ic_fid = fid;
-				coalesced_item->ic_op_intent = item->ri_type->
-					rit_ops->rio_io_get_opcode(item);
-				//coalesced_item->ic_op_intent =
-				//	c2_rpc_item_get_opcode(item);
-				coalesced_item->ic_resultant_item = NULL;
-				coalesced_item->ic_nmembers = 0;
-				c2_list_init(&coalesced_item->ic_member_list);
-			}
-			/* If such a coalesced_item exists, increment
-			   its count of member rpc items. */
 			coalesced_item->ic_nmembers++;
 			C2_ALLOC_PTR(coalesced_member);
 			if (!coalesced_member) {
@@ -1814,6 +1816,8 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 			c2_list_del(&coalesced_member->im_linkage);
 			c2_free(coalesced_member);
 		}
+		c2_list_fini(&coalesced_item->ic_member_list);
+		c2_list_del(&coalesced_item->ic_linkage);
 		c2_free(coalesced_item);
 		coalesced_item = NULL;
 		return 0;
@@ -1831,6 +1835,7 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 	coalesced_member->im_member_item = item;
 	c2_list_add(&coalesced_item->ic_member_list,
 			&coalesced_member->im_linkage);
+	coalesced_item->ic_nmembers++;
 	/* If there are more than 1 rpc items sharing same fid
 	   and intent, there is a possibility of successful coalescing.
 	   Try to coalesce all member rpc items in the coalesced_item
@@ -1844,8 +1849,6 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 		*rpcobj_size += item->ri_type->rit_ops->
 			rio_item_size(item);
 		//*rpcobj_size += c2_rpc_item_size(item);
-		c2_list_add(&endp_unit->isu_coalesced_items_list,
-				&coalesced_item->ic_linkage);
 		/* Delete all members items for which coalescing was
 		   successful from the session->free list. */
 		c2_list_for_each_entry(&coalesced_item->ic_member_list,
@@ -2349,6 +2352,8 @@ struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item)
 void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
+	C2_PRE(slot != NULL);
+	item->ri_slot_refs[0].sr_slot = slot;
 }
 
 /**
@@ -2393,9 +2398,9 @@ int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 	int						 res = 0;
 
 	printf("c2_rpc_item_io_coalesce entered.\n");
-	C2_PRE(coalesced_item != NULL);
 	C2_PRE(b_item != NULL);
 	coalesced_item = (struct c2_rpc_form_item_coalesced*)c_item;
+	C2_PRE(coalesced_item != NULL);
 	c2_list_init(&fop_list);
 	c2_list_for_each_entry(&coalesced_item->ic_member_list, c_member,
 			struct c2_rpc_form_item_coalesced_member, im_linkage) {

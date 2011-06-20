@@ -146,7 +146,7 @@ uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop;
 	uint64_t			 nfragments = 0;
-	uint64_t			 seg_count = 0;
+	int				 seg_count = 0;
 	uint64_t			 s_offset = 0;
 	uint64_t			 s_count = 0;
 	uint64_t			 next_s_offset = 0;
@@ -170,7 +170,7 @@ uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 {
 	struct c2_fop_cob_writev	*write_fop;
 	uint64_t			 nfragments = 0;
-	uint64_t			 seg_count = 0;
+	int				 seg_count = 0;
 	uint64_t			 s_offset = 0;
 	uint64_t			 s_count = 0;
 	uint64_t			 next_s_offset = 0;
@@ -201,7 +201,7 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 	struct c2_fop_segment_seq			*iovec = NULL;
 	bool						 list_empty = true;
 
-	C2_PRE(iovec != NULL);
+	C2_PRE(vec != NULL);
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(res_segs != NULL);
 	iovec = (struct c2_fop_segment_seq*)vec;
@@ -394,7 +394,7 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 	struct c2_fop_io_vec			*iovec = NULL;
 	bool					 list_empty = true;
 
-	C2_PRE(iovec != NULL);
+	C2_PRE(vec != NULL);
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(nsegs != NULL);
 	iovec = (struct c2_fop_io_vec*)vec;
