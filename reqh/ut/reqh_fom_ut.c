@@ -352,7 +352,7 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 	netcall(conn, rcall);
 }
 
-static void reqh_test_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
 {	
 	C2_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
@@ -360,7 +360,23 @@ static void reqh_test_send(struct c2_net_conn *conn, unsigned long seq, unsigned
 	fid->f_seq = seq;
 	fid->f_oid = oid;
 	create_send(conn, fid);
+}
+static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+{	
+	C2_ASSERT(conn != NULL);
+	struct c2_fom_fop_fid *fid;
+	fid = c2_alloc(sizeof *fid);
+	fid->f_seq = seq;
+	fid->f_oid = oid;
 	write_send(conn, fid);
+}
+static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+{	
+	C2_ASSERT(conn != NULL);
+	struct c2_fom_fop_fid *fid;
+	fid = c2_alloc(sizeof *fid);
+	fid->f_seq = seq;
+	fid->f_oid = oid;
 	read_send(conn, fid);
 }
 /********************************************************************
@@ -990,13 +1006,6 @@ void test_reqh(void)
          	                          reqh_addb_stob, NULL);
 
 	create_net_connection(&rsid, &conn, &reqh_node_arg, &rservice);
-        /*C2_SET0(&service);
-
-        result = c2_net_xprt_init(&c2_net_usunrpc_xprt);
-        C2_ASSERT(result == 0);
-
-        result = c2_net_domain_init(&ndom, &c2_net_usunrpc_xprt);
-        C2_ASSERT(result == 0);*/
 
         /* initializing request handler */
         result =  c2_reqh_init(&reqh, NULL, NULL, sdom, &fol, &rservice);
@@ -1004,10 +1013,16 @@ void test_reqh(void)
 
 	/* create listening thread to accept async reply's */
 	
-	for(i = 0; i < 4; ++i)
-		reqh_test_send(conn, i, i);
+	for(i = 0; i < 10; ++i)
+		reqh_create_send(conn, i, i);
 
-	while(reply < 12)
+	for(i = 0; i < 10; ++i)
+		reqh_write_send(conn, i, i);
+
+	for(i = 0; i < 10; ++i)
+		reqh_read_send(conn, i, i);
+
+	while(reply < 24)
 	     sleep(1);	
 
 	/* clean up network connections */

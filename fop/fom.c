@@ -590,8 +590,7 @@ bool is_resource_shared(struct c2_processor_descr *cpu1,
 			struct c2_processor_descr *cpu2)
 {
 	return (cpu1->pd_l2 == cpu2->pd_l2 ||
-		cpu1->pd_numa_node == cpu2->pd_numa_node ||
-		cpu1->pd_pipeline == cpu2->pd_pipeline);
+		cpu1->pd_numa_node == cpu2->pd_numa_node);
 }
 
 bool check_cpu(struct c2_processor_descr *cpu)
