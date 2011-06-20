@@ -279,7 +279,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Since the upper layer IO block size could differ
 	 * with IO block size of storage object, the block
-	 * alignment and mapping is necesary. 
+	 * alignment and mapping is necesary.
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;

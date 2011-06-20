@@ -472,7 +472,7 @@ void c2_rpc_item_type_register(struct c2_fop_type *fopt)
 			//fopt->ft_ritype.rit_ops = c2_rpc_item_readv_type_ops;
 			break;
 		case c2_io_service_writev_opcode:
-			//fopt->ft_ritype.rit_ops = c2_rpc_item_writev_type_ops; 
+			//fopt->ft_ritype.rit_ops = c2_rpc_item_writev_type_ops;
 			break;
 		case c2_io_service_create_opcode:
 			//fopt->ft_ritype.rit_ops = c2_rpc_item_create_type_ops;

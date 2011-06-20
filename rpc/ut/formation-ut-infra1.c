@@ -171,7 +171,7 @@ struct c2_rpc_session		 session;
 struct c2_rpcmachine		 rpcmachine;
 struct c2_cob_domain		 cob_domain;
 struct c2_dbenv			 db;
-char 				 db_name[] = "rpc_form_db"; 
+char				 db_name[] = "rpc_form_db";
 struct c2_rpc_conn		 conn;
 
 #define BOUNDED			 1
@@ -211,7 +211,7 @@ void c2_rpc_form_slot_fini(struct c2_rpc_slot *slot)
 /**
   Function to init required values in connection
 */
-void c2_rpc_form_conn_init(struct c2_rpc_conn *conn, 
+void c2_rpc_form_conn_init(struct c2_rpc_conn *conn,
 		struct c2_rpcmachine *rpc_mc)
 {
 	C2_PRE(rpc_mc != NULL);
@@ -225,9 +225,9 @@ void c2_rpc_form_conn_init(struct c2_rpc_conn *conn,
 }
 
 /**
-  Function to init required values in session 
+  Function to init required values in session
 */
-void c2_rpc_form_session_init(struct c2_rpc_session *session, 
+void c2_rpc_form_session_init(struct c2_rpc_session *session,
 		struct c2_rpc_conn *conn)
 {
 	C2_PRE(session != NULL);
@@ -239,9 +239,9 @@ void c2_rpc_form_session_init(struct c2_rpc_session *session,
 	c2_list_link_init(&session->s_link);
 }
 
-/** 
-  Init of all required data structures 
-*/
+/**
+  Init of all required data structures
+ */
 int c2_rpc_form_ut_init()
 {
 	struct c2_cob_domain_id cob_dom_id = { 11 };
@@ -273,7 +273,7 @@ int c2_rpc_form_ut_init()
 	c2_rpc_form_conn_init(&conn, &rpcmachine);
 
 	/* Init the sessions structure */
-	c2_rpc_form_session_init(&session, &conn);	
+	c2_rpc_form_session_init(&session, &conn);
 
 	/* Init the slots */
 	for(i=0; i < nslots; i++)
@@ -291,13 +291,13 @@ int c2_rpc_form_ut_init()
 	return 0;
 }
 
-/** 
-  Init of all required data structures 
+/**
+  Init of all required data structures
  */
 
 void c2_rpc_form_ut_fini()
 {
-	int 		i = 0;
+	int	i = 0;
 
 	/* Fini the rpc formation component */
 	c2_rpc_form_fini();
@@ -306,7 +306,7 @@ void c2_rpc_form_ut_fini()
 	for(i = 0; i < nslots; i++)
 	{
 		c2_rpc_form_slot_fini(slots[i]);
-	}	
+	}
 
 	/* Fini the rpcmachine */
 	//c2_rpcmachine_fini(&rpcmachine);
@@ -436,7 +436,7 @@ void c2_rpc_form_item_add_to_rpcmachine(struct c2_rpc_item *item)
 	int		res = 0;
 	/* Randomly select the state of the item to be BOUNDED or UNBOUNDED */
 	state = rand() % UNBOUNDED + BOUNDED;
-	
+
 	if (state == BOUNDED){
 		printf("BOUNDED ITEM \n");
 		/* Find a random slot and add to its free list */
@@ -577,7 +577,7 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 		default:
 			break;
 	};
-	
+
 	return 0;
 }
 
@@ -1004,7 +1004,7 @@ int main(int argc, char **argv)
 
 	printf("Number of ready slots in rpcmachine = %lu\n",
 			c2_list_length(&rpcmachine.cr_ready_slots));
-	c2_list_for_each_entry(&rpcmachine.cr_ready_slots, slot_member, 
+	c2_list_for_each_entry(&rpcmachine.cr_ready_slots, slot_member,
 		struct c2_rpc_slot, sl_link){
 		bounded_item_no += c2_list_length(&slot_member->sl_ready_list);
 		printf("Number of bounded ready items for slot[%u] = %lu\n",

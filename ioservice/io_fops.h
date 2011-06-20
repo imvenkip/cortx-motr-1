@@ -68,13 +68,13 @@ struct c2_io_fop_member {
 	struct c2_fop		*fop;
 };
 
-/** 
+/**
    Member structure of a list containing read IO segments.
  */
 struct c2_io_read_segment {
         /** Linkage to the list of such structures. */
         struct c2_list_link             rs_linkage;
-        /** The read IO segment. */ 
+        /** The read IO segment. */
         struct c2_fop_segment           rs_seg;
 };
 
