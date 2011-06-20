@@ -351,16 +351,9 @@ struct c2_rpc_item {
 	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
 	struct c2_list_link		ri_unbound_link;
-	/** Session related fields. Should be included in on wire rpc-item */
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
-	//uint32_t			ri_slot_id;
-	//uint64_t			ri_slot_generation;
-	/** ri_verno acts as sequence counter */
-	//struct c2_verno			ri_verno;
-	//struct c2_verno			ri_last_persistent_verno;
-	//struct c2_verno			ri_last_seen_verno;
-	uint32_t			ri_session_err;
+	int32_t				ri_session_err;
 	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
 	    on c2_rpc_snd_slot::ss_replay_list */
 	struct c2_list_link		ri_slot_link;

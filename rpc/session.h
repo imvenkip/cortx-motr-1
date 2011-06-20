@@ -168,7 +168,6 @@ struct c2_rpc_conn;
 enum {
 	/** session_[create|terminate] items go on session 0 */
 	SESSION_0 = 0,
-	/** UNINITIALISED session has id SESSION_ID_INVALID */
 	SESSION_ID_INVALID = ~0,
 	/** conn_[create_terminate] fops are sent out of session.
 	    Such items have session id as SESSION_ID_NOSESSION */
@@ -176,20 +175,11 @@ enum {
 	/** Range of valid session ids */
 	SESSION_ID_MIN = SESSION_0 + 1,
 	SESSION_ID_MAX = SESSION_ID_NOSESSION - 1,
-	/** UNINITIALISED c2_rpc_conn object has sender id as
-	    SENDER_ID_INVALID */
 	SENDER_ID_INVALID = ~0,
 	SLOT_ID_INVALID = ~0,
 };
 
 enum c2_rpc_conn_state {
-        /**
-           A newly allocated c2_rpc_conn object is in
-           UNINITIALISED state. A finalized object also enters in 
-	   UNINITIALISED state.
-         */
-        C2_RPC_CONN_UNINITIALISED = 0,
-
 	/**
 	  All the fields of conn are initialised locally. But the connection
 	  is not yet established.
@@ -257,8 +247,8 @@ enum {
 
    <PRE>
 
-   +-------------------------> UNINITIALISED
-                                    |
+   +-------------------------> unknown state
+         allocated                  |
                                     |  c2_rpc_conn_init()
                                     V
                                INITIALISED
@@ -286,7 +276,7 @@ enum {
 	 |                          |
 	 |			    |  fini()
 	 |	fini()		    V
-	 +--------------------> UNINITIALISED
+	 +--------------------> unknown state 
 
 </PRE>
   Concurrency:
@@ -296,7 +286,7 @@ enum {
 struct c2_rpc_conn {
         /** Every c2_rpc_conn is stored on a list
 	    c2_rpcmachine::cr_rpc_conn_list
-	    conn is in the list if c_state is not in {CONN_UNINITIALIZED,
+	    conn is in the list if c_state is not in {
 	    CONN_INITIALISED, CONN_FAILED, CONN_TERMINATED} */
         struct c2_list_link              c_link;
         enum c2_rpc_conn_state		 c_state;
@@ -327,12 +317,13 @@ struct c2_rpc_conn {
    Initialise @conn object and associate it with @machine.
    No network communication is involved.
 
-   @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
+   Note: c2_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
+	 if c2_rpc_conn_init() fails conn is in undefined state.
+
    @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
-   @post ergo(rc != 0, conn->c_state == C2_RPC_CONN_UNINITIALISED)
  */
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		     struct c2_rpcmachine	*machine);
@@ -363,7 +354,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
    @pre conn->c_state == C2_RPC_CONN_FAILED ||
 	conn->c_state == C2_RPC_CONN_INITIALISED ||
 	conn->c_state == C2_RPC_CONN_TERMINATED
-   @post conn->c_state == C2_RPC_CONN_UNINITIALISED
  */
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
 
@@ -390,12 +380,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
    Possible states of a session object
  */
 enum c2_rpc_session_state {
-	/**
-	   When a session object is newly instantiated it is in
-	   UNINITIALISED state.
-	 */
-	C2_RPC_SESSION_UNINITIALISED = 0,
-
 	/**
 	   all lists, mutex and channels of session are initialised.
 	   No actual session is established with any end point
@@ -440,8 +424,8 @@ enum c2_rpc_session_state {
    It is opaque for the client like c2t1fs.
 <PRE>
 
-            +------------------> UNINITIALISED
-				      |
+            +------------------> some unknown state
+                 allocated            |
 				      |  c2_rpc_session_init()
 				      V
 				  INITIALISED
@@ -471,7 +455,7 @@ enum c2_rpc_session_state {
 	  |		              |
 	  |			      | fini()
 	  |			      V
-	  +-----------------------> UNINITIALISED
+	  +----------------------->unknown state 
 
 </PRE>
  */
@@ -509,7 +493,6 @@ struct c2_rpc_session {
    nr_slots number of slots.
    No network communication is involved.
 
-   @pre session->s_state == C2_RPC_SESSION_UNINITIALISED
    @post ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn == conn && session->s_session_id == SESSION_ID_INVALID)
  */
@@ -555,7 +538,6 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||
 	session->s_state == C2_RPC_SESSION_FAILED ||
 	session->s_state == C2_RPC_SESSION_INITIALISED
-   @post session->s_state == C2_RPC_SESSION_UNINITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
 
@@ -610,6 +592,9 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 		     const struct c2_rpc_slot_ops	*ops);
 
 void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
+			  struct c2_rpc_item	*item);
+
+int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 			  struct c2_rpc_item	*item);
 
 void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,

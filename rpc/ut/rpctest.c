@@ -501,6 +501,24 @@ void test_slots()
 		memcpy(r, items[i], sizeof (struct c2_rpc_item));
 		c2_rpc_slot_reply_received(&slot, r);
 	}
+	C2_ALLOC_PTR(r);
+	r->ri_slot_refs[0].sr_verno.vn_lsn = slot.sl_verno.vn_lsn;
+	r->ri_slot_refs[0].sr_verno.vn_vc = slot.sl_verno.vn_vc;
+	r->ri_slot_refs[0].sr_xid = slot.sl_xid;
+	c2_rpc_slot_item_apply(&slot, r);
+
+	C2_ALLOC_PTR(r);
+	r->ri_slot_refs[0].sr_verno.vn_lsn = slot.sl_verno.vn_lsn;
+	r->ri_slot_refs[0].sr_verno.vn_vc = slot.sl_verno.vn_vc;
+	r->ri_slot_refs[0].sr_xid = slot.sl_xid + 1;
+	c2_rpc_slot_item_apply(&slot, r);
+
+	C2_ALLOC_PTR(r);
+	r->ri_slot_refs[0].sr_verno.vn_lsn = items[1]->ri_slot_refs[0].sr_verno.vn_lsn;
+	r->ri_slot_refs[0].sr_verno.vn_vc = items[1]->ri_slot_refs[0].sr_verno.vn_vc;
+	r->ri_slot_refs[0].sr_xid = items[1]->ri_slot_refs[0].sr_xid;
+	c2_rpc_slot_item_apply(&slot, r);
+
 	c2_mutex_unlock(&slot.sl_mutex);
 	C2_ASSERT(c2_rpc_slot_invariant(&slot));
 }
@@ -509,20 +527,20 @@ int main(void)
 	printf("Program start\n");
 	c2_init();
 
-	init();
+	//init();
 	//test_conn_create();
 	//test_session_create();
 	//test_session_terminate(g_sender_id, g_session_id);
 	test_slots();
 	//test_conn_terminate(g_sender_id);
 
-	test_snd_conn_create();
-	test_snd_session_create();
+	//test_snd_conn_create();
+	//test_snd_session_create();
 	//test_item_prepare();
-	test_snd_session_terminate();
-	test_snd_conn_terminate();
+	//test_snd_session_terminate();
+	//test_snd_conn_terminate();
 
-	c2_rpcmachine_fini(machine);
+	//c2_rpcmachine_fini(machine);
 	//c2_cob_domain_fini(dom);
 	c2_fini();
 	printf("program end\n");
