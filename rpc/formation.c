@@ -2064,7 +2064,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of
 		   max_message_size, discard the rpc object. */
-		if (rpcobj_size < ((9/10) * endp_unit->isu_max_message_size)) {
+		if (rpcobj_size < (0.9 * endp_unit->isu_max_message_size)) {
 			printf("Discarding the formed rpc object since \
 					it is sub-optimal size \
 					rpcobj_size = %lu.\n",rpcobj_size);
@@ -2094,7 +2094,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	c2_list_for_each_entry_safe(&session->s_unbound_items, ub_item,
 			ub_item_next, struct c2_rpc_item, ri_unbound_link) {
 		slot = ub_item->ri_slot_refs[0].sr_slot;
-		C2_ASSERT(slot != NULL);
 		item_add_internal(slot, ub_item);
 		/* Now that the item is bound, remove it from
 		   session->free list. */
@@ -2291,7 +2290,6 @@ struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item)
  */
 void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item)
 {
-	C2_PRE(slot != NULL);
 	C2_PRE(item != NULL);
 }
 
