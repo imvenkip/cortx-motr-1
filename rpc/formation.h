@@ -148,7 +148,7 @@ struct c2_rpc_form_item_summary {
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		is_endp_list_lock;
 	/** ADDB context for this item summary */
-	struct c2_addb_ctx		is_rpc_form_addb; 
+	struct c2_addb_ctx		is_rpc_form_addb;
 };
 
 /**
@@ -465,7 +465,7 @@ struct c2_rpc_form_item_change_req {
 
 /**
    Callback function for addition of an rpc item to the list of 
-   its corresponding free slot. 
+   its corresponding free slot.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -506,15 +506,15 @@ int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *rep_item,
  */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
 
-/** 
+/**
    Callback function for slot becoming idle.
    Adds the slot to the list of ready slots in concerned rpcmachine. 
    @param item - slot structure for the slot which has become idle.
  */
 int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
 
-/** 
-   Callback function for unbounded item getting added to session. 
+/**
+   Callback function for unbounded item getting added to session.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.

@@ -77,7 +77,7 @@ stateFunc c2_rpc_form_stateTable
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state, 
+	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
 	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
 	  &c2_rpc_form_waiting_state},
 
@@ -260,13 +260,10 @@ static void c2_rpc_form_empty_groups_list(struct c2_list *list)
  */
 static void c2_rpc_form_empty_coalesced_items_list(struct c2_list *list)
 {
-	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
-	struct c2_rpc_form_item_coalesced		*coalesced_item_next =
-		NULL;
-	struct c2_rpc_form_item_coalesced_member	*coalesced_member =
-		NULL;
-	struct c2_rpc_form_item_coalesced_member	*coalesced_member_next =
-		NULL;
+	struct c2_rpc_form_item_coalesced	 *coalesced_item = NULL;
+	struct c2_rpc_form_item_coalesced	 *coalesced_item_next = NULL;
+	struct c2_rpc_form_item_coalesced_member *coalesced_member = NULL;
+	struct c2_rpc_form_item_coalesced_member *coalesced_member_next = NULL;
 
 	C2_PRE(list != NULL);
 	c2_list_for_each_entry_safe(list, coalesced_item, coalesced_item_next,
@@ -640,7 +637,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 
 /**
    Callback function for addition of an rpc item to the list of
-   its corresponding free slot. 
+   its corresponding free slot.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -674,14 +671,14 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 
-	/* Curent state is not known at the moment. */ 
-	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES, 
+	/* Curent state is not known at the moment. */
+	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_N_STATES,
 			&sm_event);
 }
 
-/** 
+/**
    Callback function for slot becoming idle.
-   Adds the slot to the list of ready slots in concerned rpcmachine. 
+   Adds the slot to the list of ready slots in concerned rpcmachine.
    @param item - slot structure for the slot which has become idle.
  */
 int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
@@ -700,8 +697,8 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
 	return 0;
 }
 
-/** 
-   Callback function for unbounded item getting added to session. 
+/**
+   Callback function for unbounded item getting added to session.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -952,7 +949,7 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 
 	res = c2_rpc_form_remove_rpcitem_from_summary_unit(endp_unit, item);
 	if (res != 0) {
-		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
 				&c2_rpc_form_addb_loc, formation_func_fail,
 				"c2_rpc_form_change_rpcitem_from_summary_unit",
 				res);
@@ -974,7 +971,7 @@ static int c2_rpc_form_change_rpcitem_from_summary_unit(struct
 	};
 	res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
 	if (res != 0) {
-		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+		C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
 				&c2_rpc_form_addb_loc, formation_func_fail,
 				"c2_rpc_form_change_rpcitem_from_summary_unit",
 				res);
@@ -1179,7 +1176,7 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 				(unsigned long)item);*/
 		//res = c2_timer_start(&item->ri_timer);
 		if (res != 0) {
-			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb, 
+			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
 				&c2_rpc_form_addb_loc,
 				formation_func_fail,
 				"c2_rpc_form_add_rpcitem_to_summary_unit",
@@ -1707,7 +1704,7 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 		{
 			/* If fid and intent(read/write) of current unbound
 			   item matches with fid and intent of the bound
-			   item, see if a corresponding struct 
+			   item, see if a corresponding struct
 			   c2_rpc_form_item_coalesced exists for this
 			   {fid, intent} tuple. */
 			c2_list_for_each_entry(&endp_unit->
@@ -1812,7 +1809,7 @@ int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
 		*rpcobj_size += item->ri_type->rit_ops->
 			rio_item_size(item);
 		//*rpcobj_size += c2_rpc_item_size(item);
-		c2_list_add(&endp_unit->isu_coalesced_items_list, 
+		c2_list_add(&endp_unit->isu_coalesced_items_list,
 				&coalesced_item->ic_linkage);
 		/* Delete all members items for which coalescing was
 		   successful from the session->free list. */
@@ -2000,7 +1997,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if (ncurrent_groups > nselected_groups) {
 				break;
 			}
-			if (sg_partial && (rpc_item->ri_group == 
+			if (sg_partial && (rpc_item->ri_group ==
 						sg_partial->sug_group)) {
 				break;
 			}
@@ -2057,7 +2054,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	}
 
 	/* If there are no urgent items in the formed rpc object,
-	   send the rpc for submission only if it is optimal. 
+	   send the rpc for submission only if it is optimal.
 	   For rpc objects containing urgent items, there are chances
 	   that it will be passed for submission even if it is
 	   sub-optimal. */
@@ -2332,7 +2329,7 @@ int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 	struct c2_fop					*b_fop = NULL;
 	struct c2_rpc_item				*item = NULL;
 	struct c2_rpc_form_item_coalesced		*coalesced_item = NULL;
-	int 						 res = 0;
+	int						 res = 0;
 
 	C2_PRE(coalesced_item != NULL);
 	C2_PRE(b_item != NULL);
