@@ -915,10 +915,7 @@ int main(int argc, char **argv)
 	int			 result = 0;
 	int			 i = 0;
 	int			 j = 0;
-	int			 slot_number = 0;
-	int			 bounded_item_no = 0;
 	struct c2_fop		*fop = NULL;
-	struct c2_rpc_slot	*slot_member = NULL;
 
 	result = c2_rpc_form_ut_init();
 	C2_ASSERT(result == 0);
@@ -1002,21 +999,6 @@ int main(int argc, char **argv)
 		c2_thread_join(&form_ut_threads[i]);
 		c2_thread_fini(&form_ut_threads[i]);
 	}
-
-	printf("Number of ready slots in rpcmachine = %lu\n",
-			c2_list_length(&rpcmachine.cr_ready_slots));
-	c2_list_for_each_entry(&rpcmachine.cr_ready_slots, slot_member,
-		struct c2_rpc_slot, sl_link){
-		bounded_item_no += c2_list_length(&slot_member->sl_ready_list);
-		printf("Number of bounded ready items for slot[%u] = %lu\n",
-			slot_number, c2_list_length(&slot_member->sl_ready_list));
-		slot_number++;
-	}
-	printf("\n\nNumber of bounded ready items   = %u\n", bounded_item_no);
-	printf("Number of unbounded ready items = %lu\n",
-			c2_list_length(&session.s_unbound_items));
-	printf("Total number of items = %lu\n",
-		(bounded_item_no + c2_list_length(&session.s_unbound_items)));
 
         /* Do the cleanup */
 	c2_free(form_fids);

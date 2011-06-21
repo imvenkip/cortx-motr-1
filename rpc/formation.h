@@ -163,25 +163,6 @@ extern struct c2_rpc_form_item_summary	*formation_summary;
 bool c2_rpc_form_wait_for_completion();
 
 /**
-   The global instance of rpc items cache.
- */
-extern struct c2_rpc_form_items_cache	*items_cache;
-
-/** XXX The cache of rpc items. Ideally, it should
-  come from grouping component, which does not exist at the
-  moment. Hence emulating this list here.
- */
-struct c2_rpc_form_items_cache {
-	/** Destination Endpoint */
-	struct c2_net_end_point		*ic_endp;
-	/** Mutex to protect the list from concurrent access. */
-	struct c2_mutex			 ic_mutex;
-	/** List of rpc items destined for this endpoint. */
-	/** c2_list <struct c2_rpc_item> */
-	struct c2_list			 ic_cache_list;
-};
-
-/**
    Enumeration of all possible states.
  */
 enum c2_rpc_form_state {
@@ -306,7 +287,7 @@ struct c2_rpc_form_item_summary_unit {
    based on whose data, it will be found if an optimal rpc can be made.
  */
 bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
-		*endp_unit);
+		*endp_unit, uint64_t rpcobj_size);
 
 /**
    Get the endpoint given an rpc item.

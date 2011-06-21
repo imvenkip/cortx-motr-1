@@ -35,12 +35,6 @@
 struct c2_rpc_form_item_summary		*formation_summary;
 
 /**
-   XXX Done for UTing the formation code. The original rpc items cache
-   will be populated by grouping component.
- */
-struct c2_rpc_form_items_cache		*items_cache;
-
-/**
    Temporary threashold values. Will be moved to appropriate files
    once rpc integration is done.
  */
@@ -996,6 +990,7 @@ static int c2_rpc_form_remove_rpcitem_from_summary_unit(
 {
 	struct c2_rpc_form_item_summary_unit_group	 *summary_group = NULL;
 	bool						  found = false;
+	uint64_t					  item_size = 0;
 
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
@@ -1026,11 +1021,15 @@ static int c2_rpc_form_remove_rpcitem_from_summary_unit(
 		summary_group->sug_priority_items--;
 	}
 	//summary_group->sug_total_size -=  c2_rpc_item_size(item);
-	summary_group->sug_total_size -=  item->ri_type->rit_ops->
-		rio_item_size(item);
+	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	summary_group->sug_total_size -= item_size; 
+	endp_unit->isu_cumulative_size -= item_size;
 	summary_group->sug_avg_timeout =
 		((summary_group->sug_nitems * summary_group->sug_avg_timeout)
 		 - item->ri_deadline) / (summary_group->sug_nitems);
+	if (item->ri_deadline == 0) {
+		endp_unit->isu_n_urgent_items--;
+	}
 
 	return 0;
 }
@@ -1204,18 +1203,25 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
    the items submitted to this endpoint.
    @param endp_unit - the c2_rpc_form_item_summary_unit structure
    based on whose data, it will be found if an optimal rpc can be made.
+   @param rpcobj_size - check if given size of rpc object is optimal or not.
  */
 bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
-		*endp_unit)
+		*endp_unit, uint64_t rpcobj_size)
 {
-	bool	ret = false;
+	bool		ret = false;
+	uint64_t	size = 0;
 
 	C2_PRE(endp_unit != NULL);
+	if (!rpcobj_size) {
+		size = endp_unit->isu_cumulative_size;
+	}
+	else {
+		size = rpcobj_size;
+	}
 	if (endp_unit->isu_n_urgent_items > 0) {
 		ret = true;
 	}
-	else if (endp_unit->isu_cumulative_size >= (0.9 * endp_unit->
-				isu_max_message_size)) {
+	else if (size >= (0.9 * endp_unit->isu_max_message_size)) {
 		ret = true;
 	}
 	return ret;
@@ -1274,7 +1280,7 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	}
 	/* Move the thread to the checking state only if an optimal rpc
 	   can be formed.*/
-	if (c2_rpc_form_can_form_optimal_rpc(endp_unit)) {
+	if (c2_rpc_form_can_form_optimal_rpc(endp_unit, 0)) {
 		ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
 	else {
@@ -1305,6 +1311,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(rpcobj_size != NULL);
+	C2_PRE(item->ri_state != RPC_ITEM_ADDED);
 
 	/* Fragment count check. */
 	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
@@ -2195,10 +2202,10 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   For rpc objects containing urgent items, there are chances
 	   that it will be passed for submission even if it is
 	   sub-optimal. */
-	if (!urgent_items) {
+	//if (!urgent_items) {
 		/* If size of formed rpc object is less than 90% of
 		   max_message_size, discard the rpc object. */
-		if (rpcobj_size < ((0.9) * endp_unit->isu_max_message_size)) {
+		if (!c2_rpc_form_can_form_optimal_rpc(endp_unit, rpcobj_size)) {
 			printf("Discarding the formed rpc object since \
 					it is sub-optimal size \
 					rpcobj_size = %lu.\n",rpcobj_size);
@@ -2210,7 +2217,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				c2_list_del(&rpc_item->ri_rpcobject_linkage);
 				rpc_item->ri_state = RPC_ITEM_SUBMITTED;
 				rpc_item->ri_flags = 3;
-				c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, rpc_item);
+				c2_rpc_form_add_rpcitem_to_summary_unit(
+						endp_unit, rpc_item);
 			}
 			c2_list_del(&rpcobj->ro_rpcobj->r_linkage);
 			c2_free(rpcobj->ro_rpcobj);
@@ -2219,7 +2227,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			rpcobj = NULL;
 			return C2_RPC_FORM_INTEVT_STATE_FAILED;
 		}
-	}
+	//}
 
 	/* Try to do IO colescing for items in forming list. */
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
@@ -2310,6 +2318,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	c2_list_for_each_entry_safe(&endp_unit->isu_rpcobj_formed_list,
 			rpc_obj, rpc_obj_next, struct c2_rpc_form_rpcobj,
 			ro_linkage) {
+		printf("Number of items in rpc object = %lu\n", c2_list_length(
+					&rpc_obj->ro_rpcobj->r_items));
 		first_item = c2_list_entry((c2_list_first(&rpc_obj->
 						ro_rpcobj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
