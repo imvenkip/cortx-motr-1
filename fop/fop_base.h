@@ -30,7 +30,7 @@
 /* import */
 struct c2_fol;
 struct c2_fop;
-//struct c2_rpc_item_type;
+struct c2_rpc_item_type;
 
 /* export */
 struct c2_fop_type;
@@ -69,7 +69,7 @@ struct c2_fop_type {
 	struct c2_addb_ctx                ft_addb;
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
-	//struct c2_rpc_item_type		  ft_ritype;
+	struct c2_rpc_item_type		 *ft_ritype;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);

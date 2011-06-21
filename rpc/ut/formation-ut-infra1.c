@@ -533,10 +533,8 @@ int c2_rpc_form_item_nonio_populate_param(struct c2_rpc_item *item)
  */
 int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 {
-	struct c2_fop	*fop = NULL;
 	bool		 io_req = false;
 	int		 res = 0;
-	int		 opcode = 0;
 
 	printf("Inside c2_rpc_form_item_populate_param \n");
 	C2_PRE(item != NULL);
@@ -563,6 +561,8 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	c2_chan_init(&item->ri_chan);
 
 	/* Associate an rpc item with its type. */
+	c2_rpc_item_attach(item);
+	/*
 	fop = c2_rpc_item_to_fop(item);
 	opcode = fop->f_type->ft_code;
 	switch (opcode) {
@@ -577,7 +577,7 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 			break;
 		default:
 			break;
-	};
+	};*/
 
 	return 0;
 }

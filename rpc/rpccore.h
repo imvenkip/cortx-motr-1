@@ -394,11 +394,13 @@ struct c2_rpc_item {
    is passed, based on which the rpc_item is associated with its
    rpc_item_type.
  */
-void c2_rpc_item_type_register(struct c2_fop_type *fopt);
+void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
-/*struct c2_rpc_item_type c2_rpc_item_type_readv;
-struct c2_rpc_item_type c2_rpc_item_type_writev;
-struct c2_rpc_item_type c2_rpc_item_type_create;*/
+/**
+   Attach the given rpc item with its corresponding item type.
+   @param item - given rpc item.
+ */
+void c2_rpc_item_attach(struct c2_rpc_item *item);
 
 /**
    Initialize RPC item.

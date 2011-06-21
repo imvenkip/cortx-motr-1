@@ -449,13 +449,40 @@ struct c2_rpc_item_type c2_rpc_item_type_create = {
 };
 
 /**
+   Attach the given rpc item with its corresponding item type.
+   @param item - given rpc item.
+ */
+void c2_rpc_item_attach(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int			 opcode = 0;
+
+	C2_PRE(item != NULL);
+        fop = c2_rpc_item_to_fop(item);
+        opcode = fop->f_type->ft_code;
+        switch (opcode) {
+                case c2_io_service_readv_opcode:
+                        item->ri_type = &c2_rpc_item_type_readv;
+                        break;
+                case c2_io_service_writev_opcode:
+                        item->ri_type = &c2_rpc_item_type_writev;
+                        break;
+                case c2_io_service_create_opcode:
+                        item->ri_type = &c2_rpc_item_type_create;
+                        break;
+                default:
+                        break;
+        };
+}
+
+/**
    Associate an rpc with its corresponding rpc_item_type.
    Since rpc_item_type by itself can not be uniquely identified,
    rather it is tightly bound to its fop_type, the fop_type_code
    is passed, based on which the rpc_item is associated with its
    rpc_item_type.
  */
-void c2_rpc_item_type_register(struct c2_fop_type *fopt)
+void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 {
 	uint32_t			 opcode = 0;
 
@@ -468,19 +495,18 @@ void c2_rpc_item_type_register(struct c2_fop_type *fopt)
 	opcode = fopt->ft_code;
 	switch (opcode) {
 		case c2_io_service_readv_opcode:
-			//fopt->ft_ritype.rit_ops = c2_rpc_item_readv_type_ops;
+			fopt->ft_ritype = &c2_rpc_item_type_readv;
 			break;
 		case c2_io_service_writev_opcode:
-			//fopt->ft_ritype.rit_ops = c2_rpc_item_writev_type_ops;
+			fopt->ft_ritype = &c2_rpc_item_type_writev;
 			break;
 		case c2_io_service_create_opcode:
-			//fopt->ft_ritype.rit_ops = c2_rpc_item_create_type_ops;
+			fopt->ft_ritype = &c2_rpc_item_type_create;
 			break;
 		default:
 			break;
 	};
 }
-
 
 /*
  *  Local variables:
