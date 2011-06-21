@@ -73,8 +73,8 @@ static void ksunrpc_dom_fini(struct c2_net_domain *dom)
 {
 	struct ksunrpc_dom *xdom;
 
-	c2_list_fini(&dom->nd_conn);
-	c2_list_fini(&dom->nd_service);
+	C2_ASSERT(c2_list_is_empty(&dom->nd_conn));
+	C2_ASSERT(c2_list_is_empty(&dom->nd_service));
 
 	xdom = dom->nd_xprt_private;
 	if (xdom != NULL) {
