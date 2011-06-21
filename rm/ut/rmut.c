@@ -10,6 +10,8 @@
 #include "rm/rm.h"
 
 #include "rings.h"
+
+#include <unistd.h>
 /**
    @addtogroup rm
 
@@ -90,6 +92,8 @@ static struct c2_rm_owner men;
 static int                   result;
 static struct c2_rm_incoming in;
 static struct c2_rm_incoming inother;
+static struct c2_rm_incoming inreq;
+static struct c2_rm_incoming inrep;
 
 static struct c2_rm_resource_type rt = {
 	.rt_ops  = &rings_rtype_ops,
@@ -116,6 +120,8 @@ static void rm_init(void)
 	c2_rm_owner_init(&men, &R.rs_resource);
 	c2_rm_incoming_init(&in);
 	c2_rm_incoming_init(&inother);
+	c2_rm_incoming_init(&inreq);
+	c2_rm_incoming_init(&inrep);
 }
 
 static void rm_fini(void)
@@ -125,6 +131,8 @@ static void rm_fini(void)
 
 	c2_rm_incoming_fini(&inother);
 	c2_rm_incoming_fini(&in);
+	c2_rm_incoming_fini(&inreq);
+	c2_rm_incoming_fini(&inrep);
 	men.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&men);
 	dwarves.ro_state = ROS_FINAL;
@@ -147,6 +155,7 @@ static void rm_fini(void)
 	c2_rm_resource_del(&R.rs_resource);
 	c2_rm_type_deregister(&rt);
 	c2_rm_domain_fini(&dom);
+
 }
 
 static int rm_reset(void)
@@ -324,10 +333,10 @@ static void right_get_test3(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOAN;
+	in.rin_type = RIT_LOCAL;
 	in.rin_policy = RIP_INPLACE;
 
-	in.rin_flags |= RIF_LOCAL_TRY;
+	in.rin_flags = RIF_LOCAL_TRY;
 	in.rin_want.ri_datum = NARYA;
 	result = c2_rm_right_get_wait(&Sauron, &in);
 	C2_ASSERT(result == 0);
@@ -343,7 +352,7 @@ static void right_get_test3(void)
 	inother.rin_policy = RIP_INPLACE;
 
 	inother.rin_want.ri_datum = NARYA;
-	inother.rin_flags |= RIF_LOCAL_TRY;
+	inother.rin_flags = RIF_LOCAL_TRY;
 	result = c2_rm_right_get_wait(&Sauron, &inother);
 	C2_ASSERT(result == -EWOULDBLOCK);
 
@@ -616,15 +625,14 @@ static void wbc_server(int id)
 		request->right.ri_ops = &rings_right_ops;
 	}
 	c2_mutex_unlock(&rm_info[UT_SERVER].out_lock);
+	pthread_yield();
 	c2_chan_signal(&rm_info[UT_SERVER].rq_signal);
-
 
         c2_rm_right_put(&in);
         c2_list_del(&in.rin_want.ri_linkage);
         c2_rm_right_fini(&in.rin_want);
         c2_chan_fini(&in.rin_signal);
 
-	printf("Server\n");
 }
 
 static void wbc_client(int id)
@@ -658,7 +666,6 @@ static void wbc_client(int id)
         c2_list_del(&inother.rin_want.ri_linkage);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
-	printf("CLIENT \n");
 }
 
 /**
@@ -729,6 +736,128 @@ static void multiple_test(void)
 {
 }
 
+static void cancel_server(int id)
+{
+	struct c2_rm_request *request;
+	while (c2_list_is_empty(&rm_info[id].out_list)){ }
+
+        c2_chan_init(&in.rin_signal);
+        c2_rm_right_init(&in.rin_want);
+        in.rin_state = RI_INITIALISED;
+        in.rin_owner = &Sauron;
+        in.rin_priority = 0;
+        in.rin_ops = &rings_incoming_ops;
+        in.rin_want.ri_ops = &rings_right_ops;
+        in.rin_type = RIT_LOAN;
+        in.rin_policy = RIP_INPLACE;
+
+        in.rin_flags = RIF_LOCAL_WAIT;
+        in.rin_want.ri_datum = DURIN;
+        result = c2_rm_right_get_wait(&Sauron, &in);
+        C2_ASSERT(result == 0);
+
+	c2_mutex_lock(&rm_info[UT_SERVER].out_lock);
+	c2_list_for_each_entry(&rm_info[UT_SERVER].out_list, request,
+				struct c2_rm_request, rq_link) {
+		request->right.ri_datum = DURIN;
+		request->right.ri_ops = &rings_right_ops;
+	}
+	c2_mutex_unlock(&rm_info[UT_SERVER].out_lock);
+	pthread_yield();
+	c2_chan_signal(&rm_info[UT_SERVER].rq_signal);
+
+        //c2_rm_right_put(&in);
+        c2_list_del(&in.rin_want.ri_linkage);
+        c2_rm_right_fini(&in.rin_want);
+        c2_chan_fini(&in.rin_signal);
+
+	while (!c2_list_is_empty(&rm_info[id].out_list)){ }
+
+	/* Ask for same right which will be revoked */
+        c2_chan_init(&inreq.rin_signal);
+        c2_rm_right_init(&inreq.rin_want);
+        inreq.rin_state = RI_INITIALISED;
+        inreq.rin_owner = &Sauron;
+        inreq.rin_priority = 0;
+        inreq.rin_ops = &rings_incoming_ops;
+        inreq.rin_want.ri_ops = &rings_right_ops;
+        inreq.rin_type = RIT_LOCAL;
+        inreq.rin_policy = RIP_INPLACE;
+
+        inreq.rin_flags = RIF_MAY_REVOKE;
+        inreq.rin_want.ri_datum = DURIN;
+	printf("1 Server \n");
+        result = c2_rm_right_get_wait(&Sauron, &inreq);
+        C2_ASSERT(result == 0);
+	printf("2 Server \n");
+
+        c2_rm_right_put(&inreq);
+        c2_list_del(&inreq.rin_want.ri_linkage);
+        c2_rm_right_fini(&inreq.rin_want);
+        c2_chan_fini(&inreq.rin_signal);
+
+}
+
+static void cancel_client(int id)
+{
+	struct c2_rm_request *req;
+	struct c2_rm_request *tmp_req;
+
+	/* Prepare incoming request for client which will eventually
+	 * barrow rights from server */
+	c2_chan_init(&inother.rin_signal);
+        c2_rm_right_init(&inother.rin_want);
+        inother.rin_state = RI_INITIALISED;
+        inother.rin_owner = &elves;
+        inother.rin_priority = 0;
+        inother.rin_ops = &rings_incoming_ops;
+        inother.rin_want.ri_ops = &rings_right_ops;
+        inother.rin_type = RIT_LOCAL;
+        inother.rin_policy = RIP_INPLACE;
+        inother.rin_want.ri_datum = DURIN;
+        inother.rin_flags = RIF_MAY_BORROW;
+        result = c2_rm_right_get_wait(&elves, &inother);
+        C2_ASSERT(result == 0);
+
+	c2_mutex_lock(&rm_info[UT_CLIENT0].out_lock);
+        c2_list_for_each_entry_safe(&rm_info[UT_CLIENT0].out_list, req,
+                                    tmp_req, struct c2_rm_request, rq_link) {
+                c2_list_del(&req->rq_link);
+	}
+	c2_mutex_unlock(&rm_info[UT_CLIENT0].out_lock);
+
+	while (c2_list_is_empty(&rm_info[id].out_list)){ }
+
+        c2_chan_init(&inrep.rin_signal);
+        c2_rm_right_init(&inrep.rin_want);
+        inrep.rin_state = RI_INITIALISED;
+        inrep.rin_owner = &elves;
+        inrep.rin_priority = 0;
+        inrep.rin_ops = &rings_incoming_ops;
+        inrep.rin_want.ri_ops = &rings_right_ops;
+        inrep.rin_type = RIT_REVOKE;
+        inrep.rin_policy = RIP_INPLACE;
+
+        inrep.rin_flags = RIF_LOCAL_WAIT;
+        inrep.rin_want.ri_datum = DURIN;
+	printf("1 Client \n");
+        result = c2_rm_right_get_wait(&elves, &inrep);
+        C2_ASSERT(result == 0);
+	printf("2 Client \n");
+
+        c2_rm_right_put(&inrep);
+        c2_list_del(&inrep.rin_want.ri_linkage);
+        c2_rm_right_fini(&inrep.rin_want);
+        c2_chan_fini(&inrep.rin_signal);
+
+	c2_rm_right_put(&inother);
+        c2_list_del(&inother.rin_want.ri_linkage);
+        c2_rm_right_fini(&inother.rin_want);
+        c2_chan_fini(&inother.rin_signal);
+
+	printf("Cancel Client\n");
+}
+
 /**
    <b>Cancellation.</b>
 
@@ -742,6 +871,26 @@ static void multiple_test(void)
  */
 static void cancel_test(void)
 {
+	int i;
+
+	rm_server_init();
+	rm_client_init();
+
+	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
+				NULL, &cancel_server, UT_SERVER);
+	C2_ASSERT(result == 0);
+
+	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
+				NULL, &cancel_client, UT_CLIENT0);
+	C2_ASSERT(result == 0);
+
+	for (i = 0; i < 2; ++i) {
+		c2_thread_join(&rm_info[i].rm_handle);
+		c2_thread_fini(&rm_info[i].rm_handle);
+	}
+	
+	rm_client_fini();
+	rm_server_fini();
 }
 
 /**
