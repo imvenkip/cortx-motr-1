@@ -1093,11 +1093,11 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	if (item->ri_deadline != 0) {
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		/*c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
+		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
 				item->ri_deadline, 1,
 				c2_rpc_form_item_timer_callback,
 				(unsigned long)item);
-		res = c2_timer_start(&item->ri_timer);*/
+		res = c2_timer_start(&item->ri_timer);
 		if (res != 0) {
 			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
 				&c2_rpc_form_addb_loc, formation_func_fail,
@@ -1258,9 +1258,9 @@ static int c2_rpc_form_item_add_to_forming_list(
 				item->ri_deadline =
 					c2_time_sub(item->ri_timer.t_expire,
 							now);
-		//		c2_timer_stop(&item->ri_timer);
+				c2_timer_stop(&item->ri_timer);
 			}
-		//	c2_timer_fini(&item->ri_timer);
+			c2_timer_fini(&item->ri_timer);
 		}
 		c2_list_del(&item->ri_unformed_linkage);
 

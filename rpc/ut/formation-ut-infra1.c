@@ -1012,7 +1012,7 @@ int main(int argc, char **argv)
 	c2_free(form_write_iovecs);
 	form_fini_fops();
 	c2_rpc_form_groups_free();
-	c2_rpc_form_ut_fini();
+//	c2_rpc_form_ut_fini();
 	return 0;
 }
 
