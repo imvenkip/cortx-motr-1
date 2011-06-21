@@ -973,6 +973,7 @@ static void test_sunrpc_failure(void)
 	c2_net_domain_fini(&dom1);
 	c2_net_domain_fini(&dom2);
 }
+#endif /* !__KERNEL__ */
 
 static void test_sunrpc_tm(void)
 {
@@ -1019,7 +1020,6 @@ static void test_sunrpc_tm(void)
 	c2_net_tm_fini(&d1tm1);
 	c2_net_domain_fini(&dom1);
 }
-#endif /* !__KERNEL__ */
 
 const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
         .ts_name = "net-bulk-sunrpc",
@@ -1033,8 +1033,9 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
 		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
 #else
-                { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
+                { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
+		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
 #endif
                 { NULL, NULL }
         }
