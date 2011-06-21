@@ -27,31 +27,45 @@
    @{
  */
 
+/**
+ * Global c2_addb_loc object for logging addb context.
+ */
 const struct c2_addb_loc c2_reqh_addb_loc = {
 	.al_name = "reqh"
 };
 
+/**
+ * Global addb context type for logging addb context.
+ */
 const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
 	.act_name = "t1-reqh"
 };
 
+/**
+ * Global addb context for addb logging.
+ */
 struct c2_addb_ctx c2_reqh_addb_ctx;
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * fom domain operations structure, containing
- * function pointer to identify home locality
+ * fom domain operations structure,
  * for fom execution.
  */
 static struct c2_fom_domain_ops c2_fom_dom_ops = {
 	.fdo_time_is_out = NULL
 };
 
+/**
+ * Function to create and initialize locality threads.
+ */
 int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine);
 
 /**
  * fom domain invariant 
+ * @param dom -> c2_fom_domain structure pointer.
+ * @retval bool -> true, on success.
+ *		   false, on failure.
  */
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 {
@@ -66,6 +80,9 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 
 /**
  * locality invariant
+ * @param loc -> c2_fom_locality structure pointer.
+ * @retval bool -> true, on success.
+ *		   false, on failure.
  */
 bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
@@ -87,6 +104,9 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 /**
  * fom invariant
+ * @param fom -> c2_fom structure pointer
+ * @retval bool -> true, on success.
+ *		   false, on failure.
  */
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
@@ -108,10 +128,12 @@ bool c2_fom_invariant(const struct c2_fom *fom)
  * This function removes the fom from the locality wait list
  * and puts it back on the locality run queue for further
  * execution.
+ * @param clink -> c2_clink structure pointer received from call back.
+ * @pre assumes clink is not null.
  */
 static void c2_fom_cb(struct c2_clink *clink)
 {
-	C2_ASSERT(clink != NULL);
+	C2_PRE(clink != NULL);
 
 	struct c2_fom *fom = container_of(clink, struct c2_fom, fo_clink);
 	if (!c2_fom_invariant(fom)) {
@@ -133,6 +155,8 @@ static void c2_fom_cb(struct c2_clink *clink)
  * Function invoked before potential blocking point.
  * Checks whether the locality has "enough" idle threads. If not, additional
  * threads is started to cope with possible blocking point.
+ * @param loc -> c2_fom_locality structure pointer.
+ * @pre assumes locality is valid.
  */
 void c2_fom_block_enter(struct c2_fom_locality *loc)
 {
@@ -154,6 +178,8 @@ void c2_fom_block_enter(struct c2_fom_locality *loc)
 /**
  * Funtion to destroy extra worker threads,
  * in a locality.
+ * @param loc -> c2_fom_locality structure pointer.
+ * @pre assumes locality is valid.
  */
 void c2_fom_block_leave(struct c2_fom_locality *loc)
 {
@@ -199,6 +225,8 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
  * run queue.
  * we first indentify an appropriate locality in which fom
  * could be executed and then enqueue fom into its run queue.
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is valid.
  */
 void c2_fom_queue(struct c2_fom *fom)
 {
@@ -221,6 +249,8 @@ void c2_fom_queue(struct c2_fom *fom)
 /**
  * Function to put fom into locality's wait list
  * during a fom's blocking operation.
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is valid.
  */
 void c2_fom_wait(struct c2_fom *fom)
 {
@@ -243,6 +273,11 @@ void c2_fom_wait(struct c2_fom *fom)
 
 /**
  * Function to register the fom with the given wait channel.
+ * @param fom -> c2_fom structure pointer.
+ * @param chan -> c2_chan structure pointer.
+ * @retval int -> 0, on success.
+ *		  -1, on failure.
+ * @pre assumes fom is valid.
  */
 int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 {
@@ -261,8 +296,10 @@ int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 
 /**
  * Function to execute fop specific operation.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @retval int -> 0, on success.
+ *		  -1, on failure.
+ * @pre assumes fom is valid.
  */
 int c2_fom_fop_exec(struct c2_fom *fom)
 {
@@ -325,6 +362,8 @@ int c2_fom_fop_exec(struct c2_fom *fom)
  * Thread function to execute fom.
  * We start with executing generic phases of the fom
  * and then proceed to execute fop specific operation.
+ * @param loc -> c2_fom_locality structure pointer.
+ * @pre assumes locality is valid.
  */
 void c2_loc_thr_start(struct c2_fom_locality *loc)
 {
@@ -448,8 +487,13 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
  * Function to create and add a new thread to the specified
  * locality, and confine it to run only on cores comprising
  * locality.
- * success : returns 0
- * failure : returns negative value
+ * @param loc -> c2_fom_locality structure pointer.
+ * @param confine -> bool 1, to clean single thread in a locality
+ *			  2, to clean up all the threads in the locality.
+ * 
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
+ * @pre assumes locality is not null.
  */
 int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 {
@@ -486,6 +530,13 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 /**
  * Function to initialize localities for a particular
  * fom domain.
+ * @param cpu_id -> c2_processor_nr_t, represents a cpu id.
+ * @param dom -> c2_fom_domain structure pointer.
+ * @param max_proc -> c2_processor_nr_t, max number of processors.
+ * @param fdnr -> int, locality number in the fd_localities array
+ *			in fom domain.
+ * @retval int -> 0, on success.
+ *		  -1, on failure.
  */
 int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
 			c2_processor_nr_t max_proc, int fdnr)
@@ -525,6 +576,8 @@ int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
 /**
  * Function to clean up individual fom domain
  * localities.
+ * @param loc -> c2_fom_locality structure pointer.
+ * @pre assumes locality is valid.
  */
 void c2_fom_loc_fini(struct c2_fom_locality *loc)
 {
@@ -586,6 +639,13 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 	c2_bitmap_fini(&loc->fl_processors);
 }
 
+/**
+ * function to check if cpu resource is shared.
+ * @param cpu1 -> c2_processor_descr structure pointer to a cpu.
+ * @param cpu2 -> c2_processor_descr structure pointer to a cpu.
+ * @retval bool -> returns true, on success.
+ *		   returns false, on failure.
+ */
 bool is_resource_shared(struct c2_processor_descr *cpu1,
 			struct c2_processor_descr *cpu2)
 {
@@ -593,6 +653,12 @@ bool is_resource_shared(struct c2_processor_descr *cpu1,
 		cpu1->pd_numa_node == cpu2->pd_numa_node);
 }
 
+/**
+ * function to check if a cpu descriptor is valid.
+ * @param cpu -> c2_processor_descr structure pointer.
+ * @retval bool -> returns true, on success.
+ *		   returns false, on failure.
+ */
 bool check_cpu(struct c2_processor_descr *cpu)
 {
 	return (cpu->pd_l1_sz > 0 ||
@@ -600,8 +666,11 @@ bool check_cpu(struct c2_processor_descr *cpu)
 }
 /**
  * Funtion to initialize fom domain.
- * success: returns 0
- * failure: returns negative value
+ * @param fomdom -> c2_fom_domain structure pointer.
+ * @param nr -> size_t number of localities to create.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
+ * @pre assumes fomdom is not null.
  */
 int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 {
@@ -616,6 +685,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 	bool	val;
 	struct c2_bitmap	onln_map;
 
+	C2_PRE(fomdom != NULL);
 	/* check number of processors online and create localities
 	 * between one's sharing common resources.
 	 * Currently considering shared L2 cache, numa node,
@@ -681,6 +751,8 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom, size_t nr)
 
 /**
  * Clean up function for fom domain.
+ * @param dom -> c2_fom_domain structure pointer.
+ * @pre assumes fom domain is valid.
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom)
 {
@@ -709,6 +781,8 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 /**
  * Fom initializing function.
+ * @param fom -> c2_fom structure pointer.
+ * @pre fom is not null.
  */
 void c2_fom_init(struct c2_fom *fom)
 {
@@ -735,6 +809,8 @@ void c2_fom_init(struct c2_fom *fom)
 
 /**
  * Fom clean up function.
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is valid.
  */
 void c2_fom_fini(struct c2_fom *fom)
 {

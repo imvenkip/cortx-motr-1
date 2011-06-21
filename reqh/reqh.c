@@ -29,18 +29,37 @@
  * Generic variable to signify wait.
  */
 static bool fo_wait;
+
+/**
+ * fom phase table to hold function pointers, which execute
+ * various fom phases.
+ */
 static struct c2_fom_phase_table fp_table[FOPH_NR];
+
+/**
+ * function to initialize fom phase table.
+ */
 void set_fom_phase_table(void);
 void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
 
+/**
+ * macro definition to set a fom phase in fom phase table.
+ */
 #define INIT_PHASE(curr_phase, act, np) \
 	fp_table[curr_phase].action = act; \
 	fp_table[curr_phase].next_phase = np; \
 
 /** 
  * Function to initialize request handler and fom domain
- * success : returns 0
- * failure : returns negative value
+ * @param reqh -> c2_reqh structure pointer.
+ * @param rom -> c2_rpc_machine structure pointer.
+ * @param dtm -> c2_dtm structure pointer.
+ * @param dom -> c2_stob_domain strutcure pointer.
+ * @param fol -> c2_fol structure pointer.
+ * @param serv -> c2_service structure pointer.
+ * @retval int -> returns 0, on success.
+ * 		  returns -1, on failure.
+ * @pre assumes reqh, dom, fol, serv not null.
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
@@ -71,17 +90,24 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 
 /**
  * Request handler clean up function.
+ * @param reqh -> c2_reqh structure pointer.
+ * @pre assumes reqh not null.
+ * @pre assumes fom domain in reqh is allocated and initialized.
  */
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
-	C2_ASSERT(reqh != NULL);
-	C2_ASSERT(reqh->rh_fom_dom);
+	C2_PRE(reqh != NULL);
+	C2_PRE(reqh->rh_fom_dom);
 	c2_fom_domain_fini(reqh->rh_fom_dom);
 }
 
 /**
  * Function to accept fop and create corresponding fom
  * and submit it for further processing.
+ * @param reqh -> c2_reqh structure pointer.
+ * @param fom -> c2_fom sturcture pointer.
+ * @param cookie -> void pointer to hold some pointer address.
+ * @pre assumes reqh is not null.
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
@@ -123,6 +149,10 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 
 /**
  * Funtion to handle init phase of fom.
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_phase_init(struct c2_fom *fom)
 {
@@ -136,8 +166,10 @@ int c2_fom_phase_init(struct c2_fom *fom)
 
 /**
  * Function to authenticate fop.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_authen(struct c2_fom *fom)
 {
@@ -152,8 +184,10 @@ int c2_fom_authen(struct c2_fom *fom)
 /**
  * Function invoked after a fom resumes execution
  * post wait, in authentication phase.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_authen_wait(struct c2_fom *fom)
 {
@@ -169,8 +203,10 @@ int c2_fom_authen_wait(struct c2_fom *fom)
 /**
  * Function to identify local resources
  * required for fop execution.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_loc_resource(struct c2_fom *fom)
 {
@@ -185,8 +221,10 @@ int c2_fom_loc_resource(struct c2_fom *fom)
 /**
  * Funtion invoked after a fom resumes execution
  * post wait, while checking for local resources.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_loc_resource_wait(struct c2_fom *fom)
 {
@@ -202,8 +240,10 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
 /**
  * Function to identify distributed resources
  * required for fop execution.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_dist_resource(struct c2_fom *fom)
 {
@@ -218,8 +258,10 @@ int c2_fom_dist_resource(struct c2_fom *fom)
 /**
  * Funtion invoked after a fom resumes execution
  * post wait, while checking for distributed resources.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_dist_resource_wait(struct c2_fom *fom)
 {
@@ -235,8 +277,10 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
 /**
  * Function to locate and load file system objects, 
  * required for fop execution.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_obj_check(struct c2_fom *fom)
 {
@@ -251,8 +295,10 @@ int c2_fom_obj_check(struct c2_fom *fom)
 /**
  * Funtion invoked after a fom resumes execution
  * post wait, while locating file system objects.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_obj_check_wait(struct c2_fom *fom)
 {
@@ -267,8 +313,10 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
 
 /**
  * Function to authorise fop in fom
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_auth(struct c2_fom *fom)
 {
@@ -283,8 +331,10 @@ int c2_fom_auth(struct c2_fom *fom)
 /**
  * Funtion invoked after a fom resumes execution
  * post wait in fop authorisation phase.
- * success : returns 0
- * failure : returns negative value
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_fom_auth_wait(struct c2_fom *fom)
 {
@@ -299,8 +349,10 @@ int c2_fom_auth_wait(struct c2_fom *fom)
 
 /**
  * Funtion to create local transactional context.
- * success : returns 0
- * failure : returns negative value.
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_create_loc_ctx(struct c2_fom *fom)
 {	
@@ -320,10 +372,11 @@ int c2_create_loc_ctx(struct c2_fom *fom)
 
 /**
  * Funtion to invoke after a fom resumes execution
- * post wait while creating local transactional 
- * context.
- * success : returns 0
- * failure : returns negative value.
+ * post wait while creating local transactional context. 
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
 {
@@ -341,10 +394,14 @@ int c2_create_loc_ctx_wait(struct c2_fom *fom)
 /**
  * Function to handle generic operations of fom
  * like authentication, authorisation, acquiring resources, &tc
-*/
+ * @param fom -> c2_fom structure pointer.
+ * @pre assumes fom is not null.
+ * @retval int -> returns 0, on success.
+ *		  returns -1, on failure.
+ */
 int c2_fom_state_generic(struct c2_fom *fom)
 {
-	C2_ASSERT(fom != NULL);
+	C2_PRE(fom != NULL);
 	int rc = 0;
 	bool stop = false;
 	while (!stop) {
