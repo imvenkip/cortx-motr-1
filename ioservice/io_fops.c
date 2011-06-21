@@ -374,9 +374,9 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 		c2_free(read_seg);
 		i++;
 	}
-	/* Free the old io vector from bound item. */
 	read_fop = c2_fop_data(b_fop);
-	c2_free(read_fop->frd_ioseg.fs_segs);
+	/* Should we free the IO vector here? */
+	//c2_free(read_fop->frd_ioseg.fs_segs);
 	/* Assign this vector to the current bound rpc item. */
 	read_fop->frd_ioseg.fs_count = read_vec->fs_count;
 	read_fop->frd_ioseg.fs_segs = read_vec->fs_segs;
@@ -569,9 +569,9 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 		c2_free(write_seg);
 		i++;
 	}
-	/* Free the old io vector from bound item. */
 	write_fop = c2_fop_data(b_fop);
-	c2_free(write_fop->fwr_iovec.iov_seg);
+	/* Should we free the old IO vector? */
+	//c2_free(write_fop->fwr_iovec.iov_seg);
 	/* Assign this vector to the current bound rpc item. */
 	write_fop->fwr_iovec.iov_count = write_vec->iov_count;
 	write_fop->fwr_iovec.iov_seg = write_vec->iov_seg;

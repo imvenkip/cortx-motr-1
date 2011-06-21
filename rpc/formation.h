@@ -291,7 +291,22 @@ struct c2_rpc_form_item_summary_unit {
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 isu_max_rpcs_in_flight;
 	uint64_t			 isu_curr_rpcs_in_flight;
+	/** Cumulative size of items added to this endpoint so far.
+	    Will help to determine if an optimal rpc can be formed.*/
+	uint64_t			 isu_cumulative_size;
+	/** Number of urgent items added to this endpoint so far.
+	    Any number > 0 will trigger formation.*/
+	uint64_t			 isu_n_urgent_items;
 };
+
+/**
+   Given an endpoint, tell if an optimal rpc can be prepared from
+   the items submitted to this endpoint.
+   @param endp_unit - the c2_rpc_form_item_summary_unit structure
+   based on whose data, it will be found if an optimal rpc can be made.
+ */
+bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
+		*endp_unit);
 
 /**
    Get the endpoint given an rpc item.
