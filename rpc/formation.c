@@ -1178,11 +1178,11 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	if (item->ri_deadline != 0) {
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
-		/*c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
+		c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
 				item->ri_deadline, 1,
 				c2_rpc_form_item_timer_callback,
-				(unsigned long)item);*/
-		//res = c2_timer_start(&item->ri_timer);
+				(unsigned long)item);
+		res = c2_timer_start(&item->ri_timer);
 		if (res != 0) {
 			C2_ADDB_ADD(&formation_summary->is_rpc_form_addb,
 				&c2_rpc_form_addb_loc,
@@ -1347,9 +1347,9 @@ static int c2_rpc_form_item_add_to_forming_list(
 				item->ri_deadline =
 					c2_time_sub(item->ri_timer.t_expire,
 							now);
-				//c2_timer_stop(&item->ri_timer);
+				c2_timer_stop(&item->ri_timer);
 			}
-			//c2_timer_fini(&item->ri_timer);
+			c2_timer_fini(&item->ri_timer);
 		}
 		c2_list_del(&item->ri_unformed_linkage);
 
@@ -2149,11 +2149,14 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if(c2_list_contains(&endp_unit->isu_unformed_list,
 						&rpc_item->ri_unformed_linkage)) {
 
-				partial_size -= item_size;
-				res = c2_rpc_form_item_add_to_forming_list(
-						endp_unit, rpc_item,
-						&rpcobj_size, &nfragments,
+				if(rpc_item->ri_state == RPC_ITEM_SUBMITTED) {
+					partial_size -= item_size;
+					res = c2_rpc_form_item_add_to_forming_list(
+							endp_unit, rpc_item,
+							&rpcobj_size,
+							&nfragments,
 						rpcobj->ro_rpcobj);
+				}
 			}
 		}
 		c2_mutex_unlock(&sg_partial->sug_group->rg_guard);
@@ -2187,12 +2190,16 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		}
 		/* Now that the item is bound, remove it from
 		   session->free list. */
-		res = c2_rpc_form_item_add_to_forming_list(endp_unit, ub_item,
-				&rpcobj_size, &nfragments, rpcobj->ro_rpcobj);
-		if (res != 0) {
-			break;
+		if(ub_item->ri_state == RPC_ITEM_SUBMITTED) {
+			res = c2_rpc_form_item_add_to_forming_list(endp_unit,
+					ub_item,
+					&rpcobj_size, &nfragments,
+					rpcobj->ro_rpcobj);
+			if (res != 0) {
+				break;
+			}
+			item_add_internal(slot, ub_item);
 		}
-		item_add_internal(slot, ub_item);
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
 	c2_mutex_unlock(&session->s_mutex);
