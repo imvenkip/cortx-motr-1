@@ -161,16 +161,14 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
 
 /**
-  Locates cob associated with slot identified by
-  <item->ri_sender_id, item->ri_session_id, item->ri_slot_id, item->ri_slot_gen>
+   Terminate receiver end of rpc connection
 
-  @return 0 if successful. slot_cob != NULL
-  @return < 0 if unsuccessful. slot_cob == NULL
+   @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING
  */
-int c2_rpc_slot_cob_lookup_by_item(struct c2_cob_domain        *dom,
-                                   struct c2_rpc_item          *item,
-                                   struct c2_cob               **slot_cob,
-                                   struct c2_db_tx             *tx);
+int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
+
+void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
 /**
    Checks whether reply item is valid in sequence.

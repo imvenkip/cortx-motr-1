@@ -673,7 +673,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				conn->c_nr_sessions == 0 &&
 				conn->c_end_point != NULL &&
 				conn->c_rpcmachine != NULL &&
-				conn->c_private != NULL &&
 				c2_list_length(&conn->c_sessions) == 1 &&
 				c2_list_contains(conn_list, &conn->c_link) &&
 				sender_end != recv_end;
@@ -684,7 +683,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		        	   conn->c_rpcmachine != NULL &&
 				   c2_list_invariant(&conn->c_sessions) &&
 				   c2_list_contains(conn_list, &conn->c_link) &&
-				   conn->c_private == NULL &&
 				   sender_end != recv_end &&
 				   c2_list_length(&conn->c_sessions) ==
 					conn->c_nr_sessions + 1 &&
@@ -696,14 +694,12 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				conn->c_rpcmachine != NULL &&
 				c2_list_contains(conn_list, &conn->c_link) &&
 				c2_list_length(&conn->c_sessions) == 1 &&
-				conn->c_private != NULL &&
 				sender_end != recv_end;
 
 		case C2_RPC_CONN_FAILED:
 			return conn->c_rc != 0 &&
 				!c2_list_link_is_in(&conn->c_link) &&
-				conn->c_rpcmachine == NULL &&
-				conn->c_private == NULL;
+				conn->c_rpcmachine == NULL;
 		default:
 			return false;
 	}
@@ -2292,6 +2288,9 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	int		i;
 
 	C2_ASSERT(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
+	if (session == NULL || session->s_state != C2_RPC_SESSION_IDLE)
+		return -EINVAL;
+
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
 	/*
@@ -2317,6 +2316,64 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	session->s_conn = NULL;
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
+}
+
+int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
+				  struct c2_db_tx	*tx)
+{
+	struct c2_rpc_session	*session0;
+	struct c2_rpc_slot	*slot0;
+
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+
+	slot0 = session0->s_slot_table[0];
+	C2_ASSERT(slot0 != NULL && c2_rpc_slot_invariant(slot0));
+
+	C2_ASSERT(conn->c_cob != NULL && session0->s_cob != NULL &&
+			slot0->sl_cob != NULL);
+	c2_cob_delete(conn->c_cob, tx);
+	c2_cob_delete(session0->s_cob, tx);
+	c2_cob_delete(slot0->sl_cob, tx);
+
+	conn->c_cob = session0->s_cob = slot0->sl_cob = NULL;
+	return 0;
+}
+int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
+{
+	struct c2_db_tx		tx;
+
+	if (conn == NULL || conn->c_state != C2_RPC_CONN_ACTIVE) {
+		C2_ASSERT(0);
+		return -EINVAL;
+	}
+	C2_ASSERT((conn->c_flags & RCF_RECV_END) != 0);
+
+	if (conn->c_nr_sessions > 0) {
+		return -EBUSY;
+	}
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	conn->c_state = C2_RPC_CONN_TERMINATING;
+	c2_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
+	conn_persistent_state_destroy(conn, &tx);
+	c2_db_tx_commit(&tx);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	return 0;
+}
+
+void conn_terminate_reply_sent(struct c2_rpc_conn *conn)
+{
+	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_TERMINATING);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	conn->c_state = C2_RPC_CONN_TERMINATED;
+	conn->c_sender_id = SENDER_ID_INVALID;
+	c2_list_del(&conn->c_link);
+	conn->c_rc = 0;
+	conn->c_rpcmachine = NULL;
+	conn->c_end_point = NULL;
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_rpc_conn_fini(conn);
+	c2_free(conn);
 }
 /** @c end of session group */
 

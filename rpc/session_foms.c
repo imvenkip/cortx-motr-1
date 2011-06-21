@@ -321,18 +321,13 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpcmachine			*machine;
 	struct c2_rpc_item			*item;
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_conn_terminate	*fop_in;
 	struct c2_fop				*fop_rep;
 	struct c2_rpc_fop_conn_terminate_rep	*fop_out;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
-	struct c2_db_tx				*tx;
-	struct c2_cob_domain			*dom;
-	struct c2_cob				*conn_cob;
-	struct c2_cob				*session0_cob;
-	struct c2_cob				*slot0_cob;
+	struct c2_rpc_conn			*conn;
 	int					rc;
 	uint64_t				sender_id;
 
@@ -357,66 +352,30 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	machine = item->ri_mach;
-	tx = &fom_ct->fct_tx;
-	dom = machine->cr_dom;
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
 
-	c2_db_tx_init(tx, dom->cd_dbenv, 0);
-
-	/*
-	 * Remove cobs relatedd to the connection
-	 */
-	rc = c2_rpc_conn_cob_lookup(dom, sender_id, &conn_cob, tx);
+	rc = c2_rpc_rcv_conn_terminate(conn);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_session_cob_lookup(conn_cob, SESSION_0, &session0_cob, tx);
-	if (rc != 0)
-		goto err_put_conn;
-
-	rc = c2_rpc_slot_cob_lookup(session0_cob, 0, 0, &slot0_cob, tx);
-	if (rc != 0)
-		goto err_put_session;
-
-	rc = c2_cob_delete(slot0_cob, tx);
-	if (rc != 0)
-		goto err_put_slot;
-
-	rc = c2_cob_delete(session0_cob, tx);
-	if (rc != 0)
-		goto err_put_session;
-	
-	rc = c2_cob_delete(conn_cob, tx);
-	if (rc != 0)
-		goto err_put_conn;
-
-	C2_ASSERT(rc == 0);
-
 	printf("Conn terminate successful\n");
 	fop_out->ctr_rc = 0;	/* Success */
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep),
-				tx);
-	c2_db_tx_commit(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
+	
 	fom->fo_phase = FOPH_DONE;
+	conn_terminate_reply_sent(conn);
 	return FSO_AGAIN;
 
-err_put_slot:
-	c2_cob_put(slot0_cob);
-err_put_session:
-	c2_cob_put(session0_cob);
-err_put_conn:
-	c2_cob_put(conn_cob);
 errout:
 	C2_ASSERT(rc != 0);
 
 	printf("Conn terminate failed rc %d\n", rc);
 	fop_out->ctr_rc = rc;
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_submit(c2_fop_to_rpc_item(fop),
-				c2_fop_to_rpc_item(fop_rep),
-				tx);
-	c2_db_tx_abort(tx);
+	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
+			  c2_fop_to_rpc_item(fop_rep));
 	return FSO_AGAIN;
 }
 

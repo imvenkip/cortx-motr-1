@@ -104,6 +104,7 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	 */
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
+	C2_ASSERT(c2_rpc_conn_invariant(connp));
 }
 
 void test_conn_terminate(uint64_t sender_id)
@@ -113,7 +114,7 @@ void test_conn_terminate(uint64_t sender_id)
 	struct c2_fom				*fom;
 	struct c2_rpc_fom_conn_terminate	*fom_ct;
 	struct c2_rpc_item			*item;
-	enum c2_rpc_session_seq_check_result	sc;
+	struct c2_rpc_session			*session0;
 
 	/*
 	 * Allocate and fill FOP
@@ -133,33 +134,30 @@ void test_conn_terminate(uint64_t sender_id)
 	item->ri_sender_id = SENDER_ID_INVALID;
 	item->ri_session_id = SESSION_ID_NOSESSION;
 	item->ri_mach = machine;
+	session_search(connp, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
 
-	/*
-	 * "Receive" the item
-	 */
-	//sc = c2_rpc_session_item_received(item, &cached_item);
-	sc = SCR_ACCEPT_ITEM;
-	/*
-	 * Instantiate fom
-	 */
-	if (sc == SCR_ACCEPT_ITEM) {
-		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-		C2_ASSERT(fom != NULL);
-		fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate,
-					fct_gen);
-		C2_ASSERT(fom_ct != NULL);
-		fom->fo_ops->fo_state(fom);
+	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+	C2_ASSERT(fom != NULL);
+	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate,
+				fct_gen);
+	C2_ASSERT(fom_ct != NULL);
+	fom->fo_ops->fo_state(fom);
 
-		C2_ASSERT(fom->fo_phase == FOPH_DONE ||
-				fom->fo_phase == FOPH_FAILED);
+	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
+			fom->fo_phase == FOPH_FAILED);
 
-		/*
-		 * test reply contents
-		 */
-		c2_cob_namespace_traverse(dom);
-		c2_cob_fb_traverse(dom);
+	if (fom->fo_phase == FOPH_DONE) {
+		printf("tct: conn terminate successful\n");
+	} else {
+		printf("tct: conn terminate failed\n");
 	}
-
+	/*
+	 * test reply contents
+	 */
+	c2_cob_namespace_traverse(dom);
+	c2_cob_fb_traverse(dom);
 }
 uint64_t	g_sender_id;
 uint64_t	g_session_id;
@@ -205,7 +203,8 @@ void test_conn_create()
 		connp = container_of(link, struct c2_rpc_conn, c_link);
 		printf("conn->sender_id == %lu\n", connp->c_sender_id);
 		C2_ASSERT(connp->c_state == C2_RPC_CONN_ACTIVE &&
-			  connp->c_sender_id == fop_reply->rccr_snd_id);
+			  connp->c_sender_id == fop_reply->rccr_snd_id &&
+			  c2_rpc_conn_invariant(connp));
 	} else {
 		printf("TEST: conn create failed %d\n", fop_reply->rccr_rc);
 	}
@@ -437,39 +436,6 @@ void test_snd_conn_terminate()
 	c2_rpc_conn_fini(&conn);
 }
 
-#if 0
-void test_item_prepare()
-{
-	struct c2_rpc_item	item[5];
-	struct c2_rpc_item	reply_item;
-	struct c2_rpc_item	*req_item = NULL;
-	int			rc;
-	int			i;
-
-	for (i = 0; i < 5; i++) {
-		c2_rpc_item_init(&item[i], machine);
-
-		item[i].ri_service_id = &svc_id;
-		rc = c2_rpc_session_item_prepare(&item[i]);
-
-		printf("test_item_prepare: item_prepare() returned %d\n", rc);
-	}
-	reply_item.ri_sender_id = item[0].ri_sender_id;
-	reply_item.ri_session_id = item[0].ri_session_id;
-	reply_item.ri_slot_id = item[0].ri_slot_id;
-	reply_item.ri_slot_generation = item[0].ri_slot_generation;
-	reply_item.ri_verno = item[0].ri_verno;
-	reply_item.ri_mach = machine;
-
-	//c2_rpc_session_reply_item_received(&reply_item, &req_item);
-	//C2_ASSERT(req_item == &item[0]);
-
-	c2_rpc_item_init(&item[0], machine);
-	item[0].ri_service_id = &svc_id;
-	//rc = c2_rpc_session_item_prepare(&item[0]);
-
-}
-#endif 
 extern struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops;
 
 void test_slots()
@@ -530,9 +496,12 @@ int main(void)
 
 	init();
 	test_conn_create();
+	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_session_create();
+	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_session_terminate(g_sender_id, g_session_id);
-	//test_conn_terminate(g_sender_id);
+	C2_ASSERT(c2_rpc_conn_invariant(connp));
+	test_conn_terminate(g_sender_id);
 
 	test_snd_conn_create();
 	test_snd_session_create();
