@@ -188,11 +188,32 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
 	return container_of(mep, struct c2_net_bulk_sunrpc_end_point, xep_base);
 }
 
-#ifdef __KERNEL__
+/**
+   Populate a struct sunrpc_buffer given a buffer pointer and length.
+   @param sb buffer object to initialize
+   @param buf address of start of actual buffer, must not refer to kernel high
+   memory or memory allocated using vmalloc (c2_alloc memory is acceptable)
+   @param len size of actual buffer
+   @param for_write if true, user-space pages will be mapped for write-access
+   @pre sb != NULL && buf != NULL && len >= 0 && buf < high_memory
+   @retval 0 (success)
+   @retval -errno (failure)
+ */
 int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 		       bool for_write);
+
+/** release pages pinned and memory allocated by sunrpc_buffer_init */
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
-#endif
+
+/**
+   Copy the contents of a sunrpc_buffer out to a c2_bufvec using a cursor.
+   @param buf destination buffer cursor
+   @param sb source sunrpc_buffer
+   @retval 0 (success)
+   @retval -errno (failure)
+ */
+int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *dest,
+			   const struct sunrpc_buffer *sb);
 
 int c2_sunrpc_fop_init(void);
 void c2_sunrpc_fop_fini(void);

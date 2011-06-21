@@ -75,7 +75,6 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	i = in->sg_desc.sbd_id;
 
 	C2_UT_ASSERT(in->sg_offset == 0);
-	C2_UT_ASSERT(i != 0);
 	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_addr == IPADDR);
 	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_port == PORT);
 	C2_UT_ASSERT(in->sg_desc.sbd_active_ep.sep_id == S_EPID);
@@ -110,7 +109,6 @@ static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	i = in->sp_desc.sbd_id;
 
 	C2_UT_ASSERT(in->sp_offset == 0);
-	C2_UT_ASSERT(i != 0);
 	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_addr == IPADDR);
 	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_port == PORT);
 	C2_UT_ASSERT(in->sp_desc.sbd_active_ep.sep_id == S_EPID);
@@ -163,7 +161,7 @@ int get_call(struct c2_net_conn *conn, int i)
 	};
 
 	C2_UT_ASSERT(conn != NULL);
-	C2_UT_ASSERT(i > 0);
+	C2_UT_ASSERT(i >= 0);
 	f = c2_fop_alloc(&sunrpc_get_fopt, NULL);
 	r = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
 	if (f == NULL || r == NULL) {
@@ -180,7 +178,7 @@ int get_call(struct c2_net_conn *conn, int i)
 	   the actual length returned will be updated.
 	 */
 	rep = c2_fop_data(r);
-	buf = c2_alloc(i);
+	buf = c2_alloc(i == 0 ? 1 : i);
 	if (buf == NULL) {
 		rc = -ENOMEM;
 		goto done;
@@ -233,7 +231,7 @@ int put_call(struct c2_net_conn *conn, int i)
 	};
 
 	C2_UT_ASSERT(conn != NULL);
-	C2_UT_ASSERT(i > 0);
+	C2_UT_ASSERT(i >= 0);
 	f = c2_fop_alloc(&sunrpc_put_fopt, NULL);
 	r = c2_fop_alloc(&sunrpc_put_resp_fopt, NULL);
 	if (f == NULL || r == NULL) {
@@ -319,13 +317,13 @@ void test_ksunrpc_server(void)
 		get_put_buf[i] = i+1;
 
 	/* call get API, tests receiving basic record and sequence */
-	for (i = 1; i <= NUM; ++i) {
+	for (i = 0; i <= NUM; ++i) {
 		rc = get_call(conn1, i);
 		C2_UT_ASSERT(rc == 0);
 	}
 
 	/* call put API, tests sending basic record and sequence */
-	for (i = 1; i <= NUM; ++i) {
+	for (i = 0; i <= NUM; ++i) {
 		rc = put_call(conn1, i);
 		C2_UT_ASSERT(rc == 0);
 	}

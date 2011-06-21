@@ -29,6 +29,7 @@
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
 #ifdef __KERNEL__
+#include <linux/highmem.h> /* kmap, kunmap */
 #include "net/ksunrpc/ksunrpc.h"
 #endif
 
@@ -506,7 +507,6 @@ static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 }
 
 #ifdef __KERNEL__
-/** release pages pinned and memory allocated by sunrpc_buffer_init */
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
 	int    i;
@@ -514,6 +514,8 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 
 	if (sb->sb_buf != NULL) {
 		np = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+		if (np == 0)
+			np = 1;
 		for (i = 0; i < np; ++i)
 			if (sb->sb_buf[i] != NULL)
 				put_page(sb->sb_buf[i]);
@@ -522,19 +524,6 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	C2_SET0(sb);
 }
 
-/**
-   Populate a kernel-style struct sunrpc_buffer given a buffer pointer and
-   length.  The struct sunrpc_buffer contains a kernel struct page ** which
-   gets populated with the pages corresponding to the buffer.
-   @param sb buffer object to initialize
-   @param buf address of start of actual buffer, must not refer to kernel high
-   memory or memory allocated using vmalloc (c2_alloc memory is acceptable)
-   @param len size of actual buffer
-   @param for_write if true, user-space pages will be mapped for write-access
-   @pre sb != NULL && buf != NULL && len > 0 && buf < high_memory
-   @retval 0 (success)
-   @retval -errno (failure)
- */
 int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 		       bool for_write)
 {
@@ -547,14 +536,15 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 
 	C2_PRE(sb != NULL);
 	C2_PRE(buf != NULL);
-	C2_PRE(len > 0);
+	C2_PRE(len >= 0);
 	C2_PRE(buf < high_memory);
         addr = (unsigned long) buf;
         off = addr & (PAGE_SIZE - 1);
         addr &= PAGE_MASK;
 
         npages = (off + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	C2_ASSERT(npages > 0);
+	if (npages == 0)
+		npages = 1;
 	C2_ALLOC_ARR(pages, npages);
         if (pages == NULL)
                 return -ENOMEM;
@@ -579,6 +569,90 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 			return -EFAULT;
 		}
 	}
+	return 0;
+}
+
+int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
+			   const struct sunrpc_buffer *sb)
+{
+	/* cannot assume pages are sequential, eg see how svc_init_buffer()
+	   allocates its page pool
+	 */
+	c2_bcount_t copylen = sb->sb_len;
+	size_t npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	struct c2_bufvec in = {
+		.ov_vec = {
+			.v_nr = npages
+		}
+	};
+	struct c2_bufvec_cursor incur;
+	c2_bcount_t copied;
+	int i;
+	int rc = 0;
+
+	C2_ALLOC_ARR(in.ov_vec.v_count, npages);
+	if (in.ov_vec.v_count == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+	C2_ALLOC_ARR(in.ov_buf, npages);
+	if (in.ov_buf == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+	in.ov_buf[0] = (char *) kmap(sb->sb_buf[0]) + sb->sb_pgoff;
+	in.ov_vec.v_count[0] = PAGE_SIZE - sb->sb_pgoff;
+	for (i = 1; i < npages; ++i) {
+		in.ov_buf[i] = kmap(sb->sb_buf[i]);
+		in.ov_vec.v_count[i] = PAGE_SIZE;
+	}
+	c2_bufvec_cursor_init(&incur, &in);
+	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
+	for (i = 0; i < npages; ++i)
+		kunmap(sb->sb_buf[i]);
+	if (copied != copylen)
+		rc = -EFBIG;
+fail:
+	c2_free(in.ov_buf);
+	c2_free(in.ov_vec.v_count);
+	return rc;
+}
+#else
+void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
+{
+	C2_SET0(sb);
+}
+
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
+		       bool for_write)
+{
+	C2_PRE(sb != NULL);
+	C2_PRE(buf != NULL);
+	C2_PRE(len >= 0);
+
+	sb->sb_len = len;
+	sb->sb_buf = buf;
+	return 0;
+}
+
+int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
+			   const struct sunrpc_buffer *sb)
+{
+	c2_bcount_t copylen = sb->sb_len;
+	c2_bcount_t copied;
+	struct c2_bufvec in = {
+		.ov_vec = {
+			.v_nr = 1,
+			.v_count = &copylen
+		},
+		.ov_buf = (void**) &sb->sb_buf
+	};
+	struct c2_bufvec_cursor incur;
+
+	c2_bufvec_cursor_init(&incur, &in);
+	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
+	if (copied != copylen)
+		return -EFBIG;
 	return 0;
 }
 #endif /* __KERNEL__ */

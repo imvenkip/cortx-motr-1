@@ -46,6 +46,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	struct c2_net_buffer   *nb   = mem_wi_to_buffer(wi);
 	struct c2_fop          *f    = NULL;
 	struct c2_fop          *r    = NULL;
+	struct sunrpc_msg      *fop  = NULL;
 	struct c2_net_conn     *conn = NULL;
 	int rc;
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
@@ -59,7 +60,6 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 	do {
 		struct c2_bufvec_cursor  cur;
-		struct sunrpc_msg       *fop;
 		struct sunrpc_msg_resp  *rep;
 		struct c2_net_end_point *tm_ep;
 
@@ -87,8 +87,11 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		fop->sm_receiver.sep_id   = mem_ep_sid(nb->nb_ep);
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
-		fop->sm_buf.sb_len = nb->nb_length;
-		fop->sm_buf.sb_buf = c2_bufvec_cursor_addr(&cur);
+		rc = sunrpc_buffer_init(&fop->sm_buf,
+					c2_bufvec_cursor_addr(&cur),
+					nb->nb_length, false);
+		if (rc != 0)
+			break;
 
 		/* make the RPC call */
 		{
@@ -104,6 +107,8 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		}
 	} while (0);
 
+	if (fop != NULL)
+		sunrpc_buffer_fini(&fop->sm_buf);
 	if (f != NULL)
 		c2_fop_free(f);
 	if (r != NULL)
@@ -196,8 +201,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 		if (rc == 0) {
 			/* copy the message to the buffer */
-			memcpy(c2_bufvec_cursor_addr(&cur), in->sm_buf.sb_buf,
-			       in->sm_buf.sb_len);
+			rc = sunrpc_buffer_copy_out(&cur, &in->sm_buf);
 			wi->xwi_nbe_length = in->sm_buf.sb_len;
 		}
 		wi->xwi_status = rc;
