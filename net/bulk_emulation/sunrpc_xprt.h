@@ -166,7 +166,7 @@ struct c2_net_bulk_sunrpc_end_point {
 
 	/** The time the internal sunrpc connection was last used.
 	    The field is used to control the duration of end point caching.
-	    A value of C2_NEVER implies that the connection encountered
+	    A value of C2_TIME_NEVER implies that the connection encountered
 	    an error and hence the end point should not be cached.
 
 	    The value is maintained as an atomic variable to avoid
