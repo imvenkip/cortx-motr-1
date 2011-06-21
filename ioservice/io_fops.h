@@ -96,7 +96,7 @@ extern struct c2_fop_type_ops c2_io_cob_writev_ops;
 extern struct c2_fop_type_ops c2_io_rwv_rep_ops;
 
 /**
- * FOP definitions and corresponding fop type formats 
+ * FOP definitions and corresponding fop type formats
  * exported by ioservice.
  */
 extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;

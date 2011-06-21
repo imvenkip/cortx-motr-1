@@ -55,8 +55,8 @@ SUBDIR_UT = \
                udb/ut \
                xdr/ut
 
-SUBDIR_ST = 
-SUBDIR_UB = 
+SUBDIR_ST =
+SUBDIR_UB =
 
 SUBDIR_BIN = mds utils
 

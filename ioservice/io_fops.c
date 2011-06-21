@@ -27,6 +27,9 @@
 
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
+/**
+   Reply received callback for a c2_fop_cob_readv fop.
+ */
 int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop = NULL;
@@ -38,6 +41,9 @@ int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 	return 0;
 }
 
+/**
+   Reply received callback for a c2_fop_cob_writev fop.
+ */
 int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 {
 	struct c2_fop_cob_writev	*write_fop = NULL;
@@ -49,6 +55,9 @@ int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 	return 0;
 }
 
+/**
+   Return the size of a fop of type c2_fop_cob_readv.
+ */
 uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop = NULL;
@@ -67,6 +76,9 @@ uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
 	return size;
 }
 
+/**
+   Return the size of a fop of type c2_fop_cob_writev.
+ */
 uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
 {
 	struct c2_fop_cob_writev	*write_fop = NULL;
@@ -94,6 +106,9 @@ uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
 	return size;
 }
 
+/**
+   Return if given 2 fops belong to same type.
+ */
 bool c2_io_fop_type_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 {
 	C2_PRE(fop1 != NULL);
@@ -107,6 +122,9 @@ bool c2_io_fop_type_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 	}
 }
 
+/**
+   Return fid for a fop of type c2_fop_cob_readv.
+ */
 struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop = NULL;
@@ -118,6 +136,9 @@ struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 	return ffid;
 }
 
+/**
+   Return fid for a fop of type c2_fop_cob_writev.
+ */
 struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 {
 	struct c2_fop_cob_writev	*write_fop = NULL;
@@ -129,6 +150,9 @@ struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 	return ffid;
 }
 
+/**
+   Return status telling if given fop is an IO request or not.
+ */
 bool c2_io_fop_is_rw(struct c2_fop *fop)
 {
 	int	opcode = 0;
@@ -142,6 +166,10 @@ bool c2_io_fop_is_rw(struct c2_fop *fop)
 	return false;
 }
 
+/**
+   Return the number of IO fragements(discontiguous buffers)
+   for a fop of type c2_fop_cob_readv.
+ */
 uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop;
@@ -166,6 +194,10 @@ uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 	return nfragments;
 }
 
+/**
+   Return the number of IO fragements(discontiguous buffers)
+   for a fop of type c2_fop_cob_writev.
+ */
 uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 {
 	struct c2_fop_cob_writev	*write_fop;
@@ -190,6 +222,10 @@ uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 	return nfragments;
 }
 
+/**
+   Coalesce the IO segments from a number of read fops to create a list
+   of IO segments containing merged segments.
+ */
 int c2_io_fop_read_segments_coalesce(void *vec,
 		struct c2_list *aggr_list, uint64_t *res_segs)
 {
@@ -205,9 +241,6 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(res_segs != NULL);
 	iovec = (struct c2_fop_segment_seq*)vec;
-#ifndef __KERNEL__
-	printf("c2_io_fop_read_segments_coalesce entered\n");
-#endif
 
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
@@ -245,9 +278,6 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 					  read_seg-> rs_seg.f_offset)) ) {
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
-					/*printf("Failed to allocate memory \
-						for struct \
-						c2_io_read_segment.\n");*/
 					return -ENOMEM;
 				}
 				(*res_segs)++;
@@ -267,9 +297,6 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 		if ((&read_seg->rs_linkage == (void*)aggr_list) || list_empty) {
 			C2_ALLOC_PTR(new_seg);
 			if (new_seg == NULL) {
-				/*printf("Failed to allocate memory \
-						for struct \
-						c2_io_read_segment.\n");*/
 				return -ENOMEM;
 			}
 			new_seg->rs_seg.f_offset = iovec->fs_segs[i].f_offset;
@@ -295,20 +322,13 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 		}
 	}
 
-#ifndef __KERNEL__
-	i = 0;
-	printf("Resultant read IO coalesced segments.\n");
-	c2_list_for_each_entry(aggr_list, new_seg, struct c2_io_read_segment,
-			rs_linkage) {
-		printf("Segment %d : Offset = %lu, count = %lu\n", i,
-				new_seg->rs_seg.f_offset,
-				new_seg->rs_seg.f_count);
-		i++;
-	}
-#endif
 	return 0;
 }
 
+/**
+   Coalese the IO vectors of number of read fops and put the
+   collated IO vector into given resultant fop.
+ */
 int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 {
 	struct c2_list			 aggr_list;
@@ -321,26 +341,10 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	uint64_t			 curr_segs = 0;
 	int				 res = 0;
 	int				 i = 0;
-	int				 j = 0;
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
 	c2_list_init(&aggr_list);
-
-#ifndef __KERNEL__
-	printf("c2_io_fop_read_coalesce entered.\n");
-#endif
-	c2_list_for_each_entry(list, fop_member, struct c2_io_fop_member,
-			fop_linkage) {
-		fop = fop_member->fop;
-		read_fop = c2_fop_data(fop);
-		for (j = 0; j < read_fop->frd_ioseg.fs_count; j++) {
-#ifndef __KERNEL__
-			printf("Input read segment %d: offset = %lu, count = %lu\n", j, read_fop->frd_ioseg.fs_segs[j].f_offset, read_fop->frd_ioseg.
-					fs_segs[j].f_count);
-#endif
-		}
-	}
 
 	/* Traverse the list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
@@ -349,21 +353,17 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 			fop_linkage) {
 		fop = fop_member->fop;
 		read_fop = c2_fop_data(fop);
-		res = fop->f_type->ft_ops->fto_io_segment_coalesce((void*)&read_fop->
-				frd_ioseg, &aggr_list, &curr_segs);
+		res = fop->f_type->ft_ops->fto_io_segment_coalesce((void*)
+				&read_fop->frd_ioseg, &aggr_list, &curr_segs);
 	}
 
 	C2_ALLOC_PTR(read_vec);
 	if (read_vec == NULL) {
-		/*printf("Failed to allocate memory for struct\
-				c2_fop_segment_seq.\n");*/
 		return -ENOMEM;
 	}
 	C2_ASSERT(curr_segs == c2_list_length(&aggr_list));
 	C2_ALLOC_ARR(read_vec->fs_segs, curr_segs);
 	if (read_vec->fs_segs == NULL) {
-		/*printf("Failed to allocate memory for struct\
-				c2_fop_segment.\n");*/
 		return -ENOMEM;
 	}
 	c2_list_for_each_entry_safe(&aggr_list, read_seg,
@@ -383,6 +383,10 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	return 0;
 }
 
+/**
+   Coalesce the IO segments from a number of write fops to create a list
+   of IO segments containing merged segments.
+ */
 int c2_io_fop_write_segments_coalesce(void *vec,
 		struct c2_list *aggr_list, uint64_t *nsegs)
 {
@@ -398,9 +402,6 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(nsegs != NULL);
 	iovec = (struct c2_fop_io_vec*)vec;
-#ifndef __KERNEL__
-	printf("c2_io_fop_write_segments_coalesce entered\n");
-#endif
 
 	/* For all write segments in the write vector, check if they
 	   can be merged with any of the segments from the aggregate list.
@@ -439,9 +440,6 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 					 write_seg->ws_seg.f_offset)) {
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
-					/*printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_write_segment.\n");*/
 					return -ENOMEM;
 				}
 				(*nsegs)++;
@@ -461,9 +459,6 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 				|| list_empty) {
 			C2_ALLOC_PTR(new_seg);
 			if (new_seg == NULL) {
-				/*printf("Failed to allocate memory \
-						for struct \
-						c2_rpc_form_write_segment.\n");*/
 				return -ENOMEM;
 			}
 			new_seg->ws_seg.f_offset = iovec->
@@ -490,20 +485,14 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 			(*nsegs)--;
 		}
 	}
-#ifndef __KERNEL__
-	i = 0;
-	printf("Resultant write IO coalesced segments.\n");
-	c2_list_for_each_entry(aggr_list, new_seg, struct c2_io_write_segment,
-			ws_linkage) {
-		printf("Segment %d : Offset = %lu, count = %d\n", i,
-				new_seg->ws_seg.f_offset,
-				new_seg->ws_seg.f_buf.f_count);
-		i++;
-	}
-#endif
+
 	return 0;
 }
 
+/**
+   Coalesce the IO vectors of a list of write fops into IO vector
+   of given resultant fop.
+ */
 int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 {
 	struct c2_list			 aggr_list;
@@ -516,26 +505,10 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	uint64_t			 curr_segs = 0;
 	int				 res = 0;
 	int				 i = 0;
-	int				 j = 0;
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
 	c2_list_init(&aggr_list);
-
-#ifndef __KERNEL__
-	printf("c2_io_fop_write_coalesce entered.\n");
-#endif
-	c2_list_for_each_entry(list, fop_member, struct c2_io_fop_member,
-			fop_linkage) {
-		fop = fop_member->fop;
-		write_fop = c2_fop_data(fop);
-		for (j = 0; j < write_fop->fwr_iovec.iov_count; j++) {
-#ifndef __KERNEL__
-			printf("Input write segment %d: offset = %lu, count = %d\n", j, write_fop->fwr_iovec.iov_seg[j].f_offset, write_fop->fwr_iovec.
-					iov_seg[j].f_buf.f_count);
-#endif
-		}
-	}
 
 	/* Traverse the list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
@@ -544,21 +517,17 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 			fop_linkage) {
 		fop = fop_member->fop;
 		write_fop = c2_fop_data(fop);
-		res = fop->f_type->ft_ops->fto_io_segment_coalesce((void*)&write_fop->
-				fwr_iovec, &aggr_list, &curr_segs);
+		res = fop->f_type->ft_ops->fto_io_segment_coalesce((void*)
+				&write_fop->fwr_iovec, &aggr_list, &curr_segs);
 	}
 
 	C2_ALLOC_PTR(write_vec);
 	if (write_vec == NULL) {
-		/*printf("Failed to allocate memory for struct\
-				c2_fop_io_vec.\n");*/
 		return -ENOMEM;
 	}
 	C2_ASSERT(curr_segs == c2_list_length(&aggr_list));
 	C2_ALLOC_ARR(write_vec->iov_seg, curr_segs);
 	if (write_vec->iov_seg == NULL) {
-		/*printf("Failed to allocate memory for struct\
-				c2_fop_io_seg.\n");*/
 		return -ENOMEM;
 	}
 	c2_list_for_each_entry_safe(&aggr_list, write_seg,
@@ -578,6 +547,9 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 	return 0;
 }
 
+/**
+   Return the opcode of given fop.
+ */
 int c2_io_fop_get_opcode(struct c2_fop *fop)
 {
 	int opcode = 0;
@@ -628,6 +600,9 @@ static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
+/**
+   Return the size of a read_reply fop.
+ */
 uint64_t c2_io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv_rep	*read_rep_fop = NULL;
@@ -665,6 +640,9 @@ static int c2_fop_file_create_request(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
+/**
+   Return size for a fop of type c2_fop_file_create;
+ */
 uint64_t c2_io_fop_create_getsize(struct c2_fop *fop)
 {
 	uint64_t			 size = 0;
@@ -719,10 +697,12 @@ int c2_fop_replied(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
         if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
                 read_fop = c2_fop_data(fop);
+		/* Not sure of fops should be deallocated here.*/
                 c2_free(read_fop->frd_ioseg.fs_segs);
         }
         else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
                 write_fop = c2_fop_data(fop);
+		/* Not sure of fops should be deallocated here.*/
                 c2_free(write_fop->fwr_iovec.iov_seg);
         }
         c2_fop_free(fop);

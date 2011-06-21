@@ -21,7 +21,7 @@
  */
 
 /**
- * @defgroup io_fops FOPs for Data Operations 
+ * @defgroup io_fops FOPs for Data Operations
  * 
  * This component contains the File Operation Packets(FOP) definitions 
  * for following operations
@@ -85,7 +85,7 @@ DEF(c2_fop_io_seg, RECORD,
 
 /**
  * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- * <br> List of fields 
+ * <br> List of fields
  * @li Array of IO segments.
  * @li count: Number of segments in array.
  */
@@ -176,7 +176,7 @@ DEF(c2_fop_file_create, RECORD,
 
 /** @} end of FOP_data_ops */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

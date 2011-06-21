@@ -156,7 +156,6 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	*formation_summary;
 
-
 /**
    Check if refcounts of all endpoints are zero.
  */
@@ -296,14 +295,6 @@ bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
    @param item - incoming rpc item.
  */
 struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
-
-/**
-   An enumeration of IO opcodes.
- */
-enum c2_rpc_form_io_opcode {
-	C2_RPC_FORM_IO_READ = 1,
-	C2_RPC_FORM_IO_WRITE = 2
-};
 
 /**
    An internal data structure to connect coalesced rpc items with
@@ -518,15 +509,6 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
 int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
 
 /**
-   Function to do the coalescing of related rpc items.
-   This is invoked from FORMING state, so a list of selected
-   rpc items is input to this function which coalesces
-   possible items and shrinks the list.
-   @param items - list of items to be coalesced.
- */
-int c2_rpc_form_coalesce_items(struct c2_list *items);
-
-/**
    Try to coalesce rpc items from the session->free list.
    @param endp_unit - the item_summary_unit structure in which these activities
    are taking place.
@@ -700,56 +682,6 @@ typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
 void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return size of fop
- */
-uint64_t c2_rpc_item_size(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return the opcode given an rpc item
- */
-int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to get the fid for an IO request from the rpc item
- */
-struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to find out if the item belongs to an IO request or not
- */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to find out number of fragmented buffers in IO request
- */
-uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
-
-/**
-   XXX Needs to be implemented.
- */
-struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item);
-
-/**
-   Check if two rpc items belong to same type.
- */
-bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2);
-
-/**
-   Return opcode of a given fop referenced by this item.
- */
-int c2_rpc_item_get_opcode(struct c2_rpc_item *item);
-
-/**
    Try to coalesce rpc items with similar fid and intent.
  */
 int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
@@ -776,20 +708,6 @@ void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
    for an unbound item.
  */
 void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item);
-
-
-/* Instrumentation for detecting reference leaks. Used for testing. */
-struct c2_rpc_form_ut_thread_reftrack {
-	struct c2_thread_handle		handle;
-	int				refcount;
-};
-
-/* nthreads in UT  = 256,  + 256 * ((rpcitem_changed | rpcitem_replied) &&
-   rpcitem_deadline_expired)  = 256*3. */
-#define rpc_form_ut_threads	256*3
-
-struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[rpc_form_ut_threads];
-int	n_ut_threads;
 
 /** @} endgroup of rpc_formation */
 

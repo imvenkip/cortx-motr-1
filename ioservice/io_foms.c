@@ -305,9 +305,9 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		 * Allocate the read buffer.
 		 */
 		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf,
-				read_fop->frd_ioseg.fs_segs->f_count); 
+				read_fop->frd_ioseg.fs_segs->f_count);
 		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, 
+		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf,
 					 bshift);
 		count = read_fop->frd_ioseg.fs_segs->f_count;
 		offset = read_fop->frd_ioseg.fs_segs->f_offset;

@@ -63,6 +63,10 @@
    5. Create FOPs for these requests (metadata/IO), assign
  */
 
+/* external functions. */
+bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
+int c2_rpc_item_get_opcode(struct c2_rpc_item *item);
+
 /** ADDB variables and structures */
 static const struct c2_addb_ctx_type c2_rpc_ut_addb_ctx_type = {
         .act_name = "rpc-ut-ctx-type"
@@ -539,6 +543,9 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	printf("Inside c2_rpc_form_item_populate_param \n");
 	C2_PRE(item != NULL);
 
+	/* Associate an rpc item with its type. */
+	c2_rpc_item_attach(item);
+
 	io_req = c2_rpc_item_is_io_req(item);
 	if(io_req) {
 		res = c2_rpc_form_item_io_populate_param(item);
@@ -560,8 +567,6 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	item->ri_reply = NULL;
 	c2_chan_init(&item->ri_chan);
 
-	/* Associate an rpc item with its type. */
-	c2_rpc_item_attach(item);
 	/*
 	fop = c2_rpc_item_to_fop(item);
 	opcode = fop->f_type->ft_code;
