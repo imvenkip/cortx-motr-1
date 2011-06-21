@@ -20,6 +20,7 @@
  */
 
 #include "lib/misc.h"
+#include "lib/time.h"
 #include "lib/ut.h"
 
 #include "net/bulk_emulation/sunrpc_xprt_xo.c"
@@ -32,7 +33,13 @@
 #define KPRN(fmt,...)
 #endif
 
-#ifndef __KERNEL__
+static void ut_sleep_secs(int secs)
+{
+	c2_time_t req, rem;
+	c2_time_set(&req, secs, 0);
+	c2_nanosleep(req, &rem);
+}
+
 static void test_sunrpc_ep(void)
 {
 	/* dom1 */
@@ -175,7 +182,7 @@ static void test_sunrpc_ep(void)
 
 	dp = sunrpc_dom_to_pvt(&dom1);
 	while (dp->xd_skulker_hb == 0)
-		sleep(1); /* wait until skulker thread starts */
+		ut_sleep_secs(1); /* wait until skulker thread starts */
 
 	addr = "255.255.255.255:65535:9876";
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
@@ -194,12 +201,11 @@ static void test_sunrpc_ep(void)
 	hb = dp->xd_skulker_hb;
 	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
 	while (dp->xd_skulker_hb == hb)
-		sleep(1); /* wait for the skulker heartbeat to advance */
+		ut_sleep_secs(1);/* wait for the skulker heartbeat to advance */
 	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* flushed */
 
 	c2_net_domain_fini(&dom1);
 }
-#endif /* !__KERNEL__ */
 
 static enum c2_net_tm_ev_type cb_evt1;
 static enum c2_net_queue_type cb_qt1;
@@ -1028,6 +1034,7 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
 #else
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
+                { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
 #endif
                 { NULL, NULL }
         }
