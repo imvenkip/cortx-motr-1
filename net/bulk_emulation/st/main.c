@@ -138,7 +138,7 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	C2_ASSERT(rc == 0);
 	c2_mutex_lock(&qstats_mutex);
 	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
-	ctx->pc_ops->pf(hfmt);
+	ctx->pc_ops->pf("%s", hfmt);
 	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
 		qp = &qs[i];
 		sec = c2_time_seconds(qp->nqs_time_in_queue);
