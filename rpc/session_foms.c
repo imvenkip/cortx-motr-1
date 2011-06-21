@@ -184,7 +184,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 		goto errout;
 	}
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_ALIVE &&
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 		  session->s_session_id != SESSION_ID_INVALID &&
 		  conn->c_nr_sessions > 0 &&
 		  c2_list_contains(&conn->c_sessions, &session->s_link));

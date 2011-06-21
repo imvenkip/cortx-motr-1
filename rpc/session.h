@@ -391,21 +391,27 @@ enum c2_rpc_session_state {
 	 */
 	C2_RPC_SESSION_CREATING = (1 << 1),
 	/**
-	   When sender gets "SESSION_CREATE operation successful" reply
-	   from receiver, session transitions to state ALIVE. This is the
-	   normal working state of session.
+	   A session is IDLE if both of following is true
+		- for each slot S in session 
+			for each item I in S->item_list
+				// I has got reply
+				I->state is in {PAST_COMMITTED, PAST_VOLATILE}
+		- session->unbound_items list is empty
+	   A session can be terminated only if it is IDLE.
 	 */
-	C2_RPC_SESSION_ALIVE = (1 << 2),
+	C2_RPC_SESSION_IDLE = (1 << 2),
+	/**
+	   A session is busy if any of following is true
+		- Any of slots has item to be sent (FUTURE items)
+		- Any of slots has item for which reply is not received 
+			(IN_PROGRESS items)
+		- unbound_items list is not empty
+	 */
+	C2_RPC_SESSION_BUSY = (1 << 3),
 	/**
 	   Creation/termination of session failed
 	 */
-	C2_RPC_SESSION_FAILED = (1 << 3),
-	/**
-	   When recovery is in progress (i.e. replay or resend) the
-	   session is in RECOVERING state. New requests coming on this
-	   session are held in a queue until recovery is complete.
-	 */
-	C2_RPC_SESSION_RECOVERING = (1 << 4),
+	C2_RPC_SESSION_FAILED = (1 << 4),
 	/**
 	   When sender sends SESSION_DESTROY fop to receiver and is waiting
 	   for reply, then it is in state TERMINATING.
@@ -434,14 +440,14 @@ enum c2_rpc_session_state {
 				      |
 		timed-out	      V
           +-------------------------CREATING
-	  |   create_failed           |
-	  V       		      | create successful
-	FAILED <------+               |
-	  |           |               V	
-	  |           |             ALIVE 
-	  |           |failed         |	
-	  |           |               |
-	  |           |               |
+	  |   create_failed           | create successful/n = 0
+	  V       		      |
+	FAILED <------+               |   n == 0 && list_empty(unbound_items)
+	  |           |               +-----------------+
+	  |           |               |                 | +-----+
+	  |           |failed         |	                | |     | item add/n++
+	  |           |               V  item add/n++   | V     | reply rcvd/n--
+	  |           |             IDLE--------------->BUSY----+
 	  |           |               |
 	  | fini      |               | session_terminate
 	  |	      |               V
@@ -471,8 +477,9 @@ struct c2_rpc_session {
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
 	struct c2_mutex 		 s_mutex;
-	/** Number of items in flight, posted over this session */
-	int64_t				 s_in_flight;
+	/** Number of items that needs to sent or their reply is
+	    not yet received */
+	int32_t				 s_nr_active_items;
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
 	struct c2_list			 s_unbound_items;
@@ -515,7 +522,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session);
 /**
    Send terminate session message to receiver.
 
-   @pre session->s_state == C2_RPC_SESSION_ALIVE && no slot is busy
+   @pre session->s_state == C2_RPC_SESSION_IDLE
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);

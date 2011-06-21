@@ -324,10 +324,10 @@ static void thread_entry(void *arg)
 	c2_time_now(&timeout);
 	c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
 				c2_time_nanoseconds(timeout));
-	got_event = c2_rpc_session_timedwait(&session, C2_RPC_SESSION_ALIVE,
+	got_event = c2_rpc_session_timedwait(&session, C2_RPC_SESSION_IDLE,
 			timeout);
-	if (got_event && session.s_state == C2_RPC_SESSION_ALIVE) {
-		printf("thread: session got created %lu\n", session.s_session_id);
+	if (got_event && session.s_state == C2_RPC_SESSION_IDLE) {
+		printf("thread: session got created %lu IDLE\n", session.s_session_id);
 	} else {
 		printf("thread: time out during session creation\n");
 	}
@@ -475,72 +475,72 @@ extern struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops;
 void test_slots()
 {
 	enum { COUNT = 4 };
-	struct c2_rpc_slot	slot;
+	struct c2_rpc_slot	*slot;
 	struct c2_rpc_item	*item, *r;
 	struct c2_rpc_item	*items[COUNT];
 	int			i;
 
-	C2_SET0(&slot);
-	c2_rpc_slot_init(&slot, &c2_rpc_rcv_slot_ops);
-	C2_ASSERT(c2_rpc_slot_invariant(&slot));
+	//C2_SET0(&slot);
+	//c2_rpc_slot_init(&slot, &c2_rpc_rcv_slot_ops);
+	slot = session.s_slot_table[1];
+	C2_ASSERT(c2_rpc_slot_invariant(slot));
 
-	slot.sl_max_in_flight = 2;
-	c2_mutex_lock(&slot.sl_mutex);
+	slot->sl_max_in_flight = 2;
+	c2_mutex_lock(&slot->sl_mutex);
 	for (i = 0; i < COUNT; i++) {
 		C2_ALLOC_PTR(item);
 		(i % 2) && (item->ri_flags |= RPC_ITEM_MUTABO);
-		c2_rpc_slot_item_add(&slot, item);
+		c2_rpc_slot_item_add(slot, item);
 		items[i] = item;
 	}
 	C2_ALLOC_PTR(r);
 	memcpy(r, items[0], sizeof (struct c2_rpc_item));
-	c2_rpc_slot_reply_received(&slot, r);
-	c2_rpc_slot_reply_received(&slot, r);
+	c2_rpc_slot_reply_received(slot, r);
+	c2_rpc_slot_reply_received(slot, r);
 	for (i = 0; i < COUNT; i++) {
 		C2_ALLOC_PTR(r);
 		memcpy(r, items[i], sizeof (struct c2_rpc_item));
-		c2_rpc_slot_reply_received(&slot, r);
+		c2_rpc_slot_reply_received(slot, r);
 	}
 	C2_ALLOC_PTR(r);
-	r->ri_slot_refs[0].sr_verno.vn_lsn = slot.sl_verno.vn_lsn;
-	r->ri_slot_refs[0].sr_verno.vn_vc = slot.sl_verno.vn_vc;
-	r->ri_slot_refs[0].sr_xid = slot.sl_xid;
-	c2_rpc_slot_item_apply(&slot, r);
+	r->ri_slot_refs[0].sr_verno.vn_lsn = slot->sl_verno.vn_lsn;
+	r->ri_slot_refs[0].sr_verno.vn_vc = slot->sl_verno.vn_vc;
+	r->ri_slot_refs[0].sr_xid = slot->sl_xid;
+	c2_rpc_slot_item_apply(slot, r);
 
 	C2_ALLOC_PTR(r);
-	r->ri_slot_refs[0].sr_verno.vn_lsn = slot.sl_verno.vn_lsn;
-	r->ri_slot_refs[0].sr_verno.vn_vc = slot.sl_verno.vn_vc;
-	r->ri_slot_refs[0].sr_xid = slot.sl_xid + 1;
-	c2_rpc_slot_item_apply(&slot, r);
+	r->ri_slot_refs[0].sr_verno.vn_lsn = slot->sl_verno.vn_lsn;
+	r->ri_slot_refs[0].sr_verno.vn_vc = slot->sl_verno.vn_vc;
+	r->ri_slot_refs[0].sr_xid = slot->sl_xid + 1;
+	c2_rpc_slot_item_apply(slot, r);
 
 	C2_ALLOC_PTR(r);
 	r->ri_slot_refs[0].sr_verno.vn_lsn = items[1]->ri_slot_refs[0].sr_verno.vn_lsn;
 	r->ri_slot_refs[0].sr_verno.vn_vc = items[1]->ri_slot_refs[0].sr_verno.vn_vc;
 	r->ri_slot_refs[0].sr_xid = items[1]->ri_slot_refs[0].sr_xid;
-	c2_rpc_slot_item_apply(&slot, r);
+	c2_rpc_slot_item_apply(slot, r);
 
-	c2_mutex_unlock(&slot.sl_mutex);
-	C2_ASSERT(c2_rpc_slot_invariant(&slot));
+	c2_mutex_unlock(&slot->sl_mutex);
+	C2_ASSERT(c2_rpc_slot_invariant(slot));
 }
 int main(void)
 {
 	printf("Program start\n");
 	c2_init();
 
-	//init();
-	//test_conn_create();
-	//test_session_create();
-	//test_session_terminate(g_sender_id, g_session_id);
-	test_slots();
+	init();
+	test_conn_create();
+	test_session_create();
+	test_session_terminate(g_sender_id, g_session_id);
 	//test_conn_terminate(g_sender_id);
 
-	//test_snd_conn_create();
-	//test_snd_session_create();
-	//test_item_prepare();
-	//test_snd_session_terminate();
-	//test_snd_conn_terminate();
+	test_snd_conn_create();
+	test_snd_session_create();
+	test_slots();
+	test_snd_session_terminate();
+	test_snd_conn_terminate();
 
-	//c2_rpcmachine_fini(machine);
+	c2_rpcmachine_fini(machine);
 	//c2_cob_domain_fini(dom);
 	c2_fini();
 	printf("program end\n");
