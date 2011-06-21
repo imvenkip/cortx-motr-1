@@ -15,7 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *		    Huang Hua <hua_huang@xyratex.com>
- *		    Anatoliy Belinko
+ *		    Anatoliy Bilenko
  * Original creation date: 05/04/2010
  */
 
@@ -154,7 +154,7 @@ MODULE_LICENSE("GPL");
 /**
  * Global container id used to identify the corresponding
  * component object at the server side.
- * In future, this will be changed. 
+ * In future, this will be changed.
  */
 #define c2_global_container_id	10
 
@@ -162,7 +162,7 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 /**
- * Some user/group identification functions to fill up 
+ * Some user/group identification functions to fill up
  * the uid/gid fields from various FOPs.
  * These are hard coded for now. They will be replaced
  * with proper user authorization routines in future.
@@ -207,16 +207,16 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
- 		/* With introduction of FOMs, a reply FOP will be allocated 
- 		 * by the request FOP and a pointer to it will be 
- 		 * sent across. 
+ 		/* With introduction of FOMs, a reply FOP will be allocated
+ 		 * by the request FOP and a pointer to it will be
+ 		 * sent across.
  		 * XXX The reply FOP pointer is not used as of now.
  		 */
  		arg->fwr_foprep 		= (uint64_t)ret;
  		arg->fwr_fid.f_seq		= c2_global_container_id;
  		arg->fwr_fid.f_oid		= objid;
  		arg->fwr_iovec.iov_count 	= 1;
- 
+
  		/* Populate the vector of write FOP */
 		arg->fwr_iovec.iov_seg.f_offset = pos;
 		arg->fwr_iovec.iov_seg.f_buf.cfib_pgoff = off;
@@ -227,7 +227,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
  		arg->fwr_gid = c2_get_gid();
  		arg->fwr_nid = c2_get_nid();
  		arg->fwr_flags = 0;
-  
+
                 DBG("writing data to server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
@@ -241,7 +241,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
  		struct c2_fop_cob_readv		*arg;
                 struct c2_fop_cob_readv_rep	*ret;
-  
+
  		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
  		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 
@@ -253,16 +253,16 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
- 		/* With introduction of FOMs, a reply FOP will be allocated 
- 		 * by the request FOP and a pointer to it will be 
- 		 * sent across. 
+ 		/* With introduction of FOMs, a reply FOP will be allocated
+ 		 * by the request FOP and a pointer to it will be
+ 		 * sent across.
  		 * XXX The reply FOP pointer is not used as of now.
  		 */
  		arg->frd_foprep 		= (uint64_t)ret;
  		arg->frd_fid.f_seq		= c2_global_container_id;
  		arg->frd_fid.f_oid		= objid;
  		arg->frd_ioseg.f_count 	= 1;
- 
+
  		/* Populate the vector of read FOP */
 		arg->frd_ioseg.f_offset = pos;
 		arg->frd_ioseg.f_count = len;

@@ -411,7 +411,7 @@ const struct c2_test_suite xdr_ut = {
         }
 };
 
-const struct c2_ub_set c2_xdr_ub = {
+struct c2_ub_set c2_xdr_ub = {
 	.us_name = "xdr-ub",
 	.us_init = NULL,
 	.us_fini = NULL,
