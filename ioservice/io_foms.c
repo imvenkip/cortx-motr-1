@@ -279,14 +279,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Since the upper layer IO block size could differ
 	 * with IO block size of storage object, the block
-	 * alignment and mapping is necesary. 
+	 * alignment and mapping is necesary.
 	 */
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
-	/* 
+	/*
 	 * Find out the buffer address, offset and count
-	 * required for the stob io. 
+	 * required for the stob io.
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
 		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_offset & bmask) == 0);
@@ -301,15 +301,16 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_offset & bmask) == 0);
 		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_count & bmask) == 0);
 
-		/* 
-		 * Allocate the read buffer. 
+		/*
+		 * Allocate the read buffer.
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_fop->frd_ioseg.fs_segs->f_count);     
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf,
+				read_fop->frd_ioseg.fs_segs->f_count);
 		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, 
+		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf,
 					 bshift);
 		count = read_fop->frd_ioseg.fs_segs->f_count;
-		offset = read_fop->frd_ioseg.fs_segs->f_offset; 
+		offset = read_fop->frd_ioseg.fs_segs->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
 
@@ -439,70 +440,6 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 * Start the FOM.
 	 */
 	return fom->fo_ops->fo_state(fom);
-}
-
-/**
-  FOP ops function
-  Function to create a new fop and embed the given read segment into it
- */
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *ioseg)
-{
-	struct c2_fop_cob_readv		*read_fop_curr;
-	struct c2_fop_cob_readv		*read_fop_res;
-	struct c2_fop_segment_seq	*seg = NULL;
-
-	C2_PRE(curr_fop != NULL);
-	C2_PRE(ioseg != NULL);
-
-	seg = (struct c2_fop_segment_seq*)ioseg;
-	read_fop_curr = c2_fop_data(curr_fop);
-
-	*res_fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
-	C2_ASSERT(*res_fop != NULL);
-	read_fop_res = c2_fop_data(*res_fop);
-	/* Assumption: Currently, the code is coalescing irrespective
-	   of member's uid and gid. This might change in future.*/
-	read_fop_res->frd_ioseg = *seg;
-	read_fop_res->frd_fid = read_fop_curr->frd_fid;
-	read_fop_res->frd_uid = read_fop_curr->frd_uid;
-	read_fop_res->frd_gid = read_fop_curr->frd_gid;
-	read_fop_res->frd_nid = read_fop_curr->frd_nid;
-	read_fop_res->frd_flags = read_fop_curr->frd_flags;
-
-	return 0;
-}
-
-/**
-  FOP ops function
-  Function to create a new fop and embed the given write vec into it
- */
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *iovec)
-{
-	struct c2_fop_cob_writev	*write_fop_curr;
-	struct c2_fop_cob_writev	*write_fop_res;
-	struct c2_fop_io_vec		*vec = NULL;
-
-	C2_PRE(curr_fop != NULL);
-	C2_PRE(iovec != NULL);
-
-	vec = (struct c2_fop_io_vec*)iovec;
-	write_fop_curr = c2_fop_data(curr_fop);
-
-	*res_fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
-	C2_ASSERT(*res_fop != NULL);
-	write_fop_res = c2_fop_data(*res_fop);
-	/* Assumption: Currently, the code is coalescing irrespective
-	   of member's uid and gid. This might change in future.*/
-	write_fop_res->fwr_iovec = *vec;
-	write_fop_res->fwr_fid =  write_fop_curr->fwr_fid;
-	write_fop_res->fwr_uid =  write_fop_curr->fwr_uid;
-	write_fop_res->fwr_gid =  write_fop_curr->fwr_gid;
-	write_fop_res->fwr_nid =  write_fop_curr->fwr_nid;
-	write_fop_res->fwr_flags =  write_fop_curr->fwr_flags;
-
-	return 0;
 }
 
 #endif

@@ -5,6 +5,14 @@
 #include "lib/errno.h"
 #include "rpc/session.h"
 #include "rpc/session_int.h"
+#include "fop/fop.h"
+#include "formation.h"
+
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
 
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
@@ -232,6 +240,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	/* XXX commented following two lines for testing purpose */
 	//c2_list_fini(&machine->cr_incoming_conns);
 	//c2_list_fini(&machine->cr_outgoing_conns);
+	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 }
@@ -268,11 +277,247 @@ void us_recovery_complete(struct c2_update_stream *us)
 	DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
+/**
+   rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
+{
+	struct c2_fop			*fop = NULL;
+
+	C2_PRE(item != NULL);
+	/* Find out fop from the rpc item,
+	   Find out opcode of rpc item,
+	   Deallocate the io vector of rpc item accordingly.*/
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+	fop->f_type->ft_ops->fto_fop_replied(fop);
+}
+
+/**
+   RPC item ops function
+   Function to return size of fop
+ */
+uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	uint64_t			 size = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+	size = fop->f_type->ft_ops->fto_getsize(fop);
+	return size;
+}
+
+/**
+   Find if given 2 rpc items belong to same type or not.
+ */
+bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
+{
+	struct c2_fop		*fop1 = NULL;
+	struct c2_fop		*fop2 = NULL;
+	bool			 ret = false;
+
+	C2_PRE(item1 != NULL);
+	C2_PRE(item2 != NULL);
+	fop1 = c2_rpc_item_to_fop(item1);
+	fop2 = c2_rpc_item_to_fop(item2);
+	ret = fop1->f_type->ft_ops->fto_op_equal(fop1, fop2);
+	return ret;
+}
+
+/**
+   Return opcode of the fop referenced by given rpc item.
+ */
+int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int			 opcode = 0;
+
+	C2_PRE(item != NULL);
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+	opcode = fop->f_type->ft_ops->fto_get_opcode(fop);
+	return opcode;
+}
+
+
+/**
+   RPC item ops function
+   Function to get the fid for an IO request from the rpc item
+ */
+struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop = NULL;
+	struct c2_fid			 fid;
+	struct c2_fop_file_fid		 ffid;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+
+	ffid = fop->f_type->ft_ops->fto_get_fid(fop);
+	c2_rpc_form_item_io_fid_wire2mem(&ffid, &fid);
+	return fid;
+}
+
+/**
+   RPC item ops function
+   Function to find out if the item belongs to an IO request or not
+ */
+bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	bool			 io_req = false;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+	io_req = fop->f_type->ft_ops->fto_is_io(fop);
+	return io_req;
+}
+
+/**
+   RPC item ops function
+   Function to find out number of fragmented buffers in IO request
+ */
+uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item)
+{
+	struct c2_fop			*fop;
+	uint64_t			 nfragments = 0;
+
+	C2_PRE(item != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	C2_ASSERT(fop != NULL);
+
+	nfragments = fop->f_type->ft_ops->fto_get_nfragments(fop);
+	return nfragments;
+}
+
 static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_timeout           = us_timeout,
 	.uso_recovery_complete = us_recovery_complete
 };
 
+int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item);
+
+const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
+	.rio_sent = NULL,
+	.rio_added = NULL,
+	.rio_replied = c2_rpc_item_replied,
+	.rio_item_size = c2_rpc_item_size,
+	.rio_items_equal = c2_rpc_item_equal,
+	.rio_io_get_opcode = c2_rpc_item_get_opcode,
+	.rio_io_get_fid = c2_rpc_item_io_get_fid,
+	.rio_is_io_req = c2_rpc_item_is_io_req,
+	.rio_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
+	.rio_io_coalesce = c2_rpc_item_io_coalesce,
+};
+
+const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
+	.rio_sent = NULL,
+	.rio_added = NULL,
+	.rio_replied = c2_rpc_item_replied,
+	.rio_item_size = c2_rpc_item_size,
+	.rio_items_equal = c2_rpc_item_equal,
+	.rio_io_get_opcode = c2_rpc_item_get_opcode,
+	.rio_io_get_fid = c2_rpc_item_io_get_fid,
+	.rio_is_io_req = c2_rpc_item_is_io_req,
+	.rio_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
+	.rio_io_coalesce = c2_rpc_item_io_coalesce,
+};
+
+const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
+	.rio_sent = NULL,
+	.rio_added = NULL,
+	.rio_replied = c2_rpc_item_replied,
+	.rio_item_size = c2_rpc_item_size,
+	.rio_items_equal = c2_rpc_item_equal,
+	.rio_io_get_opcode = c2_rpc_item_get_opcode,
+	.rio_io_get_fid = c2_rpc_item_io_get_fid,
+	.rio_is_io_req = c2_rpc_item_is_io_req,
+	.rio_get_io_fragment_count = NULL,
+	.rio_io_coalesce = NULL,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_readv = {
+	.rit_ops = &c2_rpc_item_readv_type_ops,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_writev = {
+	.rit_ops = &c2_rpc_item_writev_type_ops,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_create = {
+	.rit_ops = &c2_rpc_item_create_type_ops,
+};
+
+/**
+   Attach the given rpc item with its corresponding item type.
+   @param item - given rpc item.
+ */
+void c2_rpc_item_attach(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop = NULL;
+	int			 opcode = 0;
+
+	C2_PRE(item != NULL);
+        fop = c2_rpc_item_to_fop(item);
+        opcode = fop->f_type->ft_code;
+        switch (opcode) {
+                case c2_io_service_readv_opcode:
+                        item->ri_type = &c2_rpc_item_type_readv;
+                        break;
+                case c2_io_service_writev_opcode:
+                        item->ri_type = &c2_rpc_item_type_writev;
+                        break;
+                case c2_io_service_create_opcode:
+                        item->ri_type = &c2_rpc_item_type_create;
+                        break;
+                default:
+                        break;
+        };
+}
+
+/**
+   Associate an rpc with its corresponding rpc_item_type.
+   Since rpc_item_type by itself can not be uniquely identified,
+   rather it is tightly bound to its fop_type, the fop_type_code
+   is passed, based on which the rpc_item is associated with its
+   rpc_item_type.
+ */
+void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
+{
+	uint32_t			 opcode = 0;
+
+	C2_PRE(fopt != NULL);
+	/* XXX Needs to be implemented in a clean way. */
+	/* This is a temporary approach to associate an rpc_item
+	   with its rpc_item_type. It will be discarded once we
+	   have a better mapping function for associating
+	   rpc_item_type with an rpc_item. */
+	opcode = fopt->ft_code;
+	switch (opcode) {
+		case c2_io_service_readv_opcode:
+			fopt->ft_ritype = &c2_rpc_item_type_readv;
+			break;
+		case c2_io_service_writev_opcode:
+			fopt->ft_ritype = &c2_rpc_item_type_writev;
+			break;
+		case c2_io_service_create_opcode:
+			fopt->ft_ritype = &c2_rpc_item_type_create;
+			break;
+		default:
+			break;
+	};
+}
 
 /*
  *  Local variables:
