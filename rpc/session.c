@@ -870,19 +870,12 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
-
 	conn = item->ri_session->s_conn;
-	/*
-	 * If session create is in progress then conn MUST exist
-	 */
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
 			conn->c_sender_id == sender_id);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-
-	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
 
 	/*
 	 * For a c2_rpc_conn
@@ -942,16 +935,9 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
-
-	/*
-	 * Make sure session does not have any "reserved" session id
-	 */
-	C2_ASSERT(session->s_session_id >= SESSION_ID_MIN &&
-			session->s_session_id <= SESSION_ID_MAX);
-
 	c2_mutex_lock(&session->s_mutex);
-
-	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
+			c2_rpc_session_invariant(session));
 
 	if (session->s_state != C2_RPC_SESSION_IDLE) {
 		c2_mutex_unlock(&session->s_mutex);
@@ -1012,7 +998,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session;
 	struct c2_rpc_item			*item;
-	struct c2_rpcmachine			*machine;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
@@ -1023,22 +1008,14 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 
 	sender_id = fop_str->rstr_sender_id;
 	session_id = fop_str->rstr_session_id;
-
-	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
-			session_id >= SESSION_ID_MIN &&
-			session_id <= SESSION_ID_MAX);
+	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
 	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
-
-	machine = item->ri_mach;
-	c2_mutex_lock(&machine->cr_session_mutex);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	c2_mutex_lock(&conn->c_mutex);
-	c2_mutex_unlock(&machine->cr_session_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_search(conn, session_id, &session);
