@@ -512,6 +512,8 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	int    i;
         size_t np;
 
+	if (sb == NULL)
+		return;
 	if (sb->sb_buf != NULL) {
 		np = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 		if (np == 0)
@@ -620,7 +622,8 @@ fail:
 #else
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
-	C2_SET0(sb);
+	if (sb != NULL)
+		C2_SET0(sb);
 }
 
 int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,

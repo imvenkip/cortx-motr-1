@@ -293,7 +293,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              len;
 	size_t                   off = 0;
-	c2_bcount_t              copied;
 	bool                     eof = false;
 
 	/* get a connection for this end point */
@@ -334,10 +333,8 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 
 		len = rep->sgr_buf.sb_len;
 		rc = sunrpc_buffer_copy_out(&cur, &rep->sgr_buf);
-		if (copied < len) {
-			rc = -EFBIG;
+		if (rc < 0)
 			break;
-		}
 		off += len;
 	}
 

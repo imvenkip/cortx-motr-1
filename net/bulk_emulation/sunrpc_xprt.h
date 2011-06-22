@@ -192,7 +192,9 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
    Populate a struct sunrpc_buffer given a buffer pointer and length.
    @param sb buffer object to initialize
    @param buf address of start of actual buffer, must not refer to kernel high
-   memory or memory allocated using vmalloc (c2_alloc memory is acceptable)
+   memory or memory allocated using vmalloc (c2_alloc memory is acceptable).
+   The buffer itself is not copied, but references to it are added to sb, so
+   the buffer must not be freed until after sunrpc_buffer_fini() is called.
    @param len size of actual buffer
    @param for_write if true, user-space pages will be mapped for write-access
    @pre sb != NULL && buf != NULL && len >= 0 && buf < high_memory
@@ -207,7 +209,7 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
 
 /**
    Copy the contents of a sunrpc_buffer out to a c2_bufvec using a cursor.
-   @param buf destination buffer cursor
+   @param dest destination buffer cursor
    @param sb source sunrpc_buffer
    @retval 0 (success)
    @retval -errno (failure)
