@@ -166,7 +166,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre rio_added() called.
+	   @pre ri_added() called.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
@@ -180,10 +180,12 @@ struct c2_rpc_item_type_ops {
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre rio_added() called.
-	   @pre rio_sent() called.
+	   @pre ri_added() called.
+	   @pre ri_sent() called.
 	 */
-	void (*rio_replied)(struct c2_rpc_item *item, int rc);
+	void (*rio_replied)(struct c2_rpc_item	*item,
+			   int 			rc);
+
 	/**
 	   Find out the size of rpc item.
 	 */
@@ -215,6 +217,32 @@ struct c2_rpc_item_type_ops {
 	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
 };
 
+struct c2_rpc_item_ops {
+	/**
+	   Called when given item's sent.
+	   @param item reference to an RPC-item sent
+	   @pre ri_added() called.
+	 */
+	void (*ri_sent)(struct c2_rpc_item *item);
+	/**
+	   Called when item's added to an RPC
+	   @param rpc reference to an RPC where item's added
+	   @param item reference to an item added to rpc
+	 */
+	void (*ri_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+
+	/**
+	   Called when given item's replied.
+	   @param item reference to an RPC-item on which reply FOP was received.
+	   @param rc error code <0 if failure
+	   @pre ri_added() called.
+	   @pre ri_sent() called.
+	 */
+	void (*ri_replied)(struct c2_rpc_item	*item,
+			   struct c2_rpc_item	*reply,
+			   int 			rc);
+
+};
 struct c2_update_stream_ops {
 	/** Called when update stream enters UPDATE_STREAM_TIMEDOUT state */
 	void (*uso_timeout)(struct c2_update_stream *us);
@@ -321,6 +349,7 @@ enum c2_rpc_item_flags {
 	/** Item modifies file-system state */
 	RPC_ITEM_MUTABO = 1
 };
+
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF = 1
@@ -381,6 +410,8 @@ struct c2_rpc_item {
 	struct c2_rpc_item		*ri_reply;
 	/** For a received item, it gives source end point */
 	struct c2_net_end_point		*ri_src_ep;
+	/** item operations */
+	struct c2_rpc_item_ops		*ri_ops;
 };
 
 /**

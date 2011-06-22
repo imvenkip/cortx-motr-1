@@ -872,12 +872,12 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 
-	conn_search(item->ri_mach, sender_id, &conn);
-
+	conn = item->ri_session->s_conn;
 	/*
 	 * If session create is in progress then conn MUST exist
 	 */
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
+			conn->c_sender_id == sender_id);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -1034,23 +1034,16 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	machine = item->ri_mach;
 	c2_mutex_lock(&machine->cr_session_mutex);
 
-	conn_search(machine, sender_id, &conn);
-
-	/*
-	 * If session terminate is in progress then there must be
-	 * ACTIVE conn with @sender_id
-	 */
+	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	c2_mutex_lock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
-	
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_search(conn, session_id, &session);
 	C2_ASSERT(session != NULL &&
 			session->s_state == C2_RPC_SESSION_TERMINATING);
-	C2_ASSERT(conn->c_nr_sessions > 0);
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));

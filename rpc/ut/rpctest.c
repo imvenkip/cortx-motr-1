@@ -330,6 +330,7 @@ void test_snd_session_create()
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_session_create_rep	*fop_scr;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session0;
 	int					rc;
 
 	C2_SET0(&session);
@@ -357,6 +358,9 @@ void test_snd_session_create()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
+	session_search(&conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
@@ -368,6 +372,7 @@ void test_snd_session_terminate()
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_session_terminate_rep	*fop_str;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session0;
 	int					rc;
 
 	rc = c2_rpc_session_terminate(&session);
@@ -391,6 +396,9 @@ void test_snd_session_terminate()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
+	session_search(&conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	printf("snd_session_create_test: state %d rc %d\n", session.s_state,
@@ -499,7 +507,7 @@ int main(void)
 
 	test_snd_conn_create();
 	test_snd_session_create();
-	test_slots();
+	//test_slots();
 	test_snd_session_terminate();
 	test_snd_conn_terminate();
 
