@@ -26,13 +26,6 @@
 #include "net/bulk_emulation/sunrpc_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.h"
 
-#ifdef __KERNEL__
-#define KPRN(fmt,...) printk(KERN_ERR fmt, ## __VA_ARGS__)
-#define PRId64 "lld" /* from <inttypes.h> */
-#else
-#define KPRN(fmt,...)
-#endif
-
 static void ut_sleep_secs(int secs)
 {
 	c2_time_t req, rem;
@@ -341,7 +334,6 @@ static void test_sunrpc_desc(void)
 	c2_net_domain_fini(&dom1);
 }
 
-#ifndef __KERNEL__
 enum {
 	PING_CLIENT_SEGMENTS = 8,
 	PING_CLIENT_SEGMENT_SIZE = 512,
@@ -435,7 +427,6 @@ static void test_sunrpc_ping(void)
 	c2_mutex_fini(&sctx.pc_mutex);
 	c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
 }
-#endif /* !__KERNEL__ */
 
 static void test_sunrpc_failure(void)
 {
@@ -1026,18 +1017,11 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-#ifndef __KERNEL__
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
                 { "net_bulk_sunrpc_failure",    test_sunrpc_failure },
-		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
+		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm },
                 { "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
-#else
-                { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
-                { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
-                { "net_bulk_sunrpc_failure",    test_sunrpc_failure },
-		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
-#endif
                 { NULL, NULL }
         }
 };
