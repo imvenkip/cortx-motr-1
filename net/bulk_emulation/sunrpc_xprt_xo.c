@@ -580,17 +580,19 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	/* cannot assume pages are sequential, eg see how svc_init_buffer()
 	   allocates its page pool
 	 */
-	c2_bcount_t copylen = sb->sb_len;
-	size_t npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	struct c2_bufvec in = {
-		.ov_vec = {
-			.v_nr = npages
-		}
-	};
+	c2_bcount_t copylen;
+	size_t npages;
+	struct c2_bufvec in;
 	struct c2_bufvec_cursor incur;
 	c2_bcount_t copied;
 	int i;
 	int rc = 0;
+
+	C2_PRE(sb != NULL && sb->sb_buf != NULL);
+	copylen = sb->sb_len;
+	npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	C2_SET0(&in);
+	in.ov_vec.v_nr = npages;
 
 	C2_ALLOC_ARR(in.ov_vec.v_count, npages);
 	if (in.ov_vec.v_count == NULL) {
@@ -641,17 +643,19 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 			   const struct sunrpc_buffer *sb)
 {
-	C2_PRE(sb != NULL && sb->sb_buf != NULL);
-	c2_bcount_t copylen = sb->sb_len;
+	c2_bcount_t copylen;
 	c2_bcount_t copied;
 	struct c2_bufvec in = {
 		.ov_vec = {
 			.v_nr = 1,
 			.v_count = &copylen
 		},
-		.ov_buf = (void**) &sb->sb_buf
 	};
 	struct c2_bufvec_cursor incur;
+
+	C2_PRE(sb != NULL && sb->sb_buf != NULL);
+	copylen = sb->sb_len;
+	in.ov_buf = (void**) &sb->sb_buf;
 
 	c2_bufvec_cursor_init(&incur, &in);
 	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
