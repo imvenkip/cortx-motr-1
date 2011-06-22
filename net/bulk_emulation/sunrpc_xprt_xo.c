@@ -641,6 +641,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
 int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 			   const struct sunrpc_buffer *sb)
 {
+	C2_PRE(sb != NULL && sb->sb_buf != NULL);
 	c2_bcount_t copylen = sb->sb_len;
 	c2_bcount_t copied;
 	struct c2_bufvec in = {

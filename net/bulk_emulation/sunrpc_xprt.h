@@ -195,9 +195,9 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
    memory or memory allocated using vmalloc (c2_alloc memory is acceptable).
    The buffer itself is not copied, but references to it are added to sb, so
    the buffer must not be freed until after sunrpc_buffer_fini() is called.
+   @pre sb != NULL && buf != NULL && len >= 0 && buf < high_memory
    @param len size of actual buffer
    @param for_write if true, user-space pages will be mapped for write-access
-   @pre sb != NULL && buf != NULL && len >= 0 && buf < high_memory
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -209,6 +209,7 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
 
 /**
    Copy the contents of a sunrpc_buffer out to a c2_bufvec using a cursor.
+   @pre sb != NULL && sb->sb_buf != NULL
    @param dest destination buffer cursor
    @param sb source sunrpc_buffer
    @retval 0 (success)
