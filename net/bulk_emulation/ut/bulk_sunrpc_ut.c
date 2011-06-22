@@ -435,6 +435,7 @@ static void test_sunrpc_ping(void)
 	c2_mutex_fini(&sctx.pc_mutex);
 	c2_net_xprt_fini(&c2_net_bulk_sunrpc_xprt);
 }
+#endif /* !__KERNEL__ */
 
 static void test_sunrpc_failure(void)
 {
@@ -973,7 +974,6 @@ static void test_sunrpc_failure(void)
 	c2_net_domain_fini(&dom1);
 	c2_net_domain_fini(&dom2);
 }
-#endif /* !__KERNEL__ */
 
 static void test_sunrpc_tm(void)
 {
@@ -1035,6 +1035,7 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
 #else
                 { "net_bulk_sunrpc_ep",         test_sunrpc_ep },
                 { "net_bulk_sunrpc_desc",       test_sunrpc_desc },
+                { "net_bulk_sunrpc_failure",    test_sunrpc_failure },
 		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm},
 #endif
                 { NULL, NULL }
