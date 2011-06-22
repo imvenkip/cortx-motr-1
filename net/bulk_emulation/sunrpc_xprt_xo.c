@@ -590,7 +590,10 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 
 	C2_PRE(sb != NULL && sb->sb_buf != NULL);
 	copylen = sb->sb_len;
+	if (copylen == 0)
+		return rc;
 	npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	C2_ASSERT(npages > 0);
 	C2_SET0(&in);
 	in.ov_vec.v_nr = npages;
 
@@ -605,11 +608,13 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 		goto fail;
 	}
 	in.ov_buf[0] = (char *) kmap(sb->sb_buf[0]) + sb->sb_pgoff;
-	in.ov_vec.v_count[0] = PAGE_SIZE - sb->sb_pgoff;
+	in.ov_vec.v_count[0] = PAGE_SIZE;
 	for (i = 1; i < npages; ++i) {
 		in.ov_buf[i] = kmap(sb->sb_buf[i]);
 		in.ov_vec.v_count[i] = PAGE_SIZE;
 	}
+	in.ov_vec.v_count[npages - 1] = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+	in.ov_vec.v_count[0] -= sb->sb_pgoff;
 	c2_bufvec_cursor_init(&incur, &in);
 	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
 	for (i = 0; i < npages; ++i)
