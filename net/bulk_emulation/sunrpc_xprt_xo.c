@@ -509,18 +509,16 @@ static void sunrpc_xo_buf_del(struct c2_net_buffer *nb)
 #ifdef __KERNEL__
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
-	int    i;
-        size_t np;
+	int i;
 
 	if (sb == NULL)
 		return;
 	if (sb->sb_buf != NULL) {
-		np = (sb->sb_pgoff + sb->sb_len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-		if (np == 0)
-			np = 1;
-		for (i = 0; i < np; ++i)
-			if (sb->sb_buf[i] != NULL)
-				put_page(sb->sb_buf[i]);
+		for (i = 0; sb->sb_buf[i] != NULL; ++i) {
+			kunmap(sb->sb_buf[i]);/*put_page(sb->sb_buf[i]);*/
+			printk("sunrpc_buffer_fini: put page %d %p\n", i, sb->sb_buf[i]);
+		}
+		printk("sunrpc_buffer_fini: for sb %p for %d pages @ %p\n", sb, i, sb->sb_buf);
 		c2_free(sb->sb_buf);
 	}
 	C2_SET0(sb);
@@ -547,18 +545,20 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
         npages = (off + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	if (npages == 0)
 		npages = 1;
-	C2_ALLOC_ARR(pages, npages);
+	C2_ALLOC_ARR(pages, npages + 1); /* null ptr terminate, see fini */
         if (pages == NULL)
                 return -ENOMEM;
 
 	sb->sb_len = len;
 	sb->sb_pgoff = off;
 	sb->sb_buf = pages;
+	printk("sunrpc_buffer_init: for %ld pages @ %p\n", npages, pages);
 
 	if (addr > PAGE_OFFSET) {
 		for (i = 0, va = addr; i < npages; ++i, va += PAGE_SIZE) {
 			pages[i] = virt_to_page(va);
-			get_page(pages[i]);
+			kmap(pages[i]);/*get_page(pages[i]);*/
+			printk("sunrpc_buffer_init: got page %d %p\n", i, pages[i]);
 		}
         } else {
 		int rc;
