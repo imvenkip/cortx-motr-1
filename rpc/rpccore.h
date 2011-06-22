@@ -1,8 +1,3 @@
-#include "cob/cob.h"
-#include "fol/fol.h"
-#include "fop/fop.h"
-#include "rpc/session_int.h"
-
 /**
    @defgroup rpc_layer_core RPC layer core
    @page rpc-layer-core-dld RPC layer core DLD
@@ -120,6 +115,8 @@
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
+struct c2_rpc_item;
+
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -131,6 +128,12 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 
+#include "cob/cob.h"
+#include "fol/fol.h"
+#include "fop/fop_base.h"
+#include "rpc/session_int.h"
+#include "rpc/session.h"
+
 /*Macro to enable RPC grouping test and debug code */
 
 #ifdef RPC_GRP_DEBUG
@@ -140,11 +143,11 @@ int32_t rpc_arr_index;
 int seed_val;
 #endif
 
-struct c2_fop;
 struct c2_rpc;
 struct c2_rpc_conn;
-struct c2_rpc_item;
 struct c2_addb_rec;
+struct c2_rpc_group;
+struct c2_rpcmachine;
 struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
@@ -186,6 +189,19 @@ struct c2_rpc_item_type_ops {
 	 */
 	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
 	/**
+	   Find out if given rpc items belong to same type or not.
+	 */
+	bool (*rio_items_equal)(struct c2_rpc_item *item1, struct
+			c2_rpc_item *item2);
+	/**
+	   Return the opcode of fop carried by given rpc item.
+	 */
+	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	/**
+	   Return the fid of request.
+	 */
+	struct c2_fid (*rio_io_get_fid)(struct c2_rpc_item *item);
+	/**
 	   Find out if the item belongs to an IO request or not.
 	 */
 	bool (*rio_is_io_req)(struct c2_rpc_item *item);
@@ -194,22 +210,9 @@ struct c2_rpc_item_type_ops {
 	 */
 	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
 	/**
-	   Find out if the IO is read or write.
+	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
-	/**
-	   Return the IO vector from the IO request.
-	 */
-	void *(*rio_io_get_vector)(struct c2_rpc_item *item);
-	/**
-	   Get new coalesced rpc item.
-	 */
-	int (*rio_get_new_io_item)(struct c2_rpc_item *item1,
-			struct c2_rpc_item *item2, void *pvt);
-	/**
-	   Return the fid of request.
-	 */
-	void *(*rio_io_get_fid)(struct c2_rpc_item *item);
+	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
 };
 
 struct c2_update_stream_ops {
@@ -333,6 +336,7 @@ enum {
 	//...
    };
  */
+
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			ri_chan;
@@ -378,6 +382,21 @@ struct c2_rpc_item {
 };
 
 /**
+   Associate an rpc with its corresponding rpc_item_type.
+   Since rpc_item_type by itself can not be uniquely identified,
+   rather it is tightly bound to its fop_type, the fop_type_code
+   is passed, based on which the rpc_item is associated with its
+   rpc_item_type.
+ */
+void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
+
+/**
+   Attach the given rpc item with its corresponding item type.
+   @param item - given rpc item.
+ */
+void c2_rpc_item_attach(struct c2_rpc_item *item);
+
+/**
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */
@@ -396,7 +415,7 @@ struct c2_rpc_formation_list {
 
 	/** listss of c2_rpc_items going to the same endpoint */
 	struct c2_list re_items;
-	struct c2_net_endpoint *endpoint;
+	struct c2_net_end_point *endpoint;
 	/*Mutex to guard this list */
 	struct c2_mutex re_guard;
 };
@@ -528,7 +547,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine);
  */
 int c2_rpc_submit(struct c2_service_id		*srvid,
 		  struct c2_update_stream	*us,
-		  struct c2_rpc_item 		*item,
+		  struct c2_rpc_item		*item,
 		  enum c2_rpc_item_priority	prio,
 		  const c2_time_t		*deadline);
 
@@ -621,8 +640,8 @@ int c2_rpc_group_close(struct c2_rpcmachine *machine, struct c2_rpc_group *group
 int c2_rpc_group_submit(struct c2_rpc_group		*group,
 			struct c2_rpc_item		*item,
 			struct c2_update_stream		*us,
-			enum c2_rpc_item_priority	prio,
-			const c2_time_t 		*deadline);
+			enum c2_rpc_item_priority	 prio,
+			const c2_time_t			*deadline);
 
 /**
    Wait for the reply on item being sent.

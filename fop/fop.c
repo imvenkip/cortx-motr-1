@@ -43,6 +43,8 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		c2_bcount_t nob;
 
 		fop->f_type = fopt;
+		/* Associate rpc_item_type with the rpc item.
+		fop->f_item.ri_type = fopt->ft_ritype; */
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)
 			data = c2_alloc(nob);

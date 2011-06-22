@@ -95,14 +95,14 @@ struct c2_fop_data {
 
 /** fop. */
 struct c2_fop {
-	struct c2_fop_type 	*f_type;
+	struct c2_fop_type	*f_type;
 	/** Pointer to the data where fop is serialised or will be
 	    serialised. */
-	struct c2_fop_data  	f_data;
+	struct c2_fop_data	 f_data;
 	/**
 	   ADDB context for events related to this fop.
 	 */
-	struct c2_addb_ctx	f_addb;
+	struct c2_addb_ctx	 f_addb;
 	/**
 	   RPC item for this FOP
 	 */

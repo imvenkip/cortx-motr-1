@@ -34,12 +34,13 @@
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
+#include "addb/addb.h"
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
    @{
    Formation component runs as a state machine driven by external events.
-   The state machine is run per endpoint and it maintains state and its
+   The state machine runs per endpoint and it maintains state and its
    internal data per endpoint.
    There are no internal threads belonging to formation component.
    Formation component uses the "RPC Items cache" as input and sends out
@@ -85,7 +86,7 @@
    * POSTING (Sending the rpc object over wire?)
 
    Along with these external events, there are some implicit internal
-   events which are used to transition the state machine from one state
+   events which are used to transit the state machine from one state
    to the next state on the back of same thread.
    These internal events are
    * state succeeded.
@@ -146,6 +147,8 @@ struct c2_rpc_form_item_summary {
 	struct c2_list			is_endp_list;
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		is_endp_list_lock;
+	/** ADDB context for this item summary */
+	struct c2_addb_ctx		is_rpc_form_addb;
 };
 
 /**
@@ -153,58 +156,35 @@ struct c2_rpc_form_item_summary {
  */
 extern struct c2_rpc_form_item_summary	*formation_summary;
 
-
 /**
    Check if refcounts of all endpoints are zero.
  */
 bool c2_rpc_form_wait_for_completion();
 
 /**
-   The list of rpc items that can be coalesced.
+   Enumeration of all possible states.
  */
-struct c2_rpc_form_fid_units {
-	/** Linkage into list of similar requests with same fid and intent. */
-	struct c2_list_link		 fu_linkage;
-	/** Member rpc item. */
-	struct c2_rpc_item		*fu_item;
-};
-
-/**
-   Structure that will help do effective coalescing.
- */
-struct c2_rpc_form_fid_summary_member {
-	/** Linkage to list of IO operations with same fid and same intent. */
-	struct c2_list_link		 fsm_linkage;
-	/** fid on which IO requests have come. */
-	struct c2_fid			 fsm_fid;
-	/** Intent of IO request - read/write */
-	int				 fsm_rw;
-	/** Number of IO requests on given fid in rpc group mentioned above. */
-	uint64_t			 fsm_nitems;
-	/** Cumulative size of member rpc items. */
-	uint64_t			 fsm_total_size;
-	/** Array of rpc items that can be coalesced. */
-	/* c2_list <struct c2_rpc_form_fid_units > */
-	struct c2_list			 fsm_items;
-};
-
-/**
-   The global instance of rpc items cache.
- */
-extern struct c2_rpc_form_items_cache	*items_cache;
-
-/** XXX The cache of rpc items. Ideally, it should
-  come from grouping component, which does not exist at the
-  moment. Hence emulating this list here.
- */
-struct c2_rpc_form_items_cache {
-	/** Destination Endpoint */
-	struct c2_net_end_point		*ic_endp;
-	/** Mutex to protect the list from concurrent access. */
-	struct c2_mutex			 ic_mutex;
-	/** List of rpc items destined for this endpoint. */
-	/** c2_list <struct c2_rpc_item> */
-	struct c2_list			 ic_cache_list;
+enum c2_rpc_form_state {
+	/** WAITING state for state machine, where it waits for
+	    any event to trigger. */
+	C2_RPC_FORM_STATE_WAITING = 0,
+	/** UPDATING state for state machine, where it updates
+	    internal data structure (struct c2_rpc_form_item_summary_unit) */
+	C2_RPC_FORM_STATE_UPDATING,
+	/** CHECKING state for state machine, which employs formation
+	    algorithm. */
+	C2_RPC_FORM_STATE_CHECKING,
+	/** FORMING state for state machine, which forms the struct c2_rpc
+	    object from a list of member rpc items. */
+	C2_RPC_FORM_STATE_FORMING,
+	/** POSTING state for state machine, which posts the formed rpc
+	    object to output component. */
+	C2_RPC_FORM_STATE_POSTING,
+	/** REMOVING state for state machine, which changes the internal
+	    data structure according to the changed rpc item. */
+	C2_RPC_FORM_STATE_REMOVING,
+	/** MAX States of state machine. */
+	C2_RPC_FORM_N_STATES
 };
 
 /**
@@ -217,7 +197,7 @@ struct c2_rpc_form_state_machine {
 	    Threads will have to take the unit_lock above before
 	    state can be changed. This variable will bear one value
 	    from enum c2_rpc_form_state. */
-	int				 isu_endp_state;
+	enum c2_rpc_form_state		isu_endp_state;
 	/** Refcount for this summary unit.
 	    Refcount is related to an incoming thread as well as
 	    the number of rpc items it refers to.
@@ -291,7 +271,22 @@ struct c2_rpc_form_item_summary_unit {
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 isu_max_rpcs_in_flight;
 	uint64_t			 isu_curr_rpcs_in_flight;
+	/** Cumulative size of items added to this endpoint so far.
+	    Will help to determine if an optimal rpc can be formed.*/
+	uint64_t			 isu_cumulative_size;
+	/** Number of urgent items added to this endpoint so far.
+	    Any number > 0 will trigger formation.*/
+	uint64_t			 isu_n_urgent_items;
 };
+
+/**
+   Given an endpoint, tell if an optimal rpc can be prepared from
+   the items submitted to this endpoint.
+   @param endp_unit - the c2_rpc_form_item_summary_unit structure
+   based on whose data, it will be found if an optimal rpc can be made.
+ */
+bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
+		*endp_unit, uint64_t rpcobj_size);
 
 /**
    Get the endpoint given an rpc item.
@@ -300,14 +295,6 @@ struct c2_rpc_form_item_summary_unit {
    @param item - incoming rpc item.
  */
 struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
-
-/**
-   An enumeration of IO opcodes.
- */
-enum c2_rpc_form_io_opcode {
-	C2_RPC_FORM_IO_READ = 1,
-	C2_RPC_FORM_IO_WRITE = 2
-};
 
 /**
    An internal data structure to connect coalesced rpc items with
@@ -321,6 +308,8 @@ enum c2_rpc_form_io_opcode {
 struct c2_rpc_form_item_coalesced {
 	/** Linkage to list of such coalesced rpc items. */
 	struct c2_list_link	        ic_linkage;
+	/** Concerned fid. */
+	struct c2_fid			ic_fid;
 	/** Intent of operation, read or write */
 	int				ic_op_intent;
 	/** Resultant coalesced rpc item */
@@ -340,26 +329,6 @@ struct c2_rpc_form_item_coalesced_member {
 	struct c2_list_link		 im_linkage;
 	/** c2_rpc_item */
 	struct c2_rpc_item		*im_member_item;
-};
-
-/**
-   Member structure of a list containing read IO segments.
- */
-struct c2_rpc_form_read_segment {
-	/** Linkage to the list of such structures. */
-	struct c2_list_link		rs_linkage;
-	/** The read IO segment. */
-	struct c2_fop_segment		rs_seg;
-};
-
-/**
-   Member structure of a list containing write IO segments.
- */
-struct c2_rpc_form_write_segment {
-	/** Linkage to the list of such structures. */
-	struct c2_list_link		ws_linkage;
-	/** The write IO segment. */
-	struct c2_fop_io_seg		ws_seg;
 };
 
 /**
@@ -398,32 +367,6 @@ struct c2_rpc_form_rpcobj {
 	struct c2_list_link		 ro_linkage;
 	/** Actual rpc object. */
 	struct c2_rpc			*ro_rpcobj;
-};
-
-/**
-   Enumeration of all possible states.
- */
-enum c2_rpc_form_state {
-	/** WAITING state for state machine, where it waits for
-	    any event to trigger. */
-	C2_RPC_FORM_STATE_WAITING = 0,
-	/** UPDATING state for state machine, where it updates
-	    internal data structure (struct c2_rpc_form_item_summary_unit) */
-	C2_RPC_FORM_STATE_UPDATING,
-	/** CHECKING state for state machine, which employs formation
-	    algorithm. */
-	C2_RPC_FORM_STATE_CHECKING,
-	/** FORMING state for state machine, which forms the struct c2_rpc
-	    object from a list of member rpc items. */
-	C2_RPC_FORM_STATE_FORMING,
-	/** POSTING state for state machine, which posts the formed rpc
-	    object to output component. */
-	C2_RPC_FORM_STATE_POSTING,
-	/** REMOVING state for state machine, which changes the internal
-	    data structure according to the changed rpc item. */
-	C2_RPC_FORM_STATE_REMOVING,
-	/** MAX States of state machine. */
-	C2_RPC_FORM_N_STATES
 };
 
 /**
@@ -508,8 +451,8 @@ struct c2_rpc_form_item_change_req {
 };
 
 /**
-   Callback function for addition of an rpc item to the list of 
-   its corresponding free slot. 
+   Callback function for addition of an rpc item to the list of
+   its corresponding free slot.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -550,15 +493,15 @@ int c2_rpc_form_extevt_rpcitem_reply_received(struct c2_rpc_item *rep_item,
  */
 int c2_rpc_form_extevt_rpcitem_deadline_expired(struct c2_rpc_item *item);
 
-/** 
+/**
    Callback function for slot becoming idle.
-   Adds the slot to the list of ready slots in concerned rpcmachine. 
+   Adds the slot to the list of ready slots in concerned rpcmachine.
    @param item - slot structure for the slot which has become idle.
  */
 int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
 
-/** 
-   Callback function for unbounded item getting added to session. 
+/**
+   Callback function for unbounded item getting added to session.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -566,13 +509,23 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
 int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
 
 /**
-   Function to do the coalescing of related rpc items.
-   This is invoked from FORMING state, so a list of selected
-   rpc items is input to this function which coalesces
-   possible items and shrinks the list.
-   @param items - list of items to be coalesced.
+   Try to coalesce rpc items from the session->free list.
+   @param endp_unit - the item_summary_unit structure in which these activities
+   are taking place.
+   @param item - given bound rpc item.
+   @param rpcobj_size - current size of rpc object.
  */
-int c2_rpc_form_coalesce_items(struct c2_list *items);
+int c2_rpc_form_try_coalesce(struct c2_rpc_form_item_summary_unit *endp_unit,
+                struct c2_rpc_item *item, uint64_t *rpcobj_size);
+
+/**
+   Try to coalesce items sharing same fid and intent(read/write).
+   @param b_item - given bound rpc item.
+   @param coalesced_item - item_coalesced structure for which coalescing
+   will be done.
+ */
+int c2_rpc_form_coalesce_fid_intent(struct c2_rpc_item *b_item,
+                struct c2_rpc_form_item_coalesced *coalesced_item);
 
 /**
    State function for WAITING state.
@@ -582,9 +535,9 @@ int c2_rpc_form_coalesce_items(struct c2_list *items);
    all constituent rpc items by referring internal structure
    c2_rpc_form_item_coalesced.
    2. If current rpcs in flight ares less than max_rpcs_in_flight,
-   this state can transition into next state. During this state,
+   this state can transit into next state. During this state,
    rpc objects could be in flight. If current rpcs in flight [n]
-   is less than max_rpcs_in_flight, state transitions to UPDATING,
+   is less than max_rpcs_in_flight, state transits to UPDATING,
    else keeps waiting till n is less than max_rpcs_in_flight.
    ** WAITING state should be a nop for internal events. **
    @param item - input rpc item.
@@ -722,139 +675,22 @@ typedef int (*stateFunc)(struct c2_rpc_form_item_summary_unit *endp_unit,
 		const struct c2_rpc_form_sm_event *event);
 
 /**
-   A state table guiding resultant states on arrival of events
-   on earlier states.
-   next_state = stateTable[current_state][current_event]
- */
-stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_N_STATES][C2_RPC_FORM_INTEVT_N_EVENTS-1] = {
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state, 
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_forming_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_posting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
-
-	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
-	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state}
-};
-
-/**
-   XXX Some rpc item type ops.
-   These will be moved to appropriate place during rpc integration.
- */
-/**
    XXX rio_replied op from rpc type ops.
    If this is an IO request, free the IO vector
    and free the fop.
  */
-int c2_rpc_item_replied(struct c2_rpc_item *item);
+void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return size of fop
+   Try to coalesce rpc items with similar fid and intent.
  */
-uint64_t c2_rpc_form_item_size(struct c2_rpc_item *item);
+int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
 
 /**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return the opcode given an rpc item
+   Function to map the on-wire FOP format to in-core FOP format.
  */
-int c2_rpc_item_io_get_opcode(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to get the fid for an IO request from the rpc item
- */
-struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to find out if the item belongs to an IO request or not
- */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to find out number of fragmented buffers in IO request
- */
-uint64_t c2_rpc_item_get_io_fragment_count(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return new rpc item embedding the given write vector,
-   by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_write_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item **res_item,
-		struct c2_fop_io_vec *vec);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return new rpc item embedding the given read segment,
-   by creating a new fop calling new fop op
- */
-int c2_rpc_item_get_new_read_item(struct c2_rpc_item *curr_item,
-		struct c2_rpc_item **res_item,
-		struct c2_fop_segment_seq *seg);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return segment for read fop from given rpc item
- */
-struct c2_fop_segment_seq *c2_rpc_item_read_get_vector(struct c2_rpc_item *item);
-
-/**
-   XXX Need to move to appropriate file
-   RPC item ops function
-   Function to return segment for write fop from given rpc item
- */
-struct c2_fop_io_vec *c2_rpc_item_write_get_vector(struct c2_rpc_item *item);
-
-/**
-   XXX Needs to be implemented.
- */
-struct c2_update_stream *c2_rpc_get_update_stream(struct c2_rpc_item *item);
-
-/**
-   XXX Needs to be implemented.
- */
-int c2_rpc_session_item_prepare(struct c2_rpc_item *item);
+void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
+		struct c2_fid *out);
 
 /**
    XXX Needs to be implemented.
@@ -867,18 +703,11 @@ int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
 void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments);
 
-/* Instrumentation for detecting reference leaks. Used for testing. */
-struct c2_rpc_form_ut_thread_reftrack {
-	struct c2_thread_handle		handle;
-	int				refcount;
-};
-
-/* nthreads in UT  = 256,  + 256 * ((rpcitem_changed | rpcitem_replied) &&
-   rpcitem_deadline_expired)  = 256*3. */
-#define rpc_form_ut_threads	256*3
-
-struct c2_rpc_form_ut_thread_reftrack thrd_reftrack[rpc_form_ut_threads];
-int	n_ut_threads;
+/**
+   Retrieve slot and verno information from sessions component
+   for an unbound item.
+ */
+void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item);
 
 /** @} endgroup of rpc_formation */
 

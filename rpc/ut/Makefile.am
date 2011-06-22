@@ -16,7 +16,7 @@ rpctest_LDADD =  $(top_builddir)/colibri/libcolibri.la
 #rserver_LDFLAGS   = -pthread
 #rserver_LDADD     = $(top_builddir)/colibri/libcolibri.la
 #noinst_LTLIBRARIES   = libformation-ut.la
-#libformation_ut_la_SOURCES   = formation-ut.c 
+#libformation_ut_la_SOURCES   = formation-ut.c
 
 io_fop_init.c io_u.h io_u.c:
 	ln -sf $(top_builddir)/stob/ut/io_fop_init.c io_fop_init.c
