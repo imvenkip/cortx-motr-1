@@ -262,6 +262,10 @@ static void ksunrpc_worker(struct c2_service *service)
 			c2_fop_free(xs->s_resfop);
 			xs->s_resfop = NULL;
 		}
+		/* remove references to pages that may have been used */
+		xs->s_rqst->rq_res.pages = NULL;
+		xs->s_rqst->rq_res.page_base = 0;
+		xs->s_rqst->rq_res.page_len = 0;
 	}
 }
 
