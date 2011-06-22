@@ -90,7 +90,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	/* copy up to 1 segment from passive buffer into the reply,
 	   and set sgr_eof if end of net buffer is reached.
-	*/
+	 */
 	len = nb->nb_length;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	eof = c2_bufvec_cursor_move(&cur, in->sg_offset);
@@ -101,6 +101,13 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		step = min32u(c2_bufvec_cursor_step(&cur), len);
 
 #ifdef __KERNEL__
+		/* kernel sgr_buf contains pages, not memory itself.  Memory is
+		   referenced only, and must remain valid until RPC completes
+		   (so never set eof when len > 0, since passive callback occurs
+		   when eof is set, and that can result in the memory being
+		   released).  The corresponding sunrpc_buffer_fini is called
+		   by ksunrpc machinery after the RPC completes.
+		 */
 		rc = sunrpc_buffer_init(&ex->sgr_buf,
 					c2_bufvec_cursor_addr(&cur),
 					step, false);
@@ -128,6 +135,10 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	} else {
 		eof = true;
 #ifdef __KERNEL__
+		/* kernel sunrpc requires a valid, non-highmem pointer, even for
+		   0-length sequence. Use fop pointer, because this will not be
+		   released by ksunrpc machinery until after the call completes.
+		 */
 		rc = sunrpc_buffer_init(&ex->sgr_buf, ex, 0, false);
 #else
 		ex->sgr_buf.sb_len = 0;
@@ -190,7 +201,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	   starting at the specified offset.  Assumes the put operations
 	   are performed sequentially, so the passive callback can be
 	   made as soon as the final put operation is performed.
-	*/
+	 */
 	len = in->sp_buf.sb_len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	c2_bufvec_cursor_move(&cur, in->sp_offset);
@@ -240,7 +251,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	/*
 	  Walk each buf in our bufvec, sending data
 	  to remote until complete bufvec is transferred.
-	*/
+	 */
 	fop->sp_desc = *sd;
 	fop->sp_desc.sbd_total = len;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
@@ -289,11 +300,22 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
-	struct sunrpc_get_resp  *rep;
+	struct sunrpc_get_resp  *rep = NULL;
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              len;
 	size_t                   off = 0;
 	bool                     eof = false;
+
+#ifdef __KERNEL__
+	/* ksunrpc/kxdr does not allocate memory, must preallocate buffer.
+	   Below, must set up rep to refer to the buffer too.
+	 */
+	char                    *respbuf;
+
+	respbuf = c2_alloc(C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE);
+	if (respbuf == NULL)
+		return -ENOMEM;
+#endif
 
 	/* get a connection for this end point */
 	rc = sunrpc_ep_get_conn(ep, &conn);
@@ -307,11 +329,18 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 		goto done;
 	}
 	fop = c2_fop_data(f);
+	rep = c2_fop_data(r);
+#ifdef __KERNEL__
+	rc = sunrpc_buffer_init(&rep->sgr_buf, respbuf,
+				C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE, true);
+	if (rc < 0)
+		goto done;
+#endif
 
 	/*
 	  Receive data from remote and copy to our bufvec
 	  until complete bufvec is transferred.
-	*/
+	 */
 	fop->sg_desc = *sd;
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	*lengthp = sd->sbd_total;
@@ -324,7 +353,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 		fop->sg_offset = off;
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
-			rep = c2_fop_data(r);
 			rc = rep->sgr_rc;
 			eof = rep->sgr_eof;
 		}
@@ -339,6 +367,11 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	}
 
 done:
+#ifdef __KERNEL__
+	if (rep != NULL)
+		sunrpc_buffer_fini(&rep->sgr_buf);
+	c2_free(respbuf);
+#endif
 	if (r != NULL)
 		c2_fop_free(r);
 	if (f != NULL)
