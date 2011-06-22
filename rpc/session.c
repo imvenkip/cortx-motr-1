@@ -168,6 +168,7 @@ int __conn_init(struct c2_rpc_conn	*conn,
 	}
 	return rc;
 }
+
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		     struct c2_rpcmachine	*machine)
 {
@@ -188,6 +189,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 				(conn->c_flags & RCF_SENDER_END) != 0));
 	return rc;
 }
+C2_EXPORTED(c2_rpc_conn_init);
+
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
 		         struct c2_rpcmachine	*machine)
 {
@@ -225,6 +228,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 		C2_ASSERT(0);
 		return -EINVAL;
 	}
+
 	conn->c_end_point = ep;
 
 	/*
@@ -271,6 +275,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
 		conn->c_private = NULL;
+		conn->c_end_point = NULL;
 		c2_fop_free(fop);
 
 		c2_mutex_lock(&machine->cr_session_mutex);
@@ -279,7 +284,8 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	}
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CREATING &&
 			c2_rpc_conn_invariant(conn)));
-	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_INITIALISED));
+	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_INITIALISED) &&
+			c2_rpc_conn_invariant(conn));
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_create);
@@ -425,13 +431,11 @@ void session_zero_detach(struct c2_rpc_conn	*conn)
 	session_search(conn, SESSION_0, &session);
 	C2_ASSERT(session != NULL);
 
-	if (session != NULL) {
-		session->s_state = C2_RPC_SESSION_TERMINATED;
-		c2_list_del(&session->s_link);
-		session->s_conn = NULL;
-		c2_rpc_session_fini(session);
-		c2_free(session);
-	}
+	session->s_state = C2_RPC_SESSION_TERMINATED;
+	c2_list_del(&session->s_link);
+	session->s_conn = NULL;
+	c2_rpc_session_fini(session);
+	c2_free(session);
 }
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
@@ -891,12 +895,6 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 		}
 	}
 
-	/*
-	 * Duplicate reply message will be filtered by
-	 * c2_rpc_session_reply_recieved().
-	 * If current function is called then there must be ONE session
-	 * with state == CREATING. If not then it is a bug.
-	 */
 	C2_ASSERT(session != NULL &&
 			session->s_state == C2_RPC_SESSION_CREATING);
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -1270,7 +1268,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 		return -ENOMEM;
 
 	/*
-	 * How to get unique stob_id for new cob?
+	 * XXX How to get unique stob_id for new cob?
 	 */
 	nsrec.cnr_stobid.si_bits.u_hi = random() % 1000;
 	nsrec.cnr_stobid.si_bits.u_lo = random() % 1000;
@@ -1514,7 +1512,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	slot->sl_verno.vn_lsn = 4;
 	slot->sl_verno.vn_vc = 0;
 	slot->sl_slot_gen = 0;
-	slot->sl_xid = 1;
+	slot->sl_xid = 1; /* xid 0 will be taken by dummy item */
 	slot->sl_in_flight = 0;
 	slot->sl_max_in_flight = SLOT_DEFAULT_MAX_IN_FLIGHT;
 	c2_list_init(&slot->sl_item_list);
@@ -1533,6 +1531,8 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 	item->ri_tstate = RPC_ITEM_PAST_COMMITTED;
+	/* set ri_reply to some value. Doesn't matter what */
+	item->ri_reply = item;
 	slot->sl_last_sent = item;
 	slot->sl_last_persistent = item;
 
@@ -1571,9 +1571,10 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 		}
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
-		if (item->ri_tstate == RPC_ITEM_FUTURE)
+		if (item->ri_tstate == RPC_ITEM_FUTURE) {
 			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
 			printf("Item %p IN_PROGRESS\n", item);
+		}
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
 			 * Don't send read only queries for which answer is
@@ -1644,11 +1645,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
 			printf("session %p marked BUSY\n", session);
 			session->s_state = C2_RPC_SESSION_BUSY;
-		} else {
-			printf("sia: session not IDLE %x\n", session->s_state);
 		}
-	} else {
-		printf("sia:session is NULL\n");
 	}
 	printf("item %p<%s> added [%lu:%lu] slot [%lu:%lu]\n", item,
 			c2_rpc_item_is_update(item) ? "UPDATE" : "READ_ONLY",
@@ -2077,8 +2074,7 @@ int conn_persistent_state_attach(struct c2_rpc_conn     *conn,
 	int			rc;
 
 	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_INITIALISED &&
-			conn->c_rpcmachine != NULL &&
-			conn->c_rpcmachine->cr_dom != NULL);
+			c2_rpc_conn_invariant(conn));
 	dom = conn->c_rpcmachine->cr_dom;
 	rc = conn_persistent_state_create(dom, sender_id,
 					  &conn_cob, &session0_cob, &slot0_cob,
@@ -2116,6 +2112,7 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	      (conn->c_flags & RCF_RECV_END) == 0)
 		return -EINVAL;
 
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	machine = conn->c_rpcmachine;
 	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
 
@@ -2127,13 +2124,17 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = rc;
 		c2_db_tx_abort(&tx);
+		C2_ASSERT(c2_rpc_conn_invariant(conn));
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
 	conn->c_sender_id = sender_id;
 	conn->c_end_point = ep;
 	conn->c_state = C2_RPC_CONN_ACTIVE;
+	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
+	c2_mutex_unlock(&machine->cr_session_mutex);
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	return 0;
 }
 
@@ -2144,8 +2145,8 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	int		rc;
 
 	C2_PRE(session != NULL &&
-		session->s_state == C2_RPC_SESSION_INITIALISED &&
-		session->s_conn != NULL);
+		session->s_state == C2_RPC_SESSION_INITIALISED);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
 	session_id = c2_rpc_session_id_get();
@@ -2154,6 +2155,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = rc;
 		c2_db_tx_abort(&tx);
+		C2_ASSERT(c2_rpc_session_invariant(session));
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
@@ -2161,6 +2163,8 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	session->s_state = C2_RPC_SESSION_IDLE;
 	c2_list_add(&session->s_conn->c_sessions, &session->s_link);
 	session->s_conn->c_nr_sessions++;
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
 	return 0;
 }
 int session_persistent_state_create(struct c2_cob       *conn_cob,
@@ -2280,6 +2284,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	if (session == NULL || session->s_state != C2_RPC_SESSION_IDLE)
 		return -EINVAL;
 
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
 	/*
@@ -2295,6 +2300,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = rc;
 		c2_db_tx_abort(&tx);
+		C2_ASSERT(c2_rpc_session_invariant(session));
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
@@ -2336,7 +2342,8 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 		C2_ASSERT(0);
 		return -EINVAL;
 	}
-	C2_ASSERT((conn->c_flags & RCF_RECV_END) != 0);
+	C2_ASSERT((conn->c_flags & RCF_RECV_END) != 0 &&
+			c2_rpc_conn_invariant(conn));
 
 	if (conn->c_nr_sessions > 0) {
 		return -EBUSY;
@@ -2347,6 +2354,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 	conn_persistent_state_destroy(conn, &tx);
 	c2_db_tx_commit(&tx);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	/* In-core state will be cleaned up by conn_terminate_reply_sent() */
 	return 0;
 }
 
@@ -2354,9 +2362,11 @@ void conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_TERMINATING);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+	c2_list_del(&conn->c_link);
+	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
 	conn->c_state = C2_RPC_CONN_TERMINATED;
 	conn->c_sender_id = SENDER_ID_INVALID;
-	c2_list_del(&conn->c_link);
 	conn->c_rc = 0;
 	conn->c_rpcmachine = NULL;
 	conn->c_end_point = NULL;

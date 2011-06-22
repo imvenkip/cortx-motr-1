@@ -318,7 +318,7 @@ struct c2_rpc_conn {
    No network communication is involved.
 
    Note: c2_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
-	 if c2_rpc_conn_init() fails conn is in undefined state.
+	 if c2_rpc_conn_init() fails, conn is left in undefined state.
 
    @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&

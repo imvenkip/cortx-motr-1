@@ -276,6 +276,8 @@ struct c2_rpc_item_type {
 	/* XXX: for now: enum c2_rpc_opcode_t rit_opcode; */
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
+	/** true if item is request item. false if item is reply item */
+	bool				   rit_item_is_req;
 };
 
 enum c2_rpc_item_state {
