@@ -214,7 +214,7 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
 }
 
 /*
- * FOM session terminate 
+ * FOM session terminate
  */
 
 struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {

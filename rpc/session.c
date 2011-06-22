@@ -29,8 +29,8 @@ static int session_zero_attach(struct c2_rpc_conn *conn);
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
 static void conn_search(const struct c2_rpcmachine	*machine,
-                        uint64_t			sender_id,
-                        struct c2_rpc_conn		**out);
+			uint64_t			sender_id,
+			struct c2_rpc_conn		**out);
 
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 					         struct c2_rpc_item	*item);
@@ -91,8 +91,8 @@ C2_EXPORTED(c2_rpc_session_module_fini);
    @post ergo(*out != NULL, (*out)->c_sender_id == sender_id)
 */
 static void conn_search(const struct c2_rpcmachine	*machine,
-                        uint64_t			sender_id,
-                        struct c2_rpc_conn		**out)
+			uint64_t			sender_id,
+			struct c2_rpc_conn		**out)
 {
 	struct c2_rpc_conn	*conn;
 
@@ -121,8 +121,8 @@ static void conn_search(const struct c2_rpcmachine	*machine,
    @post ergo(*out != NULL, (*out)->s_session_id == session_id)
  */
 void session_search(const struct c2_rpc_conn	*conn,
-                           uint64_t			session_id,
-                           struct c2_rpc_session	**out)
+		    uint64_t			session_id,
+		    struct c2_rpc_session	**out)
 {
 	struct c2_rpc_session		*session;
 
@@ -604,7 +604,7 @@ C2_EXPORTED(c2_rpc_conn_fini);
 
 bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
 			   uint64_t		state_flags,
-                           const c2_time_t	abs_timeout)
+			   const c2_time_t	abs_timeout)
 {
 	struct c2_clink         clink;
 	bool                    got_event = true;
@@ -1623,13 +1623,14 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	 */
 	sref->sr_verno.vn_lsn = slot->sl_verno.vn_lsn;
 	sref->sr_verno.vn_vc = slot->sl_verno.vn_vc;
+	sref->sr_xid = slot->sl_xid;
 
+	slot->sl_xid++;
 	if (c2_rpc_item_is_update(item)) {
 		slot->sl_verno.vn_lsn++;
 		slot->sl_verno.vn_vc++;
 	}
 
-	sref->sr_xid = slot->sl_xid++;
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	sref->sr_slot = slot;
 	sref->sr_item = item;
@@ -1704,7 +1705,6 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 {
 	struct c2_rpc_item	*req;
 	int			redoable;
-	int			cmp;
 	int			rc = 0;
 
 	C2_ASSERT(slot != NULL && item != NULL);
@@ -1719,18 +1719,6 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 	redoable = c2_verno_is_redoable(&slot->sl_verno,
 					&item->ri_slot_refs[0].sr_verno,
 					false);
-	cmp = C2_3WAY(slot->sl_xid, item->ri_slot_refs[0].sr_xid);
-
-	if (redoable == 0) {
-		switch (cmp) {
-			case 1:
-				redoable = -EALREADY;
-				break;
-			case -1:
-				redoable = -EAGAIN;
-				break;
-		}
-	}
 	printf("redoable: %d\n", redoable);
 	switch (redoable) {
 		case 0:
@@ -1817,7 +1805,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 		 * late reply to one of items unreplied before the failure
 		 * arrived.
 		 *
-		 * Such reply must be ignored 
+		 * Such reply must be ignored
 		 */
 		;
 	} else if (req->ri_tstate == RPC_ITEM_PAST_COMMITTED ||
@@ -2166,7 +2154,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 		session->s_rc = rc;
 		c2_db_tx_abort(&tx);
 		return rc;
-	} 
+	}
 	c2_db_tx_commit(&tx);
 	session->s_session_id = session_id;
 	session->s_state = C2_RPC_SESSION_IDLE;
@@ -2265,7 +2253,7 @@ int session_persistent_state_destroy(struct c2_rpc_session  *session,
 		if (slot != NULL && slot->sl_cob != NULL) {
 			/*
 			 * c2_cob_delete() "puts" the cob even if cob delete
-			 * fails. Irrespective of success/failure of 
+			 * fails. Irrespective of success/failure of
 			 * c2_cob_delete(), the c2_cob becomes unusable. So
 			 * no need to handle the error
 			 */

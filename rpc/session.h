@@ -87,7 +87,7 @@ identifier values.
 Version number of slot is same as version number of cob that represents
 the slot.
 
-The cached item is stored in the fol to which the slot-cob refers through its 
+The cached item is stored in the fol to which the slot-cob refers through its
 version number
 
 <b> Ensuring FIFO and EOS: </b>
@@ -186,23 +186,23 @@ enum c2_rpc_conn_state {
 	 */
 	C2_RPC_CONN_INITIALISED = (1 << 0),
 
-        /**
-           When sender is waiting for receiver reply to get its sender ID it is
-           in CREATING state.
-         */
-        C2_RPC_CONN_CREATING = (1 << 1),
+	/**
+	   When sender is waiting for receiver reply to get its sender ID it is
+	   in CREATING state.
+	 */
+	C2_RPC_CONN_CREATING = (1 << 1),
 
-        /**
+	/**
 	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
-         */
-        C2_RPC_CONN_ACTIVE = (1 << 2),
+	 */
+	C2_RPC_CONN_ACTIVE = (1 << 2),
 
-        /**
+	/**
 	   If conn init or terminate fails or time-outs connection enters in
 	   FAILED state. c2_rpc_conn::c_rc gives reason for failure.
-        */
-        C2_RPC_CONN_FAILED = (1 << 3),
+	*/
+	C2_RPC_CONN_FAILED = (1 << 3),
 
 	/**
 	   When sender calls c2_rpc_conn_terminate() on c2_rpc_conn object
@@ -276,7 +276,7 @@ enum {
 	 |                          |
 	 |			    |  fini()
 	 |	fini()		    V
-	 +--------------------> unknown state 
+	 +--------------------> unknown state
 
 </PRE>
   Concurrency:
@@ -284,29 +284,29 @@ enum {
   * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
  */
 struct c2_rpc_conn {
-        /** Every c2_rpc_conn is stored on a list
+	/** Every c2_rpc_conn is stored on a list
 	    c2_rpcmachine::cr_rpc_conn_list
 	    conn is in the list if c_state is not in {
 	    CONN_INITIALISED, CONN_FAILED, CONN_TERMINATED} */
-        struct c2_list_link              c_link;
-        enum c2_rpc_conn_state		 c_state;
+	struct c2_list_link              c_link;
+	enum c2_rpc_conn_state		 c_state;
 	uint64_t			 c_flags;
 	struct c2_rpcmachine		*c_rpcmachine;
-        /**
+	/**
 	    XXX Deprecated: c2_service_id
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
-        struct c2_service_id            *c_service_id;
+	struct c2_service_id            *c_service_id;
 	struct c2_net_end_point		*c_end_point;
 	struct c2_cob			*c_cob;
-        /** Sender ID (aka client ID) */
-        uint64_t                         c_sender_id;
-        /** List of all the sessions for this <sender,receiver> */
-        struct c2_list                   c_sessions;
-        /** Counts number of sessions (excluding session 0) */
-        uint64_t                         c_nr_sessions;
-        struct c2_chan                   c_chan;
-        struct c2_mutex                  c_mutex;
+	/** Sender ID (aka client ID) */
+	uint64_t                         c_sender_id;
+	/** List of all the sessions for this <sender,receiver> */
+	struct c2_list                   c_sessions;
+	/** Counts number of sessions (excluding session 0) */
+	uint64_t                         c_nr_sessions;
+	struct c2_chan                   c_chan;
+	struct c2_mutex                  c_mutex;
 	/** stores conn_create fop pointer during initialization */
 	void				*c_private;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
@@ -329,7 +329,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 		     struct c2_rpcmachine	*machine);
 
 /**
-    Send handshake conn create fop to the remote end. The reply 
+    Send handshake conn create fop to the remote end. The reply
     contains sender-id.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
@@ -392,7 +392,7 @@ enum c2_rpc_session_state {
 	C2_RPC_SESSION_CREATING = (1 << 1),
 	/**
 	   A session is IDLE if both of following is true
-		- for each slot S in session 
+		- for each slot S in session
 			for each item I in S->item_list
 				// I has got reply
 				I->state is in {PAST_COMMITTED, PAST_VOLATILE}
@@ -403,7 +403,7 @@ enum c2_rpc_session_state {
 	/**
 	   A session is busy if any of following is true
 		- Any of slots has item to be sent (FUTURE items)
-		- Any of slots has item for which reply is not received 
+		- Any of slots has item for which reply is not received
 			(IN_PROGRESS items)
 		- unbound_items list is not empty
 	 */
@@ -451,17 +451,17 @@ enum c2_rpc_session_state {
 	  |           |               |
 	  | fini      |               | session_terminate
 	  |	      |               V
-	  |           +----------TERMINATING                
-	  |			      |   		    
-	  |			      |                                     
-	  |			      |                      
+	  |           +----------TERMINATING
+	  |			      |
+	  |			      |
+	  |			      |
 	  |		              |session_terminated
 	  |		              V
 	  |		         TERMINATED
 	  |		              |
 	  |			      | fini()
 	  |			      V
-	  +----------------------->unknown state 
+	  +----------------------->unknown state
 
 </PRE>
  */
@@ -498,7 +498,7 @@ struct c2_rpc_session {
 };
 
 /**
-   Initialises all fields of session. Allocates and initialises 
+   Initialises all fields of session. Allocates and initialises
    nr_slots number of slots.
    No network communication is involved.
 

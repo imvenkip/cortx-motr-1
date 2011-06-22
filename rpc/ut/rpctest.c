@@ -30,13 +30,7 @@ struct c2_dbenv			*db;
 struct c2_cob_domain		*dom;
 struct c2_rpcmachine		*machine;
 
-struct c2_service_id		svc_id;
-
-enum {
-	SESSION_CREATE_VC = 0,
-	SESSION_DESTROY_VC = 1
-};
-extern void session_search(const struct c2_rpc_conn    *conn,  
+extern void session_search(const struct c2_rpc_conn    *conn,
                            uint64_t                     session_id,
                            struct c2_rpc_session        **out);
 struct c2_rpc_conn	*connp;

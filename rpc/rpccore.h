@@ -293,12 +293,12 @@ enum c2_rpc_item_state {
 };
 /** transmission state of item */
 enum c2_rpc_item_tstate {
-	/** the reply for the item was received and the receiver confirmed 
+	/** the reply for the item was received and the receiver confirmed
 	    that the item is persistent */
 	RPC_ITEM_PAST_COMMITTED = 1,
 	/** the reply was received, but persistence confirmation wasn't */
 	RPC_ITEM_PAST_VOLATILE,
-	/** the item was sent (i.e., placed into an rpc) and no reply is 
+	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
 	RPC_ITEM_IN_PROGRESS,
 	/** the item is not sent */
@@ -475,7 +475,7 @@ struct c2_rpcmachine {
 	struct c2_mutex		   cr_session_mutex;
 	/** Mutex to protect list of ready slots. */
 	struct c2_mutex		   cr_ready_slots_mutex;
-	/** list of ready slots. */ 
+	/** list of ready slots. */
 	struct c2_list		   cr_ready_slots;
 };
 
@@ -556,11 +556,11 @@ int c2_rpc_post(struct c2_rpc_item *item);
 /**
   Posts an item bound to the update stream.
 */
-int c2_rpc_update_stream_post(struct c2_update_stream *str, 
+int c2_rpc_update_stream_post(struct c2_update_stream *str,
                  struct c2_rpc_item *item);
 #endif
 
-int c2_rpc_reply_post(struct c2_rpc_item *request, 
+int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
 /**
