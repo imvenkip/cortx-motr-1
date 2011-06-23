@@ -303,7 +303,8 @@ void test_snd_conn_create()
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;
-
+	item->ri_uuid = conn.c_uuid;
+	item->ri_sender_id = SENDER_ID_INVALID;
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_thread_join(&thread);
 	c2_thread_fini(&thread);

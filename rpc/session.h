@@ -179,6 +179,13 @@ enum {
 	SLOT_ID_INVALID = ~0,
 };
 
+struct c2_rpc_sender_uuid {
+	uint64_t	su_uuid;
+};
+void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
+int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
+			   struct c2_rpc_sender_uuid *u2);
+
 enum c2_rpc_conn_state {
 	/**
 	  All the fields of conn are initialised locally. But the connection
@@ -284,6 +291,7 @@ enum {
   * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
  */
 struct c2_rpc_conn {
+	struct c2_rpc_sender_uuid	 c_uuid;
 	/** Every c2_rpc_conn is stored on a list
 	    c2_rpcmachine::cr_rpc_conn_list
 	    conn is in the list if c_state is not in {

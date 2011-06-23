@@ -50,6 +50,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_item			*item;
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session0;
 	uint64_t				sender_id;
 	int					rc;
 
@@ -76,13 +77,32 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach);
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach, &item->ri_uuid);
 	if (rc != 0)
 		goto errout;
 
 	rc = c2_rpc_rcv_conn_create(conn, item->ri_src_ep);
 	if (rc != 0)
 		goto errout;
+
+	/*
+	 * As CONN_CREATE request is directly submitted for execution
+	 * add the item explicitly to the slot0. This makes the slot
+	 * symmetric to sender side slot.
+	 */
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
+	c2_rpc_slot_item_add_internal(session0->s_slot_table[0], item);
+	/*
+	 * This is required. Request item has SENDER_ID_INVALID.
+	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
+	 * But we want reply to have sender_id SENDER_ID_INVALID.
+	 * c2_rpc_reply_post() simply copies sender id from req item to
+	 * reply item as it is. So set sender id of request item 
+	 * to SENDER_ID_INVALID
+	 */
+	item->ri_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	fop_ccr->rccr_snd_id = conn->c_sender_id;

@@ -144,6 +144,18 @@ void session_search(const struct c2_rpc_conn	*conn,
 	C2_POST(ergo(*out != NULL, (*out)->s_session_id == session_id));
 }
 
+void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
+{
+	/* temporary */
+	u->su_uuid = random();
+}
+
+int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
+			   struct c2_rpc_sender_uuid *u2)
+{
+	return C2_3WAY(u1->su_uuid, u2->su_uuid);
+}
+
 int __conn_init(struct c2_rpc_conn	*conn,
 		struct c2_rpcmachine	*machine)
 {
@@ -183,6 +195,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
+	c2_rpc_sender_uuid_generate(&conn->c_uuid);
+	printf("rci: conn uuid %lu\n", conn->c_uuid.su_uuid);
 	rc = __conn_init(conn, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -193,8 +207,9 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 }
 C2_EXPORTED(c2_rpc_conn_init);
 
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
-		         struct c2_rpcmachine	*machine)
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
+		         struct c2_rpcmachine	   *machine,
+			 struct c2_rpc_sender_uuid *uuid)
 {
 	int	rc = 0;
 
@@ -203,8 +218,8 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_RECV_END;
+	conn->c_uuid = *uuid;
 	rc = __conn_init(conn, machine);
-
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 				conn->c_rpcmachine == machine &&
 				conn->c_sender_id == SENDER_ID_INVALID &&
@@ -249,6 +264,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
 
+#if 0
 	/*
 	 * When conn create reply will be received then we will need this
 	 * fop to compare the cookies to find the right conn object.
@@ -256,7 +272,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 * conn create reply.
 	 */
 	conn->c_private = fop;
-
+#endif
 	conn->c_state = C2_RPC_CONN_CREATING;
 
 	machine = conn->c_rpcmachine;
@@ -295,12 +311,12 @@ C2_EXPORTED(c2_rpc_conn_create);
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 {
 	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
-	struct c2_rpc_fop_conn_create		*fop_conn_create;
-	struct c2_fop				*saved_fop = NULL;
+//	struct c2_rpc_fop_conn_create		*fop_conn_create;
+//	struct c2_fop				*saved_fop = NULL;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
 	struct c2_rpcmachine			*machine;
-	bool					found = false;
+//	bool					found = false;
 
 	C2_PRE(fop != NULL);
 
@@ -310,6 +326,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
+#if 0
 	/*
 	 * Search for c2_rpc_conn object whose create reply is
 	 * being processed
@@ -354,16 +371,14 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		c2_mutex_unlock(&machine->cr_session_mutex);
 		return;
 	}
+#endif
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL);
 
-	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
+	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CREATING &&
 			c2_rpc_conn_invariant(conn));
-
-	/*
-	 * machine->cr_session_mutex is not dropped yet, because we might
-	 * require it to remove the conn object from conn_list if conn_create
-	 * is failed
-	 */
 
 	if (fop_ccr->rccr_rc != 0) {
 		C2_ASSERT(fop_ccr->rccr_snd_id == SENDER_ID_INVALID);
@@ -385,12 +400,13 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		printf("ccrr: conn created %lu\n", fop_ccr->rccr_snd_id);
 	}
 
+#if 0
 	C2_ASSERT(saved_fop != NULL);
 	c2_fop_free(saved_fop);	/* conn_create req fop */
 	conn->c_private = NULL;
 
 	c2_fop_free(fop);	/* reply fop */
-
+#endif
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
 			conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -1570,6 +1586,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	item->ri_tstate = RPC_ITEM_FUTURE;
 	item->ri_session_id = item->ri_session->s_session_id;
 	item->ri_sender_id = item->ri_session->s_conn->c_sender_id;
+	item->ri_uuid = item->ri_session->s_conn->c_uuid;
 	printf("Itemp %p FUTURE\n", item);
 	sref = &item->ri_slot_refs[0];
 
@@ -2365,9 +2382,9 @@ int associate_session_objects(struct c2_rpc_item *item)
 	struct c2_rpc_session	*session = NULL;
 	struct c2_rpc_slot	*slot = NULL;
 	struct c2_rpc_slot_ref	*sref;
+	bool			found;
+	bool			use_uuid;
 
-	if (item->ri_sender_id == SENDER_ID_INVALID)
-		return -ENOENT;
 	if (item->ri_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
@@ -2375,11 +2392,16 @@ int associate_session_objects(struct c2_rpc_item *item)
 			&item->ri_mach->cr_incoming_conns :
 			&item->ri_mach->cr_outgoing_conns;
 
+	use_uuid = (item->ri_sender_id == SENDER_ID_INVALID);
+
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
-		if (conn->c_sender_id == item->ri_sender_id)
+		found = use_uuid ?
+			c2_rpc_sender_uuid_cmp(&conn->c_uuid, &item->ri_uuid) == 0 :
+			conn->c_sender_id == item->ri_sender_id;
+		if (found)
 			break;
 	}
-	if (conn->c_sender_id != item->ri_sender_id)
+	if (!found)
 		return -ENOENT;
 
 	session_search(conn, item->ri_session_id, &session);
@@ -2406,12 +2428,12 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	if (item_is_conn_create(item)) {
-		dispatch_item_for_execution(item);
-		return 0;
-	}
 	rc = associate_session_objects(item);
 	if (rc != 0) {
+		if (item_is_conn_create(item)) {
+			dispatch_item_for_execution(item);
+			return 0;
+		}
 		/*
 		 * If we cannot associate the item with its slot
 		 * then there is nothing that we can do with this

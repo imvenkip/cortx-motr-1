@@ -110,8 +110,9 @@ int session_persistent_state_destroy(struct c2_rpc_session	*session,
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
-			 struct c2_rpcmachine	*machine);
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
+			 struct c2_rpcmachine	   *machine,
+			 struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.
 
@@ -188,6 +189,8 @@ void dispatch_item_for_execution(struct c2_rpc_item *item);
 bool item_is_request(struct c2_rpc_item *item);
 int c2_rpc_item_received(struct c2_rpc_item *item);
 
+void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
+				   struct c2_rpc_item *item);
 /** @}  End of rpc_session group */
 #endif
 
