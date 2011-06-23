@@ -517,7 +517,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 						rc);
 				continue;
 			} else {
-				if (fom->fo_fop_ctx != NULL)
+				if (fom != NULL && fom->fo_fop_ctx != NULL)
 					c2_reqh_send_err_rep(fom->fo_fop_ctx->ft_service,
 								fom->fo_fop_ctx->fc_cookie, rc);
 				FOM_ADDB_ADD(c2_reqh_addb_ctx,

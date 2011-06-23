@@ -214,6 +214,7 @@ void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
 	out_fop = c2_fop_data(rfop);
 	out_fop->sierr_rc = rc;
+	/* Will be using c2_rpc_post in future */
 	c2_net_reply_post(service, rfop, cookie);
 }
 
