@@ -89,7 +89,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
 		rc = sunrpc_buffer_init(&fop->sm_buf,
 					c2_bufvec_cursor_addr(&cur),
-					nb->nb_length, false);
+					nb->nb_length);
 		if (rc != 0)
 			break;
 

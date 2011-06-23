@@ -423,15 +423,17 @@ static void test_sunrpc_ping(void)
 	len = PING_BUFFER_2PAGE_SIZE;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
-#if 0
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	/* test sending/receiving even larger payload */
-	len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
+#ifdef __KERNEL__
+	printk("completed medium test\n");
+#endif
+	/*len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;*/
+	len = 2 * PING_CLIENT_SEGMENT_SIZE;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
-#endif
 	c2_free(data);
 
 	C2_UT_ASSERT(ping_client_fini(&cctx, server_ep) == 0);

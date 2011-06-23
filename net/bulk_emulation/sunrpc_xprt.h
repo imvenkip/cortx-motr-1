@@ -55,7 +55,7 @@ enum {
 	C2_NET_BULK_SUNRPC_XBP_MAGIC  = 0x53756e7270634250ULL,
 	C2_NET_BULK_SUNRPC_TM_THREADS = 2,
 	C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE     = (1<<20),
-	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<20),
+	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<19),
 	C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS = 256,
 	C2_NET_BULK_SUNRPC_EP_DELAY_S = 20, /* in seconds */
 };
@@ -190,19 +190,17 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
 
 /**
    Populate a struct sunrpc_buffer given a buffer pointer and length.
+   @pre sb != NULL
    @param sb buffer object to initialize
-   @param buf address of start of actual buffer, must not refer to kernel high
-   memory or memory allocated using vmalloc (c2_alloc memory is acceptable).
-   The buffer itself is not copied, but references to it are added to sb, so
-   the buffer must not be freed until after sunrpc_buffer_fini() is called.
-   @pre sb != NULL && buf != NULL && len >= 0 && buf < high_memory
-   @param len size of actual buffer
-   @param for_write if true, user-space pages will be mapped for write-access
+   @param buf address of start of buffer to initialize the sunrpc_buffer, or
+   NULL.
+   @param len size of buffer.  The sunrpc_buffer is created with a buffer of
+   this sizes.  If buf is non-NULL, its contents, up to len, are also copied
+   into the buffer.
    @retval 0 (success)
    @retval -errno (failure)
  */
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
-		       bool for_write);
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len);
 
 /** release pages pinned and memory allocated by sunrpc_buffer_init */
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb);

@@ -86,7 +86,7 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	ex->sgr_rc = i + 1;
 	ex->sgr_eof = 1;
-	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i, false);
+	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ex->sgr_buf.sb_buf != NULL);
 	C2_UT_ASSERT(ex->sgr_buf.sb_len == i);
@@ -178,12 +178,7 @@ int get_call(struct c2_net_conn *conn, int i)
 	   the actual length returned will be updated.
 	 */
 	rep = c2_fop_data(r);
-	buf = c2_alloc(i == 0 ? 1 : i);
-	if (buf == NULL) {
-		rc = -ENOMEM;
-		goto done;
-	}
-	rc = sunrpc_buffer_init(&rep->sgr_buf, buf, i, true);
+	rc = sunrpc_buffer_init(&rep->sgr_buf, NULL, i);
 	C2_UT_ASSERT(rc == 0);
 	{
 		struct c2_net_call call = {
@@ -199,9 +194,10 @@ int get_call(struct c2_net_conn *conn, int i)
 	C2_UT_ASSERT(rep->sgr_rc == i + 1);
 	C2_UT_ASSERT(rep->sgr_eof == 1);
 	C2_UT_ASSERT(rep->sgr_buf.sb_len == i);
+	buf = kmap(rep->sgr_buf.sb_buf[0]);
 	C2_UT_ASSERT(memcmp(buf, get_put_buf, i) == 0);
+	kunmap(rep->sgr_buf.sb_buf[0]);
 	sunrpc_buffer_fini(&rep->sgr_buf);
-	c2_free(buf);
 
 done:
 	if (r != NULL)
@@ -248,7 +244,7 @@ int put_call(struct c2_net_conn *conn, int i)
 		};
 		fop->sp_offset = 0;
 		fop->sp_buf.sb_len = i;
-		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i, false);
+		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i);
 		C2_UT_ASSERT(rc == 0);
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
@@ -272,20 +268,25 @@ void test_ksunrpc_buffer(void)
 	char *buf;
 	char *bp;
 	size_t len = PAGE_SIZE * NUM;
-	size_t i;
+	int i;
 	struct sunrpc_buffer sb;
 	int rc;
 
 	buf = c2_alloc(len);
 	C2_UT_ASSERT(buf != NULL);
-	rc = sunrpc_buffer_init(&sb, buf, len, true);
+	for (i = 0; i < NUM; ++i)
+		buf[i * PAGE_SIZE] = i;
+
+	rc = sunrpc_buffer_init(&sb, buf, len);
 	C2_UT_ASSERT(rc == 0);
 	for (i = 0; i < NUM; ++i) {
+		C2_UT_ASSERT(page_count(sb.sb_buf[i]) == 1);
 		bp = kmap(sb.sb_buf[i]);
-		*bp = i;
+		C2_UT_ASSERT(*bp == buf[i * PAGE_SIZE]);
 		kunmap(sb.sb_buf[i]);
 	}
 	sunrpc_buffer_fini(&sb);
+	c2_free(buf);
 }
 
 void test_ksunrpc_server(void)

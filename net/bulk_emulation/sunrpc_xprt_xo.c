@@ -511,38 +511,29 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
 	int i;
 
-	if (sb == NULL)
-		return;
-	if (sb->sb_buf != NULL) {
-		for (i = 0; sb->sb_buf[i] != NULL; ++i) {
-			kunmap(sb->sb_buf[i]);/*put_page(sb->sb_buf[i]);*/
-			printk("sunrpc_buffer_fini: put page %d %p\n", i, sb->sb_buf[i]);
+	if (sb != NULL) {
+		if (sb->sb_buf != NULL) {
+			for (i = 0; sb->sb_buf[i] != NULL; ++i) {
+				/*printk("sunrpc_buffer_fini: put page %d %p count=%d\n", i, sb->sb_buf[i], page_count(sb->sb_buf[i]));*/
+				put_page(sb->sb_buf[i]);
+			}
+			/*printk("sunrpc_buffer_fini: for sb %p for %d pages @ %p\n", sb, i, sb->sb_buf);*/
+			c2_free(sb->sb_buf);
 		}
-		printk("sunrpc_buffer_fini: for sb %p for %d pages @ %p\n", sb, i, sb->sb_buf);
-		c2_free(sb->sb_buf);
+		C2_SET0(sb);
 	}
-	C2_SET0(sb);
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
-		       bool for_write)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 {
-        unsigned long  addr;
         struct page  **pages;
         size_t         npages;
-        size_t         off;
 	int            i;
-	unsigned long  va;
+	void          *bp;
 
 	C2_PRE(sb != NULL);
-	C2_PRE(buf != NULL);
-	C2_PRE(len >= 0);
-	C2_PRE(buf < high_memory);
-        addr = (unsigned long) buf;
-        off = addr & (PAGE_SIZE - 1);
-        addr &= PAGE_MASK;
 
-        npages = (off + len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        npages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	if (npages == 0)
 		npages = 1;
 	C2_ALLOC_ARR(pages, npages + 1); /* null ptr terminate, see fini */
@@ -550,25 +541,28 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
                 return -ENOMEM;
 
 	sb->sb_len = len;
-	sb->sb_pgoff = off;
+	sb->sb_pgoff = 0;
 	sb->sb_buf = pages;
-	printk("sunrpc_buffer_init: for %ld pages @ %p\n", npages, pages);
+	/*printk("sunrpc_buffer_init: for %ld pages @ %p\n", npages, pages);*/
 
-	if (addr > PAGE_OFFSET) {
-		for (i = 0, va = addr; i < npages; ++i, va += PAGE_SIZE) {
-			pages[i] = virt_to_page(va);
-			kmap(pages[i]);/*get_page(pages[i]);*/
-			printk("sunrpc_buffer_init: got page %d %p\n", i, pages[i]);
-		}
-        } else {
-		int rc;
-                down_read(&current->mm->mmap_sem);
-                rc = get_user_pages(current, current->mm, addr, npages,
-                                    for_write, 1, pages, NULL);
-                up_read(&current->mm->mmap_sem);
-		if (rc != npages) {
+	for (i = 0; i < npages; ++i) {
+		/* cannot use c2_alloc here, must allocate 1 real page.
+		   kernel networking code requires each page to be allocated
+		   separately (it calls get_page/put_page on individual pages).
+		 */
+		pages[i] = alloc_page(GFP_KERNEL);
+		if (pages[i] == NULL) {
 			sunrpc_buffer_fini(sb);
-			return -EFAULT;
+			return -ENOMEM;
+		}
+		/*printk("sunrpc_buffer_init: got page %d %p count=%d\n", i, pages[i], page_count(pages[i]));*/
+		if (buf != NULL) {
+			bp = kmap(pages[i]);
+			memcpy(bp, buf, min_check(PAGE_SIZE, len));
+			kunmap(pages[i]);
+			C2_ASSERT(len > PAGE_SIZE || i == npages - 1);
+			buf += PAGE_SIZE;
+			len -= PAGE_SIZE;
 		}
 	}
 	return 0;
@@ -629,19 +623,22 @@ fail:
 #else
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 {
-	if (sb != NULL)
+	if (sb != NULL) {
+		c2_free(sb->sb_buf);
 		C2_SET0(sb);
+	}
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len,
-		       bool for_write)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 {
 	C2_PRE(sb != NULL);
-	C2_PRE(buf != NULL);
-	C2_PRE(len >= 0);
 
 	sb->sb_len = len;
-	sb->sb_buf = buf;
+	sb->sb_buf = c2_alloc(len == 0 ? 1 : len);
+	if (sb->sb_buf == NULL)
+		return -ENOMEM;
+	if (buf != NULL)
+		memcpy(sb->sb_buf, buf, len);
 	return 0;
 }
 

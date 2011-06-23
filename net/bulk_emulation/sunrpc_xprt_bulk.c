@@ -98,54 +98,14 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	if (!eof && len > in->sg_offset) {
 		c2_bcount_t step;
 		len -= in->sg_offset;
-		step = min32u(c2_bufvec_cursor_step(&cur), len);
+		step = min_check(c2_bufvec_cursor_step(&cur), len);
 
-#ifdef __KERNEL__
-		/* kernel sgr_buf contains pages, not memory itself.  Memory is
-		   referenced only, and must remain valid until RPC completes
-		   (so never set eof when len > 0, since passive callback occurs
-		   when eof is set, and that can result in the memory being
-		   released).  The corresponding sunrpc_buffer_fini is called
-		   by ksunrpc machinery after the RPC completes.
-		 */
 		rc = sunrpc_buffer_init(&ex->sgr_buf,
-					c2_bufvec_cursor_addr(&cur),
-					step, false);
-#else
-		ex->sgr_buf.sb_len = step;
-		C2_ALLOC_ARR(ex->sgr_buf.sb_buf, step);
-		if (ex->sgr_buf.sb_buf == NULL)
-			rc = -ENOMEM;
-		else {
-			struct c2_bufvec dtmp = {
-				.ov_vec = {
-					.v_nr = 1,
-					.v_count = &step
-				},
-				.ov_buf = (void**) &ex->sgr_buf.sb_buf
-			};
-			struct c2_bufvec_cursor dcur;
-			c2_bcount_t copied;
-
-			c2_bufvec_cursor_init(&dcur, &dtmp);
-			copied = c2_bufvec_cursor_copy(&dcur, &cur, step);
-			C2_ASSERT(copied == step);
-		}
-#endif
+					c2_bufvec_cursor_addr(&cur), step);
+		eof = c2_bufvec_cursor_move(&cur, step);
 	} else {
+		rc = sunrpc_buffer_init(&ex->sgr_buf, NULL, 0);
 		eof = true;
-#ifdef __KERNEL__
-		/* kernel sunrpc requires a valid, non-highmem pointer, even for
-		   0-length sequence. Use fop pointer, because this will not be
-		   released by ksunrpc machinery until after the call completes.
-		 */
-		rc = sunrpc_buffer_init(&ex->sgr_buf, ex, 0, false);
-#else
-		ex->sgr_buf.sb_len = 0;
-		C2_ALLOC_ARR(ex->sgr_buf.sb_buf, 1);
-		if (ex->sgr_buf.sb_buf == NULL)
-			rc = -ENOMEM;
-#endif
 	}
 	ex->sgr_eof = eof;
 
@@ -264,8 +224,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		step = min32u(c2_bufvec_cursor_step(&cur), len);
 		fop->sp_offset = off;
 		rc = sunrpc_buffer_init(&fop->sp_buf,
-					c2_bufvec_cursor_addr(&cur),
-					step, false);
+					c2_bufvec_cursor_addr(&cur), step);
 		if (rc == 0) {
 			rc = c2_net_cli_call(conn, &call);
 			sunrpc_buffer_fini(&fop->sp_buf);
@@ -306,17 +265,6 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	size_t                   off = 0;
 	bool                     eof = false;
 
-#ifdef __KERNEL__
-	/* ksunrpc/kxdr does not allocate memory, must preallocate buffer.
-	   Below, must set up rep to refer to the buffer too.
-	 */
-	char                    *respbuf;
-
-	respbuf = c2_alloc(C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE);
-	if (respbuf == NULL)
-		return -ENOMEM;
-#endif
-
 	/* get a connection for this end point */
 	rc = sunrpc_ep_get_conn(ep, &conn);
 	if (rc != 0)
@@ -331,8 +279,9 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	fop = c2_fop_data(f);
 	rep = c2_fop_data(r);
 #ifdef __KERNEL__
-	rc = sunrpc_buffer_init(&rep->sgr_buf, respbuf,
-				C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE, true);
+	/* ksunrpc requires pre-allocation of buffer for response */
+	rc = sunrpc_buffer_init(&rep->sgr_buf, NULL,
+				C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE);
 	if (rc < 0)
 		goto done;
 #endif
@@ -370,7 +319,6 @@ done:
 #ifdef __KERNEL__
 	if (rep != NULL)
 		sunrpc_buffer_fini(&rep->sgr_buf);
-	c2_free(respbuf);
 #endif
 	if (r != NULL)
 		c2_fop_free(r);
