@@ -201,11 +201,17 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 }
 
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom)
+			struct c2_cob_domain	*dom,
+			struct c2_net_domain	*net_dom)
 {
 	struct c2_db_tx		tx;
 	struct c2_cob		*root_session_cob;
+	struct c2_net_xprt	*xprt = NULL;
 	int rc;
+
+	C2_PRE(machine != NULL);
+	C2_PRE(dom != NULL);
+	C2_PRE(net_dom != NULL);
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -229,12 +235,27 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		c2_db_tx_commit(&tx);
 	else
 		c2_db_tx_abort(&tx);
+	
+#ifndef __KERNEL__
+	xprt = &c2_net_usunrpc_xprt;
+#else
+	xprt = &c2_net_ksunrpc_xprt;
+#endif
+	/* Initiate the transport first.*/
+	rc = c2_net_xprt_init(xprt);
+	if (rc) {
+		return rc;
+	}
+	/* Create and establish a c2_net_domain with this rpcmachine.*/
+	machine->cr_net_domain = net_dom;
+	rc = c2_net_domain_init(machine->cr_net_domain, xprt);
 
 	return rc;
 }
 
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
+	struct c2_net_xprt	*xprt = NULL;
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
 	/* XXX commented following two lines for testing purpose */
@@ -243,6 +264,12 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
+	/* Fini the net domain first so that no more requests
+	   head to this domain anymore. */
+	xprt = machine->cr_net_domain->nd_xprt;
+	c2_net_domain_fini(machine->cr_net_domain);
+	/* Now fini the xprt.*/
+	c2_net_xprt_fini(xprt);
 }
 
 /** simple vector of RPC-item operations */

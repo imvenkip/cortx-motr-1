@@ -480,6 +480,7 @@ struct c2_rpc_statistics {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpcmachine {
+	struct c2_net_domain	  *cr_net_domain;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
@@ -518,7 +519,8 @@ void c2_rpc_core_fini(void);
    @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom);
+			struct c2_cob_domain	*dom,
+			struct c2_net_domain	*net_dom)
 
 /**
    Destruct rpcmachine
