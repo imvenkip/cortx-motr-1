@@ -607,7 +607,8 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 			  struct c2_rpc_item	*item);
 
 void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
-				struct c2_rpc_item	*reply);
+				struct c2_rpc_item	*reply,
+				struct c2_rpc_item	**req_out);
 
 void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
 			     struct c2_verno	last_persistent);

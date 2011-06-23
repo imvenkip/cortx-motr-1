@@ -410,6 +410,7 @@ void test_snd_conn_terminate()
 	struct c2_fop				*fop;
 	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_item			*item;
+	struct c2_rpc_session			*session0;
 	int					rc;
 
 	rc = c2_rpc_conn_terminate(&conn);
@@ -430,6 +431,11 @@ void test_snd_conn_terminate()
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 	item->ri_mach = machine;
+	item->ri_sender_id = conn.c_sender_id;
+	item->ri_session_id = SESSION_0;
+	session_search(&conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 
@@ -445,6 +451,7 @@ void test_slots()
 	enum { COUNT = 4 };
 	struct c2_rpc_slot	*slot;
 	struct c2_rpc_item	*item, *r;
+	struct c2_rpc_item	*req;
 	struct c2_rpc_item	*items[COUNT];
 	int			i;
 
@@ -463,12 +470,12 @@ void test_slots()
 	}
 	C2_ALLOC_PTR(r);
 	memcpy(r, items[0], sizeof (struct c2_rpc_item));
-	c2_rpc_slot_reply_received(slot, r);
-	c2_rpc_slot_reply_received(slot, r);
+	c2_rpc_slot_reply_received(slot, r, &req);
+	c2_rpc_slot_reply_received(slot, r, &req);
 	for (i = 0; i < COUNT; i++) {
 		C2_ALLOC_PTR(r);
 		memcpy(r, items[i], sizeof (struct c2_rpc_item));
-		c2_rpc_slot_reply_received(slot, r);
+		c2_rpc_slot_reply_received(slot, r, &req);
 	}
 	C2_ALLOC_PTR(r);
 	r->ri_slot_refs[0].sr_verno.vn_lsn = slot->sl_verno.vn_lsn;

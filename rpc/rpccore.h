@@ -223,13 +223,13 @@ struct c2_rpc_item_ops {
 	   @param item reference to an RPC-item sent
 	   @pre ri_added() called.
 	 */
-	void (*ri_sent)(struct c2_rpc_item *item);
+	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
 	   Called when item's added to an RPC
 	   @param rpc reference to an RPC where item's added
 	   @param item reference to an item added to rpc
 	 */
-	void (*ri_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
 
 	/**
 	   Called when given item's replied.
@@ -238,7 +238,7 @@ struct c2_rpc_item_ops {
 	   @pre ri_added() called.
 	   @pre ri_sent() called.
 	 */
-	void (*ri_replied)(struct c2_rpc_item	*item,
+	void (*rio_replied)(struct c2_rpc_item	*item,
 			   struct c2_rpc_item	*reply,
 			   int 			rc);
 

@@ -162,6 +162,7 @@ uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
 
 struct c2_rpc_slot_ref {
+	uint32_t		sr_slot_id;
 	struct c2_verno		sr_verno;
 	struct c2_verno		sr_last_persistent_verno;
 	struct c2_verno		sr_last_seen_verno;
@@ -181,6 +182,11 @@ int __conn_init(struct c2_rpc_conn	*conn,
 void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t		  	session_id,
 		    struct c2_rpc_session 	**out);
+
+bool item_is_conn_create(struct c2_rpc_item  *item);
+void dispatch_item_for_execution(struct c2_rpc_item *item);
+bool item_is_request(struct c2_rpc_item *item);
+int c2_rpc_item_received(struct c2_rpc_item *item);
 
 /** @}  End of rpc_session group */
 #endif
