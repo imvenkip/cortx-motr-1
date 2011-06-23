@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original creation date: 06/21/2011
  */
 
 /**
@@ -23,57 +23,18 @@
    @{
  */
 
-/** @file fom_io.ff
+/** @file reqh_fops.ff
  *
  * <b>Simplistic IO fop formats</b>
  *
  */
 
-DEF(c2_fom_fop_fid, RECORD,
-	_(f_seq, U64),
-	_(f_oid, U64));
-
-DEF(c2_fom_io_seg, RECORD,
-	_(f_offset, U64),
-	_(f_count, U64));
-
-DEF(c2_fom_io_buf, SEQUENCE,
-	_(cib_count, U32),
-	_(cib_value, BYTE));
-
-DEF(c2_fom_io_vec, SEQUENCE,
-	_(civ_count, U32),
-	_(civ_seg, c2_fom_io_seg));
-
-DEF(c2_fom_io_write, RECORD,
-	_(siw_object, c2_fom_fop_fid),
-	_(siw_offset, U64),
-	_(siw_buf, c2_fom_io_buf));
-
-DEF(c2_fom_io_write_rep, RECORD,
-	_(siwr_rc, U32),
-	_(siwr_count, U32));
-
-DEF(c2_fom_io_read, RECORD,
-	_(sir_object, c2_fom_fop_fid),
-	_(sir_seg, c2_fom_io_seg));
-
-DEF(c2_fom_io_read_rep, RECORD,
-	_(sirr_rc, U32),
-	_(sirr_buf, c2_fom_io_buf));
-
-DEF(c2_fom_io_create, RECORD,
-	_(sic_object, c2_fom_fop_fid));
-
-DEF(c2_fom_io_create_rep, RECORD,
-	_(sicr_rc, U32));
-
-DEF(c2_fom_io_quit, RECORD,
-	_(siq_rc, U32));
+DEF(c2_reqh_error_rep, RECORD,
+	_(sierr_rc, U32));
 
 /** @} end of reqh group */
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

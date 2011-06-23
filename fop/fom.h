@@ -197,7 +197,7 @@ enum c2_fom_phase {
 				      this. */
 };
 
-int  c2_fom_domain_init(struct c2_fom_domain *dom, size_t nr);
+int  c2_fom_domain_init(struct c2_fom_domain *dom);
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
 /**
@@ -237,7 +237,7 @@ struct c2_fom {
 	struct c2_list_link	fo_wlink;
 };
 
-void c2_fom_init(struct c2_fom *fom);
+int c2_fom_init(struct c2_fom *fom);
 void c2_fom_fini(struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
@@ -296,10 +296,6 @@ struct c2_fom_ops {
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom_domain *dom, 
 					const struct c2_fom *fom);
-	/**
-	    Send reply fop in case of fom failure
-	 */
-	int  (*fo_fail)(struct c2_fom *fom);
 };
 
 /** Handler thread. */
@@ -315,7 +311,7 @@ struct c2_fom_hthread {
 
    This function is called before potential blocking point.
  */
-void c2_fom_block_enter(struct c2_fom_locality *loc);
+int c2_fom_block_enter(struct c2_fom_locality *loc);
 
 /**
    This function is called after potential blocking point.

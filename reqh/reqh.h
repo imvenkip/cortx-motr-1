@@ -69,7 +69,7 @@ struct c2_fom_phase_table {
 
 int  c2_reqh_init(struct c2_reqh *reqh,
 		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		  struct c2_stob_domain *rh_stob_dom, 
+		  struct c2_stob_domain *rh_stob_dom,
 		  struct c2_fol *fol, struct c2_service *serv);
 void c2_reqh_fini(struct c2_reqh *reqh);
 

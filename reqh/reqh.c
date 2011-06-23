@@ -37,6 +37,14 @@
 #include "fop/fom.h"
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
+#include "fop/fop_format_def.h"
+
+#ifdef __KERNEL__
+# include "reqh_fops_k.h"
+#else
+
+#include "reqh_fops_u.h"
+#endif
 
 #include "reqh.h"
 
@@ -46,9 +54,46 @@
  */
 
 /**
+ * Global c2_addb_loc object for logging addb context.
+ */
+const struct c2_addb_loc c2_reqh_addb_loc = {
+	.al_name = "reqh"
+};
+
+/**
+ * Global addb context type for logging addb context.
+ */
+const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
+	.act_name = "t1-reqh"
+};
+
+/**
+ * Global addb context for addb logging.
+ */
+struct c2_addb_ctx c2_reqh_addb_ctx;
+
+#define REQH_ADDB_ADD(addb_ctx, name, rc)  \
+C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
+
+/**
  * Generic variable to signify wait.
  */
 static bool fo_wait;
+
+/**
+ * fop type object for a c2_reqh_error_rep fop.
+ */
+extern struct c2_fop_type c2_reqh_error_rep_fopt;
+
+/**
+ * function to initialize and build reqh fops.
+ */
+extern int reqh_fop_init(void);
+
+/**
+ * clean up function for reah fops.
+ */
+extern void reqh_fop_fini(void);
 
 /**
  * fom phase table to hold function pointers, which execute
@@ -60,16 +105,25 @@ static struct c2_fom_phase_table fp_table[FOPH_NR];
  * function to initialize fom phase table.
  */
 void set_fom_phase_table(void);
+
+/**
+ * function to put fom on wait list.
+ */
 void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
 
 /**
+ * function to verify fom and fom members.
+ */
+extern bool c2_fom_invariant(const struct c2_fom *fom);
+
+/*
  * macro definition to set a fom phase in fom phase table.
  */
 #define INIT_PHASE(curr_phase, act, np) \
 	fp_table[curr_phase].action = act; \
 	fp_table[curr_phase].next_phase = np; \
 
-/** 
+/**
  * Function to initialize request handler and fom domain
  * @param reqh -> c2_reqh structure pointer.
  * @param rom -> c2_rpc_machine structure pointer.
@@ -78,7 +132,7 @@ void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
  * @param fol -> c2_fol structure pointer.
  * @param serv -> c2_service structure pointer.
  * @retval int -> returns 0, on success.
- * 		  returns -1, on failure.
+ * 		returns -1, on failure.
  * @pre assumes reqh, dom, fol, serv not null.
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
@@ -87,24 +141,47 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_service *serv)
 {
 	int result;
-	size_t nr;
 
-	nr = 0;	
 	if ((reqh == NULL) || (dom == NULL) ||
 		(fol == NULL) || (serv == NULL))
 		return -EINVAL;
 
+	/* initialize reqh fops */
+	reqh_fop_init();
+
+	/* initialize fom phase table with standard/generic fom phases,
+	 * and their correspnding methods.
+	 */
 	set_fom_phase_table();
+
+	/* allocate memory for c2_fom_domain member in reqh and initialize the same. */
+	reqh->rh_fom_dom = c2_alloc(sizeof *reqh->rh_fom_dom);
+	if (reqh->rh_fom_dom == NULL) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_reqh_init: reqh init failed",
+				-ENOMEM);
+		return -ENOMEM;
+	}
+
+	result = c2_fom_domain_init(reqh->rh_fom_dom);
+	if (result) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_reqh_init: fom domain init failed",
+				result);
+		return result;
+	}
+
+	/* initialize reqh members */
 	reqh->rh_rpc = rpc;
 	reqh->rh_dtm = dtm;
 	reqh->rh_dom = dom;
 	reqh->rh_fol = fol;
 	reqh->rh_serv = serv;
 
-	reqh->rh_fom_dom = c2_alloc(sizeof *reqh->rh_fom_dom);
-	if (reqh->rh_fom_dom == NULL)
-		return -ENOMEM;
-	result = c2_fom_domain_init(reqh->rh_fom_dom, nr);
+	/* initialize global reqh addb context */
+	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
+					&c2_addb_global_ctx);
+
 	return result;
 }
 
@@ -119,6 +196,25 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 	C2_PRE(reqh != NULL);
 	C2_PRE(reqh->rh_fom_dom);
 	c2_fom_domain_fini(reqh->rh_fom_dom);
+	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
+	reqh_fop_fini();
+}
+
+/**
+ * send generic error reply fop
+ * @param service -> struct c2_service pointer
+ * @param cookie -> void pointer containing some address.
+ * @param rc -> int, error code to be sent in reply fop. 
+ */
+void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
+{
+	struct c2_fop *rfop = NULL;
+	struct c2_reqh_error_rep *out_fop = NULL;
+
+	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	out_fop = c2_fop_data(rfop);
+	out_fop->sierr_rc = rc;
+	c2_net_reply_post(service, rfop, cookie);
 }
 
 /**
@@ -128,31 +224,36 @@ void c2_reqh_fini(struct c2_reqh *reqh)
  * @param fom -> c2_fom sturcture pointer.
  * @param cookie -> void pointer to hold some pointer address.
  * @pre assumes reqh is not null.
+ * @pre assumes fom is not null.
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
 	struct c2_fom *fom = NULL;
-        struct c2_fop_ctx	*ctx;
         int			result;
 	size_t			iloc;
-	
-	C2_ASSERT(reqh != NULL);
-	C2_ASSERT(fop != NULL);
 
-	/* initialize database */
-	ctx = c2_alloc(sizeof *ctx);
-	ctx->fc_cookie = cookie;
-	ctx->ft_service = reqh->rh_serv;
+	C2_PRE(reqh != NULL);
+	C2_PRE(fop != NULL);
 
 	/* Initialize fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (fom == NULL)
+	if (result) {
+		if (result != -ENOMEM) {
+			/* fop could be corrupted or invalid,
+			 * send an error reply.
+			 */
+			c2_reqh_send_err_rep(reqh->rh_serv, cookie, result);
+		}
+		REQH_ADDB_ADD(c2_reqh_addb_ctx,
+				"c2_reqh_fop_handle: fom init failed",
+				result);
 		return;
+	}
 
-	fom->fo_fop_ctx = ctx;
+	fom->fo_fop_ctx->fc_cookie = cookie;
+	fom->fo_fop_ctx->ft_service = reqh->rh_serv;
 	fom->fo_fol = reqh->rh_fol;
 	fom->fo_domain = reqh->rh_dom;
-	c2_fom_init(fom);
 
 	/* locate fom's home locality */
 	iloc = fom->fo_ops->fo_home_locality(reqh->rh_fom_dom, fom);
@@ -176,8 +277,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
  */
 int c2_fom_phase_init(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -189,12 +289,13 @@ int c2_fom_phase_init(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_authen(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -207,12 +308,13 @@ int c2_fom_authen(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_authen_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -226,12 +328,13 @@ int c2_fom_authen_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_loc_resource(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -244,12 +347,13 @@ int c2_fom_loc_resource(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_loc_resource_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -263,12 +367,13 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_dist_resource(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -281,12 +386,13 @@ int c2_fom_dist_resource(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_dist_resource_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -295,17 +401,17 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to locate and load file system objects, 
+ * Function to locate and load file system objects,
  * required for fop execution.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_obj_check(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -316,14 +422,14 @@ int c2_fom_obj_check(struct c2_fom *fom)
  * Funtion invoked after a fom resumes execution
  * post wait, while locating file system objects.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_obj_check_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -334,14 +440,14 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
 /**
  * Function to authorise fop in fom
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_auth(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -352,14 +458,14 @@ int c2_fom_auth(struct c2_fom *fom)
  * Funtion invoked after a fom resumes execution
  * post wait in fop authorisation phase.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ *		routines are ready.
  */
 int c2_fom_auth_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
@@ -370,19 +476,19 @@ int c2_fom_auth_wait(struct c2_fom *fom)
 /**
  * Funtion to create local transactional context.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
  */
 int c2_create_loc_ctx(struct c2_fom *fom)
-{	
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+{
+	int rc = 0;
+
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
-	int rc = 0;
-	rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-				&fom->fo_tx.tx_dbtx);
+
+	rc = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain,
+							&fom->fo_tx);
 	if (rc)
 		fom->fo_phase = FOPH_FAILED;
 	else
@@ -392,22 +498,21 @@ int c2_create_loc_ctx(struct c2_fom *fom)
 
 /**
  * Funtion to invoke after a fom resumes execution
- * post wait while creating local transactional context. 
+ * post wait while creating local transactional context.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
+ * @todo needs further more implementation, once depending 
+ * 		routines are ready.
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
 {
-	if (fom == NULL) {
-		fom->fo_phase = FOPH_FAILED;
+	if (!c2_fom_invariant(fom)) {
 		return -EINVAL;
 	}
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	fo_wait = false;
-	fom->fo_phase = FOPH_DONE;
-	fom->fo_ops->fo_fini(fom);
 	return 0;
 }
 
@@ -415,15 +520,17 @@ int c2_create_loc_ctx_wait(struct c2_fom *fom)
  * Function to handle generic operations of fom
  * like authentication, authorisation, acquiring resources, &tc
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
+ * @pre assumes fom is valid.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
  */
 int c2_fom_state_generic(struct c2_fom *fom)
 {
-	C2_PRE(fom != NULL);
 	int rc = 0;
 	bool stop = false;
+
+	C2_PRE(c2_fom_invariant(fom) == true);
+
 	while (!stop) {
 		rc = fp_table[fom->fo_phase].action(fom);
 		if (rc || fom->fo_phase == FOPH_DONE ||
@@ -450,10 +557,10 @@ void set_fom_phase_table(void)
 	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED_WAIT, c2_fom_dist_resource_wait, FOPH_OBJECT_CHECK)
 	INIT_PHASE(FOPH_OBJECT_CHECK, c2_fom_obj_check, FOPH_AUTHORISATION)
 	INIT_PHASE(FOPH_OBJECT_CHECK_WAIT, c2_fom_obj_check_wait, FOPH_AUTHORISATION)
-	INIT_PHASE(FOPH_AUTHORISATION, c2_fom_auth, FOPH_EXEC)
-	INIT_PHASE(FOPH_AUTHORISATION_WAIT, c2_fom_auth_wait, FOPH_EXEC)
-	INIT_PHASE(FOPH_TXN_CONTEXT, c2_create_loc_ctx, FOPH_DONE)
-	INIT_PHASE(FOPH_TXN_CONTEXT_WAIT, c2_create_loc_ctx_wait, FOPH_DONE)
+	INIT_PHASE(FOPH_AUTHORISATION, c2_fom_auth, FOPH_TXN_CONTEXT)
+	INIT_PHASE(FOPH_AUTHORISATION_WAIT, c2_fom_auth_wait, FOPH_TXN_CONTEXT)
+	INIT_PHASE(FOPH_TXN_CONTEXT, c2_create_loc_ctx, FOPH_EXEC)
+	INIT_PHASE(FOPH_TXN_CONTEXT_WAIT, c2_create_loc_ctx_wait, FOPH_EXEC)
 }
 
 /** @} endgroup reqh */
