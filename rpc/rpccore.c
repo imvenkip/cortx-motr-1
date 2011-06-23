@@ -324,6 +324,7 @@ bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 
 	C2_PRE(item1 != NULL);
 	C2_PRE(item2 != NULL);
+
 	fop1 = c2_rpc_item_to_fop(item1);
 	fop2 = c2_rpc_item_to_fop(item2);
 	ret = fop1->f_type->ft_ops->fto_op_equal(fop1, fop2);
@@ -339,6 +340,7 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
 	int			 opcode = 0;
 
 	C2_PRE(item != NULL);
+
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	opcode = fop->f_type->ft_ops->fto_get_opcode(fop);
@@ -469,6 +471,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 	int			 opcode = 0;
 
 	C2_PRE(item != NULL);
+
         fop = c2_rpc_item_to_fop(item);
         opcode = fop->f_type->ft_code;
         switch (opcode) {
@@ -498,6 +501,7 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	uint32_t			 opcode = 0;
 
 	C2_PRE(fopt != NULL);
+
 	/* XXX Needs to be implemented in a clean way. */
 	/* This is a temporary approach to associate an rpc_item
 	   with its rpc_item_type. It will be discarded once we

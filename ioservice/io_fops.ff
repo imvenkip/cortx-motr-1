@@ -22,8 +22,8 @@
 
 /**
  * @defgroup io_fops FOPs for Data Operations
- * 
- * This component contains the File Operation Packets(FOP) definitions 
+ *
+ * This component contains the File Operation Packets(FOP) definitions
  * for following operations
  * - readv
  * - writev
