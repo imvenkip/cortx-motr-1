@@ -254,20 +254,20 @@ C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
 			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops);
 
 static struct c2_fop_type *fops[] = {
-        &c2_rpc_fop_conn_create_fopt,
-        &c2_rpc_fop_conn_terminate_fopt,
-        &c2_rpc_fop_session_create_fopt,
-        &c2_rpc_fop_session_terminate_fopt,
-        &c2_rpc_fop_conn_create_rep_fopt,
-        &c2_rpc_fop_conn_terminate_rep_fopt,
-        &c2_rpc_fop_session_create_rep_fopt,
-        &c2_rpc_fop_session_terminate_rep_fopt,
+	&c2_rpc_fop_conn_create_fopt,
+	&c2_rpc_fop_conn_terminate_fopt,
+	&c2_rpc_fop_session_create_fopt,
+	&c2_rpc_fop_session_terminate_fopt,
+	&c2_rpc_fop_conn_create_rep_fopt,
+	&c2_rpc_fop_conn_terminate_rep_fopt,
+	&c2_rpc_fop_session_create_rep_fopt,
+	&c2_rpc_fop_session_terminate_rep_fopt,
 	&c2_rpc_fop_noop_fopt,
 };
 
 void c2_rpc_session_fop_fini(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
 int c2_rpc_session_fop_init(void)

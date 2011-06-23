@@ -19,32 +19,8 @@ enum {
 	DEFAULT_SLOT_COUNT = 4
 };
 
-extern int c2_rpc_session_module_init(void);
-extern void c2_rpc_session_module_fini(void);
-
-enum c2_rpc_session_seq_check_result {
-        /** item is valid in sequence. accept it */
-        SCR_ACCEPT_ITEM,
-        /** item is duplicate of request whose reply is cached in reply cache*/
-        SCR_RESEND_REPLY,
-        /** Already received this item and its processing is in progress */
-        SCR_IGNORE_ITEM,
-        /** Item is not in sequence. send err msg to sender */
-        SCR_SEND_ERROR_MISORDERED,
-        /** Invalid session or slot */
-        SCR_SESSION_INVALID,
-        /** Error occured while checking rpc item */
-        SCR_ERROR
-};
-
-/**
-   Checks whether received item is correct in sequence or not and suggests
-   action to be taken.
-   'reply_out' is valid only if return value is RESEND_REPLY.
- */
-enum c2_rpc_session_seq_check_result
-c2_rpc_session_item_received(struct c2_rpc_item		*item,
-			     struct c2_rpc_item 	**reply_out);
+int c2_rpc_session_module_init(void);
+void c2_rpc_session_module_fini(void);
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -79,10 +55,10 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx);
 
-int c2_rpc_session_cob_lookup(struct c2_cob		*conn_cob,
-			      uint64_t			session_id,
-			      struct c2_cob		**session_cob,
-			      struct c2_db_tx		*tx);
+int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
+			      uint64_t		session_id,
+			      struct c2_cob	**session_cob,
+			      struct c2_db_tx	*tx);
 
 int c2_rpc_session_cob_create(struct c2_cob	*conn_cob,
 			      uint64_t		session_id,
@@ -101,7 +77,7 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
-int conn_persistent_state_create(struct c2_cob_domain   *dom,   
+int conn_persistent_state_create(struct c2_cob_domain   *dom,
 				 uint64_t               sender_id,
 				 struct c2_cob          **conn_cob_out,
 				 struct c2_cob          **session0_cob_out,
@@ -111,7 +87,7 @@ int conn_persistent_state_create(struct c2_cob_domain   *dom,
 int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 				 uint64_t		sender_id,
 				 struct c2_db_tx	*tx);
-				 
+
 int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    uint64_t		session_id,
 				    struct c2_cob	**session_cob_out,
@@ -161,16 +137,14 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
 
 /**
-  Locates cob associated with slot identified by
-  <item->ri_sender_id, item->ri_session_id, item->ri_slot_id, item->ri_slot_gen>
+   Terminate receiver end of rpc connection
 
-  @return 0 if successful. slot_cob != NULL
-  @return < 0 if unsuccessful. slot_cob == NULL
+   @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING
  */
-int c2_rpc_slot_cob_lookup_by_item(struct c2_cob_domain        *dom,
-                                   struct c2_rpc_item          *item,
-                                   struct c2_cob               **slot_cob,
-                                   struct c2_db_tx             *tx);
+int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
+
+void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
 /**
    Checks whether reply item is valid in sequence.
@@ -188,6 +162,7 @@ uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
 
 struct c2_rpc_slot_ref {
+	uint32_t		sr_slot_id;
 	struct c2_verno		sr_verno;
 	struct c2_verno		sr_last_persistent_verno;
 	struct c2_verno		sr_last_seen_verno;
@@ -207,6 +182,11 @@ int __conn_init(struct c2_rpc_conn	*conn,
 void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t		  	session_id,
 		    struct c2_rpc_session 	**out);
+
+bool item_is_conn_create(struct c2_rpc_item  *item);
+void dispatch_item_for_execution(struct c2_rpc_item *item);
+bool item_is_request(struct c2_rpc_item *item);
+int c2_rpc_item_received(struct c2_rpc_item *item);
 
 /** @}  End of rpc_session group */
 #endif
