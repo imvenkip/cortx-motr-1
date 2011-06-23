@@ -294,8 +294,7 @@ struct c2_fom_ops {
 	/**
 	    Find home locality for this fom.
 	 */
-	size_t  (*fo_home_locality) (const struct c2_fom_domain *dom,
-					const struct c2_fom *fom);
+	size_t  (*fo_home_locality) (const struct c2_fom *fom, size_t fd_nr);
 };
 
 /** Handler thread. */

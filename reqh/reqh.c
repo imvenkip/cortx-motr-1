@@ -116,6 +116,11 @@ void c2_fom_wait(struct c2_fom *fom, struct c2_chan *chan);
  */
 extern bool c2_fom_invariant(const struct c2_fom *fom);
 
+/**
+ * function to verify locality.
+ */
+extern bool c2_locality_invariant(struct c2_fom_locality *loc);
+
 /*
  * macro definition to set a fom phase in fom phase table.
  */
@@ -256,8 +261,17 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	fom->fo_domain = reqh->rh_dom;
 
 	/* locate fom's home locality */
-	iloc = fom->fo_ops->fo_home_locality(reqh->rh_fom_dom, fom);
-	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
+	iloc = fom->fo_ops->fo_home_locality(fom, reqh->rh_fom_dom->fd_nr);
+	if (iloc >= 0) {
+		fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
+		if (!c2_locality_invariant(fom->fo_loc)) {
+			c2_reqh_send_err_rep(reqh->rh_serv, cookie, -EINVAL);
+			REQH_ADDB_ADD(c2_reqh_addb_ctx,
+					"c2_reqh_fop_handle: invalid locality",
+					-EINVAL);
+                	return;
+		}
+	}
 
 	/* submit fom for further processing */
 	c2_fom_queue(fom);

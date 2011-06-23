@@ -173,7 +173,7 @@ void c2_io_fom_fini(struct c2_fom *fom);
 int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
 int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
 int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-size_t fom_home_locality(const struct c2_fom_domain *dom, const struct c2_fom *fom);
+size_t fom_home_locality(const struct c2_fom *fom, size_t fd_nr);
 
 /**
  * operation structures for respective foms
@@ -550,10 +550,10 @@ int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  * This function using a basic hashin method locates a home locality for a particaulr
  * type of fome, thus everytime we get same locality for aparticular type of fom.
  */
-size_t fom_home_locality(const struct c2_fom_domain *dom, const struct c2_fom *fom)
+size_t fom_home_locality(const struct c2_fom *fom, size_t fd_nr)
 {
 	size_t iloc;
-	if (dom == NULL || fom == NULL)
+	if (fom == NULL)
 		return -EINVAL;
 
 	switch(fom->fo_fop->f_type->ft_code) {
@@ -562,21 +562,21 @@ size_t fom_home_locality(const struct c2_fom_domain *dom, const struct c2_fom *f
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
 			oid = fop->sic_object.f_oid;
-			iloc = oid % dom->fd_nr;
+			iloc = oid % fd_nr;
 		}
 		case 11: {
 			struct c2_fom_io_read *fop;
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
 			oid = fop->sir_object.f_oid;
-			iloc = oid % dom->fd_nr;
+			iloc = oid % fd_nr;
 		}
 		case 12: {
 			struct c2_fom_io_write *fop;
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
 			oid = fop->siw_object.f_oid;
-			iloc = oid % dom->fd_nr;
+			iloc = oid % fd_nr;
 		}
 
 	}
