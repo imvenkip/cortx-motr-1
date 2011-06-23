@@ -535,13 +535,13 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
 
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_mutex);
+
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING &&
+		  c2_rpc_conn_invariant(conn));
+
 	c2_list_del(&conn->c_link);
 	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
-
-	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING &&
-			c2_rpc_conn_invariant(conn));
-
 	if (fop_ctr->ctr_rc == 0) {
 		printf("ctrr: connection terminated %lu\n", conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
@@ -925,19 +925,18 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
+	c2_mutex_lock(&session->s_conn->c_mutex);
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
 
 	if (session->s_state != C2_RPC_SESSION_IDLE) {
-		c2_mutex_unlock(&session->s_mutex);
 		rc = -EINVAL;
 		goto out;
 	}
 
 	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
-		c2_mutex_unlock(&session->s_mutex);
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -948,36 +947,31 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	fop_st->rst_sender_id = session->s_conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
 
-	/*
-	 * We need ptr to session 0 to submit the item.
-	 * To search session 0 need a lock on conn. And locking
-	 * order is conn => session. Hence release lock on session.
-	 */
-	c2_mutex_unlock(&session->s_mutex);
-
-	c2_mutex_lock(&session->s_conn->c_mutex);
 	session_search(session->s_conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL &&
-			(session_0->s_state == C2_RPC_SESSION_IDLE ||
-			 session_0->s_state == C2_RPC_SESSION_BUSY));
-	c2_mutex_unlock(&session->s_conn->c_mutex);
+		 (session_0->s_state == C2_RPC_SESSION_IDLE ||
+		  session_0->s_state == C2_RPC_SESSION_BUSY));
 
+	item = c2_fop_to_rpc_item(fop);
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
 	item->ri_flags |= RPC_ITEM_MUTABO;
-
+	/*
+	 * At this point we are holding conn and session mutex.
+	 * Confirm that this will not trigger self deadlock
+	 */
 	rc = c2_rpc_post(item);
 	if (rc == 0)
 		session->s_state = C2_RPC_SESSION_TERMINATING;
 
-	c2_chan_broadcast(&session->s_chan);
 out:
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATING));
 	C2_POST(c2_rpc_session_invariant(session));
+	c2_mutex_unlock(&session->s_mutex);
+	c2_mutex_unlock(&session->s_conn->c_mutex);
+	c2_chan_broadcast(&session->s_chan);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
