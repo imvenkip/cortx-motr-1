@@ -207,28 +207,28 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
- 		/* With introduction of FOMs, a reply FOP will be allocated 
- 		 * by the request FOP and a pointer to it will be 
- 		 * sent across. 
- 		 * XXX The reply FOP pointer is not used as of now.
- 		 */
- 		arg->fwr_foprep 		= (uint64_t)ret;
+		/* With introduction of FOMs, a reply FOP will be allocated 
+		 * by the request FOP and a pointer to it will be 
+		 * sent across.
+		 * XXX The reply FOP pointer is not used as of now.
+		 */
+ 		arg->fwr_foprep			= (uint64_t)ret;
 		arg->fwr_fid.f_seq		= c2_global_container_id;
 		arg->fwr_fid.f_oid		= objid;
 		arg->fwr_iovec.iov_count	= 1;
-		
+
 		/* Populate the vector of write FOP */
 		arg->fwr_iovec.iov_seg = kmalloc(sizeof(struct c2_fop_io_seg), GFP_KERNEL);
 		arg->fwr_iovec.iov_seg->f_offset = pos;
 		arg->fwr_iovec.iov_seg->f_buf.cfib_pgoff = off;
 		arg->fwr_iovec.iov_seg->f_buf.f_buf = pages;
 		arg->fwr_iovec.iov_seg->f_buf.f_count = len;
-		
+
 		arg->fwr_uid = c2_get_uid();
 		arg->fwr_gid = c2_get_gid();
 		arg->fwr_nid = c2_get_nid();
 		arg->fwr_flags = 0;
-  
+
                 DBG("writing data to server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
 		rc = c2_net_cli_call(conn, &kcall);
@@ -255,16 +255,16 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
- 		/* With introduction of FOMs, a reply FOP will be allocated 
- 		 * by the request FOP and a pointer to it will be 
- 		 * sent across.
+		/* With introduction of FOMs, a reply FOP will be allocated
+		 * by the request FOP and a pointer to it will be
+		 * sent across.
 		 * XXX The reply FOP pointer is not used as of now.
 		 */
-		arg->frd_foprep 		= (uint64_t)ret;
+		arg->frd_foprep			= (uint64_t)ret;
 		arg->frd_fid.f_seq		= c2_global_container_id;
 		arg->frd_fid.f_oid		= objid;
 		arg->frd_ioseg.fs_count		= 1;
-		
+
 		/* Populate the vector of read FOP */
 		arg->frd_ioseg.fs_segs = kmalloc(sizeof(struct c2_fop_segment), GFP_KERNEL);
 		arg->frd_ioseg.fs_segs->f_offset = pos;
