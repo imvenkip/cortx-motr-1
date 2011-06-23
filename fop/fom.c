@@ -208,7 +208,7 @@ int c2_fom_block_enter(struct c2_fom_locality *loc)
  * in a locality.
  * @param loc -> c2_fom_locality structure pointer.
  */
-void c2_fom_block_leave(struct c2_fom_locality *loc)
+int c2_fom_block_leave(struct c2_fom_locality *loc)
 {
 	struct c2_list_link *link = NULL;
 	struct c2_fom_hthread *th = NULL;
@@ -218,12 +218,12 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 		FOM_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_block_leave: Invalid locality",
 				-EINVAL);
-		return;
+		return -EINVAL;
 	}
 
 	c2_mutex_lock(&loc->fl_lock);
-	 while (loc->fl_idle_threads_nr > loc->fl_lo_idle_nr) {
-		
+	while (loc->fl_idle_threads_nr > loc->fl_lo_idle_nr) {
+
 		/* kill extra thread
 		 * set fd_clean flag to CLEAN_ONE, to kill
 		 * a single thread.
@@ -233,7 +233,7 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 		if (link == NULL) {
 			loc->fl_dom->fd_clean = 0;
 			c2_mutex_unlock(&loc->fl_lock);
-			return;
+			return -EINVAL;
 		}
 		c2_list_del(link);
 		c2_mutex_unlock(&loc->fl_lock);
@@ -246,11 +246,15 @@ void c2_fom_block_leave(struct c2_fom_locality *loc)
 				c2_thread_fini(&th->fht_thread);
 				c2_free(th);
 			}
+			else
+				break;
 		}
 		c2_mutex_lock(&loc->fl_lock);
 		loc->fl_dom->fd_clean = 0;
 	}
 	c2_mutex_unlock(&loc->fl_lock);
+
+	return rc;
 }
 
 /**
@@ -309,6 +313,7 @@ int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 	C2_PRE(!c2_clink_is_armed(&fom->fo_clink));
 	c2_clink_add(chan, &fom->fo_clink);
 	c2_fom_wait(fom);
+
 	return 0;
 }
 
@@ -328,9 +333,9 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 	}
 
 	stresult = fom->fo_ops->fo_state(fom);
-	
+
 	switch(stresult) {
-	case FSO_WAIT: {
+	case FSO_WAIT:
 		/* fop execution is blocked
 		 * specific fom state execution would invoke
 		 * c2_fom_block_at routine, to put fom on the
@@ -338,8 +343,7 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 		 */
 		C2_ASSERT(c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_wlink));
 		break;
-	} 
-	case FSO_AGAIN: {
+	case FSO_AGAIN:
 		/* fop execution is done, and the reply is sent.
 		 * check if we added fol record successfully,
 		 * and record the state in addb accordingly.
@@ -350,8 +354,7 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 				0);
 		fom->fo_ops->fo_fini(fom);
 		break;
-	}
-	default: {
+	default:
 		 /* fop execution failed, record the failure in addb and
 		  * clean up the fom.
 		  * Assuming error reply fop is sent by the fom state method
@@ -361,7 +364,7 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 				"fop execution failed",
 				stresult);
 		fom->fo_ops->fo_fini(fom);
-	}
+		break;
 	}
 }
 
@@ -404,7 +407,7 @@ struct c2_fom *c2_fom_dequeue(struct c2_fom_locality *loc)
 	if (fom->fo_state == FOS_READY)
 		fom->fo_state = FOS_RUNNING;
 
-	return fom;	
+	return fom;
 }
 
 /**
@@ -415,10 +418,9 @@ struct c2_fom *c2_fom_dequeue(struct c2_fom_locality *loc)
  */
 void c2_loc_thr_start(struct c2_fom_locality *loc)
 {
-	int rc;
+	int rc = 0;
 	struct c2_clink th_clink;
 
-	rc = 0;
 	++loc->fl_threads_nr;
 	++loc->fl_idle_threads_nr;
 
@@ -534,7 +536,7 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		if (!rc && (fom->fo_phase == FOPH_EXEC || fom->fo_phase > FOPH_NR)) {
 			c2_fom_fop_exec(fom);
 		}
-		
+
 		/* increment the idle threads count */
 		c2_mutex_lock(&loc->fl_lock);
 		++loc->fl_idle_threads_nr;
@@ -598,7 +600,7 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
  * @param fdnr -> int, locality number in the fd_localities array
  *			in fom domain.
  * @retval int -> 0, on success.
- *		  -1, on failure.
+ *		-1, on failure.
  */
 int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
 			c2_processor_nr_t max_proc, int fdnr)
@@ -790,11 +792,11 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 	 */
 	for (i = 0; i < i_cpu; ++i) {
 		for (j = i; j < i_cpu; ++j) {
-			/* As every cpu descriptor in the array is reset to 0, when 
-			 * visited first time (to improve performance), so during 
+			/* As every cpu descriptor in the array is reset to 0, when
+			 * visited first time (to improve performance), so during
 			 * further iterations, we first check if the descriptor is
 			 * initialized to proceed further.
-			 */ 
+			 */
 			if (check_cpu(&cpu_info[j])) {
 				if (is_resource_shared(&cpu_info[i],
 					&cpu_info[j]))
@@ -885,7 +887,7 @@ int c2_fom_init(struct c2_fom *fom)
  * if we fail before even the transaction is initialized.
  * the abort will fail.
  * @param tx -> struct c2_db_tx pointer.
- */ 
+ */
 bool c2_chk_tx(struct c2_db_tx *tx)
 {
 	return (tx->dt_env != 0);

@@ -294,7 +294,7 @@ struct c2_fom_ops {
 	/**
 	    Find home locality for this fom.
 	 */
-	size_t  (*fo_home_locality) (const struct c2_fom_domain *dom, 
+	size_t  (*fo_home_locality) (const struct c2_fom_domain *dom,
 					const struct c2_fom *fom);
 };
 
@@ -319,7 +319,7 @@ int c2_fom_block_enter(struct c2_fom_locality *loc);
    Arms a timer that would retire extra idle threads if necessary. The timer is
    needed to amortize thread creation costs.
  */
-void c2_fom_block_leave(struct c2_fom_locality *loc);
+int c2_fom_block_leave(struct c2_fom_locality *loc);
 
 /**
    Registers the fom with the channel, so that next fom's state transition would

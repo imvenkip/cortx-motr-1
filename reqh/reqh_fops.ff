@@ -34,7 +34,7 @@ DEF(c2_reqh_error_rep, RECORD,
 
 /** @} end of reqh group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

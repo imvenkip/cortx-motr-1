@@ -133,7 +133,6 @@ extern bool c2_fom_invariant(const struct c2_fom *fom);
  * @param serv -> c2_service structure pointer.
  * @retval int -> returns 0, on success.
  * 		returns -1, on failure.
- * @pre assumes reqh, dom, fol, serv not null.
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
@@ -145,9 +144,6 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	if ((reqh == NULL) || (dom == NULL) ||
 		(fol == NULL) || (serv == NULL))
 		return -EINVAL;
-
-	/* initialize reqh fops */
-	reqh_fop_init();
 
 	/* initialize fom phase table with standard/generic fom phases,
 	 * and their correspnding methods.
@@ -162,6 +158,9 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 				-ENOMEM);
 		return -ENOMEM;
 	}
+
+	/* initialize reqh fops */
+	reqh_fop_init();
 
 	result = c2_fom_domain_init(reqh->rh_fom_dom);
 	if (result) {
@@ -204,7 +203,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
  * send generic error reply fop
  * @param service -> struct c2_service pointer
  * @param cookie -> void pointer containing some address.
- * @param rc -> int, error code to be sent in reply fop. 
+ * @param rc -> int, error code to be sent in reply fop.
  */
 void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 {
@@ -230,7 +229,7 @@ void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
 	struct c2_fom *fom = NULL;
-        int			result;
+	int			result;
 	size_t			iloc;
 
 	C2_PRE(reqh != NULL);
@@ -272,9 +271,8 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 /**
  * Funtion to handle init phase of fom.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
  */
 int c2_fom_phase_init(struct c2_fom *fom)
 {
@@ -288,10 +286,9 @@ int c2_fom_phase_init(struct c2_fom *fom)
 /**
  * Function to authenticate fop.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_authen(struct c2_fom *fom)
@@ -307,10 +304,9 @@ int c2_fom_authen(struct c2_fom *fom)
  * Function invoked after a fom resumes execution
  * post wait, in authentication phase.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_authen_wait(struct c2_fom *fom)
@@ -327,10 +323,9 @@ int c2_fom_authen_wait(struct c2_fom *fom)
  * Function to identify local resources
  * required for fop execution.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_loc_resource(struct c2_fom *fom)
@@ -346,10 +341,9 @@ int c2_fom_loc_resource(struct c2_fom *fom)
  * Funtion invoked after a fom resumes execution
  * post wait, while checking for local resources.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_loc_resource_wait(struct c2_fom *fom)
@@ -366,10 +360,9 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
  * Function to identify distributed resources
  * required for fop execution.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_dist_resource(struct c2_fom *fom)
@@ -385,10 +378,9 @@ int c2_fom_dist_resource(struct c2_fom *fom)
  * Funtion invoked after a fom resumes execution
  * post wait, while checking for distributed resources.
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is not null.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_dist_resource_wait(struct c2_fom *fom)
@@ -407,7 +399,7 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_obj_check(struct c2_fom *fom)
@@ -425,7 +417,7 @@ int c2_fom_obj_check(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_obj_check_wait(struct c2_fom *fom)
@@ -443,7 +435,7 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_auth(struct c2_fom *fom)
@@ -461,7 +453,7 @@ int c2_fom_auth(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_auth_wait(struct c2_fom *fom)
@@ -503,7 +495,7 @@ int c2_create_loc_ctx(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
- * @todo needs further more implementation, once depending 
+ * @todo needs further more implementation, once depending
  * 		routines are ready.
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
