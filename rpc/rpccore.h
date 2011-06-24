@@ -561,24 +561,14 @@ struct c2_rpc_ep_aggr {
    It is initiated during c2_rpc_core_init() and finied during
    c2_rpc_core_fini().
  */
-struct c2_rpc_ep_aggr		*rpc_ep_aggr;
-
-/**
-   Create new instance of struct c2_rpc_ep_aggr.
- */
-int c2_rpc_ep_aggr_create();
-
-/**
-   Destroy the instance of struct c2_rpc_ep_aggr.
- */
-void c2_rpc_ep_aggr_destroy();
+extern struct c2_rpc_ep_aggr		*rpc_ep_aggr;
 
 /**
    A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
    The thumb rule is to use one transfer machine per endpoint.
    So to make sure that services using same endpoint,
-   use the same transfer machine, this structure has been introduced. 
+   use the same transfer machine, this structure has been introduced.
    Struct c2_rpc_conn is used for a particular service and now it
    points to a struct c2_rpc_chan to identify the transfer machine
    it is working with.

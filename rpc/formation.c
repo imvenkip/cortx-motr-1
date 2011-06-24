@@ -673,16 +673,16 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
 
 /**
   Callback function for <struct c2_net_buffer> which indicates that
-  message has been sent out from the buffer. This callback function 
+  message has been sent out from the buffer. This callback function
   corresponds to the C2_NET_QT_MSG_SEND event
-  @param item - net buffer event 
+  @param item - net buffer event
  */
 void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
 {
 	struct c2_net_buffer		*nb = NULL;
 	struct c2_net_domain		*dom = NULL;
 	struct c2_net_transfer_mc	*tm = NULL;
-	
+
 	C2_PRE(ev != NULL);
 
 	nb = ev->nbe_buffer;
@@ -694,7 +694,7 @@ void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		c2_net_buffer_deregister(nb,dom);
 		c2_free(ev->nbe_buffer);
 		c2_free(nb);
-	}	
+	}
 }
 
 /**
@@ -1886,7 +1886,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 }
 
 /**
-  Get the cumulative size of all rpc items 
+  Get the cumulative size of all rpc items
   @param rpc object of which size has to be calculated
  */
 uint64_t c2_rpc_get_size(struct c2_rpc *rpc)
@@ -1936,7 +1936,7 @@ struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
 }
 
 /**
-  This routine will change the state of each rpc item 
+  This routine will change the state of each rpc item
   in the rpc object to RPC_ITEM_SENT
  */
 void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)

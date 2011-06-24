@@ -25,6 +25,8 @@ struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
 
+struct c2_rpc_ep_aggr		*rpc_ep_aggr = NULL;
+
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
 {
@@ -286,6 +288,11 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 {
 }
 
+int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
+{
+	return 0;
+}
+
 void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 {
 	struct c2_rpc		 rpc;
@@ -305,7 +312,7 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 	if (!rc) {
 		/* XXX We can post an ADDB event here. */
 	}
-	
+
 	c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
 			ri_rpcobject_linkage) {
 		/* If this is a reply type rpc item, call a sessions/slots

@@ -162,7 +162,7 @@ When an item is received, following conditions are possible:
 struct c2_rpc_item;
 struct c2_rpc_chan;
 struct c2_rpcmachine;
-struct c2_net_end_point;	
+struct c2_net_end_point;
 
 /* Exports */
 struct c2_rpc_session;
