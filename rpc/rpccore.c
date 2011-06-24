@@ -86,6 +86,35 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
 {
+	struct c2_rpc_slot_ref	*sref;
+	struct c2_rpc_item	*tmp;
+	struct c2_rpc_slot	*slot;
+
+	C2_PRE(request != NULL && reply != NULL);
+	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
+
+	reply->ri_session = request->ri_session;
+	reply->ri_sender_id = request->ri_sender_id;
+	reply->ri_session_id = request->ri_session_id;
+	reply->ri_uuid = request->ri_uuid;
+	reply->ri_prio = request->ri_prio;
+	reply->ri_deadline = request->ri_deadline;
+	reply->ri_error = 0;
+
+	sref = &reply->ri_slot_refs[0];
+
+	slot = sref->sr_slot = request->ri_slot_refs[0].sr_slot;
+	sref->sr_item = reply;
+
+	sref->sr_slot_id = request->ri_slot_refs[0].sr_slot_id;
+	sref->sr_verno = request->ri_slot_refs[0].sr_verno;
+	sref->sr_xid = request->ri_slot_refs[0].sr_xid;
+	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
+	
+	c2_mutex_lock(&slot->sl_mutex);
+	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
+				   reply, &tmp);
+	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)

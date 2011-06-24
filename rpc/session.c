@@ -2407,9 +2407,14 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (item_is_request(item)) {
+		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_item_apply(slot, item);
+		c2_mutex_unlock(&slot->sl_mutex);
 	} else {
+		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_reply_received(slot, item, &req);
+		c2_mutex_unlock(&slot->sl_mutex);
+
 		if (req != NULL && req->ri_ops != NULL &&
 		    req->ri_ops->rio_replied != NULL) {
 			req->ri_ops->rio_replied(req, item, 0);
