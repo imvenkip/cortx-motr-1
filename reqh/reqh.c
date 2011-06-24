@@ -76,11 +76,6 @@ struct c2_addb_ctx c2_reqh_addb_ctx;
 C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * Generic variable to signify wait.
- */
-static bool fo_wait;
-
-/**
  * fop type object for a c2_reqh_error_rep fop.
  */
 extern struct c2_fop_type c2_reqh_error_rep_fopt;
@@ -326,7 +321,6 @@ int c2_fom_authen_wait(struct c2_fom *fom)
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -363,7 +357,6 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -400,7 +393,6 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -437,7 +429,6 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -473,7 +464,6 @@ int c2_fom_auth_wait(struct c2_fom *fom)
 		return -EINVAL;
 	}
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -516,7 +506,6 @@ int c2_create_loc_ctx_wait(struct c2_fom *fom)
 	}
 
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
-	fo_wait = false;
 	return 0;
 }
 
@@ -538,7 +527,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	while (!stop) {
 		rc = fp_table[fom->fo_phase].action(fom);
 		if (rc || fom->fo_phase == FOPH_DONE ||
-			fo_wait || fom->fo_phase == FOPH_EXEC)
+			fom->fo_state == FOS_WAITING || fom->fo_phase == FOPH_EXEC)
 			stop = true;
 	}
 
