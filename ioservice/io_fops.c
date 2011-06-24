@@ -29,6 +29,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
    Reply received callback for a c2_fop_cob_readv fop.
+   @param - Read fop for which reply is received
  */
 int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 {
@@ -43,6 +44,7 @@ int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 
 /**
    Reply received callback for a c2_fop_cob_writev fop.
+   @param - Write fop for which reply is received
  */
 int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 {
@@ -57,6 +59,7 @@ int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 
 /**
    Return the size of a fop of type c2_fop_cob_readv.
+   @param - Read fop for which size is to be calculated 
  */
 uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
 {
@@ -78,6 +81,7 @@ uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
 
 /**
    Return the size of a fop of type c2_fop_cob_writev.
+   @param - Write fop for which size is to be calculated 
  */
 uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
 {
@@ -108,6 +112,8 @@ uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
 
 /**
    Return if given 2 fops belong to same type.
+   @param - Fop1 to be compared with Fop2
+   @param - Fop2 to be compared with Fop1 
  */
 bool c2_io_fop_type_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 {
@@ -116,14 +122,14 @@ bool c2_io_fop_type_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 
 	if (fop1->f_type->ft_code == fop2->f_type->ft_code) {
 		return true;
-	}
-	else {
+	} else {
 		return false;
 	}
 }
 
 /**
    Return fid for a fop of type c2_fop_cob_readv.
+   @param - Read fop for which fid is to be calculated 
  */
 struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 {
@@ -131,6 +137,7 @@ struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 	struct c2_fop_file_fid		 ffid;
 
 	C2_PRE(fop != NULL);
+
 	read_fop = c2_fop_data(fop);
 	ffid = read_fop->frd_fid;
 	return ffid;
@@ -138,6 +145,7 @@ struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 
 /**
    Return fid for a fop of type c2_fop_cob_writev.
+   @param - Write fop for which fid is to be calculated 
  */
 struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 {
@@ -145,6 +153,7 @@ struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 	struct c2_fop_file_fid		 ffid;
 
 	C2_PRE(fop != NULL);
+
 	write_fop = c2_fop_data(fop);
 	ffid = write_fop->fwr_fid;
 	return ffid;
@@ -152,12 +161,14 @@ struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 
 /**
    Return status telling if given fop is an IO request or not.
+   @param - fop for which rw status is to be found out 
  */
 bool c2_io_fop_is_rw(struct c2_fop *fop)
 {
 	int	opcode = 0;
 
 	C2_PRE(fop != NULL);
+
 	opcode = fop->f_type->ft_code;
 	if ((opcode == c2_io_service_readv_opcode) ||
 			(opcode == c2_io_service_writev_opcode)) {
@@ -169,18 +180,20 @@ bool c2_io_fop_is_rw(struct c2_fop *fop)
 /**
    Return the number of IO fragements(discontiguous buffers)
    for a fop of type c2_fop_cob_readv.
+   @param - Read fop for which number of fragments is to be calculated 
  */
 uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop;
 	uint64_t			 nfragments = 0;
-	int				 seg_count = 0;
 	uint64_t			 s_offset = 0;
 	uint64_t			 s_count = 0;
 	uint64_t			 next_s_offset = 0;
 	int				 i = 0;
+	int				 seg_count = 0;
 
 	C2_PRE(fop != NULL);
+
 	read_fop = c2_fop_data(fop);
 	seg_count = read_fop->frd_ioseg.fs_count;
 	for (i = 0; i < seg_count - 1; i++) {
@@ -197,6 +210,7 @@ uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 /**
    Return the number of IO fragements(discontiguous buffers)
    for a fop of type c2_fop_cob_writev.
+   @param - Write fop for which number of fragments is to be calculated 
  */
 uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 {
@@ -209,6 +223,7 @@ uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 	int				 i = 0;
 
 	C2_PRE(fop != NULL);
+
 	write_fop = c2_fop_data(fop);
 	seg_count = write_fop->fwr_iovec.iov_count;
 	for (i = 0; i < seg_count - 1; i++) {
@@ -225,7 +240,10 @@ uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 /**
    Coalesce the IO segments from a number of read fops to create a list
    of IO segments containing merged segments.
- */
+   @param - target iovec 
+   @param - aggr_list is list of read segments that could be merged
+   @param - number of resultant merged segments 
+*/
 int c2_io_fop_read_segments_coalesce(void *vec,
 		struct c2_list *aggr_list, uint64_t *res_segs)
 {
@@ -240,6 +258,7 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 	C2_PRE(vec != NULL);
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(res_segs != NULL);
+
 	iovec = (struct c2_fop_segment_seq*)vec;
 
 	/* For each segment from incoming IO vector, check if it can
@@ -259,23 +278,22 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 				read_seg->rs_seg.f_count +=
 					iovec->fs_segs[i].f_count;
 				break;
-			}
-			/* If off2 + count2 = off1, then merge two segments.*/
-			else if ((read_seg->rs_seg.f_offset +
+			} else if ((read_seg->rs_seg.f_offset +
 					read_seg->rs_seg.f_count) ==
 					iovec->fs_segs[i].f_offset) {
+				/* If off2 + count2 = off1, then merge
+				   two segments.*/
 				read_seg->rs_seg.f_count +=
 					iovec->fs_segs[i].f_count;
 				break;
-			}
-			/* If (off1 + count1) < off2, OR
-			   if (off1 < off2),
-			   add a new segment in the merged list. */
-			else if ( ((iovec->fs_segs[i].f_offset +
+			} else if ( ((iovec->fs_segs[i].f_offset +
 					iovec->fs_segs[i].f_count) <
 					read_seg->rs_seg.f_offset) ||
 					((iovec->fs_segs[i].f_offset <
 					  read_seg-> rs_seg.f_offset)) ) {
+				/* If (off1 + count1) < off2, OR
+				   if (off1 < off2),
+				   add a new segment in the merged list. */
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
 					return -ENOMEM;
@@ -328,6 +346,8 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 /**
    Coalese the IO vectors of number of read fops and put the
    collated IO vector into given resultant fop.
+   @param - list of read fops 
+   @param - resultant fop 
  */
 int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 {
@@ -344,6 +364,7 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
+
 	c2_list_init(&aggr_list);
 
 	/* Traverse the list, get the IO vector from each fop,
@@ -386,6 +407,9 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 /**
    Coalesce the IO segments from a number of write fops to create a list
    of IO segments containing merged segments.
+   @param - target iovec 
+   @param - aggr_list is list of read segments that could be merged
+   @param - number of resultant merged segments 
  */
 int c2_io_fop_write_segments_coalesce(void *vec,
 		struct c2_list *aggr_list, uint64_t *nsegs)
@@ -401,6 +425,7 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 	C2_PRE(vec != NULL);
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(nsegs != NULL);
+
 	iovec = (struct c2_fop_io_vec*)vec;
 
 	/* For all write segments in the write vector, check if they
@@ -421,23 +446,22 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 				write_seg->ws_seg.f_buf.f_count +=
 					iovec->iov_seg[i].f_buf.f_count;
 				break;
-			}
-			/* If off2 + count2 = off1, then merge two segments.*/
-			else if (write_seg->ws_seg.f_offset +
+			} else if (write_seg->ws_seg.f_offset +
 					write_seg->ws_seg.f_buf.f_count
 					== iovec->iov_seg[i].f_offset) {
+				/* If off2 + count2 = off1, then merge
+				   two segments.*/
 				write_seg->ws_seg.f_buf.f_count +=
 					iovec->iov_seg[i].f_buf.f_count;
 				break;
-			}
-			/* If (off1 + count1) < off2, OR
-			   (off1 < off2),
-			   add a new segment in the merged list. */
-			else if (((iovec->iov_seg[i].f_offset +
+			} else if (((iovec->iov_seg[i].f_offset +
 					iovec->iov_seg[i].f_buf.f_count) <
 					write_seg->ws_seg.f_offset) ||
 					(iovec->iov_seg[i].f_offset <
 					 write_seg->ws_seg.f_offset)) {
+				/* If (off1 + count1) < off2, OR
+				   (off1 < off2),
+				   add a new segment in the merged list. */
 				C2_ALLOC_PTR(new_seg);
 				if (new_seg == NULL) {
 					return -ENOMEM;
@@ -492,6 +516,8 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 /**
    Coalesce the IO vectors of a list of write fops into IO vector
    of given resultant fop.
+   @param - list of write fops 
+   @param - resultant fop 
  */
 int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 {
@@ -508,6 +534,7 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 
 	C2_PRE(list != NULL);
 	C2_PRE(b_fop != NULL);
+
 	c2_list_init(&aggr_list);
 
 	/* Traverse the list, get the IO vector from each fop,
@@ -549,12 +576,14 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 
 /**
    Return the opcode of given fop.
+   @param - fop for which opcode has to be returned
  */
 int c2_io_fop_get_opcode(struct c2_fop *fop)
 {
 	int opcode = 0;
 
 	C2_PRE(fop != NULL);
+
 	opcode = fop->f_type->ft_code;
 	return opcode;
 }
@@ -602,6 +631,7 @@ static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /**
    Return the size of a read_reply fop.
+   @param - Read fop for which size has to be calculated
  */
 uint64_t c2_io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 {
@@ -642,6 +672,7 @@ static int c2_fop_file_create_request(struct c2_fop *fop, struct c2_fom **m)
 
 /**
    Return size for a fop of type c2_fop_file_create;
+   @param - Create fop for which size has to be calculated
  */
 uint64_t c2_io_fop_create_getsize(struct c2_fop *fop)
 {
@@ -688,6 +719,7 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 
 /**
    Function to take action on fop after it is replied to.
+   @param - fop for which reply has been received 
  */
 int c2_fop_replied(struct c2_fop *fop)
 {
@@ -695,12 +727,12 @@ int c2_fop_replied(struct c2_fop *fop)
         struct c2_fop_cob_writev        *write_fop = NULL;
 
 	C2_PRE(fop != NULL);
+
         if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
                 read_fop = c2_fop_data(fop);
 		/* Not sure of fops should be deallocated here.*/
                 c2_free(read_fop->frd_ioseg.fs_segs);
-        }
-        else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+        } else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
                 write_fop = c2_fop_data(fop);
 		/* Not sure of fops should be deallocated here.*/
                 c2_free(write_fop->fwr_iovec.iov_seg);

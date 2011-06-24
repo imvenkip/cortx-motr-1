@@ -230,11 +230,17 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 }
 
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom)
+			struct c2_cob_domain	*dom,
+			struct c2_net_domain	*net_dom)
 {
 	struct c2_db_tx		tx;
 	struct c2_cob		*root_session_cob;
+	struct c2_net_xprt	*xprt = NULL;
 	int rc;
+
+	C2_PRE(machine != NULL);
+	C2_PRE(dom != NULL);
+	C2_PRE(net_dom != NULL);
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -258,12 +264,27 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		c2_db_tx_commit(&tx);
 	else
 		c2_db_tx_abort(&tx);
+	
+#ifndef __KERNEL__
+	xprt = &c2_net_usunrpc_xprt;
+#else
+	xprt = &c2_net_ksunrpc_xprt;
+#endif
+	/* Initiate the transport first.*/
+	rc = c2_net_xprt_init(xprt);
+	if (rc) {
+		return rc;
+	}
+	/* Create and establish a c2_net_domain with this rpcmachine.*/
+	machine->cr_net_domain = net_dom;
+	rc = c2_net_domain_init(machine->cr_net_domain, xprt);
 
 	return rc;
 }
 
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
+	struct c2_net_xprt	*xprt = NULL;
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
 	/* XXX commented following two lines for testing purpose */
@@ -272,6 +293,12 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
+	/* Fini the net domain first so that no more requests
+	   head to this domain anymore. */
+	xprt = machine->cr_net_domain->nd_xprt;
+	c2_net_domain_fini(machine->cr_net_domain);
+	/* Now fini the xprt.*/
+	c2_net_xprt_fini(xprt);
 }
 
 /** simple vector of RPC-item operations */
@@ -353,6 +380,7 @@ bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 
 	C2_PRE(item1 != NULL);
 	C2_PRE(item2 != NULL);
+
 	fop1 = c2_rpc_item_to_fop(item1);
 	fop2 = c2_rpc_item_to_fop(item2);
 	ret = fop1->f_type->ft_ops->fto_op_equal(fop1, fop2);
@@ -368,6 +396,7 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
 	int			 opcode = 0;
 
 	C2_PRE(item != NULL);
+
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	opcode = fop->f_type->ft_ops->fto_get_opcode(fop);
@@ -498,6 +527,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 	int			 opcode = 0;
 
 	C2_PRE(item != NULL);
+
         fop = c2_rpc_item_to_fop(item);
         opcode = fop->f_type->ft_code;
         switch (opcode) {
@@ -527,6 +557,7 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	uint32_t			 opcode = 0;
 
 	C2_PRE(fopt != NULL);
+
 	/* XXX Needs to be implemented in a clean way. */
 	/* This is a temporary approach to associate an rpc_item
 	   with its rpc_item_type. It will be discarded once we

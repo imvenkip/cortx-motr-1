@@ -72,11 +72,13 @@
    a result.
 
    The external events are
-   * addition of an rpc item to the input list.
-   * deletion of rpc item from the input list.
+   * addition of an rpc item to the slot ready list.
+   * deletion of rpc item.
    * change of parameter for an rpc item.
    * reply received.
    * deadline expired(timeout) of an rpc item.
+   * slot becomes idle
+   * unbounded item is added to the sessions list
    Also, there are a number of states through which the formation state
    machine transitions.
    * WAITING (waiting for an event to trigger)
@@ -184,7 +186,7 @@ enum c2_rpc_form_state {
 	    data structure according to the changed rpc item. */
 	C2_RPC_FORM_STATE_REMOVING,
 	/** MAX States of state machine. */
-	C2_RPC_FORM_N_STATES
+	C2_RPC_FORM_STATE_NR
 };
 
 /**
@@ -388,7 +390,7 @@ enum c2_rpc_form_ext_event {
 	/** Freestanding (unbounded) item added to session */
 	C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
 	/** Max external events. */
-	C2_RPC_FORM_EXTEVT_N_EVENTS
+	C2_RPC_FORM_EXTEVT_EVENTS_NR
 };
 
 /**
@@ -396,13 +398,13 @@ enum c2_rpc_form_ext_event {
  */
 enum c2_rpc_form_int_event {
 	/** Execution succeeded in current state. */
-	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = C2_RPC_FORM_EXTEVT_N_EVENTS,
+	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = C2_RPC_FORM_EXTEVT_EVENTS_NR,
 	/** Execution failed in current state. */
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
 	/** Execution completed, exit the state machine. */
 	C2_RPC_FORM_INTEVT_STATE_DONE,
 	/** Max internal events. */
-	C2_RPC_FORM_INTEVT_N_EVENTS
+	C2_RPC_FORM_INTEVT_EVENTS_NR
 };
 
 /**
@@ -437,7 +439,7 @@ enum c2_rpc_form_item_change_fields {
 	/** Change rpc group of item. */
 	C2_RPC_ITEM_CHANGE_RPCGROUP,
 	/** Max number of fields subject to change.*/
-	C2_RPC_ITEM_N_CHANGES,
+	C2_RPC_ITEM_CHANGES_NR,
 };
 
 /**
