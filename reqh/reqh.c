@@ -506,7 +506,7 @@ int c2_create_loc_ctx(struct c2_fom *fom)
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
  * @todo needs further more implementation, once depending
- * 		routines are ready.
+ *		routines are ready.
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
 {

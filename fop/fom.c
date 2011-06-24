@@ -912,9 +912,9 @@ int c2_fom_init(struct c2_fom *fom)
  * the abort will fail.
  * @param tx -> struct c2_db_tx pointer.
  * @retval bool -> returns true, if transaction is initialized
- *		return false, if transaction is unintialized.		
+ *		return false, if transaction is unintialized.
  */
-bool c2_chk_tx(struct c2_db_tx *tx)
+static bool c2_chk_tx(struct c2_db_tx *tx)
 {
 	return (tx->dt_env != 0);
 }
