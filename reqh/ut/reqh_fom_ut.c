@@ -1084,16 +1084,16 @@ void test_reqh(void)
 
 	/* create listening thread to accept async reply's */
 
-	for(i = 0; i < 1; ++i)
+	for(i = 0; i < 10; ++i)
 		reqh_create_send(conn, i, i);
 
-	for(i = 0; i < 1; ++i)
+	for(i = 0; i < 10; ++i)
 		reqh_write_send(conn, i, i);
 
-	for(i = 0; i < 1; ++i)
+	for(i = 0; i < 10; ++i)
 		reqh_read_send(conn, i, i);
 
-	while(reply < 3)
+	while(reply < 30)
 	     sleep(1);
 
 	/* clean up network connections */

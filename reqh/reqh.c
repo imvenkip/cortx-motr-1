@@ -158,11 +158,12 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	/* allocate memory for c2_fom_domain member in reqh and initialize the same. */
 	reqh->rh_fom_dom = c2_alloc(sizeof *reqh->rh_fom_dom);
 	if (reqh->rh_fom_dom == NULL) {
-		REQH_ADDB_ADD(c2_reqh_addb_ctx,
-				"c2_reqh_init: reqh init failed",
-				-ENOMEM);
 		return -ENOMEM;
 	}
+	
+	/* initialize global reqh addb context */
+	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
+					&c2_addb_global_ctx);
 
 	/* initialize reqh fops */
 	reqh_fop_init();
@@ -181,10 +182,6 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	reqh->rh_dom = dom;
 	reqh->rh_fol = fol;
 	reqh->rh_serv = serv;
-
-	/* initialize global reqh addb context */
-	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
-					&c2_addb_global_ctx);
 
 	return result;
 }
