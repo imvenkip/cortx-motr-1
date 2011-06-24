@@ -235,12 +235,12 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 {
 	struct c2_db_tx		tx;
 	struct c2_cob		*root_session_cob;
-	struct c2_net_xprt	*xprt = NULL;
+//	struct c2_net_xprt	*xprt = NULL;
 	int rc;
 
 	C2_PRE(machine != NULL);
 	C2_PRE(dom != NULL);
-	C2_PRE(net_dom != NULL);
+//	C2_PRE(net_dom != NULL);
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -264,7 +264,7 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		c2_db_tx_commit(&tx);
 	else
 		c2_db_tx_abort(&tx);
-	
+#if 0	
 #ifndef __KERNEL__
 	xprt = &c2_net_usunrpc_xprt;
 #else
@@ -278,7 +278,7 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	/* Create and establish a c2_net_domain with this rpcmachine.*/
 	machine->cr_net_domain = net_dom;
 	rc = c2_net_domain_init(machine->cr_net_domain, xprt);
-
+#endif
 	return rc;
 }
 

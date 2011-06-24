@@ -1455,6 +1455,8 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 
 	/*
 	 * Add a dummy item with very low verno in item_list
+	 * The dummy item is used to avoid special cases
+	 * i.e. last_sent == NULL, last_persistent == NULL
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL)
@@ -1495,12 +1497,14 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	C2_PRE(c2_rpc_slot_invariant(slot));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
+		/* Is slot->item_list is empty? */
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
 		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
+		/* Take slot->last_sent->next item for sending */
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
 		if (item->ri_tstate == RPC_ITEM_FUTURE) {

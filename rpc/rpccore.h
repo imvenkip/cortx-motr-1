@@ -554,7 +554,7 @@ void c2_rpc_core_fini(void);
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom)
+			struct c2_net_domain	*net_dom);
 
 /**
    Destruct rpcmachine

@@ -69,7 +69,7 @@ void init()
 	C2_ASSERT(rc == 0 && dom->cd_dbenv == db);
 	printf("dom = %p\n", dom);
 
-	rc = c2_rpcmachine_init(machine, dom);
+	rc = c2_rpcmachine_init(machine, dom, NULL);
 	C2_ASSERT(rc == 0);
 }
 void test_session_terminate(uint64_t sender_id, uint64_t session_id)
