@@ -109,7 +109,17 @@ struct c2_fom_locality {
 	struct c2_list		fl_threads;
 	size_t			fl_idle_threads_nr;
 	size_t			fl_threads_nr;
+	
+	/**
+	    Minimum number of idle threads, that should be present in a
+	    locality.
+	 */
 	size_t			fl_lo_idle_nr;
+	
+	/**
+	    Maximum number of idle threads, that should be present in a
+	    locality.
+	 */
 	size_t			fl_hi_idle_nr;
 
 	/*
@@ -197,7 +207,28 @@ enum c2_fom_phase {
 				      this. */
 };
 
+/**
+   Initializes fom domain.
+
+   A c2_fom_domain pointer in c2_reqh structure is allocated memory
+   during reqh initialization and passed as a reference for intialization.
+
+   Localities are created and intialized with corresponding threads.
+
+   @pre dom != NULL
+ */
 int  c2_fom_domain_init(struct c2_fom_domain *dom);
+
+/**
+   Finalizes fom domain.
+
+   Invoked from c2_reqh_fini.
+
+   Cleans up all the localities, kills all the threads in the corrsponding
+   locality, clears all the c2_fom_domain members.
+
+   @pre dom != NULL && dom->fd_localities != NULL.
+ */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
 /**
@@ -237,7 +268,28 @@ struct c2_fom {
 	struct c2_list_link	fo_wlink;
 };
 
+/**
+   Initializes fom.
+
+   Pre allocated fom pointer is provided which is initialized.
+
+   Invoked through fto_fom_init implementation as one of
+   operations in c2_fop_type_ops, member of c2_fop.
+
+   @pre fom != NULL
+ */
 int c2_fom_init(struct c2_fom *fom);
+
+/**
+   Finalizes fom.
+
+   Commits or aborts the transaction context,
+   depending on, if fom execution is success or failure.
+
+   Finalizes other fom members.
+
+   @pre c2_fom_invariant() == true.
+*/
 void c2_fom_fini(struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
@@ -293,6 +345,9 @@ struct c2_fom_ops {
 
 	/**
 	    Find home locality for this fom.
+
+	    Returns locality number used as subscript in fd_localities
+	    array, member of c2_fom_domain, based on fom parameters.
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom *fom, size_t fd_nr);
 };
