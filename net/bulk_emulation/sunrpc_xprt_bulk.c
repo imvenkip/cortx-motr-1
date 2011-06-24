@@ -166,9 +166,8 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	c2_bufvec_cursor_move(&cur, in->sp_offset);
 	rc = sunrpc_buffer_copy_out(&cur, &in->sp_buf);
-	if (rc < 0) {
-		sunrpc_queue_passive_cb(nb, rc, in->sp_desc.sbd_total);
-	} else if (in->sp_offset + in->sp_buf.sb_len == in->sp_desc.sbd_total) {
+	if (rc < 0 ||
+	    in->sp_offset + in->sp_buf.sb_len == in->sp_desc.sbd_total) {
 		sunrpc_queue_passive_cb(nb, rc, in->sp_desc.sbd_total);
 	}
 
