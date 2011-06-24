@@ -151,6 +151,82 @@ When an item is received, following conditions are possible:
 	end if
     @endcode
 
+ <B>Maintaining item dependancies when slot.max_in_flight > 1 </B> <BR>
+
+ First, let's clarify that xid is used to uniquely identify items sent through 
+ a particular slot, whereas verno is used to identify the state of target 
+ objects (including slots) when the operation is applicable.
+
+ We want to achieve the following goals:
+
+   * sequence of operations sent through a slot can be exactly reproduced 
+     after the receiver or the network failed. "Reproduced" here means that 
+     after the operations are re-applied the same observable system state 
+     results.
+
+   * Network level concurrency (multiple items in flight).
+
+   * Server level concurrency (multiple operations executed on the receiver 
+     concurrently, where possible).
+
+   * Operations might have dependencies.
+
+ Let's put the following data into each item:
+ @code
+ struct c2_rpc_item {
+       struct c2_verno     verno;
+       uint64_t            xid;
+       struct c2_rpc_item *dep;
+ };
+ @endcode
+
+ ->verno and ->xid are used as usual. ->dep identifies an item, sent to 
+  the same receiver, which this item "depends on". item can be executed only 
+  after item->dep has been executed. If an item does not depend on any other
+  item, then item->dep == NULL.
+
+ When an item is submitted to the rpc layer, its ->dep is
+
+   * either set by the caller (the rpc checks that the receiver is the same 
+     in a pre-condition);
+
+   * set to NULL to indicate that there are no dependencies;
+
+   * set to a special LAST constant value, to indicate that the item depends
+     on the last item sent through the same slot. In this case, the rpc code
+     assigns ->dep to the appropriate item:
+
+     @code
+       if (item->flags & MUTABO)
+               item->dep = latest item on the slot list;
+       else
+               item->dep = latest MUTABO item on the slot list;
+     @endcode
+
+     For a freestanding item, this assignment is done lately, when the
+     freestanding item is assigned a slot and xid.
+
+ item->dep->xid is sent to the receiver along with other item attributes. On 
+ the receiver, the item is submitted to the request handler only when
+
+   * item->dep item has been received and executed and
+
+   * item->verno matches the slot verno (as usual).
+
+ Typical scenarios are as following:
+
+   * update operations are submitted, all with LAST dep, they are sent 
+     over the network concurrently (up to slot->max_in_flight) and executed
+     serially by the receiver;
+
+   * an update item I0 is submitted, then a set of read-only items is submitted,
+     all with ->dep set to LAST. Read-only operations are sent concurrently and
+     executed concurrently after I0 has been executed.
+
+ Note that LAST can be nicely generalized (we don't need this now): instead of
+ distinguishing MUTABO and !MUTABO items, we split items into "commutative" groups
+ such that items in a group can be executed in any order.
+
     @todo
 	- Currently sender_id and session_id are chosen to be random().
 	- How to get unique stob_id for session and slot cobs?
