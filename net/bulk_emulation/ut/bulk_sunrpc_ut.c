@@ -426,13 +426,11 @@ static void test_sunrpc_ping(void)
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	/* test sending/receiving even larger payload */
-#ifdef __KERNEL__
-	printk("completed medium test\n");
-#endif
-	/*len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;*/
-	len = 2 * PING_CLIENT_SEGMENT_SIZE;
+	len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
+	sctx.pc_passive_size = len;
+	C2_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 	c2_free(data);
 
