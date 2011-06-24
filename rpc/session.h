@@ -315,8 +315,6 @@ struct c2_rpc_conn {
 	uint64_t                         c_nr_sessions;
 	struct c2_chan                   c_chan;
 	struct c2_mutex                  c_mutex;
-	/** stores conn_create fop pointer during initialization */
-	void				*c_private;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
 	int32_t				 c_rc;
 };

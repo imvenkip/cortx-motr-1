@@ -147,18 +147,6 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
-/**
-   Checks whether reply item is valid in sequence.
-   Used on sender side.
-
-   @param item is received item
-   @return 0 if reply item is valid and can be accepted. out != NULL and
-		contains reference to item whose reply it is.
-   @return < 0 if reply item is not valid and should be discarded. out == NULL
- */
-int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
-				       struct c2_rpc_item	**out);
-
 uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
 

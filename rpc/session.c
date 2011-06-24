@@ -264,15 +264,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
 
-#if 0
-	/*
-	 * When conn create reply will be received then we will need this
-	 * fop to compare the cookies to find the right conn object.
-	 * The fop is freed either if conn_create() fails or after processing
-	 * conn create reply.
-	 */
-	conn->c_private = fop;
-#endif
 	conn->c_state = C2_RPC_CONN_CREATING;
 
 	machine = conn->c_rpcmachine;
@@ -292,7 +283,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	rc = c2_rpc_post(item);
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
-		conn->c_private = NULL;
 		conn->c_end_point = NULL;
 		c2_fop_free(fop);
 
@@ -311,12 +301,9 @@ C2_EXPORTED(c2_rpc_conn_create);
 void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 {
 	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
-//	struct c2_rpc_fop_conn_create		*fop_conn_create;
-//	struct c2_fop				*saved_fop = NULL;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
 	struct c2_rpcmachine			*machine;
-//	bool					found = false;
 
 	C2_PRE(fop != NULL);
 
@@ -326,59 +313,13 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-#if 0
-	/*
-	 * Search for c2_rpc_conn object whose create reply is
-	 * being processed
-	 */
-	machine = item->ri_mach;
-	c2_mutex_lock(&machine->cr_session_mutex);
-
-	c2_rpc_for_each_outgoing_conn(machine, conn) {
-		c2_mutex_lock(&conn->c_mutex);
-		if (conn->c_state == C2_RPC_CONN_CREATING) {
-			/*
-			 * during conn_create() the fop is stored in
-			 * conn->c_private
-			 */
-			saved_fop = conn->c_private;
-			C2_ASSERT(saved_fop != NULL);
-
-			fop_conn_create = c2_fop_data(saved_fop);
-			C2_ASSERT(fop_conn_create != NULL);
-
-			if (fop_conn_create->rcc_cookie ==
-				fop_ccr->rccr_cookie) {
-				/*
-				 * Address of conn object is used as cookie.
-				 * Just double check whether it is the right
-				 * object?
-				 */
-				C2_ASSERT(fop_ccr->rccr_cookie ==
-						(uint64_t)conn);
-				found = true;
-				break;
-			}
-		}
-		c2_mutex_unlock(&conn->c_mutex);
-	}
-
-	if (!found) {
-		/*
-		 * This can be a duplicate reply. That's why
-		 * cannot find an CREATING conn
-		 */
-		c2_mutex_unlock(&machine->cr_session_mutex);
-		return;
-	}
-#endif
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CREATING &&
-			c2_rpc_conn_invariant(conn));
+		  c2_rpc_conn_invariant(conn));
 
 	if (fop_ccr->rccr_rc != 0) {
 		C2_ASSERT(fop_ccr->rccr_snd_id == SENDER_ID_INVALID);
@@ -400,13 +341,6 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 		printf("ccrr: conn created %lu\n", fop_ccr->rccr_snd_id);
 	}
 
-#if 0
-	C2_ASSERT(saved_fop != NULL);
-	c2_fop_free(saved_fop);	/* conn_create req fop */
-	conn->c_private = NULL;
-
-	c2_fop_free(fop);	/* reply fop */
-#endif
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
 			conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -489,13 +423,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out;
 	}
 
-	/*
-	 * will free the fop when reply is received. In case we might
-	 * need to resend it so store address of fop in conn->c_private
-	 */
-	C2_ASSERT(conn->c_private == NULL);
-	conn->c_private = fop;
-
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
 
@@ -517,7 +444,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	rc = c2_rpc_post(item);
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_ACTIVE;
-		conn->c_private = NULL;
 		c2_fop_free(fop);
 	}
 
@@ -545,7 +471,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
 	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
+	C2_ASSERT(item != NULL && item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
@@ -576,10 +502,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
-
-	C2_ASSERT(conn->c_private != NULL);
-	c2_fop_free(conn->c_private); /* request fop */
-	conn->c_private = NULL;
 
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
