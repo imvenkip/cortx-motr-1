@@ -316,10 +316,9 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	}
 
 done:
-#ifdef __KERNEL__
+	/* fini the buffer even in user-space, xdr decode init's it */
 	if (rep != NULL)
 		sunrpc_buffer_fini(&rep->sgr_buf);
-#endif
 	if (r != NULL)
 		c2_fop_free(r);
 	if (f != NULL)
