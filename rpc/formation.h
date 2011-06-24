@@ -79,6 +79,7 @@
    * deadline expired(timeout) of an rpc item.
    * slot becomes idle
    * unbounded item is added to the sessions list
+   * c2_net_buffer sent to destination, hence free it
    Also, there are a number of states through which the formation state
    machine transitions.
    * WAITING (waiting for an event to trigger)
@@ -389,6 +390,8 @@ enum c2_rpc_form_ext_event {
 	C2_RPC_FORM_EXTEVT_SLOT_IDLE,
 	/** Freestanding (unbounded) item added to session */
 	C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
+	/** Network buffer can be freed */
+	C2_RPC_FORM_EXTEVT_NET_BUFFER_FREE,	
 	/** Max external events. */
 	C2_RPC_FORM_EXTEVT_EVENTS_NR
 };
@@ -509,6 +512,14 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot);
    @param item - incoming rpc item.
  */
 int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
+
+/**
+  Callback function for <struct c2_net_buffer> which indicates that
+  message has been sent out from the buffer. This callback function 
+  corresponds to the C2_NET_QT_MSG_SEND event
+  @param item - net buffer event 
+ */
+void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
    Try to coalesce rpc items from the session->free list.

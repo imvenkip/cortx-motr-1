@@ -143,6 +143,10 @@ int32_t rpc_arr_index;
 int seed_val;
 #endif
 
+/* Number of default receive c2_net_buffers to be used with
+   each transfer machine.*/
+#define	C2_RPC_TM_RCV_BUFFERS_NR	8
+
 struct c2_rpc;
 struct c2_rpc_conn;
 struct c2_addb_rec;
@@ -509,11 +513,108 @@ struct c2_rpc_statistics {
 };
 
 /**
+   Method to encode the rpc object into a c2_net_buffer.
+ */
+int c2_rpc_encode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
+
+/**
+   Method to encode the rpc object into a c2_net_buffer.
+ */
+int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
+
+/**
+   An API to create a c2_net_buffer with given c2_net_domain.
+ */
+struct c2_net_buffer *c2_rpc_net_buffer_create(struct c2_net_domain *net_dom);
+
+/**
+   Callback op for transfer machine used by rpc layer.
+ */
+void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev);
+
+/**
+   Transfer machine callback vector for transfer machines created by
+   rpc layer.
+ */
+extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
+
+/**
+   This structure contains list of {endpoint, transfer_mc} tuples
+   used by rpc layer. c2_rpcmachine refers to this structure.
+   This structure is created keeping in mind that there could be
+   multiple c2_rpcmachine structures co-existing within a colibri
+   address space. And multiple rpc machines might use same endpoint
+   to communicate. In this case, a rpcmachine can not blindly fini
+   a struct c2_rpc_chan in rpcmachine_fini. It has to be destroyed
+   when no one is referring to the c2_net_end_point and the
+   transfer machine.
+ */
+struct c2_rpc_ep_aggr {
+	/* Mutex to protect the list.*/
+	struct c2_mutex		ea_mutex;
+	/* List of c2_rpc_chan structures. */
+	struct c2_list		ea_chan_list;
+};
+
+/**
+   There is a global instance of struct c2_rpc_ep_aggr in rpc layer.
+   It is initiated during c2_rpc_core_init() and finied during
+   c2_rpc_core_fini().
+ */
+struct c2_rpc_ep_aggr		*rpc_ep_aggr;
+
+/**
+   Create new instance of struct c2_rpc_ep_aggr.
+ */
+int c2_rpc_ep_aggr_create();
+
+/**
+   Destroy the instance of struct c2_rpc_ep_aggr.
+ */
+void c2_rpc_ep_aggr_destroy();
+
+/**
+   A physical node can have multiple endpoints associated with it.
+   And multiple services can share endpoints for transport.
+   The thumb rule is to use one transfer machine per endpoint.
+   So to make sure that services using same endpoint,
+   use the same transfer machine, this structure has been introduced. 
+   Struct c2_rpc_conn is used for a particular service and now it
+   points to a struct c2_rpc_chan to identify the transfer machine
+   it is working with.
+ */
+struct c2_rpc_chan {
+	/* Linkage to the list maintained by c2_rpcmachine.*/
+	struct c2_list_link		 rc_linkage;
+	/* The endpoint used by one ore more services.*/
+	struct c2_net_end_point		*rc_endp;
+	/* Transfer machine associated with this endpoint.*/
+	struct c2_net_transfer_mc	*rc_xfermc;
+};
+
+/**
+   Create a new c2_rpc_chan structure, populate it and add it to
+   the list in struct c2_rpc_ep_aggr.
+ */
+int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
+		*ep, struct c2_net_transfer_mc *tm);
+
+/**
+   Destroy the given c2_rpc_chan structure since no one is referring
+   to it any more.
+ */
+void c2_rpc_chan_destroy(struct c2_rpc_chan *chan);
+
+/**
+   Locate a c2_rpc_chan structure given the endpoint.
+ */
+struct c2_rpc_chan *c2_rpc_chan_locate(struct c2_net_end_point *ep);
+
+/**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpcmachine {
-	struct c2_net_domain	  *cr_net_domain;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
@@ -552,8 +653,7 @@ void c2_rpc_core_fini(void);
    @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom)
+			struct c2_cob_domain	*dom);
 
 /**
    Destruct rpcmachine

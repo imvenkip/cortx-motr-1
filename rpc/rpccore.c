@@ -14,6 +14,14 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
+/**
+   Transfer machine callback vector for transfer machines created by
+   rpc layer.
+ */
+struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
+	.ntc_event_cb = c2_rpc_tm_event_cb
+};
+
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
 
@@ -93,13 +101,91 @@ bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;
 }
 
+void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev)
+{
+}
+
+int c2_rpc_ep_aggr_create()
+{
+	C2_ALLOC_PTR(rpc_ep_aggr);
+	if (!rpc_ep_aggr)
+		return -ENOMEM;
+	return 0;
+}
+
+void c2_rpc_ep_aggr_destroy()
+{
+	/* By this time, all elements of list should have been finied
+	   and the list should be empty.*/
+	c2_list_fini(&rpc_ep_aggr->ea_chan_list);
+	c2_free(rpc_ep_aggr);
+	rpc_ep_aggr = NULL;
+}
+
 int  c2_rpc_core_init(void)
 {
+	int rc = 0;
+
+	rc = c2_rpc_ep_aggr_create();
+	if (!rc)
+		return rc;
 	return 0;
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_ep_aggr_destroy();
+}
+
+int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
+		*ep, struct c2_net_transfer_mc *tm)
+{
+	int			 rc = 0;
+	struct c2_rpc_chan	*ch = NULL;
+
+	C2_PRE(chan != NULL);
+	C2_PRE(ep != NULL);
+	C2_PRE(tm != NULL);
+
+	C2_ALLOC_PTR(ch);
+	if (!ch)
+		return -ENOMEM;
+	c2_list_link_init(&ch->rc_linkage);
+	ch->rc_endp = ep;
+	ch->rc_xfermc = tm;
+	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
+	c2_list_add(&rpc_ep_aggr->ea_chan_list, &ch->rc_linkage);
+	*chan = ch;
+	return rc;
+}
+
+struct c2_rpc_chan *c2_rpc_chan_locate(struct c2_net_end_point *ep)
+{
+	struct c2_rpc_chan	*chan = NULL;
+	bool			 found = false;
+
+	C2_PRE(ep != NULL);
+
+	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
+	c2_list_for_each_entry(&rpc_ep_aggr->ea_chan_list, chan,
+			struct c2_rpc_chan, rc_linkage) {
+		if (chan->rc_endp == ep) {
+			found = true;
+			break;
+		}
+	}
+	c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
+	if (!found) {
+		chan = NULL;
+	}
+	return chan;
+}
+
+void c2_rpc_chan_destroy(struct c2_rpc_chan *chan)
+{
+	C2_PRE(chan != NULL);
+	c2_list_del(&chan->rc_linkage);
+	c2_free(chan);
 }
 
 int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout)
@@ -200,18 +286,88 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 {
 }
 
-int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom)
+void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 {
-	struct c2_db_tx		tx;
-	struct c2_cob		*root_session_cob;
-	struct c2_net_xprt	*xprt = NULL;
+	struct c2_rpc		 rpc;
+	struct c2_rpc_item	*item = NULL;
+	struct c2_net_buffer	*nb = NULL;
+	int			 rc = 0;
+
+	C2_PRE(ev != NULL);
+
+	/* Decode the buffer, get an RPC from it, traverse the
+	   list of rpc items from that rpc and post reply callbacks
+	   for each rpc item. */
+	nb = ev->nbe_buffer;
+	c2_list_link_init(&rpc.r_linkage);
+	c2_list_init(&rpc.r_items);
+	rc = c2_rpc_decode(nb, &rpc);
+	if (!rc) {
+		/* XXX We can post an ADDB event here. */
+	}
+	
+	c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
+			ri_rpcobject_linkage) {
+		/* If this is a reply type rpc item, call a sessions/slots
+		   method on it which will find out its corresponding
+		   request item and call its completion callback.*/
+		if (!item_is_request(item)) {
+			rc = c2_rpc_item_received(item);
+			if (!rc) {
+				/* Post an ADDB event here.*/
+			}
+		}
+	}
+
+	/* Add the c2_net_buffer back to the queue of transfer machine. */
+	rc = c2_net_buffer_add(nb, nb->nb_tm);
+}
+
+/**
+   Buffer callback for buffers added by rpc layer for receiving messages.
+ */
+struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
+	.nbc_cb = {
+		[C2_NET_QT_MSG_RECV]	= c2_rpc_reply_received,
+	}
+};
+
+struct c2_net_buffer *c2_rpc_net_buffer_create(struct c2_net_domain *net_dom)
+{
+	uint32_t			 rc = 0;
+	struct c2_net_buffer		*nb = NULL;
+	uint32_t			 nr_segs = 0;
+	c2_bcount_t			 seg_size = 0;
+
+	C2_PRE(net_dom != NULL);
+
+	C2_ALLOC_PTR(nb);
+	if (!nb) {
+		return nb;
+	}
+	nr_segs = c2_net_domain_get_max_buffer_segments(net_dom);
+	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
+	rc = c2_bufvec_alloc(&nb->nb_buffer, nr_segs, seg_size);
+	if (!rc)
+		return NULL;
+
+	nb->nb_flags = 0;
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+
+	return nb;
+}
+
+int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
+			struct c2_cob_domain	*dom)
+{
+	struct c2_db_tx			 tx;
+	struct c2_cob			*root_session_cob;
 	int rc;
 
+	/* The c2_net_domain is expected to be created by end user.*/
 	C2_PRE(machine != NULL);
 	C2_PRE(dom != NULL);
-	C2_PRE(net_dom != NULL);
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -235,27 +391,12 @@ int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		c2_db_tx_commit(&tx);
 	else
 		c2_db_tx_abort(&tx);
-	
-#ifndef __KERNEL__
-	xprt = &c2_net_usunrpc_xprt;
-#else
-	xprt = &c2_net_ksunrpc_xprt;
-#endif
-	/* Initiate the transport first.*/
-	rc = c2_net_xprt_init(xprt);
-	if (rc) {
-		return rc;
-	}
-	/* Create and establish a c2_net_domain with this rpcmachine.*/
-	machine->cr_net_domain = net_dom;
-	rc = c2_net_domain_init(machine->cr_net_domain, xprt);
 
 	return rc;
 }
 
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
-	struct c2_net_xprt	*xprt = NULL;
 	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);	
 	/* XXX commented following two lines for testing purpose */
@@ -264,12 +405,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	//c2_list_fini(&machine->cr_rpc_conn_list);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
-	/* Fini the net domain first so that no more requests
-	   head to this domain anymore. */
-	xprt = machine->cr_net_domain->nd_xprt;
-	c2_net_domain_fini(machine->cr_net_domain);
-	/* Now fini the xprt.*/
-	c2_net_xprt_fini(xprt);
 }
 
 /** simple vector of RPC-item operations */

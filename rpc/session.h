@@ -160,6 +160,9 @@ When an item is received, following conditions are possible:
 
 /* Imports */
 struct c2_rpc_item;
+struct c2_rpc_chan;
+struct c2_rpcmachine;
+struct c2_net_end_point;	
 
 /* Exports */
 struct c2_rpc_session;
@@ -288,15 +291,19 @@ struct c2_rpc_conn {
 	    c2_rpcmachine::cr_rpc_conn_list
 	    conn is in the list if c_state is not in {
 	    CONN_INITIALISED, CONN_FAILED, CONN_TERMINATED} */
+	struct c2_rpcmachine		*c_rpcmachine;
 	struct c2_list_link              c_link;
 	enum c2_rpc_conn_state		 c_state;
 	uint64_t			 c_flags;
-	struct c2_rpcmachine		*c_rpcmachine;
+	/* Pointer to c2_rpc_chan which tells which transfer machine
+	   is this conn attached to.*/
+	struct c2_rpc_chan		*c_rpcchan;
 	/**
 	    XXX Deprecated: c2_service_id
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
 	struct c2_service_id            *c_service_id;
+	/* Destination endpoint towards which this conn is targeted.*/
 	struct c2_net_end_point		*c_end_point;
 	struct c2_cob			*c_cob;
 	/** Sender ID (aka client ID) */
@@ -338,7 +345,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
 int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep);
+		       struct c2_net_end_point	*ep,
+		       struct c2_net_end_point	*src_ep);
 
 /**
    Send "conn_terminate" FOP to receiver.

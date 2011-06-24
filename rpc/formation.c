@@ -43,6 +43,15 @@ uint64_t				max_fragments_size;
 uint64_t				max_rpcs_in_flight;
 
 /**
+  Callback for net buffer used in posting
+ */
+struct c2_net_buffer_callbacks rpc_form_buf_cb = {
+        .nbc_cb = {
+                [C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
+        },
+};
+
+/**
    Forward declarations of local static functions
  */
 static int c2_rpc_form_remove_rpcitem_from_summary_unit(struct
@@ -72,38 +81,38 @@ stateFunc c2_rpc_form_stateTable
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_waiting_state, &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_checking_state,
-	  &c2_rpc_form_waiting_state},
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_checking_state, &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_forming_state,
-	  &c2_rpc_form_waiting_state},
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_forming_state, &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_posting_state,
-	  &c2_rpc_form_waiting_state},
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_posting_state, &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state},
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_waiting_state, &c2_rpc_form_waiting_state},
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
 	  &c2_rpc_form_checking_state, &c2_rpc_form_updating_state,
-	  &c2_rpc_form_updating_state, &c2_rpc_form_waiting_state,
-	  &c2_rpc_form_waiting_state}
+	  &c2_rpc_form_updating_state, &c2_rpc_form_updating_state,
+	  &c2_rpc_form_waiting_state, &c2_rpc_form_waiting_state}
 };
 
 /**
@@ -660,6 +669,32 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_STATE_NR,
 			&sm_event);
+}
+
+/**
+  Callback function for <struct c2_net_buffer> which indicates that
+  message has been sent out from the buffer. This callback function 
+  corresponds to the C2_NET_QT_MSG_SEND event
+  @param item - net buffer event 
+ */
+void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
+{
+	struct c2_net_buffer		*nb = NULL;
+	struct c2_net_domain		*dom = NULL;
+	struct c2_net_transfer_mc	*tm = NULL;
+	
+	C2_PRE(ev != NULL);
+
+	nb = ev->nbe_buffer;
+	dom = nb->nb_dom;
+	tm = nb->nb_tm;
+
+	if(nb) {
+		c2_net_buffer_del(nb,tm);
+		c2_net_buffer_deregister(nb,dom);
+		c2_free(ev->nbe_buffer);
+		c2_free(nb);
+	}	
 }
 
 /**
@@ -1851,6 +1886,75 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 }
 
 /**
+  Get the cumulative size of all rpc items 
+  @param rpc object of which size has to be calculated
+ */
+uint64_t c2_rpc_get_size(struct c2_rpc *rpc)
+{
+	struct c2_rpc_item	*item = NULL;
+	uint64_t		 rpc_size = 0;
+
+	C2_PRE(rpc != NULL);
+
+	c2_list_for_each_entry(&rpc->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		rpc_size += item->ri_type->rit_ops->rio_item_size(item);
+	}
+
+	return rpc_size;
+}
+
+/**
+  Extract c2_net_domain from rpc item
+  @param - rpc item
+  @retval - network domain
+ */
+struct c2_net_domain *c2_rpc_form_get_dom(struct c2_rpc_item *item)
+{
+	struct c2_net_domain	*dom = NULL;
+
+	C2_PRE(item == NULL);
+
+	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc->ntm_dom;
+	return dom;
+}
+
+/**
+  Extract c2_net_transfer_mc from rpc item
+  @param - rpc item
+  @retval - network transfer machine
+ */
+struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
+{
+	struct c2_net_transfer_mc	*tm = NULL;
+
+	C2_PRE(item == NULL);
+
+	tm = item->ri_session->s_conn->c_rpcchan->rc_xfermc;
+	return tm;
+	return NULL;
+}
+
+/**
+  This routine will change the state of each rpc item 
+  in the rpc object to RPC_ITEM_SENT
+ */
+void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)
+{
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(rpc != NULL);
+
+	/** Change the state of each rpc item in the
+	    rpc object to RPC_ITEM_SENT */
+	c2_list_for_each_entry(&rpc->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
+		item->ri_state = RPC_ITEM_SENT;
+	}
+}
+
+/**
    State function for POSTING state.
  */
 int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
@@ -1863,7 +1967,13 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	struct c2_net_end_point		*endp = NULL;
+	struct c2_net_buffer		*nb = NULL;
+	struct c2_net_domain		*dom = NULL;
+	struct c2_net_transfer_mc	*tm = NULL;
+	uint64_t			 nbuf_segs = 0;
 	struct c2_rpc_item		*first_item = NULL;
+	uint64_t			 rpc_size = 0;
+	uint64_t			 rpc_seg_size = 0;
 
 	C2_PRE(item != NULL);
 	/* POSTING state is reached only by a state succeeded event with
@@ -1887,9 +1997,33 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				endp_unit->isu_max_rpcs_in_flight) {
 			/*XXX TBD: Before sending the c2_rpc on wire,
 			   it needs to be serialized into one buffer. */
-			res = c2_net_send(endp, rpc_obj->ro_rpcobj);
-			endp_unit->isu_curr_rpcs_in_flight++;
+			rpc_size = c2_rpc_get_size(rpc_obj->ro_rpcobj);
+			/* XXX implement c2_rpc_form_get_dom */
+			dom = c2_rpc_form_get_dom(first_item);
+			nbuf_segs = c2_net_domain_get_max_buffer_segments(dom);
+			C2_ALLOC_PTR(nb);
+			if(rpc_size % nbuf_segs == 0) {
+				rpc_seg_size = rpc_size/nbuf_segs;
+			} else {
+				rpc_seg_size = (rpc_size/nbuf_segs) + 1;
+			}
+			res = c2_bufvec_alloc(&nb->nb_buffer, nbuf_segs,
+					rpc_seg_size);
+			if(res != 0) {
+				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+			}
+			nb->nb_qtype = C2_NET_QT_MSG_SEND;
+			/* XXX populate destination EP */
+			nb->nb_ep = first_item->ri_session->s_conn->c_end_point;
+			nb->nb_length = rpc_size;
+			nb->nb_flags = 0;
+			nb->nb_callbacks = &rpc_form_buf_cb;
+			res = c2_net_buffer_register(nb, dom);
+			tm = c2_rpc_form_get_tm(first_item);
+			res = c2_net_buffer_add(nb,tm);
+			c2_rpc_form_set_state_sent(rpc_obj->ro_rpcobj);
 			if(res == 0) {
+				endp_unit->isu_curr_rpcs_in_flight++;
 				c2_list_del(&rpc_obj->ro_linkage);
 				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 			} else {
@@ -1968,32 +2102,6 @@ void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item)
 	C2_PRE(slot != NULL);
 
 	item->ri_slot_refs[0].sr_slot = slot;
-}
-
-/**
-  This routine will
-  - Call the encode routine
-  - Change the state of each rpc item in the rpc object to RPC_ITEM_SENT
- */
-int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc)
-{
-	struct c2_rpc_item	*item = NULL;
-
-	C2_PRE(rpc != NULL);
-
-	/** XXX call the encode routine which will perform wire encoding
-	  into an preallocated buffer and send the rpc object on wire*/
-
-	/** Change the state of each rpc item in the
-	    rpc object to RPC_ITEM_SENT */
-
-	c2_list_for_each_entry(&rpc->r_items, item,
-			struct c2_rpc_item, ri_rpcobject_linkage) {
-		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
-		item->ri_state = RPC_ITEM_SENT;
-	}
-
-	return 0;
 }
 
 /**
