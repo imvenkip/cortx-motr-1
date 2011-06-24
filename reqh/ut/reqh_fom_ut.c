@@ -84,7 +84,7 @@ struct c2_reqh          reqh;
 
 /* structure to hold c2_net_call and c2_clink, for network communication */
 struct reqh_net_call {
-	struct c2_net_call 	ncall;
+	struct c2_net_call	ncall;
 	struct c2_clink		rclink;
 };
 
@@ -593,8 +593,8 @@ int create_fom_state(struct c2_fom *fom)
 {
 	struct c2_fom_io_create     *in_fop;
 	struct c2_fom_io_create_rep *out_fop;
-	struct c2_io_fom 	*fom_obj;
-	int                      result;
+	struct c2_io_fom	*fom_obj;
+	int			result;
 
 	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 
@@ -714,8 +714,8 @@ int write_fom_state(struct c2_fom *fom)
 
 	struct c2_fom_io_write     *in_fop;
 	struct c2_fom_io_write_rep *out_fop;
-	struct c2_io_fom 	*fom_obj;
-	void                   *addr;
+	struct c2_io_fom	*fom_obj;
+	void			*addr;
 	c2_bcount_t             count;
 	c2_bindex_t             offset;
 	struct c2_clink         clink;

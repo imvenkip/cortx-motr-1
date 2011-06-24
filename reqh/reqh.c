@@ -137,7 +137,7 @@ extern bool c2_locality_invariant(struct c2_fom_locality *loc);
  * @param fol -> c2_fol structure pointer.
  * @param serv -> c2_service structure pointer.
  * @retval int -> returns 0, on success.
- * 		returns -1, on failure.
+ *		returns -1, on failure.
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
@@ -266,7 +266,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 			REQH_ADDB_ADD(c2_reqh_addb_ctx,
 					"c2_reqh_fop_handle: invalid locality",
 					-EINVAL);
-                	return;
+			return;
 		}
 	}
 
@@ -505,7 +505,7 @@ int c2_create_loc_ctx(struct c2_fom *fom)
  * post wait while creating local transactional context.
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
- *		  returns -1, on failure.
+ *		returns -1, on failure.
  * @todo needs further more implementation, once depending
  * 		routines are ready.
  */
