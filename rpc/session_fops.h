@@ -101,14 +101,6 @@ int c2_rpc_fop_conn_terminate_rep_execute(struct c2_fop		*fop,
 int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
 			    struct c2_fop_ctx	*ctx);
 
-void c2_rpc_conn_create_reply_received(struct c2_fop *fop);
-
-void c2_rpc_session_create_reply_received(struct c2_fop *fop);
-
-void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop);
-
-void c2_rpc_session_terminate_reply_received(struct c2_fop *fop);
-
 int c2_rpc_session_fop_init(void);
 
 void c2_rpc_session_fop_fini(void);
@@ -121,6 +113,11 @@ extern struct c2_rpc_item_type c2_rpc_item_session_terminate;
 extern struct c2_rpc_item_type c2_rpc_item_session_terminate_rep;
 extern struct c2_rpc_item_type c2_rpc_item_conn_terminate;
 extern struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep;
+
+extern struct c2_rpc_item_ops c2_rpc_item_conn_create_ops;
+extern struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
+extern struct c2_rpc_item_ops c2_rpc_item_session_create_ops;
+extern struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */
 

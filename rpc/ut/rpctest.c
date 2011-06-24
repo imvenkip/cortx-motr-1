@@ -270,6 +270,7 @@ void test_session_create()
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
 }
+#if 0
 struct c2_rpc_conn		conn;
 struct c2_rpc_session		session;
 struct c2_thread		thread;
@@ -290,6 +291,7 @@ void conn_status_check(void *arg)
 		printf("thread: time out during conn creation\n");
 	}
 }
+
 void test_snd_conn_create()
 {
 	struct c2_fop				*fop;
@@ -462,7 +464,6 @@ void test_snd_conn_terminate()
 				conn.c_rc);
 	c2_rpc_conn_fini(&conn);
 }
-
 extern struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops;
 
 void test_slots()
@@ -517,6 +518,7 @@ void test_slots()
 	c2_mutex_unlock(&slot->sl_mutex);
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 }
+#endif
 int main(void)
 {
 	printf("Program start\n");
@@ -531,11 +533,11 @@ int main(void)
 	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_conn_terminate(g_sender_id);
 
-	test_snd_conn_create();
-	test_snd_session_create();
+	//test_snd_conn_create();
+	//test_snd_session_create();
 	//test_slots();
-	test_snd_session_terminate();
-	test_snd_conn_terminate();
+	//test_snd_session_terminate();
+	//test_snd_conn_terminate();
 
 	c2_rpcmachine_fini(machine);
 	//c2_cob_domain_fini(dom);

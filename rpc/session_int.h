@@ -197,6 +197,22 @@ int c2_rpc_item_received(struct c2_rpc_item *item);
 
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 				   struct c2_rpc_item *item);
+
+void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
+				       struct c2_rpc_item *reply,
+				       int		   rc);
+
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc);
+
+void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc);
+
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item	*req,
+					     struct c2_rpc_item	*reply,
+					     int		 rc);
 /** @}  End of rpc_session group */
 #endif
 
