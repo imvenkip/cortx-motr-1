@@ -513,11 +513,8 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 
 	if (sb != NULL) {
 		if (sb->sb_buf != NULL) {
-			for (i = 0; sb->sb_buf[i] != NULL; ++i) {
-				/*printk("sunrpc_buffer_fini: put page %d %p count=%d\n", i, sb->sb_buf[i], page_count(sb->sb_buf[i]));*/
+			for (i = 0; sb->sb_buf[i] != NULL; ++i)
 				put_page(sb->sb_buf[i]);
-			}
-			/*printk("sunrpc_buffer_fini: for sb %p for %d pages @ %p\n", sb, i, sb->sb_buf);*/
 			c2_free(sb->sb_buf);
 		}
 		C2_SET0(sb);
@@ -543,7 +540,6 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 	sb->sb_len = len;
 	sb->sb_pgoff = 0;
 	sb->sb_buf = pages;
-	/*printk("sunrpc_buffer_init: for %ld pages @ %p\n", npages, pages);*/
 
 	for (i = 0; i < npages; ++i) {
 		/* cannot use c2_alloc here, must allocate 1 real page.
@@ -555,7 +551,6 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			sunrpc_buffer_fini(sb);
 			return -ENOMEM;
 		}
-		/*printk("sunrpc_buffer_init: got page %d %p count=%d\n", i, pages[i], page_count(pages[i]));*/
 		if (buf != NULL) {
 			bp = kmap(pages[i]);
 			memcpy(bp, buf, min_check(PAGE_SIZE, len));
@@ -601,15 +596,17 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 		rc = -ENOMEM;
 		goto fail;
 	}
-	in.ov_buf[0] = (char *) kmap(sb->sb_buf[0]) + sb->sb_pgoff;
-	in.ov_vec.v_count[0] = PAGE_SIZE;
-	for (i = 1; i < npages; ++i) {
+	for (i = 0; i < npages; ++i) {
 		in.ov_buf[i] = kmap(sb->sb_buf[i]);
 		in.ov_vec.v_count[i] = PAGE_SIZE;
 	}
-	in.ov_vec.v_count[npages - 1] = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+	in.ov_buf[0] += sb->sb_pgoff;
+	i = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+	if (i != 0)		/* if last page is not exactly a whole page */
+		in.ov_vec.v_count[npages - 1] = i;
 	in.ov_vec.v_count[0] -= sb->sb_pgoff;
 	c2_bufvec_cursor_init(&incur, &in);
+
 	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
 	for (i = 0; i < npages; ++i)
 		kunmap(sb->sb_buf[i]);
