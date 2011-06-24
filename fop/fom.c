@@ -106,8 +106,7 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
  */
 bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
-	if (loc == NULL || loc->fl_dom == NULL
-			|| loc->fl_threads_nr <= 0)
+	if (loc == NULL || loc->fl_dom == NULL)
 		return false;
 	if (!c2_queue_invariant(&loc->fl_runq))
 		return false;
@@ -177,7 +176,7 @@ static void fom_cb(struct c2_clink *clink)
  * Checks whether the locality has "enough" idle threads. If not, additional
  * threads is started to cope with possible blocking point.
  * @param loc -> c2_fom_locality structure pointer.
- * @retval bool -> returns 0, if thread is created,
+ * @retval int -> returns 0, if thread is created,
  *		returns -ve value, if thread creation fails.
  */
 int c2_fom_block_enter(struct c2_fom_locality *loc)
@@ -224,7 +223,8 @@ int c2_fom_block_leave(struct c2_fom_locality *loc)
 	c2_mutex_lock(&loc->fl_lock);
 	while (loc->fl_idle_threads_nr > loc->fl_lo_idle_nr) {
 
-		/* kill extra thread
+		/*
+		 * kill extra thread
 		 * set fd_clean flag to CLEAN_ONE, to kill
 		 * a single thread.
 		 */
@@ -279,6 +279,7 @@ void c2_fom_queue(struct c2_fom *fom)
 /**
  * Function to put fom into locality's wait list
  * during a fom's blocking operation.
+ * fom state is changed to FOS_WAIT.
  * @param fom -> c2_fom structure pointer.
  */
 void c2_fom_wait(struct c2_fom *fom)
@@ -286,7 +287,6 @@ void c2_fom_wait(struct c2_fom *fom)
 	struct c2_fom_locality *loc = NULL;
 
 	loc = fom->fo_loc;
-	/* change fom state to FOS_WAIT */
 	fom->fo_state = FOS_WAITING;
 	c2_mutex_lock(&loc->fl_wail_lock);
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_wlink);
@@ -336,7 +336,8 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 
 	switch(stresult) {
 	case FSO_WAIT:
-		/* fop execution is blocked
+		/*
+		 * fop execution is blocked
 		 * specific fom state execution would invoke
 		 * c2_fom_block_at routine, to put fom on the
 		 * wait list of this locality.
@@ -344,7 +345,8 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 		C2_ASSERT(c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_wlink));
 		break;
 	case FSO_AGAIN:
-		/* fop execution is done, and the reply is sent.
+		/*
+		 *fop execution is done, and the reply is sent.
 		 * check if we added fol record successfully,
 		 * and record the state in addb accordingly.
 		 */
@@ -355,7 +357,8 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 		fom->fo_ops->fo_fini(fom);
 		break;
 	default:
-		 /* fop execution failed, record the failure in addb and
+		 /*
+		  * fop execution failed, record the failure in addb and
 		  * clean up the fom.
 		  * Assuming error reply fop is sent by the fom state method
 		  * before returning.
@@ -371,11 +374,13 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 /**
  * function to dequeue fom from a locality runq.
  * @param loc -> c2_fom_locality structure pointer.
+ * @retval int -> returns 0, if fom is successfully dequeued
+ *		returns -1, if fom dequeue fails.
  */
-struct c2_fom *c2_fom_dequeue(struct c2_fom_locality *loc)
+int c2_fom_dequeue(struct c2_fom_locality *loc, struct c2_fom **fom)
 {
 	struct c2_queue_link *fom_link = NULL;
-	struct c2_fom *fom = NULL;
+	int rc = 0;
 
 	c2_mutex_lock(&loc->fl_runq_lock);
 	fom_link = c2_queue_get(&loc->fl_runq);
@@ -385,29 +390,32 @@ struct c2_fom *c2_fom_dequeue(struct c2_fom_locality *loc)
 				"c2_fom_dequeue: Invalid fom link",
 				-EINVAL);
 		c2_mutex_unlock(&loc->fl_runq_lock);
-		return fom;
+		rc = -EINVAL;
 	}
 
 	--loc->fl_runq_nr;
 	c2_mutex_unlock(&loc->fl_runq_lock);
 
-	/* Extract the fom and start processing
+	/*
+	 * Extract the fom and start processing
 	 * the generic phases of the fom
 	 * before executing the actual fop.
 	 */
-	fom = container_of(fom_link, struct c2_fom, fo_qlink);
-	if (!c2_fom_invariant(fom)) {
+	*fom = container_of(fom_link, struct c2_fom, fo_qlink);
+	if (!c2_fom_invariant(*fom)) {
 		FOM_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_dequeue: Invalid fom",
 				-EINVAL);
-		return NULL;
+		rc = -EINVAL;
 	}
 
 	/* Change fom state to FOS_RUNNING */
-	if (fom->fo_state == FOS_READY)
-		fom->fo_state = FOS_RUNNING;
+	if ((*fom)->fo_state != FOS_READY)
+		rc = -EINVAL;
 
-	return fom;
+	(*fom)->fo_state = FOS_RUNNING;
+
+	return rc;
 }
 
 /**
@@ -454,7 +462,8 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 			--loc->fl_idle_threads_nr;
 		c2_mutex_unlock(&loc->fl_lock);
 
-		/* Check if we have anything in runq, else
+		/*
+		 * Check if we have anything in runq, else
 		 * this could be a terminate request.
 		 */
 		c2_mutex_lock(&loc->fl_lock);
@@ -462,7 +471,8 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 			/* check if this is a terminate request */
 			if (loc->fl_dom->fd_clean == CLEAN_ONE) {
 				c2_mutex_unlock(&loc->fl_lock);
-				/* we came here through c2_fom_block_enter
+				/*
+				 * we came here through c2_fom_block_enter
 				 * wait for 2 seconds before exiting.
 				 * again check if idle threads are higher than
 				 * fl_lo_idle_nr, if yes, break, else continue.
@@ -494,8 +504,8 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 		c2_mutex_unlock(&loc->fl_runq_lock);
 
 		struct c2_fom *fom = NULL;
-		fom = c2_fom_dequeue(loc);
-		if (fom == NULL) {
+		rc = c2_fom_dequeue(loc, &fom);
+		if (rc) {
 			c2_mutex_lock(&loc->fl_lock);
 			++loc->fl_idle_threads_nr;
 			c2_mutex_unlock(&loc->fl_lock);
@@ -508,7 +518,8 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 
 		if (rc) {
 
-			/* fom execution failed in generic phase,
+			/*
+			 * fom execution failed in generic phase,
 			 * send fop reply, and record failure in
 			 * addb and clean up fom.
 			 */
@@ -530,7 +541,8 @@ void c2_loc_thr_start(struct c2_fom_locality *loc)
 			}
 		}
 
-		/* we reach here after the generic phases or if we come out of
+		/*
+		 * we reach here after the generic phases or if we come out of
 		 * fop specific wait phase, which would be greater than FOPH_NR.
 		 */
 		if (!rc && (fom->fo_phase == FOPH_EXEC || fom->fo_phase > FOPH_NR)) {
@@ -565,7 +577,7 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 	if (loc == NULL)
 		return -EINVAL;
 
-	for(i = 0; i < loc->fl_proc_nr; ++i) {
+	for(i = 0; i < loc->fl_proc_nr && result == 0; ++i) {
 
 		C2_ALLOC_PTR_ADDB(locthr, &c2_reqh_addb_ctx,
 					&c2_reqh_addb_loc);
@@ -588,6 +600,7 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 			c2_free(locthr);
 		}
 	}
+
 	return result;
 }
 
@@ -605,11 +618,10 @@ int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 int c2_fom_loc_init(c2_processor_nr_t cpu_id, struct c2_fom_domain *dom,
 			c2_processor_nr_t max_proc, int fdnr)
 {
-	int result;
+	int result = 0;
 	struct c2_fom_locality *loc = NULL;
 
 	loc = &dom->fd_localities[fdnr];
-	result = 0;
 	if (loc == NULL)
 		return -EINVAL;
 	/* Initialize a locality */
@@ -654,13 +666,15 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 		return;
 	}
 
-	/* Remove each thread from the thread list
+	/*
+	 * Remove each thread from the thread list
 	 * delete the linkage, and invoke thread clean
 	 * up function. Later free thread object.
 	 */
 	while (!c2_list_is_empty(&loc->fl_threads)) {
 		c2_mutex_lock(&loc->fl_lock);
-		/* First broadcast all the threads in locality, that
+		/*
+		 * First broadcast all the threads in locality, that
 		 * we are terminating.
 		 * set fd_clean flag to CLEAN_ALL in fom domain to clean up
 		 * all the threads.
@@ -682,7 +696,8 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
 		c2_free(th);
 	}
 
-	/* Invoke clean up functions for individual members
+	/*
+	 * Invoke clean up functions for individual members
 	 * of locality.
 	 */
 	loc->fl_dom = NULL;
@@ -709,7 +724,7 @@ void c2_fom_loc_fini(struct c2_fom_locality *loc)
  * @retval bool -> returns true, if cpu resource is shared.
  *		   returns false, if no cpu resource is shared.
  */
-bool is_resource_shared(struct c2_processor_descr *cpu1,
+static bool is_resource_shared(struct c2_processor_descr *cpu1,
 			struct c2_processor_descr *cpu2)
 {
 	return (cpu1->pd_l2 == cpu2->pd_l2 ||
@@ -722,7 +737,7 @@ bool is_resource_shared(struct c2_processor_descr *cpu1,
  * @retval bool -> returns true, on success.
  *		   returns false, on failure.
  */
-bool check_cpu(struct c2_processor_descr *cpu)
+static bool check_cpu(struct c2_processor_descr *cpu)
 {
 	return (cpu->pd_l1_sz > 0 ||
 		cpu->pd_l2_sz > 0 );
@@ -752,7 +767,8 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 
 	C2_PRE(fomdom != NULL);
 
-	/* check number of processors online and create localities
+	/*
+	 * check number of processors online and create localities
 	 * between one's sharing common resources.
 	 * Currently considering shared L2 cache, numa node,
 	 * and pipeline between cores, as shared resources.
@@ -787,12 +803,14 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 		return -ENOMEM;
 
 	ncpus = i_cpu;
-	/* Find the processors sharing resources and
+	/*
+	 * Find the processors sharing resources and
 	 * create localities between them.
 	 */
-	for (i = 0; i < i_cpu; ++i) {
-		for (j = i; j < i_cpu; ++j) {
-			/* As every cpu descriptor in the array is reset to 0, when
+	for (i = 0; i < i_cpu && result == 0; ++i) {
+		for (j = i; j < i_cpu && result == 0; ++j) {
+			/*
+			 * As every cpu descriptor in the array is reset to 0, when
 			 * visited first time (to improve performance), so during
 			 * further iterations, we first check if the descriptor is
 			 * initialized to proceed further.
@@ -803,8 +821,6 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 					ncpus--;
 					result = c2_fom_loc_init(cpu_info[j].pd_id,
 					fomdom, max_proc, iloc);
-					if (result)
-						break;
 				}
 		}
 		C2_SET0(&cpu_info[i]);
@@ -813,11 +829,17 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 			break;
 	}
 
-	for (i = 0; i < iloc; ++i) {
+	for (i = 0; i < iloc && result == 0; ++i) {
 		c2_mutex_lock(&fomdom->fd_localities[i].fl_lock);
 		result = c2_loc_thr_create(&fomdom->fd_localities[i], true);
 		c2_mutex_unlock(&fomdom->fd_localities[i].fl_lock);
 	}
+
+	if (result)
+		c2_fom_domain_fini(fomdom);
+
+	c2_free(cpu_info);
+	c2_bitmap_fini(&onln_map);
 	return result;
 }
 
@@ -835,6 +857,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 		FOM_ADDB_ADD(c2_reqh_addb_ctx,
 				"c2_fom_domain_fini: Invalid fom domain",
 				-EINVAL);
+		return;
 	}
 
 	for(i = 0; i < lfd_nr; ++i) {
@@ -859,7 +882,8 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
  */
 int c2_fom_init(struct c2_fom *fom)
 {
-	/* Set fom state to FOS_READY and fom phase to FOPH_INIT.
+	/*
+	 * Set fom state to FOS_READY and fom phase to FOPH_INIT.
 	 * Initialize temporary wait channel, would be removed later.
 	 */
 
@@ -887,6 +911,8 @@ int c2_fom_init(struct c2_fom *fom)
  * if we fail before even the transaction is initialized.
  * the abort will fail.
  * @param tx -> struct c2_db_tx pointer.
+ * @retval bool -> returns true, if transaction is initialized
+ *		return false, if transaction is unintialized.		
  */
 bool c2_chk_tx(struct c2_db_tx *tx)
 {

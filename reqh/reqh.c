@@ -126,7 +126,7 @@ extern bool c2_locality_invariant(struct c2_fom_locality *loc);
 /**
  * Function to initialize request handler and fom domain
  * @param reqh -> c2_reqh structure pointer.
- * @param rom -> c2_rpc_machine structure pointer.
+ * @param rpc -> c2_rpc_machine structure pointer.
  * @param dtm -> c2_dtm structure pointer.
  * @param dom -> c2_stob_domain strutcure pointer.
  * @param fol -> c2_fol structure pointer.
@@ -141,8 +141,8 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 {
 	int result;
 
-	if ((reqh == NULL) || (dom == NULL) ||
-		(fol == NULL) || (serv == NULL))
+	if (reqh == NULL || dom == NULL ||
+		fol == NULL || serv == NULL)
 		return -EINVAL;
 
 	/* initialize fom phase table with standard/generic fom phases,
@@ -155,7 +155,7 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	if (reqh->rh_fom_dom == NULL) {
 		return -ENOMEM;
 	}
-	
+
 	/* initialize global reqh addb context */
 	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
 					&c2_addb_global_ctx);
@@ -208,6 +208,8 @@ void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 	struct c2_reqh_error_rep *out_fop = NULL;
 
 	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	if (rfop == NULL)
+		return;
 	out_fop = c2_fop_data(rfop);
 	out_fop->sierr_rc = rc;
 	/* Will be using c2_rpc_post in future */
@@ -269,6 +271,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	c2_fom_queue(fom);
 }
 
+/**
+ * Assign a sort-key to a fop.
+ * @param reqh -> c2_reqh struct pointer
+ * @param fop -> c2_fop struct pointer
+ * @param key -> c2_fop_sortkey struct pointer.
+ * @todo -> function is called by NRS to order fops in its incoming queue.
+ */
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 				struct c2_fop_sortkey *key)
 {
