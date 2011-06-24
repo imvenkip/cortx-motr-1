@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>
+ *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 03/17/2011
+ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -507,18 +526,15 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_state == C2_RPC_CONN_FAILED);
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
-
 	c2_chan_broadcast(&conn->c_chan);
-
-	c2_fop_free(fop);	/* reply fop */
 	return;
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
-		conn->c_state == C2_RPC_CONN_FAILED ||
-		conn->c_state == C2_RPC_CONN_INITIALISED);
+	       conn->c_state == C2_RPC_CONN_FAILED ||
+	       conn->c_state == C2_RPC_CONN_INITIALISED);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);

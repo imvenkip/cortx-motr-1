@@ -1,4 +1,25 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
+ *		    Rohan Puri <Rohan_Puri@xyratex.com>
+ *                  Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 04/09/2010
+ */
+
 #ifndef __COLIBRI_RPC_SESSION_H__
 
 #define __COLIBRI_RPC_SESSION_H__
@@ -132,23 +153,11 @@ When an item is received, following conditions are possible:
 
     @todo
 	- Currently sender_id and session_id are chosen to be random().
-	  Is it enough?
-	- XXX <HIGH_PRIO> resend item on timeout
-	- XXX <HIGH_PRIO> report last-persistent-verno in reply item
 	- How to get unique stob_id for session and slot cobs?
-	- On receiver side currently replies are cached in an in core list.
-	  Instead they should be cached in FOL.
-	- On sender side instead of putting item on c2_rpc_snd_slot::replay_list
-	  it should be placed in sender side FOL.
-	- Currently c2_rpc_session::s_mutex is used to synchronize access to
-	  all c2_rpc_snd_slot object in that session. This limits concurrency.
-	  Instead c2_rpc_snd_slot should be protected by its own mutex.
 	- Default slot count is currently set to 4. Nothing special about 4.
 	  Needs a proper value.
 	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
-	- Find out how to create in-memory c2_table? And make receiver side
-	  slot table as in-memory table.
 	- Design protocol to dynamically adjust number of slots.
 	- Integrate with ADDB
  */
