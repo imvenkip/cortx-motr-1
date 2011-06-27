@@ -584,7 +584,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	rpc_stat_fini(&machine->cr_statistics);
-	rpc_proc_fini(&machine->cr_processing);	
+	rpc_proc_fini(&machine->cr_processing);
 	/* XXX commented following two lines for testing purpose */
 	//c2_list_fini(&machine->cr_incoming_conns);
 	//c2_list_fini(&machine->cr_outgoing_conns);

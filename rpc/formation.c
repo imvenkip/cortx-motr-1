@@ -2068,6 +2068,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			nb->nb_ep = first_item->ri_session->s_conn->c_end_point;
 			nb->nb_length = rpc_size;
 
+			/* Encode the rpc contents. */
+			c2_rpc_encode(nb, rpc_obj->ro_rpcobj);
 			/* Register the buffer with net domain. */
 			res = c2_net_buffer_register(nb, dom);
 			if (res < 0) {
