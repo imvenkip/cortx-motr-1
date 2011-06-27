@@ -75,6 +75,9 @@ struct c2_fop_type {
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
+/* Given an opcode, return the corrosponding fop type */
+struct c2_fop_type *c2_fop_type_search( c2_fop_type_code_t opcode );
+
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
 
