@@ -223,11 +223,8 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	struct c2_rpcmachine		*machine;
 	struct c2_net_domain		*net_dom = NULL;
 	struct c2_rpc_chan		*chan = NULL;
-	struct c2_net_xprt		*xprt = NULL;
 	struct c2_net_transfer_mc	*tm = NULL;
-	struct c2_net_buffer		*nb = NULL;
-	int				rc;
-	uint32_t			 i = 0;
+	int				 rc;
 
 	C2_PRE(ep != NULL);
 	C2_PRE(src_ep != NULL);
@@ -250,56 +247,40 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
         net_dom = src_ep->nep_dom;
 	C2_ASSERT(net_dom != NULL);
         chan = c2_rpc_chan_locate(src_ep);
-        if (!chan) {
-                /* The code is currently tightly bound to sunrpc as of now.*/
-#ifndef __KERNEL__
-                xprt = &c2_net_usunrpc_xprt;
-#else
-                xprt = &c2_net_ksunrpc_xprt;
-#endif
-                /* Initiate the transport first.*/
-                rc = c2_net_xprt_init(xprt);
-                if (rc) {
-                        return rc;
-                }
+        if (chan == NULL) {
                 C2_ALLOC_PTR(tm);
-                if (!tm) {
-                        c2_net_xprt_fini(xprt);
+                if (tm == NULL) {
                         return -ENOMEM;
                 }
                 /* Initialize the transfer machine.*/
                 tm->ntm_state = C2_NET_TM_UNDEFINED;
                 tm->ntm_callbacks = &c2_rpc_tm_callbacks;
                 rc = c2_net_tm_init(tm, net_dom);
-                if (rc) {
-                        c2_net_xprt_fini(xprt);
+                if (rc < 0) {
                         c2_free(tm);
                         return rc;
                 }
-                /* XXX Need to add c2_net_buffers for receiving messages.*/
-		for (i = 0; i < C2_RPC_TM_RCV_BUFFERS_NR; i++) {
-			nb = c2_rpc_net_buffer_create(net_dom);
-			if (!nb) {
-				rc = -ENOBUFS;
-				return rc;
-			}
-			rc = c2_net_buffer_register(nb, net_dom);
-			if (!rc) {
-				return rc;
-			}
-			rc = c2_net_buffer_add(nb, tm);
-			if (!rc) {
-				return rc;
-			}
+		/* Allocate the buffers for receiving messages. */
+		rc = c2_rpc_recv_buffer_allocate_nr(net_dom, tm);
+		if (rc < 0) {
+			c2_free(tm);
+			return rc;
 		}
-
                 rc = c2_rpc_chan_create(&chan, src_ep, tm);
-                if (rc) {
-                        c2_net_xprt_fini(xprt);
+                if (rc < 0) {
                         c2_free(tm);
+			return rc;
                 }
+		rc = c2_net_tm_start(tm, src_ep);
+		if (rc < 0) {
+			rc = c2_rpc_recv_buffer_deallocate_nr(tm, net_dom);
+			c2_net_tm_fini(tm);
+			c2_free(tm);
+			return rc;
+		}
         } else {
                 c2_net_end_point_get(src_ep);
+		c2_ref_get(&chan->rc_ref);
         }
 	conn->c_rpcchan = chan;
 
@@ -588,11 +569,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_item			*item;
-	struct c2_net_buffer			*nb = NULL;
-	struct c2_net_buffer			*nb_next = NULL;
-	struct c2_net_domain			*net_dom = NULL;
 	uint64_t				sender_id;
-	int					rc = 0;
 
 	C2_PRE(fop != NULL);
 
@@ -645,31 +622,12 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	c2_fop_free(fop);	/* reply fop */
 
-	/* Release the reference on the source endpoint here.
-	   If the endpoint is destroyed as a result, delete and
-	   deregister all the c2_net_buffers used for receiving messages.*/
-
-        c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
-        if (c2_atomic64_get(&conn->c_rpcchan->rc_endp->
-                                nep_ref.ref_cnt) == 1) {
-                c2_net_end_point_put(conn->c_rpcchan->rc_endp);
-                /*XXX Delete and deregister the buffers used for receiving
-                   messages.*/
-		c2_list_for_each_entry_safe(&conn->c_rpcchan->rc_xfermc->
-				ntm_q[C2_NET_QT_MSG_RECV], nb, nb_next,
-				struct c2_net_buffer, nb_tm_linkage) {
-			c2_net_buffer_del(nb, conn->c_rpcchan->rc_xfermc);
-
-			net_dom = conn->c_rpcchan->rc_xfermc->ntm_dom;
-			rc = c2_net_buffer_deregister(nb, net_dom);
-			if (!rc) {
-				/* Post an addb event.*/
-				break;
-			}
-		}
-                c2_rpc_chan_destroy(conn->c_rpcchan);
-        }
-        c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
+	/* Release the reference on the source endpoint and the
+	   concerned c2_rpc_chan here.*/
+	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
+	c2_net_end_point_put(conn->c_rpcchan->rc_xfermc->ntm_ep);
+	c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
+	c2_ref_put(&conn->c_rpcchan->rc_ref);
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
@@ -2530,10 +2488,11 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		if (req != NULL && req->ri_ops->rio_replied) {
 			req->ri_ops->rio_replied(req, item, 0);
 		}
-		if (req) {
+		if (req != NULL) {
 			/* Send reply received event to formation component.*/
 			rc = c2_rpc_form_extevt_rpcitem_reply_received(item,
 					req);
+			return rc;
 		}
 	}
 	return 0;

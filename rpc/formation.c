@@ -43,13 +43,65 @@ uint64_t				max_fragments_size;
 uint64_t				max_rpcs_in_flight;
 
 /**
-  Callback for net buffer used in posting
+  This routine will change the state of each rpc item
+  in the rpc object to RPC_ITEM_SENT
  */
-struct c2_net_buffer_callbacks rpc_form_buf_cb = {
-        .nbc_cb = {
-                [C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
-        },
-};
+void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)
+{
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(rpc != NULL);
+
+	/** Change the state of each rpc item in the
+	    rpc object to RPC_ITEM_SENT */
+	c2_list_for_each_entry(&rpc->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
+		item->ri_state = RPC_ITEM_SENT;
+	}
+}
+
+/**
+   Allocate a buffer of type struct c2_rpc_form_buffer.
+ */
+int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
+		struct c2_rpc *rpc,
+		struct c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_net_domain *net_dom)
+{
+	int				 rc = 0;
+	struct c2_rpc_form_buffer	*fbuf = NULL;
+
+	C2_PRE(fb != NULL);
+	C2_PRE(rpc != NULL);
+	C2_PRE(endp_unit != NULL);
+	C2_PRE(net_dom != NULL);
+
+	C2_ALLOC_PTR(fbuf);
+	if (fbuf == NULL) {
+		return -ENOMEM;
+	}
+	fbuf->fb_endp_unit = endp_unit;
+	fbuf->fb_rpc = rpc;
+	c2_rpc_net_send_buffer_allocate(net_dom, &fbuf->fb_buffer);
+	*fb = fbuf;
+	return rc;
+}
+
+/**
+   Deallocate a buffer of type struct c2_rpc_form_buffer.
+ */
+void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb)
+{
+	int	rc = 0;
+
+	C2_PRE(fb != NULL);
+
+	/* Currently, our policy is to release the buffer on completion.*/
+	rc = c2_rpc_send_buffer_deallocate(&fb->fb_buffer,
+			fb->fb_buffer.nb_dom);
+	c2_free(fb);
+}
 
 /**
    Forward declarations of local static functions
@@ -679,21 +731,39 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item)
  */
 void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
 {
-	struct c2_net_buffer		*nb = NULL;
-	struct c2_net_domain		*dom = NULL;
-	struct c2_net_transfer_mc	*tm = NULL;
+	struct c2_net_buffer			*nb = NULL;
+	struct c2_net_domain			*dom = NULL;
+	struct c2_net_transfer_mc		*tm = NULL;
+	struct c2_rpc_form_buffer		*fb = NULL;
+	struct c2_rpc_form_rpcobj		*form_rpcobj = NULL;
 
-	C2_PRE(ev != NULL);
+	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL) &&
+			(ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND));
 
 	nb = ev->nbe_buffer;
 	dom = nb->nb_dom;
 	tm = nb->nb_tm;
+	fb = container_of(nb, struct c2_rpc_form_buffer, fb_buffer);
 
-	if(nb) {
-		c2_net_buffer_del(nb,tm);
-		c2_net_buffer_deregister(nb,dom);
-		c2_free(ev->nbe_buffer);
-		c2_free(nb);
+	if (ev->nbe_status == 0) {
+		/* The buffer should have been dequeued if event succeeded.*/
+		C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
+		c2_rpc_form_set_state_sent(fb->fb_rpc);
+		fb->fb_endp_unit->isu_curr_rpcs_in_flight++;
+		c2_rpc_form_buffer_deallocate(fb);
+	} else {
+		/* If the send event fails, add the rpc back to concerned
+		   queue so that it will be processed next time.*/
+		C2_ALLOC_PTR(form_rpcobj);
+		if (form_rpcobj == NULL) {
+			/* XXX Post addb event here.*/
+			return;
+		}
+		form_rpcobj->ro_rpcobj = fb->fb_rpc;
+		c2_mutex_lock(&fb->fb_endp_unit->isu_unit_lock);
+		c2_list_add(&fb->fb_endp_unit->isu_rpcobj_formed_list,
+				&form_rpcobj->ro_linkage);
+		c2_mutex_unlock(&fb->fb_endp_unit->isu_unit_lock);
 	}
 }
 
@@ -1889,7 +1959,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
   Get the cumulative size of all rpc items
   @param rpc object of which size has to be calculated
  */
-uint64_t c2_rpc_get_size(struct c2_rpc *rpc)
+uint64_t c2_rpc_get_size(const struct c2_rpc *rpc)
 {
 	struct c2_rpc_item	*item = NULL;
 	uint64_t		 rpc_size = 0;
@@ -1909,11 +1979,16 @@ uint64_t c2_rpc_get_size(struct c2_rpc *rpc)
   @param - rpc item
   @retval - network domain
  */
-struct c2_net_domain *c2_rpc_form_get_dom(struct c2_rpc_item *item)
+struct c2_net_domain *c2_rpc_form_get_dom(const struct c2_rpc_item *item)
 {
 	struct c2_net_domain	*dom = NULL;
 
-	C2_PRE(item == NULL);
+	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
+			(item->ri_session->s_conn != NULL) &&
+			(item->ri_session->s_conn->c_rpcchan != NULL) &&
+			(item->ri_session->s_conn->c_rpcchan->rc_xfermc != NULL)
+			&& (item->ri_session->s_conn->c_rpcchan->rc_xfermc
+				->ntm_dom != NULL));
 
 	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc->ntm_dom;
 	return dom;
@@ -1928,30 +2003,14 @@ struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
 {
 	struct c2_net_transfer_mc	*tm = NULL;
 
-	C2_PRE(item == NULL);
+	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
+			(item->ri_session->s_conn != NULL) &&
+			(item->ri_session->s_conn->c_rpcchan != NULL) &&
+			(item->ri_session->s_conn->c_rpcchan->rc_xfermc
+			 != NULL));
 
 	tm = item->ri_session->s_conn->c_rpcchan->rc_xfermc;
 	return tm;
-	return NULL;
-}
-
-/**
-  This routine will change the state of each rpc item
-  in the rpc object to RPC_ITEM_SENT
- */
-void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)
-{
-	struct c2_rpc_item	*item = NULL;
-
-	C2_PRE(rpc != NULL);
-
-	/** Change the state of each rpc item in the
-	    rpc object to RPC_ITEM_SENT */
-	c2_list_for_each_entry(&rpc->r_items, item,
-			struct c2_rpc_item, ri_rpcobject_linkage) {
-		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
-		item->ri_state = RPC_ITEM_SENT;
-	}
 }
 
 /**
@@ -1970,10 +2029,10 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_net_buffer		*nb = NULL;
 	struct c2_net_domain		*dom = NULL;
 	struct c2_net_transfer_mc	*tm = NULL;
-	uint64_t			 nbuf_segs = 0;
 	struct c2_rpc_item		*first_item = NULL;
+	struct c2_rpc_form_buffer	*fb = NULL;
 	uint64_t			 rpc_size = 0;
-	uint64_t			 rpc_seg_size = 0;
+	int				 rc = 0;
 
 	C2_PRE(item != NULL);
 	/* POSTING state is reached only by a state succeeded event with
@@ -1995,41 +2054,39 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		endp = c2_rpc_form_get_endpoint(first_item);
 		if (endp_unit->isu_curr_rpcs_in_flight <
 				endp_unit->isu_max_rpcs_in_flight) {
-			/*XXX TBD: Before sending the c2_rpc on wire,
-			   it needs to be serialized into one buffer. */
 			rpc_size = c2_rpc_get_size(rpc_obj->ro_rpcobj);
-			/* XXX implement c2_rpc_form_get_dom */
 			dom = c2_rpc_form_get_dom(first_item);
-			nbuf_segs = c2_net_domain_get_max_buffer_segments(dom);
-			C2_ALLOC_PTR(nb);
-			if(rpc_size % nbuf_segs == 0) {
-				rpc_seg_size = rpc_size/nbuf_segs;
-			} else {
-				rpc_seg_size = (rpc_size/nbuf_segs) + 1;
-			}
-			res = c2_bufvec_alloc(&nb->nb_buffer, nbuf_segs,
-					rpc_seg_size);
-			if(res != 0) {
-				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
-			}
-			nb->nb_qtype = C2_NET_QT_MSG_SEND;
-			/* XXX populate destination EP */
-			nb->nb_ep = first_item->ri_session->s_conn->c_end_point;
-			nb->nb_length = rpc_size;
-			nb->nb_flags = 0;
-			nb->nb_callbacks = &rpc_form_buf_cb;
-			res = c2_net_buffer_register(nb, dom);
-			tm = c2_rpc_form_get_tm(first_item);
-			res = c2_net_buffer_add(nb,tm);
-			c2_rpc_form_set_state_sent(rpc_obj->ro_rpcobj);
-			if(res == 0) {
-				endp_unit->isu_curr_rpcs_in_flight++;
-				c2_list_del(&rpc_obj->ro_linkage);
-				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
-			} else {
+
+			/* Allocate a buffer for sending the message.*/
+			rc = c2_rpc_form_buffer_allocate(&fb,
+					rpc_obj->ro_rpcobj, endp_unit, dom);
+			if (rc < 0) {
 				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 				break;
 			}
+			/* XXX populate destination EP */
+			nb->nb_ep = first_item->ri_session->s_conn->c_end_point;
+			nb->nb_length = rpc_size;
+
+			/* Register the buffer with net domain. */
+			res = c2_net_buffer_register(nb, dom);
+			if (res < 0) {
+				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+				break;
+			}
+			tm = c2_rpc_form_get_tm(first_item);
+
+			/* Add the buffer to transfer machine.*/
+			res = c2_net_buffer_add(nb, tm);
+			if (res < 0) {
+				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+				break;
+			} else {
+				/* Remove the rpc object from rpcobj_formed
+				   list.*/
+				c2_list_del(&rpc_obj->ro_linkage);
+				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+			} 
 		} else {
 			ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 			break;

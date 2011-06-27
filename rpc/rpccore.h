@@ -145,7 +145,7 @@ int seed_val;
 
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
-#define	C2_RPC_TM_RCV_BUFFERS_NR	8
+#define	C2_RPC_TM_RECV_BUFFERS_NR	8
 
 struct c2_rpc;
 struct c2_rpc_conn;
@@ -296,6 +296,11 @@ struct c2_rpc {
 	/** Items in this container should be sent via this session */
 	struct c2_rpc_session  *r_session;
 };
+
+/**
+   Initialize an rpc object.
+ */
+void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
 
 /**
    Definition is taken partly from 'DLD RPC FOP:core wire formats' (not submitted yet).
@@ -524,13 +529,43 @@ int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
 
 /**
    An API to create a c2_net_buffer with given c2_net_domain.
+   The rpc core component allocates a pool of buffers in advance to
+   receive incoming messages. This is necessary for asynchronous
+   behavior of system. This buffer is deallocated when the transfer
+   machine to which this buffer was added, gets destroyed.
  */
-struct c2_net_buffer *c2_rpc_net_buffer_create(struct c2_net_domain *net_dom);
+struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
+		struct c2_net_domain *net_dom);
 
 /**
-   Callback op for transfer machine used by rpc layer.
+   Allocate buffers meant for receiving messages for given number of times.
  */
-void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev);
+int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
+		struct c2_net_transfer_mc *tm);
+
+/**
+   Deallocate the buffer meant for receiving buffers.
+ */
+int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
+
+/**
+   Deallocate the buffers for given number of times.
+ */
+int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
+		struct c2_net_domain *net_dom);
+
+/**
+   Allocate a buffer for sending messages from rpc formation component.
+ */
+void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
+		struct c2_net_buffer *nb);
+
+/**
+   Deallocate a net buffer meant for sending messages.
+ */
+int c2_rpc_send_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_domain *net_dom);
 
 /**
    Transfer machine callback vector for transfer machines created by
@@ -550,9 +585,9 @@ extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
    transfer machine.
  */
 struct c2_rpc_ep_aggr {
-	/* Mutex to protect the list.*/
+	/** Mutex to protect the list.*/
 	struct c2_mutex		ea_mutex;
-	/* List of c2_rpc_chan structures. */
+	/** List of c2_rpc_chan structures. */
 	struct c2_list		ea_chan_list;
 };
 
@@ -566,7 +601,7 @@ extern struct c2_rpc_ep_aggr		*rpc_ep_aggr;
 /**
    A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
-   The thumb rule is to use one transfer machine per endpoint.
+   The rule of thumb is to use one transfer machine per endpoint.
    So to make sure that services using same endpoint,
    use the same transfer machine, this structure has been introduced.
    Struct c2_rpc_conn is used for a particular service and now it
@@ -574,12 +609,12 @@ extern struct c2_rpc_ep_aggr		*rpc_ep_aggr;
    it is working with.
  */
 struct c2_rpc_chan {
-	/* Linkage to the list maintained by c2_rpcmachine.*/
+	/** Linkage to the list maintained by c2_rpcmachine.*/
 	struct c2_list_link		 rc_linkage;
-	/* The endpoint used by one ore more services.*/
-	struct c2_net_end_point		*rc_endp;
-	/* Transfer machine associated with this endpoint.*/
+	/** Transfer machine associated with this endpoint.*/
 	struct c2_net_transfer_mc	*rc_xfermc;
+	/** Number of entities using this transfer machine.*/
+	struct c2_ref			 rc_ref;
 };
 
 /**
@@ -590,8 +625,8 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
 		*ep, struct c2_net_transfer_mc *tm);
 
 /**
-   Destroy the given c2_rpc_chan structure since no one is referring
-   to it any more.
+   Destroy the given c2_rpc_chan structure and remove it from the list
+   since no one is referring to it any more.
  */
 void c2_rpc_chan_destroy(struct c2_rpc_chan *chan);
 

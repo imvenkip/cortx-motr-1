@@ -14,6 +14,10 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
+static void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev)
+{
+}
+
 /**
    Transfer machine callback vector for transfer machines created by
    rpc layer.
@@ -26,6 +30,15 @@ static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
 
 struct c2_rpc_ep_aggr		*rpc_ep_aggr = NULL;
+
+void c2_rpc_rpcobj_init(struct c2_rpc *rpc)
+{
+	C2_PRE(rpc != NULL);
+
+	c2_list_link_init(&rpc->r_linkage);
+	c2_list_init(&rpc->r_items);
+	rpc->r_session = NULL;
+}
 
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
@@ -103,19 +116,15 @@ bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;
 }
 
-void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev)
-{
-}
-
-int c2_rpc_ep_aggr_create()
+int c2_rpc_ep_aggr_create(void)
 {
 	C2_ALLOC_PTR(rpc_ep_aggr);
-	if (!rpc_ep_aggr)
+	if (rpc_ep_aggr == NULL)
 		return -ENOMEM;
 	return 0;
 }
 
-void c2_rpc_ep_aggr_destroy()
+void c2_rpc_ep_aggr_destroy(void)
 {
 	/* By this time, all elements of list should have been finied
 	   and the list should be empty.*/
@@ -124,14 +133,9 @@ void c2_rpc_ep_aggr_destroy()
 	rpc_ep_aggr = NULL;
 }
 
-int  c2_rpc_core_init(void)
+int c2_rpc_core_init(void)
 {
-	int rc = 0;
-
-	rc = c2_rpc_ep_aggr_create();
-	if (!rc)
-		return rc;
-	return 0;
+	return c2_rpc_ep_aggr_create();
 }
 
 void c2_rpc_core_fini(void)
@@ -139,8 +143,19 @@ void c2_rpc_core_fini(void)
 	c2_rpc_ep_aggr_destroy();
 }
 
-int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
-		*ep, struct c2_net_transfer_mc *tm)
+void c2_rpc_chan_ref_release(struct c2_ref *ref)
+{
+	struct c2_rpc_chan		*chan = NULL;
+
+	C2_PRE(ref != NULL);
+
+	chan = container_of(ref, struct c2_rpc_chan, rc_ref);
+	C2_ASSERT(chan != NULL);
+	c2_rpc_chan_destroy(chan);
+}
+
+int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point *ep,
+		struct c2_net_transfer_mc *tm)
 {
 	int			 rc = 0;
 	struct c2_rpc_chan	*ch = NULL;
@@ -150,13 +165,13 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
 	C2_PRE(tm != NULL);
 
 	C2_ALLOC_PTR(ch);
-	if (!ch)
+	if (ch == NULL)
 		return -ENOMEM;
-	c2_list_link_init(&ch->rc_linkage);
-	ch->rc_endp = ep;
 	ch->rc_xfermc = tm;
 	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
 	c2_list_add(&rpc_ep_aggr->ea_chan_list, &ch->rc_linkage);
+	c2_ref_init(&ch->rc_ref, 1, c2_rpc_chan_ref_release);
+	c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
 	*chan = ch;
 	return rc;
 }
@@ -171,7 +186,7 @@ struct c2_rpc_chan *c2_rpc_chan_locate(struct c2_net_end_point *ep)
 	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
 	c2_list_for_each_entry(&rpc_ep_aggr->ea_chan_list, chan,
 			struct c2_rpc_chan, rc_linkage) {
-		if (chan->rc_endp == ep) {
+		if (chan->rc_xfermc->ntm_ep == ep) {
 			found = true;
 			break;
 		}
@@ -185,8 +200,22 @@ struct c2_rpc_chan *c2_rpc_chan_locate(struct c2_net_end_point *ep)
 
 void c2_rpc_chan_destroy(struct c2_rpc_chan *chan)
 {
+	int		rc = 0;
+
 	C2_PRE(chan != NULL);
+
+	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
 	c2_list_del(&chan->rc_linkage);
+	c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
+	rc = c2_net_tm_stop(chan->rc_xfermc, false);
+	if (rc < 0) {
+		/* XXX Post an addb event here. */
+		return;
+	}
+	c2_rpc_recv_buffer_deallocate_nr(chan->rc_xfermc,
+			chan->rc_xfermc->ntm_dom);
+	c2_net_tm_fini(chan->rc_xfermc);
+	c2_free(chan->rc_xfermc);
 	c2_free(chan);
 }
 
@@ -290,7 +319,12 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 
 int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
 {
-	return 0;
+	return -ENOSYS;
+}
+
+int c2_rpc_encode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
+{
+	return -ENOSYS;
 }
 
 void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
@@ -300,34 +334,41 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 	struct c2_net_buffer	*nb = NULL;
 	int			 rc = 0;
 
-	C2_PRE(ev != NULL);
+	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL));
 
 	/* Decode the buffer, get an RPC from it, traverse the
 	   list of rpc items from that rpc and post reply callbacks
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
-	c2_list_link_init(&rpc.r_linkage);
-	c2_list_init(&rpc.r_items);
-	rc = c2_rpc_decode(nb, &rpc);
-	if (!rc) {
-		/* XXX We can post an ADDB event here. */
-	}
+	c2_rpc_rpcobj_init(&rpc);
 
-	c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
-			ri_rpcobject_linkage) {
-		/* If this is a reply type rpc item, call a sessions/slots
-		   method on it which will find out its corresponding
-		   request item and call its completion callback.*/
-		if (!item_is_request(item)) {
-			rc = c2_rpc_item_received(item);
-			if (!rc) {
-				/* Post an ADDB event here.*/
+	if (ev->nbe_status == 0) {
+		rc = c2_rpc_decode(nb, &rpc);
+		if (rc < 0) {
+			/* XXX We can post an ADDB event here. */
+		}
+
+		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
+				ri_rpcobject_linkage) {
+			/* If this is a reply type rpc item, call a
+			   sessions/slots method on it which will find out
+			   its corresponding request item and call its
+			   completion callback.*/
+			if (!item_is_request(item)) {
+				rc = c2_rpc_item_received(item);
+				if (rc < 0) {
+					/* Post an ADDB event here.*/
+				}
 			}
 		}
-	}
 
-	/* Add the c2_net_buffer back to the queue of transfer machine. */
-	rc = c2_net_buffer_add(nb, nb->nb_tm);
+		/* Add the c2_net_buffer back to the queue of
+		   transfer machine. */
+		rc = c2_net_buffer_add(nb, nb->nb_tm);
+		if (rc < 0) {
+			/* XXX Post an addb event here.*/
+		}
+	}
 }
 
 /**
@@ -335,34 +376,172 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
  */
 struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV]	= c2_rpc_reply_received,
+		[C2_NET_QT_MSG_RECV] = c2_rpc_reply_received,
 	}
 };
 
-struct c2_net_buffer *c2_rpc_net_buffer_create(struct c2_net_domain *net_dom)
+void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
+
+/**
+   Callback for net buffer used in posting
+ */
+struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
+	.nbc_cb = {
+		[C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
+	}
+};
+
+struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
+		struct c2_net_buffer *nbuf, int qtype)
 {
 	uint32_t			 rc = 0;
 	struct c2_net_buffer		*nb = NULL;
-	uint32_t			 nr_segs = 0;
+	int32_t				 nr_segs = 0;
 	c2_bcount_t			 seg_size = 0;
+	c2_bcount_t			 buf_size = 0;
+	c2_bcount_t			 segsz = 0;
 
 	C2_PRE(net_dom != NULL);
 
-	C2_ALLOC_PTR(nb);
-	if (!nb) {
-		return nb;
+	if (nbuf == NULL) {
+		C2_ALLOC_PTR(nb);
+		if (nb == NULL) {
+			return nb;
+		}
+	} else {
+		nb = nbuf;
 	}
+	buf_size = c2_net_domain_get_max_buffer_size(net_dom);
 	nr_segs = c2_net_domain_get_max_buffer_segments(net_dom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
-	rc = c2_bufvec_alloc(&nb->nb_buffer, nr_segs, seg_size);
-	if (!rc)
+
+	/* Allocate the bufvec of size = min((buf_size), (nr_segs * seg_size)).
+	   We keep the number of segments constant. So mostly the segment
+	   size is changed here. */
+	if (buf_size > (nr_segs * seg_size)) {
+		segsz = seg_size;
+	} else {
+		segsz = buf_size / nr_segs;
+	}
+	rc = c2_bufvec_alloc(&nb->nb_buffer, nr_segs, segsz);
+	if (rc < 0)
 		return NULL;
 
 	nb->nb_flags = 0;
-	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+	nb->nb_qtype = qtype;
+	if (qtype == C2_NET_QT_MSG_RECV) {
+		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+	} else if (qtype == C2_NET_QT_MSG_SEND) {
+		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
+	}
 
 	return nb;
+}
+
+struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
+		struct c2_net_domain *net_dom)
+{
+	return c2_rpc_net_buffer_allocate(net_dom, NULL, C2_NET_QT_MSG_RECV);
+}
+
+void c2_rpc_net_send_buffer_allocate(
+		struct c2_net_domain *net_dom, struct c2_net_buffer *nb)
+{
+	struct c2_net_buffer	*nbuf = NULL;
+	nbuf = c2_rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND);
+}
+
+int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
+		struct c2_net_transfer_mc *tm)
+{
+	int			 rc = 0;
+	int			 st = 0;
+	uint32_t		 i = 0;
+	struct c2_net_buffer	*nb = NULL;
+
+	C2_PRE(net_dom != NULL);
+
+	for (i = 0; i < C2_RPC_TM_RECV_BUFFERS_NR; ++i) {
+		nb = c2_rpc_net_recv_buffer_allocate(net_dom);
+		if (nb == NULL) {
+			rc = -1;
+			break;
+		}
+		rc = c2_net_buffer_register(nb, net_dom);
+		if (rc < 0) {
+			rc = -1;
+			break;
+		}
+		rc = c2_net_buffer_add(nb, tm);
+		if (rc < 0) {
+			rc = -1;
+			break;
+		}
+	}
+	if (rc < 0) {
+		st = c2_rpc_recv_buffer_deallocate_nr(tm, net_dom);
+		if (st < 0)
+			return rc;
+		c2_net_tm_fini(tm);
+	}
+	return rc;
+}
+
+int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom)
+{
+	int			rc = 0;
+
+	C2_PRE(nb != NULL);
+	C2_PRE(tm != NULL);
+	C2_PRE(net_dom != NULL);
+
+	c2_net_buffer_del(nb, tm);
+	rc = c2_net_buffer_deregister(nb, net_dom);
+	if (rc < 0) {
+		/* XXX Post an addb event.*/
+	}
+	c2_bufvec_free(&nb->nb_buffer);
+	c2_free(nb);
+	return rc;
+}
+
+int c2_rpc_send_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_domain *net_dom)
+{
+	int		rc = 0;
+
+	C2_PRE(nb != NULL);
+	C2_PRE(net_dom != NULL);
+
+	rc = c2_net_buffer_deregister(nb, net_dom);
+	if (rc < 0) {
+		return rc;
+	}
+	c2_bufvec_free(&nb->nb_buffer);
+	return rc;
+}
+
+int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
+		struct c2_net_domain *net_dom)
+{
+	int			 rc = 0;
+	struct c2_net_buffer	*nb = NULL;
+	struct c2_net_buffer	*nb_next = NULL;
+
+	C2_PRE(tm != NULL);
+	C2_PRE(net_dom != NULL);
+
+	c2_list_for_each_entry_safe(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
+			nb_next, struct c2_net_buffer, nb_tm_linkage) {
+		c2_list_del(&nb->nb_tm_linkage);
+		rc = c2_rpc_recv_buffer_deallocate(nb, tm, net_dom);
+		if (rc < 0) {
+			/* XXX Post an addb event here. */
+			break;
+		}
+	}
+	return rc;
 }
 
 int c2_rpcmachine_init(struct c2_rpcmachine	*machine,

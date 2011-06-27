@@ -300,6 +300,37 @@ bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
 struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
 
 /**
+   A structure to process callbacks to posting events.
+   This structure in used to associate an rpc object being sent,
+   its associated item_summary_unit structure and the c2_net_buffer.
+ */
+struct c2_rpc_form_buffer {
+	/** The c2_net_buffer on which callback will trigger. */
+	struct c2_net_buffer			 fb_buffer;
+	/** The associated item_summary_unit structure. */
+	struct c2_rpc_form_item_summary_unit	*fb_endp_unit;
+	/** The rpc object which was sent through the c2_net_buffer here. */
+	struct c2_rpc				*fb_rpc;
+};
+
+/**
+   Allocate a buffer of type struct c2_rpc_form_buffer.
+   @param fb - a formation buffer pointer.
+   @param rpc - rpc which will be serialized into the c2_net_buffer.
+   @param endp_unit - the item_summary_unit structure associated with rpc.
+   @param net_dom - the associated c2_net_domain structure.
+ */
+int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
+		struct c2_rpc *rpc,
+		struct c2_rpc_form_item_summary_unit *endp_unit,
+		struct c2_net_domain *net_dom);
+
+/**
+   Deallocate a buffer of type struct c2_rpc_form_buffer.
+ */
+void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb);
+
+/**
    An internal data structure to connect coalesced rpc items with
    its constituent rpc items. When a reply is received for a
    coalesced rpc item, it will find out the requesting coalesced
