@@ -52,6 +52,7 @@ SUBDIR_UT = \
                sns/ut \
                stob/ut \
                rpc/ut \
+               rpc/it \
                udb/ut \
                xdr/ut
 
