@@ -16,6 +16,7 @@
 #include "net/net_internal.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
+#include "rpc/rpccore.h"
 
 
 /**     
@@ -39,7 +40,17 @@ struct ping_ctx {
 	/* Server end point */
         struct c2_net_end_point			*pc_sep;
 	/* RPC connection */
-	struct c2_rpc_conn			*pc_conn;
+	struct c2_rpc_conn			 pc_conn;
+	/* rpcmachine */
+	struct c2_rpcmachine			 pc_rpc_mach;
+	/* db for rpcmachine */
+	struct c2_dbenv				 pc_db;
+	/* db name */
+	const char				*pc_db_name;
+	/* cob domain */
+	struct c2_cob_domain			 pc_cob_domain;
+	/* cob domain id */
+	struct c2_cob_domain_id			 pc_cob_dom_id;
 };
 
 enum {
@@ -71,6 +82,10 @@ int main(int argc, char *argv[])
 	int			 server_port = 0;
 	char			 addr[LEN];
 	char			 hostbuf[LEN];
+
+	rc = c2_init();
+	if (rc != 0)
+		return rc;
 
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
@@ -162,9 +177,22 @@ int main(int argc, char *argv[])
 		/* Create RPC connection using new API 
 		rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
 				&cctx.pc_cep); */	
-		
-		/* Create RPC connection */	
-		rc = c2_rpc_conn_create(cctx.pc_conn, cctx.pc_sep); 
+	
+		cctx.pc_db_name = "rpcping_db";
+		cctx.pc_cob_dom_id.id =  12 ;
+	
+		/* Init the db */
+		rc = c2_dbenv_init(&cctx.pc_db, cctx.pc_db_name, 0);
+
+		/* Init the cob domain */
+		rc = c2_cob_domain_init(&cctx.pc_cob_domain, &cctx.pc_db,
+				&cctx.pc_cob_dom_id);
+
+		/* Init the rpcmachine */
+		rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain, NULL); 
+		/* Init the connection structure */
+		rc = c2_rpc_conn_init(&cctx.pc_conn, &cctx.pc_rpc_mach); 
+		rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_sep); 
 	}
 
 	return 0;
