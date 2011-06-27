@@ -782,6 +782,10 @@ void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
  */
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
 
+/** RPC onwire encoding and decoding functions */
+int c2_rpc_encode ( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
+int c2_rpc_decode( struct c2_net_buffer *nb );
+
 /** @} end name stat_ifs */
 
 
