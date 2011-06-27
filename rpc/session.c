@@ -433,7 +433,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	c2_mutex_lock(&conn->c_mutex);
 
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
-			c2_rpc_conn_invariant(conn));
+		  c2_rpc_conn_invariant(conn));
 
 	if (conn->c_state != C2_RPC_CONN_ACTIVE) {
 		rc = -EINVAL;
