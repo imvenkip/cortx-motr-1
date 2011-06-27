@@ -1,0 +1,4 @@
+
+DEF(c2_fop_test, RECORD,
+   _(t_time, U64),
+   _(t_timeout, U32));
