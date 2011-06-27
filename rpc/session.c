@@ -48,11 +48,6 @@ static int session_zero_attach(struct c2_rpc_conn *conn);
 
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
-/*
-static void outgoing_conn_search(struct c2_rpcmachine	*machine,
-				uint64_t		sender_id,
-				struct c2_rpc_conn	**out);
-*/
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 					         struct c2_rpc_item	*item);
 
@@ -101,38 +96,6 @@ void c2_rpc_session_module_fini(void)
 }
 C2_EXPORTED(c2_rpc_session_module_fini);
 
-/**
-   Search for a c2_rpc_conn object having sender_id equal to
-   @sender_id in machine->cr_rpc_conn_list.
-
-   If NOT found then *out is set to NULL
-   If found then *out contains pointer to c2_rpc_conn object
-
-   @pre c2_mutex_is_locked(&machine->cr_session_mutex)
-   @post ergo(*out != NULL, (*out)->c_sender_id == sender_id)
-*/
-#if 0
-static void outgoing_conn_search(struct c2_rpcmachine	*machine,
-				uint64_t		sender_id,
-				struct c2_rpc_conn	**out)
-{
-	struct c2_rpc_conn	*conn;
-
-	C2_PRE(c2_mutex_is_locked(&machine->cr_session_mutex));
-	*out = NULL;
-
-	if (sender_id == SENDER_ID_INVALID)
-		return;
-
-	c2_rpc_for_each_outgoing_conn(machine, conn) {
-		if (conn->c_sender_id == sender_id) {
-			*out = conn;
-			break;
-		}
-	}
-	C2_POST(ergo(*out != NULL, (*out)->c_sender_id == sender_id));
-}
-#endif
 /**
    Search for session object with given @session_id in conn->c_sessions list
    If not found *out is set to NULL
