@@ -170,10 +170,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 {
 	int	rc = 0;
 
-	if (conn == NULL || machine == NULL) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_ASSERT(conn != NULL && machine != NULL);
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
@@ -1978,8 +1975,7 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	uint64_t		sender_id;
 	int			rc;
 
-	C2_PRE(conn == NULL || ep == NULL);
-
+	C2_PRE(conn != NULL && ep != NULL);
 	C2_PRE(conn->c_state != C2_RPC_CONN_INITIALISED &&
 	      (conn->c_flags & RCF_RECV_END) == 0);
 
@@ -2211,10 +2207,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 {
 	struct c2_db_tx		tx;
 
-	if (conn == NULL || conn->c_state != C2_RPC_CONN_ACTIVE) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT((conn->c_flags & RCF_RECV_END) != 0 &&
 			c2_rpc_conn_invariant(conn));
 
