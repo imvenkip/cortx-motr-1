@@ -254,10 +254,24 @@ enum {
 	SLOT_ID_INVALID = ~0,
 };
 
+/**
+   Requirements:
+   * UUID must change whenever a storage-less client re-boots.
+   * for a client with persistent state (e.g., a disk) uuid
+     must survive reboots.
+ */
 struct c2_rpc_sender_uuid {
+	/** XXX Temporary */
 	uint64_t	su_uuid;
 };
+/**
+   Generate UUID
+ */
 void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
+
+/**
+   3WAY comparison function for UUID
+ */
 int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
 			   struct c2_rpc_sender_uuid *u2);
 

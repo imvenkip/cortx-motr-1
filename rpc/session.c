@@ -218,15 +218,9 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	struct c2_rpcmachine		*machine;
 	int				rc;
 
-	if (conn == NULL || ep == NULL) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
-	if (conn->c_state != C2_RPC_CONN_INITIALISED ||
-	      (conn->c_flags & RCF_SENDER_END) == 0) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_PRE(conn != NULL && ep != NULL);
+	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_SENDER_END) != 0);
 
 	conn->c_end_point = ep;
 
@@ -234,10 +228,9 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 * fill a conn create fop and send
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
-	if (fop == NULL) {
-		C2_ASSERT(0);
+	if (fop == NULL)
 		return rc;
-	}
+
 	fop_cc = c2_fop_data(fop);
 	C2_ASSERT(fop_cc != NULL);
 
@@ -388,12 +381,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	int					rc;
 
 	C2_PRE(conn != NULL);
-	if (conn == NULL) {
-		return -EINVAL;
-	}
-
 	c2_mutex_lock(&conn->c_mutex);
-
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
 		  c2_rpc_conn_invariant(conn));
 
@@ -516,10 +504,6 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	c2_list_fini(&conn->c_sessions);
 	c2_chan_fini(&conn->c_chan);
 	c2_mutex_fini(&conn->c_mutex);
-	if (conn->c_cob != NULL) {
-		c2_cob_put(conn->c_cob);
-		conn->c_cob = NULL;
-	}
 	C2_SET0(conn);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
@@ -637,11 +621,7 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 	int				i;
 	int				rc = 0;
 
-	C2_PRE(session != NULL && nr_slots >= 1);
-	if (session == NULL || conn == NULL || nr_slots == 0) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 	C2_SET0(session);
 	c2_list_link_init(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
@@ -716,11 +696,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	conn = session->s_conn;
 	C2_ASSERT(conn != NULL);
 	c2_mutex_lock(&conn->c_mutex);
-	if (conn->c_state != C2_RPC_CONN_ACTIVE ||
-		session->s_state != C2_RPC_SESSION_INITIALISED) {
-		rc = -EINVAL;
-		goto out;
-	}
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 		
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
@@ -755,7 +731,7 @@ out:
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_CREATING &&
 			c2_rpc_session_invariant(session)));
-
+	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
 
@@ -861,11 +837,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
-
-	if (session->s_state != C2_RPC_SESSION_IDLE) {
-		rc = -EINVAL;
-		goto out;
-	}
 
 	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
