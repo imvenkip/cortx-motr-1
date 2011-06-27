@@ -247,12 +247,9 @@ enum {
 	/** session_[create|terminate] items go on session 0 */
 	SESSION_0 = 0,
 	SESSION_ID_INVALID = ~0,
-	/** conn_[create_terminate] fops are sent out of session.
-	    Such items have session id as SESSION_ID_NOSESSION */
-	SESSION_ID_NOSESSION = SESSION_ID_INVALID - 1,
 	/** Range of valid session ids */
 	SESSION_ID_MIN = SESSION_0 + 1,
-	SESSION_ID_MAX = SESSION_ID_NOSESSION - 1,
+	SESSION_ID_MAX = SESSION_ID_INVALID - 1,
 	SENDER_ID_INVALID = ~0,
 	SLOT_ID_INVALID = ~0,
 };

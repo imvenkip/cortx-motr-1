@@ -1502,7 +1502,7 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 		}
 		/* Take slot->last_sent->next item for sending */
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link);
+				     ri_slot_refs[0].sr_link);
 		if (item->ri_tstate == RPC_ITEM_FUTURE) {
 			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
 			printf("Item %p IN_PROGRESS\n", item);
@@ -1857,37 +1857,31 @@ bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
 		ret = ergo(item2->ri_tstate == RPC_ITEM_PAST_VOLATILE ||
 			   item2->ri_tstate == RPC_ITEM_PAST_COMMITTED,
 			   item2->ri_reply != NULL);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
 
 		ret = (item1->ri_tstate <= item2->ri_tstate);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
 
 		v1 = &item1->ri_slot_refs[0].sr_verno;
 		v2 = &item2->ri_slot_refs[0].sr_verno;
 
 		/*
-		 * when an "update" item is applied on a slot
-		 * then version number of slot is advanced
+		 * After an "update" item is applied on a slot
+		 * the version number of slot is advanced
 		 */
 		ret = c2_rpc_item_is_update(item1) ?
 			v1->vn_vc + 1 == v2->vn_vc :
 			v1->vn_vc == v2->vn_vc;
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
+
 		ret = (item1->ri_slot_refs[0].sr_xid + 1 ==
 			item2->ri_slot_refs[0].sr_xid);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
+
 		item1 = item2;
 	}
 	return ret;
@@ -1905,13 +1899,18 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	 * Remove the dummy item from the list
 	 */
 	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+
 	link = c2_list_first(&slot->sl_item_list);
 	C2_ASSERT(link != NULL);
+
 	item = c2_list_entry(link, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
 	C2_ASSERT(c2_list_link_is_in(&item->ri_slot_refs[0].sr_link));
+
 	c2_list_del(&item->ri_slot_refs[0].sr_link);
+
 	C2_ASSERT(item->ri_slot_refs[0].sr_verno.vn_vc == 0);
+
 	fop = c2_rpc_item_to_fop(item);
 	c2_fop_free(fop);
 
@@ -2045,14 +2044,13 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	uint64_t		sender_id;
 	int			rc;
 
-	if (conn == NULL || ep == NULL)
-		return -EINVAL;
+	C2_PRE(conn == NULL || ep == NULL);
 
-	if (conn->c_state != C2_RPC_CONN_INITIALISED &&
-	      (conn->c_flags & RCF_RECV_END) == 0)
-		return -EINVAL;
+	C2_PRE(conn->c_state != C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_RECV_END) == 0);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
 	machine = conn->c_rpcmachine;
 	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
 
@@ -2216,22 +2214,23 @@ int session_persistent_state_destroy(struct c2_rpc_session  *session,
 
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 {
-	struct c2_db_tx	tx;
-	int		rc;
-	int		i;
+	struct c2_rpc_slot	*slot;
+	struct c2_db_tx		tx;
+	int			rc;
+	int			i;
 
-	C2_ASSERT(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
-	if (session == NULL || session->s_state != C2_RPC_SESSION_IDLE)
-		return -EINVAL;
-
+	C2_PRE(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
 	C2_ASSERT(c2_rpc_session_invariant(session));
+
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
 	/*
 	 * Take all the slots out of c2_rpcmachine::cr_ready_slots
 	 */
 	for (i = 0; i < session->s_nr_slots; i++) {
-		//c2_list_del(&session->s_slot_table[i]->sl_link);
+		slot = session->s_slot_table[i];
+		if (c2_list_link_is_in(&slot->sl_link))
+			c2_list_del(&slot->sl_link); /*lock on ready slot list??? */
 	}
 
 	c2_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
@@ -2333,7 +2332,7 @@ void dispatch_item_for_execution(struct c2_rpc_item *item)
 	printf("Executing %p\n", item);
 }
 
-int associate_session_objects(struct c2_rpc_item *item)
+int associate_session_and_slot(struct c2_rpc_item *item)
 {
 	struct c2_list		*conn_list;
 	struct c2_rpc_conn	*conn = NULL;
@@ -2386,7 +2385,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	rc = associate_session_objects(item);
+	rc = associate_session_and_slot(item);
 	if (rc != 0) {
 		if (item_is_conn_create(item)) {
 			dispatch_item_for_execution(item);
