@@ -119,7 +119,12 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 }
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
-	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;
+	return item->ri_type->rit_mutabo;
+}
+
+bool c2_rpc_item_is_request(struct c2_rpc_item *item)
+{
+	return item->ri_type->rit_item_is_req;
 }
 
 int  c2_rpc_core_init(void)

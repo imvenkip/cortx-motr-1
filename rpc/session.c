@@ -297,7 +297,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
 	item->ri_ops = &c2_rpc_item_conn_create_ops;
 
 	rc = c2_rpc_post(item);
@@ -465,7 +464,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
 	item->ri_ops = &c2_rpc_item_conn_terminate_ops;
 
 	conn->c_state = C2_RPC_CONN_TERMINATING;
@@ -781,7 +779,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
 	item->ri_ops = &c2_rpc_item_session_create_ops;
 
 	rc = c2_rpc_post(item);
@@ -928,7 +925,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
 	item->ri_ops = &c2_rpc_item_session_terminate_ops;
 
 	/*
@@ -2336,10 +2332,7 @@ void dispatch_item_for_execution(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
 }
-bool item_is_request(struct c2_rpc_item *item)
-{
-	return item->ri_type->rit_item_is_req;
-}
+
 int associate_session_objects(struct c2_rpc_item *item)
 {
 	struct c2_list		*conn_list;
@@ -2353,7 +2346,7 @@ int associate_session_objects(struct c2_rpc_item *item)
 	if (item->ri_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
-	conn_list = item_is_request(item) ?
+	conn_list = c2_rpc_item_is_request(item) ?
 			&item->ri_mach->cr_incoming_conns :
 			&item->ri_mach->cr_outgoing_conns;
 
@@ -2410,7 +2403,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		  item->ri_slot_refs[0].sr_slot != NULL);
 
 	slot = item->ri_slot_refs[0].sr_slot;
-	if (item_is_request(item)) {
+	if (c2_rpc_item_is_request(item)) {
 		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_item_apply(slot, item);
 		c2_mutex_unlock(&slot->sl_mutex);
