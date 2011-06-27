@@ -258,13 +258,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	iloc = fom->fo_ops->fo_home_locality(fom, reqh->rh_fom_dom->fd_nr);
 	if (iloc >= 0) {
 		fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
-		if (!c2_locality_invariant(fom->fo_loc)) {
-			c2_reqh_send_err_rep(reqh->rh_serv, cookie, -EINVAL);
-			REQH_ADDB_ADD(c2_reqh_addb_ctx,
-					"c2_reqh_fop_handle: invalid locality",
-					-EINVAL);
-			return;
-		}
+		C2_ASSERT(c2_locality_invariant(fom->fo_loc));
 	}
 
 	/* submit fom for further processing */
@@ -288,12 +282,12 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  */
 int c2_fom_phase_init(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -303,14 +297,14 @@ int c2_fom_phase_init(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_authen(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -321,14 +315,14 @@ int c2_fom_authen(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_authen_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -339,14 +333,14 @@ int c2_fom_authen_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_loc_resource(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -357,14 +351,14 @@ int c2_fom_loc_resource(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_loc_resource_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -375,14 +369,14 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_dist_resource(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -393,14 +387,14 @@ int c2_fom_dist_resource(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_dist_resource_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -411,14 +405,14 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_obj_check(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -429,14 +423,14 @@ int c2_fom_obj_check(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_obj_check_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -446,14 +440,14 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_auth(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
@@ -464,31 +458,32 @@ int c2_fom_auth(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_fom_auth_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
+
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
 }
 
 /**
- * Funtion to create local transactional context.
+ * Funtion to create local transactional context, i.e we initialize a
+ * struct c2_dtx object, which would be used for db transaction throughout
+ * fop execution.
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  */
 int c2_create_loc_ctx(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
 
 	rc = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain,
 							&fom->fo_tx);
@@ -505,14 +500,13 @@ int c2_create_loc_ctx(struct c2_fom *fom)
  * @param fom -> c2_fom structure pointer.
  * @retval int -> returns 0, on success.
  *		returns -1, on failure.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @todo needs further more implementation, once depending
  *		routines are ready.
  */
 int c2_create_loc_ctx_wait(struct c2_fom *fom)
 {
-	if (!c2_fom_invariant(fom)) {
-		return -EINVAL;
-	}
+	C2_PRE(c2_fom_invariant(fom));
 
 	fom->fo_phase = fp_table[fom->fo_phase].next_phase;
 	return 0;
@@ -522,7 +516,7 @@ int c2_create_loc_ctx_wait(struct c2_fom *fom)
  * Function to handle generic operations of fom
  * like authentication, authorisation, acquiring resources, &tc
  * @param fom -> c2_fom structure pointer.
- * @pre assumes fom is valid.
+ * @pre assumes fom is valid, c2_fom_invariant should return true.
  * @retval int -> returns 0, on success.
  *		  returns -1, on failure.
  */

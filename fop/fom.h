@@ -109,13 +109,13 @@ struct c2_fom_locality {
 	struct c2_list		fl_threads;
 	size_t			fl_idle_threads_nr;
 	size_t			fl_threads_nr;
-	
+
 	/**
 	    Minimum number of idle threads, that should be present in a
 	    locality.
 	 */
 	size_t			fl_lo_idle_nr;
-	
+
 	/**
 	    Maximum number of idle threads, that should be present in a
 	    locality.
@@ -379,7 +379,7 @@ int c2_fom_block_leave(struct c2_fom_locality *loc);
    Registers the fom with the channel, so that next fom's state transition would
    happen when the channel is signalised.
  */
-int c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
+void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 
 /** @} end of fom group */
 

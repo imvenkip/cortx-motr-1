@@ -27,7 +27,7 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-# include "reqh_fops_k.h"
+#include "reqh_fops_k.h"
 #else
 
 #include "reqh_fops_u.h"

@@ -73,14 +73,15 @@
 
 /**** server side structures and objects ****/
 enum {
-        PORT = 10001
+	PORT = 10001
 };
 typedef unsigned long long U64;
 static struct c2_stob_domain *sdom;
-struct c2_net_domain    ndom;
-static struct c2_fol          fol;
+struct c2_net_domain	ndom;
+static struct c2_fol	fol;
+
 /* global reqh object */
-struct c2_reqh          reqh;
+struct c2_reqh		reqh;
 
 /* structure to hold c2_net_call and c2_clink, for network communication */
 struct reqh_net_call {
@@ -126,29 +127,28 @@ C2_FOP_TYPE_DECLARE(c2_fom_io_write_rep, "write reply", 22, NULL);
 C2_FOP_TYPE_DECLARE(c2_fom_io_read_rep, "read reply",  23, NULL);
 
 static struct c2_fop_type *fops[] = {
-        &c2_fom_io_create_fopt,
-        &c2_fom_io_write_fopt,
-        &c2_fom_io_read_fopt,
-        &c2_fom_io_quit_fopt,
+	&c2_fom_io_create_fopt,
+	&c2_fom_io_write_fopt,
+	&c2_fom_io_read_fopt,
+	&c2_fom_io_quit_fopt,
 
-        &c2_fom_io_create_rep_fopt,
-        &c2_fom_io_write_rep_fopt,
-        &c2_fom_io_read_rep_fopt,
+	&c2_fom_io_create_rep_fopt,
+	&c2_fom_io_write_rep_fopt,
+	&c2_fom_io_read_rep_fopt,
 };
 
 static struct c2_fop_type *fopt[] = {
-        &c2_fom_io_create_fopt,
-        &c2_fom_io_write_fopt,
-        &c2_fom_io_read_fopt,
-        &c2_fom_io_quit_fopt,
+	&c2_fom_io_create_fopt,
+	&c2_fom_io_write_fopt,
+	&c2_fom_io_read_fopt,
+	&c2_fom_io_quit_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
-        &c2_fom_fop_fid_tfmt,
-        &c2_fom_io_seg_tfmt,
-        &c2_fom_io_buf_tfmt,
-        &c2_fom_io_vec_tfmt,
-
+	&c2_fom_fop_fid_tfmt,
+	&c2_fom_io_seg_tfmt,
+	&c2_fom_io_buf_tfmt,
+	&c2_fom_io_vec_tfmt,
 };
 
 /**
@@ -156,14 +156,14 @@ static struct c2_fop_type_format *fmts[] = {
  * and storage io object, used for fop execution.
  */
 struct c2_io_fom {
-        /** Generic c2_fom object. */
-        struct c2_fom                   c2_gen_fom;
-        /** Reply FOP associated with request FOP above. */
-        struct c2_fop                   *rep_fop;
-        /** Stob object on which this FOM is acting. */
-        struct c2_stob                  *stobj;
-        /** Stob IO packet for the operation. */
-        struct c2_stob_io               st_io;
+	/** Generic c2_fom object. */
+	struct c2_fom			c2_gen_fom;
+	/** Reply FOP associated with request FOP above. */
+	struct c2_fop			*rep_fop;
+	/** Stob object on which this FOM is acting. */
+	struct c2_stob			*stobj;
+	/** Stob IO packet for the operation. */
+	struct c2_stob_io		st_io;
 };
 
 int create_fom_state(struct c2_fom *fom);
@@ -179,20 +179,20 @@ size_t fom_home_locality(const struct c2_fom *fom, size_t fd_nr);
  * operation structures for respective foms
  */
 static struct c2_fom_ops create_fom_ops = {
-        .fo_fini = c2_io_fom_fini,
-        .fo_state = create_fom_state,
+	.fo_fini = c2_io_fom_fini,
+	.fo_state = create_fom_state,
 	.fo_home_locality = fom_home_locality,
 };
 
 static struct c2_fom_ops write_fom_ops = {
-        .fo_fini = c2_io_fom_fini,
-        .fo_state = write_fom_state,
+	.fo_fini = c2_io_fom_fini,
+	.fo_state = write_fom_state,
 	.fo_home_locality = fom_home_locality,
 };
 
 static struct c2_fom_ops read_fom_ops = {
-        .fo_fini = c2_io_fom_fini,
-        .fo_state = read_fom_state,
+	.fo_fini = c2_io_fom_fini,
+	.fo_state = read_fom_state,
 	.fo_home_locality = fom_home_locality,
 };
 
@@ -200,47 +200,46 @@ static struct c2_fom_ops read_fom_ops = {
  * fom type operations structures for corresponding foms.
  */
 static const struct c2_fom_type_ops create_fom_type_ops = {
-        .fto_create = c2_create_fom_create,
+	.fto_create = c2_create_fom_create,
 };
 
 static const struct c2_fom_type_ops write_fom_type_ops = {
-        .fto_create = c2_write_fom_create,
+	.fto_create = c2_write_fom_create,
 };
 
 static const struct c2_fom_type_ops read_fom_type_ops = {
-        .fto_create = c2_read_fom_create,
+	.fto_create = c2_read_fom_create,
 };
 
 static struct c2_fom_type create_fom_mopt = {
-        .ft_ops = &create_fom_type_ops,
+	.ft_ops = &create_fom_type_ops,
 };
 
 static struct c2_fom_type write_fom_mopt = {
-        .ft_ops = &write_fom_type_ops,
+	.ft_ops = &write_fom_type_ops,
 };
 
 static struct c2_fom_type read_fom_mopt = {
-        .ft_ops = &read_fom_type_ops,
+	.ft_ops = &read_fom_type_ops,
 };
 
 static struct c2_fom_type *c2_fom_types[] = {
 	&create_fom_mopt,
 	&write_fom_mopt,
-        &read_fom_mopt,
+	&read_fom_mopt,
 };
 
 struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
 {
-        C2_PRE(IS_IN_ARRAY((code - 10),
-                           c2_fom_types));
-        return c2_fom_types[code - 10];
+	C2_PRE(IS_IN_ARRAY((code - 10), c2_fom_types));
+	return c2_fom_types[code - 10];
 }
 
 static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
 {
 	C2_ASSERT(conn != NULL);
 	C2_ASSERT(call != NULL);
-        return c2_net_cli_send(conn, &call->ncall);
+	return c2_net_cli_send(conn, &call->ncall);
 }
 
 /**
@@ -249,11 +248,11 @@ static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
  */
 static void fom_rep_cb(struct c2_clink *clink)
 {
-        C2_ASSERT(clink != NULL);
-        /* Remove fom from wait list and put fom back on run queue of fom locality */
-        if (clink != NULL) {
-                struct reqh_net_call *rcall = container_of(clink, struct reqh_net_call, rclink);
-                if (rcall != NULL) {
+	C2_ASSERT(clink != NULL);
+	/* Remove fom from wait list and put fom back on run queue of fom locality */
+	if (clink != NULL) {
+		struct reqh_net_call *rcall = container_of(clink, struct reqh_net_call, rclink);
+		if (rcall != NULL) {
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
 			C2_ASSERT(rfop != NULL);
 				switch(rfop->f_type->ft_code) {
@@ -273,8 +272,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 						struct c2_fom_io_write_rep *rep;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							 printf("Write reply: %i %i\n", rep->siwr_rc, rep->siwr_count);
-							 ++reply;
+							printf("Write reply: %i %i\n", rep->siwr_rc, rep->siwr_count);
+							++reply;
 						}
 						c2_fop_free(rfop);
 						break;
@@ -318,17 +317,17 @@ static void fom_rep_cb(struct c2_clink *clink)
 ********************************************************************/
 static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
 {
-        struct c2_fop                    *f;
-        struct c2_fop                    *r;
-        struct c2_fom_io_create     *fop;
-        struct c2_fom_io_create_rep *rep;
-	struct reqh_net_call	    *rcall;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_fom_io_create		*fop;
+	struct c2_fom_io_create_rep	*rep;
+	struct reqh_net_call		*rcall;
 
-        f = c2_fop_alloc(&c2_fom_io_create_fopt, NULL);
-        fop = c2_fop_data(f);
-        r = c2_fop_alloc(&c2_fom_io_create_rep_fopt, NULL);
-        rep = c2_fop_data(r);
-        fop->sic_object = *fid;
+	f = c2_fop_alloc(&c2_fom_io_create_fopt, NULL);
+	fop = c2_fop_data(f);
+	r = c2_fop_alloc(&c2_fom_io_create_rep_fopt, NULL);
+	rep = c2_fop_data(r);
+	fop->sic_object = *fid;
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_ASSERT(rcall != NULL);
@@ -342,20 +341,20 @@ static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *f
 
 static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
 {
-        struct c2_fop                    *f;
-        struct c2_fop                    *r;
-        struct c2_fom_io_read       *fop;
-        struct c2_fom_io_read_rep   *rep;
-	struct reqh_net_call	    *rcall;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_fom_io_read		*fop;
+	struct c2_fom_io_read_rep	*rep;
+	struct reqh_net_call		*rcall;
 
-        f = c2_fop_alloc(&c2_fom_io_read_fopt, NULL);
-        fop = c2_fop_data(f);
-        r = c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
-        rep = c2_fop_data(r);
+	f = c2_fop_alloc(&c2_fom_io_read_fopt, NULL);
+	fop = c2_fop_data(f);
+	r = c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
+	rep = c2_fop_data(r);
 
-        fop->sir_object = *fid;
-        fop->sir_seg.f_offset = (unsigned long long)0;
-        fop->sir_seg.f_count = (unsigned int)1;
+	fop->sir_object = *fid;
+	fop->sir_seg.f_offset = (unsigned long long)0;
+	fop->sir_seg.f_count = (unsigned int)1;
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_ASSERT(rcall != NULL);
@@ -369,26 +368,26 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid
 
 static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
 {
-        struct c2_fop                    *f;
-        struct c2_fop                    *r;
-        struct c2_fom_io_write      *fop;
-        struct c2_fom_io_write_rep  *rep;
-	struct reqh_net_call	    *rcall;
-        char filler;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_fom_io_write		*fop;
+	struct c2_fom_io_write_rep	*rep;
+	struct reqh_net_call		*rcall;
+	char filler;
 
-        f = c2_fop_alloc(&c2_fom_io_write_fopt, NULL);
-        fop = c2_fop_data(f);
-        r = c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
-        rep = c2_fop_data(r);
+	f = c2_fop_alloc(&c2_fom_io_write_fopt, NULL);
+	fop = c2_fop_data(f);
+	r = c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
+	rep = c2_fop_data(r);
 
-        C2_SET0(&rep);
-        fop->siw_object = *fid;
-        fop->siw_offset = (unsigned long long)0;
-        fop->siw_buf.cib_count = (unsigned long long)1;
+	C2_SET0(&rep);
+	fop->siw_object = *fid;
+	fop->siw_offset = (unsigned long long)0;
+	fop->siw_buf.cib_count = (unsigned long long)1;
 	filler = 'a';
-        fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
-        C2_ASSERT(fop->siw_buf.cib_value != NULL);
-        memset(fop->siw_buf.cib_value, filler, fop->siw_buf.cib_count);
+	fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
+	C2_ASSERT(fop->siw_buf.cib_value != NULL);
+	memset(fop->siw_buf.cib_value, filler, fop->siw_buf.cib_count);
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_ASSERT(rcall != NULL);
@@ -437,16 +436,16 @@ static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned
 static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
                                    struct c2_dtx *tx, struct c2_fom *fom)
 {
-        struct c2_stob_id  id;
-        struct c2_stob    *obj;
-        int result;
+	struct c2_stob_id	id;
+	struct c2_stob		*obj;
+	int result;
 
-        id.si_bits.u_hi = fid->f_seq;
-        id.si_bits.u_lo = fid->f_oid;
-        result = fom->fo_domain->sd_ops->sdo_stob_find(fom->fo_domain, &id, &obj);
-        C2_ASSERT(result == 0);
-        result = c2_stob_locate(obj, tx);
-        return obj;
+	id.si_bits.u_hi = fid->f_seq;
+	id.si_bits.u_lo = fid->f_oid;
+	result = fom->fo_domain->sd_ops->sdo_stob_find(fom->fo_domain, &id, &obj);
+	C2_ASSERT(result == 0);
+	result = c2_stob_locate(obj, tx);
+	return obj;
 }
 
 /********************************************************************
@@ -457,8 +456,8 @@ static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
  */
 int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
-	struct c2_fom                   *fom;
-	struct c2_io_fom           *fom_obj;
+	struct c2_fom		*fom;
+	struct c2_io_fom	*fom_obj;
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
@@ -488,8 +487,8 @@ int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  */
 int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
-	struct c2_fom                   *fom;
-	struct c2_io_fom           *fom_obj;
+	struct c2_fom		*fom;
+	struct c2_io_fom	*fom_obj;
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
@@ -499,19 +498,17 @@ int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 	fom = &fom_obj->c2_gen_fom;
 	fom->fo_type = t;
 
-		fom->fo_ops = &write_fom_ops;
-
-		fom_obj->rep_fop =
-			c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
-		if (fom_obj->rep_fop == NULL) {
-			c2_free(fom_obj);
-			return -ENOMEM;
-		}
+	fom->fo_ops = &write_fom_ops;
+	fom_obj->rep_fop =
+		c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
+	if (fom_obj->rep_fop == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
 
 	fom_obj->stobj = NULL;
 	*out = fom;
 	return 0;
-
 }
 
 /**
@@ -519,30 +516,28 @@ int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  */
 int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
-	struct c2_fom                   *fom;
-        struct c2_io_fom           *fom_obj;
-        C2_PRE(t != NULL);
-        C2_PRE(out != NULL);
+	struct c2_fom		*fom;
+	struct c2_io_fom	*fom_obj;
+	C2_PRE(t != NULL);
+	C2_PRE(out != NULL);
 
-        fom_obj= c2_alloc(sizeof *fom_obj);
-        if (fom_obj == NULL)
-                return -ENOMEM;
-        fom = &fom_obj->c2_gen_fom;
-        fom->fo_type = t;
+	fom_obj= c2_alloc(sizeof *fom_obj);
+	if (fom_obj == NULL)
+		return -ENOMEM;
+	fom = &fom_obj->c2_gen_fom;
+	fom->fo_type = t;
 
-                fom->fo_ops = &read_fom_ops;
+	fom->fo_ops = &read_fom_ops;
+	fom_obj->rep_fop =
+		c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
+	if (fom_obj->rep_fop == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
 
-                fom_obj->rep_fop =
-                        c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
-                if (fom_obj->rep_fop == NULL) {
-                        c2_free(fom_obj);
-                        return -ENOMEM;
-                }
-
-        fom_obj->stobj = NULL;
-        *out = fom;
-        return 0;
-
+	fom_obj->stobj = NULL;
+	*out = fom;
+	return 0;
 }
 
 /**
@@ -578,7 +573,6 @@ size_t fom_home_locality(const struct c2_fom *fom, size_t fd_nr)
 			oid = fop->siw_object.f_oid;
 			iloc = oid % fd_nr;
 		}
-
 	}
 	return iloc;
 }
@@ -591,10 +585,10 @@ size_t fom_home_locality(const struct c2_fom *fom, size_t fd_nr)
  */
 int create_fom_state(struct c2_fom *fom)
 {
-	struct c2_fom_io_create     *in_fop;
-	struct c2_fom_io_create_rep *out_fop;
-	struct c2_io_fom	*fom_obj;
-	int			result;
+	struct c2_fom_io_create		*in_fop;
+	struct c2_fom_io_create_rep	*out_fop;
+	struct c2_io_fom		*fom_obj;
+	int				result = 0;
 
 	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 
@@ -628,14 +622,15 @@ int create_fom_state(struct c2_fom *fom)
  */
 int read_fom_state(struct c2_fom *fom)
 {
-	struct c2_fom_io_read     *in_fop;
-	struct c2_fom_io_read_rep *out_fop;
+	struct c2_fom_io_read		*in_fop;
+	struct c2_fom_io_read_rep	*out_fop;
 	struct c2_io_fom *fom_obj;
-	struct c2_clink        clink;
-	void                  *addr;
-	uint32_t               bshift;
-	uint64_t               bmask;
-	int                    result = 0;
+	struct c2_clink			clink;
+	void				*addr;
+	uint32_t			bshift;
+	uint64_t			bmask;
+	int				result = 0;
+
 	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 
 		if (fom->fo_fop->f_type->ft_code == 12) {
@@ -712,16 +707,16 @@ int read_fom_state(struct c2_fom *fom)
 int write_fom_state(struct c2_fom *fom)
 {
 
-	struct c2_fom_io_write     *in_fop;
-	struct c2_fom_io_write_rep *out_fop;
-	struct c2_io_fom	*fom_obj;
-	void			*addr;
-	c2_bcount_t             count;
-	c2_bindex_t             offset;
-	struct c2_clink         clink;
-	uint32_t                bshift;
-	uint64_t                bmask;
-	int                     result;
+	struct c2_fom_io_write		*in_fop;
+	struct c2_fom_io_write_rep	*out_fop;
+	struct c2_io_fom		*fom_obj;
+	void				*addr;
+	c2_bcount_t			count;
+	c2_bindex_t			offset;
+	struct c2_clink			clink;
+	uint32_t			bshift;
+	uint64_t			bmask;
+	int				result;
 
 	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 
@@ -792,8 +787,8 @@ int write_fom_state(struct c2_fom *fom)
  */
 void c2_io_fom_fini(struct c2_fom *fom)
 {
-        struct c2_io_fom *fom_obj;
-        fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
+	struct c2_io_fom *fom_obj;
+	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 	if (c2_fom_invariant(fom))
 		c2_fom_fini(fom);
 	c2_free(fom_obj);
@@ -805,13 +800,13 @@ void c2_io_fom_fini(struct c2_fom *fom)
 int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
-        struct c2_fom_type              *fom_type;
-	int result = 0;
+	struct c2_fom_type	*fom_type;
+	int 			result = 0;
 
-        C2_PRE(fop != NULL);
-        C2_PRE(m != NULL);
+	C2_PRE(fop != NULL);
+	C2_PRE(m != NULL);
 
-        fom_type = c2_fom_type_map(fop->f_type->ft_code);
+	fom_type = c2_fom_type_map(fop->f_type->ft_code);
 	if (fom_type == NULL)
 		return -EINVAL;
 	fop->f_type->ft_fom_type = *fom_type;
@@ -821,7 +816,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 		result = c2_fom_init(*m);
 	}
 
-        return result;
+	return result;
 }
 
 /**
@@ -829,9 +824,9 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
  */
 void fom_io_fop_fini(void)
 {
-        c2_fop_object_fini();
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-        c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_fop_object_fini();
+	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }
 
 /**
@@ -855,70 +850,70 @@ int fom_io_fop_init(void)
 /********* Memory allocation structures ***********/
 
 struct mock_balloc {
-        struct c2_mutex  mb_lock;
-        c2_bindex_t      mb_next;
-        struct ad_balloc mb_ballroom;
+	struct c2_mutex  mb_lock;
+	c2_bindex_t      mb_next;
+	struct ad_balloc mb_ballroom;
 };
 
 static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
 {
-        return container_of(ballroom, struct mock_balloc, mb_ballroom);
+	return container_of(ballroom, struct mock_balloc, mb_ballroom);
 }
 
 static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
                             uint32_t bshift)
 {
-        struct mock_balloc *mb = b2mock(ballroom);
+	struct mock_balloc *mb = b2mock(ballroom);
 
-        c2_mutex_init(&mb->mb_lock);
-        return 0;
+	c2_mutex_init(&mb->mb_lock);
+	return 0;
 }
 
 static void mock_balloc_fini(struct ad_balloc *ballroom)
 {
-        struct mock_balloc *mb = b2mock(ballroom);
+	struct mock_balloc *mb = b2mock(ballroom);
 
-        c2_mutex_fini(&mb->mb_lock);
+	c2_mutex_fini(&mb->mb_lock);
 }
 
 static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
-        struct mock_balloc *mb = b2mock(ballroom);
-        c2_bcount_t giveout;
+	struct mock_balloc *mb = b2mock(ballroom);
+	c2_bcount_t giveout;
 
-        c2_mutex_lock(&mb->mb_lock);
-        giveout = min64u(count, 500000);
-        out->e_start = mb->mb_next;
-        out->e_end   = mb->mb_next + giveout;
-        mb->mb_next += giveout + 1;
-        /*
-        printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count,
-               out->e_start, out->e_end); */
-        c2_mutex_unlock(&mb->mb_lock);
-        return 0;
+	c2_mutex_lock(&mb->mb_lock);
+	giveout = min64u(count, 500000);
+	out->e_start = mb->mb_next;
+	out->e_end   = mb->mb_next + giveout;
+	mb->mb_next += giveout + 1;
+	/*
+	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count,
+		out->e_start, out->e_end); */
+	c2_mutex_unlock(&mb->mb_lock);
+	return 0;
 }
 
 static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
-        printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
-               ext->e_start, ext->e_end);
-        return 0;
+	printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
+		ext->e_start, ext->e_end);
+	return 0;
 }
 
 static const struct ad_balloc_ops mock_balloc_ops = {
-        .bo_init  = mock_balloc_init,
-        .bo_fini  = mock_balloc_fini,
-        .bo_alloc = mock_balloc_alloc,
-        .bo_free  = mock_balloc_free,
+	.bo_init  = mock_balloc_init,
+	.bo_fini  = mock_balloc_fini,
+	.bo_alloc = mock_balloc_alloc,
+	.bo_free  = mock_balloc_free,
 };
 
 static struct mock_balloc mb = {
-        .mb_next = 0,
-        .mb_ballroom = {
-                .ab_ops = &mock_balloc_ops
-        }
+	.mb_next = 0,
+	.mb_ballroom = {
+		.ab_ops = &mock_balloc_ops
+	}
 };
 
 /**
