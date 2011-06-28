@@ -211,6 +211,16 @@ struct c2_fop_type fopt ## _fopt = {			\
 };							\
 C2_EXPORTED(fopt ## _fopt)
 
+#define C2_FOP_TYPE_DECLARE_NEW(fopt, name, opcode, ops, itype)	\
+struct c2_fop_type fopt ## _fopt = {			\
+	.ft_code = (opcode),				\
+	.ft_name = name,				\
+	.ft_fmt  = &__paste(fopt),			\
+	.ft_ops  = (ops),				\
+	.ft_ritype = itype				\
+};							\
+C2_EXPORTED(fopt ## _fopt)
+
 /** @} end of fop group */
 
 /* __COLIBRI_FOP_FOP_FORMAT_H__ */

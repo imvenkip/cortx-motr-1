@@ -190,41 +190,49 @@ int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
  *  REQUEST fops
  */
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_create, "rpc_conn_create",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create, "rpc_conn_create",
 			C2_RPC_FOP_CONN_CREATE_OPCODE,
-			&c2_rpc_fop_conn_create_ops);
+			&c2_rpc_fop_conn_create_ops,
+			&c2_rpc_item_conn_create);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
 			C2_RPC_FOP_CONN_TERMINATE_OPCODE,
-			&c2_rpc_fop_conn_terminate_ops);
+			&c2_rpc_fop_conn_terminate_ops,
+			&c2_rpc_item_conn_terminate);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create, "rpc_session_create",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create, "rpc_session_create",
 			C2_RPC_FOP_SESSION_CREATE_OPCODE,
-			&c2_rpc_fop_session_create_ops);
+			&c2_rpc_fop_session_create_ops,
+			&c2_rpc_item_session_create);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate, "rpc_session_terminate",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
 			C2_RPC_FOP_SESSION_DESTROY_OPCODE,
-			&c2_rpc_fop_session_terminate_ops);
+			&c2_rpc_fop_session_terminate_ops,
+			&c2_rpc_item_session_terminate);
 
 /*
  *  REPLY fops
  */
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_create_rep, "rpc_conn_create_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create_rep, "rpc_conn_create_reply",
 			C2_RPC_FOP_CONN_CREATE_REP_OPCODE,
-			NULL);
+			NULL,
+			&c2_rpc_item_conn_create_rep);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate_rep, "rpc_conn_terminate_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep, "rpc_conn_terminate_reply",
 			C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
-			NULL);
+			NULL,
+			&c2_rpc_item_conn_terminate_rep);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_create_rep, "rpc_session_create_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create_rep, "rpc_session_create_reply",
 			C2_RPC_FOP_SESSION_CREATE_REP_OPCODE,
-			NULL);
+			NULL,
+			&c2_rpc_item_session_create_rep);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate_reply",
 			C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE,
-			NULL);
+			NULL,
+			&c2_rpc_item_session_terminate_rep);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
 			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops);

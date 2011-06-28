@@ -330,6 +330,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session   *session;
 	int			rc;
+	struct c2_rpc_slot	*slot;
 
 	C2_ASSERT(conn != NULL);
 
@@ -349,6 +350,9 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	session->s_state = C2_RPC_SESSION_IDLE;
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
+	slot = session->s_slot_table[0];
+	C2_ASSERT(slot != NULL);
+	slot->sl_ops->so_slot_idle(slot);	
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }

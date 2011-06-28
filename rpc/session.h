@@ -570,7 +570,7 @@ struct c2_rpc_session {
 	uint64_t			 s_session_id;
 	struct c2_cob			*s_cob;
 	/** rpc connection on which this session is created */
-	struct c2_rpc_conn	 	*s_conn;
+	struct c2_rpc_conn		*s_conn;
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
 	struct c2_mutex 		 s_mutex;
