@@ -11,6 +11,7 @@
 #include "rm/rm.h"
 #include "rm/rm_u.h"
 #include "rm/rm_fop.h"
+#include "rm/ut/rmproto.h"
 
 /**
    @addtogroup rm
@@ -498,44 +499,6 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 	return 0;
 }
 
-static int netcall(struct c2_rm_outgoing *out)
-{
-	struct c2_rm_request *req;
-	struct c2_rm_request *tmp_req;
-	struct c2_rm_owner *owner;
-	struct c2_rm_remote *remote;
-	struct c2_clink clink;
-
-
-	C2_ALLOC_PTR(req);
-	if (req == NULL)
-		return -ENOMEM;
-	
-	remote = &out->rog_want.rl_other;
-	c2_rm_right_init(&req->right);
-        c2_clink_init(&clink, NULL);
-        c2_clink_add(&rm_info[remote->rem_id].rq_signal, &clink);
-
-	owner = rm_info[remote->rem_id].owner;
-	c2_mutex_lock(&rm_info[remote->rem_id].out_lock);
-	c2_list_add(&rm_info[remote->rem_id].out_list, &req->rq_link);
-	c2_mutex_unlock(&rm_info[remote->rem_id].out_lock);
-
-        c2_chan_wait(&clink);
-
-	c2_mutex_lock(&rm_info[remote->rem_id].out_lock);
-	c2_list_for_each_entry_safe(&rm_info[remote->rem_id].out_list, req,
-				    tmp_req, struct c2_rm_request, rq_link) {
-		right_copy(&out->rog_want.rl_right, &req->right);
-		c2_list_del(&req->rq_link);
-	}
-	c2_mutex_unlock(&rm_info[remote->rem_id].out_lock);
-
-        c2_clink_del(&clink);
-        c2_clink_fini(&clink);
-
-	return 0;
-}
 
 /**
  * Reply to the incoming loan request when wanted rights granted
@@ -546,7 +509,7 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 	struct c2_rm_pin     *pin;
 	struct c2_rm_pin     *tmp_pin;
 	struct c2_rm_loan    *loan;
-	struct c2_rm_request *request;
+	struct c2_rm_req_reply *request;
 	int		      result = 0;
 
 	c2_list_for_each_entry_safe(&in->rin_pins, pin, tmp_pin,
@@ -586,11 +549,10 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 			c2_rm_right_init(&request->right);
 			right_copy(&request->right, &loan->rl_right);
 			/*@todo this will be changed to more generic */
-			c2_mutex_lock(&rm_info[loan->rl_other.rem_id].out_lock);
+			c2_mutex_lock(&rpc_lock);
 			loan->rl_other.rem_resource->r_ref--;
-			c2_list_add(&rm_info[loan->rl_other.rem_id].out_list,
-				    &request->rq_link);
-			c2_mutex_unlock(&rm_info[loan->rl_other.rem_id].out_lock);
+			c2_queue_put(&rpc_queue, &request->rq_link);
+			c2_mutex_unlock(&rpc_lock);
 		}
 	}
 
@@ -602,7 +564,6 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
  */
 static int send_out_request(struct c2_rm_outgoing *out)
 {
-	int		       result = 0;
 #if 0
 	struct c2_fop	      *f;
 	struct c2_fop	      *r;
@@ -627,9 +588,19 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	fop->rem_state = out->rog_want.rl_other.rem_state;
 	result = netcall(conn, f, r);
 #endif
+	struct c2_rm_req_reply *request;
 
-	result = netcall(out);
-	return result;
+	C2_ALLOC_PTR(request);
+	if (request == NULL)
+		-ENOMEM;
+	c2_rm_right_init(&request->in.rin_want);
+	c2_rm_build_incoming_request(request, out);
+	right_copy(&request->rin_want, &out->rog_want.rl_roght);
+	c2_mutex_lock(&rpc_lock);
+	c2_queue_put(&rpc_queue, &request->rq_link);
+	c2_mutex_unlock(&rpc_lock);
+
+	return 0;
 }
 
 /**
@@ -754,10 +725,10 @@ static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 
 	/*@todo rc return related things */
 	owner = og->rog_owner;
-	//c2_mutex_lock(&owner->ro_lock);
+	c2_mutex_lock(&owner->ro_lock);
 	c2_list_move(&owner->ro_outgoing[OQS_EXCITED],
 		     &og->rog_want.rl_right.ri_linkage);
-	//c2_mutex_unlock(&owner->ro_lock);
+	c2_mutex_unlock(&owner->ro_lock);
 }
 
 /**
@@ -929,7 +900,6 @@ static int incoming_check(struct c2_rm_incoming *in)
 			/*
 			 * all conflicting rights are cached (not
 			 * held).
-			 *
 			 * Apply the policy.
 			 */
 			result = apply_policy(in);
@@ -950,7 +920,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 				loan = container_of(&in->rin_want,
 						    struct c2_rm_loan,
 						    rl_right);
-				//go_out(in, ROT_CANCEL, loan, &in->rin_want);
+				go_out(in, ROT_CANCEL, loan, &in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -1193,9 +1163,9 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		//pin_add(in, &out->rog_want.rl_right);
 		pin_add(in, right);
 	}
+
 	result = send_out_request(out);
-	right_copy(right, &out->rog_want.rl_right);
-	outgoing_complete(out, result);
+
 	printf("Go out\n");
 
 	return result;

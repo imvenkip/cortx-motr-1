@@ -5,6 +5,7 @@
 #include "lib/thread.h"
 #include "lib/ut.h"
 #include "lib/queue.h"
+#include "rm/ut/rings.h"
 
 typedef void (*cb_func_t)(struct c2_rm_incoming *);
 
@@ -98,49 +99,62 @@ static struct domq *c2_ut_lookup_dom(uint64_t *cookie)
 	return d;
 }
 
-int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
-       struct c2_rm_loan *loan, struct c2_rm_right *right)
+void c2_rm_build_in_request(struct c2_rm_req_reply *req,
+			    struct c2_rm_outgoing *out)
 {
-	struct c2_rm_req *rm_req;
-	struct domq *dq = NULL;
-	bool wake = false;
+	struct c2_rm_remote *rem = out->rog_want.rl_other;
+	struct c2_rm_owner owner = out->rog_owner;
 
-	rm_req = c2_alloc(sizeof (struct c2_rm_req));
-	if (rm_req == NULL)
-		return -1;
+	req->type = PRO_OUT_REQUEST;
+	req->sig_id = out->rog_want.rl_id;
+	req->reply_id = rem->rem_id;
+	c2_chan_init(&req->in.rin_signal);
+        c2_rm_right_init(&req->in.rin_want);
+        in.rin_state = RI_INITIALISED;
+        in.rin_owner = &owner;
+        in.rin_priority = 0;
+        in.rin_ops = &rings_incoming_ops;
+        in.rin_want.ri_ops = &rings_right_ops;
+        in.rin_type = RIT_LOCAL;
+        in.rin_policy = RIP_INPLACE;
+        in.rin_flags = RIF_LOCAL_TRY;
+}
 
-	c2_list_init(&rm_req->rr_in.rin_pins);
-	c2_chan_init(&rm_req->rr_in.rin_signal);
+void rpc_process(int id)
+{
+	struct c2_rm_req_reply *req;
+	struct c2_queue_link *link;
+	struct c2_rm_proto_info *info;
+	struct c2_rm_owner *owner;
 
-	switch (otype) {
-	case ROT_BORROW:
-		rm_req->rr_in.rin_type = RIT_LOAN;
-		break;
-	case ROT_REVOKE:
-	case ROT_CANCEL:
-		rm_req->rr_in.rin_type = RIT_REVOKE;
-		break;
-	default:
-		break;
+	while (!rpc_signal) {
+		link = c2_queue_get(&rcp_queue);
+		if (link != NULL) {
+			c2_mutex_lock(&rpc_lock);
+			req = container_of(link, struct c2_rm_req_reply,
+					   rq_link);
+			c2_mutex_unlock(&rpc_lock);
+			info = rm_info[req->reply_id];
+
+			switch (req->type) {
+			case PRO_LOAN_REPLY:
+			case PRO_OUT_REQUEST;
+				c2_mutex_lock(info->oq_lock);
+				c2_queue_put(&info->owner_queue, &req->rq_link);
+				c2_mutex_unlock(info->oq->lock);
+				break;
+			case PRO_REQ_FINISH:
+				/* Signal the incoming reuest which send 
+				 * this request*/
+				info = rm_info[req->sig_id];
+				owner = info->owner;
+				c2_free(req);
+				break;
+			default:
+				printf("Wrong request: Discard\n");
+				c2_free(req);
+			}
+		}
 	}
-	rm_req->rr_in.rin_flags = RIT_REVOKE;
-	rm_req->rr_in.rin_owner = in->rin_owner;
-	rm_req->rr_in.rin_want = *right;
-	rm_req->rr_in.rin_priority = in->rin_priority;
-
-	rm_req->rr_in.rin_ops = in->rin_ops;
-
-	dq = c2_ut_lookup_dom((uint64_t *)loan);
-	C2_UT_ASSERT(dq != NULL);
-
-	c2_mutex_lock(&dq->req_lk);
-	if (c2_queue_is_empty(&dq->req))
-		wake = true;
-	c2_queue_put(&dq->req, &rm_req->rr_lnk);
-	c2_mutex_unlock(&dq->req_lk);
-	if (wake)
-		c2_chan_signal(&dq->req_chan);
-
-	return 0;
 }
 

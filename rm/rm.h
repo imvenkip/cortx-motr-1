@@ -1376,24 +1376,6 @@ void c2_rm_right_put(struct c2_rm_incoming *in);
  */
 int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
 
-struct c2_rm_request {
-	struct c2_rm_incoming in;
-	struct c2_rm_right right;
-	struct c2_list_link rq_link;
-};
-
-struct rm_ut_info {
-        char name[255];
-        uint64_t id;
-	uint64_t req_id;
-        struct c2_thread rm_handle;
-        struct c2_rm_owner *owner;
-        struct c2_rm_resource *res;
-	struct c2_list out_list;
-	struct c2_chan rq_signal;
-	struct c2_mutex out_lock;
-} rm_info[5];
-
 /** @} end of Resource manager networking */
 
 /** @} end of rm group */
