@@ -117,6 +117,9 @@
 
 struct c2_rpc_item;
 
+#ifndef __KERNEL__
+#include <rpc/xdr.h>
+#endif
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -215,6 +218,7 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+#ifndef __KERNEL__
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
@@ -223,6 +227,7 @@ struct c2_rpc_item_type_ops {
 	   Create in memory item from serialised representation of item
 	 */
 	int (*rito_decode)(struct c2_rpc_item *item, XDR *xdrs);
+#endif
 };
 
 struct c2_rpc_item_ops {
