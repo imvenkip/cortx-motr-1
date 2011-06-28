@@ -268,11 +268,12 @@ bool default_is_io_req(struct c2_rpc_item *item)
 {
 	return false;
 }
-
+uint64_t c2_rpc_item_size(struct c2_rpc_item *item);
 static struct c2_rpc_item_type_ops default_item_type_ops = {
 	.rio_is_io_req = default_is_io_req,
 	.rito_encode = c2_rpc_fop_default_encode,
-	.rito_decode = c2_rpc_fop_default_decode
+	.rito_decode = c2_rpc_fop_default_decode,
+        .rio_item_size = c2_rpc_item_size,
 };
 
 struct c2_rpc_item_type c2_rpc_item_conn_create = {

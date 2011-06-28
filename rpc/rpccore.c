@@ -376,7 +376,12 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	size = fop->f_type->ft_ops->fto_getsize(fop);
+	if(fop->f_type->ft_ops->fto_getsize) {
+		size = fop->f_type->ft_ops->fto_getsize(fop);
+	} else {
+		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	}
+
 	return size;
 }
 
