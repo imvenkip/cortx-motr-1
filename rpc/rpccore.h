@@ -537,20 +537,6 @@ struct c2_rpc_statistics {
 };
 
 /**
-   Method to encode the rpc object into a c2_net_buffer.
-   @param nb - c2_net_buffer in which the data will be serialized.
-   @param rpcobj - c2_rpc object from which data will be read.
- */
-int c2_rpc_encode(struct c2_rpc *rpcobj, struct c2_net_buffer *nb);
-
-/**
-   Method to encode the rpc object into a c2_net_buffer.
-   @param nb - c2_net_buffer from which the data will be deserialized.
-   @param rpcobj - c2_rpc object to which data will be written to.
- */
-//int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
-
-/**
    An API to create a c2_net_buffer with given c2_net_domain.
    The rpc core component allocates a pool of buffers in advance to
    receive incoming messages. This is necessary for asynchronous

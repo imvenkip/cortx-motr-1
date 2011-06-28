@@ -18,6 +18,8 @@ static void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
 }
 
+int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
+
 /**
    Transfer machine callback vector for transfer machines created by
    rpc layer.
@@ -432,16 +434,6 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 {
 }
 
-int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
-{
-	return -ENOSYS;
-}
-
-int c2_rpc_encode(struct c2_rpc *rpcobj, struct c2_net_buffer *nb)
-{
-	return -ENOSYS;
-}
-
 void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 {
 	struct c2_rpc		 rpc;
@@ -458,7 +450,7 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 	c2_rpc_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
-		rc = c2_rpc_decode(nb, &rpc);
+		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0) {
 			/* XXX We can post an ADDB event here. */
 		}
@@ -814,7 +806,12 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	size = fop->f_type->ft_ops->fto_getsize(fop);
+	if(fop->f_type->ft_ops->fto_getsize) {
+		size = fop->f_type->ft_ops->fto_getsize(fop);
+	} else {
+		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	}
+
 	return size;
 }
 

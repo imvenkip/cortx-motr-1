@@ -45,8 +45,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
    the opaque payload of the item
    @param nb - The network buffer containing the onwire RPC object.
    @retval - 0 on success, errno on failure;
-int c2_rpc_decode( struct c2_net_buffer *nb );
 */
+int c2_rpc_decode( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
 
 /**
    Generic serialization routine for a rpc item,

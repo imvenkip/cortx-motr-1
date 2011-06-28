@@ -124,7 +124,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
 	 * But we want reply to have sender_id SENDER_ID_INVALID.
 	 * c2_rpc_reply_post() simply copies sender id from req item to
-	 * reply item as it is. So set sender id of request item 
+	 * reply item as it is. So set sender id of request item
 	 * to SENDER_ID_INVALID
 	 */
 	item->ri_sender_id = SENDER_ID_INVALID;
