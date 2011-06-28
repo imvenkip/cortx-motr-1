@@ -81,7 +81,12 @@ int c2_rpc_item_init(struct c2_rpc_item *item,
 }
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
-	return 0;
+	int res = 0;
+
+	item->ri_slot_refs[0].sr_slot = NULL;
+	item->ri_state = RPC_ITEM_SUBMITTED;
+	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
+	return res;
 }
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
