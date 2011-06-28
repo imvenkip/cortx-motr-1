@@ -1265,11 +1265,15 @@ bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
 	} else {
 		size = rpcobj_size;
 	}
+/*
 	if (endp_unit->isu_n_urgent_items > 0) {
 		ret = true;
 	} else if (size >= (0.9 * endp_unit->isu_max_message_size)) {
 		ret = true;
 	}
+	return ret;
+*/
+	ret = true;
 	return ret;
 }
 
@@ -1655,6 +1659,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	bool						 item_added = false;
 	bool						 item_coalesced = false;
 
+	printf("checking state\n");
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED)
 			|| (event->se_event ==
@@ -1672,9 +1677,11 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	if(!c2_list_is_empty(&endp_unit->isu_rpcobj_formed_list)) {
 		return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	}
+/*
 	if(c2_list_is_empty(&endp_unit->isu_unformed_list)) {
 		return C2_RPC_FORM_INTEVT_STATE_FAILED;
 	}
+*/
 	/** Returning failure will lead the state machine to
 	    waiting state and then the thread will exit the
 	    state machine. */
@@ -1933,6 +1940,7 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	*rpcobj_next = NULL;
 
+	printf("forming state\n");
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
 	C2_PRE(endp_unit != NULL);
@@ -2069,7 +2077,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			nb->nb_length = rpc_size;
 
 			/* Encode the rpc contents. */
-			c2_rpc_encode(nb, rpc_obj->ro_rpcobj);
+			c2_rpc_encode(rpc_obj->ro_rpcobj, nb);
 			/* Register the buffer with net domain. */
 			res = c2_net_buffer_register(nb, dom);
 			if (res < 0) {

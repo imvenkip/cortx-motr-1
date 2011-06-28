@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
+ *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 04/15/2011
+ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -50,6 +69,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_item			*item;
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	struct c2_rpc_conn			*conn;
+	struct c2_rpc_session			*session0;
+	struct c2_rpc_slot			*slot;
 	uint64_t				sender_id;
 	int					rc;
 
@@ -76,13 +97,37 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach);
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach, &item->ri_uuid);
 	if (rc != 0)
 		goto errout;
 
 	rc = c2_rpc_rcv_conn_create(conn, item->ri_src_ep);
 	if (rc != 0)
 		goto errout;
+
+	/*
+	 * As CONN_CREATE request is directly submitted for execution
+	 * add the item explicitly to the slot0. This makes the slot
+	 * symmetric to sender side slot.
+	 */
+	session_search(conn, SESSION_0, &session0);
+	C2_ASSERT(session0 != NULL);
+	item->ri_session = session0;
+	slot = session0->s_slot_table[0];
+	C2_ASSERT(slot != NULL);
+	c2_mutex_lock(&slot->sl_mutex);
+	c2_rpc_slot_item_add_internal(slot, item);
+	c2_mutex_unlock(&slot->sl_mutex);
+
+	/*
+	 * This is required. Request item has SENDER_ID_INVALID.
+	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
+	 * But we want reply to have sender_id SENDER_ID_INVALID.
+	 * c2_rpc_reply_post() simply copies sender id from req item to
+	 * reply item as it is. So set sender id of request item 
+	 * to SENDER_ID_INVALID
+	 */
+	item->ri_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	fop_ccr->rccr_snd_id = conn->c_sender_id;
@@ -181,7 +226,6 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	rc = c2_rpc_rcv_session_create(session);
 	if (rc != 0) {
 		printf("scs: failed to create session: %d\n", rc);
-		c2_mutex_unlock(&conn->c_mutex);
 		goto errout;
 	}
 
@@ -272,13 +316,10 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 		rc = -ENOENT;
 		goto errout;
 	}
-	c2_mutex_lock(&session->s_mutex);
 	rc = c2_rpc_rcv_session_terminate(session);	
 	if (rc != 0) {
-		c2_mutex_unlock(&session->s_mutex);
 		goto errout;
 	}
-	c2_mutex_unlock(&session->s_mutex);
 	c2_rpc_session_fini(session);
 
 	fop_out->rstr_rc = 0;	/* Report success */

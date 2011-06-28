@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>
+ *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 03/17/2011
+ */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -30,21 +49,11 @@ static int session_zero_attach(struct c2_rpc_conn *conn);
 
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
-/*
-static void outgoing_conn_search(struct c2_rpcmachine	*machine,
-				uint64_t		sender_id,
-				struct c2_rpc_conn	**out);
-*/
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 					         struct c2_rpc_item	*item);
 
 int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 					 struct c2_rpc_item	*item);
-
-/** Stub routine */
-void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
-/** Stub routine */
-void c2_rpc_form_item_ready(struct c2_rpc_item *item);
 
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot);
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item);
@@ -84,38 +93,6 @@ void c2_rpc_session_module_fini(void)
 C2_EXPORTED(c2_rpc_session_module_fini);
 
 /**
-   Search for a c2_rpc_conn object having sender_id equal to
-   @sender_id in machine->cr_rpc_conn_list.
-
-   If NOT found then *out is set to NULL
-   If found then *out contains pointer to c2_rpc_conn object
-
-   @pre c2_mutex_is_locked(&machine->cr_session_mutex)
-   @post ergo(*out != NULL, (*out)->c_sender_id == sender_id)
-*/
-#if 0
-static void outgoing_conn_search(struct c2_rpcmachine	*machine,
-				uint64_t		sender_id,
-				struct c2_rpc_conn	**out)
-{
-	struct c2_rpc_conn	*conn;
-
-	C2_PRE(c2_mutex_is_locked(&machine->cr_session_mutex));
-	*out = NULL;
-
-	if (sender_id == SENDER_ID_INVALID)
-		return;
-
-	c2_rpc_for_each_outgoing_conn(machine, conn) {
-		if (conn->c_sender_id == sender_id) {
-			*out = conn;
-			break;
-		}
-	}
-	C2_POST(ergo(*out != NULL, (*out)->c_sender_id == sender_id));
-}
-#endif
-/**
    Search for session object with given @session_id in conn->c_sessions list
    If not found *out is set to NULL
    If found *out contains pointer to session object
@@ -143,6 +120,18 @@ void session_search(const struct c2_rpc_conn	*conn,
 	}
 
 	C2_POST(ergo(*out != NULL, (*out)->s_session_id == session_id));
+}
+
+void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
+{
+	/* temporary */
+	u->su_uuid = random();
+}
+
+int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
+			   struct c2_rpc_sender_uuid *u2)
+{
+	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
 int __conn_init(struct c2_rpc_conn	*conn,
@@ -177,38 +166,35 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 {
 	int	rc = 0;
 
-	if (conn == NULL || machine == NULL) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_ASSERT(conn != NULL && machine != NULL);
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
+	c2_rpc_sender_uuid_generate(&conn->c_uuid);
+	printf("rci: conn uuid %lu\n", conn->c_uuid.su_uuid);
 	rc = __conn_init(conn, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-				conn->c_rpcmachine == machine &&
-				conn->c_sender_id == SENDER_ID_INVALID &&
+				c2_rpc_conn_invariant(conn) &&
 				(conn->c_flags & RCF_SENDER_END) != 0));
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_init);
 
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
-		         struct c2_rpcmachine	*machine)
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
+		         struct c2_rpcmachine	   *machine,
+			 struct c2_rpc_sender_uuid *uuid)
 {
 	int	rc = 0;
 
-	if (conn == NULL || machine == NULL)
-		return -EINVAL;
+	C2_ASSERT(conn != NULL && machine != NULL);
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_RECV_END;
+	conn->c_uuid = *uuid;
 	rc = __conn_init(conn, machine);
-
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-				conn->c_rpcmachine == machine &&
-				conn->c_sender_id == SENDER_ID_INVALID &&
+				c2_rpc_conn_invariant(conn) &&
 				(conn->c_flags & RCF_RECV_END) != 0));
 	return rc;
 }
@@ -224,30 +210,27 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 
 	C2_PRE(ep != NULL);
 
-	if (conn == NULL || ep == NULL) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
-	if (conn->c_state != C2_RPC_CONN_INITIALISED ||
-	      (conn->c_flags & RCF_SENDER_END) == 0) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
-
-	conn->c_end_point = ep;
+	C2_PRE(conn != NULL && ep != NULL);
+	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_SENDER_END) != 0 &&
+	       c2_rpc_conn_invariant(conn));
 
 	/* Get a source endpoint and in turn a transfer machine
 	   to associate with this c2_rpc_conn. */
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 
 	/*
-	 * fill a conn create fop and send
+	 * A conn object becomes visible to other threads only after
+	 * it is inserted in connection list in rpcmachine. 
+	 * That's why c2_rpc_conn_create() can update conn object without
+	 * holding lock on conn
 	 */
+	conn->c_end_point = ep;
+
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
-	if (fop == NULL) {
-		C2_ASSERT(0);
+	if (fop == NULL)
 		return rc;
-	}
+
 	fop_cc = c2_fop_data(fop);
 	C2_ASSERT(fop_cc != NULL);
 
@@ -255,14 +238,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 * Receiver will copy this cookie in conn_create reply
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
-
-	/*
-	 * When conn create reply will be received then we will need this
-	 * fop to compare the cookies to find the right conn object.
-	 * The fop is freed either if conn_create() fails or after processing
-	 * conn create reply.
-	 */
-	conn->c_private = fop;
 
 	conn->c_state = C2_RPC_CONN_CREATING;
 
@@ -278,12 +253,11 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
+	item->ri_ops = &c2_rpc_item_conn_create_ops;
 
 	rc = c2_rpc_post(item);
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
-		conn->c_private = NULL;
 		conn->c_end_point = NULL;
 		c2_fop_free(fop);
 
@@ -299,78 +273,36 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 }
 C2_EXPORTED(c2_rpc_conn_create);
 
-void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
+void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
+				       struct c2_rpc_item *reply,
+				       int		   rc)
 {
 	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
-	struct c2_rpc_fop_conn_create		*fop_conn_create;
-	struct c2_fop				*saved_fop = NULL;
+	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
-	struct c2_rpc_item			*item;
 	struct c2_rpcmachine			*machine;
-	bool					found = false;
 
-	C2_PRE(fop != NULL);
+	C2_PRE(req != NULL && reply != NULL);
+	C2_PRE(req->ri_session == reply->ri_session &&
+	       req->ri_session != NULL);
 
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
 	fop_ccr = c2_fop_data(fop);
 	C2_ASSERT(fop_ccr != NULL);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	conn = req->ri_session->s_conn;
+	C2_ASSERT(conn != NULL);
 
 	/*
-	 * Search for c2_rpc_conn object whose create reply is
-	 * being processed
+	 * If conn create is failed then we might need to remove
+	 * conn from the rpcmachine's list. That's why need a lock
+	 * on rpcmachine->outgoing_conn_list
 	 */
-	machine = item->ri_mach;
-	c2_mutex_lock(&machine->cr_session_mutex);
-
-	c2_rpc_for_each_outgoing_conn(machine, conn) {
-		c2_mutex_lock(&conn->c_mutex);
-		if (conn->c_state == C2_RPC_CONN_CREATING) {
-			/*
-			 * during conn_create() the fop is stored in
-			 * conn->c_private
-			 */
-			saved_fop = conn->c_private;
-			C2_ASSERT(saved_fop != NULL);
-
-			fop_conn_create = c2_fop_data(saved_fop);
-			C2_ASSERT(fop_conn_create != NULL);
-
-			if (fop_conn_create->rcc_cookie ==
-				fop_ccr->rccr_cookie) {
-				/*
-				 * Address of conn object is used as cookie.
-				 * Just double check whether it is the right
-				 * object?
-				 */
-				C2_ASSERT(fop_ccr->rccr_cookie ==
-						(uint64_t)conn);
-				found = true;
-				break;
-			}
-		}
-		c2_mutex_unlock(&conn->c_mutex);
-	}
-
-	if (!found) {
-		/*
-		 * This can be a duplicate reply. That's why
-		 * cannot find an CREATING conn
-		 */
-		c2_mutex_unlock(&machine->cr_session_mutex);
-		return;
-	}
-
-	C2_ASSERT(conn != NULL && c2_mutex_is_locked(&conn->c_mutex));
+	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CREATING &&
-			c2_rpc_conn_invariant(conn));
-
-	/*
-	 * machine->cr_session_mutex is not dropped yet, because we might
-	 * require it to remove the conn object from conn_list if conn_create
-	 * is failed
-	 */
+		  c2_rpc_conn_invariant(conn));
 
 	if (fop_ccr->rccr_rc != 0) {
 		C2_ASSERT(fop_ccr->rccr_snd_id == SENDER_ID_INVALID);
@@ -385,21 +317,15 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 			fop_ccr->rccr_rc);
 	} else {
 		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID &&
-				conn->c_sender_id == SENDER_ID_INVALID);
+			  conn->c_sender_id == SENDER_ID_INVALID);
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
 		conn->c_rc = 0;
 		printf("ccrr: conn created %lu\n", fop_ccr->rccr_snd_id);
 	}
 
-	C2_ASSERT(saved_fop != NULL);
-	c2_fop_free(saved_fop);	/* conn_create req fop */
-	conn->c_private = NULL;
-
-	c2_fop_free(fop);	/* reply fop */
-
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
-			conn->c_state == C2_RPC_CONN_ACTIVE);
+		  conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
@@ -408,6 +334,7 @@ void c2_rpc_conn_create_reply_received(struct c2_fop *fop)
 }
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
+	struct c2_rpc_slot	*slot;
 	struct c2_rpc_session   *session;
 	int			rc;
 
@@ -429,6 +356,12 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	session->s_state = C2_RPC_SESSION_IDLE;
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
+	slot = session->s_slot_table[0];
+	C2_ASSERT(slot != NULL &&
+		  slot->sl_ops != NULL &&
+		  slot->sl_ops->so_slot_idle != NULL);
+	slot->sl_ops->so_slot_idle(slot);
+	//C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }
 void session_zero_detach(struct c2_rpc_conn	*conn)
@@ -455,14 +388,9 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	int					rc;
 
 	C2_PRE(conn != NULL);
-	if (conn == NULL) {
-		return -EINVAL;
-	}
-
 	c2_mutex_lock(&conn->c_mutex);
-
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
-			c2_rpc_conn_invariant(conn));
+		  c2_rpc_conn_invariant(conn));
 
 	if (conn->c_state != C2_RPC_CONN_ACTIVE) {
 		rc = -EINVAL;
@@ -480,13 +408,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out;
 	}
 
-	/*
-	 * will free the fop when reply is received. In case we might
-	 * need to resend it so store address of fop in conn->c_private
-	 */
-	C2_ASSERT(conn->c_private == NULL);
-	conn->c_private = fop;
-
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
 
@@ -501,14 +422,13 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
+	item->ri_ops = &c2_rpc_item_conn_terminate_ops;
 
 	conn->c_state = C2_RPC_CONN_TERMINATING;
 
 	rc = c2_rpc_post(item);
 	if (rc != 0) {
 		conn->c_state = C2_RPC_CONN_ACTIVE;
-		conn->c_private = NULL;
 		c2_fop_free(fop);
 	}
 
@@ -520,36 +440,42 @@ out:
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
 
-void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item	*req,
+					  struct c2_rpc_item	*reply,
+					  int			rc)
 {
 	struct c2_rpc_fop_conn_terminate_rep	*fop_ctr;
+	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
-	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 
-	C2_PRE(fop != NULL);
+	C2_PRE(req != NULL && reply != NULL);
+	C2_PRE(req->ri_session == reply->ri_session &&
+	       req->ri_session != NULL);
 
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
 	fop_ctr = c2_fop_data(fop);
 	C2_ASSERT(fop_ctr != NULL);
 
 	sender_id = fop_ctr->ctr_sender_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
-
-	conn = item->ri_session->s_conn;
+	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
 
+	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING &&
-			c2_rpc_conn_invariant(conn));
 
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING &&
+		  c2_rpc_conn_invariant(conn));
+
+	c2_list_del(&conn->c_link);
+	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
 	if (fop_ctr->ctr_rc == 0) {
 		printf("ctrr: connection terminated %lu\n", conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
 		conn->c_sender_id = SENDER_ID_INVALID;
-		c2_list_del(&conn->c_link);
 		conn->c_rc = 0;
 		conn->c_rpcmachine = NULL;
 		conn->c_end_point = NULL;
@@ -565,12 +491,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
 
-	C2_ASSERT(conn->c_private != NULL);
-	c2_fop_free(conn->c_private); /* request fop */
-	conn->c_private = NULL;
-
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
-			conn->c_state == C2_RPC_CONN_FAILED);
+		conn->c_state == C2_RPC_CONN_FAILED);
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 
@@ -581,13 +503,14 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 
 	c2_fop_free(fop);	/* reply fop */
 
+	return;
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
-		conn->c_state == C2_RPC_CONN_FAILED ||
-		conn->c_state == C2_RPC_CONN_INITIALISED);
+	       conn->c_state == C2_RPC_CONN_FAILED ||
+	       conn->c_state == C2_RPC_CONN_INITIALISED);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);
@@ -595,10 +518,6 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	c2_list_fini(&conn->c_sessions);
 	c2_chan_fini(&conn->c_chan);
 	c2_mutex_fini(&conn->c_mutex);
-	if (conn->c_cob != NULL) {
-		c2_cob_put(conn->c_cob);
-		conn->c_cob = NULL;
-	}
 	C2_SET0(conn);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
@@ -716,11 +635,7 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 	int				i;
 	int				rc = 0;
 
-	C2_PRE(session != NULL && nr_slots >= 1);
-	if (session == NULL || conn == NULL || nr_slots == 0) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 	C2_SET0(session);
 	c2_list_link_init(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
@@ -759,6 +674,7 @@ int c2_rpc_session_init(struct c2_rpc_session	*session,
 		session->s_slot_table[i]->sl_slot_id = i;
 	}
 	session->s_state = C2_RPC_SESSION_INITIALISED;
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 
 out_err:
@@ -790,16 +706,13 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	int					rc = 0;
 
 	C2_PRE(session != NULL &&
-		session->s_state == C2_RPC_SESSION_INITIALISED);
+		session->s_state == C2_RPC_SESSION_INITIALISED &&
+		c2_rpc_session_invariant(session));
 
 	conn = session->s_conn;
 	C2_ASSERT(conn != NULL);
 	c2_mutex_lock(&conn->c_mutex);
-	if (conn->c_state != C2_RPC_CONN_ACTIVE ||
-		session->s_state != C2_RPC_SESSION_INITIALISED) {
-		rc = -EINVAL;
-		goto out;
-	}
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 		
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
@@ -821,7 +734,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
+	item->ri_ops = &c2_rpc_item_session_create_ops;
 
 	rc = c2_rpc_post(item);
 	if (rc == 0) {
@@ -834,7 +747,7 @@ out:
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_CREATING &&
 			c2_rpc_session_invariant(session)));
-
+	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
 
@@ -842,20 +755,26 @@ out:
 }
 C2_EXPORTED(c2_rpc_session_create);
 
-void c2_rpc_session_create_reply_received(struct c2_fop *fop)
+void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc)
 {
 	struct c2_rpc_fop_session_create_rep	*fop_scr;
+	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session = NULL;
 	struct c2_rpc_session			*s = NULL;
-	struct c2_rpc_item			*item;
 	struct c2_rpc_slot			*slot;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 	int					i;
 
-	C2_PRE(fop != NULL);
+	C2_PRE(req != NULL && reply != NULL);
+	C2_PRE(req->ri_session == reply->ri_session &&
+	       req->ri_session != NULL);
 
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
 	fop_scr = c2_fop_data(fop);
 	C2_ASSERT(fop_scr != NULL);
 
@@ -863,12 +782,10 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	session_id = fop_scr->rscr_session_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
-
-	conn = item->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
-			conn->c_sender_id == sender_id);
+	conn = req->ri_session->s_conn;
+	C2_ASSERT(conn != NULL &&
+		  conn->c_state == C2_RPC_CONN_ACTIVE &&
+		  conn->c_sender_id == sender_id);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -885,12 +802,13 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	}
 
 	C2_ASSERT(session != NULL &&
-			session->s_state == C2_RPC_SESSION_CREATING);
-	C2_ASSERT(c2_rpc_session_invariant(session));
+		  session->s_state == C2_RPC_SESSION_CREATING);
 
 	c2_mutex_lock(&session->s_mutex);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	if (fop_scr->rscr_rc != 0) {
+		C2_ASSERT(session_id == SESSION_ID_INVALID);
 		session->s_state = C2_RPC_SESSION_FAILED;
 		c2_list_del(&session->s_link);
 		conn->c_nr_sessions--;
@@ -898,7 +816,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 		printf("scrr: Session create failed\n");
 	} else {
 		C2_ASSERT(session_id >= SESSION_ID_MIN &&
-				session_id <= SESSION_ID_MAX);
+			  session_id <= SESSION_ID_MAX);
 		session->s_session_id = session_id;
 		session->s_state = C2_RPC_SESSION_IDLE;
 		session->s_nr_active_items = 0;
@@ -912,7 +830,7 @@ void c2_rpc_session_create_reply_received(struct c2_fop *fop)
 	}
 
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-			session->s_state == C2_RPC_SESSION_FAILED);
+		  session->s_state == C2_RPC_SESSION_FAILED);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&session->s_mutex);
@@ -931,19 +849,13 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
+	c2_mutex_lock(&session->s_conn->c_mutex);
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
 
-	if (session->s_state != C2_RPC_SESSION_IDLE) {
-		c2_mutex_unlock(&session->s_mutex);
-		rc = -EINVAL;
-		goto out;
-	}
-
 	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
-		c2_mutex_unlock(&session->s_mutex);
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -954,51 +866,52 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	fop_st->rst_sender_id = session->s_conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
-
-	/*
-	 * We need ptr to session 0 to submit the item.
-	 * To search session 0 need a lock on conn. And locking
-	 * order is conn => session. Hence release lock on session.
-	 */
-	c2_mutex_unlock(&session->s_mutex);
-
-	c2_mutex_lock(&session->s_conn->c_mutex);
 	session_search(session->s_conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL &&
-			(session_0->s_state == C2_RPC_SESSION_IDLE ||
-			 session_0->s_state == C2_RPC_SESSION_BUSY));
-	c2_mutex_unlock(&session->s_conn->c_mutex);
+		 (session_0->s_state == C2_RPC_SESSION_IDLE ||
+		  session_0->s_state == C2_RPC_SESSION_BUSY));
 
+	item = c2_fop_to_rpc_item(fop);
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_flags |= RPC_ITEM_MUTABO;
+	item->ri_ops = &c2_rpc_item_session_terminate_ops;
 
+	/*
+	 * At this point we are holding conn and session mutex.
+	 * Confirm that this will not trigger self deadlock
+	 */
 	rc = c2_rpc_post(item);
 	if (rc == 0)
 		session->s_state = C2_RPC_SESSION_TERMINATING;
 
-	c2_chan_broadcast(&session->s_chan);
 out:
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATING));
 	C2_POST(c2_rpc_session_invariant(session));
+	c2_mutex_unlock(&session->s_mutex);
+	c2_mutex_unlock(&session->s_conn->c_mutex);
+	c2_chan_broadcast(&session->s_chan);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
 
-void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item  *req,
+					     struct c2_rpc_item  *reply,
+					     int		  rc)
 {
 	struct c2_rpc_fop_session_terminate_rep	*fop_str;
+	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session;
-	struct c2_rpc_item			*item;
 	uint64_t				sender_id;
 	uint64_t				session_id;
 
-	C2_PRE(fop != NULL);
+	C2_PRE(req != NULL && reply != NULL);
+	C2_PRE(req->ri_session == reply->ri_session &&
+	       req->ri_session != NULL);
 
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
 	fop_str = c2_fop_data(fop);
 	C2_ASSERT(fop_str != NULL);
 
@@ -1006,17 +919,16 @@ void c2_rpc_session_terminate_reply_received(struct c2_fop *fop)
 	session_id = fop_str->rstr_session_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
-	item = c2_fop_to_rpc_item(fop);
-
-	conn = item->ri_session->s_conn;
+	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn->c_sender_id == sender_id);
 
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_search(conn, session_id, &session);
 	C2_ASSERT(session != NULL &&
-			session->s_state == C2_RPC_SESSION_TERMINATING);
+		  session->s_state == C2_RPC_SESSION_TERMINATING);
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -1489,6 +1401,8 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 
 	/*
 	 * Add a dummy item with very low verno in item_list
+	 * The dummy item is used to avoid special cases
+	 * i.e. last_sent == NULL, last_persistent == NULL
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL)
@@ -1529,14 +1443,16 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	C2_PRE(c2_rpc_slot_invariant(slot));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
+		/* Is slot->item_list is empty? */
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
 		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
+		/* Take slot->last_sent->next item for sending */
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link);
+				     ri_slot_refs[0].sr_link);
 		if (item->ri_tstate == RPC_ITEM_FUTURE) {
 			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
 			printf("Item %p IN_PROGRESS\n", item);
@@ -1581,6 +1497,7 @@ void __slot_item_add(struct c2_rpc_slot	*slot,
 	item->ri_tstate = RPC_ITEM_FUTURE;
 	item->ri_session_id = item->ri_session->s_session_id;
 	item->ri_sender_id = item->ri_session->s_conn->c_sender_id;
+	item->ri_uuid = item->ri_session->s_conn->c_uuid;
 	printf("Itemp %p FUTURE\n", item);
 	sref = &item->ri_slot_refs[0];
 
@@ -1756,6 +1673,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 	struct c2_rpc_session	*session;
 
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
+	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 
 	*req_out = NULL;
 
@@ -1843,6 +1761,9 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
 			break;
 		}
 	}
+	C2_POST(
+	   c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
+			&last_persistent) == 0);
 }
 
 void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
@@ -1851,7 +1772,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 	struct c2_rpc_item	*item = NULL;
 	struct c2_rpc_slot_ref	*sref;
 
-	C2_PRE(slot != NULL);
+	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
 
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
@@ -1890,37 +1811,31 @@ bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
 		ret = ergo(item2->ri_tstate == RPC_ITEM_PAST_VOLATILE ||
 			   item2->ri_tstate == RPC_ITEM_PAST_COMMITTED,
 			   item2->ri_reply != NULL);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
 
 		ret = (item1->ri_tstate <= item2->ri_tstate);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
 
 		v1 = &item1->ri_slot_refs[0].sr_verno;
 		v2 = &item2->ri_slot_refs[0].sr_verno;
 
 		/*
-		 * when an "update" item is applied on a slot
-		 * then version number of slot is advanced
+		 * AFTER an "update" item is applied on a slot
+		 * the version number of slot is advanced
 		 */
 		ret = c2_rpc_item_is_update(item1) ?
 			v1->vn_vc + 1 == v2->vn_vc :
 			v1->vn_vc == v2->vn_vc;
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
+
 		ret = (item1->ri_slot_refs[0].sr_xid + 1 ==
 			item2->ri_slot_refs[0].sr_xid);
-		if (!ret) {
-			C2_ASSERT(0);
+		if (!ret)
 			break;
-		}
+
 		item1 = item2;
 	}
 	return ret;
@@ -1938,13 +1853,18 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	 * Remove the dummy item from the list
 	 */
 	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+
 	link = c2_list_first(&slot->sl_item_list);
 	C2_ASSERT(link != NULL);
+
 	item = c2_list_entry(link, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link);
 	C2_ASSERT(c2_list_link_is_in(&item->ri_slot_refs[0].sr_link));
+
 	c2_list_del(&item->ri_slot_refs[0].sr_link);
+
 	C2_ASSERT(item->ri_slot_refs[0].sr_verno.vn_vc == 0);
+
 	fop = c2_rpc_item_to_fop(item);
 	c2_fop_free(fop);
 
@@ -1963,32 +1883,36 @@ void c2_rpc_form_item_ready(struct c2_rpc_item *item)
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
-	c2_rpc_form_slot_idle(slot);
+	c2_rpc_form_extevt_slot_idle(slot);
 }
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
 {
 	printf("sender_consume_item called %p\n", item);
-	c2_rpc_form_item_ready(item);
+	c2_rpc_form_extevt_rpcitem_ready(item);
 }
 void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
 	printf("sender_consume_reply called %p %p\n", req, reply);
+	/* Don't do anything on sender to consume reply */
 }
 
 void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			slot->sl_verno.vn_vc, slot->sl_xid);
+	c2_rpc_form_extevt_slot_idle(slot);
 }
 void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
 {
 	printf("rcv_consume_item called %p\n", item);
+	dispatch_item_for_execution(item);
 }
 void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
 	printf("rcv_consume_reply called %p %p\n", req, reply);
+	c2_rpc_form_extevt_rpcitem_ready(reply);
 }
 
 int conn_persistent_state_create(struct c2_cob_domain	*dom,
@@ -2078,14 +2002,12 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	uint64_t		sender_id;
 	int			rc;
 
-	if (conn == NULL || ep == NULL)
-		return -EINVAL;
-
-	if (conn->c_state != C2_RPC_CONN_INITIALISED &&
-	      (conn->c_flags & RCF_RECV_END) == 0)
-		return -EINVAL;
+	C2_PRE(conn != NULL && ep != NULL);
+	C2_PRE(conn->c_state != C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_RECV_END) == 0);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
 	machine = conn->c_rpcmachine;
 	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
 
@@ -2113,9 +2035,9 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 
 int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 {
-	struct c2_db_tx	tx;
-	uint64_t	session_id;
-	int		rc;
+	struct c2_db_tx		tx;
+	uint64_t		session_id;
+	int			rc;
 
 	C2_PRE(session != NULL &&
 		session->s_state == C2_RPC_SESSION_INITIALISED);
@@ -2134,6 +2056,12 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	c2_db_tx_commit(&tx);
 	session->s_session_id = session_id;
 	session->s_state = C2_RPC_SESSION_IDLE;
+
+	/*
+	 * As session_[create|terminate] request arrive on same slot,
+	 * they are already serialised. So no need to take lock on
+	 * conn object.
+	 */
 	c2_list_add(&session->s_conn->c_sessions, &session->s_link);
 	session->s_conn->c_nr_sessions++;
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -2208,7 +2136,6 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
 
 	C2_ASSERT(session->s_cob == NULL && session_cob != NULL);
 	session->s_cob = session_cob;
-	C2_ASSERT(session->s_cob->co_dom->cd_dbenv != NULL);
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
 		C2_ASSERT(slot != NULL && slot->sl_cob == NULL &&
@@ -2249,24 +2176,34 @@ int session_persistent_state_destroy(struct c2_rpc_session  *session,
 
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 {
-	struct c2_db_tx	tx;
-	int		rc;
-	int		i;
+	struct c2_rpc_slot	*slot;
+	struct c2_db_tx		tx;
+	int			rc;
+	int			i;
 
-	C2_ASSERT(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
-	if (session == NULL || session->s_state != C2_RPC_SESSION_IDLE)
-		return -EINVAL;
-
+	C2_PRE(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
 	C2_ASSERT(c2_rpc_session_invariant(session));
+
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
 	/*
 	 * Take all the slots out of c2_rpcmachine::cr_ready_slots
 	 */
 	for (i = 0; i < session->s_nr_slots; i++) {
-		//c2_list_del(&session->s_slot_table[i]->sl_link);
+		slot = session->s_slot_table[i];
+		if (c2_list_link_is_in(&slot->sl_link))
+			c2_list_del(&slot->sl_link); /*lock on ready slot list??? */
+		/* 
+		 * XXX slot->sl_link and ready slot lst is completely managed
+		 * by formation.
+		 * So instead of session trying to remove slot from ready list
+		 * directly, there should one more event generated by slot 
+		 * and handled by formation, saying "stop using slot".
+		 * In the event handler, formation can remove the slot from
+		 * ready slot list.
+		 */
 	}
-
+	c2_mutex_lock(&session->s_mutex);
 	c2_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
 	rc = session_persistent_state_destroy(session, &tx);
 	if (rc != 0) {
@@ -2274,15 +2211,21 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		session->s_rc = rc;
 		c2_db_tx_abort(&tx);
 		C2_ASSERT(c2_rpc_session_invariant(session));
+		c2_mutex_unlock(&session->s_mutex);
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
+	/*
+	 * Again, no need to take lock on conn, as session_[create|terminate]
+	 * requests are already serialised.
+	 */
 	c2_list_del(&session->s_link);
 	session->s_conn->c_nr_sessions--;
 	session->s_state = C2_RPC_SESSION_TERMINATED;
 	session->s_rc = 0;
 	session->s_conn = NULL;
 	C2_ASSERT(c2_rpc_session_invariant(session));
+	c2_mutex_unlock(&session->s_mutex);
 	return 0;
 }
 
@@ -2311,10 +2254,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 {
 	struct c2_db_tx		tx;
 
-	if (conn == NULL || conn->c_state != C2_RPC_CONN_ACTIVE) {
-		C2_ASSERT(0);
-		return -EINVAL;
-	}
+	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT((conn->c_flags & RCF_RECV_END) != 0 &&
 			c2_rpc_conn_invariant(conn));
 
@@ -2365,41 +2305,50 @@ void dispatch_item_for_execution(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
 }
-bool item_is_request(struct c2_rpc_item *item)
-{
-	return item->ri_type->rit_item_is_req;
-}
-int associate_session_objects(struct c2_rpc_item *item)
+
+int associate_session_and_slot(struct c2_rpc_item *item)
 {
 	struct c2_list		*conn_list;
 	struct c2_rpc_conn	*conn = NULL;
 	struct c2_rpc_session	*session = NULL;
 	struct c2_rpc_slot	*slot = NULL;
 	struct c2_rpc_slot_ref	*sref;
+	bool			found;
+	bool			use_uuid;
 
-	if (item->ri_sender_id == SENDER_ID_INVALID)
-		return -ENOENT;
 	if (item->ri_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
-	conn_list = item_is_request(item) ?
+	conn_list = c2_rpc_item_is_request(item) ?
 			&item->ri_mach->cr_incoming_conns :
 			&item->ri_mach->cr_outgoing_conns;
 
+	use_uuid = (item->ri_sender_id == SENDER_ID_INVALID);
+
+	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
-		if (conn->c_sender_id == item->ri_sender_id)
+		found = use_uuid ?
+			c2_rpc_sender_uuid_cmp(&conn->c_uuid, &item->ri_uuid) == 0 :
+			conn->c_sender_id == item->ri_sender_id;
+		if (found)
 			break;
 	}
-	if (conn->c_sender_id != item->ri_sender_id)
+	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	if (!found)
 		return -ENOENT;
 
+	c2_mutex_lock(&conn->c_mutex);
 	session_search(conn, item->ri_session_id, &session);
+	c2_mutex_unlock(&conn->c_mutex);
 	if (session == NULL)
 		return -ENOENT;
 
+	c2_mutex_lock(&session->s_mutex);
 	sref = &item->ri_slot_refs[0];
-	if (sref->sr_slot_id >= session->s_nr_slots)
+	if (sref->sr_slot_id >= session->s_nr_slots) {
+		c2_mutex_unlock(&session->s_mutex);
 		return -ENOENT;
+	}
 	slot = session->s_slot_table[sref->sr_slot_id];
 	/* XXX Check generation of slot */
 	C2_ASSERT(slot != NULL);
@@ -2407,6 +2356,8 @@ int associate_session_objects(struct c2_rpc_item *item)
 	item->ri_session = session;
 	C2_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
+	c2_mutex_unlock(&session->s_mutex);
+
 	return 0;
 }
 int c2_rpc_item_received(struct c2_rpc_item *item)
@@ -2417,12 +2368,12 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
-	if (item_is_conn_create(item)) {
-		dispatch_item_for_execution(item);
-		return 0;
-	}
-	rc = associate_session_objects(item);
+	rc = associate_session_and_slot(item);
 	if (rc != 0) {
+		if (item_is_conn_create(item)) {
+			dispatch_item_for_execution(item);
+			return 0;
+		}
 		/*
 		 * If we cannot associate the item with its slot
 		 * then there is nothing that we can do with this
@@ -2434,11 +2385,17 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		  item->ri_slot_refs[0].sr_slot != NULL);
 
 	slot = item->ri_slot_refs[0].sr_slot;
-	if (item_is_request(item)) {
+	if (c2_rpc_item_is_request(item)) {
+		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_item_apply(slot, item);
+		c2_mutex_unlock(&slot->sl_mutex);
 	} else {
+		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_reply_received(slot, item, &req);
-		if (req != NULL && req->ri_ops->rio_replied) {
+		c2_mutex_unlock(&slot->sl_mutex);
+
+		if (req != NULL && req->ri_ops != NULL &&
+		    req->ri_ops->rio_replied != NULL) {
 			req->ri_ops->rio_replied(req, item, 0);
 		}
 		if (req != NULL) {

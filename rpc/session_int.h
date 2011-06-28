@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Amit_Jambure <Amit_Jambure@xyratex.com> 
+ * Original creation date: 05/02/2011
+ */
 
 /* Declarations of functions that are private to rpc-layer */
 
@@ -110,8 +128,9 @@ int session_persistent_state_destroy(struct c2_rpc_session	*session,
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
-			 struct c2_rpcmachine	*machine);
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
+			 struct c2_rpcmachine	   *machine,
+			 struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.
 
@@ -125,7 +144,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
 int c2_rpc_rcv_conn_create(struct c2_rpc_conn		*conn,
 			   struct c2_net_end_point	*ep);
 /**
-   @pre session->c_state == C2_RPC_SESSION_INITIALISED &&
+   @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
  */
@@ -133,6 +152,11 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
 
 /**
    Terminate receiver end of session
+
+   @pre session->s_state == C2_RPC_SESSION_IDLE
+   @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATED)
+   @post ergo(result != 0 && session->s_rc != 0, session->s_state ==
+	      C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
 
@@ -144,19 +168,12 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
-void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-
 /**
-   Checks whether reply item is valid in sequence.
-   Used on sender side.
+   Clean up in memory state of rpc connection
 
-   @param item is received item
-   @return 0 if reply item is valid and can be accepted. out != NULL and
-		contains reference to item whose reply it is.
-   @return < 0 if reply item is not valid and should be discarded. out == NULL
+   @pre conn->c_state == C2_RPC_CONN_TERMINATING
  */
-int c2_rpc_session_reply_item_received(struct c2_rpc_item	*item,
-				       struct c2_rpc_item	**out);
+void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
 uint64_t c2_rpc_sender_id_get(void);
 uint64_t c2_rpc_session_id_get(void);
@@ -183,11 +200,39 @@ void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t		  	session_id,
 		    struct c2_rpc_session 	**out);
 
+/**
+   Returns true if item is carrying CONN_CREATE fop.
+ */
 bool item_is_conn_create(struct c2_rpc_item  *item);
 void dispatch_item_for_execution(struct c2_rpc_item *item);
-bool item_is_request(struct c2_rpc_item *item);
+
+/**
+   Called for each received item.
+   If item is request then
+	APPLY the item to proper slot
+   else
+	report REPLY_RECEIVED to appropriate slot
+ */
 int c2_rpc_item_received(struct c2_rpc_item *item);
 
+void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
+				   struct c2_rpc_item *item);
+
+void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
+				       struct c2_rpc_item *reply,
+				       int		   rc);
+
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc);
+
+void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc);
+
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item	*req,
+					     struct c2_rpc_item	*reply,
+					     int		 rc);
 /** @}  End of rpc_session group */
 #endif
 

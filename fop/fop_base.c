@@ -126,6 +126,19 @@ int c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr)
 }
 C2_EXPORTED(c2_fop_type_build_nr);
 
+struct c2_fop_type * c2_fop_type_search( uint32_t opcode )
+{
+	struct c2_fop_type      *fop_type = NULL;
+	c2_mutex_lock(&fop_types_lock);
+	c2_list_for_each_entry(&fop_types_list, fop_type, struct
+				c2_fop_type, ft_linkage) {
+	if(fop_type->ft_code == opcode)
+		break;
+	}
+	c2_mutex_unlock(&fop_types_lock);
+	return fop_type;
+}
+
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 {
 	int i;

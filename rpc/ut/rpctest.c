@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>,
+ * Original creation date: 05/02/2011
+ */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -51,7 +69,7 @@ void init()
 	C2_ASSERT(rc == 0 && dom->cd_dbenv == db);
 	printf("dom = %p\n", dom);
 
-	rc = c2_rpcmachine_init(machine, dom);
+	rc = c2_rpcmachine_init(machine, dom, NULL);
 	C2_ASSERT(rc == 0);
 }
 void test_session_terminate(uint64_t sender_id, uint64_t session_id)
@@ -126,7 +144,6 @@ void test_conn_terminate(uint64_t sender_id)
 	 */
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_NOSESSION;
 	item->ri_mach = machine;
 	session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
@@ -252,6 +269,7 @@ void test_session_create()
 	c2_cob_namespace_traverse(dom);
 	c2_cob_fb_traverse(dom);
 }
+#if 0
 struct c2_rpc_conn		conn;
 struct c2_rpc_session		session;
 struct c2_thread		thread;
@@ -272,6 +290,7 @@ void conn_status_check(void *arg)
 		printf("thread: time out during conn creation\n");
 	}
 }
+
 void test_snd_conn_create()
 {
 	struct c2_fop				*fop;
@@ -303,7 +322,8 @@ void test_snd_conn_create()
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;
-
+	item->ri_uuid = conn.c_uuid;
+	item->ri_sender_id = SENDER_ID_INVALID;
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
 	c2_thread_join(&thread);
 	c2_thread_fini(&thread);
@@ -443,7 +463,6 @@ void test_snd_conn_terminate()
 				conn.c_rc);
 	c2_rpc_conn_fini(&conn);
 }
-
 extern struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops;
 
 void test_slots()
@@ -498,6 +517,7 @@ void test_slots()
 	c2_mutex_unlock(&slot->sl_mutex);
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 }
+#endif
 int main(void)
 {
 	printf("Program start\n");
@@ -512,11 +532,11 @@ int main(void)
 	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_conn_terminate(g_sender_id);
 
-	test_snd_conn_create();
-	test_snd_session_create();
+	//test_snd_conn_create();
+	//test_snd_session_create();
 	//test_slots();
-	test_snd_session_terminate();
-	test_snd_conn_terminate();
+	//test_snd_session_terminate();
+	//test_snd_conn_terminate();
 
 	c2_rpcmachine_fini(machine);
 	//c2_cob_domain_fini(dom);

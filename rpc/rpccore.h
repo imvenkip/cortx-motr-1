@@ -117,6 +117,9 @@
 
 struct c2_rpc_item;
 
+#ifndef __KERNEL__
+#include <rpc/xdr.h>
+#endif
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -219,6 +222,16 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+#ifndef __KERNEL__
+	/**
+	   Serialise @item on provided xdr stream @xdrs
+	 */
+	int (*rito_encode)(struct c2_rpc_item *item, XDR *xdrs);
+	/**
+	   Create in memory item from serialised representation of item
+	 */
+	int (*rito_decode)(struct c2_rpc_item *item, XDR *xdrs);
+#endif
 };
 
 struct c2_rpc_item_ops {
@@ -315,6 +328,8 @@ struct c2_rpc_item_type {
 	const struct c2_rpc_item_type_ops *rit_ops;
 	/** true if item is request item. false if item is reply item */
 	bool				   rit_item_is_req;
+	/** true if the item of this type modifies file-system state */
+	bool				   rit_mutabo;
 };
 
 enum c2_rpc_item_state {
@@ -354,11 +369,6 @@ enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_NR
 };
 
-enum c2_rpc_item_flags {
-	/** Item modifies file-system state */
-	RPC_ITEM_MUTABO = 1
-};
-
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF = 1
@@ -395,6 +405,7 @@ struct c2_rpc_item {
 	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
 	struct c2_list_link		ri_unbound_link;
+	struct c2_rpc_sender_uuid	ri_uuid;
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
 	int32_t				ri_error;
@@ -445,7 +456,15 @@ void c2_rpc_item_attach(struct c2_rpc_item *item);
 int c2_rpc_item_init(struct c2_rpc_item *item,
 		     struct c2_rpcmachine *mach);
 
+/**
+   Returns true if item modifies file system state, false otherwise
+ */
 bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
+
+/**
+   Returns true if item is request item. False if it is a reply item
+ */
+bool c2_rpc_item_is_request(struct c2_rpc_item *item);
 
 /** DEFINITIONS of RPC layer core DLD: */
 
@@ -522,14 +541,14 @@ struct c2_rpc_statistics {
    @param nb - c2_net_buffer in which the data will be serialized.
    @param rpcobj - c2_rpc object from which data will be read.
  */
-int c2_rpc_encode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
+int c2_rpc_encode(struct c2_rpc *rpcobj, struct c2_net_buffer *nb);
 
 /**
    Method to encode the rpc object into a c2_net_buffer.
    @param nb - c2_net_buffer from which the data will be deserialized.
    @param rpcobj - c2_rpc object to which data will be written to.
  */
-int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
+//int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
 
 /**
    An API to create a c2_net_buffer with given c2_net_domain.

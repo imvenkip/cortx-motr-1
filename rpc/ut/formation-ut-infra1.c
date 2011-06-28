@@ -271,7 +271,7 @@ int c2_rpc_form_ut_init()
 	C2_ASSERT(result == 0);
 
 	/* Init the rpcmachine */
-	c2_rpcmachine_init(&rpcmachine, &cob_domain);
+	c2_rpcmachine_init(&rpcmachine, &cob_domain, NULL);
 
 	/* Init the connection structure */
 	c2_rpc_form_conn_init(&conn, &rpcmachine);

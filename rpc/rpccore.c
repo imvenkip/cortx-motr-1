@@ -102,16 +102,55 @@ int c2_rpc_item_init(struct c2_rpc_item *item,
 }
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
-	return 0;
+	int res = 0;
+
+	item->ri_slot_refs[0].sr_slot = NULL;
+	item->ri_state = RPC_ITEM_SUBMITTED;
+	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
+	return res;
 }
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
 {
+	struct c2_rpc_slot_ref	*sref;
+	struct c2_rpc_item	*tmp;
+	struct c2_rpc_slot	*slot;
+
+	C2_PRE(request != NULL && reply != NULL);
+	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
+
+	reply->ri_session = request->ri_session;
+	reply->ri_sender_id = request->ri_sender_id;
+	reply->ri_session_id = request->ri_session_id;
+	reply->ri_uuid = request->ri_uuid;
+	reply->ri_prio = request->ri_prio;
+	reply->ri_deadline = request->ri_deadline;
+	reply->ri_error = 0;
+
+	sref = &reply->ri_slot_refs[0];
+
+	slot = sref->sr_slot = request->ri_slot_refs[0].sr_slot;
+	sref->sr_item = reply;
+
+	sref->sr_slot_id = request->ri_slot_refs[0].sr_slot_id;
+	sref->sr_verno = request->ri_slot_refs[0].sr_verno;
+	sref->sr_xid = request->ri_slot_refs[0].sr_xid;
+	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
+	
+	c2_mutex_lock(&slot->sl_mutex);
+	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
+				   reply, &tmp);
+	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
-	return (item->ri_flags & RPC_ITEM_MUTABO) != 0;
+	return item->ri_type->rit_mutabo;
+}
+
+bool c2_rpc_item_is_request(struct c2_rpc_item *item)
+{
+	return item->ri_type->rit_item_is_req;
 }
 
 void c2_rpc_ep_aggr_init(struct c2_rpc_ep_aggr *ep_aggr)
@@ -136,6 +175,7 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
+	c2_rpc_form_init();
 	return 0;
 }
 
@@ -397,7 +437,7 @@ int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
 	return -ENOSYS;
 }
 
-int c2_rpc_encode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj)
+int c2_rpc_encode(struct c2_rpc *rpcobj, struct c2_net_buffer *nb)
 {
 	return -ENOSYS;
 }
@@ -429,7 +469,7 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 			   sessions/slots method on it which will find out
 			   its corresponding request item and call its
 			   completion callback.*/
-			if (!item_is_request(item)) {
+			if (!c2_rpc_item_is_request(item)) {
 				rc = c2_rpc_item_received(item);
 				if (rc < 0) {
 					/* Post an ADDB event here.*/
