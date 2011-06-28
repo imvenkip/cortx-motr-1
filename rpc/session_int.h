@@ -144,7 +144,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
 int c2_rpc_rcv_conn_create(struct c2_rpc_conn		*conn,
 			   struct c2_net_end_point	*ep);
 /**
-   @pre session->c_state == C2_RPC_SESSION_INITIALISED &&
+   @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
  */
@@ -152,6 +152,11 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
 
 /**
    Terminate receiver end of session
+
+   @pre session->s_state == C2_RPC_SESSION_IDLE
+   @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATED)
+   @post ergo(result != 0 && session->s_rc != 0, session->s_state ==
+	      C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
 
@@ -163,6 +168,11 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session	*session);
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
+/**
+   Clean up in memory state of rpc connection
+
+   @pre conn->c_state == C2_RPC_CONN_TERMINATING
+ */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
 uint64_t c2_rpc_sender_id_get(void);
@@ -190,9 +200,19 @@ void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t		  	session_id,
 		    struct c2_rpc_session 	**out);
 
+/**
+   Returns true if item is carrying CONN_CREATE fop.
+ */
 bool item_is_conn_create(struct c2_rpc_item  *item);
 void dispatch_item_for_execution(struct c2_rpc_item *item);
-bool item_is_request(struct c2_rpc_item *item);
+
+/**
+   Called for each received item.
+   If item is request then
+	APPLY the item to proper slot
+   else
+	report REPLY_RECEIVED to appropriate slot
+ */
 int c2_rpc_item_received(struct c2_rpc_item *item);
 
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,

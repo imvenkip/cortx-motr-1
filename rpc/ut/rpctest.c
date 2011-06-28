@@ -144,7 +144,6 @@ void test_conn_terminate(uint64_t sender_id)
 	 */
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_NOSESSION;
 	item->ri_mach = machine;
 	session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);

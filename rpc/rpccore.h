@@ -306,6 +306,8 @@ struct c2_rpc_item_type {
 	const struct c2_rpc_item_type_ops *rit_ops;
 	/** true if item is request item. false if item is reply item */
 	bool				   rit_item_is_req;
+	/** true if the item of this type modifies file-system state */
+	bool				   rit_mutabo;
 };
 
 enum c2_rpc_item_state {
@@ -343,11 +345,6 @@ enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MID,
 	C2_RPC_ITEM_PRIO_MAX,
 	C2_RPC_ITEM_PRIO_NR
-};
-
-enum c2_rpc_item_flags {
-	/** Item modifies file-system state */
-	RPC_ITEM_MUTABO = 1
 };
 
 enum {
@@ -437,7 +434,15 @@ void c2_rpc_item_attach(struct c2_rpc_item *item);
 int c2_rpc_item_init(struct c2_rpc_item *item,
 		     struct c2_rpcmachine *mach);
 
+/**
+   Returns true if item modifies file system state, false otherwise
+ */
 bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
+
+/**
+   Returns true if item is request item. False if it is a reply item
+ */
+bool c2_rpc_item_is_request(struct c2_rpc_item *item);
 
 /** DEFINITIONS of RPC layer core DLD: */
 
