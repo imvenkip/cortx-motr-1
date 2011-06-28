@@ -134,6 +134,7 @@ bool c2_rpc_item_is_request(struct c2_rpc_item *item)
 
 int  c2_rpc_core_init(void)
 {
+	c2_rpc_form_init();
 	return 0;
 }
 

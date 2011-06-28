@@ -328,9 +328,9 @@ void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 }
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
+	struct c2_rpc_slot	*slot;
 	struct c2_rpc_session   *session;
 	int			rc;
-	struct c2_rpc_slot	*slot;
 
 	C2_ASSERT(conn != NULL);
 
@@ -351,9 +351,11 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
 	slot = session->s_slot_table[0];
-	C2_ASSERT(slot != NULL);
-	slot->sl_ops->so_slot_idle(slot);	
-	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(slot != NULL &&
+		  slot->sl_ops != NULL &&
+		  slot->sl_ops->so_slot_idle != NULL);
+	slot->sl_ops->so_slot_idle(slot);
+	//C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }
 void session_zero_detach(struct c2_rpc_conn	*conn)
