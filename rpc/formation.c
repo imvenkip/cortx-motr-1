@@ -1286,10 +1286,10 @@ static int c2_rpc_form_item_add_to_forming_list(
 			}
 			c2_timer_fini(&item->ri_timer);
 		}
-		if(c2_list_contains(&endp_unit->isu_unformed_list,
-					&item->ri_unformed_linkage)) {
+//		if(c2_list_contains(&endp_unit->isu_unformed_list,
+//					&item->ri_unformed_linkage)) {
 			c2_list_del(&item->ri_unformed_linkage);
-		}
+//		}
 
 		session = item->ri_session;
 		C2_ASSERT(session != NULL);
@@ -1784,6 +1784,11 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		/* Now that the item is bound, remove it from
 		   session->unbound_items list. */
 		if(ub_item->ri_state == RPC_ITEM_SUBMITTED) {
+			c2_mutex_lock(&slot->sl_mutex);
+			c2_rpc_slot_item_add_internal(slot, ub_item);
+			c2_mutex_unlock(&slot->sl_mutex);
+			c2_list_add(&endp_unit->isu_unformed_list,
+				&ub_item->ri_unformed_linkage);
 			res = c2_rpc_form_item_add_to_forming_list(endp_unit,
 					ub_item,
 					&rpcobj_size, &nfragments,
@@ -1791,7 +1796,6 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if (res != 0) {
 				break;
 			}
-			item_add_internal(slot, ub_item);
 		}
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
