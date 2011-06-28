@@ -397,7 +397,7 @@ end :
 	return rc;
 }
 
-int c2_rpc_decode(struct c2_net_buffer *nb )
+int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 {
         XDR			xdrs;
 	char			*buf;
@@ -410,7 +410,6 @@ int c2_rpc_decode(struct c2_net_buffer *nb )
 
 	C2_PRE(nb != NULL);
 
-
 	len = nb->nb_length;
 	C2_ASSERT(len != 0);
 
@@ -419,6 +418,11 @@ int c2_rpc_decode(struct c2_net_buffer *nb )
 	if(buf == NULL)
 		return -ENOMEM;
 
+	C2_ALLOC_PTR(rpc_obj);
+	if(rpc_obj == NULL)
+		return -ENOMEM;
+        c2_list_init(&rpc_obj->r_items);
+	
 	/* Decode/Copy the nb into the allocated buffer */
 	rc = netbuf_decode(buf, nb);
         if ( rc != 0 )
@@ -467,8 +471,7 @@ int c2_rpc_decode(struct c2_net_buffer *nb )
 		item->ri_src_ep = nb->nb_ep;
 		item_verify(item);
 		fop_arr++;
-		/*Decoding done call
-		c2_rpc_item_received() */
+		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);
 	}
 end_decode:
 	if(rc != 0)
