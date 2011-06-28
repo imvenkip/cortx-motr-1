@@ -1,27 +1,5 @@
 /* -*- C -*- */
 
-
-/**
-   @defgroup rpc_onwire RPC wire format types and interfaces
-
-   A C2 RPC is a container for items, FOPs and ADDB records.  The wire
-   encoding of an RPC consists of a header and a sequence of encoded
-   RPC items.
-
-   The header consists of, in order
-    - version, a uint32_t, currently only C2_RPC_VERSION_0 is supported
-    - the number of RPC items in the RPC
-
-   Each item is encoded as
-    - opcode value present in the fop ( ft_code ) encoded as a uint32_t
-    - length number of bytes in the item payload, encoded as a uint32_t
-    - Various fields related to internal processing of an rpc item.
-    - item payload ( the serialized fop data )
-
-    XXX : Current implementation of onwire formats is only for RPC items
-	  which are containers for FOPs.
-*/
-
 #include <errno.h>
 #include "lib/bitstring.h"
 #include <stdlib.h>
@@ -38,13 +16,7 @@
 #include "net/bulk_mem.h"
 #include "net/bulk_sunrpc.h"
 #include "lib/vec.h"
-
-enum {
-	/*XXX : Temporarily defined here. Will be modified and placed
-		appropriately once other rpc components are in place. */
-	MAX_RPC_ONWIRE_SIZE = 4096,
-	OPCODE_SIZE	    = 4
-};
+#include "rpc/rpc_onwire.h"
 
 /** Header information present in an RPC object */
 struct c2_rpc_header {
@@ -56,16 +28,18 @@ struct c2_rpc_header {
 
 /** Header information per rpc item in an rpc object. The detailed
     description of the various fields is present in struct c2_rpc_item
-    /rpc/rpccore.hi */
+    /rpc/rpccore.h */
 struct c2_rpc_item_header {
-	uint64_t		rih_length;
-	uint64_t		rih_sender_id;
-	uint64_t		rih_session_id;
-	struct c2_verno		rih_verno;
-	struct c2_verno		rih_last_persistent_ver_no;
-	struct c2_verno		rih_last_seen_ver_no;
-	uint64_t		rih_xid;
-	uint64_t		rih_slot_gen;
+	uint64_t			rih_length;
+	uint64_t			rih_sender_id;
+	uint64_t			rih_session_id;
+	uint32_t			slot_id;
+	struct c2_rpc_sender_uuid	rih_uuid;
+	struct c2_verno			rih_verno;
+	struct c2_verno			rih_last_persistent_ver_no;
+	struct c2_verno			rih_last_seen_ver_no;
+	uint64_t			rih_xid;
+	uint64_t			rih_slot_gen;
 };
 
 /** Encode an on-wire RPC object into a net buffer  ( not zero copy )
@@ -74,8 +48,7 @@ struct c2_rpc_item_header {
 	@param nb  - The network buffer
 	@retval    - 0 if success, errno if failure.
 */
-
-int netbuf_encode( char *buf, struct c2_net_buffer *nb)
+static int netbuf_encode(char *buf, struct c2_net_buffer *nb)
 {
         struct c2_bufvec_cursor cur;
         char                    *bp;
@@ -107,14 +80,14 @@ int netbuf_encode( char *buf, struct c2_net_buffer *nb)
 	return 0;
 }
 
-/** Decode a multivectored netbuf  into a char buffer which
+/** Decode a multivectored netbuf into a char buffer which
     can be deserialized using XDR
 	@param buf - The buffer where the data would be copied to
 	@param nb  - The network buffer from where the data would be
 	copied from.
 	@retval    - 0 if success, errno if failure.
 */
-int netbuf_decode( char *buf, struct c2_net_buffer *nb)
+static int netbuf_decode(char *buf, struct c2_net_buffer *nb)
 {
         struct c2_bufvec_cursor cur;
         char            *bp;
@@ -144,14 +117,22 @@ int netbuf_decode( char *buf, struct c2_net_buffer *nb)
 	return 0;
 }
 
-/** Return the onwire size of the item in bytes
-    The onwire size equals = size of (header + payload)
-    @param item - The rpc item for which the on wire
-		   size is to be calculated
-    @retval	- size of the item in bytes.
-*/
+/** Calculate the size of the buffer that would be needed to encode this
+rpc object */
+static size_t rpc_buf_size_get(struct c2_rpc *rpc_obj)
+{
+	size_t			size;
+	struct c2_rpc_item	*item;
 
-size_t item_size(struct c2_rpc_item *item)
+	size = size + sizeof (struct c2_rpc_header);
+	c2_list_for_each_entry(&rpc_obj->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		size  = size + c2_rpc_item_default_size(item);
+	}
+	return size;
+}
+
+size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
 {
 	size_t		len = 0;
 	struct c2_fop	*fop;
@@ -161,23 +142,16 @@ size_t item_size(struct c2_rpc_item *item)
 	fop = c2_rpc_item_to_fop(item);
 	if(fop != NULL){
 		len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-		len += sizeof(fop->f_type->ft_code); 
+		len += sizeof(fop->f_type->ft_code);
 		len += sizeof(struct c2_rpc_item_header);
 	}
 	return len;
 }
+
 /* XXX : Return correct RPC version. TBD */
-uint32_t rpc_ver_get()
+static int32_t rpc_ver_get()
 {
 	return 1;
-}
-
-/** A helper function to check if encoding/decoding of the item does not cause
-    the XDR buffer to overflow */
-bool buf_overflow_check(struct c2_rpc_item *item, size_t offset, size_t max)
-{
-	size_t size = item_size(item);
-	return(max > offset + size);
 }
 
 /** Serialize the rpc object header which consists of a rpc version no and
@@ -186,7 +160,7 @@ bool buf_overflow_check(struct c2_rpc_item *item, size_t offset, size_t max)
     @param - rpc_obj rpc object to be serialized
     @retval - 1 on success, errno on failure.
 */
-int rpc_header_encode( XDR *xdrs,  struct c2_rpc *rpc_obj)
+static int rpc_header_encode( XDR *xdrs,  struct c2_rpc *rpc_obj)
 {
 	uint32_t	len;
 	uint32_t	ver;
@@ -216,7 +190,7 @@ int rpc_header_encode( XDR *xdrs,  struct c2_rpc *rpc_obj)
     @param - ver pointer to deserialized value of rpc ver
     @retval - 1 on success, errno on failure.
 */
-int rpc_header_decode(XDR *xdrs, uint32_t *item_count, uint32_t *ver)
+static int rpc_header_decode(XDR *xdrs, uint32_t *item_count, uint32_t *ver)
 {
 
 	C2_PRE(item_count != NULL);
@@ -229,12 +203,24 @@ int rpc_header_decode(XDR *xdrs, uint32_t *item_count, uint32_t *ver)
 
 	return 0;
 }
-/** Helper function to serialize slot references in rpc item header
+
+/** Helper functions to serialize uuid and slot references in rpc item header
     see rpc/rpccore.h */
-int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
+
+static int sender_uuid_encdec(XDR *xdrs, struct c2_rpc_sender_uuid *uuid)
+{
+	int rc = 1;
+
+	if(!xdr_uint64_t(xdrs, &uuid->su_uuid))
+		return -EFAULT;
+
+	return rc;
+}
+
+static int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
 {
 	struct c2_rpc_slot_ref    *sref;
-	int			  rc = 0;
+	int			  rc = 1;
 
 	C2_PRE(sref != NULL);
 
@@ -245,19 +231,21 @@ int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
 	(!xdr_uint64_t(xdrs, &sref->sr_last_persistent_verno.vn_vc)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_last_seen_verno.vn_lsn)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_last_seen_verno.vn_vc)) ||
+	(!xdr_uint32_t(xdrs, &sref->sr_slot_id)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_xid)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_slot_gen)));
+	(!xdr_uint64_t(xdrs, &sref->sr_slot_gen)))
 		rc = -EFAULT;
 
 	return rc;
 }
+
 /** Generic encode/decode function for rpc item header
     @param xdrs - XDR stream for encoding/decoding
     @param item - This RPC item's header would be encoded/decoded
     into the XDR stream
     @retval 0 if success, errno on failure
 */
-int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
+static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 {
 	uint64_t		len;
 	struct c2_fop		*fop;
@@ -273,6 +261,7 @@ int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	if((!xdr_uint64_t(xdrs, &len)) ||
 	(!xdr_uint64_t(xdrs, &item->ri_sender_id)) ||
 	(!xdr_uint64_t(xdrs, &item->ri_session_id)) ||
+	(!sender_uuid_encdec(xdrs, &item->ri_uuid)) ||
 	(!slot_ref_encdec(xdrs, item->ri_slot_refs)))
 		return -EFAULT;
 	return 0;
@@ -283,7 +272,7 @@ int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
    for encoding and decoding an rpc item into/from an XDR
    stream
 */
-int item_encdec(XDR *xdrs, struct c2_rpc_item *item)
+static int item_encdec(XDR *xdrs, struct c2_rpc_item *item)
 {
 	int		rc;
 	struct		c2_fop *fop;
@@ -302,14 +291,7 @@ int item_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	return 0;
 }
 
-/**
-   Generic serialization routine for a rpc item,
-   These will eventually be added  to c2_rpc_item_type_ops
-   @param xdrs - XDR stream used for serialization
-   @param item - item to be serialized
-   @retval rc - 0 if success, errno if failure
-*/
-int item_encode(struct c2_rpc_item *item, XDR *xdrs)
+int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
 {
 	struct c2_fop		*fop;
 	int			rc;
@@ -330,14 +312,7 @@ int item_encode(struct c2_rpc_item *item, XDR *xdrs)
 	return rc;
 }
 
-/**
-   Generic deserialization routine for a rpc item,
-   These will eventually be added  to c2_rpc_item_type_ops
-   @param xdrs - XDR stream used for serialization
-   @param item - item to be deserialized
-   @retval rc - 0 if success, errno if failure
-*/
-int item_decode(struct c2_rpc_item *item, XDR *xdrs)
+int c2_rpc_fop_default_decode(struct c2_rpc_item *item, XDR *xdrs)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(xdrs != NULL);
@@ -346,7 +321,7 @@ int item_decode(struct c2_rpc_item *item, XDR *xdrs)
 }
 
 /* XXX : Debug function. Added here for UT and testing.*/
-void item_verify(struct c2_rpc_item *item)
+static void item_verify(struct c2_rpc_item *item)
 {
 	struct c2_fop		*fop;
 	struct c2_fop_type	*fopt;
@@ -356,6 +331,9 @@ void item_verify(struct c2_rpc_item *item)
 	unsigned char		*buf;
 
 	fop = c2_rpc_item_to_fop(item);
+	printf("\nSender Id : %lx", item->ri_sender_id);
+	printf("\nSession Id : %lx", item->ri_session_id);
+	printf("\nSender UUID : %lx", item->ri_uuid.su_uuid);
 	fopt = fop->f_type;
 	printf("\nOpcode : %d", (uint32_t)fopt->ft_code);
 	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
@@ -370,32 +348,23 @@ void item_verify(struct c2_rpc_item *item)
 	}
 }
 
-/**
-   This function encodes c2_rpc object into the specified buffer. Each
-   rpc object contains a header and number of rpc items. These items are
-   serialized using an XDR stream created by xdrmem_create() or equivalent.
-   The specified buffer is allocated and managed by the caller.
-   @param rpc_obj - rpc object to be converted into a network buffer
-   @param nb - network buffer
-   @retval - 0 if success, errno on failure.
-*/
-
-int c2_rpc_encode ( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
+int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 {
 	char			*buf;
 	struct c2_rpc_item	*item;
 	XDR			xdrs;
-	size_t			len, offset=0;
+	size_t			len, offset=0, buf_size;
 	int			rc;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);
 
+	buf_size = rpc_buf_size_get(rpc_obj);
 	/* Allocate a buffer and create an XDR stream */
-	buf = c2_alloc(MAX_RPC_ONWIRE_SIZE);
+	buf = c2_alloc(buf_size);
 	if(buf == NULL)
 		return -ENOMEM;
-	xdrmem_create(&xdrs, buf, MAX_RPC_ONWIRE_SIZE, XDR_ENCODE);
+	xdrmem_create(&xdrs, buf, buf_size, XDR_ENCODE);
 
 	/*Serialize RPC object header into the buffer */
 	rc = rpc_header_encode(&xdrs,rpc_obj);
@@ -407,18 +376,18 @@ int c2_rpc_encode ( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
            and for each object serialize item and the fop data*/
         c2_list_for_each_entry(&rpc_obj->r_items, item,
 				struct c2_rpc_item, ri_rpcobject_linkage) {
-		offset = len + item_size(item);
-		if(offset > MAX_RPC_ONWIRE_SIZE) {
+		offset = len + c2_rpc_item_default_size(item);
+		if(offset > buf_size) {
 			rc = -EMSGSIZE;
 			goto end;
 		}
 		len = offset;
-		rc = item_encode(item, &xdrs);
+		rc = c2_rpc_fop_default_encode(item, &xdrs);
 		if(rc != 0)
 			goto end;
 	}
 	/* Copy the buffer into nb */
-	nb->nb_length = len;
+	nb->nb_length = buf_size;
 	rc = netbuf_encode( buf, nb);
 	if(rc != 0)
 		goto end;
@@ -428,17 +397,7 @@ end :
 	return rc;
 }
 
-
-/**
-   Decodes the data in the network buffer into a newly allocated buffer.
-   The data in the buffer is deserialized using XDR to extract the header
-   and various RPC items.The opcodes present in the individual rpc items
-   look up the decode operation to allocate the new RPC item and to decode
-   the opaque payload of the item
-   @param nb - The network buffer containing the onwire RPC object.
-   @retval - 0 on success, errno on failure;
-*/
-int c2_rpc_decode( struct c2_net_buffer *nb )
+int c2_rpc_decode(struct c2_net_buffer *nb )
 {
         XDR			xdrs;
 	char			*buf;
@@ -451,15 +410,17 @@ int c2_rpc_decode( struct c2_net_buffer *nb )
 
 	C2_PRE(nb != NULL);
 
-	/* Allocate a buffer and create an XDR stream */
-        buf = c2_alloc(MAX_RPC_ONWIRE_SIZE);
-	if(buf == NULL)
-		return -ENOMEM;
+
 	len = nb->nb_length;
 	C2_ASSERT(len != 0);
 
+	/* Allocate a buffer and create an XDR stream */
+        buf = c2_alloc(len);
+	if(buf == NULL)
+		return -ENOMEM;
+
 	/* Decode/Copy the nb into the allocated buffer */
-	rc = netbuf_decode( buf, nb);
+	rc = netbuf_decode(buf, nb);
         if ( rc != 0 )
 		return rc;
 	/* Init XDR stream, deserialize the header
@@ -484,7 +445,7 @@ int c2_rpc_decode( struct c2_net_buffer *nb )
 			return -EMSGSIZE;
 		rc = xdr_uint32_t(&xdrs, &opcode);
 		if(rc == 0)
-		return -EFAULT;
+			return -EFAULT;
 		ftype = c2_fop_type_search(opcode);
 		if(ftype == NULL) {
 			return -ENOSYS;
@@ -497,12 +458,13 @@ int c2_rpc_decode( struct c2_net_buffer *nb )
 			rc = -EFAULT;
 			goto end_decode;
 		}
-		offset = offset + item_size(item);
+		offset = offset + c2_rpc_item_default_size(item);
 		if(offset > len)
 			return -EMSGSIZE;
-		rc = item_decode(item, &xdrs);
+		rc = c2_rpc_fop_default_decode(item, &xdrs);
 		if (rc != 0)
-		   goto end_decode;
+			goto end_decode;
+	
 		item_verify(item);
 		fop_arr++;
 		/*Decoding done call
