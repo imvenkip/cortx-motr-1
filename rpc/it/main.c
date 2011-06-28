@@ -37,6 +37,7 @@
 #include "net/bulk_sunrpc.h"
 #include "rpc/session.h"
 #include "rpc/rpccore.h"
+#include "rpc/formation.h"
 
 
 /**     
@@ -357,6 +358,8 @@ void client_init()
 		printf("RPC connection created \n");
 	}
 
+#if 0
+
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
@@ -375,7 +378,7 @@ void client_init()
 	} else {
 		printf("RPC session created\n");
 	}
-
+#endif
 cleanup:
 	do_cleanup();
 }
@@ -392,6 +395,10 @@ int main(int argc, char *argv[])
 	int			 server_port = 0;
 	int			 nr_slots;
 	struct c2_thread	 server_thread;
+	uint64_t                         c2_rpc_max_message_size;
+	uint64_t                         c2_rpc_max_fragments_size;
+	uint64_t                         c2_rpc_max_rpcs_in_flight;
+
 
 	rc = c2_init();
 	if (rc != 0)
@@ -416,6 +423,15 @@ int main(int argc, char *argv[])
 	sctx.pc_rport = cctx.pc_lport = CLIENT_PORT;
 	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
+
+	c2_rpc_max_message_size = 10;
+        /* Start with a default value of 8. The max value in Lustre, is
+           limited to 32. */
+        c2_rpc_max_rpcs_in_flight = 8;
+        c2_rpc_max_fragments_size = 16;
+
+        c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
+                        c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
 	/* Set if passed through command line interface */
 	if(client_name)
