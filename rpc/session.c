@@ -37,6 +37,7 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpccore.h"
+#include "rpc/formation.h"
 
 /**
    @addtogroup rpc_session
@@ -53,11 +54,6 @@ struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 
 int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 					 struct c2_rpc_item	*item);
-
-/** Stub routine */
-void c2_rpc_form_slot_idle(struct c2_rpc_slot *slot);
-/** Stub routine */
-void c2_rpc_form_item_ready(struct c2_rpc_item *item);
 
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot);
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item);
@@ -1868,32 +1864,36 @@ void c2_rpc_form_item_ready(struct c2_rpc_item *item)
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
-	c2_rpc_form_slot_idle(slot);
+	c2_rpc_form_extevt_slot_idle(slot);
 }
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
 {
 	printf("sender_consume_item called %p\n", item);
-	c2_rpc_form_item_ready(item);
+	c2_rpc_form_extevt_rpcitem_ready(item);
 }
 void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
 	printf("sender_consume_reply called %p %p\n", req, reply);
+	/* Don't do anything on sender to consume reply */
 }
 
 void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			slot->sl_verno.vn_vc, slot->sl_xid);
+	c2_rpc_form_extevt_slot_idle(slot);
 }
 void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
 {
 	printf("rcv_consume_item called %p\n", item);
+	dispatch_item_for_execution(item);
 }
 void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
 	printf("rcv_consume_reply called %p %p\n", req, reply);
+	c2_rpc_form_extevt_rpcitem_ready(reply);
 }
 
 int conn_persistent_state_create(struct c2_cob_domain	*dom,
