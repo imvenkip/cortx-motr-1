@@ -47,18 +47,18 @@ struct ping_ctx {
         struct c2_net_xprt			*pc_xprt;
 	/* Network domain */
         struct c2_net_domain			 pc_dom; 
-	/* Client hostname */
-        const char				*pc_chostname;
-	/* Client port */
-        int					 pc_cport;
-	/* Server hostname */
-        const char				*pc_shostname;
-	/* Server port */
-        int					 pc_sport;
-	/* Client end point */
-        struct c2_net_end_point			*pc_cep;
-	/* Server end point */
-        struct c2_net_end_point			*pc_sep;
+	/* Local hostname */
+        const char				*pc_lhostname;
+	/* Local port */
+        int					 pc_lport;
+	/* Remote hostname */
+        const char				*pc_rhostname;
+	/* Remote port */
+        int					 pc_rport;
+	/* Local source end point */
+        struct c2_net_end_point			*pc_lep;
+	/* Remote destination end point */
+        struct c2_net_end_point			*pc_rep;
 	/* RPC connection */
 	struct c2_rpc_conn			 pc_conn;
 	/* rpcmachine */
@@ -98,8 +98,11 @@ enum {
 	NR_SLOTS = 10,
 };
 
-/* Global ping context */
+/* Global client ping context */
 struct ping_ctx		cctx;
+
+/* Global server ping context */
+struct ping_ctx		sctx;
 
 /** Forward declaration. Actual code in bulk_ping */
 int canon_host(const char *hostname, char *buf, size_t bufsiz);
@@ -109,6 +112,123 @@ void do_cleanup()
 {
 }
 
+/* Poll the server */
+void server_poll()
+{
+                char cli_buf[ADDR_LEN];
+
+                printf("Type \"quit\" or ^D to terminate\n");
+                while (fgets(cli_buf, ADDR_LEN, stdin)) {
+                        if (strcmp(cli_buf, "quit\n") == 0)
+                                break;
+                }
+}
+
+/* Create the server*/
+void server_init()
+{
+	int	rc = 0;
+	char	addr[ADDR_LEN];
+	char	hostbuf[ADDR_LEN];
+
+	/* Init Bulk sunrpc transport */
+	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
+	c2_net_xprt_init(sctx.pc_xprt);
+	if(rc != 0) {
+		printf("Failed to init transport\n");
+		goto cleanup;
+	} else {
+		printf("Bulk sunrpc transport init completed \n");
+	}
+
+
+	/* Resolve client hostname */
+	rc = canon_host(sctx.pc_lhostname, hostbuf, sizeof(hostbuf));
+	if(rc != 0) {
+		printf("Failed to canon host\n");
+		goto cleanup;
+	} else {
+		printf("Server Hostname Resolved \n");
+	}
+
+	/* Init server side network domain */
+	rc = c2_net_domain_init(&sctx.pc_dom, sctx.pc_xprt);
+	if(rc != 0) {
+		printf("Failed to init domain\n");
+		goto cleanup;
+	} else {
+		printf("Domain init completed\n");
+	}
+	sprintf(addr, "%s:%u:%d", hostbuf, sctx.pc_lport, RID);
+	printf("Server Addr = %s\n",addr);
+
+	/* Create source endpoint for server side */
+	rc = c2_net_end_point_create(&sctx.pc_lep,&sctx.pc_dom,addr); 
+	if(rc != 0){
+		printf("Failed to create endpoint\n");
+		goto cleanup;
+	} else {
+		printf("Server Endpoint created \n");
+	}
+
+	/* Resolve Client hostname */
+	rc = canon_host(sctx.pc_rhostname, hostbuf, sizeof(hostbuf));
+	if(rc != 0) {
+		printf("Failed to canon host\n");
+		goto cleanup;
+	} else {
+		printf("Client Hostname Resolved \n");
+	}
+	sprintf(addr, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
+	printf("Client Addr = %s\n",addr);
+
+	/* Create destination endpoint for server i.e client endpoint */
+	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_dom, addr); 
+	if(rc != 0){
+		printf("Failed to create endpoint\n");
+		goto cleanup;
+	} else {
+		printf("Client Endpoint created \n");
+	}
+
+	/* Create RPC connection using new API 
+	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
+	   &cctx.pc_cep); */	
+
+	sctx.pc_db_name = "rpcping_db_server";
+	sctx.pc_cob_dom_id.id =  13 ;
+
+	/* Init the db */
+	rc = c2_dbenv_init(&sctx.pc_db, sctx.pc_db_name, 0);
+	if(rc != 0){
+		printf("Failed to init dbenv\n");
+		goto cleanup;
+	} else {
+		printf("DB init completed \n");
+	}
+
+	/* Init the cob domain */
+	rc = c2_cob_domain_init(&sctx.pc_cob_domain, &sctx.pc_db,
+			&sctx.pc_cob_dom_id);
+	if(rc != 0){
+		printf("Failed to init cob domain\n");
+		goto cleanup;
+	} else {
+		printf("Cob Domain Init completed \n");
+	}
+
+	/* Init the rpcmachine */
+	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain, NULL); 
+	if(rc != 0){
+		printf("Failed to init rpcmachine\n");
+		goto cleanup;
+	} else {
+		printf("RPC machine init completed \n");
+	}
+
+cleanup:
+	do_cleanup();
+}
 /* Create the client */
 void client_init()
 {
@@ -128,7 +248,7 @@ void client_init()
 
 
 	/* Resolve client hostname */
-	rc = canon_host(cctx.pc_chostname, hostbuf, sizeof(hostbuf));
+	rc = canon_host(cctx.pc_lhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
 		printf("Failed to canon host\n");
 		goto cleanup;
@@ -144,11 +264,11 @@ void client_init()
 	} else {
 		printf("Domain init completed\n");
 	}
-	sprintf(addr, "%s:%u:%d", hostbuf, cctx.pc_cport, RID);
+	sprintf(addr, "%s:%u:%d", hostbuf, cctx.pc_lport, RID);
 	printf("Client Addr = %s\n",addr);
 
 	/* Create source endpoint for client side */
-	rc = c2_net_end_point_create(&cctx.pc_cep,&cctx.pc_dom,addr); 
+	rc = c2_net_end_point_create(&cctx.pc_lep,&cctx.pc_dom,addr); 
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -157,18 +277,18 @@ void client_init()
 	}
 
 	/* Resolve server hostname */
-	rc = canon_host(cctx.pc_shostname, hostbuf, sizeof(hostbuf));
+	rc = canon_host(cctx.pc_rhostname, hostbuf, sizeof(hostbuf));
 	if(rc != 0) {
 		printf("Failed to canon host\n");
 		goto cleanup;
 	} else {
 		printf("Server Hostname Resolved \n");
 	}
-	sprintf(addr, "%s:%u:%d", hostbuf, cctx.pc_sport, RID);
+	sprintf(addr, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr);
 
 	/* Create destination endpoint for client i.e server endpoint */
-	rc = c2_net_end_point_create(&cctx.pc_sep, &cctx.pc_dom, addr); 
+	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_dom, addr); 
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -180,7 +300,7 @@ void client_init()
 	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
 	   &cctx.pc_cep); */	
 
-	cctx.pc_db_name = "rpcping_db";
+	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;
 
 	/* Init the db */
@@ -221,7 +341,7 @@ void client_init()
 	}
 
 	/* Create RPC connection */
-	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_sep); 
+	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_rep); 
 	if(rc != 0){
 		printf("Failed to create rpc connection\n");
 		goto cleanup;
@@ -273,36 +393,42 @@ int main(int argc, char *argv[])
 		C2_STRINGARG('C', "client hostname",
 			LAMBDA(void, (const char *str) {client_name = str; })),
 		C2_FORMATARG('p', "client port", "%i", &client_port),
-		C2_FLAGARG('c', "run server", &server),
-		C2_STRINGARG('C', "server hostname",
+		C2_FLAGARG('s', "run server", &server),
+		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('p', "server port", "%i", &server_port),
-		C2_FORMATARG('S', "number of slots", "%i", &nr_slots));
+		C2_FORMATARG('l', "number of slots", "%i", &nr_slots));
 	if (rc != 0)
 		return rc;
 	
 	/* Set defaults */
-	cctx.pc_chostname = "localhost";
-	cctx.pc_shostname = "localhost";
-	cctx.pc_cport = CLIENT_PORT;
-	cctx.pc_sport = SERVER_PORT;
+	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
+	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
+	sctx.pc_rport = cctx.pc_lport = CLIENT_PORT;
+	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
 
 	/* Set if passed through command line interface */
 	if(client_name)
-		cctx.pc_chostname = client_name;
+		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
 	if(client_port)
-		cctx.pc_cport = client_port;
+		sctx.pc_rport = cctx.pc_lport = client_port;
 	if(server_name)
-		cctx.pc_shostname = server_name;
+		sctx.pc_lhostname = cctx.pc_rhostname = server_name;
 	if(server_port)
-		cctx.pc_sport = server_port;
+		sctx.pc_lport = cctx.pc_rport = server_port;
 	if(nr_slots)
-		cctx.pc_nr_slots = nr_slots;
+		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
 
 	/* Client part */
 	if(client) {
 		client_init();
+	}
+
+	/* Server part */
+	if(server) {
+		server_init();
+		server_poll();
 	}
 
 	return 0;
