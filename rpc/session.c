@@ -213,21 +213,16 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn	*conn,
 	return rc;
 }
 int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep,
-		       struct c2_net_end_point	*src_ep)
+		       struct c2_net_end_point	*ep)
 {
 	struct c2_fop			*fop;
 	struct c2_rpc_fop_conn_create	*fop_cc;
 	struct c2_rpc_item		*item;
 	struct c2_rpc_session		*session_0;
 	struct c2_rpcmachine		*machine;
-	struct c2_net_domain		*net_dom = NULL;
-	struct c2_rpc_chan		*chan = NULL;
-	struct c2_net_transfer_mc	*tm = NULL;
 	int				 rc;
 
 	C2_PRE(ep != NULL);
-	C2_PRE(src_ep != NULL);
 
 	if (conn == NULL || ep == NULL) {
 		C2_ASSERT(0);
@@ -241,48 +236,9 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 
 	conn->c_end_point = ep;
 
-        /* Find out if a transfer machine is running on this endpoint
-           already. If yes, increment the refcount of endpoint.
-           Else, create a new c2_rpc_chan structure and initialize it.*/
-        net_dom = src_ep->nep_dom;
-	C2_ASSERT(net_dom != NULL);
-        chan = c2_rpc_chan_locate(src_ep);
-        if (chan == NULL) {
-                C2_ALLOC_PTR(tm);
-                if (tm == NULL) {
-                        return -ENOMEM;
-                }
-                /* Initialize the transfer machine.*/
-                tm->ntm_state = C2_NET_TM_UNDEFINED;
-                tm->ntm_callbacks = &c2_rpc_tm_callbacks;
-                rc = c2_net_tm_init(tm, net_dom);
-                if (rc < 0) {
-                        c2_free(tm);
-                        return rc;
-                }
-		/* Allocate the buffers for receiving messages. */
-		rc = c2_rpc_recv_buffer_allocate_nr(net_dom, tm);
-		if (rc < 0) {
-			c2_free(tm);
-			return rc;
-		}
-                rc = c2_rpc_chan_create(&chan, src_ep, tm);
-                if (rc < 0) {
-                        c2_free(tm);
-			return rc;
-                }
-		rc = c2_net_tm_start(tm, src_ep);
-		if (rc < 0) {
-			rc = c2_rpc_recv_buffer_deallocate_nr(tm, net_dom);
-			c2_net_tm_fini(tm);
-			c2_free(tm);
-			return rc;
-		}
-        } else {
-                c2_net_end_point_get(src_ep);
-		c2_ref_get(&chan->rc_ref);
-        }
-	conn->c_rpcchan = chan;
+	/* Get a source endpoint and in turn a transfer machine
+	   to associate with this c2_rpc_conn. */
+	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 
 	/*
 	 * fill a conn create fop and send
@@ -618,16 +574,13 @@ void c2_rpc_conn_terminate_reply_received(struct c2_fop *fop)
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 
+	/* Release the reference on c2_rpc_chan structure being used. */
+	c2_rpc_chan_put(conn->c_rpcchan);
+
 	c2_chan_broadcast(&conn->c_chan);
 
 	c2_fop_free(fop);	/* reply fop */
 
-	/* Release the reference on the source endpoint and the
-	   concerned c2_rpc_chan here.*/
-	c2_mutex_lock(&rpc_ep_aggr->ea_mutex);
-	c2_net_end_point_put(conn->c_rpcchan->rc_xfermc->ntm_ep);
-	c2_mutex_unlock(&rpc_ep_aggr->ea_mutex);
-	c2_ref_put(&conn->c_rpcchan->rc_ref);
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)

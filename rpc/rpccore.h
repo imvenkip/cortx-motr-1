@@ -578,11 +578,8 @@ extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
    used by rpc layer. c2_rpcmachine refers to this structure.
    This structure is created keeping in mind that there could be
    multiple c2_rpcmachine structures co-existing within a colibri
-   address space. And multiple rpc machines might use same endpoint
-   to communicate. In this case, a rpcmachine can not blindly fini
-   a struct c2_rpc_chan in rpcmachine_fini. It has to be destroyed
-   when no one is referring to the c2_net_end_point and the
-   transfer machine.
+   address space. And multiple c2_rpc_conns within the rpcmachine
+   might use same endpoint to communicate.
  */
 struct c2_rpc_ep_aggr {
 	/** Mutex to protect the list.*/
@@ -590,13 +587,6 @@ struct c2_rpc_ep_aggr {
 	/** List of c2_rpc_chan structures. */
 	struct c2_list		ea_chan_list;
 };
-
-/**
-   There is a global instance of struct c2_rpc_ep_aggr in rpc layer.
-   It is initiated during c2_rpc_core_init() and finied during
-   c2_rpc_core_fini().
- */
-extern struct c2_rpc_ep_aggr		*rpc_ep_aggr;
 
 /**
    A physical node can have multiple endpoints associated with it.
@@ -615,31 +605,48 @@ struct c2_rpc_chan {
 	struct c2_net_transfer_mc	*rc_xfermc;
 	/** Number of entities using this transfer machine.*/
 	struct c2_ref			 rc_ref;
+	/** The rpcmachine, this chan structure is associated with.*/
+	struct c2_rpcmachine		*rc_rpcmachine;
 };
 
 /**
    Create a new c2_rpc_chan structure, populate it and add it to
    the list in struct c2_rpc_ep_aggr.
  */
-int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_net_end_point
-		*ep, struct c2_net_transfer_mc *tm);
+int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
+		struct c2_net_end_point *ep);
 
 /**
    Destroy the given c2_rpc_chan structure and remove it from the list
    since no one is referring to it any more.
  */
-void c2_rpc_chan_destroy(struct c2_rpc_chan *chan);
+void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
+		struct c2_rpc_chan *chan);
 
 /**
-   Locate a c2_rpc_chan structure given the endpoint.
+   Return a c2_rpc_chan structure given the endpoint.
+   Refcount is incremented on the returned c2_rpc_chan.
+   This API will be typically used by c2_rpc_conn_create method
+   to get a source endpoint and eventually a transfer machine to
+   associate with.
  */
-struct c2_rpc_chan *c2_rpc_chan_locate(struct c2_net_end_point *ep);
+struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine);
+
+/**
+   Release the c2_rpc_chan structure being used.
+   This will decrement the refcount of given c2_rpc_chan structure.
+   c2_rpc_conn_terminate_reply_received will use this method to
+   release the reference to the transfer machine it was using.
+ */
+void c2_rpc_chan_put(struct c2_rpc_chan *chan);
 
 /**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpcmachine {
+	/* List of transfer machine used by conns from this rpcmachine. */
+	struct c2_rpc_ep_aggr	   cr_ep_aggr;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;
@@ -657,6 +664,13 @@ struct c2_rpcmachine {
 	/** list of ready slots. */
 	struct c2_list		   cr_ready_slots;
 };
+
+/**
+   Add a source endpoint to given rpcmachine. The rpcmachine can use
+   this endpoint and will associate a transfer machine with this endpoint.
+ */
+int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
+		struct c2_net_end_point *src_ep);
 
 /**
    Construct rpc core layer
@@ -678,7 +692,8 @@ void c2_rpc_core_fini(void);
    @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom);
+			struct c2_cob_domain	*dom,
+			struct c2_net_end_point	*src_ep);
 
 /**
    Destruct rpcmachine

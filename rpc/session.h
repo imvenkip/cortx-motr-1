@@ -160,8 +160,8 @@ When an item is received, following conditions are possible:
 
 /* Imports */
 struct c2_rpc_item;
-struct c2_rpc_chan;
 struct c2_rpcmachine;
+struct c2_rpc_chan;
 struct c2_net_end_point;
 
 /* Exports */
@@ -295,8 +295,8 @@ struct c2_rpc_conn {
 	struct c2_list_link              c_link;
 	enum c2_rpc_conn_state		 c_state;
 	uint64_t			 c_flags;
-	/* Pointer to c2_rpc_chan which tells which transfer machine
-	   is this conn attached to.*/
+	/* A c2_rpc_chan structure that will point to the transfer
+	   machine used by this c2_rpc_conn. */
 	struct c2_rpc_chan		*c_rpcchan;
 	/**
 	    XXX Deprecated: c2_service_id
@@ -345,8 +345,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
 int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep,
-		       struct c2_net_end_point	*src_ep);
+		       struct c2_net_end_point	*ep);
 
 /**
    Send "conn_terminate" FOP to receiver.
