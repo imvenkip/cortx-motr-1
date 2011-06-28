@@ -16,6 +16,7 @@
 #include "rpc/ut/test.ff"
 #include "rpc/rpccore.h"
 #include "fop/fop_base.h"
+#include "rpc/rpc_onwire.h"
 #include "rpc/session_int.h"
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
@@ -56,8 +57,10 @@ void populate_item(struct c2_rpc_item *item)
 
 	item->ri_sender_id = 0xdead;
 	item->ri_session_id = 0xbeef;
+	item->ri_uuid.su_uuid = 0xeaeaeaea;
 	slot_ref.sr_xid  = 0x11111111;
 	slot_ref.sr_slot_gen = 0x22222222;
+	slot_ref.sr_slot_id = 0x666;
 	memcpy(&slot_ref.sr_verno, &verno, sizeof(struct c2_verno));
 	memcpy(&slot_ref.sr_last_persistent_verno, &p_no, sizeof(struct c2_verno));
 	memcpy(&slot_ref.sr_last_seen_verno, &ls_no, sizeof(struct c2_verno));
