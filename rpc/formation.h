@@ -327,6 +327,7 @@ int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
 
 /**
    Deallocate a buffer of type struct c2_rpc_form_buffer.
+   @param fb - form_buffer to be deallocated.
  */
 void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb);
 
@@ -548,7 +549,7 @@ int c2_rpc_form_extevt_unbounded_rpcitem_added(struct c2_rpc_item *item);
   Callback function for <struct c2_net_buffer> which indicates that
   message has been sent out from the buffer. This callback function
   corresponds to the C2_NET_QT_MSG_SEND event
-  @param item - net buffer event
+  @param ev - net buffer event
  */
 void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
 

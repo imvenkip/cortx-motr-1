@@ -519,11 +519,15 @@ struct c2_rpc_statistics {
 
 /**
    Method to encode the rpc object into a c2_net_buffer.
+   @param nb - c2_net_buffer in which the data will be serialized.
+   @param rpcobj - c2_rpc object from which data will be read.
  */
 int c2_rpc_encode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
 
 /**
    Method to encode the rpc object into a c2_net_buffer.
+   @param nb - c2_net_buffer from which the data will be deserialized.
+   @param rpcobj - c2_rpc object to which data will be written to.
  */
 int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
 
@@ -533,36 +537,50 @@ int c2_rpc_decode(struct c2_net_buffer *nb, struct c2_rpc *rpcobj);
    receive incoming messages. This is necessary for asynchronous
    behavior of system. This buffer is deallocated when the transfer
    machine to which this buffer was added, gets destroyed.
+   @param net_dom - the net domain in which buffers should be registered.
  */
 struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
 		struct c2_net_domain *net_dom);
 
 /**
    Allocate buffers meant for receiving messages for given number of times.
+   @param net_dom - net domain in which nr number of buffers will be registered.
+   @param tm - transfer machine to which nr number of buffers will be added.
  */
 int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 		struct c2_net_transfer_mc *tm);
 
 /**
    Deallocate the buffer meant for receiving buffers.
+   @param nb - net buffer to be deallocated.
+   @param tm - transfer machine from which nb should be deleted.
+   @param net_dom - network domain from which nb should be deregistered.
  */
 int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
 
 /**
    Deallocate the buffers for given number of times.
+   @param tm - transfer machine from which nr number of buffers will be
+               deleted.
+   @param net_dom - network domain from which nr number of buffers will
+                    be deregistered.
  */
 int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
 		struct c2_net_domain *net_dom);
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
+   @param net_dom - network domain to which buffers will be registered.
+   @param nb - network buffer to be allocated.
  */
 void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
 		struct c2_net_buffer *nb);
 
 /**
    Deallocate a net buffer meant for sending messages.
+   @param nb - network buffer which will be deallocated.
+   @param net_dom - network domain from which buffer will be deregistered.
  */
 int c2_rpc_send_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_domain *net_dom);
@@ -612,6 +630,9 @@ struct c2_rpc_chan {
 /**
    Create a new c2_rpc_chan structure, populate it and add it to
    the list in struct c2_rpc_ep_aggr.
+   @param chan - c2_rpc_chan structure to be created.
+   @param machine - concerned c2_rpcmachine structure.
+   @param ep - Network endpoint to be associated with transfer machine.
  */
 int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 		struct c2_net_end_point *ep);
@@ -619,6 +640,8 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 /**
    Destroy the given c2_rpc_chan structure and remove it from the list
    since no one is referring to it any more.
+   @param machine - concerned rpc machine.
+   @param chan - c2_rpc_chan structure to be destroyed.
  */
 void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 		struct c2_rpc_chan *chan);
@@ -629,6 +652,8 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
    This API will be typically used by c2_rpc_conn_create method
    to get a source endpoint and eventually a transfer machine to
    associate with.
+   @param machine - concerned c2_rpcmachine from which new c2_rpc_chan
+   structure will be assigned.
  */
 struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine);
 
@@ -637,6 +662,7 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine);
    This will decrement the refcount of given c2_rpc_chan structure.
    c2_rpc_conn_terminate_reply_received will use this method to
    release the reference to the transfer machine it was using.
+   @param chan - chan on which reference will be released.
  */
 void c2_rpc_chan_put(struct c2_rpc_chan *chan);
 
@@ -668,6 +694,8 @@ struct c2_rpcmachine {
 /**
    Add a source endpoint to given rpcmachine. The rpcmachine can use
    this endpoint and will associate a transfer machine with this endpoint.
+   @param machine - concerned c2_rpcmachine.
+   @param src_ep - net endpoint to be added to rpcmachine.
  */
 int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 		struct c2_net_end_point *src_ep);
