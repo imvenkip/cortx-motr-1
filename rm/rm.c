@@ -950,7 +950,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 				loan = container_of(&in->rin_want,
 						    struct c2_rm_loan,
 						    rl_right);
-				go_out(in, ROT_CANCEL, loan, &in->rin_want);
+				//go_out(in, ROT_CANCEL, loan, &in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -974,6 +974,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 			/* borrow more */
 			while (!right_is_empty(&rest)) {
 				struct c2_rm_loan *borrow;
+				struct c2_rm_right *right;
 				C2_ALLOC_PTR(borrow);
 				if (borrow == NULL)
 					return -ENOMEM;
@@ -987,12 +988,20 @@ static int incoming_check(struct c2_rm_incoming *in)
 				if (!result) {
 					c2_list_add(&o->ro_borrowed,
 					    &borrow->rl_right.ri_linkage);
+					C2_ALLOC_PTR(right);
+					if (right == NULL)
+						return -ENOMEM;
+					c2_rm_right_init(right);
+					right_copy(right, &borrow->rl_right);
+					c2_list_add(&o->ro_owned[OWOS_CACHED],
+						    &right->ri_linkage);
 				}
 			}
 		}
 		if (right_is_empty(&rest)) {
 			right_copy(&in->rin_want, &rest);
 			in->rin_state = RI_WAIT;
+			printf("Incr the priority\n");
 			/*@todo Remove later on*/
 			in->rin_priority = 1;
 			c2_list_move(&o->ro_incoming[in->rin_priority][OQS_EXCITED],
@@ -1078,6 +1087,7 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 	struct c2_rm_loan  *loan;
 	int		    result;
 
+	printf("IN sublet-revoke function\n");
 	c2_list_for_each_entry(&o->ro_sublet, right,
 			       struct c2_rm_right, ri_linkage) {
 		if (rest->ri_ops->rro_intersects(right, rest)) {
@@ -1096,7 +1106,6 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 			
 		}
 	}
-	printf("IN sublet-revoke function\n");
 }
 
 /**

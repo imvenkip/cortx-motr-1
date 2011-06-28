@@ -49,7 +49,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 librm_ut_la_LIBADD =
-am_librm_ut_la_OBJECTS = rings.lo rmut.lo
+am_librm_ut_la_OBJECTS = rings.lo rmut.lo rmproto.lo
 librm_ut_la_OBJECTS = $(am_librm_ut_la_OBJECTS)
 PROGRAMS = $(noinst_PROGRAMS)
 am_rmls_OBJECTS = rmls.$(OBJEXT)
@@ -183,7 +183,7 @@ sharedstatedir = ${prefix}/com
 sysconfdir = ${prefix}/etc
 target_alias = 
 noinst_LTLIBRARIES = librm-ut.la
-librm_ut_la_SOURCES = rings.h rings.c rmut.c
+librm_ut_la_SOURCES = rings.h rings.c rmut.c rmproto.c
 INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 rmls_SOURCES = rmls.c
 rmls_LDFLAGS = 
@@ -251,6 +251,7 @@ distclean-compile:
 
 include ./$(DEPDIR)/rings.Plo
 include ./$(DEPDIR)/rmls.Po
+include ./$(DEPDIR)/rmproto.Plo
 include ./$(DEPDIR)/rmut.Plo
 
 .c.o:

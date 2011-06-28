@@ -1,5 +1,5 @@
 noinst_LTLIBRARIES   = librm-ut.la
-librm_ut_la_SOURCES  = rings.h rings.c rmut.c
+librm_ut_la_SOURCES  = rings.h rings.c rmut.c rmproto.c
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 noinst_PROGRAMS  = rmls
