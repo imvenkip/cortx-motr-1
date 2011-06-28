@@ -2088,7 +2088,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				   list.*/
 				c2_list_del(&rpc_obj->ro_linkage);
 				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
-			} 
+			}
 		} else {
 			ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 			break;
