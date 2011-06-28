@@ -234,8 +234,9 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate
 			NULL,
 			&c2_rpc_item_session_terminate_rep);
 
-C2_FOP_TYPE_DECLARE(c2_rpc_fop_noop, "NOOP",
-			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops);
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_noop, "NOOP",
+			C2_RPC_FOP_NOOP, &c2_rpc_fop_noop_ops,
+			&c2_rpc_item_noop);
 
 static struct c2_fop_type *fops[] = {
 	&c2_rpc_fop_conn_create_fopt,
@@ -314,6 +315,12 @@ struct c2_rpc_item_type c2_rpc_item_session_create_rep = {
 struct c2_rpc_item_type c2_rpc_item_session_terminate_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
+	.rit_mutabo = false
+};
+
+struct c2_rpc_item_type c2_rpc_item_noop = {
+	.rit_ops = &default_item_type_ops,
+	.rit_item_is_req = true,
 	.rit_mutabo = false
 };
 

@@ -113,6 +113,7 @@ extern struct c2_rpc_item_type c2_rpc_item_session_terminate;
 extern struct c2_rpc_item_type c2_rpc_item_session_terminate_rep;
 extern struct c2_rpc_item_type c2_rpc_item_conn_terminate;
 extern struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep;
+extern struct c2_rpc_item_type c2_rpc_item_noop;
 
 extern struct c2_rpc_item_ops c2_rpc_item_conn_create_ops;
 extern struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
