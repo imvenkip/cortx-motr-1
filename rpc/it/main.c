@@ -123,6 +123,11 @@ void server_poll()
 	while (fgets(cli_buf, ADDR_LEN, stdin)) {
 		if (strcmp(cli_buf, "quit\n") == 0)
 			break;
+		else {
+			printf("\n########################################\n");
+			printf("\n\nType \"quit\" or ^D to terminate\n\n");
+			printf("\n########################################\n");
+		}
 	}
 }
 
