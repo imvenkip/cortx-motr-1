@@ -70,6 +70,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_fom_conn_create		*fom_cc;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session0;
+	struct c2_rpc_slot			*slot;
 	uint64_t				sender_id;
 	int					rc;
 
@@ -112,7 +113,12 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	session_search(conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
-	c2_rpc_slot_item_add_internal(session0->s_slot_table[0], item);
+	slot = session0->s_slot_table[0];
+	C2_ASSERT(slot != NULL);
+	c2_mutex_lock(&slot->sl_mutex);
+	c2_rpc_slot_item_add_internal(slot, item);
+	c2_mutex_unlock(&slot->sl_mutex);
+
 	/*
 	 * This is required. Request item has SENDER_ID_INVALID.
 	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
@@ -220,7 +226,6 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	rc = c2_rpc_rcv_session_create(session);
 	if (rc != 0) {
 		printf("scs: failed to create session: %d\n", rc);
-		c2_mutex_unlock(&conn->c_mutex);
 		goto errout;
 	}
 
@@ -311,13 +316,10 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 		rc = -ENOENT;
 		goto errout;
 	}
-	c2_mutex_lock(&session->s_mutex);
 	rc = c2_rpc_rcv_session_terminate(session);	
 	if (rc != 0) {
-		c2_mutex_unlock(&session->s_mutex);
 		goto errout;
 	}
-	c2_mutex_unlock(&session->s_mutex);
 	c2_rpc_session_fini(session);
 
 	fop_out->rstr_rc = 0;	/* Report success */
