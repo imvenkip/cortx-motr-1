@@ -35,7 +35,7 @@
    @param nb - network buffer
    @retval - 0 if success, errno on failure.
 */
-int c2_rpc_encode ( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
+int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
 
 /**
    Decodes the data in the network buffer into a newly allocated buffer.

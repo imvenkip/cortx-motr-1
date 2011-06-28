@@ -34,6 +34,7 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_int.h"
+#include "rpc/rpc_onwire.h"
 
 /**
    @addtogroup rpc_session
@@ -255,43 +256,48 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
+static struct c2_rpc_item_type_ops default_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = c2_rpc_fop_default_decode
+};
+
 struct c2_rpc_item_type c2_rpc_item_conn_create = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
 struct c2_rpc_item_type c2_rpc_item_conn_terminate = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
 struct c2_rpc_item_type c2_rpc_item_session_create = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
 struct c2_rpc_item_type c2_rpc_item_session_terminate = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
 struct c2_rpc_item_type c2_rpc_item_conn_create_rep = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
 struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
 struct c2_rpc_item_type c2_rpc_item_session_create_rep = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
 struct c2_rpc_item_type c2_rpc_item_session_terminate_rep = {
-	.rit_ops = NULL,
+	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };

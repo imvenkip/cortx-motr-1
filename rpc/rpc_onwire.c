@@ -464,7 +464,7 @@ int c2_rpc_decode(struct c2_net_buffer *nb )
 		rc = c2_rpc_fop_default_decode(item, &xdrs);
 		if (rc != 0)
 			goto end_decode;
-	
+		item->ri_src_ep = nb->nb_ep;
 		item_verify(item);
 		fop_arr++;
 		/*Decoding done call

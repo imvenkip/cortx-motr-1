@@ -215,6 +215,14 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+	/**
+	   Serialise @item on provided xdr stream @xdrs
+	 */
+	int (*rito_encode)(struct c2_rpc_item *item, XDR *xdrs);
+	/**
+	   Create in memory item from serialised representation of item
+	 */
+	int (*rito_decode)(struct c2_rpc_item *item, XDR *xdrs);
 };
 
 struct c2_rpc_item_ops {
