@@ -115,17 +115,19 @@ void do_cleanup()
 /* Poll the server */
 void server_poll()
 {
-                char cli_buf[ADDR_LEN];
+	char cli_buf[ADDR_LEN];
 
-                printf("Type \"quit\" or ^D to terminate\n");
-                while (fgets(cli_buf, ADDR_LEN, stdin)) {
-                        if (strcmp(cli_buf, "quit\n") == 0)
-                                break;
-                }
+	printf("\n########################################\n");
+	printf("\n\nType \"quit\" or ^D to terminate\n\n");
+	printf("\n########################################\n");
+	while (fgets(cli_buf, ADDR_LEN, stdin)) {
+		if (strcmp(cli_buf, "quit\n") == 0)
+			break;
+	}
 }
 
 /* Create the server*/
-void server_init()
+void server_init(int dummy)
 {
 	int	rc = 0;
 	char	addr[ADDR_LEN];
@@ -229,6 +231,7 @@ void server_init()
 cleanup:
 	do_cleanup();
 }
+
 /* Create the client */
 void client_init()
 {
@@ -383,6 +386,7 @@ int main(int argc, char *argv[])
 	const char		*server_name = NULL;
 	int			 server_port = 0;
 	int			 nr_slots;
+	struct c2_thread	 server_thread;
 
 	rc = c2_init();
 	if (rc != 0)
@@ -427,8 +431,11 @@ int main(int argc, char *argv[])
 
 	/* Server part */
 	if(server) {
-		server_init();
+		C2_SET0(&server_thread);
+		rc = C2_THREAD_INIT(&server_thread, int, NULL, &server_init,
+				0, "ping_server");
 		server_poll();
+		c2_thread_join(&server_thread);
 	}
 
 	return 0;
