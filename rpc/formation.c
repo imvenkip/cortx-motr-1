@@ -1286,10 +1286,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 			}
 			c2_timer_fini(&item->ri_timer);
 		}
-//		if(c2_list_contains(&endp_unit->isu_unformed_list,
-//					&item->ri_unformed_linkage)) {
-			c2_list_del(&item->ri_unformed_linkage);
-//		}
+		c2_list_del(&item->ri_unformed_linkage);
 
 		session = item->ri_session;
 		C2_ASSERT(session != NULL);
