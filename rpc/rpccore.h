@@ -427,6 +427,8 @@ struct c2_rpc_item {
 	struct c2_net_end_point		*ri_src_ep;
 	/** item operations */
 	struct c2_rpc_item_ops		*ri_ops;
+	/** Dummy queue linkage to dummy reqh */
+	struct c2_queue_link		ri_dummy_qlinkage;
 };
 
 /**
@@ -950,6 +952,9 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
 
 /** @} end name stat_ifs */
 
+/** DUMMY REQH for RPC IT. Queue of RPC items */
+extern struct c2_queue		exec_queue; 
+extern struct c2_chan		exec_chan; 
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

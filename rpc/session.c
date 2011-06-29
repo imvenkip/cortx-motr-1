@@ -2003,8 +2003,8 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	int			rc;
 
 	C2_PRE(conn != NULL && ep != NULL);
-	C2_PRE(conn->c_state != C2_RPC_CONN_INITIALISED &&
-	      (conn->c_flags & RCF_RECV_END) == 0);
+	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
+	      (conn->c_flags & RCF_RECV_END) != 0);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
@@ -2304,6 +2304,8 @@ bool item_is_conn_create(struct c2_rpc_item *item)
 void dispatch_item_for_execution(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
+	c2_queue_put(&exec_queue, &item->ri_dummy_qlinkage);
+	c2_chan_broadcast(&exec_chan);
 }
 
 int associate_session_and_slot(struct c2_rpc_item *item)

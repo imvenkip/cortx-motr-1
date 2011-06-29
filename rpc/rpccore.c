@@ -469,6 +469,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
 	nb->nb_length = ev->nbe_length;
+	nb->nb_ep = ev->nbe_ep;
 	c2_rpc_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
@@ -487,6 +488,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 					rc_xfermc);
 			item->ri_mach = chan->rc_rpcmachine;
 			item->ri_src_ep = nb->nb_ep;
+			printf("item->src_ep = %p\n", item->ri_src_ep);
 			printf("Item %d received\n", i);
 			rc = c2_rpc_item_received(item);
 			if (rc == 0) {
@@ -1058,6 +1060,11 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 			break;
 	};
 }
+
+/* Dummy reqh queue of items */
+
+struct c2_queue          exec_queue; 
+struct c2_chan		exec_chan; 
 
 /*
  *  Local variables:

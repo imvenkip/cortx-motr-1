@@ -132,6 +132,38 @@ void server_poll()
 	}
 }
 
+/* Create dummy request handler */
+void server_rqh_init(int dummy)
+{
+	struct c2_queue_link 	*q1;
+	struct c2_rpc_item	*item;
+	struct c2_fop		*fop;
+	struct c2_fom		*fom;
+	struct c2_clink		 clink;
+
+	c2_queue_init(&exec_queue);
+	c2_chan_init(&exec_chan);
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&exec_chan, &clink);
+	C2_ASSERT(c2_queue_is_empty(&exec_queue));
+        C2_ASSERT(c2_queue_get(&exec_queue) == NULL);
+        C2_ASSERT(c2_queue_length(&exec_queue) == 0);
+
+	while (1) {
+		c2_chan_wait(&clink);
+		if (!c2_queue_is_empty(&exec_queue)) {	
+			q1 = c2_queue_get(&exec_queue);
+			C2_ASSERT(q1 != NULL);
+			item = container_of(q1, struct c2_rpc_item,
+				ri_dummy_qlinkage);
+			fop = c2_rpc_item_to_fop(item);
+			fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+			C2_ASSERT(fom != NULL);
+			fom->fo_ops->fo_state(fom);	
+			}
+		}	
+}
+
 /* Create the server*/
 void server_init(int dummy)
 {
@@ -414,6 +446,7 @@ int main(int argc, char *argv[])
 	int			 server_port = 0;
 	int			 nr_slots;
 	struct c2_thread	 server_thread;
+	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
 	uint64_t		 c2_rpc_max_fragments_size;
 	uint64_t		 c2_rpc_max_rpcs_in_flight;
@@ -471,9 +504,13 @@ int main(int argc, char *argv[])
 
 	/* Server part */
 	if(server) {
+		/* server thread */
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, int, NULL, &server_init,
 				0, "ping_server");
+		C2_SET0(&server_rqh_thread);
+		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
+				&server_rqh_init, 0, "ping_server_rqh");
 		server_poll();
 		c2_thread_join(&server_thread);
 	}
