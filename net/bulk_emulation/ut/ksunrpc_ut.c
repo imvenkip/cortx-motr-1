@@ -28,7 +28,7 @@
 
 enum {
 	NUM = 100,
-	IPADDR = 0x7f000001,
+	IPADDR = 0x7f000001,	/* 127.0.0.1 */
 	PORT = 10001,
 	FAKEPORT = 10701,
 	S_EPID = 42,
