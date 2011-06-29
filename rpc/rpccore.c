@@ -106,6 +106,14 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	int res = 0;
 
+	c2_list_link_init(&item->ri_unformed_linkage);
+        c2_list_link_init(&item->ri_group_linkage);
+        c2_list_link_init(&item->ri_linkage);
+        c2_list_link_init(&item->ri_rpcobject_linkage);
+        c2_list_link_init(&item->ri_unbound_link);
+        c2_list_link_init(&item->ri_slot_link);
+        item->ri_reply = NULL;
+
 	item->ri_slot_refs[0].sr_slot = NULL;
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
