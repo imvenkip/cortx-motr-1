@@ -121,10 +121,10 @@ static int netbuf_decode(char *buf, struct c2_net_buffer *nb)
 rpc object */
 static size_t rpc_buf_size_get(struct c2_rpc *rpc_obj)
 {
-	size_t			size;
+	size_t			size = 0;
 	struct c2_rpc_item	*item;
 
-	size = size + sizeof (struct c2_rpc_header);
+	size = sizeof (struct c2_rpc_header);
 	c2_list_for_each_entry(&rpc_obj->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		size  = size + c2_rpc_item_default_size(item);
