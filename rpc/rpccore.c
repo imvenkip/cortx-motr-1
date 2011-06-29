@@ -457,6 +457,7 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 	struct c2_rpc_item	*item = NULL;
 	struct c2_net_buffer	*nb = NULL;
 	int			 rc = 0;
+	int			 i = 0;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL));
 
@@ -478,11 +479,11 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
 			   sessions/slots method on it which will find out
 			   its corresponding request item and call its
 			   completion callback.*/
-			if (!c2_rpc_item_is_request(item)) {
-				rc = c2_rpc_item_received(item);
-				if (rc < 0) {
-					/* Post an ADDB event here.*/
-				}
+			rc = c2_rpc_item_received(item);
+			if (rc < 0) {
+				/* Post an ADDB event here.*/
+				printf("Item %d received\n", i);
+				++i;
 			}
 		}
 

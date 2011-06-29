@@ -2394,15 +2394,16 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		c2_rpc_slot_reply_received(slot, item, &req);
 		c2_mutex_unlock(&slot->sl_mutex);
 
-		if (req != NULL && req->ri_ops != NULL &&
-		    req->ri_ops->rio_replied != NULL) {
-			req->ri_ops->rio_replied(req, item, 0);
-		}
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
 			rc = c2_rpc_form_extevt_rpcitem_reply_received(item,
 					req);
 			return rc;
+		}
+
+		if (req != NULL && req->ri_ops != NULL &&
+		    req->ri_ops->rio_replied != NULL) {
+			req->ri_ops->rio_replied(req, item, 0);
 		}
 	}
 	return 0;
