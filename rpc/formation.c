@@ -2040,7 +2040,6 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
 	struct c2_net_end_point		*endp = NULL;
-	struct c2_net_buffer		*nb = NULL;
 	struct c2_net_domain		*dom = NULL;
 	struct c2_net_transfer_mc	*tm = NULL;
 	struct c2_rpc_item		*first_item = NULL;
