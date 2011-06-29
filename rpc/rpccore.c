@@ -200,23 +200,22 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 		return rc;
 	}
 
-	/* Add buffers for receiving messages to this transfer machine. */
-	rc = c2_rpc_recv_buffer_allocate_nr(src_ep->nep_dom, chan->rc_xfermc);
+	/* Start the transfer machine so that users of this rpcmachine
+	   can send/receive messages. */
+	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
 
-	/* Start the transfer machine so that users of this rpcmachine
-	   can send/receive messages. */
-	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
+	/* Add buffers for receiving messages to this transfer machine. */
+	rc = c2_rpc_recv_buffer_allocate_nr(src_ep->nep_dom, chan->rc_xfermc);
 	if (rc < 0) {
-		/* Delete all the buffers from transfer machine and fini the
-		   transfer machine. */
-		c2_rpc_recv_buffer_deallocate_nr(chan->rc_xfermc,
-				chan->rc_xfermc->ntm_dom);
+		rc = c2_net_tm_stop(chan->rc_xfermc, true);
 		c2_rpc_chan_destroy(machine, chan);
+		return rc;
 	}
+
 	return rc;
 }
 
@@ -696,21 +695,18 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 	rc = c2_rpc_chan_create(&chan, machine, src_ep);
 
-	/* Allocate the buffers for receiving messages. */
-	rc = c2_rpc_recv_buffer_allocate_nr(net_dom, chan->rc_xfermc);
+	/* Start the transfer machine so that users of this rpcmachine
+	   can send/receive messages. */
+	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
 
-	/* Start the transfer machine so that users of this rpcmachine
-	   can send/receive messages. */
-	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
+	/* Allocate the buffers for receiving messages. */
+	rc = c2_rpc_recv_buffer_allocate_nr(net_dom, chan->rc_xfermc);
 	if (rc < 0) {
-		/* Delete all the buffers from transfer machine and fini the
-		   transfer machine. */
-		c2_rpc_recv_buffer_deallocate_nr(chan->rc_xfermc,
-				chan->rc_xfermc->ntm_dom);
+		rc = c2_net_tm_stop(chan->rc_xfermc, true);
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
