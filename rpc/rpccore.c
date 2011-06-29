@@ -693,6 +693,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	   passing the source endpoint. */
         net_dom = src_ep->nep_dom;
 	C2_ASSERT(net_dom != NULL);
+	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 	rc = c2_rpc_chan_create(&chan, machine, src_ep);
 
 	/* Allocate the buffers for receiving messages. */
