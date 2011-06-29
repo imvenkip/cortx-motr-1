@@ -357,7 +357,7 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 				&machine->cr_ep_aggr.ea_chan_list)) {
 		chan_found = chan;
 	}
-	c2_ref_get(&chan->rc_ref);
+	c2_ref_get(&chan_found->rc_ref);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	return chan_found;
 }
