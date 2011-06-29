@@ -352,9 +352,10 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 			chan_found = chan;
 		}
 	}
-	if (c2_list_link_is_last(&chan->rc_linkage,
-				&machine->cr_ep_aggr.ea_chan_list)) {
-		chan_found = chan;
+	if (chan_found == NULL) {
+		chan_found = c2_list_entry(c2_list_first(&machine->
+					cr_ep_aggr.ea_chan_list),
+				struct c2_rpc_chan, rc_linkage);
 	}
 	c2_ref_get(&chan_found->rc_ref);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
