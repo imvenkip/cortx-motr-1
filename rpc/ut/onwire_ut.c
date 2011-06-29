@@ -80,7 +80,7 @@ int main()
 	struct c2_fop_test		*ccf1, *ccf2, *ccf3;
 	int				rc;
 	struct c2_rpc_item		*item1, *item2, *item3;
-	struct c2_rpc			*obj, *obj2;
+	struct c2_rpc			*obj, obj2;
 	struct c2_net_buffer		*nb;
 
 	C2_ALLOC_PTR(item1);
@@ -132,7 +132,8 @@ int main()
 	c2_bufvec_alloc(&nb->nb_buffer, 10, 64);
 
 	rc =  c2_rpc_encode ( obj, nb );
-	rc = c2_rpc_decode(obj2, nb);
+	c2_list_init(&obj2.r_items);
+	rc = c2_rpc_decode(&obj2, nb);
 	c2_fop_type_fini(&c2_fop_test_fopt);
 	c2_fini();
 	return 0;

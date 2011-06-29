@@ -222,20 +222,12 @@ static int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
 {
 	struct c2_rpc_slot_ref    *sref;
 	int			  rc = 1;
+	char			  *what;
 
 	C2_PRE(slot_ref != NULL);
 
 
 	sref = &slot_ref[0];
-	printf("\nVer No lsn (encode): %lx", sref->sr_verno.vn_lsn);
-	printf("\nVer No vc (encode): %lx", sref->sr_verno.vn_vc);
-	printf("\nLast persistent ver no lsn (encode): %lx", sref->sr_last_persistent_verno.vn_lsn);
-	printf("\nLast persistent ver no vc (encode): %lx", sref->sr_last_persistent_verno.vn_vc);
-	printf("\nLast seen ver no lsn (encode): %lx", sref->sr_last_seen_verno.vn_lsn);
-	printf("\nLast seen ver no vc (encode) : %lx", sref->sr_last_seen_verno.vn_vc);
-	printf("\nSlot Id (encode): %x", sref->sr_slot_id);
-	printf("\nXid (encode): %lx", sref->sr_xid);
-	printf("\nSlot gen (encode): %lx",sref->sr_slot_gen);
 	if((!xdr_uint64_t(xdrs, &sref->sr_verno.vn_lsn))||
 	(!xdr_uint64_t(xdrs, &sref->sr_verno.vn_vc)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_last_persistent_verno.vn_lsn)) ||
@@ -246,7 +238,21 @@ static int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
 	(!xdr_uint64_t(xdrs, &sref->sr_xid)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_slot_gen)))
 		rc = -EFAULT;
+	
+	if(xdrs->x_op == XDR_ENCODE)
+		what = "encode";
+	else
+		what = "decode";
 
+	printf("\nVer No lsn (%s): %lx",what, sref->sr_verno.vn_lsn);
+	printf("\nVer No vc (%s): %lx", what, sref->sr_verno.vn_vc);
+	printf("\nLast persistent ver no lsn (%s): %lx", what, sref->sr_last_persistent_verno.vn_lsn);
+	printf("\nLast persistent ver no vc (%s): %lx", what, sref->sr_last_persistent_verno.vn_vc);
+	printf("\nLast seen ver no lsn (%s): %lx", what, sref->sr_last_seen_verno.vn_lsn);
+	printf("\nLast seen ver no vc (%s) : %lx", what, sref->sr_last_seen_verno.vn_vc);
+	printf("\nSlot Id (%s): %x", what, sref->sr_slot_id);
+	printf("\nXid (%s): %lx", what, sref->sr_xid);
+	printf("\nSlot gen (%s): %lx",what, sref->sr_slot_gen);
 	return rc;
 }
 
@@ -260,6 +266,7 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 {
 	uint64_t		len;
 	struct c2_fop		*fop;
+	char			*what;
 
 	C2_PRE(xdrs != NULL);
 	C2_PRE(item != NULL);
@@ -269,8 +276,12 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	len = len + sizeof(struct c2_rpc_item_header);
 
-	printf("\nSender id (encode) :  %ld", item->ri_sender_id);
-	printf("\nSession id (encode) :  %ld", item->ri_session_id);
+	if(xdrs->x_op == XDR_ENCODE)
+		what = "encode";
+	else
+		what = "decode";
+	printf("\nSender id (%s) :  %ld", what, item->ri_sender_id);
+	printf("\nSession id (%s) :  %ld", what, item->ri_session_id);
 
 	if((!xdr_uint64_t(xdrs, &len)) ||
 	(!xdr_uint64_t(xdrs, &item->ri_sender_id)) ||
@@ -319,10 +330,16 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
 	C2_ASSERT(fop != NULL);
 	fopt = fop->f_type;
 	opcode = (uint32_t)fopt->ft_code;
-	printf("\nOpcode (encode): %d", opcode);
+	
 	rc = xdr_uint32_t(xdrs, &opcode);
 	if(rc != 1)
 		return -EFAULT;
+	
+	if(xdrs->x_op == XDR_ENCODE)
+		printf("\nOpcode (decode): %d", opcode);
+	else
+		printf("\nOpcode (decode): %d", opcode);
+	
 	rc = item_encdec(xdrs, item);
 	return rc;
 }
@@ -403,7 +420,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	}
 	/* Copy the buffer into nb */
 	nb->nb_length = buf_size;
-	printf("Network buffer length : %d\n", (int)buf_size);
+	printf("\nEncoded data length : %d\n", (int)buf_size);
 	rc = netbuf_encode( buf, nb);
 	if(rc != 0)
 		goto end;
