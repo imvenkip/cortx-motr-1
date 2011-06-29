@@ -2000,11 +2000,10 @@ struct c2_net_domain *c2_rpc_form_get_dom(const struct c2_rpc_item *item)
 	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
 			(item->ri_session->s_conn != NULL) &&
 			(item->ri_session->s_conn->c_rpcchan != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan->rc_xfermc != NULL)
-			&& (item->ri_session->s_conn->c_rpcchan->rc_xfermc
-				->ntm_dom != NULL));
+			(item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom 
+			 != NULL));
 
-	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc->ntm_dom;
+	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom;
 	return dom;
 }
 
@@ -2019,11 +2018,9 @@ struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
 
 	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
 			(item->ri_session->s_conn != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan->rc_xfermc
-			 != NULL));
+			(item->ri_session->s_conn->c_rpcchan != NULL));
 
-	tm = item->ri_session->s_conn->c_rpcchan->rc_xfermc;
+	tm = &item->ri_session->s_conn->c_rpcchan->rc_xfermc;
 	return tm;
 }
 
@@ -2083,7 +2080,11 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			fb->fb_buffer.nb_length = rpc_size;
 
 			/* Encode the rpc contents. */
-			c2_rpc_encode(rpc_obj->ro_rpcobj, &fb->fb_buffer);
+			rc = c2_rpc_encode(rpc_obj->ro_rpcobj, &fb->fb_buffer);
+			if (rc < 0) {
+				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
+				break;
+			}
 			/* Register the buffer with net domain. */
 			res = c2_net_buffer_register(&fb->fb_buffer, dom);
 			if (res < 0) {

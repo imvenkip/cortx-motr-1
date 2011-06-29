@@ -2299,7 +2299,7 @@ bool item_is_conn_create(struct c2_rpc_item *item)
 	 */
 	return  item->ri_sender_id == SENDER_ID_INVALID &&
 		item->ri_session_id == SESSION_0 &&
-		item->ri_slot_refs[0].sr_verno.vn_vc == 1;
+		item->ri_slot_refs[0].sr_verno.vn_vc == 0;
 }
 void dispatch_item_for_execution(struct c2_rpc_item *item)
 {

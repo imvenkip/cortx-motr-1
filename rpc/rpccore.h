@@ -619,7 +619,7 @@ struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpcmachine.*/
 	struct c2_list_link		 rc_linkage;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	*rc_xfermc;
+	struct c2_net_transfer_mc	 rc_xfermc;
 	/** Number of entities using this transfer machine.*/
 	struct c2_ref			 rc_ref;
 	/** The rpcmachine, this chan structure is associated with.*/

@@ -221,9 +221,9 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&chan->rc_xfermc->ntm_chan, &tmwait);
+	c2_clink_add(&chan->rc_xfermc.ntm_chan, &tmwait);
 
-	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
+	rc = c2_net_tm_start(&chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
@@ -233,12 +233,12 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	   actually started. */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
-	C2_ASSERT(chan->rc_xfermc->ntm_state == C2_NET_TM_STARTED);
+	C2_ASSERT(chan->rc_xfermc.ntm_state == C2_NET_TM_STARTED);
 
 	/* Add buffers for receiving messages to this transfer machine. */
-	rc = c2_rpc_recv_buffer_allocate_nr(src_ep->nep_dom, chan->rc_xfermc);
+	rc = c2_rpc_recv_buffer_allocate_nr(src_ep->nep_dom, &chan->rc_xfermc);
 	if (rc < 0) {
-		rc = c2_net_tm_stop(chan->rc_xfermc, true);
+		rc = c2_net_tm_stop(&chan->rc_xfermc, true);
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
@@ -257,7 +257,7 @@ void c2_rpc_chan_ref_release(struct c2_ref *ref)
 	C2_ASSERT(chan != NULL);
 
 	/* Stop the transfer machine first. */
-	rc = c2_net_tm_stop(chan->rc_xfermc, false);
+	rc = c2_net_tm_stop(&chan->rc_xfermc, false);
 	if (rc < 0) {
 		/* XXX Post an addb event here. */
 		return;
@@ -265,8 +265,8 @@ void c2_rpc_chan_ref_release(struct c2_ref *ref)
 
 	/* Delete all the buffers from transfer machine and fini the
 	   transfer machine. */
-	c2_rpc_recv_buffer_deallocate_nr(chan->rc_xfermc,
-			chan->rc_xfermc->ntm_dom);
+	c2_rpc_recv_buffer_deallocate_nr(&chan->rc_xfermc,
+			chan->rc_xfermc.ntm_dom);
 
 	/* Destroy the chan structure. */
 	c2_rpc_chan_destroy(chan->rc_rpcmachine, chan);
@@ -287,17 +287,11 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 		return -ENOMEM;
 	c2_ref_init(&ch->rc_ref, 1, c2_rpc_chan_ref_release);
 
-	/* Allocate and init new transfer machine.*/
-	C2_ALLOC_PTR(ch->rc_xfermc);
-	if (ch->rc_xfermc == NULL) {
-		c2_free(ch);
-		return -ENOMEM;
-	}
-	ch->rc_xfermc->ntm_state = C2_NET_TM_UNDEFINED;
-	ch->rc_xfermc->ntm_callbacks = &c2_rpc_tm_callbacks;
-	rc = c2_net_tm_init(ch->rc_xfermc, ep->nep_dom);
+	ch->rc_xfermc.ntm_state = C2_NET_TM_UNDEFINED;
+	ch->rc_xfermc.ntm_callbacks = &c2_rpc_tm_callbacks;
+	ch->rc_rpcmachine = machine;
+	rc = c2_net_tm_init(&ch->rc_xfermc, ep->nep_dom);
 	if (rc < 0) {
-		c2_free(ch->rc_xfermc);
 		c2_free(ch);
 		return rc;
 	}
@@ -357,8 +351,7 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 
 	/* Fini the transfer machine here and deallocate the chan. */
-	c2_net_tm_fini(chan->rc_xfermc);
-	c2_free(chan->rc_xfermc);
+	c2_net_tm_fini(&chan->rc_xfermc);
 	c2_free(chan);
 }
 
@@ -465,6 +458,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	struct c2_rpc		 rpc;
 	struct c2_rpc_item	*item = NULL;
 	struct c2_net_buffer	*nb = NULL;
+	struct c2_rpc_chan	*chan = NULL;
 	int			 rc = 0;
 	int			 i = 0;
 
@@ -489,10 +483,14 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			   sessions/slots method on it which will find out
 			   its corresponding request item and call its
 			   completion callback.*/
+			chan = container_of(nb->nb_tm, struct c2_rpc_chan,
+					rc_xfermc);
+			item->ri_mach = chan->rc_rpcmachine;
+			item->ri_src_ep = nb->nb_ep;
+			printf("Item %d received\n", i);
 			rc = c2_rpc_item_received(item);
 			if (rc == 0) {
 				/* Post an ADDB event here.*/
-				printf("Item %d received\n", i);
 				++i;
 			}
 		}
@@ -728,9 +726,9 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&chan->rc_xfermc->ntm_chan, &tmwait);
+	c2_clink_add(&chan->rc_xfermc.ntm_chan, &tmwait);
 
-	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
+	rc = c2_net_tm_start(&chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
@@ -740,12 +738,12 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	   actually started. */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
-	C2_ASSERT(chan->rc_xfermc->ntm_state == C2_NET_TM_STARTED);
+	C2_ASSERT(chan->rc_xfermc.ntm_state == C2_NET_TM_STARTED);
 
 	/* Allocate the buffers for receiving messages. */
-	rc = c2_rpc_recv_buffer_allocate_nr(net_dom, chan->rc_xfermc);
+	rc = c2_rpc_recv_buffer_allocate_nr(net_dom, &chan->rc_xfermc);
 	if (rc < 0) {
-		rc = c2_net_tm_stop(chan->rc_xfermc, true);
+		rc = c2_net_tm_stop(&chan->rc_xfermc, true);
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
