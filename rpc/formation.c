@@ -1718,8 +1718,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 				}
 			}
 		}
-		if (item_coalesced == false) {
-		}
+		return C2_RPC_FORM_INTEVT_STATE_DONE;
 	} else if (event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_TIMEOUT) {
 		/* If event received is rpcitem_timeout, add the item to
 		   the rpc object immediately.*/

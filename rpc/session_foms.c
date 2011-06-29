@@ -131,6 +131,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	fop_ccr->rccr_snd_id = conn->c_sender_id;
+	printf("Received conn sender id = %lu\n", conn->c_sender_id);
 	fop_ccr->rccr_rc = 0;		/* successful */
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
