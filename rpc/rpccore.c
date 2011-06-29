@@ -267,6 +267,7 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 		c2_free(ch);
 		return -ENOMEM;
 	}
+	ch->rc_xfermc->ntm_callbacks = &c2_rpc_tm_callbacks;
 	rc = c2_net_tm_init(ch->rc_xfermc, ep->nep_dom);
 	if (rc < 0) {
 		c2_free(ch->rc_xfermc);
@@ -274,7 +275,6 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 		return rc;
 	}
 	ch->rc_xfermc->ntm_state = C2_NET_TM_UNDEFINED;
-	ch->rc_xfermc->ntm_callbacks = &c2_rpc_tm_callbacks;
 
 	/* Add the new rpc chan structure to list of such structures in
 	   rpcmachine.*/

@@ -226,7 +226,8 @@ void server_init(int dummy)
 	}
 
 	/* Init the rpcmachine */
-	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain, NULL); 
+	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
+			sctx.pc_lep); 
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -332,7 +333,8 @@ void client_init()
 	}
 
 	/* Init the rpcmachine */
-	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain, NULL); 
+	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
+			cctx.pc_lep); 
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
