@@ -134,7 +134,8 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 				       nb_tm_linkage) {
 			if(!mem_desc_equal(&inb->nb_desc, &nb->nb_desc))
 				continue;
-			passive_nb = inb;
+			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)
+				passive_nb = inb;
 			break;
 		}
 		if (passive_nb == NULL) {

@@ -150,7 +150,8 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		c2_list_for_each_entry(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
-			if ((nb->nb_flags & C2_NET_BUF_IN_USE) == 0) {
+			if ((nb->nb_flags &
+			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) == 0) {
 				found_nb = true;
 				break;
 			}
