@@ -434,11 +434,6 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
         buf = c2_alloc(len);
 	if(buf == NULL)
 		return -ENOMEM;
-
-	C2_ALLOC_PTR(rpc_obj);
-	if(rpc_obj == NULL)
-		return -ENOMEM;
-        c2_list_init(&rpc_obj->r_items);
 	
 	/* Decode/Copy the nb into the allocated buffer */
 	rc = netbuf_decode(buf, nb);
