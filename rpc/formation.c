@@ -2000,11 +2000,10 @@ struct c2_net_domain *c2_rpc_form_get_dom(const struct c2_rpc_item *item)
 	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
 			(item->ri_session->s_conn != NULL) &&
 			(item->ri_session->s_conn->c_rpcchan != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan->rc_xfermc != NULL)
-			&& (item->ri_session->s_conn->c_rpcchan->rc_xfermc
-				->ntm_dom != NULL));
+			(item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom 
+			 != NULL));
 
-	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc->ntm_dom;
+	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom;
 	return dom;
 }
 
@@ -2019,11 +2018,9 @@ struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
 
 	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
 			(item->ri_session->s_conn != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan->rc_xfermc
-			 != NULL));
+			(item->ri_session->s_conn->c_rpcchan != NULL));
 
-	tm = item->ri_session->s_conn->c_rpcchan->rc_xfermc;
+	tm = &item->ri_session->s_conn->c_rpcchan->rc_xfermc;
 	return tm;
 }
 
