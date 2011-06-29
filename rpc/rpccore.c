@@ -524,6 +524,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		nb->nb_flags |= C2_NET_BUF_REGISTERED;
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+		nb->nb_ep = NULL;
 		rc = c2_net_buffer_add(nb, nb->nb_tm);
 		if (rc < 0) {
 			/* XXX Post an addb event here.*/
