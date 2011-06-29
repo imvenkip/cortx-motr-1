@@ -460,7 +460,7 @@ static void rpc_stat_fini(struct c2_rpc_statistics *stat)
 {
 }
 
-void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
+void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 {
 	struct c2_rpc		 rpc;
 	struct c2_rpc_item	*item = NULL;
@@ -510,7 +510,7 @@ void c2_rpc_reply_received(const struct c2_net_buffer_event *ev)
  */
 struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV] = c2_rpc_reply_received,
+		[C2_NET_QT_MSG_RECV] = c2_rpc_net_buf_received,
 	}
 };
 
