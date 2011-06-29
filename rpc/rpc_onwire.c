@@ -121,10 +121,10 @@ static int netbuf_decode(char *buf, struct c2_net_buffer *nb)
 rpc object */
 static size_t rpc_buf_size_get(struct c2_rpc *rpc_obj)
 {
-	size_t			size;
+	size_t			size = 0;
 	struct c2_rpc_item	*item;
 
-	size = size + sizeof (struct c2_rpc_header);
+	size = sizeof (struct c2_rpc_header);
 	c2_list_for_each_entry(&rpc_obj->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		size  = size + c2_rpc_item_default_size(item);
@@ -403,6 +403,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	}
 	/* Copy the buffer into nb */
 	nb->nb_length = buf_size;
+	printf("Network buffer length : %d\n", (int)buf_size);
 	rc = netbuf_encode( buf, nb);
 	if(rc != 0)
 		goto end;
@@ -426,17 +427,13 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	C2_PRE(nb != NULL);
 
 	len = nb->nb_length;
+	printf("Length of decode buffer = %d\n", (int)len);
 	C2_ASSERT(len != 0);
 
 	/* Allocate a buffer and create an XDR stream */
         buf = c2_alloc(len);
 	if(buf == NULL)
 		return -ENOMEM;
-
-	C2_ALLOC_PTR(rpc_obj);
-	if(rpc_obj == NULL)
-		return -ENOMEM;
-        c2_list_init(&rpc_obj->r_items);
 	
 	/* Decode/Copy the nb into the allocated buffer */
 	rc = netbuf_decode(buf, nb);
