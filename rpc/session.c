@@ -2025,6 +2025,7 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	c2_db_tx_commit(&tx);
 	conn->c_sender_id = sender_id;
 	conn->c_end_point = ep;
+	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);

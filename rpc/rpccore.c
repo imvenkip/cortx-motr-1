@@ -335,22 +335,28 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 {
 	struct c2_rpc_chan	*chan = NULL;
-	struct c2_rpc_chan	*chan_next = NULL;
 	struct c2_rpc_chan	*chan_found = NULL;
+	struct c2_atomic64	 ref;
 
 	C2_PRE(machine != NULL);
 
+	ref.a_value = 0;
 	/* The current policy is to return a c2_rpc_chan structure
 	   with least refcount. This can be enhanced later to take
 	   into account multiple parameters. */
 	c2_mutex_lock(&machine->cr_ep_aggr.ea_mutex);
-	c2_list_for_each_entry_safe(&machine->cr_ep_aggr.ea_chan_list, chan,
-			chan_next, struct c2_rpc_chan, rc_linkage) {
+	c2_list_for_each_entry(&machine->cr_ep_aggr.ea_chan_list, chan,
+			struct c2_rpc_chan, rc_linkage) {
 		if (c2_atomic64_get(&chan->rc_ref.ref_cnt) <=
-				c2_atomic64_get(&chan_next->rc_ref.ref_cnt)) {
+				c2_atomic64_get(&ref)) {
 			chan_found = chan;
 		}
 	}
+	if (c2_list_link_is_last(&chan->rc_linkage,
+				&machine->cr_ep_aggr.ea_chan_list)) {
+		chan_found = chan;
+	}
+	c2_ref_get(&chan->rc_ref);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	return chan_found;
 }
