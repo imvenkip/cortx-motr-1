@@ -474,6 +474,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	   list of rpc items from that rpc and post reply callbacks
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
+	nb->nb_length = ev->nbe_length;
 	c2_rpc_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
@@ -489,7 +490,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			   its corresponding request item and call its
 			   completion callback.*/
 			rc = c2_rpc_item_received(item);
-			if (rc < 0) {
+			if (rc == 0) {
 				/* Post an ADDB event here.*/
 				printf("Item %d received\n", i);
 				++i;

@@ -242,9 +242,11 @@ cleanup:
 /* Create the client */
 void client_init()
 {
-	int	rc = 0;
-	char	addr[ADDR_LEN];
-	char	hostbuf[ADDR_LEN];
+	int		rc = 0;
+	bool		rcb;
+	char		addr[ADDR_LEN];
+	char		hostbuf[ADDR_LEN];
+        c2_time_t	timeout;
 
 	/* Init Bulk sunrpc transport */
 	cctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -360,8 +362,23 @@ void client_init()
 		printf("RPC connection created \n");
 	}
 
-#if 0
 
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+
+	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_ACTIVE |
+				   C2_RPC_CONN_FAILED, timeout);
+	if (rcb) {
+		if (cctx.pc_conn.c_state == C2_RPC_CONN_ACTIVE)
+			printf("pingcli: Connection established\n");
+		if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+			printf("pingcli: conn create failed\n");
+		else
+			printf("pingcli: conn INVALID!!!|n");
+	} else
+		printf("Timeout for conn create \n");
+#if 0
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
@@ -397,9 +414,9 @@ int main(int argc, char *argv[])
 	int			 server_port = 0;
 	int			 nr_slots;
 	struct c2_thread	 server_thread;
-	uint64_t                         c2_rpc_max_message_size;
-	uint64_t                         c2_rpc_max_fragments_size;
-	uint64_t                         c2_rpc_max_rpcs_in_flight;
+	uint64_t		 c2_rpc_max_message_size;
+	uint64_t		 c2_rpc_max_fragments_size;
+	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 
 	rc = c2_init();
@@ -426,7 +443,7 @@ int main(int argc, char *argv[])
 	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
 
-	c2_rpc_max_message_size = 10;
+	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
            limited to 32. */
         c2_rpc_max_rpcs_in_flight = 8;
