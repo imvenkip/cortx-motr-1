@@ -563,7 +563,7 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item)
 	c2_list_link_init(&item->ri_linkage);
 	c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unbound_link);
-	c2_list_link_init(&item->ri_slot_link);
+	c2_list_link_init(&item->ri_slot_refs[0].sr_ready_link);
 	item->ri_reply = NULL;
 	c2_chan_init(&item->ri_chan);
 

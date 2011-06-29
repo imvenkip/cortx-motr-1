@@ -211,6 +211,7 @@ static int sender_uuid_encdec(XDR *xdrs, struct c2_rpc_sender_uuid *uuid)
 {
 	int rc = 1;
 
+	printf("\nSender uuid (encode): %lx", uuid->su_uuid);
 	if(!xdr_uint64_t(xdrs, &uuid->su_uuid))
 		return -EFAULT;
 
@@ -222,9 +223,19 @@ static int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
 	struct c2_rpc_slot_ref    *sref;
 	int			  rc = 1;
 
-	C2_PRE(sref != NULL);
+	C2_PRE(slot_ref != NULL);
+
 
 	sref = &slot_ref[0];
+	printf("\nVer No lsn (encode): %lx", sref->sr_verno.vn_lsn);
+	printf("\nVer No vc (encode): %lx", sref->sr_verno.vn_vc);
+	printf("\nLast persistent ver no lsn (encode): %lx", sref->sr_last_persistent_verno.vn_lsn);
+	printf("\nLast persistent ver no vc (encode): %lx", sref->sr_last_persistent_verno.vn_vc);
+	printf("\nLast seen ver no lsn (encode): %lx", sref->sr_last_seen_verno.vn_lsn);
+	printf("\nLast seen ver no vc (encode) : %lx", sref->sr_last_seen_verno.vn_vc);
+	printf("\nSlot Id (encode): %x", sref->sr_slot_id);
+	printf("\nXid (encode): %lx", sref->sr_xid);
+	printf("\nSlot gen (encode): %lx",sref->sr_slot_gen);
 	if((!xdr_uint64_t(xdrs, &sref->sr_verno.vn_lsn))||
 	(!xdr_uint64_t(xdrs, &sref->sr_verno.vn_vc)) ||
 	(!xdr_uint64_t(xdrs, &sref->sr_last_persistent_verno.vn_lsn)) ||
@@ -257,6 +268,9 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	C2_ASSERT(fop != NULL);
 	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	len = len + sizeof(struct c2_rpc_item_header);
+
+	printf("\nSender id (encode) :  %ld", item->ri_sender_id);
+	printf("\nSession id (encode) :  %ld", item->ri_session_id);
 
 	if((!xdr_uint64_t(xdrs, &len)) ||
 	(!xdr_uint64_t(xdrs, &item->ri_sender_id)) ||
@@ -305,6 +319,7 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
 	C2_ASSERT(fop != NULL);
 	fopt = fop->f_type;
 	opcode = (uint32_t)fopt->ft_code;
+	printf("\nOpcode (encode): %d", opcode);
 	rc = xdr_uint32_t(xdrs, &opcode);
 	if(rc != 1)
 		return -EFAULT;

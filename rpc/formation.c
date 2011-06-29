@@ -656,7 +656,7 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 	slot = item->ri_slot_refs[0].sr_slot;
 	c2_mutex_lock(&slot->sl_mutex);
 	C2_ASSERT(slot != NULL);
-	c2_list_add(&slot->sl_ready_list, &item->ri_slot_link);
+	c2_list_add(&slot->sl_ready_list, &item->ri_slot_refs[0].sr_ready_link);
 
 	/* Add the slot to list of ready slots in rpcmachine. */
 	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
@@ -1413,7 +1413,7 @@ static int c2_rpc_form_item_add_to_forming_list(
 		   is empty, remove slot from rpcmachine->ready_slots list.*/
 			slot = item->ri_slot_refs[0].sr_slot;
 			C2_ASSERT(slot != NULL);
-			c2_list_del(&item->ri_slot_link);
+			c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
 			c2_mutex_lock(&slot->sl_mutex);
 			if (c2_list_is_empty(&slot->sl_ready_list)) {
 				c2_list_del(&slot->sl_link);
