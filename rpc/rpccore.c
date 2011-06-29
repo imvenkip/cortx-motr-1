@@ -15,6 +15,28 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
+void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev);
+
+/**
+   Buffer callback for buffers added by rpc layer for receiving messages.
+ */
+struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
+	.nbc_cb = {
+		[C2_NET_QT_MSG_RECV] = c2_rpc_net_buf_received,
+	}
+};
+
+void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
+
+/**
+   Callback for net buffer used in posting
+ */
+struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
+	.nbc_cb = {
+		[C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
+	}
+};
+
 static void c2_rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
 }
@@ -487,6 +509,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			chan = container_of(nb->nb_tm, struct c2_rpc_chan,
 					rc_xfermc);
 			item->ri_mach = chan->rc_rpcmachine;
+			nb->nb_ep = ev->nbe_ep;
 			item->ri_src_ep = nb->nb_ep;
 			printf("item->src_ep = %p\n", item->ri_src_ep);
 			printf("Item %d received\n", i);
@@ -499,32 +522,15 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 		/* Add the c2_net_buffer back to the queue of
 		   transfer machine. */
+		nb->nb_flags = 0;
+		nb->nb_qtype = C2_NET_QT_MSG_RECV;
+		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 		rc = c2_net_buffer_add(nb, nb->nb_tm);
 		if (rc < 0) {
 			/* XXX Post an addb event here.*/
 		}
 	}
 }
-
-/**
-   Buffer callback for buffers added by rpc layer for receiving messages.
- */
-struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
-	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV] = c2_rpc_net_buf_received,
-	}
-};
-
-void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
-
-/**
-   Callback for net buffer used in posting
- */
-struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
-	.nbc_cb = {
-		[C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
-	}
-};
 
 struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		struct c2_net_buffer *nbuf, int qtype)
