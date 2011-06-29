@@ -189,6 +189,7 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 		struct c2_net_end_point *src_ep)
 {
 	struct c2_rpc_chan		*chan = NULL;
+	struct c2_clink			 tmwait;
 	int				 rc = 0;
 
 	C2_PRE(machine != NULL);
@@ -202,11 +203,20 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&chan->rc_xfermc->ntm_chan, &tmwait);
+
 	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
+
+	/* Wait on transfer machine channel till transfer machine is
+	   actually started. */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_ASSERT(chan->rc_xfermc->ntm_state == C2_NET_TM_STARTED);
 
 	/* Add buffers for receiving messages to this transfer machine. */
 	rc = c2_rpc_recv_buffer_allocate_nr(src_ep->nep_dom, chan->rc_xfermc);
@@ -658,6 +668,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	struct c2_cob			*root_session_cob;
 	struct c2_rpc_chan		*chan;
 	struct c2_net_domain		*net_dom;
+	struct c2_clink			 tmwait;
 	int rc;
 
 	/* The c2_net_domain is expected to be created by end user.*/
@@ -697,11 +708,20 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&chan->rc_xfermc->ntm_chan, &tmwait);
+
 	rc = c2_net_tm_start(chan->rc_xfermc, src_ep);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		return rc;
 	}
+
+	/* Wait on transfer machine channel till transfer machine is
+	   actually started. */
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_ASSERT(chan->rc_xfermc->ntm_state == C2_NET_TM_STARTED);
 
 	/* Allocate the buffers for receiving messages. */
 	rc = c2_rpc_recv_buffer_allocate_nr(net_dom, chan->rc_xfermc);
