@@ -527,6 +527,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
         size_t         npages;
 	int            i;
 	void          *bp;
+	char          *cbuf = buf;
 
 	C2_PRE(sb != NULL);
 
@@ -551,12 +552,12 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			sunrpc_buffer_fini(sb);
 			return -ENOMEM;
 		}
-		if (buf != NULL) {
+		if (cbuf != NULL) {
 			bp = kmap(pages[i]);
-			memcpy(bp, buf, min_check(PAGE_SIZE, len));
+			memcpy(bp, cbuf, min_check(PAGE_SIZE, len));
 			kunmap(pages[i]);
 			C2_ASSERT(len > PAGE_SIZE || i == npages - 1);
-			buf += PAGE_SIZE;
+			cbuf += PAGE_SIZE;
 			len -= PAGE_SIZE;
 		}
 	}
@@ -572,20 +573,20 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	c2_bcount_t copylen;
 	size_t npages;
 	c2_bcount_t pageused;
-	void *addr;
+	char *addr;
 	struct c2_bufvec in = {
 		.ov_vec = {
 			.v_nr = 1,
 			.v_count = &pageused
 		},
-		.ov_buf = &addr
+		.ov_buf = (void**) &addr
 	};
 	struct c2_bufvec_cursor incur;
 	c2_bcount_t copied;
 	int i;
 	int rc = 0;
 
-	C2_PRE(sb != NULL && sb->sb_buf != NULL);
+	C2_PRE(sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_SIZE);
 	copylen = sb->sb_len;
 	if (copylen == 0)
 		return rc;
