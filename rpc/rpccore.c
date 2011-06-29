@@ -167,6 +167,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_prio = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
 	reply->ri_error = 0;
+	reply->ri_state = RPC_ITEM_SUBMITTED;
 
 	sref = &reply->ri_slot_refs[0];
 
@@ -525,6 +526,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		nb->nb_flags = 0;
 		nb->nb_flags |= C2_NET_BUF_REGISTERED;
 		nb->nb_qtype = C2_NET_QT_MSG_RECV;
+		nb->nb_ep = NULL; 
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 		rc = c2_net_buffer_add(nb, nb->nb_tm);
 		if (rc < 0) {

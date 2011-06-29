@@ -654,7 +654,6 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 
 	/* Add the item to ready list of its slot. */
 	slot = item->ri_slot_refs[0].sr_slot;
-	c2_mutex_lock(&slot->sl_mutex);
 	C2_ASSERT(slot != NULL);
 	c2_list_add(&slot->sl_ready_list, &item->ri_slot_refs[0].sr_ready_link);
 
@@ -668,7 +667,6 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 		c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
-	c2_mutex_unlock(&slot->sl_mutex);
 
 	/* Curent state is not known at the moment. */
 	return c2_rpc_form_default_handler(item, NULL, C2_RPC_FORM_STATE_NR,
@@ -687,13 +685,11 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
 	C2_PRE(slot != NULL);
 
 	/* Add the slot to list of ready slots in its rpcmachine. */
-	c2_mutex_lock(&slot->sl_mutex);
 	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
 	C2_ASSERT(rpcmachine != NULL);
 	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
 	c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
-	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
 
@@ -1414,11 +1410,9 @@ static int c2_rpc_form_item_add_to_forming_list(
 			slot = item->ri_slot_refs[0].sr_slot;
 			C2_ASSERT(slot != NULL);
 			c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
-			c2_mutex_lock(&slot->sl_mutex);
 			if (c2_list_is_empty(&slot->sl_ready_list)) {
 				c2_list_del(&slot->sl_link);
 			}
-			c2_mutex_unlock(&slot->sl_mutex);
 		}
 		if (session_locked) {
 			c2_mutex_unlock(&session->s_mutex);
