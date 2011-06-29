@@ -523,7 +523,7 @@ struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	int32_t				 nr_segs = 0;
 	c2_bcount_t			 seg_size = 0;
 	c2_bcount_t			 buf_size = 0;
-	c2_bcount_t			 segsz = 0;
+	c2_bcount_t			 nrsegs = 0;
 
 	C2_PRE(net_dom != NULL);
 
@@ -540,14 +540,14 @@ struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
 
 	/* Allocate the bufvec of size = min((buf_size), (nr_segs * seg_size)).
-	   We keep the number of segments constant. So mostly the segment
-	   size is changed here. */
+	   We keep the segment size constant. So mostly the number of segments
+	   is changed here. */
 	if (buf_size > (nr_segs * seg_size)) {
-		segsz = seg_size;
+		nrsegs = nr_segs;
 	} else {
-		segsz = buf_size / nr_segs;
+		nrsegs = buf_size / seg_size;
 	}
-	rc = c2_bufvec_alloc(&nb->nb_buffer, nr_segs, segsz);
+	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
 	if (rc < 0)
 		return NULL;
 
