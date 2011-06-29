@@ -571,7 +571,15 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	 */
 	c2_bcount_t copylen;
 	size_t npages;
-	struct c2_bufvec in;
+	c2_bcount_t pageused;
+	void *addr;
+	struct c2_bufvec in = {
+		.ov_vec = {
+			.v_nr = 1,
+			.v_count = &pageused
+		},
+		.ov_buf = &addr
+	};
 	struct c2_bufvec_cursor incur;
 	c2_bcount_t copied;
 	int i;
@@ -583,38 +591,28 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 		return rc;
 	npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	C2_ASSERT(npages > 0);
-	C2_SET0(&in);
-	in.ov_vec.v_nr = npages;
 
-	C2_ALLOC_ARR(in.ov_vec.v_count, npages);
-	if (in.ov_vec.v_count == NULL) {
-		rc = -ENOMEM;
-		goto fail;
-	}
-	C2_ALLOC_ARR(in.ov_buf, npages);
-	if (in.ov_buf == NULL) {
-		rc = -ENOMEM;
-		goto fail;
-	}
 	for (i = 0; i < npages; ++i) {
-		in.ov_buf[i] = kmap(sb->sb_buf[i]);
-		in.ov_vec.v_count[i] = PAGE_SIZE;
-	}
-	in.ov_buf[0] += sb->sb_pgoff;
-	i = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
-	if (i != 0)		/* if last page is not exactly a whole page */
-		in.ov_vec.v_count[npages - 1] = i;
-	in.ov_vec.v_count[0] -= sb->sb_pgoff;
-	c2_bufvec_cursor_init(&incur, &in);
-
-	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
-	for (i = 0; i < npages; ++i)
+		if (i == npages - 1) {
+			pageused = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+			if (pageused == 0) /* last page is exactly 1 page */
+				pageused = PAGE_SIZE;
+		} else {
+			pageused = PAGE_SIZE;
+		}
+		addr = kmap(sb->sb_buf[i]);
+		if (i == 0) {
+			addr += sb->sb_pgoff;
+			pageused -= sb->sb_pgoff;
+		}
+		c2_bufvec_cursor_init(&incur, &in);
+		copied = c2_bufvec_cursor_copy(outcur, &incur, pageused);
 		kunmap(sb->sb_buf[i]);
-	if (copied != copylen)
-		rc = -EFBIG;
-fail:
-	c2_free(in.ov_buf);
-	c2_free(in.ov_vec.v_count);
+		if (copied != pageused) {
+			rc = -EFBIG;
+			break;
+		}
+	}
 	return rc;
 }
 #else
