@@ -403,6 +403,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	}
 	/* Copy the buffer into nb */
 	nb->nb_length = buf_size;
+	printf("Network buffer length : %d\n", (int)buf_size);
 	rc = netbuf_encode( buf, nb);
 	if(rc != 0)
 		goto end;
@@ -426,6 +427,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	C2_PRE(nb != NULL);
 
 	len = nb->nb_length;
+	printf("Length of decode buffer = %d\n", (int)len);
 	C2_ASSERT(len != 0);
 
 	/* Allocate a buffer and create an XDR stream */
