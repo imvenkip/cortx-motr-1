@@ -2079,13 +2079,14 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				break;
 			}
 			/* XXX populate destination EP */
-			nb->nb_ep = first_item->ri_session->s_conn->c_end_point;
-			nb->nb_length = rpc_size;
+			fb->fb_buffer.nb_ep =
+				first_item->ri_session->s_conn->c_end_point;
+			fb->fb_buffer.nb_length = rpc_size;
 
 			/* Encode the rpc contents. */
-			c2_rpc_encode(rpc_obj->ro_rpcobj, nb);
+			c2_rpc_encode(rpc_obj->ro_rpcobj, &fb->fb_buffer);
 			/* Register the buffer with net domain. */
-			res = c2_net_buffer_register(nb, dom);
+			res = c2_net_buffer_register(&fb->fb_buffer, dom);
 			if (res < 0) {
 				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 				break;
@@ -2093,7 +2094,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			tm = c2_rpc_form_get_tm(first_item);
 
 			/* Add the buffer to transfer machine.*/
-			res = c2_net_buffer_add(nb, tm);
+			res = c2_net_buffer_add(&fb->fb_buffer, tm);
 			if (res < 0) {
 				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 				break;
