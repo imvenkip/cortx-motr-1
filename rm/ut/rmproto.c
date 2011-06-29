@@ -6,7 +6,9 @@
 #include "lib/ut.h"
 #include "lib/queue.h"
 #include "rm/ut/rings.h"
+#include "rm/ut/rmproto.h"
 
+#if 0
 typedef void (*cb_func_t)(struct c2_rm_incoming *);
 
 struct c2_rm_req {
@@ -98,26 +100,18 @@ static struct domq *c2_ut_lookup_dom(uint64_t *cookie)
 
 	return d;
 }
+#endif
 
-void c2_rm_build_in_request(struct c2_rm_req_reply *req,
-			    struct c2_rm_outgoing *out)
+void c2_rm_rpc_init(void)
 {
-	struct c2_rm_remote *rem = out->rog_want.rl_other;
-	struct c2_rm_owner owner = out->rog_owner;
+	c2_queue_init(&rpc_queue);
+	c2_mutex_init(&rpc_lock);
+}
 
-	req->type = PRO_OUT_REQUEST;
-	req->sig_id = out->rog_want.rl_id;
-	req->reply_id = rem->rem_id;
-	c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
-        in.rin_state = RI_INITIALISED;
-        in.rin_owner = &owner;
-        in.rin_priority = 0;
-        in.rin_ops = &rings_incoming_ops;
-        in.rin_want.ri_ops = &rings_right_ops;
-        in.rin_type = RIT_LOCAL;
-        in.rin_policy = RIP_INPLACE;
-        in.rin_flags = RIF_LOCAL_TRY;
+void c2_rm_rpc_fini(void)
+{
+	c2_queue_fini(&rpc_queue);
+	c2_mutex_fini(&rpc_lock);
 }
 
 void rpc_process(int id)
@@ -126,27 +120,49 @@ void rpc_process(int id)
 	struct c2_queue_link *link;
 	struct c2_rm_proto_info *info;
 	struct c2_rm_owner *owner;
+	struct c2_rm_pin *pin;
 
 	while (!rpc_signal) {
-		link = c2_queue_get(&rcp_queue);
+		c2_mutex_lock(&rpc_lock);
+		link = c2_queue_get(&rpc_queue);
+		c2_mutex_unlock(&rpc_lock);
 		if (link != NULL) {
-			c2_mutex_lock(&rpc_lock);
 			req = container_of(link, struct c2_rm_req_reply,
 					   rq_link);
-			c2_mutex_unlock(&rpc_lock);
-			info = rm_info[req->reply_id];
-
 			switch (req->type) {
 			case PRO_LOAN_REPLY:
-			case PRO_OUT_REQUEST;
-				c2_mutex_lock(info->oq_lock);
+				printf("Loan Reply\n");
+				info = &rm_info[req->reply_id];
+				owner = info->owner;
+				C2_ALLOC_PTR(pin);
+        			C2_ASSERT(pin != NULL);
+        			pin->rp_flags = RPF_TRACK;
+        			pin->rp_right = &req->right;
+        			pin->rp_incoming = &req->in;
+        			c2_list_add(&req->right.ri_pins,
+					    &pin->rp_right_linkage);
+        			c2_list_add(&req->in.rin_pins,
+					    &pin->rp_incoming_linkage);
+        			c2_mutex_lock(&info->owner->ro_lock); 
+        			c2_list_add(&info->owner->ro_borrowed,
+					    &req->right.ri_linkage);
+				c2_list_add(&info->owner->ro_incoming
+					    [req->in.rin_priority][OQS_GROUND],
+					    &req->in.rin_want.ri_linkage);
+        			c2_mutex_unlock(&info->owner->ro_lock);
+			case PRO_OUT_REQUEST:
+				printf("Out Request\n");
+				info = &rm_info[req->reply_id];
+				owner = info->owner;
+				c2_mutex_lock(&info->oq_lock);
 				c2_queue_put(&info->owner_queue, &req->rq_link);
-				c2_mutex_unlock(info->oq->lock);
+				c2_mutex_unlock(&info->oq_lock);
 				break;
 			case PRO_REQ_FINISH:
-				/* Signal the incoming reuest which send 
+				/* Signal the incoming reuest which sent 
 				 * this request*/
-				info = rm_info[req->sig_id];
+				printf("Finish Request\n");
+				info = &rm_info[req->sig_id];
 				owner = info->owner;
 				c2_free(req);
 				break;
@@ -156,5 +172,6 @@ void rpc_process(int id)
 			}
 		}
 	}
+	printf("Leaving RPC Process\n");
 }
 

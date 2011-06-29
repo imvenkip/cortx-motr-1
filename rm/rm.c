@@ -12,6 +12,7 @@
 #include "rm/rm_u.h"
 #include "rm/rm_fop.h"
 #include "rm/ut/rmproto.h"
+#include "rm/ut/rings.h"
 
 /**
    @addtogroup rm
@@ -26,7 +27,7 @@ static int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 static int incoming_check(struct c2_rm_incoming *in);
 static void incoming_check_local(struct c2_rm_incoming *in,
 				 struct c2_rm_right *rest);
-static void sublet_revoke(struct c2_rm_incoming *in,
+static int sublet_revoke(struct c2_rm_incoming *in,
 			  struct c2_rm_right *right);
 
 void c2_rm_domain_init(struct c2_rm_domain *dom)
@@ -434,10 +435,10 @@ int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
 	/* This will get changed with Database lookup */
 	for (i = 0; i < 5; ++i) {
 		if (rm_info[i].rm_handle.t_h.h_id == pthread_self()) {
-			other->rem_id = rm_info[i].req_id;
+			other->rem_id = rm_info[i].req_owner_id;
 			other->rem_resource = rm_info[other->rem_id].res;
 			loan = container_of(other, struct c2_rm_loan, rl_other);
-			loan->rl_id = rm_info[i].id;
+			loan->rl_id = rm_info[i].owner_id;
 			result = 0;
 			break;
 		}
@@ -499,6 +500,44 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 	return 0;
 }
 
+static void c2_rm_build_right_request(struct c2_rm_req_reply *req,
+				      struct c2_rm_loan *loan)
+{
+        struct c2_rm_remote *rem = &loan->rl_other;
+
+        req->type = PRO_LOAN_REPLY;
+        req->sig_id = loan->rl_id;
+        req->reply_id = rem->rem_id;
+        c2_chan_init(&req->in.rin_signal);
+        c2_rm_right_init(&req->in.rin_want);
+        req->in.rin_state = RI_INITIALISED;
+        req->in.rin_priority = 0;
+        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_policy = RIP_INPLACE;
+        req->in.rin_flags = RIF_LOCAL_TRY;
+	c2_rm_incoming_init(&req->in);
+}
+
+static void c2_rm_build_in_request(struct c2_rm_req_reply *req,
+				   struct c2_rm_outgoing *out)
+{
+        struct c2_rm_remote *rem = &out->rog_want.rl_other;
+        struct c2_rm_owner *owner = out->rog_owner;
+
+        req->type = PRO_OUT_REQUEST;
+        req->sig_id = out->rog_want.rl_id;
+        req->reply_id = rem->rem_id;
+        c2_chan_init(&req->in.rin_signal);
+        c2_rm_right_init(&req->in.rin_want);
+        req->in.rin_state = RI_INITIALISED;
+        req->in.rin_owner = owner;
+        req->in.rin_priority = 0;
+        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_policy = RIP_INPLACE;
+        req->in.rin_flags = RIF_LOCAL_TRY;
+	c2_rm_incoming_init(&req->in);
+}
+
 
 /**
  * Reply to the incoming loan request when wanted rights granted
@@ -547,6 +586,7 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 			if (request == NULL)
 				return -ENOMEM;
 			c2_rm_right_init(&request->right);
+			c2_rm_build_right_request(request, loan);
 			right_copy(&request->right, &loan->rl_right);
 			/*@todo this will be changed to more generic */
 			c2_mutex_lock(&rpc_lock);
@@ -592,10 +632,10 @@ static int send_out_request(struct c2_rm_outgoing *out)
 
 	C2_ALLOC_PTR(request);
 	if (request == NULL)
-		-ENOMEM;
+		return -ENOMEM;
 	c2_rm_right_init(&request->in.rin_want);
-	c2_rm_build_incoming_request(request, out);
-	right_copy(&request->rin_want, &out->rog_want.rl_roght);
+	c2_rm_build_in_request(request, out);
+	right_copy(&request->in.rin_want, &out->rog_want.rl_right);
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &request->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -712,7 +752,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	c2_mutex_unlock(&in->rin_owner->ro_lock);
 	C2_POST(c2_list_is_empty(&in->rin_pins));
 }
-
+#if 0
 /**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
@@ -730,6 +770,7 @@ static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 		     &og->rog_want.rl_right.ri_linkage);
 	c2_mutex_unlock(&owner->ro_lock);
 }
+#endif
 
 /**
    Removes a tracking pin on a resource usage right.
@@ -939,43 +980,19 @@ static int incoming_check(struct c2_rm_incoming *in)
 		 * borrowing more rights.
 		 */
 		if (in->rin_flags & RIF_MAY_REVOKE)
-			sublet_revoke(in, &rest);
+			result = sublet_revoke(in, &rest);
+
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
-			while (!right_is_empty(&rest)) {
-				struct c2_rm_loan *borrow;
-				struct c2_rm_right *right;
-				C2_ALLOC_PTR(borrow);
-				if (borrow == NULL)
-					return -ENOMEM;
-				c2_rm_right_init(&borrow->rl_right);
-				right_copy(&borrow->rl_right, &rest);
-				c2_rm_net_locate(&rest, &borrow->rl_other);
-				result = go_out(in, ROT_BORROW,
-				       borrow, &borrow->rl_right);
-				rest.ri_ops->rro_diff(&rest,
-						      &borrow->rl_right);
-				if (!result) {
-					c2_list_add(&o->ro_borrowed,
-					    &borrow->rl_right.ri_linkage);
-					C2_ALLOC_PTR(right);
-					if (right == NULL)
-						return -ENOMEM;
-					c2_rm_right_init(right);
-					right_copy(right, &borrow->rl_right);
-					c2_list_add(&o->ro_owned[OWOS_CACHED],
-						    &right->ri_linkage);
-				}
-			}
+			struct c2_rm_loan borrow;
+			c2_rm_right_init(&borrow.rl_right);
+			right_copy(&borrow.rl_right, &rest);
+			c2_rm_net_locate(&rest, &borrow.rl_other);
+			result = go_out(in, ROT_BORROW, &borrow,
+					&borrow.rl_right);
 		}
-		if (right_is_empty(&rest)) {
-			right_copy(&in->rin_want, &rest);
+		if (result == 0) {
 			in->rin_state = RI_WAIT;
-			printf("Incr the priority\n");
-			/*@todo Remove later on*/
-			in->rin_priority = 1;
-			c2_list_move(&o->ro_incoming[in->rin_priority][OQS_EXCITED],
-				     &in->rin_want.ri_linkage);
 		} else {
 			/* cannot fulfill the request. */
 			in->rin_state = RI_FAILURE;
@@ -1049,7 +1066,7 @@ static void incoming_check_local(struct c2_rm_incoming *in,
 /**
    Revokes @right (or parts thereof) sub-let to downward owners.
  */
-static void sublet_revoke(struct c2_rm_incoming *in,
+static int sublet_revoke(struct c2_rm_incoming *in,
 			  struct c2_rm_right *rest)
 {
 	struct c2_rm_owner *o = in->rin_owner;
@@ -1071,11 +1088,11 @@ static void sublet_revoke(struct c2_rm_incoming *in,
 			 */
 			//rest->ri_ops->rro_meet(rest, right);
 			result = go_out(in, ROT_REVOKE, loan, right);
-			if (!result)
-				rest->ri_ops->rro_diff(rest, right);
 			
 		}
 	}
+	
+	return result;
 }
 
 /**
