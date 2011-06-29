@@ -409,11 +409,6 @@ struct c2_rpc_item {
 	uint64_t			ri_sender_id;
 	uint64_t			ri_session_id;
 	int32_t				ri_error;
-	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
-	    on c2_rpc_snd_slot::ss_replay_list */
-	struct c2_list_link		ri_slot_link;
-	/** XXX temporary field to put item on in-core reply cache list */
-	struct c2_list_link		ri_rc_link;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
 	/** Linkage to the forming list, needed for formation */
@@ -453,8 +448,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item);
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */
-int c2_rpc_item_init(struct c2_rpc_item *item,
-		     struct c2_rpcmachine *mach);
+int c2_rpc_item_init(struct c2_rpc_item *item);
 
 /**
    Returns true if item modifies file system state, false otherwise

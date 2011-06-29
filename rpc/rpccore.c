@@ -3,6 +3,7 @@
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "lib/misc.h"
 #include "rpc/session.h"
 #include "rpc/session_int.h"
 #include "fop/fop.h"
@@ -89,33 +90,41 @@ static void c2_rpc_item_ref_fini(struct c2_ref *ref)
 	c2_rpc_item_fini(item);
 }
 
-int c2_rpc_item_init(struct c2_rpc_item *item,
-		     struct c2_rpcmachine *mach)
+int c2_rpc_item_init(struct c2_rpc_item *item)
 {
-	c2_ref_init(&item->ri_ref, 1, c2_rpc_item_ref_fini);
+	struct c2_rpc_slot_ref	*sref;
+
+	C2_SET0(item);
 	c2_chan_init(&item->ri_chan);
+        c2_list_link_init(&item->ri_linkage);
+	c2_ref_init(&item->ri_ref, 1, c2_rpc_item_ref_fini);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
-	item->ri_type = NULL;
-	//item->ri_sender_id = SENDER_ID_INVALID;
-	//item->ri_session_id = SESSION_ID_INVALID;
-	//item->ri_slot_id = SLOT_ID_INVALID;
-	item->ri_mach = mach;
+
+	sref = &item->ri_slot_refs[0];
+	sref->sr_slot_id = SLOT_ID_INVALID;
+	c2_list_link_init(&sref->sr_link);
+	c2_list_link_init(&sref->sr_ready_link);
+
+        c2_list_link_init(&item->ri_unbound_link);
+	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_session_id = SESSION_ID_INVALID;
+
+        c2_list_link_init(&item->ri_rpcobject_linkage);
+	c2_list_link_init(&item->ri_unformed_linkage);
+        c2_list_link_init(&item->ri_group_linkage);
+
 	return 0;
 }
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	int res = 0;
 
-	c2_list_link_init(&item->ri_unformed_linkage);
-        c2_list_link_init(&item->ri_group_linkage);
-        c2_list_link_init(&item->ri_linkage);
-        c2_list_link_init(&item->ri_rpcobject_linkage);
-        c2_list_link_init(&item->ri_unbound_link);
-        c2_list_link_init(&item->ri_slot_link);
-        item->ri_reply = NULL;
+	C2_ASSERT(item != NULL && item->ri_session != NULL &&
+		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
+		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
 
-	item->ri_slot_refs[0].sr_slot = NULL;
 	item->ri_state = RPC_ITEM_SUBMITTED;
+	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
 	return res;
 }
