@@ -78,7 +78,6 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	C2_PRE(in != NULL);
 
-	//c2_list_del(&in->rin_want.ri_linkage);
 	c2_chan_broadcast(&in->rin_signal);
 }
 

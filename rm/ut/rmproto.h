@@ -11,7 +11,7 @@
 #include "lib/ut.h"
 #include "lib/queue.h"
 
-#define NO_OF_OWNERS	3
+#define NO_OF_OWNERS	5
 
 enum c2_rm_request_type {
 	PRO_LOAN_REPLY,
@@ -24,7 +24,6 @@ struct c2_rm_req_reply {
 	uint64_t sig_id;
         uint64_t reply_id;
         struct c2_rm_incoming in;
-        struct c2_rm_right right;
         struct c2_queue_link rq_link;
 };
 
@@ -34,14 +33,12 @@ struct c2_thread rpc_handle;
 int rpc_signal;
 
 struct c2_rm_proto_info {
-        char name[255];
         uint64_t owner_id;
         uint64_t req_owner_id;
         struct c2_thread rm_handle;
         struct c2_rm_owner *owner;
         struct c2_rm_resource *res;
 	struct c2_queue owner_queue;
-        struct c2_mutex oq_lock;
 } rm_info[NO_OF_OWNERS];
 
 void c2_rm_rpc_init(void);

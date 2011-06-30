@@ -1354,6 +1354,7 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
  */
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
+int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 /**
    @name Resource type interface
  */

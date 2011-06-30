@@ -114,62 +114,91 @@ void c2_rm_rpc_fini(void)
 	c2_mutex_fini(&rpc_lock);
 }
 
+static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
+					      struct c2_rm_right *want)
+{
+	struct c2_rm_incoming *in;
+	struct c2_rm_right    *right;
+	struct c2_rm_right    *ri_tmp;
+	int		       prio = 0;
+
+	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
+
+	for (prio = ARRAY_SIZE(owner->ro_incoming) - 1; prio >= 0; prio--) {
+		c2_list_for_each_entry_safe(&owner->ro_incoming[prio][OQS_GROUND],
+					    right, ri_tmp, struct c2_rm_right,
+					    ri_linkage) {
+			if (right->ri_ops->rro_implies(right, want) &&
+			    right->ri_ops->rro_implies(want, right)) {
+				in = container_of(right, struct c2_rm_incoming,
+						  rin_want);
+				return in;
+			}
+		}
+	}
+	return NULL;
+}
+
 void rpc_process(int id)
 {
 	struct c2_rm_req_reply *req;
 	struct c2_queue_link *link;
 	struct c2_rm_proto_info *info;
-	struct c2_rm_owner *owner;
-	struct c2_rm_pin *pin;
+	struct c2_rm_incoming *in;
 
 	while (!rpc_signal) {
 		c2_mutex_lock(&rpc_lock);
 		link = c2_queue_get(&rpc_queue);
 		c2_mutex_unlock(&rpc_lock);
-		if (link != NULL) {
-			req = container_of(link, struct c2_rm_req_reply,
-					   rq_link);
-			switch (req->type) {
-			case PRO_LOAN_REPLY:
-				printf("Loan Reply\n");
-				info = &rm_info[req->reply_id];
-				owner = info->owner;
-				C2_ALLOC_PTR(pin);
-        			C2_ASSERT(pin != NULL);
-        			pin->rp_flags = RPF_TRACK;
-        			pin->rp_right = &req->right;
-        			pin->rp_incoming = &req->in;
-        			c2_list_add(&req->right.ri_pins,
-					    &pin->rp_right_linkage);
-        			c2_list_add(&req->in.rin_pins,
-					    &pin->rp_incoming_linkage);
-        			c2_mutex_lock(&info->owner->ro_lock); 
-        			c2_list_add(&info->owner->ro_borrowed,
-					    &req->right.ri_linkage);
-				c2_list_add(&info->owner->ro_incoming
-					    [req->in.rin_priority][OQS_GROUND],
-					    &req->in.rin_want.ri_linkage);
-        			c2_mutex_unlock(&info->owner->ro_lock);
-			case PRO_OUT_REQUEST:
-				printf("Out Request\n");
-				info = &rm_info[req->reply_id];
-				owner = info->owner;
-				c2_mutex_lock(&info->oq_lock);
-				c2_queue_put(&info->owner_queue, &req->rq_link);
-				c2_mutex_unlock(&info->oq_lock);
-				break;
-			case PRO_REQ_FINISH:
-				/* Signal the incoming reuest which sent 
-				 * this request*/
-				printf("Finish Request\n");
-				info = &rm_info[req->sig_id];
-				owner = info->owner;
-				c2_free(req);
-				break;
-			default:
-				printf("Wrong request: Discard\n");
-				c2_free(req);
+
+		if (link == NULL) 
+			continue;
+
+		req = container_of(link, struct c2_rm_req_reply,
+				   rq_link);
+		info = &rm_info[req->reply_id];
+
+		printf("won ID %ld rep ID %ld\n",req->sig_id, req->reply_id);
+		switch (req->type) {
+		case PRO_LOAN_REPLY:
+			printf("Loan Reply\n");
+			c2_mutex_lock(&info->owner->ro_lock);
+			in = find_in_request(info->owner,
+					     &req->in.rin_want);
+			if (in == NULL) {
+				pin_add(&req->in, &req->in.rin_want);
+				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
+				    	    &req->in.rin_want.ri_linkage);
+				c2_queue_put(&info->owner_queue,
+					     &req->rq_link);
+			} else {
+			/*
+				c2_list_init(&in->rin_pins);
+				pin_add(in, &in->rin_want);
+				in->rin_state = RI_SUCCESS;
+				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
+				    	    &req->in.rin_want.ri_linkage);
+				c2_queue_put(&info->owner_queue,
+					     &req->rq_link);
+				printf("Signaled\n");
+				in->rin_ops->rio_complete(in,
+				                  in->rin_state);*/
 			}
+			c2_mutex_unlock(&info->owner->ro_lock);
+			break;
+		case PRO_OUT_REQUEST:
+			printf("Out Request\n");
+			c2_mutex_lock(&info->owner->ro_lock);
+			c2_queue_put(&info->owner_queue, &req->rq_link);
+			c2_mutex_unlock(&info->owner->ro_lock);
+			break;
+		case PRO_REQ_FINISH:
+			printf("Finish Request\n");
+			c2_free(req);
+			break;
+		default:
+			printf("Wrong request: Discard\n");
+			c2_free(req);
 		}
 	}
 	printf("Leaving RPC Process\n");

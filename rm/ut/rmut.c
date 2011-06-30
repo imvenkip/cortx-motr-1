@@ -409,13 +409,11 @@ static void right_get_test3(void)
 static void rm_server_init(void)
 {
 	rts.rt_id = 1;
-	strcpy(rm_info[UT_SERVER].name, "SERVER");
 	rm_info[UT_SERVER].owner_id = UT_SERVER;
 	rm_info[UT_SERVER].owner = &Sauron;
 	rm_info[UT_SERVER].res = &R.rs_resource;
 	rm_info[UT_SERVER].req_owner_id = UT_CLIENT0;
 	c2_queue_init(&rm_info[UT_SERVER].owner_queue);
-	c2_mutex_init(&rm_info[UT_SERVER].oq_lock);
 
         c2_rm_domain_init(&server);
         c2_rm_type_register(&server, &rts);
@@ -452,19 +450,16 @@ static void rm_server_fini(void)
         c2_rm_domain_fini(&server);
 
 	c2_queue_fini(&rm_info[UT_SERVER].owner_queue);
-	c2_mutex_fini(&rm_info[UT_SERVER].oq_lock);
 }
 
 static void rm_client_init(void)
 {
 	rtc.rt_id = 1;
-	strcpy(rm_info[UT_CLIENT0].name, "CLIENT0");
 	rm_info[UT_CLIENT0].owner_id = UT_CLIENT0;
 	rm_info[UT_CLIENT0].owner = &elves;
 	rm_info[UT_CLIENT0].res = &RC0.rs_resource;
 	rm_info[UT_CLIENT0].req_owner_id = UT_SERVER;
 	c2_queue_init(&rm_info[UT_CLIENT0].owner_queue);
-	c2_mutex_init(&rm_info[UT_CLIENT0].oq_lock);
 
         c2_rm_domain_init(&client);
         c2_rm_type_register(&client, &rtc);
@@ -500,19 +495,16 @@ static void rm_client_fini(void)
         c2_rm_domain_fini(&client);
 
 	c2_queue_fini(&rm_info[UT_CLIENT0].owner_queue);
-	c2_mutex_fini(&rm_info[UT_CLIENT0].oq_lock);
 }
 
 static void rm_client1_init(void)
 {
 	rtc1.rt_id = 1;
-	strcpy(rm_info[UT_CLIENT1].name, "CLIENT1");
 	rm_info[UT_CLIENT1].owner_id = UT_CLIENT1;
 	rm_info[UT_CLIENT1].owner = &dwarves;
 	rm_info[UT_CLIENT1].res = &RC1.rs_resource;
 	rm_info[UT_CLIENT1].req_owner_id = UT_SERVER;
 	c2_queue_init(&rm_info[UT_CLIENT1].owner_queue);
-	c2_mutex_init(&rm_info[UT_CLIENT1].oq_lock);
 
         c2_rm_domain_init(&client1);
         c2_rm_type_register(&client1, &rtc1);
@@ -548,7 +540,6 @@ static void rm_client1_fini(void)
         c2_rm_domain_fini(&client1);
 
 	c2_queue_fini(&rm_info[UT_CLIENT1].owner_queue);
-	c2_mutex_fini(&rm_info[UT_CLIENT1].oq_lock);
 }
 
 static void intent_server(int id)
@@ -583,11 +574,11 @@ static void intent_client(int id)
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&info->oq_lock);
+		c2_mutex_lock(&info->owner->ro_lock);
         	link = c2_queue_get(&info->owner_queue);
-        	c2_mutex_unlock(&info->oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         req->in.rin_owner = &elves;
         req->in.rin_priority = 0;
@@ -608,6 +599,19 @@ static void intent_client(int id)
 	req->type = PRO_REQ_FINISH;
         c2_queue_put(&rpc_queue, &req->rq_link);
         c2_mutex_unlock(&rpc_lock);
+}
+
+static void signal_rpc_process(void)
+{
+	while (1) {
+		c2_mutex_lock(&rpc_lock);
+		if (c2_queue_is_empty(&rpc_queue)) {
+			rpc_signal = 1;
+			c2_mutex_unlock(&rpc_lock);
+			break;
+		}
+		c2_mutex_unlock(&rpc_lock);
+	}
 }
 
 /**
@@ -646,7 +650,8 @@ static void intent_mode_test(void)
 		c2_thread_fini(&rm_info[i].rm_handle);
 	}
 
-	rpc_signal = 1;
+
+	signal_rpc_process();
 	c2_thread_join(&rpc_handle);
 	c2_thread_fini(&rpc_handle);
 
@@ -659,14 +664,15 @@ static void wbc_server(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[UT_SERVER].oq_lock);
-        	link = c2_queue_get(&rm_info[UT_SERVER].owner_queue);
-        	c2_mutex_unlock(&rm_info[UT_SERVER].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -686,8 +692,9 @@ static void wbc_server(int id)
 	req->sig_id = UT_SERVER;
 	req->reply_id = UT_CLIENT0;
 	req->type = PRO_LOAN_REPLY;	
-	req->right.ri_datum = VILYA;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = VILYA;
+	req->in.rin_want.ri_ops = &rings_right_ops;
+	c2_queue_link_init(&req->rq_link);
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -696,10 +703,16 @@ static void wbc_server(int id)
 
 static void wbc_client(int id)
 {
+	struct c2_rm_req_reply *req = NULL;
+	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
+
+
 	/* Prepare incoming request for client which will eventually
 	 * barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want);
+	c2_rm_incoming_init(&inother);
         inother.rin_state = RI_INITIALISED;
         inother.rin_owner = &elves;
         inother.rin_priority = 0;
@@ -709,14 +722,31 @@ static void wbc_client(int id)
         inother.rin_policy = RIP_INPLACE;
         inother.rin_want.ri_datum = VILYA;
         inother.rin_flags = RIF_MAY_BORROW;
+	printf("Wbc client 0\n");
         result = c2_rm_right_get_wait(&elves, &inother);
         C2_ASSERT(result == 0);
 
-	printf("Wbc client\n");
+	printf("Wbc client 1\n");
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
+
+	printf("Wbc client 2\n");
+	while (link == NULL)
+	{
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
+	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
+
+	c2_queue_link_init(&req->rq_link);
+	req->type = PRO_REQ_FINISH;
+	c2_mutex_lock(&rpc_lock);
+        c2_queue_put(&rpc_queue, &req->rq_link);
+        c2_mutex_unlock(&rpc_lock);
+	printf("Wbc client 3\n");
 }
 
 /**
@@ -755,7 +785,7 @@ static void wbc_mode_test(void)
 		c2_thread_fini(&rm_info[i].rm_handle);
 	}
 	
-	rpc_signal = 1;
+	signal_rpc_process();
 	c2_thread_join(&rpc_handle);
 	c2_thread_fini(&rpc_handle);
 
@@ -803,14 +833,15 @@ static void cancel_server(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -828,8 +859,8 @@ static void cancel_server(int id)
         C2_ASSERT(result == 0);
 
 	req->type = PRO_LOAN_REPLY;
-	req->right.ri_datum = DURIN;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = DURIN;
+	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -837,11 +868,11 @@ static void cancel_server(int id)
 	link = NULL;
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
 	/* Ask for same right which will be revoked */
         c2_chan_init(&req->in.rin_signal);
@@ -864,6 +895,7 @@ static void cancel_client(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	/* Prepare incoming request for client which will eventually
 	 * barrow rights from server */
@@ -883,11 +915,11 @@ static void cancel_client(int id)
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -905,8 +937,8 @@ static void cancel_client(int id)
         C2_ASSERT(result == 0);
 
 	req->type = PRO_LOAN_REPLY;
-	req->right.ri_datum = DURIN;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = DURIN;
+	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -950,7 +982,7 @@ static void cancel_test(void)
 		c2_thread_fini(&rm_info[i].rm_handle);
 	}
 
-	rpc_signal = 1;
+	signal_rpc_process();
 	c2_thread_join(&rpc_handle);
 	c2_thread_fini(&rpc_handle);
 	
@@ -963,14 +995,15 @@ static void caching_server(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -988,8 +1021,8 @@ static void caching_server(int id)
         C2_ASSERT(result == 0);
 
 	req->type = PRO_LOAN_REPLY;
-	req->right.ri_datum = THROR;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = THROR;
+	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -1076,7 +1109,7 @@ static void caching_test(void)
 		c2_thread_fini(&rm_info[i].rm_handle);
 	}
 	
-	rpc_signal = 1;
+	signal_rpc_process();
 	c2_thread_join(&rpc_handle);
 	c2_thread_fini(&rpc_handle);
 
@@ -1089,14 +1122,15 @@ static void callback_server(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -1114,21 +1148,20 @@ static void callback_server(int id)
         C2_ASSERT(result == 0);
 
 	req->type = PRO_LOAN_REPLY;
-	req->right.ri_datum = ANGMAR;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = ANGMAR;
+	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
-	c2_mutex_lock(&rm_info[UT_SERVER].oq_lock);
 
 	link = NULL;
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
 	/* Ask for same right which will be revoked */
         c2_chan_init(&req->in.rin_signal);
@@ -1158,6 +1191,7 @@ static void callback_client(int id)
 {
 	struct c2_rm_req_reply *req = NULL;
 	struct c2_queue_link *link = NULL;
+	struct c2_rm_proto_info *info = &rm_info[id];
 
 	/* Prepare incoming request for client which will eventually
 	 * barrow rights from server */
@@ -1177,11 +1211,11 @@ static void callback_client(int id)
 
 	while (link == NULL)
 	{
-		c2_mutex_lock(&rm_info[id].oq_lock);
-        	link = c2_queue_get(&rm_info[id].owner_queue);
-        	c2_mutex_unlock(&rm_info[id].oq_lock);
-		req = container_of(link, struct c2_rm_req_reply, rq_link);
+		c2_mutex_lock(&info->owner->ro_lock);
+        	link = c2_queue_get(&info->owner_queue);
+        	c2_mutex_unlock(&info->owner->ro_lock);
 	}
+	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
@@ -1201,8 +1235,8 @@ static void callback_client(int id)
 	printf("client 2\n");
 
 	req->type = PRO_LOAN_REPLY;
-	req->right.ri_datum = ANGMAR;
-	req->right.ri_ops = &rings_right_ops;
+	req->in.rin_want.ri_datum = ANGMAR;
+	req->in.rin_want.ri_ops = &rings_right_ops;
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &req->rq_link);
 	c2_mutex_unlock(&rpc_lock);
@@ -1286,7 +1320,7 @@ static void callback_test(void)
 		c2_thread_fini(&rm_info[i].rm_handle);
 	}
 	
-	rpc_signal = 1;
+	signal_rpc_process();
 	c2_thread_join(&rpc_handle);
 	c2_thread_fini(&rpc_handle);
 

@@ -21,7 +21,6 @@
 
 static int owner_balance(struct c2_rm_owner *o);
 static void pin_remove(struct c2_rm_pin *pin);
-static int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 static int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 		  struct c2_rm_loan *loan, struct c2_rm_right *right);
 static int incoming_check(struct c2_rm_incoming *in);
@@ -500,14 +499,17 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 	return 0;
 }
 
-static void c2_rm_build_right_request(struct c2_rm_req_reply *req,
-				      struct c2_rm_loan *loan)
+static void c2_rm_build_request(struct c2_rm_req_reply *req,
+				struct c2_rm_loan *loan,
+				enum c2_rm_request_type type)
 {
         struct c2_rm_remote *rem = &loan->rl_other;
 
-        req->type = PRO_LOAN_REPLY;
+        req->type = type;
         req->sig_id = loan->rl_id;
         req->reply_id = rem->rem_id;
+
+	c2_rm_incoming_init(&req->in);
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -515,29 +517,8 @@ static void c2_rm_build_right_request(struct c2_rm_req_reply *req,
         req->in.rin_type = RIT_LOCAL;
         req->in.rin_policy = RIP_INPLACE;
         req->in.rin_flags = RIF_LOCAL_TRY;
-	c2_rm_incoming_init(&req->in);
+	c2_queue_link_init(&req->rq_link);
 }
-
-static void c2_rm_build_in_request(struct c2_rm_req_reply *req,
-				   struct c2_rm_outgoing *out)
-{
-        struct c2_rm_remote *rem = &out->rog_want.rl_other;
-        struct c2_rm_owner *owner = out->rog_owner;
-
-        req->type = PRO_OUT_REQUEST;
-        req->sig_id = out->rog_want.rl_id;
-        req->reply_id = rem->rem_id;
-        c2_chan_init(&req->in.rin_signal);
-        c2_rm_right_init(&req->in.rin_want);
-        req->in.rin_state = RI_INITIALISED;
-        req->in.rin_owner = owner;
-        req->in.rin_priority = 0;
-        req->in.rin_type = RIT_LOCAL;
-        req->in.rin_policy = RIP_INPLACE;
-        req->in.rin_flags = RIF_LOCAL_TRY;
-	c2_rm_incoming_init(&req->in);
-}
-
 
 /**
  * Reply to the incoming loan request when wanted rights granted
@@ -582,12 +563,13 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 		result = netcall(conn, f, r);
 #endif
 		if (!c2_rm_net_locate(right, &loan->rl_other)) {
+			printf("Sending reply\n");
 			C2_ALLOC_PTR(request);
 			if (request == NULL)
 				return -ENOMEM;
-			c2_rm_right_init(&request->right);
-			c2_rm_build_right_request(request, loan);
-			right_copy(&request->right, &loan->rl_right);
+			c2_rm_right_init(&request->in.rin_want);
+			c2_rm_build_request(request, loan, PRO_LOAN_REPLY);
+			right_copy(&request->in.rin_want, &loan->rl_right);
 			/*@todo this will be changed to more generic */
 			c2_mutex_lock(&rpc_lock);
 			loan->rl_other.rem_resource->r_ref--;
@@ -634,7 +616,7 @@ static int send_out_request(struct c2_rm_outgoing *out)
 	if (request == NULL)
 		return -ENOMEM;
 	c2_rm_right_init(&request->in.rin_want);
-	c2_rm_build_in_request(request, out);
+	c2_rm_build_request(request, &out->rog_want, PRO_OUT_REQUEST);
 	right_copy(&request->in.rin_want, &out->rog_want.rl_right);
 	c2_mutex_lock(&rpc_lock);
 	c2_queue_put(&rpc_queue, &request->rq_link);
@@ -841,7 +823,7 @@ static int owner_balance(struct c2_rm_owner *o)
 
 			outgoing_delete(out);
 		}
-		for (prio = ARRAY_SIZE(o->ro_incoming); prio >= 0; prio--) {
+		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; prio--) {
 			c2_list_for_each_entry_safe(&o->ro_incoming[prio]
 						    [OQS_EXCITED],right, ri_tmp,
 						    struct c2_rm_right,
@@ -992,6 +974,7 @@ static int incoming_check(struct c2_rm_incoming *in)
 					&borrow.rl_right);
 		}
 		if (result == 0) {
+			printf("waiting for reply\n");
 			in->rin_state = RI_WAIT;
 		} else {
 			/* cannot fulfill the request. */
@@ -1211,7 +1194,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 		c2_chan_timedwait(&clink, deadline);
 	}
 	c2_clink_del(&clink);
-;	c2_clink_fini(&clink);
+	c2_clink_fini(&clink);
 
 	if (in->rin_state != RI_SUCCESS ||
 	    in->rin_state != RI_FAILURE)
