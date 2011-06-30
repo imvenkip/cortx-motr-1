@@ -1385,7 +1385,10 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	struct c2_rpc_slot_ref	*sref;
 
 	c2_list_link_init(&slot->sl_link);
-	/* XXX temporary number 4 */
+	/*
+	 * XXX temporary number 4. This will be set to some proper value when
+	 * sessions will be integrated with FOL
+	 */
 	slot->sl_verno.vn_lsn = 4;
 	slot->sl_verno.vn_vc = 0;
 	slot->sl_slot_gen = 0;
@@ -1419,6 +1422,10 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	sref->sr_slot = slot;
 	sref->sr_item = item;
 	sref->sr_xid = 0;
+	/*
+	 * XXX lsn will be assigned to some proper value once sessions code
+	 * will be integrated with FOL
+	 */
 	sref->sr_verno.vn_lsn = 4;
 	sref->sr_verno.vn_vc = 0;
 	sref->sr_slot_gen = slot->sl_slot_gen;
