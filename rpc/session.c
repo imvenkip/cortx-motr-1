@@ -595,18 +595,18 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 				c2_list_length(&conn->c_sessions) == 1 &&
 				c2_list_contains(conn_list, &conn->c_link) &&
 				sender_end != recv_end;
-			
+
 		case C2_RPC_CONN_ACTIVE:
 			return conn->c_sender_id != SENDER_ID_INVALID &&
-		        	   conn->c_end_point != NULL &&
-		        	   conn->c_rpcmachine != NULL &&
-				   c2_list_invariant(&conn->c_sessions) &&
-				   c2_list_contains(conn_list, &conn->c_link) &&
-				   sender_end != recv_end &&
-				   c2_list_length(&conn->c_sessions) ==
+				conn->c_end_point != NULL &&
+		        	conn->c_rpcmachine != NULL &&
+				c2_list_invariant(&conn->c_sessions) &&
+				c2_list_contains(conn_list, &conn->c_link) &&
+				sender_end != recv_end &&
+				c2_list_length(&conn->c_sessions) ==
 					conn->c_nr_sessions + 1 &&
-				   ergo(recv_end, conn->c_cob != NULL);
-			
+				ergo(recv_end, conn->c_cob != NULL);
+
 		case C2_RPC_CONN_TERMINATING:
 			return conn->c_nr_sessions == 0 &&
 				conn->c_sender_id != SENDER_ID_INVALID &&
@@ -714,7 +714,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-		
+
 	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;

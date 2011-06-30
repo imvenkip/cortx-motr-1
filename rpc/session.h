@@ -579,7 +579,7 @@ struct c2_rpc_session {
 	struct c2_rpc_conn		*s_conn;
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
-	struct c2_mutex 		 s_mutex;
+	struct c2_mutex			 s_mutex;
 	/** Number of items that needs to sent or their reply is
 	    not yet received */
 	int32_t				 s_nr_active_items;
@@ -642,7 +642,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session);
 		state.
  */
 bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
-			      uint64_t 			state_flags,
+			      uint64_t			state_flags,
 			      const c2_time_t		abs_timeout);
 
 /**
@@ -771,7 +771,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
 	c2_list_for_each_entry(&(conn)->c_sessions, (session),	\
 		struct c2_rpc_session, s_link)
 
-/** @} end of session group */	
+/** @} end of session group */
 
 #endif
 
