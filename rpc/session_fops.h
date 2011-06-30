@@ -70,16 +70,16 @@ extern struct c2_fop_type c2_rpc_fop_session_terminate_rep_fopt;
 extern struct c2_fop_type c2_rpc_fop_noop_fopt;
 
 int c2_rpc_fop_conn_create_fom_init(struct c2_fop	*fop,
-				    struct c2_fom 	**m);
+				    struct c2_fom	**m);
 
 int c2_rpc_fop_session_create_fom_init(struct c2_fop	*fop,
-				       struct c2_fom 	**m);
+				       struct c2_fom	**m);
 
 int c2_rpc_fop_session_terminate_fom_init(struct c2_fop	*fop,
-				        struct c2_fom 	**m);
+					  struct c2_fom	**m);
 
 int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop	*fop,
-				       struct c2_fom 	**m);
+				       struct c2_fom	**m);
 
 /*
  * No fom is defined for handling reply fops.

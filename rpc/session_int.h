@@ -47,6 +47,10 @@ int c2_rpc_session_module_init(void);
  */
 void c2_rpc_session_module_fini(void);
 
+enum {
+	SESSION_COB_MAX_NAME_LEN = 40
+};
+
 /**
    Helper to create cob
 
@@ -306,8 +310,8 @@ struct c2_rpc_slot_ref {
    If found *out contains pointer to session object else *out is set to NULL
  */
 void session_search(const struct c2_rpc_conn	*conn,
-		    uint64_t		  	session_id,
-		    struct c2_rpc_session 	**out);
+		    uint64_t			session_id,
+		    struct c2_rpc_session	**out);
 
 /**
    Returns true if item is carrying CONN_CREATE fop.

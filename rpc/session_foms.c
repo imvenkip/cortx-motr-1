@@ -319,7 +319,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 		rc = -ENOENT;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_session_terminate(session);	
+	rc = c2_rpc_rcv_session_terminate(session);
 	if (rc != 0) {
 		goto errout;
 	}
@@ -407,9 +407,8 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	fop_out->ctr_rc = 0;	/* Success */
 	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
 			  c2_fop_to_rpc_item(fop_rep));
-	
+
 	fom->fo_phase = FOPH_DONE;
-	//conn_terminate_reply_sent(conn);
 	return FSO_AGAIN;
 
 errout:

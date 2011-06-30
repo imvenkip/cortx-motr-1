@@ -1217,9 +1217,6 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain	*dom,
 
 	return rc;
 }
-enum {
-	SESSION_COB_MAX_NAME_LEN = 40
-};
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
@@ -1432,10 +1429,20 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 }
 
 /**
-   @see slot_balance
+   If slot->sl_item_list has item(s) in state FUTURE then
+	call slot->sl_ops->so_consume_item() for upto slot->sl_max_in_flight
+	  number of (FUTURE)items. (On sender, each "consumed" item will be
+	  given to formation for transmission. On receiver, "consumed" item is
+	  "dispatched" to request handler for execution)
+   else
+	Notify that the slot is idle (i.e. call slot->sl_ops->so_slot_idle()
+
+   if allow_events is false then items are not consumed.
+   This is required when formation wants to add item to slot->sl_item_list
+   but do not want slot_item_add
  */
-void __slot_balance(struct c2_rpc_slot	*slot,
-		    bool		allow_events)
+static void __slot_balance(struct c2_rpc_slot	*slot,
+			   bool			allow_events)
 {
 	struct c2_rpc_item	*item;
 	struct c2_list_link	*link;
@@ -1477,7 +1484,11 @@ void __slot_balance(struct c2_rpc_slot	*slot,
 	C2_POST(c2_rpc_slot_invariant(slot));
 }
 
-void slot_balance(struct c2_rpc_slot	*slot)
+/**
+   For more information see __slot_balance()
+   @see __slot_balance
+ */
+static void slot_balance(struct c2_rpc_slot	*slot)
 {
 	__slot_balance(slot, true);
 }
@@ -1486,7 +1497,7 @@ void slot_balance(struct c2_rpc_slot	*slot)
    @see c2_rpc_slot_item_add
    @see c2_rpc_slot_item_add_internal
  */
-void __slot_item_add(struct c2_rpc_slot	*slot,
+static void __slot_item_add(struct c2_rpc_slot	*slot,
 		     struct c2_rpc_item	*item,
 		     bool		allow_events)
 {
@@ -1799,6 +1810,9 @@ bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
 	struct c2_verno		*v1;
 	struct c2_verno		*v2;
 	bool			ret = true;
+
+	if (slot == NULL)
+		return false;
 
 	/*
 	 * Traverse slot->sl_item_list using item2 ptr
