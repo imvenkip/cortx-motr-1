@@ -37,8 +37,27 @@ enum {
 	DEFAULT_SLOT_COUNT = 4
 };
 
+/**
+   Initialise all the session related fop types
+ */
 int c2_rpc_session_module_init(void);
+
+/**
+   Fini all session realted fop types
+ */
 void c2_rpc_session_module_fini(void);
+
+/**
+   Helper to create cob
+
+   @param dom cob domain in which cob should be created.
+   @param pcob parent cob in which new cob is to be created
+   @param name name of cob
+   @param out newly created cob
+   @param tx transaction context
+
+   @return 0 on success. *out != NULL
+ */
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -49,52 +68,91 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 #define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
 #define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
 
+/**
+   Lookup a cob named @name in parent cob @pcob. If found store reference
+   in @out. If not found set *out to NULL. To lookup root cob, pcob can be
+   set to NULL
+ */
 int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
 			     char			*name,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx);
 
+/**
+  Lookup /SESSIONS entry in cob namespace
+ */
 int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx);
 
+/**
+  Create /SESSIONS entry in cob namespace
+ */
 int c2_rpc_root_session_cob_create(struct c2_cob_domain	*dom,
 				   struct c2_cob	**out,
 				   struct c2_db_tx	*tx);
 
+/**
+   Lookup for a cob that represents rpc connection with given @sender_id.
+
+   Searches for /SESSIONS/SENDER_$sender_id
+ */
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx);
 
+/**
+   Create a cob that represents rpc connection with given @sender_id
+
+   Create a cob /SESSIONS/SENDER_$sender_id
+ */
 int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   uint64_t		sender_id,
 			   struct c2_cob	**out,
 			   struct c2_db_tx	*tx);
 
+/**
+   Lookup for a cob named "SESSION_$session_id" that represents rpc session 
+   within a given @conn_cob (cob that identifies rpc connection)
+ */
 int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
 			      uint64_t		session_id,
 			      struct c2_cob	**session_cob,
 			      struct c2_db_tx	*tx);
 
+/**
+   Create a cob named "SESSION_$session_id" that represents rpc session 
+   within a given @conn_cob (cob that identifies rpc connection)
+ */
 int c2_rpc_session_cob_create(struct c2_cob	*conn_cob,
 			      uint64_t		session_id,
 			      struct c2_cob	**session_cob,
 			      struct c2_db_tx	*tx);
 
+/**
+   Lookup for a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
+ */
 int c2_rpc_slot_cob_lookup(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+/**
+   Create a cob named "SLOT_$slot_id:$slot_generation" in @session_cob
+ */
 int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+/**
+   Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
+   Returns corresponding references to cobs in out parameters.
+ */
 int conn_persistent_state_create(struct c2_cob_domain   *dom,
 				 uint64_t               sender_id,
 				 struct c2_cob          **conn_cob_out,
@@ -102,10 +160,19 @@ int conn_persistent_state_create(struct c2_cob_domain   *dom,
 				 struct c2_cob          **slot0_cob_out,
 				 struct c2_db_tx        *tx);
 
+/**
+   Delegates persistent state creation to conn_persistent_state_create().
+   And associates returned cobs to conn->c_cob, session0->s_cob and
+   slot0->sl_cob
+ */
 int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 				 uint64_t		sender_id,
 				 struct c2_db_tx	*tx);
 
+/**
+   Creates SESSION_$session_id/SLOT_[0...($nr_slots - 1)]:0 cob entries
+   within parent cob @conn_cob
+ */
 int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    uint64_t		session_id,
 				    struct c2_cob	**session_cob_out,
@@ -113,10 +180,18 @@ int session_persistent_state_create(struct c2_cob	*conn_cob,
 				    uint32_t		nr_slots,
 				    struct c2_db_tx	*tx);
 
+/**
+   Delegates persistent state creation to session_persistent_state_create().
+   And associates cobs to session->s_cob and slot[0..(nr_slots - 1)]->sl_cob
+ */
 int session_persistent_state_attach(struct c2_rpc_session	*session,
 				   uint64_t			session_id,
 				   struct c2_db_tx		*tx);
 
+/**
+  Deletes all the cobs associated with the session and slots belonging to
+  the session
+ */
 int session_persistent_state_destroy(struct c2_rpc_session	*session,
 				     struct c2_db_tx		*tx);
 
@@ -175,27 +250,61 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
  */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
+/**
+  Allocates and returns new sender_id
+
+  Currently implemented in a very primitive way. Just returns any
+  random sender_id
+ */
 uint64_t c2_rpc_sender_id_get(void);
+
+/**
+   Allocates and returns new session_id
+ */
 uint64_t c2_rpc_session_id_get(void);
 
+/**
+   slot_ref object establishes association between c2_rpc_item and
+   c2_rpc_slot. Upto MAX_SLOT_REF number of c2_rpc_slot_ref objects are
+   embeded with c2_rpc_item.
+   At the time item is associated with a slot, values of few slot fields are
+   copied into slot_ref.
+ */
 struct c2_rpc_slot_ref {
-	uint32_t		sr_slot_id;
-	struct c2_verno		sr_verno;
-	struct c2_verno		sr_last_persistent_verno;
-	struct c2_verno		sr_last_seen_verno;
-	uint64_t		sr_xid;
-	uint64_t		sr_slot_gen;
+	/** sr_slot and sr_item identify two ends of association */
 	struct c2_rpc_slot	*sr_slot;
 	struct c2_rpc_item	*sr_item;
+	/** Numeric id of slot. Used when encoding and decoding rpc item to
+	    and from wire-format */
+	uint32_t		sr_slot_id;
+	/** If slot has verno matching sr_verno, then only the item can be
+	    APPLIED to the slot */
+	struct c2_verno		sr_verno;
+	/** In each reply item, receiver reports to sender, verno of item 
+	    whose effects have reached persistent storage, using this field */
+	struct c2_verno		sr_last_persistent_verno;
+	/** Inform the sender about current slot version */
+	struct c2_verno		sr_last_seen_verno;
+	/** An identifier that uniquely identifies item within 
+	    slot->item_list.
+	    XXX should we rename it to something like "item_id"
+		(somehow the name "xid" gives illusion that it is related to
+		 some transaction identifier)
+        */
+	uint64_t		sr_xid;
+	/** Generation number of slot */
+	uint64_t		sr_slot_gen;
 	/** Anchor to put item on c2_rpc_slot::sl_item_list */
 	struct c2_list_link	sr_link;
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
 	struct c2_list_link	sr_ready_link;
 };
 
-int __conn_init(struct c2_rpc_conn	*conn,
-		struct c2_rpcmachine	*machine);
+/**
+   Search for a session with given @session_id in rpc connection conn.
 
+   If found *out contains pointer to session object else *out is set to NULL
+ */
 void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t		  	session_id,
 		    struct c2_rpc_session 	**out);
@@ -204,6 +313,10 @@ void session_search(const struct c2_rpc_conn	*conn,
    Returns true if item is carrying CONN_CREATE fop.
  */
 bool item_is_conn_create(struct c2_rpc_item  *item);
+
+/**
+   Temporary routine that submits the fop for execution
+ */
 void dispatch_item_for_execution(struct c2_rpc_item *item);
 
 /**
@@ -215,21 +328,45 @@ void dispatch_item_for_execution(struct c2_rpc_item *item);
  */
 int c2_rpc_item_received(struct c2_rpc_item *item);
 
+/**
+   Adds an item to slot->sl_item_list, without triggering
+   any slot related events i.e. slot->ops->consume_item()
+ */
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 				   struct c2_rpc_item *item);
 
+/**
+   Callback routine called through item->ri_ops->rio_replied().
+
+   The routine is executed when reply to conn create fop is received
+ */
 void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 				       struct c2_rpc_item *reply,
 				       int		   rc);
 
+/**
+   Callback routine called through item->ri_ops->rio_replied().
+
+   The routine is executed when reply to conn terminate fop is received
+ */
 void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 					  struct c2_rpc_item *reply,
 					  int		      rc);
 
+/**
+   Callback routine called through item->ri_ops->rio_replied().
+
+   The routine is executed when reply to session create fop is received
+ */
 void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 					  struct c2_rpc_item *reply,
 					  int		      rc);
 
+/**
+   Callback routine called through item->ri_ops->rio_replied().
+
+   The routine is executed when reply to session terminate fop is received
+ */
 void c2_rpc_session_terminate_reply_received(struct c2_rpc_item	*req,
 					     struct c2_rpc_item	*reply,
 					     int		 rc);

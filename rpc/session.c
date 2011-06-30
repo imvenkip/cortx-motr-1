@@ -76,7 +76,6 @@ const struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops = {
 	.so_consume_reply = c2_rpc_rcv_consume_reply
 };
 
-
 int c2_rpc_session_module_init(void)
 {
 	int		rc;
@@ -134,13 +133,14 @@ int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
 	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
-int __conn_init(struct c2_rpc_conn	*conn,
-		struct c2_rpcmachine	*machine)
+static int __conn_init(struct c2_rpc_conn	*conn,
+		       struct c2_rpcmachine	*machine)
 {
 	int	rc = 0;
 
 	C2_PRE(conn != NULL &&
-	  ((conn->c_flags & RCF_SENDER_END) != (conn->c_flags & RCF_RECV_END)));
+	       ((conn->c_flags & RCF_SENDER_END) !=
+		(conn->c_flags & RCF_RECV_END)));
 
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_cob = NULL;
@@ -622,6 +622,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		default:
 			return false;
 	}
+	/* Should never reach here */
 	C2_ASSERT(0);
 }
 
@@ -959,7 +960,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 			      const c2_time_t		abs_timeout)
 {
 	struct c2_clink		clink;
-	bool 			got_event = true;
+	bool			got_event = true;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&session->s_chan, &clink);
@@ -1098,6 +1099,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		default:
 			return false;
 	}
+	/* Should never reach here */
 	C2_ASSERT(0);
 }
 
