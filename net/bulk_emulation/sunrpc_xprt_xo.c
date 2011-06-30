@@ -625,13 +625,7 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	size_t npages;
 	c2_bcount_t pageused;
 	char *addr;
-	struct c2_bufvec in = {
-		.ov_vec = {
-			.v_nr = 1,
-			.v_count = &pageused
-		},
-		.ov_buf = (void**) &addr
-	};
+	struct c2_bufvec in = C2_BUFVEC_INIT_BUF((void**) &addr, &pageused);
 	struct c2_bufvec_cursor incur;
 	c2_bcount_t copied;
 	int i;
@@ -694,17 +688,13 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 {
 	c2_bcount_t copylen;
 	c2_bcount_t copied;
-	struct c2_bufvec in = {
-		.ov_vec = {
-			.v_nr = 1,
-			.v_count = &copylen
-		},
-	};
+	void *addr;
+	struct c2_bufvec in = C2_BUFVEC_INIT_BUF(&addr, &copylen);
 	struct c2_bufvec_cursor incur;
 
 	C2_PRE(sb != NULL && sb->sb_buf != NULL);
 	copylen = sb->sb_len;
-	in.ov_buf = (void**) &sb->sb_buf;
+	addr = sb->sb_buf;
 
 	c2_bufvec_cursor_init(&incur, &in);
 	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);
