@@ -118,7 +118,7 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   struct c2_db_tx	*tx);
 
 /**
-   Lookup for a cob named "SESSION_$session_id" that represents rpc session 
+   Lookup for a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
 int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
@@ -127,7 +127,7 @@ int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
 			      struct c2_db_tx	*tx);
 
 /**
-   Create a cob named "SESSION_$session_id" that represents rpc session 
+   Create a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
 int c2_rpc_session_cob_create(struct c2_cob	*conn_cob,
@@ -284,12 +284,12 @@ struct c2_rpc_slot_ref {
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot */
 	struct c2_verno		sr_verno;
-	/** In each reply item, receiver reports to sender, verno of item 
+	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field */
 	struct c2_verno		sr_last_persistent_verno;
 	/** Inform the sender about current slot version */
 	struct c2_verno		sr_last_seen_verno;
-	/** An identifier that uniquely identifies item within 
+	/** An identifier that uniquely identifies item within
 	    slot->item_list.
 	    XXX should we rename it to something like "item_id"
 		(somehow the name "xid" gives illusion that it is related to

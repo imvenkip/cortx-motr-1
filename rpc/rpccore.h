@@ -953,8 +953,8 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
 /** @} end name stat_ifs */
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
-extern struct c2_queue		exec_queue; 
-extern struct c2_chan		exec_chan; 
+extern struct c2_queue		exec_queue;
+extern struct c2_chan		exec_chan;
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

@@ -599,7 +599,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		case C2_RPC_CONN_ACTIVE:
 			return conn->c_sender_id != SENDER_ID_INVALID &&
 				conn->c_end_point != NULL &&
-		        	conn->c_rpcmachine != NULL &&
+				conn->c_rpcmachine != NULL &&
 				c2_list_invariant(&conn->c_sessions) &&
 				c2_list_contains(conn_list, &conn->c_link) &&
 				sender_end != recv_end &&

@@ -587,17 +587,17 @@ struct c2_rpc_session {
 	    items are placed using c2_rpc_item::ri_unbound_link */
 	struct c2_list			 s_unbound_items;
 	/** Number of active slots in the table */
-	uint32_t 			 s_nr_slots;
+	uint32_t			 s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t			 s_slot_table_capacity;
 	/** highest slot id for which the sender has the outstanding request
 	    XXX currently unused */
-	uint32_t 			 s_highest_used_slot_id;
+	uint32_t			 s_highest_used_slot_id;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
 		denoting cause of failure */
 	int32_t				 s_rc;
 	/** Array of pointers to slots */
-	struct c2_rpc_slot 		**s_slot_table;
+	struct c2_rpc_slot		 **s_slot_table;
 };
 
 /**

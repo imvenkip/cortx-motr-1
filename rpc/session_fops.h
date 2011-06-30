@@ -81,23 +81,6 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop	*fop,
 int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop	*fop,
 				       struct c2_fom	**m);
 
-/*
- * No fom is defined for handling reply fops.
- * Instead each reply fop has ->fto_execute() handler defined
- */
-
-int c2_rpc_fop_conn_create_rep_execute(struct c2_fop		*fop,
-				       struct c2_fop_ctx 	*ctx);
-
-int c2_rpc_fop_session_create_rep_execute(struct c2_fop		*fop,
-				          struct c2_fop_ctx	*ctx);
-
-int c2_rpc_fop_session_terminate_rep_execute(struct c2_fop	*fop,
-				           struct c2_fop_ctx	*ctx);
-
-int c2_rpc_fop_conn_terminate_rep_execute(struct c2_fop		*fop,
-				          struct c2_fop_ctx	*ctx);
-
 int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
 			    struct c2_fop_ctx	*ctx);
 
