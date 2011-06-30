@@ -29,7 +29,7 @@
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
 #ifdef __KERNEL__
-#include <linux/highmem.h> /* kmap, kunmap */
+#include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
 #include "net/ksunrpc/ksunrpc.h"
 #endif
 
@@ -604,9 +604,9 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			return -ENOMEM;
 		}
 		if (cbuf != NULL) {
-			bp = kmap(pages[i]);
+			bp = kmap_atomic(pages[i], KM_USER0);
 			memcpy(bp, cbuf, min_check(PAGE_SIZE, len));
-			kunmap(pages[i]);
+			kunmap_atomic(pages[i], KM_USER0);
 			C2_ASSERT(len > PAGE_SIZE || i == npages - 1);
 			cbuf += PAGE_SIZE;
 			len -= PAGE_SIZE;
@@ -652,14 +652,14 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 		} else {
 			pageused = PAGE_SIZE;
 		}
-		addr = kmap(sb->sb_buf[i]);
+		addr = kmap_atomic(sb->sb_buf[i], KM_USER0);
 		if (i == 0) {
 			addr += sb->sb_pgoff;
 			pageused -= sb->sb_pgoff;
 		}
 		c2_bufvec_cursor_init(&incur, &in);
 		copied = c2_bufvec_cursor_copy(outcur, &incur, pageused);
-		kunmap(sb->sb_buf[i]);
+		kunmap_atomic(sb->sb_buf[i], KM_USER0);
 		if (copied != pageused) {
 			rc = -EFBIG;
 			break;
