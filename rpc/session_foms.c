@@ -47,7 +47,7 @@
    @{
  */
 
-struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
+const struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
 	.fo_fini = &c2_rpc_fom_conn_create_fini,
 	.fo_state = &c2_rpc_fom_conn_create_state
 };
@@ -162,7 +162,7 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
  * FOM session create
  */
 
-struct c2_fom_ops c2_rpc_fom_session_create_ops = {
+const struct c2_fom_ops c2_rpc_fom_session_create_ops = {
 	.fo_fini = &c2_rpc_fom_session_create_fini,
 	.fo_state = &c2_rpc_fom_session_create_state
 };
@@ -261,7 +261,7 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
  * FOM session terminate
  */
 
-struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
+const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 	.fo_fini = &c2_rpc_fom_session_terminate_fini,
 	.fo_state = &c2_rpc_fom_session_terminate_state
 };
@@ -348,7 +348,7 @@ void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom)
 /*
  * FOM RPC connection terminate
  */
-struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
+const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_fini = &c2_rpc_fom_conn_terminate_fini,
 	.fo_state = &c2_rpc_fom_conn_terminate_state
 };

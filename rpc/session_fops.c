@@ -42,23 +42,23 @@
    @{
  */
 
-struct c2_fop_type_ops c2_rpc_fop_conn_create_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_conn_create_ops = {
 	.fto_fom_init = &c2_rpc_fop_conn_create_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_fop_session_create_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_session_create_ops = {
 	.fto_fom_init = c2_rpc_fop_session_create_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops = {
 	.fto_fom_init = c2_rpc_fop_session_terminate_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops = {
 	.fto_fom_init = c2_rpc_fop_conn_terminate_fom_init,
 };
 
-struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 	.fto_execute = c2_rpc_fop_noop_execute
 };
 
@@ -265,7 +265,7 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
-bool default_is_io_req(struct c2_rpc_item *item)
+static bool default_is_io_req(struct c2_rpc_item *item)
 {
 	return false;
 }
@@ -325,19 +325,19 @@ struct c2_rpc_item_type c2_rpc_item_noop = {
 	.rit_mutabo = false
 };
 
-struct c2_rpc_item_ops c2_rpc_item_conn_create_ops = {
+const struct c2_rpc_item_ops c2_rpc_item_conn_create_ops = {
 	.rio_replied = c2_rpc_conn_create_reply_received
 };
 
-struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
+const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {
 	.rio_replied = c2_rpc_conn_terminate_reply_received
 };
 
-struct c2_rpc_item_ops c2_rpc_item_session_create_ops = {
+const struct c2_rpc_item_ops c2_rpc_item_session_create_ops = {
 	.rio_replied = c2_rpc_session_create_reply_received
 };
 
-struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
+const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops = {
 	.rio_replied = c2_rpc_session_terminate_reply_received
 };
 

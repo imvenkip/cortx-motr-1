@@ -426,7 +426,7 @@ struct c2_rpc_item {
 	/** For a received item, it gives source end point */
 	struct c2_net_end_point		*ri_src_ep;
 	/** item operations */
-	struct c2_rpc_item_ops		*ri_ops;
+	const struct c2_rpc_item_ops	*ri_ops;
 	/** Dummy queue linkage to dummy reqh */
 	struct c2_queue_link		ri_dummy_qlinkage;
 };

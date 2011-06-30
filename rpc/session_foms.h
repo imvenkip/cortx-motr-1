@@ -51,7 +51,7 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fop		*fcc_fop_rep;
 };
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
-extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;
+extern const struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 
 int c2_rpc_fom_conn_create_state(struct c2_fom *);
 void c2_rpc_fom_conn_create_fini(struct c2_fom *);
@@ -71,7 +71,7 @@ struct c2_rpc_fom_session_create {
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_create_type;
-extern struct c2_fom_ops c2_rpc_fom_session_create_ops;
+extern const struct c2_fom_ops c2_rpc_fom_session_create_ops;
 
 int c2_rpc_fom_session_create_state(struct c2_fom *);
 void c2_rpc_fom_session_create_fini(struct c2_fom *);
@@ -91,7 +91,7 @@ struct c2_rpc_fom_session_terminate {
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
-extern struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
+extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *);
 void c2_rpc_fom_session_terminate_fini(struct c2_fom *);
@@ -111,7 +111,7 @@ struct c2_rpc_fom_conn_terminate {
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
-extern struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
+extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);
