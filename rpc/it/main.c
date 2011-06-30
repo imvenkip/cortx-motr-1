@@ -406,11 +406,11 @@ void client_init()
 			printf("pingcli: Connection established\n");
 		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
 			printf("pingcli: conn create failed\n");
-		else
-			printf("pingcli: conn INVALID!!!|n");
+	//	else
+	//		printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn create \n");
-#if 0
+
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
@@ -429,7 +429,20 @@ void client_init()
 	} else {
 		printf("RPC session created\n");
 	}
-#endif
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+	/* Wait for session to become active */
+	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
+			C2_RPC_SESSION_IDLE, timeout);
+	if (rcb) {
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE)
+			printf("pingcli: Session established\n");
+		if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+			printf("pingcli: session create failed\n");
+	} else
+		printf("Timeout for session create \n");
 cleanup:
 	do_cleanup();
 }
