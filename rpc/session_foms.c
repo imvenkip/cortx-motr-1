@@ -235,7 +235,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
 
-	fop_out->rscr_rc = 0; 		/* success */
+	fop_out->rscr_rc = 0;		/* success */
 	fop_out->rscr_session_id = session->s_session_id;
 	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
 			  c2_fop_to_rpc_item(fop_rep));
