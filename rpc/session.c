@@ -280,7 +280,6 @@ void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
 	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
-	struct c2_rpcmachine			*machine;
 
 	C2_PRE(req != NULL && reply != NULL);
 	C2_PRE(req->ri_session == reply->ri_session &&
@@ -328,7 +327,7 @@ void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 		  conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
-	c2_mutex_unlock(&machine->cr_session_mutex);
+	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_chan_broadcast(&conn->c_chan);
 	return;
 }
@@ -2402,7 +2401,6 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 			/* Send reply received event to formation component.*/
 			rc = c2_rpc_form_extevt_rpcitem_reply_received(item,
 					req);
-			return rc;
 		}
 
 		if (req != NULL && req->ri_ops != NULL &&
