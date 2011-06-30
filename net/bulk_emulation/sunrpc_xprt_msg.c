@@ -151,7 +151,8 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 				       struct c2_net_buffer,
 				       nb_tm_linkage) {
 			if ((nb->nb_flags &
-			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) == 0) {
+			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED |
+			      C2_NET_BUF_TIMED_OUT)) == 0) {
 				found_nb = true;
 				break;
 			}

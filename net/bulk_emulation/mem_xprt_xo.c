@@ -450,7 +450,8 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 }
 
 /**
-   Cancel ongoing buffer operations.
+   Cancel ongoing buffer operations.  May also be invoked to time out a pending
+   buffer operation by first setting the C2_NET_BUF_TIMED_OUT flag.
    @param nb Buffer pointer
  */
 static void mem_xo_buf_del(struct c2_net_buffer *nb)
@@ -473,7 +474,8 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 
 	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_CANCEL_CB;
-	nb->nb_flags |= C2_NET_BUF_CANCELLED;
+	if (!(nb->nb_flags & C2_NET_BUF_TIMED_OUT))
+		nb->nb_flags |= C2_NET_BUF_CANCELLED;
 
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:

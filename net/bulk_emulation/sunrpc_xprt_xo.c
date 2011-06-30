@@ -243,23 +243,47 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	c2_time_t now;
+	c2_time_t wakeup;
+	c2_time_t next_ep = 0;
+	c2_time_t next_buf = 0;
 
 	c2_mutex_lock(&dom->nd_mutex);
 	c2_time_now(&now);
 	while (dp->xd_skulker_run) {
 		dp->xd_skulker_hb++;
-		if (dp->xd_ep_release_delay != 0) {
-			c2_time_t wakeup;
-			wakeup = c2_time_add(now, dp->xd_ep_release_delay);
-			c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex,
-					  wakeup);
-		} else {
-			c2_cond_wait(&dp->xd_skulker_cv, &dom->nd_mutex);
-		}
+
+		/* schedule future events */
+		if (dp->xd_ep_release_delay == 0)
+			next_ep = C2_TIME_NEVER;
+		else if (next_ep == 0)
+			next_ep = c2_time_add(now, dp->xd_ep_release_delay);
+		if (next_buf == 0)
+			next_buf = c2_time_add(now, dp->xd_skulker_period);
+
+		/* sleep a fixed interval */
+		wakeup = c2_time_add(now, dp->xd_skulker_period);
+		c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex, wakeup);
 		if (!dp->xd_skulker_run)
 			break;
 		c2_time_now(&now);
-		sunrpc_skulker_process_end_points(dom, now);
+		if (dp->xd_skulker_force) {
+			/* force invocation of handlers */
+			next_ep = now;
+			next_buf = now;
+			dp->xd_skulker_force = false;
+		}
+
+		/* age cached EP's */
+		if (c2_time_after_eq(now, next_ep)) {
+			sunrpc_skulker_process_end_points(dom, now);
+			next_ep = 0;
+		}
+
+		/* timeout buffers */
+		if (c2_time_after_eq(now, next_buf)) {
+			sunrpc_skulker_timeout_buffers(dom, now);
+			next_buf = 0;
+		}
 	}
 	sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
 	dp->xd_skulker_hb = 0;
@@ -318,6 +342,8 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	bdp->xd_addr_tuples       = 3;
 	bdp->xd_num_tm_threads    = C2_NET_BULK_SUNRPC_TM_THREADS;
 	c2_time_set(&dp->xd_ep_release_delay, C2_NET_BULK_SUNRPC_EP_DELAY_S, 0);
+	c2_time_set(&dp->xd_skulker_period,
+		    C2_NET_BULK_SUNRPC_SKULKER_PERIOD_S, 0);
 
 	/* create the rpc domain (use in-mutex version of domain init) */
 #ifdef __KERNEL__
@@ -379,6 +405,30 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 }
 
 void
+c2_net_bulk_sunrpc_dom_set_skulker_period(struct c2_net_domain *dom,
+					  uint64_t secs)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	C2_PRE(secs > 0);
+	c2_mutex_lock(&dom->nd_mutex);
+	c2_time_set(&dp->xd_skulker_period, secs, 0);
+	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
+	c2_mutex_unlock(&dom->nd_mutex);
+	return;
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_set_skulker_period);
+
+uint64_t
+c2_net_bulk_sunrpc_dom_get_skulker_period(struct c2_net_domain *dom)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	return c2_time_seconds(dp->xd_skulker_period);
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_get_skulker_period);
+
+void
 c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 						   uint64_t secs)
 {
@@ -388,6 +438,7 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 	c2_time_set(&dp->xd_ep_release_delay, secs, 0);
 	if (secs == 0) /* flush cached eps now */
 		sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+	dp->xd_skulker_force = true;
 	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;

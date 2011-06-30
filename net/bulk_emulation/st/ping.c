@@ -40,6 +40,23 @@ struct ping_work_item {
 	struct c2_list_link         pwi_link;
 };
 
+static void ping_sleep_secs(int secs)
+{
+	c2_time_t req, rem;
+	if (secs == 0)
+		return;
+	c2_time_set(&req, secs, 0);
+	c2_nanosleep(req, &rem);
+}
+
+static c2_time_t ping_c2_time_after_secs(int secs)
+{
+	c2_time_t dur;
+	c2_time_t now;
+	c2_time_set(&dur, secs, 0);
+	return c2_time_add(c2_time_now(&now), dur);
+}
+
 int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
 		  struct c2_net_buffer **out)
 {
@@ -500,6 +517,8 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 	struct ping_msg msg;
 	int64_t count;
 	char idbuf[64];
+	int bulk_delay = ctx->pc_server_bulk_delay;
+
 
 	C2_ASSERT(ev->nbe_buffer != NULL &&
 		  ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
@@ -544,6 +563,11 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 						 &nb->nb_desc);
 				nb->nb_ep = NULL; /* not needed */
 				C2_ASSERT(rc == 0);
+				if (bulk_delay != 0) {
+					ctx->pc_ops->pf("%s: delay %d secs\n",
+							idbuf, bulk_delay);
+					ping_sleep_secs(bulk_delay);
+				}
 			} else if (msg.pm_type == PM_RECV_DESC) {
 				ctx->pc_ops->pf("%s: got desc for "
 						"active send\n", idbuf);
@@ -568,6 +592,11 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 					C2_ASSERT(rc == 0);
 				}
 				C2_ASSERT(rc == 0);
+				if (bulk_delay != 0) {
+					ctx->pc_ops->pf("%s: delay %d secs\n",
+							idbuf, bulk_delay);
+					ping_sleep_secs(bulk_delay);
+				}
 			} else {
 				char *data;
 				ctx->pc_ops->pf("%s: got msg: %s\n",
@@ -742,8 +771,17 @@ int ping_init(struct ping_ctx *ctx)
 
 	if (ctx->pc_sunrpc_ep_delay >= 0 &&
 	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
+		ctx->pc_ops->pf("%s: setting EP release delay to %ds\n",
+				ctx->pc_ident, ctx->pc_sunrpc_ep_delay);
 		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
 			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
+	}
+
+	if (ctx->pc_sunrpc_skulker_period > 0) {
+		ctx->pc_ops->pf("%s: setting skulker period to %ds\n",
+				ctx->pc_ident, ctx->pc_sunrpc_skulker_period);
+		c2_net_bulk_sunrpc_dom_set_skulker_period
+			(&ctx->pc_dom, ctx->pc_sunrpc_skulker_period);
 	}
 
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
@@ -768,7 +806,8 @@ int ping_init(struct ping_ctx *ctx)
 	}
 
 	if (ctx->pc_id != 0)
-		sprintf(addr, "%s:%u:%u", ctx->pc_hostname, ctx->pc_port, ctx->pc_id);
+		sprintf(addr, "%s:%u:%u", ctx->pc_hostname, ctx->pc_port,
+			ctx->pc_id);
 	else
 		sprintf(addr, "%s:%u", ctx->pc_hostname, ctx->pc_port);
 	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom, addr);
@@ -1057,7 +1096,14 @@ int ping_client_passive_recv(struct ping_ctx *ctx,
 	C2_ASSERT(nb != NULL);
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	nb->nb_ep = server_ep;
-	nb->nb_timeout = C2_TIME_NEVER;
+	if (ctx->pc_passive_bulk_timeout > 0) {
+		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
+				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
+		nb->nb_timeout =
+			ping_c2_time_after_secs(ctx->pc_passive_bulk_timeout);
+	} else {
+		nb->nb_timeout = C2_TIME_NEVER;
+	}
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 	rc = c2_net_desc_copy(&nb->nb_desc, &nbd);
@@ -1140,7 +1186,14 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	rc = encode_msg(nb, data);
 	nb->nb_qtype = C2_NET_QT_PASSIVE_BULK_SEND;
 	nb->nb_ep = server_ep;
-	nb->nb_timeout = C2_TIME_NEVER;
+	if (ctx->pc_passive_bulk_timeout > 0) {
+		ctx->pc_ops->pf("%s: setting nb_timeout to %ds\n",
+				ctx->pc_ident, ctx->pc_passive_bulk_timeout);
+		nb->nb_timeout =
+			ping_c2_time_after_secs(ctx->pc_passive_bulk_timeout);
+	} else {
+		nb->nb_timeout = C2_TIME_NEVER;
+	}
 	rc = c2_net_buffer_add(nb, &ctx->pc_tm);
 	C2_ASSERT(rc == 0);
 	rc = c2_net_desc_copy(&nb->nb_desc, &nbd);

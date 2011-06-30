@@ -481,6 +481,7 @@ static void test_net_bulk_if(void)
 	struct c2_net_buf_desc d1, d2;
 	struct c2_clink tmwait;
 	struct c2_net_qstats qs[C2_NET_QT_NR];
+	c2_time_t  c2tt_now, c2tt_to_period;
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -587,15 +588,18 @@ static void test_net_bulk_if(void)
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		nb->nb_flags = 0;
+		nb->nb_timeout = 0;
 		ut_buf_register_called = false;
 		rc = c2_net_buffer_register(nb, dom);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(ut_buf_register_called);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED);
+		C2_UT_ASSERT(nb->nb_timeout == C2_TIME_NEVER);
 		num_adds[i] = 0;
 		num_dels[i] = 0;
 		total_bytes[i] = 0;
 	}
+	c2_time_set(&c2tt_to_period, 120, 0); /* 2 min */
 
 	/* TM init with callbacks */
 	rc = c2_net_tm_init(tm, dom);
@@ -637,11 +641,21 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_tm_event_cb_calls == 1);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
 
+	/* add MSG_RECV buf with a timeout in the past - should fail */
+	nb = &nbs[C2_NET_QT_MSG_RECV];
+	nb->nb_callbacks = &ut_buf_cb;
+	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	nb->nb_timeout = c2_time_sub(c2_time_now(&c2tt_now), c2tt_to_period);
+	rc = c2_net_buffer_add(nb, tm);
+	C2_UT_ASSERT(rc == -ETIME);
+
 	/* add MSG_RECV buf - should succeeded as now started */
 	nb = &nbs[C2_NET_QT_MSG_RECV];
 	nb->nb_callbacks = &ut_buf_cb;
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	nb->nb_timeout = c2_time_add(c2_time_now(&c2tt_now), c2tt_to_period);
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_buf_add_called);
@@ -686,6 +700,8 @@ static void test_net_bulk_if(void)
 			make_desc(&nb->nb_desc);
 			break;
 		}
+		nb->nb_timeout = c2_time_add(c2_time_now(&c2tt_now),
+					     c2tt_to_period);
 		rc = c2_net_buffer_add(nb, tm);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_QUEUED);
@@ -725,6 +741,7 @@ static void test_net_bulk_if(void)
 		c2_net_buffer_event_post(&ev);
 		C2_UT_ASSERT(ut_cb_calls[i] == 1);
 		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_IN_USE));
+		C2_UT_ASSERT(nb->nb_timeout == C2_TIME_NEVER);
 	}
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 

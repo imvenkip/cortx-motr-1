@@ -99,8 +99,11 @@ static void mem_wf_cancel_cb(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(nb->nb_flags & C2_NET_BUF_IN_USE);
 
-	/* post the completion callback (will clear C2_NET_BUF_IN_USE) */
-	wi->xwi_status = -ECANCELED;
+	/* post the completion callback (will clear operation flags) */
+	if ((nb->nb_flags & C2_NET_BUF_TIMED_OUT) != 0)
+		wi->xwi_status = -ETIMEDOUT;
+	else
+		wi->xwi_status = -ECANCELED;
 	mem_wi_post_buffer_event(wi);
 	return;
 }

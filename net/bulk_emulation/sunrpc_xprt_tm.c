@@ -201,6 +201,48 @@ static void sunrpc_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 }
 
 /**
+   Skulker method to time out TM buffers
+   @param dom Domain pointer (mutex is held)
+   @param now Current time
+ */
+static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
+					   c2_time_t now)
+{
+	struct c2_net_transfer_mc *tm;
+	enum c2_net_queue_type     qt;
+	struct c2_net_buffer      *nb;
+
+	C2_PRE(c2_mutex_is_locked(&dom->nd_mutex));
+
+	/* iterate over TM's in domain */
+	c2_list_for_each_entry(&dom->nd_tms, tm,
+			       struct c2_net_transfer_mc, ntm_dom_linkage) {
+		c2_mutex_lock(&tm->ntm_mutex);
+		/* iterate over buffers in each queue */
+		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
+			c2_list_for_each_entry(&tm->ntm_q[qt], nb,
+					       struct c2_net_buffer,
+					       nb_tm_linkage) {
+				if (nb->nb_timeout == C2_TIME_NEVER)
+					continue;
+				if (c2_time_after(nb->nb_timeout, now))
+					continue;
+				/* mark as timed out */
+				nb->nb_flags |= C2_NET_BUF_TIMED_OUT;
+				/* Attempt to cancel - active calls
+				   may not always notice or honor this flag.
+				   The cancel wf supplies the proper error
+				   code.
+				*/
+				sunrpc_xo_buf_del(nb);
+			}
+		}
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+	return;
+}
+
+/**
    @} bulksunrpc
 */
 
