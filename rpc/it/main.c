@@ -404,7 +404,7 @@ void client_init()
 	if (rcb) {
 		if (cctx.pc_conn.c_state == C2_RPC_CONN_ACTIVE)
 			printf("pingcli: Connection established\n");
-		if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
 			printf("pingcli: conn create failed\n");
 	//	else
 	//		printf("pingcli: conn INVALID!!!|n");
