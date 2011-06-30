@@ -714,7 +714,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 		
-	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -781,6 +781,7 @@ void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 	session_id = fop_scr->rscr_session_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
+	printf("scrr: sender_id %lu session_id %lu\n", sender_id, session_id);
 	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL &&
 		  conn->c_state == C2_RPC_CONN_ACTIVE &&

@@ -202,6 +202,8 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	C2_ASSERT(fop_out != NULL);
 
 	sender_id = fop_in->rsc_snd_id;
+	fop_out->rscr_sender_id = sender_id;
+	printf("session_create_state: sender_id %lu\n", sender_id);
 
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL &&
@@ -238,7 +240,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
 			  c2_fop_to_rpc_item(fop_rep));
 	fom->fo_phase = FOPH_DONE;
-	printf("Session create finished %lu\n", session->s_session_id);
+	printf("session_create_state:success %lu\n", session->s_session_id);
 	return FSO_AGAIN;
 
 errout:
