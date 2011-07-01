@@ -310,23 +310,29 @@ struct c2_rpc_form_buffer {
 	/** The associated item_summary_unit structure. */
 	struct c2_rpc_form_item_summary_unit	*fb_endp_unit;
 	/** The rpc object which was sent through the c2_net_buffer here. */
-	struct c2_rpc				*fb_rpc;
+	struct c2_rpc_form_rpcobj		*fb_rpc;
 };
 
 /**
    Allocate a buffer of type struct c2_rpc_form_buffer.
+   The net buffer is allocated and registered with the net domain.
+   @pre the calling item_summary_unit structure should be in _posting_ state.
+
    @param fb - a formation buffer pointer.
    @param rpc - rpc which will be serialized into the c2_net_buffer.
    @param endp_unit - the item_summary_unit structure associated with rpc.
    @param net_dom - the associated c2_net_domain structure.
  */
 int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
-		struct c2_rpc *rpc,
+		struct c2_rpc_form_rpcobj *rpc,
 		struct c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_net_domain *net_dom);
 
 /**
    Deallocate a buffer of type struct c2_rpc_form_buffer.
+   The buffer is also deregistered from the net domain.
+   @pre the form_buffer should have been allocated.
+
    @param fb - form_buffer to be deallocated.
  */
 void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb);
@@ -407,7 +413,7 @@ struct c2_rpc_form_rpcobj {
 /**
    Enumeration of external events.
  */
-enum c2_rpc_form_ext_event {
+enum c2_rpc_form_event {
 	/** Slot ready to send next item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_READY = 0,
 	/** RPC item removed from cache. */
@@ -424,22 +430,17 @@ enum c2_rpc_form_ext_event {
 	C2_RPC_FORM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
 	/** Network buffer can be freed */
 	C2_RPC_FORM_EXTEVT_NET_BUFFER_FREE,
-	/** Max external events. */
-	C2_RPC_FORM_EXTEVT_EVENTS_NR
-};
 
-/**
-   Enumeration of internal events.
- */
-enum c2_rpc_form_int_event {
+	/** Internal events henceforth. */
+
 	/** Execution succeeded in current state. */
-	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED = C2_RPC_FORM_EXTEVT_EVENTS_NR,
+	C2_RPC_FORM_INTEVT_STATE_SUCCEEDED,
 	/** Execution failed in current state. */
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
 	/** Execution completed, exit the state machine. */
 	C2_RPC_FORM_INTEVT_STATE_DONE,
 	/** Max internal events. */
-	C2_RPC_FORM_INTEVT_EVENTS_NR
+	C2_RPC_FORM_EVENTS_NR
 };
 
 /**
@@ -454,14 +455,7 @@ int c2_rpc_form_init();
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
  */
-int c2_rpc_form_fini();
-
-/**
-   Callback used to trigger the "deadline expired" event
-   for an rpc item.
-   @param data - private data of user of timer.
- */
-unsigned long c2_rpc_form_item_timer_callback(unsigned long data);
+void c2_rpc_form_fini();
 
 /**
    Enumeration of fields which are subject to change.
@@ -747,12 +741,6 @@ int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
  */
 void c2_rpc_form_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments);
-
-/**
-   Retrieve slot and verno information from sessions component
-   for an unbound item.
- */
-void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item);
 
 /** @} endgroup of rpc_formation */
 

@@ -148,7 +148,9 @@ int seed_val;
 
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
-#define	C2_RPC_TM_RECV_BUFFERS_NR	8
+enum {
+	C2_RPC_TM_RECV_BUFFERS_NR = 8,
+};
 
 struct c2_rpc;
 struct c2_rpc_conn;
@@ -373,6 +375,7 @@ enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF = 1
 };
+
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -386,7 +389,6 @@ enum {
 	//...
    };
  */
-
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			ri_chan;
@@ -538,13 +540,19 @@ struct c2_rpc_statistics {
    receive incoming messages. This is necessary for asynchronous
    behavior of system. This buffer is deallocated when the transfer
    machine to which this buffer was added, gets destroyed.
+   @pre - net domain should be initialized.
+
    @param net_dom - the net domain in which buffers should be registered.
  */
 struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
 		struct c2_net_domain *net_dom);
 
 /**
-   Allocate buffers meant for receiving messages for given number of times.
+   Allocate buffers meant for receiving messages for C2_RPC_TM_RECV_BUFFERS_NR
+   number of times.
+   @pre net domain should be initialized.
+   @pre tm should be initialized and started.
+
    @param net_dom - net domain in which nr number of buffers will be registered.
    @param tm - transfer machine to which nr number of buffers will be added.
  */
@@ -552,7 +560,11 @@ int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 		struct c2_net_transfer_mc *tm);
 
 /**
-   Deallocate the buffer meant for receiving buffers.
+   Deallocate the buffer meant for receiving messages.
+   @pre nb should be a valid and enqueued net buffer.
+   @pre tm should be initialized and started.
+   @pre net domain should be initialized.
+
    @param nb - net buffer to be deallocated.
    @param tm - transfer machine from which nb should be deleted.
    @param net_dom - network domain from which nb should be deregistered.
@@ -561,7 +573,10 @@ int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
 
 /**
-   Deallocate the buffers for given number of times.
+   Deallocate the buffers for C2_RPC_TM_RECV_BUFFERS_NR number of times.
+   @pre tm should be initialized and started.
+   @pre net domain should have been initialized.
+
    @param tm - transfer machine from which nr number of buffers will be
                deleted.
    @param net_dom - network domain from which nr number of buffers will
@@ -572,6 +587,10 @@ int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
+   @pre net domain should be initialized.
+   @pre net buffer should not be allocated.
+   @post net buffer gets allocated.
+
    @param net_dom - network domain to which buffers will be registered.
    @param nb - network buffer to be allocated.
  */
@@ -580,6 +599,9 @@ void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
 
 /**
    Deallocate a net buffer meant for sending messages.
+   @pre net buffer should be allocated and registered.
+   @pre net domain should be initialized.
+
    @param nb - network buffer which will be deallocated.
    @param net_dom - network domain from which buffer will be deregistered.
  */

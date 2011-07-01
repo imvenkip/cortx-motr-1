@@ -506,45 +506,45 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0) {
 			/* XXX We can post an ADDB event here. */
-		}
-
-		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
-				ri_rpcobject_linkage) {
-			/* If this is a reply type rpc item, call a
-			   sessions/slots method on it which will find out
-			   its corresponding request item and call its
-			   completion callback.*/
-			chan = container_of(nb->nb_tm, struct c2_rpc_chan,
-					rc_xfermc);
-			item->ri_mach = chan->rc_rpcmachine;
-			nb->nb_ep = ev->nbe_ep;
-			item->ri_src_ep = nb->nb_ep;
-			printf("item->src_ep = %p\n", item->ri_src_ep);
-			printf("Item %d received\n", i);
-			rc = c2_rpc_item_received(item);
-			if (rc == 0) {
-				/* Post an ADDB event here.*/
-				++i;
+		} else {
+			c2_list_for_each_entry(&rpc.r_items, item,
+					struct c2_rpc_item,
+					ri_rpcobject_linkage) {
+				/* If this is a reply type rpc item, call a
+				   sessions/slots method on it which will find
+				   out its corresponding request item and call
+				   its completion callback.*/
+				chan = container_of(nb->nb_tm,
+						struct c2_rpc_chan, rc_xfermc);
+				item->ri_mach = chan->rc_rpcmachine;
+				nb->nb_ep = ev->nbe_ep;
+				item->ri_src_ep = nb->nb_ep;
+				printf("item->src_ep = %p\n", item->ri_src_ep);
+				printf("Item %d received\n", i);
+				rc = c2_rpc_item_received(item);
+				if (rc == 0) {
+					/* Post an ADDB event here.*/
+					++i;
+				}
 			}
 		}
-
-		/* Add the c2_net_buffer back to the queue of
-		   transfer machine. */
-		nb->nb_flags = 0;
-		nb->nb_flags |= C2_NET_BUF_REGISTERED;
-		nb->nb_qtype = C2_NET_QT_MSG_RECV;
-		nb->nb_ep = NULL; 
-		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-		nb->nb_ep = NULL;
-		rc = c2_net_buffer_add(nb, nb->nb_tm);
-		if (rc < 0) {
-			/* XXX Post an addb event here.*/
-		}
 	}
+
+	/* Add the c2_net_buffer back to the queue of
+	   transfer machine. */
+	nb->nb_flags = 0;
+	nb->nb_flags |= C2_NET_BUF_REGISTERED;
+	nb->nb_qtype = C2_NET_QT_MSG_RECV;
+	nb->nb_ep = NULL; 
+	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+	nb->nb_ep = NULL;
+	rc = c2_net_buffer_add(nb, nb->nb_tm);
+	C2_ASSERT(rc == 0);
 }
 
-struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer *nbuf, int qtype)
+static struct c2_net_buffer *c2_rpc_net_buffer_allocate(
+		struct c2_net_domain *net_dom, struct c2_net_buffer *nbuf,
+		int qtype)
 {
 	uint32_t			 rc = 0;
 	struct c2_net_buffer		*nb = NULL;
@@ -554,6 +554,7 @@ struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	c2_bcount_t			 nrsegs = 0;
 
 	C2_PRE(net_dom != NULL);
+	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype = C2_NET_QT_MSG_SEND));
 
 	if (nbuf == NULL) {
 		C2_ALLOC_PTR(nb);
@@ -583,10 +584,18 @@ struct c2_net_buffer *c2_rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	nb->nb_qtype = qtype;
 	if (qtype == C2_NET_QT_MSG_RECV) {
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	} else if (qtype == C2_NET_QT_MSG_SEND) {
+	} else {
 		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
 	}
 
+	/* Register the buffer with given net domain. */
+	rc = c2_net_buffer_register(nb, net_dom);
+	if (rc < 0) {
+		c2_bufvec_free(&nb->nb_buffer);
+		if (nbuf == NULL) {
+			c2_free(nb);
+		}
+	}
 	return nb;
 }
 
@@ -616,17 +625,11 @@ int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 	for (i = 0; i < C2_RPC_TM_RECV_BUFFERS_NR; ++i) {
 		nb = c2_rpc_net_recv_buffer_allocate(net_dom);
 		if (nb == NULL) {
-			rc = -1;
-			break;
-		}
-		rc = c2_net_buffer_register(nb, net_dom);
-		if (rc < 0) {
-			rc = -1;
+			rc = -ENOMEM;
 			break;
 		}
 		rc = c2_net_buffer_add(nb, tm);
 		if (rc < 0) {
-			rc = -1;
 			break;
 		}
 	}
@@ -686,7 +689,7 @@ int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
 
 	c2_list_for_each_entry_safe(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
 			nb_next, struct c2_net_buffer, nb_tm_linkage) {
-		c2_list_del(&nb->nb_tm_linkage);
+		c2_net_buffer_del(nb, tm);
 		rc = c2_rpc_recv_buffer_deallocate(nb, tm, net_dom);
 		if (rc < 0) {
 			/* XXX Post an addb event here. */

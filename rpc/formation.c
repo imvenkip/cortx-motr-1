@@ -35,6 +35,13 @@
 struct c2_rpc_form_item_summary		*formation_summary;
 
 /**
+  Sleep time till refcounts of all the endpoint units becomes zero
+ */
+enum {
+	PTIME = 10000000,
+};
+
+/**
    Temporary threashold values. Will be moved to appropriate files
    once rpc integration is done.
  */
@@ -61,11 +68,31 @@ void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)
 	}
 }
 
+bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
+
+/**
+   Invariant subroutine for struct c2_rpc_form_buffer.
+ */
+bool c2_rpc_form_buf_invariant(const struct c2_rpc_form_buffer *fbuf)
+{
+	bool	res = false;
+
+	if ((fbuf == NULL) || (fbuf->fb_endp_unit == NULL) ||
+			(fbuf->fb_rpc == NULL))
+		return false;
+
+	/* Need some more checks for sure.*/
+	res = c2_net__buffer_invariant(&fbuf->fb_buffer);
+
+	return res;
+}
+
 /**
    Allocate a buffer of type struct c2_rpc_form_buffer.
+   The net buffer is allocated and registered with the net domain.
  */
 int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
-		struct c2_rpc *rpc,
+		struct c2_rpc_form_rpcobj *rpc,
 		struct c2_rpc_form_item_summary_unit *endp_unit,
 		struct c2_net_domain *net_dom)
 {
@@ -85,11 +112,13 @@ int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
 	fbuf->fb_rpc = rpc;
 	c2_rpc_net_send_buffer_allocate(net_dom, &fbuf->fb_buffer);
 	*fb = fbuf;
+	C2_POST(ergo((rc == 0), c2_rpc_form_buf_invariant(fbuf)));
 	return rc;
 }
 
 /**
-   Deallocate a buffer of type struct c2_rpc_form_buffer.
+   Deallocate a buffer of type struct c2_rpc_form_buffer. The
+   c2_net_buffer is deregistered and deallocated.
  */
 void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb)
 {
@@ -130,7 +159,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
    next_state = stateTable[current_state][current_event]
  */
 stateFunc c2_rpc_form_stateTable
-[C2_RPC_FORM_STATE_NR][C2_RPC_FORM_INTEVT_EVENTS_NR-1] = {
+[C2_RPC_FORM_STATE_NR][C2_RPC_FORM_EVENTS_NR-1] = {
 
 	{ &c2_rpc_form_updating_state, &c2_rpc_form_removing_state,
 	  &c2_rpc_form_removing_state, &c2_rpc_form_checking_state,
@@ -195,6 +224,8 @@ C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
    necessary data structures.
+   @pre formation summary is non-null
+   @retval 0 if init completed, else nonzero
  */
 int c2_rpc_form_init()
 {
@@ -214,8 +245,8 @@ int c2_rpc_form_init()
 
 /**
    Check if refcounts of all endpoints are zero.
-   Returns FALSE if any of refcounts are non-zero,
-   returns TRUE otherwise.
+   @retval FALSE if any of refcounts are non-zero,
+   @retval TRUE otherwise.
  */
 bool c2_rpc_form_wait_for_completion()
 {
@@ -329,7 +360,7 @@ static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
  */
-int c2_rpc_form_fini()
+void c2_rpc_form_fini()
 {
 	/* stime = 10ms */
 	c2_time_t				 stime;
@@ -351,7 +382,7 @@ int c2_rpc_form_fini()
 		c2_mutex_unlock(&endp_unit->isu_unit_lock);
 	}
 	c2_rwlock_read_unlock(&formation_summary->is_endp_list_lock);
-	c2_time_set(&stime, 0, 10000000);
+	c2_time_set(&stime, 0, PTIME);
 
 	/* Iterate over the list of endpoints until refcounts of all
 	   become zero. */
@@ -384,7 +415,6 @@ int c2_rpc_form_fini()
 	c2_addb_ctx_fini(&formation_summary->is_rpc_form_addb);
 	c2_free(formation_summary);
 	formation_summary = NULL;
-	return 0;
 }
 
 /**
@@ -411,8 +441,8 @@ static void c2_rpc_form_state_machine_exit(struct
 static bool c2_rpc_form_endp_invariant(struct c2_rpc_form_item_summary_unit
 		*endp_unit)
 {
-	C2_PRE(endp_unit != NULL);
-
+	if (!endp_unit)
+		return false;
 	if (!c2_list_is_empty(&endp_unit->isu_groups_list))
 		return false;
 	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list))
@@ -459,7 +489,7 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
    for an endpoint.
  */
 static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
-		const struct c2_net_end_point *endp)
+		struct c2_net_end_point *endp)
 {
 	struct c2_rpc_form_item_summary_unit	*endp_unit;
 
@@ -504,7 +534,7 @@ static stateFunc c2_rpc_form_next_state(const int current_state,
 		const int current_event)
 {
 	C2_PRE(current_state < C2_RPC_FORM_STATE_NR);
-	C2_PRE(current_event < C2_RPC_FORM_INTEVT_EVENTS_NR);
+	C2_PRE(current_event < C2_RPC_FORM_EVENTS_NR);
 
 	return c2_rpc_form_stateTable[current_state][current_event];
 }
@@ -513,6 +543,7 @@ static stateFunc c2_rpc_form_next_state(const int current_state,
    Get the endpoint given an rpc item.
    This is a placeholder and will be replaced when a concrete
    definition of endpoint is available.
+   The net endpoint reference count is not incremented here.
  */
 struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 {
@@ -528,9 +559,11 @@ struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
 		struct c2_net_end_point *ep2)
 {
-	bool	status = false;
+	bool status		= false;
 
-	if (!memcmp(ep1, ep2, sizeof(struct c2_net_end_point))) {
+	C2_PRE((ep1 != NULL) && (ep2 != NULL));
+
+	if (strcmp(ep1->nep_addr, ep2->nep_addr) == 0) {
 		status = true;
 	}
 	return status;
@@ -561,7 +594,7 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	bool					 found = false;
 
 	C2_PRE(item != NULL);
-	C2_PRE(sm_event->se_event < C2_RPC_FORM_INTEVT_EVENTS_NR);
+	C2_PRE(sm_event->se_event < C2_RPC_FORM_EVENTS_NR);
 	C2_PRE(sm_state <= C2_RPC_FORM_STATE_NR);
 
 	endpoint = c2_rpc_form_get_endpoint(item);
@@ -733,7 +766,6 @@ void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	struct c2_net_domain			*dom = NULL;
 	struct c2_net_transfer_mc		*tm = NULL;
 	struct c2_rpc_form_buffer		*fb = NULL;
-	struct c2_rpc_form_rpcobj		*form_rpcobj = NULL;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL) &&
 			(ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND));
@@ -742,25 +774,20 @@ void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	dom = nb->nb_dom;
 	tm = nb->nb_tm;
 	fb = container_of(nb, struct c2_rpc_form_buffer, fb_buffer);
+	C2_PRE(c2_rpc_form_buf_invariant(fb));
+
+	/* The buffer should have been dequeued by now.*/
+	C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	if (ev->nbe_status == 0) {
-		/* The buffer should have been dequeued if event succeeded.*/
-		C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
-		c2_rpc_form_set_state_sent(fb->fb_rpc);
-		fb->fb_endp_unit->isu_curr_rpcs_in_flight++;
+		c2_rpc_form_set_state_sent(fb->fb_rpc->ro_rpcobj);
 		c2_rpc_form_buffer_deallocate(fb);
 	} else {
 		/* If the send event fails, add the rpc back to concerned
 		   queue so that it will be processed next time.*/
-		C2_ALLOC_PTR(form_rpcobj);
-		if (form_rpcobj == NULL) {
-			/* XXX Post addb event here.*/
-			return;
-		}
-		form_rpcobj->ro_rpcobj = fb->fb_rpc;
 		c2_mutex_lock(&fb->fb_endp_unit->isu_unit_lock);
 		c2_list_add(&fb->fb_endp_unit->isu_rpcobj_formed_list,
-				&form_rpcobj->ro_linkage);
+				&fb->fb_rpc->ro_linkage);
 		c2_mutex_unlock(&fb->fb_endp_unit->isu_unit_lock);
 	}
 }
@@ -956,7 +983,7 @@ int c2_rpc_form_waiting_state(struct c2_rpc_form_item_summary_unit *endp_unit
    Callback used to trigger the "deadline expired" event
    for an rpc item.
  */
-unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
+static unsigned long c2_rpc_form_item_timer_callback(unsigned long data)
 {
 	struct c2_rpc_item	*item;
 
@@ -2005,7 +2032,7 @@ struct c2_net_domain *c2_rpc_form_get_dom(const struct c2_rpc_item *item)
   @param - rpc item
   @retval - network transfer machine
  */
-struct c2_net_transfer_mc *c2_rpc_form_get_tm(struct c2_rpc_item *item)
+struct c2_net_transfer_mc *c2_rpc_form_get_tm(const struct c2_rpc_item *item)
 {
 	struct c2_net_transfer_mc	*tm = NULL;
 
@@ -2025,11 +2052,9 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		*event)
 {
 	int				 res = 0;
-	int				 ret =
-		C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
+	enum c2_rpc_form_state		 ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 	struct c2_rpc_form_rpcobj	*rpc_obj = NULL;
 	struct c2_rpc_form_rpcobj	*rpc_obj_next = NULL;
-	struct c2_net_end_point		*endp = NULL;
 	struct c2_net_domain		*dom = NULL;
 	struct c2_net_transfer_mc	*tm = NULL;
 	struct c2_rpc_item		*first_item = NULL;
@@ -2054,7 +2079,6 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 		first_item = c2_list_entry((c2_list_first(&rpc_obj->
 						ro_rpcobj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
-		endp = c2_rpc_form_get_endpoint(first_item);
 		if (endp_unit->isu_curr_rpcs_in_flight <
 				endp_unit->isu_max_rpcs_in_flight) {
 			rpc_size = c2_rpc_get_size(rpc_obj->ro_rpcobj);
@@ -2062,10 +2086,10 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 
 			/* Allocate a buffer for sending the message.*/
 			rc = c2_rpc_form_buffer_allocate(&fb,
-					rpc_obj->ro_rpcobj, endp_unit, dom);
+					rpc_obj, endp_unit, dom);
 			if (rc < 0) {
-				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
-				break;
+				/* Process the next rpc object in the list.*/
+				continue;
 			}
 			/* XXX populate destination EP */
 			fb->fb_buffer.nb_ep =
@@ -2075,25 +2099,23 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			/* Encode the rpc contents. */
 			rc = c2_rpc_encode(rpc_obj->ro_rpcobj, &fb->fb_buffer);
 			if (rc < 0) {
+				c2_rpc_form_buffer_deallocate(fb);
 				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
-				break;
+				/* Process the next rpc object in the list.*/
+				continue;
 			}
-			/* Register the buffer with net domain. */
-			res = c2_net_buffer_register(&fb->fb_buffer, dom);
-			if (res < 0) {
-				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
-				break;
-			}
-			tm = c2_rpc_form_get_tm(first_item);
 
 			/* Add the buffer to transfer machine.*/
+			tm = c2_rpc_form_get_tm(first_item);
 			res = c2_net_buffer_add(&fb->fb_buffer, tm);
 			if (res < 0) {
-				ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
-				break;
+				c2_rpc_form_buffer_deallocate(fb);
+				/* Process the next rpc object in the list.*/
+				continue;
 			} else {
 				/* Remove the rpc object from rpcobj_formed
 				   list.*/
+				endp_unit->isu_curr_rpcs_in_flight++;
 				c2_list_del(&rpc_obj->ro_linkage);
 				ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 			}
@@ -2157,18 +2179,6 @@ void c2_rpc_form_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 {
         out->f_container = in->f_seq;
         out->f_key = in->f_oid;
-}
-
-/**
-   Retrieve slot and verno information from sessions component
-   for an unbound item.
- */
-void item_add_internal(struct c2_rpc_slot *slot, struct c2_rpc_item *item)
-{
-	C2_PRE(item != NULL);
-	C2_PRE(slot != NULL);
-
-	item->ri_slot_refs[0].sr_slot = slot;
 }
 
 /**
