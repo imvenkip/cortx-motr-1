@@ -31,6 +31,7 @@
 #ifdef __KERNEL__
 #include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
 #include "net/ksunrpc/ksunrpc.h"
+#include <linux/pagemap.h> /* PAGE_CACHE_* macros */
 #endif
 
 /**
@@ -582,7 +583,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 
 	C2_PRE(sb != NULL);
 
-        npages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        npages = (len + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	if (npages == 0)
 		npages = 1;
 	C2_ALLOC_ARR(pages, npages + 1); /* null ptr terminate, see fini */
@@ -605,11 +606,11 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 		}
 		if (cbuf != NULL) {
 			bp = kmap_atomic(pages[i], KM_USER0);
-			memcpy(bp, cbuf, min_check(PAGE_SIZE, len));
+			memcpy(bp, cbuf, min_check(PAGE_CACHE_SIZE, len));
 			kunmap_atomic(pages[i], KM_USER0);
-			C2_ASSERT(len > PAGE_SIZE || i == npages - 1);
-			cbuf += PAGE_SIZE;
-			len -= PAGE_SIZE;
+			C2_ASSERT(len > PAGE_CACHE_SIZE || i == npages - 1);
+			cbuf += PAGE_CACHE_SIZE;
+			len -= PAGE_CACHE_SIZE;
 		}
 	}
 	return 0;
@@ -631,20 +632,22 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	int i;
 	int rc = 0;
 
-	C2_PRE(sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_SIZE);
+	C2_PRE(sb != NULL && sb->sb_buf != NULL &&
+	       sb->sb_pgoff < PAGE_CACHE_SIZE);
 	copylen = sb->sb_len;
 	if (copylen == 0)
 		return rc;
-	npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	npages =
+	    (sb->sb_pgoff + copylen + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	C2_ASSERT(npages > 0);
 
 	for (i = 0; i < npages; ++i) {
 		if (i == npages - 1) {
-			pageused = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+			pageused = (sb->sb_pgoff + copylen) & ~PAGE_CACHE_MASK;
 			if (pageused == 0) /* last page is exactly 1 page */
-				pageused = PAGE_SIZE;
+				pageused = PAGE_CACHE_SIZE;
 		} else {
-			pageused = PAGE_SIZE;
+			pageused = PAGE_CACHE_SIZE;
 		}
 		addr = kmap_atomic(sb->sb_buf[i], KM_USER0);
 		if (i == 0) {

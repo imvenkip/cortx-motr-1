@@ -20,6 +20,7 @@
 
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/svc.h>
+#include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
 #include "lib/cdefs.h"
 #include "fop/fop.h"
@@ -293,7 +294,8 @@ static int kxdr_sequence_arg(struct kxdr_ctx *ctx, void *obj)
 
 	if (kxdr_is_byte_array(ctx)) {
 		/* Only supports bulk service with a single sequence */
-		ps->ps_pgoff = (unsigned long) ctx->kc_xdr->p & (PAGE_SIZE - 1);
+		ps->ps_pgoff =
+		    (unsigned long) ctx->kc_xdr->p & (PAGE_CACHE_SIZE - 1);
 		ps->ps_pages = ctx->kc_sreq->rq_pages;
 		xdr_read_pages(ctx->kc_xdr, ps->ps_nr);
 	} else {

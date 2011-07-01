@@ -214,7 +214,7 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
 
 /**
    Copy the contents of a sunrpc_buffer out to a c2_bufvec using a cursor.
-   @pre sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_SIZE
+   @pre sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_CACHE_SIZE
    @param dest destination buffer cursor
    @param sb source sunrpc_buffer
    @retval 0 (success)

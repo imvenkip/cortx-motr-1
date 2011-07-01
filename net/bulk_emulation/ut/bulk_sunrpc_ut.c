@@ -352,8 +352,8 @@ enum {
 };
 #ifdef __KERNEL__
 /* want a size that tests 2 page buffers */
-C2_BASSERT(PING_BUFFER_2PAGE_SIZE > PAGE_SIZE &&
-	   PING_BUFFER_2PAGE_SIZE < 2 * PAGE_SIZE);
+C2_BASSERT(PING_BUFFER_2PAGE_SIZE > PAGE_CACHE_SIZE &&
+	   PING_BUFFER_2PAGE_SIZE < 2 * PAGE_CACHE_SIZE);
 #endif
 
 static int quiet_printf(const char *fmt, ...)

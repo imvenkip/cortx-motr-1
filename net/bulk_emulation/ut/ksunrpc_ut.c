@@ -25,6 +25,7 @@
 #include "net/ksunrpc/ksunrpc.h"
 
 #include <linux/highmem.h> /* kmap, kunmap */
+#include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
 
 enum {
 	NUM = 100,
@@ -267,7 +268,7 @@ void test_ksunrpc_buffer(void)
 {
 	char *buf;
 	char *bp;
-	size_t len = PAGE_SIZE * NUM;
+	size_t len = PAGE_CACHE_SIZE * NUM;
 	int i;
 	struct sunrpc_buffer sb;
 	int rc;
@@ -275,14 +276,14 @@ void test_ksunrpc_buffer(void)
 	buf = c2_alloc(len);
 	C2_UT_ASSERT(buf != NULL);
 	for (i = 0; i < NUM; ++i)
-		buf[i * PAGE_SIZE] = i;
+		buf[i * PAGE_CACHE_SIZE] = i;
 
 	rc = sunrpc_buffer_init(&sb, buf, len);
 	C2_UT_ASSERT(rc == 0);
 	for (i = 0; i < NUM; ++i) {
 		C2_UT_ASSERT(page_count(sb.sb_buf[i]) == 1);
 		bp = kmap(sb.sb_buf[i]);
-		C2_UT_ASSERT(*bp == buf[i * PAGE_SIZE]);
+		C2_UT_ASSERT(*bp == buf[i * PAGE_CACHE_SIZE]);
 		kunmap(sb.sb_buf[i]);
 	}
 	sunrpc_buffer_fini(&sb);
