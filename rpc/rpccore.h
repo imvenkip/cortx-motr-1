@@ -407,9 +407,6 @@ struct c2_rpc_item {
 	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
 	struct c2_list_link		ri_unbound_link;
-	struct c2_rpc_sender_uuid	ri_uuid;
-	uint64_t			ri_sender_id;
-	uint64_t			ri_session_id;
 	int32_t				ri_error;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;

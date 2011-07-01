@@ -128,8 +128,8 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 	c2_list_link_init(&sref->sr_ready_link);
 
         c2_list_link_init(&item->ri_unbound_link);
-	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_INVALID;
+	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+	item->ri_slot_refs[0].sr_session_id = SESSION_ID_INVALID;
 
         c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unformed_linkage);
@@ -161,9 +161,11 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
 
 	reply->ri_session = request->ri_session;
-	reply->ri_sender_id = request->ri_sender_id;
-	reply->ri_session_id = request->ri_session_id;
-	reply->ri_uuid = request->ri_uuid;
+	reply->ri_slot_refs[0].sr_sender_id =
+		request->ri_slot_refs[0].sr_sender_id;
+	reply->ri_slot_refs[0].sr_session_id =
+		request->ri_slot_refs[0].sr_session_id;
+	reply->ri_slot_refs[0].sr_uuid = request->ri_slot_refs[0].sr_uuid;
 	reply->ri_prio = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
 	reply->ri_error = 0;

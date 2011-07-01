@@ -55,9 +55,9 @@ void populate_item(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	slot_ref;
 
-	item->ri_sender_id = 0xdead;
-	item->ri_session_id = 0xbeef;
-	item->ri_uuid.su_uuid = 0xeaeaeaea;
+	item->ri_slot_refs[0].sr_sender_id = 0xdead;
+	item->ri_slot_refs[0].sr_session_id = 0xbeef;
+	item->ri_slot_refs[0].sr_uuid.su_uuid = 0xeaeaeaea;
 	slot_ref.sr_xid  = 0x11111111;
 	slot_ref.sr_slot_gen = 0x22222222;
 	slot_ref.sr_slot_id = 0x666;

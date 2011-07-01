@@ -97,7 +97,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach, &item->ri_uuid);
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach,
+				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto errout;
 
@@ -127,7 +128,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * reply item as it is. So set sender id of request item
 	 * to SENDER_ID_INVALID
 	 */
-	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	fop_ccr->rccr_snd_id = conn->c_sender_id;
