@@ -363,7 +363,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 		  slot->sl_ops != NULL &&
 		  slot->sl_ops->so_slot_idle != NULL);
 	slot->sl_ops->so_slot_idle(slot);
-	//C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }
 void session_zero_detach(struct c2_rpc_conn	*conn)
@@ -1019,13 +1019,12 @@ bool session_alive_invariants(const struct c2_rpc_session *session)
 
 	result = session->s_session_id <= SESSION_ID_MAX &&
 		 session->s_conn != NULL &&
-		 session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
-		 session->s_conn->c_nr_sessions > 0 &&
+		 ergo(session->s_session_id != SESSION_0,
+			session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
+		 	session->s_conn->c_nr_sessions > 0) &&
 		 session->s_nr_slots >= 0 &&
 		 c2_list_contains(&session->s_conn->c_sessions,
-			&session->s_link) &&
-		 ergo((session->s_conn->c_flags & RCF_RECV_END) !=
-			0, session->s_cob != NULL);
+			&session->s_link);
 
 	if (!result)
 		return result;
