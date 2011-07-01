@@ -132,6 +132,7 @@ static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 			    right->ri_ops->rro_implies(want, right)) {
 				in = container_of(right, struct c2_rm_incoming,
 						  rin_want);
+				printf("Found at %d\n",prio);
 				return in;
 			}
 		}
@@ -163,26 +164,21 @@ void rpc_process(int id)
 		case PRO_LOAN_REPLY:
 			printf("Loan Reply\n");
 			c2_mutex_lock(&info->owner->ro_lock);
-			in = find_in_request(info->owner,
-					     &req->in.rin_want);
+			in = find_in_request(info->owner, &req->in.rin_want);
 			if (in == NULL) {
 				pin_add(&req->in, &req->in.rin_want);
 				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
 				    	    &req->in.rin_want.ri_linkage);
-				c2_queue_put(&info->owner_queue,
-					     &req->rq_link);
+				c2_queue_put(&info->owner_queue, &req->rq_link);
 			} else {
-			/*
 				c2_list_init(&in->rin_pins);
-				pin_add(in, &in->rin_want);
+				pin_add(in, &req->in.rin_want);
 				in->rin_state = RI_SUCCESS;
 				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
 				    	    &req->in.rin_want.ri_linkage);
-				c2_queue_put(&info->owner_queue,
-					     &req->rq_link);
 				printf("Signaled\n");
-				in->rin_ops->rio_complete(in,
-				                  in->rin_state);*/
+				in->rin_ops->rio_complete(in, in->rin_state);
+				//c2_queue_put(&info->owner_queue, &req->rq_link);
 			}
 			c2_mutex_unlock(&info->owner->ro_lock);
 			break;

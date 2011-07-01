@@ -215,9 +215,10 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); i++) {
-		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++)
+		for(j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); j++) {
 			C2_PRE(c2_list_is_empty(&owner->ro_incoming[i][j]));
 			c2_list_fini(&owner->ro_incoming[i][j]);
+		}
 	}
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++) {
@@ -331,6 +332,7 @@ static int apply_policy(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_right *right;
+	struct c2_rm_loan  *loan;
 	struct c2_rm_right *pin_right;
 	struct c2_rm_pin   *pin;
 	struct c2_rm_pin   *pin_tmp;
@@ -351,8 +353,8 @@ static int apply_policy(struct c2_rm_incoming *in)
 			c2_list_move(&in->rin_want.ri_pins,
 				     &pin->rp_right_linkage);
 		}
-		c2_list_move(&owner->ro_owned[OWOS_CACHED],
-			    &in->rin_want.ri_linkage);
+		//c2_list_move(&owner->ro_owned[OWOS_CACHED],
+		//	      &in->rin_want.ri_linkage);
 		break;
 	case RIP_STRICT:
 		/* 
@@ -365,18 +367,19 @@ static int apply_policy(struct c2_rm_incoming *in)
 			pin_right = pin->rp_right;
 			pin_right->ri_ops->rro_diff(pin->rp_right,
 						    &in->rin_want);
-			c2_list_move(&in->rin_want.ri_pins,
-				     &pin->rp_right_linkage);
+			c2_list_del(&pin->rp_incoming_linkage);
+			c2_list_del(&pin->rp_right_linkage);
+			c2_free(pin);
 		}
 
-		remove_rights(in);
-		C2_ALLOC_PTR(right);
-		if (right == NULL)
+		C2_ALLOC_PTR(loan);
+		if (loan == NULL)
 			return -ENOMEM;
-		right_copy(right, &in->rin_want);
-		pin_add(in, right);
+		c2_rm_right_init(&loan->rl_right);
+		right_copy(&loan->rl_right, &in->rin_want);
+		pin_add(in, &loan->rl_right);
 		c2_list_add(&owner->ro_owned[OWOS_CACHED],
-			    &right->ri_linkage);
+			    &loan->rl_right.ri_linkage);
 
 		break;
 	case RIP_JOIN:
@@ -394,14 +397,22 @@ static int apply_policy(struct c2_rm_incoming *in)
 			if (first) {
 				right = pin->rp_right;
 				first = false;
+				pin_remove(pin);
 				continue;
 			}
 			pin_right = pin->rp_right;
 			right->ri_ops->rro_join(right, pin_right);
 			pin_remove(pin);
 		}
+
+		C2_ALLOC_PTR(loan);
+		if (loan == NULL)
+			return -ENOMEM;
+		c2_rm_right_init(&loan->rl_right);
+		right_copy(&loan->rl_right, &in->rin_want);
+		pin_add(in, &loan->rl_right);
 		c2_list_add(&owner->ro_owned[OWOS_CACHED],
-			    &right->ri_linkage);
+			    &loan->rl_right.ri_linkage);
 		break;
 	case RIP_MAX:
 		/* 
@@ -467,7 +478,7 @@ static void move_to_held(struct c2_rm_incoming *in)
  * The rights(as loan) are moved to sublet list of owner
  * as the request came for loan.
  */
-static int move_to_sublet(struct c2_rm_incoming *in)
+static void move_to_sublet(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_owner;
 	struct c2_rm_pin   *pin;
@@ -480,23 +491,14 @@ static int move_to_sublet(struct c2_rm_incoming *in)
 	c2_list_for_each_entry_safe(&in->rin_pins, pin, pin_tmp,
 				    struct c2_rm_pin, rp_incoming_linkage) {
 		right = pin->rp_right;
-		C2_ALLOC_PTR(loan);
-		if (loan == NULL)
-			return -ENOMEM;
-		//c2_list_del(&right->ri_linkage);
-		c2_rm_right_init(&loan->rl_right);
-		right_copy(&loan->rl_right, right);
-		c2_rm_remote_init(&loan->rl_other);
+		loan = container_of(right, struct c2_rm_loan, rl_right);
 		if (!c2_rm_net_locate(right, &loan->rl_other)) {
 			/* Inc remote resource ref*/
 			loan->rl_other.rem_resource->r_ref++;
 		}
-		pin->rp_right = &loan->rl_right;
-		c2_list_add(&owner->ro_sublet, &loan->rl_right.ri_linkage);
-		c2_list_move(&loan->rl_right.ri_pins, &pin->rp_right_linkage);
+		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
 	}
 
-	return 0;
 }
 
 static void c2_rm_build_request(struct c2_rm_req_reply *req,
@@ -734,12 +736,11 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	c2_mutex_unlock(&in->rin_owner->ro_lock);
 	C2_POST(c2_list_is_empty(&in->rin_pins));
 }
-#if 0
 /**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
  */
-static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
+void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 {
 	struct c2_rm_owner *owner;
 
@@ -752,7 +753,6 @@ static void outgoing_complete(struct c2_rm_outgoing *og, int rc)
 		     &og->rog_want.rl_right.ri_linkage);
 	c2_mutex_unlock(&owner->ro_lock);
 }
-#endif
 
 /**
    Removes a tracking pin on a resource usage right.
@@ -870,7 +870,6 @@ static int owner_balance(struct c2_rm_owner *o)
 static int incoming_check(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *o = in->rin_owner;
-	struct c2_rm_loan  *loan;
 	struct c2_rm_right  rest;
 	int		    result;
 	bool		    held;
@@ -939,11 +938,9 @@ static int incoming_check(struct c2_rm_incoming *in)
 				break;
 			case RIT_REVOKE:
 				printf("Cancel The right \n");
-				remove_rights(in);
-				loan = container_of(&in->rin_want,
-						    struct c2_rm_loan,
-						    rl_right);
-				go_out(in, ROT_CANCEL, loan, &in->rin_want);
+				reply_to_loan_request(in);
+				//remove_rights(in);
+				//go_out(in, ROT_CANCEL, loan, &in->rin_want);
 			}
 			in->rin_state = RI_SUCCESS;
 		}
@@ -963,15 +960,18 @@ static int incoming_check(struct c2_rm_incoming *in)
 		 */
 		if (in->rin_flags & RIF_MAY_REVOKE)
 			result = sublet_revoke(in, &rest);
-
 		if (in->rin_flags & RIF_MAY_BORROW) {
 			/* borrow more */
-			struct c2_rm_loan borrow;
-			c2_rm_right_init(&borrow.rl_right);
-			right_copy(&borrow.rl_right, &rest);
-			c2_rm_net_locate(&rest, &borrow.rl_other);
-			result = go_out(in, ROT_BORROW, &borrow,
-					&borrow.rl_right);
+			struct c2_rm_loan *borrow;
+			C2_ALLOC_PTR(borrow);
+			if (borrow == NULL)
+				return -ENOMEM;
+
+			c2_rm_right_init(&borrow->rl_right);
+			right_copy(&borrow->rl_right, &rest);
+			c2_rm_net_locate(&rest, &borrow->rl_other);
+			result = go_out(in, ROT_BORROW, borrow,
+					&borrow->rl_right);
 		}
 		if (result == 0) {
 			printf("waiting for reply\n");
@@ -1055,7 +1055,7 @@ static int sublet_revoke(struct c2_rm_incoming *in,
 	struct c2_rm_owner *o = in->rin_owner;
 	struct c2_rm_right *right;
 	struct c2_rm_loan  *loan;
-	int		    result;
+	int		    result = 1;
 
 	printf("IN sublet-revoke function\n");
 	c2_list_for_each_entry(&o->ro_sublet, right,
