@@ -358,7 +358,7 @@ void c2_loc_handler_thread(struct c2_fom_locality *loc)
 			}
 			c2_mutex_unlock(&loc->fl_lock);
 			continue;
-		}else {
+		} else {
 			if (idle) {
 				idle = false;
 				--loc->fl_idle_threads_nr;
@@ -386,7 +386,7 @@ void c2_loc_handler_thread(struct c2_fom_locality *loc)
  */
 int c2_loc_thr_create(struct c2_fom_locality *loc, bool confine)
 {
-	int result = 0;
+	int result;
 	struct c2_fom_hthread *locthr;
 
 	if (loc == NULL)
@@ -582,7 +582,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *fomdom)
 	 */
 	max_proc = c2_processor_nr_max();
 	/* Temporary array of c2_processor descriptor */
-	cpu_info = c2_alloc(max_proc * sizeof *cpu_info);
+	C2_ALLOC_ARR(cpu_info, max_proc);
 	if (cpu_info == NULL)
 		return -ENOMEM;
 
@@ -681,7 +681,7 @@ int c2_fom_init(struct c2_fom *fom)
 	fom->fo_state = FOS_READY;
 	fom->fo_phase = FOPH_INIT;
 	fom->fo_rep_fop = NULL;
-	fom->fo_fop_ctx = c2_alloc(sizeof *fom->fo_fop_ctx);
+	C2_ALLOC_PTR(fom->fo_fop_ctx);
 	if (fom->fo_fop_ctx == NULL)
 		return -ENOMEM;
 
