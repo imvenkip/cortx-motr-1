@@ -251,7 +251,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * This is a transaction IO and should be a separate phase 
 	 * with full fledged FOM. 
 	 */
-	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
+	result = fom->fo_stdomain->sd_ops->sdo_tx_make(fom->fo_stdomain, &tx);
 	C2_ASSERT(result == 0);
 
 	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
@@ -266,7 +266,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Allocate and find out the c2_stob object from given domain. 
 	 */
-	result = c2_stob_find(fom->fo_domain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
+	result = c2_stob_find(fom->fo_stdomain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(fom_obj->fcrw_stob, &tx);
 	C2_ASSERT(result == 0);
@@ -431,7 +431,7 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 	C2_ASSERT(fom != NULL);
 
-	fom->fo_domain = dom;
+	fom->fo_stdomain = dom;
 	fom->fo_fop_ctx = &ctx;
 	fom->fo_fol = fol;
 

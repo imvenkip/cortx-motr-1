@@ -42,8 +42,8 @@ struct c2_fop_sortkey;
    Request handler instance.
  */
 struct c2_reqh {
-	struct c2_rpcmachine  *rh_rpc;
-	struct c2_dtm         *rh_dtm;
+	struct c2_rpcmachine  	*rh_rpc;
+	struct c2_dtm         	*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
 	   will be replaced with "stores".
@@ -60,17 +60,20 @@ struct c2_reqh {
 /**
  * Table structure to hold phase transition and execution.
  */
-struct c2_fom_phase_table {
+struct c2_fom_phase_ops {
 	/** function pointer to phase execution routine */
-        int (*action) (struct c2_fom *fom);
+        int (*fpo_action) (struct c2_fom *fom);
 	/** next phase to transition into */
-	int next_phase;
+	int fpo_nextphase;
+	/** wait flag */
+	bool fpo_wait;
 };
 
 int  c2_reqh_init(struct c2_reqh *reqh,
-		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		  struct c2_stob_domain *rh_stob_dom,
-		  struct c2_fol *fol, struct c2_service *serv);
+		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
+		struct c2_stob_domain *rh_stob_dom,
+		struct c2_fol *fol, struct c2_service *serv);
+
 void c2_reqh_fini(struct c2_reqh *reqh);
 
 /**
@@ -94,6 +97,9 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
    Assign a sort-key to a fop.
 
    This function is called by NRS to order fops in its incoming queue.
+
+   @todo -> to decide upon sort key generation parameters as required by
+   nrs scheduler.
  */
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 			     struct c2_fop_sortkey *key);
