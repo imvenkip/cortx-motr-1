@@ -43,11 +43,11 @@ enum c2_rpc_session_opcodes {
 	C2_RPC_FOP_NOOP
 };
 
-extern struct c2_fop_type_ops c2_rpc_fop_conn_create_ops;
-extern struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;
-extern struct c2_fop_type_ops c2_rpc_fop_session_create_ops;
-extern struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops;
-extern struct c2_fop_type_ops c2_rpc_fop_noop_ops;
+extern const struct c2_fop_type_ops c2_rpc_fop_conn_create_ops;
+extern const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_ops;
+extern const struct c2_fop_type_ops c2_rpc_fop_session_create_ops;
+extern const struct c2_fop_type_ops c2_rpc_fop_session_terminate_ops;
+extern const struct c2_fop_type_ops c2_rpc_fop_noop_ops;
 
 extern struct c2_fop_type_format c2_rpc_fop_conn_create_tfmt;
 extern struct c2_fop_type_format c2_rpc_fop_conn_create_rep_tfmt;
@@ -115,10 +115,10 @@ extern struct c2_rpc_item_type c2_rpc_item_conn_terminate;
 extern struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep;
 extern struct c2_rpc_item_type c2_rpc_item_noop;
 
-extern struct c2_rpc_item_ops c2_rpc_item_conn_create_ops;
-extern struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
-extern struct c2_rpc_item_ops c2_rpc_item_session_create_ops;
-extern struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
+extern const struct c2_rpc_item_ops c2_rpc_item_conn_create_ops;
+extern const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
+extern const struct c2_rpc_item_ops c2_rpc_item_session_create_ops;
+extern const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */
 

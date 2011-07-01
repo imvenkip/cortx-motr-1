@@ -712,6 +712,9 @@ struct c2_rpc_slot {
 int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 		     const struct c2_rpc_slot_ops	*ops);
 
+/**
+   Deprecated
+ */
 void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
 			  struct c2_rpc_item	*item);
 
@@ -753,9 +756,6 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
 
 void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
-
-/** XXX temporary */
-void c2_rpc_form_slot_idle(struct c2_rpc_slot	*slot);
 
 /**
    Iterate over all the rpc connections present in rpcmachine
