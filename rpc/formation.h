@@ -454,7 +454,7 @@ int c2_rpc_form_init();
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
  */
-int c2_rpc_form_fini();
+void c2_rpc_form_fini();
 
 /**
    Callback used to trigger the "deadline expired" event

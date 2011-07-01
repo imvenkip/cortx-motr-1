@@ -35,6 +35,13 @@
 struct c2_rpc_form_item_summary		*formation_summary;
 
 /**
+  Sleep time till refcounts of all the endpoint units becomes zero
+ */
+enum {
+	PTIME = 10000000,
+};
+
+/**
    Temporary threashold values. Will be moved to appropriate files
    once rpc integration is done.
  */
@@ -195,6 +202,8 @@ C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
    necessary data structures.
+   @pre formation summary is non-null
+   @retval 0 if init completed, else nonzero
  */
 int c2_rpc_form_init()
 {
@@ -214,8 +223,8 @@ int c2_rpc_form_init()
 
 /**
    Check if refcounts of all endpoints are zero.
-   Returns FALSE if any of refcounts are non-zero,
-   returns TRUE otherwise.
+   @retval FALSE if any of refcounts are non-zero,
+   @retval TRUE otherwise.
  */
 bool c2_rpc_form_wait_for_completion()
 {
@@ -329,7 +338,7 @@ static void c2_rpc_form_empty_unformed_list(struct c2_list *list)
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
  */
-int c2_rpc_form_fini()
+void c2_rpc_form_fini()
 {
 	/* stime = 10ms */
 	c2_time_t				 stime;
@@ -351,7 +360,7 @@ int c2_rpc_form_fini()
 		c2_mutex_unlock(&endp_unit->isu_unit_lock);
 	}
 	c2_rwlock_read_unlock(&formation_summary->is_endp_list_lock);
-	c2_time_set(&stime, 0, 10000000);
+	c2_time_set(&stime, 0, PTIME);
 
 	/* Iterate over the list of endpoints until refcounts of all
 	   become zero. */
@@ -384,7 +393,6 @@ int c2_rpc_form_fini()
 	c2_addb_ctx_fini(&formation_summary->is_rpc_form_addb);
 	c2_free(formation_summary);
 	formation_summary = NULL;
-	return 0;
 }
 
 /**
@@ -411,8 +419,8 @@ static void c2_rpc_form_state_machine_exit(struct
 static bool c2_rpc_form_endp_invariant(struct c2_rpc_form_item_summary_unit
 		*endp_unit)
 {
-	C2_PRE(endp_unit != NULL);
-
+	if (!endp_unit)
+		return false;
 	if (!c2_list_is_empty(&endp_unit->isu_groups_list))
 		return false;
 	if (!c2_list_is_empty(&endp_unit->isu_coalesced_items_list))
@@ -459,7 +467,7 @@ static void c2_rpc_form_item_summary_unit_destroy(struct c2_ref *ref)
    for an endpoint.
  */
 static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
-		const struct c2_net_end_point *endp)
+		struct c2_net_end_point *endp)
 {
 	struct c2_rpc_form_item_summary_unit	*endp_unit;
 
