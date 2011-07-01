@@ -664,12 +664,7 @@ struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_getsize = c2_io_fop_cob_readv_rep_getsize,
 };
 
-/* Init function for file create request. */
-static int c2_fop_file_create_request(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
+int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m);
 /**
    Return size for a fop of type c2_fop_file_create;
    @param - Create fop for which size has to be calculated
@@ -688,7 +683,7 @@ uint64_t c2_io_fop_create_getsize(struct c2_fop *fop)
 
 /* Ops vector for file create request. */
 struct c2_fop_type_ops c2_fop_file_create_ops = {
-	.fto_fom_init = c2_fop_file_create_request,
+	.fto_fom_init = c2_io_fop_file_create_fom_init,
 	.fto_fop_replied = NULL,
 	.fto_getsize = c2_io_fop_create_getsize,
 	.fto_op_equal = c2_io_fop_type_equal,
@@ -700,15 +695,37 @@ struct c2_fop_type_ops c2_fop_file_create_ops = {
 	.fto_io_segment_coalesce = NULL,
 };
 
+/* Dummy init */
+int c2_io_fop_file_create_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	return 0;
+}
+
+/* Ops vector for file create request. */
+struct c2_fop_type_ops c2_fop_file_create_rep_ops = {
+        .fto_fom_init = c2_io_fop_file_create_rep_fom_init,
+        .fto_fop_replied = NULL,
+        .fto_getsize = c2_io_fop_create_getsize,
+        .fto_op_equal = c2_io_fop_type_equal,
+        .fto_get_opcode = c2_io_fop_get_opcode,
+        .fto_get_fid = NULL,
+        .fto_is_io = c2_io_fop_is_rw,
+        .fto_get_nfragments = NULL,
+        .fto_io_coalesce = NULL,
+        .fto_io_segment_coalesce = NULL,
+};
+
 /**
  * FOP definitions for readv and writev operations.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		    c2_io_service_readv_opcode, &c2_io_cob_readv_ops);
+		c2_io_service_readv_opcode, &c2_io_cob_readv_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		    c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
+		c2_io_service_writev_opcode, &c2_io_cob_writev_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_file_create, "File Create",
-		    c2_io_service_create_opcode, &c2_fop_file_create_ops);
+		c2_io_service_create_opcode, &c2_fop_file_create_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_file_create_rep, "File Create Reply",
+		c2_io_service_create_rep_opcode, &c2_fop_file_create_rep_ops);
 /**
  * FOP definitions of readv and writev reply FOPs.
  */

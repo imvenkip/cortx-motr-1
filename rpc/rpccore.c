@@ -8,7 +8,7 @@
 #include "rpc/session_int.h"
 #include "fop/fop.h"
 #include "formation.h"
-
+#include "rpc/rpc_onwire.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
@@ -998,13 +998,15 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
-	.rio_item_size = c2_rpc_item_size,
+	.rio_item_size = c2_rpc_item_default_size, 
 	.rio_items_equal = c2_rpc_item_equal,
 	.rio_io_get_opcode = c2_rpc_item_get_opcode,
 	.rio_io_get_fid = c2_rpc_item_io_get_fid,
 	.rio_is_io_req = c2_rpc_item_is_io_req,
 	.rio_get_io_fragment_count = NULL,
 	.rio_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_readv = {

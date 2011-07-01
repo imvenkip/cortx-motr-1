@@ -117,6 +117,7 @@ static struct c2_fop_type *fops[] = {
 	&c2_fop_cob_writev_rep_fopt,
 	&c2_fop_cob_readv_rep_fopt,
 	&c2_fop_file_create_fopt,
+	&c2_fop_file_create_rep_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
