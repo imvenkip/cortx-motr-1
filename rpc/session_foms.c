@@ -387,19 +387,20 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(fop_in != NULL);
 
 	fop_rep = fom_ct->fct_fop_rep;
-	fop_out = c2_fop_data(fop);
+	fop_out = c2_fop_data(fop_rep);
 	C2_ASSERT(fop_out != NULL);
 
 	sender_id = fop_in->ct_sender_id;
 	fop_out->ctr_sender_id = sender_id;
-	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
+		  sender_id != 0);
 
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
-
+	printf("Received conn terminate req for %lu\n", sender_id);
 	rc = c2_rpc_rcv_conn_terminate(conn);
 	if (rc != 0)
 		goto errout;

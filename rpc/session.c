@@ -409,12 +409,12 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		rc = -ENOMEM;
 		goto out;
 	}
-
+	printf("sender_conn_terminate: %p(%lu)\n", conn, conn->c_sender_id);
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
 
 	fop_ct->ct_sender_id = conn->c_sender_id;
-
+	
 	session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
@@ -1517,6 +1517,8 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 	C2_PRE(slot != NULL && item != NULL);
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 
+	C2_ASSERT(item->ri_session->s_session_id == 0);
+	C2_ASSERT(slot->sl_session == item->ri_session);
 	sref = &item->ri_slot_refs[0];
 	item->ri_tstate = RPC_ITEM_FUTURE;
 	sref->sr_session_id = item->ri_session->s_session_id;
@@ -1549,6 +1551,10 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
 
 	session = slot->sl_session;
+	/* Currently there are no slots without sessions */
+	C2_ASSERT(session != NULL);
+	printf("slot_item_add: session %p(%lu)\n", session,
+				session->s_session_id);
 	if (session != NULL) {
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -1556,6 +1562,7 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 			session->s_state = C2_RPC_SESSION_BUSY;
 		}
 	}
+
 	printf("item %p<%s> added [%lu:%lu] slot [%lu:%lu]\n", item,
 			c2_rpc_item_is_update(item) ? "UPDATE" : "READ_ONLY",
 			sref->sr_verno.vn_vc,

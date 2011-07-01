@@ -145,6 +145,8 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
 
+	printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
+			item->ri_session->s_session_id);
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
