@@ -492,10 +492,7 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 				    struct c2_rm_pin, rp_incoming_linkage) {
 		right = pin->rp_right;
 		loan = container_of(right, struct c2_rm_loan, rl_right);
-		if (!c2_rm_net_locate(right, &loan->rl_other)) {
-			/* Inc remote resource ref*/
-			loan->rl_other.rem_resource->r_ref++;
-		}
+		c2_rm_net_locate(right, &loan->rl_other); 
 		c2_list_move(&owner->ro_sublet, &loan->rl_right.ri_linkage);
 	}
 
@@ -574,7 +571,6 @@ static int reply_to_loan_request(struct c2_rm_incoming *in)
 			right_copy(&request->in.rin_want, &loan->rl_right);
 			/*@todo this will be changed to more generic */
 			c2_mutex_lock(&rpc_lock);
-			loan->rl_other.rem_resource->r_ref--;
 			c2_queue_put(&rpc_queue, &request->rq_link);
 			c2_mutex_unlock(&rpc_lock);
 		}
@@ -740,18 +736,17 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
  */
-void outgoing_complete(struct c2_rm_outgoing *og, int rc)
+void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc)
 {
 	struct c2_rm_owner *owner;
 
 	C2_PRE(og != NULL);
 
-	/*@todo rc return related things */
 	owner = og->rog_owner;
-	c2_mutex_lock(&owner->ro_lock);
+	//c2_mutex_lock(&owner->ro_lock);
 	c2_list_move(&owner->ro_outgoing[OQS_EXCITED],
 		     &og->rog_want.rl_right.ri_linkage);
-	c2_mutex_unlock(&owner->ro_lock);
+	//c2_mutex_unlock(&owner->ro_lock);
 }
 
 /**

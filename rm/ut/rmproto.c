@@ -114,6 +114,34 @@ void c2_rm_rpc_fini(void)
 	c2_mutex_fini(&rpc_lock);
 }
 
+static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner, 
+					       uint64_t loan_id)
+{
+	struct c2_rm_outgoing *out;
+	struct c2_rm_right    *right;
+	struct c2_rm_right    *ri_tmp;
+	struct c2_rm_loan     *loan;
+	int		       i = 0;
+
+	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
+
+	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); i++) {
+		c2_list_for_each_entry_safe(&owner->ro_outgoing[i], right,
+					    ri_tmp, struct c2_rm_right,
+					    ri_linkage) {
+			loan = container_of(right, struct c2_rm_loan, rl_right);
+			if (loan->rl_id == loan_id) {
+                        	out = container_of(loan,
+                                           struct c2_rm_outgoing, rog_want);
+				printf("Out found %ld\n",loan_id);
+				return out;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 					      struct c2_rm_right *want)
 {
@@ -132,7 +160,7 @@ static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 			    right->ri_ops->rro_implies(want, right)) {
 				in = container_of(right, struct c2_rm_incoming,
 						  rin_want);
-				printf("Found at %d\n",prio);
+				printf("IN found at %d\n",prio);
 				return in;
 			}
 		}
@@ -146,6 +174,7 @@ void rpc_process(int id)
 	struct c2_queue_link *link;
 	struct c2_rm_proto_info *info;
 	struct c2_rm_incoming *in;
+	struct c2_rm_outgoing *out;
 
 	while (!rpc_signal) {
 		c2_mutex_lock(&rpc_lock);
@@ -178,6 +207,9 @@ void rpc_process(int id)
 				    	    &req->in.rin_want.ri_linkage);
 				printf("Signaled\n");
 				in->rin_ops->rio_complete(in, in->rin_state);
+				out = find_out_request(info->owner, req->reply_id);
+				if (out != NULL)
+					c2_rm_outgoing_complete(out, 0);
 				//c2_queue_put(&info->owner_queue, &req->rq_link);
 			}
 			c2_mutex_unlock(&info->owner->ro_lock);
