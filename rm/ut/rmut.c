@@ -534,6 +534,7 @@ static void rm_client1_fini(void)
 {
 	struct c2_rm_right *right;
 	struct c2_rm_right *tmp_right;
+	int i;
 
 	c2_list_for_each_entry_safe(&dwarves.ro_sublet, right, tmp_right,
 				    struct c2_rm_right, ri_linkage) {
@@ -549,6 +550,13 @@ static void rm_client1_fini(void)
 				    tmp_right, struct c2_rm_right, ri_linkage) {
 		c2_list_del(&right->ri_linkage);
 	}
+
+        for (i = 0; i < ARRAY_SIZE(dwarves.ro_outgoing); i++) {
+		c2_list_for_each_entry_safe(&dwarves.ro_outgoing[i],
+			right, tmp_right, struct c2_rm_right, ri_linkage) {
+			c2_list_del(&right->ri_linkage);
+		}
+        }
 
         dwarves.ro_state = ROS_FINAL;
         c2_rm_owner_fini(&dwarves);
@@ -1135,14 +1143,11 @@ static void callback_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
 
-/*
-	req->type = PRO_LOAN_REPLY;
-	req->in.rin_want.ri_datum = ANGMAR;
-	req->in.rin_want.ri_ops = &rings_right_ops;
-	c2_mutex_lock(&rpc_lock);
-	c2_queue_put(&rpc_queue, &req->rq_link);
-	c2_mutex_unlock(&rpc_lock);
-*/
+        //c2_rm_right_put(&req->in);
+        c2_list_del(&req->in.rin_want.ri_linkage);
+        c2_rm_right_fini(&req->in.rin_want);
+        c2_chan_fini(&req->in.rin_signal);
+
 	link = NULL;
 	while (link == NULL)
 	{
@@ -1174,7 +1179,21 @@ static void callback_server(int id)
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
+
+	C2_ALLOC_PTR(req);
+	C2_ASSERT(req != NULL);
+	req->sig_id = UT_SERVER;
+	req->reply_id = UT_CLIENT1;
+	req->type = PRO_LOAN_REPLY;
+	c2_list_init(&req->in.rin_want.ri_pins);
+	req->in.rin_want.ri_datum = ANGMAR;
+	req->in.rin_want.ri_ops = &rings_right_ops;
+	c2_mutex_lock(&rpc_lock);	
+	c2_queue_put(&rpc_queue, &req->rq_link);
+	c2_mutex_unlock(&rpc_lock);	
 }
+
+int client_signal = 0;
 
 static void callback_client(int id)
 {
@@ -1198,6 +1217,7 @@ static void callback_client(int id)
         result = c2_rm_right_get_wait(&elves, &inother);
         C2_ASSERT(result == 0);
 
+	client_signal = 1;
 	while (link == NULL)
 	{
 		c2_mutex_lock(&info->owner->ro_lock);
@@ -1222,14 +1242,12 @@ static void callback_client(int id)
         result = c2_rm_right_get_wait(&elves, &req->in);
         C2_ASSERT(result == 0);
 	printf("client 2\n");
-/*
-	req->type = PRO_LOAN_REPLY;
-	req->in.rin_want.ri_datum = ANGMAR;
-	req->in.rin_want.ri_ops = &rings_right_ops;
-	c2_mutex_lock(&rpc_lock);
-	c2_queue_put(&rpc_queue, &req->rq_link);
-	c2_mutex_unlock(&rpc_lock);
-*/
+
+	c2_rm_right_put(&req->in);
+        c2_list_del(&req->in.rin_want.ri_linkage);
+        c2_rm_right_fini(&req->in.rin_want);
+        c2_chan_fini(&req->in.rin_signal);
+
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
         c2_rm_right_fini(&inother.rin_want);
@@ -1238,6 +1256,7 @@ static void callback_client(int id)
 
 static void callback_client1(int id)
 {
+	while (client_signal == 0) { }
 	c2_chan_init(&inconflict.rin_signal);
         c2_rm_right_init(&inconflict.rin_want);
         inconflict.rin_state = RI_INITIALISED;
@@ -1248,11 +1267,11 @@ static void callback_client1(int id)
         inconflict.rin_type = RIT_LOCAL;
         inconflict.rin_policy = RIP_STRICT;
         inconflict.rin_want.ri_datum = ANGMAR;
-        inconflict.rin_flags = RIF_MAY_REVOKE;
-	printf("client1 1\n");
+        inconflict.rin_flags = RIF_MAY_BORROW;
+	printf("client 11\n");
         result = c2_rm_right_get_wait(&dwarves, &inconflict);
         C2_ASSERT(result == 0);
-	printf("client1 2\n");
+	printf("client 12\n");
 
 	c2_rm_right_put(&inconflict);
         c2_list_del(&inconflict.rin_want.ri_linkage);
