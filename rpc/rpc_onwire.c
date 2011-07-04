@@ -284,9 +284,9 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 		what = "encode";
 	else
 		what = "decode";
-	printf("\nSender id (%s) :  %ld", what,
+	printf("\nSender id (%s) :  %lu", what,
 			item->ri_slot_refs[0].sr_sender_id);
-	printf("\nSession id (%s) :  %ld", what,
+	printf("\nSession id (%s) :  %lu", what,
 			item->ri_slot_refs[0].sr_session_id);
 
 	if((!xdr_uint64_t(xdrs, &len)) ||

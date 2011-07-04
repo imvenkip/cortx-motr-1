@@ -40,10 +40,10 @@ struct c2_fom_type;
 enum c2_io_service_opcodes {
 	c2_io_service_readv_opcode = 15,
 	c2_io_service_writev_opcode,
-	c2_io_service_writev_rep_opcode,
-	c2_io_service_readv_rep_opcode,
 	c2_io_service_create_opcode,
 	c2_io_service_create_rep_opcode,
+	c2_io_service_writev_rep_opcode,
+	c2_io_service_readv_rep_opcode,
 };
 
 /**

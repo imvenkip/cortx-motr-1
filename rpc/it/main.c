@@ -104,7 +104,7 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 10,
+	NR_SLOTS = 2,
 };
 
 /* Default number of ping items */
@@ -450,6 +450,8 @@ void client_init()
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
+	printf("NR_SLOTS = %u\n",cctx.pc_nr_slots);
+	printf("NR_SLOTS in session = %u\n",cctx.pc_rpc_session.s_nr_slots);
 	if(rc != 0){
 		printf("Failed to init rpc session\n");
 		goto cleanup;
@@ -549,7 +551,7 @@ int main(int argc, char *argv[])
 	bool			 server = false;
 	const char		*server_name = NULL;
 	int			 server_port = 0;
-	int			 nr_slots;
+	int			 nr_slots = 0;
 	int			 nr_ping_item;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;

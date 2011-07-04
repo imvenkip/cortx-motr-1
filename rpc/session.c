@@ -2363,14 +2363,18 @@ int associate_session_and_slot(struct c2_rpc_item *item)
 	if (sref->sr_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
+	printf("associate_session: [%lu:%lu:%u]\n", sref->sr_sender_id,
+			sref->sr_session_id, sref->sr_slot_id);
 	conn_list = c2_rpc_item_is_request(item) ?
 			&item->ri_mach->cr_incoming_conns :
 			&item->ri_mach->cr_outgoing_conns;
 
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
+	printf("associate_session: uuid %s\n", use_uuid ? "true" : "false");
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
+		printf("associate_session: conn %lu\n", conn->c_sender_id);
 		found = use_uuid ?
 			c2_rpc_sender_uuid_cmp(&conn->c_uuid,
 					       &sref->sr_uuid) == 0 :
@@ -2379,18 +2383,22 @@ int associate_session_and_slot(struct c2_rpc_item *item)
 			break;
 	}
 	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
-	if (!found)
+	if (!found) {
+		printf("associate_session: cannot find conn\n");
 		return -ENOENT;
-
+	}
 	c2_mutex_lock(&conn->c_mutex);
 	session_search(conn, sref->sr_session_id, &session);
 	c2_mutex_unlock(&conn->c_mutex);
-	if (session == NULL)
+	if (session == NULL) {
+		printf("associate_session: cannot find session\n");
 		return -ENOENT;
-
+	}
 	c2_mutex_lock(&session->s_mutex);
 	if (sref->sr_slot_id >= session->s_nr_slots) {
 		c2_mutex_unlock(&session->s_mutex);
+		printf("associate_session: failed item slot id %u nr slot %u\n",
+				sref->sr_slot_id, session->s_nr_slots);
 		return -ENOENT;
 	}
 	slot = session->s_slot_table[sref->sr_slot_id];
@@ -2402,6 +2410,7 @@ int associate_session_and_slot(struct c2_rpc_item *item)
 		item->ri_slot_refs[0].sr_slot != NULL);
 	c2_mutex_unlock(&session->s_mutex);
 
+	printf("associate_session: successful\n");
 	return 0;
 }
 int c2_rpc_item_received(struct c2_rpc_item *item)
@@ -2411,7 +2420,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	int			rc;
 
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
-
+	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
 	if (rc != 0) {
 		if (item_is_conn_create(item)) {
@@ -2423,6 +2432,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 * then there is nothing that we can do with this
 		 * item except to discard it.
 		 */
+		printf("item_received: rc != 0\n");
 		return rc;
 	}
 	C2_ASSERT(item->ri_session != NULL &&
@@ -2430,10 +2440,12 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {
+		printf("IR: item %p is REQUEST\n", item);
 		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_item_apply(slot, item);
 		c2_mutex_unlock(&slot->sl_mutex);
 	} else {
+		printf("IR: item %p is REPLY\n", item);
 		c2_mutex_lock(&slot->sl_mutex);
 		c2_rpc_slot_reply_received(slot, item, &req);
 		c2_mutex_unlock(&slot->sl_mutex);
@@ -2449,6 +2461,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 			req->ri_ops->rio_replied(req, item, 0);
 		}
 	}
+	printf("item_received: %p finished\n", item);
 	return 0;
 }
 /** @c end of session group */

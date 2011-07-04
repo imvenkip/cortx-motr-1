@@ -1013,6 +1013,21 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
+const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
+        .rio_sent = NULL,
+        .rio_added = NULL,
+        .rio_replied = c2_rpc_item_replied,
+        .rio_item_size = c2_rpc_item_default_size,
+        .rio_items_equal = c2_rpc_item_equal,
+        .rio_io_get_opcode = c2_rpc_item_get_opcode,
+        .rio_io_get_fid = c2_rpc_item_io_get_fid,
+        .rio_is_io_req = c2_rpc_item_is_io_req,
+        .rio_get_io_fragment_count = NULL,
+        .rio_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
 struct c2_rpc_item_type c2_rpc_item_type_readv = {
 	.rit_ops = &c2_rpc_item_readv_type_ops,
 };
@@ -1023,6 +1038,14 @@ struct c2_rpc_item_type c2_rpc_item_type_writev = {
 
 struct c2_rpc_item_type c2_rpc_item_type_create = {
 	.rit_ops = &c2_rpc_item_create_type_ops,
+	.rit_mutabo = true,
+	.rit_item_is_req = true,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_create_rep = {
+	.rit_ops = &c2_rpc_item_create_rep_type_ops,
+	.rit_mutabo = false,
+	.rit_item_is_req = false,
 };
 
 /**
@@ -1047,6 +1070,9 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
                         break;
                 case c2_io_service_create_opcode:
                         item->ri_type = &c2_rpc_item_type_create;
+                        break;
+                case c2_io_service_create_rep_opcode:
+                        item->ri_type = &c2_rpc_item_type_create_rep;
                         break;
                 default:
                         break;
