@@ -46,7 +46,8 @@ DEF(c2_rpc_fop_conn_terminate_rep, RECORD,
    _(ctr_sender_id, U64));
 
 DEF(c2_rpc_fop_session_create, RECORD,
-   _(rsc_snd_id, U64));
+   _(rsc_snd_id, U64),
+   _(rsc_slot_cnt, U32));
 
 DEF(c2_rpc_fop_session_create_rep, RECORD,
    _(rscr_rc, U32),

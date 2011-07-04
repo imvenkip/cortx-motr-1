@@ -280,6 +280,13 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	len = len + sizeof(struct c2_rpc_item_header);
 
+	if((!xdr_uint64_t(xdrs, &len)) ||
+	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_sender_id)) ||
+	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_session_id)) ||
+	(!sender_uuid_encdec(xdrs, &item->ri_slot_refs[0].sr_uuid)) ||
+	(!slot_ref_encdec(xdrs, item->ri_slot_refs)))
+		return -EFAULT;
+	
 	if(xdrs->x_op == XDR_ENCODE)
 		what = "encode";
 	else
@@ -288,13 +295,6 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 			item->ri_slot_refs[0].sr_sender_id);
 	printf("\nSession id (%s) :  %lu", what,
 			item->ri_slot_refs[0].sr_session_id);
-
-	if((!xdr_uint64_t(xdrs, &len)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_sender_id)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_session_id)) ||
-	(!sender_uuid_encdec(xdrs, &item->ri_slot_refs[0].sr_uuid)) ||
-	(!slot_ref_encdec(xdrs, item->ri_slot_refs)))
-		return -EFAULT;
 	return 0;
 }
 
@@ -322,6 +322,30 @@ static int item_encdec(XDR *xdrs, struct c2_rpc_item *item)
 	return 0;
 }
 
+/* XXX : Debug function. Added here for UT and testing.*/
+static void item_verify(struct c2_rpc_item *item)
+{
+	struct c2_fop		*fop;
+	struct c2_fop_type	*fopt;
+	struct c2_fop_data	*fdata;
+	int			i;
+	size_t			len;
+	unsigned char		*buf;
+
+	fop = c2_rpc_item_to_fop(item);
+	fopt = fop->f_type;
+	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	fdata = c2_fop_data(fop);
+	buf = (unsigned char *)fdata;
+	printf("\n");
+	for (i = 0; i < len; ++i) {
+		printf (" %x ", *buf);
+		buf++;
+	}
+	printf("\n");
+}
+
+/* XXX : Debug function. Added here for UT and testing.*/
 int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
 {
 	struct c2_fop		*fop;
@@ -343,6 +367,9 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
 	printf("\nOpcode (encode): %d", opcode);
 	
 	rc = item_encdec(xdrs, item);
+	printf("\nEncoded FOP data : ");
+	item_verify(item);
+
 	return rc;
 }
 
@@ -352,29 +379,6 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item *item, XDR *xdrs)
 	C2_PRE(xdrs != NULL);
 
 	return(item_encdec(xdrs, item));
-}
-
-/* XXX : Debug function. Added here for UT and testing.*/
-static void item_verify(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop;
-	struct c2_fop_type	*fopt;
-	struct c2_fop_data	*fdata;
-	int			i;
-	size_t			len;
-	unsigned char		*buf;
-
-	fop = c2_rpc_item_to_fop(item);
-	fopt = fop->f_type;
-	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	fdata = c2_fop_data(fop);
-	buf = (unsigned char *)fdata;
-	printf("\nDecoded FOP Data :\n");
-	for (i = 0; i < len; ++i) {
-		printf (" %x ", *buf);
-		buf++;
-	}
-	printf("\n");
 }
 
 int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
@@ -500,6 +504,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		if (rc != 0)
 			goto end_decode;
 		item->ri_src_ep = nb->nb_ep;
+		printf("\nDecoded FOP data : ");
 		item_verify(item);
 		fop_arr++;
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);

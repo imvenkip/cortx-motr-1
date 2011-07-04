@@ -727,7 +727,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(fop_sc != NULL);
 
 	fop_sc->rsc_snd_id = conn->c_sender_id;
-
+	fop_sc->rsc_slot_cnt = session->s_nr_slots;
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
 
