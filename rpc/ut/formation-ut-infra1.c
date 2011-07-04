@@ -915,7 +915,8 @@ void populate_fids()
 /**
   This main function tests the formation code.
  */
-int main(int argc, char **argv)
+/*int main(int argc, char **argv) */
+int test()
 {
 	int			 result = 0;
 	int			 i = 0;

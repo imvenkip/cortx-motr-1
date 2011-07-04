@@ -511,7 +511,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	c2_list_init(&endp_unit->isu_rpcobj_checked_list);
 	c2_ref_init(&endp_unit->isu_sm.isu_ref, 1,
 			c2_rpc_form_item_summary_unit_destroy);
-	endp_unit->isu_endp_id = (struct c2_net_end_point*)endp;
+	endp_unit->isu_endp_id = endp;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	endp_unit->isu_form_active = true;
 	/* XXX Need appropriate values.*/

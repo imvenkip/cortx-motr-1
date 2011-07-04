@@ -8,6 +8,6 @@ io_fop_init.c io_u.h io_u.c:
 
 rpcping_SOURCES     = io_u.h io_u.c io_fop_init.c \
 		      main.c $(top_builddir)/net/bulk_emulation/st/ping.c \
-		      $(top_builddir)/rpc/ut/formation-ut-infra.c
+		      $(top_builddir)/rpc/ut/formation-ut-infra1.c
 rpcping_LDADD       = $(top_builddir)/colibri/libcolibri.la
 
