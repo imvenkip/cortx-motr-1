@@ -52,6 +52,8 @@ static void session_zero_detach(struct c2_rpc_conn *conn);
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 					         struct c2_rpc_item	*item);
 
+static bool c2_rpc_slot_invariant(struct c2_rpc_slot *slot);
+
 int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 					 struct c2_rpc_item	*item);
 
@@ -106,6 +108,8 @@ void session_search(const struct c2_rpc_conn	*conn,
 {
 	struct c2_rpc_session		*session;
 
+	C2_ASSERT(conn != NULL && out != NULL);
+
 	*out = NULL;
 
 	if (session_id > SESSION_ID_MAX)
@@ -136,7 +140,7 @@ int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
 static int __conn_init(struct c2_rpc_conn	*conn,
 		       struct c2_rpcmachine	*machine)
 {
-	int	rc = 0;
+	int	rc;
 
 	C2_PRE(conn != NULL &&
 	       ((conn->c_flags & RCF_SENDER_END) !=
@@ -156,6 +160,14 @@ static int __conn_init(struct c2_rpc_conn	*conn,
 	if (rc == 0) {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
 	} else {
+		c2_list_fini(&conn->c_sessions);
+		c2_chan_fini(&conn->c_chan);
+		c2_list_link_fini(&conn->c_link);
+		c2_mutex_fini(&conn->c_mutex);
+		/*
+		 * clear the object, so that caller cannot use it
+		 * by mistake
+		 */
 		C2_SET0(conn);
 	}
 	return rc;
@@ -215,16 +227,14 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	      (conn->c_flags & RCF_SENDER_END) != 0 &&
 	       c2_rpc_conn_invariant(conn));
 
+	machine = conn->c_rpcmachine;
+	c2_mutex_lock(&machine->cr_session_mutex);
+	c2_mutex_lock(&conn->c_mutex);
+
+	conn->c_state = C2_RPC_CONN_CREATING;
 	/* Get a source endpoint and in turn a transfer machine
 	   to associate with this c2_rpc_conn. */
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
-
-	/*
-	 * A conn object becomes visible to other threads only after
-	 * it is inserted in connection list in rpcmachine.
-	 * That's why c2_rpc_conn_create() can update conn object without
-	 * holding lock on conn
-	 */
 	conn->c_end_point = ep;
 
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
@@ -241,13 +251,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
 
-	conn->c_state = C2_RPC_CONN_CREATING;
-
-	machine = conn->c_rpcmachine;
-	c2_mutex_lock(&machine->cr_session_mutex);
-	c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
-	c2_mutex_unlock(&machine->cr_session_mutex);
-
 	session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
@@ -258,20 +261,20 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	item->ri_ops = &c2_rpc_item_conn_create_ops;
 
 	rc = c2_rpc_post(item);
-	if (rc != 0) {
+	if (rc == 0) {
+		c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
+	} else {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
 		conn->c_end_point = NULL;
 		c2_fop_free(fop);
-
-		c2_mutex_lock(&machine->cr_session_mutex);
-		c2_list_del(&conn->c_link);
-		c2_mutex_unlock(&machine->cr_session_mutex);
 	}
 out:
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CREATING &&
 			c2_rpc_conn_invariant(conn)));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_INITIALISED) &&
 			c2_rpc_conn_invariant(conn));
+	c2_mutex_unlock(&conn->c_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_create);
@@ -1824,7 +1827,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 	slot_balance(slot);
 }
 
-bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
+static bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot)
 {
 	struct c2_rpc_item	*item1 = NULL;
 	struct c2_rpc_item	*item2 = NULL;

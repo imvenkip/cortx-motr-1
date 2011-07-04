@@ -698,76 +698,6 @@ struct c2_rpc_slot {
 	const struct c2_rpc_slot_ops	*sl_ops;
 };
 
-/**
-   Initialise in memory slot.
-
-   @post ergo(result == 0, slot->sl_verno.vn_vc == 0 &&
-			   slot->sl_xid == 1 &&
-			   !c2_list_is_empty(slot->sl_item_list) &&
-			   slot->sl_ops == ops)
- */
-int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
-		     const struct c2_rpc_slot_ops	*ops);
-
-/**
-   Deprecated
- */
-void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
-
-/**
-   If verno of item matches with verno of slot, then adds the item
-   to the slot->sl_item_list. If item is update opeation, verno of
-   slot is advanced. if item is already present in slot->sl_item_list
-   its reply is immediately consumed.
- */
-int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
-
-/**
-   Called when a reply for an item which was sent on this slot.
-   req_out will contain pointer to original item for which this is reply
- */
-void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
-				struct c2_rpc_item	*reply,
-				struct c2_rpc_item	**req_out);
-
-/**
-   Effects of item with verno less than or equal to @last_pesistent, have
-   been made persistent
-
-   @post c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
-		      &last_persistent) == 0
- */
-void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
-			     struct c2_verno	last_persistent);
-
-/**
-   Reset the slot to verno @last_seen
-   @post c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
-		      &last_seen) = 0
- */
-void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
-		       struct c2_verno		last_seen);
-
-bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
-
-void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
-
-/**
-   Iterate over all the rpc connections present in rpcmachine
- */
-#define c2_rpc_for_each_outgoing_conn(machine, conn)	\
-	c2_list_for_each_entry(&(machine)->cr_outgoing_conns, (conn), \
-		struct c2_rpc_conn, c_link)
-
-/**
-   Iterate over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)	\
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),	\
-		struct c2_rpc_session, s_link)
-
 /** @} end of session group */
 
 #endif
@@ -781,4 +711,3 @@ void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
  *  scroll-step: 1
  *  End:
  */
-
