@@ -13,19 +13,12 @@
 
 #define NO_OF_OWNERS	5
 
-/**
- * Type of request sent on rpc queue.
- */
 enum c2_rm_request_type {
-	/* Loan/revoke reply */
 	PRO_LOAN_REPLY,
-	/* Incoming request(go_out)*/
-	PRO_OUT_REQUEST
+	PRO_OUT_REQUEST,
+	PRO_REQ_FINISH
 };
 
-/**
- * This struct is send on rpc queue 
- */
 struct c2_rm_req_reply {
 	enum c2_rm_request_type type;
 	uint64_t sig_id;
@@ -34,18 +27,11 @@ struct c2_rm_req_reply {
         struct c2_queue_link rq_link;
 };
 
-/** 
- * Things required for simulation of rpc layer(RM only)
- */
 struct c2_queue rpc_queue;
 struct c2_mutex rpc_lock;
 struct c2_thread rpc_handle;
 int rpc_signal;
 
-/** 
- * Information of owners. Data maintained to locate owners
- * to send IN irequest or loan/revoke reply.
- */
 struct c2_rm_proto_info {
         uint64_t owner_id;
         uint64_t req_owner_id;

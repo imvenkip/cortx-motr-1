@@ -164,7 +164,6 @@ static void rm_fini(void)
 {
 	struct c2_rm_right *right;
 	struct c2_rm_right *tmp_right;
-	int 		    i;
 
 	c2_rm_incoming_fini(&inother);
 	c2_rm_incoming_fini(&in);
@@ -183,12 +182,10 @@ static void rm_fini(void)
 				    struct c2_rm_right, ri_linkage) {
 		c2_list_del(&right->ri_linkage);
 	}
-	for (i = 0; i < ARRAY_SIZE(Sauron.ro_owned); i++) {
-		c2_list_for_each_entry_safe(&Sauron.ro_owned[i], right,
-					    tmp_right, struct c2_rm_right,
-					    ri_linkage) {
-			c2_list_del(&right->ri_linkage);
-		}
+
+	c2_list_for_each_entry_safe(&Sauron.ro_owned[OWOS_CACHED], right,
+				    tmp_right, struct c2_rm_right, ri_linkage) {
+		c2_list_del(&right->ri_linkage);
 	}
 	c2_rm_owner_fini(&Sauron);
 	c2_rm_right_fini(&everything);
@@ -363,9 +360,6 @@ static void right_get_test2(void)
  */
 static void right_get_test3(void)
 {
-	struct c2_rm_pin *pin;
-	struct c2_rm_pin *tmp_pin;
-
 	rt.rt_id = 1;
 	rm_init();
 
@@ -384,12 +378,6 @@ static void right_get_test3(void)
 	result = c2_rm_right_get_wait(&Sauron, &in);
 	C2_ASSERT(result == 0);
 
-	c2_list_for_each_entry_safe(&in.rin_pins, pin, tmp_pin,
-				    struct c2_rm_pin, rp_incoming_linkage) {
-		c2_list_move(&Sauron.ro_owned[OWOS_HELD],
-			     &pin->rp_right->ri_linkage);
-	}
-
 	c2_chan_init(&inother.rin_signal);
 	c2_rm_right_init(&inother.rin_want);
 	inother.rin_state = RI_INITIALISED;
@@ -405,6 +393,7 @@ static void right_get_test3(void)
 	result = c2_rm_right_get_wait(&Sauron, &inother);
 	C2_ASSERT(result == -EWOULDBLOCK);
 
+	//c2_rm_right_put(&inother);
 	c2_list_del(&inother.rin_want.ri_linkage);
 	c2_rm_right_fini(&inother.rin_want);
 	c2_chan_fini(&inother.rin_signal);
@@ -446,10 +435,6 @@ static void rm_server_fini(void)
         Sauron.ro_state = ROS_FINAL;
         c2_list_del(&everything.ri_linkage);
 
-	c2_list_for_each_entry_safe(&Sauron.ro_borrowed, right, tmp_right,
-				    struct c2_rm_right, ri_linkage) {
-		c2_list_del(&right->ri_linkage);
-	}
 	c2_list_for_each_entry_safe(&Sauron.ro_sublet, right, tmp_right,
 				    struct c2_rm_right, ri_linkage) {
 		c2_list_del(&right->ri_linkage);
@@ -620,7 +605,6 @@ static void intent_client(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the right from the server */
         req->in.rin_owner = &elves;
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
@@ -631,13 +615,15 @@ static void intent_client(int id)
         req->in.rin_flags |= RIF_LOCAL_TRY;
         req->in.rin_state = RI_SUCCESS;
 
-	/* Just put the right which is got from server */
 	c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 
-	c2_free(req);
+	c2_mutex_lock(&rpc_lock);
+	req->type = PRO_REQ_FINISH;
+        c2_queue_put(&rpc_queue, &req->rq_link);
+        c2_mutex_unlock(&rpc_lock);
 }
 
 static void signal_rpc_process(void)
@@ -713,7 +699,6 @@ static void wbc_server(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the loan request from client */
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -729,16 +714,17 @@ static void wbc_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
 
+	c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
+	printf("Wbc Server\n");
 }
 
 static void wbc_client(int id)
 {
-	/* Prepare incoming request for client which
-	 * will turns into borrow rights from server */
+	/* Prepare incoming request for client which will eventually
+	 * barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want);
 	c2_rm_incoming_init(&inother);
@@ -751,10 +737,11 @@ static void wbc_client(int id)
         inother.rin_policy = RIP_STRICT;
         inother.rin_want.ri_datum = VILYA;
         inother.rin_flags = RIF_MAY_BORROW;
+	printf("Wbc client 0\n");
         result = c2_rm_right_get_wait(&elves, &inother);
         C2_ASSERT(result == 0);
 
-	/* Release the borrowed right */
+	printf("Wbc client 1\n");
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
         c2_rm_right_fini(&inother.rin_want);
@@ -855,7 +842,6 @@ static void cancel_server(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the loan request(borrow call from client)*/
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -871,8 +857,7 @@ static void cancel_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
 
-
-	/* Ask for loaned right which will rebove the loaned rights */
+	/* Ask for same right which will be revoked */
         c2_chan_init(&in.rin_signal);
         c2_rm_right_init(&in.rin_want);
         in.rin_state = RI_INITIALISED;
@@ -888,32 +873,10 @@ static void cancel_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &in);
         C2_ASSERT(result == 0);
 
-   	/* witness SERVER possesses right DURIN. */
-        c2_chan_init(&inreq.rin_signal);
-        c2_rm_right_init(&inreq.rin_want);
-        inreq.rin_state = RI_INITIALISED;
-        inreq.rin_owner = &Sauron;
-        inreq.rin_priority = 0;
-        inreq.rin_ops = &rings_incoming_ops;
-        inreq.rin_want.ri_ops = &rings_right_ops;
-        inreq.rin_type = RIT_LOCAL;
-        inreq.rin_policy = RIP_STRICT;
-
-        inreq.rin_flags = RIF_LOCAL_WAIT;
-        inreq.rin_want.ri_datum = DURIN;
-        result = c2_rm_right_get_wait(&Sauron, &inreq);
-        C2_ASSERT(result == 0);
-
-	/* cleanup code */
+	//c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
-
-	c2_rm_right_put(&inreq);
-        c2_list_del(&inreq.rin_want.ri_linkage);
-        c2_rm_right_fini(&inreq.rin_want);
-        c2_chan_fini(&inreq.rin_signal);
 
 	c2_rm_right_put(&in);
         c2_list_del(&in.rin_want.ri_linkage);
@@ -927,8 +890,8 @@ static void cancel_client(int id)
 	struct c2_queue_link *link = NULL;
 	struct c2_rm_proto_info *info = &rm_info[id];
 
-	/* Prepare incoming request for client which will 
-	 * turns into barrow rights request for server */
+	/* Prepare incoming request for client which will eventually
+	 * barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want);
         inother.rin_state = RI_INITIALISED;
@@ -951,7 +914,7 @@ static void cancel_client(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the revoke(cancel) rights from server */
+	printf("Got the cancel \n");
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -967,12 +930,10 @@ static void cancel_client(int id)
         result = c2_rm_right_get_wait(&elves, &req->in);
         C2_ASSERT(result == 0);
 
-	/* cleanup code */
 	c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
 
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
@@ -1041,7 +1002,6 @@ static void caching_server(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the loan request from client*/
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -1057,18 +1017,16 @@ static void caching_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
 
-	/* Cleanup code */
 	c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
 }
 
 static void caching_client(int id)
 {
-	/* Prepare incoming request for client which will send 
-	 * barrow rights request to server */
+	/* Prepare incoming request for client which will eventually
+	 * barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want);
         inother.rin_state = RI_INITIALISED;
@@ -1083,13 +1041,11 @@ static void caching_client(int id)
         result = c2_rm_right_get_wait(&elves, &inother);
         C2_ASSERT(result == 0);
 
-	/* Release right */
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 
-	/* Right is cached, so following call will successed */
 	c2_chan_init(&inrep.rin_signal);
         c2_rm_right_init(&inrep.rin_want);
         inrep.rin_state = RI_INITIALISED;
@@ -1172,7 +1128,6 @@ static void callback_server(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the loan request from client0 */
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -1188,10 +1143,10 @@ static void callback_server(int id)
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
 
+        //c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
 
 	link = NULL;
 	while (link == NULL)
@@ -1202,8 +1157,7 @@ static void callback_server(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets the loan request from client1 which will 
-	 * turns into cancel(revoke) request for client0 */
+	/* Ask for same right which will be revoked */
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -1216,16 +1170,16 @@ static void callback_server(int id)
 
         req->in.rin_flags = RIF_MAY_REVOKE;
         req->in.rin_want.ri_datum = ANGMAR;
+	printf("Server 1\n");
         result = c2_rm_right_get_wait(&Sauron, &req->in);
         C2_ASSERT(result == 0);
+	printf("Server 2\n");
 
         c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
 
-	/* Canceled right send to client1 as it requested */
 	C2_ALLOC_PTR(req);
 	C2_ASSERT(req != NULL);
 	req->sig_id = UT_SERVER;
@@ -1247,8 +1201,8 @@ static void callback_client(int id)
 	struct c2_queue_link *link = NULL;
 	struct c2_rm_proto_info *info = &rm_info[id];
 
-	/* Prepare incoming request for client which
-	 * will eventually barrow rights from server */
+	/* Prepare incoming request for client which will eventually
+	 * barrow rights from server */
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want);
         inother.rin_state = RI_INITIALISED;
@@ -1272,7 +1226,6 @@ static void callback_client(int id)
 	}
 	req = container_of(link, struct c2_rm_req_reply, rq_link);
 
-	/* Gets cancel(revoke) Request from server */
         c2_chan_init(&req->in.rin_signal);
         c2_rm_right_init(&req->in.rin_want);
         req->in.rin_state = RI_INITIALISED;
@@ -1285,15 +1238,15 @@ static void callback_client(int id)
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
         req->in.rin_want.ri_datum = ANGMAR;
+	printf("client 1\n");
         result = c2_rm_right_get_wait(&elves, &req->in);
         C2_ASSERT(result == 0);
+	printf("client 2\n");
 
-	/* cleanup code */
 	c2_rm_right_put(&req->in);
         c2_list_del(&req->in.rin_want.ri_linkage);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
-	c2_free(req);
 
 	c2_rm_right_put(&inother);
         c2_list_del(&inother.rin_want.ri_linkage);
@@ -1303,9 +1256,6 @@ static void callback_client(int id)
 
 static void callback_client1(int id)
 {
-	/* Wait till client0 gets the right and then sends
-	 * same right request to server which will cancel 
-	 * cancel the right from client0 and send it to client1*/
 	while (client_signal == 0) { }
 	c2_chan_init(&inconflict.rin_signal);
         c2_rm_right_init(&inconflict.rin_want);
@@ -1318,8 +1268,10 @@ static void callback_client1(int id)
         inconflict.rin_policy = RIP_STRICT;
         inconflict.rin_want.ri_datum = ANGMAR;
         inconflict.rin_flags = RIF_MAY_BORROW;
+	printf("client 11\n");
         result = c2_rm_right_get_wait(&dwarves, &inconflict);
         C2_ASSERT(result == 0);
+	printf("client 12\n");
 
 	c2_rm_right_put(&inconflict);
         c2_list_del(&inconflict.rin_want.ri_linkage);

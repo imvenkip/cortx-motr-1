@@ -114,9 +114,6 @@ void c2_rm_rpc_fini(void)
 	c2_mutex_fini(&rpc_lock);
 }
 
-/**
- * Search for the OUT request related to IN request(revoke,loan) and returns.
- */
 static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner, 
 					       uint64_t loan_id)
 {
@@ -133,12 +130,10 @@ static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 					    ri_tmp, struct c2_rm_right,
 					    ri_linkage) {
 			loan = container_of(right, struct c2_rm_loan, rl_right);
-			/* if loan ID's of right got in rpc layer and out
-			 * loan id matches then this out request is for this
-			 * right request */
 			if (loan->rl_id == loan_id) {
                         	out = container_of(loan,
                                            struct c2_rm_outgoing, rog_want);
+				printf("Out found %ld\n",loan_id);
 				return out;
 			}
 		}
@@ -147,25 +142,25 @@ static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 	return NULL;
 }
 
-/**
- * Search for the IN requested related to wanted rights request and returns.
- */
 static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 					      struct c2_rm_right *want)
 {
 	struct c2_rm_incoming *in;
 	struct c2_rm_right    *right;
+	struct c2_rm_right    *ri_tmp;
 	int		       prio = 0;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	for (prio = ARRAY_SIZE(owner->ro_incoming) - 1; prio >= 0; prio--) {
-		c2_list_for_each_entry(&owner->ro_incoming[prio][OQS_GROUND],
-				       right, struct c2_rm_right, ri_linkage) {
+		c2_list_for_each_entry_safe(&owner->ro_incoming[prio][OQS_GROUND],
+					    right, ri_tmp, struct c2_rm_right,
+					    ri_linkage) {
 			if (right->ri_ops->rro_implies(right, want) &&
 			    right->ri_ops->rro_implies(want, right)) {
 				in = container_of(right, struct c2_rm_incoming,
 						  rin_want);
+				printf("IN found at %d\n",prio);
 				return in;
 			}
 		}
@@ -173,18 +168,13 @@ static struct c2_rm_incoming *find_in_request(struct c2_rm_owner *owner,
 	return NULL;
 }
 
-/**
- * This acts as pesudo rpc layer. This will be run by thread.
- */
 void rpc_process(int id)
 {
-	struct c2_rm_req_reply 	*req;
-	struct c2_queue_link 	*link;
+	struct c2_rm_req_reply *req;
+	struct c2_queue_link *link;
 	struct c2_rm_proto_info *info;
-	struct c2_rm_incoming 	*in;
-	struct c2_rm_outgoing 	*out;
-	struct c2_rm_loan	*ch_loan;
-	struct c2_rm_loan	*br_loan;
+	struct c2_rm_incoming *in;
+	struct c2_rm_outgoing *out;
 
 	while (!rpc_signal) {
 		c2_mutex_lock(&rpc_lock);
@@ -198,9 +188,10 @@ void rpc_process(int id)
 				   rq_link);
 		info = &rm_info[req->reply_id];
 
+		printf("won ID %ld rep ID %ld\n",req->sig_id, req->reply_id);
 		switch (req->type) {
 		case PRO_LOAN_REPLY:
-			/* Gets right reply for loan/borrow requests */
+			printf("Loan Reply\n");
 			c2_mutex_lock(&info->owner->ro_lock);
 			in = find_in_request(info->owner, &req->in.rin_want);
 			if (in == NULL) {
@@ -209,55 +200,35 @@ void rpc_process(int id)
 				    	    &req->in.rin_want.ri_linkage);
 				c2_queue_put(&info->owner_queue, &req->rq_link);
 			} else {
-				/* Add right to the respective woners list
-				 * and wake up waiting thread for this right.*/
-				C2_ALLOC_PTR(ch_loan);
-				C2_ASSERT(ch_loan != NULL);
-				C2_ALLOC_PTR(br_loan);
-				C2_ASSERT(br_loan != NULL);
-
-				c2_list_init(&ch_loan->rl_right.ri_pins);
-				c2_list_init(&br_loan->rl_right.ri_pins);
 				c2_list_init(&in->rin_pins);
-				right_copy(&ch_loan->rl_right, 
-					   &req->in.rin_want);
-				right_copy(&br_loan->rl_right,
-					   &req->in.rin_want);
-				
-				ch_loan->rl_id = req->sig_id;
-				br_loan->rl_id = req->sig_id;
-				ch_loan->rl_other.rem_id = req->reply_id;
-				br_loan->rl_other.rem_id = req->reply_id;
-
-				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
-				    	    &ch_loan->rl_right.ri_linkage);
-				c2_list_add(&info->owner->ro_borrowed,
-				    	    &br_loan->rl_right.ri_linkage);
-
-				pin_add(in, &ch_loan->rl_right);
+				pin_add(in, &req->in.rin_want);
 				in->rin_state = RI_SUCCESS;
+				c2_list_add(&info->owner->ro_owned[OWOS_CACHED],
+				    	    &req->in.rin_want.ri_linkage);
+				printf("Signaled\n");
 				in->rin_ops->rio_complete(in, in->rin_state);
-				out = find_out_request(info->owner,
-						       req->reply_id);
+				out = find_out_request(info->owner, req->reply_id);
 				if (out != NULL)
-					c2_rm_outgoing_complete(out,
-								in->rin_state);
-				c2_free(req);
+					c2_rm_outgoing_complete(out, 0);
+				//c2_queue_put(&info->owner_queue, &req->rq_link);
 			}
 			c2_mutex_unlock(&info->owner->ro_lock);
 			break;
 		case PRO_OUT_REQUEST:
-			/* If request is from go_out then just add to
-			 * repective domain owners queues. This is incoming
-			 * request */
+			printf("Out Request\n");
 			c2_mutex_lock(&info->owner->ro_lock);
 			c2_queue_put(&info->owner_queue, &req->rq_link);
 			c2_mutex_unlock(&info->owner->ro_lock);
 			break;
+		case PRO_REQ_FINISH:
+			printf("Finish Request\n");
+			c2_free(req);
+			break;
 		default:
-			/* Invalid request. Just discard. */
+			printf("Wrong request: Discard\n");
 			c2_free(req);
 		}
 	}
+	printf("Leaving RPC Process\n");
 }
 

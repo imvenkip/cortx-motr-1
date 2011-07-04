@@ -1356,7 +1356,6 @@ void c2_rm_right_put(struct c2_rm_incoming *in);
 
 int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
-void right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 /**
    @name Resource type interface
  */

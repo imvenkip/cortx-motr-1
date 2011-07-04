@@ -57,7 +57,7 @@ static bool right_implies(const struct c2_rm_right *r0,
 	return (r0->ri_datum & r1->ri_datum) == r1->ri_datum;
 }
 
-static void rings_right_copy(struct c2_rm_right *dest,
+static void right_copy(struct c2_rm_right *dest,
                        const struct c2_rm_right *src)
 {
 	dest->ri_datum = src->ri_datum;
@@ -71,7 +71,7 @@ const struct c2_rm_right_ops rings_right_ops = {
 	.rro_join	= right_join,
 	.rro_diff	= right_diff,
 	.rro_implies	= right_implies,
-	.rro_copy	= rings_right_copy
+	.rro_copy	= right_copy
 };
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
