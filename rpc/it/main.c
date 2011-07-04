@@ -104,12 +104,12 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 2,
+	NR_SLOTS = 10,
 };
 
 /* Default number of ping items */
 enum {
-	NR_PING_ITEMS = 2,
+	NR_PING_ITEMS = 20,
 };
 
 /* Global client ping context */
@@ -485,7 +485,7 @@ void client_init()
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
 	}
-	sleep (10);
+	sleep (3);
 #if 0
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
