@@ -68,8 +68,6 @@ static void c2_rpc_form_set_state_sent(const struct c2_rpc *rpc)
 	}
 }
 
-bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
-
 /**
    Invariant subroutine for struct c2_rpc_form_buffer.
  */
@@ -121,6 +119,7 @@ void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb)
 	int	rc = 0;
 
 	C2_PRE(fb != NULL);
+	C2_PRE(c2_rpc_form_buf_invariant(fb));
 
 	/* Currently, our policy is to release the buffer on completion.*/
 	rc = c2_rpc_net_send_buffer_deallocate(&fb->fb_buffer,
