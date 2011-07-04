@@ -47,6 +47,10 @@ int c2_rpc_session_module_init(void);
  */
 void c2_rpc_session_module_fini(void);
 
+enum {
+	SESSION_COB_MAX_NAME_LEN = 40
+};
+
 /**
    Helper to create cob
 
@@ -114,7 +118,7 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 			   struct c2_db_tx	*tx);
 
 /**
-   Lookup for a cob named "SESSION_$session_id" that represents rpc session 
+   Lookup for a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
 int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
@@ -123,7 +127,7 @@ int c2_rpc_session_cob_lookup(struct c2_cob	*conn_cob,
 			      struct c2_db_tx	*tx);
 
 /**
-   Create a cob named "SESSION_$session_id" that represents rpc session 
+   Create a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
 int c2_rpc_session_cob_create(struct c2_cob	*conn_cob,
@@ -272,32 +276,35 @@ uint64_t c2_rpc_session_id_get(void);
  */
 struct c2_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
-	struct c2_rpc_slot	*sr_slot;
-	struct c2_rpc_item	*sr_item;
+	struct c2_rpc_slot		*sr_slot;
+	struct c2_rpc_item		*sr_item;
+	struct c2_rpc_sender_uuid	sr_uuid;
+	uint64_t		 	sr_sender_id;
+	uint64_t		 	sr_session_id;
 	/** Numeric id of slot. Used when encoding and decoding rpc item to
 	    and from wire-format */
-	uint32_t		sr_slot_id;
+	uint32_t		 	sr_slot_id;
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot */
-	struct c2_verno		sr_verno;
-	/** In each reply item, receiver reports to sender, verno of item 
+	struct c2_verno		 	sr_verno;
+	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field */
-	struct c2_verno		sr_last_persistent_verno;
+	struct c2_verno		 	sr_last_persistent_verno;
 	/** Inform the sender about current slot version */
-	struct c2_verno		sr_last_seen_verno;
-	/** An identifier that uniquely identifies item within 
+	struct c2_verno		 	sr_last_seen_verno;
+	/** An identifier that uniquely identifies item within
 	    slot->item_list.
 	    XXX should we rename it to something like "item_id"
 		(somehow the name "xid" gives illusion that it is related to
 		 some transaction identifier)
         */
-	uint64_t		sr_xid;
+	uint64_t		 	sr_xid;
 	/** Generation number of slot */
-	uint64_t		sr_slot_gen;
+	uint64_t		 	sr_slot_gen;
 	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link	sr_link;
+	struct c2_list_link	 	sr_link;
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link	sr_ready_link;
+	struct c2_list_link	 	sr_ready_link;
 };
 
 /**
@@ -306,8 +313,8 @@ struct c2_rpc_slot_ref {
    If found *out contains pointer to session object else *out is set to NULL
  */
 void session_search(const struct c2_rpc_conn	*conn,
-		    uint64_t		  	session_id,
-		    struct c2_rpc_session 	**out);
+		    uint64_t			session_id,
+		    struct c2_rpc_session	**out);
 
 /**
    Returns true if item is carrying CONN_CREATE fop.
