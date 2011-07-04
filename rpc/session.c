@@ -2170,7 +2170,7 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
 
 	rc = session_persistent_state_create(session->s_conn->c_cob, session_id,
 						&session_cob, &slot_cobs[0],
-						DEFAULT_SLOT_COUNT, tx);
+						session->s_nr_slots, tx);
 	if (rc != 0)
 		return rc;
 

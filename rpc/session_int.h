@@ -32,10 +32,6 @@
 
    @{
  */
-enum {
-	/* XXX need to set some proper value to this constant */
-	DEFAULT_SLOT_COUNT = 4
-};
 
 /**
    Initialise all the session related fop types
