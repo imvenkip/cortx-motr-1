@@ -73,8 +73,8 @@ the list is in one of the following states:
 
 * future: the item wasn't sent.
 
-an entry can be linked into multiple slots (similar to c2_fol_obj_ref).For each
-slot the entry has a separate verno and separate linkage into the slot's item
+an item can be linked into multiple slots (similar to c2_fol_obj_ref).For each
+slot the item has a separate verno and separate linkage into the slot's item
 list. Item state is common for all slots;
 
 An item, has a MUTABO flag, which is set when the item is an update (i.e.,
@@ -89,10 +89,14 @@ once the reply is received for the item;
 a slot has a number of pointers into this list and other fields, described
 below:
 
-last_sent pointer usually points to the latest unreplied request. When the
+<li><b>last_sent</b>
+pointer usually points to the latest unreplied request. When the
 receiver fails and restarts, the last_sent pointer is shifted back to the
 item from which the recovery must continue.
 Note that last_sent might be moved all the way back to the oldest item;
+<li><b>last_persistent</b>
+last_persistent item points to item whose effects have reached to persistent
+storage.
 
 sender_slot_invariant() should check that:
 * items on the slot list are ordered by verno and state;
@@ -107,7 +111,7 @@ last persistent item;
 [RESET]: last_sent is reset back due to the receiver restart.
 
 The state of a slot is described by the following variables:
-item list: the list or items, starting from the oldest;
+item list: the list of items, starting from the oldest;
 last_sent: the earliest item that the receiver possibly have seen;
 in_flight: the number of items currently on the network.
 
@@ -322,8 +326,8 @@ enum c2_rpc_conn_state {
 /**
    RPC Connection flags
  */
-enum {
-	RCF_SENDER_END = 1,
+enum c2_rpc_conn_flags {
+	RCF_SENDER_END = 1 << 0,
 	RCF_RECV_END = 1 << 1
 };
 
@@ -392,6 +396,7 @@ struct c2_rpc_conn {
 	struct c2_rpcmachine		*c_rpcmachine;
 	struct c2_list_link              c_link;
 	enum c2_rpc_conn_state		 c_state;
+	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t			 c_flags;
 	/* A c2_rpc_chan structure that will point to the transfer
 	   machine used by this c2_rpc_conn. */
@@ -488,7 +493,7 @@ enum c2_rpc_session_state {
 	   all lists, mutex and channels of session are initialised.
 	   No actual session is established with any end point
 	 */
-	C2_RPC_SESSION_INITIALISED = 1,
+	C2_RPC_SESSION_INITIALISED = (1 << 0),
 	/**
 	   When sender sends a SESSION_CREATE FOP to reciever it
 	   is in CREATING state
@@ -544,7 +549,7 @@ enum c2_rpc_session_state {
 		timed-out	      V
           +-------------------------CREATING
 	  |   create_failed           | create successful/n = 0
-	  V       		      |
+	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)
 	  |           |               +-----------------+
 	  |           |               |                 | +-----+
@@ -590,14 +595,11 @@ struct c2_rpc_session {
 	uint32_t			 s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t			 s_slot_table_capacity;
-	/** highest slot id for which the sender has the outstanding request
-	    XXX currently unused */
-	uint32_t			 s_highest_used_slot_id;
+	/** Array of pointers to slots */
+	struct c2_rpc_slot		 **s_slot_table;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
 		denoting cause of failure */
 	int32_t				 s_rc;
-	/** Array of pointers to slots */
-	struct c2_rpc_slot		 **s_slot_table;
 };
 
 /**
@@ -653,11 +655,6 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
 	session->s_state == C2_RPC_SESSION_INITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
-
-/**
-   checks internal consistency of session
- */
-bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
 enum {
 	SLOT_DEFAULT_MAX_IN_FLIGHT = 1

@@ -48,6 +48,11 @@ enum {
 };
 
 /**
+   checks internal consistency of session
+ */
+bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
+
+/**
    Helper to create cob
 
    @param dom cob domain in which cob should be created.
