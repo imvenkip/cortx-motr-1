@@ -151,7 +151,7 @@ void server_rqh_init(int dummy)
 	struct c2_queue_link 	*q1;
 	struct c2_rpc_item	*item;
 	struct c2_fop		*fop;
-	struct c2_fom		*fom;
+	struct c2_fom		*fom = NULL;
 	struct c2_clink		 clink;
 
 	c2_queue_init(&exec_queue);
@@ -486,7 +486,7 @@ void client_init()
 		send_ping_fop(i);
 	}
 	sleep (10);
-
+#if 0
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to terminate session\n");
@@ -536,7 +536,7 @@ void client_init()
 			printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn terminate\n");
-
+#endif
 cleanup:
 	do_cleanup();
 }
