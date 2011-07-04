@@ -17,7 +17,7 @@
 #include "rpc/rpccore.h"
 #include "fop/fop_base.h"
 #include "rpc/rpc_onwire.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
 

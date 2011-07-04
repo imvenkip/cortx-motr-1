@@ -39,7 +39,7 @@
 #include "rpc/session_u.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 
 
 char db_name[] = "test_db";

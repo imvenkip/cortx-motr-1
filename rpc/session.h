@@ -73,8 +73,8 @@ the list is in one of the following states:
 
 * future: the item wasn't sent.
 
-an entry can be linked into multiple slots (similar to c2_fol_obj_ref).For each
-slot the entry has a separate verno and separate linkage into the slot's item
+an item can be linked into multiple slots (similar to c2_fol_obj_ref).For each
+slot the item has a separate verno and separate linkage into the slot's item
 list. Item state is common for all slots;
 
 An item, has a MUTABO flag, which is set when the item is an update (i.e.,
@@ -89,10 +89,14 @@ once the reply is received for the item;
 a slot has a number of pointers into this list and other fields, described
 below:
 
-last_sent pointer usually points to the latest unreplied request. When the
+<li><b>last_sent</b>
+pointer usually points to the latest unreplied request. When the
 receiver fails and restarts, the last_sent pointer is shifted back to the
 item from which the recovery must continue.
 Note that last_sent might be moved all the way back to the oldest item;
+<li><b>last_persistent</b>
+last_persistent item points to item whose effects have reached to persistent
+storage.
 
 sender_slot_invariant() should check that:
 * items on the slot list are ordered by verno and state;
@@ -107,7 +111,7 @@ last persistent item;
 [RESET]: last_sent is reset back due to the receiver restart.
 
 The state of a slot is described by the following variables:
-item list: the list or items, starting from the oldest;
+item list: the list of items, starting from the oldest;
 last_sent: the earliest item that the receiver possibly have seen;
 in_flight: the number of items currently on the network.
 
@@ -322,8 +326,8 @@ enum c2_rpc_conn_state {
 /**
    RPC Connection flags
  */
-enum {
-	RCF_SENDER_END = 1,
+enum c2_rpc_conn_flags {
+	RCF_SENDER_END = 1 << 0,
 	RCF_RECV_END = 1 << 1
 };
 
@@ -392,6 +396,7 @@ struct c2_rpc_conn {
 	struct c2_rpcmachine		*c_rpcmachine;
 	struct c2_list_link              c_link;
 	enum c2_rpc_conn_state		 c_state;
+	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t			 c_flags;
 	/* A c2_rpc_chan structure that will point to the transfer
 	   machine used by this c2_rpc_conn. */
@@ -488,7 +493,7 @@ enum c2_rpc_session_state {
 	   all lists, mutex and channels of session are initialised.
 	   No actual session is established with any end point
 	 */
-	C2_RPC_SESSION_INITIALISED = 1,
+	C2_RPC_SESSION_INITIALISED = (1 << 0),
 	/**
 	   When sender sends a SESSION_CREATE FOP to reciever it
 	   is in CREATING state
@@ -544,7 +549,7 @@ enum c2_rpc_session_state {
 		timed-out	      V
           +-------------------------CREATING
 	  |   create_failed           | create successful/n = 0
-	  V       		      |
+	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)
 	  |           |               +-----------------+
 	  |           |               |                 | +-----+
@@ -590,14 +595,11 @@ struct c2_rpc_session {
 	uint32_t			 s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t			 s_slot_table_capacity;
-	/** highest slot id for which the sender has the outstanding request
-	    XXX currently unused */
-	uint32_t			 s_highest_used_slot_id;
+	/** Array of pointers to slots */
+	struct c2_rpc_slot		 **s_slot_table;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
 		denoting cause of failure */
 	int32_t				 s_rc;
-	/** Array of pointers to slots */
-	struct c2_rpc_slot		 **s_slot_table;
 };
 
 /**
@@ -654,11 +656,6 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
 
-/**
-   checks internal consistency of session
- */
-bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
-
 enum {
 	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
 };
@@ -669,6 +666,30 @@ struct c2_rpc_slot_ops {
 				 struct c2_rpc_item	*reply);
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
+/**
+  In memory slot object.
+
+  A slot provides the FIFO and exactly once properties for item delivery.
+  c2_rpc_slot and its corresponding methods are equally valid on sender and
+  receiver side.
+
+  One can think of a slot as a pipe. On sender side, application/formation is
+  placing items at one end of this pipe. The item appears on the other end 
+  of pipe. And formation takes the item packs in some RPC and sends it.
+
+  On receiver side, when an item is received it is placed in one end of the
+  pipe. When the item appears on other end of pipe it is sent for execution.
+
+  When an update item (one that modifies file-system state) is added to the
+  slot, it advances version number of slot.
+  The verno.vn_vc is set to 0 at the time of slot create on both ends.
+
+  A slot responds to following events:
+  ITEM_APPLY
+  REPLY_RECEIVED
+  PERSISTENCE
+  RESET
+ */
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */
 	struct c2_rpc_session		*sl_session;
@@ -701,76 +722,6 @@ struct c2_rpc_slot {
 	const struct c2_rpc_slot_ops	*sl_ops;
 };
 
-/**
-   Initialise in memory slot.
-
-   @post ergo(result == 0, slot->sl_verno.vn_vc == 0 &&
-			   slot->sl_xid == 1 &&
-			   !c2_list_is_empty(slot->sl_item_list) &&
-			   slot->sl_ops == ops)
- */
-int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
-		     const struct c2_rpc_slot_ops	*ops);
-
-/**
-   Deprecated
- */
-void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
-
-/**
-   If verno of item matches with verno of slot, then adds the item
-   to the slot->sl_item_list. If item is update opeation, verno of
-   slot is advanced. if item is already present in slot->sl_item_list
-   its reply is immediately consumed.
- */
-int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
-
-/**
-   Called when a reply for an item which was sent on this slot.
-   req_out will contain pointer to original item for which this is reply
- */
-void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
-				struct c2_rpc_item	*reply,
-				struct c2_rpc_item	**req_out);
-
-/**
-   Effects of item with verno less than or equal to @last_pesistent, have
-   been made persistent
-
-   @post c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
-		      &last_persistent) == 0
- */
-void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
-			     struct c2_verno	last_persistent);
-
-/**
-   Reset the slot to verno @last_seen
-   @post c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
-		      &last_seen) = 0
- */
-void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
-		       struct c2_verno		last_seen);
-
-bool c2_rpc_slot_invariant(struct c2_rpc_slot	*slot);
-
-void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
-
-/**
-   Iterate over all the rpc connections present in rpcmachine
- */
-#define c2_rpc_for_each_outgoing_conn(machine, conn)	\
-	c2_list_for_each_entry(&(machine)->cr_outgoing_conns, (conn), \
-		struct c2_rpc_conn, c_link)
-
-/**
-   Iterate over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)	\
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),	\
-		struct c2_rpc_session, s_link)
-
 /** @} end of session group */
 
 #endif
@@ -784,4 +735,3 @@ void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
  *  scroll-step: 1
  *  End:
  */
-

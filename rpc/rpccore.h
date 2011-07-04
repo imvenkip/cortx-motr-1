@@ -134,7 +134,7 @@ struct c2_rpc_item;
 #include "cob/cob.h"
 #include "fol/fol.h"
 #include "fop/fop_base.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "rpc/session.h"
 
 /*Macro to enable RPC grouping test and debug code */

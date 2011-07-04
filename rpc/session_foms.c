@@ -39,7 +39,7 @@
 #endif
 
 #include "fop/fop_format_def.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 
 /**
    @addtogroup rpc_session

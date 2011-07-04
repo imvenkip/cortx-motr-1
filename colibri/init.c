@@ -40,7 +40,7 @@
 #include "desim/sim.h"
 
 #include "colibri/init.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
