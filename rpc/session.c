@@ -220,8 +220,6 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	struct c2_rpcmachine		*machine;
 	int				 rc;
 
-	C2_PRE(ep != NULL);
-
 	C2_PRE(conn != NULL && ep != NULL);
 	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
 	      (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END &&
@@ -407,6 +405,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	int					rc;
 
 	C2_PRE(conn != NULL);
+
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
 		  c2_rpc_conn_invariant(conn));
@@ -530,6 +529,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
 	       conn->c_state == C2_RPC_CONN_FAILED ||
 	       conn->c_state == C2_RPC_CONN_INITIALISED);
+
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);
@@ -885,6 +885,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	int					rc = 0;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
+
 	c2_mutex_lock(&session->s_conn->c_mutex);
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
@@ -2055,6 +2056,7 @@ int conn_persistent_state_attach(struct c2_rpc_conn     *conn,
 
 	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_INITIALISED &&
 			c2_rpc_conn_invariant(conn));
+
 	dom = conn->c_rpcmachine->cr_dom;
 	rc = conn_persistent_state_create(dom, sender_id,
 					  &conn_cob, &session0_cob, &slot0_cob,
@@ -2125,6 +2127,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 
 	C2_PRE(session != NULL &&
 		session->s_state == C2_RPC_SESSION_INITIALISED);
+
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
@@ -2267,6 +2270,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	int			i;
 
 	C2_PRE(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
+
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	session->s_state = C2_RPC_SESSION_TERMINATING;
@@ -2341,6 +2345,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 	struct c2_db_tx		tx;
 
 	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
+
 	C2_ASSERT((conn->c_flags & RCF_RECV_END) == RCF_RECV_END &&
 			c2_rpc_conn_invariant(conn));
 
