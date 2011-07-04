@@ -7,31 +7,135 @@
 
 /** @file rm.ff
  *
- * <b>Simplistic RM fop formats</b>
+ * <b>RM fop formats</b>
  *
  */
 
-DEF(c2_rm_fop_sid, RECORD,
-    _(sid_count, U64),
-    _(sid_value, BYTE));
+/**
+ * Request the resource owner information from a lookup server.
+ * <br> List of fields
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * </br>
+ */
+DEF(c2_rm_get_owner_info, RECORD,
+    _(res_type, U64),
+    _(res_id, U64));
 
-DEF(c2_rm_loan_reply, RECORD,
-    _(ri_datum, U64),
-    _(loan_id, U64),
+/**
+ * Send the resource owner information to a lookup server and register it.
+ * <br> List of fields
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * @li service_id : Service Id of the owner (this machine)
+ * </br>
+ */
+DEF(c2_rm_set_owner_info, RECORD,
+    _(res_type, U64),
+    _(res_id, U64),
+    _(serv_sid, c2_rm_fop_sid));
+
+/**
+ * This is a reply FOP sent in response to GET/SET owner info.
+ * owner status will return the status code. If the operation is succsessful,
+ * service id of the owner is sent along with the reply.
+ * <br> List of fields
+ * @li owner_status : Response (NO-OWNER, ANOTHER-OWNER, OWNER-SET)
+ * @li rem_id : Id of the remote owner
+ * @li service_id : Service Id of the owner
+ * </br>
+ */
+DEF(c2_rm_owner_info, RECORD,
+    _(owner_status, BYTE),
     _(rem_id, U64),
     _(serv_sid, c2_rm_fop_sid));
 
-DEF(c2_rm_send_out, RECORD,
-    _(ri_datum, U64),
-    _(loan_id, U64),
+/**
+ * Ask for a right for a given resorce. Right information is encoded in
+ * res_datum.
+ * <br> List of fields
+ * @li rem_id : Id of the remote owner
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * @li res_grp_id : Resource Group Id
+ * @li res_policy_id : Policy Id for resource rights
+ * @li res_datum : Resource right representation
+ * </br>
+ */
+DEF(c2_rm_get_right, RECORD,
     _(rem_id, U64),
-    _(req_type, U32),
-    _(rem_state, U32),
-    _(serv_sid, c2_rm_fop_sid));
+    _(res_type, U64),
+    _(res_id, U64),
+    _(res_grp_id, U64),
+    _(res_policy_id, U64),
+    _(res_datum, U64));
+
+/**
+ * This is a reply FOP sent in response to the request for a right to a
+ * resource. When the request is succsessful, the sender may choose to
+ * piggy-back resource data.
+ * This may avoid an extra FOP required for fetching the resource data (small).
+ * RM-generic needs to handle this.
+ * <br> List of fields
+ * @li right_resp : Return code for GET_RIGHT request
+ * @li rem_id : Id of the remote owner
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * @li res_datum : Resource right representation (rights granted)
+ * @li loan_id : Id for the resource loan.
+ * @li res_data_flag : Marks that this FOP contains valid resource data
+ * @li res_data : Piggy-backed resource data.
+ * </br>
+ */
+DEF(c2_rm_right_reply, RECORD,
+    _(right_resp, BYTE),
+    _(rem_id, U64),
+    _(res_type, U64),
+    _(res_id, U64),
+    _(res_datum, U64),
+    _(loan_id, U64),
+    _(lease_time, U64),
+    _(res_data_flag, BYTE),
+    _(res_data, c2_rm_res_data));
+
+/**
+ * This is a FOP is initiated from an owner. It requires the lesee to surrender
+ * the right for a given resorce.
+ * <br> List of fields
+ * @li rem_id : Id of the remote owner
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * @li loan_id : Id for the resource loan.
+ * @li res_grp_id : Resource Group Id
+ * </br>
+ */
+DEF(c2_rm_revoke_right, RECORD,
+    _(rem_id, U64),
+    _(res_type, U64),
+    _(res_id, U64),
+    _(loan_id, U64),
+    _(res_grp_id, U64));
+
+/**
+ * This is a reply FOP sent in response to a revoke right request.
+ * <br> List of fields
+ * @li rem_id : Id of the remote owner
+ * @li res_type : Resource type
+ * @li res_id : Resource type
+ * @li loan_id : Id for the resource loan.
+ * @li res_grp_id : Resource Group Id
+ * </br>
+ */
+DEF(c2_rm_right_cancel, RECORD,
+    _(rem_id, U64),
+    _(res_type, U64),
+    _(res_id, U64),
+    _(loan_id, U64),
+    _(res_grp_id, U64));
 
 /** @} end of rm group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
