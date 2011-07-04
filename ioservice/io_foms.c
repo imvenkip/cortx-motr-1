@@ -46,6 +46,12 @@
 #ifndef __KERNEL__
 
 /** Generic ops object for c2_fop_cob_writev */
+struct c2_fom_ops c2_io_fom_file_create_ops = {
+	.fo_fini = NULL,
+	.fo_state = c2_io_fom_file_create_state,
+};
+
+/** Generic ops object for c2_fop_cob_writev */
 static struct c2_fom_ops c2_io_fom_write_ops = {
 	.fo_fini = NULL,
 	.fo_state = c2_io_fom_cob_rwv_state,
@@ -69,6 +75,11 @@ static const struct c2_fom_type_ops c2_io_cob_readv_type_ops = {
 };
 
 /** FOM type specific functions for writev FOP. */
+static const struct c2_fom_type_ops c2_io_file_create_type_ops = {
+	.fto_create = NULL,
+};
+
+/** FOM type specific functions for writev FOP. */
 static const struct c2_fom_type_ops c2_io_cob_writev_type_ops = {
 	.fto_create = NULL,
 };
@@ -83,12 +94,18 @@ static struct c2_fom_type c2_io_fom_cob_writev_mopt = {
 	.ft_ops = &c2_io_cob_writev_type_ops,
 };
 
+/** Create specific FOM type operations vector. */
+static struct c2_fom_type c2_io_fom_file_create_mopt = {
+        .ft_ops = &c2_io_file_create_type_ops,
+};
+
 /**
  *  An array of c2_fom_type structs for all possible FOMs.
  */
 static struct c2_fom_type *c2_io_fom_types[] = {
 	&c2_io_fom_cob_readv_mopt,
 	&c2_io_fom_cob_writev_mopt,
+	&c2_io_fom_file_create_mopt,
 };
 
 /**
@@ -390,6 +407,31 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	return FSO_AGAIN;
 }
 
+/**
+ * State function for create request 
+ */
+int c2_io_fom_file_create_state(struct c2_fom *fom)
+{
+	struct c2_fop			*fop_req = NULL;
+	struct c2_fop			*fop = NULL;
+        struct c2_fop_file_create_rep	*create_fop_rep = NULL;
+        struct c2_rpc_item              *item = NULL;
+        struct c2_io_fom_file_create	*fom_obj;
+
+	printf("Inside create state \n");
+	fom_obj = container_of(fom, struct c2_io_fom_file_create, fc_gen);
+	fop_req = fom_obj->fc_fop;
+        fop = c2_fop_alloc(&c2_fop_file_create_rep_fopt, NULL);
+        C2_ASSERT(fop != NULL);
+        create_fop_rep = c2_fop_data(fop);
+        create_fop_rep->fcrr_rc = true;
+	item = c2_fop_to_rpc_item(fop);
+        c2_rpc_item_attach(item);
+        c2_rpc_reply_post(&fom_obj->fc_fop->f_item, item);
+	return 0;
+}
+
+
 /** Fini of read FOM object */
 void c2_io_fom_cob_rwv_fini(struct c2_fom *fom)
 {
@@ -440,6 +482,30 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 * Start the FOM.
 	 */
 	return fom->fo_ops->fo_state(fom);
+}
+
+/* Init for create file */
+int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+        struct c2_fom                   *fom;
+        struct c2_io_fom_file_create	*fom_obj;
+        struct c2_fom_type              *fom_type;
+
+        C2_PRE(fop != NULL);
+        C2_PRE(m != NULL);
+
+        fom_obj= c2_alloc(sizeof(struct c2_io_fom_file_create));
+        if (fom_obj == NULL)
+                return -ENOMEM;
+        fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
+        C2_ASSERT(fom_type != NULL);
+        fop->f_type->ft_fom_type = *fom_type;
+	fom = &fom_obj->fc_gen;
+	fom->fo_type = fom_type;
+	fom->fo_ops = &c2_io_fom_file_create_ops;
+	fom_obj->fc_fop = fop;
+        *m = &fom_obj->fc_gen;
+	return 0;
 }
 
 #endif

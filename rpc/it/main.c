@@ -38,7 +38,13 @@
 #include "rpc/session.h"
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
-
+#include "ioservice/io_fops.h"
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
+#include "stob/ut/io_fop.h"
 
 /**     
    Context for a ping client or server.
@@ -76,6 +82,8 @@ struct ping_ctx {
 	struct c2_rpc_session			 pc_rpc_session;
 	/* number of slots */
 	int					 pc_nr_slots;
+	/* number of ping items */
+	int					 pc_nr_ping_items;
 };
 
 /* Default port values */
@@ -97,6 +105,11 @@ enum {
 /* Default number of slots */
 enum {
 	NR_SLOTS = 10,
+};
+
+/* Default number of ping items */
+enum {
+	NR_PING_ITEMS = 20,
 };
 
 /* Global client ping context */
@@ -138,7 +151,7 @@ void server_rqh_init(int dummy)
 	struct c2_queue_link 	*q1;
 	struct c2_rpc_item	*item;
 	struct c2_fop		*fop;
-	struct c2_fom		*fom;
+	struct c2_fom		*fom = NULL;
 	struct c2_clink		 clink;
 
 	c2_queue_init(&exec_queue);
@@ -271,10 +284,33 @@ cleanup:
 	do_cleanup();
 }
 
+int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
+
+void send_ping_fop(int nr)
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop_file_create       *create_fop = NULL;
+	struct c2_fop_file_fid          fid;
+	struct c2_rpc_item		*item = NULL;
+
+	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+	create_fop = c2_fop_data(fop);
+	fid.f_seq = 100 + nr;
+	fid.f_oid = 200 + nr;
+	create_fop->fcr_fid = fid;
+	item = &fop->f_item;
+	c2_rpc_form_item_populate_param(&fop->f_item);
+	c2_rpc_item_attach(item);
+	item->ri_session = &cctx.pc_rpc_session;
+	c2_rpc_post(item);	
+}
+
 /* Create the client */
 void client_init()
 {
 	int		rc = 0;
+	int		i;
 	bool		rcb;
 	char		addr[ADDR_LEN];
 	char		hostbuf[ADDR_LEN];
@@ -396,7 +432,7 @@ void client_init()
 
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
 	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_ACTIVE |
@@ -414,6 +450,8 @@ void client_init()
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
+	printf("NR_SLOTS = %u\n",cctx.pc_nr_slots);
+	printf("NR_SLOTS in session = %u\n",cctx.pc_rpc_session.s_nr_slots);
 	if(rc != 0){
 		printf("Failed to init rpc session\n");
 		goto cleanup;
@@ -431,7 +469,7 @@ void client_init()
 	}
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
 	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
@@ -439,10 +477,66 @@ void client_init()
 	if (rcb) {
 		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE)
 			printf("pingcli: Session established\n");
-		if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_FAILED)
 			printf("pingcli: session create failed\n");
 	} else
 		printf("Timeout for session create \n");
+
+	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
+		send_ping_fop(i);
+	}
+	sleep (3);
+#if 0
+	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
+	if(rc != 0){
+		printf("Failed to terminate session\n");
+		goto cleanup;
+	} else {
+		printf("RPC session terminate call successful\n");
+	}
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+	/* Wait for session to terminate */
+	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
+			C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
+			timeout);
+	if (rcb) {
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_TERMINATED)
+			printf("pingcli: Session terminated\n");
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_FAILED)
+			printf("pingcli: session terminate failed\n");
+	} else
+		printf("Timeout for session terminate \n");
+
+
+	/* Terminate RPC connection */
+	rc = c2_rpc_conn_terminate(&cctx.pc_conn); 
+	if(rc != 0){
+		printf("Failed to terminate rpc connection\n");
+		goto cleanup;
+	} else {
+		printf("RPC connection terminate call successful \n");
+	}
+
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+
+	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_TERMINATED |
+				   C2_RPC_CONN_FAILED, timeout);
+	if (rcb) {
+		if (cctx.pc_conn.c_state == C2_RPC_CONN_TERMINATED)
+			printf("pingcli: Connection terminated\n");
+		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+			printf("pingcli: conn create failed\n");
+		else
+			printf("pingcli: conn INVALID!!!|n");
+	} else
+		printf("Timeout for conn terminate\n");
+#endif
 cleanup:
 	do_cleanup();
 }
@@ -457,7 +551,8 @@ int main(int argc, char *argv[])
 	bool			 server = false;
 	const char		*server_name = NULL;
 	int			 server_port = 0;
-	int			 nr_slots;
+	int			 nr_slots = 0;
+	int			 nr_ping_item;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
@@ -466,6 +561,10 @@ int main(int argc, char *argv[])
 
 
 	rc = c2_init();
+	if (rc != 0)
+		return rc;
+
+	rc = io_fop_init();
 	if (rc != 0)
 		return rc;
 
@@ -478,7 +577,8 @@ int main(int argc, char *argv[])
 		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('p', "server port", "%i", &server_port),
-		C2_FORMATARG('l', "number of slots", "%i", &nr_slots));
+		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
+		C2_FORMATARG('L', "number of ping items", "%i", &nr_ping_item));
 	if (rc != 0)
 		return rc;
 	
@@ -488,6 +588,7 @@ int main(int argc, char *argv[])
 	sctx.pc_rport = cctx.pc_lport = CLIENT_PORT;
 	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
+	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is

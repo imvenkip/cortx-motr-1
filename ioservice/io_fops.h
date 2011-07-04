@@ -40,9 +40,10 @@ struct c2_fom_type;
 enum c2_io_service_opcodes {
 	c2_io_service_readv_opcode = 15,
 	c2_io_service_writev_opcode,
+	c2_io_service_create_opcode,
+	c2_io_service_create_rep_opcode,
 	c2_io_service_writev_rep_opcode,
 	c2_io_service_readv_rep_opcode,
-	c2_io_service_create_opcode,
 };
 
 /**
@@ -104,12 +105,14 @@ extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_file_create_tfmt;
+extern struct c2_fop_type_format c2_fop_file_create_rep_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_file_create_fopt;
+extern struct c2_fop_type c2_fop_file_create_rep_fopt;
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

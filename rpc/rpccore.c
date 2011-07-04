@@ -8,7 +8,7 @@
 #include "rpc/session_int.h"
 #include "fop/fop.h"
 #include "formation.h"
-
+#include "rpc/rpc_onwire.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
@@ -128,8 +128,8 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 	c2_list_link_init(&sref->sr_ready_link);
 
         c2_list_link_init(&item->ri_unbound_link);
-	item->ri_sender_id = SENDER_ID_INVALID;
-	item->ri_session_id = SESSION_ID_INVALID;
+	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+	item->ri_slot_refs[0].sr_session_id = SESSION_ID_INVALID;
 
         c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unformed_linkage);
@@ -145,6 +145,8 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
 
+	printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
+			item->ri_session->s_session_id);
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
@@ -161,9 +163,11 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
 
 	reply->ri_session = request->ri_session;
-	reply->ri_sender_id = request->ri_sender_id;
-	reply->ri_session_id = request->ri_session_id;
-	reply->ri_uuid = request->ri_uuid;
+	reply->ri_slot_refs[0].sr_sender_id =
+		request->ri_slot_refs[0].sr_sender_id;
+	reply->ri_slot_refs[0].sr_session_id =
+		request->ri_slot_refs[0].sr_session_id;
+	reply->ri_slot_refs[0].sr_uuid = request->ri_slot_refs[0].sr_uuid;
 	reply->ri_prio = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
 	reply->ri_error = 0;
@@ -178,7 +182,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	sref->sr_verno = request->ri_slot_refs[0].sr_verno;
 	sref->sr_xid = request->ri_slot_refs[0].sr_xid;
 	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
-	
+
 	c2_mutex_lock(&slot->sl_mutex);
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
@@ -544,6 +548,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				item->ri_src_ep = nb->nb_ep;
 				printf("item->src_ep = %p\n", item->ri_src_ep);
 				printf("Item %d received\n", i);
+				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
 				if (rc == 0) {
 					/* Post an ADDB event here.*/
@@ -1006,13 +1011,30 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
-	.rio_item_size = c2_rpc_item_size,
+	.rio_item_size = c2_rpc_item_default_size, 
 	.rio_items_equal = c2_rpc_item_equal,
 	.rio_io_get_opcode = c2_rpc_item_get_opcode,
 	.rio_io_get_fid = c2_rpc_item_io_get_fid,
 	.rio_is_io_req = c2_rpc_item_is_io_req,
 	.rio_get_io_fragment_count = NULL,
 	.rio_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
+};
+
+const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
+        .rio_sent = NULL,
+        .rio_added = NULL,
+        .rio_replied = c2_rpc_item_replied,
+        .rio_item_size = c2_rpc_item_default_size,
+        .rio_items_equal = c2_rpc_item_equal,
+        .rio_io_get_opcode = c2_rpc_item_get_opcode,
+        .rio_io_get_fid = c2_rpc_item_io_get_fid,
+        .rio_is_io_req = c2_rpc_item_is_io_req,
+        .rio_get_io_fragment_count = NULL,
+        .rio_io_coalesce = NULL,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_readv = {
@@ -1025,6 +1047,14 @@ struct c2_rpc_item_type c2_rpc_item_type_writev = {
 
 struct c2_rpc_item_type c2_rpc_item_type_create = {
 	.rit_ops = &c2_rpc_item_create_type_ops,
+	.rit_mutabo = true,
+	.rit_item_is_req = true,
+};
+
+struct c2_rpc_item_type c2_rpc_item_type_create_rep = {
+	.rit_ops = &c2_rpc_item_create_rep_type_ops,
+	.rit_mutabo = false,
+	.rit_item_is_req = false,
 };
 
 /**
@@ -1049,6 +1079,9 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
                         break;
                 case c2_io_service_create_opcode:
                         item->ri_type = &c2_rpc_item_type_create;
+                        break;
+                case c2_io_service_create_rep_opcode:
+                        item->ri_type = &c2_rpc_item_type_create_rep;
                         break;
                 default:
                         break;
