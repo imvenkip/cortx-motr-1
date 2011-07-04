@@ -38,7 +38,13 @@
 #include "rpc/session.h"
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
-
+#include "ioservice/io_fops.h"
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
+#include "stob/ut/io_fop.h"
 
 /**     
    Context for a ping client or server.
@@ -271,6 +277,28 @@ cleanup:
 	do_cleanup();
 }
 
+int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
+
+void send_ping_fop()
+{
+	struct c2_fop                   *fop = NULL;
+	struct c2_fop_file_create       *create_fop = NULL;
+	struct c2_fop_file_fid          fid;
+	struct c2_rpc_item		*item = NULL;
+
+	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
+	C2_ASSERT(fop != NULL);
+	create_fop = c2_fop_data(fop);
+	fid.f_seq = 100;
+	fid.f_oid = 200;
+	create_fop->fcr_fid = fid;
+	item = &fop->f_item;
+	c2_rpc_form_item_populate_param(&fop->f_item);
+	c2_rpc_item_attach(item);
+	item->ri_session = &cctx.pc_rpc_session;
+	c2_rpc_post(item);	
+}
+
 /* Create the client */
 void client_init()
 {
@@ -396,7 +424,7 @@ void client_init()
 
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
 	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_ACTIVE |
@@ -431,7 +459,7 @@ void client_init()
 	}
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
 	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
@@ -444,6 +472,8 @@ void client_init()
 	} else
 		printf("Timeout for session create \n");
 
+	send_ping_fop();
+	sleep (10);
 
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
@@ -456,7 +486,7 @@ void client_init()
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
                                 c2_time_nanoseconds(timeout));
-	/* Wait for session to become active */
+	/* Wait for session to terminate */
 	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
 			C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
 			timeout);
@@ -490,14 +520,10 @@ void client_init()
 			printf("pingcli: Connection terminated\n");
 		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
 			printf("pingcli: conn create failed\n");
-	//	else
-	//		printf("pingcli: conn INVALID!!!|n");
+		else
+			printf("pingcli: conn INVALID!!!|n");
 	} else
-		printf("Timeout for conn create \n");
-
-
-
-
+		printf("Timeout for conn terminate\n");
 
 cleanup:
 	do_cleanup();
@@ -522,6 +548,10 @@ int main(int argc, char *argv[])
 
 
 	rc = c2_init();
+	if (rc != 0)
+		return rc;
+
+	rc = io_fop_init();
 	if (rc != 0)
 		return rc;
 
