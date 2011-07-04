@@ -219,17 +219,20 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create_rep, "rpc_conn_create_reply",
 			NULL,
 			&c2_rpc_item_conn_create_rep);
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep, "rpc_conn_terminate_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep,
+			"rpc_conn_terminate_reply",
 			C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_conn_terminate_rep);
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create_rep, "rpc_session_create_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create_rep,
+			"rpc_session_create_reply",
 			C2_RPC_FOP_SESSION_CREATE_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_session_create_rep);
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep,
+			"rpc_session_terminate_reply",
 			C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_session_terminate_rep);

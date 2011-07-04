@@ -666,6 +666,30 @@ struct c2_rpc_slot_ops {
 				 struct c2_rpc_item	*reply);
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
+/**
+  In memory slot object.
+
+  A slot provides the FIFO and exactly once properties for item delivery.
+  c2_rpc_slot and its corresponding methods are equally valid on sender and
+  receiver side.
+
+  One can think of a slot as a pipe. On sender side, application/formation is
+  placing items at one end of this pipe. The item appears on the other end 
+  of pipe. And formation takes the item packs in some RPC and sends it.
+
+  On receiver side, when an item is received it is placed in one end of the
+  pipe. When the item appears on other end of pipe it is sent for execution.
+
+  When an update item (one that modifies file-system state) is added to the
+  slot, it advances version number of slot.
+  The verno.vn_vc is set to 0 at the time of slot create on both ends.
+
+  A slot responds to following events:
+  ITEM_APPLY
+  REPLY_RECEIVED
+  PERSISTENCE
+  RESET
+ */
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */
 	struct c2_rpc_session		*sl_session;
