@@ -5,7 +5,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "rpc/session.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "fop/fop.h"
 #include "formation.h"
 #include "rpc/rpc_onwire.h"

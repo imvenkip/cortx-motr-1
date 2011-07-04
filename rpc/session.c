@@ -32,7 +32,7 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "rpc/session_u.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
@@ -2038,7 +2038,6 @@ int conn_persistent_state_create(struct c2_cob_domain	*dom,
 	*slot0_cob_out = slot0_cob;
 	return 0;
 errout:
-	*conn_cob_out = *session0_cob_out = *slot0_cob_out = NULL;
 	return rc;
 }
 

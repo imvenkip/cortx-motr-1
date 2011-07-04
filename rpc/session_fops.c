@@ -33,7 +33,7 @@
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 
 /**

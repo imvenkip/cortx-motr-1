@@ -11,7 +11,7 @@
 #include "fop/fop_format.h"
 #include "net/usunrpc/usunrpc.h"
 #include "rpc/rpccore.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
 #include "net/bulk_sunrpc.h"
