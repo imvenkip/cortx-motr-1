@@ -361,6 +361,7 @@ static void item_verify(struct c2_rpc_item *item)
 	int			i;
 	size_t			len;
 	unsigned char		*buf;
+	uint32_t 		*ip;
 
 	fop = c2_rpc_item_to_fop(item);
 	fopt = fop->f_type;
@@ -368,9 +369,14 @@ static void item_verify(struct c2_rpc_item *item)
 	fdata = c2_fop_data(fop);
 	buf = (unsigned char *)fdata;
 	printf("\nDecoded FOP Data :\n");
+	ip = (uint32_t *)buf;
 	for (i = 0; i < len; ++i) {
 		printf (" %x ", *buf);
 		buf++;
+	}
+	for(i = 0; i < len; i+=sizeof ip) {
+		printf (" %u ", *ip);
+		ip++;
 	}
 	printf("\n");
 }
