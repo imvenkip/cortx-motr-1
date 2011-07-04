@@ -46,7 +46,7 @@
 #ifndef __KERNEL__
 
 /** Generic ops object for c2_fop_cob_writev */
-static struct c2_fom_ops c2_io_fom_file_create_ops = {
+struct c2_fom_ops c2_io_fom_file_create_ops = {
 	.fo_fini = NULL,
 	.fo_state = c2_io_fom_file_create_state,
 };
@@ -425,7 +425,8 @@ int c2_io_fom_file_create_state(struct c2_fom *fom)
         C2_ASSERT(fop != NULL);
         create_fop_rep = c2_fop_data(fop);
         create_fop_rep->fcrr_rc = true;
-        item = &fop->f_item;
+	item = c2_fop_to_rpc_item(fop);
+        c2_rpc_item_attach(item);
         c2_rpc_reply_post(&fom_obj->fc_fop->f_item, item);
 	return 0;
 }
@@ -499,6 +500,7 @@ int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
         fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
+	fom = &fom_obj->fc_gen;
 	fom->fo_type = fom_type;
 	fom->fo_ops = &c2_io_fom_file_create_ops;
 	fom_obj->fc_fop = fop;

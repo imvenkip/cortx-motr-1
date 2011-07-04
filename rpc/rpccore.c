@@ -525,6 +525,7 @@ void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				item->ri_src_ep = nb->nb_ep;
 				printf("item->src_ep = %p\n", item->ri_src_ep);
 				printf("Item %d received\n", i);
+				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
 				if (rc == 0) {
 					/* Post an ADDB event here.*/

@@ -597,7 +597,9 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	C2_PRE(sm_event->se_event < C2_RPC_FORM_EVENTS_NR);
 	C2_PRE(sm_state <= C2_RPC_FORM_STATE_NR);
 
-	endpoint = c2_rpc_form_get_endpoint(item);
+	/* XXX to be replaced by appropriate routine 
+	endpoint = c2_rpc_form_get_endpoint(item); */
+	endpoint = item->ri_session->s_conn->c_end_point;
 
 	/* If endpoint unit is NULL, locate it from list in
 	   formation summary. If found, take its lock and
