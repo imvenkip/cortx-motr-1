@@ -1516,7 +1516,6 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 	C2_PRE(slot != NULL && item != NULL);
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 
-	C2_ASSERT(item->ri_session->s_session_id == 0);
 	C2_ASSERT(slot->sl_session == item->ri_session);
 	sref = &item->ri_slot_refs[0];
 	item->ri_tstate = RPC_ITEM_FUTURE;
