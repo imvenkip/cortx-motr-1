@@ -53,7 +53,7 @@ uint64_t				max_rpcs_in_flight;
   This routine will change the state of each rpc item
   in the rpc object to RPC_ITEM_SENT
  */
-void c2_rpc_form_set_state_sent(struct c2_rpc *rpc)
+static void c2_rpc_form_set_state_sent(const struct c2_rpc *rpc)
 {
 	struct c2_rpc_item	*item = NULL;
 
@@ -75,16 +75,11 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
  */
 bool c2_rpc_form_buf_invariant(const struct c2_rpc_form_buffer *fbuf)
 {
-	bool	res = false;
-
 	if ((fbuf == NULL) || (fbuf->fb_endp_unit == NULL) ||
 			(fbuf->fb_rpc == NULL))
 		return false;
 
-	/* Need some more checks for sure.*/
-	res = c2_net__buffer_invariant(&fbuf->fb_buffer);
-
-	return res;
+	return (fbuf->fb_magic == C2_RPC_FORM_BUFFER_MAGIC);
 }
 
 /**
@@ -108,11 +103,12 @@ int c2_rpc_form_buffer_allocate(struct c2_rpc_form_buffer **fb,
 	if (fbuf == NULL) {
 		return -ENOMEM;
 	}
+	fbuf->fb_magic = C2_RPC_FORM_BUFFER_MAGIC;
 	fbuf->fb_endp_unit = endp_unit;
 	fbuf->fb_rpc = rpc;
 	c2_rpc_net_send_buffer_allocate(net_dom, &fbuf->fb_buffer);
 	*fb = fbuf;
-	C2_POST(ergo((rc == 0), c2_rpc_form_buf_invariant(fbuf)));
+	C2_POST(c2_rpc_form_buf_invariant(fbuf));
 	return rc;
 }
 
@@ -127,7 +123,7 @@ void c2_rpc_form_buffer_deallocate(struct c2_rpc_form_buffer *fb)
 	C2_PRE(fb != NULL);
 
 	/* Currently, our policy is to release the buffer on completion.*/
-	rc = c2_rpc_send_buffer_deallocate(&fb->fb_buffer,
+	rc = c2_rpc_net_send_buffer_deallocate(&fb->fb_buffer,
 			fb->fb_buffer.nb_dom);
 	c2_free(fb);
 }
@@ -511,7 +507,7 @@ static struct c2_rpc_form_item_summary_unit *c2_rpc_form_item_summary_unit_add(
 	c2_list_init(&endp_unit->isu_rpcobj_checked_list);
 	c2_ref_init(&endp_unit->isu_sm.isu_ref, 1,
 			c2_rpc_form_item_summary_unit_destroy);
-	endp_unit->isu_endp_id = (struct c2_net_end_point*)endp;
+	endp_unit->isu_endp_id = endp;
 	endp_unit->isu_sm.isu_endp_state = C2_RPC_FORM_STATE_WAITING;
 	endp_unit->isu_form_active = true;
 	/* XXX Need appropriate values.*/
@@ -559,14 +555,13 @@ struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
 		struct c2_net_end_point *ep2)
 {
-	bool status		= false;
-
 	C2_PRE((ep1 != NULL) && (ep2 != NULL));
 
-	if (strcmp(ep1->nep_addr, ep2->nep_addr) == 0) {
-		status = true;
+	if (ep1 == ep2) {
+		return true;
 	}
-	return status;
+
+	return !strcmp(ep1->nep_addr, ep2->nep_addr);
 }
 
 /**
@@ -1897,7 +1892,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   from rpcmachine->ready_slots list. */
 		c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
 				slot_next, struct c2_rpc_slot, sl_link) {
-			if (!c2_list_length(&slot->sl_ready_list)) {
+			if (!c2_list_length(&slot->sl_ready_list) &&
+					(slot->sl_session == item->ri_session)) {
 				slot_found = true;
 				break;
 			}
@@ -2009,25 +2005,6 @@ uint64_t c2_rpc_get_size(const struct c2_rpc *rpc)
 }
 
 /**
-  Extract c2_net_domain from rpc item
-  @param - rpc item
-  @retval - network domain
- */
-struct c2_net_domain *c2_rpc_form_get_dom(const struct c2_rpc_item *item)
-{
-	struct c2_net_domain	*dom = NULL;
-
-	C2_PRE((item != NULL) && (item->ri_session != NULL) &&
-			(item->ri_session->s_conn != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan != NULL) &&
-			(item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom 
-			 != NULL));
-
-	dom = item->ri_session->s_conn->c_rpcchan->rc_xfermc.ntm_dom;
-	return dom;
-}
-
-/**
   Extract c2_net_transfer_mc from rpc item
   @param - rpc item
   @retval - network transfer machine
@@ -2081,8 +2058,8 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 				struct c2_rpc_item, ri_rpcobject_linkage);
 		if (endp_unit->isu_curr_rpcs_in_flight <
 				endp_unit->isu_max_rpcs_in_flight) {
-			rpc_size = c2_rpc_get_size(rpc_obj->ro_rpcobj);
-			dom = c2_rpc_form_get_dom(first_item);
+			tm = c2_rpc_form_get_tm(first_item);
+			dom = tm->ntm_dom;
 
 			/* Allocate a buffer for sending the message.*/
 			rc = c2_rpc_form_buffer_allocate(&fb,
@@ -2094,6 +2071,13 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			/* XXX populate destination EP */
 			fb->fb_buffer.nb_ep =
 				first_item->ri_session->s_conn->c_end_point;
+			rpc_size = c2_rpc_get_size(rpc_obj->ro_rpcobj);
+
+			/* XXX What to do if rpc size is bigger than
+			   size of net buffer??? */
+			if (rpc_size > c2_vec_count(&fb->fb_buffer.nb_buffer.
+						ov_vec)) {
+			}
 			fb->fb_buffer.nb_length = rpc_size;
 
 			/* Encode the rpc contents. */
@@ -2106,7 +2090,7 @@ int c2_rpc_form_posting_state(struct c2_rpc_form_item_summary_unit *endp_unit
 			}
 
 			/* Add the buffer to transfer machine.*/
-			tm = c2_rpc_form_get_tm(first_item);
+			C2_ASSERT(fb->fb_buffer.nb_ep->nep_dom == tm->ntm_dom);
 			res = c2_net_buffer_add(&fb->fb_buffer, tm);
 			if (res < 0) {
 				c2_rpc_form_buffer_deallocate(fb);

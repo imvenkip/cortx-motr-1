@@ -548,19 +548,21 @@ struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
 		struct c2_net_domain *net_dom);
 
 /**
-   Allocate buffers meant for receiving messages for C2_RPC_TM_RECV_BUFFERS_NR
-   number of times.
+   Allocate C2_RPC_TM_RECV_BUFFERS_NR number of buffer and add each of
+   them to transfer machine's RECV queue.
    @pre net domain should be initialized.
    @pre tm should be initialized and started.
 
    @param net_dom - net domain in which nr number of buffers will be registered.
    @param tm - transfer machine to which nr number of buffers will be added.
  */
-int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
+int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 		struct c2_net_transfer_mc *tm);
 
 /**
-   Deallocate the buffer meant for receiving messages.
+   Delete and deregister the buffer meant for receiving messages from the
+   queue of net domain and transfer machine respectively and then
+   deallocate it.
    @pre nb should be a valid and enqueued net buffer.
    @pre tm should be initialized and started.
    @pre net domain should be initialized.
@@ -569,11 +571,14 @@ int c2_rpc_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
    @param tm - transfer machine from which nb should be deleted.
    @param net_dom - network domain from which nb should be deregistered.
  */
-int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
+int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
 
 /**
-   Deallocate the buffers for C2_RPC_TM_RECV_BUFFERS_NR number of times.
+   Delete and deregister C2_RPC_TM_RECV_BUFFERS_NR number of buffers from
+   queues of transfer machine and net domain respectively and then
+   deallocate each of the buffer.
+
    @pre tm should be initialized and started.
    @pre net domain should have been initialized.
 
@@ -582,7 +587,7 @@ int c2_rpc_recv_buffer_deallocate(struct c2_net_buffer *nb,
    @param net_dom - network domain from which nr number of buffers will
                     be deregistered.
  */
-int c2_rpc_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
+int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
 		struct c2_net_domain *net_dom);
 
 /**
@@ -605,7 +610,7 @@ void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
    @param nb - network buffer which will be deallocated.
    @param net_dom - network domain from which buffer will be deregistered.
  */
-int c2_rpc_send_buffer_deallocate(struct c2_net_buffer *nb,
+int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_domain *net_dom);
 
 /**
