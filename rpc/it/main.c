@@ -467,13 +467,64 @@ void client_init()
 	if (rcb) {
 		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE)
 			printf("pingcli: Session established\n");
-		if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_FAILED)
 			printf("pingcli: session create failed\n");
 	} else
 		printf("Timeout for session create \n");
 
 	send_ping_fop();
 	sleep (10);
+
+	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
+	if(rc != 0){
+		printf("Failed to terminate session\n");
+		goto cleanup;
+	} else {
+		printf("RPC session terminate call successful\n");
+	}
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+	/* Wait for session to terminate */
+	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
+			C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
+			timeout);
+	if (rcb) {
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_TERMINATED)
+			printf("pingcli: Session terminated\n");
+		if (cctx.pc_rpc_session.s_state == C2_RPC_SESSION_FAILED)
+			printf("pingcli: session terminate failed\n");
+	} else
+		printf("Timeout for session terminate \n");
+
+
+	/* Terminate RPC connection */
+	rc = c2_rpc_conn_terminate(&cctx.pc_conn); 
+	if(rc != 0){
+		printf("Failed to terminate rpc connection\n");
+		goto cleanup;
+	} else {
+		printf("RPC connection terminate call successful \n");
+	}
+
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+                                c2_time_nanoseconds(timeout));
+
+	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_TERMINATED |
+				   C2_RPC_CONN_FAILED, timeout);
+	if (rcb) {
+		if (cctx.pc_conn.c_state == C2_RPC_CONN_TERMINATED)
+			printf("pingcli: Connection terminated\n");
+		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
+			printf("pingcli: conn create failed\n");
+		else
+			printf("pingcli: conn INVALID!!!|n");
+	} else
+		printf("Timeout for conn terminate\n");
+
 cleanup:
 	do_cleanup();
 }

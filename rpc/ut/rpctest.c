@@ -96,8 +96,8 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	 * Initialize rpc item
 	 */
 	item = c2_fop_to_rpc_item(fop);
-	item->ri_sender_id = sender_id;
-	item->ri_session_id = SESSION_0;
+	item->ri_slot_refs[0].sr_sender_id = sender_id;
+	item->ri_slot_refs[0].sr_session_id = SESSION_0;
 	item->ri_mach = machine;
 
 	session_search(connp, SESSION_0, &session0);
@@ -143,7 +143,7 @@ void test_conn_terminate(uint64_t sender_id)
 	 * Initialize rpc item
 	 */
 	item = c2_fop_to_rpc_item(fop);
-	item->ri_sender_id = SENDER_ID_INVALID;
+	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 	item->ri_mach = machine;
 	session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);

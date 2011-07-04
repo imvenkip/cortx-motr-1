@@ -1897,7 +1897,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		   from rpcmachine->ready_slots list. */
 		c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
 				slot_next, struct c2_rpc_slot, sl_link) {
-			if (!c2_list_length(&slot->sl_ready_list)) {
+			if (!c2_list_length(&slot->sl_ready_list) &&
+				(slot->sl_session == item->ri_session)) {
 				slot_found = true;
 				break;
 			}

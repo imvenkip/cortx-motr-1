@@ -284,13 +284,15 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
 		what = "encode";
 	else
 		what = "decode";
-	printf("\nSender id (%s) :  %ld", what, item->ri_sender_id);
-	printf("\nSession id (%s) :  %ld", what, item->ri_session_id);
+	printf("\nSender id (%s) :  %ld", what,
+			item->ri_slot_refs[0].sr_sender_id);
+	printf("\nSession id (%s) :  %ld", what,
+			item->ri_slot_refs[0].sr_session_id);
 
 	if((!xdr_uint64_t(xdrs, &len)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_sender_id)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_session_id)) ||
-	(!sender_uuid_encdec(xdrs, &item->ri_uuid)) ||
+	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_sender_id)) ||
+	(!xdr_uint64_t(xdrs, &item->ri_slot_refs[0].sr_session_id)) ||
+	(!sender_uuid_encdec(xdrs, &item->ri_slot_refs[0].sr_uuid)) ||
 	(!slot_ref_encdec(xdrs, item->ri_slot_refs)))
 		return -EFAULT;
 	return 0;

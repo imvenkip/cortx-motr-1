@@ -206,7 +206,7 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create, "rpc_session_create",
 			&c2_rpc_item_session_create);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
-			C2_RPC_FOP_SESSION_DESTROY_OPCODE,
+			C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
 			&c2_rpc_fop_session_terminate_ops,
 			&c2_rpc_item_session_terminate);
 
@@ -230,7 +230,7 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_create_rep, "rpc_session_create_reply
 			&c2_rpc_item_session_create_rep);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep, "rpc_session_terminate_reply",
-			C2_RPC_FOP_SESSION_DESTROY_REP_OPCODE,
+			C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_session_terminate_rep);
 
