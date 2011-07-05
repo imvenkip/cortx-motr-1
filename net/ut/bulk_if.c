@@ -172,11 +172,11 @@ static int ut_buf_register(struct c2_net_buffer *nb)
 }
 
 static bool ut_buf_deregister_called = false;
-static int ut_buf_deregister(struct c2_net_buffer *nb)
+static void ut_buf_deregister(struct c2_net_buffer *nb)
 {
 	C2_ASSERT(c2_mutex_is_locked(&nb->nb_dom->nd_mutex));
 	ut_buf_deregister_called = true;
-	return 0;
+	return;
 }
 
 static bool ut_buf_add_called = false;
@@ -851,8 +851,7 @@ static void test_net_bulk_if(void)
 	for (i = 0; i < C2_NET_QT_NR; ++i) {
 		nb = &nbs[i];
 		ut_buf_deregister_called = false;
-		rc = c2_net_buffer_deregister(nb, dom);
-		C2_UT_ASSERT(rc == 0);
+		c2_net_buffer_deregister(nb, dom);
 		C2_UT_ASSERT(ut_buf_deregister_called);
 		C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_REGISTERED));
 	}

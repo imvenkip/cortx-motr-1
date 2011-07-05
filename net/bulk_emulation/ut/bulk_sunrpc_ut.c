@@ -983,10 +983,10 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(cb_status2 == -ETIMEDOUT);
 
 	/* fini */
-	C2_UT_ASSERT(!c2_net_buffer_deregister(&d1nb1, &dom1));
-	C2_UT_ASSERT(!c2_net_buffer_deregister(&d1nb2, &dom1));
-	C2_UT_ASSERT(!c2_net_buffer_deregister(&d2nb1, &dom2));
-	C2_UT_ASSERT(!c2_net_buffer_deregister(&d2nb2, &dom2));
+	c2_net_buffer_deregister(&d1nb1, &dom1);
+	c2_net_buffer_deregister(&d1nb2, &dom1);
+	c2_net_buffer_deregister(&d2nb1, &dom2);
+	c2_net_buffer_deregister(&d2nb2, &dom2);
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);

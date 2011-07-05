@@ -118,11 +118,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_register);
 
-int c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			     struct c2_net_domain *dom)
+void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+			      struct c2_net_domain *dom)
 {
-	int rc;
-
 	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
@@ -131,15 +129,13 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	C2_PRE(buf->nb_flags == C2_NET_BUF_REGISTERED);
 	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
-	rc = dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
-	if (rc == 0) {
-		buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
-		c2_list_del(&buf->nb_dom_linkage);
-		buf->nb_xprt_private = NULL;
-	}
+	dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
+	buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
+	c2_list_del(&buf->nb_dom_linkage);
+	buf->nb_xprt_private = NULL;
 
 	c2_mutex_unlock(&dom->nd_mutex);
-	return rc;
+	return;
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 

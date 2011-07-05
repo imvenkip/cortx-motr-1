@@ -217,11 +217,9 @@ struct c2_net_xprt_ops {
 	/**
 	   Deregister the buffer from the transfer machine.
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
-           @retval 0 (success)
-	   @retval -errno (failure)
 	   @see c2_net_buffer_deregister()
 	 */
-	int (*xo_buf_deregister)(struct c2_net_buffer *nb);
+	void (*xo_buf_deregister)(struct c2_net_buffer *nb);
 
 	/**
 	   Initiate an operation on a buffer on the transfer machine's
@@ -1284,11 +1282,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 (buf->nb_dom == dom)
    @param buf Specify the buffer pointer.
    @param dom Specify the domain pointer.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
-int c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			     struct c2_net_domain *dom);
+void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+			      struct c2_net_domain *dom);
 
 /**
    Add a registered buffer to a transfer machine's logical queue specified
