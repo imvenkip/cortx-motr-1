@@ -45,8 +45,14 @@
    @{
  */
 
+/**
+   Attach session 0 object to conn object.
+ */
 static int session_zero_attach(struct c2_rpc_conn *conn);
 
+/**
+   Detach session 0 from conn
+ */
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
 /**
@@ -57,6 +63,19 @@ static void session_zero_detach(struct c2_rpc_conn *conn);
 static void search_matching_request_item(const struct c2_rpc_slot *slot,
 					 const struct c2_rpc_item *item,
 					 struct c2_rpc_item	 **out);
+
+/**
+  Allocates and returns new sender_id
+
+  Currently implemented in a very primitive way. Just returns any
+  random sender_id
+ */
+static uint64_t sender_id_get(void);
+
+/**
+   Allocates and returns new session_id
+ */
+static uint64_t session_id_get(void);
 
 /**
    Returns true if item is carrying CONN_CREATE fop.
@@ -72,6 +91,53 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot);
 static void rcv_consume_item(struct c2_rpc_item *item);
 static void rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply);
+
+
+/**
+   Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
+   Returns corresponding references to cobs in out parameters.
+ */
+static int conn_persistent_state_create(struct c2_cob_domain   *dom,
+				 uint64_t               sender_id,
+				 struct c2_cob          **conn_cob_out,
+				 struct c2_cob          **session0_cob_out,
+				 struct c2_cob          **slot0_cob_out,
+				 struct c2_db_tx        *tx);
+
+/**
+   Delegates persistent state creation to conn_persistent_state_create().
+   And associates returned cobs to conn->c_cob, session0->s_cob and
+   slot0->sl_cob
+ */
+static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
+				 uint64_t		sender_id,
+				 struct c2_db_tx	*tx);
+
+/**
+   Creates SESSION_$session_id/SLOT_[0...($nr_slots - 1)]:0 cob entries
+   within parent cob @conn_cob
+ */
+static int session_persistent_state_create(struct c2_cob	*conn_cob,
+				    uint64_t		session_id,
+				    struct c2_cob	**session_cob_out,
+				    struct c2_cob	**slot_cob_array_out,
+				    uint32_t		nr_slots,
+				    struct c2_db_tx	*tx);
+
+/**
+   Delegates persistent state creation to session_persistent_state_create().
+   And associates cobs to session->s_cob and slot[0..(nr_slots - 1)]->sl_cob
+ */
+static int session_persistent_state_attach(struct c2_rpc_session	*session,
+				   uint64_t			session_id,
+				   struct c2_db_tx		*tx);
+
+/**
+  Deletes all the cobs associated with the session and slots belonging to
+  the session
+ */
+static int session_persistent_state_destroy(struct c2_rpc_session	*session,
+				     struct c2_db_tx		*tx);
 
 const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
 	.so_slot_idle = sender_slot_idle,
@@ -1086,7 +1152,7 @@ C2_EXPORTED(c2_rpc_session_fini);
 /**
    Invariants that are common for session in state {IDLE, BUSY, TERMINATING}
  */
-bool session_alive_invariants(const struct c2_rpc_session *session)
+static bool session_alive_invariants(const struct c2_rpc_session *session)
 {
 	bool	result;
 	int	i;
@@ -1112,6 +1178,9 @@ bool session_alive_invariants(const struct c2_rpc_session *session)
 	}
 	return true;
 }
+/**
+   The routine is also called from session_foms.c, hence can't be static
+ */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
 	struct c2_rpc_slot	*slot;
@@ -1433,7 +1502,7 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 	return rc;
 }
 
-uint64_t c2_rpc_sender_id_get()
+static uint64_t sender_id_get()
 {
 	uint64_t	sender_id;
 
@@ -1442,7 +1511,7 @@ uint64_t c2_rpc_sender_id_get()
 	} while (sender_id == SENDER_ID_INVALID || sender_id == 0);
 	return sender_id;
 }
-uint64_t c2_rpc_session_id_get()
+uint64_t session_id_get()
 {
 	uint64_t	session_id;
 
@@ -1651,13 +1720,6 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 	 * transition is possible in this function
 	 */
 	c2_chan_broadcast(&session->s_chan);
-}
-
-void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item)
-{
-	__slot_item_add(slot, item,
-				true);	/* slot is allowed to trigger events */
 }
 
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot	*slot,
@@ -1974,7 +2036,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot	*slot)
 /**
   Free all the items from slot->sl_item_list except dummy_item.
 
-  This is temporary. When slots will be integrated with FOL, there
+  XXX This is temporary. When slots will be integrated with FOL, there
   will be some pruning mechanism that will evict items from slot's
   item_list. But for now, we need to be able to fini()  slot for testing
   purpose. That's why freeing the items explicitly.
@@ -1991,7 +2053,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	bool			first_item = true;
 
 	/*
-	 * See comments above function prototype
+	 * XXX See comments above function prototype
 	 */
 	C2_ASSERT(slot != NULL);
 	printf("item_list_prune: slot %p [%lu:%u]\n", slot,
@@ -2063,8 +2125,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	C2_ASSERT(c2_list_link_is_in(&dummy_item->ri_slot_refs[0].sr_link));
 
 	c2_list_del(&dummy_item->ri_slot_refs[0].sr_link);
-
-	C2_ASSERT(dummy_item->ri_slot_refs[0].sr_verno.vn_vc == 0);
+	C2_ASSERT(dummy_item->ri_slot_refs[0].sr_xid == 0);
 
 	fop = c2_rpc_item_to_fop(dummy_item);
 	c2_fop_free(fop);
@@ -2111,12 +2172,12 @@ static void rcv_consume_reply(struct c2_rpc_item  *req,
 	c2_rpc_form_extevt_rpcitem_ready(reply);
 }
 
-int conn_persistent_state_create(struct c2_cob_domain	*dom,
-				 uint64_t		sender_id,
-				 struct c2_cob		**conn_cob_out,
-				 struct c2_cob		**session0_cob_out,
-				 struct c2_cob		**slot0_cob_out,
-				 struct c2_db_tx	*tx)
+static int conn_persistent_state_create(struct c2_cob_domain *dom,
+					uint64_t	      sender_id,
+				 	struct c2_cob	    **conn_cob_out,
+					struct c2_cob	    **session0_cob_out,
+				 	struct c2_cob	    **slot0_cob_out,
+				 	struct c2_db_tx	     *tx)
 {
 	struct c2_cob	*conn_cob = NULL;
 	struct c2_cob	*session0_cob = NULL;
@@ -2153,9 +2214,9 @@ errout:
 	return rc;
 }
 
-int conn_persistent_state_attach(struct c2_rpc_conn     *conn,
-				 uint64_t               sender_id,
-				 struct c2_db_tx        *tx)
+static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
+				        uint64_t		sender_id,
+				        struct c2_db_tx		*tx)
 {
 	struct c2_rpc_session	*session0 = NULL;
 	struct c2_rpc_slot	*slot0 = NULL;
@@ -2208,7 +2269,7 @@ int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
 	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
 
 	c2_db_tx_init(&tx, machine->cr_dom->cd_dbenv, 0);
-	sender_id = c2_rpc_sender_id_get();
+	sender_id = sender_id_get();
 	rc = conn_persistent_state_attach(conn, sender_id,
 					  &tx);
 	if (rc != 0) {
@@ -2242,7 +2303,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
-	session_id = c2_rpc_session_id_get();
+	session_id = session_id_get();
 	rc = session_persistent_state_attach(session, session_id, &tx);
 	if (rc != 0) {
 		session->s_state = C2_RPC_SESSION_FAILED;
@@ -2266,7 +2327,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
 	return 0;
 }
-int session_persistent_state_create(struct c2_cob       *conn_cob,
+static int session_persistent_state_create(struct c2_cob       *conn_cob,
 				    uint64_t            session_id,
 				    struct c2_cob       **session_cob_out,
 				    struct c2_cob       **slot_cob_array_out,
@@ -2308,7 +2369,7 @@ errout:
 	return rc;
 }
 
-int session_persistent_state_attach(struct c2_rpc_session	*session,
+static int session_persistent_state_attach(struct c2_rpc_session	*session,
 				    uint64_t			session_id,
 				    struct c2_db_tx		*tx)
 {
@@ -2344,7 +2405,7 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
 	}
 	return 0;
 }
-int session_persistent_state_destroy(struct c2_rpc_session  *session,
+static int session_persistent_state_destroy(struct c2_rpc_session  *session,
 				     struct c2_db_tx	    *tx)
 {
 	struct c2_rpc_slot	*slot;
@@ -2430,7 +2491,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	return 0;
 }
 
-int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
+static int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
 				  struct c2_db_tx	*tx)
 {
 	struct c2_rpc_session	*session0;

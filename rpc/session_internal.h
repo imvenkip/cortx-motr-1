@@ -79,12 +79,6 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 		     const struct c2_rpc_slot_ops	*ops);
 
 /**
-   Deprecated
- */
-void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
-
-/**
    If verno of item matches with verno of slot, then adds the item
    to the slot->sl_item_list. If item is update opeation, verno of
    slot is advanced. if item is already present in slot->sl_item_list
@@ -228,6 +222,7 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
+#if 0
 /**
    Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
    Returns corresponding references to cobs in out parameters.
@@ -273,7 +268,7 @@ int session_persistent_state_attach(struct c2_rpc_session	*session,
  */
 int session_persistent_state_destroy(struct c2_rpc_session	*session,
 				     struct c2_db_tx		*tx);
-
+#endif
 /**
    Initalise receiver end of conn object.
    @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
@@ -328,19 +323,6 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
    @pre conn->c_state == C2_RPC_CONN_TERMINATING
  */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-
-/**
-  Allocates and returns new sender_id
-
-  Currently implemented in a very primitive way. Just returns any
-  random sender_id
- */
-uint64_t c2_rpc_sender_id_get(void);
-
-/**
-   Allocates and returns new session_id
- */
-uint64_t c2_rpc_session_id_get(void);
 
 /**
    slot_ref object establishes association between c2_rpc_item and
