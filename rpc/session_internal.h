@@ -52,6 +52,10 @@ enum {
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
+void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
+			   uint64_t			session_id,
+			   struct c2_rpc_session	**out);
+
 /**
    Initialise in memory slot.
 

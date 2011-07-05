@@ -111,7 +111,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * add the item explicitly to the slot0. This makes the slot
 	 * symmetric to sender side slot.
 	 */
-	session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
@@ -316,7 +316,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 			conn->c_sender_id == sender_id &&
 			c2_rpc_conn_invariant(conn));
 
-	session_search(conn, session_id, &session);
+	c2_rpc_session_search(conn, session_id, &session);
 	if (session == NULL) {
 		rc = -ENOENT;
 		goto errout;

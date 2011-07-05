@@ -109,9 +109,9 @@ C2_EXPORTED(c2_rpc_session_module_fini);
 
    @post ergo(*out != NULL, (*out)->s_session_id == session_id)
  */
-void session_search(const struct c2_rpc_conn	*conn,
-		    uint64_t			session_id,
-		    struct c2_rpc_session	**out)
+void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
+			   uint64_t			session_id,
+			   struct c2_rpc_session	**out)
 {
 	struct c2_rpc_session		*session;
 
@@ -265,7 +265,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
 
-	session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item = &fop->f_item;
@@ -395,7 +395,7 @@ void session_zero_detach(struct c2_rpc_conn	*conn)
 
 	C2_PRE(conn != NULL);
 
-	session_search(conn, SESSION_0, &session);
+	c2_rpc_session_search(conn, SESSION_0, &session);
 	C2_ASSERT(session != NULL);
 
 	session->s_state = C2_RPC_SESSION_TERMINATED;
@@ -439,7 +439,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	fop_ct->ct_sender_id = conn->c_sender_id;
 
-	session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item = &fop->f_item;
@@ -768,7 +768,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 
 	item = &fop->f_item;
 
-	session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item->ri_session = session_0;
@@ -932,7 +932,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	fop_st->rst_sender_id = session->s_conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
-	session_search(session->s_conn, SESSION_0, &session_0);
+	c2_rpc_session_search(session->s_conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL &&
 		 (session_0->s_state == C2_RPC_SESSION_IDLE ||
 		  session_0->s_state == C2_RPC_SESSION_BUSY));
@@ -995,7 +995,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item  *req,
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	session_search(conn, session_id, &session);
+	c2_rpc_session_search(conn, session_id, &session);
 	C2_ASSERT(session != NULL &&
 		  session->s_state == C2_RPC_SESSION_TERMINATING);
 
@@ -2172,7 +2172,7 @@ int conn_persistent_state_attach(struct c2_rpc_conn     *conn,
 			slot0_cob != NULL);
 	conn->c_cob = conn_cob;
 
-	session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	session0->s_cob = session0_cob;
 
@@ -2429,7 +2429,7 @@ int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
 	struct c2_rpc_session	*session0;
 	struct c2_rpc_slot	*slot0;
 
-	session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 
 	slot0 = session0->s_slot_table[0];
@@ -2534,7 +2534,7 @@ int associate_session_and_slot(struct c2_rpc_item *item)
 		return -ENOENT;
 	}
 	c2_mutex_lock(&conn->c_mutex);
-	session_search(conn, sref->sr_session_id, &session);
+	c2_rpc_session_search(conn, sref->sr_session_id, &session);
 	c2_mutex_unlock(&conn->c_mutex);
 	if (session == NULL) {
 		printf("associate_session: cannot find session\n");
