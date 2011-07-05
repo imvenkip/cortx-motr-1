@@ -271,16 +271,6 @@ struct c2_rpc_sender_uuid {
 	/** XXX Temporary */
 	uint64_t	su_uuid;
 };
-/**
-   Generate UUID
- */
-void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
-
-/**
-   3WAY comparison function for UUID
- */
-int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
-			   const struct c2_rpc_sender_uuid *u2);
 
 enum c2_rpc_conn_state {
 	/**

@@ -57,6 +57,17 @@ void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
 			   struct c2_rpc_session	**out);
 
 /**
+   Generate UUID
+ */
+void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
+
+/**
+   3WAY comparison function for UUID
+ */
+int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
+			   const struct c2_rpc_sender_uuid *u2);
+
+/**
    Initialise in memory slot.
 
    @post ergo(result == 0, slot->sl_verno.vn_vc == 0 &&
