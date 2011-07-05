@@ -82,6 +82,11 @@ static uint64_t session_id_get(void);
  */
 static bool item_is_conn_create(const struct c2_rpc_item  *item);
 
+/**
+  XXX temporary routine that submits the fop inside item for execution.
+ */
+static void dispatch_item_for_execution(struct c2_rpc_item *item);
+
 static void sender_slot_idle(struct c2_rpc_slot *slot);
 static void sender_consume_item(struct c2_rpc_item *item);
 static void sender_consume_reply(struct c2_rpc_item	*req,
@@ -97,12 +102,12 @@ static void rcv_consume_reply(struct c2_rpc_item  *req,
    Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
    Returns corresponding references to cobs in out parameters.
  */
-static int conn_persistent_state_create(struct c2_cob_domain   *dom,
-				 uint64_t               sender_id,
-				 struct c2_cob          **conn_cob_out,
-				 struct c2_cob          **session0_cob_out,
-				 struct c2_cob          **slot0_cob_out,
-				 struct c2_db_tx        *tx);
+static int conn_persistent_state_create(struct c2_cob_domain  *dom,
+					uint64_t              sender_id,
+					struct c2_cob       **conn_cob_out,
+					struct c2_cob       **session0_cob_out,
+					struct c2_cob       **slot0_cob_out,
+					struct c2_db_tx      *tx);
 
 /**
    Delegates persistent state creation to conn_persistent_state_create().
@@ -110,34 +115,34 @@ static int conn_persistent_state_create(struct c2_cob_domain   *dom,
    slot0->sl_cob
  */
 static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
-				 uint64_t		sender_id,
-				 struct c2_db_tx	*tx);
+					uint64_t		sender_id,
+					struct c2_db_tx		*tx);
 
 /**
    Creates SESSION_$session_id/SLOT_[0...($nr_slots - 1)]:0 cob entries
    within parent cob @conn_cob
  */
-static int session_persistent_state_create(struct c2_cob	*conn_cob,
-				    uint64_t		session_id,
-				    struct c2_cob	**session_cob_out,
-				    struct c2_cob	**slot_cob_array_out,
-				    uint32_t		nr_slots,
-				    struct c2_db_tx	*tx);
+static int session_persistent_state_create(struct c2_cob    *conn_cob,
+					   uint64_t	     session_id,
+					   struct c2_cob   **session_cob_out,
+					   struct c2_cob   **slot_cob_array_out,
+					   uint32_t	     nr_slots,
+					   struct c2_db_tx  *tx);
 
 /**
    Delegates persistent state creation to session_persistent_state_create().
    And associates cobs to session->s_cob and slot[0..(nr_slots - 1)]->sl_cob
  */
-static int session_persistent_state_attach(struct c2_rpc_session	*session,
-				   uint64_t			session_id,
-				   struct c2_db_tx		*tx);
+static int session_persistent_state_attach(struct c2_rpc_session *session,
+					   uint64_t		  session_id,
+					   struct c2_db_tx	 *tx);
 
 /**
   Deletes all the cobs associated with the session and slots belonging to
   the session
  */
-static int session_persistent_state_destroy(struct c2_rpc_session	*session,
-				     struct c2_db_tx		*tx);
+static int session_persistent_state_destroy(struct c2_rpc_session  *session,
+					    struct c2_db_tx	   *tx);
 
 const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
 	.so_slot_idle = sender_slot_idle,
@@ -2327,12 +2332,12 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
 	return 0;
 }
-static int session_persistent_state_create(struct c2_cob       *conn_cob,
-				    uint64_t            session_id,
-				    struct c2_cob       **session_cob_out,
-				    struct c2_cob       **slot_cob_array_out,
-				    uint32_t            nr_slots,
-				    struct c2_db_tx     *tx)
+static int session_persistent_state_create(struct c2_cob    *conn_cob,
+					   uint64_t          session_id,
+					   struct c2_cob   **session_cob_out,
+					   struct c2_cob   **slot_cob_array_out,
+					   uint32_t          nr_slots,
+					   struct c2_db_tx  *tx)
 {
 	struct c2_cob	*session_cob = NULL;
 	struct c2_cob	*slot_cob = NULL;
@@ -2369,9 +2374,9 @@ errout:
 	return rc;
 }
 
-static int session_persistent_state_attach(struct c2_rpc_session	*session,
-				    uint64_t			session_id,
-				    struct c2_db_tx		*tx)
+static int session_persistent_state_attach(struct c2_rpc_session  *session,
+					   uint64_t		   session_id,
+					   struct c2_db_tx	  *tx)
 {
 	struct c2_rpc_slot	*slot;
 	struct c2_cob		*session_cob;
@@ -2406,7 +2411,7 @@ static int session_persistent_state_attach(struct c2_rpc_session	*session,
 	return 0;
 }
 static int session_persistent_state_destroy(struct c2_rpc_session  *session,
-				     struct c2_db_tx	    *tx)
+					    struct c2_db_tx	   *tx)
 {
 	struct c2_rpc_slot	*slot;
 	int			i;
@@ -2492,7 +2497,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 }
 
 static int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
-				  struct c2_db_tx	*tx)
+					 struct c2_db_tx	*tx)
 {
 	struct c2_rpc_session	*session0;
 	struct c2_rpc_slot	*slot0;
@@ -2534,7 +2539,10 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 	return 0;
 }
 
-void conn_terminate_reply_sent(struct c2_rpc_conn *conn)
+/*
+ This routine should be called when conn terminate reply fop has been sent
+ */
+void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_TERMINATING);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -2556,14 +2564,14 @@ static bool item_is_conn_create(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_create;
 }
-void dispatch_item_for_execution(struct c2_rpc_item *item)
+static void dispatch_item_for_execution(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
 	c2_queue_put(&exec_queue, &item->ri_dummy_qlinkage);
 	c2_chan_broadcast(&exec_chan);
 }
 
-int associate_session_and_slot(struct c2_rpc_item *item)
+static int associate_session_and_slot(struct c2_rpc_item *item)
 {
 	struct c2_list		*conn_list;
 	struct c2_rpc_conn	*conn;
@@ -2682,7 +2690,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	printf("item_received: %p finished\n", item);
 	return 0;
 }
-/** @c end of session group */
+/** @} end of session group */
 
 /*
  *  Local variables:

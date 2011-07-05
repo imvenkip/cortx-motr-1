@@ -374,11 +374,6 @@ void session_search(const struct c2_rpc_conn	*conn,
 		    struct c2_rpc_session	**out);
 
 /**
-   Temporary routine that submits the fop for execution
- */
-void dispatch_item_for_execution(struct c2_rpc_item *item);
-
-/**
    Called for each received item.
    If item is request then
 	APPLY the item to proper slot
@@ -429,7 +424,13 @@ void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 void c2_rpc_session_terminate_reply_received(struct c2_rpc_item	*req,
 					     struct c2_rpc_item	*reply,
 					     int		 rc);
+/**
+  A callback called when conn terminate reply has been put on network.
+  Finalizes and frees conn.
 
+  @pre conn->c_state == C2_RPC_CONN_TERMINATING
+ */
+void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 /**
    Iterate over all the sessions in rpc connection
  */
