@@ -864,8 +864,6 @@ void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 		session->s_nr_active_items = 0;
 		session->s_rc = 0;
 		for (i = 0; i < session->s_nr_slots; i++) {
-			printf("c2_rpc_session_create_reply_received : \
-				session->s_nr_slots :%u\n", session->s_nr_slots);
 			slot = session->s_slot_table[i];
 			C2_ASSERT(slot != NULL && c2_rpc_slot_invariant(slot));
 			slot->sl_ops->so_slot_idle(slot);
