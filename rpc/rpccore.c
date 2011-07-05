@@ -227,12 +227,14 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
+	c2_rpc_session_module_init();
 	c2_rpc_form_init();
 	return 0;
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_session_module_fini();
 }
 
 int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
@@ -1025,7 +1027,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
-	.rio_item_size = c2_rpc_item_default_size, 
+	.rio_item_size = c2_rpc_item_default_size,
 	.rio_items_equal = c2_rpc_item_equal,
 	.rio_io_get_opcode = c2_rpc_item_get_opcode,
 	.rio_io_get_fid = c2_rpc_item_io_get_fid,

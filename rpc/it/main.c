@@ -553,6 +553,8 @@ void client_init()
 			printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn terminate\n");
+	c2_rpc_session_fini(&cctx.pc_rpc_session);
+	c2_rpc_conn_fini(&cctx.pc_conn);
 cleanup:
 	do_cleanup();
 }
