@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+ * Original creation date: 07/04/2011
+ */
 
 /**
    @addtogroup rm
@@ -14,8 +32,8 @@
 /**
  * Request the resource owner information from a lookup server.
  * <br> List of fields
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * </br>
  */
 DEF(c2_rm_get_owner_info, RECORD,
@@ -25,8 +43,8 @@ DEF(c2_rm_get_owner_info, RECORD,
 /**
  * Send the resource owner information to a lookup server and register it.
  * <br> List of fields
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * @li service_id : Service Id of the owner (this machine)
  * </br>
  */
@@ -36,7 +54,7 @@ DEF(c2_rm_set_owner_info, RECORD,
     _(serv_sid, c2_rm_fop_sid));
 
 /**
- * This is a reply FOP sent in response to GET/SET owner info.
+ * This is a reply FOP - sent in response to GET/SET owner info.
  * owner status will return the status code. If the operation is succsessful,
  * service id of the owner is sent along with the reply.
  * <br> List of fields
@@ -51,12 +69,12 @@ DEF(c2_rm_owner_info, RECORD,
     _(serv_sid, c2_rm_fop_sid));
 
 /**
- * Ask for a right for a given resorce. Right information is encoded in
+ * Ask for a right to a given resorce. Right information is encoded in
  * res_datum.
  * <br> List of fields
  * @li rem_id : Id of the remote owner
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * @li res_grp_id : Resource Group Id
  * @li res_policy_id : Policy Id for resource rights
  * @li res_datum : Resource right representation
@@ -71,6 +89,17 @@ DEF(c2_rm_get_right, RECORD,
     _(res_datum, U64));
 
 /**
+ * A small amount of resource data (up to 256 bytes?) can be piggy-backed.
+ * <br> List of fields
+ * @li rd_len : Number of bytes of resource data.
+ * @li res_data : Byte-stream of resource data.
+ * </br>
+ */
+DEF(c2_rm_res_data, SEQUENCE,
+    _(rd_len, U32),
+    _(res_data, BYTE));
+
+/**
  * This is a reply FOP sent in response to the request for a right to a
  * resource. When the request is succsessful, the sender may choose to
  * piggy-back resource data.
@@ -79,8 +108,8 @@ DEF(c2_rm_get_right, RECORD,
  * <br> List of fields
  * @li right_resp : Return code for GET_RIGHT request
  * @li rem_id : Id of the remote owner
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * @li res_datum : Resource right representation (rights granted)
  * @li loan_id : Id for the resource loan.
  * @li res_data_flag : Marks that this FOP contains valid resource data
@@ -103,8 +132,8 @@ DEF(c2_rm_right_reply, RECORD,
  * the right for a given resorce.
  * <br> List of fields
  * @li rem_id : Id of the remote owner
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * @li loan_id : Id for the resource loan.
  * @li res_grp_id : Resource Group Id
  * </br>
@@ -120,8 +149,8 @@ DEF(c2_rm_revoke_right, RECORD,
  * This is a reply FOP sent in response to a revoke right request.
  * <br> List of fields
  * @li rem_id : Id of the remote owner
- * @li res_type : Resource type
- * @li res_id : Resource type
+ * @li res_type : Resource type identifier
+ * @li res_id : Resource identifier 
  * @li loan_id : Id for the resource loan.
  * @li res_grp_id : Resource Group Id
  * </br>
