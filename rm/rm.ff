@@ -37,7 +37,7 @@
  * Request the resource owner information from a lookup server.
  * <br> List of fields
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * </br>
  */
 DEF(c2_fop_rm_get_owner_info, RECORD,
@@ -96,7 +96,7 @@ DEF(c2_fop_rm_fop_owner_desc, RECORD,
  * Send the resource owner information to a lookup server and register it.
  * <br> List of fields
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * @li owner_desc : Descriptor of the owner (this machine)
  * </br>
  */
@@ -126,7 +126,7 @@ DEF(c2_fop_rm_owner_info, RECORD,
  * <br> List of fields
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * @li res_grp_id : Resource Group Id
  * @li res_policy_id : Policy Id for resource rights
  * @li res_datum : Resource right representation (requested). Checking
@@ -162,7 +162,7 @@ DEF(c2_fop_rm_res_data, SEQUENCE,
  * @li right_resp : Return code for GET_RIGHT request
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * @li res_datum : Resource right representation (granted)
  * @li loan_id : Id for the resource loan
  * @li res_data_flag : Marks that this FOP contains valid resource data
@@ -186,7 +186,7 @@ DEF(c2_fop_rm_right_reply, RECORD,
  * <br> List of fields
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * @li loan_id : Id for the resource loan
  * @li res_grp_id : Resource Group Id
  * </br>
@@ -203,7 +203,7 @@ DEF(c2_fop_rm_revoke_right, RECORD,
  * <br> List of fields
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
- * @li res_id : Resource identifier 
+ * @li res_id : Resource identifier
  * @li loan_id : Id for the resource loan
  * @li res_grp_id : Resource Group Id
  * </br>
