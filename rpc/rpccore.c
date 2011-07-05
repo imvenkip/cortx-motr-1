@@ -221,12 +221,14 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
+	c2_rpc_session_module_init();
 	c2_rpc_form_init();
 	return 0;
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_session_module_fini();
 }
 
 int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
