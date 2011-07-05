@@ -75,6 +75,7 @@
 enum {
 	PORT = 10001
 };
+
 typedef unsigned long long U64;
 static struct c2_stob_domain *sdom;
 struct c2_net_domain	ndom;
@@ -157,13 +158,13 @@ static struct c2_fop_type_format *fmts[] = {
  */
 struct c2_io_fom {
 	/** Generic c2_fom object. */
-	struct c2_fom			c2_gen_fom;
+	struct c2_fom			 c2_gen_fom;
 	/** Reply FOP associated with request FOP above. */
 	struct c2_fop			*rep_fop;
 	/** Stob object on which this FOM is acting. */
 	struct c2_stob			*stobj;
 	/** Stob IO packet for the operation. */
-	struct c2_stob_io		st_io;
+	struct c2_stob_io		 st_io;
 };
 
 int create_fom_state(struct c2_fom *fom);
@@ -231,14 +232,14 @@ static struct c2_fom_type *c2_fom_types[] = {
 
 struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_PRE(IS_IN_ARRAY((code - 10), c2_fom_types));
+	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), c2_fom_types));
 	return c2_fom_types[code - 10];
 }
 
 static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
 {
-	C2_ASSERT(conn != NULL);
-	C2_ASSERT(call != NULL);
+	C2_UT_ASSERT(conn != NULL);
+	C2_UT_ASSERT(call != NULL);
 	return c2_net_cli_send(conn, &call->ncall);
 }
 
@@ -248,13 +249,13 @@ static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
  */
 static void fom_rep_cb(struct c2_clink *clink)
 {
-	C2_ASSERT(clink != NULL);
+	C2_UT_ASSERT(clink != NULL);
 	/* Remove fom from wait list and put fom back on run queue of fom locality */
 	if (clink != NULL) {
 		struct reqh_net_call *rcall = container_of(clink, struct reqh_net_call, rclink);
 		if (rcall != NULL) {
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
-			C2_ASSERT(rfop != NULL);
+			C2_UT_ASSERT(rfop != NULL);
 				switch(rfop->f_type->ft_code) {
 					case 21:
 					{
@@ -272,7 +273,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 						struct c2_fom_io_write_rep *rep;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							printf("Write reply: %i %i\n", rep->siwr_rc, rep->siwr_count);
+							printf("Write reply: %i %i\n", rep->siwr_rc,
+									rep->siwr_count);
 							++reply;
 						}
 						c2_fop_free(rfop);
@@ -284,7 +286,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 						unsigned long j = 0;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							printf("Read reply: %i %i\n", rep->sirr_rc, rep->sirr_buf.cib_count);
+							printf("Read reply: %i %i\n", rep->sirr_rc,
+									rep->sirr_buf.cib_count);
 							printf("\t[");
 							for (j = 0; j < rep->sirr_buf.cib_count; ++j)
 								printf("%02x", rep->sirr_buf.cib_value[j]);
@@ -330,7 +333,7 @@ static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *f
 	fop->sic_object = *fid;
 
 	rcall = c2_alloc(sizeof *rcall);
-	C2_ASSERT(rcall != NULL);
+	C2_UT_ASSERT(rcall != NULL);
 	rcall->ncall.ac_arg = f;
 	rcall->ncall.ac_ret = r;
 	c2_chan_init(&rcall->ncall.ac_chan);
@@ -357,7 +360,7 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid
 	fop->sir_seg.f_count = (unsigned int)1;
 
 	rcall = c2_alloc(sizeof *rcall);
-	C2_ASSERT(rcall != NULL);
+	C2_UT_ASSERT(rcall != NULL);
 	rcall->ncall.ac_arg = f;
 	rcall->ncall.ac_ret = r;
 	c2_chan_init(&rcall->ncall.ac_chan);
@@ -386,11 +389,11 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 	fop->siw_buf.cib_count = (unsigned long long)1;
 	filler = 'a';
 	fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
-	C2_ASSERT(fop->siw_buf.cib_value != NULL);
+	C2_UT_ASSERT(fop->siw_buf.cib_value != NULL);
 	memset(fop->siw_buf.cib_value, filler, fop->siw_buf.cib_count);
 
 	rcall = c2_alloc(sizeof *rcall);
-	C2_ASSERT(rcall != NULL);
+	C2_UT_ASSERT(rcall != NULL);
 	rcall->ncall.ac_arg = f;
 	rcall->ncall.ac_ret = r;
 	c2_chan_init(&rcall->ncall.ac_chan);
@@ -402,7 +405,7 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 
 static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
 {
-	C2_ASSERT(conn != NULL);
+	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
@@ -412,7 +415,7 @@ static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq, unsign
 
 static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
 {
-	C2_ASSERT(conn != NULL);
+	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
@@ -422,7 +425,7 @@ static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq, unsigne
 
 static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
 {
-	C2_ASSERT(conn != NULL);
+	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
@@ -436,14 +439,14 @@ static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned
 static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
                                    struct c2_dtx *tx, struct c2_fom *fom)
 {
-	struct c2_stob_id	id;
+	struct c2_stob_id	 id;
 	struct c2_stob		*obj;
-	int result;
+	int 			 result;
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
 	result = fom->fo_stdomain->sd_ops->sdo_stob_find(fom->fo_stdomain, &id, &obj);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 	result = c2_stob_locate(obj, tx);
 	return obj;
 }
@@ -553,7 +556,7 @@ size_t fom_home_locality(const struct c2_fom *fom)
 	if (fom == NULL)
 		return -EINVAL;
 	
-	fd_nr = fom->fo_domain->fd_nr;
+	fd_nr = fom->fo_domain->fd_localities_nr;
 	switch(fom->fo_fop->f_type->ft_code) {
 		case 10: {
 			struct c2_fom_io_create *fop;
@@ -591,7 +594,7 @@ int create_fom_state(struct c2_fom *fom)
 	struct c2_fom_io_create		*in_fop;
 	struct c2_fom_io_create_rep	*out_fop;
 	struct c2_io_fom		*fom_obj;
-	int				result = FSO_AGAIN;
+	int				 result = FSO_AGAIN;
 
 	if (fom->fo_phase < FOPH_NR)
 		result = c2_fom_state_generic(fom);
@@ -609,7 +612,7 @@ int create_fom_state(struct c2_fom *fom)
 			fom_obj->stobj = object_find(&in_fop->sic_object, &fom->fo_tx, fom);
 
 			result = c2_stob_create(fom_obj->stobj, &fom->fo_tx);
-			C2_ASSERT(result == 0);
+			C2_UT_ASSERT(result == 0);
 			out_fop->sicr_rc = 0;
 			fom->fo_rep_fop = fom_obj->rep_fop;
 			/* 
@@ -624,7 +627,7 @@ int create_fom_state(struct c2_fom *fom)
 
 			c2_stob_put(fom_obj->stobj);
 
-			fom->fo_phase = FOPH_SUCCESS;
+			fom->fo_phase = FOPH_SUCCEED;
 			result = FSO_AGAIN;
 		}
 	}
@@ -639,12 +642,12 @@ int read_fom_state(struct c2_fom *fom)
 {
 	struct c2_fom_io_read		*in_fop;
 	struct c2_fom_io_read_rep	*out_fop;
-	struct c2_io_fom *fom_obj;
-	struct c2_clink			clink;
+	struct c2_io_fom 		*fom_obj;
+	struct c2_clink			 clink;
 	void				*addr;
-	uint32_t			bshift;
-	uint64_t			bmask;
-	int				result = FSO_AGAIN;
+	uint32_t			 bshift;
+	uint64_t			 bmask;
+	int				 result = FSO_AGAIN;
 
 	if (fom->fo_phase < FOPH_NR)
 		result = c2_fom_state_generic(fom);
@@ -664,11 +667,11 @@ int read_fom_state(struct c2_fom *fom)
 			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
 			bmask  = (1 << bshift) - 1;
 
-			C2_ASSERT((in_fop->sir_seg.f_count & bmask) == 0);
-			C2_ASSERT((in_fop->sir_seg.f_offset & bmask) == 0);
+			C2_UT_ASSERT((in_fop->sir_seg.f_count & bmask) == 0);
+			C2_UT_ASSERT((in_fop->sir_seg.f_offset & bmask) == 0);
 
 			C2_ALLOC_ARR(out_fop->sirr_buf.cib_value, in_fop->sir_seg.f_count);
-			C2_ASSERT(out_fop->sirr_buf.cib_value != NULL);
+			C2_UT_ASSERT(out_fop->sirr_buf.cib_value != NULL);
 
 			in_fop->sir_seg.f_count >>= bshift;
 			in_fop->sir_seg.f_offset >>= bshift;
@@ -692,7 +695,7 @@ int read_fom_state(struct c2_fom *fom)
 			c2_clink_add(&fom_obj->st_io.si_wait, &clink);
 
 			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj, &fom->fo_tx, NULL);
-			C2_ASSERT(result == 0);
+			C2_UT_ASSERT(result == 0);
 
 			c2_chan_wait(&clink);
 
@@ -704,7 +707,7 @@ int read_fom_state(struct c2_fom *fom)
 
 
 			if (result == -EDEADLK) {
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 				result = FSO_AGAIN;
 			} else {
 
@@ -722,7 +725,7 @@ int read_fom_state(struct c2_fom *fom)
 			
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_SUCCESS;
+			fom->fo_phase = FOPH_SUCCEED;
 			result = FSO_AGAIN;
 		}
 	}
@@ -739,12 +742,12 @@ int write_fom_state(struct c2_fom *fom)
 	struct c2_fom_io_write_rep	*out_fop;
 	struct c2_io_fom		*fom_obj;
 	void				*addr;
-	c2_bcount_t			count;
-	c2_bindex_t			offset;
-	struct c2_clink			clink;
-	uint32_t			bshift;
-	uint64_t			bmask;
-	int				result = FSO_AGAIN;
+	c2_bcount_t			 count;
+	c2_bindex_t			 offset;
+	struct c2_clink			 clink;
+	uint32_t			 bshift;
+	uint64_t			 bmask;
+	int				 result = FSO_AGAIN;
 
 	if (fom->fo_phase < FOPH_NR)
 		result = c2_fom_state_generic(fom);
@@ -763,8 +766,8 @@ int write_fom_state(struct c2_fom *fom)
 			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
 			bmask  = (1 << bshift) - 1;
 
-			C2_ASSERT((in_fop->siw_buf.cib_count & bmask) == 0);
-			C2_ASSERT((in_fop->siw_offset & bmask) == 0);
+			C2_UT_ASSERT((in_fop->siw_buf.cib_count & bmask) == 0);
+			C2_UT_ASSERT((in_fop->siw_offset & bmask) == 0);
 
 			addr = c2_stob_addr_pack(in_fop->siw_buf.cib_value, bshift);
 			count = in_fop->siw_buf.cib_count >> bshift;
@@ -788,7 +791,7 @@ int write_fom_state(struct c2_fom *fom)
 
 			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
 							&fom->fo_tx, NULL);
-			C2_ASSERT(result == 0);
+			C2_UT_ASSERT(result == 0);
 
 			c2_chan_wait(&clink);
 
@@ -799,7 +802,7 @@ int write_fom_state(struct c2_fom *fom)
 			c2_clink_fini(&clink);
 
 			if (result == -EDEADLK) {
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 				result = FSO_AGAIN;
 			} else {
 
@@ -816,7 +819,7 @@ int write_fom_state(struct c2_fom *fom)
 		} else {
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_SUCCESS;
+			fom->fo_phase = FOPH_SUCCEED;
 			result = FSO_AGAIN;
 		}
 	}
@@ -842,7 +845,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
 	struct c2_fom_type	*fom_type;
-	int			result = 0;
+	int			 result = 0;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -921,7 +924,7 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
-	c2_bcount_t giveout;
+	c2_bcount_t 	    giveout;
 
 	c2_mutex_lock(&mb->mb_lock);
 	giveout = min64u(count, 500000);
@@ -965,11 +968,8 @@ static int reqh_service_handler(struct c2_service *service,
                                    struct c2_fop *fop,
                                    void *cookie)
 {
-	C2_ASSERT(service != NULL);
-	C2_ASSERT(fop != NULL);
-	void **cook;
-	cook = cookie;
-	C2_ASSERT(*cook == NULL);
+	C2_UT_ASSERT(service != NULL);
+	C2_UT_ASSERT(fop != NULL);
 
 	c2_reqh_fop_handle(&reqh, fop, cookie);
 	return 0;
@@ -1014,23 +1014,23 @@ int create_net_connection(struct c2_service_id *rsid, struct c2_net_conn **conn,
  */
 void test_reqh(void)
 {
-	int result;
-	unsigned long i = 0;
-	const char *path;
-	char        opath[64];
-	char        dpath[64];
+	int 		 result;
+	unsigned long 	 i;
+	const char	*path;
+	char        	 opath[64];
+	char        	 dpath[64];
 
-	struct c2_service_id rsid = { .si_uuid = "node-1" };
-	struct c2_net_conn *conn;
-	struct c2_service_id  reqh_node_arg = { .si_uuid = {0} };
+	struct c2_service_id	 rsid = { .si_uuid = "node-1" };
+	struct c2_net_conn	*conn;
+	struct c2_service_id	 reqh_node_arg = { .si_uuid = {0} };
 	/* struct c2_service_id  node_ret = { .si_uuid = {0} }; */
-	struct c2_service       rservice;
+	struct c2_service	 rservice;
 
 	struct c2_stob_domain	*bdom;
-	struct c2_stob_id	backid;
+	struct c2_stob_id	 backid;
 	struct c2_stob		*bstore;
 	struct c2_stob		*reqh_addb_stob;
-	struct c2_stob_id       reqh_addb_stob_id = {
+	struct c2_stob_id        reqh_addb_stob_id = {
 					.si_bits = {
 						.u_hi = 1,
 						.u_lo = 2
@@ -1051,15 +1051,15 @@ void test_reqh(void)
 		c2_processors_init();
 
 	result = fom_io_fop_init();
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
-	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
+	C2_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
 	result = mkdir(path, 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 	sprintf(opath, "%s/o", path);
 	result = mkdir(opath, 0700);
-	C2_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
+	C2_UT_ASSERT(result == 0 || (result == -1 && errno == EEXIST));
 
 	sprintf(dpath, "%s/d", path);
 
@@ -1067,10 +1067,10 @@ void test_reqh(void)
 	 * Initialize the data-base and fol.
 	 */
 	result = c2_dbenv_init(&db, dpath, 0);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	result = c2_fol_init(&fol, &db);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	/*
 	 * Locate and create (if necessary) the backing store object.
@@ -1078,35 +1078,35 @@ void test_reqh(void)
 
 	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
 							  path, &bdom);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	result = bdom->sd_ops->sdo_stob_find(bdom, &backid, &bstore);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(bstore->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(bstore->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_create(bstore, NULL);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(bstore->so_state == CSS_EXISTS);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(bstore->so_state == CSS_EXISTS);
 
 	/*
 	 * Create AD domain over backing store object.
 	 */
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	result = ad_setup(sdom, &db, bstore, &mb.mb_ballroom);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	c2_stob_put(bstore);
 
 	/* create or open a stob into which to store the record. */
 	result = bdom->sd_ops->sdo_stob_find(bdom, &reqh_addb_stob_id, &reqh_addb_stob);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(reqh_addb_stob->so_state == CSS_UNKNOWN);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(reqh_addb_stob->so_state == CSS_UNKNOWN);
 
 	result = c2_stob_create(reqh_addb_stob, NULL);
-	C2_ASSERT(result == 0);
-	C2_ASSERT(reqh_addb_stob->so_state == CSS_EXISTS);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(reqh_addb_stob->so_state == CSS_EXISTS);
 
 	/* write addb record into stob */
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
@@ -1116,7 +1116,7 @@ void test_reqh(void)
 
 	/* initializing request handler */
 	result =  c2_reqh_init(&reqh, NULL, NULL, sdom, &fol, &rservice);
-	C2_ASSERT(result == 0);
+	C2_UT_ASSERT(result == 0);
 
 	/* create listening thread to accept async reply's */
 

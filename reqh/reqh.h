@@ -48,7 +48,7 @@ struct c2_reqh {
 	   @todo for now simply use storage object domain. In the future, this
 	   will be replaced with "stores".
 	 */
-	struct c2_stob_domain	*rh_dom;
+	struct c2_stob_domain	*rh_stdom;
 	/** service this request hander belongs to */
 	struct c2_service	*rh_serv;
 	/** fol pointer for this request handler */
@@ -58,22 +58,33 @@ struct c2_reqh {
 };
 
 /**
- * Table structure to hold phase transition and execution.
+ * Initialises request handler and fom domain.
+ *
+ * @param reqh -> c2_reqh, request handler.
+ * @param rpc -> c2_rpc_machine, rpc machine (to required for future use).
+ * @param dtm -> c2_dtm database transaction manager, (to be required future use).
+ * @param stdom -> c2_stob_domain, storage object domain for fom io.
+ * @param fol -> c2_fol, reqh fol.
+ * @param serv -> c2_service, service to which reqh belongs.
+ *
+ * @retval int -> returns 0, if succeeds.
+ *              returns -errno, on failure.
+ * 
+ * @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
  */
-struct c2_fom_phase_ops {
-	/** function pointer to phase execution routine */
-        int (*fpo_action) (struct c2_fom *fom);
-	/** next phase to transition into */
-	int fpo_nextphase;
-	/** wait flag */
-	bool fpo_wait;
-};
-
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *rh_stob_dom,
+		struct c2_stob_domain *stdom,
 		struct c2_fol *fol, struct c2_service *serv);
 
+/**
+ * Cleans request handler.
+ *
+ * @param reqh -> c2_reqh.
+ *
+ * @pre reqh != NULL
+ * @pre reqh->rh_fom_dom != NULL
+ */
 void c2_reqh_fini(struct c2_reqh *reqh);
 
 /**
@@ -81,6 +92,8 @@ void c2_reqh_fini(struct c2_reqh *reqh);
 
    A sort-key is assigned to a fop when it enters NRS (Network Request
    Scheduler) incoming queue. NRS processes fops in sort-key order.
+
+   @todo sort key definition.
  */
 struct c2_fop_sortkey {
 };
@@ -90,6 +103,13 @@ struct c2_fop_sortkey {
 
    fop processing results are reported by other means (ADDB, reply fops, error
    messages, etc.) so this function returns nothing.
+
+   @param reqh -> c2_reqh.
+   @param fom -> c2_fom.
+   @param cookie -> void reference provided by client.
+
+   @pre reqh != null.
+   @pre fom != null.
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 
@@ -148,6 +168,12 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
    Once the standard actions are performed successfully, request handler
    delegates the rest of operation execution to the fom type specific state
    transition function.
+
+   @param fom -> c2_fom object.
+
+   @retval int -> returns FSO_AGAIN, if succeeds.
+	returns FSO_WAIT, if operation blocks or fom execution ends.
+
  */
 int c2_fom_state_generic(struct c2_fom *fom);
 

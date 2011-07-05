@@ -58,7 +58,7 @@ const struct c2_addb_loc c2_reqh_addb_loc = {
  * Reqh state of addb context.
  */
 const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
-	.act_name = "t1-reqh"
+	.act_name = "reqh"
 };
 
 /**
@@ -70,7 +70,7 @@ struct c2_addb_ctx c2_reqh_addb_ctx;
 C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * fop type object for a c2_reqh_error_rep fop.
+ * Reqh generic error fop type.
  */
 extern struct c2_fop_type c2_reqh_error_rep_fopt;
 
@@ -79,19 +79,34 @@ extern int reqh_fop_init(void);
 extern void reqh_fop_fini(void);
 
 /**
- * fom phase table to hold function pointers, which execute
- * various fom phases.
+ * Table structure to hold fom phase transition and execution.
  */
-static struct c2_fom_phase_ops fp_table[FOPH_NR];
+struct fom_phase_ops {
+        /** function pointer to phase execution routine */
+        int (*fpo_action) (struct c2_fom *fom);
+        /** next phase to transition into */
+        int fpo_nextphase;
+        /** wait flag */
+        bool fpo_wait;
+};
 
 /**
- * function to initialize fom phase table.
+ * c2_fom_phase_ops table, contains implementations of fom phases,
+ * next transitional fom phase, and fom wait flag.
+ * various fom phases.
  */
-void set_fom_phase_table(void);
+static struct fom_phase_ops fp_table[FOPH_NR];
+
+/**
+ * Initialises fom phase table.
+ */
+static void set_fom_phase_table(void);
 
 extern bool c2_fom_invariant(const struct c2_fom *fom);
 
 extern bool c2_locality_invariant(struct c2_fom_locality *loc);
+
+extern bool c2_fom_domain_invariant(struct c2_fom_domain *dom);
 
 /*
  * macro definition to set a fom phase in fom phase table.
@@ -101,91 +116,71 @@ extern bool c2_locality_invariant(struct c2_fom_locality *loc);
 	fp_table[curr_phase].fpo_nextphase = np; \
 	fp_table[curr_phase].fpo_wait = false; \
 
-/**
- * Function to initialize request handler and fom domain
- * @param reqh -> c2_reqh structure pointer.
- * @param rpc -> c2_rpc_machine structure pointer.
- * @param dtm -> c2_dtm structure pointer.
- * @param dom -> c2_stob_domain strutcure pointer.
- * @param fol -> c2_fol structure pointer.
- * @param serv -> c2_service structure pointer.
- * @retval int -> returns 0, on success.
- * 		returns -errno, on failure.
- */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
-		struct c2_stob_domain *dom, struct c2_fol *fol,
+		struct c2_stob_domain *stdom, struct c2_fol *fol,
 		struct c2_service *serv)
 {
 	int result;
 
-	if (reqh == NULL || dom == NULL ||
-		fol == NULL || serv == NULL)
-		return -EINVAL;
+	C2_PRE(reqh != NULL && stdom != NULL &&
+		fol != NULL && serv != NULL);
 
-	/* initialize fom phase table with standard/generic fom phases,
+	/* initialise fom phase table with standard/generic fom phases,
 	 * and their correspnding methods.
 	 */
 	set_fom_phase_table();
 
-	/* allocate memory for c2_fom_domain member in reqh and initialize the same. */
+	/* allocate and initialise fom domain  */
 	reqh->rh_fom_dom = C2_ALLOC_PTR(reqh->rh_fom_dom);
 	if (reqh->rh_fom_dom == NULL) {
 		return -ENOMEM;
 	}
 
-	/* initialize reqh addb context */
+	/* initialise reqh addb context */
 	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
 					&c2_addb_global_ctx);
 
-	/* initialize reqh fops */
+	/* initialise reqh fops */
 	reqh_fop_init();
 
 	result = c2_fom_domain_init(reqh->rh_fom_dom);
 	if (result) {
 		REQH_ADDB_ADD(c2_reqh_addb_ctx,
-				"c2_reqh_init: fom domain init failed",
-				result);
+				"c2_reqh_init", result);
 		return result;
 	}
 
-	/* initialize reqh members */
+	C2_ASSERT(c2_fom_domain_invariant(reqh->rh_fom_dom));
+	/* initialise reqh members */
 	reqh->rh_rpc = rpc;
 	reqh->rh_dtm = dtm;
-	reqh->rh_dom = dom;
+	reqh->rh_stdom = stdom;
 	reqh->rh_fol = fol;
 	reqh->rh_serv = serv;
 
 	return result;
 }
 
-/**
- * Request handler clean up function.
- *
- * @param reqh -> c2_reqh structure pointer.
- *
- * @pre assumes reqh not null.
- * @pre assumes fom domain in reqh is allocated and initialized.
- */
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
 	C2_PRE(reqh != NULL);
-	C2_PRE(reqh->rh_fom_dom);
+	C2_PRE(reqh->rh_fom_dom != NULL);
 	c2_fom_domain_fini(reqh->rh_fom_dom);
 	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
 	reqh_fop_fini();
 }
 
 /**
- * send generic error reply fop
+ * Sends generic error reply fop
  *
- * @param service -> struct c2_service pointer
- * @param cookie -> void pointer containing some address.
+ * @param service -> c2_service
+ * @param cookie -> void reference provided by client.
  * @param rc -> int, error code to be sent in reply fop.
  *
  * @todo c2_net_reply_post should be replaced by c2_rpc_post.
  */
-void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
+static void reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 {
 	struct c2_fop *rfop;
 	struct c2_reqh_error_rep *out_fop;
@@ -199,53 +194,46 @@ void c2_reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 	c2_net_reply_post(service, rfop, cookie);
 }
 
-/**
- * Function to accept fop and create corresponding fom
- * and submit it for further processing.
- *
- * @param reqh -> c2_reqh structure pointer.
- * @param fom -> c2_fom sturcture pointer.
- * @param cookie -> void pointer to hold some pointer address.
- *
- * @pre reqh != null.
- * @pre fom != null.
- */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
-	struct c2_fom *fom = NULL;
+	struct c2_fom	       *fom = NULL;
 	int			result;
 	size_t			iloc;
+	struct c2_fop_ctx      *fo_ctx;	
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
-	/* Initialize fom for fop processing */
+	C2_ALLOC_PTR(fo_ctx);
+	if (fo_ctx == NULL)
+		return;
+
+	fo_ctx->ft_service = reqh->rh_serv;
+	fo_ctx->fc_cookie = cookie; 
+
+	/* Initialise fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-	if (result) {
+	if (result != 0) {
 		if (result != -ENOMEM) {
-			/* fop could be corrupted or invalid,
-			 * send an error reply.
-			 */
-			c2_reqh_send_err_rep(reqh->rh_serv, cookie, result);
+			/* send an error reply */
+			reqh_send_err_rep(reqh->rh_serv, cookie, result);
+			REQH_ADDB_ADD(c2_reqh_addb_ctx,
+					"c2_reqh_fop_handle", result);
 		}
-		REQH_ADDB_ADD(c2_reqh_addb_ctx,
-				"c2_reqh_fop_handle: fom init failed",
-				result);
 		return;
 	}
 
-	fom->fo_fop_ctx->fc_cookie = cookie;
-	fom->fo_fop_ctx->ft_service = reqh->rh_serv;
+	fom->fo_fop_ctx = fo_ctx;
 	fom->fo_fol = reqh->rh_fol;
-	fom->fo_stdomain = reqh->rh_dom;
+	fom->fo_stdomain = reqh->rh_stdom;
 	fom->fo_domain = reqh->rh_fom_dom;
 
 	/* locate fom's home locality */
 	iloc = fom->fo_ops->fo_home_locality(fom);
-	if (iloc >= 0) {
-		fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
-		C2_ASSERT(c2_locality_invariant(fom->fo_loc));
-	}
+	C2_ASSERT(iloc >= 0);
+	fom->fo_loc = &reqh->rh_fom_dom->fd_localities[iloc];
+	C2_ASSERT(c2_fom_invariant(fom));
+	C2_ASSERT(c2_locality_invariant(fom->fo_loc));
 
 	/* submit fom for further processing */
 	c2_fom_queue(fom);
@@ -257,19 +245,20 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 }
 
 /**
- * Funtion to handle init phase of fom.
- * Transitions fom to next phase.
+ * Handles init phase of fom.
+ * Transitions fom to next standard phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
  * @retval int -> returns FSO_AGAIN.
  *
- * @pre c2_fom_invariant(fom) == true.
+ * @pre fom->fo_phase == FOPH_INIT.
  */
-int c2_fom_phase_init(struct c2_fom *fom)
+static int fom_phase_init(struct c2_fom *fom)
 {
 	int rc;
-	C2_PRE(c2_fom_invariant(fom));
+
+	C2_PRE(fom->fo_phase == FOPH_INIT);
 
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -278,39 +267,38 @@ int c2_fom_phase_init(struct c2_fom *fom)
 }
 
 /**
- * Function to authenticate fop.
- * Transitions fom to next phase.
+ * Authenticates fop.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase = FOPH_AUTHENTICATE.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		logs addb even and returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to perform fop athentication.
  */
-int c2_fom_authen(struct c2_fom *fom)
+static int fom_authen(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_AUTHENTICATE);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED log addb event
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE log addb event
 	 * and set rc = FSO_AGAIN;
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fop authentication failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_authen", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -319,36 +307,37 @@ int c2_fom_authen(struct c2_fom *fom)
 }
 
 /**
- * Invoked post wait in fop authentication phase.
+ * Resumes fom execution post wait in FOPH_AUTHENTICATE
+ * phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_AUTHENTICATE_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready for fop authentication.
  */
-int c2_fom_authen_wait(struct c2_fom *fom)
+static int fom_authen_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_AUTHENTICATE_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log
 	 * addb event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fop authentication failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_authen_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -357,40 +346,39 @@ int c2_fom_authen_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to identify local resources required for
- * fop execution.
+ * Identifies local resources required for fom
+ * execution.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_RESOURCE_LOCAL.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support this operation.
  */
-int c2_fom_loc_resource(struct c2_fom *fom)
+static int fom_loc_resource(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_RESOURCE_LOCAL);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED, log addb
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "local resource acquisition failed",
-				rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_loc_resource", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -399,38 +387,36 @@ int c2_fom_loc_resource(struct c2_fom *fom)
 }
 
 /**
- * Funtion invoked after a fom resumes execution post wait while
- * acquiring local resources.
+ * Resumes fom execution post wait in FOPH_RESOURCE_LOCAL phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_RESOURCE_LOCAL_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_loc_resource_wait(struct c2_fom *fom)
+static int fom_loc_resource_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_RESOURCE_LOCAL_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log addb
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event, set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "local resource acquisition failed",
-				rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_loc_resource_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -439,40 +425,38 @@ int c2_fom_loc_resource_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to identify distributed resources required for fop
- * execution.
+ * Identifies distributed resources needed for fom execution.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_RESOURCE_DISTRIBUTED.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_dist_resource(struct c2_fom *fom)
+static int fom_dist_resource(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_RESOURCE_DISTRIBUTED);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED, log addb event
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE, log addb event
 	 * and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "acquiring distributed resources failed",
-				rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_dist_resource", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -481,38 +465,36 @@ int c2_fom_dist_resource(struct c2_fom *fom)
 }
 
 /**
- * Funtion invoked after a fom resumes execution post wait in
- * identifying distributed resources phase.
+ * Resumes fom execution post wait in FOPH_RESOURCE_DISTRIBUTED phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_RESOURCE_DISTRIBUTED_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support operation.
  */
-int c2_fom_dist_resource_wait(struct c2_fom *fom)
+static int fom_dist_resource_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_RESOURCE_DISTRIBUTED_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log addb
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event, set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "acquiring distributed resources failed",
-				rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_dist_resource_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -521,39 +503,39 @@ int c2_fom_dist_resource_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to locate and load file system objects, required for
- * fop execution.
+ * Locates and loads file system object required for fom
+ * execution.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_OBJECT_CHECK.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_obj_check(struct c2_fom *fom)
+static int fom_obj_check(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_OBJECT_CHECK);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED, log addb event
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE, log addb event
 	 * and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "object checking failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_obj_check", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -562,37 +544,36 @@ int c2_fom_obj_check(struct c2_fom *fom)
 }
 
 /**
- * Funtion invoked after a fom resumes execution post wait,
- * in filesystem object checking phase.
+ * Resumes fom execution post wait in FOPH_OBJECT_CHECK.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_OBJECT_CHECK_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_obj_check_wait(struct c2_fom *fom)
+static int fom_obj_check_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_OBJECT_CHECK_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log addb
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "object checking failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_obj_check_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -601,38 +582,38 @@ int c2_fom_obj_check_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to authorise fop in fom
+ * Authorises fop.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_AUTHORISATION.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_auth(struct c2_fom *fom)
+static int fom_auth(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_AUTHORISATION);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED, log addb
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fop authorisation failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_auth", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -641,37 +622,36 @@ int c2_fom_auth(struct c2_fom *fom)
 }
 
 /**
- * Funtion invoked after a fom resumes execution post wait
- * in fop authorisation phase.
+ * Resumes fom execution post wait in FOPH_AUTHORISATION.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_AUTHORISATION_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo needs further more implementation, once depending
  *		routines are ready to support the operation.
  */
-int c2_fom_auth_wait(struct c2_fom *fom)
+static int fom_auth_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_AUTHORISATION_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log addb
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fop authorisation failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_auth_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -680,39 +660,37 @@ int c2_fom_auth_wait(struct c2_fom *fom)
 }
 
 /**
- * Funtion to create local transactional context, i.e we initialize a
- * struct c2_dtx object, which would be used for db transaction throughout
- * fop execution.
+ * Creates local transactional object, required in fom io transactions.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_TXN_CONTEXT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  */
-int c2_create_loc_ctx(struct c2_fom *fom)
+static int create_loc_ctx(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_CONTEXT);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, set rc = FSO_AGAIN and transition
+	 * else if operation is succeed, set rc = FSO_AGAIN and transition
 	 * to next phase.
-	 * in case of failure, set fom->fo_phase = FOPH_FAILED, log addb event
+	 * in case of failure, set fom->fo_phase = FOPH_FAILURE, log addb event
 	 * and set rc = FSO_AGAIN.
 	 */
 
 	rc = fom->fo_stdomain->sd_ops->sdo_tx_make(fom->fo_stdomain,
 							&fom->fo_tx);
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "transaction object creation failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "create_loc_ctx", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -721,37 +699,36 @@ int c2_create_loc_ctx(struct c2_fom *fom)
 }
 
 /**
- * Funtion to invoke after a fom resumes execution
- * post wait while creating local transactional context.
+ * Resumes fom execution post wait in FOPH_TXN_CONTEXT.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
  *
- * @retval int -> on success, transitions fom to next phase and
+ * @pre fom->fo_phase == FOPH_TXN_CONTEXT_WAIT.
+ *
+ * @retval int -> if succeeds, transitions fom to next phase and
  *		returns FSO_AGAIN.
- *		on failure, transitions fom to FOPH_FAILED phase and
+ *		on failure, transitions fom to FOPH_FAILURE phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo currently db operations may block, thus will need to implement wait phase
  * 		once we have non-blocking db routines.
  */
-int c2_create_loc_ctx_wait(struct c2_fom *fom)
+static int create_loc_ctx_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_CONTEXT_WAIT);
 
 	/*
-	 * check if operation is success, and transition to next phase and
+	 * check if operation is succeed, and transition to next phase and
 	 * set rc = FSO_AGAIN.
-	 * else if operation failed, set fom->fo_phase = FOPH_FAILED, log addb
+	 * else if operation failure, set fom->fo_phase = FOPH_FAILURE, log addb
 	 * event and set rc = FSO_AGAIN.
 	 */
 
 	if (rc != 0) {
-		fom->fo_phase = FOPH_FAILED;
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "transaction object creation failed", rc);
+		fom->fo_phase = FOPH_FAILURE;
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "create_loc_ctx_wait", rc);
 	} else
 		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -760,46 +737,45 @@ int c2_create_loc_ctx_wait(struct c2_fom *fom)
 }
 
 /**
- * This function is invoked if fom execution fails.
- * An error fop reply is sent and we transition to next phase,
- * i.e abort db transaction.
+ * Handles failure during fom execution, sends an error
+ * reply fop and transitions to FOPH_DONE phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_FAILURE.
  *
  * @retval int -> transitions fom to next phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  */
-int c2_fom_failed(struct c2_fom *fom)
+static int fom_failure(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
-	C2_ASSERT(fom->fo_phase == FOPH_FAILED);
+	C2_PRE(fom->fo_phase == FOPH_FAILURE);
 
-	c2_reqh_send_err_rep(fom->fo_fop_ctx->ft_service, fom->fo_fop_ctx->fc_cookie, 1);
+	reqh_send_err_rep(fom->fo_fop_ctx->ft_service, fom->fo_fop_ctx->fc_cookie, 1);
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 	rc = FSO_AGAIN;
 	return rc;
 }
 
 /**
- * This function is invoked if fom execution is sucessfully
- * completed. fom transitions to next phase i.e commit db transaction.
+ * Handles fom execution success, transitions to FOPH_DONE
+ * phase.
+ * 
+ * @param fom -> c2_fom.
  *
- * @param fom -> c2_fom object.
+ * @pre fom->fo_phase == FOPH_SUCCEED.
  *
  * @retval int -> transitions fom to next phase and
  *		returns FSO_AGAIN.
- *
- * @pre c2_fom_invariant(fom) == true.
  */
-int c2_fom_success(struct c2_fom *fom)
+static int fom_succeed(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_SUCCEED);
+
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 	rc = FSO_AGAIN;
 	return rc;
@@ -808,26 +784,26 @@ int c2_fom_success(struct c2_fom *fom)
 /**
  * Commits local db transaction.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_TXN_COMMIT.
  *
  * @retval int -> returns FSO_WAIT,
  * 		 logs addb event on db commit failure.
  *
- * @pre c2_fom_invariant(fom) == true.
- *
  * @todo currently db transaction routines may block, hence would need more
  * 	implementation once non blocking db routines are available.
  */
-int c2_fom_txn_commit(struct c2_fom *fom)
+static int fom_txn_commit(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_COMMIT);
 
 	/*
 	 * In case of blocking operation, then set rc = FSO_WAIT,
 	 * and fom->fo_phase to corresponding wait phase.
-	 * else if operation is success, transition to next phase,
+	 * else if operation is succeed, transition to next phase,
 	 * and set rc = 0, as we are done. else log addb event.
 	 */
 
@@ -835,7 +811,7 @@ int c2_fom_txn_commit(struct c2_fom *fom)
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	if (rc != 0)
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "DB commit failed", rc);
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_txn_commit", rc);
 
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 
@@ -844,31 +820,31 @@ int c2_fom_txn_commit(struct c2_fom *fom)
 }
 
 /**
- * Function invoked post db transaction commit wait phase.
+ * Resumes fom execution post wait in FOPH_TXN_COMMIT phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_TXN_COMMIT_WAIT.
  *
  * @retval int -> returns FSO_WAIT,
  * 		 logs addb event on db commit failure.
  *
- * @pre c2_fom_invariant(fom) == true.
- *
  * @todo currently db transaction routines may block, hence would need more
  * 	implementation once non blocking db routines are available.
  */
-int c2_fom_txn_commit_wait(struct c2_fom *fom)
+static int fom_txn_commit_wait(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_COMMIT_WAIT);
 
 	/*
-	 * check if operation was success, transition to next phase,
+	 * check if operation was succeed, transition to next phase,
 	 * and set rc = 0, as fom execution is done, else log addb
 	 * event.
 	 */
 	if (rc != 0)
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "DB commit failed", rc);
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_txn_commit_wait", rc);
 
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 	rc = FSO_WAIT;
@@ -876,12 +852,12 @@ int c2_fom_txn_commit_wait(struct c2_fom *fom)
 }
 
 /**
- * Function to check if transaction context is valid.
+ * Checks if transaction context is valid.
  * In case of failure, we abort the transaction, thus,
- * if we fail before even the transaction is initialised.
- * the abort will fail.
+ * if we fail before even the transaction is initialised,
+ * we don't need to abort any transaction.
  *
- * @param tx -> struct c2_db_tx pointer.
+ * @param tx -> c2_db_tx.
  *
  * @retval bool -> returns true, if transaction is initialised
  *		return false, if transaction is uninitialised.
@@ -892,32 +868,32 @@ static bool is_tx_initialised(struct c2_db_tx *tx)
 }
 
 /**
- * Function to abort db transaction.
+ * Aborts db transaction.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_TXN_ABORT.
  *
  * @retval int -> returns FSO_WAIT,
  * 		 logs addb event on db abort failure.
  *
- * @pre c2_fom_invariant(fom) == true.
- *
  * @todo currently db transaction routines may block, hence would need more
  * 	implementation once non blocking db routines are available.
  */
-int c2_fom_txn_abort(struct c2_fom *fom)
+static int fom_txn_abort(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_ABORT);
 
 	/*
 	 * check if local transaction is initialised, or
-	 * we failed before creating one.
+	 * we failure before creating one.
 	 */
 	if (is_tx_initialised(&fom->fo_tx.tx_dbtx)) {
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc != 0)
-			REQH_ADDB_ADD(fom->fo_fop->f_addb, "DB abort failed", rc);
+			REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_txn_abort", rc);
 	}
 
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
@@ -926,28 +902,28 @@ int c2_fom_txn_abort(struct c2_fom *fom)
 }
 
 /**
- * Invoked post wait in db transaction abort phase.
+ * Resumes fom execution post wait in FOPH_TXN_ABORT phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_TXN_ABORT_WAIT.
  *
  * @retval int -> returns FSO_WAIT,
  * 		 logs addb event on db abort failure.
  *
- * @pre c2_fom_invariant(fom) == true.
- *
  * @todo currently db transaction routines may block, hence would need more
  * 	implementation once non blocking db routines are available.
  */
-int c2_fom_txn_abort_wait(struct c2_fom *fom)
+static int fom_txn_abort_wait(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_TXN_ABORT_WAIT);
 
-	/* check if we aborted successfully, else log addb event.*/
+	/* check if we aborted succeedfully, else log addb event.*/
 
 	if (rc != 0)
-		REQH_ADDB_ADD(fom->fo_fop->f_addb, "DB abort failed", rc);
+		REQH_ADDB_ADD(fom->fo_fop->f_addb, "fom_txn_abort_wait", rc);
 
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
 	rc = FSO_WAIT;
@@ -958,24 +934,25 @@ int c2_fom_txn_abort_wait(struct c2_fom *fom)
  * Posts reply fop.
  * Transitions back to fom specific non standard phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_QUEUE_REPLY.
+ * @pre fom->fo_rep_fop != NULL.
  *
  * @retval int -> returns FSO_AGAIN,
  * 		 logs addb event on failure.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo currently we don't have write back cache implementation, in which
  *	we may perform updations on local objects and re integrate with
  * 	server later, in that case we may block for cache space, that would
  *	need more implementation for this routine.
  */
-int c2_fom_queue_reply(struct c2_fom *fom)
+static int fom_queue_reply(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
-	C2_ASSERT(fom->fo_rep_fop != NULL);
+	C2_PRE(fom->fo_phase == FOPH_QUEUE_REPLY);
+	C2_PRE(fom->fo_rep_fop != NULL);
 
 	/*
 	 * In case of cacheable operation at client side, all the operations
@@ -992,26 +969,26 @@ int c2_fom_queue_reply(struct c2_fom *fom)
 }
 
 /**
- * Invoked post wait in fom queue reply phase.
+ * Resumes fom execution post wait in FOPH_QUEUE_REPLY phase.
  * Transitions back to fom specific non standard phase.
  *
- * @param fom -> c2_fom object.
+ * @param fom -> c2_fom.
+ *
+ * @pre fom->fo_phase == FOPH_QUEUE_REPLY_WAIT.
  *
  * @retval int -> returns FSO_AGAIN,
  * 		 logs addb event on failure.
- *
- * @pre c2_fom_invariant(fom) == true.
  *
  * @todo currently we don't have write back cache implementation, in which
  *	we may perform updations on local objects and re integrate with
  * 	server later, in that case we may block for cache space, that would
  *	need more implementation for this routine.
  */
-int c2_fom_queue_reply_wait(struct c2_fom *fom)
+static int fom_queue_reply_wait(struct c2_fom *fom)
 {
 	int rc;
 
-	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == FOPH_QUEUE_REPLY_WAIT);
 
 	/* transition to next phase */
 	fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
@@ -1020,22 +997,12 @@ int c2_fom_queue_reply_wait(struct c2_fom *fom)
 	return rc;
 }
 
-/**
- * Function to handle standard/generic operations of fom
- * like authentication, authorisation, acquiring resources, &tc
- *
- * @param fom -> c2_fom object.
- *
- * @pre c2_fom_invariant(fom) == true.
- *
- * @retval int -> returns FSO_AGAIN, on success.
- *	returns FSO_WAIT, if operation blocks or fom execution ends.
- */
 int c2_fom_state_generic(struct c2_fom *fom)
 {
 	int rc = 0;
 
-	C2_PRE(c2_fom_invariant(fom) == true);
+	C2_ASSERT(c2_fom_invariant(fom) == true);
+
 	rc = fp_table[fom->fo_phase].fpo_action(fom);
 
 	return rc;
@@ -1046,29 +1013,29 @@ int c2_fom_state_generic(struct c2_fom *fom)
  * to generic fom phases and next phase to transition into.
  * current phase is used as the offset in this table.
  */
-void set_fom_phase_table(void)
+static void set_fom_phase_table(void)
 {
-	INIT_PHASE(FOPH_INIT, c2_fom_phase_init, FOPH_AUTHENTICATE)
-	INIT_PHASE(FOPH_AUTHENTICATE, c2_fom_authen, FOPH_RESOURCE_LOCAL)
-	INIT_PHASE(FOPH_AUTHENTICATE_WAIT, c2_fom_authen_wait, FOPH_RESOURCE_LOCAL)
-	INIT_PHASE(FOPH_RESOURCE_LOCAL, c2_fom_loc_resource, FOPH_RESOURCE_DISTRIBUTED)
-	INIT_PHASE(FOPH_RESOURCE_LOCAL_WAIT, c2_fom_loc_resource_wait, FOPH_RESOURCE_DISTRIBUTED)
-	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED, c2_fom_dist_resource, FOPH_OBJECT_CHECK)
-	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED_WAIT, c2_fom_dist_resource_wait, FOPH_OBJECT_CHECK)
-	INIT_PHASE(FOPH_OBJECT_CHECK, c2_fom_obj_check, FOPH_AUTHORISATION)
-	INIT_PHASE(FOPH_OBJECT_CHECK_WAIT, c2_fom_obj_check_wait, FOPH_AUTHORISATION)
-	INIT_PHASE(FOPH_AUTHORISATION, c2_fom_auth, FOPH_TXN_CONTEXT)
-	INIT_PHASE(FOPH_AUTHORISATION_WAIT, c2_fom_auth_wait, FOPH_TXN_CONTEXT)
-	INIT_PHASE(FOPH_TXN_CONTEXT, c2_create_loc_ctx, FOPH_NR+1)
-	INIT_PHASE(FOPH_TXN_CONTEXT_WAIT, c2_create_loc_ctx_wait, FOPH_NR+1)
-	INIT_PHASE(FOPH_QUEUE_REPLY, c2_fom_queue_reply, FOPH_NR+1)
-	INIT_PHASE(FOPH_QUEUE_REPLY_WAIT, c2_fom_queue_reply_wait, FOPH_NR+1)
-	INIT_PHASE(FOPH_FAILED, c2_fom_failed, FOPH_TXN_ABORT)
-	INIT_PHASE(FOPH_SUCCESS, c2_fom_success, FOPH_TXN_COMMIT)
-	INIT_PHASE(FOPH_TXN_COMMIT, c2_fom_txn_commit, FOPH_DONE)
-	INIT_PHASE(FOPH_TXN_COMMIT_WAIT, c2_fom_txn_commit_wait, FOPH_DONE)
-	INIT_PHASE(FOPH_TXN_ABORT, c2_fom_txn_abort, FOPH_DONE)
-	INIT_PHASE(FOPH_TXN_ABORT_WAIT, c2_fom_txn_abort_wait, FOPH_DONE)
+	INIT_PHASE(FOPH_INIT, fom_phase_init, FOPH_AUTHENTICATE)
+	INIT_PHASE(FOPH_AUTHENTICATE, fom_authen, FOPH_RESOURCE_LOCAL)
+	INIT_PHASE(FOPH_AUTHENTICATE_WAIT, fom_authen_wait, FOPH_RESOURCE_LOCAL)
+	INIT_PHASE(FOPH_RESOURCE_LOCAL, fom_loc_resource, FOPH_RESOURCE_DISTRIBUTED)
+	INIT_PHASE(FOPH_RESOURCE_LOCAL_WAIT, fom_loc_resource_wait, FOPH_RESOURCE_DISTRIBUTED)
+	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED, fom_dist_resource, FOPH_OBJECT_CHECK)
+	INIT_PHASE(FOPH_RESOURCE_DISTRIBUTED_WAIT, fom_dist_resource_wait, FOPH_OBJECT_CHECK)
+	INIT_PHASE(FOPH_OBJECT_CHECK, fom_obj_check, FOPH_AUTHORISATION)
+	INIT_PHASE(FOPH_OBJECT_CHECK_WAIT, fom_obj_check_wait, FOPH_AUTHORISATION)
+	INIT_PHASE(FOPH_AUTHORISATION, fom_auth, FOPH_TXN_CONTEXT)
+	INIT_PHASE(FOPH_AUTHORISATION_WAIT, fom_auth_wait, FOPH_TXN_CONTEXT)
+	INIT_PHASE(FOPH_TXN_CONTEXT, create_loc_ctx, FOPH_NR+1)
+	INIT_PHASE(FOPH_TXN_CONTEXT_WAIT, create_loc_ctx_wait, FOPH_NR+1)
+	INIT_PHASE(FOPH_QUEUE_REPLY, fom_queue_reply, FOPH_NR+1)
+	INIT_PHASE(FOPH_QUEUE_REPLY_WAIT, fom_queue_reply_wait, FOPH_NR+1)
+	INIT_PHASE(FOPH_FAILURE, fom_failure, FOPH_TXN_ABORT)
+	INIT_PHASE(FOPH_SUCCEED, fom_succeed, FOPH_TXN_COMMIT)
+	INIT_PHASE(FOPH_TXN_COMMIT, fom_txn_commit, FOPH_DONE)
+	INIT_PHASE(FOPH_TXN_COMMIT_WAIT, fom_txn_commit_wait, FOPH_DONE)
+	INIT_PHASE(FOPH_TXN_ABORT, fom_txn_abort, FOPH_DONE)
+	INIT_PHASE(FOPH_TXN_ABORT_WAIT, fom_txn_abort_wait, FOPH_DONE)
 }
 
 /** @} endgroup reqh */

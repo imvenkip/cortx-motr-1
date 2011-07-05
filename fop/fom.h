@@ -85,6 +85,10 @@ struct c2_fom_ops;
    - No lock ordering is needed here as there's no conatiner relationship
      among locality members.
 
+   Once the locality is initialised, the locality invariant, 
+   should hold true until its finalisation.
+
+   @see c2_locality_invaraint(struct c2_fom_locality *loc)
  */
 
 struct c2_fom_locality {
@@ -130,7 +134,6 @@ struct c2_fom_locality {
 	size_t			     fl_hi_idle_threads_nr;
 
 	/** Resources allotted to the partition */
-	size_t			     fl_proc_nr;
 	struct c2_bitmap	     fl_processors;
 
 	/** Something for memory, see set_mempolicy(2). */
@@ -139,12 +142,17 @@ struct c2_fom_locality {
 /**
    Domain is a collection of localities that compete for the resources. For
    example, there would be typically a domain for each service (c2_service).
+
+   Once the fom domain is initialised, fom domain invariant should hold
+   true untils its finalisation.
+
+   @see c2_fom_domain_invariant(struct c2_fom_domain *dom)
  */
 struct c2_fom_domain {
 	/** An array of localities. */
-	struct c2_fom_locality *	fd_localities;
+	struct c2_fom_locality	       *fd_localities;
 	/** Number of localities in the domain. */
-	size_t				fd_nr;
+	size_t				fd_localities_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops *fd_ops;
 };
@@ -162,7 +170,12 @@ struct c2_fom_domain_ops {
 /**
    States a fom can be in.
 
-   @todo concurrency.
+   A fom is in FOS_READY state when it is initialised and ready to
+   be enqueued in locality's runq list.
+   A fom changes its state from FOS_READY to FOS_RUNNING, after it
+   is dequeued from locality runq and begins its execution.
+   A fom changes its state from FOS_RUNNING to FOS_WAITING, if its
+   execution would block, fom is then put on locality wait list.
  */
 enum c2_fom_state {
 	/** The fom is being executed by a handler thread in some locality. */
@@ -206,8 +219,8 @@ enum c2_fom_phase {
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
 	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_SUCCESS,		    /*< fom success. */
-	FOPH_FAILED,                /*< fom failed. */
+	FOPH_SUCCEED,		    /*< fom success. */
+	FOPH_FAILURE,                /*< fom failed. */
 	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
@@ -223,13 +236,21 @@ enum c2_fom_phase {
 int  c2_fom_domain_init(struct c2_fom_domain *dom);
 
 /**
-   Finalizes fom domain.
+   Finalises fom domain.
 
    @pre dom != NULL && dom->fd_localities != NULL.
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
-/** Fop state machine. */
+/** 
+   Fop state machine. 
+   
+   Once the fom is initialised, fom invariant,
+   should hold true as fom execution enters various 
+   phases, including before its finalisation.
+
+   @see c2_fom_invariant(struct c2_fom *fom)
+*/
 struct c2_fom {
 	enum c2_fom_state	 fo_state;
 	int			 fo_phase;
@@ -264,7 +285,6 @@ struct c2_fom {
    Possible errors are reported through fom state and phase, hence the return
    type is void.
 
-   @pre c2_fom_invariant(fom) == true.
    @pre fom->fo_phase == FOPH_INIT.
  */
 void c2_fom_queue(struct c2_fom *fom);
@@ -286,7 +306,7 @@ int c2_fom_init(struct c2_fom *fom);
 
    Finalizes other fom members.
 
-   @pre c2_fom_invariant() == true.
+   @pre fom->fo_phase == FOPH_DONE.
 */
 void c2_fom_fini(struct c2_fom *fom);
 
@@ -304,8 +324,8 @@ enum c2_fom_state_outcome {
 	/**
 	    State transition completed. The next state transition would be
 	    possible when some future event happens. The state transition
-	    function registered the fom's clink with the channel where this
-	    event will be signalised.
+	    function registeres the fom's clink with the channel where this
+	    event will be signalled.
 
 	    When FSO_WAIT is returned, the fom is placed in the wait-list.
 
@@ -355,6 +375,8 @@ struct c2_fom_hthread {
 	struct c2_thread	fht_thread;
 	/** Linkage into c2_fom_locality::fl_threads. */
 	struct c2_list_link	fht_linkage;
+	/** locality this thread belongs to */
+	struct c2_fom_locality	*fht_locality;
 };
 
 /**
@@ -362,27 +384,24 @@ struct c2_fom_hthread {
    threads are started to cope with possible blocking point.
 
    This function is called before potential blocking point.
-
-   @pre c2_fom_invariant(fom) == true.
  */
 void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
+   Checks if number of idle threads are more than the threashold value
+   i.e fl_lo_idle_threads_nr, and broadcasts on the thread waiting channel
+   i.e fl_runrun.
+   Accordingly, the extra idle threads commit suicide.
+
    This function is called after potential blocking point.
-
-   Arms a timer that would retire extra idle threads if necessary. The timer is
-   needed to amortize thread creation costs.
-
-   @pre c2_fom_invariant(fom) == true.
  */
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
-   Registers the fom with the channel, so that next fom's state transition would
-   happen when the channel is signalised.
+   Registers fom with the channel, so that next fom's state transition would
+   happen when the channel is signalled.
 
-   @pre c2_fom_invariant() == true.
-   @pre c2_clink_is_armed(&fom->fo_clink) == false.
+   @pre !c2_clink_is_armed(&fom->fo_clink).
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 
