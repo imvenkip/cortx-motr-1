@@ -368,7 +368,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
    Derived transports should free the private data upon return from this
    subroutine.
  */
-static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
+static void mem_xo_buf_deregister(struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp;
 	struct c2_net_bulk_mem_buffer_pvt *bp;
@@ -381,7 +381,7 @@ static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
 		c2_free(bp);
 		nb->nb_xprt_private = NULL;
 	}
-	return 0;
+	return;
 }
 
 /**

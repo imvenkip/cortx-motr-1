@@ -526,20 +526,17 @@ static int sunrpc_xo_buf_register(struct c2_net_buffer *nb)
 	return rc;
 }
 
-static int sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
+static void sunrpc_xo_buf_deregister(struct c2_net_buffer *nb)
 {
-	int rc;
 	struct c2_net_bulk_sunrpc_buffer_pvt *sbp = sunrpc_buffer_to_pvt(nb);
 	C2_PRE(sunrpc_buffer_invariant(nb));
-	rc = c2_net_bulk_mem_xprt.nx_ops->xo_buf_deregister(nb);
-	if (rc == 0) {
-		/* free the private data */
-		C2_ASSERT(mem_buffer_to_pvt(nb) == &sbp->xsb_base);
-		sbp->xsb_magic = 0;
-		c2_free(sbp);
-		nb->nb_xprt_private = NULL;
-	}
-	return rc;
+	c2_net_bulk_mem_xprt.nx_ops->xo_buf_deregister(nb);
+	/* free the private data */
+	C2_ASSERT(mem_buffer_to_pvt(nb) == &sbp->xsb_base);
+	sbp->xsb_magic = 0;
+	c2_free(sbp);
+	nb->nb_xprt_private = NULL;
+	return;
 }
 
 static int sunrpc_xo_buf_add(struct c2_net_buffer *nb)
