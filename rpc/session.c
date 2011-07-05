@@ -63,28 +63,25 @@ static void search_matching_request_item(const struct c2_rpc_slot *slot,
  */
 static bool item_is_conn_create(const struct c2_rpc_item  *item);
 
-int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
-					 struct c2_rpc_item	*item);
-
-void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot);
-void c2_rpc_sender_consume_item(struct c2_rpc_item *item);
-void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
+static void sender_slot_idle(struct c2_rpc_slot *slot);
+static void sender_consume_item(struct c2_rpc_item *item);
+static void sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply);
 
-void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot);
-void c2_rpc_rcv_consume_item(struct c2_rpc_item *item);
-void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
+static void rcv_slot_idle(struct c2_rpc_slot *slot);
+static void rcv_consume_item(struct c2_rpc_item *item);
+static void rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply);
 
 const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
-	.so_slot_idle = c2_rpc_sender_slot_idle,
-	.so_consume_item = c2_rpc_sender_consume_item,
-	.so_consume_reply = c2_rpc_sender_consume_reply
+	.so_slot_idle = sender_slot_idle,
+	.so_consume_item = sender_consume_item,
+	.so_consume_reply = sender_consume_reply
 };
 const struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops = {
-	.so_slot_idle = c2_rpc_rcv_slot_idle,
-	.so_consume_item = c2_rpc_rcv_consume_item,
-	.so_consume_reply = c2_rpc_rcv_consume_reply
+	.so_slot_idle = rcv_slot_idle,
+	.so_consume_item = rcv_consume_item,
+	.so_consume_reply = rcv_consume_reply
 };
 
 int c2_rpc_session_module_init(void)
@@ -108,6 +105,7 @@ C2_EXPORTED(c2_rpc_session_module_fini);
    If found *out contains pointer to session object
 
    Caller is expected to decide whether conn will be locked or not
+   The function is also called from session_foms.c, that's why is not static.
 
    @post ergo(*out != NULL, (*out)->s_session_id == session_id)
  */
@@ -1979,35 +1977,35 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	C2_SET0(slot);
 }
 
-void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
+static void sender_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
-void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
+static void sender_consume_item(struct c2_rpc_item *item)
 {
 	printf("sender_consume_item called %p\n", item);
 	c2_rpc_form_extevt_rpcitem_ready(item);
 }
-void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
+static void sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
 	printf("sender_consume_reply called %p %p\n", req, reply);
 	/* Don't do anything on sender to consume reply */
 }
 
-void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
+static void rcv_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			slot->sl_verno.vn_vc, slot->sl_xid);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
-void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
+static void rcv_consume_item(struct c2_rpc_item *item)
 {
 	printf("rcv_consume_item called %p\n", item);
 	dispatch_item_for_execution(item);
 }
-void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
+static void rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
 	printf("rcv_consume_reply called %p %p\n", req, reply);

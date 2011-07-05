@@ -96,6 +96,9 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 void c2_rpc_slot_persistence(struct c2_rpc_slot	*slot,
 			     struct c2_verno	last_persistent);
 
+int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot     *slot,
+                                         struct c2_rpc_item     *item);
+
 /**
    Reset the slot to verno @last_seen
    @post c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
