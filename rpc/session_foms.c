@@ -290,7 +290,8 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	int					rc;
 
 	printf("session_terminate_state: called\n");
-	fom_st = container_of(fom, struct c2_rpc_fom_session_terminate, fst_gen);
+	fom_st = container_of(fom, struct c2_rpc_fom_session_terminate,
+				fst_gen);
 
 	C2_ASSERT(fom != NULL && fom_st != NULL && fom_st->fst_fop != NULL &&
 			fom_st->fst_fop_rep != NULL);

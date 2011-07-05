@@ -49,6 +49,10 @@ static int session_zero_attach(struct c2_rpc_conn *conn);
 
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
+/**
+   Search slot->sl_item_list to find item whose verno and xid matches
+   to verno and xid of @item
+ */
 struct c2_rpc_item *search_matching_request_item(struct c2_rpc_slot	*slot,
 					         struct c2_rpc_item	*item);
 
@@ -441,11 +445,11 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	item->ri_deadline = 0;
 	item->ri_ops = &c2_rpc_item_conn_terminate_ops;
 
-	conn->c_state = C2_RPC_CONN_TERMINATING;
 
 	rc = c2_rpc_post(item);
-	if (rc != 0) {
-		conn->c_state = C2_RPC_CONN_ACTIVE;
+	if (rc == 0) {
+		conn->c_state = C2_RPC_CONN_TERMINATING;
+	} else {
 		c2_fop_free(fop);
 	}
 
@@ -918,8 +922,11 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	 * Confirm that this will not trigger self deadlock
 	 */
 	rc = c2_rpc_post(item);
-	if (rc == 0)
+	if (rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATING;
+	} else {
+		c2_fop_free(fop);
+	}
 
 out:
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATING));
