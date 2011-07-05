@@ -260,7 +260,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
-	item = c2_fop_to_rpc_item(fop);
+	item = &fop->f_item;
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
@@ -434,8 +434,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
+	item = &fop->f_item;
 
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
@@ -755,8 +754,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	fop_sc->rsc_snd_id = conn->c_sender_id;
 	fop_sc->rsc_slot_cnt = session->s_nr_slots;
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL);
+	item = &fop->f_item;
 
 	session_search(conn, SESSION_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
@@ -908,7 +906,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		 (session_0->s_state == C2_RPC_SESSION_IDLE ||
 		  session_0->s_state == C2_RPC_SESSION_BUSY));
 
-	item = c2_fop_to_rpc_item(fop);
+	item = &fop->f_item;
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
@@ -1447,8 +1445,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	if (fop == NULL)
 		return -ENOMEM;
 
-	dummy_item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(dummy_item != NULL);
+	dummy_item = &fop->f_item;
 	dummy_item->ri_tstate = RPC_ITEM_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
 	dummy_item->ri_reply = dummy_item;
@@ -1644,7 +1641,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 		return -ENOMEM;
 
 	reply->ri_session = item->ri_session;
-	reply = c2_fop_to_rpc_item(fop);
+	reply = &fop->f_item;
 	reply->ri_slot_refs[0].sr_uuid = item->ri_slot_refs[0].sr_uuid;
 	reply->ri_slot_refs[0].sr_sender_id =
 		item->ri_slot_refs[0].sr_sender_id;

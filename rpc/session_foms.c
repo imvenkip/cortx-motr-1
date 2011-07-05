@@ -89,8 +89,8 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	fop_ccr = c2_fop_data(fop_rep);
 	C2_ASSERT(fop_ccr != NULL);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	item = &fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL);
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL) {
@@ -138,8 +138,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 
 	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 
 errout:
@@ -151,8 +150,7 @@ errout:
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
@@ -209,9 +207,9 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	printf("session_create_state: sender_id %lu slot_cnt %u\n", sender_id,
 				slot_cnt);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL &&
-			item->ri_session != NULL);
+	item = &fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL &&
+		  item->ri_session != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
@@ -242,8 +240,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 
 	fop_out->rscr_rc = 0;		/* success */
 	fop_out->rscr_session_id = session->s_session_id;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_DONE;
 	printf("session_create_state:success %lu\n", session->s_session_id);
 	return FSO_AGAIN;
@@ -256,8 +253,7 @@ errout:
 	fop_out->rscr_session_id = SESSION_ID_INVALID;
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
@@ -311,8 +307,8 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	fop_out->rstr_sender_id = sender_id = fop_in->rst_sender_id;
 	fop_out->rstr_session_id = session_id = fop_in->rst_session_id;
 
-	item = c2_fop_to_rpc_item(fom_st->fst_fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	item = &fom_st->fst_fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
@@ -332,8 +328,8 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 
 	fop_out->rstr_rc = 0;	/* Report success */
 	fom->fo_phase = FOPH_DONE;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fom_st->fst_fop),
-			  c2_fop_to_rpc_item(fom_st->fst_fop_rep));
+	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
+			  &fom_st->fst_fop_rep->f_item);
 	printf("Session terminate successful\n");
 	return FSO_AGAIN;
 
@@ -342,8 +338,8 @@ errout:
 
 	fop_out->rstr_rc = rc;	/* Report failure */
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fom_st->fst_fop),
-			  c2_fop_to_rpc_item(fom_st->fst_fop_rep));
+	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
+			  &fom_st->fst_fop_rep->f_item);
 	printf("session terminate failed %d\n", rc);
 	return FSO_AGAIN;
 }
@@ -399,8 +395,8 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
 		  sender_id != 0);
 
-	item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	item = &fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL);
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
@@ -411,8 +407,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	printf("Conn terminate successful\n");
 	fop_out->ctr_rc = 0;	/* Success */
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 
 	fom->fo_phase = FOPH_DONE;
 	return FSO_AGAIN;
@@ -423,8 +418,7 @@ errout:
 	printf("Conn terminate failed rc %d\n", rc);
 	fop_out->ctr_rc = rc;
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_post(c2_fop_to_rpc_item(fop),
-			  c2_fop_to_rpc_item(fop_rep));
+	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 
