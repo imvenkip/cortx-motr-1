@@ -1910,6 +1910,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		if(ub_item->ri_state == RPC_ITEM_SUBMITTED) {
 			c2_mutex_lock(&slot->sl_mutex);
 			c2_rpc_slot_item_add_internal(slot, ub_item);
+			c2_list_del(&ub_item->ri_unbound_link);
 			c2_mutex_unlock(&slot->sl_mutex);
 			c2_list_add(&endp_unit->isu_unformed_list,
 				&ub_item->ri_unformed_linkage);

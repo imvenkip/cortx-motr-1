@@ -486,7 +486,7 @@ void client_init()
 		send_ping_fop(i);
 	}
 	sleep (3);
-#if 0
+//#if 0
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to terminate session\n");
@@ -536,7 +536,7 @@ void client_init()
 			printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn terminate\n");
-#endif
+//#endif
 cleanup:
 	do_cleanup();
 }
