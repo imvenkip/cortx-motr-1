@@ -551,8 +551,8 @@ struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item)
 /**
    Check if given 2 endpoints are equal.
  */
-bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
-		struct c2_net_end_point *ep2)
+bool c2_rpc_form_end_point_equal(const struct c2_net_end_point *ep1,
+		const struct c2_net_end_point *ep2)
 {
 	C2_PRE((ep1 != NULL) && (ep2 != NULL));
 
@@ -561,6 +561,29 @@ bool c2_rpc_form_end_point_equal(struct c2_net_end_point *ep1,
 	}
 
 	return !strcmp(ep1->nep_addr, ep2->nep_addr);
+}
+
+/**
+  For a given endpoint, return an existing internal endpoint
+  unit data structure.
+ */
+static struct c2_rpc_form_item_summary_unit *get_endp_unit(
+		const struct c2_net_end_point *ep)
+{
+	struct c2_rpc_form_item_summary_unit *endp_unit = NULL;
+	struct c2_rpc_form_item_summary_unit *endp = NULL;
+
+	C2_PRE(ep != NULL);
+
+	c2_list_for_each_entry(&formation_summary->is_endp_list,
+			endp, struct c2_rpc_form_item_summary_unit,
+			isu_linkage) {
+		if (c2_rpc_form_end_point_equal(endp->isu_endp_id, ep)) {
+			endp_unit = endp;
+			break;
+		}
+	}
+	return endp_unit;
 }
 
 /**
@@ -585,7 +608,6 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	struct c2_rpc_form_item_summary_unit	*endp = NULL;
 	int					 res = 0;
 	int					 prev_state = 0;
-	bool					 found = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE(sm_event->se_event < C2_RPC_FORM_EVENTS_NR);
@@ -602,16 +624,8 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 	   the previous state of endpoint unit. */
 	if (endp_unit == NULL) {
 		c2_rwlock_write_lock(&formation_summary->is_endp_list_lock);
-		c2_list_for_each_entry(&formation_summary->is_endp_list,
-				endp, struct c2_rpc_form_item_summary_unit,
-				isu_linkage) {
-			if (c2_rpc_form_end_point_equal(endp->isu_endp_id,
-						endpoint)) {
-				found = true;
-				break;
-			}
-		}
-		if (found) {
+		endp = get_endp_unit(endpoint);
+		if (endp != NULL) {
 			c2_mutex_lock(&endp->isu_unit_lock);
 			c2_ref_get(&endp->isu_sm.isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
@@ -634,8 +648,8 @@ static int c2_rpc_form_default_handler(struct c2_rpc_item *item,
 		}
 		prev_state = endp->isu_sm.isu_endp_state;
 	} else {
-		c2_mutex_lock(&endp_unit->isu_unit_lock);
 		prev_state = sm_state;
+		c2_mutex_lock(&endp_unit->isu_unit_lock);
 		endp = endp_unit;
 	}
 	/* If the formation component is not active (form_fini is called)
