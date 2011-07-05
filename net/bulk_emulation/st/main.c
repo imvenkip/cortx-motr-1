@@ -191,6 +191,8 @@ struct client_params {
 	const char *local_host;
 	const char *remote_host;
 	int sunrpc_ep_delay;
+	int passive_bulk_timeout;
+	int sunrpc_skulker_period;
 };
 
 void client(struct client_params *params)
@@ -214,6 +216,8 @@ void client(struct client_params *params)
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
 		.pc_sunrpc_ep_delay = params->sunrpc_ep_delay,
+		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
+		.pc_sunrpc_skulker_period = params->sunrpc_skulker_period,
 	};
 
 	if (params->xprt->px_3part_addr) {
@@ -331,6 +335,9 @@ int main(int argc, char *argv[])
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
 	int                      sunrpc_ep_delay = -1;
+	int                      passive_bulk_timeout = 0;
+	int                      active_bulk_delay = 0;
+	int                      sunrpc_skulker_period = 0;
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
@@ -363,6 +370,12 @@ int main(int argc, char *argv[])
 						     xprt_name = str; })),
 			C2_FORMATARG('E', "sunrpc endpoint release delay",
 				     "%i", &sunrpc_ep_delay),
+			C2_FORMATARG('P', "sunrpc passive bulk timeout",
+				     "%i", &passive_bulk_timeout),
+			C2_FORMATARG('D', "server active bulk delay",
+				     "%i", &active_bulk_delay),
+			C2_FORMATARG('S', "sunrpc skulker period",
+				     "%i", &sunrpc_skulker_period),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -435,6 +448,8 @@ int main(int argc, char *argv[])
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
 		sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
+		sctx.pc_server_bulk_delay = active_bulk_delay;
+		sctx.pc_sunrpc_skulker_period = sunrpc_skulker_period;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
@@ -472,6 +487,8 @@ int main(int argc, char *argv[])
 			params[i].local_host = local_hostbuf;
 			params[i].remote_host = remote_hostbuf;
 			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
+			params[i].passive_bulk_timeout = passive_bulk_timeout;
+			params[i].sunrpc_skulker_period = sunrpc_skulker_period;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,

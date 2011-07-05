@@ -29,8 +29,9 @@
 #include "net/net_internal.h"
 #include "fop/fop_format_def.h"
 #ifdef __KERNEL__
-#include <linux/highmem.h> /* kmap, kunmap */
+#include <linux/highmem.h> /* kmap_atomic, kunmap_atomic */
 #include "net/ksunrpc/ksunrpc.h"
+#include <linux/pagemap.h> /* PAGE_CACHE_* macros */
 #endif
 
 /**
@@ -243,23 +244,47 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 {
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	c2_time_t now;
+	c2_time_t wakeup;
+	c2_time_t next_ep = 0;
+	c2_time_t next_buf = 0;
 
 	c2_mutex_lock(&dom->nd_mutex);
 	c2_time_now(&now);
 	while (dp->xd_skulker_run) {
 		dp->xd_skulker_hb++;
-		if (dp->xd_ep_release_delay != 0) {
-			c2_time_t wakeup;
-			wakeup = c2_time_add(now, dp->xd_ep_release_delay);
-			c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex,
-					  wakeup);
-		} else {
-			c2_cond_wait(&dp->xd_skulker_cv, &dom->nd_mutex);
-		}
+
+		/* schedule future events */
+		if (dp->xd_ep_release_delay == 0)
+			next_ep = C2_TIME_NEVER;
+		else if (next_ep == 0)
+			next_ep = c2_time_add(now, dp->xd_ep_release_delay);
+		if (next_buf == 0)
+			next_buf = c2_time_add(now, dp->xd_skulker_period);
+
+		/* sleep a fixed interval */
+		wakeup = c2_time_add(now, dp->xd_skulker_period);
+		c2_cond_timedwait(&dp->xd_skulker_cv, &dom->nd_mutex, wakeup);
 		if (!dp->xd_skulker_run)
 			break;
 		c2_time_now(&now);
-		sunrpc_skulker_process_end_points(dom, now);
+		if (dp->xd_skulker_force) {
+			/* force invocation of handlers */
+			next_ep = now;
+			next_buf = now;
+			dp->xd_skulker_force = false;
+		}
+
+		/* age cached EP's */
+		if (c2_time_after_eq(now, next_ep)) {
+			sunrpc_skulker_process_end_points(dom, now);
+			next_ep = 0;
+		}
+
+		/* timeout buffers */
+		if (c2_time_after_eq(now, next_buf)) {
+			sunrpc_skulker_timeout_buffers(dom, now);
+			next_buf = 0;
+		}
 	}
 	sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
 	dp->xd_skulker_hb = 0;
@@ -318,6 +343,8 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	bdp->xd_addr_tuples       = 3;
 	bdp->xd_num_tm_threads    = C2_NET_BULK_SUNRPC_TM_THREADS;
 	c2_time_set(&dp->xd_ep_release_delay, C2_NET_BULK_SUNRPC_EP_DELAY_S, 0);
+	c2_time_set(&dp->xd_skulker_period,
+		    C2_NET_BULK_SUNRPC_SKULKER_PERIOD_S, 0);
 
 	/* create the rpc domain (use in-mutex version of domain init) */
 #ifdef __KERNEL__
@@ -379,6 +406,30 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 }
 
 void
+c2_net_bulk_sunrpc_dom_set_skulker_period(struct c2_net_domain *dom,
+					  uint64_t secs)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	C2_PRE(secs > 0);
+	c2_mutex_lock(&dom->nd_mutex);
+	c2_time_set(&dp->xd_skulker_period, secs, 0);
+	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
+	c2_mutex_unlock(&dom->nd_mutex);
+	return;
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_set_skulker_period);
+
+uint64_t
+c2_net_bulk_sunrpc_dom_get_skulker_period(struct c2_net_domain *dom)
+{
+	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
+	C2_PRE(sunrpc_dom_invariant(dom));
+	return c2_time_seconds(dp->xd_skulker_period);
+}
+C2_EXPORTED(c2_net_bulk_sunrpc_dom_get_skulker_period);
+
+void
 c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 						   uint64_t secs)
 {
@@ -388,6 +439,7 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 	c2_time_set(&dp->xd_ep_release_delay, secs, 0);
 	if (secs == 0) /* flush cached eps now */
 		sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+	dp->xd_skulker_force = true;
 	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;
@@ -531,7 +583,7 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 
 	C2_PRE(sb != NULL);
 
-        npages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        npages = (len + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	if (npages == 0)
 		npages = 1;
 	C2_ALLOC_ARR(pages, npages + 1); /* null ptr terminate, see fini */
@@ -553,12 +605,12 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			return -ENOMEM;
 		}
 		if (cbuf != NULL) {
-			bp = kmap(pages[i]);
-			memcpy(bp, cbuf, min_check(PAGE_SIZE, len));
-			kunmap(pages[i]);
-			C2_ASSERT(len > PAGE_SIZE || i == npages - 1);
-			cbuf += PAGE_SIZE;
-			len -= PAGE_SIZE;
+			bp = kmap_atomic(pages[i], KM_USER0);
+			memcpy(bp, cbuf, min_check(PAGE_CACHE_SIZE, len));
+			kunmap_atomic(pages[i], KM_USER0);
+			C2_ASSERT(len > PAGE_CACHE_SIZE || i == npages - 1);
+			cbuf += PAGE_CACHE_SIZE;
+			len -= PAGE_CACHE_SIZE;
 		}
 	}
 	return 0;
@@ -574,41 +626,37 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 	size_t npages;
 	c2_bcount_t pageused;
 	char *addr;
-	struct c2_bufvec in = {
-		.ov_vec = {
-			.v_nr = 1,
-			.v_count = &pageused
-		},
-		.ov_buf = (void**) &addr
-	};
+	struct c2_bufvec in = C2_BUFVEC_INIT_BUF((void**) &addr, &pageused);
 	struct c2_bufvec_cursor incur;
 	c2_bcount_t copied;
 	int i;
 	int rc = 0;
 
-	C2_PRE(sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_SIZE);
+	C2_PRE(sb != NULL && sb->sb_buf != NULL &&
+	       sb->sb_pgoff < PAGE_CACHE_SIZE);
 	copylen = sb->sb_len;
 	if (copylen == 0)
 		return rc;
-	npages = (sb->sb_pgoff + copylen + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	npages =
+	    (sb->sb_pgoff + copylen + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	C2_ASSERT(npages > 0);
 
 	for (i = 0; i < npages; ++i) {
 		if (i == npages - 1) {
-			pageused = (sb->sb_pgoff + copylen) & ~PAGE_MASK;
+			pageused = (sb->sb_pgoff + copylen) & ~PAGE_CACHE_MASK;
 			if (pageused == 0) /* last page is exactly 1 page */
-				pageused = PAGE_SIZE;
+				pageused = PAGE_CACHE_SIZE;
 		} else {
-			pageused = PAGE_SIZE;
+			pageused = PAGE_CACHE_SIZE;
 		}
-		addr = kmap(sb->sb_buf[i]);
+		addr = kmap_atomic(sb->sb_buf[i], KM_USER0);
 		if (i == 0) {
 			addr += sb->sb_pgoff;
 			pageused -= sb->sb_pgoff;
 		}
 		c2_bufvec_cursor_init(&incur, &in);
 		copied = c2_bufvec_cursor_copy(outcur, &incur, pageused);
-		kunmap(sb->sb_buf[i]);
+		kunmap_atomic(sb->sb_buf[i], KM_USER0);
 		if (copied != pageused) {
 			rc = -EFBIG;
 			break;
@@ -643,17 +691,13 @@ int sunrpc_buffer_copy_out(struct c2_bufvec_cursor *outcur,
 {
 	c2_bcount_t copylen;
 	c2_bcount_t copied;
-	struct c2_bufvec in = {
-		.ov_vec = {
-			.v_nr = 1,
-			.v_count = &copylen
-		},
-	};
+	void *addr;
+	struct c2_bufvec in = C2_BUFVEC_INIT_BUF(&addr, &copylen);
 	struct c2_bufvec_cursor incur;
 
 	C2_PRE(sb != NULL && sb->sb_buf != NULL);
 	copylen = sb->sb_len;
-	in.ov_buf = (void**) &sb->sb_buf;
+	addr = sb->sb_buf;
 
 	c2_bufvec_cursor_init(&incur, &in);
 	copied = c2_bufvec_cursor_copy(outcur, &incur, copylen);

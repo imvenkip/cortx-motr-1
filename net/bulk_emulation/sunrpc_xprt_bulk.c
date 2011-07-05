@@ -79,7 +79,8 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			       nb_tm_linkage) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sg_desc) &&
 		    inb->nb_length == in->sg_desc.sbd_total) {
-			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)
+			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
+					      C2_NET_BUF_TIMED_OUT)) == 0)
 				nb = inb;
 			break;
 		}
@@ -149,7 +150,8 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 			       struct c2_net_buffer,
 			       nb_tm_linkage) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sp_desc)) {
-			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)
+			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
+					      C2_NET_BUF_TIMED_OUT)) == 0)
 				nb = inb;
 			break;
 		}

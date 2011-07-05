@@ -26,7 +26,7 @@
 
 
 #ifdef __KERNEL__
-#include "net/bulk_emulation/sunrpc_io_k.h"
+#include "net/linux_kernel/sunrpc_io_k.h"
 #else
 #include <arpa/inet.h>
 #include "net/bulk_emulation/sunrpc_io_u.h"
@@ -58,6 +58,7 @@ enum {
 	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<19),
 	C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS = 256,
 	C2_NET_BULK_SUNRPC_EP_DELAY_S = 20, /* in seconds */
+	C2_NET_BULK_SUNRPC_SKULKER_PERIOD_S  = 10, /* in seconds */
 };
 
 /** Domain private data. */
@@ -87,6 +88,12 @@ struct c2_net_bulk_sunrpc_domain_pvt {
 
 	/** Skulker heart beat counter (for UT) */
 	uint32_t                          xd_skulker_hb;
+
+	/** Skulker clock period */
+	c2_time_t                         xd_skulker_period;
+
+	/** Skulker forced execution */
+	bool                              xd_skulker_force;
 };
 
 /**
@@ -207,7 +214,7 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb);
 
 /**
    Copy the contents of a sunrpc_buffer out to a c2_bufvec using a cursor.
-   @pre sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_SIZE
+   @pre sb != NULL && sb->sb_buf != NULL && sb->sb_pgoff < PAGE_CACHE_SIZE
    @param dest destination buffer cursor
    @param sb source sunrpc_buffer
    @retval 0 (success)

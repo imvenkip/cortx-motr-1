@@ -100,6 +100,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
+	buf->nb_timeout = C2_TIME_NEVER;
 
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
@@ -110,6 +111,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	}
 	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
+	C2_POST(ergo(rc == 0, buf->nb_timeout == C2_TIME_NEVER));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
@@ -172,7 +174,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(!(buf->nb_flags &
-	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)));
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED|
+		C2_NET_BUF_TIMED_OUT)));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
@@ -203,6 +206,16 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(ergo(todo->check_desc,
 		    buf->nb_desc.nbd_len > 0 &&
 		    buf->nb_desc.nbd_data != NULL));
+
+	/* validate that a timeout, if set, is in the future */
+	if (buf->nb_timeout != C2_TIME_NEVER) {
+		c2_time_t now;
+		/* Don't want to assert here as scheduling is unpredictable. */
+		if (c2_time_after_eq(c2_time_now(&now), buf->nb_timeout)) {
+			rc = -ETIME; /* not -ETIMEDOUT */
+			goto m_err_exit;
+		}
+	}
 
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
@@ -291,6 +304,9 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_CANCELLED,
 		  ev->nbe_status == -ECANCELED))
 		return false;
+	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_TIMED_OUT,
+		  ev->nbe_status == -ETIMEDOUT))
+		return false;
 	return true;
 }
 
@@ -323,7 +339,8 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 
 	qtype = buf->nb_qtype;
 	buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
-			   C2_NET_BUF_IN_USE);
+			   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
+	buf->nb_timeout = C2_TIME_NEVER;
 
 	q = &tm->ntm_qstats[qtype];
 	if (ev->nbe_status < 0) {

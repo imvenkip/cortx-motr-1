@@ -987,9 +987,15 @@ struct c2_net_buffer_event {
 	   error number is used to indicate the reasons for failure.
 
 	   The following errors are well defined:
-	   	- <b>-ECANCELED</b> This is used in buffer release events to
+		- <b>-ECANCELED</b> This is used in buffer release events to
 		indicate that the associated buffer operation was
 		cancelled by a call to c2_net_buffer_del().
+		- <b>-ETIMEDOUT</b> This is used in buffer release events to
+		indicate that the associated buffer operation did not complete
+		before the current time exceeded the nb_timeout value.
+		The support for this feature is transport specific.
+		The nb_timeout value is always reset to C2_TIME_NEVER by the
+		time the buffer callback is invoked.
 	 */
 	int32_t                    nbe_status;
 
@@ -1061,6 +1067,8 @@ enum c2_net_buf_flags {
 	C2_NET_BUF_IN_USE      = 1<<2,
 	/** Indicates that the buffer operation has been cancelled */
 	C2_NET_BUF_CANCELLED   = 1<<3,
+	/** Indicates that the buffer operation has timed out */
+	C2_NET_BUF_TIMED_OUT   = 1<<4,
 };
 
 /**
@@ -1149,7 +1157,14 @@ struct c2_net_buffer {
 	   buffer to a transfer machine logical queue.
 
 	   <b>Support for this is transport specific.</b>
-	   Set the value to C2_TIME_NEVER to disable the timeout.
+	   A value of C2_TIME_NEVER disables the timeout.
+	   The value is forced to C2_TIME_NEVER during buffer registration,
+	   and reset to the same prior to the invocation of the buffer
+	   callback so applications need not bother with this field unless
+	   they intend to set a timeout value.
+
+	   Adding a buffer to a logical queue will fail with a -ETIME
+	   error code if the specified nb_timeout value is in the past.
 	 */
 	c2_time_t                  nb_timeout;
 
@@ -1246,10 +1261,12 @@ struct c2_net_buffer {
 (buf->nb_buffer.ov_buf != NULL) &&
 c2_vec_count(&buf->nb_buffer.ov_vec) > 0
    @post ergo(result == 0, buf->nb_flags & C2_NET_BUF_REGISTERED)
+   @post ergo(result == 0, buf->nb_timeout == C2_TIME_NEVER)
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
    - c2_net_buffer.nb_buffer should be initialized to point to the buffer
    memory regions.
+   The buffer's timeout value is initialized to C2_TIME_NEVER upon return.
    @param dom Pointer to the domain.
    @retval 0 (success)
    @retval -errno (failure)
@@ -1316,6 +1333,9 @@ buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
    @retval -errno (failure)
+   @retval -ETIME nb_timeout is set to other than C2_TIME_NEVER, and occurs in
+   the past.
+   Note that this differs from them buffer timeout error code of -ETIMEDOUT.
  */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
@@ -1359,7 +1379,9 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
    The subroutine will remove the buffer from its queue, and clear its
    C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
    prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
-   set, then the status is forced to -ECANCELED.
+   set, then the status is forced to -ECANCELED.  If the C2_NET_BUF_TIMED_OUT
+   flag was set, then the status is forced to -ETIMEDOUT.  The buffer's
+   nb_timeout field is always reset to C2_TIME_NEVER.
 
    The subroutine will perform a c2_end_point_put() on the nbe_ep field
    in the event structure, if the queue type is C2_NET_QT_MSG_RECV and

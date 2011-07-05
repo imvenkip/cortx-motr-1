@@ -33,6 +33,14 @@ static void ut_sleep_secs(int secs)
 	c2_nanosleep(req, &rem);
 }
 
+static c2_time_t ut_timeout_after_secs(int secs)
+{
+	c2_time_t dur;
+	c2_time_t now;
+	c2_time_set(&dur, secs, 0);
+	return c2_time_add(c2_time_now(&now), dur);
+}
+
 static void test_sunrpc_ep(void)
 {
 	/* dom1 */
@@ -344,8 +352,8 @@ enum {
 };
 #ifdef __KERNEL__
 /* want a size that tests 2 page buffers */
-C2_BASSERT(PING_BUFFER_2PAGE_SIZE > PAGE_SIZE &&
-	   PING_BUFFER_2PAGE_SIZE < 2 * PAGE_SIZE);
+C2_BASSERT(PING_BUFFER_2PAGE_SIZE > PAGE_CACHE_SIZE &&
+	   PING_BUFFER_2PAGE_SIZE < 2 * PAGE_CACHE_SIZE);
 #endif
 
 static int quiet_printf(const char *fmt, ...)
@@ -946,6 +954,33 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
 	C2_UT_ASSERT(qs.nqs_num_adds == 2);
 	C2_UT_ASSERT(qs.nqs_num_dels == 2);
+
+	/* Set up a message recv with a timeout, and set the skulker period
+	   to reasonably small value so that it times out fast. Check the
+	   error code.
+	 */
+	sunrpc_cbreset2();
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_skulker_period(&dom2) ==
+		     C2_NET_BULK_SUNRPC_SKULKER_PERIOD_S);
+	c2_net_bulk_sunrpc_dom_set_skulker_period(&dom2, 1);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	c2_clink_init(&tmwait2, NULL);
+	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
+	d2nb2.nb_qtype = C2_NET_QT_MSG_RECV;
+	d2nb2.nb_ep = NULL;
+	d2nb2.nb_timeout = ut_timeout_after_secs(1);
+	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
+	c2_chan_wait(&tmwait2);
+	c2_clink_del(&tmwait2);
+	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_MSG_RECV,&qs,true));
+	C2_UT_ASSERT(qs.nqs_num_f_events == 1);
+	C2_UT_ASSERT(qs.nqs_num_s_events == 0);
+	C2_UT_ASSERT(qs.nqs_num_adds == 1);
+	C2_UT_ASSERT(qs.nqs_num_dels == 0);
+	C2_UT_ASSERT(cb_nb2 == &d2nb2);
+	C2_UT_ASSERT(cb_qt2 == C2_NET_QT_MSG_RECV);
+	C2_UT_ASSERT(cb_tms2 == C2_NET_TM_UNDEFINED);
+	C2_UT_ASSERT(cb_status2 == -ETIMEDOUT);
 
 	/* fini */
 	C2_UT_ASSERT(!c2_net_buffer_deregister(&d1nb1, &dom1));
