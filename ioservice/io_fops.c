@@ -29,6 +29,8 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
    Reply received callback for a c2_fop_cob_readv fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_replied is called.
+
    @param - Read fop for which reply is received
  */
 int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
@@ -36,6 +38,7 @@ int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 	struct c2_fop_cob_readv		*read_fop = NULL;
 
 	C2_PRE(fop != NULL);
+
 	read_fop = c2_fop_data(fop);
 	c2_free(read_fop->frd_ioseg.fs_segs);
 	c2_fop_free(fop);
@@ -44,6 +47,8 @@ int c2_io_fop_cob_readv_replied(struct c2_fop *fop)
 
 /**
    Reply received callback for a c2_fop_cob_writev fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_replied is called.
+
    @param - Write fop for which reply is received
  */
 int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
@@ -51,6 +56,7 @@ int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 	struct c2_fop_cob_writev	*write_fop = NULL;
 
 	C2_PRE(fop != NULL);
+
 	write_fop = c2_fop_data(fop);
 	c2_free(write_fop->fwr_iovec.iov_seg);
 	c2_fop_free(fop);
@@ -59,6 +65,8 @@ int c2_io_fop_cob_writev_replied(struct c2_fop *fop)
 
 /**
    Return the size of a fop of type c2_fop_cob_readv.
+   @pre fop.f_item.ri_type->rit_ops->rio_item_size is called.
+
    @param - Read fop for which size is to be calculated 
  */
 uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
@@ -81,6 +89,8 @@ uint64_t c2_io_fop_cob_readv_getsize(struct c2_fop *fop)
 
 /**
    Return the size of a fop of type c2_fop_cob_writev.
+   @pre fop.f_item.ri_type->rit_ops->rio_item_size is called.
+
    @param - Write fop for which size is to be calculated 
  */
 uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
@@ -105,13 +115,15 @@ uint64_t c2_io_fop_cob_writev_getsize(struct c2_fop *fop)
 		size += write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
 	}
 	/* Size of holding structure. */
-	size += write_fop->fwr_iovec.iov_count * sizeof(struct c2_fop_io_seg);
+	size += vec_count * sizeof(struct c2_fop_io_seg);
 
 	return size;
 }
 
 /**
    Return if given 2 fops belong to same type.
+   @pre fop.f_item.ri_type->rit_ops->rio_items_equal is called.
+
    @param - Fop1 to be compared with Fop2
    @param - Fop2 to be compared with Fop1 
  */
@@ -129,6 +141,8 @@ bool c2_io_fop_type_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 
 /**
    Return fid for a fop of type c2_fop_cob_readv.
+   @pre fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
+
    @param - Read fop for which fid is to be calculated 
  */
 struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
@@ -145,6 +159,8 @@ struct c2_fop_file_fid c2_io_fop_get_read_fid(struct c2_fop *fop)
 
 /**
    Return fid for a fop of type c2_fop_cob_writev.
+   @pre fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
+
    @param - Write fop for which fid is to be calculated 
  */
 struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
@@ -161,6 +177,8 @@ struct c2_fop_file_fid c2_io_fop_get_write_fid(struct c2_fop *fop)
 
 /**
    Return status telling if given fop is an IO request or not.
+   @pre fop.f_item.ri_type->rit_ops->rio_is_io_req is called.
+
    @param - fop for which rw status is to be found out 
  */
 bool c2_io_fop_is_rw(struct c2_fop *fop)
@@ -180,6 +198,8 @@ bool c2_io_fop_is_rw(struct c2_fop *fop)
 /**
    Return the number of IO fragements(discontiguous buffers)
    for a fop of type c2_fop_cob_readv.
+   @pre fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
+
    @param - Read fop for which number of fragments is to be calculated 
  */
 uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
@@ -210,6 +230,8 @@ uint64_t c2_io_fop_read_get_nfragments(struct c2_fop *fop)
 /**
    Return the number of IO fragements(discontiguous buffers)
    for a fop of type c2_fop_cob_writev.
+   @pre fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
+
    @param - Write fop for which number of fragments is to be calculated 
  */
 uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
@@ -240,6 +262,8 @@ uint64_t c2_io_fop_write_get_nfragments(struct c2_fop *fop)
 /**
    Coalesce the IO segments from a number of read fops to create a list
    of IO segments containing merged segments.
+   @pre fop->f_type->ft_ops->fto_io_coalesce is called.
+
    @param - target iovec 
    @param - aggr_list is list of read segments that could be merged
    @param - number of resultant merged segments 
@@ -346,6 +370,8 @@ int c2_io_fop_read_segments_coalesce(void *vec,
 /**
    Coalese the IO vectors of number of read fops and put the
    collated IO vector into given resultant fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
+
    @param - list of read fops 
    @param - resultant fop 
  */
@@ -407,6 +433,8 @@ int c2_io_fop_read_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 /**
    Coalesce the IO segments from a number of write fops to create a list
    of IO segments containing merged segments.
+   @pre fop->f_type->ft_ops->fto_io_coalesce is called.
+
    @param - target iovec 
    @param - aggr_list is list of read segments that could be merged
    @param - number of resultant merged segments 
@@ -516,6 +544,8 @@ int c2_io_fop_write_segments_coalesce(void *vec,
 /**
    Coalesce the IO vectors of a list of write fops into IO vector
    of given resultant fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
+
    @param - list of write fops 
    @param - resultant fop 
  */
@@ -576,6 +606,8 @@ int c2_io_fop_write_coalesce(struct c2_list *list, struct c2_fop *b_fop)
 
 /**
    Return the opcode of given fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_io_get_opcode is called.
+
    @param - fop for which opcode has to be returned
  */
 int c2_io_fop_get_opcode(struct c2_fop *fop)
@@ -623,6 +655,8 @@ struct c2_fop_type_ops c2_io_cob_writev_ops = {
 /**
  * Init function to initialize readv and writev reply FOMs.
  * Since there is no client side FOMs as of now, this is empty.
+ * @param fop - fop on which this fom_init methods operates.
+ * @param fom - fom object to be created here.
  */
 static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
@@ -631,6 +665,8 @@ static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /**
    Return the size of a read_reply fop.
+   @pre fop.f_item.ri_type->rit_ops->rio_item_size is called.
+
    @param - Read fop for which size has to be calculated
  */
 uint64_t c2_io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
@@ -674,6 +710,7 @@ uint64_t c2_io_fop_create_getsize(struct c2_fop *fop)
 	uint64_t			 size = 0;
 
 	C2_PRE(fop != NULL);
+
 	/** Size of fop layout */
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	size += sizeof(struct c2_fop_type);

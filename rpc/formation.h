@@ -55,13 +55,13 @@
    https://docs.google.com/a/xyratex.com/Doc?docid=0AXXBPOl-5oGtZGRzMzZ2NXdfMGQ0ZjNweGdz&hl=en
 
    Formation is done on basis of various criterion
-   * timeout
-   * priority
-   * rpc group
-   * URGENT
-   * max_message_size (max permissible size of RPC object)
-   * max_rpcs_in_flight (max number of RPCs that could be in flight)
-   * max_message_fragments (max number of disjoint memory buffers)
+	timeout
+	priority
+	rpc group
+	URGENT
+	max_message_size (max permissible size of RPC object)
+	max_rpcs_in_flight (max number of RPCs that could be in flight)
+	max_message_fragments (max number of disjoint memory buffers)
 
    The Formation component will use an internal data structure that gives
    summary of data in the input list. This data structure will help in
@@ -72,41 +72,45 @@
    a result.
 
    The external events are
-   * addition of an rpc item to the slot ready list.
-   * deletion of rpc item.
-   * change of parameter for an rpc item.
-   * reply received.
-   * deadline expired(timeout) of an rpc item.
-   * slot becomes idle
-   * unbounded item is added to the sessions list
-   * c2_net_buffer sent to destination, hence free it
+	addition of an rpc item to the slot ready list.
+	deletion of rpc item.
+	change of parameter for an rpc item.
+	reply received.
+	deadline expired(timeout) of an rpc item.
+	slot becomes idle.
+	unbounded item is added to the sessions list.
+	c2_net_buffer sent to destination, hence free it.
+
    Also, there are a number of states through which the formation state
    machine transitions.
-   * WAITING (waiting for an event to trigger)
-   * UPDATING (updates the internal data structure)
-   * CHECKING (core of formation algorithm)
-   * FORMING (Forming an rpc object in memory)
-   * POSTING (Sending the rpc object over wire?)
+	WAITING (waiting for an event to trigger)
+	UPDATING (updates the internal data structure)
+	CHECKING (core of formation algorithm)
+	FORMING (Forming an rpc object in memory)
+	POSTING (Sending the rpc object over wire?)
 
    Along with these external events, there are some implicit internal
    events which are used to transit the state machine from one state
    to the next state on the back of same thread.
+
    These internal events are
-   * state succeeded.
-   * state failed.
+	state succeeded.
+	state failed.
+
    The formation component maintains its current state in a state variable
    which is protected by a lock. At any time, the state machine can only be
    in one state.
    The lifecycle of any thread executing the formation state machine is
    something like this
-   * execute a state function as a result of triggering of some event.
-   * acquire the state lock.
-   * change the state of state machine.
-   * release the state lock.
-   * lock the internal data structure.
-   * operate on the internal data structure.
-   * release the internal data structure lock.
-   * pass through the sub sequent states as states succeed and exit
+	execute a state function as a result of triggering of some event.
+	acquire the state lock.
+	change the state of state machine.
+	release the state lock.
+	lock the internal data structure.
+	operate on the internal data structure.
+	release the internal data structure lock.
+	pass through the sub sequent states as states succeed and exit
+
  */
 
 /* XXX A lot of data structures here, use a c2_list. Instead a
@@ -300,11 +304,20 @@ bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
 struct c2_net_end_point *c2_rpc_form_get_endpoint(struct c2_rpc_item *item);
 
 /**
+   A magic constant to varify the sanity of c2_rpc_form_buffer.
+ */
+enum {
+	C2_RPC_FORM_BUFFER_MAGIC = 0x8135797531975313ULL,
+};
+
+/**
    A structure to process callbacks to posting events.
    This structure in used to associate an rpc object being sent,
    its associated item_summary_unit structure and the c2_net_buffer.
  */
 struct c2_rpc_form_buffer {
+	/** A magic constant to verify sanity of buffer. */
+	uint64_t				 fb_magic;
 	/** The c2_net_buffer on which callback will trigger. */
 	struct c2_net_buffer			 fb_buffer;
 	/** The associated item_summary_unit structure. */
@@ -411,9 +424,9 @@ struct c2_rpc_form_rpcobj {
 };
 
 /**
-   Enumeration of external events.
+   Enumeration of internal and external events.
  */
-enum c2_rpc_form_event {
+enum c2_rpc_form_event_id {
 	/** Slot ready to send next item. */
 	C2_RPC_FORM_EXTEVT_RPCITEM_READY = 0,
 	/** RPC item removed from cache. */
@@ -439,7 +452,7 @@ enum c2_rpc_form_event {
 	C2_RPC_FORM_INTEVT_STATE_FAILED,
 	/** Execution completed, exit the state machine. */
 	C2_RPC_FORM_INTEVT_STATE_DONE,
-	/** Max internal events. */
+	/** Max number of events. */
 	C2_RPC_FORM_EVENTS_NR
 };
 
