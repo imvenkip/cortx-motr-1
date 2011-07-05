@@ -25,10 +25,10 @@
 
 /** @file rm.ff
  *
- *  This file defines RM-fops needed to RM-generic layer.
+ *  This file defines RM-fops needed for RM-generic layer.
  *  All the layers using RM will have to define their own FOPs to
- *  fetch resource data. RM-generic FOPs provide a facility to
- *  fetch small resource data.
+ *  fetch resource data. RM-generic FOPs provide a facility for
+ *  resource rights management and to fetch small resource data.
  *
  * <b>RM fop formats</b>
  */
@@ -47,8 +47,8 @@ DEF(c2_fop_rm_get_owner_info, RECORD,
 /**
  * This represents service Id.
  * <br> List of fields
- * @li sid_len : Number of bytes of service id.
- * @li sid : Byte-stream of service id.
+ * @li sid_len : Number of bytes in service id
+ * @li sid : Byte-stream of service id
  * </br>
  */
 DEF(c2_fop_rm_sid, SEQUENCE,
@@ -58,8 +58,8 @@ DEF(c2_fop_rm_sid, SEQUENCE,
 /**
  * This represents network address.
  * <br> List of fields
- * @li naddr_len : Number of bytes in n/w address.
- * @li naddr : Byte-stream of n/w address.
+ * @li naddr_len : Number of bytes in n/w address
+ * @li naddr : Byte-stream of n/w address
  * </br>
  */
 DEF(c2_fop_rm_net_addr, SEQUENCE,
@@ -69,9 +69,9 @@ DEF(c2_fop_rm_net_addr, SEQUENCE,
 /**
  * This represents network end-point <net-type, net-addr, port>.
  * <br> List of fields
- * @li ep_naddr_type : Type of n/w address.
+ * @li ep_naddr_type : Type of n/w address
+ * @li ep_naddr : Byte-stream of n/w address id
  * @li ep_nport : Network port withing the address
- * @li ep_naddr : Byte-stream of n/w address id.
  * </br>
  */
 DEF(c2_fop_rm_net_endp, RECORD,
@@ -80,13 +80,15 @@ DEF(c2_fop_rm_net_endp, RECORD,
     _(ep_nport, U32));
 
 /**
- * This is a service descriptor <service-id, service-end-point>
+ * This is a owner descriptor <service-id, service-end-point, remote owner id>
  * <br> List of fields
- * @li svc_id : Service Identifier
- * @li svc_endp : Service end-point.
+ * @li rem_id : Id of the remote owner
+ * @li svc_id : Service Identifier of remote resource owner
+ * @li svc_endp : Service end-point of remote resource owner
  * </br>
  */
-DEF(c2_fop_rm_fop_svc_desc, RECORD,
+DEF(c2_fop_rm_fop_owner_desc, RECORD,
+    _(rem_id, U64),
     _(svc_id, c2_fop_rm_sid),
     _(svc_endp, c2_fop_rm_net_endp));
 
@@ -95,13 +97,13 @@ DEF(c2_fop_rm_fop_svc_desc, RECORD,
  * <br> List of fields
  * @li res_type : Resource type identifier
  * @li res_id : Resource identifier 
- * @li svc_desc : Service descriptor of the owner (this machine)
+ * @li owner_desc : Descriptor of the owner (this machine)
  * </br>
  */
 DEF(c2_fop_rm_set_owner_info, RECORD,
     _(res_type, U64),
     _(res_id, U64),
-    _(svc_desc, c2_fop_rm_fop_svc_desc));
+    _(owner_desc, c2_fop_rm_fop_owner_desc));
 
 /**
  * This is a reply FOP - sent in response to GET/SET owner info.
@@ -110,13 +112,13 @@ DEF(c2_fop_rm_set_owner_info, RECORD,
  * <br> List of fields
  * @li owner_status : Response (NO-OWNER, ANOTHER-OWNER, OWNER-SET)
  * @li rem_id : Id of the remote owner
- * @li svc_desc : Service descriptor of the owner (this machine)
+ * @li owner_desc : Descriptor of the owner
  * </br>
  */
 DEF(c2_fop_rm_owner_info, RECORD,
     _(owner_status, BYTE),
     _(rem_id, U64),
-    _(svc_desc, c2_fop_rm_fop_svc_desc));
+    _(owner_desc, c2_fop_rm_fop_owner_desc));
 
 /**
  * Ask for a right to a given resorce. Right information is encoded in
@@ -127,7 +129,8 @@ DEF(c2_fop_rm_owner_info, RECORD,
  * @li res_id : Resource identifier 
  * @li res_grp_id : Resource Group Id
  * @li res_policy_id : Policy Id for resource rights
- * @li res_datum : Resource right representation
+ * @li res_datum : Resource right representation (requested). Checking
+ *                 for rights availablity will also be encoded?
  * </br>
  */
 DEF(c2_fop_rm_get_right, RECORD,
@@ -141,8 +144,8 @@ DEF(c2_fop_rm_get_right, RECORD,
 /**
  * A small amount of resource data (up to 256 bytes?) can be piggy-backed.
  * <br> List of fields
- * @li rd_len : Number of bytes of resource data.
- * @li res_data : Byte-stream of resource data.
+ * @li rd_len : Number of bytes of resource data
+ * @li res_data : Byte-stream of resource data
  * </br>
  */
 DEF(c2_fop_rm_res_data, SEQUENCE,
@@ -160,10 +163,10 @@ DEF(c2_fop_rm_res_data, SEQUENCE,
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
  * @li res_id : Resource identifier 
- * @li res_datum : Resource right representation (rights granted)
- * @li loan_id : Id for the resource loan.
+ * @li res_datum : Resource right representation (granted)
+ * @li loan_id : Id for the resource loan
  * @li res_data_flag : Marks that this FOP contains valid resource data
- * @li res_data : Piggy-backed resource data.
+ * @li res_data : Piggy-backed resource data
  * </br>
  */
 DEF(c2_fop_rm_right_reply, RECORD,
@@ -184,7 +187,7 @@ DEF(c2_fop_rm_right_reply, RECORD,
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
  * @li res_id : Resource identifier 
- * @li loan_id : Id for the resource loan.
+ * @li loan_id : Id for the resource loan
  * @li res_grp_id : Resource Group Id
  * </br>
  */
@@ -201,7 +204,7 @@ DEF(c2_fop_rm_revoke_right, RECORD,
  * @li rem_id : Id of the remote owner
  * @li res_type : Resource type identifier
  * @li res_id : Resource identifier 
- * @li loan_id : Id for the resource loan.
+ * @li loan_id : Id for the resource loan
  * @li res_grp_id : Resource Group Id
  * </br>
  */
