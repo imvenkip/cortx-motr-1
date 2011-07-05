@@ -199,7 +199,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	struct c2_fom	       *fom = NULL;
 	int			result;
 	size_t			iloc;
-	struct c2_fop_ctx      *fo_ctx;	
+	struct c2_fop_ctx      *fo_ctx;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
@@ -209,7 +209,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 		return;
 
 	fo_ctx->ft_service = reqh->rh_serv;
-	fo_ctx->fc_cookie = cookie; 
+	fo_ctx->fc_cookie = cookie;
 
 	/* Initialise fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -711,7 +711,7 @@ static int create_loc_ctx(struct c2_fom *fom)
  *		returns FSO_AGAIN.
  *
  * @todo currently db operations may block, thus will need to implement wait phase
- * 		once we have non-blocking db routines.
+ *	once we have non-blocking db routines.
  */
 static int create_loc_ctx_wait(struct c2_fom *fom)
 {
@@ -762,7 +762,7 @@ static int fom_failure(struct c2_fom *fom)
 /**
  * Handles fom execution success, transitions to FOPH_DONE
  * phase.
- * 
+ *
  * @param fom -> c2_fom.
  *
  * @pre fom->fo_phase == FOPH_SUCCEED.
@@ -789,10 +789,10 @@ static int fom_succeed(struct c2_fom *fom)
  * @pre fom->fo_phase == FOPH_TXN_COMMIT.
  *
  * @retval int -> returns FSO_WAIT,
- * 		 logs addb event on db commit failure.
+ *		logs addb event on db commit failure.
  *
  * @todo currently db transaction routines may block, hence would need more
- * 	implementation once non blocking db routines are available.
+ *	implementation once non blocking db routines are available.
  */
 static int fom_txn_commit(struct c2_fom *fom)
 {
@@ -827,10 +827,10 @@ static int fom_txn_commit(struct c2_fom *fom)
  * @pre fom->fo_phase == FOPH_TXN_COMMIT_WAIT.
  *
  * @retval int -> returns FSO_WAIT,
- * 		 logs addb event on db commit failure.
+ *		logs addb event on db commit failure.
  *
  * @todo currently db transaction routines may block, hence would need more
- * 	implementation once non blocking db routines are available.
+ *	implementation once non blocking db routines are available.
  */
 static int fom_txn_commit_wait(struct c2_fom *fom)
 {
@@ -875,10 +875,10 @@ static bool is_tx_initialised(struct c2_db_tx *tx)
  * @pre fom->fo_phase == FOPH_TXN_ABORT.
  *
  * @retval int -> returns FSO_WAIT,
- * 		 logs addb event on db abort failure.
+ *		logs addb event on db abort failure.
  *
  * @todo currently db transaction routines may block, hence would need more
- * 	implementation once non blocking db routines are available.
+ *	implementation once non blocking db routines are available.
  */
 static int fom_txn_abort(struct c2_fom *fom)
 {
@@ -909,10 +909,10 @@ static int fom_txn_abort(struct c2_fom *fom)
  * @pre fom->fo_phase == FOPH_TXN_ABORT_WAIT.
  *
  * @retval int -> returns FSO_WAIT,
- * 		 logs addb event on db abort failure.
+ *		logs addb event on db abort failure.
  *
  * @todo currently db transaction routines may block, hence would need more
- * 	implementation once non blocking db routines are available.
+ *	implementation once non blocking db routines are available.
  */
 static int fom_txn_abort_wait(struct c2_fom *fom)
 {
@@ -940,11 +940,11 @@ static int fom_txn_abort_wait(struct c2_fom *fom)
  * @pre fom->fo_rep_fop != NULL.
  *
  * @retval int -> returns FSO_AGAIN,
- * 		 logs addb event on failure.
+ *		logs addb event on failure.
  *
  * @todo currently we don't have write back cache implementation, in which
  *	we may perform updations on local objects and re integrate with
- * 	server later, in that case we may block for cache space, that would
+ *	server later, in that case we may block for cache space, that would
  *	need more implementation for this routine.
  */
 static int fom_queue_reply(struct c2_fom *fom)
@@ -977,11 +977,11 @@ static int fom_queue_reply(struct c2_fom *fom)
  * @pre fom->fo_phase == FOPH_QUEUE_REPLY_WAIT.
  *
  * @retval int -> returns FSO_AGAIN,
- * 		 logs addb event on failure.
+ *		logs addb event on failure.
  *
  * @todo currently we don't have write back cache implementation, in which
  *	we may perform updations on local objects and re integrate with
- * 	server later, in that case we may block for cache space, that would
+ *	server later, in that case we may block for cache space, that would
  *	need more implementation for this routine.
  */
 static int fom_queue_reply_wait(struct c2_fom *fom)

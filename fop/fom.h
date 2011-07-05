@@ -85,7 +85,7 @@ struct c2_fom_ops;
    - No lock ordering is needed here as there's no conatiner relationship
      among locality members.
 
-   Once the locality is initialised, the locality invariant, 
+   Once the locality is initialised, the locality invariant,
    should hold true until its finalisation.
 
    @see c2_locality_invaraint(struct c2_fom_locality *loc)
@@ -242,11 +242,11 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom);
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
-/** 
-   Fop state machine. 
-   
+/**
+   Fop state machine.
+
    Once the fom is initialised, fom invariant,
-   should hold true as fom execution enters various 
+   should hold true as fom execution enters various
    phases, including before its finalisation.
 
    @see c2_fom_invariant(struct c2_fom *fom)

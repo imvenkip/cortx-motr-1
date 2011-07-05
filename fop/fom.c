@@ -114,7 +114,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	return  fom != NULL && fom->fo_type != NULL && fom->fo_ops != NULL &&
 		fom->fo_fop_ctx != NULL && fom->fo_fop != NULL &&
-		fom->fo_fol != NULL && fom->fo_domain != NULL && 
+		fom->fo_fol != NULL && fom->fo_domain != NULL &&
 		fom->fo_stdomain != NULL && fom->fo_loc != NULL &&
 		c2_list_link_invariant(&fom->fo_rwlink);
 }
@@ -152,8 +152,8 @@ static void fom_ready(struct c2_fom *fom)
  */
 static void fom_cb(struct c2_clink *clink)
 {
+	struct c2_fom_locality	*loc;
 	struct c2_fom		*fom;
-	struct c2_fom_locality 	*loc;
 
 	C2_PRE(clink != NULL);
 
@@ -174,10 +174,10 @@ static void fom_cb(struct c2_clink *clink)
 
 void c2_fom_block_enter(struct c2_fom *fom)
 {
-	int 			rc = 0;
-	int 			i;
-	size_t 			idle_threads;
-	size_t 			hi_idle_threads;
+	int			rc = 0;
+	int			i;
+	size_t			idle_threads;
+	size_t			hi_idle_threads;
 	struct c2_fom_locality *loc;
 
 	loc = fom->fo_loc;
@@ -248,7 +248,7 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
  * Executes fop specific operation.
  *
  * @param fom -> c2_fom.
- * 
+ *
  * @pre fom->fo_state == FOS_RUNNING
  */
 void c2_fom_fop_exec(struct c2_fom *fom)
@@ -278,7 +278,7 @@ void c2_fom_fop_exec(struct c2_fom *fom)
  *
  * @retval -> returns valid c2_fom object if succeeds,
  *		else returns NULL.
- * 
+ *
  * @pre c2_mutex_is_locked(&loc->fl_runq_lock)
  */
 struct c2_fom * c2_fom_dequeue(struct c2_fom_locality *loc)
@@ -308,7 +308,7 @@ struct c2_fom * c2_fom_dequeue(struct c2_fom_locality *loc)
  * if number of idle threads are higher than threshold value, they are terminated.
  *
  * @param th -> c2_fom_hthread, contains thread reference, locality reference
- * 		and thread linkage in locality.
+ *		and thread linkage in locality.
  *
  * @pre th != NULL
  */
@@ -401,7 +401,7 @@ static void loc_thr_init(struct c2_fom_hthread *th)
  */
 static int loc_thr_create(struct c2_fom_locality *loc)
 {
-	int 			result;
+	int			result;
 	struct c2_fom_hthread  *locthr;
 
 	C2_PRE(loc != NULL);
@@ -414,7 +414,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	locthr->fht_locality = loc;
 	result = C2_THREAD_INIT(&locthr->fht_thread, struct c2_fom_hthread *,
 			&loc_thr_init, &loc_handler_thread, locthr, "locality_thread");
-	
+
 	if (result != 0)
 		c2_free(locthr);
 
@@ -484,8 +484,8 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
  */
 static void locality_fini(struct c2_fom_locality *loc)
 {
-	struct c2_list_link 	*link;
-	struct c2_fom_hthread 	*th;
+	struct c2_list_link	*link;
+	struct c2_fom_hthread	*th;
 
 	C2_PRE(loc != NULL);
 
@@ -555,7 +555,7 @@ static bool resource_is_shared(struct c2_processor_descr *cpu1,
  * @param cpu -> cpu descriptor.
  *
  * @retval bool -> returns true, if succeeds.
- * 		returns false, on failure.
+ *		returns false, on failure.
  */
 static bool cpu_is_usable(struct c2_processor_descr *cpu)
 {
@@ -564,7 +564,7 @@ static bool cpu_is_usable(struct c2_processor_descr *cpu)
 
 int  c2_fom_domain_init(struct c2_fom_domain *dom)
 {
-	int 				i;
+	int				i;
 	int				j;
 	int				onln_cpus;
 	int				result = 0;
@@ -629,7 +629,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 			 * increment locality number of localities in a fom domain and
 			 * reset ith cpu descriptor in cpu_info array to 0.
 			 */
-			if (cpu_is_usable(&cpu_info[j]) && 
+			if (cpu_is_usable(&cpu_info[j]) &&
 				resource_is_shared(&cpu_info[i], &cpu_info[j])) {
 				--onln_cpus;
 				c2_bitmap_set(&loc_cpu_map, cpu_info[j].pd_id, true);

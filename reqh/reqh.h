@@ -42,8 +42,8 @@ struct c2_fop_sortkey;
    Request handler instance.
  */
 struct c2_reqh {
-	struct c2_rpcmachine  	*rh_rpc;
-	struct c2_dtm         	*rh_dtm;
+	struct c2_rpcmachine	*rh_rpc;
+	struct c2_dtm		*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
 	   will be replaced with "stores".
@@ -69,7 +69,7 @@ struct c2_reqh {
  *
  * @retval int -> returns 0, if succeeds.
  *              returns -errno, on failure.
- * 
+ *
  * @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
  */
 int  c2_reqh_init(struct c2_reqh *reqh,

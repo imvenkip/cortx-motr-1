@@ -248,8 +248,8 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	c2_io_fid2stob_map(&fid, &stobid);
 
 	/* 
-	 * This is a transaction IO and should be a separate phase 
-	 * with full fledged FOM. 
+	 * This is a transaction IO and should be a separate phase
+	 * with full fledged FOM.
 	 */
 	result = fom->fo_stdomain->sd_ops->sdo_tx_make(fom->fo_stdomain, &tx);
 	C2_ASSERT(result == 0);
@@ -264,7 +264,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	}
 
 	/*
-	 * Allocate and find out the c2_stob object from given domain. 
+	 * Allocate and find out the c2_stob object from given domain.
 	 */
 	result = c2_stob_find(fom->fo_stdomain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
 	C2_ASSERT(result == 0);

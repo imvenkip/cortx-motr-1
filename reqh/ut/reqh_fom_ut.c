@@ -439,9 +439,9 @@ static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned
 static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
                                    struct c2_dtx *tx, struct c2_fom *fom)
 {
-	struct c2_stob_id	 id;
+	struct c2_stob_id	id;
 	struct c2_stob		*obj;
-	int 			 result;
+	int			result;
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
@@ -555,7 +555,7 @@ size_t fom_home_locality(const struct c2_fom *fom)
 
 	if (fom == NULL)
 		return -EINVAL;
-	
+
 	fd_nr = fom->fo_domain->fd_localities_nr;
 	switch(fom->fo_fop->f_type->ft_code) {
 		case 10: {
@@ -599,7 +599,7 @@ int create_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase < FOPH_NR)
 		result = c2_fom_state_generic(fom);
 	else {
-	
+
 		if (fom->fo_rep_fop == NULL) {
 			fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 
@@ -615,9 +615,9 @@ int create_fom_state(struct c2_fom *fom)
 			C2_UT_ASSERT(result == 0);
 			out_fop->sicr_rc = 0;
 			fom->fo_rep_fop = fom_obj->rep_fop;
-			/* 
-			 * add fol record 
-			 * if we block set fom->fo_phase to FOPH_QUEUE_REPLY_WAIT, 
+			/*
+			 * add fol record
+			 * if we block set fom->fo_phase to FOPH_QUEUE_REPLY_WAIT,
 			 * else transition to FOPH_QUEUE_REPLY.
 			 */
 			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, &fom->fo_tx.tx_dbtx);
@@ -642,7 +642,7 @@ int read_fom_state(struct c2_fom *fom)
 {
 	struct c2_fom_io_read		*in_fop;
 	struct c2_fom_io_read_rep	*out_fop;
-	struct c2_io_fom 		*fom_obj;
+	struct c2_io_fom		*fom_obj;
 	struct c2_clink			 clink;
 	void				*addr;
 	uint32_t			 bshift;
@@ -711,18 +711,18 @@ int read_fom_state(struct c2_fom *fom)
 				result = FSO_AGAIN;
 			} else {
 
-				/* 
+				/*
 				 * add fol record.
 				 * Transition to FOPH_QUEUE_REPLY.
 				 */
 				fom->fo_rep_fop = fom_obj->rep_fop;
-				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, 
+				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 								&fom->fo_tx.tx_dbtx);
 				fom->fo_phase = FOPH_QUEUE_REPLY;
 				result = FSO_AGAIN;
 			}
 		} else {
-			
+	
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
 			fom->fo_phase = FOPH_SUCCEED;
@@ -806,12 +806,12 @@ int write_fom_state(struct c2_fom *fom)
 				result = FSO_AGAIN;
 			} else {
 
-				/* 
+				/*
 				 * add fol record.
 				 * Transition to FOPH_QUEUE_REPLY.
 				 */
 				fom->fo_rep_fop = fom_obj->rep_fop;
-				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, 
+				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 								&fom->fo_tx.tx_dbtx);
 				fom->fo_phase = FOPH_QUEUE_REPLY;
 				result = FSO_AGAIN;
@@ -923,8 +923,8 @@ static void mock_balloc_fini(struct ad_balloc *ballroom)
 static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
-	struct mock_balloc *mb = b2mock(ballroom);
-	c2_bcount_t 	    giveout;
+	struct mock_balloc	*mb = b2mock(ballroom);
+	c2_bcount_t		giveout;
 
 	c2_mutex_lock(&mb->mb_lock);
 	giveout = min64u(count, 500000);
@@ -1014,11 +1014,11 @@ int create_net_connection(struct c2_service_id *rsid, struct c2_net_conn **conn,
  */
 void test_reqh(void)
 {
-	int 		 result;
-	unsigned long 	 i;
+	int		result;
+	unsigned long	i;
+	char		opath[64];
+	char		dpath[64];
 	const char	*path;
-	char        	 opath[64];
-	char        	 dpath[64];
 
 	struct c2_service_id	 rsid = { .si_uuid = "node-1" };
 	struct c2_net_conn	*conn;
