@@ -65,6 +65,7 @@ static void c2_rpc_form_set_state_sent(const struct c2_rpc *rpc)
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
 		item->ri_state = RPC_ITEM_SENT;
+		c2_rpc_item_set_outgoing_exit_stats(item);
 	}
 }
 

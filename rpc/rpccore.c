@@ -139,11 +139,15 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 }
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
-	int res = 0;
+	c2_time_t	now;
+	int 		res = 0;
 
 	C2_ASSERT(item != NULL && item->ri_session != NULL &&
 		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
+
+	c2_time_now(&now);
+	item->ri_rpc_entry_time = now;
 
 	printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
 			item->ri_session->s_session_id);
@@ -187,6 +191,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
 	c2_mutex_unlock(&slot->sl_mutex);
+        reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
+        request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
 	return 0;
 }
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
@@ -747,11 +753,18 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	struct c2_cob			*root_session_cob;
 	struct c2_net_domain		*net_dom;
 	int				 rc;
+	struct c2_rpc_stats		*stats;
 
 	/* The c2_net_domain is expected to be created by end user.*/
 	C2_PRE(machine != NULL);
 	C2_PRE(dom != NULL);
 	C2_PRE(src_ep != NULL);
+
+	C2_ALLOC_PTR(stats);
+	if (stats == NULL)
+		return -ENOMEM;
+
+	machine->cr_rpc_stats = stats;
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -809,6 +822,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage);
 	c2_ref_put(&chan->rc_ref);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
+	c2_free(&machine->cr_rpc_stats);
 }
 
 /** simple vector of RPC-item operations */
@@ -1120,6 +1134,32 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		default:
 			break;
 	};
+}
+
+/** Set the outgoing exit stats for an rpc item */
+void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
+{
+	c2_time_t                now;
+	struct c2_rpc_stats	*stats;
+	
+	C2_PRE(item != NULL);
+
+	c2_time_now(&now);
+	item->ri_rpc_exit_time = now;
+
+	stats = item->ri_mach->cr_rpc_stats;
+	stats->rs_out_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
+			item->ri_rpc_entry_time);
+	if (stats->rs_out_min_latency > stats->rs_out_instant_latency)
+		stats->rs_out_min_latency = stats->rs_out_instant_latency;
+	if (stats->rs_out_max_latency < stats->rs_out_instant_latency)
+		stats->rs_out_min_latency = stats->rs_out_instant_latency;
+	stats->rs_out_avg_latency = ((stats->rs_num_out_items *
+				stats->rs_out_avg_latency) +
+			stats->rs_out_instant_latency) /
+		(stats->rs_num_out_items +1);
+	stats->rs_num_out_items++;
+	stats->rs_num_out_bytes += c2_rpc_item_default_size(item);	
 }
 
 /* Dummy reqh queue of items */
