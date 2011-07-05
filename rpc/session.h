@@ -279,8 +279,8 @@ void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
 /**
    3WAY comparison function for UUID
  */
-int c2_rpc_sender_uuid_cmp(struct c2_rpc_sender_uuid *u1,
-			   struct c2_rpc_sender_uuid *u2);
+int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
+			   const struct c2_rpc_sender_uuid *u2);
 
 enum c2_rpc_conn_state {
 	/**
@@ -435,7 +435,7 @@ struct c2_rpc_conn {
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
 int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     struct c2_rpcmachine	*machine);
+		     const struct c2_rpcmachine	*machine);
 
 /**
     Send handshake conn create fop to the remote end. The reply
@@ -611,9 +611,9 @@ struct c2_rpc_session {
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-int c2_rpc_session_init(struct c2_rpc_session *session,
-			struct c2_rpc_conn    *conn,
-			uint32_t	      nr_slots);
+int c2_rpc_session_init(struct c2_rpc_session     *session,
+			const struct c2_rpc_conn  *conn,
+			uint32_t	          nr_slots);
 
 /**
     Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
@@ -660,10 +660,18 @@ enum {
 	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
 };
 
+/**
+   Events that slot can generate.
+ */
 struct c2_rpc_slot_ops {
+	/** Item i is ready to be consumed */
 	void (*so_consume_item)(struct c2_rpc_item *i);
+	/** A @reply for a request item @req is received and is
+	    ready to be consumed */
 	void (*so_consume_reply)(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply);
+	/** Slot has no items to send and hence is idle. Formation
+	    can use such slot to send unbound items */
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
 /**

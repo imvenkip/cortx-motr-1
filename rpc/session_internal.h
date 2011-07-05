@@ -76,7 +76,7 @@ void c2_rpc_slot_item_add(struct c2_rpc_slot	*slot,
    its reply is immediately consumed.
  */
 int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
-			  struct c2_rpc_item	*item);
+			   struct c2_rpc_item	*item);
 
 /**
    Called when a reply for an item which was sent on this slot.
@@ -106,6 +106,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot	*slot,
 
 void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
 
+bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot);
+
 /**
    Helper to create cob
 
@@ -120,7 +122,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot	*slot);
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
-			     char			*name,
+			     const char			*name,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx);
 
@@ -134,7 +136,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
  */
 int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
-			     char			*name,
+			     const char			*name,
 			     struct c2_cob		**out,
 			     struct c2_db_tx		*tx);
 
@@ -262,9 +264,9 @@ int session_persistent_state_destroy(struct c2_rpc_session	*session,
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
-int c2_rpc_rcv_conn_init(struct c2_rpc_conn	   *conn,
-			 struct c2_rpcmachine	   *machine,
-			 struct c2_rpc_sender_uuid *uuid);
+int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
+			 const struct c2_rpcmachine	 *machine,
+			 const struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.
 
@@ -370,11 +372,6 @@ struct c2_rpc_slot_ref {
 void session_search(const struct c2_rpc_conn	*conn,
 		    uint64_t			session_id,
 		    struct c2_rpc_session	**out);
-
-/**
-   Returns true if item is carrying CONN_CREATE fop.
- */
-bool item_is_conn_create(struct c2_rpc_item  *item);
 
 /**
    Temporary routine that submits the fop for execution
