@@ -343,6 +343,9 @@ enum c2_rpc_conn_flags {
    non-idempotent, they also need EOS and FIFO guarantees.
 
    <PRE>
+   Note: There is no state named as "UNKNOWN", it is in the state diagram to
+   specify "before initialisation" and "after finalisation" state, and the
+   contents of object are irrelevant and "unknown".
 
    +-------------------------> unknown state
          allocated                  |
