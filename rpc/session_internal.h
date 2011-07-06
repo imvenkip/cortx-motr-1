@@ -293,32 +293,32 @@ struct c2_rpc_slot_ref {
 	struct c2_rpc_slot		*sr_slot;
 	struct c2_rpc_item		*sr_item;
 	struct c2_rpc_sender_uuid	 sr_uuid;
-	uint64_t		 	 sr_sender_id;
-	uint64_t		 	 sr_session_id;
+	uint64_t			 sr_sender_id;
+	uint64_t			 sr_session_id;
 	/** Numeric id of slot. Used when encoding and decoding rpc item to
 	    and from wire-format */
-	uint32_t		 	 sr_slot_id;
+	uint32_t			 sr_slot_id;
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot */
-	struct c2_verno		 	 sr_verno;
+	struct c2_verno			 sr_verno;
 	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field */
-	struct c2_verno		 	 sr_last_persistent_verno;
+	struct c2_verno			 sr_last_persistent_verno;
 	/** Inform the sender about current slot version */
-	struct c2_verno		 	 sr_last_seen_verno;
+	struct c2_verno			 sr_last_seen_verno;
 	/** An identifier that uniquely identifies item within
 	    slot->item_list.
 	    XXX should we rename it to something like "item_id"
 		(somehow the name "xid" gives illusion that it is related to
 		 some transaction identifier)
         */
-	uint64_t		 	 sr_xid;
+	uint64_t			 sr_xid;
 	/** Generation number of slot */
-	uint64_t		 	 sr_slot_gen;
+	uint64_t			 sr_slot_gen;
 	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link	 	 sr_link;
+	struct c2_list_link		 sr_link;
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link	 	 sr_ready_link;
+	struct c2_list_link		 sr_ready_link;
 };
 
 /**

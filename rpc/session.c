@@ -1166,7 +1166,7 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
 		 session->s_conn != NULL &&
 		 ergo(session->s_session_id != SESSION_0,
 			session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
-		 	session->s_conn->c_nr_sessions > 0) &&
+			session->s_conn->c_nr_sessions > 0) &&
 		 session->s_nr_slots >= 0 &&
 		 c2_list_contains(&session->s_conn->c_sessions,
 			&session->s_link);
@@ -1650,7 +1650,6 @@ static void slot_balance(struct c2_rpc_slot	*slot)
 }
 
 /**
-   @see c2_rpc_slot_item_add
    @see c2_rpc_slot_item_add_internal
  */
 static void __slot_item_add(struct c2_rpc_slot	*slot,
@@ -1810,12 +1809,12 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 					break;
 				case RPC_ITEM_IN_PROGRESS:
 				case RPC_ITEM_FUTURE:
-					/* item is already present but yet to
-					   processed. Ignore it*/
+					/* item is already present but is not
+					   processed yet. Ignore it*/
 					/* do nothing */;
 					printf("ignoring item: %p\n", item);
 			}
-			break;
+		break;
 		case -EAGAIN:
 			rc = c2_rpc_slot_misordered_item_received(slot, item);
 			break;
@@ -1833,14 +1832,14 @@ static void search_matching_request_item(const struct c2_rpc_slot *slot,
 	C2_PRE(slot != NULL && item != NULL && out != NULL);
 	sref = &item->ri_slot_refs[0];
 	*out = NULL;
-/*
+
 	if (slot->sl_slot_gen != sref->sr_slot_gen)
-		return NULL;
-*/
+		return;
+
 	c2_list_for_each_entry(&slot->sl_item_list, i, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
 		if (c2_verno_cmp(&i->ri_slot_refs[0].sr_verno,
-		    		 &sref->sr_verno) == 0 &&
+				 &sref->sr_verno) == 0 &&
 		    i->ri_slot_refs[0].sr_xid == sref->sr_xid) {
 			*out = i;
 			break;
@@ -2180,10 +2179,10 @@ static void rcv_consume_reply(struct c2_rpc_item  *req,
 
 static int conn_persistent_state_create(struct c2_cob_domain *dom,
 					uint64_t	      sender_id,
-				 	struct c2_cob	    **conn_cob_out,
+					struct c2_cob	    **conn_cob_out,
 					struct c2_cob	    **session0_cob_out,
-				 	struct c2_cob	    **slot0_cob_out,
-				 	struct c2_db_tx	     *tx)
+					struct c2_cob	    **slot0_cob_out,
+					struct c2_db_tx	     *tx)
 {
 	struct c2_cob	*conn_cob = NULL;
 	struct c2_cob	*session0_cob = NULL;
