@@ -548,7 +548,8 @@ static void locality_fini(struct c2_fom_locality *loc)
 static bool resource_is_shared(struct c2_processor_descr *cpu1,
 			struct c2_processor_descr *cpu2)
 {
-	return cpu1->pd_l2 == cpu2->pd_l2 || cpu1->pd_numa_node == cpu2->pd_numa_node;
+	return cpu1->pd_l2 == cpu2->pd_l2 ||
+			cpu1->pd_numa_node == cpu2->pd_numa_node;
 }
 
 /**
@@ -607,7 +608,8 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 		}
 	}
 
-	C2_ALLOC_ARR_ADDB(dom->fd_localities, onln_cpus, &c2_reqh_addb_ctx, &c2_fom_addb_loc);
+	C2_ALLOC_ARR_ADDB(dom->fd_localities, onln_cpus, &c2_reqh_addb_ctx,
+						&c2_fom_addb_loc);
 	if (dom->fd_localities == NULL) {
 		c2_free(cpu_info);
 		return -ENOMEM;
