@@ -301,9 +301,33 @@ void send_ping_fop(int nr)
 	create_fop->fcr_fid = fid;
 	item = &fop->f_item;
 	c2_rpc_form_item_populate_param(&fop->f_item);
+	item->ri_deadline = 0;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);	
+}
+
+/* Get stats from rpcmachine and print them */
+void print_stats()
+{
+	struct c2_rpcmachine	*rpc_mach;
+	struct c2_rpc_stats	*stats;
+	uint64_t		 nsec;
+	double			 sec = 0;
+	double			 thruput;
+
+	rpc_mach = &cctx.pc_rpc_mach;
+	stats = rpc_mach->cr_rpc_stats;
+	printf("Stats - number of outgoing items = %lu\n",
+			stats->rs_num_out_items);
+	printf("Stats - number of outgoing bytes = %lu\n",
+			stats->rs_num_out_bytes);
+	sec = c2_time_seconds(stats->rs_out_avg_latency);
+	nsec = c2_time_nanoseconds(stats->rs_out_avg_latency);
+	sec += (double) nsec/1000000000;
+	printf("Stats - Average latency = %lf\n", sec);
+	thruput = (double)stats->rs_num_out_bytes/sec;
+	printf("Stats - Throughput = %lf\n", thruput);
 }
 
 /* Create the client */
@@ -614,6 +638,7 @@ int main(int argc, char *argv[])
 	/* Client part */
 	if(client) {
 		client_init();
+		print_stats();
 	}
 
 	/* Server part */
