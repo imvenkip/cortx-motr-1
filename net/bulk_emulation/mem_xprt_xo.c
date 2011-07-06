@@ -737,6 +737,7 @@ struct c2_net_xprt c2_net_bulk_mem_xprt = {
 	.nx_name = "bulk-mem",
 	.nx_ops  = &mem_xo_xprt_ops
 };
+C2_EXPORTED(c2_net_bulk_mem_xprt);
 
 /**
    @} bulkmem
