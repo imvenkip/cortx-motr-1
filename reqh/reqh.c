@@ -183,7 +183,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 static void reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 {
 	struct c2_fop			*rfop;
-	struct c2_reqh_error_rep 	*out_fop;
+	struct c2_reqh_error_rep	*out_fop;
 
 	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
 	if (rfop == NULL)

@@ -175,7 +175,7 @@ struct c2_fop_memlayout c2_fom_io_quit_memlayout = {
 
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
