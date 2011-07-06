@@ -222,53 +222,6 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
-#if 0
-/**
-   Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
-   Returns corresponding references to cobs in out parameters.
- */
-int conn_persistent_state_create(struct c2_cob_domain   *dom,
-				 uint64_t               sender_id,
-				 struct c2_cob          **conn_cob_out,
-				 struct c2_cob          **session0_cob_out,
-				 struct c2_cob          **slot0_cob_out,
-				 struct c2_db_tx        *tx);
-
-/**
-   Delegates persistent state creation to conn_persistent_state_create().
-   And associates returned cobs to conn->c_cob, session0->s_cob and
-   slot0->sl_cob
- */
-int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
-				 uint64_t		sender_id,
-				 struct c2_db_tx	*tx);
-
-/**
-   Creates SESSION_$session_id/SLOT_[0...($nr_slots - 1)]:0 cob entries
-   within parent cob @conn_cob
- */
-int session_persistent_state_create(struct c2_cob	*conn_cob,
-				    uint64_t		session_id,
-				    struct c2_cob	**session_cob_out,
-				    struct c2_cob	**slot_cob_array_out,
-				    uint32_t		nr_slots,
-				    struct c2_db_tx	*tx);
-
-/**
-   Delegates persistent state creation to session_persistent_state_create().
-   And associates cobs to session->s_cob and slot[0..(nr_slots - 1)]->sl_cob
- */
-int session_persistent_state_attach(struct c2_rpc_session	*session,
-				   uint64_t			session_id,
-				   struct c2_db_tx		*tx);
-
-/**
-  Deletes all the cobs associated with the session and slots belonging to
-  the session
- */
-int session_persistent_state_destroy(struct c2_rpc_session	*session,
-				     struct c2_db_tx		*tx);
-#endif
 /**
    Initalise receiver end of conn object.
    @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
@@ -319,6 +272,10 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
 /**
    Clean up in memory state of rpc connection
+
+   Right now this function is not called from anywhere. There
+   should be ->item_sent() callback in item->ri_ops, where this
+   function can be hooked.
 
    @pre conn->c_state == C2_RPC_CONN_TERMINATING
  */

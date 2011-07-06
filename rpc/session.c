@@ -2041,7 +2041,8 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot	*slot)
 /**
   Free all the items from slot->sl_item_list except dummy_item.
 
-  XXX This is temporary. When slots will be integrated with FOL, there
+  XXX This is temporary. This routine will be scraped entirely.
+  When slots will be integrated with FOL, there
   will be some pruning mechanism that will evict items from slot's
   item_list. But for now, we need to be able to fini()  slot for testing
   purpose. That's why freeing the items explicitly.

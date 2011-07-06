@@ -231,9 +231,8 @@ points to record of most recent update operation that updated the slot verno.
 
     @todo
 	- Currently sender_id and session_id are chosen to be random().
+	- UUID generation
 	- How to get unique stob_id for session and slot cobs?
-	- Default slot count is currently set to 4. Nothing special about 4.
-	  Needs a proper value.
 	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.

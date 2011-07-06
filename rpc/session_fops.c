@@ -122,7 +122,7 @@ int c2_rpc_fop_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
-					struct c2_fom **m)
+					  struct c2_fom **m)
 {
 	struct c2_rpc_fom_session_terminate	*fom_st;
 	struct c2_fom				*fom;
@@ -188,6 +188,8 @@ int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
 }
 /*
  *  REQUEST fops
+ *  XXX C2_FOP_TYPE_DECLARE_NEW() is a temporary macro that enhances
+ *  existing C2_FOP_TYPE_DECLARE() to assign item_type to the fop_type.
  */
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create, "rpc_conn_create",
