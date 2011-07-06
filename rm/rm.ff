@@ -34,118 +34,40 @@
  */
 
 /**
- * Request the resource owner information from a lookup server.
+ * This rights informtation.
  * <br> List of fields
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
+ * - right_len : Length of rights record
+ * - rights : Resource type specfic rights
  * </br>
  */
-DEF(c2_fop_rm_get_owner_info, RECORD,
-    _(res_type, U64),
-    _(res_id, U64));
+DEF(c2_fop_rm_rights, SEQUENCE,
+    _(right_len, U32),
+    _(rights, BYTE));
 
 /**
- * This represents service Id.
+ * Borrow the right to a given resorce.
  * <br> List of fields
- * @li sid_len : Number of bytes in service id
- * @li sid : Byte-stream of service id
+ * - rem_id : Id of the remote owner
+ * - res_type : Resource type identifier
+ * - res_id : Resource identifier
+ * - res_grp_id : Resource Group Id
+ * - res_policy_id : Policy Id for resource rights
+ * - res_rights : Resource type specific rights information (requested).
  * </br>
  */
-DEF(c2_fop_rm_sid, SEQUENCE,
-    _(sid_len, U32),
-    _(sid, BYTE));
-
-/**
- * This represents network address.
- * <br> List of fields
- * @li naddr_len : Number of bytes in n/w address
- * @li naddr : Byte-stream of n/w address
- * </br>
- */
-DEF(c2_fop_rm_net_addr, SEQUENCE,
-    _(naddr_len, U32),
-    _(naddr, BYTE));
-
-/**
- * This represents network end-point <net-type, net-addr, port>.
- * <br> List of fields
- * @li ep_naddr_type : Type of n/w address
- * @li ep_naddr : Byte-stream of n/w address id
- * @li ep_nport : Network port withing the address
- * </br>
- */
-DEF(c2_fop_rm_net_endp, RECORD,
-    _(ep_naddr_type, BYTE),
-    _(ep_naddr, c2_fop_rm_net_addr),
-    _(ep_nport, U32));
-
-/**
- * This is a owner descriptor <service-id, service-end-point, remote owner id>
- * <br> List of fields
- * @li rem_id : Id of the remote owner
- * @li svc_id : Service Identifier of remote resource owner
- * @li svc_endp : Service end-point of remote resource owner
- * </br>
- */
-DEF(c2_fop_rm_fop_owner_desc, RECORD,
-    _(rem_id, U64),
-    _(svc_id, c2_fop_rm_sid),
-    _(svc_endp, c2_fop_rm_net_endp));
-
-/**
- * Send the resource owner information to a lookup server and register it.
- * <br> List of fields
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
- * @li owner_desc : Descriptor of the owner (this machine)
- * </br>
- */
-DEF(c2_fop_rm_set_owner_info, RECORD,
-    _(res_type, U64),
-    _(res_id, U64),
-    _(owner_desc, c2_fop_rm_fop_owner_desc));
-
-/**
- * This is a reply FOP - sent in response to GET/SET owner info.
- * owner status will return the status code. If the operation is succsessful,
- * service id of the owner is sent along with the reply.
- * <br> List of fields
- * @li owner_status : Response (NO-OWNER, ANOTHER-OWNER, OWNER-SET)
- * @li rem_id : Id of the remote owner
- * @li owner_desc : Descriptor of the owner
- * </br>
- */
-DEF(c2_fop_rm_owner_info, RECORD,
-    _(owner_status, BYTE),
-    _(rem_id, U64),
-    _(owner_desc, c2_fop_rm_fop_owner_desc));
-
-/**
- * Ask for a right to a given resorce. Right information is encoded in
- * res_datum.
- * <br> List of fields
- * @li rem_id : Id of the remote owner
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
- * @li res_grp_id : Resource Group Id
- * @li res_policy_id : Policy Id for resource rights
- * @li res_datum : Resource right representation (requested). Checking
- *                 for rights availablity will also be encoded?
- * </br>
- */
-DEF(c2_fop_rm_get_right, RECORD,
+DEF(c2_fop_rm_right_borrow, RECORD,
     _(rem_id, U64),
     _(res_type, U64),
     _(res_id, U64),
     _(res_grp_id, U64),
     _(res_policy_id, U64),
-    _(res_datum, U64));
+    _(res_rights, c2_fop_rm_rights));
 
 /**
  * A small amount of resource data (up to 256 bytes?) can be piggy-backed.
  * <br> List of fields
- * @li rd_len : Number of bytes of resource data
- * @li res_data : Byte-stream of resource data
+ * - rd_len : Number of bytes of resource data
+ * - res_data : Byte-stream of resource data
  * </br>
  */
 DEF(c2_fop_rm_res_data, SEQUENCE,
@@ -159,14 +81,14 @@ DEF(c2_fop_rm_res_data, SEQUENCE,
  * This may avoid an extra FOP required for fetching the resource data (small).
  * RM-generic needs to handle this.
  * <br> List of fields
- * @li right_resp : Return code for GET_RIGHT request
- * @li rem_id : Id of the remote owner
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
- * @li res_datum : Resource right representation (granted)
- * @li loan_id : Id for the resource loan
- * @li res_data_flag : Marks that this FOP contains valid resource data
- * @li res_data : Piggy-backed resource data
+ * - right_resp : Return code for RIGHT_BORROW request
+ * - rem_id : Id of the remote owner
+ * - res_type : Resource type identifier
+ * - res_id : Resource identifier
+ * - res_datum : Resource type specific rights information (granted)
+ * - loan_id : Id for the resource loan
+ * - res_data_flag : Marks that this FOP contains valid resource data
+ * - res_data : Piggy-backed resource data
  * </br>
  */
 DEF(c2_fop_rm_right_reply, RECORD,
@@ -174,9 +96,9 @@ DEF(c2_fop_rm_right_reply, RECORD,
     _(rem_id, U64),
     _(res_type, U64),
     _(res_id, U64),
-    _(res_datum, U64),
     _(loan_id, U64),
     _(lease_time, U64),
+    _(res_rights, c2_fop_rm_rights),
     _(res_data_flag, BYTE),
     _(res_data, c2_fop_rm_res_data));
 
@@ -184,14 +106,14 @@ DEF(c2_fop_rm_right_reply, RECORD,
  * This is a FOP is initiated from an owner. It requires the lesee to surrender
  * the right for a given resorce.
  * <br> List of fields
- * @li rem_id : Id of the remote owner
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
- * @li loan_id : Id for the resource loan
- * @li res_grp_id : Resource Group Id
+ * - rem_id : Id of the remote owner
+ * - res_type : Resource type identifier
+ * - res_id : Resource identifier
+ * - loan_id : Id for the resource loan
+ * - res_grp_id : Resource Group Id
  * </br>
  */
-DEF(c2_fop_rm_revoke_right, RECORD,
+DEF(c2_fop_rm_right_revoke, RECORD,
     _(rem_id, U64),
     _(res_type, U64),
     _(res_id, U64),
@@ -201,11 +123,11 @@ DEF(c2_fop_rm_revoke_right, RECORD,
 /**
  * This is a reply FOP sent in response to a revoke right request.
  * <br> List of fields
- * @li rem_id : Id of the remote owner
- * @li res_type : Resource type identifier
- * @li res_id : Resource identifier
- * @li loan_id : Id for the resource loan
- * @li res_grp_id : Resource Group Id
+ * - rem_id : Id of the remote owner
+ * - res_type : Resource type identifier
+ * - res_id : Resource identifier
+ * - loan_id : Id for the resource loan
+ * - res_grp_id : Resource Group Id
  * </br>
  */
 DEF(c2_fop_rm_right_cancel, RECORD,
