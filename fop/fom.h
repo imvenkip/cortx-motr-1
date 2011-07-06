@@ -86,7 +86,7 @@ struct c2_fom_ops;
      among locality members.
 
    Once the locality is initialised, the locality invariant,
-   should hold true until its finalisation.
+   should hold true until locality is finalised.
 
    @see c2_locality_invaraint(struct c2_fom_locality *loc)
  */
@@ -144,7 +144,7 @@ struct c2_fom_locality {
    example, there would be typically a domain for each service (c2_service).
 
    Once the fom domain is initialised, fom domain invariant should hold
-   true untils its finalisation.
+   true until fom domain is finalised .
 
    @see c2_fom_domain_invariant(struct c2_fom_domain *dom)
  */
@@ -171,7 +171,7 @@ struct c2_fom_domain_ops {
    States a fom can be in.
 
    A fom is in FOS_READY state when it is initialised and ready to
-   be enqueued in locality's runq list.
+   be put on locality runq list for execution.
    A fom changes its state from FOS_READY to FOS_RUNNING, after it
    is dequeued from locality runq and begins its execution.
    A fom changes its state from FOS_RUNNING to FOS_WAITING, if its
@@ -247,7 +247,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
    Once the fom is initialised, fom invariant,
    should hold true as fom execution enters various
-   phases, including before its finalisation.
+   phases, including before fom is finalised.
 
    @see c2_fom_invariant(struct c2_fom *fom)
 */
@@ -327,7 +327,7 @@ enum c2_fom_state_outcome {
 	    function registeres the fom's clink with the channel where this
 	    event will be signalled.
 
-	    When FSO_WAIT is returned, the fom is placed in the wait-list.
+	    When FSO_WAIT is returned, the fom is put on locality wait-list.
 
 	    @see c2_fom_block_at().
 	 */

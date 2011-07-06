@@ -58,11 +58,11 @@ struct c2_reqh {
 };
 
 /**
- * Initialises request handler and fom domain.
+ * Initialises request handler.
  *
  * @param reqh -> c2_reqh, request handler.
- * @param rpc -> c2_rpc_machine, rpc machine (to required for future use).
- * @param dtm -> c2_dtm database transaction manager, (to be required future use).
+ * @param rpc -> c2_rpc_machine, rpc machine (required for future use).
+ * @param dtm -> c2_dtm database transaction manager, (required for future use).
  * @param stdom -> c2_stob_domain, storage object domain for fom io.
  * @param fol -> c2_fol, reqh fol.
  * @param serv -> c2_service, service to which reqh belongs.
@@ -78,7 +78,7 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_fol *fol, struct c2_service *serv);
 
 /**
- * Cleans request handler.
+ * Finalises request handler.
  *
  * @param reqh -> c2_reqh.
  *

@@ -82,11 +82,11 @@ extern void reqh_fop_fini(void);
  * Table structure to hold fom phase transition and execution.
  */
 struct fom_phase_ops {
-        /** function pointer to phase execution routine */
+        /* phase execution routine */
         int (*fpo_action) (struct c2_fom *fom);
-        /** next phase to transition into */
+        /* next phase to transition into */
         int fpo_nextphase;
-        /** wait flag */
+        /* wait flag */
         bool fpo_wait;
 };
 
