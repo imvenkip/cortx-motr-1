@@ -293,7 +293,7 @@ struct c2_rpc_form_item_summary_unit {
    based on whose data, it will be found if an optimal rpc can be made.
  */
 bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
-		*endp_unit, uint64_t rpcobj_size);
+		*endp_unit, uint64_t rpcobj_size, bool urgent_unbound);
 
 /**
    Get the endpoint given an rpc item.

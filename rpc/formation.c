@@ -1291,13 +1291,16 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
    @param rpcobj_size - check if given size of rpc object is optimal or not.
  */
 bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
-		*endp_unit, uint64_t rpcobj_size)
+		*endp_unit, uint64_t rpcobj_size, bool urgent_unbound)
 {
 	bool		ret = false;
 	uint64_t	size = 0;
 
 	C2_PRE(endp_unit != NULL);
 
+	if (urgent_unbound) {
+		ret = true;
+	}
 	/* If given rpcobj_size is nonzero, caller expects to tell if
 	   and rpc object of this size would be optimal.
 	   If rpcobj_size is zero, caller expects to tell if given
@@ -1308,15 +1311,11 @@ bool c2_rpc_form_can_form_optimal_rpc(struct c2_rpc_form_item_summary_unit
 	} else {
 		size = rpcobj_size;
 	}
-/*
 	if (endp_unit->isu_n_urgent_items > 0) {
 		ret = true;
 	} else if (size >= (0.9 * endp_unit->isu_max_message_size)) {
 		ret = true;
 	}
-	return ret;
-*/
-	ret = true;
 	return ret;
 }
 
@@ -1331,6 +1330,7 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	int			 ret = 0;
 	struct c2_rpc_session	*session = NULL;
 	bool			 item_unbound = true;
+	bool			 item_unbound_urgent = false;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_READY ||
@@ -1365,9 +1365,15 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 		ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
 		return ret;
 	}
+	/* Check if the current item is unbound and urgent, if yes,
+	   set a flag and pass it to c2_rpc_form_can_form_optimal. */
+	if (item_unbound && (item->ri_deadline == 0)) {
+		item_unbound_urgent = true;
+	}
 	/* Move the thread to the checking state only if an optimal rpc
 	   can be formed.*/
-	if (c2_rpc_form_can_form_optimal_rpc(endp_unit, 0)) {
+	if (c2_rpc_form_can_form_optimal_rpc(endp_unit, 0,
+				item_unbound_urgent)) {
 		ret = C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 	} else {
 		ret = C2_RPC_FORM_INTEVT_STATE_FAILED;
@@ -1694,8 +1700,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	bool						 urgent_items = false;
 	bool						 item_added = false;
 	bool						 item_coalesced = false;
+	bool						 urgent_unbound = false;
 
-	printf("checking state\n");
 	C2_PRE(item != NULL);
 	C2_PRE((event->se_event == C2_RPC_FORM_EXTEVT_RPCITEM_REPLY_RECEIVED)
 			|| (event->se_event ==
@@ -1936,10 +1942,15 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 			if (res != 0) {
 				break;
 			}
+			urgent_unbound = true;
 		}
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
 	c2_mutex_unlock(&session->s_mutex);
+
+	if (c2_list_is_empty(&rpcobj->ro_rpcobj->r_items)) {
+		return C2_RPC_FORM_INTEVT_STATE_FAILED;
+	}
 
 	/* If there are no urgent items in the formed rpc object,
 	   send the rpc for submission only if it is optimal.
@@ -1948,7 +1959,8 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   sub-optimal. */
 	/* If size of formed rpc object is less than 90% of
 	   max_message_size, discard the rpc object. */
-	if (!c2_rpc_form_can_form_optimal_rpc(endp_unit, rpcobj_size)) {
+	if (!c2_rpc_form_can_form_optimal_rpc(endp_unit, rpcobj_size,
+				urgent_unbound)) {
 		/* Delete the formed RPC object. */
 		c2_list_for_each_entry_safe(&rpcobj->ro_rpcobj->r_items,
 				rpc_item, rpc_item_next, struct c2_rpc_item,
@@ -1969,6 +1981,7 @@ int c2_rpc_form_checking_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	/* Try to do IO colescing for items in forming list. */
 	c2_list_add(&endp_unit->isu_rpcobj_checked_list,
 			&rpcobj->ro_linkage);
+	C2_POST(!c2_list_is_empty(&rpcobj->ro_rpcobj->r_items));
 	return C2_RPC_FORM_INTEVT_STATE_SUCCEEDED;
 }
 
@@ -1982,7 +1995,6 @@ int c2_rpc_form_forming_state(struct c2_rpc_form_item_summary_unit *endp_unit
 	struct c2_rpc_form_rpcobj	*rpcobj = NULL;
 	struct c2_rpc_form_rpcobj	*rpcobj_next = NULL;
 
-	printf("forming state\n");
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FORM_INTEVT_STATE_SUCCEEDED);
 	C2_PRE(endp_unit != NULL);
