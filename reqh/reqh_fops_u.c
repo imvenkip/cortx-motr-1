@@ -26,7 +26,7 @@ struct c2_fop_memlayout c2_reqh_error_rep_memlayout = {
 
 
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

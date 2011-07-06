@@ -142,7 +142,7 @@ static void fom_ready(struct c2_fom *fom)
 
 /**
  * Call back function.
- * removes the fom from the locality wait list
+ * Removes fom from the locality wait list
  * and puts it back on the locality runq list for further
  * execution.
  *
@@ -253,7 +253,8 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
  */
 void c2_fom_fop_exec(struct c2_fom *fom)
 {
-	int rc;
+	int			rc;
+	struct c2_fom_locality *loc;
 
 	C2_PRE(fom->fo_state == FOS_RUNNING);
 
@@ -265,9 +266,10 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 	if (fom->fo_phase == FOPH_DONE)
 		fom->fo_ops->fo_fini(fom);
 	else {
-		c2_mutex_lock(&fom->fo_loc->fl_wail_lock);
-		C2_ASSERT(c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_rwlink));
-		c2_mutex_unlock(&fom->fo_loc->fl_wail_lock);
+		loc = fom->fo_loc;
+		c2_mutex_lock(&loc->fl_wail_lock);
+		C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_rwlink));
+		c2_mutex_unlock(&loc->fl_wail_lock);
 	}
 }
 

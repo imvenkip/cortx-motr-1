@@ -722,7 +722,7 @@ int read_fom_state(struct c2_fom *fom)
 				result = FSO_AGAIN;
 			}
 		} else {
-	
+
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
 			fom->fo_phase = FOPH_SUCCEED;

@@ -247,7 +247,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 */
 	c2_io_fid2stob_map(&fid, &stobid);
 
-	/* 
+	/*
 	 * This is a transaction IO and should be a separate phase
 	 * with full fledged FOM.
 	 */

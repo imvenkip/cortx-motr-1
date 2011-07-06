@@ -109,7 +109,7 @@ extern bool c2_locality_invariant(struct c2_fom_locality *loc);
 extern bool c2_fom_domain_invariant(struct c2_fom_domain *dom);
 
 /*
- * macro definition to set a fom phase in fom phase table.
+ * macro definition to initialise a fom phase in fom phase table.
  */
 #define INIT_PHASE(curr_phase, act, np) \
 	fp_table[curr_phase].fpo_action = act; \
@@ -178,12 +178,12 @@ void c2_reqh_fini(struct c2_reqh *reqh)
  * @param cookie -> void reference provided by client.
  * @param rc -> int, error code to be sent in reply fop.
  *
- * @todo c2_net_reply_post should be replaced by c2_rpc_post.
+ * @todo c2_net_reply_post to be replaced by c2_rpc_post.
  */
 static void reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 {
-	struct c2_fop *rfop;
-	struct c2_reqh_error_rep *out_fop;
+	struct c2_fop			*rfop;
+	struct c2_reqh_error_rep 	*out_fop;
 
 	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
 	if (rfop == NULL)
@@ -245,7 +245,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 }
 
 /**
- * Handles init phase of fom.
+ * Fom init phase.
  * Transitions fom to next standard phase.
  *
  * @param fom -> c2_fom.

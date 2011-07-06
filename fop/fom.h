@@ -362,7 +362,7 @@ struct c2_fom_ops {
 	int  (*fo_state)(struct c2_fom *fom);
 
 	/**
-	    Find home locality for this fom.
+	    Finds home locality for this fom.
 
 	    Returns locality number used as subscript in fd_localities
 	    array, member of c2_fom_domain, based on fom parameters.

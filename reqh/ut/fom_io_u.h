@@ -79,7 +79,7 @@ extern struct c2_fop_memlayout c2_fom_io_quit_memlayout;
 /* __COLIBRI_FOM_IO_UDEF_H__ */
 #endif
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
