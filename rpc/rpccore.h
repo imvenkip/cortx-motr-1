@@ -437,6 +437,9 @@ struct c2_rpc_item {
 /* Set the stats for outgoing rpc item */ 
 void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
 
+/* Set the stats for incoming rpc item */ 
+void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
+
 /**
   Statistical data maintained for each item in the rpcmachine.
   It is upto the higher level layers to retrieve and process this data

@@ -104,7 +104,7 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 10,
+	NR_SLOTS = 200,
 };
 
 /* Default number of ping items */
@@ -308,26 +308,97 @@ void send_ping_fop(int nr)
 }
 
 /* Get stats from rpcmachine and print them */
-void print_stats()
+void print_stats(bool client, bool server)
 {
 	struct c2_rpcmachine	*rpc_mach;
 	struct c2_rpc_stats	*stats;
 	uint64_t		 nsec;
 	double			 sec = 0;
+	double			 msec = 0;
 	double			 thruput;
 
-	rpc_mach = &cctx.pc_rpc_mach;
+	if (client)
+		rpc_mach = &cctx.pc_rpc_mach;
+	else if (server)
+		rpc_mach = &sctx.pc_rpc_mach;
 	stats = rpc_mach->cr_rpc_stats;
-	printf("Stats - number of outgoing items = %lu\n",
+	printf("\n\n*********************************************\n");
+	printf("Stats on Outgoing Path\n");
+	printf("*********************************************\n");
+	printf("Number of outgoing items = %lu\n",
 			stats->rs_num_out_items);
-	printf("Stats - number of outgoing bytes = %lu\n",
+	printf("Number of outgoing bytes = %lu\n",
 			stats->rs_num_out_bytes);
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_out_min_latency);
+	nsec = c2_time_nanoseconds(stats->rs_out_min_latency);
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\nMin latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_out_max_latency);
+	nsec = c2_time_nanoseconds(stats->rs_out_max_latency);
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\nMax latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
+
+	sec = 0;
 	sec = c2_time_seconds(stats->rs_out_avg_latency);
 	nsec = c2_time_nanoseconds(stats->rs_out_avg_latency);
 	sec += (double) nsec/1000000000;
-	printf("Stats - Average latency = %lf\n", sec);
-	thruput = (double)stats->rs_num_out_bytes/sec;
-	printf("Stats - Throughput = %lf\n", thruput);
+	msec = (double) sec * 1000;
+	printf("\nAvg latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
+	printf("*******************************************\n");
+
+	printf("\n\n*********************************************\n");
+	printf("Stats on Incoming Path\n");
+	printf("*********************************************\n");
+	printf("Number of incoming items = %lu\n",
+			stats->rs_num_in_items);
+	printf("Number of incoming bytes = %lu\n",
+			stats->rs_num_in_bytes);
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_in_min_latency);
+	nsec = c2_time_nanoseconds(stats->rs_in_min_latency);
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\nMin latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_in_max_latency);
+	nsec = c2_time_nanoseconds(stats->rs_in_max_latency);
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\nMax latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
+
+	sec = 0;
+	sec = c2_time_seconds(stats->rs_in_avg_latency);
+	nsec = c2_time_nanoseconds(stats->rs_in_avg_latency);
+	sec += (double) nsec/1000000000;
+	msec = (double) sec * 1000;
+	printf("\nAvg latency    (msecs)   = %lf\n", msec);
+
+	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
+	printf("*********************************************\n");
 }
 
 /* Create the client */
@@ -634,11 +705,13 @@ int main(int argc, char *argv[])
 		sctx.pc_lport = cctx.pc_rport = server_port;
 	if(nr_slots)
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
+	if(nr_ping_item)
+		sctx.pc_nr_ping_items = cctx.pc_nr_ping_items = nr_ping_item;
 
 	/* Client part */
 	if(client) {
 		client_init();
-		print_stats();
+		print_stats(client, server);
 	}
 
 	/* Server part */
@@ -651,6 +724,7 @@ int main(int argc, char *argv[])
 		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
 				&server_rqh_init, 0, "ping_server_rqh");
 		server_poll();
+		print_stats(client, server);
 		c2_thread_join(&server_thread);
 	}
 

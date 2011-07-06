@@ -162,9 +162,13 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	struct c2_rpc_slot_ref	*sref;
 	struct c2_rpc_item	*tmp;
 	struct c2_rpc_slot	*slot;
+	c2_time_t	now;
 
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
+
+	c2_time_now(&now);
+	reply->ri_rpc_entry_time = now;
 
 	reply->ri_session = request->ri_session;
 	reply->ri_slot_refs[0].sr_sender_id =
@@ -526,6 +530,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	struct c2_rpc_chan	*chan = NULL;
 	int			 rc = 0;
 	int			 i = 0;
+	c2_time_t		 now;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL));
 
@@ -538,6 +543,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_rpc_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
+		c2_time_now(&now);
 		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0) {
 			/* XXX We can post an ADDB event here. */
@@ -556,6 +562,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				item->ri_src_ep = nb->nb_ep;
 				printf("item->src_ep = %p\n", item->ri_src_ep);
 				printf("Item %d received\n", i);
+				item->ri_rpc_entry_time = now;
 				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
 				if (rc == 0) {
@@ -1138,6 +1145,34 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	};
 }
 
+/** Set the incoming exit stats for an rpc item */
+void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
+{
+	c2_time_t                now;
+	struct c2_rpc_stats	*stats;
+	
+	C2_PRE(item != NULL);
+
+	c2_time_now(&now);
+	item->ri_rpc_exit_time = now;
+
+	stats = item->ri_mach->cr_rpc_stats;
+	stats->rs_in_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
+			item->ri_rpc_entry_time);
+	if ((stats->rs_in_min_latency >= stats->rs_in_instant_latency) ||
+			(stats->rs_in_min_latency == 0))
+		stats->rs_in_min_latency = stats->rs_in_instant_latency;
+	if ((stats->rs_in_max_latency <= stats->rs_in_instant_latency) ||
+		(stats->rs_in_max_latency == 0))
+		stats->rs_in_max_latency = stats->rs_in_instant_latency;
+	stats->rs_in_avg_latency = ((stats->rs_num_in_items *
+				stats->rs_in_avg_latency) +
+			stats->rs_in_instant_latency) /
+		(stats->rs_num_in_items +1);
+	stats->rs_num_in_items++;
+	stats->rs_num_in_bytes += c2_rpc_item_default_size(item);	
+}
+
 /** Set the outgoing exit stats for an rpc item */
 void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 {
@@ -1152,10 +1187,12 @@ void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 	stats = item->ri_mach->cr_rpc_stats;
 	stats->rs_out_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
 			item->ri_rpc_entry_time);
-	if (stats->rs_out_min_latency > stats->rs_out_instant_latency)
+	if ((stats->rs_out_min_latency >= stats->rs_out_instant_latency) ||
+			(stats->rs_out_min_latency == 0))
 		stats->rs_out_min_latency = stats->rs_out_instant_latency;
-	if (stats->rs_out_max_latency < stats->rs_out_instant_latency)
-		stats->rs_out_min_latency = stats->rs_out_instant_latency;
+	if ((stats->rs_out_max_latency <= stats->rs_out_instant_latency) ||
+		(stats->rs_out_max_latency == 0))
+		stats->rs_out_max_latency = stats->rs_out_instant_latency;
 	stats->rs_out_avg_latency = ((stats->rs_num_out_items *
 				stats->rs_out_avg_latency) +
 			stats->rs_out_instant_latency) /
