@@ -367,7 +367,10 @@ static struct ping_ops quiet_ops = {
 
 static void test_sunrpc_ping(void)
 {
-	struct ping_ctx cctx = {
+	/* some variables below are static to reduce kernel stack
+	   consumption. */
+
+	static struct ping_ctx cctx = {
 		.pc_ops = &quiet_ops,
 		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
 		.pc_port = PING_PORT1,
@@ -380,7 +383,7 @@ static void test_sunrpc_ping(void)
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		}
 	};
-	struct ping_ctx sctx = {
+	static struct ping_ctx sctx = {
 		.pc_ops = &quiet_ops,
 		.pc_xprt = &c2_net_bulk_sunrpc_xprt,
 		.pc_port = PING_PORT1,
@@ -456,18 +459,21 @@ static void test_sunrpc_ping(void)
 
 static void test_sunrpc_failure(void)
 {
+	/* some variables below are static to reduce kernel stack
+	   consumption. */
+
 	/* dom1 */
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_tm_callbacks tm_cbs1 = {
+	static const struct c2_net_tm_callbacks tm_cbs1 = {
 		.ntc_event_cb = sunrpc_tm_cb1
 	};
-	struct c2_net_transfer_mc d1tm1 = {
+	static struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &tm_cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	struct c2_net_buffer_callbacks buf_cbs1 = {
+	const struct c2_net_buffer_callbacks buf_cbs1 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = sunrpc_buf_cb1,
 			[C2_NET_QT_MSG_SEND]          = sunrpc_buf_cb1,
@@ -482,21 +488,21 @@ static void test_sunrpc_failure(void)
 	struct c2_clink tmwait1;
 
 	/* dom 2 */
-	struct c2_net_domain dom2 = {
+	static struct c2_net_domain dom2 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_tm_callbacks tm_cbs2 = {
+	static const struct c2_net_tm_callbacks tm_cbs2 = {
 		.ntc_event_cb = sunrpc_tm_cb2
 	};
-	struct c2_net_transfer_mc d2tm1 = {
+	static struct c2_net_transfer_mc d2tm1 = {
 		.ntm_callbacks = &tm_cbs2,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	struct c2_net_transfer_mc d2tm2 = {
+	static struct c2_net_transfer_mc d2tm2 = {
 		.ntm_callbacks = &tm_cbs2,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	struct c2_net_buffer_callbacks buf_cbs2 = {
+	const struct c2_net_buffer_callbacks buf_cbs2 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = sunrpc_buf_cb2,
 			[C2_NET_QT_MSG_SEND]          = sunrpc_buf_cb2,
