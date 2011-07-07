@@ -84,8 +84,8 @@ static int loc_thr_create(struct c2_fom_locality *loc);
  */
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 {
-	return dom != NULL && dom->fd_localities != NULL
-			&& dom->fd_ops != NULL;
+	return dom != NULL && dom->fd_localities != NULL &&
+		dom->fd_ops != NULL;
 }
 
 /**
@@ -113,10 +113,9 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	return  fom != NULL && fom->fo_type != NULL && fom->fo_ops != NULL &&
-		fom->fo_fop_ctx != NULL && fom->fo_fop != NULL &&
-		fom->fo_fol != NULL && fom->fo_domain != NULL &&
-		fom->fo_stdomain != NULL && fom->fo_loc != NULL &&
-		c2_list_link_invariant(&fom->fo_rwlink);
+		fom->fo_fop != NULL && fom->fo_fol != NULL &&
+		fom->fo_domain != NULL && fom->fo_stdomain != NULL &&
+		fom->fo_loc != NULL && c2_list_link_invariant(&fom->fo_rwlink);
 }
 
 /**
@@ -322,6 +321,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 	struct c2_clink		th_clink;
 	struct c2_fom_locality *loc;
 	struct c2_fom	       *fom;
+	struct c2_fop_ctx	fop_ctx;
 
 	C2_PRE(th != NULL);
 
@@ -341,6 +341,14 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 		if (fom != NULL) {
 			C2_ASSERT(c2_fom_invariant(fom));
 			C2_ASSERT(fom->fo_state == FOS_READY);
+			/* 
+			   Initialise fop context.
+			   This could change post integration with
+			   new rpc layer implementation.
+			 */
+			fop_ctx.ft_service = fom->fo_domain->fd_reqh->rh_serv;
+			fop_ctx.fc_cookie  = fom->fo_cookie;
+			fom->fo_fop_ctx = &fop_ctx;
 			fom->fo_state = FOS_RUNNING;
 			c2_fom_fop_exec(fom);
 		}

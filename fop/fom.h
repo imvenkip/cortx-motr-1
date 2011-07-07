@@ -150,11 +150,13 @@ struct c2_fom_locality {
  */
 struct c2_fom_domain {
 	/** An array of localities. */
-	struct c2_fom_locality	       *fd_localities;
+	struct c2_fom_locality	       	*fd_localities;
 	/** Number of localities in the domain. */
 	size_t				fd_localities_nr;
 	/** Domain operations. */
-	const struct c2_fom_domain_ops *fd_ops;
+	const struct c2_fom_domain_ops 	*fd_ops;
+	/** Request handler this domain belongs to */
+	struct c2_reqh			*fd_reqh; 		
 };
 
 /** Operations vector attached to a domain. */
@@ -274,6 +276,13 @@ struct c2_fom {
 	struct c2_dtx		 fo_tx;
 	/** linkage in the locality runq list or wait list  */
 	struct c2_list_link	 fo_rwlink;
+	/**
+	    temporary reference to reply fop provided by client.
+
+	    @todo to be removed later post integration with
+	    latest rpc layer.
+	 */
+	void			*fo_cookie;
 };
 
 /**

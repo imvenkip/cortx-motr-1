@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/misc.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -126,7 +127,8 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	C2_PRE(reqh != NULL && stdom != NULL &&
 		fol != NULL && serv != NULL);
 
-	/* initialise fom phase table with standard/generic fom phases,
+	/*
+	 * initialise fom phase table with standard/generic fom phases,
 	 * and their correspnding methods.
 	 */
 	set_fom_phase_table();
@@ -158,6 +160,7 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 	reqh->rh_stdom = stdom;
 	reqh->rh_fol = fol;
 	reqh->rh_serv = serv;
+	reqh->rh_fom_dom->fd_reqh = reqh;
 
 	return result;
 }
@@ -196,20 +199,12 @@ static void reqh_send_err_rep(struct c2_service *service, void *cookie, int rc)
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
-	struct c2_fom	       *fom = NULL;
+	struct c2_fom	       *fom;
 	int			result;
 	size_t			iloc;
-	struct c2_fop_ctx      *fo_ctx;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
-
-	C2_ALLOC_PTR(fo_ctx);
-	if (fo_ctx == NULL)
-		return;
-
-	fo_ctx->ft_service = reqh->rh_serv;
-	fo_ctx->fc_cookie = cookie;
 
 	/* Initialise fom for fop processing */
 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
@@ -223,7 +218,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 		return;
 	}
 
-	fom->fo_fop_ctx = fo_ctx;
+	fom->fo_cookie = cookie;
 	fom->fo_fol = reqh->rh_fol;
 	fom->fo_stdomain = reqh->rh_stdom;
 	fom->fo_domain = reqh->rh_fom_dom;
