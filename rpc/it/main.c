@@ -89,6 +89,8 @@ struct ping_ctx {
 	int					 pc_nr_ping_items;
 	/* number of ping bytes */
 	int					 pc_nr_ping_bytes;
+	/* number of client threads */
+	int					 pc_nr_client_threads;
 };
 
 /* Default port values */
@@ -120,6 +122,11 @@ enum {
 /* Default number of ping bytes */
 enum {
 	NR_PING_BYTES = 8,
+};
+
+/* Default number of client threads*/
+enum {
+	NR_CLIENT_THREADS = 1,
 };
 
 /* Global client ping context */
@@ -423,12 +430,13 @@ void print_stats(bool client, bool server)
 /* Create the client */
 void client_init()
 {
-	int		rc = 0;
-	int		i;
-	bool		rcb;
-	char		addr[ADDR_LEN];
-	char		hostbuf[ADDR_LEN];
-        c2_time_t	timeout;
+	int			 rc = 0;
+	int			 i;
+	bool			 rcb;
+	char			 addr[ADDR_LEN];
+	char			 hostbuf[ADDR_LEN];
+        c2_time_t		 timeout;
+	struct c2_thread	*client_thread;
 
 	/* Init Bulk sunrpc transport */
 	cctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -556,8 +564,6 @@ void client_init()
 			printf("pingcli: Connection established\n");
 		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
 			printf("pingcli: conn create failed\n");
-	//	else
-	//		printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn create \n");
 
@@ -596,9 +602,22 @@ void client_init()
 	} else
 		printf("Timeout for session create \n");
 
+	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
+	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
+		C2_SET0(&client_thread[i]);
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				NULL, &send_ping_fop,
+				0, "client_%d", i);
+		C2_ASSERT(rc == 0);
+	}
+	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
+		c2_thread_join(&client_thread[i]);
+	}
+
+	/*
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
-	}
+	}*/
 	sleep (3);
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
@@ -668,6 +687,7 @@ int main(int argc, char *argv[])
 	int			 nr_slots = 0;
 	int			 nr_ping_bytes = 0;
 	int			 nr_ping_item = 0;
+	int			 nr_client_threads = 0;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
@@ -695,6 +715,7 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('p', "server port", "%i", &server_port),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
+		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('L', "number of ping items", "%i", &nr_ping_item));
 	if (rc != 0)
 		return rc;
@@ -707,6 +728,7 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_slots = NR_SLOTS;
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
+	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
@@ -732,6 +754,8 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_items = nr_ping_item;
 	if (nr_ping_bytes != 0)
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
+	if (nr_client_threads != 0)
+		cctx.pc_nr_client_threads = nr_client_threads;
 
 	/* Client part */
 	if(client) {
