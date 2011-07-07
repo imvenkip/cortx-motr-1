@@ -150,13 +150,13 @@ struct c2_fom_locality {
  */
 struct c2_fom_domain {
 	/** An array of localities. */
-	struct c2_fom_locality	       	*fd_localities;
+	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
-	size_t				fd_localities_nr;
+	size_t				 fd_localities_nr;
 	/** Domain operations. */
-	const struct c2_fom_domain_ops 	*fd_ops;
+	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
-	struct c2_reqh			*fd_reqh; 		
+	struct c2_reqh			*fd_reqh;
 };
 
 /** Operations vector attached to a domain. */

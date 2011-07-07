@@ -341,7 +341,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 		if (fom != NULL) {
 			C2_ASSERT(c2_fom_invariant(fom));
 			C2_ASSERT(fom->fo_state == FOS_READY);
-			/* 
+			/*
 			   Initialise fop context.
 			   This could change post integration with
 			   new rpc layer implementation.
