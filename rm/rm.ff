@@ -34,107 +34,109 @@
  */
 
 /**
- * This rights informtation.
- * <br> List of fields
- * - right_len : Length of rights record
- * - rights : Resource type specfic rights
- * </br>
+ * This represents parameter information for a given right. This information
+ * is opaque to RM layer. RM does not interpret this information.
+ *
+ * This information is constructed and interpreted by resource type specific
+ * code.
  */
-DEF(c2_fop_rm_rights, SEQUENCE,
-    _(right_len, U32),
-    _(rights, BYTE));
+DEF(c2_fop_rm_right, SEQUENCE,
+   /** Length of right parameters' record */
+    _(right_params_len, U32),
+   /** RM-opaque, resource type specfic, right parameters field */
+    _(right_params, BYTE));
 
 /**
- * Borrow the right to a given resorce.
- * <br> List of fields
- * - rem_id : Id of the remote owner
- * - res_type : Resource type identifier
- * - res_id : Resource identifier
- * - res_grp_id : Resource Group Id
- * - res_policy_id : Policy Id for resource rights
- * - res_rights : Resource type specific rights information (requested).
- * </br>
+ * This FOP is needed to Borrow a right, to a given resource, from an owner.
+ * This request FOP is sent by a "debtor" to a "creditor".
+ * @see rm.h
  */
 DEF(c2_fop_rm_right_borrow, RECORD,
+   /** Id of the remote owner */
     _(rem_id, U64),
+   /** Resource type identifier */
     _(res_type, U64),
+   /** Resource identifier */
     _(res_id, U64),
+   /** Resource group identifier - provided by application */
     _(res_grp_id, U64),
+   /** Id of the policy for resource right */
     _(res_policy_id, U64),
-    _(res_rights, c2_fop_rm_rights));
+   /** RM-opaque, resource type specfic, right parameters field */
+    _(res_right, c2_fop_rm_right));
 
 /**
- * A small amount of resource data (up to 256 bytes?) can be piggy-backed.
- * <br> List of fields
- * - rd_len : Number of bytes of resource data
- * - res_data : Byte-stream of resource data
- * </br>
+ * A small amount of resource data can be piggy-backed.
+ * This could optionally be part of RIGHT_BORROW_REPLY.
  */
 DEF(c2_fop_rm_res_data, SEQUENCE,
+    /** Length of resource data */
     _(rd_len, U32),
+    /** Resource data (opaque to RM) */
     _(res_data, BYTE));
 
 /**
- * This is a reply FOP sent in response to the request for a right to a
- * resource. When the request is succsessful, the sender may choose to
+ * This is a reply FOP - sent in response to the request, to borrow a right to a
+ * resource. When the request is successful, the owner may choose to
  * piggy-back resource data.
+ *
  * This may avoid an extra FOP required for fetching the resource data (small).
- * RM-generic needs to handle this.
- * <br> List of fields
- * - right_resp : Return code for RIGHT_BORROW request
- * - rem_id : Id of the remote owner
- * - res_type : Resource type identifier
- * - res_id : Resource identifier
- * - res_datum : Resource type specific rights information (granted)
- * - loan_id : Id for the resource loan
- * - res_data_flag : Marks that this FOP contains valid resource data
- * - res_data : Piggy-backed resource data
- * </br>
+ * RM-generic needs to pass this data to application using it.
+ *
+ * This reply is sent by a "creditor" to a "debtor".
  */
-DEF(c2_fop_rm_right_reply, RECORD,
+DEF(c2_fop_rm_right_borrow_reply, RECORD,
+    /** Return code for reply to the RIGHT_BORROW request */
     _(right_resp, BYTE),
+   /** Id of the remote owner */
     _(rem_id, U64),
+   /** Resource type identifier */
     _(res_type, U64),
+   /** Resource identifier */
     _(res_id, U64),
+    /** Id for the resource loan */
     _(loan_id, U64),
+    /** Lease time in seconds */
     _(lease_time, U64),
+    /** RM-opaque, resource type specific, right parameters. */
     _(res_rights, c2_fop_rm_rights),
-    _(res_data_flag, BYTE),
+    /** RM-opaque, resource type specific, small resource data. */
     _(res_data, c2_fop_rm_res_data));
 
 /**
- * This is a FOP is initiated from an owner. It requires the lesee to surrender
- * the right for a given resorce.
- * <br> List of fields
- * - rem_id : Id of the remote owner
- * - res_type : Resource type identifier
- * - res_id : Resource identifier
- * - loan_id : Id for the resource loan
- * - res_grp_id : Resource Group Id
- * </br>
+ * This FOP is initiated from an owner. It requires the lessee to surrender
+ * the right for a given resource.
+ *
+ * This request is sent by a "creditor" to a "debtor" to revoke the loan.
+ * @see rm.h
  */
 DEF(c2_fop_rm_right_revoke, RECORD,
+   /** Id of the remote owner */
     _(rem_id, U64),
+   /** Resource type identifier */
     _(res_type, U64),
+   /** Resource identifier */
     _(res_id, U64),
+    /** Id for the resource loan */
     _(loan_id, U64),
+    /** App-specific resource group id */
     _(res_grp_id, U64));
 
 /**
- * This is a reply FOP sent in response to a revoke right request.
- * <br> List of fields
- * - rem_id : Id of the remote owner
- * - res_type : Resource type identifier
- * - res_id : Resource identifier
- * - loan_id : Id for the resource loan
- * - res_grp_id : Resource Group Id
- * </br>
+ * This is a reply FOP - sent in response to a revoke right request.
+ * This FOP is sent by a "debtor" to a "creditor" acknowledging the surrender
+ * of the loan.
  */
 DEF(c2_fop_rm_right_cancel, RECORD,
+   /** Id of the remote owner */
     _(rem_id, U64),
+   /** Resource type identifier */
     _(res_type, U64),
+   /** Resource identifier */
     _(res_id, U64),
+    /** Id for the resource loan */
     _(loan_id, U64),
+    /** App-specific resource group id */
     _(res_grp_id, U64));
 
 /** @} end of rm group */
