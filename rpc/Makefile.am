@@ -1,7 +1,12 @@
 rpcdir			= @SRCDIR@/rpc
 rpc_HEADERS		= session.h session_fops.h session_foms.h session_internal.h
 
-session_u.h session_u.c session_k.h session_k.c ping_fop_u.h ping_fop_u.c ping_fop_k.h ping_fop_k.c: session.ff ping_fop.ff\
+session_u.h session_u.c session_k.h session_k.c: session.ff \
+				$(top_builddir)/fop/rt/libc2rt.la \
+				$(top_builddir)/fop/fop2c
+				$(top_builddir)/fop/fop2c -ku $<
+
+ping_fop_u.h ping_fop_u.c ping_fop_k.h ping_fop_k.c: ping_fop.ff \
 				$(top_builddir)/fop/rt/libc2rt.la \
 				$(top_builddir)/fop/fop2c
 				$(top_builddir)/fop/fop2c -ku $<
