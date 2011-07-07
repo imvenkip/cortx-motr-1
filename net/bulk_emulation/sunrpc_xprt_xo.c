@@ -842,6 +842,7 @@ struct c2_net_xprt c2_net_bulk_sunrpc_xprt = {
 	.nx_name = "bulk-sunrpc",
 	.nx_ops  = &sunrpc_xo_xprt_ops
 };
+C2_EXPORTED(c2_net_bulk_sunrpc_xprt);
 
 /**
    @} bulksunrpc
