@@ -87,6 +87,8 @@ struct ping_ctx {
 	int					 pc_nr_slots;
 	/* number of ping items */
 	int					 pc_nr_ping_items;
+	/* number of ping bytes */
+	int					 pc_nr_ping_bytes;
 };
 
 /* Default port values */
@@ -107,12 +109,17 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 20,
+	NR_SLOTS = 1,
 };
 
 /* Default number of ping items */
 enum {
-	NR_PING_ITEMS = 20,
+	NR_PING_ITEMS = 1,
+};
+
+/* Default number of ping bytes */
+enum {
+	NR_PING_BYTES = 8,
 };
 
 /* Global client ping context */
@@ -294,16 +301,23 @@ void send_ping_fop(int nr)
 	struct c2_fop                   *fop = NULL;
 	struct c2_fop_ping		*ping_fop = NULL;
 	struct c2_rpc_item		*item = NULL;
+	uint32_t			 nr_mod;
+	uint32_t			 nr_arr_member;
+	int				 i;
 
+	nr_mod = cctx.pc_nr_ping_bytes % 8;
+	if (nr_mod == 0)
+		nr_arr_member = cctx.pc_nr_ping_bytes / 8;
+	else
+		nr_arr_member = (cctx.pc_nr_ping_bytes / 8) + 1;
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 	ping_fop = c2_fop_data(fop);
-	//ping_fop->fp_arr.f_count = 3;
-	ping_fop->fp_arr.f_count = 1;
-	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, 1);
-	ping_fop->fp_arr.f_data[0] = 1;
-	//ping_fop->fp_arr.f_data[1] = 2;
-	//ping_fop->fp_arr.f_data[2] = 3;
+	ping_fop->fp_arr.f_count = nr_arr_member;
+	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
+	for (i = 0; i < nr_arr_member; i++) {
+		ping_fop->fp_arr.f_data[i] = i+100;
+	}
 	item = &fop->f_item;
 	c2_rpc_form_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
@@ -652,7 +666,8 @@ int main(int argc, char *argv[])
 	const char		*server_name = NULL;
 	int			 server_port = 0;
 	int			 nr_slots = 0;
-	int			 nr_ping_item;
+	int			 nr_ping_bytes = 0;
+	int			 nr_ping_item = 0;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
@@ -679,6 +694,7 @@ int main(int argc, char *argv[])
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('p', "server port", "%i", &server_port),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
+		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		C2_FORMATARG('L', "number of ping items", "%i", &nr_ping_item));
 	if (rc != 0)
 		return rc;
@@ -690,6 +706,7 @@ int main(int argc, char *argv[])
 	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
+	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
@@ -701,18 +718,20 @@ int main(int argc, char *argv[])
                         c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
 	/* Set if passed through command line interface */
-	if(client_name)
+	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
-	if(client_port)
+	if (client_port != 0)
 		sctx.pc_rport = cctx.pc_lport = client_port;
-	if(server_name)
+	if (server_name)
 		sctx.pc_lhostname = cctx.pc_rhostname = server_name;
-	if(server_port)
+	if (server_port != 0)
 		sctx.pc_lport = cctx.pc_rport = server_port;
-	if(nr_slots)
+	if (nr_slots != 0)
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
-	if(nr_ping_item)
-		sctx.pc_nr_ping_items = cctx.pc_nr_ping_items = nr_ping_item;
+	if (nr_ping_item != 0)
+		cctx.pc_nr_ping_items = nr_ping_item;
+	if (nr_ping_bytes != 0)
+		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 
 	/* Client part */
 	if(client) {
