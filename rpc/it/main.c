@@ -39,10 +39,13 @@
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
 #include "ioservice/io_fops.h"
+#include "rpc/ping_fop.h"
+#include "rpc/ping_fom.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
+#include "rpc/ping_fop_u.h"
 #endif
 #include "stob/ut/io_fop.h"
 
@@ -104,7 +107,7 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 200,
+	NR_SLOTS = 20,
 };
 
 /* Default number of ping items */
@@ -289,16 +292,18 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
 void send_ping_fop(int nr)
 {
 	struct c2_fop                   *fop = NULL;
-	struct c2_fop_file_create       *create_fop = NULL;
-	struct c2_fop_file_fid          fid;
+	struct c2_fop_ping		*ping_fop = NULL;
 	struct c2_rpc_item		*item = NULL;
 
-	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
-	create_fop = c2_fop_data(fop);
-	fid.f_seq = 100 + nr;
-	fid.f_oid = 200 + nr;
-	create_fop->fcr_fid = fid;
+	ping_fop = c2_fop_data(fop);
+	//ping_fop->fp_arr.f_count = 3;
+	ping_fop->fp_arr.f_count = 1;
+	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, 1);
+	ping_fop->fp_arr.f_data[0] = 1;
+	//ping_fop->fp_arr.f_data[1] = 2;
+	//ping_fop->fp_arr.f_data[2] = 3;
 	item = &fop->f_item;
 	c2_rpc_form_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
@@ -662,6 +667,7 @@ int main(int argc, char *argv[])
 	rc = io_fop_init();
 	if (rc != 0)
 		return rc;
+	c2_ping_fop_init();
 
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
