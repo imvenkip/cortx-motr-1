@@ -89,12 +89,12 @@ static void test_buf_copy(void)
 static void test_ep(void)
 {
 	/* dom1 */
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_end_point *ep1;
-	struct c2_net_end_point *ep2;
-	struct c2_net_end_point *ep3;
+	static struct c2_net_end_point *ep1;
+	static struct c2_net_end_point *ep2;
+	static struct c2_net_end_point *ep3;
 	const char *addr;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
@@ -213,7 +213,7 @@ static void test_failure(void)
 		.ntm_callbacks = &tm_cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	struct c2_net_buffer_callbacks buf_cbs1 = {
+	static struct c2_net_buffer_callbacks buf_cbs1 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = tf_buf_cb1,
 			[C2_NET_QT_MSG_SEND]          = tf_buf_cb1,
@@ -223,12 +223,12 @@ static void test_failure(void)
 			[C2_NET_QT_ACTIVE_BULK_SEND]  = tf_buf_cb1,
 		},
 	};
-	struct c2_net_buffer d1nb1;
-	struct c2_net_buffer d1nb2;
-	struct c2_clink tmwait1;
+	static struct c2_net_buffer d1nb1;
+	static struct c2_net_buffer d1nb2;
+	static struct c2_clink tmwait1;
 
 	/* dom 2 */
- 	static struct c2_net_domain dom2 = {
+	static struct c2_net_domain dom2 = {
 		.nd_xprt = NULL
 	};
 	static const struct c2_net_tm_callbacks tm_cbs2 = {
@@ -242,7 +242,7 @@ static void test_failure(void)
 		.ntm_callbacks = &tm_cbs2,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	const struct c2_net_buffer_callbacks buf_cbs2 = {
+	static const struct c2_net_buffer_callbacks buf_cbs2 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = tf_buf_cb2,
 			[C2_NET_QT_MSG_SEND]          = tf_buf_cb2,
@@ -252,12 +252,12 @@ static void test_failure(void)
 			[C2_NET_QT_ACTIVE_BULK_SEND]  = tf_buf_cb2,
 		},
 	};
-	struct c2_net_buffer d2nb1;
-	struct c2_net_buffer d2nb2;
-	struct c2_clink tmwait2;
+	static struct c2_net_buffer d2nb1;
+	static struct c2_net_buffer d2nb2;
+	static struct c2_clink tmwait2;
 
-	struct c2_net_end_point *ep;
-	struct c2_net_qstats qs;
+	static struct c2_net_end_point *ep;
+	static struct c2_net_qstats qs;
 
 	/* setup the first dom */
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_mem_xprt));
@@ -784,10 +784,10 @@ static void test_ping(void)
 
 static void test_tm(void)
 {
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_tm_callbacks cbs1 = {
+	const struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
 				       }),
 	};

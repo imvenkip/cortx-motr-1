@@ -44,7 +44,7 @@ static c2_time_t ut_timeout_after_secs(int secs)
 static void test_sunrpc_ep(void)
 {
 	/* dom1 */
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	struct c2_net_end_point *ep1;
@@ -280,21 +280,21 @@ void sunrpc_cbreset(void)
 
 static void test_sunrpc_desc(void)
 {
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	struct c2_net_end_point *ep1, *ep2;
 
-	struct c2_net_tm_callbacks tm_cbs1 = {
+	static const struct c2_net_tm_callbacks tm_cbs1 = {
 		.ntc_event_cb = sunrpc_tm_cb1
 	};
-	struct c2_net_transfer_mc d1tm1 = {
+	static struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &tm_cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
 	struct c2_clink tmwait;
-	struct c2_net_buf_desc desc1;
-	struct sunrpc_buf_desc sd;
+	static struct c2_net_buf_desc desc1;
+	static struct sunrpc_buf_desc sd;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
 	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,"127.0.0.1:31111:1"));
@@ -473,7 +473,7 @@ static void test_sunrpc_failure(void)
 		.ntm_callbacks = &tm_cbs1,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	const struct c2_net_buffer_callbacks buf_cbs1 = {
+	static const struct c2_net_buffer_callbacks buf_cbs1 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = sunrpc_buf_cb1,
 			[C2_NET_QT_MSG_SEND]          = sunrpc_buf_cb1,
@@ -483,8 +483,8 @@ static void test_sunrpc_failure(void)
 			[C2_NET_QT_ACTIVE_BULK_SEND]  = sunrpc_buf_cb1,
 		},
 	};
-	struct c2_net_buffer d1nb1;
-	struct c2_net_buffer d1nb2;
+	static struct c2_net_buffer d1nb1;
+	static struct c2_net_buffer d1nb2;
 	struct c2_clink tmwait1;
 
 	/* dom 2 */
@@ -502,7 +502,7 @@ static void test_sunrpc_failure(void)
 		.ntm_callbacks = &tm_cbs2,
 		.ntm_state = C2_NET_TM_UNDEFINED
 	};
-	const struct c2_net_buffer_callbacks buf_cbs2 = {
+	static const struct c2_net_buffer_callbacks buf_cbs2 = {
 		.nbc_cb = {
 			[C2_NET_QT_MSG_RECV]          = sunrpc_buf_cb2,
 			[C2_NET_QT_MSG_SEND]          = sunrpc_buf_cb2,
@@ -512,12 +512,12 @@ static void test_sunrpc_failure(void)
 			[C2_NET_QT_ACTIVE_BULK_SEND]  = sunrpc_buf_cb2,
 		},
 	};
-	struct c2_net_buffer d2nb1;
-	struct c2_net_buffer d2nb2;
+	static struct c2_net_buffer d2nb1;
+	static struct c2_net_buffer d2nb2;
 	struct c2_clink tmwait2;
 
 	struct c2_net_end_point *ep;
-	struct c2_net_qstats qs;
+	static struct c2_net_qstats qs;
 
 	/* setup the first dom - use non-reserved port numbers */
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
@@ -1027,10 +1027,10 @@ static void test_sunrpc_failure(void)
 
 static void test_sunrpc_tm(void)
 {
-	struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_tm_callbacks cbs1 = {
+	const struct c2_net_tm_callbacks cbs1 = {
 		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
 				       }),
 	};
