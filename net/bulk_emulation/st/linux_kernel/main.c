@@ -94,7 +94,7 @@ void print_qstats(struct ping_ctx *ctx, bool reset)
 	};
 	char tbuf[16];
 	const char *lfmt =
-"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
+"%5s %6llu %6llu %6llu %6llu %13s %14llu %13llu\n";
 	const char *hfmt1 =
 "Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes   Max Buffer Sz\n";
 	const char *hfmt2 =
