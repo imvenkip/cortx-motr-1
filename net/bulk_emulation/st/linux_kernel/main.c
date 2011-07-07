@@ -28,6 +28,31 @@ enum {
 	SEC_PER_MIN = 60,
 };
 
+/* Module parameters */
+bool verbose = false;
+module_param(verbose, bool, S_IRUGO);
+MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+char *hostaddr = "127.0.0.1";
+module_param(hostaddr, charp, S_IRUGO);
+MODULE_PARM_DESC(hostaddr, "address to register as the server endpoint");
+uint nr_bufs = DEF_BUFS;
+module_param(nr_bufs, uint, S_IRUGO);
+MODULE_PARM_DESC(nr_bufs, "total number of network buffers to allocate");
+uint passive_size = 0;
+module_param(passive_size, uint, S_IRUGO);
+MODULE_PARM_DESC(passive_size, "size to offer for passive recv message");
+int sunrpc_ep_delay = -1;
+module_param(sunrpc_ep_delay, int, S_IRUGO);
+MODULE_PARM_DESC(sunrpc_ep_delay,
+	"Control how long unused end points are cached before release");
+int active_bulk_delay = 0;
+module_param(active_bulk_delay, int, S_IRUGO);
+MODULE_PARM_DESC(active_bulk_delay, "Delay before sending active receive");
+uint sunrpc_skulker_period = 0;
+module_param(sunrpc_skulker_period, uint, S_IRUGO);
+MODULE_PARM_DESC(sunrpc_skulker_period,
+		 "Control the period of the skulker thread clock");
+
 int quiet_printk(const char *fmt, ...)
 {
 	return 0;
@@ -123,13 +148,6 @@ struct c2_thread server_thread;
 static int __init c2_netst_init_k(void)
 {
 	int rc;
-	bool verbose = true;
-	const char *host_buf = "127.0.0.1";
-	int nr_bufs = DEF_BUFS;
-	int passive_size = 0;
-	int sunrpc_ep_delay = -1;
-	int active_bulk_delay = 0;
-	int sunrpc_skulker_period = 0;
 
 	/* parse module options */
 	/* set up sys fs entries */
@@ -146,7 +164,7 @@ static int __init c2_netst_init_k(void)
 	    sctx.pc_ops = &verbose_ops;
 	else
 	    sctx.pc_ops = &quiet_ops;
-	sctx.pc_hostname = host_buf;
+	sctx.pc_hostname = hostaddr;
 	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
 	sctx.pc_port = PING_PORT1;
 	sctx.pc_id = PART3_SERVER_ID;
@@ -165,7 +183,7 @@ static int __init c2_netst_init_k(void)
 			    &ping_server, &sctx, "ping_server");
 	C2_ASSERT(rc == 0);
 
-	printk(KERN_INFO "Colibri Kernel Messaging System Test initialized");
+	printk(KERN_INFO "Colibri Kernel Messaging System Test initialized\n");
 	return 0;
 }
 
@@ -188,7 +206,7 @@ module_exit(c2_netst_fini_k)
 MODULE_AUTHOR("Xyratex");
 MODULE_DESCRIPTION("Colibri Kernel Messaging System Test");
 /* GPL license required as long as kernel sunrpc is used */
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("proprietary");
 
 /** @} end of group net */
 
