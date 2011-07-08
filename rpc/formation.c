@@ -1020,7 +1020,7 @@ static int rpc_frm_item_coalesced_reply_post(struct
 			im_linkage) {
 		item = member->im_member_item;
 		c2_list_del(&member->im_linkage);
-		/* To be called when reply of an item arrives 
+		/* To be called when reply of an item arrives
 		   item->ri_type->rit_ops->rio_replied(item);
 		 */
 		c2_free(member);
@@ -1029,7 +1029,7 @@ static int rpc_frm_item_coalesced_reply_post(struct
 	C2_ASSERT(coalesced_struct->ic_nmembers == 0);
 	c2_list_del(&coalesced_struct->ic_linkage);
 	item = coalesced_struct->ic_resultant_item;
-	/* To be called when reply of an item arrives 
+	/* To be called when reply of an item arrives
 	   item->ri_type->rit_ops->rio_replied(item);
 	 */
 	c2_list_fini(&coalesced_struct->ic_member_list);
@@ -1447,7 +1447,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
 /**
    Add an rpc item to the formed list of an rpc object.
    @retval 0 if item added to the forming list successfully
-   @retval -1 if item is not added due to some check failure 
+   @retval -1 if item is not added due to some check failure
  */
 static int rpc_frm_item_add_to_forming_list(
 		struct c2_rpc_frm_sm *frm_sm,
@@ -1629,7 +1629,7 @@ int c2_rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
 		}
 		c2_list_link_init(&coalesced_item->ic_linkage);
 		coalesced_item->ic_fid = fid;
-		coalesced_item->ic_op_intent = item_rw; 
+		coalesced_item->ic_op_intent = item_rw;
 		coalesced_item->ic_resultant_item = NULL;
 		coalesced_item->ic_nmembers = 0;
 		c2_list_init(&coalesced_item->ic_member_list);
@@ -1675,7 +1675,7 @@ int c2_rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
 
 	/* If number of member rpc items in the current coalesced_item
 	   struct are less than 2, reject the coalesced_item
-	   and return back. i.e. Coalescing can only be when there are 
+	   and return back. i.e. Coalescing can only be when there are
 	   more than 2 items to merge*/
 	if (coalesced_item->ic_nmembers < 2) {
 		c2_list_for_each_entry_safe(&coalesced_item->ic_member_list,

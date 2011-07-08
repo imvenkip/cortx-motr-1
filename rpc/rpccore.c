@@ -142,7 +142,7 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	c2_time_t	now;
-	int 		res = 0;
+	int		res = 0;
 
 	C2_ASSERT(item != NULL && item->ri_session != NULL &&
 		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
@@ -1212,7 +1212,7 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
 {
 	c2_time_t                now;
 	struct c2_rpc_stats	*stats;
-	
+
 	C2_PRE(item != NULL);
 
 	c2_time_now(&now);
@@ -1232,7 +1232,7 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
 			stats->rs_in_instant_latency) /
 		(stats->rs_num_in_items +1);
 	stats->rs_num_in_items++;
-	stats->rs_num_in_bytes += c2_rpc_item_default_size(item);	
+	stats->rs_num_in_bytes += c2_rpc_item_default_size(item);
 }
 
 /** Set the outgoing exit stats for an rpc item */
@@ -1240,7 +1240,7 @@ void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 {
 	c2_time_t                now;
 	struct c2_rpc_stats	*stats;
-	
+
 	C2_PRE(item != NULL);
 
 	c2_time_now(&now);
@@ -1260,7 +1260,7 @@ void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 			stats->rs_out_instant_latency) /
 		(stats->rs_num_out_items +1);
 	stats->rs_num_out_items++;
-	stats->rs_num_out_bytes += c2_rpc_item_default_size(item);	
+	stats->rs_num_out_bytes += c2_rpc_item_default_size(item);
 }
 
 /* Dummy reqh queue of items */

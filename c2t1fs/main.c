@@ -154,7 +154,7 @@ MODULE_LICENSE("GPL");
 /**
  * Global container id used to identify the corresponding
  * component object at the server side.
- * In future, this will be changed. 
+ * In future, this will be changed.
  */
 #define c2_global_container_id	10
 
@@ -162,7 +162,7 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 /**
- * Some user/group identification functions to fill up 
+ * Some user/group identification functions to fill up
  * the uid/gid fields from various FOPs.
  * These are hard coded for now. They will be replaced
  * with proper user authorization routines in future.
@@ -195,7 +195,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_fop_segment		 read_seg;
 
         if (rw == WRITE) {
-		struct c2_fop_cob_writev 	*arg;
+		struct c2_fop_cob_writev	*arg;
                 struct c2_fop_cob_writev_rep	*ret;
 
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
@@ -209,12 +209,12 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg = c2_fop_data(f);
 		ret = c2_fop_data(r);
 
-		/* With introduction of FOMs, a reply FOP will be allocated 
-		 * by the request FOP and a pointer to it will be 
+		/* With introduction of FOMs, a reply FOP will be allocated
+		 * by the request FOP and a pointer to it will be
 		 * sent across.
 		 * XXX The reply FOP pointer is not used as of now.
 		 */
- 		arg->fwr_foprep			= (uint64_t)ret;
+		arg->fwr_foprep			= (uint64_t)ret;
 		arg->fwr_fid.f_seq		= c2_global_container_id;
 		arg->fwr_fid.f_oid		= objid;
 		arg->fwr_iovec.iov_count	= 1;
@@ -242,11 +242,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
                 rc = ret->fwrr_rc ? : ret->fwrr_count;
         } else {
 
- 		struct c2_fop_cob_readv		*arg;
+		struct c2_fop_cob_readv		*arg;
                 struct c2_fop_cob_readv_rep	*ret;
-  
- 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
- 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+		
+		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 

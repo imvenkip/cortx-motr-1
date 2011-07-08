@@ -192,8 +192,7 @@ struct c2_rpc_item_type_ops {
 	   @pre ri_added() called.
 	   @pre ri_sent() called.
 	 */
-	void (*rio_replied)(struct c2_rpc_item	*item,
-			   int 			rc);
+	void (*rio_replied)(struct c2_rpc_item *item, int rc);
 
 	/**
 	   Find out the size of rpc item.
@@ -258,8 +257,7 @@ struct c2_rpc_item_ops {
 	   @pre ri_sent() called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item	*item,
-			   struct c2_rpc_item	*reply,
-			   int 			rc);
+			   struct c2_rpc_item	*reply, int rc);
 
 };
 struct c2_update_stream_ops {
@@ -436,10 +434,10 @@ struct c2_rpc_item {
 	c2_time_t			 ri_rpc_exit_time;
 };
 
-/* Set the stats for outgoing rpc item */ 
+/* Set the stats for outgoing rpc item */
 void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
 
-/* Set the stats for incoming rpc item */ 
+/* Set the stats for incoming rpc item */
 void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
 
 /**

@@ -111,11 +111,11 @@ static struct c2_fom_type *c2_io_fom_types[] = {
 /**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.
- * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
+ * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
  */
 struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_PRE(IS_IN_ARRAY((code - C2_IO_SERVICE_READV_OPCODE), 
+	C2_PRE(IS_IN_ARRAY((code - C2_IO_SERVICE_READV_OPCODE),
 			   c2_io_fom_types));
 	return c2_io_fom_types[code - C2_IO_SERVICE_READV_OPCODE];
 }
@@ -167,7 +167,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_read_ops;
-		fom_obj->fcrw_rep_fop = 
+		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
 			c2_free(fom_obj);
@@ -176,7 +176,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	}
 	else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_write_ops;
-		fom_obj->fcrw_rep_fop = 
+		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
 			c2_free(fom_obj);
@@ -274,7 +274,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	C2_ASSERT(result == 0);
 
 	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
-		/* 
+		/*
 		 * Make an FOL transaction record.
 		 */
 		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
@@ -366,7 +366,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	/* 
 	 * Retrieve the status code and no of bytes read/written
-	 * and place it in respective reply FOP. 
+	 * and place it in respective reply FOP.
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
@@ -411,7 +411,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 }
 
 /**
- * State function for create request 
+ * State function for create request
  */
 int c2_io_fom_file_create_state(struct c2_fom *fom)
 {

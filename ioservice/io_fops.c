@@ -65,7 +65,7 @@ static void io_fop_cob_writev_replied(struct c2_fop *fop)
    Return the size of a fop of type c2_fop_cob_readv.
    @pre fop.f_item.ri_type->rit_ops->rio_item_size is called.
 
-   @param - Read fop for which size is to be calculated 
+   @param - Read fop for which size is to be calculated
  */
 static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
 {
@@ -89,7 +89,7 @@ static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
    Return the size of a fop of type c2_fop_cob_writev.
    @pre fop.f_item.ri_type->rit_ops->rio_item_size is called.
 
-   @param - Write fop for which size is to be calculated 
+   @param - Write fop for which size is to be calculated
  */
 static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
 {
@@ -123,7 +123,7 @@ static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
    @pre fop.f_item.ri_type->rit_ops->rio_items_equal is called.
 
    @param - Fop1 to be compared with Fop2
-   @param - Fop2 to be compared with Fop1 
+   @param - Fop2 to be compared with Fop1
  */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
 		const struct c2_fop *fop2)
@@ -138,7 +138,7 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
    Return fid for a fop of type c2_fop_cob_readv.
    @pre fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
 
-   @param - Read fop for which fid is to be calculated 
+   @param - Read fop for which fid is to be calculated
  */
 static struct c2_fop_file_fid *io_fop_get_read_fid(struct c2_fop *fop)
 {
@@ -154,7 +154,7 @@ static struct c2_fop_file_fid *io_fop_get_read_fid(struct c2_fop *fop)
    Return fid for a fop of type c2_fop_cob_writev.
    @pre fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
 
-   @param - Write fop for which fid is to be calculated 
+   @param - Write fop for which fid is to be calculated
  */
 static struct c2_fop_file_fid *io_fop_get_write_fid(struct c2_fop *fop)
 {
@@ -188,7 +188,7 @@ static bool io_fop_is_rw(const struct c2_fop *fop)
    for a fop of type c2_fop_cob_readv.
    @pre fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
 
-   @param - Read fop for which number of fragments is to be calculated 
+   @param - Read fop for which number of fragments is to be calculated
  */
 static uint64_t io_fop_read_get_nfragments(struct c2_fop *fop)
 {
@@ -220,7 +220,7 @@ static uint64_t io_fop_read_get_nfragments(struct c2_fop *fop)
    for a fop of type c2_fop_cob_writev.
    @pre fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
 
-   @param - Write fop for which number of fragments is to be calculated 
+   @param - Write fop for which number of fragments is to be calculated
  */
 static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
 {
@@ -331,7 +331,7 @@ static int io_fop_read_seg_add_cond(struct c2_io_read_segment *rs,
    @param off2 - starting offset of rs.
    @param cnt2 - count of bytes in rs.
  */
-static bool io_fop_read_segs_adjacent(struct c2_io_read_segment **rs, 
+static bool io_fop_read_segs_adjacent(struct c2_io_read_segment **rs,
 		const uint64_t off1, const uint64_t cnt1, const uint64_t off2,
 		const uint64_t cnt2)
 {
@@ -341,7 +341,7 @@ static bool io_fop_read_segs_adjacent(struct c2_io_read_segment **rs,
 	C2_PRE((*rs)->rs_seg.f_offset == off2);
 	C2_PRE((*rs)->rs_seg.f_count == cnt2);
 
-	/* If off1 + count1 == off2, 
+	/* If off1 + count1 == off2,
 	   OR off2 + count2 == off1, merge 2 segments. */
 	if (off1 + cnt1 == off2) {
 		(*rs)->rs_seg.f_offset = off1;
@@ -461,9 +461,9 @@ static void io_fop_read_segments_contract(const struct c2_list *aggr_list,
 
    @pre fop->f_type->ft_ops->fto_io_coalesce is called.
 
-   @param - target iovec 
+   @param - target iovec
    @param - aggr_list is list of read segments that could be merged
-   @param - number of resultant merged segments 
+   @param - number of resultant merged segments
 */
 static int io_fop_read_segments_coalesce(struct c2_fop_segment_seq *iovec,
 		struct c2_list *aggr_list, uint64_t *res_segs)
@@ -493,8 +493,8 @@ static int io_fop_read_segments_coalesce(struct c2_fop_segment_seq *iovec,
    collated IO vector into given resultant fop.
    @pre fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
 
-   @param - list of read fops 
-   @param - resultant fop 
+   @param - list of read fops
+   @param - resultant fop
  */
 static int io_fop_read_coalesce(const struct c2_list *list,
 		struct c2_fop *b_fop)
@@ -639,7 +639,7 @@ static int io_fop_write_seg_add_cond(struct c2_io_write_segment *ws,
    @param off2 - starting offset of ws.
    @param cnt2 - count of bytes in ws.
  */
-static bool io_fop_write_segs_adjacent(struct c2_io_write_segment **ws, 
+static bool io_fop_write_segs_adjacent(struct c2_io_write_segment **ws,
 		const uint64_t off1, const uint32_t cnt1, const uint64_t off2,
 		const uint32_t cnt2)
 {
@@ -649,7 +649,7 @@ static bool io_fop_write_segs_adjacent(struct c2_io_write_segment **ws,
 	C2_PRE((*ws)->ws_seg.f_offset == off2);
 	C2_PRE((*ws)->ws_seg.f_buf.f_count == cnt2);
 
-	/* If off1 + count1 == off2, 
+	/* If off1 + count1 == off2,
 	   OR off2 + count2 == off1, merge 2 segments. */
 	if (off1 + cnt1 == off2) {
 		(*ws)->ws_seg.f_offset = off1;
@@ -769,9 +769,9 @@ static void io_fop_write_segments_contract(const struct c2_list *aggr_list,
 
    @pre fop->f_type->ft_ops->fto_io_coalesce is called.
 
-   @param - target iovec 
+   @param - target iovec
    @param - aggr_list is list of write segments that could be merged
-   @param - number of resultant merged segments 
+   @param - number of resultant merged segments
 */
 static int io_fop_write_segments_coalesce(struct c2_fop_io_vec *iovec,
 		struct c2_list *aggr_list, uint64_t *res_segs)
@@ -801,8 +801,8 @@ static int io_fop_write_segments_coalesce(struct c2_fop_io_vec *iovec,
    of given resultant fop.
    @pre fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
 
-   @param - list of write fops 
-   @param - resultant fop 
+   @param - list of write fops
+   @param - resultant fop
  */
 static int io_fop_write_coalesce(const struct c2_list *list,
 		struct c2_fop *b_fop)
