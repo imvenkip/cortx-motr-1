@@ -26,14 +26,14 @@ struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	}
 };
 
-void c2_rpc_form_extevt_net_buffer_sent(const struct c2_net_buffer_event *ev);
+void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
    Callback for net buffer used in posting
  */
 struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_SEND] = c2_rpc_form_extevt_net_buffer_sent,
+		[C2_NET_QT_MSG_SEND] = c2_rpc_frm_net_buffer_sent,
 	}
 };
 
@@ -149,7 +149,7 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 			item->ri_session->s_session_id);
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	res = c2_rpc_form_extevt_unbounded_rpcitem_added(item);
+	res = c2_rpc_frm_ub_item_added(item);
 	return res;
 }
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
@@ -187,6 +187,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
 	c2_mutex_unlock(&slot->sl_mutex);
+	reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
+	request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
 	return 0;
 }
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
@@ -221,7 +223,6 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
-	c2_rpc_form_init();
 	return 0;
 }
 
@@ -783,6 +784,12 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 
 	rc = c2_rpcmachine_src_ep_add(machine, src_ep);
+	if (rc < 0) {
+		return rc;
+	}
+	/* Initialize the formation module. */
+	rc = c2_rpc_frm_init(&machine->cr_formation);
+
 	return rc;
 }
 
@@ -809,6 +816,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage);
 	c2_ref_put(&chan->rc_ref);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
+	c2_rpc_frm_fini(machine->cr_formation);
 }
 
 /** simple vector of RPC-item operations */
@@ -875,8 +883,8 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	if(fop->f_type->ft_ops->fto_getsize) {
-		size = fop->f_type->ft_ops->fto_getsize(fop);
+	if(fop->f_type->ft_ops->fto_size_get) {
+		size = fop->f_type->ft_ops->fto_size_get(fop);
 	} else {
 		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	}
@@ -927,7 +935,7 @@ struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
 {
 	struct c2_fop			*fop = NULL;
 	struct c2_fid			 fid;
-	struct c2_fop_file_fid		 ffid;
+	struct c2_fop_file_fid		*ffid;
 
 	C2_PRE(item != NULL);
 
@@ -935,7 +943,7 @@ struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
 	C2_ASSERT(fop != NULL);
 
 	ffid = fop->f_type->ft_ops->fto_get_fid(fop);
-	c2_rpc_form_item_io_fid_wire2mem(&ffid, &fid);
+	c2_rpc_frm_item_io_fid_wire2mem(ffid, &fid);
 	return fid;
 }
 
@@ -1071,16 +1079,16 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
         fop = c2_rpc_item_to_fop(item);
         opcode = fop->f_type->ft_code;
         switch (opcode) {
-                case c2_io_service_readv_opcode:
+                case C2_IO_SERVICE_READV_OPCODE:
                         item->ri_type = &c2_rpc_item_type_readv;
                         break;
-                case c2_io_service_writev_opcode:
+                case C2_IO_SERVICE_WRITEV_OPCODE:
                         item->ri_type = &c2_rpc_item_type_writev;
                         break;
-                case c2_io_service_create_opcode:
+                case C2_IO_SERVICE_CREATE_OPCODE:
                         item->ri_type = &c2_rpc_item_type_create;
                         break;
-                case c2_io_service_create_rep_opcode:
+                case C2_IO_SERVICE_CREATE_REP_OPCODE:
                         item->ri_type = &c2_rpc_item_type_create_rep;
                         break;
                 default:
@@ -1108,14 +1116,14 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	   rpc_item_type with an rpc_item. */
 	opcode = fopt->ft_code;
 	switch (opcode) {
-		case c2_io_service_readv_opcode:
-			fopt->ft_ritype = &c2_rpc_item_type_readv;
+		case C2_IO_SERVICE_READV_OPCODE:
+			fopt->ft_ri_type = &c2_rpc_item_type_readv;
 			break;
-		case c2_io_service_writev_opcode:
-			fopt->ft_ritype = &c2_rpc_item_type_writev;
+		case C2_IO_SERVICE_WRITEV_OPCODE:
+			fopt->ft_ri_type = &c2_rpc_item_type_writev;
 			break;
-		case c2_io_service_create_opcode:
-			fopt->ft_ritype = &c2_rpc_item_type_create;
+		case C2_IO_SERVICE_CREATE_OPCODE:
+			fopt->ft_ri_type = &c2_rpc_item_type_create;
 			break;
 		default:
 			break;

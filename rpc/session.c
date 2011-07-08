@@ -1967,12 +1967,12 @@ void c2_rpc_form_item_ready(struct c2_rpc_item *item)
 void c2_rpc_sender_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
-	c2_rpc_form_extevt_slot_idle(slot);
+	c2_rpc_frm_slot_idle(slot);
 }
 void c2_rpc_sender_consume_item(struct c2_rpc_item *item)
 {
 	printf("sender_consume_item called %p\n", item);
-	c2_rpc_form_extevt_rpcitem_ready(item);
+	c2_rpc_frm_item_ready(item);
 }
 void c2_rpc_sender_consume_reply(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
@@ -1985,7 +1985,7 @@ void c2_rpc_rcv_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			slot->sl_verno.vn_vc, slot->sl_xid);
-	c2_rpc_form_extevt_slot_idle(slot);
+	c2_rpc_frm_slot_idle(slot);
 }
 void c2_rpc_rcv_consume_item(struct c2_rpc_item *item)
 {
@@ -1996,7 +1996,7 @@ void c2_rpc_rcv_consume_reply(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
 	printf("rcv_consume_reply called %p %p\n", req, reply);
-	c2_rpc_form_extevt_rpcitem_ready(reply);
+	c2_rpc_frm_item_ready(reply);
 }
 
 int conn_persistent_state_create(struct c2_cob_domain	*dom,
@@ -2501,7 +2501,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = c2_rpc_form_extevt_rpcitem_reply_received(item,
+			rc = c2_rpc_frm_item_reply_received(item,
 					req);
 		}
 

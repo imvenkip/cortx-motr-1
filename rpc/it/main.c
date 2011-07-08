@@ -284,7 +284,7 @@ cleanup:
 	do_cleanup();
 }
 
-int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
+int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
 
 void send_ping_fop(int nr)
 {
@@ -300,7 +300,7 @@ void send_ping_fop(int nr)
 	fid.f_oid = 200 + nr;
 	create_fop->fcr_fid = fid;
 	item = &fop->f_item;
-	c2_rpc_form_item_populate_param(&fop->f_item);
+	c2_rpc_frm_item_populate_param(&fop->f_item);
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);	
@@ -596,7 +596,7 @@ int main(int argc, char *argv[])
         c2_rpc_max_rpcs_in_flight = 8;
         c2_rpc_max_fragments_size = 16;
 
-        c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
+        c2_rpc_frm_set_thresholds(c2_rpc_max_message_size,
                         c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
 	/* Set if passed through command line interface */

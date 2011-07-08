@@ -305,6 +305,8 @@ struct c2_update_stream {
 /** TBD in 'DLD RPC FOP:core wire formats':
     c2_rpc is a container of c2_rpc_items. */
 struct c2_rpc {
+	/** Linkage into list of rpc objects just formed or into the list
+	    of rpc objects which are ready to be sent on wire. */
 	struct c2_list_link	r_linkage;
 	struct c2_list		r_items;
 
@@ -698,6 +700,8 @@ void c2_rpc_chan_put(struct c2_rpc_chan *chan);
 struct c2_rpcmachine {
 	/* List of transfer machine used by conns from this rpcmachine. */
 	struct c2_rpc_ep_aggr	   cr_ep_aggr;
+	/* Formation module data structure associated with this rpcmachine. */
+	struct c2_rpc_formation	  *cr_formation;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics   cr_statistics;

@@ -217,7 +217,7 @@ struct c2_fop_type fopt ## _fopt = {			\
 	.ft_name = name,				\
 	.ft_fmt  = &__paste(fopt),			\
 	.ft_ops  = (ops),				\
-	.ft_ritype = itype				\
+	.ft_ri_type = itype				\
 };							\
 C2_EXPORTED(fopt ## _fopt)
 

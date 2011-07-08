@@ -115,9 +115,9 @@ static struct c2_fom_type *c2_io_fom_types[] = {
  */
 struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_PRE(IS_IN_ARRAY((code - c2_io_service_readv_opcode), 
+	C2_PRE(IS_IN_ARRAY((code - C2_IO_SERVICE_READV_OPCODE), 
 			   c2_io_fom_types));
-	return c2_io_fom_types[code - c2_io_service_readv_opcode];
+	return c2_io_fom_types[code - C2_IO_SERVICE_READV_OPCODE];
 }
 
 /**
@@ -165,7 +165,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom = &fom_obj->fcrw_gen;
 	fom->fo_type = fom_type;
 
-	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_read_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
@@ -174,7 +174,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 			return -ENOMEM;
 		}
 	}
-	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_write_ops;
 		fom_obj->fcrw_rep_fop = 
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
@@ -216,6 +216,8 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev_rep	*wr_rep_fop;
 	struct c2_fop_cob_readv_rep	*rd_rep_fop;
+	struct c2_fop_io_seg		*write_seg;
+	struct c2_fop_segment		*read_seg;
 
 	C2_PRE(fom != NULL);
 
@@ -237,7 +239,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Retrieve the request and reply FOPs.
 	 * Extract the on-write FID from the FOPs.
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
 		ffid = &write_fop->fwr_fid;
@@ -271,7 +273,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
 	C2_ASSERT(result == 0);
 
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		/* 
 		 * Make an FOL transaction record.
 		 */
@@ -305,31 +307,32 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Find out the buffer address, offset and count
 	 * required for the stob io.
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_offset & bmask) == 0);
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_buf.f_count & bmask) == 0);
-		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
-					 iov_seg->f_buf.f_buf, bshift);
-		count = write_fop->fwr_iovec.iov_seg->f_buf.f_count;
-		offset = write_fop->fwr_iovec.iov_seg->f_offset;
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
+		write_seg = write_fop->fwr_iovec.iov_seg;
+		addr = c2_stob_addr_pack(write_seg->f_buf.f_buf, bshift);
+		count = write_seg->f_buf.f_count;
+		offset = write_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
 	else {
-		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_offset & bmask) == 0);
-		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_count & bmask) == 0);
+		read_seg = read_fop->frd_ioseg.fs_segs;
 
 		/*
 		 * Allocate the read buffer.
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf,
-				read_fop->frd_ioseg.fs_segs->f_count);
-		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf,
-					 bshift);
-		count = read_fop->frd_ioseg.fs_segs->f_count;
-		offset = read_fop->frd_ioseg.fs_segs->f_offset;
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_seg->f_count);
+		if (rd_rep_fop->frdr_buf.f_buf == NULL) {
+			c2_stob_put(fom_obj->fcrw_stob);
+			c2_free(fom_obj->fcrw_st_io);
+			return -ENOMEM;
+		}
+		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, bshift);
+		count = read_seg->f_count;
+		offset = read_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
+	C2_ASSERT((offset & bmask) == 0);
+	C2_ASSERT((count & bmask) == 0);
 
 	count = count >> bshift;
 	offset = offset >> bshift;
@@ -365,9 +368,9 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Retrieve the status code and no of bytes read/written
 	 * and place it in respective reply FOP. 
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
-		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;;
+		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;
 	}
 	else {
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;

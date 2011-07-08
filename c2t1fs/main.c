@@ -188,9 +188,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
-	struct c2_fop       *f;
-	struct c2_fop       *r;
-	struct c2_net_call  kcall;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_net_call		 kcall;
+	struct c2_fop_io_seg		 write_seg;
+	struct c2_fop_segment		 read_seg;
 
         if (rw == WRITE) {
 		struct c2_fop_cob_writev 	*arg;
@@ -218,7 +220,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->fwr_iovec.iov_count	= 1;
 
 		/* Populate the vector of write FOP */
-		arg->fwr_iovec.iov_seg = kmalloc(sizeof(struct c2_fop_io_seg), GFP_KERNEL);
+		arg->fwr_iovec.iov_seg = &write_seg;
 		arg->fwr_iovec.iov_seg->f_offset = pos;
 		arg->fwr_iovec.iov_seg->f_buf.cfib_pgoff = off;
 		arg->fwr_iovec.iov_seg->f_buf.f_buf = pages;
@@ -235,7 +237,6 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 DBG("write to server returns %d\n", rc);
 
-		kfree(arg->fwr_iovec.iov_seg);
                 if (rc)
                         return rc;
                 rc = ret->fwrr_rc ? : ret->fwrr_count;
@@ -266,7 +267,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->frd_ioseg.fs_count		= 1;
 
 		/* Populate the vector of read FOP */
-		arg->frd_ioseg.fs_segs = kmalloc(sizeof(struct c2_fop_segment), GFP_KERNEL);
+		arg->frd_ioseg.fs_segs = &read_seg;
 		arg->frd_ioseg.fs_segs->f_offset = pos;
 		arg->frd_ioseg.fs_segs->f_count = len;
 
@@ -285,7 +286,6 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 DBG("read from server returns %d\n", rc);
 
-		kfree(arg->frd_ioseg.fs_segs);
                 if (rc)
                         return rc;
                 rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
