@@ -298,12 +298,12 @@ void send_ping_fop(int nr)
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 	ping_fop = c2_fop_data(fop);
-	//ping_fop->fp_arr.f_count = 3;
-	ping_fop->fp_arr.f_count = 1;
+	ping_fop->fp_arr.f_count = 3;
+	//ping_fop->fp_arr.f_count = 1;
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, 1);
 	ping_fop->fp_arr.f_data[0] = 1;
-	//ping_fop->fp_arr.f_data[1] = 2;
-	//ping_fop->fp_arr.f_data[2] = 3;
+	ping_fop->fp_arr.f_data[1] = 2;
+	ping_fop->fp_arr.f_data[2] = 3;
 	item = &fop->f_item;
 	c2_rpc_form_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
@@ -582,7 +582,7 @@ void client_init()
 	} else
 		printf("Timeout for session create \n");
 
-	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
+	for (i = 0; i < 1; i++) {
 		send_ping_fop(i);
 	}
 	sleep (3);

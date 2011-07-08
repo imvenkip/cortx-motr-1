@@ -38,19 +38,33 @@
    Return size for a fop of type c2_fop_ping;
    @param - Ping fop for which size has to be calculated
  */
-uint64_t c2_fop_ping_getsize(struct c2_fop *fop)
+uint64_t c2_fop_ping_getsize(struct c2_fop *ping_fop)
 {
 	uint64_t			 size = 0;
+	uint32_t			 count;
+	struct c2_fop_ping		 *fp;
 
-	C2_PRE(fop != NULL);
-
-	/** Size of fop layout */
+	C2_PRE(ping_fop != NULL);
+	fp = c2_fop_data(ping_fop);
+	count = fp->fp_arr.f_count;
+	size = sizeof(count) + sizeof(fp->fp_arr.f_data) * count;
+	printf("\nIn Ping get size : %ld\n", size);
+	/** Size of fop layout 
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	size += sizeof(struct c2_fop_type);
-	size += sizeof(struct c2_fop);
+	size += sizeof(struct c2_fop);*/
 	return size;
 }
 
+uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
+{
+	uint64_t 	size;
+
+	C2_PRE(fop != NULL);
+	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	printf("\nIn Ping reply get size : %ld\n", size);
+	return size;
+}
 /**
    Return the opcode of given fop.
    @pre fop.f_item.ri_type->rit_ops->rio_io_get_opcode is called.
@@ -62,7 +76,7 @@ int c2_fop_get_opcode(struct c2_fop *fop)
         int opcode = 0;
 
         C2_PRE(fop != NULL);
-
+	
         opcode = fop->f_type->ft_code;
         return opcode;
 }
@@ -103,7 +117,8 @@ int c2_fop_ping_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
-        .fto_getsize = c2_fop_ping_getsize,
+        .fto_getsize = c2_fop_ping_reply_get_size,
+        //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_opcode = c2_fop_get_opcode,
         .fto_get_fid = NULL,

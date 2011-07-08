@@ -1,4 +1,8 @@
 
+DEF(c2_fop_test_arr, SEQUENCE,
+   _(t_count, U64),
+   _(t_data, U32));
+
 DEF(c2_fop_test, RECORD,
-   _(t_time, U64),
-   _(t_timeout, U32));
+  _(t_arr, c2_fop_test_arr));
+
