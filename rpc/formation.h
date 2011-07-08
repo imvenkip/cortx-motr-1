@@ -110,17 +110,17 @@
 	   |
 	   V		post successful/failed
 	WAITING<------------------------------------------+
-	   |				   ^	     ^	  |
-	   | c2_rpc_post(item)		   |item del |	  |
-	   |				   |  from   |	  |	
-	   |				   | frm DS  |	  |	    	
-	   V	item removed/param changed |	     |	  |    
+	   |                               ^	     ^	  |
+	   | c2_rpc_post(item)             |item del |	  |
+	   |                               |  from   |	  |
+	   |                               | frm DS  |    |
+	   V	item removed/param changed |	     |	  |
 	UPDATING----------------------->REMOVING     |	POSTING
-	   |					     |	  ^
-	   | rpc item added to frm DS		     |	  |
-	   |			    frm check failed |	  |c2_rpc_add_buffer()
-	   |		    +------------------------+	  |c2_rpc_encode()	
-	   |		    |				  |
+	   |                                         |	  ^
+	   | rpc item added to frm DS                |	  |
+	   |                  frm check failed       |	  |c2_rpc_add_buffer()
+	   |                +------------------------+	  |c2_rpc_encode()
+	   |                |                             |
 	   +------------>CHECKING--------------->FORMING--+
 	    frm check success	   rpc object formed
 
