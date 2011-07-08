@@ -22,13 +22,15 @@ MODLIST="lib/linux_kernel/klibc2.ko \
 tailseek=$(( $(stat -c %s /var/log/kern) + 1 ))
 
 modload
-# insert this one separately to pass parameters
-insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose
+# insert ST module separately to pass parameters
+insmod net/bulk_emulation/st/linux_kernel/knetst.ko verbose passive_size=56000
 
 # use bulkping client here and run various tests
 net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v
+net/bulk_emulation/st/bulkping -c -t bulk-sunrpc -v -n 8 -d 56000
 
 rmmod knetst
 modunload
 
+sleep 1
 tail -c+$tailseek /var/log/kern
