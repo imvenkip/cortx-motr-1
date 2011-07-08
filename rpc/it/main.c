@@ -402,7 +402,7 @@ void print_stats(bool client, bool server)
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
@@ -412,7 +412,7 @@ void print_stats(bool client, bool server)
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
