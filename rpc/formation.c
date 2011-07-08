@@ -1169,6 +1169,8 @@ static int c2_rpc_form_summary_groups_add(
 /**
    Update the summary_unit data structure on addition of
    an rpc item.
+   @retval 0 if item is successfully added to internal data structure
+   @retval non-zero if item is not successfully added in internal data structure
  */
 static int c2_rpc_form_add_rpcitem_to_summary_unit(
 		struct c2_rpc_form_item_summary_unit *endp_unit,
@@ -1185,7 +1187,10 @@ static int c2_rpc_form_add_rpcitem_to_summary_unit(
 	C2_PRE(item != NULL);
 	C2_PRE(endp_unit != NULL);
 	C2_PRE(c2_mutex_is_locked(&endp_unit->isu_unit_lock));
-	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
+
+	if (item->ri_state != RPC_ITEM_SUBMITTED) {
+		return -1;
+	}
 
 	/** Insert the item into unformed list sorted according to timeout*/
 	c2_list_for_each_entry_safe(&endp_unit->isu_unformed_list,
@@ -1352,6 +1357,9 @@ int c2_rpc_form_updating_state(struct c2_rpc_form_item_summary_unit *endp_unit,
 	   only if it is bound item. */
 	if (!item_unbound && item->ri_slot_refs[0].sr_slot) {
 		res = c2_rpc_form_add_rpcitem_to_summary_unit(endp_unit, item);
+		if (res != 0) {
+			return C2_RPC_FORM_INTEVT_STATE_FAILED;
+		}
 	}
 	/* If rpcobj_formed_list already contains formed rpc objects,
 	   succeed the state and let it proceed to posting state. */
