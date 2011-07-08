@@ -30,6 +30,10 @@
 #include "net/bulk_sunrpc.h"
 #include "net/bulk_emulation/st/ping.h"
 
+#define DEF_RESPONSE "active pong"
+#define DEF_SEND "passive ping"
+#define SEND_RESP    " pong"
+
 enum {
 	SEND_RETRIES = 3,
 };
@@ -131,31 +135,21 @@ void ping_buf_put(struct ping_ctx *ctx, struct c2_net_buffer *nb)
 /** encode a string message into a net buffer, not zero-copy */
 int encode_msg(struct c2_net_buffer *nb, const char *str)
 {
-	struct c2_bufvec_cursor cur;
 	char *bp;
-	size_t len = strlen(str) + 1; /* include trailing nul */
-	c2_bcount_t step;
+	c2_bcount_t len = strlen(str) + 1; /* include trailing nul */
+	c2_bcount_t copied;
+	struct c2_bufvec in = C2_BUFVEC_INIT_BUF((void **) &str, &len);
+	struct c2_bufvec_cursor incur;
+	struct c2_bufvec_cursor cur;
 
 	nb->nb_length = len + 1;
-
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bp = c2_bufvec_cursor_addr(&cur);
 	*bp = 'm';
 	C2_ASSERT(!c2_bufvec_cursor_move(&cur, 1));
-	while (len > 0) {
-		bp = c2_bufvec_cursor_addr(&cur);
-		step = c2_bufvec_cursor_step(&cur);
-		if (len > step) {
-			memcpy(bp, str, step);
-			str += step;
-			len -= step;
-			C2_ASSERT(!c2_bufvec_cursor_move(&cur, step));
-			C2_ASSERT(cur.bc_vc.vc_offset == 0);
-		} else {
-			memcpy(bp, str, len);
-			len = 0;
-		}
-	}
+	c2_bufvec_cursor_init(&incur, &in);
+	copied = c2_bufvec_cursor_copy(&cur, &incur, len);
+	C2_ASSERT(copied == len);
 	return 0;
 }
 
@@ -213,25 +207,16 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 	C2_ASSERT(*bp == 'm' || *bp == 's' || *bp == 'r');
 	C2_ASSERT(!c2_bufvec_cursor_move(&cur, 1));
 	if (*bp == 'm') {
-		size_t len = nb->nb_length - 1;
-		char *str;
+		c2_bcount_t len = nb->nb_length - 1;
+		void *str;
+		struct c2_bufvec out = C2_BUFVEC_INIT_BUF(&str, &len);
+		struct c2_bufvec_cursor outcur;
 
 		msg->pm_type = PM_MSG;
 		str = msg->pm_u.pm_str = c2_alloc(len);
-		while (len > 0) {
-			bp = c2_bufvec_cursor_addr(&cur);
-			step = c2_bufvec_cursor_step(&cur);
-			if (len > step) {
-				memcpy(str, bp, step);
-				str += step;
-				len -= step;
-				C2_ASSERT(!c2_bufvec_cursor_move(&cur, step));
-				C2_ASSERT(cur.bc_vc.vc_offset == 0);
-			} else {
-				memcpy(str, bp, len);
-				len = 0;
-			}
-		}
+		c2_bufvec_cursor_init(&outcur, &out);
+		step = c2_bufvec_cursor_copy(&outcur, &cur, len);
+		C2_ASSERT(step == len);
 	} else {
 		int len;
 		msg->pm_type = (*bp == 's') ? PM_SEND_DESC : PM_RECV_DESC;
@@ -269,6 +254,7 @@ void c_m_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	struct ping_ctx *ctx = buffer_event_to_ping_ctx(ev);
 	int rc;
+	int len;
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
@@ -287,20 +273,23 @@ void c_m_recv_cb(const struct c2_net_buffer_event *ev)
 		rc = decode_msg(ev->nbe_buffer, &msg);
 		C2_ASSERT(rc == 0);
 
-		if (msg.pm_type != PM_MSG) {
+		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Client: got desc\n");
-			/* TODO: implement this branch? */
-		} else {
+
+		len = strlen(msg.pm_u.pm_str);
+		if (strlen(msg.pm_u.pm_str) < 32)
 			ctx->pc_ops->pf("%s: got msg: %s\n",
 					ctx->pc_ident, msg.pm_u.pm_str);
-			if (ctx->pc_compare_buf != NULL) {
-				int l = strlen(ctx->pc_compare_buf);
-				C2_ASSERT(strlen(msg.pm_u.pm_str) == l + 5);
-				C2_ASSERT(strncmp(ctx->pc_compare_buf,
-						  msg.pm_u.pm_str, l) == 0);
-				C2_ASSERT(strcmp(&msg.pm_u.pm_str[l],
-						 " pong") == 0);
-			}
+		else
+			ctx->pc_ops->pf("%s: got msg: %u bytes\n",
+					ctx->pc_ident, len + 1);
+
+		if (ctx->pc_compare_buf != NULL) {
+			int l = strlen(ctx->pc_compare_buf);
+			C2_ASSERT(strlen(msg.pm_u.pm_str) == l + 5);
+			C2_ASSERT(strncmp(ctx->pc_compare_buf,
+					  msg.pm_u.pm_str, l) == 0);
+			C2_ASSERT(strcmp(&msg.pm_u.pm_str[l], SEND_RESP) == 0);
 		}
 		msg_free(&msg);
 	}
@@ -362,6 +351,7 @@ void c_p_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	struct ping_ctx *ctx = buffer_event_to_ping_ctx(ev);
 	int rc;
+	int len;
 	struct ping_work_item *wi;
 	struct ping_msg msg;
 
@@ -382,12 +372,27 @@ void c_p_recv_cb(const struct c2_net_buffer_event *ev)
 
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Client: got desc\n");
-		else if (strlen(msg.pm_u.pm_str) < 32)
+		len = strlen(msg.pm_u.pm_str);
+		if (strlen(msg.pm_u.pm_str) < 32)
 			ctx->pc_ops->pf("%s: got data: %s\n",
 					ctx->pc_ident, msg.pm_u.pm_str);
 		else
-			ctx->pc_ops->pf("%s: got data: %lu bytes\n",
-					ctx->pc_ident, strlen(msg.pm_u.pm_str));
+			ctx->pc_ops->pf("%s: got data: %u bytes\n",
+					ctx->pc_ident, len + 1);
+		C2_ASSERT(ev->nbe_length == len + 2);
+		if (strcmp(msg.pm_u.pm_str, DEF_RESPONSE) != 0) {
+			int i;
+			for (i = 0; i < len - 1; ++i) {
+				if (msg.pm_u.pm_str[i] != "abcdefghi"[i % 9]) {
+					PING_ERR("%s: data diff @ offset %i: "
+						 "%c != %c\n",
+						 ctx->pc_ident, i,
+						 msg.pm_u.pm_str[i],
+						 "abcdefghi"[i % 9]);
+					break;
+				}
+			}
+		}
 		msg_free(&msg);
 	}
 
@@ -578,15 +583,18 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 				nb->nb_ep = NULL; /* not needed */
 				/* reuse encode_msg for convenience */
 				if (ctx->pc_passive_size == 0)
-					rc = encode_msg(nb, "active pong");
+					rc = encode_msg(nb, DEF_RESPONSE);
 				else {
 					char *bp;
 					int i;
 					bp = c2_alloc(ctx->pc_passive_size);
 					C2_ASSERT(bp != NULL);
 					for (i = 0;
-					     i < ctx->pc_passive_size; ++i)
+					     i < ctx->pc_passive_size - 1; ++i)
 						bp[i] = "abcdefghi"[i % 9];
+					ctx->pc_ops->pf("%s: sending data "
+							"%d bytes\n", idbuf,
+							ctx->pc_passive_size);
 					rc = encode_msg(nb, bp);
 					c2_free(bp);
 					C2_ASSERT(rc == 0);
@@ -599,16 +607,22 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 				}
 			} else {
 				char *data;
-				ctx->pc_ops->pf("%s: got msg: %s\n",
-						idbuf, msg.pm_u.pm_str);
+				int len = strlen(msg.pm_u.pm_str);
+				if (strlen(msg.pm_u.pm_str) < 32)
+					ctx->pc_ops->pf("%s: got msg: %s\n",
+							idbuf, msg.pm_u.pm_str);
+				else
+					ctx->pc_ops->pf("%s: got msg: "
+							"%u bytes\n",
+							idbuf, len + 1);
 
 				/* queue wi to send back ping response */
-				data = c2_alloc(strlen(msg.pm_u.pm_str) + 6);
+				data = c2_alloc(len + 6);
 				c2_net_end_point_get(nb->nb_ep);
 				wi->pwi_type = C2_NET_QT_MSG_SEND;
 				nb->nb_qtype = C2_NET_QT_MSG_SEND;
 				strcpy(data, msg.pm_u.pm_str);
-				strcat(data, " pong");
+				strcat(data, SEND_RESP);
 				rc = encode_msg(nb, data);
 				c2_free(data);
 				C2_ASSERT(rc == 0);
@@ -671,6 +685,7 @@ void s_a_recv_cb(const struct c2_net_buffer_event *ev)
 {
 	struct ping_ctx *ctx = buffer_event_to_ping_ctx(ev);
 	int rc;
+	int len;
 	struct ping_msg msg;
 	char idbuf[64];
 
@@ -692,12 +707,30 @@ void s_a_recv_cb(const struct c2_net_buffer_event *ev)
 
 		if (msg.pm_type != PM_MSG)
 			C2_IMPOSSIBLE("Server: got desc\n");
-		else if (strlen(msg.pm_u.pm_str) < 32)
+		len = strlen(msg.pm_u.pm_str);
+		if (len < 32)
 			ctx->pc_ops->pf("%s: got data: %s\n",
 					idbuf, msg.pm_u.pm_str);
 		else
-			ctx->pc_ops->pf("%s: got data: %lu bytes\n",
-					idbuf, strlen(msg.pm_u.pm_str));
+			ctx->pc_ops->pf("%s: got data: %u bytes\n",
+					idbuf, len + 1);
+		C2_ASSERT(ev->nbe_length == len + 2);
+		if (strcmp(msg.pm_u.pm_str, DEF_SEND) != 0) {
+			int i;
+			for (i = 0; i < len - 1; ++i) {
+				if (msg.pm_u.pm_str[i] != "abcdefghi"[i % 9]) {
+					PING_ERR("%s: data diff @ offset %i: "
+						 "%c != %c\n", idbuf, i,
+						 msg.pm_u.pm_str[i],
+						 "abcdefghi"[i % 9]);
+					break;
+				}
+			}
+			if (i == len - 1)
+				ctx->pc_ops->pf("%s: data bytes validated\n",
+						idbuf);
+		}
+
 		msg_free(&msg);
 	}
 
