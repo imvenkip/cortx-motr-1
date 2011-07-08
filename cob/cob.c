@@ -689,7 +689,7 @@ out:
 }
 
 void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
-			char *name)
+			const char *name)
 {
         struct c2_cob_nskey *key;
 

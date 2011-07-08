@@ -20,6 +20,7 @@
 #include "rpc/session_internal.h"
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
+extern struct c2_fop_type_format c2_fop_test_arr_tfmt;
 
 static struct c2_rpc rpc_obj;
 
@@ -88,6 +89,7 @@ int main()
 	C2_ALLOC_PTR(item3);
 
 	c2_init();
+	rc = c2_fop_type_format_parse(&c2_fop_test_arr_tfmt);
 	rc = c2_fop_type_build(&c2_fop_test_fopt);
 	C2_ASSERT(rc == 0);
 	f1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
@@ -99,18 +101,37 @@ int main()
 
 	ccf1 = c2_fop_data(f1);
 	C2_ASSERT(ccf1 != NULL);
-	ccf1->t_time = 0x123456;
-	ccf1->t_timeout = 0xABCDEF;
+	ccf1->t_arr.t_count = 4;
+	C2_ALLOC_ARR(ccf1->t_arr.t_data, 4);
+	ccf1->t_arr.t_data[0] = 0xa;
+	ccf1->t_arr.t_data[1] = 0xb;
+	ccf1->t_arr.t_data[2] = 0xc;
+	ccf1->t_arr.t_data[3] = 0xd;
+
+	//ccf1->t_time = 0x123456;
+	//ccf1->t_timeout = 0xABCDEF;
 
 	ccf2 = c2_fop_data(f2);
 	C2_ASSERT(ccf2 != NULL);
-	ccf2->t_time = 0xdefabc;
-	ccf2->t_timeout = 0xdef123;
+	ccf2->t_arr.t_count = 4;
+	C2_ALLOC_ARR(ccf2->t_arr.t_data, 4);
+	ccf2->t_arr.t_data[0] = 0xa;
+	ccf2->t_arr.t_data[1] = 0xb;
+	ccf2->t_arr.t_data[2] = 0xc;
+	ccf2->t_arr.t_data[3] = 0xd;
+	//ccf2->t_time = 0xdefabc;
+	//ccf2->t_timeout = 0xdef123;
 
 	ccf3 = c2_fop_data(f3);
 	C2_ASSERT(ccf3 != NULL);
-	ccf3->t_time = 0xdef456;
-	ccf3->t_timeout = 0xdef789;
+	ccf3->t_arr.t_count = 4;
+	C2_ALLOC_ARR(ccf3->t_arr.t_data, 4);
+	ccf3->t_arr.t_data[0] = 0xa;
+	ccf3->t_arr.t_data[1] = 0xb;
+	ccf3->t_arr.t_data[2] = 0xc;
+	ccf3->t_arr.t_data[3] = 0xd;
+	//ccf3->t_time = 0xdef456;
+	//ccf3->t_timeout = 0xdef789;
 
 	item1 = &f1->f_item;
 	item2 = &f2->f_item;

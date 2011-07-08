@@ -100,6 +100,30 @@
    The formation component maintains its current state in a state variable
    which is protected by a lock. At any time, the state machine can only be
    in one state.
+
+   RPC formation state machine:
+
+     UNINITIALIZED
+	   | rpc_frm_init()
+	   |
+	   |
+	   |
+	   V		post successful/failed
+	WAITING<------------------------------------------+
+	   |                               ^	     ^	  |
+	   | c2_rpc_post(item)             |item del |	  |
+	   |                               |  from   |	  |
+	   |                               | frm DS  |    |
+	   V	item removed/param changed |	     |	  |
+	UPDATING----------------------->REMOVING     |	POSTING
+	   |                                         |	  ^
+	   | rpc item added to frm DS                |	  |
+	   |                  frm check failed       |	  |c2_rpc_add_buffer()
+	   |                +------------------------+	  |c2_rpc_encode()
+	   |                |                             |
+	   +------------>CHECKING--------------->FORMING--+
+	    frm check success	   rpc object formed
+
    The lifecycle of any thread executing the formation state machine is
    something like this
 	execute a state function as a result of triggering of some event.
@@ -269,8 +293,8 @@ struct c2_rpc_frm_sm {
    @param endp_unit - the c2_rpc_frm_sm structure
    based on whose data, it will be found if an optimal rpc can be made.
  */
-bool c2_rpc_frm_is_rpc_optimal(struct c2_rpc_frm_sm
-		*endp_unit, uint64_t rpcobj_size);
+bool c2_rpc_frm_is_rpc_optimal(struct c2_rpc_frm_sm *endp_unit,
+		uint64_t rpcobj_size, bool urgent_unbound);
 
 /**
    A magic constant to varify the sanity of c2_rpc_frm_buffer.

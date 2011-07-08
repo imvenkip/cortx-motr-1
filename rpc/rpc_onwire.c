@@ -141,7 +141,11 @@ size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	if(fop != NULL){
-		len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+		if((fop->f_type->ft_ops) && (fop->f_type->ft_ops->fto_size_get)) {
+			len = fop->f_type->ft_ops->fto_size_get(fop);
+			} else
+			      len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	
 		len += sizeof(fop->f_type->ft_code);
 		len += sizeof(struct c2_rpc_item_header);
 	}

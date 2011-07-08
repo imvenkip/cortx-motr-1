@@ -393,35 +393,35 @@ enum {
  */
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
-	struct c2_chan			ri_chan;
+	struct c2_chan			 ri_chan;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
-	struct c2_list_link		ri_linkage;
-	struct c2_ref			ri_ref;
+	struct c2_list_link		 ri_linkage;
+	struct c2_ref			 ri_ref;
 
-	enum c2_rpc_item_priority	ri_prio;
-	c2_time_t			ri_deadline;
+	enum c2_rpc_item_priority	 ri_prio;
+	c2_time_t			 ri_deadline;
 	struct c2_rpc_group		*ri_group;
 
-	enum c2_rpc_item_state		ri_state;
-	enum c2_rpc_item_tstate		ri_tstate;
-	uint64_t			ri_flags;
+	enum c2_rpc_item_state		 ri_state;
+	enum c2_rpc_item_tstate		 ri_tstate;
+	uint64_t			 ri_flags;
 	struct c2_rpc_session		*ri_session;
-	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
+	struct c2_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
-	struct c2_list_link		ri_unbound_link;
-	int32_t				ri_error;
+	struct c2_list_link		 ri_unbound_link;
+	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
 	/** Linkage to the forming list, needed for formation */
-	struct c2_list_link		ri_rpcobject_linkage;
+	struct c2_list_link		 ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link		ri_unformed_linkage;
+	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link		ri_group_linkage;
+	struct c2_list_link		 ri_group_linkage;
 	/** Destination endpoint. */
-	struct c2_net_end_point		ri_endp;
+	struct c2_net_end_point		 ri_endp;
 	/** Timer associated with this rpc item.*/
-	struct c2_timer			ri_timer;
+	struct c2_timer			 ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
 	/** For a received item, it gives source end point */
@@ -429,7 +429,48 @@ struct c2_rpc_item {
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Dummy queue linkage to dummy reqh */
-	struct c2_queue_link		ri_dummy_qlinkage;
+	struct c2_queue_link		 ri_dummy_qlinkage;
+	/** Entry time into rpc layer */
+	c2_time_t			 ri_rpc_entry_time;
+	/** Entry time into rpc layer */
+	c2_time_t			 ri_rpc_exit_time;
+};
+
+/* Set the stats for outgoing rpc item */ 
+void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
+
+/* Set the stats for incoming rpc item */ 
+void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
+
+/**
+  Statistical data maintained for each item in the rpcmachine.
+  It is upto the higher level layers to retrieve and process this data
+ */
+struct c2_rpc_stats {
+	/** Number of items processed on outgoing path */
+	uint64_t	rs_num_out_items;
+	/** Number of items processed on incoming path */
+	uint64_t	rs_num_in_items;
+	/** Number of bytes processed on outgoing path */
+	uint64_t	rs_num_out_bytes;
+	/** Number of bytes processed on incoming path */
+	uint64_t	rs_num_in_bytes;
+	/** Instanteneous Latency on outgoing path */
+	c2_time_t	rs_out_instant_latency;
+	/** Average Latency on outgoing path */
+	c2_time_t	rs_out_avg_latency;
+	/** Min Latency on outgoing path */
+	c2_time_t	rs_out_min_latency;
+	/** Max Latency on outgoing path */
+	c2_time_t	rs_out_max_latency;
+	/** Instanteneous Latency on incoming path */
+	c2_time_t	rs_in_instant_latency;
+	/** Average Latency on incoming path */
+	c2_time_t	rs_in_avg_latency;
+	/** Min Latency on incoming path */
+	c2_time_t	rs_in_min_latency;
+	/** Max Latency on incoming path */
+	c2_time_t	rs_in_max_latency;
 };
 
 /**
@@ -704,20 +745,22 @@ struct c2_rpcmachine {
 	struct c2_rpc_formation	  *cr_formation;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
-	struct c2_rpc_statistics   cr_statistics;
+	struct c2_rpc_statistics	 cr_statistics;
 	/** Cob domain in which cobs related to session will be stored */
-	struct c2_cob_domain	  *cr_dom;
+	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list		   cr_incoming_conns;
-	struct c2_list		   cr_outgoing_conns;
+	struct c2_list			 cr_incoming_conns;
+	struct c2_list			 cr_outgoing_conns;
 	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex		   cr_session_mutex;
+	struct c2_mutex			 cr_session_mutex;
 	/** Mutex to protect list of ready slots. */
-	struct c2_mutex		   cr_ready_slots_mutex;
+	struct c2_mutex			 cr_ready_slots_mutex;
 	/** list of ready slots. */
-	struct c2_list		   cr_ready_slots;
+	struct c2_list			 cr_ready_slots;
+	/** Stats for this rpcmachine */
+	struct c2_rpc_stats		*cr_rpc_stats;
 };
 
 /**

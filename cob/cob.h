@@ -294,7 +294,7 @@ void c2_cob_put(struct c2_cob *obj);
    If memory allocation fails then *keyh is set to NULL
  */
 void c2_cob_nskey_make(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
-                        char *name);
+                        const char *name);
 
 void c2_cob_namespace_traverse(struct c2_cob_domain *dom);
 void c2_cob_fb_traverse(struct c2_cob_domain *dom);

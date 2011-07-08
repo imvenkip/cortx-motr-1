@@ -1,6 +1,7 @@
 INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 noinst_PROGRAMS      = rpcping
+
 io_fop_init.c io_u.h io_u.c:
 	ln -sf $(top_builddir)/stob/ut/io_fop_init.c io_fop_init.c
 	ln -sf $(top_builddir)/stob/ut/io_u.h io_u.h

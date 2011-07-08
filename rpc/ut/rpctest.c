@@ -48,7 +48,7 @@ struct c2_dbenv			*db;
 struct c2_cob_domain		*dom;
 struct c2_rpcmachine		*machine;
 
-extern void session_search(const struct c2_rpc_conn    *conn,
+extern void c2_rpc_session_search(const struct c2_rpc_conn    *conn,
                            uint64_t                     session_id,
                            struct c2_rpc_session        **out);
 struct c2_rpc_conn	*connp;
@@ -100,7 +100,7 @@ void test_session_terminate(uint64_t sender_id, uint64_t session_id)
 	item->ri_slot_refs[0].sr_session_id = SESSION_0;
 	item->ri_mach = machine;
 
-	session_search(connp, SESSION_0, &session0);
+	c2_rpc_session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 
@@ -145,7 +145,7 @@ void test_conn_terminate(uint64_t sender_id)
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 	item->ri_mach = machine;
-	session_search(connp, SESSION_0, &session0);
+	c2_rpc_session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 
@@ -248,7 +248,7 @@ void test_session_create()
 	item_in->ri_sender_id = g_sender_id;
 	item_in->ri_session_id = SESSION_0;
 */	item_in->ri_mach = machine;
-	session_search(connp, SESSION_0, &session0);
+	c2_rpc_session_search(connp, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item_in->ri_session = session0;
 
@@ -378,7 +378,7 @@ void test_snd_session_create()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
-	session_search(&conn, SESSION_0, &session0);
+	c2_rpc_session_search(&conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 
@@ -416,7 +416,7 @@ void test_snd_session_terminate()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
-	session_search(&conn, SESSION_0, &session0);
+	c2_rpc_session_search(&conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 
@@ -453,7 +453,7 @@ void test_snd_conn_terminate()
 	item->ri_mach = machine;
 	item->ri_sender_id = conn.c_sender_id;
 	item->ri_session_id = SESSION_0;
-	session_search(&conn, SESSION_0, &session0);
+	c2_rpc_session_search(&conn, SESSION_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 
