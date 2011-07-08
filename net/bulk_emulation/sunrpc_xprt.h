@@ -199,15 +199,16 @@ sunrpc_ep_to_pvt(const struct c2_net_end_point *ep)
    Populate a struct sunrpc_buffer given a buffer pointer and length.
    @pre sb != NULL
    @param sb buffer object to initialize
-   @param buf address of start of buffer to initialize the sunrpc_buffer, or
-   NULL.
+   @param cur start of buffer to initialize the sunrpc_buffer, or NULL.
+   Cursor is moved by len bytes on success.
    @param len size of buffer.  The sunrpc_buffer is created with a buffer of
-   this sizes.  If buf is non-NULL, its contents, up to len, are also copied
+   this size.  If cur is non-NULL, its contents, up to len, are also copied
    into the buffer.
    @retval 0 (success)
    @retval -errno (failure)
  */
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len);
+int sunrpc_buffer_init(struct sunrpc_buffer *sb,
+		       struct c2_bufvec_cursor *cur, c2_bcount_t len);
 
 /** release pages pinned and memory allocated by sunrpc_buffer_init */
 void sunrpc_buffer_fini(struct sunrpc_buffer *sb);

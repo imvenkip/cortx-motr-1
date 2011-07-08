@@ -570,13 +570,17 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	}
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb,
+		       struct c2_bufvec_cursor *cur, c2_bcount_t len)
 {
         struct page  **pages;
         size_t         npages;
 	int            i;
 	void          *bp;
-	char          *cbuf = buf;
+	c2_bcount_t    pageused;
+	c2_bcount_t    copied;
+	struct c2_bufvec out = C2_BUFVEC_INIT_BUF(&bp, &pageused);
+	struct c2_bufvec_cursor outcur;
 
 	C2_PRE(sb != NULL);
 
@@ -601,13 +605,15 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			sunrpc_buffer_fini(sb);
 			return -ENOMEM;
 		}
-		if (cbuf != NULL) {
+		if (cur != NULL && len > 0) {
 			bp = kmap_atomic(pages[i], KM_USER0);
-			memcpy(bp, cbuf, min_check(PAGE_CACHE_SIZE, len));
+			pageused = min32u(PAGE_CACHE_SIZE, len);
+			c2_bufvec_cursor_init(&outcur, &out);
+			copied = c2_bufvec_cursor_copy(&outcur, cur, pageused);
 			kunmap_atomic(pages[i], KM_USER0);
 			C2_ASSERT(len > PAGE_CACHE_SIZE || i == npages - 1);
-			cbuf += PAGE_CACHE_SIZE;
-			len -= PAGE_CACHE_SIZE;
+			C2_ASSERT(copied == pageused);
+			len -= pageused;
 		}
 	}
 	return 0;
@@ -670,7 +676,8 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	}
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb,
+		       struct c2_bufvec_cursor *cur, c2_bcount_t len)
 {
 	C2_PRE(sb != NULL);
 
@@ -678,8 +685,16 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 	sb->sb_buf = c2_alloc(len == 0 ? 1 : len);
 	if (sb->sb_buf == NULL)
 		return -ENOMEM;
-	if (buf != NULL)
-		memcpy(sb->sb_buf, buf, len);
+	if (cur != NULL && len > 0) {
+		struct c2_bufvec out =
+		    C2_BUFVEC_INIT_BUF((void **) &sb->sb_buf, &len);
+		struct c2_bufvec_cursor outcur;
+		c2_bcount_t copied;
+
+		c2_bufvec_cursor_init(&outcur, &out);
+		copied = c2_bufvec_cursor_copy(&outcur, cur, len);
+		C2_ASSERT(copied == len);
+	}
 	return 0;
 }
 

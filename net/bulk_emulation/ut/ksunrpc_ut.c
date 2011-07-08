@@ -67,8 +67,11 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct sunrpc_get         *in = c2_fop_data(fop);
 	struct sunrpc_get_resp    *ex;
 	struct c2_fop             *reply;
-	int                        i;
+	c2_bcount_t                i;
 	int                        rc;
+	struct c2_bufvec           inbuf =
+		C2_BUFVEC_INIT_BUF((void **)&get_put_buf, &i);
+	struct c2_bufvec_cursor    incur;
 
 	reply = c2_fop_alloc(&sunrpc_get_resp_fopt, NULL);
 	C2_UT_ASSERT(reply != NULL);
@@ -87,7 +90,8 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 
 	ex->sgr_rc = i + 1;
 	ex->sgr_eof = 1;
-	rc = sunrpc_buffer_init(&ex->sgr_buf, get_put_buf, i);
+	c2_bufvec_cursor_init(&incur, &inbuf);
+	rc = sunrpc_buffer_init(&ex->sgr_buf, &incur, i);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ex->sgr_buf.sb_buf != NULL);
 	C2_UT_ASSERT(ex->sgr_buf.sb_len == i);
@@ -226,6 +230,10 @@ int put_call(struct c2_net_conn *conn, int i)
 		.sbd_qtype = C2_NET_QT_ACTIVE_BULK_RECV,
 		.sbd_total = i
 	};
+	c2_bcount_t              inlen = i;
+	struct c2_bufvec         inbuf =
+		C2_BUFVEC_INIT_BUF((void **)&get_put_buf, &inlen);
+	struct c2_bufvec_cursor  incur;
 
 	C2_UT_ASSERT(conn != NULL);
 	C2_UT_ASSERT(i >= 0);
@@ -245,7 +253,8 @@ int put_call(struct c2_net_conn *conn, int i)
 		};
 		fop->sp_offset = 0;
 		fop->sp_buf.sb_len = i;
-		rc = sunrpc_buffer_init(&fop->sp_buf, get_put_buf, i);
+		c2_bufvec_cursor_init(&incur, &inbuf);
+		rc = sunrpc_buffer_init(&fop->sp_buf, &incur, inlen);
 		C2_UT_ASSERT(rc == 0);
 		rc = c2_net_cli_call(conn, &call);
 		if (rc == 0) {
@@ -268,9 +277,13 @@ void test_ksunrpc_buffer(void)
 {
 	char *buf;
 	char *bp;
-	size_t len = PAGE_CACHE_SIZE * NUM;
+	c2_bcount_t len = PAGE_CACHE_SIZE * NUM;
 	int i;
 	struct sunrpc_buffer sb;
+	struct c2_bufvec inbuf = C2_BUFVEC_INIT_BUF((void **)&buf, &len);
+	struct c2_bufvec_cursor incur;
+	struct c2_bufvec outbuf = C2_BUFVEC_INIT_BUF((void **)&bp, &len);
+	struct c2_bufvec_cursor outcur;
 	int rc;
 
 	buf = c2_alloc(len);
@@ -278,7 +291,8 @@ void test_ksunrpc_buffer(void)
 	for (i = 0; i < NUM; ++i)
 		buf[i * PAGE_CACHE_SIZE] = i;
 
-	rc = sunrpc_buffer_init(&sb, buf, len);
+	c2_bufvec_cursor_init(&incur, &inbuf);
+	rc = sunrpc_buffer_init(&sb, &incur, len);
 	C2_UT_ASSERT(rc == 0);
 	for (i = 0; i < NUM; ++i) {
 		C2_UT_ASSERT(page_count(sb.sb_buf[i]) == 1);
@@ -286,8 +300,14 @@ void test_ksunrpc_buffer(void)
 		C2_UT_ASSERT(*bp == buf[i * PAGE_CACHE_SIZE]);
 		kunmap(sb.sb_buf[i]);
 	}
+	bp = c2_alloc(len);
+	c2_bufvec_cursor_init(&outcur, &outbuf);
+	rc = sunrpc_buffer_copy_out(&outcur, &sb);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(memcmp(buf, bp, len) == 0);
 	sunrpc_buffer_fini(&sb);
 	c2_free(buf);
+	c2_free(bp);
 }
 
 void test_ksunrpc_server(void)

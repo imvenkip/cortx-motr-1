@@ -86,10 +86,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		fop->sm_receiver.sep_port = mem_ep_port(nb->nb_ep); /* NBO */
 		fop->sm_receiver.sep_id   = mem_ep_sid(nb->nb_ep);
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
-		rc = sunrpc_buffer_init(&fop->sm_buf,
-					c2_bufvec_cursor_addr(&cur),
-					nb->nb_length);
+		rc = sunrpc_buffer_init(&fop->sm_buf, &cur, nb->nb_length);
 		if (rc != 0)
 			break;
 
@@ -166,7 +163,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		C2_ASSERT(sunrpc_buffer_invariant(nb));
 		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
+		if (in->sm_buf.sb_len > c2_vec_count(&nb->nb_buffer.ov_vec)) {
 			struct c2_net_bulk_mem_work_item *wi =
 				mem_buffer_to_wi(nb);
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
