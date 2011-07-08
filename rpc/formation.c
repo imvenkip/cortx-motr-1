@@ -734,8 +734,15 @@ int c2_rpc_form_extevt_rpcitem_ready(struct c2_rpc_item *item)
 int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
 {
 	struct c2_rpcmachine		*rpcmachine = NULL;
+	struct c2_rpc_item		*item;
+	struct c2_rpc_session		*session;
+	struct c2_rpc_form_sm_event	 sm_event;
 
 	C2_PRE(slot != NULL);
+	C2_PRE(slot->sl_session != NULL);
+
+	sm_event.se_event = C2_RPC_FORM_EXTEVT_SLOT_IDLE;
+	sm_event.se_pvt = NULL;
 
 	/* Add the slot to list of ready slots in its rpcmachine. */
 	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
@@ -743,6 +750,17 @@ int c2_rpc_form_extevt_slot_idle(struct c2_rpc_slot *slot)
 	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
 	c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+
+	/* If unbound items are still present in the sessions unbound list,
+	   start formation */
+	session = slot->sl_session;
+
+	if (!c2_list_is_empty(&session->s_unbound_items)) {
+		item = c2_list_entry((c2_list_first(&session->s_unbound_items)),
+				struct c2_rpc_item, ri_unbound_link);
+		return c2_rpc_form_default_handler(item, NULL,
+				C2_RPC_FORM_STATE_NR, &sm_event);
+	}
 	return 0;
 }
 
