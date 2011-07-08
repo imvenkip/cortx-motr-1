@@ -385,7 +385,7 @@ void print_stats(bool client, bool server)
 
 	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
-	printf("*******************************************\n");
+	printf("*********************************************\n");
 
 	printf("\n\n*********************************************\n");
 	printf("Stats on Incoming Path\n");
@@ -677,17 +677,18 @@ cleanup:
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 {
-	int			 rc;
-	bool			 client = false;
-	const char		*client_name = NULL;
-	int			 client_port = 0;
+	bool			 verbose = false;
 	bool			 server = false;
+	bool			 client = false;
 	const char		*server_name = NULL;
+	const char		*client_name = NULL;
 	int			 server_port = 0;
+	int			 client_port = 0;
 	int			 nr_slots = 0;
 	int			 nr_ping_bytes = 0;
 	int			 nr_ping_item = 0;
 	int			 nr_client_threads = 0;
+	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
@@ -706,17 +707,18 @@ int main(int argc, char *argv[])
 
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
+		C2_FLAGARG('s', "run server", &server),
 		C2_STRINGARG('C', "client hostname",
 			LAMBDA(void, (const char *str) {client_name = str; })),
 		C2_FORMATARG('p', "client port", "%i", &client_port),
-		C2_FLAGARG('s', "run server", &server),
 		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('p', "server port", "%i", &server_port),
-		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
-		C2_FORMATARG('L', "number of ping items", "%i", &nr_ping_item));
+		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
+		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
 	
@@ -760,7 +762,8 @@ int main(int argc, char *argv[])
 	/* Client part */
 	if(client) {
 		client_init();
-		print_stats(client, server);
+		if (verbose)
+			print_stats(client, server);
 	}
 
 	/* Server part */
@@ -773,7 +776,8 @@ int main(int argc, char *argv[])
 		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
 				&server_rqh_init, 0, "ping_server_rqh");
 		server_poll();
-		print_stats(client, server);
+		if (verbose)
+			print_stats(client, server);
 		c2_thread_join(&server_thread);
 	}
 

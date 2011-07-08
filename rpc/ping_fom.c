@@ -59,7 +59,6 @@ int c2_fom_ping_state(struct c2_fom *fom)
         struct c2_rpc_item              *item = NULL;
         struct c2_fom_ping		*fom_obj;
 
-	printf("Inside ping state \n");
 	fom_obj = container_of(fom, struct c2_fom_ping, fp_gen);
 	fop_req = fom_obj->fp_fop;
         fop = c2_fop_alloc(&c2_fop_ping_rep_fopt, NULL);
