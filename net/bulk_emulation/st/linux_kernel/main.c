@@ -5,7 +5,9 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/inet.h> /* in_aton */
 
+#include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "net/net.h"
 #include "net/bulk_sunrpc.h"
@@ -20,8 +22,11 @@
 enum {
 	DEF_BUFS = 20,
 
-	PING_SERVER_SEGMENTS = 16,
-	PING_SERVER_SEGMENT_SIZE = 1024,
+	PING_SERVER_SEGMENTS = 4,
+	PING_SERVER_SEGMENT_SIZE = 16384,
+	/* leave some room for overhead */
+	MAX_PASSIVE_SIZE =
+		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
 
 	ONE_MILLION = 1000000ULL,
 	SEC_PER_HR = 60 * 60,
@@ -61,17 +66,19 @@ int quiet_printk(const char *fmt, ...)
 int verbose_printk(const char *fmt, ...)
 {
 	va_list varargs;
-	char fmtbuf[128];
+	char *fmtbuf;
 	int rc;
 
 	va_start(varargs, fmt);
-	if (strlen(fmt) <= sizeof fmtbuf - 4) {
+	fmtbuf = c2_alloc(strlen(fmt) + sizeof KERN_INFO);
+	if (fmtbuf != NULL) {
 	    sprintf(fmtbuf, "%s%s", KERN_INFO, fmt);
 	    fmt = fmtbuf;
 	}
 	/* call vprintk(KERN_INFO ...) */
 	rc = vprintk(fmt, varargs);
 	va_end(varargs);
+	c2_free(fmtbuf);
 	return rc;
 }
 
@@ -150,7 +157,24 @@ static int __init c2_netst_init_k(void)
 	int rc;
 
 	/* parse module options */
-	/* set up sys fs entries */
+	if (nr_bufs < DEF_BUFS) {
+		printk(KERN_WARNING "Minimum of %d buffers required\n",
+		       DEF_BUFS);
+		return -EINVAL;
+	}
+	if (passive_size < 0 || passive_size > MAX_PASSIVE_SIZE) {
+		/* need to leave room for encoding overhead */
+		printk(KERN_WARNING "Max supported passive data size: %d\n",
+		       MAX_PASSIVE_SIZE);
+		return -EINVAL;
+	}
+	if (in_aton(hostaddr) == 0) {
+		printk(KERN_WARNING
+		       "only dotted ipaddr is accepted: e.g. 1.2.3.4\n");
+		return -EINVAL;
+	}
+
+	/* set up sys fs entries? */
 
 	/* init main context */
 	rc = c2_net_xprt_init(&c2_net_bulk_sunrpc_xprt);
