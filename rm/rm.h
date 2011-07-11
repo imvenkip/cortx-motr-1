@@ -1,5 +1,22 @@
-/* -*- C -*- */
-
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original creation date: 04/28/2011
+ */
 #ifndef __COLIBRI_RM_RM_H__
 #define __COLIBRI_RM_RM_H__
 
@@ -395,6 +412,7 @@ struct c2_rm_right_ops {
         /** intersection. This method updates r0 in place. */
         void (*rro_meet)   (struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
+        /** True, iff r0 intersects with r1 */
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
         /** union. This method updates r0 in place. */
@@ -410,7 +428,7 @@ struct c2_rm_right_ops {
         /** true, iff r1 is "less than or equal to" r0. */
         bool (*rro_implies)(const struct c2_rm_right *r0,
                             const struct c2_rm_right *r1);
-	/* Copy the resource type specific part. */
+	/** Copy the resource type specific part. */
 	void (*rro_copy)   (struct c2_rm_right *r0,
 			    const struct c2_rm_right *r1);
         /** @} end of Rights ordering */
@@ -1267,14 +1285,9 @@ void c2_rm_resource_del(struct c2_rm_resource *res);
 
    @pre owner->ro_state == ROS_FINAL
 
-   @post ergo(result == 0, (owner->ro_state == ROS_INITIALISING ||
-                            owner->ro_state == ROS_ACTIVE) &&
-                           c2_list_is_empty(owner->ro_borrowed) &&
-                           c2_list_is_empty(owner->ro_sublet) &&
-                           c2_list_is_empty(owner->ro_owned[*]) &&
-                           c2_list_is_empty(owner->ro_incoming[*][*]) &&
-                           c2_list_is_empty(owner->ro_outgoing[*]) &&
-                           owner->ro_resource == res)
+   @post owner->ro_state == ROS_INITIALISING ||
+         owner->ro_state == ROS_ACTIVE) &&
+         owner->ro_resource == res)
  */
 void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
 
@@ -1283,8 +1296,11 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res);
 
    @see c2_rm_owner_init()
 
-   @post ergo(result == 0, c2_list_contains(&owner->ro_owned[OWOS_CACHED],
-                                            &r->ri_linkage))
+   @post owner->ro_state == ROS_INITIALISING ||
+         owner->ro_state == ROS_ACTIVE) &&
+         owner->ro_resource == res)
+   @post c2_list_contains(&owner->ro_owned[OWOS_CACHED],
+                          &r->ri_linkage))
  */
 void c2_rm_owner_init_with(struct c2_rm_owner *owner,
                           struct c2_rm_resource *res, struct c2_rm_right *r);
@@ -1354,8 +1370,21 @@ int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
  */
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
+/**
+   Sticks a tracking pin on @right. When @right is released, the all incoming
+      requests that stuck pins into it are notified.
+*/
 int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right);
+
+/**
+   Called when an outgoing request completes (possibly with an error, like a
+   timeout).
+*/
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int rc);
+
+/**
+   Just make another copy of right struct.
+*/
 void right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
 /**
    @name Resource type interface

@@ -14,6 +14,11 @@
 
 @SET_MAKE@
 
+#rm_u.h rm_u.c: rm.ff \
+#                  $(top_builddir)/fop/libc2rt.la \
+#		  $(top_builddir)/fop/fop2c
+#		  $(top_builddir)/fop/fop2c -uk $<
+
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -181,7 +186,6 @@ libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fop_init.c rm_fop.c rm_fop.h \
 			   rm.h rm.c
 
 INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
-EXTRA_DIST = rm.ff
 all: all-am
 
 .SUFFIXES:
@@ -374,8 +378,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-local \
-	clean-noinstLTLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -424,24 +428,22 @@ ps-am:
 uninstall-am: uninstall-info-am
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-local clean-noinstLTLIBRARIES ctags \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-exec install-exec-am install-info \
-	install-info-am install-man install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-info-am
+	clean-libtool clean-noinstLTLIBRARIES ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am install-man \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-info-am
 
-rm_u.h rm_u.c: rm.ff \
-                  $(top_builddir)/fop/libc2rt.la \
-		  $(top_builddir)/fop/fop2c
-		  $(top_builddir)/fop/fop2c -uk $<
 
-clean-local:
-	rm -fr rm_[uk].[hc]
+#EXTRA_DIST       = rm.ff
+
+#clean-local:
+#	rm -fr rm_[uk].[hc]
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
