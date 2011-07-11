@@ -26,6 +26,30 @@
 #include "rpc/rpccore.h"
 #include <rpc/xdr.h>
 
+/** Header information present in an RPC object */
+struct c2_rpc_header {
+	/** RPC version, currenly 1 */
+	uint32_t rh_ver;
+	/** No of items present in the RPC object */
+	uint32_t item_count;
+};
+
+/** Header information per rpc item in an rpc object. The detailed
+    description of the various fields is present in struct c2_rpc_item
+    /rpc/rpccore.h */
+struct c2_rpc_item_header {
+	uint64_t			rih_length;
+	uint64_t			rih_sender_id;
+	uint64_t			rih_session_id;
+	uint32_t			slot_id;
+	struct c2_rpc_sender_uuid	rih_uuid;
+	struct c2_verno			rih_verno;
+	struct c2_verno			rih_last_persistent_ver_no;
+	struct c2_verno			rih_last_seen_ver_no;
+	uint64_t			rih_xid;
+	uint64_t			rih_slot_gen;
+};
+
 /**
    This function encodes c2_rpc object into the specified buffer. Each
    rpc object contains a header and number of rpc items. These items are
@@ -55,7 +79,9 @@ int c2_rpc_decode( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
    @param item - item to be serialized
    @retval rc - 0 if success, errno if failure
 */
-int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs);
+int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item *item,
+			      struct c2_bufvec_cursor *cur);
 
 /**
    Generic deserialization routine for a rpc item,
@@ -64,7 +90,9 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs);
    @param item - item to be deserialized
    @retval rc - 0 if success, errno if failure
 */
-int c2_rpc_fop_default_decode(struct c2_rpc_item *item, XDR *xdrs);
+int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item **item,
+			      struct c2_bufvec_cursor *cur);
 
 /** Return the onwire size of the item in bytes
     The onwire size equals = size of (header + payload)

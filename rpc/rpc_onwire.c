@@ -17,37 +17,14 @@
 #include "net/bulk_sunrpc.h"
 #include "lib/vec.h"
 #include "rpc/rpc_onwire.h"
-
-/** Header information present in an RPC object */
-struct c2_rpc_header {
-	/** RPC version, currenly 1 */
-	uint32_t rh_ver;
-	/** No of items present in the RPC object */
-	uint32_t item_count;
-};
-
-/** Header information per rpc item in an rpc object. The detailed
-    description of the various fields is present in struct c2_rpc_item
-    /rpc/rpccore.h */
-struct c2_rpc_item_header {
-	uint64_t			rih_length;
-	uint64_t			rih_sender_id;
-	uint64_t			rih_session_id;
-	uint32_t			slot_id;
-	struct c2_rpc_sender_uuid	rih_uuid;
-	struct c2_verno			rih_verno;
-	struct c2_verno			rih_last_persistent_ver_no;
-	struct c2_verno			rih_last_seen_ver_no;
-	uint64_t			rih_xid;
-	uint64_t			rih_slot_gen;
-};
+#include "rpc/rpc_bufvec.h"
 
 /** Encode an on-wire RPC object into a net buffer  ( not zero copy )
     Buffers containing multiple vectors are supported
 	@param buf - char buf to be copied into a net buffer
 	@param nb  - The network buffer
 	@retval    - 0 if success, errno if failure.
-*/
+
 static int netbuf_encode(char *buf, struct c2_net_buffer *nb)
 {
         struct c2_bufvec_cursor cur;
@@ -80,13 +57,13 @@ static int netbuf_encode(char *buf, struct c2_net_buffer *nb)
 	return 0;
 }
 
-/** Decode a multivectored netbuf into a char buffer which
+ Decode a multivectored netbuf into a char buffer which
     can be deserialized using XDR
 	@param buf - The buffer where the data would be copied to
 	@param nb  - The network buffer from where the data would be
 	copied from.
 	@retval    - 0 if success, errno if failure.
-*/
+
 static int netbuf_decode(char *buf, struct c2_net_buffer *nb)
 {
         struct c2_bufvec_cursor cur;
@@ -116,22 +93,7 @@ static int netbuf_decode(char *buf, struct c2_net_buffer *nb)
 	}
 	return 0;
 }
-
-/** Calculate the size of the buffer that would be needed to encode this
-rpc object */
-static size_t rpc_buf_size_get(struct c2_rpc *rpc_obj)
-{
-	size_t			size = 0;
-	struct c2_rpc_item	*item;
-
-	size = sizeof (struct c2_rpc_header);
-	c2_list_for_each_entry(&rpc_obj->r_items, item,
-			struct c2_rpc_item, ri_rpcobject_linkage) {
-		size  = size + c2_rpc_item_default_size(item);
-	}
-	return size;
-}
-
+*/
 size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
 {
 	size_t		len = 0;
@@ -160,46 +122,52 @@ static int32_t rpc_ver_get()
     @param - rpc_obj rpc object to be serialized
     @retval - 1 on success, errno on failure.
 */
-static int rpc_header_encode( XDR *xdrs,  struct c2_rpc *rpc_obj)
+static int rpc_header_encode( struct c2_bufvec_cursor *cur,
+			      struct c2_rpc *rpc_obj)
 {
 	uint32_t	len;
 	uint32_t	ver;
 	int		rc ;
 
-	C2_PRE(xdrs != NULL);
+	C2_PRE(cur != NULL);
 	C2_PRE(rpc_obj != NULL);
 
 	/*XXX: Currently returns only 1. TBD */
 	ver = rpc_ver_get();
-	rc = xdr_uint32_t(xdrs, &ver);
-	if(rc == 0)
+	rc = c2_bufvec_uint32(cur, &ver, BUFVEC_ENCODE);
+	if(rc != 0)
 		return -EFAULT;
 	len = c2_list_length(&rpc_obj->r_items);
 	if(len == 0)
 		return -EFAULT;
-	rc = xdr_uint32_t(xdrs, &len);
-	if(rc == 0)
+	rc = c2_bufvec_uint32(cur, &len, BUFVEC_ENCODE);
+	if(rc != 0)
 		return -EFAULT;
 	return 0;
 }
 
 /** Deserialize the rpc object header which consists of a rpc version no and
     count of rpc items present from the XDR stream for further processing.
-    @param - xdrs a valid xdr stream;
-    @param - item_count pointer to get no of items in an rpc object
-    @param - ver pointer to deserialized value of rpc ver
-    @retval - 1 on success, errno on failure.
+    @param cur the bufvec cursor from which the header is to be decoded;
+    @param  item_count pointer to get no of items in an rpc object
+    @param ver pointer to deserialized value of rpc ver
+    @retval 1 on success, errno on failure.
 */
-static int rpc_header_decode(XDR *xdrs, uint32_t *item_count, uint32_t *ver)
+static int rpc_header_decode(struct c2_bufvec_cursor *cur, uint32_t *item_count,			     uint32_t *ver)
 {
+	int 	rc;
 
 	C2_PRE(item_count != NULL);
-	C2_PRE(xdrs != NULL);
+	C2_PRE(cur != NULL);
 	C2_PRE(ver != NULL);
 
-	if((!xdr_uint32_t(xdrs, ver)) ||
-	   (!xdr_uint32_t(xdrs, item_count)))
-	  return -EFAULT;
+	rc = c2_bufvec_uint32(cur, ver, BUFVEC_DECODE);
+	if(rc != 0)
+		return rc;
+
+	rc =  c2_bufvec_uint32(cur, item_count, BUFVEC_DECODE);
+	  if(rc != 0)
+		  return rc;
 
 	return 0;
 }
@@ -207,93 +175,106 @@ static int rpc_header_decode(XDR *xdrs, uint32_t *item_count, uint32_t *ver)
 /** Helper functions to serialize uuid and slot references in rpc item header
     see rpc/rpccore.h */
 
-static int sender_uuid_encdec(XDR *xdrs, struct c2_rpc_sender_uuid *uuid)
+static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
+			      struct c2_rpc_sender_uuid *uuid,
+			      enum bufvec_what what)
 {
-	int rc = 1;
+	int 	rc;
 
-	if(xdrs->x_op == XDR_ENCODE) 
+	rc = c2_bufvec_uint64(cur, &uuid->su_uuid, what);
+
+	if(what == BUFVEC_ENCODE)
 		printf("\nSender uuid (encode): %lu", uuid->su_uuid);
-	 else 
+	 else
 		printf("\nSender uuid (decode): %lu", uuid->su_uuid);
-	
-	if(!xdr_uint64_t(xdrs, &uuid->su_uuid))
-		return -EFAULT;
 
 	return rc;
 }
 
-static int slot_ref_encdec(XDR *xdrs, struct c2_rpc_slot_ref *slot_ref)
+static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
+			  struct c2_rpc_slot_ref *slot_ref,
+			  enum bufvec_what what)
 {
 	struct c2_rpc_slot_ref    *sref;
 	int			  rc = 1;
-	char			  *what;
+	char			  *todo;
 
 	C2_PRE(slot_ref != NULL);
-
+	C2_PRE(cur != NULL);
 
 	sref = &slot_ref[0];
-	if((!xdr_uint64_t(xdrs, &sref->sr_verno.vn_lsn))||
-	(!xdr_uint64_t(xdrs, &sref->sr_verno.vn_vc)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_last_persistent_verno.vn_lsn)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_last_persistent_verno.vn_vc)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_last_seen_verno.vn_lsn)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_last_seen_verno.vn_vc)) ||
-	(!xdr_uint32_t(xdrs, &sref->sr_slot_id)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_xid)) ||
-	(!xdr_uint64_t(xdrs, &sref->sr_slot_gen)))
-		rc = -EFAULT;
-	
-	if(xdrs->x_op == XDR_ENCODE)
-		what = "encode";
-	else
-		what = "decode";
+	rc = c2_bufvec_uint64(cur, &sref->sr_verno.vn_lsn, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_verno.vn_vc, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_last_persistent_verno.vn_lsn, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_last_persistent_verno.vn_vc, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_last_seen_verno.vn_lsn, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_last_seen_verno.vn_vc, what) ||
+	c2_bufvec_uint32(cur, &sref->sr_slot_id, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_xid, what) ||
+	c2_bufvec_uint64(cur, &sref->sr_slot_gen, what);
 
-	printf("\nVer No lsn (%s): %lu",what, sref->sr_verno.vn_lsn);
-	printf("\nVer No vc (%s): %lu", what, sref->sr_verno.vn_vc);
-	printf("\nLast persistent ver no lsn (%s): %lu", what, sref->sr_last_persistent_verno.vn_lsn);
-	printf("\nLast persistent ver no vc (%s): %lu", what, sref->sr_last_persistent_verno.vn_vc);
-	printf("\nLast seen ver no lsn (%s): %lu", what, sref->sr_last_seen_verno.vn_lsn);
-	printf("\nLast seen ver no vc (%s) : %lu", what, sref->sr_last_seen_verno.vn_vc);
-	printf("\nSlot Id (%s): %u", what, sref->sr_slot_id);
-	printf("\nXid (%s): %lu", what, sref->sr_xid);
-	printf("\nSlot gen (%s): %lu",what, sref->sr_slot_gen);
+	if(what == BUFVEC_ENCODE)
+		todo = "encode";
+	else
+		todo = "decode";
+
+	printf("\nVer No lsn (%s): %lu",todo, sref->sr_verno.vn_lsn);
+	printf("\nVer No vc (%s): %lu", todo, sref->sr_verno.vn_vc);
+	printf("\nLast persistent ver no lsn (%s): %lu", todo, sref->sr_last_persistent_verno.vn_lsn);
+	printf("\nLast persistent ver no vc (%s): %lu", todo, sref->sr_last_persistent_verno.vn_vc);
+	printf("\nLast seen ver no lsn (%s): %lu", todo, sref->sr_last_seen_verno.vn_lsn);
+	printf("\nLast seen ver no vc (%s) : %lu", todo, sref->sr_last_seen_verno.vn_vc);
+	printf("\nSlot Id (%s): %u", todo, sref->sr_slot_id);
+	printf("\nXid (%s): %lu", todo, sref->sr_xid);
+	printf("\nSlot gen (%s): %lu",todo, sref->sr_slot_gen);
+	if(rc != 0)
+	   rc = -EFAULT;
+
 	return rc;
 }
 
 /** Generic encode/decode function for rpc item header
-    @param xdrs - XDR stream for encoding/decoding
-    @param item - This RPC item's header would be encoded/decoded
+    @param cur bufvec cursor for encode decode
+    @param item the item for which the header is to be encoded
     into the XDR stream
     @retval 0 if success, errno on failure
 */
-static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
+static int item_header_encdec(struct c2_bufvec_cursor *cur,
+ 			      struct c2_rpc_item *item,
+			      enum bufvec_what what)
 {
-	uint64_t		len;
-	struct c2_fop		*fop;
-	char			*what;
+	uint64_t		 len;
+	char 			*todo;
+	int			 rc;
+	struct c2_rpc_item_type *item_type;
 
-	C2_PRE(xdrs != NULL);
+	C2_PRE(cur != NULL);
 	C2_PRE(item != NULL);
 
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	len = len + sizeof(struct c2_rpc_item_header);
+	item_type = item->ri_type;
+	C2_ASSERT(item_type->rit_ops != NULL);
+	C2_ASSERT(item_type->rit_ops->rio_item_size != NULL);
+	len = item_type->rit_ops->rio_item_size(item);
+	len +=  sizeof (struct c2_rpc_item_header);
 
-	if(xdrs->x_op == XDR_ENCODE)
-		what = "encode";
+	if(what == BUFVEC_ENCODE)
+		todo = "encode";
 	else
-		what = "decode";
-	printf("\nSender id (%s) :  %ld", what, item->ri_sender_id);
-	printf("\nSession id (%s) :  %ld", what, item->ri_session_id);
+		todo = "decode";
+	printf("\nSender id (%s) :  %ld", todo, item->ri_sender_id);
+	printf("\nSession id (%s) :  %ld", todo, item->ri_session_id);
 
-	if((!xdr_uint64_t(xdrs, &len)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_sender_id)) ||
-	(!xdr_uint64_t(xdrs, &item->ri_session_id)) ||
-	(!sender_uuid_encdec(xdrs, &item->ri_uuid)) ||
-	(!slot_ref_encdec(xdrs, item->ri_slot_refs)))
+
+	rc = c2_bufvec_uint64(cur, &len, what) ||
+	c2_bufvec_uint64(cur, &item->ri_sender_id, what) ||
+	c2_bufvec_uint64(cur, &item->ri_session_id, what) ||
+	sender_uuid_encdec(cur, &item->ri_uuid, what) ||
+	slot_ref_encdec(cur, item->ri_slot_refs, what);
+
+	if(rc != 0)
 		return -EFAULT;
-	return 0;
+
+	return rc;
 }
 
 /**
@@ -301,55 +282,64 @@ static int item_header_encdec(XDR *xdrs, struct c2_rpc_item *item)
    for encoding and decoding an rpc item into/from an XDR
    stream
 */
-static int item_encdec(XDR *xdrs, struct c2_rpc_item *item)
+static int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
+		       enum bufvec_what what)
 {
 	int		rc;
 	struct		c2_fop *fop;
 
 	C2_PRE(item != NULL);
-	C2_PRE(xdrs != NULL);
+	C2_PRE(cur != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 
-	rc = item_header_encdec(xdrs, item);
+	rc = item_header_encdec(cur, item, what);
 	if(rc != 0)
 		return rc;
-	if(!c2_fop_uxdrproc(xdrs, fop))
-		return -EFAULT;
-	return 0;
-}
-
-int c2_rpc_fop_default_encode(struct c2_rpc_item *item, XDR *xdrs)
-{
-	struct c2_fop		*fop;
-	int			rc;
-	struct c2_fop_type	*fopt;
-	uint32_t		opcode;
-
-	C2_PRE(item != NULL);
-	C2_PRE(xdrs != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	fopt = fop->f_type;
-	opcode = (uint32_t)fopt->ft_code;
-	
-	rc = xdr_uint32_t(xdrs, &opcode);
-	if(rc != 1)
-		return -EFAULT;
-	printf("\nOpcode (encode): %d", opcode);
-	
-	rc = item_encdec(xdrs, item);
+	rc = c2_bufvec_fop(cur, fop, what);
 	return rc;
 }
 
-int c2_rpc_fop_default_decode(struct c2_rpc_item *item, XDR *xdrs)
+int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item *item,
+			      struct c2_bufvec_cursor *cur)
 {
-	C2_PRE(item != NULL);
-	C2_PRE(xdrs != NULL);
+	int			rc;
+	uint32_t		opcode;
 
-	return(item_encdec(xdrs, item));
+	C2_PRE(item != NULL);
+	C2_PRE(cur != NULL);
+
+	item_type = item->ri_type;
+	opcode = item_type->rit_opcode;
+	rc = c2_bufvec_uint32(cur, &opcode, BUFVEC_ENCODE);
+	if(rc != 0)
+		return -EFAULT;
+	printf("\nOpcode (encode): %d", opcode);
+
+	rc = item_encdec(cur, item, BUFVEC_ENCODE);
+	return rc;
+}
+
+int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
+			      struct c2_rpc_item **item,
+			      struct c2_bufvec_cursor *cur)
+{
+	struct c2_fop 		*fop;
+	struct c2_fop_type	*ftype;
+	C2_PRE(item != NULL);
+	C2_PRE(cur != NULL);
+
+	ftype = c2_item_type_to_fop_type(item_type);
+	C2_ASSERT(ftype != NULL);
+
+	fop = c2_fop_alloc(ftype, NULL);
+	if (fop == NULL)
+		return -ENOMEM;
+	*item = c2_fop_to_rpc_item(fop);
+	C2_ASSERT(*item != NULL);
+	return(item_encdec(cur, *item, BUFVEC_DECODE));
 }
 
 /* XXX : Debug function. Added here for UT and testing.*/
@@ -377,135 +367,111 @@ static void item_verify(struct c2_rpc_item *item)
 
 int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 {
-	char			*buf;
-	struct c2_rpc_item	*item;
-	XDR			xdrs;
-	size_t			len, offset=0, buf_size;
-	int			rc, count=0;
+	struct c2_rpc_item		*item;
+	struct c2_bufvec_cursor 	 cur;
+	size_t				 len;
+	size_t				 offset=0;
+	c2_bcount_t			 bufvec_size;
+	int				 rc;
+	int				 count=0;
+	struct c2_rpc_item_type		*item_type;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);
 
-	buf_size = rpc_buf_size_get(rpc_obj);
-	/* Allocate a buffer and create an XDR stream */
-	buf = c2_alloc(buf_size);
-	if(buf == NULL)
-		return -ENOMEM;
-	xdrmem_create(&xdrs, buf, buf_size, XDR_ENCODE);
+	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
+	printf("\nNetwork buf size : %lu", bufvec_size);
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+
 	printf("\n**********ENCODING STARTS************");
 	/*Serialize RPC object header into the buffer */
-	rc = rpc_header_encode(&xdrs,rpc_obj);
-        len = sizeof(struct c2_rpc_header);
+	rc = rpc_header_encode(&cur ,rpc_obj);
 	if(rc != 0)
 		goto end;
 
+        len = sizeof(struct c2_rpc_header);
 	/*Iterate through the RPC items list in the RPC object
            and for each object serialize item and the fop data*/
         c2_list_for_each_entry(&rpc_obj->r_items, item,
 				struct c2_rpc_item, ri_rpcobject_linkage) {
 		offset = len + c2_rpc_item_default_size(item);
-		if(offset > buf_size) {
+		if(offset > bufvec_size) {
 			rc = -EMSGSIZE;
 			goto end;
 		}
 		len = offset;
 		printf("\n\n----ENCODING ITEM NO:%d\n", ++count);
-		rc = c2_rpc_fop_default_encode(item, &xdrs);
+		item_type = item->ri_type;
+		C2_ASSERT(item_type->rit_ops != NULL);
+		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
+		/* Call the associated encode function for the that item type */
+		rc = item_type->rit_ops->rito_encode(item_type, item, &cur);
 		if(rc != 0)
 			goto end;
 	}
 	/* Copy the buffer into nb */
-	nb->nb_length = buf_size;
-	printf("\nEncoded data length : %d", (int)buf_size);
-	rc = netbuf_encode( buf, nb);
+	nb->nb_length = len;
+	printf("\nEncoded data length : %lu", len);
 	printf("\n===========ENCODING ENDS===========\n");
 	if(rc != 0)
 		goto end;
 end :
 	/* Free the buffer */
-	c2_free(buf);
 	return rc;
 }
 
 int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 {
-        XDR			xdrs;
-	char			*buf;
-	int			i,rc = 0;
-	struct c2_rpc_item	*item;
-	struct c2_fop		**fop_arr;
-	struct c2_fop_type	*ftype;
-	size_t			offset, len;
-	uint32_t		item_count, opcode, ver;
+	int			  i,rc = 0;
+	struct c2_rpc_item	 *item;
+	struct c2_rpc_item_type  *item_type;
+	size_t			  offset;
+	size_t			  len;
+	size_t			  bufvec_size;
+	uint32_t		  item_count, opcode, ver;
+	struct c2_bufvec_cursor   cur;
+
 
 	C2_PRE(nb != NULL);
-	
+	C2_PRE(rpc_obj != NULL);
+
 	printf("\n**********DECODING STARTS************");
 	len = nb->nb_length;
 	printf("\nLength of decode buffer = %d", (int)len);
 	C2_ASSERT(len != 0);
 
-	/* Allocate a buffer and create an XDR stream */
-        buf = c2_alloc(len);
-	if(buf == NULL)
-		return -ENOMEM;
-	
-	/* Decode/Copy the nb into the allocated buffer */
-	rc = netbuf_decode(buf, nb);
-        if ( rc != 0 )
-		return rc;
-	/* Init XDR stream, deserialize the header
-	   and find the no of items present in the rpc object */
-	xdrmem_create(&xdrs, buf, len, XDR_DECODE);
+	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
+	printf("\nNetwork buf size(decode) : %lu", bufvec_size);
+	/* XXX : Add check here for 8 byte aligned vectors and buffer size */
+	C2_ASSERT(len <= bufvec_size);
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 
-	rc = rpc_header_decode(&xdrs, &item_count, &ver);
-	if(rc != 0)
+	rc = rpc_header_decode(&cur, &item_count, &ver);
+	if (rc != 0)
 		return -EFAULT;
-	offset = sizeof(struct c2_rpc_header);
+	offset = sizeof (struct c2_rpc_header);
 	/* Iterate through the each rpc item and for each rpc item
-	   -deserialize the opcode and get corrosponding c2_fop_type.
-            iterate through the fop_types_list to find it.
-           -Allocate new fop based on the c2_fop_type found.
-           -Deserialize all the requisite item header information into
-            the rpc_item.
-           -Finally deserialize the payload into the fop data.
+	   -deserialize the opcode and get corrosponding item_type by
+            iteratingthrough the item_types_list to find it.
+	   -Call the corrosponding item decode function for that item type.
          */
-	C2_ALLOC_ARR(fop_arr, item_count);
-	for(i = 0; i < item_count; ++i) {
-		if(offset + sizeof(opcode) > len)
+	for (i = 0; i < item_count; ++i) {
+		if (offset + sizeof(opcode) > len)
 			return -EMSGSIZE;
-		rc = xdr_uint32_t(&xdrs, &opcode);
-		if(rc == 0)
+		rc = c2_bufvec_uint32(&cur, &opcode, BUFVEC_DECODE);
+		if(rc != 0)
 			return -EFAULT;
-		ftype = c2_fop_type_search(opcode);
-		if(ftype == NULL) {
-			return -ENOSYS;
-		}
-		*fop_arr = c2_fop_alloc(ftype, NULL);
-		if(*fop_arr == NULL)
-			return -ENOMEM;
-		item = c2_fop_to_rpc_item(*fop_arr);
-		if(item == NULL) {
-			rc = -EFAULT;
-			goto end_decode;
-		}
-		offset = offset + c2_rpc_item_default_size(item);
-		if(offset > len)
-			return -EMSGSIZE;
-		printf("\n\n----DECODING ITEM NO : %d\n", i+1);
-		printf("\nOpcode (decode): %d", opcode);
-		rc = c2_rpc_fop_default_decode(item, &xdrs);
+		printf("Finding item type for opcode %u", opcode);
+		item_type = c2_rpc_item_type_lookup(opcode);
+		C2_ASSERT(item_type != NULL);
+		C2_ASSERT(item_type->rit_ops != NULL);
+		C2_ASSERT(item_type->rit_ops->rito_decode != NULL);
+		rc = item_type->rit_ops->rito_decode(item_type, &item, &cur);
 		if (rc != 0)
-			goto end_decode;
-		item->ri_src_ep = nb->nb_ep;
+			return rc;
 		item_verify(item);
-		fop_arr++;
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);
 	}
-end_decode:
-	if(rc != 0)
-		c2_fop_free(*fop_arr);
-	
 	printf("\n===========DECODING ENDS===========\n");
 	return rc;
 }

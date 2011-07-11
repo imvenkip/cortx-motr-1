@@ -15,6 +15,11 @@
 #include "ioservice/io_fops_u.h"
 #endif
 
+/** List of all known rpc item types */
+static struct c2_list  rpc_item_types_list;
+/** Lock for list of item types */
+static struct c2_mutex rpc_item_types_lock;
+
 void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
 /**
@@ -218,11 +223,14 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 int c2_rpc_core_init(void)
 {
 	c2_rpc_form_init();
+	c2_list_init(&rpc_item_types_list);
+	c2_mutex_init(&rpc_item_types_lock);
 	return 0;
 }
 
 void c2_rpc_core_fini(void)
 {
+
 }
 
 int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
@@ -822,6 +830,7 @@ void us_timeout(struct c2_update_stream *us)
 {
 	DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
 }
+
 void us_recovery_complete(struct c2_update_stream *us)
 {
 	DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
@@ -902,6 +911,33 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
 	return opcode;
 }
 
+void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
+{
+	C2_PRE(item_type != NULL);
+
+	c2_mutex_lock(&rpc_item_types_lock);
+	c2_list_add(&rpc_item_types_list, &item_type->rit_linkage);
+	c2_mutex_unlock(&rpc_item_types_lock);
+}
+
+struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
+{
+	struct c2_rpc_item_type *item_type = NULL;
+	bool			found = false;
+	c2_mutex_lock(&rpc_item_types_lock);
+	c2_list_for_each_entry(&rpc_item_types_list, item_type,
+	                       struct c2_rpc_item_type, rit_linkage) {
+		if( item_type->rit_opcode == opcode) {
+			found = true;
+			break;
+		}
+	}
+	c2_mutex_unlock(&rpc_item_types_lock);
+	if(found)
+		return item_type;
+
+	return NULL;
+}
 
 /**
    RPC item ops function

@@ -9,6 +9,7 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "lib/vec.h"
 
 /**
    @addtogroup fop
@@ -31,6 +32,7 @@
 struct c2_fol;
 struct c2_fop;
 struct c2_rpc_item_type;
+struct c2_fop_rpc_item_type;
 
 /* export */
 struct c2_fop_type;
@@ -69,6 +71,7 @@ struct c2_fop_type {
 	struct c2_addb_ctx                ft_addb;
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
+	struct c2_fop_rpc_item_type	  *ft_ri_type;
 	struct c2_rpc_item_type		 *ft_ritype;
 };
 
@@ -109,6 +112,12 @@ struct c2_fop_type_ops {
 	/** Try to coalesce IO segments into one big IO vector. */
 	int (*fto_io_segment_coalesce)(void *iovec, struct c2_list *list,
 			uint64_t *nsegs);
+	/** Encode the fop data into a bufvec */
+	int (*fto_bufvec_encode)(struct c2_fop *fop,
+	    struct c2_bufvec_cursor *cur);
+	/** Decode the fop data from a bufvec */
+	int (*fto_bufvec_decode)(struct c2_fop *fop,
+	     struct c2_bufvec_cursor *cur);
 };
 
 /**
