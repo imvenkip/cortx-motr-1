@@ -23,8 +23,9 @@
 #endif
 
 #include "addb/addb.h"
-#include "reqh/reqh.h"
 #include "fop/fop.h"
+#include "fop/fom.h"
+#include "reqh/reqh.h"
 #include "nrs/nrs.h"
 
 /**

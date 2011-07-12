@@ -373,7 +373,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
-		fom_obj->fcrw_gen.fo_phase = FOPH_FAILURE;
+		fom_obj->fcrw_gen.fo_phase = FOPH_FAILED;
 		return FSO_AGAIN;
 	}
 

@@ -54,23 +54,18 @@ struct c2_reqh {
 	/** fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
 	/** fom domain for this request handler */
-	struct c2_fom_domain	*rh_fom_dom;
+	struct c2_fom_domain	 rh_fom_dom;
 };
 
 /**
- * Initialises request handler.
- *
- * @param reqh -> c2_reqh, request handler.
- * @param rpc -> c2_rpc_machine, rpc machine (required for future use).
- * @param dtm -> c2_dtm database transaction manager, (required for future use).
- * @param stdom -> c2_stob_domain, storage object domain for fom io.
- * @param fol -> c2_fol, reqh fol.
- * @param serv -> c2_service, service to which reqh belongs.
- *
- * @retval int -> returns 0, if succeeds.
- *              returns -errno, on failure.
- *
- * @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
+   Initialises request handler instance provided by the caller.
+
+   @see c2_reqh
+
+   @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
+
+   @retval 0, if request handler is succesfully initilaised,
+		-errno, in case of failure
  */
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
@@ -78,12 +73,10 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_fol *fol, struct c2_service *serv);
 
 /**
- * Finalises request handler.
- *
- * @param reqh -> c2_reqh.
- *
- * @pre reqh != NULL
- * @pre reqh->rh_fom_dom != NULL
+   Destructor for request handler, no fop will be further executed
+   in the address space belonging to this request handler.
+
+   @pre reqh != NULL
  */
 void c2_reqh_fini(struct c2_reqh *reqh);
 
@@ -104,9 +97,9 @@ struct c2_fop_sortkey {
    fop processing results are reported by other means (ADDB, reply fops, error
    messages, etc.) so this function returns nothing.
 
-   @param reqh -> c2_reqh.
-   @param fom -> c2_fom.
-   @param cookie -> void reference provided by client.
+   @param reqh, request handler processing the fop
+   @param fop, fop to be executed
+   @param cookie, reply fop reference provided by the client
 
    @pre reqh != null.
    @pre fom != null.
@@ -169,12 +162,41 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
    delegates the rest of operation execution to the fom type specific state
    transition function.
 
-   @param fom -> c2_fom object.
+   Fom execution proceeds as follows:
 
-   @retval int -> returns FSO_AGAIN, if succeeds.
-	returns FSO_WAIT, if operation blocks or fom execution ends.
+   FOPH_INIT -> FOPH_AUTHENTICATE -> FOPH_RESOURCE_LOCAL ->
+   FOPH_RESOURCE_DISTRIBUTED -> FOPH_OBJECT_CHECK -> FOPH_AUTHORISATION ->
+   FOPH_TXN_CONTEXT -> FOPH_NR + 1 -> FOPH_QUEUE_REPLY
 
+   Fom creates local transactional context and transitions into one of
+   the non standard phases, having enumeration greater than FOPH_NR.
+   On performing the non standard actions, fom transitions back to one of 
+   the standard phases.
+
+   Fom then sends the reply fop (or queueing it into fop cache in case of WBC), 
+   and transitions back to one of the non standard phases. Later depending upon
+   the status of fom execution, i.e success or failure, fom transitions back
+   accordingly, see below
+
+   FOPH_QUEUE_REPLY -> FOPH_NR + 1 -> FOPH_SUCCESS -> FOPH_TXN_COMMIT -> FOPH_DONE
+   FOPH_QUEUE_REPLY-> FOPH_NR + 1 -> FOPH_FAILED -> FOPH_TXN_ABORT -> FOPH_DONE
+   FOPH_DONE, fom execution is complete, i.e success or failure.
+
+   If fom execution would block, in any of the transition phases, fom transitions 
+   into the corresponding wait phase. Later, once the blocking operation is
+   complete, fom execution is resumed by its wait phase handler and it transitions
+   fom to next phase.
+
+   @see c2_fom_phase
+   @see c2_fom_state_outcome
+
+   @retval FSO_AGAIN, if fom operation is successful, transition to next phase,
+	FSO_WAIT, if fom execution is complete i.e success or failure
+
+   @todo standard fom phases implementation, depends on the support routines for
+   handling various standard operations on fop as mentioned above.
  */
+
 int c2_fom_state_generic(struct c2_fom *fom);
 
 /** @} endgroup reqh */

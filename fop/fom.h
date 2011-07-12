@@ -140,13 +140,19 @@ struct c2_fom_locality {
 };
 
 /**
+   This function iterates over c2_fom_locality members and checks if
+   they are intialised and consistent.
+ */ 
+bool c2_locality_invariant(const struct c2_fom_locality *loc);
+
+/**
    Domain is a collection of localities that compete for the resources. For
    example, there would be typically a domain for each service (c2_service).
 
    Once the fom domain is initialised, fom domain invariant should hold
    true until fom domain is finalised .
 
-   @see c2_fom_domain_invariant(struct c2_fom_domain *dom)
+   @see c2_fom_domain_invariant()
  */
 struct c2_fom_domain {
 	/** An array of localities. */
@@ -171,20 +177,22 @@ struct c2_fom_domain_ops {
 
 /**
    States a fom can be in.
-
-   A fom is in FOS_READY state when it is initialised and ready to
-   be put on locality runq list for execution.
-   A fom changes its state from FOS_READY to FOS_RUNNING, after it
-   is dequeued from locality runq and begins its execution.
-   A fom changes its state from FOS_RUNNING to FOS_WAITING, if its
-   execution would block, fom is then put on locality wait list.
  */
 enum c2_fom_state {
-	/** The fom is being executed by a handler thread in some locality. */
+	/** 
+	   The fom changes its state from FOS_READY to FOS_RUNNING, after it
+	   is dequeued from a locality runq and begins its execution.
+	 */
 	FOS_RUNNING,
-	/** The fom is in the run-queue of some locality. */
+	/** 
+	    The fom is in FOS_READY state when it is initialised and ready to
+	    be put on a locality runq list for execution.
+	*/
 	FOS_READY,
-	/** The fom is in the wait-list of some locality. */
+	/** 
+	    The fom changes its state from FOS_RUNNING to FOS_WAITING, if the
+	    fom execution would block, fom is then put on a locality wait list.
+	 */
 	FOS_WAITING,
 };
 
@@ -214,15 +222,17 @@ enum c2_fom_phase {
 	FOPH_TXN_CONTEXT,           /*< creating local transactional context. */
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
 
-	FOPH_QUEUE_REPLY,           /*< queuing reply fop-s. */
-	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
+	FOPH_QUEUE_SUCCESS_REPLY,   /*< queuing successful fop reply.  */
+	FOPH_QUEUE_SUCCESS_REPLY_WAIT, /*< waiting for fop cache space. */
+	FOPH_QUEUE_ERROR_REPLY,     /*< queuing fop error reply. */
+	FOPH_QUEUE_ERROR_REPLY_WAIT,  /*< waiting for fop cache space. */
 	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
 	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
 	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_SUCCEED,		    /*< fom success. */
-	FOPH_FAILURE,                /*< fom failed. */
+	FOPH_SUCCESS,		    /*< fom success. */
+	FOPH_FAILED,                /*< fom failed. */
 	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
@@ -231,7 +241,7 @@ enum c2_fom_phase {
 
 /**
 
-   Function initialises c2_fom_domain object provided by the caller.
+   Initialises c2_fom_domain object provided by the caller.
 
    @pre dom != NULL
  */
@@ -240,9 +250,15 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom);
 /**
    Finalises fom domain.
 
-   @pre dom != NULL && dom->fd_localities != NULL.
+   @pre dom != NULL && dom->fd_localities != NULL
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
+
+/**
+   This function iterates over c2_fom_domain members and checks
+   if they are intialised.
+ */
+bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 
 /**
    Fop state machine.
@@ -251,7 +267,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom);
    should hold true as fom execution enters various
    phases, including before fom is finalised.
 
-   @see c2_fom_invariant(struct c2_fom *fom)
+   @see c2_fom_invariant()
 */
 struct c2_fom {
 	enum c2_fom_state	 fo_state;
@@ -294,7 +310,7 @@ struct c2_fom {
    Possible errors are reported through fom state and phase, hence the return
    type is void.
 
-   @pre fom->fo_phase == FOPH_INIT.
+   @pre fom->fo_phase == FOPH_INIT
  */
 void c2_fom_queue(struct c2_fom *fom);
 
@@ -315,9 +331,15 @@ int c2_fom_init(struct c2_fom *fom);
 
    Finalizes other fom members.
 
-   @pre fom->fo_phase == FOPH_DONE.
+   @pre fom->fo_phase == FOPH_DONE
 */
 void c2_fom_fini(struct c2_fom *fom);
+
+/**
+   This function iterates over c2_fom members and check if they are intilaised
+   and consistent.
+ */
+bool c2_fom_invariant(const struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
@@ -397,11 +419,6 @@ struct c2_fom_hthread {
 void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
-   Checks if number of idle threads are more than the threashold value
-   i.e fl_lo_idle_threads_nr, and broadcasts on the thread waiting channel
-   i.e fl_runrun.
-   Accordingly, the extra idle threads commit suicide.
-
    This function is called after potential blocking point.
  */
 void c2_fom_block_leave(struct c2_fom *fom);
@@ -410,7 +427,7 @@ void c2_fom_block_leave(struct c2_fom *fom);
    Registers fom with the channel, so that next fom's state transition would
    happen when the channel is signalled.
 
-   @pre !c2_clink_is_armed(&fom->fo_clink).
+   @pre !c2_clink_is_armed(&fom->fo_clink)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 

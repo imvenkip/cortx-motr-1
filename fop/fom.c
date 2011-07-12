@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/04/2011
  */
 
@@ -29,6 +29,7 @@
 #include "lib/processor.h"
 #include "lib/time.h"
 #include "lib/timer.h"
+#include "lib/arith.h"
 
 #include "addb/addb.h"
 #include "fop/fom.h"
@@ -74,42 +75,18 @@ static struct c2_fom_domain_ops c2_fom_dom_ops = {
 
 static int loc_thr_create(struct c2_fom_locality *loc);
 
-/**
- * validates a fom domain.
- *
- * @param dom -> c2_fom_domain.
- *
- * @retval bool -> true, if succeeds.
- *		false, on failure.
- */
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 {
 	return dom != NULL && dom->fd_localities != NULL &&
 		dom->fd_ops != NULL;
 }
 
-/**
- * validates a locality.
- *
- * @param loc -> c2_fom_locality.
- *
- * @retval bool -> true, if succeeds.
- *		false, on failure.
- */
 bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
 	return	loc != NULL && loc->fl_dom != NULL && c2_list_invariant(&loc->fl_runq) &&
 		c2_list_invariant(&loc->fl_wail) && c2_list_invariant(&loc->fl_threads);
 }
 
-/**
- * validates a fom.
- *
- * @param fom -> c2_fom.
- *
- * @retval bool -> true, if succeeds.
- *		false, on failure.
- */
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	return  fom != NULL && fom->fo_type != NULL && fom->fo_ops != NULL &&
@@ -121,9 +98,8 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 /**
  * Enqueues fom into locality's runq list.
  *
- * Invoked by call back fuction fom_cb and c2_fom_queue.
- *
- * @param fom -> c2_fom
+ * This function is invoked when a new fom is submitted,
+ * or a waiting fom is re scheduled for processing.
  */
 static void fom_ready(struct c2_fom *fom)
 {
@@ -132,7 +108,7 @@ static void fom_ready(struct c2_fom *fom)
 	loc = fom->fo_loc;
 	c2_mutex_lock(&loc->fl_runq_lock);
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_rwlink);
-	++loc->fl_runq_nr;
+	C2_CNT_INC(loc->fl_runq_nr);
 	c2_mutex_unlock(&loc->fl_runq_lock);
 	c2_mutex_lock(&loc->fl_lock);
 	c2_chan_signal(&loc->fl_runrun);
@@ -140,12 +116,11 @@ static void fom_ready(struct c2_fom *fom)
 }
 
 /**
- * Call back function.
  * Removes fom from the locality wait list
  * and puts it back on the locality runq list for further
  * execution.
- *
- * @param clink -> c2_clink.
+ * This function is invoked as a call back, when the fom
+ * waiting channel is signalled.
  *
  * @pre clink != NULL.
  */
@@ -164,8 +139,7 @@ static void fom_cb(struct c2_clink *clink)
 	c2_mutex_lock(&loc->fl_wail_lock);
 	C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_rwlink));
 	c2_list_del(&fom->fo_rwlink);
-	C2_ASSERT(loc->fl_wail_nr > 0);
-	--loc->fl_wail_nr;
+	C2_CNT_DEC(loc->fl_wail_nr);
 	fom->fo_state = FOS_READY;
 	c2_mutex_unlock(&loc->fl_wail_lock);
 	fom_ready(fom);
@@ -184,6 +158,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	c2_mutex_lock(&loc->fl_lock);
 	idle_threads = loc->fl_idle_threads_nr;
 	hi_idle_threads = loc->fl_hi_idle_threads_nr;
+	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 
 	for (i = idle_threads; i < hi_idle_threads && rc == 0; ++i) {
@@ -201,8 +176,7 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	loc = fom->fo_loc;
 	C2_ASSERT(c2_locality_invariant(loc));
 	c2_mutex_lock(&loc->fl_lock);
-	if (loc->fl_idle_threads_nr > loc->fl_lo_idle_threads_nr)
-		c2_chan_broadcast(&loc->fl_runrun);
+	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 }
 
@@ -217,8 +191,6 @@ void c2_fom_queue(struct c2_fom *fom)
  * puts fom on locality wait list if fom
  * execution blocks.
  * fom state is changed to FOS_WAITING.
- *
- * @param fom -> c2_fom.
  */
 static void fom_wait(struct c2_fom *fom)
 {
@@ -229,7 +201,7 @@ static void fom_wait(struct c2_fom *fom)
 	fom->fo_state = FOS_WAITING;
 	c2_mutex_lock(&loc->fl_wail_lock);
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_rwlink);
-	++loc->fl_wail_nr;
+	C2_CNT_INC(loc->fl_wail_nr);
 	c2_mutex_unlock(&loc->fl_wail_lock);
 }
 
@@ -244,13 +216,14 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 }
 
 /**
- * Executes fop specific operation.
+ * Executes fom and performs non blocking fom
+ * state transitioins.
  *
- * @param fom -> c2_fom.
+ * @see c2_fom_state_outcome
  *
  * @pre fom->fo_state == FOS_RUNNING
  */
-void c2_fom_fop_exec(struct c2_fom *fom)
+static void fom_fop_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
@@ -275,38 +248,39 @@ void c2_fom_fop_exec(struct c2_fom *fom)
 /**
  * Dequeue's a fom from locality's runq list.
  *
- * @param loc -> c2_fom_locality.
- *
  * @retval -> returns valid c2_fom object if succeeds,
  *		else returns NULL.
- *
- * @pre c2_mutex_is_locked(&loc->fl_runq_lock)
  */
-struct c2_fom * c2_fom_dequeue(struct c2_fom_locality *loc)
+static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 {
 	struct c2_list_link	*fom_link;
 	struct c2_fom		*fom;
 
-	C2_PRE(c2_mutex_is_locked(&loc->fl_runq_lock));
-
+	c2_mutex_lock(&loc->fl_runq_lock);
 	fom_link = c2_list_first(&loc->fl_runq);
-	if (fom_link == NULL)
+	if (fom_link == NULL) {
+		c2_mutex_unlock(&loc->fl_runq_lock);
 		return NULL;
+	}
 	c2_list_del(fom_link);
 	fom = container_of(fom_link, struct c2_fom, fo_rwlink);
 	C2_ASSERT(fom != NULL);
-	C2_ASSERT(loc->fl_runq_nr > 0);
-	--loc->fl_runq_nr;
+	C2_CNT_DEC(loc->fl_runq_nr);
+	c2_mutex_unlock(&loc->fl_runq_lock);
 	return fom;
 }
 
 /**
- * Locality handler thread function.
- * Thread waits on locality channel for specific time, it is woken up either by
- * fom enqueue operation in runq list or if wait time expires.
- * when woken up, thread dequeue's a fom from the locality's runq list and starts
- * executing it. standard/generic fom phases are executed before fop specific fom phases.
- * if number of idle threads are higher than threshold value, they are terminated.
+ * Locality handler thread.
+ * Handler thread waits on re-scheduling channel for specific time.
+ * Thread is then woken up either by fom enqueue operation in a locality runq list,
+ * or if thread times out waiting on the channel.
+ * when woken up, thread dequeue's a fom from the locality runq list and starts
+ * executing it. If number of idle threads are higher than threshold value, they
+ * are terminated.
+ *
+ * @see c2_fom_locality::fl_runrun
+ * @see c2_fom_locality::fl_lo_idle_threads_nr
  *
  * @param th -> c2_fom_hthread, contains thread reference, locality reference
  *		and thread linkage in locality.
@@ -350,28 +324,23 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 			fop_ctx.fc_cookie  = fom->fo_cookie;
 			fom->fo_fop_ctx = &fop_ctx;
 			fom->fo_state = FOS_RUNNING;
-			c2_fom_fop_exec(fom);
+			fom_fop_exec(fom);
 		}
 
 		c2_chan_timedwait(&th_clink, c2_time_add(c2_time_now(&now), delta));
 
-		/* acquire runq lock */
-		c2_mutex_lock(&loc->fl_runq_lock);
-		fom = c2_fom_dequeue(loc);
-		c2_mutex_unlock(&loc->fl_runq_lock);
-
-		/* acquire locality lock */
+		fom = fom_dequeue(loc);
 		c2_mutex_lock(&loc->fl_lock);
 		if (fom == NULL && !idle)
-			++loc->fl_idle_threads_nr;
+			C2_CNT_INC(loc->fl_idle_threads_nr);
 		else if (fom != NULL && idle)
-			--loc->fl_idle_threads_nr;
+			C2_CNT_DEC(loc->fl_idle_threads_nr);
 		idle = fom == NULL;
 
 	} while (!idle || loc->fl_idle_threads_nr <= loc->fl_lo_idle_threads_nr);
 
-	--loc->fl_idle_threads_nr;
-	--loc->fl_threads_nr;
+	C2_CNT_DEC(loc->fl_idle_threads_nr);
+	C2_CNT_DEC(loc->fl_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 	c2_clink_del(&th_clink);
 	c2_clink_fini(&th_clink);
@@ -380,7 +349,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 /**
  * Thread initialisation function.
  * Adds thread to the locality thread list and
- * increments thread count in locality.
+ * increments thread count in locality atomically.
  *
  * @param th -> c2_fom_hthread, contains thread reference, locality reference
  *		and thread linkage in locality.
@@ -393,21 +362,23 @@ static void loc_thr_init(struct c2_fom_hthread *th)
 
 	c2_mutex_lock(&loc->fl_lock);
 	c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
-	++loc->fl_threads_nr;
+	C2_CNT_INC(loc->fl_threads_nr);
 	c2_thread_confine(&th->fht_thread, &loc->fl_processors);
 	c2_mutex_unlock(&loc->fl_lock);
 }
 
 /**
- * Creates and add a new thread to the specified
+ * Creates and adds a thread to the given
  * locality.
  *
- * @param loc -> c2_fom_locality.
+ * @param loc -> c2_fom_locality to which threads
+ *		are added
  *
- * @retval int -> returns 0, if succeeds.
- *		returns -errno, on failure.
+ * @retval 0, if a thread is successfully created and
+ *		added to the given locality
+ *	-errno, on failure
  *
- * @pre loc != NULL.
+ * @pre loc != NULL
  */
 static int loc_thr_create(struct c2_fom_locality *loc)
 {
@@ -423,7 +394,8 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 
 	locthr->fht_locality = loc;
 	result = C2_THREAD_INIT(&locthr->fht_thread, struct c2_fom_hthread *,
-			&loc_thr_init, &loc_handler_thread, locthr, "locality_thread");
+			&loc_thr_init, &loc_handler_thread, locthr,
+			"locality_thread");
 
 	if (result != 0)
 		c2_free(locthr);
@@ -432,15 +404,74 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 }
 
 /**
+ * Finalises a locality.
+ *
+ * @param loc -> c2_fom_locality, to be finalised
+ *
+ * @pre loc != NULL
+ */
+static void locality_fini(struct c2_fom_locality *loc)
+{
+	struct c2_list_link	*link;
+	struct c2_fom_hthread	*th;
+
+	C2_PRE(loc != NULL);
+
+	/*
+	 * Remove each thread from the thread list
+	 * delete the linkage, and invoke thread clean
+	 * up function. Later free thread object.
+	 */
+	c2_mutex_lock(&loc->fl_lock);
+	C2_ASSERT(c2_locality_invariant(loc));
+	loc->fl_lo_idle_threads_nr = 0;
+	c2_chan_broadcast(&loc->fl_runrun);
+	while (!c2_list_is_empty(&loc->fl_threads)) {
+
+		link = c2_list_first(&loc->fl_threads);
+		C2_ASSERT(link != NULL);
+		c2_list_del(link);
+		c2_mutex_unlock(&loc->fl_lock);
+		th = container_of(link, struct c2_fom_hthread,
+					fht_linkage);
+		C2_ASSERT(th != NULL);
+
+		c2_thread_join(&th->fht_thread);
+		c2_thread_fini(&th->fht_thread);
+		c2_free(th);
+		c2_mutex_lock(&loc->fl_lock);
+	}
+	c2_mutex_unlock(&loc->fl_lock);
+
+	c2_list_fini(&loc->fl_runq);
+	C2_ASSERT(loc->fl_runq_nr == 0);
+	c2_mutex_fini(&loc->fl_runq_lock);
+
+	c2_list_fini(&loc->fl_wail);
+	C2_ASSERT(loc->fl_wail_nr == 0);
+	c2_mutex_fini(&loc->fl_wail_lock);
+
+	c2_mutex_fini(&loc->fl_lock);
+	c2_chan_fini(&loc->fl_runrun);
+	c2_list_fini(&loc->fl_threads);
+	C2_ASSERT(loc->fl_threads_nr == 0);
+
+	c2_bitmap_fini(&loc->fl_processors);
+}
+
+/**
  * Initialises a locality in fom domain.
+ * Creates and adds threads to locality, every thread is
+ * confined to the cpus represented by the pmap.
  *
- * @param loc -> c2_fom_locality.
- * @param pmap -> c2_bitmap, bitmap representing number of cpus in locality.
+ * @param loc -> c2_fom_locality to be initialised
+ * @param pmap -> c2_bitmap, bitmap representing number of cpus
+ *				present in the locality
  *
- * @retval int -> 0, if succeeds.
- *		-errno, on failure.
+ * @retval int -> 0, if locality is initialised,
+ *		-errno, on failure
  *
- * @pre loc != NULL.
+ * @pre loc != NULL
  */
 static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 {
@@ -474,114 +505,40 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 	for (i = 0, ncpus = 0; i < max_proc && result == 0; ++i) {
 		if (c2_bitmap_get(pmap, i)) {
 			c2_bitmap_set(&loc->fl_processors, i, true);
-			++ncpus;
+			C2_CNT_INC(ncpus);
 		}
 	}
 
-	for (i = 0; i < ncpus && result == 0; ++i) {
+	for (i = 0; i < ncpus && result == 0; ++i)
 		result = loc_thr_create(loc);
-	}
+
+	if (result != 0)
+		locality_fini(loc);
 
 	return result;
 }
 
 /**
- * Finalises all the localities in fom domain.
- *
- * @param loc -> c2_fom_locality.
- *
- * @pre loc != NULL.
- */
-static void locality_fini(struct c2_fom_locality *loc)
-{
-	struct c2_list_link	*link;
-	struct c2_fom_hthread	*th;
-
-	C2_PRE(loc != NULL);
-
-	/*
-	 * Remove each thread from the thread list
-	 * delete the linkage, and invoke thread clean
-	 * up function. Later free thread object.
-	 */
-	c2_mutex_lock(&loc->fl_lock);
-	C2_ASSERT(c2_locality_invariant(loc));
-	loc->fl_lo_idle_threads_nr = 0;
-	while (!c2_list_is_empty(&loc->fl_threads)) {
-
-		link = c2_list_first(&loc->fl_threads);
-		C2_ASSERT(link != NULL);
-		c2_list_del(link);
-		c2_mutex_unlock(&loc->fl_lock);
-		th = container_of(link, struct c2_fom_hthread,
-					fht_linkage);
-		C2_ASSERT(th != NULL);
-
-		c2_thread_join(&th->fht_thread);
-		c2_thread_fini(&th->fht_thread);
-		c2_free(th);
-		c2_mutex_lock(&loc->fl_lock);
-	}
-	c2_mutex_unlock(&loc->fl_lock);
-
-	/*
-	 * Invoke clean up functions for individual members
-	 * of locality.
-	 */
-	c2_list_fini(&loc->fl_runq);
-	C2_ASSERT(loc->fl_runq_nr == 0);
-	c2_mutex_fini(&loc->fl_runq_lock);
-
-	c2_list_fini(&loc->fl_wail);
-	C2_ASSERT(loc->fl_wail_nr == 0);
-	c2_mutex_fini(&loc->fl_wail_lock);
-
-	c2_mutex_fini(&loc->fl_lock);
-	c2_chan_fini(&loc->fl_runrun);
-	c2_list_fini(&loc->fl_threads);
-	C2_ASSERT(loc->fl_threads_nr == 0);
-
-	c2_bitmap_fini(&loc->fl_processors);
-}
-
-/**
  * Checks if cpu resource is shared.
  *
- * @param cpu1 -> cpu descriptor.
- * @param cpu2 -> cpu descriptor.
- *
- * @retval bool -> returns true, if cpu resource is shared.
- *		returns false, if no cpu resource is shared.
+ * @retval bool -> returns true, if cpu resource is shared
+ *		returns false, if no cpu resource is shared
  */
-static bool resource_is_shared(struct c2_processor_descr *cpu1,
-			struct c2_processor_descr *cpu2)
+static bool resource_is_shared(const struct c2_processor_descr *cpu1,
+			const struct c2_processor_descr *cpu2)
 {
 	return cpu1->pd_l2 == cpu2->pd_l2 ||
 			cpu1->pd_numa_node == cpu2->pd_numa_node;
-}
-
-/**
- * Checks if the cpu is alive and usable.
- *
- * @param cpu -> cpu descriptor.
- *
- * @retval bool -> returns true, if succeeds.
- *		returns false, on failure.
- */
-static bool cpu_is_usable(struct c2_processor_descr *cpu)
-{
-	return cpu->pd_l1_sz > 0 || cpu->pd_l2_sz > 0;
 }
 
 int  c2_fom_domain_init(struct c2_fom_domain *dom)
 {
 	int				i;
 	int				j;
-	int				onln_cpus;
-	int				result = 0;
-	struct  c2_processor_descr     *cpu_info;
+	struct c2_processor_descr	cpui;
+	struct c2_processor_descr	cpuj;
 	c2_processor_nr_t		max_proc;
-	c2_processor_nr_t		rc;
+	c2_processor_nr_t		result = 0;
 	struct c2_bitmap		onln_cpu_map;
 	struct c2_bitmap		loc_cpu_map;
 	struct c2_fom_locality	       *localities;
@@ -595,77 +552,49 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	 * between cores, as shared resources.
 	 */
 	max_proc = c2_processor_nr_max();
-	/* Temporary array of c2_processor descriptor */
-	C2_ALLOC_ARR(cpu_info, max_proc);
-	if (cpu_info == NULL)
-		return -ENOMEM;
-
 	dom->fd_ops = &c2_fom_dom_ops;
-	c2_bitmap_init(&onln_cpu_map, max_proc);
-	c2_bitmap_init(&loc_cpu_map, max_proc);
+	if ((result = c2_bitmap_init(&onln_cpu_map, max_proc)) != 0)
+		return result;
+	if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0)
+		return result;
+
 	c2_processors_online(&onln_cpu_map);
-
-	/* Get the info of online processors. */
-	for (i = 0, onln_cpus = 0; i < max_proc; ++i) {
-		if (c2_bitmap_get(&onln_cpu_map, i)) {
-			rc = c2_processor_describe(i, &cpu_info[onln_cpus]);
-			if (rc != 0)
-				continue;
-			else
-				++onln_cpus;
-		}
-	}
-
-	C2_ALLOC_ARR_ADDB(dom->fd_localities, onln_cpus, &c2_reqh_addb_ctx,
+	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
 						&c2_fom_addb_loc);
-	if (dom->fd_localities == NULL) {
-		c2_free(cpu_info);
+	if (dom->fd_localities == NULL)
 		return -ENOMEM;
-	}
 
 	localities = dom->fd_localities;
 	/*
 	 * Find the processors sharing resources and
 	 * create localities between them.
 	 */
-	for (i = 0; i < max_proc && result == 0; ++i) {
+	for (i = 0; i < max_proc; ++i) {
+		if (!c2_bitmap_get(&onln_cpu_map, i))
+			continue;
+		result = c2_processor_describe(i, &cpui);
 		for (j = i; j < max_proc && result == 0; ++j) {
-			/*
-			 * we first check if the cpu is alive and usable.
-			 * If jth cpu is usable and shares resources with ith cpu then
-			 * we set the bit corresponding to the jth cpu id in temporary
-			 * bitmap (later used to confine locality threads) and reset
-			 * the jth cpu descriptor in cpu_info array to 0.
-			 * Later once we traverse all the cpus sharing a set of resources,
-			 * we create a locality among them, reintialise the cpu bitmap,
-			 * increment locality number of localities in a fom domain and
-			 * reset ith cpu descriptor in cpu_info array to 0.
-			 */
-			if (cpu_is_usable(&cpu_info[j]) &&
-				resource_is_shared(&cpu_info[i], &cpu_info[j])) {
-				--onln_cpus;
-				c2_bitmap_set(&loc_cpu_map, cpu_info[j].pd_id, true);
-				if (j != i)
-					C2_SET0(&cpu_info[j]);
+			if (!c2_bitmap_get(&onln_cpu_map, j))
+				continue;
+			result = c2_processor_describe(j, &cpuj);
+			if (result == 0 && resource_is_shared(&cpui, &cpuj)) {
+				c2_bitmap_set(&loc_cpu_map, cpuj.pd_id, true);
+				c2_bitmap_set(&onln_cpu_map, j, false);
 			}
 		}
-		if (cpu_is_usable(&cpu_info[i])) {
+		if (result == 0) {
 			localities[dom->fd_localities_nr].fl_dom = dom;
-			result = locality_init(&localities[dom->fd_localities_nr], &loc_cpu_map);
-			if (result != 0)
-				break;
-			c2_bitmap_init(&loc_cpu_map, max_proc);
-			++dom->fd_localities_nr;
-			C2_SET0(&cpu_info[i]);
+			result = locality_init(&localities[dom->fd_localities_nr],
+						&loc_cpu_map);
 		}
-		if (onln_cpus <= 0)
+		if (result != 0)
 			break;
+		c2_bitmap_fini(&loc_cpu_map);
+		if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0)
+			break;
+		C2_CNT_INC(dom->fd_localities_nr);
 	}
 
-	if (result)
-		c2_fom_domain_fini(dom);
-
-	c2_free(cpu_info);
 	c2_bitmap_fini(&onln_cpu_map);
 	c2_bitmap_fini(&loc_cpu_map);
 
@@ -685,13 +614,10 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	}
 
 	c2_free(dom->fd_localities);
-	c2_free(dom);
 }
 
 int c2_fom_init(struct c2_fom *fom)
 {
-	/* Set fom state to FOS_READY and fom phase to FOPH_INIT. */
-
 	C2_PRE(fom != NULL);
 
 	fom->fo_state = FOS_READY;

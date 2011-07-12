@@ -25,12 +25,12 @@
 
 /** @file reqh_fops.ff
  *
- * <b>Simplistic IO fop formats</b>
+ * <b>Reqh generic error reply</b>
  *
  */
 
 DEF(c2_reqh_error_rep, RECORD,
-	_(sierr_rc, U32));
+	_(rerr_rc, U32));
 
 /** @} end of reqh group */
 

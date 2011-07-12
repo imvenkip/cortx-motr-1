@@ -20,13 +20,13 @@ struct c2_fop_memlayout c2_reqh_error_rep_memlayout = {
 	.fm_sizeof = sizeof (struct c2_reqh_error_rep),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_reqh_error_rep,
 	.fm_child = {
-		{ offsetof(struct c2_reqh_error_rep, sierr_rc) },
+		{ offsetof(struct c2_reqh_error_rep, rerr_rc) },
 	}
 };
 
 
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

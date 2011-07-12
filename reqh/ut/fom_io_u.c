@@ -25,51 +25,6 @@ struct c2_fop_memlayout c2_fom_fop_fid_memlayout = {
 	}
 };
 
-static bool_t uxdr_c2_fom_io_seg(XDR *xdrs, struct c2_fom_io_seg *cfis)
-{
-	extern struct c2_fop_type_format c2_fom_io_seg_tfmt;
-	return c2_fop_type_uxdr(c2_fom_io_seg_tfmt.ftf_out, xdrs, cfis);
-}
-
-struct c2_fop_memlayout c2_fom_io_seg_memlayout = {
-	.fm_sizeof = sizeof (struct c2_fom_io_seg),
-	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_seg,
-	.fm_child = {
-		{ offsetof(struct c2_fom_io_seg, f_offset) },
-		{ offsetof(struct c2_fom_io_seg, f_count) },
-	}
-};
-
-static bool_t uxdr_c2_fom_io_buf(XDR *xdrs, struct c2_fom_io_buf *cfib)
-{
-	extern struct c2_fop_type_format c2_fom_io_buf_tfmt;
-	return c2_fop_type_uxdr(c2_fom_io_buf_tfmt.ftf_out, xdrs, cfib);
-}
-
-struct c2_fop_memlayout c2_fom_io_buf_memlayout = {
-	.fm_sizeof = sizeof (struct c2_fom_io_buf),
-	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_buf,
-	.fm_child = {
-		{ offsetof(struct c2_fom_io_buf, cib_count) },
-		{ offsetof(struct c2_fom_io_buf, cib_value) },
-	}
-};
-
-static bool_t uxdr_c2_fom_io_vec(XDR *xdrs, struct c2_fom_io_vec *cfiv)
-{
-	extern struct c2_fop_type_format c2_fom_io_vec_tfmt;
-	return c2_fop_type_uxdr(c2_fom_io_vec_tfmt.ftf_out, xdrs, cfiv);
-}
-
-struct c2_fop_memlayout c2_fom_io_vec_memlayout = {
-	.fm_sizeof = sizeof (struct c2_fom_io_vec),
-	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_vec,
-	.fm_child = {
-		{ offsetof(struct c2_fom_io_vec, civ_count) },
-		{ offsetof(struct c2_fom_io_vec, civ_seg) },
-	}
-};
-
 static bool_t uxdr_c2_fom_io_write(XDR *xdrs, struct c2_fom_io_write *cfiw)
 {
 	extern struct c2_fop_type_format c2_fom_io_write_tfmt;
@@ -80,9 +35,8 @@ struct c2_fop_memlayout c2_fom_io_write_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_write),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_write,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_write, siw_object) },
-		{ offsetof(struct c2_fom_io_write, siw_offset) },
-		{ offsetof(struct c2_fom_io_write, siw_buf) },
+		{ offsetof(struct c2_fom_io_write, fiw_object) },
+		{ offsetof(struct c2_fom_io_write, fiw_value) },
 	}
 };
 
@@ -96,8 +50,8 @@ struct c2_fop_memlayout c2_fom_io_write_rep_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_write_rep),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_write_rep,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_write_rep, siwr_rc) },
-		{ offsetof(struct c2_fom_io_write_rep, siwr_count) },
+		{ offsetof(struct c2_fom_io_write_rep, fiwr_rc) },
+		{ offsetof(struct c2_fom_io_write_rep, fiwr_count) },
 	}
 };
 
@@ -111,8 +65,7 @@ struct c2_fop_memlayout c2_fom_io_read_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_read),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_read,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_read, sir_object) },
-		{ offsetof(struct c2_fom_io_read, sir_seg) },
+		{ offsetof(struct c2_fom_io_read, fir_object) },
 	}
 };
 
@@ -126,8 +79,9 @@ struct c2_fop_memlayout c2_fom_io_read_rep_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_read_rep),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_read_rep,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_read_rep, sirr_rc) },
-		{ offsetof(struct c2_fom_io_read_rep, sirr_buf) },
+		{ offsetof(struct c2_fom_io_read_rep, firr_rc) },
+		{ offsetof(struct c2_fom_io_read_rep, firr_count) },
+		{ offsetof(struct c2_fom_io_read_rep, firr_value) },
 	}
 };
 
@@ -141,7 +95,7 @@ struct c2_fop_memlayout c2_fom_io_create_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_create),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_create,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_create, sic_object) },
+		{ offsetof(struct c2_fom_io_create, fic_object) },
 	}
 };
 
@@ -155,27 +109,13 @@ struct c2_fop_memlayout c2_fom_io_create_rep_memlayout = {
 	.fm_sizeof = sizeof (struct c2_fom_io_create_rep),
 	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_create_rep,
 	.fm_child = {
-		{ offsetof(struct c2_fom_io_create_rep, sicr_rc) },
-	}
-};
-
-static bool_t uxdr_c2_fom_io_quit(XDR *xdrs, struct c2_fom_io_quit *cfiq)
-{
-	extern struct c2_fop_type_format c2_fom_io_quit_tfmt;
-	return c2_fop_type_uxdr(c2_fom_io_quit_tfmt.ftf_out, xdrs, cfiq);
-}
-
-struct c2_fop_memlayout c2_fom_io_quit_memlayout = {
-	.fm_sizeof = sizeof (struct c2_fom_io_quit),
-	.fm_uxdr = (xdrproc_t)uxdr_c2_fom_io_quit,
-	.fm_child = {
-		{ offsetof(struct c2_fom_io_quit, siq_rc) },
+		{ offsetof(struct c2_fom_io_create_rep, ficr_rc) },
 	}
 };
 
 
 
-/*
+/* 
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -93,7 +93,6 @@ struct reqh_net_call {
 int reply;
 int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
 int c2_io_fom_fail(struct c2_fom *fom);
-extern bool c2_fom_invariant(struct c2_fom *fom);
 
 /**
  * fop operation structures for corresponding fops.
@@ -113,15 +112,9 @@ static struct c2_fop_type_ops create_fop_ops = {
 	.fto_execute = NULL,
 };
 
-static struct c2_fop_type_ops quit_fop_ops = {
-	.fto_fom_init = c2_io_fom_init,
-	.fto_execute = NULL,
-};
-
 C2_FOP_TYPE_DECLARE(c2_fom_io_create, "create", 10, &create_fop_ops);
 C2_FOP_TYPE_DECLARE(c2_fom_io_write, "write", 11, &write_fop_ops);
 C2_FOP_TYPE_DECLARE(c2_fom_io_read, "read", 12, &read_fop_ops);
-C2_FOP_TYPE_DECLARE(c2_fom_io_quit, "quit", 13, &quit_fop_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fom_io_create_rep, "create reply", 21, NULL);
 C2_FOP_TYPE_DECLARE(c2_fom_io_write_rep, "write reply", 22, NULL);
@@ -131,7 +124,6 @@ static struct c2_fop_type *fops[] = {
 	&c2_fom_io_create_fopt,
 	&c2_fom_io_write_fopt,
 	&c2_fom_io_read_fopt,
-	&c2_fom_io_quit_fopt,
 
 	&c2_fom_io_create_rep_fopt,
 	&c2_fom_io_write_rep_fopt,
@@ -142,14 +134,10 @@ static struct c2_fop_type *fopt[] = {
 	&c2_fom_io_create_fopt,
 	&c2_fom_io_write_fopt,
 	&c2_fom_io_read_fopt,
-	&c2_fom_io_quit_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
-	&c2_fom_fop_fid_tfmt,
-	&c2_fom_io_seg_tfmt,
-	&c2_fom_io_buf_tfmt,
-	&c2_fom_io_vec_tfmt,
+        &c2_fom_fop_fid_tfmt,
 };
 
 /**
@@ -262,7 +250,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 						struct c2_fom_io_create_rep *rep;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							printf("Create reply: %i\n",rep->sicr_rc);
+							printf("Create reply: %i\n",rep->ficr_rc);
 							++reply;
 						}
 						c2_fop_free(rfop);
@@ -273,8 +261,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 						struct c2_fom_io_write_rep *rep;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							printf("Write reply: %i %i\n", rep->siwr_rc,
-									rep->siwr_count);
+							printf("Write reply: %i %i\n", rep->fiwr_rc,
+									rep->fiwr_count);
 							++reply;
 						}
 						c2_fop_free(rfop);
@@ -283,15 +271,10 @@ static void fom_rep_cb(struct c2_clink *clink)
 					case 23:
 					{
 						struct c2_fom_io_read_rep *rep;
-						unsigned long j = 0;
 						rep = c2_fop_data(rfop);
 						if(rep != NULL) {
-							printf("Read reply: %i %i\n", rep->sirr_rc,
-									rep->sirr_buf.cib_count);
-							printf("\t[");
-							for (j = 0; j < rep->sirr_buf.cib_count; ++j)
-								printf("%02x", rep->sirr_buf.cib_value[j]);
-							printf("]\n");
+							printf("Read reply: %i %i %c\n", rep->firr_rc,
+									rep->firr_count, rep->firr_value);
 							++reply;
 						}
 						c2_fop_free(rfop);
@@ -303,7 +286,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 						struct c2_reqh_error_rep *rep;
 						rep = c2_fop_data(rfop);
 						if (rep != NULL) {
-							printf("Got reply: %i\n", rep->sierr_rc);
+							printf("Got reply: %i\n", rep->rerr_rc);
 							++reply;
 						}
 						c2_fop_free(rfop);
@@ -330,7 +313,7 @@ static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *f
 	fop = c2_fop_data(f);
 	r = c2_fop_alloc(&c2_fom_io_create_rep_fopt, NULL);
 	rep = c2_fop_data(r);
-	fop->sic_object = *fid;
+	fop->fic_object = *fid;
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_UT_ASSERT(rcall != NULL);
@@ -355,9 +338,7 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid
 	r = c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
 	rep = c2_fop_data(r);
 
-	fop->sir_object = *fid;
-	fop->sir_seg.f_offset = (unsigned long long)0;
-	fop->sir_seg.f_count = (unsigned int)1;
+	fop->fir_object = *fid;
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_UT_ASSERT(rcall != NULL);
@@ -376,7 +357,6 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 	struct c2_fom_io_write		*fop;
 	struct c2_fom_io_write_rep	*rep;
 	struct reqh_net_call		*rcall;
-	char filler;
 
 	f = c2_fop_alloc(&c2_fom_io_write_fopt, NULL);
 	fop = c2_fop_data(f);
@@ -384,13 +364,8 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 	rep = c2_fop_data(r);
 
 	C2_SET0(&rep);
-	fop->siw_object = *fid;
-	fop->siw_offset = (unsigned long long)0;
-	fop->siw_buf.cib_count = (unsigned long long)1;
-	filler = 'a';
-	fop->siw_buf.cib_value = c2_alloc(fop->siw_buf.cib_count);
-	C2_UT_ASSERT(fop->siw_buf.cib_value != NULL);
-	memset(fop->siw_buf.cib_value, filler, fop->siw_buf.cib_count);
+	fop->fiw_object = *fid;
+	fop->fiw_value = 'a';
 
 	rcall = c2_alloc(sizeof *rcall);
 	C2_UT_ASSERT(rcall != NULL);
@@ -562,21 +537,21 @@ size_t fom_home_locality(const struct c2_fom *fom)
 			struct c2_fom_io_create *fop;
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->sic_object.f_oid;
+			oid = fop->fic_object.f_oid;
 			iloc = oid % fd_nr;
 		}
 		case 11: {
 			struct c2_fom_io_read *fop;
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->sir_object.f_oid;
+			oid = fop->fir_object.f_oid;
 			iloc = oid % fd_nr;
 		}
 		case 12: {
 			struct c2_fom_io_write *fop;
 			U64 oid;
 			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->siw_object.f_oid;
+			oid = fop->fiw_object.f_oid;
 			iloc = oid % fd_nr;
 		}
 	}
@@ -609,25 +584,25 @@ int create_fom_state(struct c2_fom *fom)
 			} else
 				return 0;
 
-			fom_obj->stobj = object_find(&in_fop->sic_object, &fom->fo_tx, fom);
+			fom_obj->stobj = object_find(&in_fop->fic_object, &fom->fo_tx, fom);
 
 			result = c2_stob_create(fom_obj->stobj, &fom->fo_tx);
 			C2_UT_ASSERT(result == 0);
-			out_fop->sicr_rc = 0;
+			out_fop->ficr_rc = 0;
 			fom->fo_rep_fop = fom_obj->rep_fop;
 			/*
 			 * add fol record
-			 * if we block set fom->fo_phase to FOPH_QUEUE_REPLY_WAIT,
-			 * else transition to FOPH_QUEUE_REPLY.
+			 * if we block set fom->fo_phase to FOPH_QUEUE_SUCCESS_REPLY_WAIT,
+			 * else transition to FOPH_QUEUE_SUCCESS_REPLY.
 			 */
 			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, &fom->fo_tx.tx_dbtx);
-			fom->fo_phase = FOPH_QUEUE_REPLY;
+			fom->fo_phase = FOPH_QUEUE_SUCCESS_REPLY;
 			result = FSO_AGAIN;
 		} else {
 
 			c2_stob_put(fom_obj->stobj);
 
-			fom->fo_phase = FOPH_SUCCEED;
+			fom->fo_phase = FOPH_SUCCESS;
 			result = FSO_AGAIN;
 		}
 	}
@@ -645,6 +620,8 @@ int read_fom_state(struct c2_fom *fom)
 	struct c2_io_fom		*fom_obj;
 	struct c2_clink			 clink;
 	void				*addr;
+	c2_bcount_t			 count;
+	c2_bcount_t			 offset;
 	uint32_t			 bshift;
 	uint64_t			 bmask;
 	int				 result = FSO_AGAIN;
@@ -662,31 +639,24 @@ int read_fom_state(struct c2_fom *fom)
 			} else
 				return 0;
 
-			fom_obj->stobj = object_find(&in_fop->sir_object, &fom->fo_tx, fom);
+			fom_obj->stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
 
 			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
 			bmask  = (1 << bshift) - 1;
 
-			C2_UT_ASSERT((in_fop->sir_seg.f_count & bmask) == 0);
-			C2_UT_ASSERT((in_fop->sir_seg.f_offset & bmask) == 0);
-
-			C2_ALLOC_ARR(out_fop->sirr_buf.cib_value, in_fop->sir_seg.f_count);
-			C2_UT_ASSERT(out_fop->sirr_buf.cib_value != NULL);
-
-			in_fop->sir_seg.f_count >>= bshift;
-			in_fop->sir_seg.f_offset >>= bshift;
-
-			addr = c2_stob_addr_pack(out_fop->sirr_buf.cib_value, bshift);
+			addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
 
 			c2_stob_io_init(&fom_obj->st_io);
 
+			count = 1 >> bshift;
+			offset = 0;
 			fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
-			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &in_fop->sir_seg.f_count;
+			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
 			fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
 
 			fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
-			fom_obj->st_io.si_stob.iv_vec.v_count = &in_fop->sir_seg.f_count;
-			fom_obj->st_io.si_stob.iv_index       = &in_fop->sir_seg.f_offset;
+			fom_obj->st_io.si_stob.iv_vec.v_count = &count;
+			fom_obj->st_io.si_stob.iv_index       = &offset;
 
 			fom_obj->st_io.si_opcode = SIO_READ;
 			fom_obj->st_io.si_flags  = 0;
@@ -699,33 +669,33 @@ int read_fom_state(struct c2_fom *fom)
 
 			c2_chan_wait(&clink);
 
-			out_fop->sirr_rc            = fom_obj->st_io.si_rc;
-			out_fop->sirr_buf.cib_count = fom_obj->st_io.si_count << bshift;
+			out_fop->firr_rc = fom_obj->st_io.si_rc;
+			out_fop->firr_count = fom_obj->st_io.si_count << bshift;
 
 			c2_clink_del(&clink);
 			c2_clink_fini(&clink);
 
 
 			if (result == -EDEADLK) {
-				fom->fo_phase = FOPH_FAILURE;
+				fom->fo_phase = FOPH_FAILED;
 				result = FSO_AGAIN;
 			} else {
 
 				/*
 				 * add fol record.
-				 * Transition to FOPH_QUEUE_REPLY.
+				 * Transition to FOPH_QUEUE_SUCCESS_REPLY.
 				 */
 				fom->fo_rep_fop = fom_obj->rep_fop;
 				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 								&fom->fo_tx.tx_dbtx);
-				fom->fo_phase = FOPH_QUEUE_REPLY;
+				fom->fo_phase = FOPH_QUEUE_SUCCESS_REPLY;
 				result = FSO_AGAIN;
 			}
 		} else {
 
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_SUCCEED;
+			fom->fo_phase = FOPH_SUCCESS;
 			result = FSO_AGAIN;
 		}
 	}
@@ -761,17 +731,14 @@ int write_fom_state(struct c2_fom *fom)
 			} else
 				return 0;
 
-			fom_obj->stobj = object_find(&in_fop->siw_object, &fom->fo_tx, fom);
+			fom_obj->stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
 
 			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
 			bmask  = (1 << bshift) - 1;
 
-			C2_UT_ASSERT((in_fop->siw_buf.cib_count & bmask) == 0);
-			C2_UT_ASSERT((in_fop->siw_offset & bmask) == 0);
-
-			addr = c2_stob_addr_pack(in_fop->siw_buf.cib_value, bshift);
-			count = in_fop->siw_buf.cib_count >> bshift;
-			offset = in_fop->siw_offset >> bshift;
+			addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
+			count = 1 >> bshift;
+			offset = 0;
 
 			c2_stob_io_init(&fom_obj->st_io);
 
@@ -795,31 +762,31 @@ int write_fom_state(struct c2_fom *fom)
 
 			c2_chan_wait(&clink);
 
-			out_fop->siwr_rc    = fom_obj->st_io.si_rc;
-			out_fop->siwr_count = fom_obj->st_io.si_count << bshift;
+			out_fop->fiwr_rc    = fom_obj->st_io.si_rc;
+			out_fop->fiwr_count = fom_obj->st_io.si_count << bshift;
 
 			c2_clink_del(&clink);
 			c2_clink_fini(&clink);
 
 			if (result == -EDEADLK) {
-				fom->fo_phase = FOPH_FAILURE;
+				fom->fo_phase = FOPH_FAILED;
 				result = FSO_AGAIN;
 			} else {
 
 				/*
 				 * add fol record.
-				 * Transition to FOPH_QUEUE_REPLY.
+				 * Transition to FOPH_QUEUE_SUCCESS_REPLY.
 				 */
 				fom->fo_rep_fop = fom_obj->rep_fop;
 				result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
 								&fom->fo_tx.tx_dbtx);
-				fom->fo_phase = FOPH_QUEUE_REPLY;
+				fom->fo_phase = FOPH_QUEUE_SUCCESS_REPLY;
 				result = FSO_AGAIN;
 			}
 		} else {
 			c2_stob_io_fini(&fom_obj->st_io);
 			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_SUCCEED;
+			fom->fo_phase = FOPH_SUCCESS;
 			result = FSO_AGAIN;
 		}
 	}
@@ -870,7 +837,6 @@ void fom_io_fop_fini(void)
 {
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
 }
 
 /**
@@ -883,8 +849,8 @@ int fom_io_fop_init(void)
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 	if (result == 0) {
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-		if (result == 0)
-			c2_fop_object_init(&c2_fom_fop_fid_tfmt);
+                if (result == 0)
+                        c2_fop_object_init(&c2_fom_fop_fid_tfmt);
 	}
 	if (result != 0)
 		fom_io_fop_fini();
@@ -931,9 +897,6 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	out->e_start = mb->mb_next;
 	out->e_end   = mb->mb_next + giveout;
 	mb->mb_next += giveout + 1;
-	/*
-	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count,
-		out->e_start, out->e_end); */
 	c2_mutex_unlock(&mb->mb_lock);
 	return 0;
 }
@@ -941,8 +904,6 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
-	printf("freed     %8lx bytes: [%8lx .. %8lx)\n", c2_ext_length(ext),
-		ext->e_start, ext->e_end);
 	return 0;
 }
 
