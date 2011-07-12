@@ -222,10 +222,8 @@ enum c2_fom_phase {
 	FOPH_TXN_CONTEXT,           /*< creating local transactional context. */
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
 
-	FOPH_QUEUE_SUCCESS_REPLY,   /*< queuing successful fop reply.  */
-	FOPH_QUEUE_SUCCESS_REPLY_WAIT, /*< waiting for fop cache space. */
-	FOPH_QUEUE_ERROR_REPLY,     /*< queuing fop error reply. */
-	FOPH_QUEUE_ERROR_REPLY_WAIT,  /*< waiting for fop cache space. */
+	FOPH_QUEUE_REPLY,   	    /*< queuing fop reply.  */
+	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
 	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
@@ -299,6 +297,7 @@ struct c2_fom {
 	    latest rpc layer.
 	 */
 	void			*fo_cookie;
+	int			 rc;
 };
 
 /**

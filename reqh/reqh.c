@@ -597,43 +597,33 @@ static const struct fom_phase_ops fp_table[] = {
 	  .fpo_name = "create_loc_ctx_wait",
 	  .fpo_wait = false },
 
-	{ .fpo_action = fom_queue_success_reply,
-	  .fpo_nextphase = FOPH_NR+1,
-	  .fpo_name = "fom_queue_success_reply",
+	{ .fpo_action = fom_queue_reply,
+	  .fpo_nextphase = FOPH_TXN_COMMIT,
+	  .fpo_name = "fom_queue_reply",
 	  .fpo_wait = false },
 
-	{ .fpo_action = fom_queue_success_reply_wait,
-	  .fpo_nextphase = FOPH_NR+1,
-	  .fpo_name = "fom_queue_success_reply_wait",
-	  .fpo_wait = false },
-
-	{ .fpo_action = fom_queue_error_reply,
-	  .fpo_nextphase = FOPH_FAILED,
-	  .fpo_name = "fom_queue_error_reply",
-	  .fpo_wait = false },
-
-	{ .fpo_action = fom_queue_error_reply_wait,
-	  .fpo_nextphase = FOPH_FAILED,
-	  .fpo_name = "fom_queue_error_reply_wait",
+	{ .fpo_action = fom_queue_reply_wait,
+	  .fpo_nextphase = FOPH_TXN_COMMIT,
+	  .fpo_name = "fom_queue_reply_wait",
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_txn_commit,
-	  .fpo_nextphase = FOPH_DONE,
+	  .fpo_nextphase = FOPH_NR+1,
 	  .fpo_name = "fom_txn_commit",
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_txn_commit_wait,
-	  .fpo_nextphase = FOPH_DONE,
+	  .fpo_nextphase = FOPH_NR+1,
 	  .fpo_name = "fom_txn_commit_wait",
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_txn_abort,
-	  .fpo_nextphase = FOPH_DONE,
+	  .fpo_nextphase = FOPH_NR+1,
 	  .fpo_name = "fom_txn_abort",
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_txn_abort_wait,
-	  .fpo_nextphase = FOPH_DONE,
+	  .fpo_nextphase = FOPH_NR+1,
 	  .fpo_name = "fom_txn_abort_wait",
 	  .fpo_wait = false },
 
@@ -643,12 +633,12 @@ static const struct fom_phase_ops fp_table[] = {
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_success,
-	  .fpo_nextphase = FOPH_TXN_COMMIT,
+	  .fpo_nextphase = FOPH_DONE,
 	  .fpo_name = "fom_success",
 	  .fpo_wait = false },
 
 	{ .fpo_action = fom_failed,
-	  .fpo_nextphase = FOPH_TXN_ABORT,
+	  .fpo_nextphase = FOPH_DONE,
 	  .fpo_name = "fom_failed",
 	  .fpo_wait = false }};
 
@@ -662,11 +652,12 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	if (fom->fo_phase == FOPH_FAILED)
 		REQH_ADDB_ADD(fom->fo_fop->f_addb, fp_table[fom->fo_phase].fpo_name, rc);
-	if (!fp_table[fom->fo_phase].fpo_wait)
-		fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
-
-	if (rc < 0)
-		rc = FSO_WAIT;
+	if (rc != FSO_WAIT) {
+		if (fom->rc != 0 && fom->fo_phase == FOPH_QUEUE_REPLY) {
+			fp_table[fom->fo_phase].fpo_nextphase = FOPH_TXN_ABORT;
+			fom->fo_phase = fp_table[fom->fo_phase].fpo_nextphase;
+		}
+	}
 	return rc;
 }
 
