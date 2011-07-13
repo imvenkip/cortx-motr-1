@@ -39,10 +39,13 @@
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
 #include "ioservice/io_fops.h"
+#include "rpc/ping_fop.h"
+#include "rpc/ping_fom.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
+#include "rpc/ping_fop_u.h"
 #endif
 #include "stob/ut/io_fop.h"
 
@@ -84,6 +87,10 @@ struct ping_ctx {
 	int					 pc_nr_slots;
 	/* number of ping items */
 	int					 pc_nr_ping_items;
+	/* number of ping bytes */
+	int					 pc_nr_ping_bytes;
+	/* number of client threads */
+	int					 pc_nr_client_threads;
 };
 
 /* Default port values */
@@ -104,12 +111,22 @@ enum {
 
 /* Default number of slots */
 enum {
-	NR_SLOTS = 200,
+	NR_SLOTS = 1,
 };
 
 /* Default number of ping items */
 enum {
-	NR_PING_ITEMS = 20,
+	NR_PING_ITEMS = 1,
+};
+
+/* Default number of ping bytes */
+enum {
+	NR_PING_BYTES = 8,
+};
+
+/* Default number of client threads*/
+enum {
+	NR_CLIENT_THREADS = 1,
 };
 
 /* Global client ping context */
@@ -289,16 +306,25 @@ int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
 void send_ping_fop(int nr)
 {
 	struct c2_fop                   *fop = NULL;
-	struct c2_fop_file_create       *create_fop = NULL;
-	struct c2_fop_file_fid          fid;
+	struct c2_fop_ping		*ping_fop = NULL;
 	struct c2_rpc_item		*item = NULL;
+	uint32_t			 nr_mod;
+	uint32_t			 nr_arr_member;
+	int				 i;
 
-	fop = c2_fop_alloc(&c2_fop_file_create_fopt, NULL);
+	nr_mod = cctx.pc_nr_ping_bytes % 8;
+	if (nr_mod == 0)
+		nr_arr_member = cctx.pc_nr_ping_bytes / 8;
+	else
+		nr_arr_member = (cctx.pc_nr_ping_bytes / 8) + 1;
+	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_ASSERT(fop != NULL);
-	create_fop = c2_fop_data(fop);
-	fid.f_seq = 100 + nr;
-	fid.f_oid = 200 + nr;
-	create_fop->fcr_fid = fid;
+	ping_fop = c2_fop_data(fop);
+	ping_fop->fp_arr.f_count = nr_arr_member;
+	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
+	for (i = 0; i < nr_arr_member; i++) {
+		ping_fop->fp_arr.f_data[i] = i+100;
+	}
 	item = &fop->f_item;
 	c2_rpc_form_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
@@ -359,7 +385,7 @@ void print_stats(bool client, bool server)
 
 	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
-	printf("*******************************************\n");
+	printf("*********************************************\n");
 
 	printf("\n\n*********************************************\n");
 	printf("Stats on Incoming Path\n");
@@ -376,7 +402,7 @@ void print_stats(bool client, bool server)
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
@@ -386,7 +412,7 @@ void print_stats(bool client, bool server)
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
@@ -404,12 +430,13 @@ void print_stats(bool client, bool server)
 /* Create the client */
 void client_init()
 {
-	int		rc = 0;
-	int		i;
-	bool		rcb;
-	char		addr[ADDR_LEN];
-	char		hostbuf[ADDR_LEN];
-        c2_time_t	timeout;
+	int			 rc = 0;
+	int			 i;
+	bool			 rcb;
+	char			 addr[ADDR_LEN];
+	char			 hostbuf[ADDR_LEN];
+        c2_time_t		 timeout;
+	struct c2_thread	*client_thread;
 
 	/* Init Bulk sunrpc transport */
 	cctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -537,8 +564,6 @@ void client_init()
 			printf("pingcli: Connection established\n");
 		else if (cctx.pc_conn.c_state == C2_RPC_CONN_FAILED)
 			printf("pingcli: conn create failed\n");
-	//	else
-	//		printf("pingcli: conn INVALID!!!|n");
 	} else
 		printf("Timeout for conn create \n");
 
@@ -577,9 +602,22 @@ void client_init()
 	} else
 		printf("Timeout for session create \n");
 
+	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
+	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
+		C2_SET0(&client_thread[i]);
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				NULL, &send_ping_fop,
+				0, "client_%d", i);
+		C2_ASSERT(rc == 0);
+	}
+	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
+		c2_thread_join(&client_thread[i]);
+	}
+
+	/*
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
-	}
+	}*/
 	sleep (3);
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
@@ -639,15 +677,18 @@ cleanup:
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 {
-	int			 rc;
-	bool			 client = false;
-	const char		*client_name = NULL;
-	int			 client_port = 0;
+	bool			 verbose = false;
 	bool			 server = false;
+	bool			 client = false;
 	const char		*server_name = NULL;
+	const char		*client_name = NULL;
 	int			 server_port = 0;
+	int			 client_port = 0;
 	int			 nr_slots = 0;
-	int			 nr_ping_item;
+	int			 nr_ping_bytes = 0;
+	int			 nr_ping_item = 0;
+	int			 nr_client_threads = 0;
+	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	uint64_t		 c2_rpc_max_message_size;
@@ -662,18 +703,22 @@ int main(int argc, char *argv[])
 	rc = io_fop_init();
 	if (rc != 0)
 		return rc;
+	c2_ping_fop_init();
 
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
+		C2_FLAGARG('s', "run server", &server),
 		C2_STRINGARG('C', "client hostname",
 			LAMBDA(void, (const char *str) {client_name = str; })),
 		C2_FORMATARG('p', "client port", "%i", &client_port),
-		C2_FLAGARG('s', "run server", &server),
 		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('p', "server port", "%i", &server_port),
+		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
+		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
-		C2_FORMATARG('L', "number of ping items", "%i", &nr_ping_item));
+		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
 	
@@ -684,6 +729,8 @@ int main(int argc, char *argv[])
 	sctx.pc_lport = cctx.pc_rport = SERVER_PORT;
 	cctx.pc_nr_slots = NR_SLOTS;
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
+	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
+	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
@@ -695,23 +742,28 @@ int main(int argc, char *argv[])
                         c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
 	/* Set if passed through command line interface */
-	if(client_name)
+	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;
-	if(client_port)
+	if (client_port != 0)
 		sctx.pc_rport = cctx.pc_lport = client_port;
-	if(server_name)
+	if (server_name)
 		sctx.pc_lhostname = cctx.pc_rhostname = server_name;
-	if(server_port)
+	if (server_port != 0)
 		sctx.pc_lport = cctx.pc_rport = server_port;
-	if(nr_slots)
+	if (nr_slots != 0)
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
-	if(nr_ping_item)
-		sctx.pc_nr_ping_items = cctx.pc_nr_ping_items = nr_ping_item;
+	if (nr_ping_item != 0)
+		cctx.pc_nr_ping_items = nr_ping_item;
+	if (nr_ping_bytes != 0)
+		cctx.pc_nr_ping_bytes = nr_ping_bytes;
+	if (nr_client_threads != 0)
+		cctx.pc_nr_client_threads = nr_client_threads;
 
 	/* Client part */
 	if(client) {
 		client_init();
-		print_stats(client, server);
+		if (verbose)
+			print_stats(client, server);
 	}
 
 	/* Server part */
@@ -724,7 +776,8 @@ int main(int argc, char *argv[])
 		rc = C2_THREAD_INIT(&server_rqh_thread, int, NULL,
 				&server_rqh_init, 0, "ping_server_rqh");
 		server_poll();
-		print_stats(client, server);
+		if (verbose)
+			print_stats(client, server);
 		c2_thread_join(&server_thread);
 	}
 
