@@ -85,16 +85,16 @@ static bool item_is_conn_create(const struct c2_rpc_item  *item);
 /**
   XXX temporary routine that submits the fop inside item for execution.
  */
-static void dispatch_item_for_execution(struct c2_rpc_item *item);
+static void item_dispatch(struct c2_rpc_item *item);
 
 static void sender_slot_idle(struct c2_rpc_slot *slot);
-static void sender_consume_item(struct c2_rpc_item *item);
-static void sender_consume_reply(struct c2_rpc_item	*req,
+static void sender_item_consume(struct c2_rpc_item *item);
+static void sender_reply_consume(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply);
 
 static void rcv_slot_idle(struct c2_rpc_slot *slot);
-static void rcv_consume_item(struct c2_rpc_item *item);
-static void rcv_consume_reply(struct c2_rpc_item  *req,
+static void rcv_item_consume(struct c2_rpc_item *item);
+static void rcv_reply_consume(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply);
 
 
@@ -146,13 +146,13 @@ static int session_persistent_state_destroy(struct c2_rpc_session  *session,
 
 const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
 	.so_slot_idle = sender_slot_idle,
-	.so_consume_item = sender_consume_item,
-	.so_consume_reply = sender_consume_reply
+	.so_item_consume = sender_item_consume,
+	.so_reply_consume = sender_reply_consume
 };
 const struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops = {
 	.so_slot_idle = rcv_slot_idle,
-	.so_consume_item = rcv_consume_item,
-	.so_consume_reply = rcv_consume_reply
+	.so_item_consume = rcv_item_consume,
+	.so_reply_consume = rcv_reply_consume
 };
 
 int c2_rpc_session_module_init(void)
@@ -666,67 +666,67 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	recv_end = conn->c_flags & RCF_RECV_END;
 
 	switch (conn->c_state) {
-		case C2_RPC_CONN_CREATING:
-		case C2_RPC_CONN_ACTIVE:
-		case C2_RPC_CONN_TERMINATING:
-			conn_list = sender_end ?
-					&conn->c_rpcmachine->cr_outgoing_conns :
-					&conn->c_rpcmachine->cr_incoming_conns;
-		default:
-			/* Do nothing */;
+	case C2_RPC_CONN_CREATING:
+	case C2_RPC_CONN_ACTIVE:
+	case C2_RPC_CONN_TERMINATING:
+		conn_list = sender_end ?
+				&conn->c_rpcmachine->cr_outgoing_conns :
+				&conn->c_rpcmachine->cr_incoming_conns;
+	default:
+		/* Do nothing */;
 	}
 
 	switch (conn->c_state) {
-		case C2_RPC_CONN_TERMINATED:
-			return !c2_list_link_is_in(&conn->c_link) &&
-				conn->c_rpcmachine == NULL &&
-				c2_list_length(&conn->c_sessions) == 1 &&
-				conn->c_nr_sessions == 0 &&
-				conn->c_cob == NULL &&
-				conn->c_rc == 0;
+	case C2_RPC_CONN_TERMINATED:
+		return !c2_list_link_is_in(&conn->c_link) &&
+			conn->c_rpcmachine == NULL &&
+			c2_list_length(&conn->c_sessions) == 1 &&
+			conn->c_nr_sessions == 0 &&
+			conn->c_cob == NULL &&
+			conn->c_rc == 0;
 
-		case C2_RPC_CONN_INITIALISED:
-			return conn->c_sender_id == SENDER_ID_INVALID &&
-				conn->c_rpcmachine != NULL &&
-				c2_list_length(&conn->c_sessions) == 1 &&
-				!c2_list_link_is_in(&conn->c_link) &&
-				conn->c_nr_sessions == 0 &&
-				sender_end != recv_end;
+	case C2_RPC_CONN_INITIALISED:
+		return conn->c_sender_id == SENDER_ID_INVALID &&
+			conn->c_rpcmachine != NULL &&
+			c2_list_length(&conn->c_sessions) == 1 &&
+			!c2_list_link_is_in(&conn->c_link) &&
+			conn->c_nr_sessions == 0 &&
+			sender_end != recv_end;
 
-		case C2_RPC_CONN_CREATING:
-			return conn->c_sender_id == SENDER_ID_INVALID &&
-				conn->c_nr_sessions == 0 &&
-				conn->c_end_point != NULL &&
-				conn->c_rpcmachine != NULL &&
-				c2_list_length(&conn->c_sessions) == 1 &&
-				c2_list_contains(conn_list, &conn->c_link) &&
-				sender_end != recv_end;
+	case C2_RPC_CONN_CREATING:
+		return conn->c_sender_id == SENDER_ID_INVALID &&
+			conn->c_nr_sessions == 0 &&
+			conn->c_end_point != NULL &&
+			conn->c_rpcmachine != NULL &&
+			c2_list_length(&conn->c_sessions) == 1 &&
+			c2_list_contains(conn_list, &conn->c_link) &&
+			sender_end != recv_end;
 
-		case C2_RPC_CONN_ACTIVE:
-			return conn->c_sender_id != SENDER_ID_INVALID &&
-				conn->c_end_point != NULL &&
-				conn->c_rpcmachine != NULL &&
-				c2_list_invariant(&conn->c_sessions) &&
-				c2_list_contains(conn_list, &conn->c_link) &&
-				sender_end != recv_end &&
-				c2_list_length(&conn->c_sessions) ==
-					conn->c_nr_sessions + 1 &&
-				ergo(recv_end, conn->c_cob != NULL);
+	case C2_RPC_CONN_ACTIVE:
+		return conn->c_sender_id != SENDER_ID_INVALID &&
+			conn->c_end_point != NULL &&
+			conn->c_rpcmachine != NULL &&
+			c2_list_invariant(&conn->c_sessions) &&
+			c2_list_contains(conn_list, &conn->c_link) &&
+			sender_end != recv_end &&
+			c2_list_length(&conn->c_sessions) ==
+				conn->c_nr_sessions + 1 &&
+			ergo(recv_end, conn->c_cob != NULL);
 
-		case C2_RPC_CONN_TERMINATING:
-			return conn->c_nr_sessions == 0 &&
-				conn->c_sender_id != SENDER_ID_INVALID &&
-				conn->c_rpcmachine != NULL &&
-				c2_list_contains(conn_list, &conn->c_link) &&
-				c2_list_length(&conn->c_sessions) == 1 &&
-				sender_end != recv_end;
+	case C2_RPC_CONN_TERMINATING:
+		return conn->c_nr_sessions == 0 &&
+			conn->c_sender_id != SENDER_ID_INVALID &&
+			conn->c_rpcmachine != NULL &&
+			c2_list_contains(conn_list, &conn->c_link) &&
+			c2_list_length(&conn->c_sessions) == 1 &&
+			sender_end != recv_end;
 
-		case C2_RPC_CONN_FAILED:
-			return conn->c_rc != 0 &&
-				!c2_list_link_is_in(&conn->c_link) &&
-				conn->c_rpcmachine == NULL;
-		default:
-			return false;
+	case C2_RPC_CONN_FAILED:
+		return conn->c_rc != 0 &&
+			!c2_list_link_is_in(&conn->c_link) &&
+			conn->c_rpcmachine == NULL;
+	default:
+		return false;
 	}
 	/* Should never reach here */
 	C2_ASSERT(0);
@@ -1177,9 +1177,6 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
 	for (i = 0; i < session->s_nr_slots; i++) {
 		if (session->s_slot_table[i] == NULL)
 			return false;
-		if (!c2_rpc_slot_invariant(
-			session->s_slot_table[i]))
-			return false;
 	}
 	return true;
 }
@@ -1197,57 +1194,57 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		return false;
 
 	switch (session->s_state) {
-		case C2_RPC_SESSION_INITIALISED:
-			return session->s_session_id == SESSION_ID_INVALID &&
-				session->s_conn != NULL;
-		case C2_RPC_SESSION_CREATING:
-			return session->s_session_id == SESSION_ID_INVALID &&
-				session->s_conn != NULL &&
-				c2_list_contains(&session->s_conn->c_sessions,
-					&session->s_link);
-		case C2_RPC_SESSION_TERMINATED:
-			return  !c2_list_link_is_in(&session->s_link) &&
-				session->s_conn == NULL &&
-				session->s_cob == NULL;
+	case C2_RPC_SESSION_INITIALISED:
+		return session->s_session_id == SESSION_ID_INVALID &&
+			session->s_conn != NULL;
+	case C2_RPC_SESSION_CREATING:
+		return session->s_session_id == SESSION_ID_INVALID &&
+			session->s_conn != NULL &&
+			c2_list_contains(&session->s_conn->c_sessions,
+				&session->s_link);
+	case C2_RPC_SESSION_TERMINATED:
+		return  !c2_list_link_is_in(&session->s_link) &&
+			session->s_conn == NULL &&
+			session->s_cob == NULL;
 
-		case C2_RPC_SESSION_IDLE:
-			result = session->s_nr_active_items == 0 &&
-				 c2_list_is_empty(&session->s_unbound_items) &&
-				 session_alive_invariants(session);
+	case C2_RPC_SESSION_IDLE:
+		result = session->s_nr_active_items == 0 &&
+			 c2_list_is_empty(&session->s_unbound_items) &&
+			 session_alive_invariants(session);
 
-			if (!result)
-				return result;
+		if (!result)
+			return result;
 
-			for (i = 0; i < session->s_nr_slots; i++) {
-				slot = session->s_slot_table[i];
+		for (i = 0; i < session->s_nr_slots; i++) {
+			slot = session->s_slot_table[i];
 
-				c2_list_for_each_entry(&slot->sl_item_list,
-						item, struct c2_rpc_item,
-						ri_slot_refs[0].sr_link) {
-					switch (item->ri_tstate) {
-						case RPC_ITEM_PAST_COMMITTED:
-						case RPC_ITEM_PAST_VOLATILE:
-							continue;
-						default:
-							return false;
-					}
+			c2_list_for_each_entry(&slot->sl_item_list, item,
+					struct c2_rpc_item,
+					ri_slot_refs[0].sr_link) {
+				switch (item->ri_tstate) {
+				case RPC_ITEM_PAST_COMMITTED:
+				case RPC_ITEM_PAST_VOLATILE:
+					continue;
+				default:
+					return false;
 				}
 			}
-			return true;
-		case C2_RPC_SESSION_BUSY:
-			return (session->s_nr_active_items > 0 ||
-			       !c2_list_is_empty(&session->s_unbound_items)) &&
-			       session_alive_invariants(session);
+		}
+		return true;
+	case C2_RPC_SESSION_BUSY:
+		return (session->s_nr_active_items > 0 ||
+		       !c2_list_is_empty(&session->s_unbound_items)) &&
+		       session_alive_invariants(session);
 
-		case C2_RPC_SESSION_TERMINATING:
-			return session_alive_invariants(session);
+	case C2_RPC_SESSION_TERMINATING:
+		return session_alive_invariants(session);
 
-		case C2_RPC_SESSION_FAILED:
-			return session->s_rc != 0 &&
-				!c2_list_link_is_in(&session->s_link) &&
-				session->s_conn == NULL;
-		default:
-			return false;
+	case C2_RPC_SESSION_FAILED:
+		return session->s_rc != 0 &&
+			!c2_list_link_is_in(&session->s_link) &&
+			session->s_conn == NULL;
+	default:
+		return false;
 	}
 	/* Should never reach here */
 	C2_ASSERT(0);
@@ -1586,7 +1583,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 
 /**
    If slot->sl_item_list has item(s) in state FUTURE then
-	call slot->sl_ops->so_consume_item() for upto slot->sl_max_in_flight
+	call slot->sl_ops->so_item_consume() for upto slot->sl_max_in_flight
 	  number of (FUTURE)items. (On sender, each "consumed" item will be
 	  given to formation for transmission. On receiver, "consumed" item is
 	  "dispatched" to request handler for execution)
@@ -1635,7 +1632,7 @@ static void __slot_balance(struct c2_rpc_slot	*slot,
 		 * Tell formation module that an item is ready to be put in rpc
 		 */
 		if (allow_events)
-			slot->sl_ops->so_consume_item(item);
+			slot->sl_ops->so_item_consume(item);
 	}
 	C2_POST(c2_rpc_slot_invariant(slot));
 }
@@ -1763,7 +1760,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 	reply->ri_error = -EBADR;
 
 	printf("Misordered item: %p, sending reply: %p\n", item, reply);
-	slot->sl_ops->so_consume_reply(item, reply);
+	slot->sl_ops->so_reply_consume(item, reply);
 	return 0;
 }
 int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
@@ -1787,37 +1784,37 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 					false);
 	printf("redoable: %d\n", redoable);
 	switch (redoable) {
-		case 0:
-			printf("Applying item %p\n", item);
-			__slot_item_add(slot, item, true);
-			break;
-		case -EALREADY:
-			search_matching_request_item(slot, item, &req);
-			if (req == NULL) {
-				rc = c2_rpc_slot_misordered_item_received(slot,
-								         item);
-				break;
-			}
-			switch (req->ri_tstate) {
-				case RPC_ITEM_PAST_VOLATILE:
-				case RPC_ITEM_PAST_COMMITTED:
-					C2_ASSERT(req->ri_reply != NULL);
-					printf("resending reply: req %p reply %p\n",
-							req, req->ri_reply);
-					slot->sl_ops->so_consume_reply(req,
-								req->ri_reply);
-					break;
-				case RPC_ITEM_IN_PROGRESS:
-				case RPC_ITEM_FUTURE:
-					/* item is already present but is not
-					   processed yet. Ignore it*/
-					/* do nothing */;
-					printf("ignoring item: %p\n", item);
-			}
+	case 0:
+		printf("Applying item %p\n", item);
+		__slot_item_add(slot, item, true);
 		break;
-		case -EAGAIN:
-			rc = c2_rpc_slot_misordered_item_received(slot, item);
+	case -EALREADY:
+		search_matching_request_item(slot, item, &req);
+		if (req == NULL) {
+			rc = c2_rpc_slot_misordered_item_received(slot,
+								 item);
 			break;
+		}
+		switch (req->ri_tstate) {
+		case RPC_ITEM_PAST_VOLATILE:
+		case RPC_ITEM_PAST_COMMITTED:
+			C2_ASSERT(req->ri_reply != NULL);
+			printf("resending reply: req %p reply %p\n",
+					req, req->ri_reply);
+			slot->sl_ops->so_reply_consume(req,
+						req->ri_reply);
+			break;
+		case RPC_ITEM_IN_PROGRESS:
+		case RPC_ITEM_FUTURE:
+			/* item is already present but is not
+			   processed yet. Ignore it*/
+			/* do nothing */;
+			printf("ignoring item: %p\n", item);
+		}
+		break;
+	case -EAGAIN:
+		rc = c2_rpc_slot_misordered_item_received(slot, item);
+		break;
 	}
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 	return rc;
@@ -1913,7 +1910,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot	*slot,
 				session->s_state = C2_RPC_SESSION_IDLE;
 			}
 		}
-		slot->sl_ops->so_consume_reply(req, reply);
+		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
 	}
 }
@@ -2147,15 +2144,15 @@ static void sender_slot_idle(struct c2_rpc_slot *slot)
 	printf("sender_slot_idle called %p\n", slot);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
-static void sender_consume_item(struct c2_rpc_item *item)
+static void sender_item_consume(struct c2_rpc_item *item)
 {
-	printf("sender_consume_item called %p\n", item);
+	printf("sender_item_consume called %p\n", item);
 	c2_rpc_form_extevt_rpcitem_ready(item);
 }
-static void sender_consume_reply(struct c2_rpc_item	*req,
+static void sender_reply_consume(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
-	printf("sender_consume_reply called %p %p\n", req, reply);
+	printf("sender_reply_consume called %p %p\n", req, reply);
 	/* Don't do anything on sender to consume reply */
 }
 
@@ -2165,15 +2162,15 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 			slot->sl_verno.vn_vc, slot->sl_xid);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
-static void rcv_consume_item(struct c2_rpc_item *item)
+static void rcv_item_consume(struct c2_rpc_item *item)
 {
-	printf("rcv_consume_item called %p\n", item);
-	dispatch_item_for_execution(item);
+	printf("rcv_item_consume called %p\n", item);
+	item_dispatch(item);
 }
-static void rcv_consume_reply(struct c2_rpc_item  *req,
+static void rcv_reply_consume(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
-	printf("rcv_consume_reply called %p %p\n", req, reply);
+	printf("rcv_reply_consume called %p %p\n", req, reply);
 	c2_rpc_form_extevt_rpcitem_ready(reply);
 }
 
@@ -2564,7 +2561,7 @@ static bool item_is_conn_create(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_create;
 }
-static void dispatch_item_for_execution(struct c2_rpc_item *item)
+static void item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
 	c2_queue_put(&exec_queue, &item->ri_dummy_qlinkage);
@@ -2647,7 +2644,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	c2_rpc_item_set_incoming_exit_stats(item);
 	if (rc != 0) {
 		if (item_is_conn_create(item)) {
-			dispatch_item_for_execution(item);
+			item_dispatch(item);
 			return 0;
 		}
 		/*

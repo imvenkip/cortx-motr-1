@@ -665,10 +665,10 @@ enum {
  */
 struct c2_rpc_slot_ops {
 	/** Item i is ready to be consumed */
-	void (*so_consume_item)(struct c2_rpc_item *i);
+	void (*so_item_consume)(struct c2_rpc_item *i);
 	/** A @reply for a request item @req is received and is
 	    ready to be consumed */
-	void (*so_consume_reply)(struct c2_rpc_item	*req,
+	void (*so_reply_consume)(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply);
 	/** Slot has no items to send and hence is idle. Formation
 	    can use such slot to send unbound items */
