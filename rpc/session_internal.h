@@ -52,6 +52,11 @@ enum {
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
+/**
+   Search for a session with given @session_id in rpc connection conn.
+
+   If found *out contains pointer to session object else *out is set to NULL
+ */
 void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
 			   uint64_t			session_id,
 			   struct c2_rpc_session	**out);
@@ -321,14 +326,6 @@ struct c2_rpc_slot_ref {
 	struct c2_list_link		 sr_ready_link;
 };
 
-/**
-   Search for a session with given @session_id in rpc connection conn.
-
-   If found *out contains pointer to session object else *out is set to NULL
- */
-void session_search(const struct c2_rpc_conn	*conn,
-		    uint64_t			session_id,
-		    struct c2_rpc_session	**out);
 
 /**
    Called for each received item.

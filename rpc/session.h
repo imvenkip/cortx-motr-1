@@ -230,13 +230,16 @@ points to record of most recent update operation that updated the slot verno.
  groups such that items in a group can be executed in any order.
 
     @todo
-	- Currently sender_id and session_id are chosen to be random().
+	- kernel mode support
+	- stats
+	- Generate ADDB data points for important session events
 	- UUID generation
+	- store replies in FOL
+	- Currently sender_id and session_id are chosen to be random().
 	- How to get unique stob_id for session and slot cobs?
 	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.
-	- Integrate with ADDB
  */
 
 #include "lib/list.h"
