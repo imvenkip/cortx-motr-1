@@ -99,6 +99,10 @@ C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client, ev , ## __VA_ARGS__)
 C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client,                     \
             c2_addb_func_fail, (name), (rc))
 
+enum {
+	MINIMAL_XPRT_MAX_BUFFER_SIZE = (1<<19) + 1024,
+};
+
 static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 {
 	size_t i;
@@ -149,8 +153,17 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	}
 
 	sock = -1;
-	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
-					  id->ssi_ver, &sock, 0, 0);
+	if (conn->nc_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt)
+		/* Kernel does not support message fragmentation.
+		   Use max message sizes of sunrpc bulk emulation.
+		 */
+		xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
+						  id->ssi_ver, &sock,
+						  MINIMAL_XPRT_MAX_BUFFER_SIZE,
+						  MINIMAL_XPRT_MAX_BUFFER_SIZE);
+	else
+		xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
+						  id->ssi_ver, &sock, 0, 0);
 	if (xprt->nsx_client != NULL) {
 		xprt->nsx_fd = sock;
 		result = 0;

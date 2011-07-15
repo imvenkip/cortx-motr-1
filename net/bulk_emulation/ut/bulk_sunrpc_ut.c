@@ -431,12 +431,16 @@ static void test_sunrpc_ping(void)
 	len = PING_BUFFER_2PAGE_SIZE;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
+	data[i] = 0;
+	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	/* test sending/receiving even larger payload */
 	len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
+	data[i] = 0;
+	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 	sctx.pc_passive_size = len;
 	C2_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);

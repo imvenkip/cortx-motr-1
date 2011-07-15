@@ -224,7 +224,6 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		};
 
 		step = min32u(c2_bufvec_cursor_step(&cur), len);
-		step = min32u(step, 4000); /* XXX less that 1 page? */
 		fop->sp_offset = off;
 		rc = sunrpc_buffer_init(&fop->sp_buf, &cur, step);
 		if (rc == 0) {

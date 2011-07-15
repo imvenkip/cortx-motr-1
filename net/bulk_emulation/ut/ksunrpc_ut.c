@@ -252,7 +252,6 @@ int put_call(struct c2_net_conn *conn, int i)
 			.ac_ret = r
 		};
 		fop->sp_offset = 0;
-		fop->sp_buf.sb_len = i;
 		c2_bufvec_cursor_init(&incur, &inbuf);
 		rc = sunrpc_buffer_init(&fop->sp_buf, &incur, inlen);
 		C2_UT_ASSERT(rc == 0);
@@ -354,7 +353,7 @@ void test_ksunrpc_server(void)
 	conn1 = c2_net_conn_find(&sid1);
 	C2_UT_ASSERT(conn1 != NULL);
 
-	get_put_buf = c2_alloc(NUM);
+	get_put_buf = c2_alloc(NUM + 1);
 	C2_UT_ASSERT(get_put_buf != NULL);
 	for (i = 0; i < NUM; ++i)
 		get_put_buf[i] = i+1;

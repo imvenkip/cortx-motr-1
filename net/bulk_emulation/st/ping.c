@@ -213,7 +213,7 @@ int decode_msg(struct c2_net_buffer *nb, struct ping_msg *msg)
 		struct c2_bufvec_cursor outcur;
 
 		msg->pm_type = PM_MSG;
-		str = msg->pm_u.pm_str = c2_alloc(len);
+		str = msg->pm_u.pm_str = c2_alloc(len + 1);
 		c2_bufvec_cursor_init(&outcur, &out);
 		step = c2_bufvec_cursor_copy(&outcur, &cur, len);
 		C2_ASSERT(step == len);
@@ -290,6 +290,8 @@ void c_m_recv_cb(const struct c2_net_buffer_event *ev)
 			C2_ASSERT(strncmp(ctx->pc_compare_buf,
 					  msg.pm_u.pm_str, l) == 0);
 			C2_ASSERT(strcmp(&msg.pm_u.pm_str[l], SEND_RESP) == 0);
+			ctx->pc_ops->pf("%s: msg bytes validated\n",
+					ctx->pc_ident);
 		}
 		msg_free(&msg);
 	}
@@ -392,6 +394,9 @@ void c_p_recv_cb(const struct c2_net_buffer_event *ev)
 					break;
 				}
 			}
+			if (i == len - 1)
+				ctx->pc_ops->pf("%s: data bytes validated\n",
+						ctx->pc_ident);
 		}
 		msg_free(&msg);
 	}
