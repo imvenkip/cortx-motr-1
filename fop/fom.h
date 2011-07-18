@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- *				     Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
+ * 		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/04/2011
  */
 
@@ -88,7 +88,7 @@ struct c2_fom_ops;
    Once the locality is initialised, the locality invariant,
    should hold true until locality is finalised.
 
-   @see c2_locality_invaraint(struct c2_fom_locality *loc)
+   @see c2_locality_invaraint()
  */
 
 struct c2_fom_locality {
@@ -142,7 +142,7 @@ struct c2_fom_locality {
 /**
    This function iterates over c2_fom_locality members and checks if
    they are intialised and consistent.
- */ 
+ */
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
@@ -167,7 +167,8 @@ struct c2_fom_domain {
 
 /** Operations vector attached to a domain. */
 struct c2_fom_domain_ops {
-	/** Returns true if waiting (FOS_WAITING) fom timed out and should be
+	/**
+	    Returns true if waiting (FOS_WAITING) fom timed out and should be
 	    moved into FOPH_TIMEOUT phase.
 	    @todo fom timeout implementation.
 	*/
@@ -179,18 +180,18 @@ struct c2_fom_domain_ops {
    States a fom can be in.
  */
 enum c2_fom_state {
-	/** 
-	   The fom changes its state from FOS_READY to FOS_RUNNING, after it
+	/**
+	   Fom changes its state from FOS_READY to FOS_RUNNING, after it
 	   is dequeued from a locality runq and begins its execution.
 	 */
 	FOS_RUNNING,
-	/** 
-	    The fom is in FOS_READY state when it is initialised and ready to
+	/**
+	    Fom is in FOS_READY state when it is initialised and ready to
 	    be put on a locality runq list for execution.
 	*/
 	FOS_READY,
-	/** 
-	    The fom changes its state from FOS_RUNNING to FOS_WAITING, if the
+	/**
+	    Fom changes its state from FOS_RUNNING to FOS_WAITING, if the
 	    fom execution would block, fom is then put on a locality wait list.
 	 */
 	FOS_WAITING,
@@ -203,6 +204,7 @@ enum c2_fom_state {
    fom type.
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
+   @see c2_fom_state_generic()
  */
 enum c2_fom_phase {
 	FOPH_INIT,                  /*< fom has been initialised. */
@@ -221,16 +223,15 @@ enum c2_fom_phase {
 	FOPH_AUTHORISATION_WAIT,    /*< waiting for userdb cache miss. */
 	FOPH_TXN_CONTEXT,           /*< creating local transactional context. */
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
-
-	FOPH_QUEUE_REPLY,   	    /*< queuing fop reply.  */
-	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
+	FOPH_SUCCESS,		    /*< fom execution completed succesfully. */
 	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
 	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
+	FOPH_TIMEOUT,               /*< fom timed out. */
+	FOPH_FAILED,                /*< fom execution failed. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
 	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
-	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_SUCCESS,		    /*< fom success. */
-	FOPH_FAILED,                /*< fom failed. */
+	FOPH_QUEUE_REPLY,   	    /*< queuing fop reply.  */
+	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
@@ -238,8 +239,10 @@ enum c2_fom_phase {
 };
 
 /**
-
    Initialises c2_fom_domain object provided by the caller.
+   Creates and initialises localities with handler threads.
+
+   @param dom, fom domain to be initialised, provided by caller
 
    @pre dom != NULL
  */
@@ -247,6 +250,10 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom);
 
 /**
    Finalises fom domain.
+   Also finalises the localities in fom domain and destroys
+   the handler threads per locality.
+
+   @param dom, fom domain to be finalised, all the
 
    @pre dom != NULL && dom->fd_localities != NULL
  */
@@ -290,22 +297,15 @@ struct c2_fom {
 	struct c2_dtx		 fo_tx;
 	/** linkage in the locality runq list or wait list  */
 	struct c2_list_link	 fo_rwlink;
-	/**
-	    temporary reference to reply fop provided by client.
-
-	    @todo to be removed later post integration with
-	    latest rpc layer.
-	 */
+	/** result of fom execution, -errno on failure */
+	int			 fo_rc;
+	/** temporary reference to reply fop */
 	void			*fo_cookie;
-	int			 rc;
 };
 
 /**
    Queues a fom for the execution in a domain.
-
-   A home locality is selected for the fom. The fom is placed in the
-   corresponding run-queue and scheduled for the execution.
-
+   The fom is placed in the locality run-queue and scheduled for the execution.
    Possible errors are reported through fom state and phase, hence the return
    type is void.
 
@@ -314,22 +314,22 @@ struct c2_fom {
 void c2_fom_queue(struct c2_fom *fom);
 
 /**
-   Initialises fom.
-
    Pre allocated fom is provided which is initialised.
-
-   Invoked c2_fop_type_ops::fto_fom_init implementation of
+   Invoked from c2_fop_type_ops::fto_fom_init implementation for
    corresponding fop.
+   Fom starts in FOPH_INIT phase and FOS_READY state to begin its
+   execution.
 
+   @param fom, fom to be initialised
    @pre fom != NULL
  */
 int c2_fom_init(struct c2_fom *fom);
 
 /**
-   Finalizes fom.
+   Finalises a fom after it completes its execution,
+   i.e success or failure.
 
-   Finalizes other fom members.
-
+   @param fom, fom to be finalised
    @pre fom->fo_phase == FOPH_DONE
 */
 void c2_fom_fini(struct c2_fom *fom);
@@ -410,22 +410,41 @@ struct c2_fom_hthread {
 };
 
 /**
-   Checks whether the fom locality has "enough" idle threads. If not, additional
-   threads are started to cope with possible blocking point.
-
    This function is called before potential blocking point.
+   Checks whether the fom locality has "enough" idle threads.
+   If not, additional threads are started to cope with possible
+   blocking point.
+   Increments c2_fom_locality::fl_lo_idle_threads_nr, so that
+   there exists atleast one idle thread to handle incoming fop if
+   a thread blocks.
+
+   @param fom, blocking on an operation
+   @see c2_fom_locality
  */
 void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
    This function is called after potential blocking point.
+   Decrements c2_fom_locality::fl_lo_idle_threads_nr, so that
+   extra idle threads are destroyed automatically.
+
+   @param fom, resumes execution after completing its blocking
+		operation
  */
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
-   Registers fom with the channel, so that next fom's state transition would
-   happen when the channel is signalled.
+   Registers fom with the channel provided by the caller on which
+   the fom would wait for signal after completing a blocking operation.
+   Also puts the fom on the locality wait list.
+   Fom resumes its execution once the chan is signalled after
+   completing its blocking operation.
 
+   @see c2_fom_state_generic()
+
+   @param fom, executing a blocking operation
+   @param chan, waiting channel registered with the fom during its
+		blocking operation
    @pre !c2_clink_is_armed(&fom->fo_clink)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);

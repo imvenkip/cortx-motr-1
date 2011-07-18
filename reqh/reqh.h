@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
+ *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/04/2011
  */
 
@@ -24,19 +25,25 @@
 #include <sm/sm.h>
 #include "fol/fol.h"
 
-/* import */
-struct c2_fop;
-struct c2_fom;
-struct c2_stob_domain;
-
 /**
    @defgroup reqh Request handler
 
+   Request handler provides non-blocking infrastructure for fop execution.
+   There exists single request handler instance per address space, once
+   the request handler is initialised and ready to serve requests, it accepts
+   a fop (file operation packet), iterpretes it by interacting with other sub
+   systems and executes the desired file system operation.
+
+   For every incoming fop, request handler creates a corresponding fom
+   (file operation state machine), fop is executed in this fom context.
+   For every fom, request handler performs some standard operations such as
+   authentication, locating resources for its execution, authorisation of file
+   operation by the user, &tc. Once all the standard phases are completed, the
+   fop specific operation is executed.
+
+   @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y&hl=en_US
    @{
  */
-
-struct c2_reqh;
-struct c2_fop_sortkey;
 
 /**
    Request handler instance.
@@ -60,6 +67,16 @@ struct c2_reqh {
 /**
    Initialises request handler instance provided by the caller.
 
+   @param reqh, request handler instance to be initialised,
+   @param rpc, rpc machine, (to be used later)
+   @param dtm, database transaction machine, (to be used later)
+   @param stdom, storage object domain used for file io
+   @param fol, file operation log to record fop execution
+   @param serv, service using this request handler
+
+   @todo use iostores instead of c2_stob_domain and endpoints
+	or c2_rpc_machine instead of c2_service
+
    @see c2_reqh
 
    @pre reqh != NULL && stdom != NULL && fol != NULL && serv != NULL
@@ -76,6 +93,8 @@ int  c2_reqh_init(struct c2_reqh *reqh,
    Destructor for request handler, no fop will be further executed
    in the address space belonging to this request handler.
 
+   @param reqh, request handler to be finalised
+
    @pre reqh != NULL
  */
 void c2_reqh_fini(struct c2_reqh *reqh);
@@ -86,23 +105,23 @@ void c2_reqh_fini(struct c2_reqh *reqh);
    A sort-key is assigned to a fop when it enters NRS (Network Request
    Scheduler) incoming queue. NRS processes fops in sort-key order.
 
-   @todo sort key definition.
+   @todo sort key definition
  */
 struct c2_fop_sortkey {
 };
 
 /**
    Submit fop for request handler processing.
-
-   fop processing results are reported by other means (ADDB, reply fops, error
+   Request handler intialises fom corresponding to this fop, finds appropriate
+   locality to execute this fom, and enqueues the fom into its runq.
+   Fop processing results are reported by other means (ADDB, reply fops, error
    messages, etc.) so this function returns nothing.
 
    @param reqh, request handler processing the fop
    @param fop, fop to be executed
-   @param cookie, reply fop reference provided by the client
 
-   @pre reqh != null.
-   @pre fom != null.
+   @pre reqh != null
+   @pre fom != null
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 
@@ -112,7 +131,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
    This function is called by NRS to order fops in its incoming queue.
 
    @todo -> to decide upon sort key generation parameters as required by
-   nrs scheduler.
+   nrs scheduler
  */
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 			     struct c2_fop_sortkey *key);
@@ -164,37 +183,67 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 
    Fom execution proceeds as follows:
 
-   FOPH_INIT -> FOPH_AUTHENTICATE -> FOPH_RESOURCE_LOCAL ->
-   FOPH_RESOURCE_DISTRIBUTED -> FOPH_OBJECT_CHECK -> FOPH_AUTHORISATION ->
-   FOPH_TXN_CONTEXT -> FOPH_NR + 1 -> FOPH_QUEUE_REPLY
+	fop
+	 |
+   	 v                fom->fo_state = FOS_READY
+     c2_reqh_fop_handle()-------------->FOM
+		     			 | fom->fo_state = FOS_RUNNING
+					 v
+		     		     FOPH_INIT
+		    			 |
+			failed		 v         fom->fo_state = FOS_WAITING
+		     +<-----------FOPH_AUTHETICATE------------->+
+		     |			 |           FOPH_AUTHENTICATE_WAIT
+		     |			 v<---------------------+
+		     +<----------FOPH_RESOURCE_LOCAL----------->+
+		     |			 |           FOPH_RESOURCE_LOCAL_WAIT
+		     |			 v<---------------------+
+		     +<-------FOPH_RESOURCE_DISTRIBUTED-------->+
+		     | 			 |	  FOPH_RESOURCE_DISTRIBUTED_WAIT
+		     |			 v<---------------------+
+		     +<---------FOPH_OBJECT_CHECK-------------->+
+		     |                   |              FOPH_OBJECT_CHECK
+		     |		         v<---------------------+
+		     +<---------FOPH_AUTHORISATION------------->+
+		     |			 |            FOPH_AUTHORISATION
+	             |	                 v<---------------------+
+		     +<---------FOPH_TXN_CONTEXT--------------->+
+		     |			 |            FOPH_TXN_CONTEXT_WAIT
+	       	     |		 	 v<---------------------+
+		     +<-------------FOPH_NR_+_1---------------->+
+		     |			 |            FOPH_NR_+_1_WAIT
+		     v			 v<---------------------+
+		 FOPH_FAILED        FOPH_SUCCESS
+		     |			 |
+		     v			 v
+	  +-----FOPH_TXN_ABORT    FOPH_TXN_COMMIT-------------->+
+	  |	     |	     		 |            FOPH_TXN_COMMIT_WAIT
+	  |	     |	    send reply	 v<---------------------+
+	  |	     +----------->FOPH_QUEUE_REPLY------------->+
+          |	     ^	     		 |            FOPH_QUEUE_REPLY_WAIT
+    	  v	     |			 v<---------------------+
+   FOPH_TXN_ABORT_WAIT		     FOPH_DONE ---> c2_fom_fini()
 
-   Fom creates local transactional context and transitions into one of
-   the non standard phases, having enumeration greater than FOPH_NR.
-   On performing the non standard actions, fom transitions back to one of 
-   the standard phases.
-
-   Fom then sends the reply fop (or queueing it into fop cache in case of WBC), 
-   and transitions back to one of the non standard phases. Later depending upon
-   the status of fom execution, i.e success or failure, fom transitions back
-   accordingly, see below
-
-   FOPH_QUEUE_REPLY -> FOPH_NR + 1 -> FOPH_SUCCESS -> FOPH_TXN_COMMIT -> FOPH_DONE
-   FOPH_QUEUE_REPLY-> FOPH_NR + 1 -> FOPH_FAILED -> FOPH_TXN_ABORT -> FOPH_DONE
-   FOPH_DONE, fom execution is complete, i.e success or failure.
-
-   If fom execution would block, in any of the transition phases, fom transitions 
-   into the corresponding wait phase. Later, once the blocking operation is
-   complete, fom execution is resumed by its wait phase handler and it transitions
-   fom to next phase.
+   If a generic phase handler function fails while executing a fom, then it
+   just sets the c2_fom::fo_rc to the result of the operation and returns FSO_WAIT.
+   c2_fom_state_generic() then sets the c2_fom::fo_phase to FOPH_FAILED, logs an
+   ADDB event, and returns, later the fom eecution proceeds as mentioned in above
+   diagram.
+   If fom fails while executing fop specific operation, the c2_fom::fo_phase is set
+   to FOPH_FAILED already by the fop specific operation handler, and the c2_fom::fo_rc
+   set to the result of the operation.
 
    @see c2_fom_phase
    @see c2_fom_state_outcome
 
    @retval FSO_AGAIN, if fom operation is successful, transition to next phase,
-	FSO_WAIT, if fom execution is complete i.e success or failure
+	FSO_WAIT, if fom execution blocks and fom goes into corresponding wait
+		phase, or if fom execution is complete, i.e success or failure
+
+   @param fom, fom under execution
 
    @todo standard fom phases implementation, depends on the support routines for
-   handling various standard operations on fop as mentioned above.
+   	handling various standard operations on fop as mentioned above
  */
 
 int c2_fom_state_generic(struct c2_fom *fom);
