@@ -17,7 +17,6 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
-
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h"   /* C2_SET0 */
@@ -43,8 +42,9 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		c2_bcount_t nob;
 
 		fop->f_type = fopt;
-		/* Associate rpc_item_type with the rpc item.
-		fop->f_item.ri_type = fopt->ft_ritype; */
+		c2_rpc_item_init(&fop->f_item);
+		/* Associate rpc_item_type with the rpc item. */
+		fop->f_item.ri_type = fopt->ft_ri_type;
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)
 			data = c2_alloc(nob);

@@ -88,6 +88,17 @@ enum c2_io_fom_cob_writev_phases{
 };
 
 /**
+ * Object encompassing FOM for file create
+ * operation and necessary context data
+ */
+struct c2_io_fom_file_create {
+	/** Generic c2_fom object. */
+        struct c2_fom                    fc_gen;
+	/** FOP associated with this FOM. */
+        struct c2_fop			*fc_fop;
+};
+
+/**
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
@@ -110,11 +121,18 @@ struct c2_io_fom_cob_rwv {
  *  - Submit the read/write IO request to the corresponding cob.
  *  - Send reply FOP to client.
  */
-int c2_io_fom_cob_rwv_state(struct c2_fom *fom); 
+int c2_io_fom_cob_rwv_state(struct c2_fom *fom);
 
-/** 
- * The various phases for readv FOM. 
- * Not used as of now. Will be used once the 
+/**
+ * <b> State Transition function for "create" operation
+ *     that executes on data server. </b>
+ *  - Send reply FOP to client.
+ */
+int c2_io_fom_file_create_state(struct c2_fom *fom);
+
+/**
+ * The various phases for readv FOM.
+ * Not used as of now. Will be used once the
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_readv_phases {

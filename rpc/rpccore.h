@@ -117,6 +117,9 @@
 
 struct c2_rpc_item;
 
+#ifndef __KERNEL__
+#include <rpc/xdr.h>
+#endif
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -131,7 +134,7 @@ struct c2_rpc_item;
 #include "cob/cob.h"
 #include "fol/fol.h"
 #include "fop/fop_base.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "rpc/session.h"
 
 /*Macro to enable RPC grouping test and debug code */
@@ -142,6 +145,12 @@ struct c2_rpc_item;
 int32_t rpc_arr_index;
 int seed_val;
 #endif
+
+/* Number of default receive c2_net_buffers to be used with
+   each transfer machine.*/
+enum {
+	C2_RPC_TM_RECV_BUFFERS_NR = 8,
+};
 
 struct c2_rpc;
 struct c2_rpc_conn;
@@ -166,7 +175,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre rio_added() called.
+	   @pre ri_added() called.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
@@ -180,10 +189,11 @@ struct c2_rpc_item_type_ops {
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre rio_added() called.
-	   @pre rio_sent() called.
+	   @pre ri_added() called.
+	   @pre ri_sent() called.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item, int rc);
+
 	/**
 	   Find out the size of rpc item.
 	 */
@@ -213,8 +223,43 @@ struct c2_rpc_item_type_ops {
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
 	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+#ifndef __KERNEL__
+	/**
+	   Serialise @item on provided xdr stream @xdrs
+	 */
+	int (*rito_encode)(struct c2_rpc_item *item, XDR *xdrs);
+	/**
+	   Create in memory item from serialised representation of item
+	 */
+	int (*rito_decode)(struct c2_rpc_item *item, XDR *xdrs);
+#endif
 };
 
+struct c2_rpc_item_ops {
+	/**
+	   Called when given item's sent.
+	   @param item reference to an RPC-item sent
+	   @pre ri_added() called.
+	 */
+	void (*rio_sent)(struct c2_rpc_item *item);
+	/**
+	   Called when item's added to an RPC
+	   @param rpc reference to an RPC where item's added
+	   @param item reference to an item added to rpc
+	 */
+	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+
+	/**
+	   Called when given item's replied.
+	   @param item reference to an RPC-item on which reply FOP was received.
+	   @param rc error code <0 if failure
+	   @pre ri_added() called.
+	   @pre ri_sent() called.
+	 */
+	void (*rio_replied)(struct c2_rpc_item	*item,
+			   struct c2_rpc_item	*reply, int rc);
+
+};
 struct c2_update_stream_ops {
 	/** Called when update stream enters UPDATE_STREAM_TIMEDOUT state */
 	void (*uso_timeout)(struct c2_update_stream *us);
@@ -258,12 +303,19 @@ struct c2_update_stream {
 /** TBD in 'DLD RPC FOP:core wire formats':
     c2_rpc is a container of c2_rpc_items. */
 struct c2_rpc {
+	/** Linkage into list of rpc objects just formed or into the list
+	    of rpc objects which are ready to be sent on wire. */
 	struct c2_list_link	r_linkage;
 	struct c2_list		r_items;
 
 	/** Items in this container should be sent via this session */
 	struct c2_rpc_session  *r_session;
 };
+
+/**
+   Initialize an rpc object.
+ */
+void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
 
 /**
    Definition is taken partly from 'DLD RPC FOP:core wire formats' (not submitted yet).
@@ -276,6 +328,10 @@ struct c2_rpc_item_type {
 	/* XXX: for now: enum c2_rpc_opcode_t rit_opcode; */
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
+	/** true if item is request item. false if item is reply item */
+	bool				   rit_item_is_req;
+	/** true if the item of this type modifies file-system state */
+	bool				   rit_mutabo;
 };
 
 enum c2_rpc_item_state {
@@ -303,7 +359,7 @@ enum c2_rpc_item_tstate {
 	RPC_ITEM_PAST_VOLATILE,
 	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
-	RPC_ITEM_UNREPLIED,
+	RPC_ITEM_IN_PROGRESS,
 	/** the item is not sent */
 	RPC_ITEM_FUTURE,
 };
@@ -315,14 +371,11 @@ enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_NR
 };
 
-enum c2_rpc_item_flags {
-	/** Item modifies file-system state */
-	RPC_ITEM_MUTABO = 1
-};
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF = 1
 };
+
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -336,55 +389,86 @@ enum {
 	//...
    };
  */
-
 struct c2_rpc_item {
 	struct c2_rpcmachine		*ri_mach;
+	struct c2_chan			 ri_chan;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
-	struct c2_list_link		ri_linkage;
-	struct c2_ref			ri_ref;
+	struct c2_list_link		 ri_linkage;
+	struct c2_ref			 ri_ref;
 
-	enum c2_rpc_item_priority	ri_prio;
-	c2_time_t			ri_deadline;
+	enum c2_rpc_item_priority	 ri_prio;
+	c2_time_t			 ri_deadline;
 	struct c2_rpc_group		*ri_group;
 
-	enum c2_rpc_item_state		ri_state;
-	enum c2_rpc_item_tstate		ri_tstate;
-	uint64_t			ri_flags;
+	enum c2_rpc_item_state		 ri_state;
+	enum c2_rpc_item_tstate		 ri_tstate;
+	uint64_t			 ri_flags;
 	struct c2_rpc_session		*ri_session;
-	struct c2_rpc_slot_ref		ri_slot_refs[MAX_SLOT_REF];
+	struct c2_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
 	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
-	struct c2_list_link		ri_unbound_link;
-	/** Session related fields. Should be included in on wire rpc-item */
-	uint64_t			ri_sender_id;
-	uint64_t			ri_session_id;
-	uint32_t			ri_slot_id;
-	uint64_t			ri_slot_generation;
-	/** ri_verno acts as sequence counter */
-	struct c2_verno			ri_verno;
-	struct c2_verno			ri_last_persistent_verno;
-	struct c2_verno			ri_last_seen_verno;
-	uint32_t			ri_session_err;
-	/** link used to store item in c2_rpc_snd_slot::ss_ready_list or
-	    on c2_rpc_snd_slot::ss_replay_list */
-	struct c2_list_link		ri_slot_link;
-	/** XXX temporary field to put item on in-core reply cache list */
-	struct c2_list_link		ri_rc_link;
+	struct c2_list_link		 ri_unbound_link;
+	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
 	/** Linkage to the forming list, needed for formation */
-	struct c2_list_link		ri_rpcobject_linkage;
+	struct c2_list_link		 ri_rpcobject_linkage;
 	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link		ri_unformed_linkage;
+	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link		ri_group_linkage;
+	struct c2_list_link		 ri_group_linkage;
 	/** Destination endpoint. */
-	struct c2_net_end_point		ri_endp;
+	struct c2_net_end_point		 ri_endp;
 	/** Timer associated with this rpc item.*/
-	struct c2_timer			ri_timer;
+	struct c2_timer			 ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	/** channel to wait for reply */
-	struct c2_chan			ri_chan;
+	/** For a received item, it gives source end point */
+	struct c2_net_end_point		*ri_src_ep;
+	/** item operations */
+	const struct c2_rpc_item_ops	*ri_ops;
+	/** Dummy queue linkage to dummy reqh */
+	struct c2_queue_link		 ri_dummy_qlinkage;
+	/** Entry time into rpc layer */
+	c2_time_t			 ri_rpc_entry_time;
+	/** Entry time into rpc layer */
+	c2_time_t			 ri_rpc_exit_time;
+};
+
+/* Set the stats for outgoing rpc item */
+void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
+
+/* Set the stats for incoming rpc item */
+void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
+
+/**
+  Statistical data maintained for each item in the rpcmachine.
+  It is upto the higher level layers to retrieve and process this data
+ */
+struct c2_rpc_stats {
+	/** Number of items processed on outgoing path */
+	uint64_t	rs_num_out_items;
+	/** Number of items processed on incoming path */
+	uint64_t	rs_num_in_items;
+	/** Number of bytes processed on outgoing path */
+	uint64_t	rs_num_out_bytes;
+	/** Number of bytes processed on incoming path */
+	uint64_t	rs_num_in_bytes;
+	/** Instanteneous Latency on outgoing path */
+	c2_time_t	rs_out_instant_latency;
+	/** Average Latency on outgoing path */
+	c2_time_t	rs_out_avg_latency;
+	/** Min Latency on outgoing path */
+	c2_time_t	rs_out_min_latency;
+	/** Max Latency on outgoing path */
+	c2_time_t	rs_out_max_latency;
+	/** Instanteneous Latency on incoming path */
+	c2_time_t	rs_in_instant_latency;
+	/** Average Latency on incoming path */
+	c2_time_t	rs_in_avg_latency;
+	/** Min Latency on incoming path */
+	c2_time_t	rs_in_min_latency;
+	/** Max Latency on incoming path */
+	c2_time_t	rs_in_max_latency;
 };
 
 /**
@@ -406,10 +490,17 @@ void c2_rpc_item_attach(struct c2_rpc_item *item);
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */
-int c2_rpc_item_init(struct c2_rpc_item *item,
-		     struct c2_rpcmachine *mach);
+int c2_rpc_item_init(struct c2_rpc_item *item);
 
+/**
+   Returns true if item modifies file system state, false otherwise
+ */
 bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
+
+/**
+   Returns true if item is request item. False if it is a reply item
+ */
+bool c2_rpc_item_is_request(struct c2_rpc_item *item);
 
 /** DEFINITIONS of RPC layer core DLD: */
 
@@ -482,25 +573,202 @@ struct c2_rpc_statistics {
 };
 
 /**
+   An API to create a c2_net_buffer with given c2_net_domain.
+   The rpc core component allocates a pool of buffers in advance to
+   receive incoming messages. This is necessary for asynchronous
+   behavior of system. This buffer is deallocated when the transfer
+   machine to which this buffer was added, gets destroyed.
+   @pre - net domain should be initialized.
+
+   @param net_dom - the net domain in which buffers should be registered.
+ */
+struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
+		struct c2_net_domain *net_dom);
+
+/**
+   Allocate C2_RPC_TM_RECV_BUFFERS_NR number of buffer and add each of
+   them to transfer machine's RECV queue.
+   @pre net domain should be initialized.
+   @pre tm should be initialized and started.
+
+   @param net_dom - net domain in which nr number of buffers will be registered.
+   @param tm - transfer machine to which nr number of buffers will be added.
+ */
+int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
+		struct c2_net_transfer_mc *tm);
+
+/**
+   Delete and deregister the buffer meant for receiving messages from the
+   queue of net domain and transfer machine respectively and then
+   deallocate it.
+   @pre nb should be a valid and enqueued net buffer.
+   @pre tm should be initialized and started.
+   @pre net domain should be initialized.
+
+   @param nb - net buffer to be deallocated.
+   @param tm - transfer machine from which nb should be deleted.
+   @param net_dom - network domain from which nb should be deregistered.
+ */
+int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
+
+/**
+   Delete and deregister C2_RPC_TM_RECV_BUFFERS_NR number of buffers from
+   queues of transfer machine and net domain respectively and then
+   deallocate each of the buffer.
+
+   @pre tm should be initialized and started.
+   @pre net domain should have been initialized.
+
+   @param tm - transfer machine from which nr number of buffers will be
+               deleted.
+   @param net_dom - network domain from which nr number of buffers will
+                    be deregistered.
+ */
+int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
+		struct c2_net_domain *net_dom);
+
+/**
+   Allocate a buffer for sending messages from rpc formation component.
+   @pre net domain should be initialized.
+   @pre net buffer should not be allocated.
+   @post net buffer gets allocated.
+
+   @param net_dom - network domain to which buffers will be registered.
+   @param nb - network buffer to be allocated.
+ */
+void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
+		struct c2_net_buffer *nb);
+
+/**
+   Deallocate a net buffer meant for sending messages.
+   @pre net buffer should be allocated and registered.
+   @pre net domain should be initialized.
+
+   @param nb - network buffer which will be deallocated.
+   @param net_dom - network domain from which buffer will be deregistered.
+ */
+int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
+		struct c2_net_domain *net_dom);
+
+/**
+   Transfer machine callback vector for transfer machines created by
+   rpc layer.
+ */
+extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
+
+/**
+   This structure contains list of {endpoint, transfer_mc} tuples
+   used by rpc layer. c2_rpcmachine refers to this structure.
+   This structure is created keeping in mind that there could be
+   multiple c2_rpcmachine structures co-existing within a colibri
+   address space. And multiple c2_rpc_conns within the rpcmachine
+   might use same endpoint to communicate.
+ */
+struct c2_rpc_ep_aggr {
+	/** Mutex to protect the list.*/
+	struct c2_mutex		ea_mutex;
+	/** List of c2_rpc_chan structures. */
+	struct c2_list		ea_chan_list;
+};
+
+/**
+   A physical node can have multiple endpoints associated with it.
+   And multiple services can share endpoints for transport.
+   The rule of thumb is to use one transfer machine per endpoint.
+   So to make sure that services using same endpoint,
+   use the same transfer machine, this structure has been introduced.
+   Struct c2_rpc_conn is used for a particular service and now it
+   points to a struct c2_rpc_chan to identify the transfer machine
+   it is working with.
+ */
+struct c2_rpc_chan {
+	/** Linkage to the list maintained by c2_rpcmachine.*/
+	struct c2_list_link		 rc_linkage;
+	/** Transfer machine associated with this endpoint.*/
+	struct c2_net_transfer_mc	 rc_xfermc;
+	/** Number of entities using this transfer machine.*/
+	struct c2_ref			 rc_ref;
+	/** The rpcmachine, this chan structure is associated with.*/
+	struct c2_rpcmachine		*rc_rpcmachine;
+};
+
+/**
+   Create a new c2_rpc_chan structure, populate it and add it to
+   the list in struct c2_rpc_ep_aggr.
+   @param chan - c2_rpc_chan structure to be created.
+   @param machine - concerned c2_rpcmachine structure.
+   @param ep - Network endpoint to be associated with transfer machine.
+ */
+int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
+		struct c2_net_end_point *ep);
+
+/**
+   Destroy the given c2_rpc_chan structure and remove it from the list
+   since no one is referring to it any more.
+   @param machine - concerned rpc machine.
+   @param chan - c2_rpc_chan structure to be destroyed.
+ */
+void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
+		struct c2_rpc_chan *chan);
+
+/**
+   Return a c2_rpc_chan structure given the endpoint.
+   Refcount is incremented on the returned c2_rpc_chan.
+   This API will be typically used by c2_rpc_conn_create method
+   to get a source endpoint and eventually a transfer machine to
+   associate with.
+   @param machine - concerned c2_rpcmachine from which new c2_rpc_chan
+   structure will be assigned.
+ */
+struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine);
+
+/**
+   Release the c2_rpc_chan structure being used.
+   This will decrement the refcount of given c2_rpc_chan structure.
+   c2_rpc_conn_terminate_reply_received will use this method to
+   release the reference to the transfer machine it was using.
+   @param chan - chan on which reference will be released.
+ */
+void c2_rpc_chan_put(struct c2_rpc_chan *chan);
+
+/**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpcmachine {
+	/* List of transfer machine used by conns from this rpcmachine. */
+	struct c2_rpc_ep_aggr	   cr_ep_aggr;
+	/* Formation module data structure associated with this rpcmachine. */
+	struct c2_rpc_formation	  *cr_formation;
 	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
-	struct c2_rpc_statistics   cr_statistics;
+	struct c2_rpc_statistics	 cr_statistics;
+	/** Cob domain in which cobs related to session will be stored */
+	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list		   cr_rpc_conn_list;
+	struct c2_list			 cr_incoming_conns;
+	struct c2_list			 cr_outgoing_conns;
+	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
+	struct c2_mutex			 cr_session_mutex;
 	/** Mutex to protect list of ready slots. */
-	struct c2_mutex		   cr_ready_slots_mutex;
+	struct c2_mutex			 cr_ready_slots_mutex;
 	/** list of ready slots. */
-	struct c2_list		   cr_ready_slots;
-	/** mutex that protects conn_list. Better name??? */
-	struct c2_mutex		   cr_session_mutex;
-	struct c2_rpc_reply_cache  cr_rcache;
+	struct c2_list			 cr_ready_slots;
+	/** Stats for this rpcmachine */
+	struct c2_rpc_stats		*cr_rpc_stats;
 };
+
+/**
+   Add a source endpoint to given rpcmachine. The rpcmachine can use
+   this endpoint and will associate a transfer machine with this endpoint.
+   @param machine - concerned c2_rpcmachine.
+   @param src_ep - net endpoint to be added to rpcmachine.
+ */
+int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
+		struct c2_net_end_point *src_ep);
 
 /**
    Construct rpc core layer
@@ -523,7 +791,7 @@ void c2_rpc_core_fini(void);
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
-			struct c2_fol		*fol);
+			struct c2_net_end_point	*src_ep);
 
 /**
    Destruct rpcmachine
@@ -753,6 +1021,9 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
 
 /** @} end name stat_ifs */
 
+/** DUMMY REQH for RPC IT. Queue of RPC items */
+extern struct c2_queue		exec_queue;
+extern struct c2_chan		exec_chan;
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

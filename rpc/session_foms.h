@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
+ *                  Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 04/15/2011
+ */
 
 #ifndef _C2_RPC_SESSION_FOM_H
 #define _C2_RPC_SESSION_FOM_H
@@ -30,11 +49,9 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fom		fcc_gen;
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
-	struct c2_dbenv		*fcc_dbenv;
-	struct c2_db_tx		fcc_tx;
 };
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
-extern struct c2_fom_ops c2_rpc_fom_conn_create_ops;
+extern const struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 
 int c2_rpc_fom_conn_create_state(struct c2_fom *);
 void c2_rpc_fom_conn_create_fini(struct c2_fom *);
@@ -51,12 +68,10 @@ struct c2_rpc_fom_session_create {
 	struct c2_fom		fsc_gen;
 	struct c2_fop		*fsc_fop;
 	struct c2_fop		*fsc_fop_rep;
-	struct c2_dbenv		*fsc_dbenv;
-	struct c2_db_tx		fsc_tx;
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_create_type;
-extern struct c2_fom_ops c2_rpc_fom_session_create_ops;
+extern const struct c2_fom_ops c2_rpc_fom_session_create_ops;
 
 int c2_rpc_fom_session_create_state(struct c2_fom *);
 void c2_rpc_fom_session_create_fini(struct c2_fom *);
@@ -73,12 +88,10 @@ struct c2_rpc_fom_session_terminate {
 	struct c2_fom		fst_gen;
 	struct c2_fop		*fst_fop;
 	struct c2_fop		*fst_fop_rep;
-	struct c2_dbenv		*fst_dbenv;
-	struct c2_db_tx		fst_tx;
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
-extern struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
+extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *);
 void c2_rpc_fom_session_terminate_fini(struct c2_fom *);
@@ -95,12 +108,10 @@ struct c2_rpc_fom_conn_terminate {
 	struct c2_fom		fct_gen;
 	struct c2_fop		*fct_fop;
 	struct c2_fop		*fct_fop_rep;
-	struct c2_dbenv		*fct_dbenv;
-	struct c2_db_tx		fct_tx;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
-extern struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
+extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);

@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
+ *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 03/11/2011
+ */
 
 /**
    @addtogroup rpc_session
@@ -6,6 +25,11 @@
    @{
  */
 
+/*
+ XXX With introduction of sender UUID, this rcc_cookie now holds
+ no significant purpose. Before introducing sender UUID, cookie
+ was used to match reply with request.
+ */
 DEF(c2_rpc_fop_conn_create, RECORD,
    _(rcc_cookie, U64));
 
@@ -22,7 +46,8 @@ DEF(c2_rpc_fop_conn_terminate_rep, RECORD,
    _(ctr_sender_id, U64));
 
 DEF(c2_rpc_fop_session_create, RECORD,
-   _(rsc_snd_id, U64));
+   _(rsc_snd_id, U64),
+   _(rsc_slot_cnt, U32));
 
 DEF(c2_rpc_fop_session_create_rep, RECORD,
    _(rscr_rc, U32),

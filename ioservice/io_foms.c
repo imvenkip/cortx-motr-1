@@ -46,6 +46,12 @@
 #ifndef __KERNEL__
 
 /** Generic ops object for c2_fop_cob_writev */
+struct c2_fom_ops c2_io_fom_file_create_ops = {
+	.fo_fini = NULL,
+	.fo_state = c2_io_fom_file_create_state,
+};
+
+/** Generic ops object for c2_fop_cob_writev */
 static struct c2_fom_ops c2_io_fom_write_ops = {
 	.fo_fini = NULL,
 	.fo_state = c2_io_fom_cob_rwv_state,
@@ -69,6 +75,11 @@ static const struct c2_fom_type_ops c2_io_cob_readv_type_ops = {
 };
 
 /** FOM type specific functions for writev FOP. */
+static const struct c2_fom_type_ops c2_io_file_create_type_ops = {
+	.fto_create = NULL,
+};
+
+/** FOM type specific functions for writev FOP. */
 static const struct c2_fom_type_ops c2_io_cob_writev_type_ops = {
 	.fto_create = NULL,
 };
@@ -83,24 +94,30 @@ static struct c2_fom_type c2_io_fom_cob_writev_mopt = {
 	.ft_ops = &c2_io_cob_writev_type_ops,
 };
 
+/** Create specific FOM type operations vector. */
+static struct c2_fom_type c2_io_fom_file_create_mopt = {
+        .ft_ops = &c2_io_file_create_type_ops,
+};
+
 /**
  *  An array of c2_fom_type structs for all possible FOMs.
  */
 static struct c2_fom_type *c2_io_fom_types[] = {
 	&c2_io_fom_cob_readv_mopt,
 	&c2_io_fom_cob_writev_mopt,
+	&c2_io_fom_file_create_mopt,
 };
 
 /**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.
- * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
+ * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
  */
 struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_PRE(IS_IN_ARRAY((code - c2_io_service_readv_opcode), 
+	C2_PRE(IS_IN_ARRAY((code - C2_IO_SERVICE_READV_OPCODE),
 			   c2_io_fom_types));
-	return c2_io_fom_types[code - c2_io_service_readv_opcode];
+	return c2_io_fom_types[code - C2_IO_SERVICE_READV_OPCODE];
 }
 
 /**
@@ -148,18 +165,18 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom = &fom_obj->fcrw_gen;
 	fom->fo_type = fom_type;
 
-	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_read_ops;
-		fom_obj->fcrw_rep_fop = 
+		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
 			c2_free(fom_obj);
 			return -ENOMEM;
 		}
 	}
-	else if (fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_write_ops;
-		fom_obj->fcrw_rep_fop = 
+		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
 		if (fom_obj->fcrw_rep_fop == NULL) {
 			c2_free(fom_obj);
@@ -199,6 +216,8 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev_rep	*wr_rep_fop;
 	struct c2_fop_cob_readv_rep	*rd_rep_fop;
+	struct c2_fop_io_seg		*write_seg;
+	struct c2_fop_segment		*read_seg;
 
 	C2_PRE(fom != NULL);
 
@@ -220,7 +239,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Retrieve the request and reply FOPs.
 	 * Extract the on-write FID from the FOPs.
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
 		ffid = &write_fop->fwr_fid;
@@ -254,11 +273,11 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
 	C2_ASSERT(result == 0);
 
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		/* 
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
+		/*
 		 * Make an FOL transaction record.
 		 */
-		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
+		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
 				fom->fo_fol, &tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 	}
@@ -288,31 +307,32 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * Find out the buffer address, offset and count
 	 * required for the stob io.
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_offset & bmask) == 0);
-		C2_ASSERT((write_fop->fwr_iovec.iov_seg->f_buf.f_count & bmask) == 0);
-		addr = c2_stob_addr_pack(write_fop->fwr_iovec.
-					 iov_seg->f_buf.f_buf, bshift);
-		count = write_fop->fwr_iovec.iov_seg->f_buf.f_count;
-		offset = write_fop->fwr_iovec.iov_seg->f_offset;
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
+		write_seg = write_fop->fwr_iovec.iov_seg;
+		addr = c2_stob_addr_pack(write_seg->f_buf.f_buf, bshift);
+		count = write_seg->f_buf.f_count;
+		offset = write_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	}
 	else {
-		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_offset & bmask) == 0);
-		C2_ASSERT((read_fop->frd_ioseg.fs_segs->f_count & bmask) == 0);
+		read_seg = read_fop->frd_ioseg.fs_segs;
 
 		/*
 		 * Allocate the read buffer.
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf,
-				read_fop->frd_ioseg.fs_segs->f_count);
-		C2_ASSERT(rd_rep_fop->frdr_buf.f_buf != NULL);
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf,
-					 bshift);
-		count = read_fop->frd_ioseg.fs_segs->f_count;
-		offset = read_fop->frd_ioseg.fs_segs->f_offset;
+		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_seg->f_count);
+		if (rd_rep_fop->frdr_buf.f_buf == NULL) {
+			c2_stob_put(fom_obj->fcrw_stob);
+			c2_free(fom_obj->fcrw_st_io);
+			return -ENOMEM;
+		}
+		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, bshift);
+		count = read_seg->f_count;
+		offset = read_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
+	C2_ASSERT((offset & bmask) == 0);
+	C2_ASSERT((count & bmask) == 0);
 
 	count = count >> bshift;
 	offset = offset >> bshift;
@@ -344,13 +364,13 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	if (result == 0)
 		c2_chan_wait(&clink);
 
-	/* 
+	/*
 	 * Retrieve the status code and no of bytes read/written
-	 * and place it in respective reply FOP. 
+	 * and place it in respective reply FOP.
 	 */
-	if (fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
+	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
-		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;;
+		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;
 	}
 	else {
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
@@ -389,6 +409,31 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	c2_io_fom_cob_rwv_fini(&fom_obj->fcrw_gen);
 	return FSO_AGAIN;
 }
+
+/**
+ * State function for create request
+ */
+int c2_io_fom_file_create_state(struct c2_fom *fom)
+{
+	struct c2_fop			*fop_req = NULL;
+	struct c2_fop			*fop = NULL;
+        struct c2_fop_file_create_rep	*create_fop_rep = NULL;
+        struct c2_rpc_item              *item = NULL;
+        struct c2_io_fom_file_create	*fom_obj;
+
+	printf("Inside create state \n");
+	fom_obj = container_of(fom, struct c2_io_fom_file_create, fc_gen);
+	fop_req = fom_obj->fc_fop;
+        fop = c2_fop_alloc(&c2_fop_file_create_rep_fopt, NULL);
+        C2_ASSERT(fop != NULL);
+        create_fop_rep = c2_fop_data(fop);
+        create_fop_rep->fcrr_rc = true;
+	item = c2_fop_to_rpc_item(fop);
+        c2_rpc_item_attach(item);
+        c2_rpc_reply_post(&fom_obj->fc_fop->f_item, item);
+	return 0;
+}
+
 
 /** Fini of read FOM object */
 void c2_io_fom_cob_rwv_fini(struct c2_fom *fom)
@@ -440,6 +485,30 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	 * Start the FOM.
 	 */
 	return fom->fo_ops->fo_state(fom);
+}
+
+/* Init for create file */
+int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+        struct c2_fom                   *fom;
+        struct c2_io_fom_file_create	*fom_obj;
+        struct c2_fom_type              *fom_type;
+
+        C2_PRE(fop != NULL);
+        C2_PRE(m != NULL);
+
+        fom_obj= c2_alloc(sizeof(struct c2_io_fom_file_create));
+        if (fom_obj == NULL)
+                return -ENOMEM;
+        fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
+        C2_ASSERT(fom_type != NULL);
+        fop->f_type->ft_fom_type = *fom_type;
+	fom = &fom_obj->fc_gen;
+	fom->fo_type = fom_type;
+	fom->fo_ops = &c2_io_fom_file_create_ops;
+	fom_obj->fc_fop = fop;
+        *m = &fom_obj->fc_gen;
+	return 0;
 }
 
 #endif

@@ -1,3 +1,5 @@
+/* -*- C -*- */
+
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,31 +15,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 04/08/2010
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-#include "lib/refs.h"
+DEF(c2_fop_ping_arr, SEQUENCE,
+	_(f_count, U32),
+	_(f_data, U64));
+	
+DEF(c2_fop_ping, RECORD,
+	_(fp_arr, c2_fop_ping_arr));
 
-void c2_ref_init(struct c2_ref *ref, int init_num,
-		void (*release) (struct c2_ref *ref))
-{
-	c2_atomic64_set(&ref->ref_cnt, init_num);
-	ref->release = release;
-}
-C2_EXPORTED(c2_ref_init);
+DEF(c2_fop_ping_rep, RECORD,
+	_(fpr_rc, U32));
 
-void c2_ref_get(struct c2_ref *ref)
-{
-	c2_atomic64_inc(&ref->ref_cnt);
-}
-C2_EXPORTED(c2_ref_get);
-
-void c2_ref_put(struct c2_ref *ref)
-{
-	if (c2_atomic64_dec_and_test(&ref->ref_cnt)) {
-		ref->release(ref);
-	}
-}
-C2_EXPORTED(c2_ref_put);
-
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

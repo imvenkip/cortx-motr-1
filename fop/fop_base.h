@@ -63,17 +63,20 @@ struct c2_fop_type {
 	struct c2_fol_rec_type            ft_rec_type;
 	/** State machine for this fop type */
 	struct c2_fom_type                ft_fom_type;
+	/** The rpc_item_type associated with rpc_item
+	    embedded with this fop. */
+	struct c2_rpc_item_type		 *ft_ri_type;
 	/**
 	   ADDB context for events related to this fop type.
 	 */
 	struct c2_addb_ctx                ft_addb;
-	/** The rpc_item_type associated with rpc_item
-	    embedded with this fop. */
-	struct c2_rpc_item_type		 *ft_ritype;
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
+
+/* Given an opcode, return the corrosponding fop type */
+struct c2_fop_type *c2_fop_type_search( c2_fop_type_code_t opcode );
 
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
@@ -88,24 +91,22 @@ struct c2_fop_type_ops {
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
-	int (*fto_fop_replied)(struct c2_fop *fop);
+	void (*fto_fop_replied)(struct c2_fop *fop);
 	/** Return the size of fop object. */
-	uint64_t (*fto_getsize)(struct c2_fop *fop);
+	uint64_t (*fto_size_get)(struct c2_fop *fop);
 	/** Return if given fops are of same type or not. */
-	bool (*fto_op_equal)(struct c2_fop *fop1, struct c2_fop *fop2);
+	bool (*fto_op_equal)(const struct c2_fop *fop1,
+			const struct c2_fop *fop2);
 	/** Return opcode of given fop. */
-	int (*fto_get_opcode)(struct c2_fop *fop);
+	int (*fto_get_opcode)(const struct c2_fop *fop);
 	/** Return the fid given fop is working on. */
-	struct c2_fop_file_fid (*fto_get_fid)(struct c2_fop *fop);
+	struct c2_fop_file_fid * (*fto_get_fid)(struct c2_fop *fop);
 	/** Return true if given fop represents an IO request. */
-	bool (*fto_is_io)(struct c2_fop *fop);
+	bool (*fto_is_io)(const struct c2_fop *fop);
 	/** Return the number of IO fragements in the IO vector. */
 	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
-	int (*fto_io_coalesce)(struct c2_list *list, struct c2_fop *fop);
-	/** Try to coalesce IO segments into one big IO vector. */
-	int (*fto_io_segment_coalesce)(void *iovec, struct c2_list *list,
-			uint64_t *nsegs);
+	int (*fto_io_coalesce)(const struct c2_list *list, struct c2_fop *fop);
 };
 
 /**

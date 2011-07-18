@@ -219,10 +219,6 @@ int c2_rpc_reply_submit(struct c2_rpc_item	*request,
 			struct c2_db_tx		*tx)
 {
 	printf("reply_submit: %p %p\n", request, reply);
-	c2_rpc_session_reply_prepare(request, reply, tx);
-	/*
-	 * Add code to submit the reply item to formation
-	 */
 	return 0;
 }
 int c2_rpc_cancel(struct c2_rpc_item *item)
