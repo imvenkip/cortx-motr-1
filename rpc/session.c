@@ -1592,7 +1592,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 
    if allow_events is false then items are not consumed.
    This is required when formation wants to add item to slot->sl_item_list
-   but do not want slot_item_add
+   but do not want item to be consumed.
  */
 static void __slot_balance(struct c2_rpc_slot	*slot,
 			   bool			allow_events)

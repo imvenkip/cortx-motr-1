@@ -77,7 +77,7 @@ the list is in one of the following states:
 
 With respect to session and slots, an item is said to be "bound" if
 the item is associated with slot. An item is called as "unbound"/"freestanding"
-if it is not associated with any particular slot yet. An unbound item will be 
+if it is not associated with any particular slot yet. An unbound item will be
 eventually associated with slot, and hence become bound item.
 
 An item can be linked into multiple slots (similar to c2_fol_obj_ref).For each
@@ -678,7 +678,7 @@ struct c2_rpc_slot_ops {
 	void (*so_reply_consume)(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply);
 	/** Slot has no items to send and hence is idle. Formation
-	    can use such slot to send unbound items */
+	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
 /**
