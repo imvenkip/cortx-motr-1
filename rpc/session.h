@@ -43,10 +43,7 @@ session, both sender and receiver maintain some piece of information.
 Session state is independent of connection itself.
 
 A fop is a rpc item and so is ADDB record. rpc is a container for one or more
-rpc items. With respect to session and slots, an item is said to be "bound" if
-the item is associated with slot. An item is called as "unbound" if it is not
-associated with any particular slot yet. An unbound item will be eventually
-associated with slot, and hence become bound item.
+rpc items.
 
 A rpc connection identfies a sender to the receiver. It acts as a parent
 object within which sessions are created. rpc connection has two
@@ -78,7 +75,12 @@ the list is in one of the following states:
 
 * future: the item wasn't sent.
 
-an item can be linked into multiple slots (similar to c2_fol_obj_ref).For each
+With respect to session and slots, an item is said to be "bound" if
+the item is associated with slot. An item is called as "unbound"/"freestanding"
+if it is not associated with any particular slot yet. An unbound item will be 
+eventually associated with slot, and hence become bound item.
+
+An item can be linked into multiple slots (similar to c2_fol_obj_ref).For each
 slot the item has a separate verno and separate linkage into the slot's item
 list. Item state is common for all slots;
 
@@ -91,7 +93,7 @@ read-only queries can have the same verno);
 With each item a (pointer to) reply is associated. This pointer is set
 once the reply is received for the item;
 
-a slot has a number of pointers into this list and other fields, described
+A slot has a number of pointers into this list and other fields, described
 below:
 
 <li><b>last_sent</b>
@@ -239,6 +241,8 @@ points to record of most recent update operation that updated the slot verno.
 	- How to get unique stob_id for session and slot cobs?
 	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
+	- can there be ACTIVE to FAILED transition for a c2_rpc_conn?
+	- can there be BUSY to FAILED transition for c2_rpc_session?
 	- Design protocol to dynamically adjust number of slots.
  */
 
@@ -398,8 +402,8 @@ struct c2_rpc_conn {
 	enum c2_rpc_conn_state		 c_state;
 	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t			 c_flags;
-	/* A c2_rpc_chan structure that will point to the transfer
-	   machine used by this c2_rpc_conn. */
+	/** A c2_rpc_chan structure that will point to the transfer
+	    machine used by this c2_rpc_conn. */
 	struct c2_rpc_chan		*c_rpcchan;
 	/**
 	    XXX Deprecated: c2_service_id
@@ -412,7 +416,9 @@ struct c2_rpc_conn {
 	struct c2_cob			*c_cob;
 	/** Sender ID unique on receiver */
 	uint64_t                         c_sender_id;
-	/** List of all the sessions for this <sender,receiver> */
+	/** List of all the sessions created under this rpc connection.
+	    c2_rpc_session objects are placed in this list using
+	    c2_rpc_session::s_link */
 	struct c2_list                   c_sessions;
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                         c_nr_sessions;
@@ -585,8 +591,9 @@ struct c2_rpc_session {
 	struct c2_chan			 s_chan;
 	/** lock protecting this session and slot table */
 	struct c2_mutex			 s_mutex;
-	/** Number of items that needs to sent or their reply is
-	    not yet received */
+	/** Number of items that needs to be sent or their reply is
+	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
+	    state in all slots belonging to this session. */
 	int32_t				 s_nr_active_items;
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
@@ -677,7 +684,7 @@ struct c2_rpc_slot_ops {
 /**
   In memory slot object.
 
-  A slot provides the FIFO and exactly once properties for item delivery.
+  A slot provides the FIFO and exactly once semantics for item delivery.
   c2_rpc_slot and its corresponding methods are equally valid on sender and
   receiver side.
 
@@ -690,7 +697,7 @@ struct c2_rpc_slot_ops {
 
   When an update item (one that modifies file-system state) is added to the
   slot, it advances version number of slot.
-  The verno.vn_vc is set to 0 at the time of slot create on both ends.
+  The verno.vn_vc is set to 0 at the time of slot creation on both ends.
 
   A slot responds to following events:
   ITEM_APPLY
@@ -713,7 +720,8 @@ struct c2_rpc_slot {
 	/** a monotonically increasing counter, copied in each item
 	    sent through this slot */
 	uint64_t			 sl_xid;
-	/** List of items, starting from oldest */
+	/** List of items, starting from oldest. Items are placed using
+	    c2_rpc_item::ri_slot_refs[0].sr_link */
 	struct c2_list			 sl_item_list;
 	/** earliest item that the receiver possibly have seen */
 	struct c2_rpc_item		*sl_last_sent;
@@ -724,7 +732,8 @@ struct c2_rpc_slot {
 	/** Maximum number of items that can be in flight on this slot.
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t			 sl_max_in_flight;
-	/** List of items ready to put in rpc */
+	/** List of items ready to put in rpc. Items are placed in this
+	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link */
 	struct c2_list			 sl_ready_list;
 	struct c2_mutex			 sl_mutex;
 	const struct c2_rpc_slot_ops	*sl_ops;

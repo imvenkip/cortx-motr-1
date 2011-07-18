@@ -434,10 +434,10 @@ struct c2_rpc_item {
 	c2_time_t			 ri_rpc_exit_time;
 };
 
-/* Set the stats for outgoing rpc item */ 
+/* Set the stats for outgoing rpc item */
 void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
 
-/* Set the stats for incoming rpc item */ 
+/* Set the stats for incoming rpc item */
 void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
 
 /**

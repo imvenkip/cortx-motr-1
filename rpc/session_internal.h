@@ -313,7 +313,7 @@ struct c2_rpc_slot_ref {
 	struct c2_verno			 sr_last_seen_verno;
 	/** An identifier that uniquely identifies item within
 	    slot->item_list.
-	    XXX should we rename it to something like "item_id"
+	    XXX should we rename it to something like "item_id"?
 		(somehow the name "xid" gives illusion that it is related to
 		 some transaction identifier)
         */
