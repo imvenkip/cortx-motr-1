@@ -30,7 +30,7 @@
 #endif
 
 /**
-  Sleep time till refcounts of all the endpoint units becomes zero
+  Sleep time till refcounts of all the formation state machines become zero.
  */
 enum {
 	PTIME = 10000000,
@@ -279,13 +279,13 @@ int c2_rpc_frm_init(struct c2_rpc_formation **frm)
         c2_addb_ctx_init(&(*frm)->rf_rpc_form_addb,
 			&rpc_frm_addb_ctx_type, &c2_addb_global_ctx);
         c2_addb_choose_default_level(AEL_WARN);
-	c2_rwlock_init(&(*frm)->rf_endp_list_lock);
+	c2_rwlock_init(&(*frm)->rf_sm_list_lock);
 	c2_list_init(&(*frm)->rf_frm_sm_list);
 	return rc;
 }
 
 /**
-   Check if refcounts of all endpoints are zero.
+   Check if refcounts of all state machines drop to zero.
    @retval FALSE if any of refcounts are non-zero,
    @retval TRUE otherwise.
  */
@@ -297,7 +297,7 @@ bool c2_rpc_frm_wait_for_completion(struct c2_rpc_formation *formation_summary)
 
 	C2_PRE(formation_summary != NULL);
 
-	c2_rwlock_read_lock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_read_lock(&formation_summary->rf_sm_list_lock);
 	c2_list_for_each_entry(&formation_summary->rf_frm_sm_list,
 			frm_sm, struct c2_rpc_frm_sm,
 			isu_linkage) {
@@ -310,7 +310,7 @@ bool c2_rpc_frm_wait_for_completion(struct c2_rpc_formation *formation_summary)
 		}
 		c2_mutex_unlock(&frm_sm->isu_unit_lock);
 	}
-	c2_rwlock_read_unlock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_read_unlock(&formation_summary->rf_sm_list_lock);
 	return ret;
 }
 
@@ -409,11 +409,11 @@ void c2_rpc_frm_fini(struct c2_rpc_formation *formation_summary)
 
 	C2_PRE(formation_summary != NULL);
 
-	/* Set the active flag of all endpoints to false indicating
+	/* Set the active flag of all state machines to false indicating
 	   formation component is about to finish.
 	   This will help to block all new threads from entering
 	   the formation component. */
-	c2_rwlock_read_lock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_read_lock(&formation_summary->rf_sm_list_lock);
 	c2_list_for_each_entry(&formation_summary->rf_frm_sm_list,
 			frm_sm, struct c2_rpc_frm_sm,
 			isu_linkage) {
@@ -421,17 +421,17 @@ void c2_rpc_frm_fini(struct c2_rpc_formation *formation_summary)
 		frm_sm->isu_form_active = false;
 		c2_mutex_unlock(&frm_sm->isu_unit_lock);
 	}
-	c2_rwlock_read_unlock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_read_unlock(&formation_summary->rf_sm_list_lock);
 	c2_time_set(&stime, 0, PTIME);
 
-	/* Iterate over the list of endpoints until refcounts of all
+	/* Iterate over the list of state machines until refcounts of all
 	   become zero. */
 	while(!c2_rpc_frm_wait_for_completion(formation_summary)) {
 		c2_nanosleep(stime, NULL);
 	}
 
-	/* Delete all endpoint units, all lists within each endpoint unit. */
-	c2_rwlock_write_lock(&formation_summary->rf_endp_list_lock);
+	/* Delete all state machines, all lists within each state machine. */
+	c2_rwlock_write_lock(&formation_summary->rf_sm_list_lock);
 	c2_list_for_each_entry_safe(&formation_summary->rf_frm_sm_list,
 			frm_sm, frm_sm_next, struct
 			c2_rpc_frm_sm, isu_linkage) {
@@ -448,9 +448,9 @@ void c2_rpc_frm_fini(struct c2_rpc_formation *formation_summary)
 		c2_list_del(&frm_sm->isu_linkage);
 		c2_free(frm_sm);
 	}
-	c2_rwlock_write_unlock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_write_unlock(&formation_summary->rf_sm_list_lock);
 
-	c2_rwlock_fini(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_fini(&formation_summary->rf_sm_list_lock);
 	c2_list_fini(&formation_summary->rf_frm_sm_list);
 	c2_addb_ctx_fini(&formation_summary->rf_rpc_form_addb);
 	c2_free(formation_summary);
@@ -467,18 +467,18 @@ static void rpc_frm_sm_exit(struct c2_rpc_formation *formation_summary,
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(formation_summary != NULL);
 
-	c2_rwlock_write_lock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_write_lock(&formation_summary->rf_sm_list_lock);
 	/** Since the behavior is undefined for fini of mutex
 	    when the mutex is locked, it is not locked here
 	    for frm_sm.*/
 	c2_ref_put(&frm_sm->isu_ref);
-	c2_rwlock_write_unlock(&formation_summary->rf_endp_list_lock);
+	c2_rwlock_write_unlock(&formation_summary->rf_sm_list_lock);
 }
 
 /**
-   Check if the endpoint unit structure is empty.
+   Check if the state machine structure is empty.
  */
-static bool rpc_frm_endp_invariant(struct c2_rpc_frm_sm *frm_sm)
+static bool rpc_frm_sm_invariant(struct c2_rpc_frm_sm *frm_sm)
 {
 	if (!frm_sm)
 		return false;
@@ -496,7 +496,7 @@ static bool rpc_frm_endp_invariant(struct c2_rpc_frm_sm *frm_sm)
 }
 
 /**
-   Destroy an endpoint structure since it no longer contains
+   Destroy a state machine structure since it no longer contains
    any rpc items.
  */
 static void rpc_frm_sm_destroy(struct c2_ref *ref)
@@ -508,7 +508,7 @@ static void rpc_frm_sm_destroy(struct c2_ref *ref)
 	frm_sm = container_of(ref, struct c2_rpc_frm_sm,
 			isu_ref);
 	/* Delete the frm_sm only if all lists are empty.*/
-	if (rpc_frm_endp_invariant(frm_sm)) {
+	if (rpc_frm_sm_invariant(frm_sm)) {
 		c2_mutex_fini(&frm_sm->isu_unit_lock);
 		c2_list_del(&frm_sm->isu_linkage);
 		c2_list_fini(&frm_sm->isu_groups_list);
@@ -522,8 +522,8 @@ static void rpc_frm_sm_destroy(struct c2_ref *ref)
 }
 
 /**
-   Add an endpoint structure when the first rpc item gets added
-   for an endpoint.
+   Add a formation state machine structure when the first rpc item gets added
+   for a network endpoint.
  */
 static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_net_end_point *endp,
 		struct c2_rpc_formation *formation_summary)
@@ -548,7 +548,7 @@ static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_net_end_point *endp,
 	c2_list_init(&frm_sm->isu_rpcobj_checked_list);
 	c2_ref_init(&frm_sm->isu_ref, 1, rpc_frm_sm_destroy);
 	frm_sm->isu_endp = endp;
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_WAITING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_WAITING;
 	frm_sm->isu_form_active = true;
 	/* XXX Need appropriate values.*/
 	frm_sm->isu_max_message_size = max_msg_size;
@@ -588,7 +588,7 @@ static struct c2_net_end_point *rpc_frm_get_endpoint(
 }
 
 /**
-   Check if given 2 endpoints are equal.
+   Check if given network endpoints are equal.
  */
 static bool rpc_frm_endp_equal(struct c2_net_end_point *ep1,
 		struct c2_net_end_point *ep2)
@@ -599,33 +599,33 @@ static bool rpc_frm_endp_equal(struct c2_net_end_point *ep1,
 }
 
 /**
-  For a given endpoint, return an existing internal endpoint
-  unit data structure.
+  For a given network endpoint, return an existing formation state machine
+  object.
  */
-static struct c2_rpc_frm_sm *get_endp_unit(struct c2_net_end_point *ep,
+static struct c2_rpc_frm_sm *rpc_frm_get_endp_unit(struct c2_net_end_point *ep,
 		struct c2_rpc_formation *formation_summary)
 {
-	struct c2_rpc_frm_sm *endp_unit = NULL;
-	struct c2_rpc_frm_sm *endp = NULL;
+	struct c2_rpc_frm_sm *frm_sm = NULL;
+	struct c2_rpc_frm_sm *sm = NULL;
 
 	C2_PRE(ep != NULL);
 
 	c2_list_for_each_entry(&formation_summary->rf_frm_sm_list,
-			endp, struct c2_rpc_frm_sm, isu_linkage) {
-		if (rpc_frm_endp_equal(endp->isu_endp, ep)) {
-			endp_unit = endp;
+			sm, struct c2_rpc_frm_sm, isu_linkage) {
+		if (rpc_frm_endp_equal(sm->isu_endp, ep)) {
+			frm_sm = sm;
 			break;
 		}
 	}
-	return endp_unit;
+	return frm_sm;
 }
 
 /**
    A default handler function for invoking all state functions
    based on incoming event.
-   1. Find out the endpoint for given rpc item.
+   1. Find out the formation state machine for given rpc item.
    2. Lock the c2_rpc_frm_sm data structure.
-   3. Fetch the state for this endpoint and find out the resulting state
+   3. Fetch the state for this state machine and find out the resulting state
    from the state table given this event.
    4. Call the respective state function for resulting state.
    5. Release the lock.
@@ -641,7 +641,7 @@ static int rpc_frm_default_handler(struct c2_rpc_item *item,
 	int			 res = 0;
 	int			 prev_state = 0;
 	struct c2_net_end_point	*endpoint = NULL;
-	struct c2_rpc_frm_sm	*endp = NULL;
+	struct c2_rpc_frm_sm	*sm = NULL;
 	struct c2_rpc_formation	*formation_summary;
 
 	C2_PRE(item != NULL);
@@ -652,70 +652,69 @@ static int rpc_frm_default_handler(struct c2_rpc_item *item,
 	/* XXX to be replaced by appropriate routine */
 	endpoint = rpc_frm_get_endpoint(item);
 
-	/* If endpoint unit is NULL, locate it from list in
-	   formation summary. If found, take its lock and
-	   increment its refcount. If not found, create a
-	   new endpoint unit structure. In any case, find out
-	   the previous state of endpoint unit. */
+	/* If state machine pointer from rpc item is NULL, locate it
+	   from list in list of state machines. If found, lock it and
+	   increment its refcount. If not found, create a new state machine.
+	   In any case, find out the previous state of state machine. */
 	if (frm_sm == NULL) {
-		c2_rwlock_write_lock(&formation_summary->rf_endp_list_lock);
-		endp = get_endp_unit(endpoint, formation_summary);
-		if (endp != NULL) {
-			c2_mutex_lock(&endp->isu_unit_lock);
-			c2_ref_get(&endp->isu_ref);
+		c2_rwlock_write_lock(&formation_summary->rf_sm_list_lock);
+		sm = rpc_frm_get_endp_unit(endpoint, formation_summary);
+		if (sm != NULL) {
+			c2_mutex_lock(&sm->isu_unit_lock);
+			c2_ref_get(&sm->isu_ref);
 			c2_rwlock_write_unlock(&formation_summary->
-					rf_endp_list_lock);
+					rf_sm_list_lock);
 		} else {
 			/** Add a new endpoint summary unit */
-			endp = rpc_frm_sm_add(endpoint,
+			sm = rpc_frm_sm_add(endpoint,
 					formation_summary);
-			if(endp == NULL) {
+			if(sm == NULL) {
 				C2_ADDB_ADD(&formation_summary->
 					rf_rpc_form_addb, &rpc_frm_addb_loc,
 					formation_func_fail, "rpc_frm_sm_add",
 					res);
 				return -ENOENT;
 			}
-			c2_mutex_lock(&endp->isu_unit_lock);
+			c2_mutex_lock(&sm->isu_unit_lock);
 			c2_rwlock_write_unlock(&formation_summary->
-					rf_endp_list_lock);
+					rf_sm_list_lock);
 		}
-		prev_state = endp->isu_endp_state;
+		prev_state = sm->isu_frm_state;
 	} else {
 		prev_state = sm_state;
 		c2_mutex_lock(&frm_sm->isu_unit_lock);
-		endp = frm_sm;
+		sm = frm_sm;
 	}
 	/* If the formation component is not active (form_fini is called)
 	   exit the state machine and return back. */
-	if (!endp->isu_form_active) {
-		c2_mutex_unlock(&endp->isu_unit_lock);
-		rpc_frm_sm_exit(formation_summary, endp);
+	if (!sm->isu_form_active) {
+		c2_mutex_unlock(&sm->isu_unit_lock);
+		rpc_frm_sm_exit(formation_summary, sm);
 		return 0;
 	}
 	/* Transition to next state.*/
 	res = (rpc_frm_next_state(prev_state, sm_event->se_event))
-		(endp, item, sm_event);
+		(sm, item, sm_event);
 	/* The return value should be an internal event.
 	   Assert if its not. */
 	C2_ASSERT((res >= C2_RPC_FRM_INTEVT_STATE_SUCCEEDED) &&
 			(res <= C2_RPC_FRM_INTEVT_STATE_DONE));
 	/* Get latest state of state machine. */
-	prev_state = endp->isu_endp_state;
-	c2_mutex_unlock(&endp->isu_unit_lock);
+	prev_state = sm->isu_frm_state;
+	c2_mutex_unlock(&sm->isu_unit_lock);
 
 	/* Exit point for state machine. */
 	if(res == C2_RPC_FRM_INTEVT_STATE_DONE) {
-		rpc_frm_sm_exit(formation_summary, endp);
+		rpc_frm_sm_exit(formation_summary, sm);
 		return 0;
 	}
 
 	if (res == C2_RPC_FRM_INTEVT_STATE_FAILED) {
 		/** Post a state failed event. */
-		rpc_frm_state_failed(endp, item, prev_state);
+		rpc_frm_state_failed(sm, item, prev_state);
 	} else if (res == C2_RPC_FRM_INTEVT_STATE_SUCCEEDED){
 		/** Post a state succeeded event. */
-		rpc_frm_state_succeeded(endp, item, prev_state);
+		rpc_frm_state_succeeded(sm, item, prev_state);
 	}
 	return 0;
 }
@@ -1051,7 +1050,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_waiting_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_WAITING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_WAITING;
 	/* Internal events will invoke a nop from waiting state. */
 
 	return C2_RPC_FRM_INTEVT_STATE_DONE;
@@ -1399,7 +1398,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_UPDATING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_UPDATING;
 
 	/* If the item doesn't belong to unbound list of its session,
 	   add it to the c2_rpc_frm_sm data structure.*/
@@ -1775,7 +1774,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_checking_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_CHECKING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_CHECKING;
 	formation_summary = item->ri_mach->cr_formation;
 
 	/* If isu_rpcobj_formed_list is not empty, it means an rpc
@@ -2046,7 +2045,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_forming_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_FORMING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_FORMING;
 	if (!c2_list_is_empty(&frm_sm->isu_rpcobj_formed_list)) {
 		return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
 	}
@@ -2123,7 +2122,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_posting_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_POSTING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_POSTING;
 
 	/* Iterate over the rpc object list and send all rpc objects
 	   to the output component. */
@@ -2205,7 +2204,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_removing_state(
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->isu_unit_lock));
 
-	frm_sm->isu_endp_state = C2_RPC_FRM_STATE_REMOVING;
+	frm_sm->isu_frm_state = C2_RPC_FRM_STATE_REMOVING;
 
 	/*1. Check the state of incoming rpc item.
 	  2. If it is RPC_ITEM_ADDED, deny the request to

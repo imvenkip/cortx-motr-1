@@ -596,7 +596,7 @@ static struct c2_net_buffer *c2_rpc_net_buffer_allocate(
 	c2_bcount_t			 nrsegs = 0;
 
 	C2_PRE(net_dom != NULL);
-	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype = C2_NET_QT_MSG_SEND));
+	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype == C2_NET_QT_MSG_SEND));
 
 	if (nbuf == NULL) {
 		C2_ALLOC_PTR(nb);

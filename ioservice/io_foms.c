@@ -277,7 +277,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		/*
 		 * Make an FOL transaction record.
 		 */
-		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
+		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
 				fom->fo_fol, &tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 	}
@@ -364,7 +364,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	if (result == 0)
 		c2_chan_wait(&clink);
 
-	/* 
+	/*
 	 * Retrieve the status code and no of bytes read/written
 	 * and place it in respective reply FOP.
 	 */

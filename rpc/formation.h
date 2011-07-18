@@ -41,14 +41,15 @@
    @{
 
    Formation component runs as a state machine driven by external events.
-   The state machine runs per endpoint and it maintains state and its
+   The state machine runs per network endpoint and it maintains state and its
    internal data per endpoint.
    There are no internal threads belonging to formation component.
    Formation component uses the "RPC Items cache" as input and sends out
    RPC objects which are containers of rpc items as soon as they are ready.
    The grouping component populates the rpc items cache which is then
    used by formation component to form them into rpc objects.
-   The rpc items cache is grouped into several lists, one per endpoint.
+   The rpc items cache is grouped into several lists, either in the list
+   of unbound items in some slot or list of ready items on a slot.
    Each list contains rpc items destined for given endpoint.
    These lists are sorted by timeouts. So the items with least timeout
    will be at the HEAD of list.
@@ -124,6 +125,7 @@
 	   +------------>CHECKING--------------->FORMING--+
 	    frm check success	   rpc object formed
 
+
    The lifecycle of any thread executing the formation state machine is
    something like this
 	execute a state function as a result of triggering of some event.
@@ -153,17 +155,15 @@
    Locking order =>
    This order will ensure there are no deadlocks due to locking
    order reversal.
-   1. Always take the rf_endp_list_lock rwlock from struct
-      c2_rpc_formation first and release when not
-      needed any more.
-   2. Always take the isu_unit_lock mutex from struct
-      c2_rpc_frm_sm next and release when
-      not needed any more.
+   1. Always take the rf_sm_list_lock rwlock from struct c2_rpc_formation
+      first and release when not needed any more.
+   2. Always take the isu_unit_lock mutex from struct c2_rpc_frm_sm next
+      and release when not needed any more.
  */
 
 /**
    This structure is an internal data structure which builds up the
-   summary form of data for all endpoints.
+   summary form of data for all formation state machines.
    It contains a list of sub structures, one for each endpoint.
  */
 struct c2_rpc_formation {
@@ -172,13 +172,13 @@ struct c2_rpc_formation {
 	    @code c2_list <struct c2_rpc_frm_sm> @endcode */
 	struct c2_list			rf_frm_sm_list;
 	/** Read/Write lock protecting the list from concurrent access. */
-	struct c2_rwlock		rf_endp_list_lock;
+	struct c2_rwlock		rf_sm_list_lock;
 	/** ADDB context for this item summary */
 	struct c2_addb_ctx		rf_rpc_form_addb;
 };
 
 /**
-   Check if refcounts of all endpoints are zero.
+   Check if refcounts of all state machines are zero.
  */
 bool c2_rpc_frm_wait_for_completion(struct c2_rpc_formation *frm);
 
@@ -211,15 +211,15 @@ enum c2_rpc_frm_state {
 };
 
 /**
-   This structure represents the summary data for a given endpoint.
+   This structure represents the summary data for a formation state machine.
    It contains a list containing the summary data for each rpc group
    and a list of files involved in any IO operations destined for
-   the given endpoint.
-   There is a state variable per summary unit(per endpoint).
+   the given network endpoint.
+   There is a state maintained per state machine.
    This will help to ensure that requests belonging to different
-   endpoints can proceed in their own state machines. Only the
-   requests belonging to same endpoint will contest for the
-   state variable.
+   network endpoints can proceed in their own state machines. Only the
+   requests belonging to same network endpoint will contest for the
+   same state machine.
  */
 struct c2_rpc_frm_sm {
 	/** Mutex protecting the unit from concurrent access. */
@@ -227,20 +227,20 @@ struct c2_rpc_frm_sm {
 	/** Linkage into the list of formation state machines anchored
 	    at c2_rpc_formation::rf_frm_sm_list. */
 	struct c2_list_link		 isu_linkage;
-	/** The net endpoint this formation state machine is directed
+	/** The network endpoint this formation state machine is directed
 	    towards. */
 	struct c2_net_end_point		*isu_endp;
 	/** Flag indicating the formation component is still active. */
 	bool				 isu_form_active;
-	/** State of the state machine for this endpoint. Threads will have
-	    to take the unit_lock above before state can be changed. This
+	/** State of the state machine. Threads will have to take the
+	    unit_lock above before state can be changed. This
 	    variable will bear one value from enum c2_rpc_frm_state. */
-	enum c2_rpc_frm_state		 isu_endp_state;
+	enum c2_rpc_frm_state		 isu_frm_state;
 	/** Refcount for this summary unit. Refcount is related to an incoming
 	    thread as well as the number of rpc items it refers to.
-	    Only when the endpoint unit doesn't contain any data about
+	    Only when the state machine doesn't contain any data about
 	    unformed rpc items and there are no threads operating on the
-	    endpoint unit, will it be deallocated. */
+	    state machine, will it be deallocated. */
 	struct c2_ref			 isu_ref;
 	/** List of structures containing data for each group linked
 	    through c2_rpc_frm_rpcgroup::sug_linkage.
@@ -279,21 +279,21 @@ struct c2_rpc_frm_sm {
 	uint64_t			 isu_max_rpcs_in_flight;
 	/** Number of rpcs in flight sent by this state machine. */
 	uint64_t			 isu_curr_rpcs_in_flight;
-	/** Cumulative size of items added to this endpoint so far.
+	/** Cumulative size of items added to this state machine so far.
 	    Will help to determine if an optimal rpc can be formed.*/
 	uint64_t			 isu_cumulative_size;
-	/** Number of urgent items added to this endpoint so far.
+	/** Number of urgent items added to this state machine so far.
 	    Any number > 0 will trigger formation.*/
 	uint64_t			 isu_n_urgent_items;
 };
 
 /**
-   Given an endpoint, tell if an optimal rpc can be prepared from
-   the items submitted to this endpoint.
-   @param endp_unit - the c2_rpc_frm_sm structure
+   Given a formation state machine, tell if an optimal rpc can be prepared from
+   the items submitted to network endpoint referred by given state machine.
+   @param frm_sm - the c2_rpc_frm_sm structure under consideration.
    based on whose data, it will be found if an optimal rpc can be made.
  */
-bool c2_rpc_frm_is_rpc_optimal(struct c2_rpc_frm_sm *endp_unit,
+bool c2_rpc_frm_is_rpc_optimal(struct c2_rpc_frm_sm *frm_sm,
 		uint64_t rpcobj_size, bool urgent_unbound);
 
 /**
@@ -326,11 +326,11 @@ struct c2_rpc_frm_buffer {
 
    @param fb - a formation buffer pointer.
    @param rpc - rpc which will be serialized into the c2_net_buffer.
-   @param endp_unit - the item_summary_unit structure associated with rpc.
+   @param frm_sm - the c2_rpc_frm_sm structure associated with rpc.
    @param net_dom - the associated c2_net_domain structure.
  */
 int c2_rpc_frm_buffer_allocate(struct c2_rpc_frm_buffer **fb,
-		struct c2_rpc *rpc, struct c2_rpc_frm_sm *endp_unit,
+		struct c2_rpc *rpc, struct c2_rpc_frm_sm *frm_sm,
 		struct c2_net_domain *net_dom);
 
 /**
@@ -382,7 +382,7 @@ struct c2_rpc_frm_item_coalesced_member {
 
 /**
    This structure represents the summary data for a given rpc group
-   destined for a given endpoint.
+   destined for a given state machine.
  */
 struct c2_rpc_frm_rpcgroup {
 	/** Linkage into the list of groups belonging to same state machine
@@ -557,12 +557,12 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
    Try to coalesce rpc items from the session->free list.
-   @param endp_unit - the item_summary_unit structure in which these activities
+   @param frm_sm - the c2_rpc_frm_sm structure in which these activities
    are taking place.
    @param item - given bound rpc item.
    @param rpcobj_size - current size of rpc object.
  */
-int c2_rpc_frm_try_coalesce(struct c2_rpc_frm_sm *endp_unit,
+int c2_rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
                 struct c2_rpc_item *item, uint64_t *rpcobj_size);
 
 /**
@@ -589,11 +589,11 @@ int c2_rpc_frm_coalesce_fid_intent(struct c2_rpc_item *b_item,
    ** WAITING state should be a nop for internal events. **
    @param item - input rpc item.
    @param event - Since WAITING state handles a lot of events,
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
    it needs some way of identifying the events.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_waiting_state(
-		struct c2_rpc_frm_sm *endp_unit, struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
@@ -602,10 +602,10 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_waiting_state(
    @param item - input rpc item.
    @param event - Since UPDATING state handles a lot of events,
    it needs some way of identifying the events.
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
-		struct c2_rpc_frm_sm *endp_unit ,struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
@@ -627,7 +627,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
    will be coalesced if possible since there is no sequence number assigned
    yet to the rpc items.
    Formation Algorithm.
-   1. Read rpc items from the cache for this endpoint.
+   1. Read rpc items from the cache destined for given network endpoint.
    2. If the item deadline is zero(urgent), add it to a local
    list of rpc items to be formed.
    3. Check size of formed rpc object so far to see if its optimal.
@@ -642,7 +642,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
    lowest average timeout and highest size that fits into optimal
    size. Keep selecting such groups till optimal size rpc is formed.
    6. Consult the list of files from internal data to find out files
-   on which IO requests have come for this endpoint. Do coalescing
+   on which IO requests have come for this state machine. Do coalescing
    within groups selected for formation according to read/write
    intents. Later if rpc has still not reached its optimal size,
    coalescing across rpc groups will be done.
@@ -657,10 +657,10 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
    @param item - input rpc item.
    @param event - Since CHECKING state handles a lot of events,
    it needs some way of identifying the events.
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_checking_state(
-		struct c2_rpc_frm_sm *endp_unit ,struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
@@ -678,10 +678,10 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_checking_state(
    @param item - input rpc item.
    @param event - Since FORMING state handles a lot of events,
    it needs some way of identifying the events.
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_forming_state(
-		struct c2_rpc_frm_sm *endp_unit, struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
@@ -690,10 +690,10 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_forming_state(
    @param item - input rpc item.
    @param event - Since POSTING state handles a lot of events,
    it needs some way of identifying the events.
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_posting_state(
-		struct c2_rpc_frm_sm *endp_unit, struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
@@ -704,20 +704,20 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_posting_state(
    @param item - input rpc item.
    @param event - Since REMOVING state handles a lot of events,
    it needs some way of identifying the events.
-   @param endp_unit - Corresponding summary_unit structure for given rpc item.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_removing_state(
-		struct c2_rpc_frm_sm *endp_unit, struct c2_rpc_item *item,
+		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
    Type definition of a state function.
-   @param endp_unit - given item_summary_unit structure.
+   @param frm_sm - given c2_rpc_frm_sm structure.
    @param item - incoming rpc item.
    @param event - triggered event.
    @param pvt - private data of rpc item.
  */
-typedef enum c2_rpc_frm_int_evt_id (*statefunc)(struct c2_rpc_frm_sm *endp_unit,
+typedef enum c2_rpc_frm_int_evt_id (*statefunc)(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 

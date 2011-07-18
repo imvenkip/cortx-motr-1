@@ -170,7 +170,7 @@ static struct c2_fop_file_fid *io_fop_get_write_fid(struct c2_fop *fop)
    Return status telling if given fop is an IO request or not.
    @pre fop.f_item.ri_type->rit_ops->rio_is_io_req is called.
 
-   @param - fop for which rw status is to be found out 
+   @param - fop for which rw status is to be found out
  */
 static bool io_fop_is_rw(const struct c2_fop *fop)
 {
