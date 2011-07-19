@@ -725,6 +725,13 @@ struct c2_rpc_slot {
 	const struct c2_rpc_slot_ops	*sl_ops;
 };
 
+/**
+   Iterate over all the sessions in rpc connection
+ */
+#define c2_rpc_for_each_session(conn, session)  \
+	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
+		struct c2_rpc_session, s_link)
+
 /** @} end of session group */
 
 #endif

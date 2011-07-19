@@ -86,9 +86,7 @@
    machine transitions.
    - WAITING (waiting for an event to trigger)
    - UPDATING (updates the internal data structure)
-   - CHECKING (core of formation algorithm)
-   - FORMING (Forming an rpc object in memory)
-   - POSTING (Sending the rpc object over wire?)
+   - FORMING (core of formation algorithm)
 
    Along with these external events, there are some implicit internal
    events which are used to transit the state machine from one state
@@ -194,18 +192,9 @@ enum c2_rpc_frm_state {
 	/** UPDATING state for state machine, where it updates
 	    internal data structure (struct c2_rpc_frm_sm) */
 	C2_RPC_FRM_STATE_UPDATING,
-	/** CHECKING state for state machine, which employs formation
+	/** FORMING state for state machine, which employs formation
 	    algorithm. */
-	C2_RPC_FRM_STATE_CHECKING,
-	/** FORMING state for state machine, which forms the struct c2_rpc
-	    object from a list of member rpc items. */
 	C2_RPC_FRM_STATE_FORMING,
-	/** POSTING state for state machine, which posts the formed rpc
-	    object to output component. */
-	C2_RPC_FRM_STATE_POSTING,
-	/** REMOVING state for state machine, which changes the data in
-	    formation data structure according to the changed rpc item. */
-	C2_RPC_FRM_STATE_REMOVING,
 	/** MAX States of state machine. */
 	C2_RPC_FRM_STATES_NR
 };
@@ -254,16 +243,7 @@ struct c2_rpc_frm_sm {
 	/** List of formed RPC objects kept with formation linked
 	    through c2_rpc::r_linkage.
 	    @code c2_list <struct c2_rpc> @endcode */
-	struct c2_list			 isu_rpcobj_formed_list;
-	/** A list of checked rpc objects. This list is populated
-	    by CHECKING state while FORMING state removes rpc objects
-	    from this list, populates sessions information for all
-	    member rpc items and puts the rpc object on formed list of
-	    rpc objects.
-	    A list of rpc objects created by CHECKING state linked
-	    through c2_rpc::r_linkage.
-	    @code c2_list <struct c2_rpc> @endcode */
-	struct c2_list			 isu_rpcobj_checked_list;
+	struct c2_list			 isu_rpcobj_list;
 	/** List of unformed rpc items which are still due to undergo
 	    formation processing and have not been added yet to an rpc.
 	    List of such unformed rpc items linked through
@@ -412,10 +392,6 @@ struct c2_rpc_frm_rpcgroup {
 enum c2_rpc_frm_ext_evt_id {
 	/** Slot ready to send next item. */
 	C2_RPC_FRM_EXTEVT_RPCITEM_READY = 0,
-	/** RPC item removed from cache. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_REMOVED,
-	/** Parameter change for rpc item. */
-	C2_RPC_FRM_EXTEVT_RPCITEM_CHANGED,
 	/** Reply received for an rpc item. */
 	C2_RPC_FRM_EXTEVT_RPCITEM_REPLY_RECEIVED,
 	/** Deadline expired for rpc item. */
@@ -423,9 +399,16 @@ enum c2_rpc_frm_ext_evt_id {
 	/** Slot has become idle */
 	C2_RPC_FRM_EXTEVT_SLOT_IDLE,
 	/** Freestanding (unbounded) item added to session */
-	C2_RPC_FRM_EXTEVT_UNBOUNDED_RPCITEM_ADDED,
+	C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED,
+	/** An unsolicited rpc item is added. For this item, no replies
+	    are expected and they should be sent as unbound items. */
+	C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED,
 	/** Network buffer can be freed */
 	C2_RPC_FRM_EXTEVT_NET_BUFFER_FREE,
+	/** RPC item removed from cache. */
+	C2_RPC_FRM_EXTEVT_RPCITEM_REMOVED,
+	/** Parameter change for rpc item. */
+	C2_RPC_FRM_EXTEVT_RPCITEM_CHANGED,
 	/** Max number of external events. */
 	C2_RPC_FRM_EXTEVT_NR,
 };
@@ -504,7 +487,7 @@ int c2_rpc_frm_item_ready(struct c2_rpc_item *item);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_frm_item_deleted(struct c2_rpc_item *item);
+int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
 
 /**
    Callback function for change in parameter of an rpc item.
@@ -545,7 +528,7 @@ int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot);
    the corresponding event enum.
    @param item - incoming rpc item.
  */
-int c2_rpc_frm_ub_item_added(struct c2_rpc_item *item);
+int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
 
 /**
   Callback function for <struct c2_net_buffer> which indicates that
@@ -609,7 +592,7 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
 		const struct c2_rpc_frm_sm_event *event);
 
 /**
-   State function for CHECKING state.
+   State function for FORMING state.
    Core of formation algorithm. This state scans the rpc items cache and
    structure c2_rpc_frm_sm to form an RPC object by
    cooperation of multiple policies.
@@ -655,58 +638,11 @@ enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
    9. This process is repeated until the size of formed rpc object
    is sub optimal and there is no urgent item in the list.
    @param item - input rpc item.
-   @param event - Since CHECKING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_checking_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
-   State function for FORMING state.
-   This state will iterate through list of checked rpc objects
-   which are ready to be sent but don't have sessions information yet.
-   It will check for sessions details for each rpc item in an rpc object.
-   If there are any unbounded items, sessions component will be
-   queried to fetch sessions information for such items.
-   Sessions information: Formation algorithm will call a sessions API
-   c2_rpc_session_item_prepare() for all rpc items which will give
-   the needed sessions information. This way unbound items will also
-   get the sessions information. For items for which this API fails,
-   they will evicted out of the formed rpc object.
-   @param item - input rpc item.
    @param event - Since FORMING state handles a lot of events,
    it needs some way of identifying the events.
    @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
  */
 enum c2_rpc_frm_int_evt_id c2_rpc_frm_forming_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
-   State function for POSTING state.
-   This state will post the formed rpc object to the output component.
-   @param item - input rpc item.
-   @param event - Since POSTING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_posting_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
-   State function for REMOVING state.
-   This state is invoked due to events like rpc item being deleted or
-   change in parameter of rpc item. It removes the given rpc item
-   if it is selected to be a part of rpc object.
-   @param item - input rpc item.
-   @param event - Since REMOVING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_removing_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 

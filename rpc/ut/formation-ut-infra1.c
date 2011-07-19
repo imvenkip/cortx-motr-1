@@ -461,7 +461,7 @@ void c2_rpc_frm_item_add_to_rpcmachine(struct c2_rpc_item *item)
 		/* Call the event on formation module. */
 		item->ri_slot_refs[0].sr_slot = NULL;
 		item->ri_state = RPC_ITEM_SUBMITTED;
-		res = c2_rpc_frm_ub_item_added(item);
+		res = c2_rpc_frm_ubitem_added(item);
 		if (res != 0) {
 			printf("Event UNBOUND ITEM ADDED returned failure.\n");
 		}

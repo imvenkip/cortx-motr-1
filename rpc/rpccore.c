@@ -139,6 +139,7 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 
 	return 0;
 }
+
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	c2_time_t	now;
@@ -155,9 +156,11 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 			item->ri_session->s_session_id);
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	res = c2_rpc_frm_ub_item_added(item);
+	item->ri_type->rit_flags = C2_RPC_ITEM_UNBOUND;
+	res = c2_rpc_frm_ubitem_added(item);
 	return res;
 }
+
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
 {
@@ -196,12 +199,15 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
 	request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
 
+	reply->ri_type->rit_flags = C2_RPC_ITEM_BOUND;
+
 	c2_mutex_lock(&slot->sl_mutex);
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
+
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
 	return item->ri_type->rit_mutabo;
@@ -210,6 +216,53 @@ bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 bool c2_rpc_item_is_request(struct c2_rpc_item *item)
 {
 	return item->ri_type->rit_item_is_req;
+}
+
+bool c2_rpc_item_is_bound(struct c2_rpc_item *item)
+{
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_type != NULL);
+
+	return item->ri_type->rit_flags & C2_RPC_ITEM_BOUND;
+}
+
+bool c2_rpc_item_is_unbound(struct c2_rpc_item *item)
+{
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_type != NULL);
+
+	return item->ri_type->rit_flags & C2_RPC_ITEM_UNBOUND;
+}
+
+bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item)
+{
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_type != NULL);
+
+	return item->ri_type->rit_flags & C2_RPC_ITEM_UNSOLICITED;
+}
+
+int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
+		struct c2_rpc_item *item)
+{
+	c2_time_t		 now;
+	struct c2_rpc_session	*session_zero;
+
+	C2_PRE(conn != NULL);
+	C2_PRE(item != NULL);
+
+	c2_rpc_session_search(conn, SESSION_0, &session_zero);
+	if (session_zero == NULL)
+		return -ENOENT;
+
+	item->ri_session = session_zero;
+	item->ri_state = RPC_ITEM_SUBMITTED;
+	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
+	item->ri_type->rit_flags = C2_RPC_ITEM_UNSOLICITED;
+
+	c2_time_now(&now);
+	item->ri_rpc_entry_time = now;
+	return c2_rpc_frm_ubitem_added(item);
 }
 
 void c2_rpc_ep_aggr_init(struct c2_rpc_ep_aggr *ep_aggr)

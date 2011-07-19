@@ -431,12 +431,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item	*req,
   @pre conn->c_state == C2_RPC_CONN_TERMINATING
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-/**
-   Iterate over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
 
 
 /** @}  End of rpc_session group */

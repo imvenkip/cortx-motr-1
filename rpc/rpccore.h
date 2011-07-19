@@ -318,6 +318,19 @@ struct c2_rpc {
 void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
 
 /**
+   Possible values for flags from c2_rpc_item_type.
+ */
+enum c2_rpc_item_type_flag {
+	/** Item with valid session, slot and version number. */
+	C2_RPC_ITEM_BOUND = (1 << 0),
+	/** Item with a session but no slot nor version number. */
+	C2_RPC_ITEM_UNBOUND = (1 << 1),
+	/** Item similar to unbound item except it is always sent as
+	    unbound item and it does not expect any reply. */
+	C2_RPC_ITEM_UNSOLICITED = (1 << 2),
+};
+
+/**
    Definition is taken partly from 'DLD RPC FOP:core wire formats' (not submitted yet).
    Type of an RPC item.
    There is an instance of c2_rpc_item_type for each value of
@@ -332,7 +345,39 @@ struct c2_rpc_item_type {
 	bool				   rit_item_is_req;
 	/** true if the item of this type modifies file-system state */
 	bool				   rit_mutabo;
+	/** Flag to distinguish unsolicited item from unbound one. */
+	uint64_t			   rit_flags;
 };
+
+/**
+   Post an unsolicited item to rpc layer.
+   @param conn - c2_rpc_conn structure from which this item will be posted.
+   @param item - input rpc item.
+   @retval - 0 if routine succeeds, -ve with proper error code otherwise.
+ */
+int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
+		struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is bound.
+   @param item - Input rpc item
+   @retval - TRUE if bound, FALSE otherwise.
+ */
+bool c2_rpc_item_is_bound(struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is unbound.
+   @param item - Input rpc item
+   @retval - TRUE if unbound, FALSE otherwise.
+ */
+bool c2_rpc_item_is_unbound(struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is unsolicited.
+   @param item - Input rpc item
+   @retval - TRUE if unsolicited, FALSE otherwise.
+ */
+bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item);
 
 enum c2_rpc_item_state {
 	/** Newly allocated object is in uninitialized state */
