@@ -1533,8 +1533,8 @@ static uint64_t sender_id_get()
 	uint64_t			sender_id;
 	uint64_t			sec;
 
-	c2_atomic64_inc(&cnt);
 	do {
+		c2_atomic64_inc(&cnt);
 		sec = c2_time_seconds(c2_time_now(&now));
 
 		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
@@ -1550,8 +1550,8 @@ uint64_t session_id_get()
 	uint64_t			session_id;
 	uint64_t			sec;
 
-	c2_atomic64_inc(&cnt);
 	do {
+		c2_atomic64_inc(&cnt);
 		sec = c2_time_seconds(c2_time_now(&now));
 
 		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
