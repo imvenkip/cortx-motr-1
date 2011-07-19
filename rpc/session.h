@@ -251,6 +251,10 @@ points to record of most recent update operation that updated the slot verno.
 #include "lib/mutex.h"
 #include "dtm/verno.h"
 
+#ifdef __KERNEL__
+#define printf(fmt, ...)	printk((fmt), ## __VA_ARGS__)
+#endif
+
 /* Imports */
 struct c2_rpc_item;
 struct c2_rpcmachine;

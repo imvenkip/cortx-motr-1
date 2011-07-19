@@ -23,7 +23,7 @@
 #include <config.h>
 #endif
 
-#include <errno.h>
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "rpc/session.h"
@@ -31,7 +31,14 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#include "lib/arith.h"
+
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
 #include "rpc/session_u.h"
+#endif
+
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"
@@ -66,9 +73,6 @@ static void search_matching_request_item(const struct c2_rpc_slot *slot,
 
 /**
   Allocates and returns new sender_id
-
-  Currently implemented in a very primitive way. Just returns any
-  random sender_id
  */
 static uint64_t sender_id_get(void);
 
@@ -206,7 +210,11 @@ void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
 void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
 {
 	/* XXX temporary */
-	u->su_uuid = random();
+	uint64_t	rnd;
+	c2_time_t	now;
+
+	rnd = c2_time_nanoseconds(c2_time_now(&now));
+	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
 }
 
 int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
@@ -262,7 +270,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
 	c2_rpc_sender_uuid_generate(&conn->c_uuid);
-	printf("rci: conn uuid %lu\n", conn->c_uuid.su_uuid);
+	printf("rci: conn uuid %lu\n", (unsigned long)conn->c_uuid.su_uuid);
 	rc = __conn_init(conn, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -417,7 +425,8 @@ void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 		conn->c_sender_id = fop_ccr->rccr_snd_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
 		conn->c_rc = 0;
-		printf("ccrr: conn created %lu\n", fop_ccr->rccr_snd_id);
+		printf("ccrr: conn created %lu\n",
+			(unsigned long)fop_ccr->rccr_snd_id);
 	}
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
@@ -504,7 +513,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		rc = -ENOMEM;
 		goto out;
 	}
-	printf("sender_conn_terminate: %p(%lu)\n", conn, conn->c_sender_id);
+	printf("sender_conn_terminate: %p(%lu)\n", conn,
+			(unsigned long)conn->c_sender_id);
 	fop_ct = c2_fop_data(fop);
 	C2_ASSERT(fop_ct != NULL);
 
@@ -569,7 +579,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item	*req,
 	c2_list_del(&conn->c_link);
 	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
 	if (fop_ctr->ctr_rc == 0) {
-		printf("ctrr: connection terminated %lu\n", conn->c_sender_id);
+		printf("ctrr: connection terminated %lu\n",
+			(unsigned long)conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 		conn->c_rc = 0;
@@ -582,7 +593,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item	*req,
 		/*
 		 * Connection termination failed
 		 */
-		printf("ctrr: conn termination failed %lu\n", conn->c_sender_id);
+		printf("ctrr: conn termination failed %lu\n",
+			(unsigned long)conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
@@ -903,7 +915,8 @@ void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 	session_id = fop_scr->rscr_session_id;
 	C2_ASSERT(sender_id != SENDER_ID_INVALID);
 
-	printf("scrr: sender_id %lu session_id %lu\n", sender_id, session_id);
+	printf("scrr: sender_id %lu session_id %lu\n",
+		(unsigned long)sender_id, (unsigned long)session_id);
 	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL &&
 		  conn->c_state == C2_RPC_CONN_ACTIVE &&
@@ -948,7 +961,8 @@ void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
 			C2_ASSERT(slot != NULL && c2_rpc_slot_invariant(slot));
 			slot->sl_ops->so_slot_idle(slot);
 		}
-		printf("scrr: session created %lu\n", session_id);
+		printf("scrr: session created %lu\n",
+			(unsigned long)session_id);
 	}
 
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
@@ -1083,11 +1097,13 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item  *req,
 	if (fop_str->rstr_rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATED;
 		session->s_rc = 0;
-		printf("strr: session terminated %lu\n", session_id);
+		printf("strr: session terminated %lu\n",
+			(unsigned long)session_id);
 	} else {
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = fop_str->rstr_rc;
-		printf("strr: session terminate failed %lu\n", session_id);
+		printf("strr: session terminate failed %lu\n",
+			(unsigned long)session_id);
 	}
 	c2_list_del(&session->s_link);
 	session->s_conn = NULL;
@@ -1277,6 +1293,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	struct c2_cob			*cob;
 	uint64_t			pfid_hi;
 	uint64_t			pfid_lo;
+	uint64_t			rnd;
+	c2_time_t			now;
 	int				rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
@@ -1297,10 +1315,15 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 	/*
 	 * XXX How to get unique stob_id for new cob?
 	 */
-	nsrec.cnr_stobid.si_bits.u_hi = random() % 1000;
-	nsrec.cnr_stobid.si_bits.u_lo = random() % 1000;
+	rnd = c2_time_nanoseconds(c2_time_now(&now));
+
+	nsrec.cnr_stobid.si_bits.u_hi = c2_rnd(1000, &rnd);
+	nsrec.cnr_stobid.si_bits.u_lo = c2_rnd(1000, &rnd);
 	nsrec.cnr_nlink = 1;
 
+	printf("cob_create_helper: hi:lo %lu:%lu\n",
+		(unsigned long)nsrec.cnr_stobid.si_bits.u_hi,
+		(unsigned long)nsrec.cnr_stobid.si_bits.u_lo);
 	/*
 	 * Temporary assignment for lsn
 	 */
@@ -1309,7 +1332,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 
 	rc = c2_cob_create(dom, key, &nsrec, &fabrec, CA_NSKEY_FREE | CA_FABREC,
 				&cob, tx);
-
 	if (rc == 0)
 		*out = cob;
 
@@ -1380,7 +1402,7 @@ int c2_rpc_conn_cob_lookup(struct c2_cob_domain	*dom,
 	if (rc != 0)
 		return rc;
 
-	sprintf(name, "SENDER_%lu", sender_id);
+	sprintf(name, "SENDER_%lu", (unsigned long)sender_id);
 
 	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, out, tx);
 	c2_cob_put(root_session_cob);
@@ -1401,7 +1423,7 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain	*dom,
 	C2_PRE(dom != NULL && out != NULL);
 	C2_PRE(sender_id != SENDER_ID_INVALID);
 
-	sprintf(name, "SENDER_%lu", sender_id);
+	sprintf(name, "SENDER_%lu", (unsigned long)sender_id);
 	*out = NULL;
 
 	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS",
@@ -1431,7 +1453,7 @@ int c2_rpc_session_cob_lookup(struct c2_cob		*conn_cob,
 			session_cob != NULL);
 
 	*session_cob = NULL;
-	sprintf(name, "SESSION_%lu", session_id);
+	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
 
 	rc = c2_rpc_cob_lookup_helper(conn_cob->co_dom, conn_cob, name,
 					&cob, tx);
@@ -1453,7 +1475,7 @@ int c2_rpc_session_cob_create(struct c2_cob		*conn_cob,
 			session_cob != NULL);
 
 	*session_cob = NULL;
-	sprintf(name, "SESSION_%lu", session_id);
+	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
 
 	rc = c2_rpc_cob_create_helper(conn_cob->co_dom, conn_cob, name,
 					&cob, tx);
@@ -1474,7 +1496,7 @@ int c2_rpc_slot_cob_lookup(struct c2_cob	*session_cob,
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
 	*slot_cob = NULL;
-	sprintf(name, "SLOT_%u:%lu", slot_id, slot_generation);
+	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
 
 	rc = c2_rpc_cob_lookup_helper(session_cob->co_dom, session_cob, name,
 					&cob, tx);
@@ -1496,7 +1518,7 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
 	*slot_cob = NULL;
-	sprintf(name, "SLOT_%u:%lu", slot_id, slot_generation);
+	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
 
 	rc = c2_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
 					&cob, tx);
@@ -1506,21 +1528,36 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 
 static uint64_t sender_id_get()
 {
-	uint64_t	sender_id;
+	static struct c2_atomic64	cnt;
+	c2_time_t			now;
+	uint64_t			sender_id;
+	uint64_t			sec;
 
+	c2_atomic64_inc(&cnt);
 	do {
-		sender_id = random();
+		sec = c2_time_seconds(c2_time_now(&now));
+
+		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
+
 	} while (sender_id == SENDER_ID_INVALID || sender_id == 0);
+
 	return sender_id;
 }
 uint64_t session_id_get()
 {
-	uint64_t	session_id;
+	static struct c2_atomic64	cnt;
+	c2_time_t			now;
+	uint64_t			session_id;
+	uint64_t			sec;
 
+	c2_atomic64_inc(&cnt);
 	do {
-		session_id = random();
+		sec = c2_time_seconds(c2_time_now(&now));
+
+		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
 	} while (session_id < SESSION_ID_MIN ||
 			session_id > SESSION_ID_MAX);
+
 	return session_id;
 }
 
@@ -1695,7 +1732,7 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 	/* Currently there are no slots without sessions */
 	C2_ASSERT(session != NULL);
 	printf("slot_item_add: session %p(%lu)\n", session,
-				session->s_session_id);
+				(unsigned long)session->s_session_id);
 	if (session != NULL) {
 		/*
 		 * XXX PROBLEM!!! need to take lock on session.
@@ -1712,9 +1749,10 @@ static void __slot_item_add(struct c2_rpc_slot	*slot,
 
 	printf("item %p<%s> added [%lu:%lu] slot [%lu:%lu]\n", item,
 			c2_rpc_item_is_update(item) ? "UPDATE" : "READ_ONLY",
-			sref->sr_verno.vn_vc,
-			sref->sr_xid,
-			slot->sl_verno.vn_vc, slot->sl_xid);
+			(unsigned long)sref->sr_verno.vn_vc,
+			(unsigned long)sref->sr_xid,
+			(unsigned long)slot->sl_verno.vn_vc,
+			(unsigned long)slot->sl_xid);
 	__slot_balance(slot, allow_events);
 	/*
 	 * C2_RPC_SESSION_IDLE => C2_RPC_SESSION_BUSY
@@ -1775,10 +1813,10 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 
 	printf("Applying item [%lu:%lu] on slot [%lu:%lu]\n",
-			item->ri_slot_refs[0].sr_verno.vn_vc,
-			item->ri_slot_refs[0].sr_xid,
-			slot->sl_verno.vn_vc,
-			slot->sl_xid);
+			(unsigned long)item->ri_slot_refs[0].sr_verno.vn_vc,
+			(unsigned long)item->ri_slot_refs[0].sr_xid,
+			(unsigned long)slot->sl_verno.vn_vc,
+			(unsigned long)slot->sl_xid);
 	redoable = c2_verno_is_redoable(&slot->sl_verno,
 					&item->ri_slot_refs[0].sr_verno,
 					false);
@@ -2059,7 +2097,8 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	 */
 	C2_ASSERT(slot != NULL);
 	printf("item_list_prune: slot %p [%lu:%u]\n", slot,
-			slot->sl_session->s_session_id, slot->sl_slot_id);
+			(unsigned long)slot->sl_session->s_session_id,
+			slot->sl_slot_id);
 
 	if (c2_list_length(&slot->sl_item_list) == 1) {
 		/*
@@ -2159,7 +2198,8 @@ static void sender_reply_consume(struct c2_rpc_item	*req,
 static void rcv_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
-			slot->sl_verno.vn_vc, slot->sl_xid);
+			(unsigned long)slot->sl_verno.vn_vc,
+			(unsigned long)slot->sl_xid);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
 static void rcv_item_consume(struct c2_rpc_item *item)
@@ -2231,6 +2271,8 @@ static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_INITIALISED &&
 			c2_rpc_conn_invariant(conn));
 
+	printf("persistent_state_attach: sender_id %lu\n",
+		(unsigned long)sender_id);
 	dom = conn->c_rpcmachine->cr_dom;
 	rc = conn_persistent_state_create(dom, sender_id,
 					  &conn_cob, &session0_cob, &slot0_cob,
@@ -2582,8 +2624,10 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 	if (sref->sr_session_id > SESSION_ID_MAX)
 		return -EINVAL;
 
-	printf("associate_session: [%lu:%lu:%u]\n", sref->sr_sender_id,
-			sref->sr_session_id, sref->sr_slot_id);
+	printf("associate_session: [%lu:%lu:%u]\n",
+			(unsigned long)sref->sr_sender_id,
+			(unsigned long)sref->sr_session_id,
+			sref->sr_slot_id);
 	conn_list = c2_rpc_item_is_request(item) ?
 			&item->ri_mach->cr_incoming_conns :
 			&item->ri_mach->cr_outgoing_conns;
@@ -2593,7 +2637,8 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 
 	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
-		printf("associate_session: conn %lu\n", conn->c_sender_id);
+		printf("associate_session: conn %lu\n",
+			(unsigned long)conn->c_sender_id);
 		found = use_uuid ?
 			c2_rpc_sender_uuid_cmp(&conn->c_uuid,
 					       &sref->sr_uuid) == 0 :

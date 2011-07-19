@@ -71,7 +71,6 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session0;
 	struct c2_rpc_slot			*slot;
-	uint64_t				sender_id;
 	int					rc;
 
 	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
@@ -135,8 +134,6 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	printf("Received conn sender id = %lu\n", conn->c_sender_id);
 	fop_ccr->rccr_rc = 0;		/* successful */
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
-
-	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;

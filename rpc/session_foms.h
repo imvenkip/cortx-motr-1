@@ -26,7 +26,9 @@
 #include "fop/fop_format.h"
 
 #include "rpc/session_fops.h"
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
 #include "rpc/session_u.h"
 #endif
 

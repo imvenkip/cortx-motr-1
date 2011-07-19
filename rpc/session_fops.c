@@ -28,7 +28,13 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
 #include "rpc/session_u.h"
+#endif
+
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
