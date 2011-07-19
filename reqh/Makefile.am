@@ -9,7 +9,8 @@ reqh_fops_u.h reqh_fops_u.c : reqh_fops.ff \
 		$(top_builddir)/fop/fop2c -u $<
 
 libcolibri_reqh_la_SOURCES  = reqh_fops_u.c reqh_fops_u.h \
-				reqh_fops.ff reqh.c reqh.h reqh_fops.c
+				reqh_fops.ff reqh.c reqh.h reqh_fops.c \
+				reqh_generic.c
 
 INCLUDES                    = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 

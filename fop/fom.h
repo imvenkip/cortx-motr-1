@@ -16,7 +16,7 @@
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
  * 		    Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original creation date: 05/19/2010
  */
 
 #ifndef __COLIBRI_FOP_FOM_H__
@@ -81,8 +81,8 @@ struct c2_fom_ops;
 
    - runq list and wait list are protect by their respective locks
      i.e fl_runq_lock and fl_wail_lock.
-   - Rest of the locality members are protected by locality's fl_lock.
-   - No lock ordering is needed here as there's no conatiner relationship
+   - rest of the locality members are protected by locality's fl_lock.
+   - no lock ordering is needed here as there's no conatiner relationship
      among locality members.
 
    Once the locality is initialised, the locality invariant,
@@ -94,12 +94,12 @@ struct c2_fom_ops;
 struct c2_fom_locality {
 	struct c2_fom_domain        *fl_dom;
 
-	/** run-queue */
+	/** Run-queue */
 	struct c2_list               fl_runq;
 	size_t			     fl_runq_nr;
 	struct c2_mutex		     fl_runq_lock;
 
-	/** wait list */
+	/** Wait list */
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 	struct c2_mutex		     fl_wail_lock;
@@ -116,7 +116,7 @@ struct c2_fom_locality {
 	*/
 	struct c2_chan		     fl_runrun;
 
-	/** handler threads */
+	/** Handler threads */
 	struct c2_list		     fl_threads;
 	size_t			     fl_idle_threads_nr;
 	size_t			     fl_threads_nr;
@@ -283,23 +283,23 @@ struct c2_fom {
 	struct c2_clink		 fo_clink;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
-	/** request fop object, this fom belongs to */
+	/** Request fop object, this fom belongs to */
 	struct c2_fop		*fo_fop;
-	/** reply fop object */
+	/** Reply fop object */
 	struct c2_fop		*fo_rep_fop;
-	/** fol object for this fom */
+	/** Fol object for this fom */
 	struct c2_fol		*fo_fol;
-	/** stob domain this fom is operating on */
+	/** Stob domain this fom is operating on */
 	struct c2_stob_domain	*fo_stdomain;
-	/** fom domain this fom is working in */
+	/** Fom domain this fom belongs to */
 	struct c2_fom_domain	*fo_domain;
-	/** transaction object to be used by this fom */
+	/** Transaction object to be used by this fom */
 	struct c2_dtx		 fo_tx;
-	/** linkage in the locality runq list or wait list  */
+	/** Linkage in the locality runq list or wait list  */
 	struct c2_list_link	 fo_rwlink;
-	/** result of fom execution, -errno on failure */
+	/** Result of fom execution, -errno on failure */
 	int			 fo_rc;
-	/** temporary reference to reply fop */
+	/** Temporary reference to reply fop */
 	void			*fo_cookie;
 };
 

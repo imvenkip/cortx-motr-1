@@ -16,7 +16,7 @@
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
  *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original creation date: 05/19/2010
  */
 
 #ifndef __COLIBRI_REQH_REQH_H__
@@ -53,14 +53,14 @@ struct c2_reqh {
 	struct c2_dtm		*rh_dtm;
 	/**
 	   @todo for now simply use storage object domain. In the future, this
-	   will be replaced with "stores".
+	   will be replaced with "stores"
 	 */
 	struct c2_stob_domain	*rh_stdom;
-	/** service this request hander belongs to */
+	/** Service this request hander belongs to */
 	struct c2_service	*rh_serv;
-	/** fol pointer for this request handler */
+	/** Fol pointer for this request handler */
 	struct c2_fol		*rh_fol;
-	/** fom domain for this request handler */
+	/** Fom domain for this request handler */
 	struct c2_fom_domain	 rh_fom_dom;
 };
 
@@ -68,8 +68,6 @@ struct c2_reqh {
    Initialises request handler instance provided by the caller.
 
    @param reqh, request handler instance to be initialised,
-   @param rpc, rpc machine, (to be used later)
-   @param dtm, database transaction machine, (to be used later)
    @param stdom, storage object domain used for file io
    @param fol, file operation log to record fop execution
    @param serv, service using this request handler

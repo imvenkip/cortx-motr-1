@@ -47,14 +47,14 @@ enum loc_idle_threads {
  */
 
 /**
- * fom addb event location object
+ * Fom addb event location object
  */
 const struct c2_addb_loc c2_fom_addb_loc = {
 	.al_name = "fom"
 };
 
 /**
- * fom addb context state.
+ * Fom addb context state.
  */
 const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
 	.act_name = "fom"
@@ -151,7 +151,7 @@ static void fom_cb(struct c2_clink *clink)
 
 void c2_fom_block_enter(struct c2_fom *fom)
 {
-	int			rc = 0;
+	int			rc;
 	int			i;
 	size_t			idle_threads;
 	size_t			hi_idle_threads;
@@ -165,8 +165,10 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 
-	for (i = idle_threads; i < hi_idle_threads && rc == 0; ++i) {
+	for (i = idle_threads; i < hi_idle_threads; ++i) {
 		rc = loc_thr_create(loc);
+		if (rc != 0)
+			break;
 	}
 
 	if (rc != 0)
@@ -193,9 +195,9 @@ void c2_fom_queue(struct c2_fom *fom)
 
 /**
  * Puts fom on locality wait list if fom performs a blocking
- * operation, this releases the thread currently executing the
- * fom, to start executing another fom from the runq, thus
- * making the reqh non blocking.
+ * operation, this releases the current thread to start
+ * executing another fom from the runq, thus making the reqh
+ * non blocking.
  * Fom state is changed to FOS_WAITING.
  *
  * @param fom, fom performing blocking operation to be
@@ -225,13 +227,13 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 }
 
 /**
- * Executes fom, invokes fom specific state method until it
- * returns FSO_WAIT, which indicates either fom execution is
- * complete or fom transitions to wait state, on  performing
- * a blocking operation.
- * If fom execution is not complete, then fom should be waiting
- * for an operation to be completed and should be put on the locality
- * wait list before the fom state method returns.
+ * Invokes fom specific state method, which transitions fom
+ * through various phases of its execution without blocking.
+ * Fom state method is executed until it returns FSO_WAIT,
+ * indicating fom has either completed its execution or is
+ * going to block on an operation.
+ * If a fom blocks on an operation, then it should be put on
+ * the locality wait list before the fom state method returns.
  *
  * @see c2_fom_state_outcome
  *
@@ -261,7 +263,7 @@ static void fom_fop_exec(struct c2_fom *fom)
 }
 
 /**
- * Dequeue's a fom from locality's runq list.
+ * Dequeue's a fom from runq list of the locality.
  *
  * @param, loc, locality assigned for fom execution
  *
@@ -292,7 +294,7 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
  * Handler thread waits on re-scheduling channel for specific time.
  * Thread is then woken up either by fom enqueue operation in a locality runq list,
  * or if thread times out waiting on the channel.
- * when woken up, thread dequeue's a fom from the locality runq list and starts
+ * When woken up, thread dequeue's a fom from the locality runq list and starts
  * executing it. If number of idle threads are higher than threshold value, they
  * are terminated.
  *
@@ -337,7 +339,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 			 * into it by c2_fom_block_at().
 			 */
 			if (c2_clink_is_armed(&fom->fo_clink))
-                        	c2_clink_del(&fom->fo_clink);
+				c2_clink_del(&fom->fo_clink);
 
 			fom->fo_state = FOS_RUNNING;
 			fom_fop_exec(fom);
@@ -384,7 +386,7 @@ static void loc_thr_init(struct c2_fom_hthread *th)
 }
 
 /**
- * Creates and adds a reqh worker thread to the given
+ * Creates and adds a request handler worker thread to the given
  * locality.
  *
  * @see loc_thr_init()
@@ -424,9 +426,9 @@ static int loc_thr_create(struct c2_fom_locality *loc)
  * Finalises a given locality.
  * Sets c2_fom_locality::fl_lo_idle_threads_nr to 0, and
  * iterates over the c2_fom_locality::fl_threads list.
- * Extracts a thread, and waits until the thread exits,
- * and finalises each thread, after removing all the threads
- * from the locality, finalises other locality members.
+ * Extracts a thread, and waits until the thread exits
+ * and finalises each thread. After removing all the threads
+ * from the locality, other locality members are finalised.
  *
  * @param loc, locality to be finalised
  *
@@ -478,6 +480,8 @@ static void locality_fini(struct c2_fom_locality *loc)
  * Initialises a locality in fom domain.
  * Creates and adds threads to locality, every thread is
  * confined to the cpus represented by the pmap.
+ * Number of threads in the locality corresponds to the
+ * number of cpus represented by the bits set in the pmap.
  *
  * @param loc -> c2_fom_locality to be initialised
  * @param pmap -> c2_bitmap, bitmap representing number of cpus
@@ -573,21 +577,27 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	dom->fd_ops = &c2_fom_dom_ops;
 	if ((result = c2_bitmap_init(&onln_cpu_map, max_proc)) != 0)
 		return result;
-	if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0)
+	if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0) {
+		c2_bitmap_fini(&onln_cpu_map);
 		return result;
+	}
 
 	c2_processors_online(&onln_cpu_map);
 	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
 						&c2_fom_addb_loc);
-	if (dom->fd_localities == NULL)
+	if (dom->fd_localities == NULL) {
+		c2_bitmap_fini(&onln_cpu_map);
+		c2_bitmap_fini(&loc_cpu_map);
 		return -ENOMEM;
+	}
 
 	localities = dom->fd_localities;
 	for (i = 0; i < max_proc; ++i) {
 		if (!c2_bitmap_get(&onln_cpu_map, i))
 			continue;
-		result = c2_processor_describe(i, &cpui);
-		for (j = i; j < max_proc && result == 0; ++j) {
+		if ((result = c2_processor_describe(i, &cpui)) != 0)
+			break;
+		for (j = i; j < max_proc; ++j) {
 			if (!c2_bitmap_get(&onln_cpu_map, j))
 				continue;
 			result = c2_processor_describe(j, &cpuj);
@@ -600,13 +610,22 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 			localities[dom->fd_localities_nr].fl_dom = dom;
 			result = locality_init(&localities[dom->fd_localities_nr],
 						&loc_cpu_map);
-		} else
+			if (result == 0) {
+				c2_bitmap_fini(&loc_cpu_map);
+				C2_CNT_INC(dom->fd_localities_nr);
+				result = c2_bitmap_init(&loc_cpu_map, max_proc);
+			}
+		}
+		if (result != 0)
 			break;
 
-		c2_bitmap_fini(&loc_cpu_map);
-		if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0)
-			break;
-		C2_CNT_INC(dom->fd_localities_nr);
+	}
+
+	if (result != 0) {
+		if (dom->fd_localities_nr > 0)
+			c2_fom_domain_fini(dom);
+		else
+			c2_free(dom->fd_localities);
 	}
 
 	c2_bitmap_fini(&onln_cpu_map);
@@ -617,14 +636,14 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 
 void c2_fom_domain_fini(struct c2_fom_domain *dom)
 {
-	int	i;
-	size_t	fd_localities_nr;
+	int fd_loc_nr;
 
 	C2_ASSERT(c2_fom_domain_invariant(dom));
 
-	fd_localities_nr  = dom->fd_localities_nr;
-	for(i = 0; i < fd_localities_nr; ++i) {
-		locality_fini(&dom->fd_localities[i]);
+	fd_loc_nr = dom->fd_localities_nr;
+	while (fd_loc_nr > 0) {
+		locality_fini(&dom->fd_localities[fd_loc_nr - 1]);
+		--fd_loc_nr;
 	}
 
 	c2_free(dom->fd_localities);

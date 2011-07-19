@@ -79,12 +79,12 @@ enum {
 
 enum write_fom_phase {
 	FOPH_WRITE_STOB_IO = FOPH_NR + 1,
-	FOPH_WRITE_STOB_IO_WAIT,
+	FOPH_WRITE_STOB_IO_WAIT
 };
 
 enum read_fom_phase {
 	FOPH_READ_STOB_IO = FOPH_NR + 1,
-	FOPH_READ_STOB_IO_WAIT,
+	FOPH_READ_STOB_IO_WAIT
 };
 
 typedef unsigned long long U64;
@@ -121,6 +121,15 @@ static struct c2_fop_type_ops read_fop_ops = {
 static struct c2_fop_type_ops create_fop_ops = {
 	.fto_fom_init = c2_io_fom_init,
 	.fto_execute = NULL,
+};
+
+enum reply_fop {
+	CREATE_REQ = 10,
+	WRITE_REQ,
+	READ_REQ,
+	CREATE_REP = 21,
+	WRITE_REP,
+	READ_REP
 };
 
 C2_FOP_TYPE_DECLARE(c2_fom_io_create, "create", 10, &create_fop_ops);
@@ -255,7 +264,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
 			C2_UT_ASSERT(rfop != NULL);
 				switch(rfop->f_type->ft_code) {
-					case 21:
+					case CREATE_REP:
 					{
 						struct c2_fom_io_create_rep *rep;
 						rep = c2_fop_data(rfop);
@@ -266,7 +275,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 						c2_fop_free(rfop);
 						break;
 					}
-					case 22:
+					case WRITE_REP:
 					{
 						struct c2_fom_io_write_rep *rep;
 						rep = c2_fop_data(rfop);
@@ -278,7 +287,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 						c2_fop_free(rfop);
 						break;
 					}
-					case 23:
+					case READ_REP:
 					{
 						struct c2_fom_io_read_rep *rep;
 						rep = c2_fop_data(rfop);
@@ -553,27 +562,27 @@ size_t fom_home_locality(const struct c2_fom *fom)
 
 	fd_nr = fom->fo_domain->fd_localities_nr;
 	switch(fom->fo_fop->f_type->ft_code) {
-		case 10: {
-			struct c2_fom_io_create *fop;
-			U64 oid;
-			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->fic_object.f_oid;
-			iloc = oid % fd_nr;
-		}
-		case 11: {
-			struct c2_fom_io_read *fop;
-			U64 oid;
-			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->fir_object.f_oid;
-			iloc = oid % fd_nr;
-		}
-		case 12: {
-			struct c2_fom_io_write *fop;
-			U64 oid;
-			fop = c2_fop_data(fom->fo_fop);
-			oid = fop->fiw_object.f_oid;
-			iloc = oid % fd_nr;
-		}
+	case 10: {
+		struct c2_fom_io_create *fop;
+		U64 oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fic_object.f_oid;
+		iloc = oid % fd_nr;
+	}
+	case 11: {
+		struct c2_fom_io_read *fop;
+		U64 oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fir_object.f_oid;
+		iloc = oid % fd_nr;
+	}
+	case 12: {
+		struct c2_fom_io_write *fop;
+		U64 oid;
+		fop = c2_fop_data(fom->fo_fop);
+		oid = fop->fiw_object.f_oid;
+		iloc = oid % fd_nr;
+	}
 	}
 	return iloc;
 }
@@ -582,14 +591,17 @@ size_t fom_home_locality(const struct c2_fom *fom)
 		fom operations
 *******************************************************/
 /**
- * Fop execution method for create fom.
+ * A simple non blocking create fop specific fom
+ * state method implemention.
  */
 int create_fom_state(struct c2_fom *fom)
 {
 	struct c2_fom_io_create		*in_fop;
 	struct c2_fom_io_create_rep	*out_fop;
 	struct c2_io_fom		*fom_obj;
-	int				 result = FSO_AGAIN;
+	int				 result;
+
+	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
 
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
@@ -605,10 +617,9 @@ int create_fom_state(struct c2_fom *fom)
 		out_fop->ficr_rc = result;
 		fom->fo_rep_fop = fom_obj->rep_fop;
 		fom->fo_rc = result;
-		if (result != 0) {
-			c2_stob_put(fom_obj->stobj);
+		if (result != 0)
 			fom->fo_phase = FOPH_FAILED;
-		} else
+		 else
 			fom->fo_phase = FOPH_SUCCESS;
 
 		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, &fom->fo_tx.tx_dbtx);
@@ -623,7 +634,8 @@ int create_fom_state(struct c2_fom *fom)
 }
 
 /**
- * Fop execution method for read fom.
+ * A simple non blocking read fop specific fom
+ * state method implemention.
  */
 int read_fom_state(struct c2_fom *fom)
 {
@@ -635,66 +647,77 @@ int read_fom_state(struct c2_fom *fom)
 	c2_bcount_t			 offset;
 	uint32_t			 bshift;
 	uint64_t			 bmask;
-	int				 result = FSO_AGAIN;
+	int				 result;
+
+	C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
 
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
-	} else  if (fom->fo_phase == FOPH_READ_STOB_IO) {
-		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
-
-		in_fop = c2_fop_data(fom->fo_fop);
-		out_fop = c2_fop_data(fom_obj->rep_fop);
-
-		fom_obj->stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
-
-		bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
-		bmask  = (1 << bshift) - 1;
-
-		addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
-
-		c2_stob_io_init(&fom_obj->st_io);
-
-		count = 1 >> bshift;
-		offset = 0;
-		fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
-		fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
-		fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
-
-		fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
-		fom_obj->st_io.si_stob.iv_vec.v_count = &count;
-		fom_obj->st_io.si_stob.iv_index       = &offset;
-
-		fom_obj->st_io.si_opcode = SIO_READ;
-		fom_obj->st_io.si_flags  = 0;
-
-		c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
-		result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj, &fom->fo_tx, NULL);
-
-		fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
-		result = FSO_WAIT;
-	} else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
+	} else {
 
 		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
-		out_fop->firr_rc = fom_obj->st_io.si_rc;
-		fom->fo_rc = fom_obj->st_io.si_rc;
-		if (fom->fo_rc != 0) {
-			out_fop->firr_count = 0;
-			c2_stob_io_fini(&fom_obj->st_io);
-			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_FAILED;
-		} else {
-			out_fop->firr_count = fom_obj->st_io.si_count << bshift;
-			fom->fo_phase = FOPH_SUCCESS;
+		C2_UT_ASSERT(out_fop != NULL);
+
+		if (fom->fo_phase == FOPH_READ_STOB_IO) {
+
+			in_fop = c2_fop_data(fom->fo_fop);
+			C2_UT_ASSERT(in_fop != NULL);
+			fom_obj->stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
+
+			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
+			bmask  = (1 << bshift) - 1;
+
+			addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
+
+			c2_stob_io_init(&fom_obj->st_io);
+
+			count = 1 >> bshift;
+			offset = 0;
+			fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
+			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
+			fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
+
+			fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
+			fom_obj->st_io.si_stob.iv_vec.v_count = &count;
+			fom_obj->st_io.si_stob.iv_index       = &offset;
+
+			fom_obj->st_io.si_opcode = SIO_READ;
+			fom_obj->st_io.si_flags  = 0;
+
+			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
+			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj, &fom->fo_tx, NULL);
+
+			if (result != 0) {
+				fom->fo_rc = result;
+				fom->fo_phase = FOPH_FAILED;
+			} else {
+				fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
+				result = FSO_WAIT;
+			}
+		} else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
+			fom->fo_rc = fom_obj->st_io.si_rc;
+			if (fom->fo_rc != 0)
+				fom->fo_phase = FOPH_FAILED;
+			else {
+				out_fop->firr_count = fom_obj->st_io.si_count << bshift;
+				fom->fo_phase = FOPH_SUCCESS;
+			}
+
 		}
 
-		fom->fo_rep_fop = fom_obj->rep_fop;
-		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-						&fom->fo_tx.tx_dbtx);
-		result = FSO_AGAIN;
+		if (fom->fo_phase == FOPH_FAILED || fom->fo_phase == FOPH_SUCCESS) {
+			out_fop->firr_rc = fom->fo_rc;
+			fom->fo_rep_fop = fom_obj->rep_fop;
+			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+							&fom->fo_tx.tx_dbtx);
+			C2_UT_ASSERT(result == 0);
+			result = FSO_AGAIN;
+		}
+
 	}
 
-	if (fom->fo_phase == FOPH_DONE && fom->fo_rc == 0) {
+	if (fom->fo_phase == FOPH_DONE) {
 		c2_stob_io_fini(&fom_obj->st_io);
 		c2_stob_put(fom_obj->stobj);
 	}
@@ -703,7 +726,8 @@ int read_fom_state(struct c2_fom *fom)
 }
 
 /**
- * Fop execution method for write fom.
+ * A simple non blocking write fop specific fom
+ * state method implemention.
  */
 int write_fom_state(struct c2_fom *fom)
 {
@@ -716,68 +740,76 @@ int write_fom_state(struct c2_fom *fom)
 	c2_bindex_t			 offset;
 	uint32_t			 bshift;
 	uint64_t			 bmask;
-	int				 result = FSO_AGAIN;
+	int				 result;
+
+	C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
 
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
-	} else if (fom->fo_phase == FOPH_WRITE_STOB_IO) {
-		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
-
-		in_fop = c2_fop_data(fom->fo_fop);
-
-		fom_obj->stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
-
-		bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
-		bmask  = (1 << bshift) - 1;
-
-		addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
-		count = 1 >> bshift;
-		offset = 0;
-
-		c2_stob_io_init(&fom_obj->st_io);
-
-		fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
-		fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
-		fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
-
-		fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
-		fom_obj->st_io.si_stob.iv_vec.v_count = &count;
-		fom_obj->st_io.si_stob.iv_index       = &offset;
-
-		fom_obj->st_io.si_opcode = SIO_WRITE;
-		fom_obj->st_io.si_flags  = 0;
-
-		c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
-		result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
-						&fom->fo_tx, NULL);
-
-		fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
-		result = FSO_WAIT;
-	} else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
-
+	} else {
 		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
+		C2_UT_ASSERT(out_fop != NULL);
 
-		out_fop->fiwr_rc = fom_obj->st_io.si_rc;
-		fom->fo_rc = fom_obj->st_io.si_rc;
-		if (fom->fo_rc != 0) {
-			out_fop->fiwr_count = 0;
-			c2_stob_io_fini(&fom_obj->st_io);
-			c2_stob_put(fom_obj->stobj);
-			fom->fo_phase = FOPH_FAILED;
-		} else {
-			out_fop->fiwr_count = fom_obj->st_io.si_count << bshift;
-			fom->fo_phase = FOPH_SUCCESS;
+		if (fom->fo_phase == FOPH_WRITE_STOB_IO) {
+			in_fop = c2_fop_data(fom->fo_fop);
+			C2_UT_ASSERT(in_fop != NULL);
+
+			fom_obj->stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
+
+			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
+			bmask  = (1 << bshift) - 1;
+
+			addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
+			count = 1 >> bshift;
+			offset = 0;
+
+			c2_stob_io_init(&fom_obj->st_io);
+
+			fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
+			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
+			fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
+
+			fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
+			fom_obj->st_io.si_stob.iv_vec.v_count = &count;
+			fom_obj->st_io.si_stob.iv_index       = &offset;
+
+			fom_obj->st_io.si_opcode = SIO_WRITE;
+			fom_obj->st_io.si_flags  = 0;
+
+			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
+			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
+							&fom->fo_tx, NULL);
+
+			if (result != 0) {
+				fom->fo_rc = result;
+				fom->fo_phase = FOPH_FAILED;
+			} else {
+				fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
+				result = FSO_WAIT;
+			}
+		} else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
+			fom->fo_rc = fom_obj->st_io.si_rc;
+			if (fom->fo_rc != 0)
+				fom->fo_phase = FOPH_FAILED;
+			else {
+				out_fop->fiwr_count = fom_obj->st_io.si_count << bshift;
+				fom->fo_phase = FOPH_SUCCESS;
+			}
+
 		}
 
-		fom->fo_rep_fop = fom_obj->rep_fop;
-		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-						&fom->fo_tx.tx_dbtx);
-		C2_UT_ASSERT(result == 0);
-		result = FSO_AGAIN;
+		if (fom->fo_phase == FOPH_FAILED || fom->fo_phase == FOPH_SUCCESS) {
+			out_fop->fiwr_rc = fom->fo_rc;
+			fom->fo_rep_fop = fom_obj->rep_fop;
+			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+							&fom->fo_tx.tx_dbtx);
+			C2_UT_ASSERT(result == 0);
+			result = FSO_AGAIN;
+		}
 	}
 
-	if (fom->fo_phase == FOPH_DONE && fom->fo_rc == 0) {
+	if (fom->fo_phase == FOPH_DONE) {
 		c2_stob_io_fini(&fom_obj->st_io);
 		c2_stob_put(fom_obj->stobj);
 	}
@@ -995,7 +1027,7 @@ void test_reqh(void)
 
 	backid.si_bits.u_hi = 0x8;
 	backid.si_bits.u_lo = 0xf00baf11e;
-	path = "../__s";
+	path = "../__reqh_ut_stob";
 
 	/* Initialize processors */
 	if (!c2_processor_is_initialized())
