@@ -222,7 +222,7 @@ int c2_trace_parse(void)
 		nr = fread(&td, sizeof td, 1, stdin);
 		C2_ASSERT(nr == 1);
 
-		printf("%10.10lu  %10.10lu  %15s %15s %4i %3.3i %s\n\t",
+		printf("From Parser %10.10lu  %10.10lu  %15s %15s %4i %3.3i %s\n\t",
 		       no, timestamp, td->td_func, td->td_file,
 		       td->td_line, td->td_size, td->td_decl);
 		align(8);
