@@ -96,7 +96,7 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 	C2_PRE(IS_IN_ARRAY(rtype->rt_id, dom->rd_types));
 	C2_PRE(dom->rd_types[rtype->rt_id] == rtype);
 	C2_PRE(c2_list_is_empty(&rtype->rt_resources));
-	C2_PRE(rtype->rt_nr_resources == 0)
+	C2_PRE(rtype->rt_nr_resources == 0);
 
 	c2_mutex_lock(&dom->rd_lock);
 	dom->rd_types[rtype->rt_id] = NULL;
@@ -284,7 +284,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 
 	in->rin_state = RI_INITIALISED;
 	c2_list_fini(&in->rin_pins);
-	c2_list_fini(&in->rin_signal);
+	c2_chan_fini(&in->rin_signal);
 	c2_rm_right_fini(&in->rin_want);
 }
 
@@ -433,11 +433,12 @@ static int apply_policy(struct c2_rm_incoming *in)
 			pin_right = pin->rp_right;
 			right->ri_ops->rro_join(right, pin_right);
 			c2_list_del(&pin_right->ri_linkage);
-			loan = container_of(pin_right, struct c2_rm_loan, rl_right);
+			loan = container_of(pin_right, struct c2_rm_loan,
+					    rl_right);
 			pin_remove(pin);
 			c2_free(loan);
 		}
-		c2_list_move(&owner->ro_owned[OWOS_CACHED], &right.ri_linkage);
+		c2_list_move(&owner->ro_owned[OWOS_CACHED], &right->ri_linkage);
 		break;
 	case RIP_MAX:
 		/*
@@ -504,7 +505,7 @@ static void move_to_sublet(struct c2_rm_incoming *in)
 		right = pin->rp_right;
 		loan = container_of(right, struct c2_rm_loan, rl_right);
 		c2_rm_net_locate(right, &loan->rl_other);
-		c2_list_move(&owner->ro_sublet, &right.ri_linkage);
+		c2_list_move(&owner->ro_sublet, &right->ri_linkage);
 	}
 
 }
@@ -513,7 +514,7 @@ static void move_to_sublet(struct c2_rm_incoming *in)
    Just initilizes the memebrs of c2_rm_req_reply struct.
  */
 static void c2_rm_build_request(struct c2_rm_req_reply *req,
-				const struct c2_rm_loan *loan,
+				struct c2_rm_loan *loan,
 				enum c2_rm_request_type type)
 {
         struct c2_rm_remote *rem = &loan->rl_other;
@@ -1026,8 +1027,10 @@ static int incoming_check(struct c2_rm_incoming *in)
 				c2_rm_right_init(&borrow->rl_right);
 				right_copy(&borrow->rl_right, &rest);
 				c2_rm_net_locate(&rest, &borrow->rl_other);
-				go_out(in, ROT_BORROW, borrow,
-				       &borrow->rl_right);
+				result = go_out(in, ROT_BORROW, borrow,
+						&borrow->rl_right);
+				if (result == 0)
+					right_copy(&rest, &borrow->rl_right);
 			}
 		}
 		if (right_is_empty(&rest)) {
@@ -1221,7 +1224,6 @@ int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
 
 	result = send_out_request(out);
 
-
 	return result;
 }
 
@@ -1246,13 +1248,13 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
 		return result;
 	}
 
-	if (in->rin_state == RI_WAIT) {
+	if (in->rin_state == RI_WAIT)
 		c2_chan_timedwait(&clink, deadline);
-	}
+
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	if (in->rin_state == RI_WAIT) {
+	if (in->rin_state == RI_WAIT)
 		return -ETIMEDOUT;
 
 	return in->rin_state != RI_SUCCESS;
@@ -1277,9 +1279,9 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in)
 		return result;
 	}
 
-	if (in->rin_state == RI_WAIT) {
+	if (in->rin_state == RI_WAIT)
 		c2_chan_wait(&clink);
-	}
+
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
