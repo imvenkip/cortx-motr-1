@@ -44,130 +44,19 @@ enum c2_rm_fom_phases {
 };
 
 /**
-  * FOM to execute resource right borrow request.
+  * FOM to execute resource right request. The request could either be borrow,
+  * revoke or cancel. This will also be used for replies.
   */
-struct c2_rm_fom_right_borrow {
-	/** Generic c2_fom object */
-	struct c2_fom	frb_gen;
-	/** Generic c2_fom object */
-	struct c2_fop	*frb_fop;
-	/** Generic c2_fom object */
-	struct c2_fop	*frb_reply_fop;
-};
-
-/**
-  * FOM to execute resource revoke borrow request.
-  */
-struct c2_rm_fom_right_revoke {
+struct c2_rm_fom_right_request {
 	/** Generic c2_fom object */
 	struct c2_fom	frr_gen;
-	/** Generic c2_fom object */
+	/** Incoming request */
+	struct c2_rm_incoming frr_in;
+	/** Request FOP */
 	struct c2_fop	*frr_fop;
-	/** Generic c2_fom object */
+	/** Corresponding reply FOP */
 	struct c2_fop	*frr_reply_fop;
 };
-
-/**
-   This function handles the request to borrow a right to a resource on
-   a server ("creditor").
-
-   Pseudo code:
-   if (fom_state == FOPH_RM_RIGHT_BORROW) {
-   1. in = c2_alloc(c2_rm_incoming); Allocate c2_rm_incoming.
-      1.a. in->rin_type = RIT_REVOKE;
-      1.b. in->rin_state = RI_CHECK;
-      1.c. in->rin_policy = RIT_NONE;
-      1.d. in->rin_flags = RIF_MAY_REVOKE;
-      1.f. in->rin_priority = incoming_fop->priority;
-      1.g. c2_list_init(&in->rin_pins);
-      1.f. in->rin_owner = get_owner(incoming_fop->res_type,
-                                     icoming_fop->res_id);;
-
-   2. rc = c2_rm_right_get(in->rin_owner, in);
-      Now there are few cases
-      Case 1: Resource is under use.
-      Case 2 : There is failure.
-      if (rc != 0) {
-	if (rc != -EWOULDBLOCK) {
-		send_error_fop;
-	}
-	set FOM state to FOPH_RM_RIGHT_BORROW_WAIT
-	Suspend FOP and wait.
-      } else {
-	if (in->rin_state == RI_WAIT) {
-		set FOM state to FOPH_RM_RIGHT_BORROW_WAIT
-		Suspend FOP.
-	} else {
-		Mark FOM completion
-	}
-      }
-     }
-     if (fom_state == FOPH_RM_RIGHT_BORROW_WAIT) {
-	if (in->rin_state == RI_FAILURE) {
-		send_error_fop;
-	}
-	Mark FOM completion
-     }
-
-   @param fom -> fom processing the RIGHT_BORROW request on the server
-
-   @retval 
-
- */
-int c2_rm_fom_right_borrow_state(struct c2_fom *fom);
-int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
-/**
-   This function handles the request to reovke a right to a resource on
-   a client ("debtor").
-
-   Pseudo code:
-   if (fom_state == FOPH_RM_RIGHT_REVOKE) {
-   1. in = c2_alloc(c2_rm_incoming); Allocate c2_rm_incoming.
-      1.a. in->rin_type = RIT_LOAN;
-      1.b. in->rin_state = RI_CHECK;
-      1.c. in->rin_policy = incoming_fop->policy;
-      1.d. in->rin_flags = RIF_MAY_BORROW;
-      1.e. in->rin_want = incoming_fop->right_params;
-      1.f. in->rin_priority = incoming_fop->priority;
-      1.g. c2_list_init(&in->rin_pins);
-      1.f. in->rin_owner = get_owner(incoming_fop->res_type,
-                                     icoming_fop->res_id);;
-
-   2. rc = c2_rm_right_revoke(in->rin_owner, in);
-      Now there are few cases
-      Case 1: Right is granted and sent via c2_rm_send_fop() (go_out ())
-      Case 2: Revoke request is sent to another client and it's in wait state
-      Case 3 : There is failure
-      if (rc != 0) {
-	if (rc != -EWOULDBLOCK) {
-		send_error_fop;
-	}
-	set FOM state to FOPH_RM_RIGHT_REVOKE_WAIT
-	Suspend FOP and wait.
-      } else {
-	if (in->rin_state == RI_WAIT) {
-		set FOM state to FOPH_RM_RIGHT_REVOKE_WAIT
-		Suspend FOP.
-	} else {
-		Mark FOM completion
-	}
-      }
-     }
-     if (fom_state == FOPH_RM_RIGHT_REVOKE_WAIT) {
-	if (in->rin_state == RI_FAILURE) {
-		send_error_fop;
-	}
-	Mark FOM completion
-     }
-
-   @param fom -> fom processing the RIGHT_BORROW request on the server
-
-   @retval 
-
- */
-int c2_rm_fom_right_revoke_state(struct c2_fom *fom);
-int c2_rm_fom_right_cancel_state(struct c2_fom *fom);
-int c2_rm_send_fop()
 
 /* __COLIBRI_RM_FOM_H__ */
 #endif

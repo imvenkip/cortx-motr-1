@@ -77,6 +77,81 @@ C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke_reply, "Right Revoke Reply",
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_cancel, "Right Surrender",
 		    C2_RM_FOP_CANCEL, &c2_fop_rm_cancel_ops);
 
+/**
+ * FOM initialization function invoked by request handler.
+ * This creates an instance of c2_rm_fom_right_request FOM.
+ *
+ * @param *fop - incoming FOP
+ * @param **fom - fom instance created. Memory is allocated by this function.
+ *
+ * @retval 0 - on success
+ *         -EINVAL - Invalid FOM type
+ *         -ENOMEM - out of memory.
+ */
+int c2_rm_fop_borrow_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+{
+}
+
+/**
+ * FOM initialization function invoked by request handler.
+ * This creates an instance of c2_rm_fom_right_request FOM.
+ *
+ * @param *fop - incoming FOP
+ * @param **fom - fom instance created. Memory is allocated by this function.
+ *
+ * @retval 0 - on success
+ *         -EINVAL - Invalid FOM type
+ *         -ENOMEM - out of memory.
+ */
+int c2_rm_fop_borrow_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+{
+}
+
+/**
+ * FOM initialization function invoked by request handler.
+ * This creates an instance of c2_rm_fom_right_request FOM.
+ *
+ * @param *fop - incoming FOP
+ * @param **fom - fom instance created. Memory is allocated by this function.
+ *
+ * @retval 0 - on success
+ *         -EINVAL - Invalid FOM type
+ *         -ENOMEM - out of memory.
+ */
+int c2_rm_fop_revoke_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+{
+}
+
+/**
+ * FOM initialization function invoked by request handler.
+ * This creates an instance of c2_rm_fom_right_request FOM.
+ *
+ * @param *fop - incoming FOP
+ * @param **fom - fom instance created. Memory is allocated by this function.
+ *
+ * @retval 0 - on success
+ *         -EINVAL - Invalid FOM type
+ *         -ENOMEM - out of memory.
+ */
+int c2_rm_fop_revoke_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+{
+}
+
+/**
+ * FOM initialization function invoked by request handler.
+ * This creates an instance of c2_rm_fom_right_request FOM.
+ *
+ * @param *fop - incoming FOP
+ * @param **fom - fom instance created. Memory is allocated by this function.
+ *
+ * @retval 0 - on success
+ *         -EINVAL - Invalid FOM type
+ *         -ENOMEM - out of memory.
+ */
+int c2_rm_fop_cancel_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+{
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
