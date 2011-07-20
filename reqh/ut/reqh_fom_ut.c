@@ -1129,8 +1129,10 @@ void test_reqh(void)
 		sleep(1);
 	}
 
-	for (i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i) {
 		reqh_read_send(conn, i, i);
+		sleep(1);
+	}
 
 	while (reply < 30)
 		sleep(1);
