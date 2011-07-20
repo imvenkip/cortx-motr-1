@@ -4,7 +4,6 @@
 #define __COLIBRI_SM_SM_H__
 
 #include "lib/types.h"               /* int32_t, uint64_t */
-#include "lib/mutex.h"
 #include "lib/chan.h"
 
 /**
@@ -156,19 +155,18 @@ enum c2_sm_state_descr_flags {
 	   attempt to wait for a state transition, while the state machine is in
 	   a terminal state, immediately returns ESRCH.
 	 */
-	SDF_TERMINAL = 1 << 1,
-	SDF_FINAL    = 1 << 2
+	SDF_TERMINAL = 1 << 1
 };
 
 void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
-		struct c2_mutex *lock, struct c2_addb_ctx *ctx);
+		uint32_t state, struct c2_mutex *lock, struct c2_addb_ctx *ctx);
 void c2_sm_fini(struct c2_sm *mach);
 
 int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 		    c2_time_t deadline);
 
 /**
-   Move a state machine into fail_state state atomically with setting rc code.
+   Moves a state machine into fail_state state atomically with setting rc code.
 
    @pre rc != 0
    @pre c2_mutex_is_locked(mach->sm_lock)
@@ -181,7 +179,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
 
 /**
-   Transit a state machine into the indicated state.
+   Transits a state machine into the indicated state.
 
    @pre c2_mutex_is_locked(mach->sm_lock)
    @post mach->sm_state == state
