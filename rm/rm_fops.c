@@ -51,7 +51,7 @@ sruct c2_fop_type_ops c2_fop_rm_revoke_reply_ops = {
 /**
  * FOP operation vector for right cancel.
  */
-sruct c2_fop_type_ops c2_fop_rm_revoke_reply_ops = {
+sruct c2_fop_type_ops c2_fop_rm_cancel_ops = {
 	.fto_fom_init = c2_rm_fop_cancel_fom_init,
 };
 
@@ -87,6 +87,8 @@ C2_FOP_TYPE_DECLARE(c2_fop_rm_right_cancel, "Right Surrender",
  * @retval 0 - on success
  *         -EINVAL - Invalid FOM type
  *         -ENOMEM - out of memory.
+ *
+ * @see c2_rm_fom_right_request
  */
 int c2_rm_fop_borrow_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {
@@ -102,6 +104,8 @@ int c2_rm_fop_borrow_fom_init(struct c2_fop *fop, struct c2_fom **fom)
  * @retval 0 - on success
  *         -EINVAL - Invalid FOM type
  *         -ENOMEM - out of memory.
+ *
+ * @see c2_rm_fom_right_request
  */
 int c2_rm_fop_borrow_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {
@@ -117,6 +121,8 @@ int c2_rm_fop_borrow_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
  * @retval 0 - on success
  *         -EINVAL - Invalid FOM type
  *         -ENOMEM - out of memory.
+ *
+ * @see c2_rm_fom_right_request
  */
 int c2_rm_fop_revoke_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {
@@ -132,6 +138,8 @@ int c2_rm_fop_revoke_fom_init(struct c2_fop *fop, struct c2_fom **fom)
  * @retval 0 - on success
  *         -EINVAL - Invalid FOM type
  *         -ENOMEM - out of memory.
+ *
+ * @see c2_rm_fom_right_request
  */
 int c2_rm_fop_revoke_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {
@@ -147,6 +155,8 @@ int c2_rm_fop_revoke_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
  * @retval 0 - on success
  *         -EINVAL - Invalid FOM type
  *         -ENOMEM - out of memory.
+ *
+ * @see c2_rm_fom_right_request
  */
 int c2_rm_fop_cancel_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {

@@ -1,6 +1,6 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_RM_FOP_H__
-#define __COLIBRI_RM_FOP_H__
+#ifndef __COLIBRI_RM_FOPS_H__
+#define __COLIBRI_RM_FOPS_H__
 
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
@@ -39,11 +39,7 @@ enum c2_rm_fop_opcodes {
 };
 
 /**
-  * @todo Need to define ops vector.
-  */
-
-/**
-  * Externs needed by ????
+  * Externs
   */
 extern struct c2_fop_type c2_fop_rm_right_borrow_fopt;
 extern struct c2_fop_type c2_fop_rm_right_borrow_reply_fopt;
@@ -60,7 +56,7 @@ extern struct c2_fop_type_format c2_fop_rm_right_cancel_tfmt;
 void rm_fop_fini(void);
 int rm_fop_init(void);
 
-/* __COLIBRI_RM_FOP_H__ */
+/* __COLIBRI_RM_FOPS_H__ */
 #endif
 
 /**

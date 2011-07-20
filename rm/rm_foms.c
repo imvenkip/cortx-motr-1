@@ -97,7 +97,7 @@ static struct c2_fom_type_ops c2_rm_fom_cancel_ops = {
 
    Pseudo code:
    if (fom_state == FOPH_RM_RIGHT_BORROW) {
-   1. in = container_of(fom)
+   1. in = container_of(fom, struct c2_rm_incoming)
       1.a. in->rin_type = RIT_REVOKE;
       1.b. in->rin_state = RI_CHECK;
       1.c. in->rin_policy = RIT_NONE;
@@ -114,6 +114,7 @@ static struct c2_fom_type_ops c2_rm_fom_cancel_ops = {
       if (rc != 0) {
 	if (rc != -EWOULDBLOCK) {
 		set_error_fop(fom);
+		Mark FOM failure.
 	}
 	set FOM state to FOPH_RM_RIGHT_BORROW_WAIT
 	Suspend FOP and wait.
@@ -129,6 +130,7 @@ static struct c2_fom_type_ops c2_rm_fom_cancel_ops = {
      if (fom_state == FOPH_RM_RIGHT_BORROW_WAIT) {
 	if (in->rin_state == RI_FAILURE) {
 		set_error_fop(fom);
+		Mark FOM failure.
 	}
 	Mark FOM completion
      }
@@ -140,7 +142,17 @@ static struct c2_fom_type_ops c2_rm_fom_cancel_ops = {
 
  */
 int c2_rm_fom_right_borrow_state(struct c2_fom *fom);
+
+/**
+ * FOM processing function that processes a right borrow reply.
+ *
+ * @param *fom - fom instance
+ *
+ * @retval 0 - on success
+ *         non-zero - if there is a failure
+ */
 int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
+
 /**
    This function handles the request to reovke a right to a resource on
    a client ("debtor").
@@ -166,6 +178,7 @@ int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
       if (rc != 0) {
 	if (rc != -EWOULDBLOCK) {
 		set_error_fop(fom);
+		Mark FOM failure.
 	}
 	set FOM state to FOPH_RM_RIGHT_REVOKE_WAIT
 	Suspend FOP and wait.
@@ -181,6 +194,7 @@ int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
      if (fom_state == FOPH_RM_RIGHT_REVOKE_WAIT) {
 	if (in->rin_state == RI_FAILURE) {
 		set_error_fop(fom);
+		Mark FOM failure.
 	}
 	Mark FOM completion
      }
@@ -191,8 +205,26 @@ int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
 
  */
 int c2_rm_fom_right_revoke_state(struct c2_fom *fom);
+
+/**
+ * FOM processing function that processes a right revoke reply.
+ *
+ * @param *fom - fom instance
+ *
+ * @retval 0 - on success
+ *         non-zero - if there is a failure
+ */
+int c2_rm_fom_right_revoke_state(struct c2_fom *fom);
+
+/**
+ * FOM processing function that processes a right cancel
+ *
+ * @param *fom - fom instance
+ *
+ * @retval 0 - on success
+ *         non-zero - if there is a failure
+ */
 int c2_rm_fom_right_cancel_state(struct c2_fom *fom);
-int c2_rm_send_fop()
 
 /* __COLIBRI_RM_FOM_H__ */
 #endif
