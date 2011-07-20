@@ -304,11 +304,12 @@ struct c2_fom {
 };
 
 /**
-   Queues a fom for the execution in a domain.
+   Queues a fom for the execution in a locality runq.
    The fom is placed in the locality run-queue and scheduled for the execution.
    Possible errors are reported through fom state and phase, hence the return
    type is void.
 
+   @param fom, A fom to be submitted for execution
    @pre fom->fo_phase == FOPH_INIT
  */
 void c2_fom_queue(struct c2_fom *fom);
@@ -320,7 +321,7 @@ void c2_fom_queue(struct c2_fom *fom);
    Fom starts in FOPH_INIT phase and FOS_READY state to begin its
    execution.
 
-   @param fom, fom to be initialised
+   @param fom, A fom to be initialised
    @pre fom != NULL
  */
 int c2_fom_init(struct c2_fom *fom);
@@ -329,7 +330,7 @@ int c2_fom_init(struct c2_fom *fom);
    Finalises a fom after it completes its execution,
    i.e success or failure.
 
-   @param fom, fom to be finalised
+   @param fom, A fom to be finalised
    @pre fom->fo_phase == FOPH_DONE
 */
 void c2_fom_fini(struct c2_fom *fom);
@@ -418,7 +419,7 @@ struct c2_fom_hthread {
    there exists atleast one idle thread to handle incoming fop if
    the calling thread blocks.
 
-   @param fom, executing a possible blocking operation
+   @param fom, A fom executing a possible blocking operation
    @see c2_fom_locality
  */
 void c2_fom_block_enter(struct c2_fom *fom);
@@ -428,7 +429,7 @@ void c2_fom_block_enter(struct c2_fom *fom);
    Decrements c2_fom_locality::fl_lo_idle_threads_nr, so that
    extra idle threads are destroyed automatically.
 
-   @param fom, after executing a blocking operation
+   @param fom, A fom done executing a blocking operation
  */
 void c2_fom_block_leave(struct c2_fom *fom);
 
@@ -441,7 +442,7 @@ void c2_fom_block_leave(struct c2_fom *fom);
 
    @see c2_fom_state_generic()
 
-   @param fom, executing a blocking operation
+   @param fom, A fom executing a blocking operation
    @param chan, waiting channel registered with the fom during its
 		blocking operation
    @pre !c2_clink_is_armed(&fom->fo_clink)
