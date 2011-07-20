@@ -102,27 +102,6 @@
 
    RPC formation state machine:
 
-     UNINITIALIZED
-	   | rpc_frm_init()
-	   |
-	   |
-	   |
-	   V		post successful/failed
-	WAITING<------------------------------------------+
-	   |                               ^	     ^	  |
-	   | c2_rpc_post(item)             |item del |	  |
-	   |                               |  from   |	  |
-	   |                               | frm DS  |    |
-	   V	item removed/param changed |	     |	  |
-	UPDATING----------------------->REMOVING     |	POSTING
-	   |                                         |	  ^
-	   | rpc item added to frm DS                |	  |
-	   |                  frm check failed       |	  |c2_rpc_add_buffer()
-	   |                +------------------------+	  |c2_rpc_encode()
-	   |                |                             |
-	   +------------>CHECKING--------------->FORMING--+
-	    frm check success	   rpc object formed
-
 
    The lifecycle of any thread executing the formation state machine is
    something like this
@@ -155,7 +134,7 @@
    order reversal.
    1. Always take the rf_sm_list_lock rwlock from struct c2_rpc_formation
       first and release when not needed any more.
-   2. Always take the isu_unit_lock mutex from struct c2_rpc_frm_sm next
+   2. Always take the fs_lock mutex from struct c2_rpc_frm_sm next
       and release when not needed any more.
  */
 
@@ -166,7 +145,7 @@
  */
 struct c2_rpc_formation {
 	/** List of formation state machine linked through
-	    c2_rpc_frm_sm::isu_linkage
+	    c2_rpc_frm_sm::fs_linkage
 	    @code c2_list <struct c2_rpc_frm_sm> @endcode */
 	struct c2_list			rf_frm_sm_list;
 	/** Read/Write lock protecting the list from concurrent access. */
@@ -174,11 +153,6 @@ struct c2_rpc_formation {
 	/** ADDB context for this item summary */
 	struct c2_addb_ctx		rf_rpc_form_addb;
 };
-
-/**
-   Check if refcounts of all state machines are zero.
- */
-bool c2_rpc_frm_wait_for_completion(struct c2_rpc_formation *frm);
 
 /**
    Enumeration of all possible states.
@@ -200,6 +174,32 @@ enum c2_rpc_frm_state {
 };
 
 /**
+   Initialization for formation component in rpc.
+   This will register necessary callbacks and initialize
+   necessary data structures.
+ */
+int c2_rpc_frm_init(struct c2_rpc_formation **frm);
+
+/**
+   Finish method for formation component in rpc.
+   This will deallocate all memory claimed by formation
+   and do necessary cleanup.
+ */
+void c2_rpc_frm_fini(struct c2_rpc_formation *frm);
+
+/**
+   Structure containing a priority and list of all items belonging to
+   given priority.
+ */
+struct c2_rpc_frm_prio_list {
+	/** Priority band for this list. */
+	enum c2_rpc_item_priority pl_prio;
+	/** List of unformed items sharing the pl_prio priority linked
+	    through c2_rpc_item::ri_unformed_linkage. */
+	struct c2_list		  pl_unformed_items;
+};
+
+/**
    This structure represents the summary data for a formation state machine.
    It contains a list containing the summary data for each rpc group
    and a list of files involved in any IO operations destined for
@@ -212,69 +212,59 @@ enum c2_rpc_frm_state {
  */
 struct c2_rpc_frm_sm {
 	/** Mutex protecting the unit from concurrent access. */
-	struct c2_mutex			 isu_unit_lock;
+	struct c2_mutex			 fs_lock;
 	/** Linkage into the list of formation state machines anchored
 	    at c2_rpc_formation::rf_frm_sm_list. */
-	struct c2_list_link		 isu_linkage;
+	struct c2_list_link		 fs_linkage;
 	/** The network endpoint this formation state machine is directed
 	    towards. */
-	struct c2_net_end_point		*isu_endp;
+	struct c2_net_end_point		*fs_dest_netep;
 	/** Flag indicating the formation component is still active. */
-	bool				 isu_form_active;
+	bool				 fs_active;
 	/** State of the state machine. Threads will have to take the
 	    unit_lock above before state can be changed. This
 	    variable will bear one value from enum c2_rpc_frm_state. */
-	enum c2_rpc_frm_state		 isu_frm_state;
+	enum c2_rpc_frm_state		 fs_state;
 	/** Refcount for this summary unit. Refcount is related to an incoming
 	    thread as well as the number of rpc items it refers to.
 	    Only when the state machine doesn't contain any data about
 	    unformed rpc items and there are no threads operating on the
 	    state machine, will it be deallocated. */
-	struct c2_ref			 isu_ref;
+	struct c2_ref			 fs_ref;
 	/** List of structures containing data for each group linked
-	    through c2_rpc_frm_rpcgroup::sug_linkage.
+	    through c2_rpc_frm_rpcgroup::frg_linkage.
 	    @code c2_list <struct c2_rpc_frm_rpcgroup>
 	    @endcode */
-	struct c2_list			 isu_groups_list;
+	struct c2_list			 fs_groups;
 	/** List of coalesced rpc items linked through
 	    c2_rpc_frm_item_coalesced::ic_linkage.
 	    @code c2_list <c2_rpc_frm_item_coalesced> @endcode */
-	struct c2_list			 isu_coalesced_items_list;
+	struct c2_list			 fs_coalesced_items;
 	/** List of formed RPC objects kept with formation linked
 	    through c2_rpc::r_linkage.
 	    @code c2_list <struct c2_rpc> @endcode */
-	struct c2_list			 isu_rpcobj_list;
-	/** List of unformed rpc items which are still due to undergo
-	    formation processing and have not been added yet to an rpc.
-	    List of such unformed rpc items linked through
-	    c2_rpc_item::ri_rpcobject_linkage.
-	    @code c2_list <struct c2_rpc_item> @endcode */
-	struct c2_list			 isu_unformed_list;
+	struct c2_list			 fs_rpcs;
+	/** Array of lists (one per priority band) containing unformed
+	    rpc items sorted according to increasing order of timeout.
+	    The very first list contains list of timed out rpc items. */
+	struct c2_rpc_frm_prio_list
+		fs_unformed_prio[C2_RPC_ITEM_PRIO_NR+1];
 	/** These numbers will be subsequently kept with the statistics
 	    component. Defining here for the sake of UT. */
-	uint64_t			 isu_max_message_size;
-	uint64_t			 isu_max_fragments_size;
+	uint64_t			 fs_max_msg_size;
+	uint64_t			 fs_max_frags;
 	/** Statistics data. Currently stationed with formation but
 	    later will be moved to Output sub component from rpc. */
-	uint64_t			 isu_max_rpcs_in_flight;
+	uint64_t			 fs_max_rpcs_in_flight;
 	/** Number of rpcs in flight sent by this state machine. */
-	uint64_t			 isu_curr_rpcs_in_flight;
+	uint64_t			 fs_curr_rpcs_in_flight;
 	/** Cumulative size of items added to this state machine so far.
 	    Will help to determine if an optimal rpc can be formed.*/
-	uint64_t			 isu_cumulative_size;
+	uint64_t			 fs_cumulative_size;
 	/** Number of urgent items added to this state machine so far.
 	    Any number > 0 will trigger formation.*/
-	uint64_t			 isu_n_urgent_items;
+	uint64_t			 fs_urgent_items_nr;
 };
-
-/**
-   Given a formation state machine, tell if an optimal rpc can be prepared from
-   the items submitted to network endpoint referred by given state machine.
-   @param frm_sm - the c2_rpc_frm_sm structure under consideration.
-   based on whose data, it will be found if an optimal rpc can be made.
- */
-bool c2_rpc_frm_is_rpc_optimal(struct c2_rpc_frm_sm *frm_sm,
-		uint64_t rpcobj_size, bool urgent_unbound);
 
 /**
    A magic constant to varify the sanity of c2_rpc_frm_buffer.
@@ -300,29 +290,6 @@ struct c2_rpc_frm_buffer {
 };
 
 /**
-   Allocate a buffer of type struct c2_rpc_frm_buffer.
-   The net buffer is allocated and registered with the net domain.
-   @pre the calling item_summary_unit structure should be in _posting_ state.
-
-   @param fb - a formation buffer pointer.
-   @param rpc - rpc which will be serialized into the c2_net_buffer.
-   @param frm_sm - the c2_rpc_frm_sm structure associated with rpc.
-   @param net_dom - the associated c2_net_domain structure.
- */
-int c2_rpc_frm_buffer_allocate(struct c2_rpc_frm_buffer **fb,
-		struct c2_rpc *rpc, struct c2_rpc_frm_sm *frm_sm,
-		struct c2_net_domain *net_dom);
-
-/**
-   Deallocate a buffer of type struct c2_rpc_frm_buffer.
-   The buffer is also deregistered from the net domain.
-   @pre the form_buffer should have been allocated.
-
-   @param fb - form_buffer to be deallocated.
- */
-void c2_rpc_frm_buffer_deallocate(struct c2_rpc_frm_buffer *fb);
-
-/**
    An internal data structure to connect coalesced rpc items with
    its constituent rpc items. When a reply is received for a
    coalesced rpc item, it will find out the requesting coalesced
@@ -333,7 +300,7 @@ void c2_rpc_frm_buffer_deallocate(struct c2_rpc_frm_buffer *fb);
  */
 struct c2_rpc_frm_item_coalesced {
 	/** Linkage to list of coalesced rpc items anchored at
-	    c2_rpc_formation::isu_coalesced_items_list. */
+	    c2_rpc_formation::fs_coalesced_items. */
 	struct c2_list_link	        ic_linkage;
 	/** Concerned fid. */
 	struct c2_fid			ic_fid;
@@ -366,24 +333,14 @@ struct c2_rpc_frm_item_coalesced_member {
  */
 struct c2_rpc_frm_rpcgroup {
 	/** Linkage into the list of groups belonging to same state machine
-	    anchored at c2_rpc_frm_sm::isu_groups_list. */
-	struct c2_list_link		 sug_linkage;
+	    anchored at c2_rpc_frm_sm::fs_groups. */
+	struct c2_list_link		 frg_linkage;
 	/** The rpc group, this data belongs to. */
-	struct c2_rpc_group		*sug_group;
+	struct c2_rpc_group		*frg_group;
 	/** Number of items from this group found so far. */
-	uint64_t			 sug_nitems;
+	uint64_t			 frg_items_nr;
 	/** Number of expected items from this group. */
-	uint64_t			 sug_expected_items;
-	/** Number of highest priority items from this group.
-	    This does not inlcude urgent items, they are
-	    handled elsewhere. */
-	uint64_t			 sug_priority_items;
-	/** Average time out for items in this group. This number
-	    gives an indication about relative position of group
-	    within the cache list. */
-	double				 sug_avg_timeout;
-	/** Cumulative size of rpc items in this group so far. */
-	uint64_t			 sug_total_size;
+	uint64_t			 frg_expected_items_nr;
 };
 
 /**
@@ -423,20 +380,6 @@ enum c2_rpc_frm_int_evt_id {
 	/** Max number of events. */
 	C2_RPC_FRM_INTEVT_NR
 };
-
-/**
-   Initialization for formation component in rpc.
-   This will register necessary callbacks and initialize
-   necessary data structures.
- */
-int c2_rpc_frm_init(struct c2_rpc_formation **frm);
-
-/**
-   Finish method for formation component in rpc.
-   This will deallocate all memory claimed by formation
-   and do necessary cleanup.
- */
-void c2_rpc_frm_fini(struct c2_rpc_formation *frm);
 
 /**
    Enumeration of fields which are subject to change.
@@ -539,114 +482,6 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
 void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
-   Try to coalesce rpc items from the session->free list.
-   @param frm_sm - the c2_rpc_frm_sm structure in which these activities
-   are taking place.
-   @param item - given bound rpc item.
-   @param rpcobj_size - current size of rpc object.
- */
-int c2_rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
-                struct c2_rpc_item *item, uint64_t *rpcobj_size);
-
-/**
-   Try to coalesce items sharing same fid and intent(read/write).
-   @param b_item - given bound rpc item.
-   @param coalesced_item - item_coalesced structure for which coalescing
-   will be done.
- */
-int c2_rpc_frm_coalesce_fid_intent(struct c2_rpc_item *b_item,
-                struct c2_rpc_frm_item_coalesced *coalesced_item);
-
-/**
-   State function for WAITING state.
-   Formation is waiting for any event to trigger.
-   1. At first, this state will handle the "reply received" event and if
-   reply is for a coalesced item, it will call completion callbacks for
-   all constituent rpc items by referring internal structure
-   c2_rpc_frm_item_coalesced.
-   2. If current rpcs in flight ares less than max_rpcs_in_flight,
-   this state can transit into next state. During this state,
-   rpc objects could be in flight. If current rpcs in flight [n]
-   is less than max_rpcs_in_flight, state transits to UPDATING,
-   else keeps waiting till n is less than max_rpcs_in_flight.
-   ** WAITING state should be a nop for internal events. **
-   @param item - input rpc item.
-   @param event - Since WAITING state handles a lot of events,
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
-   it needs some way of identifying the events.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_waiting_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
-   State function for UPDATING state.
-   Formation is updating its internal data structure by taking necessary locks.
-   @param item - input rpc item.
-   @param event - Since UPDATING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_updating_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
-   State function for FORMING state.
-   Core of formation algorithm. This state scans the rpc items cache and
-   structure c2_rpc_frm_sm to form an RPC object by
-   cooperation of multiple policies.
-   Formation algorithm will take hints from rpc groups and will try to
-   form rpc objects by keeping all group member rpc items together.
-   For update streams, formation algorithm checks their status.
-   If update stream is FREE(Not Busy), it will be considered for
-   formation. Checking state will take care of coalescing of items.
-   Coalescing Policy:
-   Groups and coalescing: Formation algorithm will try to coalesce rpc items
-   from same rpc groups as far as possible, otherwise items from different
-   groups will be coalesced.
-   Update streams and coalescing: Formation algorithm will not coalesce rpc
-   items across update streams. Rpc items belonging to same update stream
-   will be coalesced if possible since there is no sequence number assigned
-   yet to the rpc items.
-   Formation Algorithm.
-   1. Read rpc items from the cache destined for given network endpoint.
-   2. If the item deadline is zero(urgent), add it to a local
-   list of rpc items to be formed.
-   3. Check size of formed rpc object so far to see if its optimal.
-   Here size of rpc is compared with max_message_size. If size of
-   rpc is far less than max_message_size and no urgent item, goto #1.
-   4. If #3 is true and if the number of disjoint memory buffers
-   is less than parameter max_fragment_size, a probable rpc object
-   is in making. The selected rpc items are put on a list
-   and the state machine transitions to next state.
-   5. Consult the structure c2_rpc_frm_sm to find out
-   data about all rpc groups. Select groups that have combination of
-   lowest average timeout and highest size that fits into optimal
-   size. Keep selecting such groups till optimal size rpc is formed.
-   6. Consult the list of files from internal data to find out files
-   on which IO requests have come for this state machine. Do coalescing
-   within groups selected for formation according to read/write
-   intents. Later if rpc has still not reached its optimal size,
-   coalescing across rpc groups will be done.
-   7. Remove the data of selected rpc items from internal data
-   structure so that it will not be considered for processing
-   henceforth.
-   8. If the formed rpc object is sub optimal but it contains
-   an urgent item, it will be formed immediately. Else, it will
-   be discarded.
-   9. This process is repeated until the size of formed rpc object
-   is sub optimal and there is no urgent item in the list.
-   @param item - input rpc item.
-   @param event - Since FORMING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-enum c2_rpc_frm_int_evt_id c2_rpc_frm_forming_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
-
-/**
    Type definition of a state function.
    @param frm_sm - given c2_rpc_frm_sm structure.
    @param item - incoming rpc item.
@@ -665,20 +500,15 @@ typedef enum c2_rpc_frm_int_evt_id (*statefunc)(struct c2_rpc_frm_sm *frm_sm,
 void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
-   Try to coalesce rpc items with similar fid and intent.
- */
-int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
-
-/**
    Function to map the on-wire FOP format to in-core FOP format.
  */
 void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 		struct c2_fid *out);
 
 /**
-   XXX Needs to be implemented.
+   Try to coalesce rpc items with similar fid and intent.
  */
-int c2_net_send(struct c2_net_end_point *endp, struct c2_rpc *rpc);
+int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
 
 /**
   XXX Temporary fix.
