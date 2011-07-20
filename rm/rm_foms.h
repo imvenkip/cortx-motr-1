@@ -1,6 +1,6 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_RM_FOM_H__
-#define __COLIBRI_RM_FOM_H__
+#ifndef __COLIBRI_RM_FOMS_H__
+#define __COLIBRI_RM_FOMS_H__
 
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
@@ -58,7 +58,7 @@ struct c2_rm_fom_right_request {
 	struct c2_fop	*frr_reply_fop;
 };
 
-/* __COLIBRI_RM_FOM_H__ */
+/* __COLIBRI_RM_FOMS_H__ */
 #endif
 
 /**
@@ -70,4 +70,3 @@ struct c2_rm_fom_right_request {
  *  scroll-step: 1
  *  End:
  */
-

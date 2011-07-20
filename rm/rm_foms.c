@@ -1,7 +1,4 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_RM_FOM_H__
-#define __COLIBRI_RM_FOM_H__
-
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -25,13 +22,13 @@
 #include "fop/fop_format.h"
 #include "rm_fop.h"
 
-#ifndef __KERNEL__
 /**
    @addtogroup rm
 
    This file includes data structures and function used by RM:fop layer.
 
    @{
+ */
 
 /**
  * FOM ops vector
@@ -89,8 +86,6 @@ static struct c2_fom_type_ops c2_rm_fom_cancel_ops = {
 	.fto_create = NULL,
 };
 
-#endif /* __KERNEL__ */
- */
 /**
    This function handles the request to borrow a right to a resource on
    a server ("creditor").
@@ -155,24 +150,23 @@ int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
 
 /**
    This function handles the request to reovke a right to a resource on
-   a client ("debtor").
+   a client ("debtor"). This request is sent by the creditor to the debtor.
 
    Pseudo code:
    if (fom_state == FOPH_RM_RIGHT_REVOKE) {
    1. in = container_of(fom)
-      1.a. in->rin_type = RIT_LOAN;
+      1.a. in->rin_type = RIT_REVOKE;
       1.b. in->rin_state = RI_CHECK;
-      1.c. in->rin_policy = incoming_fop->policy;
-      1.d. in->rin_flags = RIF_MAY_BORROW;
-      1.e. in->rin_want = incoming_fop->right_params;
-      1.f. in->rin_priority = incoming_fop->priority;
+      1.c. in->rin_policy = RIP_NONE;
+      1.d. in->rin_flags = RIF_MAY_REVOKE;
+      1.e. in->rin_want = 0;
       1.g. c2_list_init(&in->rin_pins);
       1.f. in->rin_owner = get_owner(incoming_fop->res_type,
                                      icoming_fop->res_id);
 
-   2. rc = c2_rm_right_revoke(in->rin_owner, in);
+   2. rc = c2_rm_right_get(in->rin_owner, in);
       Now there are few cases
-      Case 1: Right is granted and sent via c2_rm_send_fop() (go_out ())
+      Case 1: Right is granted
       Case 2: Revoke request is sent to another client and it's in wait state
       Case 3 : There is failure
       if (rc != 0) {
@@ -219,15 +213,32 @@ int c2_rm_fom_right_revoke_state(struct c2_fom *fom);
 /**
  * FOM processing function that processes a right cancel
  *
+   This function handles the request to reovke a right to a resource on
+   a server ("creditor"). This request is sent by the debtor to the creditor.
+   The debtor gives up the right to a resource.
+
+   Pseudo code:
+   if (fom_state == FOPH_RM_RIGHT_CANCEL) {
+   1. in = container_of(fom)
+      1.a. in->rin_type = RIT_REVOKE;
+      1.b. in->rin_state = RI_CHECK;
+      1.c. in->rin_policy = RIP_NONE;
+      1.d. in->rin_flags = RIF_MAY_REVOKE;
+      1.e. in->rin_want = 0;
+      1.f. in->rin_priority = incoming_fop->priority;
+      1.g. c2_list_init(&in->rin_pins);
+      1.f. in->rin_owner = get_owner(incoming_fop->res_type,
+                                     icoming_fop->res_id);
+
+   2. rc = c2_rm_right_get(in->rin_owner, in);
+      Mark FOM completion
+
  * @param *fom - fom instance
  *
  * @retval 0 - on success
  *         non-zero - if there is a failure
  */
 int c2_rm_fom_right_cancel_state(struct c2_fom *fom);
-
-/* __COLIBRI_RM_FOM_H__ */
-#endif
 
 /**
  *  Local variables:
@@ -238,4 +249,3 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom);
  *  scroll-step: 1
  *  End:
  */
-

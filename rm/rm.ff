@@ -62,6 +62,8 @@ DEF(c2_fop_rm_right_borrow, RECORD,
     _(res_grp_id, U64),
    /** Id of the policy for resource right */
     _(res_policy_id, U64),
+   /** Priority of this request */
+    _(res_prority, BYTE));
    /** RM-opaque, resource type specfic, right parameters field */
     _(res_right, c2_fop_rm_right));
 
@@ -119,6 +121,8 @@ DEF(c2_fop_rm_right_revoke, RECORD,
     _(res_id, U64),
     /** Id for the resource loan */
     _(loan_id, U64),
+   /** Priority of this request */
+    _(res_prority, BYTE));
     /** App-specific resource group id */
     _(res_grp_id, U64));
 
@@ -153,6 +157,8 @@ DEF(c2_fop_rm_right_cancel, RECORD,
     _(res_id, U64),
     /** Id for the resource loan */
     _(loan_id, U64),
+   /** Priority of this request */
+    _(res_prority, BYTE));
     /** App-specific resource group id */
     _(res_grp_id, U64));
 

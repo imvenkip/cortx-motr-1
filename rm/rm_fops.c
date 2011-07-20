@@ -72,7 +72,7 @@ C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke_reply, "Right Revoke Reply",
 		    C2_RM_FOP_REVOKE_REPLY, &c2_fop_rm_revoke_reply_ops);
 
 /**
- * FOP definitions for resource-surrender.
+ * FOP definitions for resource-right surrender.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_cancel, "Right Surrender",
 		    C2_RM_FOP_CANCEL, &c2_fop_rm_cancel_ops);
