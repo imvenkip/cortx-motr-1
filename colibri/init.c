@@ -1,10 +1,30 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 06/19/2010
+ */
 
 #include "lib/cdefs.h"
 
 #include "lib/user_space/thread.h"
 #include "stob/stob.h"
 #include "net/net.h"
+#include "net/bulk_emulation/sunrpc_xprt.h"
+#include "net/bulk_emulation/mem_xprt.h"
 #include "net/usunrpc/usunrpc.h"
 /* #include "rpc/rpclib.h" */
 #include "fop/fop.h"
@@ -44,6 +64,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
+	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
+	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
 	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },

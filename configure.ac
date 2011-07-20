@@ -522,7 +522,7 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/Makefile
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/ut/Makefile
-                 net/ksunrpc/Makefile
+                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
@@ -546,6 +546,8 @@ AC_CONFIG_FILES([
 		 layout/linux_kernel/Makefile
 		 pool/linux_kernel/Makefile
 		 stob/linux_kernel/Makefile
+		 xdr/Makefile
+		 xdr/ut/Makefile
                 ])
                 
                 #rpc/Makefile

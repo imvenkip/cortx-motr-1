@@ -1,10 +1,29 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 05/01/2010
+ */
 
 #ifndef __COLIBRI_LIB_THREAD_H__
 #define __COLIBRI_LIB_THREAD_H__
 
 #include "cdefs.h"
-#include "chan.h"
+#include "semaphore.h"
 
 #ifndef __KERNEL__
 #include "user_space/thread.h"
@@ -75,7 +94,7 @@ struct c2_thread {
 	int                   (*t_init)(void *);
 	void                  (*t_func)(void *);
 	void                   *t_arg;
-	struct c2_chan          t_initwait;
+	struct c2_semaphore     t_wait;
 	int                     t_initrc;
 };
 
@@ -89,24 +108,25 @@ struct c2_thread {
    static void worker(struct foo *arg) { ... }
    static struct c2_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg);
+   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg, "worker");
    @endcode
 
    C2_THREAD_INIT() checks that type of the argument matches function prototype.
 
    @note TYPE cannot be void.
  */
-#define C2_THREAD_INIT(thread, TYPE, init, func, arg)	\
-({							\
-	typeof(func) __func = (func);			\
-	typeof(arg)  __arg  = (arg);			\
-	TYPE         __dummy;				\
-	(void)(__func == (void (*)(TYPE))NULL);		\
-	(void)(&__arg == &__dummy);			\
-	c2_thread_init(thread,				\
-                       (int  (*)(void *))init,  	\
-		       (void (*)(void *))__func,	\
-		       (void *)(unsigned long)__arg);	\
+#define C2_THREAD_INIT(thread, TYPE, init, func, arg, namefmt, ...)	\
+({									\
+	typeof(func) __func = (func);					\
+	typeof(arg)  __arg  = (arg);					\
+	TYPE         __dummy;						\
+	(void)(__func == (void (*)(TYPE))NULL);				\
+	(void)(&__arg == &__dummy);					\
+	c2_thread_init(thread,						\
+                       (int  (*)(void *))init,				\
+		       (void (*)(void *))__func,			\
+		       (void *)(unsigned long)__arg,			\
+		       namefmt , ## __VA_ARGS__);			\
 })
 
 /**
@@ -118,7 +138,8 @@ struct c2_thread {
    int x;
 
    result = C2_THREAD_INIT(&tcb, int, NULL,
-                           LAMBDA(void, (int y) { printf("%i", x + y); } ));
+                           LAMBDA(void, (int y) { printf("%i", x + y); } ), 1,
+			   "add_%d", 1);
    @endcode
 
    LAMBDA is useful to create an "ad-hoc" function that can be passed as a
@@ -129,9 +150,37 @@ struct c2_thread {
    the tcb thread must finish before the block where C2_THREAD_INIT() was called
    is left.
 
+   @note Be careful if using LAMBDA in kernel code, as the code could be
+   generated on the stack and would fault in the kernel as it is execution
+   protected in the kernel.  If someone figures out the secret allocation
+   sauce, update this note with the recipe; one observed problem was when a
+   reference was made to an automatic variable from a lambda function, and that
+   problem went away when the variable was made global.  Other lambda functions
+   that simply returned values caused no problems in the kernel.
+
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })
+
+/**
+   Internal helper for c2_thread_init() that creates the user or kernel thread
+   after the c2_thread q has been initialised.
+   @pre q->t_state == TS_RUNNING
+   @retval 0 thread created
+   @retval -errno failed
+ */
+int  c2_thread_init_impl(struct c2_thread *q, const char *name);
+
+/**
+   Threads created by c2_thread_init_impl execute this function to
+   perform common bookkeeping, executing t->t_init if appropriate,
+   and then executing t->t_func.
+   @pre t->t_state == TS_RUNNING && t->t_initrc == 0
+   @param t a c2_thread*, passed as void* to be compatible with
+   pthread_create function argument.
+   @retval NULL
+ */
+void *c2_thread_trampoline(void *t);
 
 /**
    Creates a new thread.
@@ -143,6 +192,9 @@ struct c2_thread {
    Otherwise (or in the case where "init" is NULL), c2_thread_init() returns 0
    and the thread calls (*func)(arg) and exits when this call completes.
 
+   The namefmt and its arguments are used to name the thread.  The formatted
+   name is truncated to C2_THREAD_NAME_LEN characters (based on TASK_COMM_LEN).
+
    @note it is possible that after successful return from c2_thread_init() the
    thread hasn't yet entered "func" code, it is also possible that the thread
    has finished its execution.
@@ -152,7 +204,8 @@ struct c2_thread {
    @post (result == 0) == (q->t_state == TS_RUNNING)
  */
 int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
-		    void (*func)(void *), void *arg);
+		    void (*func)(void *), void *arg, const char *namefmt, ...)
+	__attribute__ ((format (printf, 5, 6)));
 
 /**
    Releases resources associated with the thread.

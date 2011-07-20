@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/01/2010
+ */
 
 #include "lib/mutex.h"
 #include "addb/addb.h"
@@ -10,17 +28,17 @@
    @{
 */
 
-static bool state_is_valid(const struct c2_sm *mach, uint32_t state)
+static bool state_is_valid(const struct c2_sm_conf *conf, uint32_t state)
 {
 	return
-		state < mach->sm_conf->scf_nr_states &&
-		mach->sm_conf->scf_state[state].sd_name != NULL;
+		state < conf->scf_nr_states &&
+		conf->scf_state[state].sd_name != NULL;
 }
 
 static struct c2_sm_state_descr *state_get(const struct c2_sm *mach,
 					   uint32_t state)
 {
-	C2_PRE(state_is_valid(mach, state));
+	C2_PRE(state_is_valid(mach->sm_conf, state));
 	return &mach->sm_conf->scf_state[state];
 }
 
@@ -31,10 +49,10 @@ static struct c2_sm_state_descr *sm_state(const struct c2_sm *mach)
 
 bool c2_sm_invariant(const struct c2_sm *mach)
 {
-	struct c2_sm_state_descr *sd = sm_state(sm);
+	struct c2_sm_state_descr *sd = sm_state(mach);
 
 	return
-		c2_mutex_is_locked(mach->sm_mutex) &&
+		c2_mutex_is_locked(mach->sm_lock) &&
 		ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
 }
 
@@ -47,12 +65,12 @@ static bool conf_invariant(const struct c2_sm_conf *conf)
 		return false;
 
 	for (i = 0, mask = 0; i < conf->scf_nr_states; ++i) {
-		if (state_is_valid(mach, i))
+		if (state_is_valid(conf, i))
 			mask |= (1 << i);
 	}
 
 	for (i = 0; i < conf->scf_nr_states; ++i) {
-		if (state_is_valid(mach, i)) {
+		if (state_is_valid(conf, i)) {
 			struct c2_sm_state_descr *sd;
 
 			sd = &conf->scf_state[i];
@@ -73,7 +91,7 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 {
 	C2_PRE(conf_invariant(conf));
 
-	mach0>sm_state = state;
+	mach->sm_state = state;
 	mach->sm_conf  = conf;
 	mach->sm_lock  = lock;
 	mach->sm_addb  = ctx;
@@ -85,7 +103,7 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 void c2_sm_fini(struct c2_sm *mach)
 {
 	C2_ASSERT(c2_sm_invariant(mach));
-	C2_PRE(mach_state(mach)->sd_flags & SDF_TERMINAL);
+	C2_PRE(sm_state(mach)->sd_flags & SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
 
@@ -96,9 +114,10 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 
 	C2_PRE(c2_mutex_is_locked(mach->sm_lock));
 	while (((1 << mach->sm_state) & states) == 0) {
-		C2_ASSERT(c2_sm_invariant(sm));
-		c2_chan_wait();
+		C2_ASSERT(c2_sm_invariant(mach));
+		c2_chan_wait(&waiter);
 	}
+	return 0;
 }
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
@@ -118,13 +137,14 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 
 	C2_PRE(c2_mutex_is_locked(mach->sm_lock));
 	C2_PRE(c2_sm_invariant(mach));
+
+	sd = sm_state(mach);
 	C2_PRE(sd->sd_allowed & (1 << state));
 
-	sd = sm_state(sm);
-	if (old->sd_ex != NULL)
-		old->sd_ex(mach);
-	mach->sd_state = state;
-	sd = sm_state(sm);
+	if (sd->sd_ex != NULL)
+		sd->sd_ex(mach);
+	mach->sm_state = state;
+	sd = sm_state(mach);
 	if (sd->sd_in != NULL)
 		sd->sd_in(mach);
 	c2_chan_broadcast(&mach->sm_chan);

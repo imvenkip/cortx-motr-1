@@ -1,9 +1,28 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 03/11/2011
+ */
 
 #ifndef __COLIBRI_LIB_SEMAPHORE_H__
 #define __COLIBRI_LIB_SEMAPHORE_H__
 
 #include "lib/types.h"
+#include "lib/time.h"
 
 /**
    @defgroup semaphore Dijkstra semaphore
@@ -56,8 +75,6 @@ int c2_semaphore_trydown(struct c2_semaphore *semaphore);
  */
 unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
 
-struct c2_time;
-
 /**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
    given.
@@ -68,7 +85,7 @@ struct c2_time;
 
  */
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const struct c2_time *abs_timeout);
+			    const c2_time_t abs_timeout);
 
 /** @} end of semaphore group */
 

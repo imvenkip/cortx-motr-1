@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/07/2010
+ */
 
 #include "lib/ub.h"
 #include "lib/ut.h"
@@ -13,7 +32,7 @@ struct test1 {
 
 void test_list(void)
 {
-	struct test1	t1, t2, t3, t4;
+	struct test1	t1, t2, t3;
 	struct c2_list_link	*pos;
 	struct c2_list	test_head;
 	struct test1 *p;
@@ -28,19 +47,27 @@ void test_list(void)
 	c2_list_link_init(&t3.t_link);
 	t3.c = 15;
 
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t3.t_link));
+
 	c2_list_add(&test_head, &t1.t_link);
 	c2_list_add_tail(&test_head, &t2.t_link);
 	c2_list_add(&test_head, &t3.t_link);
+
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(c2_list_contains(&test_head, &t3.t_link));
 
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
 	}
 
-	C2_UT_ASSERT(c2_list_contains(&test_head, &t2.t_link));
-	C2_UT_ASSERT(!c2_list_contains(&test_head, &t4.t_link));
-
 	c2_list_del(&t2.t_link);
+
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t1.t_link));
 	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
 
 	t_sum = 0;
 	c2_list_for_each(&test_head, pos) {
@@ -50,6 +77,11 @@ void test_list(void)
 	C2_UT_ASSERT(t_sum == 20);
 
 	c2_list_del(&t1.t_link);
+
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
+
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
@@ -57,6 +89,11 @@ void test_list(void)
 	C2_UT_ASSERT(t_sum == 15);
 
 	c2_list_del(&t3.t_link);
+
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t1.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
+	C2_UT_ASSERT(!c2_list_contains(&test_head, &t3.t_link));
+
 	t_sum = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
@@ -106,20 +143,20 @@ struct c2_ub_set c2_list_ub = {
 	.us_name = "list-ub",
 	.us_init = ub_init,
 	.us_fini = ub_fini,
-	.us_run  = { 
-		{ .ut_name = "insert", 
-		  .ut_iter = UB_ITER, 
+	.us_run  = {
+		{ .ut_name = "insert",
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_insert },
 
-		{ .ut_name = "delete", 
-		  .ut_iter = UB_ITER, 
+		{ .ut_name = "delete",
+		  .ut_iter = UB_ITER,
 		  .ut_round = ub_delete },
 
 		{ .ut_name = NULL }
 	}
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

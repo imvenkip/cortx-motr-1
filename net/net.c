@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 07/01/2010
+ */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -45,16 +63,15 @@ static struct c2_fop_type_format *fmts[] = {
 
 int c2_net_init()
 {
-	int rc;
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
-	rc = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	return rc;
+	return c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 }
 
 void c2_net_fini()
 {
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_addb_ctx_fini(&c2_net_addb);
 	c2_mutex_fini(&c2_net_mutex);
 }
 
@@ -73,11 +90,10 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
 		     struct c2_net_buf_desc *to_desc)
 {
 	C2_PRE(from_desc->nbd_len > 0);
-	to_desc->nbd_data = c2_alloc(from_desc->nbd_len);
-	if ( to_desc->nbd_data == NULL ) {
-		C2_ADDB_ADD(&c2_net_addb, &c2_net_addb_loc, c2_addb_oom);
+	C2_ALLOC_ARR_ADDB(to_desc->nbd_data, from_desc->nbd_len,
+			  &c2_net_addb, &c2_net_addb_loc);
+	if (to_desc->nbd_data == NULL)
 		return -ENOMEM;
-	}
 	memcpy(to_desc->nbd_data, from_desc->nbd_data, from_desc->nbd_len);
 	to_desc->nbd_len = from_desc->nbd_len;
 	return 0;
@@ -86,7 +102,7 @@ C2_EXPORTED(c2_net_desc_copy);
 
 void c2_net_desc_free(struct c2_net_buf_desc *desc)
 {
-	if ( desc->nbd_len > 0 ) {
+	if (desc->nbd_len > 0) {
 		C2_PRE(desc->nbd_data != NULL);
 		c2_free(desc->nbd_data);
 		desc->nbd_len = 0;
@@ -100,7 +116,7 @@ C2_EXPORTED(c2_net_desc_free);
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

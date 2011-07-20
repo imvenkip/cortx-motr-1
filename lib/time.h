@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ *                  Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 12/10/2010
+ */
 
 #ifndef __COLIBRI_LIB_TIME_H__
 #define __COLIBRI_LIB_TIME_H__
@@ -8,13 +27,7 @@
 /**
    @defgroup time Generic time manipulation
 
-   There is just one time structure in C2: struct c2_time.
-   It can be used for wall time, finding an interval, adding
-   times, ordering, etc.  It delivers resolution in nanoseconds,
-   and has (at least) the following members:
-   <sometype> tv_sec
-   long       tv_nsec
-
+   C2 time delivers resolution in nanoseconds. It is an unsigned 64-bit integer.
    @{
 */
 
@@ -23,8 +36,8 @@
 #else
 #include "lib/linux_kernel/time.h"
 #endif
-/** struct c2_time is defined by headers above. */
 
+typedef uint64_t c2_time_t;
 
 enum {
 	C2_TIME_ONE_BILLION = 1000000000ULL
@@ -36,55 +49,41 @@ enum {
    @param time [OUT] current time if pointer is non-NULL
    @retval current time
 */
-struct c2_time *c2_time_now(struct c2_time *time);
+c2_time_t c2_time_now(c2_time_t *time);
 
 /**
-   Flatten a c2_time structure into a uint64
-
-   @retval time in nanoseconds
- */
-uint64_t c2_time_flatten(const struct c2_time *time);
-
-/**
-   Create a c2_time struct from seconds and nanosecond
+   Create a c2_time_t from seconds and nanosecond
 
    @param time [OUT] the result time.
    @param secs seconds from epoch
    @param ns nanoseconds
    @retval the result time.
  */
-struct c2_time *c2_time_set(struct c2_time *time, uint64_t secs, long ns);
+c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns);
 
 /**
-   Add t2 to t1, store result in @res, and return that result
+   Add t2 to t1, and return that result
 
-   @param res [OUT] the result time
    @retval the result time
-
-   @note it is safe to use one of t1 or t2 as res.
  */
-struct c2_time *c2_time_add(const struct c2_time *t1, const struct c2_time *t2,
-			    struct c2_time *res);
+c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
 
 /**
-   Subtract t2 from t1, store result in @res, and return that result
+   Subtract t2 from t1, and return that result
 
    @retval the result time
-
-   @note it is safe to use one of t1 or t2 as res.
  */
-struct c2_time *c2_time_sub(const struct c2_time *t1, const struct c2_time *t2,
-			    struct c2_time *res);
+c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
 
 /**
    Is time a after time b?
  */
-bool c2_time_after(const struct c2_time *a, const struct c2_time *b);
+bool c2_time_after(const c2_time_t a, const c2_time_t b);
 
 /**
    Is time a after or equal to time b?
  */
-bool c2_time_after_eq(const struct c2_time *a, const struct c2_time *b);
+bool c2_time_after_eq(const c2_time_t a, const c2_time_t b);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.
@@ -94,27 +93,27 @@ bool c2_time_after_eq(const struct c2_time *a, const struct c2_time *b);
    @retval 0 means success. -1 means error. remaining time will be stored
            in @rem.
 */
-int c2_nanosleep(const struct c2_time *req, struct c2_time *rem);
+int c2_nanosleep(const c2_time_t req, c2_time_t *rem);
 
 /**
    Get "second" part from the time
 
    @retval second part of the time
  */
-uint64_t c2_time_seconds(const struct c2_time *time);
+uint64_t c2_time_seconds(const c2_time_t time);
 
 /**
    Get "nanosecond" part from the time
 
    @retval nanosecond part of the time
  */
-uint64_t c2_time_nanoseconds(const struct c2_time *time);
+uint64_t c2_time_nanoseconds(const c2_time_t time);
 
 
 /**
    the biggest time that never reaches in system life.
 */
-extern const struct c2_time C2_TIME_NEVER;
+extern const c2_time_t C2_TIME_NEVER;
 
 /** @} end of time group */
 

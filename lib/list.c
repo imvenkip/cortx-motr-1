@@ -1,4 +1,23 @@
 #include "lib/list.h"
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/17/2010
+ */
 #include "lib/assert.h"
 
 /** @addtogroup list @{ */
@@ -21,19 +40,6 @@ bool c2_list_is_empty(const struct c2_list *head)
 	return head->l_head == (void *)head;
 }
 C2_EXPORTED(c2_list_is_empty);
-
-bool c2_list_contains(const struct c2_list *list,
-		      const struct c2_list_link *link)
-{
-	struct c2_list_link *scan;
-
-	C2_ASSERT(c2_list_invariant(list));
-	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
-		if (scan == link)
-			return true;
-	return false;
-}
-C2_EXPORTED(c2_list_contains);
 
 bool c2_list_link_invariant(const struct c2_list_link *link)
 {
@@ -70,6 +76,19 @@ size_t c2_list_length(const struct c2_list *list)
 }
 C2_EXPORTED(c2_list_length);
 
+bool c2_list_contains(const struct c2_list *list,
+		      const struct c2_list_link *link)
+{
+	struct c2_list_link *scan;
+
+	C2_ASSERT(c2_list_invariant(list));
+	for (scan = list->l_head; scan != (void *)list; scan = scan->ll_next)
+		if (scan == link)
+			return true;
+	return false;
+}
+C2_EXPORTED(c2_list_contains);
+
 static inline void __c2_list_add(struct c2_list_link *next,
 				 struct c2_list_link *prev,
 			         struct c2_list_link *new)
@@ -78,7 +97,7 @@ static inline void __c2_list_add(struct c2_list_link *next,
 	C2_ASSERT(c2_list_link_invariant(next));
 	new->ll_next = next;
 	new->ll_prev = prev;
-	
+
 	next->ll_prev = new;
 	prev->ll_next = new;
 	C2_ASSERT(c2_list_link_invariant(next));

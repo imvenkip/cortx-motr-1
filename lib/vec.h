@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/12/2010
+ */
 
 #ifndef __COLIBRI_LIB_VEC_H__
 #define __COLIBRI_LIB_VEC_H__
@@ -108,6 +126,27 @@ struct c2_bufvec {
 };
 
 /**
+   Initialize a c2_bufvec containing a single segment of the specified size.
+   The intended usage is as follows:
+
+   @code
+   void *addr;
+   c2_bcount_t buf_count;
+   struct c2_bufvec in = C2_BUFVEC_INIT_BUF(&addr, &buf_count);
+
+   buf_count = ...;
+   addr = ...;
+   @endcode
+ */
+#define C2_BUFVEC_INIT_BUF(addr_ptr, count_ptr)	{	\
+	.ov_vec = {					\
+		.v_nr = 1,				\
+		.v_count = (count_ptr),			\
+	},						\
+	.ov_buf = (addr_ptr)				\
+}
+
+/**
    Allocates memory for a struct c2_bufvec.  All segments are of equal
    size.
    The internal struct c2_vec is also allocated by this routine.
@@ -163,11 +202,7 @@ bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
    segment in its vector (or to move into end of the vector position, when the
    cursor is already at the last segment).
 
-   Both cursors are advanced by the number of bytes copied.
-
-   @pre @code
-c2_bufvec_cursor_move(cur,0) == false
-@endcode
+   @pre !c2_bufvec_cursor_move(cur, 0)
    @see c2_vec_cursor_step()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Count
@@ -176,9 +211,7 @@ c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur);
 
 /**
    Return the buffer address at the cursor's current position.
-   @pre @code
-c2_bufvec_cursor_move(cur,0) == false
-@endcode
+   @pre !c2_bufvec_cursor_move(cur, 0)
    @see c2_bufvec_cursor_copy()
    @param cur Pointer to the struct c2_bufvec_cursor.
    @retval Pointer into buffer.
@@ -187,6 +220,7 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
 
 /**
    Copy bytes from one buffer to another using cursors.
+   Both cursors are advanced by the number of bytes copied.
    @param dcur Pointer to the destination buffer cursor positioned
    appropriately.
    @param scur Pointer to the source buffer cursor positioned appropriately.
@@ -227,7 +261,7 @@ int         c2_diovec_register(struct c2_diovec *vec,
 /* __COLIBRI_LIB_VEC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

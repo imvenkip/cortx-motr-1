@@ -1,3 +1,24 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>,
+ *                  Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 05/14/2010
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,20 +180,20 @@ void test_net_client(void)
 	C2_UT_ASSERT(conn1 != NULL);
 
 	/* write addb record onto network */
-	/* Use RPC */
-	/* c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK; */
-	/* c2_addb_net_add_p      = c2_addb_net_add; */
-	/* c2_addb_store_net_conn = conn1; */
-	//c2_addb_level_default  = AEL_ERROR;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn1);
+	/* choose a default level for addb event */
+	/* c2_addb_choose_default_level(AEL_ERROR); */
+	c2_addb_choose_default_level(AEL_NONE);
 
 	for (i = 0; i < 100; ++i) {
 		sprintf(node_arg.si_uuid, "%d", i);
 		nettest_send(conn1, i);
 	}
-	
+
 	/* printf("rc = %d\n", rc); */
 	/* printf("%s\n", node_ret.si_uuid); */
 
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_net_conn_unlink(conn1);
 	c2_net_conn_release(conn1);
 	c2_service_stop(&s1);
@@ -193,7 +214,7 @@ const struct c2_test_suite net_client_ut = {
         }
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

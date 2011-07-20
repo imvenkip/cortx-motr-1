@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 08/13/2010
+ */
 
 #include <stdarg.h>
 #include <stdlib.h>    /* free */
@@ -293,7 +311,8 @@ static int dbenv_setup(struct c2_dbenv *env, const char *name, uint64_t flags)
 			if (result == 0) {
 				result = C2_THREAD_INIT(&di->d_thread,
 							struct c2_dbenv *, NULL,
-							&dbenv_thread, env);
+							&dbenv_thread, env,
+							"dbenv_thread");
 				if (result == 0)
 					DBENV_CALL(env, log_cursor,
 						   &di->d_logc, 0);
@@ -782,8 +801,8 @@ static void dbenv_thread(struct c2_dbenv *env)
 		int                     nr_pages;
 		struct c2_db_tx_waiter *w;
 		struct c2_db_tx_waiter *tmp;
-		struct c2_time          deadline;
-		struct c2_time          delay;
+		c2_time_t               deadline;
+		c2_time_t               delay;
 
 		DBENV_CALL(env, memp_trickle, 10, &nr_pages);
 		rc = DBENV_CALL(env, log_stat, &st, 0);
@@ -808,8 +827,8 @@ static void dbenv_thread(struct c2_dbenv *env)
 		}
 		c2_time_now(&deadline);
 		c2_time_set(&delay, 1, 0);
-		c2_time_add(&deadline, &delay, &deadline);
-		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, &deadline);
+		deadline = c2_time_add(deadline, delay);
+		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, deadline);
 		c2_mutex_unlock(&di->d_lock);
 	} while (!last);
 	C2_ASSERT(c2_list_is_empty(&env->d_i.d_waiters));

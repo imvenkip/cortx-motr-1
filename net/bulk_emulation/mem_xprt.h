@@ -1,9 +1,43 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/12/2011
+ */
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_H__
 
 #include "lib/atomic.h"
 #include "lib/thread.h"
+
+#ifdef __KERNEL__
+#include <linux/in.h>
+#include <linux/inet.h>
+
+/* The kernel does not define these types */
+typedef __be32 in_addr_t;
+typedef __be16 in_port_t;
+
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
 #include "net/bulk_mem.h"
 
 /**
@@ -51,13 +85,13 @@
      allocating sufficient space in the end point data structure for the
      derived transport.
 
-   See \ref bulksunrpc for an example of a derived transport.
+   See @ref bulksunrpc for an example of a derived transport.
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/edit?hl=en#">RPC Bulk Transfer Task Plan</a>
    for details on the implementation.
 
    @{
-*/
+ */
 
 struct c2_net_bulk_mem_domain_pvt;
 struct c2_net_bulk_mem_tm_pvt;
@@ -76,12 +110,14 @@ enum c2_net_bulk_mem_work_opcode {
 	C2_NET_XOP_CANCEL_CB,
 	/** perform a message received callback */
 	C2_NET_XOP_MSG_RECV_CB,
-	/** permform a message send operation and callback */
+	/** perform a message send operation and callback */
 	C2_NET_XOP_MSG_SEND,
 	/** perform a passive bulk buffer completion callback */
 	C2_NET_XOP_PASSIVE_BULK_CB,
 	/** perform an active bulk buffer transfer operation and callback */
 	C2_NET_XOP_ACTIVE_BULK,
+	/** Perform an error callback */
+	C2_NET_XOP_ERROR_CB,
 
 	C2_NET_XOP_NR
 };
@@ -117,16 +153,29 @@ struct c2_net_bulk_mem_work_item {
 
 	/** Work opcode. All opcodes other than C2_NET_XOP_STATE_CHANGE
 	    and C2_NET_XOP_NR relate to buffers.
-	*/
+	 */
 	enum c2_net_bulk_mem_work_opcode    xwi_op;
 
 	/** The next state value for a C2_NET_XOP_STATE_CHANGE opcode */
 	enum c2_net_bulk_mem_tm_state       xwi_next_state;
+
+	/** Status. Used for C2_NET_ERROR_CB, C2_NET_XOP_STATE_CHANGE,
+	    buffer operation completion status,
+	    and a generic way for derived classes to
+	    pass on status to the base worker function.
+	 */
+	int32_t                             xwi_status;
+
+	/** Length of buffer */
+	c2_bcount_t                         xwi_nbe_length;
+
+	/** End point in received buffers */
+	struct c2_net_end_point            *xwi_nbe_ep;
 };
 
 /**
    Buffer private data.
-*/
+ */
 struct c2_net_bulk_mem_buffer_pvt {
 	/** Points back to its buffer */
 	struct c2_net_buffer                *xb_buffer;
@@ -136,28 +185,54 @@ struct c2_net_bulk_mem_buffer_pvt {
 
 	/** Buffer id. This is set each time the buffer is used for
 	    a passive bulk transfer operation.
-	*/
+	 */
 	int64_t                              xb_buf_id;
 };
 
 /**
+   Recover the buffer private pointer from the buffer pointer.
+ */
+static inline struct c2_net_bulk_mem_buffer_pvt *
+mem_buffer_to_pvt(const struct c2_net_buffer *nb)
+{
+	return nb->nb_xprt_private;
+}
+
+/**
    Transfer machine private data.
-*/
+ */
 struct c2_net_bulk_mem_tm_pvt {
+	/** The transfer machine pointer */
 	struct c2_net_transfer_mc        *xtm_tm;
+	/** Internal state of the transfer machine */
 	enum c2_net_bulk_mem_tm_state     xtm_state;
+	/** FIFO of pending work items */
 	struct c2_list                    xtm_work_list;
+	/** Condition variable for the work item list */
 	struct c2_cond                    xtm_work_list_cv;
+	/** Worker callback activity is tracked by this counter. */
+	uint32_t                          xtm_callback_counter;
+	/** Array of worker threads allocated during startup */
 	struct c2_thread                 *xtm_worker_threads;
+	/** Number of worker threads */
 	size_t                            xtm_num_workers;
 };
 
 /**
-   End point. It tracks an IP/port number address.
+   Recover the TM private pointer from a pointer to the TM.
 */
+static inline struct c2_net_bulk_mem_tm_pvt *
+mem_tm_to_pvt(const struct c2_net_transfer_mc *tm)
+{
+	return tm->ntm_xprt_private;
+}
+
 enum {
-	C2_NET_XEP_MAGIC = 0x6e455064696f746eULL,
+	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
 };
+/**
+   End point. It tracks an IP/port number address.
+ */
 struct c2_net_bulk_mem_end_point {
 	/** Magic constant to validate end point */
 	uint64_t                 xep_magic;
@@ -165,9 +240,26 @@ struct c2_net_bulk_mem_end_point {
 	/** Socket address */
 	struct sockaddr_in       xep_sa;
 
-	/** Externally visible end point in the TM. */
+	/** Service id. Set to 0 in the in-memory transport but usable
+	    in derived transports.
+	 */
+	uint32_t                 xep_service_id;
+
+	/** Externally visible end point in the domain. */
 	struct c2_net_end_point  xep_ep;
+
+	/** Storage for the printable address */
+	char                     xep_addr[C2_NET_BULK_MEM_XEP_ADDR_LEN];
 };
+
+/**
+   Recover the end point private from a pointer to the end point.
+*/
+static inline struct c2_net_bulk_mem_end_point *
+mem_ep_to_pvt(const struct c2_net_end_point *ep)
+{
+	return container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+}
 
 /**
    Work functions are invoked from worker threads. There is one
@@ -178,65 +270,178 @@ typedef void (*c2_net_bulk_mem_work_fn_t)(struct c2_net_transfer_mc *tm,
 					  struct c2_net_bulk_mem_work_item *wi);
 
 /**
+   These subroutines are exposed by the transport as they may need to be
+   intercepted by a derived transport.
+ */
+struct c2_net_bulk_mem_ops {
+	/** Work functions. */
+	c2_net_bulk_mem_work_fn_t  bmo_work_fn[C2_NET_XOP_NR];
+
+	/** Subroutine to create an end point. */
+	int (*bmo_ep_create)(struct c2_net_end_point **epp,
+			     struct c2_net_domain *dom,
+			     const struct sockaddr_in *sa,
+			     uint32_t id);
+
+	/** Subroutine to allocate memory for an end point */
+	struct c2_net_bulk_mem_end_point *(*bmo_ep_alloc)(void);
+
+	/** Subroutine to free memory for an end point */
+	void (*bmo_ep_free)(struct c2_net_bulk_mem_end_point *mep);
+
+	/** Subroutine to release an end point.  Used as the destructor
+	    function for c2_net_end_point::nep_ref.
+	 */
+	void (*bmo_ep_release)(struct c2_ref *ref);
+
+	/** Subroutine to obtain a persistent reference to an end point
+	    on the end point list.  This is to aid derived transports that
+	    cache end points.
+	*/
+	void (*bmo_ep_get)(struct c2_net_end_point *ep);
+
+	/** Subroutine to add a work item to the work list */
+	void (*bmo_wi_add)(struct c2_net_bulk_mem_work_item *wi,
+			   struct c2_net_bulk_mem_tm_pvt *tp);
+
+	/** Subroutine to check if a buffer size is within bounds */
+	bool (*bmo_buffer_in_bounds)(const struct c2_net_buffer *nb);
+
+	/** Subroutine to create a buffer descriptor */
+	int  (*bmo_desc_create)(struct c2_net_buf_desc *desc,
+				struct c2_net_end_point *ep,
+				struct c2_net_transfer_mc *tm,
+				enum c2_net_queue_type qt,
+				c2_bcount_t buflen,
+				int64_t buf_id);
+
+	/** Subroutine to post an error */
+	void (*bmo_post_error)(struct c2_net_transfer_mc *tm,
+			       int status);
+
+	/** Subroutine to post a buffer event */
+	void (*bmo_wi_post_buffer_event)(struct c2_net_bulk_mem_work_item *wi);
+};
+
+/**
    Domain private data structure.
-   The fields of this structure can be reset by a derived transort
+   The fields of this structure can be reset by a derived transport
    after xo_dom_init() method is called on the in-memory transport.
  */
 struct c2_net_bulk_mem_domain_pvt {
 	/** Domain pointer */
-	struct c2_net_domain      *xd_dom;
+	struct c2_net_domain             *xd_dom;
 
-        /** Work functions. */
-	c2_net_bulk_mem_work_fn_t  xd_work_fn[C2_NET_XOP_NR];
-
-	/**
-	   Size of the end point structure.
-	   Initialized to the size of c2_net_bulk_mem_end_point.
-	 */
-	size_t                     xd_sizeof_ep;
+	/** Methods that may be replaced by derived transports */
+	const struct c2_net_bulk_mem_ops *xd_ops;
 
 	/**
-	   Size of the transfer machine private data.
-	   Initialized to the size of c2_net_bulk_mem_tm_pvt.
+	   Number of tuples in the address.
 	 */
-	size_t                     xd_sizeof_tm_pvt;
-
-	/**
-	   Size of the buffer private data.
-	   Initialized to the size of c2_net_buf_emul_buf_pvt.
-	 */
-	size_t                     xd_sizeof_buffer_pvt;
+	size_t                            xd_addr_tuples;
 
 	/**
 	   Number of threads in a transfer machine pool.
-	*/
-	size_t                     xd_num_tm_threads;
+	 */
+	size_t                            xd_num_tm_threads;
 
 	/**
 	   Linkage of in-memory c2_net_domain objects for in-memory
 	   communication.
 	   This is only done if the xd_derived is false.
 	 */
-	struct c2_list_link        xd_dom_linkage;
+	struct c2_list_link               xd_dom_linkage;
 
 	/**
 	   Indicator of a derived transport.
 	   Will be set to true if the transport pointer provided to
 	   the xo_dom_init() method is not c2_net_bulk_mem_xprt.
 	 */
-	bool                       xd_derived;
+	bool                              xd_derived;
 
 	/**
-	   Counter for passive bulk buffer identifiers.
-	*/
-	struct c2_atomic64         xd_buf_id_counter;
+	   Counter for passive bulk buffer identifiers.  The ntm_mutex must be
+	   held while operating on this counter.
+	 */
+	uint64_t                          xd_buf_id_counter;
 };
 
+/**
+   Recover the domain private from a pointer to the domain.
+*/
+static inline struct c2_net_bulk_mem_domain_pvt *
+mem_dom_to_pvt(const struct c2_net_domain *dom)
+{
+	return dom->nd_xprt_private;
+}
+
+/**
+   Function obtain the c2_net_buffer pointer from its related work item.
+   @param wi Work item pointer in embedded buffer private data
+   @retval bufferPointer
+ */
+static inline struct c2_net_buffer *
+mem_wi_to_buffer(struct c2_net_bulk_mem_work_item *wi)
+{
+	struct c2_net_bulk_mem_buffer_pvt *bp;
+	bp = container_of(wi, struct c2_net_bulk_mem_buffer_pvt, xb_wi);
+	return bp->xb_buffer;
+}
+
+/**
+   Function to obtain the work item from a c2_net_buffer pointer.
+   @param bufferPointer
+   @retval WorkItemPointer in buffer private data
+ */
+static inline struct c2_net_bulk_mem_work_item *
+mem_buffer_to_wi(struct c2_net_buffer *buf)
+{
+	struct c2_net_bulk_mem_buffer_pvt *bp = mem_buffer_to_pvt(buf);
+	return &bp->xb_wi;
+}
+
+/**
+   Function to return the IP address of the end point.
+   @param ep End point pointer
+   @retval address In network byte order.
+ */
+static inline in_addr_t mem_ep_addr(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_sa.sin_addr.s_addr;
+}
+
+/**
+   Function to return the port number of the end point.
+   @param ep End point pointer
+   @retval port In network byte order.
+ */
+static inline in_port_t mem_ep_port(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_sa.sin_port;
+}
+
+/**
+   Function to return the service id of the end point.
+   @param ep End point pointer
+   @retval service id in network byte order
+ */
+static inline uint32_t mem_ep_sid(struct c2_net_end_point *ep)
+{
+	struct c2_net_bulk_mem_end_point *mep =
+		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
+	return mep->xep_service_id;
+}
+
+int c2_mem_xprt_init(void);
+void c2_mem_xprt_fini(void);
 
 /**
    @}
-*/
-
+ */
 
 #endif /* __COLIBRI_NET_BULK_MEM_XPRT_H__ */
 

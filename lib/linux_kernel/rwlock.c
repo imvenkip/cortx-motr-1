@@ -1,55 +1,74 @@
 /* -*- C -*- */
-
-#include <linux/module.h>
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <hua_huang@xyratex.com>
+ *		    Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 12/02/2010
+ */
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/rwlock.h"
 #include "lib/assert.h"
 
 /**
-   @defgroup rwlock Read-write lock
+   @addtogroup rwlock Read-write lock
+
    @{
  */
 
 void c2_rwlock_init(struct c2_rwlock *lock)
 {
-	rwlock_init(&lock->m_rwlock);
+	init_rwsem(&lock->rw_sem);
 }
 C2_EXPORTED(c2_rwlock_init);
 
 void c2_rwlock_fini(struct c2_rwlock *lock)
 {
+	C2_ASSERT(!rwsem_is_locked(&lock->rw_sem));
 }
 C2_EXPORTED(c2_rwlock_fini);
 
 void c2_rwlock_write_lock(struct c2_rwlock *lock)
 {
-	write_lock(&lock->m_rwlock);
+	down_write(&lock->rw_sem);
 }
 C2_EXPORTED(c2_rwlock_write_lock);
 
 void c2_rwlock_write_unlock(struct c2_rwlock *lock)
 {
-	write_unlock(&lock->m_rwlock);
+	up_write(&lock->rw_sem);
 }
 C2_EXPORTED(c2_rwlock_write_unlock);
 
 void c2_rwlock_read_lock(struct c2_rwlock *lock)
 {
-	read_lock(&lock->m_rwlock);
+	down_read(&lock->rw_sem);
 }
 C2_EXPORTED(c2_rwlock_read_lock);
 
 void c2_rwlock_read_unlock(struct c2_rwlock *lock)
 {
-	read_unlock(&lock->m_rwlock);
+	up_read(&lock->rw_sem);
 }
 C2_EXPORTED(c2_rwlock_read_unlock);
 
 /** @} end of rwlock group */
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

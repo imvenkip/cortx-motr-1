@@ -5,7 +5,7 @@ STOBDIR = @SRCDIR@/stob/ut
 GALOISDIR = @SRCDIR@/../galois
 IOSERVICEDIR = @SRCDIR@/ioservice
 
-obj-m := c2t1fs.o c2t1fs_loop.o 
+obj-m := c2t1fs.o c2t1fs_loop.o
 c2t1fs-y := main.o io_k.o io_fops_k.o io_foms.o io_fops.o io_fop_init.o addb_store.o addb_k.o
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
@@ -35,7 +35,7 @@ uninstall:
 
 distclean clean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean;
-	rm -fr Module.symvers io_k.[ch] io_fop_init.c
+	rm -fr Module.symvers io_k.[ch] io_fop_init.c addb_store.c addb_k.[ch]
 	rm -fr @SRCDIR@/sns/galois.h
 	rm -rf io_fops_k.* io_fops.* io_foms.*
 	rm -rf fop_types.h

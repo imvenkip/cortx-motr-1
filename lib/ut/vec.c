@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/12/2010
+ */
 
 #include "lib/ut.h"
 #include "lib/cdefs.h"     /* ARRAY_SIZE */
@@ -32,6 +50,7 @@ void test_vec(void)
 	bool        eov;
 
 	struct c2_vec_cursor c;
+	struct c2_bufvec     bv;
 
 	for (count = 0, it = 1, sum0 = i = 0; i < ARRAY_SIZE(segs); ++i) {
 		segs[i] = count * it;
@@ -71,7 +90,6 @@ void test_vec(void)
 	c2_vec_cursor_move(&c, sum0);
 	C2_UT_ASSERT(c2_vec_cursor_move(&c, 0));
 
-	struct c2_bufvec bv;
 	C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, SEGSIZE) == 0);
 	C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
 	for (i = 0; i < NR; ++i) {
@@ -116,7 +134,7 @@ static void test_bufvec_cursor(void)
 	int i;
 
 	C2_SET_ARR0(bufs);
-	for (i=0; i < NR_BUFS; i++) {
+	for (i = 0; i < NR_BUFS; ++i) {
 		C2_UT_ASSERT(msglen == shapes[i].num_segs * shapes[i].seg_size);
 		C2_UT_ASSERT(c2_bufvec_alloc(&bufs[i],
 					     shapes[i].num_segs,
@@ -126,7 +144,7 @@ static void test_bufvec_cursor(void)
 	C2_UT_ASSERT(b->ov_vec.v_nr == 1);
 	memcpy(b->ov_buf[0], msg, msglen);
 	C2_UT_ASSERT(memcmp(b->ov_buf[0], msg, msglen) == 0);
-	for (i=1; i < NR_BUFS; i++) {
+	for (i = 1; i < NR_BUFS; ++i) {
 		struct c2_bufvec_cursor s_cur;
 		struct c2_bufvec_cursor d_cur;
 		int j;
@@ -142,10 +160,10 @@ static void test_bufvec_cursor(void)
 		C2_UT_ASSERT(c2_bufvec_cursor_move(&d_cur,0));
 
 		/* verify data */
-		for (j=0; j < bufs[i].ov_vec.v_nr; j++) {
+		for (j = 0; j < bufs[i].ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < bufs[i].ov_vec.v_count[j]; k++){
+			for (k = 0; k < bufs[i].ov_vec.v_count[j]; ++k) {
 				q = bufs[i].ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 			}
@@ -179,10 +197,10 @@ static void test_bufvec_cursor(void)
 
 		/* check partial copy correct */
 		len = 0;
-		for (j=0; j < buf.ov_vec.v_nr; j++) {
+		for (j = 0; j < buf.ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < buf.ov_vec.v_count[j]; k++){
+			for (k = 0; k < buf.ov_vec.v_count[j]; ++k) {
 				q = buf.ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 				len++;
@@ -218,11 +236,11 @@ static void test_bufvec_cursor(void)
 
 		/* check partial copy correct */
 		len = 0;
-		for (j=0; j < buf.ov_vec.v_nr; j++) {
+		for (j = 0; j < buf.ov_vec.v_nr; ++j) {
 			int k;
 			char *q;
-			for (k=0; k < buf.ov_vec.v_count[j] && len < msglen;
-			     k++){
+			for (k = 0; k < buf.ov_vec.v_count[j] && len < msglen;
+			     k++) {
 				q = buf.ov_buf[j] + k;
 				C2_UT_ASSERT(*p++ == *q);
 				len++;

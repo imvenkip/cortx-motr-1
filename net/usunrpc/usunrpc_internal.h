@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 06/15/2010
+ */
+
 #ifndef __COLIBRI_NET_SUNRPC_SUNRPC_INTERNAL_H__
 #define __COLIBRI_NET_SUNRPC_SUNRPC_INTERNAL_H__
 
@@ -53,6 +72,8 @@ struct usunrpc_dom {
 	struct c2_cond   sd_gotwork;
 	struct c2_mutex  sd_guard;
 	struct c2_queue  sd_queue;
+	int              sd_client_count;
+	int              sd_nr_workers;
 	struct c2_thread sd_workers[USUNRPC_CONN_CLIENT_THR_NR];
 
 	/*
@@ -70,7 +91,7 @@ static inline bool udom_is_shutting(const struct c2_net_domain *dom)
  */
 struct usunrpc_service_id {
 	struct c2_service_id *ssi_id;
-	char                 *ssi_host;	    /**< server hostname */
+	char                  ssi_host[256];/**< server hostname */
 	struct sockadd_in    *ssi_sockaddr; /**< server ip_addr  */
 	int 	              ssi_addrlen;  /**< server ip_addr  */
 	uint16_t              ssi_port;     /**< server tcp port */
@@ -88,6 +109,7 @@ int  usunrpc_service_init(struct c2_service *service);
 extern const struct c2_service_id_ops usunrpc_service_id_ops;
 extern const struct c2_net_conn_ops usunrpc_conn_ops;
 extern const struct c2_service_ops usunrpc_service_ops;
+extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
 
 /** @} end of group usunrpc */
 

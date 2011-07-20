@@ -5,8 +5,8 @@ INCLUDES        	= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 
 net_u.h net_u.c: net.ff \
                   $(top_builddir)/fop/libc2rt.la \
-                  $(top_builddir)/fop/fop2c 
-	$(top_builddir)/fop/fop2c -uk $<
+                  $(top_builddir)/fop/fop2c
+	$(top_builddir)/fop/fop2c -u $<
 
 libnet_ut_la_SOURCES	= bulk_if.c \
                           net_u.h net_u.c client.c net_fop_init.c net_fop.h

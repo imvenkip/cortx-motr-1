@@ -1,9 +1,28 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 05/30/2010
+ */
+
 #ifndef __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
 #include "lib/mutex.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 
 #ifdef __KERNEL__
 #include <linux/in.h>
@@ -28,6 +47,9 @@ struct c2_fop;
 
 
 int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
+int ksunrpc_service_init(struct c2_service *service);
+int ksunrpc_server_init(void);
+void ksunrpc_server_fini(void);
 
 extern const struct c2_service_id_ops ksunrpc_service_id_ops;
 extern const struct c2_net_conn_ops   ksunrpc_conn_ops;
@@ -48,6 +70,15 @@ struct ksunrpc_conn {
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_net_call *call);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
+
+int c2_svc_rqst_dec(void *rqstp, __be32 *data, struct c2_fop *arg);
+int c2_svc_rqst_enc(void *rqstp, __be32 *data, struct c2_fop *arg);
+
+int c2_fop_encode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+int c2_fop_decode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+
 /* #else __KERNEL__ */
 #else
 # include <netinet/in.h>
@@ -66,6 +97,14 @@ struct ksunrpc_service_id {
 	uint32_t              ssi_prog;     /**< server program number */
 	uint32_t              ssi_ver;      /**< server program version */
 };
+
+int c2_ksunrpc_init(void);
+void c2_ksunrpc_fini(void);
+
+extern const struct c2_service_id_ops ksunrpc_service_id_ops;
+extern const struct c2_net_conn_ops ksunrpc_conn_ops;
+extern const struct c2_service_ops ksunrpc_service_ops;
+extern struct c2_net_xprt c2_net_ksunrpc_minimal_xprt;
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

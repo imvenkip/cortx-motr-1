@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 08/24/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -178,7 +197,9 @@ int main(int argc, char **argv)
 	int result;
 
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
-	struct c2_net_domain    ndom;
+	struct c2_net_domain    ndom = {
+		.nd_xprt = NULL
+	};
 	struct c2_net_conn     *conn;
 
 	setbuf(stdout, NULL);
@@ -210,12 +231,8 @@ int main(int argc, char **argv)
 	conn = c2_net_conn_find(&sid);
 	C2_ASSERT(conn != NULL);
 
-	/* Use RPC */
-	/* /\* write addb record onto network *\/ */
-	/* c2_addb_store_net_conn = conn; */
-	/* c2_addb_net_add_p      = c2_addb_net_add; */
-	/* c2_addb_store_type     = C2_ADDB_REC_STORE_NETWORK; */
-
+	/* write addb record onto network */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NETWORK, c2_addb_net_add, conn);
 
 	while (!feof(stdin)) {
 		struct c2_fop_fid fid;
@@ -247,8 +264,7 @@ int main(int argc, char **argv)
 		n = scanf(" \n");
 	}
 
-	c2_addb_store_type     = C2_ADDB_REC_STORE_NONE;
-	/* Use RPC c2_addb_store_net_conn = NULL; */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_net_conn_unlink(conn);
 	c2_net_conn_release(conn);
 

@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/17/2010
+ */
 
 #ifndef __COLIBRI_LIB_LIST_H__
 #define __COLIBRI_LIB_LIST_H__
@@ -29,6 +48,9 @@ struct c2_list_link {
 
 /**
  initialize list link entry
+
+ It is not necessary to call this function if the first operation on the link is
+ any of c2_list_add*() functions.
 
  @param link - pointer to link enty
 */
@@ -103,20 +125,40 @@ size_t c2_list_length(const struct c2_list *list);
 /**
  add list to top on the list
 
+ This function can be called on an uninitialised @new link. All @new fields are
+ overwritten.
+
  @param head pointer to list head
  @param new  pointer to list entry
+
  */
 void c2_list_add(struct c2_list *head, struct c2_list_link *new);
 
 /**
  add list to tail on the list
 
+ This function can be called on an uninitialised @new link. All @new fields are
+ overwritten.
+
  @param head pointer to list head
  @param new  pointer to list entry
  */
 void c2_list_add_tail(struct c2_list *head, struct c2_list_link *new);
 
+/**
+   Adds an element to the list right after the specified element.
+
+   This function can be called on an uninitialised @new link. All @new fields
+   are overwritten.
+ */
 void c2_list_add_after (struct c2_list_link *anchor, struct c2_list_link *new);
+
+/**
+   Adds an element to the list right before the specified element.
+
+   This function can be called on an uninitialised @new link. All @new fields
+   are overwritten.
+ */
 void c2_list_add_before(struct c2_list_link *anchor, struct c2_list_link *new);
 
 /**

@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ *                  Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 12/10/2010
+ */
 
 #include "lib/cdefs.h" /* C2_EXPORTED */
 #include "lib/assert.h" /* C2_PRE */
@@ -7,52 +26,36 @@
 /**
    @addtogroup time
 
-   Implementation of time functions on top of all c2_time defs
+   Implementation of time functions on top of all c2_time_t defs
 
    @{
 */
 
+
 /**
-   Create a c2_time struct from seconds and ns
+   Create a c2_time_t from seconds and ns
  */
-struct c2_time *c2_time_set(struct c2_time *time, uint64_t secs, long ns)
+c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns)
 {
-	uint64_t nanos = secs * C2_TIME_ONE_BILLION + ns;
-	time->ts.tv_sec = nanos / C2_TIME_ONE_BILLION;
-	time->ts.tv_nsec = nanos % C2_TIME_ONE_BILLION;
-	return time;
+	*time = secs * C2_TIME_ONE_BILLION + ns;
+	return *time;
 }
 C2_EXPORTED(c2_time_set);
 
 /**
-   Flatten a c2_time structure into uint64 nanoseconds.
-
-   This gives a limit of 585 years before we wrap.
-*/
-uint64_t c2_time_flatten(const struct c2_time *time)
-{
-        return ((uint64_t)time->ts.tv_sec) * C2_TIME_ONE_BILLION + time->ts.tv_nsec;
-}
-C2_EXPORTED(c2_time_flatten);
-
-/**
    Add t2 to t1
  */
-struct c2_time *c2_time_add(const struct c2_time *t1, const struct c2_time *t2,
-                            struct c2_time *res)
+c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 {
-	uint64_t sum;
+	c2_time_t res;
 
-	C2_PRE(c2_time_after_eq(&C2_TIME_NEVER, t1));
-	C2_PRE(c2_time_after_eq(&C2_TIME_NEVER, t2));
+	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t1));
+	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t2));
 
-	if (c2_time_flatten(t1) == c2_time_flatten(&C2_TIME_NEVER) ||
-	    c2_time_flatten(t2) == c2_time_flatten(&C2_TIME_NEVER)) {
-		*res = C2_TIME_NEVER;
+	if (t1 == C2_TIME_NEVER || t2 == C2_TIME_NEVER) {
+		res = C2_TIME_NEVER;
 	} else {
-		sum = c2_time_flatten(t1) + c2_time_flatten(t2);
-		res->ts.tv_sec = sum / C2_TIME_ONE_BILLION;
-		res->ts.tv_nsec = sum % C2_TIME_ONE_BILLION;
+		res = t1 + t2;
 	}
 	C2_POST(c2_time_after_eq(res, t1));
 	C2_POST(c2_time_after_eq(res, t2));
@@ -63,21 +66,17 @@ C2_EXPORTED(c2_time_add);
 /**
    Subtract t2 from t1
  */
-struct c2_time *c2_time_sub(const struct c2_time *t1, const struct c2_time *t2,
-			    struct c2_time *res)
+c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 {
-	int64_t diff;
-
-	C2_PRE(c2_time_after_eq(&C2_TIME_NEVER, t1));
-	C2_PRE(c2_time_after   (&C2_TIME_NEVER, t2));
+	c2_time_t res;
+	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t1));
+	C2_PRE(c2_time_after   (C2_TIME_NEVER, t2));
 	C2_PRE(c2_time_after_eq(t1, t2));
 
-	if (c2_time_flatten(t1) == c2_time_flatten(&C2_TIME_NEVER)) {
-		*res = C2_TIME_NEVER;
+	if (t1 == C2_TIME_NEVER) {
+		res = C2_TIME_NEVER;
 	} else {
-		diff = c2_time_flatten(t1) - c2_time_flatten(t2);
-		res->ts.tv_sec = diff / C2_TIME_ONE_BILLION;
-		res->ts.tv_nsec = diff % C2_TIME_ONE_BILLION;
+		res = t1 - t2;
 	}
 	C2_POST(c2_time_after_eq(t1, res));
 	return res;
@@ -87,18 +86,18 @@ C2_EXPORTED(c2_time_sub);
 /**
    Is time a after time b?
 */
-bool c2_time_after(const struct c2_time *a, const struct c2_time *b)
+bool c2_time_after(const c2_time_t a, const c2_time_t b)
 {
-	return c2_time_flatten(a) > c2_time_flatten(b);
+	return a > b;
 }
 C2_EXPORTED(c2_time_after);
 
 /**
    Is time a after or equal to time b?
 */
-bool c2_time_after_eq(const struct c2_time *a, const struct c2_time *b)
+bool c2_time_after_eq(const c2_time_t a, const c2_time_t b)
 {
-	return c2_time_flatten(a) >= c2_time_flatten(b);
+	return a >= b;
 }
 C2_EXPORTED(c2_time_after_eq);
 
@@ -107,9 +106,9 @@ C2_EXPORTED(c2_time_after_eq);
 
    @retval second part of the time
  */
-uint64_t c2_time_seconds(const struct c2_time *time)
+uint64_t c2_time_seconds(const c2_time_t time)
 {
-	return time->ts.tv_sec;
+	return time / C2_TIME_ONE_BILLION;
 }
 C2_EXPORTED(c2_time_seconds);
 
@@ -118,20 +117,16 @@ C2_EXPORTED(c2_time_seconds);
 
    @retval nanosecond part of the time
  */
-uint64_t c2_time_nanoseconds(const struct c2_time *time)
+uint64_t c2_time_nanoseconds(const c2_time_t time)
 {
 
-        return time->ts.tv_nsec;
+        return time % C2_TIME_ONE_BILLION;
 }
 C2_EXPORTED(c2_time_nanoseconds);
 
 
-const struct c2_time C2_TIME_NEVER = {
-	.ts = {
-		.tv_sec  = ~0ULL / C2_TIME_ONE_BILLION - 1,
-		.tv_nsec = C2_TIME_ONE_BILLION - 1,
-	}
-};
+const c2_time_t C2_TIME_NEVER = ~0ULL;
+C2_EXPORTED(C2_TIME_NEVER);
 
 /** @} end of time group */
 

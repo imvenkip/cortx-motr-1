@@ -1,4 +1,22 @@
 #include <linux/time.h>
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original creation date: 04/13/2011
+ */
 
 #include "lib/memory.h"
 #include "lib/assert.h"
@@ -22,7 +40,7 @@ static int test_passed;
 static int test_failed;
 static int passed;
 static int failed;
-static struct c2_time started;
+static c2_time_t started;
 static struct c2_list suites;
 
 enum {
@@ -67,12 +85,13 @@ C2_EXPORTED(c2_ut_add);
 static void uts_summary(void)
 {
 	int ran;
-	struct c2_time now, diff;
+	c2_time_t now;
+	c2_time_t diff;
 	int64_t msec;
 
 	c2_time_now(&now);
-	c2_time_sub(&now, &started, &diff);
-	msec = (c2_time_nanoseconds(&diff) + ONE_MILLION / 2) / ONE_MILLION;
+	diff = c2_time_sub(now, started);
+	msec = (c2_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
 	printk(KERN_INFO "Run Summary:    Type  Total    Ran Passed Failed\n");
 	/* initial "." keeps syslog from trimming leading spaces */
@@ -85,7 +104,7 @@ static void uts_summary(void)
 	printk(KERN_INFO ".%19s%7d%7d%7d%7d\n",
 	       "asserts", ran, ran, passed, failed);
 	printk(KERN_INFO "Elapsed time = %4lld.%03lld seconds\n",
-	       c2_time_seconds(&diff), msec);
+	       c2_time_seconds(diff), msec);
 }
 
 void c2_ut_run(const char *log_file)
@@ -115,7 +134,8 @@ void c2_ut_run(const char *log_file)
 		if (ts->tse_suite->ts_init != NULL) {
 			ret = ts->tse_suite->ts_init();
 			if (ret != 0) {
-				printk(KERN_INFO "Suite Prepare: failed\n");
+				printk(KERN_ERR "Suite Prepare: failed %d\n",
+				       ret);
 				suite_failed++;
 				continue;
 			}
@@ -130,7 +150,7 @@ void c2_ut_run(const char *log_file)
 				       t->t_name, "passed");
 				test_passed++;
 			} else {
-				printk(KERN_INFO ". Test: %s...%s\n",
+				printk(KERN_ERR ". Test: %s...%s\n",
 				       t->t_name, "failed");
 				test_failed++;
 				suite_ok = false;
@@ -139,7 +159,8 @@ void c2_ut_run(const char *log_file)
 		if (ts->tse_suite->ts_fini != NULL) {
 			ret = ts->tse_suite->ts_fini();
 			if (ret != 0) {
-				printk(KERN_INFO "Suite Cleanup: failed\n");
+				printk(KERN_ERR "Suite Cleanup: failed %d\n",
+				       ret);
 				suite_failed++;
 				continue;
 			}
@@ -155,7 +176,7 @@ C2_EXPORTED(c2_ut_run);
 bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file)
 {
 	if (!c) {
-		printk(KERN_INFO "Unit test assertion failed: %s at %s:%d\n",
+		printk(KERN_ERR "Unit test assertion failed: %s at %s:%d\n",
 		       str_c, file, lno);
 		failed++;
 	} else

@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 03/04/2011
+ */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/mutex.h"
@@ -28,7 +46,9 @@ void nothing(int unused)
 
 static void c2_timer_working_thread(struct c2_timer *timer)
 {
-	struct c2_time next, now, rem;
+	c2_time_t next;
+	c2_time_t now;
+	c2_time_t rem;
 	int rc;
 
 	c2_time_set(&rem, 0, 0);
@@ -37,16 +57,16 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 
 	while (timer->t_left > 0) {
 		c2_time_now(&now);
-		if (c2_time_after(&now, &timer->t_expire))
-			c2_time_add(&now, &timer->t_interval, &timer->t_expire);
+		if (c2_time_after(now, timer->t_expire))
+			timer->t_expire = c2_time_add(now, timer->t_interval);
 
-		c2_time_sub(&timer->t_expire, &now, &next);
-		while (timer->t_left > 0 && (rc = c2_nanosleep(&next, &rem)) != 0) {
+		next = c2_time_sub(timer->t_expire, now);
+		while (timer->t_left > 0 && (rc = c2_nanosleep(next, &rem)) != 0) {
 			next = rem;
 		}
 		if (timer->t_left == 0)
 			break;
-		c2_time_add(&timer->t_expire, &timer->t_interval, &timer->t_expire);
+		timer->t_expire = c2_time_add(timer->t_expire, timer->t_interval);
 		timer->t_callback(timer->t_data);
 		if (timer->t_left == 0 || --timer->t_left == 0)
 			break;
@@ -60,7 +80,7 @@ static void c2_timer_working_thread(struct c2_timer *timer)
    timer later.
  */
 int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  struct c2_time *interval, uint64_t repeat,
+		  c2_time_t interval, uint64_t repeat,
 		  c2_timer_callback_t callback, unsigned long data)
 {
 	C2_PRE(callback != NULL);
@@ -68,7 +88,7 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 
 	C2_SET0(timer);
 	timer->t_type     = type;
-	timer->t_interval = *interval;
+	timer->t_interval = interval;
 	timer->t_repeat   = repeat;
 	timer->t_left     = 0;
 	timer->t_callback = callback;
@@ -84,14 +104,14 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	struct c2_time now;
+	c2_time_t now;
 	int rc;
 
-	c2_time_add(c2_time_now(&now), &timer->t_interval, &timer->t_expire);
+	timer->t_expire = c2_time_add(c2_time_now(&now), timer->t_interval);
 	timer->t_left = timer->t_repeat;
 
 	rc = C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,
-			    &c2_timer_working_thread, timer);
+			    &c2_timer_working_thread, timer, "c2_timer_worker");
 	return rc;
 }
 C2_EXPORTED(c2_timer_start);

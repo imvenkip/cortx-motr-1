@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 06/15/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -25,7 +44,7 @@
 #include "lib/queue.h"
 #include "lib/thread.h"
 #include "lib/cond.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 #include "fop/fop.h"
 
 #include "usunrpc.h"
@@ -39,18 +58,6 @@
 /*
  * Client code.
  */
-
-/**
-   XXX make version for all sun rpc calls to be const
- */
-static const int C2_DEF_RPC_VER = 1;
-
-/**
-   services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
 
 struct usunrpc_xprt {
 	CLIENT              *nsx_client;
@@ -146,12 +153,12 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 					  id->ssi_ver, &sock, 0, 0);
 	if (xprt->nsx_client != NULL) {
 		xprt->nsx_fd = sock;
-		c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
 		ADDB_CALL(conn, "clnttcp_create", -errno);
 		result = -errno;
+		xprt->nsx_fd = 0;
 	}
 	return result;
 }
@@ -169,7 +176,10 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 	C2_ALLOC_PTR(xconn);
 
 	if (xconn != NULL) {
-		C2_ALLOC_ARR(pool, USUNRPC_CONN_CLIENT_COUNT);
+		struct usunrpc_dom *xdom = conn->nc_domain->nd_xprt_private;
+		size_t pool_size = xdom->sd_client_count;
+
+		C2_ALLOC_ARR(pool, pool_size);
 		if (pool != NULL) {
 			size_t i;
 
@@ -177,16 +187,18 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 			c2_queue_init(&xconn->nsc_idle);
 			c2_cond_init(&xconn->nsc_gotfree);
 			xconn->nsc_pool       = pool;
-			xconn->nsc_nr         = USUNRPC_CONN_CLIENT_COUNT;
+			xconn->nsc_nr         = pool_size;
 			conn->nc_ops          = &usunrpc_conn_ops;
 			conn->nc_xprt_private = xconn;
 
-			for (i = 0; i < USUNRPC_CONN_CLIENT_COUNT; ++i) {
+			for (i = 0; i < pool_size; ++i) {
 				result = usunrpc_conn_init_one
 					(id->si_xport_private, conn, xconn,
 					 &xconn->nsc_pool[i]);
 				if (result != 0)
 					break;
+				c2_queue_put(&xconn->nsc_idle,
+					     &xconn->nsc_pool[i].nsx_linkage);
 			}
 		}
 	} else
@@ -232,12 +244,29 @@ static int usunrpc_call(struct usunrpc_xprt *xprt, struct c2_net_call *call)
 {
 	struct c2_fop *arg;
 	struct c2_fop *ret;
+	int rc;
 
 	arg = call->ac_arg;
 	ret = call->ac_ret;
-	return -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
-			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
-			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
+	if (xprt->nsx_fd == 0) {
+		/* This could be due to a previous failure during reset in
+		   usunrpc_conn_call below.
+		 */
+		return -ECONNABORTED;
+	}
+	rc = -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
+			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
+			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
+	if (rc != 0) {
+		struct rpc_err re;
+		clnt_geterr(xprt->nsx_client, &re);
+		if (re.re_status == RPC_CANTSEND ||
+		    re.re_status == RPC_CANTRECV) {
+			/* clnt_call returns EINTR - recover the real error */
+			rc = -re.re_errno;
+		}
+	}
+	return rc;
 }
 
 static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
@@ -251,6 +280,21 @@ static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	xconn  = conn->nc_xprt_private;
 	xprt   = conn_xprt_get(xconn);
 	result = usunrpc_call(xprt, call);
+	if (result == -ECONNRESET &&
+	    conn->nc_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt) {
+		/* Potentially an error due to caching of end points.
+		   Reinitialize the xprt and retry once.
+		*/
+		int rc;
+		C2_ASSERT(xprt->nsx_fd != 0);
+		clnt_destroy(xprt->nsx_client);
+		rc = usunrpc_conn_init_one(conn->nc_id->si_xport_private,
+					   conn, xconn, xprt);
+		if (rc == 0)
+			result = usunrpc_call(xprt, call);
+		else
+			C2_ASSERT(xprt->nsx_fd == 0);
+	}
 	conn_xprt_put(xconn, xprt);
 	return result;
 }
@@ -287,11 +331,12 @@ int usunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 
 	C2_ALLOC_PTR(xsid);
 	if (xsid != NULL) {
+		const char *hostname;
 		sid->si_xport_private = xsid;
 		xsid->ssi_id = sid;
 
-		/* N.B. they have different order than kernelspace's ones */
-		xsid->ssi_host = va_arg(varargs, char *);
+		hostname = va_arg(varargs, char *);
+		strncpy(xsid->ssi_host, hostname, ARRAY_SIZE(xsid->ssi_host)-1);
 		xsid->ssi_port = va_arg(varargs, int);
 		xsid->ssi_prog = C2_SESSION_PROGRAM;
 		xsid->ssi_ver  = C2_DEF_RPC_VER;

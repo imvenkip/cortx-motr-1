@@ -1,4 +1,24 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 06/15/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -24,7 +44,7 @@ bool c2_services_are_same(const struct c2_service_id *c1,
 
 void c2_net_domain_stats_init(struct c2_net_domain *dom)
 {
-        struct c2_time now;
+        c2_time_t now;
         int i;
 
         C2_SET0(&dom->nd_stats);
@@ -87,8 +107,11 @@ void c2_net_domain_stats_collect(struct c2_net_domain *dom,
 int c2_net_domain_stats_get(struct c2_net_domain *dom,
                             enum c2_net_stats_direction dir)
 {
-        uint64_t interval_usec, rate, max;
-        struct c2_time now, interval;
+        uint64_t interval_usec;
+        uint64_t rate;
+        uint64_t max;
+        c2_time_t now;
+        c2_time_t interval;
         int rv;
 
         c2_time_now(&now);
@@ -100,8 +123,8 @@ int c2_net_domain_stats_get(struct c2_net_domain *dom,
            collection. */
         c2_rwlock_write_lock(&dom->nd_stats[dir].ns_lock);
 
-        c2_time_sub(&now, &dom->nd_stats[dir].ns_time, &interval);
-        interval_usec = c2_time_flatten(&interval);
+        interval = c2_time_sub(now, dom->nd_stats[dir].ns_time);
+        interval_usec = interval;
         interval_usec = max64u(interval_usec, 1);
 
         /* Load based on data rate only, bytes/sec */

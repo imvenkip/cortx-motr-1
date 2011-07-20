@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/21/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -310,10 +329,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		return rc;
 	}
 	else
-/*
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
-*/
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
 	SERVER_ADDB_ADD("io_handler", rc);
 	return rc;
@@ -402,6 +419,13 @@ static struct mock_balloc mb = {
 	}
 };
 
+static const struct c2_table_ops c2_addb_record_ops = {
+	.to = {
+		[TO_KEY] = { .max_size = sizeof (uint64_t) },
+		[TO_REC] = { .max_size = 4096 }
+	},
+	.key_cmp = NULL
+};
 
 /**
    Simple server for unit-test purposes.
@@ -418,6 +442,8 @@ static struct mock_balloc mb = {
 
    Server supports create, read and write commands.
  */
+extern c2_bindex_t addb_stob_offset;
+extern uint64_t c2_addb_db_seq;
 int main(int argc, char **argv)
 {
 	int         result;
@@ -425,15 +451,26 @@ int main(int argc, char **argv)
 	char        opath[64];
 	char        dpath[64];
 	int         port;
-        int         i = 0;
+	int         i = 0;
 
 	struct c2_stob_domain  *bdom;
 	struct c2_stob_id       backid;
 	struct c2_stob         *bstore;
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
 	struct c2_service       service;
-	struct c2_net_domain    ndom;
+	struct c2_net_domain    ndom = {
+		.nd_xprt = NULL
+	};
 	struct c2_dbenv         db;
+	struct c2_stob_id       addb_stob_id = {
+					.si_bits = {
+						.u_hi = 0xADDBADDBADDBADDB,
+						.u_lo = 0x210B210B210B210B
+					}
+				};
+	struct c2_stob	       *addb_stob;
+
+	struct c2_table	        addb_table;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -465,15 +502,6 @@ int main(int argc, char **argv)
 
 	result = c2_init();
 	C2_ASSERT(result == 0);
-
-	/* create or open a stob in which to store the record.
-	 * XXX we use file for demo
-	 */
-	c2_addb_store_stob = (struct c2_stob*)fopen("server_addb_log", "a");
-	C2_ASSERT(c2_addb_store_stob != NULL);
-	/* write addb record into stob */
-	c2_addb_stob_add_p = c2_addb_stob_add;
-	c2_addb_store_type = C2_ADDB_REC_STORE_STOB;
 
 	c2_addb_ctx_init(&server_addb_ctx, &server_addb_ctx_type,
 			 &c2_addb_global_ctx);
@@ -527,6 +555,40 @@ int main(int argc, char **argv)
 
 	c2_stob_put(bstore);
 
+	/* create or open a stob into which to store the record. */
+	result = bdom->sd_ops->sdo_stob_find(bdom, &addb_stob_id, &addb_stob);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(addb_stob->so_state == CSS_UNKNOWN);
+
+	result = c2_stob_create(addb_stob, NULL);
+	C2_ASSERT(result == 0);
+	C2_ASSERT(addb_stob->so_state == CSS_EXISTS);
+	/* XXX The stob tail postion should be maintained & initialized */
+
+	/* write addb record into stob */
+	/*
+	 * TODO
+	 * Init the stob appending file offset position.
+	 * This should be stored somewhere transactionally.
+	 */
+	/*
+	addb_stob_offset = 0;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
+				   addb_stob, NULL);
+	*/
+
+	result = c2_table_init(&addb_table, &db,
+			       "addb_record", 0,
+			       &c2_addb_record_ops);
+	C2_ASSERT(result == 0);
+	/*
+	 * TODO
+	 * The db addb seqno should be loaded and initialized.
+	 */
+
+	c2_addb_db_seq = 0;
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_DB, c2_addb_db_add,
+				   &addb_table, &db);
 	/*
 	 * Set up the service.
 	 */
@@ -563,13 +625,24 @@ int main(int argc, char **argv)
 	c2_net_domain_fini(&ndom);
 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
 
+	/*
+	 * TODO
+	 * the stob file offset or db seqno should be updated and
+	 * stored somewhere, e.g. in global configuration db.
+	 */
+	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
+
+	c2_table_fini(&addb_table);
+
+	c2_stob_put(addb_stob);
+
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_addb_ctx_fini(&server_addb_ctx);
-	fclose((FILE*)c2_addb_store_stob);
+
 	c2_fini();
 	return 0;
 }

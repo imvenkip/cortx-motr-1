@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ *                  Huang Hua <hua_huang@xyratex.com>
+ * Original creation date: 06/19/2010
+ */
 
 #ifndef __COLIBRI_ADDB_ADDB_H__
 #define __COLIBRI_ADDB_ADDB_H__
@@ -22,12 +41,14 @@ struct c2_addb_ev;
 struct c2_addb_dp;
 struct c2_addb_rec;
 enum c2_addb_ev_level;
+struct c2_dbenv;
+struct c2_dtx;
 
 
 /* these are needed earlier than they are defined */
 struct c2_stob;
 struct c2_table;
-/* Use RPC struct c2_net_conn; */
+struct c2_net_conn;
 
 /**
    ADDB record store type
@@ -60,38 +81,27 @@ struct c2_addb_ctx_type {
 /**
     Write addb records into this stob.
  */
-typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_stob *stob);
-int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_stob *stob);
+typedef int (*c2_addb_stob_add_t)(struct c2_addb_dp *dp, struct c2_dtx *tx,
+				  struct c2_stob *stob);
+int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+		     struct c2_stob *stob);
 
 /**
     Write addb records into this db.
  */
-typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_table *db);
-int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_table *db);
+typedef int (*c2_addb_db_add_t)(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+				struct c2_table *db);
+int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
+		   struct c2_table *db);
 
-/* USE RPC */
 /**
     Send addb records through this network connection.
  */
-/* typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
+typedef int (*c2_addb_net_add_t)(struct c2_addb_dp *dp, struct c2_net_conn *);
 int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
-*/
 
-extern c2_addb_stob_add_t c2_addb_stob_add_p;
-extern c2_addb_db_add_t   c2_addb_db_add_p;
-/* Use RPC: extern c2_addb_net_add_t  c2_addb_net_add_p; */
+int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
 
-/**
-   ADDB record store type.
-
-   This type is inited while system startup. For clients, we may configure it
-   as network; while for servers, we may configure it to store record into stob.
-   Along with this variable, corresponding parameter should be configured below.
-*/
-extern enum c2_addb_rec_store_type c2_addb_store_type;
-extern struct c2_stob             *c2_addb_store_stob;
-extern struct c2_table            *c2_addb_store_table;
-/* Use RPC extern struct c2_net_conn         *c2_addb_store_net_conn;*/
 
 
 /**
@@ -132,7 +142,8 @@ enum c2_addb_ev_level {
 	AEL_NOTE,
 	AEL_WARN,
 	AEL_ERROR,
-	AEL_FATAL
+	AEL_FATAL,
+	AEL_MAX = AEL_FATAL
 };
 
 /**
@@ -327,7 +338,8 @@ typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
 		c2_addb_add(&__dp);				\
 })
 
-extern int c2_addb_level_default;
+extern enum c2_addb_ev_level c2_addb_level_default;
+enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
 
 /**
    Declare addb event operations vector with a given collection of formal
