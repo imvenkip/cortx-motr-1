@@ -286,62 +286,64 @@ static void fom_rep_cb(struct c2_clink *clink)
 {
 	C2_UT_ASSERT(clink != NULL);
 	if (clink != NULL) {
-		struct reqh_net_call *rcall = container_of(clink, struct reqh_net_call, rclink);
+		struct reqh_net_call *rcall = container_of(clink,
+						struct reqh_net_call, rclink);
 		if (rcall != NULL) {
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
 			C2_UT_ASSERT(rfop != NULL);
-				switch(rfop->f_type->ft_code) {
-					case CREATE_REP:
-					{
-						struct c2_fom_io_create_rep *rep;
-						rep = c2_fop_data(rfop);
-						if(rep != NULL) {
-							printf("Create reply: %i\n",rep->ficr_rc);
-							++reply;
-						}
-						c2_fop_free(rfop);
-						break;
-					}
-					case WRITE_REP:
-					{
-						struct c2_fom_io_write_rep *rep;
-						rep = c2_fop_data(rfop);
-						if(rep != NULL) {
-							printf("Write reply: %i %i\n", rep->fiwr_rc,
-									rep->fiwr_count);
-							++reply;
-						}
-						c2_fop_free(rfop);
-						break;
-					}
-					case READ_REP:
-					{
-						struct c2_fom_io_read_rep *rep;
-						rep = c2_fop_data(rfop);
-						if(rep != NULL) {
-							printf("\nRead reply: %i", rep->firr_rc);
-							if (rep->firr_rc == 0)
-								printf(" %i %c\n", rep->firr_count, rep->firr_value);
-							++reply;
-						}
-						c2_fop_free(rfop);
-						break;
-					}
-					default:
-					{
-						struct c2_reqh_error_rep *rep;
-						rep = c2_fop_data(rfop);
-						if (rep != NULL) {
-							printf("Got reply: %i\n", rep->rerr_rc);
-							++reply;
-						}
-						c2_fop_free(rfop);
-						break;
-					}
+			switch(rfop->f_type->ft_code) {
+			case CREATE_REP:
+			{
+				struct c2_fom_io_create_rep *rep;
+				rep = c2_fop_data(rfop);
+				if(rep != NULL) {
+					printf("Create reply: %i\n",rep->ficr_rc);
+					++reply;
 				}
-				c2_free(rcall);
+				c2_fop_free(rfop);
+				break;
 			}
+			case WRITE_REP:
+			{
+				struct c2_fom_io_write_rep *rep;
+				rep = c2_fop_data(rfop);
+				if(rep != NULL) {
+					printf("Write reply: %i %i\n", rep->fiwr_rc,
+							rep->fiwr_count);
+					++reply;
+				}
+				c2_fop_free(rfop);
+				break;
+			}
+			case READ_REP:
+			{
+				struct c2_fom_io_read_rep *rep;
+				rep = c2_fop_data(rfop);
+				if(rep != NULL) {
+					printf("\nRead reply: %i", rep->firr_rc);
+					if (rep->firr_rc == 0)
+						printf(" %i %c\n", rep->firr_count,
+								rep->firr_value);
+					++reply;
+				}
+				c2_fop_free(rfop);
+				break;
+			}
+			default:
+			{
+				struct c2_reqh_error_rep *rep;
+				rep = c2_fop_data(rfop);
+				if (rep != NULL) {
+					printf("Got reply: %i\n", rep->rerr_rc);
+					++reply;
+				}
+				c2_fop_free(rfop);
+				break;
+			}
+			}
+				c2_free(rcall);
 		}
+	}
 }
 
 /**
@@ -429,7 +431,8 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 }
 
 
-static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq,
+							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
@@ -439,7 +442,8 @@ static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq, unsign
 	create_send(conn, fid);
 }
 
-static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq,
+							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
@@ -449,7 +453,8 @@ static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq, unsigne
 	write_send(conn, fid);
 }
 
-static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq, unsigned long oid)
+static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq,
+							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
 	struct c2_fom_fop_fid *fid;
@@ -471,7 +476,8 @@ static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
-	result = fom->fo_stdomain->sd_ops->sdo_stob_find(fom->fo_stdomain, &id, &obj);
+	result = fom->fo_stdomain->sd_ops->sdo_stob_find(fom->fo_stdomain,
+								&id, &obj);
 	C2_UT_ASSERT(result == 0);
 	result = c2_stob_locate(obj, tx);
 	return obj;
@@ -568,8 +574,10 @@ int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 
 /**
  * Finds home locality for this type of fom.
- * This function, using a basic hashing method locates a home locality for a particular
- * type of fome, inorder to have same locality of execution for a certain type of fom.
+ * This function, using a basic hashing method
+ * locates a home locality for a particular type
+ * of fome, inorder to have same locality of
+ * execution for a certain type of fom.
  */
 size_t fom_home_locality(const struct c2_fom *fom)
 {
@@ -701,8 +709,10 @@ int read_fom_state(struct c2_fom *fom)
 			fom_obj->st_io.si_opcode = SIO_READ;
 			fom_obj->st_io.si_flags  = 0;
 
+			c2_fom_block_enter(fom);
 			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
-			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj, &fom->fo_tx, NULL);
+			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
+								&fom->fo_tx, NULL);
 
 			if (result != 0) {
 				fom->fo_rc = result;
@@ -723,6 +733,7 @@ int read_fom_state(struct c2_fom *fom)
 		}
 
 		if (fom->fo_phase == FOPH_FAILED || fom->fo_phase == FOPH_SUCCESS) {
+			c2_fom_block_leave(fom);
 			out_fop->firr_rc = fom->fo_rc;
 			fom->fo_rep_fop = fom_obj->rep_fop;
 			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
@@ -793,6 +804,7 @@ int write_fom_state(struct c2_fom *fom)
 			fom_obj->st_io.si_opcode = SIO_WRITE;
 			fom_obj->st_io.si_flags  = 0;
 
+			c2_fom_block_enter(fom);
 			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
 			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
 							&fom->fo_tx, NULL);
@@ -805,6 +817,7 @@ int write_fom_state(struct c2_fom *fom)
 				result = FSO_WAIT;
 			}
 		} else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
+			c2_fom_block_leave(fom);
 			fom->fo_rc = fom_obj->st_io.si_rc;
 			if (fom->fo_rc != 0)
 				fom->fo_phase = FOPH_FAILED;
@@ -872,7 +885,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
- * Function to clean io fops
+ * Function to clean reqh ut io fops
  */
 void fom_io_fop_fini(void)
 {
@@ -881,7 +894,7 @@ void fom_io_fop_fini(void)
 }
 
 /**
- * Function to intialize io fops.
+ * Function to intialise reqh ut io fops.
  */
 int fom_io_fop_init(void)
 {
@@ -899,7 +912,8 @@ int fom_io_fop_init(void)
 }
 
 /**
- * Memory allocation 
+ * Helper structures and functions for ad stob.
+ * These are used while performing a stob operation.
  */
 struct reqh_balloc {
 	struct c2_mutex  rb_lock;
@@ -1125,13 +1139,13 @@ void test_reqh(void)
 	while (reply < 10);
 
 	for (i = 0; i < 10; ++i) {
-		reqh_write_send(conn, i, i);
 		sleep(1);
+		reqh_write_send(conn, i, i);
 	}
 
 	for (i = 0; i < 10; ++i) {
-		reqh_read_send(conn, i, i);
 		sleep(1);
+		reqh_read_send(conn, i, i);
 	}
 
 	while (reply < 30)

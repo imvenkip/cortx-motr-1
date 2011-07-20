@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- * 		    Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 
@@ -230,7 +230,7 @@ enum c2_fom_phase {
 	FOPH_FAILED,                /*< fom execution failed. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
 	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
-	FOPH_QUEUE_REPLY,   	    /*< queuing fop reply.  */
+	FOPH_QUEUE_REPLY,           /*< queuing fop reply.  */
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
 	FOPH_DONE,		    /*< fom succeeded. */
 	FOPH_NR                     /*< number of standard phases. fom type
