@@ -82,6 +82,8 @@ struct fom_phase_ops {
  * @pre fom->fo_phase == FOPH_INIT
  *
  * @see c2_fom_state_generic()
+ *
+ * @retval FSO_AGAIN, to execute next fom phase
  */
 static int fom_phase_init(struct c2_fom *fom)
 {
@@ -537,6 +539,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	return rc;
 }
+C2_EXPORTED(c2_fom_state_generic);
 
 /** @} endgroup reqh */
 

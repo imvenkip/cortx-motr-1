@@ -64,8 +64,8 @@ struct c2_addb_ctx c2_reqh_addb_ctx;
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
-extern void reqh_fop_init(void);
-extern void reqh_fop_fini(void);
+extern void c2_reqh_fop_init(void);
+extern void c2_reqh_fop_fini(void);
 
 int  c2_reqh_init(struct c2_reqh *reqh,
 		struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
@@ -80,7 +80,7 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 					&c2_addb_global_ctx);
 
 	/* Initialise generic reqh fops */
-	reqh_fop_init();
+	c2_reqh_fop_init();
 
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result != 0) {
@@ -98,14 +98,16 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 
 	return result;
 }
+C2_EXPORTED(c2_reqh_init);
 
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
 	C2_PRE(reqh != NULL);
 	c2_fom_domain_fini(&reqh->rh_fom_dom);
 	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
-	reqh_fop_fini();
+	c2_reqh_fop_fini();
 }
+C2_EXPORTED(c2_reqh_fini);
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
@@ -131,15 +133,16 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	C2_ASSERT(iloc >= 0 && iloc <= fom->fo_domain->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[iloc];
 	C2_ASSERT(c2_fom_invariant(fom));
-	C2_ASSERT(c2_locality_invariant(fom->fo_loc));
 
 	c2_fom_queue(fom);
 }
+C2_EXPORTED(c2_reqh_fop_handle);
 
 void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 				struct c2_fop_sortkey *key)
 {
 }
+C2_EXPORTED(c2_reqh_fop_sortkey_get);
 
 /** @} endgroup reqh */
 

@@ -416,9 +416,9 @@ struct c2_fom_hthread {
    blocking point.
    Increments c2_fom_locality::fl_lo_idle_threads_nr, so that
    there exists atleast one idle thread to handle incoming fop if
-   a thread blocks.
+   the calling thread blocks.
 
-   @param fom, blocking on an operation
+   @param fom, executing a possible blocking operation
    @see c2_fom_locality
  */
 void c2_fom_block_enter(struct c2_fom *fom);
@@ -428,8 +428,7 @@ void c2_fom_block_enter(struct c2_fom *fom);
    Decrements c2_fom_locality::fl_lo_idle_threads_nr, so that
    extra idle threads are destroyed automatically.
 
-   @param fom, resumes execution after completing its blocking
-		operation
+   @param fom, after executing a blocking operation
  */
 void c2_fom_block_leave(struct c2_fom *fom);
 

@@ -23,10 +23,10 @@
    @{
  */
 
-/** @file reqh_fops.ff
+/**
+ * @file reqh_fops.ff
  *
  * <b>Reqh generic error reply</b>
- *
  */
 
 DEF(c2_reqh_error_rep, RECORD,

@@ -72,16 +72,24 @@
    @{
  */
 
-/**** Server side structures and objects ****/
+/**
+ *  Server side structures and objects
+ */
 enum {
 	PORT = 10001
 };
 
+/**
+ * Write fop specific fom execution phases
+ */
 enum write_fom_phase {
 	FOPH_WRITE_STOB_IO = FOPH_NR + 1,
 	FOPH_WRITE_STOB_IO_WAIT
 };
 
+/**
+ * Read fop specific fom execution phases
+ */
 enum read_fom_phase {
 	FOPH_READ_STOB_IO = FOPH_NR + 1,
 	FOPH_READ_STOB_IO_WAIT
@@ -92,10 +100,14 @@ static struct c2_stob_domain *sdom;
 struct c2_net_domain	ndom;
 static struct c2_fol	fol;
 
-/* Global reqh object */
+/**
+ * Global reqh object
+ */
 struct c2_reqh		reqh;
 
-/* Structure to hold c2_net_call and c2_clink, for network communication */
+/**
+ * Structure to hold c2_net_call and c2_clink, for network communication
+ */
 struct reqh_net_call {
 	struct c2_net_call	ncall;
 	struct c2_clink		rclink;
@@ -123,6 +135,9 @@ static struct c2_fop_type_ops create_fop_ops = {
 	.fto_execute = NULL,
 };
 
+/**
+ * Reply fop fid enumerations
+ */
 enum reply_fop {
 	CREATE_REQ = 10,
 	WRITE_REQ,
@@ -132,6 +147,9 @@ enum reply_fop {
 	READ_REP
 };
 
+/**
+ * Fop type declarations for corresponding fops
+ */
 C2_FOP_TYPE_DECLARE(c2_fom_io_create, "create", 10, &create_fop_ops);
 C2_FOP_TYPE_DECLARE(c2_fom_io_write, "write", 11, &write_fop_ops);
 C2_FOP_TYPE_DECLARE(c2_fom_io_read, "read", 12, &read_fop_ops);
@@ -140,6 +158,9 @@ C2_FOP_TYPE_DECLARE(c2_fom_io_create_rep, "create reply", 21, NULL);
 C2_FOP_TYPE_DECLARE(c2_fom_io_write_rep, "write reply", 22, NULL);
 C2_FOP_TYPE_DECLARE(c2_fom_io_read_rep, "read reply",  23, NULL);
 
+/**
+ * Fop type structures required for initialising corresponding fops.
+ */
 static struct c2_fop_type *fops[] = {
 	&c2_fom_io_create_fopt,
 	&c2_fom_io_write_fopt,
@@ -238,12 +259,18 @@ static struct c2_fom_type *c2_fom_types[] = {
 	&read_fom_mopt,
 };
 
+/**
+ * Function to map a fop to its corresponding fom
+ */
 struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
 {
 	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), c2_fom_types));
 	return c2_fom_types[code - 10];
 }
 
+/**
+ * Dispatches the request fop.
+ */
 static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
 {
 	C2_UT_ASSERT(conn != NULL);
@@ -302,7 +329,6 @@ static void fom_rep_cb(struct c2_clink *clink)
 					}
 					default:
 					{
-						/* Looks like we got an error fop */
 						struct c2_reqh_error_rep *rep;
 						rep = c2_fop_data(rfop);
 						if (rep != NULL) {
@@ -317,10 +343,6 @@ static void fom_rep_cb(struct c2_clink *clink)
 			}
 		}
 }
-
-/********************************************************************
-		Client side fop sending methods
-********************************************************************/
 
 /**
  * Sends create fop request.
@@ -455,11 +477,8 @@ static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
 	return obj;
 }
 
-/********************************************************************
-		   Create methods for foms
-********************************************************************/
 /**
- * Function to create a fom for create fop.
+ * Creates a fom for create fop.
  */
 int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
@@ -490,7 +509,7 @@ int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 }
 
 /**
- * Function to create a fom for write fop.
+ * Creates a fom for write fop.
  */
 int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
@@ -519,7 +538,7 @@ int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 }
 
 /**
- * Function to create a fom for read fop.
+ * Creates a fom for read fop.
  */
 int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
@@ -548,9 +567,9 @@ int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 }
 
 /**
- * Function to find home locality for this type of fom.
- * This function using a basic hashin method locates a home locality for a particaulr
- * type of fome, thus everytime we get same locality for aparticular type of fom.
+ * Finds home locality for this type of fom.
+ * This function, using a basic hashing method locates a home locality for a particular
+ * type of fome, inorder to have same locality of execution for a certain type of fom.
  */
 size_t fom_home_locality(const struct c2_fom *fom)
 {
@@ -587,9 +606,6 @@ size_t fom_home_locality(const struct c2_fom *fom)
 	return iloc;
 }
 
-/*******************************************************
-		fom operations
-*******************************************************/
 /**
  * A simple non blocking create fop specific fom
  * state method implemention.
@@ -817,7 +833,7 @@ int write_fom_state(struct c2_fom *fom)
 }
 
 /**
- * Fom clean up function, invokes c2_fom_fini()
+ * Fom specific clean up function, invokes c2_fom_fini()
  */
 void c2_io_fom_fini(struct c2_fom *fom)
 {
@@ -831,12 +847,13 @@ void c2_io_fom_fini(struct c2_fom *fom)
 
 /**
  * Fom initialization function, invoked from reqh_fop_handle.
+ * Invokes c2_fom_init()
  */
 int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
 	struct c2_fom_type	*fom_type;
-	int			 result = 0;
+	int			 result;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -846,7 +863,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 		return -EINVAL;
 	fop->f_type->ft_fom_type = *fom_type;
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(&(fop->f_type->ft_fom_type), m);
-	if (!result) {
+	if (result == 0) {
 		(*m)->fo_fop = fop;
 		result = c2_fom_init(*m);
 	}
@@ -881,67 +898,66 @@ int fom_io_fop_init(void)
 	return result;
 }
 
-/********* Memory allocation structures ***********/
-
-struct mock_balloc {
-	struct c2_mutex  mb_lock;
-	c2_bindex_t      mb_next;
-	struct ad_balloc mb_ballroom;
+/**
+ * Memory allocation 
+ */
+struct reqh_balloc {
+	struct c2_mutex  rb_lock;
+	c2_bindex_t      rb_next;
+	struct ad_balloc rb_ballroom;
 };
 
-static struct mock_balloc *b2mock(struct ad_balloc *ballroom)
+static struct reqh_balloc *getballoc(struct ad_balloc *ballroom)
 {
-	return container_of(ballroom, struct mock_balloc, mb_ballroom);
+	return container_of(ballroom, struct reqh_balloc, rb_ballroom);
 }
 
-static int mock_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int reqh_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
                             uint32_t bshift)
 {
-	struct mock_balloc *mb = b2mock(ballroom);
+	struct reqh_balloc *rb = getballoc(ballroom);
 
-	c2_mutex_init(&mb->mb_lock);
+	c2_mutex_init(&rb->rb_lock);
 	return 0;
 }
 
-static void mock_balloc_fini(struct ad_balloc *ballroom)
+static void reqh_balloc_fini(struct ad_balloc *ballroom)
 {
-	struct mock_balloc *mb = b2mock(ballroom);
+	struct reqh_balloc *rb = getballoc(ballroom);
 
-	c2_mutex_fini(&mb->mb_lock);
+	c2_mutex_fini(&rb->rb_lock);
 }
 
-static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
-	struct mock_balloc	*mb = b2mock(ballroom);
-	c2_bcount_t		giveout;
+	struct reqh_balloc	*rb = getballoc(ballroom);
 
-	c2_mutex_lock(&mb->mb_lock);
-	giveout = min64u(count, 500000);
-	out->e_start = mb->mb_next;
-	out->e_end   = mb->mb_next + giveout;
-	mb->mb_next += giveout + 1;
-	c2_mutex_unlock(&mb->mb_lock);
+	c2_mutex_lock(&rb->rb_lock);
+	out->e_start = rb->rb_next;
+	out->e_end   = rb->rb_next + count;
+	rb->rb_next += count + 1;
+	c2_mutex_unlock(&rb->rb_lock);
 	return 0;
 }
 
-static int mock_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
 	return 0;
 }
 
-static const struct ad_balloc_ops mock_balloc_ops = {
-	.bo_init  = mock_balloc_init,
-	.bo_fini  = mock_balloc_fini,
-	.bo_alloc = mock_balloc_alloc,
-	.bo_free  = mock_balloc_free,
+static const struct ad_balloc_ops reqh_balloc_ops = {
+	.bo_init  = reqh_balloc_init,
+	.bo_fini  = reqh_balloc_fini,
+	.bo_alloc = reqh_balloc_alloc,
+	.bo_free  = reqh_balloc_free,
 };
 
-static struct mock_balloc mb = {
-	.mb_next = 0,
-	.mb_ballroom = {
-		.ab_ops = &mock_balloc_ops
+static struct reqh_balloc rb = {
+	.rb_next = 0,
+	.rb_ballroom = {
+		.ab_ops = &reqh_balloc_ops
 	}
 };
 
@@ -1005,7 +1021,7 @@ void test_reqh(void)
 	char		dpath[64];
 	const char	*path;
 
-	struct c2_service_id	 rsid = { .si_uuid = "node-1" };
+	struct c2_service_id	 rsid = { .si_uuid = "reqh_ut_node" };
 	struct c2_net_conn	*conn;
 	struct c2_service_id	 reqh_node_arg = { .si_uuid = {0} };
 	struct c2_service	 rservice;
@@ -1025,8 +1041,8 @@ void test_reqh(void)
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	backid.si_bits.u_hi = 0x8;
-	backid.si_bits.u_lo = 0xf00baf11e;
+	backid.si_bits.u_hi = 0x0;
+	backid.si_bits.u_lo = 0xdf11e;
 	path = "../__reqh_ut_stob";
 
 	/* Initialize processors */
@@ -1077,7 +1093,7 @@ void test_reqh(void)
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(result == 0);
 
-	result = ad_setup(sdom, &db, bstore, &mb.mb_ballroom);
+	result = ad_setup(sdom, &db, bstore, &rb.rb_ballroom);
 	C2_UT_ASSERT(result == 0);
 
 	c2_stob_put(bstore);
@@ -1103,17 +1119,21 @@ void test_reqh(void)
 
 	/* Create listening thread to accept async reply's */
 
-	for(i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i)
 		reqh_create_send(conn, i, i);
 
-	for(i = 0; i < 10; ++i)
-		reqh_write_send(conn, i, i);
+	while (reply < 10);
 
-	for(i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i) {
+		reqh_write_send(conn, i, i);
+		sleep(1);
+	}
+
+	for (i = 0; i < 10; ++i)
 		reqh_read_send(conn, i, i);
 
-	while(reply < 30)
-	     sleep(1);
+	while (reply < 30)
+		sleep(1);
 
 	/* Clean up network connections */
 	c2_net_conn_unlink(conn);

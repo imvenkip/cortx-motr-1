@@ -36,11 +36,6 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 
-enum loc_idle_threads {
-	MIN_IDLE_THREADS = 1,
-	MAX_IDLE_THREADS,
-};
-
 /**
    @addtogroup fom
    @{
@@ -80,6 +75,7 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 	return dom != NULL && dom->fd_localities != NULL &&
 		dom->fd_ops != NULL;
 }
+C2_EXPORTED(c2_fom_domain_invariant);
 
 bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
@@ -88,6 +84,7 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 		c2_list_invariant(&loc->fl_wail) &&
 		c2_list_invariant(&loc->fl_threads);
 }
+C2_EXPORTED(c2_locality_invariant);
 
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
@@ -96,6 +93,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		fom->fo_domain != NULL && fom->fo_stdomain != NULL &&
 		fom->fo_loc != NULL && c2_list_link_invariant(&fom->fo_rwlink);
 }
+C2_EXPORTED(c2_fom_invariant);
 
 /**
  * Enqueues fom into locality runq list and increments
@@ -114,9 +112,6 @@ static void fom_ready(struct c2_fom *fom)
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_rwlink);
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_mutex_unlock(&loc->fl_runq_lock);
-	c2_mutex_lock(&loc->fl_lock);
-	c2_chan_signal(&loc->fl_runrun);
-	c2_mutex_unlock(&loc->fl_lock);
 }
 
 /**
@@ -158,40 +153,49 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	struct c2_fom_locality *loc;
 
 	loc = fom->fo_loc;
-	C2_ASSERT(c2_locality_invariant(loc));
 	c2_mutex_lock(&loc->fl_lock);
+	C2_ASSERT(c2_locality_invariant(loc));
 	idle_threads = loc->fl_idle_threads_nr;
 	hi_idle_threads = loc->fl_hi_idle_threads_nr;
 	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 
-	for (i = idle_threads; i < hi_idle_threads; ++i) {
-		rc = loc_thr_create(loc);
-		if (rc != 0)
-			break;
-	}
+		for (i = idle_threads; i < hi_idle_threads; ++i) {
+			rc = loc_thr_create(loc);
+			if (rc != 0)
+				break;
+		}
 
 	if (rc != 0)
 		FOM_ADDB_ADD(fom, "c2_fom_block_enter", rc);
 }
+C2_EXPORTED(c2_fom_block_enter);
 
 void c2_fom_block_leave(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
 	loc = fom->fo_loc;
-	C2_ASSERT(c2_locality_invariant(loc));
 	c2_mutex_lock(&loc->fl_lock);
+	C2_ASSERT(c2_locality_invariant(loc));
 	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 }
+C2_EXPORTED(c2_fom_block_leave);
 
 void c2_fom_queue(struct c2_fom *fom)
 {
+	struct c2_fom_locality *loc;
+
 	C2_PRE(fom->fo_phase == FOPH_INIT);
 
 	fom_ready(fom);
+	loc = fom->fo_loc;
+	c2_mutex_lock(&loc->fl_lock);
+	c2_chan_broadcast(&loc->fl_runrun);
+	c2_mutex_unlock(&loc->fl_lock);
 }
+C2_EXPORTED(c2_fom_queue);
 
 /**
  * Puts fom on locality wait list if fom performs a blocking
@@ -225,6 +229,7 @@ void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan)
 	c2_clink_add(chan, &fom->fo_clink);
 	fom_wait(fom);
 }
+C2_EXPORTED(c2_fom_block_at);
 
 /**
  * Invokes fom specific state method, which transitions fom
@@ -255,10 +260,12 @@ static void fom_fop_exec(struct c2_fom *fom)
 	if (fom->fo_phase == FOPH_DONE)
 		fom->fo_ops->fo_fini(fom);
 	else {
-		loc = fom->fo_loc;
-		c2_mutex_lock(&loc->fl_wail_lock);
-		C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_rwlink));
-		c2_mutex_unlock(&loc->fl_wail_lock);
+		if (fom->fo_state == FOS_WAITING) {
+			loc = fom->fo_loc;
+			c2_mutex_lock(&loc->fl_wail_lock);
+			C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_rwlink));
+			c2_mutex_unlock(&loc->fl_wail_lock);
+		}
 	}
 }
 
@@ -267,7 +274,7 @@ static void fom_fop_exec(struct c2_fom *fom)
  *
  * @param, loc, locality assigned for fom execution
  *
- * @retval -> returns valid c2_fom object if succeeds,
+ * @retval -> returns c2_fom object if succeeds,
  *		else returns NULL
  */
 static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
@@ -426,8 +433,8 @@ static int loc_thr_create(struct c2_fom_locality *loc)
  * Finalises a given locality.
  * Sets c2_fom_locality::fl_lo_idle_threads_nr to 0, and
  * iterates over the c2_fom_locality::fl_threads list.
- * Extracts a thread, and waits until the thread exits
- * and finalises each thread. After removing all the threads
+ * Extracts a thread, and waits until the thread exits,
+ * finalises each thread. After removing all the threads
  * from the locality, other locality members are finalised.
  *
  * @param loc, locality to be finalised
@@ -479,9 +486,12 @@ static void locality_fini(struct c2_fom_locality *loc)
 /**
  * Initialises a locality in fom domain.
  * Creates and adds threads to locality, every thread is
- * confined to the cpus represented by the pmap.
+ * confined to the cpus represented by the pmap, this is
+ * done in the thread init function.
  * Number of threads in the locality corresponds to the
  * number of cpus represented by the bits set in the pmap.
+ *
+ * @see loc_thr_init()
  *
  * @param loc -> c2_fom_locality to be initialised
  * @param pmap -> c2_bitmap, bitmap representing number of cpus
@@ -515,9 +525,6 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 	c2_chan_init(&loc->fl_runrun);
 	c2_list_init(&loc->fl_threads);
 
-	loc->fl_lo_idle_threads_nr = MIN_IDLE_THREADS;
-	loc->fl_hi_idle_threads_nr = MAX_IDLE_THREADS;
-
 	result = c2_bitmap_init(&loc->fl_processors, max_proc);
 
 	if (result == 0) {
@@ -527,6 +534,9 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 				C2_CNT_INC(ncpus);
 			}
 		}
+
+		loc->fl_lo_idle_threads_nr = ncpus/2;
+		loc->fl_hi_idle_threads_nr = ncpus;
 
 		for (i = 0; i < ncpus; ++i) {
 			if ((result = loc_thr_create(loc)) != 0)
@@ -622,6 +632,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	}
 
 	if (result != 0) {
+		/* Handles c2_bitmap_init failure for loc_cpu_map */
 		if (dom->fd_localities_nr > 0)
 			c2_fom_domain_fini(dom);
 		else
@@ -633,6 +644,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 
 	return result;
 }
+C2_EXPORTED(c2_fom_domain_init);
 
 void c2_fom_domain_fini(struct c2_fom_domain *dom)
 {
@@ -648,6 +660,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 	c2_free(dom->fd_localities);
 }
+C2_EXPORTED(c2_fom_domain_fini);
 
 int c2_fom_init(struct c2_fom *fom)
 {
@@ -665,6 +678,7 @@ int c2_fom_init(struct c2_fom *fom)
 
 	return 0;
 }
+C2_EXPORTED(c2_fom_init);
 
 void c2_fom_fini(struct c2_fom *fom)
 {
@@ -675,6 +689,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_addb_ctx_fini(&fom->fo_fop->f_addb);
 	c2_list_link_fini(&fom->fo_rwlink);
 }
+C2_EXPORTED(c2_fom_fini);
 
 /** @} endgroup fom */
 

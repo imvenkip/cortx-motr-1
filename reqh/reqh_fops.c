@@ -52,19 +52,21 @@ static struct c2_fop_type *reqh_fops[] = {
 	&c2_reqh_error_rep_fopt,
 };
 
-void reqh_fop_fini(void)
+void c2_reqh_fop_fini(void)
 {
 	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 }
+C2_EXPORTED(c2_reqh_fop_fini);
 
-int reqh_fop_init(void)
+int c2_reqh_fop_init(void)
 {
 	int result;
 	result = c2_fop_type_build_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 	if (result != 0)
-		reqh_fop_fini();
+		c2_reqh_fop_fini();
 	return result;
 }
+C2_EXPORTED(c2_reqh_fop_init);
 
 /** @} endgroup reqh */
 
