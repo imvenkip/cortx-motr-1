@@ -261,9 +261,14 @@ struct c2_rpc_frm_sm {
 	/** Cumulative size of items added to this state machine so far.
 	    Will help to determine if an optimal rpc can be formed.*/
 	uint64_t			 fs_cumulative_size;
-	/** Number of urgent items added to this state machine so far.
-	    Any number > 0 will trigger formation.*/
-	uint64_t			 fs_urgent_items_nr;
+	/** Number of urgent items which do not belong to any rpc group
+	    added to this state machine so far.
+	    Any number > 0 will trigger formation. */
+	uint64_t			 fs_urgent_nogrp_items_nr;
+	/** Number of complete groups in the sense that this state
+	    machine contains all rpc items from such rpc groups.
+	    Any number > 0 will trigger formation. */
+	uint64_t			 fs_complete_groups_nr;	
 };
 
 /**
