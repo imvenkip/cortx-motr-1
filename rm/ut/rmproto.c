@@ -32,7 +32,7 @@ typedef void (*cb_func_t)(struct c2_rm_incoming *);
 
 struct c2_rm_req {
 	struct c2_queue_link rr_lnk;
-	struct c2_rm_incoming rr_in;	
+	struct c2_rm_incoming rr_in;
 };
 
 struct domq {
@@ -104,7 +104,7 @@ int rm_ut_register_domain(struct c2_rm_domain *dom,
 	c2_list_link_init(&dq->linkage);
 	c2_list_add(&dom_list, &dq->linkage);
 
-	c2_thread_init(&dq->domthr, NULL, rm_ut_process_inq, (void *)dq);	
+	c2_thread_init(&dq->domthr, NULL, rm_ut_process_inq, (void *)dq);
 	return 0;
 }
 
@@ -136,7 +136,7 @@ void c2_rm_rpc_fini(void)
 /**
  * Search for the OUT request related to IN request(revoke,loan) and returns.
  */
-static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner, 
+static struct c2_rm_outgoing *find_out_request(struct c2_rm_owner *owner,
 					       uint64_t loan_id)
 {
 	struct c2_rm_outgoing *out;
@@ -210,11 +210,10 @@ void rpc_process(int id)
 		link = c2_queue_get(&rpc_queue);
 		c2_mutex_unlock(&rpc_lock);
 
-		if (link == NULL) 
+		if (link == NULL)
 			continue;
 
-		req = container_of(link, struct c2_rm_req_reply,
-				   rq_link);
+		req = container_of(link, struct c2_rm_req_reply, rq_link);
 		info = &rm_info[req->reply_id];
 
 		switch (req->type) {
@@ -229,7 +228,8 @@ void rpc_process(int id)
 				c2_queue_put(&info->owner_queue, &req->rq_link);
 			} else {
 				/* Add right to the respective woners list
-				 * and wake up waiting thread for this right.*/
+				 * and wake up waiting thread for this right.
+				 */
 				C2_ALLOC_PTR(ch_loan);
 				C2_ASSERT(ch_loan != NULL);
 				C2_ALLOC_PTR(br_loan);
@@ -238,11 +238,11 @@ void rpc_process(int id)
 				c2_list_init(&ch_loan->rl_right.ri_pins);
 				c2_list_init(&br_loan->rl_right.ri_pins);
 				c2_list_init(&in->rin_pins);
-				right_copy(&ch_loan->rl_right, 
+				right_copy(&ch_loan->rl_right,
 					   &req->in.rin_want);
 				right_copy(&br_loan->rl_right,
 					   &req->in.rin_want);
-				
+
 				ch_loan->rl_id = req->sig_id;
 				br_loan->rl_id = req->sig_id;
 				ch_loan->rl_other.rem_id = req->reply_id;

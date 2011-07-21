@@ -52,7 +52,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libcolibri_rm_la_LIBADD =
-am_libcolibri_rm_la_OBJECTS = rm_u.lo rm_fop_init.lo rm_fop.lo rm.lo
+am_libcolibri_rm_la_OBJECTS = rm.lo
 libcolibri_rm_la_OBJECTS = $(am_libcolibri_rm_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -182,10 +182,11 @@ sharedstatedir = ${prefix}/com
 sysconfdir = ${prefix}/etc
 target_alias = 
 noinst_LTLIBRARIES = libcolibri-rm.la
-libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fop_init.c rm_fop.c rm_fop.h \
-			   rm.h rm.c
-
+#libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fop_init.c rm_fop.c rm_fop.h \
+#			   rm.h rm.c
+libcolibri_rm_la_SOURCES = rm.h rm.c
 INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+EXTRA_DIST = rm.ff
 all: all-am
 
 .SUFFIXES:
@@ -238,9 +239,6 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/rm.Plo
-include ./$(DEPDIR)/rm_fop.Plo
-include ./$(DEPDIR)/rm_fop_init.Plo
-include ./$(DEPDIR)/rm_u.Plo
 
 .c.o:
 	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -378,8 +376,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
-	mostlyclean-am
+clean-am: clean-generic clean-libtool clean-local \
+	clean-noinstLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -428,22 +426,20 @@ ps-am:
 uninstall-am: uninstall-info-am
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLTLIBRARIES ctags distclean \
-	distclean-compile distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-info-am
+	clean-libtool clean-local clean-noinstLTLIBRARIES ctags \
+	distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-exec install-exec-am install-info \
+	install-info-am install-man install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-info-am
 
 
-#EXTRA_DIST       = rm.ff
-
-#clean-local:
-#	rm -fr rm_[uk].[hc]
+clean-local:
+	rm -fr rm_[uk].[hc]
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -1360,7 +1360,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
    A helper function combining c2_rm_right_get() and c2_rm_right_timedwait()
    with an infinite timeout.
  */
-int c2_rm_right_get_wait(struct c2_rm_owner *owner, struct c2_rm_incoming *in);
+int c2_rm_right_get_wait(struct c2_rm_incoming *in);
 
 /**
    Releases the right pinned by @in.
