@@ -53,9 +53,6 @@ extern struct c2_fop_type_format c2_fop_rm_right_revoke_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_revoke_reply_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_cancel_tfmt;
 
-void rm_fop_fini(void);
-int rm_fop_init(void);
-
 /* __COLIBRI_RM_FOPS_H__ */
 #endif
 

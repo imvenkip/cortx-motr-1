@@ -55,6 +55,14 @@ sruct c2_fop_type_ops c2_fop_rm_cancel_ops = {
 	.fto_fom_init = c2_rm_fop_cancel_fom_init,
 };
 
+static struct c2_fop_type *fops[] = {
+	&c2_fop_rm_right_borrow_fopt,
+	&c2_fop_rm_right_borrow_reply_fopt,
+	&c2_fop_rm_right_revoke_fopt,
+	&c2_fop_rm_right_revoke_reply_fopt,
+	&c2_fop_rm_right_cancel_fopt,
+};
+
 /**
  * FOP definitions for resource-right borrow request and reply.
  */
@@ -161,6 +169,18 @@ int c2_rm_fop_revoke_reply_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 int c2_rm_fop_cancel_fom_init(struct c2_fop *fop, struct c2_fom **fom)
 {
 }
+
+void c2_rm_fop_fini(void);
+
+/**
+ * Initializes RM fops.
+ *
+ * @retval 0 - on success
+ *         non-zero - on failure
+ *
+ * @see rm_fop_fini()
+ */
+int c2_rm_fop_init(void);
 
 /*
  *  Local variables:
