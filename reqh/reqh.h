@@ -183,7 +183,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 
 	fop
 	 |
-   	 v                fom->fo_state = FOS_READY
+	 v                fom->fo_state = FOS_READY
      c2_reqh_fop_handle()-------------->FOM
 		     			 | fom->fo_state = FOS_RUNNING
 					 v
@@ -197,7 +197,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 		     |			 |           FOPH_RESOURCE_LOCAL_WAIT
 		     |			 v<---------------------+
 		     +<-------FOPH_RESOURCE_DISTRIBUTED-------->+
-		     | 			 |	  FOPH_RESOURCE_DISTRIBUTED_WAIT
+		     |			 |	  FOPH_RESOURCE_DISTRIBUTED_WAIT
 		     |			 v<---------------------+
 		     +<---------FOPH_OBJECT_CHECK-------------->+
 		     |                   |              FOPH_OBJECT_CHECK
@@ -219,7 +219,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 	  |	     |	    send reply	 v<---------------------+
 	  |	     +----------->FOPH_QUEUE_REPLY------------->+
           |	     ^	     		 |            FOPH_QUEUE_REPLY_WAIT
-    	  v	     |			 v<---------------------+
+	  v	     |			 v<---------------------+
    FOPH_TXN_ABORT_WAIT		     FOPH_DONE ---> c2_fom_fini()
 
    If a generic phase handler function fails while executing a fom, then it

@@ -308,7 +308,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 				struct c2_fom_io_write_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
-					printf("Write reply: %i %i\n", rep->fiwr_rc,
+					printf("Write reply: %i %u\n", rep->fiwr_rc,
 							rep->fiwr_count);
 					++reply;
 				}
@@ -322,7 +322,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 				if(rep != NULL) {
 					printf("\nRead reply: %i", rep->firr_rc);
 					if (rep->firr_rc == 0)
-						printf(" %i %c\n", rep->firr_count,
+						printf(" %u %c\n", rep->firr_count,
 								rep->firr_value);
 					++reply;
 				}
@@ -950,7 +950,7 @@ static int reqh_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	c2_mutex_lock(&rb->rb_lock);
 	out->e_start = rb->rb_next;
 	out->e_end   = rb->rb_next + count;
-	rb->rb_next += count + 1;
+	rb->rb_next += count;
 	c2_mutex_unlock(&rb->rb_lock);
 	return 0;
 }
@@ -1136,15 +1136,14 @@ void test_reqh(void)
 	for (i = 0; i < 10; ++i)
 		reqh_create_send(conn, i, i);
 
-	while (reply < 10);
+	while (reply < 10)
+		sleep(1);
 
 	for (i = 0; i < 10; ++i) {
-		sleep(1);
 		reqh_write_send(conn, i, i);
 	}
 
 	for (i = 0; i < 10; ++i) {
-		sleep(1);
 		reqh_read_send(conn, i, i);
 	}
 

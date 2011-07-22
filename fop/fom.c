@@ -192,7 +192,7 @@ void c2_fom_queue(struct c2_fom *fom)
 	fom_ready(fom);
 	loc = fom->fo_loc;
 	c2_mutex_lock(&loc->fl_lock);
-	c2_chan_broadcast(&loc->fl_runrun);
+	c2_chan_signal(&loc->fl_runrun);
 	c2_mutex_unlock(&loc->fl_lock);
 }
 C2_EXPORTED(c2_fom_queue);
