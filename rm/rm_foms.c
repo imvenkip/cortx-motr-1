@@ -195,7 +195,8 @@ int c2_rm_fom_right_borrow_reply_state(struct c2_fom *fom);
 
    @param fom -> fom processing the RIGHT_BORROW request on the server
 
-   @retval 
+   @retval  0 - on success
+            non-zero - if there is failure.
 
  */
 int c2_rm_fom_right_revoke_state(struct c2_fom *fom);
