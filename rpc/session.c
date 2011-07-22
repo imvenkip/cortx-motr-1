@@ -1584,6 +1584,13 @@ int c2_rpc_slot_init(struct c2_rpc_slot			*slot,
 	return 0;
 }
 
+uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot)
+{
+	C2_PRE(slot != NULL);
+
+	return slot->sl_max_in_flight - slot->sl_in_flight;
+}
+
 /**
    If slot->sl_item_list has item(s) in state FUTURE then
 	call slot->sl_ops->so_consume_item() for upto slot->sl_max_in_flight

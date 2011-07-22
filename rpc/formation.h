@@ -216,9 +216,9 @@ struct c2_rpc_frm_sm {
 	/** Linkage into the list of formation state machines anchored
 	    at c2_rpc_formation::rf_frm_sm_list. */
 	struct c2_list_link		 fs_linkage;
-	/** The network endpoint this formation state machine is directed
-	    towards. */
-	struct c2_net_end_point		*fs_dest_netep;
+	/** The c2_rpc_conn structure which points to the destination network
+	    endpoint, this formation state machine is directed towards. */
+	struct c2_rpc_conn		*fs_rpcconn;
 	/** Flag indicating the formation component is still active. */
 	bool				 fs_active;
 	/** State of the state machine. Threads will have to take the

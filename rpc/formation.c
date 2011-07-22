@@ -54,7 +54,7 @@ static int rpc_frm_item_change(struct c2_rpc_frm_sm *frm_sm,
 static void rpc_frm_item_coalesced_reply_post(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_frm_item_coalesced *coalesced_struct);
 
-static struct c2_rpc_frm_sm *rpc_frm_sm_create(struct c2_net_end_point *net_ep,
+static struct c2_rpc_frm_sm *rpc_frm_sm_create(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation_summary);
 
 static enum c2_rpc_frm_int_evt_id rpc_frm_waiting_state(
@@ -486,22 +486,23 @@ static void rpc_frm_sm_destroy(struct c2_ref *ref)
 		for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR; cnt++)
 			c2_list_fini(&frm_sm->fs_unformed_prio[cnt].
 					pl_unformed_items);
-		frm_sm->fs_dest_netep = NULL;
+		frm_sm->fs_rpcconn = NULL;
 		c2_free(frm_sm);
 	}
 }
 
 /**
    Add a formation state machine structure when the first rpc item gets added
-   for a network endpoint.
+   for a given c2_rpc_conn structure.
  */
-static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_net_end_point *endp,
+static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation_summary)
 {
 	uint64_t		 cnt;
 	struct c2_rpc_frm_sm	*frm_sm;
 
-	C2_PRE(endp != NULL);
+	C2_PRE(conn != NULL);
+	C2_PRE(formation_summary != NULL);
 
 	C2_ALLOC_PTR(frm_sm);
 	if (frm_sm == NULL) {
@@ -510,13 +511,12 @@ static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_net_end_point *endp,
 		return NULL;
 	}
 	c2_mutex_init(&frm_sm->fs_lock);
-	c2_list_add(&formation_summary->rf_frm_sm_list,
-			&frm_sm->fs_linkage);
+	c2_list_add(&formation_summary->rf_frm_sm_list, &frm_sm->fs_linkage);
 	c2_list_init(&frm_sm->fs_groups);
 	c2_list_init(&frm_sm->fs_coalesced_items);
 	c2_list_init(&frm_sm->fs_rpcs);
 	c2_ref_init(&frm_sm->fs_ref, 1, rpc_frm_sm_destroy);
-	frm_sm->fs_dest_netep = endp;
+	frm_sm->fs_rpcconn = conn;
 	frm_sm->fs_state = C2_RPC_FRM_STATE_WAITING;
 	frm_sm->fs_active = true;
 	frm_sm->fs_max_msg_size = max_msg_size;
@@ -550,44 +550,36 @@ static statefunc rpc_frm_next_state(const int current_state,
 }
 
 /**
-   Get the endpoint given an rpc item.
-   This is a placeholder and will be replaced when a concrete
-   definition of endpoint is available.
-   The net endpoint reference count is not incremented here.
+   Get the c2_rpc_conn structure given an rpc item. The
+   formation state machine is tightly bound to a c2_rpc_conn
+   which points to a destination network endpoint. There is
+   one-to-one relationship of c2_rpc_conn with c2_rpc_frm_sm.
+   @param item - Input rpc item
+   @retval - Connected c2_rpc_conn structure.
  */
-static struct c2_net_end_point *rpc_frm_get_endpoint(
+static struct c2_rpc_conn *rpc_frm_get_rpcconn(
 		const struct c2_rpc_item *item)
 {
-	return item->ri_session->s_conn->c_end_point;
+	return item->ri_session->s_conn;
 }
 
 /**
-   Check if given network endpoints are equal.
- */
-static bool rpc_frm_endp_equal(struct c2_net_end_point *ep1,
-		struct c2_net_end_point *ep2)
-{
-	C2_PRE((ep1 != NULL) && (ep2 != NULL));
-
-	return (ep1 == ep2) || !strcmp(ep1->nep_addr, ep2->nep_addr);
-}
-
-/**
-  For a given network endpoint, return an existing formation state machine
+  For a given c2_rpc_conn, return an existing formation state machine
   object.
  */
-static struct c2_rpc_frm_sm *rpc_frm_sm_locate(struct c2_net_end_point *ep,
+static struct c2_rpc_frm_sm *rpc_frm_sm_locate(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation_summary)
 {
 	struct c2_rpc_frm_sm *frm_sm = NULL;
 	struct c2_rpc_frm_sm *sm = NULL;
 
-	C2_PRE(ep != NULL);
+	C2_PRE(conn != NULL);
+	C2_PRE(formation_summary != NULL);
 
 	c2_rwlock_read_lock(&formation_summary->rf_sm_list_lock);
 	c2_list_for_each_entry(&formation_summary->rf_frm_sm_list, sm,
 			struct c2_rpc_frm_sm, fs_linkage) {
-		if (rpc_frm_endp_equal(sm->fs_dest_netep, ep)) {
+		if (sm->fs_rpcconn == conn) {
 			frm_sm = sm;
 			break;
 		}
@@ -602,17 +594,17 @@ static struct c2_rpc_frm_sm *rpc_frm_sm_locate(struct c2_net_end_point *ep,
 /**
    Create a new formation state machine object.
  */
-static struct c2_rpc_frm_sm *rpc_frm_sm_create(struct c2_net_end_point *net_ep,
+static struct c2_rpc_frm_sm *rpc_frm_sm_create(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation_summary)
 {
 	struct c2_rpc_frm_sm	*sm = NULL;
 
-	C2_PRE(net_ep != NULL);
+	C2_PRE(conn != NULL);
 	C2_PRE(formation_summary != NULL);
 
 	/* Add a new formation state machine. */
 	c2_rwlock_write_lock(&formation_summary->rf_sm_list_lock);
-	sm = rpc_frm_sm_add(net_ep, formation_summary);
+	sm = rpc_frm_sm_add(conn, formation_summary);
 	if(sm == NULL)
 		C2_ADDB_ADD(&formation_summary->rf_rpc_form_addb,
 				&rpc_frm_addb_loc, formation_func_fail,
@@ -642,7 +634,7 @@ static int rpc_frm_default_handler(struct c2_rpc_item *item,
 {
 	int			 res = 0;
 	int			 prev_state = 0;
-	struct c2_net_end_point	*endpoint = NULL;
+	struct c2_rpc_conn	*conn = NULL;
 	struct c2_rpc_frm_sm	*sm = NULL;
 	struct c2_rpc_formation	*formation_summary;
 
@@ -651,16 +643,16 @@ static int rpc_frm_default_handler(struct c2_rpc_item *item,
 	C2_PRE(sm_state <= C2_RPC_FRM_STATES_NR);
 
 	formation_summary = item->ri_mach->cr_formation;
-	endpoint = rpc_frm_get_endpoint(item);
+	conn = rpc_frm_get_rpcconn(item);
 
 	/* If state machine pointer from rpc item is NULL, locate it
 	   from list in list of state machines. If found, lock it and
 	   increment its refcount. If not found, create a new state machine.
 	   In any case, find out the previous state of state machine. */
 	if (frm_sm == NULL) {
-		sm = rpc_frm_sm_locate(endpoint, formation_summary);
+		sm = rpc_frm_sm_locate(conn, formation_summary);
 		if (sm == NULL) {
-			sm = rpc_frm_sm_create(endpoint, formation_summary);
+			sm = rpc_frm_sm_create(conn, formation_summary);
 			if (sm == NULL)
 				return -ENOMEM;
 		}
@@ -883,16 +875,14 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item)
 	int				 rc = 0;
 	struct c2_rpc_frm_sm_event	 sm_event;
 	struct c2_rpc_frm_sm		*frm_sm;
-	struct c2_net_end_point		*net_ep;
 
 	C2_PRE(item != NULL);
 
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_RPCITEM_REMOVED;
 	sm_event.se_pvt = NULL;
 
-	/* Retrieve the net endpoint and then the formation state machine. */
-	net_ep = rpc_frm_get_endpoint(item);
-	frm_sm = rpc_frm_sm_locate(net_ep, item->ri_mach->cr_formation);
+	frm_sm = rpc_frm_sm_locate(item->ri_session->s_conn,
+			item->ri_mach->cr_formation);
 	if (frm_sm == NULL)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
@@ -912,7 +902,6 @@ int c2_rpc_frm_item_changed(struct c2_rpc_item *item,
 {
 	int					 rc = 0;
 	struct c2_rpc_frm_sm			*frm_sm;
-	struct c2_net_end_point			*net_ep;
 	struct c2_rpc_frm_sm_event		 sm_event;
 	struct c2_rpc_frm_item_change_req	 req;
 
@@ -926,9 +915,8 @@ int c2_rpc_frm_item_changed(struct c2_rpc_item *item,
 	req.value = pvt;
 	sm_event.se_pvt = &req;
 
-	/* Retrieve the net endpoint and then the formation state machine. */
-	net_ep = rpc_frm_get_endpoint(item);
-	frm_sm = rpc_frm_sm_locate(net_ep, item->ri_mach->cr_formation);
+	frm_sm = rpc_frm_sm_locate(item->ri_session->s_conn,
+			item->ri_mach->cr_formation);
 	if (frm_sm == NULL)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
@@ -970,7 +958,6 @@ static void rpc_frm_reply_received(struct c2_rpc_frm_sm *frm_sm,
 int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 		struct c2_rpc_item *req_item)
 {
-	struct c2_net_end_point		*net_ep;
 	struct c2_rpc_frm_sm		*frm_sm;
 	struct c2_rpc_frm_sm_event	 sm_event;
 
@@ -979,9 +966,8 @@ int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_RPCITEM_REPLY_RECEIVED;
 	sm_event.se_pvt = NULL;
 
-	/* Retrieve the net endpoint and then the formation state machine. */
-	net_ep = rpc_frm_get_endpoint(req_item);
-	frm_sm = rpc_frm_sm_locate(net_ep, req_item->ri_mach->cr_formation);
+	frm_sm = rpc_frm_sm_locate(req_item->ri_session->s_conn,
+			req_item->ri_mach->cr_formation);
 	if (frm_sm == NULL)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
@@ -1023,7 +1009,6 @@ static void rpc_frm_item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
 int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 {
 	struct c2_rpc_frm_sm_event	 sm_event;
-	struct c2_net_end_point		*net_ep;
 	struct c2_rpc_frm_sm		*frm_sm;
 
 	C2_PRE(item != NULL);
@@ -1032,9 +1017,8 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 	sm_event.se_pvt = NULL;
 	item->ri_deadline = 0;
 
-	/* Retrieve the net endpoint and then the formation state machine. */
-	net_ep = rpc_frm_get_endpoint(item);
-	frm_sm = rpc_frm_sm_locate(net_ep, item->ri_mach->cr_formation);
+	frm_sm = rpc_frm_sm_locate(item->ri_session->s_conn,
+			item->ri_mach->cr_formation);
 	if (frm_sm == NULL)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
@@ -1173,9 +1157,11 @@ static unsigned long c2_rpc_frm_item_timer_callback(unsigned long data)
    @param item - Item from which rpc group has to be located.
    @retval - Valid struct c2_rpc_frm_rpcgroup, NULL otherwise.
  */
-static struct rpc_frm_rpcgroup *rpc_frm_rpcgroup_locate(
+static struct c2_rpc_frm_rpcgroup *rpc_frm_rpcgroup_locate(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 {
+	struct c2_rpc_frm_rpcgroup *rg;
+
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_group != NULL);
@@ -1195,7 +1181,7 @@ static struct rpc_frm_rpcgroup *rpc_frm_rpcgroup_locate(
    @param item - Item from which rpc group has to be created.
    @retval - Valid struct c2_rpc_frm_rpcgroup, NULL otherwise.
  */
-static struct rpc_frm_rpcgroup *rpc_frm_rpcgroup_create(
+static struct c2_rpc_frm_rpcgroup *rpc_frm_rpcgroup_create(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 {
 	struct c2_rpc_formation		*formation_summary;
@@ -1288,7 +1274,6 @@ static int rpc_frm_item_update(struct c2_rpc_frm_sm *frm_sm,
 static void rpc_frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item)
 {
-	bool				 found = false;
 	size_t				 item_size = 0;
 	c2_time_t			 now;
 	struct c2_rpc_frm_rpcgroup	*rg = NULL;
@@ -1437,11 +1422,11 @@ static int rpc_frm_item_add(struct c2_rpc_frm_sm *frm_sm,
    @param rpcobj_size - check if given size of rpc object is optimal or not.
  */
 static bool rpc_frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
-		uint64_t rpcobj_size)
+		uint64_t *rpcobj_size)
 {
 	C2_PRE(frm_sm != NULL);
 
-	if (rpcobj_size >= (0.9 * frm_sm->fs_max_msg_size))
+	if (*rpcobj_size >= (0.9 * frm_sm->fs_max_msg_size))
 		return true;
 
 	return false;
@@ -1539,78 +1524,70 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_updating_state(
 }
 
 /**
-   Add an rpc item to the formed list of an rpc object.
-   @retval 0 if item added to the forming list successfully
-   @retval -1 if item is not added due to some check failure
+   Check if addition of current fragment count and number of fragments
+   from current rpc item fit within max_fragments count from
+   formation state machine.
+   @param frm_sm - Formation state machine.
+   @param item - Input rpc item.
+   @param fragments_nr - Current count of fragments.
+   @retval TRUE if current count of fragments fit within max value,
+   FALSE otherwise.
  */
-static int rpc_frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
-		struct c2_rpc_item *item, uint64_t *rpcobj_size,
-		uint64_t *nfragments, struct c2_rpc *rpc)
+static bool rpc_frm_fragments_policy(struct c2_rpc_frm_sm *frm_sm,
+		struct c2_rpc_item *item, uint64_t *fragments_nr)
 {
-	size_t				 item_size = 0;
-	uint64_t			 current_fragments = 0;
-	struct c2_rpc_slot		*slot = NULL;
-	struct c2_rpc_session		*session = NULL;
-	bool				 session_locked = false;
-	bool				 io_op = false;
+	bool		io_op = false;
+	uint64_t	curr_fragments = 0;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
-	C2_PRE(rpcobj_size != NULL);
-	C2_PRE(item->ri_state != RPC_ITEM_ADDED);
+	C2_PRE(fragments_nr != NULL);
 
 	/* Fragment count check. */
 	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
 	if (io_op) {
-		current_fragments = item->ri_type->rit_ops->
+		curr_fragments = item->ri_type->rit_ops->
 			rio_get_io_fragment_count(item);
-		if ((*nfragments + current_fragments) >
-				frm_sm->fs_max_frags) {
-			return -1;
-		}
+		if ((*fragments_nr + curr_fragments) > frm_sm->fs_max_frags)
+			return false;
 	}
-	/* Get size of rpc item. */
-	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	return true;
+}
 
-	/* If size of rpc object after adding current rpc item is
-	   within max_message_size, add it the rpc object. */
-	if (((*rpcobj_size + item_size) < frm_sm->fs_max_msg_size)) {
-		c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
-		*rpcobj_size += item_size;
-		*nfragments += current_fragments;
-		/* Remove the item data from summary_unit structure. */
-		rpc_frm_item_remove(frm_sm, item);
-		item->ri_state = RPC_ITEM_ADDED;
+/**
+   Add an rpc item to the formed list of an rpc object.
+   @retval 0 if item added to the forming list successfully
+   @retval -1 if item is not added due to some check failure
+ */
+static void rpc_frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
+		struct c2_rpc *rpc, struct c2_rpc_item *item,
+		uint64_t *rpcobj_size, uint64_t *fragments_nr)
+{
+	struct c2_rpc_slot		*slot = NULL;
 
-		session = item->ri_session;
-		C2_ASSERT(session != NULL);
-		if (c2_mutex_is_not_locked(&session->s_mutex)) {
-			c2_mutex_lock(&session->s_mutex);
-			session_locked = true;
-		}
-		/* If current added rpc item is unbound, remove it from
-		   session->unbound_items list.*/
-		if ((c2_list_link_is_in(&item->ri_unbound_link)) &&
-				!item->ri_slot_refs[0].sr_slot) {
-			c2_list_del(&item->ri_unbound_link);
-		} else {
-		/* OR If current added rpc item is bound, remove it from
-		   slot->ready_items list AND if slot->ready_items list
-		   is empty, remove slot from rpcmachine->ready_slots list.*/
-			slot = item->ri_slot_refs[0].sr_slot;
-			C2_ASSERT(slot != NULL);
-			c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
-			if (c2_list_is_empty(&slot->sl_ready_list)) {
-				c2_list_del(&slot->sl_link);
-			}
-		}
-		if (session_locked) {
-			c2_mutex_unlock(&session->s_mutex);
-		}
-		return 0;
-	} else {
-		return -1;
-	}
+	C2_PRE(frm_sm != NULL);
+	C2_PRE(item != NULL);
+	C2_PRE(rpcobj_size != NULL);
+	C2_PRE(fragments_nr != NULL);
+	C2_PRE(item->ri_state != RPC_ITEM_ADDED);
+
+	/* Update size of rpc object and current count of fragments. */
+	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
+	*rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
+	*fragments_nr += item->ri_type->rit_ops->rio_get_io_fragment_count(
+			item);
+
+	/* Remove the item data from summary_unit structure. */
+	rpc_frm_item_remove(frm_sm, item);
+	item->ri_state = RPC_ITEM_ADDED;
+
+	/* Remove item from slot->ready_items list AND if slot->ready_items
+	   list is empty, remove slot from rpcmachine->ready_slots list.*/
+	slot = item->ri_slot_refs[0].sr_slot;
+	C2_ASSERT(slot != NULL);
+	c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
+	if (c2_list_is_empty(&slot->sl_ready_list))
+		c2_list_del(&slot->sl_link);
 }
 
 /**
@@ -1966,8 +1943,8 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 				continue;
 			}
 			res = rpc_frm_add_to_rpc(frm_sm,
-					rpc_item, &rpcobj_size,
-					&nfragments, rpcobj);
+					rpcobj, rpc_item, &rpcobj_size,
+					&nfragments);
 			if (res != 0) {
 				/* Forming list complete.*/
 				break;
@@ -2002,8 +1979,8 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 				continue;
 			}
 			res = rpc_frm_add_to_rpc(frm_sm,
-					rpc_item, &rpcobj_size, &nfragments,
-					rpcobj);
+					rpcobj, rpc_item, &rpcobj_size,
+					&nfragments);
 			if (res != 0) {
 				break;
 			}
@@ -2081,25 +2058,155 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 }
 #endif
 
+static void rpc_frm_bound_items_add(struct c2_rpc_frm_sm *frm_sm,
+		struct c2_rpc *rpcobj, uint64_t *rpcobj_size,
+		uint64_t *fragments_nr)
+{
+	int				 cnt;
+	int				 rc = 0;
+	bool				 size_policy = false;
+	bool				 fragments_policy = false;
+	struct c2_list			*list;
+	struct c2_rpc_item		*rpc_item = NULL;
+	struct c2_rpc_item		*rpc_item_next = NULL;
+
+	C2_PRE(frm_sm != NULL);
+	C2_PRE(rpcobj_size != NULL);
+	C2_PRE(fragments_nr != NULL);
+	C2_PRE(rpcobj != NULL);
+
+	for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR && !size_policy; cnt++) {
+		list = &frm_sm->fs_unformed_prio[cnt].pl_unformed_items;
+		c2_list_for_each_entry_safe(list, rpc_item, rpc_item_next,
+				struct c2_rpc_item, ri_unformed_linkage) {
+			fragments_policy = rpc_frm_fragments_policy(frm_sm,
+					rpc_item, fragments_nr);
+			size_policy = rpc_frm_is_size_optimal(frm_sm,
+					rpcobj_size);
+
+			if (size_policy) {
+				if (fragments_policy) {
+					rpc_frm_add_to_rpc(frm_sm, rpcobj,
+							rpc_item, rpcobj_size,
+							fragments_nr);
+					rc = rpc_frm_try_coalesce(frm_sm,
+							rpc_item, rpcobj_size);
+				}
+			} else
+				break;
+		}
+	}
+}
+
+/**
+   Make an unbound item bound by calling item_add_internal(). Also
+   change item type flags accordingly.
+   @param slot - Slot to which item has to be bound.
+   @param item - Input rpc item.
+ */
+static void rpc_frm_item_make_bound(struct c2_rpc_slot *slot,
+		struct c2_rpc_item *item)
+{
+	C2_PRE(slot != NULL);
+	C2_PRE(item != NULL);
+
+	if (!c2_rpc_item_is_unsolicited(item)) {
+		c2_rpc_slot_item_add_internal(slot, item);
+		item->ri_type->rit_flags &= (~C2_RPC_ITEM_UNBOUND | 
+			 C2_RPC_ITEM_BOUND);
+	}
+}
+
+/**
+   XXX Should this belong to sessions code??? A lot of code here is
+   dealing with slot and sessions internal lists which should just be
+   an API.
+ */
+static void rpc_frm_unbound_items_add(struct c2_rpc_frm_sm *frm_sm,
+		struct c2_rpc *rpcobj, uint64_t *rpcobj_size,
+		uint64_t *fragments_nr)
+{
+	bool				 size_policy = false;
+	bool				 fragments_policy = false;
+	uint32_t			 slot_items_nr;
+	struct c2_rpc_item		*item;
+	struct c2_rpc_item		*item_next;
+	struct c2_rpc_slot		*slot;
+	struct c2_rpc_slot		*slot_next;
+	struct c2_rpc_conn		*conn;
+	struct c2_rpc_session		*session;
+	struct c2_rpcmachine		*rpcmachine;
+
+	C2_PRE(frm_sm != NULL);
+	C2_PRE(rpcobj_size != NULL);
+	C2_PRE(fragments_nr != NULL);
+	C2_PRE(rpcobj != NULL);
+
+	/* Get slot and verno info from sessions component for
+	   any unbound items in session->free list. */
+	conn = frm_sm->fs_rpcconn;
+	C2_ASSERT(conn != NULL);
+	rpcmachine = conn->c_rpcmachine;
+	C2_ASSERT(rpcmachine != NULL);
+	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
+
+	/* Get rpcmachine from item.  Get first ready slot from
+	   rpcmachine->ready_slots list. (Meaning, a slot whose ready_items
+	   list is empty = IDLE.) Send it to item_add_internal and
+	   then remove it from rpcmachine->ready_slots list. */
+	c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
+			slot_next, struct c2_rpc_slot, sl_link) {
+		if (c2_list_is_empty(&slot->sl_ready_list) &&
+				(slot->sl_session->s_conn ==
+				 frm_sm->fs_rpcconn)) {
+			session = slot->sl_session;
+			c2_mutex_lock(&session->s_mutex);
+			c2_mutex_lock(&slot->sl_mutex);
+			slot_items_nr = c2_rpc_slot_items_possible_inflight(
+					slot);
+			c2_list_for_each_entry_safe(&session->s_unbound_items,
+					item, item_next, struct c2_rpc_item,
+					ri_unbound_link) {
+				fragments_policy = rpc_frm_fragments_policy(
+						frm_sm, item, fragments_nr);
+				size_policy = rpc_frm_is_size_optimal(frm_sm,
+							rpcobj_size);
+				if (size_policy) {
+					if (fragments_policy) {
+						rpc_frm_item_make_bound(slot,
+								item);
+					rpc_frm_add_to_rpc(frm_sm,
+							rpcobj, item,
+							rpcobj_size,
+							fragments_nr);
+					c2_list_del(&item->ri_unbound_link);
+					if (--slot_items_nr == 0)
+						break;
+					}
+				} else
+					break;
+			}
+			c2_mutex_unlock(&slot->sl_mutex);
+			c2_mutex_unlock(&session->s_mutex);
+		}
+		if (size_policy)
+			break;
+	}
+
+	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+}
+
 static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event)
 {
-	bool				 size_is_optimal = false;
+	int				 rc = 0;
 	bool				 size_policy;
 	bool				 frm_policy;
+	uint64_t			 fragments_nr = 0;
 	uint64_t			 rpcobj_size = 0;
-	uint64_t			 complete_group_nr = 0;
-	uint64_t			 urgent_items_nogroup_nr = 0;
-	uint64_t			 nfragments = 0;
-	struct c2_rpc			*rpcobj = NULL;
-	struct c2_rpc_slot		*slot = NULL;
-	struct c2_rpc_item		*rpc_item = NULL;
-	struct c2_rpc_item		*rpc_item_next = NULL;
-	struct c2_rpcmachine		*rpcmachine = NULL;
-	struct c2_rpc_session		*session = NULL;
+	struct c2_rpc			*rpcobj;
 	struct c2_rpc_formation		*formation_summary;
-	struct c2_rpc_frm_rpcgroup	*rg = NULL;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
@@ -2112,7 +2219,7 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 	/* If optimal rpc can not be formed, or other formation policies
 	   do not satisfy, return failure. */
 	size_policy = rpc_frm_is_size_optimal(frm_sm,
-			frm_sm->fs_cumulative_size);
+			&frm_sm->fs_cumulative_size);
 	frm_policy = rpc_frm_does_policy_satisfy(frm_sm);
 	if (!(frm_policy || size_policy))
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
@@ -2138,92 +2245,14 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 	   Once all bound items are added and rpc is still not optimal,
 	   try to include all possible unbound items by making them bound.
 	   Identify unsolicited items and dont make them bound. */
+	rpc_frm_bound_items_add(frm_sm, rpcobj, &rpcobj_size, &fragments_nr);
 
-	for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR && !rpc_is_optimal; cnt++) {
-		list = &frm_sm->fs_unformed_prio[cnt].pl_unformed_items;
-		c2_list_for_each_entry_safe(list, rpc_item, rpc_item_next,
-				struct c2_rpc_item, ri_unformed_linkage) {
-			rc = rpc_frm_add_to_rpc(frm_sm, rpc_item, &rpcobj_size,
-					&fragments_nr, rpcobj);
-			/* If add_to_rpc succeeds. */
-			if (rc == 0) {
-				/* If item points to a valid rpc group,
-				   check if all items from given rpc group
-				   are included in this rpc object. If
-				   they are, this rpc can be sent on wire. */
-				rg = item->ri_group;
-				if (rg != NULL) {
-					frm_rg = rpc_frm_rpcgroup_locate(frm_sm,
-							rpc_item);
-					C2_ASSERT(frm_rg != NULL);
-				}
-				rc = rpc_frm_try_coalesce(frm_sm, rpc_item,
-						&rpcobj_size);
-			}
-			size_is_optimal = rpc_frm_is_size_optimal(frm_sm,
-					rpcobj_size);
-			if (size_is_optimal)
-				break;
-		}
-	}
-
-	/* Get slot and verno info from sessions component for
-	   any unbound items in session->free list. */
-	session = item->ri_session;
-	C2_ASSERT(session != NULL);
-	conn = session->s_conn;
-	C2_ASSERT(conn != NULL);
-	rpcmachine = conn->c_rpcmachine;
-	C2_ASSERT(rpcmachine != NULL);
-	c2_mutex_lock(&conn->c_mutex);
-	c2_list_for_each_entry(&conn->c_sessions, session,
-			struct c2_rpc_session, s_link) {
-		c2_mutex_lock(&session->s_mutex);
-		c2_list_for_each_entry_safe(&session->s_unbound_items, ub_item,
-				ub_item_next, struct c2_rpc_item, ri_unbound_link) {
-			/* Get rpcmachine from item.
-			   Get first ready slot from rpcmachine->ready_slots
-			   list.  (Meaning, a slot whose ready_items list is
-			   empty = IDLE.) Send it to item_add_internal and
-			   then remove it from rpcmachine->ready_slots list. */
-			c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
-			c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
-					slot_next, struct c2_rpc_slot, sl_link) {
-				if (c2_list_is_empty(&slot->sl_ready_list) &&
-						(slot->sl_session == item->ri_session)) {
-					slot_found = true;
-					break;
-				}
-			}
-			c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
-			if (!slot_found) {
-				break;
-			}
-			/* Now that the item is bound, remove it from
-			   session->unbound_items list. */
-			if (ub_item->ri_state == RPC_ITEM_SUBMITTED) {
-				c2_mutex_lock(&slot->sl_mutex);
-				c2_rpc_slot_item_add_internal(slot, ub_item);
-				c2_list_del(&ub_item->ri_unbound_link);
-				c2_mutex_unlock(&slot->sl_mutex);
-				c2_list_add(&frm_sm->fs_unformed_prio,
-						&ub_item->ri_unformed_linkage);
-				res = rpc_frm_add_to_rpc(frm_sm, ub_item, &rpcobj_size, 
-						&nfragments, rpcobj);
-				if (res != 0) {
-					break;
-				}
-				urgent_unbound = true;
-			}
-		}
-		c2_mutex_unlock(&session->s_mutex);
-	}
-	c2_mutex_unlock(&conn->c_mutex);
+	rpc_frm_unbound_items_add(frm_sm, rpcobj, &rpcobj_size, &fragments_nr);
 
 	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
 	C2_POST(!c2_list_is_empty(&rpcobj->r_items));
-	res = rpc_frm_send_onwire(frm_sm);
-	if (res == 0)
+	rc = rpc_frm_send_onwire(frm_sm);
+	if (rc == 0)
 		return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
 	else
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;

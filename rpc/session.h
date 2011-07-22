@@ -656,6 +656,15 @@ enum {
 };
 
 /**
+   Returns the number of rpc items that can be bound to this slot
+   staying within SLOT_DEFAULT_MAX_IN_FLIGHT limit.
+   @param slot - Input c2_rpc_slot
+   @retval - Number of items that can be bound to this slot.
+   XXX Need a better name.
+ */
+uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
+
+/**
    Events that slot can generate.
  */
 struct c2_rpc_slot_ops {
