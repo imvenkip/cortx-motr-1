@@ -461,6 +461,9 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
 	struct c2_list_link		 ri_group_linkage;
+	/** Linkage to list of items which are coalesced, anchored
+	    at c2_rpc_frm_item_coalesced::ic_member_list. */
+	struct c2_list_link		 ri_coalesced_linkage;
 	/** Destination endpoint. */
 	struct c2_net_end_point		 ri_endp;
 	/** Timer associated with this rpc item.*/

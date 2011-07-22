@@ -69,6 +69,8 @@ static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
+static void rpc_frm_coalesced_item_destroy(struct c2_rpc_frm_item_coalesced
+		*c_item);
 /**
   Sleep time till refcounts of all the formation state machines become zero.
  */
@@ -307,24 +309,22 @@ static void rpc_frm_empty_groups_list(struct c2_list *list)
  */
 static void rpc_frm_empty_coalesced_items_list(struct c2_list *list)
 {
-	struct c2_rpc_frm_item_coalesced	 *coalesced_item = NULL;
-	struct c2_rpc_frm_item_coalesced	 *coalesced_item_next = NULL;
-	struct c2_rpc_frm_item_coalesced_member *coalesced_member = NULL;
-	struct c2_rpc_frm_item_coalesced_member *coalesced_member_next = NULL;
+	struct c2_rpc_item			*item;
+	struct c2_rpc_item			*item_next;
+	struct c2_rpc_frm_item_coalesced	*c_item;
+	struct c2_rpc_frm_item_coalesced	*c_item_next;
 
 	C2_PRE(list != NULL);
 
-	c2_list_for_each_entry_safe(list, coalesced_item, coalesced_item_next,
+	c2_list_for_each_entry_safe(list, c_item, c_item_next,
 			struct c2_rpc_frm_item_coalesced, ic_linkage) {
-		c2_list_del(&coalesced_item->ic_linkage);
-		c2_list_for_each_entry_safe(&coalesced_item->ic_member_list,
-				coalesced_member, coalesced_member_next,
-				struct c2_rpc_frm_item_coalesced_member,
-				im_linkage) {
-			c2_list_del(&coalesced_member->im_linkage);
-			c2_free(coalesced_member);
+		c2_list_del(&c_item->ic_linkage);
+		c2_list_for_each_entry_safe(&c_item->ic_member_list,
+				item, item_next, struct c2_rpc_item,
+				ri_coalesced_linkage) {
+			c2_list_del(&item->ri_coalesced_linkage);
 		}
-		c2_free(coalesced_item);
+		c2_free(c_item);
 	}
 	c2_list_fini(list);
 }
@@ -510,6 +510,7 @@ static struct c2_rpc_frm_sm *rpc_frm_sm_add(struct c2_rpc_conn *conn,
 				&rpc_frm_addb_loc, c2_addb_oom);
 		return NULL;
 	}
+	frm_sm->fs_formation = formation_summary;
 	c2_mutex_init(&frm_sm->fs_lock);
 	c2_list_add(&formation_summary->rf_frm_sm_list, &frm_sm->fs_linkage);
 	c2_list_init(&frm_sm->fs_groups);
@@ -1083,8 +1084,7 @@ static void rpc_frm_item_coalesced_reply_post(struct c2_rpc_frm_sm *frm_sm,
 {
 	int					 rc = 0;
 	struct c2_rpc_item			*item = NULL;
-	struct c2_rpc_frm_item_coalesced_member	*member;
-	struct c2_rpc_frm_item_coalesced_member	*next_member;
+	struct c2_rpc_item			*item_next = NULL;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(coalesced_struct != NULL);
@@ -1092,21 +1092,16 @@ static void rpc_frm_item_coalesced_reply_post(struct c2_rpc_frm_sm *frm_sm,
 	/* For all member items of coalesced_item struct, call
 	   their completion callbacks.*/
 	c2_list_for_each_entry_safe(&coalesced_struct->ic_member_list,
-			member, next_member,
-			struct c2_rpc_frm_item_coalesced_member,
-			im_linkage) {
-		item = member->im_member_item;
-		c2_list_del(&member->im_linkage);
+			item, item_next, struct c2_rpc_item,
+			ri_coalesced_linkage) {
+		c2_list_del(&item->ri_coalesced_linkage);
 		item->ri_type->rit_ops->rio_replied(item, rc);
-		c2_free(member);
-		coalesced_struct->ic_nmembers--;
+		coalesced_struct->ic_member_nr--;
 	}
-	C2_ASSERT(coalesced_struct->ic_nmembers == 0);
-	c2_list_del(&coalesced_struct->ic_linkage);
+	C2_ASSERT(coalesced_struct->ic_member_nr == 0);
 	item = coalesced_struct->ic_resultant_item;
 	item->ri_type->rit_ops->rio_replied(item, rc);
-	c2_list_fini(&coalesced_struct->ic_member_list);
-	c2_free(coalesced_struct);
+	rpc_frm_coalesced_item_destroy(coalesced_struct);
 }
 
 /**
@@ -1607,6 +1602,57 @@ static int rpc_frm_coalesce_fid_intent(struct c2_rpc_item *b_item,
 }
 
 /**
+   Create a new c2_rpc_frm_item_coalesced structure and populate it.
+   @param frm_sm - Formation state machine.
+   @param fid - Concerned c2_fid structure.
+   @param intent - read/write intent of coalesced item.
+   @retval - Valid c2_rpc_frm_item_coalesced structure if succeeded,
+   NULL otherwise.
+ */
+static struct c2_rpc_frm_item_coalesced *rpc_frm_coalesced_item_create(
+		struct c2_rpc_frm_sm *frm_sm, struct c2_fid *fid,
+		int intent)
+{
+	struct c2_rpc_frm_item_coalesced *coalesced_item;
+
+	C2_PRE(frm_sm != NULL);
+	C2_PRE(fid != NULL);
+
+	C2_ALLOC_PTR(coalesced_item);
+	if (coalesced_item == NULL) {
+		C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb
+				, &rpc_frm_addb_loc, c2_addb_oom);
+		return NULL;
+	}
+	c2_list_link_init(&coalesced_item->ic_linkage);
+	coalesced_item->ic_fid = fid;
+	coalesced_item->ic_op_intent = intent;
+	coalesced_item->ic_resultant_item = NULL;
+	coalesced_item->ic_member_nr = 0;
+	c2_list_init(&coalesced_item->ic_member_list);
+	/* Add newly created coalesced_item into list of fs_coalesced_items
+	   in formation state machine. */
+	c2_list_add(&frm_sm->fs_coalesced_items, &coalesced_item->ic_linkage);
+
+	return coalesced_item;
+}
+
+/**
+   Destroy a c2_rpc_frm_item_coalesced structure and remove it from
+   list of such items in formation state machine.
+   @param c_item - Coalesced item to be deleted.
+ */
+static void rpc_frm_coalesced_item_destroy(struct c2_rpc_frm_item_coalesced
+		*c_item)
+{
+	C2_PRE(c_item != NULL);
+
+	c2_list_fini(&c_item->ic_member_list);
+	c2_list_del(&c_item->ic_linkage);
+	c2_free(c_item);
+}
+
+/**
    Try to coalesce rpc items from the session->free list.
    @param frm_sm - the c2_rpc_frm_sm structure in which these activities
    are taking place.
@@ -1616,19 +1662,14 @@ static int rpc_frm_coalesce_fid_intent(struct c2_rpc_item *b_item,
 static int rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item, uint64_t *rpcobj_size)
 {
+	int						 rc = 0;
 	struct c2_rpc_item				*ub_item = NULL;
 	struct c2_rpc_session				*session = NULL;
 	struct c2_fid					 fid;
 	struct c2_fid					 ufid;
 	struct c2_rpc_frm_item_coalesced		*coalesced_item = NULL;
-	struct c2_rpc_frm_item_coalesced_member	*coalesced_member =
-		NULL;
-	struct c2_rpc_frm_item_coalesced_member	*coalesced_member_next =
-		NULL;
 	uint64_t					 old_size = 0;
 	size_t						 item_size = 0;
-	bool						 coalesced_item_found =
-		false;
 	bool						 item_equal = 0;
 	int						 res = 0;
 	int						 item_rw = 0;
@@ -1654,409 +1695,68 @@ static int rpc_frm_try_coalesce(struct c2_rpc_frm_sm *frm_sm,
 
 	/* Similarly, if given rpc item is not part of an IO request,
 	   return right away. */
-	if (!item->ri_type->rit_ops->rio_is_io_req(item)) {
+	if (!item->ri_type->rit_ops->rio_is_io_req(item))
 		return 0;
-	}
 
 	fid = item->ri_type->rit_ops->rio_io_get_fid(item);
 	item_size = item->ri_type->rit_ops->rio_item_size(item);
 	item_rw = item->ri_type->rit_ops->rio_io_get_opcode(item);
 
-
-	/* Find out/Create the coalesced_item struct for this bound item.
-	   If fid and intent(read/write) of current unbound item matches
-	   with fid and intent of the bound item, see if a corresponding
-	   struct c2_rpc_frm_item_coalesced exists for this
-	   {fid, intent} tuple. */
-	c2_list_for_each_entry(&frm_sm->fs_coalesced_items,
-			coalesced_item, struct c2_rpc_frm_item_coalesced,
-			ic_linkage) {
-		if (c2_fid_eq(&fid, &coalesced_item->ic_fid)
-				&& (coalesced_item->ic_op_intent == item_rw)) {
-			coalesced_item_found = true;
-			break;
-		}
-	}
-	/* If such a coalesced_item does not exist, create one. */
-	if (!coalesced_item_found) {
-		C2_ALLOC_PTR(coalesced_item);
-		if (coalesced_item == NULL) {
-			C2_ADDB_ADD(&formation_summary->rf_rpc_form_addb
-					, &rpc_frm_addb_loc, c2_addb_oom);
-			return -ENOMEM;
-		}
-		c2_list_link_init(&coalesced_item->ic_linkage);
-		coalesced_item->ic_fid = fid;
-		coalesced_item->ic_op_intent = item_rw;
-		coalesced_item->ic_resultant_item = NULL;
-		coalesced_item->ic_nmembers = 0;
-		c2_list_init(&coalesced_item->ic_member_list);
-		/* Add newly created coalesced_item into list of
-		   fs_coalesced_items in frm_sm.*/
-		c2_list_add(&frm_sm->fs_coalesced_items,
-				&coalesced_item->ic_linkage);
-	}
-	C2_ASSERT(coalesced_item != NULL);
+	coalesced_item = rpc_frm_coalesced_item_create(frm_sm, &fid, item_rw);
+	if (coalesced_item == NULL)
+		return -ENOMEM;
 
 	c2_mutex_lock(&session->s_mutex);
 	c2_list_for_each_entry(&session->s_unbound_items, ub_item,
 			struct c2_rpc_item, ri_unbound_link) {
 		/* If current rpc item is not part of an IO request, skip
 		   the item and move to next one from the unbound_items list.*/
-		if (!ub_item->ri_type->rit_ops->rio_is_io_req(ub_item)) {
+		if (!ub_item->ri_type->rit_ops->rio_is_io_req(ub_item))
 			continue;
-		}
+
 		ufid = ub_item->ri_type->rit_ops->rio_io_get_fid(ub_item);
 		item_equal = item->ri_type->rit_ops->
 			rio_items_equal(item, ub_item);
 		if (c2_fid_eq(&fid, &ufid) && item_equal) {
-			coalesced_item->ic_nmembers++;
-			C2_ALLOC_PTR(coalesced_member);
-			if (coalesced_member == NULL) {
-				C2_ADDB_ADD(&formation_summary->
-						rf_rpc_form_addb,
-						&rpc_frm_addb_loc,
-						c2_addb_oom);
-				c2_mutex_unlock(&session->s_mutex);
-				return -ENOMEM;
-			}
-			/* Create a new struct c2_rpc_frm_item_coalesced
-			   _member and add it to the list(ic_member_list)
-			   of coalesced_item above. */
-			coalesced_member->im_member_item = ub_item;
-			c2_list_link_init(&coalesced_member->im_linkage);
+			coalesced_item->ic_member_nr++;
 			c2_list_add(&coalesced_item->ic_member_list,
-					&coalesced_member->im_linkage);
+					&ub_item->ri_coalesced_linkage);
 		}
 	}
 	c2_mutex_unlock(&session->s_mutex);
 
-	/* If number of member rpc items in the current coalesced_item
-	   struct are less than 2, reject the coalesced_item
-	   and return back. i.e. Coalescing can only be when there are
-	   more than 2 items to merge*/
-	if (coalesced_item->ic_nmembers < 2) {
-		c2_list_for_each_entry_safe(&coalesced_item->ic_member_list,
-				coalesced_member, coalesced_member_next,
-				struct c2_rpc_frm_item_coalesced_member,
-				im_linkage) {
-			c2_list_del(&coalesced_member->im_linkage);
-			c2_free(coalesced_member);
-		}
-		c2_list_fini(&coalesced_item->ic_member_list);
-		c2_list_del(&coalesced_item->ic_linkage);
-		c2_free(coalesced_item);
-		coalesced_item = NULL;
-		return 0;
+	if (c2_list_is_empty(&coalesced_item->ic_member_list)) {
+		rpc_frm_coalesced_item_destroy(coalesced_item);
+		return rc;
 	}
 
-	/* Add the bound item to the list of member rpc items in
-	   coalesced_item structure so that it will be coalesced as well. */
-	C2_ALLOC_PTR(coalesced_member);
-	if (coalesced_member == NULL) {
-		C2_ADDB_ADD(&formation_summary->rf_rpc_form_addb,
-				&rpc_frm_addb_loc, c2_addb_oom);
-		return -ENOMEM;
-	}
-	coalesced_member->im_member_item = item;
 	c2_list_add(&coalesced_item->ic_member_list,
-			&coalesced_member->im_linkage);
-	coalesced_item->ic_nmembers++;
+			&item->ri_coalesced_linkage);
+	coalesced_item->ic_member_nr++;
+
 	/* If there are more than 1 rpc items sharing same fid
 	   and intent, there is a possibility of successful coalescing.
-	   Try to coalesce all member rpc items in the coalesced_item
+	   Coalesce all member rpc items in the coalesced_item
 	   and put the resultant IO vector in the given bound item. */
 	res = rpc_frm_coalesce_fid_intent(item, coalesced_item);
+
 	/* Remove the bound item from list of member elements
 	   from a coalesced_item struct.*/
-	c2_list_del(&coalesced_member->im_linkage);
+	c2_list_del(&item->ri_coalesced_linkage);
 
 	if (res == 0) {
-		item->ri_state = RPC_ITEM_ADDED;
 		*rpcobj_size -= old_size;
 		*rpcobj_size += item->ri_type->rit_ops->
 			rio_item_size(item);
 		/* Delete all members items for which coalescing was
 		   successful from the session->free list. */
 		c2_list_for_each_entry(&coalesced_item->ic_member_list,
-				coalesced_member, struct
-				c2_rpc_frm_item_coalesced_member, im_linkage) {
-			c2_list_del(&coalesced_member->im_member_item->
-					ri_unbound_link);
-		}
+				ub_item, struct c2_rpc_item,
+				ri_coalesced_linkage)
+			c2_list_del(&ub_item->ri_unbound_link);
 	}
 	return res;
 }
-
-/**
-   State function for FORMING state.
-   Core of formation algorithm. This state scans the rpc items cache and
-   structure c2_rpc_frm_sm to form an RPC object by
-   cooperation of multiple policies.
-   Formation algorithm will take hints from rpc groups and will try to
-   form rpc objects by keeping all group member rpc items together.
-   For update streams, formation algorithm checks their status.
-   If update stream is FREE(Not Busy), it will be considered for
-   formation. Checking state will take care of coalescing of items.
-   Coalescing Policy:
-   Groups and coalescing: Formation algorithm will try to coalesce rpc items
-   from same rpc groups as far as possible, otherwise items from different
-   groups will be coalesced.
-   Update streams and coalescing: Formation algorithm will not coalesce rpc
-   items across update streams. Rpc items belonging to same update stream
-   will be coalesced if possible since there is no sequence number assigned
-   yet to the rpc items.
-   Formation Algorithm.
-   1. Read rpc items from the cache destined for given network endpoint.
-   2. If the item deadline is zero(urgent), add it to a local
-   list of rpc items to be formed.
-   3. Check size of formed rpc object so far to see if its optimal.
-   Here size of rpc is compared with max_message_size. If size of
-   rpc is far less than max_message_size and no urgent item, goto #1.
-   4. If #3 is true and if the number of disjoint memory buffers
-   is less than parameter max_fragment_size, a probable rpc object
-   is in making. The selected rpc items are put on a list
-   and the state machine transitions to next state.
-   5. Consult the structure c2_rpc_frm_sm to find out
-   data about all rpc groups. Select groups that have combination of
-   lowest average timeout and highest size that fits into optimal
-   size. Keep selecting such groups till optimal size rpc is formed.
-   6. Consult the list of files from internal data to find out files
-   on which IO requests have come for this state machine. Do coalescing
-   within groups selected for formation according to read/write
-   intents. Later if rpc has still not reached its optimal size,
-   coalescing across rpc groups will be done.
-   7. Remove the data of selected rpc items from internal data
-   structure so that it will not be considered for processing
-   henceforth.
-   8. If the formed rpc object is sub optimal but it contains
-   an urgent item, it will be formed immediately. Else, it will
-   be discarded.
-   9. This process is repeated until the size of formed rpc object
-   is sub optimal and there is no urgent item in the list.
-   @param item - input rpc item.
-   @param event - Since FORMING state handles a lot of events,
-   it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
- */
-#if 0
-static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
-		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event)
-{
-	int					 res = 0;
-	bool					 slot_found = false;
-	bool					 urgent_items = false;
-	bool					 item_added = false;
-	bool					 urgent_unbound = false;
-	size_t					 item_size = 0;
-	size_t					 partial_size = 0;
-	uint64_t				 nselected_groups = 0;
-	uint64_t				 rpcobj_size = 0;
-	uint64_t				 ncurrent_groups = 0;
-	uint64_t				 nfragments = 0;
-	uint64_t				 group_size = 0;
-	uint64_t				 counter = 0;
-	struct c2_rpc				*rpcobj = NULL;
-	struct c2_rpc_item			*rpc_item = NULL;
-	struct c2_rpc_item			*rpc_item_next = NULL;
-	struct c2_rpcmachine			*rpcmachine = NULL;
-	struct c2_rpc_session			*session = NULL;
-	struct c2_rpc_slot			*slot = NULL;
-	struct c2_rpc_slot			*slot_next = NULL;
-	struct c2_rpc_item			*ub_item = NULL;
-	struct c2_rpc_item			*ub_item_next = NULL;
-	struct c2_rpc_formation			*formation_summary;
-	struct c2_rpc_frm_rpcgroup		*sg = NULL;
-	struct c2_rpc_frm_rpcgroup		*sg_partial = NULL;
-	struct c2_rpc_frm_rpcgroup		*group = NULL;
-	struct c2_rpc_frm_rpcgroup		*group_next = NULL;
-
-	C2_PRE(item != NULL);
-	C2_PRE(event->se_event == C2_RPC_FRM_INTEVT_STATE_SUCCEEDED);
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
-
-	frm_sm->fs_state = C2_RPC_FRM_STATE_FORMING;
-	formation_summary = item->ri_mach->cr_formation;
-
-	/* If isu_rpcobj_formed_list is not empty, it means an rpc
-	   object was formed successfully some time back but it
-	   could not be sent due to some error conditions.
-	   We send it back here again. */
-	if (!c2_list_is_empty(&frm_sm->fs_rpcs)) {
-		res = rpc_frm_send_onwire(frm_sm);
-		if (res == 0)
-			return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
-		else
-			return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	}
-
-	/* Returning failure will lead the state machine to
-	    waiting state and then the thread will exit the
-	    state machine. */
-	if (frm_sm->fs_curr_rpcs_in_flight == frm_sm->fs_max_rpcs_in_flight) {
-		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	}
-
-	/* Create an rpc object in frm_sm->isu_rpcobj_checked_list. */
-	C2_ALLOC_PTR(rpcobj);
-	if (rpcobj == NULL) {
-		C2_ADDB_ADD(&formation_summary->rf_rpc_form_addb,
-				&rpc_frm_addb_loc, c2_addb_oom);
-		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	}
-	c2_rpc_rpcobj_init(rpcobj);
-
-	/* Iterate over the c2_rpc_frm_rpcgroup list in the
-	   endpoint structure to find out which rpc groups can be included
-	   in the rpc object. */
-	c2_list_for_each_entry(&frm_sm->fs_groups, sg,
-			struct c2_rpc_frm_rpcgroup, frg_linkage) {
-		/* nselected_groups number includes the last partial
-		   rpc group(if any).*/
-		nselected_groups++;
-		if ((group_size + sg->sug_total_size) <
-				frm_sm->fs_max_msg_size) {
-			group_size += sg->sug_total_size;
-		} else {
-			partial_size = (group_size + sg->sug_total_size) -
-				frm_sm->fs_max_msg_size;
-			sg_partial = sg;
-			break;
-		}
-	}
-
-	/* Core of formation algorithm. */
-	c2_list_for_each_entry_safe(&frm_sm->fs_unformed_prio, rpc_item,
-			rpc_item_next, struct c2_rpc_item,
-			ri_unformed_linkage) {
-		counter++;
-		item_size = rpc_item->ri_type->rit_ops->
-			rio_item_size(rpc_item);
-		/* 1. If there are urgent items, form them immediately. */
-		if (rpc_item->ri_deadline == 0) {
-			if (!urgent_items) {
-				urgent_items = true;
-			}
-			if (rpc_item->ri_state != RPC_ITEM_SUBMITTED) {
-				continue;
-			}
-			res = rpc_frm_add_to_rpc(frm_sm,
-					rpcobj, rpc_item, &rpcobj_size,
-					&nfragments);
-			if (res != 0) {
-				/* Forming list complete.*/
-				break;
-			}
-			continue;
-		}
-		/* 2. Check if current rpc item belongs to any of the selected
-		   groups. If yes, add it to forming list. For the last partial
-		   group (if any), check if current rpc item belongs to this
-		   partial group and add the item till size of items in this
-		   partial group reaches its limit within max_message_size. */
-		c2_list_for_each_entry_safe(&frm_sm->fs_groups, group,
-				group_next, struct c2_rpc_frm_rpcgroup,
-				frg_linkage) {
-			ncurrent_groups++;
-			/* If selected groups are exhausted, break the loop. */
-			if (ncurrent_groups > nselected_groups) {
-				break;
-			}
-			if ((sg_partial != NULL) && (rpc_item->ri_group ==
-						sg_partial->frg_group)) {
-				break;
-			}
-			if (rpc_item->ri_group == group->frg_group) {
-				item_added = true;
-				ncurrent_groups = 0;
-				break;
-			}
-		}
-		if(item_added) {
-			if (rpc_item->ri_state != RPC_ITEM_SUBMITTED) {
-				continue;
-			}
-			res = rpc_frm_add_to_rpc(frm_sm,
-					rpcobj, rpc_item, &rpcobj_size,
-					&nfragments);
-			if (res != 0) {
-				break;
-			}
-			item_added = false;
-		}
-		/* Try to coalesce items from session->unbound_items list
-		   with the current rpc item. */
-		res = rpc_frm_try_coalesce(frm_sm, rpc_item,
-				&rpcobj_size);
-	}
-
-	/* Add the rpc items in the partial group to the forming
-	   list separately. This group is sorted according to priority.
-	   So the partial number of items will be picked up
-	   for formation in increasing order of priority */
-	if (sg_partial != NULL) {
-		c2_mutex_lock(&sg_partial->frg_group->rg_guard);
-		c2_list_for_each_entry_safe(&sg_partial->frg_group->rg_items,
-				rpc_item, rpc_item_next,  struct c2_rpc_item,
-				ri_group_linkage) {
-			item_size = rpc_item->ri_type->rit_ops->
-				rio_item_size(rpc_item);
-			if ((partial_size - item_size) <= 0) {
-				break;
-			}
-			if (c2_list_link_is_in(&rpc_item->
-						ri_unformed_linkage)) {
-				if (rpc_item->ri_state == RPC_ITEM_SUBMITTED) {
-					partial_size -= item_size;
-					res = rpc_frm_add_to_rpc(
-							frm_sm, rpc_item,
-							&rpcobj_size,
-							&nfragments,
-							rpcobj);
-				}
-			}
-		}
-		c2_mutex_unlock(&sg_partial->frg_group->rg_guard);
-	}
-
-
-	if (c2_list_is_empty(&rpcobj->r_items)) {
-		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	}
-
-	/* If there are no urgent items in the formed rpc object,
-	   send the rpc for submission only if it is optimal.
-	   For rpc objects containing urgent items, there are chances
-	   that it will be passed for submission even if it is
-	   sub-optimal. */
-	/* If size of formed rpc object is less than 90% of
-	   max_message_size, discard the rpc object. */
-	if (!rpc_frm_is_rpc_optimal(frm_sm, rpcobj_size, urgent_unbound)) {
-		/* Delete the formed RPC object. */
-		c2_list_for_each_entry_safe(&rpcobj->r_items,
-				rpc_item, rpc_item_next, struct c2_rpc_item,
-				ri_rpcobject_linkage) {
-			c2_list_del(&rpc_item->ri_rpcobject_linkage);
-			rpc_item->ri_state = RPC_ITEM_SUBMITTED;
-			rpc_frm_item_add(frm_sm, rpc_item);
-		}
-		c2_list_del(&rpcobj->r_linkage);
-		c2_free(rpcobj);
-		rpcobj = NULL;
-		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	}
-
-	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
-	C2_POST(!c2_list_is_empty(&rpcobj->r_items));
-	res = rpc_frm_send_onwire(frm_sm);
-	if (res == 0)
-		return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
-	else
-		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-}
-#endif
 
 static void rpc_frm_bound_items_add(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc *rpcobj, uint64_t *rpcobj_size,
@@ -2196,6 +1896,57 @@ static void rpc_frm_unbound_items_add(struct c2_rpc_frm_sm *frm_sm,
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
 }
 
+/**
+   State function for FORMING state.
+   Core of formation algorithm. This state scans the rpc items cache and
+   structure c2_rpc_frm_sm to form an RPC object by
+   cooperation of multiple policies.
+   Formation algorithm will take hints from rpc groups and will try to
+   form rpc objects by keeping all group member rpc items together.
+   For update streams, formation algorithm checks their status.
+   If update stream is FREE(Not Busy), it will be considered for
+   formation. Checking state will take care of coalescing of items.
+   Coalescing Policy:
+   Groups and coalescing: Formation algorithm will try to coalesce rpc items
+   from same rpc groups as far as possible, otherwise items from different
+   groups will be coalesced.
+   Update streams and coalescing: Formation algorithm will not coalesce rpc
+   items across update streams. Rpc items belonging to same update stream
+   will be coalesced if possible since there is no sequence number assigned
+   yet to the rpc items.
+   Formation Algorithm.
+   1. Read rpc items from the cache destined for given network endpoint.
+   2. If the item deadline is zero(urgent), add it to a local
+   list of rpc items to be formed.
+   3. Check size of formed rpc object so far to see if its optimal.
+   Here size of rpc is compared with max_message_size. If size of
+   rpc is far less than max_message_size and no urgent item, goto #1.
+   4. If #3 is true and if the number of disjoint memory buffers
+   is less than parameter max_fragment_size, a probable rpc object
+   is in making. The selected rpc items are put on a list
+   and the state machine transitions to next state.
+   5. Consult the structure c2_rpc_frm_sm to find out
+   data about all rpc groups. Select groups that have combination of
+   lowest average timeout and highest size that fits into optimal
+   size. Keep selecting such groups till optimal size rpc is formed.
+   6. Consult the list of files from internal data to find out files
+   on which IO requests have come for this state machine. Do coalescing
+   within groups selected for formation according to read/write
+   intents. Later if rpc has still not reached its optimal size,
+   coalescing across rpc groups will be done.
+   7. Remove the data of selected rpc items from internal data
+   structure so that it will not be considered for processing
+   henceforth.
+   8. If the formed rpc object is sub optimal but it contains
+   an urgent item, it will be formed immediately. Else, it will
+   be discarded.
+   9. This process is repeated until the size of formed rpc object
+   is sub optimal and there is no urgent item in the list.
+   @param item - input rpc item.
+   @param event - Since FORMING state handles a lot of events,
+   it needs some way of identifying the events.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
+ */
 static enum c2_rpc_frm_int_evt_id rpc_frm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event)
@@ -2425,7 +2176,6 @@ void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 {
 	struct c2_list					 fop_list;
-	struct c2_rpc_frm_item_coalesced_member	*c_member = NULL;
 	struct c2_io_fop_member				*fop_member = NULL;
 	struct c2_io_fop_member				*fop_member_next = NULL;
 	struct c2_fop					*fop = NULL;
@@ -2439,13 +2189,12 @@ int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item)
 	coalesced_item = (struct c2_rpc_frm_item_coalesced*)c_item;
 	C2_ASSERT(coalesced_item != NULL);
 	c2_list_init(&fop_list);
-	c2_list_for_each_entry(&coalesced_item->ic_member_list, c_member,
-			struct c2_rpc_frm_item_coalesced_member, im_linkage) {
+	c2_list_for_each_entry(&coalesced_item->ic_member_list, item,
+			struct c2_rpc_item, ri_coalesced_linkage) {
 		C2_ALLOC_PTR(fop_member);
 		if (fop_member == NULL) {
 			return -ENOMEM;
 		}
-		item = c_member->im_member_item;
 		fop = c2_rpc_item_to_fop(item);
 		fop_member->fop = fop;
 		c2_list_add(&fop_list, &fop_member->fop_linkage);

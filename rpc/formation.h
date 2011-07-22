@@ -211,6 +211,8 @@ struct c2_rpc_frm_prio_list {
    same state machine.
  */
 struct c2_rpc_frm_sm {
+	/** Back link to struct c2_rpc_formation. */
+	struct c2_rpc_formation		*fs_formation;
 	/** Mutex protecting the unit from concurrent access. */
 	struct c2_mutex			 fs_lock;
 	/** Linkage into the list of formation state machines anchored
@@ -304,32 +306,21 @@ struct c2_rpc_frm_buffer {
    rpc item into sub replies for constituent rpc items.
  */
 struct c2_rpc_frm_item_coalesced {
-	/** Linkage to list of coalesced rpc items anchored at
+	/** Linkage to list of coalesced items anchored at
 	    c2_rpc_formation::fs_coalesced_items. */
-	struct c2_list_link	        ic_linkage;
+	struct c2_list_link		 ic_linkage;
 	/** Concerned fid. */
-	struct c2_fid			ic_fid;
+	struct c2_fid			*ic_fid;
 	/** Intent of operation, read or write */
-	int				ic_op_intent;
+	int				 ic_op_intent;
 	/** Resultant coalesced rpc item */
-	struct c2_rpc_item	       *ic_resultant_item;
+	struct c2_rpc_item		*ic_resultant_item;
 	/** No of constituent rpc items. */
-	uint64_t			ic_nmembers;
+	uint64_t			 ic_member_nr;
 	/** List of constituent rpc items for this coalesced item linked
-	    through c2_rpc_frm_item_coalesced_member::im_linkage.
-	    @code c2_list<c2_rpc_frm_item_coalesced_member> @endcode */
-	struct c2_list			ic_member_list;
-};
-
-/**
-   Member rpc item coalesced into one rpc item.
- */
-struct c2_rpc_frm_item_coalesced_member {
-	/** Linkage into list of member rpc items anchored at
-	    c2_rpc_frm_item_coalesced::ic_member_list. */
-	struct c2_list_link		 im_linkage;
-	/** c2_rpc_item */
-	struct c2_rpc_item		*im_member_item;
+	    through c2_rpc_item::ri_coalesced_linkage.
+	    @code c2_list<c2_rpc_item> @endcode */
+	struct c2_list			 ic_member_list;
 };
 
 /**
