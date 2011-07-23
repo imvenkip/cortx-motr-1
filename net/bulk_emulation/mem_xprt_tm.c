@@ -61,11 +61,18 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			} else {
 				tp->xtm_state = next_state;
 				ev.nte_next_state = C2_NET_TM_STARTED;
+				ev.nte_ep = wi->xwi_nbe_ep;
+				wi->xwi_nbe_ep = NULL;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
 			c2_time_now(&ev.nte_time);
 			c2_net_tm_event_post(&ev);
 			c2_mutex_lock(&tm->ntm_mutex);
+		}
+		if (wi->xwi_nbe_ep != NULL) {
+			/* free the end point if not consumed */
+			c2_ref_put(&wi->xwi_nbe_ep->nep_ref);
+			wi->xwi_nbe_ep = NULL;
 		}
 	} else { /* C2_NET_XTM_STOPPED, as per assert */
 		C2_ASSERT(tp->xtm_state == C2_NET_XTM_STOPPING);

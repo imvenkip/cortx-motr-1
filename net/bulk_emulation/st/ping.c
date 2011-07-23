@@ -848,11 +848,6 @@ int ping_init(struct ping_ctx *ctx)
 			ctx->pc_id);
 	else
 		sprintf(addr, "%s:%u", ctx->pc_hostname, ctx->pc_port);
-	rc = c2_net_end_point_create(&ctx->pc_ep, &ctx->pc_dom, addr);
-	if (rc != 0) {
-		PING_ERR("end point create failed: [%s] %d\n", addr, rc);
-		goto fail;
-	}
 
 	rc = c2_net_tm_init(&ctx->pc_tm, &ctx->pc_dom);
 	if (rc != 0) {
@@ -862,7 +857,7 @@ int ping_init(struct ping_ctx *ctx)
 
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
-	rc = c2_net_tm_start(&ctx->pc_tm, ctx->pc_ep);
+	rc = c2_net_tm_start(&ctx->pc_tm, addr);
 	if (rc != 0) {
 		PING_ERR("transfer machine start failed: %d\n", rc);
 		goto fail;
@@ -889,12 +884,20 @@ void ping_fini(struct ping_ctx *ctx)
 {
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
+	c2_time_t delay;
+	c2_time_t absdelay;
 
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
 			struct c2_clink tmwait;
 			c2_clink_init(&tmwait, NULL);
 			c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
+			/* wait a bit for async buffer completions */
+			c2_time_set(&delay, 1, 0);
+			do {
+				c2_time_now(&absdelay);
+				absdelay = c2_time_add(absdelay, delay);
+			} while (c2_chan_timedwait(&tmwait, absdelay));
 
 			c2_net_tm_stop(&ctx->pc_tm, true);
 			while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED)
@@ -906,7 +909,6 @@ void ping_fini(struct ping_ctx *ctx)
 			(*ctx->pc_ops->pqs)(ctx, false);
 
 		while (1) {
-			c2_time_t delay;
 			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
 			    ctx->pc_tm.ntm_state == C2_NET_TM_FAILED)
 				break;
@@ -915,8 +917,6 @@ void ping_fini(struct ping_ctx *ctx)
 		}
 		c2_net_tm_fini(&ctx->pc_tm);
 	}
-	if (ctx->pc_ep != NULL)
-		c2_net_end_point_put(ctx->pc_ep);
 	if (ctx->pc_nbs != NULL) {
 		int i;
 		for (i = 0; i < ctx->pc_nr_bufs; ++i) {
@@ -1318,7 +1318,7 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport, ctx->pc_rid);
 	else
 		sprintf(addr, "%s:%u", ctx->pc_rhostname, ctx->pc_rport);
-	rc = c2_net_end_point_create(server_ep, &ctx->pc_dom, addr);
+	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);
 	return rc;
 }
 

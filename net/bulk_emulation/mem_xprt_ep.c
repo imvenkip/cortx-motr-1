@@ -38,12 +38,12 @@ static void mem_xo_end_point_release(struct c2_ref *ref)
 	struct c2_net_bulk_mem_domain_pvt *dp;
 
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
-	C2_PRE(c2_mutex_is_locked(&ep->nep_dom->nd_mutex));
+	C2_PRE(c2_mutex_is_locked(&ep->nep_tm->ntm_mutex));
 	C2_PRE(mem_ep_invariant(ep));
 
-	dp = mem_dom_to_pvt(ep->nep_dom);
-	c2_list_del(&ep->nep_dom_linkage);
-	ep->nep_dom = NULL;
+	dp = mem_dom_to_pvt(ep->nep_tm->ntm_dom);
+	c2_list_del(&ep->nep_tm_linkage);
+	ep->nep_tm = NULL;
 	dp->xd_ops->bmo_ep_free(mem_ep_to_pvt(ep)); /* indirect free */
 }
 
@@ -101,22 +101,23 @@ static void mem_ep_get(struct c2_net_end_point *ep)
 /**
    Internal implementation of mem_xo_end_point_create().
  */
-static int mem_ep_create(struct c2_net_end_point **epp,
-			 struct c2_net_domain *dom,
-			 const struct sockaddr_in *sa,
+static int mem_ep_create(struct c2_net_end_point  **epp,
+			 struct c2_net_transfer_mc *tm,
+			 const struct sockaddr_in  *sa,
 			 uint32_t id)
 {
 	struct c2_net_end_point *ep;
 	struct c2_net_bulk_mem_end_point *mep;
 	struct c2_net_bulk_mem_domain_pvt *dp;
 
-	C2_PRE(mem_dom_invariant(dom));
-	dp = mem_dom_to_pvt(dom);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(mem_tm_invariant(tm));
+	dp = mem_dom_to_pvt(tm->ntm_dom);
 
-	/* check if its already on the domain list */
-	c2_list_for_each_entry(&dom->nd_end_points, ep,
+	/* check if its already on the TM end point list */
+	c2_list_for_each_entry(&tm->ntm_end_points, ep,
 			       struct c2_net_end_point,
-			       nep_dom_linkage) {
+			       nep_tm_linkage) {
 		C2_ASSERT(mem_ep_invariant(ep));
 		mep = mem_ep_to_pvt(ep);
 		if (mem_sa_eq(&mep->xep_sa, sa) && mep->xep_service_id == id) {
@@ -137,8 +138,8 @@ static int mem_ep_create(struct c2_net_end_point **epp,
 	mem_ep_printable(mep, sa, id);
 	ep = &mep->xep_ep;
 	c2_ref_init(&ep->nep_ref, 1, dp->xd_ops->bmo_ep_release);
-	ep->nep_dom = dom;
-	c2_list_add_tail(&dom->nd_end_points, &ep->nep_dom_linkage);
+	ep->nep_tm = tm;
+	c2_list_add_tail(&tm->ntm_end_points, &ep->nep_tm_linkage);
 	ep->nep_addr = &mep->xep_addr[0];
 	C2_ASSERT(mem_ep_to_pvt(ep) == mep);
 	C2_POST(mem_ep_invariant(ep));

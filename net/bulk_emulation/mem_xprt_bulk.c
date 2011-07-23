@@ -110,10 +110,9 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		}
 
 		/* Make a local end point matching the passive address.*/
-		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = mem_bmo_ep_create(&match_ep, tm->ntm_dom, &md->md_passive,
-				       0);
-		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+		c2_mutex_lock(&tm->ntm_mutex);
+		rc = mem_bmo_ep_create(&match_ep, tm, &md->md_passive, 0);
+		c2_mutex_unlock(&tm->ntm_mutex);
 		if (rc != 0) {
 			match_ep = NULL;
 			break;

@@ -49,6 +49,10 @@ bool c2_net__tm_event_invariant(const struct c2_net_tm_event *ev)
 	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE &&
 	    !c2_net__tm_state_is_valid(ev->nte_next_state))
 		return false;
+	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE &&
+	    ev->nte_next_state == C2_NET_TM_STARTED &&
+	    !c2_net__ep_invariant(ev->nte_ep, ev->nte_tm, true))
+		return false;
 	return true;
 }
 
@@ -61,8 +65,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 	if (tm->ntm_state < C2_NET_TM_INITIALIZED ||
 	    tm->ntm_state > C2_NET_TM_FAILED)
 		return false;
-	if ((tm->ntm_state == C2_NET_TM_STARTING ||
-	     tm->ntm_state == C2_NET_TM_STARTED) &&
+	if (tm->ntm_state == C2_NET_TM_STARTED &&
 	    tm->ntm_ep == NULL)
 		return false;
 	if (tm->ntm_state != C2_NET_TM_STARTED &&
@@ -90,6 +93,8 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 
 	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE) {
 		tm->ntm_state = ev->nte_next_state;
+		if (tm->ntm_state == C2_NET_TM_STARTED)
+			tm->ntm_ep = ev->nte_ep; /* ep now visible */
 	}
 
 	tm->ntm_callback_counter++;
@@ -138,6 +143,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	tm->ntm_callback_counter = 0;
 	tm->ntm_dom = dom;
 	tm->ntm_ep = NULL;
+	c2_list_init(&tm->ntm_end_points);
 	c2_chan_init(&tm->ntm_chan);
 	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
 		c2_list_init(&tm->ntm_q[i]);
@@ -172,12 +178,19 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	}
 	C2_PRE(tm->ntm_callback_counter == 0);
 
-	dom->nd_xprt->nx_ops->xo_tm_fini(tm);
-
+	/* release method requires TM mutex to be locked */
+	c2_mutex_lock(&tm->ntm_mutex);
 	if (tm->ntm_ep != NULL) {
 		c2_ref_put(&tm->ntm_ep->nep_ref);
 		tm->ntm_ep = NULL;
 	}
+	c2_mutex_unlock(&tm->ntm_mutex);
+
+	dom->nd_xprt->nx_ops->xo_tm_fini(tm);
+
+	C2_ASSERT(c2_list_is_empty(&tm->ntm_end_points));
+	c2_list_fini(&tm->ntm_end_points);
+
 	c2_list_del(&tm->ntm_dom_linkage);
 	tm->ntm_state = C2_NET_TM_UNDEFINED;
 	c2_net__tm_cleanup(tm);
@@ -188,26 +201,22 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 }
 C2_EXPORTED(c2_net_tm_fini);
 
-int c2_net_tm_start(struct c2_net_transfer_mc *tm,
-		    struct c2_net_end_point *ep)
+int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	int result;
 
-	C2_ASSERT(ep != NULL);
+	C2_ASSERT(addr != NULL);
 	C2_PRE(tm != NULL);
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
-	c2_net_end_point_get(ep);
-	tm->ntm_ep = ep;
 	tm->ntm_state = C2_NET_TM_STARTING;
-	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm);
+	result = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm, addr);
 	if (result < 0) {
 		/* xprt did not start, no retry supported */
 		tm->ntm_state = C2_NET_TM_FAILED;
-		tm->ntm_ep = NULL;
-		c2_ref_put(&ep->nep_ref);
+		C2_ASSERT(tm->ntm_ep == NULL);
 	}
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
@@ -226,6 +235,13 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
+
+	C2_PRE((c2_list_is_empty(&tm->ntm_end_points) && tm->ntm_ep == NULL) ||
+	       (c2_list_length(&tm->ntm_end_points) == 1 &&
+		tm->ntm_ep != NULL &&
+		c2_list_contains(&tm->ntm_end_points,
+				 &tm->ntm_ep->nep_tm_linkage) &&
+		c2_atomic64_get(&tm->ntm_ep->nep_ref.ref_cnt) == 1));
 
 	oldstate = tm->ntm_state;
 	tm->ntm_state = C2_NET_TM_STOPPING;

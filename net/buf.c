@@ -192,7 +192,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* validate end point usage; increment ref count later */
 	C2_PRE(ergo(todo->check_ep,
 		    buf->nb_ep != NULL &&
-		    c2_net__ep_invariant(buf->nb_ep, buf->nb_dom, false)));
+		    c2_net__ep_invariant(buf->nb_ep, tm, true)));
 
 	/* validate that the descriptor is present */
 	if (todo->post_check_desc) {
@@ -356,11 +356,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	q->nqs_total_bytes += len;
 	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
 
-	cb = buf->nb_callbacks->nbc_cb[qtype];
-
-	tm->ntm_callback_counter++;
-	c2_mutex_unlock(&tm->ntm_mutex);
-
 	ep = NULL;
 	check_ep = false;
 	switch (qtype) {
@@ -381,15 +376,18 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	}
 
 	if (check_ep) {
-		C2_ASSERT(({
-			  bool eprc;
-			  c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-			  eprc = c2_net__ep_invariant(ep, tm->ntm_dom, true);
-			  c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
-			  eprc; }));
+		C2_ASSERT(c2_net__ep_invariant(ep, tm, true));
 	}
 
+	cb = buf->nb_callbacks->nbc_cb[qtype];
+	tm->ntm_callback_counter++;
+	c2_mutex_unlock(&tm->ntm_mutex);
+
 	cb(ev);
+
+	/* Decrement the reference to the ep */
+	if (ep != NULL)
+		c2_net_end_point_put(ep);
 
 	/* post callback, in mutex:
 	   decrement ref counts,
@@ -399,10 +397,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	tm->ntm_callback_counter--;
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
-
-	/* Decrement the reference to the ep */
-	if (ep != NULL)
-		c2_net_end_point_put(ep);
 
 	return;
 }
