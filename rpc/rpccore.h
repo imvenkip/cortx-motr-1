@@ -160,6 +160,7 @@ struct c2_rpcmachine;
 struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
+struct c2_rpc_frm_item_coalesced;
 
 /** TBD in sessions header */
 enum c2_update_stream_flags {
@@ -222,7 +223,8 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+	int (*rio_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
+			struct c2_rpc_item *item);
 #ifndef __KERNEL__
 	/**
 	   Serialise @item on provided xdr stream @xdrs

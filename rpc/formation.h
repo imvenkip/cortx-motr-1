@@ -392,13 +392,25 @@ enum c2_rpc_frm_item_change_fields {
 };
 
 /**
+   Union of all possible values to be changed from c2_rpc_item.
+ */
+union c2_rpc_frm_item_change_val {
+	/** New priority of rpc item. */
+	enum c2_rpc_item_priority	 cv_prio;
+	/** New deadline of rpc item. */
+	c2_time_t			 cv_deadline;
+	/** New rpc group given rpc item belongs to. */
+	struct c2_rpc_group		*cv_rpcgroup;
+};
+
+/**
    Used to track the parameter changes in an rpc item.
  */
 struct c2_rpc_frm_item_change_req {
 	/* Specifies which field is going to change. */
-	int			 field_type;
+	int			 		 field_type;
 	/* New value of the field. */
-	void			*value;
+	union c2_rpc_frm_item_change_val	*value;
 };
 
 /**
@@ -435,7 +447,7 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
    @param item - incoming rpc item.
  */
 int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
-		void *value);
+		union c2_rpc_frm_item_change_val *value);
 
 /**
    Callback function for reply received of an rpc item.
@@ -504,7 +516,8 @@ void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 /**
    Try to coalesce rpc items with similar fid and intent.
  */
-int c2_rpc_item_io_coalesce(void *coalesced_item, struct c2_rpc_item *b_item);
+int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *coalesced_item,
+		struct c2_rpc_item *b_item);
 
 /**
   XXX Temporary fix.

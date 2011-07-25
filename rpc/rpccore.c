@@ -898,6 +898,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_ref_put(&chan->rc_ref);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 	c2_rpc_frm_fini(machine->cr_formation);
+	machine->cr_formation = NULL;
 	c2_free(&machine->cr_rpc_stats);
 }
 
@@ -1069,7 +1070,8 @@ static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_recovery_complete = us_recovery_complete
 };
 
-int c2_rpc_item_io_coalesce(void *c_item, struct c2_rpc_item *b_item);
+int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
+		struct c2_rpc_item *b_item);
 
 const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_sent = NULL,
