@@ -885,20 +885,12 @@ void ping_fini(struct ping_ctx *ctx)
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
 	c2_time_t delay;
-	c2_time_t absdelay;
 
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
 			struct c2_clink tmwait;
 			c2_clink_init(&tmwait, NULL);
 			c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
-			/* wait a bit for async buffer completions */
-			c2_time_set(&delay, 1, 0);
-			do {
-				c2_time_now(&absdelay);
-				absdelay = c2_time_add(absdelay, delay);
-			} while (c2_chan_timedwait(&tmwait, absdelay));
-
 			c2_net_tm_stop(&ctx->pc_tm, true);
 			while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED)
 				c2_chan_wait(&tmwait); /* wait for it to stop */

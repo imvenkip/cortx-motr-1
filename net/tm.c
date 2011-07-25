@@ -229,9 +229,24 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 {
 	int result;
 	enum c2_net_tm_state oldstate;
+	struct c2_clink tmwait;
 
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
+
+	/* wait for ongoing event processing to drain, modifies ep refcounts */
+	if (tm->ntm_callback_counter > 0) {
+		c2_clink_init(&tmwait, NULL);
+		c2_clink_add(&tm->ntm_chan, &tmwait);
+		do {
+			c2_mutex_unlock(&tm->ntm_mutex);
+			c2_chan_wait(&tmwait);
+			c2_mutex_lock(&tm->ntm_mutex);
+		} while (tm->ntm_callback_counter > 0);
+		C2_PRE(c2_net__tm_invariant(tm));
+		c2_clink_del(&tmwait);
+	}
+
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
 	       tm->ntm_state == C2_NET_TM_STARTING ||
 	       tm->ntm_state == C2_NET_TM_STARTED);
