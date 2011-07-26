@@ -884,7 +884,6 @@ void ping_fini(struct ping_ctx *ctx)
 {
 	struct c2_list_link *link;
 	struct ping_work_item *wi;
-	c2_time_t delay;
 
 	if (ctx->pc_tm.ntm_state != C2_NET_TM_UNDEFINED) {
 		if (ctx->pc_tm.ntm_state != C2_NET_TM_FAILED) {
@@ -900,13 +899,6 @@ void ping_fini(struct ping_ctx *ctx)
 		if (ctx->pc_ops->pqs != NULL)
 			(*ctx->pc_ops->pqs)(ctx, false);
 
-		while (1) {
-			if (ctx->pc_tm.ntm_state == C2_NET_TM_STOPPED ||
-			    ctx->pc_tm.ntm_state == C2_NET_TM_FAILED)
-				break;
-			c2_time_set(&delay, 0, 1000L);
-			c2_nanosleep(delay, NULL);
-		}
 		c2_net_tm_fini(&ctx->pc_tm);
 	}
 	if (ctx->pc_nbs != NULL) {
