@@ -429,93 +429,29 @@ static int fom_timeout(struct c2_fom *fom)
  * @see struct fom_phase_ops
  */
 static const struct fom_phase_ops fpo_table[] = {
-	{ .fpo_action = fom_phase_init,
-	  .fpo_nextphase = FOPH_AUTHENTICATE,
-	  .fpo_name = "fom_init" },
-
-	{ .fpo_action = fom_authen,
-	  .fpo_nextphase = FOPH_RESOURCE_LOCAL,
-	  .fpo_name = "fom_authen" },
-
-	{ .fpo_action = fom_authen_wait,
-	  .fpo_nextphase = FOPH_RESOURCE_LOCAL,
-	  .fpo_name = "fom_authen_wait" },
-
-	{ .fpo_action = fom_loc_resource,
-	  .fpo_nextphase = FOPH_RESOURCE_DISTRIBUTED,
-	  .fpo_name = "fom_loc_resource" },
-
-	{ .fpo_action = fom_loc_resource_wait,
-	  .fpo_nextphase = FOPH_RESOURCE_DISTRIBUTED,
-	  .fpo_name = "fom_loc_resource_wait" },
-
-	{ .fpo_action = fom_dist_resource,
-	  .fpo_nextphase = FOPH_OBJECT_CHECK,
-	  .fpo_name = "fom_dist_resource" },
-
-	{ .fpo_action = fom_dist_resource_wait,
-	  .fpo_nextphase = FOPH_OBJECT_CHECK,
-	  .fpo_name = "fom_dist_resource_wait" },
-
-	{ .fpo_action = fom_obj_check,
-	  .fpo_nextphase = FOPH_AUTHORISATION,
-	  .fpo_name = "fom_obj_check" },
-
-	{ .fpo_action = fom_obj_check_wait,
-	  .fpo_nextphase = FOPH_AUTHORISATION,
-	  .fpo_name = "fom_obj_check_wait" },
-
-	{ .fpo_action = fom_auth,
-	  .fpo_nextphase = FOPH_TXN_CONTEXT,
-	  .fpo_name = "fom_auth" },
-
-	{ .fpo_action = fom_auth_wait,
-	  .fpo_nextphase = FOPH_TXN_CONTEXT,
-	  .fpo_name = "fom_auth_wait" },
-
-	{ .fpo_action = create_loc_ctx,
-	  .fpo_nextphase = FOPH_NR+1,
-	  .fpo_name = "create_loc_ctx" },
-
-	{ .fpo_action = create_loc_ctx_wait,
-	  .fpo_nextphase = FOPH_NR+1,
-	  .fpo_name = "create_loc_ctx_wait" },
-
-	{ .fpo_action = fom_success,
-	  .fpo_nextphase = FOPH_TXN_COMMIT,
-	  .fpo_name = "fom_success" },
-
-	{ .fpo_action = fom_txn_commit,
-	  .fpo_nextphase = FOPH_QUEUE_REPLY,
-	  .fpo_name = "fom_txn_commit" },
-
-	{ .fpo_action = fom_txn_commit_wait,
-	  .fpo_nextphase = FOPH_QUEUE_REPLY,
-	  .fpo_name = "fom_txn_commit_wait" },
-
-	{ .fpo_action = fom_timeout,
-	  .fpo_nextphase = FOPH_FAILED,
-	  .fpo_name = "fom_timeout" },
-
-	{ .fpo_action = fom_failed,
-	  .fpo_nextphase = FOPH_TXN_ABORT,
-	  .fpo_name = "fom_failed" },
-
-	{ .fpo_action = fom_txn_abort,
-	  .fpo_nextphase = FOPH_QUEUE_REPLY,
-	  .fpo_name = "fom_txn_abort" },
-
-	{ .fpo_action = fom_txn_abort_wait,
-	  .fpo_nextphase = FOPH_QUEUE_REPLY,
-	  .fpo_name = "fom_txn_abort_wait" },
-
-	{ .fpo_action = fom_queue_reply,
-	  .fpo_nextphase = FOPH_DONE,
-	  .fpo_name = "fom_queue_reply" },
-
-	{ .fpo_action = fom_queue_reply_wait,
-	  .fpo_nextphase = FOPH_DONE,
-	  .fpo_name = "fom_queue_reply_wait" }};
+	{ &fom_phase_init, FOPH_AUTHENTICATE, "fom_init" },
+	{ &fom_authen, FOPH_RESOURCE_LOCAL, "fom_authen" },
+	{ &fom_authen_wait, FOPH_RESOURCE_LOCAL, "fom_authen_wait" },
+	{ &fom_loc_resource, FOPH_RESOURCE_DISTRIBUTED, "fom_loc_resource" },
+	{ &fom_loc_resource_wait, FOPH_RESOURCE_DISTRIBUTED, "fom_loc_resource_wait" },
+	{ &fom_dist_resource, FOPH_OBJECT_CHECK, "fom_dist_resource" },
+	{ &fom_dist_resource_wait, FOPH_OBJECT_CHECK, "fom_dist_resource_wait" },
+	{ &fom_obj_check, FOPH_AUTHORISATION, "fom_obj_check" },
+	{ &fom_obj_check_wait, FOPH_AUTHORISATION, "fom_obj_check_wait" },
+	{ &fom_auth, FOPH_TXN_CONTEXT, "fom_auth" },
+	{ &fom_auth_wait, FOPH_TXN_CONTEXT, "fom_auth_wait" },
+	{ &create_loc_ctx, FOPH_NR+1, "create_loc_ctx" },
+	{ &create_loc_ctx_wait, FOPH_NR+1, "create_loc_ctx_wait" },
+	{ &fom_success, FOPH_TXN_COMMIT, "fom_success" },
+	{ &fom_txn_commit, FOPH_QUEUE_REPLY, "fom_txn_commit" },
+	{ &fom_txn_commit_wait, FOPH_QUEUE_REPLY, "fom_txn_commit_wait" },
+	{ &fom_timeout, FOPH_FAILED, "fom_timeout" },
+	{ &fom_failed, FOPH_TXN_ABORT, "fom_failed" },
+	{ &fom_txn_abort, FOPH_QUEUE_REPLY, "fom_txn_abort" },
+	{ &fom_txn_abort_wait, FOPH_QUEUE_REPLY, "fom_txn_abort_wait" },
+	{ &fom_queue_reply, FOPH_DONE, "fom_queue_reply" },
+	{ &fom_queue_reply_wait, FOPH_DONE, "fom_queue_reply_wait" }
+};
 
 int c2_fom_state_generic(struct c2_fom *fom)
 {

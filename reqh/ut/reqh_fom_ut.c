@@ -1140,10 +1140,12 @@ void test_reqh(void)
 		sleep(1);
 
 	for (i = 0; i < 10; ++i) {
+		sleep(1);
 		reqh_write_send(conn, i, i);
 	}
 
 	for (i = 0; i < 10; ++i) {
+		sleep(1);
 		reqh_read_send(conn, i, i);
 	}
 

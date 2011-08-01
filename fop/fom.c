@@ -539,7 +539,8 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 		loc->fl_hi_idle_threads_nr = ncpus;
 
 		for (i = 0; i < ncpus; ++i) {
-			if ((result = loc_thr_create(loc)) != 0)
+			result = loc_thr_create(loc);
+			if (result != 0)
 				break;
 		}
 	}
@@ -585,9 +586,12 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	 */
 	max_proc = c2_processor_nr_max();
 	dom->fd_ops = &c2_fom_dom_ops;
-	if ((result = c2_bitmap_init(&onln_cpu_map, max_proc)) != 0)
+	result = c2_bitmap_init(&onln_cpu_map, max_proc);
+	if (result != 0)
 		return result;
-	if ((result = c2_bitmap_init(&loc_cpu_map, max_proc)) != 0) {
+
+	result = c2_bitmap_init(&loc_cpu_map, max_proc);
+	if (result != 0) {
 		c2_bitmap_fini(&onln_cpu_map);
 		return result;
 	}
@@ -605,7 +609,8 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 	for (i = 0; i < max_proc; ++i) {
 		if (!c2_bitmap_get(&onln_cpu_map, i))
 			continue;
-		if ((result = c2_processor_describe(i, &cpui)) != 0)
+		result = c2_processor_describe(i, &cpui);
+		if (result != 0)
 			break;
 		for (j = i; j < max_proc; ++j) {
 			if (!c2_bitmap_get(&onln_cpu_map, j))
