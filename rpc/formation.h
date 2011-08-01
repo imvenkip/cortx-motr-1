@@ -321,6 +321,9 @@ struct c2_rpc_frm_item_coalesced {
 	    through c2_rpc_item::ri_coalesced_linkage.
 	    @code c2_list<c2_rpc_item> @endcode */
 	struct c2_list			 ic_member_list;
+	/** Poiner to correct IO vector to restore it, when member IO
+	    operations complete. */
+	union c2_io_iovec		 ic_iovec;
 };
 
 /**

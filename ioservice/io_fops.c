@@ -497,10 +497,9 @@ static int io_fop_read_segments_coalesce(struct c2_fop_segment_seq *iovec,
    @param - resultant fop
  */
 static int io_fop_read_coalesce(const struct c2_list *list,
-		struct c2_fop *b_fop)
+		struct c2_fop *b_fop, union c2_io_iovec *vec)
 {
 	int				 res;
-	int				 i = 0;
 	uint64_t			 curr_segs = 0;
 	struct c2_list			 aggr_list;
 	struct c2_io_fop_member		*fop_member;
@@ -529,30 +528,58 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 	/* Allocate a new vector, copy all segments(merged) to the new
 	   vector and update the read fop accordingly. */
 	C2_ALLOC_PTR(read_vec);
-	if (read_vec == NULL) {
+	if (read_vec == NULL)
 		return -ENOMEM;
-	}
+
 	C2_ASSERT(curr_segs == c2_list_length(&aggr_list));
 	C2_ALLOC_ARR(read_vec->fs_segs, curr_segs);
 	if (read_vec->fs_segs == NULL) {
 		c2_free(read_vec);
 		return -ENOMEM;
 	}
-	c2_list_for_each_entry_safe(&aggr_list, read_seg,
-			read_seg_next, struct c2_io_read_segment,
-			rs_linkage) {
-		read_vec->fs_segs[i] = read_seg->rs_seg;
+	read_vec->fs_count = 0;
+
+	c2_list_for_each_entry_safe(&aggr_list, read_seg, read_seg_next,
+			struct c2_io_read_segment, rs_linkage) {
+		read_vec->fs_segs[read_vec->fs_count] = read_seg->rs_seg;
+		read_vec->fs_count++;
 		c2_list_del(&read_seg->rs_linkage);
 		c2_free(read_seg);
-		i++;
 	}
 	read_fop = c2_fop_data(b_fop);
-	/* Should we free the IO vector here? */
-	//c2_free(read_fop->frd_ioseg.fs_segs);
-	/* Assign this vector to the current bound rpc item. */
+
+	/* Keep pointer to original IO vector to restore back on completion. */
+	C2_ALLOC_PTR(vec->read_vec);
+	if (vec->read_vec == NULL)
+		return -ENOMEM;
+
+	vec->read_vec->fs_count = read_fop->frd_ioseg.fs_count;
+	vec->read_vec->fs_segs = read_fop->frd_ioseg.fs_segs;
+
+	/* Assign new read vector to the current bound rpc item. */
 	read_fop->frd_ioseg.fs_count = read_vec->fs_count;
 	read_fop->frd_ioseg.fs_segs = read_vec->fs_segs;
 	return res;
+}
+
+/**
+   Restore the original IO vector of resultant read fop. 
+   @param fop - Incoming fop.
+   @param vec - A union pointing to original IO vector.
+ */
+void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+{
+	struct c2_fop_cob_readv	*read_fop;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(vec != NULL);
+
+	read_fop = c2_fop_data(fop);
+
+	c2_free(read_fop->frd_ioseg.fs_segs);
+
+	read_fop->frd_ioseg.fs_count = vec->read_vec->fs_count;
+	read_fop->frd_ioseg.fs_segs = vec->read_vec->fs_segs;
 }
 
 /**
@@ -805,9 +832,8 @@ static int io_fop_write_segments_coalesce(struct c2_fop_io_vec *iovec,
    @param - resultant fop
  */
 static int io_fop_write_coalesce(const struct c2_list *list,
-		struct c2_fop *b_fop)
+		struct c2_fop *b_fop, union c2_io_iovec *vec)
 {
-	int				 i = 0;
 	int				 res;
 	uint64_t			 curr_segs = 0;
 	struct c2_list			 aggr_list;
@@ -837,29 +863,57 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 	/* Allocate a new write vector and copy all (merged) write segments
 	   to the new vector and make changes to write fop accordingly. */
 	C2_ALLOC_PTR(write_vec);
-	if (write_vec == NULL) {
+	if (write_vec == NULL)
 		return -ENOMEM;
-	}
+
 	C2_ASSERT(curr_segs == c2_list_length(&aggr_list));
 	C2_ALLOC_ARR(write_vec->iov_seg, curr_segs);
-	if (write_vec->iov_seg == NULL) {
+	if (write_vec->iov_seg == NULL)
 		return -ENOMEM;
-	}
+	write_vec->iov_count = 0;
+
 	c2_list_for_each_entry_safe(&aggr_list, write_seg,
 			write_seg_next, struct c2_io_write_segment,
 			ws_linkage) {
-		write_vec->iov_seg[i] = write_seg->ws_seg;
+		write_vec->iov_seg[write_vec->iov_count] = write_seg->ws_seg;
+		write_vec->iov_count++;
 		c2_list_del(&write_seg->ws_linkage);
 		c2_free(write_seg);
-		i++;
 	}
 	write_fop = c2_fop_data(b_fop);
-	/* Should we free the old IO vector? */
-	//c2_free(write_fop->fwr_iovec.iov_seg);
-	/* Assign this vector to the current bound rpc item. */
+
+	/* Keep pointer to original IO vector to restore back on completion. */
+	C2_ALLOC_PTR(vec->write_vec);
+	if (vec->write_vec == NULL)
+		return -ENOMEM;
+
+	vec->write_vec->iov_count = write_fop->fwr_iovec.iov_count;
+	vec->write_vec->iov_seg = write_fop->fwr_iovec.iov_seg;
+
+	/* Assign new write vector to the current bound rpc item. */
 	write_fop->fwr_iovec.iov_count = write_vec->iov_count;
 	write_fop->fwr_iovec.iov_seg = write_vec->iov_seg;
 	return 0;
+}
+
+/**
+   Restore the original IO vector of resultant write fop. 
+   @param fop - Incoming fop.
+   @param vec - A union pointing to original IO vector.
+ */
+void io_fop_write_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+{
+	struct c2_fop_cob_writev	*write_fop;
+
+	C2_PRE(fop != NULL);
+	C2_PRE(vec != NULL);
+
+	write_fop = c2_fop_data(fop);
+
+	c2_free(write_fop->fwr_iovec.iov_seg);
+
+	write_fop->fwr_iovec.iov_count = vec->write_vec->iov_count;
+	write_fop->fwr_iovec.iov_seg = vec->write_vec->iov_seg;
 }
 
 /**
@@ -891,6 +945,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_is_io = io_fop_is_rw,
 	.fto_get_nfragments = io_fop_read_get_nfragments,
 	.fto_io_coalesce = io_fop_read_coalesce,
+	.fto_iovec_restore = io_fop_read_iovec_restore,
 };
 
 /**
@@ -906,6 +961,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_is_io = io_fop_is_rw,
 	.fto_get_nfragments = io_fop_write_get_nfragments,
 	.fto_io_coalesce = io_fop_write_coalesce,
+	.fto_iovec_restore = io_fop_write_iovec_restore,
 };
 
 /**

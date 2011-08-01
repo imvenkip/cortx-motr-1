@@ -87,6 +87,19 @@ struct c2_io_write_segment {
 };
 
 /**
+   A IO vector pointer union to keep track of original IO vector of a
+   resultant IO rpc item happened due to IO coalescing. Once the reply
+   of such operations comes back, original IO vector is restored in the
+   resultant fop.
+ */
+union c2_io_iovec {
+	/** IO vector for write operation. */
+	struct c2_fop_io_vec		*write_vec;
+	/** IO vector for read operation. */
+	struct c2_fop_segment_seq	*read_vec;
+};
+
+/**
  * Bunch of externs needed for stob/ut/io_fop_init.c code.
  */
 extern const struct c2_fop_type_ops c2_io_cob_readv_ops;

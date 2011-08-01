@@ -153,8 +153,9 @@ enum {
 };
 
 struct c2_rpc;
-struct c2_rpc_conn;
 struct c2_addb_rec;
+struct c2_rpc_conn;
+union c2_io_iovec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
 struct c2_update_stream;
@@ -195,6 +196,11 @@ struct c2_rpc_item_type_ops {
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item, int rc);
 
+	/**
+	   Restore original IO vector of rpc item.
+	 */
+	void (*rio_iovec_restore)(struct c2_rpc_item *b_item,
+			union c2_io_iovec *vec);
 	/**
 	   Find out the size of rpc item.
 	 */

@@ -1070,6 +1070,18 @@ static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_recovery_complete = us_recovery_complete
 };
 
+void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item, union c2_io_iovec *vec)
+{
+	struct c2_fop *fop;
+
+	C2_PRE(b_item != NULL);
+	C2_PRE(vec != NULL);
+
+	fop = c2_rpc_item_to_fop(b_item);
+	C2_ASSERT(fop != NULL);
+	fop->f_type->ft_ops->fto_iovec_restore(fop, vec);
+}
+
 int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		struct c2_rpc_item *b_item);
 
@@ -1077,6 +1089,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
+	.rio_iovec_restore = c2_rpc_item_vec_restore,
 	.rio_item_size = c2_rpc_item_size,
 	.rio_items_equal = c2_rpc_item_equal,
 	.rio_io_get_opcode = c2_rpc_item_get_opcode,
@@ -1090,6 +1103,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
+	.rio_iovec_restore = c2_rpc_item_vec_restore,
 	.rio_item_size = c2_rpc_item_size,
 	.rio_items_equal = c2_rpc_item_equal,
 	.rio_io_get_opcode = c2_rpc_item_get_opcode,

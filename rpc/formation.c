@@ -1089,6 +1089,7 @@ static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs)
 	}
 	C2_ASSERT(cs->ic_member_nr == 0);
 	item = cs->ic_resultant_item;
+	item->ri_type->rit_ops->rio_iovec_restore(item, &cs->ic_iovec);
 	item->ri_type->rit_ops->rio_replied(item, rc);
 	coalesced_item_fini(cs);
 }
@@ -1408,7 +1409,7 @@ static bool frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
 {
 	C2_PRE(frm_sm != NULL);
 
-	if (*rpcobj_size >= (0.9 * frm_sm->fs_max_msg_size))
+	if (*rpcobj_size >= frm_sm->fs_max_msg_size)
 		return true;
 
 	return false;
@@ -1743,6 +1744,7 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 				ri_coalesced_linkage)
 			c2_list_del(&ub_item->ri_unbound_link);
 	}
+
 	return rc;
 }
 
@@ -2191,7 +2193,11 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		c2_list_add(&fop_list, &fop_member->fop_linkage);
 	}
 	b_fop = container_of(b_item, struct c2_fop, f_item);
-	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop);
+
+	/* Restore the original IO vector of resultant rpc item. */
+
+	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
+			&c_item->ic_iovec);
 
 	c2_list_for_each_entry_safe(&fop_list, fop_member, fop_member_next,
 			struct c2_io_fop_member, fop_linkage) {
