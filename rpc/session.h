@@ -237,7 +237,9 @@ points to record of most recent update operation that updated the slot verno.
 	- Generate ADDB data points for important session events
 	- UUID generation
 	- store replies in FOL
-	- Currently sender_id and session_id are chosen to be random().
+	- Support more than one items in flight for a slot
+	- Optimization: Cache misordered items at receiver, rather than
+	  discarding them.
 	- How to get unique stob_id for session and slot cobs?
 	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
@@ -685,6 +687,7 @@ struct c2_rpc_slot_ops {
 	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
+
 /**
   In memory slot object.
 

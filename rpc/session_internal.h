@@ -326,7 +326,6 @@ struct c2_rpc_slot_ref {
 	struct c2_list_link		 sr_ready_link;
 };
 
-
 /**
    Called for each received item.
    If item is request then

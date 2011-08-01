@@ -153,6 +153,7 @@ const struct c2_rpc_slot_ops c2_rpc_sender_slot_ops = {
 	.so_item_consume = sender_item_consume,
 	.so_reply_consume = sender_reply_consume
 };
+
 const struct c2_rpc_slot_ops c2_rpc_rcv_slot_ops = {
 	.so_slot_idle = rcv_slot_idle,
 	.so_item_consume = rcv_item_consume,
@@ -297,6 +298,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
 			(conn->c_flags & RCF_RECV_END) == RCF_RECV_END));
 	return rc;
 }
+
 int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 		       struct c2_net_end_point	*ep)
 {
@@ -312,6 +314,12 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	      (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END &&
 	       c2_rpc_conn_invariant(conn));
 
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
 	machine = conn->c_rpcmachine;
 	/*
 	 * We'll need to add the conn object to machine->cr_outgoing_conns.
@@ -321,16 +329,12 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	c2_mutex_lock(&conn->c_mutex);
 
 	conn->c_state = C2_RPC_CONN_CREATING;
-	/* Get a source endpoint and in turn a transfer machine
-	   to associate with this c2_rpc_conn. */
+	/*
+	 * Get a source endpoint and in turn a transfer machine
+	 *  to associate with this c2_rpc_conn.
+	 */
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_end_point = ep;
-
-	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
 
 	fop_cc = c2_fop_data(fop);
 	C2_ASSERT(fop_cc != NULL);
@@ -361,13 +365,14 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 		conn->c_end_point = NULL;
 		c2_fop_free(fop);
 	}
-out:
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CREATING &&
 			c2_rpc_conn_invariant(conn)));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_INITIALISED) &&
 			c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&machine->cr_session_mutex);
+
+out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_create);
@@ -437,6 +442,7 @@ void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
 	c2_chan_broadcast(&conn->c_chan);
 	return;
 }
+
 static int session_zero_attach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_slot	*slot;
@@ -469,6 +475,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	return 0;
 }
+
 static void session_zero_detach(struct c2_rpc_conn	*conn)
 {
 	struct c2_rpc_session	*session;
@@ -484,6 +491,7 @@ static void session_zero_detach(struct c2_rpc_conn	*conn)
 	c2_rpc_session_fini(session);
 	c2_free(session);
 }
+
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
 	struct c2_fop				*fop;
@@ -494,25 +502,26 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	C2_PRE(conn != NULL);
 
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(conn->c_sender_id != SENDER_ID_INVALID &&
 		  c2_rpc_conn_invariant(conn));
 
 	if (conn->c_state != C2_RPC_CONN_ACTIVE) {
 		rc = -EINVAL;
-		goto out;
+		goto out_unlock;
 	}
 
 	if (conn->c_nr_sessions > 0) {
 		rc = -EBUSY;
-		goto out;
+		goto out_unlock;
 	}
 
-	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
 	printf("sender_conn_terminate: %p(%lu)\n", conn,
 			(unsigned long)conn->c_sender_id);
 	fop_ct = c2_fop_data(fop);
@@ -537,10 +546,12 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		c2_fop_free(fop);
 	}
 
-out:
+out_unlock:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&conn->c_chan);
+
+out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
@@ -834,6 +845,12 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	C2_PRE(session != NULL &&
 		session->s_state == C2_RPC_SESSION_INITIALISED);
 
+	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
 	conn = session->s_conn;
 	C2_ASSERT(conn != NULL);
 
@@ -845,11 +862,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
-	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
 	fop_sc = c2_fop_data(fop);
 	C2_ASSERT(fop_sc != NULL);
 
@@ -875,7 +887,6 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 		c2_fop_free(fop);
 	}
 
-out:
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_CREATING &&
 			c2_rpc_session_invariant(session)));
@@ -884,6 +895,7 @@ out:
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
 
+out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_create);
@@ -988,16 +1000,17 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
-	c2_mutex_lock(&session->s_conn->c_mutex);
-	c2_mutex_lock(&session->s_mutex);
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
-			c2_rpc_session_invariant(session));
-
 	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
+
+	c2_mutex_lock(&session->s_conn->c_mutex);
+	c2_mutex_lock(&session->s_mutex);
+
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
+			c2_rpc_session_invariant(session));
 
 	fop_st = c2_fop_data(fop);
 	C2_ASSERT(fop_st != NULL);
@@ -1046,12 +1059,13 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		c2_fop_free(fop);
 	}
 
-out:
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATING));
 	C2_POST(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&session->s_conn->c_mutex);
 	c2_chan_broadcast(&session->s_chan);
+
+out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_terminate);
@@ -1196,6 +1210,7 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
 	}
 	return true;
 }
+
 /**
    The routine is also called from session_foms.c, hence can't be static
  */
@@ -1279,7 +1294,6 @@ int c2_rpc_session_slot_table_resize(struct c2_rpc_session	*session,
 {
 	return 0;
 }
-
 
 int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 			     struct c2_cob		*pcob,
@@ -1367,6 +1381,7 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain	*dom,
 	C2_POST(ergo(rc == 0, *out != NULL));
 	return rc;
 }
+
 int c2_rpc_root_session_cob_get(struct c2_cob_domain	*dom,
 				 struct c2_cob		**out,
 				 struct c2_db_tx	*tx)
@@ -1461,7 +1476,6 @@ int c2_rpc_session_cob_lookup(struct c2_cob		*conn_cob,
 	return rc;
 }
 
-
 int c2_rpc_session_cob_create(struct c2_cob		*conn_cob,
 			      uint64_t			session_id,
 			      struct c2_cob		**session_cob,
@@ -1504,7 +1518,6 @@ int c2_rpc_slot_cob_lookup(struct c2_cob	*session_cob,
 	return rc;
 }
 
-
 int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   uint32_t		slot_id,
 			   uint64_t		slot_generation,
@@ -1543,6 +1556,7 @@ static uint64_t sender_id_get()
 
 	return sender_id;
 }
+
 uint64_t session_id_get()
 {
 	static struct c2_atomic64	cnt;
@@ -1801,6 +1815,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot	*slot,
 	slot->sl_ops->so_reply_consume(item, reply);
 	return 0;
 }
+
 int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 			   struct c2_rpc_item	*item)
 {
@@ -1857,6 +1872,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot	*slot,
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 	return rc;
 }
+
 static void search_matching_request_item(const struct c2_rpc_slot *slot,
 					 const struct c2_rpc_item *item,
 					 struct c2_rpc_item	 **out)
@@ -2142,6 +2158,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	slot->sl_last_persistent = dummy_item;
 	printf("item_list_prune: pruned %d entries\n", count);
 }
+
 void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item	*dummy_item;
@@ -2183,11 +2200,13 @@ static void sender_slot_idle(struct c2_rpc_slot *slot)
 	printf("sender_slot_idle called %p\n", slot);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
+
 static void sender_item_consume(struct c2_rpc_item *item)
 {
 	printf("sender_item_consume called %p\n", item);
 	c2_rpc_form_extevt_rpcitem_ready(item);
 }
+
 static void sender_reply_consume(struct c2_rpc_item	*req,
 				 struct c2_rpc_item	*reply)
 {
@@ -2202,11 +2221,13 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 			(unsigned long)slot->sl_xid);
 	c2_rpc_form_extevt_slot_idle(slot);
 }
+
 static void rcv_item_consume(struct c2_rpc_item *item)
 {
 	printf("rcv_item_consume called %p\n", item);
 	item_dispatch(item);
 }
+
 static void rcv_reply_consume(struct c2_rpc_item  *req,
 			      struct c2_rpc_item  *reply)
 {
@@ -2371,6 +2392,7 @@ int c2_rpc_rcv_session_create(struct c2_rpc_session	*session)
 	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
 	return 0;
 }
+
 static int session_persistent_state_create(struct c2_cob    *conn_cob,
 					   uint64_t          session_id,
 					   struct c2_cob   **session_cob_out,
@@ -2449,6 +2471,7 @@ static int session_persistent_state_attach(struct c2_rpc_session  *session,
 	}
 	return 0;
 }
+
 static int session_persistent_state_destroy(struct c2_rpc_session  *session,
 					    struct c2_db_tx	   *tx)
 {
@@ -2556,6 +2579,7 @@ static int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
 	conn->c_cob = session0->s_cob = slot0->sl_cob = NULL;
 	return 0;
 }
+
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn  *conn)
 {
 	struct c2_db_tx		tx;
@@ -2603,6 +2627,7 @@ static bool item_is_conn_create(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_create;
 }
+
 static void item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
@@ -2677,6 +2702,7 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 	printf("associate_session: successful\n");
 	return 0;
 }
+
 int c2_rpc_item_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item	*req;
@@ -2733,6 +2759,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	printf("item_received: %p finished\n", item);
 	return 0;
 }
+
 /** @} end of session group */
 
 /*
