@@ -52,6 +52,11 @@ enum {
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
+/**
+   Search for a session with given @session_id in rpc connection conn.
+
+   If found *out contains pointer to session object else *out is set to NULL
+ */
 void c2_rpc_session_search(const struct c2_rpc_conn	*conn,
 			   uint64_t			session_id,
 			   struct c2_rpc_session	**out);
@@ -222,53 +227,6 @@ int c2_rpc_slot_cob_create(struct c2_cob	*session_cob,
 			   struct c2_cob	**slot_cob,
 			   struct c2_db_tx	*tx);
 
-#if 0
-/**
-   Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
-   Returns corresponding references to cobs in out parameters.
- */
-int conn_persistent_state_create(struct c2_cob_domain   *dom,
-				 uint64_t               sender_id,
-				 struct c2_cob          **conn_cob_out,
-				 struct c2_cob          **session0_cob_out,
-				 struct c2_cob          **slot0_cob_out,
-				 struct c2_db_tx        *tx);
-
-/**
-   Delegates persistent state creation to conn_persistent_state_create().
-   And associates returned cobs to conn->c_cob, session0->s_cob and
-   slot0->sl_cob
- */
-int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
-				 uint64_t		sender_id,
-				 struct c2_db_tx	*tx);
-
-/**
-   Creates SESSION_$session_id/SLOT_[0...($nr_slots - 1)]:0 cob entries
-   within parent cob @conn_cob
- */
-int session_persistent_state_create(struct c2_cob	*conn_cob,
-				    uint64_t		session_id,
-				    struct c2_cob	**session_cob_out,
-				    struct c2_cob	**slot_cob_array_out,
-				    uint32_t		nr_slots,
-				    struct c2_db_tx	*tx);
-
-/**
-   Delegates persistent state creation to session_persistent_state_create().
-   And associates cobs to session->s_cob and slot[0..(nr_slots - 1)]->sl_cob
- */
-int session_persistent_state_attach(struct c2_rpc_session	*session,
-				   uint64_t			session_id,
-				   struct c2_db_tx		*tx);
-
-/**
-  Deletes all the cobs associated with the session and slots belonging to
-  the session
- */
-int session_persistent_state_destroy(struct c2_rpc_session	*session,
-				     struct c2_db_tx		*tx);
-#endif
 /**
    Initalise receiver end of conn object.
    @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
@@ -320,6 +278,10 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 /**
    Clean up in memory state of rpc connection
 
+   Right now this function is not called from anywhere. There
+   should be ->item_sent() callback in item->ri_ops, where this
+   function can be hooked.
+
    @pre conn->c_state == C2_RPC_CONN_TERMINATING
  */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
@@ -336,42 +298,33 @@ struct c2_rpc_slot_ref {
 	struct c2_rpc_slot		*sr_slot;
 	struct c2_rpc_item		*sr_item;
 	struct c2_rpc_sender_uuid	 sr_uuid;
-	uint64_t		 	 sr_sender_id;
-	uint64_t		 	 sr_session_id;
+	uint64_t			 sr_sender_id;
+	uint64_t			 sr_session_id;
 	/** Numeric id of slot. Used when encoding and decoding rpc item to
 	    and from wire-format */
-	uint32_t		 	 sr_slot_id;
+	uint32_t			 sr_slot_id;
 	/** If slot has verno matching sr_verno, then only the item can be
 	    APPLIED to the slot */
-	struct c2_verno		 	 sr_verno;
+	struct c2_verno			 sr_verno;
 	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field */
-	struct c2_verno		 	 sr_last_persistent_verno;
+	struct c2_verno			 sr_last_persistent_verno;
 	/** Inform the sender about current slot version */
-	struct c2_verno		 	 sr_last_seen_verno;
+	struct c2_verno			 sr_last_seen_verno;
 	/** An identifier that uniquely identifies item within
 	    slot->item_list.
-	    XXX should we rename it to something like "item_id"
+	    XXX should we rename it to something like "item_id"?
 		(somehow the name "xid" gives illusion that it is related to
 		 some transaction identifier)
         */
-	uint64_t		 	 sr_xid;
+	uint64_t			 sr_xid;
 	/** Generation number of slot */
-	uint64_t		 	 sr_slot_gen;
+	uint64_t			 sr_slot_gen;
 	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link	 	 sr_link;
+	struct c2_list_link		 sr_link;
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link	 	 sr_ready_link;
+	struct c2_list_link		 sr_ready_link;
 };
-
-/**
-   Search for a session with given @session_id in rpc connection conn.
-
-   If found *out contains pointer to session object else *out is set to NULL
- */
-void session_search(const struct c2_rpc_conn	*conn,
-		    uint64_t			session_id,
-		    struct c2_rpc_session	**out);
 
 /**
    Called for each received item.

@@ -28,7 +28,13 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
 #include "rpc/session_u.h"
+#endif
+
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
@@ -122,7 +128,7 @@ int c2_rpc_fop_session_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
-					struct c2_fom **m)
+					  struct c2_fom **m)
 {
 	struct c2_rpc_fom_session_terminate	*fom_st;
 	struct c2_fom				*fom;
@@ -186,8 +192,11 @@ int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
 	/* Do nothing */
 	return 0;
 }
+
 /*
  *  REQUEST fops
+ *  XXX C2_FOP_TYPE_DECLARE_NEW() is a temporary macro that enhances
+ *  existing C2_FOP_TYPE_DECLARE() to assign item_type to the fop_type.
  */
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create, "rpc_conn_create",
@@ -272,7 +281,6 @@ static bool default_is_io_req(struct c2_rpc_item *item)
 {
 	return false;
 }
-//uint64_t c2_rpc_item_size(struct c2_rpc_item *item);
 
 static struct c2_rpc_item_type_ops default_item_type_ops = {
 	.rio_is_io_req = default_is_io_req,
@@ -286,36 +294,43 @@ struct c2_rpc_item_type c2_rpc_item_conn_create = {
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
+
 struct c2_rpc_item_type c2_rpc_item_conn_terminate = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
+
 struct c2_rpc_item_type c2_rpc_item_session_create = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
+
 struct c2_rpc_item_type c2_rpc_item_session_terminate = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
 };
+
 struct c2_rpc_item_type c2_rpc_item_conn_create_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
+
 struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
+
 struct c2_rpc_item_type c2_rpc_item_session_create_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
 };
+
 struct c2_rpc_item_type c2_rpc_item_session_terminate_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,

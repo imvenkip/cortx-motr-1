@@ -26,7 +26,9 @@
 #include "fop/fop_format.h"
 
 #include "rpc/session_fops.h"
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#include "rpc/session_k.h"
+#else
 #include "rpc/session_u.h"
 #endif
 
@@ -50,6 +52,7 @@ struct c2_rpc_fom_conn_create {
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
 };
+
 extern struct c2_fom_type c2_rpc_fom_conn_create_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_create_ops;
 
