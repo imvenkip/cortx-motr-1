@@ -1967,7 +1967,6 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 	C2_PRE(item != NULL);
 	C2_PRE(event != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
-	C2_PRE(event->se_event == C2_RPC_FRM_INTEVT_STATE_SUCCEEDED);
 
 	frm_sm->fs_state = C2_RPC_FRM_STATE_FORMING;
 
