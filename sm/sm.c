@@ -20,6 +20,8 @@
 
 #include "lib/errno.h"              /* ESRCH */
 #include "lib/mutex.h"
+#include "lib/cdefs.h"              /* C2_EXPORTED */
+#include "lib/mutex.h"
 #include "lib/arith.h"              /* c2_is_po2 */
 #include "addb/addb.h"
 #include "sm.h"
@@ -100,6 +102,7 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 	c2_chan_init(&mach->sm_chan);
 	C2_POST(c2_sm_invariant(mach));
 }
+C2_EXPORTED(c2_sm_init);
 
 void c2_sm_fini(struct c2_sm *mach)
 {
@@ -107,6 +110,7 @@ void c2_sm_fini(struct c2_sm *mach)
 	C2_PRE(sm_state(mach)->sd_flags & SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
+C2_EXPORTED(c2_sm_fini);
 
 struct wait_state {
 	struct c2_clink  ws_waiter;
@@ -144,6 +148,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 	C2_ASSERT(c2_sm_invariant(mach));
 	return 0;
 }
+C2_EXPORTED(c2_sm_timedwait);
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
@@ -155,6 +160,7 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	c2_sm_state_set(mach, fail_state);
 	mach->sm_rc = rc;
 }
+C2_EXPORTED(c2_sm_fail);
 
 void c2_sm_state_set(struct c2_sm *mach, int state)
 {
@@ -176,6 +182,7 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 	C2_POST(c2_sm_invariant(mach));
 	C2_POST(c2_mutex_is_locked(mach->sm_lock));
 }
+C2_EXPORTED(c2_sm_state_set);
 
 /** @} end of sm group */
 
