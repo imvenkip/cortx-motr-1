@@ -18,9 +18,10 @@
  * Original creation date: 04/01/2010
  */
 
+#include "lib/errno.h"              /* ESRCH */
 #include "lib/mutex.h"
-#include "addb/addb.h"
 #include "lib/arith.h"              /* c2_is_po2 */
+#include "addb/addb.h"
 #include "sm.h"
 
 /**
@@ -107,16 +108,40 @@ void c2_sm_fini(struct c2_sm *mach)
 	c2_chan_fini(&mach->sm_chan);
 }
 
+struct wait_state {
+	struct c2_clink  ws_waiter;
+	struct c2_sm    *ws_mach;
+	uint64_t         ws_wake;
+};
+
+static bool wait_filter(struct c2_clink *clink)
+{
+	struct wait_state *ws;
+
+	ws = container_of(clink, struct wait_state, ws_waiter);
+	C2_ASSERT(c2_sm_invariant(ws->ws_mach));
+
+	return ((1 << ws->ws_mach->sm_state) & ws->ws_wake) == 0;
+}
+
 int c2_sm_timedwait(struct c2_sm *mach, uint64_t states,
 		    c2_time_t deadline)
 {
 	struct c2_clink waiter;
 
 	C2_PRE(c2_mutex_is_locked(mach->sm_lock));
+
+	c2_clink_init(&waiter, wait_filter);
+	c2_clink_add(&mach->sm_chan, &waiter);
 	while (((1 << mach->sm_state) & states) == 0) {
 		C2_ASSERT(c2_sm_invariant(mach));
+		if (sm_state(mach)->sd_flags & SDF_TERMINAL)
+			return -ESRCH;
+		c2_mutex_unlock(mach->sm_lock);
 		c2_chan_wait(&waiter);
+		c2_mutex_lock(mach->sm_lock);
 	}
+	C2_ASSERT(c2_sm_invariant(mach));
 	return 0;
 }
 
