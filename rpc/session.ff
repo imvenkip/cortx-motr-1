@@ -34,34 +34,34 @@ DEF(c2_rpc_fop_conn_create, RECORD,
    _(rcc_cookie, U64));
 
 DEF(c2_rpc_fop_conn_create_rep, RECORD,
-   _(rccr_rc, U32),
    _(rccr_snd_id, U64),
-   _(rccr_cookie, U64));
+   _(rccr_cookie, U64),
+   _(rccr_rc, U32));
 
 DEF(c2_rpc_fop_conn_terminate, RECORD,
     _(ct_sender_id, U64));
 
 DEF(c2_rpc_fop_conn_terminate_rep, RECORD,
-   _(ctr_rc, U32),
-   _(ctr_sender_id, U64));
+   _(ctr_sender_id, U64),
+   _(ctr_rc, U32));
 
 DEF(c2_rpc_fop_session_create, RECORD,
    _(rsc_snd_id, U64),
    _(rsc_slot_cnt, U32));
 
 DEF(c2_rpc_fop_session_create_rep, RECORD,
-   _(rscr_rc, U32),
    _(rscr_session_id, U64),
-   _(rscr_sender_id, U64));
+   _(rscr_sender_id, U64),
+   _(rscr_rc, U32));
 
 DEF(c2_rpc_fop_session_terminate, RECORD,
    _(rst_sender_id, U64),
    _(rst_session_id, U64));
 
 DEF(c2_rpc_fop_session_terminate_rep, RECORD,
-   _(rstr_rc, U32),
    _(rstr_session_id, U64),
-   _(rstr_sender_id, U64));
+   _(rstr_sender_id, U64),
+   _(rstr_rc, U32));
 
 DEF(c2_rpc_fop_noop, RECORD,
    _(n_unused, U64));

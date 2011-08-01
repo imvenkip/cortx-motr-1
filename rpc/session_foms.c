@@ -48,8 +48,8 @@
  */
 
 const struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
-	.fo_fini = &c2_rpc_fom_conn_create_fini,
-	.fo_state = &c2_rpc_fom_conn_create_state
+	.fo_fini = c2_rpc_fom_conn_create_fini,
+	.fo_state = c2_rpc_fom_conn_create_state
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_create_type_ops = {
@@ -71,7 +71,6 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session0;
 	struct c2_rpc_slot			*slot;
-	uint64_t				sender_id;
 	int					rc;
 
 	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
@@ -135,8 +134,6 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	printf("Received conn sender id = %lu\n", conn->c_sender_id);
 	fop_ccr->rccr_rc = 0;		/* successful */
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
-
-	printf("conn_create_state: conn created %lu\n", sender_id);
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
@@ -153,6 +150,7 @@ errout:
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
+
 void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
 {
 }
@@ -162,8 +160,8 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
  */
 
 const struct c2_fom_ops c2_rpc_fom_session_create_ops = {
-	.fo_fini = &c2_rpc_fom_session_create_fini,
-	.fo_state = &c2_rpc_fom_session_create_state
+	.fo_fini = c2_rpc_fom_session_create_fini,
+	.fo_state = c2_rpc_fom_session_create_state
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_create_type_ops = {
@@ -256,6 +254,7 @@ errout:
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
+
 void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
 {
 }
@@ -265,8 +264,8 @@ void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
  */
 
 const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
-	.fo_fini = &c2_rpc_fom_session_terminate_fini,
-	.fo_state = &c2_rpc_fom_session_terminate_state
+	.fo_fini = c2_rpc_fom_session_terminate_fini,
+	.fo_state = c2_rpc_fom_session_terminate_state
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
@@ -353,8 +352,8 @@ void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom)
  * FOM RPC connection terminate
  */
 const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
-	.fo_fini = &c2_rpc_fom_conn_terminate_fini,
-	.fo_state = &c2_rpc_fom_conn_terminate_state
+	.fo_fini = c2_rpc_fom_conn_terminate_fini,
+	.fo_state = c2_rpc_fom_conn_terminate_state
 };
 
 static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
