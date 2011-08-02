@@ -240,22 +240,22 @@ static const struct c2_fom_type_ops reqh_ut_read_fom_type_ops = {
 	.fto_create = reqh_ut_read_fom_create,
 };
 
-static struct c2_fom_type create_fom_mopt = {
+static struct c2_fom_type reqh_ut_create_fom_mopt = {
 	.ft_ops = &reqh_ut_create_fom_type_ops,
 };
 
-static struct c2_fom_type write_fom_mopt = {
+static struct c2_fom_type reqh_ut_write_fom_mopt = {
 	.ft_ops = &reqh_ut_write_fom_type_ops,
 };
 
-static struct c2_fom_type read_fom_mopt = {
+static struct c2_fom_type reqh_ut_read_fom_mopt = {
 	.ft_ops = &reqh_ut_read_fom_type_ops,
 };
 
 static struct c2_fom_type *reqh_ut_fom_types[] = {
-	&create_fom_mopt,
-	&write_fom_mopt,
-	&read_fom_mopt,
+	&reqh_ut_create_fom_mopt,
+	&reqh_ut_write_fom_mopt,
+	&reqh_ut_read_fom_mopt,
 };
 
 /**
@@ -641,7 +641,7 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
 		fom->fo_rep_fop = fom_obj->rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
-			fom->fo_phase = FOPH_FAILED;
+			fom->fo_phase = FOPH_FAILURE;
 		 else
 			fom->fo_phase = FOPH_SUCCESS;
 
@@ -650,7 +650,7 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
 		result = FSO_AGAIN;
 	}
 
-	if (fom->fo_phase == FOPH_DONE && fom->fo_rc == 0)
+	if (fom->fo_phase == FOPH_FINISH && fom->fo_rc == 0)
 		c2_stob_put(fom_obj->rh_ut_stobj);
 
 	return result;
@@ -715,7 +715,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 
 			if (result != 0) {
 				fom->fo_rc = result;
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 			} else {
 				fom->fo_phase = FOPH_READ_STOB_IO_WAIT;
 				result = FSO_WAIT;
@@ -723,7 +723,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 		} else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
 			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
 			if (fom->fo_rc != 0)
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 			else {
 				out_fop->firr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
@@ -731,7 +731,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 
 		}
 
-		if (fom->fo_phase == FOPH_FAILED || fom->fo_phase == FOPH_SUCCESS) {
+		if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
 			c2_fom_block_leave(fom);
 			out_fop->firr_rc = fom->fo_rc;
 			fom->fo_rep_fop = fom_obj->rep_fop;
@@ -743,7 +743,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 
 	}
 
-	if (fom->fo_phase == FOPH_DONE) {
+	if (fom->fo_phase == FOPH_FINISH) {
 		c2_stob_io_fini(&fom_obj->rh_ut_stio);
 		c2_stob_put(fom_obj->rh_ut_stobj);
 	}
@@ -810,7 +810,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 
 			if (result != 0) {
 				fom->fo_rc = result;
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 			} else {
 				fom->fo_phase = FOPH_WRITE_STOB_IO_WAIT;
 				result = FSO_WAIT;
@@ -819,7 +819,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 			c2_fom_block_leave(fom);
 			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
 			if (fom->fo_rc != 0)
-				fom->fo_phase = FOPH_FAILED;
+				fom->fo_phase = FOPH_FAILURE;
 			else {
 				out_fop->fiwr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
@@ -827,7 +827,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 
 		}
 
-		if (fom->fo_phase == FOPH_FAILED || fom->fo_phase == FOPH_SUCCESS) {
+		if (fom->fo_phase == FOPH_FAILURE || fom->fo_phase == FOPH_SUCCESS) {
 			out_fop->fiwr_rc = fom->fo_rc;
 			fom->fo_rep_fop = fom_obj->rep_fop;
 			result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
@@ -837,7 +837,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 		}
 	}
 
-	if (fom->fo_phase == FOPH_DONE) {
+	if (fom->fo_phase == FOPH_FINISH) {
 		c2_stob_io_fini(&fom_obj->rh_ut_stio);
 		c2_stob_put(fom_obj->rh_ut_stobj);
 	}

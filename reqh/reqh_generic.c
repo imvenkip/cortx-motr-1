@@ -239,7 +239,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	rc = fom->fo_stdomain->sd_ops->sdo_tx_make(fom->fo_stdomain,
 							&fom->fo_tx);
 	if (rc != 0)
-		fom->fo_phase = FOPH_FAILED;
+		fom->fo_phase = FOPH_FAILURE;
 
 	return FSO_AGAIN;
 }
@@ -265,14 +265,14 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
  * already contain a fop specific error reply provided by
  * fop specific operation.
  *
- * @pre fom->fo_phase == FOPH_FAILED
+ * @pre fom->fo_phase == FOPH_FAILURE
  */
-static int fom_failed(struct c2_fom *fom)
+static int fom_failure(struct c2_fom *fom)
 {
 	struct c2_fop			*rfop;
 	struct c2_reqh_error_rep	*out_fop;
 
-	C2_PRE(fom->fo_phase == FOPH_FAILED);
+	C2_PRE(fom->fo_phase == FOPH_FAILURE);
 
 	if (fom->fo_rep_fop == NULL) {
 		rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
@@ -313,7 +313,7 @@ static int fom_txn_commit(struct c2_fom *fom)
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	if (rc != 0)
-		fom->fo_phase = FOPH_FAILED;
+		fom->fo_phase = FOPH_FAILURE;
 
 	return FSO_AGAIN;
 }
@@ -359,7 +359,7 @@ static int fom_txn_abort(struct c2_fom *fom)
 	if (is_tx_initialised(&fom->fo_tx.tx_dbtx)) {
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc != 0)
-			fom->fo_phase = FOPH_FAILED;
+			fom->fo_phase = FOPH_FAILURE;
 	}
 
 	return FSO_AGAIN;
@@ -445,12 +445,12 @@ static const struct fom_phase_ops fpo_table[] = {
 	{ &fom_success, FOPH_TXN_COMMIT, "fom_success" },
 	{ &fom_txn_commit, FOPH_QUEUE_REPLY, "fom_txn_commit" },
 	{ &fom_txn_commit_wait, FOPH_QUEUE_REPLY, "fom_txn_commit_wait" },
-	{ &fom_timeout, FOPH_FAILED, "fom_timeout" },
-	{ &fom_failed, FOPH_TXN_ABORT, "fom_failed" },
+	{ &fom_timeout, FOPH_FAILURE, "fom_timeout" },
+	{ &fom_failure, FOPH_TXN_ABORT, "fom_failure" },
 	{ &fom_txn_abort, FOPH_QUEUE_REPLY, "fom_txn_abort" },
 	{ &fom_txn_abort_wait, FOPH_QUEUE_REPLY, "fom_txn_abort_wait" },
-	{ &fom_queue_reply, FOPH_DONE, "fom_queue_reply" },
-	{ &fom_queue_reply_wait, FOPH_DONE, "fom_queue_reply_wait" }
+	{ &fom_queue_reply, FOPH_FINISH, "fom_queue_reply" },
+	{ &fom_queue_reply_wait, FOPH_FINISH, "fom_queue_reply_wait" }
 };
 
 int c2_fom_state_generic(struct c2_fom *fom)
@@ -462,15 +462,15 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	rc = fpo_table[fom->fo_phase].fpo_action(fom);
 
 	if (rc == FSO_AGAIN) {
-		if (fom->fo_rc != 0 && fom->fo_phase < FOPH_FAILED) {
-			fom->fo_phase = FOPH_FAILED;
+		if (fom->fo_rc != 0 && fom->fo_phase < FOPH_FAILURE) {
+			fom->fo_phase = FOPH_FAILURE;
 			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
 					fpo_table[fom->fo_phase].fpo_name, fom->fo_rc);
 		} else
 			fom->fo_phase = fpo_table[fom->fo_phase].fpo_nextphase;
 	}
 
-	if (fom->fo_phase == FOPH_DONE)
+	if (fom->fo_phase == FOPH_FINISH)
 		rc = FSO_WAIT;
 
 	return rc;

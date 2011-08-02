@@ -58,7 +58,7 @@ const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
 extern struct c2_addb_ctx c2_reqh_addb_ctx;
 
 #define FOM_ADDB_ADD(fom, name, rc)  \
-C2_ADDB_ADD(&fom->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
+C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
  * Fom domain operations.
@@ -88,8 +88,8 @@ C2_EXPORTED(c2_locality_invariant);
 
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
-	return  fom != NULL && fom->fo_type != NULL && fom->fo_ops != NULL
-		&& fom->fo_fop != NULL && fom->fo_fol != NULL &&
+	return  fom != NULL && fom->fo_type != NULL && fom->fo_ops != NULL &&
+		fom->fo_fop != NULL && fom->fo_fol != NULL &&
 		fom->fo_domain != NULL && fom->fo_stdomain != NULL &&
 		fom->fo_loc != NULL && c2_list_link_invariant(&fom->fo_rwlink);
 }
@@ -101,11 +101,14 @@ C2_EXPORTED(c2_fom_invariant);
  * This function is invoked when a new fom is submitted for
  * execution or a waiting fom is re scheduled for processing.
  *
+ * @pre fom->fo_state == FOS_READY
  * @param fom, ready to be executed fom, is put on locality runq
  */
 static void fom_ready(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
+
+	C2_PRE(fom->fo_state == FOS_READY);
 
 	loc = fom->fo_loc;
 	c2_mutex_lock(&loc->fl_runq_lock);
@@ -189,6 +192,7 @@ void c2_fom_queue(struct c2_fom *fom)
 
 	C2_PRE(fom->fo_phase == FOPH_INIT);
 
+	fom->fo_state = FOS_READY;
 	fom_ready(fom);
 	loc = fom->fo_loc;
 	c2_mutex_lock(&loc->fl_lock);
@@ -257,7 +261,7 @@ static void fom_fop_exec(struct c2_fom *fom)
 	} while (rc == FSO_AGAIN);
 
 	C2_ASSERT(rc == FSO_WAIT);
-	if (fom->fo_phase == FOPH_DONE)
+	if (fom->fo_phase == FOPH_FINISH)
 		fom->fo_ops->fo_fini(fom);
 	else {
 		if (fom->fo_state == FOS_WAITING) {
@@ -561,7 +565,7 @@ static bool resource_is_shared(const struct c2_processor_descr *cpu1,
 			const struct c2_processor_descr *cpu2)
 {
 	return cpu1->pd_l2 == cpu2->pd_l2 ||
-			cpu1->pd_numa_node == cpu2->pd_numa_node;
+		cpu1->pd_numa_node == cpu2->pd_numa_node;
 }
 
 int  c2_fom_domain_init(struct c2_fom_domain *dom)
@@ -598,7 +602,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 
 	c2_processors_online(&onln_cpu_map);
 	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &c2_reqh_addb_ctx,
-						&c2_fom_addb_loc);
+							&c2_fom_addb_loc);
 	if (dom->fd_localities == NULL) {
 		c2_bitmap_fini(&onln_cpu_map);
 		c2_bitmap_fini(&loc_cpu_map);
@@ -671,7 +675,6 @@ int c2_fom_init(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_state = FOS_READY;
 	fom->fo_phase = FOPH_INIT;
 	fom->fo_rep_fop = NULL;
 
@@ -688,7 +691,7 @@ C2_EXPORTED(c2_fom_init);
 void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_ASSERT(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_phase == FOPH_DONE);
+	C2_PRE(fom->fo_phase == FOPH_FINISH);
 
 	c2_clink_fini(&fom->fo_clink);
 	c2_addb_ctx_fini(&fom->fo_fop->f_addb);

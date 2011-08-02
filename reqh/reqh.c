@@ -62,7 +62,7 @@ const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
 struct c2_addb_ctx c2_reqh_addb_ctx;
 
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
-C2_ADDB_ADD(&addb_ctx, &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
+C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 extern void c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);

@@ -186,8 +186,7 @@ enum c2_fom_state {
 	 */
 	FOS_RUNNING,
 	/**
-	    Fom is in FOS_READY state when it is initialised and ready to
-	    be put on a locality runq list for execution.
+	    Fom is in FOS_READY state when it is put on locality runq for execution.
 	*/
 	FOS_READY,
 	/**
@@ -227,12 +226,12 @@ enum c2_fom_phase {
 	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
 	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_FAILED,                /*< fom execution failed. */
+	FOPH_FAILURE,                /*< fom execution failed. */
 	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
 	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
 	FOPH_QUEUE_REPLY,           /*< queuing fop reply.  */
 	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
-	FOPH_DONE,		    /*< fom succeeded. */
+	FOPH_FINISH,		    /*< terminal state. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */
@@ -331,7 +330,7 @@ int c2_fom_init(struct c2_fom *fom);
    i.e success or failure.
 
    @param fom, A fom to be finalised
-   @pre fom->fo_phase == FOPH_DONE
+   @pre fom->fo_phase == FOPH_FINISH
 */
 void c2_fom_fini(struct c2_fom *fom);
 
