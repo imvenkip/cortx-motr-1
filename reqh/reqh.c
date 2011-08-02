@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- * 		    Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *			Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 

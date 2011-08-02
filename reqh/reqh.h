@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *			Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 
@@ -185,10 +185,10 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 	 |
 	 v                fom->fo_state = FOS_READY
      c2_reqh_fop_handle()-------------->FOM
-		     			 | fom->fo_state = FOS_RUNNING
+					 | fom->fo_state = FOS_RUNNING
 					 v
-		     		     FOPH_INIT
-		    			 |
+				     FOPH_INIT
+					 |
 			failed		 v         fom->fo_state = FOS_WAITING
 		     +<-----------FOPH_AUTHETICATE------------->+
 		     |			 |           FOPH_AUTHENTICATE_WAIT
@@ -207,7 +207,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 	             |	                 v<---------------------+
 		     +<---------FOPH_TXN_CONTEXT--------------->+
 		     |			 |            FOPH_TXN_CONTEXT_WAIT
-	       	     |		 	 v<---------------------+
+	       	     |			 v<---------------------+
 		     +<-------------FOPH_NR_+_1---------------->+
 		     |			 |            FOPH_NR_+_1_WAIT
 		     v			 v<---------------------+
@@ -215,7 +215,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
 		     |			 |
 		     v			 v
 	  +-----FOPH_TXN_ABORT    FOPH_TXN_COMMIT-------------->+
-	  |	     |	     		 |            FOPH_TXN_COMMIT_WAIT
+	  |	     |			 |            FOPH_TXN_COMMIT_WAIT
 	  |	     |	    send reply	 v<---------------------+
 	  |	     +----------->FOPH_QUEUE_REPLY------------->+
           |	     ^	     		 |            FOPH_QUEUE_REPLY_WAIT
@@ -241,7 +241,7 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
    @param fom, fom under execution
 
    @todo standard fom phases implementation, depends on the support routines for
-   	handling various standard operations on fop as mentioned above
+	handling various standard operations on fop as mentioned above
  */
 
 int c2_fom_state_generic(struct c2_fom *fom);

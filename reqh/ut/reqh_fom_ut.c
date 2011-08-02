@@ -82,7 +82,7 @@ enum {
 /**
  * Write fop specific fom execution phases
  */
-enum write_fom_phase {
+enum reqh_ut_write_fom_phase {
 	FOPH_WRITE_STOB_IO = FOPH_NR + 1,
 	FOPH_WRITE_STOB_IO_WAIT
 };
@@ -90,7 +90,7 @@ enum write_fom_phase {
 /**
  * Read fop specific fom execution phases
  */
-enum read_fom_phase {
+enum reqh_ut_read_fom_phase {
 	FOPH_READ_STOB_IO = FOPH_NR + 1,
 	FOPH_READ_STOB_IO_WAIT
 };
@@ -108,30 +108,29 @@ struct c2_reqh		reqh;
 /**
  * Structure to hold c2_net_call and c2_clink, for network communication
  */
-struct reqh_net_call {
+struct reqh_ut_net_call {
 	struct c2_net_call	ncall;
 	struct c2_clink		rclink;
 };
 
 int reply;
-int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
-int c2_io_fom_fail(struct c2_fom *fom);
+int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
  * Fop operation structures for corresponding fops.
  */
-static struct c2_fop_type_ops write_fop_ops = {
-	.fto_fom_init = c2_io_fom_init,
+static struct c2_fop_type_ops reqh_ut_write_fop_ops = {
+	.fto_fom_init = reqh_ut_io_fom_init,
 	.fto_execute = NULL,
 };
 
-static struct c2_fop_type_ops read_fop_ops = {
-	.fto_fom_init = c2_io_fom_init,
+static struct c2_fop_type_ops reqh_ut_read_fop_ops = {
+	.fto_fom_init = reqh_ut_io_fom_init,
 	.fto_execute = NULL,
 };
 
-static struct c2_fop_type_ops create_fop_ops = {
-	.fto_fom_init = c2_io_fom_init,
+static struct c2_fop_type_ops reqh_ut_create_fop_ops = {
+	.fto_fom_init = reqh_ut_io_fom_init,
 	.fto_execute = NULL,
 };
 
@@ -150,110 +149,110 @@ enum reply_fop {
 /**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE(c2_fom_io_create, "create", 10, &create_fop_ops);
-C2_FOP_TYPE_DECLARE(c2_fom_io_write, "write", 11, &write_fop_ops);
-C2_FOP_TYPE_DECLARE(c2_fom_io_read, "read", 12, &read_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "create", CREATE_REQ, &reqh_ut_create_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "write", WRITE_REQ, &reqh_ut_write_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "read", READ_REQ, &reqh_ut_read_fop_ops);
 
-C2_FOP_TYPE_DECLARE(c2_fom_io_create_rep, "create reply", 21, NULL);
-C2_FOP_TYPE_DECLARE(c2_fom_io_write_rep, "write reply", 22, NULL);
-C2_FOP_TYPE_DECLARE(c2_fom_io_read_rep, "read reply",  23, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "create reply", CREATE_REP, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "write reply", WRITE_REP, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "read reply",  READ_REP, NULL);
 
 /**
  * Fop type structures required for initialising corresponding fops.
  */
 static struct c2_fop_type *fops[] = {
-	&c2_fom_io_create_fopt,
-	&c2_fom_io_write_fopt,
-	&c2_fom_io_read_fopt,
+	&reqh_ut_fom_io_create_fopt,
+	&reqh_ut_fom_io_write_fopt,
+	&reqh_ut_fom_io_read_fopt,
 
-	&c2_fom_io_create_rep_fopt,
-	&c2_fom_io_write_rep_fopt,
-	&c2_fom_io_read_rep_fopt,
+	&reqh_ut_fom_io_create_rep_fopt,
+	&reqh_ut_fom_io_write_rep_fopt,
+	&reqh_ut_fom_io_read_rep_fopt,
 };
 
 static struct c2_fop_type *fopt[] = {
-	&c2_fom_io_create_fopt,
-	&c2_fom_io_write_fopt,
-	&c2_fom_io_read_fopt,
+	&reqh_ut_fom_io_create_fopt,
+	&reqh_ut_fom_io_write_fopt,
+	&reqh_ut_fom_io_read_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
-        &c2_fom_fop_fid_tfmt,
+        &reqh_ut_fom_fop_fid_tfmt,
 };
 
 /**
  * A generic fom structure to hold fom, reply fop, storage object
  * and storage io object, used for fop execution.
  */
-struct c2_io_fom {
+struct reqh_ut_io_fom {
 	/** Generic c2_fom object. */
-	struct c2_fom			 c2_gen_fom;
+	struct c2_fom			 rh_ut_fom;
 	/** Reply FOP associated with request FOP above. */
 	struct c2_fop			*rep_fop;
 	/** Stob object on which this FOM is acting. */
-	struct c2_stob			*stobj;
+	struct c2_stob			*rh_ut_stobj;
 	/** Stob IO packet for the operation. */
-	struct c2_stob_io		 st_io;
+	struct c2_stob_io		 rh_ut_stio;
 };
 
-int create_fom_state(struct c2_fom *fom);
-int write_fom_state(struct c2_fom *fom);
-int read_fom_state(struct c2_fom *fom);
-void c2_io_fom_fini(struct c2_fom *fom);
-int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-size_t fom_home_locality(const struct c2_fom *fom);
+int reqh_ut_create_fom_state(struct c2_fom *fom);
+int reqh_ut_write_fom_state(struct c2_fom *fom);
+int reqh_ut_read_fom_state(struct c2_fom *fom);
+void reqh_ut_io_fom_fini(struct c2_fom *fom);
+int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
 
 /**
  * Operation structures for respective foms
  */
-static struct c2_fom_ops create_fom_ops = {
-	.fo_fini = c2_io_fom_fini,
-	.fo_state = create_fom_state,
-	.fo_home_locality = fom_home_locality,
+static struct c2_fom_ops reqh_ut_create_fom_ops = {
+	.fo_fini = reqh_ut_io_fom_fini,
+	.fo_state = reqh_ut_create_fom_state,
+	.fo_home_locality = reqh_ut_find_fom_home_locality,
 };
 
-static struct c2_fom_ops write_fom_ops = {
-	.fo_fini = c2_io_fom_fini,
-	.fo_state = write_fom_state,
-	.fo_home_locality = fom_home_locality,
+static struct c2_fom_ops reqh_ut_write_fom_ops = {
+	.fo_fini = reqh_ut_io_fom_fini,
+	.fo_state = reqh_ut_write_fom_state,
+	.fo_home_locality = reqh_ut_find_fom_home_locality,
 };
 
-static struct c2_fom_ops read_fom_ops = {
-	.fo_fini = c2_io_fom_fini,
-	.fo_state = read_fom_state,
-	.fo_home_locality = fom_home_locality,
+static struct c2_fom_ops reqh_ut_read_fom_ops = {
+	.fo_fini = reqh_ut_io_fom_fini,
+	.fo_state = reqh_ut_read_fom_state,
+	.fo_home_locality = reqh_ut_find_fom_home_locality,
 };
 
 /**
  * Fom type operations structures for corresponding foms.
  */
-static const struct c2_fom_type_ops create_fom_type_ops = {
-	.fto_create = c2_create_fom_create,
+static const struct c2_fom_type_ops reqh_ut_create_fom_type_ops = {
+	.fto_create = reqh_ut_create_fom_create,
 };
 
-static const struct c2_fom_type_ops write_fom_type_ops = {
-	.fto_create = c2_write_fom_create,
+static const struct c2_fom_type_ops reqh_ut_write_fom_type_ops = {
+	.fto_create = reqh_ut_write_fom_create,
 };
 
-static const struct c2_fom_type_ops read_fom_type_ops = {
-	.fto_create = c2_read_fom_create,
+static const struct c2_fom_type_ops reqh_ut_read_fom_type_ops = {
+	.fto_create = reqh_ut_read_fom_create,
 };
 
 static struct c2_fom_type create_fom_mopt = {
-	.ft_ops = &create_fom_type_ops,
+	.ft_ops = &reqh_ut_create_fom_type_ops,
 };
 
 static struct c2_fom_type write_fom_mopt = {
-	.ft_ops = &write_fom_type_ops,
+	.ft_ops = &reqh_ut_write_fom_type_ops,
 };
 
 static struct c2_fom_type read_fom_mopt = {
-	.ft_ops = &read_fom_type_ops,
+	.ft_ops = &reqh_ut_read_fom_type_ops,
 };
 
-static struct c2_fom_type *c2_fom_types[] = {
+static struct c2_fom_type *reqh_ut_fom_types[] = {
 	&create_fom_mopt,
 	&write_fom_mopt,
 	&read_fom_mopt,
@@ -262,16 +261,16 @@ static struct c2_fom_type *c2_fom_types[] = {
 /**
  * Function to map a fop to its corresponding fom
  */
-struct c2_fom_type *c2_fom_type_map(c2_fop_type_code_t code)
+struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), c2_fom_types));
-	return c2_fom_types[code - 10];
+	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), reqh_ut_fom_types));
+	return reqh_ut_fom_types[code - 10];
 }
 
 /**
  * Dispatches the request fop.
  */
-static int netcall(struct c2_net_conn *conn, struct reqh_net_call *call)
+static int reqh_ut_netcall(struct c2_net_conn *conn, struct reqh_ut_net_call *call)
 {
 	C2_UT_ASSERT(conn != NULL);
 	C2_UT_ASSERT(call != NULL);
@@ -286,15 +285,15 @@ static void fom_rep_cb(struct c2_clink *clink)
 {
 	C2_UT_ASSERT(clink != NULL);
 	if (clink != NULL) {
-		struct reqh_net_call *rcall = container_of(clink,
-						struct reqh_net_call, rclink);
+		struct reqh_ut_net_call *rcall = container_of(clink,
+						struct reqh_ut_net_call, rclink);
 		if (rcall != NULL) {
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
 			C2_UT_ASSERT(rfop != NULL);
 			switch(rfop->f_type->ft_code) {
 			case CREATE_REP:
 			{
-				struct c2_fom_io_create_rep *rep;
+				struct reqh_ut_fom_io_create_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
 					printf("Create reply: %i\n",rep->ficr_rc);
@@ -305,7 +304,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 			}
 			case WRITE_REP:
 			{
-				struct c2_fom_io_write_rep *rep;
+				struct reqh_ut_fom_io_write_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
 					printf("Write reply: %i %u\n", rep->fiwr_rc,
@@ -317,7 +316,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 			}
 			case READ_REP:
 			{
-				struct c2_fom_io_read_rep *rep;
+				struct reqh_ut_fom_io_read_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
 					printf("\nRead reply: %i", rep->firr_rc);
@@ -349,17 +348,17 @@ static void fom_rep_cb(struct c2_clink *clink)
 /**
  * Sends create fop request.
  */
-static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
+static void create_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
 {
 	struct c2_fop			*f;
 	struct c2_fop			*r;
-	struct c2_fom_io_create		*fop;
-	struct c2_fom_io_create_rep	*rep;
-	struct reqh_net_call		*rcall;
+	struct reqh_ut_fom_io_create		*fop;
+	struct reqh_ut_fom_io_create_rep	*rep;
+	struct reqh_ut_net_call		*rcall;
 
-	f = c2_fop_alloc(&c2_fom_io_create_fopt, NULL);
+	f = c2_fop_alloc(&reqh_ut_fom_io_create_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_fom_io_create_rep_fopt, NULL);
+	r = c2_fop_alloc(&reqh_ut_fom_io_create_rep_fopt, NULL);
 	rep = c2_fop_data(r);
 	fop->fic_object = *fid;
 
@@ -370,23 +369,23 @@ static void create_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *f
 	c2_chan_init(&rcall->ncall.ac_chan);
 	c2_clink_init(&rcall->rclink, &fom_rep_cb);
 	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	netcall(conn, rcall);
+	reqh_ut_netcall(conn, rcall);
 }
 
 /**
  * Sends read fop request.
  */
-static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
+static void read_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
 {
 	struct c2_fop			*f;
 	struct c2_fop			*r;
-	struct c2_fom_io_read		*fop;
-	struct c2_fom_io_read_rep	*rep;
-	struct reqh_net_call		*rcall;
+	struct reqh_ut_fom_io_read		*fop;
+	struct reqh_ut_fom_io_read_rep	*rep;
+	struct reqh_ut_net_call		*rcall;
 
-	f = c2_fop_alloc(&c2_fom_io_read_fopt, NULL);
+	f = c2_fop_alloc(&reqh_ut_fom_io_read_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
+	r = c2_fop_alloc(&reqh_ut_fom_io_read_rep_fopt, NULL);
 	rep = c2_fop_data(r);
 
 	fop->fir_object = *fid;
@@ -398,23 +397,23 @@ static void read_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid
 	c2_chan_init(&rcall->ncall.ac_chan);
 	c2_clink_init(&rcall->rclink, &fom_rep_cb);
 	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	netcall(conn, rcall);
+	reqh_ut_netcall(conn, rcall);
 }
 
 /**
  * Sends write fop request.
  */
-static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fid)
+static void write_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fid *fid)
 {
 	struct c2_fop			*f;
 	struct c2_fop			*r;
-	struct c2_fom_io_write		*fop;
-	struct c2_fom_io_write_rep	*rep;
-	struct reqh_net_call		*rcall;
+	struct reqh_ut_fom_io_write		*fop;
+	struct reqh_ut_fom_io_write_rep	*rep;
+	struct reqh_ut_net_call		*rcall;
 
-	f = c2_fop_alloc(&c2_fom_io_write_fopt, NULL);
+	f = c2_fop_alloc(&reqh_ut_fom_io_write_fopt, NULL);
 	fop = c2_fop_data(f);
-	r = c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
+	r = c2_fop_alloc(&reqh_ut_fom_io_write_rep_fopt, NULL);
 	rep = c2_fop_data(r);
 
 	fop->fiw_object = *fid;
@@ -427,37 +426,37 @@ static void write_send(struct c2_net_conn *conn, const struct c2_fom_fop_fid *fi
 	c2_chan_init(&rcall->ncall.ac_chan);
 	c2_clink_init(&rcall->rclink, &fom_rep_cb);
 	c2_clink_add(&rcall->ncall.ac_chan, &rcall->rclink);
-	netcall(conn, rcall);
+	reqh_ut_netcall(conn, rcall);
 }
 
 
-static void reqh_create_send(struct c2_net_conn *conn, unsigned long seq,
+static void reqh_ut_create_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
-	struct c2_fom_fop_fid *fid;
+	struct reqh_ut_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
 	create_send(conn, fid);
 }
 
-static void reqh_write_send(struct c2_net_conn *conn, unsigned long seq,
+static void reqh_ut_write_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
-	struct c2_fom_fop_fid *fid;
+	struct reqh_ut_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
 	write_send(conn, fid);
 }
 
-static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq,
+static void reqh_ut_read_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
 	C2_UT_ASSERT(conn != NULL);
-	struct c2_fom_fop_fid *fid;
+	struct reqh_ut_fom_fop_fid *fid;
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
@@ -467,7 +466,7 @@ static void reqh_read_send(struct c2_net_conn *conn, unsigned long seq,
 /**
  * Function to locate a storage object.
  */
-static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
+static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
                                    struct c2_dtx *tx, struct c2_fom *fom)
 {
 	struct c2_stob_id	id;
@@ -486,29 +485,29 @@ static struct c2_stob *object_find(const struct c2_fom_fop_fid *fid,
 /**
  * Creates a fom for create fop.
  */
-int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
-	struct c2_io_fom	*fom_obj;
+	struct reqh_ut_io_fom	*fom_obj;
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
 	fom_obj= c2_alloc(sizeof *fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom = &fom_obj->c2_gen_fom;
+	fom = &fom_obj->rh_ut_fom;
 	fom->fo_type = t;
 
-		fom->fo_ops = &create_fom_ops;
+		fom->fo_ops = &reqh_ut_create_fom_ops;
 
 		fom_obj->rep_fop =
-			c2_fop_alloc(&c2_fom_io_create_rep_fopt, NULL);
+			c2_fop_alloc(&reqh_ut_fom_io_create_rep_fopt, NULL);
 		if (fom_obj->rep_fop == NULL) {
 			c2_free(fom_obj);
 			return -ENOMEM;
 		}
 
-	fom_obj->stobj = NULL;
+	fom_obj->rh_ut_stobj = NULL;
 	*out = fom;
 	return 0;
 
@@ -517,28 +516,28 @@ int c2_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for write fop.
  */
-int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
-	struct c2_io_fom	*fom_obj;
+	struct reqh_ut_io_fom	*fom_obj;
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
 	fom_obj= c2_alloc(sizeof *fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom = &fom_obj->c2_gen_fom;
+	fom = &fom_obj->rh_ut_fom;
 	fom->fo_type = t;
 
-	fom->fo_ops = &write_fom_ops;
+	fom->fo_ops = &reqh_ut_write_fom_ops;
 	fom_obj->rep_fop =
-		c2_fop_alloc(&c2_fom_io_write_rep_fopt, NULL);
+		c2_fop_alloc(&reqh_ut_fom_io_write_rep_fopt, NULL);
 	if (fom_obj->rep_fop == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
 
-	fom_obj->stobj = NULL;
+	fom_obj->rh_ut_stobj = NULL;
 	*out = fom;
 	return 0;
 }
@@ -546,28 +545,28 @@ int c2_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for read fop.
  */
-int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
-	struct c2_io_fom	*fom_obj;
+	struct reqh_ut_io_fom	*fom_obj;
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
 	fom_obj= c2_alloc(sizeof *fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom = &fom_obj->c2_gen_fom;
+	fom = &fom_obj->rh_ut_fom;
 	fom->fo_type = t;
 
-	fom->fo_ops = &read_fom_ops;
+	fom->fo_ops = &reqh_ut_read_fom_ops;
 	fom_obj->rep_fop =
-		c2_fop_alloc(&c2_fom_io_read_rep_fopt, NULL);
+		c2_fop_alloc(&reqh_ut_fom_io_read_rep_fopt, NULL);
 	if (fom_obj->rep_fop == NULL) {
 		c2_free(fom_obj);
 		return -ENOMEM;
 	}
 
-	fom_obj->stobj = NULL;
+	fom_obj->rh_ut_stobj = NULL;
 	*out = fom;
 	return 0;
 }
@@ -579,7 +578,7 @@ int c2_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  * of fome, inorder to have same locality of
  * execution for a certain type of fom.
  */
-size_t fom_home_locality(const struct c2_fom *fom)
+size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	size_t iloc;
 	size_t fd_nr;
@@ -590,21 +589,21 @@ size_t fom_home_locality(const struct c2_fom *fom)
 	fd_nr = fom->fo_domain->fd_localities_nr;
 	switch(fom->fo_fop->f_type->ft_code) {
 	case 10: {
-		struct c2_fom_io_create *fop;
+		struct reqh_ut_fom_io_create *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fic_object.f_oid;
 		iloc = oid % fd_nr;
 	}
 	case 11: {
-		struct c2_fom_io_read *fop;
+		struct reqh_ut_fom_io_read *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fir_object.f_oid;
 		iloc = oid % fd_nr;
 	}
 	case 12: {
-		struct c2_fom_io_write *fop;
+		struct reqh_ut_fom_io_write *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
@@ -618,11 +617,11 @@ size_t fom_home_locality(const struct c2_fom *fom)
  * A simple non blocking create fop specific fom
  * state method implemention.
  */
-int create_fom_state(struct c2_fom *fom)
+int reqh_ut_create_fom_state(struct c2_fom *fom)
 {
-	struct c2_fom_io_create		*in_fop;
-	struct c2_fom_io_create_rep	*out_fop;
-	struct c2_io_fom		*fom_obj;
+	struct reqh_ut_fom_io_create		*in_fop;
+	struct reqh_ut_fom_io_create_rep	*out_fop;
+	struct reqh_ut_io_fom		*fom_obj;
 	int				 result;
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
@@ -630,14 +629,14 @@ int create_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
 	} else {
-		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
+		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 
 		in_fop = c2_fop_data(fom->fo_fop);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 
-		fom_obj->stobj = object_find(&in_fop->fic_object, &fom->fo_tx, fom);
+		fom_obj->rh_ut_stobj = object_find(&in_fop->fic_object, &fom->fo_tx, fom);
 
-		result = c2_stob_create(fom_obj->stobj, &fom->fo_tx);
+		result = c2_stob_create(fom_obj->rh_ut_stobj, &fom->fo_tx);
 		out_fop->ficr_rc = result;
 		fom->fo_rep_fop = fom_obj->rep_fop;
 		fom->fo_rc = result;
@@ -652,7 +651,7 @@ int create_fom_state(struct c2_fom *fom)
 	}
 
 	if (fom->fo_phase == FOPH_DONE && fom->fo_rc == 0)
-		c2_stob_put(fom_obj->stobj);
+		c2_stob_put(fom_obj->rh_ut_stobj);
 
 	return result;
 }
@@ -661,11 +660,11 @@ int create_fom_state(struct c2_fom *fom)
  * A simple non blocking read fop specific fom
  * state method implemention.
  */
-int read_fom_state(struct c2_fom *fom)
+int reqh_ut_read_fom_state(struct c2_fom *fom)
 {
-	struct c2_fom_io_read		*in_fop;
-	struct c2_fom_io_read_rep	*out_fop;
-	struct c2_io_fom		*fom_obj;
+	struct reqh_ut_fom_io_read		*in_fop;
+	struct reqh_ut_fom_io_read_rep	*out_fop;
+	struct reqh_ut_io_fom		*fom_obj;
 	void				*addr;
 	c2_bcount_t			 count;
 	c2_bcount_t			 offset;
@@ -679,7 +678,7 @@ int read_fom_state(struct c2_fom *fom)
 		result = c2_fom_state_generic(fom);
 	} else {
 
-		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
+		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 		C2_UT_ASSERT(out_fop != NULL);
 
@@ -687,31 +686,31 @@ int read_fom_state(struct c2_fom *fom)
 
 			in_fop = c2_fop_data(fom->fo_fop);
 			C2_UT_ASSERT(in_fop != NULL);
-			fom_obj->stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
+			fom_obj->rh_ut_stobj = object_find(&in_fop->fir_object, &fom->fo_tx, fom);
 
-			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
+			bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
 			bmask  = (1 << bshift) - 1;
 
 			addr = c2_stob_addr_pack(&out_fop->firr_value, bshift);
 
-			c2_stob_io_init(&fom_obj->st_io);
+			c2_stob_io_init(&fom_obj->rh_ut_stio);
 
 			count = 1 >> bshift;
 			offset = 0;
-			fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
-			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
-			fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_nr    = 1;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_count = &count;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_buf = &addr;
 
-			fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
-			fom_obj->st_io.si_stob.iv_vec.v_count = &count;
-			fom_obj->st_io.si_stob.iv_index       = &offset;
+			fom_obj->rh_ut_stio.si_stob.iv_vec.v_nr    = 1;
+			fom_obj->rh_ut_stio.si_stob.iv_vec.v_count = &count;
+			fom_obj->rh_ut_stio.si_stob.iv_index       = &offset;
 
-			fom_obj->st_io.si_opcode = SIO_READ;
-			fom_obj->st_io.si_flags  = 0;
+			fom_obj->rh_ut_stio.si_opcode = SIO_READ;
+			fom_obj->rh_ut_stio.si_flags  = 0;
 
 			c2_fom_block_enter(fom);
-			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
-			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
+			c2_fom_block_at(fom, &fom_obj->rh_ut_stio.si_wait);
+			result = c2_stob_io_launch(&fom_obj->rh_ut_stio, fom_obj->rh_ut_stobj,
 								&fom->fo_tx, NULL);
 
 			if (result != 0) {
@@ -722,11 +721,11 @@ int read_fom_state(struct c2_fom *fom)
 				result = FSO_WAIT;
 			}
 		} else if (fom->fo_phase == FOPH_READ_STOB_IO_WAIT) {
-			fom->fo_rc = fom_obj->st_io.si_rc;
+			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
 			if (fom->fo_rc != 0)
 				fom->fo_phase = FOPH_FAILED;
 			else {
-				out_fop->firr_count = fom_obj->st_io.si_count << bshift;
+				out_fop->firr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
 			}
 
@@ -745,8 +744,8 @@ int read_fom_state(struct c2_fom *fom)
 	}
 
 	if (fom->fo_phase == FOPH_DONE) {
-		c2_stob_io_fini(&fom_obj->st_io);
-		c2_stob_put(fom_obj->stobj);
+		c2_stob_io_fini(&fom_obj->rh_ut_stio);
+		c2_stob_put(fom_obj->rh_ut_stobj);
 	}
 
 	return result;
@@ -756,12 +755,12 @@ int read_fom_state(struct c2_fom *fom)
  * A simple non blocking write fop specific fom
  * state method implemention.
  */
-int write_fom_state(struct c2_fom *fom)
+int reqh_ut_write_fom_state(struct c2_fom *fom)
 {
 
-	struct c2_fom_io_write		*in_fop;
-	struct c2_fom_io_write_rep	*out_fop;
-	struct c2_io_fom		*fom_obj;
+	struct reqh_ut_fom_io_write		*in_fop;
+	struct reqh_ut_fom_io_write_rep	*out_fop;
+	struct reqh_ut_io_fom		*fom_obj;
 	void				*addr;
 	c2_bcount_t			 count;
 	c2_bindex_t			 offset;
@@ -774,7 +773,7 @@ int write_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
 	} else {
-		fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
+		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 		C2_UT_ASSERT(out_fop != NULL);
 
@@ -782,31 +781,31 @@ int write_fom_state(struct c2_fom *fom)
 			in_fop = c2_fop_data(fom->fo_fop);
 			C2_UT_ASSERT(in_fop != NULL);
 
-			fom_obj->stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
+			fom_obj->rh_ut_stobj = object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
 
-			bshift = fom_obj->stobj->so_op->sop_block_shift(fom_obj->stobj);
+			bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
 			bmask  = (1 << bshift) - 1;
 
 			addr = c2_stob_addr_pack(&in_fop->fiw_value, bshift);
 			count = 1 >> bshift;
 			offset = 0;
 
-			c2_stob_io_init(&fom_obj->st_io);
+			c2_stob_io_init(&fom_obj->rh_ut_stio);
 
-			fom_obj->st_io.si_user.div_vec.ov_vec.v_nr    = 1;
-			fom_obj->st_io.si_user.div_vec.ov_vec.v_count = &count;
-			fom_obj->st_io.si_user.div_vec.ov_buf = &addr;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_nr    = 1;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_vec.v_count = &count;
+			fom_obj->rh_ut_stio.si_user.div_vec.ov_buf = &addr;
 
-			fom_obj->st_io.si_stob.iv_vec.v_nr    = 1;
-			fom_obj->st_io.si_stob.iv_vec.v_count = &count;
-			fom_obj->st_io.si_stob.iv_index       = &offset;
+			fom_obj->rh_ut_stio.si_stob.iv_vec.v_nr    = 1;
+			fom_obj->rh_ut_stio.si_stob.iv_vec.v_count = &count;
+			fom_obj->rh_ut_stio.si_stob.iv_index       = &offset;
 
-			fom_obj->st_io.si_opcode = SIO_WRITE;
-			fom_obj->st_io.si_flags  = 0;
+			fom_obj->rh_ut_stio.si_opcode = SIO_WRITE;
+			fom_obj->rh_ut_stio.si_flags  = 0;
 
 			c2_fom_block_enter(fom);
-			c2_fom_block_at(fom, &fom_obj->st_io.si_wait);
-			result = c2_stob_io_launch(&fom_obj->st_io, fom_obj->stobj,
+			c2_fom_block_at(fom, &fom_obj->rh_ut_stio.si_wait);
+			result = c2_stob_io_launch(&fom_obj->rh_ut_stio, fom_obj->rh_ut_stobj,
 							&fom->fo_tx, NULL);
 
 			if (result != 0) {
@@ -818,11 +817,11 @@ int write_fom_state(struct c2_fom *fom)
 			}
 		} else if (fom->fo_phase == FOPH_WRITE_STOB_IO_WAIT) {
 			c2_fom_block_leave(fom);
-			fom->fo_rc = fom_obj->st_io.si_rc;
+			fom->fo_rc = fom_obj->rh_ut_stio.si_rc;
 			if (fom->fo_rc != 0)
 				fom->fo_phase = FOPH_FAILED;
 			else {
-				out_fop->fiwr_count = fom_obj->st_io.si_count << bshift;
+				out_fop->fiwr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
 			}
 
@@ -839,8 +838,8 @@ int write_fom_state(struct c2_fom *fom)
 	}
 
 	if (fom->fo_phase == FOPH_DONE) {
-		c2_stob_io_fini(&fom_obj->st_io);
-		c2_stob_put(fom_obj->stobj);
+		c2_stob_io_fini(&fom_obj->rh_ut_stio);
+		c2_stob_put(fom_obj->rh_ut_stobj);
 	}
 	return result;
 }
@@ -848,10 +847,10 @@ int write_fom_state(struct c2_fom *fom)
 /**
  * Fom specific clean up function, invokes c2_fom_fini()
  */
-void c2_io_fom_fini(struct c2_fom *fom)
+void reqh_ut_io_fom_fini(struct c2_fom *fom)
 {
-	struct c2_io_fom *fom_obj;
-	fom_obj = container_of(fom, struct c2_io_fom, c2_gen_fom);
+	struct reqh_ut_io_fom *fom_obj;
+	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (c2_fom_invariant(fom))
 		c2_fom_fini(fom);
 
@@ -862,7 +861,7 @@ void c2_io_fom_fini(struct c2_fom *fom)
  * Fom initialization function, invoked from reqh_fop_handle.
  * Invokes c2_fom_init()
  */
-int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
+int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
 	struct c2_fom_type	*fom_type;
@@ -871,7 +870,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	fom_type = c2_fom_type_map(fop->f_type->ft_code);
+	fom_type = reqh_ut_fom_type_map(fop->f_type->ft_code);
 	if (fom_type == NULL)
 		return -EINVAL;
 	fop->f_type->ft_fom_type = *fom_type;
@@ -887,7 +886,7 @@ int c2_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 /**
  * Function to clean reqh ut io fops
  */
-void fom_io_fop_fini(void)
+void reqh_ut_fom_io_fop_fini(void)
 {
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
@@ -896,7 +895,7 @@ void fom_io_fop_fini(void)
 /**
  * Function to intialise reqh ut io fops.
  */
-int fom_io_fop_init(void)
+int reqh_ut_fom_io_fop_init(void)
 {
 	int result;
 
@@ -904,10 +903,10 @@ int fom_io_fop_init(void)
 	if (result == 0) {
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
                 if (result == 0)
-                        c2_fop_object_init(&c2_fom_fop_fid_tfmt);
+                        c2_fop_object_init(&reqh_ut_fom_fop_fid_tfmt);
 	}
 	if (result != 0)
-		fom_io_fop_fini();
+		reqh_ut_fom_io_fop_fini();
 	return result;
 }
 
@@ -915,37 +914,37 @@ int fom_io_fop_init(void)
  * Helper structures and functions for ad stob.
  * These are used while performing a stob operation.
  */
-struct reqh_balloc {
+struct reqh_ut_balloc {
 	struct c2_mutex  rb_lock;
 	c2_bindex_t      rb_next;
 	struct ad_balloc rb_ballroom;
 };
 
-static struct reqh_balloc *getballoc(struct ad_balloc *ballroom)
+static struct reqh_ut_balloc *getballoc(struct ad_balloc *ballroom)
 {
-	return container_of(ballroom, struct reqh_balloc, rb_ballroom);
+	return container_of(ballroom, struct reqh_ut_balloc, rb_ballroom);
 }
 
-static int reqh_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
+static int reqh_ut_balloc_init(struct ad_balloc *ballroom, struct c2_dbenv *db,
                             uint32_t bshift)
 {
-	struct reqh_balloc *rb = getballoc(ballroom);
+	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
 	c2_mutex_init(&rb->rb_lock);
 	return 0;
 }
 
-static void reqh_balloc_fini(struct ad_balloc *ballroom)
+static void reqh_ut_balloc_fini(struct ad_balloc *ballroom)
 {
-	struct reqh_balloc *rb = getballoc(ballroom);
+	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
 	c2_mutex_fini(&rb->rb_lock);
 }
 
-static int reqh_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
                              c2_bcount_t count, struct c2_ext *out)
 {
-	struct reqh_balloc	*rb = getballoc(ballroom);
+	struct reqh_ut_balloc	*rb = getballoc(ballroom);
 
 	c2_mutex_lock(&rb->rb_lock);
 	out->e_start = rb->rb_next;
@@ -955,23 +954,23 @@ static int reqh_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
 	return 0;
 }
 
-static int reqh_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
+static int reqh_ut_balloc_free(struct ad_balloc *ballroom, struct c2_dtx *tx,
                             struct c2_ext *ext)
 {
 	return 0;
 }
 
-static const struct ad_balloc_ops reqh_balloc_ops = {
-	.bo_init  = reqh_balloc_init,
-	.bo_fini  = reqh_balloc_fini,
-	.bo_alloc = reqh_balloc_alloc,
-	.bo_free  = reqh_balloc_free,
+static const struct ad_balloc_ops reqh_ut_balloc_ops = {
+	.bo_init  = reqh_ut_balloc_init,
+	.bo_fini  = reqh_ut_balloc_fini,
+	.bo_alloc = reqh_ut_balloc_alloc,
+	.bo_free  = reqh_ut_balloc_free,
 };
 
-static struct reqh_balloc rb = {
+static struct reqh_ut_balloc rb = {
 	.rb_next = 0,
 	.rb_ballroom = {
-		.ab_ops = &reqh_balloc_ops
+		.ab_ops = &reqh_ut_balloc_ops
 	}
 };
 
@@ -979,7 +978,7 @@ static struct reqh_balloc rb = {
  * Service handler, for incoming fops.
  * This function submits fop for processing to reqh.
  */
-static int reqh_service_handler(struct c2_service *service,
+static int reqh_ut_service_handler(struct c2_service *service,
                                    struct c2_fop *fop,
                                    void *cookie)
 {
@@ -993,7 +992,7 @@ static int reqh_service_handler(struct c2_service *service,
 /**
  * Creates and initialises network resources.
  */
-int create_net_connection(struct c2_service_id *rsid, struct c2_net_conn **conn,
+int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
 			  struct c2_service_id *node_arg, struct c2_service *rserv)
 {
 	int rc = 0;
@@ -1002,7 +1001,7 @@ int create_net_connection(struct c2_service_id *rsid, struct c2_net_conn **conn,
 	rserv->s_table.not_start = fopt[0]->ft_code;
 	rserv->s_table.not_nr    = ARRAY_SIZE(fopt);
 	rserv->s_table.not_fopt  = fopt;
-	rserv->s_handler         = &reqh_service_handler;
+	rserv->s_handler         = &reqh_ut_service_handler;
 
 	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
 	C2_UT_ASSERT(rc == 0);
@@ -1063,7 +1062,7 @@ void test_reqh(void)
 	if (!c2_processor_is_initialized())
 		c2_processors_init();
 
-	result = fom_io_fop_init();
+	result = reqh_ut_fom_io_fop_init();
 	C2_UT_ASSERT(result == 0);
 
 	C2_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
@@ -1125,7 +1124,7 @@ void test_reqh(void)
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
 					  reqh_addb_stob, NULL);
 
-	create_net_connection(&rsid, &conn, &reqh_node_arg, &rservice);
+	reqh_ut_create_net_conn(&rsid, &conn, &reqh_node_arg, &rservice);
 
 	/* Initialising request handler */
 	result =  c2_reqh_init(&reqh, NULL, NULL, sdom, &fol, &rservice);
@@ -1134,19 +1133,19 @@ void test_reqh(void)
 	/* Create listening thread to accept async reply's */
 
 	for (i = 0; i < 10; ++i)
-		reqh_create_send(conn, i, i);
+		reqh_ut_create_send(conn, i, i);
 
 	while (reply < 10)
 		sleep(1);
 
 	for (i = 0; i < 10; ++i) {
 		sleep(1);
-		reqh_write_send(conn, i, i);
+		reqh_ut_write_send(conn, i, i);
 	}
 
 	for (i = 0; i < 10; ++i) {
 		sleep(1);
-		reqh_read_send(conn, i, i);
+		reqh_ut_read_send(conn, i, i);
 	}
 
 	while (reply < 30)
@@ -1168,7 +1167,7 @@ void test_reqh(void)
 	bdom->sd_ops->sdo_fini(bdom);
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
-	fom_io_fop_fini();
+	reqh_ut_fom_io_fop_fini();
 	if (c2_processor_is_initialized())
 		c2_processors_fini();
 

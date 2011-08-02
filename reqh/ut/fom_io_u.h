@@ -11,46 +11,46 @@
 #include "fop/fop.h"
 #include <rpc/rpc.h>
 
-struct c2_fom_fop_fid {
+struct reqh_ut_fom_fop_fid {
 	uint64_t             f_seq;
 	uint64_t             f_oid;
 };
 
-extern struct c2_fop_memlayout c2_fom_fop_fid_memlayout;
-struct c2_fom_io_write {
-	struct c2_fom_fop_fid fiw_object;
+extern struct c2_fop_memlayout reqh_ut_fom_fop_fid_memlayout;
+struct reqh_ut_fom_io_write {
+	struct reqh_ut_fom_fop_fid fiw_object;
 	char                 fiw_value;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_write_memlayout;
-struct c2_fom_io_write_rep {
+extern struct c2_fop_memlayout reqh_ut_fom_io_write_memlayout;
+struct reqh_ut_fom_io_write_rep {
 	uint32_t             fiwr_rc;
 	uint32_t             fiwr_count;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_write_rep_memlayout;
-struct c2_fom_io_read {
-	struct c2_fom_fop_fid fir_object;
+extern struct c2_fop_memlayout reqh_ut_fom_io_write_rep_memlayout;
+struct reqh_ut_fom_io_read {
+	struct reqh_ut_fom_fop_fid fir_object;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_read_memlayout;
-struct c2_fom_io_read_rep {
+extern struct c2_fop_memlayout reqh_ut_fom_io_read_memlayout;
+struct reqh_ut_fom_io_read_rep {
 	uint32_t             firr_rc;
 	uint32_t             firr_count;
 	char                 firr_value;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_read_rep_memlayout;
-struct c2_fom_io_create {
-	struct c2_fom_fop_fid fic_object;
+extern struct c2_fop_memlayout reqh_ut_fom_io_read_rep_memlayout;
+struct reqh_ut_fom_io_create {
+	struct reqh_ut_fom_fop_fid fic_object;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_create_memlayout;
-struct c2_fom_io_create_rep {
+extern struct c2_fop_memlayout reqh_ut_fom_io_create_memlayout;
+struct reqh_ut_fom_io_create_rep {
 	uint32_t             ficr_rc;
 };
 
-extern struct c2_fop_memlayout c2_fom_io_create_rep_memlayout;
+extern struct c2_fop_memlayout reqh_ut_fom_io_create_rep_memlayout;
 
 /* __COLIBRI_FOM_IO_UDEF_H__ */
 #endif
