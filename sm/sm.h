@@ -22,6 +22,7 @@
 #define __COLIBRI_SM_SM_H__
 
 #include "lib/types.h"               /* int32_t, uint64_t */
+#include "lib/time.h"                /* c2_time_t */
 #include "lib/chan.h"
 
 /**
@@ -40,6 +41,8 @@ struct c2_sm_conf;
 
 /* import */
 struct c2_addb_ctx;
+struct c2_timer;
+struct c2_mutex;
 
 /**
    state machine.
@@ -204,6 +207,14 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
    @post c2_mutex_is_locked(mach->sm_lock)
  */
 void c2_sm_state_set(struct c2_sm *mach, int state);
+
+/**
+   Arms a timer to move a machine into a given state after a given timeout.
+
+   @pre c2_mutex_is_locked(mach->sm_lock)
+   @post c2_mutex_is_locked(mach->sm_lock)
+ */
+int c2_sm_timeout(struct c2_sm *mach, c2_time_t timeout, int state);
 
 /** @} end of sm group */
 

@@ -184,6 +184,19 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 }
 C2_EXPORTED(c2_sm_state_set);
 
+unsigned long sm_timeout_callback(unsigned long data)
+{
+}
+
+int c2_sm_timeout(struct c2_sm *mach, struct c2_timer *timer,
+		  c2_time_t timeout, int state)
+{
+	int result;
+
+	result = c2_timer_init(timer, C2_TIMER_SOFT, timeout, 1);
+}
+C2_EXPORTED(c2_sm_timeout);
+
 /** @} end of sm group */
 
 /*
