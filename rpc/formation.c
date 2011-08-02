@@ -478,9 +478,13 @@ static void frm_sm_fini(struct c2_ref *ref)
 		c2_list_fini(&frm_sm->fs_groups);
 		c2_list_fini(&frm_sm->fs_coalesced_items);
 		c2_list_fini(&frm_sm->fs_rpcs);
-		for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR; cnt++)
+		for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR; cnt++) {
+			printf("Length of list with priority %d = %lu,\
+					first item = %p\n", cnt,
+					c2_list_length(&frm_sm->fs_unformed_prio[cnt].pl_unformed_items), c2_list_entry(c2_list_first(&frm_sm->fs_unformed_prio[cnt].pl_unformed_items), struct c2_rpc_item, ri_unformed_linkage));
 			c2_list_fini(&frm_sm->fs_unformed_prio[cnt].
 					pl_unformed_items);
+		}
 		frm_sm->fs_rpcconn = NULL;
 		c2_free(frm_sm);
 	}
@@ -579,8 +583,10 @@ static struct c2_rpc_frm_sm *frm_sm_locate(const struct c2_rpc_conn *conn,
 			break;
 		}
 	}
-	if (frm_sm != NULL)
+	if (frm_sm != NULL) {
+		printf("Formation SM %p, refcount = %lu\n", frm_sm, c2_atomic64_get(&frm_sm->fs_ref.ref_cnt));
 		c2_ref_get(&frm_sm->fs_ref);
+	}
 
 	c2_rwlock_read_unlock(&formation->rf_sm_list_lock);
 	return frm_sm;
@@ -952,6 +958,7 @@ int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 {
 	struct c2_rpc_frm_sm		*frm_sm;
 	struct c2_rpc_frm_sm_event	 sm_event;
+	enum c2_rpc_frm_state		 sm_state;
 
 	C2_PRE(req_item != NULL);
 
@@ -965,11 +972,11 @@ int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 
 	c2_mutex_lock(&frm_sm->fs_lock);
 	frm_reply_received(frm_sm, req_item);
+	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 
 	/* Curent state is not known at the moment. */
-	return sm_default_handler(req_item, frm_sm, C2_RPC_FRM_STATES_NR,
-			&sm_event);
+	return sm_default_handler(req_item, frm_sm, sm_state, &sm_event);
 }
 
 /**
@@ -1003,6 +1010,7 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 {
 	struct c2_rpc_frm_sm_event	 sm_event;
 	struct c2_rpc_frm_sm		*frm_sm;
+	enum c2_rpc_frm_state		 sm_state;
 
 	C2_PRE(item != NULL);
 
@@ -1016,11 +1024,11 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
 	item_timeout_handle(frm_sm, item);
+	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 
 	/* Curent state is not known at the moment. */
-	return sm_default_handler(item, frm_sm, C2_RPC_FRM_STATES_NR,
-			&sm_event);
+	return sm_default_handler(item, frm_sm, sm_state, &sm_event);
 }
 
 /**
@@ -1284,8 +1292,12 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 		frm_sm->fs_urgent_nogrp_items_nr--;
 
 	/* If item is bound, remove it from formation state machine data. */
-	if (c2_rpc_item_is_bound(item))
+	if (c2_rpc_item_is_bound(item)) {
 		c2_list_del(&item->ri_unformed_linkage);
+		printf("Item removed from unformed list.\n");
+	} else {
+		printf("Unbound item encountered.\n");
+	}
 
 	if (item->ri_group == NULL)
 		return;
@@ -1767,6 +1779,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_list			*list;
 	struct c2_rpc_item		*rpc_item = NULL;
 	struct c2_rpc_item		*rpc_item_next = NULL;
+	struct c2_rpcmachine		*rpcmachine;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(rpcobj_size != NULL);
@@ -1782,22 +1795,29 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			fragments_policy = frm_fragment_policy(frm_sm,
 					rpc_item, fragments_nr);
 			size_optimal = frm_is_size_optimal(frm_sm, rpcobj_size);
+			rpcmachine = rpc_item->ri_mach;
 
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
 			if (!size_optimal || frm_policy_satisfy(frm_sm)) {
 				if (fragments_policy) {
+					c2_mutex_lock(&rpcmachine->
+							cr_ready_slots_mutex);
 					frm_add_to_rpc(frm_sm, rpcobj,
 							rpc_item, rpcobj_size,
 							fragments_nr);
+					c2_mutex_unlock(&rpcmachine->
+							cr_ready_slots_mutex);
 					/* Try to coalesce current bound
 					   item with list of unbound items
 					   in its rpc session. */
 					rc = try_coalesce(frm_sm, rpc_item,
 							rpcobj_size);
 				}
-			} else
+			} else {
+				C2_ASSERT(0);
 				break;
+			}
 		}
 	}
 }
@@ -1817,6 +1837,8 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 
 	if (!c2_rpc_item_is_unsolicited(item)) {
 		c2_rpc_slot_item_add_internal(slot, item);
+		c2_list_add(&slot->sl_ready_list,
+				&item->ri_slot_refs[0].sr_ready_link);
 		item->ri_type->rit_flags &= (~C2_RPC_ITEM_UNBOUND | 
 			 C2_RPC_ITEM_BOUND);
 	}
@@ -2003,8 +2025,13 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 
 	unbound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size, &fragments_nr);
 
+	if (c2_list_is_empty(&rpcobj->r_items)) {
+		c2_free(rpcobj);
+		return C2_RPC_FRM_INTEVT_STATE_FAILED;
+	}
+
 	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
-	C2_POST(!c2_list_is_empty(&rpcobj->r_items));
+
 	rc = frm_send_onwire(frm_sm);
 	if (rc == 0)
 		return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
@@ -2117,6 +2144,8 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 			c2_list_del(&rpc_obj->r_linkage);
 			/* Get a reference on c2_rpc_frm_sm so that
 			   it is pinned in memory. */
+			printf("Formation SM %p, refcount = %lu\n", frm_sm,
+					c2_atomic64_get(&frm_sm->fs_ref.ref_cnt));
 			c2_ref_get(&frm_sm->fs_ref);
 		}
 	}
@@ -2206,6 +2235,27 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	c2_list_fini(&fop_list);
 	c_item->ic_resultant_item = b_item;
 	return res;
+}
+
+/**
+   Decrement the current number of rpcs in flight from given rpc item.
+   First, formation state machine is located from c2_rpc_conn and
+   c2_rpcmachine pointed to by given rpc item and if formation state
+   machine is found, its current count of in flight rpcs is decremented.
+   @param item - Given rpc item.
+ */
+void c2_rpc_frm_rpcs_inflight_dec(struct c2_rpc_item *item)
+{
+	struct c2_rpc_frm_sm *frm_sm;
+
+	C2_PRE(item != NULL);
+
+	frm_sm = frm_sm_locate(item->ri_session->s_conn,
+			item->ri_mach->cr_formation);
+	if (frm_sm != NULL) {
+		frm_sm->fs_curr_rpcs_in_flight--;
+		c2_ref_put(&frm_sm->fs_ref);
+	}
 }
 
 /*

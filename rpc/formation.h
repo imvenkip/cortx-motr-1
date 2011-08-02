@@ -528,6 +528,15 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *coalesced_item,
 void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments);
 
+/**
+   Decrement the current number of rpcs in flight from given rpc item.
+   First, formation state machine is located from c2_rpc_conn and
+   c2_rpcmachine pointed to by given rpc item and if formation state
+   machine is found, its current count of in flight rpcs is decremented.
+   @param item - Given rpc item.
+ */
+void c2_rpc_frm_rpcs_inflight_dec(struct c2_rpc_item *item);
+
 /** @} endgroup of rpc_formation */
 
 #endif /* __C2_RPC_FORMATION_H__ */

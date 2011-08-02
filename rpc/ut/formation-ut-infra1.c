@@ -555,7 +555,7 @@ int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item)
 		res = c2_rpc_frm_item_nonio_populate_param(item);
 		C2_ASSERT(res==0);
 	}
-	item->ri_endp = ep;
+	//item->ri_endp = NULL;
 	item->ri_mach = &rpcmachine;
 	item->ri_session = &session;
 	c2_list_link_init(&item->ri_unformed_linkage);

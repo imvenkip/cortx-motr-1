@@ -620,6 +620,9 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
 				if (rc == 0) {
+					/*if (i == 0)
+						c2_rpc_frm_rpcs_inflight_dec(
+								item);*/
 					/* Post an ADDB event here.*/
 					++i;
 				}

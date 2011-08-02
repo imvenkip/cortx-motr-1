@@ -326,8 +326,12 @@ void send_ping_fop(int nr)
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
 	item = &fop->f_item;
+	c2_rpc_item_init(item);
 	c2_rpc_frm_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group = NULL;
+	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);	
@@ -735,7 +739,7 @@ int main(int argc, char *argv[])
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
            limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 8;
+        c2_rpc_max_rpcs_in_flight = 16;
         c2_rpc_max_fragments_size = 16;
 
         c2_rpc_frm_set_thresholds(c2_rpc_max_message_size,
