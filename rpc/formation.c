@@ -767,8 +767,8 @@ int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 	if (!c2_list_is_empty(&session->s_unbound_items)) {
 		item = c2_list_entry((c2_list_first(&session->s_unbound_items)),
 				struct c2_rpc_item, ri_unbound_link);
-		return sm_default_handler(item, NULL,
-				C2_RPC_FRM_STATES_NR, &sm_event);
+		/*return sm_default_handler(item, NULL,
+				C2_RPC_FRM_STATES_NR, &sm_event);*/
 	}
 	return 0;
 }
