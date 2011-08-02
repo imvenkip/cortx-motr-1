@@ -39,13 +39,13 @@
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
 #include "ioservice/io_fops.h"
-#include "rpc/ping_fop.h"
-#include "rpc/ping_fom.h"
+#include "ping_fop.h"
+#include "ping_fom.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
-#include "rpc/ping_fop_u.h"
+#include "ping_fop_u.h"
 #endif
 #include "stob/ut/io_fop.h"
 

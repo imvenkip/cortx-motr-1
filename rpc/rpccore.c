@@ -9,10 +9,10 @@
 #include "fop/fop.h"
 #include "formation.h"
 #include "rpc/rpc_onwire.h"
-#include "rpc/ping_fop.h"
+#include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
-#include "rpc/ping_fop_k.h"
+#include "rpc/it/ping_fop_k.h"
 #else
 //#include "rpc/ping_fop_u.h"
 #endif

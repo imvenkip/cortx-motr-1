@@ -26,7 +26,7 @@
 #include "fop/fop_format.h"
 #include "ping_fom.h"
 #include "ping_fop.h"
-#include "rpc/ping_fop_u.h"
+#include "ping_fop_u.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpccore.h"
