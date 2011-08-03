@@ -469,14 +469,15 @@ static void reqh_ut_read_send(struct c2_net_conn *conn, unsigned long seq,
 static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
                                    struct c2_dtx *tx, struct c2_fom *fom)
 {
-	struct c2_stob_id	id;
+	struct c2_stob_id	 id;
 	struct c2_stob		*obj;
-	int			result;
+	int			 result;
+	struct c2_stob_domain	*fom_stdom;
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
-	result = fom->fo_stdomain->sd_ops->sdo_stob_find(fom->fo_stdomain,
-								&id, &obj);
+	fom_stdom = fom->fo_domain->fd_reqh->rh_stdom;
+	result = fom_stdom->sd_ops->sdo_stob_find(fom_stdom, &id, &obj);
 	C2_UT_ASSERT(result == 0);
 	result = c2_stob_locate(obj, tx);
 	return obj;
@@ -498,14 +499,14 @@ int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 	fom = &fom_obj->rh_ut_fom;
 	fom->fo_type = t;
 
-		fom->fo_ops = &reqh_ut_create_fom_ops;
+	fom->fo_ops = &reqh_ut_create_fom_ops;
 
-		fom_obj->rep_fop =
-			c2_fop_alloc(&reqh_ut_fom_io_create_rep_fopt, NULL);
-		if (fom_obj->rep_fop == NULL) {
-			c2_free(fom_obj);
-			return -ENOMEM;
-		}
+	fom_obj->rep_fop =
+		c2_fop_alloc(&reqh_ut_fom_io_create_rep_fopt, NULL);
+	if (fom_obj->rep_fop == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
+	}
 
 	fom_obj->rh_ut_stobj = NULL;
 	*out = fom;
@@ -877,7 +878,7 @@ int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(&(fop->f_type->ft_fom_type), m);
 	if (result == 0) {
 		(*m)->fo_fop = fop;
-		result = c2_fom_init(*m);
+		c2_fom_init(*m);
 	}
 
 	return result;

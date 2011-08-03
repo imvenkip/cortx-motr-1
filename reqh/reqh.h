@@ -29,7 +29,7 @@
    @defgroup reqh Request handler
 
    Request handler provides non-blocking infrastructure for fop execution.
-   There exists single request handler instance per address space, once
+   There typically is a single request handler instance per address space, once
    the request handler is initialised and ready to serve requests, it accepts
    a fop (file operation packet), iterpretes it by interacting with other sub
    systems and executes the desired file system operation.
@@ -98,17 +98,6 @@ int  c2_reqh_init(struct c2_reqh *reqh,
 void c2_reqh_fini(struct c2_reqh *reqh);
 
 /**
-   Sort-key determining global fop processing order.
-
-   A sort-key is assigned to a fop when it enters NRS (Network Request
-   Scheduler) incoming queue. NRS processes fops in sort-key order.
-
-   @todo sort key definition
- */
-struct c2_fop_sortkey {
-};
-
-/**
    Submit fop for request handler processing.
    Request handler intialises fom corresponding to this fop, finds appropriate
    locality to execute this fom, and enqueues the fom into its runq.
@@ -122,18 +111,6 @@ struct c2_fop_sortkey {
    @pre fom != null
  */
 void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
-
-/**
-   Assign a sort-key to a fop.
-
-   This function is called by NRS to order fops in its incoming queue.
-
-   @todo -> to decide upon sort key generation parameters as required by
-   nrs scheduler
- */
-void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
-			     struct c2_fop_sortkey *key);
-
 
 /**
    Standard fom state transition function.
@@ -234,17 +211,28 @@ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
    @see c2_fom_phase
    @see c2_fom_state_outcome
 
+   @param fom, fom under execution
+
    @retval FSO_AGAIN, if fom operation is successful, transition to next phase,
 	FSO_WAIT, if fom execution blocks and fom goes into corresponding wait
 		phase, or if fom execution is complete, i.e success or failure
-
-   @param fom, fom under execution
 
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
 
 int c2_fom_state_generic(struct c2_fom *fom);
+
+/**
+    Initializes global reqh objects like reqh fops and addb context,
+    invoked from c2_init().
+ */
+int c2_reqhs_init(void);
+
+/**
+   Finalises global reqh objects, invoked from c2_fini().
+*/
+void c2_reqhs_fini(void);
 
 /** @} endgroup reqh */
 

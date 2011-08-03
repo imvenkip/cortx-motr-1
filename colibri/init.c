@@ -38,6 +38,7 @@
 #include "stob/ad.h"
 #include "fol/fol.h"
 #include "desim/sim.h"
+#include "reqh/reqh.h"
 
 #include "colibri/init.h"
 
@@ -70,7 +71,8 @@ struct init_fini_call subsystem[] = {
 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
 	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
-	{ &sim_global_init,  &sim_global_fini,  "desim" }
+	{ &sim_global_init,  &sim_global_fini,  "desim" },
+	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" }
 };
 
 static void fini_nr(int i)

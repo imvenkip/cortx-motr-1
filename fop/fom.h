@@ -79,11 +79,10 @@ struct c2_fom_ops;
 
    Lock ordering:
 
-   - runq list and wait list are protect by their respective locks
-     i.e fl_runq_lock and fl_wail_lock.
-   - rest of the locality members are protected by locality's fl_lock.
-   - no lock ordering is needed here as there's no conatiner relationship
-     among locality members.
+   - no lock ordering is needed here as access to all the locality members
+     is protected by a common locality lock, c2_fom_locality::fl_lock.
+     All the operations on locality members are performed independently using
+     simple locking and unlocking semantics.
 
    Once the locality is initialised, the locality invariant,
    should hold true until locality is finalised.
@@ -97,14 +96,12 @@ struct c2_fom_locality {
 	/** Run-queue */
 	struct c2_list               fl_runq;
 	size_t			     fl_runq_nr;
-	struct c2_mutex		     fl_runq_lock;
 
 	/** Wait list */
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
-	struct c2_mutex		     fl_wail_lock;
 
-	/** Lock for the locality fields not protected by the locks above. */
+	/** Common lock used to protect locality feilds */
 	struct c2_mutex		     fl_lock;
 
 	/**
@@ -288,8 +285,6 @@ struct c2_fom {
 	struct c2_fop		*fo_rep_fop;
 	/** Fol object for this fom */
 	struct c2_fol		*fo_fol;
-	/** Stob domain this fom is operating on */
-	struct c2_stob_domain	*fo_stdomain;
 	/** Fom domain this fom belongs to */
 	struct c2_fom_domain	*fo_domain;
 	/** Transaction object to be used by this fom */
@@ -323,7 +318,7 @@ void c2_fom_queue(struct c2_fom *fom);
    @param fom, A fom to be initialised
    @pre fom != NULL
  */
-int c2_fom_init(struct c2_fom *fom);
+void c2_fom_init(struct c2_fom *fom);
 
 /**
    Finalises a fom after it completes its execution,
