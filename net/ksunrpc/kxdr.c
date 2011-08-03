@@ -297,7 +297,6 @@ static int kxdr_sequence_arg(struct kxdr_ctx *ctx, void *obj)
 		ps->ps_pgoff =
 		    (unsigned long) ctx->kc_xdr->p & (PAGE_CACHE_SIZE - 1);
 		ps->ps_pages = ctx->kc_sreq->rq_pages;
-		xdr_read_pages(ctx->kc_xdr, ps->ps_nr);
 	} else {
 		uint32_t i;
 

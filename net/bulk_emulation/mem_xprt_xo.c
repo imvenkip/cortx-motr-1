@@ -277,7 +277,7 @@ static int32_t mem_xo_get_max_buffer_segments(const struct c2_net_domain *dom)
    - "dottedIP:portNumber:serviceId" if 3-tuple addressing used.
  */
 static int mem_xo_end_point_create(struct c2_net_end_point **epp,
-				   struct c2_net_domain *dom,
+				   struct c2_net_transfer_mc *tm,
 				   const char *addr)
 {
 	char buf[C2_NET_BULK_MEM_XEP_ADDR_LEN];
@@ -287,7 +287,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	int pnum;
 	struct sockaddr_in sa;
 	uint32_t id = 0;
-	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
+	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(tm->ntm_dom);
 
 	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
@@ -321,7 +321,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return mem_bmo_ep_create(epp, dom, &sa, id);
+	return mem_bmo_ep_create(epp, tm, &sa, id);
 }
 
 /**
@@ -596,10 +596,11 @@ size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
 	return tp->xtm_num_workers;
 }
 
-static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
+static int mem_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp;
 	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	struct c2_net_xprt *xprt;
 	int rc = 0;
 	int i;
 
@@ -631,6 +632,15 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
 	wi_st_chg->xwi_status = 0;
+
+	/* create the end point (indirectly via the transport ops vector) */
+	xprt = tm->ntm_dom->nd_xprt;
+	rc = (*xprt->nx_ops->xo_end_point_create)(&wi_st_chg->xwi_nbe_ep,
+						  tm, addr);
+	if (rc != 0) {
+		c2_free(wi_st_chg);
+		return rc;
+	}
 
 	/* start worker threads */
 	for (i = 0; i < tp->xtm_num_workers && rc == 0; ++i)

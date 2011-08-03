@@ -69,7 +69,7 @@ static int ut_dom_init(struct c2_net_xprt *xprt,
 	return 0;
 }
 
-static bool ut_dom_fini_called=false;
+static bool ut_dom_fini_called = false;
 static void ut_dom_fini(struct c2_net_domain *dom)
 {
 	C2_ASSERT(c2_mutex_is_locked(&c2_net_mutex));
@@ -79,9 +79,9 @@ static void ut_dom_fini(struct c2_net_domain *dom)
 
 /* params */
 enum {
-	UT_MAX_BUF_SIZE=4096,
-	UT_MAX_BUF_SEGMENT_SIZE=2048,
-	UT_MAX_BUF_SEGMENTS=4,
+	UT_MAX_BUF_SIZE = 4096,
+	UT_MAX_BUF_SEGMENT_SIZE = 2048,
+	UT_MAX_BUF_SEGMENTS = 4,
 };
 static bool ut_get_max_buffer_size_called = false;
 static c2_bcount_t ut_get_max_buffer_size(const struct c2_net_domain *dom)
@@ -113,27 +113,27 @@ static void ut_end_point_release(struct c2_ref *ref)
 {
 	struct c2_net_end_point *ep;
 	struct ut_ep *utep;
-	struct c2_net_domain *dom;
+	struct c2_net_transfer_mc *tm;
 	ut_end_point_release_called = true;
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
 	ut_last_ep_released = ep;
-	dom = ep->nep_dom;
-	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
-	c2_list_del(&ep->nep_dom_linkage);
-	ep->nep_dom = NULL;
+	tm = ep->nep_tm;
+	C2_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
+	c2_list_del(&ep->nep_tm_linkage);
+	ep->nep_tm = NULL;
 	utep = container_of(ep, struct ut_ep, uep);
 	c2_free(utep);
 }
 static bool ut_end_point_create_called = false;
 static int ut_end_point_create(struct c2_net_end_point **epp,
-			       struct c2_net_domain *dom,
+			       struct c2_net_transfer_mc *tm,
 			       const char *addr)
 {
 	char *ap;
 	struct ut_ep *utep;
 	struct c2_net_end_point *ep;
 
-	C2_ASSERT(c2_mutex_is_locked(&dom->nd_mutex));
+	C2_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_end_point_create_called = true;
 	if (addr == NULL) {
 		/* don't support dynamic */
@@ -141,9 +141,9 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	}
 	ap = (char *)addr;  /* avoid strdup; this is a ut! */
 	/* check if its already on the domain list */
-	c2_list_for_each_entry(&dom->nd_end_points, ep,
+	c2_list_for_each_entry(&tm->ntm_end_points, ep,
 			       struct c2_net_end_point,
-			       nep_dom_linkage) {
+			       nep_tm_linkage) {
 		utep = container_of(ep, struct ut_ep, uep);
 		if (strcmp(utep->addr, ap) == 0) {
 			c2_ref_get(&ep->nep_ref); /* refcnt++ */
@@ -156,9 +156,8 @@ static int ut_end_point_create(struct c2_net_end_point **epp,
 	utep->addr = ap;
 	utep->uep.nep_addr = ap;
 	c2_ref_init(&utep->uep.nep_ref, 1, ut_end_point_release);
-	utep->uep.nep_dom = dom;
-	c2_list_link_init(&utep->uep.nep_dom_linkage);
-	c2_list_add_tail(&dom->nd_end_points, &utep->uep.nep_dom_linkage);
+	utep->uep.nep_tm = tm;
+	c2_list_add_tail(&tm->ntm_end_points, &utep->uep.nep_tm_linkage);
 	*epp = &utep->uep;
 	return 0;
 }
@@ -255,6 +254,21 @@ static void ut_tm_fini(struct c2_net_transfer_mc *tm)
 }
 
 struct c2_thread ut_tm_thread;
+static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
+{
+	struct c2_net_tm_event ev = {
+		.nte_type = C2_NET_TEV_STATE_CHANGE,
+		.nte_tm = &ut_tm,
+		.nte_ep = ep,
+		.nte_status = 0,
+		.nte_next_state = C2_NET_TM_STARTED
+	};
+	DELAY_MS(1);
+	c2_time_now(&ev.nte_time);
+
+	/* post state change event */
+	c2_net_tm_event_post(&ev);
+}
 static void ut_post_state_change_ev_thread(int n)
 {
 	struct c2_net_tm_event ev = {
@@ -271,17 +285,26 @@ static void ut_post_state_change_ev_thread(int n)
 }
 
 static bool ut_tm_start_called = false;
-static int ut_tm_start(struct c2_net_transfer_mc *tm)
+static int ut_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	int rc;
+	struct c2_net_xprt *xprt;
+	struct c2_net_end_point *ep;
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_start_called = true;
+
+	/* create the end point (indirectly via the transport ops vector) */
+	xprt = tm->ntm_dom->nd_xprt;
+	rc = (*xprt->nx_ops->xo_end_point_create)(&ep, tm, addr);
+	if (rc != 0)
+		return rc;
+
 	/* create bg thread to post start state change event.
-	   cannot do it here: we are in dom lock, post would assert.
+	   cannot do it here: we are in tm lock, post would assert.
 	 */
-	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
-			    &ut_post_state_change_ev_thread, C2_NET_TM_STARTED,
+	rc = C2_THREAD_INIT(&ut_tm_thread, struct c2_net_end_point *, NULL,
+			    &ut_post_tm_started_ev_thread, ep,
 			    "state_change%d", C2_NET_TM_STARTED);
 	C2_UT_ASSERT(rc == 0);
 	return rc;
@@ -532,55 +555,6 @@ static void test_net_bulk_if(void)
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
-	/* Test desired end point behavior
-	   A real transport isn't actually forced to maintain
-	   reference counts this way, but ought to do so.
-	 */
-	C2_UT_ASSERT(ut_end_point_create_called == false);
-	rc = c2_net_end_point_create(&ep1, dom, NULL);
-	C2_UT_ASSERT(rc != 0); /* no dynamic */
-	C2_UT_ASSERT(ut_end_point_create_called);
-	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
-	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
-
-	ut_end_point_create_called = false;
-	rc = c2_net_end_point_create(&ep1, dom, "addr1");
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_end_point_create_called);
-	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
-	C2_ASSERT(!c2_list_is_empty(&dom->nd_end_points));
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
-
-	rc = c2_net_end_point_create(&ep2, dom, "addr2");
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ep2 != ep1);
-
-	rc = c2_net_end_point_create(&ep, dom, "addr1");
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ep == ep1);
-	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
-
-	C2_UT_ASSERT(ut_end_point_release_called == false);
-	c2_net_end_point_get(ep); /* refcnt=3 */
-	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 3);
-
-	C2_UT_ASSERT(ut_end_point_release_called == false);
-	rc = c2_net_end_point_put(ep); /* refcnt=2 */
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
-
-	rc = c2_net_end_point_put(ep); /* refcnt=1 */
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_end_point_release_called == false);
-	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 1);
-
-	rc = c2_net_end_point_put(ep); /* refcnt=0 */
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(ut_end_point_release_called);
-	C2_UT_ASSERT(ut_last_ep_released == ep);
-	ep1 = NULL; /* not valid! */
-
 	/* allocate buffers for testing */
 	nbs = allocate_buffers(buf_size, buf_seg_size, buf_segs);
 
@@ -627,19 +601,73 @@ static void test_net_bulk_if(void)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 
-	rc = c2_net_tm_start(tm, ep2);
+	C2_UT_ASSERT(ut_end_point_create_called == false);
+	rc = c2_net_tm_start(tm, "addr2");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_start_called);
-	C2_UT_ASSERT(tm->ntm_ep == ep2);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTING ||
 		     tm->ntm_state == C2_NET_TM_STARTED);
-	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
 
 	/* wait on channel for started */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(ut_tm_event_cb_calls == 1);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(ut_end_point_create_called);
+
+	C2_UT_ASSERT(tm->ntm_ep != NULL);
+	C2_UT_ASSERT(c2_atomic64_get(&tm->ntm_ep->nep_ref.ref_cnt) == 1);
+
+	/* Test desired end point behavior
+	   A real transport isn't actually forced to maintain
+	   reference counts this way, but ought to do so.
+	 */
+	ut_end_point_create_called = false;
+	rc = c2_net_end_point_create(&ep1, tm, NULL);
+	C2_UT_ASSERT(rc != 0); /* no dynamic */
+	C2_UT_ASSERT(ut_end_point_create_called);
+	C2_ASSERT(c2_mutex_is_not_locked(&tm->ntm_mutex));
+	C2_ASSERT(c2_list_length(&tm->ntm_end_points) == 1);
+
+	ut_end_point_create_called = false;
+	rc = c2_net_end_point_create(&ep1, tm, "addr1");
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_end_point_create_called);
+	C2_ASSERT(c2_mutex_is_not_locked(&tm->ntm_mutex));
+	C2_ASSERT(!c2_list_is_empty(&tm->ntm_end_points));
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+
+	rc = c2_net_end_point_create(&ep2, tm, "addr2");
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ep2 != ep1);
+	C2_UT_ASSERT(ep2 == tm->ntm_ep);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
+
+	rc = c2_net_end_point_create(&ep, tm, "addr1");
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ep == ep1);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
+
+	C2_UT_ASSERT(ut_end_point_release_called == false);
+	c2_net_end_point_get(ep); /* refcnt=3 */
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 3);
+
+	C2_UT_ASSERT(ut_end_point_release_called == false);
+	rc = c2_net_end_point_put(ep); /* refcnt=2 */
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_end_point_release_called == false);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
+
+	rc = c2_net_end_point_put(ep); /* refcnt=1 */
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_end_point_release_called == false);
+	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 1);
+
+	rc = c2_net_end_point_put(ep); /* refcnt=0 */
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ut_end_point_release_called);
+	C2_UT_ASSERT(ut_last_ep_released == ep);
+	ep1 = NULL; /* not valid! */
 
 	/* add MSG_RECV buf with a timeout in the past - should fail */
 	nb = &nbs[C2_NET_QT_MSG_RECV];
@@ -767,6 +795,11 @@ static void test_net_bulk_if(void)
 	rc = c2_thread_join(&ut_del_thread);
 	C2_UT_ASSERT(rc == 0);
 
+	/* free end point */
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
+	rc = c2_net_end_point_put(ep2);
+	C2_UT_ASSERT(rc == 0);
+
 	/* TM stop */
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 	rc = c2_net_tm_stop(tm, false);
@@ -841,10 +874,7 @@ static void test_net_bulk_if(void)
 	c2_net_tm_fini(tm);
 	C2_UT_ASSERT(ut_tm_fini_called);
 
-	/* free end points */
-	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
-	rc = c2_net_end_point_put(ep2);
-	C2_UT_ASSERT(rc == 0);
+	/* TM fini releases final end point */
 	C2_UT_ASSERT(ut_last_ep_released == ep2);
 
 	/* de-register buffers */

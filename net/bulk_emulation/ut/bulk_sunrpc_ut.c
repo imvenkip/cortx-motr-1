@@ -41,173 +41,6 @@ static c2_time_t ut_timeout_after_secs(int secs)
 	return c2_time_add(c2_time_now(&now), dur);
 }
 
-static void test_sunrpc_ep(void)
-{
-	/* dom1 */
-	static struct c2_net_domain dom1 = {
-		.nd_xprt = NULL
-	};
-	struct c2_net_end_point *ep1;
-	struct c2_net_end_point *ep2;
-	struct c2_net_end_point *ep3;
-	struct c2_net_end_point *ep4;
-	struct c2_net_end_point *ep5;
-	const char *addr;
-	struct c2_net_bulk_sunrpc_end_point *sep;
-	struct c2_net_bulk_sunrpc_domain_pvt *dp;
-	c2_time_t t1;
-	c2_time_t t2;
-	c2_time_t t3;
-	uint32_t hb;
-
-	/* TEST: Multiple create calls on the same address return the
-	   same object.
-	*/
-	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
-	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
-		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
-	addr = "255.255.255.255:65535";
-	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &dom1, addr) == -EINVAL);
-	addr = "255.255.255.255:65535:4294967295";
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep1->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
-
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep2->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep2->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
-	C2_UT_ASSERT(ep1 == ep2);
-
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep3, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep3->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep3->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep3->nep_ref.ref_cnt) == 3);
-	C2_UT_ASSERT(ep1 == ep3);
-
-	/* TEST: end points cached internally if connections were used */
-
-	/* fake a "touch" on the end point to induce caching */
-	sep = sunrpc_ep_to_pvt(ep1);
-	c2_time_now(&t1);
-	c2_atomic64_set(&sep->xep_last_use, t1);
-
-	/* release the EP references */
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep3));
-
-	/* The EP is still cached because the default delay is about 20 sec */
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
-	C2_UT_ASSERT(c2_list_contains(&dom1.nd_end_points,
-				      &ep1->nep_dom_linkage));
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 0);
-
-	/* should be able to get the same end point */
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep4, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep4->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep4->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 1);
-	C2_UT_ASSERT(ep1 == ep4);
-
-	/* touch and release it */
-	sep = sunrpc_ep_to_pvt(ep4);
-	c2_time_now(&t1);
-	c2_atomic64_set(&sep->xep_last_use, t1);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep4));
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
-	C2_UT_ASSERT(c2_list_contains(&dom1.nd_end_points,
-				      &ep4->nep_dom_linkage));
-	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 0);
-
-	/* TEST: caching only works if the last use is non zero */
-	addr = "255.255.255.255:65535:1234";
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep5, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep5->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep5->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep5->nep_ref.ref_cnt) == 1);
-	sep = sunrpc_ep_to_pvt(ep5);
-	C2_UT_ASSERT(c2_atomic64_get(&sep->xep_last_use) == 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep5)); /* not cached */
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
-	C2_UT_ASSERT(!c2_list_contains(&dom1.nd_end_points,
-				       &ep5->nep_dom_linkage));
-
-	/* fini still works because the cache gets flushed */
-	c2_net_domain_fini(&dom1);
-
-	/* TEST: End point caching can be disabled. The act of
-	   disabling flushes cached end points.
-	*/
-	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
-	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
-		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
-
-	addr = "255.255.255.255:65535:3534";
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep1->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
-	sep = sunrpc_ep_to_pvt(ep1);
-	c2_time_now(&t1);
-	c2_atomic64_set(&sep->xep_last_use, t1);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1);
-
-	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 0);
-	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
-		     == 0);
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* flushed */
-
-	addr = "255.255.255.255:65535:3535";
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep1->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
-	sep = sunrpc_ep_to_pvt(ep1);
-	c2_time_now(&t1);
-	c2_atomic64_set(&sep->xep_last_use, t1);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* not cached */
-
-	c2_net_domain_fini(&dom1);
-
-	/* TEST: skulker thread cleans up the cache */
-	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
-	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
-		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
-	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
-	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
-		     == 1000);
-
-	dp = sunrpc_dom_to_pvt(&dom1);
-	while (dp->xd_skulker_hb == 0)
-		ut_sleep_secs(1); /* wait until skulker thread starts */
-
-	addr = "255.255.255.255:65535:9876";
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1, addr));
-	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
-	C2_UT_ASSERT(ep1->nep_addr != addr);
-	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
-	sep = sunrpc_ep_to_pvt(ep1);
-	c2_time_now(&t1);
-	c2_time_set(&t2, 1001, 0);
-	t3 = c2_time_sub(t1, t2);  /* now - 1001 */
-	c2_atomic64_set(&sep->xep_last_use, t3);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 1); /* cached */
-
-	/* force the skulker thread to wakeup */
-	hb = dp->xd_skulker_hb;
-	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
-	while (dp->xd_skulker_hb == hb)
-		ut_sleep_secs(1);/* wait for the skulker heartbeat to advance */
-	C2_UT_ASSERT(c2_list_length(&dom1.nd_end_points) == 0); /* flushed */
-
-	c2_net_domain_fini(&dom1);
-}
-
 static enum c2_net_tm_ev_type cb_evt1;
 static enum c2_net_queue_type cb_qt1;
 static struct c2_net_buffer *cb_nb1;
@@ -278,12 +111,238 @@ void sunrpc_cbreset(void)
 	sunrpc_cbreset2();
 }
 
+static void test_sunrpc_ep(void)
+{
+	/* dom1 */
+	static struct c2_net_domain dom1 = {
+		.nd_xprt = NULL
+	};
+	static struct c2_net_tm_callbacks tm_cbs1 = {
+		.ntc_event_cb = sunrpc_tm_cb1
+	};
+	static struct c2_net_transfer_mc d1tm1 = {
+		.ntm_callbacks = &tm_cbs1,
+		.ntm_state = C2_NET_TM_UNDEFINED
+	};
+	struct c2_clink tmwait;
+	struct c2_net_end_point *ep1;
+	struct c2_net_end_point *ep2;
+	struct c2_net_end_point *ep3;
+	struct c2_net_end_point *ep4;
+	struct c2_net_end_point *ep5;
+	const char *addr;
+	struct c2_net_conn *conn;
+	struct c2_net_bulk_sunrpc_conn *sconn;
+	struct c2_net_bulk_sunrpc_conn *sconn2;
+	struct c2_net_bulk_sunrpc_domain_pvt *dp;
+	c2_time_t t1;
+	c2_time_t t2;
+	c2_time_t t3;
+	uint32_t hb;
+
+	/* TEST: Multiple create calls on the same address return the
+	   same object.
+	*/
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:31111:11"));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_ep != NULL);
+
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
+	addr = "127.0.0.1:31111";
+	C2_UT_ASSERT(c2_net_end_point_create(&ep1, &d1tm1, addr) == -EINVAL);
+	addr = "127.0.0.1:31111:4294967295";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep2->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep2->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
+	C2_UT_ASSERT(ep1 == ep2);
+
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep3, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep3->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep3->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep3->nep_ref.ref_cnt) == 3);
+	C2_UT_ASSERT(ep1 == ep3);
+
+	/* TEST: end points cached internally if connections were used */
+
+	/* fake a "touch" on the end point to induce caching */
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
+	sunrpc_ep_put_conn(sconn, conn, 0);
+
+	/* release the EP references */
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
+	C2_UT_ASSERT(!c2_net_end_point_put(ep3));
+
+	/* The conn (but not the EP) is still cached
+	   because the default delay is about 20 sec */
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
+	dp = sunrpc_dom_to_pvt(&dom1);
+	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
+				      &sconn->xc_dp_linkage));
+	C2_UT_ASSERT(c2_atomic64_get(&sconn->xc_ref.ref_cnt) == 0);
+
+	/* should be able to get the same end point */
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep4, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep4->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep4->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 1);
+
+	/* touch and release it */
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep4, &conn, &sconn2) == 0);
+	C2_UT_ASSERT(sconn2 == sconn); /* cached: same sconn */
+	sunrpc_ep_put_conn(sconn2, conn, 0);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep4));
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
+	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
+				      &sconn2->xc_dp_linkage));
+	C2_UT_ASSERT(c2_atomic64_get(&ep4->nep_ref.ref_cnt) == 0);
+
+	/* TEST: caching only works if the last use is non zero */
+	addr = "127.0.0.1:31111:1234";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep5, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep5->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep5->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep5->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep5, &conn, &sconn) == 0);
+	sunrpc_ep_put_conn(sconn, conn, 1);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep5)); /* not cached */
+	C2_UT_ASSERT(c2_list_is_empty(&dp->xd_conn_cache));
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
+	C2_UT_ASSERT(!c2_list_contains(&d1tm1.ntm_end_points,
+				       &ep5->nep_tm_linkage));
+
+	/* fini still works because the cache gets flushed */
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
+	c2_net_tm_fini(&d1tm1);
+	c2_net_domain_fini(&dom1);
+
+	/* TEST: End point caching can be disabled. The act of
+	   disabling flushes cached end points.
+	*/
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
+
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:31111:11"));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_ep != NULL);
+
+	addr = "127.0.0.1:31111:3534";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
+	sunrpc_ep_put_conn(sconn, conn, 0);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
+	dp = sunrpc_dom_to_pvt(&dom1);
+	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
+				      &sconn->xc_dp_linkage));
+	C2_UT_ASSERT(c2_list_length(&dp->xd_conn_cache) == 1);
+
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 0);
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == 0);
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1); /* flushed */
+	C2_UT_ASSERT(c2_list_is_empty(&dp->xd_conn_cache));
+
+	addr = "127.0.0.1:31111:3535";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
+	sunrpc_ep_put_conn(sconn, conn, 0);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1); /* !cached */
+
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	c2_net_tm_fini(&d1tm1);
+	c2_net_domain_fini(&dom1);
+
+	/* TEST: skulker thread cleans up the cache */
+	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
+	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == C2_NET_BULK_SUNRPC_EP_DELAY_S);
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
+	C2_UT_ASSERT(c2_net_bulk_sunrpc_dom_get_end_point_release_delay(&dom1)
+		     == 1000);
+
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:31111:11"));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	C2_UT_ASSERT(d1tm1.ntm_ep != NULL);
+
+	dp = sunrpc_dom_to_pvt(&dom1);
+	while (dp->xd_skulker_hb == 0)
+		ut_sleep_secs(1); /* wait until skulker thread starts */
+
+	addr = "127.0.0.1:31111:9876";
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1, addr));
+	C2_UT_ASSERT(strcmp(ep1->nep_addr, addr) == 0);
+	C2_UT_ASSERT(ep1->nep_addr != addr);
+	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
+	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
+	c2_time_now(&t1);
+	sunrpc_ep_put_conn(sconn, conn, 0);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	dp = sunrpc_dom_to_pvt(&dom1);
+	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
+				      &sconn->xc_dp_linkage));
+	C2_UT_ASSERT(c2_list_length(&dp->xd_conn_cache) == 1);
+	c2_time_set(&t2, 1001, 0);
+	t3 = c2_time_sub(t1, t2);  /* now - 1001 */
+	c2_atomic64_set(&sconn->xc_last_use, t3);
+
+	/* force the skulker thread to wakeup */
+	hb = dp->xd_skulker_hb;
+	c2_net_bulk_sunrpc_dom_set_end_point_release_delay(&dom1, 1000);
+	while (dp->xd_skulker_hb == hb)
+		ut_sleep_secs(1);/* wait for the skulker heartbeat to advance */
+	C2_UT_ASSERT(c2_list_is_empty(&dp->xd_conn_cache)); /* flushed */
+
+	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
+	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
+	c2_chan_wait(&tmwait);
+	c2_clink_del(&tmwait);
+	c2_net_tm_fini(&d1tm1);
+	c2_net_domain_fini(&dom1);
+}
+
 static void test_sunrpc_desc(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
-	struct c2_net_end_point *ep1, *ep2;
+	struct c2_net_end_point *ep1;
 
 	static const struct c2_net_tm_callbacks tm_cbs1 = {
 		.ntc_event_cb = sunrpc_tm_cb1
@@ -297,14 +356,12 @@ static void test_sunrpc_desc(void)
 	static struct sunrpc_buf_desc sd;
 
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &dom1,"127.0.0.1:31111:1"));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep2, &dom1,"127.0.0.1:31111:2"));
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 
 	/* start tm and wait for tm to notify it has started */
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
-	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep1));
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:31111:1"));
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
@@ -312,7 +369,9 @@ static void test_sunrpc_desc(void)
 	C2_SET0(&desc1);
 	C2_SET0(&sd);
 
-	C2_UT_ASSERT(!sunrpc_desc_create(&desc1, ep2, &d1tm1,
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep1, &d1tm1,
+					      "127.0.0.1:31111:2"));
+	C2_UT_ASSERT(!sunrpc_desc_create(&desc1, ep1, &d1tm1,
 					 C2_NET_QT_PASSIVE_BULK_RECV,
 					 2345, 34));
 	C2_UT_ASSERT(desc1.nbd_len == sizeof(struct sunrpc_buf_desc));
@@ -328,6 +387,7 @@ static void test_sunrpc_desc(void)
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(31111));
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_id == 1);
 	c2_net_desc_free(&desc1);
+	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
 	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
@@ -335,9 +395,6 @@ static void test_sunrpc_desc(void)
 	c2_clink_del(&tmwait);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STOPPED);
 	c2_net_tm_fini(&d1tm1);
-
-	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
 
 	c2_net_domain_fini(&dom1);
 }
@@ -434,12 +491,16 @@ static void test_sunrpc_ping(void)
 	len = PING_BUFFER_2PAGE_SIZE;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
+	data[i] = 0;
+	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
 
 	/* test sending/receiving even larger payload */
 	len = (PING_CLIENT_SEGMENTS-1) * PING_CLIENT_SEGMENT_SIZE + 1;
 	for (i = 0; i < len; ++i)
 		data[i] = "abcdefghi"[i % 9];
+	data[i] = 0;
+	C2_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, data) == 0);
 	sctx.pc_passive_size = len;
 	C2_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
 	C2_UT_ASSERT(ping_client_passive_send(&cctx, server_ep, data) == 0);
@@ -521,16 +582,14 @@ static void test_sunrpc_failure(void)
 
 	/* setup the first dom - use non-reserved port numbers */
 	C2_UT_ASSERT(!c2_net_domain_init(&dom1, &c2_net_bulk_sunrpc_xprt));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,"127.0.0.1:10000:1"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:1")==0);
 	C2_UT_ASSERT(!c2_net_tm_init(&d1tm1, &dom1));
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, ep));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(!c2_net_tm_start(&d1tm1, "127.0.0.1:10000:1"));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(d1tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(d1tm1.ntm_ep->nep_addr, "127.0.0.1:10000:1") == 0);
 	C2_SET0(&d1nb1);
 	C2_UT_ASSERT(!c2_bufvec_alloc(&d1nb1.nb_buffer, 4, 10000));
 	C2_UT_ASSERT(!c2_net_buffer_register(&d1nb1, &dom1));
@@ -558,12 +617,9 @@ static void test_sunrpc_failure(void)
 	*/
 	sunrpc_cbreset();
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:21000:3"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:21000:3")==0);
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm2.ntm_chan, &tmwait2);
-	C2_UT_ASSERT(!c2_net_tm_start(&d2tm2, ep));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(!c2_net_tm_start(&d2tm2, "127.0.0.1:21000:3"));
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_status2 == -EADDRNOTAVAIL);
@@ -571,16 +627,14 @@ static void test_sunrpc_failure(void)
 
 	/* start a TM with id 3 in the second domain */
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm1, &dom2));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:3"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:3")==0);
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
-	C2_UT_ASSERT(!c2_net_tm_start(&d2tm1, ep));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(!c2_net_tm_start(&d2tm1, "127.0.0.1:10000:3"));
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
 	C2_UT_ASSERT(cb_status2 == 0);
 	C2_UT_ASSERT(d2tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(d2tm1.ntm_ep->nep_addr, "127.0.0.1:10000:3") == 0);
 
 	/* TEST
 	   Start a second TM in the second domain, using the same port
@@ -590,33 +644,27 @@ static void test_sunrpc_failure(void)
 	c2_net_tm_fini(&d2tm2);
 	d2tm2.ntm_state = C2_NET_TM_UNDEFINED;
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:3"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:3")==0);
-	C2_UT_ASSERT(c2_net_tm_start(&d2tm2, ep) == -EADDRINUSE);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(c2_net_tm_start(&d2tm2, "127.0.0.1:10000:3") ==
+		     -EADDRINUSE);
 
 	/* TEST
-	   Start a second TM in the second domain, using a different port
-	   number.
-	   Bulksunrpc requires a single port number for all TMs, per process,
-	   regardless of domain.
+	   Start a second TM in the second domain, using same port and
+	   service id as TM in first domain.
 	*/
 	sunrpc_cbreset();
 	c2_net_tm_fini(&d2tm2);
 	d2tm2.ntm_state = C2_NET_TM_UNDEFINED;
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:1"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:1")==0);
-	C2_UT_ASSERT(c2_net_tm_start(&d2tm2, ep) == -EADDRINUSE);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(c2_net_tm_start(&d2tm2, "127.0.0.1:10000:1") ==
+		     -EADDRINUSE);
 
 	/* TEST
 	   Send a message from d1tm1 to d2tm2 - should fail because
 	   the destination TM not started.
 	*/
 	sunrpc_cbreset();
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,"127.0.0.1:10000:4"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:4")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d1tm1,"127.0.0.1:10000:4"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:4") == 0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
 	d1nb1.nb_length = 10; /* don't care */
@@ -636,13 +684,11 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(!c2_net_tm_init(&d2tm2, &dom2));
 	c2_clink_init(&tmwait2, NULL);
 	c2_clink_add(&d2tm2.ntm_chan, &tmwait2);
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:4"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:4")==0);
-	C2_UT_ASSERT(!c2_net_tm_start(&d2tm2, ep));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	C2_UT_ASSERT(!c2_net_tm_start(&d2tm2, "127.0.0.1:10000:4"));
 	c2_chan_wait(&tmwait2);
 	c2_clink_del(&tmwait2);
-	C2_UT_ASSERT(d2tm1.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(d2tm2.ntm_state == C2_NET_TM_STARTED);
+	C2_UT_ASSERT(strcmp(d2tm2.ntm_ep->nep_addr, "127.0.0.1:10000:4") == 0);
 
 	/* TEST
 	   Send a message from d1tm1 to d2tm1 - should fail because
@@ -656,8 +702,8 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,"127.0.0.1:10000:3"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:3")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d1tm1,"127.0.0.1:10000:3"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:3") == 0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
 	d1nb1.nb_length = 10; /* don't care */
@@ -701,8 +747,8 @@ static void test_sunrpc_failure(void)
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_MSG_SEND,&qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom1,"127.0.0.1:10000:3"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:3")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d1tm1,"127.0.0.1:10000:3"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:3") == 0);
 	d1nb1.nb_qtype = C2_NET_QT_MSG_SEND;
 	d1nb1.nb_ep = ep;
 	d1nb1.nb_length = 40;
@@ -739,8 +785,8 @@ static void test_sunrpc_failure(void)
 	sunrpc_cbreset();
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:9"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:9")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d2tm1,"127.0.0.1:10000:9"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:9") == 0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
@@ -789,8 +835,8 @@ static void test_sunrpc_failure(void)
 	sunrpc_cbreset();
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:1"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:1")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d2tm1,"127.0.0.1:10000:1"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:1") == 0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
@@ -839,8 +885,8 @@ static void test_sunrpc_failure(void)
 	sunrpc_cbreset();
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:1"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:1")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d2tm1,"127.0.0.1:10000:1"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:1") == 0);
 	d2nb2.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb2.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
@@ -891,8 +937,8 @@ static void test_sunrpc_failure(void)
 	sunrpc_cbreset();
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d2tm1,C2_NET_QT_PASSIVE_BULK_RECV,
 					  &qs,true));
-	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &dom2,"127.0.0.1:10000:1"));
-	C2_UT_ASSERT(strcmp(ep->nep_addr,"127.0.0.1:10000:1")==0);
+	C2_UT_ASSERT(!c2_net_end_point_create(&ep, &d2tm1,"127.0.0.1:10000:1"));
+	C2_UT_ASSERT(strcmp(ep->nep_addr, "127.0.0.1:10000:1") == 0);
 	d2nb1.nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV;
 	d2nb1.nb_ep = ep;
 	c2_clink_init(&tmwait2, NULL);
@@ -1076,10 +1122,10 @@ const struct c2_test_suite c2_net_bulk_sunrpc_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
+		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm },
 		{ "net_bulk_sunrpc_ep",         test_sunrpc_ep },
 		{ "net_bulk_sunrpc_desc",       test_sunrpc_desc },
 		{ "net_bulk_sunrpc_failure",    test_sunrpc_failure },
-		{ "net_bulk_sunrpc_tm_test",    test_sunrpc_tm },
 		{ "net_bulk_sunrpc_ping_tests", test_sunrpc_ping },
 		{ NULL, NULL }
 	}

@@ -63,7 +63,6 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	/* end deprecated */
 
 	c2_mutex_init(&dom->nd_mutex);
-	c2_list_init(&dom->nd_end_points);
 	c2_list_init(&dom->nd_registered_bufs);
 	c2_list_init(&dom->nd_tms);
 
@@ -90,14 +89,11 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
 		dom->nd_xprt = NULL;
 	}
-	/* allow xo_dom_fini to flush end point caches */
-	C2_ASSERT(c2_list_is_empty(&dom->nd_end_points));
 	c2_addb_ctx_fini(&dom->nd_addb);
 	dom->nd_xprt_private = NULL;
 
 	c2_list_fini(&dom->nd_tms);
 	c2_list_fini(&dom->nd_registered_bufs);
-	c2_list_fini(&dom->nd_end_points);
 
 	c2_mutex_fini(&dom->nd_mutex);
 

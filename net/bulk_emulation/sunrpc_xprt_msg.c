@@ -48,6 +48,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	struct c2_fop          *r    = NULL;
 	struct sunrpc_msg      *fop  = NULL;
 	struct c2_net_conn     *conn = NULL;
+	struct c2_net_bulk_sunrpc_conn *sconn;
 	int rc;
 	struct c2_net_bulk_sunrpc_domain_pvt *dp;
 
@@ -64,7 +65,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		struct c2_net_end_point *tm_ep;
 
 		/* get a connection for this end point */
-		rc = sunrpc_ep_get_conn(nb->nb_ep, &conn);
+		rc = sunrpc_ep_get_conn(nb->nb_ep, &conn, &sconn);
 		if (rc != 0)
 			break;
 
@@ -86,10 +87,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 		fop->sm_receiver.sep_port = mem_ep_port(nb->nb_ep); /* NBO */
 		fop->sm_receiver.sep_id   = mem_ep_sid(nb->nb_ep);
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		C2_ASSERT(nb->nb_length <= c2_bufvec_cursor_step(&cur));
-		rc = sunrpc_buffer_init(&fop->sm_buf,
-					c2_bufvec_cursor_addr(&cur),
-					nb->nb_length);
+		rc = sunrpc_buffer_init(&fop->sm_buf, &cur, nb->nb_length);
 		if (rc != 0)
 			break;
 
@@ -114,7 +112,7 @@ static void sunrpc_wf_msg_send(struct c2_net_transfer_mc *tm,
 	if (r != NULL)
 		c2_fop_free(r);
 	if (conn != NULL)
-		sunrpc_ep_put_conn(nb->nb_ep, conn, rc);
+		sunrpc_ep_put_conn(sconn, conn, rc);
 
 	/* post the send completion callback (will clear C2_NET_BUF_IN_USE) */
 	wi->xwi_status = rc;
@@ -166,7 +164,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		C2_ASSERT(sunrpc_buffer_invariant(nb));
 		nb->nb_flags |= C2_NET_BUF_IN_USE;
 		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		if (in->sm_buf.sb_len > c2_bufvec_cursor_step(&cur)) {
+		if (in->sm_buf.sb_len > c2_vec_count(&nb->nb_buffer.ov_vec)) {
 			struct c2_net_bulk_mem_work_item *wi =
 				mem_buffer_to_wi(nb);
 			struct c2_net_bulk_sunrpc_tm_pvt *tp =
@@ -187,7 +185,6 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	if (rc == 0) {
 		/* got a buffer */
 		struct c2_net_bulk_mem_work_item *wi = mem_buffer_to_wi(nb);
-		struct c2_net_domain *dom = tm->ntm_dom;
 		struct c2_net_bulk_sunrpc_tm_pvt *tp =
 			sunrpc_tm_to_pvt(nb->nb_tm);
 		struct sockaddr_in sa = {
@@ -197,9 +194,9 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		uint32_t sid = in->sm_sender.sep_id;
 
 		/* create an end point for the message sender */
-		c2_mutex_lock(&dom->nd_mutex);
-		rc = sunrpc_ep_create(&wi->xwi_nbe_ep, dom, &sa, sid);
-		c2_mutex_unlock(&dom->nd_mutex);
+		c2_mutex_lock(&tm->ntm_mutex);
+		rc = sunrpc_ep_create(&wi->xwi_nbe_ep, tm, &sa, sid);
+		c2_mutex_unlock(&tm->ntm_mutex);
 
 		if (rc == 0) {
 			/* copy the message to the buffer */

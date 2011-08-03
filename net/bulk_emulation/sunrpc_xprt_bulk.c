@@ -102,9 +102,8 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		len -= in->sg_offset;
 		step = min_check(c2_bufvec_cursor_step(&cur), len);
 
-		rc = sunrpc_buffer_init(&ex->sgr_buf,
-					c2_bufvec_cursor_addr(&cur), step);
-		eof = c2_bufvec_cursor_move(&cur, step);
+		rc = sunrpc_buffer_init(&ex->sgr_buf, &cur, step);
+		eof = c2_bufvec_cursor_move(&cur, 0);
 	} else {
 		rc = sunrpc_buffer_init(&ex->sgr_buf, NULL, 0);
 		eof = true;
@@ -189,6 +188,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 {
 	int                      rc = 0;
 	struct c2_net_conn      *conn = NULL;
+	struct c2_net_bulk_sunrpc_conn *sconn;
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_put       *fop;
@@ -199,7 +199,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 	c2_bcount_t              step;
 
 	/* get a connection for this end point */
-	rc = sunrpc_ep_get_conn(ep, &conn);
+	rc = sunrpc_ep_get_conn(ep, &conn, &sconn);
 	if (rc != 0)
 		return rc;
 
@@ -226,8 +226,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 
 		step = min32u(c2_bufvec_cursor_step(&cur), len);
 		fop->sp_offset = off;
-		rc = sunrpc_buffer_init(&fop->sp_buf,
-					c2_bufvec_cursor_addr(&cur), step);
+		rc = sunrpc_buffer_init(&fop->sp_buf, &cur, step);
 		if (rc == 0) {
 			rc = c2_net_cli_call(conn, &call);
 			sunrpc_buffer_fini(&fop->sp_buf);
@@ -238,7 +237,7 @@ static int sunrpc_active_send(struct c2_net_buffer *nb,
 		}
 		off += step;
 		len -= step;
-		C2_ASSERT(len == 0 || !c2_bufvec_cursor_move(&cur, step));
+		C2_ASSERT(len == 0 || !c2_bufvec_cursor_move(&cur, 0));
 	}
 
 done:
@@ -247,7 +246,7 @@ done:
 	if (f != NULL)
 		c2_fop_free(f);
 	if (conn != NULL)
-		sunrpc_ep_put_conn(ep, conn, rc);
+		sunrpc_ep_put_conn(sconn, conn, rc);
 
 	return rc;
 }
@@ -259,6 +258,7 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 {
 	int                      rc;
 	struct c2_net_conn      *conn = NULL;
+	struct c2_net_bulk_sunrpc_conn *sconn;
 	struct c2_fop           *f = NULL;
 	struct c2_fop           *r = NULL;
 	struct sunrpc_get       *fop;
@@ -269,7 +269,7 @@ static int sunrpc_active_recv(struct c2_net_buffer *nb,
 	bool                     eof = false;
 
 	/* get a connection for this end point */
-	rc = sunrpc_ep_get_conn(ep, &conn);
+	rc = sunrpc_ep_get_conn(ep, &conn, &sconn);
 	if (rc != 0)
 		return rc;
 
@@ -327,7 +327,7 @@ done:
 	if (f != NULL)
 		c2_fop_free(f);
 	if (conn != NULL)
-		sunrpc_ep_put_conn(ep, conn, rc);
+		sunrpc_ep_put_conn(sconn, conn, rc);
 
 	return rc;
 }
@@ -379,9 +379,9 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		si.sin_addr.s_addr = sd.sbd_passive_ep.sep_addr;
 		si.sin_port = sd.sbd_passive_ep.sep_port;
 		sid = sd.sbd_passive_ep.sep_id;
-		c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-		rc = sunrpc_ep_create(&match_ep, tm->ntm_dom, &si, sid);
-		c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
+		c2_mutex_lock(&tm->ntm_mutex);
+		rc = sunrpc_ep_create(&match_ep, tm, &si, sid);
+		c2_mutex_unlock(&tm->ntm_mutex);
 		if (rc != 0) {
 			match_ep = NULL;
 			break;

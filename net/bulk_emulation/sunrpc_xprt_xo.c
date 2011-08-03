@@ -81,6 +81,7 @@ static struct c2_rwlock      sunrpc_server_lock;
 static struct c2_mutex       sunrpc_server_mutex;
 static struct c2_list        sunrpc_server_tms;
 static struct c2_net_domain  sunrpc_server_domain;
+static struct sockaddr_in    sunrpc_server_in;
 static struct c2_service_id  sunrpc_server_id;
 static struct c2_service     sunrpc_server_service;
 static uint32_t              sunrpc_server_active_tms = 0;
@@ -96,21 +97,20 @@ static bool sunrpc_dom_invariant(const struct c2_net_domain *dom)
 		mem_dom_to_pvt(dom) == &dp->xd_base);
 }
 
-static bool sunrpc_ep_invariant(const struct c2_net_end_point *ep)
-{
-	const struct c2_net_bulk_sunrpc_end_point *sep = sunrpc_ep_to_pvt(ep);
-	return (sunrpc_dom_invariant(ep->nep_dom) &&
-		sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC &&
-		mem_ep_to_pvt(ep) == &sep->xep_base &&
-		sep->xep_sid_valid);
-}
-
 static bool sunrpc_tm_invariant(const struct c2_net_transfer_mc *tm)
 {
 	const struct c2_net_bulk_sunrpc_tm_pvt *tp = sunrpc_tm_to_pvt(tm);
 	return (tp != NULL && tp->xtm_magic == C2_NET_BULK_SUNRPC_XTM_MAGIC &&
 		mem_tm_to_pvt(tm) == &tp->xtm_base &&
 		sunrpc_dom_invariant(tm->ntm_dom));
+}
+
+static bool sunrpc_ep_invariant(const struct c2_net_end_point *ep)
+{
+	const struct c2_net_bulk_sunrpc_end_point *sep = sunrpc_ep_to_pvt(ep);
+	return (sunrpc_tm_invariant(ep->nep_tm) &&
+		sep->xep_magic == C2_NET_BULK_SUNRPC_XEP_MAGIC &&
+		mem_ep_to_pvt(ep) == &sep->xep_base);
 }
 
 static bool sunrpc_buffer_invariant(const struct c2_net_buffer *nb)
@@ -245,7 +245,7 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 	struct c2_net_bulk_sunrpc_domain_pvt *dp = sunrpc_dom_to_pvt(dom);
 	c2_time_t now;
 	c2_time_t wakeup;
-	c2_time_t next_ep = 0;
+	c2_time_t next_conn = 0;
 	c2_time_t next_buf = 0;
 
 	c2_mutex_lock(&dom->nd_mutex);
@@ -255,9 +255,9 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 
 		/* schedule future events */
 		if (dp->xd_ep_release_delay == 0)
-			next_ep = C2_TIME_NEVER;
-		else if (next_ep == 0)
-			next_ep = c2_time_add(now, dp->xd_ep_release_delay);
+			next_conn = C2_TIME_NEVER;
+		else if (next_conn == 0)
+			next_conn = c2_time_add(now, dp->xd_ep_release_delay);
 		if (next_buf == 0)
 			next_buf = c2_time_add(now, dp->xd_skulker_period);
 
@@ -269,15 +269,15 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 		c2_time_now(&now);
 		if (dp->xd_skulker_force) {
 			/* force invocation of handlers */
-			next_ep = now;
+			next_conn = now;
 			next_buf = now;
 			dp->xd_skulker_force = false;
 		}
 
-		/* age cached EP's */
-		if (c2_time_after_eq(now, next_ep)) {
-			sunrpc_skulker_process_end_points(dom, now);
-			next_ep = 0;
+		/* age cached connections */
+		if (c2_time_after_eq(now, next_conn)) {
+			sunrpc_skulker_process_conn_cache(dom, now);
+			next_conn = 0;
 		}
 
 		/* timeout buffers */
@@ -286,7 +286,7 @@ static void sunrpc_skulker(struct c2_net_domain *dom)
 			next_buf = 0;
 		}
 	}
-	sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+	sunrpc_skulker_process_conn_cache(dom, C2_TIME_NEVER);
 	dp->xd_skulker_hb = 0;
 	c2_mutex_unlock(&dom->nd_mutex);
 	return;
@@ -324,6 +324,8 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 	if (dp == NULL)
 		return -ENOMEM;
 	c2_cond_init(&dp->xd_skulker_cv);
+	c2_list_init(&dp->xd_conn_cache);
+	c2_cond_init(&dp->xd_conn_cache_cv);
 	bdp = &dp->xd_base;
 	dom->nd_xprt_private = bdp; /* base pointer required */
 	rc = c2_net_bulk_mem_xprt.nx_ops->xo_dom_init(xprt, dom);
@@ -377,6 +379,8 @@ static int sunrpc_xo_dom_init(struct c2_net_xprt *xprt,
 			c2_net_bulk_mem_xprt.nx_ops->xo_dom_fini(dom);
 			C2_POST(mem_dom_to_pvt(dom) == bdp);
 		}
+		c2_list_fini(&dp->xd_conn_cache);
+		c2_cond_fini(&dp->xd_conn_cache_cv);
 		c2_cond_fini(&dp->xd_skulker_cv);
 		c2_free(dp);
 		dom->nd_xprt_private = NULL;
@@ -400,6 +404,8 @@ static void sunrpc_xo_dom_fini(struct c2_net_domain *dom)
 	/* free the pvt structure */
 	C2_ASSERT(mem_dom_to_pvt(dom) == &dp->xd_base);
 	dp->xd_magic = 0;
+	c2_list_fini(&dp->xd_conn_cache);
+	c2_cond_fini(&dp->xd_conn_cache_cv);
 	c2_cond_fini(&dp->xd_skulker_cv);
 	c2_free(dp);
 	dom->nd_xprt_private = NULL;
@@ -438,7 +444,7 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 	c2_mutex_lock(&dom->nd_mutex);
 	c2_time_set(&dp->xd_ep_release_delay, secs, 0);
 	if (secs == 0) /* flush cached eps now */
-		sunrpc_skulker_process_end_points(dom, C2_TIME_NEVER);
+		sunrpc_skulker_process_conn_cache(dom, C2_TIME_NEVER);
 	dp->xd_skulker_force = true;
 	c2_cond_signal(&dp->xd_skulker_cv, &dom->nd_mutex);
 	c2_mutex_unlock(&dom->nd_mutex);
@@ -474,11 +480,11 @@ static int32_t sunrpc_xo_get_max_buffer_segments(
 }
 
 static int sunrpc_xo_end_point_create(struct c2_net_end_point **epp,
-				      struct c2_net_domain *dom,
+				      struct c2_net_transfer_mc *tm,
 				      const char *addr)
 {
 	/* calls sunrpc_ep_create */
-	return c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, dom, addr);
+	return c2_net_bulk_mem_xprt.nx_ops->xo_end_point_create(epp, tm, addr);
 }
 
 /**
@@ -570,13 +576,17 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	}
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb,
+		       struct c2_bufvec_cursor *cur, c2_bcount_t len)
 {
         struct page  **pages;
         size_t         npages;
 	int            i;
 	void          *bp;
-	char          *cbuf = buf;
+	c2_bcount_t    pageused;
+	c2_bcount_t    copied;
+	struct c2_bufvec out = C2_BUFVEC_INIT_BUF(&bp, &pageused);
+	struct c2_bufvec_cursor outcur;
 
 	C2_PRE(sb != NULL);
 
@@ -601,13 +611,15 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 			sunrpc_buffer_fini(sb);
 			return -ENOMEM;
 		}
-		if (cbuf != NULL) {
+		if (cur != NULL && len > 0) {
 			bp = kmap_atomic(pages[i], KM_USER0);
-			memcpy(bp, cbuf, min_check(PAGE_CACHE_SIZE, len));
+			pageused = min32u(PAGE_CACHE_SIZE, len);
+			c2_bufvec_cursor_init(&outcur, &out);
+			copied = c2_bufvec_cursor_copy(&outcur, cur, pageused);
 			kunmap_atomic(pages[i], KM_USER0);
 			C2_ASSERT(len > PAGE_CACHE_SIZE || i == npages - 1);
-			cbuf += PAGE_CACHE_SIZE;
-			len -= PAGE_CACHE_SIZE;
+			C2_ASSERT(copied == pageused);
+			len -= pageused;
 		}
 	}
 	return 0;
@@ -670,7 +682,8 @@ void sunrpc_buffer_fini(struct sunrpc_buffer *sb)
 	}
 }
 
-int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
+int sunrpc_buffer_init(struct sunrpc_buffer *sb,
+		       struct c2_bufvec_cursor *cur, c2_bcount_t len)
 {
 	C2_PRE(sb != NULL);
 
@@ -678,8 +691,16 @@ int sunrpc_buffer_init(struct sunrpc_buffer *sb, void *buf, size_t len)
 	sb->sb_buf = c2_alloc(len == 0 ? 1 : len);
 	if (sb->sb_buf == NULL)
 		return -ENOMEM;
-	if (buf != NULL)
-		memcpy(sb->sb_buf, buf, len);
+	if (cur != NULL && len > 0) {
+		struct c2_bufvec out =
+		    C2_BUFVEC_INIT_BUF((void **) &sb->sb_buf, &len);
+		struct c2_bufvec_cursor outcur;
+		c2_bcount_t copied;
+
+		c2_bufvec_cursor_init(&outcur, &out);
+		copied = c2_bufvec_cursor_copy(&outcur, cur, len);
+		C2_ASSERT(copied == len);
+	}
 	return 0;
 }
 
@@ -760,11 +781,10 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
 	return c2_net_bulk_mem_tm_get_num_threads(tm);
 }
 
-static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
+static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	int rc = 0;
-	struct c2_net_end_point *ep = tm->ntm_ep;
-	const char *tm_addr = ep->nep_addr;
+	struct c2_net_end_point *ep;
 	struct c2_net_bulk_sunrpc_tm_pvt *tp;
 
 	C2_PRE(sunrpc_tm_invariant(tm));
@@ -779,7 +799,7 @@ static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
 		ep = ltm->ntm_ep;
 		if (ep == NULL)
 			continue; /* not yet started */
-		if (strcmp(tm_addr, ep->nep_addr) == 0) {
+		if (strcmp(addr, ep->nep_addr) == 0) {
 			rc = -EADDRINUSE;
 			break;
 		}
@@ -788,7 +808,7 @@ static int sunrpc_xo_tm_start(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&sunrpc_tm_start_mutex);
 	if (rc != 0)
 		return rc;
-	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_start(tm);
+	return c2_net_bulk_mem_xprt.nx_ops->xo_tm_start(tm, addr);
 }
 
 static int sunrpc_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)

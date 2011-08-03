@@ -51,11 +51,11 @@ enum {
 	MAX_CLIENT_THREADS = 4196,
 	DEF_LOOPS = 1,
 
-	PING_CLIENT_SEGMENTS = 32,
-	PING_CLIENT_SEGMENT_SIZE = 512,
+	PING_CLIENT_SEGMENTS = 8,
+	PING_CLIENT_SEGMENT_SIZE = 8192,
 
-	PING_SERVER_SEGMENTS = 16,
-	PING_SERVER_SEGMENT_SIZE = 1024,
+	PING_SERVER_SEGMENTS = 4,
+	PING_SERVER_SEGMENT_SIZE = 16384,
 
 	MEM_CLIENT_BASE_PORT = PING_PORT2,
 	SUNRPC_CLIENT_BASE_PORT = PING_PORT1,
@@ -244,13 +244,13 @@ void client(struct client_params *params)
 	if (params->passive_size != 0) {
 		bp = c2_alloc(params->passive_size);
 		C2_ASSERT(bp != NULL);
-		for (i = 0; i < params->passive_size; ++i)
+		for (i = 0; i < params->passive_size - 1; ++i)
 			bp[i] = "abcdefghi"[i % 9];
 	}
 
 	for (i = 1; i <= params->loops; ++i) {
 		cctx.pc_ops->pf("%s: Loop %d\n", ident, i);
-		rc = ping_client_msg_send_recv(&cctx, server_ep, NULL);
+		rc = ping_client_msg_send_recv(&cctx, server_ep, bp);
 		C2_ASSERT(rc == 0);
 		rc = ping_client_passive_recv(&cctx, server_ep);
 		C2_ASSERT(rc == 0);

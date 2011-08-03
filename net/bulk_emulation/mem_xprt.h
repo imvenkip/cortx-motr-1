@@ -169,7 +169,7 @@ struct c2_net_bulk_mem_work_item {
 	/** Length of buffer */
 	c2_bcount_t                         xwi_nbe_length;
 
-	/** End point in received buffers */
+	/** End point in received buffers or in TM state change */
 	struct c2_net_end_point            *xwi_nbe_ep;
 };
 
@@ -278,9 +278,9 @@ struct c2_net_bulk_mem_ops {
 	c2_net_bulk_mem_work_fn_t  bmo_work_fn[C2_NET_XOP_NR];
 
 	/** Subroutine to create an end point. */
-	int (*bmo_ep_create)(struct c2_net_end_point **epp,
-			     struct c2_net_domain *dom,
-			     const struct sockaddr_in *sa,
+	int (*bmo_ep_create)(struct c2_net_end_point  **epp,
+			     struct c2_net_transfer_mc *tm,
+			     const struct sockaddr_in  *sa,
 			     uint32_t id);
 
 	/** Subroutine to allocate memory for an end point */
@@ -434,6 +434,18 @@ static inline uint32_t mem_ep_sid(struct c2_net_end_point *ep)
 	struct c2_net_bulk_mem_end_point *mep =
 		container_of(ep, struct c2_net_bulk_mem_end_point, xep_ep);
 	return mep->xep_service_id;
+}
+
+/**
+   Function to compare two struct sockaddr_in structures.
+   @param sa1 Pointer to first structure.
+   @param sa2 Pointer to second structure.
+ */
+static inline bool mem_sa_eq(const struct sockaddr_in *sa1,
+			     const struct sockaddr_in *sa2)
+{
+	return sa1->sin_addr.s_addr == sa2->sin_addr.s_addr &&
+	       sa1->sin_port        == sa2->sin_port;
 }
 
 int c2_mem_xprt_init(void);

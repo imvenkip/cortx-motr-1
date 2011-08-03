@@ -79,10 +79,11 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
 
 /*
   Invariant checks for an end point. No mutex necessary.
+  Extra checks if under_tm_mutex set to true.
 */
-bool c2_net__ep_invariant(struct c2_net_end_point *ep,
-			  struct c2_net_domain    *dom,
-			  bool                     under_dom_mutex);
+bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
+			  struct c2_net_transfer_mc *tm,
+			  bool                       under_tm_mutex);
 
 /*
   Validates tm state.
