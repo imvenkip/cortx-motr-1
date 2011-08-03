@@ -70,6 +70,8 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
+//static int frm_item_retry(struct c2_rpc_item *item);
+
 /**
   Sleep time till refcounts of all the formation state machines become zero.
  */
@@ -84,6 +86,23 @@ enum {
 uint64_t max_msg_size;
 uint64_t max_fragments_size;
 uint64_t max_rpcs_in_flight;
+
+/**
+   The given rpc item could not be formed due to some reason -
+   either current number of rpcs in flight have reached max number
+   OR item could not find a ready slot.
+   This routine tries to rearm the timer of given rpc item so that
+   we can retry to form once again once the timer expires.
+   @param item - Given rpc item.
+   @retval - 0 if succeeded, -ve errno, if failed.
+ */
+/*static int frm_item_retry(struct c2_rpc_item *item)
+{
+	C2_PRE(item != NULL);
+
+	if (item->ri_deadline == 0) {
+	}
+}*/
 
 /**
   This routine will change the state of each rpc item
@@ -247,6 +266,7 @@ int c2_rpc_frm_init(struct c2_rpc_formation **frm)
         c2_addb_choose_default_level(AEL_WARN);
 	c2_rwlock_init(&(*frm)->rf_sm_list_lock);
 	c2_list_init(&(*frm)->rf_frm_sm_list);
+	(*frm)->rf_client_side = false;
 	return rc;
 }
 
@@ -445,7 +465,9 @@ static void sm_exit(struct c2_rpc_frm_sm *frm_sm)
  */
 static bool sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 {
-	if (!frm_sm)
+	int cnt;
+
+	if (frm_sm == NULL)
 		return false;
 	if (frm_sm->fs_state == C2_RPC_FRM_STATE_UNINITIALIZED)
 		return false;
@@ -455,6 +477,10 @@ static bool sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 		return false;
 	if (!c2_list_is_empty(&frm_sm->fs_rpcs))
 		return false;
+	for (cnt = 0; cnt <= C2_RPC_ITEM_PRIO_NR; cnt++) {
+		if (!c2_list_is_empty(&frm_sm->fs_unformed_prio[cnt].pl_unformed_items))
+			return false;
+	}
 	return true;
 }
 
@@ -731,7 +757,8 @@ int c2_rpc_frm_item_ready(struct c2_rpc_item *item)
 
 	/* Add the slot to ready list of slots in rpcmachine, if
 	   it is not in that list already.*/
-	if (!c2_list_link_is_in(&slot->sl_link)) {
+	//if (!c2_list_link_is_in(&slot->sl_link)) {
+	if (!c2_list_contains(&rpcmachine->cr_ready_slots, &slot->sl_link)) {
 		c2_list_add(&rpcmachine->cr_ready_slots, &slot->sl_link);
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
@@ -990,6 +1017,7 @@ static void item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
 
+	item->ri_deadline = 0;
 	if (item->ri_state != RPC_ITEM_SUBMITTED)
 		return;
 
@@ -1016,7 +1044,6 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_RPCITEM_TIMEOUT;
 	sm_event.se_pvt = NULL;
-	item->ri_deadline = 0;
 
 	frm_sm = frm_sm_locate(item->ri_session->s_conn,
 			item->ri_mach->cr_formation);
@@ -1468,12 +1495,16 @@ static bool formation_qualify(const struct c2_rpc_frm_sm *frm_sm)
 	/* If current rpcs in flight for this formation state machine
 	   has reached the max rpcs limit, don't send any more rpcs
 	   unless this number drops. */
-	if (frm_sm->fs_curr_rpcs_in_flight == frm_sm->fs_max_rpcs_in_flight)
+	if (frm_sm->fs_formation->rf_client_side &&
+			(frm_sm->fs_curr_rpcs_in_flight ==
+			frm_sm->fs_max_rpcs_in_flight)) {
+		printf("Blocked since current rpcs in flight has reached max.\n");
 		return false;
+	}
 
 	if (frm_sm->fs_urgent_nogrp_items_nr > 0 ||
 			frm_sm->fs_cumulative_size >=
-			(0.9 * frm_sm->fs_max_msg_size))
+			frm_sm->fs_max_msg_size)
 		return true;
 	return false;
 }
@@ -2098,8 +2129,11 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 			rpc_obj_next, struct c2_rpc, r_linkage) {
 		item = c2_list_entry((c2_list_first(&rpc_obj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
-		if (frm_sm->fs_curr_rpcs_in_flight ==
-				frm_sm->fs_max_rpcs_in_flight) {
+		if (frm_sm->fs_formation->rf_client_side &&
+				(frm_sm->fs_curr_rpcs_in_flight ==
+				frm_sm->fs_max_rpcs_in_flight)) {
+			printf("send_onwire: Blocked since current rpcs\
+					in flight has reached max.\n");
 			ret = -EBUSY;
 			break;
 		}
@@ -2140,7 +2174,12 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 			continue;
 		} else {
 			/* Remove the rpc object from rpcobj_list.*/
-			frm_sm->fs_curr_rpcs_in_flight++;
+			if (frm_sm->fs_formation->rf_client_side)
+				frm_sm->fs_curr_rpcs_in_flight++;
+			printf("No of rpc items in rpc = %lu\n",
+					c2_list_length(&rpc_obj->r_items));
+			printf("current rpcs in flight incremented to %lu.\n",
+					frm_sm->fs_curr_rpcs_in_flight);
 			c2_list_del(&rpc_obj->r_linkage);
 			/* Get a reference on c2_rpc_frm_sm so that
 			   it is pinned in memory. */
@@ -2246,15 +2285,29 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
  */
 void c2_rpc_frm_rpcs_inflight_dec(struct c2_rpc_item *item)
 {
+	printf("decrement rpcs in flight.\n");
 	struct c2_rpc_frm_sm *frm_sm;
 
 	C2_PRE(item != NULL);
 
 	frm_sm = frm_sm_locate(item->ri_session->s_conn,
 			item->ri_mach->cr_formation);
+
 	if (frm_sm != NULL) {
-		frm_sm->fs_curr_rpcs_in_flight--;
+		c2_rwlock_write_lock(&item->ri_mach->cr_formation->
+				rf_sm_list_lock);
+		c2_mutex_lock(&frm_sm->fs_lock);
+
+		if (frm_sm->fs_formation->rf_client_side &&
+				frm_sm->fs_curr_rpcs_in_flight > 0) {
+			frm_sm->fs_curr_rpcs_in_flight--;
+			printf("current rpcs in flight decremented to %lu.\n",
+					frm_sm->fs_curr_rpcs_in_flight);
+		}
+		c2_mutex_unlock(&frm_sm->fs_lock);
 		c2_ref_put(&frm_sm->fs_ref);
+		c2_rwlock_write_unlock(&item->ri_mach->cr_formation->
+				rf_sm_list_lock);
 	}
 }
 

@@ -328,6 +328,7 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	   actually started. */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 
 	/* If tm fails to start, propogate the error back. */
 	if (chan->rc_xfermc.ntm_state != C2_NET_TM_STARTED) {
@@ -365,15 +366,16 @@ void c2_rpc_chan_ref_release(struct c2_ref *ref)
 	rc = c2_net_tm_stop(&chan->rc_xfermc, false);
 	if (rc < 0) {
 		/* XXX Post an addb event here. */
+		printf("Transfer Machine stop failed.\n");
 		return;
 	}
 
 	/* Wait for transfer machine to stop. */
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 
-	/* Delete all the buffers from transfer machine and fini the
-	   transfer machine. */
+	/* Delete all the buffers from transfer machine. */
 	c2_rpc_net_recv_buffer_deallocate_nr(&chan->rc_xfermc,
 			chan->rc_xfermc.ntm_dom);
 
@@ -460,6 +462,8 @@ void c2_rpc_chan_put(struct c2_rpc_chan *chan)
 void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 		struct c2_rpc_chan *chan)
 {
+	struct c2_clink tmwait;
+
 	C2_PRE(chan != NULL);
 
 	/* Remove chan from list of such structures in rpcmachine. */
@@ -468,6 +472,13 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 
 	/* Fini the transfer machine here and deallocate the chan. */
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&chan->rc_xfermc.ntm_chan, &tmwait);
+	while (chan->rc_xfermc.ntm_state != C2_NET_TM_STOPPED)
+		c2_chan_wait(&tmwait);
+
+	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 	c2_net_tm_fini(&chan->rc_xfermc);
 	c2_free(chan);
 }
@@ -585,6 +596,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	int			 rc = 0;
 	int			 i = 0;
 	c2_time_t		 now;
+	bool			 in_flight_dec = false;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL));
 
@@ -620,9 +632,11 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
 				if (rc == 0) {
-					/*if (i == 0)
-						c2_rpc_frm_rpcs_inflight_dec(
-								item);*/
+					if (!in_flight_dec) {
+						in_flight_dec = true;
+						if (!c2_rpc_item_is_conn_create(item))
+							c2_rpc_frm_rpcs_inflight_dec(item);
+					}
 					/* Post an ADDB event here.*/
 					++i;
 				}
@@ -635,9 +649,8 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
 	nb->nb_ep = NULL;
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	nb->nb_ep = NULL;
-	rc = c2_net_buffer_add(nb, nb->nb_tm);
-	C2_ASSERT(rc == 0);
+	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED)
+		rc = c2_net_buffer_add(nb, nb->nb_tm);
 }
 
 static struct c2_net_buffer *c2_rpc_net_buffer_allocate(
@@ -762,10 +775,12 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
 	c2_net_buffer_del(nb, tm);
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 
 	rc = c2_net_buffer_deregister(nb, net_dom);
 	if (rc < 0) {
 		/* XXX Post an addb event.*/
+		printf("Failed to deregister buffer.\n");
 	}
 
 	c2_bufvec_free(&nb->nb_buffer);
@@ -799,12 +814,14 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
 	C2_PRE(tm != NULL);
 	C2_PRE(net_dom != NULL);
 
+	printf("Length of recv queue in TM = %lu\n", c2_list_length(
+				&tm->ntm_q[C2_NET_QT_MSG_RECV]));
 	c2_list_for_each_entry_safe(&tm->ntm_q[C2_NET_QT_MSG_RECV], nb,
 			nb_next, struct c2_net_buffer, nb_tm_linkage) {
-		c2_net_buffer_del(nb, tm);
 		rc = c2_rpc_net_recv_buffer_deallocate(nb, tm, net_dom);
 		if (rc < 0) {
 			/* XXX Post an addb event here. */
+			printf("Failed to deallocate network buffer.\n");
 			break;
 		}
 	}
@@ -829,6 +846,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	C2_ALLOC_PTR(stats);
 	if (stats == NULL)
 		return -ENOMEM;
+	c2_mutex_init(&stats->rs_lock);
 
 	machine->cr_rpc_stats = stats;
 
@@ -892,6 +910,9 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 
+	c2_rpc_frm_fini(machine->cr_formation);
+	machine->cr_formation = NULL;
+
 	/* Release the reference on the source endpoint and the
 	   concerned c2_rpc_chan here.
 	   The chan structure at head of list is the one that was added
@@ -900,9 +921,8 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage);
 	c2_ref_put(&chan->rc_ref);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-	c2_rpc_frm_fini(machine->cr_formation);
-	machine->cr_formation = NULL;
-	c2_free(&machine->cr_rpc_stats);
+	c2_mutex_fini(&machine->cr_rpc_stats->rs_lock);
+	c2_free(machine->cr_rpc_stats);
 }
 
 /** simple vector of RPC-item operations */
@@ -1291,6 +1311,7 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
 	item->ri_rpc_exit_time = now;
 
 	stats = item->ri_mach->cr_rpc_stats;
+	c2_mutex_lock(&stats->rs_lock);
 	stats->rs_in_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
 			item->ri_rpc_entry_time);
 	if ((stats->rs_in_min_latency >= stats->rs_in_instant_latency) ||
@@ -1305,6 +1326,7 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
 		(stats->rs_num_in_items +1);
 	stats->rs_num_in_items++;
 	stats->rs_num_in_bytes += c2_rpc_item_default_size(item);
+	c2_mutex_unlock(&stats->rs_lock);
 }
 
 /** Set the outgoing exit stats for an rpc item */
@@ -1319,6 +1341,7 @@ void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 	item->ri_rpc_exit_time = now;
 
 	stats = item->ri_mach->cr_rpc_stats;
+	c2_mutex_lock(&stats->rs_lock);
 	stats->rs_out_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
 			item->ri_rpc_entry_time);
 	if ((stats->rs_out_min_latency >= stats->rs_out_instant_latency) ||
@@ -1333,6 +1356,7 @@ void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
 		(stats->rs_num_out_items +1);
 	stats->rs_num_out_items++;
 	stats->rs_num_out_bytes += c2_rpc_item_default_size(item);
+	c2_mutex_unlock(&stats->rs_lock);
 }
 
 /* Dummy reqh queue of items */

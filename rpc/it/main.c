@@ -189,9 +189,47 @@ void server_rqh_init(int dummy)
 			fop = c2_rpc_item_to_fop(item);
 			fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 			C2_ASSERT(fom != NULL);
-			fom->fo_ops->fo_state(fom);	
+			fom->fo_ops->fo_state(fom);
 			}
-		}	
+		}
+}
+
+/* Fini the client*/
+void client_fini()
+{
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
+
+	/* Fini the net domain */
+	c2_net_domain_fini(&cctx.pc_dom);
+
+	/* Fini the transport */
+	c2_net_xprt_fini(cctx.pc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&cctx.pc_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&cctx.pc_db);
+}
+
+/* Fini the server */
+void server_fini()
+{
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
+
+	/* Fini the net domain */
+	c2_net_domain_fini(&sctx.pc_dom);
+
+	/* Fini the transport */
+	c2_net_xprt_fini(sctx.pc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&sctx.pc_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&sctx.pc_db);
 }
 
 /* Create the server*/
@@ -632,7 +670,7 @@ void client_init()
 	}
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
 	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
@@ -658,7 +696,7 @@ void client_init()
 
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
 	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_TERMINATED |
@@ -674,6 +712,8 @@ void client_init()
 		printf("Timeout for conn terminate\n");
 	c2_rpc_session_fini(&cctx.pc_rpc_session);
 	c2_rpc_conn_fini(&cctx.pc_conn);
+	client_fini();
+
 cleanup:
 	do_cleanup();
 }
@@ -739,7 +779,7 @@ int main(int argc, char *argv[])
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
            limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 16;
+        c2_rpc_max_rpcs_in_flight = 8;
         c2_rpc_max_fragments_size = 16;
 
         c2_rpc_frm_set_thresholds(c2_rpc_max_message_size,
@@ -783,7 +823,11 @@ int main(int argc, char *argv[])
 		if (verbose)
 			print_stats(client, server);
 		c2_thread_join(&server_thread);
+		server_fini();
+
 	}
+
+	c2_fini();
 
 	return 0;
 }

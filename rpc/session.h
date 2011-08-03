@@ -762,6 +762,11 @@ struct c2_rpc_slot {
 	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
 		struct c2_rpc_session, s_link)
 
+/**
+   Returns true if item is carrying CONN_CREATE fop.
+ */
+bool c2_rpc_item_is_conn_create(const struct c2_rpc_item  *item);
+
 /** @} end of session group */
 
 #endif

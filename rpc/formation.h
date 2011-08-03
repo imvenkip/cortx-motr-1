@@ -150,6 +150,8 @@ struct c2_rpc_formation {
 	struct c2_list			rf_frm_sm_list;
 	/** Read/Write lock protecting the list from concurrent access. */
 	struct c2_rwlock		rf_sm_list_lock;
+	/** Flag denoting if current side is client or server. */
+	bool				rf_client_side;
 	/** ADDB context for this item summary */
 	struct c2_addb_ctx		rf_rpc_form_addb;
 };

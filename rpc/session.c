@@ -84,7 +84,7 @@ static uint64_t session_id_get(void);
 /**
    Returns true if item is carrying CONN_CREATE fop.
  */
-static bool item_is_conn_create(const struct c2_rpc_item  *item);
+bool c2_rpc_item_is_conn_create(const struct c2_rpc_item  *item);
 
 /**
   XXX temporary routine that submits the fop inside item for execution.
@@ -357,6 +357,10 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	item->ri_deadline = 0;
 	item->ri_ops = &c2_rpc_item_conn_create_ops;
 
+	/* Formation client side keeps track of current rpcs in flight,
+	   while server side of formation does not. So we need to differentiate
+	   between client and server sides for formation. */
+	machine->cr_formation->rf_client_side = true;
 	rc = c2_rpc_post(item);
 	if (rc == 0) {
 		c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
@@ -2639,7 +2643,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	c2_free(conn);
 }
 
-static bool item_is_conn_create(const struct c2_rpc_item *item)
+bool c2_rpc_item_is_conn_create(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_create;
 }
@@ -2730,7 +2734,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	rc = associate_session_and_slot(item);
 	c2_rpc_item_set_incoming_exit_stats(item);
 	if (rc != 0) {
-		if (item_is_conn_create(item)) {
+		if (c2_rpc_item_is_conn_create(item)) {
 			item_dispatch(item);
 			return 0;
 		}

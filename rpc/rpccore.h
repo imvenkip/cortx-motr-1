@@ -501,6 +501,8 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
   It is upto the higher level layers to retrieve and process this data
  */
 struct c2_rpc_stats {
+	/** Lock to protect this structure from concurrent access. */
+	struct c2_mutex	rs_lock;
 	/** Number of items processed on outgoing path */
 	uint64_t	rs_num_out_items;
 	/** Number of items processed on incoming path */
