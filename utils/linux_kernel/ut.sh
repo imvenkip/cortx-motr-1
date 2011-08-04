@@ -20,10 +20,14 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          net/linux_kernel/knetc2.ko \
          utils/linux_kernel/kutc2.ko"
 
-tailseek=$(( $(stat -c %s /var/log/kern) + 1 ))
+log='/var/log/kern'
+if [ ! -e "$log" ]; then
+    log='/var/log/messages'
+fi
+tailseek=$(( $(stat -c %s "$log") + 1 ))
 
 # currently, kernel UT runs as part of loading kutc2 module
 modload
 modunload
 
-tail -c+$tailseek /var/log/kern
+tail -c+$tailseek "$log" | grep ' kernel: '
