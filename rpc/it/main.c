@@ -200,6 +200,12 @@ void client_fini()
 	/* Fini the rpcmachine */
 	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
 
+	/* Fini the local net endpoint. */
+	c2_net_end_point_put(cctx.pc_lep);
+
+	/* Fini the remote net endpoint. */
+	c2_net_end_point_put(cctx.pc_rep);
+
 	/* Fini the net domain */
 	c2_net_domain_fini(&cctx.pc_dom);
 
@@ -218,6 +224,12 @@ void server_fini()
 {
 	/* Fini the rpcmachine */
 	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
+
+	/* Fini the net endpoint. */
+	c2_net_end_point_put(sctx.pc_lep);
+
+	/* Fini the net endpoint. */
+	c2_net_end_point_put(sctx.pc_rep);
 
 	/* Fini the net domain */
 	c2_net_domain_fini(&sctx.pc_dom);
@@ -826,6 +838,9 @@ int main(int argc, char *argv[])
 		server_fini();
 
 	}
+
+	c2_ping_fop_fini();
+	io_fop_fini();
 
 	c2_fini();
 

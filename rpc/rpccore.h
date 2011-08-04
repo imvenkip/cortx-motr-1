@@ -664,11 +664,12 @@ int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
    @pre net domain should be initialized.
 
    @param nb - net buffer to be deallocated.
-   @param tm - transfer machine from which nb should be deleted.
-   @param net_dom - network domain from which nb should be deregistered.
+   @param chan - Concerned c2_rpc_chan structure.
+   @param tm_active - boolean indicating whether associated TM is
+   active or not.
  */
 int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
-		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
+		struct c2_rpc_chan *chan, bool tm_active);
 
 /**
    Delete and deregister C2_RPC_TM_RECV_BUFFERS_NR number of buffers from
@@ -678,13 +679,12 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
    @pre tm should be initialized and started.
    @pre net domain should have been initialized.
 
-   @param tm - transfer machine from which nr number of buffers will be
-               deleted.
-   @param net_dom - network domain from which nr number of buffers will
-                    be deregistered.
+   @param chan - Concerned c2_rpc_chan structure.
+   @param tm_active - boolean indicating whether associated TM is
+   active or not.
  */
-int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
-		struct c2_net_domain *net_dom);
+int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
+		bool tm_active);
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
@@ -742,13 +742,15 @@ struct c2_rpc_ep_aggr {
  */
 struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpcmachine.*/
-	struct c2_list_link		 rc_linkage;
+	struct c2_list_link		  rc_linkage;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	 rc_xfermc;
+	struct c2_net_transfer_mc	  rc_xfermc;
+	/** Pool of receive buffers associated with this transfer machine. */
+	struct c2_net_buffer		**rc_rcv_buffers;
 	/** Number of entities using this transfer machine.*/
-	struct c2_ref			 rc_ref;
+	struct c2_ref			  rc_ref;
 	/** The rpcmachine, this chan structure is associated with.*/
-	struct c2_rpcmachine		*rc_rpcmachine;
+	struct c2_rpcmachine		 *rc_rpcmachine;
 };
 
 /**

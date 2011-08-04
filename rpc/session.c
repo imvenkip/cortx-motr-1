@@ -169,8 +169,25 @@ int c2_rpc_session_module_init(void)
 }
 C2_EXPORTED(c2_rpc_session_module_init);
 
-void c2_rpc_session_module_fini(void)
+void conn_list_fini(struct c2_list *list)
 {
+	struct c2_rpc_conn *conn;
+	struct c2_rpc_conn *conn_next;
+
+	C2_PRE(list != NULL);
+
+	c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
+			c_link)
+		c2_rpc_conn_terminate_reply_sent(conn);
+}
+
+void c2_rpc_session_module_fini(struct c2_rpcmachine *machine)
+{
+	C2_PRE(machine != NULL);
+
+	conn_list_fini(&machine->cr_incoming_conns);
+	conn_list_fini(&machine->cr_outgoing_conns);
+
 	c2_rpc_session_fop_fini();
 }
 C2_EXPORTED(c2_rpc_session_module_fini);
@@ -483,6 +500,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 static void session_zero_detach(struct c2_rpc_conn	*conn)
 {
 	struct c2_rpc_session	*session;
+	struct c2_rpc_slot	*slot;
 
 	C2_PRE(conn != NULL);
 
@@ -492,6 +510,14 @@ static void session_zero_detach(struct c2_rpc_conn	*conn)
 	session->s_state = C2_RPC_SESSION_TERMINATED;
 	c2_list_del(&session->s_link);
 	session->s_conn = NULL;
+
+	/*
+	 * Remove slot0 from c2_rpcmachine::cr_ready_slots list
+	 */
+	slot = session->s_slot_table[0];
+	if (c2_list_link_is_in(&slot->sl_link))
+		c2_list_del(&slot->sl_link);
+
 	c2_rpc_session_fini(session);
 	c2_free(session);
 }
@@ -625,8 +651,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item	*req,
 	c2_list_del(&slot->sl_link);
 
 	c2_mutex_unlock(&conn->c_mutex);
-	/* Release the reference on c2_rpc_chan structure being used. */
-	c2_rpc_chan_put(conn->c_rpcchan);
 	c2_chan_broadcast(&conn->c_chan);
 	return;
 }
@@ -639,6 +663,9 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	       conn->c_state == C2_RPC_CONN_INITIALISED);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
+	/* Release the reference on c2_rpc_chan structure being used. */
+	c2_rpc_chan_put(conn->c_rpcchan);
 
 	session_zero_detach(conn);
 	c2_list_link_fini(&conn->c_link);
