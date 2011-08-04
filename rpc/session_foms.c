@@ -63,30 +63,30 @@ struct c2_fom_type c2_rpc_fom_conn_establish_type = {
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_establish		*fop_cc;
+	struct c2_rpc_fop_conn_establish		*fop_ce;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_establish_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_establish_rep	*fop_cer;
 	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_conn_establish		*fom_cc;
+	struct c2_rpc_fom_conn_establish		*fom_ce;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session0;
 	struct c2_rpc_slot			*slot;
 	int					rc;
 
-	fom_cc = container_of(fom, struct c2_rpc_fom_conn_establish, fcc_gen);
+	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
 
-	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
-			fom_cc->fcc_fop_rep != NULL);
+	C2_PRE(fom != NULL && fom_ce != NULL && fom_ce->fce_fop != NULL &&
+			fom_ce->fce_fop_rep != NULL);
 
 	/* Request fop */
-	fop = fom_cc->fcc_fop;
-	fop_cc = c2_fop_data(fop);
-	C2_ASSERT(fop_cc != NULL);
+	fop = fom_ce->fce_fop;
+	fop_ce = c2_fop_data(fop);
+	C2_ASSERT(fop_ce != NULL);
 
 	/* reply fop */
-	fop_rep = fom_cc->fcc_fop_rep;
-	fop_ccr = c2_fop_data(fop_rep);
-	C2_ASSERT(fop_ccr != NULL);
+	fop_rep = fom_ce->fce_fop_rep;
+	fop_cer = c2_fop_data(fop_rep);
+	C2_ASSERT(fop_cer != NULL);
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL);
@@ -106,7 +106,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		goto errout;
 
 	/*
-	 * As CONN_CREATE request is directly submitted for execution
+	 * As CONN_ESTABLISH request is directly submitted for execution
 	 * add the item explicitly to the slot0. This makes the slot
 	 * symmetric to sender side slot.
 	 */
@@ -130,10 +130,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	fop_ccr->rccr_snd_id = conn->c_sender_id;
+	fop_cer->rcer_snd_id = conn->c_sender_id;
 	printf("Received conn sender id = %lu\n", conn->c_sender_id);
-	fop_ccr->rccr_rc = 0;		/* successful */
-	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
+	fop_cer->rcer_rc = 0;		/* successful */
+	fop_cer->rcer_cookie = fop_ce->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
@@ -142,9 +142,9 @@ errout:
 	C2_ASSERT(rc != 0);
 
 	printf("conn_establish_state: failed %d\n", rc);
-	fop_ccr->rccr_snd_id = SENDER_ID_INVALID;
-	fop_ccr->rccr_rc = rc;
-	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
+	fop_cer->rcer_snd_id = SENDER_ID_INVALID;
+	fop_cer->rcer_rc = rc;
+	fop_cer->rcer_cookie = fop_ce->rce_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);

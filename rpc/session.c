@@ -82,7 +82,7 @@ static uint64_t sender_id_get(void);
 static uint64_t session_id_get(void);
 
 /**
-   Returns true if item is carrying CONN_CREATE fop.
+   Returns true if item is carrying CONN_ESTABLISH fop.
  */
 static bool item_is_conn_establish(const struct c2_rpc_item  *item);
 
@@ -299,15 +299,15 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
 	return rc;
 }
 
-int c2_rpc_conn_establish(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep)
+int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
+			  struct c2_net_end_point *ep)
 {
-	struct c2_fop			*fop;
-	struct c2_rpc_fop_conn_establish	*fop_cc;
-	struct c2_rpc_item		*item;
-	struct c2_rpc_session		*session_0;
-	struct c2_rpcmachine		*machine;
-	int				 rc;
+	struct c2_fop                      *fop;
+	struct c2_rpc_fop_conn_establish   *fop_ce;
+	struct c2_rpc_item                 *item;
+	struct c2_rpc_session              *session_0;
+	struct c2_rpcmachine               *machine;
+	int                                 rc;
 
 	C2_PRE(conn != NULL && ep != NULL);
 	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -336,17 +336,17 @@ int c2_rpc_conn_establish(struct c2_rpc_conn	*conn,
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_end_point = ep;
 
-	fop_cc = c2_fop_data(fop);
-	C2_ASSERT(fop_cc != NULL);
+	fop_ce = c2_fop_data(fop);
+	C2_ASSERT(fop_ce != NULL);
 
 	/*
 	 * Receiver will copy this cookie in conn_establish reply
 	 * XXX the cookie does not serve any significant purpose.
 	 * It was introduced to be able to match conn_establish reply to
-	 * corresponding request. But now as CONN_CREATE fops are also
+	 * corresponding request. But now as CONN_ESTABLISH fops are also
 	 * sent using SESSION_ID_0, this cookie is not useful anymore.
 	 */
-	fop_cc->rcc_cookie = (uint64_t)conn;
+	fop_ce->rce_cookie = (uint64_t)conn;
 
 	c2_rpc_session_search(conn, SESSION_ID_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
@@ -378,10 +378,10 @@ out:
 C2_EXPORTED(c2_rpc_conn_establish);
 
 void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
-				       struct c2_rpc_item *reply,
-				       int		   rc)
+					  struct c2_rpc_item *reply,
+					  int		      rc)
 {
-	struct c2_rpc_fop_conn_establish_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_establish_rep	*fop_cer;
 	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
 
@@ -391,8 +391,8 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 
 	fop = c2_rpc_item_to_fop(reply);
 	C2_ASSERT(fop != NULL);
-	fop_ccr = c2_fop_data(fop);
-	C2_ASSERT(fop_ccr != NULL);
+	fop_cer = c2_fop_data(fop);
+	C2_ASSERT(fop_cer != NULL);
 
 	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
@@ -407,15 +407,15 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CREATING &&
 		  c2_rpc_conn_invariant(conn));
 
-	if (fop_ccr->rccr_rc != 0) {
-		C2_ASSERT(fop_ccr->rccr_snd_id == SENDER_ID_INVALID);
+	if (fop_cer->rcer_rc != 0) {
+		C2_ASSERT(fop_cer->rcer_snd_id == SENDER_ID_INVALID);
 		/*
 		 * Receiver has reported conn create failure
 		 */
 		conn->c_state = C2_RPC_CONN_FAILED;
 		conn->c_sender_id = SENDER_ID_INVALID;
 		c2_list_del(&conn->c_link);
-		conn->c_rc = fop_ccr->rccr_rc;
+		conn->c_rc = fop_cer->rcer_rc;
 		/*
 		 * end-user is expected to call c2_rpc_conn_fini() on
 		 * this object, to free any memory allocated by conn for
@@ -423,15 +423,15 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 		 * Then the end-user can free the object.
 		 */
 		printf("ccrr: conn create failed %d\n",
-			fop_ccr->rccr_rc);
+			fop_cer->rcer_rc);
 	} else {
-		C2_ASSERT(fop_ccr->rccr_snd_id != SENDER_ID_INVALID &&
+		C2_ASSERT(fop_cer->rcer_snd_id != SENDER_ID_INVALID &&
 			  conn->c_sender_id == SENDER_ID_INVALID);
-		conn->c_sender_id = fop_ccr->rccr_snd_id;
+		conn->c_sender_id = fop_cer->rcer_snd_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
 		conn->c_rc = 0;
 		printf("ccrr: conn created %lu\n",
-			(unsigned long)fop_ccr->rccr_snd_id);
+			(unsigned long)fop_cer->rcer_snd_id);
 	}
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
@@ -2325,8 +2325,8 @@ static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 	return 0;
 }
 
-int c2_rpc_rcv_conn_establish(struct c2_rpc_conn	   *conn,
-			   struct c2_net_end_point *ep)
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
+			      struct c2_net_end_point *ep)
 {
 	struct c2_rpcmachine	*machine;
 	struct c2_db_tx		tx;

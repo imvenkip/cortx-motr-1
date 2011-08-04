@@ -468,8 +468,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
-int c2_rpc_conn_establish(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep);
+int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
+			  struct c2_net_end_point *ep);
 
 /**
    Send "conn_terminate" FOP to receiver.

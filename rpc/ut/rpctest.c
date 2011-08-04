@@ -178,8 +178,8 @@ void test_conn_establish()
 {
 	struct c2_fop				*fop;
 	struct c2_fom				*fom = NULL;
-	struct c2_rpc_fom_conn_establish		*fom_cc;
-	struct c2_rpc_fop_conn_establish		*fop_cc;
+	struct c2_rpc_fom_conn_establish		*fom_ce;
+	struct c2_rpc_fop_conn_establish		*fop_ce;
 	struct c2_rpc_fop_conn_establish_rep	*fop_reply;
 	struct c2_rpc_item			*item;
 
@@ -187,10 +187,10 @@ void test_conn_establish()
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
-	fop_cc = c2_fop_data(fop);
-	C2_ASSERT(fop_cc != NULL);
+	fop_ce = c2_fop_data(fop);
+	C2_ASSERT(fop_ce != NULL);
 
-	fop_cc->rcc_cookie = 0xC00CEE;
+	fop_ce->rce_cookie = 0xC00CEE;
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;
@@ -202,11 +202,11 @@ void test_conn_establish()
 	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 			fom->fo_phase == FOPH_FAILED);
 
-	fom_cc = container_of(fom, struct c2_rpc_fom_conn_establish, fcc_gen);
-	fop_reply = c2_fop_data(fom_cc->fcc_fop_rep);
+	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
+	fop_reply = c2_fop_data(fom_ce->fce_fop_rep);
 	C2_ASSERT(fop_reply != NULL);
-	printf("test_conn_establish: sender id %lu\n", fop_reply->rccr_snd_id);
-	if (fop_reply->rccr_rc == 0) {
+	printf("test_conn_establish: sender id %lu\n", fop_reply->rcer_snd_id);
+	if (fop_reply->rcer_rc == 0) {
 		struct c2_list_link	*link;
 		C2_ASSERT(c2_list_length(&machine->cr_incoming_conns) == 1);
 		link = c2_list_first(&machine->cr_incoming_conns);
@@ -214,12 +214,12 @@ void test_conn_establish()
 		connp = container_of(link, struct c2_rpc_conn, c_link);
 		printf("conn->sender_id == %lu\n", connp->c_sender_id);
 		C2_ASSERT(connp->c_state == C2_RPC_CONN_ACTIVE &&
-			  connp->c_sender_id == fop_reply->rccr_snd_id &&
+			  connp->c_sender_id == fop_reply->rcer_snd_id &&
 			  c2_rpc_conn_invariant(connp));
 	} else {
-		printf("TEST: conn create failed %d\n", fop_reply->rccr_rc);
+		printf("TEST: conn create failed %d\n", fop_reply->rcer_rc);
 	}
-	g_sender_id = fop_reply->rccr_snd_id;
+	g_sender_id = fop_reply->rcer_snd_id;
 	fom->fo_ops->fo_fini(fom);
 
 	c2_cob_namespace_traverse(dom);
@@ -294,7 +294,7 @@ void conn_status_check(void *arg)
 void test_snd_conn_establish()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_establish_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_establish_rep	*fop_cer;
 	struct c2_rpc_item			*item;
 	int					rc;
 
@@ -313,12 +313,12 @@ void test_snd_conn_establish()
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
-	fop_ccr = c2_fop_data(fop);
-	C2_ASSERT(fop_ccr != NULL);
+	fop_cer = c2_fop_data(fop);
+	C2_ASSERT(fop_cer != NULL);
 
-	fop_ccr->rccr_rc = 0;
-	fop_ccr->rccr_snd_id = 20;
-	fop_ccr->rccr_cookie = (uint64_t)&conn;
+	fop_cer->rcer_rc = 0;
+	fop_cer->rcer_snd_id = 20;
+	fop_cer->rcer_cookie = (uint64_t)&conn;
 
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_mach = machine;

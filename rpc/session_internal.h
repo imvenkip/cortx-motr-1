@@ -248,8 +248,8 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
 			   c2_list_contains(&machine->cr_incoming_conns,
 					    &conn->c_link)
  */
-int c2_rpc_rcv_conn_establish(struct c2_rpc_conn		*conn,
-			   struct c2_net_end_point	*ep);
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
+			      struct c2_net_end_point *ep);
 /**
    @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL

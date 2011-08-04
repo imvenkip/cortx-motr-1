@@ -31,12 +31,12 @@
  was used to match reply with request.
  */
 DEF(c2_rpc_fop_conn_establish, RECORD,
-   _(rcc_cookie, U64));
+   _(rce_cookie, U64));
 
 DEF(c2_rpc_fop_conn_establish_rep, RECORD,
-   _(rccr_snd_id, U64),
-   _(rccr_cookie, U64),
-   _(rccr_rc, U32));
+   _(rcer_snd_id, U64),
+   _(rcer_cookie, U64),
+   _(rcer_rc, U32));
 
 DEF(c2_rpc_fop_conn_terminate, RECORD,
     _(ct_sender_id, U64));

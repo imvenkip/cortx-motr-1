@@ -44,13 +44,13 @@
  */
 
 enum c2_rpc_fom_conn_establish_phase {
-	FOPH_CONN_CREATE = FOPH_NR + 1
+	FOPH_CONN_ESTABLISH = FOPH_NR + 1
 };
 
 struct c2_rpc_fom_conn_establish {
-	struct c2_fom		fcc_gen;
-	struct c2_fop		*fcc_fop;
-	struct c2_fop		*fcc_fop_rep;
+	struct c2_fom		fce_gen;
+	struct c2_fop		*fce_fop;
+	struct c2_fop		*fce_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;

@@ -70,27 +70,27 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 
 int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_rpc_fom_conn_establish		*fom_cc;
-	struct c2_fom				*fom;
+	struct c2_rpc_fom_conn_establish *fom_ce;
+	struct c2_fom                    *fom;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	C2_ALLOC_PTR(fom_cc);
-	if (fom_cc == NULL)
+	C2_ALLOC_PTR(fom_ce);
+	if (fom_ce == NULL)
 		return -ENOMEM;
 
 	fop->f_type->ft_fom_type = c2_rpc_fom_conn_establish_type;
 
-	fom = &fom_cc->fcc_gen;
+	fom = &fom_ce->fce_gen;
 	fom->fo_type = &c2_rpc_fom_conn_establish_type;
 	fom->fo_ops = &c2_rpc_fom_conn_establish_ops;
 
-	fom_cc->fcc_fop = fop;
-	fom_cc->fcc_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt,
+	fom_ce->fce_fop = fop;
+	fom_ce->fce_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt,
 						NULL);
-	if (fom_cc->fcc_fop_rep == NULL) {
-		c2_free(fom_cc);
+	if (fom_ce->fce_fop_rep == NULL) {
+		c2_free(fom_ce);
 		return -ENOMEM;
 	}
 
@@ -199,8 +199,8 @@ int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
  *  existing C2_FOP_TYPE_DECLARE() to assign item_type to the fop_type.
  */
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish, "rpc_conn_create",
-			C2_RPC_FOP_CONN_CREATE_OPCODE,
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish, "rpc_conn_establish",
+			C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
 			&c2_rpc_fop_conn_establish_ops,
 			&c2_rpc_item_conn_establish);
 
@@ -223,8 +223,8 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
  *  REPLY fops
  */
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep, "rpc_conn_create_reply",
-			C2_RPC_FOP_CONN_CREATE_REP_OPCODE,
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep, "rpc_conn_establish_reply",
+			C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_conn_establish_rep);
 
