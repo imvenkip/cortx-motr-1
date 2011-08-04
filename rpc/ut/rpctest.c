@@ -303,7 +303,7 @@ void test_snd_conn_establish()
 	printf("testing conn_establish: conn %p\n", &conn);
 	rc = c2_rpc_conn_establish(&conn, (void *)0xBADBAD5);
 	C2_ASSERT(rc == 0);
-	C2_ASSERT(conn.c_state == C2_RPC_CONN_CREATING);
+	C2_ASSERT(conn.c_state == C2_RPC_CONN_CONNECTING);
 
 	c2_thread_init(&thread, NULL, conn_status_check, NULL,
 		       "conn_status_check");

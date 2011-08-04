@@ -328,7 +328,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_mutex_lock(&conn->c_mutex);
 
-	conn->c_state = C2_RPC_CONN_CREATING;
+	conn->c_state = C2_RPC_CONN_CONNECTING;
 	/*
 	 * Get a source endpoint and in turn a transfer machine
 	 *  to associate with this c2_rpc_conn.
@@ -365,7 +365,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
 		conn->c_end_point = NULL;
 		c2_fop_free(fop);
 	}
-	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CREATING &&
+	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
 			c2_rpc_conn_invariant(conn)));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_INITIALISED) &&
 			c2_rpc_conn_invariant(conn));
@@ -404,7 +404,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 	 */
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_CREATING &&
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_CONNECTING &&
 		  c2_rpc_conn_invariant(conn));
 
 	if (fop_cer->rcer_rc != 0) {
@@ -689,7 +689,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	recv_end = conn->c_flags & RCF_RECV_END;
 
 	switch (conn->c_state) {
-	case C2_RPC_CONN_CREATING:
+	case C2_RPC_CONN_CONNECTING:
 	case C2_RPC_CONN_ACTIVE:
 	case C2_RPC_CONN_TERMINATING:
 		conn_list = sender_end ?
@@ -716,7 +716,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			conn->c_nr_sessions == 0 &&
 			sender_end != recv_end;
 
-	case C2_RPC_CONN_CREATING:
+	case C2_RPC_CONN_CONNECTING:
 		return conn->c_sender_id == SENDER_ID_INVALID &&
 			conn->c_nr_sessions == 0 &&
 			conn->c_end_point != NULL &&

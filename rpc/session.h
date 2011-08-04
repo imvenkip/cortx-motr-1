@@ -295,9 +295,9 @@ enum c2_rpc_conn_state {
 
 	/**
 	   When sender is waiting for receiver reply to get its sender ID it is
-	   in CREATING state.
+	   in CONNECTING state.
 	 */
-	C2_RPC_CONN_CREATING = (1 << 1),
+	C2_RPC_CONN_CONNECTING = (1 << 1),
 
 	/**
 	   When initialization is successfull connection enters in ACTIVE state.
@@ -374,7 +374,7 @@ enum c2_rpc_conn_flags {
                                     |  c2_rpc_conn_establish()
                                     |
                                     V
-         +---------------------- CREATING
+         +---------------------- CONNECTING
          | time-out ||              |
          |     reply.rc != 0        | conn_establish_reply_received() &&
          |                          |    reply.rc == 0
@@ -463,7 +463,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
     contains sender-id.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
-    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CREATING &&
+    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
 		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
 				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
