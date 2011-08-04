@@ -419,6 +419,11 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	ctx.ft_service = s;
 	ctx.fc_cookie  = cookie;
 
+	/*
+	 * This is temporary fix, to make io_foms compatible with current
+	 * reqh changes.
+	 * This needs to be modified completely to support latest reqh changes.
+	 */
 	reqh.rh_serv = s;
 	reqh.rh_fol = fol;
 	reqh.rh_stdom = dom;

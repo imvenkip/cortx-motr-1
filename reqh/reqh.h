@@ -184,7 +184,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 	             |	                 v<---------------------+
 		     +<---------FOPH_TXN_CONTEXT--------------->+
 		     |			 |            FOPH_TXN_CONTEXT_WAIT
-	       	     |			 v<---------------------+
+		     |			 v<---------------------+
 		     +<-------------FOPH_NR_+_1---------------->+
 		     |			 |            FOPH_NR_+_1_WAIT
 		     v			 v<---------------------+
@@ -195,7 +195,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 	  |	     |			 |            FOPH_TXN_COMMIT_WAIT
 	  |	     |	    send reply	 v<---------------------+
 	  |	     +----------->FOPH_QUEUE_REPLY------------->+
-          |	     ^	     		 |            FOPH_QUEUE_REPLY_WAIT
+          |	     ^			 |            FOPH_QUEUE_REPLY_WAIT
 	  v	     |			 v<---------------------+
    FOPH_TXN_ABORT_WAIT		     FOPH_DONE ---> c2_fom_fini()
 
