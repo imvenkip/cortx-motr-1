@@ -91,6 +91,8 @@ struct ping_ctx {
 	int					 pc_nr_ping_bytes;
 	/* number of client threads */
 	int					 pc_nr_client_threads;
+	/* switch to identify which type of fops have to be sent to rpc */
+	int					 pc_fop_switch;
 };
 
 /* Default port values */
@@ -127,6 +129,12 @@ enum {
 /* Default number of client threads*/
 enum {
 	NR_CLIENT_THREADS = 1,
+};
+
+/* Switch for PING or IO fops */
+enum {
+	PING = 1,
+	IO,
 };
 
 /* Global client ping context */
@@ -351,8 +359,52 @@ cleanup:
 	do_cleanup();
 }
 
-int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
+#define nfiles                   64
+#define ndatafids                8
+#define nfops                    256
+extern struct c2_fop_file_fid          *form_fids;
+extern uint64_t                        *file_offsets;
+extern struct c2_fop_io_vec           **form_write_iovecs;
 
+int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
+void init_fids();
+void populate_fids();
+void init_file_io_patterns();
+struct c2_fop *form_get_new_fop();
+
+/**
+  Init the data required for IO fops
+ */
+void io_fop_data_init()
+{
+        C2_ALLOC_ARR(form_fids, nfiles);
+        init_fids();
+        populate_fids();
+        C2_ALLOC_ARR(file_offsets, ndatafids);
+        init_file_io_patterns();
+        C2_ALLOC_ARR(form_write_iovecs, nfops);
+}
+
+/** 
+  Create a random IO fop (either read or write) and post it to rpc layer
+ */
+void send_random_io_fop(int nr)
+{
+        struct c2_fop           *fop;
+        struct c2_rpc_item      *item = NULL;
+
+        fop = form_get_new_fop();
+        item = &fop->f_item;
+        c2_rpc_frm_item_populate_param(&fop->f_item);
+        item->ri_deadline = 0;
+        c2_rpc_item_attach(item);
+        item->ri_session = &cctx.pc_rpc_session;
+        c2_rpc_post(item);
+}
+
+/** 
+  Create a ping fop and post it to rpc layer
+ */
 void send_ping_fop(int nr)
 {
 	struct c2_fop                   *fop = NULL;
@@ -657,11 +709,17 @@ void client_init()
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
+	io_fop_data_init();
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], int,
-				NULL, &send_ping_fop,
-				0, "client_%d", i);
+		if (cctx.pc_fop_switch == PING)
+			rc = C2_THREAD_INIT(&client_thread[i], int,
+					NULL, &send_ping_fop,
+					0, "client_%d", i);
+		else if (cctx.pc_fop_switch == IO)
+			rc = C2_THREAD_INIT(&client_thread[i], int,
+					NULL, &send_random_io_fop,
+					0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -733,6 +791,8 @@ cleanup:
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 {
+	bool			 pingfops = false;
+	bool			 iofops = false;
 	bool			 verbose = false;
 	bool			 server = false;
 	bool			 client = false;
@@ -769,11 +829,13 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('p', "client port", "%i", &client_port),
 		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
-		C2_FORMATARG('p', "server port", "%i", &server_port),
+		C2_FORMATARG('P', "server port", "%i", &server_port),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FLAGARG('i', "send io fops", &iofops),
+		C2_FLAGARG('d', "send ping data fops", &pingfops),
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -787,6 +849,7 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
+	cctx.pc_fop_switch = PING;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
@@ -814,6 +877,10 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
+	if (pingfops)
+		cctx.pc_fop_switch = PING;
+	if (iofops)
+		cctx.pc_fop_switch = IO;
 
 	/* Client part */
 	if(client) {
