@@ -43,21 +43,21 @@
  * FOM to execute "RPC connection create" request
  */
 
-enum c2_rpc_fom_conn_create_phase {
+enum c2_rpc_fom_conn_establish_phase {
 	FOPH_CONN_CREATE = FOPH_NR + 1
 };
 
-struct c2_rpc_fom_conn_create {
+struct c2_rpc_fom_conn_establish {
 	struct c2_fom		fcc_gen;
 	struct c2_fop		*fcc_fop;
 	struct c2_fop		*fcc_fop_rep;
 };
 
-extern struct c2_fom_type c2_rpc_fom_conn_create_type;
-extern const struct c2_fom_ops c2_rpc_fom_conn_create_ops;
+extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
+extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 
-int c2_rpc_fom_conn_create_state(struct c2_fom *);
-void c2_rpc_fom_conn_create_fini(struct c2_fom *);
+int c2_rpc_fom_conn_establish_state(struct c2_fom *);
+void c2_rpc_fom_conn_establish_fini(struct c2_fom *);
 
 /*
  * FOM to execute "Session Create" request

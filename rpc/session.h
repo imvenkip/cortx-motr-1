@@ -30,8 +30,6 @@
 
 @{
 
-@page rpc-session rpc sessions Detailed Level Design Specification
-
 @section Overview
 
 A session is established between two end points. An end-point is
@@ -61,19 +59,19 @@ degree of concurrency. Number of slots can vary dynamically.
 With a slot a list of items, ordered by verno is associated. An item on
 the list is in one of the following states:
 
-* past committed: the reply for the item was received and the receiver confirmed
+- past committed: the reply for the item was received and the receiver confirmed
   that the item is persistent. Items can linger for some time in this state,
   because distributed transaction recovery requires keeping items in memory
   after they become persistent on the receiver;
 
-* past volatile: the reply was received, but persistence confirmation wasn't;
+- past volatile: the reply was received, but persistence confirmation wasn't;
 
-* unreplied: the item was sent (i.e., placed into an rpc) and no reply is
+- unreplied: the item was sent (i.e., placed into an rpc) and no reply is
   received. We are usually talking about a situations where there is at
   most a single item in this state, but it is not, strictly speaking, necessary.
   More than a single item can be in flight per-slot;
 
-* future: the item wasn't sent.
+- future: the item wasn't sent.
 
 With respect to session and slots, an item is said to be "bound" if
 the item is associated with slot. An item is called as "unbound"/"freestanding"
@@ -88,7 +86,7 @@ An item, has a MUTABO flag, which is set when the item is an update (i.e.,
 changes the file system state). When the item is an update then (for each
 slot the item is in) its verno is greater than the verno of the previous
 item on the slot's item list. Multiple consecutive non-MUTABO items (i.e.,
-read-only queries can have the same verno);
+read-only queries) can have the same verno;
 
 With each item a (pointer to) reply is associated. This pointer is set
 once the reply is received for the item;
@@ -96,19 +94,19 @@ once the reply is received for the item;
 A slot has a number of pointers into this list and other fields, described
 below:
 
-<li><b>last_sent</b>
+@li <b>last_sent</b>
 pointer usually points to the latest unreplied request. When the
 receiver fails and restarts, the last_sent pointer is shifted back to the
 item from which the recovery must continue.
 Note that last_sent might be moved all the way back to the oldest item;
-<li><b>last_persistent</b>
+@li <b>last_persistent</b>
 last_persistent item points to item whose effects have reached to persistent
 storage.
 
 sender_slot_invariant() should check that:
-* items on the slot list are ordered by verno and state;
-* MUTABO items have increasing verno-s;
-* an item has reply attached exactly when it is in the unreplied state.
+- items on the slot list are ordered by verno and state;
+- MUTABO items have increasing verno-s;
+- an item has reply attached exactly when it is in the unreplied state.
 
 A slot state machine reacts to the following events:
 [ITEM ADD]: a new item is added to the future list;
@@ -118,9 +116,9 @@ last persistent item;
 [RESET]: last_sent is reset back due to the receiver restart.
 
 The state of a slot is described by the following variables:
-item list: the list of items, starting from the oldest;
-last_sent: the earliest item that the receiver possibly have seen;
-in_flight: the number of items currently on the network.
+- item list: the list of items, starting from the oldest;
+- last_sent: the earliest item that the receiver possibly have seen;
+- in_flight: the number of items currently on the network.
 
 Note that slot.in_flight not necessary equals the number of unreplied items:
 during recovery items from the past parts of the list are replayed.
@@ -133,7 +131,7 @@ For each slot, a configuration parameter slot.max_in_flight is defined.
 This parameter is set to 1 to obtain a "standard" slot behaviour, where no
 more than single item is in flight.
 
-<b> Reply cache: </b><BR>
+<b> Reply cache: </b>
 
 Reply cache caches replies for update operations. Replies of read-only
 operations is not cached. When a duplicate update item is received which is
@@ -155,7 +153,7 @@ A FOL (File Operation Log) can be used to cache replies. Current verno of slot
 points to record of most recent update operation that updated the slot verno.
 
 
-<B>Maintaining item dependancies when slot.max_in_flight > 1 </B> <BR>
+<B>Maintaining item dependancies when slot.max_in_flight > 1 </B>
 
  First, let's clarify that xid is used to uniquely identify items sent through
  a particular slot, whereas verno is used to identify the state of target
@@ -163,17 +161,17 @@ points to record of most recent update operation that updated the slot verno.
 
  We want to achieve the following goals:
 
-   * sequence of operations sent through a slot can be exactly reproduced
+   - sequence of operations sent through a slot can be exactly reproduced
      after the receiver or the network failed. "Reproduced" here means that
      after the operations are re-applied the same observable system state
      results.
 
-   * Network level concurrency (multiple items in flight).
+   - Network level concurrency (multiple items in flight).
 
-   * Server level concurrency (multiple operations executed on the receiver
+   - Server level concurrency (multiple operations executed on the receiver
      concurrently, where possible).
 
-   * Operations might have dependencies.
+   - Operations might have dependencies.
 
  Let's put the following data into each item:
  @code
@@ -191,12 +189,12 @@ points to record of most recent update operation that updated the slot verno.
 
  When an item is submitted to the rpc layer, its ->dep is
 
-   * either set by the caller (the rpc checks that the receiver is the same
+   - either set by the caller (the rpc checks that the receiver is the same
      in a pre-condition);
 
-   * set to NULL to indicate that there are no dependencies;
+   - set to NULL to indicate that there are no dependencies;
 
-   * set to a special LAST constant value, to indicate that the item depends
+   - set to a special LAST constant value, to indicate that the item depends
      on the last item sent through the same slot. In this case, the rpc code
      assigns ->dep to the appropriate item:
 
@@ -213,17 +211,17 @@ points to record of most recent update operation that updated the slot verno.
  item->dep->xid is sent to the receiver along with other item attributes. On
  the receiver, the item is submitted to the request handler only when
 
-   * item->dep item has been received and executed and
+   - item->dep item has been received and executed and
 
-   * item->verno matches the slot verno (as usual).
+   - item->verno matches the slot verno (as usual).
 
  Typical scenarios are as following:
 
-   * update operations are submitted, all with LAST dep, they are sent
+   - update operations are submitted, all with LAST dep, they are sent
      over the network concurrently (up to slot->max_in_flight) and executed
      serially by the receiver;
 
-   * an update item I0 is submitted, then a set of read-only items is submitted,
+   - an update item I0 is submitted, then a set of read-only items is submitted,
      all with ->dep set to LAST. Read-only operations are sent concurrently and
      executed concurrently after I0 has been executed.
 
@@ -254,28 +252,27 @@ points to record of most recent update operation that updated the slot verno.
 #include "dtm/verno.h"
 
 #ifdef __KERNEL__
-#define printf(fmt, ...)	printk((fmt), ## __VA_ARGS__)
+#define printf	printk
 #endif
 
 /* Imports */
 struct c2_rpc_item;
 struct c2_rpcmachine;
 struct c2_rpc_chan;
-struct c2_net_end_point;
 
 /* Exports */
 struct c2_rpc_session;
 struct c2_rpc_conn;
 
 enum {
-	/** session_[create|terminate] items go on session 0 */
-	SESSION_0 = 0,
-	SESSION_ID_INVALID = ~0,
+	/** [conn|session]_[create|terminate] items go on session 0 */
+	SESSION_ID_0 = 0,
+	SESSION_ID_INVALID = UINT64_MAX,
 	/** Range of valid session ids */
-	SESSION_ID_MIN = SESSION_0 + 1,
+	SESSION_ID_MIN = SESSION_ID_0 + 1,
 	SESSION_ID_MAX = SESSION_ID_INVALID - 1,
-	SENDER_ID_INVALID = ~0,
-	SLOT_ID_INVALID = ~0,
+	SENDER_ID_INVALID = UINT64_MAX,
+	SLOT_ID_INVALID = UINT32_MAX,
 };
 
 /**
@@ -340,38 +337,46 @@ enum c2_rpc_conn_flags {
 
 /**
    For every service to which sender wants to communicate there is one
-   instance of c2_rpc_conn. All instances of c2_rpc_conn are
-   maintained in a list inside rpcmachine. Instance of c2_rpc_conn stores
-   a list of all sessions currently active with the service.
+   instance of c2_rpc_conn.
+
+   c2_rpcmachine maintains two lists of c2_rpc_conn
+   - cr_outgoing_conns: list of c2_rpc_conn objects for which this node is
+     sender
+   - cr_incoming_conns: list of c2_rpc_conn object for which this node is
+     receiver
+
+   Instance of c2_rpc_conn stores a list of all sessions currently active with
+   the service.
    Same sender has different sender_id to communicate with different service.
 
-   At the time of creation of a c2_rpc_conn, a "special" session with SESSION_0
-   is also created. It is special in the sense that it is "hand-made" and there
-   is no need to communicate to receiver in order to create this session.
-   Receiver assumes that there always exists a session 0 for each sender_id.
+   At the time of creation of a c2_rpc_conn, a "special" session with
+   SESSION_ID_0 is also created. It is special in the sense that it is
+   "hand-made" and there is no need to communicate to receiver in order to
+   create this session. Receiver assumes that there always exists a session 0
+   for each rpc connection.
    Session 0 always have exactly 1 slot within it.
    Receiver creates session 0 while creating the rpc connection itself.
-   Session 0 is required to send other SESSION_CREATE/SESSION_TERMINATE requests
-   to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
-   non-idempotent, they also need EOS and FIFO guarantees.
+   Session 0 is required to send special fops like
+   - conn_establish or conn_terminate FOP
+   - session_create or session_terminate FOP.
 
-   <PRE>
-   Note: There is no state named as "UNKNOWN", it is in the state diagram to
-   specify "before initialisation" and "after finalisation" state, and the
-   contents of object are irrelevant and "unknown".
+   Note: There is no state named as "UNINITIALISED", it is in the state
+   diagram to specify "before initialisation" and "after finalisation" state,
+   and the contents of object are irrelevant and "unknown".
 
-   +-------------------------> unknown state
-         allocated                  |
-                                    |  c2_rpc_conn_init()
-                                    V
+   @verbatim
+   +-------------------------> UNINITIALISED
+         allocated               ^  |
+               c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
+                                 |  V
                                INITIALISED
                                     |
-                                    |  c2_rpc_conn_create()
+                                    |  c2_rpc_conn_establish()
                                     |
                                     V
          +---------------------- CREATING
          | time-out ||              |
-         |     reply.rc != 0        | conn_create_reply_received() &&
+         |     reply.rc != 0        | conn_establish_reply_received() &&
          |                          |    reply.rc == 0
          V                          |
        FAILED                       |
@@ -387,11 +392,12 @@ enum c2_rpc_conn_flags {
 	 |                          V
 	 |			TERMINATED
 	 |                          |
-	 |			    |  fini()
-	 |	fini()		    V
-	 +--------------------> unknown state
+	 |			    |  c2_rpc_conn_fini()
+	 | c2_rpc_conn_fini()	    V
+	 +--------------------> UNINITIALISED
 
-</PRE>
+  @endverbatim
+
   Concurrency:
   * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
   * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
@@ -399,11 +405,14 @@ enum c2_rpc_conn_flags {
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
 	struct c2_rpc_sender_uuid	 c_uuid;
-	/** Every c2_rpc_conn is stored on a list
-	    c2_rpcmachine::cr_rpc_conn_list
-	    conn is in the list if c_state is not in {
-	    CONN_INITIALISED, CONN_FAILED, CONN_TERMINATED} */
+	/**
+	   rpcmachine with which this conn is associated
+	 */
 	struct c2_rpcmachine		*c_rpcmachine;
+	/**
+	   list_link to put c2_rpc_conn in either
+	   c2_rpcmachine::cr_incoming_conns or c2_rpcmachine::cr_outgoing_conns
+	 */
 	struct c2_list_link              c_link;
 	enum c2_rpc_conn_state		 c_state;
 	/** @see c2_rpc_conn_flags for list of flags */
@@ -455,10 +464,11 @@ int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
     @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CREATING &&
-		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link))
+		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
+				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
-int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
+int c2_rpc_conn_establish(struct c2_rpc_conn	*conn,
 		       struct c2_net_end_point	*ep);
 
 /**
@@ -548,7 +558,7 @@ enum c2_rpc_session_state {
 
 /**
    Session object at the sender side.
-<PRE>
+   @verbatim
 
             +------------------> some unknown state
                  allocated            |
@@ -583,7 +593,7 @@ enum c2_rpc_session_state {
 	  |			      V
 	  +----------------------->unknown state
 
-</PRE>
+   @endverbatim
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
@@ -707,10 +717,10 @@ struct c2_rpc_slot_ops {
   The verno.vn_vc is set to 0 at the time of slot creation on both ends.
 
   A slot responds to following events:
-  ITEM_APPLY
-  REPLY_RECEIVED
-  PERSISTENCE
-  RESET
+  - ITEM_APPLY
+  - REPLY_RECEIVED
+  - PERSISTENCE
+  - RESET
  */
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */

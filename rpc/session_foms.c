@@ -47,33 +47,33 @@
    @{
  */
 
-const struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
-	.fo_fini = c2_rpc_fom_conn_create_fini,
-	.fo_state = c2_rpc_fom_conn_create_state
+const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
+	.fo_fini = c2_rpc_fom_conn_establish_fini,
+	.fo_state = c2_rpc_fom_conn_establish_state
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_create_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
 	.fto_create = NULL
 };
 
-struct c2_fom_type c2_rpc_fom_conn_create_type = {
-	.ft_ops = &c2_rpc_fom_conn_create_type_ops
+struct c2_fom_type c2_rpc_fom_conn_establish_type = {
+	.ft_ops = &c2_rpc_fom_conn_establish_type_ops
 };
 
-int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_create		*fop_cc;
+	struct c2_rpc_fop_conn_establish		*fop_cc;
 	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_establish_rep	*fop_ccr;
 	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_conn_create		*fom_cc;
+	struct c2_rpc_fom_conn_establish		*fom_cc;
 	struct c2_rpc_conn			*conn;
 	struct c2_rpc_session			*session0;
 	struct c2_rpc_slot			*slot;
 	int					rc;
 
-	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
+	fom_cc = container_of(fom, struct c2_rpc_fom_conn_establish, fcc_gen);
 
 	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
 			fom_cc->fcc_fop_rep != NULL);
@@ -101,7 +101,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_conn_create(conn, item->ri_src_ep);
+	rc = c2_rpc_rcv_conn_establish(conn, item->ri_src_ep);
 	if (rc != 0)
 		goto errout;
 
@@ -110,7 +110,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	 * add the item explicitly to the slot0. This makes the slot
 	 * symmetric to sender side slot.
 	 */
-	c2_rpc_session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
@@ -141,7 +141,7 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 errout:
 	C2_ASSERT(rc != 0);
 
-	printf("conn_create_state: failed %d\n", rc);
+	printf("conn_establish_state: failed %d\n", rc);
 	fop_ccr->rccr_snd_id = SENDER_ID_INVALID;
 	fop_ccr->rccr_rc = rc;
 	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
@@ -151,7 +151,7 @@ errout:
 	return FSO_AGAIN;
 }
 
-void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
+void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom)
 {
 }
 

@@ -147,7 +147,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain	*dom,
 #define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
 
 /**
-   Lookup a cob named @name in parent cob @pcob. If found store reference
+   Lookup a cob named 'name' in parent cob @pcob. If found store reference
    in @out. If not found set *out to NULL. To lookup root cob, pcob can be
    set to NULL
  */
@@ -248,7 +248,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
 			   c2_list_contains(&machine->cr_incoming_conns,
 					    &conn->c_link)
  */
-int c2_rpc_rcv_conn_create(struct c2_rpc_conn		*conn,
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn		*conn,
 			   struct c2_net_end_point	*ep);
 /**
    @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
@@ -347,9 +347,9 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 
    The routine is executed when reply to conn create fop is received
  */
-void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
-				       struct c2_rpc_item *reply,
-				       int		   rc);
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
+					  struct c2_rpc_item *reply,
+					  int		      rc);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().

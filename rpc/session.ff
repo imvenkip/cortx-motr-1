@@ -30,10 +30,10 @@
  no significant purpose. Before introducing sender UUID, cookie
  was used to match reply with request.
  */
-DEF(c2_rpc_fop_conn_create, RECORD,
+DEF(c2_rpc_fop_conn_establish, RECORD,
    _(rcc_cookie, U64));
 
-DEF(c2_rpc_fop_conn_create_rep, RECORD,
+DEF(c2_rpc_fop_conn_establish_rep, RECORD,
    _(rccr_snd_id, U64),
    _(rccr_cookie, U64),
    _(rccr_rc, U32));

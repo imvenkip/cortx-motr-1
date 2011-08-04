@@ -262,7 +262,7 @@ void server_init(int dummy)
 	}
 
 	/* Create RPC connection using new API 
-	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
+	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
 	   &cctx.pc_cep); */	
 
 	sctx.pc_db_name = "rpcping_db_server";
@@ -499,7 +499,7 @@ void client_init()
 	}
 
 	/* Create RPC connection using new API 
-	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
+	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
 	   &cctx.pc_cep); */	
 
 	cctx.pc_db_name = "rpcping_db_client";
@@ -544,7 +544,7 @@ void client_init()
 	}
 
 	/* Create RPC connection */
-	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_rep); 
+	rc = c2_rpc_conn_establish(&cctx.pc_conn, cctx.pc_rep); 
 	if(rc != 0){
 		printf("Failed to create rpc connection\n");
 		goto cleanup;

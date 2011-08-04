@@ -48,8 +48,8 @@
    @{
  */
 
-const struct c2_fop_type_ops c2_rpc_fop_conn_create_ops = {
-	.fto_fom_init = &c2_rpc_fop_conn_create_fom_init,
+const struct c2_fop_type_ops c2_rpc_fop_conn_establish_ops = {
+	.fto_fom_init = &c2_rpc_fop_conn_establish_fom_init,
 };
 
 const struct c2_fop_type_ops c2_rpc_fop_session_create_ops = {
@@ -68,9 +68,9 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 	.fto_execute = c2_rpc_fop_noop_execute
 };
 
-int c2_rpc_fop_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
+int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_rpc_fom_conn_create		*fom_cc;
+	struct c2_rpc_fom_conn_establish		*fom_cc;
 	struct c2_fom				*fom;
 
 	C2_PRE(fop != NULL);
@@ -80,14 +80,14 @@ int c2_rpc_fop_conn_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	if (fom_cc == NULL)
 		return -ENOMEM;
 
-	fop->f_type->ft_fom_type = c2_rpc_fom_conn_create_type;
+	fop->f_type->ft_fom_type = c2_rpc_fom_conn_establish_type;
 
 	fom = &fom_cc->fcc_gen;
-	fom->fo_type = &c2_rpc_fom_conn_create_type;
-	fom->fo_ops = &c2_rpc_fom_conn_create_ops;
+	fom->fo_type = &c2_rpc_fom_conn_establish_type;
+	fom->fo_ops = &c2_rpc_fom_conn_establish_ops;
 
 	fom_cc->fcc_fop = fop;
-	fom_cc->fcc_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_create_rep_fopt,
+	fom_cc->fcc_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt,
 						NULL);
 	if (fom_cc->fcc_fop_rep == NULL) {
 		c2_free(fom_cc);
@@ -199,10 +199,10 @@ int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
  *  existing C2_FOP_TYPE_DECLARE() to assign item_type to the fop_type.
  */
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create, "rpc_conn_create",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish, "rpc_conn_create",
 			C2_RPC_FOP_CONN_CREATE_OPCODE,
-			&c2_rpc_fop_conn_create_ops,
-			&c2_rpc_item_conn_create);
+			&c2_rpc_fop_conn_establish_ops,
+			&c2_rpc_item_conn_establish);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
 			C2_RPC_FOP_CONN_TERMINATE_OPCODE,
@@ -223,10 +223,10 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
  *  REPLY fops
  */
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_create_rep, "rpc_conn_create_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep, "rpc_conn_create_reply",
 			C2_RPC_FOP_CONN_CREATE_REP_OPCODE,
 			NULL,
-			&c2_rpc_item_conn_create_rep);
+			&c2_rpc_item_conn_establish_rep);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep,
 			"rpc_conn_terminate_reply",
@@ -251,11 +251,11 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_noop, "NOOP",
 			&c2_rpc_item_noop);
 
 static struct c2_fop_type *fops[] = {
-	&c2_rpc_fop_conn_create_fopt,
+	&c2_rpc_fop_conn_establish_fopt,
 	&c2_rpc_fop_conn_terminate_fopt,
 	&c2_rpc_fop_session_create_fopt,
 	&c2_rpc_fop_session_terminate_fopt,
-	&c2_rpc_fop_conn_create_rep_fopt,
+	&c2_rpc_fop_conn_establish_rep_fopt,
 	&c2_rpc_fop_conn_terminate_rep_fopt,
 	&c2_rpc_fop_session_create_rep_fopt,
 	&c2_rpc_fop_session_terminate_rep_fopt,
@@ -289,7 +289,7 @@ static struct c2_rpc_item_type_ops default_item_type_ops = {
         .rio_item_size = c2_rpc_item_default_size,
 };
 
-struct c2_rpc_item_type c2_rpc_item_conn_create = {
+struct c2_rpc_item_type c2_rpc_item_conn_establish = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = true,
 	.rit_mutabo = true,
@@ -313,7 +313,7 @@ struct c2_rpc_item_type c2_rpc_item_session_terminate = {
 	.rit_mutabo = true,
 };
 
-struct c2_rpc_item_type c2_rpc_item_conn_create_rep = {
+struct c2_rpc_item_type c2_rpc_item_conn_establish_rep = {
 	.rit_ops = &default_item_type_ops,
 	.rit_item_is_req = false,
 	.rit_mutabo = false
@@ -343,8 +343,8 @@ struct c2_rpc_item_type c2_rpc_item_noop = {
 	.rit_mutabo = false
 };
 
-const struct c2_rpc_item_ops c2_rpc_item_conn_create_ops = {
-	.rio_replied = c2_rpc_conn_create_reply_received
+const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
+	.rio_replied = c2_rpc_conn_establish_reply_received
 };
 
 const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops = {

@@ -84,7 +84,7 @@ static uint64_t session_id_get(void);
 /**
    Returns true if item is carrying CONN_CREATE fop.
  */
-static bool item_is_conn_create(const struct c2_rpc_item  *item);
+static bool item_is_conn_establish(const struct c2_rpc_item  *item);
 
 /**
   XXX temporary routine that submits the fop inside item for execution.
@@ -103,7 +103,7 @@ static void rcv_reply_consume(struct c2_rpc_item  *req,
 
 
 /**
-   Creates "/SESSIONS/SENDER_$sender_id/SESSION_0/SLOT_0:0" in cob namespace.
+   Creates "/SESSIONS/SENDER_$sender_id/SESSION_ID_0/SLOT_0:0" in cob namespace.
    Returns corresponding references to cobs in out parameters.
  */
 static int conn_persistent_state_create(struct c2_cob_domain  *dom,
@@ -299,11 +299,11 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn		 *conn,
 	return rc;
 }
 
-int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
+int c2_rpc_conn_establish(struct c2_rpc_conn	*conn,
 		       struct c2_net_end_point	*ep)
 {
 	struct c2_fop			*fop;
-	struct c2_rpc_fop_conn_create	*fop_cc;
+	struct c2_rpc_fop_conn_establish	*fop_cc;
 	struct c2_rpc_item		*item;
 	struct c2_rpc_session		*session_0;
 	struct c2_rpcmachine		*machine;
@@ -314,7 +314,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	      (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END &&
 	       c2_rpc_conn_invariant(conn));
 
-	fop = c2_fop_alloc(&c2_rpc_fop_conn_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -340,22 +340,22 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 	C2_ASSERT(fop_cc != NULL);
 
 	/*
-	 * Receiver will copy this cookie in conn_create reply
+	 * Receiver will copy this cookie in conn_establish reply
 	 * XXX the cookie does not serve any significant purpose.
-	 * It was introduced to be able to match conn_create reply to
+	 * It was introduced to be able to match conn_establish reply to
 	 * corresponding request. But now as CONN_CREATE fops are also
-	 * sent using SESSION_0, this cookie is not useful anymore.
+	 * sent using SESSION_ID_0, this cookie is not useful anymore.
 	 */
 	fop_cc->rcc_cookie = (uint64_t)conn;
 
-	c2_rpc_session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item = &fop->f_item;
 	item->ri_session = session_0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_ops = &c2_rpc_item_conn_create_ops;
+	item->ri_ops = &c2_rpc_item_conn_establish_ops;
 
 	rc = c2_rpc_post(item);
 	if (rc == 0) {
@@ -375,13 +375,13 @@ int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
 out:
 	return rc;
 }
-C2_EXPORTED(c2_rpc_conn_create);
+C2_EXPORTED(c2_rpc_conn_establish);
 
-void c2_rpc_conn_create_reply_received(struct c2_rpc_item *req,
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 				       struct c2_rpc_item *reply,
 				       int		   rc)
 {
-	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
+	struct c2_rpc_fop_conn_establish_rep	*fop_ccr;
 	struct c2_fop				*fop;
 	struct c2_rpc_conn			*conn;
 
@@ -463,7 +463,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 		return rc;
 	}
 
-	session->s_session_id = SESSION_0;
+	session->s_session_id = SESSION_ID_0;
 	session->s_state = C2_RPC_SESSION_IDLE;
 
 	c2_list_add(&conn->c_sessions, &session->s_link);
@@ -482,7 +482,7 @@ static void session_zero_detach(struct c2_rpc_conn	*conn)
 
 	C2_PRE(conn != NULL);
 
-	c2_rpc_session_search(conn, SESSION_0, &session);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session);
 	C2_ASSERT(session != NULL);
 
 	session->s_state = C2_RPC_SESSION_TERMINATED;
@@ -529,7 +529,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	fop_ct->ct_sender_id = conn->c_sender_id;
 
-	c2_rpc_session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item = &fop->f_item;
@@ -870,7 +870,7 @@ int c2_rpc_session_create(struct c2_rpc_session	*session)
 
 	item = &fop->f_item;
 
-	c2_rpc_session_search(conn, SESSION_0, &session_0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session_0);
 	C2_ASSERT(session_0 != NULL);
 
 	item->ri_session = session_0;
@@ -1018,7 +1018,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	fop_st->rst_sender_id = session->s_conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
-	c2_rpc_session_search(session->s_conn, SESSION_0, &session_0);
+	c2_rpc_session_search(session->s_conn, SESSION_ID_0, &session_0);
 	C2_ASSERT(session_0 != NULL &&
 		 (session_0->s_state == C2_RPC_SESSION_IDLE ||
 		  session_0->s_state == C2_RPC_SESSION_BUSY));
@@ -1203,7 +1203,7 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
 
 	result = session->s_session_id <= SESSION_ID_MAX &&
 		 session->s_conn != NULL &&
-		 ergo(session->s_session_id != SESSION_0,
+		 ergo(session->s_session_id != SESSION_ID_0,
 			session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
 			session->s_conn->c_nr_sessions > 0) &&
 		 session->s_nr_slots >= 0 &&
@@ -2262,7 +2262,7 @@ static int conn_persistent_state_create(struct c2_cob_domain *dom,
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_session_cob_create(conn_cob, SESSION_0, &session0_cob, tx);
+	rc = c2_rpc_session_cob_create(conn_cob, SESSION_ID_0, &session0_cob, tx);
 	if (rc != 0) {
 		c2_cob_put(conn_cob);
 		goto errout;
@@ -2314,7 +2314,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 			slot0_cob != NULL);
 	conn->c_cob = conn_cob;
 
-	c2_rpc_session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session0);
 	C2_ASSERT(session0 != NULL);
 	session0->s_cob = session0_cob;
 
@@ -2325,7 +2325,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn	*conn,
 	return 0;
 }
 
-int c2_rpc_rcv_conn_create(struct c2_rpc_conn	   *conn,
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn	   *conn,
 			   struct c2_net_end_point *ep)
 {
 	struct c2_rpcmachine	*machine;
@@ -2573,7 +2573,7 @@ static int conn_persistent_state_destroy(struct c2_rpc_conn	*conn,
 	struct c2_rpc_session	*session0;
 	struct c2_rpc_slot	*slot0;
 
-	c2_rpc_session_search(conn, SESSION_0, &session0);
+	c2_rpc_session_search(conn, SESSION_ID_0, &session0);
 	C2_ASSERT(session0 != NULL);
 
 	slot0 = session0->s_slot_table[0];
@@ -2632,9 +2632,9 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	c2_free(conn);
 }
 
-static bool item_is_conn_create(const struct c2_rpc_item *item)
+static bool item_is_conn_establish(const struct c2_rpc_item *item)
 {
-	return item->ri_type == &c2_rpc_item_conn_create;
+	return item->ri_type == &c2_rpc_item_conn_establish;
 }
 
 static void item_dispatch(struct c2_rpc_item *item)
@@ -2723,7 +2723,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	rc = associate_session_and_slot(item);
 	c2_rpc_item_set_incoming_exit_stats(item);
 	if (rc != 0) {
-		if (item_is_conn_create(item)) {
+		if (item_is_conn_establish(item)) {
 			item_dispatch(item);
 			return 0;
 		}
