@@ -136,8 +136,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 		c2_fom_queue(fom);
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
-
-	return;
 }
 C2_EXPORTED(c2_reqh_fop_handle);
 

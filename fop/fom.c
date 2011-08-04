@@ -294,7 +294,7 @@ static void fom_fop_exec(struct c2_fom *fom)
 /**
  * Dequeue's a fom from runq list of the locality.
  *
- * @param, loc, locality assigned for fom execution
+ * @param loc, locality assigned for fom execution
  *
  * @retval -> returns c2_fom object if succeeds,
  *		else returns NULL
