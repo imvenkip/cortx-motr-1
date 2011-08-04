@@ -351,8 +351,52 @@ cleanup:
 	do_cleanup();
 }
 
-int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
+#define nfiles                   64
+#define ndatafids                8
+#define nfops                    256
+extern struct c2_fop_file_fid          *form_fids;
+extern uint64_t                        *file_offsets;
+extern struct c2_fop_io_vec           **form_write_iovecs;
 
+int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
+void init_fids();
+void populate_fids();
+void init_file_io_patterns();
+struct c2_fop *form_get_new_fop();
+
+/**
+  Init the data required for IO fops
+ */
+void io_fop_data_init()
+{
+        C2_ALLOC_ARR(form_fids, nfiles);
+        init_fids();
+        populate_fids();
+        C2_ALLOC_ARR(file_offsets, ndatafids);
+        init_file_io_patterns();
+        C2_ALLOC_ARR(form_write_iovecs, nfops);
+}
+
+/** 
+  Create a random IO fop (either read or write) and post it to rpc layer
+ */
+void send_random_io_fop(int nr)
+{
+        struct c2_fop           *fop;
+        struct c2_rpc_item      *item = NULL;
+
+        fop = form_get_new_fop();
+        item = &fop->f_item;
+        c2_rpc_frm_item_populate_param(&fop->f_item);
+        item->ri_deadline = 0;
+        c2_rpc_item_attach(item);
+        item->ri_session = &cctx.pc_rpc_session;
+        c2_rpc_post(item);
+}
+
+/** 
+  Create a ping fop and post it to rpc layer
+ */
 void send_ping_fop(int nr)
 {
 	struct c2_fop                   *fop = NULL;
@@ -657,10 +701,14 @@ void client_init()
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
+	io_fop_data_init();
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], int,
+		/*rc = C2_THREAD_INIT(&client_thread[i], int,
 				NULL, &send_ping_fop,
+				0, "client_%d", i);*/
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				NULL, &send_random_io_fop,
 				0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
