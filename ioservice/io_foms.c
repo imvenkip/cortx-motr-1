@@ -23,6 +23,7 @@
 #endif
 
 #include "fop/fop.h"
+#include "fop/fom.h"
 #include "io_foms.h"
 #include "io_fops.h"
 #include "stob/stob.h"
@@ -45,6 +46,8 @@
  */
 
 #ifndef __KERNEL__
+
+struct c2_reqh reqh;
 
 /** Generic ops object for c2_fop_cob_writev */
 static struct c2_fom_ops c2_io_fom_write_ops = {
@@ -416,6 +419,11 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	ctx.ft_service = s;
 	ctx.fc_cookie  = cookie;
 
+	reqh.rh_serv = s;
+	reqh.rh_fol = fol;
+	reqh.rh_stdom = dom;
+	reqh.rh_fom_dom.fd_reqh = &reqh;
+
 	/*
 	 * Reqh generic phases will be run here that will do
 	 * the standard actions like authentication, authorization,
@@ -436,6 +444,7 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 
 	fom->fo_fop_ctx = &ctx;
 	fom->fo_fol = fol;
+	fom->fo_domain = &reqh.rh_fom_dom;
 
 	/*
 	 * Start the FOM.
