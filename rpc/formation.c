@@ -70,7 +70,7 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
-//static int frm_item_retry(struct c2_rpc_item *item);
+static int frm_item_retry(struct c2_rpc_item *item);
 
 /**
   Sleep time till refcounts of all the formation state machines become zero.
@@ -93,16 +93,21 @@ uint64_t max_rpcs_in_flight;
    OR item could not find a ready slot.
    This routine tries to rearm the timer of given rpc item so that
    we can retry to form once again once the timer expires.
+   XXX Actually, there should be a retry mechanism at the whole rpc
+   level - especially at sessions level. A request to terminate session
+   can take a boolean as input which can indicate actions like trashing
+   dirty rpc items still lying with rpc or actually retry to send these
+   items and wait for their replies and then do the session terminate.
    @param item - Given rpc item.
    @retval - 0 if succeeded, -ve errno, if failed.
  */
-/*static int frm_item_retry(struct c2_rpc_item *item)
+static int frm_item_retry(struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 
 	if (item->ri_deadline == 0) {
 	}
-}*/
+}
 
 /**
   This routine will change the state of each rpc item
@@ -822,7 +827,7 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item)
 
 	if (c2_rpc_item_is_unbound(item))
 		sm_event.se_event = C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED;
-	else 
+	else
 		sm_event.se_event = C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED;
 	sm_event.se_pvt = NULL;
 
@@ -1292,7 +1297,6 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item)
 {
 	size_t				 item_size = 0;
-	c2_time_t			 now;
 	struct c2_rpc_frm_rpcgroup	*rg = NULL;
 
 	C2_PRE(item != NULL);
@@ -1308,11 +1312,7 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 	/* If timer of rpc item is still running, change the deadline in
 	   rpc item as per remaining time and stop and fini the timer. */
 	if (item->ri_deadline != 0) {
-		c2_time_now(&now);
-		if (c2_time_after(item->ri_timer.t_expire, now)) {
-			item->ri_deadline =
-				c2_time_sub(item->ri_timer.t_expire, now);
-		}
+		item->ri_deadline = 0;
 		c2_timer_stop(&item->ri_timer);
 		c2_timer_fini(&item->ri_timer);
 	} else if (item->ri_group == NULL)
@@ -1845,10 +1845,8 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					rc = try_coalesce(frm_sm, rpc_item,
 							rpcobj_size);
 				}
-			} else {
-				C2_ASSERT(0);
+			} else
 				break;
-			}
 		}
 	}
 }
@@ -1870,7 +1868,7 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags &= (~C2_RPC_ITEM_UNBOUND | 
+		item->ri_type->rit_flags &= (~C2_RPC_ITEM_UNBOUND |
 			 C2_RPC_ITEM_BOUND);
 	}
 }
@@ -2212,7 +2210,7 @@ static int frm_item_change(struct c2_rpc_frm_sm *frm_sm,
 	if (item->ri_state == RPC_ITEM_SUBMITTED) {
 		if (event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_REMOVED)
 			frm_item_remove(frm_sm, item);
-		else 
+		else
 			res = frm_item_update(frm_sm, item, event->se_pvt);
 	}
 	return res;

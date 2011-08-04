@@ -49,14 +49,14 @@
 #endif
 #include "stob/ut/io_fop.h"
 
-/**     
+/**
    Context for a ping client or server.
- */     
+ */
 struct ping_ctx {
 	/* Transport structure */
         struct c2_net_xprt			*pc_xprt;
 	/* Network domain */
-        struct c2_net_domain			 pc_dom; 
+        struct c2_net_domain			 pc_dom;
 	/* Local hostname */
         const char				*pc_lhostname;
 	/* Local port */
@@ -181,7 +181,7 @@ void server_rqh_init(int dummy)
 
 	while (1) {
 		c2_chan_wait(&clink);
-		if (!c2_queue_is_empty(&exec_queue)) {	
+		if (!c2_queue_is_empty(&exec_queue)) {
 			q1 = c2_queue_get(&exec_queue);
 			C2_ASSERT(q1 != NULL);
 			item = container_of(q1, struct c2_rpc_item,
@@ -283,7 +283,7 @@ void server_init(int dummy)
 	printf("Server Addr = %s\n",addr);
 
 	/* Create source endpoint for server side */
-	rc = c2_net_end_point_create(&sctx.pc_lep,&sctx.pc_dom,addr); 
+	rc = c2_net_end_point_create(&sctx.pc_lep,&sctx.pc_dom,addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -303,7 +303,7 @@ void server_init(int dummy)
 	printf("Client Addr = %s\n",addr);
 
 	/* Create destination endpoint for server i.e client endpoint */
-	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_dom, addr); 
+	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_dom, addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -311,9 +311,9 @@ void server_init(int dummy)
 		printf("Client Endpoint created \n");
 	}
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	sctx.pc_db_name = "rpcping_db_server";
 	sctx.pc_cob_dom_id.id =  13 ;
@@ -339,7 +339,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			sctx.pc_lep); 
+			sctx.pc_lep);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -384,7 +384,7 @@ void send_ping_fop(int nr)
 	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
-	c2_rpc_post(item);	
+	c2_rpc_post(item);
 }
 
 /* Get stats from rpcmachine and print them */
@@ -524,7 +524,7 @@ void client_init()
 	printf("Client Addr = %s\n",addr);
 
 	/* Create source endpoint for client side */
-	rc = c2_net_end_point_create(&cctx.pc_lep,&cctx.pc_dom,addr); 
+	rc = c2_net_end_point_create(&cctx.pc_lep,&cctx.pc_dom,addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -544,7 +544,7 @@ void client_init()
 	printf("Server Addr = %s\n",addr);
 
 	/* Create destination endpoint for client i.e server endpoint */
-	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_dom, addr); 
+	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_dom, addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -552,9 +552,9 @@ void client_init()
 		printf("Server Endpoint created \n");
 	}
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;
@@ -580,7 +580,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			cctx.pc_lep); 
+			cctx.pc_lep);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -589,7 +589,7 @@ void client_init()
 	}
 
 	/* Init the connection structure */
-	rc = c2_rpc_conn_init(&cctx.pc_conn, &cctx.pc_rpc_mach); 
+	rc = c2_rpc_conn_init(&cctx.pc_conn, &cctx.pc_rpc_mach);
 	if(rc != 0){
 		printf("Failed to init rpc connection\n");
 		goto cleanup;
@@ -598,7 +598,7 @@ void client_init()
 	}
 
 	/* Create RPC connection */
-	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_rep); 
+	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_rep);
 	if(rc != 0){
 		printf("Failed to create rpc connection\n");
 		goto cleanup;
@@ -698,7 +698,7 @@ void client_init()
 
 
 	/* Terminate RPC connection */
-	rc = c2_rpc_conn_terminate(&cctx.pc_conn); 
+	rc = c2_rpc_conn_terminate(&cctx.pc_conn);
 	if(rc != 0){
 		printf("Failed to terminate rpc connection\n");
 		goto cleanup;
@@ -777,7 +777,7 @@ int main(int argc, char *argv[])
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
-	
+
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
 	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
