@@ -80,6 +80,15 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 #ifdef __KERNEL__
 		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_minimal_xprt);
 #else
+		/* disable SIGPIPE because sunrpc does not set MSG_NOSIGNAL
+		   when writing on socket, causing process to exit. */
+		{
+			struct sigaction new_action;
+			new_action.sa_handler = SIG_IGN;
+			sigemptyset(&new_action.sa_mask);
+			new_action.sa_flags = 0;
+			sigaction(SIGPIPE, &new_action, NULL);
+		}
 		rc = c2_net_domain_init(dom, &c2_net_usunrpc_minimal_xprt);
 #endif
 		if (rc != 0)

@@ -293,7 +293,7 @@ static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	xconn  = conn->nc_xprt_private;
 	xprt   = conn_xprt_get(xconn);
 	result = usunrpc_call(xprt, call);
-	if (result == -ECONNRESET &&
+	if ((result == -ECONNRESET || result == -EPIPE) &&
 	    conn->nc_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt) {
 		/* Potentially an error due to caching of end points.
 		   Reinitialize the xprt and retry once.
