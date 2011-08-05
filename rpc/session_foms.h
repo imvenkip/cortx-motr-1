@@ -48,36 +48,36 @@ enum c2_rpc_fom_conn_establish_phase {
 };
 
 struct c2_rpc_fom_conn_establish {
-	struct c2_fom		fce_gen;
-	struct c2_fop		*fce_fop;
-	struct c2_fop		*fce_fop_rep;
+	struct c2_fom    fce_gen;
+	struct c2_fop   *fce_fop;
+	struct c2_fop   *fce_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 
-int c2_rpc_fom_conn_establish_state(struct c2_fom *);
-void c2_rpc_fom_conn_establish_fini(struct c2_fom *);
+int c2_rpc_fom_conn_establish_state(struct c2_fom *fom);
+void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
 
 /*
  * FOM to execute "Session Create" request
  */
 
-enum c2_rpc_fom_session_create_phase {
-	FOPH_SESSION_CREATE = FOPH_NR + 1
+enum c2_rpc_fom_session_establish_phase {
+	FOPH_SESSION_ESTABLISH = FOPH_NR + 1
 };
 
-struct c2_rpc_fom_session_create {
-	struct c2_fom		fsc_gen;
-	struct c2_fop		*fsc_fop;
-	struct c2_fop		*fsc_fop_rep;
+struct c2_rpc_fom_session_establish {
+	struct c2_fom    fse_gen;
+	struct c2_fop   *fse_fop;
+	struct c2_fop   *fse_fop_rep;
 };
 
-extern struct c2_fom_type c2_rpc_fom_session_create_type;
-extern const struct c2_fom_ops c2_rpc_fom_session_create_ops;
+extern struct c2_fom_type c2_rpc_fom_session_establish_type;
+extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
 
-int c2_rpc_fom_session_create_state(struct c2_fom *);
-void c2_rpc_fom_session_create_fini(struct c2_fom *);
+int c2_rpc_fom_session_establish_state(struct c2_fom *fom);
+void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
 
 /*
  * FOM to execute session terminate request
@@ -88,16 +88,16 @@ enum c2_rpc_fom_session_terminate_phase {
 };
 
 struct c2_rpc_fom_session_terminate {
-	struct c2_fom		fst_gen;
-	struct c2_fop		*fst_fop;
-	struct c2_fop		*fst_fop_rep;
+	struct c2_fom    fst_gen;
+	struct c2_fop   *fst_fop;
+	struct c2_fop   *fst_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
-int c2_rpc_fom_session_terminate_state(struct c2_fom *);
-void c2_rpc_fom_session_terminate_fini(struct c2_fom *);
+int c2_rpc_fom_session_terminate_state(struct c2_fom *fom);
+void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
 
 /*
  * FOM to execute RPC connection terminate request
@@ -108,16 +108,16 @@ enum c2_rpc_fom_conn_terminate_phase {
 };
 
 struct c2_rpc_fom_conn_terminate {
-	struct c2_fom		fct_gen;
-	struct c2_fop		*fct_fop;
-	struct c2_fop		*fct_fop_rep;
+	struct c2_fom    fct_gen;
+	struct c2_fop   *fct_fop;
+	struct c2_fop   *fct_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
-int c2_rpc_fom_conn_terminate_state(struct c2_fom *);
-void c2_rpc_fom_conn_terminate_fini(struct c2_fom *);
+int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom);
+void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom);
 
 #endif
 

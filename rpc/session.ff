@@ -45,14 +45,14 @@ DEF(c2_rpc_fop_conn_terminate_rep, RECORD,
    _(ctr_sender_id, U64),
    _(ctr_rc, U32));
 
-DEF(c2_rpc_fop_session_create, RECORD,
-   _(rsc_snd_id, U64),
-   _(rsc_slot_cnt, U32));
+DEF(c2_rpc_fop_session_establish, RECORD,
+   _(rse_snd_id, U64),
+   _(rse_slot_cnt, U32));
 
-DEF(c2_rpc_fop_session_create_rep, RECORD,
-   _(rscr_session_id, U64),
-   _(rscr_sender_id, U64),
-   _(rscr_rc, U32));
+DEF(c2_rpc_fop_session_establish_rep, RECORD,
+   _(rser_session_id, U64),
+   _(rser_sender_id, U64),
+   _(rser_rc, U32));
 
 DEF(c2_rpc_fop_session_terminate, RECORD,
    _(rst_sender_id, U64),

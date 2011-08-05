@@ -255,7 +255,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
 	session->s_conn != NULL
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
  */
-int c2_rpc_rcv_session_create(struct c2_rpc_session	*session);
+int c2_rpc_rcv_session_establish(struct c2_rpc_session *session);
 
 /**
    Terminate receiver end of session
@@ -365,9 +365,9 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 
    The routine is executed when reply to session create fop is received
  */
-void c2_rpc_session_create_reply_received(struct c2_rpc_item *req,
-					  struct c2_rpc_item *reply,
-					  int		      rc);
+void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
+					     struct c2_rpc_item *reply,
+					     int                 rc);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().

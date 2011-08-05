@@ -226,23 +226,23 @@ void test_conn_establish()
 	c2_cob_fb_traverse(dom);
 }
 
-void test_session_create()
+void test_session_establish()
 {
 	struct c2_fop				*fop;
 	struct c2_fom				*fom = NULL;
-	struct c2_rpc_fom_session_create	*fom_sc;
-	struct c2_rpc_fop_session_create	*fop_sc;
-	struct c2_rpc_fop_session_create_rep	*fop_sc_reply;
+	struct c2_rpc_fom_session_establish	*fom_sc;
+	struct c2_rpc_fop_session_establish	*fop_se;
+	struct c2_rpc_fop_session_establish_rep	*fop_se_reply;
 	struct c2_rpc_item			*item_in;
 	struct c2_rpc_session			*session0;
 
-	fop = c2_fop_alloc(&c2_rpc_fop_session_create_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_establish_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
-	fop_sc = c2_fop_data(fop);
-	C2_ASSERT(fop_sc != NULL);
+	fop_se = c2_fop_data(fop);
+	C2_ASSERT(fop_se != NULL);
 
-	fop_sc->rsc_snd_id = g_sender_id;
+	fop_se->rse_snd_id = g_sender_id;
 	item_in = c2_fop_to_rpc_item(fop);
 /*
 	item_in->ri_sender_id = g_sender_id;
@@ -259,11 +259,11 @@ void test_session_create()
 	C2_ASSERT(fom->fo_phase == FOPH_DONE ||
 			fom->fo_phase == FOPH_FAILED);
 
-	fom_sc = container_of(fom, struct c2_rpc_fom_session_create, fsc_gen);
-	fop_sc_reply = c2_fop_data(fom_sc->fsc_fop_rep);
-	C2_ASSERT(fop_sc_reply != NULL);
-	printf("test_session_create: session id %lu\n", fop_sc_reply->rscr_session_id);
-	g_session_id = fop_sc_reply->rscr_session_id;
+	fom_sc = container_of(fom, struct c2_rpc_fom_session_establish, fse_gen);
+	fop_se_reply = c2_fop_data(fom_sc->fse_fop_rep);
+	C2_ASSERT(fop_se_reply != NULL);
+	printf("test_session_establish: session id %lu\n", fop_se_reply->rser_session_id);
+	g_session_id = fop_se_reply->rser_session_id;
 	fom->fo_ops->fo_fini(fom);
 
 	c2_cob_namespace_traverse(dom);
@@ -345,10 +345,10 @@ static void thread_entry(void *arg)
 		printf("thread: time out during session creation\n");
 	}
 }
-void test_snd_session_create()
+void test_snd_session_establish()
 {
 	struct c2_fop				*fop;
-	struct c2_rpc_fop_session_create_rep	*fop_scr;
+	struct c2_rpc_fop_session_establish_rep	*fop_ser;
 	struct c2_rpc_item			*item;
 	struct c2_rpc_session			*session0;
 	int					rc;
@@ -356,22 +356,22 @@ void test_snd_session_create()
 	C2_SET0(&session);
 	rc = c2_rpc_session_init(&session, &conn, DEFAULT_SLOT_COUNT);
 	C2_ASSERT(rc == 0);
-	rc = c2_rpc_session_create(&session);
+	rc = c2_rpc_session_establish(&session);
 	if (rc != 0) {
 		printf("test_sc: failed to create session\n");
 		return;
 	}
 	c2_thread_init(&thread, NULL, thread_entry, NULL, "thread_entry");
 	sleep(1);
-	fop = c2_fop_alloc(&c2_rpc_fop_session_create_rep_fopt, NULL);
+	fop = c2_fop_alloc(&c2_rpc_fop_session_establish_rep_fopt, NULL);
 	C2_ASSERT(fop != NULL);
 
-	fop_scr = c2_fop_data(fop);
-	C2_ASSERT(fop_scr != NULL);
+	fop_ser = c2_fop_data(fop);
+	C2_ASSERT(fop_ser != NULL);
 
-	fop_scr->rscr_rc = 0;
-	fop_scr->rscr_sender_id = conn.c_sender_id;
-	fop_scr->rscr_session_id = 100;
+	fop_ser->rser_rc = 0;
+	fop_ser->rser_sender_id = conn.c_sender_id;
+	fop_ser->rser_session_id = 100;
 
 	item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(item != NULL);
@@ -421,7 +421,7 @@ void test_snd_session_terminate()
 	item->ri_session = session0;
 
 	fop->f_type->ft_ops->fto_execute(fop, NULL);
-	printf("snd_session_create_test: state %d rc %d\n", session.s_state,
+	printf("snd_session_establish_test: state %d rc %d\n", session.s_state,
 			session.s_rc);
 	c2_rpc_session_fini(&session);
 }
@@ -526,14 +526,14 @@ int main(void)
 	init();
 	test_conn_establish();
 	C2_ASSERT(c2_rpc_conn_invariant(connp));
-	test_session_create();
+	test_session_establish();
 	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_session_terminate(g_sender_id, g_session_id);
 	C2_ASSERT(c2_rpc_conn_invariant(connp));
 	test_conn_terminate(g_sender_id);
 
 	//test_snd_conn_establish();
-	//test_snd_session_create();
+	//test_snd_session_establish();
 	//test_slots();
 	//test_snd_session_terminate();
 	//test_snd_conn_terminate();

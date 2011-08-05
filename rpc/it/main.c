@@ -580,7 +580,7 @@ void client_init()
 	}
 
 	/* Create RPC session */
-	rc = c2_rpc_session_create(&cctx.pc_rpc_session);
+	rc = c2_rpc_session_establish(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to create session\n");
 		goto cleanup;

@@ -358,7 +358,7 @@ enum c2_rpc_conn_flags {
    Receiver creates session 0 while creating the rpc connection itself.
    Session 0 is required to send special fops like
    - conn_establish or conn_terminate FOP
-   - session_create or session_terminate FOP.
+   - session_establish or session_terminate FOP.
 
    Note: There is no state named as "UNINITIALISED", it is in the state
    diagram to specify "before initialisation" and "after finalisation" state,
@@ -492,7 +492,8 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
     Wait until c2_rpc_conn state machine reached the desired state.
 
     @param state_flags can specify multiple states by ORing
-    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @param abs_timeout should not sleep past abs_timeout waiting for conn
+		to reach in desired state.
     @return true if @conn reaches in one of the state(s) specified by
                 @state_flags
     @return false if time out has occured before @conn reaches in desired
@@ -517,10 +518,10 @@ enum c2_rpc_session_state {
 	 */
 	C2_RPC_SESSION_INITIALISED = (1 << 0),
 	/**
-	   When sender sends a SESSION_CREATE FOP to reciever it
+	   When sender sends a SESSION_ESTABLISH FOP to reciever it
 	   is in CREATING state
 	 */
-	C2_RPC_SESSION_CREATING = (1 << 1),
+	C2_RPC_SESSION_ESTABLISHING = (1 << 1),
 	/**
 	   A session is IDLE if both of following is true
 		- for each slot S in session
@@ -566,7 +567,7 @@ enum c2_rpc_session_state {
 				      V
 				  INITIALISED
 				      |
-				      | c2_rpc_session_create()
+				      | c2_rpc_session_establish()
 				      |
 		timed-out	      V
           +-------------------------CREATING
@@ -639,14 +640,14 @@ int c2_rpc_session_init(struct c2_rpc_session     *session,
 			uint32_t	          nr_slots);
 
 /**
-    Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
+    Sends a SESSION_ESTABLISH fop across pre-defined 0-session in the c2_rpc_conn.
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
-    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_CREATING &&
+    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
 			c2_list_contains(conn->c_sessions, &session->s_link))
  */
-int c2_rpc_session_create(struct c2_rpc_session	*session);
+int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
    Send terminate session message to receiver.
@@ -657,10 +658,11 @@ int c2_rpc_session_create(struct c2_rpc_session	*session);
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
 /**
-    Wait until desired state is reached.
+    Waits until desired state is reached.
 
     @param state_flags can specify multiple states by ORing
-    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @param abs_timeout thread does not sleep past abs_timeout waiting for conn
+		to reach in desired state.
     @return true if session reaches in one of the state(s) specified by
 		@state_flags
     @return false if time out has occured before session reaches in desired
