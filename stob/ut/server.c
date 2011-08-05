@@ -317,8 +317,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
 
-	/* 
-	 * FOMs are implemented only for read and write operations 
+	/*
+	 * FOMs are implemented only for read and write operations
 	 */
 	if ((fop->f_type->ft_code >= C2_IO_SERVICE_READV_OPCODE)) {
 		/*

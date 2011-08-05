@@ -49,7 +49,7 @@ static struct c2_fom_type c2_fom_ping_mopt = {
 };
 
 /**
- * State function for ping request 
+ * State function for ping request
  */
 int c2_fom_ping_state(struct c2_fom *fom)
 {
@@ -87,7 +87,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
         fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
-        fom_type = &c2_fom_ping_mopt; 
+        fom_type = &c2_fom_ping_mopt;
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;
@@ -100,7 +100,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /** @} end of io_foms */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

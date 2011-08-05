@@ -23,7 +23,7 @@ io_fop_init.c io_u.h io_u.c:
 	ln -sf $(top_builddir)/stob/ut/io_u.h io_u.h
 	ln -sf $(top_builddir)/stob/ut/io_u.c io_u.c
 
-formation_SOURCES   = io_u.h io_u.c io_fop_init.c formation-ut-infra1.c main.c
+formation_SOURCES   = io_u.h io_u.c io_fop_init.c formation-ut.c main.c
 formation_LDFLAGS   = -pthread
 formation_LDADD     = $(top_builddir)/colibri/libcolibri.la
 

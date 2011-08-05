@@ -385,7 +385,7 @@ void io_fop_data_init()
         C2_ALLOC_ARR(form_write_iovecs, nfops);
 }
 
-/** 
+/**
   Create a random IO fop (either read or write) and post it to rpc layer
  */
 void send_random_io_fop(int nr)
@@ -397,12 +397,15 @@ void send_random_io_fop(int nr)
         item = &fop->f_item;
         c2_rpc_frm_item_populate_param(&fop->f_item);
         item->ri_deadline = 0;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group = NULL;
+	item->ri_mach = &cctx.pc_rpc_mach;
         c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
 }
 
-/** 
+/**
   Create a ping fop and post it to rpc layer
  */
 void send_ping_fop(int nr)

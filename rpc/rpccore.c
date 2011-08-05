@@ -308,9 +308,8 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 
 	/* Create a new chan structure, initialize a transfer machine. */
 	rc = c2_rpc_chan_create(&chan, machine, src_ep);
-	if (rc < 0) {
+	if (rc < 0)
 		return rc;
-	}
 
 	/* Start the transfer machine so that users of this rpcmachine
 	   can send/receive messages. */

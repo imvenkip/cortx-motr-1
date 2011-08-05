@@ -538,15 +538,22 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 		return -ENOMEM;
 	}
 	read_vec->fs_count = 0;
+	read_fop = c2_fop_data(b_fop);
 
 	c2_list_for_each_entry_safe(&aggr_list, read_seg, read_seg_next,
 			struct c2_io_read_segment, rs_linkage) {
 		read_vec->fs_segs[read_vec->fs_count] = read_seg->rs_seg;
+#ifndef __KERNEL__
+		printf("Resultant read coalescing: Fid - seq = %lu, oid = %lu: Segment %d: offset = %lu, count = %lu\n",
+				read_fop->frd_fid.f_seq,
+				read_fop->frd_fid.f_oid, read_vec->fs_count,
+				read_seg->rs_seg.f_offset,
+				read_seg->rs_seg.f_count);
+#endif
 		read_vec->fs_count++;
 		c2_list_del(&read_seg->rs_linkage);
 		c2_free(read_seg);
 	}
-	read_fop = c2_fop_data(b_fop);
 
 	/* Keep pointer to original IO vector to restore back on completion. */
 	C2_ALLOC_PTR(vec->read_vec);
@@ -563,7 +570,7 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 }
 
 /**
-   Restore the original IO vector of resultant read fop. 
+   Restore the original IO vector of resultant read fop.
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
  */
@@ -871,16 +878,23 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 	if (write_vec->iov_seg == NULL)
 		return -ENOMEM;
 	write_vec->iov_count = 0;
+	write_fop = c2_fop_data(b_fop);
 
 	c2_list_for_each_entry_safe(&aggr_list, write_seg,
 			write_seg_next, struct c2_io_write_segment,
 			ws_linkage) {
 		write_vec->iov_seg[write_vec->iov_count] = write_seg->ws_seg;
+#ifndef __KERNEL__
+		printf("Resultant write coalescing: Fid - seq = %lu, oid = %lu: Segment %d: offset = %lu, count = %d\n",
+				write_fop->fwr_fid.f_seq,
+				write_fop->fwr_fid.f_oid, write_vec->iov_count,
+				write_seg->ws_seg.f_offset,
+				write_seg->ws_seg.f_buf.f_count);
+#endif
 		write_vec->iov_count++;
 		c2_list_del(&write_seg->ws_linkage);
 		c2_free(write_seg);
 	}
-	write_fop = c2_fop_data(b_fop);
 
 	/* Keep pointer to original IO vector to restore back on completion. */
 	C2_ALLOC_PTR(vec->write_vec);
@@ -897,7 +911,7 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 }
 
 /**
-   Restore the original IO vector of resultant write fop. 
+   Restore the original IO vector of resultant write fop.
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
  */

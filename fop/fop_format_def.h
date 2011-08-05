@@ -22,7 +22,7 @@
 #define __COLIBRI_FOP_FOP_FORMAT_DEF_H__
 
 /**
-   @addtogroup fop 
+   @addtogroup fop
 
    @{
 */
@@ -52,7 +52,7 @@
 /* __COLIBRI_FOP_FOP_FORMAT_DEF_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

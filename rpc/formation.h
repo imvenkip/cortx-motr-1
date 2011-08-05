@@ -102,6 +102,34 @@
 
    RPC formation state machine:
 
+                              UNINITIALIZED
+                                   | frm_sm_init()
+                                   |
+                                   |
+                                   |
+                 a,b,c	           V         d,e
+           +------------------- WAITING -----------------+
+           |                    ^    ^                   |
+           |          g	        |    |       f,g         |
+           |      +-------------+    +-------------+     |
+           |      |                                |     |
+           V      |              d,e,f             |     v
+           UPDATING -----------------------------> FORMING
+           | ^  ^                                  |   | ^
+           | |  |                a,b,c             |   | |
+     a,b,c | |  +----------------------------------+   | | d,e
+           +-+                                         +-+
+
+External Events :
+a. Item ready (bound item)
+b. Unbound item added
+c. Unsolicited item added
+d. Item reply received
+e. Item deadline expired
+
+Internal Events :
+f. State succeeded
+g. State failed
 
    The lifecycle of any thread executing the formation state machine is
    something like this
@@ -115,8 +143,7 @@
 	pass through the sub sequent states as states succeed and exit
 
    @todo A lot of data structures here, use a c2_list. Instead a
-   hash function will be used to enhance the performance. This will
-   be done after UT of rpc formation.
+   hash function will be used to enhance the performance.
 
    There are no retries in the state machine. Any failure event will
    take the executing thread out of this state machine.
@@ -223,8 +250,6 @@ struct c2_rpc_frm_sm {
 	/** The c2_rpc_conn structure which points to the destination network
 	    endpoint, this formation state machine is directed towards. */
 	struct c2_rpc_conn		*fs_rpcconn;
-	/** Flag indicating the formation component is still active. */
-	bool				 fs_active;
 	/** State of the state machine. Threads will have to take the
 	    unit_lock above before state can be changed. This
 	    variable will bear one value from enum c2_rpc_frm_state. */
@@ -272,7 +297,7 @@ struct c2_rpc_frm_sm {
 	/** Number of complete groups in the sense that this state
 	    machine contains all rpc items from such rpc groups.
 	    Any number > 0 will trigger formation. */
-	uint64_t			 fs_complete_groups_nr;	
+	uint64_t			 fs_complete_groups_nr;
 };
 
 /**

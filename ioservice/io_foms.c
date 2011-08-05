@@ -123,7 +123,7 @@ struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
 /**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
- * Currently, this mapping is identity. But it is subject to 
+ * Currently, this mapping is identity. But it is subject to
  * change as per the future requirements.
  */
 void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out)
@@ -222,14 +222,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 
 	/*
-	 * Since a c2_fom object is passed down to every FOM 
-	 * state method, the context structure which is the 
+	 * Since a c2_fom object is passed down to every FOM
+	 * state method, the context structure which is the
 	 * parent structure of the FOM is type casted from c2_fom.
 	 */
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
 
-	/* 
-	 * Allocate and initialize stob io object 
+	/*
+	 * Allocate and initialize stob io object
 	 */
 	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
 	if (fom_obj->fcrw_st_io == NULL)
@@ -261,14 +261,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/* Find out the in-core fid from on-wire fid. */
 	c2_io_fid_wire2mem(ffid, &fid);
 
-	/* 
+	/*
 	 * Map the given fid to find out corresponding stob id.
 	 */
 	c2_io_fid2stob_map(&fid, &stobid);
 
-	/* 
-	 * This is a transaction IO and should be a separate phase 
-	 * with full fledged FOM. 
+	/*
+	 * This is a transaction IO and should be a separate phase
+	 * with full fledged FOM.
 	 */
 	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
 	C2_ASSERT(result == 0);
@@ -283,7 +283,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	}
 
 	/*
-	 * Allocate and find out the c2_stob object from given domain. 
+	 * Allocate and find out the c2_stob object from given domain.
 	 */
 	result = c2_stob_find(fom->fo_domain, (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
 	C2_ASSERT(result == 0);
@@ -344,21 +344,21 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	fom_obj->fcrw_st_io->si_stob.iv_vec.v_count = &count;
 
 	/*
-	 * Total number of segments in IO vector 
+	 * Total number of segments in IO vector
 	 */
 	fom_obj->fcrw_st_io->si_user.div_vec.ov_vec.v_nr = 1;
 	fom_obj->fcrw_st_io->si_stob.iv_vec.v_nr = 1;
 	fom_obj->fcrw_st_io->si_flags = 0;
 
-	/* 
-	 * A new clink is used to wait on the channel 
+	/*
+	 * A new clink is used to wait on the channel
 	 * from c2_stob_io.
 	 */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&fom_obj->fcrw_st_io->si_wait, &clink);
 
 	/*
-	 * Launch IO and wait for status. 
+	 * Launch IO and wait for status.
 	 */
 	result = c2_stob_io_launch(fom_obj->fcrw_st_io, fom_obj->fcrw_stob, &tx, NULL);
 	if (result == 0)
@@ -401,7 +401,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Send reply FOP
 	 */
-	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop, 
+	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop,
 			  fom->fo_fop_ctx->fc_cookie);
 
 	/* This goes into DONE phase */
@@ -449,7 +449,7 @@ void c2_io_fom_cob_rwv_fini(struct c2_fom *fom)
  * Actual reqh will be used in future.
  */
 int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-			 void *cookie, struct c2_fol *fol, 
+			 void *cookie, struct c2_fol *fol,
 			 struct c2_stob_domain *dom)
 {
 	struct c2_fop_ctx 	ctx;
@@ -460,14 +460,14 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	ctx.fc_cookie  = cookie;
 
 	/*
-	 * Reqh generic phases will be run here that will do 
+	 * Reqh generic phases will be run here that will do
 	 * the standard actions like authentication, authorization,
 	 * resource allocation, locking &c.
 	 */
 
-	/* 
+	/*
 	 * This init function will allocate memory for a c2_io_fom_cob_rwv
-	 * structure. 
+	 * structure.
 	 * It will find out the respective c2_fom_type object
 	 * for the given c2_fop_type object using a mapping function
 	 * and will embed the c2_fom_type object in c2_fop_type object.
@@ -481,7 +481,7 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 	fom->fo_fop_ctx = &ctx;
 	fom->fo_fol = fol;
 
-	/* 
+	/*
 	 * Start the FOM.
 	 */
 	return fom->fo_ops->fo_state(fom);
@@ -515,7 +515,7 @@ int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /** @} end of io_foms */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

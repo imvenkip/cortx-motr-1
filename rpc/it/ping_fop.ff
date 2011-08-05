@@ -22,7 +22,7 @@
 DEF(c2_fop_ping_arr, SEQUENCE,
 	_(f_count, U32),
 	_(f_data, U64));
-	
+
 DEF(c2_fop_ping, RECORD,
 	_(fp_arr, c2_fop_ping_arr));
 

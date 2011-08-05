@@ -27,7 +27,7 @@
  *
  * <b>Fop state machine for IO operations </b>
  * @see fom
- * @ref https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg&hl=en  
+ * @ref https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg&hl=en
  *
  * FOP state machines for various IO operations like
  * @li COB Readv
@@ -35,12 +35,12 @@
  *
  * All operation specific code will be executed in a single phase
  * for now. It will be decomposed into more granular phases
- * when FOM and reqh infrastructure is in place. 
+ * when FOM and reqh infrastructure is in place.
  *
- * <i> Note on naming convention: For operation xyz, the fop is named 
+ * <i> Note on naming convention: For operation xyz, the fop is named
  * as c2_fop_xyz, its corresponding reply fop is named as c2_fop_xyz_rep
  * and fom is named as c2_fom_xyz. For each fom type, its corresponding
- * create, state and fini methods are named as c2_fom_xyz_create, 
+ * create, state and fini methods are named as c2_fom_xyz_create,
  * c2_fom_xyz_state, c2_fom_xyz_fini respectively </i>
  *
  *  @{
@@ -56,7 +56,7 @@
 /**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
- * Currently, this mapping is identity. But it is subject to 
+ * Currently, this mapping is identity. But it is subject to
  * change as per the future requirements.
  */
 void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
@@ -66,7 +66,7 @@ void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
  * Actual reqh will be used in future.
  */
 int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-			 void *cookie, struct c2_fol *fol, 
+			 void *cookie, struct c2_fol *fol,
 			 struct c2_stob_domain *dom);
 
 #endif
@@ -74,13 +74,13 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 /**
  * Find out the respective FOM type object (c2_fom_type)
  * from the given opcode.
- * This opcode is obtained from the FOP type (c2_fop_type->ft_code) 
+ * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
  */
 struct c2_fom_type* c2_io_fom_type_map(c2_fop_type_code_t code);
 
-/** 
- * The various phases for writev FOM. 
- * Not used as of now. Will be used once the 
+/**
+ * The various phases for writev FOM.
+ * Not used as of now. Will be used once the
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_writev_phases{
@@ -154,7 +154,7 @@ int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
 /* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
