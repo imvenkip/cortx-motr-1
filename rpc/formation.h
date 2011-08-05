@@ -438,7 +438,7 @@ union c2_rpc_frm_item_change_val {
  */
 struct c2_rpc_frm_item_change_req {
 	/* Specifies which field is going to change. */
-	int			 		 field_type;
+	int					 field_type;
 	/* New value of the field. */
 	union c2_rpc_frm_item_change_val	*value;
 };

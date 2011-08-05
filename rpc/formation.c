@@ -1428,8 +1428,8 @@ static enum c2_rpc_frm_int_evt_id sm_updating_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event)
 {
-	int 				res;
-	enum c2_rpc_frm_int_evt_id 	ret;
+	int				res;
+	enum c2_rpc_frm_int_evt_id	ret;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
@@ -1630,7 +1630,7 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		uint64_t *rpcobj_size)
 {
 	int					 rc = 0;
-	int			 		 item_rw = 0;
+	int					 item_rw = 0;
 	uint64_t				 old_size = 0;
 	struct c2_fid				 fid;
 	struct c2_rpc_item			*ub_item = NULL;
