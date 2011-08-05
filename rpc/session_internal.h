@@ -53,13 +53,17 @@ enum {
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
 /**
-   Search for a session with given @session_id in rpc connection conn.
+   Searches in conn->c_sessions list, a session object whose session id
+   matches with given @session_id.
 
-   If found *out contains pointer to session object else *out is set to NULL
+   Caller is expected to decide whether conn will be locked or not
+   The function is also called from session_foms.c, that's why is not static.
+
+   @return pointer to session if found, NULL otherwise
+   @post ergo(result != NULL, result->s_session_id == session_id)
  */
-void c2_rpc_session_search(const struct c2_rpc_conn *conn,
-			   uint64_t                  session_id,
-			   struct c2_rpc_session   **out);
+struct c2_rpc_session *c2_rpc_session_search(const struct c2_rpc_conn *conn,
+					     uint64_t session_id);
 
 /**
    Searches and returns session with session_id 0.

@@ -175,34 +175,18 @@ void c2_rpc_session_module_fini(void)
 }
 C2_EXPORTED(c2_rpc_session_module_fini);
 
-/**
-   Search for session object with given @session_id in conn->c_sessions list
-   If not found *out is set to NULL
-   If found *out contains pointer to session object
-
-   Caller is expected to decide whether conn will be locked or not
-   The function is also called from session_foms.c, that's why is not static.
-
-   @post ergo(*out != NULL, (*out)->s_session_id == session_id)
- */
-void c2_rpc_session_search(const struct c2_rpc_conn *conn,
-			   uint64_t                  session_id,
-			   struct c2_rpc_session   **out)
+struct c2_rpc_session *c2_rpc_session_search(const struct c2_rpc_conn *conn,
+					     uint64_t session_id)
 {
 	struct c2_rpc_session *session;
 
-	C2_ASSERT(conn != NULL && out != NULL);
-
-	*out = NULL;
+	C2_ASSERT(conn != NULL);
 
 	c2_rpc_for_each_session(conn, session) {
-		if (session->s_session_id == session_id) {
-			*out = session;
-			break;
-		}
+		if (session->s_session_id == session_id)
+			return session;
 	}
-
-	C2_POST(ergo(*out != NULL, (*out)->s_session_id == session_id));
+	return NULL;
 }
 
 void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
@@ -488,9 +472,7 @@ struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session0;
 
-	C2_PRE(conn != NULL);
-
-	c2_rpc_session_search(conn, SESSION_ID_0, &session0);
+	session0 = c2_rpc_session_search(conn, SESSION_ID_0);
 
 	C2_ASSERT(session0 != NULL);
 	return session0;
@@ -1105,7 +1087,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 	c2_mutex_lock(&conn->c_mutex);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	c2_rpc_session_search(conn, session_id, &session);
+	session = c2_rpc_session_search(conn, session_id);
 	C2_ASSERT(session != NULL &&
 		  session->s_state == C2_RPC_SESSION_TERMINATING);
 
@@ -2688,7 +2670,7 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 		return -ENOENT;
 	}
 	c2_mutex_lock(&conn->c_mutex);
-	c2_rpc_session_search(conn, sref->sr_session_id, &session);
+	session = c2_rpc_session_search(conn, sref->sr_session_id);
 	c2_mutex_unlock(&conn->c_mutex);
 	if (session == NULL) {
 		printf("associate_session: cannot find session\n");

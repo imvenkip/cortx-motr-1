@@ -535,7 +535,7 @@ void client_init()
 	}
 
 	/* Init the connection structure */
-	rc = c2_rpc_conn_init(&cctx.pc_conn, &cctx.pc_rpc_mach); 
+	rc = c2_rpc_conn_init(&cctx.pc_conn, &cctx.pc_rpc_mach);
 	if(rc != 0){
 		printf("Failed to init rpc connection\n");
 		goto cleanup;
@@ -544,7 +544,7 @@ void client_init()
 	}
 
 	/* Create RPC connection */
-	rc = c2_rpc_conn_establish(&cctx.pc_conn, cctx.pc_rep); 
+	rc = c2_rpc_conn_establish(&cctx.pc_conn, cctx.pc_rep);
 	if(rc != 0){
 		printf("Failed to create rpc connection\n");
 		goto cleanup;

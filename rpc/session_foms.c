@@ -315,7 +315,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 			conn->c_sender_id == sender_id &&
 			c2_rpc_conn_invariant(conn));
 
-	c2_rpc_session_search(conn, session_id, &session);
+	session = c2_rpc_session_search(conn, session_id);
 	if (session == NULL) {
 		rc = -ENOENT;
 		goto errout;
