@@ -48,9 +48,9 @@ enum c2_rpc_fom_conn_establish_phase {
 };
 
 struct c2_rpc_fom_conn_establish {
-	struct c2_fom    fce_gen;
-	struct c2_fop   *fce_fop;
-	struct c2_fop   *fce_fop_rep;
+	struct c2_fom  fce_gen;
+	struct c2_fop *fce_fop;
+	struct c2_fop *fce_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
@@ -68,9 +68,9 @@ enum c2_rpc_fom_session_establish_phase {
 };
 
 struct c2_rpc_fom_session_establish {
-	struct c2_fom    fse_gen;
-	struct c2_fop   *fse_fop;
-	struct c2_fop   *fse_fop_rep;
+	struct c2_fom  fse_gen;
+	struct c2_fop *fse_fop;
+	struct c2_fop *fse_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_establish_type;
@@ -88,9 +88,9 @@ enum c2_rpc_fom_session_terminate_phase {
 };
 
 struct c2_rpc_fom_session_terminate {
-	struct c2_fom    fst_gen;
-	struct c2_fop   *fst_fop;
-	struct c2_fop   *fst_fop_rep;
+	struct c2_fom  fst_gen;
+	struct c2_fop *fst_fop;
+	struct c2_fop *fst_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
@@ -108,9 +108,9 @@ enum c2_rpc_fom_conn_terminate_phase {
 };
 
 struct c2_rpc_fom_conn_terminate {
-	struct c2_fom    fct_gen;
-	struct c2_fop   *fct_fop;
-	struct c2_fop   *fct_fop_rep;
+	struct c2_fom  fct_gen;
+	struct c2_fop *fct_fop;
+	struct c2_fop *fct_fop_rep;
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;

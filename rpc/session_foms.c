@@ -62,16 +62,16 @@ struct c2_fom_type c2_rpc_fom_conn_establish_type = {
 
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_establish		*fop_ce;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_establish_rep	*fop_cer;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_conn_establish		*fom_ce;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session0;
-	struct c2_rpc_slot			*slot;
-	int					rc;
+	struct c2_rpc_fop_conn_establish_rep *fop_cer;
+	struct c2_rpc_fop_conn_establish     *fop_ce;
+	struct c2_rpc_fom_conn_establish     *fom_ce;
+	struct c2_fop                        *fop;
+	struct c2_fop                        *fop_rep;
+	struct c2_rpc_item                   *item;
+	struct c2_rpc_session                *session0;
+	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_slot                   *slot;
+	int                                   rc;
 
 	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
 
@@ -174,17 +174,17 @@ struct c2_fom_type c2_rpc_fom_session_establish_type = {
 
 int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 {
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_session_establish	*fop_in;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_session_establish_rep	*fop_out;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_session_establish	*fom_se;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session;
-	uint64_t				sender_id;
-	uint32_t				slot_cnt;
-	int					rc;
+	struct c2_rpc_fop_session_establish_rep *fop_out;
+	struct c2_rpc_fop_session_establish     *fop_in;
+	struct c2_rpc_fom_session_establish     *fom_se;
+	struct c2_rpc_item                      *item;
+	struct c2_fop                           *fop;
+	struct c2_fop                           *fop_rep;
+	struct c2_rpc_session                   *session;
+	struct c2_rpc_conn                      *conn;
+	uint64_t                                 sender_id;
+	uint32_t                                 slot_cnt;
+	int                                      rc;
 
 	fom_se = container_of(fom, struct c2_rpc_fom_session_establish, fse_gen);
 
@@ -278,15 +278,15 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpc_fop_session_terminate	*fop_in;
-	struct c2_rpc_fop_session_terminate_rep	*fop_out;
-	struct c2_rpc_fom_session_terminate	*fom_st;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session;
-	uint64_t				sender_id;
-	uint64_t				session_id;
-	int					rc;
+	struct c2_rpc_fop_session_terminate_rep *fop_out;
+	struct c2_rpc_fop_session_terminate     *fop_in;
+	struct c2_rpc_fom_session_terminate     *fom_st;
+	struct c2_rpc_item                      *item;
+	struct c2_rpc_session                   *session;
+	struct c2_rpc_conn                      *conn;
+	uint64_t                                 sender_id;
+	uint64_t                                 session_id;
+	int                                      rc;
 
 	printf("session_terminate_state: called\n");
 	fom_st = container_of(fom, struct c2_rpc_fom_session_terminate,
@@ -366,15 +366,15 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpc_item			*item;
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_terminate	*fop_in;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_terminate_rep	*fop_out;
-	struct c2_rpc_fom_conn_terminate	*fom_ct;
-	struct c2_rpc_conn			*conn;
-	int					rc;
-	uint64_t				sender_id;
+	struct c2_rpc_fop_conn_terminate_rep *fop_out;
+	struct c2_rpc_fop_conn_terminate     *fop_in;
+	struct c2_rpc_fom_conn_terminate     *fom_ct;
+	struct c2_rpc_item                   *item;
+	struct c2_fop                        *fop;
+	struct c2_fop                        *fop_rep;
+	struct c2_rpc_conn                   *conn;
+	uint64_t                              sender_id;
+	int                                   rc;
 
 	C2_ASSERT(fom != NULL);
 	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate, fct_gen);

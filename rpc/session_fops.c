@@ -100,8 +100,8 @@ int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_rpc_fom_session_establish	*fom_se;
-	struct c2_fom				*fom;
+	struct c2_rpc_fom_session_establish *fom_se;
+	struct c2_fom                       *fom;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -130,8 +130,8 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 					  struct c2_fom **m)
 {
-	struct c2_rpc_fom_session_terminate	*fom_st;
-	struct c2_fom				*fom;
+	struct c2_rpc_fom_session_terminate *fom_st;
+	struct c2_fom                       *fom;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -159,8 +159,8 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 
 int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
-	struct c2_rpc_fom_conn_terminate	*fom_ct;
-	struct c2_fom				*fom;
+	struct c2_rpc_fom_conn_terminate *fom_ct;
+	struct c2_fom                    *fom;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
