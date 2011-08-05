@@ -143,7 +143,7 @@ g. State failed
 	pass through the sub sequent states as states succeed and exit
 
    @todo A lot of data structures here, use a c2_list. Instead a
-   hash function will be used to enhance the performance.
+   hash function can be used wherever applicable to enhance the performance.
 
    There are no retries in the state machine. Any failure event will
    take the executing thread out of this state machine.
@@ -518,17 +518,6 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
   @param ev - net buffer event
  */
 void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
-
-/**
-   Type definition of a state function.
-   @param frm_sm - given c2_rpc_frm_sm structure.
-   @param item - incoming rpc item.
-   @param event - triggered event.
-   @param pvt - private data of rpc item.
- */
-typedef enum c2_rpc_frm_int_evt_id (*statefunc)(struct c2_rpc_frm_sm *frm_sm,
-		struct c2_rpc_item *item,
-		const struct c2_rpc_frm_sm_event *event);
 
 /**
    XXX rio_replied op from rpc type ops.
