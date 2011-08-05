@@ -23,7 +23,7 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-#include "rm_fop.h"
+#include "rm/rm.h"
 
 /**
    @addtogroup rm
@@ -36,8 +36,6 @@
 enum c2_rm_fom_phases {
 	FOPH_RM_RIGHT_BORROW = FOPH_NR + 1,
 	FOPH_RM_RIGHT_REVOKE = FOPH_NR + 1,
-	FOPH_RM_RIGHT_BORROW_REPLY = FOPH_NR + 1,
-	FOPH_RM_RIGHT_REVOKE_REPLY = FOPH_NR + 1,
 	FOPH_RM_RIGHT_CANCEL = FOPH_NR + 1,
 	FOPH_RM_RIGHT_BORROW_WAIT = FOPH_NR + 2,
 	FOPH_RM_RIGHT_REVOKE_WAIT = FOPH_NR + 2

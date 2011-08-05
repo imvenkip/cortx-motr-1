@@ -63,7 +63,7 @@ DEF(c2_fop_rm_right_borrow, RECORD,
    /** Id of the policy for resource right */
     _(res_policy_id, U64),
    /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64));
+    _(res_priority, U64),
    /** RM-opaque, resource type specfic, right parameters field */
     _(res_right, c2_fop_rm_right));
 
@@ -101,7 +101,7 @@ DEF(c2_fop_rm_right_borrow_reply, RECORD,
     /** Lease time in seconds */
     _(lease_time, U64),
     /** RM-opaque, resource type specific, right parameters. */
-    _(res_rights, c2_fop_rm_rights),
+    _(res_right, c2_fop_rm_right),
     /** RM-opaque, resource type specific, small resource data. */
     _(res_data, c2_fop_rm_res_data));
 
@@ -122,7 +122,7 @@ DEF(c2_fop_rm_right_revoke, RECORD,
     /** Id for the resource loan */
     _(loan_id, U64),
    /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64));
+    _(res_priority, U64),
     /** App-specific resource group id */
     _(res_grp_id, U64));
 
@@ -133,6 +133,8 @@ DEF(c2_fop_rm_right_revoke, RECORD,
  * @see rm.h
  */
 DEF(c2_fop_rm_right_revoke_reply, RECORD,
+    /** Return code for reply to the RIGHT_REVOKE request */
+    _(right_resp, BYTE),
    /** Id of the remote owner */
     _(rem_id, U64),
    /** Resource type identifier */
@@ -146,7 +148,7 @@ DEF(c2_fop_rm_right_revoke_reply, RECORD,
 
 /**
  * This FOP is sent by borrower (debtor) to creditor to volutarily give up
- * rights to a given resource.
+ * right to a given resource.
  */
 DEF(c2_fop_rm_right_cancel, RECORD,
    /** Id of the remote owner */
@@ -158,7 +160,7 @@ DEF(c2_fop_rm_right_cancel, RECORD,
     /** Id for the resource loan */
     _(loan_id, U64),
    /** Priority of this request  - 8 byte aligned */
-    _(res_priority, U64));
+    _(res_priority, U64),
     /** App-specific resource group id */
     _(res_grp_id, U64));
 

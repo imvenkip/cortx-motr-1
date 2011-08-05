@@ -23,6 +23,7 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
+#include "rm/rm_u.h"
 
 struct c2_fom;
 struct c2_fom_type;
@@ -47,11 +48,27 @@ extern struct c2_fop_type c2_fop_rm_right_revoke_fopt;
 extern struct c2_fop_type c2_fop_rm_right_revoke_reply_fopt;
 extern struct c2_fop_type c2_fop_rm_right_cancel_fopt;
 
+extern struct c2_fop_type_format c2_fop_rm_right_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_res_data_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_borrow_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_borrow_reply_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_revoke_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_revoke_reply_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_right_cancel_tfmt;
+
+/*
+ * FOM-types.
+ */
+extern struct c2_fom_type c2_rm_fom_borrow_type;
+extern struct c2_fom_type c2_rm_fom_revoke_type;
+extern struct c2_fom_type c2_rm_fom_cancel_type;
+
+/*
+ * FOM-type constructors.
+ */
+extern struct c2_fom_ops c2_rm_fom_borrow_ops;
+extern struct c2_fom_ops c2_rm_fom_revoke_ops;
+extern struct c2_fom_ops c2_rm_fom_cancel_ops;
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

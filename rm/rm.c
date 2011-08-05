@@ -27,7 +27,7 @@
 
 #include "rm/rm.h"
 #include "rm/rm_u.h"
-#include "rm/rm_fop.h"
+#include "rm/rm_fops.h"
 #include "rm/ut/rmproto.h"
 #include "rm/ut/rings.h"
 
