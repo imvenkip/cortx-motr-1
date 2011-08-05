@@ -98,9 +98,9 @@
    where devices are connected, how network topology looks like) and dynamic
    system behaviour (how accesses to a resource are distributed).
 
-   Originally, all rights on the resource belong to a single owner or
-   a set of owners, residing on some well-known servers. Proxy servers request
-   and cache rights from there. Lower level proxies and client request rights in
+   Originally, all rights on the resource belong to a single owner or a set of
+   owners, residing on some well-known servers. Proxy servers request and cache
+   rights from there. Lower level proxies and clients request rights in
    turn. According to the order in this hierarchy, one distinguishes "upward"
    and "downward" owners relative to a given one.
 
