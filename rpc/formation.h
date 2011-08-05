@@ -85,7 +85,7 @@
    Also, there are a number of states through which the formation state
    machine transitions.
    - WAITING (waiting for an event to trigger)
-   - UPDATING (updates the internal data structure)
+   - UPDATING (updates the formation state machine)
    - FORMING (core of formation algorithm)
 
    Along with these external events, there are some implicit internal
