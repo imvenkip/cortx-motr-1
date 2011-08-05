@@ -156,7 +156,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
 
-	fom_obj= c2_alloc(sizeof(struct c2_io_fom_cob_rwv));
+	C2_ALLOC_PTR(fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
 	fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
@@ -173,8 +173,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 			c2_free(fom_obj);
 			return -ENOMEM;
 		}
-	}
-	else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
+	} else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		fom->fo_ops = &c2_io_fom_write_ops;
 		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
@@ -231,7 +230,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	/*
 	 * Allocate and initialize stob io object
 	 */
-	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
+	C2_ALLOC_PTR(fom_obj->fcrw_st_io);
 	if (fom_obj->fcrw_st_io == NULL)
 		return -ENOMEM;
 
@@ -247,8 +246,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		 * Change the phase of FOM
 		 */
 		fom->fo_phase = FOPH_COB_WRITE;
-	}
-	else {
+	} else {
 		read_fop = c2_fop_data(fom_obj->fcrw_fop);
 		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
 		ffid = &read_fop->frd_fid;
@@ -313,8 +311,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		count = write_seg->f_buf.f_count;
 		offset = write_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
-	}
-	else {
+	} else {
 		read_seg = read_fop->frd_ioseg.fs_segs;
 
 		/*
@@ -370,11 +367,12 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
 		wr_rep_fop->fwrr_rc = fom_obj->fcrw_st_io->si_rc;
-		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count << bshift;
-	}
-	else {
+		wr_rep_fop->fwrr_count = fom_obj->fcrw_st_io->si_count
+			<< bshift;
+	} else {
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
-		rd_rep_fop->frdr_buf.f_count = fom_obj->fcrw_st_io->si_count << bshift;
+		rd_rep_fop->frdr_buf.f_count = fom_obj->fcrw_st_io->si_count
+			<< bshift;
 	}
 
 	c2_clink_del(&clink);
@@ -389,8 +387,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	if (result != -EDEADLK)	{
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
-	}
-	else {
+	} else {
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
 		C2_ASSERT(rc == 0);
 		/* This should go into FAILURE phase */
@@ -497,7 +494,7 @@ int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
 
-        fom_obj= c2_alloc(sizeof(struct c2_io_fom_file_create));
+	C2_ALLOC_PTR(fom_obj);
         if (fom_obj == NULL)
                 return -ENOMEM;
         fom_type = c2_io_fom_type_map(fop->f_type->ft_code);

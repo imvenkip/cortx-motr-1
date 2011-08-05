@@ -204,13 +204,12 @@ static uint64_t io_fop_read_get_nfragments(struct c2_fop *fop)
 
 	read_fop = c2_fop_data(fop);
 	seg_count = read_fop->frd_ioseg.fs_count;
-	for (i = 0; i < seg_count - 1; i++) {
+	for (i = 0; i < seg_count - 1; ++i) {
 		s_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
 		s_count = read_fop->frd_ioseg.fs_segs[i].f_count;
 		next_s_offset = read_fop->frd_ioseg.fs_segs[i+1].f_offset;
-		if ((s_offset + s_count) != next_s_offset) {
+		if (s_offset + s_count != next_s_offset)
 			nfragments++;
-		}
 	}
 	return nfragments;
 }
@@ -236,11 +235,11 @@ static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
 
 	write_fop = c2_fop_data(fop);
 	seg_count = write_fop->fwr_iovec.iov_count;
-	for (i = 0; i < seg_count - 1; i++) {
+	for (i = 0; i < seg_count - 1; ++i) {
 		s_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
 		s_count = write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
 		next_s_offset = write_fop->fwr_iovec.iov_seg[i+1].f_offset;
-		if ((s_offset + s_count) != next_s_offset) {
+		if (s_offset + s_count != next_s_offset) {
 			nfragments++;
 		}
 	}
@@ -272,9 +271,8 @@ static int io_fop_read_seg_add(struct c2_io_read_segment *rs, uint64_t offset,
 	C2_PRE(new_seg != NULL);
 
 	C2_ALLOC_PTR(new_seg);
-	if (new_seg == NULL) {
+	if (new_seg == NULL)
 		return -ENOMEM;
-	}
 	new_seg->rs_seg.f_offset = offset;
 	new_seg->rs_seg.f_count = count;
 	(*res_segs)++;
@@ -308,11 +306,11 @@ static int io_fop_read_seg_add_cond(struct c2_io_read_segment *rs,
 	C2_PRE(rs->rs_seg.f_offset == off2);
 	C2_PRE(rs->rs_seg.f_count == cnt2);
 
-	if ((off1 + cnt1 < off2) || (off1 < off2)) {
+	if (off1 + cnt1 < off2 || off1 < off2) {
 		rc = io_fop_read_seg_add(rs, off1, cnt1, res_segs, &new_seg);
-		if (rc < 0) {
+		if (rc < 0)
 			return rc;
-		}
+
 		c2_list_add_before(&rs->rs_linkage, &new_seg->rs_linkage);
 	}
 	return rc;
@@ -438,7 +436,7 @@ static void io_fop_read_segments_contract(const struct c2_list *aggr_list,
 
 	c2_list_for_each_entry_safe(aggr_list, new_seg, new_seg_next,
 			struct c2_io_read_segment, rs_linkage) {
-                if ((new_seg->rs_seg.f_offset + new_seg->rs_seg.f_count)
+                if (new_seg->rs_seg.f_offset + new_seg->rs_seg.f_count
                                 == new_seg_next->rs_seg.f_offset) {
                         new_seg_next->rs_seg.f_offset = new_seg->
                                 rs_seg.f_offset;
@@ -477,7 +475,7 @@ static int io_fop_read_segments_coalesce(struct c2_fop_segment_seq *iovec,
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
 	   If yes, merge it else, add a new entry in aggr_list. */
-	for (i = 0; i < iovec->fs_count; i++) {
+	for (i = 0; i < iovec->fs_count; ++i) {
 		io_fop_read_seg_coalesce(&iovec->fs_segs[i], aggr_list,
 				res_segs);
 	}
@@ -543,13 +541,6 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 	c2_list_for_each_entry_safe(&aggr_list, read_seg, read_seg_next,
 			struct c2_io_read_segment, rs_linkage) {
 		read_vec->fs_segs[read_vec->fs_count] = read_seg->rs_seg;
-#ifndef __KERNEL__
-		printf("Resultant read coalescing: Fid - seq = %lu, oid = %lu: Segment %d: offset = %lu, count = %lu\n",
-				read_fop->frd_fid.f_seq,
-				read_fop->frd_fid.f_oid, read_vec->fs_count,
-				read_seg->rs_seg.f_offset,
-				read_seg->rs_seg.f_count);
-#endif
 		read_vec->fs_count++;
 		c2_list_del(&read_seg->rs_linkage);
 		c2_free(read_seg);
@@ -614,9 +605,9 @@ static int io_fop_write_seg_add(struct c2_io_write_segment *ws, uint64_t offset,
 	C2_PRE(new_seg != NULL);
 
 	C2_ALLOC_PTR(new_seg);
-	if (new_seg == NULL) {
+	if (new_seg == NULL)
 		return -ENOMEM;
-	}
+
 	new_seg->ws_seg.f_offset = offset;
 	new_seg->ws_seg.f_buf.f_count = count;
 	(*res_segs)++;
@@ -650,11 +641,11 @@ static int io_fop_write_seg_add_cond(struct c2_io_write_segment *ws,
 	C2_PRE(ws->ws_seg.f_offset == off2);
 	C2_PRE(ws->ws_seg.f_buf.f_count == cnt2);
 
-	if ((off1 + cnt1 < off2) || (off1 < off2)) {
+	if (off1 + cnt1 < off2 || off1 < off2) {
 		rc = io_fop_write_seg_add(ws, off1, cnt1, res_segs, &new_seg);
-		if (rc < 0) {
+		if (rc < 0)
 			return rc;
-		}
+
 		c2_list_add_before(&ws->ws_linkage, &new_seg->ws_linkage);
 	}
 	return rc;
@@ -819,7 +810,7 @@ static int io_fop_write_segments_coalesce(struct c2_fop_io_vec *iovec,
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
 	   If yes, merge it else, add a new entry in aggr_list. */
-	for (i = 0; i < iovec->iov_count; i++) {
+	for (i = 0; i < iovec->iov_count; ++i) {
 		io_fop_write_seg_coalesce(&iovec->iov_seg[i], aggr_list,
 				res_segs);
 	}
@@ -884,13 +875,6 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 			write_seg_next, struct c2_io_write_segment,
 			ws_linkage) {
 		write_vec->iov_seg[write_vec->iov_count] = write_seg->ws_seg;
-#ifndef __KERNEL__
-		printf("Resultant write coalescing: Fid - seq = %lu, oid = %lu: Segment %d: offset = %lu, count = %d\n",
-				write_fop->fwr_fid.f_seq,
-				write_fop->fwr_fid.f_oid, write_vec->iov_count,
-				write_seg->ws_seg.f_offset,
-				write_seg->ws_seg.f_buf.f_count);
-#endif
 		write_vec->iov_count++;
 		c2_list_del(&write_seg->ws_linkage);
 		c2_free(write_seg);
