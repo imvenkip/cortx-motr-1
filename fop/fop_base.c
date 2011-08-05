@@ -238,6 +238,7 @@ void c2_fops_fini(void)
 	c2_mutex_fini(&fop_types_lock);
 	c2_list_fini(&fop_types_list);
 }
+C2_EXPORTED(c2_fops_fini);
 
 /** @} end of fop group */
 
