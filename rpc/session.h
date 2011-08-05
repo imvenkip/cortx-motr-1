@@ -455,8 +455,8 @@ struct c2_rpc_conn {
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn         *conn,
-		     const struct c2_rpcmachine *machine);
+int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
+		     struct c2_rpcmachine *machine);
 
 /**
     Send handshake conn create fop to the remote end. The reply
@@ -635,9 +635,9 @@ struct c2_rpc_session {
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-int c2_rpc_session_init(struct c2_rpc_session    *session,
-			const struct c2_rpc_conn *conn,
-			uint32_t                  nr_slots);
+int c2_rpc_session_init(struct c2_rpc_session *session,
+			struct c2_rpc_conn    *conn,
+			uint32_t               nr_slots);
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined 0-session in the c2_rpc_conn.

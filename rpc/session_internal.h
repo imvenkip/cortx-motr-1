@@ -62,6 +62,15 @@ void c2_rpc_session_search(const struct c2_rpc_conn *conn,
 			   struct c2_rpc_session   **out);
 
 /**
+   Searches and returns session with session_id 0.
+   Each rpc connection always has exactly one instance of session with
+   SESSION_ID_0 in its c_sessions list.
+
+   @post result != NULL && result->s_session_id == SESSION_ID_0
+ */
+struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn);
+
+/**
    Generates UUID
  */
 void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u);
@@ -236,7 +245,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
-			 const struct c2_rpcmachine      *machine,
+			 struct c2_rpcmachine            *machine,
 			 const struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.

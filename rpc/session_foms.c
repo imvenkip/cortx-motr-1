@@ -106,12 +106,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		goto errout;
 
 	/*
-	 * As CONN_ESTABLISH request is directly submitted for execution
-	 * add the item explicitly to the slot0. This makes the slot
-	 * symmetric to sender side slot.
+	 * As CONN_ESTABLISH request is directly submitted for execution.
+	 * Add the item explicitly to the slot0. This makes the slot
+	 * symmetric to corresponding sender side slot.
 	 */
-	c2_rpc_session_search(conn, SESSION_ID_0, &session0);
-	C2_ASSERT(session0 != NULL);
+	session0 = c2_rpc_conn_session0(conn);
+
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
 	C2_ASSERT(slot != NULL);
