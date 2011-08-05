@@ -455,8 +455,8 @@ struct c2_rpc_conn {
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     const struct c2_rpcmachine	*machine);
+int c2_rpc_conn_init(struct c2_rpc_conn         *conn,
+		     const struct c2_rpcmachine *machine);
 
 /**
     Send handshake conn create fop to the remote end. The reply
@@ -499,9 +499,9 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
     @return false if time out has occured before @conn reaches in desired
                 state.
  */
-bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
-			   uint64_t		state_flags,
-			   const c2_time_t	abs_timeout);
+bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
+			   uint64_t            state_flags,
+			   const c2_time_t     abs_timeout);
 
 /**
    checks internal consistency of c2_rpc_conn
@@ -635,9 +635,9 @@ struct c2_rpc_session {
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-int c2_rpc_session_init(struct c2_rpc_session     *session,
-			const struct c2_rpc_conn  *conn,
-			uint32_t	          nr_slots);
+int c2_rpc_session_init(struct c2_rpc_session    *session,
+			const struct c2_rpc_conn *conn,
+			uint32_t                  nr_slots);
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined 0-session in the c2_rpc_conn.
@@ -650,7 +650,7 @@ int c2_rpc_session_init(struct c2_rpc_session     *session,
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
-   Send terminate session message to receiver.
+   Sends terminate session message to receiver.
 
    @pre session->s_state == C2_RPC_SESSION_IDLE
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
@@ -668,37 +668,18 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session);
     @return false if time out has occured before session reaches in desired
 		state.
  */
-bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
-			      uint64_t			state_flags,
-			      const c2_time_t		abs_timeout);
+bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
+			      uint64_t               state_flags,
+			      const c2_time_t        abs_timeout);
 
 /**
-   Finalize session object
+   Finalizes session object
 
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||
 	session->s_state == C2_RPC_SESSION_FAILED ||
 	session->s_state == C2_RPC_SESSION_INITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
-
-enum {
-	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
-};
-
-/**
-   Events that slot can generate.
- */
-struct c2_rpc_slot_ops {
-	/** Item i is ready to be consumed */
-	void (*so_item_consume)(struct c2_rpc_item *i);
-	/** A @reply for a request item @req is received and is
-	    ready to be consumed */
-	void (*so_reply_consume)(struct c2_rpc_item	*req,
-				 struct c2_rpc_item	*reply);
-	/** Slot has no items to send and hence is idle. Formation
-	    can use such slot to send unbound items. */
-	void (*so_slot_idle)(struct c2_rpc_slot *slot);
-};
 
 /**
   In memory slot object.
@@ -736,8 +717,8 @@ struct c2_rpc_slot {
 	struct c2_verno			 sl_verno;
 	/** slot generation */
 	uint64_t			 sl_slot_gen;
-	/** a monotonically increasing counter, copied in each item
-	    sent through this slot */
+	/** A monotonically increasing sequence counter, assigned to an item
+	    when it is bound to the slot */
 	uint64_t			 sl_xid;
 	/** List of items, starting from oldest. Items are placed using
 	    c2_rpc_item::ri_slot_refs[0].sr_link */

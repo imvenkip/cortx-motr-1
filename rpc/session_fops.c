@@ -186,8 +186,8 @@ int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
-int c2_rpc_fop_noop_execute(struct c2_fop	*fop,
-			    struct c2_fop_ctx	*ctx)
+int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
+			    struct c2_fop_ctx *ctx)
 {
 	/* Do nothing */
 	return 0;
