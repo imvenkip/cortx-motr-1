@@ -58,26 +58,6 @@ struct c2_io_fop_member {
 };
 
 /**
-   Member structure of a list containing read IO segments.
- */
-struct c2_io_read_segment {
-        /** Linkage to the list of such structures. */
-        struct c2_list_link             rs_linkage;
-        /** The read IO segment. */
-        struct c2_fop_segment           rs_seg;
-};
-
-/**
-   Member structure of a list containing write IO segments.
- */
-struct c2_io_write_segment {
-        /** Linkage to the list of such structures. */
-        struct c2_list_link             ws_linkage;
-        /** The write IO segment. */
-        struct c2_fop_io_seg            ws_seg;
-};
-
-/**
    A IO vector pointer union to keep track of original IO vector of a
    resultant IO rpc item happened due to IO coalescing. Once the reply
    of such operations comes back, original IO vector is restored in the
@@ -94,11 +74,15 @@ union c2_io_iovec {
    A generic IO segment pointing either to read or write segments. This
    is needed to have generic IO coalescing code.
  */
-union c2_io_ioseg {
-	/** IO segment for read request fop. */
-	struct c2_fop_segment	*read_seg;
-	/** IO segment for write request OR read reply fop. */
-	struct c2_fop_io_seg	*ioseg;
+struct c2_io_ioseg {
+	union {
+		/** IO segment for read request fop. */
+		struct c2_fop_segment	*read_seg;
+		/** IO segment for write request OR read reply fop. */
+		struct c2_fop_io_seg	*ioseg;
+	}gen_ioseg;
+        /** Linkage to the list of such structures. */
+        struct c2_list_link             io_linkage;
 };
 
 /**
