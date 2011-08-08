@@ -109,7 +109,7 @@ static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
 	C2_ASSERT(write_fop != NULL);
 	vec_count = write_fop->fwr_iovec.iov_count;
 	/* Size of actual user data. */
-	for(i = 0; i < vec_count; i++) {
+	for (i = 0; i < vec_count; ++i) {
 		size += write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
 	}
 	/* Size of holding structure. */
@@ -254,10 +254,10 @@ static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
    is called.
 
    @param rs - current read segment from IO vector.
-   @param off1 - starting offset of current read segment from aggr_list.
-   @param cnt1 - count of bytes in current read segment from aggr_list.
-   @param off2 - starting offset of rs.
-   @param cnt2 - count of bytes in rs.
+   @param offset - starting offset of current read segment from aggr_list.
+   @param count - count of bytes in current read segment from aggr_list.
+   @param res_segs - number of resultant segs.
+   @param ns - target c2_io_read_segment structure.
  */
 static int io_fop_read_seg_add(struct c2_io_read_segment *rs, uint64_t offset,
 		uint64_t count, uint64_t *res_segs, struct c2_io_read_segment
@@ -329,24 +329,24 @@ static int io_fop_read_seg_add_cond(struct c2_io_read_segment *rs,
    @param off2 - starting offset of rs.
    @param cnt2 - count of bytes in rs.
  */
-static bool io_fop_read_segs_adjacent(struct c2_io_read_segment **rs,
+static bool io_fop_read_segs_adjacent(struct c2_io_read_segment *rs,
 		const uint64_t off1, const uint64_t cnt1, const uint64_t off2,
 		const uint64_t cnt2)
 {
 	bool ret = false;
 
 	C2_PRE(rs != NULL);
-	C2_PRE((*rs)->rs_seg.f_offset == off2);
-	C2_PRE((*rs)->rs_seg.f_count == cnt2);
+	C2_PRE(rs->rs_seg.f_offset == off2);
+	C2_PRE(rs->rs_seg.f_count == cnt2);
 
 	/* If off1 + count1 == off2,
 	   OR off2 + count2 == off1, merge 2 segments. */
 	if (off1 + cnt1 == off2) {
-		(*rs)->rs_seg.f_offset = off1;
-		(*rs)->rs_seg.f_count += cnt1;
+		rs->rs_seg.f_offset = off1;
+		rs->rs_seg.f_count += cnt1;
 		ret = true;
 	} else if (off2 + cnt2 == off1) {
-		(*rs)->rs_seg.f_count += cnt1;
+		rs->rs_seg.f_count += cnt1;
 		ret = true;
 	}
 	return ret;
@@ -395,7 +395,7 @@ static void io_fop_read_seg_coalesce(const struct c2_fop_segment *seg,
 		cnt2 = read_seg->rs_seg.f_count;
 
 		/* Check if given segments can be merged. */
-		res = io_fop_read_segs_adjacent(&read_seg, off1, cnt1,
+		res = io_fop_read_segs_adjacent(read_seg, off1, cnt1,
 				off2, cnt2);
 		if (!res) {
 			/* If given segment fits before some other segment
@@ -406,10 +406,13 @@ static void io_fop_read_seg_coalesce(const struct c2_fop_segment *seg,
 		}
 	}
 
-	/* If the loop has run till the end of list or if the list is empty,
-	   add the new read segment to the list. */
-	if (c2_list_is_empty(aggr_list) || c2_list_link_is_last(
-				&read_seg->rs_linkage, aggr_list)) {
+	/* The above loop either 
+	   a) Runs till end
+	   b) Does not run at all (due to list being empty)
+	   In either case, add the new segment to the list. */
+	if (c2_list_is_empty(aggr_list)
+			|| c2_list_link_is_last(&read_seg->rs_linkage,
+				aggr_list)) {
 		/* Add a new read segment unconditionally in aggr_list. */
 		rc = io_fop_read_seg_add(read_seg, off1, cnt1,
 				res_segs, &new_seg);
@@ -548,8 +551,11 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 
 	/* Keep pointer to original IO vector to restore back on completion. */
 	C2_ALLOC_PTR(vec->read_vec);
-	if (vec->read_vec == NULL)
+	if (vec->read_vec == NULL) {
+		c2_free(read_vec->fs_segs);
+		c2_free(read_vec);
 		return -ENOMEM;
+	}
 
 	vec->read_vec->fs_count = read_fop->frd_ioseg.fs_count;
 	vec->read_vec->fs_segs = read_fop->frd_ioseg.fs_segs;
@@ -664,24 +670,24 @@ static int io_fop_write_seg_add_cond(struct c2_io_write_segment *ws,
    @param off2 - starting offset of ws.
    @param cnt2 - count of bytes in ws.
  */
-static bool io_fop_write_segs_adjacent(struct c2_io_write_segment **ws,
+static bool io_fop_write_segs_adjacent(struct c2_io_write_segment *ws,
 		const uint64_t off1, const uint32_t cnt1, const uint64_t off2,
 		const uint32_t cnt2)
 {
 	bool ret = false;
 
 	C2_PRE(ws != NULL);
-	C2_PRE((*ws)->ws_seg.f_offset == off2);
-	C2_PRE((*ws)->ws_seg.f_buf.f_count == cnt2);
+	C2_PRE(ws->ws_seg.f_offset == off2);
+	C2_PRE(ws->ws_seg.f_buf.f_count == cnt2);
 
 	/* If off1 + count1 == off2,
 	   OR off2 + count2 == off1, merge 2 segments. */
 	if (off1 + cnt1 == off2) {
-		(*ws)->ws_seg.f_offset = off1;
-		(*ws)->ws_seg.f_buf.f_count += cnt1;
+		ws->ws_seg.f_offset = off1;
+		ws->ws_seg.f_buf.f_count += cnt1;
 		ret = true;
 	} else if (off2 + cnt2 == off1) {
-		(*ws)->ws_seg.f_buf.f_count += cnt1;
+		ws->ws_seg.f_buf.f_count += cnt1;
 		ret = true;
 	}
 	return ret;
@@ -730,7 +736,7 @@ static void io_fop_write_seg_coalesce(const struct c2_fop_io_seg *seg,
 		cnt2 = write_seg->ws_seg.f_buf.f_count;
 
 		/* Check if given segments can be merged. */
-		res = io_fop_write_segs_adjacent(&write_seg, off1, cnt1,
+		res = io_fop_write_segs_adjacent(write_seg, off1, cnt1,
 				off2, cnt2);
 		if (!res) {
 			/* If given segment fits before some other segment
@@ -741,11 +747,13 @@ static void io_fop_write_seg_coalesce(const struct c2_fop_io_seg *seg,
 		}
 	}
 
-	/* If the loop has run till the end of list or if the list is empty,
-	   add the new read segment to the list. */
+	/* The above loop either 
+	   a) Runs till end
+	   b) Does not run at all (due to list being empty)
+	   In either case, add the new segment to the list. */
 	if (c2_list_is_empty(aggr_list) || c2_list_link_is_last(
 				&write_seg->ws_linkage, aggr_list)) {
-		/* Add a new read segment unconditionally in aggr_list. */
+		/* Add a new write segment unconditionally in aggr_list. */
 		rc = io_fop_write_seg_add(write_seg, off1, cnt1,
 				res_segs, &new_seg);
 		if (rc < 0)
@@ -866,8 +874,10 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 
 	C2_ASSERT(curr_segs == c2_list_length(&aggr_list));
 	C2_ALLOC_ARR(write_vec->iov_seg, curr_segs);
-	if (write_vec->iov_seg == NULL)
+	if (write_vec->iov_seg == NULL) {
+		c2_free(write_vec);
 		return -ENOMEM;
+	}
 	write_vec->iov_count = 0;
 	write_fop = c2_fop_data(b_fop);
 
@@ -882,8 +892,11 @@ static int io_fop_write_coalesce(const struct c2_list *list,
 
 	/* Keep pointer to original IO vector to restore back on completion. */
 	C2_ALLOC_PTR(vec->write_vec);
-	if (vec->write_vec == NULL)
+	if (vec->write_vec == NULL) {
+		c2_free(write_vec->iov_seg);
+		c2_free(write_vec);
 		return -ENOMEM;
+	}
 
 	vec->write_vec->iov_count = write_fop->fwr_iovec.iov_count;
 	vec->write_vec->iov_seg = write_fop->fwr_iovec.iov_seg;
