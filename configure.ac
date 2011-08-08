@@ -550,7 +550,9 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
-                 xdr/Makefile
+		 xcode/Makefile
+                 xcode/ut/Makefile
+		 xdr/Makefile
                  xdr/ut/Makefile
                 ])
 

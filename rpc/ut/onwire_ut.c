@@ -17,7 +17,7 @@
 #include "fop/fop_base.h"
 #include "rpc/rpc_onwire.h"
 #include "rpc/session_int.h"
-#include "rpc/rpc_bufvec.c"
+#include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
 
 extern struct c2_fop_type_format c2_fop_test_tfmt;
@@ -74,6 +74,7 @@ uint64_t test_fop_size_get(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	printf("\n FOP SIZE GET returns %ld\n", size);
 	return size;
 }
 struct c2_fop_type_ops test_ops = {
@@ -88,18 +89,18 @@ C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60,
 
 size_t test_item_size_get(struct c2_rpc_item *item)
 {
-	size_t		len = 0;
+	uint64_t	len = 0;
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
 	if(fop != NULL){
-		len = (size_t)fop->f_type->ft_ops->fto_getsize;
-		len += sizeof item->ri_type->rit_opcode;
-		len += sizeof(struct c2_rpc_item_header);
+		len = fop->f_type->ft_ops->fto_getsize(fop);
+		len += ITEM_ONWIRE_HEADER_SIZE;
 		}
-		return len;
+		printf("\nITEM SIZE GET returns : %ld", len);
+		return (size_t)len;
 }
 
 const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
@@ -122,18 +123,18 @@ static struct c2_rpc_item_type *c2_rpc_item_type_test =
 	      &c2_fop_rpc_item_type_test.fri_i_type;
 
 static struct c2_verno verno = {
-	.vn_lsn = (uint64_t)0xabab,
-	.vn_vc = (uint64_t)0xbcbc
+	.vn_lsn = 1111,
+	.vn_vc = 2222,
 };
 
 static struct c2_verno p_no = {
-	.vn_lsn = (uint64_t)0xcdcd,
-	.vn_vc = (uint64_t)0xdede
+	.vn_lsn = 3333,
+	.vn_vc = 4444
 };
 
 static struct c2_verno ls_no = {
-	.vn_lsn = (uint64_t)0xefef,
-	.vn_vc = (uint64_t)0xffff
+	.vn_lsn = 55555,
+	.vn_vc = 6666
 };
 
 void populate_item(struct c2_rpc_item *item)
@@ -172,7 +173,7 @@ int main()
 	struct c2_fop_rpc_item_type	*fri;
 	uint32_t			enc_val, dec_val;
 	uint64_t			enc64, dec64;
-	unsigned char			c,d;
+	uint8_t				c,d;
 
 	enc_val = 0xABCDEF;
 	enc64 = 0x12345678;
@@ -185,7 +186,7 @@ int main()
 	C2_ASSERT(rc == 0);
 	rc = c2_bufvec_uint64(&cur, &enc64, BUFVEC_ENCODE);
 	C2_ASSERT(rc == 0);
-	rc = c2_bufvec_uchar(&cur, &c, BUFVEC_ENCODE);
+	rc = c2_bufvec_byte(&cur, &c, BUFVEC_ENCODE);
 	C2_ASSERT(rc == 0);
 	enc_val = 0x123456;
 	rc = c2_bufvec_uint32(&cur, &enc_val, BUFVEC_ENCODE);
@@ -199,7 +200,7 @@ int main()
 	rc = c2_bufvec_uint64(&cur, &dec64, BUFVEC_DECODE);
 	C2_ASSERT(rc == 0);
 	printf("\nBUF DECODED val: %lx\n", dec64);
-	rc = c2_bufvec_uchar(&cur, &d, BUFVEC_DECODE);
+	rc = c2_bufvec_byte(&cur, &d, BUFVEC_DECODE);
 	C2_ASSERT(rc == 0);
 	printf("\nBUF DECODED val: %x\n", d);
 	rc = c2_bufvec_uint32(&cur, &dec_val, BUFVEC_DECODE);
@@ -265,8 +266,24 @@ int main()
 	populate_rpc_obj(obj, item3);
 
 	C2_ALLOC_PTR(nb);
-	c2_bufvec_alloc(&nb->nb_buffer, 10, 64);
+	c2_bufvec_alloc(&nb->nb_buffer, 13, 72);
+	{
+		size_t bufvec_size;
+		void   *cur_addr;
+		bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
+		if(bufvec_size % 8 == 0)
+			printf("\nBufvec is aligned");
+		else
+			printf("\nBufvec NOT aligned");
 
+		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+		cur_addr = c2_bufvec_cursor_addr(&cur);
+		printf("\nCur addr : %px", cur_addr);
+		if(((uint64_t)cur_addr & (8-1)) == 0)
+			printf("\nCur IS aligned");
+		else
+			printf("\nCur is NOT aligned");
+	}
 	rc =  c2_rpc_encode ( obj, nb );
 	C2_ASSERT(rc == 0);
 	c2_list_init(&obj2.r_items);
