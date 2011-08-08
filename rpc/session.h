@@ -438,7 +438,9 @@ struct c2_rpc_conn {
 	struct c2_list            c_sessions;
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
-	struct c2_chan            c_chan;
+	/** Conditional variable on which "connection state changed" signal
+	    is broadcasted */
+	struct c2_cond            c_state_changed;
 	struct c2_mutex           c_mutex;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
 	int32_t                   c_rc;
@@ -608,7 +610,7 @@ struct c2_rpc_session {
 	struct c2_rpc_conn       *s_conn;
 	/** A condition variable on which broadcast is sent whenever state of
 	    session is changed. Associated with s_mutex */
-	struct c2_cond		  s_state_changed;
+	struct c2_cond            s_state_changed;
 	/** lock protecting this session and slot table */
 	struct c2_mutex           s_mutex;
 	/** Number of items that needs to be sent or their reply is
