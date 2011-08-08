@@ -2032,7 +2032,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/* if rpc size is bigger than size of net buffer,
 		   post addb event and process next rpc object in the list */
 		if (rpc_size > c2_vec_count(&fb->fb_buffer.nb_buffer.ov_vec)) {
-			C2_ADDB_ADD(&formation->rf_rpc_form_addb,
+			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
 					"frm_send_onwire", 0);
 			continue;

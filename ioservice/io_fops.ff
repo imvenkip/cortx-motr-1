@@ -54,7 +54,7 @@ DEF(c2_fop_file_fid, RECORD,
  * c2_fop_io_buf is a buffer with a count specifying its length.
  */
 DEF(c2_fop_io_buf, SEQUENCE,
-	_(f_count, U32),
+	_(f_count, U64),
 	_(f_buf, BYTE));
 
 /**

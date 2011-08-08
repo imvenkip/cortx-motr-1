@@ -680,7 +680,7 @@ last:
 		form_write_iovecs[nwrite_iovecs] = iovec;
 		nwrite_iovecs++;
 		for (a = 0; a < nsegs; ++a) {
-			printf("Input Fid - seq = %lu, oid = %lu: Write segment %d: offset = %lu, count = %d\n",
+			printf("Input Fid - seq = %lu, oid = %lu: Write segment %d: offset = %lu, count = %lu\n",
 					fid->f_seq, fid->f_oid, a,
 					iovec->iov_seg[a].f_offset,
 					iovec->iov_seg[a].f_buf.f_count);

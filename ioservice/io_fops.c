@@ -27,8 +27,10 @@
 
 /**
    Generic IO segments ops.
+   @param seg - Generic io segment.
+   @param opcode - Opcode of operation this io segment belongs to.
+   @retval - Returns the starting offset of given io segment.
  */
-/*
 static uint64_t ioseg_offset_get(union c2_io_ioseg *seg,
 		enum c2_io_service_opcodes opcode)
 {
@@ -40,12 +42,110 @@ static uint64_t ioseg_offset_get(union c2_io_ioseg *seg,
 			opcode == C2_IO_SERVICE_READV_REP_OPCODE);
 
 	if (opcode == C2_IO_SERVICE_READV_OPCODE)
-		seg_offset = read_ioseg_offset_get(seg->read_seg);
-	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE)
-		seg_offset = write_ioseg_offset_get(seg->write_seg);
+		seg_offset = seg->read_seg->f_offset;
+	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE)
+		seg_offset = seg->ioseg->f_offset;
 
-	return 
-}*/
+	return seg_offset;
+}
+
+/**
+   Return the number of bytes in input IO segment.
+   @param seg - Generic IO segment.
+   @param opcode - Opcode of operation, this IO segments belongs to.
+   @retval - Returns the number of bytes in current IO segment.
+ */
+static uint64_t ioseg_count_get(union c2_io_ioseg *seg,
+		enum c2_io_service_opcodes opcode)
+{
+	uint64_t seg_count;
+
+	C2_PRE(seg != NULL);
+	C2_PRE(opcode == C2_IO_SERVICE_READV_OPCODE ||
+			opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE);
+
+	if (opcode == C2_IO_SERVICE_READV_OPCODE)
+		seg_count = seg->read_seg->f_count;
+	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE)
+		seg_count = seg->ioseg->f_buf.f_count;
+
+	return seg_count;
+}
+
+/**
+   Generic IO segments ops.
+   Set the starting offset of given IO segment.
+   @param seg - Generic io segment.
+   @param opcode - Opcode of operation this io segment belongs to.
+ */
+static void ioseg_offset_set(union c2_io_ioseg *seg, uint64_t offset,
+		enum c2_io_service_opcodes opcode)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(opcode == C2_IO_SERVICE_READV_OPCODE ||
+			opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE);
+
+	if (opcode == C2_IO_SERVICE_READV_OPCODE)
+		seg->read_seg->f_offset = offset;
+	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE)
+		seg->ioseg->f_offset = offset;
+}
+
+/**
+   Sets the number of bytes in input IO segment.
+   @param seg - Generic IO segment.
+   @param opcode - Opcode of operation, this IO segments belongs to.
+ */
+static void ioseg_count_set(union c2_io_ioseg *seg, uint64_t count,
+		enum c2_io_service_opcodes opcode)
+{
+	C2_PRE(seg != NULL);
+	C2_PRE(opcode == C2_IO_SERVICE_READV_OPCODE ||
+			opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE);
+
+	if (opcode == C2_IO_SERVICE_READV_OPCODE)
+		seg->read_seg->f_count = count;
+	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE)
+		seg->ioseg->f_buf.f_count = count;
+}
+
+/**
+   Get IO segment from array given the index.
+union c2_io_ioseg *ioseg_get()
+{
+}
+*/
+
+/**
+   Return the number of IO segments in given IO vector.
+   @param iovec - Input io vector.
+   @param op - Operation type, this io vector belongs to.
+   @retval - Number of segments contained in given io vector.
+ */
+uint32_t ioseg_nr(union c2_io_iovec *iovec, enum c2_io_service_opcodes op)
+{
+	uint32_t seg_nr;
+
+	C2_PRE(iovec != NULL);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE ||
+			op == C2_IO_SERVICE_READV_REP_OPCODE);
+
+	if (op == C2_IO_SERVICE_READV_OPCODE)
+		seg_nr = iovec->read_vec->fs_count;
+	else if (op == C2_IO_SERVICE_WRITEV_OPCODE ||
+			op == C2_IO_SERVICE_READV_REP_OPCODE)
+		seg_nr = iovec->write_vec->iov_count;
+
+	return seg_nr;
+}
 
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
