@@ -100,6 +100,18 @@ union c2_io_iovec {
 };
 
 /**
+   A generic IO segment pointing either to read or write segments. This
+   is needed to have generic IO coalescing code.
+ */
+union c2_io_ioseg {
+	/** IO segment for read request fop. */
+	struct c2_fop_segment	*read_seg;
+	/** IO segment for write request fop. */
+	struct c2_fop_io_seg	*write_seg;
+	/** IO segment for read reply fop. */
+};
+
+/**
  * Bunch of externs needed for stob/ut/io_fop_init.c code.
  */
 extern const struct c2_fop_type_ops c2_io_cob_readv_ops;

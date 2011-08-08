@@ -25,6 +25,28 @@
 #include "io_fops.h"
 #include "lib/errno.h"
 
+/**
+   Generic IO segments ops.
+ */
+/*
+static uint64_t ioseg_offset_get(union c2_io_ioseg *seg,
+		enum c2_io_service_opcodes opcode)
+{
+	uint64_t seg_offset;
+
+	C2_PRE(seg != NULL);
+	C2_PRE(opcode == C2_IO_SERVICE_READV_OPCODE ||
+			opcode == C2_IO_SERVICE_WRITEV_OPCODE ||
+			opcode == C2_IO_SERVICE_READV_REP_OPCODE);
+
+	if (opcode == C2_IO_SERVICE_READV_OPCODE)
+		seg_offset = read_ioseg_offset_get(seg->read_seg);
+	else if (opcode == C2_IO_SERVICE_WRITEV_OPCODE)
+		seg_offset = write_ioseg_offset_get(seg->write_seg);
+
+	return 
+}*/
+
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
@@ -40,7 +62,7 @@ static void io_fop_cob_readv_replied(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	read_fop = c2_fop_data(fop);
-	c2_free(read_fop->frd_ioseg.fs_segs);
+	c2_free(read_fop->frd_iovec.fs_segs);
 	c2_fop_free(fop);
 }
 
@@ -81,7 +103,7 @@ static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
 
 	read_fop = c2_fop_data(fop);
 	C2_ASSERT(read_fop != NULL);
-	size += read_fop->frd_ioseg.fs_count * sizeof(struct c2_fop_segment);
+	size += read_fop->frd_iovec.fs_count * sizeof(struct c2_fop_segment);
 	return size;
 }
 
@@ -203,11 +225,11 @@ static uint64_t io_fop_read_get_nfragments(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	read_fop = c2_fop_data(fop);
-	seg_count = read_fop->frd_ioseg.fs_count;
+	seg_count = read_fop->frd_iovec.fs_count;
 	for (i = 0; i < seg_count - 1; ++i) {
-		s_offset = read_fop->frd_ioseg.fs_segs[i].f_offset;
-		s_count = read_fop->frd_ioseg.fs_segs[i].f_count;
-		next_s_offset = read_fop->frd_ioseg.fs_segs[i+1].f_offset;
+		s_offset = read_fop->frd_iovec.fs_segs[i].f_offset;
+		s_count = read_fop->frd_iovec.fs_segs[i].f_count;
+		next_s_offset = read_fop->frd_iovec.fs_segs[i+1].f_offset;
 		if (s_offset + s_count != next_s_offset)
 			nfragments++;
 	}
@@ -519,7 +541,7 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 			fop_linkage) {
 		fop = fop_member->fop;
 		read_fop = c2_fop_data(fop);
-		res = io_fop_read_segments_coalesce(&read_fop->frd_ioseg,
+		res = io_fop_read_segments_coalesce(&read_fop->frd_iovec,
 				&aggr_list, &curr_segs);
 	}
 
@@ -551,12 +573,12 @@ static int io_fop_read_coalesce(const struct c2_list *list,
 	if (vec->read_vec == NULL)
 		return -ENOMEM;
 
-	vec->read_vec->fs_count = read_fop->frd_ioseg.fs_count;
-	vec->read_vec->fs_segs = read_fop->frd_ioseg.fs_segs;
+	vec->read_vec->fs_count = read_fop->frd_iovec.fs_count;
+	vec->read_vec->fs_segs = read_fop->frd_iovec.fs_segs;
 
 	/* Assign new read vector to the current bound rpc item. */
-	read_fop->frd_ioseg.fs_count = read_vec->fs_count;
-	read_fop->frd_ioseg.fs_segs = read_vec->fs_segs;
+	read_fop->frd_iovec.fs_count = read_vec->fs_count;
+	read_fop->frd_iovec.fs_segs = read_vec->fs_segs;
 	return res;
 }
 
@@ -574,10 +596,10 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
 	read_fop = c2_fop_data(fop);
 
-	c2_free(read_fop->frd_ioseg.fs_segs);
+	c2_free(read_fop->frd_iovec.fs_segs);
 
-	read_fop->frd_ioseg.fs_count = vec->read_vec->fs_count;
-	read_fop->frd_ioseg.fs_segs = vec->read_vec->fs_segs;
+	read_fop->frd_iovec.fs_count = vec->read_vec->fs_count;
+	read_fop->frd_iovec.fs_segs = vec->read_vec->fs_segs;
 }
 
 /**
@@ -998,7 +1020,7 @@ static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 	/* Add buffer payload for read reply */
 	read_rep_fop = c2_fop_data(fop);
 	/* Size of actual user data. */
-	size += read_rep_fop->frdr_buf.f_count;
+	size += read_rep_fop->frdr_iovec.iov_seg->f_buf.f_count;
 	return size;
 }
 

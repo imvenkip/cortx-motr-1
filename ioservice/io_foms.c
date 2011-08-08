@@ -312,18 +312,29 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		offset = write_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	} else {
-		read_seg = read_fop->frd_ioseg.fs_segs;
+		read_seg = read_fop->frd_iovec.fs_segs;
 
 		/*
 		 * Allocate the read buffer.
 		 */
-		C2_ALLOC_ARR(rd_rep_fop->frdr_buf.f_buf, read_seg->f_count);
-		if (rd_rep_fop->frdr_buf.f_buf == NULL) {
+		rd_rep_fop->frdr_iovec.iov_count = 1;
+		C2_ALLOC_ARR(rd_rep_fop->frdr_iovec.iov_seg,
+				rd_rep_fop->frdr_iovec.iov_count);
+		if (rd_rep_fop->frdr_iovec.iov_seg == NULL) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			c2_free(fom_obj->fcrw_st_io);
 			return -ENOMEM;
 		}
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_buf.f_buf, bshift);
+		C2_ALLOC_ARR(rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_buf,
+				read_seg->f_count);
+		if (rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_buf == NULL) {
+			c2_free(rd_rep_fop->frdr_iovec.iov_seg);
+			c2_stob_put(fom_obj->fcrw_stob);
+			c2_free(fom_obj->fcrw_st_io);
+			return -ENOMEM;
+		}
+		addr = c2_stob_addr_pack(rd_rep_fop->frdr_iovec.iov_seg->f_buf.
+				f_buf, bshift);
 		count = read_seg->f_count;
 		offset = read_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
@@ -371,8 +382,10 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 			<< bshift;
 	} else {
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
-		rd_rep_fop->frdr_buf.f_count = fom_obj->fcrw_st_io->si_count
-			<< bshift;
+		rd_rep_fop->frdr_fid.f_seq = ffid->f_seq;
+		rd_rep_fop->frdr_fid.f_oid = ffid->f_oid;
+		rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_count =
+			fom_obj->fcrw_st_io->si_count << bshift;
 	}
 
 	c2_clink_del(&clink);

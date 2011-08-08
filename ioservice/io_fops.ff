@@ -101,7 +101,8 @@ DEF(c2_fop_io_vec, SEQUENCE,
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	_(frdr_rc, U32),
-	_(frdr_buf, c2_fop_io_buf));
+	_(frdr_fid, c2_fop_file_fid),
+	_(frdr_iovec, c2_fop_io_vec));
 
 /**
  * <b> c2_fop_cob_readv </b>
@@ -121,7 +122,7 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 DEF(c2_fop_cob_readv, RECORD,
 	_(frd_foprep, U64),
 	_(frd_fid, c2_fop_file_fid),
-	_(frd_ioseg, c2_fop_segment_seq),
+	_(frd_iovec, c2_fop_segment_seq),
 	_(frd_uid, U64),
 	_(frd_gid, U64),
 	_(frd_nid, U64),
