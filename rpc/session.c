@@ -752,7 +752,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 	c2_list_link_init(&session->s_link);
 	session->s_session_id = SESSION_ID_INVALID;
 	session->s_conn = conn;
-	c2_chan_init(&session->s_chan);
+	c2_cond_init(&session->s_state_changed);
 	c2_mutex_init(&session->s_mutex);
 	session->s_nr_slots = nr_slots;
 	session->s_slot_table_capacity = nr_slots;
@@ -806,7 +806,7 @@ out_err:
 		session->s_slot_table = NULL;
 	}
 	c2_list_link_fini(&session->s_link);
-	c2_chan_fini(&session->s_chan);
+	c2_cond_fini(&session->s_state_changed);
 	c2_mutex_fini(&session->s_mutex);
 	c2_list_fini(&session->s_unbound_items);
 	C2_SET0(session);
@@ -862,6 +862,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		session->s_state = C2_RPC_SESSION_ESTABLISHING;
 		c2_list_add(&conn->c_sessions, &session->s_link);
 		conn->c_nr_sessions++;
+		c2_cond_broadcast(&session->s_state_changed,
+				  &session->s_mutex);
 	} else {
 		c2_fop_free(fop);
 	}
@@ -872,7 +874,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
-	c2_chan_broadcast(&session->s_chan);
 
 out:
 	return rc;
@@ -961,9 +962,9 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 		  session->s_state == C2_RPC_SESSION_FAILED);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
-	c2_chan_broadcast(&session->s_chan);
 }
 
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
@@ -1032,6 +1033,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	rc = c2_rpc_post(item);
 	if (rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATING;
+		c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	} else {
 		/*
 		 * slots belonging to this session were taken out of ready slot
@@ -1049,7 +1051,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	C2_POST(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&session->s_conn->c_mutex);
-	c2_chan_broadcast(&session->s_chan);
 
 out:
 	return rc;
@@ -1111,32 +1112,28 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
-	c2_chan_broadcast(&session->s_chan);
 }
 
 bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      uint64_t               state_flags,
 			      const c2_time_t        abs_timeout)
 {
-	struct c2_clink clink;
 	bool            got_event = true;
 
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&session->s_chan, &clink);
-
+	c2_mutex_lock(&session->s_mutex);
 	while ((session->s_state & state_flags) == 0 && got_event) {
-		got_event = c2_chan_timedwait(&clink, abs_timeout);
+		got_event = c2_cond_timedwait(&session->s_state_changed,
+						&session->s_mutex, abs_timeout);
 		/*
 		 * If got_event == false then TIME_OUT has occured.
 		 * break the loop
 		 */
 		C2_ASSERT(c2_rpc_session_invariant(session));
 	}
-
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
+	c2_mutex_unlock(&session->s_mutex);
 
 	return (session->s_state & state_flags) != 0;
 }
@@ -1154,7 +1151,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_list_link_fini(&session->s_link);
-	c2_chan_fini(&session->s_chan);
+	c2_cond_fini(&session->s_state_changed);
 	c2_mutex_fini(&session->s_mutex);
 	c2_list_fini(&session->s_unbound_items);
 
@@ -1746,12 +1743,19 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		 * But locking heirarchy is
 		 * machine => conn => session => slot
 		 * What to do? :-o
+		 * XXX Need to reverse locking order.
+		 * XXX Uncomment mutex related lines, once locking order is
+		 *     fixed
 		 */
+		//c2_mutex_lock(&session->s_mutex);
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
 			printf("session %p marked BUSY\n", session);
 			session->s_state = C2_RPC_SESSION_BUSY;
+			//c2_cond_broadcast(&session->s_state_changed,
+			//		  &session->s_mutex);
 		}
+		//c2_mutex_unlock(&session->s_mutex);
 	}
 
 	printf("item %p<%s> added [%lu:%lu] slot [%lu:%lu]\n", item,
@@ -1761,11 +1765,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			(unsigned long)slot->sl_verno.vn_vc,
 			(unsigned long)slot->sl_xid);
 	__slot_balance(slot, allow_events);
-	/*
-	 * C2_RPC_SESSION_IDLE => C2_RPC_SESSION_BUSY
-	 * transition is possible in this function
-	 */
-	c2_chan_broadcast(&session->s_chan);
 }
 
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,

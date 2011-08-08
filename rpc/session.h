@@ -248,6 +248,7 @@ points to record of most recent update operation that updated the slot verno.
 
 #include "lib/list.h"
 #include "lib/chan.h"
+#include "lib/cond.h"
 #include "lib/mutex.h"
 #include "dtm/verno.h"
 
@@ -605,7 +606,9 @@ struct c2_rpc_session {
 	struct c2_cob            *s_cob;
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn       *s_conn;
-	struct c2_chan            s_chan;
+	/** A condition variable on which broadcast is sent whenever state of
+	    session is changed. Associated with s_mutex */
+	struct c2_cond		  s_state_changed;
 	/** lock protecting this session and slot table */
 	struct c2_mutex           s_mutex;
 	/** Number of items that needs to be sent or their reply is
