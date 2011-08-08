@@ -1767,8 +1767,8 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags &= (~C2_RPC_ITEM_UNBOUND |
-			 C2_RPC_ITEM_BOUND);
+		item->ri_type->rit_flags &= ~C2_RPC_ITEM_UNBOUND;
+		item->ri_type->rit_flags &= C2_RPC_ITEM_BOUND;
 	}
 }
 
@@ -2017,9 +2017,13 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		fb->fb_buffer.nb_ep = item->ri_session->s_conn->c_end_point;
 		rpc_size = c2_rpc_get_size(rpc_obj);
 
-		/* XXX What to do if rpc size is bigger than
-		   size of net buffer??? */
+		/* if rpc size is bigger than size of net buffer,
+		   post addb event and process next rpc object in the list */
 		if (rpc_size > c2_vec_count(&fb->fb_buffer.nb_buffer.ov_vec)) {
+			C2_ADDB_ADD(&formation->rf_rpc_form_addb,
+					&frm_addb_loc, formation_func_fail,
+					"frm_send_onwire", 0);
+			continue;
 		}
 		fb->fb_buffer.nb_length = rpc_size;
 

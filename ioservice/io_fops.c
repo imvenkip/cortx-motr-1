@@ -268,7 +268,7 @@ static int io_fop_read_seg_add(struct c2_io_read_segment *rs, uint64_t offset,
 
 	C2_PRE(rs != NULL);
 	C2_PRE(res_segs != NULL);
-	C2_PRE(new_seg != NULL);
+	C2_PRE(ns != NULL);
 
 	C2_ALLOC_PTR(new_seg);
 	if (new_seg == NULL)
@@ -608,7 +608,7 @@ static int io_fop_write_seg_add(struct c2_io_write_segment *ws, uint64_t offset,
 
 	C2_PRE(ws != NULL);
 	C2_PRE(res_segs != NULL);
-	C2_PRE(new_seg != NULL);
+	C2_PRE(ns != NULL);
 
 	C2_ALLOC_PTR(new_seg);
 	if (new_seg == NULL)
