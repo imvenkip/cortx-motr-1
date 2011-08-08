@@ -737,6 +737,37 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	C2_ASSERT(0);
 }
 
+/**
+   Finalises session.
+   Used by
+    c2_rpc_session_init(), when initialisation fails.
+    c2_rpc_session_fini() for cleanup
+ */
+static void __session_fini(struct c2_rpc_session *session)
+{
+	struct c2_rpc_slot *slot;
+	int                 i;
+
+	if (session->s_slot_table != NULL) {
+		for (i = 0; i < session->s_nr_slots; i++) {
+			slot = session->s_slot_table[i];
+			if (slot != NULL) {
+				c2_rpc_slot_fini(slot);
+				c2_free(slot);
+			}
+			session->s_slot_table[i] = NULL;
+		}
+		session->s_nr_slots = 0;
+		session->s_slot_table_capacity = 0;
+		c2_free(session->s_slot_table);
+		session->s_slot_table = NULL;
+	}
+	c2_list_link_fini(&session->s_link);
+	c2_cond_fini(&session->s_state_changed);
+	c2_mutex_fini(&session->s_mutex);
+	c2_list_fini(&session->s_unbound_items);
+}
+
 int c2_rpc_session_init(struct c2_rpc_session *session,
 			struct c2_rpc_conn    *conn,
 			uint32_t               nr_slots)
@@ -772,18 +803,20 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 		slot_ops = &rcv_slot_ops;
 	}
 	for (i = 0; i < nr_slots; i++) {
-		C2_ALLOC_PTR(session->s_slot_table[i]);
-		if (session->s_slot_table[i] == NULL) {
+		C2_ALLOC_PTR(slot);
+		if (slot == NULL) {
 			rc = -ENOMEM;
 			goto out_err;
 		}
-		rc = c2_rpc_slot_init(session->s_slot_table[i],
-					slot_ops);
+
+		rc = c2_rpc_slot_init(slot, slot_ops);
 		if (rc != 0)
 			goto out_err;
 
-		session->s_slot_table[i]->sl_session = session;
-		session->s_slot_table[i]->sl_slot_id = i;
+		slot->sl_session = session;
+		slot->sl_slot_id = i;
+
+		session->s_slot_table[i] = slot;
 	}
 	session->s_state = C2_RPC_SESSION_INITIALISED;
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -791,24 +824,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
 out_err:
 	C2_ASSERT(rc != 0);
-	if (session->s_slot_table != NULL) {
-		for (i = 0; i < nr_slots; i++) {
-			slot = session->s_slot_table[i];
-			if (slot != NULL) {
-				c2_rpc_slot_fini(slot);
-				c2_free(slot);
-			}
-			session->s_slot_table[i] = NULL;
-		}
-		session->s_nr_slots = 0;
-		session->s_slot_table_capacity = 0;
-		c2_free(session->s_slot_table);
-		session->s_slot_table = NULL;
-	}
-	c2_list_link_fini(&session->s_link);
-	c2_cond_fini(&session->s_state_changed);
-	c2_mutex_fini(&session->s_mutex);
-	c2_list_fini(&session->s_unbound_items);
+	__session_fini(session);
 	C2_SET0(session);
 	return rc;
 }
@@ -869,8 +885,9 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	}
 
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
-	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
-			c2_rpc_session_invariant(session)));
+	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
+	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_INITIALISED));
+	C2_POST(c2_rpc_session_invariant(session));
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&session->s_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
@@ -947,8 +964,6 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			  session_id <= SESSION_ID_MAX);
 		session->s_session_id = session_id;
 		session->s_state = C2_RPC_SESSION_IDLE;
-		session->s_nr_active_items = 0;
-		session->s_rc = 0;
 		for (i = 0; i < session->s_nr_slots; i++) {
 			slot = session->s_slot_table[i];
 			C2_ASSERT(slot != NULL && c2_rpc_slot_invariant(slot));
@@ -988,8 +1003,16 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_mutex_lock(&session->s_conn->c_mutex);
 	c2_mutex_lock(&session->s_mutex);
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
-			c2_rpc_session_invariant(session));
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+		  session->s_state == C2_RPC_SESSION_TERMINATING);
+	C2_ASSERT(c2_rpc_session_invariant(session));
+
+	/*
+	 * c2_rpc_session_terminate() is a no-op if session is already
+	 * in TERMINATING state
+	 */
+	if (session->s_state == C2_RPC_SESSION_TERMINATING)
+		return 0;
 
 	fop_st = c2_fop_data(fop);
 	C2_ASSERT(fop_st != NULL);
@@ -1141,26 +1164,15 @@ C2_EXPORTED(c2_rpc_session_timedwait);
 
 void c2_rpc_session_fini(struct c2_rpc_session *session)
 {
-	struct c2_rpc_slot *slot;
-	int                 i;
 
+	C2_PRE(session != NULL);
 	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
 			session->s_state == C2_RPC_SESSION_INITIALISED ||
 			session->s_state == C2_RPC_SESSION_FAILED);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
-	c2_list_link_fini(&session->s_link);
-	c2_cond_fini(&session->s_state_changed);
-	c2_mutex_fini(&session->s_mutex);
-	c2_list_fini(&session->s_unbound_items);
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		c2_rpc_slot_fini(slot);
-		c2_free(slot);
-	}
-	c2_free(session->s_slot_table);
+	__session_fini(session);
 	C2_SET0(session);
 	session->s_session_id = SESSION_ID_INVALID;
 }
@@ -1198,10 +1210,28 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
-	struct c2_rpc_slot *slot;
-	struct c2_rpc_item *item;
-	int                 i;
 	bool                result;
+
+	int nr_active_items_count(void)
+	{
+		struct c2_rpc_slot *slot;
+		struct c2_rpc_item *item;
+		int                 i;
+		int                 count = 0;
+
+		for (i = 0; i < session->s_nr_slots; i++) {
+			slot = session->s_slot_table[i];
+			c2_list_for_each_entry(&slot->sl_item_list, item,
+					struct c2_rpc_item,
+					ri_slot_refs[0].sr_link) {
+				if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
+				    item->ri_tstate == RPC_ITEM_FUTURE)
+					count++;
+			}
+		}
+
+		return count;
+	}
 
 	if (session == NULL)
 		return false;
@@ -1225,32 +1255,20 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	case C2_RPC_SESSION_IDLE:
 		result = session->s_nr_active_items == 0 &&
 			 c2_list_is_empty(&session->s_unbound_items) &&
-			 session_alive_invariants(session);
+			 session_alive_invariants(session) &&
+			 nr_active_items_count() == 0;
 
 		if (!result)
 			return result;
 
-		for (i = 0; i < session->s_nr_slots; i++) {
-			slot = session->s_slot_table[i];
-
-			c2_list_for_each_entry(&slot->sl_item_list, item,
-					struct c2_rpc_item,
-					ri_slot_refs[0].sr_link) {
-				switch (item->ri_tstate) {
-				case RPC_ITEM_PAST_COMMITTED:
-				case RPC_ITEM_PAST_VOLATILE:
-					continue;
-				default:
-					return false;
-				}
-			}
-		}
 		return true;
 
 	case C2_RPC_SESSION_BUSY:
 		return (session->s_nr_active_items > 0 ||
 		       !c2_list_is_empty(&session->s_unbound_items)) &&
-		       session_alive_invariants(session);
+		       session_alive_invariants(session) &&
+		       nr_active_items_count() ==
+				session->s_nr_active_items;
 
 	case C2_RPC_SESSION_TERMINATING:
 		return session_alive_invariants(session);
@@ -1751,6 +1769,11 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
 			printf("session %p marked BUSY\n", session);
+			/*
+			 * XXX When formation adds an item to
+			 * c2_rpc_session::s_unbound_items it should
+			 * set session->s_state as BUSY
+			 */
 			session->s_state = C2_RPC_SESSION_BUSY;
 			//c2_cond_broadcast(&session->s_state_changed,
 			//		  &session->s_mutex);
