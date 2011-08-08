@@ -660,6 +660,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	struct c2_list *conn_list;
 	bool            sender_end;
 	bool            recv_end;
+	bool		ret;
 
 	if (conn == NULL)
 		return false;
@@ -667,6 +668,19 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	sender_end = conn->c_flags & RCF_SENDER_END;
 	recv_end = conn->c_flags & RCF_RECV_END;
 
+	/*
+	 * conditions that should be true irrespective of conn state
+	 */
+	ret = sender_end != recv_end && c2_list_invariant(&conn->c_sessions) &&
+		c2_list_length(&conn->c_sessions) == conn->c_nr_sessions + 1;
+
+	if (!ret)
+		return ret;
+
+	/*
+	 * conditions that are common to CONNECTING, ACTIVE and TERMINATING
+	 * state
+	 */
 	switch (conn->c_state) {
 	case C2_RPC_CONN_CONNECTING:
 	case C2_RPC_CONN_ACTIVE:
@@ -674,54 +688,43 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		conn_list = sender_end ?
 				&conn->c_rpcmachine->cr_outgoing_conns :
 				&conn->c_rpcmachine->cr_incoming_conns;
+		ret = c2_list_contains(conn_list, &conn->c_link) &&
+			conn->c_end_point != NULL &&
+			conn->c_rpcmachine != NULL &&
+			conn->c_rc == 0;
+		if (!ret)
+			return ret;
+		break;
 	default:
-		/* Do nothing */;
+		; /* Do nothing. Just to avoid compiler warnings. */
 	}
 
 	switch (conn->c_state) {
-	case C2_RPC_CONN_TERMINATED:
-		return !c2_list_link_is_in(&conn->c_link) &&
-			conn->c_rpcmachine == NULL &&
-			c2_list_length(&conn->c_sessions) == 1 &&
-			conn->c_nr_sessions == 0 &&
-			conn->c_cob == NULL &&
-			conn->c_rc == 0;
-
 	case C2_RPC_CONN_INITIALISED:
 		return conn->c_sender_id == SENDER_ID_INVALID &&
 			conn->c_rpcmachine != NULL &&
-			c2_list_length(&conn->c_sessions) == 1 &&
 			!c2_list_link_is_in(&conn->c_link) &&
-			conn->c_nr_sessions == 0 &&
-			sender_end != recv_end;
+			conn->c_nr_sessions == 0;
 
 	case C2_RPC_CONN_CONNECTING:
 		return conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions == 0 &&
-			conn->c_end_point != NULL &&
-			conn->c_rpcmachine != NULL &&
-			c2_list_length(&conn->c_sessions) == 1 &&
-			c2_list_contains(conn_list, &conn->c_link) &&
-			sender_end != recv_end;
+			conn->c_nr_sessions == 0;
 
 	case C2_RPC_CONN_ACTIVE:
 		return conn->c_sender_id != SENDER_ID_INVALID &&
-			conn->c_end_point != NULL &&
-			conn->c_rpcmachine != NULL &&
-			c2_list_invariant(&conn->c_sessions) &&
-			c2_list_contains(conn_list, &conn->c_link) &&
-			sender_end != recv_end &&
-			c2_list_length(&conn->c_sessions) ==
-				conn->c_nr_sessions + 1 &&
-			ergo(recv_end, conn->c_cob != NULL);
+			ergo(recv_end, conn->c_cob != NULL) &&
+			c2_rpc_session_invariant(c2_rpc_conn_session0(conn));
 
 	case C2_RPC_CONN_TERMINATING:
 		return conn->c_nr_sessions == 0 &&
-			conn->c_sender_id != SENDER_ID_INVALID &&
-			conn->c_rpcmachine != NULL &&
-			c2_list_contains(conn_list, &conn->c_link) &&
-			c2_list_length(&conn->c_sessions) == 1 &&
-			sender_end != recv_end;
+			conn->c_sender_id != SENDER_ID_INVALID;
+
+	case C2_RPC_CONN_TERMINATED:
+		return !c2_list_link_is_in(&conn->c_link) &&
+			conn->c_rpcmachine == NULL &&
+			conn->c_nr_sessions == 0 &&
+			conn->c_cob == NULL &&
+			conn->c_rc == 0;
 
 	case C2_RPC_CONN_FAILED:
 		return conn->c_rc != 0 &&
