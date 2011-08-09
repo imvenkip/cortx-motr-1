@@ -1999,7 +1999,6 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item     *item;
 	struct c2_list_link    *link;
-	struct c2_rpc_slot_ref *sref;
 
 	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
 
@@ -2010,10 +2009,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	 *    else
 	 *       break
 	 */
-	sref = &slot->sl_last_persistent->ri_slot_refs[0];
-
-	for (link = &sref->sr_link; link != (void *)&slot->sl_item_list;
-			link = link->ll_next) {
+	link = &slot->sl_last_persistent->ri_slot_refs[0].sr_link;
+	for (; link != (void *)&slot->sl_item_list; link = link->ll_next) {
 
 		item = c2_list_entry(link, struct c2_rpc_item,
 					ri_slot_refs[0].sr_link);
@@ -2143,14 +2140,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	printf("item_list_prune: slot %p [%lu:%u]\n", slot,
 			(unsigned long)slot->sl_session->s_session_id,
 			slot->sl_slot_id);
-
-	if (c2_list_length(&slot->sl_item_list) == 1) {
-		/*
-		 * There is only one item. That should be dummy item
-		 * Leave it.
-		 */
-		return;
-	}
 
 	c2_list_for_each_entry_safe(&slot->sl_item_list, item, next,
 			struct c2_rpc_item, ri_slot_refs[0].sr_link) {
