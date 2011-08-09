@@ -139,6 +139,7 @@ struct c2_rpc_item;
 #include "fop/fop_base.h"
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
+#include "addb/addb.h"
 
 /*Macro to enable RPC grouping test and debug code */
 
@@ -180,7 +181,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre ri_added() called.
+	   @note ri_added() has been called before invoking this function.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
@@ -194,8 +195,8 @@ struct c2_rpc_item_type_ops {
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre ri_added() called.
-	   @pre ri_sent() called.
+	   @note ri_added() and ri_sent() have been called before invoking
+	   this function.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item, int rc);
 
@@ -250,7 +251,7 @@ struct c2_rpc_item_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre ri_added() called.
+	   @note ri_added() has been called before invoking this function.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
@@ -264,8 +265,8 @@ struct c2_rpc_item_ops {
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre ri_added() called.
-	   @pre ri_sent() called.
+	   @note ri_added() and ri_sent() have been called before invoking this
+	   function.
 	 */
 	void (*rio_replied)(struct c2_rpc_item	*item,
 			   struct c2_rpc_item	*reply, int rc);
@@ -826,6 +827,8 @@ struct c2_rpcmachine {
 	struct c2_list			 cr_ready_slots;
 	/** Stats for this rpcmachine */
 	struct c2_rpc_stats		*cr_rpc_stats;
+	/** ADDB context for this rpcmachine */
+	struct c2_addb_ctx		 cr_rpc_machine_addb;
 };
 
 /**
@@ -988,8 +991,8 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 
    @param item rpc item being sent
    @param timeout time to wait for item being sent
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   invoking this function
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
@@ -1015,10 +1018,8 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
    @param ops operations associated with the update stream
    @param out update associated with given session
 
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
-
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   invoking this function
    @return 0  success
    @return <0 failure
  */
@@ -1031,9 +1032,7 @@ int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
 /**
    Releases given update stream.
    @param us update stream to be released
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
 
 */
 void c2_rpc_update_stream_put(struct c2_update_stream *us);
@@ -1048,8 +1047,7 @@ void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
 /**
    Returns the count of items in the cache selected by priority
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
    @param prio priority of cache
 
@@ -1060,8 +1058,7 @@ size_t c2_rpc_cache_item_count(struct c2_rpcmachine *machine,
 
 /**
    Returns count of RPC items in processing
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
 
    @return count of RPCs in processing
@@ -1070,8 +1067,7 @@ size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine);
 
 /**
    Returns average time spent in the cache for one RPC-item
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
    @param time[out] average time spent in processing on one RPC
  */
@@ -1087,8 +1083,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
    Returns transmission speed in bytes per second.
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
  */
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);

@@ -11,6 +11,19 @@
 #include "rpc/rpc_onwire.h"
 #include "rpc/it/ping_fop.h"
 
+/* ADDB Instrumentation for rpccore. */
+static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
+	        .act_name = "rpc-machine"
+};
+
+static const struct c2_addb_loc rpc_machine_addb_loc = {
+	        .al_name = "rpc-machine"
+};
+
+C2_ADDB_EV_DEFINE(rpc_machine_func_fail, "rpc_machine_func_fail",
+		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
+
 static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
 /**
@@ -354,8 +367,9 @@ void c2_rpc_chan_ref_release(struct c2_ref *ref)
 	/* Stop the transfer machine first. */
 	rc = c2_net_tm_stop(&chan->rc_xfermc, false);
 	if (rc < 0) {
-		/* XXX Post an addb event here. */
-		printf("Transfer Machine stop failed.\n");
+		C2_ADDB_ADD(&chan->rc_rpcmachine->cr_rpc_machine_addb,
+				&rpc_machine_addb_loc, rpc_machine_func_fail,
+				"c2_net_tm_stop", 0);
 		return;
 	}
 
@@ -383,12 +397,17 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 
 	/* Allocate new rpc chan.*/
 	C2_ALLOC_PTR(ch);
-	if (ch == NULL)
+	if (ch == NULL){
+		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
+				&rpc_machine_addb_loc, c2_addb_oom);
 		return -ENOMEM;
+	}
 
 	/* Allocate space for pointers of recv net buffers. */
 	C2_ALLOC_ARR(ch->rc_rcv_buffers, C2_RPC_TM_RECV_BUFFERS_NR);
 	if (ch->rc_rcv_buffers == NULL) {
+		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
+				&rpc_machine_addb_loc, c2_addb_oom);
 		c2_free(ch);
 		return -ENOMEM;
 	}
@@ -772,8 +791,9 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
 
 	rc = c2_net_buffer_deregister(nb, net_dom);
 	if (rc < 0) {
-		/* XXX Post an addb event.*/
-		printf("Failed to deregister buffer.\n");
+		C2_ADDB_ADD(&chan->rc_rpcmachine->cr_rpc_machine_addb,
+				&rpc_machine_addb_loc, rpc_machine_func_fail,
+				"c2_net_buffer_deregister", 0);
 	}
 
 	c2_bufvec_free(&nb->nb_buffer);
@@ -810,8 +830,6 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
 		nb = chan->rc_rcv_buffers[i];
 		rc = c2_rpc_net_recv_buffer_deallocate(nb, chan, tm_active);
 		if (rc < 0) {
-			/* XXX Post an addb event here. */
-			printf("Failed to deallocate network buffer.\n");
 			break;
 		}
 		chan->rc_rcv_buffers[i] = NULL;
@@ -835,8 +853,11 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	C2_PRE(src_ep != NULL);
 
 	C2_ALLOC_PTR(st);
-	if (st == NULL)
+	if (st == NULL) {
+		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
+				&rpc_machine_addb_loc, c2_addb_oom);
 		return -ENOMEM;
+	}
 	c2_mutex_init(&st->rs_lock);
 
 	machine->cr_rpc_stats = st;
@@ -880,6 +901,12 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	/* Initialize the formation module. */
 	rc = c2_rpc_frm_init(&machine->cr_formation);
 
+	/* Init the add context for this rpcmachine */
+	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
+			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
+	c2_addb_choose_default_level(AEL_WARN);
+
+
 	return rc;
 }
 
@@ -912,6 +939,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 	c2_mutex_fini(&machine->cr_rpc_stats->rs_lock);
 	c2_free(machine->cr_rpc_stats);
+	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }
 
 /** simple vector of RPC-item operations */
