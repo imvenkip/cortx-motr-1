@@ -101,6 +101,7 @@
    in one state.
 
    RPC formation state machine:
+   \verbatim
 
                               UNINITIALIZED
                                    | frm_sm_init()
@@ -120,27 +121,29 @@
      a,b,c | |  +----------------------------------+   | | d,e
            +-+                                         +-+
 
-External Events :
-a. Item ready (bound item)
-b. Unbound item added
-c. Unsolicited item added
-d. Item reply received
-e. Item deadline expired
+    \endverbatim	   
 
-Internal Events :
-f. State succeeded
-g. State failed
+    External Events :
+	- a. Item ready (bound item)
+	- b. Unbound item added
+	- c. Unsolicited item added
+	- d. Item reply received
+	- e. Item deadline expired
+
+	Internal Events :
+	- f. State succeeded
+	- g. State failed
 
    The lifecycle of any thread executing the formation state machine is
    something like this
-	execute a state function as a result of triggering of some event.
-	acquire the state lock.
-	change the state of state machine.
-	release the state lock.
-	lock the internal data structure.
-	operate on the internal data structure.
-	release the internal data structure lock.
-	pass through the sub sequent states as states succeed and exit
+	- execute a state function as a result of triggering of some event.
+	- acquire the state lock.
+	- change the state of state machine.
+	- release the state lock.
+	- lock the internal data structure.
+	- operate on the internal data structure.
+	- release the internal data structure lock.
+	- pass through the sub sequent states as states succeed and exit
 
    @todo A lot of data structures here, use a c2_list. Instead a
    hash function can be used wherever applicable to enhance the performance.
@@ -149,19 +152,21 @@ g. State failed
    take the executing thread out of this state machine.
 
    Hierarchy of data structures in formation component.
-
+   \verbatim
    c2_rpc_formation
 
      +--> c2_list <c2_rpc_frm_sm>
 
 	    +--> c2_list <c2_rpc_frm_rpcgroup>
 
+   \endverbatim
+
    Locking order =>
    This order will ensure there are no deadlocks due to locking
    order reversal.
-   1. Always take the rf_sm_list_lock rwlock from struct c2_rpc_formation
+   - Always take the rf_sm_list_lock rwlock from struct c2_rpc_formation
       first and release when not needed any more.
-   2. Always take the fs_lock mutex from struct c2_rpc_frm_sm next
+   - Always take the fs_lock mutex from struct c2_rpc_frm_sm next
       and release when not needed any more.
  */
 
@@ -206,6 +211,8 @@ enum c2_rpc_frm_state {
    Initialization for formation component in rpc.
    This will register necessary callbacks and initialize
    necessary data structures.
+   @param frm - formation state machine
+   @retval 0 if init completed, -errno otherwise
  */
 int c2_rpc_frm_init(struct c2_rpc_formation **frm);
 
@@ -213,6 +220,7 @@ int c2_rpc_frm_init(struct c2_rpc_formation **frm);
    Finish method for formation component in rpc.
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
+   @param formation - c2_rpc_formation structure to be finied
  */
 void c2_rpc_frm_fini(struct c2_rpc_formation *frm);
 
@@ -370,7 +378,7 @@ struct c2_rpc_frm_rpcgroup {
 };
 
 /**
-   Enumeration of internal and external events.
+   Enumeration of external events.
  */
 enum c2_rpc_frm_ext_evt_id {
 	/** Slot ready to send next item. */
@@ -396,6 +404,9 @@ enum c2_rpc_frm_ext_evt_id {
 	C2_RPC_FRM_EXTEVT_NR,
 };
 
+/**
+   Enumeration of internal events.
+ */
 enum c2_rpc_frm_int_evt_id {
 	/** Execution succeeded in current state. */
 	C2_RPC_FRM_INTEVT_STATE_SUCCEEDED = C2_RPC_FRM_EXTEVT_NR,
@@ -459,6 +470,7 @@ struct c2_rpc_frm_sm_event {
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_ready(struct c2_rpc_item *item);
 
@@ -467,6 +479,7 @@ int c2_rpc_frm_item_ready(struct c2_rpc_item *item);
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
 
@@ -475,6 +488,9 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @param field_type - type of field that has changed
+   @param val - new value
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
 		union c2_rpc_frm_item_change_val *value);
@@ -483,7 +499,9 @@ int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
    Callback function for reply received of an rpc item.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
-   @param item - incoming rpc item.
+   @param reply_item - reply item.
+   @param req_item - request item
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_reply_received(struct c2_rpc_item *rep_item,
 		struct c2_rpc_item *req_item);
@@ -493,6 +511,7 @@ int c2_rpc_frm_item_reply_received(struct c2_rpc_item *rep_item,
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_timeout(struct c2_rpc_item *item);
 
@@ -501,13 +520,14 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item);
    Adds the slot to the list of ready slots in concerned rpcmachine.
    @param item - slot structure for the slot which has become idle.
  */
-int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot);
+void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot);
 
 /**
    Callback function for unbounded item getting added to session.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
 
@@ -520,26 +540,27 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
 void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
-   XXX rio_replied op from rpc type ops.
-   If this is an IO request, free the IO vector
-   and free the fop.
- */
-void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
-
-/**
    Function to map the on-wire FOP format to in-core FOP format.
+   @param in - file format fid
+   @param out - memory format fid
  */
 void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 		struct c2_fid *out);
 
 /**
    Try to coalesce rpc items with similar fid and intent.
+   @param c_item - c2_rpc_frm_item_coalesced structure.
+   @param b_item - Given bound rpc item.
+   @retval - 0 if routine succeeds, -ve number(errno) otherwise.
  */
-int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *coalesced_item,
+int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		struct c2_rpc_item *b_item);
 
 /**
-  XXX Temporary fix.
+  @todo Temporary fix.
+  @param msg_size - Max message size
+  @param max_rpcs - Max rpcs in flight
+  @param max_fragments - Max fragments size
  */
 void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments);

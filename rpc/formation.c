@@ -104,6 +104,8 @@ uint64_t max_rpcs_in_flight;
 /**
   This routine will change the state of each rpc item
   in the rpc object to RPC_ITEM_SENT
+  @param rpc - rpc object
+  @param state - item state
  */
 static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 		c2_rpc_item_state state)
@@ -125,6 +127,8 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 
 /**
    Invariant subroutine for struct c2_rpc_frm_buffer.
+   @param fbuf - c2_rpc_frm_buffer structure
+   @retval - TRUE if necessary conditions pass, FALSE otherwise
  */
 static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
 {
@@ -135,6 +139,11 @@ static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
 /**
    Allocate a buffer of type struct c2_rpc_frm_buffer.
    The net buffer is allocated and registered with the net domain.
+   @param fb - c2_rpc_frm_buffer to be allocated
+   @param rpc - rpc object to be put inside the fb
+   @param frm_sm - formation state machine
+   @param net_domain - network domain structure
+   @retval 0 (success) -errno (failure)
  */
 static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom)
@@ -165,6 +174,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 /**
    Deallocate a buffer of type struct c2_rpc_frm_buffer. The
    c2_net_buffer is deregistered and deallocated.
+   @param fb - c2_rpc_frm_buffer to be freed
  */
 static void frm_buffer_fini(struct c2_rpc_frm_buffer *fb)
 {
@@ -225,6 +235,9 @@ static const statefunc_t c2_rpc_frm_statetable
 
 /**
    Set thresholds for rpc formation. Currently used by UT code.
+   @param msg_size - Max message size
+   @param max_rpcs - Max rpcs in flight
+   @param max_fragments - Max fragments size
  */
 void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 		uint64_t max_fragments)
@@ -237,7 +250,8 @@ void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
 /**
    Initialization for formation component in rpc. This will register
    necessary callbacks and initialize necessary data structures.
-   @retval 0 if init completed, else nonzero
+   @param frm - formation structure
+   @retval 0 if init completed, -errno otherwise
  */
 int c2_rpc_frm_init(struct c2_rpc_formation **frm)
 {
@@ -261,6 +275,7 @@ int c2_rpc_frm_init(struct c2_rpc_formation **frm)
 /**
    Delete the group info list from struct c2_rpc_frm_sm.
    Called once formation component is finied.
+   @param list - groups list
  */
 static void frm_groups_list_fini(struct c2_list *list)
 {
@@ -279,6 +294,7 @@ static void frm_groups_list_fini(struct c2_list *list)
 
 /**
    Delete the coalesced items list from struct c2_rpc_frm_sm.
+   @param list - coalesced items list
  */
 static void coalesced_items_fini(struct c2_list *list)
 {
@@ -304,6 +320,7 @@ static void coalesced_items_fini(struct c2_list *list)
 
 /**
    Delete the rpcobj items list from struct c2_rpc_frm_sm.
+   @param list - rpc object list
  */
 static void rpcobj_list_fini(struct c2_list *list)
 {
@@ -322,6 +339,7 @@ static void rpcobj_list_fini(struct c2_list *list)
 
 /**
    Delete the unformed items list from struct c2_rpc_frm_sm.
+   @param frm_sm - formation state machine
  */
 static void unformed_prio_fini(struct c2_rpc_frm_sm *frm_sm)
 {
@@ -347,6 +365,7 @@ static void unformed_prio_fini(struct c2_rpc_frm_sm *frm_sm)
    Finish method for formation component in rpc.
    This will deallocate all memory claimed by formation
    and do necessary cleanup.
+   @param formation - c2_rpc_formation structure to be finied
  */
 void c2_rpc_frm_fini(struct c2_rpc_formation *formation)
 {
@@ -381,6 +400,7 @@ void c2_rpc_frm_fini(struct c2_rpc_formation *formation)
    Exit path from a state machine. An incoming thread which executed
    the formation state machine so far, is let go and it will return
    to do its own job.
+   @param frm_sm - formation state machine
  */
 static void sm_exit(struct c2_rpc_frm_sm *frm_sm)
 {
@@ -399,6 +419,8 @@ static void sm_exit(struct c2_rpc_frm_sm *frm_sm)
 
 /**
    Check if the state machine structure is empty.
+   @param frm_sm - formation state machine
+   @retval - TRUE if necessary conditions satisfy, false otherwise
  */
 static bool sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 {
@@ -425,6 +447,7 @@ static bool sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 /**
    Destroy a state machine structure since it no longer contains
    any rpc items.
+   @param ref - c2_ref reference on formation state machine
  */
 static void frm_sm_fini(struct c2_ref *ref)
 {
@@ -453,6 +476,9 @@ static void frm_sm_fini(struct c2_ref *ref)
 /**
    Add a formation state machine structure when the first rpc item gets added
    for a given c2_rpc_conn structure.
+   @param conn - c2_rpc_conn structure used for unique formation state machine
+   @param formation - c2_rpc_formation structure
+   @retval new formation state machine if success, NULL otherwise
  */
 static struct c2_rpc_frm_sm *frm_sm_add(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation)
@@ -498,6 +524,7 @@ static struct c2_rpc_frm_sm *frm_sm_add(struct c2_rpc_conn *conn,
    and current event as input.
    @param current_state - current state of state machine.
    @param current_event - current event posted to the state machine.
+   @retval function pointer
  */
 static statefunc_t frm_next_state(const int current_state,
 		const int current_event)
@@ -524,6 +551,9 @@ static struct c2_rpc_conn *rpcconn_get(const struct c2_rpc_item *item)
 /**
   For a given c2_rpc_conn, return an existing formation state machine
   object.
+  @param conn - c2_rpc_conn structure used for unique formation state machine
+  @param formation - c2_rpc_formation structure
+  @retval formation state machine if success, NULL otherwise
  */
 static struct c2_rpc_frm_sm *frm_sm_locate(const struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation)
@@ -551,6 +581,9 @@ static struct c2_rpc_frm_sm *frm_sm_locate(const struct c2_rpc_conn *conn,
 
 /**
    Create a new formation state machine object.
+   @param conn - c2_rpc_conn structure used for unique formation state machine
+   @param formation - c2_rpc_formation structure
+   @retval formation state machine if success, NULL otherwise
  */
 static struct c2_rpc_frm_sm *frm_sm_init(struct c2_rpc_conn *conn,
 		struct c2_rpc_formation *formation)
@@ -584,7 +617,9 @@ static struct c2_rpc_frm_sm *frm_sm_init(struct c2_rpc_conn *conn,
    6. Handle further events on basis of return value of
    recent state function.
    @param item - incoming rpc item needed for external events.
-   @param event - event posted to the state machine.
+   @param frm_sm - formation state machine
+   @param sm_state - state of formation state machine.
+   @param sm_event - event posted to the state machine.
  */
 static int sm_default_handler(struct c2_rpc_item *item,
 		struct c2_rpc_frm_sm *frm_sm, int sm_state,
@@ -659,6 +694,7 @@ static int sm_default_handler(struct c2_rpc_item *item,
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_ready(struct c2_rpc_item *item)
 {
@@ -697,8 +733,9 @@ int c2_rpc_frm_item_ready(struct c2_rpc_item *item)
    Callback function for slot becoming idle.
    Adds the slot to the list of ready slots in concerned rpcmachine.
    @param item - slot structure for the slot which has become idle.
+   @retval 0 (success) -errno (failure)
  */
-int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
+void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 {
 	struct c2_rpcmachine		*rpcmachine = NULL;
 	struct c2_rpc_session		*session;
@@ -720,8 +757,6 @@ int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 	/* If unbound items are still present in the sessions unbound list,
 	   start formation */
 	session = slot->sl_session;
-
-	return 0;
 }
 
 /**
@@ -729,6 +764,7 @@ int c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item)
 {
@@ -812,6 +848,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_delete(struct c2_rpc_item *item)
 {
@@ -839,6 +876,9 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item)
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
+   @param field_type - type of field that has changed
+   @param val - new value
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
 		union c2_rpc_frm_item_change_val *val)
@@ -871,6 +911,8 @@ int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
 
 /**
    Process the rpc item for which reply has been received.
+   @param frm_sm - formation state machine
+   @param item - rpc item for which reply is received
  */
 static void frm_reply_received(const struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item)
@@ -897,7 +939,9 @@ static void frm_reply_received(const struct c2_rpc_frm_sm *frm_sm,
    Callback function for reply received of an rpc item.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
-   @param item - incoming rpc item.
+   @param reply_item - reply item.
+   @param req_item - request item
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 		struct c2_rpc_item *req_item)
@@ -927,6 +971,8 @@ int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
 
 /**
    Add the given rpc item to the list of urgent items in state machine.
+   @param frm_sm - formation state machine
+   @param item - item for which timeout has been triggered
  */
 static void item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item)
@@ -951,7 +997,8 @@ static void item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
    Callback function for deadline expiry of an rpc item.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
-   @param item - incoming rpc item.
+   @param item - rpc item for which timeout has been triggered.
+   @retval 0 (success) -errno (failure)
  */
 int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 {
@@ -982,6 +1029,8 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
    Call the default handler function. Depending upon the
    input state, the default handler will invoke the next state
    for state succeeded event.
+   @param frm_sm - formation state machine
+   @param item - rpc item
    @param state - previous state of state machine.
  */
 static int frm_state_succeeded(struct c2_rpc_frm_sm *frm_sm,
@@ -1004,6 +1053,8 @@ static int frm_state_succeeded(struct c2_rpc_frm_sm *frm_sm,
    Call the default handler function. Depending upon the
    input state, the default handler will invoke the next state
    for state failed event.
+   @param frm_sm - formation state machine
+   @param item - rpc item
    @param state - previous state of state machine.
  */
 static int frm_state_failed(struct c2_rpc_frm_sm *frm_sm,
@@ -1024,6 +1075,7 @@ static int frm_state_failed(struct c2_rpc_frm_sm *frm_sm,
 /**
    Call the completion callbacks for member rpc items of
    a coalesced rpc item.
+   @param cs - coalesced item
  */
 static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs)
 {
@@ -1052,10 +1104,10 @@ static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs)
    State function for WAITING state.
    Formation is waiting for any event to trigger. This is an exit point
    for the formation state machine.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
    @param item - input rpc item.
    @param event - Since WAITING state handles a lot of events,
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
-   it needs some way of identifying the events.
+   @retval internal event id
  */
 static enum c2_rpc_frm_int_evt_id sm_waiting_state(
 		struct c2_rpc_frm_sm *frm_sm ,struct c2_rpc_item *item,
@@ -1075,6 +1127,8 @@ static enum c2_rpc_frm_int_evt_id sm_waiting_state(
 /**
    Callback used to trigger the "deadline expired" event
    for an rpc item.
+   @param data - data for this timer
+   @retval 0 if success, -errno otherwise
  */
 static unsigned long item_timer_callback(unsigned long data)
 {
@@ -1158,6 +1212,10 @@ static void frm_rpcgroup_fini(struct c2_rpc_frm_rpcgroup *rg)
 /**
    Change the data of an rpc item embedded within the endpoint unit
    structure.
+   @param frm_sm - formation state machine
+   @param item - rpc item
+   @param rq - structure containing change request data
+   @retval 0 (success) -errno otherwise
  */
 static int frm_item_update(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item,
@@ -1206,6 +1264,8 @@ static int frm_item_update(struct c2_rpc_frm_sm *frm_sm,
 /**
    Remove the data of an rpc item embedded within the endpoint unit
    structure.
+   @param frm_sm - formation state machine
+   @param item - rpc item to be removed
  */
 static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item)
@@ -1258,6 +1318,9 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
    Update the c2_rpc_frm_sm data structure on addition of an rpc item.
    @retval 0 if item is successfully added to internal data structure
    @retval non-zero if item is not successfully added in internal data structure
+   @param frm_sm - formation state machine
+   @param item - rpc item to be added to the internal data structure
+   @retval 0 if successful, -errno otherwise
  */
 static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 {
@@ -1350,7 +1413,9 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
    the items submitted to this endpoint.
    @param frm_sm - the c2_rpc_frm_sm structure
    based on whose data, it will be found if an optimal rpc can be made.
+   @param frm_sm - formation state machine
    @param rpcobj_size - check if given size of rpc object is optimal or not.
+   @retval true if size is optimal, false otherwise
  */
 static bool frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
 		uint64_t *rpcobj_size)
@@ -1423,6 +1488,8 @@ static bool formation_qualify(const struct c2_rpc_frm_sm *frm_sm)
    @param event - Since UPDATING state handles a lot of events,
    it needs some way of identifying the events.
    @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
+   @param item - rpc item
+   @param event - private event structure
  */
 static enum c2_rpc_frm_int_evt_id sm_updating_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
@@ -1489,8 +1556,11 @@ static bool frm_fragment_policy(const struct c2_rpc_frm_sm *frm_sm,
 
 /**
    Add an rpc item to the formed list of an rpc object.
-   @retval 0 if item added to the forming list successfully
-   @retval -1 if item is not added due to some check failure
+   @param frm_sm - formation state machine
+   @param rpc - rpc object
+   @item - rpc item
+   @rpcobj_size - rpc object size
+   @param fragments_nr - number of fragments
  */
 static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc *rpc, struct c2_rpc_item *item,
@@ -1623,8 +1693,10 @@ static void frm_coalesced_item_populate(struct c2_rpc_item *b_item,
    Try to coalesce rpc items from the session->free list.
    @param frm_sm - the c2_rpc_frm_sm structure in which these activities
    are taking place.
+   @param frm_sm - formation state machine
    @param item - given bound rpc item.
    @param rpcobj_size - current size of rpc object.
+   @retval 0 if success, -errno otherwise
  */
 static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		uint64_t *rpcobj_size)
@@ -1890,6 +1962,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
    @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
    @param item - input rpc item.
    @param event - Event which triggered state transition to FORMING state.
+   @retval internal event id
  */
 static enum c2_rpc_frm_int_evt_id sm_forming_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
@@ -1954,6 +2027,7 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 /**
   Get the cumulative size of all rpc items
   @param rpc object of which size has to be calculated
+  @retval sizeof rpc object
  */
 uint64_t c2_rpc_get_size(const struct c2_rpc *rpc)
 {
@@ -1988,6 +2062,8 @@ static struct c2_net_transfer_mc *frm_get_tm(const struct c2_rpc_item *item)
 
 /**
    Function to send a given rpc object on wire.
+   @param frm_sm - formation state machine
+   @retval 0 if successful, -errno otherwise
  */
 static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 {
@@ -2097,6 +2173,8 @@ static int frm_item_change(struct c2_rpc_frm_sm *frm_sm,
 
 /**
    Function to map the on-wire FOP format to in-core FOP format.
+   @param in - file format fid
+   @param out - memory format fid
  */
 void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 		struct c2_fid *out)

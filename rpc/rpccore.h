@@ -1072,6 +1072,13 @@ void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
 			      c2_time_t		   *time);
 
 /**
+   @todo rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
+
+/**
    Returns transmission speed in bytes per second.
    @pre c2_rpc_core_init()
    @pre c2_rpcmachine_init()

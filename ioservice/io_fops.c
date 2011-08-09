@@ -947,7 +947,7 @@ static int io_fop_coalesce(const struct c2_list *list,
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
  */
-void io_fop_write_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+static void io_fop_write_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 {
 	struct c2_fop_cob_writev	*write_fop;
 

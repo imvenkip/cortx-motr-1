@@ -31,7 +31,7 @@
    @{
  */
 
-const struct c2_addb_ctx_type c2_fop_addb_ctx;
+extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
