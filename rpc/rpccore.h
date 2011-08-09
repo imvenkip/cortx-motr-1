@@ -75,7 +75,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
-
+   \verbatim
       UNINITIALIZED
            | update_stream_init()
            |
@@ -90,8 +90,10 @@
            | update_stream_fini()
            V
        FINALIZED
+    \endverbatim
 
    RPC-item state machine:
+    \verbatim
       UNINITIALIZED
            | rpc_item_init()
            V
@@ -106,6 +108,7 @@
            |               V                           rpc_item_fini()     |
            +----------->FINALIZED<-----------------------------------------+
 
+      \endverbatim
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en
 
@@ -266,8 +269,8 @@ struct c2_rpc_item_ops {
 	 */
 	void (*rio_replied)(struct c2_rpc_item	*item,
 			   struct c2_rpc_item	*reply, int rc);
-
 };
+
 struct c2_update_stream_ops {
 	/** Called when update stream enters UPDATE_STREAM_TIMEDOUT state */
 	void (*uso_timeout)(struct c2_update_stream *us);
@@ -490,11 +493,35 @@ struct c2_rpc_item {
 	c2_time_t			 ri_rpc_exit_time;
 };
 
-/* Set the stats for outgoing rpc item */
-void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
+/** Enum to distinguish if the path is incoming or outgoing */
+enum c2_rpc_item_path {
+	INCOMING =0,
+	OUTGOING
+};
 
-/* Set the stats for incoming rpc item */
-void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
+/**
+  Set the stats for outgoing rpc item
+  @param item - incoming or outgoing rpc item
+  @param path - enum distinguishing whether the item is incoming or outgoing
+ */
+void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
+		enum c2_rpc_item_path path);
+
+/** Stats unit that could be used either for incoming or outgoing stats */
+struct c2_rpc_stats_unit {
+	/** Number of items processed */
+	uint64_t	rsu_items_nr;
+	/** Number of bytes processed */
+	uint64_t	rsu_bytes_nr;
+	/** Instanteneous Latency */
+	c2_time_t	rsu_i_lat;
+	/** Average Latency */
+	c2_time_t	rsu_avg_lat;
+	/** Min Latency */
+	c2_time_t	rsu_min_lat;
+	/** Max Latency */
+	c2_time_t	rsu_max_lat;
+};
 
 /**
   Statistical data maintained for each item in the rpcmachine.
@@ -502,31 +529,11 @@ void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
  */
 struct c2_rpc_stats {
 	/** Lock to protect this structure from concurrent access. */
-	struct c2_mutex	rs_lock;
-	/** Number of items processed on outgoing path */
-	uint64_t	rs_num_out_items;
-	/** Number of items processed on incoming path */
-	uint64_t	rs_num_in_items;
-	/** Number of bytes processed on outgoing path */
-	uint64_t	rs_num_out_bytes;
-	/** Number of bytes processed on incoming path */
-	uint64_t	rs_num_in_bytes;
-	/** Instanteneous Latency on outgoing path */
-	c2_time_t	rs_out_instant_latency;
-	/** Average Latency on outgoing path */
-	c2_time_t	rs_out_avg_latency;
-	/** Min Latency on outgoing path */
-	c2_time_t	rs_out_min_latency;
-	/** Max Latency on outgoing path */
-	c2_time_t	rs_out_max_latency;
-	/** Instanteneous Latency on incoming path */
-	c2_time_t	rs_in_instant_latency;
-	/** Average Latency on incoming path */
-	c2_time_t	rs_in_avg_latency;
-	/** Min Latency on incoming path */
-	c2_time_t	rs_in_min_latency;
-	/** Max Latency on incoming path */
-	c2_time_t	rs_in_max_latency;
+	struct c2_mutex			rs_lock;
+	/** Outgoing stats unit */
+	struct c2_rpc_stats_unit	rs_out;
+	/** Incoming stats unit */
+	struct c2_rpc_stats_unit	rs_in;
 };
 
 /**

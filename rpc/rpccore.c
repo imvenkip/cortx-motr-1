@@ -142,15 +142,13 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
-	c2_time_t	now;
 	int		res = 0;
 
 	C2_ASSERT(item != NULL && item->ri_session != NULL &&
 		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
 
-	c2_time_now(&now);
-	item->ri_rpc_entry_time = now;
+	c2_time_now(&item->ri_rpc_entry_time);
 
 	printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
 			item->ri_session->s_session_id);
@@ -167,13 +165,11 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	struct c2_rpc_slot_ref	*sref;
 	struct c2_rpc_item	*tmp;
 	struct c2_rpc_slot	*slot;
-	c2_time_t	now;
 
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
 
-	c2_time_now(&now);
-	reply->ri_rpc_entry_time = now;
+	c2_time_now(&reply->ri_rpc_entry_time);
 
 	reply->ri_session = request->ri_session;
 	reply->ri_slot_refs[0].sr_sender_id =
@@ -845,19 +841,19 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	struct c2_cob			*root_session_cob;
 	struct c2_net_domain		*net_dom;
 	int				 rc;
-	struct c2_rpc_stats		*stats;
+	struct c2_rpc_stats		*st;
 
 	/* The c2_net_domain is expected to be created by end user.*/
 	C2_PRE(machine != NULL);
 	C2_PRE(dom != NULL);
 	C2_PRE(src_ep != NULL);
 
-	C2_ALLOC_PTR(stats);
-	if (stats == NULL)
+	C2_ALLOC_PTR(st);
+	if (st == NULL)
 		return -ENOMEM;
-	c2_mutex_init(&stats->rs_lock);
+	c2_mutex_init(&st->rs_lock);
 
-	machine->cr_rpc_stats = stats;
+	machine->cr_rpc_stats = st;
 
 	rc = rpc_proc_init(&machine->cr_processing);
 	if (rc < 0)
@@ -999,7 +995,7 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	if(fop->f_type->ft_ops->fto_size_get) {
+	if(fop->f_type->ft_ops->fto_size_get != NULL) {
 		size = fop->f_type->ft_ops->fto_size_get(fop);
 	} else {
 		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
@@ -1310,64 +1306,53 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 }
 
 /** Set the incoming exit stats for an rpc item */
-void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item)
+void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
+		enum c2_rpc_item_path path)
 {
-	c2_time_t                now;
-	struct c2_rpc_stats	*stats;
+	c2_time_t			 now;
+	struct c2_rpc_stats		*st;
 
 	C2_PRE(item != NULL);
 
 	c2_time_now(&now);
 	item->ri_rpc_exit_time = now;
 
-	stats = item->ri_mach->cr_rpc_stats;
-	c2_mutex_lock(&stats->rs_lock);
-	stats->rs_in_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
-			item->ri_rpc_entry_time);
-	if ((stats->rs_in_min_latency >= stats->rs_in_instant_latency) ||
-			(stats->rs_in_min_latency == 0))
-		stats->rs_in_min_latency = stats->rs_in_instant_latency;
-	if ((stats->rs_in_max_latency <= stats->rs_in_instant_latency) ||
-		(stats->rs_in_max_latency == 0))
-		stats->rs_in_max_latency = stats->rs_in_instant_latency;
-	stats->rs_in_avg_latency = ((stats->rs_num_in_items *
-				stats->rs_in_avg_latency) +
-			stats->rs_in_instant_latency) /
-		(stats->rs_num_in_items +1);
-	stats->rs_num_in_items++;
-	stats->rs_num_in_bytes += c2_rpc_item_default_size(item);
-	c2_mutex_unlock(&stats->rs_lock);
+	st = item->ri_mach->cr_rpc_stats;
+	c2_mutex_lock(&st->rs_lock);
+	if (path == INCOMING) {
+		st->rs_in.rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
+				item->ri_rpc_entry_time);
+		if ((st->rs_in.rsu_min_lat >= st->rs_in.rsu_i_lat) ||
+				(st->rs_in.rsu_min_lat == 0))
+			st->rs_in.rsu_min_lat = st->rs_in.rsu_i_lat;
+		if ((st->rs_in.rsu_max_lat <= st->rs_in.rsu_i_lat) ||
+				(st->rs_in.rsu_max_lat == 0))
+			st->rs_in.rsu_max_lat = st->rs_in.rsu_i_lat;
+		st->rs_in.rsu_avg_lat = ((st->rs_in.rsu_items_nr *
+					st->rs_in.rsu_avg_lat) +
+					st->rs_in.rsu_i_lat) /
+					(st->rs_in.rsu_items_nr +1);
+		st->rs_in.rsu_items_nr++;
+		st->rs_in.rsu_bytes_nr += c2_rpc_item_default_size(item);
+	} else {
+		st->rs_out.rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
+				item->ri_rpc_entry_time);
+		if ((st->rs_out.rsu_min_lat >= st->rs_out.rsu_i_lat) ||
+				(st->rs_out.rsu_min_lat == 0))
+			st->rs_out.rsu_min_lat = st->rs_out.rsu_i_lat;
+		if ((st->rs_out.rsu_max_lat <= st->rs_out.rsu_i_lat) ||
+				(st->rs_out.rsu_max_lat == 0))
+			st->rs_out.rsu_max_lat = st->rs_out.rsu_i_lat;
+		st->rs_out.rsu_avg_lat = ((st->rs_out.rsu_items_nr *
+					st->rs_out.rsu_avg_lat) +
+					st->rs_out.rsu_i_lat) /
+					(st->rs_out.rsu_items_nr +1);
+		st->rs_out.rsu_items_nr++;
+		st->rs_out.rsu_bytes_nr += c2_rpc_item_default_size(item);
+	}
+	c2_mutex_unlock(&st->rs_lock);
 }
 
-/** Set the outgoing exit stats for an rpc item */
-void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item)
-{
-	c2_time_t                now;
-	struct c2_rpc_stats	*stats;
-
-	C2_PRE(item != NULL);
-
-	c2_time_now(&now);
-	item->ri_rpc_exit_time = now;
-
-	stats = item->ri_mach->cr_rpc_stats;
-	c2_mutex_lock(&stats->rs_lock);
-	stats->rs_out_instant_latency = c2_time_sub(item->ri_rpc_exit_time,
-			item->ri_rpc_entry_time);
-	if ((stats->rs_out_min_latency >= stats->rs_out_instant_latency) ||
-			(stats->rs_out_min_latency == 0))
-		stats->rs_out_min_latency = stats->rs_out_instant_latency;
-	if ((stats->rs_out_max_latency <= stats->rs_out_instant_latency) ||
-		(stats->rs_out_max_latency == 0))
-		stats->rs_out_max_latency = stats->rs_out_instant_latency;
-	stats->rs_out_avg_latency = ((stats->rs_num_out_items *
-				stats->rs_out_avg_latency) +
-			stats->rs_out_instant_latency) /
-		(stats->rs_num_out_items +1);
-	stats->rs_num_out_items++;
-	stats->rs_num_out_bytes += c2_rpc_item_default_size(item);
-	c2_mutex_unlock(&stats->rs_lock);
-}
 
 /* Dummy reqh queue of items */
 

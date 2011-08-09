@@ -461,38 +461,38 @@ void print_stats(bool client, bool server)
 	printf("Stats on Outgoing Path\n");
 	printf("*********************************************\n");
 	printf("Number of outgoing items = %lu\n",
-			stats->rs_num_out_items);
+			stats->rs_out.rsu_items_nr);
 	printf("Number of outgoing bytes = %lu\n",
-			stats->rs_num_out_bytes);
+			stats->rs_out.rsu_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_min_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_min_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_max_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_max_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_avg_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_avg_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 
@@ -500,38 +500,38 @@ void print_stats(bool client, bool server)
 	printf("Stats on Incoming Path\n");
 	printf("*********************************************\n");
 	printf("Number of incoming items = %lu\n",
-			stats->rs_num_in_items);
+			stats->rs_in.rsu_items_nr);
 	printf("Number of incoming bytes = %lu\n",
-			stats->rs_num_in_bytes);
+			stats->rs_in.rsu_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_min_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_min_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_max_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_max_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_avg_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_avg_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 }

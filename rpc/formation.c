@@ -110,7 +110,7 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
 		item->ri_state = state;
-		c2_rpc_item_set_outgoing_exit_stats(item);
+		c2_rpc_item_set_exit_stats(item, OUTGOING);
 	}
 }
 
