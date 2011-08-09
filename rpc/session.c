@@ -1222,8 +1222,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		for (i = 0; i < session->s_nr_slots; i++) {
 			slot = session->s_slot_table[i];
 			c2_list_for_each_entry(&slot->sl_item_list, item,
-					struct c2_rpc_item,
-					ri_slot_refs[0].sr_link) {
+					       struct c2_rpc_item,
+					       ri_slot_refs[0].sr_link) {
 				if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
 				    item->ri_tstate == RPC_ITEM_FUTURE)
 					count++;
@@ -1592,10 +1592,10 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	c2_list_link_init(&slot->sl_link);
 	/*
-	 * XXX temporary number 4. This will be set to some proper value when
-	 * sessions will be integrated with FOL
+	 * XXX temporary value for lsn. This will be set to some proper value
+	 * when sessions will be integrated with FOL
 	 */
-	slot->sl_verno.vn_lsn = 4;
+	slot->sl_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	slot->sl_verno.vn_vc = 0;
 	slot->sl_slot_gen = 0;
 	slot->sl_xid = 1; /* xid 0 will be taken by dummy item */
@@ -1631,7 +1631,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * XXX lsn will be assigned to some proper value once sessions code
 	 * will be integrated with FOL
 	 */
-	sref->sr_verno.vn_lsn = 4;
+	sref->sr_verno.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	sref->sr_verno.vn_vc = 0;
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	c2_list_link_init(&sref->sr_link);
@@ -1698,7 +1698,7 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 
 /**
    For more information see __slot_balance()
-   @see __slot_balance
+   @see __slot_balance()
  */
 static void slot_balance(struct c2_rpc_slot *slot)
 {
@@ -1706,7 +1706,7 @@ static void slot_balance(struct c2_rpc_slot *slot)
 }
 
 /**
-   @see c2_rpc_slot_item_add_internal
+   @see c2_rpc_slot_item_add_internal()
  */
 static void __slot_item_add(struct c2_rpc_slot *slot,
 			    struct c2_rpc_item *item,
@@ -1720,11 +1720,18 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	C2_PRE(slot->sl_session == item->ri_session);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 
+	session = slot->sl_session;
+	/* Currently there are no slots without sessions */
+	C2_ASSERT(session != NULL);
+
+	printf("slot_item_add: session %p(%lu)\n", session,
+				(unsigned long)session->s_session_id);
+
 	sref = &item->ri_slot_refs[0];
 	item->ri_tstate = RPC_ITEM_FUTURE;
-	sref->sr_session_id = item->ri_session->s_session_id;
-	sref->sr_sender_id = item->ri_session->s_conn->c_sender_id;
-	sref->sr_uuid = item->ri_session->s_conn->c_uuid;
+	sref->sr_session_id = session->s_session_id;
+	sref->sr_sender_id = session->s_conn->c_sender_id;
+	sref->sr_uuid = session->s_conn->c_uuid;
 	printf("Itemp %p FUTURE\n", item);
 
 	/*
@@ -1740,6 +1747,11 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 
 	slot->sl_xid++;
 	if (c2_rpc_item_is_update(item)) {
+		/*
+		 * When integrated with lsn,
+		 * use c2_fol_lsn_allocate() to allocate new lsn and
+		 * use c2_verno_inc() to advance vn_vc.
+		 */
 		slot->sl_verno.vn_lsn++;
 		slot->sl_verno.vn_vc++;
 	}
@@ -1750,11 +1762,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
 
-	session = slot->sl_session;
-	/* Currently there are no slots without sessions */
-	C2_ASSERT(session != NULL);
-	printf("slot_item_add: session %p(%lu)\n", session,
-				(unsigned long)session->s_session_id);
 	if (session != NULL) {
 		/*
 		 * XXX PROBLEM!!! need to take lock on session.
@@ -1811,20 +1818,14 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	if (fop == NULL)
 		return -ENOMEM;
 
-	reply->ri_session = item->ri_session;
 	reply = &fop->f_item;
-	reply->ri_slot_refs[0].sr_uuid = item->ri_slot_refs[0].sr_uuid;
-	reply->ri_slot_refs[0].sr_sender_id =
-		item->ri_slot_refs[0].sr_sender_id;
-	reply->ri_slot_refs[0].sr_session_id =
-		item->ri_slot_refs[0].sr_session_id;
-	reply->ri_slot_refs[0].sr_slot = item->ri_slot_refs[0].sr_slot;
-	reply->ri_slot_refs[0].sr_slot_id = item->ri_slot_refs[0].sr_slot_id;
-	reply->ri_slot_refs[0].sr_slot_gen = item->ri_slot_refs[0].sr_slot_gen;
-	reply->ri_slot_refs[0].sr_xid = item->ri_slot_refs[0].sr_xid;
-	reply->ri_slot_refs[0].sr_verno = item->ri_slot_refs[0].sr_verno;
-	reply->ri_slot_refs[0].sr_last_seen_verno = slot->sl_verno;
+
+	reply->ri_session = item->ri_session;
 	reply->ri_error = -EBADR;
+
+	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
+	c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
+	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
 	printf("Misordered item: %p, sending reply: %p\n", item, reply);
 	slot->sl_ops->so_reply_consume(item, reply);
@@ -1904,9 +1905,19 @@ static void item_find(const struct c2_rpc_slot *slot,
 
 	c2_list_for_each_entry(&slot->sl_item_list, ri, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
-		if (c2_verno_cmp(&ri->ri_slot_refs[0].sr_verno,
-				 &sref->sr_verno) == 0 &&
-		    ri->ri_slot_refs[0].sr_xid == sref->sr_xid) {
+
+		if (ri->ri_slot_refs[0].sr_xid == sref->sr_xid) {
+
+			if (c2_verno_cmp(&ri->ri_slot_refs[0].sr_verno,
+					 &sref->sr_verno) != 0) {
+				/*
+				 * This shouldn't happen.
+				 * Generate ADDB record to report it.
+				 * XXX For testing purpose assert. But the
+				 * assert should be removed later.
+				 */
+				C2_ASSERT(0);
+			}
 			*out = ri;
 			break;
 		}
@@ -1988,6 +1999,7 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item     *item;
 	struct c2_rpc_item     *last_persistent_item;
+	struct c2_list_link    *link;
 	struct c2_rpc_slot_ref *sref;
 
 	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
@@ -2005,7 +2017,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	 * last_persistent_item
 	 */
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+				ri_slot_refs[0].sr_link) 
+	for (link = &sref->sl_link; link != {
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 				&last_persistent) <= 0) {
 			C2_ASSERT(item->ri_tstate == RPC_ITEM_PAST_COMMITTED ||

@@ -656,8 +656,10 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
    Sends terminate session message to receiver.
+   Acts as no-op if session is already in TERMINATING state.
 
-   @pre session->s_state == C2_RPC_SESSION_IDLE
+   @pre session->s_state == C2_RPC_SESSION_IDLE ||
+	session->s_state == C2_RPC_SESSION_TERMINATING
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
