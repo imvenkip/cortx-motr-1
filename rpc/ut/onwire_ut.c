@@ -1,16 +1,31 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Subhash Arya<subhash_arya@xyratex.com>
+ * Original creation date: 06/25/2011
+ */
 #include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
+#include "lib/errno.h"
 #include "colibri/init.h"
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/misc.h"
-#include "db/db.h"
-#include "cob/cob.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
-#include "net/usunrpc/usunrpc.h"
 #include "rpc/ut/test_u.h"
 #include "rpc/ut/test.ff"
 #include "rpc/rpccore.h"
@@ -33,7 +48,7 @@ int test_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 int test_bufvec_enc(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 {
 	struct c2_fop_test  *f;
-	int 		    rc;
+	int		     rc;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(cur != NULL);
@@ -52,7 +67,7 @@ int test_bufvec_enc(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 int test_bufvec_dec(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 {
 	struct c2_fop_test  *f;
-	int 		    rc;
+	int		     rc;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(cur != NULL);
@@ -70,7 +85,7 @@ int test_bufvec_dec(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 
 uint64_t test_fop_size_get(struct c2_fop *fop)
 {
-	uint64_t 	size;
+	uint64_t	size;
 
 	C2_PRE(fop != NULL);
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
@@ -84,10 +99,9 @@ struct c2_fop_type_ops test_ops = {
 	.fto_bufvec_decode = test_bufvec_dec
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60,
-			&test_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60, &test_ops);
 
-size_t test_item_size_get(struct c2_rpc_item *item)
+size_t test_item_size_get(const struct c2_rpc_item *item)
 {
 	uint64_t	len = 0;
 	struct c2_fop	*fop;
@@ -168,44 +182,9 @@ int main()
 	struct c2_rpc_item		*item1, *item2, *item3;
 	struct c2_rpc			*obj, obj2;
 	struct c2_net_buffer		*nb;
-	struct c2_bufvec		vec;
 	struct c2_bufvec_cursor		cur;
 	struct c2_fop_rpc_item_type	*fri;
-	uint32_t			enc_val, dec_val;
-	uint64_t			enc64, dec64;
-	uint8_t				c,d;
-
-	enc_val = 0xABCDEF;
-	enc64 = 0x12345678;
-	c = 0xa;
-	c2_bufvec_alloc(&vec, 16, 2);
-	c2_bufvec_cursor_init(&cur, &vec);
-
-	/* Encode bufvec tests */
-	rc = c2_bufvec_uint32(&cur, &enc_val, BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
-	rc = c2_bufvec_uint64(&cur, &enc64, BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
-	rc = c2_bufvec_byte(&cur, &c, BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
-	enc_val = 0x123456;
-	rc = c2_bufvec_uint32(&cur, &enc_val, BUFVEC_ENCODE);
-	C2_ASSERT(rc == 0);
-
-	/*Decode bufvec tests */
-	c2_bufvec_cursor_init(&cur, &vec);
-	rc = c2_bufvec_uint32(&cur, &dec_val, BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
-	printf("\nBUF DECODED val: %x\n", dec_val);
-	rc = c2_bufvec_uint64(&cur, &dec64, BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
-	printf("\nBUF DECODED val: %lx\n", dec64);
-	rc = c2_bufvec_byte(&cur, &d, BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
-	printf("\nBUF DECODED val: %x\n", d);
-	rc = c2_bufvec_uint32(&cur, &dec_val, BUFVEC_DECODE);
-	C2_ASSERT(rc == 0);
-	printf("\nBUF DECODED val: %x\n", dec_val);
+	void				*cur_addr;
 
 	/* Onwire tests */
 	C2_ALLOC_PTR(item1);
@@ -257,7 +236,6 @@ int main()
 	populate_item(item2);
 	populate_item(item3);
 
-
 	obj = &rpc_obj;
 	c2_list_init(&obj->r_items);
 
@@ -267,24 +245,10 @@ int main()
 
 	C2_ALLOC_PTR(nb);
 	c2_bufvec_alloc(&nb->nb_buffer, 13, 72);
-	{
-		size_t bufvec_size;
-		void   *cur_addr;
-		bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
-		if(bufvec_size % 8 == 0)
-			printf("\nBufvec is aligned");
-		else
-			printf("\nBufvec NOT aligned");
-
-		c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-		cur_addr = c2_bufvec_cursor_addr(&cur);
-		printf("\nCur addr : %px", cur_addr);
-		if(((uint64_t)cur_addr & (8-1)) == 0)
-			printf("\nCur IS aligned");
-		else
-			printf("\nCur is NOT aligned");
-	}
-	rc =  c2_rpc_encode ( obj, nb );
+	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	cur_addr = c2_bufvec_cursor_addr(&cur);
+	C2_ASSERT(c2_is_aligned(cur_addr, 8));
+	rc =  c2_rpc_encode(obj, nb);
 	C2_ASSERT(rc == 0);
 	c2_list_init(&obj2.r_items);
 	rc = c2_rpc_decode(&obj2, nb);

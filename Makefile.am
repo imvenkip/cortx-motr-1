@@ -32,8 +32,8 @@ SUBDIRS_LIBS = \
                sns \
                stob \
                udb \
-	       xcode \
-               xdr 
+               xcode \
+               xdr
 
 SUBDIR_KERNEL = build_kernel_modules
 # keep this list alphabetically sorted
@@ -55,7 +55,7 @@ SUBDIR_UT = \
                rpc/ut \
                rpc/it \
                udb/ut \
-	       xcode/ut \
+               xcode/ut \
                xdr/ut
 
 SUBDIR_ST =

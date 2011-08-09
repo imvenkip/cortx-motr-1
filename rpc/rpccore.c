@@ -17,6 +17,7 @@
 
 /** List of all known rpc item types */
 static struct c2_list  rpc_item_types_list;
+
 /** Lock for list of item types */
 static struct c2_mutex rpc_item_types_lock;
 
@@ -859,7 +860,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
    RPC item ops function
    Function to return size of fop
  */
-uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
+uint64_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	struct c2_fop			*fop = NULL;
 	uint64_t			 size = 0;
@@ -911,6 +912,7 @@ int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
 	return opcode;
 }
 
+/** Registers a new rpc item type with the RPC subsystem */
 void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
 {
 	C2_PRE(item_type != NULL);
@@ -920,10 +922,11 @@ void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
 	c2_mutex_unlock(&rpc_item_types_lock);
 }
 
+/** Returns an rpc item type for a specific rpc item opcode */
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
-	struct c2_rpc_item_type *item_type = NULL;
-	bool			found = false;
+	struct c2_rpc_item_type *item_type;
+	bool			 found = false;
 	c2_mutex_lock(&rpc_item_types_lock);
 	c2_list_for_each_entry(&rpc_item_types_list, item_type,
 	                       struct c2_rpc_item_type, rit_linkage) {

@@ -37,9 +37,9 @@ static char                     *byte_arr = "bufvec xcode byte arr unit tests";
 
 static void test_arr_encode()
 {
-	int 		rc, i;
+	int		rc, i;
 	size_t		el_size;
-	void 	       *cur_addr;
+	void		*cur_addr;
 
 	for ( i = 0; i < NO_OF_ELEMENTS; ++i)
 		test_arr[i] = i;
@@ -54,7 +54,7 @@ static void test_arr_encode()
 
 static void test_arr_decode()
 {
-	int 		rc;
+	int		rc;
 	size_t		el_size;
 	uint32_t	dec_arr[NO_OF_ELEMENTS];
 	void		*cur_addr;
@@ -77,7 +77,7 @@ static void test_arr_decode()
 
 static void test_byte_arr_encode()
 {
-	int 	 rc;
+	int	rc;
 	void    *cur_addr;
 
 	printf("sizeof byte arr = %ld\n", strlen(byte_arr));
@@ -92,7 +92,7 @@ static void test_byte_arr_decode()
 {
 	int		 rc;
 	void		*cur_addr;
-	char 		*byte_arr_decode;
+	char		*byte_arr_decode;
 	size_t		 arr_size;
 
 	arr_size = strlen(byte_arr);
@@ -107,7 +107,7 @@ static void test_byte_arr_decode()
 }
 static void test_uint32_encode()
 {
-	int 	 rc;
+	int	 rc;
 	void    *cur_addr;
 	uint32_t enc_val;
 
@@ -126,8 +126,8 @@ static void test_uint32_encode()
 
 static void test_uint32_decode()
 {
-	int 	 	rc;
-	uint32_t	dec_val;
+	int		 rc;
+	uint32_t	 dec_val;
 	void		*cur_addr;
 
 	rc = c2_bufvec_uint32(&cur, &dec_val, BUFVEC_DECODE);
@@ -143,7 +143,7 @@ static void test_uint32_decode()
 
 static void test_uint64_encode()
 {
-	int 	 rc;
+	int	 rc;
 	void    *cur_addr;
 	uint64_t enc_val;
 
@@ -164,7 +164,7 @@ static void test_uint64_encode()
 
 static void test_uint16_encode()
 {
-	int 	 rc;
+	int	 rc;
 	void    *cur_addr;
 	uint16_t enc_val;
 
@@ -180,7 +180,7 @@ static void test_uint16_encode()
 
 static void test_byte_encode()
 {
-	int 	 rc;
+	int	 rc;
 	void    *cur_addr;
 	uint8_t  enc_val;
 
@@ -196,9 +196,9 @@ static void test_byte_encode()
 
 static void test_uint64_decode()
 {
-	int 	 	rc;
+	int		rc;
 	uint64_t	dec_val;
-	void		*cur_addr;
+	void	       *cur_addr;
 
 	rc = c2_bufvec_uint64(&cur, &dec_val, BUFVEC_DECODE);
 	printf("uint64_t decode = %lu\n",dec_val);
@@ -213,8 +213,8 @@ static void test_uint64_decode()
 
 static void test_uint16_decode()
 {
-	int 	 	rc;
-	uint16_t	dec_val;
+	int		 rc;
+	uint16_t	 dec_val;
 	void		*cur_addr;
 
 	rc = c2_bufvec_uint16(&cur, &dec_val, BUFVEC_DECODE);
@@ -230,8 +230,8 @@ static void test_uint16_decode()
 
 static void test_byte_decode()
 {
-	int 	 	rc;
-	uint8_t		dec_val;
+	int		 rc;
+	uint8_t		 dec_val;
 	void		*cur_addr;
 
 	rc = c2_bufvec_byte(&cur, &dec_val, BUFVEC_DECODE);
@@ -246,7 +246,7 @@ static void test_byte_decode()
 }
 int main()
 {
-	void 	*cur_addr;
+	void	*cur_addr;
 
 	c2_bufvec_alloc(&vec, 40, 40);
 	c2_bufvec_cursor_init(&cur, &vec);

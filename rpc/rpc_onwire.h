@@ -54,12 +54,17 @@
 
 #include "rpc/rpccore.h"
 
+enum {
+	C2_RPC_VERSION_1 = 1,
+	BUFVEC_ALIGN_BYTES = 8,
+};
+
 /** Header information present in an RPC object */
 struct c2_rpc_header {
 	/** RPC version, currenly 1 */
 	uint32_t rh_ver;
 	/** No of items present in the RPC object */
-	uint32_t item_count;
+	uint32_t rh_item_count;
 };
 
 /** Header information per rpc item in an rpc object. The detailed
@@ -88,13 +93,13 @@ struct c2_rpc_item_header {
 enum {
 	RPC_HEADER_FIELDS = 2,
 	ITEM_HEADER_FIELDS = 14,
-     };
+};
 
 #define RPC_ONWIRE_HEADER_SIZE  (RPC_HEADER_FIELDS * BYTES_PER_XCODE_UNIT)
 #define ITEM_ONWIRE_HEADER_SIZE (ITEM_HEADER_FIELDS * BYTES_PER_XCODE_UNIT)
 
 /**
-   This function encodes c2_rpc object into the supplied network buffer. Each
+   This function encodes an c2_rpc object into the supplied network buffer. Each
    rpc object contains a header and count of rpc items present in that rpc
    object. These items are serialized directly onto the bufvec present in the
    network buffer using the various bufvec encode/decode funtions for atomic
@@ -157,7 +162,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
     @param item The rpc item for which the on wire size is to be calculated
     @retval Size of the item in bytes.
 */
-size_t c2_rpc_item_default_size(struct c2_rpc_item *item);
+size_t c2_rpc_item_default_size(const struct c2_rpc_item *item);
 
 /** @}  End of rpc_onwire group */
 

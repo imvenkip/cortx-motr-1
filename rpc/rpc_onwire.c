@@ -21,23 +21,12 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
-#include "rpc/rpccore.h"
 #include "rpc/session_int.h"
-#include "net/net.h"
-#include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
-#include "lib/vec.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
-enum {
-	C2_RPC_VERSION_1 = 1,
-	BUFVEC_ALIGN_BYTES = 8,
-};
-
-size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
+size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
 	size_t		 len = 0;
 	struct c2_fop	*fop;
@@ -45,11 +34,9 @@ size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
-	if (fop != NULL){
-		len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-		len += sizeof fop->f_type->ft_code;
-		len += ITEM_ONWIRE_HEADER_SIZE;
-	}
+	C2_ASSERT(fop != NULL);
+	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	len += ITEM_ONWIRE_HEADER_SIZE;
 	printf("DEFAULT ITEM SIZE GET %ld\n", len);
 	return len;
 }
@@ -83,9 +70,8 @@ static int rpc_header_encode(struct c2_bufvec_cursor *cur,
 	if (rc != 0)
 		return rc;
 	item_count = c2_list_length(&rpc_obj->r_items);
-	if (item_count == 0)
-		return -EFAULT;
-	rc = c2_bufvec_uint32(cur, &item_count, BUFVEC_ENCODE);
+	C2_ASSERT(item_count != 0);
+	rc = c2_bufvec_uint32(cur,&item_count, BUFVEC_ENCODE);
 	if (rc != 0)
 		return rc;
 	return 0;
@@ -102,7 +88,7 @@ static int rpc_header_encode(struct c2_bufvec_cursor *cur,
 */
 static int rpc_header_decode(struct c2_bufvec_cursor *cur, uint32_t *item_count,			     uint32_t *ver)
 {
-	int 	rc;
+	int	rc;
 
 	C2_PRE(item_count != NULL);
 	C2_PRE(cur != NULL);
@@ -114,7 +100,6 @@ static int rpc_header_decode(struct c2_bufvec_cursor *cur, uint32_t *item_count,
 	rc =  c2_bufvec_uint32(cur, item_count, BUFVEC_DECODE);
 	if (rc != 0)
 		return rc;
-
 	return 0;
 }
 
@@ -125,14 +110,13 @@ static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
 			      struct c2_rpc_sender_uuid *uuid,
 			      enum bufvec_what what)
 {
-	int 	rc;
+	int	rc;
 
 	rc = c2_bufvec_uint64(cur, &uuid->su_uuid, what);
 	if (what == BUFVEC_ENCODE)
 		printf("\nSender uuid (encode): %lu", uuid->su_uuid);
 	 else
 		printf("\nSender uuid (decode): %lu", uuid->su_uuid);
-
 	return rc;
 }
 
@@ -175,10 +159,14 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 
 	printf("\nVer No lsn (%s): %lu",todo, sref->sr_verno.vn_lsn);
 	printf("\nVer No vc (%s): %lu", todo, sref->sr_verno.vn_vc);
-	printf("\nLast persistent ver no lsn (%s): %lu", todo, sref->sr_last_persistent_verno.vn_lsn);
-	printf("\nLast persistent ver no vc (%s): %lu", todo, sref->sr_last_persistent_verno.vn_vc);
-	printf("\nLast seen ver no lsn (%s): %lu", todo, sref->sr_last_seen_verno.vn_lsn);
-	printf("\nLast seen ver no vc (%s) : %lu", todo, sref->sr_last_seen_verno.vn_vc);
+	printf("\nLast persistent ver no lsn (%s): %lu", todo,
+		sref->sr_last_persistent_verno.vn_lsn);
+	printf("\nLast persistent ver no vc (%s): %lu", todo,
+		sref->sr_last_persistent_verno.vn_vc);
+	printf("\nLast seen ver no lsn (%s): %lu", todo,
+		sref->sr_last_seen_verno.vn_lsn);
+	printf("\nLast seen ver no vc (%s) : %lu", todo,
+		sref->sr_last_seen_verno.vn_vc);
 	printf("\nSlot Id (%s): %u", todo, sref->sr_slot_id);
 	printf("\nXid (%s): %lu", todo, sref->sr_xid);
 	printf("\nSlot gen (%s): %lu",todo, sref->sr_slot_gen);
@@ -194,11 +182,11 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
     @retval -errno  (failure)
 */
 static int item_header_encdec(struct c2_bufvec_cursor *cur,
- 			      struct c2_rpc_item *item,
-			      enum bufvec_what what)
+			     struct c2_rpc_item *item,
+			     enum bufvec_what what)
 {
 	uint64_t		 len;
-	char 			*todo;
+	char			*todo;
 	int			 rc;
 	struct c2_rpc_item_type *item_type;
 
@@ -225,7 +213,6 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 	printf("\nSession id (%s) :  %ld", todo, item->ri_session_id);
 	if (rc != 0)
 		return -EFAULT;
-
 	return rc;
 }
 
@@ -237,7 +224,7 @@ static int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 		       enum bufvec_what what)
 {
 	int		 rc;
-	struct	c2_fop 	*fop;
+	struct	c2_fop	*fop;
 
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
@@ -248,7 +235,6 @@ static int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	rc = item_header_encdec(cur, item, what);
 	if(rc != 0)
 		return rc;
-
 	rc = c2_bufvec_fop(cur, fop, what);
 	return rc;
 }
@@ -277,7 +263,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
 			      struct c2_bufvec_cursor *cur)
 {
-	struct c2_fop 		*fop;
+	struct c2_fop		*fop;
 	struct c2_fop_type	*ftype;
 
 	C2_PRE(item != NULL);
@@ -291,7 +277,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 		return -ENOMEM;
 	*item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(*item != NULL);
-	return(item_encdec(cur, *item, BUFVEC_DECODE));
+	return item_encdec(cur, *item, BUFVEC_DECODE);
 }
 
 /* XXX : Temporary funtion to aid debugging and tracing.  Added here for UT and
@@ -344,7 +330,7 @@ static bool bufvec_is_aligned(struct c2_bufvec *buf, uint64_t align_val)
 int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 {
 	struct c2_rpc_item		*item;
-	struct c2_bufvec_cursor 	 cur;
+	struct c2_bufvec_cursor		 cur;
 	size_t				 len;
 	size_t				 offset=0;
 	c2_bcount_t			 bufvec_size;
@@ -368,7 +354,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	C2_ASSERT(c2_is_aligned(cur_addr, BUFVEC_ALIGN_BYTES));
 	printf("\n**********ENCODING STARTS************");
 	/*Serialize RPC object header into the buffer */
-	rc = rpc_header_encode(&cur ,rpc_obj);
+	rc = rpc_header_encode(&cur, rpc_obj);
 	if (rc != 0)
 		goto end;
 
@@ -382,10 +368,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
 		C2_ASSERT(item_type->rit_ops->rio_item_size != NULL);
 		offset = len + item_type->rit_ops->rio_item_size(item);
-		if (offset > bufvec_size) {
-			rc = -EMSGSIZE;
-			goto end;
-		}
+		C2_ASSERT(offset < bufvec_size);
 		len = offset;
 		printf("\n\n----ENCODING ITEM NO:%d\n", ++count);
 		/* Call the associated encode function for the that item type */
@@ -393,10 +376,11 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		if (rc != 0)
 			goto end;
 	}
+	C2_ASSERT(bufvec_size > len);
 	nb->nb_length = len;
 	printf("\nEncoded data length : %lu", len);
 	printf("\n===========ENCODING ENDS===========\n");
-end :
+end:
 	return rc;
 }
 
@@ -409,7 +393,9 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	size_t			  offset;
 	size_t			  len;
 	size_t			  bufvec_size;
-	uint32_t		  item_count, opcode, ver;
+	uint32_t		  item_count;
+	uint32_t		  opcode;
+	uint32_t		  ver;
 	struct c2_bufvec_cursor   cur;
 	void			 *cur_addr;
 
@@ -421,7 +407,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	printf("\nLength of decode buffer = %d", (int)len);
 	C2_ASSERT(len != 0);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
- 	/*
+	/*
 	  XXX : Currently the bufvecs have 8-byte aligned buffers with
           sizes multiple of 8 bytes
         */
@@ -444,7 +430,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
          */
 	for (i = 0; i < item_count; ++i) {
 		rc = c2_bufvec_uint32(&cur, &opcode, BUFVEC_DECODE);
-		if(rc != 0)
+		if (rc != 0)
 			return -EFAULT;
 		printf("Finding item type for opcode %u", opcode);
 		item_type = c2_rpc_item_type_lookup(opcode);

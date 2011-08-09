@@ -146,11 +146,6 @@ int32_t rpc_arr_index;
 int seed_val;
 #endif
 
-enum c2_rpc_opcode_t {
-	FOP_ITEM_TYPE = 1,
-	ADDB_ITEM_TYPE
-};
-
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 #define	C2_RPC_TM_RECV_BUFFERS_NR	8
@@ -201,7 +196,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc item.
 	 */
-	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
+	uint64_t (*rio_item_size)(const struct c2_rpc_item *item);
 	/**
 	   Find out if given rpc items belong to same type or not.
 	 */
@@ -332,7 +327,7 @@ void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
  */
 struct c2_rpc_item_type {
 	/** Unique operation code. */
-	uint32_t  rit_opcode;
+	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
 	/** true if item is request item. false if item is reply item */
@@ -340,12 +335,17 @@ struct c2_rpc_item_type {
 	/** true if the item of this type modifies file-system state */
 	bool				   rit_mutabo;
 	/** Linkage to the item type list rpc_item_type_list */
-	struct c2_list_link 		   rit_linkage;
+	struct c2_list_link		   rit_linkage;
 };
 
+/**
+  XXX : Establishes an association between an item type and fop type.
+  During registration, this structure is populated with the associated
+  fop type and item type.
+*/
 struct c2_fop_rpc_item_type {
-	struct c2_fop_type 	*fri_f_type;
-	struct c2_rpc_item_type fri_i_type;
+	struct c2_fop_type	*fri_f_type;
+	struct c2_rpc_item_type  fri_i_type;
 };
 
 enum c2_rpc_item_state {

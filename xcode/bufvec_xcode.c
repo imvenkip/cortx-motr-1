@@ -44,9 +44,9 @@ static void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
 static int data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
 			size_t len)
 {
-	c2_bcount_t	 	 count;
+	c2_bcount_t		 count;
 	struct c2_bufvec_cursor  src_cur;
-	struct c2_bufvec 	 src_buf;
+	struct c2_bufvec	 src_buf;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(data != NULL);
@@ -63,7 +63,7 @@ static int data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
 static int bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
 			size_t len)
 {
-	c2_bcount_t	 	 count;
+	c2_bcount_t		 count;
 	struct c2_bufvec_cursor  dcur;
 	struct c2_bufvec	 dest_buf;
 
@@ -97,7 +97,7 @@ static int pad_bytes_get(size_t size)
 */
 static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 {
-	void  		*pad_p;
+	void		*pad_p;
 	uint64_t	pad = 0;
 
 	C2_PRE(cur != NULL);
@@ -282,9 +282,9 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 		    size_t max_size, size_t el_size, c2_bufvec_xcode el_proc,
 		    enum bufvec_what what)
 {
-	int 		 rc;
+	int		rc;
 	int		 i;
-	void 		*bp;
+	void		*bp;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(p_arr != NULL);
@@ -308,9 +308,9 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		    size_t max_size, enum bufvec_what what)
 {
-	int 	 rc;
-	uint64_t pad_bytes;
-	char 	*bp;
+	int		 rc;
+	uint64_t	 pad_bytes;
+	char		*bp;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(cpp != NULL);
@@ -348,7 +348,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum bufvec_what what)
 {
-	int 			rc;
+	int			 rc;
 	struct c2_fop_type	*ftype;
 
 	C2_PRE(fop != NULL);
