@@ -194,8 +194,10 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
 
 	c2_mutex_lock(&slot->sl_mutex);
+	c2_mutex_lock(&slot->sl_session->s_mutex);
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
+	c2_mutex_unlock(&slot->sl_session->s_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
         reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
         request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
