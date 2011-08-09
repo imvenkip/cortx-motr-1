@@ -463,7 +463,7 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 					cr_ep_aggr.ea_chan_list),
 				struct c2_rpc_chan, rc_linkage);
 	}
-	C2_ASSERT(chan_found != NULL);
+	C2_POST(chan_found != NULL);
 	c2_ref_get(&chan_found->rc_ref);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	return chan_found;
@@ -863,12 +863,16 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	machine->cr_rpc_stats = st;
 
 	rc = rpc_proc_init(&machine->cr_processing);
-	if (rc < 0)
+	if (rc < 0) {
+		c2_free(st);
 		return rc;
+	}
 
 	rc = rpc_stat_init(&machine->cr_statistics);
-	if (rc < 0)
+	if (rc < 0) {
+		c2_free(st);
 		rpc_proc_fini(&machine->cr_processing);
+	}
 
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
@@ -891,12 +895,18 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 
 	rc = c2_rpcmachine_src_ep_add(machine, src_ep);
-	if (rc < 0)
+	if (rc < 0) {
+		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
+		c2_free(st);
 		return rc;
+	}
 
 	rc = c2_rpc_session_module_init();
-	if (rc < 0)
+	if (rc < 0) {
+		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
+		c2_free(st);
 		return rc;
+	}
 
 	/* Initialize the formation module. */
 	rc = c2_rpc_frm_init(&machine->cr_formation);
@@ -1342,10 +1352,13 @@ void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
 		if ((st->rs_in.rsu_max_lat <= st->rs_in.rsu_i_lat) ||
 				(st->rs_in.rsu_max_lat == 0))
 			st->rs_in.rsu_max_lat = st->rs_in.rsu_i_lat;
+		/* Do not perform floating point division in kernel. */
+#ifndef __KERNEL__
 		st->rs_in.rsu_avg_lat = ((st->rs_in.rsu_items_nr *
 					st->rs_in.rsu_avg_lat) +
 					st->rs_in.rsu_i_lat) /
 					(st->rs_in.rsu_items_nr +1);
+#endif
 		st->rs_in.rsu_items_nr++;
 		st->rs_in.rsu_bytes_nr += c2_rpc_item_default_size(item);
 	} else {
@@ -1357,10 +1370,12 @@ void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
 		if ((st->rs_out.rsu_max_lat <= st->rs_out.rsu_i_lat) ||
 				(st->rs_out.rsu_max_lat == 0))
 			st->rs_out.rsu_max_lat = st->rs_out.rsu_i_lat;
+#ifndef __KERNEL__
 		st->rs_out.rsu_avg_lat = ((st->rs_out.rsu_items_nr *
 					st->rs_out.rsu_avg_lat) +
 					st->rs_out.rsu_i_lat) /
 					(st->rs_out.rsu_items_nr +1);
+#endif
 		st->rs_out.rsu_items_nr++;
 		st->rs_out.rsu_bytes_nr += c2_rpc_item_default_size(item);
 	}

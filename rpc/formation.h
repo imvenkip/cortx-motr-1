@@ -364,6 +364,10 @@ struct c2_rpc_frm_item_coalesced {
 /**
    This structure represents the summary data for a given rpc group
    destined for a given state machine.
+   Formation tries to send all rpc items belonging to same rpc group
+   together. This is a best-case effort. So when one item belonging
+   to an rpc group arrives at formation, it is not immediately formed
+   since more items from same group are expected to arrive shortly.
  */
 struct c2_rpc_frm_rpcgroup {
 	/** Linkage into the list of groups belonging to same state machine

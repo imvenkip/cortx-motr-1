@@ -260,7 +260,7 @@ int c2_rpc_frm_init(struct c2_rpc_formation **frm)
 	C2_PRE(frm != NULL);
 
 	C2_ALLOC_PTR(*frm);
-	if ((*frm)== NULL)
+	if (*frm == NULL)
 		return -ENOMEM;
 
         c2_addb_ctx_init(&(*frm)->rf_rpc_form_addb,
@@ -402,7 +402,7 @@ void c2_rpc_frm_fini(struct c2_rpc_formation *formation)
    to do its own job.
    @param frm_sm - formation state machine
  */
-static void sm_exit(struct c2_rpc_frm_sm *frm_sm)
+static void sm_put(struct c2_rpc_frm_sm *frm_sm)
 {
 	struct c2_rpc_formation	*formation;
 
@@ -674,7 +674,7 @@ static int sm_default_handler(struct c2_rpc_item *item,
 
 	/* Exit point for state machine. */
 	if (res == C2_RPC_FRM_INTEVT_STATE_DONE) {
-		sm_exit(sm);
+		sm_put(sm);
 		return 0;
 	}
 
@@ -827,7 +827,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	if (ev->nbe_status == 0) {
 		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SENT);
 		/* Release reference on the c2_rpc_frm_sm here. */
-		sm_exit(fb->fb_frm_sm);
+		sm_put(fb->fb_frm_sm);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
@@ -838,7 +838,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		frm_send_onwire(fb->fb_frm_sm);
 		c2_mutex_unlock(&fb->fb_frm_sm->fs_lock);
 		/* Release reference on the c2_rpc_frm_sm here. */
-		sm_exit(fb->fb_frm_sm);
+		sm_put(fb->fb_frm_sm);
 	}
 
 }
@@ -2207,11 +2207,23 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	c2_list_for_each_entry(&c_item->ic_member_list, item,
 			struct c2_rpc_item, ri_coalesced_linkage) {
 		C2_ALLOC_PTR(fop_member);
-		if (fop_member == NULL)
-			return -ENOMEM;
+		if (fop_member == NULL) {
+			res = -ENOMEM;
+			break;
+		}
 		fop = c2_rpc_item_to_fop(item);
 		fop_member->fop = fop;
 		c2_list_add(&fop_list, &fop_member->fop_linkage);
+	}
+	if (res != 0) {
+		c2_list_for_each_entry_safe(&fop_list, fop_member,
+				fop_member_next, struct c2_io_fop_member,
+				fop_linkage) {
+			c2_list_del(&fop_member->fop_linkage);
+			c2_free(fop_member);
+		}
+		c2_list_fini(&fop_list);
+		return res;
 	}
 	b_fop = container_of(b_item, struct c2_fop, f_item);
 
