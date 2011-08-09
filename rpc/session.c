@@ -205,15 +205,17 @@ int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
 	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
-static int __conn_init(struct c2_rpc_conn   *conn,
-		       struct c2_rpcmachine *machine)
+static int __conn_init(struct c2_rpc_conn      *conn,
+		       struct c2_net_end_point *ep,
+		       struct c2_rpcmachine    *machine)
 {
 	int rc;
 
-	C2_PRE(conn != NULL &&
+	C2_PRE(conn != NULL && ep != NULL && machine != NULL &&
 	       ((conn->c_flags & RCF_SENDER_END) !=
 		(conn->c_flags & RCF_RECV_END)));
 
+	conn->c_end_point = ep;
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_cob = NULL;
 	c2_list_init(&conn->c_sessions);
@@ -241,18 +243,19 @@ static int __conn_init(struct c2_rpc_conn   *conn,
 	return rc;
 }
 
-int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
-		     struct c2_rpcmachine *machine)
+int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
+		     struct c2_net_end_point *ep,
+		     struct c2_rpcmachine    *machine)
 {
 	int rc;
 
-	C2_ASSERT(conn != NULL && machine != NULL);
+	C2_ASSERT(conn != NULL && machine != NULL && ep != NULL);
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
 	c2_rpc_sender_uuid_generate(&conn->c_uuid);
 	printf("rci: conn uuid %lu\n", (unsigned long)conn->c_uuid.su_uuid);
-	rc = __conn_init(conn, machine);
+	rc = __conn_init(conn, ep, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			c2_rpc_conn_invariant(conn) &&
@@ -262,25 +265,25 @@ int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
 C2_EXPORTED(c2_rpc_conn_init);
 
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
+		         struct c2_net_end_point         *ep,
 		         struct c2_rpcmachine            *machine,
 			 const struct c2_rpc_sender_uuid *uuid)
 {
 	int rc;
 
-	C2_ASSERT(conn != NULL && machine != NULL);
+	C2_ASSERT(conn != NULL && machine != NULL && ep != NULL);
 
 	C2_SET0(conn);
 	conn->c_flags = RCF_RECV_END;
 	conn->c_uuid = *uuid;
-	rc = __conn_init(conn, machine);
+	rc = __conn_init(conn, ep, machine);
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			c2_rpc_conn_invariant(conn) &&
 			(conn->c_flags & RCF_RECV_END) == RCF_RECV_END));
 	return rc;
 }
 
-int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
-			  struct c2_net_end_point *ep)
+int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 {
 	struct c2_fop                      *fop;
 	struct c2_rpc_fop_conn_establish   *fop_ce;
@@ -289,7 +292,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
 	struct c2_rpcmachine               *machine;
 	int                                 rc;
 
-	C2_PRE(conn != NULL && ep != NULL);
+	C2_PRE(conn != NULL);
 
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_fopt, NULL);
 	if (fop == NULL) {
@@ -310,7 +313,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
 	 *  to associate with this c2_rpc_conn.
 	 */
 	conn->c_rpcchan = c2_rpc_chan_get(machine);
-	conn->c_end_point = ep;
 
 	fop_ce = c2_fop_data(fop);
 	C2_ASSERT(fop_ce != NULL);
@@ -695,6 +697,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	case C2_RPC_CONN_INITIALISED:
 		return conn->c_sender_id == SENDER_ID_INVALID &&
 			conn->c_rpcmachine != NULL &&
+			conn->c_end_point != NULL &&
 			!c2_list_link_is_in(&conn->c_link) &&
 			conn->c_nr_sessions == 0;
 
@@ -1728,15 +1731,13 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_session  *session;
 
-	C2_PRE(slot != NULL && item != NULL);
+	C2_PRE(slot != NULL && item != NULL && slot->sl_session != NULL);
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
 	C2_PRE(c2_mutex_is_locked(&slot->sl_session->s_mutex));
 	C2_PRE(slot->sl_session == item->ri_session);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 
 	session = slot->sl_session;
-	/* Currently there are no slots without sessions */
-	C2_ASSERT(session != NULL);
 
 	printf("slot_item_add: session %p(%lu)\n", session,
 				(unsigned long)session->s_session_id);
@@ -1778,13 +1779,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 
 	if (session != NULL) {
 		/*
-		 * XXX PROBLEM!!! need to take lock on session.
-		 * But locking heirarchy is
-		 * machine => conn => session => slot
-		 * What to do? :-o
-		 * XXX Need to reverse locking order.
-		 * XXX Uncomment mutex related lines, once locking order is
-		 *     fixed
+		 * we're already under the cover of session->s_mutex
 		 */
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -2355,15 +2350,14 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 	return 0;
 }
 
-int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
-			      struct c2_net_end_point *ep)
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 {
 	struct c2_rpcmachine *machine;
 	struct c2_db_tx       tx;
 	uint64_t              sender_id;
 	int                   rc;
 
-	C2_PRE(conn != NULL && ep != NULL);
+	C2_PRE(conn != NULL);
 	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
 	      (conn->c_flags & RCF_RECV_END) == RCF_RECV_END);
 
@@ -2385,7 +2379,6 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
 	}
 	c2_db_tx_commit(&tx);
 	conn->c_sender_id = sender_id;
-	conn->c_end_point = ep;
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
 	c2_mutex_lock(&machine->cr_session_mutex);

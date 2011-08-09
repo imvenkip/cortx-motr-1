@@ -242,27 +242,28 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 
 /**
    Initalise receiver end of conn object.
-   @pre conn->c_state == C2_RPC_CONN_UNINITIALISED
+
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+			   conn->c_end_point == ep &&
 			   conn->c_rpcmachine == machine &&
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
+			 struct c2_net_end_point         *ep,
 			 struct c2_rpcmachine            *machine,
 			 const struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.
 
-   @arg ep for receiver side conn, ep is end point of sender.
    @pre conn->c_state == C2_RPC_CONN_INITIALISED
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
 			   conn->c_sender_id != SENDER_ID_INVALID &&
 			   c2_list_contains(&machine->cr_incoming_conns,
 					    &conn->c_link)
  */
-int c2_rpc_rcv_conn_establish(struct c2_rpc_conn      *conn,
-			      struct c2_net_end_point *ep);
+int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
+
 /**
    @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL

@@ -96,12 +96,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach,
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_conn_establish(conn, item->ri_src_ep);
+	rc = c2_rpc_rcv_conn_establish(conn);
 	if (rc != 0)
 		goto errout;
 

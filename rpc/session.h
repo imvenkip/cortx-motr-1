@@ -453,13 +453,16 @@ struct c2_rpc_conn {
    Note: c2_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
 	 if c2_rpc_conn_init() fails, conn is left in undefined state.
 
+   @pre conn != NULL && ep != NULL && machine != NULL
    @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
+			conn->c_end_point == ep &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
-		     struct c2_rpcmachine *machine);
+int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
+		     struct c2_net_end_point *ep,
+		     struct c2_rpcmachine    *machine);
 
 /**
     Send handshake conn create fop to the remote end. The reply
@@ -471,8 +474,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
 				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
-int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
-			  struct c2_net_end_point *ep);
+int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
 /**
    Send "conn_terminate" FOP to receiver.
