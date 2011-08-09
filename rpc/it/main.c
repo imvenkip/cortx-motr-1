@@ -785,7 +785,6 @@ void client_init()
 		printf("Timeout for conn terminate\n");
 	c2_rpc_session_fini(&cctx.pc_rpc_session);
 	c2_rpc_conn_fini(&cctx.pc_conn);
-	client_fini();
 
 cleanup:
 	do_cleanup();
@@ -890,6 +889,7 @@ int main(int argc, char *argv[])
 		client_init();
 		if (verbose)
 			print_stats(client, server);
+		client_fini();
 	}
 
 	/* Server part */
