@@ -225,7 +225,7 @@ void c2_rpc_frm_conn_init(struct c2_rpc_conn *conn,
 	c2_mutex_init(&conn->c_mutex);
 	c2_list_link_init(&conn->c_link);
 	c2_list_init(&conn->c_sessions);
-	c2_chan_init(&conn->c_chan);
+	//c2_chan_init(&conn->c_chan);
 }
 
 /**

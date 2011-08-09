@@ -254,7 +254,7 @@ int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
 	C2_PRE(conn != NULL);
 	C2_PRE(item != NULL);
 
-	c2_rpc_session_search(conn, SESSION_0, &session_zero);
+	session_zero = c2_rpc_session_search(conn, SESSION_ID_0);
 	if (session_zero == NULL)
 		return -ENOENT;
 
@@ -640,7 +640,7 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				rc = c2_rpc_item_received(item);
 				if (rc == 0 && !in_flight_dec) {
 					in_flight_dec = true;
-					if (!c2_rpc_item_is_conn_create(item))
+					if (!c2_rpc_item_is_conn_establish(item))
 						c2_rpc_frm_rpcs_inflight_dec(
 								item);
 					/* Post an ADDB event here.*/
