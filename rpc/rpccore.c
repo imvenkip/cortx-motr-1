@@ -7,15 +7,9 @@
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
 #include "fop/fop.h"
-#include "formation.h"
+#include "rpc/formation.h"
 #include "rpc/rpc_onwire.h"
 #include "rpc/it/ping_fop.h"
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#include "rpc/it/ping_fop_k.h"
-#else
-//#include "rpc/ping_fop_u.h"
-#endif
 
 static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
@@ -622,17 +616,14 @@ static void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 				item->ri_mach = chan->rc_rpcmachine;
 				nb->nb_ep = ev->nbe_ep;
 				item->ri_src_ep = nb->nb_ep;
-				printf("item->src_ep = %p\n", item->ri_src_ep);
-				printf("Item %d received\n", i);
 				item->ri_rpc_entry_time = now;
 				c2_rpc_item_attach(item);
 				rc = c2_rpc_item_received(item);
-				if (rc == 0) {
-					if (!in_flight_dec) {
-						in_flight_dec = true;
-						if (!c2_rpc_item_is_conn_create(item))
-							c2_rpc_frm_rpcs_inflight_dec(item);
-					}
+				if (rc == 0 && !in_flight_dec) {
+					in_flight_dec = true;
+					if (!c2_rpc_item_is_conn_create(item))
+						c2_rpc_frm_rpcs_inflight_dec(
+								item);
 					/* Post an ADDB event here.*/
 					++i;
 				}
@@ -665,12 +656,11 @@ static struct c2_net_buffer *c2_rpc_net_buffer_allocate(
 
 	if (nbuf == NULL) {
 		C2_ALLOC_PTR(nb);
-		if (nb == NULL) {
+		if (nb == NULL)
 			return nb;
-		}
-	} else {
+	} else
 		nb = nbuf;
-	}
+
 	buf_size = c2_net_domain_get_max_buffer_size(net_dom);
 	nr_segs = c2_net_domain_get_max_buffer_segments(net_dom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
@@ -678,34 +668,31 @@ static struct c2_net_buffer *c2_rpc_net_buffer_allocate(
 	/* Allocate the bufvec of size = min((buf_size), (nr_segs * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (nr_segs * seg_size)) {
+	if (buf_size > (nr_segs * seg_size))
 		nrsegs = nr_segs;
-	} else {
+	else
 		nrsegs = buf_size / seg_size;
-	}
+
 	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
 	if (rc < 0) {
-		if (nbuf == NULL) {
+		if (nbuf == NULL)
 			c2_free(nb);
-		}
 		return NULL;
 	}
 
 	nb->nb_flags = 0;
 	nb->nb_qtype = qtype;
-	if (qtype == C2_NET_QT_MSG_RECV) {
+	if (qtype == C2_NET_QT_MSG_RECV)
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	} else {
+	else
 		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
-	}
 
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
 	if (rc < 0) {
 		c2_bufvec_free(&nb->nb_buffer);
-		if (nbuf == NULL) {
+		if (nbuf == NULL)
 			c2_free(nb);
-		}
 	}
 	return nb;
 }
@@ -745,9 +732,8 @@ int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 			break;
 		}
 		rc = c2_net_buffer_add(nb, tm);
-		if (rc < 0) {
+		if (rc < 0)
 			break;
-		}
 	}
 	if (rc < 0) {
 		st = c2_rpc_net_recv_buffer_deallocate_nr(chan, true);
@@ -804,9 +790,9 @@ int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE(net_dom != NULL);
 
 	rc = c2_net_buffer_deregister(nb, net_dom);
-	if (rc < 0) {
+	if (rc < 0)
 		return rc;
-	}
+
 	c2_bufvec_free(&nb->nb_buffer);
 	return rc;
 }
@@ -860,9 +846,8 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		return rc;
 
 	rc = rpc_stat_init(&machine->cr_statistics);
-	if (rc < 0) {
+	if (rc < 0)
 		rpc_proc_fini(&machine->cr_processing);
-	}
 
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
@@ -885,14 +870,12 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 
 	rc = c2_rpcmachine_src_ep_add(machine, src_ep);
-	if (rc < 0) {
+	if (rc < 0)
 		return rc;
-	}
 
 	rc = c2_rpc_session_module_init();
-	if (rc < 0) {
+	if (rc < 0)
 		return rc;
-	}
 
 	/* Initialize the formation module. */
 	rc = c2_rpc_frm_init(&machine->cr_formation);
@@ -995,11 +978,10 @@ uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	if(fop->f_type->ft_ops->fto_size_get != NULL) {
+	if(fop->f_type->ft_ops->fto_size_get != NULL)
 		size = fop->f_type->ft_ops->fto_size_get(fop);
-	} else {
+	else
 		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	}
 
 	return size;
 }
@@ -1114,7 +1096,7 @@ void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item, union c2_io_iovec *vec)
 int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		struct c2_rpc_item *b_item);
 
-const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -1128,7 +1110,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
 	.rio_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
-const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -1142,7 +1124,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
 	.rio_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
-const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
 	.rio_sent = NULL,
 	.rio_added = NULL,
 	.rio_replied = c2_rpc_item_replied,
@@ -1157,7 +1139,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
         .rio_sent = NULL,
         .rio_added = NULL,
         .rio_replied = c2_rpc_item_replied,
@@ -1172,7 +1154,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-const struct c2_rpc_item_type_ops c2_rpc_item_ping_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_ping_type_ops = {
         .rio_sent = NULL,
         .rio_added = NULL,
         .rio_replied = c2_rpc_item_replied,
@@ -1187,7 +1169,7 @@ const struct c2_rpc_item_type_ops c2_rpc_item_ping_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-const struct c2_rpc_item_type_ops c2_rpc_item_ping_rep_type_ops = {
+static const struct c2_rpc_item_type_ops c2_rpc_item_ping_rep_type_ops = {
         .rio_sent = NULL,
         .rio_added = NULL,
         .rio_replied = c2_rpc_item_replied,
@@ -1202,33 +1184,33 @@ const struct c2_rpc_item_type_ops c2_rpc_item_ping_rep_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_readv = {
+static struct c2_rpc_item_type c2_rpc_item_type_readv = {
 	.rit_ops = &c2_rpc_item_readv_type_ops,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_writev = {
+static struct c2_rpc_item_type c2_rpc_item_type_writev = {
 	.rit_ops = &c2_rpc_item_writev_type_ops,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_create = {
+static struct c2_rpc_item_type c2_rpc_item_type_create = {
 	.rit_ops = &c2_rpc_item_create_type_ops,
 	.rit_mutabo = true,
 	.rit_item_is_req = true,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_create_rep = {
+static struct c2_rpc_item_type c2_rpc_item_type_create_rep = {
 	.rit_ops = &c2_rpc_item_create_rep_type_ops,
 	.rit_mutabo = false,
 	.rit_item_is_req = false,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_ping = {
+static struct c2_rpc_item_type c2_rpc_item_type_ping = {
         .rit_ops = &c2_rpc_item_ping_type_ops,
         .rit_mutabo = true,
         .rit_item_is_req = true,
 };
 
-struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
+static struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
         .rit_ops = &c2_rpc_item_ping_rep_type_ops,
         .rit_mutabo = false,
         .rit_item_is_req = false,
@@ -1248,27 +1230,27 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
         fop = c2_rpc_item_to_fop(item);
         opcode = fop->f_type->ft_code;
         switch (opcode) {
-                case C2_IO_SERVICE_READV_OPCODE:
-                        item->ri_type = &c2_rpc_item_type_readv;
-                        break;
-                case C2_IO_SERVICE_WRITEV_OPCODE:
-                        item->ri_type = &c2_rpc_item_type_writev;
-                        break;
-                case C2_IO_SERVICE_CREATE_OPCODE:
-                        item->ri_type = &c2_rpc_item_type_create;
-                        break;
-                case C2_IO_SERVICE_CREATE_REP_OPCODE:
-                        item->ri_type = &c2_rpc_item_type_create_rep;
-                        break;
-                case c2_fop_ping_opcode:
-                        item->ri_type = &c2_rpc_item_type_ping;
-                        break;
-                case c2_fop_ping_rep_opcode:
-                        item->ri_type = &c2_rpc_item_type_ping_rep;
-                        break;
-                default:
-                        break;
-        };
+	case C2_IO_SERVICE_READV_OPCODE:
+		item->ri_type = &c2_rpc_item_type_readv;
+		break;
+	case C2_IO_SERVICE_WRITEV_OPCODE:
+		item->ri_type = &c2_rpc_item_type_writev;
+		break;
+	case C2_IO_SERVICE_CREATE_OPCODE:
+		item->ri_type = &c2_rpc_item_type_create;
+		break;
+	case C2_IO_SERVICE_CREATE_REP_OPCODE:
+		item->ri_type = &c2_rpc_item_type_create_rep;
+		break;
+	case c2_fop_ping_opcode:
+		item->ri_type = &c2_rpc_item_type_ping;
+		break;
+	case c2_fop_ping_rep_opcode:
+		item->ri_type = &c2_rpc_item_type_ping_rep;
+		break;
+	default:
+		break;
+	};
 }
 
 /**
@@ -1291,21 +1273,25 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	   rpc_item_type with an rpc_item. */
 	opcode = fopt->ft_code;
 	switch (opcode) {
-		case C2_IO_SERVICE_READV_OPCODE:
-			fopt->ft_ri_type = &c2_rpc_item_type_readv;
-			break;
-		case C2_IO_SERVICE_WRITEV_OPCODE:
-			fopt->ft_ri_type = &c2_rpc_item_type_writev;
-			break;
-		case C2_IO_SERVICE_CREATE_OPCODE:
-			fopt->ft_ri_type = &c2_rpc_item_type_create;
-			break;
-		default:
-			break;
+	case C2_IO_SERVICE_READV_OPCODE:
+		fopt->ft_ri_type = &c2_rpc_item_type_readv;
+		break;
+	case C2_IO_SERVICE_WRITEV_OPCODE:
+		fopt->ft_ri_type = &c2_rpc_item_type_writev;
+		break;
+	case C2_IO_SERVICE_CREATE_OPCODE:
+		fopt->ft_ri_type = &c2_rpc_item_type_create;
+		break;
+	default:
+		break;
 	};
 }
 
-/** Set the incoming exit stats for an rpc item */
+/**
+  Set the stats for outgoing rpc item
+  @param item - incoming or outgoing rpc item
+  @param path - enum distinguishing whether the item is incoming or outgoing
+ */
 void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
 		enum c2_rpc_item_path path)
 {

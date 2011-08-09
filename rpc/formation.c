@@ -43,6 +43,17 @@ C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
 		C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 /**
+   Type definition of a state function.
+   @param frm_sm - given c2_rpc_frm_sm structure.
+   @param item - incoming rpc item.
+   @param event - triggered event.
+   @param pvt - private data of rpc item.
+ */
+typedef enum c2_rpc_frm_int_evt_id (*statefunc_t)(struct c2_rpc_frm_sm *frm_sm,
+		struct c2_rpc_item *item,
+		const struct c2_rpc_frm_sm_event *event);
+
+/**
    Forward declarations of local static functions
  */
 static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
@@ -183,7 +194,7 @@ static void frm_buffer_fini(struct c2_rpc_frm_buffer *fb)
    on earlier states.
    next_state = statetable[current_state][current_event]
  */
-static const statefunc c2_rpc_frm_statetable
+static const statefunc_t c2_rpc_frm_statetable
 [C2_RPC_FRM_STATES_NR][C2_RPC_FRM_INTEVT_NR - 1] = {
 
 	[C2_RPC_FRM_STATE_UNINITIALIZED] = { NULL },
@@ -515,7 +526,7 @@ static struct c2_rpc_frm_sm *frm_sm_add(struct c2_rpc_conn *conn,
    @param current_event - current event posted to the state machine.
    @retval function pointer
  */
-static statefunc frm_next_state(const int current_state,
+static statefunc_t frm_next_state(const int current_state,
 		const int current_event)
 {
 	C2_PRE(current_state < C2_RPC_FRM_STATES_NR);
@@ -817,6 +828,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SENT);
 		/* Release reference on the c2_rpc_frm_sm here. */
 		sm_exit(fb->fb_frm_sm);
+		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
 		/* If the send event fails, add the rpc back to concerned
@@ -1483,8 +1495,8 @@ static enum c2_rpc_frm_int_evt_id sm_updating_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event)
 {
-	int 				res;
-	enum c2_rpc_frm_int_evt_id 	ret;
+	int				res;
+	enum c2_rpc_frm_int_evt_id	ret;
 
 	C2_PRE(item != NULL);
 	C2_PRE(event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
@@ -1690,7 +1702,7 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 		uint64_t *rpcobj_size)
 {
 	int					 rc = 0;
-	int			 		 item_rw = 0;
+	int					 item_rw = 0;
 	uint64_t				 old_size = 0;
 	struct c2_fid				 fid;
 	struct c2_rpc_item			*ub_item = NULL;

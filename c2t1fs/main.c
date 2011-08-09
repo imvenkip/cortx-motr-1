@@ -264,21 +264,21 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->frd_foprep			= (uint64_t)ret;
 		arg->frd_fid.f_seq		= c2_global_container_id;
 		arg->frd_fid.f_oid		= objid;
-		arg->frd_ioseg.fs_count		= 1;
+		arg->frd_iovec.fs_count		= 1;
 
 		/* Populate the vector of read FOP */
-		arg->frd_ioseg.fs_segs = &read_seg;
-		arg->frd_ioseg.fs_segs->f_offset = pos;
-		arg->frd_ioseg.fs_segs->f_count = len;
+		arg->frd_iovec.fs_segs = &read_seg;
+		arg->frd_iovec.fs_segs->f_offset = pos;
+		arg->frd_iovec.fs_segs->f_count = len;
 
 		arg->frd_uid = c2_get_uid();
 		arg->frd_gid = c2_get_gid();
 		arg->frd_nid = c2_get_nid();
 		arg->frd_flags = 0;
 
-		ret->frdr_buf.f_buf = pages;
-		ret->frdr_buf.f_count = len;
-		ret->frdr_buf.cfib_pgoff = off;
+		ret->frdr_iovec.iov_seg->f_buf.f_buf = pages;
+		ret->frdr_iovec.iov_seg->f_buf.f_count = len;
+		ret->frdr_iovec.iov_seg->f_buf.cfib_pgoff = off;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
@@ -288,7 +288,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 if (rc)
                         return rc;
-                rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
+                rc = ret->frdr_rc ? : ret->frdr_iovec.iov_seg->f_buf.f_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);
