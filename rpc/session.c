@@ -1999,7 +1999,6 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item     *item;
 	struct c2_rpc_item     *last_persistent_item;
-	struct c2_list_link    *link;
 	struct c2_rpc_slot_ref *sref;
 
 	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
@@ -2017,8 +2016,7 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	 * last_persistent_item
 	 */
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) 
-	for (link = &sref->sl_link; link != {
+				ri_slot_refs[0].sr_link) {
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 				&last_persistent) <= 0) {
 			C2_ASSERT(item->ri_tstate == RPC_ITEM_PAST_COMMITTED ||
