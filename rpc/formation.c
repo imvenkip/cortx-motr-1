@@ -102,6 +102,23 @@ uint64_t max_fragments_size;
 uint64_t max_rpcs_in_flight;
 
 /**
+  This routine will set the stats for each rpc item
+  in the rpc object to RPC_ITEM_SENT
+  @param rpc - rpc object
+ */
+static void frm_item_set_rpc_stats(const struct c2_rpc *rpc)
+{
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(rpc != NULL);
+
+	c2_list_for_each_entry(&rpc->r_items, item,
+			struct c2_rpc_item, ri_rpcobject_linkage) {
+		c2_rpc_item_set_exit_stats(item, OUTGOING);
+	}
+}
+
+/**
   This routine will change the state of each rpc item
   in the rpc object to RPC_ITEM_SENT
   @param rpc - rpc object
@@ -121,7 +138,6 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 		C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
 		item->ri_state = state;
-		c2_rpc_item_set_exit_stats(item, OUTGOING);
 	}
 }
 
@@ -825,6 +841,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	if (ev->nbe_status == 0) {
+		frm_item_set_rpc_stats(fb->fb_rpc);
 		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SENT);
 		/* Release reference on the c2_rpc_frm_sm here. */
 		sm_exit(fb->fb_frm_sm);

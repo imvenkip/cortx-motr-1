@@ -474,7 +474,7 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	C2_PRE(fop1 != NULL);
 	C2_PRE(fop2 != NULL);
 
-	return (fop1->f_type == fop2->f_type);
+	return fop1->f_type == fop2->f_type;
 }
 
 /**
