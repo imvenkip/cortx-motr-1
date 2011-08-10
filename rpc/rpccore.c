@@ -205,10 +205,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_type->rit_flags = C2_RPC_ITEM_BOUND;
 
 	c2_mutex_lock(&slot->sl_mutex);
-	c2_mutex_lock(&slot->sl_session->s_mutex);
 	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
 				   reply, &tmp);
-	c2_mutex_unlock(&slot->sl_session->s_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
