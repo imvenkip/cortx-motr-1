@@ -473,18 +473,21 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
 		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
 				 &conn->c_link))
-    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
+    @post if result != 0, conn can be in C2_RPC_CONN_FAILED state.
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
 /**
    Sends "conn_terminate" FOP to receiver.
+   c2_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
+   state.
    c2_rpc_conn_terminate_reply_received() is called when reply to
    CONN_TERMINATE is received.
 
-   @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
+		conn->c_state == C2_RPC_CONN_TERMINATING
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
-   @post if result != 0 then conn->c_state is left unchanged
+   @post if result != 0, conn can be in C2_RPC_CONN_FAILED state
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -659,7 +662,8 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
     @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
-			c2_list_contains(conn->c_sessions, &session->s_link))
+		c2_list_contains(session->s_conn->c_sessions, &session->s_link))
+    @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
@@ -672,6 +676,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
+   @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
