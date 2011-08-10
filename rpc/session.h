@@ -30,8 +30,6 @@
 
 @{
 
-@page rpc-session rpc sessions Detailed Level Design Specification
-
 @section Overview
 
 A session is established between two end points. An end-point is
@@ -61,19 +59,19 @@ degree of concurrency. Number of slots can vary dynamically.
 With a slot a list of items, ordered by verno is associated. An item on
 the list is in one of the following states:
 
-* past committed: the reply for the item was received and the receiver confirmed
+- past committed: the reply for the item was received and the receiver confirmed
   that the item is persistent. Items can linger for some time in this state,
   because distributed transaction recovery requires keeping items in memory
   after they become persistent on the receiver;
 
-* past volatile: the reply was received, but persistence confirmation wasn't;
+- past volatile: the reply was received, but persistence confirmation wasn't;
 
-* unreplied: the item was sent (i.e., placed into an rpc) and no reply is
+- unreplied: the item was sent (i.e., placed into an rpc) and no reply is
   received. We are usually talking about a situations where there is at
   most a single item in this state, but it is not, strictly speaking, necessary.
   More than a single item can be in flight per-slot;
 
-* future: the item wasn't sent.
+- future: the item wasn't sent.
 
 With respect to session and slots, an item is said to be "bound" if
 the item is associated with slot. An item is called as "unbound"/"freestanding"
@@ -88,7 +86,7 @@ An item, has a MUTABO flag, which is set when the item is an update (i.e.,
 changes the file system state). When the item is an update then (for each
 slot the item is in) its verno is greater than the verno of the previous
 item on the slot's item list. Multiple consecutive non-MUTABO items (i.e.,
-read-only queries can have the same verno);
+read-only queries) can have the same verno;
 
 With each item a (pointer to) reply is associated. This pointer is set
 once the reply is received for the item;
@@ -96,19 +94,19 @@ once the reply is received for the item;
 A slot has a number of pointers into this list and other fields, described
 below:
 
-<li><b>last_sent</b>
+@li <b>last_sent</b>
 pointer usually points to the latest unreplied request. When the
 receiver fails and restarts, the last_sent pointer is shifted back to the
 item from which the recovery must continue.
 Note that last_sent might be moved all the way back to the oldest item;
-<li><b>last_persistent</b>
+@li <b>last_persistent</b>
 last_persistent item points to item whose effects have reached to persistent
 storage.
 
 sender_slot_invariant() should check that:
-* items on the slot list are ordered by verno and state;
-* MUTABO items have increasing verno-s;
-* an item has reply attached exactly when it is in the unreplied state.
+- items on the slot list are ordered by verno and state;
+- MUTABO items have increasing verno-s;
+- an item has reply attached exactly when it is in the unreplied state.
 
 A slot state machine reacts to the following events:
 [ITEM ADD]: a new item is added to the future list;
@@ -118,9 +116,9 @@ last persistent item;
 [RESET]: last_sent is reset back due to the receiver restart.
 
 The state of a slot is described by the following variables:
-item list: the list of items, starting from the oldest;
-last_sent: the earliest item that the receiver possibly have seen;
-in_flight: the number of items currently on the network.
+- item list: the list of items, starting from the oldest;
+- last_sent: the earliest item that the receiver possibly have seen;
+- in_flight: the number of items currently on the network.
 
 Note that slot.in_flight not necessary equals the number of unreplied items:
 during recovery items from the past parts of the list are replayed.
@@ -133,7 +131,7 @@ For each slot, a configuration parameter slot.max_in_flight is defined.
 This parameter is set to 1 to obtain a "standard" slot behaviour, where no
 more than single item is in flight.
 
-<b> Reply cache: </b><BR>
+<b> Reply cache: </b>
 
 Reply cache caches replies for update operations. Replies of read-only
 operations is not cached. When a duplicate update item is received which is
@@ -155,7 +153,7 @@ A FOL (File Operation Log) can be used to cache replies. Current verno of slot
 points to record of most recent update operation that updated the slot verno.
 
 
-<B>Maintaining item dependancies when slot.max_in_flight > 1 </B> <BR>
+<B>Maintaining item dependancies when slot.max_in_flight > 1 </B>
 
  First, let's clarify that xid is used to uniquely identify items sent through
  a particular slot, whereas verno is used to identify the state of target
@@ -163,17 +161,17 @@ points to record of most recent update operation that updated the slot verno.
 
  We want to achieve the following goals:
 
-   * sequence of operations sent through a slot can be exactly reproduced
+   - sequence of operations sent through a slot can be exactly reproduced
      after the receiver or the network failed. "Reproduced" here means that
      after the operations are re-applied the same observable system state
      results.
 
-   * Network level concurrency (multiple items in flight).
+   - Network level concurrency (multiple items in flight).
 
-   * Server level concurrency (multiple operations executed on the receiver
+   - Server level concurrency (multiple operations executed on the receiver
      concurrently, where possible).
 
-   * Operations might have dependencies.
+   - Operations might have dependencies.
 
  Let's put the following data into each item:
  @code
@@ -191,12 +189,12 @@ points to record of most recent update operation that updated the slot verno.
 
  When an item is submitted to the rpc layer, its ->dep is
 
-   * either set by the caller (the rpc checks that the receiver is the same
+   - either set by the caller (the rpc checks that the receiver is the same
      in a pre-condition);
 
-   * set to NULL to indicate that there are no dependencies;
+   - set to NULL to indicate that there are no dependencies;
 
-   * set to a special LAST constant value, to indicate that the item depends
+   - set to a special LAST constant value, to indicate that the item depends
      on the last item sent through the same slot. In this case, the rpc code
      assigns ->dep to the appropriate item:
 
@@ -213,17 +211,17 @@ points to record of most recent update operation that updated the slot verno.
  item->dep->xid is sent to the receiver along with other item attributes. On
  the receiver, the item is submitted to the request handler only when
 
-   * item->dep item has been received and executed and
+   - item->dep item has been received and executed and
 
-   * item->verno matches the slot verno (as usual).
+   - item->verno matches the slot verno (as usual).
 
  Typical scenarios are as following:
 
-   * update operations are submitted, all with LAST dep, they are sent
+   - update operations are submitted, all with LAST dep, they are sent
      over the network concurrently (up to slot->max_in_flight) and executed
      serially by the receiver;
 
-   * an update item I0 is submitted, then a set of read-only items is submitted,
+   - an update item I0 is submitted, then a set of read-only items is submitted,
      all with ->dep set to LAST. Read-only operations are sent concurrently and
      executed concurrently after I0 has been executed.
 
@@ -250,32 +248,32 @@ points to record of most recent update operation that updated the slot verno.
 
 #include "lib/list.h"
 #include "lib/chan.h"
+#include "lib/cond.h"
 #include "lib/mutex.h"
 #include "dtm/verno.h"
 
 #ifdef __KERNEL__
-#define printf(fmt, ...)	printk((fmt), ## __VA_ARGS__)
+#define printf	printk
 #endif
 
 /* Imports */
 struct c2_rpc_item;
 struct c2_rpcmachine;
 struct c2_rpc_chan;
-struct c2_net_end_point;
 
 /* Exports */
 struct c2_rpc_session;
 struct c2_rpc_conn;
 
 enum {
-	/** session_[create|terminate] items go on session 0 */
-	SESSION_0 = 0,
-	SESSION_ID_INVALID = ~0,
+	/** [conn|session]_[create|terminate] items go on session 0 */
+	SESSION_ID_0 = 0,
+	SESSION_ID_INVALID = UINT64_MAX,
 	/** Range of valid session ids */
-	SESSION_ID_MIN = SESSION_0 + 1,
+	SESSION_ID_MIN = SESSION_ID_0 + 1,
 	SESSION_ID_MAX = SESSION_ID_INVALID - 1,
-	SENDER_ID_INVALID = ~0,
-	SLOT_ID_INVALID = ~0,
+	SENDER_ID_INVALID = UINT64_MAX,
+	SLOT_ID_INVALID = UINT32_MAX,
 };
 
 /**
@@ -286,7 +284,7 @@ enum {
  */
 struct c2_rpc_sender_uuid {
 	/** XXX Temporary */
-	uint64_t	su_uuid;
+	uint64_t su_uuid;
 };
 
 enum c2_rpc_conn_state {
@@ -298,9 +296,9 @@ enum c2_rpc_conn_state {
 
 	/**
 	   When sender is waiting for receiver reply to get its sender ID it is
-	   in CREATING state.
+	   in CONNECTING state.
 	 */
-	C2_RPC_CONN_CREATING = (1 << 1),
+	C2_RPC_CONN_CONNECTING = (1 << 1),
 
 	/**
 	   When initialization is successfull connection enters in ACTIVE state.
@@ -340,38 +338,46 @@ enum c2_rpc_conn_flags {
 
 /**
    For every service to which sender wants to communicate there is one
-   instance of c2_rpc_conn. All instances of c2_rpc_conn are
-   maintained in a list inside rpcmachine. Instance of c2_rpc_conn stores
-   a list of all sessions currently active with the service.
+   instance of c2_rpc_conn.
+
+   c2_rpcmachine maintains two lists of c2_rpc_conn
+   - cr_outgoing_conns: list of c2_rpc_conn objects for which this node is
+     sender
+   - cr_incoming_conns: list of c2_rpc_conn object for which this node is
+     receiver
+
+   Instance of c2_rpc_conn stores a list of all sessions currently active with
+   the service.
    Same sender has different sender_id to communicate with different service.
 
-   At the time of creation of a c2_rpc_conn, a "special" session with SESSION_0
-   is also created. It is special in the sense that it is "hand-made" and there
-   is no need to communicate to receiver in order to create this session.
-   Receiver assumes that there always exists a session 0 for each sender_id.
+   At the time of creation of a c2_rpc_conn, a "special" session with
+   SESSION_ID_0 is also created. It is special in the sense that it is
+   "hand-made" and there is no need to communicate to receiver in order to
+   create this session. Receiver assumes that there always exists a session 0
+   for each rpc connection.
    Session 0 always have exactly 1 slot within it.
    Receiver creates session 0 while creating the rpc connection itself.
-   Session 0 is required to send other SESSION_CREATE/SESSION_TERMINATE requests
-   to the receiver. As SESSION_CREATE and SESSION_TERMINATE operations are
-   non-idempotent, they also need EOS and FIFO guarantees.
+   Session 0 is required to send special fops like
+   - conn_establish or conn_terminate FOP
+   - session_establish or session_terminate FOP.
 
-   <PRE>
-   Note: There is no state named as "UNKNOWN", it is in the state diagram to
-   specify "before initialisation" and "after finalisation" state, and the
-   contents of object are irrelevant and "unknown".
+   Note: There is no state named as "UNINITIALISED", it is in the state
+   diagram to specify "before initialisation" and "after finalisation" state,
+   and the contents of object are irrelevant and "unknown".
 
-   +-------------------------> unknown state
-         allocated                  |
-                                    |  c2_rpc_conn_init()
-                                    V
+   @verbatim
+   +-------------------------> UNINITIALISED
+         allocated               ^  |
+               c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
+                                 |  V
                                INITIALISED
                                     |
-                                    |  c2_rpc_conn_create()
+                                    |  c2_rpc_conn_establish()
                                     |
                                     V
-         +---------------------- CREATING
+         +---------------------- CONNECTING
          | time-out ||              |
-         |     reply.rc != 0        | conn_create_reply_received() &&
+         |     reply.rc != 0        | conn_establish_reply_received() &&
          |                          |    reply.rc == 0
          V                          |
        FAILED                       |
@@ -387,51 +393,57 @@ enum c2_rpc_conn_flags {
 	 |                          V
 	 |			TERMINATED
 	 |                          |
-	 |			    |  fini()
-	 |	fini()		    V
-	 +--------------------> unknown state
+	 |			    |  c2_rpc_conn_fini()
+	 | c2_rpc_conn_fini()	    V
+	 +--------------------> UNINITIALISED
 
-</PRE>
+  @endverbatim
+
   Concurrency:
   * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
   * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
  */
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
-	struct c2_rpc_sender_uuid	 c_uuid;
-	/** Every c2_rpc_conn is stored on a list
-	    c2_rpcmachine::cr_rpc_conn_list
-	    conn is in the list if c_state is not in {
-	    CONN_INITIALISED, CONN_FAILED, CONN_TERMINATED} */
-	struct c2_rpcmachine		*c_rpcmachine;
-	struct c2_list_link              c_link;
-	enum c2_rpc_conn_state		 c_state;
+	struct c2_rpc_sender_uuid c_uuid;
+	/**
+	   rpcmachine with which this conn is associated
+	 */
+	struct c2_rpcmachine     *c_rpcmachine;
+	/**
+	   list_link to put c2_rpc_conn in either
+	   c2_rpcmachine::cr_incoming_conns or c2_rpcmachine::cr_outgoing_conns
+	 */
+	struct c2_list_link       c_link;
+	enum c2_rpc_conn_state    c_state;
 	/** @see c2_rpc_conn_flags for list of flags */
-	uint64_t			 c_flags;
+	uint64_t                  c_flags;
 	/** A c2_rpc_chan structure that will point to the transfer
 	    machine used by this c2_rpc_conn. */
-	struct c2_rpc_chan		*c_rpcchan;
+	struct c2_rpc_chan       *c_rpcchan;
 	/**
 	    XXX Deprecated: c2_service_id
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
-	struct c2_service_id            *c_service_id;
+	struct c2_service_id     *c_service_id;
 	/** Destination end point */
-	struct c2_net_end_point		*c_end_point;
+	struct c2_net_end_point  *c_end_point;
 	/** cob representing the connection */
-	struct c2_cob			*c_cob;
+	struct c2_cob            *c_cob;
 	/** Sender ID unique on receiver */
-	uint64_t                         c_sender_id;
+	uint64_t                  c_sender_id;
 	/** List of all the sessions created under this rpc connection.
 	    c2_rpc_session objects are placed in this list using
 	    c2_rpc_session::s_link */
-	struct c2_list                   c_sessions;
+	struct c2_list            c_sessions;
 	/** Counts number of sessions (excluding session 0) */
-	uint64_t                         c_nr_sessions;
-	struct c2_chan                   c_chan;
-	struct c2_mutex                  c_mutex;
+	uint64_t                  c_nr_sessions;
+	/** Conditional variable on which "connection state changed" signal
+	    is broadcasted */
+	struct c2_cond            c_state_changed;
+	struct c2_mutex           c_mutex;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
-	int32_t				 c_rc;
+	int32_t                   c_rc;
 };
 
 /**
@@ -446,20 +458,21 @@ struct c2_rpc_conn {
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn		*conn,
-		     const struct c2_rpcmachine	*machine);
+int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
+		     struct c2_rpcmachine *machine);
 
 /**
     Send handshake conn create fop to the remote end. The reply
     contains sender-id.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
-    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CREATING &&
-		c2_list_contains(&machine->cr_rpc_conn_list, &conn->c_link))
+    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
+		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
+				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
-int c2_rpc_conn_create(struct c2_rpc_conn	*conn,
-		       struct c2_net_end_point	*ep);
+int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
+			  struct c2_net_end_point *ep);
 
 /**
    Send "conn_terminate" FOP to receiver.
@@ -482,15 +495,16 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
     Wait until c2_rpc_conn state machine reached the desired state.
 
     @param state_flags can specify multiple states by ORing
-    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @param abs_timeout should not sleep past abs_timeout waiting for conn
+		to reach in desired state.
     @return true if @conn reaches in one of the state(s) specified by
                 @state_flags
     @return false if time out has occured before @conn reaches in desired
                 state.
  */
-bool c2_rpc_conn_timedwait(struct c2_rpc_conn	*conn,
-			   uint64_t		state_flags,
-			   const c2_time_t	abs_timeout);
+bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
+			   uint64_t            state_flags,
+			   const c2_time_t     abs_timeout);
 
 /**
    checks internal consistency of c2_rpc_conn
@@ -507,10 +521,10 @@ enum c2_rpc_session_state {
 	 */
 	C2_RPC_SESSION_INITIALISED = (1 << 0),
 	/**
-	   When sender sends a SESSION_CREATE FOP to reciever it
+	   When sender sends a SESSION_ESTABLISH FOP to reciever it
 	   is in CREATING state
 	 */
-	C2_RPC_SESSION_CREATING = (1 << 1),
+	C2_RPC_SESSION_ESTABLISHING = (1 << 1),
 	/**
 	   A session is IDLE if both of following is true
 		- for each slot S in session
@@ -548,7 +562,7 @@ enum c2_rpc_session_state {
 
 /**
    Session object at the sender side.
-<PRE>
+   @verbatim
 
             +------------------> some unknown state
                  allocated            |
@@ -556,7 +570,7 @@ enum c2_rpc_session_state {
 				      V
 				  INITIALISED
 				      |
-				      | c2_rpc_session_create()
+				      | c2_rpc_session_establish()
 				      |
 		timed-out	      V
           +-------------------------CREATING
@@ -583,36 +597,38 @@ enum c2_rpc_session_state {
 	  |			      V
 	  +----------------------->unknown state
 
-</PRE>
+   @endverbatim
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
-	struct c2_list_link		 s_link;
-	enum c2_rpc_session_state	 s_state;
+	struct c2_list_link       s_link;
+	enum c2_rpc_session_state s_state;
 	/** identifies a particular session. It is not globally unique */
-	uint64_t			 s_session_id;
-	struct c2_cob			*s_cob;
+	uint64_t                  s_session_id;
+	struct c2_cob            *s_cob;
 	/** rpc connection on which this session is created */
-	struct c2_rpc_conn		*s_conn;
-	struct c2_chan			 s_chan;
+	struct c2_rpc_conn       *s_conn;
+	/** A condition variable on which broadcast is sent whenever state of
+	    session is changed. Associated with s_mutex */
+	struct c2_cond            s_state_changed;
 	/** lock protecting this session and slot table */
-	struct c2_mutex			 s_mutex;
+	struct c2_mutex           s_mutex;
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
 	    state in all slots belonging to this session. */
-	int32_t				 s_nr_active_items;
+	int32_t                   s_nr_active_items;
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
-	struct c2_list			 s_unbound_items;
+	struct c2_list            s_unbound_items;
 	/** Number of active slots in the table */
-	uint32_t			 s_nr_slots;
+	uint32_t                  s_nr_slots;
 	/** Capacity of slot table */
-	uint32_t			 s_slot_table_capacity;
+	uint32_t                  s_slot_table_capacity;
 	/** Array of pointers to slots */
-	struct c2_rpc_slot	       **s_slot_table;
+	struct c2_rpc_slot      **s_slot_table;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
 		denoting cause of failure */
-	int32_t				 s_rc;
+	int32_t                   s_rc;
 };
 
 /**
@@ -624,54 +640,53 @@ struct c2_rpc_session {
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-int c2_rpc_session_init(struct c2_rpc_session     *session,
-			const struct c2_rpc_conn  *conn,
-			uint32_t	          nr_slots);
+int c2_rpc_session_init(struct c2_rpc_session *session,
+			struct c2_rpc_conn    *conn,
+			uint32_t               nr_slots);
 
 /**
-    Sends a SESSION_CREATE fop across pre-defined 0-session in the c2_rpc_conn.
+    Sends a SESSION_ESTABLISH fop across pre-defined 0-session in the c2_rpc_conn.
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
-    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_CREATING &&
+    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
 			c2_list_contains(conn->c_sessions, &session->s_link))
  */
-int c2_rpc_session_create(struct c2_rpc_session	*session);
+int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
-   Send terminate session message to receiver.
+   Sends terminate session message to receiver.
+   Acts as no-op if session is already in TERMINATING state.
 
-   @pre session->s_state == C2_RPC_SESSION_IDLE
+   @pre session->s_state == C2_RPC_SESSION_IDLE ||
+	session->s_state == C2_RPC_SESSION_TERMINATING
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
 /**
-    Wait until desired state is reached.
+    Waits until desired state is reached.
 
     @param state_flags can specify multiple states by ORing
-    @param abs_timeout absolute time since Epoch (00:00:00, 1 January 1970)
+    @param abs_timeout thread does not sleep past abs_timeout waiting for conn
+		to reach in desired state.
     @return true if session reaches in one of the state(s) specified by
 		@state_flags
     @return false if time out has occured before session reaches in desired
 		state.
  */
-bool c2_rpc_session_timedwait(struct c2_rpc_session	*session,
-			      uint64_t			state_flags,
-			      const c2_time_t		abs_timeout);
+bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
+			      uint64_t               state_flags,
+			      const c2_time_t        abs_timeout);
 
 /**
-   Finalize session object
+   Finalizes session object
 
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||
 	session->s_state == C2_RPC_SESSION_FAILED ||
 	session->s_state == C2_RPC_SESSION_INITIALISED
  */
 void c2_rpc_session_fini(struct c2_rpc_session *session);
-
-enum {
-	SLOT_DEFAULT_MAX_IN_FLIGHT = 1
-};
 
 /**
    Returns the number of rpc items that can be bound to this slot
@@ -681,21 +696,6 @@ enum {
    XXX Need a better name.
  */
 uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
-
-/**
-   Events that slot can generate.
- */
-struct c2_rpc_slot_ops {
-	/** Item i is ready to be consumed */
-	void (*so_item_consume)(struct c2_rpc_item *i);
-	/** A @reply for a request item @req is received and is
-	    ready to be consumed */
-	void (*so_reply_consume)(struct c2_rpc_item	*req,
-				 struct c2_rpc_item	*reply);
-	/** Slot has no items to send and hence is idle. Formation
-	    can use such slot to send unbound items. */
-	void (*so_slot_idle)(struct c2_rpc_slot *slot);
-};
 
 /**
   In memory slot object.
@@ -716,43 +716,43 @@ struct c2_rpc_slot_ops {
   The verno.vn_vc is set to 0 at the time of slot creation on both ends.
 
   A slot responds to following events:
-  ITEM_APPLY
-  REPLY_RECEIVED
-  PERSISTENCE
-  RESET
+  - ITEM_APPLY
+  - REPLY_RECEIVED
+  - PERSISTENCE
+  - RESET
  */
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */
-	struct c2_rpc_session		*sl_session;
+	struct c2_rpc_session        *sl_session;
 	/** identifier of slot, unique within the session */
-	uint32_t			 sl_slot_id;
-	struct c2_cob			*sl_cob;
+	uint32_t                      sl_slot_id;
+	struct c2_cob                *sl_cob;
 	/** list anchor to put in c2_rpcmachine::ready_slots */
-	struct c2_list_link		 sl_link;
+	struct c2_list_link           sl_link;
 	/** Current version number of slot */
-	struct c2_verno			 sl_verno;
+	struct c2_verno               sl_verno;
 	/** slot generation */
-	uint64_t			 sl_slot_gen;
-	/** a monotonically increasing counter, copied in each item
-	    sent through this slot */
-	uint64_t			 sl_xid;
+	uint64_t                      sl_slot_gen;
+	/** A monotonically increasing sequence counter, assigned to an item
+	    when it is bound to the slot */
+	uint64_t                      sl_xid;
 	/** List of items, starting from oldest. Items are placed using
 	    c2_rpc_item::ri_slot_refs[0].sr_link */
-	struct c2_list			 sl_item_list;
+	struct c2_list                sl_item_list;
 	/** earliest item that the receiver possibly have seen */
-	struct c2_rpc_item		*sl_last_sent;
+	struct c2_rpc_item           *sl_last_sent;
 	/** item that is most recently persistent on receiver */
-	struct c2_rpc_item		*sl_last_persistent;
+	struct c2_rpc_item           *sl_last_persistent;
 	/** Number of items in flight */
-	uint32_t			 sl_in_flight;
+	uint32_t                      sl_in_flight;
 	/** Maximum number of items that can be in flight on this slot.
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
-	uint32_t			 sl_max_in_flight;
+	uint32_t                      sl_max_in_flight;
 	/** List of items ready to put in rpc. Items are placed in this
 	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link */
-	struct c2_list			 sl_ready_list;
-	struct c2_mutex			 sl_mutex;
-	const struct c2_rpc_slot_ops	*sl_ops;
+	struct c2_list                sl_ready_list;
+	struct c2_mutex               sl_mutex;
+	const struct c2_rpc_slot_ops *sl_ops;
 };
 
 /**
@@ -765,7 +765,7 @@ struct c2_rpc_slot {
 /**
    Returns true if item is carrying CONN_CREATE fop.
  */
-bool c2_rpc_item_is_conn_create(const struct c2_rpc_item  *item);
+bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item  *item);
 
 /** @} end of session group */
 

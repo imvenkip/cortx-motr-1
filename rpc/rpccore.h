@@ -783,7 +783,7 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 /**
    Return a c2_rpc_chan structure given the endpoint.
    Refcount is incremented on the returned c2_rpc_chan.
-   This API will be typically used by c2_rpc_conn_create method
+   This API will be typically used by c2_rpc_conn_establish method
    to get a source endpoint and eventually a transfer machine to
    associate with.
    @param machine - concerned c2_rpcmachine from which new c2_rpc_chan

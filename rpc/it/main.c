@@ -319,9 +319,9 @@ void server_init(int dummy)
 		printf("Client Endpoint created \n");
 	}
 
-	/* Create RPC connection using new API
-	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */
+	/* Create RPC connection using new API 
+	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
+	   &cctx.pc_cep); */	
 
 	sctx.pc_db_name = "rpcping_db_server";
 	sctx.pc_cob_dom_id.id =  13 ;
@@ -607,9 +607,9 @@ void client_init()
 		printf("Server Endpoint created \n");
 	}
 
-	/* Create RPC connection using new API
-	   rc = c2_rpc_conn_create(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */
+	/* Create RPC connection using new API 
+	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
+	   &cctx.pc_cep); */	
 
 	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;
@@ -653,7 +653,7 @@ void client_init()
 	}
 
 	/* Create RPC connection */
-	rc = c2_rpc_conn_create(&cctx.pc_conn, cctx.pc_rep);
+	rc = c2_rpc_conn_establish(&cctx.pc_conn, cctx.pc_rep);
 	if(rc != 0){
 		printf("Failed to create rpc connection\n");
 		goto cleanup;
@@ -689,7 +689,7 @@ void client_init()
 	}
 
 	/* Create RPC session */
-	rc = c2_rpc_session_create(&cctx.pc_rpc_session);
+	rc = c2_rpc_session_establish(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to create session\n");
 		goto cleanup;
