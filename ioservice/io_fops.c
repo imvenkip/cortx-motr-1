@@ -608,18 +608,18 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 }
 
 /**
-   Add a new generic IO segment to aggr_list unconditionally.
+   Allocate a new generic IO segment
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called || io_fop_seg_add_cond is called.
 
-   @param ns - current IO segment from IO vector.
    @param offset - starting offset of current IO segment from aggr_list.
    @param count - count of bytes in current IO segment from aggr_list.
+   @param ns - current IO segment from IO vector.
    @param op - Operation code, this io segment belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
  */
-static int io_fop_seg_add(uint64_t offset, uint32_t count,
+static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		struct c2_io_ioseg **ns, enum c2_io_service_opcodes op)
 {
 	int			 rc = 0;
@@ -661,13 +661,15 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
 
 	off2 = ioseg_offset_get(seg, op);
 
-	if (off1 + cnt1 < off2 || off1 < off2) {
-		rc = io_fop_seg_add(off1, cnt1, &new_seg, op);
+	if (off1 < off2) {
+		rc = io_fop_seg_init(off1, cnt1, &new_seg, op);
 		if (rc < 0)
 			return rc;
 
 		c2_list_add_before(&seg->io_linkage, &new_seg->io_linkage);
-	}
+	} else
+		rc = -EINVAL;
+
 	return rc;
 }
 
@@ -697,7 +699,8 @@ static bool io_fop_segs_adjacent(struct c2_io_ioseg *seg, const uint64_t off1,
 
 	off2 = ioseg_offset_get(seg, op);
 	cnt2 = ioseg_count_get(seg, op);
-	newcount = ioseg_count_get(seg, op) + cnt1;
+
+	newcount = cnt1 + cnt2;
 
 	/* If two segments are adjacent, merge them. */
 	if (off1 + cnt1 == off2) {
@@ -726,6 +729,7 @@ static bool io_fop_segs_adjacent(struct c2_io_ioseg *seg, const uint64_t off1,
    @param seg - current write segment from IO vector.
    @param aggr_list - list of write segments which gets built during
     this operation.
+   @param op - Opcode, given seg belongs to.
  */
 static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 		struct c2_list *aggr_list, enum c2_io_service_opcodes op)
@@ -757,16 +761,18 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 			   in increasing order of offsets, add it before
 			   current segments from aggr_list. */
 			rc = io_fop_seg_add_cond(ioseg, off1, cnt1, op);
-			if (rc != 0)
+			if (rc == -ENOMEM)
 				return;
-			else
+			else {
+				added = true;
 				break;
+			}
 		}
 	}
 
 	/* Add a new write segment unconditionally in aggr_list. */
 	if (!added) {
-		rc = io_fop_seg_add(off1, cnt1, &new_seg, op);
+		rc = io_fop_seg_init(off1, cnt1, &new_seg, op);
 		if (rc < 0)
 			return;
 		c2_list_add_tail(aggr_list, &new_seg->io_linkage);
@@ -780,7 +786,8 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
    @note io_fop_segments_coalesce is called.
    @note This function is called only for read operation fops.
 
-   @param aggr_list - list of write IO segments.
+   @param aggr_list - list of IO segments.
+   @param op - Operation type
  */
 static void io_fop_segments_contract(const struct c2_list *aggr_list,
 		enum c2_io_service_opcodes op)

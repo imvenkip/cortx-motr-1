@@ -101,7 +101,7 @@
    in one state.
 
    RPC formation state machine:
-   \verbatim
+   @verbatim
 
                               UNINITIALIZED
                                    | frm_sm_init()
@@ -121,7 +121,7 @@
      a,b,c | |  +----------------------------------+   | | d,e
            +-+                                         +-+
 
-    \endverbatim	   
+    @endverbatim	   
 
     External Events :
 	- a. Item ready (bound item)

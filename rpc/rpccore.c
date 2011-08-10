@@ -397,7 +397,7 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 
 	/* Allocate new rpc chan.*/
 	C2_ALLOC_PTR(ch);
-	if (ch == NULL){
+	if (ch == NULL) {
 		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
 				&rpc_machine_addb_loc, c2_addb_oom);
 		return -ENOMEM;
@@ -969,9 +969,9 @@ static void rpc_item_op_replied(struct c2_rpc_item *item, int rc)
 }
 
 static const struct c2_rpc_item_type_ops rpc_item_ops = {
-	.rio_sent    = rpc_item_op_sent,
-	.rio_added   = rpc_item_op_added,
-	.rio_replied = rpc_item_op_replied
+	.rito_sent    = rpc_item_op_sent,
+	.rito_added   = rpc_item_op_added,
+	.rito_replied = rpc_item_op_replied
 };
 
 /** simple vector of update stream operations */
@@ -1135,89 +1135,89 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		struct c2_rpc_item *b_item);
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_readv_type_ops = {
-	.rio_sent = NULL,
-	.rio_added = NULL,
-	.rio_replied = c2_rpc_item_replied,
-	.rio_iovec_restore = c2_rpc_item_vec_restore,
-	.rio_item_size = c2_rpc_item_size,
-	.rio_items_equal = c2_rpc_item_equal,
-	.rio_io_get_opcode = c2_rpc_item_get_opcode,
-	.rio_io_get_fid = c2_rpc_item_io_get_fid,
-	.rio_is_io_req = c2_rpc_item_is_io_req,
-	.rio_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
-	.rio_io_coalesce = c2_rpc_item_io_coalesce,
+	.rito_sent = NULL,
+	.rito_added = NULL,
+	.rito_replied = c2_rpc_item_replied,
+	.rito_iovec_restore = c2_rpc_item_vec_restore,
+	.rito_item_size = c2_rpc_item_size,
+	.rito_items_equal = c2_rpc_item_equal,
+	.rito_io_get_opcode = c2_rpc_item_get_opcode,
+	.rito_io_get_fid = c2_rpc_item_io_get_fid,
+	.rito_is_io_req = c2_rpc_item_is_io_req,
+	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
+	.rito_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_writev_type_ops = {
-	.rio_sent = NULL,
-	.rio_added = NULL,
-	.rio_replied = c2_rpc_item_replied,
-	.rio_iovec_restore = c2_rpc_item_vec_restore,
-	.rio_item_size = c2_rpc_item_size,
-	.rio_items_equal = c2_rpc_item_equal,
-	.rio_io_get_opcode = c2_rpc_item_get_opcode,
-	.rio_io_get_fid = c2_rpc_item_io_get_fid,
-	.rio_is_io_req = c2_rpc_item_is_io_req,
-	.rio_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
-	.rio_io_coalesce = c2_rpc_item_io_coalesce,
+	.rito_sent = NULL,
+	.rito_added = NULL,
+	.rito_replied = c2_rpc_item_replied,
+	.rito_iovec_restore = c2_rpc_item_vec_restore,
+	.rito_item_size = c2_rpc_item_size,
+	.rito_items_equal = c2_rpc_item_equal,
+	.rito_io_get_opcode = c2_rpc_item_get_opcode,
+	.rito_io_get_fid = c2_rpc_item_io_get_fid,
+	.rito_is_io_req = c2_rpc_item_is_io_req,
+	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
+	.rito_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_create_type_ops = {
-	.rio_sent = NULL,
-	.rio_added = NULL,
-	.rio_replied = c2_rpc_item_replied,
-	.rio_item_size = c2_rpc_item_default_size,
-	.rio_items_equal = c2_rpc_item_equal,
-	.rio_io_get_opcode = c2_rpc_item_get_opcode,
-	.rio_io_get_fid = c2_rpc_item_io_get_fid,
-	.rio_is_io_req = c2_rpc_item_is_io_req,
-	.rio_get_io_fragment_count = NULL,
-	.rio_io_coalesce = NULL,
+	.rito_sent = NULL,
+	.rito_added = NULL,
+	.rito_replied = c2_rpc_item_replied,
+	.rito_item_size = c2_rpc_item_default_size,
+	.rito_items_equal = c2_rpc_item_equal,
+	.rito_io_get_opcode = c2_rpc_item_get_opcode,
+	.rito_io_get_fid = c2_rpc_item_io_get_fid,
+	.rito_is_io_req = c2_rpc_item_is_io_req,
+	.rito_get_io_fragment_count = NULL,
+	.rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_create_rep_type_ops = {
-        .rio_sent = NULL,
-        .rio_added = NULL,
-        .rio_replied = c2_rpc_item_replied,
-        .rio_item_size = c2_rpc_item_default_size,
-        .rio_items_equal = c2_rpc_item_equal,
-        .rio_io_get_opcode = c2_rpc_item_get_opcode,
-        .rio_io_get_fid = c2_rpc_item_io_get_fid,
-        .rio_is_io_req = c2_rpc_item_is_io_req,
-        .rio_get_io_fragment_count = NULL,
-        .rio_io_coalesce = NULL,
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = c2_rpc_item_replied,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = c2_rpc_item_equal,
+        .rito_io_get_opcode = c2_rpc_item_get_opcode,
+        .rito_io_get_fid = c2_rpc_item_io_get_fid,
+        .rito_is_io_req = c2_rpc_item_is_io_req,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_ping_type_ops = {
-        .rio_sent = NULL,
-        .rio_added = NULL,
-        .rio_replied = c2_rpc_item_replied,
-        .rio_item_size = c2_rpc_item_default_size,
-        .rio_items_equal = c2_rpc_item_equal,
-        .rio_io_get_opcode = c2_rpc_item_get_opcode,
-        .rio_io_get_fid = c2_rpc_item_io_get_fid,
-        .rio_is_io_req = c2_rpc_item_is_io_req,
-        .rio_get_io_fragment_count = NULL,
-        .rio_io_coalesce = NULL,
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = c2_rpc_item_replied,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = c2_rpc_item_equal,
+        .rito_io_get_opcode = c2_rpc_item_get_opcode,
+        .rito_io_get_fid = c2_rpc_item_io_get_fid,
+        .rito_is_io_req = c2_rpc_item_is_io_req,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops c2_rpc_item_ping_rep_type_ops = {
-        .rio_sent = NULL,
-        .rio_added = NULL,
-        .rio_replied = c2_rpc_item_replied,
-        .rio_item_size = c2_rpc_item_default_size,
-        .rio_items_equal = c2_rpc_item_equal,
-        .rio_io_get_opcode = c2_rpc_item_get_opcode,
-        .rio_io_get_fid = c2_rpc_item_io_get_fid,
-        .rio_is_io_req = c2_rpc_item_is_io_req,
-        .rio_get_io_fragment_count = NULL,
-        .rio_io_coalesce = NULL,
+        .rito_sent = NULL,
+        .rito_added = NULL,
+        .rito_replied = c2_rpc_item_replied,
+        .rito_item_size = c2_rpc_item_default_size,
+        .rito_items_equal = c2_rpc_item_equal,
+        .rito_io_get_opcode = c2_rpc_item_get_opcode,
+        .rito_io_get_fid = c2_rpc_item_io_get_fid,
+        .rito_is_io_req = c2_rpc_item_is_io_req,
+        .rito_get_io_fragment_count = NULL,
+        .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
         .rito_decode = c2_rpc_fop_default_decode,
 };
@@ -1326,11 +1326,35 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 }
 
 /**
+  Set the stats unit for given rpc item
+  @param item - rpc item for which stats have to be collected
+  @param su - stats unit in which stats have to be collected
+ */
+static void item_status_unit_set(struct c2_rpc_item *item,
+		struct c2_rpc_stats_unit *su)
+{
+	su->rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
+			item->ri_rpc_entry_time);
+	if (su->rsu_min_lat >= su->rsu_i_lat || su->rsu_min_lat == 0)
+		su->rsu_min_lat = su->rsu_i_lat;
+	if (su->rsu_max_lat <= su->rsu_i_lat || su->rsu_max_lat == 0)
+		su->rsu_max_lat = su->rsu_i_lat;
+
+	/* Do not perform floating point division in kernel. */
+#ifndef __KERNEL__
+	su->rsu_avg_lat = ((su->rsu_items_nr * su->rsu_avg_lat) +
+			su->rsu_i_lat) / (su->rsu_items_nr +1);
+#endif
+	su->rsu_items_nr++;
+	su->rsu_bytes_nr += c2_rpc_item_default_size(item);
+}
+
+/**
   Set the stats for outgoing rpc item
   @param item - incoming or outgoing rpc item
   @param path - enum distinguishing whether the item is incoming or outgoing
  */
-void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
+void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 		enum c2_rpc_item_path path)
 {
 	c2_time_t			 now;
@@ -1343,42 +1367,10 @@ void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
 
 	st = item->ri_mach->cr_rpc_stats;
 	c2_mutex_lock(&st->rs_lock);
-	if (path == INCOMING) {
-		st->rs_in.rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
-				item->ri_rpc_entry_time);
-		if ((st->rs_in.rsu_min_lat >= st->rs_in.rsu_i_lat) ||
-				(st->rs_in.rsu_min_lat == 0))
-			st->rs_in.rsu_min_lat = st->rs_in.rsu_i_lat;
-		if ((st->rs_in.rsu_max_lat <= st->rs_in.rsu_i_lat) ||
-				(st->rs_in.rsu_max_lat == 0))
-			st->rs_in.rsu_max_lat = st->rs_in.rsu_i_lat;
-		/* Do not perform floating point division in kernel. */
-#ifndef __KERNEL__
-		st->rs_in.rsu_avg_lat = ((st->rs_in.rsu_items_nr *
-					st->rs_in.rsu_avg_lat) +
-					st->rs_in.rsu_i_lat) /
-					(st->rs_in.rsu_items_nr +1);
-#endif
-		st->rs_in.rsu_items_nr++;
-		st->rs_in.rsu_bytes_nr += c2_rpc_item_default_size(item);
-	} else {
-		st->rs_out.rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
-				item->ri_rpc_entry_time);
-		if ((st->rs_out.rsu_min_lat >= st->rs_out.rsu_i_lat) ||
-				(st->rs_out.rsu_min_lat == 0))
-			st->rs_out.rsu_min_lat = st->rs_out.rsu_i_lat;
-		if ((st->rs_out.rsu_max_lat <= st->rs_out.rsu_i_lat) ||
-				(st->rs_out.rsu_max_lat == 0))
-			st->rs_out.rsu_max_lat = st->rs_out.rsu_i_lat;
-#ifndef __KERNEL__
-		st->rs_out.rsu_avg_lat = ((st->rs_out.rsu_items_nr *
-					st->rs_out.rsu_avg_lat) +
-					st->rs_out.rsu_i_lat) /
-					(st->rs_out.rsu_items_nr +1);
-#endif
-		st->rs_out.rsu_items_nr++;
-		st->rs_out.rsu_bytes_nr += c2_rpc_item_default_size(item);
-	}
+	if (path == INCOMING)
+		item_status_unit_set(item, &st->rs_in);
+	else
+		item_status_unit_set(item, &st->rs_out);
 	c2_mutex_unlock(&st->rs_lock);
 }
 

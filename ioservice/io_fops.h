@@ -80,7 +80,7 @@ struct c2_io_ioseg {
 		struct c2_fop_segment	*read_seg;
 		/** IO segment for write request fop. */
 		struct c2_fop_io_seg	*write_seg;
-	}gen_ioseg;
+	} gen_ioseg;
         /** Linkage to the list of such structures. */
         struct c2_list_link             io_linkage;
 };

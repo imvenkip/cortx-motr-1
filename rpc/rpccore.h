@@ -75,7 +75,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
-   \verbatim
+   @verbatim
       UNINITIALIZED
            | update_stream_init()
            |
@@ -90,10 +90,10 @@
            | update_stream_fini()
            V
        FINALIZED
-    \endverbatim
+    @endverbatim
 
    RPC-item state machine:
-    \verbatim
+    @verbatim
       UNINITIALIZED
            | rpc_item_init()
            V
@@ -108,7 +108,7 @@
            |               V                           rpc_item_fini()     |
            +----------->FINALIZED<-----------------------------------------+
 
-      \endverbatim
+      @endverbatim
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en
 
@@ -183,13 +183,13 @@ struct c2_rpc_item_type_ops {
 	   @param item reference to an RPC-item sent
 	   @note ri_added() has been called before invoking this function.
 	 */
-	void (*rio_sent)(struct c2_rpc_item *item);
+	void (*rito_sent)(struct c2_rpc_item *item);
 	/**
 	   Called when item's added to an RPC
 	   @param rpc reference to an RPC where item's added
 	   @param item reference to an item added to rpc
 	 */
-	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+	void (*rito_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
 
 	/**
 	   Called when given item's replied.
@@ -198,42 +198,42 @@ struct c2_rpc_item_type_ops {
 	   @note ri_added() and ri_sent() have been called before invoking
 	   this function.
 	 */
-	void (*rio_replied)(struct c2_rpc_item *item, int rc);
+	void (*rito_replied)(struct c2_rpc_item *item, int rc);
 
 	/**
 	   Restore original IO vector of rpc item.
 	 */
-	void (*rio_iovec_restore)(struct c2_rpc_item *b_item,
+	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
 			union c2_io_iovec *vec);
 	/**
 	   Find out the size of rpc item.
 	 */
-	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
+	uint64_t (*rito_item_size)(struct c2_rpc_item *item);
 	/**
 	   Find out if given rpc items belong to same type or not.
 	 */
-	bool (*rio_items_equal)(struct c2_rpc_item *item1, struct
+	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
 			c2_rpc_item *item2);
 	/**
 	   Return the opcode of fop carried by given rpc item.
 	 */
-	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	int (*rito_io_get_opcode)(struct c2_rpc_item *item);
 	/**
 	   Return the fid of request.
 	 */
-	struct c2_fid (*rio_io_get_fid)(struct c2_rpc_item *item);
+	struct c2_fid (*rito_io_get_fid)(struct c2_rpc_item *item);
 	/**
 	   Find out if the item belongs to an IO request or not.
 	 */
-	bool (*rio_is_io_req)(struct c2_rpc_item *item);
+	bool (*rito_is_io_req)(struct c2_rpc_item *item);
 	/**
 	   Find out the count of fragmented buffers.
 	 */
-	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
+	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rio_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
+	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
 			struct c2_rpc_item *item);
 #ifndef __KERNEL__
 	/**
@@ -496,7 +496,7 @@ struct c2_rpc_item {
 
 /** Enum to distinguish if the path is incoming or outgoing */
 enum c2_rpc_item_path {
-	INCOMING =0,
+	INCOMING = 0,
 	OUTGOING
 };
 
@@ -505,7 +505,7 @@ enum c2_rpc_item_path {
   @param item - incoming or outgoing rpc item
   @param path - enum distinguishing whether the item is incoming or outgoing
  */
-void c2_rpc_item_set_exit_stats(struct c2_rpc_item *item,
+void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 		enum c2_rpc_item_path path);
 
 /** Stats unit that could be used either for incoming or outgoing stats */

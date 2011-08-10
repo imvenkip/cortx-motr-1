@@ -2765,7 +2765,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
-	c2_rpc_item_set_exit_stats(item, INCOMING);
+	c2_rpc_item_exit_stats_set(item, INCOMING);
 	if (rc != 0) {
 		if (c2_rpc_item_is_conn_establish(item)) {
 			item_dispatch(item);

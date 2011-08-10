@@ -114,7 +114,7 @@ static void frm_item_set_rpc_stats(const struct c2_rpc *rpc)
 
 	c2_list_for_each_entry(&rpc->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage) {
-		c2_rpc_item_set_exit_stats(item, OUTGOING);
+		c2_rpc_item_exit_stats_set(item, OUTGOING);
 	}
 }
 
@@ -948,7 +948,7 @@ static void frm_reply_received(const struct c2_rpc_frm_sm *frm_sm,
 		if (c_item->ic_resultant_item == item)
 			coalesced_item_reply_post(c_item);
 		else
-			item->ri_type->rit_ops->rio_replied(item, 0);
+			item->ri_type->rit_ops->rito_replied(item, 0);
 	}
 }
 
@@ -1107,13 +1107,13 @@ static void coalesced_item_reply_post(struct c2_rpc_frm_item_coalesced *cs)
 	c2_list_for_each_entry_safe(&cs->ic_member_list, item, item_next,
 			struct c2_rpc_item, ri_coalesced_linkage) {
 		c2_list_del(&item->ri_coalesced_linkage);
-		item->ri_type->rit_ops->rio_replied(item, rc);
+		item->ri_type->rit_ops->rito_replied(item, rc);
 		cs->ic_member_nr--;
 	}
 	C2_ASSERT(cs->ic_member_nr == 0);
 	item = cs->ic_resultant_item;
-	item->ri_type->rit_ops->rio_iovec_restore(item, &cs->ic_iovec);
-	item->ri_type->rit_ops->rio_replied(item, rc);
+	item->ri_type->rit_ops->rito_iovec_restore(item, &cs->ic_iovec);
+	item->ri_type->rit_ops->rito_replied(item, rc);
 	coalesced_item_fini(cs);
 }
 
@@ -1297,7 +1297,7 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 
 	/* Reduce the cumulative size of rpc items from formation
 	   state machine. */
-	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	item_size = item->ri_type->rit_ops->rito_item_size(item);
 	frm_sm->fs_cumulative_size -= item_size;
 
 	/* If timer of rpc item is still running, change the deadline in
@@ -1357,7 +1357,7 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 	if (item->ri_state != RPC_ITEM_SUBMITTED)
 		return -EINVAL;
 
-	item_size = item->ri_type->rit_ops->rio_item_size(item);
+	item_size = item->ri_type->rit_ops->rito_item_size(item);
 	frm_sm->fs_cumulative_size += item_size;
 
 	/* Initialize the timer only when the deadline value is non-zero
@@ -1561,10 +1561,10 @@ static bool frm_fragment_policy(const struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(fragments_nr != NULL);
 
 	/* Fragment count check. */
-	io_op = item->ri_type->rit_ops->rio_is_io_req(item);
+	io_op = item->ri_type->rit_ops->rito_is_io_req(item);
 	if (io_op) {
 		curr_fragments = item->ri_type->rit_ops->
-			rio_get_io_fragment_count(item);
+			rito_get_io_fragment_count(item);
 		if ((*fragments_nr + curr_fragments) > frm_sm->fs_max_frags)
 			return false;
 	}
@@ -1593,10 +1593,10 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 	/* Update size of rpc object and current count of fragments. */
 	c2_list_add(&rpc->r_items, &item->ri_rpcobject_linkage);
-	*rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
-	if (item->ri_type->rit_ops->rio_get_io_fragment_count != NULL)
+	*rpcobj_size += item->ri_type->rit_ops->rito_item_size(item);
+	if (item->ri_type->rit_ops->rito_get_io_fragment_count != NULL)
 		*fragments_nr += item->ri_type->rit_ops->
-			rio_get_io_fragment_count(item);
+			rito_get_io_fragment_count(item);
 
 	/* Remove the item data from c2_rpc_frm_sm structure. */
 	frm_item_remove(frm_sm, item);
@@ -1680,8 +1680,8 @@ static void frm_coalesced_item_populate(struct c2_rpc_item *b_item,
 	C2_PRE(b_item != NULL);
 	C2_PRE(c_item != NULL);
 
-	fid = b_item->ri_type->rit_ops->rio_io_get_fid(b_item);
-	item_rw = b_item->ri_type->rit_ops->rio_io_get_opcode(b_item);
+	fid = b_item->ri_type->rit_ops->rito_io_get_fid(b_item);
+	item_rw = b_item->ri_type->rit_ops->rito_io_get_opcode(b_item);
 	session = b_item->ri_session;
 	C2_ASSERT(session != NULL);
 
@@ -1691,11 +1691,11 @@ static void frm_coalesced_item_populate(struct c2_rpc_item *b_item,
 	c2_mutex_lock(&session->s_mutex);
 	c2_list_for_each_entry(&session->s_unbound_items, ub_item,
 			struct c2_rpc_item, ri_unbound_link) {
-		if (!ub_item->ri_type->rit_ops->rio_is_io_req(ub_item))
+		if (!ub_item->ri_type->rit_ops->rito_is_io_req(ub_item))
 			continue;
 
-		ufid = ub_item->ri_type->rit_ops->rio_io_get_fid(ub_item);
-		item_equal = b_item->ri_type->rit_ops->rio_items_equal(b_item,
+		ufid = ub_item->ri_type->rit_ops->rito_io_get_fid(ub_item);
+		item_equal = b_item->ri_type->rit_ops->rito_items_equal(b_item,
 				ub_item);
 		if (c2_fid_eq(&fid, &ufid) && item_equal) {
 			c_item->ic_member_nr++;
@@ -1742,12 +1742,12 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 
 	/* Similarly, if given rpc item is not part of an IO request,
 	   return right away. */
-	if (!item->ri_type->rit_ops->rio_is_io_req(item))
+	if (!item->ri_type->rit_ops->rito_is_io_req(item))
 		return rc;
 
-	old_size = item->ri_type->rit_ops->rio_item_size(item);
-	fid = item->ri_type->rit_ops->rio_io_get_fid(item);
-	item_rw = item->ri_type->rit_ops->rio_io_get_opcode(item);
+	old_size = item->ri_type->rit_ops->rito_item_size(item);
+	fid = item->ri_type->rit_ops->rito_io_get_fid(item);
+	item_rw = item->ri_type->rit_ops->rito_io_get_opcode(item);
 
 	coalesced_item = coalesced_item_init(frm_sm, &fid, item_rw);
 	if (coalesced_item == NULL) {
@@ -1769,7 +1769,7 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 	coalesced_item->ic_member_nr++;
 
 	/* Try to coalesce IO segments of all member items. */
-	rc = item->ri_type->rit_ops->rio_io_coalesce(coalesced_item, item);
+	rc = item->ri_type->rit_ops->rito_io_coalesce(coalesced_item, item);
 
 	/* Remove the bound item from list of member elements
 	   from a coalesced_item struct.*/
@@ -1778,7 +1778,7 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 
 	if (rc == 0) {
 		*rpcobj_size -= old_size;
-		*rpcobj_size += item->ri_type->rit_ops->rio_item_size(item);
+		*rpcobj_size += item->ri_type->rit_ops->rito_item_size(item);
 		/* Delete all member items for which coalescing was
 		   successful from session->unbound list. */
 		c2_list_for_each_entry(&coalesced_item->ic_member_list,
@@ -1860,16 +1860,20 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		struct c2_rpc_item *item)
 {
+	bool is_bound;
+
 	C2_PRE(slot != NULL);
 	C2_PRE(item != NULL);
-	C2_PRE(!c2_rpc_item_is_bound(item));
+	
+	is_bound = c2_rpc_item_is_bound(item);
+	C2_PRE(!is_bound);
 
 	if (!c2_rpc_item_is_unsolicited(item)) {
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags &= ~C2_RPC_ITEM_UNBOUND;
-		item->ri_type->rit_flags &= C2_RPC_ITEM_BOUND;
+		item->ri_type->rit_flags |= ~C2_RPC_ITEM_UNBOUND;
+		item->ri_type->rit_flags |= C2_RPC_ITEM_BOUND;
 	}
 }
 
@@ -2055,7 +2059,7 @@ uint64_t c2_rpc_get_size(const struct c2_rpc *rpc)
 
 	c2_list_for_each_entry(&rpc->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage)
-		rpc_size += item->ri_type->rit_ops->rio_item_size(item);
+		rpc_size += item->ri_type->rit_ops->rito_item_size(item);
 
 	return rpc_size;
 }
