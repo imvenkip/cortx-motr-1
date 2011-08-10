@@ -386,14 +386,24 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
 
-	C2_PRE(req != NULL && reply != NULL);
-	C2_PRE(req->ri_session == reply->ri_session &&
-	       req->ri_session != NULL);
+	C2_PRE(req != NULL && req->ri_session != NULL);
+	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
-	fop = c2_rpc_item_to_fop(reply);
-	C2_ASSERT(fop != NULL);
-	fop_cer = c2_fop_data(fop);
-	C2_ASSERT(fop_cer != NULL);
+	void conn_failed(int error)
+	{
+		C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
+
+		conn->c_state = C2_RPC_CONN_FAILED;
+		conn->c_sender_id = SENDER_ID_INVALID;
+		/*
+		 * Remove conn from conn->c_rpcmachine->cr_outgoing_conns list
+		 */
+		c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+		c2_list_del(&conn->c_link);
+		c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
+
+		conn->c_rc = error;
+	}
 
 	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
@@ -402,17 +412,22 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CONNECTING &&
 		  c2_rpc_conn_invariant(conn));
 
+	if (rc != 0) {
+		conn_failed(rc);
+		goto out;
+	}
+
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
+
+	fop_cer = c2_fop_data(fop);
+	C2_ASSERT(fop_cer != NULL);
+
 	if (fop_cer->rcer_rc != 0) {
-		C2_ASSERT(fop_cer->rcer_snd_id == SENDER_ID_INVALID);
 		/*
 		 * Receiver has reported conn create failure
 		 */
-		conn->c_state = C2_RPC_CONN_FAILED;
-		conn->c_sender_id = SENDER_ID_INVALID;
-		c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
-		c2_list_del(&conn->c_link);
-		c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
-		conn->c_rc = fop_cer->rcer_rc;
+		conn_failed(fop_cer->rcer_rc);
 		/*
 		 * end-user is expected to call c2_rpc_conn_fini() on
 		 * this object, to free any memory allocated by conn for
@@ -430,6 +445,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 			(unsigned long)fop_cer->rcer_snd_id);
 	}
 
+out:
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
 		  conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
