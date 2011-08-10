@@ -223,6 +223,19 @@ static bool conn_is_rcv(const struct c2_rpc_conn *conn)
 	return (conn->c_flags & RCF_RECV_END) == RCF_RECV_END;
 }
 
+/**
+   Common code in c2_rpc_conn_fini() and init failed case in __conn_init()
+ */
+static void __conn_fini(struct c2_rpc_conn *conn)
+{
+	C2_ASSERT(conn != NULL);
+
+	c2_list_fini(&conn->c_sessions);
+	c2_cond_fini(&conn->c_state_changed);
+	c2_list_link_fini(&conn->c_link);
+	c2_mutex_fini(&conn->c_mutex);
+}
+
 static int __conn_init(struct c2_rpc_conn      *conn,
 		       struct c2_net_end_point *ep,
 		       struct c2_rpcmachine    *machine)
@@ -247,14 +260,7 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	if (rc == 0) {
 		conn->c_state = C2_RPC_CONN_INITIALISED;
 	} else {
-		c2_list_fini(&conn->c_sessions);
-		c2_cond_fini(&conn->c_state_changed);
-		c2_list_link_fini(&conn->c_link);
-		c2_mutex_fini(&conn->c_mutex);
-		/*
-		 * clear the object, so that caller cannot use it
-		 * by mistake
-		 */
+		__conn_fini(conn);
 		C2_SET0(conn);
 	}
 	return rc;
@@ -630,10 +636,7 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	session_zero_detach(conn);
-	c2_list_link_fini(&conn->c_link);
-	c2_list_fini(&conn->c_sessions);
-	c2_cond_fini(&conn->c_state_changed);
-	c2_mutex_fini(&conn->c_mutex);
+	__conn_fini(conn);
 	C2_SET0(conn);
 }
 C2_EXPORTED(c2_rpc_conn_fini);
