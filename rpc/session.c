@@ -581,29 +581,34 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 	struct c2_rpc_slot                   *slot;
 	uint64_t                              sender_id;
 
-	C2_PRE(req != NULL && reply != NULL);
-	C2_PRE(req->ri_session == reply->ri_session &&
-	       req->ri_session != NULL);
-
-	fop = c2_rpc_item_to_fop(reply);
-	C2_ASSERT(fop != NULL);
-	fop_ctr = c2_fop_data(fop);
-	C2_ASSERT(fop_ctr != NULL);
-
-	sender_id = fop_ctr->ctr_sender_id;
-	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+	C2_PRE(req != NULL && req->ri_session != NULL);
+	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
 	conn = req->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
+	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
-
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATING &&
 		  c2_rpc_conn_invariant(conn));
 
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_list_del(&conn->c_link);
 	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
+
+	if (rc != 0) {
+		conn->c_state = C2_RPC_CONN_FAILED;
+		conn->c_rc = rc;
+		goto out;
+	}
+
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
+
+	fop_ctr = c2_fop_data(fop);
+	C2_ASSERT(fop_ctr != NULL);
+
+	sender_id = fop_ctr->ctr_sender_id;
+	C2_ASSERT(conn->c_sender_id == sender_id);
 
 	if (fop_ctr->ctr_rc == 0) {
 		printf("ctrr: connection terminated %lu\n",
@@ -612,7 +617,6 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 		conn->c_sender_id = SENDER_ID_INVALID;
 		conn->c_rc = 0;
 		conn->c_rpcmachine = NULL;
-		conn->c_end_point = NULL;
 		/*
 		 * session 0 will be cleaned up in c2_rpc_conn_fini()
 		 */
@@ -626,6 +630,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 		conn->c_rc = fop_ctr->ctr_rc;
 	}
 
+out:
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
 	C2_POST(c2_rpc_conn_invariant(conn));
