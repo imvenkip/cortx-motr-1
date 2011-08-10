@@ -1860,13 +1860,9 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		struct c2_rpc_item *item)
 {
-	bool is_bound;
-
 	C2_PRE(slot != NULL);
 	C2_PRE(item != NULL);
-	
-	is_bound = c2_rpc_item_is_bound(item);
-	C2_PRE(!is_bound);
+	C2_PRE(!c2_rpc_item_is_bound(item));
 
 	if (!c2_rpc_item_is_unsolicited(item)) {
 		c2_rpc_slot_item_add_internal(slot, item);

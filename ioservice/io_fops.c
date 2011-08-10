@@ -762,7 +762,7 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 		}
 	}
 
-	/* Add a new write segment unconditionally in aggr_list. */
+	/* Add a new IO segment unconditionally in aggr_list. */
 	if (!added) {
 		rc = io_fop_seg_init(off1, cnt1, &new_seg, op);
 		if (rc < 0)
@@ -772,7 +772,7 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 }
 
 /**
-   Contract the formed list of write IO segments further by merging
+   Contract the formed list of IO segments further by merging
    adjacent segments.
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.

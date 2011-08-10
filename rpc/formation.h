@@ -121,7 +121,7 @@
      a,b,c | |  +----------------------------------+   | | d,e
            +-+                                         +-+
 
-    @endverbatim	   
+    @endverbatim
 
     External Events :
 	- a. Item ready (bound item)
