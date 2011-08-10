@@ -47,46 +47,46 @@
    @{
  */
 
-const struct c2_fom_ops c2_rpc_fom_conn_create_ops = {
-	.fo_fini = c2_rpc_fom_conn_create_fini,
-	.fo_state = c2_rpc_fom_conn_create_state
+const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
+	.fo_fini = c2_rpc_fom_conn_establish_fini,
+	.fo_state = c2_rpc_fom_conn_establish_state
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_create_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
 	.fto_create = NULL
 };
 
-struct c2_fom_type c2_rpc_fom_conn_create_type = {
-	.ft_ops = &c2_rpc_fom_conn_create_type_ops
+struct c2_fom_type c2_rpc_fom_conn_establish_type = {
+	.ft_ops = &c2_rpc_fom_conn_establish_type_ops
 };
 
-int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_create		*fop_cc;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_create_rep	*fop_ccr;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_conn_create		*fom_cc;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session0;
-	struct c2_rpc_slot			*slot;
-	int					rc;
+	struct c2_rpc_fop_conn_establish_rep *fop_cer;
+	struct c2_rpc_fop_conn_establish     *fop_ce;
+	struct c2_rpc_fom_conn_establish     *fom_ce;
+	struct c2_fop                        *fop;
+	struct c2_fop                        *fop_rep;
+	struct c2_rpc_item                   *item;
+	struct c2_rpc_session                *session0;
+	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_slot                   *slot;
+	int                                   rc;
 
-	fom_cc = container_of(fom, struct c2_rpc_fom_conn_create, fcc_gen);
+	fom_ce = container_of(fom, struct c2_rpc_fom_conn_establish, fce_gen);
 
-	C2_PRE(fom != NULL && fom_cc != NULL && fom_cc->fcc_fop != NULL &&
-			fom_cc->fcc_fop_rep != NULL);
+	C2_PRE(fom != NULL && fom_ce != NULL && fom_ce->fce_fop != NULL &&
+			fom_ce->fce_fop_rep != NULL);
 
 	/* Request fop */
-	fop = fom_cc->fcc_fop;
-	fop_cc = c2_fop_data(fop);
-	C2_ASSERT(fop_cc != NULL);
+	fop = fom_ce->fce_fop;
+	fop_ce = c2_fop_data(fop);
+	C2_ASSERT(fop_ce != NULL);
 
 	/* reply fop */
-	fop_rep = fom_cc->fcc_fop_rep;
-	fop_ccr = c2_fop_data(fop_rep);
-	C2_ASSERT(fop_ccr != NULL);
+	fop_rep = fom_ce->fce_fop_rep;
+	fop_cer = c2_fop_data(fop_rep);
+	C2_ASSERT(fop_cer != NULL);
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL);
@@ -96,27 +96,29 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach,
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_conn_create(conn, item->ri_src_ep);
+	rc = c2_rpc_rcv_conn_establish(conn);
 	if (rc != 0)
 		goto errout;
 
 	/*
-	 * As CONN_CREATE request is directly submitted for execution
-	 * add the item explicitly to the slot0. This makes the slot
-	 * symmetric to sender side slot.
+	 * As CONN_ESTABLISH request is directly submitted for execution.
+	 * Add the item explicitly to the slot0. This makes the slot
+	 * symmetric to corresponding sender side slot.
 	 */
-	c2_rpc_session_search(conn, SESSION_0, &session0);
-	C2_ASSERT(session0 != NULL);
+	session0 = c2_rpc_conn_session0(conn);
+
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
 	C2_ASSERT(slot != NULL);
 	c2_mutex_lock(&slot->sl_mutex);
+	c2_mutex_lock(&session0->s_mutex);
 	c2_rpc_slot_item_add_internal(slot, item);
+	c2_mutex_unlock(&session0->s_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 
 	/*
@@ -130,10 +132,10 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	fop_ccr->rccr_snd_id = conn->c_sender_id;
+	fop_cer->rcer_snd_id = conn->c_sender_id;
 	printf("Received conn sender id = %lu\n", conn->c_sender_id);
-	fop_ccr->rccr_rc = 0;		/* successful */
-	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
+	fop_cer->rcer_rc = 0;		/* successful */
+	fop_cer->rcer_cookie = fop_ce->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
@@ -141,17 +143,17 @@ int c2_rpc_fom_conn_create_state(struct c2_fom *fom)
 errout:
 	C2_ASSERT(rc != 0);
 
-	printf("conn_create_state: failed %d\n", rc);
-	fop_ccr->rccr_snd_id = SENDER_ID_INVALID;
-	fop_ccr->rccr_rc = rc;
-	fop_ccr->rccr_cookie = fop_cc->rcc_cookie;
+	printf("conn_establish_state: failed %d\n", rc);
+	fop_cer->rcer_snd_id = SENDER_ID_INVALID;
+	fop_cer->rcer_rc = rc;
+	fop_cer->rcer_cookie = fop_ce->rce_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 
-void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
+void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom)
 {
 }
 
@@ -159,50 +161,50 @@ void c2_rpc_fom_conn_create_fini(struct c2_fom *fom)
  * FOM session create
  */
 
-const struct c2_fom_ops c2_rpc_fom_session_create_ops = {
-	.fo_fini = c2_rpc_fom_session_create_fini,
-	.fo_state = c2_rpc_fom_session_create_state
+const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
+	.fo_fini = c2_rpc_fom_session_establish_fini,
+	.fo_state = c2_rpc_fom_session_establish_state
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_session_create_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
 	.fto_create = NULL
 };
 
-struct c2_fom_type c2_rpc_fom_session_create_type = {
-	.ft_ops = &c2_rpc_fom_session_create_type_ops
+struct c2_fom_type c2_rpc_fom_session_establish_type = {
+	.ft_ops = &c2_rpc_fom_session_establish_type_ops
 };
 
-int c2_rpc_fom_session_create_state(struct c2_fom *fom)
+int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 {
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_session_create	*fop_in;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_session_create_rep	*fop_out;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_fom_session_create	*fom_sc;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session;
-	uint64_t				sender_id;
-	uint32_t				slot_cnt;
-	int					rc;
+	struct c2_rpc_fop_session_establish_rep *fop_out;
+	struct c2_rpc_fop_session_establish     *fop_in;
+	struct c2_rpc_fom_session_establish     *fom_se;
+	struct c2_rpc_item                      *item;
+	struct c2_fop                           *fop;
+	struct c2_fop                           *fop_rep;
+	struct c2_rpc_session                   *session;
+	struct c2_rpc_conn                      *conn;
+	uint64_t                                 sender_id;
+	uint32_t                                 slot_cnt;
+	int                                      rc;
 
-	fom_sc = container_of(fom, struct c2_rpc_fom_session_create, fsc_gen);
+	fom_se = container_of(fom, struct c2_rpc_fom_session_establish, fse_gen);
 
-	C2_PRE(fom != NULL && fom_sc != NULL && fom_sc->fsc_fop != NULL &&
-			fom_sc->fsc_fop_rep != NULL);
+	C2_PRE(fom != NULL && fom_se != NULL && fom_se->fse_fop != NULL &&
+			fom_se->fse_fop_rep != NULL);
 
-	fop = fom_sc->fsc_fop;
+	fop = fom_se->fse_fop;
 	fop_in = c2_fop_data(fop);
 	C2_ASSERT(fop_in != NULL);
 
-	fop_rep = fom_sc->fsc_fop_rep;
+	fop_rep = fom_se->fse_fop_rep;
 	fop_out = c2_fop_data(fop_rep);
 	C2_ASSERT(fop_out != NULL);
 
-	sender_id = fop_in->rsc_snd_id;
-	slot_cnt = fop_in->rsc_slot_cnt;
-	fop_out->rscr_sender_id = sender_id;
-	printf("session_create_state: sender_id %lu slot_cnt %u\n", sender_id,
+	sender_id = fop_in->rse_snd_id;
+	slot_cnt = fop_in->rse_slot_cnt;
+	fop_out->rser_sender_id = sender_id;
+	printf("session_establish_state: sender_id %lu slot_cnt %u\n", sender_id,
 				slot_cnt);
 
 	item = &fop->f_item;
@@ -227,7 +229,7 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 		printf("scs: failed to init session %d\n", rc);
 		goto errout;
 	}
-	rc = c2_rpc_rcv_session_create(session);
+	rc = c2_rpc_rcv_session_establish(session);
 	if (rc != 0) {
 		printf("scs: failed to create session: %d\n", rc);
 		goto errout;
@@ -236,26 +238,26 @@ int c2_rpc_fom_session_create_state(struct c2_fom *fom)
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
 
-	fop_out->rscr_rc = 0;		/* success */
-	fop_out->rscr_session_id = session->s_session_id;
+	fop_out->rser_rc = 0;		/* success */
+	fop_out->rser_session_id = session->s_session_id;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_DONE;
-	printf("session_create_state:success %lu\n", session->s_session_id);
+	printf("session_establish_state:success %lu\n", session->s_session_id);
 	return FSO_AGAIN;
 
 errout:
 	C2_ASSERT(rc != 0);
 
-	printf("session_create: failed %d\n", rc);
-	fop_out->rscr_rc = rc;
-	fop_out->rscr_session_id = SESSION_ID_INVALID;
+	printf("session_establish: failed %d\n", rc);
+	fop_out->rser_rc = rc;
+	fop_out->rser_session_id = SESSION_ID_INVALID;
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 
-void c2_rpc_fom_session_create_fini(struct c2_fom *fom)
+void c2_rpc_fom_session_establish_fini(struct c2_fom *fom)
 {
 }
 
@@ -278,15 +280,15 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpc_fop_session_terminate	*fop_in;
-	struct c2_rpc_fop_session_terminate_rep	*fop_out;
-	struct c2_rpc_fom_session_terminate	*fom_st;
-	struct c2_rpc_item			*item;
-	struct c2_rpc_conn			*conn;
-	struct c2_rpc_session			*session;
-	uint64_t				sender_id;
-	uint64_t				session_id;
-	int					rc;
+	struct c2_rpc_fop_session_terminate_rep *fop_out;
+	struct c2_rpc_fop_session_terminate     *fop_in;
+	struct c2_rpc_fom_session_terminate     *fom_st;
+	struct c2_rpc_item                      *item;
+	struct c2_rpc_session                   *session;
+	struct c2_rpc_conn                      *conn;
+	uint64_t                                 sender_id;
+	uint64_t                                 session_id;
+	int                                      rc;
 
 	printf("session_terminate_state: called\n");
 	fom_st = container_of(fom, struct c2_rpc_fom_session_terminate,
@@ -315,7 +317,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 			conn->c_sender_id == sender_id &&
 			c2_rpc_conn_invariant(conn));
 
-	c2_rpc_session_search(conn, session_id, &session);
+	session = c2_rpc_session_search(conn, session_id);
 	if (session == NULL) {
 		rc = -ENOENT;
 		goto errout;
@@ -366,15 +368,15 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
-	struct c2_rpc_item			*item;
-	struct c2_fop				*fop;
-	struct c2_rpc_fop_conn_terminate	*fop_in;
-	struct c2_fop				*fop_rep;
-	struct c2_rpc_fop_conn_terminate_rep	*fop_out;
-	struct c2_rpc_fom_conn_terminate	*fom_ct;
-	struct c2_rpc_conn			*conn;
-	int					rc;
-	uint64_t				sender_id;
+	struct c2_rpc_fop_conn_terminate_rep *fop_out;
+	struct c2_rpc_fop_conn_terminate     *fop_in;
+	struct c2_rpc_fom_conn_terminate     *fom_ct;
+	struct c2_rpc_item                   *item;
+	struct c2_fop                        *fop;
+	struct c2_fop                        *fop_rep;
+	struct c2_rpc_conn                   *conn;
+	uint64_t                              sender_id;
+	int                                   rc;
 
 	C2_ASSERT(fom != NULL);
 	fom_ct = container_of(fom, struct c2_rpc_fom_conn_terminate, fct_gen);
