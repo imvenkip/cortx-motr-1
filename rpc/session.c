@@ -72,7 +72,7 @@ static void item_find(const struct c2_rpc_slot *slot,
 		      struct c2_rpc_item      **out);
 
 /**
-  Allocates and returns new sender_id
+   Allocates and returns new sender_id
  */
 static uint64_t sender_id_get(void);
 
@@ -645,7 +645,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
 /**
-   Check connection object invariant.
+   Checks connection object invariant.
 
    Function is also called from session_foms.c, hence cannot be static.
  */
@@ -1302,7 +1302,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 }
 
 /**
-   Change size of slot table in 'session' to 'nr_slots'.
+   Resizes slot table in 'session' to 'nr_slots'.
 
    If nr_slots > current capacity of slot table then
         it reallocates the slot table.
@@ -2128,13 +2128,12 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 }
 
 /**
-  Free all the items from slot->sl_item_list except dummy_item.
+  Frees all the items from slot->sl_item_list except dummy_item.
 
   XXX This is temporary. This routine will be scraped entirely.
-  When slots will be integrated with FOL, there
-  will be some pruning mechanism that will evict items from slot's
-  item_list. But for now, we need to be able to fini()  slot for testing
-  purpose. That's why freeing the items explicitly.
+  When slots will be integrated with FOL, there will be some pruning mechanism
+  that will evict items from slot's item_list. But for now, we need to be able
+  to fini() slot for testing purpose. That's why freeing the items explicitly.
  */
 static void slot_item_list_prune(struct c2_rpc_slot *slot)
 {
@@ -2630,9 +2629,6 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	return 0;
 }
 
-/*
- This routine should be called when conn terminate reply fop has been sent
- */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 {
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_TERMINATING);
