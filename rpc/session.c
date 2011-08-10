@@ -644,9 +644,6 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	/* Release the reference on c2_rpc_chan structure being used. */
-	c2_rpc_chan_put(conn->c_rpcchan);
-
 	session_zero_detach(conn);
 	c2_list_link_fini(&conn->c_link);
 	c2_list_fini(&conn->c_sessions);
