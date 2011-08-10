@@ -63,13 +63,11 @@ static int session_zero_attach(struct c2_rpc_conn *conn);
 static void session_zero_detach(struct c2_rpc_conn *conn);
 
 /**
-   Searches slot->sl_item_list to find item whose verno and xid matches
-   to verno and xid of @item
-   *out == NULL if not item not found
+   Searches slot->sl_item_list to find item with matching @xid.
+   Returns item if found, NULL otherwise.
  */
-static void item_find(const struct c2_rpc_slot *slot,
-		      const struct c2_rpc_item *item,
-		      struct c2_rpc_item      **out);
+static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
+				     uint64_t                  xid);
 
 /**
    Allocates and returns new sender_id
@@ -1871,15 +1869,30 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		__slot_item_add(slot, item, true);
 		break;
 	case -EALREADY:
-		item_find(slot, item, &req);
+		req = item_find(slot, item->ri_slot_refs[0].sr_xid);
 		if (req == NULL) {
 			rc = c2_rpc_slot_misordered_item_received(slot,
 								 item);
 			break;
 		}
+		/*
+		 * XXX At this point req->ri_slot_refs[0].sr_verno and
+		 * item->ri_slot_refs[0].sr_verno MUST be same. If they are
+		 * not same then generate ADDB record.
+		 * For now, assert this condition for testing purpose.
+		 */
+		C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
+				&item->ri_slot_refs[0].sr_verno) == 0);
+
 		switch (req->ri_tstate) {
 		case RPC_ITEM_PAST_VOLATILE:
 		case RPC_ITEM_PAST_COMMITTED:
+			/*
+			 * @item is duplicate and corresponding original is
+			 * already consumed (i.e. executed if item is FOP).
+			 * Consume cached reply. (on receiver, this means
+			 * resend cached reply)
+			 */
 			C2_ASSERT(req->ri_reply != NULL);
 			printf("resending reply: req %p reply %p\n",
 					req, req->ri_reply);
@@ -1902,39 +1915,20 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	return rc;
 }
 
-static void item_find(const struct c2_rpc_slot *slot,
-		      const struct c2_rpc_item *item,
-		      struct c2_rpc_item      **out)
+static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
+				     uint64_t                  xid)
 {
-	struct c2_rpc_item           *ri;	/* loop variable */
-	const struct c2_rpc_slot_ref *sref;
+	struct c2_rpc_item *item;
 
-	C2_PRE(slot != NULL && item != NULL && out != NULL);
-	sref = &item->ri_slot_refs[0];
-	*out = NULL;
+	C2_PRE(slot != NULL);
 
-	if (slot->sl_slot_gen != sref->sr_slot_gen)
-		return;
-
-	c2_list_for_each_entry(&slot->sl_item_list, ri, struct c2_rpc_item,
+	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
 
-		if (ri->ri_slot_refs[0].sr_xid == sref->sr_xid) {
-
-			if (c2_verno_cmp(&ri->ri_slot_refs[0].sr_verno,
-					 &sref->sr_verno) != 0) {
-				/*
-				 * This shouldn't happen.
-				 * Generate ADDB record to report it.
-				 * XXX For testing purpose assert. But the
-				 * assert should be removed later.
-				 */
-				C2_ASSERT(0);
-			}
-			*out = ri;
-			break;
-		}
+		if (item->ri_slot_refs[0].sr_xid == xid)
+			return item;
 	}
+	return NULL;
 }
 
 void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
@@ -1954,7 +1948,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	sref = &reply->ri_slot_refs[0];
 	C2_ASSERT(slot == sref->sr_slot);
 
-	item_find(slot, reply, &req);
+	req = item_find(slot, reply->ri_slot_refs[0].sr_xid);
 	if (req == NULL) {
 		/*
 		 * Either it is a duplicate reply and its corresponding request
@@ -1963,6 +1957,15 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		return;
 	}
+	/*
+	 * XXX At this point req->ri_slot_refs[0].sr_verno and
+	 * reply->ri_slot_refs[0].sr_verno MUST be same. If they are not,
+	 * then generate ADDB record.
+	 * For now, assert this condition for testing purpose.
+	 */
+	C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
+			&reply->ri_slot_refs[0].sr_verno) == 0);
+
 	if (c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
 		&slot->sl_last_sent->ri_slot_refs[0].sr_verno) > 0) {
 		/*
