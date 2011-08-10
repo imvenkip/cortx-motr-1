@@ -580,7 +580,6 @@ static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
 }
 
 /**
-<<<<<<< HEAD
    Restore the original IO vector of resultant read fop.
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
