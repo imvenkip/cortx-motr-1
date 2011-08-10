@@ -386,7 +386,8 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
 
-	C2_PRE(req != NULL && req->ri_session != NULL);
+	C2_PRE(req != NULL && req->ri_session != NULL &&
+		req->ri_session->s_session_id == SESSION_ID_0);
 	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
 	void conn_failed(int error)
@@ -581,7 +582,8 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 	struct c2_rpc_slot                   *slot;
 	uint64_t                              sender_id;
 
-	C2_PRE(req != NULL && req->ri_session != NULL);
+	C2_PRE(req != NULL && req->ri_session != NULL &&
+		req->ri_session->s_session_id == SESSION_ID_0);
 	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
 	conn = req->ri_session->s_conn;
@@ -765,6 +767,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 		return conn->c_rc != 0 &&
 			!c2_list_link_is_in(&conn->c_link) &&
 			conn->c_rpcmachine == NULL;
+
 	default:
 		return false;
 	}
@@ -945,18 +948,25 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	uint64_t                                 session_id;
 	int                                      i;
 
-	C2_PRE(req != NULL && reply != NULL);
-	C2_PRE(req->ri_session == reply->ri_session &&
-	       req->ri_session != NULL);
+	C2_PRE(req != NULL && req->ri_session != NULL &&
+		req->ri_session->s_session_id == SESSION_ID_0);
+	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
-	fop = c2_rpc_item_to_fop(reply);
-	C2_ASSERT(fop != NULL);
-	fop_ser = c2_fop_data(fop);
-	C2_ASSERT(fop_ser != NULL);
+	void session_failed(int error)
+	{
+		C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
 
-	sender_id = fop_ser->rser_sender_id;
-	session_id = fop_ser->rser_session_id;
-	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+		session->s_state = C2_RPC_SESSION_FAILED;
+		session->s_rc = error;
+		/*
+		 * Remove session from conn->c_sessions list
+		 */
+		c2_mutex_lock(&conn->c_mutex);
+		c2_list_del(&session->s_link);
+		conn->c_nr_sessions--;
+		C2_ASSERT(c2_rpc_conn_invariant(conn));
+		c2_mutex_unlock(&conn->c_mutex);
+	}
 
 	printf("scrr: sender_id %lu session_id %lu\n",
 		(unsigned long)sender_id, (unsigned long)session_id);
@@ -968,8 +978,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
-		  conn->c_sender_id == sender_id);
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	/*
@@ -986,27 +995,31 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			break;
 		}
 	}
-	c2_mutex_unlock(&conn->c_mutex);
-
 	C2_ASSERT(session != NULL);
+	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_ESTABLISHING);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
+	if (rc != 0) {
+		session_failed(rc);
+		goto out;
+	}
+
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
+
+	fop_ser = c2_fop_data(fop);
+	C2_ASSERT(fop_ser != NULL);
+
+	sender_id = fop_ser->rser_sender_id;
+	session_id = fop_ser->rser_session_id;
+	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+
 	if (fop_ser->rser_rc != 0) {
-		C2_ASSERT(session_id == SESSION_ID_INVALID);
-		session->s_state = C2_RPC_SESSION_FAILED;
-		session->s_rc = fop_ser->rser_rc;
-		/*
-		 * Remove session from conn->c_sessions list
-		 */
-		c2_mutex_lock(&conn->c_mutex);
-		c2_list_del(&session->s_link);
-		conn->c_nr_sessions--;
-		C2_ASSERT(c2_rpc_conn_invariant(conn));
-		c2_mutex_unlock(&conn->c_mutex);
 		printf("scrr: Session create failed\n");
+		session_failed(fop_ser->rser_rc);
 	} else {
 		C2_ASSERT(session_id >= SESSION_ID_MIN &&
 			  session_id <= SESSION_ID_MAX);
@@ -1021,6 +1034,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			(unsigned long)session_id);
 	}
 
+out:
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 		  session->s_state == C2_RPC_SESSION_FAILED);
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -1134,28 +1148,32 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 					     int                 rc)
 {
 	struct c2_rpc_fop_session_terminate_rep *fop_str;
+	struct c2_rpc_fop_session_terminate     *fop_st;
 	struct c2_fop                           *fop;
 	struct c2_rpc_conn                      *conn;
 	struct c2_rpc_session                   *session;
 	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
 
-	C2_PRE(req != NULL && reply != NULL);
-	C2_PRE(req->ri_session == reply->ri_session &&
-	       req->ri_session != NULL &&
-	       req->ri_session->s_session_id == SESSION_ID_0);
-
-	fop = c2_rpc_item_to_fop(reply);
-	C2_ASSERT(fop != NULL);
-	fop_str = c2_fop_data(fop);
-	C2_ASSERT(fop_str != NULL);
-
-	sender_id = fop_str->rstr_sender_id;
-	session_id = fop_str->rstr_session_id;
-	C2_ASSERT(sender_id != SENDER_ID_INVALID);
+	C2_PRE(req != NULL && req->ri_session != NULL &&
+		req->ri_session->s_session_id == SESSION_ID_0);
+	C2_PRE(ergo(rc == 0, req->ri_session == reply->ri_session));
 
 	/*
-	 * Search session having session id = fop_str->rstr_session_id
+	 * Extract sender_id and session_id from SESSION_TERMINATE
+	 * _request_ fop.
+	 */
+	fop = c2_rpc_item_to_fop(req);
+	C2_ASSERT(fop != NULL);
+
+	fop_st = c2_fop_data(fop);
+	C2_ASSERT(fop_st != NULL);
+
+	sender_id = fop_st->rst_sender_id;
+	session_id = fop_st->rst_session_id;
+
+	/*
+	 * Search session being terminated <sender_id, session_id>
 	 */
 	conn = req->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
@@ -1179,6 +1197,21 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
+	if (rc != 0) {
+		session->s_state = C2_RPC_SESSION_FAILED;
+		session->s_rc = rc;
+		goto out;
+	}
+
+	fop = c2_rpc_item_to_fop(reply);
+	C2_ASSERT(fop != NULL);
+
+	fop_str = c2_fop_data(fop);
+	C2_ASSERT(fop_str != NULL);
+
+	C2_ASSERT(sender_id == fop_str->rstr_sender_id &&
+			session_id == fop_str->rstr_session_id);
+
 	if (fop_str->rstr_rc == 0) {
 		session->s_state = C2_RPC_SESSION_TERMINATED;
 		session->s_rc = 0;
@@ -1190,7 +1223,11 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 		printf("strr: session terminate failed %lu\n",
 			(unsigned long)session_id);
 	}
+
+out:
 	session->s_conn = NULL;
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
+			session->s_state == C2_RPC_SESSION_FAILED);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
