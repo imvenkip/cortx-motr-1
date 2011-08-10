@@ -447,23 +447,27 @@ struct c2_rpc_conn {
 };
 
 /**
-   Initialise @conn object and associate it with @machine.
+   Initialises @conn object and associates it with @machine.
    No network communication is involved.
 
    Note: c2_rpc_conn_init() can fail with -ENOMEM, -EINVAL.
 	 if c2_rpc_conn_init() fails, conn is left in undefined state.
 
+   @pre conn != NULL && ep != NULL && machine != NULL
    @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
+			conn->c_end_point == ep &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
-		     struct c2_rpcmachine *machine);
+int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
+		     struct c2_net_end_point *ep,
+		     struct c2_rpcmachine    *machine);
 
 /**
-    Send handshake conn create fop to the remote end. The reply
-    contains sender-id.
+    Sends handshake CONN_ESTABLISH fop to the remote end.
+    When reply to CONN_ESTABLISH is received,
+    c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
     @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
@@ -471,11 +475,13 @@ int c2_rpc_conn_init(struct c2_rpc_conn   *conn,
 				 &conn->c_link))
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_INITIALISED)
  */
-int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
-			  struct c2_net_end_point *ep);
+int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
 /**
-   Send "conn_terminate" FOP to receiver.
+   Sends "conn_terminate" FOP to receiver.
+   c2_rpc_conn_terminate_reply_received() is called when reply to
+   CONN_TERMINATE is received.
+
    @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
    @post if result != 0 then conn->c_state is left unchanged
@@ -483,7 +489,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn      *conn,
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
 /**
-   Finalize c2_rpc_conn
+   Finalises c2_rpc_conn.
    No network communication involved.
    @pre conn->c_state == C2_RPC_CONN_FAILED ||
 	conn->c_state == C2_RPC_CONN_INITIALISED ||
@@ -492,9 +498,9 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
 
 /**
-    Wait until c2_rpc_conn state machine reached the desired state.
-
+    Waits until @conn reaches in any one of states specified by @state_flags.
     @param state_flags can specify multiple states by ORing
+
     @param abs_timeout should not sleep past abs_timeout waiting for conn
 		to reach in desired state.
     @return true if @conn reaches in one of the state(s) specified by
@@ -507,7 +513,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 			   const c2_time_t     abs_timeout);
 
 /**
-   checks internal consistency of c2_rpc_conn
+   checks internal consistency of @conn.
  */
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 
@@ -645,7 +651,10 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 			uint32_t               nr_slots);
 
 /**
-    Sends a SESSION_ESTABLISH fop across pre-defined 0-session in the c2_rpc_conn.
+    Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
+    session->s_conn.
+    c2_rpc_session_establish_reply_received() is called when reply to
+    SESSION_ESTABLISH fop is received.
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
@@ -655,8 +664,10 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
-   Sends terminate session message to receiver.
+   Sends terminate session fop to receiver.
    Acts as no-op if session is already in TERMINATING state.
+   c2_rpc_session_terminate_reply_received() is called when reply to
+   CONN_TERMINATE fop is received.
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
@@ -665,7 +676,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
 /**
-    Waits until desired state is reached.
+    Waits until @session object reaches in one of states given by @state_flags.
 
     @param state_flags can specify multiple states by ORing
     @param abs_timeout thread does not sleep past abs_timeout waiting for conn
@@ -680,7 +691,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      const c2_time_t        abs_timeout);
 
 /**
-   Finalizes session object
+   Finalises session object
 
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||
 	session->s_state == C2_RPC_SESSION_FAILED ||
@@ -754,18 +765,6 @@ struct c2_rpc_slot {
 	struct c2_mutex               sl_mutex;
 	const struct c2_rpc_slot_ops *sl_ops;
 };
-
-/**
-   Iterate over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
-
-/**
-   Returns true if item is carrying CONN_CREATE fop.
- */
-bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item  *item);
 
 /** @} end of session group */
 

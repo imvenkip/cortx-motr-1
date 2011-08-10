@@ -96,12 +96,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_mach,
+	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto errout;
 
-	rc = c2_rpc_rcv_conn_establish(conn, item->ri_src_ep);
+	rc = c2_rpc_rcv_conn_establish(conn);
 	if (rc != 0)
 		goto errout;
 
@@ -116,7 +116,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	slot = session0->s_slot_table[0];
 	C2_ASSERT(slot != NULL);
 	c2_mutex_lock(&slot->sl_mutex);
+	c2_mutex_lock(&session0->s_mutex);
 	c2_rpc_slot_item_add_internal(slot, item);
+	c2_mutex_unlock(&session0->s_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 
 	/*
