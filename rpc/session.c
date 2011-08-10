@@ -85,6 +85,16 @@ static uint64_t session_id_get(void);
 static bool item_is_conn_establish(const struct c2_rpc_item *item);
 
 /**
+   Returns true iff @conn is sender end of rpc connection.
+ */
+static bool conn_is_snd(const struct c2_rpc_conn *conn);
+
+/**
+   Returns true iff @conn is receiver end of rpc connection.
+ */
+static bool conn_is_rcv(const struct c2_rpc_conn *conn);
+
+/**
   XXX temporary routine that submits the fop inside item for execution.
  */
 static void item_dispatch(struct c2_rpc_item *item);
@@ -203,6 +213,16 @@ int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
 	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
+static bool conn_is_snd(const struct c2_rpc_conn *conn)
+{
+	return (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END;
+}
+
+static bool conn_is_rcv(const struct c2_rpc_conn *conn)
+{
+	return (conn->c_flags & RCF_RECV_END) == RCF_RECV_END;
+}
+
 static int __conn_init(struct c2_rpc_conn      *conn,
 		       struct c2_net_end_point *ep,
 		       struct c2_rpcmachine    *machine)
@@ -210,8 +230,7 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	int rc;
 
 	C2_PRE(conn != NULL && ep != NULL && machine != NULL &&
-	       ((conn->c_flags & RCF_SENDER_END) !=
-		(conn->c_flags & RCF_RECV_END)));
+		conn_is_snd(conn) != conn_is_rcv(conn));
 
 	conn->c_end_point = ep;
 	conn->c_sender_id = SENDER_ID_INVALID;
@@ -256,8 +275,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	rc = __conn_init(conn, ep, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-			c2_rpc_conn_invariant(conn) &&
-			(conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END));
+			c2_rpc_conn_invariant(conn) && conn_is_snd(conn)));
+
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_init);
@@ -276,8 +295,8 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	conn->c_uuid = *uuid;
 	rc = __conn_init(conn, ep, machine);
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-			c2_rpc_conn_invariant(conn) &&
-			(conn->c_flags & RCF_RECV_END) == RCF_RECV_END));
+			c2_rpc_conn_invariant(conn) && conn_is_rcv(conn)));
+
 	return rc;
 }
 
@@ -302,8 +321,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	c2_mutex_lock(&conn->c_mutex);
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
-	          (conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END &&
-	          c2_rpc_conn_invariant(conn));
+	          conn_is_snd(conn) && c2_rpc_conn_invariant(conn));
 
 	conn->c_state = C2_RPC_CONN_CONNECTING;
 	/*
@@ -657,8 +675,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	if (conn == NULL)
 		return false;
 
-	sender_end = conn->c_flags & RCF_SENDER_END;
-	recv_end = conn->c_flags & RCF_RECV_END;
+	sender_end = conn_is_snd(conn);
+	recv_end = conn_is_rcv(conn);
 
 	/*
 	 * conditions that should be true irrespective of conn state
@@ -789,10 +807,10 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 		goto out_err;
 	}
 
-	if ((conn->c_flags & RCF_SENDER_END) == RCF_SENDER_END) {
+	if (conn_is_snd(conn)) {
 		slot_ops = &snd_slot_ops;
 	} else {
-		C2_ASSERT((conn->c_flags & RCF_RECV_END) == RCF_RECV_END);
+		C2_ASSERT(conn_is_rcv(conn));
 		slot_ops = &rcv_slot_ops;
 	}
 	for (i = 0; i < nr_slots; i++) {
@@ -2360,8 +2378,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	int                   rc;
 
 	C2_PRE(conn != NULL);
-	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED &&
-	      (conn->c_flags & RCF_RECV_END) == RCF_RECV_END);
+	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED && conn_is_rcv(conn));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
@@ -2616,8 +2633,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 
 	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE);
 
-	C2_ASSERT((conn->c_flags & RCF_RECV_END) == RCF_RECV_END &&
-			c2_rpc_conn_invariant(conn));
+	C2_ASSERT(conn_is_rcv(conn) && c2_rpc_conn_invariant(conn));
 
 	if (conn->c_nr_sessions > 0) {
 		return -EBUSY;
