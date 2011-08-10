@@ -2222,44 +2222,35 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	struct c2_rpc_item				*item = NULL;
 
 	C2_PRE(b_item != NULL);
+	C2_PRE(c_item != NULL);
 
-	C2_ASSERT(c_item != NULL);
 	c2_list_init(&fop_list);
 	c2_list_for_each_entry(&c_item->ic_member_list, item,
 			struct c2_rpc_item, ri_coalesced_linkage) {
 		C2_ALLOC_PTR(fop_member);
 		if (fop_member == NULL) {
 			res = -ENOMEM;
-			break;
+			goto cleanup;
 		}
 		fop = c2_rpc_item_to_fop(item);
 		fop_member->fop = fop;
 		c2_list_add(&fop_list, &fop_member->fop_linkage);
 	}
-	if (res != 0) {
-		c2_list_for_each_entry_safe(&fop_list, fop_member,
-				fop_member_next, struct c2_io_fop_member,
-				fop_linkage) {
-			c2_list_del(&fop_member->fop_linkage);
-			c2_free(fop_member);
-		}
-		c2_list_fini(&fop_list);
-		return res;
-	}
 	b_fop = container_of(b_item, struct c2_fop, f_item);
 
 	/* Restore the original IO vector of resultant rpc item. */
-
 	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
 			&c_item->ic_iovec);
 
+cleanup:
 	c2_list_for_each_entry_safe(&fop_list, fop_member, fop_member_next,
 			struct c2_io_fop_member, fop_linkage) {
 		c2_list_del(&fop_member->fop_linkage);
 		c2_free(fop_member);
 	}
 	c2_list_fini(&fop_list);
-	c_item->ic_resultant_item = b_item;
+	if (res == 0)
+		c_item->ic_resultant_item = b_item;
 	return res;
 }
 

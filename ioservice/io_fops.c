@@ -26,6 +26,11 @@
 #include "lib/errno.h"
 
 /**
+   Forward declarations.
+ */
+static int io_fop_get_opcode(const struct c2_fop *fop);
+
+/**
    Generic IO segments ops.
    @param seg - Generic io segment.
    @param op - Opcode of operation this io segment belongs to.
@@ -236,24 +241,6 @@ static int iosegs_alloc(union c2_io_iovec *iovec,
    @param iovec - Input io vector.
    @param op - Operation, given io vector belongs to.
  */
-static void iosegs_free(union c2_io_iovec *iovec,
-		const enum c2_io_service_opcodes op)
-{
-	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
-
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		c2_free(iovec->read_vec->fs_segs);
-	else
-		c2_free(iovec->write_vec->iov_seg);
-}
-
-/**
-   Deallocate the array of IO segments from IO vector.
-   @param iovec - Input io vector.
-   @param op - Operation, given io vector belongs to.
- */
 static void iovec_free(union c2_io_iovec *iovec,
 		const enum c2_io_service_opcodes op)
 {
@@ -261,10 +248,13 @@ static void iovec_free(union c2_io_iovec *iovec,
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		c2_free(iovec->read_vec);
-	else
-		c2_free(iovec->write_vec);
+	if (op == C2_IO_SERVICE_READV_OPCODE) {
+		if (iovec->read_vec)
+			c2_free(iovec->read_vec);
+	} else {
+		if (iovec->write_vec)
+			c2_free(iovec->write_vec);
+	}
 }
 
 /**
@@ -279,11 +269,10 @@ static void iovec_get(struct c2_fop *fop, union c2_io_iovec *iovec)
 	struct c2_fop_cob_writev	*write_fop;
 	enum c2_io_service_opcodes	 op;
 
-	C2_PRE(fop != NULL);
+	op = io_fop_get_opcode(fop);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	op = fop->f_type->ft_code;
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
 		read_fop = c2_fop_data(fop);
 		iovec->read_vec = &read_fop->frd_iovec;
@@ -348,11 +337,11 @@ static void iovec_copy(const union c2_io_iovec *src, union c2_io_iovec *dest,
 }
 
 /**
-   Deallocate a generic IO segment.
+   Deallocate and remove a generic IO segment from aggr_list.
    @param ioseg - Input generic io segment.
    @param op - Operation code, given io segment belongs to.
  */
-static void ioseg_free(struct c2_io_ioseg *ioseg,
+static void ioseg_unlink_free(struct c2_io_ioseg *ioseg,
 		const enum c2_io_service_opcodes op)
 {
 	C2_PRE(ioseg != NULL);
@@ -360,10 +349,13 @@ static void ioseg_free(struct c2_io_ioseg *ioseg,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	c2_list_del(&ioseg->io_linkage);
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		c2_free(ioseg->gen_ioseg.read_seg);
-	else
-		c2_free(ioseg->gen_ioseg.write_seg);
+	if (op == C2_IO_SERVICE_READV_OPCODE) {
+		if (ioseg->gen_ioseg.read_seg)
+			c2_free(ioseg->gen_ioseg.read_seg);
+	} else {
+		if (ioseg->gen_ioseg.write_seg)
+			c2_free(ioseg->gen_ioseg.write_seg);
+	}
 	c2_free(ioseg);
 }
 
@@ -588,6 +580,7 @@ static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
 }
 
 /**
+<<<<<<< HEAD
    Restore the original IO vector of resultant read fop.
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
@@ -855,17 +848,22 @@ static int io_fop_segments_coalesce(union c2_io_iovec *iovec,
 
 /**
    Coalesce the IO vectors of a list of read/write fops into IO vector
-   of given resultant fop.
+   of given resultant fop. At a time, all fops in the list are either
+   read fops or write fops. Both fop types can not be present simultaneously.
    @note fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
 
-   @param list - list of read/write fops.
-   @param b_fop - resultant fop.
+   @param fop_list - list of c2_io_fop_member structures. These structures
+   contain either read or write fops. All fops from list are either
+   read fops or write fops. Both fop types can not be present in the fop_list
+   simultaneously.
+   @param res_fop - resultant fop with which the resulting IO vector is
+   associated.
    @param vec - Input IO vector which stores the original IO vector
    from resultant fop and it is restored on receving the reply of this
-   coalesced IO request.
+   coalesced IO request. @see io_fop_iovec_restore.
  */
-static int io_fop_coalesce(const struct c2_list *list,
-		struct c2_fop *b_fop, union c2_io_iovec *vec)
+static int io_fop_coalesce(const struct c2_list *fop_list,
+		struct c2_fop *res_fop, union c2_io_iovec *vec)
 {
 	int				 res = 0;
 	int				 i = 0;
@@ -873,96 +871,106 @@ static int io_fop_coalesce(const struct c2_list *list,
 	struct c2_fop			*fop;
 	struct c2_list			 aggr_list;
 	union c2_io_iovec		 iovec;
-	union c2_io_iovec		*res_iovec;
+	union c2_io_iovec		*res_iovec = NULL;
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
 	struct c2_io_ioseg		 res_ioseg;
 	struct c2_io_fop_member		*fop_member;
 	enum c2_io_service_opcodes	 op;
 
-	C2_PRE(list != NULL);
-	C2_PRE(b_fop != NULL);
+	C2_PRE(fop_list != NULL);
+	C2_PRE(res_fop != NULL);
 	C2_PRE(vec != NULL);
 
-	c2_list_init(&aggr_list);
-	op = b_fop->f_type->ft_code;
+	op = res_fop->f_type->ft_code;
 
-	/* Traverse the list, get the IO vector from each fop,
+	/* Make a copy of original IO vector belonging to res_fop and place
+	   it in input parameter vec which can be used while restoring the
+	   IO vector. */
+	res = iovec_alloc(&vec, op);
+	if (res != 0)
+		return -ENOMEM;
+
+	c2_list_init(&aggr_list);
+
+	/* Traverse the fop_list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
 	   in another list. */
-	c2_list_for_each_entry(list, fop_member, struct c2_io_fop_member,
-			fop_linkage) {
+	c2_list_for_each_entry(fop_list, fop_member, struct c2_io_fop_member,
+			       fop_linkage) {
 		fop = fop_member->fop;
 		iovec_get(fop, &iovec);
 		res = io_fop_segments_coalesce(&iovec, &aggr_list, op);
 	}
 
-	/* Allocate a new write vector and copy all (merged) write segments
-	   to the new vector and make changes to write fop accordingly. */
+	/* Allocate a new generic IO vector and copy all (merged) IO segments
+	   to the new vector and make changes to res_fop accordingly. */
 	res = iovec_alloc(&res_iovec, op);
-	if (res != 0) {
-		c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
-				struct c2_io_ioseg, io_linkage)
-			ioseg_free(ioseg, op);
-
-		return res;
-	}
+	if (res != 0)
+		goto cleanup;
 
 	curr_segs = c2_list_length(&aggr_list);
 	res = iosegs_alloc(res_iovec, op, curr_segs);
-	if (res != 0) {
-		iovec_free(res_iovec, op);
-		c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
-				struct c2_io_ioseg, io_linkage)
-			ioseg_free(ioseg, op);
-
-		return res;
-	}
+	if (res != 0)
+		goto cleanup;
 
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
 			struct c2_io_ioseg, io_linkage) {
 		ioseg_get(res_iovec, i, op, &res_ioseg);
 		ioseg_copy(ioseg, &res_ioseg, op);
-		ioseg_free(ioseg, op);
+		ioseg_unlink_free(ioseg, op);
 		i++;
 	}
 	c2_list_fini(&aggr_list);
 	ioseg_nr_set(res_iovec, op, i);
 
-	/* Keep pointer to original IO vector to restore back on completion. */
-	res = iovec_alloc(&vec, op);
-	if (res != 0) {
-		iosegs_free(res_iovec, op);
-		iovec_free(res_iovec, op);
-		return -ENOMEM;
-	}
-	iovec_get(b_fop, &iovec);
-	/* Copy iovec to vec. */
+	iovec_get(res_fop, &iovec);
 	iovec_copy(&iovec, vec, op);
-
-	/* Copy res_iovec to iovec. */
 	iovec_copy(res_iovec, &iovec, op);
+	return res;
+cleanup:
+	C2_ASSERT(res != 0);
+	if (res_iovec != NULL)
+		iovec_free(res_iovec, op);
+	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
+				    struct c2_io_ioseg, io_linkage)
+		ioseg_unlink_free(ioseg, op);
+	c2_list_fini(&aggr_list);
 	return res;
 }
 
 /**
-   Restore the original IO vector of resultant write fop.
-   @param fop - Incoming fop.
+   Restore the original IO vector of resultant fop from the appropriate
+   IO vector from parameter vec.
+   @param fop - Incoming fop. This fop is same as res_fop parameter from
+   the subroutine io_fop_coalesce. @see io_fop_coalesce.
    @param vec - A union pointing to original IO vector.
  */
-static void io_fop_write_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+static void io_fop_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 {
+	enum c2_io_service_opcodes	 op;
+	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev	*write_fop;
 
-	C2_PRE(fop != NULL);
 	C2_PRE(vec != NULL);
 
-	write_fop = c2_fop_data(fop);
+	op = io_fop_get_opcode(fop);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	c2_free(write_fop->fwr_iovec.iov_seg);
-
-	write_fop->fwr_iovec.iov_count = vec->write_vec->iov_count;
-	write_fop->fwr_iovec.iov_seg = vec->write_vec->iov_seg;
+	if (op == C2_IO_SERVICE_READV_REP_OPCODE) {
+		read_fop = c2_fop_data(fop);
+		c2_free(read_fop->frd_iovec.fs_segs);
+		read_fop->frd_iovec.fs_count = vec->read_vec->fs_count;
+		read_fop->frd_iovec.fs_segs = vec->read_vec->fs_segs;
+		c2_free(vec->read_vec);
+	} else {
+		write_fop = c2_fop_data(fop);
+		c2_free(write_fop->fwr_iovec.iov_seg);
+		write_fop->fwr_iovec.iov_count = vec->write_vec->iov_count;
+		write_fop->fwr_iovec.iov_seg = vec->write_vec->iov_seg;
+		c2_free(vec->write_vec);
+	}
 }
 
 /**
@@ -994,7 +1002,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_is_io = io_fop_is_rw,
 	.fto_get_nfragments = io_fop_read_get_nfragments,
 	.fto_io_coalesce = io_fop_coalesce,
-	.fto_iovec_restore = io_fop_read_iovec_restore,
+	.fto_iovec_restore = io_fop_iovec_restore,
 };
 
 /**
@@ -1010,7 +1018,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_is_io = io_fop_is_rw,
 	.fto_get_nfragments = io_fop_write_get_nfragments,
 	.fto_io_coalesce = io_fop_coalesce,
-	.fto_iovec_restore = io_fop_write_iovec_restore,
+	.fto_iovec_restore = io_fop_iovec_restore,
 };
 
 /**
