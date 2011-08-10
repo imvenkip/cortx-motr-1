@@ -24,7 +24,7 @@
 #include "ping_fop.h"
 
 /**
- * Object encompassing FOM for ping 
+ * Object encompassing FOM for ping
  * operation and necessary context data
  */
 struct c2_fom_ping {
@@ -39,12 +39,12 @@ struct c2_fom_ping {
  *     that executes on data server. </b>
  *  - Send reply FOP to client.
  */
-int c2_fom_ping_state(struct c2_fom *fom); 
+int c2_fom_ping_state(struct c2_fom *fom);
 
 /* __COLIBRI_PING_FOM_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

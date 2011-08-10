@@ -26,7 +26,7 @@
 #include "fop/fop_format.h"
 #include "ping_fom.h"
 #include "ping_fop.h"
-#include "rpc/ping_fop_u.h"
+#include "ping_fop_u.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpccore.h"
@@ -49,7 +49,7 @@ static struct c2_fom_type c2_fom_ping_mopt = {
 };
 
 /**
- * State function for ping request 
+ * State function for ping request
  */
 int c2_fom_ping_state(struct c2_fom *fom)
 {
@@ -66,7 +66,9 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep = c2_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
+	c2_rpc_item_init(item);
         c2_rpc_item_attach(item);
+	item->ri_group = NULL;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	return 0;
 }
@@ -85,7 +87,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
         fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
-        fom_type = &c2_fom_ping_mopt; 
+        fom_type = &c2_fom_ping_mopt;
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;
@@ -98,7 +100,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 /** @} end of io_foms */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

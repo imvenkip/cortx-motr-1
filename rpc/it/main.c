@@ -39,24 +39,24 @@
 #include "rpc/rpccore.h"
 #include "rpc/formation.h"
 #include "ioservice/io_fops.h"
-#include "rpc/ping_fop.h"
-#include "rpc/ping_fom.h"
+#include "ping_fop.h"
+#include "ping_fom.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
-#include "rpc/ping_fop_u.h"
+#include "ping_fop_u.h"
 #endif
 #include "stob/ut/io_fop.h"
 
-/**     
+/**
    Context for a ping client or server.
- */     
+ */
 struct ping_ctx {
 	/* Transport structure */
         struct c2_net_xprt			*pc_xprt;
 	/* Network domain */
-        struct c2_net_domain			 pc_dom; 
+        struct c2_net_domain			 pc_dom;
 	/* Local hostname */
         const char				*pc_lhostname;
 	/* Local port */
@@ -91,6 +91,8 @@ struct ping_ctx {
 	int					 pc_nr_ping_bytes;
 	/* number of client threads */
 	int					 pc_nr_client_threads;
+	/* switch to identify which type of fops have to be sent to rpc */
+	int					 pc_fop_switch;
 };
 
 /* Default port values */
@@ -127,6 +129,12 @@ enum {
 /* Default number of client threads*/
 enum {
 	NR_CLIENT_THREADS = 1,
+};
+
+/* Switch for PING or IO fops */
+enum {
+	PING = 1,
+	IO,
 };
 
 /* Global client ping context */
@@ -181,7 +189,7 @@ void server_rqh_init(int dummy)
 
 	while (1) {
 		c2_chan_wait(&clink);
-		if (!c2_queue_is_empty(&exec_queue)) {	
+		if (!c2_queue_is_empty(&exec_queue)) {
 			q1 = c2_queue_get(&exec_queue);
 			C2_ASSERT(q1 != NULL);
 			item = container_of(q1, struct c2_rpc_item,
@@ -189,9 +197,59 @@ void server_rqh_init(int dummy)
 			fop = c2_rpc_item_to_fop(item);
 			fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 			C2_ASSERT(fom != NULL);
-			fom->fo_ops->fo_state(fom);	
+			fom->fo_ops->fo_state(fom);
 			}
-		}	
+		}
+}
+
+/* Fini the client*/
+void client_fini()
+{
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
+
+	/* Fini the local net endpoint. */
+	c2_net_end_point_put(cctx.pc_lep);
+
+	/* Fini the remote net endpoint. */
+	c2_net_end_point_put(cctx.pc_rep);
+
+	/* Fini the net domain */
+	c2_net_domain_fini(&cctx.pc_dom);
+
+	/* Fini the transport */
+	c2_net_xprt_fini(cctx.pc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&cctx.pc_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&cctx.pc_db);
+}
+
+/* Fini the server */
+void server_fini()
+{
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
+
+	/* Fini the net endpoint. */
+	c2_net_end_point_put(sctx.pc_lep);
+
+	/* Fini the net endpoint. */
+	c2_net_end_point_put(sctx.pc_rep);
+
+	/* Fini the net domain */
+	c2_net_domain_fini(&sctx.pc_dom);
+
+	/* Fini the transport */
+	c2_net_xprt_fini(sctx.pc_xprt);
+
+        /* Fini the cob domain */
+        c2_cob_domain_fini(&sctx.pc_cob_domain);
+
+        /* Fini the db */
+        c2_dbenv_fini(&sctx.pc_db);
 }
 
 /* Create the server*/
@@ -233,7 +291,7 @@ void server_init(int dummy)
 	printf("Server Addr = %s\n",addr);
 
 	/* Create source endpoint for server side */
-	rc = c2_net_end_point_create(&sctx.pc_lep,&sctx.pc_dom,addr); 
+	rc = c2_net_end_point_create(&sctx.pc_lep,&sctx.pc_dom,addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -253,7 +311,7 @@ void server_init(int dummy)
 	printf("Client Addr = %s\n",addr);
 
 	/* Create destination endpoint for server i.e client endpoint */
-	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_dom, addr); 
+	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_dom, addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -289,7 +347,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			sctx.pc_lep); 
+			sctx.pc_lep);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -301,8 +359,55 @@ cleanup:
 	do_cleanup();
 }
 
-int c2_rpc_form_item_populate_param(struct c2_rpc_item *item);
+#define nfiles                   64
+#define ndatafids                8
+#define nfops                    256
+extern struct c2_fop_file_fid          *form_fids;
+extern uint64_t                        *file_offsets;
+extern struct c2_fop_io_vec           **form_write_iovecs;
 
+int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
+void init_fids();
+void populate_fids();
+void init_file_io_patterns();
+struct c2_fop *form_get_new_fop();
+
+/**
+  Init the data required for IO fops
+ */
+void io_fop_data_init()
+{
+        C2_ALLOC_ARR(form_fids, nfiles);
+        init_fids();
+        populate_fids();
+        C2_ALLOC_ARR(file_offsets, ndatafids);
+        init_file_io_patterns();
+        C2_ALLOC_ARR(form_write_iovecs, nfops);
+}
+
+/**
+  Create a random IO fop (either read or write) and post it to rpc layer
+ */
+void send_random_io_fop(int nr)
+{
+        struct c2_fop           *fop;
+        struct c2_rpc_item      *item = NULL;
+
+        fop = form_get_new_fop();
+        item = &fop->f_item;
+        c2_rpc_frm_item_populate_param(&fop->f_item);
+        item->ri_deadline = 0;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group = NULL;
+	item->ri_mach = &cctx.pc_rpc_mach;
+        c2_rpc_item_attach(item);
+        item->ri_session = &cctx.pc_rpc_session;
+        c2_rpc_post(item);
+}
+
+/**
+  Create a ping fop and post it to rpc layer
+ */
 void send_ping_fop(int nr)
 {
 	struct c2_fop                   *fop = NULL;
@@ -326,11 +431,15 @@ void send_ping_fop(int nr)
 		ping_fop->fp_arr.f_data[i] = i+100;
 	}
 	item = &fop->f_item;
-	c2_rpc_form_item_populate_param(&fop->f_item);
+	c2_rpc_item_init(item);
+	c2_rpc_frm_item_populate_param(&fop->f_item);
 	item->ri_deadline = 0;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_group = NULL;
+	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
-	c2_rpc_post(item);	
+	c2_rpc_post(item);
 }
 
 /* Get stats from rpcmachine and print them */
@@ -352,38 +461,38 @@ void print_stats(bool client, bool server)
 	printf("Stats on Outgoing Path\n");
 	printf("*********************************************\n");
 	printf("Number of outgoing items = %lu\n",
-			stats->rs_num_out_items);
+			stats->rs_out.rsu_items_nr);
 	printf("Number of outgoing bytes = %lu\n",
-			stats->rs_num_out_bytes);
+			stats->rs_out.rsu_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_min_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_min_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_max_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_max_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out_avg_latency);
-	nsec = c2_time_nanoseconds(stats->rs_out_avg_latency);
+	sec = c2_time_seconds(stats->rs_out.rsu_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_out.rsu_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_out_bytes/(sec*1000000);
+	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 
@@ -391,38 +500,38 @@ void print_stats(bool client, bool server)
 	printf("Stats on Incoming Path\n");
 	printf("*********************************************\n");
 	printf("Number of incoming items = %lu\n",
-			stats->rs_num_in_items);
+			stats->rs_in.rsu_items_nr);
 	printf("Number of incoming bytes = %lu\n",
-			stats->rs_num_in_bytes);
+			stats->rs_in.rsu_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_min_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_min_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_max_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_max_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in_avg_latency);
-	nsec = c2_time_nanoseconds(stats->rs_in_avg_latency);
+	sec = c2_time_seconds(stats->rs_in.rsu_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_in.rsu_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_num_in_bytes/(sec*1000000);
+	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 }
@@ -470,7 +579,7 @@ void client_init()
 	printf("Client Addr = %s\n",addr);
 
 	/* Create source endpoint for client side */
-	rc = c2_net_end_point_create(&cctx.pc_lep,&cctx.pc_dom,addr); 
+	rc = c2_net_end_point_create(&cctx.pc_lep,&cctx.pc_dom,addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -490,7 +599,7 @@ void client_init()
 	printf("Server Addr = %s\n",addr);
 
 	/* Create destination endpoint for client i.e server endpoint */
-	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_dom, addr); 
+	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_dom, addr);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
@@ -526,7 +635,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			cctx.pc_lep); 
+			cctx.pc_lep);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -603,11 +712,17 @@ void client_init()
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
+	io_fop_data_init();
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], int,
-				NULL, &send_ping_fop,
-				0, "client_%d", i);
+		if (cctx.pc_fop_switch == PING)
+			rc = C2_THREAD_INIT(&client_thread[i], int,
+					NULL, &send_ping_fop,
+					0, "client_%d", i);
+		else if (cctx.pc_fop_switch == IO)
+			rc = C2_THREAD_INIT(&client_thread[i], int,
+					NULL, &send_random_io_fop,
+					0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -628,7 +743,7 @@ void client_init()
 	}
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
 	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
@@ -644,7 +759,7 @@ void client_init()
 
 
 	/* Terminate RPC connection */
-	rc = c2_rpc_conn_terminate(&cctx.pc_conn); 
+	rc = c2_rpc_conn_terminate(&cctx.pc_conn);
 	if(rc != 0){
 		printf("Failed to terminate rpc connection\n");
 		goto cleanup;
@@ -654,7 +769,7 @@ void client_init()
 
 
         c2_time_now(&timeout);
-        c2_time_set(&timeout, c2_time_seconds(timeout) + 3,
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
 	rcb = c2_rpc_conn_timedwait(&cctx.pc_conn, C2_RPC_CONN_TERMINATED |
@@ -670,6 +785,7 @@ void client_init()
 		printf("Timeout for conn terminate\n");
 	c2_rpc_session_fini(&cctx.pc_rpc_session);
 	c2_rpc_conn_fini(&cctx.pc_conn);
+
 cleanup:
 	do_cleanup();
 }
@@ -677,6 +793,8 @@ cleanup:
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 {
+	bool			 pingfops = false;
+	bool			 iofops = false;
 	bool			 verbose = false;
 	bool			 server = false;
 	bool			 client = false;
@@ -713,15 +831,17 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('p', "client port", "%i", &client_port),
 		C2_STRINGARG('S', "server hostname",
 			LAMBDA(void, (const char *str) {server_name = str; })),
-		C2_FORMATARG('p', "server port", "%i", &server_port),
+		C2_FORMATARG('P', "server port", "%i", &server_port),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FLAGARG('i', "send io fops", &iofops),
+		C2_FLAGARG('d', "send ping data fops", &pingfops),
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
-	
+
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
 	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
@@ -731,6 +851,7 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
+	cctx.pc_fop_switch = PING;
 
 	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
@@ -738,7 +859,7 @@ int main(int argc, char *argv[])
         c2_rpc_max_rpcs_in_flight = 8;
         c2_rpc_max_fragments_size = 16;
 
-        c2_rpc_form_set_thresholds(c2_rpc_max_message_size,
+        c2_rpc_frm_set_thresholds(c2_rpc_max_message_size,
                         c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
 
 	/* Set if passed through command line interface */
@@ -758,12 +879,17 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
+	if (pingfops)
+		cctx.pc_fop_switch = PING;
+	if (iofops)
+		cctx.pc_fop_switch = IO;
 
 	/* Client part */
 	if(client) {
 		client_init();
 		if (verbose)
 			print_stats(client, server);
+		client_fini();
 	}
 
 	/* Server part */
@@ -779,7 +905,14 @@ int main(int argc, char *argv[])
 		if (verbose)
 			print_stats(client, server);
 		c2_thread_join(&server_thread);
+		server_fini();
+
 	}
+
+	c2_ping_fop_fini();
+	io_fop_fini();
+
+	c2_fini();
 
 	return 0;
 }

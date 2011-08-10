@@ -80,11 +80,6 @@ static uint64_t sender_id_get(void);
 static uint64_t session_id_get(void);
 
 /**
-   Returns true iff item is carrying CONN_ESTABLISH fop.
- */
-static bool item_is_conn_establish(const struct c2_rpc_item *item);
-
-/**
    Returns true iff @conn is sender end of rpc connection.
  */
 static bool conn_is_snd(const struct c2_rpc_conn *conn);
@@ -184,8 +179,25 @@ int c2_rpc_session_module_init(void)
 }
 C2_EXPORTED(c2_rpc_session_module_init);
 
-void c2_rpc_session_module_fini(void)
+void conn_list_fini(struct c2_list *list)
 {
+	struct c2_rpc_conn *conn;
+	struct c2_rpc_conn *conn_next;
+
+	C2_PRE(list != NULL);
+
+	c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
+			c_link)
+		c2_rpc_conn_terminate_reply_sent(conn);
+}
+
+void c2_rpc_session_module_fini(struct c2_rpcmachine *machine)
+{
+	C2_PRE(machine != NULL);
+
+	conn_list_fini(&machine->cr_incoming_conns);
+	conn_list_fini(&machine->cr_outgoing_conns);
+
 	c2_rpc_session_fop_fini();
 }
 C2_EXPORTED(c2_rpc_session_module_fini);
@@ -371,7 +383,15 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	fop_ce->rce_cookie = (uint64_t)conn;
 
 	session_0 = c2_rpc_conn_session0(conn);
+
+	/* XXX why this is here? merge problem? -Amit */
+	/* Formation client side keeps track of current rpcs in flight,
+	   while server side of formation does not. So we need to differentiate
+	   between client and server sides for formation. */
+	machine->cr_formation->rf_client_side = true;
+
 	rc = fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
+
 	if (rc == 0) {
 		c2_mutex_lock(&machine->cr_session_mutex);
 		c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
@@ -501,13 +521,22 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 
 static void session_zero_detach(struct c2_rpc_conn *conn)
 {
-	struct c2_rpc_session *session;
+	struct c2_rpc_session	*session;
+	struct c2_rpc_slot	*slot;
 
 	C2_PRE(conn != NULL);
 
 	session = c2_rpc_conn_session0(conn);
 	session->s_state = C2_RPC_SESSION_TERMINATED;
 	c2_list_del(&session->s_link);
+
+	/*
+	 * Remove slot0 from c2_rpcmachine::cr_ready_slots list
+	 */
+	slot = session->s_slot_table[0];
+	if (c2_list_link_is_in(&slot->sl_link))
+		c2_list_del(&slot->sl_link);
+
 	c2_rpc_session_fini(session);
 	c2_free(session);
 }
@@ -593,7 +622,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 	struct c2_rpc_fop_conn_terminate_rep *fop_ctr;
 	struct c2_fop                        *fop;
 	struct c2_rpc_conn                   *conn;
-	struct c2_rpc_slot                   *slot;
+	//struct c2_rpc_slot                   *slot;
 	uint64_t                              sender_id;
 
 	C2_PRE(req != NULL && req->ri_session != NULL &&
@@ -651,10 +680,11 @@ out:
 	/*
 	 * XXX Rethink: Remove the slot0 of session0, from ready_slots lists.
 	 */
+/*
 	slot = req->ri_session->s_slot_table[0];
 	C2_ASSERT(slot != NULL && c2_list_link_is_in(&slot->sl_link));
 	c2_list_del(&slot->sl_link);
-
+*/
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
 	/* Release the reference on c2_rpc_chan structure being used. */
@@ -915,8 +945,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		session->s_state = C2_RPC_SESSION_ESTABLISHING;
 		c2_list_add(&conn->c_sessions, &session->s_link);
 		conn->c_nr_sessions++;
-		c2_cond_broadcast(&session->s_state_changed,
-				  &session->s_mutex);
 	} else {
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = rc;
@@ -926,6 +954,10 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
+
+	c2_cond_broadcast(&session->s_state_changed,
+			  &session->s_mutex);
+
 	C2_POST(c2_rpc_session_invariant(session));
 	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
@@ -1701,6 +1733,13 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	return 0;
 }
 
+uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot)
+{
+	C2_PRE(slot != NULL);
+
+	return slot->sl_max_in_flight - slot->sl_in_flight;
+}
+
 /**
    If slot->sl_item_list has item(s) in state FUTURE then
 	call slot->sl_ops->so_item_consume() for upto slot->sl_max_in_flight
@@ -2277,14 +2316,14 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 
 static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
-	printf("snd_slot_idle called %p\n", slot);
-	c2_rpc_form_extevt_slot_idle(slot);
+	printf("sender_slot_idle called %p\n", slot);
+	c2_rpc_frm_slot_idle(slot);
 }
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	printf("snd_item_consume called %p\n", item);
-	c2_rpc_form_extevt_rpcitem_ready(item);
+	printf("sender_consume_item called %p\n", item);
+	c2_rpc_frm_item_ready(item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -2299,7 +2338,7 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			(unsigned long)slot->sl_verno.vn_vc,
 			(unsigned long)slot->sl_xid);
-	c2_rpc_form_extevt_slot_idle(slot);
+	c2_rpc_frm_slot_idle(slot);
 }
 
 static void rcv_item_consume(struct c2_rpc_item *item)
@@ -2311,8 +2350,8 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	printf("rcv_reply_consume called %p %p\n", req, reply);
-	c2_rpc_form_extevt_rpcitem_ready(reply);
+	printf("rcv_consume_reply called %p %p\n", req, reply);
+	c2_rpc_frm_item_ready(reply);
 }
 
 static int conn_persistent_state_create(struct c2_cob_domain *dom,
@@ -2692,7 +2731,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	c2_free(conn);
 }
 
-static bool item_is_conn_establish(const struct c2_rpc_item *item)
+bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_establish;
 }
@@ -2781,9 +2820,9 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
-	c2_rpc_item_set_incoming_exit_stats(item);
+	c2_rpc_item_exit_stats_set(item, INCOMING);
 	if (rc != 0) {
-		if (item_is_conn_establish(item)) {
+		if (c2_rpc_item_is_conn_establish(item)) {
 			item_dispatch(item);
 			return 0;
 		}
@@ -2820,7 +2859,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = c2_rpc_form_extevt_rpcitem_reply_received(item,
+			rc = c2_rpc_frm_item_reply_received(item,
 					req);
 		}
 

@@ -27,13 +27,13 @@
  * for following operations
  * - readv
  * - writev
- * 
+ *
  * It describes the FOP formats along with brief description of the flow.
  *
- * Note: As authorization is carried on server, all request FOPs 
+ * Note: As authorization is carried on server, all request FOPs
  * contain uid and gid. For authentication, nid is included in every FOP.
  * This is to serve very primitive authentication for now.
- * 
+ *
  * @{
  */
 
@@ -49,12 +49,12 @@
 DEF(c2_fop_file_fid, RECORD,
 	_(f_seq, U64),
 	_(f_oid, U64));
-	
+
 /**
  * c2_fop_io_buf is a buffer with a count specifying its length.
  */
 DEF(c2_fop_io_buf, SEQUENCE,
-	_(f_count, U32),
+	_(f_count, U64),
 	_(f_buf, BYTE));
 
 /**
@@ -101,27 +101,28 @@ DEF(c2_fop_io_vec, SEQUENCE,
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
 	_(frdr_rc, U32),
-	_(frdr_buf, c2_fop_io_buf));
+	_(frdr_fid, c2_fop_file_fid),
+	_(frdr_iovec, c2_fop_io_vec));
 
 /**
  * <b> c2_fop_cob_readv </b>
  * is a representation of a read component object request.
  * <p> The c2_fop_cob_readv FOP is sent by client to the Data server.
  * The FOP supplies the stob id on which the read has to be performed.
- * The IO vector signifies the region within Component Object on which IO 
+ * The IO vector signifies the region within Component Object on which IO
  * has to be performed.
- * On completion, the reply FOP (c2_fop_cob_io_rep) is created 
+ * On completion, the reply FOP (c2_fop_cob_io_rep) is created
  * and sent to the client.
- * <br> List of fields  
+ * <br> List of fields
  * @li storage object Identifier
- * @li IO vector 
+ * @li IO vector
  * @li miscellaneous flags
  * @li uid, gid for authorization
  */
 DEF(c2_fop_cob_readv, RECORD,
 	_(frd_foprep, U64),
 	_(frd_fid, c2_fop_file_fid),
-	_(frd_ioseg, c2_fop_segment_seq),
+	_(frd_iovec, c2_fop_segment_seq),
 	_(frd_uid, U64),
 	_(frd_gid, U64),
 	_(frd_nid, U64),
@@ -130,10 +131,10 @@ DEF(c2_fop_cob_readv, RECORD,
 /**
  * <b> c2_fop_cob_writev_rep </b>
  * This is reply FOP for writev FOPs
- * <p> The c2_fop_cob_writev_rep FOP is sent as a response by the 
+ * <p> The c2_fop_cob_writev_rep FOP is sent as a response by the
  * Data server to a client.
  * It contains the status code and number of bytes written.
- * <br> List of fields  
+ * <br> List of fields
  * @li rc: status code. Non-zero value indicates error code.
  * @li number of bytes written.
  * rc = 0 indicates successful completion
@@ -142,20 +143,20 @@ DEF(c2_fop_cob_readv, RECORD,
 DEF(c2_fop_cob_writev_rep, RECORD,
 	_(fwrr_nid, U64),
 	_(fwrr_rc, U32),
-	_(fwrr_count, U64));	
+	_(fwrr_count, U64));
 
 /**
  * <b> c2_fop_cob_writev </b>
- * <p> The c2_fop_cob_writev FOP is used to send write requests by a 
+ * <p> The c2_fop_cob_writev FOP is used to send write requests by a
  * client to a Data server.
  * The FOP supplies the stob id on which the write has to be performed.
- * The IO vector signifies the region within Component Object on which IO 
+ * The IO vector signifies the region within Component Object on which IO
  * has to be performed.
- * On completion, the reply FOP (c2_fop_cob_io_rep) is created 
+ * On completion, the reply FOP (c2_fop_cob_io_rep) is created
  * and sent to the client.
- * <br> List of fields  
+ * <br> List of fields
  * @li storage object Identifier
- * @li IO vector 
+ * @li IO vector
  * @li miscellaneous flags
  * @li uid, gid for authorization
  */

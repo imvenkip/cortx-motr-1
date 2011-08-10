@@ -75,7 +75,7 @@
    Several update streams may be mapped onto one slot for more complex cases.
 
    Update stream state machine:
-
+   @verbatim
       UNINITIALIZED
            | update_stream_init()
            |
@@ -90,8 +90,10 @@
            | update_stream_fini()
            V
        FINALIZED
+    @endverbatim
 
    RPC-item state machine:
+    @verbatim
       UNINITIALIZED
            | rpc_item_init()
            V
@@ -106,6 +108,7 @@
            |               V                           rpc_item_fini()     |
            +----------->FINALIZED<-----------------------------------------+
 
+      @endverbatim
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en
 
@@ -136,6 +139,7 @@ struct c2_rpc_item;
 #include "fop/fop_base.h"
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
+#include "addb/addb.h"
 
 /*Macro to enable RPC grouping test and debug code */
 
@@ -153,13 +157,15 @@ enum {
 };
 
 struct c2_rpc;
-struct c2_rpc_conn;
 struct c2_addb_rec;
+struct c2_rpc_conn;
+union c2_io_iovec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
 struct c2_update_stream;
 struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
+struct c2_rpc_frm_item_coalesced;
 
 /** TBD in sessions header */
 enum c2_update_stream_flags {
@@ -175,55 +181,60 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre ri_added() called.
+	   @note ri_added() has been called before invoking this function.
 	 */
-	void (*rio_sent)(struct c2_rpc_item *item);
+	void (*rito_sent)(struct c2_rpc_item *item);
 	/**
 	   Called when item's added to an RPC
 	   @param rpc reference to an RPC where item's added
 	   @param item reference to an item added to rpc
 	 */
-	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
+	void (*rito_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
 
 	/**
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre ri_added() called.
-	   @pre ri_sent() called.
+	   @note ri_added() and ri_sent() have been called before invoking
+	   this function.
 	 */
-	void (*rio_replied)(struct c2_rpc_item	*item,
-			   int 			rc);
+	void (*rito_replied)(struct c2_rpc_item *item, int rc);
 
+	/**
+	   Restore original IO vector of rpc item.
+	 */
+	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
+			union c2_io_iovec *vec);
 	/**
 	   Find out the size of rpc item.
 	 */
-	uint64_t (*rio_item_size)(struct c2_rpc_item *item);
+	uint64_t (*rito_item_size)(struct c2_rpc_item *item);
 	/**
 	   Find out if given rpc items belong to same type or not.
 	 */
-	bool (*rio_items_equal)(struct c2_rpc_item *item1, struct
+	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
 			c2_rpc_item *item2);
 	/**
 	   Return the opcode of fop carried by given rpc item.
 	 */
-	int (*rio_io_get_opcode)(struct c2_rpc_item *item);
+	int (*rito_io_get_opcode)(struct c2_rpc_item *item);
 	/**
 	   Return the fid of request.
 	 */
-	struct c2_fid (*rio_io_get_fid)(struct c2_rpc_item *item);
+	struct c2_fid (*rito_io_get_fid)(struct c2_rpc_item *item);
 	/**
 	   Find out if the item belongs to an IO request or not.
 	 */
-	bool (*rio_is_io_req)(struct c2_rpc_item *item);
+	bool (*rito_is_io_req)(struct c2_rpc_item *item);
 	/**
 	   Find out the count of fragmented buffers.
 	 */
-	uint64_t (*rio_get_io_fragment_count)(struct c2_rpc_item *item);
+	uint64_t (*rito_get_io_fragment_count)(struct c2_rpc_item *item);
 	/**
 	   Coalesce rpc items that share same fid and intent(read/write).
 	 */
-	int (*rio_io_coalesce)(void *coalesced_item, struct c2_rpc_item *item);
+	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
+			struct c2_rpc_item *item);
 #ifndef __KERNEL__
 	/**
 	   Serialise @item on provided xdr stream @xdrs
@@ -240,7 +251,7 @@ struct c2_rpc_item_ops {
 	/**
 	   Called when given item's sent.
 	   @param item reference to an RPC-item sent
-	   @pre ri_added() called.
+	   @note ri_added() has been called before invoking this function.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
@@ -254,14 +265,13 @@ struct c2_rpc_item_ops {
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
 	   @param rc error code <0 if failure
-	   @pre ri_added() called.
-	   @pre ri_sent() called.
+	   @note ri_added() and ri_sent() have been called before invoking this
+	   function.
 	 */
 	void (*rio_replied)(struct c2_rpc_item	*item,
-			   struct c2_rpc_item	*reply,
-			   int 			rc);
-
+			   struct c2_rpc_item	*reply, int rc);
 };
+
 struct c2_update_stream_ops {
 	/** Called when update stream enters UPDATE_STREAM_TIMEDOUT state */
 	void (*uso_timeout)(struct c2_update_stream *us);
@@ -305,6 +315,8 @@ struct c2_update_stream {
 /** TBD in 'DLD RPC FOP:core wire formats':
     c2_rpc is a container of c2_rpc_items. */
 struct c2_rpc {
+	/** Linkage into list of rpc objects just formed or into the list
+	    of rpc objects which are ready to be sent on wire. */
 	struct c2_list_link	r_linkage;
 	struct c2_list		r_items;
 
@@ -316,6 +328,19 @@ struct c2_rpc {
    Initialize an rpc object.
  */
 void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
+
+/**
+   Possible values for flags from c2_rpc_item_type.
+ */
+enum c2_rpc_item_type_flag {
+	/** Item with valid session, slot and version number. */
+	C2_RPC_ITEM_BOUND = (1 << 0),
+	/** Item with a session but no slot nor version number. */
+	C2_RPC_ITEM_UNBOUND = (1 << 1),
+	/** Item similar to unbound item except it is always sent as
+	    unbound item and it does not expect any reply. */
+	C2_RPC_ITEM_UNSOLICITED = (1 << 2),
+};
 
 /**
    Definition is taken partly from 'DLD RPC FOP:core wire formats' (not submitted yet).
@@ -332,7 +357,39 @@ struct c2_rpc_item_type {
 	bool				   rit_item_is_req;
 	/** true if the item of this type modifies file-system state */
 	bool				   rit_mutabo;
+	/** Flag to distinguish unsolicited item from unbound one. */
+	uint64_t			   rit_flags;
 };
+
+/**
+   Post an unsolicited item to rpc layer.
+   @param conn - c2_rpc_conn structure from which this item will be posted.
+   @param item - input rpc item.
+   @retval - 0 if routine succeeds, -ve with proper error code otherwise.
+ */
+int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
+		struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is bound.
+   @param item - Input rpc item
+   @retval - TRUE if bound, FALSE otherwise.
+ */
+bool c2_rpc_item_is_bound(struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is unbound.
+   @param item - Input rpc item
+   @retval - TRUE if unbound, FALSE otherwise.
+ */
+bool c2_rpc_item_is_unbound(struct c2_rpc_item *item);
+
+/**
+   Tell whether given item is unsolicited.
+   @param item - Input rpc item
+   @retval - TRUE if unsolicited, FALSE otherwise.
+ */
+bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item);
 
 enum c2_rpc_item_state {
 	/** Newly allocated object is in uninitialized state */
@@ -416,6 +473,9 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unformed_linkage;
 	/** Linkage to the group c2_rpc_group, needed for grouping */
 	struct c2_list_link		 ri_group_linkage;
+	/** Linkage to list of items which are coalesced, anchored
+	    at c2_rpc_frm_item_coalesced::ic_member_list. */
+	struct c2_list_link		 ri_coalesced_linkage;
 	/** Destination endpoint. */
 	struct c2_net_end_point		 ri_endp;
 	/** Timer associated with this rpc item.*/
@@ -434,41 +494,47 @@ struct c2_rpc_item {
 	c2_time_t			 ri_rpc_exit_time;
 };
 
-/* Set the stats for outgoing rpc item */
-void c2_rpc_item_set_outgoing_exit_stats(struct c2_rpc_item *item);
+/** Enum to distinguish if the path is incoming or outgoing */
+enum c2_rpc_item_path {
+	INCOMING = 0,
+	OUTGOING
+};
 
-/* Set the stats for incoming rpc item */
-void c2_rpc_item_set_incoming_exit_stats(struct c2_rpc_item *item);
+/**
+  Set the stats for outgoing rpc item
+  @param item - incoming or outgoing rpc item
+  @param path - enum distinguishing whether the item is incoming or outgoing
+ */
+void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
+		enum c2_rpc_item_path path);
+
+/** Stats unit that could be used either for incoming or outgoing stats */
+struct c2_rpc_stats_unit {
+	/** Number of items processed */
+	uint64_t	rsu_items_nr;
+	/** Number of bytes processed */
+	uint64_t	rsu_bytes_nr;
+	/** Instanteneous Latency */
+	c2_time_t	rsu_i_lat;
+	/** Average Latency */
+	c2_time_t	rsu_avg_lat;
+	/** Min Latency */
+	c2_time_t	rsu_min_lat;
+	/** Max Latency */
+	c2_time_t	rsu_max_lat;
+};
 
 /**
   Statistical data maintained for each item in the rpcmachine.
   It is upto the higher level layers to retrieve and process this data
  */
 struct c2_rpc_stats {
-	/** Number of items processed on outgoing path */
-	uint64_t	rs_num_out_items;
-	/** Number of items processed on incoming path */
-	uint64_t	rs_num_in_items;
-	/** Number of bytes processed on outgoing path */
-	uint64_t	rs_num_out_bytes;
-	/** Number of bytes processed on incoming path */
-	uint64_t	rs_num_in_bytes;
-	/** Instanteneous Latency on outgoing path */
-	c2_time_t	rs_out_instant_latency;
-	/** Average Latency on outgoing path */
-	c2_time_t	rs_out_avg_latency;
-	/** Min Latency on outgoing path */
-	c2_time_t	rs_out_min_latency;
-	/** Max Latency on outgoing path */
-	c2_time_t	rs_out_max_latency;
-	/** Instanteneous Latency on incoming path */
-	c2_time_t	rs_in_instant_latency;
-	/** Average Latency on incoming path */
-	c2_time_t	rs_in_avg_latency;
-	/** Min Latency on incoming path */
-	c2_time_t	rs_in_min_latency;
-	/** Max Latency on incoming path */
-	c2_time_t	rs_in_max_latency;
+	/** Lock to protect this structure from concurrent access. */
+	struct c2_mutex			rs_lock;
+	/** Outgoing stats unit */
+	struct c2_rpc_stats_unit	rs_out;
+	/** Incoming stats unit */
+	struct c2_rpc_stats_unit	rs_in;
 };
 
 /**
@@ -606,11 +672,12 @@ int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
    @pre net domain should be initialized.
 
    @param nb - net buffer to be deallocated.
-   @param tm - transfer machine from which nb should be deleted.
-   @param net_dom - network domain from which nb should be deregistered.
+   @param chan - Concerned c2_rpc_chan structure.
+   @param tm_active - boolean indicating whether associated TM is
+   active or not.
  */
 int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
-		struct c2_net_transfer_mc *tm, struct c2_net_domain *net_dom);
+		struct c2_rpc_chan *chan, bool tm_active);
 
 /**
    Delete and deregister C2_RPC_TM_RECV_BUFFERS_NR number of buffers from
@@ -620,13 +687,12 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
    @pre tm should be initialized and started.
    @pre net domain should have been initialized.
 
-   @param tm - transfer machine from which nr number of buffers will be
-               deleted.
-   @param net_dom - network domain from which nr number of buffers will
-                    be deregistered.
+   @param chan - Concerned c2_rpc_chan structure.
+   @param tm_active - boolean indicating whether associated TM is
+   active or not.
  */
-int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_net_transfer_mc *tm,
-		struct c2_net_domain *net_dom);
+int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
+		bool tm_active);
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
@@ -684,13 +750,15 @@ struct c2_rpc_ep_aggr {
  */
 struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpcmachine.*/
-	struct c2_list_link		 rc_linkage;
+	struct c2_list_link		  rc_linkage;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	 rc_xfermc;
+	struct c2_net_transfer_mc	  rc_xfermc;
+	/** Pool of receive buffers associated with this transfer machine. */
+	struct c2_net_buffer		**rc_rcv_buffers;
 	/** Number of entities using this transfer machine.*/
-	struct c2_ref			 rc_ref;
+	struct c2_ref			  rc_ref;
 	/** The rpcmachine, this chan structure is associated with.*/
-	struct c2_rpcmachine		*rc_rpcmachine;
+	struct c2_rpcmachine		 *rc_rpcmachine;
 };
 
 /**
@@ -738,8 +806,10 @@ void c2_rpc_chan_put(struct c2_rpc_chan *chan);
  */
 struct c2_rpcmachine {
 	/* List of transfer machine used by conns from this rpcmachine. */
-	struct c2_rpc_ep_aggr		 cr_ep_aggr;
-	struct c2_rpc_processing	 cr_processing;
+	struct c2_rpc_ep_aggr	   cr_ep_aggr;
+	/* Formation module data structure associated with this rpcmachine. */
+	struct c2_rpc_formation	  *cr_formation;
+	struct c2_rpc_processing   cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics	 cr_statistics;
 	/** Cob domain in which cobs related to session will be stored */
@@ -757,6 +827,8 @@ struct c2_rpcmachine {
 	struct c2_list			 cr_ready_slots;
 	/** Stats for this rpcmachine */
 	struct c2_rpc_stats		*cr_rpc_stats;
+	/** ADDB context for this rpcmachine */
+	struct c2_addb_ctx		 cr_rpc_machine_addb;
 };
 
 /**
@@ -919,8 +991,8 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 
    @param item rpc item being sent
    @param timeout time to wait for item being sent
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   invoking this function
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
@@ -946,10 +1018,8 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
    @param ops operations associated with the update stream
    @param out update associated with given session
 
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
-
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
+   invoking this function
    @return 0  success
    @return <0 failure
  */
@@ -962,9 +1032,7 @@ int c2_rpc_update_stream_get(struct c2_rpcmachine *machine,
 /**
    Releases given update stream.
    @param us update stream to be released
-
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
 
 */
 void c2_rpc_update_stream_put(struct c2_update_stream *us);
@@ -979,8 +1047,7 @@ void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
 /**
    Returns the count of items in the cache selected by priority
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
    @param prio priority of cache
 
@@ -991,8 +1058,7 @@ size_t c2_rpc_cache_item_count(struct c2_rpcmachine *machine,
 
 /**
    Returns count of RPC items in processing
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
 
    @return count of RPCs in processing
@@ -1001,8 +1067,7 @@ size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine);
 
 /**
    Returns average time spent in the cache for one RPC-item
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
    @param time[out] average time spent in processing on one RPC
  */
@@ -1010,9 +1075,15 @@ void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
 			      c2_time_t		   *time);
 
 /**
+   @todo rio_replied op from rpc type ops.
+   If this is an IO request, free the IO vector
+   and free the fop.
+ */
+void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
+
+/**
    Returns transmission speed in bytes per second.
-   @pre c2_rpc_core_init()
-   @pre c2_rpcmachine_init()
+   @note c2_rpc_core_init() and c2_rpcmachine_init() have been called before
    @param machine rpcmachine operation applied to.
  */
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);

@@ -41,7 +41,7 @@ int c2_rpc_session_module_init(void);
 /**
    Finalises all session realted fop types
  */
-void c2_rpc_session_module_fini(void);
+void c2_rpc_session_module_fini(struct c2_rpcmachine *machine);
 
 enum {
 	SESSION_COB_MAX_NAME_LEN = 40
@@ -408,6 +408,14 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 					     struct c2_rpc_item *reply,
 					     int                 rc);
 /**
+  A callback called when conn terminate reply has been put on network.
+  Finalizes and frees conn.
+
+  @pre conn->c_state == C2_RPC_CONN_TERMINATING
+ */
+void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
+
+/**
    Iterates over all the sessions in rpc connection
  */
 #define c2_rpc_for_each_session(conn, session)  \
@@ -435,6 +443,11 @@ struct c2_rpc_slot_ops {
 	    can use such slot to send unbound items. */
 	void (*so_slot_idle)(struct c2_rpc_slot *slot);
 };
+
+/**
+   Returns true iff given rpc item is conn_establish.
+ */
+bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
 
 /** @}  End of rpc_session group */
 #endif

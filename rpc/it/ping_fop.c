@@ -49,7 +49,7 @@ uint64_t c2_fop_ping_getsize(struct c2_fop *ping_fop)
 	count = fp->fp_arr.f_count;
 	size = sizeof(count) + sizeof(fp->fp_arr.f_data) * count;
 	printf("\nIn Ping get size : %ld\n", size);
-	/** Size of fop layout 
+	/** Size of fop layout
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	size += sizeof(struct c2_fop_type);
 	size += sizeof(struct c2_fop);*/
@@ -71,12 +71,12 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 
    @param - fop for which opcode has to be returned
  */
-int c2_fop_get_opcode(struct c2_fop *fop)
+int c2_fop_get_opcode(const struct c2_fop *fop)
 {
         int opcode = 0;
 
         C2_PRE(fop != NULL);
-	
+
         opcode = fop->f_type->ft_code;
         return opcode;
 }
@@ -84,7 +84,7 @@ int c2_fop_get_opcode(struct c2_fop *fop)
 /**
   return false by default
  */
-bool c2_fop_is_rw(struct c2_fop *fop)
+bool c2_fop_is_rw(const struct c2_fop *fop)
 {
         C2_PRE(fop != NULL);
         return false;
@@ -97,14 +97,13 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_getsize = c2_fop_ping_getsize,
-	.fto_op_equal = NULL, 
+	.fto_size_get = c2_fop_ping_getsize,
+	.fto_op_equal = NULL,
 	.fto_get_opcode = c2_fop_get_opcode,
 	.fto_get_fid = NULL,
 	.fto_is_io = c2_fop_is_rw,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
-	.fto_io_segment_coalesce = NULL,
 };
 
 /* Init for ping reply fom */
@@ -117,7 +116,7 @@ int c2_fop_ping_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
-        .fto_getsize = c2_fop_ping_reply_get_size,
+        .fto_size_get = c2_fop_ping_reply_get_size,
         //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_opcode = c2_fop_get_opcode,
@@ -125,11 +124,10 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_is_io = c2_fop_is_rw,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
-        .fto_io_segment_coalesce = NULL,
 };
 
 /**
- * FOP definitions for ping fop and its reply 
+ * FOP definitions for ping fop and its reply
  */
 C2_FOP_TYPE_DECLARE(c2_fop_ping, "Ping",
 		c2_fop_ping_opcode, &c2_fop_ping_ops);

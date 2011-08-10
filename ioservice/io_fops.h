@@ -38,63 +38,59 @@ struct c2_fom_type;
  * The opcode from which IO service FOPS start.
  */
 enum c2_io_service_opcodes {
-	c2_io_service_readv_opcode = 15,
-	c2_io_service_writev_opcode,
-	c2_io_service_create_opcode,
-	c2_io_service_create_rep_opcode,
-	c2_io_service_writev_rep_opcode,
-	c2_io_service_readv_rep_opcode,
+	C2_IO_SERVICE_READV_OPCODE = 15,
+	C2_IO_SERVICE_WRITEV_OPCODE,
+	C2_IO_SERVICE_CREATE_OPCODE,
+	C2_IO_SERVICE_CREATE_REP_OPCODE,
+	C2_IO_SERVICE_WRITEV_REP_OPCODE,
+	C2_IO_SERVICE_READV_REP_OPCODE,
 };
-
-/**
- * Helper functions to operate on fops. Used in rpc formation.
- */
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *seg);
-
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *vec);
-
-int c2_io_fop_cob_readv_replied(struct c2_fop *fop);
-int c2_io_fop_cob_writev_replied(struct c2_fop *fop);
 
 /**
    A wrapper structure to have a list of fops
    participating in IO coalescing.
  */
 struct c2_io_fop_member {
-	/* Linkage to the list of fops. */
+	/** Linkage to the list of fops. */
 	struct c2_list_link	 fop_linkage;
-	/* Actual fop object. */
+	/** Actual fop object. */
 	struct c2_fop		*fop;
 };
 
 /**
-   Member structure of a list containing read IO segments.
+   A IO vector pointer union to keep track of original IO vector of a
+   resultant IO rpc item happened due to IO coalescing. Once the reply
+   of such operations comes back, original IO vector is restored in the
+   resultant fop.
  */
-struct c2_io_read_segment {
-        /** Linkage to the list of such structures. */
-        struct c2_list_link             rs_linkage;
-        /** The read IO segment. */
-        struct c2_fop_segment           rs_seg;
+union c2_io_iovec {
+	/** IO vector for write request operation. */
+	struct c2_fop_io_vec		*write_vec;
+	/** IO vector for read request operation. */
+	struct c2_fop_segment_seq	*read_vec;
 };
 
 /**
-   Member structure of a list containing write IO segments.
+   A generic IO segment pointing either to read or write segments. This
+   is needed to have generic IO coalescing code.
  */
-struct c2_io_write_segment {
+struct c2_io_ioseg {
+	union {
+		/** IO segment for read request fop. */
+		struct c2_fop_segment	*read_seg;
+		/** IO segment for write request fop. */
+		struct c2_fop_io_seg	*write_seg;
+	} gen_ioseg;
         /** Linkage to the list of such structures. */
-        struct c2_list_link             ws_linkage;
-        /** The write IO segment. */
-        struct c2_fop_io_seg            ws_seg;
+        struct c2_list_link             io_linkage;
 };
 
 /**
  * Bunch of externs needed for stob/ut/io_fop_init.c code.
  */
-extern struct c2_fop_type_ops c2_io_cob_readv_ops;
-extern struct c2_fop_type_ops c2_io_cob_writev_ops;
-extern struct c2_fop_type_ops c2_io_rwv_rep_ops;
+extern const struct c2_fop_type_ops c2_io_cob_readv_ops;
+extern const struct c2_fop_type_ops c2_io_cob_writev_ops;
+extern const struct c2_fop_type_ops c2_io_rwv_rep_ops;
 
 /**
  * FOP definitions and corresponding fop type formats

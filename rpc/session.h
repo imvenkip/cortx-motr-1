@@ -705,6 +705,15 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 void c2_rpc_session_fini(struct c2_rpc_session *session);
 
 /**
+   Returns the number of rpc items that can be bound to this slot
+   staying within SLOT_DEFAULT_MAX_IN_FLIGHT limit.
+   @param slot - Input c2_rpc_slot
+   @retval - Number of items that can be bound to this slot.
+   XXX Need a better name.
+ */
+uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
+
+/**
   In memory slot object.
 
   A slot provides the FIFO and exactly once semantics for item delivery.
