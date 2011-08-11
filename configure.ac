@@ -570,8 +570,8 @@ AC_CONFIG_FILES([
 		 stob/linux_kernel/Makefile
 		 xdr/Makefile
 		 xdr/ut/Makefile
+		 yaml2db/Makefile
                 ])
-                
                 #rpc/Makefile
                 #rpc/ut/Makefile
                 #net/ut/Makefile
