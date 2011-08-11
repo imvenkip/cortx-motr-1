@@ -361,6 +361,8 @@ enum c2_rpc_conn_flags {
    - conn_establish or conn_terminate FOP
    - session_establish or session_terminate FOP.
 
+   <B> State transition diagram: </B>
+
    Note: There is no state named as "UNINITIALISED", it is in the state
    diagram to specify "before initialisation" and "after finalisation" state,
    and the contents of object are irrelevant and "unknown".
@@ -399,9 +401,66 @@ enum c2_rpc_conn_flags {
 
   @endverbatim
 
-  Concurrency:
+  <B> Liveness and Concurrency: </B>
+  * Allocation and deallocation of c2_rpc_conn object is entirely handled by
+    user (c2_rpc_conn object is not reference counted).
   * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
-  * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
+  * Locking order: slot => session => conn => rpcmachine
+
+  <B> Typical sequence of API execution </B>
+  Note: error checking is omitted.
+
+  @code
+  // ALLOCATE CONN
+  struct c2_rpc_conn *conn;
+  C2_ALLOC_PTR(conn);
+
+  // INITIALISE CONN
+  rc = c2_rpc_conn_init(conn, tgt_end_point, rpcmachine);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED));
+
+  // ESTABLISH RPC CONNECTION
+  rc = c2_rpc_conn_establish(conn);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
+
+  // WAIT UNTIL CONNECTION IS ESTABLISHED
+  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
+				absolute_timeout);
+  if (flag) {
+	if (conn->c_state == C2_RPC_CONN_ACTIVE)
+		// connection is established and is ready to be used
+	ele
+		// connection establishing failed
+  } else {
+	// timeout
+  }
+  // Assuming connection is established.
+  // Create one or more sessions using this connection. @see c2_rpc_session
+
+  // TERMINATING CONNECTION
+  // Make sure that all the sessions that were created on this connection are
+  // terminated
+  C2_ASSERT(conn->c_nr_sessions == 0);
+
+  rc = c2_rpc_conn_terminate(conn);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
+
+  // WAIT UNTIL CONNECTION IS TERMINATED
+  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+				C2_RPC_CONN_FAILED, absolute_timeout);
+  if (flag) {
+	if (conn->c_state == C2_RPC_CONN_TERMINATED)
+		// conn is successfully terminated
+	else
+		// conn terminate has failed
+  } else {
+	// timeout
+  }
+  // assuming conn is terminated
+  c2_rpc_conn_fini(conn);
+  c2_free(conn);
+
+  @endcode
  */
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
@@ -662,10 +721,12 @@ enum c2_rpc_session_state {
    item->ri_deadline = absolute_time;
    item->ri_ops = item_ops;   // item_ops contains ->replied() callback which
 			      // will be called when reply to this item is
-			      // received.
+			      // received. DO NOT FREE THIS ITEM.
 
    // TERMINATING SESSION
-
+   // Wait until all the items that were posted on this session, are sent and
+   // for all those items either reply is received or reply_timeout has
+   // triggered.
    flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE, timeout);
    if (flag) {
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
@@ -673,6 +734,7 @@ enum c2_rpc_session_state {
 	C2_ASSERT(ergo(rc == 0, session->s_state ==
 			C2_RPC_SESSION_TERMINATING));
 
+	// Wait until session is terminated.
 	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
 					C2_RPC_SESSION_FAILED, timeout);
 	C2_ASSERT(ergo(flag1, session->s_state == C2_RPC_SESSION_TERMINATED ||
@@ -682,6 +744,7 @@ enum c2_rpc_session_state {
    // FINALISE SESSION
 
    c2_rpc_session_fini(session);
+   c2_free(session);
    @endcode
  */
 struct c2_rpc_session {

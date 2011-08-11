@@ -259,6 +259,7 @@ static int fop_post(struct c2_fop                *fop,
 	rc = c2_rpc_post(item);
 	return rc;
 }
+
 /**
    Common code in c2_rpc_conn_fini() and init failed case in __conn_init()
  */
