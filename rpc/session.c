@@ -1324,7 +1324,6 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 	struct c2_rpc_item *item;
 	int                 i;
 	int                 count = 0;
-	int                 tmp = 0;	/* XXX remove this */
 
 	C2_ASSERT(session != NULL);
 
@@ -1339,11 +1338,8 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 			if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
 			    item->ri_tstate == RPC_ITEM_FUTURE)
 				count++;
-			tmp++;
 		}
 	}
-	printf("nr_active_items_count: scanned %d items\n",
-			tmp - session->s_nr_slots);
 	return count;
 }
 
@@ -1360,28 +1356,31 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	/*
 	 * invariants that are independent on session state
 	 */
-	result = session->s_conn != NULL;
+	result = session->s_conn != NULL &&
+		 nr_active_items_count(session) == session->s_nr_active_items;
 	if (!result)
 		return result;
 
 	switch (session->s_state) {
 	case C2_RPC_SESSION_INITIALISED:
-		return session->s_session_id == SESSION_ID_INVALID;
+		return session->s_session_id == SESSION_ID_INVALID &&
+			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_ESTABLISHING:
 		return session->s_session_id == SESSION_ID_INVALID &&
 			c2_list_contains(&session->s_conn->c_sessions,
-				&session->s_link);
+				&session->s_link) &&
+			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_TERMINATED:
 		return  !c2_list_link_is_in(&session->s_link) &&
-			session->s_cob == NULL;
+			session->s_cob == NULL &&
+			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_IDLE:
 		result = session->s_nr_active_items == 0 &&
 			 c2_list_is_empty(&session->s_unbound_items) &&
-			 session_alive_invariants(session) &&
-			 nr_active_items_count(session) == 0;
+			 session_alive_invariants(session);
 
 		if (!result)
 			return result;
@@ -1391,12 +1390,11 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	case C2_RPC_SESSION_BUSY:
 		return (session->s_nr_active_items > 0 ||
 		       !c2_list_is_empty(&session->s_unbound_items)) &&
-		       session_alive_invariants(session) &&
-		       nr_active_items_count(session) ==
-				session->s_nr_active_items;
+		       session_alive_invariants(session);
 
 	case C2_RPC_SESSION_TERMINATING:
-		return session_alive_invariants(session);
+		return session_alive_invariants(session) &&
+			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_FAILED:
 		return session->s_rc != 0 &&

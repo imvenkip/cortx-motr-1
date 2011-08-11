@@ -390,6 +390,7 @@ void io_fop_data_init()
  */
 void send_random_io_fop(int nr)
 {
+/*
         struct c2_fop           *fop;
         struct c2_rpc_item      *item = NULL;
 
@@ -403,6 +404,7 @@ void send_random_io_fop(int nr)
         c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
+*/
 }
 
 /**
@@ -439,7 +441,7 @@ void send_ping_fop(int nr)
 	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
-	c2_rpc_post(item);
+	//c2_rpc_post(item);
 }
 
 /* Get stats from rpcmachine and print them */
