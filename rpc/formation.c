@@ -114,7 +114,7 @@ static void frm_item_set_rpc_stats(const struct c2_rpc *rpc)
 
 	c2_list_for_each_entry(&rpc->r_items, item,
 			struct c2_rpc_item, ri_rpcobject_linkage) {
-		c2_rpc_item_exit_stats_set(item, OUTGOING);
+		c2_rpc_item_exit_stats_set(item, C2_RPC_PATH_OUTGOING);
 	}
 }
 

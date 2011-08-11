@@ -518,8 +518,9 @@ struct c2_rpc_item {
 
 /** Enum to distinguish if the path is incoming or outgoing */
 enum c2_rpc_item_path {
-	INCOMING = 0,
-	OUTGOING
+	C2_RPC_PATH_INCOMING = 0,
+	C2_RPC_PATH_OUTGOING,
+	C2_RPC_PATH_NR
 };
 
 /**
@@ -530,33 +531,23 @@ enum c2_rpc_item_path {
 void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 		enum c2_rpc_item_path path);
 
-/** Stats unit that could be used either for incoming or outgoing stats */
-struct c2_rpc_stats_unit {
-	/** Number of items processed */
-	uint64_t	rsu_items_nr;
-	/** Number of bytes processed */
-	uint64_t	rsu_bytes_nr;
-	/** Instanteneous Latency */
-	c2_time_t	rsu_i_lat;
-	/** Average Latency */
-	c2_time_t	rsu_avg_lat;
-	/** Min Latency */
-	c2_time_t	rsu_min_lat;
-	/** Max Latency */
-	c2_time_t	rsu_max_lat;
-};
-
 /**
   Statistical data maintained for each item in the rpcmachine.
   It is upto the higher level layers to retrieve and process this data
  */
 struct c2_rpc_stats {
-	/** Lock to protect this structure from concurrent access. */
-	struct c2_mutex			rs_lock;
-	/** Outgoing stats unit */
-	struct c2_rpc_stats_unit	rs_out;
-	/** Incoming stats unit */
-	struct c2_rpc_stats_unit	rs_in;
+	/** Number of items processed */
+	uint64_t	rs_items_nr;
+	/** Number of bytes processed */
+	uint64_t	rs_bytes_nr;
+	/** Instanteneous Latency */
+	c2_time_t	rs_i_lat;
+	/** Average Latency */
+	c2_time_t	rs_avg_lat;
+	/** Min Latency */
+	c2_time_t	rs_min_lat;
+	/** Max Latency */
+	c2_time_t	rs_max_lat;
 };
 
 /**
@@ -653,11 +644,6 @@ struct c2_rpc_processing {
 	struct c2_mutex crp_guard; /* lock protecting fields of the struct */
 
 	/** OUTPUT RELATED DATA: */
-};
-
-/** TBD: add parameters of RPC core layer,
-    algorithms should rely on here. */
-struct c2_rpc_statistics {
 };
 
 /**
@@ -832,8 +818,6 @@ struct c2_rpcmachine {
 	/* Formation module data structure associated with this rpcmachine. */
 	struct c2_rpc_formation	  *cr_formation;
 	struct c2_rpc_processing   cr_processing;
-	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
-	struct c2_rpc_statistics	 cr_statistics;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections
@@ -847,10 +831,12 @@ struct c2_rpcmachine {
 	struct c2_mutex			 cr_ready_slots_mutex;
 	/** list of ready slots. */
 	struct c2_list			 cr_ready_slots;
-	/** Stats for this rpcmachine */
-	struct c2_rpc_stats		*cr_rpc_stats;
 	/** ADDB context for this rpcmachine */
 	struct c2_addb_ctx		 cr_rpc_machine_addb;
+	/** Statistics for both incoming and outgoing paths */
+	struct c2_rpc_stats		 cr_rpc_stats[C2_RPC_PATH_NR];
+	/** Mutex to protect stats */
+	struct c2_mutex			 cr_stats_mutex;
 };
 
 /**
