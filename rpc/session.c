@@ -1318,33 +1318,41 @@ static bool session_alive_invariants(const struct c2_rpc_session *session)
 	return true;
 }
 
+static int nr_active_items_count(const struct c2_rpc_session *session)
+{
+	struct c2_rpc_slot *slot;
+	struct c2_rpc_item *item;
+	int                 i;
+	int                 count = 0;
+	int                 tmp = 0;	/* XXX remove this */
+
+	C2_ASSERT(session != NULL);
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
+		c2_list_for_each_entry(&slot->sl_item_list, item,
+				       struct c2_rpc_item,
+				       ri_slot_refs[0].sr_link) {
+		printf("nr_active_items_count: item %p link %p slot %d\n",
+				item, &item->ri_unbound_link, i);
+		printf("item state %d\n", item->ri_tstate);
+			if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
+			    item->ri_tstate == RPC_ITEM_FUTURE)
+				count++;
+			tmp++;
+		}
+	}
+	printf("nr_active_items_count: scanned %d items\n",
+			tmp - session->s_nr_slots);
+	return count;
+}
+
 /**
    The routine is also called from session_foms.c, hence can't be static
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
 	bool                result;
-
-	int nr_active_items_count(void)
-	{
-		struct c2_rpc_slot *slot;
-		struct c2_rpc_item *item;
-		int                 i;
-		int                 count = 0;
-
-		for (i = 0; i < session->s_nr_slots; i++) {
-			slot = session->s_slot_table[i];
-			c2_list_for_each_entry(&slot->sl_item_list, item,
-					       struct c2_rpc_item,
-					       ri_slot_refs[0].sr_link) {
-				if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
-				    item->ri_tstate == RPC_ITEM_FUTURE)
-					count++;
-			}
-		}
-
-		return count;
-	}
 
 	if (session == NULL)
 		return false;
@@ -1373,7 +1381,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		result = session->s_nr_active_items == 0 &&
 			 c2_list_is_empty(&session->s_unbound_items) &&
 			 session_alive_invariants(session) &&
-			 nr_active_items_count() == 0;
+			 nr_active_items_count(session) == 0;
 
 		if (!result)
 			return result;
@@ -1384,7 +1392,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		return (session->s_nr_active_items > 0 ||
 		       !c2_list_is_empty(&session->s_unbound_items)) &&
 		       session_alive_invariants(session) &&
-		       nr_active_items_count() ==
+		       nr_active_items_count(session) ==
 				session->s_nr_active_items;
 
 	case C2_RPC_SESSION_TERMINATING:

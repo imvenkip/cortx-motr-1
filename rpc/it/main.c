@@ -729,11 +729,19 @@ void client_init()
 		c2_thread_join(&client_thread[i]);
 	}
 
-	/*
+
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
-	}*/
-	sleep (3);
+	}
+
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+	/* Wait for session to terminate */
+	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
+			C2_RPC_SESSION_IDLE,
+			timeout);
+	C2_ASSERT(cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE);
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to terminate session\n");
@@ -756,7 +764,6 @@ void client_init()
 			printf("pingcli: session terminate failed\n");
 	} else
 		printf("Timeout for session terminate \n");
-
 
 	/* Terminate RPC connection */
 	rc = c2_rpc_conn_terminate(&cctx.pc_conn);

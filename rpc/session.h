@@ -573,10 +573,10 @@ enum c2_rpc_session_state {
    Session object at the sender side.
    @verbatim
 
-            +------------------> some unknown state
-                 allocated            |
-				      |  c2_rpc_session_init()
-				      V
+            +------------------> UNINITIALISED
+                 allocated         ^   |
+                            fini() |   |  c2_rpc_session_init()
+				   |   V
 				  INITIALISED
 				      |
 				      | c2_rpc_session_establish()
@@ -604,7 +604,7 @@ enum c2_rpc_session_state {
 	  |		              |
 	  |			      | fini()
 	  |			      V
-	  +----------------------->unknown state
+	  +----------------------> UNINITIALISED
 
    @endverbatim
  */
