@@ -402,6 +402,26 @@ else
 	AC_MSG_RESULT([$GALOIS_LIBS])
 fi
 
+# Check for yaml 
+YAML_SRC=$SRCDIR/../yaml
+YAML_LIBS="$YAML_SRC/src/libyaml.la"
+AC_MSG_CHECKING([for yaml libs])
+if ! test -e $YAML_LIBS; then
+        AC_MSG_RESULT([building $YAML_SRC])
+        oldcwd=$(pwd)
+        cd $YAML_SRC && ./configure && make
+        res=$?
+        cd $oldcwd
+        if ! test $res -eq 0 ; then
+                AC_MSG_ERROR([An error occured while building libyaml!])
+        fi
+        if ! test -e $YAML_LIBS; then
+                AC_MSG_ERROR([$YAML_LIBS not found! Build failed?])
+        fi
+else
+        AC_MSG_RESULT([$YAML_LIBS])
+fi
+
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
@@ -421,6 +441,7 @@ fi
 AC_SUBST([DB_SRC])
 AC_SUBST([DB_LIBS])
 AC_SUBST([GALOIS_LIBS])
+AC_SUBST([YAML_LIBS])
 
 if test x$enable_gssrpc = xyes; then
         AC_CHECK_LIB([gssrpc], [xdr_int], [
@@ -468,7 +489,7 @@ fi
 #
 # _GNU_SOURCE for asprintf(3)
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 
@@ -569,6 +590,7 @@ echo "LDFLAGS:  \"$LDFLAGS\""
 echo ""
 
 echo "Galois :  \"$GALOIS_SRC\""
+echo "YAML :  \"$YAML_SRC\""
 echo "Db     :  \"$DB_SRC\""
 echo "Linux  :  \"$LINUX\""
 echo ""
