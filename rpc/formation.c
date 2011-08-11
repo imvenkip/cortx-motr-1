@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * 		    Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 04/28/2011
  */
 
