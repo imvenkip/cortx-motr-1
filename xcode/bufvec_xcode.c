@@ -14,10 +14,9 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya<subhash_arya@xyratex.com>
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
-#include "net/net.h"
 #include "lib/types.h"
 #include "lib/vec.h"
 #include "lib/assert.h"
@@ -81,16 +80,20 @@ static int bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
 /**
    Returns no of padding bytes that would be needed to keep a cursor aligned
    at 8 byte boundary.
+   @pre size > 0
 */
 static int pad_bytes_get(size_t size)
 {
+	uint64_t	result;
+
 	C2_PRE(size > 0);
 
 	if (size <= BYTES_PER_XCODE_UNIT)
 		return BYTES_PER_XCODE_UNIT - size;
-
-	return BYTES_PER_XCODE_UNIT - (size & (BYTES_PER_XCODE_UNIT - 1));
+	result = size & (BYTES_PER_XCODE_UNIT - 1);
+	return result == 0 ? result : BYTES_PER_XCODE_UNIT - result;
 }
+
 /**
   Adds padding bytes to the c2_bufvec_cursor to keep it aligned at 8 byte
   boundaries.
@@ -98,7 +101,7 @@ static int pad_bytes_get(size_t size)
 static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 {
 	void		*pad_p;
-	uint64_t	pad = 0;
+	uint64_t	 pad = 0;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(pad_bytes < BYTES_PER_XCODE_UNIT);
@@ -109,43 +112,36 @@ static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 
 static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
-	int		rc = 0;
-
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	rc = data_to_bufvec_copy(cur, val, sizeof *val);
-	return rc;
+	return data_to_bufvec_copy(cur, val, sizeof *val);
 }
 
 static int bufvec_uint64_decode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
-	int		rc = 0;
-
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	rc = bufvec_to_data_copy(cur, val, sizeof *val);
-	return 0;
+	return bufvec_to_data_copy(cur, val, sizeof *val);
+
 }
 
 static int bufvec_uint32_encode(struct c2_bufvec_cursor *cur, uint32_t *val)
 {
-	int		rc = 0;
 	uint64_t	l_val;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
 	l_val = (uint64_t)*val;
-	rc = bufvec_uint64_encode(cur, &l_val);
-	return rc;
+	return bufvec_uint64_encode(cur, &l_val);
 }
 
 static int bufvec_uint32_decode(struct c2_bufvec_cursor *cur, uint32_t *val)
 {
-	int		rc = 0;
 	uint64_t	l_val;
+	int		rc;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
@@ -157,20 +153,18 @@ static int bufvec_uint32_decode(struct c2_bufvec_cursor *cur, uint32_t *val)
 
 static int bufvec_uint16_encode(struct c2_bufvec_cursor *cur, uint16_t *val)
 {
-	int		rc = 0;
 	uint64_t	l_val;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
 	l_val = (uint64_t)*val;
-	rc = bufvec_uint64_encode(cur, &l_val);
-	return rc;
+	return bufvec_uint64_encode(cur, &l_val);
 }
 
 static int bufvec_uint16_decode(struct c2_bufvec_cursor *cur, uint16_t *val)
 {
-	int		rc = 0;
+	int		rc;
 	uint64_t	l_val;
 
 	C2_PRE(cur != NULL);
@@ -183,20 +177,18 @@ static int bufvec_uint16_decode(struct c2_bufvec_cursor *cur, uint16_t *val)
 
 static int bufvec_byte_encode(struct c2_bufvec_cursor *cur, uint8_t *val)
 {
-	int		rc = 0;
 	uint64_t	l_val;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
 	l_val = (uint64_t)*val;
-	rc = bufvec_uint64_encode(cur, &l_val);
-	return rc;
+	return bufvec_uint64_encode(cur, &l_val);
 }
 
 static int bufvec_byte_decode(struct c2_bufvec_cursor *cur, uint8_t *val)
 {
-	int		rc = 0;
+	int		rc;
 	uint64_t	l_val;
 
 	C2_PRE(cur != NULL);
@@ -208,16 +200,16 @@ static int bufvec_byte_decode(struct c2_bufvec_cursor *cur, uint8_t *val)
 }
 
 int c2_bufvec_byte(struct c2_bufvec_cursor *vc, uint8_t *val,
-		     enum bufvec_what what)
+		     enum c2_bufvec_what what)
 {
 	int rc;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(val != NULL);
 
-	if (what == BUFVEC_ENCODE)
+	if (what == C2_BUFVEC_ENCODE)
 		rc = bufvec_byte_encode(vc, val);
-	else if (what == BUFVEC_DECODE)
+	else if (what == C2_BUFVEC_DECODE)
 		rc = bufvec_byte_decode(vc, val);
 	else
 	    rc = -ENOSYS;
@@ -226,16 +218,16 @@ int c2_bufvec_byte(struct c2_bufvec_cursor *vc, uint8_t *val,
 }
 
 int c2_bufvec_uint16(struct c2_bufvec_cursor *vc, uint16_t *val,
-		     enum bufvec_what what)
+		     enum c2_bufvec_what what)
 {
 	int rc;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(val != NULL);
 
-	if (what == BUFVEC_ENCODE)
+	if (what == C2_BUFVEC_ENCODE)
 		rc = bufvec_uint16_encode(vc, val);
-	else if( what == BUFVEC_DECODE)
+	else if( what == C2_BUFVEC_DECODE)
 		rc = bufvec_uint16_decode(vc, val);
 	else
 	    rc = -ENOSYS;
@@ -244,16 +236,16 @@ int c2_bufvec_uint16(struct c2_bufvec_cursor *vc, uint16_t *val,
 }
 
 int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
-		     enum bufvec_what what)
+		     enum c2_bufvec_what what)
 {
 	int rc;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(val != NULL);
 
-	if (what == BUFVEC_ENCODE)
+	if (what == C2_BUFVEC_ENCODE)
 		rc = bufvec_uint32_encode(vc, val);
-	else if (what == BUFVEC_DECODE)
+	else if (what == C2_BUFVEC_DECODE)
 		rc = bufvec_uint32_decode(vc, val);
 	else
 	    rc = -ENOSYS;
@@ -262,16 +254,16 @@ int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
 }
 
 int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
-		     enum bufvec_what what)
+		     enum c2_bufvec_what what)
 {
 	int rc;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(val != NULL);
 
-	if(what == BUFVEC_ENCODE)
+	if(what == C2_BUFVEC_ENCODE)
 		rc = bufvec_uint64_encode(vc, val);
-	else if(what == BUFVEC_DECODE)
+	else if(what == C2_BUFVEC_DECODE)
 		rc = bufvec_uint64_decode(vc, val);
 	else
 		rc = -ENOSYS;
@@ -279,10 +271,10 @@ int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
 }
 
 int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
-		    size_t max_size, size_t el_size, c2_bufvec_xcode el_proc,
-		    enum bufvec_what what)
+		    size_t max_size, size_t el_size, c2_bufvec_xcode_t el_proc,
+		    enum c2_bufvec_what what)
 {
-	int		rc;
+	int		 rc;
 	int		 i;
 	void		*bp;
 
@@ -306,11 +298,12 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 }
 
 int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
-		    size_t max_size, enum bufvec_what what)
+		    size_t max_size, enum c2_bufvec_what what)
 {
 	int		 rc;
 	uint64_t	 pad_bytes;
 	char		*bp;
+	bool		 eob;
 
 	C2_PRE(vc != NULL);
 	C2_PRE(cpp != NULL);
@@ -318,7 +311,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 
 	bp = *cpp;
 	C2_ASSERT(bp != NULL);
-	if (what == BUFVEC_ENCODE) {
+	if (what == C2_BUFVEC_ENCODE) {
 		/* Encode the data + pad bytes into the bufvec */
 		rc = data_to_bufvec_copy(vc, bp, size);
 		if (rc != 0)
@@ -326,8 +319,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		pad_bytes = pad_bytes_get(size);
 		if (pad_bytes > 0)
 			rc = zero_padding_add(vc, pad_bytes);
-	}
-	else if (what == BUFVEC_DECODE) {
+	} else if (what == C2_BUFVEC_DECODE) {
 		/*
 		   Decode the data in the bufvec and advance the cursor by
 		   pad_bytes to keep the bufvec cursor aligned.
@@ -336,17 +328,18 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		if (rc != 0)
 			return rc;
 		pad_bytes = pad_bytes_get(size);
-		if (pad_bytes > 0)
-			C2_ASSERT(!c2_bufvec_cursor_move(vc, pad_bytes));
+		if (pad_bytes > 0) {
+			eob = c2_bufvec_cursor_move(vc, pad_bytes);
+			C2_ASSERT(!eob);
 		}
-	else
+	} else
 		rc = -ENOSYS;
 
 	return rc;
 }
 
 int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
-		  enum bufvec_what what)
+		  enum c2_bufvec_what what)
 {
 	int			 rc;
 	struct c2_fop_type	*ftype;
@@ -357,16 +350,17 @@ int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 	ftype = fop->f_type;
 	C2_ASSERT(ftype->ft_ops != NULL);
 
-	if(what == BUFVEC_ENCODE)
+	if (what == C2_BUFVEC_ENCODE)
 		rc = ftype->ft_ops->fto_bufvec_encode(fop, vc);
 
-	else if (what == BUFVEC_DECODE)
+	else if (what == C2_BUFVEC_DECODE)
 		rc = ftype->ft_ops->fto_bufvec_decode(fop, vc);
 	else
 		rc = -EFAULT;
 
 	return rc;
 }
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

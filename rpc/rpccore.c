@@ -19,7 +19,7 @@
 static struct c2_list  rpc_item_types_list;
 
 /** Lock for list of item types */
-static struct c2_mutex rpc_item_types_lock;
+static struct c2_rwlock rpc_item_types_lock;
 
 void c2_rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
@@ -225,7 +225,7 @@ int c2_rpc_core_init(void)
 {
 	c2_rpc_form_init();
 	c2_list_init(&rpc_item_types_list);
-	c2_mutex_init(&rpc_item_types_lock);
+	c2_rwlock_init(&rpc_item_types_lock);
 	return 0;
 }
 
@@ -917,9 +917,9 @@ void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
 {
 	C2_PRE(item_type != NULL);
 
-	c2_mutex_lock(&rpc_item_types_lock);
+	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_list_add(&rpc_item_types_list, &item_type->rit_linkage);
-	c2_mutex_unlock(&rpc_item_types_lock);
+	c2_rwlock_write_unlock(&rpc_item_types_lock);
 }
 
 /** Returns an rpc item type for a specific rpc item opcode */
@@ -927,7 +927,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
 	struct c2_rpc_item_type *item_type;
 	bool			 found = false;
-	c2_mutex_lock(&rpc_item_types_lock);
+	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_list_for_each_entry(&rpc_item_types_list, item_type,
 	                       struct c2_rpc_item_type, rit_linkage) {
 		if( item_type->rit_opcode == opcode) {
@@ -935,7 +935,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 			break;
 		}
 	}
-	c2_mutex_unlock(&rpc_item_types_lock);
+	c2_rwlock_read_unlock(&rpc_item_types_lock);
 	if(found)
 		return item_type;
 

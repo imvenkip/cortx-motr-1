@@ -187,7 +187,6 @@ struct c2_fop_type *c2_item_type_to_fop_type
 
 	fri_type = container_of(item_type, struct c2_fop_rpc_item_type,
 				fri_i_type);
-	C2_ASSERT(fri_type != NULL);
 	ftype = fri_type->fri_f_type;
 	return ftype;
 }

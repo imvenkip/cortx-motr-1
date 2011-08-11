@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya<subhash_arya@xyratex.com>
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
 
@@ -56,23 +56,23 @@
 
 enum {
 	C2_RPC_VERSION_1 = 1,
-	BUFVEC_ALIGN_BYTES = 8,
 };
 
 /** Header information present in an RPC object */
 struct c2_rpc_header {
-	/** RPC version, currenly 1 */
+	/** RPC version, currently 1 */
 	uint32_t rh_ver;
 	/** No of items present in the RPC object */
 	uint32_t rh_item_count;
 };
 
-/** Header information per rpc item in an rpc object. The detailed
-    description of the various fields is present in struct c2_rpc_item
-    /rpc/rpccore.h */
+/**
+   Header information per rpc item in an rpc object. The detailed description
+   of the various fields is present in struct c2_rpc_item /rpc/rpccore.h.
+*/
 struct c2_rpc_item_header {
 	uint32_t			rih_opcode;
-	uint64_t			rih_length;
+	uint64_t			rih_item_size;
 	uint64_t			rih_sender_id;
 	uint64_t			rih_session_id;
 	uint32_t			rih_slot_id;
@@ -91,12 +91,15 @@ struct c2_rpc_item_header {
    header respectively ( see struct c2_rpc_item and struct c2_rpc_item_header).
 */
 enum {
+	/** Count of fields in RPC object header (see struct c2_rpc_header) */
 	RPC_HEADER_FIELDS = 2,
+	/** Count of fields in item header (see struct c2_rpc_item_header) */
 	ITEM_HEADER_FIELDS = 14,
+	/** Onwire header size = RPC_HEADER_FIELDS * BYTES_PER_XCODE_UNIT */
+	RPC_ONWIRE_HEADER_SIZE = 16,
+	/** Onwire item header size = ITEM_HEADER_FIELDS * BYTES_PER_XCODE_UNIT */
+	ITEM_ONWIRE_HEADER_SIZE = 112,
 };
-
-#define RPC_ONWIRE_HEADER_SIZE  (RPC_HEADER_FIELDS * BYTES_PER_XCODE_UNIT)
-#define ITEM_ONWIRE_HEADER_SIZE (ITEM_HEADER_FIELDS * BYTES_PER_XCODE_UNIT)
 
 /**
    This function encodes an c2_rpc object into the supplied network buffer. Each
@@ -119,13 +122,13 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
    The rpc object in the network buffer is deserialized using the bufvec
    encode/decode funtions to extract the header. The header contains the count
    of items present in the rpc object. For each rpc item we :-
-   -Deserialize the opcode and lookup the  corresponding item_type.
-   -Call the corresponding item decode function for that item type and
-   deserialize the item payload.
-   -Add the deserialized item to the r_items list of the rpc_obj.
-   @param nb  The network buffer containing the onwire RPC object.
+   - Deserialize the opcode and lookup the  corresponding item_type.
+   - Call the corresponding item decode function for that item type and
+     deserialize the item payload.
+   - Add the deserialized item to the r_items list of the rpc_obj.
    @param rpc_obj The RPC object on which the onwire items would be
    deserialized.
+   @param nb  The network buffer containing the onwire RPC object.
    @retval 0 on success.
    @retval -errno on failure.
 */
@@ -157,10 +160,11 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
 			      struct c2_bufvec_cursor *cur);
 
-/** Return the onwire size of the item in bytes.
-    The onwire size of an item equals = size of (header + payload).
-    @param item The rpc item for which the on wire size is to be calculated
-    @retval Size of the item in bytes.
+/**
+   Return the onwire size of the item in bytes.
+   The onwire size of an item equals = size of (header + payload).
+   @param item The rpc item for which the on wire size is to be calculated
+   @retval Size of the item in bytes.
 */
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item);
 

@@ -14,11 +14,11 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya<subhash_arya@xyratex.com>
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
 #ifndef C2_BUFVEC_XCODE_H_
-#define C2_BUFVEC_XCODE_H
+#define C2_BUFVEC_XCODE_H_
 /**
    @defgroup bufvec_xcode Generic Buffer Vector Encode/Decode routines.
 
@@ -28,10 +28,10 @@
    each FOP, ADDB records etc.
 
    XXX:
-   -We don't care about endianness currently. However, for this to work
+   - We don't care about endianness currently. However, for this to work
    across different platforms and architectures, correct endianness conversion
    needs to be implemented. This will be taken up in the future.
-   -Currently, we assume that the bufvecs supplied to the transcode routines
+   - Currently, we assume that the bufvecs supplied to the transcode routines
    have 8 byte aligned buffers with sizes multiple of 8 bytes.
 */
 
@@ -45,26 +45,11 @@ enum {
   bufvecs. BUFVEC_ENCODE causes the type to be encoded into the bufvec.
   BUFVEC_DECODE causes the type to be extracted from the bufvec.
 */
-enum bufvec_what {
-	BUFVEC_ENCODE = 0,
-	BUFVEC_DECODE = 1,
+enum c2_bufvec_what {
+	C2_BUFVEC_ENCODE = 0,
+	C2_BUFVEC_DECODE = 1,
 };
 
-/**
-  Checks if the address is 8 byte aligned.
-*/
-static inline bool c2_is_aligned(void *addr, uint64_t align_val)
-{
-	uint64_t rc;
-
-	C2_PRE(addr != 0);
-
-	rc = (uint64_t)addr & (align_val - 1);
-	if(rc == 0)
-		return true;
-
-	return false;
-}
 /**
   Encode/Decode the various C builtin atomic types into c2_bufvecs. Each of
   these routines provide a single procedure for both encode and decode for each
@@ -83,16 +68,27 @@ static inline bool c2_is_aligned(void *addr, uint64_t align_val)
 */
 
 int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
-		     enum bufvec_what what);
+		     enum c2_bufvec_what what);
 
+/**
+  Encode/Decode a 32 bit unsigned value into c2_bufvecs.
+  @see c2_bufvec_uint64()
+*/
 int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
-		     enum bufvec_what what);
-
+		     enum c2_bufvec_what what);
+/**
+  Encode/Decode a 16 bit unsigned value into c2_bufvecs.
+  @see c2_bufvec_uint64()
+*/
 int c2_bufvec_uint16(struct c2_bufvec_cursor *vc, uint16_t *val,
-		     enum bufvec_what what);
+		     enum c2_bufvec_what what);
 
+/**
+  Encode/Decode a 8  bit unsigned value into c2_bufvecs.
+  @see c2_bufvec_uint64()
+*/
 int c2_bufvec_byte(struct c2_bufvec_cursor *vc, uint8_t *val,
-		     enum bufvec_what what);
+		     enum c2_bufvec_what what);
 
 /**
  Generic procedure for each data type for encode / decode. This can be used
@@ -100,7 +96,7 @@ int c2_bufvec_byte(struct c2_bufvec_cursor *vc, uint8_t *val,
  be passed as a callback function for xcoding each element when xcoding
  an array (see c2_bufvec_array).
  */
-typedef int (*c2_bufvec_xcode)(struct c2_bufvec_cursor *vc, void *val, ...);
+typedef int (*c2_bufvec_xcode_t)(struct c2_bufvec_cursor *vc, void *val, ...);
 
 /**
   Encode/Decode an array of arbitary elements into a bufvec.
@@ -117,8 +113,8 @@ typedef int (*c2_bufvec_xcode)(struct c2_bufvec_cursor *vc, void *val, ...);
   @retval -errno on failure.
 */
 int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
-                    size_t max_size, size_t el_size, c2_bufvec_xcode el_proc,
-		    enum bufvec_what what);
+		    size_t max_size, size_t el_size, c2_bufvec_xcode_t el_proc,
+		    enum c2_bufvec_what what);
 
 /**
   Encode/Decode a sequence of bytes into a bufvec. For proper alignment,
@@ -134,7 +130,7 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
   @retval -errno on failure.
 */
 int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
-		    size_t max_size, enum bufvec_what what);
+		    size_t max_size, enum c2_bufvec_what what);
 
 /**
   Encode/Decode a fop data into a bufvec. This function internally calls
@@ -146,7 +142,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
   @retval -errno on failure.
 */
 int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
-		  enum bufvec_what what);
+		  enum c2_bufvec_what what);
 /** @} end of bufvec group */
 
 #endif

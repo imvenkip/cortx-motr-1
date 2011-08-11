@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya<subhash_arya@xyratex.com>
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
 #include <stdio.h>
@@ -54,11 +54,11 @@ int test_bufvec_enc(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 	C2_PRE(cur != NULL);
 
 	f = c2_fop_data(fop);
-	rc = c2_bufvec_uint64(cur, &f->t_time, BUFVEC_ENCODE);
+	rc = c2_bufvec_uint64(cur, &f->t_time, C2_BUFVEC_ENCODE);
 	if (rc != 0)
 		return -EFAULT;
 
-	rc = c2_bufvec_uint32(cur, &f->t_timeout, BUFVEC_ENCODE);
+	rc = c2_bufvec_uint32(cur, &f->t_timeout, C2_BUFVEC_ENCODE);
 	if (rc != 0)
 		return -EFAULT;
 	return rc;
@@ -73,11 +73,11 @@ int test_bufvec_dec(struct c2_fop *fop, struct c2_bufvec_cursor *cur)
 	C2_PRE(cur != NULL);
 
 	f = c2_fop_data(fop);
-	rc = c2_bufvec_uint64(cur, &f->t_time, BUFVEC_DECODE);
+	rc = c2_bufvec_uint64(cur, &f->t_time, C2_BUFVEC_DECODE);
 	if (rc != 0)
 		return -EFAULT;
 
-	rc = c2_bufvec_uint32(cur, &f->t_timeout, BUFVEC_DECODE);
+	rc = c2_bufvec_uint32(cur, &f->t_timeout, C2_BUFVEC_DECODE);
 	if (rc != 0)
 		return -EFAULT;
 	return rc;
@@ -109,10 +109,10 @@ size_t test_item_size_get(const struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
-	if(fop != NULL){
+	if(fop != NULL)	{
 		len = fop->f_type->ft_ops->fto_getsize(fop);
 		len += ITEM_ONWIRE_HEADER_SIZE;
-		}
+	}
 		printf("\nITEM SIZE GET returns : %ld", len);
 		return (size_t)len;
 }
@@ -247,7 +247,7 @@ int main()
 	c2_bufvec_alloc(&nb->nb_buffer, 13, 72);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_ASSERT(c2_is_aligned(cur_addr, 8));
+	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
 	rc =  c2_rpc_encode(obj, nb);
 	C2_ASSERT(rc == 0);
 	c2_list_init(&obj2.r_items);
