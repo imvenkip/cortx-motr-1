@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
- *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 04/15/2011
  */
 
@@ -134,7 +134,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	fop_cer->rcer_snd_id = conn->c_sender_id;
 	printf("Received conn sender id = %lu\n", conn->c_sender_id);
-	fop_cer->rcer_rc = 0;		/* successful */
+	fop_cer->rcer_rc = 0;      /* successful */
 	fop_cer->rcer_cookie = fop_ce->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
@@ -204,8 +204,8 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	sender_id = fop_in->rse_snd_id;
 	slot_cnt = fop_in->rse_slot_cnt;
 	fop_out->rser_sender_id = sender_id;
-	printf("session_establish_state: sender_id %lu slot_cnt %u\n", sender_id,
-				slot_cnt);
+	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
+			sender_id, slot_cnt);
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL &&
@@ -238,7 +238,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
 			c2_rpc_session_invariant(session));
 
-	fop_out->rser_rc = 0;		/* success */
+	fop_out->rser_rc = 0;    /* success */
 	fop_out->rser_session_id = session->s_session_id;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_DONE;
@@ -328,7 +328,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	}
 	c2_rpc_session_fini(session);
 
-	fop_out->rstr_rc = 0;	/* Report success */
+	fop_out->rstr_rc = 0;  /* Report success */
 	fom->fo_phase = FOPH_DONE;
 	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
 			  &fom_st->fst_fop_rep->f_item);
@@ -408,7 +408,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		goto errout;
 
 	printf("Conn terminate successful\n");
-	fop_out->ctr_rc = 0;	/* Success */
+	fop_out->ctr_rc = 0;   /* Success */
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 
 	fom->fo_phase = FOPH_DONE;

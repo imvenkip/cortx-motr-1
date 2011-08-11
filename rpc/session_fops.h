@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Rohan Puri <Rohan_Puri@xyratex.com>,
- *		    Amit Jambure <Amit_Jambure@xyratex.com>
+ *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 04/15/2011
  */
 

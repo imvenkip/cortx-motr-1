@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- *		    Rohan Puri <Rohan_Puri@xyratex.com>
+ *                  Rohan Puri <Rohan_Puri@xyratex.com>
  *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 04/09/2010
  */
@@ -253,7 +253,7 @@ points to record of most recent update operation that updated the slot verno.
 #include "dtm/verno.h"
 
 #ifdef __KERNEL__
-#define printf	printk
+#define printf  printk
 #endif
 
 /* Imports */
@@ -393,10 +393,10 @@ enum c2_rpc_conn_flags {
 	 |                          |
          |                          | conn_terminate_reply_received() && rc== 0
 	 |                          V
-	 |			TERMINATED
+	 |                      TERMINATED
 	 |                          |
-	 |			    |  c2_rpc_conn_fini()
-	 | c2_rpc_conn_fini()	    V
+	 |                          |  c2_rpc_conn_fini()
+	 | c2_rpc_conn_fini()       V
 	 +--------------------> UNINITIALISED
 
   @endverbatim
@@ -656,29 +656,29 @@ enum c2_rpc_session_state {
 				      |
 				      | c2_rpc_session_establish()
 				      |
-		timed-out	      V
+		timed-out             V
           +-------------------------CREATING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)
 	  |           |               +-----------------+
 	  |           |               |                 | +-----+
-	  |           |failed         |	                | |     | item add/n++
+	  |           |failed         |                 | |     | item add/n++
 	  |           |               V  item add/n++   | V     | reply rcvd/n--
 	  |           |             IDLE--------------->BUSY----+
 	  |           |               |
 	  | fini      |               | session_terminate
-	  |	      |               V
+	  |           |               V
 	  |           +----------TERMINATING
-	  |			      |
-	  |			      |
-	  |			      |
-	  |		              |session_terminated
-	  |		              V
-	  |		         TERMINATED
-	  |		              |
-	  |			      | fini()
-	  |			      V
+	  |                           |
+	  |                           |
+	  |                           |
+	  |                           |session_terminated
+	  |                           V
+	  |                       TERMINATED
+	  |                           |
+	  |                           | fini()
+	  |                           V
 	  +----------------------> UNINITIALISED
 
    @endverbatim
