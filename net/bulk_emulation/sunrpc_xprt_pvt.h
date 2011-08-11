@@ -27,13 +27,8 @@
    @{
 */
 
+#include "lib/time.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
-
-enum {
-	C2_NET_BULK_SUNRPC_MAX_BUFFER_SIZE     = (1<<20),
-	C2_NET_BULK_SUNRPC_MAX_SEGMENT_SIZE    = (1<<20),
-	C2_NET_BULK_SUNRPC_MAX_BUFFER_SEGMENTS = 256,
-};
 
 /* forward references to other static functions */
 static int sunrpc_ep_init_sid(struct c2_service_id *sid,
@@ -52,6 +47,7 @@ static void sunrpc_wi_add(struct c2_net_bulk_mem_work_item *wi,
 			  struct c2_net_bulk_mem_tm_pvt *tp);
 static bool sunrpc_buffer_in_bounds(const struct c2_net_buffer *nb);
 static struct c2_net_transfer_mc *sunrpc_find_tm(uint32_t sid);
+static void sunrpc_xo_buf_del(struct c2_net_buffer *nb);
 
 /**
    @}

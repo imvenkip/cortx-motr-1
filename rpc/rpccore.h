@@ -766,10 +766,10 @@ struct c2_rpc_chan {
    the list in struct c2_rpc_ep_aggr.
    @param chan - c2_rpc_chan structure to be created.
    @param machine - concerned c2_rpcmachine structure.
-   @param ep - Network endpoint to be associated with transfer machine.
+   @param net_dom - Network domain associated with given rpcmachine.
  */
 int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
-		struct c2_net_end_point *ep);
+		struct c2_net_domain *net_dom);
 
 /**
    Destroy the given c2_rpc_chan structure and remove it from the list
@@ -832,13 +832,17 @@ struct c2_rpcmachine {
 };
 
 /**
-   Add a source endpoint to given rpcmachine. The rpcmachine can use
-   this endpoint and will associate a transfer machine with this endpoint.
+   This routine does all the network activities associated with given
+   rpc machine. This includes creation of new c2_rpc_chan structure
+   which internally initializes a transfer mc, then starting the
+   transfer mc and allocate some net buffers meant to receive messages.
    @param machine - concerned c2_rpcmachine.
-   @param src_ep - net endpoint to be added to rpcmachine.
+   @param net_dom - Network domain associated with given rpcmachine.
+   @param ep_addr - End point address to associate with the transfer mc.
  */
-int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
-		struct c2_net_end_point *src_ep);
+int c2_rpcmachine_net_init(struct c2_rpcmachine *machine,
+		struct c2_net_domain *net_dom,
+		const char *ep_addr);
 
 /**
    Construct rpc core layer
@@ -854,14 +858,16 @@ void c2_rpc_core_fini(void);
 
    @param machine rpcmachine operation applied to.
    @param dom cob domain that contains cobs representing slots
-   @param fol reply items are cached in fol
+   @param net_dom - Network domain, this rpcmachine is associated with.
+   @param ep_addr - End point address to associate with the transfer mc.
    @pre c2_rpc_core_init().
    @return 0 success
    @return -ENOMEM failure
  */
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
-			struct c2_net_end_point	*src_ep);
+			struct c2_net_domain	*net_dom,
+			const char		*ep_addr);
 
 /**
    Destruct rpcmachine

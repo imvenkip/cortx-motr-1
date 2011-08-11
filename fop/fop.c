@@ -63,8 +63,8 @@ C2_EXPORTED(c2_fop_alloc);
 
 void c2_fop_free(struct c2_fop *fop)
 {
-	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop != NULL) {
+		c2_addb_ctx_fini(&fop->f_addb);
 		c2_free(fop->f_data.fd_data);
 		c2_free(fop);
 	}

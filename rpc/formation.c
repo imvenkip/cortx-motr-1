@@ -2142,7 +2142,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 
 		/* Add the buffer to transfer machine.*/
-		C2_ASSERT(fb->fb_buffer.nb_ep->nep_dom == tm->ntm_dom);
+		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
 		res = c2_net_buffer_add(&fb->fb_buffer, tm);
 		if (res < 0) {
 			frm_buffer_fini(fb);

@@ -79,10 +79,11 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
 
 /*
   Invariant checks for an end point. No mutex necessary.
+  Extra checks if under_tm_mutex set to true.
 */
-bool c2_net__ep_invariant(struct c2_net_end_point *ep,
-			  struct c2_net_domain    *dom,
-			  bool                     under_dom_mutex);
+bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
+			  struct c2_net_transfer_mc *tm,
+			  bool                       under_tm_mutex);
 
 /*
   Validates tm state.
@@ -92,6 +93,14 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm);
 
 /* this shouldn't really be here but it parallels the extern in net/net.h */
 extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
+
+/*
+  Shared constants used by (deprecated) usunrpc and ksunrpc transports.
+ */
+enum {
+	C2_SESSION_PROGRAM = 0x20000001,
+	C2_DEF_RPC_VER = 1
+};
 
 #endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
 

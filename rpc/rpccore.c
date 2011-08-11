@@ -296,8 +296,8 @@ void c2_rpc_core_fini(void)
 	//c2_rpc_session_module_fini();
 }
 
-int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
-		struct c2_net_end_point *src_ep)
+int c2_rpcmachine_net_init(struct c2_rpcmachine *machine,
+		struct c2_net_domain *net_dom, const char *ep_addr)
 {
 	struct c2_rpc_chan		*chan = NULL;
 	struct c2_clink			 tmwait;
@@ -305,10 +305,11 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	int				 st = 0;
 
 	C2_PRE(machine != NULL);
-	C2_PRE(src_ep != NULL);
+	C2_PRE(net_dom != NULL);
+	C2_PRE(ep_addr != NULL);
 
 	/* Create a new chan structure, initialize a transfer machine. */
-	rc = c2_rpc_chan_create(&chan, machine, src_ep);
+	rc = c2_rpc_chan_create(&chan, machine, net_dom);
 	if (rc < 0)
 		return rc;
 
@@ -317,7 +318,7 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&chan->rc_xfermc.ntm_chan, &tmwait);
 
-	rc = c2_net_tm_start(&chan->rc_xfermc, src_ep);
+	rc = c2_net_tm_start(&chan->rc_xfermc, ep_addr);
 	if (rc < 0) {
 		c2_rpc_chan_destroy(machine, chan);
 		c2_clink_del(&tmwait);
@@ -337,8 +338,7 @@ int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 	}
 
 	/* Add buffers for receiving messages to this transfer machine. */
-	rc = c2_rpc_net_recv_buffer_allocate_nr(src_ep->nep_dom,
-			&chan->rc_xfermc);
+	rc = c2_rpc_net_recv_buffer_allocate_nr(net_dom, &chan->rc_xfermc);
 	if (rc < 0) {
 		st = c2_net_tm_stop(&chan->rc_xfermc, true);
 		c2_rpc_chan_destroy(machine, chan);
@@ -385,13 +385,14 @@ void c2_rpc_chan_ref_release(struct c2_ref *ref)
 }
 
 int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
-		struct c2_net_end_point *ep)
+		struct c2_net_domain *net_dom)
 {
 	int			 rc = 0;
 	struct c2_rpc_chan	*ch = NULL;
 
 	C2_PRE(chan != NULL);
-	C2_PRE(ep != NULL);
+	C2_PRE(machine != NULL);
+	C2_PRE(net_dom != NULL);
 
 	/* Allocate new rpc chan.*/
 	C2_ALLOC_PTR(ch);
@@ -415,7 +416,7 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	ch->rc_xfermc.ntm_state = C2_NET_TM_UNDEFINED;
 	ch->rc_xfermc.ntm_callbacks = &c2_rpc_tm_callbacks;
 	ch->rc_rpcmachine = machine;
-	rc = c2_net_tm_init(&ch->rc_xfermc, ep->nep_dom);
+	rc = c2_net_tm_init(&ch->rc_xfermc, net_dom);
 	if (rc < 0) {
 		c2_free(ch->rc_rcv_buffers);
 		c2_free(ch);
@@ -787,13 +788,7 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
 		c2_clink_fini(&tmwait);
 	}
 
-	rc = c2_net_buffer_deregister(nb, net_dom);
-	if (rc < 0) {
-		C2_ADDB_ADD(&chan->rc_rpcmachine->cr_rpc_machine_addb,
-				&rpc_machine_addb_loc, rpc_machine_func_fail,
-				"c2_net_buffer_deregister", 0);
-	}
-
+	c2_net_buffer_deregister(nb, net_dom);
 	c2_bufvec_free(&nb->nb_buffer);
 	c2_free(nb);
 	return rc;
@@ -807,10 +802,7 @@ int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE(nb != NULL);
 	C2_PRE(net_dom != NULL);
 
-	rc = c2_net_buffer_deregister(nb, net_dom);
-	if (rc < 0)
-		return rc;
-
+	c2_net_buffer_deregister(nb, net_dom);
 	c2_bufvec_free(&nb->nb_buffer);
 	return rc;
 }
@@ -837,18 +829,19 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
 
 int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		struct c2_cob_domain	*dom,
-		struct c2_net_end_point	*src_ep)
+		struct c2_net_domain *net_dom,
+		const char *ep_addr)
 {
 	struct c2_db_tx			 tx;
 	struct c2_cob			*root_session_cob;
-	struct c2_net_domain		*net_dom;
 	int				 rc;
 	struct c2_rpc_stats		*st;
 
 	/* The c2_net_domain is expected to be created by end user.*/
 	C2_PRE(machine != NULL);
 	C2_PRE(dom != NULL);
-	C2_PRE(src_ep != NULL);
+	C2_PRE(ep_addr != NULL);
+	C2_PRE(net_dom != NULL);
 
 	C2_ALLOC_PTR(st);
 	if (st == NULL) {
@@ -888,11 +881,9 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 
 	/* Create new c2_rpc_chan structure, init the transfer machine
 	   passing the source endpoint. */
-        net_dom = src_ep->nep_dom;
-	C2_ASSERT(net_dom != NULL);
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 
-	rc = c2_rpcmachine_src_ep_add(machine, src_ep);
+	rc = c2_rpcmachine_net_init(machine, net_dom, ep_addr);
 	if (rc < 0) {
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 		c2_free(st);

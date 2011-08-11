@@ -233,13 +233,22 @@ try to adhere to some higher level idioms.
 
     * when using long or long long qualifiers, omit int;
 
-    * declare one variable per line.
+    * declare one variable per line;
 
-    * prefer
-	const char strvar[] = "somestring";
-      instead of
-	const char *strvar = "somestring";
+    * avoid dead assignments and initializations (i.e., assignments
+      which are overwritten before the variable is read)
 
-      The former initialises an array, while the later initialises a pointer,
-      which point to an anonymous array.
+        int x = 0;
 
+        if (y)
+                x = foo();
+        else
+                x = bar();
+
+      Instead, initialize a variable with a meaningful value, when the
+      latter is known.
+
+      (Rationale: dead initializations potentially hide errors. If,
+      after the code restructuring, the variable remains
+      un-initialized in a conditional branch or in a loop that might
+      execute 0 times, the initializer suppresses compiler warning).

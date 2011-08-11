@@ -37,8 +37,8 @@ void test_queue(void)
 	int sum0;
 	int sum1;
 
-	struct c2_queue q;
-	struct qt       t[NR];
+	struct c2_queue  q;
+	static struct qt t[NR]; /* static to reduce kernel stack consumption. */
 
 	for (sum0 = i = 0; i < ARRAY_SIZE(t); ++i) {
 		t[i].t_val = i;
@@ -83,7 +83,7 @@ void test_queue(void)
 }
 
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

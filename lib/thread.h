@@ -150,6 +150,14 @@ struct c2_thread {
    the tcb thread must finish before the block where C2_THREAD_INIT() was called
    is left.
 
+   @note Be careful if using LAMBDA in kernel code, as the code could be
+   generated on the stack and would fault in the kernel as it is execution
+   protected in the kernel.  If someone figures out the secret allocation
+   sauce, update this note with the recipe; one observed problem was when a
+   reference was made to an automatic variable from a lambda function, and that
+   problem went away when the variable was made global.  Other lambda functions
+   that simply returned values caused no problems in the kernel.
+
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
 #define LAMBDA(T, ...) ({ T __lambda __VA_ARGS__; &__lambda; })

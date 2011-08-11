@@ -44,7 +44,7 @@
 #include "lib/queue.h"
 #include "lib/thread.h"
 #include "lib/cond.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 #include "fop/fop.h"
 
 #include "usunrpc.h"
@@ -58,18 +58,6 @@
 /*
  * Client code.
  */
-
-/**
-   XXX make version for all sun rpc calls to be const
- */
-static const int C2_DEF_RPC_VER = 1;
-
-/**
-   services unique identifier
- */
-enum c2_rpc_service_id {
-	C2_SESSION_PROGRAM = 0x20000001
-};
 
 struct usunrpc_xprt {
 	CLIENT              *nsx_client;
@@ -110,6 +98,10 @@ C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client, ev , ## __VA_ARGS__)
 #define ADDB_CALL(conn, name, rc)					\
 C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client,                     \
             c2_addb_func_fail, (name), (rc))
+
+enum {
+	MINIMAL_XPRT_MAX_BUFFER_SIZE = (1<<19) + 1024,
+};
 
 static void usunrpc_conn_fini_internal(struct usunrpc_conn *xconn)
 {
@@ -161,16 +153,25 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
 	}
 
 	sock = -1;
-	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
-					  id->ssi_ver, &sock, 0, 0);
+	if (conn->nc_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt)
+		/* Kernel does not support message fragmentation.
+		   Use max message sizes of sunrpc bulk emulation.
+		 */
+		xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
+						  id->ssi_ver, &sock,
+						  MINIMAL_XPRT_MAX_BUFFER_SIZE,
+						  MINIMAL_XPRT_MAX_BUFFER_SIZE);
+	else
+		xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
+						  id->ssi_ver, &sock, 0, 0);
 	if (xprt->nsx_client != NULL) {
 		xprt->nsx_fd = sock;
-		c2_queue_put(&xconn->nsc_idle, &xprt->nsx_linkage);
 		result = 0;
 	} else {
 		clnt_pcreateerror(id->ssi_host);
 		ADDB_CALL(conn, "clnttcp_create", -errno);
 		result = -errno;
+		xprt->nsx_fd = 0;
 	}
 	return result;
 }
@@ -209,6 +210,8 @@ static int usunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
 					 &xconn->nsc_pool[i]);
 				if (result != 0)
 					break;
+				c2_queue_put(&xconn->nsc_idle,
+					     &xconn->nsc_pool[i].nsx_linkage);
 			}
 		}
 	} else
@@ -254,12 +257,29 @@ static int usunrpc_call(struct usunrpc_xprt *xprt, struct c2_net_call *call)
 {
 	struct c2_fop *arg;
 	struct c2_fop *ret;
+	int rc;
 
 	arg = call->ac_arg;
 	ret = call->ac_ret;
-	return -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
-			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
-			  (xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
+	if (xprt->nsx_fd == 0) {
+		/* This could be due to a previous failure during reset in
+		   usunrpc_conn_call below.
+		 */
+		return -ECONNABORTED;
+	}
+	rc = -clnt_call(xprt->nsx_client, arg->f_type->ft_code,
+			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)arg,
+			(xdrproc_t)&c2_fop_uxdrproc, (caddr_t)ret, TIMEOUT);
+	if (rc != 0) {
+		struct rpc_err re;
+		clnt_geterr(xprt->nsx_client, &re);
+		if (re.re_status == RPC_CANTSEND ||
+		    re.re_status == RPC_CANTRECV) {
+			/* clnt_call returns EINTR - recover the real error */
+			rc = -re.re_errno;
+		}
+	}
+	return rc;
 }
 
 static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
@@ -273,6 +293,21 @@ static int usunrpc_conn_call(struct c2_net_conn *conn, struct c2_net_call *call)
 	xconn  = conn->nc_xprt_private;
 	xprt   = conn_xprt_get(xconn);
 	result = usunrpc_call(xprt, call);
+	if ((result == -ECONNRESET || result == -EPIPE) &&
+	    conn->nc_domain->nd_xprt == &c2_net_usunrpc_minimal_xprt) {
+		/* Potentially an error due to caching of end points.
+		   Reinitialize the xprt and retry once.
+		*/
+		int rc;
+		C2_ASSERT(xprt->nsx_fd != 0);
+		clnt_destroy(xprt->nsx_client);
+		rc = usunrpc_conn_init_one(conn->nc_id->si_xport_private,
+					   conn, xconn, xprt);
+		if (rc == 0)
+			result = usunrpc_call(xprt, call);
+		else
+			C2_ASSERT(xprt->nsx_fd == 0);
+	}
 	conn_xprt_put(xconn, xprt);
 	return result;
 }

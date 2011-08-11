@@ -15,7 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *		    Huang Hua <hua_huang@xyratex.com>
- *		    Anatoliy Belinko
+ *		    Anatoliy Bilenko
  * Original creation date: 05/04/2010
  */
 
