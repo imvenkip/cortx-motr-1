@@ -571,6 +571,22 @@ enum c2_rpc_session_state {
 
 /**
    Session object at the sender side.
+
+   <B> Liveness: </B>
+   Allocation and deallocation of c2_rpc_session is entirely managed by user.
+
+   <B> Concurrency:</B>
+
+   c2_rpc_session::s_mutex protects all fields except s_link. s_link is
+   protected by session->s_conn->c_mutex.
+   When session is in UNINITIALISED or in C2_RPC_SESSION_TERMINATED state,
+   user is expected to serialise access to the session object.
+   There is no need to take session->s_mutex while posting item
+   on the session. Users of rpc-layer are never expected to take lock on
+   session.
+
+   Locking hierarchy is slot => session => conn => rpcmachine.
+
    @verbatim
 
             +------------------> UNINITIALISED
@@ -607,6 +623,66 @@ enum c2_rpc_session_state {
 	  +----------------------> UNINITIALISED
 
    @endverbatim
+
+   Typical sequence of execution of APIs on sender side. Error checking is
+   omitted.
+
+   @code
+
+   // ALLOCATE SESSION
+
+   struct c2_rpc_session *session;
+   C2_ALLOC_PTR(session);
+
+   // INITIALISE SESSION
+
+   nr_slots = 4;
+   rc = c2_rpc_session_init(session, conn, nr_slots);
+   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED));
+
+   // ESTABLISH SESSION
+
+   rc = c2_rpc_session_establish(session);
+   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
+
+   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
+					C2_RPC_SESSION_FAILED, timeout);
+
+   if (flag && session->s_state == C2_RPC_SESSION_IDLE) {
+	// Session is successfully established
+   } else {
+	// timeout has happend or session establish failed
+   }
+
+   // Assuming session is successfully established.
+   // post unbound items using c2_rpc_post(item)
+
+   item->ri_session = session;
+   item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+   item->ri_deadline = absolute_time;
+   item->ri_ops = item_ops;   // item_ops contains ->replied() callback which
+			      // will be called when reply to this item is
+			      // received.
+
+   // TERMINATING SESSION
+
+   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE, timeout);
+   if (flag) {
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+	rc = c2_rpc_session_terminate(session);
+	C2_ASSERT(ergo(rc == 0, session->s_state ==
+			C2_RPC_SESSION_TERMINATING));
+
+	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
+					C2_RPC_SESSION_FAILED, timeout);
+	C2_ASSERT(ergo(flag1, session->s_state == C2_RPC_SESSION_TERMINATED ||
+			session->s_state == C2_RPC_SESSION_FAILED));
+   }
+
+   // FINALISE SESSION
+
+   c2_rpc_session_fini(session);
+   @endcode
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
