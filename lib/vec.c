@@ -43,6 +43,7 @@ c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 	}
 	return count;
 }
+C2_EXPORTED(c2_vec_count);
 
 static bool c2_vec_cursor_invariant(const struct c2_vec_cursor *cur)
 {
@@ -75,6 +76,7 @@ void c2_vec_cursor_init(struct c2_vec_cursor *cur, struct c2_vec *vec)
 	c2_vec_cursor_normalize(cur);
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 }
+C2_EXPORTED(c2_vec_cursor_init);
 
 bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 {
@@ -96,6 +98,7 @@ bool c2_vec_cursor_move(struct c2_vec_cursor *cur, c2_bcount_t count)
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_seg == cur->vc_vec->v_nr;
 }
+C2_EXPORTED(c2_vec_cursor_move);
 
 c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 {
@@ -103,6 +106,7 @@ c2_bcount_t c2_vec_cursor_step(const struct c2_vec_cursor *cur)
 	C2_ASSERT(c2_vec_cursor_invariant(cur));
 	return cur->vc_vec->v_count[cur->vc_seg] - cur->vc_offset;
 }
+C2_EXPORTED(c2_vec_cursor_step);
 
 int c2_bufvec_alloc(struct c2_bufvec *bufvec,
 		    uint32_t          num_segs,
@@ -133,6 +137,7 @@ fail:
 	c2_bufvec_free(bufvec);
 	return -ENOMEM;
 }
+C2_EXPORTED(c2_bufvec_alloc);
 
 void c2_bufvec_free(struct c2_bufvec *bufvec)
 {
@@ -148,6 +153,7 @@ void c2_bufvec_free(struct c2_bufvec *bufvec)
 		C2_SET0(bufvec);
 	}
 }
+C2_EXPORTED(c2_bufvec_free);
 
 void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 			    struct c2_bufvec *bvec)
@@ -158,16 +164,19 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 	       bvec->ov_buf != NULL);
 	c2_vec_cursor_init(&cur->bc_vc, &bvec->ov_vec);
 }
+C2_EXPORTED(c2_bufvec_cursor_init);
 
 bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count)
 {
 	return c2_vec_cursor_move(&cur->bc_vc, count);
 }
+C2_EXPORTED(c2_bufvec_cursor_move);
 
 c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
 {
 	return c2_vec_cursor_step(&cur->bc_vc);
 }
+C2_EXPORTED(c2_bufvec_cursor_step);
 
 static void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
@@ -183,6 +192,7 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	return bufvec_cursor_addr(cur);
 }
+C2_EXPORTED(c2_bufvec_cursor_addr);
 
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,
@@ -207,6 +217,7 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 	}
 	return bytes_copied;
 }
+C2_EXPORTED(c2_bufvec_cursor_copy);
 
 /** @} end of vec group */
 

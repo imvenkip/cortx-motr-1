@@ -15,8 +15,7 @@ noinst_PROGRAMS      = rpcping
 rpcping_SOURCES     = io_u.h io_u.c io_fop_init.c \
 			ping_fop_u.h ping_fop_u.c ping_fop.h ping_fop.c \
 			ping_fom.h ping_fom.c \
-			main.c $(top_builddir)/net/bulk_emulation/st/ping.c \
-			$(top_builddir)/rpc/ut/formation-ut.c
+			main.c $(top_builddir)/rpc/ut/formation-ut.c
 
 rpcping_LDADD       = $(top_builddir)/colibri/libcolibri.la
 

@@ -58,9 +58,9 @@ static bool mem_dom_invariant(const struct c2_net_domain *dom);
 static bool mem_ep_invariant(const struct c2_net_end_point *ep);
 static bool mem_buffer_invariant(const struct c2_net_buffer *nb);
 static bool mem_tm_invariant(const struct c2_net_transfer_mc *tm);
-static int mem_ep_create(struct c2_net_end_point **epp,
-			 struct c2_net_domain *dom,
-			 const struct sockaddr_in *sa,
+static int mem_ep_create(struct c2_net_end_point  **epp,
+			 struct c2_net_transfer_mc *tm,
+			 const struct sockaddr_in  *sa,
 			 uint32_t id);
 static bool mem_eps_are_equal(const struct c2_net_end_point *ep1,
 			      const struct c2_net_end_point *ep2);
@@ -87,29 +87,17 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int status);
 static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi);
 
 /**
-   Macro to compare two struct sockaddr_in structures.
-   @param sa1 Pointer to first structure.
-   @param sa2 Pointer to second structure.
- */
-static inline bool mem_sa_eq(const struct sockaddr_in *sa1,
-			     const struct sockaddr_in *sa2)
-{
-	return sa1->sin_addr.s_addr == sa2->sin_addr.s_addr &&
-	       sa1->sin_port        == sa2->sin_port;
-}
-
-/**
    Function to indirectly invoke the mem_ep_create subroutine via the domain
    function pointer, to support derived transports.
    @see mem_ep_create()
  */
-static inline int mem_bmo_ep_create(struct c2_net_end_point **epp,
-				    struct c2_net_domain *dom,
-				    const struct sockaddr_in *sa,
+static inline int mem_bmo_ep_create(struct c2_net_end_point  **epp,
+				    struct c2_net_transfer_mc *tm,
+				    const struct sockaddr_in  *sa,
 				    uint32_t id)
 {
-	struct c2_net_bulk_mem_domain_pvt *dp = dom->nd_xprt_private;
-	return dp->xd_ops->bmo_ep_create(epp, dom, sa, id);
+	struct c2_net_bulk_mem_domain_pvt *dp = tm->ntm_dom->nd_xprt_private;
+	return dp->xd_ops->bmo_ep_create(epp, tm, sa, id);
 }
 
 /**

@@ -23,6 +23,11 @@
 #endif
 
 #include "io_fops.h"
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
 #include "lib/errno.h"
 
 /*
@@ -146,22 +151,19 @@ static void ioseg_get(const union c2_io_iovec *iovec, const int index,
 static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest,
 		const enum c2_io_service_opcodes op)
 {
+	uint64_t	offset;
+	uint64_t	cnt;
+
 	C2_PRE(src != NULL);
 	C2_PRE(dest != NULL);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		dest->gen_ioseg.read_seg->f_offset =
-			src->gen_ioseg.read_seg->f_offset;
-		dest->gen_ioseg.read_seg->f_count =
-			src->gen_ioseg.read_seg->f_count;
-	} else {
-		dest->gen_ioseg.write_seg->f_offset =
-			src->gen_ioseg.write_seg->f_offset;
-		dest->gen_ioseg.write_seg->f_buf.f_count =
-			src->gen_ioseg.write_seg->f_buf.f_count;
-	}
+	offset = ioseg_offset_get(src, op);
+	ioseg_offset_set(dest, offset, op);
+
+	cnt = ioseg_count_get(src,op);
+	ioseg_count_set(dest,cnt,op);
 }
 
 
@@ -217,7 +219,7 @@ static void ioseg_nr_set(union c2_io_iovec *iovec,
 static int iosegs_alloc(union c2_io_iovec *iovec,
 		const enum c2_io_service_opcodes op, const uint32_t count)
 {
-	int			 rc = 0;
+	int rc = 0;
 
 	C2_PRE(iovec != NULL);
 	C2_PRE(count != 0);
@@ -514,67 +516,52 @@ static bool io_fop_is_rw(const struct c2_fop *fop)
 			op == C2_IO_SERVICE_WRITEV_OPCODE;
 }
 
-/**
-   Return the number of IO fragements(discontiguous buffers)
-   for a fop of type c2_fop_cob_readv.
-   @note fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
-   @param - Read fop for which number of fragments is to be calculated
-   @retval - Returns number of IO fragments.
- */
-static uint64_t io_fop_read_get_nfragments(struct c2_fop *fop)
+uint64_t iovec_fragments_nr_get(union c2_io_iovec *iovec,
+		enum c2_io_service_opcodes op)
 {
-	int			 i;
-	int			 seg_count;
-	uint64_t		 nfragments = 0;
-	uint64_t		 s_offset;
-	uint64_t		 s_count;
-	uint64_t		 next_s_offset;
-	struct c2_fop_cob_readv	*read_fop;
+	uint64_t		frag_nr = 1;
+	uint64_t		i;
+	uint64_t		off;
+	uint64_t		cnt;
+	uint64_t		off_next;
+	uint32_t		segs_nr;
+	struct c2_io_ioseg	ioseg;
+	struct c2_io_ioseg	ioseg_next;
 
-	C2_PRE(fop != NULL);
+	C2_PRE(iovec != NULL);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	read_fop = c2_fop_data(fop);
-	seg_count = read_fop->frd_iovec.fs_count;
-	for (i = 0; i < seg_count - 1; ++i) {
-		s_offset = read_fop->frd_iovec.fs_segs[i].f_offset;
-		s_count = read_fop->frd_iovec.fs_segs[i].f_count;
-		next_s_offset = read_fop->frd_iovec.fs_segs[i+1].f_offset;
-		if (s_offset + s_count != next_s_offset)
-			nfragments++;
+	segs_nr = ioseg_nr_get(iovec, op);
+	for (i = 0; i < segs_nr - 1; ++i) {
+		ioseg_get(iovec, i, op, &ioseg);
+		off = ioseg_offset_get(&ioseg, op);
+		cnt = ioseg_count_get(&ioseg, op);
+		ioseg_get(iovec, i+1, op, &ioseg_next);
+		off_next = ioseg_offset_get(&ioseg_next, op);
+		if (off + cnt != off_next)
+			frag_nr++;
 	}
-	return nfragments;
+	return frag_nr;
 }
 
 /**
    Return the number of IO fragements(discontiguous buffers)
-   for a fop of type c2_fop_cob_writev.
+   for a fop of type read or write.
    @note fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
-   @param - Write fop for which number of fragments is to be calculated
-   @retval - Returns number of IO fragments in given fop.
+   @param - Read fop for which number of fragments is to be calculated
+   @retval - Returns number of IO fragments.
  */
-static uint64_t io_fop_write_get_nfragments(struct c2_fop *fop)
+static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 {
-	int				 i;
-	int				 seg_count;
-	uint64_t			 nfragments = 0;
-	uint64_t			 s_offset;
-	uint64_t			 s_count;
-	uint64_t			 next_s_offset;
-	struct c2_fop_cob_writev	*write_fop;
+	union c2_io_iovec		iovec;
+	enum c2_io_service_opcodes	op;
 
 	C2_PRE(fop != NULL);
 
-	write_fop = c2_fop_data(fop);
-	seg_count = write_fop->fwr_iovec.iov_count;
-	for (i = 0; i < seg_count - 1; ++i) {
-		s_offset = write_fop->fwr_iovec.iov_seg[i].f_offset;
-		s_count = write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
-		next_s_offset = write_fop->fwr_iovec.iov_seg[i+1].f_offset;
-		if (s_offset + s_count != next_s_offset) {
-			nfragments++;
-		}
-	}
-	return nfragments;
+	iovec_get(fop, &iovec);
+	op = io_fop_get_opcode(fop);
+	return iovec_fragments_nr_get(&iovec, op);
 }
 
 /**
@@ -605,14 +592,13 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
    @param offset - starting offset of current IO segment from aggr_list.
    @param count - count of bytes in current IO segment from aggr_list.
-   @param ns - current IO segment from IO vector.
+   @param ns - New IO segment from IO vector.
    @param op - Operation code, this io segment belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		struct c2_io_ioseg **ns, enum c2_io_service_opcodes op)
 {
-	int			 rc = 0;
 	struct c2_io_ioseg	*new_seg;
 
 	C2_PRE(ns != NULL);
@@ -624,12 +610,12 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
 	ioseg_offset_set(new_seg, offset, op);
 	ioseg_count_set(new_seg, count, op);
 	*ns = new_seg;
-	return rc;
+	return 0;
 }
 
 /**
-   Add a new IO segment to the aggr_list if given segment did not match
-   any of the existing segments in the list.
+   Add a new IO segment to the aggr_list conditionally.
+
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called.
@@ -792,7 +778,8 @@ static void io_fop_segments_contract(const struct c2_list *aggr_list,
 	uint64_t		 aggr_seg_cnt = 0;
 
 	C2_PRE(aggr_list != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	aggr_list_len = c2_list_length(aggr_list);
 	c2_list_for_each_entry_safe(aggr_list, seg, seg_next,
@@ -1003,7 +990,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_get_opcode = io_fop_get_opcode,
 	.fto_get_fid = io_fop_get_read_fid,
 	.fto_is_io = io_fop_is_rw,
-	.fto_get_nfragments = io_fop_read_get_nfragments,
+	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_iovec_restore = io_fop_iovec_restore,
 };
@@ -1019,7 +1006,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_get_opcode = io_fop_get_opcode,
 	.fto_get_fid = io_fop_get_write_fid,
 	.fto_is_io = io_fop_is_rw,
-	.fto_get_nfragments = io_fop_write_get_nfragments,
+	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_iovec_restore = io_fop_iovec_restore,
 };

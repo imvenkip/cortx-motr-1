@@ -67,24 +67,36 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 	do {
 		struct c2_net_domain *dom = &sunrpc_server_domain;
 		struct c2_service    *svc = &sunrpc_server_service;
+		struct c2_net_bulk_sunrpc_end_point *sep;
+		sep = sunrpc_ep_to_pvt(ep);
 		if (++sunrpc_server_active_tms > 1) {
 			/* previously started - match address */
-			struct c2_net_bulk_sunrpc_end_point *sep;
-			sep = sunrpc_ep_to_pvt(ep);
-			if (strcmp(sunrpc_server_id.si_uuid,
-				   sep->xep_sid.si_uuid) != 0)
+			if (!mem_sa_eq(&sunrpc_server_in,
+				       &sep->xep_base.xep_sa))
 				rc = -EADDRNOTAVAIL;
 			break;
 		}
 		/* initialize the domain */
 #ifdef __KERNEL__
-		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_xprt);
+		rc = c2_net_domain_init(dom, &c2_net_ksunrpc_minimal_xprt);
 #else
+		/* disable SIGPIPE because sunrpc does not set MSG_NOSIGNAL
+		   when writing on socket, causing process to exit. */
+		{
+			struct sigaction new_action;
+			new_action.sa_handler = SIG_IGN;
+			sigemptyset(&new_action.sa_mask);
+			new_action.sa_flags = 0;
+			sigaction(SIGPIPE, &new_action, NULL);
+		}
 		rc = c2_net_domain_init(dom, &c2_net_usunrpc_minimal_xprt);
 #endif
 		if (rc != 0)
 			break;
 		dom_init = true;
+
+		/* remember the address */
+		sunrpc_server_in = sep->xep_base.xep_sa;
 
 		/* initialize the sid using supplied EP */
 		rc = sunrpc_ep_init_sid(&sunrpc_server_id, dom, ep);
@@ -114,7 +126,7 @@ static int sunrpc_start_service(struct c2_net_end_point *ep)
 /**
    Stops the common service if necessary.
  */
-static void sunrpc_stop_service()
+static void sunrpc_stop_service(void)
 {
 	c2_mutex_lock(&sunrpc_server_mutex);
 	do {
@@ -145,7 +157,6 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_ASSERT(wi->xwi_next_state == C2_NET_XTM_STARTED ||
 		  wi->xwi_next_state == C2_NET_XTM_STOPPED);
-	C2_ASSERT(sunrpc_ep_invariant(tm->ntm_ep));
 
 	if (wi->xwi_next_state == C2_NET_XTM_STARTED) {
 		/*
@@ -154,7 +165,8 @@ static void sunrpc_wf_state_change(struct c2_net_transfer_mc *tm,
 		  If that happens, ignore the C2_NET_XTM_STARTED item.
 		 */
 		if (tp->xtm_base.xtm_state < C2_NET_XTM_STOPPING) {
-			rc = sunrpc_start_service(tm->ntm_ep);
+			C2_ASSERT(sunrpc_ep_invariant(wi->xwi_nbe_ep));
+			rc = sunrpc_start_service(wi->xwi_nbe_ep);
 			if (rc != 0)
 				wi->xwi_status = rc; /* fail TM */
 		}
@@ -198,6 +210,48 @@ static void sunrpc_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 	C2_PRE(sunrpc_dom_invariant(tm->ntm_dom));
 	dp = sunrpc_dom_to_pvt(tm->ntm_dom);
 	(*dp->xd_base_ops->bmo_post_error)(tm, status);
+}
+
+/**
+   Skulker method to time out TM buffers
+   @param dom Domain pointer (mutex is held)
+   @param now Current time
+ */
+static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
+					   c2_time_t now)
+{
+	struct c2_net_transfer_mc *tm;
+	enum c2_net_queue_type     qt;
+	struct c2_net_buffer      *nb;
+
+	C2_PRE(c2_mutex_is_locked(&dom->nd_mutex));
+
+	/* iterate over TM's in domain */
+	c2_list_for_each_entry(&dom->nd_tms, tm,
+			       struct c2_net_transfer_mc, ntm_dom_linkage) {
+		c2_mutex_lock(&tm->ntm_mutex);
+		/* iterate over buffers in each queue */
+		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
+			c2_list_for_each_entry(&tm->ntm_q[qt], nb,
+					       struct c2_net_buffer,
+					       nb_tm_linkage) {
+				if (nb->nb_timeout == C2_TIME_NEVER)
+					continue;
+				if (c2_time_after(nb->nb_timeout, now))
+					continue;
+				/* mark as timed out */
+				nb->nb_flags |= C2_NET_BUF_TIMED_OUT;
+				/* Attempt to cancel - active calls
+				   may not always notice or honor this flag.
+				   The cancel wf supplies the proper error
+				   code.
+				*/
+				sunrpc_xo_buf_del(nb);
+			}
+		}
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+	return;
 }
 
 /**
