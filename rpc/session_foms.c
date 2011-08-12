@@ -118,9 +118,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
 	C2_ASSERT(slot != NULL);
+
 	c2_mutex_lock(&slot->sl_mutex);
 	c2_mutex_lock(&session0->s_mutex);
+
 	c2_rpc_slot_item_add_internal(slot, item);
+
 	c2_mutex_unlock(&session0->s_mutex);
 	c2_mutex_unlock(&slot->sl_mutex);
 
@@ -137,10 +140,13 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	reply->rcer_snd_id = conn->c_sender_id;
-	printf("Received conn sender id = %lu\n", conn->c_sender_id);
 	reply->rcer_rc = 0;      /* successful */
 	reply->rcer_cookie = request->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
+
+	printf("ce_state: conn establish successful %lu\n",
+			(unsigned long)conn->c_sender_id);
+
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 
@@ -197,11 +203,11 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	struct c2_fop                           *fop_rep;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_conn                      *conn;
-	uint64_t                                 sender_id;
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
-	fom_se = container_of(fom, struct c2_rpc_fom_session_establish, fse_gen);
+	fom_se = container_of(fom, struct c2_rpc_fom_session_establish,
+				fse_gen);
 
 	C2_PRE(fom != NULL && fom_se != NULL && fom_se->fse_fop != NULL &&
 			fom_se->fse_fop_rep != NULL);
@@ -214,11 +220,15 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	sender_id = request->rse_snd_id;
+	reply->rser_sender_id = request->rse_snd_id;
 	slot_cnt = request->rse_slot_cnt;
-	reply->rser_sender_id = sender_id;
+
+	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
+		rc = -EINVAL;
+		goto errout;
+	}
 	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
-			sender_id, slot_cnt);
+			request->rse_snd_id, slot_cnt);
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL &&
@@ -226,7 +236,6 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
-			slot_cnt > 0 &&
 			c2_rpc_conn_invariant(conn));
 
 	C2_ALLOC_PTR(session);
@@ -307,7 +316,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_item                      *item;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_conn                      *conn;
-	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
 	int                                      rc;
 
@@ -327,7 +335,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	/*
 	 * Copy the same sender and session id to reply fop
 	 */
-	reply->rstr_sender_id = sender_id = request->rst_sender_id;
+	reply->rstr_sender_id = request->rst_sender_id;
 	reply->rstr_session_id = session_id = request->rst_session_id;
 
 	item = &fom_st->fst_fop->f_item;
@@ -349,7 +357,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 
 errout:
 	reply->rstr_rc = rc;
-	fom->fo_phase = rc == 0 ? FOPH_DONE : FOPH_FAILED;
+	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
 	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
 			  &fom_st->fst_fop_rep->f_item);
 	return FSO_AGAIN;
@@ -384,7 +392,6 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_conn                   *conn;
-	uint64_t                              sender_id;
 	int                                   rc;
 
 	C2_ASSERT(fom != NULL);
@@ -401,39 +408,23 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	sender_id = request->ct_sender_id;
-	reply->ctr_sender_id = sender_id;
-	C2_ASSERT(sender_id != SENDER_ID_INVALID &&
-		  sender_id != 0);
+	reply->ctr_sender_id = request->ct_sender_id;
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL);
 
 	conn = item->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_sender_id == sender_id);
-	printf("Received conn terminate req for %lu\n", sender_id);
+	C2_ASSERT(conn != NULL);
+	printf("Received conn terminate req for %lu\n", request->ct_sender_id);
 	rc = c2_rpc_rcv_conn_terminate(conn);
-	if (rc != 0)
-		goto errout;
-
+	C2_ASSERT(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	/*
 	 * In memory state of conn is not cleaned up, at this point.
 	 * conn will be finalised and freed in the ->rio_sent() callback of
 	 * conn_terminate_reply.
 	 */
-	printf("Conn terminate successful\n");
-	reply->ctr_rc = 0;   /* Success */
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-
-	fom->fo_phase = FOPH_DONE;
-	return FSO_AGAIN;
-
-errout:
-	C2_ASSERT(rc != 0);
-
-	printf("Conn terminate failed rc %d\n", rc);
 	reply->ctr_rc = rc;
-	fom->fo_phase = FOPH_FAILED;
+	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
