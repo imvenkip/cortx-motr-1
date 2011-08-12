@@ -21,6 +21,7 @@
 #ifndef __C2_RPC_FORMATION_H__
 #define __C2_RPC_FORMATION_H__
 
+#include "ioservice/io_fops.h"
 #include "fop/fop.h"
 #include "rpc/rpccore.h"
 #include "rpc/session.h"
@@ -28,8 +29,6 @@
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/rwlock.h"
-#include "ioservice/io_fops_u.h"
-#include "ioservice/io_fops.h"
 #include "lib/refs.h"
 #include "lib/errno.h"
 #include "lib/cdefs.h"

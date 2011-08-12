@@ -21,18 +21,30 @@
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
+struct c2_fop;
+struct c2_fom;
+struct c2_fom_type;
+struct c2_fop_io_vec;
+struct c2_fop_io_seg;
+struct c2_fop_segment;
+struct c2_fop_segment_seq;
+
+/**
+   A IO vector pointer union to keep track of original IO vector of a
+   resultant IO rpc item happened due to IO coalescing. Once the reply
+   of such operations comes back, original IO vector is restored in the
+   resultant fop.
+ */
+union c2_io_iovec {
+	/** IO vector for write request operation. */
+	struct c2_fop_io_vec		*write_vec;
+	/** IO vector for read request operation. */
+	struct c2_fop_segment_seq	*read_vec;
+};
+
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "lib/memory.h"
-
-#ifdef __KERNEL__
-#include "io_fops_k.h"
-#else
-#include "io_fops_u.h"
-#endif
-
-struct c2_fom;
-struct c2_fom_type;
 
 /**
  * The opcode from which IO service FOPS start.
@@ -55,19 +67,6 @@ struct c2_io_fop_member {
 	struct c2_list_link	 fop_linkage;
 	/** Actual fop object. */
 	struct c2_fop		*fop;
-};
-
-/**
-   A IO vector pointer union to keep track of original IO vector of a
-   resultant IO rpc item happened due to IO coalescing. Once the reply
-   of such operations comes back, original IO vector is restored in the
-   resultant fop.
- */
-union c2_io_iovec {
-	/** IO vector for write request operation. */
-	struct c2_fop_io_vec		*write_vec;
-	/** IO vector for read request operation. */
-	struct c2_fop_segment_seq	*read_vec;
 };
 
 /**

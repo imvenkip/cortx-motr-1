@@ -48,6 +48,11 @@
 #include "ping_fop_u.h"
 #endif
 #include "stob/ut/io_fop.h"
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+#include <arpa/inet.h>
+#include <netdb.h>
 
 /**
    Context for a ping client or server.
@@ -143,8 +148,57 @@ struct ping_ctx		cctx;
 /* Global server ping context */
 struct ping_ctx		sctx;
 
-/** Forward declaration. Actual code in bulk_ping */
-int canon_host(const char *hostname, char *buf, size_t bufsiz);
+/**
+   Resolve hostname into a dotted quad.  The result is stored in buf.
+   @retval 0 success
+   @retval -errno failure
+ */
+static int canon_host(const char *hostname, char *buf, size_t bufsiz)
+{
+	int                i;
+	int		   rc = 0;
+	struct in_addr     ipaddr;
+
+	/* c2_net_end_point_create requires string IPv4 address, not name */
+	if (inet_aton(hostname, &ipaddr) == 0) {
+		struct hostent he;
+		char he_buf[4096];
+		struct hostent *hp;
+		int herrno;
+
+		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
+				     &hp, &herrno);
+		if (rc != 0) {
+			fprintf(stderr, "Can't get address for %s\n",
+				hostname);
+			return -ENOENT;
+		}
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+			/* take 1st IPv4 address found */
+			if (hp->h_addrtype == AF_INET &&
+			    hp->h_length == sizeof(ipaddr))
+				break;
+		if (hp->h_addr_list[i] == NULL) {
+			fprintf(stderr, "No IPv4 address for %s\n",
+				hostname);
+			return -EPFNOSUPPORT;
+		}
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
+	}
+	return rc;
+}
 
 /* Do cleanup */
 void do_cleanup()
@@ -253,7 +307,7 @@ void server_init(int dummy)
 	char			 addr_local[ADDR_LEN];
 	char			 addr_remote[ADDR_LEN];
 	char			 hostbuf[ADDR_LEN];
-	struct c2_rpc_chan	*chan;
+	//struct c2_rpc_chan	*chan;
 
 	/* Init Bulk sunrpc transport */
 	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -314,7 +368,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			addr_local);
+			&sctx.pc_dom, addr_local);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -333,11 +387,13 @@ void server_init(int dummy)
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
 	printf("Client Addr = %s\n",addr_remote);
 
+#if 0
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
-        chan = c2_list_entry(c2_list_first(&sctx.pc_rpc_mach.cr_ep_aggr),
+        chan = c2_list_entry(c2_list_first(&sctx.pc_rpc_mach.cr_ep_aggr.
+				ea_chan_list),
                         struct c2_rpc_chan, rc_linkage);
-        cctx.pc_tm = chan->rc_xfermc;
+        sctx.pc_tm = chan->rc_tm;
 
 	/* Create destination endpoint for server i.e client endpoint */
 	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_tm, addr_remote);
@@ -347,6 +403,7 @@ void server_init(int dummy)
 	} else {
 		printf("Client Endpoint created \n");
 	}
+#endif
 
 cleanup:
 	do_cleanup();
@@ -601,7 +658,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			addr_local);
+			&cctx.pc_dom, addr_local);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -622,9 +679,10 @@ void client_init()
 
 	/* Find first c2_rpc_chan from the chan's list
 	   and use its corresponding tm to create target end_point */
-	chan = c2_list_entry(c2_list_first(&cctx.pc_rpc_mach.cr_ep_aggr),
+	chan = c2_list_entry(c2_list_first(&cctx.pc_rpc_mach.cr_ep_aggr.
+				ea_chan_list),
 			struct c2_rpc_chan, rc_linkage);
-	cctx.pc_tm = chan->rc_xfermc;
+	cctx.pc_tm = chan->rc_tm;
 
 	/* Create destination endpoint for client i.e server endpoint */
 	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_tm, addr_remote);

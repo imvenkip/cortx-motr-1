@@ -23,6 +23,11 @@
 #endif
 
 #include "io_fops.h"
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
 #include "lib/errno.h"
 
 /**

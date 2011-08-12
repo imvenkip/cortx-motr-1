@@ -10,7 +10,7 @@
    reply from endpoint. Such interactions can be expressed in terms of
    provided interfaces:
 
-   @code typical-usage
+   @code
    static void us_callback(struct c2_update_stream *us,
                            struct c2_rpc_item *item)             { ... }
    static const struct c2_update_stream_ops us_ops { .uso_event_cb = us_callback };
@@ -18,7 +18,6 @@
    int ret;
    int i;
    struct c2_rpcmachine mach;
-   struct c2_service_id srvid = EXISTING_ID;
    uint64_t session_id;
    struct c2_update_stream *update_stream;
    struct c2_rpc_item item[] = {DUMMY_INITIALIZER, DUMMY_INITIALIZER, ...};
@@ -37,7 +36,7 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpcmachine_init(&mach);
+   ret = c2_rpcmachine_init(&mach, cob_domain, net_domain, ep_addr);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -158,6 +157,7 @@ enum {
 
 struct c2_rpc;
 struct c2_addb_rec;
+struct c2_rpc_formation;
 struct c2_rpc_conn;
 union c2_io_iovec;
 struct c2_rpc_group;
@@ -752,10 +752,10 @@ struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpcmachine.*/
 	struct c2_list_link		  rc_linkage;
 	/** Transfer machine associated with this endpoint.*/
-	struct c2_net_transfer_mc	  rc_xfermc;
+	struct c2_net_transfer_mc	  rc_tm;
 	/** Pool of receive buffers associated with this transfer machine. */
 	struct c2_net_buffer		**rc_rcv_buffers;
-	/** Number of entities using this transfer machine.*/
+	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
 	/** The rpcmachine, this chan structure is associated with.*/
 	struct c2_rpcmachine		 *rc_rpcmachine;
@@ -767,9 +767,10 @@ struct c2_rpc_chan {
    @param chan - c2_rpc_chan structure to be created.
    @param machine - concerned c2_rpcmachine structure.
    @param net_dom - Network domain associated with given rpcmachine.
+   @param ep_addr - End point address to associate with the transfer mc.
  */
 int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
-		struct c2_net_domain *net_dom);
+		struct c2_net_domain *net_dom, const char *ep_addr);
 
 /**
    Destroy the given c2_rpc_chan structure and remove it from the list
@@ -806,10 +807,10 @@ void c2_rpc_chan_put(struct c2_rpc_chan *chan);
  */
 struct c2_rpcmachine {
 	/* List of transfer machine used by conns from this rpcmachine. */
-	struct c2_rpc_ep_aggr	   cr_ep_aggr;
-	/* Formation module data structure associated with this rpcmachine. */
-	struct c2_rpc_formation	  *cr_formation;
-	struct c2_rpc_processing   cr_processing;
+	struct c2_rpc_ep_aggr		 cr_ep_aggr;
+	/* Formation module associated with this rpcmachine. */
+	struct c2_rpc_formation		*cr_formation;
+	struct c2_rpc_processing	 cr_processing;
 	/* XXX: for now: struct c2_rpc_connectivity cr_connectivity; */
 	struct c2_rpc_statistics	 cr_statistics;
 	/** Cob domain in which cobs related to session will be stored */
@@ -854,10 +855,13 @@ int  c2_rpc_core_init(void);
 void c2_rpc_core_fini(void);
 
 /**
-   Construct rpcmachine.
+   Rpc machine is a running instance of rpc layer. A number of rpc machine
+   structures can co-exist in rpc layer. With every rpc machine, a sessions
+   module, a formation module, sending/receiving logic and statistics
+   components are associated.
 
-   @param machine rpcmachine operation applied to.
-   @param dom cob domain that contains cobs representing slots
+   @param machine - Input rpcmachine object.
+   @param dom - cob domain that contains cobs representing slots
    @param net_dom - Network domain, this rpcmachine is associated with.
    @param ep_addr - End point address to associate with the transfer mc.
    @pre c2_rpc_core_init().

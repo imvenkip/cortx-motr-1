@@ -51,6 +51,7 @@ struct c2_rpcmachine		*machine;
 struct c2_rpc_conn	*connp;
 void init()
 {
+	const char *ep_addr;
 	struct c2_cob_domain_id dom_id = { 42 };
 	int				rc;
 
@@ -66,7 +67,7 @@ void init()
 	C2_ASSERT(rc == 0 && dom->cd_dbenv == db);
 	printf("dom = %p\n", dom);
 
-	rc = c2_rpcmachine_init(machine, dom, NULL);
+	rc = c2_rpcmachine_init(machine, dom, NULL, ep_addr);
 	C2_ASSERT(rc == 0);
 }
 void test_session_terminate(uint64_t sender_id, uint64_t session_id)

@@ -2073,7 +2073,7 @@ static struct c2_net_transfer_mc *frm_get_tm(const struct c2_rpc_item *item)
 			(item->ri_session->s_conn != NULL) &&
 			(item->ri_session->s_conn->c_rpcchan != NULL));
 
-	tm = &item->ri_session->s_conn->c_rpcchan->rc_xfermc;
+	tm = &item->ri_session->s_conn->c_rpcchan->rc_tm;
 	return tm;
 }
 
