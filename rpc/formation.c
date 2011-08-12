@@ -2142,13 +2142,13 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 
 		/* Add the buffer to transfer machine.*/
-		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
 		res = c2_net_buffer_add(&fb->fb_buffer, tm);
 		if (res < 0) {
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;
 		} else {
+			C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
 			/* Remove the rpc object from rpcobj_list.*/
 			if (frm_sm->fs_formation->rf_client_side)
 				frm_sm->fs_curr_rpcs_in_flight++;

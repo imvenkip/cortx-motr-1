@@ -2754,6 +2754,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_rc = 0;
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_rpc_chan_put(conn->c_rpcchan);
 	c2_rpc_conn_fini(conn);
 	c2_free(conn);
 }

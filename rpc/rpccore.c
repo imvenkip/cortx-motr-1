@@ -928,7 +928,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	   during rpcmachine_init and its reference has to be released here. */
 	chan = c2_list_entry(c2_list_first(&machine->cr_ep_aggr.ea_chan_list),
 			struct c2_rpc_chan, rc_linkage);
-	c2_ref_put(&chan->rc_ref);
+	c2_rpc_chan_put(chan);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 	c2_mutex_fini(&machine->cr_rpc_stats->rs_lock);
 	c2_free(machine->cr_rpc_stats);

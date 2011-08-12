@@ -71,7 +71,7 @@ struct ping_ctx {
 	/* Remote port */
         int					 pc_rport;
 	/* Transfer machine needed for creating remote end point */
-	struct c2_net_transfer_mc		 pc_tm;
+	struct c2_net_transfer_mc		*pc_tm;
 	/* Remote destination end point */
         struct c2_net_end_point			*pc_rep;
 	/* RPC connection */
@@ -259,11 +259,11 @@ void server_rqh_init(int dummy)
 /* Fini the client*/
 void client_fini()
 {
-	/* Fini the rpcmachine */
-	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
-
 	/* Fini the remote net endpoint. */
 	c2_net_end_point_put(cctx.pc_rep);
+
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&cctx.pc_rpc_mach);
 
 	/* Fini the net domain */
 	c2_net_domain_fini(&cctx.pc_dom);
@@ -281,11 +281,11 @@ void client_fini()
 /* Fini the server */
 void server_fini()
 {
-	/* Fini the rpcmachine */
-	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
-
 	/* Fini the net endpoint. */
 	c2_net_end_point_put(sctx.pc_rep);
+
+	/* Fini the rpcmachine */
+	c2_rpcmachine_fini(&sctx.pc_rpc_mach);
 
 	/* Fini the net domain */
 	c2_net_domain_fini(&sctx.pc_dom);
@@ -307,7 +307,7 @@ void server_init(int dummy)
 	char			 addr_local[ADDR_LEN];
 	char			 addr_remote[ADDR_LEN];
 	char			 hostbuf[ADDR_LEN];
-	//struct c2_rpc_chan	*chan;
+	struct c2_rpc_chan	*chan;
 
 	/* Init Bulk sunrpc transport */
 	sctx.pc_xprt = &c2_net_bulk_sunrpc_xprt;
@@ -387,23 +387,21 @@ void server_init(int dummy)
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, sctx.pc_rport, RID);
 	printf("Client Addr = %s\n",addr_remote);
 
-#if 0
         /* Find first c2_rpc_chan from the chan's list
            and use its corresponding tm to create target end_point */
         chan = c2_list_entry(c2_list_first(&sctx.pc_rpc_mach.cr_ep_aggr.
 				ea_chan_list),
                         struct c2_rpc_chan, rc_linkage);
-        sctx.pc_tm = chan->rc_tm;
+        sctx.pc_tm = &chan->rc_tm;
 
 	/* Create destination endpoint for server i.e client endpoint */
-	rc = c2_net_end_point_create(&sctx.pc_rep, &sctx.pc_tm, addr_remote);
+	rc = c2_net_end_point_create(&sctx.pc_rep, sctx.pc_tm, addr_remote);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
 	} else {
 		printf("Client Endpoint created \n");
 	}
-#endif
 
 cleanup:
 	do_cleanup();
@@ -682,10 +680,10 @@ void client_init()
 	chan = c2_list_entry(c2_list_first(&cctx.pc_rpc_mach.cr_ep_aggr.
 				ea_chan_list),
 			struct c2_rpc_chan, rc_linkage);
-	cctx.pc_tm = chan->rc_tm;
+	cctx.pc_tm = &chan->rc_tm;
 
 	/* Create destination endpoint for client i.e server endpoint */
-	rc = c2_net_end_point_create(&cctx.pc_rep, &cctx.pc_tm, addr_remote);
+	rc = c2_net_end_point_create(&cctx.pc_rep, cctx.pc_tm, addr_remote);
 	if(rc != 0){
 		printf("Failed to create endpoint\n");
 		goto cleanup;
