@@ -146,22 +146,19 @@ static void ioseg_get(const union c2_io_iovec *iovec, const int index,
 static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest,
 		const enum c2_io_service_opcodes op)
 {
+	uint64_t	offset;
+	uint64_t	cnt;
+
 	C2_PRE(src != NULL);
 	C2_PRE(dest != NULL);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		dest->gen_ioseg.read_seg->f_offset =
-			src->gen_ioseg.read_seg->f_offset;
-		dest->gen_ioseg.read_seg->f_count =
-			src->gen_ioseg.read_seg->f_count;
-	} else {
-		dest->gen_ioseg.write_seg->f_offset =
-			src->gen_ioseg.write_seg->f_offset;
-		dest->gen_ioseg.write_seg->f_buf.f_count =
-			src->gen_ioseg.write_seg->f_buf.f_count;
-	}
+	offset = ioseg_offset_get(src, op); 
+	ioseg_offset_set(dest, offset, op);
+
+	cnt = ioseg_count_get(src,op);
+	ioseg_count_set(dest,cnt,op);
 }
 
 
@@ -217,7 +214,7 @@ static void ioseg_nr_set(union c2_io_iovec *iovec,
 static int iosegs_alloc(union c2_io_iovec *iovec,
 		const enum c2_io_service_opcodes op, const uint32_t count)
 {
-	int			 rc = 0;
+	int rc = 0;
 
 	C2_PRE(iovec != NULL);
 	C2_PRE(count != 0);
@@ -605,14 +602,13 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
    @param offset - starting offset of current IO segment from aggr_list.
    @param count - count of bytes in current IO segment from aggr_list.
-   @param ns - current IO segment from IO vector.
+   @param ns - New IO segment from IO vector.
    @param op - Operation code, this io segment belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		struct c2_io_ioseg **ns, enum c2_io_service_opcodes op)
 {
-	int			 rc = 0;
 	struct c2_io_ioseg	*new_seg;
 
 	C2_PRE(ns != NULL);
@@ -624,12 +620,12 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
 	ioseg_offset_set(new_seg, offset, op);
 	ioseg_count_set(new_seg, count, op);
 	*ns = new_seg;
-	return rc;
+	return 0;
 }
 
 /**
-   Add a new IO segment to the aggr_list if given segment did not match
-   any of the existing segments in the list.
+   Add a new IO segment to the aggr_list conditionally.
+
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called.
@@ -792,7 +788,8 @@ static void io_fop_segments_contract(const struct c2_list *aggr_list,
 	uint64_t		 aggr_seg_cnt = 0;
 
 	C2_PRE(aggr_list != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	aggr_list_len = c2_list_length(aggr_list);
 	c2_list_for_each_entry_safe(aggr_list, seg, seg_next,

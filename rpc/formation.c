@@ -271,20 +271,22 @@ void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
  */
 int c2_rpc_frm_init(struct c2_rpc_formation **frm)
 {
-	int rc = 0;
+	int			 rc = 0;
+	struct c2_rpc_formation *frm_local;
 
 	C2_PRE(frm != NULL);
 
-	C2_ALLOC_PTR(*frm);
-	if (*frm == NULL)
+	C2_ALLOC_PTR(frm_local);
+	if (frm_local == NULL)
 		return -ENOMEM;
 
-        c2_addb_ctx_init(&(*frm)->rf_rpc_form_addb,
+        c2_addb_ctx_init(&frm_local->rf_rpc_form_addb,
 			&frm_addb_ctx_type, &c2_addb_global_ctx);
         c2_addb_choose_default_level(AEL_WARN);
-	c2_rwlock_init(&(*frm)->rf_sm_list_lock);
-	c2_list_init(&(*frm)->rf_frm_sm_list);
-	(*frm)->rf_client_side = false;
+	c2_rwlock_init(&frm_local->rf_sm_list_lock);
+	c2_list_init(&frm_local->rf_frm_sm_list);
+	frm_local->rf_client_side = false;
+	*frm = frm_local;
 	return rc;
 }
 
@@ -559,7 +561,7 @@ static statefunc_t frm_next_state(const int current_state,
    @param item - Input rpc item
    @retval - Connected c2_rpc_conn structure.
  */
-static struct c2_rpc_conn *rpcconn_get(const struct c2_rpc_item *item)
+static struct c2_rpc_conn *rpc_item_to_conn(const struct c2_rpc_item *item)
 {
 	return item->ri_session->s_conn;
 }
@@ -652,7 +654,7 @@ static int sm_default_handler(struct c2_rpc_item *item,
 	C2_PRE(sm_state <= C2_RPC_FRM_STATES_NR);
 
 	formation = item->ri_mach->cr_formation;
-	conn = rpcconn_get(item);
+	conn = rpc_item_to_conn(item);
 
 	/* If state machine pointer from rpc item is NULL, locate it
 	   from list in list of state machines. If found, lock it and
@@ -1333,8 +1335,6 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 
 /**
    Update the c2_rpc_frm_sm data structure on addition of an rpc item.
-   @retval 0 if item is successfully added to internal data structure
-   @retval non-zero if item is not successfully added in internal data structure
    @param frm_sm - formation state machine
    @param item - rpc item to be added to the internal data structure
    @retval 0 if successful, -errno otherwise
@@ -1385,6 +1385,7 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 
 	/* Index into the array to find out correct list as per
 	   priority of current rpc item. */
+	C2_ASSERT(item->ri_prio < C2_RPC_ITEM_PRIO_NR);
 	list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR - item->ri_prio].
 		pl_unformed_items;
 
@@ -1426,8 +1427,8 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 }
 
 /**
-   Given an endpoint, tell if an optimal rpc can be prepared from
-   the items submitted to this endpoint.
+   Decide if an optimal rpc can be prepared from the items submitted
+   to this endpoint.
    @param frm_sm - the c2_rpc_frm_sm structure
    based on whose data, it will be found if an optimal rpc can be made.
    @param frm_sm - formation state machine
@@ -1435,11 +1436,11 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
    @retval true if size is optimal, false otherwise
  */
 static bool frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
-		uint64_t *rpcobj_size)
+		uint64_t rpcobj_size)
 {
 	C2_PRE(frm_sm != NULL);
 
-	if (*rpcobj_size >= frm_sm->fs_max_msg_size)
+	if (rpcobj_size >= frm_sm->fs_max_msg_size)
 		return true;
 
 	return false;
@@ -1448,7 +1449,7 @@ static bool frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
 /**
    Policy function to dictate if an rpc should be formed or not.
    @param frm_sm - Concerned formation state machine
-   @retval - TRUE if rpc can be formed, FALSE otherwise.
+   @retval - true if rpc can be formed, false otherwise.
  */
 static bool frm_policy_satisfy(struct c2_rpc_frm_sm *frm_sm)
 {
@@ -1501,12 +1502,11 @@ static bool formation_qualify(const struct c2_rpc_frm_sm *frm_sm)
 /**
    State function for UPDATING state.
    Formation is updating its internal data structure by taking necessary locks.
+   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
    @param item - input rpc item.
    @param event - Since UPDATING state handles a lot of events,
    it needs some way of identifying the events.
-   @param frm_sm - Corresponding c2_rpc_frm_sm structure for given rpc item.
-   @param item - rpc item
-   @param event - private event structure
+   @retval internal event id
  */
 static enum c2_rpc_frm_int_evt_id sm_updating_state(
 		struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
@@ -1553,8 +1553,8 @@ static enum c2_rpc_frm_int_evt_id sm_updating_state(
 static bool frm_fragment_policy(const struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item, uint64_t *fragments_nr)
 {
-	bool		io_op = false;
-	uint64_t	curr_fragments = 0;
+	bool		io_op;
+	uint64_t	curr_fragments;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
@@ -1806,6 +1806,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	int				 rc = 0;
 	bool				 size_optimal = false;
 	bool				 fragments_policy = false;
+	uint64_t			 rpc_size;
 	struct c2_list			*list;
 	struct c2_rpc_item		*rpc_item = NULL;
 	struct c2_rpc_item		*rpc_item_next = NULL;
@@ -1816,6 +1817,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(fragments_nr != NULL);
 	C2_PRE(rpcobj != NULL);
 
+	rpc_size = *rpcobj_size;
 	/* Iterate over the priority bands and add items arranged in
 	   increasing order of timeouts till rpc is optimal. */
 	for (cnt = 0; cnt < ARRAY_SIZE(frm_sm->fs_unformed_prio) &&
@@ -1825,7 +1827,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				struct c2_rpc_item, ri_unformed_linkage) {
 			fragments_policy = frm_fragment_policy(frm_sm,
 					rpc_item, fragments_nr);
-			size_optimal = frm_is_size_optimal(frm_sm, rpcobj_size);
+			size_optimal = frm_is_size_optimal(frm_sm, rpc_size);
 			rpcmachine = rpc_item->ri_mach;
 
 			/* If size threshold is not reached or other formation
@@ -1888,6 +1890,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	bool			 size_policy = false;
 	bool			 fragments_policy = false;
 	uint32_t		 slot_items_nr;
+	uint64_t		 rpc_size;
 	struct c2_rpc_item	*item;
 	struct c2_rpc_item	*item_next;
 	struct c2_rpc_slot	*slot;
@@ -1909,6 +1912,8 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_ASSERT(rpcmachine != NULL);
 	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
 
+	rpc_size = *rpcobj_size;
+
 	/* Iterate ready slots list from rpcmachine and try to find an
 	   item for each ready slot. */
 	c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
@@ -1929,7 +1934,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				ri_unbound_link) {
 			fragments_policy = frm_fragment_policy(frm_sm, item,
 					fragments_nr);
-			size_policy = frm_is_size_optimal(frm_sm, rpcobj_size);
+			size_policy = frm_is_size_optimal(frm_sm, rpc_size);
 			if (!size_policy || frm_policy_satisfy(frm_sm)) {
 				if (fragments_policy) {
 					frm_item_make_bound(slot, item);
@@ -2002,7 +2007,7 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 
 	/* If optimal rpc can not be formed, or other formation policies
 	   do not satisfy, return failure. */
-	size_optimal = frm_is_size_optimal(frm_sm, &frm_sm->fs_cumulative_size);
+	size_optimal = frm_is_size_optimal(frm_sm, frm_sm->fs_cumulative_size);
 	frm_policy = frm_policy_satisfy(frm_sm);
 
 	if (!(frm_policy || size_optimal))

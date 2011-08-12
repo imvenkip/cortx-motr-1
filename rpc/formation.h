@@ -317,7 +317,7 @@ enum {
 
 /**
    A structure to process callbacks to posting events.
-   This structure in used to associate an rpc object being sent,
+   This structure is used to associate an rpc object being sent,
    its associated item_summary_unit structure and the c2_net_buffer.
  */
 struct c2_rpc_frm_buffer {

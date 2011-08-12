@@ -441,7 +441,7 @@ void send_ping_fop(int nr)
 	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
 	item->ri_session = &cctx.pc_rpc_session;
-	//c2_rpc_post(item);
+	c2_rpc_post(item);
 }
 
 /* Get stats from rpcmachine and print them */
@@ -733,11 +733,11 @@ void client_init()
 		c2_thread_join(&client_thread[i]);
 	}
 
-
+/*
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
 	}
-
+*/
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
