@@ -476,7 +476,7 @@ static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
-	fom_stdom = fom->fo_domain->fd_reqh->rh_stdom;
+	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 	result = fom_stdom->sd_ops->sdo_stob_find(fom_stdom, &id, &obj);
 	C2_UT_ASSERT(result == 0);
 	result = c2_stob_locate(obj, tx);
@@ -582,33 +582,34 @@ int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	size_t iloc;
-	size_t fd_nr;
 
 	if (fom == NULL)
 		return -EINVAL;
 
-	fd_nr = fom->fo_domain->fd_localities_nr;
-	switch(fom->fo_fop->f_type->ft_code) {
+	switch (fom->fo_fop->f_type->ft_code) {
 	case 10: {
 		struct reqh_ut_fom_io_create *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fic_object.f_oid;
-		iloc = oid % fd_nr;
+		iloc = oid;
+		break;
 	}
 	case 11: {
 		struct reqh_ut_fom_io_read *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fir_object.f_oid;
-		iloc = oid % fd_nr;
+		iloc = oid;
+		break;
 	}
 	case 12: {
 		struct reqh_ut_fom_io_write *fop;
 		U64 oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
-		iloc = oid % fd_nr;
+		iloc = oid;
+		break;
 	}
 	}
 	return iloc;
@@ -627,11 +628,10 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
 
+	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
 	} else {
-		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
-
 		in_fop = c2_fop_data(fom->fo_fop);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 
@@ -675,11 +675,10 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == READ_REQ);
 
+	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
 	} else {
-
-		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 		C2_UT_ASSERT(out_fop != NULL);
 
@@ -771,10 +770,10 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == WRITE_REQ);
 
+	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	if (fom->fo_phase < FOPH_NR) {
 		result = c2_fom_state_generic(fom);
 	} else {
-		fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 		out_fop = c2_fop_data(fom_obj->rep_fop);
 		C2_UT_ASSERT(out_fop != NULL);
 
@@ -852,9 +851,7 @@ void reqh_ut_io_fom_fini(struct c2_fom *fom)
 {
 	struct reqh_ut_io_fom *fom_obj;
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
-	if (c2_fom_invariant(fom))
-		c2_fom_fini(fom);
-
+	c2_fom_fini(fom);
 	c2_free(fom_obj);
 }
 
@@ -994,7 +991,7 @@ static int reqh_ut_service_handler(struct c2_service *service,
  * Creates and initialises network resources.
  */
 int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
-			  struct c2_service_id *node_arg, struct c2_service *rserv)
+			  				struct c2_service *rserv)
 {
 	int rc = 0;
 
@@ -1037,7 +1034,6 @@ void test_reqh(void)
 
 	struct c2_service_id	 rsid = { .si_uuid = "reqh_ut_node" };
 	struct c2_net_conn	*conn;
-	struct c2_service_id	 reqh_node_arg = { .si_uuid = {0} };
 	struct c2_service	 rservice;
 
 	struct c2_stob_domain	*bdom;
@@ -1125,7 +1121,7 @@ void test_reqh(void)
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
 					  reqh_addb_stob, NULL);
 
-	reqh_ut_create_net_conn(&rsid, &conn, &reqh_node_arg, &rservice);
+	reqh_ut_create_net_conn(&rsid, &conn, &rservice);
 
 	/* Initialising request handler */
 	result =  c2_reqh_init(&reqh, NULL, NULL, sdom, &fol, &rservice);
@@ -1139,15 +1135,14 @@ void test_reqh(void)
 	while (reply < 10)
 		sleep(1);
 
-	for (i = 0; i < 10; ++i) {
-		sleep(1);
+	for (i = 0; i < 10; ++i)
 		reqh_ut_write_send(conn, i, i);
-	}
 
-	for (i = 0; i < 10; ++i) {
+	while(reply < 20)
 		sleep(1);
+
+	for (i = 0; i < 10; ++i)
 		reqh_ut_read_send(conn, i, i);
-	}
 
 	while (reply < 30)
 		sleep(1);

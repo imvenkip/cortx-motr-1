@@ -256,7 +256,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * This is a transaction IO and should be a separate phase
 	 * with full fledged FOM.
 	 */
-	fom_stdom = fom->fo_domain->fd_reqh->rh_stdom;
+	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 	result = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &tx);
 	C2_ASSERT(result == 0);
 
@@ -449,7 +449,6 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 
 	fom->fo_fop_ctx = &ctx;
 	fom->fo_fol = fol;
-	fom->fo_domain = &reqh.rh_fom_dom;
 
 	/*
 	 * Start the FOM.

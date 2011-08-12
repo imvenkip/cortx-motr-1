@@ -101,7 +101,7 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
-	/** Common lock used to protect locality feilds */
+	/** Common lock used to protect locality fields */
 	struct c2_mutex		     fl_lock;
 
 	/**
@@ -178,17 +178,19 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	/**
-	   Fom changes its state from FOS_READY to FOS_RUNNING, after it
-	   is dequeued from a locality runq and begins its execution.
+	   Fom is in FOS_RUNNING state when its state transition function is being
+	   executed by a locality handler thread.
+	   The fom is not on any queue in this state.
 	 */
 	FOS_RUNNING,
 	/**
-	    Fom is in FOS_READY state when it is put on locality runq for execution.
+	    Fom is in FOS_READY state when it is on locality runq for execution.
 	*/
 	FOS_READY,
 	/**
-	    Fom changes its state from FOS_RUNNING to FOS_WAITING, if the
-	    fom execution would block, fom is then put on a locality wait list.
+	    Fom is in FOS_WAITING state when some event must happen before the next
+	    state transition would become possible.
+	    The fom is on a locality wait list in this state.
 	 */
 	FOS_WAITING,
 };
@@ -271,9 +273,18 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
    @see c2_fom_invariant()
 */
 struct c2_fom {
+	/**
+	   Different states in which a fom can be, throughout its
+	   life cycle.This feild is protected by c2_fom_locality:fl_lock
+	   mutex.
+
+	   @see c2_fom_locality
+	*/
 	enum c2_fom_state	 fo_state;
 	int			 fo_phase;
+	/** Locality this fom belongs to */
 	struct c2_fom_locality	*fo_loc;
+	/** FOM type specific structure */
 	struct c2_fom_type	*fo_type;
 	const struct c2_fom_ops	*fo_ops;
 	struct c2_clink		 fo_clink;
@@ -285,14 +296,12 @@ struct c2_fom {
 	struct c2_fop		*fo_rep_fop;
 	/** Fol object for this fom */
 	struct c2_fol		*fo_fol;
-	/** Fom domain this fom belongs to */
-	struct c2_fom_domain	*fo_domain;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		 fo_tx;
 	/** Linkage in the locality runq list or wait list  */
 	struct c2_list_link	 fo_rwlink;
 	/** Result of fom execution, -errno on failure */
-	int			 fo_rc;
+	int32_t			 fo_rc;
 	/** Temporary reference to reply fop */
 	void			*fo_cookie;
 };
@@ -309,7 +318,7 @@ struct c2_fom {
 void c2_fom_queue(struct c2_fom *fom);
 
 /**
-   Pre allocated fom is provided which is initialised.
+   Initialises fom allocated by the caller.
    Invoked from c2_fop_type_ops::fto_fom_init implementation for
    corresponding fop.
    Fom starts in FOPH_INIT phase and FOS_READY state to begin its
@@ -380,7 +389,7 @@ struct c2_fom_ops {
 	/** Finalise this fom. */
 	void (*fo_fini)(struct c2_fom *fom);
 	/**
-	    Execute the next state transition.
+	    Executes the next state transition.
 
 	    Returns value of enum c2_fom_state_outcome or error code.
 	 */
@@ -389,8 +398,9 @@ struct c2_fom_ops {
 	/**
 	    Finds home locality for this fom.
 
-	    Returns locality number used as subscript in fd_localities
-	    array, member of c2_fom_domain, based on fom parameters.
+	    Returns numerical value based on certain fom parameters that is
+	    used to select the home locality from c2_fom_domain::fd_localities
+	    array.
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom *fom);
 };
@@ -430,11 +440,7 @@ void c2_fom_block_leave(struct c2_fom *fom);
 /**
    Registers fom with the channel provided by the caller on which
    the fom would wait for signal after completing a blocking operation.
-   Also puts the fom on the locality wait list.
-   Fom resumes its execution once the chan is signalled after
-   completing its blocking operation.
-
-   @see c2_fom_state_generic()
+   Fom resumes its execution once the chan is signalled.
 
    @param fom, A fom executing a blocking operation
    @param chan, waiting channel registered with the fom during its

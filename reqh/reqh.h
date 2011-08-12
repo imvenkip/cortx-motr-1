@@ -158,6 +158,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
 
    Fom execution proceeds as follows:
 
+   @verbatim
+
 	fop
 	 |
 	 v                fom->fo_state = FOS_READY
@@ -198,6 +200,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie);
           |	     ^			 |            FOPH_QUEUE_REPLY_WAIT
 	  v	     |			 v<---------------------+
    FOPH_TXN_ABORT_WAIT		     FOPH_DONE ---> c2_fom_fini()
+
+   @endverbatim
 
    If a generic phase handler function fails while executing a fom, then it
    just sets the c2_fom::fo_rc to the result of the operation and returns FSO_WAIT.

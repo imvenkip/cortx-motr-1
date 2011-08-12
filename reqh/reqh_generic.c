@@ -209,7 +209,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	int		rc;
 	struct c2_stob_domain  *fom_stdom;
 
-	fom_stdom = fom->fo_domain->fd_reqh->rh_stdom;
+	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
 	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);
 	if (rc != 0)
 		fom->fo_rc = rc;
@@ -337,10 +337,12 @@ static int fom_txn_abort_wait(struct c2_fom *fom)
  */
 static int fom_queue_reply(struct c2_fom *fom)
 {
+	struct c2_service *service;
+
 	C2_PRE(fom->fo_rep_fop != NULL);
 
-	c2_net_reply_post(fom->fo_domain->fd_reqh->rh_serv,
-				fom->fo_rep_fop, fom->fo_cookie);
+	service = fom->fo_loc->fl_dom->fd_reqh->rh_serv;
+	c2_net_reply_post(service, fom->fo_rep_fop, fom->fo_cookie);
 	return FSO_AGAIN;
 }
 
@@ -462,7 +464,6 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	int			    rc;
 	const struct fom_phase_ops *fpo_phase;
 
-	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(IS_IN_ARRAY(fom->fo_phase, fpo_table));
 
 	fpo_phase = &fpo_table[fom->fo_phase];
