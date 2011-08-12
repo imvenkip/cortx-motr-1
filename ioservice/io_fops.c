@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -14,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * 		    Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 
@@ -865,7 +866,6 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
 	struct c2_io_ioseg		 res_ioseg;
-	struct c2_io_fop_member		*fop_member;
 	enum c2_io_service_opcodes	 op;
 
 	C2_PRE(fop_list != NULL);
@@ -886,9 +886,7 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	/* Traverse the fop_list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
 	   in another list. */
-	c2_list_for_each_entry(fop_list, fop_member, struct c2_io_fop_member,
-			       fop_linkage) {
-		fop = fop_member->fop;
+	c2_list_for_each_entry(fop_list, fop, struct c2_fop, f_link) {
 		iovec_get(fop, &iovec);
 		res = io_fop_segments_coalesce(&iovec, &aggr_list, op);
 	}

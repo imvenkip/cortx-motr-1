@@ -52,6 +52,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 			fop->f_data.fd_data = data;
 			c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 					 &fopt->ft_addb);
+			c2_list_link_init(&fop->f_link);
 		} else {
 			c2_free(fop);
 			fop = NULL;
@@ -66,6 +67,7 @@ void c2_fop_free(struct c2_fop *fop)
 	if (fop != NULL) {
 		c2_addb_ctx_fini(&fop->f_addb);
 		c2_free(fop->f_data.fd_data);
+		c2_list_link_fini(&fop->f_link);
 		c2_free(fop);
 	}
 }
