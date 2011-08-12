@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * 		    Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 
@@ -25,7 +25,7 @@
 #include "io_fops.h"
 #include "lib/errno.h"
 
-/**
+/*
    Forward declarations.
  */
 static int io_fop_get_opcode(const struct c2_fop *fop);
@@ -237,7 +237,7 @@ static int iosegs_alloc(union c2_io_iovec *iovec,
 }
 
 /**
-   Deallocate the array of IO segments from IO vector.
+   Deallocate the IO vector.
    @param iovec - Input io vector.
    @param op - Operation, given io vector belongs to.
  */
@@ -249,11 +249,11 @@ static void iovec_free(union c2_io_iovec *iovec,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		if (iovec->read_vec)
-			c2_free(iovec->read_vec);
+		c2_free(iovec->read_vec);
+		iovec->read_vec = NULL;
 	} else {
-		if (iovec->write_vec)
-			c2_free(iovec->write_vec);
+		c2_free(iovec->write_vec);
+		iovec->write_vec = NULL;
 	}
 }
 
@@ -313,7 +313,7 @@ static int iovec_alloc(union c2_io_iovec **iovec,
 
 /**
    Copy src IO vector into destination. The IO segments are not
-   copied completely, rather jsut the pointer to it is copied.
+   copied completely, rather just the pointer to it is copied.
    @param src - Source IO vector.
    @param dest - Destination IO vector.
    @param op - Operation code, this IO vectors belong to.
@@ -349,13 +349,11 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	c2_list_del(&ioseg->io_linkage);
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		if (ioseg->gen_ioseg.read_seg)
-			c2_free(ioseg->gen_ioseg.read_seg);
-	} else {
-		if (ioseg->gen_ioseg.write_seg)
-			c2_free(ioseg->gen_ioseg.write_seg);
-	}
+	if (op == C2_IO_SERVICE_READV_OPCODE)
+		c2_free(ioseg->gen_ioseg.read_seg);
+	else
+		c2_free(ioseg->gen_ioseg.write_seg);
+
 	c2_free(ioseg);
 }
 
@@ -790,12 +788,18 @@ static void io_fop_segments_contract(const struct c2_list *aggr_list,
 	uint64_t		 cnt2;
 	struct c2_io_ioseg	*seg;
 	struct c2_io_ioseg	*seg_next;
+	uint64_t		 aggr_list_len;
+	uint64_t		 aggr_seg_cnt = 0;
 
 	C2_PRE(aggr_list != NULL);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE);
 
+	aggr_list_len = c2_list_length(aggr_list);
 	c2_list_for_each_entry_safe(aggr_list, seg, seg_next,
 			struct c2_io_ioseg, io_linkage) {
+		aggr_seg_cnt++;
+		if (aggr_list_len == aggr_seg_cnt)
+			break;
 		off1 = ioseg_offset_get(seg, op);
 		cnt1 = ioseg_count_get(seg, op);
 		off2 = ioseg_offset_get(seg_next, op);
@@ -1024,7 +1028,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
  * Init function to initialize readv and writev reply FOMs.
  * Since there is no client side FOMs as of now, this is empty.
  * @param fop - fop on which this fom_init methods operates.
- * @param fom - fom object to be created here.
+ * @param m - fom object to be created here.
  */
 static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
