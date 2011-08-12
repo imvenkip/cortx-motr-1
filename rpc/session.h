@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- *		    Rohan Puri <Rohan_Puri@xyratex.com>
+ *                  Rohan Puri <Rohan_Puri@xyratex.com>
  *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 04/09/2010
  */
@@ -252,10 +252,6 @@ points to record of most recent update operation that updated the slot verno.
 #include "lib/mutex.h"
 #include "dtm/verno.h"
 
-/*#ifdef __KERNEL__
-#define printf	printk
-#endif*/
-
 /* Imports */
 struct c2_rpc_item;
 struct c2_rpcmachine;
@@ -361,6 +357,8 @@ enum c2_rpc_conn_flags {
    - conn_establish or conn_terminate FOP
    - session_establish or session_terminate FOP.
 
+   <B> State transition diagram: </B>
+
    Note: There is no state named as "UNINITIALISED", it is in the state
    diagram to specify "before initialisation" and "after finalisation" state,
    and the contents of object are irrelevant and "unknown".
@@ -391,17 +389,74 @@ enum c2_rpc_conn_flags {
 	 |                          |
          |                          | conn_terminate_reply_received() && rc== 0
 	 |                          V
-	 |			TERMINATED
+	 |                      TERMINATED
 	 |                          |
-	 |			    |  c2_rpc_conn_fini()
-	 | c2_rpc_conn_fini()	    V
+	 |                          |  c2_rpc_conn_fini()
+	 | c2_rpc_conn_fini()       V
 	 +--------------------> UNINITIALISED
 
   @endverbatim
 
-  Concurrency:
+  <B> Liveness and Concurrency: </B>
+  * Allocation and deallocation of c2_rpc_conn object is entirely handled by
+    user (c2_rpc_conn object is not reference counted).
   * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
-  * Locking order: rpcmachine => c2_rpc_conn => c2_rpc_session
+  * Locking order: slot => session => conn => rpcmachine
+
+  <B> Typical sequence of API execution </B>
+  Note: error checking is omitted.
+
+  @code
+  // ALLOCATE CONN
+  struct c2_rpc_conn *conn;
+  C2_ALLOC_PTR(conn);
+
+  // INITIALISE CONN
+  rc = c2_rpc_conn_init(conn, tgt_end_point, rpcmachine);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED));
+
+  // ESTABLISH RPC CONNECTION
+  rc = c2_rpc_conn_establish(conn);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
+
+  // WAIT UNTIL CONNECTION IS ESTABLISHED
+  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
+				absolute_timeout);
+  if (flag) {
+	if (conn->c_state == C2_RPC_CONN_ACTIVE)
+		// connection is established and is ready to be used
+	ele
+		// connection establishing failed
+  } else {
+	// timeout
+  }
+  // Assuming connection is established.
+  // Create one or more sessions using this connection. @see c2_rpc_session
+
+  // TERMINATING CONNECTION
+  // Make sure that all the sessions that were created on this connection are
+  // terminated
+  C2_ASSERT(conn->c_nr_sessions == 0);
+
+  rc = c2_rpc_conn_terminate(conn);
+  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
+
+  // WAIT UNTIL CONNECTION IS TERMINATED
+  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+				C2_RPC_CONN_FAILED, absolute_timeout);
+  if (flag) {
+	if (conn->c_state == C2_RPC_CONN_TERMINATED)
+		// conn is successfully terminated
+	else
+		// conn terminate has failed
+  } else {
+	// timeout
+  }
+  // assuming conn is terminated
+  c2_rpc_conn_fini(conn);
+  c2_free(conn);
+
+  @endcode
  */
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
@@ -571,42 +626,122 @@ enum c2_rpc_session_state {
 
 /**
    Session object at the sender side.
+
+   <B> Liveness: </B>
+   Allocation and deallocation of c2_rpc_session is entirely managed by user.
+
+   <B> Concurrency:</B>
+
+   c2_rpc_session::s_mutex protects all fields except s_link. s_link is
+   protected by session->s_conn->c_mutex.
+   When session is in UNINITIALISED or in C2_RPC_SESSION_TERMINATED state,
+   user is expected to serialise access to the session object.
+   There is no need to take session->s_mutex while posting item
+   on the session. Users of rpc-layer are never expected to take lock on
+   session.
+
+   Locking hierarchy is slot => session => conn => rpcmachine.
+
    @verbatim
 
-            +------------------> some unknown state
-                 allocated            |
-				      |  c2_rpc_session_init()
-				      V
+            +------------------> UNINITIALISED
+                 allocated         ^   |
+                            fini() |   |  c2_rpc_session_init()
+				   |   V
 				  INITIALISED
 				      |
 				      | c2_rpc_session_establish()
 				      |
-		timed-out	      V
+		timed-out             V
           +-------------------------CREATING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)
 	  |           |               +-----------------+
 	  |           |               |                 | +-----+
-	  |           |failed         |	                | |     | item add/n++
+	  |           |failed         |                 | |     | item add/n++
 	  |           |               V  item add/n++   | V     | reply rcvd/n--
 	  |           |             IDLE--------------->BUSY----+
 	  |           |               |
 	  | fini      |               | session_terminate
-	  |	      |               V
+	  |           |               V
 	  |           +----------TERMINATING
-	  |			      |
-	  |			      |
-	  |			      |
-	  |		              |session_terminated
-	  |		              V
-	  |		         TERMINATED
-	  |		              |
-	  |			      | fini()
-	  |			      V
-	  +----------------------->unknown state
+	  |                           |
+	  |                           |
+	  |                           |
+	  |                           |session_terminated
+	  |                           V
+	  |                       TERMINATED
+	  |                           |
+	  |                           | fini()
+	  |                           V
+	  +----------------------> UNINITIALISED
 
    @endverbatim
+
+   Typical sequence of execution of APIs on sender side. Error checking is
+   omitted.
+
+   @code
+
+   // ALLOCATE SESSION
+
+   struct c2_rpc_session *session;
+   C2_ALLOC_PTR(session);
+
+   // INITIALISE SESSION
+
+   nr_slots = 4;
+   rc = c2_rpc_session_init(session, conn, nr_slots);
+   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED));
+
+   // ESTABLISH SESSION
+
+   rc = c2_rpc_session_establish(session);
+   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
+
+   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
+					C2_RPC_SESSION_FAILED, timeout);
+
+   if (flag && session->s_state == C2_RPC_SESSION_IDLE) {
+	// Session is successfully established
+   } else {
+	// timeout has happend or session establish failed
+   }
+
+   // Assuming session is successfully established.
+   // post unbound items using c2_rpc_post(item)
+
+   item->ri_session = session;
+   item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+   item->ri_deadline = absolute_time;
+   item->ri_ops = item_ops;   // item_ops contains ->replied() callback which
+			      // will be called when reply to this item is
+			      // received. DO NOT FREE THIS ITEM.
+
+   // TERMINATING SESSION
+   // Wait until all the items that were posted on this session, are sent and
+   // for all those items either reply is received or reply_timeout has
+   // triggered.
+   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE, timeout);
+   if (flag) {
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+	rc = c2_rpc_session_terminate(session);
+	C2_ASSERT(ergo(rc == 0, session->s_state ==
+			C2_RPC_SESSION_TERMINATING));
+
+	// Wait until session is terminated.
+	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
+					C2_RPC_SESSION_FAILED, timeout);
+	C2_ASSERT(ergo(flag1, session->s_state == C2_RPC_SESSION_TERMINATED ||
+			session->s_state == C2_RPC_SESSION_FAILED));
+   }
+
+   // FINALISE SESSION
+
+   c2_rpc_session_fini(session);
+   c2_free(session);
+   @endcode
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */

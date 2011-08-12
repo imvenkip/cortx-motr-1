@@ -461,4 +461,3 @@ bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
  *  scroll-step: 1
  *  End:
  */
-

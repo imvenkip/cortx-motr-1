@@ -1,3 +1,25 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ *		    Anand Vidwansa <Anand_Vidwansa@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 04/28/2011
+ */
+
 #include "cob/cob.h"
 #include "rpc/rpccore.h"
 #include "rpc/rpcdbg.h"
@@ -572,15 +594,6 @@ static void rpc_proc_fini(struct c2_rpc_processing *proc)
 	rpc_proc_ctl_fini(&proc->crp_ctl);
 }
 
-static int rpc_stat_init(struct c2_rpc_statistics *stat)
-{
-	return 0;
-}
-
-static void rpc_stat_fini(struct c2_rpc_statistics *stat)
-{
-}
-
 /**
    The callback routine to be called once the transfer machine
    receives a buffer. This subroutine later invokes decoding of
@@ -828,7 +841,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	struct c2_db_tx			 tx;
 	struct c2_cob			*root_session_cob;
 	int				 rc;
-	struct c2_rpc_stats		*st;
 	struct c2_rpc_chan		*chan;
 
 	/* The c2_net_domain is expected to be created by end user.*/
@@ -837,27 +849,11 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
 
-	C2_ALLOC_PTR(st);
-	if (st == NULL) {
-		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
-				&rpc_machine_addb_loc, c2_addb_oom);
-		return -ENOMEM;
-	}
-	c2_mutex_init(&st->rs_lock);
-
-	machine->cr_rpc_stats = st;
+	c2_mutex_init(&machine->cr_stats_mutex);
 
 	rc = rpc_proc_init(&machine->cr_processing);
-	if (rc < 0) {
-		c2_free(st);
+	if (rc < 0)
 		return rc;
-	}
-
-	rc = rpc_stat_init(&machine->cr_statistics);
-	if (rc < 0) {
-		c2_free(st);
-		rpc_proc_fini(&machine->cr_processing);
-	}
 
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
@@ -880,14 +876,12 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	rc = c2_rpc_chan_create(&chan, machine, net_dom, ep_addr);
 	if (rc < 0) {
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-		c2_free(st);
 		return rc;
 	}
 
 	rc = c2_rpc_session_module_init();
 	if (rc < 0) {
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-		c2_free(st);
 		return rc;
 	}
 
@@ -909,7 +903,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 
 	C2_PRE(machine != NULL);
 
-	rpc_stat_fini(&machine->cr_statistics);
 	rpc_proc_fini(&machine->cr_processing);
 	/* XXX commented following two lines for testing purpose */
 	//c2_list_fini(&machine->cr_incoming_conns);
@@ -930,8 +923,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage);
 	c2_rpc_chan_put(chan);
 	c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-	c2_mutex_fini(&machine->cr_rpc_stats->rs_lock);
-	c2_free(machine->cr_rpc_stats);
+	c2_mutex_fini(&machine->cr_stats_mutex);
 	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }
 
@@ -1309,30 +1301,6 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 }
 
 /**
-  Set the stats unit for given rpc item
-  @param item - rpc item for which stats have to be collected
-  @param su - stats unit in which stats have to be collected
- */
-static void item_status_unit_set(struct c2_rpc_item *item,
-		struct c2_rpc_stats_unit *su)
-{
-	su->rsu_i_lat = c2_time_sub(item->ri_rpc_exit_time,
-			item->ri_rpc_entry_time);
-	if (su->rsu_min_lat >= su->rsu_i_lat || su->rsu_min_lat == 0)
-		su->rsu_min_lat = su->rsu_i_lat;
-	if (su->rsu_max_lat <= su->rsu_i_lat || su->rsu_max_lat == 0)
-		su->rsu_max_lat = su->rsu_i_lat;
-
-	/* Do not perform floating point division in kernel. */
-#ifndef __KERNEL__
-	su->rsu_avg_lat = ((su->rsu_items_nr * su->rsu_avg_lat) +
-			su->rsu_i_lat) / (su->rsu_items_nr +1);
-#endif
-	su->rsu_items_nr++;
-	su->rsu_bytes_nr += c2_rpc_item_default_size(item);
-}
-
-/**
   Set the stats for outgoing rpc item
   @param item - incoming or outgoing rpc item
   @param path - enum distinguishing whether the item is incoming or outgoing
@@ -1340,21 +1308,27 @@ static void item_status_unit_set(struct c2_rpc_item *item,
 void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 		enum c2_rpc_item_path path)
 {
-	c2_time_t			 now;
 	struct c2_rpc_stats		*st;
 
 	C2_PRE(item != NULL);
 
-	c2_time_now(&now);
-	item->ri_rpc_exit_time = now;
+	c2_time_now(&item->ri_rpc_exit_time);
 
-	st = item->ri_mach->cr_rpc_stats;
-	c2_mutex_lock(&st->rs_lock);
-	if (path == INCOMING)
-		item_status_unit_set(item, &st->rs_in);
-	else
-		item_status_unit_set(item, &st->rs_out);
-	c2_mutex_unlock(&st->rs_lock);
+	st = &item->ri_mach->cr_rpc_stats[path];
+	c2_mutex_lock(&item->ri_mach->cr_stats_mutex);
+        st->rs_i_lat = c2_time_sub(item->ri_rpc_exit_time,
+                        item->ri_rpc_entry_time);
+        if (st->rs_min_lat >= st->rs_i_lat || st->rs_min_lat == 0)
+                st->rs_min_lat = st->rs_i_lat;
+        if (st->rs_max_lat <= st->rs_i_lat || st->rs_max_lat == 0)
+                st->rs_max_lat = st->rs_i_lat;
+
+        st->rs_avg_lat = ((st->rs_items_nr * st->rs_avg_lat) +
+                        st->rs_i_lat) / (st->rs_items_nr +1);
+        st->rs_items_nr++;
+        st->rs_bytes_nr += c2_rpc_item_default_size(item);
+
+	c2_mutex_unlock(&item->ri_mach->cr_stats_mutex);
 }
 
 

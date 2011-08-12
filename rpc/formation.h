@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * 		    Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 04/25/2011
  */
 
@@ -151,14 +151,14 @@
    take the executing thread out of this state machine.
 
    Hierarchy of data structures in formation component.
-   \verbatim
+   @verbatim
    c2_rpc_formation
 
      +--> c2_list <c2_rpc_frm_sm>
 
 	    +--> c2_list <c2_rpc_frm_rpcgroup>
 
-   \endverbatim
+   @endverbatim
 
    Locking order =>
    This order will ensure there are no deadlocks due to locking
@@ -316,7 +316,7 @@ enum {
 
 /**
    A structure to process callbacks to posting events.
-   This structure in used to associate an rpc object being sent,
+   This structure is used to associate an rpc object being sent,
    its associated item_summary_unit structure and the c2_net_buffer.
  */
 struct c2_rpc_frm_buffer {

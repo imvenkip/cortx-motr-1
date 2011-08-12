@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * 		    Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
@@ -51,11 +51,11 @@ union c2_io_iovec {
  */
 enum c2_io_service_opcodes {
 	C2_IO_SERVICE_READV_OPCODE = 15,
-	C2_IO_SERVICE_WRITEV_OPCODE,
-	C2_IO_SERVICE_CREATE_OPCODE,
-	C2_IO_SERVICE_CREATE_REP_OPCODE,
-	C2_IO_SERVICE_WRITEV_REP_OPCODE,
-	C2_IO_SERVICE_READV_REP_OPCODE,
+	C2_IO_SERVICE_WRITEV_OPCODE = 16,
+	C2_IO_SERVICE_CREATE_OPCODE = 17,
+	C2_IO_SERVICE_CREATE_REP_OPCODE = 18,
+	C2_IO_SERVICE_WRITEV_REP_OPCODE = 19,
+	C2_IO_SERVICE_READV_REP_OPCODE = 20,
 };
 
 /**

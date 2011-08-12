@@ -438,6 +438,7 @@ void io_fop_data_init()
  */
 void send_random_io_fop(int nr)
 {
+/*
         struct c2_fop           *fop;
         struct c2_rpc_item      *item = NULL;
 
@@ -451,6 +452,7 @@ void send_random_io_fop(int nr)
         c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
+*/
 }
 
 /**
@@ -504,82 +506,84 @@ void print_stats(bool client, bool server)
 		rpc_mach = &cctx.pc_rpc_mach;
 	else if (server)
 		rpc_mach = &sctx.pc_rpc_mach;
-	stats = rpc_mach->cr_rpc_stats;
+	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_OUTGOING];
 	printf("\n\n*********************************************\n");
 	printf("Stats on Outgoing Path\n");
 	printf("*********************************************\n");
 	printf("Number of outgoing items = %lu\n",
-			stats->rs_out.rsu_items_nr);
+			stats->rs_items_nr);
 	printf("Number of outgoing bytes = %lu\n",
-			stats->rs_out.rsu_bytes_nr);
+			stats->rs_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out.rsu_min_lat);
-	nsec = c2_time_nanoseconds(stats->rs_out.rsu_min_lat);
+	sec = c2_time_seconds(stats->rs_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out.rsu_max_lat);
-	nsec = c2_time_nanoseconds(stats->rs_out.rsu_max_lat);
+	sec = c2_time_seconds(stats->rs_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_out.rsu_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_out.rsu_avg_lat);
+	sec = c2_time_seconds(stats->rs_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_out.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
+
+	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING];
 
 	printf("\n\n*********************************************\n");
 	printf("Stats on Incoming Path\n");
 	printf("*********************************************\n");
 	printf("Number of incoming items = %lu\n",
-			stats->rs_in.rsu_items_nr);
+			stats->rs_items_nr);
 	printf("Number of incoming bytes = %lu\n",
-			stats->rs_in.rsu_bytes_nr);
+			stats->rs_bytes_nr);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in.rsu_min_lat);
-	nsec = c2_time_nanoseconds(stats->rs_in.rsu_min_lat);
+	sec = c2_time_seconds(stats->rs_min_lat);
+	nsec = c2_time_nanoseconds(stats->rs_min_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in.rsu_max_lat);
-	nsec = c2_time_nanoseconds(stats->rs_in.rsu_max_lat);
+	sec = c2_time_seconds(stats->rs_max_lat);
+	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMax latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
 	sec = 0;
-	sec = c2_time_seconds(stats->rs_in.rsu_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_in.rsu_avg_lat);
+	sec = c2_time_seconds(stats->rs_avg_lat);
+	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nAvg latency    (msecs)   = %lf\n", msec);
 
-	thruput = (double)stats->rs_in.rsu_bytes_nr/(sec*1000000);
+	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 }
@@ -777,11 +781,19 @@ void client_init()
 		c2_thread_join(&client_thread[i]);
 	}
 
-	/*
+/*
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
-	}*/
-	sleep (3);
+	}
+*/
+        c2_time_now(&timeout);
+        c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
+                                c2_time_nanoseconds(timeout));
+	/* Wait for session to terminate */
+	rcb = c2_rpc_session_timedwait(&cctx.pc_rpc_session,
+			C2_RPC_SESSION_IDLE,
+			timeout);
+	C2_ASSERT(cctx.pc_rpc_session.s_state == C2_RPC_SESSION_IDLE);
 	rc = c2_rpc_session_terminate(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to terminate session\n");
@@ -804,7 +816,6 @@ void client_init()
 			printf("pingcli: session terminate failed\n");
 	} else
 		printf("Timeout for session terminate \n");
-
 
 	/* Terminate RPC connection */
 	rc = c2_rpc_conn_terminate(&cctx.pc_conn);

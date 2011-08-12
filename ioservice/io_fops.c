@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * 		    Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 
@@ -30,7 +30,7 @@
 #endif
 #include "lib/errno.h"
 
-/**
+/*
    Forward declarations.
  */
 static int io_fop_get_opcode(const struct c2_fop *fop);
@@ -151,22 +151,19 @@ static void ioseg_get(const union c2_io_iovec *iovec, const int index,
 static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest,
 		const enum c2_io_service_opcodes op)
 {
+	uint64_t	offset;
+	uint64_t	cnt;
+
 	C2_PRE(src != NULL);
 	C2_PRE(dest != NULL);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		dest->gen_ioseg.read_seg->f_offset =
-			src->gen_ioseg.read_seg->f_offset;
-		dest->gen_ioseg.read_seg->f_count =
-			src->gen_ioseg.read_seg->f_count;
-	} else {
-		dest->gen_ioseg.write_seg->f_offset =
-			src->gen_ioseg.write_seg->f_offset;
-		dest->gen_ioseg.write_seg->f_buf.f_count =
-			src->gen_ioseg.write_seg->f_buf.f_count;
-	}
+	offset = ioseg_offset_get(src, op); 
+	ioseg_offset_set(dest, offset, op);
+
+	cnt = ioseg_count_get(src,op);
+	ioseg_count_set(dest,cnt,op);
 }
 
 
@@ -222,7 +219,7 @@ static void ioseg_nr_set(union c2_io_iovec *iovec,
 static int iosegs_alloc(union c2_io_iovec *iovec,
 		const enum c2_io_service_opcodes op, const uint32_t count)
 {
-	int			 rc = 0;
+	int rc = 0;
 
 	C2_PRE(iovec != NULL);
 	C2_PRE(count != 0);
@@ -242,7 +239,7 @@ static int iosegs_alloc(union c2_io_iovec *iovec,
 }
 
 /**
-   Deallocate the array of IO segments from IO vector.
+   Deallocate the IO vector.
    @param iovec - Input io vector.
    @param op - Operation, given io vector belongs to.
  */
@@ -254,11 +251,11 @@ static void iovec_free(union c2_io_iovec *iovec,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		if (iovec->read_vec)
-			c2_free(iovec->read_vec);
+		c2_free(iovec->read_vec);
+		iovec->read_vec = NULL;
 	} else {
-		if (iovec->write_vec)
-			c2_free(iovec->write_vec);
+		c2_free(iovec->write_vec);
+		iovec->write_vec = NULL;
 	}
 }
 
@@ -318,7 +315,7 @@ static int iovec_alloc(union c2_io_iovec **iovec,
 
 /**
    Copy src IO vector into destination. The IO segments are not
-   copied completely, rather jsut the pointer to it is copied.
+   copied completely, rather just the pointer to it is copied.
    @param src - Source IO vector.
    @param dest - Destination IO vector.
    @param op - Operation code, this IO vectors belong to.
@@ -354,13 +351,11 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	c2_list_del(&ioseg->io_linkage);
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		if (ioseg->gen_ioseg.read_seg)
-			c2_free(ioseg->gen_ioseg.read_seg);
-	} else {
-		if (ioseg->gen_ioseg.write_seg)
-			c2_free(ioseg->gen_ioseg.write_seg);
-	}
+	if (op == C2_IO_SERVICE_READV_OPCODE)
+		c2_free(ioseg->gen_ioseg.read_seg);
+	else
+		c2_free(ioseg->gen_ioseg.write_seg);
+
 	c2_free(ioseg);
 }
 
@@ -612,14 +607,13 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
    @param offset - starting offset of current IO segment from aggr_list.
    @param count - count of bytes in current IO segment from aggr_list.
-   @param ns - current IO segment from IO vector.
+   @param ns - New IO segment from IO vector.
    @param op - Operation code, this io segment belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		struct c2_io_ioseg **ns, enum c2_io_service_opcodes op)
 {
-	int			 rc = 0;
 	struct c2_io_ioseg	*new_seg;
 
 	C2_PRE(ns != NULL);
@@ -631,12 +625,12 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
 	ioseg_offset_set(new_seg, offset, op);
 	ioseg_count_set(new_seg, count, op);
 	*ns = new_seg;
-	return rc;
+	return 0;
 }
 
 /**
-   Add a new IO segment to the aggr_list if given segment did not match
-   any of the existing segments in the list.
+   Add a new IO segment to the aggr_list conditionally.
+
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called.
@@ -795,12 +789,19 @@ static void io_fop_segments_contract(const struct c2_list *aggr_list,
 	uint64_t		 cnt2;
 	struct c2_io_ioseg	*seg;
 	struct c2_io_ioseg	*seg_next;
+	uint64_t		 aggr_list_len;
+	uint64_t		 aggr_seg_cnt = 0;
 
 	C2_PRE(aggr_list != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE);
+	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
+			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
+	aggr_list_len = c2_list_length(aggr_list);
 	c2_list_for_each_entry_safe(aggr_list, seg, seg_next,
 			struct c2_io_ioseg, io_linkage) {
+		aggr_seg_cnt++;
+		if (aggr_list_len == aggr_seg_cnt)
+			break;
 		off1 = ioseg_offset_get(seg, op);
 		cnt1 = ioseg_count_get(seg, op);
 		off2 = ioseg_offset_get(seg_next, op);
@@ -1029,7 +1030,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
  * Init function to initialize readv and writev reply FOMs.
  * Since there is no client side FOMs as of now, this is empty.
  * @param fop - fop on which this fom_init methods operates.
- * @param fom - fom object to be created here.
+ * @param m - fom object to be created here.
  */
 static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {

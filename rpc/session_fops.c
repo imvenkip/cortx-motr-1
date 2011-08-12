@@ -116,8 +116,8 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_session_establish_ops;
 
 	fom_se->fse_fop = fop;
-	fom_se->fse_fop_rep = c2_fop_alloc(&c2_rpc_fop_session_establish_rep_fopt,
-						NULL);
+	fom_se->fse_fop_rep = c2_fop_alloc(
+				&c2_rpc_fop_session_establish_rep_fopt, NULL);
 	if (fom_se->fse_fop_rep == NULL) {
 		c2_free(fom_se);
 		return -ENOMEM;
@@ -223,7 +223,8 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate, "rpc_session_terminate",
  *  REPLY fops
  */
 
-C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep, "rpc_conn_establish_reply",
+C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_establish_rep,
+			"rpc_conn_establish_reply",
 			C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
 			NULL,
 			&c2_rpc_item_conn_establish_rep);
