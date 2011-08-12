@@ -335,7 +335,6 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 		struct c2_net_domain *net_dom, const char *ep_addr)
 {
 	int			 rc = 0;
-	int			 st;
 	struct c2_rpc_chan	*ch = NULL;
 	struct c2_clink		 tmwait;
 
@@ -382,10 +381,9 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 
 	rc = c2_net_tm_start(&ch->rc_tm, ep_addr);
 	if (rc < 0) {
-		c2_rpc_chan_destroy(machine, ch);
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
-		return rc;
+		goto cleanup;
 	}
 
 	/* Wait on transfer machine channel till transfer machine is
@@ -395,15 +393,12 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	c2_clink_fini(&tmwait);
 
 	/* If tm fails to start, propogate the error back. */
-	if (ch->rc_tm.ntm_state != C2_NET_TM_STARTED) {
-		c2_rpc_chan_destroy(machine, ch);
-		return rc;
-	}
+	if (ch->rc_tm.ntm_state != C2_NET_TM_STARTED)
+		goto cleanup;
 
 	/* Add buffers for receiving messages to this transfer machine. */
 	rc = c2_rpc_net_recv_buffer_allocate_nr(net_dom, &ch->rc_tm);
 	if (rc < 0) {
-		st = c2_net_tm_stop(&ch->rc_tm, true);
 		c2_rpc_chan_destroy(machine, ch);
 		return rc;
 	}
@@ -418,7 +413,12 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	c2_list_add_tail(&machine->cr_ep_aggr.ea_chan_list, &ch->rc_linkage);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	*chan = ch;
-
+	return rc;
+cleanup:
+	c2_free(ch->rc_rcv_buffers);
+	if (ch->rc_tm.ntm_state <= C2_NET_TM_STARTING)
+		c2_net_tm_fini(&ch->rc_tm);
+	c2_free(ch);
 	return rc;
 }
 
