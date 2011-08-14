@@ -537,6 +537,7 @@ AC_CONFIG_FILES([
                  pool/linux_kernel/Makefile
                  reqh/Makefile
                  rpc/Makefile
+                 rpc/linux_kernel/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
                  sm/Makefile
