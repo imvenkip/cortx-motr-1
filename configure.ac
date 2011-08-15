@@ -244,8 +244,8 @@ OLD_CFLAGS=$CFLAGS
 
 # Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
 CFLAGS="-I/usr/local/include -I/opt/local/include"
-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], 
-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])], 
+AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h],
+[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])],
 [
 #ifdef CUNIT_CUNIT_H
 #include <CUnit/CUnit.h>
@@ -292,7 +292,7 @@ AC_ARG_ENABLE([db-o_direct],
 AC_MSG_CHECKING([for operating system])
 AC_MSG_RESULT([$host_os])
 case $host_os in
-        linux*) 
+        linux*)
                 ;;
         *)
                 AC_MSG_ERROR([Unsupported platform detected!])
@@ -402,7 +402,7 @@ else
 	AC_MSG_RESULT([$GALOIS_LIBS])
 fi
 
-# Check for yaml 
+# Check for yaml
 YAML_SRC=$SRCDIR/../yaml
 YAML_LIBS="$YAML_SRC/src/libyaml.la"
 AC_MSG_CHECKING([for yaml libs])
@@ -482,7 +482,7 @@ if test x$enable_debug = xyes; then
         AC_DEFINE([ENABLE_DEBUG])
 else
         # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3 
+        # passed via construction like ./configure CFLAGS=-O3
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
