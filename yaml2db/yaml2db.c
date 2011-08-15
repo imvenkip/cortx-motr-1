@@ -37,10 +37,12 @@
 #include "lib/thread.h"
 #include "yaml2db/yaml2db.h"
 
+/* Constant names and paths */
 static const char *D_PATH = "__config_db";
 static const char *disk_str = "disks";
 static const char *disk_table = "disk_table";
 
+/* DB Table ops */
 static int test_key_cmp(struct c2_table *table,
                         const void *key0, const void *key1)
 {
@@ -50,6 +52,7 @@ static int test_key_cmp(struct c2_table *table,
         return C2_3WAY(*u0, *u1);
 }
 
+/* Table ops for disk table */
 static const struct c2_table_ops disk_table_ops = {
         .to = {
                 [TO_KEY] = { .max_size = 84 },
