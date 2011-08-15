@@ -137,7 +137,7 @@ static void yaml2db_disk_conf(struct c2_yaml2db_ctx *yctx)
 
 	/* Initialize the table */
 	rc = c2_table_init(&table, &yctx->yc_db, disk_table,
-			0, &disk_table_ops); 
+			0, &disk_table_ops);
 	if (rc != 0)
 		return;
 
@@ -182,7 +182,7 @@ static void yaml2db_disk_conf(struct c2_yaml2db_ctx *yctx)
 				return;
 		}
 	} while(yctx->yc_event.type != YAML_SEQUENCE_END_EVENT);
-	
+
 	c2_db_tx_commit(&tx);
 }
 
