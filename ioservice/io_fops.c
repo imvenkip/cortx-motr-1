@@ -23,13 +23,14 @@
 #include <config.h>
 #endif
 
-#include "io_fops.h"
+#include "ioservice/io_fops.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
 #include "lib/errno.h"
+#include "lib/memory.h"
 
 /*
    Forward declarations.
@@ -1124,21 +1125,6 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    C2_IO_SERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    C2_IO_SERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
-
-#ifdef __KERNEL__
-
-/** Placeholder API for c2t1fs build. */
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-#endif
 
 /*
  *  Local variables:

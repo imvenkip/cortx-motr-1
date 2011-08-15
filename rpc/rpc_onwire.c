@@ -16,7 +16,9 @@
 #include "net/bulk_mem.h"
 #include "net/bulk_sunrpc.h"
 #include "lib/vec.h"
+#ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
+#endif
 
 /** Header information present in an RPC object */
 struct c2_rpc_header {

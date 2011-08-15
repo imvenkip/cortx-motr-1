@@ -19,16 +19,15 @@
  * Original creation date: 04/28/2011
  */
 
-#include "formation.h"
+#include "rpc/formation.h"
 #include "fid/fid.h"
-#include <string.h>
 #include "ioservice/io_fops.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
-#endif
 #include "rpc/rpc_onwire.h"
+#endif
 
 /* ADDB Instrumentation for rpc formation. */
 static const struct c2_addb_ctx_type frm_addb_ctx_type = {

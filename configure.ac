@@ -502,6 +502,7 @@ AC_CONFIG_FILES([
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
+                 fid/linux_kernel/Makefile
                  fol/Makefile
                  fol/ut/Makefile
                  fop/Makefile
@@ -511,6 +512,7 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  galois/linux_kernel/Makefile
                  ioservice/Makefile
+                 ioservice/linux_kernel/Makefile
                  layout/Makefile
                  layout/linux_kernel/Makefile
                  layout/ut/Makefile

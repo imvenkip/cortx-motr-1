@@ -23,11 +23,13 @@
 #endif
 
 #include "fop/fop.h"
-#include "io_foms.h"
-#include "io_fops.h"
+#include "ioservice/io_foms.h"
+#include "ioservice/io_fops.h"
 #include "stob/stob.h"
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "net/net.h"
+#include "fid/fid.h"
 
 #ifdef __KERNEL__
 #include "io_fops_k.h"
@@ -42,8 +44,6 @@
  * @addtogroup io_foms
  * @{
  */
-
-#ifndef __KERNEL__
 
 /** Generic ops object for c2_fop_cob_writev */
 struct c2_fom_ops c2_io_fom_file_create_ops = {
@@ -431,7 +431,7 @@ int c2_io_fom_file_create_state(struct c2_fom *fom)
         struct c2_rpc_item              *item = NULL;
         struct c2_io_fom_file_create	*fom_obj;
 
-	printf("Inside create state \n");
+	//printf("Inside create state \n");
 	fom_obj = container_of(fom, struct c2_io_fom_file_create, fc_gen);
 	fop_req = fom_obj->fc_fop;
         fop = c2_fop_alloc(&c2_fop_file_create_rep_fopt, NULL);
@@ -520,8 +520,6 @@ int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
         *m = &fom_obj->fc_gen;
 	return 0;
 }
-
-#endif
 
 /** @} end of io_foms */
 

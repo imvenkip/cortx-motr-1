@@ -31,6 +31,10 @@ void cleanup_module(void)
 	c2_rpc_core_fini();
 }
 
+size_t c2_rpc_item_default_size(struct c2_rpc_item *item)
+{
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
