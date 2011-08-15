@@ -62,7 +62,8 @@ static void test_arr_decode()
 
 	el_size = sizeof dec_arr[0];
 	rc = c2_bufvec_array(&cur, dec_arr, NO_OF_ELEMENTS, ~0, el_size,
-			     (c2_bufvec_xcode_t)c2_bufvec_uint32, C2_BUFVEC_DECODE);
+			    (c2_bufvec_xcode_t)c2_bufvec_uint32,
+			    C2_BUFVEC_DECODE);
 	C2_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
