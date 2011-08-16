@@ -33,8 +33,8 @@
 #include "rpc/session_k.h"
 #else
 #include "rpc/session_u.h"
-#include "rpc/rpc_onwire.h"
 #endif
+#include "rpc/rpc_onwire.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"

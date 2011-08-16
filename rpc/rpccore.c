@@ -32,9 +32,9 @@
 #include "rpc/formation.h"
 #include "fid/fid.h"
 #ifndef __KERNEL__
-#include "rpc/rpc_onwire.h"
 #include "rpc/it/ping_fop.h"
 #endif
+#include "rpc/rpc_onwire.h"
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {

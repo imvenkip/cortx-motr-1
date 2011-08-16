@@ -19,6 +19,10 @@
  * Original creation date: 04/28/2011
  */
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "rpc/formation.h"
 #include "fid/fid.h"
 #include "ioservice/io_fops.h"
@@ -26,8 +30,8 @@
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
-#include "rpc/rpc_onwire.h"
 #endif
+#include "rpc/rpc_onwire.h"
 
 /* ADDB Instrumentation for rpc formation. */
 static const struct c2_addb_ctx_type frm_addb_ctx_type = {

@@ -48,13 +48,13 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-#include "io_fops.h"
+#include "ioservice/io_fops.h"
 #include "stob/stob.h"
 
 #ifdef __KERNEL__
-#include "io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 #else
-#include "io_fops_u.h"
+#include "ioservice/io_fops_u.h"
 #endif
 
 /**

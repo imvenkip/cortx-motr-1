@@ -32,9 +32,9 @@
 #include "fid/fid.h"
 
 #ifdef __KERNEL__
-#include "io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 #else
-#include "io_fops_u.h"
+#include "ioservice/io_fops_u.h"
 #endif
 
 #include "fop/fop_format_def.h"

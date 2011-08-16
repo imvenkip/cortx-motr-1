@@ -14,11 +14,7 @@ prepare: io_k.h io_k.c addb_k.c addb_k.h io_fops_k.h io_fops_k.c
 	ln -sf $(STOBDIR)/io_fop_init.c .
 	ln -sf $(ADDBDIR)/addb_store.c .
 	ln -sf $(GALOISDIR)/galois.h @SRCDIR@/sns
-	ln -sf $(IOSERVICEDIR)/io_fops_k.h
-	ln -sf $(IOSERVICEDIR)/io_fops_k.c
-	ln -sf $(IOSERVICEDIR)/io_fops.h
 	ln -sf $(IOSERVICEDIR)/io_fops.c
-	ln -sf $(IOSERVICEDIR)/io_foms.h
 	ln -sf $(IOSERVICEDIR)/io_foms.c
 
 io_k.h io_k.c: $(STOBDIR)/io.ff
