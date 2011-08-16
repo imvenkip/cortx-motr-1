@@ -270,6 +270,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 			   conn->c_sender_id != SENDER_ID_INVALID &&
 			   c2_list_contains(&machine->cr_incoming_conns,
 					    &conn->c_link)
+   @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
 
@@ -279,6 +280,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
    @pre session->s_state == C2_RPC_SESSION_INITIALISED &&
 	session->s_conn != NULL
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
+   @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_rcv_session_establish(struct c2_rpc_session *session);
 

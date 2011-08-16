@@ -2571,15 +2571,12 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	session->s_session_id = session_id;
 	session->s_state = C2_RPC_SESSION_IDLE;
 
-	/*
-	 * As session_[create|terminate] request arrive on same slot,
-	 * they are already serialised. So no need to take lock on
-	 * conn object.
-	 */
+	c2_mutex_lock(&session->s_conn->c_mutex);
 	c2_list_add(&session->s_conn->c_sessions, &session->s_link);
 	session->s_conn->c_nr_sessions++;
-	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	c2_mutex_unlock(&session->s_conn->c_mutex);
 	return 0;
 }
 
@@ -2699,12 +2696,14 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	int                 rc;
 	int                 i;
 
-	C2_PRE(session != NULL && session->s_state == C2_RPC_SESSION_IDLE);
+	C2_PRE(session != NULL);
 
+	c2_mutex_lock(&session->s_mutex);
+
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	session->s_state = C2_RPC_SESSION_TERMINATING;
-
 	/*
 	 * Take all the slots out of c2_rpcmachine::cr_ready_slots
 	 */
@@ -2723,7 +2722,6 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		 * ready slot list.
 		 */
 	}
-	c2_mutex_lock(&session->s_mutex);
 	c2_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
 	rc = session_persistent_state_destroy(session, &tx);
 	if (rc != 0) {
