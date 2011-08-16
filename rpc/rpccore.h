@@ -236,6 +236,11 @@ struct c2_rpc_item_type_ops {
 	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
 			c2_rpc_item *item2);
 	/**
+	   Return true iff item1 and item2 are equal.
+	 */
+	bool (*rito_eq)(const struct c2_rpc_item *i1,
+			const struct c2_rpc_item *i2);
+	/**
 	   Return the opcode of fop carried by given rpc item.
 	 */
 	int (*rito_io_get_opcode)(struct c2_rpc_item *item);
