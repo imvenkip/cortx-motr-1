@@ -23,11 +23,12 @@
 
 int init_module(void)
 {
-	return 0;
+	return ioservice_fop_init();
 }
 
 void cleanup_module(void)
 {
+	ioservice_fop_fini();
 }
 
 /*

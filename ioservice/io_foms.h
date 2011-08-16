@@ -51,10 +51,12 @@
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 
+#if 0
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
+#endif
 #endif
 
 /**
