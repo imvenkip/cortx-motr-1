@@ -15,15 +15,17 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * 		    Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
+#include "fop/fop.h"
+#include "fop/fop_format.h"
+#include "lib/list.h"
+
 struct c2_fop;
-struct c2_fom;
-struct c2_fom_type;
 struct c2_fop_io_vec;
 struct c2_fop_io_seg;
 struct c2_fop_segment;
@@ -41,10 +43,6 @@ union c2_io_iovec {
 	/** IO vector for read request operation. */
 	struct c2_fop_segment_seq	*read_vec;
 };
-
-#include "fop/fop.h"
-#include "fop/fop_format.h"
-#include "lib/memory.h"
 
 /**
  * The opcode from which IO service FOPS start.
@@ -121,4 +119,3 @@ extern struct c2_fop_type c2_fop_file_create_rep_fopt;
  *  scroll-step: 1
  *  End:
  */
-

@@ -30,8 +30,11 @@
 #include "rpc/session_internal.h"
 #include "fop/fop.h"
 #include "rpc/formation.h"
-#include "rpc/rpc_onwire.h"
+#include "fid/fid.h"
+#ifndef __KERNEL__
 #include "rpc/it/ping_fop.h"
+#endif
+#include "rpc/rpc_onwire.h"
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -179,8 +182,8 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 
 	c2_time_now(&item->ri_rpc_entry_time);
 
-	printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
-			item->ri_session->s_session_id);
+	/*printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
+			item->ri_session->s_session_id);*/
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	item->ri_type->rit_flags = C2_RPC_ITEM_UNBOUND;
@@ -952,11 +955,11 @@ static const struct c2_rpc_item_type_ops rpc_item_ops = {
 /** simple vector of update stream operations */
 void us_timeout(struct c2_update_stream *us)
 {
-	DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
+	//DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
 }
 void us_recovery_complete(struct c2_update_stream *us)
 {
-	DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
+	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
 /**

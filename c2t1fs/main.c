@@ -39,14 +39,14 @@
 
 #include "c2t1fs.h"
 #include "io_k.h"
-#include "io_fops_k.h"
+#include "ioservice/io_fops_k.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
-#include "io_fops.h"
+#include "ioservice/io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 

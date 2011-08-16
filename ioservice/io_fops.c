@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -14,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * 		    Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 
@@ -22,13 +23,14 @@
 #include <config.h>
 #endif
 
-#include "io_fops.h"
+#include "ioservice/io_fops.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
 #include "lib/errno.h"
+#include "lib/memory.h"
 
 /*
    Forward declarations.
@@ -865,7 +867,6 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
 	struct c2_io_ioseg		 res_ioseg;
-	struct c2_io_fop_member		*fop_member;
 	enum c2_io_service_opcodes	 op;
 
 	C2_PRE(fop_list != NULL);
@@ -886,9 +887,7 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	/* Traverse the fop_list, get the IO vector from each fop,
 	   pass it to a coalescing routine and get result back
 	   in another list. */
-	c2_list_for_each_entry(fop_list, fop_member, struct c2_io_fop_member,
-			       fop_linkage) {
-		fop = fop_member->fop;
+	c2_list_for_each_entry(fop_list, fop, struct c2_fop, f_link) {
 		iovec_get(fop, &iovec);
 		res = io_fop_segments_coalesce(&iovec, &aggr_list, op);
 	}
@@ -1126,21 +1125,6 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    C2_IO_SERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    C2_IO_SERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
-
-#ifdef __KERNEL__
-
-/** Placeholder API for c2t1fs build. */
-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m)
-{
-	return 0;
-}
-
-#endif
 
 /*
  *  Local variables:

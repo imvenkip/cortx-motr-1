@@ -15,13 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * 		    Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 04/28/2011
  */
 
-#include "formation.h"
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#include "rpc/formation.h"
 #include "fid/fid.h"
-#include <string.h>
 #include "ioservice/io_fops.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -2214,13 +2217,12 @@ void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
 int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 		struct c2_rpc_item *b_item)
 {
-	int						 res = 0;
-	struct c2_list					 fop_list;
-	struct c2_io_fop_member				*fop_member = NULL;
-	struct c2_io_fop_member				*fop_member_next = NULL;
-	struct c2_fop					*fop = NULL;
-	struct c2_fop					*b_fop = NULL;
-	struct c2_rpc_item				*item = NULL;
+	int			 res = 0;
+	struct c2_list		 fop_list;
+	struct c2_fop		*fop = NULL;
+	struct c2_fop		*fop_next = NULL;
+	struct c2_fop		*b_fop = NULL;
+	struct c2_rpc_item	*item = NULL;
 
 	C2_PRE(b_item != NULL);
 	C2_PRE(c_item != NULL);
@@ -2228,14 +2230,8 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	c2_list_init(&fop_list);
 	c2_list_for_each_entry(&c_item->ic_member_list, item,
 			struct c2_rpc_item, ri_coalesced_linkage) {
-		C2_ALLOC_PTR(fop_member);
-		if (fop_member == NULL) {
-			res = -ENOMEM;
-			goto cleanup;
-		}
 		fop = c2_rpc_item_to_fop(item);
-		fop_member->fop = fop;
-		c2_list_add(&fop_list, &fop_member->fop_linkage);
+		c2_list_add(&fop_list, &fop->f_link);
 	}
 	b_fop = container_of(b_item, struct c2_fop, f_item);
 
@@ -2243,12 +2239,10 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
 			&c_item->ic_iovec);
 
-cleanup:
-	c2_list_for_each_entry_safe(&fop_list, fop_member, fop_member_next,
-			struct c2_io_fop_member, fop_linkage) {
-		c2_list_del(&fop_member->fop_linkage);
-		c2_free(fop_member);
-	}
+	c2_list_for_each_entry_safe(&fop_list, fop, fop_next,
+			struct c2_fop, f_link)
+		c2_list_del(&fop->f_link);
+
 	c2_list_fini(&fop_list);
 	if (res == 0)
 		c_item->ic_resultant_item = b_item;

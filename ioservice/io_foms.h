@@ -48,11 +48,15 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-#include "io_fops.h"
+#include "ioservice/io_fops.h"
 #include "stob/stob.h"
-#ifndef __KERNEL__
 
-#include "io_fops_u.h"
+#ifdef __KERNEL__
+#include "ioservice/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
+
 /**
  * Function to map given fid to corresponding Component object id(in turn,
  * storage object id).
@@ -68,8 +72,6 @@ void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
 int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 void *cookie, struct c2_fol *fol,
 			 struct c2_stob_domain *dom);
-
-#endif
 
 /**
  * Find out the respective FOM type object (c2_fom_type)
@@ -142,18 +144,9 @@ enum c2_io_fom_cob_readv_phases {
 /** Finish method of read FOM object */
 void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
 
-/** Some extern methods used in rpc subsystem.*/
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *ioseg);
-
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *iovec);
-
-/** @} end of io_foms */
-
-/* __COLIBRI_IOSERVICE_IO_FOMS_H__ */
 #endif
 
+/** @} end of io_foms */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -163,4 +156,3 @@ int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
  *  scroll-step: 1
  *  End:
  */
-

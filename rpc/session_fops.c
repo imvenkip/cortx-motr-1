@@ -34,13 +34,13 @@
 #else
 #include "rpc/session_u.h"
 #endif
+#include "rpc/rpc_onwire.h"
 
 #include "fop/fop_iterator.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_onwire.h"
 
 /**
    @addtogroup rpc_session
