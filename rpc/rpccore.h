@@ -347,8 +347,15 @@ struct c2_rpc {
 
 /**
    Initialize an rpc object.
+   @param rpc - rpc object to be initialized
  */
 void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
+
+/**
+   Finalize an rpc object.
+   @param rpc - rpc object to be finalized 
+ */
+void c2_rpc_rpcobj_fini(struct c2_rpc *rpc);
 
 /**
    Possible values for flags from c2_rpc_item_type.

@@ -124,8 +124,8 @@ static int rpc_init(struct c2_rpc *rpc)
 	rpc->r_session = NULL;
 	return 0;
 }
-static void rpc_fini(struct c2_rpc *rpc) __attribute__((unused)); /*XXX: for now*/
-static void rpc_fini(struct c2_rpc *rpc)
+
+void c2_rpc_rpcobj_fini(struct c2_rpc *rpc)
 {
 	rpc->r_session = NULL;
 	c2_list_fini(&rpc->r_items);
