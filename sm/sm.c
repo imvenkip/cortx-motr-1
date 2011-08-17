@@ -18,7 +18,7 @@
  * Original creation date: 04/01/2010
  */
 
-#include "sm.h"
+#include "sm/sm.h"
 
 /**
    @addtogroup sm
@@ -29,10 +29,12 @@ int c2_sm_init(struct c2_sm *mach)
 {
 	return 0;
 }
+C2_EXPORTED(c2_sm_init);
 
 void c2_sm_fini(struct c2_sm *mach)
 {
 }
+C2_EXPORTED(c2_sm_fini);
 
 c2_sm_state_t c2_sm_state_get  (struct c2_sm *mach)
 {

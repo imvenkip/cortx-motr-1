@@ -9,7 +9,7 @@ subdirs := ../c2t1fs/ ../net/bulk_emulation/st/linux_kernel/ \
 	   ../db/linux_kernel/ \ ../sns/linux_kernel/ ../galois/linux_kernel/ \
 	   ../pool/linux_kernel/ \ ../layout/linux_kernel/ \
 	   ../stob/linux_kernel/ ../utils/linux_kernel/ \
-	   ../ioservice/linux_kernel/
+	   ../ioservice/linux_kernel/ ../sm/linux_kernel/
 
 obj-y += $(subdirs)
 

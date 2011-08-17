@@ -27,11 +27,11 @@
 #include "fid/fid.h"
 #include "ioservice/io_fops.h"
 #ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
+#include "ioservice/linux_kernel/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
-#endif
 #include "rpc/rpc_onwire.h"
+#endif
 
 /* ADDB Instrumentation for rpc formation. */
 static const struct c2_addb_ctx_type frm_addb_ctx_type = {
@@ -2141,7 +2141,9 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		fb->fb_buffer.nb_length = rpc_size;
 
 		/* Encode the rpc contents. */
+#ifndef __KERNEL__
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
+#endif
 		if (rc < 0) {
 			frm_buffer_fini(fb);
 			ret = rc;
