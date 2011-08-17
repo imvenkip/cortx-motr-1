@@ -68,7 +68,7 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
 
 /**
  * Fom domain operations.
- * @todo -> support fom timeout fucntionality.
+ * @todo -> support fom timeout functionality.
  */
 static struct c2_fom_domain_ops c2_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
