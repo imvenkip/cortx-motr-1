@@ -1522,9 +1522,9 @@ static enum c2_rpc_frm_int_evt_id sm_updating_state(
 
 	C2_PRE(item != NULL);
 	C2_PRE(event != NULL &&
-	       event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
+	       (event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
 	       event->se_event == C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED ||
-	       event->se_event == C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED);
+	       event->se_event == C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED));
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
