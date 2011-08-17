@@ -113,7 +113,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * Add the item explicitly to the slot0. This makes the slot
 	 * symmetric to corresponding sender side slot.
 	 */
+	c2_mutex_lock(&conn->c_mutex);
 	session0 = c2_rpc_conn_session0(conn);
+	c2_mutex_unlock(&conn->c_mutex);
 
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];

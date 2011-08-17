@@ -1717,6 +1717,7 @@ uint64_t session_id_get(void)
 		sec = c2_time_seconds(c2_time_now(&now));
 
 		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
+
 	} while (session_id < SESSION_ID_MIN ||
 			session_id > SESSION_ID_MAX);
 
@@ -2502,8 +2503,11 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	int                   rc;
 
 	C2_PRE(conn != NULL);
-	C2_PRE(conn->c_state == C2_RPC_CONN_INITIALISED && conn_is_rcv(conn));
 
+	c2_mutex_lock(&conn->c_mutex);
+
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
+			conn_is_rcv(conn));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	machine = conn->c_rpcmachine;
@@ -2518,16 +2522,23 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 		conn->c_rc = rc;
 		c2_db_tx_abort(&tx);
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
+		c2_mutex_unlock(&conn->c_mutex);
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
+
 	conn->c_sender_id = sender_id;
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
+
 	c2_mutex_lock(&machine->cr_session_mutex);
+
 	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
+
 	c2_mutex_unlock(&machine->cr_session_mutex);
+
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	c2_mutex_unlock(&conn->c_mutex);
 	return 0;
 }
 
@@ -2537,9 +2548,11 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	uint64_t        session_id;
 	int             rc;
 
-	C2_PRE(session != NULL &&
-		session->s_state == C2_RPC_SESSION_INITIALISED);
+	C2_PRE(session != NULL);
 
+	c2_mutex_lock(&session->s_mutex);
+
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_INITIALISED);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	c2_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
@@ -2550,18 +2563,24 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 		session->s_rc = rc;
 		c2_db_tx_abort(&tx);
 		C2_ASSERT(c2_rpc_session_invariant(session));
+		c2_mutex_unlock(&session->s_mutex);
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
+
 	session->s_session_id = session_id;
 	session->s_state = C2_RPC_SESSION_IDLE;
 
 	c2_mutex_lock(&session->s_conn->c_mutex);
+
 	c2_list_add(&session->s_conn->c_sessions, &session->s_link);
 	session->s_conn->c_nr_sessions++;
+
 	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
-	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_conn->c_mutex);
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	c2_mutex_unlock(&session->s_mutex);
 	return 0;
 }
 
@@ -2707,6 +2726,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		 * ready slot list.
 		 */
 	}
+
 	c2_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
 	rc = session_persistent_state_destroy(session, &tx);
 	if (rc != 0) {
@@ -2718,12 +2738,18 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		return rc;
 	}
 	c2_db_tx_commit(&tx);
+
 	c2_mutex_lock(&session->s_conn->c_mutex);
+
 	c2_list_del(&session->s_link);
 	session->s_conn->c_nr_sessions--;
+
+	C2_ASSERT(c2_rpc_conn_invariant(session->s_conn));
 	c2_mutex_unlock(&session->s_conn->c_mutex);
+
 	session->s_state = C2_RPC_SESSION_TERMINATED;
 	session->s_rc = 0;
+
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_mutex);
 	return 0;
@@ -2756,6 +2782,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_PRE(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
+
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	C2_ASSERT(conn_is_rcv(conn) && c2_rpc_conn_invariant(conn));
 
