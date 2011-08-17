@@ -1958,6 +1958,9 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			sz_policy_violated = frm_is_size_optimal(frm_sm,
 					rpc_size);
 			if (!sz_policy_violated || frm_check_policies(frm_sm)) {
+				fragments_policy_ok =
+					frm_fragment_policy_in_bounds(
+					frm_sm, item, fragments_nr);
 				if (fragments_policy_ok) {
 					frm_item_make_bound(slot, item);
 					frm_add_to_rpc(frm_sm, rpcobj, item,
@@ -2055,6 +2058,7 @@ static enum c2_rpc_frm_int_evt_id sm_forming_state(
 	unbound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size, &fragments_nr);
 
 	if (c2_list_is_empty(&rpcobj->r_items)) {
+		c2_rpc_rpcobj_fini(rpcobj);
 		c2_free(rpcobj);
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
 	}
@@ -2132,7 +2136,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		item = c2_list_entry((c2_list_first(&rpc_obj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
 		if (frm_sm->fs_formation->rf_client_side &&
-				frm_sm->fs_curr_rpcs_in_flight ==
+				frm_sm->fs_curr_rpcs_in_flight >=
 				frm_sm->fs_max_rpcs_in_flight) {
 			ret = -EBUSY;
 			break;
@@ -2160,7 +2164,9 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 		fb->fb_buffer.nb_length = rpc_size;
 
-		/* Encode the rpc contents. */
+		/* XXX: Allocate bulk i/o buffers before encoding. */
+		/* Encode the rpc contents.
+		   XXX rpc_encode will encode the bulk i/o buffer descriptors */
 #ifndef __KERNEL__
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
 #endif
@@ -2169,7 +2175,6 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 					&frm_addb_loc, formation_func_fail,
 					"c2_rpc_encode", 0);
 			frm_buffer_fini(fb);
-			ret = rc;
 			/* Process the next rpc object in the list.*/
 			continue;
 		}
@@ -2177,19 +2182,22 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/* Add the buffer to transfer machine.*/
 		res = c2_net_buffer_add(&fb->fb_buffer, tm);
 		if (res < 0) {
+			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
+					&frm_addb_loc, formation_func_fail,
+					"c2_net_buffer_add", 0);
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;
-		} else {
-			C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
-			if (frm_sm->fs_formation->rf_client_side)
-				frm_sm->fs_curr_rpcs_in_flight++;
-			/* Remove the rpc object from rpcobj_list.*/
-			c2_list_del(&rpc_obj->r_linkage);
-			/* Get a reference on c2_rpc_frm_sm so that
-			   it is pinned in memory. */
-			c2_ref_get(&frm_sm->fs_ref);
 		}
+
+		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
+		if (frm_sm->fs_formation->rf_client_side)
+			frm_sm->fs_curr_rpcs_in_flight++;
+		/* Remove the rpc object from rpcobj_list.*/
+		c2_list_del(&rpc_obj->r_linkage);
+		/* Get a reference on c2_rpc_frm_sm so that
+		   it is pinned in memory. */
+		c2_ref_get(&frm_sm->fs_ref);
 	}
 	return ret;
 }
