@@ -1867,10 +1867,13 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					   in its rpc session. */
 					rc = try_coalesce(frm_sm, rpc_item,
 							rpcobj_size);
-				}
+				} else
+					break;
 			} else
 				break;
 		}
+		if (sz_policy_violated || !fragments_policy_ok)
+			break;
 	}
 }
 
