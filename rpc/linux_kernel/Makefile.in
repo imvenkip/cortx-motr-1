@@ -3,7 +3,7 @@ RPCDIR = @SRCDIR@/rpc
 FOPDIR = @SRCDIR@/fop
 
 obj-m		:= krpc.o
-shared_src	:= rpccore.c session.c session_foms.c session_fops.c formation.c
+shared_src	:= formation.c rpccore.c session.c session_foms.c session_fops.c
 kernel_src	:= rpc_kernel.c
 krpc-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)

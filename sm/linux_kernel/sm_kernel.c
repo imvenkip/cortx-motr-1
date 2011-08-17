@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -19,16 +20,15 @@
 
 #include <linux/module.h>
 
-#include <rpc/rpccore.h>
+#include <sm/sm.h>
 
 int init_module(void)
 {
-	return c2_rpc_core_init();
+	return 0;
 }
 
 void cleanup_module(void)
 {
-	c2_rpc_core_fini();
 }
 
 /*
