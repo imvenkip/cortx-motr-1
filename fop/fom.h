@@ -137,8 +137,10 @@ struct c2_fom_locality {
 };
 
 /**
-   This function iterates over c2_fom_locality members and checks if
+   Iterates over c2_fom_locality members and checks if
    they are intialised and consistent.
+   This function must be invoked with c2_fom_locality::fl_lock
+   mutex held.
  */
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
@@ -274,19 +276,21 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 */
 struct c2_fom {
 	/**
-	   Different states in which a fom can be, throughout its
+	   State a fom can be in at any given instance throughout its
 	   life cycle.This feild is protected by c2_fom_locality:fl_lock
-	   mutex.
+	   mutex, except in reqh handler thread, when a fom is dequeued
+	   from locality runq list for execution.
 
 	   @see c2_fom_locality
 	*/
 	enum c2_fom_state	 fo_state;
+	/** FOM phase under execution */
 	int			 fo_phase;
 	/** Locality this fom belongs to */
 	struct c2_fom_locality	*fo_loc;
-	/** FOM type specific structure */
 	struct c2_fom_type	*fo_type;
 	const struct c2_fom_ops	*fo_ops;
+	/** FOM clink to wait upon a particular channel for an event */
 	struct c2_clink		 fo_clink;
 	/** FOP ctx sent by the network service. */
 	struct c2_fop_ctx	*fo_fop_ctx;
@@ -298,11 +302,19 @@ struct c2_fom {
 	struct c2_fol		*fo_fol;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		 fo_tx;
-	/** Linkage in the locality runq list or wait list  */
-	struct c2_list_link	 fo_rwlink;
+	/**
+	    FOM linkage in the locality runq list or wait list
+	    Every access to the FOM via this linkage is
+	    protected by the c2_fom_locality::fl_lock mutex.
+	 */
+	struct c2_list_link	 fo_linkage;
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	/** Temporary reference to reply fop */
+	/** 
+	    Temporary reference to reply fop as required by sunrpc.
+	    This would be removed after integrating reqh with the new
+	    RPC layer.
+	 */
 	void			*fo_cookie;
 };
 
@@ -313,7 +325,7 @@ struct c2_fom {
    type is void.
 
    @param fom, A fom to be submitted for execution
-   @pre fom->fo_phase == FOPH_INIT
+   @pre fom->fo_phase == FOPH_INIT || fom->fo_phase == FOPH_FAILURE
  */
 void c2_fom_queue(struct c2_fom *fom);
 
@@ -339,8 +351,11 @@ void c2_fom_init(struct c2_fom *fom);
 void c2_fom_fini(struct c2_fom *fom);
 
 /**
-   This function iterates over c2_fom members and check if they are intilaised
-   and consistent.
+   Iterates over c2_fom members and check if they are consistent,
+   and also checks if the fom resides on correct list (i.e runq or
+   wait list) of the locality at any given instance.
+   This function must be invoked with c2_fom_locality::fl_lock
+   mutex held.
  */
 bool c2_fom_invariant(const struct c2_fom *fom);
 
@@ -440,6 +455,7 @@ void c2_fom_block_leave(struct c2_fom *fom);
 /**
    Registers fom with the channel provided by the caller on which
    the fom would wait for signal after completing a blocking operation.
+   This function returns with c2_fom_locality::fl_lock held.
    Fom resumes its execution once the chan is signalled.
 
    @param fom, A fom executing a blocking operation

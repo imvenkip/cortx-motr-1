@@ -64,7 +64,7 @@
 #include "fom_io_u.h"
 #endif
 
-#include "fom_io.ff"
+#include "reqh/ut/fom_io.ff"
 #include "reqh/reqh_fops.ff"
 
 /**
@@ -75,6 +75,7 @@
 /**
  *  Server side structures and objects
  */
+
 enum {
 	PORT = 10001
 };
@@ -264,6 +265,7 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
 struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
 	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), reqh_ut_fom_types));
+
 	return reqh_ut_fom_types[code - 10];
 }
 
@@ -274,6 +276,7 @@ static int reqh_ut_netcall(struct c2_net_conn *conn, struct reqh_ut_net_call *ca
 {
 	C2_UT_ASSERT(conn != NULL);
 	C2_UT_ASSERT(call != NULL);
+
 	return c2_net_cli_send(conn, &call->ncall);
 }
 
@@ -433,8 +436,10 @@ static void write_send(struct c2_net_conn *conn, const struct reqh_ut_fom_fop_fi
 static void reqh_ut_create_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
-	C2_UT_ASSERT(conn != NULL);
 	struct reqh_ut_fom_fop_fid *fid;
+
+	C2_PRE(conn != NULL);
+
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
@@ -444,8 +449,10 @@ static void reqh_ut_create_send(struct c2_net_conn *conn, unsigned long seq,
 static void reqh_ut_write_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
-	C2_UT_ASSERT(conn != NULL);
 	struct reqh_ut_fom_fop_fid *fid;
+
+	C2_PRE(conn != NULL);
+
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
@@ -455,8 +462,10 @@ static void reqh_ut_write_send(struct c2_net_conn *conn, unsigned long seq,
 static void reqh_ut_read_send(struct c2_net_conn *conn, unsigned long seq,
 							unsigned long oid)
 {
-	C2_UT_ASSERT(conn != NULL);
 	struct reqh_ut_fom_fop_fid *fid;
+
+	C2_PRE(conn != NULL);
+
 	fid = c2_alloc(sizeof *fid);
 	fid->f_seq = seq;
 	fid->f_oid = oid;
@@ -490,6 +499,7 @@ int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
+
 	C2_PRE(t != NULL);
 	C2_PRE(out != NULL);
 
@@ -611,6 +621,8 @@ size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		iloc = oid;
 		break;
 	}
+	default:
+		return -EINVAL;
 	}
 	return iloc;
 }
@@ -623,8 +635,8 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
 {
 	struct reqh_ut_fom_io_create		*in_fop;
 	struct reqh_ut_fom_io_create_rep	*out_fop;
-	struct reqh_ut_io_fom		*fom_obj;
-	int				 result;
+	struct reqh_ut_io_fom			*fom_obj;
+	int                                      result;
 
 	C2_PRE(fom->fo_fop->f_type->ft_code == CREATE_REQ);
 
@@ -663,7 +675,7 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
  */
 int reqh_ut_read_fom_state(struct c2_fom *fom)
 {
-	struct reqh_ut_fom_io_read		*in_fop;
+	struct reqh_ut_fom_io_read	*in_fop;
 	struct reqh_ut_fom_io_read_rep	*out_fop;
 	struct reqh_ut_io_fom		*fom_obj;
 	void				*addr;
@@ -758,7 +770,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 int reqh_ut_write_fom_state(struct c2_fom *fom)
 {
 
-	struct reqh_ut_fom_io_write		*in_fop;
+	struct reqh_ut_fom_io_write	*in_fop;
 	struct reqh_ut_fom_io_write_rep	*out_fop;
 	struct reqh_ut_io_fom		*fom_obj;
 	void				*addr;
@@ -850,6 +862,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 void reqh_ut_io_fom_fini(struct c2_fom *fom)
 {
 	struct reqh_ut_io_fom *fom_obj;
+
 	fom_obj = container_of(fom, struct reqh_ut_io_fom, rh_ut_fom);
 	c2_fom_fini(fom);
 	c2_free(fom_obj);
@@ -993,7 +1006,7 @@ static int reqh_ut_service_handler(struct c2_service *service,
 int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
 			  				struct c2_service *rserv)
 {
-	int rc = 0;
+	int rc;
 
 	C2_SET0(rserv);
 	rserv->s_table.not_start = fopt[0]->ft_code;
@@ -1026,11 +1039,11 @@ int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **con
  */
 void test_reqh(void)
 {
-	int		result;
-	unsigned long	i;
-	char		opath[64];
-	char		dpath[64];
-	const char	*path;
+	int                      result;
+	unsigned long	         i;
+	char                     opath[64];
+	char                     dpath[64];
+	const char              *path;
 
 	struct c2_service_id	 rsid = { .si_uuid = "reqh_ut_node" };
 	struct c2_net_conn	*conn;

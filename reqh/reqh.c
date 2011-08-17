@@ -131,7 +131,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 		dom = &reqh->rh_fom_dom;
 
 		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
-		C2_ASSERT(loc_idx >= 0 && loc_idx <= dom->fd_localities_nr);
+		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
 		if (result != 0) {
 			fom->fo_phase = FOPH_FAILURE;
