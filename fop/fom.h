@@ -310,7 +310,7 @@ struct c2_fom {
 	struct c2_list_link	 fo_linkage;
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	/** 
+	/**
 	    Temporary reference to reply fop as required by sunrpc.
 	    This would be removed after integrating reqh with the new
 	    RPC layer.

@@ -1004,7 +1004,7 @@ static int reqh_ut_service_handler(struct c2_service *service,
  * Creates and initialises network resources.
  */
 int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
-			  				struct c2_service *rserv)
+							struct c2_service *rserv)
 {
 	int rc;
 
