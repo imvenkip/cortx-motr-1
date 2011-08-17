@@ -3,7 +3,7 @@ IOSERVICEDIR = @SRCDIR@/ioservice
 FOPDIR = @SRCDIR@/fop
 
 obj-m		:= kioservice.o
-shared_src	:= io_fops.c io_foms.c 
+shared_src	:= io_fops.c io_foms.c
 kernel_src	:= ioservice_kernel.c io_fops_k.c
 kioservice-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
@@ -24,9 +24,9 @@ uninstall:
 
 clean distclean:
 	$(RM) io_fops_k.[ch]
-	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order io_fops.ff
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(IOSERVICE_SRCDIR)/Makefile.in $(IOSERVICE_SRCIDR)/ioservice_kernel.c \
+	cp $(IOSERVICE_SRCDIR)/Makefile.in $(IOSERVICE_SRCDIR)/ioservice_kernel.c \
 	    @top_builddir@/@PACKAGE@-@VERSION@/ioservice/linux_kernel

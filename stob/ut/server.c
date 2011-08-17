@@ -320,6 +320,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/*
 	 * FOMs are implemented only for read and write operations
 	 */
+#if 0
 	if ((fop->f_type->ft_code >= C2_IO_SERVICE_READV_OPCODE)) {
 		/*
 		 * A dummy request handler API to handle incoming FOPs.
@@ -329,6 +330,7 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 		return rc;
 	}
 	else
+#endif
 	printf("Got fop: code = %d, name = %s\n",
 			 fop->f_type->ft_code, fop->f_type->ft_name);
 	rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
@@ -346,10 +348,6 @@ static struct c2_fop_type *fopt[] = {
 
 	&c2_addb_record_fopt,
 
-	&c2_fop_cob_readv_fopt,
-	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_writev_rep_fopt,
-	&c2_fop_cob_readv_rep_fopt,
 };
 
 struct mock_balloc {

@@ -90,6 +90,12 @@ extern const struct c2_fop_type_ops c2_io_cob_writev_ops;
 extern const struct c2_fop_type_ops c2_io_rwv_rep_ops;
 
 /**
+   Init and fini of ioservice fops code.
+ */
+int ioservice_fop_init(void);
+void ioservice_fop_fini(void);
+
+/**
  * FOP definitions and corresponding fop type formats
  * exported by ioservice.
  */
@@ -99,6 +105,12 @@ extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_file_create_tfmt;
 extern struct c2_fop_type_format c2_fop_file_create_rep_tfmt;
+extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
+extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
+extern struct c2_fop_type_format c2_fop_segment_tfmt;
+extern struct c2_fop_type_format c2_fop_segment_seq_tfmt;
+extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
+extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;

@@ -1,10 +1,10 @@
 ioservicedir			= @SRCDIR@/ioservice
 ioservice_HEADERS		= io_foms.h io_fops.h
 
-io_fops_u.h io_fops_u.c io_fops_k.h io_fops_k.c: io_fops.ff \
+io_fops_u.h io_fops_u.c: io_fops.ff \
                   $(top_builddir)/fop/rt/libc2rt.la \
                   $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -uk $<
+	$(top_builddir)/fop/fop2c -u $<
 
 
 noinst_LTLIBRARIES		= libcolibri-ioservice.la
@@ -17,4 +17,4 @@ EXTRA_DIST			= io_fops.ff
 
 clean-local:
 	cd $(ioservicedir); \
-	rm -rf io_fops_[uk]*.[ch];
+	rm -rf io_fops_u*.[ch];
