@@ -32,7 +32,7 @@
 #include "fid/fid.h"
 
 #ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
+#include "ioservice/linux_kernel/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif

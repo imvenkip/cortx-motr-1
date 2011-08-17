@@ -39,14 +39,13 @@
 
 #include "c2t1fs.h"
 #include "io_k.h"
-#include "ioservice/io_fops_k.h"
+#include "io_fops_k.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
-#include "ioservice/io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -158,7 +157,9 @@ MODULE_LICENSE("GPL");
  */
 #define c2_global_container_id	10
 
+extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 
 /**

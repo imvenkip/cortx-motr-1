@@ -25,15 +25,12 @@
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fop_iterator.h"
-#include "ioservice/io_foms.h"
 
 #include "stob/ut/io_fop.h"
 #include "fop/fop_format_def.h"
-#include "ioservice/io_fops.h"
 
 #ifdef __KERNEL__
 # include "io_k.h"
-# include "io_fops_k.h"
 # include "addb/linux_kernel/addb_k.h"
 # define write_handler NULL
 # define read_handler NULL
@@ -48,7 +45,6 @@ int write_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 int quit_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
 #include "io_u.h"
-#include "ioservice/io_fops_u.h"
 # include "addb/addb_u.h"
 #endif
 
@@ -111,13 +107,6 @@ static struct c2_fop_type *fops[] = {
 	&c2_io_create_rep_fopt,
 
 	&c2_addb_reply_fopt,
-
-	&c2_fop_cob_readv_fopt,
-	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_writev_rep_fopt,
-	&c2_fop_cob_readv_rep_fopt,
-	&c2_fop_file_create_fopt,
-	&c2_fop_file_create_rep_fopt,
 };
 
 static struct c2_fop_type_format *fmts[] = {
@@ -128,12 +117,6 @@ static struct c2_fop_type_format *fmts[] = {
 
 	&c2_mem_buf_tfmt,
 
-	&c2_fop_file_fid_tfmt,
-	&c2_fop_io_buf_tfmt,
-	&c2_fop_io_seg_tfmt,
-	&c2_fop_io_vec_tfmt,
-	&c2_fop_segment_tfmt,
-	&c2_fop_segment_seq_tfmt,
 };
 
 void io_fop_fini(void)

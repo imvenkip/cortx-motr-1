@@ -25,7 +25,7 @@
 
 #include "ioservice/io_fops.h"
 #ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
+#include "ioservice/linux_kernel/io_fops_k.h"
 #else
 #include "ioservice/io_fops_u.h"
 #endif
@@ -1125,6 +1125,50 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    C2_IO_SERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 		    C2_IO_SERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
+
+static struct c2_fop_type_format *ioservice_fmts[] = {
+	&c2_fop_file_fid_tfmt,
+	&c2_fop_io_buf_tfmt,
+	&c2_fop_segment_tfmt,
+	&c2_fop_segment_seq_tfmt,
+	&c2_fop_io_seg_tfmt,
+	&c2_fop_io_vec_tfmt,
+	&c2_fop_cob_readv_rep_tfmt,
+	&c2_fop_cob_readv_tfmt,
+	&c2_fop_cob_writev_rep_tfmt,
+	&c2_fop_cob_writev_tfmt,
+	&c2_fop_file_create_tfmt,
+	&c2_fop_file_create_rep_tfmt,
+};
+
+static struct c2_fop_type *ioservice_fops[] = {
+	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_readv_fopt,
+	&c2_fop_cob_writev_rep_fopt,
+	&c2_fop_cob_writev_fopt,
+	&c2_fop_file_create_fopt,
+	&c2_fop_file_create_rep_fopt,
+};
+
+void ioservice_fop_fini(void)
+{
+	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
+	c2_fop_type_format_fini_nr(ioservice_fmts, ARRAY_SIZE(ioservice_fmts));
+}
+
+int ioservice_fop_init(void)
+{
+	int rc;
+
+	rc = c2_fop_type_format_parse_nr(ioservice_fmts,
+			ARRAY_SIZE(ioservice_fmts));
+	if (rc == 0)
+		rc = c2_fop_type_build_nr(ioservice_fops,
+				ARRAY_SIZE(ioservice_fops));
+	if (rc != 0)
+		ioservice_fop_fini();
+	return rc;
+}
 
 /*
  *  Local variables:
