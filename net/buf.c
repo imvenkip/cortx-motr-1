@@ -18,6 +18,7 @@
  * Original creation date: 04/05/2011
  */
 
+#include "lib/arith.h" /* max_check */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
@@ -99,6 +100,7 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
+	buf->nb_timeout = C2_TIME_NEVER;
 
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
@@ -109,17 +111,16 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
 	}
 	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
+	C2_POST(ergo(rc == 0, buf->nb_timeout == C2_TIME_NEVER));
 
 	c2_mutex_unlock(&dom->nd_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_register);
 
-int c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			     struct c2_net_domain *dom)
+void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+			      struct c2_net_domain *dom)
 {
-	int rc;
-
 	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
 	c2_mutex_lock(&dom->nd_mutex);
@@ -128,15 +129,13 @@ int c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	C2_PRE(buf->nb_flags == C2_NET_BUF_REGISTERED);
 	C2_PRE(c2_list_contains(&dom->nd_registered_bufs,&buf->nb_dom_linkage));
 
-	rc = dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
-	if (rc == 0) {
-		buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
-		c2_list_del(&buf->nb_dom_linkage);
-		buf->nb_xprt_private = NULL;
-	}
+	dom->nd_xprt->nx_ops->xo_buf_deregister(buf);
+	buf->nb_flags &= ~C2_NET_BUF_REGISTERED;
+	c2_list_del(&buf->nb_dom_linkage);
+	buf->nb_xprt_private = NULL;
 
 	c2_mutex_unlock(&dom->nd_mutex);
-	return rc;
+	return;
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
@@ -171,7 +170,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(dom->nd_xprt != NULL);
 
 	C2_PRE(!(buf->nb_flags &
-	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)));
+	       (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED|
+		C2_NET_BUF_TIMED_OUT)));
 
 	C2_PRE(buf->nb_qtype != C2_NET_QT_MSG_RECV || buf->nb_ep == NULL);
 	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED);
@@ -192,7 +192,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* validate end point usage; increment ref count later */
 	C2_PRE(ergo(todo->check_ep,
 		    buf->nb_ep != NULL &&
-		    c2_net__ep_invariant(buf->nb_ep, buf->nb_dom, false)));
+		    c2_net__ep_invariant(buf->nb_ep, tm, true)));
 
 	/* validate that the descriptor is present */
 	if (todo->post_check_desc) {
@@ -202,6 +202,16 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_PRE(ergo(todo->check_desc,
 		    buf->nb_desc.nbd_len > 0 &&
 		    buf->nb_desc.nbd_data != NULL));
+
+	/* validate that a timeout, if set, is in the future */
+	if (buf->nb_timeout != C2_TIME_NEVER) {
+		c2_time_t now;
+		/* Don't want to assert here as scheduling is unpredictable. */
+		if (c2_time_after_eq(c2_time_now(&now), buf->nb_timeout)) {
+			rc = -ETIME; /* not -ETIMEDOUT */
+			goto m_err_exit;
+		}
+	}
 
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
@@ -290,6 +300,9 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_CANCELLED,
 		  ev->nbe_status == -ECANCELED))
 		return false;
+	if (!ergo(ev->nbe_buffer->nb_flags & C2_NET_BUF_TIMED_OUT,
+		  ev->nbe_status == -ETIMEDOUT))
+		return false;
 	return true;
 }
 
@@ -322,7 +335,8 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 
 	qtype = buf->nb_qtype;
 	buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
-			   C2_NET_BUF_IN_USE);
+			   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
+	buf->nb_timeout = C2_TIME_NEVER;
 
 	q = &tm->ntm_qstats[qtype];
 	if (ev->nbe_status < 0) {
@@ -341,11 +355,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
 	q->nqs_total_bytes += len;
 	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
-
-	cb = buf->nb_callbacks->nbc_cb[qtype];
-
-	tm->ntm_callback_counter++;
-	c2_mutex_unlock(&tm->ntm_mutex);
 
 	ep = NULL;
 	check_ep = false;
@@ -367,15 +376,18 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	}
 
 	if (check_ep) {
-		C2_ASSERT(({
-			  bool eprc;
-			  c2_mutex_lock(&tm->ntm_dom->nd_mutex);
-			  eprc = c2_net__ep_invariant(ep, tm->ntm_dom, true);
-			  c2_mutex_unlock(&tm->ntm_dom->nd_mutex);
-			  eprc; }));
+		C2_ASSERT(c2_net__ep_invariant(ep, tm, true));
 	}
 
+	cb = buf->nb_callbacks->nbc_cb[qtype];
+	tm->ntm_callback_counter++;
+	c2_mutex_unlock(&tm->ntm_mutex);
+
 	cb(ev);
+
+	/* Decrement the reference to the ep */
+	if (ep != NULL)
+		c2_net_end_point_put(ep);
 
 	/* post callback, in mutex:
 	   decrement ref counts,
@@ -385,10 +397,6 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	tm->ntm_callback_counter--;
 	c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
-
-	/* Decrement the reference to the ep */
-	if (ep != NULL)
-		c2_net_end_point_put(ep);
 
 	return;
 }

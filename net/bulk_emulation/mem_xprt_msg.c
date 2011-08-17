@@ -108,12 +108,14 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				if (p_dest_ep == NULL)
 					break;
 				/* We need to create an EP for the local TM
-				   address in the remote DOM. Do this now,
-				   before giving up the DOM mutex.
+				   address in the remote DOM.
+				   We don't need the domain lock (do need TM
+				   mutex) but the original logic required it so
+				   leave it that way...
 				*/
 				mep = mem_ep_to_pvt(tm->ntm_ep);
 				rc = mem_bmo_ep_create(&dest_ep,
-						       dest_tm->ntm_dom,
+						       dest_tm,
 						       &mep->xep_sa,
 						       mep->xep_service_id);
 			} while(0);

@@ -22,7 +22,7 @@
 #define __COLIBRI_NET_KSUNRPC_KSUNRPC_H__
 
 #include "lib/mutex.h"
-#include "net/net.h"
+#include "net/net_internal.h"
 
 #ifdef __KERNEL__
 #include <linux/in.h>
@@ -47,6 +47,9 @@ struct c2_fop;
 
 
 int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
+int ksunrpc_service_init(struct c2_service *service);
+int ksunrpc_server_init(void);
+void ksunrpc_server_fini(void);
 
 extern const struct c2_service_id_ops ksunrpc_service_id_ops;
 extern const struct c2_net_conn_ops   ksunrpc_conn_ops;
@@ -67,6 +70,15 @@ struct ksunrpc_conn {
 
 int c2_kcall_enc(void *rqstp, __be32 *data, struct c2_net_call *call);
 int c2_kcall_dec(void *rqstp, __be32 *data, struct c2_net_call *call);
+
+int c2_svc_rqst_dec(void *rqstp, __be32 *data, struct c2_fop *arg);
+int c2_svc_rqst_enc(void *rqstp, __be32 *data, struct c2_fop *arg);
+
+int c2_fop_encode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+int c2_fop_decode_buffer(const struct c2_fop_type_format *ftf,
+			 void *buffer, void *obj);
+
 /* #else __KERNEL__ */
 #else
 # include <netinet/in.h>
@@ -85,6 +97,14 @@ struct ksunrpc_service_id {
 	uint32_t              ssi_prog;     /**< server program number */
 	uint32_t              ssi_ver;      /**< server program version */
 };
+
+int c2_ksunrpc_init(void);
+void c2_ksunrpc_fini(void);
+
+extern const struct c2_service_id_ops ksunrpc_service_id_ops;
+extern const struct c2_net_conn_ops ksunrpc_conn_ops;
+extern const struct c2_service_ops ksunrpc_service_ops;
+extern struct c2_net_xprt c2_net_ksunrpc_minimal_xprt;
 
 /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
 #endif

@@ -39,6 +39,8 @@ missing
 .*.o.cmd
 .*.o.d
 *.ko
+*.ko.unsigned
+*.ko.unsigned.cmd
 *.mod.c
 *.mod.o
 *~

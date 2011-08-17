@@ -27,9 +27,9 @@
  @{
 */
 
-bool c2_net__ep_invariant(struct c2_net_end_point *ep,
-			  struct c2_net_domain    *dom,
-			  bool                     under_dom_mutex)
+bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
+			  struct c2_net_transfer_mc *tm,
+			  bool                       under_tm_mutex)
 {
 	if (ep == NULL)
 		return false;
@@ -37,38 +37,41 @@ bool c2_net__ep_invariant(struct c2_net_end_point *ep,
 		return false;
 	if (ep->nep_ref.release == NULL)
 		return false;
-	if (ep->nep_dom != dom)
+	if (ep->nep_tm != tm)
 		return false;
 	if (ep->nep_addr == NULL)
 		return false;
-	if (under_dom_mutex &&
-	    !c2_list_contains(&dom->nd_end_points, &ep->nep_dom_linkage))
+	if (under_tm_mutex &&
+	    !c2_list_contains(&tm->ntm_end_points, &ep->nep_tm_linkage))
 		return false;
 	return true;
 }
 
-int c2_net_end_point_create(struct c2_net_end_point **epp,
-			    struct c2_net_domain     *dom,
-			    const char               *addr)
+int c2_net_end_point_create(struct c2_net_end_point  **epp,
+			    struct c2_net_transfer_mc *tm,
+			    const char                *addr)
 {
 	int rc;
+	struct c2_net_domain *dom;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(tm != NULL && tm->ntm_state == C2_NET_TM_STARTED);
 	C2_PRE(epp != NULL);
 
+	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
-	c2_mutex_lock(&dom->nd_mutex);
+
+	c2_mutex_lock(&tm->ntm_mutex);
 
 	*epp = NULL;
 
-	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, dom, addr);
+	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, tm, addr);
 
 	/* either we failed or we got back a properly initialized end point
 	   with reference count of at least 1
 	*/
-	C2_POST(ergo(rc == 0, c2_net__ep_invariant(*epp, dom, true)));
+	C2_POST(ergo(rc == 0, c2_net__ep_invariant(*epp, tm, true)));
 
-	c2_mutex_unlock(&dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
 C2_EXPORTED(c2_net_end_point_create);
@@ -86,16 +89,15 @@ C2_EXPORTED(c2_net_end_point_get);
 int c2_net_end_point_put(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
-	struct c2_net_domain *dom;
+	struct c2_net_transfer_mc *tm;
 	C2_PRE(ep != NULL);
 	C2_PRE(c2_atomic64_get(&ref->ref_cnt) >= 1);
-	dom = ep->nep_dom;
-	C2_PRE(dom != NULL );
-	C2_PRE(dom->nd_xprt != NULL);
-	/* hold the domain lock to synchronize release(), if called */
-	c2_mutex_lock(&dom->nd_mutex);
+	tm = ep->nep_tm;
+	C2_PRE(tm != NULL);
+	/* hold the transfer machine lock to synchronize release(), if called */
+	c2_mutex_lock(&tm->ntm_mutex);
 	c2_ref_put(ref);
-	c2_mutex_unlock(&dom->nd_mutex);
+	c2_mutex_unlock(&tm->ntm_mutex);
 	return 0;
 }
 C2_EXPORTED(c2_net_end_point_put);

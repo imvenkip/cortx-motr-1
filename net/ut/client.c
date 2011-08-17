@@ -189,7 +189,7 @@ void test_net_client(void)
 		sprintf(node_arg.si_uuid, "%d", i);
 		nettest_send(conn1, i);
 	}
-	
+
 	/* printf("rc = %d\n", rc); */
 	/* printf("%s\n", node_ret.si_uuid); */
 
@@ -214,7 +214,7 @@ const struct c2_test_suite net_client_ut = {
         }
 };
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

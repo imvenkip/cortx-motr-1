@@ -420,15 +420,14 @@ static int usunrpc_scheduler_init(struct c2_service *service)
 static void usunrpc_scheduler(struct c2_service *service)
 {
 	struct usunrpc_service *xservice;
+	static fd_set           listen_local;
+	int                     ret;
+	struct timeval          tv;
 
 	usunrpc_service_set(service);
 	xservice = service->s_xport_private;
 
 	while (1) {
-		static fd_set  listen_local;
-		int            ret;
-		struct timeval tv;
-
 		tv.tv_sec  = 1;
 		tv.tv_usec = 0;
 
@@ -448,8 +447,29 @@ static void usunrpc_scheduler(struct c2_service *service)
 	}
 
 	if (xservice->s_transp != NULL) {
+		bool shut_any = false;
+		int i;
+
 		svc_destroy(xservice->s_transp);
 		xservice->s_transp = NULL;
+
+		/* Ensure all transports created internally to svc_tcp for
+		   accepted connections are also destroyed.  svc_destroy() on
+		   primary transport does not do this, unfortunately.  The
+		   shutdown() on the remaining sockets causes the transports to
+		   be cleaned up when svc_getreqset() is called. */
+		listen_local = svc_fdset;
+		for (i = 0; i < FD_SETSIZE; ++i) {
+			if (FD_ISSET(i, &listen_local)) {
+				ret = shutdown(i, SHUT_RD);
+				if (ret == 0)
+					shut_any = true;
+			}
+		}
+		c2_rwlock_write_lock(&xservice->s_guard);
+		if (shut_any)
+			svc_getreqset(&listen_local);
+		c2_rwlock_write_unlock(&xservice->s_guard);
 	}
 }
 
