@@ -481,6 +481,8 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 	/* Stop the transfer machine first. */
 	rc = c2_net_tm_stop(&chan->rc_tm, false);
 	if (rc < 0) {
+		c2_clink_del(&tmwait);
+		c2_clink_fini(&tmwait);
 		C2_ADDB_ADD(&chan->rc_rpcmachine->cr_rpc_machine_addb,
 				&rpc_machine_addb_loc, rpc_machine_func_fail,
 				"c2_net_tm_stop", 0);
