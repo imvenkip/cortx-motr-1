@@ -169,6 +169,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 {
 	int				 rc = 0;
 	struct c2_rpc_frm_buffer	*fbuf = NULL;
+	struct c2_net_buffer		*nb;
 
 	C2_PRE(fb != NULL);
 	C2_PRE(rpc != NULL);
@@ -184,7 +185,10 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	fbuf->fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
 	fbuf->fb_frm_sm = frm_sm;
 	fbuf->fb_rpc = rpc;
-	c2_rpc_net_send_buffer_allocate(net_dom, &fbuf->fb_buffer);
+	nb = &fbuf->fb_buffer;
+	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb);
+	if (rc != 0)
+		return rc;
 	*fb = fbuf;
 	C2_POST(frm_buf_invariant(fbuf));
 	return rc;
@@ -1049,8 +1053,7 @@ int c2_rpc_frm_item_timeout(struct c2_rpc_item *item)
 	if (frm_sm == NULL)
 		return -EINVAL;
 	c2_mutex_lock(&frm_sm->fs_lock);
-	if (item->ri_state == RPC_ITEM_SUBMITTED)
-		item_timeout_handle(frm_sm, item);
+	item_timeout_handle(frm_sm, item);
 	sm_state = frm_sm->fs_state;
 	c2_mutex_unlock(&frm_sm->fs_lock);
 
@@ -1171,7 +1174,8 @@ static unsigned long item_timer_callback(unsigned long data)
 
 	if (item->ri_state == RPC_ITEM_SUBMITTED)
 		rc = c2_rpc_frm_item_timeout(item);
-	return rc;
+	/* Returning 0 since timer routine ignores return values. */
+	return 0;
 }
 
 /**
@@ -1929,8 +1933,6 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_ASSERT(rpcmachine != NULL);
 	c2_mutex_lock(&rpcmachine->cr_ready_slots_mutex);
 
-	rpc_size = *rpcobj_size;
-
 	/* Iterate ready slots list from rpcmachine and try to find an
 	   item for each ready slot. */
 	c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
@@ -1950,6 +1952,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		c2_list_for_each_entry_safe(&session->s_unbound_items,
 				item, item_next, struct c2_rpc_item,
 				ri_unbound_link) {
+			rpc_size = *rpcobj_size;
 			fragments_policy_ok = frm_fragment_policy_in_bounds(
 					frm_sm, item, fragments_nr);
 			sz_policy_violated = frm_is_size_optimal(frm_sm,
@@ -1963,13 +1966,14 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					c2_list_del(&item->ri_unbound_link);
 					if (--slot_items_nr == 0)
 						break;
-				}
+				} else
+					break;
 			} else
 				break;
 		}
 		c2_mutex_unlock(&slot->sl_mutex);
 		c2_mutex_unlock(&session->s_mutex);
-		if (sz_policy_violated)
+		if (sz_policy_violated || !fragments_policy_ok)
 			break;
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);

@@ -654,9 +654,11 @@ struct c2_rpc_processing {
    @pre - net domain should be initialized.
 
    @param net_dom - the net domain in which buffers should be registered.
+   @param nb - An out parameter to return the allocated c2_net_buffer.
+   @retval - 0 if succeeded, negative error code otherwise.
  */
-struct c2_net_buffer *c2_rpc_net_recv_buffer_allocate(
-		struct c2_net_domain *net_dom);
+int c2_rpc_net_recv_buffer_allocate(struct c2_net_domain *net_dom,
+		struct c2_net_buffer **nb);
 
 /**
    Allocate C2_RPC_TM_RECV_BUFFERS_NR number of buffer and add each of
@@ -708,10 +710,11 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
    @post net buffer gets allocated.
 
    @param net_dom - network domain to which buffers will be registered.
-   @param nb - network buffer to be allocated.
+   @param nb - Out parameter to return the allocated c2_net_buffer.
+   @retval - 0 if succeeded, negative error code otherwise.
  */
-void c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer *nb);
+int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
+		struct c2_net_buffer **nb);
 
 /**
    Deallocate a net buffer meant for sending messages.
