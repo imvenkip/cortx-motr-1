@@ -211,7 +211,8 @@ static void frm_buffer_fini(struct c2_rpc_frm_buffer *fb)
 /**
    A state table guiding resultant states on arrival of events
    on earlier states.
-   next_state = statetable[current_state][current_event]
+   internal_state = statetable[current_state][current_event]
+   Internal state is used by default handler to find out the next state.
  */
 static const statefunc_t c2_rpc_frm_statetable
 [C2_RPC_FRM_STATES_NR][C2_RPC_FRM_INTEVT_NR - 1] = {
@@ -641,6 +642,7 @@ static struct c2_rpc_frm_sm *frm_sm_init(struct c2_rpc_conn *conn,
    @param frm_sm - formation state machine
    @param sm_state - state of formation state machine.
    @param sm_event - event posted to the state machine.
+   @retval 0 if success, -errno othewise
  */
 static int sm_default_handler(struct c2_rpc_item *item,
 		struct c2_rpc_frm_sm *frm_sm, int sm_state,
@@ -656,14 +658,13 @@ static int sm_default_handler(struct c2_rpc_item *item,
 	C2_PRE(sm_event->se_event < C2_RPC_FRM_INTEVT_NR);
 	C2_PRE(sm_state <= C2_RPC_FRM_STATES_NR);
 
-	formation = item->ri_mach->cr_formation;
-	conn = rpc_item_to_conn(item);
-
 	/* If state machine pointer from rpc item is NULL, locate it
 	   from list in list of state machines. If found, lock it and
 	   increment its refcount. If not found, create a new state machine.
 	   In any case, find out the previous state of state machine. */
 	if (frm_sm == NULL) {
+		formation = item->ri_mach->cr_formation;
+		conn = rpc_item_to_conn(item);
 		sm = frm_sm_locate(conn, formation);
 		if (sm == NULL) {
 			sm = frm_sm_init(conn, formation);
@@ -676,8 +677,8 @@ static int sm_default_handler(struct c2_rpc_item *item,
 		c2_mutex_lock(&sm->fs_lock);
 		prev_state = sm->fs_state;
 	} else {
-		prev_state = sm_state;
 		c2_mutex_lock(&frm_sm->fs_lock);
+		prev_state = sm_state;
 		sm = frm_sm;
 	}
 
@@ -688,13 +689,13 @@ static int sm_default_handler(struct c2_rpc_item *item,
 	/* The return value should be an internal event.
 	   Assert if its not. */
 	C2_ASSERT((res >= C2_RPC_FRM_INTEVT_STATE_SUCCEEDED) &&
-			(res <= C2_RPC_FRM_INTEVT_STATE_DONE));
+			(res < C2_RPC_FRM_INTEVT_NR));
 	/* Get latest state of state machine. */
 	prev_state = sm->fs_state;
 	c2_mutex_unlock(&sm->fs_lock);
 
 	/* Exit point for state machine. */
-	if (res == C2_RPC_FRM_INTEVT_STATE_DONE) {
+	if (res == C2_RPC_FRM_INTEVT_DONE) {
 		sm_put(sm);
 		return 0;
 	}
@@ -944,6 +945,7 @@ static void frm_reply_received(const struct c2_rpc_frm_sm *frm_sm,
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
+	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
 	/* If event received is reply_received, do all the post processing
 	   for a coalesced item. */
@@ -1143,7 +1145,7 @@ static enum c2_rpc_frm_int_evt_id sm_waiting_state(
 
 	frm_sm->fs_state = C2_RPC_FRM_STATE_WAITING;
 
-	return C2_RPC_FRM_INTEVT_STATE_DONE;
+	return C2_RPC_FRM_INTEVT_DONE;
 }
 
 /**
@@ -1491,13 +1493,13 @@ static bool formation_qualify(const struct c2_rpc_frm_sm *frm_sm)
 	   has reached the max rpcs limit, don't send any more rpcs
 	   unless this number drops. */
 	if (frm_sm->fs_formation->rf_client_side &&
-			frm_sm->fs_curr_rpcs_in_flight ==
-			frm_sm->fs_max_rpcs_in_flight)
+	    frm_sm->fs_curr_rpcs_in_flight ==
+	    frm_sm->fs_max_rpcs_in_flight)
 		return false;
 
 	if (frm_sm->fs_urgent_nogrp_items_nr > 0 ||
-			frm_sm->fs_cumulative_size >=
-			frm_sm->fs_max_msg_size)
+	    frm_sm->fs_cumulative_size >=
+	    frm_sm->fs_max_msg_size)
 		return true;
 	return false;
 }
@@ -1519,9 +1521,10 @@ static enum c2_rpc_frm_int_evt_id sm_updating_state(
 	enum c2_rpc_frm_int_evt_id	ret;
 
 	C2_PRE(item != NULL);
-	C2_PRE(event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
-		event->se_event == C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED ||
-		event->se_event == C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED);
+	C2_PRE(event != NULL &&
+	       event->se_event == C2_RPC_FRM_EXTEVT_RPCITEM_READY ||
+	       event->se_event == C2_RPC_FRM_EXTEVT_UBRPCITEM_ADDED ||
+	       event->se_event == C2_RPC_FRM_EXTEVT_USRPCITEM_ADDED);
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
@@ -2143,6 +2146,9 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/* Encode the rpc contents. */
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
 		if (rc < 0) {
+			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
+					&frm_addb_loc, formation_func_fail,
+					"c2_rpc_encode", 0);
 			frm_buffer_fini(fb);
 			ret = rc;
 			/* Process the next rpc object in the list.*/

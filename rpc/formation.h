@@ -416,7 +416,7 @@ enum c2_rpc_frm_int_evt_id {
 	/** Execution failed in current state. */
 	C2_RPC_FRM_INTEVT_STATE_FAILED,
 	/** Execution completed, exit the state machine. */
-	C2_RPC_FRM_INTEVT_STATE_DONE,
+	C2_RPC_FRM_INTEVT_DONE,
 	/** Max number of events. */
 	C2_RPC_FRM_INTEVT_NR
 };
