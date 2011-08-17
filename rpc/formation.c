@@ -1887,7 +1887,7 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags |= ~C2_RPC_ITEM_UNBOUND;
+		item->ri_type->rit_flags &= ~C2_RPC_ITEM_UNBOUND;
 		item->ri_type->rit_flags |= C2_RPC_ITEM_BOUND;
 	}
 }
