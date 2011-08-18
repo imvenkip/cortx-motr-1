@@ -50,7 +50,7 @@ Session module defines following types of objects:
 - rpc connection @see c2_rpc_conn
 - rpc session @see c2_rpc_session
 - slot @see c2_rpc_slot
-- slot ref @see c2_rpc_slot_ref
+- slot ref @see c2_rpc_slot_ref.
 
 Out of these, c2_rpc_conn and c2_rpc_session are visible to user.
 c2_rpc_slot and c2_rpc_slot_ref are internal to rpc layer and not visible to
@@ -58,9 +58,9 @@ users outside rpc layer.
 
 Session module uses following types of objects defined by rpc-core:
 - rpc machine @see c2_rpcmachine
-- rpc item @see c2_rpc_item
+- rpc item @see c2_rpc_item.
 
-<B>Relationships among objects:</B>
+<B> Relationships among objects: </B>
 rpcmachine has two lists of rpc connections.
 - Outgoing connections: Contains c2_rpc_conn objects for which this node is
 sender.
@@ -103,7 +103,7 @@ By preventing multiple executions of same item (or FOP), reply cache provides
 "exactly once" semantics. If reply cache is persistent, then EOS can be
 guaranteed even in the face of server restart.
 
-<B> Slot as a "cob" </B>
+<B> Slot as a "cob": </B>
 Session module implements a slot as a "special file". This allows to reuse
 persistent data structure and code of cob infrastructure.
 

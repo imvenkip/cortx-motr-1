@@ -113,7 +113,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * Add the item explicitly to the slot0. This makes the slot
 	 * symmetric to corresponding sender side slot.
 	 */
+	c2_mutex_lock(&conn->c_mutex);
 	session0 = c2_rpc_conn_session0(conn);
+	c2_mutex_unlock(&conn->c_mutex);
 
 	item->ri_session = session0;
 	slot = session0->s_slot_table[0];
@@ -276,6 +278,7 @@ out_free:
 	C2_ASSERT(session != NULL);
 	c2_free(session);
 	session = NULL;
+
 errout:
 	C2_ASSERT(rc != 0);
 
@@ -342,19 +345,24 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(item->ri_mach != NULL);
 
 	conn = item->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
+	C2_ASSERT(conn != NULL);
+
+	c2_mutex_lock(&conn->c_mutex);
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
 			c2_rpc_conn_invariant(conn));
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session == NULL) {
 		rc = -ENOENT;
+		c2_mutex_unlock(&conn->c_mutex);
 		goto errout;
 	}
+	c2_mutex_unlock(&conn->c_mutex);
 	rc = c2_rpc_rcv_session_terminate(session);
 	C2_ASSERT(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
 	c2_rpc_session_fini(session);
 	c2_free(session);
-
+	/* fall through */
 errout:
 	reply->rstr_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
@@ -417,11 +425,12 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(conn != NULL);
 	printf("Received conn terminate req for %lu\n", request->ct_sender_id);
 	rc = c2_rpc_rcv_conn_terminate(conn);
-	C2_ASSERT(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	/*
 	 * In memory state of conn is not cleaned up, at this point.
 	 * conn will be finalised and freed in the ->rio_sent() callback of
 	 * conn_terminate_reply.
+	 * XXX If conn is not in ACTIVE state, register reply->ri_ops, so that
+	 * c2_rpc_conn_terminate_reply_sent() will be called.
 	 */
 	reply->ctr_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;

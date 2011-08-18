@@ -298,7 +298,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
    Terminates receiver end of rpc connection.
 
    @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
