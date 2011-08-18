@@ -340,9 +340,9 @@ void server_init(int dummy)
 	sprintf(addr_local, "%s:%u:%d", hostbuf, sctx.pc_lport, RID);
 	printf("Server Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	sctx.pc_db_name = "rpcping_db_server";
 	sctx.pc_cob_dom_id.id =  13 ;
@@ -632,9 +632,9 @@ void client_init()
 	sprintf(addr_local, "%s:%u:%d", hostbuf, cctx.pc_lport, RID);
 	printf("Client Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;
