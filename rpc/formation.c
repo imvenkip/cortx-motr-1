@@ -351,7 +351,7 @@ static void rpcobj_list_fini(struct c2_list *list)
 
 	c2_list_for_each_entry_safe(list, obj, obj_next, struct c2_rpc,
 			r_linkage) {
-		c2_list_del(&obj->r_linkage);
+		c2_rpc_rpcobj_fini(obj);
 		c2_free(obj);
 	}
 	c2_list_fini(list);
@@ -817,6 +817,8 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	struct c2_net_transfer_mc	*tm;
 	struct c2_rpc_frm_buffer	*fb;
 	struct c2_rpc_item		*item;
+	struct c2_rpc_item		*rpc_item;
+	struct c2_rpc_item		*rpc_item_next;
 	struct c2_rpc_formation		*formation;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL) &&
@@ -841,6 +843,14 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SENT);
 		/* Release reference on the c2_rpc_frm_sm here. */
 		sm_put(fb->fb_frm_sm);
+
+		/* Detach all rpc items from this object */
+		c2_list_for_each_entry_safe(&fb->fb_rpc->r_items, rpc_item,
+				rpc_item_next, struct c2_rpc_item,
+				ri_rpcobject_linkage)
+			c2_list_del(&item->ri_rpcobject_linkage);
+
+		c2_rpc_rpcobj_fini(fb->fb_rpc);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
@@ -850,8 +860,13 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->rf_rpc_form_addb,
 				&frm_addb_loc, formation_func_fail,
 				"net_buffer_send", 0);
+#if 0
+		/* XXX Until retry policy has been implemented, post an 
+		   ADDB event and fail. Commenting out this piece of code
+		   (and not removing it), so as not to miss this in future */
 		c2_list_add(&fb->fb_frm_sm->fs_rpcs, &fb->fb_rpc->r_linkage);
 		frm_send_onwire(fb->fb_frm_sm);
+#endif
 		c2_mutex_unlock(&fb->fb_frm_sm->fs_lock);
 		/* Release reference on the c2_rpc_frm_sm here. */
 		sm_put(fb->fb_frm_sm);
@@ -1383,7 +1398,7 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
    @param rpcobj_size - check if given size of rpc object is optimal or not.
    @retval true if size is optimal, false otherwise
  */
-static bool frm_is_size_optimal(struct c2_rpc_frm_sm *frm_sm,
+static bool frm_size_is_violated(struct c2_rpc_frm_sm *frm_sm,
 		uint64_t rpcobj_size)
 {
 	C2_PRE(frm_sm != NULL);
@@ -1763,11 +1778,11 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpcmachine		*rpcmachine;
 
 	C2_PRE(frm_sm != NULL);
+	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(rpcobj_size != NULL);
 	C2_PRE(fragments_nr != NULL);
 	C2_PRE(rpcobj != NULL);
 
-	rpc_size = *rpcobj_size;
 	/* Iterate over the priority bands and add items arranged in
 	   increasing order of timeouts till rpc is optimal. */
 	for (cnt = 0; cnt < ARRAY_SIZE(frm_sm->fs_unformed_prio) &&
@@ -1775,7 +1790,8 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		list = &frm_sm->fs_unformed_prio[cnt].pl_unformed_items;
 		c2_list_for_each_entry_safe(list, rpc_item, rpc_item_next,
 				struct c2_rpc_item, ri_unformed_linkage) {
-			sz_policy_violated = frm_is_size_optimal(frm_sm,
+			rpc_size = *rpcobj_size;
+			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size);
 			rpcmachine = rpc_item->ri_mach;
 
@@ -1803,6 +1819,8 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				break;
 		}
 	}
+	rpc_size = *rpcobj_size;
+	C2_POST(!frm_size_is_violated(frm_sm, rpc_size));
 }
 
 /**
@@ -1852,6 +1870,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc_session	*session;
 
 	C2_PRE(frm_sm != NULL);
+	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(rpcobj_size != NULL);
 	C2_PRE(fragments_nr != NULL);
 	C2_PRE(rpcobj != NULL);
@@ -1886,7 +1905,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			rpc_size = *rpcobj_size;
 			fragments_policy_ok = frm_fragment_policy_in_bounds(
 					frm_sm, item, fragments_nr);
-			sz_policy_violated = frm_is_size_optimal(frm_sm,
+			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size);
 			if (!sz_policy_violated || frm_check_policies(frm_sm)) {
 				fragments_policy_ok =
@@ -1910,6 +1929,8 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			break;
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
+	rpc_size = *rpcobj_size;
+	C2_POST(!frm_size_is_violated(frm_sm, rpc_size));
 }
 
 /**
@@ -1964,7 +1985,7 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 
 	/* If optimal rpc can not be formed, or other formation policies
 	   do not satisfy, return failure. */
-	size_optimal = frm_is_size_optimal(frm_sm, frm_sm->fs_cumulative_size);
+	size_optimal = frm_size_is_violated(frm_sm, frm_sm->fs_cumulative_size);
 	frm_policy = frm_check_policies(frm_sm);
 
 	if (!(frm_policy || size_optimal))

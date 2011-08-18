@@ -712,9 +712,10 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
    @param chan - Concerned c2_rpc_chan structure.
    @param tm_active - boolean indicating whether associated TM is
    active or not.
+   @param nr - number of buffers to be deallocated
  */
 int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
-		bool tm_active);
+		bool tm_active, uint32_t nr);
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
