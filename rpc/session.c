@@ -1001,9 +1001,6 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	C2_PRE(ergo(rc == 0, reply != NULL &&
 			req->ri_session == reply->ri_session));
 
-
-	printf("scrr: sender_id %lu session_id %lu\n",
-		(unsigned long)sender_id, (unsigned long)session_id);
 	/*
 	 * Search session object, for which SESSION_ESTABLISH_REPLY
 	 * is received
@@ -1046,6 +1043,9 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 
 	sender_id = fop_ser->rser_sender_id;
 	session_id = fop_ser->rser_session_id;
+
+	printf("scrr: sender_id %lu session_id %lu\n",
+		(unsigned long)sender_id, (unsigned long)session_id);
 
 	if (fop_ser->rser_rc != 0) {
 		printf("scrr: Session create failed\n");
