@@ -236,10 +236,11 @@ struct c2_rpc_item_type_ops {
 	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
 			c2_rpc_item *item2);
 	/**
-	   Return true iff item1 and item2 are equal.
+	  Return true iff item1 and item2 are equal.
 	 */
 	bool (*rito_eq)(const struct c2_rpc_item *i1,
 			const struct c2_rpc_item *i2);
+
 	/**
 	   Return the opcode of fop carried by given rpc item.
 	 */
@@ -358,7 +359,7 @@ void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
 
 /**
    Finalize an rpc object.
-   @param rpc - rpc object to be finalized 
+   @param rpc - rpc object to be finalized
  */
 void c2_rpc_rpcobj_fini(struct c2_rpc *rpc);
 
@@ -711,9 +712,10 @@ int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
    @param chan - Concerned c2_rpc_chan structure.
    @param tm_active - boolean indicating whether associated TM is
    active or not.
+   @param nr - number of buffers to be deallocated
  */
 int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
-		bool tm_active);
+		bool tm_active, uint32_t nr);
 
 /**
    Allocate a buffer for sending messages from rpc formation component.
