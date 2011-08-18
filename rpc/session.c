@@ -2799,6 +2799,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	/* In-core state will be cleaned up by
 	   c2_rpc_conn_terminate_reply_sent() */
+	c2_mutex_unlock(&conn->c_mutex);
 	return 0;
 }
 
