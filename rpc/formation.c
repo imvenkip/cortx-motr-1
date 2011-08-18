@@ -782,7 +782,7 @@ void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 }
 
 /**
-   Callback function for unbounded item getting added to session.
+   Callback function for unbounded/unsolicited item getting added to session.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
    @param item - incoming rpc item.
@@ -950,8 +950,7 @@ static void frm_reply_received(const struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(item != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
-	/* If event received is reply_received, do all the post processing
-	   for a coalesced item. */
+	/* Do all the post processing for a coalesced item. */
 	c2_list_for_each_entry_safe(&frm_sm->fs_coalesced_items,
 			c_item, c_item_next, struct c2_rpc_frm_item_coalesced,
 			ic_linkage) {
