@@ -58,7 +58,7 @@ uint64_t c2_fop_ping_getsize(struct c2_fop *ping_fop)
 
 uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 {
-	uint64_t 	size;
+	uint64_t size;
 
 	C2_PRE(fop != NULL);
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;

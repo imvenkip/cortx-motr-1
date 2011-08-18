@@ -227,7 +227,7 @@ void server_poll()
 /* Create dummy request handler */
 void server_rqh_init(int dummy)
 {
-	struct c2_queue_link 	*q1;
+	struct c2_queue_link	*q1;
 	struct c2_rpc_item	*item;
 	struct c2_fop		*fop;
 	struct c2_fom		*fom = NULL;
