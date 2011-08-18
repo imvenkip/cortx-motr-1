@@ -861,7 +861,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 				&frm_addb_loc, formation_func_fail,
 				"net_buffer_send", 0);
 #if 0
-		/* XXX Until retry policy has been implemented, post an 
+		/* XXX Until retry policy has been implemented, post an
 		   ADDB event and fail. Commenting out this piece of code
 		   (and not removing it), so as not to miss this in future */
 		c2_list_add(&fb->fb_frm_sm->fs_rpcs, &fb->fb_rpc->r_linkage);
