@@ -737,6 +737,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
 			if (fom->fo_rc != 0)
 				fom->fo_phase = FOPH_FAILURE;
 			else {
+				bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
 				out_fop->firr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
 			}
@@ -833,6 +834,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 			if (fom->fo_rc != 0)
 				fom->fo_phase = FOPH_FAILURE;
 			else {
+				bshift = fom_obj->rh_ut_stobj->so_op->sop_block_shift(fom_obj->rh_ut_stobj);
 				out_fop->fiwr_count = fom_obj->rh_ut_stio.si_count << bshift;
 				fom->fo_phase = FOPH_SUCCESS;
 			}
