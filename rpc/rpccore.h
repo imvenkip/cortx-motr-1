@@ -1120,6 +1120,204 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
  */
 size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
 
+/**
+   Detailed Level Design for bulk IO interface from rpc layer.
+   Colibri rpc layer, network layer and the underlying transport are
+   supposed to constitute a zero-copy path for data IO.
+   In order to do this, rpc layer needs to provide support for
+   bulk interface exported by network layer which gives the capability
+   to bundle IO buffers together and send/receive these buffers
+   on demand. The underlying transport should have the capabilities
+   to provide zero-copy path (e.g. RDMA)
+   There are 2 major use cases here - read IO and write IO in which
+   bulk interface is needed.
+   The bulk IO interface from network layer provides abstractions like
+   - c2_net_buffer (a generic buffer identified at network layer) and
+   - c2_net_buf_desc (an identifier to point to a c2_net_buffer).
+   Whenever, IO items are encountered in rpc layer, rpc layer
+   (especially formation sub-component) is supposed to take care of
+   segregating these IO items and register c2_net_buffers where
+   IO buffers are encountered (during write IO) and buffer descriptors
+   are copied after registering net buffers. These descriptors are sent
+   to the other side which asks for buffers identified by the supplied
+   buffer descriptors.
+   Please find below 2 peculiar use cases of using bulk interface.
+   @verbatim
+
+   Sequence of events in case of write IO call for rpc layer.
+   Assumptions
+   - Write request call has IO buffers associated with it.
+   - Underlying transport supports zero-copy.
+
+			Client			Server
+
+- Init rpc machine.	  |			| - Init rpc machine.
+			  |			|
+- Init Transfer Machine.  |			| - Init Transfer Machine.
+			  |			|
+- Start Transfer Machine. |			| - Init Transfer Machine.
+			  |			|
+- Add recv buffers.	  |			| - Add recv buffers.
+			  |   Net buffer sent	|
+- Incoming write request. |  +----------------->| - Net buffer received.
+			  |  |			|
+- Rpc formation finds out |  |			| - Decode and retrieve rpc
+  given item is write IO  |  |			|   items.
+  request.		  |  |			|
+			  |  |			|
+- Remove data buffers	  |  |			| - Call an rpc_item_type_op
+  from rpc item and copy  |  |			|   which will act if item
+  the net_buf_desc which  |  |			|   is write IO and it contains
+  will be bundled with	  |  |			|   c2_net_buf_desc.
+  given rpc item.	  |  |			|   @see c2_rpc_bulkio_received
+  @see			  |  |			|
+  c2_rpc_bulkio_send	  |  |			|
+  			  |  |			|
+- Free the net_buf_desc	  |  |			| - If item is write request,
+  after they are bundled  |  |			|   allocate c2_net_buffer/s,
+  with rpc item.	  |  |			|   add it to TM in C2_NET_QT
+  			  |  |			|   _ACTIVE_BULK_RECEIVE queue.
+  			  |  |			|
+- Send the rpc over wire. |--+			| - So server calls c2_rpc_
+  			  |  			|   zero_copy_init(src_descs,
+			  |			|   src_ep, dest_descs, desc_ep,
+			  |	    +-----------|   desc_nr) which should
+			  |	    |		|   initiate zero copy operation
+  			  |  Init   |		|   at the transport level.
+			  | 0-copy  |		|
+- Transport zero copies	  |	    |		| - Proceed with the write FOM
+  the IO buffers	  |	    |	 +----->|   and complete write IO
+  identified by src_descs |<--------+	 |	|   request.
+  buffer descriptors to	  |		 |	|
+  dest_descs buffer desc  |	    +----+	|
+  on node identified by   |	    |  0-copy	|
+  dest_ep.  		  |---------+ Complete	|
+			  |			|
+			  |			|
+- Free net buffers used	  |	    +-----------| - Write IO complete. Send
+  for write IO.		  | Net buf |		|   write reply to rpc layer.
+			  |  sent   |		|
+- Receive net buffer.	  |<--------+		|
+			  |			|
+- Send reply to write	  |			| - Free net buffers used
+  FOM.			  |			|   for zero copy.
+			  |			|
+
+   Sequence of events in case of read IO call for rpc layer.
+   Assumptions
+   - Read call has no IO buffers associated with it. It just has extents which
+     is actually similar to a c2_net_buf_desc.
+   - On the other hand, read reply consists of IO buffers. So while sending
+     back reply from server to client, these buffers are replaced by
+     appropriate buffer descriptors.
+   - Underlying transport supports zero-copy.
+
+			Client			Server
+
+- Init rpc machine.	  |			| - Init rpc machine.
+			  |			|
+- Init Transfer Machine.  |			| - Init Transfer Machine.
+			  |			|
+- Start Transfer Machine. |			| - Init Transfer Machine.
+			  |			|
+- Add recv buffers.	  |			| - Add recv buffers.
+			  |   Net buffer sent	|
+- Incoming read request.  |  +----------------->| - Net buffer received.
+			  |  |			|
+- Form an RPC and send it |  |			| - Decode and retrieve rpc
+  over wire.  		  |--+			|   items.
+			  |  			|
+- Net buffer received.	  |<----------+		| - Dispatch rpc item for
+  			  |  	      |		|   execution.
+			  |  	      |		|
+- Decode and retrieve rpc |  	      |		| - Read IO FOM started.
+  items.		  |  	      |		|
+			  |  	      |		|
+- Rpc checks if received  |  	      |		| - Data in local buffers and
+  item belongs to an IO	  |  	      |		|   read reply is sent to rpc.
+  request and allocates	  |  	      |		|
+  net buffers and adds	  |  	      |		|
+  them to C2_NET_QT_	  |  	      |		|
+  ACTIVE_BULK_RECV queue  |  	      | Net	|
+  of transfer machine.	  |  	      |	buffer	|
+  @see			  |  	      |	sent	|
+  c2_rpc_bulkio_received  |  	      |		|
+			  |  	      |		|
+- Client initiates	  |  	      |		| - Rpc formation invokes
+  zero_copy_init	  |  	      |		|   an rpc_item_type_op on this
+  (src_descs, src_ep,	  |  	      |		|   item and replaces data
+  dest_descs, dest_ep,	  |  	      |		|   buffers by net buffer
+  desc_nr)		  |	      |		|   descriptors. The data
+  @see			  |---->+     |		|   buffers are added to
+  c2_rpc_zero_copy_init	  |	|     |		|   C2_NET_QT_PASSIVE_BULK_SEND
+			  |	|     |		|   @see c2_rpc_bulkio_send
+			  |	|     |		|
+			  |  	|     +<--------| - RPC is sent over wire.
+			  |	| 0-copy init	|
+			  |	+-------------->|
+- Free net buffers used	  |			| - Transport zero copies the
+  for read IO.		  |<----------+		|   net buffers identified by
+			  |  	      |		|   source buffer descriptors
+			  |  0-copy   |		|   into net buffers identified
+			  | complete  |		|   by destionation buffer
+			  |	      +<--------|   descriptors.
+			  |			|
+- Send reply to read	  |			| - Free net buffers used
+  FOM.			  |			|   for zero copy.
+			  |			|
+   @endverbatim
+
+ */
+
+/**
+   The rpc item is submitted to rpc layer by end-user.
+   Remove the data buffers from write IO fop and associate corresponding
+   buffer descriptors for each data buffer.
+   This method acts on "write request" and "read reply" fops since these
+   fops actually contains data buffers.
+   This subroutine is typically invoked from the side which has the
+   data buffers and used by rpc formation component.
+   @param item - Input rpc item which belongs to a write IO fop type.
+   @pre State of rpc item should be RPC_ITEM_ADDED.
+   @retval - 0 if succeeded, negative error code otherwise.
+   @note - User is supposed to free the c2_net_buf_desc afterwards.
+ */
+int c2_rpc_bulkio_send(struct c2_rpc_item *item);
+
+/**
+   An rpc item has been received from network layer and if the item
+   belongs to an IO request and has net buffer descriptors attached with it,
+   allocate new net buffers for receiving data and add them to
+   C2_NET_QT_ACTIVE_BULK_RECV queue in transfer machine.
+   This interface operates upon calls like "write request" and
+   "read reply".
+   This subroutine is typically invoked from the receiving side.
+   @param item - Input rpc item which contains net buf descriptors.
+   @retval - 0 if succeeded, negative error code otherwise.
+ */
+int c2_rpc_bulkio_received(struct c2_rpc_item *item);
+
+/**
+   Initiate transport level zero-copy of data buffers from source node
+   to destintion node.
+   @param src_descs - Array of source c2_net_buf_descs from which data
+   		      will be sourced.
+   @param src_ep - Net endpoint of source node.
+   @param dest_descs - Array of destination c2_net_buf_descs where data
+   		       has to be placed.
+   @param dest_ep - Net endpoint of destination node.
+   @param desc_nr - Number of c2_net_buf_desc. Same for source and destination.
+   @retval - 0 if succeeded, negative error code otherwise.
+   @todo - Should the number of destionation buffer descriptors be same
+           as number of source buffer descriptors? If they are equal, the
+	   size of segment has to be also equal.
+ */
+int c2_rpc_zero_copy_init(struct c2_net_buf_desc **src_descs,
+			  struct c2_net_end_point *src_ep,
+			  struct c2_net_buf_desc **dest_descs,
+			  struct c2_net_end_point *dest_ep,
+			  uint64_t desc_nr);
+
 /** @} end name stat_ifs */
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
