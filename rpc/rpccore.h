@@ -1179,12 +1179,15 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
   from rpc item & copy	  |  	     |		|   which will act if item
   net_buf_desc which	  |  	     |		|   is write IO and it contains
   are bundled with	  |  	     |		|   c2_net_buf_desc. Buf desc
-  given rpc item.	  |	     |		|   are copied into recv bufs.
-  Net buffers are added	  |	     |		|   @see
-  for these data buffs	  |	     |		|   c2_rpc_bulkio_desc_received
-  in C2_NET_QT_PASSIVE	  |	     |		|
+  given rpc item.	  |	     |		|   are decoded and are copied
+  Net buffers are added	  |	     |		|   into recv buffers.
+  for these data buffs	  |	     |		|   @see
+  in C2_NET_QT_PASSIVE	  |	     |		|   c2_rpc_bulkio_desc_received
   BULK_SEND		  |	     |		|
-  queue of TM.		  |	     |		|
+  queue of TM. Buffer	  |	     |		|
+  descriptors are	  |	     |		|
+  encoded and packed	  |	     |		|
+  with rpc.		  |	     |		|
   @see  		  |	     |		|   
 c2_rpc_bulkio_desc_send   |  	     |		|   
   			  |  	     |		|
@@ -1288,7 +1291,8 @@ c2_rpc_bulkio_desc_received|  	      |		|
 /**
    The rpc item is submitted to rpc layer by end-user.
    Remove the data buffers from write IO fop and associate corresponding
-   buffer descriptors for each data buffer.
+   buffer descriptors for each data buffer. The buffer descriptors are
+   encoded along with rest of the rpc items and packed into the rpc.
    This method acts on "write request" and "read reply" fops since these
    fops actually contains data buffers. 
    This subroutine is typically invoked from the side which has the
@@ -1307,6 +1311,8 @@ int c2_rpc_bulkio_desc_send(struct c2_rpc_item *item);
    allocate new net buffers for receiving data and add them to
    C2_NET_QT_ACTIVE_BULK_RECV queue in transfer machine.
    And hence, this method is typically invoked by the Active side.
+   The buffer descriptors (if any) are decoded and the receiving side
+   allocates net buffers to copy the data.
    @param item - Input rpc item which contains net buf descriptors.
    @retval - 0 if succeeded, negative error code otherwise.
  */
