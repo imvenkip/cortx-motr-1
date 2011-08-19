@@ -79,9 +79,9 @@ static void c2_timer_working_thread(struct c2_timer *timer)
    TODO: Currently hard timer is the same as soft timer. We will implement hard
    timer later.
  */
-int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
-		  c2_time_t interval, uint64_t repeat,
-		  c2_timer_callback_t callback, unsigned long data)
+void c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
+		   c2_time_t interval, uint64_t repeat,
+		   c2_timer_callback_t callback, unsigned long data)
 {
 	C2_PRE(callback != NULL);
 	C2_PRE(type == C2_TIMER_SOFT || type == C2_TIMER_HARD);
@@ -94,8 +94,6 @@ int c2_timer_init(struct c2_timer *timer, enum c2_timer_type type,
 	timer->t_callback = callback;
 	timer->t_data     = data;
 	c2_time_set(&timer->t_expire, 0, 0);
-
-	return 0;
 }
 C2_EXPORTED(c2_timer_init);
 
@@ -119,7 +117,7 @@ C2_EXPORTED(c2_timer_start);
 /**
    Stop a timer.
  */
-int c2_timer_stop(struct c2_timer *timer)
+void c2_timer_stop(struct c2_timer *timer)
 {
 	timer->t_left = 0;
 	c2_time_set(&timer->t_expire, 0, 0);
@@ -129,9 +127,14 @@ int c2_timer_stop(struct c2_timer *timer)
 		c2_thread_join(&timer->t_thread);
 		c2_thread_fini(&timer->t_thread);
         }
-	return 0;
 }
 C2_EXPORTED(c2_timer_stop);
+
+bool c2_timer_is_started(const struct c2_timer *timer)
+{
+	return timer->t_left > 0;
+}
+C2_EXPORTED(c2_timer_is_started);
 
 /**
    Destroy the timer.
