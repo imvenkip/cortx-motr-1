@@ -441,6 +441,7 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage) {
 		if (c2_atomic64_get(&chan->rc_ref.ref_cnt) <= ref) {
 			chan_found = chan;
+			ref = c2_atomic64_get(&chan->rc_ref.ref_cnt);
 		}
 	}
 
