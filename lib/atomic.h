@@ -94,11 +94,19 @@ PREFIX bool c2_atomic64_inc_and_test(struct c2_atomic64 *a);
  */
 PREFIX bool c2_atomic64_dec_and_test(struct c2_atomic64 *a);
 
+/**
+   Atomic compare-and-swap: compares value stored in @loc with @old and, if
+   equal, replaces it with @new, all atomic w.r.t. concurrent accesses to @loc.
+
+   Returns true iff new value was installed.
+ */
+PREFIX bool c2_atomic64_cas(void *loc, int64_t old, int64_t new);
+
 /** @} end of atomic group */
 
 /* __COLIBRI_LIB_ATOMIC_H__ */
 #endif
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
