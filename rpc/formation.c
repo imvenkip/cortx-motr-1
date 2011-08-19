@@ -368,8 +368,6 @@ static void unformed_prio_fini(struct c2_rpc_frm_sm *frm_sm)
 	struct c2_rpc_item	*item_next = NULL;
 	struct c2_list		*list;
 
-	C2_PRE(list != NULL);
-
 	for (cnt = 0; cnt < ARRAY_SIZE(frm_sm->fs_unformed_prio); ++cnt) {
 		list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR -
 			item->ri_prio].pl_unformed_items;
@@ -640,7 +638,8 @@ static struct c2_rpc_frm_sm *frm_sm_init(struct c2_rpc_conn *conn,
    @param item - incoming rpc item needed for external events.
    @param frm_sm - formation state machine
    @param sm_state - state of formation state machine.
-   @param sm_event - event posted to the state machine.
+   @param sm_event - event posted to the state machine (gets modified when
+   a state is executed).
    @retval 0 if success, -errno othewise
  */
 static int sm_default_handler(struct c2_rpc_item *item,
@@ -648,8 +647,8 @@ static int sm_default_handler(struct c2_rpc_item *item,
 		struct c2_rpc_frm_sm_event *sm_event)
 {
 	enum c2_rpc_frm_state		 prev_state;
-	struct c2_rpc_conn		*conn = NULL;
-	struct c2_rpc_frm_sm		*sm = NULL;
+	struct c2_rpc_conn		*conn;
+	struct c2_rpc_frm_sm		*sm;
 	struct c2_rpc_formation		*formation;
 
 	C2_PRE(item != NULL);
@@ -857,6 +856,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		/* If the send event fails, add the rpc back to concerned
 		   queue so that it will be processed next time.*/
 		c2_mutex_lock(&fb->fb_frm_sm->fs_lock);
+		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SEND_FAILED);
 		C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->rf_rpc_form_addb,
 				&frm_addb_loc, formation_func_fail,
 				"net_buffer_send", 0);
@@ -952,6 +952,7 @@ static void frm_reply_received(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc_frm_item_coalesced *c_item_next;
 
 	C2_PRE(frm_sm != NULL);
+	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(item != NULL);
 
 	/* Do all the post processing for a coalesced item. */
@@ -1784,7 +1785,9 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(rpcobj != NULL);
 
 	/* Iterate over the priority bands and add items arranged in
-	   increasing order of timeouts till rpc is optimal. */
+	   increasing order of timeouts till rpc is optimal.
+	   Algorithm skips the rpc items for which policies other than
+	   size policy are not satisfied */
 	for (cnt = 0; cnt < ARRAY_SIZE(frm_sm->fs_unformed_prio) &&
 			!sz_policy_violated; ++cnt) {
 		list = &frm_sm->fs_unformed_prio[cnt].pl_unformed_items;
@@ -1903,8 +1906,6 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				item, item_next, struct c2_rpc_item,
 				ri_unbound_link) {
 			rpc_size = *rpcobj_size;
-			fragments_policy_ok = frm_fragment_policy_in_bounds(
-					frm_sm, item, fragments_nr);
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size);
 			if (!sz_policy_violated || frm_check_policies(frm_sm)) {
@@ -1925,6 +1926,8 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		}
 		c2_mutex_unlock(&slot->sl_mutex);
 		c2_mutex_unlock(&session->s_mutex);
+		/* Algorithm skips the rpc items for which policies other than
+		   size policy are not satisfied */
 		if (sz_policy_violated)
 			break;
 	}

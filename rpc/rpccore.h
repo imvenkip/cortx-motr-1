@@ -436,10 +436,12 @@ enum c2_rpc_item_state {
 	RPC_ITEM_ADDED = (1 << 2),
 	/** After item's sent  it enters sent state */
 	RPC_ITEM_SENT = (1 << 3),
+	/** After item's sent is failed, it enters send failed state */
+	RPC_ITEM_SEND_FAILED = (1 << 4),
 	/** After item's replied  it enters replied state */
-	RPC_ITEM_REPLIED = (1 << 4),
+	RPC_ITEM_REPLIED = (1 << 5),
 	/** After finalization item enters finalized state*/
-	RPC_ITEM_FINALIZED = (1 << 5)
+	RPC_ITEM_FINALIZED = (1 << 6)
 };
 /** transmission state of item */
 enum c2_rpc_item_tstate {
@@ -1323,8 +1325,8 @@ int c2_rpc_zero_copy_init(struct c2_net_buf_desc **src_descs,
 /** @} end name stat_ifs */
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
-extern struct c2_queue		exec_queue;
-extern struct c2_chan		exec_chan;
+extern struct c2_queue	c2_exec_queue;
+extern struct c2_chan	c2_exec_chan;
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

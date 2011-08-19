@@ -381,7 +381,7 @@ struct c2_rpc_frm_rpcgroup {
 };
 
 /**
-   Enumeration of external events.
+   Enumeration of internal and external events.
  */
 enum c2_rpc_frm_evt_id {
 	/** Slot ready to send next item. */
@@ -405,6 +405,7 @@ enum c2_rpc_frm_evt_id {
 	C2_RPC_FRM_EXTEVT_RPCITEM_CHANGED,
 	/** Max number of external events. */
 	C2_RPC_FRM_EXTEVT_NR,
+
 	/** Execution succeeded in current state. */
 	C2_RPC_FRM_INTEVT_STATE_SUCCEEDED = C2_RPC_FRM_EXTEVT_NR,
 	/** Execution failed in current state. */
