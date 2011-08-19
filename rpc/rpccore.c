@@ -441,6 +441,7 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 			struct c2_rpc_chan, rc_linkage) {
 		if (c2_atomic64_get(&chan->rc_ref.ref_cnt) <= ref) {
 			chan_found = chan;
+			ref = c2_atomic64_get(&chan->rc_ref.ref_cnt);
 		}
 	}
 
@@ -987,7 +988,8 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	fop->f_type->ft_ops->fto_fop_replied(fop);
+	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
+		fop->f_type->ft_ops->fto_fop_replied(fop);
 }
 
 /**
@@ -1274,6 +1276,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 		item->ri_type = &rpc_item_type_ping_rep;
 		break;
 	default:
+		C2_ASSERT(item->ri_type != NULL);
 		break;
 	};
 }
@@ -1308,6 +1311,9 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		fopt->ft_ri_type = &rpc_item_type_create;
 		break;
 	default:
+		/* FOP operations which need to set opcode should either
+		   attach on their own, or use this subroutine. Hence default
+		   is kept blank */
 		break;
 	};
 }
@@ -1346,8 +1352,8 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 
 /* Dummy reqh queue of items */
 
-struct c2_queue          exec_queue;
-struct c2_chan		exec_chan;
+struct c2_queue	c2_exec_queue;
+struct c2_chan	c2_exec_chan;
 
 /*
  *  Local variables:
