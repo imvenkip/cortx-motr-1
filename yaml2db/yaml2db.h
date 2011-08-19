@@ -28,15 +28,21 @@
 */
 struct c2_yaml2db_ctx {
 	/* YAML parser struct */
-	yaml_parser_t	 yc_parser;
+	yaml_parser_t		 yc_parser;
 	/* YAML event structure */
-	yaml_event_t	 yc_event;
+	yaml_event_t		 yc_event;
+	/* YAML document structure */
+	yaml_document_t		 yc_document;
 	/* Config file name */
-	const char	*yc_cname;
+	const char		*yc_cname;
 	/* Database path */
-	const char	*yc_dpath;
+	const char		*yc_dpath;
 	/* Database environment */
-	struct c2_dbenv	 yc_db;
+	struct c2_dbenv		 yc_db;
+	/* ADDB context for the context */
+	struct c2_addb_ctx	 yc_addb;
+	/* File pointer for YAML file */
+	FILE			*yc_fp;
 };
 
 #endif /* __COLIBRI_YAML2DB_H__ */
