@@ -1302,7 +1302,7 @@ c2_rpc_bulkio_desc_received|	      |		|
    data buffers and used by rpc formation component.
    And hence, this method is typically invoked by the Passive side.
    @param item - Input rpc item which belongs to a "write request" or
-   		 "read reply" fop type.
+		 "read reply" fop type.
    @pre item->ri_state = RPC_ITEM_ADDED.
    @retval 0 if succeeded, negative error code otherwise.
    @note RPC layer will free the c2_net_buf_desc afterwards.
@@ -1325,7 +1325,7 @@ int c2_rpc_bulkio_desc_received(struct c2_rpc_item *item);
 /**
    A generic callback to wake up the invoking FOM.
    @todo Need to look through the code of request handler to see if any
-   	 such callback exists already.
+	 such callback exists already.
    @param nb - number of bytes copied.
    @param st - return code of copy operation.
    @param fom - The c2_fom structure which invoked zero_copy_init().
