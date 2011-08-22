@@ -1,12 +1,8 @@
 UT_SRCDIR=@SRCDIR@/rpc/ut
 INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 #noinst_PROGRAMS   = rclient rserver
-noinst_PROGRAMS   = rpctest formation onwire_ut
+noinst_PROGRAMS   = formation onwire_ut
 #noinst_LTLIBRARIES       = librpccore-ut.la
-
-rpctest_SOURCES = rpctest.c
-rpctest_LDFLAGS = -pthread
-rpctest_LDADD =  $(top_builddir)/colibri/libcolibri.la
 
 #rclient_SOURCES   = rpc-client.c
 #rclient_LDFLAGS   = -pthread

@@ -20,6 +20,8 @@
 #include "rpc/rpc_onwire.h"
 #endif
 
+#define printf(x, ...)
+
 /** Header information present in an RPC object */
 struct c2_rpc_header {
 	/** RPC version, currenly 1 */
@@ -393,7 +395,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	struct c2_rpc_item	*item;
 	XDR			xdrs;
 	size_t			len, offset=0, buf_size;
-	int			rc, count=0;
+	int			rc;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);
