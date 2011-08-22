@@ -538,6 +538,7 @@ AC_CONFIG_FILES([
                  rpc/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
+		 rpc/linux_kernel/Makefile
                  sm/Makefile
                  sns/Makefile
                  sns/linux_kernel/Makefile
@@ -552,7 +553,8 @@ AC_CONFIG_FILES([
                  utils/ploss/Makefile
                  xcode/Makefile
                  xcode/ut/Makefile
-                 xdr/Makefile
+                 xcode/linux_kernel/Makefile
+		 xdr/Makefile
                  xdr/ut/Makefile
                 ])
 

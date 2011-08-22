@@ -158,18 +158,20 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 	       bvec->ov_buf != NULL);
 	c2_vec_cursor_init(&cur->bc_vc, &bvec->ov_vec);
 }
+C2_EXPORTED(c2_bufvec_cursor_init);
 
 bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count)
 {
 	return c2_vec_cursor_move(&cur->bc_vc, count);
 }
+C2_EXPORTED(c2_bufvec_cursor_move);
 
 c2_bcount_t c2_bufvec_cursor_step(const struct c2_bufvec_cursor *cur)
 {
 	return c2_vec_cursor_step(&cur->bc_vc);
 }
 
-static void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
+void *bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 {
 	struct c2_vec_cursor *vc = &cur->bc_vc;
 	struct c2_bufvec *bv = container_of(vc->vc_vec,struct c2_bufvec,ov_vec);
@@ -183,6 +185,7 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 	C2_PRE(!c2_bufvec_cursor_move(cur, 0));
 	return bufvec_cursor_addr(cur);
 }
+C2_EXPORTED(c2_bufvec_cursor_addr);
 
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,
@@ -207,6 +210,7 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 	}
 	return bytes_copied;
 }
+C2_EXPORTED(c2_bufvec_cursor_copy);
 
 /** @} end of vec group */
 

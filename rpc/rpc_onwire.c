@@ -43,7 +43,7 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 }
 
 /* XXX : Return correct RPC version. */
-static uint32_t rpc_ver_get()
+static uint32_t rpc_ver_get(void)
 {
 	return C2_RPC_VERSION_1;
 }
@@ -328,7 +328,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	size_t				 offset=0;
 	c2_bcount_t			 bufvec_size;
 	int				 rc;
-	int				 count=0;
 	struct c2_rpc_item_type		*item_type;
 	void				*cur_addr;
 

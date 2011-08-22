@@ -34,7 +34,7 @@ static void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
 	C2_PRE(data != NULL);
 
 	src_buf->ov_vec.v_nr = 1;
-	src_buf->ov_vec.v_count = len;
+	src_buf->ov_vec.v_count = (c2_bcount_t *)len;
 	src_buf->ov_buf = data;
 }
 
@@ -252,6 +252,7 @@ int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
 
 	return rc;
 }
+C2_EXPORTED(c2_bufvec_uint32);
 
 int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
 		     enum c2_bufvec_what what)
@@ -270,6 +271,7 @@ int c2_bufvec_uint64(struct c2_bufvec_cursor *vc, uint64_t *val,
 	return rc;
 }
 
+C2_EXPORTED(c2_bufvec_uint64);
 int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 		    size_t max_size, size_t el_size, c2_bufvec_xcode_t el_proc,
 		    enum c2_bufvec_what what)

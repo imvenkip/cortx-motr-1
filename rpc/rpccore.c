@@ -228,11 +228,13 @@ int c2_rpc_core_init(void)
 	c2_rwlock_init(&rpc_item_types_lock);
 	return 0;
 }
+C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
 
 }
+C2_EXPORTED(c2_rpc_core_fini);
 
 int c2_rpcmachine_src_ep_add(struct c2_rpcmachine *machine,
 		struct c2_net_end_point *src_ep)
