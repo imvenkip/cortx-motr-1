@@ -184,7 +184,6 @@ union c2_io_iovec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
 struct c2_update_stream;
-struct c2_rpc_connectivity;
 struct c2_update_stream_ops;
 struct c2_rpc_frm_item_coalesced;
 
