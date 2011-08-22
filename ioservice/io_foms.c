@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * 		    Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 
@@ -462,7 +462,7 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 void *cookie, struct c2_fol *fol,
 			 struct c2_stob_domain *dom)
 {
-	struct c2_fop_ctx 	ctx;
+	struct c2_fop_ctx	ctx;
 	int			result = 0;
 	struct c2_fom	       *fom = NULL;
 

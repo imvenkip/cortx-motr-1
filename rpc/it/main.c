@@ -227,24 +227,24 @@ void server_poll()
 /* Create dummy request handler */
 void server_rqh_init(int dummy)
 {
-	struct c2_queue_link 	*q1;
+	struct c2_queue_link	*q1;
 	struct c2_rpc_item	*item;
 	struct c2_fop		*fop;
 	struct c2_fom		*fom = NULL;
 	struct c2_clink		 clink;
 
-	c2_queue_init(&exec_queue);
-	c2_chan_init(&exec_chan);
+	c2_queue_init(&c2_exec_queue);
+	c2_chan_init(&c2_exec_chan);
 	c2_clink_init(&clink, NULL);
-	c2_clink_add(&exec_chan, &clink);
-	C2_ASSERT(c2_queue_is_empty(&exec_queue));
-        C2_ASSERT(c2_queue_get(&exec_queue) == NULL);
-        C2_ASSERT(c2_queue_length(&exec_queue) == 0);
+	c2_clink_add(&c2_exec_chan, &clink);
+	C2_ASSERT(c2_queue_is_empty(&c2_exec_queue));
+        C2_ASSERT(c2_queue_get(&c2_exec_queue) == NULL);
+        C2_ASSERT(c2_queue_length(&c2_exec_queue) == 0);
 
 	while (1) {
 		c2_chan_wait(&clink);
-		if (!c2_queue_is_empty(&exec_queue)) {
-			q1 = c2_queue_get(&exec_queue);
+		if (!c2_queue_is_empty(&c2_exec_queue)) {
+			q1 = c2_queue_get(&c2_exec_queue);
 			C2_ASSERT(q1 != NULL);
 			item = container_of(q1, struct c2_rpc_item,
 				ri_dummy_qlinkage);
@@ -340,9 +340,9 @@ void server_init(int dummy)
 	sprintf(addr_local, "%s:%u:%d", hostbuf, sctx.pc_lport, RID);
 	printf("Server Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	sctx.pc_db_name = "rpcping_db_server";
 	sctx.pc_cob_dom_id.id =  13 ;
@@ -632,9 +632,9 @@ void client_init()
 	sprintf(addr_local, "%s:%u:%d", hostbuf, cctx.pc_lport, RID);
 	printf("Client Addr = %s\n",addr_local);
 
-	/* Create RPC connection using new API 
+	/* Create RPC connection using new API
 	   rc = c2_rpc_conn_establish(&cctx.pc_conn, &cctx.pc_sep,
-	   &cctx.pc_cep); */	
+	   &cctx.pc_cep); */
 
 	cctx.pc_db_name = "rpcping_db_client";
 	cctx.pc_cob_dom_id.id =  12 ;

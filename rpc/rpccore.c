@@ -429,27 +429,22 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 {
 	struct c2_rpc_chan	*chan = NULL;
 	struct c2_rpc_chan	*chan_found = NULL;
-	struct c2_atomic64	 ref;
+	int64_t			 ref;
 
 	C2_PRE(machine != NULL);
 
-	c2_atomic64_set(&ref, 1);
-	/* The current policy is to return a c2_rpc_chan structure
-	   with least refcount. This can be enhanced later to take
-	   into account multiple parameters. */
+	ref = INT64_MAX;
+
+	/* Get a chan from chan list */
 	c2_mutex_lock(&machine->cr_ep_aggr.ea_mutex);
 	c2_list_for_each_entry(&machine->cr_ep_aggr.ea_chan_list, chan,
 			struct c2_rpc_chan, rc_linkage) {
-		if (c2_atomic64_get(&chan->rc_ref.ref_cnt) <=
-				c2_atomic64_get(&ref)) {
+		if (c2_atomic64_get(&chan->rc_ref.ref_cnt) <= ref) {
 			chan_found = chan;
+			ref = c2_atomic64_get(&chan->rc_ref.ref_cnt);
 		}
 	}
-	if (chan_found == NULL) {
-		chan_found = c2_list_entry(c2_list_first(&machine->
-					cr_ep_aggr.ea_chan_list),
-				struct c2_rpc_chan, rc_linkage);
-	}
+
 	C2_POST(chan_found != NULL);
 	c2_ref_get(&chan_found->rc_ref);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
@@ -496,7 +491,8 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_clink_fini(&tmwait);
 
 	/* Delete all the buffers from net domain. */
-	c2_rpc_net_recv_buffer_deallocate_nr(chan, false);
+	c2_rpc_net_recv_buffer_deallocate_nr(chan, false,
+			C2_RPC_TM_RECV_BUFFERS_NR);
 
 	/* Remove chan from list of such structures in rpcmachine. */
 	c2_list_del(&chan->rc_linkage);
@@ -774,7 +770,7 @@ int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 			break;
 	}
 	if (rc < 0) {
-		st = c2_rpc_net_recv_buffer_deallocate_nr(chan, true);
+		st = c2_rpc_net_recv_buffer_deallocate_nr(chan, true, i);
 		if (st < 0)
 			return rc;
 		c2_net_tm_fini(tm);
@@ -829,15 +825,16 @@ int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
 }
 
 int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
-		bool tm_active)
+		bool tm_active, uint32_t nr)
 {
 	int			 i;
 	int			 rc = 0;
 	struct c2_net_buffer	*nb = NULL;
 
 	C2_PRE(chan != NULL);
+	C2_PRE(nr <= C2_RPC_TM_RECV_BUFFERS_NR);
 
-	for (i = 0; i < C2_RPC_TM_RECV_BUFFERS_NR; ++i) {
+	for (i = 0; i < nr; ++i) {
 		nb = chan->rc_rcv_buffers[i];
 		rc = c2_rpc_net_recv_buffer_deallocate(nb, chan, tm_active);
 		if (rc < 0) {
@@ -896,6 +893,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 
 	rc = c2_rpc_session_module_init();
 	if (rc < 0) {
+		c2_rpc_chan_destroy(machine, chan);
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 		return rc;
 	}
@@ -990,7 +988,8 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	fop->f_type->ft_ops->fto_fop_replied(fop);
+	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
+		fop->f_type->ft_ops->fto_fop_replied(fop);
 }
 
 /**
@@ -1277,6 +1276,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 		item->ri_type = &rpc_item_type_ping_rep;
 		break;
 	default:
+		C2_ASSERT(item->ri_type != NULL);
 		break;
 	};
 }
@@ -1311,6 +1311,9 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		fopt->ft_ri_type = &rpc_item_type_create;
 		break;
 	default:
+		/* FOP operations which need to set opcode should either
+		   attach on their own, or use this subroutine. Hence default
+		   is kept blank */
 		break;
 	};
 }
@@ -1349,8 +1352,8 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 
 /* Dummy reqh queue of items */
 
-struct c2_queue          exec_queue;
-struct c2_chan		exec_chan;
+struct c2_queue	c2_exec_queue;
+struct c2_chan	c2_exec_chan;
 
 /*
  *  Local variables:

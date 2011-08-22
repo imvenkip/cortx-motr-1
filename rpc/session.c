@@ -2826,8 +2826,8 @@ bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 static void item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
-	c2_queue_put(&exec_queue, &item->ri_dummy_qlinkage);
-	c2_chan_broadcast(&exec_chan);
+	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
+	c2_chan_broadcast(&c2_exec_chan);
 }
 
 static int associate_session_and_slot(struct c2_rpc_item *item)
