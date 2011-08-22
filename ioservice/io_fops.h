@@ -41,7 +41,7 @@ union c2_io_iovec {
 	/** IO vector for write request operation. */
 	struct c2_fop_io_vec		*write_vec;
 	/** IO vector for read request operation. */
-	struct c2_fop_segment_seq	*read_vec;
+	struct c2_fop_io_vec		*read_vec;
 };
 
 /**
@@ -74,7 +74,7 @@ struct c2_io_fop_member {
 struct c2_io_ioseg {
 	union {
 		/** IO segment for read request fop. */
-		struct c2_fop_segment	*read_seg;
+		struct c2_fop_io_seg	*read_seg;
 		/** IO segment for write request fop. */
 		struct c2_fop_io_seg	*write_seg;
 	} gen_ioseg;

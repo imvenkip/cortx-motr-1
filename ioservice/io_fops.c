@@ -76,7 +76,7 @@ static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg_count = seg->gen_ioseg.read_seg->f_count;
+		seg_count = seg->gen_ioseg.read_seg->f_buf.f_count;
 	else
 		seg_count = seg->gen_ioseg.write_seg->f_buf.f_count;
 
@@ -117,7 +117,7 @@ static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg->gen_ioseg.read_seg->f_count = count;
+		seg->gen_ioseg.read_seg->f_buf.f_count = count;
 	else
 		seg->gen_ioseg.write_seg->f_buf.f_count = count;
 }
@@ -138,9 +138,9 @@ static void ioseg_get(const union c2_io_iovec *iovec, const int index,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE)
-		ioseg->gen_ioseg.read_seg = &iovec->read_vec->fs_segs[index];
+		ioseg->gen_ioseg.read_seg = &iovec->read_vec->iov_segs[index];
 	else
-		ioseg->gen_ioseg.write_seg = &iovec->write_vec->iov_seg[index];
+		ioseg->gen_ioseg.write_seg = &iovec->write_vec->iov_segs[index];
 }
 
 /**
@@ -185,7 +185,7 @@ static uint32_t ioseg_nr_get(const union c2_io_iovec *iovec,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg_nr = iovec->read_vec->fs_count;
+		seg_nr = iovec->read_vec->iov_count;
 	else
 		seg_nr = iovec->write_vec->iov_count;
 
@@ -206,7 +206,7 @@ static void ioseg_nr_set(union c2_io_iovec *iovec,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE)
-		iovec->read_vec->fs_count = count;
+		iovec->read_vec->iov_count = count;
 	else
 		iovec->write_vec->iov_count = count;
 }
@@ -229,12 +229,12 @@ static int iosegs_alloc(union c2_io_iovec *iovec,
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		C2_ALLOC_ARR(iovec->read_vec->fs_segs, count);
-		if (iovec->read_vec->fs_segs == NULL)
+		C2_ALLOC_ARR(iovec->read_vec->iov_segs, count);
+		if (iovec->read_vec->iov_segs == NULL)
 			rc = -ENOMEM;
 	} else {
-		C2_ALLOC_ARR(iovec->write_vec->iov_seg, count);
-		if (iovec->write_vec->iov_seg == NULL)
+		C2_ALLOC_ARR(iovec->write_vec->iov_segs, count);
+		if (iovec->write_vec->iov_segs == NULL)
 			rc = -ENOMEM;
 	}
 	return rc;
@@ -332,11 +332,11 @@ static void iovec_copy(const union c2_io_iovec *src, union c2_io_iovec *dest,
 
 	/* The io segment pointer is copied not the io segment itself. */
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		dest->read_vec->fs_count = src->read_vec->fs_count;
-		dest->read_vec->fs_segs = src->read_vec->fs_segs;
+		dest->read_vec->iov_count = src->read_vec->iov_count;
+		dest->read_vec->iov_segs = src->read_vec->iov_segs;
 	} else {
 		dest->write_vec->iov_count = dest->write_vec->iov_count;
-		dest->write_vec->iov_seg = dest->write_vec->iov_seg;
+		dest->write_vec->iov_segs = dest->write_vec->iov_segs;
 	}
 }
 
@@ -377,7 +377,7 @@ static void io_fop_cob_readv_replied(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	read_fop = c2_fop_data(fop);
-	c2_free(read_fop->frd_iovec.fs_segs);
+	c2_free(read_fop->frd_iovec.iov_segs);
 	c2_fop_free(fop);
 }
 
@@ -394,7 +394,7 @@ static void io_fop_cob_writev_replied(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	write_fop = c2_fop_data(fop);
-	c2_free(write_fop->fwr_iovec.iov_seg);
+	c2_free(write_fop->fwr_iovec.iov_segs);
 	c2_fop_free(fop);
 }
 
@@ -417,7 +417,7 @@ static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
 
 	read_fop = c2_fop_data(fop);
 	C2_ASSERT(read_fop != NULL);
-	size += read_fop->frd_iovec.fs_count * sizeof(struct c2_fop_segment);
+	size += read_fop->frd_iovec.iov_count * sizeof(struct c2_fop_io_seg);
 	return size;
 }
 
@@ -445,7 +445,7 @@ static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
 	vec_count = write_fop->fwr_iovec.iov_count;
 	/* Size of actual user data. */
 	for (i = 0; i < vec_count; ++i)
-		size += write_fop->fwr_iovec.iov_seg[i].f_buf.f_count;
+		size += write_fop->fwr_iovec.iov_segs[i].f_buf.f_count;
 	/* Size of holding structure. */
 	size += vec_count * sizeof(struct c2_fop_io_seg);
 
@@ -580,10 +580,10 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
 	read_fop = c2_fop_data(fop);
 
-	c2_free(read_fop->frd_iovec.fs_segs);
+	c2_free(read_fop->frd_iovec.iov_segs);
 
-	read_fop->frd_iovec.fs_count = vec->read_vec->fs_count;
-	read_fop->frd_iovec.fs_segs = vec->read_vec->fs_segs;
+	read_fop->frd_iovec.iov_count = vec->read_vec->iov_count;
+	read_fop->frd_iovec.iov_segs = vec->read_vec->iov_segs;
 }
 
 /**
@@ -949,15 +949,15 @@ static void io_fop_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
 	if (op == C2_IO_SERVICE_READV_REP_OPCODE) {
 		read_fop = c2_fop_data(fop);
-		c2_free(read_fop->frd_iovec.fs_segs);
-		read_fop->frd_iovec.fs_count = vec->read_vec->fs_count;
-		read_fop->frd_iovec.fs_segs = vec->read_vec->fs_segs;
+		c2_free(read_fop->frd_iovec.iov_segs);
+		read_fop->frd_iovec.iov_count = vec->read_vec->iov_count;
+		read_fop->frd_iovec.iov_segs = vec->read_vec->iov_segs;
 		c2_free(vec->read_vec);
 	} else {
 		write_fop = c2_fop_data(fop);
-		c2_free(write_fop->fwr_iovec.iov_seg);
+		c2_free(write_fop->fwr_iovec.iov_segs);
 		write_fop->fwr_iovec.iov_count = vec->write_vec->iov_count;
-		write_fop->fwr_iovec.iov_seg = vec->write_vec->iov_seg;
+		write_fop->fwr_iovec.iov_segs = vec->write_vec->iov_segs;
 		c2_free(vec->write_vec);
 	}
 }
@@ -1042,8 +1042,6 @@ static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 		return size;
 	/* Add buffer payload for read reply */
 	read_rep_fop = c2_fop_data(fop);
-	/* Size of actual user data. */
-	size += read_rep_fop->frdr_iovec.iov_seg->f_buf.f_count;
 	return size;
 }
 
