@@ -88,23 +88,23 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	C2_PRE(yctx != NULL);
 
 	/* Initialize the ADDB context */
-        c2_addb_ctx_init(&yctx->yc_addb, &yaml2db_ctx_type, &c2_addb_global_ctx);
-        c2_addb_choose_default_level(AEL_WARN);
-
+        c2_addb_ctx_init(&yctx->yc_addb, &yaml2db_ctx_type,
+				&c2_addb_global_ctx);
+	c2_addb_choose_default_level(AEL_WARN);
 	/* Initialize the parser. According to yaml documentation,
 	   parser_initialize command returns 1 in case of success */
 	rc = yaml_parser_initialize(&yctx->yc_parser);
 	if(rc != 1) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml_parser_initialize", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "yaml_parser_initialize", 0);
 		return -EINVAL;
 	}
 
 	/* Open the config file in read mode */
 	yctx->yc_fp = fopen(yctx->yc_cname, "r");
 	if (yctx->yc_fp == NULL) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "fopen", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "fopen", 0);
 		yaml_parser_delete(&yctx->yc_parser);
 		return -EINVAL;
 	}
@@ -126,8 +126,8 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 
 	rc = mkdir(yctx->yc_dpath, 0700);
 	if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "mkdir", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "mkdir", 0);
 		goto cleanup;
 	}
 
@@ -135,8 +135,8 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 
 	rc = mkdir(opath, 0700);
 	if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "mkdir", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "mkdir", 0);
 		goto cleanup;
 	}
 
@@ -145,8 +145,8 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	rc = c2_dbenv_init(&yctx->yc_db, dpath, 0);
 
 	if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "c2_dbenv_init", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "c2_dbenv_init", 0);
 		goto cleanup;
 	}
 
@@ -258,55 +258,55 @@ static bool event_has_disks(const yaml_event_t *event)
 }
 #endif
 
-
-static void yaml_parser_error_detect(yaml_parser_t *parser)
+/**
+  Function to detect and print parsing errors
+  @param parser - yaml_parser structure
+ */
+static void yaml_parser_error_detect(const yaml_parser_t *parser)
 {
 	C2_PRE(parser != NULL);
 
 	switch (parser->error) {
 	case YAML_MEMORY_ERROR:
-		fprintf(stderr, "Memory error: Not enough memory for parsing\n");
+		fprintf(stderr, "Memory error: Not enough memory\
+			for parsing\n");
 		break;
 	case YAML_READER_ERROR:
-		if (parser->problem_value != -1) {
+		if (parser->problem_value != -1)
 			fprintf(stderr, "Reader error: %s: #%X at %lu\n",
 				parser->problem, parser->problem_value,
 				parser->problem_offset);
-		}
-		else {
+		else
 			fprintf(stderr, "Reader error: %s at %lu\n",
-					parser->problem, parser->problem_offset);
-		}
+				parser->problem, parser->problem_offset);
 		break;
 	case YAML_SCANNER_ERROR:
-		if (parser->context) {
+		if (parser->context)
 			fprintf(stderr, "Scanner error: %s at line %lu,\
 				column %lu""%s at line %lu, column %lu\n",
 				parser->context, parser->context_mark.line+1,
 				parser->context_mark.column+1, parser->problem,
 				parser->problem_mark.line+1,
 				parser->problem_mark.column+1);
-		} else {
+		else
 			fprintf(stderr, "Scanner error: %s at line %lu,\
 				column %lu\n", parser->problem,
 				parser->problem_mark.line+1,
 				parser->problem_mark.column+1);
-		}
 		break;
 	case YAML_PARSER_ERROR:
-		if (parser->context) {
+		if (parser->context)
 			fprintf(stderr, "Parser error: %s at line %lu,\
 				column %lu""%s at line %lu, column %lu\n",
 				parser->context, parser->context_mark.line+1,
 				parser->context_mark.column+1,parser->problem,
 				parser->problem_mark.line+1,
 				parser->problem_mark.column+1);
-		} else {
+		else
 			fprintf(stderr, "Parser error: %s at line %lu,\
 				column %lu\n", parser->problem,
 				parser->problem_mark.line+1,
 				parser->problem_mark.column+1);
-		}
 		break;
 	case YAML_COMPOSER_ERROR:
 	case YAML_WRITER_ERROR:
@@ -332,14 +332,15 @@ static int yaml2db_parse(struct c2_yaml2db_ctx *yctx)
 
 	rc = yaml_parser_load(&yctx->yc_parser, &yctx->yc_document);
 	if (rc != 1) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml_parser_load", 0);
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "yaml_parser_load", 0);
 		goto parser_error;
 	}
 
 	root_node = yaml_document_get_root_node(&yctx->yc_document);
 	if (root_node == NULL) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail,
                                 "yaml2db_document_get_root_node", 0);
                 yaml_document_delete(&yctx->yc_document);
 		return -EINVAL;
