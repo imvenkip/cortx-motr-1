@@ -1209,7 +1209,7 @@ c2_rpc_bulkio_desc_send   |	     |		|
   passive_descs		  |		 |	|
   to active buffers	  |	    +----+	|
   on server.		  |	    |  0-copy	|
-  			  |-------->+ Complete	|
+			  |-------->+ Complete	|
 			  |			|
 			  |			|
 - Free net buffers used	  |	    +<----------| - Write IO complete. Send
@@ -1258,7 +1258,7 @@ c2_rpc_bulkio_desc_send   |	     |		|
 			  |	|     |		|
 - Net buffer received	  |<-+	|     |  0-copy	| - Read FOM allocates net
 			  |  |	|     |	  init	|   buffers and registers them
-  			  |  |	|     |		|   with the net domain. This
+			  |  |	|     |		|   with the net domain. This
 			  |  |	|     |		|   makes sure that data path
 			  |  |	|     |		|   complies with zero-copy.
 			  |  |	|     |		|
@@ -1269,14 +1269,14 @@ c2_rpc_bulkio_desc_send   |	     |		|
   copying data.		  |  |	      |		|   The net buffers are added
 			  |  |	      |		|   C2_NET_QT_ACTIVE_BULK_SEND
 			  |  |	      |	0-copy	|   queue of TM.
-  			  |  |	      | complete|   The transport layer from
+			  |  |	      | complete|   The transport layer from
 			  |  |	      |		|   client and server zero
 			  |  |	      |		|   copies the read data from
 			  |  |	      +-------->|   server to client buffers.
-  			  |  |   		|
- - Send reply to read	  |  |	   		| - Read reply is posted to rpc
+			  |  |			|
+ - Send reply to read	  |  |			| - Read reply is posted to rpc
    FOM.			  |  +<-----------------|   & RPC is sent over wire.
-  			  |	  Net buffer	|
+			  |	  Net buffer	|
 			  |	    sent	|
    @endverbatim
 
@@ -1331,9 +1331,9 @@ int c2_rpc_bulkio_desc_received(struct c2_net_buffer **net_bufs,
    This API adds the destination buffers to the C2_NET_QT_PASSIVE_BULK_RECV
    queue of transfer machine.
    @param active_buffers - Array of c2_net_buffer structures which are on
-   			   the active side of bulk copy.
+			   the active side of bulk copy.
    @param passive_descs - Array of c2_net_buf_descs which are on the
-   			  passive side of bulk copy.
+			   passive side of bulk copy.
    @param bufs_nr - Number of net buffers. Same for source and destination.
    @param chan - Channel to signal, once the zero-copy is finished.
    @retval 0 if succeeded, negative error code otherwise.
