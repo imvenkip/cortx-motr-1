@@ -338,7 +338,6 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 {
 	struct c2_fop                    *fop;
-	struct c2_rpc_fop_conn_establish *fop_ce;
 	struct c2_rpc_session            *session_0;
 	struct c2_rpcmachine             *machine;
 	int                               rc;
@@ -370,18 +369,9 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	conn->c_rpcchan = c2_rpc_chan_get(machine);
 
-	fop_ce = c2_fop_data(fop);
-	C2_ASSERT(fop_ce != NULL);
-
 	/*
-	 * Receiver will copy this cookie in conn_establish reply
-	 * XXX the cookie does not serve any significant purpose.
-	 * It was introduced to be able to match conn_establish reply to
-	 * corresponding request. But now as CONN_ESTABLISH fops are also
-	 * sent using SESSION_ID_0, this cookie is not useful anymore.
-	 * XXX Drop this field as it is not needed any more.
+	 * c2_rpc_fop_conn_establish FOP doesn't contain any data.
 	 */
-	fop_ce->rce_cookie = (uint64_t)conn;
 
 	session_0 = c2_rpc_conn_session0(conn);
 

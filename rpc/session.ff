@@ -25,13 +25,8 @@
    @{
  */
 
-/*
- XXX With introduction of sender UUID, this rcc_cookie now holds
- no significant purpose. Before introducing sender UUID, cookie
- was used to match reply with request.
- */
 DEF(c2_rpc_fop_conn_establish, RECORD,
-   _(rce_cookie, U64));
+   _(rce_unused, U64));
 
 DEF(c2_rpc_fop_conn_establish_rep, RECORD,
    _(rcer_snd_id, U64),

@@ -143,7 +143,6 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	reply->rcer_snd_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
-	reply->rcer_cookie = request->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
 
 	printf("ce_state: conn establish successful %lu\n",
@@ -167,7 +166,6 @@ errout:
 	printf("conn_establish_state: failed %d\n", rc);
 	reply->rcer_snd_id = SENDER_ID_INVALID;
 	reply->rcer_rc = rc;
-	reply->rcer_cookie = request->rce_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
