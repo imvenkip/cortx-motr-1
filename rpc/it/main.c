@@ -780,7 +780,6 @@ void client_init()
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		c2_thread_join(&client_thread[i]);
 	}
-
 /*
 	for (i = 0; i < cctx.pc_nr_ping_items; i++) {
 		send_ping_fop(i);
