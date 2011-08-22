@@ -3,7 +3,7 @@ noinst_LTLIBRARIES            = libc2rt.la libcolibri-fop.la
 
 fop_HEADERS                   = fop.h fom.h fop_format.h fop_user.h fop_format_def.h
 
-fop_SOURCES                   = fop.c fop.h fom.h fop_format.c fop_format.h \
+fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.c fop_format.h \
                                 fop_user.h fop_format_def.h fop_format_c.c \
                                 fop_iterator.h fop_iterator.c
 

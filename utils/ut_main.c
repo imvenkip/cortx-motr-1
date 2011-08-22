@@ -46,6 +46,7 @@ extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xdr_ut;
+extern const struct c2_test_suite reqh_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -67,6 +68,11 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
+		/*
+		   Putting reqh-ut ahead of libc2-ut as processors-ut
+		   clean up fails which in turn cause reqh-ut to crash.
+		 */
+		c2_ut_add(&reqh_ut);
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&ad_ut);

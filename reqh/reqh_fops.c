@@ -14,52 +14,61 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 07/31/2010
+ * Original author: Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 06/21/2011
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
-#include "addb/addb.h"
 #include "fop/fop.h"
-#include "fop/fom.h"
-#include "reqh/reqh.h"
-#include "nrs/nrs.h"
+#include "fop/fop_iterator.h"
+#include "fop/fop_format_def.h"
+
+#ifdef __KERNEL__
+#include "reqh_fops_k.h"
+#else
+
+#include "reqh_fops_u.h"
+#endif
+
+#include "reqh_fops.ff"
 
 /**
-   @addtogroup nrs
-
-   An extremely simple mock NRS for now: immediately forward en-queued fop to
-   the request handler.
-
+   @addtogroup reqh
    @{
-*/
+ */
 
-static const struct c2_addb_loc nrs_addb = {
-	.al_name = "nrs"
+static struct c2_fop_type_ops reqh_err_fop_ops = {
+	.fto_fom_init = NULL,
+	.fto_execute = NULL,
 };
 
-C2_ADDB_EV_DEFINE(nrs_addb_enqueue, "enqueue", 0x10, C2_ADDB_STAMP);
 
-int c2_nrs_init(struct c2_nrs *nrs, struct c2_reqh *reqh)
+C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "error reply", 24, &reqh_err_fop_ops);
+
+static struct c2_fop_type *reqh_fops[] = {
+	&c2_reqh_error_rep_fopt,
+};
+
+void c2_reqh_fop_fini(void)
 {
-	nrs->n_reqh = reqh;
-	return 0;
+	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 }
+C2_EXPORTED(c2_reqh_fop_fini);
 
-void c2_nrs_fini(struct c2_nrs *nrs)
+int c2_reqh_fop_init(void)
 {
+	int result;
+	result = c2_fop_type_build_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
+	if (result != 0)
+		c2_reqh_fop_fini();
+	return result;
 }
+C2_EXPORTED(c2_reqh_fop_init);
 
-void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop)
-{
-	C2_ADDB_ADD(&fop->f_addb, &nrs_addb, nrs_addb_enqueue);
-	c2_reqh_fop_handle(nrs->n_reqh, fop, NULL);
-}
-
-/** @} end of nrs group */
+/** @} endgroup reqh */
 
 /*
  *  Local variables:
@@ -70,3 +79,4 @@ void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop)
  *  scroll-step: 1
  *  End:
  */
+

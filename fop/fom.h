@@ -14,7 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
+ *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 
@@ -50,6 +51,8 @@
 #include "lib/bitmap.h"
 #include "lib/mutex.h"
 #include "lib/chan.h"
+#include "fol/fol.h"
+#include "stob/stob.h"
 
 struct c2_fop_type;
 
@@ -74,23 +77,32 @@ struct c2_fom_ops;
 
    - part of primary store.
 
-   @todo lock ordering.
+   Lock ordering:
+
+   - no lock ordering is needed here as access to all the locality members
+     is protected by a common locality lock, c2_fom_locality::fl_lock.
+     All the operations on locality members are performed independently using
+     simple locking and unlocking semantics.
+
+   Once the locality is initialised, the locality invariant,
+   should hold true until locality is finalised.
+
+   @see c2_locality_invaraint()
  */
+
 struct c2_fom_locality {
-	struct c2_fom_domain *fl_dom;
+	struct c2_fom_domain        *fl_dom;
 
-	/** run-queue */
-	struct c2_queue       fl_runq;
-	size_t                fl_runq_nr;
-	struct c2_mutex       fl_runq_lock;
+	/** Run-queue */
+	struct c2_list               fl_runq;
+	size_t			     fl_runq_nr;
 
-	/** wait list */
-	struct c2_list        fl_wail;
-	size_t                fl_wail_nr;
-	struct c2_mutex       fl_wail_lock;
+	/** Wait list */
+	struct c2_list		     fl_wail;
+	size_t			     fl_wail_nr;
 
-	/** Lock for the locality fields not protected by the locks above. */
-	struct c2_mutex       fl_lock;
+	/** Common lock used to protect locality fields */
+	struct c2_mutex		     fl_lock;
 
 	/**
 	    Re-scheduling channel that idle threads of locality wait on for new
@@ -99,59 +111,89 @@ struct c2_fom_locality {
 	    @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
 	    the explanation of the name.
 	*/
-	struct c2_chan        fl_runrun;
+	struct c2_chan		     fl_runrun;
 
-	/** handler threads */
-	struct c2_list        fl_threads;
-	size_t                fl_idle_threads_nr;
-	size_t                fl_threads_nr;
+	/** Handler threads */
+	struct c2_list		     fl_threads;
+	size_t			     fl_idle_threads_nr;
+	size_t			     fl_threads_nr;
 
-	/*
-	 * Resources allotted to the partition.
+	/**
+	    Minimum number of idle threads, that should be present in a
+	    locality.
 	 */
+	size_t			     fl_lo_idle_threads_nr;
 
-	struct c2_bitmap      fl_processors;
-
-	/*
-	 * Something for memory, see set_mempolicy(2).
+	/**
+	    Maximum number of idle threads, that should be present in a
+	    locality.
 	 */
+	size_t			     fl_hi_idle_threads_nr;
+
+	/** Resources allotted to the partition */
+	struct c2_bitmap	     fl_processors;
+
+	/** Something for memory, see set_mempolicy(2). */
 };
+
+/**
+   Iterates over c2_fom_locality members and checks if
+   they are intialised and consistent.
+   This function must be invoked with c2_fom_locality::fl_lock
+   mutex held.
+ */
+bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
    Domain is a collection of localities that compete for the resources. For
    example, there would be typically a domain for each service (c2_service).
+
+   Once the fom domain is initialised, fom domain invariant should hold
+   true until fom domain is finalised .
+
+   @see c2_fom_domain_invariant()
  */
 struct c2_fom_domain {
 	/** An array of localities. */
-	struct c2_fom_locality         *fd_localities;
+	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
-	size_t                          fd_nr;
+	size_t				 fd_localities_nr;
 	/** Domain operations. */
-	const struct c2_fom_domain_ops *fd_ops;
+	const struct c2_fom_domain_ops	*fd_ops;
+	/** Request handler this domain belongs to */
+	struct c2_reqh			*fd_reqh;
 };
 
 /** Operations vector attached to a domain. */
 struct c2_fom_domain_ops {
-	/** Called to select a home locality for a (new) fom. */
-	size_t (*fdo_home_locality)(const struct c2_fom_domain *dom,
-				    const struct c2_fom *fom);
-	/** Returns true iff waiting (FOS_WAITING) fom timed out and should be
-	    moved into FOPH_TIMEOUT phase. */
+	/**
+	    Returns true if waiting (FOS_WAITING) fom timed out and should be
+	    moved into FOPH_TIMEOUT phase.
+	    @todo fom timeout implementation.
+	*/
 	bool   (*fdo_time_is_out)(const struct c2_fom_domain *dom,
 				  const struct c2_fom *fom);
 };
 
 /**
    States a fom can be in.
-
-   @todo concurrency.
  */
 enum c2_fom_state {
-	/** The fom is being executed by a handler thread in some locality. */
+	/**
+	   Fom is in FOS_RUNNING state when its state transition function is being
+	   executed by a locality handler thread.
+	   The fom is not on any queue in this state.
+	 */
 	FOS_RUNNING,
-	/** The fom is in the run-queue of some locality. */
+	/**
+	    Fom is in FOS_READY state when it is on locality runq for execution.
+	*/
 	FOS_READY,
-	/** The fom is in the wait-list of some locality. */
+	/**
+	    Fom is in FOS_WAITING state when some event must happen before the next
+	    state transition would become possible.
+	    The fom is on a locality wait list in this state.
+	 */
 	FOS_WAITING,
 };
 
@@ -162,6 +204,7 @@ enum c2_fom_state {
    fom type.
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
+   @see c2_fom_state_generic()
  */
 enum c2_fom_phase {
 	FOPH_INIT,                  /*< fom has been initialised. */
@@ -180,50 +223,141 @@ enum c2_fom_phase {
 	FOPH_AUTHORISATION_WAIT,    /*< waiting for userdb cache miss. */
 	FOPH_TXN_CONTEXT,           /*< creating local transactional context. */
 	FOPH_TXN_CONTEXT_WAIT,      /*< waiting for log space. */
-	FOPH_QUEUE_REPLY,           /*< queuing reply fop-s. */
-	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
+	FOPH_SUCCESS,		    /*< fom execution completed succesfully. */
+	FOPH_TXN_COMMIT,	    /*< commit local transaction context. */
+	FOPH_TXN_COMMIT_WAIT,	    /*< waiting to commit local transaction context. */
 	FOPH_TIMEOUT,               /*< fom timed out. */
-	FOPH_FAILED,                /*< fom failed. */
-	FOPH_DONE,		    /*< fom succeeded. */
+	FOPH_FAILURE,                /*< fom execution failed. */
+	FOPH_TXN_ABORT,		    /*< abort local transaction context. */
+	FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction context. */
+	FOPH_QUEUE_REPLY,           /*< queuing fop reply.  */
+	FOPH_QUEUE_REPLY_WAIT,      /*< waiting for fop cache space. */
+	FOPH_FINISH,		    /*< terminal state. */
 	FOPH_NR                     /*< number of standard phases. fom type
 				      specific phases have numbers larger than
 				      this. */
 };
 
-int  c2_fom_domain_init(struct c2_fom_domain *dom, size_t nr);
+/**
+   Initialises c2_fom_domain object provided by the caller.
+   Creates and initialises localities with handler threads.
+
+   @param dom, fom domain to be initialised, provided by caller
+
+   @pre dom != NULL
+ */
+int  c2_fom_domain_init(struct c2_fom_domain *dom);
+
+/**
+   Finalises fom domain.
+   Also finalises the localities in fom domain and destroys
+   the handler threads per locality.
+
+   @param dom, fom domain to be finalised, all the
+
+   @pre dom != NULL && dom->fd_localities != NULL
+ */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
 
 /**
-   Queues a fom for the execution in a domain.
+   This function iterates over c2_fom_domain members and checks
+   if they are intialised.
+ */
+bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
 
-   A home locality is selected for the fom. The fom is placed in the
-   corresponding run-queue and scheduled for the execution.
+/**
+   Fop state machine.
 
+   Once the fom is initialised, fom invariant,
+   should hold true as fom execution enters various
+   phases, including before fom is finalised.
+
+   @see c2_fom_invariant()
+*/
+struct c2_fom {
+	/**
+	   State a fom can be in at any given instance throughout its
+	   life cycle.This feild is protected by c2_fom_locality:fl_lock
+	   mutex, except in reqh handler thread, when a fom is dequeued
+	   from locality runq list for execution.
+
+	   @see c2_fom_locality
+	*/
+	enum c2_fom_state	 fo_state;
+	/** FOM phase under execution */
+	int			 fo_phase;
+	/** Locality this fom belongs to */
+	struct c2_fom_locality	*fo_loc;
+	struct c2_fom_type	*fo_type;
+	const struct c2_fom_ops	*fo_ops;
+	/** FOM clink to wait upon a particular channel for an event */
+	struct c2_clink		 fo_clink;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx	*fo_fop_ctx;
+	/** Request fop object, this fom belongs to */
+	struct c2_fop		*fo_fop;
+	/** Reply fop object */
+	struct c2_fop		*fo_rep_fop;
+	/** Fol object for this fom */
+	struct c2_fol		*fo_fol;
+	/** Transaction object to be used by this fom */
+	struct c2_dtx		 fo_tx;
+	/**
+	    FOM linkage in the locality runq list or wait list
+	    Every access to the FOM via this linkage is
+	    protected by the c2_fom_locality::fl_lock mutex.
+	 */
+	struct c2_list_link	 fo_linkage;
+	/** Result of fom execution, -errno on failure */
+	int32_t			 fo_rc;
+	/**
+	    Temporary reference to reply fop as required by sunrpc.
+	    This would be removed after integrating reqh with the new
+	    RPC layer.
+	 */
+	void			*fo_cookie;
+};
+
+/**
+   Queues a fom for the execution in a locality runq.
+   The fom is placed in the locality run-queue and scheduled for the execution.
    Possible errors are reported through fom state and phase, hence the return
    type is void.
 
-   @pre fom->fo_phase == FOPH_INIT
+   @param fom, A fom to be submitted for execution
+   @pre fom->fo_phase == FOPH_INIT || fom->fo_phase == FOPH_FAILURE
  */
-void c2_fom_queue(struct c2_fom_domain *dom, struct c2_fom *fom);
+void c2_fom_queue(struct c2_fom *fom);
 
-/** Fop state machine. */
-struct c2_fom {
-	enum c2_fom_state        fo_state;
-	int 			 fo_phase;
-	struct c2_fom_locality  *fo_loc;
-	struct c2_fom_type      *fo_type;
-	const struct c2_fom_ops *fo_ops;
-	struct c2_clink          fo_clink;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
-	/** FOL object to make transactions of update operations. */
-	struct c2_fol		*fo_fol;
-	/** Stob domain in which this FOM is operating. */
-	struct c2_stob_domain	*fo_domain;
-};
+/**
+   Initialises fom allocated by the caller.
+   Invoked from c2_fop_type_ops::fto_fom_init implementation for
+   corresponding fop.
+   Fom starts in FOPH_INIT phase and FOS_READY state to begin its
+   execution.
 
+   @param fom, A fom to be initialised
+   @pre fom != NULL
+ */
 void c2_fom_init(struct c2_fom *fom);
+
+/**
+   Finalises a fom after it completes its execution,
+   i.e success or failure.
+
+   @param fom, A fom to be finalised
+   @pre fom->fo_phase == FOPH_FINISH
+*/
 void c2_fom_fini(struct c2_fom *fom);
+
+/**
+   Iterates over c2_fom members and check if they are consistent,
+   and also checks if the fom resides on correct list (i.e runq or
+   wait list) of the locality at any given instance.
+   This function must be invoked with c2_fom_locality::fl_lock
+   mutex held.
+ */
+bool c2_fom_invariant(const struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
@@ -239,10 +373,10 @@ enum c2_fom_state_outcome {
 	/**
 	    State transition completed. The next state transition would be
 	    possible when some future event happens. The state transition
-	    function registered the fom's clink with the channel where this
-	    event will be signalised.
+	    function registeres the fom's clink with the channel where this
+	    event will be signalled.
 
-	    When FSO_WAIT is returned, the fom is placed in the wait-list.
+	    When FSO_WAIT is returned, the fom is put on locality wait-list.
 
 	    @see c2_fom_block_at().
 	 */
@@ -270,39 +404,64 @@ struct c2_fom_ops {
 	/** Finalise this fom. */
 	void (*fo_fini)(struct c2_fom *fom);
 	/**
-	    Execute the next state transition.
+	    Executes the next state transition.
 
 	    Returns value of enum c2_fom_state_outcome or error code.
 	 */
 	int  (*fo_state)(struct c2_fom *fom);
+
+	/**
+	    Finds home locality for this fom.
+
+	    Returns numerical value based on certain fom parameters that is
+	    used to select the home locality from c2_fom_domain::fd_localities
+	    array.
+	 */
+	size_t  (*fo_home_locality) (const struct c2_fom *fom);
 };
 
 /** Handler thread. */
 struct c2_fom_hthread {
-	struct c2_thread    fht_thread;
+	struct c2_thread	fht_thread;
 	/** Linkage into c2_fom_locality::fl_threads. */
-	struct c2_list_link fht_linkage;
+	struct c2_list_link	fht_linkage;
+	/** locality this thread belongs to */
+	struct c2_fom_locality	*fht_locality;
 };
 
 /**
-   Checks whether the locality has "enough" idle threads. If not, additional
-   threads is started to cope with possible blocking point.
-
    This function is called before potential blocking point.
+   Checks whether the fom locality has "enough" idle threads.
+   If not, additional threads are started to cope with possible
+   blocking point.
+   Increments c2_fom_locality::fl_lo_idle_threads_nr, so that
+   there exists atleast one idle thread to handle incoming fop if
+   the calling thread blocks.
+
+   @param fom, A fom executing a possible blocking operation
+   @see c2_fom_locality
  */
-void c2_fom_block_enter(struct c2_fom_locality *loc);
+void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
    This function is called after potential blocking point.
+   Decrements c2_fom_locality::fl_lo_idle_threads_nr, so that
+   extra idle threads are destroyed automatically.
 
-   Arms a timer that would retire extra idle threads if necessary. The timer is
-   needed to amortize thread creation costs.
+   @param fom, A fom done executing a blocking operation
  */
-void c2_fom_block_leave(struct c2_fom_locality *loc);
+void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
-   Registers the fom with the channel, so that next fom's state transition would
-   happen when the channel is signalised.
+   Registers fom with the channel provided by the caller on which
+   the fom would wait for signal after completing a blocking operation.
+   This function returns with c2_fom_locality::fl_lock held.
+   Fom resumes its execution once the chan is signalled.
+
+   @param fom, A fom executing a blocking operation
+   @param chan, waiting channel registered with the fom during its
+		blocking operation
+   @pre !c2_clink_is_armed(&fom->fo_clink)
  */
 void c2_fom_block_at(struct c2_fom *fom, struct c2_chan *chan);
 

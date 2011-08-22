@@ -262,6 +262,12 @@ static void usunrpc_service_worker(struct c2_service *service)
 		ret = NULL;
 		service->s_handler(service, wi->wi_arg, &ret);
 
+		/*
+		 * Currently reqh uses sunrpc, which expects a synchronous reply,
+		 * so this loop is to support async reply by reqh.
+		 */
+		while (ret == NULL);
+
 		c2_rwlock_read_lock(&xs->s_guard);
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,
 					     (xdrproc_t)c2_fop_uxdrproc,
