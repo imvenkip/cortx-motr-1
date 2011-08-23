@@ -36,6 +36,8 @@
 #endif
 #include "rpc/rpc_onwire.h"
 
+struct c2_fop_io_vec;
+
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
 	        .act_name = "rpc-machine"
@@ -1108,7 +1110,8 @@ static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_recovery_complete = us_recovery_complete
 };
 
-void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item, union c2_io_iovec *vec)
+void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item,
+		struct c2_fop_io_vec *vec)
 {
 	struct c2_fop *fop;
 

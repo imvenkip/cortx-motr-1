@@ -127,7 +127,6 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 	struct c2_rpc_item	*item = NULL;
 
 	C2_PRE(rpc != NULL);
-	C2_PRE(state <= RPC_ITEM_SENT);
 
 	/* Change the state of each rpc item in the rpc object
 	   to RPC_ITEM_SENT. */
@@ -849,7 +848,6 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 				ri_rpcobject_linkage)
 			c2_list_del(&item->ri_rpcobject_linkage);
 
-		c2_rpc_rpcobj_fini(fb->fb_rpc);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
@@ -1843,8 +1841,6 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags &= ~C2_RPC_ITEM_UNBOUND;
-		item->ri_type->rit_flags |= C2_RPC_ITEM_BOUND;
 	}
 }
 
@@ -1895,9 +1891,9 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				 frm_sm->fs_rpcconn))
 			continue;
 
+		c2_mutex_lock(&slot->sl_mutex);
 		session = slot->sl_session;
 		c2_mutex_lock(&session->s_mutex);
-		c2_mutex_lock(&slot->sl_mutex);
 		/* Get the max number of rpc items that can be associated
 		   with current slot before slot can be called as "busy". */
 		slot_items_nr = c2_rpc_slot_items_possible_inflight(slot);
@@ -1924,16 +1920,14 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			} else
 				break;
 		}
-		c2_mutex_unlock(&slot->sl_mutex);
 		c2_mutex_unlock(&session->s_mutex);
+		c2_mutex_unlock(&slot->sl_mutex);
 		/* Algorithm skips the rpc items for which policies other than
 		   size policy are not satisfied */
 		if (sz_policy_violated)
 			break;
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
-	rpc_size = *rpcobj_size;
-	C2_POST(!frm_size_is_violated(frm_sm, rpc_size));
 }
 
 /**
