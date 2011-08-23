@@ -247,14 +247,16 @@ void server_rqh_init(int dummy)
 		if (!c2_queue_is_empty(&c2_exec_queue)) {
 			q1 = c2_queue_get(&c2_exec_queue);
 			C2_ASSERT(q1 != NULL);
+			c2_mutex_unlock(&c2_exec_queue_mutex);
 			item = container_of(q1, struct c2_rpc_item,
 				ri_dummy_qlinkage);
 			fop = c2_rpc_item_to_fop(item);
 			fop->f_type->ft_ops->fto_fom_init(fop, &fom);
 			C2_ASSERT(fom != NULL);
 			fom->fo_ops->fo_state(fom);
+		} else {
+			c2_mutex_unlock(&c2_exec_queue_mutex);
 		}
-		c2_mutex_unlock(&c2_exec_queue_mutex);
 	}
 }
 
