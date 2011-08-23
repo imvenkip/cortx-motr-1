@@ -33,11 +33,11 @@
 
    @{
  */
-typedef int (*c2_xcode_foptype_t)(struct c2_fop_type *ftype,
+typedef int (*c2_xcode_foptype_t)(struct c2_fop_field_type *ftype,
 				  struct c2_bufvec_cursor *cur, void *data,
 				  enum c2_bufvec_what what);
 
-static const c2_xcode_foptype_t xcode_disp[FFA_NR];
+static 	c2_xcode_foptype_t xcode_disp[FFA_NR];
 
 
 static int (*atom_xcode[FPF_NR])(struct c2_bufvec_cursor *cur, void *obj,
@@ -112,8 +112,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		/* Check if its a byte array */
 		if (xcode_is_byte_array(fftype))
 			/* Call byte array encode function */
-			return c2_bufvec_bytes(cur, (char **)&obj, (size_t)nr,
-			~0, enum c2_bufvec_what what);
+			return c2_bufvec_bytes(cur, (char **)&obj, nr, ~0, what);
 		} else if (what  == C2_BUFVEC_DECODE) {
 		rc = atom_xcode[FPF_U32]( cur, &nr, C2_BUFVEC_DECODE);
 			if(rc != 0)
@@ -150,7 +149,7 @@ static int xcode_bufvec_atom(struct c2_fop_field_type *fftype,
 		             enum c2_bufvec_what what)
 {
 	C2_ASSERT(fftype->fft_u.u_atom.a_type <
-		  ARRAY_SIZE(atom_xcode[]));
+		  ARRAY_SIZE(atom_xcode));
 	return atom_xcode[fftype->fft_u.u_atom.a_type](cur, obj, what);
 }
 /*
@@ -160,36 +159,29 @@ static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
 	return 0;
 }
 */
-static const c2_xcode_foptype_t xcode_disp[FFA_NR] = {
-	[FFA_RECORD]   = xcode_bufvec_record,
-	[FFA_UNION]    = xcode_bufvec_union,
-	[FFA_SEQUENCE] = xcode_bufvec_sequence,
-	[FFA_TYPEDEF]  = xcode_bufvec_typedef,
-	[FFA_ATOM]     = xcode_bufvec_atom
+static c2_xcode_foptype_t xcode_disp[FFA_NR] = {
+	[FFA_RECORD]   = &xcode_bufvec_record,
+	[FFA_UNION]    = &xcode_bufvec_union,
+	[FFA_SEQUENCE] = &xcode_bufvec_sequence,
+	[FFA_TYPEDEF]  = &xcode_bufvec_typedef,
+	[FFA_ATOM]     = &xcode_bufvec_atom
 };
 
 int c2_bufvec_fop_type(struct c2_bufvec_cursor *cur,
-		       const struct c2_fop_field_type *fftype, void *data,
-		       enum kxdr_what what)
+		       struct c2_fop_field_type *fftype, void *data,
+		       enum c2_bufvec_what what)
 {
 
-	C2_ASSERT(ftype->fft_aggr < ARRAY_SIZE(xcode_disp));
-	return xcode_disp[ftype->fft_aggr](fftype, cur, data, what);
+	C2_ASSERT(fftype->fft_aggr < ARRAY_SIZE(xcode_disp));
+	return xcode_disp[fftype->fft_aggr](fftype, cur, data, what);
 }
 
-int c2_bufvec_fop(struct c2_bufvec_cursor *cur, void *data,
-		  enum c2_bufvec_what what);
+int c2_bufvec_fop(struct c2_bufvec_cursor *cur, struct c2_fop *fop,
+		  enum c2_bufvec_what what)
 {
 	return c2_bufvec_fop_type(cur, fop->f_type->ft_top, c2_fop_data(fop),
 				  what);
 }
-
-static int c2_fop_decode(void *req, __be32 *data, struct c2_fop *fop)
-{
-	return c2_fop_type_encdec(fop->f_type->ft_top,
-				  req, data, c2_fop_data(fop), KDEC);
-}
-
 
 
 /*

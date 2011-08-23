@@ -339,7 +339,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 
 	return rc;
 }
-
+/*
 int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum c2_bufvec_what what)
 {
@@ -362,7 +362,7 @@ int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 
 	return rc;
 }
-
+*/
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
