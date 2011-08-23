@@ -1891,8 +1891,8 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				 frm_sm->fs_rpcconn))
 			continue;
 
-		session = slot->sl_session;
 		c2_mutex_lock(&slot->sl_mutex);
+		session = slot->sl_session;
 		c2_mutex_lock(&session->s_mutex);
 		/* Get the max number of rpc items that can be associated
 		   with current slot before slot can be called as "busy". */
