@@ -278,6 +278,23 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	return rc;
 }
 
+/**
+   Moves @conn to C2_RPC_CONN_FAILED state, setting error code to @error.
+ */
+static void conn_failed(struct c2_rpc_conn *conn, int error)
+{
+	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
+
+	conn->c_state = C2_RPC_CONN_FAILED;
+	conn->c_rc = error;
+	/*
+	 * Remove conn from conn->c_rpcmachine->cr_outgoing_conns list
+	 */
+	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
+	c2_list_del(&conn->c_link);
+	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
+}
+
 int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 		     struct c2_net_end_point *ep,
 		     struct c2_rpcmachine    *machine)
@@ -320,11 +337,11 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 {
-	struct c2_fop                      *fop;
-	struct c2_rpc_fop_conn_establish   *fop_ce;
-	struct c2_rpc_session              *session_0;
-	struct c2_rpcmachine               *machine;
-	int                                 rc;
+	struct c2_fop                    *fop;
+	struct c2_rpc_fop_conn_establish *fop_ce;
+	struct c2_rpc_session            *session_0;
+	struct c2_rpcmachine             *machine;
+	int                               rc;
 
 	C2_PRE(conn != NULL);
 
@@ -338,12 +355,19 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
 	          conn_is_snd(conn) && c2_rpc_conn_invariant(conn));
 
-	conn->c_state = C2_RPC_CONN_CONNECTING;
 	/*
 	 * Get a source endpoint and in turn a transfer machine
 	 *  to associate with this c2_rpc_conn.
 	 */
 	machine = conn->c_rpcmachine;
+
+	c2_mutex_lock(&machine->cr_session_mutex);
+	c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
+	c2_mutex_unlock(&machine->cr_session_mutex);
+
+	conn->c_state = C2_RPC_CONN_CONNECTING;
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+
 	conn->c_rpcchan = c2_rpc_chan_get(machine);
 
 	fop_ce = c2_fop_data(fop);
@@ -367,16 +391,11 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	machine->cr_formation->rf_client_side = true;
 
 	rc = fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
-
-	if (rc == 0) {
-		c2_mutex_lock(&machine->cr_session_mutex);
-		c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
-		c2_mutex_unlock(&machine->cr_session_mutex);
-	} else {
-		conn->c_state = C2_RPC_CONN_FAILED;
-		conn->c_rc = rc;
+	if (rc != 0) {
+		conn_failed(conn, rc);
 		c2_fop_free(fop);
 	}
+
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -387,23 +406,6 @@ out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_establish);
-
-/**
-   Moves @conn to C2_RPC_CONN_FAILED state, setting error code to @error.
- */
-static void conn_failed(struct c2_rpc_conn *conn, int error)
-{
-	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
-
-	conn->c_state = C2_RPC_CONN_FAILED;
-	conn->c_rc = error;
-	/*
-	 * Remove conn from conn->c_rpcmachine->cr_outgoing_conns list
-	 */
-	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
-	c2_list_del(&conn->c_link);
-	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
-}
 
 void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 					  struct c2_rpc_item *reply,
@@ -582,6 +584,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		goto out_unlock;
 	}
 
+	conn->c_state = C2_RPC_CONN_TERMINATING;
+
 	printf("sender_conn_terminate: %p(%lu)\n", conn,
 			(unsigned long)conn->c_sender_id);
 	fop_ct = c2_fop_data(fop);
@@ -591,9 +595,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	session_0 = c2_rpc_conn_session0(conn);
 	rc = fop_post(fop, session_0, &c2_rpc_item_conn_terminate_ops);
-	if (rc == 0) {
-		conn->c_state = C2_RPC_CONN_TERMINATING;
-	} else {
+	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
 		fop = NULL;
@@ -1115,32 +1117,28 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		goto out_unlock;
 	}
 
+	session->s_state = C2_RPC_SESSION_TERMINATING;
+
 	fop_st = c2_fop_data(fop);
-	C2_ASSERT(fop_st != NULL);
 
 	fop_st->rst_sender_id = session->s_conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
-	/*
-	 * Search session-zero
-	 */
 	c2_mutex_lock(&session->s_conn->c_mutex);
+
 	session_0 = c2_rpc_conn_session0(session->s_conn);
 	C2_ASSERT(session_0->s_state == C2_RPC_SESSION_IDLE ||
 		  session_0->s_state == C2_RPC_SESSION_BUSY);
+
 	c2_mutex_unlock(&session->s_conn->c_mutex);
 
-	/*
-	 * XXX Is it okay to drop session->s_mutex while posting the fop,
-	 * and after posting reaquire session->s_mutex?
-	 */
 	c2_mutex_unlock(&session->s_mutex);
 
 	rc = fop_post(fop, session_0, &c2_rpc_item_session_terminate_ops);
+
 	c2_mutex_lock(&session->s_mutex);
-	if (rc == 0) {
-		session->s_state = C2_RPC_SESSION_TERMINATING;
-	} else {
+
+	if (rc != 0) {
 		session_failed(session, rc);
 		c2_fop_free(fop);
 	}
@@ -1390,23 +1388,15 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_IDLE:
-		result = session->s_nr_active_items == 0 &&
+	case C2_RPC_SESSION_TERMINATING:
+		return session->s_nr_active_items == 0 &&
 			 c2_list_is_empty(&session->s_unbound_items) &&
 			 session_alive_invariants(session);
-
-		if (!result)
-			return result;
-
-		return true;
 
 	case C2_RPC_SESSION_BUSY:
 		return (session->s_nr_active_items > 0 ||
 		       !c2_list_is_empty(&session->s_unbound_items)) &&
 		       session_alive_invariants(session);
-
-	case C2_RPC_SESSION_TERMINATING:
-		return session_alive_invariants(session) &&
-			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_FAILED:
 		return session->s_rc != 0 &&
