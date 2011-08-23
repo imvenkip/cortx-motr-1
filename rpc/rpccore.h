@@ -180,7 +180,7 @@ struct c2_rpc;
 struct c2_addb_rec;
 struct c2_rpc_formation;
 struct c2_rpc_conn;
-union c2_io_iovec;
+struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
 struct c2_update_stream;
@@ -224,7 +224,7 @@ struct c2_rpc_item_type_ops {
 	   Restore original IO vector of rpc item.
 	 */
 	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			union c2_io_iovec *vec);
+			struct c2_fop_io_vec *vec);
 	/**
 	   Find out the size of rpc item.
 	 */

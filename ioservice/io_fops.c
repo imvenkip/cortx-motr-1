@@ -40,47 +40,25 @@ static int io_fop_get_opcode(const struct c2_fop *fop);
 /**
    Generic IO segments ops.
    @param seg - Generic io segment.
-   @param op - Opcode of operation this io segment belongs to.
    @retval - Returns the starting offset of given io segment.
  */
-static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg,
-		const enum c2_io_service_opcodes op)
+static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg)
 {
-	uint64_t seg_offset;
-
 	C2_PRE(seg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg_offset = seg->gen_ioseg.read_seg->f_offset;
-	else
-		seg_offset = seg->gen_ioseg.write_seg->f_offset;
-
-	return seg_offset;
+	return seg->rw_seg->f_offset;
 }
 
 /**
    Return the number of bytes in input IO segment.
    @param seg - Generic IO segment.
-   @param op - Opcode of operation, this IO segments belongs to.
    @retval - Returns the number of bytes in current IO segment.
  */
-static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg,
-		const enum c2_io_service_opcodes op)
+static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
 {
-	uint64_t seg_count;
-
 	C2_PRE(seg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg_count = seg->gen_ioseg.read_seg->f_buf.f_count;
-	else
-		seg_count = seg->gen_ioseg.write_seg->f_buf.f_count;
-
-	return seg_count;
+	return seg->rw_seg->f_buf.f_count;
 }
 
 /**
@@ -88,59 +66,39 @@ static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg,
    Set the starting offset of given IO segment.
    @param seg - Generic io segment.
    @param offset - Offset to be set.
-   @param op - Opcode of operation, this io segment belongs to.
  */
-static void ioseg_offset_set(struct c2_io_ioseg *seg, const uint64_t offset,
-		const enum c2_io_service_opcodes op)
+static void ioseg_offset_set(struct c2_io_ioseg *seg, const uint64_t offset)
 {
 	C2_PRE(seg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg->gen_ioseg.read_seg->f_offset = offset;
-	else
-		seg->gen_ioseg.write_seg->f_offset = offset;
+	seg->rw_seg->f_offset = offset;
 }
 
 /**
    Sets the number of bytes in input IO segment.
    @param seg - Generic IO segment.
    @param count - Count to be set.
-   @param op - Opcode of operation, this IO segments belongs to.
  */
-static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count,
-		const enum c2_io_service_opcodes op)
+static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
 {
 	C2_PRE(seg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg->gen_ioseg.read_seg->f_buf.f_count = count;
-	else
-		seg->gen_ioseg.write_seg->f_buf.f_count = count;
+	seg->rw_seg->f_buf.f_count = count;
 }
 
 /**
    Get IO segment from array given the index.
    @param iovec - IO vector, given segment belongs to.
    @param index - Index into array of io segments.
-   @param op - Operation code, given io vector belongs to.
    @param ioseg - Out parameter for io segment.
  */
-static void ioseg_get(const union c2_io_iovec *iovec, const int index,
-		const enum c2_io_service_opcodes op, struct c2_io_ioseg *ioseg)
+static void ioseg_get(const struct c2_fop_io_vec *iovec, const int index,
+		struct c2_io_ioseg *ioseg)
 {
 	C2_PRE(iovec != NULL);
 	C2_PRE(ioseg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		ioseg->gen_ioseg.read_seg = &iovec->read_vec->iov_segs[index];
-	else
-		ioseg->gen_ioseg.write_seg = &iovec->write_vec->iov_segs[index];
+	ioseg->rw_seg = &iovec->iov_segs[index];
 }
 
 /**
@@ -148,117 +106,74 @@ static void ioseg_get(const union c2_io_iovec *iovec, const int index,
    Only offset and count are copied.
    @param src - Input IO segment.
    @param dest - Output IO segment.
-   @param op - Operation code, these segments belong to.
  */
-static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest,
-		const enum c2_io_service_opcodes op)
+static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest)
 {
-	uint64_t	offset;
-	uint64_t	cnt;
+	uint64_t offset;
+	uint64_t cnt;
 
 	C2_PRE(src != NULL);
 	C2_PRE(dest != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	offset = ioseg_offset_get(src, op);
-	ioseg_offset_set(dest, offset, op);
+	offset = ioseg_offset_get(src);
+	ioseg_offset_set(dest, offset);
 
-	cnt = ioseg_count_get(src,op);
-	ioseg_count_set(dest,cnt,op);
+	cnt = ioseg_count_get(src);
+	ioseg_count_set(dest, cnt);
 }
-
 
 /**
    Return the number of IO segments in given IO vector.
    @param iovec - Input io vector.
-   @param op - Operation type, this io vector belongs to.
    @retval - Number of segments contained in given io vector.
  */
-static uint32_t ioseg_nr_get(const union c2_io_iovec *iovec,
-		const enum c2_io_service_opcodes op)
+static uint32_t ioseg_nr_get(const struct c2_fop_io_vec *iovec)
 {
-	uint32_t seg_nr;
-
 	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		seg_nr = iovec->read_vec->iov_count;
-	else
-		seg_nr = iovec->write_vec->iov_count;
-
-	return seg_nr;
+	return iovec->iov_count;
 }
 
 /**
    Set the number of IO segments in given IO vector.
    @param iovec - Input io vector.
-   @param op - Operation type, this io vector belongs to.
    @param count - Set the number of IO segments to count.
  */
-static void ioseg_nr_set(union c2_io_iovec *iovec,
-		const enum c2_io_service_opcodes op, const uint64_t count)
+static void ioseg_nr_set(struct c2_fop_io_vec *iovec, const uint64_t count)
 {
 	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		iovec->read_vec->iov_count = count;
-	else
-		iovec->write_vec->iov_count = count;
+	iovec->iov_count = count;
 }
 
 /**
    Allocate the array of IO segments from IO vector.
    @param iovec - Input io vector.
-   @param op - Operation, given io vector belongs to.
    @param count - Number of segments to be allocated.
    @retval - 0 if succeeded, negative error code otherwise.
  */
-static int iosegs_alloc(union c2_io_iovec *iovec,
-		const enum c2_io_service_opcodes op, const uint32_t count)
+static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
 {
 	int rc = 0;
 
 	C2_PRE(iovec != NULL);
 	C2_PRE(count != 0);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		C2_ALLOC_ARR(iovec->read_vec->iov_segs, count);
-		if (iovec->read_vec->iov_segs == NULL)
-			rc = -ENOMEM;
-	} else {
-		C2_ALLOC_ARR(iovec->write_vec->iov_segs, count);
-		if (iovec->write_vec->iov_segs == NULL)
-			rc = -ENOMEM;
-	}
+	C2_ALLOC_ARR(iovec->iov_segs, count);
+	if (iovec->iov_segs == NULL)
+		rc = -ENOMEM;
 	return rc;
 }
 
 /**
    Deallocate the IO vector.
    @param iovec - Input io vector.
-   @param op - Operation, given io vector belongs to.
  */
-static void iovec_free(union c2_io_iovec *iovec,
-		const enum c2_io_service_opcodes op)
+static void iovec_free(struct c2_fop_io_vec *iovec)
 {
 	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		c2_free(iovec->read_vec);
-		iovec->read_vec = NULL;
-	} else {
-		c2_free(iovec->write_vec);
-		iovec->write_vec = NULL;
-	}
+	c2_free(iovec);
 }
 
 /**
@@ -267,7 +182,7 @@ static void iovec_free(union c2_io_iovec *iovec,
    @param iovec - out parameter for IO vector.
    @retval - iovec from given fop.
  */
-static void iovec_get(struct c2_fop *fop, union c2_io_iovec *iovec)
+static void iovec_get(struct c2_fop *fop, struct c2_fop_io_vec *iovec)
 {
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev	*write_fop;
@@ -279,39 +194,29 @@ static void iovec_get(struct c2_fop *fop, union c2_io_iovec *iovec)
 
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
 		read_fop = c2_fop_data(fop);
-		iovec->read_vec = &read_fop->frd_iovec;
+		iovec = &read_fop->frd_iovec;
 	} else {
 		write_fop = c2_fop_data(fop);
-		iovec->write_vec = &write_fop->fwr_iovec;
+		iovec = &write_fop->fwr_iovec;
 	}
 }
 
 /**
    Allocate a new IO vector.
    @param iovec - out parameter for IO vector.
-   @param op - Operation code for given io vector.
    @retval - 0 if succeeded, negative error code otherwise.
  */
-static int iovec_alloc(union c2_io_iovec **iovec,
-		const enum c2_io_service_opcodes op)
+static int iovec_alloc(struct c2_fop_io_vec **iovec)
 {
 	int			 rc = 0;
-	union c2_io_iovec	*vec;
+	struct c2_fop_io_vec	*vec;
 
 	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	vec = *iovec;
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		C2_ALLOC_PTR(vec->read_vec);
-		if (vec == NULL)
-			rc = -ENOMEM;
-	} else {
-		C2_ALLOC_PTR(vec->write_vec);
-		if (vec == NULL)
-			rc = -ENOMEM;
-	}
+	C2_ALLOC_PTR(vec);
+	if (vec == NULL)
+		rc = -ENOMEM;
 	return rc;
 }
 
@@ -320,44 +225,27 @@ static int iovec_alloc(union c2_io_iovec **iovec,
    copied completely, rather just the pointer to it is copied.
    @param src - Source IO vector.
    @param dest - Destination IO vector.
-   @param op - Operation code, this IO vectors belong to.
  */
-static void iovec_copy(const union c2_io_iovec *src, union c2_io_iovec *dest,
-		const enum c2_io_service_opcodes op)
+static void iovec_copy(const struct c2_fop_io_vec *src,
+		struct c2_fop_io_vec *dest)
 {
 	C2_PRE(src != NULL);
 	C2_PRE(dest != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	/* The io segment pointer is copied not the io segment itself. */
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
-		dest->read_vec->iov_count = src->read_vec->iov_count;
-		dest->read_vec->iov_segs = src->read_vec->iov_segs;
-	} else {
-		dest->write_vec->iov_count = dest->write_vec->iov_count;
-		dest->write_vec->iov_segs = dest->write_vec->iov_segs;
-	}
+	dest->iov_count = src->iov_count;
+	dest->iov_segs = src->iov_segs;
 }
 
 /**
    Deallocate and remove a generic IO segment from aggr_list.
    @param ioseg - Input generic io segment.
-   @param op - Operation code, given io segment belongs to.
  */
-static void ioseg_unlink_free(struct c2_io_ioseg *ioseg,
-		const enum c2_io_service_opcodes op)
+static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
 {
 	C2_PRE(ioseg != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	c2_list_del(&ioseg->io_linkage);
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		c2_free(ioseg->gen_ioseg.read_seg);
-	else
-		c2_free(ioseg->gen_ioseg.write_seg);
-
 	c2_free(ioseg);
 }
 
@@ -518,7 +406,7 @@ static bool io_fop_is_rw(const struct c2_fop *fop)
 			op == C2_IO_SERVICE_WRITEV_OPCODE;
 }
 
-uint64_t iovec_fragments_nr_get(union c2_io_iovec *iovec,
+uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec,
 		enum c2_io_service_opcodes op)
 {
 	uint64_t		frag_nr = 1;
@@ -534,13 +422,13 @@ uint64_t iovec_fragments_nr_get(union c2_io_iovec *iovec,
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
 			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
-	segs_nr = ioseg_nr_get(iovec, op);
+	segs_nr = ioseg_nr_get(iovec);
 	for (i = 0; i < segs_nr - 1; ++i) {
-		ioseg_get(iovec, i, op, &ioseg);
-		off = ioseg_offset_get(&ioseg, op);
-		cnt = ioseg_count_get(&ioseg, op);
-		ioseg_get(iovec, i+1, op, &ioseg_next);
-		off_next = ioseg_offset_get(&ioseg_next, op);
+		ioseg_get(iovec, i, &ioseg);
+		off = ioseg_offset_get(&ioseg);
+		cnt = ioseg_count_get(&ioseg);
+		ioseg_get(iovec, i+1, &ioseg_next);
+		off_next = ioseg_offset_get(&ioseg_next);
 		if (off + cnt != off_next)
 			frag_nr++;
 	}
@@ -556,7 +444,7 @@ uint64_t iovec_fragments_nr_get(union c2_io_iovec *iovec,
  */
 static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 {
-	union c2_io_iovec		iovec;
+	struct c2_fop_io_vec		iovec;
 	enum c2_io_service_opcodes	op;
 
 	C2_PRE(fop != NULL);
@@ -571,7 +459,7 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
    @param fop - Incoming fop.
    @param vec - A union pointing to original IO vector.
  */
-void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+void io_fop_read_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
 {
 	struct c2_fop_cob_readv	*read_fop;
 
@@ -582,8 +470,8 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 
 	c2_free(read_fop->frd_iovec.iov_segs);
 
-	read_fop->frd_iovec.iov_count = vec->read_vec->iov_count;
-	read_fop->frd_iovec.iov_segs = vec->read_vec->iov_segs;
+	read_fop->frd_iovec.iov_count = vec->iov_count;
+	read_fop->frd_iovec.iov_segs = vec->iov_segs;
 }
 
 /**
@@ -595,11 +483,10 @@ void io_fop_read_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
    @param offset - starting offset of current IO segment from aggr_list.
    @param count - count of bytes in current IO segment from aggr_list.
    @param ns - New IO segment from IO vector.
-   @param op - Operation code, this io segment belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_init(uint64_t offset, uint32_t count,
-		struct c2_io_ioseg **ns, enum c2_io_service_opcodes op)
+		struct c2_io_ioseg **ns)
 {
 	struct c2_io_ioseg	*new_seg;
 
@@ -609,8 +496,8 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
 	if (new_seg == NULL)
 		return -ENOMEM;
 
-	ioseg_offset_set(new_seg, offset, op);
-	ioseg_count_set(new_seg, count, op);
+	ioseg_offset_set(new_seg, offset);
+	ioseg_count_set(new_seg, count);
 	*ns = new_seg;
 	return 0;
 }
@@ -625,11 +512,10 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
    @param seg - current IO segment from IO vector.
    @param off1 - starting offset of current IO segment from aggr_list.
    @param cnt1 - count of bytes in current IO segment from aggr_list.
-   @param op - Operation code, given io segments belongs to.
    @reval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
-		const uint32_t cnt1, enum c2_io_service_opcodes op)
+		const uint32_t cnt1)
 {
 	int			 rc = 0;
 	uint64_t		 off2;
@@ -637,10 +523,10 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
 
 	C2_PRE(seg != NULL);
 
-	off2 = ioseg_offset_get(seg, op);
+	off2 = ioseg_offset_get(seg);
 
 	if (off1 < off2) {
-		rc = io_fop_seg_init(off1, cnt1, &new_seg, op);
+		rc = io_fop_seg_init(off1, cnt1, &new_seg);
 		if (rc < 0)
 			return rc;
 
@@ -649,47 +535,6 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
 		rc = -EINVAL;
 
 	return rc;
-}
-
-/**
-   If given 2 segments are adjacent, coalesce them and make a single
-   segment.
-   @note fop->f_type->ft_ops->fto_io_coalesce is called.
-   @note io_fop_segments_coalesce is called.
-   @note io_fop_seg_coalesce is called.
-   @note This functions is called only for read operation fops.
-
-   @param seg - current IO segment from IO vector.
-   @param off1 - starting offset of current IO segment from aggr_list.
-   @param cnt1 - count of bytes in current IO segment from aggr_list.
-   @param op - Operation type, given io segment belongs to.
-   @retval - TRUE if segments are adjacent, FALSE otherwise.
- */
-static bool io_fop_segs_adjacent(struct c2_io_ioseg *seg, const uint64_t off1,
-		const uint32_t cnt1, enum c2_io_service_opcodes op)
-{
-	bool	 ret = false;
-	uint64_t off2;
-	uint64_t cnt2;
-	uint64_t newcount;
-
-	C2_PRE(seg != NULL);
-
-	off2 = ioseg_offset_get(seg, op);
-	cnt2 = ioseg_count_get(seg, op);
-
-	newcount = cnt1 + cnt2;
-
-	/* If two segments are adjacent, merge them. */
-	if (off1 + cnt1 == off2) {
-		ioseg_offset_set(seg, off1, op);
-		ioseg_count_set(seg, newcount, op);
-		ret = true;
-	} else if (off2 + cnt2 == off1) {
-		ioseg_count_set(seg, newcount, op);
-		ret = true;
-	}
-	return ret;
 }
 
 /**
@@ -724,82 +569,29 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 	C2_PRE(aggr_list != NULL);
 
 	/* off1 and cnt1 are offset and count of incoming IO segment. */
-	off1 = ioseg_offset_get(seg, op);
-	cnt1 = ioseg_count_get(seg, op);
+	off1 = ioseg_offset_get(seg);
+	cnt1 = ioseg_count_get(seg);
 
 	c2_list_for_each_entry_safe(aggr_list, ioseg, ioseg_next,
 			struct c2_io_ioseg, io_linkage) {
-		/* Segments can be merged only if this operation is read. */
-		if (op == C2_IO_SERVICE_READV_OPCODE)
-			added = io_fop_segs_adjacent(ioseg, off1, cnt1, op);
-		if (added)
-			break;
+		/* If given segment fits before some other segment
+		   in increasing order of offsets, add it before
+		   current segments from aggr_list. */
+		rc = io_fop_seg_add_cond(ioseg, off1, cnt1);
+		if (rc == -ENOMEM)
+			return;
 		else {
-			/* If given segment fits before some other segment
-			   in increasing order of offsets, add it before
-			   current segments from aggr_list. */
-			rc = io_fop_seg_add_cond(ioseg, off1, cnt1, op);
-			if (rc == -ENOMEM)
-				return;
-			else {
-				added = true;
-				break;
-			}
+			added = true;
+			break;
 		}
 	}
 
 	/* Add a new IO segment unconditionally in aggr_list. */
 	if (!added) {
-		rc = io_fop_seg_init(off1, cnt1, &new_seg, op);
+		rc = io_fop_seg_init(off1, cnt1, &new_seg);
 		if (rc < 0)
 			return;
 		c2_list_add_tail(aggr_list, &new_seg->io_linkage);
-	}
-}
-
-/**
-   Contract the formed list of IO segments further by merging
-   adjacent segments.
-   @note fop->f_type->ft_ops->fto_io_coalesce is called.
-   @note io_fop_segments_coalesce is called.
-   @note This function is called only for read operation fops.
-
-   @param aggr_list - list of IO segments.
-   @param op - Operation type
- */
-static void io_fop_segments_contract(const struct c2_list *aggr_list,
-		enum c2_io_service_opcodes op)
-{
-	uint64_t		 off1;
-	uint64_t		 cnt1;
-	uint64_t		 off2;
-	uint64_t		 cnt2;
-	struct c2_io_ioseg	*seg;
-	struct c2_io_ioseg	*seg_next;
-	uint64_t		 aggr_list_len;
-	uint64_t		 aggr_seg_cnt = 0;
-
-	C2_PRE(aggr_list != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
-
-	aggr_list_len = c2_list_length(aggr_list);
-	c2_list_for_each_entry_safe(aggr_list, seg, seg_next,
-			struct c2_io_ioseg, io_linkage) {
-		aggr_seg_cnt++;
-		if (aggr_list_len == aggr_seg_cnt)
-			break;
-		off1 = ioseg_offset_get(seg, op);
-		cnt1 = ioseg_count_get(seg, op);
-		off2 = ioseg_offset_get(seg_next, op);
-		cnt2 = ioseg_count_get(seg_next, op);
-
-                if (off1 + cnt1 == off2) {
-			ioseg_offset_set(seg_next, off1, op);
-			ioseg_count_set(seg_next, cnt1 + cnt2, op);
-                        c2_list_del(&seg->io_linkage);
-                        c2_free(seg);
-                }
 	}
 }
 
@@ -813,7 +605,7 @@ static void io_fop_segments_contract(const struct c2_list *aggr_list,
    @retval - 0 if succeeded, negative error code otherwise.
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
 */
-static int io_fop_segments_coalesce(union c2_io_iovec *iovec,
+static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
 		struct c2_list *aggr_list, enum c2_io_service_opcodes op)
 {
 	int			i;
@@ -826,14 +618,10 @@ static int io_fop_segments_coalesce(union c2_io_iovec *iovec,
 	/* For each segment from incoming IO vector, check if it can
 	   be merged with any of the existing segments from aggr_list.
 	   If yes, merge it else, add a new entry in aggr_list. */
-	for (i = 0; i < ioseg_nr_get(iovec, op); ++i) {
-		ioseg_get(iovec, i, op, &ioseg);
+	for (i = 0; i < ioseg_nr_get(iovec); ++i) {
+		ioseg_get(iovec, i, &ioseg);
 		io_fop_seg_coalesce(&ioseg, aggr_list, op);
 	}
-	/* Aggregate list can be contracted further by merging adjacent
-	   segments if operation is read request. */
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		io_fop_segments_contract(aggr_list, op);
 
 	return rc;
 }
@@ -844,7 +632,7 @@ static int io_fop_segments_coalesce(union c2_io_iovec *iovec,
    read fops or write fops. Both fop types can not be present simultaneously.
    @note fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
 
-   @param fop_list - list of c2_io_fop_member structures. These structures
+   @param fop_list - list of fops. These structures
    contain either read or write fops. All fops from list are either
    read fops or write fops. Both fop types can not be present in the fop_list
    simultaneously.
@@ -855,15 +643,15 @@ static int io_fop_segments_coalesce(union c2_io_iovec *iovec,
    coalesced IO request. @see io_fop_iovec_restore.
  */
 static int io_fop_coalesce(const struct c2_list *fop_list,
-		struct c2_fop *res_fop, union c2_io_iovec *vec)
+		struct c2_fop *res_fop, struct c2_fop_io_vec *vec)
 {
 	int				 res = 0;
 	int				 i = 0;
 	uint64_t			 curr_segs;
 	struct c2_fop			*fop;
 	struct c2_list			 aggr_list;
-	union c2_io_iovec		 iovec;
-	union c2_io_iovec		*res_iovec = NULL;
+	struct c2_fop_io_vec		 iovec;
+	struct c2_fop_io_vec		*res_iovec = NULL;
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
 	struct c2_io_ioseg		 res_ioseg;
@@ -874,13 +662,6 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	C2_PRE(vec != NULL);
 
 	op = res_fop->f_type->ft_code;
-
-	/* Make a copy of original IO vector belonging to res_fop and place
-	   it in input parameter vec which can be used while restoring the
-	   IO vector. */
-	res = iovec_alloc(&vec, op);
-	if (res != 0)
-		return -ENOMEM;
 
 	c2_list_init(&aggr_list);
 
@@ -894,36 +675,36 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 
 	/* Allocate a new generic IO vector and copy all (merged) IO segments
 	   to the new vector and make changes to res_fop accordingly. */
-	res = iovec_alloc(&res_iovec, op);
+	res = iovec_alloc(&res_iovec);
 	if (res != 0)
 		goto cleanup;
 
 	curr_segs = c2_list_length(&aggr_list);
-	res = iosegs_alloc(res_iovec, op, curr_segs);
+	res = iosegs_alloc(res_iovec, curr_segs);
 	if (res != 0)
 		goto cleanup;
 
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
 			struct c2_io_ioseg, io_linkage) {
-		ioseg_get(res_iovec, i, op, &res_ioseg);
-		ioseg_copy(ioseg, &res_ioseg, op);
-		ioseg_unlink_free(ioseg, op);
+		ioseg_get(res_iovec, i, &res_ioseg);
+		ioseg_copy(ioseg, &res_ioseg);
+		ioseg_unlink_free(ioseg);
 		i++;
 	}
 	c2_list_fini(&aggr_list);
-	ioseg_nr_set(res_iovec, op, i);
+	ioseg_nr_set(res_iovec, i);
 
 	iovec_get(res_fop, &iovec);
-	iovec_copy(&iovec, vec, op);
-	iovec_copy(res_iovec, &iovec, op);
+	iovec_copy(&iovec, vec);
+	iovec_copy(res_iovec, &iovec);
 	return res;
 cleanup:
 	C2_ASSERT(res != 0);
 	if (res_iovec != NULL)
-		iovec_free(res_iovec, op);
+		iovec_free(res_iovec);
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
 				    struct c2_io_ioseg, io_linkage)
-		ioseg_unlink_free(ioseg, op);
+		ioseg_unlink_free(ioseg);
 	c2_list_fini(&aggr_list);
 	return res;
 }
@@ -935,7 +716,7 @@ cleanup:
    the subroutine io_fop_coalesce. @see io_fop_coalesce.
    @param vec - A union pointing to original IO vector.
  */
-static void io_fop_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
+static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
 {
 	enum c2_io_service_opcodes	 op;
 	struct c2_fop_cob_readv		*read_fop;
@@ -950,15 +731,13 @@ static void io_fop_iovec_restore(struct c2_fop *fop, union c2_io_iovec *vec)
 	if (op == C2_IO_SERVICE_READV_REP_OPCODE) {
 		read_fop = c2_fop_data(fop);
 		c2_free(read_fop->frd_iovec.iov_segs);
-		read_fop->frd_iovec.iov_count = vec->read_vec->iov_count;
-		read_fop->frd_iovec.iov_segs = vec->read_vec->iov_segs;
-		c2_free(vec->read_vec);
+		read_fop->frd_iovec.iov_count = vec->iov_count;
+		read_fop->frd_iovec.iov_segs = vec->iov_segs;
 	} else {
 		write_fop = c2_fop_data(fop);
 		c2_free(write_fop->fwr_iovec.iov_segs);
-		write_fop->fwr_iovec.iov_count = vec->write_vec->iov_count;
-		write_fop->fwr_iovec.iov_segs = vec->write_vec->iov_segs;
-		c2_free(vec->write_vec);
+		write_fop->fwr_iovec.iov_count = vec->iov_count;
+		write_fop->fwr_iovec.iov_segs = vec->iov_segs;
 	}
 }
 

@@ -31,6 +31,7 @@
 struct c2_fol;
 struct c2_fop;
 struct c2_rpc_item_type;
+struct c2_fop_io_vec;
 
 /* export */
 struct c2_fop_type;
@@ -39,7 +40,6 @@ struct c2_fop_field;
 struct c2_fop_field_type;
 struct c2_fop_memlayout;
 struct c2_fop_type_format;
-union c2_io_iovec;
 
 typedef uint32_t c2_fop_type_code_t;
 
@@ -108,10 +108,10 @@ struct c2_fop_type_ops {
 	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
 	int (*fto_io_coalesce)(const struct c2_list *list, struct c2_fop *fop,
-			union c2_io_iovec *vec);
+			struct c2_fop_io_vec *vec);
 	/** Restore the original IO vector of resultant IO fop on
 	    completion of IO request. */
-	void (*fto_iovec_restore)(struct c2_fop *fop, union c2_io_iovec *vec);
+	void (*fto_iovec_restore)(struct c2_fop *fop, struct c2_fop_io_vec *vec);
 };
 
 /**

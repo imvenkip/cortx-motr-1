@@ -57,29 +57,14 @@ enum c2_io_service_opcodes {
 };
 
 /**
-   A wrapper structure to have a list of fops
-   participating in IO coalescing.
- */
-struct c2_io_fop_member {
-	/** Linkage to the list of fops. */
-	struct c2_list_link	 fop_linkage;
-	/** Actual fop object. */
-	struct c2_fop		*fop;
-};
-
-/**
    A generic IO segment pointing either to read or write segments. This
    is needed to have generic IO coalescing code.
  */
 struct c2_io_ioseg {
-	union {
-		/** IO segment for read request fop. */
-		struct c2_fop_io_seg	*read_seg;
-		/** IO segment for write request fop. */
-		struct c2_fop_io_seg	*write_seg;
-	} gen_ioseg;
+	/** IO segment for read or write request fop. */
+	struct c2_fop_io_seg	*rw_seg;
         /** Linkage to the list of such structures. */
-        struct c2_list_link             io_linkage;
+        struct c2_list_link	 io_linkage;
 };
 
 /**
