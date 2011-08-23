@@ -324,10 +324,14 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
  */
 static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
+	int oflags = O_RDWR|O_CREAT;
 	struct linux_domain *ldom;
 
+#ifdef ENABLE_STOB_DIRECTIO
+	oflags |= O_DIRECT;
+#endif
 	ldom  = domain2linux(obj->so_domain);
-	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
+	return linux_stob_open(stob2linux(obj), oflags);
 }
 
 /**
@@ -335,7 +339,12 @@ static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
  */
 static int linux_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
-	return linux_stob_open(stob2linux(obj), O_RDWR);
+	int oflags = O_RDWR;
+
+#ifdef ENABLE_STOB_DIRECTIO
+	oflags |= O_DIRECT;
+#endif
+	return linux_stob_open(stob2linux(obj), oflags);
 }
 
 static const struct c2_stob_type_op linux_stob_type_op = {

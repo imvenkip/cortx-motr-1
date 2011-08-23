@@ -133,17 +133,16 @@ static const struct c2_addb_loc adieu_addb_loc = {
 
 enum {
 	/*
-	 * Require 4K alignment sufficient for direct-IO.
+	 * Alignment for direct-IO.
 	 *
-	 * In fact, 512 is sufficient.
-	 *
-	 * @todo Here lies a problem: server uses standard ONC XDR library for
-	 *       message decoding. This library uses standard malloc(3) to
-	 *       allocate all the memory, including buffers. This means that
-	 *       server-side buffers are not aligned. Disable alignment (and
-	 *       direct-IO) until this is fixed.
+	 * According to open(2) manpage: "Under Linux 2.6, alignment to
+	 * 512-byte boundaries is suffices".
 	 */
-	LINUX_BSHIFT = 0, /* 12, */
+#ifdef ENABLE_STOB_DIRECTIO
+	LINUX_BSHIFT = 9, /* pow(2, 9) == 512 */
+#else
+	LINUX_BSHIFT = 0, /* no alignment */
+#endif
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };

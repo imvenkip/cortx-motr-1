@@ -8,6 +8,7 @@ AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
+AH_TEMPLATE([ENABLE_STOB_DIRECTIO], [Enable direct IO in STOB.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -289,6 +290,11 @@ AC_ARG_ENABLE([db-o_direct],
         [enable_db_o_direct=no]
 )
 
+AC_ARG_ENABLE([stob-directio],
+        [AC_HELP_STRING([--enable-stob-directio], [enable direct IO support in STOB])], [],
+        [enable_stob_directio=no]
+)
+
 AC_MSG_CHECKING([for operating system])
 AC_MSG_RESULT([$host_os])
 case $host_os in
@@ -463,6 +469,10 @@ else
         # Remove debug flags but keep default or user optimizations
         # passed via construction like ./configure CFLAGS=-O3 
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
+fi
+
+if test x$enable_stob_directio = xyes; then
+        AC_DEFINE([ENABLE_STOB_DIRECTIO])
 fi
 
 #
