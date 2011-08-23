@@ -1143,7 +1143,7 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine);
    - c2_net_buffer (a generic buffer identified at network layer) and
    - c2_net_buf_desc (an identifier to point to a c2_net_buffer).
 
-   Whenever, data buffers are encountered in rpc layer, rpc layer
+   Whenever data buffers are encountered in rpc layer, rpc layer
    (especially formation sub-component) is supposed to take care of
    segregating these rpc items and register c2_net_buffers where
    data buffers are encountered (during write request and read reply)
@@ -1194,7 +1194,7 @@ c2_rpc_bulkio_desc_send   |	     |		|
 - Free the net_buf_desc	  |	     |		| - If item is write request,
   after bundling	  |	     |		|   allocate c2_net_buffer/s,
   with rpc item.	  |	     |		|   add it to TM in C2_NET_QT
-			  |	     |		|   _ACTIVE_BULK_RECEIVE queue.
+			  |	     |		|   _ACTIVE_BULK_RECV queue.
 			  |	     |		|
 - Send rpc over wire.	  |--------->+		| - So server calls c2_rpc_
 			  |		0-copy	|   zero_copy_init(active_buffs
@@ -1246,7 +1246,7 @@ c2_rpc_bulkio_desc_send   |	     |		|
   it by c2_net_buf_desc	  |	      |		|
   The net buffers are	  |	      |		|
   added to C2_NET_QT_	  |	      |		|
-  PASSIVE_BULK_RECEIVE	  |	      |		|
+  PASSIVE_BULK_RECV	  |	      |		|
   queue of TM and rpc	  |	      |		|
   is sent over wire.	  |---------->+		|
 			  |			|
@@ -1295,7 +1295,7 @@ c2_rpc_bulkio_desc_send   |	     |		|
    And hence, this method is typically invoked by the Passive side.
    @param item - Input rpc item which belongs to a "write request" or
 		 "read reply" fop type.
-   @pre item->ri_state = RPC_ITEM_ADDED.
+   @pre item->ri_state == RPC_ITEM_ADDED.
    @retval 0 if succeeded, negative error code otherwise.
    @note RPC layer will free the c2_net_buf_desc afterwards.
  */
@@ -1304,7 +1304,7 @@ int c2_rpc_bulkio_desc_send(struct c2_rpc_item *item);
 /**
    An rpc item has been received from network layer and the item belongs to
    an IO request and has net buffer descriptors attached with it,
-   This API is invoked by end user. This API allocated c2_net_buffer
+   This API is invoked by end user. This API allocates c2_net_buffer
    structures and sets the IO vectors according to c2_net_buf_desc
    embedded in the rpc item passed.
    Net buffers are registered with net domain for receiving data.
@@ -1328,8 +1328,30 @@ int c2_rpc_bulkio_desc_received(struct c2_net_buffer **net_bufs,
    and FOM is totally non-blocking. The FOM invokes zero_copy_init()
    and is switched out of execution queue and is put on wait queue of
    the request handler.
-   This API adds the destination buffers to the C2_NET_QT_PASSIVE_BULK_RECV
-   queue of transfer machine.
+   For read IO, the server side adds the network buffers identified by
+   active_buffers to C2_NET_QT_ACTIVE_BULK_SEND queue of transfer machine.
+   The client side has added the net buffers represented by passive_desc
+   buf descriptors into C2_NET_QT_PASSIVE_BULK_RECV queue of transfer machine.
+   For write IO, the server side adds the network buffers identified by
+   active_buffers to C2_NET_QT_ACTIVE_BULK_RECV queue of transfer machine.
+   The client side has added the net buffers represented by passive_desc
+   buf descriptors into C2_NET_QT_PASSIVE_BULK_SEND queue of transfer machine.
+   The transfer machine is located and managed by rpc layer internally.
+   Once the buffers are added to respective transfer machines, bulk layer
+   and transport layer co-operate together to complete zero-copy.
+   For this to happen, transport layer should be capable of doing zero-copy.
+   For instance, protocols like RDMA use calls like
+    - rdma_get(src_nodeid, dest_nodeid, src_buffer, dest_buffer, count)
+    Zero Copy data of count bytes from dest_buffer in dest_node to src_buffer
+    on src_node.
+    - rdma_put(src_nodeid, dest_nodeid, src_buffer, dest_buffer, count)
+    Zero copy data of count bytes from src_buffer on src_node to dest_buffer
+    on dest_node.
+   to perform zero_copy.
+   Hence, server side can use API like rdma_put() to zero-copy data to client
+   in case of read IO.
+   And for write IO, server side can use API Like rdma_get() to zero_copy
+   the data to server.
    @param active_buffers - Array of c2_net_buffer structures which are on
 			   the active side of bulk copy.
    @param passive_descs - Array of c2_net_buf_descs which are on the
