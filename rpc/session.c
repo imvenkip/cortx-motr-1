@@ -898,6 +898,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	C2_PRE(session != NULL &&
 		session->s_state == C2_RPC_SESSION_INITIALISED);
 
+	printf("SESSION_ESTABLISH: session %p\n", session);
+
 	fop = c2_fop_alloc(&c2_rpc_fop_session_establish_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
@@ -919,6 +921,21 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	fop_se->rse_sender_id = conn->c_sender_id;
 	fop_se->rse_slot_cnt = session->s_nr_slots;
+
+	/*
+	 * IMPORTANT:
+	 * When a reply to session_establish is received, we need an efficient
+	 * method to find out session object whose creation is in progress.
+	 * It is problematic because all sessions in ESTABLISHING state have
+	 * session_id SESSION_ID_INVALID.
+	 * Put the pointer to session being created in fop->f_private and
+	 * access it in c2_rpc_session_establish_reply_received().
+	 * Remember that the session on which reply is received
+	 * (i.e. SESSION_ID_0), is different from the session whose creation is
+	 * in progress.
+	 */
+	C2_ASSERT(fop->f_private == NULL);
+	fop->f_private = session;
 
 	session_0 = c2_rpc_conn_session0(conn);
 	rc = fop_post(fop, session_0, &c2_rpc_item_session_establish_ops);
@@ -972,9 +989,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 {
 	struct c2_rpc_fop_session_establish_rep *fop_ser;
 	struct c2_fop                           *fop;
-	struct c2_rpc_conn                      *conn;
 	struct c2_rpc_session                   *session;
-	struct c2_rpc_session                   *s;
 	struct c2_rpc_slot                      *slot;
 	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
@@ -985,33 +1000,14 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	C2_PRE(ergo(rc == 0, reply != NULL &&
 			req->ri_session == reply->ri_session));
 
-	/*
-	 * Search session object, for which SESSION_ESTABLISH_REPLY
-	 * is received
-	 */
-	conn = req->ri_session->s_conn;
-	C2_ASSERT(conn != NULL);
-
-	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	fop = c2_rpc_item_to_fop(req);
+	C2_ASSERT(fop != NULL && fop->f_private != NULL);
 
 	/*
-	 * For a c2_rpc_conn
-	 * There can be only one session create in progress at any given point.
-	 * XXX If we support more than one items in flight for a slot, then
-	 * this assumption does not hold. In that case we need some mechanism
-	 * to match SESSION_ESTABLISH_REPLY with session being established.
+	 * c2_rpc_session_establish(session) stored pointer of @session in
+	 * ->f_private field of request fop.
 	 */
-	session = NULL;
-	c2_rpc_for_each_session(conn, s) {
-		if (s->s_state == C2_RPC_SESSION_ESTABLISHING) {
-			session = s;
-			break;
-		}
-	}
-	C2_ASSERT(session != NULL);
-	c2_mutex_unlock(&conn->c_mutex);
+	session = fop->f_private;
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_ESTABLISHING);
@@ -1022,8 +1018,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 		goto out;
 	}
 
-	fop = c2_rpc_item_to_fop(reply);
-	fop_ser = c2_fop_data(fop);
+	fop_ser = c2_fop_data(c2_rpc_item_to_fop(reply));
 
 	sender_id = fop_ser->rser_sender_id;
 	session_id = fop_ser->rser_session_id;
