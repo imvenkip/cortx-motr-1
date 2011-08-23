@@ -158,7 +158,8 @@ static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
    @retval 0 (success) -errno (failure)
  */
 static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
-		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom)
+		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom,
+		uint64_t rpc_size)
 {
 	int				 rc = 0;
 	struct c2_rpc_frm_buffer	*fbuf = NULL;
@@ -168,6 +169,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	C2_PRE(rpc != NULL);
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(net_dom != NULL);
+	C2_PRE(rpc_size != 0);
 
 	C2_ALLOC_PTR(fbuf);
 	if (fbuf == NULL) {
@@ -179,7 +181,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	fbuf->fb_frm_sm = frm_sm;
 	fbuf->fb_rpc = rpc;
 	nb = &fbuf->fb_buffer;
-	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb);
+	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb, rpc_size);
 	if (rc != 0)
 		return rc;
 	*fb = fbuf;
@@ -2092,25 +2094,16 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 		tm = frm_get_tm(item);
 		dom = tm->ntm_dom;
+		rpc_size = c2_rpc_get_size(rpc_obj);
 
 		/* Allocate a buffer for sending the message.*/
-		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom);
+		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom, rpc_size);
 		if (rc < 0)
 			/* Process the next rpc object in the list.*/
 			continue;
 
 		/* Populate destination net endpoint. */
 		fb->fb_buffer.nb_ep = item->ri_session->s_conn->c_end_point;
-		rpc_size = c2_rpc_get_size(rpc_obj);
-
-		/* if rpc size is bigger than size of net buffer,
-		   post addb event and process next rpc object in the list */
-		if (rpc_size > c2_vec_count(&fb->fb_buffer.nb_buffer.ov_vec)) {
-			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
-					&frm_addb_loc, formation_func_fail,
-					"frm_send_onwire", 0);
-			continue;
-		}
 		fb->fb_buffer.nb_length = rpc_size;
 
 		/* XXX: Allocate bulk i/o buffers before encoding. */
