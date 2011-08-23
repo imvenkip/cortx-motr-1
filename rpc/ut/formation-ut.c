@@ -304,7 +304,7 @@ void c2_rpc_frm_ut_fini()
 	int	i = 0;
 
 	/* Fini the rpc formation component */
-	c2_rpc_frm_fini(rpcmachine.cr_formation);
+	c2_rpc_frm_fini(&rpcmachine.cr_formation);
 
 	/* Fini the slots */
 	for(i = 0; i < nslots; i++)

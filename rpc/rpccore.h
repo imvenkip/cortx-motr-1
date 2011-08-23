@@ -156,10 +156,18 @@ struct c2_rpc_item;
 
 #include "cob/cob.h"
 #include "fol/fol.h"
-#include "fop/fop_base.h"
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
 #include "addb/addb.h"
+
+enum c2_rpc_item_priority {
+	C2_RPC_ITEM_PRIO_MIN,
+	C2_RPC_ITEM_PRIO_MID,
+	C2_RPC_ITEM_PRIO_MAX,
+	C2_RPC_ITEM_PRIO_NR
+};
+
+#include "rpc/formation.h"
 
 /*Macro to enable RPC grouping test and debug code */
 
@@ -180,6 +188,7 @@ struct c2_rpc;
 struct c2_addb_rec;
 struct c2_rpc_formation;
 struct c2_rpc_conn;
+struct c2_fop_type;
 struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
@@ -454,13 +463,6 @@ enum c2_rpc_item_tstate {
 	RPC_ITEM_IN_PROGRESS,
 	/** the item is not sent */
 	RPC_ITEM_FUTURE,
-};
-
-enum c2_rpc_item_priority {
-	C2_RPC_ITEM_PRIO_MIN,
-	C2_RPC_ITEM_PRIO_MID,
-	C2_RPC_ITEM_PRIO_MAX,
-	C2_RPC_ITEM_PRIO_NR
 };
 
 enum {
@@ -836,7 +838,7 @@ struct c2_rpcmachine {
 	/* List of transfer machine used by conns from this rpcmachine. */
 	struct c2_rpc_ep_aggr		 cr_ep_aggr;
 	/* Formation module associated with this rpcmachine. */
-	struct c2_rpc_formation		*cr_formation;
+	struct c2_rpc_formation		 cr_formation;
 	struct c2_rpc_processing	 cr_processing;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		*cr_dom;

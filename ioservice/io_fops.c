@@ -31,6 +31,7 @@
 #endif
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "fop/fop.h"
 
 /*
    Forward declarations.
@@ -663,6 +664,13 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 
 	op = res_fop->f_type->ft_code;
 
+        /* Make a copy of original IO vector belonging to res_fop and place
+           it in input parameter vec which can be used while restoring the
+           IO vector. */
+        res = iovec_alloc(&vec);
+        if (res != 0)
+                return -ENOMEM;
+
 	c2_list_init(&aggr_list);
 
 	/* Traverse the fop_list, get the IO vector from each fop,
@@ -702,6 +710,8 @@ cleanup:
 	C2_ASSERT(res != 0);
 	if (res_iovec != NULL)
 		iovec_free(res_iovec);
+	if (vec != NULL)
+		iovec_free(vec);
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
 				    struct c2_io_ioseg, io_linkage)
 		ioseg_unlink_free(ioseg);
@@ -739,6 +749,7 @@ static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
 		write_fop->fwr_iovec.iov_count = vec->iov_count;
 		write_fop->fwr_iovec.iov_segs = vec->iov_segs;
 	}
+	c2_free(vec);
 }
 
 /**

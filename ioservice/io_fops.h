@@ -21,28 +21,13 @@
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "fop/fop_format.h"
 #include "lib/list.h"
 
-struct c2_fop;
-struct c2_fop_io_vec;
 struct c2_fop_io_seg;
 struct c2_fop_segment;
 struct c2_fop_segment_seq;
-
-/**
-   A IO vector pointer union to keep track of original IO vector of a
-   resultant IO rpc item happened due to IO coalescing. Once the reply
-   of such operations comes back, original IO vector is restored in the
-   resultant fop.
- */
-union c2_io_iovec {
-	/** IO vector for write request operation. */
-	struct c2_fop_io_vec		*write_vec;
-	/** IO vector for read request operation. */
-	struct c2_fop_io_vec		*read_vec;
-};
 
 /**
  * The opcode from which IO service FOPS start.

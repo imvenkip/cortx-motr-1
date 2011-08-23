@@ -933,8 +933,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 
-	c2_rpc_frm_fini(machine->cr_formation);
-	machine->cr_formation = NULL;
+	c2_rpc_frm_fini(&machine->cr_formation);
 
 	/* Release the reference on the source endpoint and the
 	   concerned c2_rpc_chan here.
@@ -1127,6 +1126,47 @@ void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item,
 	fop = c2_rpc_item_to_fop(b_item);
 	C2_ASSERT(fop != NULL);
 	fop->f_type->ft_ops->fto_iovec_restore(fop, vec);
+}
+
+/**
+   Coalesce rpc items that share same fid and intent(read/write)
+   @param c_item - c2_rpc_frm_item_coalesced structure.
+   @param b_item - Given bound rpc item.
+   @retval - 0 if routine succeeds, -ve number(errno) otherwise.
+ */
+int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
+		struct c2_rpc_item *b_item)
+{
+	int			 res = 0;
+	struct c2_list		 fop_list;
+	struct c2_fop		*fop = NULL;
+	struct c2_fop		*fop_next = NULL;
+	struct c2_fop		*b_fop = NULL;
+	struct c2_rpc_item	*item = NULL;
+
+	C2_PRE(b_item != NULL);
+	C2_PRE(c_item != NULL);
+
+	c2_list_init(&fop_list);
+	c2_list_for_each_entry(&c_item->ic_member_list, item,
+			struct c2_rpc_item, ri_coalesced_linkage) {
+		fop = c2_rpc_item_to_fop(item);
+		c2_list_add(&fop_list, &fop->f_link);
+	}
+	b_fop = container_of(b_item, struct c2_fop, f_item);
+
+	/* Restore the original IO vector of resultant rpc item. */
+	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
+			c_item->ic_iovec);
+
+	c2_list_for_each_entry_safe(&fop_list, fop, fop_next,
+			struct c2_fop, f_link)
+		c2_list_del(&fop->f_link);
+
+	c2_list_fini(&fop_list);
+	if (res == 0)
+		c_item->ic_resultant_item = b_item;
+	return res;
 }
 
 int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
