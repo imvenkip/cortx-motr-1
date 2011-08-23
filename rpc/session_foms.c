@@ -141,7 +141,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	reply->rcer_snd_id = conn->c_sender_id;
+	reply->rcer_sender_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
 	fom->fo_phase = FOPH_DONE;
 
@@ -164,7 +164,7 @@ errout:
 	C2_ASSERT(rc != 0);
 
 	printf("conn_establish_state: failed %d\n", rc);
-	reply->rcer_snd_id = SENDER_ID_INVALID;
+	reply->rcer_sender_id = SENDER_ID_INVALID;
 	reply->rcer_rc = rc;
 
 	fom->fo_phase = FOPH_FAILED;
@@ -220,7 +220,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	reply->rser_sender_id = request->rse_snd_id;
+	reply->rser_sender_id = request->rse_sender_id;
 	slot_cnt = request->rse_slot_cnt;
 
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
@@ -228,7 +228,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		goto errout;
 	}
 	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
-			request->rse_snd_id, slot_cnt);
+			request->rse_sender_id, slot_cnt);
 
 	item = &fop->f_item;
 	C2_ASSERT(item->ri_mach != NULL &&

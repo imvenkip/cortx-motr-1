@@ -44,7 +44,7 @@ Aproach taken by session module to achive these two objectives, is similar
 to session-slot implementation in NFSv4.1
 
 See section 2.10.6 of rfc 5661 NFSv4.1
-http://tools.ietf.org/html/rfc5661#section-2.6
+http://tools.ietf.org/html/rfc5661#section-2.10.6
 
 Session module defines following types of objects:
 - rpc connection @see c2_rpc_conn
@@ -69,7 +69,7 @@ receiver.
 
 Rpc connection has a list of rpc sessions, which are created on this
 connection. A rpc connection cannot be terminated until all the sessions
-created on the connection are not terminated.
+created on the connection are terminated.
 
 A session contains one or more slots. Number of slots in the session can
 vary over the lifetime of session (In current implementation state, the number
@@ -101,7 +101,9 @@ already executed on receiver, then instead of again processing the item,
 its reply from reply cache is retrieved and returned to the sender.
 By preventing multiple executions of same item (or FOP), reply cache provides
 "exactly once" semantics. If reply cache is persistent, then EOS can be
-guaranteed even in the face of server restart.
+guaranteed even in the face of receiver restart. Colibri implements Reply
+Cache via FOL (File Operation Log). See section "Slot as a cob" for more
+details on this.
 
 <B> Slot as a "cob": </B>
 Session module implements a slot as a "special file". This allows to reuse
@@ -122,7 +124,7 @@ number of slot is advanced.
 FOL (File Operation Log) contains record for each update operation executed.
 The FOL record contains all the information required to undo or redo that
 specific operation. If along with the operation details, reply of operation
-is also stored in the FOL record, the FOL itself can act as a "Reply Cache".
+is also stored in the FOL record, the FOL itself acts as a "Reply Cache".
 Given fid of cob that represents the slot and version number of item, it is
 possible to determine whether the item is duplicate or not. If it is duplicate
 item then version number within the item will be less than version number of
@@ -486,7 +488,7 @@ struct c2_rpc_conn {
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
 	/** Conditional variable on which "connection state changed" signal
-	    is broadcasted */
+	    is broadcast */
 	struct c2_cond            c_state_changed;
 	struct c2_mutex           c_mutex;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
@@ -758,10 +760,11 @@ struct c2_rpc_session {
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
 	struct c2_list            s_unbound_items;
-	/** Number of active slots in the table */
-	uint32_t                  s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t                  s_slot_table_capacity;
+	/** Only [0, s_nr_slots) slots from the s_slot_table can be used to
+            bind items. s_nr_slots <= s_slot_table_capacity */
+	uint32_t                  s_nr_slots;
 	/** Array of pointers to slots */
 	struct c2_rpc_slot      **s_slot_table;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code

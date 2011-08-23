@@ -439,7 +439,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 		printf("ccrr: conn create failed %d\n",
 			fop_cer->rcer_rc);
 	} else {
-		if (fop_cer->rcer_snd_id == SENDER_ID_INVALID) {
+		if (fop_cer->rcer_sender_id == SENDER_ID_INVALID) {
 			/*
 			 * Return code (fop_cer->rcer_rc) says that conn
 			 * establish is successful. In that case, sender_id
@@ -452,10 +452,10 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req,
 			conn_failed(conn, -EINVAL);
 			goto out;
 		}
-		conn->c_sender_id = fop_cer->rcer_snd_id;
+		conn->c_sender_id = fop_cer->rcer_sender_id;
 		conn->c_state = C2_RPC_CONN_ACTIVE;
 		printf("ccrr: conn created %lu\n",
-			(unsigned long)fop_cer->rcer_snd_id);
+			(unsigned long)fop_cer->rcer_sender_id);
 	}
 
 out:
@@ -925,7 +925,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	fop_se = c2_fop_data(fop);
 	C2_ASSERT(fop_se != NULL);
 
-	fop_se->rse_snd_id = conn->c_sender_id;
+	fop_se->rse_sender_id = conn->c_sender_id;
 	fop_se->rse_slot_cnt = session->s_nr_slots;
 
 	session_0 = c2_rpc_conn_session0(conn);
