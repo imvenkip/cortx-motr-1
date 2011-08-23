@@ -667,14 +667,15 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nbuf, enum c2_net_queue_type qtype)
+		struct c2_net_buffer **nbuf, enum c2_net_queue_type qtype,
+		uint64_t rpc_size)
 {
 	int				 rc;
-	struct c2_net_buffer		*nb = NULL;
-	int32_t				 nr_segs;
+	int32_t				 segs_nr;
 	c2_bcount_t			 seg_size;
 	c2_bcount_t			 buf_size;
 	c2_bcount_t			 nrsegs;
+	struct c2_net_buffer		*nb = NULL;
 
 	C2_PRE(net_dom != NULL);
 	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype == C2_NET_QT_MSG_SEND));
@@ -690,16 +691,20 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		nb = *nbuf;
 
 	buf_size = c2_net_domain_get_max_buffer_size(net_dom);
-	nr_segs = c2_net_domain_get_max_buffer_segments(net_dom);
+	segs_nr = c2_net_domain_get_max_buffer_segments(net_dom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
+	if (rpc_size != 0)
+		buf_size = rpc_size;
 
-	/* Allocate the bufvec of size = min((buf_size), (nr_segs * seg_size)).
+	/* Allocate the bufvec of size = min((buf_size), (segs_nr * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (nr_segs * seg_size))
-		nrsegs = nr_segs;
+	if (buf_size > (segs_nr * seg_size)) 
+		nrsegs = segs_nr;
 	else
 		nrsegs = buf_size / seg_size;
+	if (nrsegs == 0)
+		++nrsegs;
 
 	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
 	if (rc < 0) {
@@ -736,16 +741,17 @@ int c2_rpc_net_recv_buffer_allocate(struct c2_net_domain *net_dom,
 	C2_PRE(net_dom != NULL);
 	C2_PRE(nb != NULL);
 
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV);
+	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV, 0);
 }
 
 int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb)
+		struct c2_net_buffer **nb, uint64_t rpc_size)
 {
 	C2_PRE(net_dom != NULL);
 	C2_PRE(nb != NULL);
 
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND);
+	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND,
+			rpc_size);
 }
 
 int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,

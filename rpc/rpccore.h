@@ -726,10 +726,12 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
 
    @param net_dom - network domain to which buffers will be registered.
    @param nb - Out parameter to return the allocated c2_net_buffer.
+   @param rpc_size - Size of rpc object. The net buffer should be
+   		     at least as big as rpc_size.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb);
+		struct c2_net_buffer **nb, uint64_t rpc_size);
 
 /**
    Deallocate a net buffer meant for sending messages.
