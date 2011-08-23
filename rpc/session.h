@@ -630,8 +630,8 @@ enum c2_rpc_session_state {
    <B> Concurrency:</B>
    c2_rpc_session::s_mutex protects all fields except s_link. s_link is
    protected by session->s_conn->c_mutex.
-   When session is in UNINITIALISED or in C2_RPC_SESSION_TERMINATED state,
-   user is expected to serialise access to the session object.
+   When session is in one of UNINITIALISED, INITIALISED, TERMINATED and
+   FAILED state, user is expected to serialise access to the session object.
    There is no need to take session->s_mutex while posting item
    on the session. Users of rpc-layer are never expected to take lock on
    session.

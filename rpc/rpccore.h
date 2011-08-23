@@ -1354,6 +1354,9 @@ int c2_rpc_zero_copy_init(struct c2_net_buffer **active_buffers,
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
 extern struct c2_queue	c2_exec_queue;
+extern struct c2_cond   c2_item_ready;
+extern struct c2_mutex  c2_exec_queue_mutex;
+
 extern struct c2_chan	c2_exec_chan;
 
 /** @} end group rpc_layer_core */

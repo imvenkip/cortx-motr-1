@@ -753,6 +753,7 @@ void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
+	C2_PRE(slot->sl_in_flight == 0);
 
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_SLOT_IDLE;
 	sm_event.se_pvt = NULL;
@@ -1572,7 +1573,8 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	slot = item->ri_slot_refs[0].sr_slot;
 	C2_ASSERT(slot != NULL);
 	c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
-	if (c2_list_is_empty(&slot->sl_ready_list))
+	//if (c2_list_is_empty(&slot->sl_ready_list))
+	if (c2_list_link_is_in(&slot->sl_link))
 		c2_list_del(&slot->sl_link);
 }
 

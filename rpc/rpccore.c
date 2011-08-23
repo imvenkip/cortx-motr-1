@@ -1356,6 +1356,9 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 /* Dummy reqh queue of items */
 
 struct c2_queue	c2_exec_queue;
+struct c2_cond  c2_item_ready;
+struct c2_mutex c2_exec_queue_mutex;
+
 struct c2_chan	c2_exec_chan;
 
 /*

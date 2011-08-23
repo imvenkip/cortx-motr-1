@@ -230,20 +230,19 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
 			request->rse_sender_id, slot_cnt);
 
-	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL &&
-		  item->ri_session != NULL);
-
-	conn = item->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
-			c2_rpc_conn_invariant(conn));
-
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
 		printf("scs: failed to allocate session\n");
 		rc = -ENOMEM;
 		goto errout;
 	}
+
+	item = &fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL &&
+		  item->ri_session != NULL);
+
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL);
 
 	rc = c2_rpc_session_init(session, conn, slot_cnt);
 	if (rc != 0) {
@@ -256,8 +255,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		goto out_fini;
 	}
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
-			c2_rpc_session_invariant(session));
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 
 	reply->rser_rc = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;
