@@ -1365,8 +1365,6 @@ struct c2_queue	c2_exec_queue;
 struct c2_cond  c2_item_ready;
 struct c2_mutex c2_exec_queue_mutex;
 
-struct c2_chan	c2_exec_chan;
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

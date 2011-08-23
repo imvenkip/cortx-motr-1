@@ -237,9 +237,7 @@ void server_rqh_init(int dummy)
 	c2_cond_init(&c2_item_ready);
 	c2_mutex_init(&c2_exec_queue_mutex);
 
-	c2_chan_init(&c2_exec_chan);
 	c2_clink_init(&clink, NULL);
-	c2_clink_add(&c2_exec_chan, &clink);
 	C2_ASSERT(c2_queue_is_empty(&c2_exec_queue));
         C2_ASSERT(c2_queue_length(&c2_exec_queue) == 0);
 

@@ -1359,8 +1359,6 @@ extern struct c2_queue	c2_exec_queue;
 extern struct c2_cond   c2_item_ready;
 extern struct c2_mutex  c2_exec_queue_mutex;
 
-extern struct c2_chan	c2_exec_chan;
-
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
 #endif
