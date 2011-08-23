@@ -41,7 +41,7 @@ int c2_rpc_session_module_init(void);
 /**
    Finalises all session realted fop types
  */
-void c2_rpc_session_module_fini(struct c2_rpcmachine *machine);
+void c2_rpc_session_module_fini(void);
 
 enum {
 	SESSION_COB_MAX_NAME_LEN = 40

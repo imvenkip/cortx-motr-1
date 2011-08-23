@@ -411,8 +411,11 @@ enum c2_rpc_conn_flags {
 
   // ESTABLISH RPC CONNECTION
   rc = c2_rpc_conn_establish(conn);
-  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
 
+  if (rc != 0) {
+	// some error occured. Cannot establish connection.
+        // handle the situation and return
+  }
   // WAIT UNTIL CONNECTION IS ESTABLISHED
   flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
 				absolute_timeout);
@@ -433,7 +436,6 @@ enum c2_rpc_conn_flags {
   C2_ASSERT(conn->c_nr_sessions == 0);
 
   rc = c2_rpc_conn_terminate(conn);
-  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
 
   // WAIT UNTIL CONNECTION IS TERMINATED
   flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
@@ -519,10 +521,6 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
-    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
-		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
-				 &conn->c_link))
-    @post if result != 0, conn can be in C2_RPC_CONN_FAILED state.
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -535,8 +533,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
    @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
 		conn->c_state == C2_RPC_CONN_TERMINATING
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
-   @post if result != 0, conn can be in C2_RPC_CONN_FAILED state
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -694,7 +690,6 @@ enum c2_rpc_session_state {
    // ESTABLISH SESSION
 
    rc = c2_rpc_session_establish(session);
-   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
 
    flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
 					C2_RPC_SESSION_FAILED, timeout);
@@ -723,8 +718,6 @@ enum c2_rpc_session_state {
    if (flag) {
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 	rc = c2_rpc_session_terminate(session);
-	C2_ASSERT(ergo(rc == 0, session->s_state ==
-			C2_RPC_SESSION_TERMINATING));
 
 	// Wait until session is terminated.
 	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
@@ -793,9 +786,6 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
-    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
-		c2_list_contains(session->s_conn->c_sessions, &session->s_link))
-    @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
@@ -807,8 +797,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
-   @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
-   @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 

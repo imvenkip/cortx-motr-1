@@ -69,10 +69,6 @@ static void session_zero_detach(struct c2_rpc_conn *conn);
 static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 				     uint64_t                  xid);
 /**
-   XXX temporary
- */
-static void conn_list_fini(struct c2_list *list);
-/**
   XXX temporary routine that submits the fop inside item for execution.
  */
 static void item_dispatch(struct c2_rpc_item *item);
@@ -155,13 +151,8 @@ int c2_rpc_session_module_init(void)
 }
 C2_EXPORTED(c2_rpc_session_module_init);
 
-void c2_rpc_session_module_fini(struct c2_rpcmachine *machine)
+void c2_rpc_session_module_fini(void)
 {
-	C2_PRE(machine != NULL);
-
-	conn_list_fini(&machine->cr_incoming_conns);
-	conn_list_fini(&machine->cr_outgoing_conns);
-
 	c2_rpc_session_fop_fini();
 }
 C2_EXPORTED(c2_rpc_session_module_fini);
@@ -396,7 +387,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 		c2_fop_free(fop);
 	}
 
-	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
@@ -592,7 +582,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		c2_fop_free(fop);
 		fop = NULL;
 	}
-	C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
 	C2_ASSERT(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
@@ -944,14 +933,12 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	}
 
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
-	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
+	C2_POST(c2_rpc_session_invariant(session));
+	C2_POST(c2_rpc_conn_invariant(conn));
 
 	c2_cond_broadcast(&session->s_state_changed,
 			  &session->s_mutex);
-
-	C2_POST(c2_rpc_session_invariant(session));
-	C2_POST(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 
@@ -1139,7 +1126,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	}
 
 out_unlock:
-	C2_POST(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATING));
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
 	C2_POST(c2_rpc_session_invariant(session));
 	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
@@ -2388,6 +2374,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
+	C2_ASSERT(slot->sl_in_flight == 0);
 	c2_rpc_frm_slot_idle(slot);
 }
 
@@ -2409,6 +2396,7 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
 			(unsigned long)slot->sl_verno.vn_vc,
 			(unsigned long)slot->sl_xid);
+	C2_ASSERT(slot->sl_in_flight == 0);
 	c2_rpc_frm_slot_idle(slot);
 }
 
@@ -2985,30 +2973,6 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	}
 	printf("item_received: %p finished\n", item);
 	return 0;
-}
-
-/**
-   XXX Temporary. This routine will be discarded, once rpc-core starts
-   providing c2_rpc_item::ri_ops::rio_sent() callback.
-
-   In-memory state of conn should be cleaned up when reply to CONN_TERMINATE
-   has been sent. As of now, rpc-core does not provide this callback. So this
-   is a temporary routine, that cleans up all terminated connections from
-   rpc connection list maintained in rpcmachine.
- */
-static void conn_list_fini(struct c2_list *list)
-{
-	struct c2_rpc_conn *conn;
-	struct c2_rpc_conn *conn_next;
-
-	C2_PRE(list != NULL);
-
-	c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
-			c_link) {
-
-		c2_rpc_conn_terminate_reply_sent(conn);
-
-	}
 }
 
 /** @} end of session group */

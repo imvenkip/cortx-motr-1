@@ -315,11 +315,12 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
-	return 0;
+	return c2_rpc_session_module_init();
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_session_module_fini();
 }
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
@@ -899,13 +900,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		return rc;
 	}
 
-	rc = c2_rpc_session_module_init();
-	if (rc < 0) {
-		c2_rpc_chan_destroy(machine, chan);
-		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-		return rc;
-	}
-
 	/* Initialize the formation module. */
 	rc = c2_rpc_frm_init(&machine->cr_formation);
 
@@ -918,6 +912,30 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	return rc;
 }
 
+/**
+   XXX Temporary. This routine will be discarded, once rpc-core starts
+   providing c2_rpc_item::ri_ops::rio_sent() callback.
+
+   In-memory state of conn should be cleaned up when reply to CONN_TERMINATE
+   has been sent. As of now, rpc-core does not provide this callback. So this
+   is a temporary routine, that cleans up all terminated connections from
+   rpc connection list maintained in rpcmachine.
+ */
+static void conn_list_fini(struct c2_list *list)
+{
+        struct c2_rpc_conn *conn;
+        struct c2_rpc_conn *conn_next;
+
+        C2_PRE(list != NULL);
+
+        c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
+                        c_link) {
+
+                c2_rpc_conn_terminate_reply_sent(conn);
+
+        }
+}
+
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	struct c2_rpc_chan	*chan = NULL;
@@ -925,11 +943,8 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	C2_PRE(machine != NULL);
 
 	rpc_proc_fini(&machine->cr_processing);
-	/* XXX commented following two lines for testing purpose */
-	//c2_list_fini(&machine->cr_incoming_conns);
-	//c2_list_fini(&machine->cr_outgoing_conns);
-	//c2_list_fini(&machine->cr_rpc_conn_list);
-	c2_rpc_session_module_fini(machine);
+	conn_list_fini(&machine->cr_incoming_conns);
+	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 
