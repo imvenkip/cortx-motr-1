@@ -66,8 +66,6 @@ struct c2_rpc_header {
 	uint32_t rh_item_count;
 };
 
-#define printf(x, ...)  
-
 /**
    Header information per rpc item in an rpc object. The detailed description
    of the various fields is present in struct c2_rpc_item /rpc/rpccore.h.

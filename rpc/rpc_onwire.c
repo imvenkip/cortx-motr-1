@@ -330,6 +330,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	int				 rc;
 	struct c2_rpc_item_type		*item_type;
 	void				*cur_addr;
+	int				 count = 0;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);

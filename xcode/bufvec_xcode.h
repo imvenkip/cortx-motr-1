@@ -34,7 +34,6 @@
    - Currently, we assume that the bufvecs supplied to the transcode routines
    have 8 byte aligned buffers with sizes multiple of 8 bytes.
 */
-#define printf(x, ...) 
 /** This is the  number of bytes per unit of external data */
 enum {
 	BYTES_PER_XCODE_UNIT = 8,
@@ -143,6 +142,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 */
 int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum c2_bufvec_what what);
+
 /** @} end of bufvec group */
 
 #endif
