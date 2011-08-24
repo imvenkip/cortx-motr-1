@@ -88,13 +88,13 @@ struct c2_yaml2db_section {
   @param ctx - yaml2db context
   @param node - starting node of the sequence
   @param item - yaml_node_item_t
-  @param snode - sequence node at index pointed by item
+  @param s_node - sequence node at index pointed by item
 */
-#define yaml2db_sequence_for_each(ctx, node, item, snode) \
+#define c2_yaml2db_sequence_for_each(ctx, node, item, s_node) \
 	for (item = (node)->data.sequence.items.start; \
 	     item < (node)->data.sequence.items.top && \
-	     snode = yaml_document_get_node(&(ctx)->yc_document, item); \
-	     item ++)
+	     (s_node = yaml_document_get_node(&(ctx)->yc_document, *item)); \
+	     item++)
 
 /**
   Iterates over a yaml mapping
@@ -104,14 +104,14 @@ struct c2_yaml2db_section {
   @param k_node - mapping node at index pointed by mapping pair key
   @param v_node - mapping node at index pointed by mapping pair value
  */
-#define yaml2db_mapping_for_each(ctx, node, pair, k_node, v_node) \
+#define c2_yaml2db_mapping_for_each(ctx, node, pair, k_node, v_node) \
 	for (pair = (node)->data.mapping.pairs.start; \
 	     pair < (node)->data.mapping.pairs.top && \
-	     k_node = yaml_document_get_node(&(ctx)->yc_document, \
-		     (pair)->key); \
-	     v_node = yaml_document_get_node(&(ctx)->yc_document, \
-		     (pair)->value); \
-	     item ++)
+	     (k_node = yaml_document_get_node(&(ctx)->yc_document, \
+		     (pair)->key)) &&\
+	     (v_node = yaml_document_get_node(&(ctx)->yc_document, \
+		     (pair)->value)); \
+	     pair++)
 
 #endif /* __COLIBRI_YAML2DB_H__ */
 

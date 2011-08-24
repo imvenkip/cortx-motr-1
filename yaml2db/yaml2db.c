@@ -279,106 +279,6 @@ parser_error:
 }
 
 /**
-  Function to read mapping
-  @param yctx - yaml2db context
-  @param table - database table in which disk structure has to be stored
-  @param tx - database transaction
-  @param node - yaml node used as an anchor from which sequence has to be read
-  @retval 0 if success, -errno otherwise
-*/
-static int read_and_store_disk_mapping(struct c2_yaml2db_ctx *yctx,
-		struct c2_table *table, struct c2_db_tx *tx, yaml_node_t *node)
-{
-	yaml_node_pair_t	*pair;
-	yaml_node_t		*mnode_key;
-	yaml_node_t		*mnode_value;
-        struct c2_db_pair	 db_pair;
-	int			 rc;
-	int			 key = 0;
-
-	C2_PRE(node != NULL);
-	C2_PRE(yctx != NULL);
-
-	for (pair = node->data.mapping.pairs.start;
-			pair < node->data.mapping.pairs.top; pair++) {
-		mnode_key = yaml_document_get_node(&yctx->yc_document,
-				pair->key);
-		mnode_value = yaml_document_get_node(&yctx->yc_document,
-				pair->value);
-		if (pair->key != 0 && pair->value != 0)
-			key++;
-			c2_db_pair_setup(&db_pair, table, &key, sizeof key,
-					mnode_value->data.scalar.value,
-					sizeof(mnode_value->data.scalar.value));
-			rc = c2_table_insert(tx, &db_pair);
-			if (rc != 0) {
-				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-						yaml2db_func_fail,
-						"c2_table_insert", 0);
-				c2_db_pair_release(&db_pair);
-				c2_db_pair_fini(&db_pair);
-				return -EINVAL;
-			}
-			c2_db_pair_release(&db_pair);
-			c2_db_pair_fini(&db_pair);
-	}
-	return 0;
-}
-
-/**
-  Function to read sequence
-  @param yctx- YAML context structure
-  @param node - yaml node used as an anchor from which sequence has to be read
-  @retval 0 if success, -errno otherwise
-*/
-static int read_sequence(struct c2_yaml2db_ctx *yctx, yaml_node_t *node)
-{
-	yaml_node_item_t	*item;
-	yaml_node_t		*snode;
-        struct c2_table		 table;
-        struct c2_db_tx		 tx;
-	int			 rc;
-
-	C2_PRE(yctx != NULL);
-	C2_PRE(node != NULL);
-
-        /* Initialize the table */
-        rc = c2_table_init(&table, &yctx->yc_db, disk_table,
-                        0, &disk_table_ops);
-        if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "c2_table_init", 0);
-                return -EINVAL;
-	}
-
-        /* Initialize the database transaction */
-        rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
-        if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "c2_db_tx_init", 0);
-                c2_table_fini(&table);
-                return -EINVAL;
-        }
-
-	for (item = node->data.sequence.items.start;
-			item < node->data.sequence.items.top; item++) {
-		snode = yaml_document_get_node(&yctx->yc_document, *item);
-		if (snode == NULL)
-			return -EINVAL;
-		rc = read_and_store_disk_mapping(yctx, &table, &tx, snode);
-		if (rc != 0) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail,
-					"read_and_store_disk_mapping", 0);
-			return -EINVAL;
-		}
-	}
-	c2_db_tx_commit(&tx);
-	c2_table_fini(&table);
-	return 0;
-}
-
-/**
   Function to return the yaml_node as an anchor, given a scalar value
   @param yctx - yaml2db context
   @param value - scalar value to be checked in the document
@@ -408,6 +308,7 @@ static yaml_node_t *yaml2db_scalar_locate(struct c2_yaml2db_ctx *yctx,
 	else
 		return NULL;
 }
+
 /**
   Function to parse the yaml document
   @param yctx - yaml2db context
@@ -417,18 +318,67 @@ static int yaml2db_load_disk_conf(struct c2_yaml2db_ctx *yctx)
 {
         int                      rc;
 	yaml_node_t		*node;
+	yaml_node_t		*s_node;
+	yaml_node_t		*k_node;
+	yaml_node_t		*v_node;
+	yaml_node_item_t	*item;
+	yaml_node_pair_t	*pair;
+        struct c2_table		 table;
+        struct c2_db_tx		 tx;
+        struct c2_db_pair	 db_pair;
+	int			 key = 0;
 
         C2_PRE(yctx != NULL);
+
+        /* Initialize the table */
+        rc = c2_table_init(&table, &yctx->yc_db, disk_table,
+                        0, &disk_table_ops);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "c2_table_init", 0);
+                return rc;
+	}
+
+        /* Initialize the database transaction */
+        rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "c2_db_tx_init", 0);
+                c2_table_fini(&table);
+                return rc;
+        }
 
 	node = yaml2db_scalar_locate(yctx, disk_str);
 	if (node == NULL) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "yaml2db_scalar_locate", 0);
+                c2_table_fini(&table);
 		return -EINVAL;
 	}
 
 	node++;
-	rc = read_sequence(yctx, node);
+	c2_yaml2db_sequence_for_each(yctx, node, item, s_node) {
+		c2_yaml2db_mapping_for_each (yctx, s_node, pair, k_node, v_node) {
+			key++;
+			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+					v_node->data.scalar.value,
+					sizeof(v_node->data.scalar.value));
+			rc = c2_table_insert(&tx, &db_pair);
+			if (rc != 0) {
+				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+						yaml2db_func_fail,
+						"c2_table_insert", 0);
+				c2_db_pair_release(&db_pair);
+				c2_db_pair_fini(&db_pair);
+				c2_table_fini(&table);
+				return rc; 
+			}
+			c2_db_pair_release(&db_pair);
+			c2_db_pair_fini(&db_pair);
+		}
+	}
+	c2_db_tx_commit(&tx);
+	c2_table_fini(&table);
 	return rc;
 }
 
@@ -498,8 +448,8 @@ int main(int argc, char *argv[])
 	}
 
 	/* Finalize the parser and database environment */
+cleanup:	
 	yaml2db_fini(&yctx);
-
 	c2_fini();
 
   return 0;
