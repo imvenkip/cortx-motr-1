@@ -44,7 +44,6 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpccore.h"
-#include "rpc/formation.h"
 
 /**
    @addtogroup rpc_session

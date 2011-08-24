@@ -786,6 +786,8 @@ struct c2_rpc_chan {
 	struct c2_net_buffer		**rc_rcv_buffers;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
+	/** Formation state machine associated with chan. */
+	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** The rpcmachine, this chan structure is associated with.*/
 	struct c2_rpcmachine		 *rc_rpcmachine;
 };

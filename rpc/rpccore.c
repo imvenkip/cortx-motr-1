@@ -342,6 +342,8 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	int			 rc = 0;
 	struct c2_rpc_chan	*ch = NULL;
 	struct c2_clink		 tmwait;
+	c2_bcount_t		 max_bufsize;
+	c2_bcount_t		 max_segs_nr;
 
 	C2_PRE(chan != NULL);
 	C2_PRE(machine != NULL);
@@ -418,6 +420,16 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	c2_list_add_tail(&machine->cr_ep_aggr.ea_chan_list, &ch->rc_linkage);
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	*chan = ch;
+	/* Initialize the formation state machine attached with given
+	   c2_rpc_chan structure. This state machine is finiied when
+	   corresponding c2_rpc_chan is destroyed. */
+	c2_rpc_frm_sm_init(ch, &machine->cr_formation, &ch->rc_frmsm);
+
+	/* Assign network specific thresholds on max buffer size and
+	   max number of fragments. */
+	max_bufsize = c2_net_domain_get_max_buffer_size(net_dom);
+	max_segs_nr = c2_net_domain_get_max_buffer_segments(net_dom);
+	c2_rpc_frm_sm_net_limits_set(&ch->rc_frmsm, max_bufsize, max_segs_nr);
 	return rc;
 cleanup:
 	c2_free(ch->rc_rcv_buffers);
@@ -475,7 +487,10 @@ void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&chan->rc_tm.ntm_chan, &tmwait);
 
-	/* Stop the transfer machine first. */
+	/* Fini the formation state machine since it can add net buffers
+	   to the transfer machine. */
+	c2_rpc_frm_sm_fini(&chan->rc_frmsm);
+
 	rc = c2_net_tm_stop(&chan->rc_tm, false);
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
@@ -893,6 +908,13 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	   passing the source endpoint. */
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
 
+	/* Initialize the formation module. */
+	rc = c2_rpc_frm_init(&machine->cr_formation);
+	if (rc < 0) {
+		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
+		return rc;
+	}
+
 	rc = c2_rpc_chan_create(&chan, machine, net_dom, ep_addr);
 	if (rc < 0) {
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
@@ -905,9 +927,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
 		return rc;
 	}
-
-	/* Initialize the formation module. */
-	rc = c2_rpc_frm_init(&machine->cr_formation);
 
 	/* Init the add context for this rpcmachine */
 	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
@@ -932,9 +951,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_rpc_session_module_fini(machine);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
-
-	c2_rpc_frm_fini(&machine->cr_formation);
-
 	/* Release the reference on the source endpoint and the
 	   concerned c2_rpc_chan here.
 	   The chan structure at head of list is the one that was added

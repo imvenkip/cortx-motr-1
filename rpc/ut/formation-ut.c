@@ -18,7 +18,7 @@
  * Original creation date: 05/24/2011
  */
 
-#include "rpc/formation.h"
+#include "rpc/rpccore.h"
 #include "stob/ut/io_fop.h"
 #include "lib/thread.h"
 #include "lib/misc.h"

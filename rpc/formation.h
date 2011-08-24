@@ -188,9 +188,6 @@ struct c2_rpc_formation {
 	struct c2_addb_ctx		rf_rpc_form_addb;
 };
 
-/* Included here to avoid some cyclic dependencies. */
-#include "rpc/rpccore.h"
-
 /**
    Enumeration of all possible states.
  */
@@ -258,19 +255,13 @@ struct c2_rpc_frm_sm {
 	/** Linkage into the list of formation state machines anchored
 	    at c2_rpc_formation::rf_frm_sm_list. */
 	struct c2_list_link		 fs_linkage;
-	/** The c2_rpc_conn structure which points to the destination network
+	/** The c2_rpc_chan structure which points to the destination network
 	    endpoint, this formation state machine is directed towards. */
-	struct c2_rpc_conn		*fs_rpcconn;
+	struct c2_rpc_chan		*fs_rpcchan;
 	/** State of the state machine. Threads will have to take the
 	    unit_lock above before state can be changed. This
 	    variable will bear one value from enum c2_rpc_frm_state. */
 	enum c2_rpc_frm_state		 fs_state;
-	/** Refcount for this summary unit. Refcount is related to an incoming
-	    thread as well as the number of rpc items it refers to.
-	    Only when the state machine doesn't contain any data about
-	    unformed rpc items and there are no threads operating on the
-	    state machine, will it be deallocated. */
-	struct c2_ref			 fs_ref;
 	/** List of structures containing data for each group linked
 	    through c2_rpc_frm_rpcgroup::frg_linkage.
 	    @code c2_list <struct c2_rpc_frm_rpcgroup>
@@ -310,6 +301,34 @@ struct c2_rpc_frm_sm {
 	    Any number > 0 will trigger formation. */
 	uint64_t			 fs_complete_groups_nr;
 };
+
+/**
+   Create a new formation state machine object.
+   @param conn - c2_rpc_chan structure used for unique formation state machine
+   @param formation - c2_rpc_formation structure
+   @param frm_sm - Formation state machine object to be initialized.
+ */
+void c2_rpc_frm_sm_init(struct c2_rpc_chan *chan,
+		       struct c2_rpc_formation *formation,
+		       struct c2_rpc_frm_sm *frm_sm);
+
+/**
+   Destroy a formation state machine. This happens when the corresponding
+   c2_rpc_chan structure is about to be destroyed.
+   @param frm_sm - Formation state machine to be destroyed.
+ */
+void c2_rpc_frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
+
+/**
+   Assign network specific thresholds on max size of a message and max
+   number of fragments that can be carried in one network transfer.
+   @param frm_sm - Input Formation state machine.
+   @param max_bufsize - Max permitted buffer size for given net domain.
+   @param max_segs_nr - Max permitted segments a message can contain
+   for given net domain.
+ */
+void c2_rpc_frm_sm_net_limits_set(struct c2_rpc_frm_sm *frm_sm,
+		c2_bcount_t max_bufsize, c2_bcount_t max_segs_nr);
 
 /**
    A magic constant to varify the sanity of c2_rpc_frm_buffer.
