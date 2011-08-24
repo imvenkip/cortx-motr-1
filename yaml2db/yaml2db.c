@@ -371,7 +371,7 @@ static int yaml2db_load_disk_conf(struct c2_yaml2db_ctx *yctx)
 				c2_db_pair_release(&db_pair);
 				c2_db_pair_fini(&db_pair);
 				c2_table_fini(&table);
-				return rc; 
+				return rc;
 			}
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
@@ -406,12 +406,15 @@ int main(int argc, char *argv[])
 		C2_STRINGARG('f', "config file in yaml format",
 			LAMBDA(void, (const char *str) {c_name = str; })));
 
-	if (rc != 0)
+	if (rc != 0) {
+		c2_fini();
 		return rc;
+	}
 
 	/* Config file has to be specified as a command line option */
 	if (c_name == NULL) {
 		printf("Error: Config file path not specified\n");
+		c2_fini();
 		return -EINVAL;
 	}
 	yctx.yc_cname = c_name;
@@ -424,35 +427,35 @@ int main(int argc, char *argv[])
 
 	/* Initialize the parser and database environment */
 	rc = yaml2db_init(&yctx);
-	if (rc != 0){
+	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_init", 0);
+		c2_fini();
 		return rc;
 	}
 
 	/* Load the information from yaml file to yaml_document, and check for
 	   parsing errors internally */
 	rc = yaml2db_doc_load(&yctx);
-	if (rc != 0){
+	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_doc_load", 0);
-		return rc;
+		goto cleanup;
 	}
 
 	/* Parse the disk configuration which is loaded in the context */
 	rc = yaml2db_load_disk_conf(&yctx);
-	if (rc != 0){
+	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_parse_disk_conf", 0);
-		return rc;
 	}
 
 	/* Finalize the parser and database environment */
-cleanup:	
+cleanup:
 	yaml2db_fini(&yctx);
 	c2_fini();
 
-  return 0;
+	return rc;
 }
 
 /*
