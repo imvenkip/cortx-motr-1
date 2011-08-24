@@ -32,15 +32,15 @@
  */
 
 enum {
-	C2_CFM_MAP_MAGIC  = 0x6d4d4643000a7061,
-	C2_CFM_ITER_MAGIC = 0x694d46430a726574,
-	C2_CFM_ITER_THUNK = 16 /* #records in an iter buffer */
+	CFM_MAP_MAGIC  = 0x6d4d4643000a7061,
+	CFM_ITER_MAGIC = 0x694d46430a726574,
+	CFM_ITER_THUNK = 16 /* #records in an iter buffer */
 };
 
 /**
    Internal data structure used to store a record in the iterator buffer.
  */
-struct c2_cobfid_record {
+struct cobfid_map_record {
 	uint64_t          cfr_ci;  /**< container id */
 	struct c2_fid     cfr_fid; /**< global file id */
 	struct c2_uint128 cfr_cob; /**< cob id */
@@ -58,7 +58,7 @@ struct c2_cobfid_record {
  */
 static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 {
-	if (cfm == NULL || cfm->cfm_magic != C2_CFM_MAP_MAGIC)
+	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC)
 		return false;
 	return true;
 }
@@ -81,7 +81,7 @@ C2_EXPORTED(c2_cobfid_map_fini);
  */
 static bool cobfid_map_iter_invariant(const struct c2_cobfid_map_iter *iter)
 {
-	if (iter == NULL || iter->cfmi_magic != C2_CFM_ITER_MAGIC)
+	if (iter == NULL || iter->cfmi_magic != CFM_ITER_MAGIC)
 		return false;
 	if (!cobfid_map_invariant(iter->cfmi_cfm))
 		return false;
@@ -124,7 +124,7 @@ cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_num_recs;
 
-	iter->cfmi_magic = C2_CFM_ITER_MAGIC;
+	iter->cfmi_magic = CFM_ITER_MAGIC;
 	C2_POST(cobfid_map_iter_invariant(iter));
 	return 0;
 }
@@ -184,7 +184,7 @@ static int enum_container_fetch(struct c2_cobfid_map_iter *iter)
 static bool enum_container_at_end(struct c2_cobfid_map_iter *iter,
 				  unsigned int idx)
 {
-	struct c2_cobfid_record *recs = iter->cfmi_buffer; /* safe cast */
+	struct cobfid_map_record *recs = iter->cfmi_buffer; /* safe cast */
 	if (recs[idx].cfr_ci != iter->cfmi_next_ci)
 		return false;
 	return true;
