@@ -22,6 +22,7 @@
 #include "fop/fop.h"
 #include "xcode/bufvec_xcode.h"
 #include "lib/errno.h"
+#include "lib/memory.h"
 /**
    @addtogroup xcode
 
@@ -137,10 +138,13 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		void		*buf;
 	};
 
-	struct fop_sequence *fseq;
-	int      	     rc;
-	uint32_t 	     nr;
-	int		     i;
+	struct fop_sequence     *fseq;
+	int      	         rc;
+	uint32_t 	         nr;
+	int		         i;
+	void		        *s_data;
+	size_t			 elsize;
+	struct c2_fop_memlayout *ellay;
 
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
@@ -165,12 +169,21 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 			if(rc != 0)
 				return rc;
 		fseq->count = nr;
-		if(xcode_is_byte_array(fftype))
-			 return c2_bufvec_bytes(cur, (char **)&fseq->buf,
+		if(xcode_is_byte_array(fftype)) {
+			char 	**s_buf;
+			s_buf = (char **)&fseq->buf;
+			C2_ALLOC_ARR(*s_buf, nr);
+			return c2_bufvec_bytes(cur, s_buf,
 			 	(size_t)nr, ~0,C2_BUFVEC_DECODE);
+		}
+		ellay = fftype->fft_child[1]->ff_type->fft_layout;
+		elsize = ellay->fm_sizeof;
+		s_data = c2_alloc(elsize * nr);
+		fseq->buf = s_data;
 	}
-	for (rc = 0, i = 0; rc == 0 && i < nr; ++i)
-		rc = ftype_sub_xcode(fftype, cur, obj, 1, i, what);
+	for (rc = 0, i = 0; rc == 0 && i < nr; ++i) {
+		rc = ftype_sub_xcode(fftype, cur, fseq, 1, i, what);
+	}
 	return rc;
 }
 
