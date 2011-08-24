@@ -40,7 +40,7 @@
 /* Constant names and paths */
 static const char *D_PATH = "__config_db";
 static const char *disk_table = "disk_table";
-static char *disk_str = "disks";
+static const char *disk_str = "disks";
 
 /* DB Table ops */
 static int test_key_cmp(struct c2_table *table,
@@ -97,7 +97,8 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	if(rc != 1) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "yaml_parser_initialize", 0);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto cleanup;
 	}
 
 	/* Open the config file in read mode */
@@ -106,7 +107,8 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "fopen", 0);
 		yaml_parser_delete(&yctx->yc_parser);
-		return -EINVAL;
+		rc = -errno;
+		goto cleanup;
 	}
 
 	/* Set the input file to the parser. */
@@ -115,12 +117,14 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
 	if (opath == NULL) {
 		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
+		rc = -ENOMEM;
 		goto cleanup;
 	}
 
 	C2_ALLOC_ARR(dpath, strlen(yctx->yc_dpath) + 2);
 	if (dpath == NULL) {
 		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
+		rc = -ENOMEM;
 		goto cleanup;
 	}
 
@@ -128,6 +132,7 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "mkdir", 0);
+		rc = -errno;
 		goto cleanup;
 	}
 
@@ -137,6 +142,7 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "mkdir", 0);
+		rc = -errno;
 		goto cleanup;
 	}
 
@@ -160,7 +166,7 @@ cleanup:
         c2_addb_ctx_fini(&yctx->yc_addb);
 	fclose(yctx->yc_fp);
 	yaml_parser_delete(&yctx->yc_parser);
-	return -EINVAL;
+	return rc; 
 }
 
 /**
@@ -264,6 +270,7 @@ static int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
                 yaml_document_delete(&yctx->yc_document);
 		return -EINVAL;
 	}
+	yctx->yc_root_node = *root_node;
 	return 0;
 
 parser_error:
@@ -328,7 +335,7 @@ static int read_sequence(struct c2_yaml2db_ctx *yctx, yaml_node_t *node)
 {
 	yaml_node_item_t	*item;
 	yaml_node_t		*snode;
-        struct c2_table 	 table;
+        struct c2_table		 table;
         struct c2_db_tx		 tx;
 	int			 rc;
 
@@ -378,7 +385,7 @@ static int read_sequence(struct c2_yaml2db_ctx *yctx, yaml_node_t *node)
   @retval yaml_node_t pointer if successful, NULL otherwise
  */
 static yaml_node_t *yaml2db_scalar_locate(struct c2_yaml2db_ctx *yctx,
-		char *value)
+		const char *value)
 {
 	yaml_node_t	*node;
 	bool		 scalar_found = false;

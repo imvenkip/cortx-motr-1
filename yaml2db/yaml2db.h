@@ -33,6 +33,8 @@ struct c2_yaml2db_ctx {
 	yaml_event_t		 yc_event;
 	/* YAML document structure */
 	yaml_document_t		 yc_document;
+	/* Root node of the yaml_document */
+	yaml_node_t		 yc_root_node;
 	/* Config file name */
 	const char		*yc_cname;
 	/* Database path */
