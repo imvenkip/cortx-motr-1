@@ -166,7 +166,7 @@ cleanup:
         c2_addb_ctx_fini(&yctx->yc_addb);
 	fclose(yctx->yc_fp);
 	yaml_parser_delete(&yctx->yc_parser);
-	return rc; 
+	return rc;
 }
 
 /**

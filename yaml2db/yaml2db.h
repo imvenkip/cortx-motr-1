@@ -45,7 +45,73 @@ struct c2_yaml2db_ctx {
 	struct c2_addb_ctx	 yc_addb;
 	/* File pointer for YAML file */
 	FILE			*yc_fp;
+	/* List of yaml2db sections linked through
+	   c2_yaml2db_section::ys_ctx_linkage
+	   @code c2_list <struct c2_yaml2db_section> @endcode */
+	struct c2_list		 yc_section_list;
 };
+
+/**
+  Enumeration of section types
+ */
+enum c2_yaml2db_sec_type {
+	/* YAML sequence */
+	C2_YAML_TYPE_SEQUENCE = 0,
+	/* YAML mapping */
+	C2_YAML_TYPE_MAPPING,
+	/* Max section types */
+	C2_YAML_TYPE_NR
+};
+
+/**
+  yaml2db section
+*/
+struct c2_yaml2db_section {
+	/* Name of the section */
+	const char		 *ys_section_name;
+	/* Name of the table in which this section is supposed to be stored */
+	const char		 *ys_table_name;
+	/* Type of section */
+	enum c2_yaml2db_sec_type  ys_section_type;
+	/* Array of valid key strings */
+	const char		**ys_valid_keys;
+	/* Number of keys in the array */
+	size_t			  ys_num_keys;
+	/* Linkage into the list of sections anchored at
+	   c2_yaml2db_ctx::yc_section_list */
+	struct c2_list_link	  ys_yctx_linkage;
+
+};
+
+/**
+  Iterates over a yaml sequence
+  @param ctx - yaml2db context
+  @param node - starting node of the sequence
+  @param item - yaml_node_item_t
+  @param snode - sequence node at index pointed by item
+*/
+#define yaml2db_sequence_for_each(ctx, node, item, snode) \
+	for (item = (node)->data.sequence.items.start; \
+	     item < (node)->data.sequence.items.top && \
+	     snode = yaml_document_get_node(&(ctx)->yc_document, item); \
+	     item ++)
+
+/**
+  Iterates over a yaml mapping
+  @param ctx - yaml2db context
+  @param node - starting node of the sequence
+  @param pair - yaml_node_pair_t
+  @param k_node - mapping node at index pointed by mapping pair key
+  @param v_node - mapping node at index pointed by mapping pair value
+ */
+#define yaml2db_mapping_for_each(ctx, node, pair, k_node, v_node) \
+	for (pair = (node)->data.mapping.pairs.start; \
+	     pair < (node)->data.mapping.pairs.top && \
+	     k_node = yaml_document_get_node(&(ctx)->yc_document, \
+		     (pair)->key); \
+	     v_node = yaml_document_get_node(&(ctx)->yc_document, \
+		     (pair)->value); \
+	     item ++)
 
 #endif /* __COLIBRI_YAML2DB_H__ */
 
