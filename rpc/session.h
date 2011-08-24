@@ -44,7 +44,7 @@ Aproach taken by session module to achive these two objectives, is similar
 to session-slot implementation in NFSv4.1
 
 See section 2.10.6 of rfc 5661 NFSv4.1
-http://tools.ietf.org/html/rfc5661#section-2.6
+http://tools.ietf.org/html/rfc5661#section-2.10.6
 
 Session module defines following types of objects:
 - rpc connection @see c2_rpc_conn
@@ -69,7 +69,7 @@ receiver.
 
 Rpc connection has a list of rpc sessions, which are created on this
 connection. A rpc connection cannot be terminated until all the sessions
-created on the connection are not terminated.
+created on the connection are terminated.
 
 A session contains one or more slots. Number of slots in the session can
 vary over the lifetime of session (In current implementation state, the number
@@ -101,7 +101,9 @@ already executed on receiver, then instead of again processing the item,
 its reply from reply cache is retrieved and returned to the sender.
 By preventing multiple executions of same item (or FOP), reply cache provides
 "exactly once" semantics. If reply cache is persistent, then EOS can be
-guaranteed even in the face of server restart.
+guaranteed even in the face of receiver restart. Colibri implements Reply
+Cache via FOL (File Operation Log). See section "Slot as a cob" for more
+details on this.
 
 <B> Slot as a "cob": </B>
 Session module implements a slot as a "special file". This allows to reuse
@@ -122,7 +124,7 @@ number of slot is advanced.
 FOL (File Operation Log) contains record for each update operation executed.
 The FOL record contains all the information required to undo or redo that
 specific operation. If along with the operation details, reply of operation
-is also stored in the FOL record, the FOL itself can act as a "Reply Cache".
+is also stored in the FOL record, the FOL itself acts as a "Reply Cache".
 Given fid of cob that represents the slot and version number of item, it is
 possible to determine whether the item is duplicate or not. If it is duplicate
 item then version number within the item will be less than version number of
@@ -210,8 +212,19 @@ back to sender.
      Hence no more than 1 items are allowed to be in-flight for a particular
      slot.
 
+ <B> Using two identifiers for session and conn </B>
+ @todo
+ currently, receiver assigns identifiers to connections and sessions and
+ these identifiers are used by both parties. What we can do, is to allow
+ sender to assign identifiers to sessions (this identifier is sent in
+ SESSION_ESTABLISH). Then, whenever receiver uses the session to send a
+ reply, it uses this identifier (instead of receiver assigned session-id).
+ The advantage of this, is that sender can use an identifier that allows
+ quick lookup (e.g., an index in some session array or simply a pointer).
+ Similarly for connections (i.e., another sender generated identifier in
+ addition to uuid, that is not guaranteed to be globally unique)
+
     @todo
-	- kernel mode support
 	- stats
 	- Generate ADDB data points for important session events
 	- UUID generation
@@ -220,10 +233,7 @@ back to sender.
 	- Optimization: Cache misordered items at receiver, rather than
 	  discarding them.
 	- How to get unique stob_id for session and slot cobs?
-	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
-	- can there be ACTIVE to FAILED transition for a c2_rpc_conn?
-	- can there be BUSY to FAILED transition for c2_rpc_session?
 	- Design protocol to dynamically adjust number of slots.
  */
 
@@ -409,8 +419,11 @@ enum c2_rpc_conn_flags {
 
   // ESTABLISH RPC CONNECTION
   rc = c2_rpc_conn_establish(conn);
-  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
 
+  if (rc != 0) {
+	// some error occured. Cannot establish connection.
+        // handle the situation and return
+  }
   // WAIT UNTIL CONNECTION IS ESTABLISHED
   flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
 				absolute_timeout);
@@ -431,7 +444,6 @@ enum c2_rpc_conn_flags {
   C2_ASSERT(conn->c_nr_sessions == 0);
 
   rc = c2_rpc_conn_terminate(conn);
-  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
 
   // WAIT UNTIL CONNECTION IS TERMINATED
   flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
@@ -486,7 +498,7 @@ struct c2_rpc_conn {
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
 	/** Conditional variable on which "connection state changed" signal
-	    is broadcasted */
+	    is broadcast */
 	struct c2_cond            c_state_changed;
 	struct c2_mutex           c_mutex;
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
@@ -517,10 +529,6 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
-    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_CONNECTING &&
-		c2_list_contains(conn->c_rpcmachine->cr_rpc_conn_list,
-				 &conn->c_link))
-    @post if result != 0, conn can be in C2_RPC_CONN_FAILED state.
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -533,8 +541,6 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
    @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
 		conn->c_state == C2_RPC_CONN_TERMINATING
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
-   @post if result != 0, conn can be in C2_RPC_CONN_FAILED state
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -628,8 +634,8 @@ enum c2_rpc_session_state {
    <B> Concurrency:</B>
    c2_rpc_session::s_mutex protects all fields except s_link. s_link is
    protected by session->s_conn->c_mutex.
-   When session is in UNINITIALISED or in C2_RPC_SESSION_TERMINATED state,
-   user is expected to serialise access to the session object.
+   When session is in one of UNINITIALISED, INITIALISED, TERMINATED and
+   FAILED state, user is expected to serialise access to the session object.
    There is no need to take session->s_mutex while posting item
    on the session. Users of rpc-layer are never expected to take lock on
    session.
@@ -692,7 +698,6 @@ enum c2_rpc_session_state {
    // ESTABLISH SESSION
 
    rc = c2_rpc_session_establish(session);
-   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING));
 
    flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
 					C2_RPC_SESSION_FAILED, timeout);
@@ -721,8 +726,6 @@ enum c2_rpc_session_state {
    if (flag) {
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 	rc = c2_rpc_session_terminate(session);
-	C2_ASSERT(ergo(rc == 0, session->s_state ==
-			C2_RPC_SESSION_TERMINATING));
 
 	// Wait until session is terminated.
 	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
@@ -758,10 +761,11 @@ struct c2_rpc_session {
 	/** list of items that can be sent through any available slot.
 	    items are placed using c2_rpc_item::ri_unbound_link */
 	struct c2_list            s_unbound_items;
-	/** Number of active slots in the table */
-	uint32_t                  s_nr_slots;
 	/** Capacity of slot table */
 	uint32_t                  s_slot_table_capacity;
+	/** Only [0, s_nr_slots) slots from the s_slot_table can be used to
+            bind items. s_nr_slots <= s_slot_table_capacity */
+	uint32_t                  s_nr_slots;
 	/** Array of pointers to slots */
 	struct c2_rpc_slot      **s_slot_table;
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
@@ -790,9 +794,6 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
-    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ESTABLISHING &&
-		c2_list_contains(session->s_conn->c_sessions, &session->s_link))
-    @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
@@ -804,8 +805,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
-   @post ergo(result == 0, session->s_state == C2_RPC_SESSION_TERMINATING)
-   @post if result != 0, session can be in C2_RPC_SESSION_FAILED state
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 

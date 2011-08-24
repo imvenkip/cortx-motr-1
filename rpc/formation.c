@@ -127,7 +127,6 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 	struct c2_rpc_item	*item = NULL;
 
 	C2_PRE(rpc != NULL);
-	C2_PRE(state <= RPC_ITEM_SENT);
 
 	/* Change the state of each rpc item in the rpc object
 	   to RPC_ITEM_SENT. */
@@ -159,7 +158,8 @@ static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
    @retval 0 (success) -errno (failure)
  */
 static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
-		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom)
+		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom,
+		uint64_t rpc_size)
 {
 	int				 rc = 0;
 	struct c2_rpc_frm_buffer	*fbuf = NULL;
@@ -169,6 +169,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	C2_PRE(rpc != NULL);
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(net_dom != NULL);
+	C2_PRE(rpc_size != 0);
 
 	C2_ALLOC_PTR(fbuf);
 	if (fbuf == NULL) {
@@ -180,7 +181,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	fbuf->fb_frm_sm = frm_sm;
 	fbuf->fb_rpc = rpc;
 	nb = &fbuf->fb_buffer;
-	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb);
+	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb, rpc_size);
 	if (rc != 0)
 		return rc;
 	*fb = fbuf;
@@ -754,6 +755,7 @@ void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
+	C2_PRE(slot->sl_in_flight == 0);
 
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_SLOT_IDLE;
 	sm_event.se_pvt = NULL;
@@ -849,7 +851,6 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 				ri_rpcobject_linkage)
 			c2_list_del(&item->ri_rpcobject_linkage);
 
-		c2_rpc_rpcobj_fini(fb->fb_rpc);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
@@ -1574,7 +1575,8 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	slot = item->ri_slot_refs[0].sr_slot;
 	C2_ASSERT(slot != NULL);
 	c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
-	if (c2_list_is_empty(&slot->sl_ready_list))
+	//if (c2_list_is_empty(&slot->sl_ready_list))
+	if (c2_list_link_is_in(&slot->sl_link))
 		c2_list_del(&slot->sl_link);
 }
 
@@ -1843,8 +1845,6 @@ static void frm_item_make_bound(struct c2_rpc_slot *slot,
 		c2_rpc_slot_item_add_internal(slot, item);
 		c2_list_add(&slot->sl_ready_list,
 				&item->ri_slot_refs[0].sr_ready_link);
-		item->ri_type->rit_flags &= ~C2_RPC_ITEM_UNBOUND;
-		item->ri_type->rit_flags |= C2_RPC_ITEM_BOUND;
 	}
 }
 
@@ -1895,9 +1895,9 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 				 frm_sm->fs_rpcconn))
 			continue;
 
+		c2_mutex_lock(&slot->sl_mutex);
 		session = slot->sl_session;
 		c2_mutex_lock(&session->s_mutex);
-		c2_mutex_lock(&slot->sl_mutex);
 		/* Get the max number of rpc items that can be associated
 		   with current slot before slot can be called as "busy". */
 		slot_items_nr = c2_rpc_slot_items_possible_inflight(slot);
@@ -1924,16 +1924,14 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			} else
 				break;
 		}
-		c2_mutex_unlock(&slot->sl_mutex);
 		c2_mutex_unlock(&session->s_mutex);
+		c2_mutex_unlock(&slot->sl_mutex);
 		/* Algorithm skips the rpc items for which policies other than
 		   size policy are not satisfied */
 		if (sz_policy_violated)
 			break;
 	}
 	c2_mutex_unlock(&rpcmachine->cr_ready_slots_mutex);
-	rpc_size = *rpcobj_size;
-	C2_POST(!frm_size_is_violated(frm_sm, rpc_size));
 }
 
 /**
@@ -2098,25 +2096,16 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 		tm = frm_get_tm(item);
 		dom = tm->ntm_dom;
+		rpc_size = c2_rpc_get_size(rpc_obj);
 
 		/* Allocate a buffer for sending the message.*/
-		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom);
+		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom, rpc_size);
 		if (rc < 0)
 			/* Process the next rpc object in the list.*/
 			continue;
 
 		/* Populate destination net endpoint. */
 		fb->fb_buffer.nb_ep = item->ri_session->s_conn->c_end_point;
-		rpc_size = c2_rpc_get_size(rpc_obj);
-
-		/* if rpc size is bigger than size of net buffer,
-		   post addb event and process next rpc object in the list */
-		if (rpc_size > c2_vec_count(&fb->fb_buffer.nb_buffer.ov_vec)) {
-			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
-					&frm_addb_loc, formation_func_fail,
-					"frm_send_onwire", 0);
-			continue;
-		}
 		fb->fb_buffer.nb_length = rpc_size;
 
 		/* XXX: Allocate bulk i/o buffers before encoding. */

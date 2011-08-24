@@ -36,6 +36,8 @@
 #endif
 #include "rpc/rpc_onwire.h"
 
+struct c2_fop_io_vec;
+
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
 	        .act_name = "rpc-machine"
@@ -313,11 +315,12 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
-	return 0;
+	return c2_rpc_session_module_init();
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_session_module_fini();
 }
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
@@ -665,14 +668,15 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nbuf, enum c2_net_queue_type qtype)
+		struct c2_net_buffer **nbuf, enum c2_net_queue_type qtype,
+		uint64_t rpc_size)
 {
 	int				 rc;
-	struct c2_net_buffer		*nb = NULL;
-	int32_t				 nr_segs;
+	int32_t				 segs_nr;
 	c2_bcount_t			 seg_size;
 	c2_bcount_t			 buf_size;
 	c2_bcount_t			 nrsegs;
+	struct c2_net_buffer		*nb = NULL;
 
 	C2_PRE(net_dom != NULL);
 	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype == C2_NET_QT_MSG_SEND));
@@ -688,16 +692,20 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		nb = *nbuf;
 
 	buf_size = c2_net_domain_get_max_buffer_size(net_dom);
-	nr_segs = c2_net_domain_get_max_buffer_segments(net_dom);
+	segs_nr = c2_net_domain_get_max_buffer_segments(net_dom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(net_dom);
+	if (rpc_size != 0)
+		buf_size = rpc_size;
 
-	/* Allocate the bufvec of size = min((buf_size), (nr_segs * seg_size)).
+	/* Allocate the bufvec of size = min((buf_size), (segs_nr * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (nr_segs * seg_size))
-		nrsegs = nr_segs;
+	if (buf_size > (segs_nr * seg_size)) 
+		nrsegs = segs_nr;
 	else
 		nrsegs = buf_size / seg_size;
+	if (nrsegs == 0)
+		++nrsegs;
 
 	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
 	if (rc < 0) {
@@ -734,16 +742,17 @@ int c2_rpc_net_recv_buffer_allocate(struct c2_net_domain *net_dom,
 	C2_PRE(net_dom != NULL);
 	C2_PRE(nb != NULL);
 
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV);
+	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV, 0);
 }
 
 int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb)
+		struct c2_net_buffer **nb, uint64_t rpc_size)
 {
 	C2_PRE(net_dom != NULL);
 	C2_PRE(nb != NULL);
 
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND);
+	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND,
+			rpc_size);
 }
 
 int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
@@ -891,13 +900,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		return rc;
 	}
 
-	rc = c2_rpc_session_module_init();
-	if (rc < 0) {
-		c2_rpc_chan_destroy(machine, chan);
-		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-		return rc;
-	}
-
 	/* Initialize the formation module. */
 	rc = c2_rpc_frm_init(&machine->cr_formation);
 
@@ -910,6 +912,30 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	return rc;
 }
 
+/**
+   XXX Temporary. This routine will be discarded, once rpc-core starts
+   providing c2_rpc_item::ri_ops::rio_sent() callback.
+
+   In-memory state of conn should be cleaned up when reply to CONN_TERMINATE
+   has been sent. As of now, rpc-core does not provide this callback. So this
+   is a temporary routine, that cleans up all terminated connections from
+   rpc connection list maintained in rpcmachine.
+ */
+static void conn_list_fini(struct c2_list *list)
+{
+        struct c2_rpc_conn *conn;
+        struct c2_rpc_conn *conn_next;
+
+        C2_PRE(list != NULL);
+
+        c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
+                        c_link) {
+
+                c2_rpc_conn_terminate_reply_sent(conn);
+
+        }
+}
+
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 {
 	struct c2_rpc_chan	*chan = NULL;
@@ -917,11 +943,8 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	C2_PRE(machine != NULL);
 
 	rpc_proc_fini(&machine->cr_processing);
-	/* XXX commented following two lines for testing purpose */
-	//c2_list_fini(&machine->cr_incoming_conns);
-	//c2_list_fini(&machine->cr_outgoing_conns);
-	//c2_list_fini(&machine->cr_rpc_conn_list);
-	c2_rpc_session_module_fini(machine);
+	conn_list_fini(&machine->cr_incoming_conns);
+	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 
@@ -1108,7 +1131,8 @@ static const struct c2_update_stream_ops update_stream_ops = {
 	.uso_recovery_complete = us_recovery_complete
 };
 
-void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item, union c2_io_iovec *vec)
+void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item,
+		struct c2_fop_io_vec *vec)
 {
 	struct c2_fop *fop;
 
@@ -1353,7 +1377,8 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 /* Dummy reqh queue of items */
 
 struct c2_queue	c2_exec_queue;
-struct c2_chan	c2_exec_chan;
+struct c2_cond  c2_item_ready;
+struct c2_mutex c2_exec_queue_mutex;
 
 /*
  *  Local variables:

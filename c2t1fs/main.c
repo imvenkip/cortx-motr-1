@@ -193,7 +193,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_fop			*r;
 	struct c2_net_call		 kcall;
 	struct c2_fop_io_seg		 write_seg;
-	struct c2_fop_segment		 read_seg;
+	struct c2_fop_io_seg		 read_seg;
 
         if (rw == WRITE) {
 		struct c2_fop_cob_writev	*arg;
@@ -221,11 +221,11 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->fwr_iovec.iov_count	= 1;
 
 		/* Populate the vector of write FOP */
-		arg->fwr_iovec.iov_seg = &write_seg;
-		arg->fwr_iovec.iov_seg->f_offset = pos;
-		arg->fwr_iovec.iov_seg->f_buf.cfib_pgoff = off;
-		arg->fwr_iovec.iov_seg->f_buf.f_buf = pages;
-		arg->fwr_iovec.iov_seg->f_buf.f_count = len;
+		arg->fwr_iovec.iov_segs = &write_seg;
+		arg->fwr_iovec.iov_segs->f_offset = pos;
+		arg->fwr_iovec.iov_segs->f_buf.cfib_pgoff = off;
+		arg->fwr_iovec.iov_segs->f_buf.f_buf = pages;
+		arg->fwr_iovec.iov_segs->f_buf.f_count = len;
 
 		arg->fwr_uid = c2_get_uid();
 		arg->fwr_gid = c2_get_gid();
@@ -265,21 +265,19 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		arg->frd_foprep			= (uint64_t)ret;
 		arg->frd_fid.f_seq		= c2_global_container_id;
 		arg->frd_fid.f_oid		= objid;
-		arg->frd_iovec.fs_count		= 1;
+		arg->frd_iovec.iov_count	= 1;
 
 		/* Populate the vector of read FOP */
-		arg->frd_iovec.fs_segs = &read_seg;
-		arg->frd_iovec.fs_segs->f_offset = pos;
-		arg->frd_iovec.fs_segs->f_count = len;
+		arg->frd_iovec.iov_segs = &read_seg;
+		arg->frd_iovec.iov_segs->f_offset = pos;
+		arg->frd_iovec.iov_segs->f_buf.f_buf = pages;
+		arg->frd_iovec.iov_segs->f_buf.f_count = len;
+		arg->frd_iovec.iov_segs->f_buf.cfib_pgoff = off;
 
 		arg->frd_uid = c2_get_uid();
 		arg->frd_gid = c2_get_gid();
 		arg->frd_nid = c2_get_nid();
 		arg->frd_flags = 0;
-
-		ret->frdr_iovec.iov_seg->f_buf.f_buf = pages;
-		ret->frdr_iovec.iov_seg->f_buf.f_count = len;
-		ret->frdr_iovec.iov_seg->f_buf.cfib_pgoff = off;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
@@ -289,7 +287,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 if (rc)
                         return rc;
-                rc = ret->frdr_rc ? : ret->frdr_iovec.iov_seg->f_buf.f_count;
+                rc = ret->frdr_rc ? : arg->frd_iovec.iov_segs->f_buf.f_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);

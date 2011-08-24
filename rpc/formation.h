@@ -35,6 +35,12 @@
 #include "lib/memory.h"
 #include "addb/addb.h"
 
+#ifdef __KERNEL__
+#include "ioservice/linux_kernel/io_fops_k.h"
+#else
+#include "ioservice/io_fops_u.h"
+#endif
+
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
    @{
@@ -357,7 +363,7 @@ struct c2_rpc_frm_item_coalesced {
 	struct c2_list			 ic_member_list;
 	/** Poiner to correct IO vector to restore it, when member IO
 	    operations complete. */
-	union c2_io_iovec		 ic_iovec;
+	struct c2_fop_io_vec		 ic_iovec;
 };
 
 /**

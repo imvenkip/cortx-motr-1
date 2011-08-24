@@ -216,7 +216,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	struct c2_fop_cob_writev_rep	*wr_rep_fop;
 	struct c2_fop_cob_readv_rep	*rd_rep_fop;
 	struct c2_fop_io_seg		*write_seg;
-	struct c2_fop_segment		*read_seg;
+	struct c2_fop_io_seg		*read_seg;
 
 	C2_PRE(fom != NULL);
 
@@ -306,36 +306,16 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	 * required for the stob io.
 	 */
 	if (fom_obj->fcrw_fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
-		write_seg = write_fop->fwr_iovec.iov_seg;
+		write_seg = write_fop->fwr_iovec.iov_segs;
 		addr = c2_stob_addr_pack(write_seg->f_buf.f_buf, bshift);
 		count = write_seg->f_buf.f_count;
 		offset = write_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_WRITE;
 	} else {
-		read_seg = read_fop->frd_iovec.fs_segs;
+		read_seg = read_fop->frd_iovec.iov_segs;
 
-		/*
-		 * Allocate the read buffer.
-		 */
-		rd_rep_fop->frdr_iovec.iov_count = 1;
-		C2_ALLOC_ARR(rd_rep_fop->frdr_iovec.iov_seg,
-				rd_rep_fop->frdr_iovec.iov_count);
-		if (rd_rep_fop->frdr_iovec.iov_seg == NULL) {
-			c2_stob_put(fom_obj->fcrw_stob);
-			c2_free(fom_obj->fcrw_st_io);
-			return -ENOMEM;
-		}
-		C2_ALLOC_ARR(rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_buf,
-				read_seg->f_count);
-		if (rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_buf == NULL) {
-			c2_free(rd_rep_fop->frdr_iovec.iov_seg);
-			c2_stob_put(fom_obj->fcrw_stob);
-			c2_free(fom_obj->fcrw_st_io);
-			return -ENOMEM;
-		}
-		addr = c2_stob_addr_pack(rd_rep_fop->frdr_iovec.iov_seg->f_buf.
-				f_buf, bshift);
-		count = read_seg->f_count;
+		addr = c2_stob_addr_pack(read_seg->f_buf.f_buf, bshift);
+		count = read_seg->f_buf.f_count;
 		offset = read_seg->f_offset;
 		fom_obj->fcrw_st_io->si_opcode = SIO_READ;
 	}
@@ -384,8 +364,8 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		rd_rep_fop->frdr_rc = fom_obj->fcrw_st_io->si_rc;
 		rd_rep_fop->frdr_fid.f_seq = ffid->f_seq;
 		rd_rep_fop->frdr_fid.f_oid = ffid->f_oid;
-		rd_rep_fop->frdr_iovec.iov_seg->f_buf.f_count =
-			fom_obj->fcrw_st_io->si_count << bshift;
+		rd_rep_fop->frdr_count = fom_obj->fcrw_st_io->si_count
+			<< bshift;
 	}
 
 	c2_clink_del(&clink);

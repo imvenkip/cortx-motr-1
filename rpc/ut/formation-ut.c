@@ -641,18 +641,18 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 		goto last;
 	}
 	iovec->iov_count = nsegs;
-	C2_ALLOC_ARR(iovec->iov_seg, iovec->iov_count);
-	if (iovec->iov_seg == NULL) {
+	C2_ALLOC_ARR(iovec->iov_segs, iovec->iov_count);
+	if (iovec->iov_segs == NULL) {
 		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc, c2_addb_oom);
 		status = false;
 		goto last;
 	}
 	seg_size = io_size / nsegs;
 	for (offset = file_offsets[i], a = 0; a < nsegs; a++) {
-		iovec->iov_seg[a].f_offset = offset;
-		iovec->iov_seg[a].f_buf.f_count = seg_size;
-		C2_ALLOC_ARR(iovec->iov_seg[a].f_buf.f_buf, seg_size);
-		if (iovec->iov_seg[a].f_buf.f_buf == NULL) {
+		iovec->iov_segs[a].f_offset = offset;
+		iovec->iov_segs[a].f_buf.f_count = seg_size;
+		C2_ALLOC_ARR(iovec->iov_segs[a].f_buf.f_buf, seg_size);
+		if (iovec->iov_segs[a].f_buf.f_buf == NULL) {
 			C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
 					c2_addb_oom);
 			status = false;
@@ -660,7 +660,7 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 		}
 		k = (rand()) % niopatterns;
 		for (j = 0; j < (seg_size / pattern_length); j+=pattern_length) {
-			memcpy(&iovec->iov_seg[a].f_buf.f_buf[j],
+			memcpy(&iovec->iov_segs[a].f_buf.f_buf[j],
 					file_data_patterns[k], pattern_length);
 		}
 		offset += seg_size;
@@ -668,22 +668,22 @@ struct c2_fop_io_vec *form_get_new_iovec(struct c2_fop_file_fid *fid)
 last:
 	if (status == false) {
 		for (j = 0; j < nsegs; j++) {
-			c2_free(iovec->iov_seg[j].f_buf.f_buf);
+			c2_free(iovec->iov_segs[j].f_buf.f_buf);
 		}
-		c2_free(iovec->iov_seg);
+		c2_free(iovec->iov_segs);
 		c2_free(iovec);
 		iovec = NULL;
 	}
 	else {
-		file_offsets[i] = iovec->iov_seg[a-1].f_offset +
-			iovec->iov_seg[a-1].f_buf.f_count;
+		file_offsets[i] = iovec->iov_segs[a-1].f_offset +
+			iovec->iov_segs[a-1].f_buf.f_count;
 		form_write_iovecs[nwrite_iovecs] = iovec;
 		nwrite_iovecs++;
 		for (a = 0; a < nsegs; ++a) {
 			printf("Input Fid - seq = %lu, oid = %lu: Write segment %d: offset = %lu, count = %lu\n",
 					fid->f_seq, fid->f_oid, a,
-					iovec->iov_seg[a].f_offset,
-					iovec->iov_seg[a].f_buf.f_count);
+					iovec->iov_segs[a].f_offset,
+					iovec->iov_segs[a].f_buf.f_count);
 		}
 	}
 	return iovec;
@@ -702,10 +702,10 @@ void form_write_iovec_fini()
 	for (j = 0; j < nwrite_iovecs; j++) {
 		iovec = form_write_iovecs[j];
 		for (i = 0; i < iovec->iov_count; i++) {
-			c2_free(iovec->iov_seg[i].f_buf.f_buf);
-			iovec->iov_seg[i].f_buf.f_buf = NULL;
+			c2_free(iovec->iov_segs[i].f_buf.f_buf);
+			iovec->iov_segs[i].f_buf.f_buf = NULL;
 		}
-		c2_free(iovec->iov_seg);
+		c2_free(iovec->iov_segs);
 		c2_free(iovec);
 	}
 }
@@ -760,7 +760,7 @@ struct c2_fop *form_create_read_fop()
 	i = (rand()) % nfiles;
 	fid = form_get_fid(i);
 	read_fop->frd_fid = *fid;
-	read_fop->frd_iovec.fs_count = nsegs;
+	read_fop->frd_iovec.iov_count = nsegs;
 	for (a = 0; a < ndatafids; a++) {
 		if ((fid_data[a].f_seq == fid->f_seq) &&
 				(fid_data[a].f_oid == fid->f_oid)) {
@@ -768,8 +768,8 @@ struct c2_fop *form_create_read_fop()
 			break;
 		}
 	}
-	C2_ALLOC_ARR(read_fop->frd_iovec.fs_segs, nsegs);
-	if (read_fop->frd_iovec.fs_segs == NULL) {
+	C2_ALLOC_ARR(read_fop->frd_iovec.iov_segs, nsegs);
+	if (read_fop->frd_iovec.iov_segs == NULL) {
 		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
 				c2_addb_oom);
 		c2_fop_free(fop);
@@ -778,18 +778,19 @@ struct c2_fop *form_create_read_fop()
 	else {
 		seg_size = io_size / nsegs;
 		for (j = file_offsets[i], k = 0; k < nsegs; k++) {
-			read_fop->frd_iovec.fs_segs[k].f_offset = j;
-			read_fop->frd_iovec.fs_segs[k].f_count = seg_size;
+			read_fop->frd_iovec.iov_segs[k].f_offset = j;
+			read_fop->frd_iovec.iov_segs[k].f_buf.f_count =
+				seg_size;
 
 			printf("Input Fid - seq = %lu, oid = %lu: Read segment %d: offset = %lu, count = %lu\n",
 				fid->f_seq, fid->f_oid, k,
-				read_fop->frd_iovec.fs_segs[k].f_offset,
-				read_fop->frd_iovec.fs_segs[k].f_count);
+				read_fop->frd_iovec.iov_segs[k].f_offset,
+				read_fop->frd_iovec.iov_segs[k].f_buf.f_count);
 
 			j += seg_size;
 		}
-		file_offsets[i] = read_fop->frd_iovec.fs_segs[k-1].f_offset +
-			read_fop->frd_iovec.fs_segs[k-1].f_count;
+		file_offsets[i] = read_fop->frd_iovec.iov_segs[k-1].f_offset +
+			read_fop->frd_iovec.iov_segs[k-1].f_buf.f_count;
 	}
 	return fop;
 }
@@ -803,7 +804,7 @@ void form_fini_read_fop(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 	read_fop = c2_fop_data(fop);
-	c2_free(read_fop->frd_iovec.fs_segs);
+	c2_free(read_fop->frd_iovec.iov_segs);
 	c2_fop_free(fop);
 }
 

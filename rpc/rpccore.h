@@ -180,7 +180,7 @@ struct c2_rpc;
 struct c2_addb_rec;
 struct c2_rpc_formation;
 struct c2_rpc_conn;
-union c2_io_iovec;
+struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpcmachine;
 struct c2_update_stream;
@@ -224,7 +224,7 @@ struct c2_rpc_item_type_ops {
 	   Restore original IO vector of rpc item.
 	 */
 	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			union c2_io_iovec *vec);
+			struct c2_fop_io_vec *vec);
 	/**
 	   Find out the size of rpc item.
 	 */
@@ -726,10 +726,12 @@ int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
 
    @param net_dom - network domain to which buffers will be registered.
    @param nb - Out parameter to return the allocated c2_net_buffer.
+   @param rpc_size - Size of rpc object. The net buffer should be
+   		     at least as big as rpc_size.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb);
+		struct c2_net_buffer **nb, uint64_t rpc_size);
 
 /**
    Deallocate a net buffer meant for sending messages.
@@ -1376,7 +1378,8 @@ int c2_rpc_zero_copy_init(struct c2_net_buffer **active_buffers,
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
 extern struct c2_queue	c2_exec_queue;
-extern struct c2_chan	c2_exec_chan;
+extern struct c2_cond   c2_item_ready;
+extern struct c2_mutex  c2_exec_queue_mutex;
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
