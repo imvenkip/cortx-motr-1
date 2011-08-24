@@ -33,6 +33,8 @@
    @{
  */
 
+struct c2_rpc_item_ops;
+
 /**
    Initialises all the session related fop types
  */
@@ -450,6 +452,30 @@ struct c2_rpc_slot_ops {
    Returns true iff given rpc item is conn_establish.
  */
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
+
+/**
+   Helper routine, internal to rpc module.
+   Sets up and posts rpc-item representing @fop.
+ */
+int c2_rpc__fop_post(struct c2_fop                *fop,
+		     struct c2_rpc_session        *session,
+		     const struct c2_rpc_item_ops *ops);
+
+/**
+   Return true iff @conn is sender side object of rpc-connection.
+ */
+bool c2_rpc_conn_is_snd(const struct c2_rpc_conn *conn);
+
+/**
+   Return true iff @conn is receiver side object of rpc-connection.
+ */
+bool c2_rpc_conn_is_rcv(const struct c2_rpc_conn *conn);
+
+/**
+   Temporary routine to place fop in a global queue, from where it can be
+   selected for execution.
+ */
+void c2_rpc_item_dispatch(struct c2_rpc_item *item);
 
 /** @}  End of rpc_session group */
 #endif

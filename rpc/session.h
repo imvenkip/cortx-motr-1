@@ -212,8 +212,19 @@ back to sender.
      Hence no more than 1 items are allowed to be in-flight for a particular
      slot.
 
+ <B> Using two identifiers for session and conn </B>
+ @todo
+ currently, receiver assigns identifiers to connections and sessions and
+ these identifiers are used by both parties. What we can do, is to allow
+ sender to assign identifiers to sessions (this identifier is sent in
+ SESSION_ESTABLISH). Then, whenever receiver uses the session to send a
+ reply, it uses this identifier (instead of receiver assigned session-id).
+ The advantage of this, is that sender can use an identifier that allows
+ quick lookup (e.g., an index in some session array or simply a pointer).
+ Similarly for connections (i.e., another sender generated identifier in
+ addition to uuid, that is not guaranteed to be globally unique)
+
     @todo
-	- kernel mode support
 	- stats
 	- Generate ADDB data points for important session events
 	- UUID generation
@@ -222,10 +233,7 @@ back to sender.
 	- Optimization: Cache misordered items at receiver, rather than
 	  discarding them.
 	- How to get unique stob_id for session and slot cobs?
-	- session recovery needs to be implemented.
 	- slot table resize needs to be implemented.
-	- can there be ACTIVE to FAILED transition for a c2_rpc_conn?
-	- can there be BUSY to FAILED transition for c2_rpc_session?
 	- Design protocol to dynamically adjust number of slots.
  */
 

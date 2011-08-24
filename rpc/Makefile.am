@@ -7,7 +7,9 @@ session_u.h session_u.c session_k.h session_k.c: session.ff \
 				$(top_builddir)/fop/fop2c -ku $<
 
 noinst_LTLIBRARIES	= libcolibri-rpc.la
-libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h session_internal.h \
+libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
+				session_internal.h slot.c conn.c \
+				session_utils.c \
 				session_fops.c session_fops.h \
 				session_foms.c session_foms.h \
 				rpccore.c rpccore.h \
