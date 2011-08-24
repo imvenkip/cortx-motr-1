@@ -98,12 +98,8 @@ struct c2_fop_type_ops {
 	/** Return if given fops are of same type or not. */
 	bool (*fto_op_equal)(const struct c2_fop *fop1,
 			const struct c2_fop *fop2);
-	/** Return opcode of given fop. */
-	int (*fto_get_opcode)(const struct c2_fop *fop);
-	/** Return the fid given fop is working on. */
-	struct c2_fop_file_fid * (*fto_get_fid)(struct c2_fop *fop);
-	/** Return true if given fop represents an IO request. */
-	bool (*fto_is_io)(const struct c2_fop *fop);
+	/** Return if given fops refer to same fid or not. */
+	bool (*fto_fid_equal)(struct c2_fop *fop1, struct c2_fop *fop2);
 	/** Return the number of IO fragements in the IO vector. */
 	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */

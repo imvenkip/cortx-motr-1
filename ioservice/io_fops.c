@@ -357,56 +357,6 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	return fop1->f_type == fop2->f_type;
 }
 
-/**
-   Return fid for a fop of type c2_fop_cob_readv.
-   @note fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
-   @param - Read fop for which fid is to be calculated
-   @retval - fid of incoming fop.
- */
-static struct c2_fop_file_fid *io_fop_get_read_fid(struct c2_fop *fop)
-{
-	struct c2_fop_cob_readv	*read_fop;
-
-	C2_PRE(fop != NULL);
-
-	read_fop = c2_fop_data(fop);
-	return &read_fop->frd_fid;
-}
-
-/**
-   Return fid for a fop of type c2_fop_cob_writev.
-   @note fop.f_item.ri_type->rit_ops->rio_io_get_fid is called.
-   @param - Write fop for which fid is to be calculated
-   @retval - fid of incoming fop.
- */
-static struct c2_fop_file_fid *io_fop_get_write_fid(struct c2_fop *fop)
-{
-	struct c2_fop_cob_writev	*write_fop;
-
-	C2_PRE(fop != NULL);
-
-	write_fop = c2_fop_data(fop);
-	return &write_fop->fwr_fid;
-}
-
-/**
-   Return status telling if given fop is an IO request or not.
-   @note fop.f_item.ri_type->rit_ops->rio_is_io_req is called.
-
-   @param - fop for which rw status is to be found out
-   @retval - TRUE if fop is read or write operation, FALSE otherwise.
- */
-static bool io_fop_is_rw(const struct c2_fop *fop)
-{
-	int op;
-
-	C2_PRE(fop != NULL);
-
-	op = fop->f_type->ft_code;
-	return op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE;
-}
-
 uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec,
 		enum c2_io_service_opcodes op)
 {
@@ -769,6 +719,60 @@ static int io_fop_get_opcode(const struct c2_fop *fop)
 }
 
 /**
+   Return the fid of given IO fop.
+   @param fop - Incoming fop.
+   @note This method only works for read and write IO fops.
+   @retval On-wire fid of given fop.
+ */
+static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
+{
+	struct c2_fop_file_fid		*ffid;
+	struct c2_fop_cob_readv		*read_fop;
+	struct c2_fop_cob_writev	*write_fop;
+
+	C2_PRE(fop != NULL);
+
+	if (fop->f_type->ft_code != C2_IO_SERVICE_READV_OPCODE &&
+			fop->f_type->ft_code != C2_IO_SERVICE_WRITEV_OPCODE)
+		return NULL;
+
+	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
+		read_fop = c2_fop_data(fop);
+		ffid = &read_fop->frd_fid;
+	} else {
+		write_fop = c2_fop_data(fop);
+		ffid = &write_fop->fwr_fid;
+	}
+	return ffid;
+}
+
+/**
+   Return if given 2 fops refer to same fid. The fids mentioned here
+   are on-wire fids.
+   @param fop1 - First fop.
+   @param fop2 - Second fop.
+   @retval true if both fops refer to same fid, false otherwise.
+ */
+static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
+{
+	struct c2_fop_file_fid *ffid1;
+	struct c2_fop_file_fid *ffid2;
+
+	C2_PRE(fop1 != NULL);
+	C2_PRE(fop2 != NULL);
+
+	ffid1 = io_fop_fid_get(fop1);
+	if (ffid1 == NULL)
+		return false;
+
+	ffid2 = io_fop_fid_get(fop2);
+	if (ffid2 == NULL)
+		return false;
+
+	return (ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid);
+}
+
+/**
  * readv FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
@@ -776,9 +780,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fop_replied = io_fop_cob_readv_replied,
 	.fto_size_get = io_fop_cob_readv_getsize,
 	.fto_op_equal = io_fop_type_equal,
-	.fto_get_opcode = io_fop_get_opcode,
-	.fto_get_fid = io_fop_get_read_fid,
-	.fto_is_io = io_fop_is_rw,
+	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_iovec_restore = io_fop_iovec_restore,
@@ -792,9 +794,7 @@ const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fop_replied = io_fop_cob_writev_replied,
 	.fto_size_get = io_fop_cob_writev_getsize,
 	.fto_op_equal = io_fop_type_equal,
-	.fto_get_opcode = io_fop_get_opcode,
-	.fto_get_fid = io_fop_get_write_fid,
-	.fto_is_io = io_fop_is_rw,
+	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_iovec_restore = io_fop_iovec_restore,
@@ -867,9 +867,7 @@ const struct c2_fop_type_ops c2_fop_file_create_ops = {
 	.fto_fop_replied = NULL,
 	.fto_size_get = io_fop_create_getsize,
 	.fto_op_equal = io_fop_type_equal,
-	.fto_get_opcode = io_fop_get_opcode,
-	.fto_get_fid = NULL,
-	.fto_is_io = io_fop_is_rw,
+	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
 };
@@ -887,9 +885,7 @@ const struct c2_fop_type_ops c2_fop_file_create_rep_ops = {
         .fto_fop_replied = NULL,
         .fto_size_get = io_fop_create_getsize,
         .fto_op_equal = io_fop_type_equal,
-        .fto_get_opcode = io_fop_get_opcode,
-        .fto_get_fid = NULL,
-        .fto_is_io = io_fop_is_rw,
+	.fto_fid_equal = io_fop_fid_equal,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };

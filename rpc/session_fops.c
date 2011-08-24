@@ -278,13 +278,7 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
-static bool default_is_io_req(struct c2_rpc_item *item)
-{
-	return false;
-}
-
 static struct c2_rpc_item_type_ops default_item_type_ops = {
-	.rito_is_io_req = default_is_io_req,
 	.rito_encode = c2_rpc_fop_default_encode,
 	.rito_decode = c2_rpc_fop_default_decode,
         .rito_item_size = c2_rpc_item_default_size,

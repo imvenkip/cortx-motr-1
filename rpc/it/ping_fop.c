@@ -65,30 +65,6 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 	printf("\nIn Ping reply get size : %ld\n", size);
 	return size;
 }
-/**
-   Return the opcode of given fop.
-   @pre fop.f_item.ri_type->rit_ops->rio_io_get_opcode is called.
-
-   @param - fop for which opcode has to be returned
- */
-int c2_fop_get_opcode(const struct c2_fop *fop)
-{
-        int opcode = 0;
-
-        C2_PRE(fop != NULL);
-
-        opcode = fop->f_type->ft_code;
-        return opcode;
-}
-
-/**
-  return false by default
- */
-bool c2_fop_is_rw(const struct c2_fop *fop)
-{
-        C2_PRE(fop != NULL);
-        return false;
-}
 
 /* Init for ping reply fom */
 int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
@@ -99,9 +75,6 @@ struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fop_replied = NULL,
 	.fto_size_get = c2_fop_ping_getsize,
 	.fto_op_equal = NULL,
-	.fto_get_opcode = c2_fop_get_opcode,
-	.fto_get_fid = NULL,
-	.fto_is_io = c2_fop_is_rw,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
 };
@@ -119,9 +92,6 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_size_get = c2_fop_ping_reply_get_size,
         //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
-        .fto_get_opcode = c2_fop_get_opcode,
-        .fto_get_fid = NULL,
-        .fto_is_io = c2_fop_is_rw,
         .fto_get_nfragments = NULL,
         .fto_io_coalesce = NULL,
 };

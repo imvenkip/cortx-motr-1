@@ -64,8 +64,9 @@
  */
 
 /* external functions. */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item);
-int c2_rpc_item_get_opcode(struct c2_rpc_item *item);
+int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
+		struct c2_rpc_item *b_item);
+extern int io_fop_get_opcode(const struct c2_fop *fop);
 
 /** ADDB variables and structures */
 static const struct c2_addb_ctx_type c2_rpc_ut_addb_ctx_type = {
@@ -546,8 +547,8 @@ int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item)
 	/* Associate an rpc item with its type. */
 	c2_rpc_item_attach(item);
 
-	io_req = c2_rpc_item_is_io_req(item);
-	if(io_req) {
+	io_req = item->ri_type->rit_ops->rito_io_coalesce;
+	if (io_req) {
 		res = c2_rpc_frm_item_io_populate_param(item);
 		C2_ASSERT(res==0);
 	}
@@ -813,14 +814,13 @@ void form_fini_read_fop(struct c2_fop *fop)
  */
 void form_fini_fops()
 {
-	int			opcode = 0;
-	int			i = 0;
+	int			 opcode = 0;
+	int			 i = 0;
 
 	C2_PRE(form_fops != NULL);
 	for (i = 0; i < nfops; i++) {
 		if (form_fops[i]) {
-			opcode = c2_rpc_item_get_opcode(
-					&form_fops[i]->f_item);
+			opcode = form_fops[i]->f_type->ft_code;
 			switch (opcode) {
 				case C2_IO_SERVICE_READV_OPCODE:
 					form_fini_read_fop(form_fops[i]);

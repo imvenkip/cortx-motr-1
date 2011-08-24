@@ -33,8 +33,9 @@
 #include "lib/memory.h"
 #include "addb/addb.h"
 
-struct c2_fop_file_fid;
+struct c2_fid;
 struct c2_fop_io_vec;
+struct c2_fop_file_fid;
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -157,7 +158,7 @@ struct c2_fop_io_vec;
 
      +--> c2_list <c2_rpc_frm_sm>
 
-	    +--> c2_list <c2_rpc_frm_rpcgroup>
+	    +--> c2_list <c2_rpc_frm_group>
 
    @endverbatim
 
@@ -263,8 +264,8 @@ struct c2_rpc_frm_sm {
 	    variable will bear one value from enum c2_rpc_frm_state. */
 	enum c2_rpc_frm_state		 fs_state;
 	/** List of structures containing data for each group linked
-	    through c2_rpc_frm_rpcgroup::frg_linkage.
-	    @code c2_list <struct c2_rpc_frm_rpcgroup>
+	    through c2_rpc_frm_group::frg_linkage.
+	    @code c2_list <struct c2_rpc_frm_group>
 	    @endcode */
 	struct c2_list			 fs_groups;
 	/** List of coalesced rpc items linked through
@@ -366,10 +367,6 @@ struct c2_rpc_frm_item_coalesced {
 	/** Linkage to list of coalesced items anchored at
 	    c2_rpc_formation::fs_coalesced_items. */
 	struct c2_list_link		 ic_linkage;
-	/** Concerned fid. */
-	struct c2_fid			*ic_fid;
-	/** Intent of operation, read or write */
-	int				 ic_op_intent;
 	/** Resultant coalesced rpc item */
 	struct c2_rpc_item		*ic_resultant_item;
 	/** No of constituent rpc items. */
@@ -391,7 +388,7 @@ struct c2_rpc_frm_item_coalesced {
    to an rpc group arrives at formation, it is not immediately formed
    since more items from same group are expected to arrive shortly.
  */
-struct c2_rpc_frm_rpcgroup {
+struct c2_rpc_frm_group {
 	/** Linkage into the list of groups belonging to same state machine
 	    anchored at c2_rpc_frm_sm::fs_groups. */
 	struct c2_list_link		 frg_linkage;

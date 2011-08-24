@@ -244,23 +244,15 @@ struct c2_rpc_item_type_ops {
 	bool (*rito_items_equal)(struct c2_rpc_item *item1, struct
 			c2_rpc_item *item2);
 	/**
+	   Find out if given rpc items refer to same c2_fid struct or not.
+	 */
+	bool (*rito_fid_equal)(struct c2_rpc_item *item1,
+			       struct c2_rpc_item *item2);
+	/**
 	  Return true iff item1 and item2 are equal.
 	 */
 	bool (*rito_eq)(const struct c2_rpc_item *i1,
 			const struct c2_rpc_item *i2);
-
-	/**
-	   Return the opcode of fop carried by given rpc item.
-	 */
-	int (*rito_io_get_opcode)(struct c2_rpc_item *item);
-	/**
-	   Return the fid of request.
-	 */
-	struct c2_fid (*rito_io_get_fid)(struct c2_rpc_item *item);
-	/**
-	   Find out if the item belongs to an IO request or not.
-	 */
-	bool (*rito_is_io_req)(struct c2_rpc_item *item);
 	/**
 	   Find out the count of fragmented buffers.
 	 */

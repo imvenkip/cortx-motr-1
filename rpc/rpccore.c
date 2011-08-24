@@ -1054,58 +1054,19 @@ bool c2_rpc_item_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	return ret;
 }
 
-/**
-   Return opcode of the fop referenced by given rpc item.
- */
-int c2_rpc_item_get_opcode(struct c2_rpc_item *item)
+bool c2_rpc_item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 {
-	struct c2_fop		*fop = NULL;
-	int			 opcode = 0;
+	struct c2_fop		*fop1;
+	struct c2_fop		*fop2;
 
-	C2_PRE(item != NULL);
+	C2_PRE(item1 != NULL);
+	C2_PRE(item2 != NULL);
 
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	opcode = fop->f_type->ft_ops->fto_get_opcode(fop);
-	return opcode;
-}
-
-
-/**
-   RPC item ops function
-   Function to get the fid for an IO request from the rpc item
- */
-struct c2_fid c2_rpc_item_io_get_fid(struct c2_rpc_item *item)
-{
-	struct c2_fop			*fop = NULL;
-	struct c2_fid			 fid;
-	struct c2_fop_file_fid		*ffid;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-
-	ffid = fop->f_type->ft_ops->fto_get_fid(fop);
-	c2_rpc_frm_item_io_fid_wire2mem(ffid, &fid);
-	return fid;
-}
-
-/**
-   RPC item ops function
-   Function to find out if the item belongs to an IO request or not
- */
-bool c2_rpc_item_is_io_req(struct c2_rpc_item *item)
-{
-	struct c2_fop		*fop = NULL;
-	bool			 io_req = false;
-
-	C2_PRE(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	io_req = fop->f_type->ft_ops->fto_is_io(fop);
-	return io_req;
+	fop1 = c2_rpc_item_to_fop(item1);
+	fop2 = c2_rpc_item_to_fop(item2);
+	C2_ASSERT(fop1 != NULL);
+	C2_ASSERT(fop2 != NULL);
+	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
 }
 
 /**
@@ -1185,9 +1146,6 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 	return res;
 }
 
-int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
-		struct c2_rpc_item *b_item);
-
 static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_sent = NULL,
 	.rito_added = NULL,
@@ -1195,9 +1153,7 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_iovec_restore = c2_rpc_item_vec_restore,
 	.rito_item_size = c2_rpc_item_size,
 	.rito_items_equal = c2_rpc_item_equal,
-	.rito_io_get_opcode = c2_rpc_item_get_opcode,
-	.rito_io_get_fid = c2_rpc_item_io_get_fid,
-	.rito_is_io_req = c2_rpc_item_is_io_req,
+	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
 };
@@ -1209,9 +1165,7 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_iovec_restore = c2_rpc_item_vec_restore,
 	.rito_item_size = c2_rpc_item_size,
 	.rito_items_equal = c2_rpc_item_equal,
-	.rito_io_get_opcode = c2_rpc_item_get_opcode,
-	.rito_io_get_fid = c2_rpc_item_io_get_fid,
-	.rito_is_io_req = c2_rpc_item_is_io_req,
+	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
 };
@@ -1222,9 +1176,6 @@ static const struct c2_rpc_item_type_ops rpc_item_create_type_ops = {
 	.rito_replied = c2_rpc_item_replied,
 	.rito_item_size = c2_rpc_item_default_size,
 	.rito_items_equal = c2_rpc_item_equal,
-	.rito_io_get_opcode = c2_rpc_item_get_opcode,
-	.rito_io_get_fid = c2_rpc_item_io_get_fid,
-	.rito_is_io_req = c2_rpc_item_is_io_req,
 	.rito_get_io_fragment_count = NULL,
 	.rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
@@ -1237,9 +1188,6 @@ static const struct c2_rpc_item_type_ops rpc_item_create_rep_type_ops = {
         .rito_replied = c2_rpc_item_replied,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = c2_rpc_item_equal,
-        .rito_io_get_opcode = c2_rpc_item_get_opcode,
-        .rito_io_get_fid = c2_rpc_item_io_get_fid,
-        .rito_is_io_req = c2_rpc_item_is_io_req,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
@@ -1252,9 +1200,6 @@ static const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_replied = c2_rpc_item_replied,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = c2_rpc_item_equal,
-        .rito_io_get_opcode = c2_rpc_item_get_opcode,
-        .rito_io_get_fid = c2_rpc_item_io_get_fid,
-        .rito_is_io_req = c2_rpc_item_is_io_req,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
@@ -1267,9 +1212,6 @@ static const struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_replied = c2_rpc_item_replied,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = c2_rpc_item_equal,
-        .rito_io_get_opcode = c2_rpc_item_get_opcode,
-        .rito_io_get_fid = c2_rpc_item_io_get_fid,
-        .rito_is_io_req = c2_rpc_item_is_io_req,
         .rito_get_io_fragment_count = NULL,
         .rito_io_coalesce = NULL,
         .rito_encode = c2_rpc_fop_default_encode,
