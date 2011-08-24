@@ -25,12 +25,19 @@
    @defgroup cobfidmap Cobfid Map
    @brief A cobfid map is a persistent data structure that tracks the id of
    cobs and their associated file fid contained within other containers. SNS
-   repair requires the ability to locate the cob_fid for a given file_fid on a
-   given device, and to iterate over all cob_fids in file_fid order.
+   repair requires the ability to iterate over the cob_fids on a given device,
+   ordered by their associated file_fid.
 
    The map is built over a c2_database file stored on disk.
    All serialization around the use of these interfaces must be performed
-   by the invoker.
+   by the invoker:
+   - Only one instance of a given cobfid map should be opened in the same
+   process.
+   - Any given cobfid map must be protected from concurrent use within the
+   process.
+   - Access to the same cobfid map from multiple processes is not supported.
+   - Multiple maps may be used concurrently within the same process.
+
    @see <a href="https://docs.google.com/a/xyratex.com/document/d/1T6sWG32Fj1DOJgC5UcJDdfghse8r7loX-kdgx8a4fXM/edit?hl=en_US">HLD of Auxiliary Database for SNS Repair</a>
    for background information.
 
@@ -71,7 +78,10 @@ c2_cobfid_map_fini(&mymap);
 #include "addb/addb.h" /* struct c2_addb_ctx */
 #include "db/db.h"     /* struct c2_dbenv */
 #include "fid/fid.h"   /* struct c2_fid */
+#include "lib/time.h"  /* c2_time_t */
 #include "lib/types.h" /* struct c2_uint128 */
+
+struct c2_cobfid_map_iter_ops; /* forward reference */
 
 /**
    This data structure tracks the persistent (on-disk) Cobfid map in-memory.
@@ -82,14 +92,18 @@ struct c2_cobfid_map {
         struct c2_addb_ctx *cfm_addb;     /**< ADDB context */
 	char               *cfm_map_name; /**< Name of the map */
 	char               *cfm_map_path; /**< Pathname of the map file */
+	c2_time_t           cfm_last_mod; /**< Time last modified */
 };
 
 /** enum indicating the query type */
-enum c2_cobfid_query_type {
+enum c2_cobfid_map_query_type {
 	/* zero not valid */
-	CFM_QT_ENUM_MAP = 1,       /**< Enumerate all associations in the map */
-	CFM_QT_ENUM_CONTAINER = 2, /**< Enumerate associations in a container */
-	CFM_QT_ENUM_NR
+	/** Enumerate all associations in the map */
+	C2_COBFID_MAP_QT_ENUM_MAP = 1,
+	/** Enumerate associations in a container */
+	C2_COBFID_MAP_QT_ENUM_CONTAINER = 2,
+	/* last */
+	C2_COBFID_MAP_QT_NR
 };
 
 /**
@@ -102,22 +116,48 @@ enum c2_cobfid_query_type {
 struct c2_cobfid_map_iter {
 	uint64_t              cfmi_magic;
 	struct c2_cobfid_map *cfmi_cfm;      /**< The map */
-	enum c2_cobfid_query_type cfmi_qt;   /**< The type of query */
+	enum c2_cobfid_map_query_type cfmi_qt;   /**< The type of query */
 	int                   cfmi_error;    /**< End or error indicator */
+	c2_time_t             cfmi_last_load;/**< Time last loaded */
 	uint64_t              cfmi_next_ci;  /**< Next container id */
 	struct c2_fid         cfmi_next_fid; /**< Next fid value */
+	uint64_t              cfmi_last_ci;  /**< Last container id returned */
+	struct c2_fid         cfmi_last_fid; /**< Last fid value returned */
 	void                 *cfmi_buffer;   /**< Private read-ahead buffer */
 	unsigned int          cfmi_num_recs; /**< # recs in the buffer */
 	unsigned int          cfmi_rec_idx;  /**< The next record to return */
-	int                 (*cfmi_query)
-	                      (struct c2_cobfid_map_iter *); /**< query sub */
+	const struct c2_cobfid_map_iter_ops *cfmi_ops; /**< Operations */
 };
+
+/** Internal iterator operations */
+struct c2_cobfid_map_iter_ops {
+	/**
+	   Loads the next batch of records into the iterator and updates the
+	   iterator state to correctly position for the next call.
+	 */
+	int (*cfmio_fetch)(struct c2_cobfid_map_iter *);
+	/**
+	   Determines if the record in the specified position will
+	   exhaus the iterator.
+	   @param idx Index of a buffered record in the iterator.
+	*/
+	bool (*cfmio_at_end)(struct c2_cobfid_map_iter *, unsigned int idx);
+	/**
+	   Reload the records from the current position, because the map
+	   may have been altered by an interveaning call to add or
+	   delete a record, as indicated by comparing cfm_last_mod with
+	   cfmi_last_load.
+	*/
+	int (*cfmio_reload)(struct c2_cobfid_map_iter *);
+};
+
 
 /**
    Prepare to use a cobfid map, creating it if necessary.  The database file
    will be created in the standard location used for Colibri databases.
    @param cfm      Pointer to the struct c2_cobfid_map to initialize.
-   @param db_env   C2 database environment pointer. The pointer will be used
+   @param db_env   C2 database environment pointer. The pointer must remain
+   valid until the map is finalized.
    @param addb_ctx Pointer to the ADDB context to use. The context must not
    be finalized until after the map is finalized.
    @param map_name Name of the map. The string is not referenced after this
@@ -208,6 +248,11 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
    Internally, the iterator will open a database transaction to read records
    from the file.  The iterator may optimize by reading multiple records in
    a batch.
+
+   @note Insertions and deletions prior to the iterator position may not
+   be noticed, but any such changes after the current position will be
+   noticed.
+
    @param iter           Iterator tracking the position in the enumeration.
    @param container_id_p Returns the identifier of the container or device.
    @param file_fid_p     Returns the global file identifier.
