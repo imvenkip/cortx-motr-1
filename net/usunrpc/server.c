@@ -240,6 +240,7 @@ static void usunrpc_service_worker(struct c2_service *service)
 	struct work_item        *wi;
 	struct c2_queue_link    *ql;
 	struct c2_fop           *ret;
+	c2_time_t                rdelay;
         bool                     sleeping = false;
 
 	xs = service->s_xport_private;
@@ -266,7 +267,9 @@ static void usunrpc_service_worker(struct c2_service *service)
 		 * Currently reqh uses sunrpc, which expects a synchronous reply,
 		 * so this loop is to support async reply by reqh.
 		 */
-		while (ret == NULL);
+		
+		while (ret == NULL)
+			c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);
 
 		c2_rwlock_read_lock(&xs->s_guard);
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,
