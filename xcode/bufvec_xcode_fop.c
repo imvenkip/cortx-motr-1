@@ -33,7 +33,8 @@
    This file defines "universal" fop-to-bufvec encode/decode functions.
    Main entry point is c2_bufvec_fop() which encodes/decodes fop data into/from
    a bufvec. Encode/Decode operations are implemented by recursively descending
-   through the fop format tree.
+   through the fop format tree. The implementation logic is the same that has
+   been used in net/ksunrpc/kxdr.c.
 
    When handling a non-leaf (i.e., "aggregating") node of a fop format tree,
    control branches though the xcode_disp[] function pointer array, using
@@ -50,7 +51,7 @@ typedef int (*c2_xcode_foptype_t)(struct c2_fop_field_type *ftype,
 				  enum c2_bufvec_what what);
 
 /** Array of xcode function pointers for each supported fop field type */
-static 	c2_xcode_foptype_t xcode_disp[FFA_NR];
+static	c2_xcode_foptype_t xcode_disp[FFA_NR];
 
 /** Array of xcode function pointers for atomic fop field types */
 static int (*atom_xcode[FPF_NR])(struct c2_bufvec_cursor *cur, void *obj,
@@ -101,20 +102,13 @@ static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
 			       void *obj, enum c2_bufvec_what what)
 {
 	size_t i;
-	int    result;
+	int    rc;
 
-	for (result = 0, i = 0; result == 0 && i < fftype->fft_nr; ++i)
-		result = ftype_sub_xcode(fftype, cur, obj, i, 0, what);
-	return result;
+	for (rc = 0, i = 0; rc == 0 && i < fftype->fft_nr; ++i)
+		rc = ftype_sub_xcode(fftype, cur, obj, i, 0, what);
+	return rc;
 }
 
-/** XXX: Currently unions are not supported  */
-int xcode_bufvec_union(struct c2_fop_field_type *fftype,
-		       struct c2_bufvec_cursor *cur, void *obj,
-		       enum c2_bufvec_what what)
-{
-	return -EIO;
-}
 
 /** Checks if the fop field type is a byte array */
 static bool xcode_is_byte_array(const struct c2_fop_field_type *fftype)
@@ -134,13 +128,13 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 				 enum c2_bufvec_what what)
 {
 	struct   fop_sequence {
-		uint32_t 	count;
-		void		*buf;
+		uint32_t         fs_count;
+		void		*fs_data;
 	};
 
 	struct fop_sequence     *fseq;
-	int      	         rc;
-	uint32_t 	         nr;
+	int                      rc;
+	uint32_t                 nr;
 	int		         i;
 	void		        *s_data;
 	size_t			 elsize;
@@ -152,7 +146,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 
 	fseq = obj;
 	if (what == C2_BUFVEC_ENCODE) {
-		nr = fseq->count;
+		nr = fseq->fs_count;
 		/* First encode the "count" field into the bufvec */
 		rc = atom_xcode[FPF_U32](cur, &nr, C2_BUFVEC_ENCODE);
 		if (rc != 0)
@@ -162,28 +156,33 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		 *  function
 		 */
 		if (xcode_is_byte_array(fftype))
-			return c2_bufvec_bytes(cur, (char **)&fseq->buf, nr,
+			return c2_bufvec_bytes(cur, (char **)&fseq->fs_data, nr,
 					       ~0, what);
 	} else if (what  == C2_BUFVEC_DECODE) {
 		rc = atom_xcode[FPF_U32](cur, &nr, C2_BUFVEC_DECODE);
 			if(rc != 0)
 				return rc;
-		fseq->count = nr;
+		fseq->fs_count = nr;
 		if(xcode_is_byte_array(fftype)) {
-			char 	**s_buf;
-			s_buf = (char **)&fseq->buf;
-			C2_ALLOC_ARR(*s_buf, nr);
-			return c2_bufvec_bytes(cur, s_buf,
-			 	(size_t)nr, ~0,C2_BUFVEC_DECODE);
+			char 	  **b_seq;
+
+			b_seq = (char **)&fseq->fs_data;
+			C2_ALLOC_ARR(*b_seq, nr);
+			if (*b_seq == NULL)
+				return -ENOMEM;
+			return c2_bufvec_bytes(cur, b_seq, (size_t)nr, ~0,
+			       C2_BUFVEC_DECODE);
 		}
 		ellay = fftype->fft_child[1]->ff_type->fft_layout;
 		elsize = ellay->fm_sizeof;
 		s_data = c2_alloc(elsize * nr);
-		fseq->buf = s_data;
+		if(s_data == NULL)
+			return -ENOMEM;
+		fseq->fs_data = s_data;
 	}
-	for (rc = 0, i = 0; rc == 0 && i < nr; ++i) {
+	for (rc = 0, i = 0; rc == 0 && i < nr; ++i)
 		rc = ftype_sub_xcode(fftype, cur, fseq, 1, i, what);
-	}
+
 	return rc;
 }
 
@@ -201,15 +200,23 @@ static int xcode_bufvec_typedef(struct c2_fop_field_type *fftype,
 	return ftype_sub_xcode(fftype, cur, obj, 0, 0, what);
 }
 
+/** XXX: Currently unions are not supported. */
+int xcode_bufvec_union(struct c2_fop_field_type *fftype,
+		       struct c2_bufvec_cursor *cur, void *obj,
+		       enum c2_bufvec_what what)
+{
+	return -EIO;
+}
+
 /**
   Dispatcher array of xcode funtions for atomic field types.
 */
 static int (*atom_xcode[FPF_NR])(struct c2_bufvec_cursor *cur, void *obj,
-	    			enum c2_bufvec_what what) = {
-	[FPF_VOID] 	=  NULL,
-	[FPF_BYTE]  	=  (void *)&c2_bufvec_byte,
-	[FPF_U32]  	=  (void *)&c2_bufvec_uint32,
-	[FPF_U64]  	=  (void *)&c2_bufvec_uint64
+			         enum c2_bufvec_what what) = {
+	[FPF_VOID]  =  NULL,
+	[FPF_BYTE]  =  (void *)&c2_bufvec_byte,
+	[FPF_U32]   =  (void *)&c2_bufvec_uint32,
+	[FPF_U64]   =  (void *)&c2_bufvec_uint64
 };
 
 /**
@@ -267,7 +274,7 @@ int c2_bufvec_fop(struct c2_bufvec_cursor *cur, struct c2_fop *fop,
 	return c2_bufvec_fop_type(cur, fop->f_type->ft_top, c2_fop_data(fop),
 				  what);
 }
-
+C2_EXPORTED(c2_bufvec_fop);
 /** @} */
 
 /*
