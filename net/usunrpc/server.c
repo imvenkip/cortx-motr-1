@@ -264,12 +264,13 @@ static void usunrpc_service_worker(struct c2_service *service)
 		service->s_handler(service, wi->wi_arg, &ret);
 
 		/*
-		 * Currently reqh uses sunrpc, which expects a synchronous reply,
-		 * so this loop is to support async reply by reqh.
+		 * Currently reqh uses sunrpc, which expects a synchronous
+		 * reply, so this loop is to support async reply by reqh.
 		 */
-		
-		while (ret == NULL)
-			c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);
+		if (service->s_domain->nd_xprt != &c2_net_usunrpc_minimal_xprt)
+			while (ret == NULL)
+				c2_nanosleep(c2_time_set(&rdelay, 0, 1000000),
+					     NULL);
 
 		c2_rwlock_read_lock(&xs->s_guard);
 		if (ret != NULL && !svc_sendreply(wi->wi_transp,

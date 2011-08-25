@@ -68,11 +68,6 @@ int main(int argc, char *argv[])
 
 	if (unit_start(UT_SANDBOX) == 0) {
 		/* sort test suites in alphabetic order */
-		/*
-		   Putting reqh-ut ahead of libc2-ut as processors-ut
-		   clean up fails which in turn cause reqh-ut to crash.
-		 */
-		c2_ut_add(&reqh_ut);
 		c2_ut_add(&libc2_ut);
 		c2_ut_add(&adieu_ut);
 		c2_ut_add(&ad_ut);
@@ -88,6 +83,7 @@ int main(int argc, char *argv[])
 		c2_ut_add(&c2_net_bulk_sunrpc_ut);
 		c2_ut_add(&net_client_ut);
 		c2_ut_add(&parity_math_ut);
+		c2_ut_add(&reqh_ut);
 		c2_ut_add(&stobio_ut);
 		c2_ut_add(&udb_ut);
 		c2_ut_add(&xdr_ut);

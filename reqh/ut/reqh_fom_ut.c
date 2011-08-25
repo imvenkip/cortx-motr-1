@@ -1077,8 +1077,10 @@ void test_reqh(void)
 	path = "../__reqh_ut_stob";
 
 	/* Initialize processors */
-	if (!c2_processor_is_initialized())
-		c2_processors_init();
+	if (!c2_processor_is_initialized()) {
+		result = c2_processors_init();
+		C2_UT_ASSERT(result == 0);
+	}
 
 	result = reqh_ut_fom_io_fop_init();
 	C2_UT_ASSERT(result == 0);
