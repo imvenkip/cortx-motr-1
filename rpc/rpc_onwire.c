@@ -232,7 +232,7 @@ static int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	rc = item_header_encdec(cur, item, what);
 	if(rc != 0)
 		return rc;
-	rc = c2_bufvec_fop(cur, fop, what);
+	rc = c2_xcode_bufvec_fop(cur, fop, what);
 	return rc;
 }
 

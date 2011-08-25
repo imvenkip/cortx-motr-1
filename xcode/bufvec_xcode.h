@@ -140,7 +140,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
   @retval 0 On success.
   @retval -errno on failure.
 */
-int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
+int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum c2_bufvec_what what);
 
 /** @} end of bufvec group */
