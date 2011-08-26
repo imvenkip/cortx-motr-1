@@ -821,6 +821,7 @@ static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
 	printf("rcv_consume_reply called %p %p\n", req, reply);
+
 	c2_rpc_frm_item_ready(reply);
 }
 

@@ -477,6 +477,15 @@ bool c2_rpc_conn_is_rcv(const struct c2_rpc_conn *conn);
  */
 void c2_rpc_item_dispatch(struct c2_rpc_item *item);
 
+/**
+   Returns true iff, it is okay to add item internally (i.e.
+   c2_rpc_item_add_internal()). This is required, so that formation can add
+   unbound items to the slot until slot->sl_max_in_flight limit is reached.
+
+   @pre c2_mutex_is_locked(&slot->sl_mutex)
+ */
+bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
+
 /** @}  End of rpc_session group */
 #endif
 

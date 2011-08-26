@@ -59,7 +59,9 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	struct c2_verno    *v2;
 	bool                ret = true;   /* init to true, required */
 
-	if (slot == NULL)
+	if (slot == NULL ||
+	      slot->sl_in_flight > slot->sl_max_in_flight ||
+	      !c2_list_invariant(&slot->sl_item_list))
 		return false;
 
 	/*
@@ -67,10 +69,6 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	 * item1 will be previous item of item2 i.e.
 	 * next(item1) == item2
 	 */
-	ret = c2_list_invariant(&slot->sl_item_list);
-	if (!ret)
-		return ret;
-
 	c2_list_for_each_entry(&slot->sl_item_list, item2, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
 
@@ -896,4 +894,11 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 				item->ri_slot_refs[0].sr_xid,
 				str_state[item->ri_tstate]);
 	}
+}
+
+bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
+{
+	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));
+
+	return slot->sl_in_flight < slot->sl_max_in_flight;
 }

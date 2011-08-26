@@ -98,7 +98,7 @@ eventually associated with slot, and hence become bound item.
 Reply cache caches replies of update operations. Reply of read-only
 operation is not cached. When a duplicate update item is received which is
 already executed on receiver, then instead of again processing the item,
-its reply from reply cache is retrieved and returned to the sender.
+its reply is retrieved from reply cache and returned to the sender.
 By preventing multiple executions of same item (or FOP), reply cache provides
 "exactly once" semantics. If reply cache is persistent, then EOS can be
 guaranteed even in the face of receiver restart. Colibri implements Reply
