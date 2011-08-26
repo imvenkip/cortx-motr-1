@@ -439,55 +439,11 @@ enum c2_rpc_frm_evt_id {
 };
 
 /**
-   Enumeration of fields which are subject to change.
- */
-#if 0
-enum c2_rpc_frm_item_change_fields {
-	/** Change priority of item. */
-	C2_RPC_ITEM_CHANGE_PRIORITY,
-	/** Change deadline of item. */
-	C2_RPC_ITEM_CHANGE_DEADLINE,
-	/** Change rpc group of item. */
-	C2_RPC_ITEM_CHANGE_RPCGROUP,
-	/** Max number of fields subject to change.*/
-	C2_RPC_ITEM_CHANGES_NR,
-};
-#endif
-
-/**
-   Union of all possible values to be changed from c2_rpc_item.
- */
-#if 0
-union c2_rpc_frm_item_change_val {
-	/** New priority of rpc item. */
-	enum c2_rpc_item_priority	 cv_prio;
-	/** New deadline of rpc item. */
-	c2_time_t			 cv_deadline;
-	/** New rpc group given rpc item belongs to. */
-	struct c2_rpc_group		*cv_rpcgroup;
-};
-#endif
-
-/**
-   Used to track the parameter changes in an rpc item.
- */
-#if 0
-struct c2_rpc_frm_item_change_req {
-	/* Specifies which field is going to change. */
-	int					 field_type;
-	/* New value of the field. */
-	union c2_rpc_frm_item_change_val	*value;
-};
-#endif
-
-/**
    Event object for rpc formation state machine.
  */
 struct c2_rpc_frm_sm_event {
 	/** Event identifier. */
 	enum c2_rpc_frm_evt_id			 se_event;
-	/** Private data of event. */
-	//struct c2_rpc_frm_item_change_req	*se_pvt;
 };
 
 /**
