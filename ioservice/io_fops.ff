@@ -54,44 +54,26 @@ DEF(c2_fop_file_fid, RECORD,
  * c2_fop_io_buf is a buffer with a count specifying its length.
  */
 DEF(c2_fop_io_buf, SEQUENCE,
-	_(f_count, U64),
-	_(f_buf, BYTE));
-
-/**
- * Plain identifier for an IO segment.
- * This does not include any buffer, just a skeleton.
- */
-DEF(c2_fop_segment, RECORD,
-	_(f_offset, U64),
-	_(f_count, U64));
-
-/**
- * c2_fop_segment_seq is sequence of c2_fop_segments.
- */
-DEF(c2_fop_segment_seq, SEQUENCE,
-	_(fs_count, U32),
-	_(fs_segs, c2_fop_segment));
+	_(ib_count, U64),
+	_(ib_buf, BYTE));
 
 /**
  * c2_fop_io_seg is a record containing details of an IO operation.
- * <br> List of fields
- * @li offset : offset within component object.
- * @li count : count in bytes.
- * @li Data buffer
  */
 DEF(c2_fop_io_seg, RECORD,
-	_(f_offset, U64),
-	_(f_buf, c2_fop_io_buf));
+	/* Offset within component object.*/
+	_(is_offset, U64),
+	/* Data buffer attached with IO segment. */
+	_(is_buf, c2_fop_io_buf));
 
 /**
  * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
- * <br> List of fields
- * @li Array of IO segments.
- * @li count: Number of segments in array.
  */
 DEF(c2_fop_io_vec, SEQUENCE,
-	_(iov_count, U32),
-	_(iov_segs, c2_fop_io_seg));
+	/* Number of IO segments. */
+	_(iv_count, U32),
+	/* Array of IO segments. */
+	_(iv_segs, c2_fop_io_seg));
 
 /**
  * Reply FOP for a readv request.
@@ -100,86 +82,66 @@ DEF(c2_fop_io_vec, SEQUENCE,
  * @li buf: Buffer in which read data is returned.
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
-	_(frdr_rc, U32),
-	_(frdr_count, U64),
-	_(frdr_fid, c2_fop_file_fid));
+	/* Status code. */
+	_(crr_rc, U32),
+	/* IO vector assigned with read reply. This will eventually be
+	   removed with introduction of c2_net_buf_desc. */
+	_(crr_iovec, c2_fop_io_vec));
 
 /**
- * <b> c2_fop_cob_readv </b>
- * is a representation of a read component object request.
- * <p> The c2_fop_cob_readv FOP is sent by client to the Data server.
+ * This fop is representation of a read component object request.
+ * The c2_fop_cob_readv FOP is sent by client to the Data server.
  * The FOP supplies the stob id on which the read has to be performed.
  * The IO vector signifies the region within Component Object on which IO
  * has to be performed.
  * On completion, the reply FOP (c2_fop_cob_io_rep) is created
  * and sent to the client.
- * <br> List of fields
- * @li storage object Identifier
- * @li IO vector
- * @li miscellaneous flags
- * @li uid, gid for authorization
  */
 DEF(c2_fop_cob_readv, RECORD,
-	_(frd_foprep, U64),
-	_(frd_fid, c2_fop_file_fid),
-	_(frd_iovec, c2_fop_io_vec),
-	_(frd_uid, U64),
-	_(frd_gid, U64),
-	_(frd_nid, U64),
-	_(frd_flags, U64));
+	/* Attached reply fop. */
+	_(cr_foprep, U64),
+	/* File identifier of read request. */
+	_(cr_fid, c2_fop_file_fid),
+	/* IO vector in which data will be read. */
+	_(cr_iovec, c2_fop_io_vec),
+	_(cr_uid, U64),
+	_(cr_gid, U64),
+	_(cr_nid, U64),
+	_(cr_flags, U64));
 
 /**
- * <b> c2_fop_cob_writev_rep </b>
  * This is reply FOP for writev FOPs
- * <p> The c2_fop_cob_writev_rep FOP is sent as a response by the
+ * The c2_fop_cob_writev_rep FOP is sent as a response by the
  * Data server to a client.
  * It contains the status code and number of bytes written.
- * <br> List of fields
- * @li rc: status code. Non-zero value indicates error code.
- * @li number of bytes written.
  * rc = 0 indicates successful completion
  * rc > 0 indicates error code.
  */
 DEF(c2_fop_cob_writev_rep, RECORD,
-	_(fwrr_nid, U64),
-	_(fwrr_rc, U32),
-	_(fwrr_count, U64));
+	_(cwr_nid, U64),
+	_(cwr_rc, U32),
+	/* Number of bytes written. */
+	_(cwr_count, U64));
 
 /**
- * <b> c2_fop_cob_writev </b>
- * <p> The c2_fop_cob_writev FOP is used to send write requests by a
+ * The c2_fop_cob_writev FOP is used to send write requests by a
  * client to a Data server.
  * The FOP supplies the stob id on which the write has to be performed.
  * The IO vector signifies the region within Component Object on which IO
  * has to be performed.
  * On completion, the reply FOP (c2_fop_cob_io_rep) is created
  * and sent to the client.
- * <br> List of fields
- * @li storage object Identifier
- * @li IO vector
- * @li miscellaneous flags
- * @li uid, gid for authorization
  */
 DEF(c2_fop_cob_writev, RECORD,
-	_(fwr_foprep, U64),
-	_(fwr_fid, c2_fop_file_fid),
-	_(fwr_iovec, c2_fop_io_vec),
-	_(fwr_uid, U64),
-	_(fwr_gid, U64),
-	_(fwr_nid, U64),
-	_(fwr_flags, U64));
-
-/**
- * <b> c2_fop_file_create </b>
- */
-DEF(c2_fop_file_create, RECORD,
-	_(fcr_fid, c2_fop_file_fid));
-
-/**
- * <b> c2_fop_file_create_rep </b>
- */
-DEF(c2_fop_file_create_rep, RECORD,
-	_(fcrr_rc, U32));
+	_(cw_foprep, U64),
+	/* File identifier of write request. */
+	_(cw_fid, c2_fop_file_fid),
+	/* IO vector containing write data. */
+	_(cw_iovec, c2_fop_io_vec),
+	_(cw_uid, U64),
+	_(cw_gid, U64),
+	_(cw_nid, U64),
+	_(cw_flags, U64));
 
 /** @} end of FOP_data_ops */
 

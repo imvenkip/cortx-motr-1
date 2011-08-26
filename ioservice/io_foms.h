@@ -116,7 +116,7 @@ struct c2_io_fom_cob_rwv {
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
-        struct c2_stob_io		*fcrw_st_io;
+        struct c2_stob_io		 fcrw_st_io;
 };
 
 /**

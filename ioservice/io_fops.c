@@ -47,7 +47,7 @@ static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 
-	return seg->rw_seg->f_offset;
+	return seg->rw_seg->is_offset;
 }
 
 /**
@@ -59,7 +59,7 @@ static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
 {
 	C2_PRE(seg != NULL);
 
-	return seg->rw_seg->f_buf.f_count;
+	return seg->rw_seg->is_buf.ib_count;
 }
 
 /**
@@ -72,7 +72,7 @@ static void ioseg_offset_set(struct c2_io_ioseg *seg, const uint64_t offset)
 {
 	C2_PRE(seg != NULL);
 
-	seg->rw_seg->f_offset = offset;
+	seg->rw_seg->is_offset = offset;
 }
 
 /**
@@ -84,7 +84,7 @@ static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
 {
 	C2_PRE(seg != NULL);
 
-	seg->rw_seg->f_buf.f_count = count;
+	seg->rw_seg->is_buf.ib_count = count;
 }
 
 /**
@@ -99,7 +99,7 @@ static void ioseg_get(const struct c2_fop_io_vec *iovec, const int index,
 	C2_PRE(iovec != NULL);
 	C2_PRE(ioseg != NULL);
 
-	ioseg->rw_seg = &iovec->iov_segs[index];
+	ioseg->rw_seg = &iovec->iv_segs[index];
 }
 
 /**
@@ -132,7 +132,7 @@ static uint32_t ioseg_nr_get(const struct c2_fop_io_vec *iovec)
 {
 	C2_PRE(iovec != NULL);
 
-	return iovec->iov_count;
+	return iovec->iv_count;
 }
 
 /**
@@ -144,7 +144,7 @@ static void ioseg_nr_set(struct c2_fop_io_vec *iovec, const uint64_t count)
 {
 	C2_PRE(iovec != NULL);
 
-	iovec->iov_count = count;
+	iovec->iv_count = count;
 }
 
 /**
@@ -160,8 +160,8 @@ static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
 	C2_PRE(iovec != NULL);
 	C2_PRE(count != 0);
 
-	C2_ALLOC_ARR(iovec->iov_segs, count);
-	if (iovec->iov_segs == NULL)
+	C2_ALLOC_ARR(iovec->iv_segs, count);
+	if (iovec->iv_segs == NULL)
 		rc = -ENOMEM;
 	return rc;
 }
@@ -195,10 +195,10 @@ static void iovec_get(struct c2_fop *fop, struct c2_fop_io_vec *iovec)
 
 	if (op == C2_IO_SERVICE_READV_OPCODE) {
 		read_fop = c2_fop_data(fop);
-		iovec = &read_fop->frd_iovec;
+		iovec = &read_fop->cr_iovec;
 	} else {
 		write_fop = c2_fop_data(fop);
-		iovec = &write_fop->fwr_iovec;
+		iovec = &write_fop->cw_iovec;
 	}
 }
 
@@ -234,8 +234,8 @@ static void iovec_copy(const struct c2_fop_io_vec *src,
 	C2_PRE(dest != NULL);
 
 	/* The io segment pointer is copied not the io segment itself. */
-	dest->iov_count = src->iov_count;
-	dest->iov_segs = src->iov_segs;
+	dest->iv_count = src->iv_count;
+	dest->iv_segs = src->iv_segs;
 }
 
 /**
@@ -250,42 +250,13 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
 	c2_free(ioseg);
 }
 
-
+/**
+ * Allocate struct c2_io_fom_cob_rwv and return generic struct c2_fom
+ * which is embedded in struct c2_io_fom_cob_rwv.
+ * Find the corresponding fom_type and associate it with c2_fom.
+ * Associate fop with fom type.
+ */
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
-
-/**
-   Reply received callback for a c2_fop_cob_readv fop.
-   @note fop.f_item.ri_type->rit_ops->rio_replied is called.
-
-   @param - Read fop for which reply is received
- */
-static void io_fop_cob_readv_replied(struct c2_fop *fop)
-{
-	struct c2_fop_cob_readv	*read_fop;
-
-	C2_PRE(fop != NULL);
-
-	read_fop = c2_fop_data(fop);
-	c2_free(read_fop->frd_iovec.iov_segs);
-	c2_fop_free(fop);
-}
-
-/**
-   Reply received callback for a c2_fop_cob_writev fop.
-   @note fop.f_item.ri_type->rit_ops->rio_replied is called.
-
-   @param - Write fop for which reply is received
- */
-static void io_fop_cob_writev_replied(struct c2_fop *fop)
-{
-	struct c2_fop_cob_writev	*write_fop;
-
-	C2_PRE(fop != NULL);
-
-	write_fop = c2_fop_data(fop);
-	c2_free(write_fop->fwr_iovec.iov_segs);
-	c2_fop_free(fop);
-}
 
 /**
    Return the size of a fop of type c2_fop_cob_readv.
@@ -306,7 +277,7 @@ static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
 
 	read_fop = c2_fop_data(fop);
 	C2_ASSERT(read_fop != NULL);
-	size += read_fop->frd_iovec.iov_count * sizeof(struct c2_fop_io_seg);
+	size += read_fop->cr_iovec.iv_count * sizeof(struct c2_fop_io_seg);
 	return size;
 }
 
@@ -331,10 +302,10 @@ static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
 
 	write_fop = c2_fop_data(fop);
 	C2_ASSERT(write_fop != NULL);
-	vec_count = write_fop->fwr_iovec.iov_count;
+	vec_count = write_fop->cw_iovec.iv_count;
 	/* Size of actual user data. */
 	for (i = 0; i < vec_count; ++i)
-		size += write_fop->fwr_iovec.iov_segs[i].f_buf.f_count;
+		size += write_fop->cw_iovec.iv_segs[i].is_buf.ib_count;
 	/* Size of holding structure. */
 	size += vec_count * sizeof(struct c2_fop_io_seg);
 
@@ -403,26 +374,6 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 	iovec_get(fop, &iovec);
 	op = io_fop_get_opcode(fop);
 	return iovec_fragments_nr_get(&iovec, op);
-}
-
-/**
-   Restore the original IO vector of resultant read fop.
-   @param fop - Incoming fop.
-   @param vec - A union pointing to original IO vector.
- */
-void io_fop_read_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
-{
-	struct c2_fop_cob_readv	*read_fop;
-
-	C2_PRE(fop != NULL);
-	C2_PRE(vec != NULL);
-
-	read_fop = c2_fop_data(fop);
-
-	c2_free(read_fop->frd_iovec.iov_segs);
-
-	read_fop->frd_iovec.iov_count = vec->iov_count;
-	read_fop->frd_iovec.iov_segs = vec->iov_segs;
 }
 
 /**
@@ -589,37 +540,44 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
    simultaneously.
    @param res_fop - resultant fop with which the resulting IO vector is
    associated.
-   @param vec - Input IO vector which stores the original IO vector
+   @param bkpfop - A fop used to store the original IO vector of res_fop
+   whose IO vector is replaced by the coalesced IO vector.
    from resultant fop and it is restored on receving the reply of this
    coalesced IO request. @see io_fop_iovec_restore.
  */
 static int io_fop_coalesce(const struct c2_list *fop_list,
-		struct c2_fop *res_fop, struct c2_fop_io_vec *vec)
+		struct c2_fop *res_fop, struct c2_fop *bkp_fop)
 {
 	int				 res = 0;
 	int				 i = 0;
 	uint64_t			 curr_segs;
 	struct c2_fop			*fop;
 	struct c2_list			 aggr_list;
-	struct c2_fop_io_vec		 iovec;
-	struct c2_fop_io_vec		*res_iovec = NULL;
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
 	struct c2_io_ioseg		 res_ioseg;
+	struct c2_fop_type		*fopt;
+	struct c2_fop_io_vec		 iovec;
+	struct c2_fop_io_vec		 bkp_vec;
+	struct c2_fop_io_vec		*res_iovec = NULL;
 	enum c2_io_service_opcodes	 op;
 
 	C2_PRE(fop_list != NULL);
 	C2_PRE(res_fop != NULL);
-	C2_PRE(vec != NULL);
+	C2_PRE(bkp_fop != NULL);
 
 	op = res_fop->f_type->ft_code;
 
         /* Make a copy of original IO vector belonging to res_fop and place
            it in input parameter vec which can be used while restoring the
            IO vector. */
-        res = iovec_alloc(&vec);
-        if (res != 0)
-                return -ENOMEM;
+	if (op == C2_IO_SERVICE_READV_OPCODE)
+		fopt = &c2_fop_cob_readv_fopt;
+	else if (op == C2_IO_SERVICE_WRITEV_OPCODE)
+		fopt = &c2_fop_cob_writev_fopt;
+	bkp_fop = c2_fop_alloc(fopt, NULL);
+	if (bkp_fop == NULL)
+		return -ENOMEM;
 
 	c2_list_init(&aggr_list);
 
@@ -653,15 +611,14 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	ioseg_nr_set(res_iovec, i);
 
 	iovec_get(res_fop, &iovec);
-	iovec_copy(&iovec, vec);
+	iovec_get(bkp_fop, &bkp_vec);
+	iovec_copy(&iovec, &bkp_vec);
 	iovec_copy(res_iovec, &iovec);
 	return res;
 cleanup:
 	C2_ASSERT(res != 0);
 	if (res_iovec != NULL)
 		iovec_free(res_iovec);
-	if (vec != NULL)
-		iovec_free(vec);
 	c2_list_for_each_entry_safe(&aggr_list, ioseg, ioseg_next,
 				    struct c2_io_ioseg, io_linkage)
 		ioseg_unlink_free(ioseg);
@@ -676,13 +633,16 @@ cleanup:
    the subroutine io_fop_coalesce. @see io_fop_coalesce.
    @param vec - A union pointing to original IO vector.
  */
-static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
+static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop *bkpfop)
 {
 	enum c2_io_service_opcodes	 op;
 	struct c2_fop_cob_readv		*read_fop;
+	struct c2_fop_cob_readv		*read_fop_bkp;
 	struct c2_fop_cob_writev	*write_fop;
+	struct c2_fop_cob_writev	*write_fop_bkp;
 
-	C2_PRE(vec != NULL);
+	C2_PRE(fop != NULL);
+	C2_PRE(bkpfop != NULL);
 
 	op = io_fop_get_opcode(fop);
 	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
@@ -690,16 +650,18 @@ static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop_io_vec *vec)
 
 	if (op == C2_IO_SERVICE_READV_REP_OPCODE) {
 		read_fop = c2_fop_data(fop);
-		c2_free(read_fop->frd_iovec.iov_segs);
-		read_fop->frd_iovec.iov_count = vec->iov_count;
-		read_fop->frd_iovec.iov_segs = vec->iov_segs;
+		read_fop_bkp = c2_fop_data(bkpfop);
+		c2_free(read_fop->cr_iovec.iv_segs);
+		read_fop->cr_iovec.iv_count = read_fop_bkp->cr_iovec.iv_count;
+		read_fop->cr_iovec.iv_segs = read_fop_bkp->cr_iovec.iv_segs;
 	} else {
 		write_fop = c2_fop_data(fop);
-		c2_free(write_fop->fwr_iovec.iov_segs);
-		write_fop->fwr_iovec.iov_count = vec->iov_count;
-		write_fop->fwr_iovec.iov_segs = vec->iov_segs;
+		write_fop_bkp = c2_fop_data(bkpfop);
+		c2_free(write_fop->cw_iovec.iv_segs);
+		write_fop->cw_iovec.iv_count = write_fop_bkp->cw_iovec.iv_count;
+		write_fop->cw_iovec.iv_segs = write_fop_bkp->cw_iovec.iv_segs;
 	}
-	c2_free(vec);
+	c2_fop_free(bkpfop);
 }
 
 /**
@@ -738,10 +700,10 @@ static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 
 	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
 		read_fop = c2_fop_data(fop);
-		ffid = &read_fop->frd_fid;
+		ffid = &read_fop->cr_fid;
 	} else {
 		write_fop = c2_fop_data(fop);
-		ffid = &write_fop->fwr_fid;
+		ffid = &write_fop->cw_fid;
 	}
 	return ffid;
 }
@@ -777,7 +739,7 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
  */
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_fop_replied = io_fop_cob_readv_replied,
+	.fto_fop_replied = NULL,
 	.fto_size_get = io_fop_cob_readv_getsize,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
@@ -791,7 +753,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
  */
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
-	.fto_fop_replied = io_fop_cob_writev_replied,
+	.fto_fop_replied = NULL,
 	.fto_size_get = io_fop_cob_writev_getsize,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
@@ -843,53 +805,6 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_size_get = io_fop_cob_readv_rep_getsize,
 };
 
-int c2_io_fop_file_create_fom_init(struct c2_fop *fop, struct c2_fom **m);
-
-/**
-   Return size for a fop of type c2_fop_file_create;
-   @todo Eventually will be replaced by wire formats _getsize API.
-   @param - Create fop for which size has to be calculated
- */
-static uint64_t io_fop_create_getsize(struct c2_fop *fop)
-{
-	uint64_t size;
-
-	C2_PRE(fop != NULL);
-
-	/* Size of fop layout */
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	return size;
-}
-
-/* Ops vector for file create request. */
-const struct c2_fop_type_ops c2_fop_file_create_ops = {
-	.fto_fom_init = c2_io_fop_file_create_fom_init,
-	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_create_getsize,
-	.fto_op_equal = io_fop_type_equal,
-	.fto_fid_equal = io_fop_fid_equal,
-	.fto_get_nfragments = NULL,
-	.fto_io_coalesce = NULL,
-};
-
-/* Dummy init */
-static int io_fop_file_create_rep_fom_init(struct c2_fop *fop,
-		struct c2_fom **m)
-{
-	return 0;
-}
-
-/* Ops vector for file create request. */
-const struct c2_fop_type_ops c2_fop_file_create_rep_ops = {
-        .fto_fom_init = io_fop_file_create_rep_fom_init,
-        .fto_fop_replied = NULL,
-        .fto_size_get = io_fop_create_getsize,
-        .fto_op_equal = io_fop_type_equal,
-	.fto_fid_equal = io_fop_fid_equal,
-        .fto_get_nfragments = NULL,
-        .fto_io_coalesce = NULL,
-};
-
 /**
  * FOP definitions for readv and writev operations.
  */
@@ -897,10 +812,6 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
 		C2_IO_SERVICE_READV_OPCODE, &c2_io_cob_readv_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
 		C2_IO_SERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_file_create, "File Create",
-		C2_IO_SERVICE_CREATE_OPCODE, &c2_fop_file_create_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_file_create_rep, "File Create Reply",
-		C2_IO_SERVICE_CREATE_REP_OPCODE, &c2_fop_file_create_rep_ops);
 
 /**
  * FOP definitions of readv and writev reply FOPs.
@@ -913,34 +824,31 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
 	&c2_fop_io_buf_tfmt,
-	&c2_fop_segment_tfmt,
-	&c2_fop_segment_seq_tfmt,
 	&c2_fop_io_seg_tfmt,
 	&c2_fop_io_vec_tfmt,
-	&c2_fop_cob_readv_rep_tfmt,
-	&c2_fop_cob_readv_tfmt,
-	&c2_fop_cob_writev_rep_tfmt,
-	&c2_fop_cob_writev_tfmt,
-	&c2_fop_file_create_tfmt,
-	&c2_fop_file_create_rep_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {
-	&c2_fop_cob_readv_rep_fopt,
 	&c2_fop_cob_readv_fopt,
-	&c2_fop_cob_writev_rep_fopt,
 	&c2_fop_cob_writev_fopt,
-	&c2_fop_file_create_fopt,
-	&c2_fop_file_create_rep_fopt,
+	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
 };
 
-void ioservice_fop_fini(void)
+int c2_ioservice_fops_nr(void)
+{
+	return ARRAY_SIZE(ioservice_fops);
+}
+C2_EXPORTED(c2_ioservice_fops_nr);
+
+void c2_ioservice_fop_fini(void)
 {
 	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
 	c2_fop_type_format_fini_nr(ioservice_fmts, ARRAY_SIZE(ioservice_fmts));
 }
+C2_EXPORTED(c2_ioservice_fop_fini);
 
-int ioservice_fop_init(void)
+int c2_ioservice_fop_init(void)
 {
 	int rc;
 
@@ -950,9 +858,10 @@ int ioservice_fop_init(void)
 		rc = c2_fop_type_build_nr(ioservice_fops,
 				ARRAY_SIZE(ioservice_fops));
 	if (rc != 0)
-		ioservice_fop_fini();
+		c2_ioservice_fop_fini();
 	return rc;
 }
+C2_EXPORTED(c2_ioservice_fop_init);
 
 /*
  *  Local variables:

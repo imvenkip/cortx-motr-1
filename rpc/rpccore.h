@@ -233,7 +233,7 @@ struct c2_rpc_item_type_ops {
 	   Restore original IO vector of rpc item.
 	 */
 	void (*rito_iovec_restore)(struct c2_rpc_item *b_item,
-			struct c2_fop_io_vec *vec);
+			struct c2_fop *bkpfop);
 	/**
 	   Find out the size of rpc item.
 	 */

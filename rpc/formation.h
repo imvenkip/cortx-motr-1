@@ -21,21 +21,20 @@
 #ifndef __C2_RPC_FORMATION_H__
 #define __C2_RPC_FORMATION_H__
 
-#include "ioservice/io_fops.h"
-#include "rpc/session.h"
 #include "lib/timer.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/rwlock.h"
-#include "lib/refs.h"
 #include "lib/errno.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 #include "addb/addb.h"
 
 struct c2_fid;
+struct c2_fop;
 struct c2_fop_io_vec;
 struct c2_fop_file_fid;
+struct c2_rpc_slot;
 
 /**
    @defgroup rpc_formation Formation sub component from RPC layer.
@@ -378,6 +377,9 @@ struct c2_rpc_frm_item_coalesced {
 	/** Poiner to correct IO vector to restore it, when member IO
 	    operations complete. */
 	struct c2_fop_io_vec		*ic_iovec;
+	/** Fop used to backup the original IO vector of resultant item
+	    which is replaced during coalescing. */
+	struct c2_fop			*ic_bkpfop;
 };
 
 /**
@@ -439,6 +441,7 @@ enum c2_rpc_frm_evt_id {
 /**
    Enumeration of fields which are subject to change.
  */
+#if 0
 enum c2_rpc_frm_item_change_fields {
 	/** Change priority of item. */
 	C2_RPC_ITEM_CHANGE_PRIORITY,
@@ -449,10 +452,12 @@ enum c2_rpc_frm_item_change_fields {
 	/** Max number of fields subject to change.*/
 	C2_RPC_ITEM_CHANGES_NR,
 };
+#endif
 
 /**
    Union of all possible values to be changed from c2_rpc_item.
  */
+#if 0
 union c2_rpc_frm_item_change_val {
 	/** New priority of rpc item. */
 	enum c2_rpc_item_priority	 cv_prio;
@@ -461,16 +466,19 @@ union c2_rpc_frm_item_change_val {
 	/** New rpc group given rpc item belongs to. */
 	struct c2_rpc_group		*cv_rpcgroup;
 };
+#endif
 
 /**
    Used to track the parameter changes in an rpc item.
  */
+#if 0
 struct c2_rpc_frm_item_change_req {
 	/* Specifies which field is going to change. */
 	int					 field_type;
 	/* New value of the field. */
 	union c2_rpc_frm_item_change_val	*value;
 };
+#endif
 
 /**
    Event object for rpc formation state machine.
@@ -479,7 +487,7 @@ struct c2_rpc_frm_sm_event {
 	/** Event identifier. */
 	enum c2_rpc_frm_evt_id			 se_event;
 	/** Private data of event. */
-	struct c2_rpc_frm_item_change_req	*se_pvt;
+	//struct c2_rpc_frm_item_change_req	*se_pvt;
 };
 
 /**
@@ -510,8 +518,8 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
    @param val - new value
    @retval 0 (success) -errno (failure)
  */
-int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
-		union c2_rpc_frm_item_change_val *value);
+/*int c2_rpc_frm_item_changed(struct c2_rpc_item *item, int field_type,
+		union c2_rpc_frm_item_change_val *value);*/
 
 /**
    Callback function for reply received of an rpc item.
@@ -556,14 +564,6 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
   @param ev - net buffer event
  */
 void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
-
-/**
-   Function to map the on-wire FOP format to in-core FOP format.
-   @param in - file format fid
-   @param out - memory format fid
- */
-void c2_rpc_frm_item_io_fid_wire2mem(struct c2_fop_file_fid *in,
-		struct c2_fid *out);
 
 /**
    Try to coalesce rpc items with similar fid and intent.

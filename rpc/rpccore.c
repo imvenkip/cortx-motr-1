@@ -22,6 +22,7 @@
 
 #include "cob/cob.h"
 #include "rpc/rpccore.h"
+#include "ioservice/io_fops.h"
 #include "rpc/rpcdbg.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
@@ -714,7 +715,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Allocate the bufvec of size = min((buf_size), (segs_nr * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (segs_nr * seg_size)) 
+	if (buf_size > (segs_nr * seg_size))
 		nrsegs = segs_nr;
 	else
 		nrsegs = buf_size / seg_size;
@@ -1093,16 +1094,15 @@ static const struct c2_update_stream_ops update_stream_ops = {
 };
 
 void c2_rpc_item_vec_restore(struct c2_rpc_item *b_item,
-		struct c2_fop_io_vec *vec)
+		struct c2_fop *bkpfop)
 {
 	struct c2_fop *fop;
 
 	C2_PRE(b_item != NULL);
-	C2_PRE(vec != NULL);
 
 	fop = c2_rpc_item_to_fop(b_item);
 	C2_ASSERT(fop != NULL);
-	fop->f_type->ft_ops->fto_iovec_restore(fop, vec);
+	fop->f_type->ft_ops->fto_iovec_restore(fop, bkpfop);
 }
 
 /**
@@ -1134,7 +1134,7 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 
 	/* Restore the original IO vector of resultant rpc item. */
 	res = fop->f_type->ft_ops->fto_io_coalesce(&fop_list, b_fop,
-			c_item->ic_iovec);
+			c_item->ic_bkpfop);
 
 	c2_list_for_each_entry_safe(&fop_list, fop, fop_next,
 			struct c2_fop, f_link)
@@ -1170,30 +1170,6 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
 };
 
-static const struct c2_rpc_item_type_ops rpc_item_create_type_ops = {
-	.rito_sent = NULL,
-	.rito_added = NULL,
-	.rito_replied = c2_rpc_item_replied,
-	.rito_item_size = c2_rpc_item_default_size,
-	.rito_items_equal = c2_rpc_item_equal,
-	.rito_get_io_fragment_count = NULL,
-	.rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops rpc_item_create_rep_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = c2_rpc_item_equal,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
 static const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
@@ -1224,18 +1200,6 @@ static struct c2_rpc_item_type rpc_item_type_readv = {
 
 static struct c2_rpc_item_type rpc_item_type_writev = {
 	.rit_ops = &rpc_item_writev_type_ops,
-};
-
-static struct c2_rpc_item_type rpc_item_type_create = {
-	.rit_ops = &rpc_item_create_type_ops,
-	.rit_mutabo = true,
-	.rit_item_is_req = true,
-};
-
-static struct c2_rpc_item_type rpc_item_type_create_rep = {
-	.rit_ops = &rpc_item_create_rep_type_ops,
-	.rit_mutabo = false,
-	.rit_item_is_req = false,
 };
 
 static struct c2_rpc_item_type rpc_item_type_ping = {
@@ -1269,12 +1233,6 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 		break;
 	case C2_IO_SERVICE_WRITEV_OPCODE:
 		item->ri_type = &rpc_item_type_writev;
-		break;
-	case C2_IO_SERVICE_CREATE_OPCODE:
-		item->ri_type = &rpc_item_type_create;
-		break;
-	case C2_IO_SERVICE_CREATE_REP_OPCODE:
-		item->ri_type = &rpc_item_type_create_rep;
 		break;
 	case c2_fop_ping_opcode:
 		item->ri_type = &rpc_item_type_ping;
@@ -1313,9 +1271,6 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		break;
 	case C2_IO_SERVICE_WRITEV_OPCODE:
 		fopt->ft_ri_type = &rpc_item_type_writev;
-		break;
-	case C2_IO_SERVICE_CREATE_OPCODE:
-		fopt->ft_ri_type = &rpc_item_type_create;
 		break;
 	default:
 		/* FOP operations which need to set opcode should either
