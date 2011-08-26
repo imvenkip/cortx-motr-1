@@ -33,11 +33,6 @@
 #include "lib/memory.h"
 #include "fop/fop.h"
 
-/*
-   Forward declarations.
- */
-static int io_fop_get_opcode(const struct c2_fop *fop);
-
 /**
    Generic IO segments ops.
    @param seg - Generic io segment.
@@ -187,13 +182,13 @@ static void iovec_get(struct c2_fop *fop, struct c2_fop_io_vec *iovec)
 {
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev	*write_fop;
-	enum c2_io_service_opcodes	 op;
+	struct c2_fop_type		*fopt;
 
-	op = io_fop_get_opcode(fop);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
+	fopt = fop->f_type;
+	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
+			fopt == &c2_fop_cob_writev_fopt);
 
-	if (op == C2_IO_SERVICE_READV_OPCODE) {
+	if (fopt == &c2_fop_cob_readv_fopt) {
 		read_fop = c2_fop_data(fop);
 		iovec = &read_fop->cr_iovec;
 	} else {
@@ -328,8 +323,7 @@ static bool io_fop_type_equal(const struct c2_fop *fop1,
 	return fop1->f_type == fop2->f_type;
 }
 
-uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec,
-		enum c2_io_service_opcodes op)
+uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec)
 {
 	uint64_t		frag_nr = 1;
 	uint64_t		i;
@@ -341,8 +335,6 @@ uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec,
 	struct c2_io_ioseg	ioseg_next;
 
 	C2_PRE(iovec != NULL);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
 
 	segs_nr = ioseg_nr_get(iovec);
 	for (i = 0; i < segs_nr - 1; ++i) {
@@ -366,14 +358,15 @@ uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec,
  */
 static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 {
-	struct c2_fop_io_vec		iovec;
-	enum c2_io_service_opcodes	op;
+	struct c2_fop_io_vec		 iovec;
+	struct c2_fop_type		*fopt;
 
 	C2_PRE(fop != NULL);
+	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
+			fopt == &c2_fop_cob_writev_fopt);
 
 	iovec_get(fop, &iovec);
-	op = io_fop_get_opcode(fop);
-	return iovec_fragments_nr_get(&iovec, op);
+	return iovec_fragments_nr_get(&iovec);
 }
 
 /**
@@ -454,10 +447,9 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
    @param seg - current write segment from IO vector.
    @param aggr_list - list of write segments which gets built during
     this operation.
-   @param op - Opcode, given seg belongs to.
  */
 static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
-		struct c2_list *aggr_list, enum c2_io_service_opcodes op)
+		struct c2_list *aggr_list)
 {
 	int				 rc = 0;
 	bool				 added = false;
@@ -503,12 +495,11 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
    @param iovec - vector of IO segments.
    @param aggr_list - list of IO segments which gets populated during
    this operation.
-   @param op - Operation type, given iovec belongs to.
    @retval - 0 if succeeded, negative error code otherwise.
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
 */
 static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
-		struct c2_list *aggr_list, enum c2_io_service_opcodes op)
+		struct c2_list *aggr_list)
 {
 	int			i;
 	int			rc = 0;
@@ -522,7 +513,7 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
 	   If yes, merge it else, add a new entry in aggr_list. */
 	for (i = 0; i < ioseg_nr_get(iovec); ++i) {
 		ioseg_get(iovec, i, &ioseg);
-		io_fop_seg_coalesce(&ioseg, aggr_list, op);
+		io_fop_seg_coalesce(&ioseg, aggr_list);
 	}
 
 	return rc;
@@ -560,21 +551,18 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	struct c2_fop_io_vec		 iovec;
 	struct c2_fop_io_vec		 bkp_vec;
 	struct c2_fop_io_vec		*res_iovec = NULL;
-	enum c2_io_service_opcodes	 op;
 
 	C2_PRE(fop_list != NULL);
 	C2_PRE(res_fop != NULL);
 	C2_PRE(bkp_fop != NULL);
 
-	op = res_fop->f_type->ft_code;
+	fopt = res_fop->f_type;
+	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
+			fopt == &c2_fop_cob_writev_fopt);
 
         /* Make a copy of original IO vector belonging to res_fop and place
            it in input parameter vec which can be used while restoring the
            IO vector. */
-	if (op == C2_IO_SERVICE_READV_OPCODE)
-		fopt = &c2_fop_cob_readv_fopt;
-	else if (op == C2_IO_SERVICE_WRITEV_OPCODE)
-		fopt = &c2_fop_cob_writev_fopt;
 	bkp_fop = c2_fop_alloc(fopt, NULL);
 	if (bkp_fop == NULL)
 		return -ENOMEM;
@@ -586,7 +574,7 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	   in another list. */
 	c2_list_for_each_entry(fop_list, fop, struct c2_fop, f_link) {
 		iovec_get(fop, &iovec);
-		res = io_fop_segments_coalesce(&iovec, &aggr_list, op);
+		res = io_fop_segments_coalesce(&iovec, &aggr_list);
 	}
 
 	/* Allocate a new generic IO vector and copy all (merged) IO segments
@@ -635,20 +623,21 @@ cleanup:
  */
 static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop *bkpfop)
 {
-	enum c2_io_service_opcodes	 op;
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_readv		*read_fop_bkp;
 	struct c2_fop_cob_writev	*write_fop;
 	struct c2_fop_cob_writev	*write_fop_bkp;
+	struct c2_fop_type		*fopt_orig;
+	struct c2_fop_type		*fopt_bkp;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(bkpfop != NULL);
 
-	op = io_fop_get_opcode(fop);
-	C2_PRE(op == C2_IO_SERVICE_READV_OPCODE ||
-			op == C2_IO_SERVICE_WRITEV_OPCODE);
+	fopt_orig = fop->f_type;
+	fopt_bkp = bkpfop->f_type;
+	C2_PRE(fopt_orig == fopt_bkp);
 
-	if (op == C2_IO_SERVICE_READV_REP_OPCODE) {
+	if (fopt_orig == &c2_fop_cob_readv_fopt) {
 		read_fop = c2_fop_data(fop);
 		read_fop_bkp = c2_fop_data(bkpfop);
 		c2_free(read_fop->cr_iovec.iv_segs);
@@ -665,22 +654,6 @@ static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop *bkpfop)
 }
 
 /**
-   Return the op of given fop.
-   @note fop.f_item.ri_type->rit_ops->rio_io_get_opcode is called.
-
-   @param - fop for which op has to be returned
- */
-static int io_fop_get_opcode(const struct c2_fop *fop)
-{
-	int op;
-
-	C2_PRE(fop != NULL);
-
-	op = fop->f_type->ft_code;
-	return op;
-}
-
-/**
    Return the fid of given IO fop.
    @param fop - Incoming fop.
    @note This method only works for read and write IO fops.
@@ -691,14 +664,16 @@ static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 	struct c2_fop_file_fid		*ffid;
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev	*write_fop;
+	struct c2_fop_type		*fopt;
 
 	C2_PRE(fop != NULL);
 
-	if (fop->f_type->ft_code != C2_IO_SERVICE_READV_OPCODE &&
-			fop->f_type->ft_code != C2_IO_SERVICE_WRITEV_OPCODE)
+	fopt = fop->f_type;
+	if (fopt != &c2_fop_cob_readv_fopt &&
+			fopt != &c2_fop_cob_writev_fopt)
 		return NULL;
 
-	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
+	if (fopt == &c2_fop_cob_readv_fopt) {
 		read_fop = c2_fop_data(fop);
 		ffid = &read_fop->cr_fid;
 	} else {
