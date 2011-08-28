@@ -136,7 +136,7 @@ enum {
 	 * Alignment for direct-IO.
 	 *
 	 * According to open(2) manpage: "Under Linux 2.6, alignment to
-	 * 512-byte boundaries is suffices".
+	 * 512-byte boundaries suffices".
 	 */
 #ifdef ENABLE_STOB_DIRECTIO
 	LINUX_BSHIFT = 9, /* pow(2, 9) == 512 */
