@@ -24,16 +24,10 @@
 #endif
 
 #include "rpc/rpccore.h"
-#include "fid/fid.h"
-#include "ioservice/io_fops.h"
-#ifdef __KERNEL__
-#include "ioservice/linux_kernel/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
+
+#ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
 #endif
-
-struct c2_fop;
 
 /* ADDB Instrumentation for rpc formation. */
 static const struct c2_addb_ctx_type frm_addb_ctx_type = {
@@ -58,18 +52,12 @@ typedef enum c2_rpc_frm_evt_id (*statefunc_t)(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item,
 		const struct c2_rpc_frm_sm_event *event);
 
-/**
-   Forward declarations of local static functions
- */
+/* Forward declarations of local static functions. */
 static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item);
 
 static int frm_item_add(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc_item *item);
-
-/*static int frm_item_change(struct c2_rpc_frm_sm *frm_sm,
-		struct c2_rpc_item *item,
-		struct c2_rpc_frm_sm_event *event);*/
 
 static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm);
 
@@ -93,8 +81,6 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
    Temporary threashold values. Will be moved to appropriate files
    once rpc integration is done.
  */
-static uint64_t max_msg_size;
-static uint64_t max_fragments_size;
 static uint64_t max_rpcs_in_flight;
 
 /**
@@ -268,16 +254,11 @@ static const statefunc_t c2_rpc_frm_statetable
 
 /**
    Set thresholds for rpc formation. Currently used by UT code.
-   @param msg_size - Max message size
    @param max_rpcs - Max rpcs in flight
-   @param max_fragments - Max fragments size
  */
-void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
-		uint64_t max_fragments)
+void c2_rpc_frm_set_thresholds(uint64_t max_rpcs)
 {
-	max_msg_size = msg_size;
 	max_rpcs_in_flight = max_rpcs;
-	max_fragments_size = max_fragments;
 }
 
 /**
@@ -518,8 +499,6 @@ static void frm_sm_add(struct c2_rpc_chan *chan,
 	c2_list_init(&frm_sm->fs_rpcs);
 	frm_sm->fs_rpcchan = chan;
 	frm_sm->fs_state = C2_RPC_FRM_STATE_WAITING;
-	frm_sm->fs_max_msg_size = max_msg_size;
-	frm_sm->fs_max_frags = max_fragments_size;
 	frm_sm->fs_max_rpcs_in_flight = max_rpcs_in_flight;
 	frm_sm->fs_curr_rpcs_in_flight = 0;
 	for (cnt = 0; cnt < ARRAY_SIZE(frm_sm->fs_unformed_prio); ++cnt) {

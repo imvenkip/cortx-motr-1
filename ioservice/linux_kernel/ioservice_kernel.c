@@ -19,16 +19,16 @@
 
 #include <linux/module.h>
 
-#include <ioservice/io_fops.h>
+#include "ioservice/io_fops.h"
 
 int init_module(void)
 {
-	return ioservice_fop_init();
+	return c2_ioservice_fop_init();
 }
 
 void cleanup_module(void)
 {
-	ioservice_fop_fini();
+	c2_ioservice_fop_fini();
 }
 
 /*

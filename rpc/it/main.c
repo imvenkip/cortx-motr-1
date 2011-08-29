@@ -917,8 +917,7 @@ int main(int argc, char *argv[])
         c2_rpc_max_rpcs_in_flight = 8;
         c2_rpc_max_fragments_size = 16;
 
-        c2_rpc_frm_set_thresholds(c2_rpc_max_message_size,
-                        c2_rpc_max_rpcs_in_flight, c2_rpc_max_fragments_size);
+        c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
 	/* Set if passed through command line interface */
 	if (client_name)

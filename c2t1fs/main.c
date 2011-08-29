@@ -265,17 +265,19 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
 		/* Populate the vector of read FOP */
 		arg->cr_iovec.iv_segs = &read_seg;
+		read_seg.is_offset = pos;
+		read_seg.is_buf.ib_count = len;
+		read_seg.is_buf.cfib_pgoff = off;
+		read_seg.is_buf.ib_buf = pages;
 
 		arg->cr_uid = c2_get_uid();
 		arg->cr_gid = c2_get_gid();
 		arg->cr_nid = c2_get_nid();
 		arg->cr_flags = 0;
 
-		ret->crr_iovec.iv_segs = &read_seg;
-		read_seg.is_offset = pos;
-		read_seg.is_buf.ib_buf = pages;
-		read_seg.is_buf.ib_count = len;
-		read_seg.is_buf.cfib_pgoff = off;
+		ret->crr_iobuf.ib_buf = pages;
+		ret->crr_iobuf.ib_count = len;
+		ret->crr_iobuf.cfib_pgoff = off;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
@@ -285,7 +287,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 if (rc)
                         return rc;
-                rc = ret->crr_rc ? : read_seg.is_buf.ib_count;
+                rc = ret->crr_rc ? : ret->crr_iobuf.ib_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);

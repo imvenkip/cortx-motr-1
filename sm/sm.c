@@ -19,6 +19,7 @@
  */
 
 #include "sm/sm.h"
+#include "lib/cdefs.h"
 
 /**
    @addtogroup sm

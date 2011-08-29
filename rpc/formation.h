@@ -532,12 +532,9 @@ int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
 
 /**
   @todo Temporary fix.
-  @param msg_size - Max message size
   @param max_rpcs - Max rpcs in flight
-  @param max_fragments - Max fragments size
  */
-void c2_rpc_frm_set_thresholds(uint64_t msg_size, uint64_t max_rpcs,
-		uint64_t max_fragments);
+void c2_rpc_frm_set_thresholds(uint64_t max_rpcs);
 
 /**
    Decrement the current number of rpcs in flight from given rpc item.

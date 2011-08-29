@@ -200,7 +200,6 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	struct c2_fop_io_seg		*write_seg;
 	struct c2_fop_io_seg		*read_seg;
 	struct c2_fop_type		*fopt;
-	struct c2_fop_io_vec		*read_vec;
 	struct c2_stob_io		*stio;
 
 	C2_PRE(fom != NULL);
@@ -262,15 +261,20 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		/* Make an FOL transaction record. */
-		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
+		/*result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
 				fom->fo_fol, &tx.tx_dbtx);
 		if (result != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return result;
-		}
+		}*/
 	}
 
-	/* Find out buffer address, offset and count required for stob io. */
+	/* Find out buffer address, offset and count required for stob io.
+	   Due to existing limitations of kxdr wrapper over sunrpc, read reply
+	   fop can not contain a vector, only a segment. Ideally, all IO fops
+	   should carry an IO vector. Also with introduction of new rpc layer,
+	   ioservice functionality has to be changed to handle the whole
+	   vector, not just one segment. */
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		write_seg = write_fop->cw_iovec.iv_segs;
 		addr = c2_stob_addr_pack(write_seg->is_buf.ib_buf, bshift);
@@ -278,25 +282,16 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		offset = write_seg->is_offset;
 		fom_obj->fcrw_st_io.si_opcode = SIO_WRITE;
 	} else {
-		read_seg = rd_rep_fop->crr_iovec.iv_segs;
-		read_vec = &rd_rep_fop->crr_iovec;
+		read_seg = read_fop->cr_iovec.iv_segs;
 
 		/* Allocate the read buffer. */
-		read_vec->iv_count = 1;
-		C2_ALLOC_ARR(read_vec->iv_segs, read_vec->iv_count);
-		if (read_vec->iv_segs == NULL) {
-			c2_stob_put(fom_obj->fcrw_stob);
-			return -ENOMEM;
-		}
-		C2_ALLOC_ARR(read_vec->iv_segs->is_buf.ib_buf,
+		C2_ALLOC_ARR(rd_rep_fop->crr_iobuf.ib_buf,
 				read_seg->is_buf.ib_count);
-		if (read_vec->iv_segs->is_buf.ib_buf == NULL) {
-			c2_free(read_vec->iv_segs);
+		if (rd_rep_fop->crr_iobuf.ib_buf == NULL) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return -ENOMEM;
 		}
-		addr = c2_stob_addr_pack(read_vec->iv_segs->is_buf.ib_buf,
-				bshift);
+		addr = c2_stob_addr_pack(rd_rep_fop->crr_iobuf.ib_buf, bshift);
 		count = read_seg->is_buf.ib_count;
 		offset = read_seg->is_offset;
 		fom_obj->fcrw_st_io.si_opcode = SIO_READ;
@@ -314,23 +309,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	stio->si_stob.iv_index = &offset;
 	stio->si_stob.iv_vec.v_count = &count;
 
-	/*
-	 * Total number of segments in IO vector
-	 */
+	/* Total number of segments in IO vector. */
 	stio->si_user.div_vec.ov_vec.v_nr = 1;
 	stio->si_stob.iv_vec.v_nr = 1;
 	stio->si_flags = 0;
 
-	/*
-	 * A new clink is used to wait on the channel
-	 * from c2_stob_io.
-	 */
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&stio->si_wait, &clink);
 
-	/*
-	 * Launch IO and wait for status.
-	 */
 	result = c2_stob_io_launch(stio, fom_obj->fcrw_stob, &tx, NULL);
 	if (result == 0)
 		c2_chan_wait(&clink);
@@ -339,23 +325,19 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		c2_clink_fini(&clink);
 		c2_stob_io_fini(stio);
 		c2_stob_put(fom_obj->fcrw_stob);
-		if (fopt == &c2_fop_cob_readv_fopt) {
-			c2_free(read_vec->iv_segs->is_buf.ib_buf);
-			c2_free(read_vec->iv_segs);
-		}
+		if (fopt == &c2_fop_cob_readv_fopt)
+			c2_free(rd_rep_fop->crr_iobuf.ib_buf);
 		return result;
 	}
 
-	/*
-	 * Retrieve the status code and no of bytes read/written
-	 * and place it in respective reply FOP.
-	 */
+	/* Retrieve the status code and no of bytes read/written and
+	   place it in respective reply FOP. */
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		wr_rep_fop->cwr_rc = stio->si_rc;
 		wr_rep_fop->cwr_count = stio->si_count << bshift;
 	} else {
 		rd_rep_fop->crr_rc = stio->si_rc;
-		read_vec->iv_segs->is_buf.ib_count = stio->si_count << bshift;
+		rd_rep_fop->crr_iobuf.ib_count = stio->si_count << bshift;
 	}
 
 	c2_clink_del(&clink);
@@ -365,32 +347,18 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	c2_stob_put(fom_obj->fcrw_stob);
 
-	if (result != -EDEADLK)	{
+	if (result != -EDEADLK)
 		rc = c2_db_tx_commit(&tx.tx_dbtx);
-		if (rc != 0) {
-			if (fopt == &c2_fop_cob_readv_fopt) {
-				c2_free(read_vec->iv_segs->is_buf.ib_buf);
-				c2_free(read_vec->iv_segs);
-			}
-			return rc;
-		}
-	} else {
+	else
 		rc = c2_db_tx_abort(&tx.tx_dbtx);
-		if (rc != 0) {
-			if (fopt == &c2_fop_cob_readv_fopt) {
-				c2_free(read_vec->iv_segs->is_buf.ib_buf);
-				c2_free(read_vec->iv_segs);
-			}
-			return rc;
-		}
-		/* This should go into FAILURE phase */
-		fom_obj->fcrw_gen.fo_phase = FOPH_FAILED;
-		return FSO_AGAIN;
+
+	if (rc != 0) {
+		if (fopt == &c2_fop_cob_readv_fopt)
+			c2_free(rd_rep_fop->crr_iobuf.ib_buf);
+		return rc;
 	}
 
-	/*
-	 * Send reply FOP
-	 */
+	/* Send reply FOP. */
 	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop,
 			fom->fo_fop_ctx->fc_cookie);
 

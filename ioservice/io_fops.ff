@@ -84,9 +84,11 @@ DEF(c2_fop_io_vec, SEQUENCE,
 DEF(c2_fop_cob_readv_rep, RECORD,
 	/* Status code. */
 	_(crr_rc, U32),
-	/* IO vector assigned with read reply. This will eventually be
-	   removed with introduction of c2_net_buf_desc. */
-	_(crr_iovec, c2_fop_io_vec));
+	/* At the moment, due to some constraints put up by kxdr wrapper
+	   around sunrpc, we can't have an IO vector here. It has to be
+	   a SEQUENCE of bytes. Eventually, this will be replaced by
+	   an IO vector or rather a net buffer descriptor. */
+	_(crr_iobuf, c2_fop_io_buf));
 
 /**
  * This fop is representation of a read component object request.

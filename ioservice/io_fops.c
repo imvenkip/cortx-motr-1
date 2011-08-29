@@ -45,10 +45,13 @@ static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg)
 	return seg->rw_seg->is_offset;
 }
 
+//#ifndef __KERNEL__
 /**
    Return the number of bytes in input IO segment.
    @param seg - Generic IO segment.
+   @param index - Index is needed for kernel implementation of this API.
    @retval - Returns the number of bytes in current IO segment.
+   XXX
  */
 static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
 {
@@ -56,6 +59,20 @@ static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
 
 	return seg->rw_seg->is_buf.ib_count;
 }
+
+/**
+   Sets the number of bytes in input IO segment.
+   @param seg - Generic IO segment.
+   @param count - Count to be set.
+   XXX
+ */
+static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
+{
+	C2_PRE(seg != NULL);
+
+	seg->rw_seg->is_buf.ib_count = count;
+}
+//#endif
 
 /**
    Generic IO segments ops.
@@ -68,18 +85,6 @@ static void ioseg_offset_set(struct c2_io_ioseg *seg, const uint64_t offset)
 	C2_PRE(seg != NULL);
 
 	seg->rw_seg->is_offset = offset;
-}
-
-/**
-   Sets the number of bytes in input IO segment.
-   @param seg - Generic IO segment.
-   @param count - Count to be set.
- */
-static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
-{
-	C2_PRE(seg != NULL);
-
-	seg->rw_seg->is_buf.ib_count = count;
 }
 
 /**
