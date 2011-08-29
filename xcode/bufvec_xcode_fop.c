@@ -51,6 +51,12 @@ enum {
 	FOP_FIELD_ONE  = 1,
 };
 
+/** Format of fop sequence data */
+struct   fop_sequence {
+	uint32_t         fs_count;
+	void		*fs_data;
+};
+
 /* Generic xcode function prototype for fop field types */
 typedef int (*c2_xcode_foptype_t)(struct c2_fop_field_type *ftype,
 				  struct c2_bufvec_cursor *cur, void *fop_data,
@@ -60,51 +66,87 @@ typedef int (*c2_xcode_foptype_t)(struct c2_fop_field_type *ftype,
 static	c2_xcode_foptype_t xcode_type_disp[FFA_NR];
 
 /** Array of xcode function pointers for atomic fop field types */
-static int (*xcode_atom_disp[FPF_NR])(struct c2_bufvec_cursor *cur, void *obj,
-				 enum c2_bufvec_what);
+static int (*xcode_atom_disp[FPF_NR])(struct c2_bufvec_cursor *cur,
+	    void *fop_data, enum c2_bufvec_what);
 
 /**
   Dispatcher array of xcode funtions for atomic field types.
 */
-static int (*xcode_atom_disp[FPF_NR])(struct c2_bufvec_cursor *cur, void *obj,
-			         enum c2_bufvec_what what) = {
+static int (*xcode_atom_disp[FPF_NR])(struct c2_bufvec_cursor *cur,
+	    void *fop_data,enum c2_bufvec_what what) = {
 	[FPF_VOID]  =  NULL,
 	[FPF_BYTE]  =  (void *)&c2_bufvec_byte,
 	[FPF_U32]   =  (void *)&c2_bufvec_uint32,
 	[FPF_U64]   =  (void *)&c2_bufvec_uint64
 };
+/**
+   Local xcode function declarations for various fop field types.See individual
+   headers for more details.
+*/
+static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
+                               struct c2_bufvec_cursor *cur,
+			       void *fop_data, enum c2_bufvec_what what);
 
+static int xcode_bufvec_union(struct c2_fop_field_type *fftype,
+		       struct c2_bufvec_cursor *cur, void *fop_data,
+		       enum c2_bufvec_what what);
+
+static int xcode_bufvec_typedef(struct c2_fop_field_type *fftype,
+				struct c2_bufvec_cursor *cur, void *fop_data,
+				enum c2_bufvec_what what);
+
+static int xcode_bufvec_atom(struct c2_fop_field_type *fftype,
+		             struct c2_bufvec_cursor *cur, void *fop_data,
+		             enum c2_bufvec_what what);
+
+static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
+				 struct c2_bufvec_cursor *cur, void *fop_data,
+				 enum c2_bufvec_what what);
+
+/** Dispatcher array of xcode function pointers for various fop field types */
+static c2_xcode_foptype_t xcode_type_disp[FFA_NR] = {
+	[FFA_RECORD]   = &xcode_bufvec_record,
+	[FFA_UNION]    = &xcode_bufvec_union,
+	[FFA_SEQUENCE] = &xcode_bufvec_sequence,
+	[FFA_TYPEDEF]  = &xcode_bufvec_typedef,
+	[FFA_ATOM]     = &xcode_bufvec_atom
+};
 /**
    Helper function for handling non-leaf node of a fop format tree. Internally
    calls dispatch function for specific aggregation type using it as index.
    @see xcode_type_disp
+
    @param fftype field type for the fop is to be encoded/decoded.
    @param cur current position of bufvec cursor.
-   @param obj pointer to fop data to be encode/decoded.
+   @param fop_data pointer to fop data to be encode/decoded.
    @param fieldno The fop field no.
    @param what The type of operation to be performed - encode or decode.
+
    @retval 0 On success.
    @retval -errno on failure.
 */
 static int xcode_fop_subtype(struct c2_fop_field_type *fftype,
-			     struct c2_bufvec_cursor *cur, void *obj,
+			     struct c2_bufvec_cursor *cur, void *fop_data,
 			     uint32_t fieldno, uint32_t elno,
 			     enum c2_bufvec_what what)
 {
 	struct c2_fop_field_type        *ff_subtype;
-	uint32_t			 fop_field_no;
+	uint32_t			 fop_field_aggr_type;
 	void				*obj_field_addr;
 
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
-	C2_PRE(obj != NULL);
+	C2_PRE(fop_data != NULL);
 
-	obj_field_addr = c2_fop_type_field_addr(fftype, obj, fieldno, elno);
+	obj_field_addr = c2_fop_type_field_addr(fftype, fop_data, fieldno,
+						elno);
 	ff_subtype = fftype->fft_child[fieldno]->ff_type;
 
 	C2_PRE(fieldno < fftype->fft_nr);
-	fop_field_no = fftype->fft_child[fieldno]->ff_type->fft_aggr;
-	return xcode_type_disp[fop_field_no](ff_subtype, cur, obj_field_addr, what);
+	fop_field_aggr_type = fftype->fft_child[fieldno]->ff_type->fft_aggr;
+
+	return xcode_type_disp[fop_field_aggr_type]
+			      (ff_subtype, cur, obj_field_addr, what);
 }
 
 /**
@@ -114,22 +156,23 @@ static int xcode_fop_subtype(struct c2_fop_field_type *fftype,
 
    @param fftype field type for the fop is to be encoded/decoded.
    @param cur current position of bufvec cursor.
-   @param obj pointer to fop data to be encode/decoded.
+   @param fop_data pointer to fop data to be encode/decoded.
    @param what The type of operation to be performed - encode or decode.
+
    @retval 0 On success.
    @retval -errno on failure.
 */
 static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
 			       struct c2_bufvec_cursor *cur,
-			       void *obj, enum c2_bufvec_what what)
+			       void *fop_data, enum c2_bufvec_what what)
 {
 	size_t fft_cnt;
 	int    rc;
 
 	for (rc = 0, fft_cnt = 0; rc == 0 && fft_cnt < fftype->fft_nr;
 	     ++fft_cnt)
-		rc = xcode_fop_subtype(fftype, cur, obj, fft_cnt, ELEMENT_ZERO,
-				       what);
+		rc = xcode_fop_subtype(fftype, cur, fop_data, fft_cnt,
+				       ELEMENT_ZERO, what);
 	return rc;
 }
 
@@ -137,7 +180,8 @@ static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
   Returns true if the current fop field type is a byte array
 
   @param fftype the fop field type.
-  @reval true if field type is a byte array.
+
+  @retval true if field type is a byte array.
   @retval false if field type is not a byte array.
 */
 static bool xcode_is_byte_array(const struct c2_fop_field_type *fftype)
@@ -152,8 +196,9 @@ static bool xcode_is_byte_array(const struct c2_fop_field_type *fftype)
 
    @param fftype field type for the fop is to be encoded/decoded.
    @param cur current position of bufvec cursor.
-   @param obj pointer to fop data to be encode/decoded.
+   @param fop_data pointer to fop data to be encode/decoded.
    @param what The type of operation to be performed - encode or decode.
+
    @retval 0 On success.
    @retval -errno on failure.
 */
@@ -179,19 +224,16 @@ static int xcode_bufvec_byte_seq(struct c2_bufvec_cursor *cur, char **b_seq,
 
   @param fftype field type for the fop is to be encoded/decoded.
   @param cur current position of bufvec cursor.
-  @param obj pointer to fop sequence data to be encode/decoded.
+  @param fop_data pointer to fop sequence data to be encode/decoded.
   @param what The type of operation to be performed - encode or decode.
+
   @retval 0 On success.
   @retval -errno on failure.
 */
 static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
-				 struct c2_bufvec_cursor *cur, void *obj,
+				 struct c2_bufvec_cursor *cur, void *fop_data,
 				 enum c2_bufvec_what what)
 {
-	struct   fop_sequence {
-		uint32_t         fs_count;
-		void		*fs_data;
-	};
 
 	struct fop_sequence     *fseq;
 	int                      rc;
@@ -203,9 +245,9 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
-	C2_PRE(obj != NULL);
+	C2_PRE(fop_data != NULL);
 
-	fseq = obj;
+	fseq = fop_data;
 	if (what == C2_BUFVEC_ENCODE) {
 		nr = fseq->fs_count;
 		/* First encode the "count" field into the bufvec */
@@ -224,13 +266,15 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 			if(rc != 0)
 				return rc;
 		fseq->fs_count = nr;
+		/* Detect if it's byte sequence */
 		if(xcode_is_byte_array(fftype)) {
 			return xcode_bufvec_byte_seq(cur,
 				(char **)&fseq->fs_data, nr, what);
 		}
 		/*
-		 *  During decode calculate and allocate memory for the sequence
-		 * based on the  layout
+		 * This is an sequence of atomic types or aggr types(record,
+		 * sequence etc). During decode, calculate and allocate memory
+		 * for the sequence based on the its in-memory layout.
 		 */
 		ellay = fftype->fft_child[1]->ff_type->fft_layout;
 		elsize = ellay->fm_sizeof;
@@ -251,26 +295,27 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 
   @param fftype field type for the fop is to be encoded/decoded.
   @param cur current position of bufvec cursor.
-  @param obj pointer to fop typedef data to be encode/decoded.
+  @param fop_data pointer to fop typedef data to be encode/decoded.
   @param what The type of operation to be performed - encode or decode.
+
   @retval 0 On success.
   @retval -errno on failure.
 */
 static int xcode_bufvec_typedef(struct c2_fop_field_type *fftype,
-				struct c2_bufvec_cursor *cur, void *obj,
+				struct c2_bufvec_cursor *cur, void *fop_data,
 				enum c2_bufvec_what what )
 {
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
-	C2_PRE(obj != NULL);
+	C2_PRE(fop_data != NULL);
 
-	return xcode_fop_subtype(fftype, cur, obj, FOP_FIELD_ZERO,
+	return xcode_fop_subtype(fftype, cur, fop_data, FOP_FIELD_ZERO,
 				 ELEMENT_ZERO, what);
 }
 
 /** XXX: Currently unions are not supported. */
 int xcode_bufvec_union(struct c2_fop_field_type *fftype,
-		       struct c2_bufvec_cursor *cur, void *obj,
+		       struct c2_bufvec_cursor *cur, void *fop_data,
 		       enum c2_bufvec_what what)
 {
 	return -EIO;
@@ -281,31 +326,24 @@ int xcode_bufvec_union(struct c2_fop_field_type *fftype,
 
   @param fftype field type for the fop is to be encoded/decoded.
   @param cur current position of bufvec cursor.
-  @param obj pointer to fop atomic data to be encode/decoded.
+  @param fop_data pointer to fop atomic data to be encode/decoded.
   @param what The type of operation to be performed - encode or decode.
+
   @retval 0 On success.
   @retval -errno on failure.
 */
 static int xcode_bufvec_atom(struct c2_fop_field_type *fftype,
-		             struct c2_bufvec_cursor *cur, void *obj,
+		             struct c2_bufvec_cursor *cur, void *fop_data,
 		             enum c2_bufvec_what what)
 {
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
-	C2_PRE(obj != NULL);
+	C2_PRE(fop_data != NULL);
 	C2_PRE(fftype->fft_u.u_atom.a_type < ARRAY_SIZE(xcode_atom_disp));
 
-	return xcode_atom_disp[fftype->fft_u.u_atom.a_type](cur, obj, what);
+	return xcode_atom_disp[fftype->fft_u.u_atom.a_type](cur, fop_data, what);
 }
 
-/** Dispatcher array of xcode function pointers for various fop field types */
-static c2_xcode_foptype_t xcode_type_disp[FFA_NR] = {
-	[FFA_RECORD]   = &xcode_bufvec_record,
-	[FFA_UNION]    = &xcode_bufvec_union,
-	[FFA_SEQUENCE] = &xcode_bufvec_sequence,
-	[FFA_TYPEDEF]  = &xcode_bufvec_typedef,
-	[FFA_ATOM]     = &xcode_bufvec_atom
-};
 
 /**
   Calls correspoding xcode function based on the fop top level field type.
@@ -315,13 +353,13 @@ static c2_xcode_foptype_t xcode_type_disp[FFA_NR] = {
   @param data  Pointer to the data to be encoded/decoded.
   @param what The type of operation to be performed - encode or decode.
 
-  @retval 0 On success.
-  @retval -errno on failure.
-
   @pre cur != NULL;
   @pre fftype != NULL;
   @pre data != NULL;
   @pre fftype->fft_aggr < ARRAY_SIZE(xcode_type_disp);
+
+  @retval 0 On success.
+  @retval -errno on failure.
 */
 int c2_xcode_bufvec_fop_type(struct c2_bufvec_cursor *cur,
 		       struct c2_fop_field_type *fftype, void *data,
@@ -338,9 +376,11 @@ int c2_xcode_bufvec_fop_type(struct c2_bufvec_cursor *cur,
 /**
   Encode/Decode a fop data into a bufvec. This function internally calls
   the type specific encode/decode functions for a fop.
+
   @param vc current position of the bufvec cursor.
   @param fop The data for this fop is to be encoded/decoded.
   @param what The type of operation to be performed - encode or decode.
+
   @retval 0 On success.
   @retval -errno on failure.
 */
