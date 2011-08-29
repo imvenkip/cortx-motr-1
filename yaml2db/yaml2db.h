@@ -45,10 +45,6 @@ struct c2_yaml2db_ctx {
 	struct c2_addb_ctx	 yc_addb;
 	/* File pointer for YAML file */
 	FILE			*yc_fp;
-	/* List of yaml2db sections linked through
-	   c2_yaml2db_section::ys_ctx_linkage
-	   @code c2_list <struct c2_yaml2db_section> @endcode */
-	struct c2_list		 yc_section_list;
 };
 
 /**
@@ -71,15 +67,16 @@ struct c2_yaml2db_section {
 	const char		 *ys_section_name;
 	/* Name of the table in which this section is supposed to be stored */
 	const char		 *ys_table_name;
+	/* Table ops */
+	struct c2_table_ops	 *ys_table_ops;
 	/* Type of section */
 	enum c2_yaml2db_sec_type  ys_section_type;
 	/* Array of valid key strings */
 	const char		**ys_valid_keys;
 	/* Number of keys in the array */
 	size_t			  ys_num_keys;
-	/* Linkage into the list of sections anchored at
-	   c2_yaml2db_ctx::yc_section_list */
-	struct c2_list_link	  ys_yctx_linkage;
+	/* Starting key for this section in the table */
+	int32_t			  ys_start_key;
 
 };
 

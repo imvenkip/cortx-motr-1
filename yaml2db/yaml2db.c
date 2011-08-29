@@ -309,12 +309,70 @@ static yaml_node_t *yaml2db_scalar_locate(struct c2_yaml2db_ctx *yctx,
 		return NULL;
 }
 
+#if 0
+/**
+  Check if the section structure is containing appropriate data
+  @param ysec - section structure to be checked
+  @retval true if necessary conditions satisfy, false otherwise
+ */
+static bool yaml2db_section_invariant(const struct c2_yaml2db_section *ysec)
+{
+	if (ysec == NULL)
+		return false;
+
+	if (ysec->ys_table_name == NULL)
+		return false;
+
+	if (ysec->ys_section_type >= C2_YAML_TYPE_NR)
+		return false;
+
+	if (ysec->ys_num_keys <= 0)
+		return false;
+
+	if (ysec->ys_start_key < 0)
+		return false;
+
+	return true;
+}
+
+#endif
+
+/**
+  Check if the context structure is containing appropriate data
+  @param yctx - context structure to be checked
+  @retval true if necessary conditions satisfy, false otherwise
+ */
+static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
+{
+	if (yctx == NULL)
+		return false;
+
+	if (&yctx->yc_parser == NULL)
+		return false;
+
+	if (&yctx->yc_document == NULL)
+		return false;
+
+	if (&yctx->yc_root_node == NULL)
+		return false;
+
+	if (&yctx->yc_db == NULL)
+		return false;
+
+	if (&yctx->yc_addb == NULL)
+		return false;
+	
+	return true;
+
+}
+
 /**
   Function to parse the yaml document
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-static int yaml2db_load_disk_conf(struct c2_yaml2db_ctx *yctx)
+static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
+		struct c2_yaml2db_section *ysec)
 {
         int                      rc;
 	yaml_node_t		*node;
@@ -328,7 +386,8 @@ static int yaml2db_load_disk_conf(struct c2_yaml2db_ctx *yctx)
         struct c2_db_pair	 db_pair;
 	int			 key = 0;
 
-        C2_PRE(yctx != NULL);
+        C2_PRE(yaml2db_context_invariant(yctx));
+        //C2_PRE(yaml2db_section_invariant(ysec));
 
         /* Initialize the table */
         rc = c2_table_init(&table, &yctx->yc_db, disk_table,
@@ -387,10 +446,11 @@ static int yaml2db_load_disk_conf(struct c2_yaml2db_ctx *yctx)
 */
 int main(int argc, char *argv[])
 {
-	int			 rc = 0;
-	struct c2_yaml2db_ctx	 yctx;
-	const char		*c_name = NULL;
-	const char		*d_path = NULL;
+	int			 	 rc = 0;
+	struct c2_yaml2db_ctx	 	 yctx;
+	struct c2_yaml2db_section	 ysec;
+	const char			*c_name = NULL;
+	const char			*d_path = NULL;
 
 	/* Global c2_init */
 	rc = c2_init();
@@ -444,7 +504,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Parse the disk configuration which is loaded in the context */
-	rc = yaml2db_load_disk_conf(&yctx);
+	rc = yaml2db_load_conf(&yctx, &ysec);
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_parse_disk_conf", 0);
