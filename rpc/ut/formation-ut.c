@@ -286,9 +286,6 @@ int c2_rpc_frm_ut_init()
 		//c2_list_add(&rpcmachine.cr_ready_slots, &slots[i]->sl_link);
 	}
 
-	printf("Length of cr_ready_slots = %lu\n",
-			c2_list_length(&rpcmachine.cr_ready_slots));
-
 	/* Init the rpc formation component */
 	result = c2_rpc_frm_init(&rpcmachine.cr_formation);
 	return 0;
@@ -327,7 +324,6 @@ void c2_rpc_frm_ut_fini()
 int c2_rpc_frm_groups_alloc(void)
 {
 	int		i = 0;
-	printf("Inside c2_rpc_frm_groups_alloc \n");
 
 	for(i = 0; i < MAX_GRPS; i++) {
 		rgroup[i] = c2_alloc(sizeof(struct c2_rpc_group));
@@ -350,8 +346,6 @@ int c2_rpc_frm_groups_free(void)
 	int			 i = 0;
 	struct c2_rpc_item	*item;
 	struct c2_rpc_item	*item_next;
-
-	printf("Inside c2_rpc_frm_groups_free \n");
 
 	for(i = 0; i < MAX_GRPS; i++) {
 	        if (!c2_list_is_empty(&rgroup[i]->rg_items)) {
@@ -377,8 +371,6 @@ int c2_rpc_frm_item_assign_to_group(struct c2_rpc_group *grp,
 	struct c2_rpc_item	*rpc_item_next = NULL;
 	bool			 item_inserted = false;
 
-	printf("Inside c2_rpc_frm_item_assign_to_group \n");
-	printf("Inside c2_rpc_frm_item_assign_to_group, grpid = %d \n", grpno);
 	C2_PRE(item !=NULL);
 
 	item->ri_group = grp;
@@ -413,7 +405,6 @@ int c2_rpc_frm_item_assign_to_group(struct c2_rpc_group *grp,
 int c2_rpc_frm_item_assign_deadline(struct c2_rpc_item *item,
 		c2_time_t deadline)
 {
-	printf("Inside c2_rpc_frm_item_assign_deadline \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_deadline = deadline;
@@ -425,7 +416,6 @@ int c2_rpc_frm_item_assign_deadline(struct c2_rpc_item *item,
  */
 int c2_rpc_frm_item_assign_prio(struct c2_rpc_item *item, const int prio)
 {
-	printf("Inside c2_rpc_frm_item_assign_prio \n");
 	C2_PRE(item !=NULL);
 
 	item->ri_prio = prio;
@@ -441,7 +431,6 @@ void c2_rpc_frm_item_add_to_rpcmachine(struct c2_rpc_item *item)
 	state = rand() % UNBOUNDED + BOUNDED;
 
 	if (state == BOUNDED){
-		printf("BOUNDED ITEM \n");
 		/* Find a random slot and add to its free list */
 		slot_no = rand() % MAX_SLOTS + MIN_SLOTS;
 		/* Since this slot is accessed by formation code by
@@ -456,7 +445,6 @@ void c2_rpc_frm_item_add_to_rpcmachine(struct c2_rpc_item *item)
 		}
 	}
 	else if (state == UNBOUNDED) {
-		printf("UNBOUNDED ITEM \n");
 		/* Call the event on formation module. */
 		item->ri_slot_refs[0].sr_slot = NULL;
 		item->ri_state = RPC_ITEM_SUBMITTED;
@@ -487,7 +475,6 @@ int c2_rpc_frm_rpcgroup_add_to_rpcmachine(struct c2_rpc_group *group)
 		C2_ASSERT(res == 0);
 		thread_no++;
 	}
-	printf("Total %lu UT threads created.\n", thread_no);
 	return 0;
 }
 
@@ -499,7 +486,6 @@ int c2_rpc_frm_item_io_populate_param(struct c2_rpc_item *item)
 	int		prio;
 	c2_time_t	deadline;
 
-	printf("Inside c2_rpc_frm_item_io_populate_param \n");
 	C2_PRE(item != NULL);
 
 	prio = rand() % MAX_IO_PRIO + MIN_IO_PRIO;
@@ -518,7 +504,6 @@ int c2_rpc_frm_item_nonio_populate_param(struct c2_rpc_item *item)
 	int		prio;
 	c2_time_t	deadline;
 
-	printf("Inside c2_rpc_frm_item_nonio_populate_param \n");
 	C2_PRE(item != NULL);
 
 	prio = rand() % MAX_NONIO_PRIO + MIN_NONIO_PRIO;
@@ -539,7 +524,6 @@ int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item)
 	bool		 io_req = false;
 	int		 res = 0;
 
-	printf("Inside c2_rpc_frm_item_populate_param \n");
 	C2_PRE(item != NULL);
 
 	/* Associate an rpc item with its type. */

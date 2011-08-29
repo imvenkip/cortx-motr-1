@@ -590,10 +590,6 @@ static int sm_default_handler(struct c2_rpc_item *item,
 	C2_PRE(sm_event->se_event < C2_RPC_FRM_INTEVT_NR);
 	C2_PRE(sm_state <= C2_RPC_FRM_STATES_NR);
 
-	/* If state machine pointer from rpc item is NULL, locate it
-	   from list in list of state machines. If found, lock it and
-	   increment its refcount. If not found, create a new state machine.
-	   In any case, find out the previous state of state machine. */
 	if (frm_sm == NULL) {
 		formation = &item->ri_mach->cr_formation;
 		sm = rpc_item_to_frm_sm(item);
@@ -622,7 +618,6 @@ static int sm_default_handler(struct c2_rpc_item *item,
 	}
 
 	c2_mutex_unlock(&sm->fs_lock);
-
 	return 0;
 }
 
@@ -677,6 +672,7 @@ void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot)
 
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
+	C2_PRE(slot->sl_in_flight == 0);
 
 	/* Add the slot to list of ready slots in its rpcmachine. */
 	rpcmachine = slot->sl_session->s_conn->c_rpcmachine;
@@ -1439,7 +1435,8 @@ static void frm_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	slot = item->ri_slot_refs[0].sr_slot;
 	C2_ASSERT(slot != NULL);
 	c2_list_del(&item->ri_slot_refs[0].sr_ready_link);
-	if (c2_list_is_empty(&slot->sl_ready_list))
+	//if (c2_list_is_empty(&slot->sl_ready_list))
+	if (c2_list_link_is_in(&slot->sl_link))
 		c2_list_del(&slot->sl_link);
 }
 
@@ -1506,11 +1503,11 @@ static void frm_coalesced_item_populate(struct c2_rpc_item *b_item,
 
 	session = b_item->ri_session;
 	C2_ASSERT(session != NULL);
+	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 
 	/* If fid and intent(read/write) of any unbound rpc item
 	   are same as that of bound rpc item, add the given
 	   unbound item as a member of current coalesced item structure. */
-	c2_mutex_lock(&session->s_mutex);
 	c2_list_for_each_entry(&session->s_unbound_items, ub_item,
 			struct c2_rpc_item, ri_unbound_link) {
 		if (!ub_item->ri_type->rit_ops->rito_io_coalesce)
@@ -1526,11 +1523,12 @@ static void frm_coalesced_item_populate(struct c2_rpc_item *b_item,
 					&ub_item->ri_coalesced_linkage);
 		}
 	}
-	c2_mutex_unlock(&session->s_mutex);
 }
 
 /**
    Try to coalesce rpc items from the session->free list.
+   @pre The session, given item belongs to should be locked. This needs
+   to be done due to the locking order of sessions code.
    @param frm_sm - the c2_rpc_frm_sm structure in which these activities
    are taking place.
    @param frm_sm - formation state machine
@@ -1552,14 +1550,11 @@ static int try_coalesce(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item,
 
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
+	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 
 	/* If there are no unbound items to coalesce, return right away. */
-	c2_mutex_lock(&session->s_mutex);
-	if (c2_list_is_empty(&session->s_unbound_items)) {
-		c2_mutex_unlock(&session->s_mutex);
+	if (c2_list_is_empty(&session->s_unbound_items))
 		return rc;
-	}
-	c2_mutex_unlock(&session->s_mutex);
 
 	/* Similarly, if given rpc item is not part of an IO request,
 	   return right away. */
@@ -1630,6 +1625,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc_item		*rpc_item;
 	struct c2_rpc_item		*rpc_item_next;
 	struct c2_rpcmachine		*rpcmachine;
+	struct c2_rpc_session		*session;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
@@ -1668,8 +1664,11 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 					/* Try to coalesce current bound
 					   item with list of unbound items
 					   in its rpc session. */
+					session = rpc_item->ri_session;
+					c2_mutex_lock(&session->s_mutex);
 					rc = try_coalesce(frm_sm, rpc_item,
 							rpcobj_size);
+					c2_mutex_unlock(&session->s_mutex);
 				}
 			} else
 				break;
@@ -1711,9 +1710,9 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		struct c2_rpc *rpcobj, uint64_t *rpcobj_size,
 		uint64_t *fragments_nr)
 {
+	int			 rc;
 	bool			 sz_policy_violated = false;
 	bool			 fragments_policy_ok = false;
-	uint32_t		 slot_items_nr;
 	uint64_t		 rpc_size;
 	struct c2_rpc_item	*item;
 	struct c2_rpc_item	*item_next;
@@ -1749,13 +1748,13 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 		c2_mutex_lock(&slot->sl_mutex);
 		session = slot->sl_session;
 		c2_mutex_lock(&session->s_mutex);
-		/* Get the max number of rpc items that can be associated
-		   with current slot before slot can be called as "busy". */
-		slot_items_nr = c2_rpc_slot_items_possible_inflight(slot);
-		C2_ASSERT(slot_items_nr != 0);
 		c2_list_for_each_entry_safe(&session->s_unbound_items,
 				item, item_next, struct c2_rpc_item,
 				ri_unbound_link) {
+			/* This is the way slot is supposed to be handled
+			   by sessions code. */
+			if (!c2_rpc_slot_can_item_add_internal(slot))
+				break;
 			rpc_size = *rpcobj_size;
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size);
@@ -1769,8 +1768,8 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 							rpcobj_size,
 							fragments_nr);
 					c2_list_del(&item->ri_unbound_link);
-					if (--slot_items_nr == 0)
-						break;
+					rc = try_coalesce(frm_sm, item,
+							rpcobj_size);
 				}
 			} else
 				break;

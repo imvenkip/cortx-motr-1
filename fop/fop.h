@@ -109,6 +109,9 @@ struct c2_fop {
 	struct c2_rpc_item	 f_item;
 	/** Linkage could be used to have fops in a list. */
 	struct c2_list_link	 f_link;
+	/* A field reserved for upper layers. Generic fop code doesn't
+	   touch it. */
+	void                    *f_private;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);

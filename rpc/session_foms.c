@@ -141,9 +141,8 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
 
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	reply->rcer_snd_id = conn->c_sender_id;
+	reply->rcer_sender_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
-	reply->rcer_cookie = request->rce_cookie;
 	fom->fo_phase = FOPH_DONE;
 
 	printf("ce_state: conn establish successful %lu\n",
@@ -165,9 +164,8 @@ errout:
 	C2_ASSERT(rc != 0);
 
 	printf("conn_establish_state: failed %d\n", rc);
-	reply->rcer_snd_id = SENDER_ID_INVALID;
+	reply->rcer_sender_id = SENDER_ID_INVALID;
 	reply->rcer_rc = rc;
-	reply->rcer_cookie = request->rce_cookie;
 
 	fom->fo_phase = FOPH_FAILED;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
@@ -222,7 +220,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	reply->rser_sender_id = request->rse_snd_id;
+	reply->rser_sender_id = request->rse_sender_id;
 	slot_cnt = request->rse_slot_cnt;
 
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
@@ -230,15 +228,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		goto errout;
 	}
 	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
-			request->rse_snd_id, slot_cnt);
-
-	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL &&
-		  item->ri_session != NULL);
-
-	conn = item->ri_session->s_conn;
-	C2_ASSERT(conn != NULL && conn->c_state == C2_RPC_CONN_ACTIVE &&
-			c2_rpc_conn_invariant(conn));
+			request->rse_sender_id, slot_cnt);
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
@@ -246,6 +236,13 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		rc = -ENOMEM;
 		goto errout;
 	}
+
+	item = &fop->f_item;
+	C2_ASSERT(item->ri_mach != NULL &&
+		  item->ri_session != NULL);
+
+	conn = item->ri_session->s_conn;
+	C2_ASSERT(conn != NULL);
 
 	rc = c2_rpc_session_init(session, conn, slot_cnt);
 	if (rc != 0) {
@@ -258,8 +255,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		goto out_fini;
 	}
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE &&
-			c2_rpc_session_invariant(session));
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 
 	reply->rser_rc = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;

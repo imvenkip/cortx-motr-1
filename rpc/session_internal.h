@@ -33,6 +33,8 @@
    @{
  */
 
+struct c2_rpc_item_ops;
+
 /**
    Initialises all the session related fop types
  */
@@ -41,7 +43,7 @@ int c2_rpc_session_module_init(void);
 /**
    Finalises all session realted fop types
  */
-void c2_rpc_session_module_fini(struct c2_rpcmachine *machine);
+void c2_rpc_session_module_fini(void);
 
 enum {
 	SESSION_COB_MAX_NAME_LEN = 40
@@ -450,6 +452,39 @@ struct c2_rpc_slot_ops {
    Returns true iff given rpc item is conn_establish.
  */
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
+
+/**
+   Helper routine, internal to rpc module.
+   Sets up and posts rpc-item representing @fop.
+ */
+int c2_rpc__fop_post(struct c2_fop                *fop,
+		     struct c2_rpc_session        *session,
+		     const struct c2_rpc_item_ops *ops);
+
+/**
+   Return true iff @conn is sender side object of rpc-connection.
+ */
+bool c2_rpc_conn_is_snd(const struct c2_rpc_conn *conn);
+
+/**
+   Return true iff @conn is receiver side object of rpc-connection.
+ */
+bool c2_rpc_conn_is_rcv(const struct c2_rpc_conn *conn);
+
+/**
+   Temporary routine to place fop in a global queue, from where it can be
+   selected for execution.
+ */
+void c2_rpc_item_dispatch(struct c2_rpc_item *item);
+
+/**
+   Returns true iff, it is okay to add item internally (i.e.
+   c2_rpc_item_add_internal()). This is required, so that formation can add
+   unbound items to the slot until slot->sl_max_in_flight limit is reached.
+
+   @pre c2_mutex_is_locked(&slot->sl_mutex)
+ */
+bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
 
 /** @}  End of rpc_session group */
 #endif

@@ -316,11 +316,12 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
-	return 0;
+	return c2_rpc_session_module_init();
 }
 
 void c2_rpc_core_fini(void)
 {
+	c2_rpc_session_module_fini();
 }
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
@@ -922,20 +923,36 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		return rc;
 	}
 
-	rc = c2_rpc_session_module_init();
-	if (rc < 0) {
-		c2_rpc_chan_destroy(machine, chan);
-		c2_rpc_ep_aggr_fini(&machine->cr_ep_aggr);
-		return rc;
-	}
-
 	/* Init the add context for this rpcmachine */
 	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 	c2_addb_choose_default_level(AEL_WARN);
 
-
 	return rc;
+}
+
+/**
+   XXX Temporary. This routine will be discarded, once rpc-core starts
+   providing c2_rpc_item::ri_ops::rio_sent() callback.
+
+   In-memory state of conn should be cleaned up when reply to CONN_TERMINATE
+   has been sent. As of now, rpc-core does not provide this callback. So this
+   is a temporary routine, that cleans up all terminated connections from
+   rpc connection list maintained in rpcmachine.
+ */
+static void conn_list_fini(struct c2_list *list)
+{
+        struct c2_rpc_conn *conn;
+        struct c2_rpc_conn *conn_next;
+
+        C2_PRE(list != NULL);
+
+        c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
+                        c_link) {
+
+                c2_rpc_conn_terminate_reply_sent(conn);
+
+        }
 }
 
 void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
@@ -945,11 +962,8 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	C2_PRE(machine != NULL);
 
 	rpc_proc_fini(&machine->cr_processing);
-	/* XXX commented following two lines for testing purpose */
-	//c2_list_fini(&machine->cr_incoming_conns);
-	//c2_list_fini(&machine->cr_outgoing_conns);
-	//c2_list_fini(&machine->cr_rpc_conn_list);
-	c2_rpc_session_module_fini(machine);
+	conn_list_fini(&machine->cr_incoming_conns);
+	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 	/* Release the reference on the source endpoint and the
@@ -1315,7 +1329,8 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 /* Dummy reqh queue of items */
 
 struct c2_queue	c2_exec_queue;
-struct c2_chan	c2_exec_chan;
+struct c2_cond  c2_item_ready;
+struct c2_mutex c2_exec_queue_mutex;
 
 /*
  *  Local variables:
