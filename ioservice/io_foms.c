@@ -261,12 +261,12 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		/* Make an FOL transaction record. */
-		/*result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
+		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
 				fom->fo_fol, &tx.tx_dbtx);
 		if (result != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return result;
-		}*/
+		}
 	}
 
 	/* Find out buffer address, offset and count required for stob io.
