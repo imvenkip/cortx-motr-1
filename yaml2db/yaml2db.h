@@ -63,20 +63,18 @@ enum c2_yaml2db_sec_type {
   yaml2db section
 */
 struct c2_yaml2db_section {
-	/* Name of the section */
-	const char		 *ys_section_name;
 	/* Name of the table in which this section is supposed to be stored */
-	const char		 *ys_table_name;
+	const char			 *ys_table_name;
 	/* Table ops */
-	struct c2_table_ops	 *ys_table_ops;
+	const struct c2_table_ops	 *ys_table_ops;
 	/* Type of section */
-	enum c2_yaml2db_sec_type  ys_section_type;
+	enum c2_yaml2db_sec_type	  ys_section_type;
 	/* Array of valid key strings */
-	const char		**ys_valid_keys;
+	const char			**ys_valid_keys;
 	/* Number of keys in the array */
-	size_t			  ys_num_keys;
+	size_t				  ys_num_keys;
 	/* Starting key for this section in the table */
-	int32_t			  ys_start_key;
+	int32_t				  ys_start_key;
 
 };
 
