@@ -969,3 +969,37 @@ bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item)
 {
 	return item->ri_type == &c2_rpc_item_conn_establish;
 }
+
+/**
+   Just for debugging purpose. Useful in gdb.
+
+   dir = 1, to print incoming conn list
+   dir = 0, to print outgoing conn list
+ */
+int c2_rpcmachine_conn_list_print(struct c2_rpcmachine *machine, int dir)
+{
+	struct c2_list     *list;
+	struct c2_rpc_conn *conn;
+
+	list = dir ? &machine->cr_incoming_conns : &machine->cr_outgoing_conns;
+
+	c2_list_for_each_entry(list, conn, struct c2_rpc_conn, c_link) {
+		printf("CONN: %p id %llu state %x\n", conn,
+				(unsigned long long)conn->c_sender_id,
+				conn->c_state);
+	}
+	return 0;
+}
+
+int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
+{
+	struct c2_rpc_session *session;
+
+	c2_list_for_each_entry(&conn->c_sessions, session,
+				struct c2_rpc_session, s_link) {
+		printf("session %p id %llu state %x\n", session,
+			(unsigned long long)session->s_session_id,
+			session->s_state);
+	}
+	return 0;
+}

@@ -476,6 +476,7 @@ enum {
    };
  */
 struct c2_rpc_item {
+	uint64_t                         ri_magic;
 	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			 ri_chan;
 	/** linakge to list of rpc items in a c2_rpc_formation_list */
@@ -1374,8 +1375,12 @@ int c2_rpc_zero_copy_init(struct c2_net_buffer **active_buffers,
 
 /** DUMMY REQH for RPC IT. Queue of RPC items */
 extern struct c2_queue	c2_exec_queue;
-extern struct c2_cond   c2_item_ready;
 extern struct c2_mutex  c2_exec_queue_mutex;
+extern struct c2_chan   c2_exec_chan;
+
+enum {
+	C2_RPC_ITEM_MAGIC = 0xC0FFEE
+};
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

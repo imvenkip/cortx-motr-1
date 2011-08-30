@@ -206,9 +206,40 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
+	C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 	c2_mutex_lock(&c2_exec_queue_mutex);
+	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);
-	c2_cond_broadcast(&c2_item_ready, &c2_exec_queue_mutex);
+	c2_chan_broadcast(&c2_exec_chan);
 	c2_mutex_unlock(&c2_exec_queue_mutex);
 }
 
+/**
+   for dubugging purpose.
+ */
+int c2_exec_queue_print(void)
+{
+	struct c2_queue_link *ql;
+	struct c2_rpc_item   *item;
+	char                  str_states[][20] = {
+					"INVALID",
+					"PAST_COMMITTED",
+					"PAST_VOLATILE",
+					"IN_PROGRESS",
+					"FUTURE"
+				};
+#define EOQ ((struct c2_queue_link *)8)
+
+	C2_ASSERT(c2_queue_invariant(&c2_exec_queue));
+
+	printf("q.head: %p q.tail %p\n", c2_exec_queue.q_head,
+			c2_exec_queue.q_tail);
+	printf("Q length: %u\n", (unsigned)c2_queue_length(&c2_exec_queue));
+	for (ql = c2_exec_queue.q_head; ql != EOQ; ql = ql->ql_next) {
+		item = container_of(ql, struct c2_rpc_item, ri_dummy_qlinkage);
+		C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
+		printf("Q item %p state %s\n", item,
+			str_states[item->ri_tstate]);
+	}	
+	return 0;
+}
