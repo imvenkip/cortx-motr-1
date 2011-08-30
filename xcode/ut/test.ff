@@ -1,3 +1,7 @@
+DEF(c2_test_buf, SEQUENCE,
+  _(tb_cnt, U32),
+  _(tb_buf, BYTE));
+
 DEF(c2_test_key, RECORD,
   _(tk_index, U32),
   _(tk_val, U64),
@@ -6,7 +10,8 @@ DEF(c2_test_key, RECORD,
 DEF(c2_pair, RECORD,
   _(p_offset, U64),
   _(p_cnt, U32),
-  _(p_key, c2_test_key));
+  _(p_key, c2_test_key),
+  _(p_buf, c2_test_buf));
 
 DEF(c2_desc_arr, SEQUENCE,
    _(da_cnt, U32),
