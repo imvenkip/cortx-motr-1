@@ -172,7 +172,9 @@ cleanup:
 	c2_free(opath);
 	c2_free(dpath);
         c2_addb_ctx_fini(&yctx->yc_addb);
-	fclose(yctx->yc_fp);
+	if (yctx->yc_fp != NULL)
+		fclose(yctx->yc_fp);
+	yaml_document_delete(&yctx->yc_document);
 	yaml_parser_delete(&yctx->yc_parser);
 	return rc;
 }
@@ -185,8 +187,10 @@ static void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 {
 	C2_PRE(yctx != NULL);
 
+	yaml_document_delete(&yctx->yc_document);
 	yaml_parser_delete(&yctx->yc_parser);
-	fclose(yctx->yc_fp);
+	if (yctx->yc_fp != NULL)
+		fclose(yctx->yc_fp);
 	c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
@@ -368,7 +372,6 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
 		return false;
 
 	return true;
-
 }
 
 /**
@@ -479,7 +482,7 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
   @param ysec - section structure to be loaded
   @retval 0 for success, -errno otherwise
  */
-int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
+static int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
 {
 	int nkey = 0;
 
@@ -495,7 +498,7 @@ int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
 	ysec->ys_valid_keys[nkey++] = "setting";
 
 	ysec->ys_table_name = disk_table;
-	ysec->ys_table_ops = &disk_table_ops; 
+	ysec->ys_table_ops = &disk_table_ops;
 	ysec->ys_start_key = DISK_MAPPING_START_KEY;
 	ysec->ys_section_type = C2_YAML_TYPE_MAPPING;
 
