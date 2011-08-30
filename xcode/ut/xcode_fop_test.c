@@ -144,8 +144,8 @@ static void test_fop_encdec(void)
 	int				 i;
 	int				 j;
 	struct c2_fop			*f1, *fd1;
-	struct c2_net_buffer      	*nb;
-	struct c2_fop_test    		*ccf1;
+	struct c2_net_buffer		*nb;
+	struct c2_fop_test		*ccf1;
 
 	rc = c2_fop_type_format_parse(&c2_test_buf_tfmt);
 	C2_UT_ASSERT(rc == 0);

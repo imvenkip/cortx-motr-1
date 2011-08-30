@@ -11,5 +11,3 @@ test_u.h test_u.c : test.ff \
 	$(top_builddir)/fop/fop2c
 	$(top_builddir)/fop/fop2c -u $<
 
-#xcode_fop_test_LDADD = $(top_builddir)/colibri/libcolibri.la
-#libxcode_ut_la_LIBADD 	= $(top_builddir)/colibri/libcolibri.la

@@ -79,6 +79,7 @@ static int (*xcode_atom_disp[FPF_NR])(struct c2_bufvec_cursor *cur,
 	[FPF_U32]   =  (void *)&c2_bufvec_uint32,
 	[FPF_U64]   =  (void *)&c2_bufvec_uint64
 };
+
 /**
    Local xcode function declarations for various fop field types.See individual
    headers for more details.
@@ -88,8 +89,8 @@ static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
 			       void *fop_data, enum c2_bufvec_what what);
 
 static int xcode_bufvec_union(struct c2_fop_field_type *fftype,
-		       struct c2_bufvec_cursor *cur, void *fop_data,
-		       enum c2_bufvec_what what);
+			      struct c2_bufvec_cursor *cur, void *fop_data,
+		              enum c2_bufvec_what what);
 
 static int xcode_bufvec_typedef(struct c2_fop_field_type *fftype,
 				struct c2_bufvec_cursor *cur, void *fop_data,
@@ -111,6 +112,7 @@ static c2_xcode_foptype_t xcode_type_disp[FFA_NR] = {
 	[FFA_TYPEDEF]  = &xcode_bufvec_typedef,
 	[FFA_ATOM]     = &xcode_bufvec_atom
 };
+
 /**
    Helper function for handling non-leaf node of a fop format tree. Internally
    calls dispatch function for specific aggregation type using it as index.
@@ -192,7 +194,8 @@ static bool xcode_is_byte_array(const struct c2_fop_field_type *fftype)
 
 /**
    Encode/Decode a byte array into a bufvec. While decoding from a bufvec,
-   memory required by the array is calculated and allocated.
+   memory required by the array is calculated and allocated. Freeing
+   this memory is the responsibility of upper layers.
 
    @param fftype field type for the fop is to be encoded/decoded.
    @param cur current position of bufvec cursor.
@@ -217,10 +220,12 @@ static int xcode_bufvec_byte_seq(struct c2_bufvec_cursor *cur, char **b_seq,
 }
 
 /**
-  Encode/Decodes fop data which belongs to a sequence type fop field into a
+  Encodes/Decodes fop data which belongs to a sequence type fop field into a
   bufvec. If the sequence is a plain byte array, it calls corresponding function
   to encode/decode bytes into/from a bufvec. If not, it traverses the fop field
   tree and calls the corresponding xcode function for that field type.
+  While decode, the memory required by the sequence data  is calculated and
+  allocated. Freeing this memory is the responsibility of upper layers.
 
   @param fftype field type for the fop is to be encoded/decoded.
   @param cur current position of bufvec cursor.
@@ -274,7 +279,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		/*
 		 * This is an sequence of atomic types or aggr types(record,
 		 * sequence etc). During decode, calculate and allocate memory
-		 * for the sequence based on the its in-memory layout.
+		 * for the sequence based on its in-memory layout.
 		 */
 		ellay = fftype->fft_child[1]->ff_type->fft_layout;
 		elsize = ellay->fm_sizeof;
