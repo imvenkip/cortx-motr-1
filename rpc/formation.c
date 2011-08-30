@@ -634,11 +634,14 @@ int c2_rpc_frm_item_ready(struct c2_rpc_item *item)
 	struct c2_rpc_slot		*slot;
 	struct c2_rpcmachine		*rpcmachine;
 	struct c2_rpc_frm_sm_event	 sm_event;
+	static int                       count = 0;
 
 	C2_PRE(item != NULL);
 
 	sm_event.se_event = C2_RPC_FRM_EXTEVT_RPCITEM_READY;
 
+	count++;
+	printf("frm_item_ready: count %d\n", count);
 	/* Add the item to ready list of its slot. */
 	slot = item->ri_slot_refs[0].sr_slot;
 	C2_ASSERT(slot != NULL);

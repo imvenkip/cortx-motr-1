@@ -232,31 +232,38 @@ void server_rqh_init(int dummy)
 	struct c2_fop		*fop;
 	struct c2_fom		*fom = NULL;
 	struct c2_clink		 clink;
+	int			 count = 0;
 
 	c2_queue_init(&c2_exec_queue);
-	c2_cond_init(&c2_item_ready);
 	c2_mutex_init(&c2_exec_queue_mutex);
+	c2_chan_init(&c2_exec_chan);
 
 	c2_clink_init(&clink, NULL);
 	C2_ASSERT(c2_queue_is_empty(&c2_exec_queue));
         C2_ASSERT(c2_queue_length(&c2_exec_queue) == 0);
 
+	c2_clink_add(&c2_exec_chan, &clink);
+
 	while (1) {
 		c2_mutex_lock(&c2_exec_queue_mutex);
-		c2_cond_wait(&c2_item_ready, &c2_exec_queue_mutex);
-		if (!c2_queue_is_empty(&c2_exec_queue)) {
-			q1 = c2_queue_get(&c2_exec_queue);
-			C2_ASSERT(q1 != NULL);
+		C2_ASSERT(c2_queue_invariant(&c2_exec_queue));
+		while (c2_queue_is_empty(&c2_exec_queue)) {
 			c2_mutex_unlock(&c2_exec_queue_mutex);
-			item = container_of(q1, struct c2_rpc_item,
-				ri_dummy_qlinkage);
-			fop = c2_rpc_item_to_fop(item);
-			fop->f_type->ft_ops->fto_fom_init(fop, &fom);
-			C2_ASSERT(fom != NULL);
-			fom->fo_ops->fo_state(fom);
-		} else {
-			c2_mutex_unlock(&c2_exec_queue_mutex);
+			c2_chan_wait(&clink);
+			c2_mutex_lock(&c2_exec_queue_mutex);
 		}
+		q1 = c2_queue_get(&c2_exec_queue);
+		C2_ASSERT(q1 != NULL);
+		count++;
+		c2_mutex_unlock(&c2_exec_queue_mutex);
+		item = container_of(q1, struct c2_rpc_item,
+				ri_dummy_qlinkage);
+		C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
+		printf("REQH: got item [%d] %p\n", count, item);
+		fop = c2_rpc_item_to_fop(item);
+		fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+		C2_ASSERT(fom != NULL);
+		fom->fo_ops->fo_state(fom);
 	}
 }
 
