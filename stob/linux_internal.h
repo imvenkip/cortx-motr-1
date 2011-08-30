@@ -55,6 +55,21 @@ enum {
    Stob domain for Linux type.
  */
 struct linux_domain {
+	/**
+	   Set to true in linux_setup(). May be used in pre-conditions to
+	   guarantee that the domain is fully initialized.
+	 */
+	bool linux_setup;
+
+	/**
+	 *  Controls whether to use O_DIRECT flag for open(2).
+	 *  Can be set with linux_setup().
+	 *  Initial value is set in linux_stob_type_domain_locate() and
+	 *  controlled by ENABLE_STOB_DIRECTIO macro which depends on
+	 *  --enable-stob-directio option of configure script.
+	 */
+	bool use_directio;
+
 	struct c2_stob_domain sdl_base;
 	/**
 	   parent directory to hold the objects.

@@ -171,18 +171,18 @@ static void stobio_rw_buffs_init(struct stobio_test *test)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(test->st_rdbuf); ++i) {
-		test->st_rdbuf[i] = c2_alloc_aligned(test->st_rw_buf_size
-					, test->st_block_shift);
+		test->st_rdbuf[i] = c2_alloc_aligned(test->st_rw_buf_size,
+					test->st_block_shift);
 		test->st_rdbuf_packed[i] = c2_stob_addr_pack(test->st_rdbuf[i]
 					, test->st_block_shift);
 		C2_UT_ASSERT(test->st_rdbuf[i] != NULL);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(test->st_wrbuf); ++i) {
-		test->st_wrbuf[i] = c2_alloc_aligned(test->st_rw_buf_size
-					, test->st_block_shift);
-		test->st_wrbuf_packed[i] = c2_stob_addr_pack(test->st_wrbuf[i]
-					, test->st_block_shift);
+		test->st_wrbuf[i] = c2_alloc_aligned(test->st_rw_buf_size,
+					test->st_block_shift);
+		test->st_wrbuf_packed[i] = c2_stob_addr_pack(test->st_wrbuf[i],
+					test->st_block_shift);
 		C2_UT_ASSERT(test->st_wrbuf[i] != NULL);
 	}
 }
@@ -250,8 +250,8 @@ static int stobio_init(struct stobio_test *test)
 	test->st_block_size = 1 << test->st_block_shift;
 	/* buf_size is chosen so it would be at least MIN_BUFF_SIZE in bytes
 	 * or it would consist of at least MIN_BUFF_SIZE_IN_BLOCKS blocks */
-	test->st_rw_buf_size = max_check(MIN_BUFF_SIZE
-			, (1 << test->st_block_shift) * MIN_BUFF_SIZE_IN_BLOCKS);
+	test->st_rw_buf_size = max_check(MIN_BUFF_SIZE,
+			(1 << test->st_block_shift) * MIN_BUFF_SIZE_IN_BLOCKS);
 	test->st_rw_buf_size_in_blocks = test->st_rw_buf_size / test->st_block_size;
 
 	stobio_rw_buffs_init(test);
