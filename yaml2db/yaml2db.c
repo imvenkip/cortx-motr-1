@@ -510,8 +510,8 @@ static int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
 */
 int main(int argc, char *argv[])
 {
-	int			 	 rc = 0;
-	struct c2_yaml2db_ctx	 	 yctx;
+	int				 rc = 0;
+	struct c2_yaml2db_ctx		 yctx;
 	struct c2_yaml2db_section	 ysec;
 	const char			*c_name = NULL;
 	const char			*d_path = NULL;
