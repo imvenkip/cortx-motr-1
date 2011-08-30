@@ -46,6 +46,10 @@ enum {
 	DISK_MAPPING_START_KEY = 100,
 };
 
+enum {
+	DISK_MAPPING_KEY_NR = 3,
+};
+
 /* DB Table ops */
 static int test_key_cmp(struct c2_table *table,
                         const void *key0, const void *key1)
@@ -374,7 +378,7 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
   @retval true if valid, false otherwise
  */
 static bool validate_key_from_section(const yaml_char_t *key,
-		struct c2_yaml2db_section *ysec)
+		const struct c2_yaml2db_section *ysec)
 {
 	int cnt = 0;
 
@@ -391,10 +395,12 @@ static bool validate_key_from_section(const yaml_char_t *key,
 /**
   Function to parse the yaml document
   @param yctx - yaml2db context
+  @param ysec - section context corrsponding to the given parameter
+  @param conf-param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
 static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
-		struct c2_yaml2db_section *ysec, const char *conf_param)
+		const struct c2_yaml2db_section *ysec, const char *conf_param)
 {
         int                      rc;
 	yaml_node_t		*node;
@@ -475,14 +481,23 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
  */
 int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
 {
-	ysec->ys_num_keys = 0;
+	int nkey = 0;
+
+	C2_PRE(ysec != NULL);
+
+	ysec->ys_num_keys = DISK_MAPPING_KEY_NR;
+	C2_ALLOC_ARR(ysec->ys_valid_keys, DISK_MAPPING_KEY_NR);
+	if (ysec->ys_valid_keys == NULL)
+		return -ENOMEM;
+
+	ysec->ys_valid_keys[nkey++] = "label";
+	ysec->ys_valid_keys[nkey++] = "status";
+	ysec->ys_valid_keys[nkey++] = "setting";
+
 	ysec->ys_table_name = disk_table;
-	if (ysec->ys_table_name == NULL)
-		return -EINVAL;
 	ysec->ys_table_ops = &disk_table_ops; 
 	ysec->ys_start_key = DISK_MAPPING_START_KEY;
 	ysec->ys_section_type = C2_YAML_TYPE_MAPPING;
-
 
 	return 0;
 }
