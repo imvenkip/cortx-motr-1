@@ -109,8 +109,7 @@ struct c2_fop			*form_fops[nfops];
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-//#define nfiles			 64
-#define nfiles			 2
+#define nfiles			 64
 struct c2_fop_file_fid		*form_fids = NULL;
 
 #define	io_size			 8192
@@ -138,8 +137,7 @@ extern struct c2_rpc_item_type c2_rpc_item_type_create;
 #define pattern_length		 4
 char				 file_data_patterns[niopatterns][pattern_length];
 
-//#define ndatafids		 8
-#define ndatafids		 1
+#define ndatafids		 8
 struct c2_fop_file_fid		 fid_data[ndatafids];
 
 uint64_t			*file_offsets = NULL;
