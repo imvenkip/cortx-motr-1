@@ -116,7 +116,7 @@ struct c2_fop_file_fid		*form_fids = NULL;
 #define nsegs			 8
 /* At the moment, we are sending only 3 different types of FOPs,
    namely - file create, file read and file write. */
-#define nopcodes		 3
+#define nopcodes		 2
 
 struct c2_net_end_point		 ep;
 
@@ -694,6 +694,7 @@ struct c2_fop *form_create_write_fop()
 	write_fop->cw_fid = *fid;
 	iovec = form_get_new_iovec(fid);
 	write_fop->cw_iovec = *iovec;
+	fop->f_type = &c2_fop_cob_writev_fopt;
 	return fop;
 }
 
@@ -753,6 +754,7 @@ struct c2_fop *form_create_read_fop()
 		file_offsets[i] = read_fop->cr_iovec.iv_segs[k-1].is_offset +
 			read_fop->cr_iovec.iv_segs[k-1].is_buf.ib_count;
 	}
+	fop->f_type = &c2_fop_cob_readv_fopt;
 	return fop;
 }
 

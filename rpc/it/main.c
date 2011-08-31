@@ -449,7 +449,6 @@ void io_fop_data_init()
  */
 void send_random_io_fop(int nr)
 {
-/*
         struct c2_fop           *fop;
         struct c2_rpc_item      *item = NULL;
 
@@ -460,10 +459,10 @@ void send_random_io_fop(int nr)
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
 	item->ri_mach = &cctx.pc_rpc_mach;
+        c2_rpc_item_type_attach(fop->f_type);
         c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
-*/
 }
 
 /**
@@ -887,7 +886,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	rc = io_fop_init();
+	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		return rc;
 	c2_ping_fop_init();
