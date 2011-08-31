@@ -877,8 +877,6 @@ int main(int argc, char *argv[])
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
-	uint64_t		 c2_rpc_max_message_size;
-	uint64_t		 c2_rpc_max_fragments_size;
 	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 
@@ -921,11 +919,9 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 	cctx.pc_fop_switch = PING;
 
-	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
            limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 8;
-        c2_rpc_max_fragments_size = 16;
+        c2_rpc_max_rpcs_in_flight = 32;
 
         c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
