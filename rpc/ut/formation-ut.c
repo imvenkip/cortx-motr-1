@@ -109,18 +109,15 @@ struct c2_fop			*form_fops[nfops];
 uint64_t			 nwrite_iovecs = 0;
 struct c2_fop_io_vec	       **form_write_iovecs = NULL;
 
-#define nfiles			 64
+//#define nfiles			 64
+#define nfiles			 2
 struct c2_fop_file_fid		*form_fids = NULL;
 
 #define	io_size			 8192
 #define nsegs			 8
-/* At the moment, we are sending only 3 different types of FOPs,
-   namely - file create, file read and file write. */
 #define nopcodes		 2
 
 struct c2_net_end_point		 ep;
-
-
 
 /* Function pointer to different FOP creation methods. */
 typedef struct c2_fop * (*fopFuncPtr)(void);
@@ -141,7 +138,8 @@ extern struct c2_rpc_item_type c2_rpc_item_type_create;
 #define pattern_length		 4
 char				 file_data_patterns[niopatterns][pattern_length];
 
-#define ndatafids		 8
+//#define ndatafids		 8
+#define ndatafids		 1
 struct c2_fop_file_fid		 fid_data[ndatafids];
 
 uint64_t			*file_offsets = NULL;
@@ -641,10 +639,10 @@ last:
 		form_write_iovecs[nwrite_iovecs] = iovec;
 		nwrite_iovecs++;
 		for (a = 0; a < nsegs; ++a) {
-			printf("Input Fid - seq = %lu, oid = %lu: Write segment %d: offset = %lu, count = %lu\n",
+			/*printf("Input Fid - seq = %lu, oid = %lu: Write segment %d: offset = %lu, count = %lu\n",
 					fid->f_seq, fid->f_oid, a,
 					iovec->iv_segs[a].is_offset,
-					iovec->iv_segs[a].is_buf.ib_count);
+					iovec->iv_segs[a].is_buf.ib_count);*/
 		}
 	}
 	return iovec;
@@ -694,7 +692,6 @@ struct c2_fop *form_create_write_fop()
 	write_fop->cw_fid = *fid;
 	iovec = form_get_new_iovec(fid);
 	write_fop->cw_iovec = *iovec;
-	fop->f_type = &c2_fop_cob_writev_fopt;
 	return fop;
 }
 
@@ -744,17 +741,16 @@ struct c2_fop *form_create_read_fop()
 			read_fop->cr_iovec.iv_segs[k].is_buf.ib_count =
 				seg_size;
 
-			printf("Input Fid - seq = %lu, oid = %lu: Read segment %d: offset = %lu, count = %lu\n",
+			/*printf("Input Fid - seq = %lu, oid = %lu: Read segment %d: offset = %lu, count = %lu\n",
 				fid->f_seq, fid->f_oid, k,
 				read_fop->cr_iovec.iv_segs[k].is_offset,
-				read_fop->cr_iovec.iv_segs[k].is_buf.ib_count);
+				read_fop->cr_iovec.iv_segs[k].is_buf.ib_count);*/
 
 			j += seg_size;
 		}
 		file_offsets[i] = read_fop->cr_iovec.iv_segs[k-1].is_offset +
 			read_fop->cr_iovec.iv_segs[k-1].is_buf.ib_count;
 	}
-	fop->f_type = &c2_fop_cob_readv_fopt;
 	return fop;
 }
 
@@ -823,7 +819,7 @@ struct c2_fop *form_get_new_fop()
 	fopFuncPtr		funcPtr;
 	int			 i = 0;
 
-	i = (rand()) % nopcodes;
+	//i = (rand()) % nopcodes;
 	funcPtr = form_fop_table[i];
 	fop = funcPtr();
 	return fop;

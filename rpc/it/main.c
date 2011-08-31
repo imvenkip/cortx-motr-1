@@ -444,6 +444,8 @@ void io_fop_data_init()
         C2_ALLOC_ARR(form_write_iovecs, nfops);
 }
 
+struct c2_mutex fid_mutex;
+
 /**
   Create a random IO fop (either read or write) and post it to rpc layer
  */
@@ -452,7 +454,9 @@ void send_random_io_fop(int nr)
         struct c2_fop           *fop;
         struct c2_rpc_item      *item = NULL;
 
+	c2_mutex_lock(&fid_mutex);
         fop = form_get_new_fop();
+	c2_mutex_unlock(&fid_mutex);
         item = &fop->f_item;
         c2_rpc_frm_item_populate_param(&fop->f_item);
         item->ri_deadline = 0;
@@ -775,6 +779,7 @@ void client_init()
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
 	io_fop_data_init();
+	c2_mutex_init(&fid_mutex);
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
 		if (cctx.pc_fop_switch == PING)
@@ -836,6 +841,7 @@ void client_init()
 	}
 
 
+	c2_mutex_fini(&fid_mutex);
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
@@ -973,7 +979,7 @@ int main(int argc, char *argv[])
 	}
 
 	c2_ping_fop_fini();
-	io_fop_fini();
+	c2_ioservice_fop_fini();
 
 	c2_fini();
 

@@ -1987,7 +1987,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
-					"c2_rpc_encode", 0);
+					"c2_rpc_encode", rc);
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;
@@ -1998,7 +1998,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
-					"c2_net_buffer_add", 0);
+					"c2_net_buffer_add", rc);
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;
