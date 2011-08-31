@@ -363,6 +363,9 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 	struct c2_fop_type		*fopt;
 
 	C2_PRE(fop != NULL);
+
+	fopt = fop->f_type;
+
 	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
 			fopt == &c2_fop_cob_writev_fopt);
 
