@@ -156,11 +156,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 			*out = dom;
 		else
 			linux_domain_fini(dom);
-#ifdef ENABLE_STOB_DIRECTIO
-		ldom->use_directio = true;
-#else
 		ldom->use_directio = false;
-#endif
 	} else {
 		C2_ADDB_ADD(&type->st_addb, 
 			    &c2_linux_stob_addb_loc, c2_addb_oom);

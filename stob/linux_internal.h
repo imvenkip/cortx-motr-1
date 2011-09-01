@@ -64,9 +64,7 @@ struct linux_domain {
 	/**
 	 *  Controls whether to use O_DIRECT flag for open(2).
 	 *  Can be set with linux_setup().
-	 *  Initial value is set in linux_stob_type_domain_locate() and
-	 *  controlled by ENABLE_STOB_DIRECTIO macro which depends on
-	 *  --enable-stob-directio option of configure script.
+	 *  Initial value is set to 'false' in linux_stob_type_domain_locate().
 	 */
 	bool use_directio;
 
