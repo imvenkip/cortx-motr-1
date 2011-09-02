@@ -188,107 +188,78 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_fop			*f;
 	struct c2_fop			*r;
 	struct c2_net_call		 kcall;
-	struct c2_fop_io_seg		 write_seg;
-	struct c2_fop_io_seg		 read_seg;
+	struct c2_fop_io_seg		 ioseg;
+	struct c2_fop_cob_writev	*warg;
+	struct c2_fop_cob_writev_rep	*wret;
+	struct c2_fop_cob_readv		*rarg;
+	struct c2_fop_cob_readv_rep	*rret;
+	struct c2_fop_cob_rwv		*iofop;
 
         if (rw == WRITE) {
-		struct c2_fop_cob_writev	*arg;
-                struct c2_fop_cob_writev_rep	*ret;
-
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 		r = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-
-		BUG_ON(f == NULL || r == NULL);
-
-		kcall.ac_arg = f;
-		kcall.ac_ret = r;
-
-		arg = c2_fop_data(f);
-		ret = c2_fop_data(r);
-
-		/* With introduction of FOMs, a reply FOP will be allocated
-		 * by the request FOP and a pointer to it will be
-		 * sent across.
-		 * XXX The reply FOP pointer is not used as of now.
-		 */
-		arg->cw_rwv.crw_foprep		= (uint64_t)ret;
-		arg->cw_rwv.crw_fid.f_seq	= c2_global_container_id;
-		arg->cw_rwv.crw_fid.f_oid	= objid;
-		arg->cw_rwv.crw_iovec.iv_count	= 1;
-
-		/* Populate the vector of write FOP */
-		arg->cw_rwv.crw_iovec.iv_segs = &write_seg;
-		write_seg.is_offset = pos;
-		write_seg.is_buf.cfib_pgoff = off;
-		write_seg.is_buf.ib_buf = pages;
-		write_seg.is_buf.ib_count = len;
-
-		arg->cw_rwv.crw_uid = c2_get_uid();
-		arg->cw_rwv.crw_gid = c2_get_gid();
-		arg->cw_rwv.crw_nid = c2_get_nid();
-		arg->cw_rwv.crw_flags = 0;
-
-                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
-                    objid, off, len, pos);
-		rc = c2_net_cli_call(conn, &kcall);
-
-                DBG("write to server returns %d\n", rc);
-
-                if (rc)
-                        return rc;
-                rc = ret->cwr_rc ? : ret->cwr_count;
-        } else {
-
-		struct c2_fop_cob_readv		*arg;
-                struct c2_fop_cob_readv_rep	*ret;
-
+	} else {
 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+	}
 
-		BUG_ON(f == NULL || r == NULL);
+	DBG("%s data %s server(%llu/%d/%ld/%lld)\n",
+	    rw == WRITE? "writing":"reading", rw == WRITE? "to":"from",
+			objid, off, len, pos);
+	BUG_ON(f == NULL || r == NULL);
 
-		kcall.ac_arg = f;
-		kcall.ac_ret = r;
+	kcall.ac_arg = f;
+	kcall.ac_ret = r;
 
-		arg = c2_fop_data(f);
-		ret = c2_fop_data(r);
+	if (rw == WRITE) {
+		warg = c2_fop_data(f);
+		wret = c2_fop_data(r);
+		iofop = &warg->c_rwv;
+	} else {
+		rarg = c2_fop_data(f);
+		rret = c2_fop_data(r);
+		iofop = &rarg->c_rwv;
+	}
 
-		/* With introduction of FOMs, a reply FOP will be allocated
-		 * by the request FOP and a pointer to it will be
-		 * sent across.
-		 * XXX The reply FOP pointer is not used as of now.
-		 */
-		arg->cr_rwv.crw_foprep		= (uint64_t)ret;
-		arg->cr_rwv.crw_fid.f_seq	= c2_global_container_id;
-		arg->cr_rwv.crw_fid.f_oid	= objid;
-		arg->cr_rwv.crw_iovec.iv_count	= 1;
+	/* With introduction of FOMs, a reply FOP will be allocated
+	 * by the request FOP and a pointer to it will be
+	 * sent across. */
+	iofop->crw_fid.f_seq		= c2_global_container_id;
+	iofop->crw_fid.f_oid		= objid;
+	iofop->crw_iovec.iv_count	= 1;
 
-		/* Populate the vector of read FOP */
-		arg->cr_rwv.crw_iovec.iv_segs = &read_seg;
-		read_seg.is_offset = pos;
-		read_seg.is_buf.ib_count = len;
-		read_seg.is_buf.cfib_pgoff = off;
-		read_seg.is_buf.ib_buf = pages;
+	/* Populate the vector of write FOP */
+	iofop->crw_iovec.iv_segs = &ioseg;
+	ioseg.is_offset = pos;
+	ioseg.is_buf.cfib_pgoff = off;
+	ioseg.is_buf.ib_buf = pages;
+	ioseg.is_buf.ib_count = len;
 
-		arg->cr_rwv.crw_uid = c2_get_uid();
-		arg->cr_rwv.crw_gid = c2_get_gid();
-		arg->cr_rwv.crw_nid = c2_get_nid();
-		arg->cr_rwv.crw_flags = 0;
+	iofop->crw_uid = c2_get_uid();
+	iofop->crw_gid = c2_get_gid();
+	iofop->crw_nid = c2_get_nid();
+	iofop->crw_flags = 0;
 
-		ret->crr_iobuf.ib_buf = pages;
-		ret->crr_iobuf.ib_count = len;
-		ret->crr_iobuf.cfib_pgoff = off;
+	/* kxdr expects a SEQUENCE of bytes in reply fop. */
+	if (rw == READ) {
+		rret->crr_iobuf.ib_buf = pages;
+		rret->crr_iobuf.ib_count = len;
+		rret->crr_iobuf.cfib_pgoff = off;
+	}
 
-                DBG("reading data from server(%llu/%d/%ld/%lld)\n",
-                    objid, off, len, pos);
-		rc = c2_net_cli_call(conn, &kcall);
+	rc = c2_net_cli_call(conn, &kcall);
 
-                DBG("read from server returns %d\n", rc);
+	DBG("%s %s server returns %d\n", rw == WRITE? "write":"read",
+			rw == WRITE? "to":"from", rc);
 
-                if (rc)
-                        return rc;
-                rc = ret->crr_rc ? : ret->crr_iobuf.ib_count;
-        }
+	if (rc)
+		return rc;
+
+	if (rw == WRITE)
+		rc = wret->cwr_rc ? : wret->cwr_count;
+	else
+		rc = rret->crr_rc ? : rret->crr_iobuf.ib_count;
+
 	c2_fop_free(r);
 	c2_fop_free(f);
 	return rc;

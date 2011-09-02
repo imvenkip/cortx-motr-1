@@ -121,7 +121,7 @@ DEF(c2_fop_cob_rwv, RECORD,
  */
 DEF(c2_fop_cob_readv, RECORD,
 	/* Common definition of read/write fops. */
-	_(cr_rwv, c2_fop_cob_rwv));
+	_(c_rwv, c2_fop_cob_rwv));
 
 /**
  * Reply FOP for writev FOPs.
@@ -148,7 +148,7 @@ DEF(c2_fop_cob_writev_rep, RECORD,
  */
 DEF(c2_fop_cob_writev, RECORD,
 	/* Common definition of read/write fops. */
-	_(cw_rwv, c2_fop_cob_rwv));
+	_(c_rwv, c2_fop_cob_rwv));
 
 /** @} end of FOP_data_ops */
 
