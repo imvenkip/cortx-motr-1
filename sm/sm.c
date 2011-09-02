@@ -53,7 +53,6 @@ C2_EXPORTED(c2_sm_group_fini);
 
 static void grp_lock(struct c2_sm_group *grp)
 {
-	C2_PRE(c2_atomic64_get(&grp->s_spl, 0));
 	c2_mutex_lock(&grp->s_lock);
 	c2_sm_asts_run(grp);
 }
@@ -95,18 +94,15 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 			ast = grp->s_forkq;
 		while (ast != NULL && !ast_cas(&grp, ast, ast->sa_next));
 
-		if (ast != NULL) {
-			ast->sa_cb(ast);
-			if (&grp->s_ast[0] <= ast &&
-			    ast < &grp->s_ast[C2_SM_GROUP_AST_MAX]) {
-				C2_ASSERT(!c2_list_link_is_in(&ast->sa_free));
-				c2_list_add_tail(&grp->s_ast_free,
-						 &ast->sa_free);
-			}
-
-			c2_semaphore_trydown(&grp->s_sem);
-		} else
+		if (ast == NULL)
 			break;
+
+		ast->sa_cb(ast);
+		if (IS_IN_ARRAY(ast - &grp->s_ast[0], grp->s_ast)) {
+			C2_ASSERT(!c2_list_link_is_in(&ast->sa_free));
+			c2_list_add_tail(&grp->s_ast_free, &ast->sa_free);
+		}
+		c2_semaphore_trydown(&grp->s_sem);
 	}
 }
 C2_EXPORTED(c2_sm_asts_run);
@@ -182,12 +178,6 @@ static bool conf_invariant(const struct c2_sm_conf *conf)
 		}
 	}
 	return true;
-}
-
-static unsigned long impossible(unsigned long data)
-{
-	C2_IMPOSSIBLE("C2_TIME_NEVER happened.");
-	return 0;
 }
 
 void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,

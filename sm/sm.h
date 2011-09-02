@@ -237,7 +237,7 @@ struct c2_sm {
 	struct c2_chan           sm_chan;
 	/**
 	   State machine "return code". This is set to a non-zero value when
-	   state machine transitions to a SDF_FAILURE state.
+	   state machine transitions to an SDF_FAILURE state.
 	 */
 	int32_t                  sm_rc;
 };
@@ -325,11 +325,25 @@ enum c2_sm_state_descr_flags {
 	SDF_TERMINAL = 1 << 1
 };
 
+/**
+   Asynchronous system trap.
+
+   A request to execute a call-back under group mutex. An ast can be posted by a
+   call to c2_sm_ast_post() in any context.
+
+   It will be executed later, see AST section is the comment at the top of this
+   file.
+
+   Only c2_sm_ast::sa_cb and c2_sm_ast::sa_datum fields are public. The rest of
+   this structure is for internal use by sm code.
+ */
 struct c2_sm_ast {
+	/** Call-back to be executed. */
 	void              (*sa_cb)(struct c2_sm_group *grp, struct c2_sm_ast *);
+	/** This field is reserved for the user and not used by the sm code. */
+	void               *sa_datum;
 	struct c2_sm_ast   *sa_next;
 	struct c2_sm       *sa_mach;
-	void               *sa_datum;
 	struct c2_list_link sa_freelist;
 };
 
