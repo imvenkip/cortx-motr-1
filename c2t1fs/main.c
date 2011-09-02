@@ -15,7 +15,7 @@
  *
  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
  *		    Huang Hua <hua_huang@xyratex.com>
- *		    Anatoliy Belinko
+ *		    Anatoliy Bilenko
  * Original creation date: 05/04/2010
  */
 
@@ -40,13 +40,13 @@
 #include "c2t1fs.h"
 #include "io_k.h"
 #include "io_fops_k.h"
+#include "ioservice/io_fops.h"
 
 #include "stob/ut/io_fop.h"
 #include "sns/parity_math.h"
 #include "layout/pdclust.h"
 #include "pool/pool.h"
 #include "lib/buf.h"
-#include "io_fops.h"
 
 #define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
 
@@ -154,15 +154,12 @@ MODULE_LICENSE("GPL");
 /**
  * Global container id used to identify the corresponding
  * component object at the server side.
- * In future, this will be changed. 
+ * In future, this will be changed.
  */
 #define c2_global_container_id	10
 
-extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
-
 /**
- * Some user/group identification functions to fill up 
+ * Some user/group identification functions to fill up
  * the uid/gid fields from various FOPs.
  * These are hard coded for now. They will be replaced
  * with proper user authorization routines in future.
@@ -188,64 +185,18 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      size_t len, loff_t pos, int rw)
 {
         int rc;
-	struct c2_fop       *f;
-	struct c2_fop       *r;
-	struct c2_net_call  kcall;
+	struct c2_fop			*f;
+	struct c2_fop			*r;
+	struct c2_net_call		 kcall;
+	struct c2_fop_io_seg		 write_seg;
+	struct c2_fop_io_seg		 read_seg;
 
         if (rw == WRITE) {
-		struct c2_fop_cob_writev 	*arg;
+		struct c2_fop_cob_writev	*arg;
                 struct c2_fop_cob_writev_rep	*ret;
 
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 		r = c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-
-		BUG_ON(f == NULL || r == NULL);
-
-		kcall.ac_arg = f;
-		kcall.ac_ret = r;
-
-		arg = c2_fop_data(f);
-		ret = c2_fop_data(r);
-
-		/* With introduction of FOMs, a reply FOP will be allocated 
-		 * by the request FOP and a pointer to it will be 
-		 * sent across.
-		 * XXX The reply FOP pointer is not used as of now.
-		 */
- 		arg->fwr_foprep			= (uint64_t)ret;
-		arg->fwr_fid.f_seq		= c2_global_container_id;
-		arg->fwr_fid.f_oid		= objid;
-		arg->fwr_iovec.iov_count	= 1;
-
-		/* Populate the vector of write FOP */
-		arg->fwr_iovec.iov_seg = kmalloc(sizeof(struct c2_fop_io_seg), GFP_KERNEL);
-		arg->fwr_iovec.iov_seg->f_offset = pos;
-		arg->fwr_iovec.iov_seg->f_buf.cfib_pgoff = off;
-		arg->fwr_iovec.iov_seg->f_buf.f_buf = pages;
-		arg->fwr_iovec.iov_seg->f_buf.f_count = len;
-
-		arg->fwr_uid = c2_get_uid();
-		arg->fwr_gid = c2_get_gid();
-		arg->fwr_nid = c2_get_nid();
-		arg->fwr_flags = 0;
-
-                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
-                    objid, off, len, pos);
-		rc = c2_net_cli_call(conn, &kcall);
-
-                DBG("write to server returns %d\n", rc);
-
-		kfree(arg->fwr_iovec.iov_seg);
-                if (rc)
-                        return rc;
-                rc = ret->fwrr_rc ? : ret->fwrr_count;
-        } else {
-
- 		struct c2_fop_cob_readv		*arg;
-                struct c2_fop_cob_readv_rep	*ret;
-  
- 		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
- 		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
 
 		BUG_ON(f == NULL || r == NULL);
 
@@ -260,24 +211,73 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		 * sent across.
 		 * XXX The reply FOP pointer is not used as of now.
 		 */
-		arg->frd_foprep			= (uint64_t)ret;
-		arg->frd_fid.f_seq		= c2_global_container_id;
-		arg->frd_fid.f_oid		= objid;
-		arg->frd_ioseg.fs_count		= 1;
+		arg->cw_foprep		= (uint64_t)ret;
+		arg->cw_fid.f_seq	= c2_global_container_id;
+		arg->cw_fid.f_oid	= objid;
+		arg->cw_iovec.iv_count	= 1;
+
+		/* Populate the vector of write FOP */
+		arg->cw_iovec.iv_segs = &write_seg;
+		write_seg.is_offset = pos;
+		write_seg.is_buf.cfib_pgoff = off;
+		write_seg.is_buf.ib_buf = pages;
+		write_seg.is_buf.ib_count = len;
+
+		arg->cw_uid = c2_get_uid();
+		arg->cw_gid = c2_get_gid();
+		arg->cw_nid = c2_get_nid();
+		arg->cw_flags = 0;
+
+                DBG("writing data to server(%llu/%d/%ld/%lld)\n",
+                    objid, off, len, pos);
+		rc = c2_net_cli_call(conn, &kcall);
+
+                DBG("write to server returns %d\n", rc);
+
+                if (rc)
+                        return rc;
+                rc = ret->cwr_rc ? : ret->cwr_count;
+        } else {
+
+		struct c2_fop_cob_readv		*arg;
+                struct c2_fop_cob_readv_rep	*ret;
+
+		f = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+		r = c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
+
+		BUG_ON(f == NULL || r == NULL);
+
+		kcall.ac_arg = f;
+		kcall.ac_ret = r;
+
+		arg = c2_fop_data(f);
+		ret = c2_fop_data(r);
+
+		/* With introduction of FOMs, a reply FOP will be allocated
+		 * by the request FOP and a pointer to it will be
+		 * sent across.
+		 * XXX The reply FOP pointer is not used as of now.
+		 */
+		arg->cr_foprep		= (uint64_t)ret;
+		arg->cr_fid.f_seq	= c2_global_container_id;
+		arg->cr_fid.f_oid	= objid;
+		arg->cr_iovec.iv_count	= 1;
 
 		/* Populate the vector of read FOP */
-		arg->frd_ioseg.fs_segs = kmalloc(sizeof(struct c2_fop_segment), GFP_KERNEL);
-		arg->frd_ioseg.fs_segs->f_offset = pos;
-		arg->frd_ioseg.fs_segs->f_count = len;
+		arg->cr_iovec.iv_segs = &read_seg;
+		read_seg.is_offset = pos;
+		read_seg.is_buf.ib_count = len;
+		read_seg.is_buf.cfib_pgoff = off;
+		read_seg.is_buf.ib_buf = pages;
 
-		arg->frd_uid = c2_get_uid();
-		arg->frd_gid = c2_get_gid();
-		arg->frd_nid = c2_get_nid();
-		arg->frd_flags = 0;
+		arg->cr_uid = c2_get_uid();
+		arg->cr_gid = c2_get_gid();
+		arg->cr_nid = c2_get_nid();
+		arg->cr_flags = 0;
 
-		ret->frdr_buf.f_buf = pages;
-		ret->frdr_buf.f_count = len;
-		ret->frdr_buf.cfib_pgoff = off;
+		ret->crr_iobuf.ib_buf = pages;
+		ret->crr_iobuf.ib_count = len;
+		ret->crr_iobuf.cfib_pgoff = off;
 
                 DBG("reading data from server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
@@ -285,10 +285,9 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
                 DBG("read from server returns %d\n", rc);
 
-		kfree(arg->frd_ioseg.fs_segs);
                 if (rc)
                         return rc;
-                rc = ret->frdr_rc ? : ret->frdr_buf.f_count;
+                rc = ret->crr_rc ? : ret->crr_iobuf.ib_count;
         }
 	c2_fop_free(r);
 	c2_fop_free(f);

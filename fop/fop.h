@@ -106,7 +106,12 @@ struct c2_fop {
 	/**
 	   RPC item for this FOP
 	 */
-	struct c2_rpc_item	f_item;
+	struct c2_rpc_item	 f_item;
+	/** Linkage could be used to have fops in a list. */
+	struct c2_list_link	 f_link;
+	/* A field reserved for upper layers. Generic fop code doesn't
+	   touch it. */
+	void                    *f_private;
 };
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
@@ -119,8 +124,9 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
 struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
 
-/** Returns a fop type associated with an rpc item type */
-struct c2_fop_type *c2_item_type_to_fop_type(const struct c2_rpc_item_type *rit);
+/**  Returns a fop type associated with an rpc item type */
+struct c2_fop_type *c2_item_type_to_fop_type
+		   (const struct c2_rpc_item_type *rit);
 
 #include "fop/fop_format.h"
 

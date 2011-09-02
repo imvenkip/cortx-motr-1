@@ -11,6 +11,10 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 {
 }
 
+void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
+{
+}
+
 int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	return 0;

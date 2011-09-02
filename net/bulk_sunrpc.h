@@ -62,6 +62,48 @@ size_t c2_net_bulk_sunrpc_tm_get_num_threads(const struct c2_net_transfer_mc
 					     *tm);
 
 /**
+   Obtain the period of the skulker thread clock.
+   @retval secs Period in seconds.
+ */
+uint64_t
+c2_net_bulk_sunrpc_dom_get_skulker_period(struct c2_net_domain *dom);
+
+/**
+   Control the period of the skulker thread clock.  This thread is used
+   to handle end point aging and buffer timeouts.
+   @param dom The domain pointer.
+   @param secs The clock period in seconds. Must be greater than 0.
+ */
+void
+c2_net_bulk_sunrpc_dom_set_skulker_period(struct c2_net_domain *dom,
+					  uint64_t secs);
+
+/**
+   Control how long unused end points are cached before release.
+
+   The delay allows potential reuse of the underlying network connection at a
+   later time.  This avoids exhaustion of the local dynamic port space,
+   as a port normally goes into TIMED_WAIT when the socket closes and won't
+   be made available for reuse until much later.  It also has the added
+   benefit of reducing the number of TCP connections established.
+
+   @param dom The domain pointer.
+   @param secs The duration of the delay in seconds.  Specify 0 for no
+   delay.  The default is to delay.
+ */
+void
+c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
+						   uint64_t secs);
+
+/**
+   Return the end point release delay value.
+   @param dom The domain pointer.
+   @retval secs Returns the seconds of delay, or 0 if delay is disabled.
+*/
+uint64_t
+c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
+
+/**
    @}
 */
 

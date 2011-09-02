@@ -17,15 +17,14 @@ libcolibri_net_bulksunrpc_la_SOURCES = \
 bulksunrpcdir                     = $(topdir)/net/bulk_emulation
 bulksunrpc_HEADERS                = ../bulk_sunrpc.h sunrpc_xprt.h
 bulksunrpc_U_SOURCES              = sunrpc_io_u.h sunrpc_io_u.c
-bulksunrpc_K_sources              = sunrpc_io_k.h sunrpc_io_k.c
 
 # depend on included .c files (do not add to _SOURCES) and pvt header
 sunrpc_xprt_xo.c: sunrpc_xprt_bulk.c sunrpc_xprt_ep.c sunrpc_xprt_msg.c \
 		sunrpc_xprt_tm.c sunrpc_xprt_pvt.h
 
-MOSTLYCLEANFILES           = $(bulksunrpc_U_SOURCES) $(bulksunrpc_K_sources)
+MOSTLYCLEANFILES           = $(bulksunrpc_U_SOURCES)
 
 sunrpc_xprt_pvt.h: $(bulksunrpc_U_SOURCES)
-$(bulksunrpc_U_SOURCES) $(bulksunrpc_K_sources): sunrpc_io.ff \
+$(bulksunrpc_U_SOURCES): sunrpc_io.ff \
     $(top_builddir)/fop/rt/libc2rt.la $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -uk $<
+	$(top_builddir)/fop/fop2c -u $<

@@ -1,12 +1,8 @@
 UT_SRCDIR=@SRCDIR@/rpc/ut
 INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
 #noinst_PROGRAMS   = rclient rserver
-noinst_PROGRAMS   = rpctest formation onwire_ut
+noinst_PROGRAMS   = formation onwire_ut
 #noinst_LTLIBRARIES       = librpccore-ut.la
-
-rpctest_SOURCES = rpctest.c
-rpctest_LDFLAGS = -pthread
-rpctest_LDADD =  $(top_builddir)/colibri/libcolibri.la
 
 #rclient_SOURCES   = rpc-client.c
 #rclient_LDFLAGS   = -pthread
@@ -23,7 +19,7 @@ io_fop_init.c io_u.h io_u.c:
 	ln -sf $(top_builddir)/stob/ut/io_u.h io_u.h
 	ln -sf $(top_builddir)/stob/ut/io_u.c io_u.c
 
-formation_SOURCES   = io_u.h io_u.c io_fop_init.c formation-ut-infra1.c
+formation_SOURCES   = io_u.h io_u.c io_fop_init.c formation-ut.c main.c
 formation_LDFLAGS   = -pthread
 formation_LDADD     = $(top_builddir)/colibri/libcolibri.la
 

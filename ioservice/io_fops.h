@@ -15,85 +15,51 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
-#include "fop/fop.h"
+#include "fop/fop_base.h"
 #include "fop/fop_format.h"
-#include "lib/memory.h"
+#include "lib/list.h"
 
-#ifdef __KERNEL__
-#include "io_fops_k.h"
-#else
-#include "io_fops_u.h"
-#endif
-
-struct c2_fom;
-struct c2_fom_type;
+struct c2_fop_io_seg;
+struct c2_fop_segment;
+struct c2_fop_segment_seq;
 
 /**
  * The opcode from which IO service FOPS start.
  */
 enum c2_io_service_opcodes {
-	c2_io_service_readv_opcode = 15,
-	c2_io_service_writev_opcode,
-	c2_io_service_writev_rep_opcode,
-	c2_io_service_readv_rep_opcode,
-	c2_io_service_create_opcode,
+	C2_IO_SERVICE_READV_OPCODE = 15,
+	C2_IO_SERVICE_WRITEV_OPCODE = 16,
+	C2_IO_SERVICE_READV_REP_OPCODE = 17,
+	C2_IO_SERVICE_WRITEV_REP_OPCODE = 18,
 };
 
 /**
- * Helper functions to operate on fops. Used in rpc formation.
+   Return the number of fops registered by ioservice.
  */
-int c2_io_fop_get_read_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *seg);
-
-int c2_io_fop_get_write_fop(struct c2_fop *curr_fop, struct c2_fop **res_fop,
-		void *vec);
-
-int c2_io_fop_cob_readv_replied(struct c2_fop *fop);
-int c2_io_fop_cob_writev_replied(struct c2_fop *fop);
+int c2_ioservice_fops_nr(void);
 
 /**
-   A wrapper structure to have a list of fops
-   participating in IO coalescing.
+   A generic IO segment pointing either to read or write segments. This
+   is needed to have generic IO coalescing code.
  */
-struct c2_io_fop_member {
-	/* Linkage to the list of fops. */
-	struct c2_list_link	 fop_linkage;
-	/* Actual fop object. */
-	struct c2_fop		*fop;
-};
-
-/**
-   Member structure of a list containing read IO segments.
- */
-struct c2_io_read_segment {
+struct c2_io_ioseg {
+	/** IO segment for read or write request fop. */
+	struct c2_fop_io_seg	*rw_seg;
         /** Linkage to the list of such structures. */
-        struct c2_list_link             rs_linkage;
-        /** The read IO segment. */
-        struct c2_fop_segment           rs_seg;
+        struct c2_list_link	 io_linkage;
 };
 
 /**
-   Member structure of a list containing write IO segments.
+   Init and fini of ioservice fops code.
  */
-struct c2_io_write_segment {
-        /** Linkage to the list of such structures. */
-        struct c2_list_link             ws_linkage;
-        /** The write IO segment. */
-        struct c2_fop_io_seg            ws_seg;
-};
-
-/**
- * Bunch of externs needed for stob/ut/io_fop_init.c code.
- */
-extern struct c2_fop_type_ops c2_io_cob_readv_ops;
-extern struct c2_fop_type_ops c2_io_cob_writev_ops;
-extern struct c2_fop_type_ops c2_io_rwv_rep_ops;
+int c2_ioservice_fop_init(void);
+void c2_ioservice_fop_fini(void);
 
 /**
  * FOP definitions and corresponding fop type formats
@@ -103,13 +69,15 @@ extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_file_create_tfmt;
+extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
+extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
+extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
+extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
-extern struct c2_fop_type c2_fop_file_create_fopt;
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
@@ -123,4 +91,3 @@ extern struct c2_fop_type c2_fop_file_create_fopt;
  *  scroll-step: 1
  *  End:
  */
-

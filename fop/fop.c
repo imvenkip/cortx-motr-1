@@ -31,7 +31,7 @@
    @{
  */
 
-const struct c2_addb_ctx_type c2_fop_addb_ctx;
+extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
@@ -42,9 +42,11 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		c2_bcount_t nob;
 
 		fop->f_type = fopt;
+		fop->f_private = NULL;
 		c2_rpc_item_init(&fop->f_item);
 		/* Associate rpc_item_type with the rpc item. */
-		fop->f_item.ri_type = &fopt->ft_ri_type->fri_i_type;
+		//fop->f_item.ri_type = &fopt->ft_ri_type->fri_i_type;
+		fop->f_item.ri_type = fopt->ft_ri_type;
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)
 			data = c2_alloc(nob);
@@ -52,6 +54,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 			fop->f_data.fd_data = data;
 			c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 					 &fopt->ft_addb);
+			c2_list_link_init(&fop->f_link);
 		} else {
 			c2_free(fop);
 			fop = NULL;
@@ -63,9 +66,10 @@ C2_EXPORTED(c2_fop_alloc);
 
 void c2_fop_free(struct c2_fop *fop)
 {
-	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop != NULL) {
+		c2_addb_ctx_fini(&fop->f_addb);
 		c2_free(fop->f_data.fd_data);
+		c2_list_link_fini(&fop->f_link);
 		c2_free(fop);
 	}
 }
@@ -176,7 +180,7 @@ struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
-
+/* onwire_fmt
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
 {
@@ -191,6 +195,22 @@ struct c2_fop_type *c2_item_type_to_fop_type
 	return ftype;
 }
 C2_EXPORTED(c2_item_type_to_fop_type);
+*/
+struct c2_fop_type *c2_item_type_to_fop_type
+		    (const struct c2_rpc_item_type *item_type)
+{
+	struct c2_fop_type		*ftype;
+	int				 opcode;
+	C2_PRE(item_type != NULL);
+
+	opcode = item_type->rit_opcode;
+	ftype = c2_fop_type_search(opcode);
+	C2_ASSERT(ftype != NULL);
+	return ftype;
+}
+C2_EXPORTED(c2_item_type_to_fop_type);
+
+
 
 #endif /* __KERNEL__ */
 

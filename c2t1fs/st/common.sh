@@ -4,10 +4,12 @@ MODLIST="lib/linux_kernel/klibc2.ko \
          addb/linux_kernel/kaddb.ko \
          db/linux_kernel/kdb.ko \
          fop/linux_kernel/kfop.ko \
-         net/ksunrpc/ksunrpc.ko \
+         net/linux_kernel/knetc2.ko \
          galois/linux_kernel/kgalois.ko \
          sns/linux_kernel/ksns.ko \
+	 sm/linux_kernel/ksm.ko \
          stob/linux_kernel/kstob.ko \
+	 ioservice/linux_kernel/kioservice.ko \
          pool/linux_kernel/kpool.ko \
          layout/linux_kernel/klayout.ko \
          c2t1fs/c2t1fs.ko"

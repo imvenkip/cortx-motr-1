@@ -126,6 +126,27 @@ struct c2_bufvec {
 };
 
 /**
+   Initialize a c2_bufvec containing a single segment of the specified size.
+   The intended usage is as follows:
+
+   @code
+   void *addr;
+   c2_bcount_t buf_count;
+   struct c2_bufvec in = C2_BUFVEC_INIT_BUF(&addr, &buf_count);
+
+   buf_count = ...;
+   addr = ...;
+   @endcode
+ */
+#define C2_BUFVEC_INIT_BUF(addr_ptr, count_ptr)	{	\
+	.ov_vec = {					\
+		.v_nr = 1,				\
+		.v_count = (count_ptr),			\
+	},						\
+	.ov_buf = (addr_ptr)				\
+}
+
+/**
    Allocates memory for a struct c2_bufvec.  All segments are of equal
    size.
    The internal struct c2_vec is also allocated by this routine.
@@ -240,7 +261,7 @@ int         c2_diovec_register(struct c2_diovec *vec,
 /* __COLIBRI_LIB_VEC_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

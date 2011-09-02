@@ -46,8 +46,8 @@
 
 #include "io_fop.h"
 #include "io_u.h"
-#include "ioservice/io_foms.h"
 #include "ioservice/io_fops.h"
+#include "ioservice/io_foms.h"
 
 /**
    @addtogroup stob
@@ -317,10 +317,11 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	ctx.ft_service = service;
 	ctx.fc_cookie  = cookie;
 
-	/* 
-	 * FOMs are implemented only for read and write operations 
+	/*
+	 * FOMs are implemented only for read and write operations
 	 */
-	if ((fop->f_type->ft_code >= c2_io_service_readv_opcode)) {
+	if ((fop->f_type->ft_code >= C2_IO_SERVICE_READV_OPCODE &&
+	     fop->f_type->ft_code <= C2_IO_SERVICE_WRITEV_REP_OPCODE)) {
 		/*
 		 * A dummy request handler API to handle incoming FOPs.
 		 * Actual reqh will be used in future.
@@ -348,8 +349,8 @@ static struct c2_fop_type *fopt[] = {
 
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
-	&c2_fop_cob_writev_rep_fopt,
 	&c2_fop_cob_readv_rep_fopt,
+	&c2_fop_cob_writev_rep_fopt,
 };
 
 struct mock_balloc {
@@ -509,6 +510,9 @@ int main(int argc, char **argv)
 	result = io_fop_init();
 	C2_ASSERT(result == 0);
 
+	result = c2_ioservice_fop_init();
+	C2_ASSERT(result == 0);
+
 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
 	result = mkdir(path, 0700);
@@ -639,6 +643,7 @@ int main(int argc, char **argv)
 	dom->sd_ops->sdo_fini(dom);
 	bdom->sd_ops->sdo_fini(bdom);
 	io_fop_fini();
+	c2_ioservice_fop_fini();
 	c2_fol_fini(&fol);
 	c2_dbenv_fini(&db);
 	c2_addb_ctx_fini(&server_addb_ctx);

@@ -23,15 +23,6 @@
 #include "lib/misc.h"
 #include "net/bulk_emulation/mem_xprt_pvt.h"
 
-#ifdef __KERNEL__
-#include <linux/in.h>
-#include <linux/inet.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
 /**
    @addtogroup bulkmem
    @{
@@ -70,10 +61,10 @@ void c2_mem_xprt_fini(void)
    Static functions should be declared in the private header file
    so that the order of their definition does not matter.
 */
-#include "mem_xprt_ep.c"
-#include "mem_xprt_tm.c"
-#include "mem_xprt_msg.c"
-#include "mem_xprt_bulk.c"
+#include "net/bulk_emulation/mem_xprt_ep.c"
+#include "net/bulk_emulation/mem_xprt_tm.c"
+#include "net/bulk_emulation/mem_xprt_msg.c"
+#include "net/bulk_emulation/mem_xprt_bulk.c"
 
 static c2_bcount_t mem_buffer_length(const struct c2_net_buffer *nb)
 {
@@ -148,7 +139,6 @@ static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 {
 	struct c2_net_buffer *nb = mem_wi_to_buffer(wi);
-	C2_POST(wi->xwi_status <= 0);
 	struct c2_net_buffer_event ev = {
 		.nbe_buffer = nb,
 		.nbe_status = wi->xwi_status,
@@ -156,6 +146,7 @@ static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 		.nbe_length = wi->xwi_nbe_length,
 		.nbe_ep     = wi->xwi_nbe_ep
 	};
+	C2_PRE(wi->xwi_status <= 0);
 	c2_time_now(&ev.nbe_time);
 	c2_net_buffer_event_post(&ev);
 	return;
@@ -286,7 +277,7 @@ static int32_t mem_xo_get_max_buffer_segments(const struct c2_net_domain *dom)
    - "dottedIP:portNumber:serviceId" if 3-tuple addressing used.
  */
 static int mem_xo_end_point_create(struct c2_net_end_point **epp,
-				   struct c2_net_domain *dom,
+				   struct c2_net_transfer_mc *tm,
 				   const char *addr)
 {
 	char buf[C2_NET_BULK_MEM_XEP_ADDR_LEN];
@@ -296,7 +287,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	int pnum;
 	struct sockaddr_in sa;
 	uint32_t id = 0;
-	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(dom);
+	struct c2_net_bulk_mem_domain_pvt *dp = mem_dom_to_pvt(tm->ntm_dom);
 
 	C2_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
@@ -330,7 +321,7 @@ static int mem_xo_end_point_create(struct c2_net_end_point **epp,
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
 		return -EINVAL;
 #endif
-	return mem_bmo_ep_create(epp, dom, &sa, id);
+	return mem_bmo_ep_create(epp, tm, &sa, id);
 }
 
 /**
@@ -377,7 +368,7 @@ static int mem_xo_buf_register(struct c2_net_buffer *nb)
    Derived transports should free the private data upon return from this
    subroutine.
  */
-static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
+static void mem_xo_buf_deregister(struct c2_net_buffer *nb)
 {
 	struct c2_net_bulk_mem_domain_pvt *dp;
 	struct c2_net_bulk_mem_buffer_pvt *bp;
@@ -390,7 +381,7 @@ static int mem_xo_buf_deregister(struct c2_net_buffer *nb)
 		c2_free(bp);
 		nb->nb_xprt_private = NULL;
 	}
-	return 0;
+	return;
 }
 
 /**
@@ -459,7 +450,8 @@ static int mem_xo_buf_add(struct c2_net_buffer *nb)
 }
 
 /**
-   Cancel ongoing buffer operations.
+   Cancel ongoing buffer operations.  May also be invoked to time out a pending
+   buffer operation by first setting the C2_NET_BUF_TIMED_OUT flag.
    @param nb Buffer pointer
  */
 static void mem_xo_buf_del(struct c2_net_buffer *nb)
@@ -482,7 +474,8 @@ static void mem_xo_buf_del(struct c2_net_buffer *nb)
 
 	wi = &bp->xb_wi;
 	wi->xwi_op = C2_NET_XOP_CANCEL_CB;
-	nb->nb_flags |= C2_NET_BUF_CANCELLED;
+	if (!(nb->nb_flags & C2_NET_BUF_TIMED_OUT))
+		nb->nb_flags |= C2_NET_BUF_CANCELLED;
 
 	switch (nb->nb_qtype) {
 	case C2_NET_QT_MSG_RECV:
@@ -603,10 +596,11 @@ size_t c2_net_bulk_mem_tm_get_num_threads(const struct c2_net_transfer_mc *tm) {
 	return tp->xtm_num_workers;
 }
 
-static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
+static int mem_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 {
 	struct c2_net_bulk_mem_tm_pvt *tp;
 	struct c2_net_bulk_mem_work_item *wi_st_chg;
+	struct c2_net_xprt *xprt;
 	int rc = 0;
 	int i;
 
@@ -638,6 +632,15 @@ static int mem_xo_tm_start(struct c2_net_transfer_mc *tm)
 	wi_st_chg->xwi_op = C2_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = C2_NET_XTM_STARTED;
 	wi_st_chg->xwi_status = 0;
+
+	/* create the end point (indirectly via the transport ops vector) */
+	xprt = tm->ntm_dom->nd_xprt;
+	rc = (*xprt->nx_ops->xo_end_point_create)(&wi_st_chg->xwi_nbe_ep,
+						  tm, addr);
+	if (rc != 0) {
+		c2_free(wi_st_chg);
+		return rc;
+	}
 
 	/* start worker threads */
 	for (i = 0; i < tp->xtm_num_workers && rc == 0; ++i)
@@ -710,10 +713,11 @@ static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 		[C2_NET_XOP_ACTIVE_BULK]     = mem_wf_active_bulk,
 		[C2_NET_XOP_ERROR_CB]        = mem_wf_error_cb,
 	},
- 	.bmo_ep_create                       = mem_ep_create,
+	.bmo_ep_create                       = mem_ep_create,
 	.bmo_ep_alloc                        = mem_ep_alloc,
 	.bmo_ep_free                         = mem_ep_free,
 	.bmo_ep_release                      = mem_xo_end_point_release,
+	.bmo_ep_get                          = mem_ep_get,
 	.bmo_wi_add                          = mem_wi_add,
 	.bmo_buffer_in_bounds                = mem_buffer_in_bounds,
 	.bmo_desc_create                     = mem_desc_create,
@@ -743,6 +747,7 @@ struct c2_net_xprt c2_net_bulk_mem_xprt = {
 	.nx_name = "bulk-mem",
 	.nx_ops  = &mem_xo_xprt_ops
 };
+C2_EXPORTED(c2_net_bulk_mem_xprt);
 
 /**
    @} bulkmem

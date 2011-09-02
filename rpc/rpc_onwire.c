@@ -23,27 +23,32 @@
 #include "lib/arith.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-#include "rpc/session_int.h"
+#include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
-	size_t		 len = 0;
+	size_t		 len = 512;
+	return 		 len;
+	/*
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
-	len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	C2_ASSERT(fop->f_type != NULL);
+	C2_ASSERT(fop->f_type->ft_ops != NULL);
+	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
+	len = fop->f_type->ft_ops->fto_size_get(fop);
 	len += ITEM_ONWIRE_HEADER_SIZE;
 	printf("DEFAULT ITEM SIZE GET %ld\n", len);
-	return len;
+	return len;*/
 }
 
 /* XXX : Return correct RPC version. */
-static uint32_t rpc_ver_get(void)
+static uint32_t rpc_ver_get()
 {
 	return C2_RPC_VERSION_1;
 }
@@ -136,7 +141,10 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 	for (i = 0; i < slot_ref_cnt; ++i) {
 		sref = &slot_ref[i];
 		rc = c2_bufvec_uint64(cur, &sref->sr_verno.vn_lsn, what) ?:
+		c2_bufvec_uint64(cur, &sref->sr_sender_id, what) ?:
+		c2_bufvec_uint64(cur, &sref->sr_session_id, what) ?:
 		c2_bufvec_uint64(cur, &sref->sr_verno.vn_vc, what) ?:
+		sender_uuid_encdec(cur, &sref->sr_uuid, what) ?:
 		c2_bufvec_uint64(cur, &sref->sr_last_persistent_verno.vn_lsn,
 				 what) ?:
 		c2_bufvec_uint64(cur,&sref->sr_last_persistent_verno.vn_vc,
@@ -192,23 +200,20 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 
 	item_type = item->ri_type;
 	C2_ASSERT(item_type->rit_ops != NULL);
-	C2_ASSERT(item_type->rit_ops->rio_item_size != NULL);
-	len = item_type->rit_ops->rio_item_size(item);
+	C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
+	len = item_type->rit_ops->rito_item_size(item);
 	printf("\nIn header enc, len = %ld", len);
 
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
-	c2_bufvec_uint64(cur, &item->ri_sender_id, what) ?:
-	c2_bufvec_uint64(cur, &item->ri_session_id, what) ?:
-	sender_uuid_encdec(cur, &item->ri_uuid, what) ?:
 	slot_ref_encdec(cur, item->ri_slot_refs, what);
 
 	if (what == C2_BUFVEC_ENCODE)
 		todo = "encode";
 	else
 		todo = "decode";
-	printf("\nSender id (%s) :  %ld", todo, item->ri_sender_id);
+/*	printf("\nSender id (%s) :  %ld", todo, item->ri_sender_id);
 	printf("\nSession id (%s) :  %ld", todo, item->ri_session_id);
-	if (rc != 0)
+*/	if (rc != 0)
 		return -EFAULT;
 	return rc;
 }
@@ -328,9 +333,9 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	size_t				 offset=0;
 	c2_bcount_t			 bufvec_size;
 	int				 rc;
+	int				 count=0;
 	struct c2_rpc_item_type		*item_type;
 	void				*cur_addr;
-	int				 count = 0;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);
@@ -362,8 +367,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		item_type = item->ri_type;
 		C2_ASSERT(item_type->rit_ops != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
-		C2_ASSERT(item_type->rit_ops->rio_item_size != NULL);
-		offset = len + item_type->rit_ops->rio_item_size(item);
+		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
+		offset = len + item_type->rit_ops->rito_item_size(item);
 		C2_ASSERT(offset < bufvec_size);
 		len = offset;
 		printf("\n\n----ENCODING ITEM NO:%d\n", ++count);
@@ -436,12 +441,13 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 		C2_ASSERT(item_type != NULL);
 		C2_ASSERT(item_type->rit_ops != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_decode != NULL);
-		C2_ASSERT(item_type->rit_ops->rio_item_size != NULL);
+		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 		rc = item_type->rit_ops->rito_decode(item_type, &item, &cur);
 		if (rc != 0)
 			return rc;
+		item->ri_src_ep = nb->nb_ep;
 		item_verify(item);
-		offset += item_type->rit_ops->rio_item_size(item);
+		offset += item_type->rit_ops->rito_item_size(item);
 		if (offset > len)
 			return -EMSGSIZE;
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);

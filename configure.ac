@@ -244,8 +244,8 @@ OLD_CFLAGS=$CFLAGS
 
 # Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
 CFLAGS="-I/usr/local/include -I/opt/local/include"
-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], 
-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])], 
+AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h],
+[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])],
 [
 #ifdef CUNIT_CUNIT_H
 #include <CUnit/CUnit.h>
@@ -292,7 +292,7 @@ AC_ARG_ENABLE([db-o_direct],
 AC_MSG_CHECKING([for operating system])
 AC_MSG_RESULT([$host_os])
 case $host_os in
-        linux*) 
+        linux*)
                 ;;
         *)
                 AC_MSG_ERROR([Unsupported platform detected!])
@@ -461,7 +461,7 @@ if test x$enable_debug = xyes; then
         AC_DEFINE([ENABLE_DEBUG])
 else
         # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3 
+        # passed via construction like ./configure CFLAGS=-O3
         CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
@@ -502,6 +502,7 @@ AC_CONFIG_FILES([
                  doc/Makefile
                  dtm/Makefile
                  fid/Makefile
+                 fid/linux_kernel/Makefile
                  fol/Makefile
                  fol/ut/Makefile
                  fop/Makefile
@@ -511,6 +512,7 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  galois/linux_kernel/Makefile
                  ioservice/Makefile
+                 ioservice/linux_kernel/Makefile
                  layout/Makefile
                  layout/linux_kernel/Makefile
                  layout/ut/Makefile
@@ -523,13 +525,14 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  mw/Makefile
                  net/Makefile
-                 net/bulk_emulation/Makefile
-                 net/bulk_emulation/st/Makefile
-                 net/bulk_emulation/ut/Makefile
-                 net/ksunrpc/Makefile
-                 net/st/Makefile
+		 net/bulk_emulation/Makefile
+		 net/bulk_emulation/st/Makefile
+		 net/bulk_emulation/st/linux_kernel/Makefile
+		 net/bulk_emulation/ut/Makefile
+                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
-                 net/ut/Makefile
+		 net/ut/Makefile
+		 net/st/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
@@ -540,6 +543,7 @@ AC_CONFIG_FILES([
                  rpc/it/Makefile
 		 rpc/linux_kernel/Makefile
                  sm/Makefile
+                 sm/linux_kernel/Makefile
                  sns/Makefile
                  sns/linux_kernel/Makefile
                  sns/ut/Makefile
@@ -553,7 +557,6 @@ AC_CONFIG_FILES([
                  utils/ploss/Makefile
                  xcode/Makefile
                  xcode/ut/Makefile
-                 xcode/linux_kernel/Makefile
 		 xdr/Makefile
                  xdr/ut/Makefile
                 ])

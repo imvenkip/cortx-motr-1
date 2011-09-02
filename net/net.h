@@ -39,7 +39,7 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-#include "net/net_otw_types_k.h"
+#include "net/linux_kernel/net_otw_types_k.h"
 #else
 #include "net/net_otw_types_u.h"
 #endif
@@ -153,13 +153,14 @@ struct c2_net_xprt_ops {
 	   @param tm   Transfer machine pointer.
              The following fields are of special interest to this method:
              @li ntm_dom
-	     @li ntm_ep - End point associated with the transfer machine.
 	     @li ntm_xprt_private
+	   @param addr  Address of the transfer machine.
+	   The method should not reference this string after it returns.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_tm_start()
 	 */
-	int (*xo_tm_start)(struct c2_net_transfer_mc *tm);
+	int (*xo_tm_start)(struct c2_net_transfer_mc *tm, const char *addr);
 
 	/**
 	   Initiate the shutdown of a transfer machine, cancelling any
@@ -193,15 +194,16 @@ struct c2_net_xprt_ops {
 	/**
 	   Create an end point with a specific address.
 	   @param epp     Returned end point data structure.
-	   @param dom     Specify the domain pointer.
+	   @param tm      Specify the transfer machine pointer.
 	   @param addr    Address string.  Could be NULL to
 	                  indicate dynamic addressing.
+			  Do not reference the string after return.
            @retval 0 (success)
 	   @retval -errno (failure)
 	   @see c2_net_end_point_create()
 	 */
 	int (*xo_end_point_create)(struct c2_net_end_point **epp,
-				   struct c2_net_domain *dom,
+				   struct c2_net_transfer_mc *tm,
 				   const char *addr);
 
 	/**
@@ -217,11 +219,9 @@ struct c2_net_xprt_ops {
 	/**
 	   Deregister the buffer from the transfer machine.
 	   @param nb  Buffer pointer with c2_net_buffer.nb_tm set.
-           @retval 0 (success)
-	   @retval -errno (failure)
 	   @see c2_net_buffer_deregister()
 	 */
-	int (*xo_buf_deregister)(struct c2_net_buffer *nb);
+	void (*xo_buf_deregister)(struct c2_net_buffer *nb);
 
 	/**
 	   Initiate an operation on a buffer on the transfer machine's
@@ -385,11 +385,6 @@ struct c2_net_domain {
 	struct c2_mutex     nd_mutex;
 
 	/**
-	   List of c2_net_end_point structures. Managed by the transport.
-	 */
-	struct c2_list      nd_end_points;
-
-	/**
 	   List of c2_net_buffer structures registered with the domain.
 	 */
 	struct c2_list      nd_registered_bufs;
@@ -464,7 +459,8 @@ int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
 
 /**
    This represents an addressable network end point. Memory for this data
-   structure is managed by the network transport component.
+   structure is managed by the network transport component and is associated
+   with the transfer machine that created the structure.
 
    Multiple entities may reference and use the data structure at the same time,
    so a reference count is maintained within it to determine when it is safe to
@@ -472,32 +468,35 @@ int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
 
    Transports should embed this data structure in their private end point
    structures, and provide the release() method required to free them.
-   The release() method should grab the network domain mutex and dequeue the
-   data structure from the domain.
+   The release() method, which is called with the transfer machine mutex
+   locked, should remove the data structure from the transfer machine
+   ntm_end_points list.
  */
 struct c2_net_end_point {
 	/** Keeps track of usage */
-	struct c2_ref          nep_ref;
-	/** Pointer to the network domain */
-	struct c2_net_domain  *nep_dom;
-	/** Linkage in the domain list */
-	struct c2_list_link    nep_dom_linkage;
+	struct c2_ref              nep_ref;
+	/** Pointer to transfer machine */
+	struct c2_net_transfer_mc *nep_tm;
+	/** Linkage in the transfer machine list */
+	struct c2_list_link        nep_tm_linkage;
 	/** Transport specific printable representation of the
 	    end point address.
 	 */
-	const char            *nep_addr;
+	const char                *nep_addr;
 };
 
 /**
    Allocates an end point data structure representing the desired
    end point and sets its reference count to 1,
    or increments the reference count of an existing matching data structure.
+   The data structure is linked to the transfer machine.
    The invoker should call the c2_net_end_point_put() when the
    data structure is no longer needed.
    @param epp Pointer to a pointer to the data structure which will be
    set upon return.  The reference count of the returned data structure
    will be at least 1.
-   @param dom Network domain pointer.
+   @param tm  Transfer machine pointer.  The transfer machine must be in
+   the started state.
    @param addr String describing the end point address in a transport specific
    manner.  The format of this address string is the same as the printable
    representation form stored in the end point nep_addr field.  It is optional,
@@ -506,13 +505,15 @@ struct c2_net_end_point {
    The address string, if specified, is not referenced again after return from
    this subroutine.
    @see c2_net_end_point_get(), c2_net_end_point_put()
-   @post (*epp)->nep_ref->ref_cnt >= 1 && (*epp)->nep_addr != NULL
+   @pre tm->ntm_state == C2_NET_TM_STARTED
+   @post (*epp)->nep_ref->ref_cnt >= 1 && (*epp)->nep_addr != NULL &&
+   (*epp)->nep_tm == tm
    @retval 0 on success
    @retval -errno on failure
  */
-int c2_net_end_point_create(struct c2_net_end_point **epp,
-			    struct c2_net_domain     *dom,
-			    const char               *addr);
+int c2_net_end_point_create(struct c2_net_end_point  **epp,
+			    struct c2_net_transfer_mc *tm,
+			    const char                *addr);
 
 /**
    Increment the reference count of an end point data structure.
@@ -531,8 +532,8 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @param ep End point data structure pointer.
    Do not dereference this pointer after this call.
    @pre ep->nep_ref->ref_cnt >= 1
-   @note The domain lock will be obtained internally to synchronize the
-   transport provided release() method in case the end point gets released.
+   @note The transfer machine mutex will be obtained internally to synchronize
+   the transport provided release() method in case the end point gets released.
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -650,7 +651,8 @@ enum c2_net_tm_ev_type {
      state change.
      The nte_next_state field describes the destination state.
      Refer to the nte_status field to determine if the operation succeeded.
-     Refer to the nte_status field to determine if the operation succeeded.
+     The nte_ep field is set if the next state is C2_NET_TM_STARTED; the
+     value is used to set the ntm_ep field of the transfer machine.
    - C2_NET_TEV_DIAGNOSTIC provides diagnostic information.
      The nte_payload field may point to transport specific data.
      The API does not require nor specify how a transport produces
@@ -702,6 +704,12 @@ struct c2_net_tm_event {
 	   Any associated error condition defined by the nte_status field.
 	 */
 	enum c2_net_tm_state       nte_next_state;
+
+	/**
+	   End point pointer to be used to set the value of the ntm_ep
+	   field when the state changes to C2_NET_TM_STARTED.
+	*/
+	struct c2_net_end_point   *nte_ep;
 
 	/**
 	   Valid only if the nte_type is C2_NET_TEV_STATE_DIAGNOSTIC.
@@ -815,13 +823,19 @@ struct c2_net_transfer_mc {
 	struct c2_net_domain       *ntm_dom;
 
 	/**
+	   List of c2_net_end_point structures. Managed by the transport.
+	 */
+	struct c2_list              ntm_end_points;
+
+	/**
 	   End point associated with this transfer machine.
 	   Messages sent from this
 	   transfer machine appear to have originated from this end point.
-	   It is provided by the application during the
-	   call to c2_net_tm_start().
-	   @note The assumption here is that the transport can maintain
-	   separate receive message buffer pools for each transfer machine.
+
+	   It is created internally with the address provided in the
+	   call to c2_net_tm_start().  The field is set only upon
+	   successful start of the transfer machine.
+	   The field is cleared durinng fini.
 	 */
         struct c2_net_end_point    *ntm_ep;
 
@@ -868,9 +882,17 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
 /**
    Finalize a transfer machine, releasing any associated
    transport specific resources.
-   @pre tm->ntm_state == C2_NET_TM_STOPPED ||
-        tm->ntm_state == C2_NET_TM_FAILED ||
-	tm->ntm_state == C2_NET_TM_INITIALIZED
+
+   All application references to end points associated with this transfer
+   machine should be released prior to this call.
+   @pre
+   (tm->ntm_state == C2_NET_TM_STOPPED ||
+    tm->ntm_state == C2_NET_TM_FAILED  ||
+    tm->ntm_state == C2_NET_TM_INITIALIZED) &&
+   ((c2_list_is_empty(&tm->ntm_end_points) && tm->ntm_ep == NULL) ||
+    (c2_list_length(&tm->ntm_end_points) == 1 &&
+     c2_list_contains(&tm->ntm_end_points, tm->ntm_ep) &&
+     c2_atomic64_get(tm->ntm_ep->nep_ref.ref_cnt) == 1))
    @param tm Transfer machine pointer.
  */
 void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
@@ -889,17 +911,24 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
    @pre tm->ntm_state == C2_NET_TM_INITIALIZED
    @param tm  Transfer machine pointer.
-   @param ep  End point to associate with the transfer machine.
+   @param addr End point address to associate with the transfer machine.
+   May be null if dynamic addressing is supported by the transport.
+   The end point is created internally and made visible by the ntm_ep field
+   only if the start operation succeeds.
    @retval 0 (success)
    @retval -errno (failure)
+   @see c2_net_end_point_create()
  */
-int c2_net_tm_start(struct c2_net_transfer_mc *tm,
-		    struct c2_net_end_point *ep);
+int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr);
 
 /**
    Initiate the shutdown of a transfer machine.  New messages will
-   not be accepted.  Pending operations will be completed or
-   aborted as desired.
+   not be accepted and new end points cannot be created.
+   Pending operations will be completed or aborted as desired.
+
+   All end point references must be released by the application prior
+   to invocation.  The only end point reference that may exist is that of
+   this transfer machine itself, and that will be released during fini.
 
    The subroutine does not block the invoker.  Instead the state is
    immediately changed to C2_NET_TM_STOPPING, and an event will be
@@ -987,9 +1016,15 @@ struct c2_net_buffer_event {
 	   error number is used to indicate the reasons for failure.
 
 	   The following errors are well defined:
-	   	- <b>-ECANCELED</b> This is used in buffer release events to
+		- <b>-ECANCELED</b> This is used in buffer release events to
 		indicate that the associated buffer operation was
 		cancelled by a call to c2_net_buffer_del().
+		- <b>-ETIMEDOUT</b> This is used in buffer release events to
+		indicate that the associated buffer operation did not complete
+		before the current time exceeded the nb_timeout value.
+		The support for this feature is transport specific.
+		The nb_timeout value is always reset to C2_TIME_NEVER by the
+		time the buffer callback is invoked.
 	 */
 	int32_t                    nbe_status;
 
@@ -1061,6 +1096,8 @@ enum c2_net_buf_flags {
 	C2_NET_BUF_IN_USE      = 1<<2,
 	/** Indicates that the buffer operation has been cancelled */
 	C2_NET_BUF_CANCELLED   = 1<<3,
+	/** Indicates that the buffer operation has timed out */
+	C2_NET_BUF_TIMED_OUT   = 1<<4,
 };
 
 /**
@@ -1149,7 +1186,14 @@ struct c2_net_buffer {
 	   buffer to a transfer machine logical queue.
 
 	   <b>Support for this is transport specific.</b>
-	   Set the value to C2_TIME_NEVER to disable the timeout.
+	   A value of C2_TIME_NEVER disables the timeout.
+	   The value is forced to C2_TIME_NEVER during buffer registration,
+	   and reset to the same prior to the invocation of the buffer
+	   callback so applications need not bother with this field unless
+	   they intend to set a timeout value.
+
+	   Adding a buffer to a logical queue will fail with a -ETIME
+	   error code if the specified nb_timeout value is in the past.
 	 */
 	c2_time_t                  nb_timeout;
 
@@ -1181,13 +1225,8 @@ struct c2_net_buffer {
 	struct c2_net_buf_desc     nb_desc;
 
 	/**
-	   This field identifies an end point. Its usage varies by context:
-
-	   - In received messages (C2_NET_QT_MSG_RECV queue) the transport
-	   will set the end point to identify the sender of the message
-	   before invoking the completion callback on the buffer.
-	   The end point will be released when the callback returns.
-
+	   This field identifies an end point in the associated transfer
+	   machine.
 	   - When sending messages
 	   the application should specify the end point of the destination
 	   before adding the buffer to the C2_NET_QT_MSG_SEND queue.
@@ -1196,7 +1235,8 @@ struct c2_net_buffer {
 	   field to identify the end point that will initiate the bulk data
 	   transfer.
 
-	   The field is not used for the active bulk cases.
+	   The field is not used for the active bulk cases nor for received
+	   messages.
 	 */
 	struct c2_net_end_point   *nb_ep;
 
@@ -1246,10 +1286,12 @@ struct c2_net_buffer {
 (buf->nb_buffer.ov_buf != NULL) &&
 c2_vec_count(&buf->nb_buffer.ov_vec) > 0
    @post ergo(result == 0, buf->nb_flags & C2_NET_BUF_REGISTERED)
+   @post ergo(result == 0, buf->nb_timeout == C2_TIME_NEVER)
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
    - c2_net_buffer.nb_buffer should be initialized to point to the buffer
    memory regions.
+   The buffer's timeout value is initialized to C2_TIME_NEVER upon return.
    @param dom Pointer to the domain.
    @retval 0 (success)
    @retval -errno (failure)
@@ -1267,11 +1309,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 (buf->nb_dom == dom)
    @param buf Specify the buffer pointer.
    @param dom Specify the domain pointer.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
-int c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			     struct c2_net_domain *dom);
+void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+			      struct c2_net_domain *dom);
 
 /**
    Add a registered buffer to a transfer machine's logical queue specified
@@ -1316,6 +1356,9 @@ buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
    @param tm  Specify the transfer machine pointer
    @retval 0 (success)
    @retval -errno (failure)
+   @retval -ETIME nb_timeout is set to other than C2_TIME_NEVER, and occurs in
+   the past.
+   Note that this differs from them buffer timeout error code of -ETIMEDOUT.
  */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
@@ -1359,7 +1402,9 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
    The subroutine will remove the buffer from its queue, and clear its
    C2_NET_BUF_QUEUED, C2_NET_BUF_IN_USE and C2_NET_BUF_CANCELLED flags
    prior to invoking the callback.  If the C2_NET_BUF_CANCELLED flag was
-   set, then the status is forced to -ECANCELED.
+   set, then the status is forced to -ECANCELED.  If the C2_NET_BUF_TIMED_OUT
+   flag was set, then the status is forced to -ETIMEDOUT.  The buffer's
+   nb_timeout field is always reset to C2_TIME_NEVER.
 
    The subroutine will perform a c2_end_point_put() on the nbe_ep field
    in the event structure, if the queue type is C2_NET_QT_MSG_RECV and
