@@ -211,22 +211,22 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		 * sent across.
 		 * XXX The reply FOP pointer is not used as of now.
 		 */
-		arg->cw_foprep		= (uint64_t)ret;
-		arg->cw_fid.f_seq	= c2_global_container_id;
-		arg->cw_fid.f_oid	= objid;
-		arg->cw_iovec.iv_count	= 1;
+		arg->cw_rwv.crw_foprep		= (uint64_t)ret;
+		arg->cw_rwv.crw_fid.f_seq	= c2_global_container_id;
+		arg->cw_rwv.crw_fid.f_oid	= objid;
+		arg->cw_rwv.crw_iovec.iv_count	= 1;
 
 		/* Populate the vector of write FOP */
-		arg->cw_iovec.iv_segs = &write_seg;
+		arg->cw_rwv.crw_iovec.iv_segs = &write_seg;
 		write_seg.is_offset = pos;
 		write_seg.is_buf.cfib_pgoff = off;
 		write_seg.is_buf.ib_buf = pages;
 		write_seg.is_buf.ib_count = len;
 
-		arg->cw_uid = c2_get_uid();
-		arg->cw_gid = c2_get_gid();
-		arg->cw_nid = c2_get_nid();
-		arg->cw_flags = 0;
+		arg->cw_rwv.crw_uid = c2_get_uid();
+		arg->cw_rwv.crw_gid = c2_get_gid();
+		arg->cw_rwv.crw_nid = c2_get_nid();
+		arg->cw_rwv.crw_flags = 0;
 
                 DBG("writing data to server(%llu/%d/%ld/%lld)\n",
                     objid, off, len, pos);
@@ -258,22 +258,22 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 		 * sent across.
 		 * XXX The reply FOP pointer is not used as of now.
 		 */
-		arg->cr_foprep		= (uint64_t)ret;
-		arg->cr_fid.f_seq	= c2_global_container_id;
-		arg->cr_fid.f_oid	= objid;
-		arg->cr_iovec.iv_count	= 1;
+		arg->cr_rwv.crw_foprep		= (uint64_t)ret;
+		arg->cr_rwv.crw_fid.f_seq	= c2_global_container_id;
+		arg->cr_rwv.crw_fid.f_oid	= objid;
+		arg->cr_rwv.crw_iovec.iv_count	= 1;
 
 		/* Populate the vector of read FOP */
-		arg->cr_iovec.iv_segs = &read_seg;
+		arg->cr_rwv.crw_iovec.iv_segs = &read_seg;
 		read_seg.is_offset = pos;
 		read_seg.is_buf.ib_count = len;
 		read_seg.is_buf.cfib_pgoff = off;
 		read_seg.is_buf.ib_buf = pages;
 
-		arg->cr_uid = c2_get_uid();
-		arg->cr_gid = c2_get_gid();
-		arg->cr_nid = c2_get_nid();
-		arg->cr_flags = 0;
+		arg->cr_rwv.crw_uid = c2_get_uid();
+		arg->cr_rwv.crw_gid = c2_get_gid();
+		arg->cr_rwv.crw_nid = c2_get_nid();
+		arg->cr_rwv.crw_flags = 0;
 
 		ret->crr_iobuf.ib_buf = pages;
 		ret->crr_iobuf.ib_count = len;

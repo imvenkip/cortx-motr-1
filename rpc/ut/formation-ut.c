@@ -687,9 +687,9 @@ struct c2_fop *form_create_write_fop()
 	write_fop = c2_fop_data(fop);
 	i = (rand()) % nfiles;
 	fid = form_get_fid(i);
-	write_fop->cw_fid = *fid;
+	write_fop->cw_rwv.crw_fid = *fid;
 	iovec = form_get_new_iovec(fid);
-	write_fop->cw_iovec = *iovec;
+	write_fop->cw_rwv.crw_iovec = *iovec;
 	return fop;
 }
 
@@ -716,8 +716,8 @@ struct c2_fop *form_create_read_fop()
 	read_fop = c2_fop_data(fop);
 	i = (rand()) % nfiles;
 	fid = form_get_fid(i);
-	read_fop->cr_fid = *fid;
-	read_fop->cr_iovec.iv_count = nsegs;
+	read_fop->cr_rwv.crw_fid = *fid;
+	read_fop->cr_rwv.crw_iovec.iv_count = nsegs;
 	for (a = 0; a < ndatafids; a++) {
 		if ((fid_data[a].f_seq == fid->f_seq) &&
 				(fid_data[a].f_oid == fid->f_oid)) {
@@ -725,8 +725,8 @@ struct c2_fop *form_create_read_fop()
 			break;
 		}
 	}
-	C2_ALLOC_ARR(read_fop->cr_iovec.iv_segs, nsegs);
-	if (read_fop->cr_iovec.iv_segs == NULL) {
+	C2_ALLOC_ARR(read_fop->cr_rwv.crw_iovec.iv_segs, nsegs);
+	if (read_fop->cr_rwv.crw_iovec.iv_segs == NULL) {
 		C2_ADDB_ADD(&c2_rpc_ut_addb_ctx, &c2_rpc_ut_addb_loc,
 				c2_addb_oom);
 		c2_fop_free(fop);
@@ -735,8 +735,8 @@ struct c2_fop *form_create_read_fop()
 	else {
 		seg_size = io_size / nsegs;
 		for (j = file_offsets[i], k = 0; k < nsegs; k++) {
-			read_fop->cr_iovec.iv_segs[k].is_offset = j;
-			read_fop->cr_iovec.iv_segs[k].is_buf.ib_count =
+			read_fop->cr_rwv.crw_iovec.iv_segs[k].is_offset = j;
+			read_fop->cr_rwv.crw_iovec.iv_segs[k].is_buf.ib_count =
 				seg_size;
 
 			/*printf("Input Fid - seq = %lu, oid = %lu: Read segment %d: offset = %lu, count = %lu\n",
@@ -746,8 +746,9 @@ struct c2_fop *form_create_read_fop()
 
 			j += seg_size;
 		}
-		file_offsets[i] = read_fop->cr_iovec.iv_segs[k-1].is_offset +
-			read_fop->cr_iovec.iv_segs[k-1].is_buf.ib_count;
+		file_offsets[i] = read_fop->cr_rwv.crw_iovec.iv_segs[k-1].
+			is_offset + read_fop->cr_rwv.crw_iovec.iv_segs[k-1].
+			is_buf.ib_count;
 	}
 	return fop;
 }
@@ -761,7 +762,7 @@ void form_fini_read_fop(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 	read_fop = c2_fop_data(fop);
-	c2_free(read_fop->cr_iovec.iv_segs);
+	c2_free(read_fop->cr_rwv.crw_iovec.iv_segs);
 	c2_fop_free(fop);
 }
 
