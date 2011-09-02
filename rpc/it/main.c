@@ -444,26 +444,29 @@ void io_fop_data_init()
         C2_ALLOC_ARR(form_write_iovecs, nfops);
 }
 
+struct c2_mutex fid_mutex;
+
 /**
   Create a random IO fop (either read or write) and post it to rpc layer
  */
 void send_random_io_fop(int nr)
 {
-/*
         struct c2_fop           *fop;
         struct c2_rpc_item      *item = NULL;
 
+	c2_mutex_lock(&fid_mutex);
         fop = form_get_new_fop();
+	c2_mutex_unlock(&fid_mutex);
         item = &fop->f_item;
         c2_rpc_frm_item_populate_param(&fop->f_item);
         item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
 	item->ri_mach = &cctx.pc_rpc_mach;
+        c2_rpc_item_type_attach(fop->f_type);
         c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
-*/
 }
 
 /**
@@ -780,6 +783,7 @@ void client_init()
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
 	io_fop_data_init();
+	c2_mutex_init(&fid_mutex);
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
 		if (cctx.pc_fop_switch == PING)
@@ -841,6 +845,7 @@ void client_init()
 	}
 
 
+	c2_mutex_fini(&fid_mutex);
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
@@ -882,8 +887,6 @@ int main(int argc, char *argv[])
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
-	uint64_t		 c2_rpc_max_message_size;
-	uint64_t		 c2_rpc_max_fragments_size;
 	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 
@@ -891,7 +894,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
-	rc = io_fop_init();
+	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		return rc;
 	c2_ping_fop_init();
@@ -926,11 +929,9 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 	cctx.pc_fop_switch = PING;
 
-	c2_rpc_max_message_size = 10*1024;
         /* Start with a default value of 8. The max value in Lustre, is
            limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 8;
-        c2_rpc_max_fragments_size = 16;
+        c2_rpc_max_rpcs_in_flight = 32;
 
         c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
@@ -982,7 +983,7 @@ int main(int argc, char *argv[])
 	}
 
 	c2_ping_fop_fini();
-	io_fop_fini();
+	c2_ioservice_fop_fini();
 
 	c2_fini();
 

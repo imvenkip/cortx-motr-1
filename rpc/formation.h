@@ -335,6 +335,7 @@ void c2_rpc_frm_sm_net_limits_set(struct c2_rpc_frm_sm *frm_sm,
  */
 enum {
 	C2_RPC_FRM_BUFFER_MAGIC = 0x8135797531975313ULL,
+	C2_RPC_FRM_BUFFER_RETRY = 3,
 };
 
 /**
@@ -344,13 +345,15 @@ enum {
  */
 struct c2_rpc_frm_buffer {
 	/** A magic constant to verify sanity of buffer. */
-	uint64_t				 fb_magic;
+	uint64_t		 fb_magic;
+	/** Retry count for buffer send events. */
+	uint64_t		 fb_retry;
 	/** The c2_net_buffer on which callback will trigger. */
-	struct c2_net_buffer			 fb_buffer;
+	struct c2_net_buffer	 fb_buffer;
 	/** The associated item_summary_unit structure. */
-	struct c2_rpc_frm_sm			*fb_frm_sm;
+	struct c2_rpc_frm_sm	*fb_frm_sm;
 	/** The rpc object which was sent through the c2_net_buffer here. */
-	struct c2_rpc				*fb_rpc;
+	struct c2_rpc		*fb_rpc;
 };
 
 /**

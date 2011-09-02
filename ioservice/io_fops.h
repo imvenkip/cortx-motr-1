@@ -73,6 +73,7 @@ extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
 extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
 extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
 extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
+extern struct c2_fop_type_format c2_fop_cob_rwv_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;

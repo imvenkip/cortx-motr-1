@@ -215,13 +215,13 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		write_fop = c2_fop_data(fom_obj->fcrw_fop);
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
-		ffid = &write_fop->cw_fid;
+		ffid = &write_fop->c_rwv.crw_fid;
 		/* Change the phase of FOM */
 		fom->fo_phase = FOPH_COB_WRITE;
 	} else {
 		read_fop = c2_fop_data(fom_obj->fcrw_fop);
 		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
-		ffid = &read_fop->cr_fid;
+		ffid = &read_fop->c_rwv.crw_fid;
 		/* Change the phase of FOM */
 		fom->fo_phase = FOPH_COB_READ;
 	}
@@ -261,12 +261,12 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	if (fopt == &c2_fop_cob_writev_fopt) {
 		/* Make an FOL transaction record. */
-		/*result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
+		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
 				fom->fo_fol, &tx.tx_dbtx);
 		if (result != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return result;
-		}*/
+		}
 	}
 
 	/* Find out buffer address, offset and count required for stob io.
@@ -276,13 +276,13 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	   ioservice functionality has to be changed to handle the whole
 	   vector, not just one segment. */
 	if (fopt == &c2_fop_cob_writev_fopt) {
-		write_seg = write_fop->cw_iovec.iv_segs;
+		write_seg = write_fop->c_rwv.crw_iovec.iv_segs;
 		addr = c2_stob_addr_pack(write_seg->is_buf.ib_buf, bshift);
 		count = write_seg->is_buf.ib_count;
 		offset = write_seg->is_offset;
 		fom_obj->fcrw_st_io.si_opcode = SIO_WRITE;
 	} else {
-		read_seg = read_fop->cr_iovec.iv_segs;
+		read_seg = read_fop->c_rwv.crw_iovec.iv_segs;
 
 		/* Allocate the read buffer. */
 		C2_ALLOC_ARR(rd_rep_fop->crr_iobuf.ib_buf,

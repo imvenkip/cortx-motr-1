@@ -178,7 +178,7 @@ int seed_val;
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 8,
+	C2_RPC_TM_RECV_BUFFERS_NR = 32,
 };
 
 struct c2_rpc;
