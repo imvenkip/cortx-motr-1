@@ -68,24 +68,6 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
 			 struct c2_stob_domain *dom);
 
 /**
- * Find out the respective FOM type object (c2_fom_type)
- * from the given opcode.
- * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
- */
-struct c2_fom_type* c2_io_fom_type_map(c2_fop_type_code_t code);
-
-/**
- * Object encompassing FOM for file create
- * operation and necessary context data
- */
-struct c2_io_fom_file_create {
-	/** Generic c2_fom object. */
-        struct c2_fom                    fc_gen;
-	/** FOP associated with this FOM. */
-        struct c2_fop			*fc_fop;
-};
-
-/**
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
@@ -101,13 +83,6 @@ struct c2_io_fom_cob_rwv {
 	/** Stob IO packet for the operation. */
         struct c2_stob_io		 fcrw_st_io;
 };
-
-/**
- * <b> State Transition function for "create" operation
- *     that executes on data server. </b>
- *  - Send reply FOP to client.
- */
-int c2_io_fom_file_create_state(struct c2_fom *fom);
 
 /**
  * The various phases for readv FOM.

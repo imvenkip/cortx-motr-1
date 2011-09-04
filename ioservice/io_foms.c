@@ -219,11 +219,11 @@ static int io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	if (is_write(fop)) {
 		/* Make an FOL transaction record. */
-		/*rc = c2_fop_fol_rec_add(fop, fom->fo_fol, &tx.tx_dbtx);
+		rc = c2_fop_fol_rec_add(fop, fom->fo_fol, &tx.tx_dbtx);
 		if (rc != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return rc;
-		}*/
+		}
 	}
 
 	/* Find out buffer address, offset and count required for stob io.
@@ -292,7 +292,10 @@ static int io_fom_cob_rwv_state(struct c2_fom *fom)
 	}
 
 	/* Retrieve the status code and no of bytes read/written and
-	   place it in respective reply FOP. */
+	   place it in respective reply FOP. This has to be handled
+	   differently for read and write since reply fops for read
+	   and write are not same at the moment due to kxdr limitation
+	   mentioned above. */
 	if (is_write(fop)) {
 		wr_rep_fop->cwr_rc = stio->si_rc;
 		wr_rep_fop->cwr_count = stio->si_count << bshift;
