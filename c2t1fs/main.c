@@ -158,28 +158,6 @@ MODULE_LICENSE("GPL");
  */
 #define c2_global_container_id	10
 
-/**
- * Some user/group identification functions to fill up
- * the uid/gid fields from various FOPs.
- * These are hard coded for now. They will be replaced
- * with proper user authorization routines in future.
- */
-static uint64_t c2_get_uid(void)
-{
-	return (uint64_t)1234;
-}
-
-static uint64_t c2_get_gid(void)
-{
-	return (uint64_t)4321;
-}
-
-static uint64_t c2_get_nid(void)
-{
-	return (uint64_t)5678;
-}
-
-
 static int ksunrpc_read_write(struct c2_net_conn *conn,
 			      uint64_t objid, struct page **pages, int off,
 			      size_t len, loff_t pos, int rw)
@@ -193,7 +171,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	struct c2_fop_cob_writev_rep	*wret;
 	struct c2_fop_cob_readv		*rarg;
 	struct c2_fop_cob_readv_rep	*rret;
-	struct c2_fop_cob_rwv		*iofop;
+	struct c2_fop_cob_rw		*iofop;
 
         if (rw == WRITE) {
 		f = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
@@ -206,7 +184,16 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	DBG("%s data %s server(%llu/%d/%ld/%lld)\n",
 	    rw == WRITE? "writing":"reading", rw == WRITE? "to":"from",
 			objid, off, len, pos);
-	BUG_ON(f == NULL || r == NULL);
+	if (f == NULL) {
+		DBG("Memory allocation failed for %s request fop.\n",
+			rw == WRITE? "write":"read");
+		return -ENOMEM;
+	}
+	if (r == NULL) {
+		DBG("Memory allocation failed for %s reply fop.\n",
+			rw == WRITE? "write":"read");
+		return -ENOMEM;
+	}
 
 	kcall.ac_arg = f;
 	kcall.ac_ret = r;
@@ -234,10 +221,6 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	ioseg.is_buf.cfib_pgoff = off;
 	ioseg.is_buf.ib_buf = pages;
 	ioseg.is_buf.ib_count = len;
-
-	iofop->crw_uid = c2_get_uid();
-	iofop->crw_gid = c2_get_gid();
-	iofop->crw_nid = c2_get_nid();
 	iofop->crw_flags = 0;
 
 	/* kxdr expects a SEQUENCE of bytes in reply fop. */
@@ -249,12 +232,13 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
 	rc = c2_net_cli_call(conn, &kcall);
 
-	DBG("%s %s server returns %d\n", rw == WRITE? "write":"read",
-			rw == WRITE? "to":"from", rc);
+	DBG("%s server returns %d\n", rw == WRITE? "write to":"read from", rc);
 
-	if (rc)
+	if (rc != 0)
 		return rc;
 
+	/* Since read and write replies are not same at the moment, this
+	   condition has to be put. */
 	if (rw == WRITE)
 		rc = wret->cwr_rc ? : wret->cwr_count;
 	else

@@ -33,27 +33,21 @@ struct c2_fop_segment_seq;
  * The opcode from which IO service FOPS start.
  */
 enum c2_io_service_opcodes {
-	C2_IO_SERVICE_READV_OPCODE = 15,
-	C2_IO_SERVICE_WRITEV_OPCODE = 16,
-	C2_IO_SERVICE_READV_REP_OPCODE = 17,
-	C2_IO_SERVICE_WRITEV_REP_OPCODE = 18,
+	C2_IOSERVICE_READV_OPCODE = 15,
+	C2_IOSERVICE_WRITEV_OPCODE = 16,
+	C2_IOSERVICE_READV_REP_OPCODE = 17,
+	C2_IOSERVICE_WRITEV_REP_OPCODE = 18,
 };
 
 /**
-   Return the number of fops registered by ioservice.
+   Returns the number of fops registered by ioservice.
  */
 int c2_ioservice_fops_nr(void);
 
 /**
-   A generic IO segment pointing either to read or write segments. This
-   is needed to have generic IO coalescing code.
+   Returns the common structure referred by both read and write request fops.
  */
-struct c2_io_ioseg {
-	/** IO segment for read or write request fop. */
-	struct c2_fop_io_seg	*rw_seg;
-        /** Linkage to the list of such structures. */
-        struct c2_list_link	 io_linkage;
-};
+struct c2_fop_cob_rw *c2_io_rwv_get(struct c2_fop *fop);
 
 /**
    Init and fini of ioservice fops code.
@@ -73,7 +67,7 @@ extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
 extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
 extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
 extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_rwv_tfmt;
+extern struct c2_fop_type_format c2_fop_cob_rw_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;

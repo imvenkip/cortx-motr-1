@@ -1245,10 +1245,10 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
         fop = c2_rpc_item_to_fop(item);
         opcode = fop->f_type->ft_code;
         switch (opcode) {
-	case C2_IO_SERVICE_READV_OPCODE:
+	case C2_IOSERVICE_READV_OPCODE:
 		item->ri_type = &rpc_item_type_readv;
 		break;
-	case C2_IO_SERVICE_WRITEV_OPCODE:
+	case C2_IOSERVICE_WRITEV_OPCODE:
 		item->ri_type = &rpc_item_type_writev;
 		break;
 	case c2_fop_ping_opcode:
@@ -1283,10 +1283,10 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	   rpc_item_type with an rpc_item. */
 	opcode = fopt->ft_code;
 	switch (opcode) {
-	case C2_IO_SERVICE_READV_OPCODE:
+	case C2_IOSERVICE_READV_OPCODE:
 		fopt->ft_ri_type = &rpc_item_type_readv;
 		break;
-	case C2_IO_SERVICE_WRITEV_OPCODE:
+	case C2_IOSERVICE_WRITEV_OPCODE:
 		fopt->ft_ri_type = &rpc_item_type_writev;
 		break;
 	default:

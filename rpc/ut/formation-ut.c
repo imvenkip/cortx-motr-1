@@ -779,11 +779,11 @@ void form_fini_fops()
 		if (form_fops[i]) {
 			opcode = form_fops[i]->f_type->ft_code;
 			switch (opcode) {
-				case C2_IO_SERVICE_READV_OPCODE:
+				case C2_IOSERVICE_READV_OPCODE:
 					form_fini_read_fop(form_fops[i]);
 					break;
 
-				case C2_IO_SERVICE_WRITEV_OPCODE:
+				case C2_IOSERVICE_WRITEV_OPCODE:
 					form_fini_fop(form_fops[i]);
 					break;
 
@@ -818,7 +818,7 @@ struct c2_fop *form_get_new_fop()
 	fopFuncPtr		funcPtr;
 	int			 i = 0;
 
-	//i = (rand()) % nopcodes;
+	i = (rand()) % nopcodes;
 	funcPtr = form_fop_table[i];
 	fop = funcPtr();
 	return fop;

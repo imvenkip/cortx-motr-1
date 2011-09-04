@@ -770,7 +770,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	} else {
 		/* If the send event fails, add the rpc back to concerned
 		   queue so that it will be processed next time.*/
-		if (--fb->fb_retry != 0) {
+		if (--fb->fb_retry > 0) {
 			frm_sm = fb->fb_frm_sm;
 			c2_mutex_lock(&frm_sm->fs_lock);
 			C2_ADDB_ADD(&frm_sm->fs_formation->

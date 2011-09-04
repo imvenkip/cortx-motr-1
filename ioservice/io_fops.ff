@@ -23,7 +23,7 @@
 /**
  * @defgroup io_fops FOPs for Data Operations
  *
- * This component contains the File Operation Packets(FOP) definitions
+ * This component contains the File Operation Packets (FOP) definitions
  * for following operations
  * - readv
  * - writev
@@ -47,45 +47,45 @@
  * @section IO FOP Definitions
  */
 DEF(c2_fop_file_fid, RECORD,
-	/* Sequence number for given fid. */
+	/** Sequence number for given fid. */
 	_(f_seq, U64),
-	/* Object Index for given fid. */
+	/** Object Index for given fid. */
 	_(f_oid, U64));
 
 /**
  * c2_fop_io_buf is a buffer with a count specifying its length.
  */
 DEF(c2_fop_io_buf, SEQUENCE,
-	/* Number of bytes in the buffer. */
+	/** Number of bytes in the buffer. */
 	_(ib_count, U64),
-	/* Starting address of buffer. */
+	/** Starting address of buffer. */
 	_(ib_buf, BYTE));
 
 /**
  * c2_fop_io_seg is a record containing details of an IO operation.
  */
 DEF(c2_fop_io_seg, RECORD,
-	/* Offset within component object.*/
+	/** Offset within component object.*/
 	_(is_offset, U64),
-	/* Data buffer attached with IO segment. */
+	/** Data buffer attached with IO segment. */
 	_(is_buf, c2_fop_io_buf));
 
 /**
  * c2_fop_io_vec is a vector of c2_fop_io_seg with number of such segments.
  */
 DEF(c2_fop_io_vec, SEQUENCE,
-	/* Number of IO segments. */
+	/** Number of IO segments. */
 	_(iv_count, U32),
-	/* Array of IO segments. */
+	/** Array of IO segments. */
 	_(iv_segs, c2_fop_io_seg));
 
 /**
  * Reply FOP for a readv request.
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
-	/* Status code. */
+	/** Status code. */
 	_(crr_rc, U32),
-	/* At the moment, due to some constraints put up by kxdr wrapper
+	/** At the moment, due to some constraints put up by kxdr wrapper
 	   around sunrpc, we can't have an IO vector here. It has to be
 	   a SEQUENCE of bytes. Eventually, this will be replaced by
 	   an IO vector or rather a net buffer descriptor. */
@@ -94,20 +94,12 @@ DEF(c2_fop_cob_readv_rep, RECORD,
 /**
  * Common structure for read and write request fops.
  */
-DEF(c2_fop_cob_rwv, RECORD,
-	/* Attached reply fop. */
-	_(crw_foprep, U64),
-	/* File identifier of read/write request. */
+DEF(c2_fop_cob_rw, RECORD,
+	/** File identifier of read/write request. */
 	_(crw_fid, c2_fop_file_fid),
-	/* IO vector containing read/write data. */
+	/** IO vector containing read/write data. */
 	_(crw_iovec, c2_fop_io_vec),
-	/* Uid of sender. */
-	_(crw_uid, U64),
-	/* Gid of sender. */
-	_(crw_gid, U64),
-	/* Node-id of sender. */
-	_(crw_nid, U64),
-	/* Miscellaneous flags. */
+	/** Miscellaneous flags. */
 	_(crw_flags, U64));
 
 /**
@@ -120,8 +112,8 @@ DEF(c2_fop_cob_rwv, RECORD,
  * and sent to the client.
  */
 DEF(c2_fop_cob_readv, RECORD,
-	/* Common definition of read/write fops. */
-	_(c_rwv, c2_fop_cob_rwv));
+	/** Common definition of read/write fops. */
+	_(c_rwv, c2_fop_cob_rw));
 
 /**
  * Reply FOP for writev FOPs.
@@ -130,11 +122,9 @@ DEF(c2_fop_cob_readv, RECORD,
  * It contains the status code and number of bytes written.
  */
 DEF(c2_fop_cob_writev_rep, RECORD,
-	/* Node-id this fop should be sent to. */
-	_(cwr_nid, U64),
-	/* Status code. */
+	/** Status code. */
 	_(cwr_rc, U32),
-	/* Number of bytes written. */
+	/** Number of bytes written. */
 	_(cwr_count, U64));
 
 /**
@@ -147,8 +137,8 @@ DEF(c2_fop_cob_writev_rep, RECORD,
  * and sent to the client.
  */
 DEF(c2_fop_cob_writev, RECORD,
-	/* Common definition of read/write fops. */
-	_(c_rwv, c2_fop_cob_rwv));
+	/** Common definition of read/write fops. */
+	_(c_rwv, c2_fop_cob_rw));
 
 /** @} end of FOP_data_ops */
 

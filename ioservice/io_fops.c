@@ -34,8 +34,50 @@
 #include "fop/fop.h"
 
 /**
+   The IO fops code has been generalized to suit both read and write fops
+   as well as the kernel implementation.
+   The fop for read and write is same. Only the first indirection from fop type
+   is fop specific, rest of whole code is generic.
+   Most of the code deals with IO coalescing and fop type ops. Ioservice
+   also registers IO fops. This initialization should be done explicitly
+   while using code is user mode while kernel module takes care of this
+   initialization by itself.
+   Most of the IO coalescing is done from client side. RPC layer, typically
+   formation module invokes the IO coalescing code.
+ */
+
+/**
+   A generic IO segment pointing either to read or write segments. This
+   is needed to have generic IO coalescing code. During coalescing, lot
+   of new io segments are created which need to be tracked using a list.
+   This is where the generic io segment is used.
+ */
+struct c2_io_ioseg {
+	/** IO segment for read or write request fop. */
+	struct c2_fop_io_seg	*rw_seg;
+        /** Linkage to the list of such structures. */
+        struct c2_list_link	 io_linkage;
+};
+
+bool is_read(struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+	return fop->f_type == &c2_fop_cob_readv_fopt;
+}
+
+bool is_write(struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+	return fop->f_type == &c2_fop_cob_writev_fopt;
+}
+
+bool is_io(struct c2_fop *fop)
+{
+	return is_read(fop) || is_write(fop);
+}
+
+/**
    Generic IO segments ops.
-   @param seg - Generic io segment.
    @retval - Returns the starting offset of given io segment.
  */
 static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg)
@@ -46,9 +88,7 @@ static uint64_t ioseg_offset_get(const struct c2_io_ioseg *seg)
 }
 
 /**
-   Return the number of bytes in input IO segment.
-   @param seg - Generic IO segment.
-   @param index - Index is needed for kernel implementation of this API.
+   Returns the number of bytes in input IO segment.
    @retval - Returns the number of bytes in current IO segment.
  */
 static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
@@ -60,10 +100,8 @@ static uint64_t ioseg_count_get(const struct c2_io_ioseg *seg)
 
 /**
    Sets the number of bytes in input IO segment.
-   @param seg - Generic IO segment.
-   @param count - Count to be set.
  */
-static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
+static void ioseg_count_set(struct c2_io_ioseg *seg, uint64_t count)
 {
 	C2_PRE(seg != NULL);
 
@@ -71,10 +109,7 @@ static void ioseg_count_set(struct c2_io_ioseg *seg, const uint64_t count)
 }
 
 /**
-   Generic IO segments ops.
    Set the starting offset of given IO segment.
-   @param seg - Generic io segment.
-   @param offset - Offset to be set.
  */
 static void ioseg_offset_set(struct c2_io_ioseg *seg, const uint64_t offset)
 {
@@ -101,8 +136,6 @@ static void ioseg_get(const struct c2_fop_io_vec *iovec, const int index,
 /**
    Copy src IO segment into destination. The data buffer is not copied.
    Only offset and count are copied.
-   @param src - Input IO segment.
-   @param dest - Output IO segment.
  */
 static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest)
 {
@@ -120,9 +153,7 @@ static void ioseg_copy(const struct c2_io_ioseg *src, struct c2_io_ioseg *dest)
 }
 
 /**
-   Return the number of IO segments in given IO vector.
-   @param iovec - Input io vector.
-   @retval - Number of segments contained in given io vector.
+   Returns the number of IO segments in given IO vector.
  */
 static uint32_t ioseg_nr_get(const struct c2_fop_io_vec *iovec)
 {
@@ -133,8 +164,6 @@ static uint32_t ioseg_nr_get(const struct c2_fop_io_vec *iovec)
 
 /**
    Set the number of IO segments in given IO vector.
-   @param iovec - Input io vector.
-   @param count - Set the number of IO segments to count.
  */
 static void ioseg_nr_set(struct c2_fop_io_vec *iovec, const uint64_t count)
 {
@@ -145,8 +174,6 @@ static void ioseg_nr_set(struct c2_fop_io_vec *iovec, const uint64_t count)
 
 /**
    Allocate the array of IO segments from IO vector.
-   @param iovec - Input io vector.
-   @param count - Number of segments to be allocated.
    @retval - 0 if succeeded, negative error code otherwise.
  */
 static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
@@ -164,7 +191,6 @@ static int iosegs_alloc(struct c2_fop_io_vec *iovec, const uint32_t count)
 
 /**
    Deallocate the IO vector.
-   @param iovec - Input io vector.
  */
 static void iovec_free(struct c2_fop_io_vec *iovec)
 {
@@ -173,35 +199,34 @@ static void iovec_free(struct c2_fop_io_vec *iovec)
 	c2_free(iovec);
 }
 
-/**
-   Return IO vector from given IO fop.
-   @param fop - Input fop whose IO vector has to be returned.
-   @retval - iovec from given fop.
- */
-static struct c2_fop_io_vec *iovec_get(struct c2_fop *fop)
+struct c2_fop_cob_rw *c2_io_rwv_get(struct c2_fop *fop)
 {
 	struct c2_fop_cob_readv		*read_fop;
 	struct c2_fop_cob_writev	*write_fop;
-	struct c2_fop_type		*fopt;
 
-	fopt = fop->f_type;
-	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
-			fopt == &c2_fop_cob_writev_fopt);
+	C2_PRE(fop != NULL);
+	C2_PRE(is_io(fop));
 
-	if (fopt == &c2_fop_cob_readv_fopt) {
+	if (is_read(fop)) {
 		read_fop = c2_fop_data(fop);
-		return &read_fop->c_rwv.crw_iovec;
+		return &read_fop->c_rwv;
 	} else {
 		write_fop = c2_fop_data(fop);
-		return &write_fop->c_rwv.crw_iovec;
+		return &write_fop->c_rwv;
 	}
+}
+
+/**
+   Returns IO vector from given IO fop.
+ */
+static struct c2_fop_io_vec *iovec_get(struct c2_fop *fop)
+{
+	return &(c2_io_rwv_get(fop))->crw_iovec;
 }
 
 /**
    Copy src IO vector into destination. The IO segments are not
    copied completely, rather just the pointer to it is copied.
-   @param src - Source IO vector.
-   @param dest - Destination IO vector.
  */
 static void iovec_copy(const struct c2_fop_io_vec *src,
 		struct c2_fop_io_vec *dest)
@@ -216,7 +241,6 @@ static void iovec_copy(const struct c2_fop_io_vec *src,
 
 /**
    Deallocate and remove a generic IO segment from aggr_list.
-   @param ioseg - Input generic io segment.
  */
 static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
 {
@@ -235,66 +259,33 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
-   Return the size of a fop of type c2_fop_cob_readv.
+   Returns the size of a fop of type c2_fop_cob_writev.
    @note fop.f_item.ri_type->rit_ops->rio_item_size is called.
-   @param - Read fop for which size is to be calculated
-   @retval - Returns the size of fop in number of bytes.
-   @todo Eventually will be replaced by wire formats _getsize API.
+   @todo This is a placeholder API. It will be eventually replaced by
+   wire formats _getsize API.
  */
-static uint64_t io_fop_cob_readv_getsize(struct c2_fop *fop)
+static uint64_t io_fop_rwv_getsize(struct c2_fop *fop)
 {
-	struct c2_fop_cob_readv		*read_fop;
-	uint64_t			 size = 0;
+	uint64_t		 size;
+	uint32_t		 segs_nr;
+	struct c2_fop_io_vec	*iovec;
 
 	C2_PRE(fop != NULL);
 
+	iovec = iovec_get(fop);
 	/* Size of fop layout */
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 
-	read_fop = c2_fop_data(fop);
-	C2_ASSERT(read_fop != NULL);
-	size += read_fop->c_rwv.crw_iovec.iv_count *
-		sizeof(struct c2_fop_io_seg);
-	return size;
-}
-
-/**
-   Return the size of a fop of type c2_fop_cob_writev.
-   @note fop.f_item.ri_type->rit_ops->rio_item_size is called.
-   @param - Write fop for which size is to be calculated
-   @retval - Returns the size of fop in number of bytes.
-   @todo Eventually will be replaced by wire formats _getsize API.
- */
-static uint64_t io_fop_cob_writev_getsize(struct c2_fop *fop)
-{
-	int				 i;
-	uint64_t			 size;
-	uint64_t			 vec_count;
-	struct c2_fop_cob_writev	*write_fop;
-
-	C2_PRE(fop != NULL);
-
-	/** Size of fop layout */
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	write_fop = c2_fop_data(fop);
-	C2_ASSERT(write_fop != NULL);
-	vec_count = write_fop->c_rwv.crw_iovec.iv_count;
-	/* Size of actual user data. */
-	for (i = 0; i < vec_count; ++i)
-		size += write_fop->c_rwv.crw_iovec.iv_segs[i].is_buf.ib_count;
 	/* Size of holding structure. */
-	size += vec_count * sizeof(struct c2_fop_io_seg);
+	segs_nr = ioseg_nr_get(iovec);
+	size += segs_nr * sizeof(struct c2_fop_io_seg);
 
 	return size;
 }
 
 /**
-   Return if given 2 fops belong to same type.
+   Returns if given 2 fops belong to same type.
    @note fop.f_item.ri_type->rit_ops->rio_items_equal is called.
-   @param - Fop1 to be compared with Fop2
-   @param - Fop2 to be compared with Fop1
-   @retval - TRUE if fops are of same type, FALSE otherwise.
  */
 static bool io_fop_type_equal(const struct c2_fop *fop1,
 		const struct c2_fop *fop2)
@@ -332,23 +323,16 @@ uint64_t iovec_fragments_nr_get(struct c2_fop_io_vec *iovec)
 }
 
 /**
-   Return the number of IO fragements(discontiguous buffers)
+   Returns the number of IO fragements (discontiguous buffers)
    for a fop of type read or write.
    @note fop.f_item.ri_type->rit_ops->rio_get_io_fragment_count is called.
-   @param - Read fop for which number of fragments is to be calculated
-   @retval - Returns number of IO fragments.
  */
 static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
 {
 	struct c2_fop_io_vec		*iovec;
-	struct c2_fop_type		*fopt;
 
 	C2_PRE(fop != NULL);
-
-	fopt = fop->f_type;
-
-	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
-			fopt == &c2_fop_cob_writev_fopt);
+	C2_PRE(is_io(fop));
 
 	iovec = iovec_get(fop);
 	return iovec_fragments_nr_get(iovec);
@@ -359,11 +343,6 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called || io_fop_seg_add_cond is called.
-
-   @param offset - starting offset of current IO segment from aggr_list.
-   @param count - count of bytes in current IO segment from aggr_list.
-   @param ns - New IO segment from IO vector.
-   @retval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		struct c2_io_ioseg **ns)
@@ -393,11 +372,6 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
    @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called.
-
-   @param seg - current IO segment from IO vector.
-   @param off1 - starting offset of current IO segment from aggr_list.
-   @param cnt1 - count of bytes in current IO segment from aggr_list.
-   @reval - 0 if succeeded, negative error code otherwise.
  */
 static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
 		const uint32_t cnt1)
@@ -434,7 +408,6 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
    return value is void. If something fails, everything is undone and function
    returns.
 
-   @param seg - current write segment from IO vector.
    @param aggr_list - list of write segments which gets built during
     this operation.
  */
@@ -482,11 +455,9 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 /**
    Coalesce the IO segments from a number of IO fops to create a list
    of IO segments containing merged segments.
-   @param iovec - vector of IO segments.
+   @note fop->f_type->ft_ops->fto_io_coalesce is called.
    @param aggr_list - list of IO segments which gets populated during
    this operation.
-   @retval - 0 if succeeded, negative error code otherwise.
-   @note fop->f_type->ft_ops->fto_io_coalesce is called.
 */
 static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
 		struct c2_list *aggr_list)
@@ -517,10 +488,8 @@ static int io_fop_segments_coalesce(struct c2_fop_io_vec *iovec,
    read fops or write fops. Both fop types can not be present simultaneously.
    @note fop.f_item.ri_type->rit_ops->rio_io_coalesce is called.
 
-   @param fop_list - list of fops. These structures
-   contain either read or write fops. All fops from list are either
-   read fops or write fops. Both fop types can not be present in the fop_list
-   simultaneously.
+   @param fop_list - list of fops. These structures contain either read or
+   write fops. Both fop types can not be present in the fop_list simultaneously.
    @param res_fop - resultant fop with which the resulting IO vector is
    associated.
    @param bkpfop - A fop used to store the original IO vector of res_fop
@@ -548,8 +517,7 @@ static int io_fop_coalesce(const struct c2_list *fop_list,
 	C2_PRE(res_fop != NULL);
 
 	fopt = res_fop->f_type;
-	C2_PRE(fopt == &c2_fop_cob_readv_fopt ||
-			fopt == &c2_fop_cob_writev_fopt);
+	C2_PRE(is_io(res_fop));
 
         /* Make a copy of original IO vector belonging to res_fop and place
            it in input parameter vec which can be used while restoring the
@@ -609,87 +577,39 @@ cleanup:
 }
 
 /**
-   Restore the original IO vector of resultant fop from the appropriate
-   IO vector from parameter vec.
+   Restore the original IO vector of parameter fop from the appropriate
+   IO vector from parameter bkpfop.
    @param fop - Incoming fop. This fop is same as res_fop parameter from
    the subroutine io_fop_coalesce. @see io_fop_coalesce.
-   @param vec - A union pointing to original IO vector.
+   @param bkpfop - Backup fop with which the original IO vector of
+   coalesced fop was stored.
  */
 static void io_fop_iovec_restore(struct c2_fop *fop, struct c2_fop *bkpfop)
 {
-	struct c2_fop_cob_readv		*read_fop;
-	struct c2_fop_cob_readv		*read_fop_bkp;
-	struct c2_fop_cob_writev	*write_fop;
-	struct c2_fop_cob_writev	*write_fop_bkp;
-	struct c2_fop_type		*fopt_orig;
-	struct c2_fop_type		*fopt_bkp;
-	struct c2_fop_io_vec		*write_vec;
-	struct c2_fop_io_vec		*write_vec_bkp;
-	struct c2_fop_io_vec		*read_vec;
-	struct c2_fop_io_vec		*read_vec_bkp;
+	struct c2_fop_io_vec		*vec;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(bkpfop != NULL);
 
-	fopt_orig = fop->f_type;
-	fopt_bkp = bkpfop->f_type;
-	C2_PRE(fopt_orig == fopt_bkp);
-
-	if (fopt_orig == &c2_fop_cob_readv_fopt) {
-		read_fop = c2_fop_data(fop);
-		read_fop_bkp = c2_fop_data(bkpfop);
-		read_vec = &read_fop->c_rwv.crw_iovec;
-		read_vec_bkp = &read_fop_bkp->c_rwv.crw_iovec;
-		c2_free(read_vec->iv_segs);
-		read_vec->iv_count = read_vec_bkp->iv_count;
-		read_vec->iv_segs = read_vec_bkp->iv_segs;
-	} else {
-		write_fop = c2_fop_data(fop);
-		write_fop_bkp = c2_fop_data(bkpfop);
-		write_vec = &write_fop->c_rwv.crw_iovec;
-		write_vec_bkp = &write_fop_bkp->c_rwv.crw_iovec;
-		c2_free(write_vec->iv_segs);
-		write_vec->iv_count = write_vec_bkp->iv_count;
-		write_vec->iv_segs = write_vec_bkp->iv_segs;
-	}
+	vec = iovec_get(fop);
+	c2_free(vec->iv_segs);
+	*vec = *(iovec_get(bkpfop));
 	c2_fop_free(bkpfop);
 }
 
 /**
-   Return the fid of given IO fop.
-   @param fop - Incoming fop.
+   Returns the fid of given IO fop.
    @note This method only works for read and write IO fops.
    @retval On-wire fid of given fop.
  */
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop)
 {
-	struct c2_fop_file_fid		*ffid;
-	struct c2_fop_cob_readv		*read_fop;
-	struct c2_fop_cob_writev	*write_fop;
-	struct c2_fop_type		*fopt;
-
-	C2_PRE(fop != NULL);
-
-	fopt = fop->f_type;
-	if (fopt != &c2_fop_cob_readv_fopt &&
-			fopt != &c2_fop_cob_writev_fopt)
-		return NULL;
-
-	if (fopt == &c2_fop_cob_readv_fopt) {
-		read_fop = c2_fop_data(fop);
-		ffid = &read_fop->c_rwv.crw_fid;
-	} else {
-		write_fop = c2_fop_data(fop);
-		ffid = &write_fop->c_rwv.crw_fid;
-	}
-	return ffid;
+	return &(c2_io_rwv_get(fop))->crw_fid;
 }
 
 /**
-   Return if given 2 fops refer to same fid. The fids mentioned here
+   Returns if given 2 fops refer to same fid. The fids mentioned here
    are on-wire fids.
-   @param fop1 - First fop.
-   @param fop2 - Second fop.
    @retval true if both fops refer to same fid, false otherwise.
  */
 static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
@@ -701,12 +621,7 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 	C2_PRE(fop2 != NULL);
 
 	ffid1 = io_fop_fid_get(fop1);
-	if (ffid1 == NULL)
-		return false;
-
 	ffid2 = io_fop_fid_get(fop2);
-	if (ffid2 == NULL)
-		return false;
 
 	return (ffid1->f_seq == ffid2->f_seq && ffid1->f_oid == ffid2->f_oid);
 }
@@ -717,7 +632,7 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_cob_readv_getsize,
+	.fto_size_get = io_fop_rwv_getsize,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -731,7 +646,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_cob_writev_getsize,
+	.fto_size_get = io_fop_rwv_getsize,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -751,11 +666,8 @@ static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
-   Return the size of a read_reply fop.
    @note fop.f_item.ri_type->rit_ops->rio_item_size is called.
    @todo Eventually will be replaced by wire formats _getsize API.
-
-   @param - Read fop for which size has to be calculated
  */
 static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 {
@@ -764,10 +676,10 @@ static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 
-	/** Size of fop layout */
+	/* Size of fop layout */
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 
-	if (fop->f_type->ft_code != C2_IO_SERVICE_READV_REP_OPCODE)
+	if (fop->f_type->ft_code != C2_IOSERVICE_READV_REP_OPCODE)
 		return size;
 	/* Add buffer payload for read reply */
 	read_rep_fop = c2_fop_data(fop);
@@ -786,24 +698,24 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
  * FOP definitions for readv and writev operations.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv, "Read request",
-		C2_IO_SERVICE_READV_OPCODE, &c2_io_cob_readv_ops);
+		C2_IOSERVICE_READV_OPCODE, &c2_io_cob_readv_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev, "Write request",
-		C2_IO_SERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops);
+		C2_IOSERVICE_WRITEV_OPCODE, &c2_io_cob_writev_ops);
 
 /**
  * FOP definitions of readv and writev reply FOPs.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
-		    C2_IO_SERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    C2_IOSERVICE_WRITEV_REP_OPCODE, &c2_io_rwv_rep_ops);
 C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
-		    C2_IO_SERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
+		    C2_IOSERVICE_READV_REP_OPCODE, &c2_io_rwv_rep_ops);
 
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
 	&c2_fop_io_buf_tfmt,
 	&c2_fop_io_seg_tfmt,
 	&c2_fop_io_vec_tfmt,
-	&c2_fop_cob_rwv_tfmt,
+	&c2_fop_cob_rw_tfmt,
 };
 
 static struct c2_fop_type *ioservice_fops[] = {

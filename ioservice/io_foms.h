@@ -25,23 +25,23 @@
 /**
  * @defgroup io_foms Fop State Machines for various FOPs
  *
- * <b>Fop state machine for IO operations </b>
+ * Fop state machine for IO operations
  * @see fom
  * @ref https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg&hl=en
  *
  * FOP state machines for various IO operations like
- * @li COB Readv
- * @li COB Writev
+ * COB Readv
+ * COB Writev
  *
  * All operation specific code will be executed in a single phase
  * for now. It will be decomposed into more granular phases
  * when FOM and reqh infrastructure is in place.
  *
- * <i> Note on naming convention: For operation xyz, the fop is named
+ * @note Naming convention: For operation xyz, the fop is named
  * as c2_fop_xyz, its corresponding reply fop is named as c2_fop_xyz_rep
  * and fom is named as c2_fom_xyz. For each fom type, its corresponding
  * create, state and fini methods are named as c2_fom_xyz_create,
- * c2_fom_xyz_state, c2_fom_xyz_fini respectively </i>
+ * c2_fom_xyz_state, c2_fom_xyz_fini respectively.
  *
  *  @{
  */
@@ -51,16 +51,8 @@
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 
-#if 0
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
-#endif
-
 /**
- * Function to map given fid to corresponding Component object id(in turn,
+ * Function to map given fid to corresponding component object id (in turn,
  * storage object id).
  * Currently, this mapping is identity. But it is subject to
  * change as per the future requirements.
@@ -81,15 +73,6 @@ int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
  * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
  */
 struct c2_fom_type* c2_io_fom_type_map(c2_fop_type_code_t code);
-
-/**
- * The various phases for writev FOM.
- * Not used as of now. Will be used once the
- * complete FOM and reqh infrastructure is in place.
- */
-enum c2_io_fom_cob_writev_phases{
-	FOPH_COB_WRITE
-};
 
 /**
  * Object encompassing FOM for file create
@@ -120,14 +103,6 @@ struct c2_io_fom_cob_rwv {
 };
 
 /**
- * <b> State Transition function for "read and write IO" operation
- *     that executes on data server. </b>
- *  - Submit the read/write IO request to the corresponding cob.
- *  - Send reply FOP to client.
- */
-int c2_io_fom_cob_rwv_state(struct c2_fom *fom);
-
-/**
  * <b> State Transition function for "create" operation
  *     that executes on data server. </b>
  *  - Send reply FOP to client.
@@ -139,8 +114,8 @@ int c2_io_fom_file_create_state(struct c2_fom *fom);
  * Not used as of now. Will be used once the
  * complete FOM and reqh infrastructure is in place.
  */
-enum c2_io_fom_cob_readv_phases {
-	FOPH_COB_READ
+enum c2_io_fom_cob_rwv_phases {
+	FOPH_COB_IO,
 };
 
 /** Finish method of read FOM object */

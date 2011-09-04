@@ -778,7 +778,7 @@ void client_init()
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
-	io_fop_data_init();
+	//io_fop_data_init();
 	c2_mutex_init(&fid_mutex);
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
