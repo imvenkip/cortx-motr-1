@@ -344,8 +344,7 @@ static uint64_t io_fop_fragments_nr_get(struct c2_fop *fop)
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called || io_fop_seg_add_cond is called.
  */
-static int io_fop_seg_init(uint64_t offset, uint32_t count,
-		struct c2_io_ioseg **ns)
+static int io_fop_seg_init(struct c2_io_ioseg **ns, struct c2_io_ioseg *cseg)
 {
 	struct c2_io_ioseg	*new_seg;
 
@@ -359,10 +358,8 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
 		c2_free(new_seg);
 		return -ENOMEM;
 	}
-
-	ioseg_offset_set(new_seg, offset);
-	ioseg_count_set(new_seg, count);
 	*ns = new_seg;
+	*new_seg = *cseg;
 	return 0;
 }
 
@@ -373,23 +370,26 @@ static int io_fop_seg_init(uint64_t offset, uint32_t count,
    @note io_fop_segments_coalesce is called.
    @note io_fop_seg_coalesce is called.
  */
-static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
-		const uint32_t cnt1)
+static int io_fop_seg_add_cond(struct c2_io_ioseg *cseg,
+		struct c2_io_ioseg *nseg)
 {
 	int			 rc = 0;
+	uint64_t		 off1;
 	uint64_t		 off2;
 	struct c2_io_ioseg	*new_seg;
 
-	C2_PRE(seg != NULL);
+	C2_PRE(cseg != NULL);
+	C2_PRE(nseg != NULL);
 
-	off2 = ioseg_offset_get(seg);
+	off1 = ioseg_offset_get(nseg);
+	off2 = ioseg_offset_get(cseg);
 
 	if (off1 < off2) {
-		rc = io_fop_seg_init(off1, cnt1, &new_seg);
+		rc = io_fop_seg_init(&new_seg, nseg);
 		if (rc < 0)
 			return rc;
 
-		c2_list_add_before(&seg->io_linkage, &new_seg->io_linkage);
+		c2_list_add_before(&cseg->io_linkage, &new_seg->io_linkage);
 	} else
 		rc = -EINVAL;
 
@@ -411,13 +411,11 @@ static int io_fop_seg_add_cond(struct c2_io_ioseg *seg, const uint64_t off1,
    @param aggr_list - list of write segments which gets built during
     this operation.
  */
-static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
+static void io_fop_seg_coalesce(struct c2_io_ioseg *seg,
 		struct c2_list *aggr_list)
 {
 	int				 rc = 0;
 	bool				 added = false;
-	uint64_t			 off1;
-	uint32_t			 cnt1;
 	struct c2_io_ioseg		*new_seg;
 	struct c2_io_ioseg		*ioseg;
 	struct c2_io_ioseg		*ioseg_next;
@@ -425,16 +423,12 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 	C2_PRE(seg != NULL);
 	C2_PRE(aggr_list != NULL);
 
-	/* off1 and cnt1 are offset and count of incoming IO segment. */
-	off1 = ioseg_offset_get(seg);
-	cnt1 = ioseg_count_get(seg);
-
 	c2_list_for_each_entry_safe(aggr_list, ioseg, ioseg_next,
 			struct c2_io_ioseg, io_linkage) {
 		/* If given segment fits before some other segment
 		   in increasing order of offsets, add it before
 		   current segments from aggr_list. */
-		rc = io_fop_seg_add_cond(ioseg, off1, cnt1);
+		rc = io_fop_seg_add_cond(ioseg, seg);
 		if (rc == -ENOMEM)
 			return;
 		if (rc == 0) {
@@ -445,7 +439,7 @@ static void io_fop_seg_coalesce(const struct c2_io_ioseg *seg,
 
 	/* Add a new IO segment unconditionally in aggr_list. */
 	if (!added) {
-		rc = io_fop_seg_init(off1, cnt1, &new_seg);
+		rc = io_fop_seg_init(&new_seg, seg);
 		if (rc < 0)
 			return;
 		c2_list_add_tail(aggr_list, &new_seg->io_linkage);
