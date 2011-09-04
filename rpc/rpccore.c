@@ -1226,6 +1226,8 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
@@ -1238,6 +1240,8 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
@@ -1354,21 +1358,24 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		   is kept blank */
 		break;
 	};
+	/* XXX : Assign unique opcode to associated rpc item type.
+	 *       Will be removed once proper mapping and association between
+	 *	 rpc item and fop is established
+	 */
 	if(fopt->ft_ri_type != NULL)
 		fopt->ft_ri_type->rit_opcode = opcode;
 }
-
-
+/*
 void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 {
-/*	uint32_t		opcode;
+	uint32_t		opcode;
 
 	C2_PRE(fopt != NULL);
 
 	opcode = fopt->ft_code;
 	if(fopt->ft_ri_type != NULL)
 		fopt->ft_ri_type->rit_opcode = opcode;
-*/}
+}*/
 /**
   Set the stats for outgoing rpc item
   @param item - incoming or outgoing rpc item

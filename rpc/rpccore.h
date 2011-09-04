@@ -594,11 +594,6 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 void c2_rpc_item_attach(struct c2_rpc_item *item);
 
 /**
-   Assign the fop opcode to its associated rpc item type.
-   @param item - given rpc item.
- */
-void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt);
-/**
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */

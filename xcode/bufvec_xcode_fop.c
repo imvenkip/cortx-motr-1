@@ -122,6 +122,8 @@ static c2_xcode_foptype_t xcode_type_disp[FFA_NR] = {
    @param cur current position of bufvec cursor.
    @param fop_data pointer to fop data to be encode/decoded.
    @param fieldno The fop field no.
+   @param elno The element no to be encoded/decoded, usually non-zero for
+    sequence type fop fields.
    @param what The type of operation to be performed - encode or decode.
 
    @retval 0 On success.
@@ -139,14 +141,12 @@ static int xcode_fop_subtype(struct c2_fop_field_type *fftype,
 	C2_PRE(fftype != NULL);
 	C2_PRE(cur != NULL);
 	C2_PRE(fop_data != NULL);
+	C2_PRE(fieldno < fftype->fft_nr);
 
 	obj_field_addr = c2_fop_type_field_addr(fftype, fop_data, fieldno,
 						elno);
 	ff_subtype = fftype->fft_child[fieldno]->ff_type;
-
-	C2_PRE(fieldno < fftype->fft_nr);
-	fop_field_aggr_type = fftype->fft_child[fieldno]->ff_type->fft_aggr;
-
+	fop_field_aggr_type = ff_subtype->fft_aggr;
 	return xcode_type_disp[fop_field_aggr_type]
 			      (ff_subtype, cur, obj_field_addr, what);
 }
