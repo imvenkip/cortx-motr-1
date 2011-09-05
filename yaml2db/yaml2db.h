@@ -24,13 +24,26 @@
 #include "../yaml/include/yaml.h"
 
 /**
+   @defgroup yaml2db YAML to Database Parser
+
+   @brief The yaml2db utility carries out following operations:
+   @li parsing the configuration file in yaml format on management server
+   @li storing the parsed information in database 
+
+
+   See <a href="https://docs.google.com/a/xyratex.com/document/d/1Y2FccWZFA9yWXJiC-kld0XUrexoindOpMiHEGkqc3Rc/edit?hl=en_US">DLD of Configuration (dev_enum) </a>
+   for details on the design.
+
+   @{
+
+ */
+
+/**
   yaml2db structure
 */
 struct c2_yaml2db_ctx {
 	/* YAML parser struct */
 	yaml_parser_t		 yc_parser;
-	/* YAML event structure */
-	yaml_event_t		 yc_event;
 	/* YAML document structure */
 	yaml_document_t		 yc_document;
 	/* Root node of the yaml_document */
@@ -82,7 +95,7 @@ struct c2_yaml2db_section {
   Iterates over a yaml sequence
   @param ctx - yaml2db context
   @param node - starting node of the sequence
-  @param item - yaml_node_item_t
+  @param item - yaml_node_item_t pointer
   @param s_node - sequence node at index pointed by item
 */
 #define c2_yaml2db_sequence_for_each(ctx, node, item, s_node) \
@@ -95,7 +108,7 @@ struct c2_yaml2db_section {
   Iterates over a yaml mapping
   @param ctx - yaml2db context
   @param node - starting node of the sequence
-  @param pair - yaml_node_pair_t
+  @param pair - yaml_node_pair_t pointer
   @param k_node - mapping node at index pointed by mapping pair key
   @param v_node - mapping node at index pointed by mapping pair value
  */
@@ -103,10 +116,12 @@ struct c2_yaml2db_section {
 	for (pair = (node)->data.mapping.pairs.start; \
 	     pair < (node)->data.mapping.pairs.top && \
 	     (k_node = yaml_document_get_node(&(ctx)->yc_document, \
-		     (pair)->key)) &&\
+		     pair->key)) &&\
 	     (v_node = yaml_document_get_node(&(ctx)->yc_document, \
-		     (pair)->value)); \
+		     pair->value)); \
 	     pair++)
+
+/** @} end of yaml2db group */
 
 #endif /* __COLIBRI_YAML2DB_H__ */
 

@@ -37,8 +37,14 @@
 #include "lib/thread.h"
 #include "yaml2db/yaml2db.h"
 
+/**
+  @addtogroup yaml2db
+  @{
+ */
+
+
 /* Constant names and paths */
-static const char *D_PATH = "__config_db";
+static const char *D_PATH = "./__config_db";
 static const char *disk_table = "disk_table";
 static const char *disk_str = "disks";
 
@@ -187,11 +193,14 @@ static void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 {
 	C2_PRE(yctx != NULL);
 
-	yaml_document_delete(&yctx->yc_document);
-	yaml_parser_delete(&yctx->yc_parser);
+	if (&yctx->yc_document != NULL)
+		yaml_document_delete(&yctx->yc_document);
+	if (&yctx->yc_parser != NULL)
+		yaml_parser_delete(&yctx->yc_parser);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
-	c2_dbenv_fini(&yctx->yc_db);
+	if (&yctx->yc_db.d_i != NULL)
+		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
 
@@ -399,7 +408,7 @@ static bool validate_key_from_section(const yaml_char_t *key,
   Function to parse the yaml document
   @param yctx - yaml2db context
   @param ysec - section context corrsponding to the given parameter
-  @param conf-param - parameter for which configuration has to be loaded
+  @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
 static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
@@ -452,8 +461,11 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 		c2_yaml2db_mapping_for_each (yctx, s_node, pair,
 				k_node, v_node) {
 			if(!validate_key_from_section(k_node->data.
-						scalar.value, ysec))
+						scalar.value, ysec)) {
+				fprintf(stderr, "Error: invalid key: %s\n",
+						k_node->data.scalar.value);
 				continue;
+		}
 			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
 					v_node->data.scalar.value,
 					sizeof(v_node->data.scalar.value));
@@ -469,6 +481,14 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 			}
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
+#if 0
+                       printf("Key: %d, node(value): %s\t\
+                                value: %d node(value): %s\n",
+                                pair->key,
+                                k_node->data.scalar.value,
+                                pair->value,
+                                v_node->data.scalar.value);
+#endif
 			key++;
 		}
 	}
@@ -530,16 +550,14 @@ int main(int argc, char *argv[])
 		C2_STRINGARG('f', "config file in yaml format",
 			LAMBDA(void, (const char *str) {c_name = str; })));
 
-	if (rc != 0) {
-		c2_fini();
-		return rc;
-	}
+	if (rc != 0)
+		goto cleanup;
 
 	/* Config file has to be specified as a command line option */
 	if (c_name == NULL) {
-		printf("Error: Config file path not specified\n");
-		c2_fini();
-		return -EINVAL;
+		fprintf(stderr, "Error: Config file path not specified\n");
+		rc = -EINVAL;
+		goto cleanup;
 	}
 	yctx.yc_cname = c_name;
 
@@ -554,8 +572,7 @@ int main(int argc, char *argv[])
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_init", 0);
-		c2_fini();
-		return rc;
+		goto cleanup;
 	}
 
 	/* Load the information from yaml file to yaml_document, and check for
@@ -564,7 +581,7 @@ int main(int argc, char *argv[])
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_doc_load", 0);
-		goto cleanup;
+		goto cleanup_parser_db;
 	}
 
 	/* Load the parameter specific section table */
@@ -572,7 +589,7 @@ int main(int argc, char *argv[])
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_load_disk_section", 0);
-		goto cleanup;
+		goto cleanup_parser_db;
 	}
 
 
@@ -584,12 +601,15 @@ int main(int argc, char *argv[])
 	}
 
 	/* Finalize the parser and database environment */
-cleanup:
+cleanup_parser_db:
 	yaml2db_fini(&yctx);
+cleanup:
 	c2_fini();
 
 	return rc;
 }
+
+/** @} end of yaml2db group */
 
 /*
  *  Local variables:
