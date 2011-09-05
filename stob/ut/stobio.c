@@ -47,7 +47,7 @@ enum {
 	RW_BUFF_NR    = 10,
 	MIN_BUFF_SIZE = 4096,
 	MIN_BUFF_SIZE_IN_BLOCKS = 4,
-	TEST_NR = 5
+	TEST_NR = 10
 };
 
 struct stobio_test {
@@ -57,6 +57,9 @@ struct stobio_test {
 
 	struct c2_stob_domain   *st_dom;
 	struct c2_stob_io	 st_io;
+
+	/* this flag controls whether to use direct IO */
+	bool st_directio;
 
 	size_t   st_rw_buf_size;
 	size_t   st_rw_buf_size_in_blocks;
@@ -78,11 +81,19 @@ struct stobio_test {
 static struct c2_mutex lock;
 static struct c2_thread thread[TEST_NR];
 struct stobio_test test[TEST_NR] = {
-	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } } },
-	[1] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } } },
-	[2] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } } },
-	[3] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } } },
-	[4] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } } }
+	/* buffered IO tests */
+	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } }, .st_directio = false },
+	[1] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } }, .st_directio = false },
+	[2] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } }, .st_directio = false },
+	[3] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } }, .st_directio = false },
+	[4] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } }, .st_directio = false },
+
+	/* direct IO tests */
+	[5] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } }, .st_directio = true },
+	[6] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } }, .st_directio = true },
+	[7] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } }, .st_directio = true },
+	[8] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } }, .st_directio = true },
+	[9] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } }, .st_directio = true },
 };
 
 static void stobio_io_prepare(struct stobio_test *test,
@@ -235,6 +246,9 @@ static int stobio_init(struct stobio_test *test)
 
 	result = linux_stob_type.st_op->
 		sto_domain_locate(&linux_stob_type, "./__s", &test->st_dom);
+	C2_UT_ASSERT(result == 0);
+
+	result = c2_linux_stob_setup(test->st_dom, test->st_directio);
 	C2_UT_ASSERT(result == 0);
 
 	result = test->st_dom->sd_ops->

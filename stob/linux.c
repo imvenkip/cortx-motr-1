@@ -130,7 +130,7 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 
    Initialises adieu sub-system for the domain.
 
-   @note the domain returned is ready for use, but linux_setup() can be called
+   @note the domain returned is ready for use, but c2_linux_stob_setup() can be called
    against it in order to customize some configuration options (currently there
    is only one such option: "use_directio" flag).
  */
@@ -165,7 +165,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
-int linux_setup( struct c2_stob_domain *dom, bool use_directio)
+int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio)
 {
 	struct linux_domain *ldom;
 
@@ -176,6 +176,7 @@ int linux_setup( struct c2_stob_domain *dom, bool use_directio)
 
 	return 0;
 }
+C2_EXPORTED(c2_linux_stob_setup);
 
 static bool linux_stob_invariant(const struct linux_stob *lstob)
 {
@@ -401,18 +402,20 @@ const struct c2_addb_ctx_type adieu_addb_ctx_type = {
 
 struct c2_addb_ctx adieu_addb_ctx;
 
-int linux_stobs_init(void)
+int c2_linux_stobs_init(void)
 {
 	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, 
 			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
+C2_EXPORTED(c2_linux_stobs_init);
 
-void linux_stobs_fini(void)
+void c2_linux_stobs_fini(void)
 {
 	linux_stob_type.st_op->sto_fini(&linux_stob_type);
 	c2_addb_ctx_fini(&adieu_addb_ctx);
 }
+C2_EXPORTED(c2_linux_stobs_fini);
 
 /** @} end group stoblinux */
 

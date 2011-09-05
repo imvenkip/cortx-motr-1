@@ -63,7 +63,7 @@ struct linux_domain {
 
 	/**
 	 *  Controls whether to use O_DIRECT flag for open(2).
-	 *  Can be set with linux_setup().
+	 *  Can be set with c2_linux_stob_setup().
 	 *  Initial value is set to 'false' in linux_stob_type_domain_locate().
 	 */
 	bool use_directio;
