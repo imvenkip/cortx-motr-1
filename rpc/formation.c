@@ -755,6 +755,8 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	if (ev->nbe_status == 0) {
+		frm_sm = fb->fb_frm_sm;
+		c2_mutex_lock(&frm_sm->fs_lock);
 		frm_item_set_rpc_stats(fb->fb_rpc);
 		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SENT);
 
@@ -767,6 +769,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		c2_rpc_rpcobj_fini(fb->fb_rpc);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
+		c2_mutex_unlock(&frm_sm->fs_lock);
 	} else {
 		/* If the send event fails, add the rpc back to concerned
 		   queue so that it will be processed next time.*/
