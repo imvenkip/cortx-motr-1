@@ -33,7 +33,6 @@
 #include "rpc/formation.h"
 #include "fid/fid.h"
 #ifndef __KERNEL__
-#include "rpc/it/ping_fop.h"
 #endif
 #include "rpc/rpc_onwire.h"
 
@@ -1244,48 +1243,12 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
         .rito_decode = c2_rpc_fop_default_decode,
 };
 
-static const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = c2_rpc_item_equal,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
-static const struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
-        .rito_sent = NULL,
-        .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
-        .rito_item_size = c2_rpc_item_default_size,
-        .rito_items_equal = c2_rpc_item_equal,
-        .rito_get_io_fragment_count = NULL,
-        .rito_io_coalesce = NULL,
-        .rito_encode = c2_rpc_fop_default_encode,
-        .rito_decode = c2_rpc_fop_default_decode,
-};
-
 static struct c2_rpc_item_type rpc_item_type_readv = {
 	.rit_ops = &rpc_item_readv_type_ops,
 };
 
 static struct c2_rpc_item_type rpc_item_type_writev = {
 	.rit_ops = &rpc_item_writev_type_ops,
-};
-
-static struct c2_rpc_item_type rpc_item_type_ping = {
-        .rit_ops = &rpc_item_ping_type_ops,
-        .rit_mutabo = true,
-        .rit_item_is_req = true,
-};
-
-static struct c2_rpc_item_type rpc_item_type_ping_rep = {
-        .rit_ops = &rpc_item_ping_rep_type_ops,
-        .rit_mutabo = false,
-        .rit_item_is_req = false,
 };
 
 /**
@@ -1307,12 +1270,6 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 		break;
 	case C2_IOSERVICE_WRITEV_OPCODE:
 		item->ri_type = &rpc_item_type_writev;
-		break;
-	case c2_fop_ping_opcode:
-		item->ri_type = &rpc_item_type_ping;
-		break;
-	case c2_fop_ping_rep_opcode:
-		item->ri_type = &rpc_item_type_ping_rep;
 		break;
 	default:
 		C2_ASSERT(item->ri_type != NULL);
@@ -1345,12 +1302,6 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 		break;
 	case C2_IOSERVICE_WRITEV_OPCODE:
 		fopt->ft_ri_type = &rpc_item_type_writev;
-		break;
-	case c2_fop_ping_opcode:
-		fopt->ft_ri_type = &rpc_item_type_ping;
-		break;
-	case c2_fop_ping_rep_opcode:
-		fopt->ft_ri_type = &rpc_item_type_ping_rep;
 		break;
 	default:
 		/* FOP operations which need to set opcode should either
