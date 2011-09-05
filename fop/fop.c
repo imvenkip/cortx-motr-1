@@ -45,6 +45,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		fop->f_private = NULL;
 		c2_rpc_item_init(&fop->f_item);
 		/* Associate rpc_item_type with the rpc item. */
+		//fop->f_item.ri_type = &fopt->ft_ri_type->fri_i_type;
 		fop->f_item.ri_type = fopt->ft_ri_type;
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)
@@ -175,10 +176,41 @@ struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 	return &fop->f_item;
 }
 
-struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item)
+struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
+/* onwire_fmt
+struct c2_fop_type *c2_item_type_to_fop_type
+		    (const struct c2_rpc_item_type *item_type)
+{
+	struct c2_fop_type		*ftype;
+	struct c2_fop_rpc_item_type	*fri_type;
+
+	C2_PRE(item_type != NULL);
+
+	fri_type = container_of(item_type, struct c2_fop_rpc_item_type,
+				fri_i_type);
+	ftype = fri_type->fri_f_type;
+	return ftype;
+}
+C2_EXPORTED(c2_item_type_to_fop_type);
+*/
+struct c2_fop_type *c2_item_type_to_fop_type
+		    (const struct c2_rpc_item_type *item_type)
+{
+	struct c2_fop_type		*ftype;
+	int				 opcode;
+	C2_PRE(item_type != NULL);
+
+	opcode = item_type->rit_opcode;
+	ftype = c2_fop_type_search(opcode);
+	C2_ASSERT(ftype != NULL);
+	return ftype;
+}
+C2_EXPORTED(c2_item_type_to_fop_type);
+
+
 
 #endif /* __KERNEL__ */
 

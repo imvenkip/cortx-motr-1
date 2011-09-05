@@ -480,6 +480,7 @@ void send_ping_fop(int nr)
 	uint32_t			 nr_mod;
 	uint32_t			 nr_arr_member;
 	int				 i;
+	struct c2_fop_type		*ftype;
 
 	nr_mod = cctx.pc_nr_ping_bytes % 8;
 	if (nr_mod == 0)
@@ -502,6 +503,9 @@ void send_ping_fop(int nr)
 	item->ri_group = NULL;
 	item->ri_mach = &cctx.pc_rpc_mach;
 	c2_rpc_item_attach(item);
+	ftype = fop->f_type;
+	/** Associate ping fop type with its item type */
+	c2_rpc_item_type_attach(ftype);
 	item->ri_session = &cctx.pc_rpc_session;
 	c2_rpc_post(item);
 }

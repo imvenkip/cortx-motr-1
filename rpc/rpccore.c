@@ -51,6 +51,12 @@ static const struct c2_addb_loc rpc_machine_addb_loc = {
 C2_ADDB_EV_DEFINE(rpc_machine_func_fail, "rpc_machine_func_fail",
 		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+/** onwire_fmt List of all known rpc item types 
+static struct c2_list  rpc_item_types_list;
+
+Lock for list of item types 
+static struct c2_rwlock rpc_item_types_lock;
+*/
 
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
@@ -317,13 +323,17 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
+	/* onwire_fmt c2_list_init(&rpc_item_types_list);
+	c2_rwlock_init(&rpc_item_types_lock);*/
 	return c2_rpc_session_module_init();
 }
+C2_EXPORTED(c2_rpc_core_init);
 
 void c2_rpc_core_fini(void)
 {
 	c2_rpc_session_module_fini();
 }
+C2_EXPORTED(c2_rpc_core_fini);
 
 static void rpc_chan_ref_release(struct c2_ref *ref)
 {
@@ -1008,6 +1018,7 @@ void us_timeout(struct c2_update_stream *us)
 {
 	//DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
 }
+
 void us_recovery_complete(struct c2_update_stream *us)
 {
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
@@ -1037,7 +1048,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
    RPC item ops function
    Function to return size of fop
  */
-uint64_t c2_rpc_item_size(struct c2_rpc_item *item)
+uint64_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	struct c2_fop			*fop = NULL;
 	uint64_t			 size = 0;
@@ -1085,6 +1096,48 @@ bool c2_rpc_item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	C2_ASSERT(fop1 != NULL);
 	C2_ASSERT(fop2 != NULL);
 	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
+}
+
+/** onwire_fmt Registers a new rpc item type with the RPC subsystem 
+void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
+{
+	C2_PRE(item_type != NULL);
+
+	c2_rwlock_write_lock(&rpc_item_types_lock);
+	c2_list_add(&rpc_item_types_list, &item_type->rit_linkage);
+	c2_rwlock_write_unlock(&rpc_item_types_lock);
+}*/
+
+/** onwire_fmt Returns an rpc item type for a specific rpc item opcode 
+struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
+{
+	struct c2_rpc_item_type *item_type;
+	bool			 found = false;
+	c2_rwlock_read_lock(&rpc_item_types_lock);
+	c2_list_for_each_entry(&rpc_item_types_list, item_type,
+	                       struct c2_rpc_item_type, rit_linkage) {
+		if( item_type->rit_opcode == opcode) {
+			found = true;
+			break;
+		}
+	}
+	c2_rwlock_read_unlock(&rpc_item_types_lock);
+	if(found)
+		return item_type;
+
+	return NULL;
+}
+*/
+struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
+{
+	struct c2_fop_type    		*ftype;
+	struct c2_rpc_item_type		*item_type;
+
+	ftype = c2_fop_type_search(opcode);
+	C2_ASSERT(ftype != NULL);
+	C2_ASSERT(ftype->ft_ri_type != NULL);
+	item_type = ftype->ft_ri_type;
+	return item_type;
 }
 
 /**
@@ -1173,6 +1226,8 @@ static const struct c2_rpc_item_type_ops rpc_item_readv_type_ops = {
 	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
@@ -1185,6 +1240,8 @@ static const struct c2_rpc_item_type_ops rpc_item_writev_type_ops = {
 	.rito_fid_equal = c2_rpc_item_fid_equal,
 	.rito_get_io_fragment_count = c2_rpc_item_get_io_fragment_count,
 	.rito_io_coalesce = c2_rpc_item_io_coalesce,
+        .rito_encode = c2_rpc_fop_default_encode,
+        .rito_decode = c2_rpc_fop_default_decode,
 };
 
 static const struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
@@ -1289,14 +1346,36 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	case C2_IOSERVICE_WRITEV_OPCODE:
 		fopt->ft_ri_type = &rpc_item_type_writev;
 		break;
+	case c2_fop_ping_opcode:
+		fopt->ft_ri_type = &rpc_item_type_ping;
+		break;
+	case c2_fop_ping_rep_opcode:
+		fopt->ft_ri_type = &rpc_item_type_ping_rep;
+		break;
 	default:
 		/* FOP operations which need to set opcode should either
 		   attach on their own, or use this subroutine. Hence default
 		   is kept blank */
 		break;
 	};
+	/* XXX : Assign unique opcode to associated rpc item type.
+	 *       Will be removed once proper mapping and association between
+	 *	 rpc item and fop is established
+	 */
+	if(fopt->ft_ri_type != NULL)
+		fopt->ft_ri_type->rit_opcode = opcode;
 }
+/*
+void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
+{
+	uint32_t		opcode;
 
+	C2_PRE(fopt != NULL);
+
+	opcode = fopt->ft_code;
+	if(fopt->ft_ri_type != NULL)
+		fopt->ft_ri_type->rit_opcode = opcode;
+}*/
 /**
   Set the stats for outgoing rpc item
   @param item - incoming or outgoing rpc item
