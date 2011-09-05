@@ -148,6 +148,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	case C2_RPC_SESSION_TERMINATED:
 		return  !c2_list_link_is_in(&session->s_link) &&
 			session->s_cob == NULL &&
+			c2_list_is_empty(&session->s_unbound_items) &&
 			session->s_nr_active_items == 0;
 
 	case C2_RPC_SESSION_IDLE:
@@ -316,7 +317,6 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 out_err:
 	C2_ASSERT(rc != 0);
 	__session_fini(session);
-	C2_SET0(session);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_init);
@@ -332,7 +332,6 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	__session_fini(session);
-	C2_SET0(session);
 	session->s_session_id = SESSION_ID_INVALID;
 }
 C2_EXPORTED(c2_rpc_session_fini);

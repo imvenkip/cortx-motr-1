@@ -51,6 +51,8 @@
    @{
  */
 
+static const char conn_cob_name_fmt[] = "SENDER_%lu";
+
 /**
    Attaches session 0 object to conn object.
  */
@@ -223,7 +225,6 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 	C2_SET0(conn);
 	conn->c_flags = RCF_SENDER_END;
 	c2_rpc_sender_uuid_generate(&conn->c_uuid);
-	printf("rci: conn uuid %lu\n", (unsigned long)conn->c_uuid.su_uuid);
 	rc = __conn_init(conn, ep, machine);
 
 	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -376,7 +377,8 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	conn->c_state = C2_RPC_CONN_FAILED;
 	conn->c_rc = error;
 	/*
-	 * Remove conn from conn->c_rpcmachine->cr_outgoing_conns list
+	 * Remove conn from conn->c_rpcmachine->cr_outgoing_conns or
+	 * conn->c_rpcmachine->cr_incoming_conns list
 	 */
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_list_del(&conn->c_link);
@@ -410,11 +412,12 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	 */
 	machine = conn->c_rpcmachine;
 
+	conn->c_state = C2_RPC_CONN_CONNECTING;
+
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_outgoing_conns, &conn->c_link);
 	c2_mutex_unlock(&machine->cr_session_mutex);
 
-	conn->c_state = C2_RPC_CONN_CONNECTING;
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	conn->c_rpcchan = c2_rpc_chan_get(machine);
@@ -527,8 +530,6 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	if (session == NULL)
 		return -ENOMEM;
 
-	C2_SET0(session);
-
 	rc = c2_rpc_session_init(session, conn, 1);   /* 1 => number of slots */
 	if (rc != 0) {
 		c2_free(session);
@@ -593,6 +594,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	 */
 	if (conn->c_state == C2_RPC_CONN_TERMINATING) {
 		rc = 0;
+		c2_fop_free(fop);
 		goto out_unlock;
 	}
 
@@ -614,9 +616,9 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	if (rc != 0) {
 		conn_failed(conn, rc);
 		c2_fop_free(fop);
-		fop = NULL;
 	}
-	C2_ASSERT(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
+	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
+	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 
@@ -678,14 +680,15 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req,
 		goto out;
 	}
 
+	/*
+	 * Update conn state depending on rc reported in reply fop.
+	 * session 0 will be cleaned up in c2_rpc_conn_fini().
+	 */
 	if (fop_ctr->ctr_rc == 0) {
 		printf("ctrr: connection terminated %lu\n",
 			(unsigned long)conn->c_sender_id);
 		conn->c_state = C2_RPC_CONN_TERMINATED;
 		conn->c_sender_id = SENDER_ID_INVALID;
-		/*
-		 * session 0 will be cleaned up in c2_rpc_conn_fini()
-		 */
 	} else {
 		/*
 		 * Connection termination failed
@@ -706,7 +709,6 @@ out:
 	c2_rpc_chan_put(conn->c_rpcchan);
 }
 
-
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 			   uint64_t              sender_id,
 			   struct c2_cob       **out,
@@ -722,7 +724,7 @@ int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
 	if (rc != 0)
 		return rc;
 
-	sprintf(name, "SENDER_%lu", (unsigned long)sender_id);
+	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
 
 	rc = c2_rpc_cob_lookup_helper(dom, root_session_cob, name, out, tx);
 	c2_cob_put(root_session_cob);
@@ -743,10 +745,10 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain *dom,
 	C2_PRE(dom != NULL && out != NULL);
 	C2_PRE(sender_id != SENDER_ID_INVALID);
 
-	sprintf(name, "SENDER_%lu", (unsigned long)sender_id);
+	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
 	*out = NULL;
 
-	rc = c2_rpc_cob_lookup_helper(dom, NULL, "SESSIONS",
+	rc = c2_rpc_cob_lookup_helper(dom, NULL, root_session_cob_name,
 					&root_session_cob, tx);
 	if (rc != 0) {
 		C2_ASSERT(rc != -EEXIST);
@@ -863,33 +865,43 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	machine = conn->c_rpcmachine;
 	C2_ASSERT(machine != NULL && machine->cr_dom != NULL);
 
-	c2_db_tx_init(&tx, machine->cr_dom->cd_dbenv, 0);
+	conn->c_state = C2_RPC_CONN_CONNECTING;
+
+	c2_mutex_lock(&machine->cr_session_mutex);
+	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
+	c2_mutex_unlock(&machine->cr_session_mutex);
+
+	rc = c2_db_tx_init(&tx, machine->cr_dom->cd_dbenv, 0);
+	if (rc != 0) {
+		conn_failed(conn, rc);
+		goto out_unlock;
+	}
+
 	sender_id = sender_id_allocate();
 	rc = conn_persistent_state_attach(conn, sender_id,
 					  &tx);
 	if (rc != 0) {
-		conn->c_state = C2_RPC_CONN_FAILED;
-		conn->c_rc = rc;
+		conn_failed(conn, rc);
 		c2_db_tx_abort(&tx);
-		C2_ASSERT(c2_rpc_conn_invariant(conn));
-		c2_mutex_unlock(&conn->c_mutex);
-		return rc;
+		goto out_unlock;
 	}
-	c2_db_tx_commit(&tx);
+
+	rc = c2_db_tx_commit(&tx);
+	if (rc != 0) {
+		conn_failed(conn, rc);
+		goto out_unlock;
+	}
 
 	conn->c_sender_id = sender_id;
 	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
 
-	c2_mutex_lock(&machine->cr_session_mutex);
-
-	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
-
-	c2_mutex_unlock(&machine->cr_session_mutex);
-
+out_unlock:
+	C2_POST(ergo(rc == 0, conn->c_state == C2_RPC_CONN_ACTIVE));
+	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_mutex_unlock(&conn->c_mutex);
-	return 0;
+	return rc;
 }
 
 static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
@@ -915,6 +927,7 @@ static int conn_persistent_state_destroy(struct c2_rpc_conn *conn,
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 {
 	struct c2_db_tx tx;
+	int             rc;
 
 	C2_PRE(conn != NULL);
 
@@ -927,17 +940,21 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 		c2_mutex_unlock(&conn->c_mutex);
 		return -EBUSY;
 	}
+
 	conn->c_state = C2_RPC_CONN_TERMINATING;
 
-	c2_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
-	conn_persistent_state_destroy(conn, &tx);
-	c2_db_tx_commit(&tx);
+	rc = c2_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
 
+	conn_persistent_state_destroy(conn, &tx);
+
+	rc = c2_db_tx_commit(&tx);
+
+out_unlock:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	/* In-core state will be cleaned up by
 	   c2_rpc_conn_terminate_reply_sent() */
 	c2_mutex_unlock(&conn->c_mutex);
-	return 0;
+	return rc;
 }
 
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)

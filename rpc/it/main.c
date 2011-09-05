@@ -977,7 +977,7 @@ int main(int argc, char *argv[])
 	}
 
 	c2_ping_fop_fini();
-	io_fop_fini();
+	c2_ioservice_fop_fini();
 
 	c2_fini();
 

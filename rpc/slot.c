@@ -276,7 +276,7 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item *item;
 
-	C2_PRE(slot != NULL);
+	C2_PRE(slot != NULL && c2_mutex_is_locked(&slot->sl_mutex));
 	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
 				ri_slot_refs[0].sr_link) {
 
@@ -621,6 +621,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		if (session != NULL) {
 			c2_mutex_lock(&session->s_mutex);
 			C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
+			C2_ASSERT(session->s_nr_active_items > 0);
 			session->s_nr_active_items--;
 			if (session->s_nr_active_items == 0 &&
 				c2_list_is_empty(&session->s_unbound_items)) {

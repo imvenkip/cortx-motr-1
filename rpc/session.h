@@ -134,6 +134,10 @@ back to sender.
 
 <B>Ensuring FIFO when slot.max_in_flight > 1 </B>
 
+ XXX Current implementation does not have way to define dependancies.
+     Hence no more than 1 items are allowed to be in-flight for a particular
+     slot.
+
  First, let's clarify that xid is used to uniquely identify items sent through
  a particular slot, whereas verno is used to identify the state of target
  objects (including slots) when the operation is applicable.
@@ -207,10 +211,6 @@ back to sender.
  Note that LAST can be nicely generalized (we don't need this now): instead of
  distinguishing MUTABO and !MUTABO items, we split items into "commutative"
  groups such that items in a group can be executed in any order.
-
- XXX Current implementation does not have way to define dependancies.
-     Hence no more than 1 items are allowed to be in-flight for a particular
-     slot.
 
  <B> Using two identifiers for session and conn </B>
  @todo
@@ -377,19 +377,20 @@ enum c2_rpc_conn_flags {
                                     V
          +---------------------- CONNECTING
          | time-out ||              |
-         |     reply.rc != 0        | conn_establish_reply_received() &&
+         |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
          |                          |    reply.rc == 0
          V                          |
        FAILED                       |
          |  ^                       V
          |  |                    ACTIVE
          |  |                       |
-         |  |                       | conn_terminate()
+         |  |                       | c2_rpc_conn_terminate()
          |  | failed || timeout     |
          |  |                       V
          |  +-------------------TERMINATING
 	 |                          |
-         |                          | conn_terminate_reply_received() && rc== 0
+         |                          | c2_rpc_conn_terminate_reply_received() &&
+         |                          |              rc== 0
 	 |                          V
 	 |                      TERMINATED
 	 |                          |
@@ -465,42 +466,57 @@ enum c2_rpc_conn_flags {
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
 	struct c2_rpc_sender_uuid c_uuid;
-	/**
-	   rpcmachine with which this conn is associated
-	 */
+
+	/** rpcmachine with which this conn is associated */
 	struct c2_rpcmachine     *c_rpcmachine;
-	/**
-	   list_link to put c2_rpc_conn in either
-	   c2_rpcmachine::cr_incoming_conns or c2_rpcmachine::cr_outgoing_conns
+
+	/** list_link to put c2_rpc_conn in either
+	    c2_rpcmachine::cr_incoming_conns or
+	    c2_rpcmachine::cr_outgoing_conns
 	 */
 	struct c2_list_link       c_link;
+
+	/** Current state of rpc connection */
 	enum c2_rpc_conn_state    c_state;
+
 	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t                  c_flags;
+
 	/** A c2_rpc_chan structure that will point to the transfer
-	    machine used by this c2_rpc_conn. */
+	    machine used by this c2_rpc_conn.
+	 */
 	struct c2_rpc_chan       *c_rpcchan;
-	/**
-	    XXX Deprecated: c2_service_id
+
+	/** XXX Deprecated: c2_service_id
 	    Id of the service with which this c2_rpc_conn is associated
 	*/
 	struct c2_service_id     *c_service_id;
+
 	/** Destination end point */
 	struct c2_net_end_point  *c_end_point;
+
 	/** cob representing the connection */
 	struct c2_cob            *c_cob;
+
 	/** Sender ID unique on receiver */
 	uint64_t                  c_sender_id;
+
 	/** List of all the sessions created under this rpc connection.
 	    c2_rpc_session objects are placed in this list using
-	    c2_rpc_session::s_link */
+	    c2_rpc_session::s_link
+	 */
 	struct c2_list            c_sessions;
+
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
+
 	/** Conditional variable on which "connection state changed" signal
-	    is broadcast */
+	    is broadcast
+	 */
 	struct c2_cond            c_state_changed;
+
 	struct c2_mutex           c_mutex;
+
 	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
 	int32_t                   c_rc;
 };
@@ -743,33 +759,54 @@ enum c2_rpc_session_state {
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
 	struct c2_list_link       s_link;
+
+	/** Current state of session */
 	enum c2_rpc_session_state s_state;
-	/** identifies a particular session. It is not globally unique */
+
+	/** identifies a particular session. Unique in all sessions belonging
+	    to same c2_rpc_conn
+	 */
 	uint64_t                  s_session_id;
+
+	/** Cob representing this session in persistent state */
 	struct c2_cob            *s_cob;
+
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn       *s_conn;
+
 	/** A condition variable on which broadcast is sent whenever state of
-	    session is changed. Associated with s_mutex */
+	    session is changed. Associated with s_mutex
+	 */
 	struct c2_cond            s_state_changed;
+
 	/** lock protecting this session and slot table */
 	struct c2_mutex           s_mutex;
+
 	/** Number of items that needs to be sent or their reply is
 	    not yet received. i.e. count of items in {FUTURE, IN_PROGRESS}
-	    state in all slots belonging to this session. */
+	    state in all slots belonging to this session.
+	 */
 	int32_t                   s_nr_active_items;
+
 	/** list of items that can be sent through any available slot.
-	    items are placed using c2_rpc_item::ri_unbound_link */
+	    items are placed using c2_rpc_item::ri_unbound_link
+	 */
 	struct c2_list            s_unbound_items;
+
 	/** Capacity of slot table */
 	uint32_t                  s_slot_table_capacity;
+
 	/** Only [0, s_nr_slots) slots from the s_slot_table can be used to
-            bind items. s_nr_slots <= s_slot_table_capacity */
+            bind items. s_nr_slots <= s_slot_table_capacity
+	 */
 	uint32_t                  s_nr_slots;
+
 	/** Array of pointers to slots */
 	struct c2_rpc_slot      **s_slot_table;
+
 	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
-		denoting cause of failure */
+		denoting cause of failure
+	 */
 	int32_t                   s_rc;
 };
 
@@ -929,34 +966,55 @@ uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */
 	struct c2_rpc_session        *sl_session;
+
 	/** identifier of slot, unique within the session */
 	uint32_t                      sl_slot_id;
+
+	/** Cob representing this slot in persistent state */
 	struct c2_cob                *sl_cob;
+
 	/** list anchor to put in c2_rpcmachine::cr_ready_slots */
 	struct c2_list_link           sl_link;
+
 	/** Current version number of slot */
 	struct c2_verno               sl_verno;
+
 	/** slot generation */
 	uint64_t                      sl_slot_gen;
+
 	/** A monotonically increasing sequence counter, assigned to an item
-	    when it is bound to the slot */
+	    when it is bound to the slot
+	 */
 	uint64_t                      sl_xid;
+
 	/** List of items, starting from oldest. Items are placed using
-	    c2_rpc_item::ri_slot_refs[0].sr_link */
+	    c2_rpc_item::ri_slot_refs[0].sr_link
+	 */
 	struct c2_list                sl_item_list;
+
 	/** earliest item that the receiver possibly have seen */
 	struct c2_rpc_item           *sl_last_sent;
+
 	/** item that is most recently persistent on receiver */
 	struct c2_rpc_item           *sl_last_persistent;
-	/** Number of items in flight */
+
+	/** On sender: Number of items in flight
+	    On receiver: Number of items submitted for execution but whose
+	    reply is not yet received.
+	 */
 	uint32_t                      sl_in_flight;
+
 	/** Maximum number of items that can be in flight on this slot.
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t                      sl_max_in_flight;
+
 	/** List of items ready to put in rpc. Items are placed in this
-	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link */
+	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link
+	 */
 	struct c2_list                sl_ready_list;
+
 	struct c2_mutex               sl_mutex;
+
 	const struct c2_rpc_slot_ops *sl_ops;
 };
 
