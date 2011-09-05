@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/types.h"
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
 #include "fop/fop.h"
@@ -1048,7 +1049,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
    RPC item ops function
    Function to return size of fop
  */
-uint64_t c2_rpc_item_size(const struct c2_rpc_item *item)
+size_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	struct c2_fop			*fop = NULL;
 	uint64_t			 size = 0;

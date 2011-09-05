@@ -27,6 +27,10 @@
 #include "rpc/session.h"
 #include "dtm/verno.h"
 
+#ifdef __KERNEL__
+#define printf(x, ...)
+#endif
+
 /**
    @addtogroup rpc_session
 

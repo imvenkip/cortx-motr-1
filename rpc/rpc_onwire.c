@@ -48,7 +48,7 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 }
 
 /* XXX : Return correct RPC version. */
-static uint32_t rpc_ver_get()
+static uint32_t rpc_ver_get(void)
 {
 	return C2_RPC_VERSION_1;
 }
@@ -330,10 +330,10 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	struct c2_rpc_item		*item;
 	struct c2_bufvec_cursor		 cur;
 	size_t				 len;
-	size_t				 offset=0;
+	size_t				 offset = 0;
 	c2_bcount_t			 bufvec_size;
 	int				 rc;
-	int				 count=0;
+	int				 count = 0;
 	struct c2_rpc_item_type		*item_type;
 	void				*cur_addr;
 
@@ -371,7 +371,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		offset = len + item_type->rit_ops->rito_item_size(item);
 		C2_ASSERT(offset < bufvec_size);
 		len = offset;
-		printf("\n\n----ENCODING ITEM NO:%d\n", ++count);
+		++count;
+		printf("\n\n----ENCODING ITEM NO:%d\n", count);
 		/* Call the associated encode function for the that item type */
 		rc = item_type->rit_ops->rito_encode(item_type, item, &cur);
 		if (rc != 0)

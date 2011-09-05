@@ -93,11 +93,6 @@ static int session_persistent_state_destroy(struct c2_rpc_session *session,
 
 static int nr_active_items_count(const struct c2_rpc_session *session);
 
-/**
-   Invariants that are common for session in state {IDLE, BUSY, TERMINATING}
- */
-static bool session_alive_invariants(const struct c2_rpc_session *session);
-
 static const struct c2_rpc_slot_ops snd_slot_ops = {
 	.so_slot_idle = snd_slot_idle,
 	.so_item_consume = snd_item_consume,
@@ -115,7 +110,23 @@ static const struct c2_rpc_slot_ops rcv_slot_ops = {
  */
 bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 {
-	bool                result;
+	bool result;
+	int  i;
+
+	/*
+	 * Invariants that are common for session in state
+	 * {IDLE, BUSY, TERMINATING}
+	 */
+	bool session_alive_invariants(void)
+	{
+		return session->s_session_id <= SESSION_ID_MAX &&
+		       ergo(session->s_session_id != SESSION_ID_0,
+			    session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
+			    session->s_conn->c_nr_sessions > 0) &&
+		       session->s_nr_slots >= 0 &&
+		       c2_list_contains(&session->s_conn->c_sessions,
+				&session->s_link);
+	}
 
 	if (session == NULL)
 		return false;
@@ -133,6 +144,17 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		 nr_active_items_count(session) == session->s_nr_active_items;
 	if (!result)
 		return result;
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		if (session->s_slot_table[i] == NULL)
+			return false;
+	}
+
+	/*
+	 * Exactly one state bit must be set.
+	 */
+	if (!c2_is_po2(session->s_state))
+		return false;
 
 	switch (session->s_state) {
 	case C2_RPC_SESSION_INITIALISED:
@@ -155,12 +177,12 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	case C2_RPC_SESSION_TERMINATING:
 		return session->s_nr_active_items == 0 &&
 			 c2_list_is_empty(&session->s_unbound_items) &&
-			 session_alive_invariants(session);
+			 session_alive_invariants();
 
 	case C2_RPC_SESSION_BUSY:
 		return (session->s_nr_active_items > 0 ||
 		       !c2_list_is_empty(&session->s_unbound_items)) &&
-		       session_alive_invariants(session);
+		       session_alive_invariants();
 
 	case C2_RPC_SESSION_FAILED:
 		return session->s_rc != 0 &&
@@ -173,31 +195,6 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	C2_ASSERT(0);
 }
 
-/**
-   Invariants that are common for session in state {IDLE, BUSY, TERMINATING}
- */
-static bool session_alive_invariants(const struct c2_rpc_session *session)
-{
-	bool result;
-	int  i;
-
-	result = session->s_session_id <= SESSION_ID_MAX &&
-		 ergo(session->s_session_id != SESSION_ID_0,
-			session->s_conn->c_state == C2_RPC_CONN_ACTIVE &&
-			session->s_conn->c_nr_sessions > 0) &&
-		 session->s_nr_slots >= 0 &&
-		 c2_list_contains(&session->s_conn->c_sessions,
-			&session->s_link);
-
-	if (!result)
-		return result;
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-		if (session->s_slot_table[i] == NULL)
-			return false;
-	}
-	return true;
-}
 
 static int nr_active_items_count(const struct c2_rpc_session *session)
 {
@@ -205,13 +202,6 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 	struct c2_rpc_item *item;
 	int                 i;
 	int                 count = 0;
-
-	C2_ASSERT(session != NULL);
-	C2_ASSERT(ergo(session->s_state != C2_RPC_SESSION_INITIALISED &&
-			session->s_state != C2_RPC_SESSION_TERMINATED &&
-			session->s_state != C2_RPC_SESSION_FAILED &&
-			session->s_session_id != SESSION_ID_0,
-			c2_mutex_is_locked(&session->s_mutex)));
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
@@ -302,8 +292,10 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 		}
 
 		rc = c2_rpc_slot_init(slot, slot_ops);
-		if (rc != 0)
+		if (rc != 0) {
+			c2_free(slot);
 			goto out_err;
+		}
 
 		slot->sl_session = session;
 		slot->sl_slot_id = i;
@@ -374,6 +366,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	fop = c2_fop_alloc(&c2_rpc_fop_session_establish_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
+		session->s_state = C2_RPC_SESSION_FAILED;
+		session->s_rc = rc;
 		goto out;
 	}
 

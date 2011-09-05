@@ -234,7 +234,8 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc item.
 	 */
-	uint64_t (*rito_item_size)(const struct c2_rpc_item *item);
+	size_t (*rito_item_size)(const struct c2_rpc_item *item);
+
 	/**
 	   Find out if given rpc items belong to same type or not.
 	 */

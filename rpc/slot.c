@@ -877,6 +877,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 /**
    Just for debugging purpose.
  */
+#ifndef __KERNEL__
 void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item;
@@ -896,7 +897,7 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 				str_state[item->ri_tstate]);
 	}
 }
-
+#endif
 bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
 {
 	C2_PRE(c2_mutex_is_locked(&slot->sl_mutex));

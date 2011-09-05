@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/arith.h"
 #include "rpc/session.h"
 #include "lib/bitstring.h"
 #include "cob/cob.h"
@@ -219,6 +220,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 /**
    for dubugging purpose.
  */
+#ifndef __KERNEL__
 int c2_exec_queue_print(void)
 {
 	struct c2_queue_link *ql;
@@ -242,6 +244,7 @@ int c2_exec_queue_print(void)
 		C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 		printf("Q item %p state %s\n", item,
 			str_states[item->ri_tstate]);
-	}	
+	}
 	return 0;
 }
+#endif

@@ -112,6 +112,12 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	if (!ret)
 		return ret;
 
+        /*
+         * Exactly one state bit must be set.
+         */
+        if (!c2_is_po2(conn->c_state))
+                return false;
+
 	/*
 	 * conditions that are common to CONNECTING, ACTIVE and TERMINATING
 	 * state
@@ -821,7 +827,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 	struct c2_cob_domain  *dom;
 	int                    rc;
 
-	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_INITIALISED &&
+	C2_PRE(conn != NULL && conn->c_state == C2_RPC_CONN_CONNECTING &&
 			c2_rpc_conn_invariant(conn));
 
 	printf("persistent_state_attach: sender_id %lu\n",
@@ -944,12 +950,13 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	conn->c_state = C2_RPC_CONN_TERMINATING;
 
 	rc = c2_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
-
+	/*
+	 * XXX ERROR HANDLING
+	 */
 	conn_persistent_state_destroy(conn, &tx);
 
 	rc = c2_db_tx_commit(&tx);
 
-out_unlock:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	/* In-core state will be cleaned up by
 	   c2_rpc_conn_terminate_reply_sent() */
