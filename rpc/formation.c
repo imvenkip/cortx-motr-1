@@ -147,7 +147,8 @@ static void frm_item_set_state(const struct c2_rpc *rpc, const enum
 static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
 {
 	return (fbuf != NULL && fbuf->fb_frm_sm != NULL && fbuf->fb_rpc != NULL
-			&& fbuf->fb_magic == C2_RPC_FRM_BUFFER_MAGIC);
+			&& fbuf->fb_magic == C2_RPC_FRM_BUFFER_MAGIC &&
+			fbuf->fb_retry <= C2_RPC_FRM_BUFFER_RETRY);
 }
 
 /**
@@ -184,6 +185,7 @@ static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
 	rc = c2_rpc_net_send_buffer_allocate(net_dom, &nb, rpc_size);
 	if (rc != 0)
 		return rc;
+	fbuf->fb_retry = C2_RPC_FRM_BUFFER_RETRY;
 	*fb = fbuf;
 	C2_POST(frm_buf_invariant(fbuf));
 	return rc;
@@ -732,6 +734,7 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	struct c2_rpc_item		*item;
 	struct c2_rpc_item		*rpc_item;
 	struct c2_rpc_item		*rpc_item_next;
+	struct c2_rpc_frm_sm		*frm_sm;
 	struct c2_rpc_formation		*formation;
 
 	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL) &&
@@ -759,26 +762,35 @@ void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		c2_list_for_each_entry_safe(&fb->fb_rpc->r_items, rpc_item,
 				rpc_item_next, struct c2_rpc_item,
 				ri_rpcobject_linkage)
-			c2_list_del(&item->ri_rpcobject_linkage);
+			c2_list_del(&rpc_item->ri_rpcobject_linkage);
 
+		c2_rpc_rpcobj_fini(fb->fb_rpc);
 		c2_free(fb->fb_rpc);
 		frm_buffer_fini(fb);
 	} else {
 		/* If the send event fails, add the rpc back to concerned
 		   queue so that it will be processed next time.*/
-		c2_mutex_lock(&fb->fb_frm_sm->fs_lock);
-		frm_item_set_state(fb->fb_rpc, RPC_ITEM_SEND_FAILED);
-		C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->rf_rpc_form_addb,
-				&frm_addb_loc, formation_func_fail,
-				"net_buffer_send", 0);
-#if 0
-		/* XXX Until retry policy has been implemented, post an
-		   ADDB event and fail. Commenting out this piece of code
-		   (and not removing it), so as not to miss this in future */
-		c2_list_add(&fb->fb_frm_sm->fs_rpcs, &fb->fb_rpc->r_linkage);
-		frm_send_onwire(fb->fb_frm_sm);
-#endif
-		c2_mutex_unlock(&fb->fb_frm_sm->fs_lock);
+		if (--fb->fb_retry > 0) {
+			frm_sm = fb->fb_frm_sm;
+			c2_mutex_lock(&frm_sm->fs_lock);
+			C2_ADDB_ADD(&frm_sm->fs_formation->
+					rf_rpc_form_addb, &frm_addb_loc,
+					formation_func_fail,
+					"send retry", ev->nbe_status);
+			c2_list_add(&frm_sm->fs_rpcs, &fb->fb_rpc->r_linkage);
+			frm_buffer_fini(fb);
+			frm_send_onwire(frm_sm);
+			c2_mutex_unlock(&frm_sm->fs_lock);
+		} else {
+			C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->
+					rf_rpc_form_addb, &frm_addb_loc,
+					formation_func_fail,
+					"net buf send failed", ev->nbe_status);
+			frm_item_set_state(fb->fb_rpc, RPC_ITEM_SEND_FAILED);
+			c2_rpc_rpcobj_fini(fb->fb_rpc);
+			c2_free(fb->fb_rpc);
+			frm_buffer_fini(fb);
+		}
 	}
 
 }
@@ -1841,8 +1853,10 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 	size_optimal = frm_size_is_violated(frm_sm, frm_sm->fs_cumulative_size);
 	frm_policy = frm_check_policies(frm_sm);
 
-	if (!(frm_policy || size_optimal))
+	if (!(frm_policy || size_optimal)) {
+		printf("forming state failed 1.\n");
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
+	}
 
 	/* Create an rpc object in frm_sm->isu_rpcobj_list. */
 	formation = &item->ri_mach->cr_formation;
@@ -1862,6 +1876,7 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 	if (c2_list_is_empty(&rpcobj->r_items)) {
 		c2_rpc_rpcobj_fini(rpcobj);
 		c2_free(rpcobj);
+		printf("forming state failed 2.\n");
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
 	}
 
@@ -1872,8 +1887,10 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 	C2_POST(frm_sm_invariant(frm_sm));
 	if (rc == 0)
 		return C2_RPC_FRM_INTEVT_STATE_SUCCEEDED;
-	else
+	else {
+		printf("forming state failed 3.\n");
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
+	}
 }
 
 /**
@@ -1940,6 +1957,9 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 				frm_sm->fs_curr_rpcs_in_flight >=
 				frm_sm->fs_max_rpcs_in_flight) {
 			rc = -EBUSY;
+			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
+					&frm_addb_loc, formation_func_fail,
+					"max in flight reached", rc);
 			break;
 		}
 		tm = frm_get_tm(item);
@@ -1962,10 +1982,12 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 #ifndef __KERNEL__
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
 #endif
+		printf("Number of items bundled in rpc = %lu\n",
+			c2_list_length(&rpc_obj->r_items));
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
-					"c2_rpc_encode", 0);
+					"c2_rpc_encode", rc);
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;
@@ -1976,7 +1998,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
-					"c2_net_buffer_add", 0);
+					"c2_net_buffer_add", rc);
 			frm_buffer_fini(fb);
 			/* Process the next rpc object in the list.*/
 			continue;

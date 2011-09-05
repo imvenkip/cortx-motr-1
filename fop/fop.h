@@ -122,7 +122,11 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
-struct c2_fop *c2_rpc_item_to_fop(struct c2_rpc_item *item);
+struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+
+/**  Returns a fop type associated with an rpc item type */
+struct c2_fop_type *c2_item_type_to_fop_type
+		   (const struct c2_rpc_item_type *rit);
 
 #include "fop/fop_format.h"
 

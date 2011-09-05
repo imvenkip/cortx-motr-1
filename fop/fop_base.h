@@ -9,6 +9,7 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "lib/vec.h"
 
 /**
    @addtogroup fop
@@ -31,6 +32,7 @@
 struct c2_fol;
 struct c2_fop;
 struct c2_rpc_item_type;
+//onwire_fmt struct c2_fop_rpc_item_type;
 struct c2_fop_io_vec;
 
 /* export */
@@ -71,13 +73,24 @@ struct c2_fop_type {
 	   ADDB context for events related to this fop type.
 	 */
 	struct c2_addb_ctx                ft_addb;
+	/** onwire_fmt
+	    This structure establishes the association between a fop type
+	    and the rpc type.
+
+	struct c2_fop_rpc_item_type	 *ft_ri_type;
+	*/
 };
 
 int  c2_fop_type_build(struct c2_fop_type *fopt);
 void c2_fop_type_fini(struct c2_fop_type *fopt);
 
-/* Given an opcode, return the corrosponding fop type */
-struct c2_fop_type *c2_fop_type_search( c2_fop_type_code_t opcode );
+/**
+  Given an opcode, return the corrosponding fop type
+  @param opcode Unique fop operation code
+  @retval pointer to the c2_fop_type for the opcode.
+  @retval NULL if the fop type for that opcode doesnt exist
+*/
+struct c2_fop_type *c2_fop_type_search(c2_fop_type_code_t opcode);
 
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
@@ -103,6 +116,12 @@ struct c2_fop_type_ops {
 	/** Return the number of IO fragements in the IO vector. */
 	uint64_t (*fto_get_nfragments)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
+	/** onwire_fmt Encode the fop data into a bufvec
+	int (*fto_bufvec_encode)(struct c2_fop *fop,
+	    struct c2_bufvec_cursor *cur);
+	 Decode the fop data from a bufvec
+	int (*fto_bufvec_decode)(struct c2_fop *fop,
+	     struct c2_bufvec_cursor *cur);*/
 	int (*fto_io_coalesce)(const struct c2_list *list, struct c2_fop *fop,
 			struct c2_fop *bkpfop);
 	/** Restore the original IO vector of resultant IO fop on

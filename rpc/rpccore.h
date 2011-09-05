@@ -140,9 +140,6 @@
 
 struct c2_rpc_item;
 
-#ifndef __KERNEL__
-#include <rpc/xdr.h>
-#endif
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -181,7 +178,7 @@ int seed_val;
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 8,
+	C2_RPC_TM_RECV_BUFFERS_NR = 32,
 };
 
 struct c2_rpc;
@@ -237,7 +234,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc item.
 	 */
-	uint64_t (*rito_item_size)(struct c2_rpc_item *item);
+	uint64_t (*rito_item_size)(const struct c2_rpc_item *item);
 	/**
 	   Find out if given rpc items belong to same type or not.
 	 */
@@ -262,16 +259,18 @@ struct c2_rpc_item_type_ops {
 	 */
 	int (*rito_io_coalesce)(struct c2_rpc_frm_item_coalesced *coalesced_item,
 			struct c2_rpc_item *item);
-#ifndef __KERNEL__
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
-	int (*rito_encode)(struct c2_rpc_item *item, XDR *xdrs);
+	int (*rito_encode)(struct c2_rpc_item_type *item_type,
+		           struct c2_rpc_item *item,
+	                   struct c2_bufvec_cursor *cur);
 	/**
 	   Create in memory item from serialised representation of item
 	 */
-	int (*rito_decode)(struct c2_rpc_item *item, XDR *xdrs);
-#endif
+	int (*rito_decode)(struct c2_rpc_item_type *item_type,
+			   struct c2_rpc_item **item,
+			   struct c2_bufvec_cursor *cur);
 };
 
 struct c2_rpc_item_ops {
@@ -384,7 +383,7 @@ enum c2_rpc_item_type_flag {
  */
 struct c2_rpc_item_type {
 	/** Unique operation code. */
-	/* XXX: for now: enum c2_rpc_opcode_t rit_opcode; */
+	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
 	/** true if item is request item. false if item is reply item */
@@ -393,7 +392,21 @@ struct c2_rpc_item_type {
 	bool				   rit_mutabo;
 	/** Flag to distinguish unsolicited item from unbound one. */
 	uint64_t			   rit_flags;
+	/** onwire_fmt :Linkage to the item type list rpc_item_type_list
+	struct c2_list_link		   rit_linkage;*/
 };
+
+/**
+  onwire_fmt XXX : Establishes an association between an item type and fop type.
+  During registration, this structure is populated with the associated
+  fop type and item type.
+
+struct c2_fop_rpc_item_type {
+	struct c2_fop_type	*fri_f_type;
+	struct c2_rpc_item_type  fri_i_type;
+=======
+>>>>>>> rpcintegration
+};*/
 
 /**
    Post an unsolicited item to rpc layer.
@@ -558,6 +571,13 @@ struct c2_rpc_stats {
 	c2_time_t	rs_max_lat;
 };
 
+/**  onwire_fmt : Adds a new item type to the list of known item_types
+void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type); */
+
+/** Returns an rpc item type associated with a unique rpc
+item type opcode */
+struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
+
 /**
    Associate an rpc with its corresponding rpc_item_type.
    Since rpc_item_type by itself can not be uniquely identified,
@@ -577,6 +597,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item);
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */
+
 int c2_rpc_item_init(struct c2_rpc_item *item);
 
 /**

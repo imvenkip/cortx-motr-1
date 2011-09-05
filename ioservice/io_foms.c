@@ -45,16 +45,20 @@
  * @{
  */
 
+bool is_read(struct c2_fop *fop);
+bool is_write(struct c2_fop *fop);
+static int io_fom_cob_rwv_state(struct c2_fom *fom);
+
 /** Generic ops object for c2_fop_cob_writev */
 static struct c2_fom_ops c2_io_fom_write_ops = {
 	.fo_fini = NULL,
-	.fo_state = c2_io_fom_cob_rwv_state,
+	.fo_state = io_fom_cob_rwv_state,
 };
 
 /** Generic ops object for c2_fop_cob_readv */
 static struct c2_fom_ops c2_io_fom_read_ops = {
 	.fo_fini = NULL,
-	.fo_state = c2_io_fom_cob_rwv_state,
+	.fo_state = io_fom_cob_rwv_state,
 };
 
 /** Generic ops object for readv and writev reply FOPs */
@@ -72,36 +76,6 @@ static const struct c2_fom_type_ops c2_io_cob_readv_type_ops = {
 static const struct c2_fom_type_ops c2_io_cob_writev_type_ops = {
 	.fto_create = NULL,
 };
-
-/** Readv specific FOM type operations vector. */
-static struct c2_fom_type c2_io_fom_cob_readv_mopt = {
-	.ft_ops = &c2_io_cob_readv_type_ops,
-};
-
-/** Writev specific FOM type operations vector. */
-static struct c2_fom_type c2_io_fom_cob_writev_mopt = {
-	.ft_ops = &c2_io_cob_writev_type_ops,
-};
-
-/**
- *  An array of c2_fom_type structs for all possible FOMs.
- */
-static struct c2_fom_type *c2_io_fom_types[] = {
-	&c2_io_fom_cob_readv_mopt,
-	&c2_io_fom_cob_writev_mopt,
-};
-
-/**
- * Find out the respective FOM type object (c2_fom_type)
- * from the given opcode.
- * This opcode is obtained from the FOP type (c2_fop_type->ft_code)
- */
-struct c2_fom_type *c2_io_fom_type_map(c2_fop_type_code_t code)
-{
-	C2_PRE(IS_IN_ARRAY((code - C2_IO_SERVICE_READV_OPCODE),
-			   c2_io_fom_types));
-	return c2_io_fom_types[code - C2_IO_SERVICE_READV_OPCODE];
-}
 
 /**
  * Function to map given fid to corresponding Component object id(in turn,
@@ -133,8 +107,9 @@ static void c2_io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_fom			*fom;
+	struct c2_fop_type		*fopt;
 	struct c2_io_fom_cob_rwv	*fom_obj;
-	struct c2_fom_type 		*fom_type;
+	const struct c2_fom_type_ops	*fom_ops;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -142,28 +117,25 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	C2_ALLOC_PTR(fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom_type = c2_io_fom_type_map(fop->f_type->ft_code);
-	C2_ASSERT(fom_type != NULL);
-	fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fcrw_gen;
-	fom->fo_type = fom_type;
+	fopt = fop->f_type;
+	fom_ops = fopt->ft_fom_type.ft_ops;
 
-	if (fop->f_type->ft_code == C2_IO_SERVICE_READV_OPCODE) {
+	if (is_read(fop)) {
+		fom_ops = &c2_io_cob_readv_type_ops;
 		fom->fo_ops = &c2_io_fom_read_ops;
 		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
-		if (fom_obj->fcrw_rep_fop == NULL) {
-			c2_free(fom_obj);
-			return -ENOMEM;
-		}
-	} else if (fop->f_type->ft_code == C2_IO_SERVICE_WRITEV_OPCODE) {
+	} else if (is_write(fop)) {
+		fom_ops = &c2_io_cob_writev_type_ops;
 		fom->fo_ops = &c2_io_fom_write_ops;
 		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_writev_rep_fopt, NULL);
-		if (fom_obj->fcrw_rep_fop == NULL) {
-			c2_free(fom_obj);
-			return -ENOMEM;
-		}
+	}
+
+	if (fom_obj->fcrw_rep_fop == NULL) {
+		c2_free(fom_obj);
+		return -ENOMEM;
 	}
 
 	fom_obj->fcrw_fop = fop;
@@ -173,12 +145,12 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
- * <b> State Transition function for "read and write IO" operation
- *     that executes on data server. </b>
+ * State Transition function for read and write IO operation
+ * that executes on data server.
  *  - Submit the read/write IO request to the corresponding cob.
  *  - Send reply FOP to client.
  */
-int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
+static int io_fom_cob_rwv_state(struct c2_fom *fom)
 {
 	struct c2_fop_file_fid		*ffid;
 	struct c2_fid			 fid;
@@ -187,71 +159,57 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	struct c2_dtx			 tx;
 	uint32_t			 bshift;
 	uint64_t			 bmask;
-	int				 result;
 	void				*addr;
 	c2_bcount_t			 count;
 	c2_bindex_t			 offset;
 	struct c2_clink			 clink;
 	int				 rc;
-	struct c2_fop_cob_writev	*write_fop;
-	struct c2_fop_cob_readv		*read_fop;
+	struct c2_fop			*fop;
 	struct c2_fop_cob_writev_rep	*wr_rep_fop;
 	struct c2_fop_cob_readv_rep	*rd_rep_fop;
-	struct c2_fop_io_seg		*write_seg;
-	struct c2_fop_io_seg		*read_seg;
-	struct c2_fop_type		*fopt;
 	struct c2_stob_io		*stio;
+	struct c2_fop_cob_rw		*iofop;
+	struct c2_fop_io_seg		*ioseg;
+	struct c2_bufvec		*bufvec;
+	struct c2_indexvec		*ivec;
 
 	C2_PRE(fom != NULL);
 
-	/* Since a c2_fom object is passed down to every FOM state method,
-	   the context structure which is the parent structure of the FOM
-	   is type casted from c2_fom. */
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
-	fopt = fom_obj->fcrw_fop->f_type;
+	fop = fom_obj->fcrw_fop;
 
 	/* Retrieve the request and reply FOPs. Extract the on-write FID
 	   from the FOPs. */
-	if (fopt == &c2_fop_cob_writev_fopt) {
-		write_fop = c2_fop_data(fom_obj->fcrw_fop);
+	if (is_write(fop))
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
-		ffid = &write_fop->cw_fid;
-		/* Change the phase of FOM */
-		fom->fo_phase = FOPH_COB_WRITE;
-	} else {
-		read_fop = c2_fop_data(fom_obj->fcrw_fop);
+	else
 		rd_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
-		ffid = &read_fop->cr_fid;
-		/* Change the phase of FOM */
-		fom->fo_phase = FOPH_COB_READ;
-	}
 
-	/* Find out the in-core fid from on-wire fid. */
+	iofop = c2_io_rwv_get(fop);
+	ffid = &iofop->crw_fid;
+	fom->fo_phase = FOPH_COB_IO;
+	ioseg = iofop->crw_iovec.iv_segs;
+
 	c2_io_fid_wire2mem(ffid, &fid);
 
-	/* Map the given fid to find out corresponding stob id. */
 	c2_io_fid2stob_map(&fid, &stobid);
 
 	/* This is a transaction IO and should be a separate phase with
 	   full fledged FOM. */
-	result = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
-	if (result != 0)
-		return result;
+	rc = fom->fo_domain->sd_ops->sdo_tx_make(fom->fo_domain, &tx);
+	if (rc != 0)
+		return rc;
 
-	/* Allocate and find out the c2_stob object from given domain. */
-	result = c2_stob_find(fom->fo_domain,
-			(const struct c2_stob_id*)&stobid,
-			&fom_obj->fcrw_stob);
-	if (result != 0)
-		return result;
+	rc = c2_stob_find(fom->fo_domain, &stobid, &fom_obj->fcrw_stob);
+	if (rc != 0)
+		return rc;
 
-	result = c2_stob_locate(fom_obj->fcrw_stob, &tx);
-	if (result != 0) {
+	rc = c2_stob_locate(fom_obj->fcrw_stob, &tx);
+	if (rc != 0) {
 		c2_stob_put(fom_obj->fcrw_stob);
-		return result;
+		return rc;
 	}
 
-	/* Initialize the stob io routine. */
 	c2_stob_io_init(&fom_obj->fcrw_st_io);
 
 	/* Since the upper layer IO block size could differ with IO block size
@@ -259,43 +217,39 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	bshift = fom_obj->fcrw_stob->so_op->sop_block_shift(fom_obj->fcrw_stob);
 	bmask = (1 << bshift) - 1;
 
-	if (fopt == &c2_fop_cob_writev_fopt) {
+	if (is_write(fop)) {
 		/* Make an FOL transaction record. */
-		/*result = c2_fop_fol_rec_add(fom_obj->fcrw_fop,
-				fom->fo_fol, &tx.tx_dbtx);
-		if (result != 0) {
+		rc = c2_fop_fol_rec_add(fop, fom->fo_fol, &tx.tx_dbtx);
+		if (rc != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
-			return result;
-		}*/
+			return rc;
+		}
 	}
 
 	/* Find out buffer address, offset and count required for stob io.
 	   Due to existing limitations of kxdr wrapper over sunrpc, read reply
 	   fop can not contain a vector, only a segment. Ideally, all IO fops
-	   should carry an IO vector. Also with introduction of new rpc layer,
-	   ioservice functionality has to be changed to handle the whole
-	   vector, not just one segment. */
-	if (fopt == &c2_fop_cob_writev_fopt) {
-		write_seg = write_fop->cw_iovec.iv_segs;
-		addr = c2_stob_addr_pack(write_seg->is_buf.ib_buf, bshift);
-		count = write_seg->is_buf.ib_count;
-		offset = write_seg->is_offset;
+	   should carry an IO vector. */
+	/** @todo With introduction of new rpc layer, ioservice has to be
+	    changed to handle the whole vector, not just one segment. */
+	/* This condition exists since read and write replies are not similar
+	   at the moment due to sunrpc restrictions mentioned above! */
+	if (is_write(fop)) {
+		addr = c2_stob_addr_pack(ioseg->is_buf.ib_buf, bshift);
 		fom_obj->fcrw_st_io.si_opcode = SIO_WRITE;
 	} else {
-		read_seg = read_fop->cr_iovec.iv_segs;
-
-		/* Allocate the read buffer. */
 		C2_ALLOC_ARR(rd_rep_fop->crr_iobuf.ib_buf,
-				read_seg->is_buf.ib_count);
+				ioseg->is_buf.ib_count);
 		if (rd_rep_fop->crr_iobuf.ib_buf == NULL) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return -ENOMEM;
 		}
 		addr = c2_stob_addr_pack(rd_rep_fop->crr_iobuf.ib_buf, bshift);
-		count = read_seg->is_buf.ib_count;
-		offset = read_seg->is_offset;
 		fom_obj->fcrw_st_io.si_opcode = SIO_READ;
 	}
+	count = ioseg->is_buf.ib_count;
+	offset = ioseg->is_offset;
+
 	C2_ASSERT((offset & bmask) == 0);
 	C2_ASSERT((count & bmask) == 0);
 
@@ -303,36 +257,46 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 	offset = offset >> bshift;
 
 	stio = &fom_obj->fcrw_st_io;
-	stio->si_user.div_vec.ov_vec.v_count = &count;
-	stio->si_user.div_vec.ov_buf = &addr;
+	bufvec = &stio->si_user.div_vec;
+	bufvec->ov_vec.v_count = &count;
+	bufvec->ov_buf = &addr;
+	bufvec->ov_vec.v_nr = 1;
 
-	stio->si_stob.iv_index = &offset;
-	stio->si_stob.iv_vec.v_count = &count;
-
-	/* Total number of segments in IO vector. */
-	stio->si_user.div_vec.ov_vec.v_nr = 1;
-	stio->si_stob.iv_vec.v_nr = 1;
+	ivec = &stio->si_stob;
+	ivec->iv_index = &offset;
+	ivec->iv_vec.v_count = &count;
+	ivec->iv_vec.v_nr = 1;
 	stio->si_flags = 0;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&stio->si_wait, &clink);
 
-	result = c2_stob_io_launch(stio, fom_obj->fcrw_stob, &tx, NULL);
-	if (result == 0)
+	rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob, &tx, NULL);
+	if (rc == 0)
 		c2_chan_wait(&clink);
 	else {
-		c2_clink_del(&clink);
-		c2_clink_fini(&clink);
-		c2_stob_io_fini(stio);
-		c2_stob_put(fom_obj->fcrw_stob);
-		if (fopt == &c2_fop_cob_readv_fopt)
+		if (is_read(fop))
 			c2_free(rd_rep_fop->crr_iobuf.ib_buf);
-		return result;
+		goto cleanup;
+	}
+
+	if (rc != -EDEADLK)
+		rc = c2_db_tx_commit(&tx.tx_dbtx);
+	else
+		rc = c2_db_tx_abort(&tx.tx_dbtx);
+
+	if (rc != 0) {
+		if (is_read(fop))
+			c2_free(rd_rep_fop->crr_iobuf.ib_buf);
+		goto cleanup;
 	}
 
 	/* Retrieve the status code and no of bytes read/written and
-	   place it in respective reply FOP. */
-	if (fopt == &c2_fop_cob_writev_fopt) {
+	   place it in respective reply FOP. This has to be handled
+	   differently for read and write since reply fops for read
+	   and write are not same at the moment due to kxdr limitation
+	   mentioned above. */
+	if (is_write(fop)) {
 		wr_rep_fop->cwr_rc = stio->si_rc;
 		wr_rep_fop->cwr_count = stio->si_count << bshift;
 	} else {
@@ -340,27 +304,15 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
 		rd_rep_fop->crr_iobuf.ib_count = stio->si_count << bshift;
 	}
 
+	/* Send reply FOP. */
+	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop,
+			fom->fo_fop_ctx->fc_cookie);
+cleanup:
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
 	c2_stob_io_fini(stio);
-
 	c2_stob_put(fom_obj->fcrw_stob);
-
-	if (result != -EDEADLK)
-		rc = c2_db_tx_commit(&tx.tx_dbtx);
-	else
-		rc = c2_db_tx_abort(&tx.tx_dbtx);
-
-	if (rc != 0) {
-		if (fopt == &c2_fop_cob_readv_fopt)
-			c2_free(rd_rep_fop->crr_iobuf.ib_buf);
-		return rc;
-	}
-
-	/* Send reply FOP. */
-	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop,
-			fom->fo_fop_ctx->fc_cookie);
 
 	/* This goes into DONE phase */
 	fom->fo_phase = FOPH_DONE;

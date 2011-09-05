@@ -539,9 +539,9 @@ AC_CONFIG_FILES([
                  pool/linux_kernel/Makefile
                  reqh/Makefile
                  rpc/Makefile
-                 rpc/linux_kernel/Makefile
                  rpc/ut/Makefile
                  rpc/it/Makefile
+		 rpc/linux_kernel/Makefile
                  sm/Makefile
                  sm/linux_kernel/Makefile
                  sns/Makefile
@@ -555,7 +555,9 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
-                 xdr/Makefile
+                 xcode/Makefile
+                 xcode/ut/Makefile
+		 xdr/Makefile
                  xdr/ut/Makefile
                 ])
 

@@ -320,8 +320,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
 	/*
 	 * FOMs are implemented only for read and write operations
 	 */
-	if ((fop->f_type->ft_code >= C2_IO_SERVICE_READV_OPCODE &&
-	     fop->f_type->ft_code <= C2_IO_SERVICE_WRITEV_REP_OPCODE)) {
+	if ((fop->f_type->ft_code >= C2_IOSERVICE_READV_OPCODE &&
+	     fop->f_type->ft_code <= C2_IOSERVICE_WRITEV_REP_OPCODE)) {
 		/*
 		 * A dummy request handler API to handle incoming FOPs.
 		 * Actual reqh will be used in future.
