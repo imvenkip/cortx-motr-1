@@ -49,7 +49,7 @@ void c2_net_domain_stats_init(struct c2_net_domain *dom)
 
         C2_SET0(&dom->nd_stats);
 
-        c2_time_now(&now);
+        now = c2_time_now();
         for (i = 0; i < ARRAY_SIZE(dom->nd_stats); i++) {
                 c2_rwlock_init(&dom->nd_stats[i].ns_lock);
                 dom->nd_stats[i].ns_time = now;
@@ -114,7 +114,7 @@ int c2_net_domain_stats_get(struct c2_net_domain *dom,
         c2_time_t interval;
         int rv;
 
-        c2_time_now(&now);
+        now = c2_time_now();
 
         /* We lock here against other callers only -- stats are still being
            collected while we are here. We reset stats only after we calculate

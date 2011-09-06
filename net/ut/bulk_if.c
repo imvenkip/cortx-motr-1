@@ -206,7 +206,7 @@ static void ut_post_del_thread(struct c2_net_buffer *nb)
 	if (nb->nb_flags & C2_NET_BUF_CANCELLED)
 		ev.nbe_status = -ECANCELED; /* required behavior */
 	DELAY_MS(1);
-	c2_time_now(&ev.nbe_time);
+	ev.nbe_time = c2_time_now();
 
 	/* post requested event */
 	c2_net_buffer_event_post(&ev);
@@ -264,7 +264,7 @@ static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 		.nte_next_state = C2_NET_TM_STARTED
 	};
 	DELAY_MS(1);
-	c2_time_now(&ev.nte_time);
+	ev.nte_time = c2_time_now();
 
 	/* post state change event */
 	c2_net_tm_event_post(&ev);
@@ -278,7 +278,7 @@ static void ut_post_state_change_ev_thread(int n)
 		.nte_next_state = (enum c2_net_tm_state) n
 	};
 	DELAY_MS(1);
-	c2_time_now(&ev.nte_time);
+	ev.nte_time = c2_time_now();
 
 	/* post state change event */
 	c2_net_tm_event_post(&ev);
@@ -504,7 +504,7 @@ static void test_net_bulk_if(void)
 	struct c2_net_buf_desc d1, d2;
 	struct c2_clink tmwait;
 	struct c2_net_qstats qs[C2_NET_QT_NR];
-	c2_time_t  c2tt_now, c2tt_to_period;
+	c2_time_t c2tt_to_period;
 
 	C2_SET0(&d1);
 	C2_SET0(&d2);
@@ -674,7 +674,7 @@ static void test_net_bulk_if(void)
 	nb->nb_callbacks = &ut_buf_cb;
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_timeout = c2_time_sub(c2_time_now(&c2tt_now), c2tt_to_period);
+	nb->nb_timeout = c2_time_sub(c2_time_now(), c2tt_to_period);
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == -ETIME);
 
@@ -683,7 +683,7 @@ static void test_net_bulk_if(void)
 	nb->nb_callbacks = &ut_buf_cb;
 	C2_UT_ASSERT(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_timeout = c2_time_add(c2_time_now(&c2tt_now), c2tt_to_period);
+	nb->nb_timeout = c2_time_add(c2_time_now(), c2tt_to_period);
 	rc = c2_net_buffer_add(nb, tm);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_buf_add_called);
@@ -728,7 +728,7 @@ static void test_net_bulk_if(void)
 			make_desc(&nb->nb_desc);
 			break;
 		}
-		nb->nb_timeout = c2_time_add(c2_time_now(&c2tt_now),
+		nb->nb_timeout = c2_time_add(c2_time_now(),
 					     c2tt_to_period);
 		rc = c2_net_buffer_add(nb, tm);
 		C2_UT_ASSERT(rc == 0);
@@ -749,7 +749,7 @@ static void test_net_bulk_if(void)
 			.nbe_status = 0,
 		};
 		DELAY_MS(1);
-		c2_time_now(&ev.nbe_time);
+		ev.nbe_time = c2_time_now();
 		nb = &nbs[i];
 
 		if (i == C2_NET_QT_MSG_RECV) {
