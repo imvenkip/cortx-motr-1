@@ -27,8 +27,8 @@
    @defgroup yaml2db YAML to Database Parser
 
    @brief The yaml2db utility carries out following operations:
-   @li parsing the configuration file in yaml format on management server
-   @li storing the parsed information in database 
+   - parsing the configuration file in yaml format on management server
+   - storing the parsed information in database
 
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1Y2FccWZFA9yWXJiC-kld0XUrexoindOpMiHEGkqc3Rc/edit?hl=en_US">DLD of Configuration (dev_enum) </a>
@@ -72,6 +72,9 @@ enum c2_yaml2db_sec_type {
 	C2_YAML_TYPE_NR
 };
 
+/**
+  Maximum number of keys in a section
+ */
 enum {
 	C2_MAX_KEYS_IN_SECTION = 256,
 };
@@ -96,7 +99,7 @@ struct c2_yaml2db_section {
 	const struct c2_table_ops	 *ys_table_ops;
 	/* Type of section */
 	enum c2_yaml2db_sec_type	  ys_section_type;
-	/* Array of valid key strings */
+	/* Array of valid key structures */
 	struct c2_yaml2db_section_key	  ys_valid_keys[C2_MAX_KEYS_IN_SECTION];
 	/* Number of keys in the array */
 	size_t				  ys_num_keys;

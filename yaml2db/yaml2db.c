@@ -42,7 +42,6 @@
   @{
  */
 
-
 /* Constant names and paths */
 static const char *D_PATH = "./__config_db";
 static const char *disk_str = "disks";
@@ -405,10 +404,10 @@ static int validate_key_from_section(const yaml_char_t *key,
 
 /**
   Check if all the mandatory keys have been supplied
-  @param ysec - pointer to section structure against which the key status 
+  @param ysec - pointer to section structure against which the key status
   needs to be validated
-  @param valid_key_status - pointer to array of key status 
-  @retval true if all mandatory keys are supplied, false otherwise 
+  @param valid_key_status - pointer to array of key status
+  @retval true if all mandatory keys are supplied, false otherwise
  */
 static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 		const bool *valid_key_status)
@@ -495,7 +494,7 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 				k_node, v_node) {
 			section_index = validate_key_from_section(k_node->data.
 						scalar.value, ysec);
-		       	if (section_index == -EINVAL) {
+			if (section_index == -EINVAL) {
 				fprintf(stderr, "Error: invalid key: %s\n",
 						k_node->data.scalar.value);
 				continue;
@@ -613,9 +612,9 @@ int main(int argc, char *argv[])
                                 "yaml2db_parse_disk_conf", 0);
 	}
 
-	/* Finalize the parser and database environment */
 cleanup_parser_db:
 	yaml2db_fini(&yctx);
+
 cleanup:
 	c2_fini();
 
