@@ -124,17 +124,17 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_ping = {
-        .rit_opcode = c2_fop_ping_opcode,
+	.rit_opcode = c2_fop_ping_opcode,
 	.rit_ops = &rpc_item_ping_type_ops,
-        .rit_mutabo = true,
-        .rit_item_is_req = true,
+	.rit_mutabo = true,
+	.rit_item_is_req = true,
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
-        .rit_opcode = c2_fop_ping_rep_opcode,
+	.rit_opcode = c2_fop_ping_rep_opcode,
 	.rit_ops = &rpc_item_ping_rep_type_ops,
-        .rit_mutabo = false,
-        .rit_item_is_req = false,
+	.rit_mutabo = false,
+	.rit_item_is_req = false,
 };
 
 #if 0
