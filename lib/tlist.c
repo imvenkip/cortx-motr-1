@@ -241,24 +241,24 @@ C2_EXPORTED(c2_tlink_invariant);
 
 static struct c2_list_link *link(const struct c2_tl_descr *d, void *obj)
 {
-	return &((struct c2_tlink *)(obj + d->td_offset))->t_link;
+	return &((struct c2_tlink *)(obj + d->td_link_offset))->t_link;
 }
 
 static uint64_t magic(const struct c2_tl_descr *d, const void *obj)
 {
-	return *(uint64_t *)(obj + d->td_magic_offset);
+	return *(uint64_t *)(obj + d->td_link_magic_offset);
 }
 
 static void *obj(const struct c2_tl_descr *d, struct c2_list_link *link)
 {
-	return (void *)container_of(link,
-				    struct c2_tlink, t_link) - d->td_offset;
+	return (void *)container_of(link, struct c2_tlink,
+				    t_link) - d->td_link_offset;
 }
 
 static void magic_set(const struct c2_tl_descr *d, void *obj, uint64_t value)
 {
 	if (d->td_link_magic != 0)
-		*(uint64_t *)(obj + d->td_magic_offset) = value;
+		*(uint64_t *)(obj + d->td_link_magic_offset) = value;
 }
 
 /** @} end of tlist group */

@@ -55,7 +55,7 @@
    are supposed to handle.
 
    To describe a typical tlist usage pattern, suppose that one wants a list of
-   objects of type foo hanging off every object of type foo.
+   objects of type foo hanging off every object of type bar.
 
    First, two things have to be done:
 
@@ -85,9 +85,9 @@
 
      @code
      static const struct c2_tl_descr foobar_list = {
-             .td_name       = "foo-s of bar",
-	     .td_offset     = offsetof(struct foo, f_linkage),
-	     .td_head_magic = 0x666f6f6261726865 // "foobarhe"
+             .td_name        = "foo-s of bar",
+	     .td_link_offset = offsetof(struct foo, f_linkage),
+	     .td_head_magic  = 0x666f6f6261726865 // "foobarhe"
      };
      @endcode
 
@@ -104,8 +104,8 @@
 
    static const struct c2_tl_descr foobar_list = {
            ...
-	   .td_magic_offset = offsetof(struct foo, f_magic),
-	   .td_link_magic   = 0x666f6f6261726c69 // "foobarli"
+	   .td_link_magic_offset = offsetof(struct foo, f_magic),
+	   .td_link_magic        = 0x666f6f6261726c69 // "foobarli"
    };
    @endcode
 
@@ -148,10 +148,10 @@ struct c2_tlink;
    @verbatim
 			      ambient object
                           +  +-----------+  +
-          td_magic_offset |  |           |  |
+     td_link_magic_offset |  |           |  |
                           v  |           |  |
                              |-----------|  |
-                             |link magic |  | td_offset
+                             |link magic |  | td_link_offset
                              |-----------|  |
                              |           |  |
         head                 |           |  |
@@ -166,7 +166,6 @@ struct c2_tlink;
     |                        |           |                     |
     |                        +-----------+                     |
     |                                                          |
-    |                                                          |
     +----------------------------------------------------------+
 
    @endverbatim
@@ -175,26 +174,34 @@ struct c2_tl_descr {
 	/** Human-readable list name, used for error messages. */
 	const char *td_name;
 	/** Offset of list link (c2_tlink) in the ambient object. */
-	int         td_offset;
+	int         td_link_offset;
 	/**
 	    Offset of magic field in the ambient object.
 	    This is used only when link magic checking is on.
 
 	    @see c2_tl_descr::td_link_magic
 	 */
-	int         td_magic_offset;
-	/**
-	    Magic stored in c2_tl::t_magic and checked on all tlist
-	    operations.
-	 */
-	uint64_t    td_head_magic;
+	int         td_link_magic_offset;
 	/**
 	    Magic stored in an ambient object.
 
 	    If this field is 0, link magic checking is disabled.
 	 */
 	uint64_t    td_link_magic;
+	/**
+	    Magic stored in c2_tl::t_magic and checked on all tlist
+	    operations.
+	 */
+	uint64_t    td_head_magic;
 };
+
+#define C2_TL_DESCR(name, ambient, magic_field, magic_value, head_magic) \
+{									\
+	.td_name        = name,						\
+	.td_link_offset = offsetof(ambient, magic_field),		\
+	.td_link_magic  = magic_value,					\
+	.td_head_magic  = head_magic					\
+}
 
 /**
    tlist head.
@@ -330,23 +337,24 @@ void  *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list,
 void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list,
 		     void *obj);
 /**
-   A variant of c2_tlist_prev() that returns NULL, when obj parameter is
+   A variant of c2_tlist_next() that returns NULL, when obj parameter is
    NULL. This is used by c2_tlist_for(). Compare with (CDR NIL) being NIL.
  */
 void *c2_tlist_next_safe(const struct c2_tl_descr *d, struct c2_tl *list,
 			 void *obj);
 /**
-   Iterates over elements of list @head of type @d, assigning them in order
+   Iterates over elements of list @head of type @descr, assigning them in order
    (from head to tail) to @obj.
 
    It is safe to delete the "current" object in the body of the loop or modify
    the portion of the list preceding the current element.
  */
-#define c2_tlist_for(d, head, obj)					\
-	for (void *__tl_tmp, obj = c2_tlist_head(d, head),		\
-	     __tl_tmp = c2_tlist_next_safe(d, head, obj);		\
+#define c2_tlist_for(descr, head, obj)					\
+	for (void *__tl_tmp, obj = c2_tlist_head(descr, head),		\
+	     __tl_tmp = c2_tlist_next_safe(descr, head, obj);		\
 	     obj != NULL;						\
-	     obj = __tl_tmp, __tl_tmp = c2_tlist_next_safe(d, head, __tl_tmp))
+	     obj = __tl_tmp,						\
+	     __tl_tmp = c2_tlist_next_safe(descr, head, __tl_tmp))
 
 /** @} end of tlist group */
 
