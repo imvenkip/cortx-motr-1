@@ -45,7 +45,6 @@
 
 /* Constant names and paths */
 static const char *D_PATH = "./__config_db";
-static const char *disk_table = "disk_table";
 static const char *disk_str = "disks";
 
 enum {
@@ -69,8 +68,8 @@ static int test_key_cmp(struct c2_table *table,
 /* Table ops for disk table */
 static const struct c2_table_ops disk_table_ops = {
         .to = {
-                [TO_KEY] = { .max_size = 84 },
-                [TO_REC] = { .max_size = 84 }
+                [TO_KEY] = { .max_size = 256 },
+                [TO_REC] = { .max_size = 256 }
         },
         .key_cmp = test_key_cmp
 };
@@ -387,9 +386,9 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
   Check if the key is a valid key for a given section
   @param key - key to be validated
   @param ysec - section structure against which the key needs to be validated
-  @retval true if valid, false otherwise
+  @retval index of key in section table for valid key, -EINVAL otherwise
  */
-static bool validate_key_from_section(const yaml_char_t *key,
+static int validate_key_from_section(const yaml_char_t *key,
 		const struct c2_yaml2db_section *ysec)
 {
 	int cnt = 0;
@@ -399,9 +398,38 @@ static bool validate_key_from_section(const yaml_char_t *key,
 
 	for (cnt = 0; cnt < ysec->ys_num_keys; cnt++)
 		if (strcmp((char *)key,
-			   (char *)ysec->ys_valid_keys[cnt]) == 0)
-		       return true;
-	return false;
+			   (char *)ysec->ys_valid_keys[cnt].ysk_key) == 0)
+		       return cnt;
+	return -EINVAL;
+}
+
+/**
+  Check if all the mandatory keys have been supplied
+  @param ysec - pointer to section structure against which the key status 
+  needs to be validated
+  @param valid_key_status - pointer to array of key status 
+  @retval true if all mandatory keys are supplied, false otherwise 
+ */
+static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
+		const bool *valid_key_status)
+{
+	int  cnt = 0;
+	bool rc = true;
+
+        C2_PRE(yaml2db_section_invariant(ysec));
+	C2_PRE(valid_key_status != NULL);
+
+	for (cnt = 0; cnt < ysec->ys_num_keys; cnt++) {
+		if (ysec->ys_valid_keys[cnt].ysk_mandatory &&
+				!valid_key_status[cnt]) {
+			rc = false;
+			fprintf(stderr,"Error: Mandatory key not present: %s\n",
+					(char *)ysec->ys_valid_keys[cnt].
+					ysk_key);
+		}
+
+	}
+	return rc;
 }
 
 /**
@@ -415,16 +443,19 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 		const struct c2_yaml2db_section *ysec, const char *conf_param)
 {
         int                      rc;
+	int			 key = 0;
+	bool			 valid_key_status[ysec->ys_num_keys];
+	bool			 mandatory_keys_present;
+	size_t			 section_index;
+        struct c2_table		 table;
+        struct c2_db_tx		 tx;
+        struct c2_db_pair	 db_pair;
 	yaml_node_t		*node;
 	yaml_node_t		*s_node;
 	yaml_node_t		*k_node;
 	yaml_node_t		*v_node;
 	yaml_node_item_t	*item;
 	yaml_node_pair_t	*pair;
-        struct c2_table		 table;
-        struct c2_db_tx		 tx;
-        struct c2_db_pair	 db_pair;
-	int			 key = 0;
 
         C2_PRE(yaml2db_context_invariant(yctx));
         C2_PRE(yaml2db_section_invariant(ysec));
@@ -458,14 +489,18 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 	node++;
 	key = ysec->ys_start_key;
 	c2_yaml2db_sequence_for_each(yctx, node, item, s_node) {
+		C2_SET_ARR0(valid_key_status);
+		mandatory_keys_present = false;
 		c2_yaml2db_mapping_for_each (yctx, s_node, pair,
 				k_node, v_node) {
-			if(!validate_key_from_section(k_node->data.
-						scalar.value, ysec)) {
+			section_index = validate_key_from_section(k_node->data.
+						scalar.value, ysec);
+		       	if (section_index == -EINVAL) {
 				fprintf(stderr, "Error: invalid key: %s\n",
 						k_node->data.scalar.value);
 				continue;
-		}
+			}
+			valid_key_status[section_index] = true;
 			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
 					v_node->data.scalar.value,
 					sizeof(v_node->data.scalar.value));
@@ -481,15 +516,16 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 			}
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
-#if 0
-                       printf("Key: %d, node(value): %s\t\
-                                value: %d node(value): %s\n",
-                                pair->key,
-                                k_node->data.scalar.value,
-                                pair->value,
-                                v_node->data.scalar.value);
-#endif
 			key++;
+		}
+		mandatory_keys_present = validate_mandatory_keys(ysec,
+				valid_key_status);
+		if (!mandatory_keys_present) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail,
+					"validate_mandatory_keys", 0);
+			c2_table_fini(&table);
+			return -EINVAL;
 		}
 	}
 	c2_db_tx_commit(&tx);
@@ -497,33 +533,20 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 	return rc;
 }
 
-/**
-  Load the disk section
-  @param ysec - section structure to be loaded
-  @retval 0 for success, -errno otherwise
- */
-static int yaml2db_load_disk_section(struct c2_yaml2db_section *ysec)
-{
-	int nkey = 0;
+/* Static declaration of disk section table */
 
-	C2_PRE(ysec != NULL);
-
-	ysec->ys_num_keys = DISK_MAPPING_KEY_NR;
-	C2_ALLOC_ARR(ysec->ys_valid_keys, DISK_MAPPING_KEY_NR);
-	if (ysec->ys_valid_keys == NULL)
-		return -ENOMEM;
-
-	ysec->ys_valid_keys[nkey++] = "label";
-	ysec->ys_valid_keys[nkey++] = "status";
-	ysec->ys_valid_keys[nkey++] = "setting";
-
-	ysec->ys_table_name = disk_table;
-	ysec->ys_table_ops = &disk_table_ops;
-	ysec->ys_start_key = DISK_MAPPING_START_KEY;
-	ysec->ys_section_type = C2_YAML_TYPE_MAPPING;
-
-	return 0;
-}
+struct c2_yaml2db_section disk_section = {
+	.ys_table_name = "disk_table",
+	.ys_table_ops = &disk_table_ops,
+	.ys_start_key = DISK_MAPPING_START_KEY,
+	.ys_section_type = C2_YAML_TYPE_MAPPING,
+	.ys_num_keys = 3,
+	.ys_valid_keys = {
+		[0] = {"label", true},
+		[1] = {"status", true},
+		[2] = {"setting", true},
+	}
+};
 
 /**
   Main function for yaml2db
@@ -532,7 +555,6 @@ int main(int argc, char *argv[])
 {
 	int				 rc = 0;
 	struct c2_yaml2db_ctx		 yctx;
-	struct c2_yaml2db_section	 ysec;
 	const char			*c_name = NULL;
 	const char			*d_path = NULL;
 
@@ -584,17 +606,8 @@ int main(int argc, char *argv[])
 		goto cleanup_parser_db;
 	}
 
-	/* Load the parameter specific section table */
-	rc = yaml2db_load_disk_section(&ysec);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml2db_load_disk_section", 0);
-		goto cleanup_parser_db;
-	}
-
-
 	/* Parse the disk configuration which is loaded in the context */
-	rc = yaml2db_load_conf(&yctx, &ysec, disk_str);
+	rc = yaml2db_load_conf(&yctx, &disk_section, disk_str);
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
                                 "yaml2db_parse_disk_conf", 0);
