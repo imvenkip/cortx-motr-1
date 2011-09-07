@@ -581,20 +581,9 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
-	/*
-	 * Remove all slots from c2_rpcmachine::cr_ready_slots list
-	 */
-	conn = session->s_conn;
-	c2_mutex_lock(&conn->c_rpcmachine->cr_ready_slots_mutex);
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		if (c2_list_link_is_in(&slot->sl_link))
-			c2_list_del(&slot->sl_link);
-	}
-	c2_mutex_unlock(&conn->c_rpcmachine->cr_ready_slots_mutex);
-
 	fop_st = c2_fop_data(fop);
 
+	conn = session->s_conn;
 	fop_st->rst_sender_id = conn->c_sender_id;
 	fop_st->rst_session_id = session->s_session_id;
 
@@ -603,6 +592,17 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_mutex_unlock(&session->s_mutex);
+
+	/*
+	 * Remove all slots from c2_rpcmachine::cr_ready_slots list
+	 */
+	c2_mutex_lock(&conn->c_rpcmachine->cr_ready_slots_mutex);
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
+		if (c2_list_link_is_in(&slot->sl_link))
+			c2_list_del(&slot->sl_link);
+	}
+	c2_mutex_unlock(&conn->c_rpcmachine->cr_ready_slots_mutex);
 
 	rc = c2_rpc__fop_post(fop, session_0,
 				&c2_rpc_item_session_terminate_ops);
