@@ -20,6 +20,11 @@
 #include "lib/arith.h"
 #include "yaml2db/disk_conf_db.h"
 
+/**
+  @addtogroup yaml2db
+  @{
+ */
+
 /* DB Table ops */
 static int test_key_cmp(struct c2_table *table,
                         const void *key0, const void *key1)
@@ -38,6 +43,8 @@ const struct c2_table_ops c2_conf_disk_table_ops = {
         },
         .key_cmp = test_key_cmp
 };
+
+/** @} end of yaml2db group */
 
 /*
  *  Local variables:
