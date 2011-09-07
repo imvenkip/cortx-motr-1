@@ -45,8 +45,8 @@
  * @{
  */
 
-bool is_read(struct c2_fop *fop);
-bool is_write(struct c2_fop *fop);
+extern bool is_read(struct c2_fop *fop);
+extern bool is_write(struct c2_fop *fop);
 static int io_fom_cob_rwv_state(struct c2_fom *fom);
 
 /** Generic ops object for c2_fop_cob_writev */
@@ -113,6 +113,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
+	C2_PRE(is_io(fop));
 
 	C2_ALLOC_PTR(fom_obj);
 	if (fom_obj == NULL)
@@ -126,7 +127,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
 		fom->fo_ops = &c2_io_fom_read_ops;
 		fom_obj->fcrw_rep_fop =
 			c2_fop_alloc(&c2_fop_cob_readv_rep_fopt, NULL);
-	} else if (is_write(fop)) {
+	} else {
 		fom_ops = &c2_io_cob_writev_type_ops;
 		fom->fo_ops = &c2_io_fom_write_ops;
 		fom_obj->fcrw_rep_fop =
@@ -177,8 +178,9 @@ static int io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
 	fop = fom_obj->fcrw_fop;
+	C2_PRE(is_io(fop));
 
-	/* Retrieve the request and reply FOPs. Extract the on-write FID
+	/* Retrieve the request and reply FOPs. Extract the on-wire FID
 	   from the FOPs. */
 	if (is_write(fop))
 		wr_rep_fop = c2_fop_data(fom_obj->fcrw_rep_fop);
