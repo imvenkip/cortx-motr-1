@@ -82,18 +82,28 @@ static struct c2_mutex lock;
 static struct c2_thread thread[TEST_NR];
 struct stobio_test test[TEST_NR] = {
 	/* buffered IO tests */
-	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } }, .st_directio = false },
-	[1] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } }, .st_directio = false },
-	[2] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } }, .st_directio = false },
-	[3] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } }, .st_directio = false },
-	[4] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } }, .st_directio = false },
+	[0] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } },
+		.st_directio = false },
+	[1] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } },
+		.st_directio = false },
+	[2] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } },
+		.st_directio = false },
+	[3] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } },
+		.st_directio = false },
+	[4] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } },
+		.st_directio = false },
 
 	/* direct IO tests */
-	[5] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } }, .st_directio = true },
-	[6] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } }, .st_directio = true },
-	[7] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } }, .st_directio = true },
-	[8] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } }, .st_directio = true },
-	[9] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } }, .st_directio = true },
+	[5] = { .st_id = { .si_bits = { .u_hi = 1, .u_lo = 2 } },
+		.st_directio = true },
+	[6] = { .st_id = { .si_bits = { .u_hi = 3, .u_lo = 4 } },
+		.st_directio = true },
+	[7] = { .st_id = { .si_bits = { .u_hi = 5, .u_lo = 6 } },
+		.st_directio = true },
+	[8] = { .st_id = { .si_bits = { .u_hi = 7, .u_lo = 8 } },
+		.st_directio = true },
+	[9] = { .st_id = { .si_bits = { .u_hi = 9, .u_lo = 0 } },
+		.st_directio = true },
 };
 
 static void stobio_io_prepare(struct stobio_test *test,
