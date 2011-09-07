@@ -284,58 +284,49 @@ static struct c2_rpc_item_type_ops default_item_type_ops = {
         .rito_item_size = c2_rpc_item_default_size,
 };
 
-struct c2_rpc_item_type c2_rpc_item_conn_establish = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = true,
-	.rit_mutabo = true,
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish,
+		     C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_conn_terminate = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = true,
-	.rit_mutabo = true,
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate,
+		     C2_RPC_FOP_CONN_TERMINATE_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_session_establish = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = true,
-	.rit_mutabo = true,
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_establish,
+		     C2_RPC_FOP_SESSION_ESTABLISH_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_session_terminate = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = true,
-	.rit_mutabo = true,
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_terminate,
+		     C2_RPC_FOP_SESSION_TERMINATE_OPCODE,
+		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_conn_establish_rep = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = false,
-	.rit_mutabo = false
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish_rep,
+		     C2_RPC_FOP_CONN_ESTABLISH_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_conn_terminate_rep = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = false,
-	.rit_mutabo = false
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate_rep,
+		     C2_RPC_FOP_CONN_TERMINATE_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_session_establish_rep = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = false,
-	.rit_mutabo = false
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_establish_rep,
+		     C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
 
-struct c2_rpc_item_type c2_rpc_item_session_terminate_rep = {
-	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = false,
-	.rit_mutabo = false
-};
+C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_session_terminate_rep,
+		     C2_RPC_FOP_SESSION_TERMINATE_REP_OPCODE,
+		     C2_RPC_ITEM_TYPE_REPLY,
+		     &default_item_type_ops);
 
 struct c2_rpc_item_type c2_rpc_item_noop = {
 	.rit_ops = &default_item_type_ops,
-	.rit_item_is_req = true,
-	.rit_mutabo = false
+	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST
 };
 
 const struct c2_rpc_item_ops c2_rpc_item_conn_establish_ops = {
