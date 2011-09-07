@@ -239,12 +239,12 @@ static int xcode_sequence_size_get(size_t *size,
 	else {
 		/*
 		 * This is an sequence of atomic types or aggr types(record,
-	 	 * sequence etc). Traverse through each subtype and calculate
+		 * sequence etc). Traverse through each subtype and calculate
 		 * size.
-	 	 */
+		 */
 		for (rc = 0, cnt = 0; rc == 0 && cnt < nr; ++cnt) {
 			rc = xcode_subtype_size(&seq_size, fftype, fseq,
-		                       	        FOP_FIELD_ONE, cnt);
+			FOP_FIELD_ONE, cnt);
 		}
 	}
 	*size += seq_size;
@@ -315,7 +315,7 @@ int c2_xcode_fop_type_size_get(size_t *size,
 
 size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 {
-	size_t 		size = 0;
+	size_t		size = 0;
 	int		rc;
 
 	C2_PRE(fop != NULL);

@@ -158,6 +158,14 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 
 /** @} end of bufvec group */
 
+/**
+  Calculates the onwire size of fop data . This function internally calls
+  the fop field type specific functions to calculate the size
+
+  @param fop The data for this fop is to be encoded/decoded.
+
+  @retval Onwire size of the fop in bytes.
+*/
 size_t c2_xcode_fop_size_get(struct c2_fop *fop);
 
 /**
