@@ -73,13 +73,6 @@ enum c2_yaml2db_sec_type {
 };
 
 /**
-  Maximum number of keys in a section
- */
-enum {
-	C2_MAX_KEYS_IN_SECTION = 256,
-};
-
-/**
   Key structure for determining valid keys in a yaml2db section
  */
 struct c2_yaml2db_section_key {
@@ -100,7 +93,7 @@ struct c2_yaml2db_section {
 	/* Type of section */
 	enum c2_yaml2db_sec_type	  ys_section_type;
 	/* Array of valid key structures */
-	struct c2_yaml2db_section_key	  ys_valid_keys[C2_MAX_KEYS_IN_SECTION];
+	struct c2_yaml2db_section_key	 *ys_valid_keys;
 	/* Number of keys in the array */
 	size_t				  ys_num_keys;
 	/* Starting numeric value to be treated as database key for this

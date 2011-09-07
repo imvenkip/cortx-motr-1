@@ -36,6 +36,7 @@
 #include "lib/misc.h"
 #include "lib/thread.h"
 #include "yaml2db/yaml2db.h"
+#include "yaml2db/disk_conf_db.h"
 
 /**
   @addtogroup yaml2db
@@ -52,25 +53,6 @@ enum {
 
 enum {
 	DISK_MAPPING_KEY_NR = 3,
-};
-
-/* DB Table ops */
-static int test_key_cmp(struct c2_table *table,
-                        const void *key0, const void *key1)
-{
-        const uint64_t *u0 = key0;
-        const uint64_t *u1 = key1;
-
-        return C2_3WAY(*u0, *u1);
-}
-
-/* Table ops for disk table */
-static const struct c2_table_ops disk_table_ops = {
-        .to = {
-                [TO_KEY] = { .max_size = 256 },
-                [TO_REC] = { .max_size = 256 }
-        },
-        .key_cmp = test_key_cmp
 };
 
 /* ADDB Instrumentation yaml2db */
@@ -443,6 +425,7 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 {
         int                      rc;
 	int			 key = 0;
+	/* gcc extension */
 	bool			 valid_key_status[ysec->ys_num_keys];
 	bool			 mandatory_keys_present;
 	size_t			 section_index;
@@ -534,17 +517,19 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 
 /* Static declaration of disk section table */
 
+static struct c2_yaml2db_section_key disk_section_keys[] = {
+	[0] = {"label", true},
+	[1] = {"status", true},
+	[2] = {"setting", true},
+};
+
 struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
-	.ys_table_ops = &disk_table_ops,
+	.ys_table_ops = &c2_conf_disk_table_ops,
 	.ys_start_key = DISK_MAPPING_START_KEY,
 	.ys_section_type = C2_YAML_TYPE_MAPPING,
-	.ys_num_keys = 3,
-	.ys_valid_keys = {
-		[0] = {"label", true},
-		[1] = {"status", true},
-		[2] = {"setting", true},
-	}
+	.ys_num_keys = ARRAY_SIZE(disk_section_keys),
+	.ys_valid_keys = disk_section_keys,
 };
 
 /**
