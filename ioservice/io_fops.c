@@ -32,6 +32,8 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "fop/fop.h"
+#include "fop/fop_format_def.h"
+#include "ioservice/io_fops.ff"
 
 /**
    The IO fops code has been generalized to suit both read and write fops
@@ -255,8 +257,16 @@ static void ioseg_unlink_free(struct c2_io_ioseg *ioseg)
  * which is embedded in struct c2_io_fom_cob_rwv.
  * Find the corresponding fom_type and associate it with c2_fom.
  * Associate fop with fom type.
+ * Dummy definition for kernel mode.
  */
+#ifdef __KERNEL__
+int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+{
+	return 0;
+}
+#else
 int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
+#endif
 
 /**
    Returns the size of a fop of type c2_fop_cob_writev.
