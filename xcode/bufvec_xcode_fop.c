@@ -45,17 +45,6 @@
 
    @{
  */
-enum {
-	FOP_FIELD_ZERO = 0,
-	ELEMENT_ZERO   = 0,
-	FOP_FIELD_ONE  = 1,
-};
-
-/** Format of fop sequence data */
-struct   fop_sequence {
-	uint32_t         fs_count;
-	void		*fs_data;
-};
 
 /* Generic xcode function prototype for fop field types */
 typedef int (*c2_xcode_foptype_t)(struct c2_fop_field_type *ftype,
@@ -186,7 +175,7 @@ static int xcode_bufvec_record(struct c2_fop_field_type *fftype,
   @retval true if field type is a byte array.
   @retval false if field type is not a byte array.
 */
-static bool xcode_is_byte_array(const struct c2_fop_field_type *fftype)
+bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype)
 {
 	C2_ASSERT(fftype->fft_aggr == FFA_SEQUENCE);
 	return fftype->fft_child[1]->ff_type == &C2_FOP_TYPE_BYTE;
@@ -240,7 +229,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 				 enum c2_bufvec_what what)
 {
 
-	struct fop_sequence     *fseq;
+	struct c2_fop_sequence   *fseq;
 	int                      rc;
 	uint32_t                 nr;
 	int		         cnt;
@@ -263,7 +252,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		 * Check if its a byte array and call the byte array encode
 		 *  function.
 		 */
-		if (xcode_is_byte_array(fftype))
+		if (c2_xcode_is_byte_array(fftype))
 			return xcode_bufvec_byte_seq(cur,
 				(char **)&fseq->fs_data, nr, what);
 	} else if (what  == C2_BUFVEC_DECODE) {
@@ -272,7 +261,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 				return rc;
 		fseq->fs_count = nr;
 		/* Detect if it's byte sequence */
-		if(xcode_is_byte_array(fftype)) {
+		if(c2_xcode_is_byte_array(fftype)) {
 			return xcode_bufvec_byte_seq(cur,
 				(char **)&fseq->fs_data, nr, what);
 		}

@@ -49,6 +49,19 @@ enum c2_bufvec_what {
 	C2_BUFVEC_DECODE = 1,
 };
 
+/** Enums used by generic fop encode-decode interfaces */
+enum {
+	FOP_FIELD_ZERO = 0,
+	ELEMENT_ZERO   = 0,
+	FOP_FIELD_ONE  = 1,
+};
+
+/** Format of fop sequence data */
+struct   c2_fop_sequence {
+	uint32_t         fs_count;
+	void		*fs_data;
+};
+
 /**
   Encode/Decode the various C builtin atomic types into c2_bufvecs. Each of
   these routines provide a single procedure for both encode and decode for each
@@ -144,6 +157,18 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum c2_bufvec_what what);
 
 /** @} end of bufvec group */
+
+size_t c2_xcode_fop_size_get(struct c2_fop *fop);
+
+/**
+  Returns true if the current fop field type is a byte array
+
+  @param fftype the fop field type.
+
+  @retval true if field type is a byte array.
+  @retval false if field type is not a byte array.
+*/
+bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
 
 #endif
 /*
