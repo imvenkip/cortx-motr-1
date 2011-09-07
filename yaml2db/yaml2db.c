@@ -515,14 +515,14 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 	return rc;
 }
 
-/* Static declaration of disk section table */
-
+/* Static declaration of disk section keys array */
 static struct c2_yaml2db_section_key disk_section_keys[] = {
 	[0] = {"label", true},
 	[1] = {"status", true},
 	[2] = {"setting", true},
 };
 
+/* Static declaration of disk section table */
 struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
 	.ys_table_ops = &c2_conf_disk_table_ops,
