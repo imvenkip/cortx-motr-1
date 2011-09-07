@@ -608,6 +608,9 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		printf("got duplicate reply for %p\n", req);
 	} else {
+		/*
+		 * This is valid reply case.
+		 */
 		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
@@ -632,6 +635,11 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 			}
 			c2_mutex_unlock(&session->s_mutex);
 		}
+		/*
+		 * On receiver, ->so_reply_consume(req, reply) will hand over
+		 * @reply to formation, to send it back to sender.
+		 * see: rcv_reply_consume(), snd_reply_consume()
+		 */
 		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
 	}

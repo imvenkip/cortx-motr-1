@@ -274,6 +274,14 @@ struct c2_rpc_sender_uuid {
 	uint64_t su_uuid;
 };
 
+/**
+   Possible rpc connection states.
+
+   Value of each state constant is taken to be a power of two so that it is
+   possible to specify multiple states (by ORing them) to
+   c2_rpc_conn_timedwait(), to wait until conn reaches in any one of the
+   specified states.
+ */
 enum c2_rpc_conn_state {
 	/**
 	  All the fields of conn are initialised locally. But the connection
@@ -487,11 +495,6 @@ struct c2_rpc_conn {
 	 */
 	struct c2_rpc_chan       *c_rpcchan;
 
-	/** XXX Deprecated: c2_service_id
-	    Id of the service with which this c2_rpc_conn is associated
-	*/
-	struct c2_service_id     *c_service_id;
-
 	/** Destination end point */
 	struct c2_net_end_point  *c_end_point;
 
@@ -591,6 +594,11 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 
 /**
    Possible states of a session object
+
+   Value of each state constant is taken to be a power of 2 so that it is
+   possible to specify multiple states (by ORing them) to
+   c2_rpc_session_timedwait(), to wait until session reaches in any one of the
+   specified states.
  */
 enum c2_rpc_session_state {
 	/**
@@ -645,7 +653,10 @@ enum c2_rpc_session_state {
    parameters. But currently it is just a container for slots.
 
    <B> Liveness: </B>
-   Allocation and deallocation of c2_rpc_session is entirely managed by user.
+   Allocation and deallocation of c2_rpc_session is entirely managed by user
+   except for SESSION 0. SESSION 0 is allocated and deallocated by rpc-layer
+   internally along with c2_rpc_conn. @see c2_rpc_conn for more information
+   on creation and use of SESSION 0.
 
    <B> Concurrency:</B>
    c2_rpc_session::s_mutex protects all fields except s_link. s_link is
@@ -669,7 +680,7 @@ enum c2_rpc_session_state {
 				      | c2_rpc_session_establish()
 				      |
 		timed-out             V
-          +-------------------------CREATING
+          +-----------------------ESTABLISHING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)

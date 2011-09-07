@@ -278,7 +278,8 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 			   uint64_t            state_flags,
 			   const c2_time_t     abs_timeout)
 {
-	bool            got_event = true;
+	bool got_event = true;
+	bool result;
 
 	c2_mutex_lock(&conn->c_mutex);
 	while ((conn->c_state & state_flags) == 0 && got_event) {
@@ -290,9 +291,10 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 		 */
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
 	}
+	result = ((conn->c_state & state_flags) != 0);
 	c2_mutex_unlock(&conn->c_mutex);
 
-	return (conn->c_state & state_flags) != 0;
+	return result;
 }
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
