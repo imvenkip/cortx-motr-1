@@ -64,9 +64,8 @@ void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
 {
 	/* XXX temporary */
 	uint64_t  rnd;
-	c2_time_t now;
 
-	rnd = c2_time_nanoseconds(c2_time_now(&now)) * 1000;
+	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
 	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
 }
 
@@ -107,7 +106,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	uint64_t              pfid_hi;
 	uint64_t              pfid_lo;
 	uint64_t              rnd;
-	c2_time_t             now;
 	int                   rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
@@ -128,7 +126,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	/*
 	 * XXX How to get unique stob_id for new cob?
 	 */
-	rnd = c2_time_nanoseconds(c2_time_now(&now)) * 1000;
+	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
 
 	nsrec.cnr_stobid.si_bits.u_hi = c2_rnd(1000, &rnd);
 	nsrec.cnr_stobid.si_bits.u_lo = c2_rnd(1000, &rnd);

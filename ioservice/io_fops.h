@@ -25,10 +25,6 @@
 #include "fop/fop_format.h"
 #include "lib/list.h"
 
-struct c2_fop_io_seg;
-struct c2_fop_segment;
-struct c2_fop_segment_seq;
-
 /**
  * The opcode from which IO service FOPS start.
  */
@@ -43,11 +39,6 @@ enum c2_io_service_opcodes {
    Returns the number of fops registered by ioservice.
  */
 int c2_ioservice_fops_nr(void);
-
-/**
-   Returns the common structure referred by both read and write request fops.
- */
-struct c2_fop_cob_rw *c2_io_rwv_get(struct c2_fop *fop);
 
 /**
    Init and fini of ioservice fops code.
@@ -68,6 +59,7 @@ extern struct c2_fop_type_format c2_fop_io_buf_tfmt;
 extern struct c2_fop_type_format c2_fop_io_seg_tfmt;
 extern struct c2_fop_type_format c2_fop_io_vec_tfmt;
 extern struct c2_fop_type_format c2_fop_cob_rw_tfmt;
+extern struct c2_fop_type_format c2_fop_cob_rw_reply_tfmt;
 
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;

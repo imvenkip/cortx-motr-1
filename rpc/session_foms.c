@@ -143,7 +143,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 	reply->rcer_sender_id = conn->c_sender_id;
 	reply->rcer_rc = 0;      /* successful */
-	fom->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_SUCCESS;
 
 	printf("ce_state: conn establish successful %lu\n",
 			(unsigned long)conn->c_sender_id);
@@ -167,7 +167,7 @@ errout:
 	reply->rcer_sender_id = SENDER_ID_INVALID;
 	reply->rcer_rc = rc;
 
-	fom->fo_phase = FOPH_FAILED;
+	fom->fo_phase = FOPH_FAILURE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
@@ -260,7 +260,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply->rser_rc = 0;    /* success */
 	reply->rser_session_id = session->s_session_id;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	fom->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_SUCCESS;
 	printf("session_establish_state:success %lu\n", session->s_session_id);
 	return FSO_AGAIN;
 
@@ -281,7 +281,7 @@ errout:
 	printf("session_establish: failed %d\n", rc);
 	reply->rser_rc = rc;
 	reply->rser_session_id = SESSION_ID_INVALID;
-	fom->fo_phase = FOPH_FAILED;
+	fom->fo_phase = FOPH_FAILURE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
@@ -361,7 +361,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	/* fall through */
 errout:
 	reply->rstr_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
+	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
 	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
 			  &fom_st->fst_fop_rep->f_item);
 	return FSO_AGAIN;
@@ -429,7 +429,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	 * c2_rpc_conn_terminate_reply_sent() will be called.
 	 */
 	reply->ctr_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
+	fom->fo_phase = (rc == 0) ? FOPH_SUCCESS : FOPH_FAILURE;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }

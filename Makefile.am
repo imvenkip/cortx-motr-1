@@ -36,29 +36,10 @@ SUBDIRS_LIBS = \
                xdr
 
 SUBDIR_KERNEL = build_kernel_modules
-# keep this list alphabetically sorted
-SUBDIR_UT = \
-               balloc/ut \
-               capa/ut \
-               cob/ut \
-               db/ut \
-               desim/ut \
-               fol/ut \
-               fop/ut \
-               layout/ut \
-               lib/ut \
-               net/bulk_emulation/ut \
-               net/st \
-               net/ut \
-               sns/ut \
-               stob/ut \
-               rpc/ut \
-               rpc/it \
-               udb/ut \
-               xcode/ut \
-               xdr/ut
-
-SUBDIR_ST =
+SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+            fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
+            udb/ut capa/ut reqh/ut rpc/it rpc/ut xcode/ut xdr/ut
+SUBDIR_ST = net/st net/bulk_emulation/st
 SUBDIR_UB =
 
 SUBDIR_BIN = mds utils

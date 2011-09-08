@@ -52,32 +52,12 @@
 #include "stob/stob.h"
 
 /**
- * Function to map given fid to corresponding component object id (in turn,
- * storage object id).
- * Currently, this mapping is identity. But it is subject to
- * change as per the future requirements.
- */
-void c2_io_fid2stob_map(struct c2_fid *in, struct c2_stob_id *out);
-
-/**
- * A dummy request handler API to handle incoming FOPs.
- * Actual reqh will be used in future.
- */
-int c2_io_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
-			 void *cookie, struct c2_fol *fol,
-			 struct c2_stob_domain *dom);
-
-/**
  * Object encompassing FOM for cob write
  * operation and necessary context data
  */
 struct c2_io_fom_cob_rwv {
 	/** Generic c2_fom object. */
         struct c2_fom                    fcrw_gen;
-	/** FOP associated with this FOM. */
-        struct c2_fop			*fcrw_fop;
-	/** Reply FOP associated with request FOP above. */
-	struct c2_fop			*fcrw_rep_fop;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packet for the operation. */
@@ -90,11 +70,9 @@ struct c2_io_fom_cob_rwv {
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_rwv_phases {
-	FOPH_COB_IO,
+	FOPH_COB_IO = FOPH_NR + 1,
+	FOPH_COB_IO_WAIT,
 };
-
-/** Finish method of read FOM object */
-void c2_io_fom_cob_rwv_fini(struct c2_fom *fom);
 
 #endif
 

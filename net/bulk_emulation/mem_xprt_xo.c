@@ -147,7 +147,7 @@ static void mem_wi_post_buffer_event(struct c2_net_bulk_mem_work_item *wi)
 		.nbe_ep     = wi->xwi_nbe_ep
 	};
 	C2_PRE(wi->xwi_status <= 0);
-	c2_time_now(&ev.nbe_time);
+	ev.nbe_time = c2_time_now();
 	c2_net_buffer_event_post(&ev);
 	return;
 }
