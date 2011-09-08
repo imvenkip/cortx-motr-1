@@ -492,11 +492,13 @@ AC_CONFIG_FILES([
                  capa/Makefile
                  capa/ut/Makefile
                  cob/Makefile
+                 cob/linux_kernel/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  db/Makefile
                  db/linux_kernel/Makefile
                  db/ut/Makefile
+                 dtm/linux_kernel/Makefile
                  desim/Makefile
                  desim/ut/Makefile
                  doc/Makefile
@@ -556,6 +558,7 @@ AC_CONFIG_FILES([
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
                  xcode/Makefile
+                 xcode/linux_kernel/Makefile
                  xcode/ut/Makefile
 		 xdr/Makefile
                  xdr/ut/Makefile
