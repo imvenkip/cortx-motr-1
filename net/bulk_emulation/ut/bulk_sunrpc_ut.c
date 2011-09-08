@@ -36,9 +36,8 @@ static void ut_sleep_secs(int secs)
 static c2_time_t ut_timeout_after_secs(int secs)
 {
 	c2_time_t dur;
-	c2_time_t now;
 	c2_time_set(&dur, secs, 0);
-	return c2_time_add(c2_time_now(&now), dur);
+	return c2_time_add(c2_time_now(), dur);
 }
 
 static enum c2_net_tm_ev_type cb_evt1;
@@ -311,7 +310,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(ep1->nep_addr != addr);
 	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
-	c2_time_now(&t1);
+	t1 = c2_time_now();
 	sunrpc_ep_put_conn(sconn, conn, 0);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
 	dp = sunrpc_dom_to_pvt(&dom1);

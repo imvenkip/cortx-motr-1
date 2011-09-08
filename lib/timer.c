@@ -56,7 +56,7 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 	signal(SIGUSR1, nothing);
 
 	while (timer->t_left > 0) {
-		c2_time_now(&now);
+		now = c2_time_now();
 		if (c2_time_after(now, timer->t_expire))
 			timer->t_expire = c2_time_add(now, timer->t_interval);
 
@@ -104,10 +104,9 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	c2_time_t now;
 	int rc;
 
-	timer->t_expire = c2_time_add(c2_time_now(&now), timer->t_interval);
+	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
 	timer->t_left = timer->t_repeat;
 
 	rc = C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,

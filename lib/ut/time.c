@@ -39,7 +39,7 @@ void test_time(void)
 	C2_UT_ASSERT(c2_time_after(C2_TIME_NEVER, t1));
 	C2_UT_ASSERT(!c2_time_after(t1, C2_TIME_NEVER));
 
-	c2_time_now(&t1);
+	t1 = c2_time_now();
 	t2 = t1;
 	C2_UT_ASSERT(t1 != 0);
 

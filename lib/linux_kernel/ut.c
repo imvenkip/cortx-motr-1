@@ -89,7 +89,7 @@ static void uts_summary(void)
 	c2_time_t diff;
 	int64_t msec;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	diff = c2_time_sub(now, started);
 	msec = (c2_time_nanoseconds(diff) + ONE_MILLION / 2) / ONE_MILLION;
 
@@ -123,7 +123,7 @@ void c2_ut_run(const char *log_file)
 	test_failed = 0;
 	passed = 0;
 	failed = 0;
-	c2_time_now(&started);
+	started = c2_time_now();
 
 	c2_list_for_each(&suites, pos) {
 		bool suite_ok = true;
