@@ -26,7 +26,12 @@
 #include "fop/fop_format.h"
 #include "ping_fom.h"
 #include "ping_fop.h"
+#ifdef __KERNEL__
+#include "ping_fop_k.h"
+#else
 #include "ping_fop_u.h"
+#endif
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpccore.h"

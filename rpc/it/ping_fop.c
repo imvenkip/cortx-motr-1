@@ -26,7 +26,11 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
+#ifdef __KERNEL__
+#include "ping_fop_k.h"
+#else
 #include "ping_fop_u.h"
+#endif
 #include "fop/fop_iterator.h"
 #include "ping_fop.h"
 #include "ping_fom.h"

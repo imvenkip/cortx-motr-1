@@ -442,6 +442,7 @@ void server_init(int dummy)
 cleanup:
 	do_cleanup();
 }
+#endif
 
 #define nfiles                   64
 #define ndatafids                8
@@ -468,7 +469,6 @@ void io_fop_data_init(void)
         init_file_io_patterns();
         C2_ALLOC_ARR(form_write_iovecs, nfops);
 }
-#endif
 
 struct c2_mutex fid_mutex;
 
@@ -918,9 +918,11 @@ int main(int argc, char *argv[])
 	int			 nr_ping_bytes = 0;
 	int			 nr_ping_item = 0;
 	int			 nr_client_threads = 0;
+	/*
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
+	*/
 	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 #ifndef __KERNEL__
