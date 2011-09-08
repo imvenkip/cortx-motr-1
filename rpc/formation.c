@@ -711,7 +711,14 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item)
 	session = item->ri_session;
 	C2_ASSERT(session != NULL);
 	c2_mutex_lock(&session->s_mutex);
+	if (session->s_state != C2_RPC_SESSION_IDLE &&
+	    session->s_state != C2_RPC_SESSION_BUSY) {
+		c2_mutex_unlock(&session->s_mutex);
+		return -EINVAL;
+	}
 	c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
+	session->s_state = C2_RPC_SESSION_BUSY;
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_mutex);
 
 	/* Curent state is not known at the moment. */

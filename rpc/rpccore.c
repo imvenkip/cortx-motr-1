@@ -186,17 +186,15 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	int		res = 0;
 
-	C2_ASSERT(item != NULL && item->ri_session != NULL &&
-		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
-		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
+	C2_ASSERT(item != NULL && item->ri_session != NULL);
+
+	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
+		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
 
 	c2_time_now(&item->ri_rpc_entry_time);
 
-	/*printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
-			item->ri_session->s_session_id);*/
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	//item->ri_type->rit_flags = C2_RPC_ITEM_UNBOUND;
 	res = c2_rpc_frm_ubitem_added(item);
 	return res;
 }

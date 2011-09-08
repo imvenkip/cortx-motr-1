@@ -377,12 +377,12 @@ enum c2_rpc_conn_flags {
    +-------------------------> UNINITIALISED
          allocated               ^  |
                c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
-                                 |  V
-                               INITIALISED
-                                    |
-                                    |  c2_rpc_conn_establish()
-                                    |
-                                    V
+   c2_rpc_conn_establish() != 0  |  V
+         +---------------------INITIALISED
+         |                          |
+         |                          |  c2_rpc_conn_establish()
+         |                          |
+         |                          V
          +---------------------- CONNECTING
          | time-out ||              |
          |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
@@ -548,6 +548,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
+    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -674,12 +675,12 @@ enum c2_rpc_session_state {
             +------------------> UNINITIALISED
                  allocated         ^   |
                             fini() |   |  c2_rpc_session_init()
-				   |   V
-				  INITIALISED
-				      |
-				      | c2_rpc_session_establish()
-				      |
-		timed-out             V
+  c2_rpc_session_establish() != 0  |   V
+          +----------------------INITIALISED
+          |                           |
+          |                           | c2_rpc_session_establish()
+          |                           |
+          |     timed-out             V
           +-----------------------ESTABLISHING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
@@ -826,6 +827,10 @@ struct c2_rpc_session {
    nr_slots number of slots.
    No network communication is involved.
 
+   @param session session being initialised
+   @param conn rpc connection with which this session is associated
+   @param nr_slots number of slots in the session
+
    @post ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED &&
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
@@ -842,6 +847,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+    @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
