@@ -47,7 +47,7 @@
 
 
 /* Generic function prototype for calculating the size of fop field types */
-typedef int (*c2_xcode_foptype_sizeget_t)(size_t *size,
+typedef void (*c2_xcode_foptype_sizeget_t)(size_t *size,
 	     struct c2_fop_field_type *ftype, void *fop_data);
 
 /**
@@ -61,20 +61,20 @@ static	c2_xcode_foptype_sizeget_t xcode_size_disp[FFA_NR];
    Local function declarations for various fop field types.See individual
    headers for more details.
 */
-static int xcode_record_size_get(size_t *size, struct c2_fop_field_type *fftype,
-			         void *fop_data);
+static void xcode_record_size_get(size_t *size,
+            struct c2_fop_field_type *fftype, void *fop_data);
 
-static int xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
+static void xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
 				void *fop_data);
 
-static int xcode_typedef_size_get(size_t *size,
-	   struct c2_fop_field_type *fftype, void *fop_data);
+static void xcode_typedef_size_get(size_t *size,
+	    struct c2_fop_field_type *fftype, void *fop_data);
 
-static int xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
+static void xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
 			       void *fop_data);
 
-static int xcode_sequence_size_get(size_t *size,
-	   struct c2_fop_field_type *fftype, void *fop_data);
+static void xcode_sequence_size_get(size_t *size,
+	    struct c2_fop_field_type *fftype, void *fop_data);
 
 /** Dispatcher array of "size_get" vectors for various fop field types */
 static c2_xcode_foptype_sizeget_t xcode_size_disp[FFA_NR] = {
@@ -93,17 +93,14 @@ static c2_xcode_foptype_sizeget_t xcode_size_disp[FFA_NR] = {
     @param fftype Field type for the fop for which the size is to be calculated.
     @param fop_data pointer to fop data.
 
-    @retval 0 on success.
-    @retval -errno on failure.
 */
-static int xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
+static void xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
 				  void *fop_data)
 {
 	C2_PRE(size != NULL);
 
 	*size += BYTES_PER_XCODE_UNIT;
-	printf("Size in atomic type %ld\n", *size);
-	return 0;
+	printf("Size atomic type %ld\n", *size);
 }
 
 /**
@@ -117,10 +114,8 @@ static int xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
    @param elno The element number for which the size is to be calculated,
     usually non-zero for sequence type fop fields.
 
-   @retval 0 On success.
-   @retval -errno on failure.
 */
-static int xcode_subtype_size(size_t *size, struct c2_fop_field_type *fftype,
+static void xcode_subtype_size(size_t *size, struct c2_fop_field_type *fftype,
 			      void *fop_data, uint32_t fieldno, uint32_t elno)
 {
 	struct c2_fop_field_type        *ff_subtype;
@@ -149,28 +144,29 @@ static int xcode_subtype_size(size_t *size, struct c2_fop_field_type *fftype,
     @param fftype Field type for the fop for which the size is to be calculated.
     @param fop_data pointer to fop data.
 
-    @retval 0 On success.
-    @retval -errno on failure.
 */
-static int xcode_record_size_get(size_t *size, struct c2_fop_field_type *fftype,
-				    void *fop_data)
+static void xcode_record_size_get(size_t *size,
+				  struct c2_fop_field_type *fftype,
+				  void *fop_data)
 {
 	size_t fft_cnt;
-	int    rc;
 	size_t rec_size = 0;
 
 	C2_PRE(size != NULL);
 	C2_PRE(fftype != NULL);
 	C2_PRE(fop_data != NULL);
 
-	for (rc = 0, fft_cnt = 0; rc == 0 && fft_cnt < fftype->fft_nr;
+	for (fft_cnt = 0; fft_cnt < fftype->fft_nr;
 	     ++fft_cnt) {
-		rc = xcode_subtype_size(&rec_size, fftype, fop_data, fft_cnt,
-					   ELEMENT_ZERO);
+		 /* A fop record based field cannot contain more than 1 element
+		   unlike a sequence based field. We pass this(ELEMENT_ZERO) as
+		   a parameter to xcode_subtype_size */
+		 xcode_subtype_size(&rec_size, fftype, fop_data, fft_cnt,
+				     ELEMENT_ZERO);
 	}
+	C2_ASSERT(rec_size != 0);
 	*size += rec_size;
 	printf("Record Size = %ld\n", *size);
-	return rc;
 }
 
 
@@ -185,17 +181,13 @@ static int xcode_record_size_get(size_t *size, struct c2_fop_field_type *fftype,
 */
 static size_t xcode_byte_seq_size_get(uint32_t count)
 {
-	uint32_t	pad_bytes;
+	size_t		size;
 
 	C2_PRE(count != 0);
 
-        pad_bytes = count & (BYTES_PER_XCODE_UNIT - 1);
-        if(pad_bytes != 0)
-		pad_bytes = BYTES_PER_XCODE_UNIT - pad_bytes;
-
-	printf("Pad_bytes = %d, Byte sequence size = %d\n",
-	pad_bytes, count + pad_bytes);
-	return (size_t)count + pad_bytes;
+        size  = (count + MAX_PAD_BYTES) & XCODE_UNIT_ALIGNED_MASK;
+	printf("Seq Size = %ld", size);
+	return size;
 }
 
 /**
@@ -209,15 +201,12 @@ static size_t xcode_byte_seq_size_get(uint32_t count)
    @param fftype Field type for the fop for which the size is to be calculated.
    @param fop_data pointer to fop data.
 
-   @retval 0 On success.
-   @retval -errno on failure.
 */
-static int xcode_sequence_size_get(size_t *size,
-	   struct c2_fop_field_type *fftype, void *fop_data)
+static void xcode_sequence_size_get(size_t *size,
+	    struct c2_fop_field_type *fftype, void *fop_data)
 {
 
 	struct c2_fop_sequence   *fseq;
-	int                      rc;
 	uint32_t                 nr;
 	int		         cnt;
 	size_t			 seq_size = 0;
@@ -228,9 +217,7 @@ static int xcode_sequence_size_get(size_t *size,
 
 	fseq = fop_data;
 	nr = fseq->fs_count;
-	rc = xcode_atom_size_get(size, fftype, fop_data);
-	if(rc != 0)
-		return rc;
+	xcode_atom_size_get(size, fftype, fop_data);
 	/*
 	 * Check if its a byte array and call function to calc byte array size.
 	 */
@@ -242,14 +229,18 @@ static int xcode_sequence_size_get(size_t *size,
 		 * sequence etc). Traverse through each subtype and calculate
 		 * size.
 		 */
-		for (rc = 0, cnt = 0; rc == 0 && cnt < nr; ++cnt) {
-			rc = xcode_subtype_size(&seq_size, fftype, fseq,
-			FOP_FIELD_ONE, cnt);
+		for (cnt = 0; cnt < nr; ++cnt) {
+			/*
+			 * A fop sequence's "zeroth" field contains the count
+			 * and "first" field contains the actual data. We pass
+			 * this as an argument to xcode_subtype_size
+			 */
+			xcode_subtype_size(&seq_size, fftype, fseq,
+					   FOP_FIELD_ONE, cnt);
 		}
 	}
 	*size += seq_size;
 	printf("Size of Sequence = %ld\n", *size);
-	return rc;
 }
 
 /**
@@ -262,26 +253,30 @@ static int xcode_sequence_size_get(size_t *size,
    @retval 0 On success.
    @retval -errno on failure.
 */
-static int xcode_typedef_size_get(size_t *size,
-	   struct c2_fop_field_type *fftype, void *fop_data)
+static void xcode_typedef_size_get(size_t *size,
+	    struct c2_fop_field_type *fftype, void *fop_data)
 {
 	C2_PRE(fftype != NULL);
 	C2_PRE(fop_data != NULL);
 
+	/* A fop typedef field contains just one field and one element. These
+	 * are passed as arguments to xcode_subtype_size (FOP_FIELD_ZERO,
+	 * ELEMENT_ZERO.
+	 */
 	return xcode_subtype_size(size, fftype, fop_data, FOP_FIELD_ZERO,
 				  ELEMENT_ZERO);
 }
 
 /** XXX: Currently unions are not supported. */
-static int xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
+static void xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
 		                  void *fop_data)
 {
-	return -EIO;
+	return;
 }
 
 /**
-  Calls correspoding function to calculate onwire size based on the fop top level
-  field type.
+  Calls correspoding function to calculate onwire size based on the fop top
+  level field type.
 
    @param size Pointer to calculated onwire size value for the fop.
    @param fftype Field type for the fop for which the size is to be calculated.
@@ -294,8 +289,8 @@ static int xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
    @retval 0 On success.
    @retval -errno on failure.
 */
-int c2_xcode_fop_type_size_get(size_t *size,
-				  struct c2_fop_field_type *fftype, void *data)
+void c2_xcode_fop_type_size_get(size_t *size,
+		                struct c2_fop_field_type *fftype, void *data)
 {
 	C2_PRE(fftype != NULL);
 	C2_PRE(data != NULL);
@@ -305,7 +300,7 @@ int c2_xcode_fop_type_size_get(size_t *size,
 }
 
 /**
-  Calculates the onwire size of fop data . This function internally calls
+  Calculates the onwire size of fop data. This function internally calls
   the fop field type specific functions to calculate the size
 
   @param fop The data for this fop is to be encoded/decoded.
@@ -316,11 +311,10 @@ int c2_xcode_fop_type_size_get(size_t *size,
 size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 {
 	size_t		size = 0;
-	int		rc;
 
 	C2_PRE(fop != NULL);
 
-	rc = c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
+	c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
 					  c2_fop_data(fop));
 	return size;
 }
