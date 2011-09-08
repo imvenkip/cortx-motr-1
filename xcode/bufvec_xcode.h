@@ -36,7 +36,9 @@
 */
 /** This is the  number of bytes per unit of external data */
 enum {
+	MAX_PAD_BYTES = 7,
 	BYTES_PER_XCODE_UNIT = 8,
+	XCODE_UNIT_ALIGNED_MASK = ~(MAX_PAD_BYTES)
 };
 
 /**
@@ -159,7 +161,7 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 /** @} end of bufvec group */
 
 /**
-  Calculates the onwire size of fop data . This function internally calls
+  Calculates the onwire size of fop data. This function internally calls
   the fop field type specific functions to calculate the size
 
   @param fop The data for this fop is to be encoded/decoded.
