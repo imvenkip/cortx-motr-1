@@ -106,6 +106,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	struct c2_cob        *cob;
 	uint64_t              pfid_hi;
 	uint64_t              pfid_lo;
+	uint64_t              hi;
+	uint64_t              lo;
 	uint64_t              rnd;
 	c2_time_t             now;
 	int                   rc;
@@ -130,8 +132,13 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	 */
 	rnd = c2_time_nanoseconds(c2_time_now(&now)) * 1000;
 
-	nsrec.cnr_stobid.si_bits.u_hi = c2_rnd(1000, &rnd);
-	nsrec.cnr_stobid.si_bits.u_lo = c2_rnd(1000, &rnd);
+	do {
+		hi = c2_rnd(100000, &rnd);
+		lo = c2_rnd(100000, &rnd);
+	} while (hi == 0 && lo == 0);
+
+	nsrec.cnr_stobid.si_bits.u_hi = hi;
+	nsrec.cnr_stobid.si_bits.u_lo = lo;
 	nsrec.cnr_nlink = 1;
 
 	printf("cob_create_helper: hi:lo %lu:%lu\n",
