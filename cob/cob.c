@@ -182,6 +182,7 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
 
         return 0;
 }
+C2_EXPORTED(c2_cob_domain_init);
 
 void c2_cob_domain_fini(struct c2_cob_domain *dom)
 {
@@ -191,6 +192,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 	c2_rwlock_fini(&dom->cd_guard);
 	c2_addb_ctx_fini(&dom->cd_addb);
 }
+C2_EXPORTED(c2_cob_domain_fini);
 
 static void cob_free_cb(struct c2_ref *ref);
 
