@@ -523,7 +523,7 @@ static struct c2_yaml2db_section_key disk_section_keys[] = {
 };
 
 /* Static declaration of disk section table */
-struct c2_yaml2db_section disk_section = {
+static struct c2_yaml2db_section disk_section = {
 	.ys_table_name = "disk_table",
 	.ys_table_ops = &c2_conf_disk_table_ops,
 	.ys_start_key = DISK_MAPPING_START_KEY,
