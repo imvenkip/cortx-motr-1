@@ -116,6 +116,21 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 				&session->s_link);
 	}
 
+	bool no_slot_in_ready_slots_list(void)
+	{
+		struct c2_rpc_slot *slot;
+		int                 i;
+
+		for (i = 0 ; i < session->s_nr_slots; i++) {
+			slot = session->s_slot_table[i];
+			if (c2_list_link_is_in(&slot->sl_link)) {
+				printf("slot in ready slots list %p\n", slot);
+				return false;
+			}
+		}
+		return true;
+	}
+
 	if (session == NULL)
 		return false;
 
@@ -144,6 +159,12 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	if (!c2_is_po2(session->s_state))
 		return false;
 
+	if (session->s_state != C2_RPC_SESSION_IDLE &&
+	    session->s_state != C2_RPC_SESSION_BUSY) {
+		result = no_slot_in_ready_slots_list();
+		if (!result)
+			return result;
+	}
 	switch (session->s_state) {
 	case C2_RPC_SESSION_INITIALISED:
 		return session->s_session_id == SESSION_ID_INVALID &&
