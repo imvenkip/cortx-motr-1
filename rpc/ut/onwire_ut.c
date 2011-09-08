@@ -136,13 +136,6 @@ struct c2_rpc_item_type c2_rpc_item_type_test = {
         .rit_ops = &c2_rpc_item_test_ops,
 };
 
-
-/* onwire_fmtstatic struct c2_fop_rpc_item_type c2_fop_rpc_item_type_test = {
-	.fri_i_type = {
-		.rit_ops = &c2_rpc_item_test_ops,
-	},
-};*/
-
 static struct c2_verno verno = {
 	.vn_lsn = 1111,
 	.vn_vc = 2222,

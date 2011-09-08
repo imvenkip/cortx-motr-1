@@ -410,8 +410,6 @@ struct c2_rpc_item_type {
 	const struct c2_rpc_item_type_ops *rit_ops;
 	/** see @c2_rpc_item_type_flags */
 	uint64_t			   rit_flags;
-	/** onwire_fmt :Linkage to the item type list rpc_item_type_list
-	struct c2_list_link		   rit_linkage;*/
 };
 
 #define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
@@ -420,18 +418,6 @@ struct c2_rpc_item_type (itype) = {                      \
 	.rit_flags = (flags),                            \
 	.rit_ops = (ops)                                 \
 };
-
-/**
-  onwire_fmt XXX : Establishes an association between an item type and fop type.
-  During registration, this structure is populated with the associated
-  fop type and item type.
-
-struct c2_fop_rpc_item_type {
-	struct c2_fop_type	*fri_f_type;
-	struct c2_rpc_item_type  fri_i_type;
-=======
->>>>>>> rpcintegration
-};*/
 
 /**
    Post an unsolicited item to rpc layer.
@@ -595,9 +581,6 @@ struct c2_rpc_stats {
 	/** Max Latency */
 	c2_time_t	rs_max_lat;
 };
-
-/**  onwire_fmt : Adds a new item type to the list of known item_types
-void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type); */
 
 /** Returns an rpc item type associated with a unique rpc
 item type opcode */
