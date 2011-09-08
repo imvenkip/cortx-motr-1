@@ -199,8 +199,9 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 				       ri_slot_refs[0].sr_link) {
 
 			if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
-			    item->ri_tstate == RPC_ITEM_FUTURE)
+			    item->ri_tstate == RPC_ITEM_FUTURE) {
 				count++;
+			}
 
 		}
 	}
@@ -838,7 +839,10 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
+	static int count = 0;
+	count++;
 	printf("rcv_consume_reply called %p %p\n", req, reply);
+	printf("RCV_CONSUME_REPLY================== %d\n", count);
 
 	c2_rpc_frm_item_ready(reply);
 }

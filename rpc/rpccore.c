@@ -483,11 +483,15 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 
 void c2_rpc_chan_put(struct c2_rpc_chan *chan)
 {
+	struct c2_rpcmachine *machine;
 	C2_PRE(chan != NULL);
 
-	c2_mutex_lock(&chan->rc_rpcmachine->cr_ep_aggr.ea_mutex);
+	machine = chan->rc_rpcmachine;
+	C2_ASSERT(machine != NULL);
+
+	c2_mutex_lock(&machine->cr_ep_aggr.ea_mutex);
 	c2_ref_put(&chan->rc_ref);
-	c2_mutex_unlock(&chan->rc_rpcmachine->cr_ep_aggr.ea_mutex);
+	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 }
 
 void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
