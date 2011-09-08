@@ -219,11 +219,13 @@ static int io_fom_cob_rwv_state(struct c2_fom *fom)
 
 	if (is_write(fop)) {
 		/* Make an FOL transaction record. */
+		/*
 		rc = c2_fop_fol_rec_add(fop, fom->fo_fol, &tx.tx_dbtx);
 		if (rc != 0) {
 			c2_stob_put(fom_obj->fcrw_stob);
 			return rc;
 		}
+		*/
 	}
 
 	/* Find out buffer address, offset and count required for stob io.
