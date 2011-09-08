@@ -10,7 +10,7 @@ subdirs := ../rpc/linux_kernel/ ../c2t1fs/ \
 	   ../db/linux_kernel/ \ ../sns/linux_kernel/ ../galois/linux_kernel/ \
 	   ../pool/linux_kernel/ \ ../layout/linux_kernel/ \
 	   ../sm/linux_kernel/ ../stob/linux_kernel/ ../utils/linux_kernel/ \
-	   ../ioservice/linux_kernel/ ../xcode/linux_kernel/ ../dtm/linx_kernel/ \
+	   ../ioservice/linux_kernel/ ../xcode/linux_kernel/ ../dtm/linux_kernel/ \
 	   ../cob/linux_kernel/ 
 
 obj-y += $(subdirs)
