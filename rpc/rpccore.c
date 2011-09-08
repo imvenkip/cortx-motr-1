@@ -181,6 +181,7 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 
 	return 0;
 }
+C2_EXPORTED(c2_rpc_item_init);
 
 int c2_rpc_post(struct c2_rpc_item	*item)
 {
@@ -200,6 +201,7 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 	res = c2_rpc_frm_ubitem_added(item);
 	return res;
 }
+C2_EXPORTED(c2_rpc_post);
 
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
@@ -245,6 +247,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
+C2_EXPORTED(c2_rpc_reply_post);
 
 bool c2_rpc_item_is_update(struct c2_rpc_item *item)
 {
@@ -948,6 +951,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 
 	return rc;
 }
+C2_EXPORTED(c2_rpcmachine_init);
 
 /**
    XXX Temporary. This routine will be discarded, once rpc-core starts
@@ -995,6 +999,7 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 	c2_mutex_fini(&machine->cr_stats_mutex);
 	c2_addb_ctx_fini(&machine->cr_rpc_machine_addb);
 }
+C2_EXPORTED(c2_rpcmachine_fini);
 
 /** simple vector of RPC-item operations */
 static void rpc_item_op_sent(struct c2_rpc_item *item)
@@ -1048,6 +1053,7 @@ void c2_rpc_item_replied(struct c2_rpc_item *item, int rc)
 	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
 		fop->f_type->ft_ops->fto_fop_replied(fop);
 }
+C2_EXPORTED(c2_rpc_item_replied);
 
 /**
    RPC item ops function
@@ -1282,6 +1288,7 @@ void c2_rpc_item_attach(struct c2_rpc_item *item)
 		break;
 	};
 }
+C2_EXPORTED(c2_rpc_item_attach);
 
 /**
    Associate an rpc with its corresponding rpc_item_type.
@@ -1322,6 +1329,8 @@ void c2_rpc_item_type_attach(struct c2_fop_type *fopt)
 	if(fopt->ft_ri_type != NULL)
 		fopt->ft_ri_type->rit_opcode = opcode;
 }
+C2_EXPORTED(c2_rpc_item_type_attach);
+
 /*
 void c2_rpc_item_type_opcode_assign(struct c2_fop_type *fopt)
 {

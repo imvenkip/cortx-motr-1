@@ -262,6 +262,7 @@ void c2_rpc_frm_set_thresholds(uint64_t max_rpcs)
 {
 	max_rpcs_in_flight = max_rpcs;
 }
+C2_EXPORTED(c2_rpc_frm_set_thresholds);
 
 /**
    Initialization for formation component in rpc. This will register

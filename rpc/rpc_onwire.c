@@ -46,6 +46,7 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 	printf("DEFAULT ITEM SIZE GET %ld\n", len);
 	return len;*/
 }
+C2_EXPORTED(c2_rpc_item_default_size);
 
 /* XXX : Return correct RPC version. */
 static uint32_t rpc_ver_get(void)
@@ -260,6 +261,7 @@ int c2_rpc_fop_default_encode(struct c2_rpc_item_type *item_type,
 	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
+C2_EXPORTED(c2_rpc_fop_default_encode);
 
 int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 			      struct c2_rpc_item **item,
@@ -281,6 +283,7 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
 	C2_ASSERT(*item != NULL);
 	return item_encdec(cur, *item, C2_BUFVEC_DECODE);
 }
+C2_EXPORTED(c2_rpc_fop_default_decode);
 
 /* XXX : Temporary function to aid debugging and tracing.  Added here for UT and
 testing.*/
