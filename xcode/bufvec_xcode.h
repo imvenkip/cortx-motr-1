@@ -17,6 +17,10 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
+
+#include "lib/vec.h"
+#include "fop/fop.h"
+
 #ifndef C2_BUFVEC_XCODE_H_
 #define C2_BUFVEC_XCODE_H_
 /**
