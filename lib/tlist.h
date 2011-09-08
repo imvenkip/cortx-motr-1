@@ -195,12 +195,13 @@ struct c2_tl_descr {
 	uint64_t    td_head_magic;
 };
 
-#define C2_TL_DESCR(name, ambient, magic_field, magic_value, head_magic) \
-{									\
-	.td_name        = name,						\
-	.td_link_offset = offsetof(ambient, magic_field),		\
-	.td_link_magic  = magic_value,					\
-	.td_head_magic  = head_magic					\
+#define C2_TL_DESCR(name, ambient_type, link_magic_field,	\
+                    link_magic_value, head_magic)		\
+{								\
+	.td_name        = name,					\
+	.td_link_offset = offsetof(ambient, magic_field),	\
+	.td_link_magic  = magic_value,				\
+	.td_head_magic  = head_magic				\
 }
 
 /**
