@@ -93,6 +93,22 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 	return c2_rpc_post(item);
 }
 
+static struct c2_uint128 stob_id_alloc(void)
+{
+        static struct c2_atomic64 cnt;
+	struct c2_uint128         id;
+        uint64_t                  millisec;
+
+	/*
+	 * TEMPORARY implementation to allocate unique stob id
+	 */
+	millisec = c2_time_nanoseconds(c2_time_now()) * 1000000;
+	c2_atomic64_inc(&cnt);
+
+	id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
+	id.u_lo = (millisec << 20) | (c2_atomic64_get(&cnt) & 0xFFFFF);
+        return id;
+}
 int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 			     struct c2_cob        *pcob,
 			     const char           *name,
@@ -105,7 +121,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	struct c2_cob        *cob;
 	uint64_t              pfid_hi;
 	uint64_t              pfid_lo;
-	uint64_t              rnd;
 	int                   rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
@@ -123,13 +138,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	if (key == NULL)
 		return -ENOMEM;
 
-	/*
-	 * XXX How to get unique stob_id for new cob?
-	 */
-	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
-
-	nsrec.cnr_stobid.si_bits.u_hi = c2_rnd(1000, &rnd);
-	nsrec.cnr_stobid.si_bits.u_lo = c2_rnd(1000, &rnd);
+	nsrec.cnr_stobid.si_bits = stob_id_alloc();
 	nsrec.cnr_nlink = 1;
 
 	printf("cob_create_helper: hi:lo %lu:%lu\n",

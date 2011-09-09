@@ -366,18 +366,39 @@ void c2_rpc_rpcobj_fini(struct c2_rpc *rpc);
 /**
    Possible values for flags from c2_rpc_item_type.
  */
+#if 0
 enum c2_rpc_item_type_flag {
 	/** Item with valid session, slot and version number. */
-	C2_RPC_ITEM_BOUND = (1 << 0),
+	//C2_RPC_ITEM_BOUND = (1 << 0),
 	/** Item with a session but no slot nor version number. */
-	C2_RPC_ITEM_UNBOUND = (1 << 1),
+	//C2_RPC_ITEM_UNBOUND = (1 << 1),
 	/** Item similar to unbound item except it is always sent as
 	    unbound item and it does not expect any reply. */
-	C2_RPC_ITEM_UNSOLICITED = (1 << 2),
+	//C2_RPC_ITEM_UNSOLICITED = (1 << 2),
+};
+#endif
+/**
+   Possible values for c2_rpc_item_type::rit_flags.
+   Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and
+   C2_RPC_ITEM_TYPE_UNSOLICITED are mutually exclusive.
+ */
+enum c2_rpc_item_type_flags {
+	/** Receiver of item is expected to send reply to item of this
+	    type */
+	C2_RPC_ITEM_TYPE_REQUEST = 1,
+	/** Item of this type is reply to some item of C2_RPC_ITEM_TYPE_REQUEST
+	    type. */
+	C2_RPC_ITEM_TYPE_REPLY = (1 << 1),
+	/** This is a one-way item. There is no reply for this type of
+	    item */
+	C2_RPC_ITEM_TYPE_UNSOLICITED = (1 << 2),
+	/** Item of this type can modify file-system state on receiver. */
+	C2_RPC_ITEM_TYPE_MUTABO = (1 << 3)
 };
 
 /**
-   Definition is taken partly from 'DLD RPC FOP:core wire formats' (not submitted yet).
+   Definition is taken partly from 'DLD RPC FOP:core wire formats'
+   (not submitted yet).
    Type of an RPC item.
    There is an instance of c2_rpc_item_type for each value of
    c2_rpc_opcode_t.
@@ -387,27 +408,16 @@ struct c2_rpc_item_type {
 	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
-	/** true if item is request item. false if item is reply item */
-	bool				   rit_item_is_req;
-	/** true if the item of this type modifies file-system state */
-	bool				   rit_mutabo;
-	/** Flag to distinguish unsolicited item from unbound one. */
+	/** see @c2_rpc_item_type_flags */
 	uint64_t			   rit_flags;
-	/** onwire_fmt :Linkage to the item type list rpc_item_type_list
-	struct c2_list_link		   rit_linkage;*/
 };
 
-/**
-  onwire_fmt XXX : Establishes an association between an item type and fop type.
-  During registration, this structure is populated with the associated
-  fop type and item type.
-
-struct c2_fop_rpc_item_type {
-	struct c2_fop_type	*fri_f_type;
-	struct c2_rpc_item_type  fri_i_type;
-=======
->>>>>>> rpcintegration
-};*/
+#define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
+struct c2_rpc_item_type (itype) = {                      \
+	.rit_opcode = (opcode),                          \
+	.rit_flags = (flags),                            \
+	.rit_ops = (ops)                                 \
+};
 
 /**
    Post an unsolicited item to rpc layer.
@@ -571,9 +581,6 @@ struct c2_rpc_stats {
 	/** Max Latency */
 	c2_time_t	rs_max_lat;
 };
-
-/**  onwire_fmt : Adds a new item type to the list of known item_types
-void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type); */
 
 /** Returns an rpc item type associated with a unique rpc
 item type opcode */

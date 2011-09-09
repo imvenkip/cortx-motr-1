@@ -22,7 +22,7 @@ void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
  */
 int  fop_fol_type_init(struct c2_fop_type *fopt);
 void fop_fol_type_fini(struct c2_fop_type *fopt);
-//void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
+void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
 static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;
 
@@ -88,7 +88,7 @@ int c2_fop_type_build(struct c2_fop_type *fopt)
 
 	/* Associate the embedded rpc_item with its related
 	   rpc_item_type here. */
-	//c2_rpc_item_type_attach(fopt);
+	c2_rpc_item_type_attach(fopt);
 
 	fmt    = fopt->ft_fmt;
 	result = c2_fop_type_format_parse(fmt);

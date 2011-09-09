@@ -274,6 +274,14 @@ struct c2_rpc_sender_uuid {
 	uint64_t su_uuid;
 };
 
+/**
+   Possible rpc connection states.
+
+   Value of each state constant is taken to be a power of two so that it is
+   possible to specify multiple states (by ORing them) to
+   c2_rpc_conn_timedwait(), to wait until conn reaches in any one of the
+   specified states.
+ */
 enum c2_rpc_conn_state {
 	/**
 	  All the fields of conn are initialised locally. But the connection
@@ -369,12 +377,12 @@ enum c2_rpc_conn_flags {
    +-------------------------> UNINITIALISED
          allocated               ^  |
                c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
-                                 |  V
-                               INITIALISED
-                                    |
-                                    |  c2_rpc_conn_establish()
-                                    |
-                                    V
+   c2_rpc_conn_establish() != 0  |  V
+         +---------------------INITIALISED
+         |                          |
+         |                          |  c2_rpc_conn_establish()
+         |                          |
+         |                          V
          +---------------------- CONNECTING
          | time-out ||              |
          |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
@@ -487,11 +495,6 @@ struct c2_rpc_conn {
 	 */
 	struct c2_rpc_chan       *c_rpcchan;
 
-	/** XXX Deprecated: c2_service_id
-	    Id of the service with which this c2_rpc_conn is associated
-	*/
-	struct c2_service_id     *c_service_id;
-
 	/** Destination end point */
 	struct c2_net_end_point  *c_end_point;
 
@@ -545,6 +548,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
+    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -591,6 +595,11 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 
 /**
    Possible states of a session object
+
+   Value of each state constant is taken to be a power of 2 so that it is
+   possible to specify multiple states (by ORing them) to
+   c2_rpc_session_timedwait(), to wait until session reaches in any one of the
+   specified states.
  */
 enum c2_rpc_session_state {
 	/**
@@ -645,7 +654,10 @@ enum c2_rpc_session_state {
    parameters. But currently it is just a container for slots.
 
    <B> Liveness: </B>
-   Allocation and deallocation of c2_rpc_session is entirely managed by user.
+   Allocation and deallocation of c2_rpc_session is entirely managed by user
+   except for SESSION 0. SESSION 0 is allocated and deallocated by rpc-layer
+   internally along with c2_rpc_conn. @see c2_rpc_conn for more information
+   on creation and use of SESSION 0.
 
    <B> Concurrency:</B>
    c2_rpc_session::s_mutex protects all fields except s_link. s_link is
@@ -663,13 +675,13 @@ enum c2_rpc_session_state {
             +------------------> UNINITIALISED
                  allocated         ^   |
                             fini() |   |  c2_rpc_session_init()
-				   |   V
-				  INITIALISED
-				      |
-				      | c2_rpc_session_establish()
-				      |
-		timed-out             V
-          +-------------------------CREATING
+  c2_rpc_session_establish() != 0  |   V
+          +----------------------INITIALISED
+          |                           |
+          |                           | c2_rpc_session_establish()
+          |                           |
+          |     timed-out             V
+          +-----------------------ESTABLISHING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
 	FAILED <------+               |   n == 0 && list_empty(unbound_items)
@@ -815,6 +827,10 @@ struct c2_rpc_session {
    nr_slots number of slots.
    No network communication is involved.
 
+   @param session session being initialised
+   @param conn rpc connection with which this session is associated
+   @param nr_slots number of slots in the session
+
    @post ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED &&
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
@@ -831,6 +847,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+    @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 

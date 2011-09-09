@@ -608,8 +608,19 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		printf("got duplicate reply for %p\n", req);
 	} else {
+		/*
+		 * This is valid reply case.
+		 */
 		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
+
+		session = slot->sl_session;
+		C2_ASSERT(session != NULL);
+
+		c2_mutex_lock(&session->s_mutex);
+		C2_ASSERT(c2_rpc_session_invariant(session));
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
+		C2_ASSERT(session->s_nr_active_items > 0);
 
 		req->ri_tstate = RPC_ITEM_PAST_VOLATILE;
 		printf("Item %p PAST_VOLATILE\n", req);
@@ -617,21 +628,26 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		*req_out = req;
 		slot->sl_in_flight--;
 
-		session = slot->sl_session;
-		if (session != NULL) {
-			c2_mutex_lock(&session->s_mutex);
-			C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
-			C2_ASSERT(session->s_nr_active_items > 0);
-			session->s_nr_active_items--;
-			if (session->s_nr_active_items == 0 &&
-				c2_list_is_empty(&session->s_unbound_items)) {
-				printf("session %p marked IDLE\n", session);
-				session->s_state = C2_RPC_SESSION_IDLE;
-				c2_cond_broadcast(&session->s_state_changed,
-						&session->s_mutex);
-			}
-			c2_mutex_unlock(&session->s_mutex);
+		session->s_nr_active_items--;
+		/*
+		 * Setting of req->ri_tstate to PAST_VOLATILE and reducing
+		 * session->s_nr_active_items should be in same critical
+		 * region protected by session->s_mutex.
+		 */
+		if (session->s_nr_active_items == 0 &&
+			c2_list_is_empty(&session->s_unbound_items)) {
+			printf("session %p marked IDLE\n", session);
+			session->s_state = C2_RPC_SESSION_IDLE;
+			c2_cond_broadcast(&session->s_state_changed,
+					&session->s_mutex);
 		}
+		c2_mutex_unlock(&session->s_mutex);
+
+		/*
+		 * On receiver, ->so_reply_consume(req, reply) will hand over
+		 * @reply to formation, to send it back to sender.
+		 * see: rcv_reply_consume(), snd_reply_consume()
+		 */
 		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
 	}
