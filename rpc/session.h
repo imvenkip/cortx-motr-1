@@ -235,6 +235,7 @@ back to sender.
 	- How to get unique stob_id for session and slot cobs?
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.
+	- Session level timeout
  */
 
 #include "lib/list.h"
