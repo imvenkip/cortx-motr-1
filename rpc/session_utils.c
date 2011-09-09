@@ -34,6 +34,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -209,7 +210,7 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
-	C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
+	//C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 	c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);

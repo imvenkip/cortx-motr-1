@@ -45,6 +45,7 @@
 #include <linux/kernel.h>
 #include "ioservice/linux_kernel/io_fops_k.h"
 #include "ping_fop_k.h"
+#define printf printk
 #else
 #include "ioservice/io_fops_u.h"
 #include "ping_fop_u.h"
@@ -111,8 +112,8 @@ struct ping_ctx {
 
 /* Default port values */
 enum {
-	CLIENT_PORT = 32123,
-	SERVER_PORT = 12321,
+	CLIENT_PORT = 17708,//32123,
+	SERVER_PORT //=12321,
 };
 
 /* Default address length */
@@ -552,9 +553,9 @@ void print_stats(bool client, bool server)
 	printf("\n\n*********************************************\n");
 	printf("Stats on Outgoing Path\n");
 	printf("*********************************************\n");
-	printf("Number of outgoing items = %lu\n",
+	printf("Number of outgoing items = %llu\n",
 			stats->rs_items_nr);
-	printf("Number of outgoing bytes = %lu\n",
+	printf("Number of outgoing bytes = %llu\n",
 			stats->rs_bytes_nr);
 
 	sec = 0;
@@ -593,9 +594,9 @@ void print_stats(bool client, bool server)
 	printf("\n\n*********************************************\n");
 	printf("Stats on Incoming Path\n");
 	printf("*********************************************\n");
-	printf("Number of incoming items = %lu\n",
+	printf("Number of incoming items = %llu\n",
 			stats->rs_items_nr);
-	printf("Number of incoming bytes = %lu\n",
+	printf("Number of incoming bytes = %llu\n",
 			stats->rs_bytes_nr);
 
 	sec = 0;
@@ -726,6 +727,7 @@ void client_init(void)
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
+	printk("Server Addr = %s\n",addr_remote);
 
 	/* Find first c2_rpc_chan from the chan's list
 	   and use its corresponding tm to create target end_point */
@@ -751,7 +753,6 @@ void client_init(void)
 	} else {
 		printf("RPC connection init completed \n");
 	}
-
 	/* Create RPC connection */
 	rc = c2_rpc_conn_establish(&cctx.pc_conn);
 	if(rc != 0){
@@ -999,9 +1000,10 @@ int main(int argc, char *argv[])
 		client_init();
 		if (verbose)
 			print_stats(client, server);
-		/*
+#ifndef __KERNEL__
+		
 		client_fini();
-		*/
+#endif		
 	}
 
 #ifndef __KERNEL__

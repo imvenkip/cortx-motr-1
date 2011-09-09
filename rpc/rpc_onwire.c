@@ -26,7 +26,9 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-
+#ifdef __KERNEL__
+#define printf printk
+#endif
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
 	size_t		 len = 512;
@@ -118,9 +120,9 @@ static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
 
 	rc = c2_bufvec_uint64(cur, &uuid->su_uuid, what);
 	if (what == C2_BUFVEC_ENCODE)
-		printf("\nSender uuid (encode): %lu", uuid->su_uuid);
+		printf("\nSender uuid (encode): %lu", (unsigned long)uuid->su_uuid);
 	else
-		printf("\nSender uuid (decode): %lu", uuid->su_uuid);
+		printf("\nSender uuid (decode): %lu", (unsigned long)uuid->su_uuid);
 	return rc;
 }
 
@@ -163,19 +165,19 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 	else
 		todo = "decode";
 
-	printf("\nVer No lsn (%s): %lu",todo, sref->sr_verno.vn_lsn);
-	printf("\nVer No vc (%s): %lu", todo, sref->sr_verno.vn_vc);
+	printf("\nVer No lsn (%s): %lu",todo, (unsigned long)sref->sr_verno.vn_lsn);
+	printf("\nVer No vc (%s): %lu", todo, (unsigned long)sref->sr_verno.vn_vc);
 	printf("\nLast persistent ver no lsn (%s): %lu", todo,
-		sref->sr_last_persistent_verno.vn_lsn);
+		(unsigned long)sref->sr_last_persistent_verno.vn_lsn);
 	printf("\nLast persistent ver no vc (%s): %lu", todo,
-		sref->sr_last_persistent_verno.vn_vc);
+		(unsigned long)sref->sr_last_persistent_verno.vn_vc);
 	printf("\nLast seen ver no lsn (%s): %lu", todo,
-		sref->sr_last_seen_verno.vn_lsn);
+		(unsigned long)sref->sr_last_seen_verno.vn_lsn);
 	printf("\nLast seen ver no vc (%s) : %lu", todo,
-		sref->sr_last_seen_verno.vn_vc);
+		(unsigned long)sref->sr_last_seen_verno.vn_vc);
 	printf("\nSlot Id (%s): %u", todo, sref->sr_slot_id);
-	printf("\nXid (%s): %lu", todo, sref->sr_xid);
-	printf("\nSlot gen (%s): %lu",todo, sref->sr_slot_gen);
+	printf("\nXid (%s): %lu", todo, (unsigned long)sref->sr_xid);
+	printf("\nSlot gen (%s): %lu",todo, (unsigned long)sref->sr_slot_gen);
 	return rc;
 }
 
@@ -203,7 +205,7 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 	C2_ASSERT(item_type->rit_ops != NULL);
 	C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 	len = item_type->rit_ops->rito_item_size(item);
-	printf("\nIn header enc, len = %ld", len);
+	printf("\nIn header enc, len = %ld", (unsigned long)len);
 
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
 	slot_ref_encdec(cur, item->ri_slot_refs, what);
@@ -344,7 +346,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	C2_PRE(nb != NULL);
 
 	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
-	printf("\nNetwork buf size : %lu", bufvec_size);
+	printf("\nNetwork buf size : %lu", (unsigned long)bufvec_size);
 	/*
 	  XXX : Alignment Checks
 	  Check if bufvecs are 8-byte aligned buffers with sizes multiple of

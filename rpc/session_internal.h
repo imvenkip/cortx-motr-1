@@ -28,7 +28,7 @@
 #include "dtm/verno.h"
 
 #ifdef __KERNEL__
-#define printf(x, ...)
+//#define printf(x, ...) 
 #endif
 
 /**

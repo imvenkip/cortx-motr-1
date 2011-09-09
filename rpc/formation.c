@@ -27,6 +27,8 @@
 
 #ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
+#else 
+#define printf printk
 #endif
 
 /* ADDB Instrumentation for rpc formation. */

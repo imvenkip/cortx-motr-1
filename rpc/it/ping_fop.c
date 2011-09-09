@@ -54,7 +54,11 @@ uint64_t c2_fop_ping_getsize(struct c2_fop *ping_fop)
 	fp = c2_fop_data(ping_fop);
 	count = fp->fp_arr.f_count;
 	size = sizeof(count) + sizeof(fp->fp_arr.f_data) * count;
+	#ifdef __KERNEL__
+	printk("\nIn Ping get size : %llu\n", size);
+	#else
 	printf("\nIn Ping get size : %ld\n", size);
+	#endif
 	/** Size of fop layout
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	size += sizeof(struct c2_fop_type);
@@ -68,7 +72,11 @@ uint64_t c2_fop_ping_reply_get_size(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	#ifdef __KERNEL__
+	printk("\nIn Ping reply get size : %llu\n", size);
+	#else
 	printf("\nIn Ping reply get size : %ld\n", size);
+	#endif
 	return size;
 }
 

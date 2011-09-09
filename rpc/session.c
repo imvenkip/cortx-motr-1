@@ -35,6 +35,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -370,6 +371,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		rc = -ENOMEM;
 		goto out;
 	}
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -562,6 +565,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		rc = -ENOMEM;
 		goto out;
 	}
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	c2_mutex_lock(&session->s_mutex);
 

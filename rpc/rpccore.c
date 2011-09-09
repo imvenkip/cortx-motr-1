@@ -33,7 +33,8 @@
 #include "fop/fop.h"
 #include "rpc/formation.h"
 #include "fid/fid.h"
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+#define printf printk
 #endif
 #include "rpc/rpc_onwire.h"
 

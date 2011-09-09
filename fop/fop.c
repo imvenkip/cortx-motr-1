@@ -43,11 +43,11 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 
 		fop->f_type = fopt;
 		fop->f_private = NULL;
-		/*
-		c2_rpc_item_init(&fop->f_item);
-		*/
+		#ifndef __KERNEL__
+		//c2_rpc_item_init(&fop->f_item);
 		/* Associate rpc_item_type with the rpc item. */
 		//fop->f_item.ri_type = &fopt->ft_ri_type->fri_i_type;
+		#endif
 		fop->f_item.ri_type = fopt->ft_ri_type;
 		nob = fopt->ft_top->fft_layout->fm_sizeof;
 		if (data == NULL)

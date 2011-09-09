@@ -258,7 +258,7 @@ void server_rqh_init(int dummy)
 		c2_mutex_unlock(&c2_exec_queue_mutex);
 		item = container_of(q1, struct c2_rpc_item,
 				ri_dummy_qlinkage);
-		C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
+		//C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 		printf("REQH: got item [%d] %p\n", count, item);
 		fop = c2_rpc_item_to_fop(item);
 		fop->f_type->ft_ops->fto_fom_init(fop, &fom);

@@ -34,6 +34,7 @@
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
+#define printf printk
 #else
 #include "rpc/session_u.h"
 #endif
@@ -228,7 +229,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		goto errout;
 	}
 	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
-			request->rse_sender_id, slot_cnt);
+			(unsigned long)request->rse_sender_id, slot_cnt);
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
@@ -261,7 +262,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply->rser_session_id = session->s_session_id;
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = FOPH_DONE;
-	printf("session_establish_state:success %lu\n", session->s_session_id);
+	printf("session_establish_state:success %lu\n", (unsigned long)session->s_session_id);
 	return FSO_AGAIN;
 
 out_fini:
@@ -419,7 +420,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
-	printf("Received conn terminate req for %lu\n", request->ct_sender_id);
+	printf("Received conn terminate req for %lu\n", (unsigned long)request->ct_sender_id);
 	rc = c2_rpc_rcv_conn_terminate(conn);
 	/*
 	 * In memory state of conn is not cleaned up, at this point.
