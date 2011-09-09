@@ -22,19 +22,10 @@
 #  include <config.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include "colibri/init.h"
-#include "lib/arith.h"
-#include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/getopts.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/thread.h"
 #include "yaml2db/yaml2db.h"
 #include "yaml2db/disk_conf_db.h"
 
@@ -42,18 +33,6 @@
   @addtogroup yaml2db
   @{
  */
-
-/* Constant names and paths */
-static const char *D_PATH = "./__config_db";
-static const char *disk_str = "disks";
-
-enum {
-	DISK_MAPPING_START_KEY = 100,
-};
-
-enum {
-	DISK_MAPPING_KEY_NR = 3,
-};
 
 /* ADDB Instrumentation yaml2db */
 static const struct c2_addb_ctx_type yaml2db_ctx_type = {
@@ -67,13 +46,12 @@ static const struct c2_addb_loc yaml2db_addb_loc = {
 C2_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
                 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-
 /**
   Init function, which initializes the parser and sets input file
   @param yctx - yaml2db context
   @retval 0 if success, -errno otherwise
  */
-static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
+int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 {
 	int	 rc = 0;
 	char	*opath = NULL;
@@ -85,29 +63,55 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
         c2_addb_ctx_init(&yctx->yc_addb, &yaml2db_ctx_type,
 				&c2_addb_global_ctx);
 	c2_addb_choose_default_level(AEL_WARN);
-	/* Initialize the parser. According to yaml documentation,
-	   parser_initialize command returns 1 in case of success */
-	rc = yaml_parser_initialize(&yctx->yc_parser);
-	if(rc != 1) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "yaml_parser_initialize", 0);
-		rc = -EINVAL;
-		goto cleanup;
+
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
+
+		/* Initialize the parser. According to yaml documentation,
+		   parser_initialize command returns 1 in case of success */
+		rc = yaml_parser_initialize(&yctx->yc_parser);
+		if(rc != 1) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				    yaml2db_func_fail,
+				    "yaml_parser_initialize", 0);
+			rc = -EINVAL;
+			goto cleanup;
+		}
+
+		/* Open the config file in read mode */
+		yctx->yc_fp = fopen(yctx->yc_cname, "r");
+		if (yctx->yc_fp == NULL) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail, "fopen", 0);
+			yaml_parser_delete(&yctx->yc_parser);
+			rc = -errno;
+			goto cleanup;
+		}
+
+		/* Set the input file to the parser. */
+		yaml_parser_set_input_file(&yctx->yc_parser, yctx->yc_fp);
+
+	} else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER) {
+		/* Initialize the emitter. According to yaml documentation,
+		   parser_initialize command returns 1 in case of success */
+		rc = yaml_emitter_initialize(&yctx->yc_emitter);
+		if(rc != 1) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				    yaml2db_func_fail,
+				    "yaml_emitter_initialize", 0);
+			rc = -EINVAL;
+			goto cleanup;
+		}
+
+		/* Open the config file in append mode */
+		yctx->yc_fp = fopen(yctx->yc_cname, "a");
+		if (yctx->yc_fp == NULL) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail, "fopen", 0);
+			yaml_emitter_delete(&yctx->yc_emitter);
+			rc = -errno;
+			goto cleanup;
+		}
 	}
-
-	/* Open the config file in read mode */
-	yctx->yc_fp = fopen(yctx->yc_cname, "r");
-	if (yctx->yc_fp == NULL) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "fopen", 0);
-		yaml_parser_delete(&yctx->yc_parser);
-		rc = -errno;
-		goto cleanup;
-	}
-
-	/* Set the input file to the parser. */
-	yaml_parser_set_input_file(&yctx->yc_parser, yctx->yc_fp);
-
 	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
 	if (opath == NULL) {
 		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
@@ -122,27 +126,34 @@ static int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		goto cleanup;
 	}
 
-	rc = mkdir(yctx->yc_dpath, 0700);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "mkdir", 0);
-		rc = -errno;
-		goto cleanup;
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
+		rc = mkdir(yctx->yc_dpath, 0700);
+		if (rc != 0) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail, "mkdir", 0);
+			rc = -errno;
+			goto cleanup;
+		}
 	}
 
 	sprintf(opath, "%s/o", yctx->yc_dpath);
 
-	rc = mkdir(opath, 0700);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "mkdir", 0);
-		rc = -errno;
-		goto cleanup;
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
+		rc = mkdir(opath, 0700);
+		if (rc != 0) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail, "mkdir", 0);
+			rc = -errno;
+			goto cleanup;
+		}
 	}
 
 	sprintf(dpath, "%s/d", yctx->yc_dpath);
 
-	rc = c2_dbenv_init(&yctx->yc_db, dpath, 0);
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER)
+		rc = c2_dbenv_init(&yctx->yc_db, "abc", 0);
+	else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER)
+		rc = c2_dbenv_init(&yctx->yc_db, "abc", DB_RDONLY);
 
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -161,15 +172,17 @@ cleanup:
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
 	yaml_document_delete(&yctx->yc_document);
-	yaml_parser_delete(&yctx->yc_parser);
-	return rc;
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER)
+		yaml_parser_delete(&yctx->yc_parser);
+	else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER)
+		yaml_emitter_delete(&yctx->yc_emitter);
+	return 0;
 }
-
 /**
   Fini function, which finalizes the parser and finies the db
   @param yctx - yaml2db context
  */
-static void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
+void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 {
 	C2_PRE(yctx != NULL);
 
@@ -177,12 +190,39 @@ static void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 		yaml_document_delete(&yctx->yc_document);
 	if (&yctx->yc_parser != NULL)
 		yaml_parser_delete(&yctx->yc_parser);
+	if (&yctx->yc_emitter != NULL)
+		yaml_emitter_delete(&yctx->yc_emitter);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
 	if (&yctx->yc_db.d_i != NULL)
 		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
+
+#if 0
+/**
+  Function to detect and print emitter errors
+ */
+static void yaml_emitter_error_detect(const yaml_emitter_t *emitter)
+{
+	C2_PRE(emitter != NULL);
+
+	switch (emitter->error) {
+	case YAML_MEMORY_ERROR:
+		fprintf(stderr, "Memory error: Not enough memory\
+			for parsing\n");
+		break;
+	case YAML_WRITER_ERROR:
+		fprintf(stderr, "Writer error: %s\n", emitter->problem);
+		break;
+	case YAML_EMITTER_ERROR:
+		fprintf(stderr, "Emitter error: %s\n", emitter->problem);
+		break;
+	default:
+		C2_IMPOSSIBLE("Invalid error");
+	}
+}
+#endif
 
 /**
   Function to detect and print parsing errors
@@ -234,11 +274,6 @@ static void yaml_parser_error_detect(const yaml_parser_t *parser)
 				parser->problem_mark.line+1,
 				parser->problem_mark.column+1);
 		break;
-	case YAML_COMPOSER_ERROR:
-	case YAML_WRITER_ERROR:
-	case YAML_EMITTER_ERROR:
-	case YAML_NO_ERROR:
-		break;
 	default:
 		C2_IMPOSSIBLE("Invalid error");
 	}
@@ -249,7 +284,7 @@ static void yaml_parser_error_detect(const yaml_parser_t *parser)
   @param yctx - yaml2db context
   @retval 0 if successful, -errno otherwise
  */
-static int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
+int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
 {
 	int		 rc;
 	yaml_node_t	*root_node;
@@ -345,7 +380,12 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
 	if (yctx == NULL)
 		return false;
 
-	if (&yctx->yc_parser == NULL)
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER &&
+			&yctx->yc_parser == NULL)
+		return false;
+
+	if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER &&
+			&yctx->yc_emitter == NULL)
 		return false;
 
 	if (&yctx->yc_document == NULL)
@@ -420,11 +460,11 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
   @param conf_param - parameter for which configuration has to be loaded
   @retval 0 if successful, -errno otherwise
  */
-static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
+int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 		const struct c2_yaml2db_section *ysec, const char *conf_param)
 {
         int                      rc;
-	int			 key = 0;
+	int			 key;
 	/* gcc extension */
 	bool			 valid_key_status[ysec->ys_num_keys];
 	bool			 mandatory_keys_present;
@@ -498,6 +538,13 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 			}
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
+			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+					v_node->data.scalar.value,
+					sizeof(v_node->data.scalar.value));
+			rc = c2_table_lookup(&tx, &db_pair);
+			printf("%s\n", v_node->data.scalar.value);
+			c2_db_pair_release(&db_pair);
+			c2_db_pair_fini(&db_pair);
 			key++;
 		}
 		mandatory_keys_present = validate_mandatory_keys(ysec,
@@ -515,95 +562,68 @@ static int yaml2db_load_conf(struct c2_yaml2db_ctx *yctx,
 	return rc;
 }
 
-/* Static declaration of disk section keys array */
-static struct c2_yaml2db_section_key disk_section_keys[] = {
-	[0] = {"label", true},
-	[1] = {"status", true},
-	[2] = {"setting", true},
-};
-
-/* Static declaration of disk section table */
-static struct c2_yaml2db_section disk_section = {
-	.ys_table_name = "disk_table",
-	.ys_table_ops = &c2_conf_disk_table_ops,
-	.ys_start_key = DISK_MAPPING_START_KEY,
-	.ys_section_type = C2_YAML_TYPE_MAPPING,
-	.ys_num_keys = ARRAY_SIZE(disk_section_keys),
-	.ys_valid_keys = disk_section_keys,
-};
-
 /**
-  Main function for yaml2db
-*/
-int main(int argc, char *argv[])
+  Function to emit the yaml document
+  @param yctx - yaml2db context
+  @param ysec - section context corrsponding to the given parameter
+  @param conf_param - parameter for which configuration has to be emitted 
+  @retval 0 if successful, -errno otherwise
+ */
+int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+                      const struct c2_yaml2db_section *ysec,
+		      const char *conf_param)
 {
-	int				 rc = 0;
-	struct c2_yaml2db_ctx		 yctx;
-	const char			*c_name = NULL;
-	const char			*d_path = NULL;
+	int			 rc;
+        struct c2_table          table;
+        struct c2_db_tx          tx;
+        struct c2_db_pair        db_pair;
+	int                      key;
+	int			 cnt;
+	yaml_char_t		 buf[64];
 
-	/* Global c2_init */
-	rc = c2_init();
-	if (rc != 0)
-		return rc;
+        C2_PRE(yaml2db_context_invariant(yctx));
+        C2_PRE(yaml2db_section_invariant(ysec));
 
-	C2_SET0(&yctx);
+        /* Initialize the table */
+        rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
+                        0, ysec->ys_table_ops);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+                                yaml2db_func_fail, "c2_table_init", 0);
+                return rc;
+        }
 
-	/* Parse command line options */
-	rc = C2_GETOPTS("yaml2db", argc, argv,
-		C2_STRINGARG('d', "path of database directory",
-			LAMBDA(void, (const char *str) {d_path = str; })),
-		C2_STRINGARG('f', "config file in yaml format",
-			LAMBDA(void, (const char *str) {c_name = str; })));
+       /* Initialize the database transaction */
+        rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+                                yaml2db_func_fail, "c2_db_tx_init", 0);
+                c2_table_fini(&table);
+                return rc;
+        }
 
-	if (rc != 0)
-		goto cleanup;
-
-	/* Config file has to be specified as a command line option */
-	if (c_name == NULL) {
-		fprintf(stderr, "Error: Config file path not specified\n");
-		rc = -EINVAL;
-		goto cleanup;
+	key = ysec->ys_start_key;
+	for (cnt = 0; cnt < ysec->ys_num_keys; ++cnt) {
+		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+				buf, sizeof(buf));
+		rc = c2_table_lookup(&tx, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+					yaml2db_func_fail,
+					"c2_table_lookup", 0);
+			//c2_db_pair_release(&db_pair);
+			//c2_db_pair_fini(&db_pair);
+			//c2_table_fini(&table);
+			//return rc;
+		}
+		printf("%s\n",buf);
+		c2_db_pair_release(&db_pair);
+		c2_db_pair_fini(&db_pair);
+		key++;
 	}
-	yctx.yc_cname = c_name;
-
-	/* If database path not specified, set the default path */
-	if (d_path != NULL)
-		yctx.yc_dpath = d_path;
-	else
-		yctx.yc_dpath = D_PATH;
-
-	/* Initialize the parser and database environment */
-	rc = yaml2db_init(&yctx);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml2db_init", 0);
-		goto cleanup;
-	}
-
-	/* Load the information from yaml file to yaml_document, and check for
-	   parsing errors internally */
-	rc = yaml2db_doc_load(&yctx);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml2db_doc_load", 0);
-		goto cleanup_parser_db;
-	}
-
-	/* Parse the disk configuration which is loaded in the context */
-	rc = yaml2db_load_conf(&yctx, &disk_section, disk_str);
-	if (rc != 0) {
-                C2_ADDB_ADD(&yctx.yc_addb, &yaml2db_addb_loc, yaml2db_func_fail,
-                                "yaml2db_parse_disk_conf", 0);
-	}
-
-cleanup_parser_db:
-	yaml2db_fini(&yctx);
-
-cleanup:
-	c2_fini();
-
-	return rc;
+        c2_db_tx_commit(&tx);
+        c2_table_fini(&table);
+        return rc;
 }
 
 /** @} end of yaml2db group */

@@ -12,7 +12,7 @@ SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut xdr/ut net/ut net/bulk_emulation/ut \
             udb/ut capa/ut reqh/ut #rpc/ut
-SUBDIR_ST = net/st net/bulk_emulation/st
+SUBDIR_ST = net/st net/bulk_emulation/st yaml2db/st
 SUBDIR_UB =
 SUBDIR_BIN = mds utils
 

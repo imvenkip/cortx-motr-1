@@ -1,8 +1,9 @@
-INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
+yaml2dbdir             = $(includedir)/yaml2db
+yaml2db_HEADERS        = yaml2db.h disk_conf_db.h
 
-noinst_PROGRAMS      = yaml2db
+noinst_LTLIBRARIES     = libcolibri-yaml2db.la
 
-yaml2db_SOURCES      = yaml2db.c disk_conf_db.c
+libcolibri_yaml2db_la_SOURCES  = yaml2db.c disk_conf_db.c
+libcolibri_yaml2db_la_LIBADD   =  $(top_builddir)/../yaml/src/libyaml.la
 
-yaml2db_LDADD       = $(top_builddir)/colibri/libcolibri.la \
-			$(top_builddir)/../yaml/src/libyaml.la
+INCLUDES = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include

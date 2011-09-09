@@ -39,25 +39,42 @@
  */
 
 /**
+  Enumeration of yaml2db context type
+ */
+enum c2_yaml2db_ctx_type {
+	/* Parser */
+	C2_YAML2DB_CTX_PARSER = 0,
+	/* Emitter */
+	C2_YAML2DB_CTX_EMITTER,
+	/* Maximum number of context types */
+	C2_YAML2DB_CTX_NR
+};
+
+/**
   yaml2db structure
 */
 struct c2_yaml2db_ctx {
 	/* YAML parser struct */
-	yaml_parser_t		 yc_parser;
+	yaml_parser_t			 yc_parser;
+	/* YAML emitter struct */
+	yaml_emitter_t			 yc_emitter;
+	/* Enumeration to decide whether the context belongs
+	   to parser or emitter */
+	enum c2_yaml2db_ctx_type	 yc_type;
 	/* YAML document structure */
-	yaml_document_t		 yc_document;
+	yaml_document_t			 yc_document;
 	/* Root node of the yaml_document */
-	yaml_node_t		 yc_root_node;
+	yaml_node_t			 yc_root_node;
 	/* Config file name */
-	const char		*yc_cname;
+	const char			*yc_cname;
 	/* Database path */
-	const char		*yc_dpath;
+	const char			*yc_dpath;
 	/* Database environment */
-	struct c2_dbenv		 yc_db;
+	struct c2_dbenv			 yc_db;
 	/* ADDB context for the context */
-	struct c2_addb_ctx	 yc_addb;
+	struct c2_addb_ctx		 yc_addb;
 	/* File pointer for YAML file */
-	FILE			*yc_fp;
+	FILE				*yc_fp;
 };
 
 /**
@@ -130,6 +147,48 @@ struct c2_yaml2db_section {
 	     (v_node = yaml_document_get_node(&(ctx)->yc_document, \
 		     pair->value)); \
 	     pair++)
+
+/**
+  Init function, which initializes the parser and sets input file
+  @param yctx - yaml2db context
+  @retval 0 if success, -errno otherwise
+ */
+int yaml2db_init(struct c2_yaml2db_ctx *yctx);
+
+/**
+  Fini function, which finalizes the parser and finies the db
+  @param yctx - yaml2db context
+ */
+void yaml2db_fini(struct c2_yaml2db_ctx *yctx);
+
+/**
+  Function to load the yaml document
+  @param yctx - yaml2db context
+  @retval 0 if successful, -errno otherwise
+ */
+int yaml2db_doc_load(struct c2_yaml2db_ctx *yctx);
+
+/**
+  Function to parse the yaml document
+  @param yctx - yaml2db context
+  @param ysec - section context corrsponding to the given parameter
+  @param conf_param - parameter for which configuration has to be loaded
+  @retval 0 if successful, -errno otherwise
+ */
+int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+                      const struct c2_yaml2db_section *ysec,
+		      const char *conf_param);
+
+/**
+  Function to emit the yaml document
+  @param yctx - yaml2db context
+  @param ysec - section context corrsponding to the given parameter
+  @param conf_param - parameter for which configuration has to be emitted 
+  @retval 0 if successful, -errno otherwise
+ */
+int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+                      const struct c2_yaml2db_section *ysec,
+		      const char *conf_param);
 
 /** @} end of yaml2db group */
 
