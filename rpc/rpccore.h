@@ -972,6 +972,10 @@ int c2_rpc_reply_submit(struct c2_rpc_item	*request,
   If this call returns without errors, the item's reply call-back is
   guaranteed to be called eventually.
 
+  After successful call to c2_rpc_post(), user should not free the item.
+  Rpc-layer will internally free the item when rpc-layer is sure that the item
+  will not take part in recovery.
+
   @pre item->ri_session != NULL
   @pre item->ri_priority is sane.
 */
@@ -985,6 +989,13 @@ int c2_rpc_update_stream_post(struct c2_update_stream *str,
                  struct c2_rpc_item *item);
 #endif
 
+/**
+  Posts reply item on the same session on which the request item is received.
+
+  After successful call to c2_rpc_reply_post(), user should not free the reply
+  item. Rpc-layer will internally free the item when rpc-layer is sure that
+  the corresponding request item will not take part in recovery.
+ */
 int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
