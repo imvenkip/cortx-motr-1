@@ -31,7 +31,6 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
 	size_t		 len = 512;
 	return 		 len;
-	/*
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);

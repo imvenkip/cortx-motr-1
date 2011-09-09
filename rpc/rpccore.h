@@ -422,18 +422,6 @@ struct c2_rpc_item_type (itype) = {                      \
 };
 
 /**
-  onwire_fmt XXX : Establishes an association between an item type and fop type.
-  During registration, this structure is populated with the associated
-  fop type and item type.
-
-struct c2_fop_rpc_item_type {
-	struct c2_fop_type	*fri_f_type;
-	struct c2_rpc_item_type  fri_i_type;
-=======
->>>>>>> rpcintegration
-};*/
-
-/**
    Post an unsolicited item to rpc layer.
    @param conn - c2_rpc_conn structure from which this item will be posted.
    @param item - input rpc item.

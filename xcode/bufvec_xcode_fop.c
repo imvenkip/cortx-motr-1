@@ -229,7 +229,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 				 enum c2_bufvec_what what)
 {
 
-	struct c2_fop_sequence   *fseq;
+	struct c2_fop_sequence  *fseq;
 	int                      rc;
 	uint32_t                 nr;
 	int		         cnt;

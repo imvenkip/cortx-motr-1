@@ -100,7 +100,6 @@ static void xcode_atom_size_get(size_t *size, struct c2_fop_field_type *fftype,
 	C2_PRE(size != NULL);
 
 	*size += BYTES_PER_XCODE_UNIT;
-	printf("Size atomic type %ld\n", *size);
 }
 
 /**
@@ -166,7 +165,6 @@ static void xcode_record_size_get(size_t *size,
 	}
 	C2_ASSERT(rec_size != 0);
 	*size += rec_size;
-	printf("Record Size = %ld\n", *size);
 }
 
 
@@ -186,7 +184,6 @@ static size_t xcode_byte_seq_size_get(uint32_t count)
 	C2_PRE(count != 0);
 
         size  = (count + MAX_PAD_BYTES) & XCODE_UNIT_ALIGNED_MASK;
-	printf("Seq Size = %ld", size);
 	return size;
 }
 
@@ -240,7 +237,6 @@ static void xcode_sequence_size_get(size_t *size,
 		}
 	}
 	*size += seq_size;
-	printf("Size of Sequence = %ld\n", *size);
 }
 
 /**
@@ -269,7 +265,7 @@ static void xcode_typedef_size_get(size_t *size,
 
 /** XXX: Currently unions are not supported. */
 static void xcode_union_size_get(size_t *size, struct c2_fop_field_type *fftype,
-		                  void *fop_data)
+				 void *fop_data)
 {
 	return;
 }
@@ -315,7 +311,7 @@ size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
-					  c2_fop_data(fop));
+				   c2_fop_data(fop));
 	return size;
 }
 C2_EXPORTED(c2_xcode_fop_size_get);
