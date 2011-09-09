@@ -730,7 +730,7 @@ void client_init()
 		printf("Failed to create rpc connection\n");
 		goto cleanup;
 	} else {
-		printf("RPC connection created \n");
+		printf("pingcli:RPC connection created \n");
 	}
 
 

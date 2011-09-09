@@ -729,7 +729,6 @@ void client_init(void)
 
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
-	printk("Server Addr = %s\n",addr_remote);
 
 	/* Find first c2_rpc_chan from the chan's list
 	   and use its corresponding tm to create target end_point */
@@ -1003,9 +1002,8 @@ int main(int argc, char *argv[])
 		if (verbose)
 			print_stats(client, server);
 #ifndef __KERNEL__
-		
 		client_fini();
-#endif		
+#endif
 	}
 
 #ifndef __KERNEL__

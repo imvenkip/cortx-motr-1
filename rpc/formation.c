@@ -24,10 +24,9 @@
 #endif
 
 #include "rpc/rpccore.h"
-
-#ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
-#else 
+
+#ifdef __KERNEL__
 #define printf printk
 #endif
 
@@ -1985,9 +1984,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		/** @todo Allocate bulk i/o buffers before encoding. */
 		/** @todo rpc_encode will encode the bulk i/o
 		   buffer descriptors. */
-#ifndef __KERNEL__
 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
-#endif
 		printf("Number of items bundled in rpc = %lu\n",
 			c2_list_length(&rpc_obj->r_items));
 		if (rc < 0) {
