@@ -136,11 +136,13 @@ struct c2_fop_type_ops c2_fop_ping_rep_ops = {
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_ping = {
-        .rit_ops = &rpc_item_ping_type_ops,
+        .rit_opcode = c2_fop_ping_opcode,
+	.rit_ops = &rpc_item_ping_type_ops,
 	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO
 };
 
 struct c2_rpc_item_type c2_rpc_item_type_ping_rep = {
+        .rit_opcode = c2_fop_ping_rep_opcode,
         .rit_ops = &rpc_item_ping_rep_type_ops,
 	.rit_flags = C2_RPC_ITEM_TYPE_REPLY
 };
