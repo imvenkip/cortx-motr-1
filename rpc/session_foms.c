@@ -95,8 +95,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL) {
 		rc = -ENOMEM;
-		goto errout;
+		goto out;
 	}
+
 	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
@@ -152,23 +153,28 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	return FSO_AGAIN;
 
 out_fini:
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED &&
-			c2_rpc_conn_invariant(conn));
+	C2_ASSERT(conn != NULL && rc != 0);
 	c2_rpc_conn_fini(conn);
 
 out_free:
+	C2_ASSERT(conn != NULL);
 	c2_free(conn);
-	conn = NULL;
 
-errout:
-	C2_ASSERT(rc != 0);
-
-	printf("conn_establish_state: failed %d\n", rc);
-	reply->rcer_sender_id = SENDER_ID_INVALID;
-	reply->rcer_rc = rc;
-
+out:
+	/*
+	 * IMPORTANT: No reply is sent if conn establishing is failed.
+	 *
+	 * ACTIVE session is required to send reply. In case of, successful
+	 * conn establish operation, there is ACTIVE SESSION_0 and slot 0
+	 * (in the newly established ACTIVE conn) to send reply.
+	 *
+	 * But there is no SESSION_0 (in fact here is no conn object) if
+	 * conn establish operation is failed. Hence reply cannot be sent.
+	 *
+	 * In this case, sender will time-out and mark sender side conn
+	 * as FAILED.
+	 */
 	fom->fo_phase = FOPH_FAILED;
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return FSO_AGAIN;
 }
 
@@ -227,12 +233,9 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 		rc = -EINVAL;
 		goto errout;
 	}
-	printf("session_establish_state: sender_id %lu slot_cnt %u\n",
-			request->rse_sender_id, slot_cnt);
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
-		printf("scs: failed to allocate session\n");
 		rc = -ENOMEM;
 		goto errout;
 	}
@@ -245,15 +248,12 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	C2_ASSERT(conn != NULL);
 
 	rc = c2_rpc_session_init(session, conn, slot_cnt);
-	if (rc != 0) {
-		printf("scs: failed to init session %d\n", rc);
+	if (rc != 0)
 		goto out_free;
-	}
+
 	rc = c2_rpc_rcv_session_establish(session);
-	if (rc != 0) {
-		printf("scs: failed to create session: %d\n", rc);
+	if (rc != 0)
 		goto out_fini;
-	}
 
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 
@@ -356,12 +356,17 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	c2_mutex_unlock(&conn->c_mutex);
 	rc = c2_rpc_rcv_session_terminate(session);
 	C2_ASSERT(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
+	C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATED));
 	c2_rpc_session_fini(session);
 	c2_free(session);
 	/* fall through */
 errout:
 	reply->rstr_rc = rc;
 	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
+	/*
+	 * Note: request is received on SESSION_0, which is different from
+	 * current session being terminated. Reply will also go on SESSION_0.
+	 */
 	c2_rpc_reply_post(&fom_st->fst_fop->f_item,
 			  &fom_st->fst_fop_rep->f_item);
 	return FSO_AGAIN;
@@ -421,17 +426,30 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(conn != NULL);
 	printf("Received conn terminate req for %lu\n", request->ct_sender_id);
 	rc = c2_rpc_rcv_conn_terminate(conn);
-	/*
-	 * In memory state of conn is not cleaned up, at this point.
-	 * conn will be finalised and freed in the ->rio_sent() callback of
-	 * conn_terminate_reply.
-	 * XXX If conn is not in ACTIVE state, register reply->ri_ops, so that
-	 * c2_rpc_conn_terminate_reply_sent() will be called.
-	 */
-	reply->ctr_rc = rc;
-	fom->fo_phase = (rc == 0) ? FOPH_DONE : FOPH_FAILED;
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return FSO_AGAIN;
+	if (conn->c_state != C2_RPC_CONN_FAILED) {
+		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
+			  conn->c_state == C2_RPC_CONN_TERMINATING);
+		/*
+		 * In memory state of conn is not cleaned up, at this point.
+		 * conn will be finalised and freed in the ->rio_sent()
+		 * callback of &fop_rep->f_item item.
+		 */
+		reply->ctr_rc = rc; /* rc can be -EBUSY */
+		fom->fo_phase = FOPH_DONE;
+		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+		return FSO_AGAIN;
+	} else {
+		/*
+		 * conn has been moved to FAILED state. fini() and free() it.
+		 * Cannot send reply back to sender. Sender will time-out and
+		 * set sender side conn to FAILED state.
+		 * XXX generate ADDB record here.
+		 */
+		c2_rpc_conn_fini(conn);
+		c2_free(conn);
+		fom->fo_phase = FOPH_FAILED;
+		return FSO_AGAIN;
+	}
 }
 
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom)

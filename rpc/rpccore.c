@@ -51,13 +51,6 @@ static const struct c2_addb_loc rpc_machine_addb_loc = {
 C2_ADDB_EV_DEFINE(rpc_machine_func_fail, "rpc_machine_func_fail",
 		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-/** onwire_fmt List of all known rpc item types 
-static struct c2_list  rpc_item_types_list;
-
-Lock for list of item types 
-static struct c2_rwlock rpc_item_types_lock;
-*/
-
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
 /**
@@ -186,17 +179,15 @@ int c2_rpc_post(struct c2_rpc_item	*item)
 {
 	int		res = 0;
 
-	C2_ASSERT(item != NULL && item->ri_session != NULL &&
-		  (item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
-		   item->ri_session->s_state == C2_RPC_SESSION_BUSY));
+	C2_ASSERT(item != NULL && item->ri_session != NULL);
+
+	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
+		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
 
 	c2_time_now(&item->ri_rpc_entry_time);
 
-	/*printf("item_post: item %p session %p(%lu)\n", item, item->ri_session,
-			item->ri_session->s_session_id);*/
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	//item->ri_type->rit_flags = C2_RPC_ITEM_UNBOUND;
 	res = c2_rpc_frm_ubitem_added(item);
 	return res;
 }
@@ -328,8 +319,6 @@ void c2_rpc_ep_aggr_fini(struct c2_rpc_ep_aggr *ep_aggr)
 
 int c2_rpc_core_init(void)
 {
-	/* onwire_fmt c2_list_init(&rpc_item_types_list);
-	c2_rwlock_init(&rpc_item_types_lock);*/
 	return c2_rpc_session_module_init();
 }
 C2_EXPORTED(c2_rpc_core_init);
@@ -485,11 +474,15 @@ struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine)
 
 void c2_rpc_chan_put(struct c2_rpc_chan *chan)
 {
+	struct c2_rpcmachine *machine;
 	C2_PRE(chan != NULL);
 
-	c2_mutex_lock(&chan->rc_rpcmachine->cr_ep_aggr.ea_mutex);
+	machine = chan->rc_rpcmachine;
+	C2_ASSERT(machine != NULL);
+
+	c2_mutex_lock(&machine->cr_ep_aggr.ea_mutex);
 	c2_ref_put(&chan->rc_ref);
-	c2_mutex_unlock(&chan->rc_rpcmachine->cr_ep_aggr.ea_mutex);
+	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 }
 
 void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
@@ -1103,39 +1096,9 @@ bool c2_rpc_item_fid_equal(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 	return fop1->f_type->ft_ops->fto_fid_equal(fop1, fop2);
 }
 
-/** onwire_fmt Registers a new rpc item type with the RPC subsystem 
-void c2_rpc_item_type_add(struct c2_rpc_item_type *item_type)
-{
-	C2_PRE(item_type != NULL);
-
-	c2_rwlock_write_lock(&rpc_item_types_lock);
-	c2_list_add(&rpc_item_types_list, &item_type->rit_linkage);
-	c2_rwlock_write_unlock(&rpc_item_types_lock);
-}*/
-
-/** onwire_fmt Returns an rpc item type for a specific rpc item opcode 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
-	struct c2_rpc_item_type *item_type;
-	bool			 found = false;
-	c2_rwlock_read_lock(&rpc_item_types_lock);
-	c2_list_for_each_entry(&rpc_item_types_list, item_type,
-	                       struct c2_rpc_item_type, rit_linkage) {
-		if( item_type->rit_opcode == opcode) {
-			found = true;
-			break;
-		}
-	}
-	c2_rwlock_read_unlock(&rpc_item_types_lock);
-	if(found)
-		return item_type;
-
-	return NULL;
-}
-*/
-struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
-{
-	struct c2_fop_type    		*ftype;
+	struct c2_fop_type		*ftype;
 	struct c2_rpc_item_type		*item_type;
 
 	ftype = c2_fop_type_search(opcode);
