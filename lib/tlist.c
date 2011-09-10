@@ -25,10 +25,20 @@
    @{
  */
 
+/**
+   Returns the address of a link embedded in an ambient object.
+ */
 static struct c2_list_link *link(const struct c2_tl_descr *d, const void *obj);
+
+/**
+   Returns the value of the magic field in an ambient object
+ */
 static uint64_t magic(const struct c2_tl_descr *d, const void *obj);
+
+/**
+   Casts a link to its ambient object.
+ */
 static void *obj(const struct c2_tl_descr *d, struct c2_list_link *link);
-static void magic_set(const struct c2_tl_descr *d, void *obj, uint64_t val);
 
 void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list)
 {
@@ -48,22 +58,15 @@ C2_EXPORTED(c2_tlist_fini);
 void c2_tlink_init(const struct c2_tl_descr *d, void *obj)
 {
 	c2_list_link_init(link(d, obj));
-	magic_set(d, obj, d->td_link_magic);
+	if (d->td_link_magic != 0)
+		*(uint64_t *)(obj + d->td_link_magic_offset) = value;
 	C2_POST(c2_tlink_invariant(d, obj));
 }
 C2_EXPORTED(c2_tlink_init);
 
-void c2_tlink_fini0(const struct c2_tl_descr *d, void *obj)
-{
-	C2_PRE(c2_tlink_invariant(d, obj));
-	c2_list_link_fini(link(d, obj));
-}
-C2_EXPORTED(c2_tlink_fini0);
-
 void c2_tlink_fini(const struct c2_tl_descr *d, void *obj)
 {
-	c2_tlink_fini0(d, obj);
-	magic_set(d, obj, ~d->td_link_magic);
+	c2_list_link_fini(link(d, obj));
 }
 C2_EXPORTED(c2_tlink_fini);
 

@@ -110,8 +110,8 @@
    @endcode
 
    Magic field can be shared by multiple tlist links embedded in the same object
-   and can be used for other sanity checking. In this case, all but last links
-   must be finalised with a call to c2_tlist_fini0().
+   and can be used for other sanity checking. An "outermost" finaliser function
+   must clear the magic as its last step to catch use-after-fini errors.
 
    Now, one can populate and manipulate foo-bar lists:
 
@@ -229,21 +229,7 @@ void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list);
 void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list);
 
 void c2_tlink_init(const struct c2_tl_descr *d, void *obj);
-
-/**
-   Finalises tlist link. If multiple links in the same ambient object share the
-   magic field, only last link should be finalised by calling this function.
-
-   @see c2_tlink_fini0()
- */
 void c2_tlink_fini(const struct c2_tl_descr *d, void *obj);
-
-/**
-   Finalises one of multiple tlist links sharing the magic field.
-
-   @see c2_tlink_fini()
- */
-void c2_tlink_fini0(const struct c2_tl_descr *d, void *obj);
 
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list);
 bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj);
