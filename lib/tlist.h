@@ -195,14 +195,15 @@ struct c2_tl_descr {
 	uint64_t    td_head_magic;
 };
 
-#define C2_TL_DESCR(name, ambient_type, link_magic_field,	\
-                    link_magic_value, head_magic)		\
-{								\
-	.td_name        = name,					\
-	.td_link_offset = offsetof(ambient, magic_field),	\
-	.td_link_magic  = magic_value,				\
-	.td_head_magic  = head_magic				\
+#define C2_TL_DESCR(name, ambient_type, link_magic_field,		\
+                    link_magic, head_magic)				\
+{									\
+	.td_name        = name,						\
+	.td_link_offset = offsetof(ambient_type, link_magic_field),	\
+	.td_link_magic  = link_magic,					\
+	.td_head_magic  = head_magic					\
 }
+
 
 /**
    tlist head.
@@ -288,8 +289,7 @@ void   c2_tlist_del(const struct c2_tl_descr *d, void *obj);
    @pre  c2_tlink_is_in(d, obj)
    @post c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_move(const struct c2_tl_descr *d,
-		     struct c2_tl *list, void *obj);
+void   c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
 
 /**
    Moves an element from a list to the tail of (possibly the same) list.
@@ -314,15 +314,15 @@ void  *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list);
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list,
-		     void *obj);
+void  *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+
 /**
    Returns the previous element of a list or NULL if @obj is the first element.
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list,
-		     void *obj);
+void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+
 /**
    A variant of c2_tlist_next() that returns NULL, when obj parameter is
    NULL. This is used by c2_tlist_for(). Compare with (CDR NIL) being NIL.
@@ -331,17 +331,16 @@ void *c2_tlist_next_safe(const struct c2_tl_descr *d, struct c2_tl *list,
 			 void *obj);
 /**
    Iterates over elements of list @head of type @descr, assigning them in order
-   (from head to tail) to @obj.
+   (from head to tail) to @obj. @tmp is a temporary lvalue parameter.
 
    It is safe to delete the "current" object in the body of the loop or modify
    the portion of the list preceding the current element.
  */
-#define c2_tlist_for(descr, head, obj)					\
-	for (void *__tl_tmp, obj = c2_tlist_head(descr, head),		\
-	     __tl_tmp = c2_tlist_next_safe(descr, head, obj);		\
+#define c2_tlist_for(descr, head, obj, tmp)				\
+	for (obj = c2_tlist_head(descr, head),				\
+	     tmp = c2_tlist_next_safe(descr, head, obj);		\
 	     obj != NULL;						\
-	     obj = __tl_tmp,						\
-	     __tl_tmp = c2_tlist_next_safe(descr, head, __tl_tmp))
+	     obj = tmp, tmp = c2_tlist_next_safe(descr, head, tmp))
 
 /** @} end of tlist group */
 

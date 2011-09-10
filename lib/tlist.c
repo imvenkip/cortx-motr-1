@@ -59,7 +59,7 @@ void c2_tlink_init(const struct c2_tl_descr *d, void *obj)
 {
 	c2_list_link_init(link(d, obj));
 	if (d->td_link_magic != 0)
-		*(uint64_t *)(obj + d->td_link_magic_offset) = value;
+		*(uint64_t *)(obj + d->td_link_magic_offset) = d->td_link_magic;
 	C2_POST(c2_tlink_invariant(d, obj));
 }
 C2_EXPORTED(c2_tlink_init);
@@ -80,7 +80,7 @@ C2_EXPORTED(c2_tlist_is_empty);
 bool c2_tlink_is_in(const struct c2_tl_descr *d, const void *obj)
 {
 	C2_PRE(c2_tlink_invariant(d, obj));
-	return c2_list_link_is_in(&link(d, obj)->t_link);
+	return c2_list_link_is_in(link(d, obj));
 }
 C2_EXPORTED(c2_tlink_is_in);
 
@@ -89,7 +89,7 @@ bool c2_tlist_contains(const struct c2_tl_descr *d, const struct c2_tl *list,
 {
 	C2_PRE(c2_tlist_invariant(d, list));
 	C2_PRE(c2_tlink_invariant(d, obj));
-	return c2_list_contains(&list->t_head, &link(d, obj)->t_link);
+	return c2_list_contains(&list->t_head, link(d, obj));
 }
 C2_EXPORTED(c2_tlist_contains);
 
@@ -146,7 +146,7 @@ void c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 	C2_PRE(c2_tlist_invariant(d, list));
 	C2_PRE(c2_tlink_is_in(d, obj));
 
-	c2_list_move(&list->l_head, link(d, obj));
+	c2_list_move(&list->t_head, link(d, obj));
 }
 C2_EXPORTED(c2_tlist_move);
 
@@ -156,7 +156,7 @@ void c2_tlist_move_tail(const struct c2_tl_descr *d,
 	C2_PRE(c2_tlist_invariant(d, list));
 	C2_PRE(c2_tlink_is_in(d, obj));
 
-	c2_list_move_tail(&list->l_head, link(d, obj));
+	c2_list_move_tail(&list->t_head, link(d, obj));
 }
 C2_EXPORTED(c2_tlist_move_tail);
 
@@ -182,26 +182,24 @@ void *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list)
 }
 C2_EXPORTED(c2_tlist_tail);
 
-void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list,
-		    void *obj)
+void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *amb)
 {
 	struct c2_list_link *next;
 
-	C2_PRE(c2_tlist_contains(d, list, obj));
+	C2_PRE(c2_tlist_contains(d, list, amb));
 
-	next = link(d, obj)->ll_next;
+	next = link(d, amb)->ll_next;
 	return (void *)next != &list->t_head ? obj(d, next) : NULL;
 }
 C2_EXPORTED(c2_tlist_next);
 
-void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list,
-		    void *obj)
+void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *amb)
 {
 	struct c2_list_link *prev;
 
-	C2_PRE(c2_tlist_contains(d, list, obj));
+	C2_PRE(c2_tlist_contains(d, list, amb));
 
-	prev = link(d, obj)->ll_prev;
+	prev = link(d, amb)->ll_prev;
 	return (void *)prev != &list->t_head ? obj(d, prev) : NULL;
 }
 C2_EXPORTED(c2_tlist_prev);
@@ -242,7 +240,7 @@ bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj)
 }
 C2_EXPORTED(c2_tlink_invariant);
 
-static struct c2_list_link *link(const struct c2_tl_descr *d, void *obj)
+static struct c2_list_link *link(const struct c2_tl_descr *d, const void *obj)
 {
 	return &((struct c2_tlink *)(obj + d->td_link_offset))->t_link;
 }
@@ -256,12 +254,6 @@ static void *obj(const struct c2_tl_descr *d, struct c2_list_link *link)
 {
 	return (void *)container_of(link, struct c2_tlink,
 				    t_link) - d->td_link_offset;
-}
-
-static void magic_set(const struct c2_tl_descr *d, void *obj, uint64_t value)
-{
-	if (d->td_link_magic != 0)
-		*(uint64_t *)(obj + d->td_link_magic_offset) = value;
 }
 
 /** @} end of tlist group */
