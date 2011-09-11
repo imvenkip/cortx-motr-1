@@ -98,7 +98,7 @@ size_t c2_tlist_length(const struct c2_tl_descr *d, const struct c2_tl *list)
 	C2_PRE(c2_tlist_invariant(d, list));
 	return c2_list_length(&list->t_head);
 }
-C2_EXPORTED(c2_tlist_contains);
+C2_EXPORTED(c2_tlist_length);
 
 void c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 {
@@ -138,6 +138,7 @@ void c2_tlist_del(const struct c2_tl_descr *d, void *obj)
 	C2_PRE(c2_tlink_invariant(d, obj));
 	C2_PRE(c2_tlink_is_in(d, obj));
 	c2_list_del(link(d, obj));
+	C2_PRE(!c2_tlink_is_in(d, obj));
 }
 C2_EXPORTED(c2_tlist_del);
 
