@@ -349,8 +349,6 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	int			 rc = 0;
 	struct c2_rpc_chan	*ch = NULL;
 	struct c2_clink		 tmwait;
-	c2_bcount_t		 max_bufsize;
-	c2_bcount_t		 max_segs_nr;
 
 	C2_PRE(chan != NULL);
 	C2_PRE(machine != NULL);
@@ -428,15 +426,9 @@ int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 	*chan = ch;
 	/* Initialize the formation state machine attached with given
-	   c2_rpc_chan structure. This state machine is finiied when
+	   c2_rpc_chan structure. This state machine is finalized when
 	   corresponding c2_rpc_chan is destroyed. */
-	c2_rpc_frm_sm_init(ch, &machine->cr_formation, &ch->rc_frmsm);
-
-	/* Assign network specific thresholds on max buffer size and
-	   max number of fragments. */
-	max_bufsize = c2_net_domain_get_max_buffer_size(net_dom);
-	max_segs_nr = c2_net_domain_get_max_buffer_segments(net_dom);
-	c2_rpc_frm_sm_net_limits_set(&ch->rc_frmsm, max_bufsize, max_segs_nr);
+	c2_rpc_frm_sm_init(&ch->rc_frmsm, ch, &machine->cr_formation);
 	return rc;
 cleanup:
 	c2_free(ch->rc_rcv_buffers);

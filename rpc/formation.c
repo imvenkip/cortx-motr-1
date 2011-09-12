@@ -24,6 +24,9 @@
 #endif
 
 #include "rpc/rpccore.h"
+#include "lib/errno.h"
+#include "lib/memory.h"
+#include "lib/cdefs.h"
 
 #ifndef __KERNEL__
 #include "rpc/rpc_onwire.h"
@@ -82,24 +85,6 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
    once rpc integration is done.
  */
 static uint64_t max_rpcs_in_flight;
-
-/**
-   Assign network specific thresholds on max size of a message and max
-   number of fragments that can be carried in one network transfer.
-   @param frm_sm - Input Formation state machine.
-   @param max_bufsize - Max permitted buffer size for given net domain.
-   @param max_segs_nr - Max permitted segments a message can contain
-   for given net domain.
- */
-void c2_rpc_frm_sm_net_limits_set(struct c2_rpc_frm_sm *frm_sm,
-		c2_bcount_t max_bufsize, c2_bcount_t max_segs_nr)
-{
-	C2_PRE(frm_sm != NULL);
-	C2_PRE(frm_sm->fs_state != C2_RPC_FRM_STATE_UNINITIALIZED);
-
-	frm_sm->fs_max_msg_size = max_bufsize;
-	frm_sm->fs_max_frags = max_segs_nr;
-}
 
 /**
   This routine will set the stats for each rpc item
@@ -280,7 +265,7 @@ int c2_rpc_frm_init(struct c2_rpc_formation *frm)
         c2_addb_choose_default_level(AEL_WARN);
 	c2_rwlock_init(&frm->rf_sm_list_lock);
 	c2_list_init(&frm->rf_frm_sm_list);
-	frm->rf_client_side = false;
+	frm->rf_sender_side = false;
 	return rc;
 }
 
@@ -409,7 +394,8 @@ void c2_rpc_frm_sm_fini(struct c2_rpc_frm_sm *frm_sm)
  */
 static bool frm_sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 {
-	bool item_present = false;
+	bool		    item_present = false;
+	struct c2_rpc_chan *chan;
 
 	int cnt;
 
@@ -424,7 +410,8 @@ static bool frm_sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 				&frm_sm->fs_linkage))
 		return false;
 
-	if (frm_sm->fs_rpcchan == NULL)
+	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
+	if (chan == NULL)
 		return false;
 
 	/* Formation state machine should be in a valid state. */
@@ -434,7 +421,7 @@ static bool frm_sm_invariant(const struct c2_rpc_frm_sm *frm_sm)
 
 	/* The transfer machine associated with this formation state machine
 	   should have been started already. */
-	if (frm_sm->fs_rpcchan->rc_tm.ntm_state != C2_NET_TM_STARTED)
+	if (chan->rc_tm.ntm_state != C2_NET_TM_STARTED)
 		return false;
 
 	/* Number of rpcs in flight should always be less than max limit. */
@@ -499,7 +486,6 @@ static void frm_sm_add(struct c2_rpc_chan *chan,
 	c2_list_init(&frm_sm->fs_groups);
 	c2_list_init(&frm_sm->fs_coalesced_items);
 	c2_list_init(&frm_sm->fs_rpcs);
-	frm_sm->fs_rpcchan = chan;
 	frm_sm->fs_state = C2_RPC_FRM_STATE_WAITING;
 	frm_sm->fs_max_rpcs_in_flight = max_rpcs_in_flight;
 	frm_sm->fs_curr_rpcs_in_flight = 0;
@@ -548,9 +534,8 @@ static struct c2_rpc_frm_sm *rpc_item_to_frm_sm(const struct c2_rpc_item *item)
    @param formation - c2_rpc_formation structure
    @param frm_sm - Formation state machine object to be initialized.
  */
-void c2_rpc_frm_sm_init(struct c2_rpc_chan *chan,
-		       struct c2_rpc_formation *formation,
-		       struct c2_rpc_frm_sm *frm_sm)
+void c2_rpc_frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
+		       struct c2_rpc_formation *formation)
 {
 	C2_PRE(chan != NULL);
 	C2_PRE(formation != NULL);
@@ -560,6 +545,11 @@ void c2_rpc_frm_sm_init(struct c2_rpc_chan *chan,
 	c2_rwlock_write_lock(&formation->rf_sm_list_lock);
 	frm_sm_add(chan, formation, frm_sm);
 	c2_rwlock_write_unlock(&formation->rf_sm_list_lock);
+
+	frm_sm->fs_max_msg_size = c2_net_domain_get_max_buffer_size(
+				  chan->rc_tm.ntm_dom);
+	frm_sm->fs_max_frags = c2_net_domain_get_max_buffer_segments(
+				  chan->rc_tm.ntm_dom);
 }
 
 /**
@@ -964,7 +954,8 @@ static void item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
 	/* Move the rpc item to first list in unformed item data structure
 	   so that it is bundled first in the rpc being formed. */
 	c2_list_del(&item->ri_unformed_linkage);
-	list = &frm_sm->fs_unformed_prio[0].pl_unformed_items;
+	list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR -
+	       (item->ri_prio + 1)].pl_unformed_items;
 	c2_list_add(list, &item->ri_unformed_linkage);
 }
 
@@ -1239,8 +1230,8 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 	/* Index into the array to find out correct list as per
 	   priority of current rpc item. */
 	C2_ASSERT(item->ri_prio < C2_RPC_ITEM_PRIO_NR);
-	list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR - item->ri_prio].
-		pl_unformed_items;
+	list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR -
+	       (item->ri_prio + 1)].pl_unformed_items;
 
 	/* Insert the item into unformed list sorted according to timeout. */
 	c2_list_for_each_entry_safe(list, rpc_item, rpc_item_next,
@@ -1340,7 +1331,7 @@ static bool formation_qualify(const struct c2_rpc_frm_sm *frm_sm)
 	/* If current rpcs in flight for this formation state machine
 	   has reached the max rpcs limit, don't send any more rpcs
 	   unless this number drops. */
-	if (frm_sm->fs_formation->rf_client_side &&
+	if (frm_sm->fs_formation->rf_sender_side &&
 	    frm_sm->fs_curr_rpcs_in_flight ==
 	    frm_sm->fs_max_rpcs_in_flight)
 		return false;
@@ -1755,7 +1746,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 	/* Get slot and verno info from sessions component for
 	   any unbound items in session->free list. */
-	chan = frm_sm->fs_rpcchan;
+	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
 	C2_ASSERT(chan != NULL);
 	rpcmachine = chan->rc_rpcmachine;
 	C2_ASSERT(rpcmachine != NULL);
@@ -1766,8 +1757,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	c2_list_for_each_entry_safe(&rpcmachine->cr_ready_slots, slot,
 			slot_next, struct c2_rpc_slot, sl_link) {
 		if (!c2_list_is_empty(&slot->sl_ready_list) ||
-				(slot->sl_session->s_conn->c_rpcchan !=
-				 frm_sm->fs_rpcchan))
+		    (slot->sl_session->s_conn->c_rpcchan != chan))
 			continue;
 
 		c2_mutex_lock(&slot->sl_mutex);
@@ -1963,7 +1953,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 			rpc_obj_next, struct c2_rpc, r_linkage) {
 		item = c2_list_entry((c2_list_first(&rpc_obj->r_items)),
 				struct c2_rpc_item, ri_rpcobject_linkage);
-		if (frm_sm->fs_formation->rf_client_side &&
+		if (frm_sm->fs_formation->rf_sender_side &&
 				frm_sm->fs_curr_rpcs_in_flight >=
 				frm_sm->fs_max_rpcs_in_flight) {
 			rc = -EBUSY;
@@ -2015,7 +2005,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		}
 
 		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
-		if (frm_sm->fs_formation->rf_client_side)
+		if (frm_sm->fs_formation->rf_sender_side)
 			frm_sm->fs_curr_rpcs_in_flight++;
 		/* Remove the rpc object from rpcobj_list.*/
 		c2_list_del(&rpc_obj->r_linkage);
@@ -2043,7 +2033,7 @@ void c2_rpc_frm_rpcs_inflight_dec(struct c2_rpc_item *item)
 				rf_sm_list_lock);
 		c2_mutex_lock(&frm_sm->fs_lock);
 
-		if (frm_sm->fs_formation->rf_client_side &&
+		if (frm_sm->fs_formation->rf_sender_side &&
 				frm_sm->fs_curr_rpcs_in_flight > 0)
 			frm_sm->fs_curr_rpcs_in_flight--;
 

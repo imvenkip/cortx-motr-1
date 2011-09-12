@@ -31,6 +31,7 @@
 #include "db/db.h"
 #include "cob/cob.h"
 #include "addb/addb.h"
+#include "lib/memory.h"
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
 #else
