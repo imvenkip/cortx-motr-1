@@ -65,7 +65,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 				wi->xwi_nbe_ep = NULL;
 			}
 			c2_mutex_unlock(&tm->ntm_mutex);
-			c2_time_now(&ev.nte_time);
+			ev.nte_time = c2_time_now();
 			c2_net_tm_event_post(&ev);
 			c2_mutex_lock(&tm->ntm_mutex);
 		}
@@ -86,7 +86,7 @@ static void mem_wf_state_change(struct c2_net_transfer_mc *tm,
 			c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
 
 		c2_mutex_unlock(&tm->ntm_mutex);
-		c2_time_now(&ev.nte_time);
+		ev.nte_time = c2_time_now();
 		c2_net_tm_event_post(&ev);
 		c2_mutex_lock(&tm->ntm_mutex);
 	}
@@ -131,7 +131,7 @@ static void mem_wf_error_cb(struct c2_net_transfer_mc *tm,
 
 	C2_PRE(wi->xwi_op == C2_NET_XOP_ERROR_CB);
 	C2_PRE(wi->xwi_status < 0);
-	c2_time_now(&ev.nte_time);
+	ev.nte_time = c2_time_now();
 	c2_net_tm_event_post(&ev);
 	c2_free(wi);
 }

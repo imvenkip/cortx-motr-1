@@ -139,10 +139,10 @@ static struct c2_fop_type_ops reqh_ut_create_fop_ops = {
  * Reply fop fid enumerations
  */
 enum reply_fop {
-	CREATE_REQ = 10,
+	CREATE_REQ = 40,
 	WRITE_REQ,
 	READ_REQ,
-	CREATE_REP = 21,
+	CREATE_REP = 43,
 	WRITE_REP,
 	READ_REP
 };
@@ -150,18 +150,18 @@ enum reply_fop {
 /**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "create", CREATE_REQ, &reqh_ut_create_fop_ops);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "write", WRITE_REQ, &reqh_ut_write_fop_ops);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "read", READ_REQ, &reqh_ut_read_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create, "reqh_ut_create", CREATE_REQ, &reqh_ut_create_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write, "reqh_ut_write", WRITE_REQ, &reqh_ut_write_fop_ops);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read, "reqh_ut_read", READ_REQ, &reqh_ut_read_fop_ops);
 
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "create reply", CREATE_REP, NULL);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "write reply", WRITE_REP, NULL);
-C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "read reply",  READ_REP, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_create_rep, "reqh_ut_create reply", CREATE_REP, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_write_rep, "reqh_ut_write reply", WRITE_REP, NULL);
+C2_FOP_TYPE_DECLARE(reqh_ut_fom_io_read_rep, "reqh_ut_read reply",  READ_REP, NULL);
 
 /**
  * Fop type structures required for initialising corresponding fops.
  */
-static struct c2_fop_type *fops[] = {
+static struct c2_fop_type *reqh_ut_fops[] = {
 	&reqh_ut_fom_io_create_fopt,
 	&reqh_ut_fom_io_write_fopt,
 	&reqh_ut_fom_io_read_fopt,
@@ -171,13 +171,13 @@ static struct c2_fop_type *fops[] = {
 	&reqh_ut_fom_io_read_rep_fopt,
 };
 
-static struct c2_fop_type *fopt[] = {
+static struct c2_fop_type *reqh_ut_fopt[] = {
 	&reqh_ut_fom_io_create_fopt,
 	&reqh_ut_fom_io_write_fopt,
 	&reqh_ut_fom_io_read_fopt,
 };
 
-static struct c2_fop_type_format *fmts[] = {
+static struct c2_fop_type_format *reqh_ut_fmts[] = {
         &reqh_ut_fom_fop_fid_tfmt,
 };
 
@@ -264,9 +264,9 @@ static struct c2_fom_type *reqh_ut_fom_types[] = {
  */
 struct c2_fom_type *reqh_ut_fom_type_map(c2_fop_type_code_t code)
 {
-	C2_UT_ASSERT(IS_IN_ARRAY((code - 10), reqh_ut_fom_types));
+	C2_UT_ASSERT(IS_IN_ARRAY((code - CREATE_REQ), reqh_ut_fom_types));
 
-	return reqh_ut_fom_types[code - 10];
+	return reqh_ut_fom_types[code - CREATE_REQ];
 }
 
 /**
@@ -322,10 +322,12 @@ static void fom_rep_cb(struct c2_clink *clink)
 				struct reqh_ut_fom_io_read_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
-					printf("\nRead reply: %i", rep->firr_rc);
 					if (rep->firr_rc == 0)
-						printf(" %u %c\n", rep->firr_count,
-								rep->firr_value);
+						printf("Read reply: %i %u %c\n", rep->firr_rc,
+							rep->firr_count, rep->firr_value);
+					else
+						printf("Read reply: %i\n", rep->firr_rc);
+
 					++reply;
 				}
 				c2_fop_free(rfop);
@@ -902,7 +904,7 @@ int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 void reqh_ut_fom_io_fop_fini(void)
 {
 	c2_fop_object_fini();
-	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini_nr(reqh_ut_fops, ARRAY_SIZE(reqh_ut_fops));
 }
 
 /**
@@ -912,9 +914,9 @@ int reqh_ut_fom_io_fop_init(void)
 {
 	int result;
 
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
+	result = c2_fop_type_format_parse_nr(reqh_ut_fmts, ARRAY_SIZE(reqh_ut_fmts));
 	if (result == 0) {
-		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+		result = c2_fop_type_build_nr(reqh_ut_fops, ARRAY_SIZE(reqh_ut_fops));
                 if (result == 0)
                         c2_fop_object_init(&reqh_ut_fom_fop_fid_tfmt);
 	}
@@ -1011,9 +1013,9 @@ int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **con
 	int rc;
 
 	C2_SET0(rserv);
-	rserv->s_table.not_start = fopt[0]->ft_code;
-	rserv->s_table.not_nr    = ARRAY_SIZE(fopt);
-	rserv->s_table.not_fopt  = fopt;
+	rserv->s_table.not_start = reqh_ut_fopt[0]->ft_code;
+	rserv->s_table.not_nr    = ARRAY_SIZE(reqh_ut_fopt);
+	rserv->s_table.not_fopt  = reqh_ut_fopt;
 	rserv->s_handler         = &reqh_ut_service_handler;
 
 	rc = c2_net_xprt_init(&c2_net_usunrpc_xprt);
@@ -1046,6 +1048,10 @@ void test_reqh(void)
 	char                     opath[64];
 	char                     dpath[64];
 	const char              *path;
+	c2_time_t                rdelay;
+	c2_time_t                cdelay;
+	c2_time_t                wdelay;
+	c2_time_t                wait_for_rep;
 
 	struct c2_service_id	 rsid = { .si_uuid = "reqh_ut_node" };
 	struct c2_net_conn	*conn;
@@ -1071,8 +1077,10 @@ void test_reqh(void)
 	path = "../__reqh_ut_stob";
 
 	/* Initialize processors */
-	if (!c2_processor_is_initialized())
-		c2_processors_init();
+	if (!c2_processor_is_initialized()) {
+		result = c2_processors_init();
+		C2_UT_ASSERT(result == 0);
+	}
 
 	result = reqh_ut_fom_io_fop_init();
 	C2_UT_ASSERT(result == 0);
@@ -1118,7 +1126,7 @@ void test_reqh(void)
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(result == 0);
 
-	result = ad_setup(sdom, &db, bstore, &rb.rb_ballroom);
+	result = c2_ad_stob_setup(sdom, &db, bstore, &rb.rb_ballroom);
 	C2_UT_ASSERT(result == 0);
 
 	c2_stob_put(bstore);
@@ -1148,19 +1156,25 @@ void test_reqh(void)
 		reqh_ut_create_send(conn, i, i);
 
 	while (reply < 10)
-		sleep(1);
+		c2_nanosleep(c2_time_set(&cdelay, 1, 0), NULL);
 
-	for (i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i) {
+		/* work around fix to make ut compatible on VM */
+		c2_nanosleep(c2_time_set(&wdelay, 1, 0), NULL);
 		reqh_ut_write_send(conn, i, i);
+	}
 
-	while(reply < 20)
-		sleep(1);
+	/*while(reply < 20)
+		c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);*/
 
-	for (i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i) {
+		/* work around fix to make ut compatible on VM */
+		c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);
 		reqh_ut_read_send(conn, i, i);
+	}
 
 	while (reply < 30)
-		sleep(1);
+		c2_nanosleep(c2_time_set(&wait_for_rep, 1, 0), NULL);
 
 	/* Clean up network connections */
 	c2_net_conn_unlink(conn);
