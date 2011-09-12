@@ -370,7 +370,7 @@ do {									\
 	     obj = __tl)
 
 /**
-   Terminates c2_tlist_for() loop.make
+   Terminates c2_tlist_for() loop.
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0);
 
