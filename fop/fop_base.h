@@ -100,7 +100,7 @@ struct c2_fop_type_ops {
 	/** Action to be taken on receiving reply of a fop. */
 	void (*fto_fop_replied)(struct c2_fop *fop);
 	/** Return the size of fop object. */
-	uint64_t (*fto_size_get)(struct c2_fop *fop);
+	size_t (*fto_size_get)(struct c2_fop *fop);
 	/** Return if given fops are of same type or not. */
 	bool (*fto_op_equal)(const struct c2_fop *fop1,
 			const struct c2_fop *fop2);

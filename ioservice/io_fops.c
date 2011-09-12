@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "fop/fop.h"
+#include "xcode/bufvec_xcode.h"
 
 /**
    The IO fops code has been generalized to suit both read and write fops
@@ -263,7 +264,7 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
    @note fop.f_item.ri_type->rit_ops->rio_item_size is called.
    @todo This is a placeholder API. It will be eventually replaced by
    wire formats _getsize API.
- */
+
 static uint64_t io_fop_rwv_getsize(struct c2_fop *fop)
 {
 	uint64_t		 size;
@@ -273,16 +274,16 @@ static uint64_t io_fop_rwv_getsize(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	iovec = iovec_get(fop);
-	/* Size of fop layout */
+	Size of fop layout
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 
-	/* Size of holding structure. */
+	Size of holding structure.
 	segs_nr = ioseg_nr_get(iovec);
 	size += segs_nr * sizeof(struct c2_fop_io_seg);
 
 	return size;
 }
-
+*/
 /**
    Returns if given 2 fops belong to same type.
    @note fop.f_item.ri_type->rit_ops->rio_items_equal is called.
@@ -626,7 +627,8 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_rwv_getsize,
+	//.fto_size_get = io_fop_rwv_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -640,7 +642,8 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_rwv_getsize,
+	//.fto_size_get = io_fop_rwv_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -662,7 +665,7 @@ static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 /**
    @note fop.f_item.ri_type->rit_ops->rio_item_size is called.
    @todo Eventually will be replaced by wire formats _getsize API.
- */
+ 
 static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 {
 	uint64_t			 size;
@@ -670,22 +673,23 @@ static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 
-	/* Size of fop layout */
+	* Size of fop layout *
 	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 
 	if (fop->f_type->ft_code != C2_IOSERVICE_READV_REP_OPCODE)
 		return size;
-	/* Add buffer payload for read reply */
+	* Add buffer payload for read reply *
 	read_rep_fop = c2_fop_data(fop);
 	return size;
 }
-
+*/
 /**
  * readv and writev reply FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
-	.fto_size_get = io_fop_cob_readv_rep_getsize,
+	//.fto_size_get = io_fop_rwv_getsize,
+	.fto_size_get = c2_xcode_fop_size_get
 };
 
 /**

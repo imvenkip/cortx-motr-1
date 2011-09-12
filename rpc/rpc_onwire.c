@@ -29,8 +29,7 @@
 
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
-	size_t		 len = 512;
-	return 		 len;
+	size_t		 len;
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);
@@ -41,9 +40,10 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 	C2_ASSERT(fop->f_type->ft_ops != NULL);
 	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
 	len = fop->f_type->ft_ops->fto_size_get(fop);
+	printf("\nFOP SIZE = %ld\n", len);
 	len += ITEM_ONWIRE_HEADER_SIZE;
 	printf("DEFAULT ITEM SIZE GET %ld\n", len);
-	return len;*/
+	return len;
 }
 
 /* XXX : Return correct RPC version. */
