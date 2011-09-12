@@ -24,21 +24,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <err.h>
 
 #include "lib/cdefs.h"
 #include "lib/ut.h"
 #include "lib/misc.h"
-#include "lib/getopts.h"
 #include "lib/arith.h"
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/thread.h"
-#include "lib/queue.h"
 #include "lib/chan.h"
 #include "lib/processor.h"
 #include "lib/list.h"
@@ -96,15 +91,14 @@ enum reqh_ut_read_fom_phase {
 	FOPH_READ_STOB_IO_WAIT
 };
 
-typedef unsigned long long U64;
 static struct c2_stob_domain *sdom;
-struct c2_net_domain	ndom;
+static struct c2_net_domain	ndom;
 static struct c2_fol	fol;
 
 /**
  * Global reqh object
  */
-struct c2_reqh		reqh;
+static struct c2_reqh		reqh;
 
 /**
  * Structure to hold c2_net_call and c2_clink, for network communication
@@ -114,8 +108,9 @@ struct reqh_ut_net_call {
 	struct c2_clink		rclink;
 };
 
-int reply;
-int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
+static int  reply;
+static bool ut_fail;
+static int  reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m);
 
 /**
  * Fop operation structures for corresponding fops.
@@ -196,14 +191,14 @@ struct reqh_ut_io_fom {
 	struct c2_stob_io		 rh_ut_stio;
 };
 
-int reqh_ut_create_fom_state(struct c2_fom *fom);
-int reqh_ut_write_fom_state(struct c2_fom *fom);
-int reqh_ut_read_fom_state(struct c2_fom *fom);
-void reqh_ut_io_fom_fini(struct c2_fom *fom);
-int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
-size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
+static int reqh_ut_create_fom_state(struct c2_fom *fom);
+static int reqh_ut_write_fom_state(struct c2_fom *fom);
+static int reqh_ut_read_fom_state(struct c2_fom *fom);
+static void reqh_ut_io_fom_fini(struct c2_fom *fom);
+static int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out);
+static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom);
 
 /**
  * Operation structures for respective foms
@@ -293,13 +288,15 @@ static void fom_rep_cb(struct c2_clink *clink)
 		if (rcall != NULL) {
 			struct c2_fop *rfop = rcall->ncall.ac_ret;
 			C2_UT_ASSERT(rfop != NULL);
+			ut_fail = false;
 			switch(rfop->f_type->ft_code) {
 			case CREATE_REP:
 			{
 				struct reqh_ut_fom_io_create_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
-					printf("Create reply: %i\n",rep->ficr_rc);
+					if (rep->ficr_rc != 0)
+						ut_fail = true;
 					++reply;
 				}
 				c2_fop_free(rfop);
@@ -310,8 +307,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 				struct reqh_ut_fom_io_write_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
-					printf("Write reply: %i %u\n", rep->fiwr_rc,
-							rep->fiwr_count);
+					if (rep->fiwr_rc != 0)
+						ut_fail = true;
 					++reply;
 				}
 				c2_fop_free(rfop);
@@ -322,12 +319,8 @@ static void fom_rep_cb(struct c2_clink *clink)
 				struct reqh_ut_fom_io_read_rep *rep;
 				rep = c2_fop_data(rfop);
 				if(rep != NULL) {
-					if (rep->firr_rc == 0)
-						printf("Read reply: %i %u %c\n", rep->firr_rc,
-							rep->firr_count, rep->firr_value);
-					else
-						printf("Read reply: %i\n", rep->firr_rc);
-
+					if (rep->firr_rc != 0)
+						ut_fail = true;
 					++reply;
 				}
 				c2_fop_free(rfop);
@@ -338,7 +331,7 @@ static void fom_rep_cb(struct c2_clink *clink)
 				struct c2_reqh_error_rep *rep;
 				rep = c2_fop_data(rfop);
 				if (rep != NULL) {
-					printf("Got reply: %i\n", rep->rerr_rc);
+					ut_fail = true;
 					++reply;
 				}
 				c2_fop_free(rfop);
@@ -497,7 +490,7 @@ static struct c2_stob *object_find(const struct reqh_ut_fom_fop_fid *fid,
 /**
  * Creates a fom for create fop.
  */
-int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -529,7 +522,7 @@ int reqh_ut_create_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for write fop.
  */
-int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -558,7 +551,7 @@ int reqh_ut_write_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 /**
  * Creates a fom for read fop.
  */
-int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
+static int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
 {
 	struct c2_fom		*fom;
 	struct reqh_ut_io_fom	*fom_obj;
@@ -591,7 +584,7 @@ int reqh_ut_read_fom_create(struct c2_fom_type *t, struct c2_fom **out)
  * of fome, inorder to have same locality of
  * execution for a certain type of fom.
  */
-size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
+static size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	size_t iloc;
 
@@ -599,25 +592,25 @@ size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
 		return -EINVAL;
 
 	switch (fom->fo_fop->f_type->ft_code) {
-	case 10: {
+	case CREATE_REQ: {
 		struct reqh_ut_fom_io_create *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fic_object.f_oid;
 		iloc = oid;
 		break;
 	}
-	case 11: {
+	case WRITE_REQ: {
 		struct reqh_ut_fom_io_read *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fir_object.f_oid;
 		iloc = oid;
 		break;
 	}
-	case 12: {
+	case READ_REQ: {
 		struct reqh_ut_fom_io_write *fop;
-		U64 oid;
+		uint64_t oid;
 		fop = c2_fop_data(fom->fo_fop);
 		oid = fop->fiw_object.f_oid;
 		iloc = oid;
@@ -633,7 +626,7 @@ size_t reqh_ut_find_fom_home_locality(const struct c2_fom *fom)
  * A simple non blocking create fop specific fom
  * state method implemention.
  */
-int reqh_ut_create_fom_state(struct c2_fom *fom)
+static int reqh_ut_create_fom_state(struct c2_fom *fom)
 {
 	struct reqh_ut_fom_io_create		*in_fop;
 	struct reqh_ut_fom_io_create_rep	*out_fop;
@@ -675,7 +668,7 @@ int reqh_ut_create_fom_state(struct c2_fom *fom)
  * A simple non blocking read fop specific fom
  * state method implemention.
  */
-int reqh_ut_read_fom_state(struct c2_fom *fom)
+static int reqh_ut_read_fom_state(struct c2_fom *fom)
 {
 	struct reqh_ut_fom_io_read	*in_fop;
 	struct reqh_ut_fom_io_read_rep	*out_fop;
@@ -770,7 +763,7 @@ int reqh_ut_read_fom_state(struct c2_fom *fom)
  * A simple non blocking write fop specific fom
  * state method implemention.
  */
-int reqh_ut_write_fom_state(struct c2_fom *fom)
+static int reqh_ut_write_fom_state(struct c2_fom *fom)
 {
 
 	struct reqh_ut_fom_io_write	*in_fop;
@@ -863,7 +856,7 @@ int reqh_ut_write_fom_state(struct c2_fom *fom)
 /**
  * Fom specific clean up function, invokes c2_fom_fini()
  */
-void reqh_ut_io_fom_fini(struct c2_fom *fom)
+static void reqh_ut_io_fom_fini(struct c2_fom *fom)
 {
 	struct reqh_ut_io_fom *fom_obj;
 
@@ -876,7 +869,7 @@ void reqh_ut_io_fom_fini(struct c2_fom *fom)
  * Fom initialization function, invoked from reqh_fop_handle.
  * Invokes c2_fom_init()
  */
-int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
+static int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 
 	struct c2_fom_type	*fom_type;
@@ -901,7 +894,7 @@ int reqh_ut_io_fom_init(struct c2_fop *fop, struct c2_fom **m)
 /**
  * Function to clean reqh ut io fops
  */
-void reqh_ut_fom_io_fop_fini(void)
+static void reqh_ut_fom_io_fop_fini(void)
 {
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(reqh_ut_fops, ARRAY_SIZE(reqh_ut_fops));
@@ -910,7 +903,7 @@ void reqh_ut_fom_io_fop_fini(void)
 /**
  * Function to intialise reqh ut io fops.
  */
-int reqh_ut_fom_io_fop_init(void)
+static int reqh_ut_fom_io_fop_init(void)
 {
 	int result;
 
@@ -1007,7 +1000,7 @@ static int reqh_ut_service_handler(struct c2_service *service,
 /**
  * Creates and initialises network resources.
  */
-int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
+static int reqh_ut_create_net_conn(struct c2_service_id *rsid, struct c2_net_conn **conn,
 							struct c2_service *rserv)
 {
 	int rc;
@@ -1074,7 +1067,7 @@ void test_reqh(void)
 
 	backid.si_bits.u_hi = 0x0;
 	backid.si_bits.u_lo = 0xdf11e;
-	path = "../__reqh_ut_stob";
+	path = "__reqh_ut_stob";
 
 	/* Initialize processors */
 	if (!c2_processor_is_initialized()) {
@@ -1152,8 +1145,13 @@ void test_reqh(void)
 
 	/* Create listening thread to accept async reply's */
 
-	for (i = 0; i < 10; ++i)
+	for (i = 0; i < 10; ++i) {
 		reqh_ut_create_send(conn, i, i);
+		if (ut_fail) {
+			goto cleanup;
+			break;
+		}
+	}
 
 	while (reply < 10)
 		c2_nanosleep(c2_time_set(&cdelay, 1, 0), NULL);
@@ -1162,6 +1160,10 @@ void test_reqh(void)
 		/* work around fix to make ut compatible on VM */
 		c2_nanosleep(c2_time_set(&wdelay, 1, 0), NULL);
 		reqh_ut_write_send(conn, i, i);
+		if (ut_fail) {
+			goto cleanup;
+			break;
+		}
 	}
 
 	/*while(reply < 20)
@@ -1171,11 +1173,16 @@ void test_reqh(void)
 		/* work around fix to make ut compatible on VM */
 		c2_nanosleep(c2_time_set(&rdelay, 1, 0), NULL);
 		reqh_ut_read_send(conn, i, i);
+		if (ut_fail) {
+			goto cleanup;
+			break;
+		}
 	}
 
 	while (reply < 30)
 		c2_nanosleep(c2_time_set(&wait_for_rep, 1, 0), NULL);
 
+cleanup:
 	/* Clean up network connections */
 	c2_net_conn_unlink(conn);
 	c2_net_conn_release(conn);

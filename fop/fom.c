@@ -45,6 +45,10 @@ enum locality_ht_wait {
 	LOC_HT_WAIT = 1
 };
 
+enum {
+	MIN_CPU_NR = 1
+};
+
 /**
  * Fom addb event location object
  */
@@ -577,7 +581,11 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 			}
 		}
 
-		loc->fl_lo_idle_threads_nr = ncpus/2;
+		if (ncpus > MIN_CPU_NR)
+			loc->fl_lo_idle_threads_nr = ncpus/2;
+		else
+			loc->fl_lo_idle_threads_nr = ncpus;
+
 		loc->fl_hi_idle_threads_nr = ncpus;
 
 		for (i = 0; i < ncpus; ++i) {
