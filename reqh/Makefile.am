@@ -2,5 +2,20 @@ reqhdir                     = $(includedir)/reqh
 reqh_HEADERS                = reqh.h
 
 noinst_LTLIBRARIES          = libcolibri-reqh.la
-libcolibri_reqh_la_SOURCES  = reqh.c reqh.h
+
+reqh_fops_u.h reqh_fops_u.c : reqh_fops.ff \
+                        $(top_builddir)/fop/rt/libc2rt.la \
+                        $(top_builddir)/fop/fop2c
+		$(top_builddir)/fop/fop2c -u $<
+
+libcolibri_reqh_la_SOURCES  = reqh_fops_u.c reqh_fops_u.h \
+				reqh_fops.ff reqh.c reqh.h reqh_fops.c \
+				reqh_generic.c
+
 INCLUDES                    = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+
+EXTRA_DIST = reqh_fops.ff
+
+clean-local:
+	cd $(reqhdir) ; \
+	rm -fr reqh_fops_[uk].[ch]

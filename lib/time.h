@@ -46,10 +46,9 @@ enum {
 /**
    Get the current time.  This may or may not relate to wall time.
 
-   @param time [OUT] current time if pointer is non-NULL
    @retval current time
 */
-c2_time_t c2_time_now(c2_time_t *time);
+c2_time_t c2_time_now(void);
 
 /**
    Create a c2_time_t from seconds and nanosecond

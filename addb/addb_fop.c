@@ -160,14 +160,11 @@ static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 				      struct c2_addb_record_header *header,
 				      int size)
 {
-	c2_time_t now;
-
-	c2_time_now(&now);
 	header->arh_magic1    = ADDB_REC_HEADER_MAGIC1;
 	header->arh_version   = ADDB_REC_HEADER_VERSION;
 	header->arh_len       = size;
 	header->arh_event_id  = dp->ad_ev->ae_id;
-	header->arh_timestamp = now;
+	header->arh_timestamp = c2_time_now();
 	header->arh_magic2    = ADDB_REC_HEADER_MAGIC2;
 
 	return 0;

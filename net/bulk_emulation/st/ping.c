@@ -56,9 +56,8 @@ static void ping_sleep_secs(int secs)
 static c2_time_t ping_c2_time_after_secs(int secs)
 {
 	c2_time_t dur;
-	c2_time_t now;
 	c2_time_set(&dur, secs, 0);
-	return c2_time_add(c2_time_now(&now), dur);
+	return c2_time_add(c2_time_now(), dur);
 }
 
 int alloc_buffers(int num, uint32_t segs, c2_bcount_t segsize,
