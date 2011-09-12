@@ -3,7 +3,7 @@ IOSERVICEDIR = @SRCDIR@/ioservice
 FOPDIR = @SRCDIR@/fop
 
 obj-m		:= kioservice.o
-shared_src	:= io_fops.c io_foms.c
+shared_src	:= io_fops.c
 kernel_src	:= ioservice_kernel.c io_fops_k.c
 kioservice-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)

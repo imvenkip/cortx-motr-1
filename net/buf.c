@@ -205,9 +205,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 
 	/* validate that a timeout, if set, is in the future */
 	if (buf->nb_timeout != C2_TIME_NEVER) {
-		c2_time_t now;
 		/* Don't want to assert here as scheduling is unpredictable. */
-		if (c2_time_after_eq(c2_time_now(&now), buf->nb_timeout)) {
+		if (c2_time_after_eq(c2_time_now(), buf->nb_timeout)) {
 			rc = -ETIME; /* not -ETIMEDOUT */
 			goto m_err_exit;
 		}
@@ -218,7 +217,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	 */
 	c2_list_add_tail(ql, &buf->nb_tm_linkage);
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
-	(void)c2_time_now(&buf->nb_add_time); /* record time added */
+	buf->nb_add_time = c2_time_now(); /* record time added */
 
 	/* call the transport */
 	buf->nb_tm = tm;

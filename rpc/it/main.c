@@ -731,7 +731,7 @@ void client_init()
 	}
 
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -766,7 +766,7 @@ void client_init()
 		printf("RPC session created\n");
 	}
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
@@ -803,7 +803,7 @@ void client_init()
 		send_ping_fop(i);
 	}
 */
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -819,7 +819,7 @@ void client_init()
 		printf("RPC session terminate call successful\n");
 	}
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -845,7 +845,7 @@ void client_init()
 
 
 	c2_mutex_fini(&fid_mutex);
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 

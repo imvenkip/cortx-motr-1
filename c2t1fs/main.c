@@ -225,9 +225,9 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 
 	/* kxdr expects a SEQUENCE of bytes in reply fop. */
 	if (rw == READ) {
-		rret->crr_iobuf.ib_buf = pages;
-		rret->crr_iobuf.ib_count = len;
-		rret->crr_iobuf.cfib_pgoff = off;
+		rret->c_iobuf.ib_buf = pages;
+		rret->c_iobuf.ib_count = len;
+		rret->c_iobuf.cfib_pgoff = off;
 	}
 
 	rc = c2_net_cli_call(conn, &kcall);
@@ -240,9 +240,9 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
 	/* Since read and write replies are not same at the moment, this
 	   condition has to be put. */
 	if (rw == WRITE)
-		rc = wret->cwr_rc ? : wret->cwr_count;
+		rc = wret->c_rep.rwr_rc ? : wret->c_rep.rwr_count;
 	else
-		rc = rret->crr_rc ? : rret->crr_iobuf.ib_count;
+		rc = rret->c_rep.rwr_rc ? : rret->c_iobuf.ib_count;
 
 	c2_fop_free(r);
 	c2_fop_free(f);

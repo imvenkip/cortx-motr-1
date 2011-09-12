@@ -825,7 +825,7 @@ static void dbenv_thread(struct c2_dbenv *env)
 				}
 			}
 		}
-		c2_time_now(&deadline);
+		deadline = c2_time_now();
 		c2_time_set(&delay, 1, 0);
 		deadline = c2_time_add(deadline, delay);
 		c2_cond_timedwait(&di->d_shutdown_cond, &di->d_lock, deadline);

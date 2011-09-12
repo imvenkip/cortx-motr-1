@@ -184,7 +184,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
 
-	c2_time_now(&item->ri_rpc_entry_time);
+	item->ri_rpc_entry_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
@@ -202,7 +202,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
 
-	c2_time_now(&reply->ri_rpc_entry_time);
+	reply->ri_rpc_entry_time = c2_time_now();
 
 	reply->ri_session = request->ri_session;
 	reply->ri_slot_refs[0].sr_sender_id =
@@ -292,7 +292,7 @@ int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
 	//item->ri_type->rit_flags = C2_RPC_ITEM_UNSOLICITED;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	item->ri_rpc_entry_time = now;
 	return c2_rpc_frm_ubitem_added(item);
 }
@@ -651,7 +651,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_rpc_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
-		c2_time_now(&now);
+		now = c2_time_now();
 		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0) {
 			/* XXX We can post an ADDB event here. */
@@ -1308,7 +1308,7 @@ void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
 
 	C2_PRE(item != NULL);
 
-	c2_time_now(&item->ri_rpc_exit_time);
+	item->ri_rpc_exit_time = c2_time_now();
 
 	st = &item->ri_mach->cr_rpc_stats[path];
 	c2_mutex_lock(&item->ri_mach->cr_stats_mutex);

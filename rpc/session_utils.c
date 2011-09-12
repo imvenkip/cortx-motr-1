@@ -64,9 +64,8 @@ void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
 {
 	/* XXX temporary */
 	uint64_t  rnd;
-	c2_time_t now;
 
-	rnd = c2_time_nanoseconds(c2_time_now(&now)) * 1000;
+	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
 	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
 }
 
@@ -98,13 +97,12 @@ static struct c2_uint128 stob_id_alloc(void)
 {
         static struct c2_atomic64 cnt;
 	struct c2_uint128         id;
-        c2_time_t                 now;
         uint64_t                  millisec;
 
 	/*
 	 * TEMPORARY implementation to allocate unique stob id
 	 */
-	millisec = c2_time_nanoseconds(c2_time_now(&now)) * 1000000;
+	millisec = c2_time_nanoseconds(c2_time_now()) * 1000000;
 	c2_atomic64_inc(&cnt);
 
 	id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
