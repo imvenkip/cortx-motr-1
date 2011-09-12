@@ -1078,24 +1078,28 @@ out:
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 {
-        struct c2_rpc_slot   *slot;
-        struct c2_rpcmachine *machine;
-        int                   i;
+	struct c2_rpc_slot   *slot;
+	struct c2_rpcmachine *machine;
+	int                   i;
 
-        machine = session->s_conn->c_rpcmachine;
+	machine = session->s_conn->c_rpcmachine;
 
-        c2_mutex_lock(&machine->cr_ready_slots_mutex);
+	/*
+	 * XXX lock and unlock of cr_ready_slots_mutex is commented, until
+	 * formation adds a fix for correct lock ordering.
+	 */
+	//c2_mutex_lock(&machine->cr_ready_slots_mutex);
 
-        for (i = 0; i < session->s_nr_slots; i++) {
-                slot = session->s_slot_table[i];
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
 
-                C2_ASSERT(slot != NULL);
+		C2_ASSERT(slot != NULL);
 
-                if (c2_list_link_is_in(&slot->sl_link))
-                        c2_list_del(&slot->sl_link);
-        }
+		if (c2_list_link_is_in(&slot->sl_link))
+			c2_list_del(&slot->sl_link);
+	}
 
-        c2_mutex_unlock(&machine->cr_ready_slots_mutex);
+	//c2_mutex_unlock(&machine->cr_ready_slots_mutex);
 }
 
 /** @} end of session group */
