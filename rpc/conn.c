@@ -403,6 +403,8 @@ static uint64_t sender_id_allocate(void)
  */
 static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 {
+	struct c2_rpc_session *session0;
+
 	C2_ASSERT(c2_mutex_is_locked(&conn->c_mutex));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_CONNECTING ||
 		  conn->c_state == C2_RPC_CONN_ACTIVE ||
@@ -417,6 +419,9 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	c2_mutex_lock(&conn->c_rpcmachine->cr_session_mutex);
 	c2_list_del(&conn->c_link);
 	c2_mutex_unlock(&conn->c_rpcmachine->cr_session_mutex);
+
+	session0 = c2_rpc_conn_session0(conn);
+	c2_rpc_session_del_slots_from_ready_list(session0);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 }
@@ -607,7 +612,7 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 {
-	struct c2_fop                    *fop = NULL; /* NULL required */
+	struct c2_fop                    *fop;
 	struct c2_rpc_fop_conn_terminate *fop_ct;
 	struct c2_rpc_session            *session_0;
 	int                               rc;
@@ -617,7 +622,36 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		goto out;
+
+		/*
+		 * There are two choices here:
+		 *
+		 * 1. leave conn in TERMNATING state FOREVER.
+		 *    Then when to fini/cleanup conn.
+		 *
+		 * 2. Move conn to FAILED state.
+		 *    For this conn the receiver side state will still
+		 *    continue to exist. And receiver can send unsolicited
+		 *    items, that will be received on sender i.e. current node.
+		 *    Current code will drop such items. When/how to fini and
+		 *    cleanup receiver side state? XXX
+		 *
+		 * For now, later is chosen. This can be changed in future
+		 * to alternative 1, iff required.
+		 */
+
+		c2_mutex_lock(&conn->c_mutex);
+		C2_ASSERT(c2_rpc_conn_invariant(conn));
+
+		if (conn->c_state == C2_RPC_CONN_TERMINATING) {
+			rc = 0;
+			goto out_unlock;
+		}
+
+		conn_failed(conn, rc);
+
+		C2_ASSERT(c2_rpc_conn_invariant(conn));
+		goto out_unlock;
 	}
 
 	c2_mutex_lock(&conn->c_mutex);
@@ -658,8 +692,6 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 out_unlock:
 	c2_mutex_unlock(&conn->c_mutex);
-
-out:
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate);

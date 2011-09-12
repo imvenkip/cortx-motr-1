@@ -152,7 +152,6 @@ struct c2_rpc_item;
 #include "lib/timer.h"
 
 #include "cob/cob.h"
-#include "fol/fol.h"
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
 #include "addb/addb.h"

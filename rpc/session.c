@@ -572,12 +572,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
-	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-
 	c2_mutex_lock(&session->s_mutex);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -590,12 +584,41 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	 */
 	if (session->s_state == C2_RPC_SESSION_TERMINATING) {
 		rc = 0;
-		c2_fop_free(fop);
 		goto out_unlock;
 	}
 
+	c2_rpc_session_del_slots_from_ready_list(session);
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
+	/*
+	 * Attempt to move this fop allocation before taking session->s_mutex
+	 * resulted in lots of code duplication. So this memory allocation
+	 * while holding a mutex is intentional.
+	 */
+	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		/*
+		 * There are two choices here:
+		 *
+		 * 1. leave session in TERMNATING state FOREVER.
+		 *    Then when to fini/cleanup session.
+		 *    This will not allow finialising of session, in turn conn,
+		 *    and rpcmachine can't be finalised.
+		 *
+		 * 2. Move session to FAILED state.
+		 *    For this session the receiver side state will still
+		 *    continue to exist. And receiver can send unsolicited
+		 *    items, that will be received on sender i.e. current node.
+		 *    Current code will drop such items. When/how to fini and
+		 *    cleanup receiver side state? XXX
+		 *
+		 * For now, later is chosen. This can be changed in future
+		 * to alternative 1, iff required.
+		 */
+		session_failed(session, rc);
+		goto out;
+	}
 	fop_st = c2_fop_data(fop);
 
 	conn = session->s_conn;
@@ -607,8 +630,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_mutex_unlock(&conn->c_mutex);
 
 	c2_mutex_unlock(&session->s_mutex);
-
-	c2_rpc_session_del_slots_from_ready_list(session);
 
 	rc = c2_rpc__fop_post(fop, session_0,
 				&c2_rpc_item_session_terminate_ops);
