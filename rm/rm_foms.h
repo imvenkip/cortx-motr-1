@@ -48,12 +48,21 @@ enum c2_rm_fom_phases {
 struct c2_rm_fom_right_request {
 	/** Generic c2_fom object */
 	struct c2_fom	frr_gen;
+
 	/** Incoming request */
 	struct c2_rm_incoming frr_in;
+
 	/** Request FOP */
 	struct c2_fop	*frr_fop;
 	/** Corresponding reply FOP */
 	struct c2_fop	*frr_reply_fop;
+
+	/** Resource type object - identified by resource type id in FOP */
+	struct c2_rm_resource_type *frr_restype_obj;
+	/** Resource object - identified by resource id in FOP */
+	struct c2_rm_resource *frr_res_obj;
+	/** Resource owner - Owner of the given resource */
+	struct c2_rm_owner *frr_res_owner;
 };
 
 /* __COLIBRI_RM_FOMS_H__ */

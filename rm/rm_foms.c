@@ -25,6 +25,7 @@
 #include "fop/fop_format.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
+#include "reqh/reqh.h"
 
 /**
    @addtogroup rm
@@ -91,30 +92,64 @@ struct c2_fom_type c2_rm_fom_cancel_type = {
 	.ft_ops = &c2_rm_fom_cancel_type_ops,
 };
 
-/*
- * Stub to be removed later.
- */
-struct c2_rm_owner* c2_rm_find_owner(uint64_t res_type, uint64_t res_id)
-{
-	return NULL;
-}
-
 static inline void mark_borrow_fail(struct c2_fom *fom,
 				struct c2_fop_rm_right_borrow_reply *reply_fop,
 				int err)
 {
 	reply_fop->right_resp = err;
 	fom->fo_rc = err;
-	fom->fo_phase = FOPH_FAILED;
+	fom->fo_phase = FOPH_FAILURE;
 }
 
-static inline void mark_borrow_success(struct c2_fom *fom,
-				struct c2_fop_rm_right_borrow_reply *reply_fop)
+static void mark_borrow_success(struct c2_fom *fom)
 {
-	/* TODO - Fill in appropriate fields */
-	reply_fop->right_resp = 0;
+#if 0
+	char	*right_addr;
+	c2_bcount_t right_nr = 1;
+#endif
+
+	struct c2_fop_rm_right_borrow *req_fop;
+	struct c2_fop_rm_right_borrow_reply *reply_fop;
+	struct c2_rm_fom_right_request *rm_fom;
+	struct c2_rm_incoming *rm_in;
+	struct c2_rm_right *right;
+
+	/*
+	 * Get the FOM, FOP structures.
+	 */
+	rm_fom = container_of(fom, struct c2_rm_fom_right_request, frr_gen);
+
+	req_fop = c2_fop_data(fom->fo_fop);
+	reply_fop = c2_fop_data(fom->fo_rep_fop);
+	rm_in = &rm_fom->frr_in;
+	right = &rm_in->rin_want;
+
+	/*
+	 * @TODO: Need to work-out RM:generic interface.
+	 * Set bufvec pointing to 'right' buffer inside reply FOP.
+	 */
+#if 0
+	right_addr = &reply_fop->res_right;
+	struct c2_bufvec right_buf = C2_BUFVEC_INIT_BUF(&right_addr, &right_nr);
+
+	reply_fop->rem_id = rm_in->loan.rl_other.remid;
+	reply_fop->res_type = req_fop->res_type;
+	reply_fop->res_id = req_fop->res_id;
+	reply_fop->loan_id = rm_in->loan.rl_other->rl_id;
+	reply_fop->lease_time = 0;
+	/*
+	 * Encode right realted data into reply FOP
+	 */
+	rc = right->rro_encode(right, &right_buf);
+	reply_fop->right_resp = rc;
+#endif
+
+	/*
+	 * Fill in FOM fields.
+	 */
 	fom->fo_rc = 0;
-	fom->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_FINISH;
+
 }
 
 /**
@@ -145,6 +180,22 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 		reply_fop = c2_fop_data(fom->fo_rep_fop);
 
 		if (fom->fo_phase == FOPH_RM_RIGHT_BORROW) {
+#if 0
+			/*
+			 * Find the resource type object
+			 */
+			c2_rm_res_type_get(req_fop->res_type);
+			/*
+			 * Find the resource object
+			 */
+			rtype_obj->rt_ops->rto_res_get(req_fop->res_id,
+						       &resobj);
+			/*
+			 * Find the resource owner
+			 */
+			resobj->r_ops->rop_owner();
+#endif
+
 			rm_in = &rm_fom->frr_in;
 			
 			/* Prepare incoming request for RM generic layer */
@@ -155,11 +206,6 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 			c2_chan_init(&rm_in->rin_signal);
 			rm_in->rin_policy = req_fop->res_policy_id;
 			rm_in->rin_priority = req_fop->res_priority;
-
-			/* TODO - find/code this function */
-			rm_in->rin_owner
-			= c2_rm_find_owner(req_fop->res_type, req_fop->res_id);
-
 
 			/* Attempt to borrow the right */
 			rc = c2_rm_right_get(rm_in->rin_owner, rm_in);
@@ -178,7 +224,7 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 					/* TODO - Prepare condition variable */
 					c2_fom_block_at(fom, &rm_in->rin_signal);
 				} else {
-					mark_borrow_success(fom, reply_fop);
+					mark_borrow_success(fom);
 				}
 			}
 			rc = FSO_AGAIN;
@@ -188,7 +234,7 @@ int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
 			if (rm_in->rin_state == RI_FAILURE) {
 				mark_borrow_fail(fom, reply_fop, rc);
 			} else {
-				mark_borrow_success(fom, reply_fop);
+				mark_borrow_success(fom);
 			}
 		}
 		rc = FSO_AGAIN;
@@ -204,7 +250,7 @@ static inline void mark_revoke_fail(struct c2_fom *fom,
 {
 	reply_fop->right_resp = err;
 	fom->fo_rc = err;
-	fom->fo_phase = FOPH_FAILED;
+	fom->fo_phase = FOPH_FAILURE;
 }
 
 static inline void mark_revoke_success(struct c2_fom *fom,
@@ -213,7 +259,7 @@ static inline void mark_revoke_success(struct c2_fom *fom,
 	/* TODO - Fill in appropriate fields */
 	reply_fop->right_resp = 0;
 	fom->fo_rc = 0;
-	fom->fo_phase = FOPH_DONE;
+	fom->fo_phase = FOPH_FINISH;
 }
 
 /**
@@ -258,8 +304,10 @@ int c2_rm_fom_right_revoke_state(struct c2_fom *fom)
 			rm_in->rin_priority = req_fop->res_priority;
 
 			/* TODO - find/code this function */
+#if 0
 			rm_in->rin_owner
 			= c2_rm_find_owner(req_fop->res_type, req_fop->res_id);
+#endif
 
 
 			/* Attempt to revoke the right */
@@ -338,9 +386,10 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom)
 		rm_in->rin_priority = req_fop->res_priority;
 
 		/* TODO - find/code this function */
+#if 0
 		rm_in->rin_owner
 		= c2_rm_find_owner(req_fop->res_type, req_fop->res_id);
-
+#endif
 
 		/**
 		 * Cancel the right. Ignore the result.
@@ -348,7 +397,7 @@ int c2_rm_fom_right_cancel_state(struct c2_fom *fom)
 		 */
 		(void)c2_rm_right_get(rm_in->rin_owner, rm_in);
 
-		fom->fo_phase = FOPH_DONE;
+		fom->fo_phase = FOPH_FINISH;
 		rc = FSO_AGAIN;
 
 	}/* else - process FOM phase */
