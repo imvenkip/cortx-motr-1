@@ -388,7 +388,7 @@ static uint64_t sender_id_allocate(void)
 
 	do {
 		c2_atomic64_inc(&cnt);
-		sec = c2_time_seconds(c2_time_now());
+		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
 
 		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
 

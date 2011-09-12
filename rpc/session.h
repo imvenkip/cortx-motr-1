@@ -236,6 +236,9 @@ back to sender.
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.
 	- Session level timeout
+	- session can be terminated only if all items are pruned from all
+		slot->sl_item_list
+
  */
 
 #include "lib/list.h"
