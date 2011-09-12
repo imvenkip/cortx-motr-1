@@ -205,13 +205,6 @@ void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *amb)
 }
 C2_EXPORTED(c2_tlist_prev);
 
-void *c2_tlist_next_safe(const struct c2_tl_descr *d, struct c2_tl *list,
-			 void *obj)
-{
-	return obj != NULL ? c2_tlist_next(d, list, obj) : NULL;
-}
-C2_EXPORTED(c2_tlist_next_safe);
-
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
 	struct c2_list_link *head;

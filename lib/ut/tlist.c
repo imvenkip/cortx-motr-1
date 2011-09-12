@@ -55,7 +55,6 @@ void test_tlist(void)
 {
 	int           i;
 	struct foo   *obj;
-	struct foo   *tmp;
 	struct c2_tl *head;
 	uint64_t      sum;
 	uint64_t      sum1;
@@ -108,13 +107,16 @@ void test_tlist(void)
 	/* check that everything is in the lists */
 
 	sum1 = 0;
-	c2_tlist_for(&fl0, &head0[0], obj, tmp)
+	c2_tlist_for(&fl0, &head0[0], obj)
 		sum1 += obj->f_payload;
+	c2_tlist_endfor
+
 	C2_UT_ASSERT(sum == sum1);
 
 	sum1 = 0;
-	c2_tlist_for(&fl1, &head1[0], obj, tmp)
+	c2_tlist_for(&fl1, &head1[0], obj)
 		sum1 += obj->f_payload;
+	c2_tlist_endfor
 	C2_UT_ASSERT(sum == sum1);
 
 	/* bulldozer the foo-s to the last head */
@@ -132,21 +134,22 @@ void test_tlist(void)
 
 	C2_UT_ASSERT(c2_tlist_length(&fl0, head) == NR);
 	sum1 = 0;
-	c2_tlist_for(&fl0, head, obj, tmp)
+	c2_tlist_for(&fl0, head, obj)
 		sum1 += obj->f_payload;
+	c2_tlist_endfor
 	C2_UT_ASSERT(sum == sum1);
 
 	/* check that c2_tlist_for() works fine when the list is mutated */
 
-	c2_tlist_for(&fl1, &head1[0], obj, tmp) {
+	c2_tlist_for(&fl1, &head1[0], obj) {
 		if (obj->f_payload % 2 == 0)
 			c2_tlist_move(&fl1, &head1[1], obj);
-	}
+	} c2_tlist_endfor
 
-	c2_tlist_for(&fl1, &head1[0], obj, tmp) {
+	c2_tlist_for(&fl1, &head1[0], obj) {
 		if (obj->f_payload % 2 != 0)
 			c2_tlist_move(&fl1, &head1[1], obj);
-	}
+	} c2_tlist_endfor
 
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[0]) == 0);
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[1]) == NR);
@@ -160,21 +163,23 @@ void test_tlist(void)
 
 		done = true;
 
-		c2_tlist_for(&fl1, head, obj, tmp) {
+		c2_tlist_for(&fl1, head, obj) {
 			prev = c2_tlist_prev(&fl1, head, obj);
 			if (prev != NULL && prev->f_payload > obj->f_payload) {
 				c2_tlist_del(&fl1, obj);
 				c2_tlist_add_before(&fl1, prev, obj);
 				done = false;
 			}
-		}
+		} c2_tlist_endfor
 	} while (!done);
 
 	/* check that the list is sorted */
 
-	c2_tlist_for(&fl1, head, obj, tmp)
-		C2_UT_ASSERT(ergo(tmp != NULL,
-				  obj->f_payload <= tmp->f_payload));
+	c2_tlist_for(&fl1, head, obj) {
+		struct foo *nxt = c2_tlist_next(&fl1, head, obj);
+		C2_UT_ASSERT(ergo(nxt != NULL,
+				  obj->f_payload <= nxt->f_payload));
+	} c2_tlist_endfor
 
 	/* finalise */
 
@@ -190,7 +195,6 @@ void test_tlist(void)
 		c2_tlist_fini(&fl1, &head1[i]);
 		c2_tlist_fini(&fl0, &head0[i]);
 	}
-
 }
 
 enum {

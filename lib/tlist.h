@@ -128,6 +128,7 @@
 
    c2_tl_for(&foobar_list, &B.b_list, scan)
            C2_ASSERT(scan == &F);
+   c2_tl_endfor
    @endcode
 
    @note Differently from c2_list, tlist heads and links must be initialised
@@ -324,23 +325,55 @@ void  *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
 
 /**
-   A variant of c2_tlist_next() that returns NULL, when obj parameter is
-   NULL. This is used by c2_tlist_for(). Compare with (CDR NIL) being NIL.
- */
-void *c2_tlist_next_safe(const struct c2_tl_descr *d, struct c2_tl *list,
-			 void *obj);
-/**
    Iterates over elements of list @head of type @descr, assigning them in order
-   (from head to tail) to @obj. @tmp is a temporary lvalue parameter.
+   (from head to tail) to @obj.
 
    It is safe to delete the "current" object in the body of the loop or modify
-   the portion of the list preceding the current element.
+   the portion of the list preceding the current element. It is *not* safe to
+   modify the list after the current point.
+
+   @code
+   c2_tlist_for(&foobar_list, &B.b_list, foo)
+           sum += foo->f_value;
+   c2_tlist_endfor
+
+   c2_tlist_for(&foobar_list, &B.b_list, foo) {
+           if (foo->f_value % sum == 0)
+	           c2_tlist_del(&foobar_list, foo);
+   } c2_tlist_endfor
+   @endcode
+
+   c2_tlist_for() macro has a few points of technical interest:
+
+       - it introduces a scope to declare a temporary variable to hold the
+         pointer to a "next" list element. The undesirable result of this is
+         that the loop has to be terminated by the matching c2_tlist_endfor
+         macro, closing the hidden scope. An alternative would be to use C99
+         syntax for iterative statement, which allows a declaration in the
+         for-loop header. Unfortunately, even though C99 mode can be enforced
+         for compilation of linux kernel modules (by means of CFLAGS_MODULE),
+         the kernel doesn't compile correctly in this mode;
+
+       - "inventive" use of comma expression in the loop condition allows to
+         calculate next element only once and only when the current element is
+         not NULL.
+
+   @see c2_tlist_endfor
  */
-#define c2_tlist_for(descr, head, obj, tmp)				\
-	for (obj = c2_tlist_head(descr, head),				\
-	     tmp = c2_tlist_next_safe(descr, head, obj);		\
-	     obj != NULL;						\
-	     obj = tmp, tmp = c2_tlist_next_safe(descr, head, tmp))
+#define c2_tlist_for(descr, head, obj)					\
+do {									\
+	void *__tl;							\
+									\
+	for (obj = c2_tlist_head(descr, head);				\
+	     obj != NULL &&						\
+             ((void)(__tl = c2_tlist_next(descr, head, obj)), true);	\
+	     obj = __tl)
+
+/**
+   Terminates c2_tlist_for() loop.make
+ */
+#define c2_tlist_endfor ; (void)__tl; } while (0);
+
 
 /** @} end of tlist group */
 
