@@ -377,7 +377,6 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
  */
 static void loc_handler_thread(struct c2_fom_hthread *th)
 {
-	c2_time_t		now;
 	c2_time_t		delta;
 	bool			idle;
 	struct c2_clink		th_clink;
@@ -403,7 +402,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 			fom->fo_state = FOS_RUNNING;
 			fom_exec(fom);
 		}
-		c2_chan_timedwait(&th_clink, c2_time_add(c2_time_now(&now), delta));
+		c2_chan_timedwait(&th_clink, c2_time_add(c2_time_now(), delta));
 		c2_mutex_lock(&loc->fl_lock);
 		fom = fom_dequeue(loc);
 		if (fom == NULL && !idle)

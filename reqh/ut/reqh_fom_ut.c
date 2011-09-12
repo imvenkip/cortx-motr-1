@@ -1119,7 +1119,7 @@ void test_reqh(void)
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &sdom);
 	C2_UT_ASSERT(result == 0);
 
-	result = ad_setup(sdom, &db, bstore, &rb.rb_ballroom);
+	result = c2_ad_stob_setup(sdom, &db, bstore, &rb.rb_ballroom);
 	C2_UT_ASSERT(result == 0);
 
 	c2_stob_put(bstore);
