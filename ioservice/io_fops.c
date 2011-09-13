@@ -502,7 +502,6 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	//.fto_size_get = io_fop_rwv_getsize,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
@@ -517,7 +516,6 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	//.fto_size_get = io_fop_rwv_getsize,
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
@@ -538,36 +536,10 @@ static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
-   @todo Eventually will be replaced by wire formats _getsize API.
- 
-static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
-{
-	uint64_t size;
-
-	C2_PRE(fop != NULL);
-
-<<<<<<< HEAD
-	* Size of fop layout *
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-
-	if (fop->f_type->ft_code != C2_IOSERVICE_READV_REP_OPCODE)
-		return size;
-	* Add buffer payload for read reply *
-	read_rep_fop = c2_fop_data(fop);
-=======
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	if (is_read_rep(fop))
-	       size += sizeof(struct c2_fop_io_buf);
->>>>>>> b28e8700ef9470e3bc4809a3d3cd024420d97d91
-	return size;
-}
-*/
-/**
  * readv and writev reply FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
-	//.fto_size_get = io_fop_rwv_getsize,
 	.fto_size_get = c2_xcode_fop_size_get
 };
 

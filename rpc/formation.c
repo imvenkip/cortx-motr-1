@@ -1975,6 +1975,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		tm = frm_get_tm(item);
 		dom = tm->ntm_dom;
 		rpc_size = c2_rpc_get_size(rpc_obj);
+		printf("onwire rpc size : %ld\n", rpc_size);
 
 		/* Allocate a buffer for sending the message.*/
 		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom, rpc_size);

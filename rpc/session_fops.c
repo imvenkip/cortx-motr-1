@@ -41,7 +41,7 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_internal.h"
-#include "xcode/bufvec_xcode.h"
+#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 /**
    @addtogroup rpc_session
 
@@ -80,7 +80,7 @@ const struct c2_fop_type_ops c2_rpc_fop_conn_terminate_rep_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
-const struct c2_fop_type_ops c2_rpc_session_establish_rep_ops = {
+const struct c2_fop_type_ops c2_rpc_fop_session_establish_rep_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
@@ -259,7 +259,7 @@ C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_conn_terminate_rep,
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_establish_rep,
 			"rpc_session_establish_reply",
 			C2_RPC_FOP_SESSION_ESTABLISH_REP_OPCODE,
-			&c2_rpc_session_establish_rep_ops,
+			&c2_rpc_fop_session_establish_rep_ops,
 			&c2_rpc_item_session_establish_rep);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_rpc_fop_session_terminate_rep,
