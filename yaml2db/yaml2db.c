@@ -94,38 +94,6 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		/* Set the input file to the parser. */
 		yaml_parser_set_input_file(&yctx->yc_parser, yctx->yc_fp);
 
-	} else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER) {
-		/* Initialize the emitter. According to yaml documentation,
-		   parser_initialize command returns 1 in case of success */
-		rc = yaml_emitter_initialize(&yctx->yc_emitter);
-		if(rc != 1) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				    yaml2db_func_fail,
-				    "yaml_emitter_initialize", 0);
-			rc = -EINVAL;
-			goto cleanup;
-		}
-
-		/* Open the config file in append mode */
-		yctx->yc_fp = fopen(yctx->yc_cname, "a");
-		if (yctx->yc_fp == NULL) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail, "fopen", 0);
-			yaml_emitter_delete(&yctx->yc_emitter);
-			rc = -errno;
-			goto cleanup;
-		}
-		yaml_emitter_set_output_file(&yctx->yc_emitter, yctx->yc_fp);
-		yaml_emitter_set_unicode(&yctx->yc_emitter, 1);
-		rc = yaml_document_initialize(&yctx->yc_document, NULL, NULL,
-					 NULL, 0, 0);
-		if(rc != 1) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				    yaml2db_func_fail,
-				    "yaml_document_initialize", 0);
-			rc = -EINVAL;
-			goto cleanup;
-		}
 	}
 
 	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
@@ -187,8 +155,6 @@ cleanup:
 	yaml_document_delete(&yctx->yc_document);
 	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER)
 		yaml_parser_delete(&yctx->yc_parser);
-	else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER)
-		yaml_emitter_delete(&yctx->yc_emitter);
 	return 0;
 }
 /**
@@ -203,8 +169,6 @@ void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 		yaml_document_delete(&yctx->yc_document);
 	if (&yctx->yc_parser != NULL)
 		yaml_parser_delete(&yctx->yc_parser);
-	if (&yctx->yc_emitter != NULL)
-		yaml_emitter_delete(&yctx->yc_emitter);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
 	if (&yctx->yc_db.d_i != NULL)
@@ -212,31 +176,6 @@ void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
-
-#if 0
-/**
-  Function to detect and print emitter errors
- */
-static void yaml_emitter_error_detect(const yaml_emitter_t *emitter)
-{
-	C2_PRE(emitter != NULL);
-
-	switch (emitter->error) {
-	case YAML_MEMORY_ERROR:
-		fprintf(stderr, "Memory error: Not enough memory\
-			for parsing\n");
-		break;
-	case YAML_WRITER_ERROR:
-		fprintf(stderr, "Writer error: %s\n", emitter->problem);
-		break;
-	case YAML_EMITTER_ERROR:
-		fprintf(stderr, "Emitter error: %s\n", emitter->problem);
-		break;
-	default:
-		C2_IMPOSSIBLE("Invalid error");
-	}
-}
-#endif
 
 /**
   Function to detect and print parsing errors
@@ -398,10 +337,6 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
 			&yctx->yc_parser == NULL)
 		return false;
 
-	if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER &&
-			&yctx->yc_emitter == NULL)
-		return false;
-
 	if (&yctx->yc_document == NULL)
 		return false;
 
@@ -465,6 +400,19 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 
 	}
 	return rc;
+}
+
+static void dump_key_value (const char *fname, int key, yaml_char_t *value)
+{
+	FILE *fp;
+
+	C2_PRE(fname != NULL);
+	C2_PRE(value != NULL);
+	
+	fp = fopen(fname,"a");
+	if (fp != NULL)
+		fprintf(fp, "Key = %d \t Value = %s\n", key, value);
+	fclose(fp);
 }
 
 /**
@@ -552,6 +500,9 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 				c2_table_fini(&table);
 				return rc;
 			}
+			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+				dump_key_value(yctx->yc_dump_fname, (int) key,
+						v_node->data.scalar.value);
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
 			key++;
@@ -583,11 +534,6 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 		      const char *conf_param)
 {
 	int			 rc;
-	int			 map;
-	int			 map_key;
-	int			 map_value;
-	int			 root;
-	int			 param;
         struct c2_table          table;
         struct c2_db_tx          tx;
         struct c2_db_pair        db_pair;
@@ -647,31 +593,6 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 		goto cleanup;
         }
 
-	param = yaml_document_add_scalar(&yctx->yc_document, NULL,
-			(yaml_char_t*)conf_param, strlen ((char*) conf_param),
-			YAML_PLAIN_SCALAR_STYLE);
-	printf("Doc node = %d\n", param);
-	if (param == 0) {
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "yaml_document_add_scalar",
-				rc);
-		goto cleanup;
-	}
-
-	root = yaml_document_add_sequence(&yctx->yc_document, NULL,
-			YAML_BLOCK_SEQUENCE_STYLE);
-	if (root == 0) {
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail, "yaml_document_add_scalar",
-				rc);
-		goto cleanup;
-	}
-	printf("Doc node = %d\n", root);
-	map = yaml_document_add_mapping(&yctx->yc_document, NULL,
-			YAML_BLOCK_MAPPING_STYLE);
-	yaml_document_append_sequence_item(&yctx->yc_document, root, map);
-	printf("Doc node = %d\n", map);
-
 	/* Iterate the table */
 	while (1) {
 		if ( key == last_key ) {
@@ -684,25 +605,9 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 						"c2_table_lookup", rc);
 				goto cleanup;
 			}
-			map_key = yaml_document_add_scalar(&yctx->yc_document,
-					NULL,
-					(yaml_char_t *)"test",
-					strlen((char *)"test"),
-					YAML_PLAIN_SCALAR_STYLE);
-			map_value = yaml_document_add_scalar(
-					&yctx->yc_document, NULL,
-					buf, strlen((char *)buf),
-					YAML_PLAIN_SCALAR_STYLE);
-			printf("%s %d %d\n",buf, map_key, map_value);
-			rc = yaml_document_append_mapping_pair(
-					&yctx->yc_document,
-					map, map_key, map_value);
-			if (rc != 1) {
-				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-						yaml2db_func_fail,
-						"yaml_document_append_mapping_pair", rc);
-				goto cleanup;
-			}
+			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+				dump_key_value(yctx->yc_dump_fname, (int)key,
+						buf);
 			break;
 		}
 		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
@@ -713,20 +618,8 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 				    yaml2db_func_fail, "c2_table_lookup", rc);
 			goto cleanup;
 		}
-		map_key = yaml_document_add_scalar(&yctx->yc_document, NULL,
-				(yaml_char_t *)"test", strlen((char *)"test"),
-				YAML_PLAIN_SCALAR_STYLE);
-		map_value = yaml_document_add_scalar(&yctx->yc_document, NULL,
-				buf, strlen((char *)buf) ,YAML_PLAIN_SCALAR_STYLE);
-		printf("%s %d %d\n",buf, map_key, map_value);
-		rc = yaml_document_append_mapping_pair(&yctx->yc_document,
-				map, map_key, map_value);
-		if (rc != 1) {
-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				    yaml2db_func_fail,
-				    "yaml_document_append_mapping_pair", rc);
-			goto cleanup;
-		}
+		if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+			dump_key_value(yctx->yc_dump_fname, (int)key, buf);
 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -736,18 +629,6 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 		}
 		key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
 	} 
-	rc = yaml_emitter_dump(&yctx->yc_emitter, &yctx->yc_document);	
-	if (rc != 1) {
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail,
-				"yaml_emitter_dump", rc);
-		goto cleanup;
-	}
-	rc = yaml_emitter_flush(&yctx->yc_emitter);
-	if (rc != 1)
-		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-				yaml2db_func_fail,
-				"yaml_emitter_flush", rc);
 cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);

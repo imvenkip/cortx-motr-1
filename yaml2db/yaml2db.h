@@ -56,8 +56,6 @@ enum c2_yaml2db_ctx_type {
 struct c2_yaml2db_ctx {
 	/* YAML parser struct */
 	yaml_parser_t			 yc_parser;
-	/* YAML emitter struct */
-	yaml_emitter_t			 yc_emitter;
 	/* Enumeration to decide whether the context belongs
 	   to parser or emitter */
 	enum c2_yaml2db_ctx_type	 yc_type;
@@ -75,6 +73,10 @@ struct c2_yaml2db_ctx {
 	struct c2_addb_ctx		 yc_addb;
 	/* File pointer for YAML file */
 	FILE				*yc_fp;
+	/* Flag indicating whether to dump the key-value pair to a file */
+	bool				 yc_dump_kv;
+	/* File pointer for dump file */
+	const char			*yc_dump_fname;
 };
 
 /**

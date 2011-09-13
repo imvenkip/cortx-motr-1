@@ -72,8 +72,10 @@ int main(int argc, char *argv[])
 	int			 rc = 0;
 	struct c2_yaml2db_ctx	 yctx;
 	const char		*c_name = NULL;
+	const char		*dump_fname = NULL;
 	const char		*d_path = NULL;
 	bool			 emitter = false;
+	bool			 dump = false;
 
 	/* Global c2_init */
 	rc = c2_init();
@@ -88,13 +90,16 @@ int main(int argc, char *argv[])
 			LAMBDA(void, (const char *str) {d_path = str; })),
 		C2_STRINGARG('f', "config file in yaml format",
 			LAMBDA(void, (const char *str) {c_name = str; })),
+		C2_FLAGARG('D', "dump the key value contents", &dump),
+		C2_STRINGARG('t', "dump file name",
+			LAMBDA(void, (const char *str) {dump_fname = str; })),
 		C2_FLAGARG('e', "emitter mode", &emitter));
 
 	if (rc != 0)
 		goto cleanup;
 
 	/* Config file has to be specified as a command line option */
-	if (c_name == NULL) {
+	if (!emitter && c_name == NULL) {
 		fprintf(stderr, "Error: Config file path not specified\n");
 		rc = -EINVAL;
 		goto cleanup;
@@ -113,6 +118,12 @@ int main(int argc, char *argv[])
 		yctx.yc_type = C2_YAML2DB_CTX_EMITTER;
 	else
 		yctx.yc_type = C2_YAML2DB_CTX_PARSER;
+
+	if (dump) {
+		yctx.yc_dump_kv = true;
+		yctx.yc_dump_fname = dump_fname;
+	}
+
 
 	/* Initialize the parser and database environment */
 	rc = yaml2db_init(&yctx);
