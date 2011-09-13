@@ -104,13 +104,14 @@ struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
 
-void c2_rpc_rpcobj_init(struct c2_rpc *rpc)
+void c2_rpcobj_init(struct c2_rpc *rpc)
 {
 	C2_PRE(rpc != NULL);
 
 	c2_list_link_init(&rpc->r_linkage);
 	c2_list_init(&rpc->r_items);
 	rpc->r_session = NULL;
+	rpc->r_fbuf.fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
 }
 
 static int update_stream_init(struct c2_update_stream *us,
@@ -141,7 +142,7 @@ static int rpc_init(struct c2_rpc *rpc)
 	return 0;
 }
 
-void c2_rpc_rpcobj_fini(struct c2_rpc *rpc)
+void c2_rpcobj_fini(struct c2_rpc *rpc)
 {
 	rpc->r_session = NULL;
 	c2_list_fini(&rpc->r_items);
@@ -655,7 +656,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	nb = ev->nbe_buffer;
 	nb->nb_length = ev->nbe_length;
 	nb->nb_ep = ev->nbe_ep;
-	c2_rpc_rpcobj_init(&rpc);
+	c2_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
 		rc = c2_rpc_decode(&rpc, nb);

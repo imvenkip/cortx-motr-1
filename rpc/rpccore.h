@@ -344,24 +344,26 @@ struct c2_update_stream {
 struct c2_rpc {
 	/** Linkage into list of rpc objects just formed or into the list
 	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link	r_linkage;
-	struct c2_list		r_items;
+	struct c2_list_link		 r_linkage;
+	struct c2_list			 r_items;
 
 	/** Items in this container should be sent via this session */
-	struct c2_rpc_session  *r_session;
+	struct c2_rpc_session		*r_session;
+	/** Formation attributes (buffer, magic) for the rpc. */
+	struct c2_rpc_frm_buffer	 r_fbuf;
 };
 
 /**
    Initialize an rpc object.
    @param rpc - rpc object to be initialized
  */
-void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
+void c2_rpcobj_init(struct c2_rpc *rpc);
 
 /**
    Finalize an rpc object.
    @param rpc - rpc object to be finalized
  */
-void c2_rpc_rpcobj_fini(struct c2_rpc *rpc);
+void c2_rpcobj_fini(struct c2_rpc *rpc);
 
 /**
    Possible values for flags from c2_rpc_item_type.

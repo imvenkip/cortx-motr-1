@@ -895,6 +895,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return rc;
 
+	c2_addb_choose_default_level(AEL_WARN);
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		return rc;

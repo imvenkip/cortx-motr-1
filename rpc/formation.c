@@ -44,7 +44,6 @@ static const struct c2_addb_loc frm_addb_loc = {
 C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
 		C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-
 extern void item_exit_stats_set(struct c2_rpc_item *item,
 				enum c2_rpc_item_path path);
 
@@ -116,52 +115,38 @@ static void frm_item_state_set(const struct c2_rpc *rpc, const enum
 /* Invariant subroutine for struct c2_rpc_frm_buffer. */
 static bool frm_buf_invariant(const struct c2_rpc_frm_buffer *fbuf)
 {
-	return fbuf != NULL && fbuf->fb_frm_sm != NULL && fbuf->fb_rpc != NULL
-			&& fbuf->fb_magic == C2_RPC_FRM_BUFFER_MAGIC &&
-			fbuf->fb_retry <= C2_RPC_FRM_BUFFER_RETRY;
+	return fbuf != NULL && fbuf->fb_frm_sm != NULL &&
+			fbuf->fb_magic == C2_RPC_FRM_BUFFER_MAGIC;
 }
 
-static int frm_buffer_init(struct c2_rpc_frm_buffer **fb, struct c2_rpc *rpc,
+int c2_rpcobj_fbuf_init(struct c2_rpc_frm_buffer *fb,
 		struct c2_rpc_frm_sm *frm_sm, struct c2_net_domain *net_dom,
 		uint64_t rpc_size)
 {
-	int				 rc;
-	struct c2_net_buffer		*nb;
-	struct c2_rpc_frm_buffer	*fbuf;
+	int			 rc;
+	struct c2_net_buffer	*nb;
 
 	C2_PRE(fb != NULL);
-	C2_PRE(rpc != NULL);
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(net_dom != NULL);
 	C2_PRE(rpc_size != 0);
 
-	C2_ALLOC_PTR_ADDB(fbuf, &frm_sm->fs_formation->rf_rpc_form_addb,
-			  &frm_addb_loc);
-	if (fbuf == NULL)
-		return -ENOMEM;
-	fbuf->fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
-	fbuf->fb_frm_sm = frm_sm;
-	fbuf->fb_rpc = rpc;
-	nb = &fbuf->fb_buffer;
+	fb->fb_frm_sm = frm_sm;
+	nb = &fb->fb_buffer;
 	rc = send_buffer_allocate(net_dom, &nb, rpc_size);
-	if (rc != 0) {
-		c2_free(fbuf);
+	if (rc != 0)
 		return rc;
-	}
-	fbuf->fb_retry = C2_RPC_FRM_BUFFER_RETRY;
-	*fb = fbuf;
-	C2_POST(frm_buf_invariant(fbuf));
+	C2_POST(frm_buf_invariant(fb));
 	return rc;
 }
 
-static void frm_buffer_fini(struct c2_rpc_frm_buffer *fb)
+static void c2_rpcobj_fbuf_fini(struct c2_rpc_frm_buffer *fb)
 {
 	C2_PRE(fb != NULL);
 	C2_PRE(frm_buf_invariant(fb));
 
 	/* Currently, the policy is to release the buffer on completion. */
 	send_buffer_deallocate(&fb->fb_buffer, fb->fb_buffer.nb_dom);
-	c2_free(fb);
 }
 
 static const statefunc_t c2_rpc_frm_statetable
@@ -510,75 +495,47 @@ int frm_ubitem_added(struct c2_rpc_item *item)
   message has been sent out from the buffer. */
 void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 {
+	struct c2_rpc			*rpc;
 	struct c2_net_buffer		*nb;
-	struct c2_net_domain		*dom;
-	struct c2_net_transfer_mc	*tm;
 	struct c2_rpc_frm_buffer	*fb;
 	struct c2_rpc_item		*item;
-	struct c2_rpc_item		*rpc_item;
-	struct c2_rpc_item		*rpc_item_next;
+	struct c2_rpc_item		*item_next;
 	struct c2_rpc_frm_sm		*frm_sm;
-	struct c2_rpc_formation		*formation;
 
-	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL) &&
-		(ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND));
+	C2_PRE(ev != NULL && ev->nbe_buffer != NULL &&
+		ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND);
 
 	nb = ev->nbe_buffer;
-	dom = nb->nb_dom;
-	tm = nb->nb_tm;
 	fb = container_of(nb, struct c2_rpc_frm_buffer, fb_buffer);
+	rpc = container_of(fb, struct c2_rpc, r_fbuf);
+	frm_sm = fb->fb_frm_sm;
 	C2_PRE(frm_buf_invariant(fb));
-	item = c2_list_entry(c2_list_first(&fb->fb_rpc->r_items),
-			struct c2_rpc_item, ri_rpcobject_linkage);
-	C2_ASSERT(item->ri_state == RPC_ITEM_ADDED);
-	formation = &item->ri_mach->cr_formation;
-	C2_ASSERT(formation != NULL);
+	C2_PRE(frm_sm != NULL);
 
 	/* The buffer should have been dequeued by now. */
 	C2_ASSERT((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
+	/* Formation state machine lock is needed to serialize
+	   access to rpc object. */
+	c2_mutex_lock(&frm_sm->fs_lock);
 	if (ev->nbe_status == 0) {
-		frm_sm = fb->fb_frm_sm;
-		c2_mutex_lock(&frm_sm->fs_lock);
-		frm_item_rpc_stats_set(fb->fb_rpc);
-		frm_item_state_set(fb->fb_rpc, RPC_ITEM_SENT);
-
-		/* Detach all rpc items from this object */
-		c2_list_for_each_entry_safe(&fb->fb_rpc->r_items, rpc_item,
-				rpc_item_next, struct c2_rpc_item,
-				ri_rpcobject_linkage)
-			c2_list_del(&rpc_item->ri_rpcobject_linkage);
-
-		c2_rpc_rpcobj_fini(fb->fb_rpc);
-		c2_free(fb->fb_rpc);
-		frm_buffer_fini(fb);
-		c2_mutex_unlock(&frm_sm->fs_lock);
+		frm_item_rpc_stats_set(rpc);
+		frm_item_state_set(rpc, RPC_ITEM_SENT);
 	} else {
-		/* If the send event fails, add the rpc back to concerned
-		   queue so that it will be processed next time.*/
-		if (--fb->fb_retry > 0) {
-			frm_sm = fb->fb_frm_sm;
-			c2_mutex_lock(&frm_sm->fs_lock);
-			C2_ADDB_ADD(&frm_sm->fs_formation->
-					rf_rpc_form_addb, &frm_addb_loc,
-					formation_func_fail,
-					"send retry", ev->nbe_status);
-			c2_list_add(&frm_sm->fs_rpcs, &fb->fb_rpc->r_linkage);
-			frm_buffer_fini(fb);
-			frm_send_onwire(frm_sm);
-			c2_mutex_unlock(&frm_sm->fs_lock);
-		} else {
-			C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->
-					rf_rpc_form_addb, &frm_addb_loc,
-					formation_func_fail,
-					"net buf send failed", ev->nbe_status);
-			frm_item_state_set(fb->fb_rpc, RPC_ITEM_SEND_FAILED);
-			c2_rpc_rpcobj_fini(fb->fb_rpc);
-			c2_free(fb->fb_rpc);
-			frm_buffer_fini(fb);
-		}
+		C2_ADDB_ADD(&fb->fb_frm_sm->fs_formation->rf_rpc_form_addb,
+			    &frm_addb_loc, formation_func_fail,
+			    "net buf send failed", ev->nbe_status);
+		frm_item_state_set(rpc, RPC_ITEM_SEND_FAILED);
 	}
+	/* Detach all rpc items from this object */
+	c2_list_for_each_entry_safe(&rpc->r_items, item, item_next,
+			struct c2_rpc_item, ri_rpcobject_linkage)
+		c2_list_del(&item->ri_rpcobject_linkage);
 
+	c2_rpcobj_fbuf_fini(fb);
+	c2_rpcobj_fini(rpc);
+	c2_free(rpc);
+	c2_mutex_unlock(&frm_sm->fs_lock);
 }
 
 /* Callback function for deletion of an rpc item from the formation lists. */
@@ -1502,7 +1459,7 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 	C2_ALLOC_PTR_ADDB(rpcobj, &formation->rf_rpc_form_addb, &frm_addb_loc);
 	if (rpcobj == NULL)
 		return C2_RPC_FRM_INTEVT_STATE_FAILED;
-	c2_rpc_rpcobj_init(rpcobj);
+	c2_rpcobj_init(rpcobj);
 
 	/* Try to include bound rpc items in rpc. This routine also includes
 	   IO coalescing amongst a bound item and a stream of unbound items. */
@@ -1513,7 +1470,7 @@ static enum c2_rpc_frm_evt_id sm_forming_state(
 	unbound_items_add_to_rpc(frm_sm, rpcobj, &rpcobj_size, &frag_nr);
 
 	if (c2_list_is_empty(&rpcobj->r_items)) {
-		c2_rpc_rpcobj_fini(rpcobj);
+		c2_rpcobj_fini(rpcobj);
 		c2_free(rpcobj);
 		C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 			    &frm_addb_loc, formation_func_fail,
@@ -1589,10 +1546,10 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		tm = frm_get_tm(item);
 		dom = tm->ntm_dom;
 		rpc_size = rpc_size_get(rpc_obj);
+		fb = &rpc_obj->r_fbuf;
 
-		rc = frm_buffer_init(&fb, rpc_obj, frm_sm, dom, rpc_size);
+		rc = c2_rpcobj_fbuf_init(fb, frm_sm, dom, rpc_size);
 		if (rc < 0)
-			/* Process the next rpc object in the list.*/
 			continue;
 
 		fb->fb_buffer.nb_ep = item->ri_session->s_conn->c_end_point;
@@ -1607,9 +1564,7 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 		if (rc < 0) {
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
-					"c2_rpc_encode", rc);
-			frm_buffer_fini(fb);
-			/* Process the next rpc object in the list.*/
+					"c2_rpc_encode failed.", rc);
 			continue;
 		}
 
@@ -1619,8 +1574,6 @@ static int frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 			C2_ADDB_ADD(&frm_sm->fs_formation->rf_rpc_form_addb,
 					&frm_addb_loc, formation_func_fail,
 					"c2_net_buffer_add", rc);
-			frm_buffer_fini(fb);
-			/* Process the next rpc object in the list.*/
 			continue;
 		}
 

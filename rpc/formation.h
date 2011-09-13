@@ -273,21 +273,10 @@ struct c2_rpc_frm_sm {
 };
 
 /**
-   Assign network specific thresholds on max size of a message and max
-   number of fragments that can be carried in one network transfer.
-   @param max_bufsize Max permitted buffer size for given net domain.
-   @param max_segs_nr Max permitted segments a message can contain
-   for given net domain.
- */
-void c2_rpc_frm_sm_net_limits_set(struct c2_rpc_frm_sm *frm_sm,
-		c2_bcount_t max_bufsize, c2_bcount_t max_segs_nr);
-
-/**
    A magic constant to varify the sanity of c2_rpc_frm_buffer.
  */
 enum {
 	C2_RPC_FRM_BUFFER_MAGIC = 0x8135797531975313ULL,
-	C2_RPC_FRM_BUFFER_RETRY = 3,
 };
 
 /**
@@ -296,14 +285,10 @@ enum {
 struct c2_rpc_frm_buffer {
 	/** A magic constant to verify sanity of buffer. */
 	uint64_t		 fb_magic;
-	/** Retry count for buffer send events. */
-	uint64_t		 fb_retry;
 	/** The c2_net_buffer on which callback will trigger. */
 	struct c2_net_buffer	 fb_buffer;
 	/** The associated fromation state machine. */
 	struct c2_rpc_frm_sm	*fb_frm_sm;
-	/** The rpc object which was sent through the c2_net_buffer here. */
-	struct c2_rpc		*fb_rpc;
 };
 
 /**
