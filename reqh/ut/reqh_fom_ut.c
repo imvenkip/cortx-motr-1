@@ -90,13 +90,13 @@ enum reqh_ut_read_fom_phase {
 };
 
 static struct c2_stob_domain *sdom;
-static struct c2_net_domain	ndom;
-static struct c2_fol	fol;
+static struct c2_net_domain   ndom;
+static struct c2_fol          fol;
 
 /**
  * Global reqh object
  */
-static struct c2_reqh		reqh;
+static struct c2_reqh        reqh;
 
 /**
  * Structure to hold c2_net_call and c2_clink, for network communication
