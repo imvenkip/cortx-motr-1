@@ -327,11 +327,11 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 {
 
 	C2_PRE(session != NULL);
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
 			session->s_state == C2_RPC_SESSION_INITIALISED ||
 			session->s_state == C2_RPC_SESSION_FAILED);
 
-	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	__session_fini(session);
 	session->s_session_id = SESSION_ID_INVALID;
@@ -555,9 +555,9 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 	}
 
 out:
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 		  session->s_state == C2_RPC_SESSION_FAILED);
-	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 }
@@ -568,17 +568,9 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	struct c2_rpc_fop_session_terminate *fop_st;
 	struct c2_rpc_session               *session_0;
 	struct c2_rpc_conn                  *conn;
-	struct c2_rpc_slot                  *slot;
 	int                                  rc;
-	int                                  i;
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
-
-	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
 
 	c2_mutex_lock(&session->s_mutex);
 
@@ -592,12 +584,41 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	 */
 	if (session->s_state == C2_RPC_SESSION_TERMINATING) {
 		rc = 0;
-		c2_fop_free(fop);
 		goto out_unlock;
 	}
 
+	c2_rpc_session_del_slots_from_ready_list(session);
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
+	/*
+	 * Attempt to move this fop allocation before taking session->s_mutex
+	 * resulted in lots of code duplication. So this memory allocation
+	 * while holding a mutex is intentional.
+	 */
+	fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_fopt, NULL);
+	if (fop == NULL) {
+		rc = -ENOMEM;
+		/*
+		 * There are two choices here:
+		 *
+		 * 1. leave session in TERMNATING state FOREVER.
+		 *    Then when to fini/cleanup session.
+		 *    This will not allow finialising of session, in turn conn,
+		 *    and rpcmachine can't be finalised.
+		 *
+		 * 2. Move session to FAILED state.
+		 *    For this session the receiver side state will still
+		 *    continue to exist. And receiver can send unsolicited
+		 *    items, that will be received on sender i.e. current node.
+		 *    Current code will drop such items. When/how to fini and
+		 *    cleanup receiver side state? XXX
+		 *
+		 * For now, later is chosen. This can be changed in future
+		 * to alternative 1, iff required.
+		 */
+		session_failed(session, rc);
+		goto out;
+	}
 	fop_st = c2_fop_data(fop);
 
 	conn = session->s_conn;
@@ -610,17 +631,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	c2_mutex_unlock(&session->s_mutex);
 
-	/*
-	 * Remove all slots from c2_rpcmachine::cr_ready_slots list
-	 */
-	c2_mutex_lock(&conn->c_rpcmachine->cr_ready_slots_mutex);
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		if (c2_list_link_is_in(&slot->sl_link))
-			c2_list_del(&slot->sl_link);
-	}
-	c2_mutex_unlock(&conn->c_rpcmachine->cr_ready_slots_mutex);
-
 	rc = c2_rpc__fop_post(fop, session_0,
 				&c2_rpc_item_session_terminate_ops);
 
@@ -632,8 +642,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	}
 
 out_unlock:
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
-	C2_POST(c2_rpc_session_invariant(session));
 	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 
@@ -749,9 +759,9 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req,
 	}
 
 out:
+	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
 			session->s_state == C2_RPC_SESSION_FAILED);
-	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_cond_broadcast(&session->s_state_changed, &session->s_mutex);
 	c2_mutex_unlock(&session->s_mutex);
 }
@@ -811,7 +821,7 @@ uint64_t session_id_allocate(void)
 
 	do {
 		c2_atomic64_inc(&cnt);
-		sec = c2_time_seconds(c2_time_now());
+		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
 
 		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
 
@@ -999,38 +1009,29 @@ static int session_persistent_state_destroy(struct c2_rpc_session *session,
 
 int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 {
-	struct c2_rpc_slot *slot;
 	struct c2_rpc_conn *conn;
 	struct c2_db_tx     tx;
 	int                 rc;
-	int                 i;
 
 	C2_PRE(session != NULL);
 
 	c2_mutex_lock(&session->s_mutex);
-
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
-	/*
-	 * Take all the slots out of c2_rpcmachine::cr_ready_slots
-	 */
-	c2_mutex_lock(&session->s_conn->c_rpcmachine->cr_ready_slots_mutex);
-	for (i = 0; i < session->s_nr_slots; i++) {
-		slot = session->s_slot_table[i];
-		if (c2_list_link_is_in(&slot->sl_link))
-			c2_list_del(&slot->sl_link);
+	if (session->s_state != C2_RPC_SESSION_IDLE) {
 		/*
-		 * XXX slot->sl_link and ready slot lst is completely managed
-		 * by formation.
-		 * So instead of session trying to remove slot from ready list
-		 * directly, there should be one more event generated by slot
-		 * and handled by formation, saying "stop using slot".
-		 * In the event handler, formation can remove the slot from
-		 * ready slot list.
+		 * Should catch this situation while testing. This can be
+		 * because of some bug.
 		 */
+		C2_ASSERT(0);
+		/*
+		 * XXX Generate ADDB record here.
+		 */
+		c2_mutex_unlock(&session->s_mutex);
+		return -EPROTO;
 	}
-	c2_mutex_unlock(&session->s_conn->c_rpcmachine->cr_ready_slots_mutex);
+
+	c2_rpc_session_del_slots_from_ready_list(session);
 
 	/*
 	 * remove session from list of sessions maintained in c2_rpc_conn.
@@ -1068,6 +1069,37 @@ out:
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_mutex_unlock(&session->s_mutex);
 	return rc;
+}
+
+/**
+   For all slots belonging to @session,
+     if slot is in c2_rpcmachine::cr_ready_slots list,
+     then remove it from the list.
+ */
+void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
+{
+	struct c2_rpc_slot   *slot;
+	struct c2_rpcmachine *machine;
+	int                   i;
+
+	machine = session->s_conn->c_rpcmachine;
+
+	/*
+	 * XXX lock and unlock of cr_ready_slots_mutex is commented, until
+	 * formation adds a fix for correct lock ordering.
+	 */
+	//c2_mutex_lock(&machine->cr_ready_slots_mutex);
+
+	for (i = 0; i < session->s_nr_slots; i++) {
+		slot = session->s_slot_table[i];
+
+		C2_ASSERT(slot != NULL);
+
+		if (c2_list_link_is_in(&slot->sl_link))
+			c2_list_del(&slot->sl_link);
+	}
+
+	//c2_mutex_unlock(&machine->cr_ready_slots_mutex);
 }
 
 /** @} end of session group */

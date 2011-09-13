@@ -266,8 +266,8 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 
 out_fini:
 	C2_ASSERT(session != NULL &&
-		  session->s_state == C2_RPC_SESSION_FAILED &&
-		  c2_rpc_session_invariant(session));
+		  c2_rpc_session_invariant(session) &&
+		  session->s_state == C2_RPC_SESSION_FAILED);
 	c2_rpc_session_fini(session);
 
 out_free:
@@ -344,8 +344,8 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	C2_ASSERT(conn != NULL);
 
 	c2_mutex_lock(&conn->c_mutex);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
-			c2_rpc_conn_invariant(conn));
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session == NULL) {
@@ -354,9 +354,18 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 		goto errout;
 	}
 	c2_mutex_unlock(&conn->c_mutex);
+
 	rc = c2_rpc_rcv_session_terminate(session);
+	if (rc == -EPROTO) {
+		/*
+		 * session could not be terminated because session is not in
+		 * IDLE state.
+		 */
+		goto errout;
+	}
 	C2_ASSERT(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
 	C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATED));
+
 	c2_rpc_session_fini(session);
 	c2_free(session);
 	/* fall through */
