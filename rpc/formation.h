@@ -281,6 +281,9 @@ struct c2_rpc_frm_sm {
 	    machine contains all rpc items from such rpc groups.
 	    Any number > 0 will trigger formation. */
 	uint64_t			 fs_complete_groups_nr;
+	/** Number of timed out rpc items. If this number is greater
+	    than zero, formation algorithm will be invoked. */
+	uint64_t			 fs_timedout_items_nr;
 };
 
 /**
@@ -317,9 +320,7 @@ enum {
 };
 
 /**
-   A structure to process callbacks to posting events.
-   This structure is used to associate an rpc object being sent,
-   its associated formation state machine and the c2_net_buffer.
+   Formation attributes for an rpc.
  */
 struct c2_rpc_frm_buffer {
 	/** A magic constant to verify sanity of buffer. */
@@ -335,13 +336,11 @@ struct c2_rpc_frm_buffer {
 };
 
 /**
-   An internal data structure to connect coalesced rpc items with
-   its constituent rpc items. When a reply is received for a
-   coalesced rpc item, it will find out the requesting coalesced
-   rpc item and using this data structure, it will find out the
-   constituent rpc items and invoke their completion callbacks accordingly.
-   Formation does not bother about splitting of reply for coalesced
-   rpc item into sub replies for constituent rpc items.
+   Connects resultant rpc item with its coalesced constituent rpc items.
+   When a reply is received for a coalesced rpc item, it will find out
+   the requesting coalesced rpc item and using this data structure,
+   it will find out the constituent rpc items and invoke their
+   completion callbacks accordingly.
  */
 struct c2_rpc_frm_item_coalesced {
 	/** Linkage to list of coalesced items anchored at
@@ -474,26 +473,23 @@ int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
 void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
-   Try to coalesce rpc items with similar fid and intent.
-   @param c_item - c2_rpc_frm_item_coalesced structure representing context
-   of an IO coalescing job.
+   Interfaces to change attributes of rpc items that have been already
+   submitted to rpc layer.
  */
-int c2_rpc_item_io_coalesce(struct c2_rpc_frm_item_coalesced *c_item,
-			    struct c2_rpc_item *b_item);
+int c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
+				 enum c2_rpc_item_priority prio);
+
+int c2_rpc_frm_item_timeout_set(struct c2_rpc_item *item,
+				c2_time_t deadline);
+
+int c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
+			      struct c2_rpc_group *group);
 
 /**
   @todo Temporary fix.
   @param max_rpcs - Max rpcs in flight
  */
 void c2_rpc_frm_set_thresholds(uint64_t max_rpcs);
-
-/**
-   Decrement the current number of rpcs in flight from given rpc item.
-   First, formation state machine is located from c2_rpc_conn and
-   c2_rpcmachine pointed to by given rpc item and if formation state
-   machine is found, its current count of in flight rpcs is decremented.
- */
-void c2_rpc_frm_rpcs_inflight_dec(struct c2_rpc_item *item);
 
 /** @} endgroup of rpc_formation */
 

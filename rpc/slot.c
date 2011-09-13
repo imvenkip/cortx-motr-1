@@ -51,6 +51,9 @@
    @{
  */
 
+extern void item_exit_stats_set(struct c2_rpc_item *item,
+				enum c2_rpc_item_path path);
+
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
@@ -793,7 +796,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
-	c2_rpc_item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 	if (rc != 0) {
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);

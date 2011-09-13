@@ -74,7 +74,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
+        .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL, 
         .rito_get_io_fragment_count = NULL,
@@ -86,7 +86,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
 struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
+        .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL, 
         .rito_get_io_fragment_count = NULL,
