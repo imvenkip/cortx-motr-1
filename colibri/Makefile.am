@@ -18,6 +18,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/layout/libcolibri-layout.la \
                             $(top_builddir)/lib/libc2.la \
                             $(top_builddir)/net/libcolibri-net.la \
+                            $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
+                            $(top_builddir)/net/bulk_emulation/libcolibri-net-bulksunrpc.la \
                             $(top_builddir)/net/usunrpc/libcolibri-net-usunrpc.la \
                             $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
@@ -27,8 +29,9 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
                             $(top_builddir)/stob/libcolibri-stob.la \
                             $(top_builddir)/udb/libcolibri-udb.la \
                             $(top_builddir)/rm/libcolibri-rm.la \
-                            $(top_builddir)/ioservice/libcolibri-ioservice.la
 
+                            $(top_builddir)/ioservice/libcolibri-ioservice.la \
+			    $(top_builddir)/xdr/libcolibri-xdr.la
 #                            $(top_builddir)/rpc/libcolibri-rpc.la
 
 

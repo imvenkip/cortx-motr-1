@@ -1,19 +1,22 @@
 LIB_SRCDIR = @SRCDIR@/lib/linux_kernel
 
 obj-m       := klibc2.o
-shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c chan.c misc.c buf.c
-kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c thread.c \
-               semaphore.c main.c processor.c
-shared_ut   := ut/chan.c
-klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o) $(shared_ut:.c=.o)
+shared_src  := vec.c list.c queue.c refs.c time.c bitmap.c chan.c misc.c buf.c\
+               cond.c thread.c
+kernel_src  := memory.c mutex.c refs.c rwlock.c ktime.c timer.c kthread.c \
+               semaphore.c main.c processor.c ut.c
+# rename ut files while linking to avoid name clashes
+ut_orig     := bitmap.c chan.c list.c mutex.c queue.c refs.c rwlock.c \
+               thread.c time.c vec.c
+ut_src      := $(ut_orig:%=ut_%)
+klibc2-y    := $(shared_src:.c=.o) $(kernel_src:.c=.o) $(ut_src:.c=.o)
 orig_src    := $(shared_src:%=../%)
-orig_ut     := $(shared_ut:%=../../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
 	ln -fs $(orig_src) .
-	ln -fs $(orig_ut) ut/
+	for f in $(ut_orig); do ln -fs ../ut/$$f ut_$$f; done
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/libc2 -C @LINUX_OBJ@ M=`pwd` modules_install
@@ -23,13 +26,14 @@ uninstall:
 
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(RM) $(ut_src)
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
 	cp $(LIB_SRCDIR)/Makefile.in $(LIB_SRCDIR)/main.c \
 	$(LIB_SRCDIR)/memory.c $(LIB_SRCDIR)/mutex.c \
 	$(LIB_SRCDIR)/time.c $(LIB_SRCDIR)/ktime.c \
-	$(LIB_SRCDIR)/thread.c $(LIB_SRCDIR)/thread.h \
+	$(LIB_SRCDIR)/kthread.c $(LIB_SRCDIR)/thread.h \
 	$(LIB_SRCDIR)/assert.h $(LIB_SRCDIR)/cdefs.h \
 	$(LIB_SRCDIR)/mutex.h $(LIB_SRCDIR)/time.h \
 	$(LIB_SRCDIR)/types.h $(LIB_SRCDIR)/chan.h \

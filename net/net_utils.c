@@ -1,4 +1,24 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 06/15/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -13,7 +33,7 @@
 
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
  */
 
 bool c2_services_are_same(const struct c2_service_id *c1,
@@ -29,7 +49,7 @@ void c2_net_domain_stats_init(struct c2_net_domain *dom)
 
         C2_SET0(&dom->nd_stats);
 
-        c2_time_now(&now);
+        now = c2_time_now();
         for (i = 0; i < ARRAY_SIZE(dom->nd_stats); i++) {
                 c2_rwlock_init(&dom->nd_stats[i].ns_lock);
                 dom->nd_stats[i].ns_time = now;
@@ -94,7 +114,7 @@ int c2_net_domain_stats_get(struct c2_net_domain *dom,
         c2_time_t interval;
         int rv;
 
-        c2_time_now(&now);
+        now = c2_time_now();
 
         /* We lock here against other callers only -- stats are still being
            collected while we are here. We reset stats only after we calculate

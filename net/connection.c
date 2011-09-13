@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/17/2010
+ */
 
 #include "lib/errno.h"
 #include "lib/cdefs.h"
@@ -7,10 +25,10 @@
 #include "lib/refs.h"
 #include "lib/memory.h"
 
-#include "net/net.h"
+#include "net/net_internal.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup netDep Networking (Deprecated Interfaces)
 
    <b>Connections</b>
 
@@ -27,14 +45,6 @@
 
 static const struct c2_addb_ctx_type c2_net_conn_addb_ctx = {
 	.act_name = "net-conn"
-};
-
-static const struct c2_addb_ctx_type c2_net_dom_addb_ctx = {
-	.act_name = "net-dom"
-};
-
-static const struct c2_addb_loc c2_net_addb_loc = {
-	.al_name = "net"
 };
 
 static void c2_net_conn_free_cb(struct c2_ref *ref)
@@ -129,31 +139,7 @@ void c2_net_conn_unlink(struct c2_net_conn *conn)
 }
 C2_EXPORTED(c2_net_conn_unlink);
 
-int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
-{
-	c2_list_init(&dom->nd_conn);
-	c2_list_init(&dom->nd_service);
-	c2_rwlock_init(&dom->nd_lock);
-        c2_net_domain_stats_init(dom);
- 	dom->nd_xprt = xprt;
-	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
-			 &c2_addb_global_ctx);
-	return xprt->nx_ops->xo_dom_init(xprt, dom);
-}
-C2_EXPORTED(c2_net_domain_init);
-
-void c2_net_domain_fini(struct c2_net_domain *dom)
-{
-	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
-	c2_addb_ctx_fini(&dom->nd_addb);
-        c2_net_domain_stats_fini(dom);
-	c2_rwlock_fini(&dom->nd_lock);
-	c2_list_fini(&dom->nd_service);
-	c2_list_fini(&dom->nd_conn);
-}
-C2_EXPORTED(c2_net_domain_fini);
-
-/** @} end of net group */
+/* @} */
 
 /*
  *  Local variables:

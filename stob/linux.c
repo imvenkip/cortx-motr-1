@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 04/28/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -110,6 +129,10 @@ static void linux_domain_fini(struct c2_stob_domain *self)
    Implementation of c2_stob_type_op::sto_domain_locate().
 
    Initialises adieu sub-system for the domain.
+
+   @note the domain returned is ready for use, but c2_linux_stob_setup() can be called
+   against it in order to customize some configuration options (currently there
+   is only one such option: "use_directio" flag).
  */
 static int linux_stob_type_domain_locate(struct c2_stob_type *type, 
 					 const char *domain_name,
@@ -133,6 +156,7 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 			*out = dom;
 		else
 			linux_domain_fini(dom);
+		ldom->use_directio = false;
 	} else {
 		C2_ADDB_ADD(&type->st_addb, 
 			    &c2_linux_stob_addb_loc, c2_addb_oom);
@@ -140,6 +164,19 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
 	}
 	return result;
 }
+
+int c2_linux_stob_setup(struct c2_stob_domain *dom, bool use_directio)
+{
+	struct linux_domain *ldom;
+
+	ldom = domain2linux(dom);
+
+	ldom->linux_setup = true;
+	ldom->use_directio = use_directio;
+
+	return 0;
+}
+C2_EXPORTED(c2_linux_stob_setup);
 
 static bool linux_stob_invariant(const struct linux_stob *lstob)
 {
@@ -305,10 +342,14 @@ static int linux_stob_open(struct linux_stob *lstob, int oflag)
  */
 static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
 {
+	int oflags = O_RDWR|O_CREAT;
 	struct linux_domain *ldom;
 
 	ldom  = domain2linux(obj->so_domain);
-	return linux_stob_open(stob2linux(obj), O_RDWR|O_CREAT);
+	if (ldom->use_directio)
+		oflags |= O_DIRECT;
+
+	return linux_stob_open(stob2linux(obj), oflags);
 }
 
 /**
@@ -316,7 +357,14 @@ static int linux_stob_create(struct c2_stob *obj, struct c2_dtx *tx)
  */
 static int linux_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 {
-	return linux_stob_open(stob2linux(obj), O_RDWR);
+	int oflags = O_RDWR;
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(obj->so_domain);
+	if (ldom->use_directio)
+		oflags |= O_DIRECT;
+
+	return linux_stob_open(stob2linux(obj), oflags);
 }
 
 static const struct c2_stob_type_op linux_stob_type_op = {
@@ -354,18 +402,20 @@ const struct c2_addb_ctx_type adieu_addb_ctx_type = {
 
 struct c2_addb_ctx adieu_addb_ctx;
 
-int linux_stobs_init(void)
+int c2_linux_stobs_init(void)
 {
 	c2_addb_ctx_init(&adieu_addb_ctx, &adieu_addb_ctx_type, 
 			 &c2_addb_global_ctx);
 	return linux_stob_type.st_op->sto_init(&linux_stob_type);
 }
+C2_EXPORTED(c2_linux_stobs_init);
 
-void linux_stobs_fini(void)
+void c2_linux_stobs_fini(void)
 {
 	linux_stob_type.st_op->sto_fini(&linux_stob_type);
 	c2_addb_ctx_fini(&adieu_addb_ctx);
 }
+C2_EXPORTED(c2_linux_stobs_fini);
 
 /** @} end group stoblinux */
 

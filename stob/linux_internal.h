@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/21/2010
+ */
 
 #ifndef __COLIBRI_STOB_LINUX_INTERNAL_H__
 #define __COLIBRI_STOB_LINUX_INTERNAL_H__
@@ -37,6 +55,19 @@ enum {
    Stob domain for Linux type.
  */
 struct linux_domain {
+	/**
+	   Set to true in linux_setup(). May be used in pre-conditions to
+	   guarantee that the domain is fully initialized.
+	 */
+	bool linux_setup;
+
+	/**
+	 *  Controls whether to use O_DIRECT flag for open(2).
+	 *  Can be set with c2_linux_stob_setup().
+	 *  Initial value is set to 'false' in linux_stob_type_domain_locate().
+	 */
+	bool use_directio;
+
 	struct c2_stob_domain sdl_base;
 	/**
 	   parent directory to hold the objects.

@@ -39,12 +39,14 @@ missing
 .*.o.cmd
 .*.o.d
 *.ko
+*.ko.unsigned
+*.ko.unsigned.cmd
 *.mod.c
 *.mod.o
 *~
 doc/html/
 .#*
-#*#
+\#*#
 libtool
 m4/libtool.m4
 m4/ltoptions.m4

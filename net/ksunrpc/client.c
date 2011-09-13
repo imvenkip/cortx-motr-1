@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 05/30/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -37,8 +56,6 @@
   @{
  */
 
-#define C2_DEF_RPC_VER  1
-#define C2_SESSION_PROGRAM 0x20000001
 #define UT_PROC_NAME "ksunrpc-ut"
 
 /*
@@ -234,7 +251,6 @@ int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs)
 		sid->si_xport_private = ksid;
 		ksid->ssi_id = sid;
 
-		/* N.B. they have different order than kernelspace's ones */
 		hostname = va_arg(varargs, char *);
 		strncpy(ksid->ssi_host, hostname, ARRAY_SIZE(ksid->ssi_host)-1);
 		ksid->ssi_port = va_arg(varargs, int);
@@ -374,17 +390,9 @@ static void __exit remove_ut_proc_entry(void)
 		remove_proc_entry(UT_PROC_NAME, NULL);
 }
 
-#else
-
-static void __init create_ut_proc_entry(void) {}
-static void __exit remove_ut_proc_entry(void) {}
-
-#endif
-
 /*******************************************************************************
  *                       End of UT                                             *
  ******************************************************************************/
-
 
 static int __init kernel_sunrpc_init(void)
 {
@@ -402,9 +410,10 @@ static void __exit kernel_sunrpc_fini(void)
 module_init(kernel_sunrpc_init)
 module_exit(kernel_sunrpc_fini)
 
-MODULE_AUTHOR("Huang Hua <hua.huang@clusterstor.com>");
+MODULE_AUTHOR("Huang Hua <Hua_Huang@xyratex.com>");
 MODULE_DESCRIPTION("C2 Kernel Client RPC");
 MODULE_LICENSE("GPL");
+#endif
 
 /** @} end of group ksunrpc */
 

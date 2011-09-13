@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 03/04/2011
+ */
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/mutex.h"
@@ -38,7 +56,7 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 	signal(SIGUSR1, nothing);
 
 	while (timer->t_left > 0) {
-		c2_time_now(&now);
+		now = c2_time_now();
 		if (c2_time_after(now, timer->t_expire))
 			timer->t_expire = c2_time_add(now, timer->t_interval);
 
@@ -86,14 +104,13 @@ C2_EXPORTED(c2_timer_init);
  */
 int c2_timer_start(struct c2_timer *timer)
 {
-	c2_time_t now;
 	int rc;
 
-	timer->t_expire = c2_time_add(c2_time_now(&now), timer->t_interval);
+	timer->t_expire = c2_time_add(c2_time_now(), timer->t_interval);
 	timer->t_left = timer->t_repeat;
 
 	rc = C2_THREAD_INIT(&timer->t_thread, struct c2_timer*, NULL,
-			    &c2_timer_working_thread, timer);
+			    &c2_timer_working_thread, timer, "c2_timer_worker");
 	return rc;
 }
 C2_EXPORTED(c2_timer_start);

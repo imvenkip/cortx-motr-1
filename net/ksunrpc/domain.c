@@ -1,4 +1,23 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 05/30/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -35,6 +54,13 @@
  */
 
 /*
+ * Maximum bulk IO size
+ */
+enum {
+	KSUNRPC_MAX_BRW_SIZE = (4 << 20)
+};
+
+/*
  * Domain code.
  */
 
@@ -47,8 +73,8 @@ static void ksunrpc_dom_fini(struct c2_net_domain *dom)
 {
 	struct ksunrpc_dom *xdom;
 
-	c2_list_fini(&dom->nd_conn);
-	c2_list_fini(&dom->nd_service);
+	C2_ASSERT(c2_list_is_empty(&dom->nd_conn));
+	C2_ASSERT(c2_list_is_empty(&dom->nd_service));
 
 	xdom = dom->nd_xprt_private;
 	if (xdom != NULL) {
@@ -76,11 +102,17 @@ static int ksunrpc_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 	return result;
 }
 
+static size_t ksunrpc_net_bulk_size(void)
+{
+	return KSUNRPC_MAX_BRW_SIZE;
+}
+
 static const struct c2_net_xprt_ops ksunrpc_xprt_ops = {
 	.xo_dom_init        = ksunrpc_dom_init,
 	.xo_dom_fini        = ksunrpc_dom_fini,
 	.xo_service_id_init = ksunrpc_service_id_init,
-	.xo_service_init    = NULL
+	.xo_service_init    = ksunrpc_service_init,
+	.xo_net_bulk_size   = ksunrpc_net_bulk_size
 };
 
 struct c2_net_xprt c2_net_ksunrpc_xprt = {
@@ -88,6 +120,27 @@ struct c2_net_xprt c2_net_ksunrpc_xprt = {
 	.nx_ops  = &ksunrpc_xprt_ops
 };
 C2_EXPORTED(c2_net_ksunrpc_xprt);
+
+/**
+   Minimal version of the ksunrpc transport with a total of 4 threads
+   when run with a server.
+ */
+struct c2_net_xprt c2_net_ksunrpc_minimal_xprt = {
+	.nx_name = "minimal-sunrpc/linux_kernel",
+	.nx_ops  = &ksunrpc_xprt_ops
+};
+
+int c2_ksunrpc_init(void)
+{
+	return ksunrpc_server_init();
+}
+C2_EXPORTED(c2_ksunrpc_init);
+
+void c2_ksunrpc_fini(void)
+{
+	ksunrpc_server_fini();
+}
+C2_EXPORTED(c2_ksunrpc_fini);
 
 /** @} end of group usunrpc */
 

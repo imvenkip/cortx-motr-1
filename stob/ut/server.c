@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/21/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -439,7 +458,9 @@ int main(int argc, char **argv)
 	struct c2_stob         *bstore;
 	struct c2_service_id    sid = { .si_uuid = "UUURHG" };
 	struct c2_service       service;
-	struct c2_net_domain    ndom;
+	struct c2_net_domain    ndom = {
+		.nd_xprt = NULL
+	};
 	struct c2_dbenv         db;
 	struct c2_stob_id       addb_stob_id = {
 					.si_bits = {
@@ -529,7 +550,7 @@ int main(int argc, char **argv)
 	result = ad_stob_type.st_op->sto_domain_locate(&ad_stob_type, "", &dom);
 	C2_ASSERT(result == 0);
 
-	result = ad_setup(dom, &db, bstore, &mb.mb_ballroom);
+	result = c2_ad_stob_setup(dom, &db, bstore, &mb.mb_ballroom);
 	C2_ASSERT(result == 0);
 
 	c2_stob_put(bstore);

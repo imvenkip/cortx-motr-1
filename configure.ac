@@ -466,7 +466,7 @@ else
 fi
 
 #
-# _GNU_SOURCE for asprintf(3)
+# _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
@@ -519,7 +519,11 @@ AC_CONFIG_FILES([
                  mds/Makefile
                  mw/Makefile
                  net/Makefile
-                 net/ksunrpc/Makefile
+		 net/bulk_emulation/Makefile
+		 net/bulk_emulation/st/Makefile
+		 net/bulk_emulation/st/linux_kernel/Makefile
+		 net/bulk_emulation/ut/Makefile
+                 net/linux_kernel/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
@@ -527,6 +531,7 @@ AC_CONFIG_FILES([
                  patches/Makefile
                  pool/Makefile
                  reqh/Makefile
+		 reqh/ut/Makefile
 		 rm/Makefile
 		 rm/ut/Makefile
                  sm/Makefile
@@ -545,6 +550,8 @@ AC_CONFIG_FILES([
 		 layout/linux_kernel/Makefile
 		 pool/linux_kernel/Makefile
 		 stob/linux_kernel/Makefile
+		 xdr/Makefile
+		 xdr/ut/Makefile
                 ])
                 
                 #rpc/Makefile

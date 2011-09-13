@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/13/2010
+ */
 
 #include "lib/ut.h"
 #include "lib/thread.h"
@@ -56,7 +74,6 @@ void test_chan(void)
 	struct c2_chan  chan;
 	struct c2_clink clink1;
 	struct c2_clink clink2;
-	c2_time_t       now;
 	c2_time_t       delta;
 	c2_time_t       expire;
 	struct c2_timer timer;
@@ -115,7 +132,7 @@ void test_chan(void)
 
 	/* wait will expire after 2 seconds */
 	c2_time_set(&delta, 2, 0);
-	expire = c2_time_add(c2_time_now(&now), delta);
+	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(!got);
 
@@ -124,7 +141,7 @@ void test_chan(void)
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
 		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
-	expire = c2_time_add(c2_time_now(&now), delta);
+	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(got);
 	c2_timer_stop(&timer);
@@ -136,7 +153,7 @@ void test_chan(void)
 	c2_timer_init(&timer, C2_TIMER_SOFT, expire, 1,
 		      &signal_the_chan_in_timer, (unsigned long)&chan);
 	c2_timer_start(&timer);
-	expire = c2_time_add(c2_time_now(&now), delta);
+	expire = c2_time_add(c2_time_now(), delta);
 	got = c2_chan_timedwait(&clink1, expire); /* wait 2 seconds */
 	C2_UT_ASSERT(!got);
 	c2_chan_wait(&clink1); /* another wait. Timer will signal in 1 second */
@@ -157,7 +174,7 @@ void test_chan(void)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
-		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i);
+		got = C2_THREAD_INIT(&t[i], int, NULL, &t0, i, "t0");
 		C2_UT_ASSERT(got == 0);
 	}
 

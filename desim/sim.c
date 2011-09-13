@@ -1,4 +1,20 @@
 /*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ */
+/*
  * Copyright 2009 ClusterStor.
  *
  * Nikita Danilov.
@@ -138,7 +154,7 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	 * data structure, like a tree or a skip-list of some sort.
 	 */
 
-	c2_list_for_each_entry(&sim->ss_future, scan, 
+	c2_list_for_each_entry(&sim->ss_future, scan,
 			       struct sim_callout, sc_linkage) {
 		if (scan->sc_time > call->sc_time)
 			break;
@@ -147,7 +163,7 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 }
 
 /**
- * Initialize callout 
+ * Initialize callout
  */
 static void sim_timer_init(struct sim *state, struct sim_callout *call,
 			   sim_time_t delta, sim_call_t *cfunc, void *datum)
@@ -223,6 +239,45 @@ static void sim_thread_suspend(struct sim_thread *thread)
 	sim_thread_fix(thread);
 }
 
+/*
+ * The sim{en,de}code*() and sim_trampoline() functions below are for
+ * portability: makecontext(3) creates a context to execute a supplied function
+ * with a given number of integer (int) arguments. To pass non-integer
+ * parameters (pointers), they have to be encoded as integers.
+ *
+ * Very simple encoding scheme is used, where each pointer is encoded as a
+ * couple of integers.
+ *
+ * Note, that this is not an idle experiment in obfuscation: in some
+ * configurations alignments of integer and pointer types are different.
+ */
+
+static void *sim_decode(int p0, int p1)
+{
+	return (void *)((((uint64_t)p0) << 32) | (((uint64_t)p1) & 0xffffffff));
+}
+
+static int sim_encode0(void *p)
+{
+	return ((uint64_t)p) >> 32;
+}
+
+static int sim_encode1(void *p)
+{
+	return ((uint64_t)p) & 0xffffffff;
+}
+
+static void sim_trampoline(int func0, int func1,
+			   int state0, int state1, int thread0, int thread1,
+			   int datum0, int datum1)
+{
+	sim_func_t *func;
+
+	func = sim_decode(func0, func1);
+	func(sim_decode(state0, state1), sim_decode(thread0, thread1),
+	     sim_decode(datum0, datum1));
+}
+
 /**
  * Initialize and start a new simulation thread that will be running a function
  * func with an argument arg.
@@ -257,7 +312,12 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	thread->st_ctx.uc_stack.ss_flags = 0;
 	if (thread->st_stack == NULL)
 		err(1, "malloc(%d) of a stack", stacksize);
-	makecontext(&thread->st_ctx, (void (*)())func, 3, state, thread, arg);
+	makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
+		    8,
+		    sim_encode0(func),   sim_encode1(func),
+		    sim_encode0(state),  sim_encode1(state),
+		    sim_encode0(thread), sim_encode1(thread),
+		    sim_encode0(arg),    sim_encode1(arg));
 	sim_thread_resume(thread);
 }
 
@@ -291,7 +351,7 @@ static int sim_wakeup(struct sim_callout *call)
 /**
  * Schedule a thread wake-up after a given amount of logical time.
  */
-static void sim_wakeup_post(struct sim *sim, 
+static void sim_wakeup_post(struct sim *sim,
 			    struct sim_thread *thread, sim_time_t nap)
 {
 	sim_timer_init(sim, &thread->st_wake, nap, sim_wakeup, thread);
@@ -483,7 +543,7 @@ void sim_global_fini(void)
 
 /** @} end of desim group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

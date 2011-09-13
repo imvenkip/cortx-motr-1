@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Huang Hua <Hua_Huang@xyratex.com>
+ * Original creation date: 03/04/2011
+ */
 
 #include "lib/ut.h"
 #include "lib/time.h"
@@ -15,7 +33,7 @@ unsigned long tick(unsigned long data)
 {
 	c2_time_t now;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	count ++;
 	if (verbose)
 		printf("%lu.%lu: timer1 tick = %d\n",
@@ -29,7 +47,7 @@ unsigned long tack(unsigned long data)
 	static int tack;
 	c2_time_t  now;
 
-	c2_time_now(&now);
+	now = c2_time_now();
 	tack += data;
 	if (verbose)
 		printf("%lu.%lu:    timer2 tack = %d\n",
@@ -135,9 +153,9 @@ void test_timer(void)
 
 	count = 0;
 
-	rc = C2_THREAD_INIT(&t1, int, NULL, &timer1_thread, 0);
+	rc = C2_THREAD_INIT(&t1, int, NULL, &timer1_thread, 0, "timer1_thread");
 	C2_ASSERT(rc == 0);
-	rc = C2_THREAD_INIT(&t2, int, NULL, &timer2_thread, 0);
+	rc = C2_THREAD_INIT(&t2, int, NULL, &timer2_thread, 0, "timer2_thread");
 	C2_ASSERT(rc == 0);
 
 	c2_thread_join(&t1);

@@ -1,8 +1,29 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 07/09/2010
+ */
+
 #ifndef __COLIBRI_LIB_UT_H_
 #define __COLIBRI_LIB_UT_H_
 
 #ifndef __KERNEL__
 # include <CUnit/Basic.h>
+#else
+# include "lib/types.h"
 #endif
 
 /**
@@ -15,8 +36,12 @@
 
 #ifndef __KERNEL__
 # define C2_UT_ASSERT(a)	CU_ASSERT(a)
+# define C2_UT_PASS(m)		CU_PASS(m)
+# define C2_UT_FAIL(m)		CU_FAIL(m)
 #else
-# define C2_UT_ASSERT(a)	C2_ASSERT(a)
+# define C2_UT_ASSERT(a)	c2_ut_assertimpl((a), __LINE__, #a, __FILE__)
+# define C2_UT_PASS(m)		c2_ut_assertimpl(true, __LINE__, m, __FILE__)
+# define C2_UT_FAIL(m)		c2_ut_assertimpl(false, __LINE__, m, __FILE__)
 #endif
 
 /**
@@ -84,6 +109,19 @@ void c2_ut_run(const char *log_file);
  commonly used test database reset function
  */
 int c2_ut_db_reset(const char *db_name);
+
+#ifdef __KERNEL__
+/**
+   Implements UT assert logic in the kernel, where there is no CUnit.
+   Similar to CUnit UT assert, this logs failures but does not terminate
+   the process.
+   @param c the result of the boolean condition, evaluated by caller
+   @param lno line number of the assertion, eg __LINE__
+   @param str_c string representation of the condition, c
+   @param file path of the file, eg __FILE__
+ */
+bool c2_ut_assertimpl(bool c, int lno, const char *str_c, const char *file);
+#endif
 
 /** @} end of ut group. */
 

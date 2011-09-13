@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 01/24/2011
+ */
+
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/ut.h"
@@ -28,7 +47,9 @@ static void capa_test(void) {
 	struct c2_capa_issuer    issuer;
 
         struct c2_service_id    *sid;
-        struct c2_net_domain     ndom;
+        struct c2_net_domain     ndom = {
+		.nd_xprt = NULL
+	};
 	int		         port = 10001;
 	char                    *addr = "127.0.0.1";
 
@@ -46,7 +67,7 @@ static void capa_test(void) {
 
 	ret = cog_init(&guard);
 	C2_UT_ASSERT(ret == 0);
-	
+
 	ret = c2_capa_ctxt_init(&ctx);
 	C2_UT_ASSERT(ret == 0);
 
@@ -85,7 +106,7 @@ static void capa_test(void) {
 	C2_UT_ASSERT(ret != 0);
 
 	ret = c2_capa_auth(&ctx, &write_capa, C2_CAPA_OP_DATA_READ);
-	C2_UT_ASSERT(ret != 0);	
+	C2_UT_ASSERT(ret != 0);
 #endif
 
 	cog_fini(&guard);

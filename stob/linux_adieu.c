@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 05/21/2010
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -114,20 +133,34 @@ static const struct c2_addb_loc adieu_addb_loc = {
 
 enum {
 	/*
-	 * Require 4K alignment sufficient for direct-IO.
+	 * Alignment for direct-IO.
 	 *
-	 * In fact, 512 is sufficient.
+	 * According to open(2) manpage: "Under Linux 2.6, alignment to
+	 * 512-byte boundaries suffices".
 	 *
-	 * @todo Here lies a problem: server uses standard ONC XDR library for
-	 *       message decoding. This library uses standard malloc(3) to
-	 *       allocate all the memory, including buffers. This means that
-	 *       server-side buffers are not aligned. Disable alignment (and
-	 *       direct-IO) until this is fixed.
+	 * Don't use these constants directly, use LINUX_DOM_XXX macros
+	 * instead (see below), because they take into account
+	 * linux_domain.use_directio flag which is set in runtime.
 	 */
-	LINUX_BSHIFT = 0, /* 12, */
+	LINUX_BSHIFT = 9, /* pow(2, 9) == 512 */
 	LINUX_BSIZE  = 1 << LINUX_BSHIFT,
 	LINUX_BMASK  = LINUX_BSIZE - 1
 };
+
+#define LINUX_DOM_BSHIFT(ldom) ({				\
+	struct linux_domain *_ldom = (ldom);			\
+	_ldom->use_directio ? LINUX_BSHIFT : 0 ;		\
+})
+
+#define LINUX_DOM_BSIZE(ldom) ({				\
+	struct linux_domain *_ldom = (ldom);			\
+	_ldom->use_directio ? LINUX_BSIZE : 0 ;			\
+})
+
+#define LINUX_DOM_BMASK(ldom) ({				\
+	struct linux_domain *_ldom = (ldom);			\
+	_ldom->use_directio ? LINUX_BMASK : 0 ;		\
+})
 
 #define ADDB_GLOBAL_ADD(name, rc)					\
 C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
@@ -246,9 +279,10 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			C2_SET0(iocb);
 
 			iocb->aio_fildes = lstob->sl_fd;
-			iocb->u.c.buf    = c2_stob_addr_open(buf, LINUX_BSHIFT);
-			iocb->u.c.nbytes = frag_size << LINUX_BSHIFT;
-			iocb->u.c.offset = off       << LINUX_BSHIFT;
+			iocb->u.c.buf    = c2_stob_addr_open(buf,
+						LINUX_DOM_BSHIFT(ldom));
+			iocb->u.c.nbytes = frag_size << LINUX_DOM_BSHIFT(ldom);
+			iocb->u.c.offset = off       << LINUX_DOM_BSHIFT(ldom);
 
 			switch (io->si_opcode) {
 			case SIO_READ:
@@ -315,7 +349,10 @@ bool linux_stob_io_is_locked(const struct c2_stob *stob)
  */
 uint32_t linux_stob_block_shift(const struct c2_stob *stob)
 {
-	return LINUX_BSHIFT;
+	struct linux_domain *ldom;
+
+	ldom  = domain2linux(stob->so_domain);
+	return LINUX_DOM_BSHIFT(ldom);
 }
 
 /**
@@ -427,11 +464,11 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	c2_mutex_lock(&lio->si_endlock);
 	C2_ASSERT(lio->si_done < lio->si_nr);
 	if (res > 0) {
-		if ((res & LINUX_BMASK) != 0) {
+		if ((res & LINUX_DOM_BMASK(ldom)) != 0) {
 			ADDB_CALL(io->si_obj, "partial transfer", res);
 			res = -EIO;
 		} else
-			qev->iq_io->si_count += res >> LINUX_BSHIFT;
+			qev->iq_io->si_count += res >> LINUX_DOM_BSHIFT(ldom);
 	} 
 
 	if (res < 0 && qev->iq_io->si_rc == 0)
@@ -533,9 +570,10 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 	result = io_setup(IOQ_RING_SIZE, &ldom->ioq_ctx);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(ldom->ioq); ++i) {
-			result = C2_THREAD_INIT(&ldom->ioq[i], 
+			result = C2_THREAD_INIT(&ldom->ioq[i],
 						struct linux_domain *,
-						NULL, &ioq_thread, ldom);
+						NULL, &ioq_thread, ldom,
+						"ioq_thread%d", i);
 			if (result != 0)
 				break;
 		}
@@ -548,7 +586,7 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 
 /** @} end group stoblinux */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

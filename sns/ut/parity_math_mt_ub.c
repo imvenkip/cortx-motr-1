@@ -1,3 +1,22 @@
+/*
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 10/19/2010
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -156,7 +175,9 @@ static void ub_mt_test(uint32_t data_count,
 
 	for (i = 0; i < num_threads; i++) {
 		tb_cfg_init(&cfg[i], data_count, parity_count, block_size);
-		result = C2_THREAD_INIT(&threads[i], struct tb_cfg*, NULL, &tb_thread, &cfg[i]);
+		result = C2_THREAD_INIT(&threads[i], struct tb_cfg*, NULL,
+					&tb_thread, &cfg[i],
+					"tb_thread%d", i);
 		C2_ASSERT(result == 0);
 	}
 
