@@ -69,6 +69,7 @@ int c2_fom_ping_state(struct c2_fom *fom)
 	c2_rpc_item_init(item);
 	item->ri_type = &c2_rpc_item_type_ping_rep;
 	item->ri_group = NULL;
+	fop->f_type->ft_ri_type = &c2_rpc_item_type_ping_rep;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	return 0;
 }

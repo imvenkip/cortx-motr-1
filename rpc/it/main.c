@@ -142,6 +142,10 @@ enum {
 	IO,
 };
 
+enum {
+	MAX_RPCS_IN_FLIGHT = 32,
+};
+
 /* Global client ping context */
 struct ping_ctx		cctx;
 
@@ -379,7 +383,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local);
+			&sctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -464,7 +468,6 @@ void send_random_io_fop(int nr)
 	item->ri_group = NULL;
 	item->ri_mach = &cctx.pc_rpc_mach;
         c2_rpc_item_type_attach(fop->f_type);
-        c2_rpc_item_attach(item);
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
 }
@@ -677,7 +680,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			&cctx.pc_dom, addr_local);
+			&cctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -886,7 +889,6 @@ int main(int argc, char *argv[])
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
-	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 
 	rc = c2_init();
@@ -927,12 +929,6 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 	cctx.pc_fop_switch = PING;
-
-        /* Start with a default value of 8. The max value in Lustre, is
-           limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 32;
-
-        c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
 	/* Set if passed through command line interface */
 	if (client_name)

@@ -204,20 +204,6 @@ enum c2_rpc_frm_state {
 };
 
 /**
-   Initialization for formation component in rpc.
-   This will register necessary callbacks and initialize
-   necessary data structures.
- */
-int c2_rpc_frm_init(struct c2_rpc_formation *frm);
-
-/**
-   Finish method for formation component in rpc.
-   This will deallocate all memory claimed by formation
-   and do necessary cleanup.
- */
-void c2_rpc_frm_fini(struct c2_rpc_formation *frm);
-
-/**
    Structure containing a priority and list of all items belonging to
    given priority.
  */
@@ -285,21 +271,6 @@ struct c2_rpc_frm_sm {
 	    than zero, formation algorithm will be invoked. */
 	uint64_t			 fs_timedout_items_nr;
 };
-
-/**
-   Create a new formation state machine object.
-   @param frm_sm Formation state machine object to be initialized.
-   @param chan c2_rpc_chan structure used for unique formation state machine
-   @param formation Structure containing list of formation state machines.
- */
-void c2_rpc_frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
-		        struct c2_rpc_formation *formation);
-
-/**
-   Destroy a formation state machine. This happens when the corresponding
-   c2_rpc_chan structure is about to be destroyed.
- */
-void c2_rpc_frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
 
 /**
    Assign network specific thresholds on max size of a message and max
@@ -423,54 +394,11 @@ struct c2_rpc_frm_sm_event {
 };
 
 /**
-   Callback function for addition of an rpc item to the list of
-   its corresponding free slot.
-   Call the default handler function passing the rpc item and
-   the corresponding event enum.
- */
-int c2_rpc_frm_item_ready(struct c2_rpc_item *item);
-
-/**
    Callback function for deletion of an rpc item from the rpc items cache.
    Call the default handler function passing the rpc item and
    the corresponding event enum.
  */
 int c2_rpc_frm_item_delete(struct c2_rpc_item *item);
-
-/**
-   Callback function for reply received of an rpc item.
-   Call the default handler function passing the rpc item and
-   the corresponding event enum.
- */
-int c2_rpc_frm_item_reply_received(struct c2_rpc_item *reply_item,
-				   struct c2_rpc_item *req_item);
-
-/**
-   Callback function for deadline expiry of an rpc item.
-   Call the default handler function passing the rpc item and
-   the corresponding event enum.
- */
-int c2_rpc_frm_item_timeout(struct c2_rpc_item *item);
-
-/**
-   Callback function for slot becoming idle.
-   Adds the slot to the list of ready slots in concerned rpcmachine.
- */
-void c2_rpc_frm_slot_idle(struct c2_rpc_slot *slot);
-
-/**
-   Callback function for unbounded item getting added to session.
-   Call the default handler function passing the rpc item and
-   the corresponding event enum.
- */
-int c2_rpc_frm_ubitem_added(struct c2_rpc_item *item);
-
-/**
-  Callback function for <struct c2_net_buffer> which indicates that
-  message has been sent out from the buffer. This callback function
-  corresponds to the C2_NET_QT_MSG_SEND event
- */
-void c2_rpc_frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 
 /**
    Interfaces to change attributes of rpc items that have been already
@@ -484,12 +412,6 @@ int c2_rpc_frm_item_timeout_set(struct c2_rpc_item *item,
 
 int c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
 			      struct c2_rpc_group *group);
-
-/**
-  @todo Temporary fix.
-  @param max_rpcs - Max rpcs in flight
- */
-void c2_rpc_frm_set_thresholds(uint64_t max_rpcs);
 
 /** @} endgroup of rpc_formation */
 

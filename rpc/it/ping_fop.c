@@ -149,12 +149,12 @@ C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "Ping Reply",
 C2_FOP_TYPE_DECLARE_NEW(c2_fop_ping, "ping fop",
                         c2_fop_ping_opcode,
                         &c2_fop_ping_ops,
-                        &c2_rpc_item_type_ping);
+			&c2_rpc_item_type_ping);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_fop_ping_rep, "ping fop reply",
                         c2_fop_ping_rep_opcode,
                         &c2_fop_ping_rep_ops,
-                        &c2_rpc_item_type_ping_rep);
+			&c2_rpc_item_type_ping_rep);
 
 static struct c2_fop_type_format *fmts[] = {
         &c2_fop_ping_arr_tfmt,

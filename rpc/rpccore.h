@@ -588,12 +588,6 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
 /**
-   Attach the given rpc item with its corresponding item type.
-   @param item - given rpc item.
- */
-void c2_rpc_item_attach(struct c2_rpc_item *item);
-
-/**
    Initialize RPC item.
    Finalization of the item is done using ref counters, so no public fini IF.
  */
@@ -791,7 +785,8 @@ void c2_rpc_core_fini(void);
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
 			struct c2_net_domain	*net_dom,
-			const char		*ep_addr);
+			const char		*ep_addr,
+			uint64_t max_rpcs_in_flight);
 
 /**
    Destruct rpcmachine

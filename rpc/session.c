@@ -93,6 +93,9 @@ static const struct c2_rpc_slot_ops rcv_slot_ops = {
 	.so_reply_consume = rcv_reply_consume
 };
 
+extern int frm_item_ready(struct c2_rpc_item *item);
+extern void frm_slot_idle(struct c2_rpc_slot *slot);
+
 /**
    The routine is also called from session_foms.c, hence can't be static
  */
@@ -825,13 +828,13 @@ static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
 	printf("sender_slot_idle called %p\n", slot);
 	C2_ASSERT(slot->sl_in_flight == 0);
-	c2_rpc_frm_slot_idle(slot);
+	frm_slot_idle(slot);
 }
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
 	printf("sender_consume_item called %p\n", item);
-	c2_rpc_frm_item_ready(item);
+	frm_item_ready(item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -847,7 +850,7 @@ static void rcv_slot_idle(struct c2_rpc_slot *slot)
 			(unsigned long)slot->sl_verno.vn_vc,
 			(unsigned long)slot->sl_xid);
 	C2_ASSERT(slot->sl_in_flight == 0);
-	c2_rpc_frm_slot_idle(slot);
+	frm_slot_idle(slot);
 }
 
 static void rcv_item_consume(struct c2_rpc_item *item)
@@ -864,7 +867,7 @@ static void rcv_reply_consume(struct c2_rpc_item *req,
 	printf("rcv_consume_reply called %p %p\n", req, reply);
 	printf("RCV_CONSUME_REPLY================== %d\n", count);
 
-	c2_rpc_frm_item_ready(reply);
+	frm_item_ready(reply);
 }
 
 int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)

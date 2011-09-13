@@ -125,6 +125,13 @@ typedef struct c2_fop * (*fopFuncPtr)(void);
 struct c2_fop *form_create_write_fop();
 struct c2_fop *form_create_read_fop();
 
+extern struct c2_rpc_item_type rpc_item_type_readv;
+extern struct c2_rpc_item_type rpc_item_type_writev;
+extern int frm_init(struct c2_rpc_formation *frm);
+extern void frm_fini(struct c2_rpc_formation *formation);
+extern int frm_item_ready(struct c2_rpc_item *item);
+extern int frm_ubitem_added(struct c2_rpc_item *item);
+
 /* Array of function pointers. */
 fopFuncPtr form_fop_table[nopcodes] = {
 	&form_create_write_fop, &form_create_read_fop
@@ -284,7 +291,7 @@ int c2_rpc_frm_ut_init()
 	}
 
 	/* Init the rpc formation component */
-	result = c2_rpc_frm_init(&rpcmachine.cr_formation);
+	result = frm_init(&rpcmachine.cr_formation);
 	return 0;
 }
 
@@ -297,7 +304,7 @@ void c2_rpc_frm_ut_fini()
 	int	i = 0;
 
 	/* Fini the rpc formation component */
-	c2_rpc_frm_fini(&rpcmachine.cr_formation);
+	frm_fini(&rpcmachine.cr_formation);
 
 	/* Fini the slots */
 	for(i = 0; i < nslots; i++)
@@ -436,7 +443,7 @@ void c2_rpc_frm_item_add_to_rpcmachine(struct c2_rpc_item *item)
 		   current slot and call the event on formation module. */
 		item->ri_slot_refs[0].sr_slot = slots[slot_no];
 		item->ri_state = RPC_ITEM_SUBMITTED;
-		res = c2_rpc_frm_item_ready(item);
+		res = frm_item_ready(item);
 		if (res != 0) {
 			printf("Event RPC ITEM READY returned failure.\n");
 		}
@@ -445,7 +452,7 @@ void c2_rpc_frm_item_add_to_rpcmachine(struct c2_rpc_item *item)
 		/* Call the event on formation module. */
 		item->ri_slot_refs[0].sr_slot = NULL;
 		item->ri_state = RPC_ITEM_SUBMITTED;
-		res = c2_rpc_frm_ubitem_added(item);
+		res = frm_ubitem_added(item);
 		if (res != 0) {
 			printf("Event UNBOUND ITEM ADDED returned failure.\n");
 		}
@@ -523,9 +530,6 @@ int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	/* Associate an rpc item with its type. */
-	c2_rpc_item_attach(item);
-
 	io_req = item->ri_type->rit_ops->rito_io_coalesce;
 	if (io_req) {
 		res = c2_rpc_frm_item_io_populate_param(item);
@@ -535,7 +539,6 @@ int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item)
 		res = c2_rpc_frm_item_nonio_populate_param(item);
 		C2_ASSERT(res==0);
 	}
-	//item->ri_endp = NULL;
 	item->ri_mach = &rpcmachine;
 	item->ri_session = &session;
 	c2_list_link_init(&item->ri_unformed_linkage);
@@ -678,6 +681,7 @@ struct c2_fop *form_create_write_fop()
 	struct c2_fop_cob_writev	*write_fop = NULL;
 	struct c2_fop_file_fid		*fid = NULL;
 	struct c2_fop_io_vec		*iovec = NULL;
+	struct c2_rpc_item		*item;
 
 	fop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
 	if (fop == NULL) {
@@ -691,6 +695,8 @@ struct c2_fop *form_create_write_fop()
 	write_fop->c_rwv.crw_fid = *fid;
 	iovec = form_get_new_iovec(fid);
 	write_fop->c_rwv.crw_iovec = *iovec;
+	item = &fop->f_item;
+	item->ri_type = &rpc_item_type_writev;
 	return fop;
 }
 
@@ -707,6 +713,7 @@ struct c2_fop *form_create_read_fop()
 	struct c2_fop			*fop = NULL;
 	struct c2_fop_cob_readv		*read_fop = NULL;
 	struct c2_fop_file_fid		*fid = NULL;
+	struct c2_rpc_item		*item;
 
 	fop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 	if (fop == NULL) {
@@ -751,6 +758,8 @@ struct c2_fop *form_create_read_fop()
 			is_offset + read_fop->c_rwv.crw_iovec.iv_segs[k-1].
 			is_buf.ib_count;
 	}
+	item = &fop->f_item;
+	item->ri_type = &rpc_item_type_readv;
 	return fop;
 }
 
@@ -890,8 +899,6 @@ int test()
 	   limited to 32. */
 	c2_rpc_max_rpcs_in_flight = 8;
 	c2_rpc_max_fragments_size = 16;
-
-	c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
 	/*Create a number of meta-data and IO FOPs. For IO, decide the
 	  number of files to operate upon. Decide how to assign items to
