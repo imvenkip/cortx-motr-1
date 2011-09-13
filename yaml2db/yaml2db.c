@@ -46,6 +46,10 @@ static const struct c2_addb_loc yaml2db_addb_loc = {
 C2_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
                 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+enum {
+	MAX_BUF_SIZE = 256
+};
+
 /**
   Init function, which initializes the parser and sets input file
   @param yctx - yaml2db context
@@ -111,7 +115,19 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 			rc = -errno;
 			goto cleanup;
 		}
+		yaml_emitter_set_output_file(&yctx->yc_emitter, yctx->yc_fp);
+		yaml_emitter_set_unicode(&yctx->yc_emitter, 1);
+		rc = yaml_document_initialize(&yctx->yc_document, NULL, NULL,
+					 NULL, 0, 0);
+		if(rc != 1) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				    yaml2db_func_fail,
+				    "yaml_document_initialize", 0);
+			rc = -EINVAL;
+			goto cleanup;
+		}
 	}
+
 	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
 	if (opath == NULL) {
 		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc, c2_addb_oom);
@@ -459,7 +475,8 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
   @retval 0 if successful, -errno otherwise
  */
 int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
-		const struct c2_yaml2db_section *ysec, const char *conf_param)
+		      const struct c2_yaml2db_section *ysec,
+		      const char *conf_param)
 {
         int                      rc;
 	uint64_t		 key;
@@ -566,13 +583,18 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 		      const char *conf_param)
 {
 	int			 rc;
+	int			 map;
+	int			 map_key;
+	int			 map_value;
+	int			 root;
+	int			 param;
         struct c2_table          table;
         struct c2_db_tx          tx;
         struct c2_db_pair        db_pair;
         struct c2_db_cursor      db_cursor;
 	uint64_t		 key;
 	uint64_t		 last_key;
-	yaml_char_t		 buf[64];
+	yaml_char_t		 buf[MAX_BUF_SIZE];
 
         C2_PRE(yaml2db_context_invariant(yctx));
         C2_PRE(yaml2db_section_invariant(ysec));
@@ -582,7 +604,7 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
                         0, ysec->ys_table_ops);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "c2_table_init", 0);
+                                yaml2db_func_fail, "c2_table_init", rc);
                 return rc;
         }
 
@@ -590,46 +612,150 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-                                yaml2db_func_fail, "c2_db_tx_init", 0);
+                                yaml2db_func_fail, "c2_db_tx_init", rc);
+                c2_table_fini(&table);
+                return rc;
+        }
+
+	rc = c2_db_cursor_init(&db_cursor, &table, &tx);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+                                yaml2db_func_fail, "c2_db_cursor_init", rc);
                 c2_table_fini(&table);
                 return rc;
         }
 
 	key = ysec->ys_start_key;
-	c2_db_cursor_init(&db_cursor, &table, &tx);
-	c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
-			buf, sizeof(buf));
-	c2_db_cursor_last(&db_cursor, &db_pair);
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof key, buf, sizeof buf);
+
+	/* Store the last key so that records can be iterated till
+	   the last key is found */
+	rc = c2_db_cursor_last(&db_cursor, &db_pair);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+                                yaml2db_func_fail, "c2_db_cursor_last", rc);
+		goto cleanup;
+        }
+
 	last_key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
-	c2_db_cursor_first(&db_cursor, &db_pair);
+
+	/* Move the cursor to the start of the table */
+	rc = c2_db_cursor_first(&db_cursor, &db_pair);
+        if (rc != 0) {
+                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+                                yaml2db_func_fail, "c2_db_cursor_first", rc);
+		goto cleanup;
+        }
+
+	param = yaml_document_add_scalar(&yctx->yc_document, NULL,
+			(yaml_char_t*)conf_param, strlen ((char*) conf_param),
+			YAML_PLAIN_SCALAR_STYLE);
+	printf("Doc node = %d\n", param);
+	if (param == 0) {
+		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "yaml_document_add_scalar",
+				rc);
+		goto cleanup;
+	}
+
+	root = yaml_document_add_sequence(&yctx->yc_document, NULL,
+			YAML_BLOCK_SEQUENCE_STYLE);
+	if (root == 0) {
+		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail, "yaml_document_add_scalar",
+				rc);
+		goto cleanup;
+	}
+	printf("Doc node = %d\n", root);
+	map = yaml_document_add_mapping(&yctx->yc_document, NULL,
+			YAML_BLOCK_MAPPING_STYLE);
+	yaml_document_append_sequence_item(&yctx->yc_document, root, map);
+	printf("Doc node = %d\n", map);
+
+	/* Iterate the table */
 	while (1) {
+		if ( key == last_key ) {
+			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+					 buf, sizeof buf);
+			rc = c2_table_lookup(&tx, &db_pair);
+			if (rc != 0) {
+				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+						yaml2db_func_fail,
+						"c2_table_lookup", rc);
+				goto cleanup;
+			}
+			map_key = yaml_document_add_scalar(&yctx->yc_document,
+					NULL,
+					(yaml_char_t *)"test",
+					strlen((char *)"test"),
+					YAML_PLAIN_SCALAR_STYLE);
+			map_value = yaml_document_add_scalar(
+					&yctx->yc_document, NULL,
+					buf, strlen((char *)buf),
+					YAML_PLAIN_SCALAR_STYLE);
+			printf("%s %d %d\n",buf, map_key, map_value);
+			rc = yaml_document_append_mapping_pair(
+					&yctx->yc_document,
+					map, map_key, map_value);
+			if (rc != 1) {
+				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+						yaml2db_func_fail,
+						"yaml_document_append_mapping_pair", rc);
+				goto cleanup;
+			}
+			break;
+		}
 		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
-				buf, sizeof(buf));
+				 buf, sizeof buf);
 		rc = c2_table_lookup(&tx, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
-					yaml2db_func_fail,
-					"c2_table_lookup", 0);
-			c2_db_pair_release(&db_pair);
-			c2_db_pair_fini(&db_pair);
-			c2_table_fini(&table);
-			return rc;
+				    yaml2db_func_fail, "c2_table_lookup", rc);
+			goto cleanup;
 		}
-		printf("%s\n",buf);
-		c2_db_cursor_next(&db_cursor, &db_pair);
+		map_key = yaml_document_add_scalar(&yctx->yc_document, NULL,
+				(yaml_char_t *)"test", strlen((char *)"test"),
+				YAML_PLAIN_SCALAR_STYLE);
+		map_value = yaml_document_add_scalar(&yctx->yc_document, NULL,
+				buf, strlen((char *)buf) ,YAML_PLAIN_SCALAR_STYLE);
+		printf("%s %d %d\n",buf, map_key, map_value);
+		rc = yaml_document_append_mapping_pair(&yctx->yc_document,
+				map, map_key, map_value);
+		if (rc != 1) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				    yaml2db_func_fail,
+				    "yaml_document_append_mapping_pair", rc);
+			goto cleanup;
+		}
+		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+		if (rc != 0) {
+			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				    yaml2db_func_fail,
+				    "c2_db_cursor_next", rc);
+			goto cleanup;
+		}
 		key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
-		if (key == last_key ) {
-			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
-				buf, sizeof(buf));
-			rc = c2_table_lookup(&tx, &db_pair);
-			printf("%s\n",buf);
-			break;
-		}
 	} 
+	rc = yaml_emitter_dump(&yctx->yc_emitter, &yctx->yc_document);	
+	if (rc != 1) {
+		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail,
+				"yaml_emitter_dump", rc);
+		goto cleanup;
+	}
+	rc = yaml_emitter_flush(&yctx->yc_emitter);
+	if (rc != 1)
+		C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
+				yaml2db_func_fail,
+				"yaml_emitter_flush", rc);
+cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);
 	c2_db_cursor_fini(&db_cursor);
-        c2_db_tx_commit(&tx);
+	if (rc == 0)
+		c2_db_tx_commit(&tx);
+	else
+		c2_db_tx_abort(&tx);
         c2_table_fini(&table);
         return rc;
 }
