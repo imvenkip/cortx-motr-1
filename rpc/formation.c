@@ -1274,7 +1274,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
-			if (!sz_policy_violated || frm_check_policies(frm_sm)) {
+			if (!sz_policy_violated) {
 				frags_policy_ok = frm_fragment_policy_in_bounds(
 						  frm_sm, rpc_item, frag_nr);
 				if (frags_policy_ok) {
@@ -1372,7 +1372,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size, item->ri_type->rit_ops->
 					rito_item_size(item));
-			if (!sz_policy_violated || frm_check_policies(frm_sm)) {
+			if (!sz_policy_violated) {
 				frags_policy_ok = frm_fragment_policy_in_bounds(
 						  frm_sm, item, frag_nr);
 				if (frags_policy_ok) {
@@ -1381,7 +1381,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 						       rpcobj_size, frag_nr);
 					c2_list_del(&item->ri_unbound_link);
 					rc = coalesce_try(frm_sm, item,
-							rpcobj_size);
+							  rpcobj_size);
 				}
 			} else
 				break;
