@@ -19,6 +19,7 @@
 
 #include "lib/arith.h"
 #include "yaml2db/disk_conf_db.h"
+#include "../yaml/include/yaml.h"
 
 /**
   @addtogroup yaml2db
@@ -39,7 +40,7 @@ static int test_key_cmp(struct c2_table *table,
 const struct c2_table_ops c2_conf_disk_table_ops = {
         .to = {
                 [TO_KEY] = { .max_size = 256 },
-                [TO_REC] = { .max_size = 256 }
+                [TO_REC] = { .max_size = sizeof (char) * 256} 
         },
         .key_cmp = test_key_cmp
 };

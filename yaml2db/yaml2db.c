@@ -150,10 +150,7 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 
 	sprintf(dpath, "%s/d", yctx->yc_dpath);
 
-	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER)
-		rc = c2_dbenv_init(&yctx->yc_db, "abc", 0);
-	else if (yctx->yc_type == C2_YAML2DB_CTX_EMITTER)
-		rc = c2_dbenv_init(&yctx->yc_db, "abc", DB_RDONLY);
+	rc = c2_dbenv_init(&yctx->yc_db, dpath, 0);
 
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -195,6 +192,7 @@ void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
 	if (&yctx->yc_db.d_i != NULL)
+		c2_dbenv_sync(&yctx->yc_db);
 		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
@@ -464,7 +462,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 		const struct c2_yaml2db_section *ysec, const char *conf_param)
 {
         int                      rc;
-	int			 key;
+	uint64_t		 key;
 	/* gcc extension */
 	bool			 valid_key_status[ysec->ys_num_keys];
 	bool			 mandatory_keys_present;
@@ -525,7 +523,8 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 			valid_key_status[section_index] = true;
 			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
 					v_node->data.scalar.value,
-					sizeof(v_node->data.scalar.value));
+					sizeof(v_node->data.scalar.value) * 8);
+
 			rc = c2_table_insert(&tx, &db_pair);
 			if (rc != 0) {
 				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -536,13 +535,6 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 				c2_table_fini(&table);
 				return rc;
 			}
-			c2_db_pair_release(&db_pair);
-			c2_db_pair_fini(&db_pair);
-			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
-					v_node->data.scalar.value,
-					sizeof(v_node->data.scalar.value));
-			rc = c2_table_lookup(&tx, &db_pair);
-			printf("%s\n", v_node->data.scalar.value);
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
 			key++;
@@ -577,8 +569,9 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         struct c2_table          table;
         struct c2_db_tx          tx;
         struct c2_db_pair        db_pair;
-	int                      key;
-	int			 cnt;
+        struct c2_db_cursor      db_cursor;
+	uint64_t		 key;
+	uint64_t		 last_key;
 	yaml_char_t		 buf[64];
 
         C2_PRE(yaml2db_context_invariant(yctx));
@@ -603,7 +596,13 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         }
 
 	key = ysec->ys_start_key;
-	for (cnt = 0; cnt < ysec->ys_num_keys; ++cnt) {
+	c2_db_cursor_init(&db_cursor, &table, &tx);
+	c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+			buf, sizeof(buf));
+	c2_db_cursor_last(&db_cursor, &db_pair);
+	last_key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
+	c2_db_cursor_first(&db_cursor, &db_pair);
+	while (1) {
 		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
 				buf, sizeof(buf));
 		rc = c2_table_lookup(&tx, &db_pair);
@@ -611,16 +610,25 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 					yaml2db_func_fail,
 					"c2_table_lookup", 0);
-			//c2_db_pair_release(&db_pair);
-			//c2_db_pair_fini(&db_pair);
-			//c2_table_fini(&table);
-			//return rc;
+			c2_db_pair_release(&db_pair);
+			c2_db_pair_fini(&db_pair);
+			c2_table_fini(&table);
+			return rc;
 		}
 		printf("%s\n",buf);
-		c2_db_pair_release(&db_pair);
-		c2_db_pair_fini(&db_pair);
-		key++;
-	}
+		c2_db_cursor_next(&db_cursor, &db_pair);
+		key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
+		if (key == last_key ) {
+			c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
+				buf, sizeof(buf));
+			rc = c2_table_lookup(&tx, &db_pair);
+			printf("%s\n",buf);
+			break;
+		}
+	} 
+	c2_db_pair_release(&db_pair);
+	c2_db_pair_fini(&db_pair);
+	c2_db_cursor_fini(&db_cursor);
         c2_db_tx_commit(&tx);
         c2_table_fini(&table);
         return rc;

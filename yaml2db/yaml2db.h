@@ -115,7 +115,7 @@ struct c2_yaml2db_section {
 	size_t				  ys_num_keys;
 	/* Starting numeric value to be treated as database key for this
 	   section in the table */
-	int32_t				  ys_start_key;
+	int64_t				  ys_start_key;
 };
 
 /**
