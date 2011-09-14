@@ -24,10 +24,11 @@
 #include "lib/tlist.h"
 
 struct foo {
-	uint64_t        f_magic;
 	uint64_t        f_payload;
+	uint64_t        f_magic;
 	struct c2_tlink f_linkage0;
 	struct c2_tlink f_linkage1;
+	struct c2_tlink f_linkage2;
 };
 
 enum {
@@ -38,17 +39,27 @@ enum {
 static const struct c2_tl_descr fl0 = C2_TL_DESCR("foo-s of bar",
 						  struct foo,
 						  f_linkage0,
+						  f_magic,
 						  0xab5ce55edba1b0a0,
 						  0xba1dba11adba0bab);
 
-static const struct c2_tl_descr fl1 = C2_TL_DESCR("foo-s of bar",
+static const struct c2_tl_descr fl1 = C2_TL_DESCR("other foo-s of bar",
 						  struct foo,
 						  f_linkage1,
+						  f_magic,
 						  0xab5ce55edba1b0a0,
 						  0xbabe1b0ccacc1078);
 
+static const struct c2_tl_descr fl2 = C2_TL_DESCR("unchecked foo-s of bar",
+						  struct foo,
+						  f_linkage2,
+						  f_linkage1, /* sic */
+						  0,
+						  0x0123456789abcdef);
+
 static struct c2_tl  head0[N];
 static struct c2_tl  head1[N];
+static struct c2_tl  head2[N];
 static struct foo    amb[NR];
 
 void test_tlist(void)
@@ -71,10 +82,12 @@ void test_tlist(void)
 	for (i = 0; i < ARRAY_SIZE(head0); ++i) {
 		c2_tlist_init(&fl0, &head0[i]);
 		c2_tlist_init(&fl1, &head1[i]);
+		c2_tlist_init(&fl2, &head2[i]);
 	}
 	for (i = 0, obj = amb; i < ARRAY_SIZE(amb); ++i, ++obj) {
 		c2_tlink_init(&fl0, obj);
 		c2_tlink_init(&fl1, obj);
+		c2_tlink_init(&fl2, obj);
 		obj->f_payload = i;
 		sum += i;
 	}
@@ -85,6 +98,9 @@ void test_tlist(void)
 
 		C2_UT_ASSERT(c2_tlist_is_empty(&fl1, &head1[i]));
 		C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[i]) == 0);
+
+		C2_UT_ASSERT(c2_tlist_is_empty(&fl2, &head2[i]));
+		C2_UT_ASSERT(c2_tlist_length(&fl2, &head2[i]) == 0);
 	}
 
 	/* insert foo-s in the lists */
@@ -92,31 +108,40 @@ void test_tlist(void)
 	for (i = 0, obj = amb; i < ARRAY_SIZE(amb); ++i, ++obj) {
 		C2_UT_ASSERT(!c2_tlink_is_in(&fl0, obj));
 		C2_UT_ASSERT(!c2_tlink_is_in(&fl1, obj));
+		C2_UT_ASSERT(!c2_tlink_is_in(&fl2, obj));
 		c2_tlist_add(&fl0, &head0[0], obj);
 		C2_UT_ASSERT( c2_tlink_is_in(&fl0, obj));
 		C2_UT_ASSERT(!c2_tlink_is_in(&fl1, obj));
+		C2_UT_ASSERT(!c2_tlink_is_in(&fl2, obj));
 		c2_tlist_add_tail(&fl1, &head1[0], obj);
 		C2_UT_ASSERT(c2_tlink_is_in(&fl0, obj));
 		C2_UT_ASSERT(c2_tlink_is_in(&fl1, obj));
+		C2_UT_ASSERT(!c2_tlink_is_in(&fl2, obj));
+		c2_tlist_add_tail(&fl2, &head2[0], obj);
+		C2_UT_ASSERT(c2_tlink_is_in(&fl0, obj));
+		C2_UT_ASSERT(c2_tlink_is_in(&fl1, obj));
+		C2_UT_ASSERT(c2_tlink_is_in(&fl2, obj));
+
 		C2_UT_ASSERT(c2_tlist_contains(&fl0, &head0[0], obj));
 		C2_UT_ASSERT(c2_tlist_contains(&fl1, &head1[0], obj));
 	}
 	C2_UT_ASSERT(c2_tlist_length(&fl0, &head0[0]) == NR);
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[0]) == NR);
+	C2_UT_ASSERT(c2_tlist_length(&fl2, &head2[0]) == NR);
 
 	/* check that everything is in the lists */
 
 	sum1 = 0;
-	c2_tlist_for(&fl0, &head0[0], obj)
+	c2_tlist_for(&fl0, &head0[0], obj) {
 		sum1 += obj->f_payload;
-	c2_tlist_endfor
+	} c2_tlist_endfor;
 
 	C2_UT_ASSERT(sum == sum1);
 
 	sum1 = 0;
 	c2_tlist_for(&fl1, &head1[0], obj)
 		sum1 += obj->f_payload;
-	c2_tlist_endfor
+	c2_tlist_endfor;
 	C2_UT_ASSERT(sum == sum1);
 
 	/* bulldozer the foo-s to the last head */
@@ -136,7 +161,7 @@ void test_tlist(void)
 	sum1 = 0;
 	c2_tlist_for(&fl0, head, obj)
 		sum1 += obj->f_payload;
-	c2_tlist_endfor
+	c2_tlist_endfor;
 	C2_UT_ASSERT(sum == sum1);
 
 	/* check that c2_tlist_for() works fine when the list is mutated */
@@ -144,12 +169,12 @@ void test_tlist(void)
 	c2_tlist_for(&fl1, &head1[0], obj) {
 		if (obj->f_payload % 2 == 0)
 			c2_tlist_move(&fl1, &head1[1], obj);
-	} c2_tlist_endfor
+	} c2_tlist_endfor;
 
 	c2_tlist_for(&fl1, &head1[0], obj) {
 		if (obj->f_payload % 2 != 0)
 			c2_tlist_move(&fl1, &head1[1], obj);
-	} c2_tlist_endfor
+	} c2_tlist_endfor;
 
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[0]) == 0);
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[1]) == NR);
@@ -170,7 +195,7 @@ void test_tlist(void)
 				c2_tlist_add_before(&fl1, prev, obj);
 				done = false;
 			}
-		} c2_tlist_endfor
+		} c2_tlist_endfor;
 	} while (!done);
 
 	/* check that the list is sorted */
@@ -179,19 +204,30 @@ void test_tlist(void)
 		struct foo *nxt = c2_tlist_next(&fl1, head, obj);
 		C2_UT_ASSERT(ergo(nxt != NULL,
 				  obj->f_payload <= nxt->f_payload));
-	} c2_tlist_endfor
+	} c2_tlist_endfor;
+
+	/* check that magic-less iteration works. */
+
+	sum1 = 0;
+	c2_tlist_for(&fl0, &head2[0], obj)
+		sum1 += obj->f_payload;
+	c2_tlist_endfor;
+	C2_UT_ASSERT(sum == sum1);
 
 	/* finalise */
 
 	for (i = 0, obj = amb; i < ARRAY_SIZE(amb); ++i, ++obj) {
+		c2_tlist_del(&fl2, obj);
 		c2_tlist_del(&fl1, obj);
 		c2_tlist_del(&fl0, obj);
+		c2_tlink_fini(&fl2, obj);
 		c2_tlink_fini(&fl1, obj);
 		c2_tlink_fini(&fl0, obj);
 		obj->f_magic = 0;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(head0); ++i) {
+		c2_tlist_fini(&fl2, &head2[i]);
 		c2_tlist_fini(&fl1, &head1[i]);
 		c2_tlist_fini(&fl0, &head0[i]);
 	}

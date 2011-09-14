@@ -38,7 +38,7 @@ static uint64_t magic(const struct c2_tl_descr *d, const void *obj);
 /**
    Casts a link to its ambient object.
  */
-static void *obj(const struct c2_tl_descr *d, struct c2_list_link *link);
+static void *amb(const struct c2_tl_descr *d, struct c2_list_link *link);
 
 void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list)
 {
@@ -168,7 +168,7 @@ void *c2_tlist_head(const struct c2_tl_descr *d, struct c2_tl *list)
 	C2_PRE(c2_tlist_invariant(d, list));
 
 	head = &list->t_head;
-	return head->l_head != (void *)head ? obj(d, head->l_head) : NULL;
+	return head->l_head != (void *)head ? amb(d, head->l_head) : NULL;
 }
 C2_EXPORTED(c2_tlist_head);
 
@@ -179,29 +179,29 @@ void *c2_tlist_tail(const struct c2_tl_descr *d, struct c2_tl *list)
 	C2_PRE(c2_tlist_invariant(d, list));
 
 	head = &list->t_head;
-	return head->l_tail != (void *)head ? obj(d, head->l_tail) : NULL;
+	return head->l_tail != (void *)head ? amb(d, head->l_tail) : NULL;
 }
 C2_EXPORTED(c2_tlist_tail);
 
-void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *amb)
+void *c2_tlist_next(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 {
 	struct c2_list_link *next;
 
-	C2_PRE(c2_tlist_contains(d, list, amb));
+	C2_PRE(c2_tlist_contains(d, list, obj));
 
-	next = link(d, amb)->ll_next;
-	return (void *)next != &list->t_head ? obj(d, next) : NULL;
+	next = link(d, obj)->ll_next;
+	return (void *)next != &list->t_head ? amb(d, next) : NULL;
 }
 C2_EXPORTED(c2_tlist_next);
 
-void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *amb)
+void *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
 {
 	struct c2_list_link *prev;
 
-	C2_PRE(c2_tlist_contains(d, list, amb));
+	C2_PRE(c2_tlist_contains(d, list, obj));
 
-	prev = link(d, amb)->ll_prev;
-	return (void *)prev != &list->t_head ? obj(d, prev) : NULL;
+	prev = link(d, obj)->ll_prev;
+	return (void *)prev != &list->t_head ? amb(d, prev) : NULL;
 }
 C2_EXPORTED(c2_tlist_prev);
 
@@ -221,7 +221,7 @@ bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list)
 		if (scan->ll_next->ll_prev != scan ||
 		    scan->ll_prev->ll_next != scan)
 			return false;
-		if (!c2_tlink_invariant(d, obj(d, scan)))
+		if (!c2_tlink_invariant(d, amb(d, scan)))
 			return false;
 	}
 	return true;
@@ -244,7 +244,7 @@ static uint64_t magic(const struct c2_tl_descr *d, const void *obj)
 	return *(uint64_t *)(obj + d->td_link_magic_offset);
 }
 
-static void *obj(const struct c2_tl_descr *d, struct c2_list_link *link)
+static void *amb(const struct c2_tl_descr *d, struct c2_list_link *link)
 {
 	return (void *)container_of(link, struct c2_tlink,
 				    t_link) - d->td_link_offset;

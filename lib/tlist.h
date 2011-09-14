@@ -126,9 +126,9 @@
    c2_tlist_add(&foobar_list, &B.b_list, &F);
    C2_ASSERT(c2_tl_contains(&foobar_list, &B.b_list, &F));
 
-   c2_tl_for(&foobar_list, &B.b_list, scan)
+   c2_tlist_for(&foobar_list, &B.b_list, scan)
            C2_ASSERT(scan == &F);
-   c2_tl_endfor
+   c2_tlist_endfor;
    @endcode
 
    @note Differently from c2_list, tlist heads and links must be initialised
@@ -196,13 +196,14 @@ struct c2_tl_descr {
 	uint64_t    td_head_magic;
 };
 
-#define C2_TL_DESCR(name, ambient_type, link_magic_field,		\
+#define C2_TL_DESCR(name, ambient_type, link_field, link_magic_field,	\
                     link_magic, head_magic)				\
 {									\
-	.td_name        = name,						\
-	.td_link_offset = offsetof(ambient_type, link_magic_field),	\
-	.td_link_magic  = link_magic,					\
-	.td_head_magic  = head_magic					\
+	.td_name              = name,					\
+	.td_link_offset       = offsetof(ambient_type, link_field),	\
+	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
+	.td_link_magic        = link_magic,				\
+	.td_head_magic        = head_magic				\
 }
 
 
@@ -335,12 +336,12 @@ void  *c2_tlist_prev(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
    @code
    c2_tlist_for(&foobar_list, &B.b_list, foo)
            sum += foo->f_value;
-   c2_tlist_endfor
+   c2_tlist_endfor;
 
    c2_tlist_for(&foobar_list, &B.b_list, foo) {
            if (foo->f_value % sum == 0)
 	           c2_tlist_del(&foobar_list, foo);
-   } c2_tlist_endfor
+   } c2_tlist_endfor;
    @endcode
 
    c2_tlist_for() macro has a few points of technical interest:
@@ -372,7 +373,7 @@ do {									\
 /**
    Terminates c2_tlist_for() loop.
  */
-#define c2_tlist_endfor ; (void)__tl; } while (0);
+#define c2_tlist_endfor ; (void)__tl; } while (0)
 
 
 /** @} end of tlist group */
