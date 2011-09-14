@@ -48,9 +48,12 @@
    @{
  */
 
-C2_TL_DEFINE(clink, "chan clinks", static, struct c2_clink, cl_linkage,	cl_magic,
-	     0x6368616e636c696e /* "chanclin" */,
-	     0x4348414e57414954 /* "CHANWAIT" */);
+C2_TL_DESCR_DEFINE(clink,
+		   "chan clinks", static, struct c2_clink, cl_linkage,	cl_magic,
+		   0x6368616e636c696e /* "chanclin" */,
+		   0x4348414e57414954 /* "CHANWAIT" */);
+
+C2_TL_DEFINE(clink, static, struct c2_clink);
 
 /**
    Channel invariant: all clinks on the list are clinks for this channel and
