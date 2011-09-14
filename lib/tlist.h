@@ -375,9 +375,57 @@ do {									\
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0)
 
-#define C2_TL_DECLARE(name, hname, scope, amb_type, amb_link_field,	\
-                      amb_magic_field, amb_magic, head_magic)		\
-scope const struct c2_tl_descr name ## _tl;				\
+/**
+   @name type-safe macros
+
+   C2_TL_DESCR_DECLARE(), C2_TL_DECLARE(), C2_TL_DESCR_DEFINE() and
+   C2_TL_DEFINE() macros generate versions of tlist interface tailored for a
+   particular use case.
+
+   4 separate macros are necessary for flexibility:
+
+       - static tlist, used in a single module only: C2_TL_DEFINE() and
+         C2_TL_DESCR_DEFINE() with scope "static";
+
+       - tlist exported from a module: C2_TL_DEFINE() and C2_TL_DESCR_DEFINE()
+         with scope "" in .c file and C2_TL_DESCR_DECLARE(), C2_TL_DECLARE()
+         with scope "extern" in .h file;
+
+       - tlist exported from a module as a collection of inline functions:
+         C2_TL_DESCR_DEFINE() in .c file and C2_TL_DESCR_DECLARE() with scope
+         "extern" followed by C2_TL_DEFINE() with scope "static inline" in .h
+         file.
+
+  @{
+ */
+
+#define C2_TL_DESCR_DECLARE(name, scope)	\
+scope const struct c2_tl_descr name ## _tl;
+
+/**
+   Declares a version of tlist interface with definitions adjusted to take
+   parameters of a specified ambient type (rather than void) and to hide
+   c2_tl_descr from signatures.
+
+   @code
+   C2_TL_DECLARE(foo, static, struct foo);
+   @endcode
+
+   declares
+
+   @code
+   static void foo_tlist_init(struct c2_tl *head);
+   static void foo_tlink_init(struct foo *amb);
+   static void foo_tlist_move(struct c2_tl *list, struct foo *amb);
+   static struct foo *foo_tlist_head(struct c2_tl *list);
+   @endcode
+
+   &c.
+
+   @see C2_TL_DEFINE()
+   @see C2_TL_DESCR_DEFINE()
+ */
+#define C2_TL_DECLARE(name, scope, amb_type)				\
 									\
 scope void name ## _tlist_init(struct c2_tl *head);			\
 scope void name ## _tlist_fini(struct c2_tl *head);			\
@@ -404,14 +452,26 @@ scope amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb)
 
 #define __AUN __attribute__((unused))
 
-#define C2_TL_DEFINE(name, hname, scope, amb_type, amb_link_field,	\
+/**
+   Defines a tlist descriptor (c2_tl_descr) for a particular ambient type.
+ */
+#define C2_TL_DESCR_DEFINE(name, hname, scope, amb_type, amb_link_field, \
 		     amb_magic_field, amb_magic, head_magic)		\
 scope const struct c2_tl_descr name ## _tl = C2_TL_DESCR(hname,		\
 							 amb_type,	\
 							 amb_link_field, \
 							 amb_magic_field, \
 							 amb_magic,	\
-							 head_magic);	\
+							 head_magic)
+
+/**
+   Defines functions declared by C2_TL_DECLARE().
+
+   The definitions generated assume that tlist descriptor, defined by
+   C2_TL_DESC_DEFINED() is in scope.
+ */
+#define C2_TL_DEFINE(name, scope, amb_type)				\
+									\
 scope __AUN void name ## _tlist_init(struct c2_tl *head)		\
 {									\
 	c2_tlist_init(&name ## _tl, head);				\
@@ -505,7 +565,11 @@ scope __AUN amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb) \
 scope __AUN amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb) \
 {									\
 	return c2_tlist_prev(&name ## _tl, list, amb);			\
-}
+}									\
+									\
+struct __ ## name ## _nothing { ; }
+
+/** @} end of type-safe macros group */
 
 /** @} end of tlist group */
 
