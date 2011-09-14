@@ -140,6 +140,12 @@ MODULE_PARM_DESC(nr_client_threads, "number of client threads");
 int nr_slots = 0;
 module_param(nr_slots, int, S_IRUGO);
 MODULE_PARM_DESC(nr_slots, "number of slots");
+int nr_ping_bytes = 0;
+module_param(nr_ping_bytes, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
+int nr_ping_item = 0;
+module_param(nr_ping_item, int, S_IRUGO);
+MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
 #endif 
 /* Default port values */
 enum {
@@ -477,7 +483,7 @@ cleanup:
 	do_cleanup();
 }
 #endif
-
+#ifndef __KERNEL__
 #define nfiles                   64
 #define ndatafids                8
 #define nfops                    256
@@ -528,6 +534,7 @@ void send_random_io_fop(int nr)
         item->ri_session = &cctx.pc_rpc_session;
         c2_rpc_post(item);
 }
+#endif
 /**
   Create a ping fop and post it to rpc layer
  */
@@ -922,17 +929,21 @@ void client_init(void)
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
 	//io_fop_data_init();
+	#ifndef __KERNEL__	
 	c2_mutex_init(&fid_mutex);
+	#endif
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
 		if (cctx.pc_fop_switch == PING)
 			rc = C2_THREAD_INIT(&client_thread[i], int,
 					NULL, &send_ping_fop,
 					0, "client_%d", i);
+		#ifndef __KERNEL__
 		else if (cctx.pc_fop_switch == IO)
 			rc = C2_THREAD_INIT(&client_thread[i], int,
 					NULL, &send_random_io_fop,
 					0, "client_%d", i);
+		#endif
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -983,8 +994,9 @@ void client_init(void)
 		printf("RPC connection terminate call successful \n");
 	}
 
-
+	#ifndef __KERNEL__	
 	c2_mutex_fini(&fid_mutex);
+	#endif
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
@@ -1098,6 +1110,11 @@ int main(int argc, char *argv[])
 		server = true;
 	if (client_mode)
 		client = true;
+	if (nr_ping_item != 0)
+                cctx.pc_nr_ping_items = nr_ping_item;
+        if (nr_ping_bytes != 0)
+                cctx.pc_nr_ping_bytes = nr_ping_bytes;
+
 	#else
 	if (client_name)
 		sctx.pc_rhostname = cctx.pc_lhostname = client_name;

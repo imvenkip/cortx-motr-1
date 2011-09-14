@@ -897,8 +897,10 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 		struct c2_net_domain	*net_dom,
 		const char		*ep_addr)
 {
+	#ifndef __KERNEL__ 
 	struct c2_db_tx			 tx;
 	struct c2_cob			*root_session_cob;
+	#endif
 	int				 rc;
 	struct c2_rpc_chan		*chan;
 
@@ -921,13 +923,14 @@ int c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 	c2_mutex_init(&machine->cr_ready_slots_mutex);
 
 	machine->cr_dom = dom;
+	#ifndef __KERNEL__ 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
 	if (rc == 0)
 		c2_db_tx_commit(&tx);
 	else
 		c2_db_tx_abort(&tx);
-
+	#endif
 	/* Create new c2_rpc_chan structure, init the transfer machine
 	   passing the source endpoint. */
 	c2_rpc_ep_aggr_init(&machine->cr_ep_aggr);
