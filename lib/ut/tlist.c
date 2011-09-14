@@ -209,7 +209,7 @@ void test_tlist(void)
 	/* check that magic-less iteration works. */
 
 	sum1 = 0;
-	c2_tlist_for(&fl0, &head2[0], obj)
+	c2_tlist_for(&fl2, &head2[0], obj)
 		sum1 += obj->f_payload;
 	c2_tlist_endfor;
 	C2_UT_ASSERT(sum == sum1);
