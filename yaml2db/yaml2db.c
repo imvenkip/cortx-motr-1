@@ -402,17 +402,28 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 	return rc;
 }
 
-static void dump_key_value (const char *fname, int key, yaml_char_t *value)
+/**
+  Dumps the key and value in the file
+  @param fname - file name in which the key-value pair has to be dumped
+  @param key - key
+  @param value - value
+ */
+static int dump_key_value (const char *fname, const int key,
+		const yaml_char_t *value)
 {
 	FILE *fp;
 
 	C2_PRE(fname != NULL);
 	C2_PRE(value != NULL);
-	
+
 	fp = fopen(fname,"a");
+	if (fp != NULL)
+		return -errno;
+
 	if (fp != NULL)
 		fprintf(fp, "Key = %d \t Value = %s\n", key, value);
 	fclose(fp);
+	return 0;
 }
 
 /**
@@ -501,6 +512,8 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 				return rc;
 			}
 			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+				/* Ignore the return value as it does not
+				   matter if dump is done or not */
 				dump_key_value(yctx->yc_dump_fname, (int) key,
 						v_node->data.scalar.value);
 			c2_db_pair_release(&db_pair);
@@ -526,7 +539,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   Function to emit the yaml document
   @param yctx - yaml2db context
   @param ysec - section context corrsponding to the given parameter
-  @param conf_param - parameter for which configuration has to be emitted 
+  @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
 int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
@@ -606,6 +619,8 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 				goto cleanup;
 			}
 			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+				/* Ignore the return value as it does not
+				   matter if dump is done or not */
 				dump_key_value(yctx->yc_dump_fname, (int)key,
 						buf);
 			break;
@@ -619,6 +634,8 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			goto cleanup;
 		}
 		if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
+			/* Ignore the return value as it does not
+			   matter if dump is done or not */
 			dump_key_value(yctx->yc_dump_fname, (int)key, buf);
 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
@@ -628,7 +645,7 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			goto cleanup;
 		}
 		key = *(uint64_t*) db_pair.dp_key.db_i.db_dbt.data;
-	} 
+	}
 cleanup:
 	c2_db_pair_release(&db_pair);
 	c2_db_pair_fini(&db_pair);

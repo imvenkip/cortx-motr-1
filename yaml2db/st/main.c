@@ -22,19 +22,10 @@
 #  include <config.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include "colibri/init.h"
-#include "lib/arith.h"
-#include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
-#include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/thread.h"
 #include "yaml2db/disk_conf_db.h"
 #include "yaml2db/yaml2db.h"
 
@@ -45,7 +36,6 @@ static const char *disk_str = "disks";
 enum {
 	DISK_MAPPING_START_KEY = 100,
 };
-
 
 /* Static declaration of disk section keys array */
 static struct c2_yaml2db_section_key disk_section_keys[] = {
@@ -64,18 +54,71 @@ static struct c2_yaml2db_section disk_section = {
 	.ys_valid_keys = disk_section_keys,
 };
 
+static char *label_fields[]= { "LABEL1","LABEL2","LABEL3"};
+
+static char *status_fields[] = {"ok","degraded","unresponsive"};
+
+static char *setting_fields[] = {"use","ignore","decommission"};
+
+/* Default number of records to be generated */
+enum {
+	REC_NR = 1,
+};
+
+/* Generate a configuration file */
+int generate_conf_file(const char *c_name, int rec_nr)
+{
+	FILE *fp;
+	int   cnt;
+	int   index;
+	char *str;
+
+	C2_PRE(c_name != NULL);
+
+	fp = fopen(c_name, "a");
+	if (fp == NULL) {
+		fprintf(stderr, "Failed to create configuration file\n");
+		return -errno;
+	}
+
+	fprintf(fp,"%s:\n",disk_str);
+	if (rec_nr == 0)
+		rec_nr = REC_NR;
+
+	for (cnt = 0; cnt < rec_nr; ++cnt) {
+		fprintf(fp,"  -");
+
+		index = rand() % ARRAY_SIZE(disk_section_keys);
+		str = label_fields[index];
+		fprintf(fp," %s : %s\n", disk_section_keys[0].ysk_key,str);
+
+		index = rand() % ARRAY_SIZE(disk_section_keys);
+		str = status_fields[index];
+		fprintf(fp,"    %s : %s\n", disk_section_keys[1].ysk_key,str);
+
+		index = rand() % ARRAY_SIZE(disk_section_keys);
+		str = setting_fields[index];
+		fprintf(fp,"    %s : %s\n", disk_section_keys[2].ysk_key,str);
+	}
+	fclose(fp);
+
+	return 0;
+}
+
 /**
   Main function for yaml2db
 */
 int main(int argc, char *argv[])
 {
 	int			 rc = 0;
-	struct c2_yaml2db_ctx	 yctx;
+	int			 rec_nr = 0;
+	bool			 emitter = false;
+	bool			 dump = false;
+	bool			 generate = false;
 	const char		*c_name = NULL;
 	const char		*dump_fname = NULL;
 	const char		*d_path = NULL;
-	bool			 emitter = false;
-	bool			 dump = false;
+	struct c2_yaml2db_ctx	 yctx;
 
 	/* Global c2_init */
 	rc = c2_init();
@@ -86,13 +129,15 @@ int main(int argc, char *argv[])
 
 	/* Parse command line options */
 	rc = C2_GETOPTS("yaml2db", argc, argv,
-		C2_STRINGARG('d', "path of database directory",
+		C2_STRINGARG('b', "path of database directory",
 			LAMBDA(void, (const char *str) {d_path = str; })),
-		C2_STRINGARG('f', "config file in yaml format",
+		C2_STRINGARG('c', "config file in yaml format",
 			LAMBDA(void, (const char *str) {c_name = str; })),
-		C2_FLAGARG('D', "dump the key value contents", &dump),
-		C2_STRINGARG('t', "dump file name",
+		C2_FLAGARG('d', "dump the key value contents", &dump),
+		C2_STRINGARG('f', "dump file name",
 			LAMBDA(void, (const char *str) {dump_fname = str; })),
+		C2_FLAGARG('g', "generate yaml config file", &generate),
+		C2_FORMATARG('n', "no. of records to be create", "%i", &rec_nr),
 		C2_FLAGARG('e', "emitter mode", &emitter));
 
 	if (rc != 0)
@@ -105,6 +150,13 @@ int main(int argc, char *argv[])
 		goto cleanup;
 	}
 	yctx.yc_cname = c_name;
+
+	/* If generate flag is set, generate a yaml config file that can be
+	   used for testing */
+	if (generate) {
+	       generate_conf_file(c_name, rec_nr);
+	       return 0;
+	}
 
 	/* If database path not specified, set the default path */
 	if (d_path != NULL)
@@ -123,7 +175,6 @@ int main(int argc, char *argv[])
 		yctx.yc_dump_kv = true;
 		yctx.yc_dump_fname = dump_fname;
 	}
-
 
 	/* Initialize the parser and database environment */
 	rc = yaml2db_init(&yctx);

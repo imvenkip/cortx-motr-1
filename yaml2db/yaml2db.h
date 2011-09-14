@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -185,7 +186,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
   Function to emit the yaml document
   @param yctx - yaml2db context
   @param ysec - section context corrsponding to the given parameter
-  @param conf_param - parameter for which configuration has to be emitted 
+  @param conf_param - parameter for which configuration has to be emitted
   @retval 0 if successful, -errno otherwise
  */
 int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,

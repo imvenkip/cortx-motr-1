@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -40,7 +41,7 @@ static int test_key_cmp(struct c2_table *table,
 const struct c2_table_ops c2_conf_disk_table_ops = {
         .to = {
                 [TO_KEY] = { .max_size = 256 },
-                [TO_REC] = { .max_size = sizeof (char) * 256} 
+                [TO_REC] = { .max_size = sizeof (char) * 256}
         },
         .key_cmp = test_key_cmp
 };
