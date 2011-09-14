@@ -29,9 +29,7 @@
 
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 {
-	size_t		 len = 512;
-	return 		 len;
-	/*
+	size_t		 len;
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);
@@ -42,9 +40,10 @@ size_t c2_rpc_item_default_size(const struct c2_rpc_item *item)
 	C2_ASSERT(fop->f_type->ft_ops != NULL);
 	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
 	len = fop->f_type->ft_ops->fto_size_get(fop);
+	printf("\nFOP SIZE = %ld\n", len);
 	len += ITEM_ONWIRE_HEADER_SIZE;
-	printf("DEFAULT ITEM SIZE GET %ld\n", len);
-	return len;*/
+	printf("ITEM_SIZE :  %ld\n", len);
+	return len;
 }
 
 /* XXX : Return correct RPC version. */
@@ -369,6 +368,7 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 		offset = len + item_type->rit_ops->rito_item_size(item);
+		printf("\nOffset = %ld\n", offset);
 		C2_ASSERT(offset < bufvec_size);
 		len = offset;
 		++count;

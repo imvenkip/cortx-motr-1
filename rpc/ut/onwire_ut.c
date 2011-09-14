@@ -101,7 +101,7 @@ uint64_t test_fop_size_get(struct c2_fop *fop)
 }
 struct c2_fop_type_ops test_ops = {
 	.fto_execute = test_handler,
-	.fto_size_get = test_fop_size_get,
+	.fto_size_get = c2_xcode_fop_size_get,
 };
 
 C2_FOP_TYPE_DECLARE(c2_fop_test, "test", 60, &test_ops);
@@ -125,7 +125,7 @@ size_t test_item_size_get(const struct c2_rpc_item *item)
 const struct c2_rpc_item_type_ops c2_rpc_item_test_ops = {
 	.rito_encode = c2_rpc_fop_default_encode,
 	.rito_decode = c2_rpc_fop_default_decode,
-	.rito_item_size = test_item_size_get
+	.rito_item_size = c2_rpc_item_default_size
 };
 
 /*static struct c2_rpc_item_type c2_rpc_item_type_test = {
@@ -184,6 +184,7 @@ int main()
 	struct c2_net_buffer		*nb;
 	struct c2_bufvec_cursor		cur;
 	void				*cur_addr;
+	size_t				size;
 
 	/* Onwire tests */
 	C2_ALLOC_PTR(item1);
@@ -251,6 +252,8 @@ int main()
 	populate_item(item2);
 	populate_item(item3);
 
+	size = c2_xcode_fop_size_get(f1);
+	printf("SIZE OF FOP : %ld\n", size);
 	obj = &rpc_obj;
 	c2_list_init(&obj->r_items);
 

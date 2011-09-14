@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "fop/fop.h"
+#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
 #include "ioservice/io_fops.ff"
 
@@ -174,15 +175,27 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
    Returns the size of a fop of type c2_fop_cob_writev.
    @todo This is a placeholder API. It will be eventually replaced by
    wire formats _getsize API.
- */
+
 static uint64_t io_fop_rwv_getsize(struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
+<<<<<<< HEAD
+	iovec = iovec_get(fop);
+	Size of fop layout
+	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+
+	Size of holding structure.
+	segs_nr = ioseg_nr_get(iovec);
+	size += segs_nr * sizeof(struct c2_fop_io_seg);
+
+	return size;
+=======
 	return fop->f_type->ft_fmt->ftf_layout->fm_sizeof +
 	       iovec_get(fop)->iv_count * sizeof(struct c2_fop_io_seg);
+>>>>>>> b28e8700ef9470e3bc4809a3d3cd024420d97d91
 }
-
+*/
 /**
    Returns if given 2 fops belong to same type.
  */
@@ -489,7 +502,7 @@ static bool io_fop_fid_equal(struct c2_fop *fop1, struct c2_fop *fop2)
 const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_rwv_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -503,7 +516,7 @@ const struct c2_fop_type_ops c2_io_cob_readv_ops = {
 const struct c2_fop_type_ops c2_io_cob_writev_ops = {
 	.fto_fom_init = c2_io_fop_cob_rwv_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = io_fop_rwv_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = io_fop_type_equal,
 	.fto_fid_equal = io_fop_fid_equal,
 	.fto_get_nfragments = io_fop_fragments_nr_get,
@@ -523,26 +536,11 @@ static int io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 }
 
 /**
-   @todo Eventually will be replaced by wire formats _getsize API.
- */
-static uint64_t io_fop_cob_readv_rep_getsize(struct c2_fop *fop)
-{
-	uint64_t size;
-
-	C2_PRE(fop != NULL);
-
-	size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
-	if (is_read_rep(fop))
-	       size += sizeof(struct c2_fop_io_buf);
-	return size;
-}
-
-/**
  * readv and writev reply FOP operation vector.
  */
 const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_fom_init = io_fop_cob_rwv_rep_fom_init,
-	.fto_size_get = io_fop_cob_readv_rep_getsize,
+	.fto_size_get = c2_xcode_fop_size_get
 };
 
 /**

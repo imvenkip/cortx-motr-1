@@ -283,6 +283,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 			   c2_list_contains(&machine->cr_incoming_conns,
 					    &conn->c_link)
    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
+   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE)
  */
 int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
 
@@ -311,6 +312,8 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
 
    @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
+   @post ergo(result != 0 && result != -EBUSY,
+		conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -507,6 +510,13 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item);
    @pre c2_mutex_is_locked(&slot->sl_mutex)
  */
 bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
+
+/**
+   For all slots belonging to @session,
+     if slot is in c2_rpcmachine::cr_ready_slots list,
+     then remove it from the list.
+ */
+void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);
 
 /** @}  End of rpc_session group */
 #endif

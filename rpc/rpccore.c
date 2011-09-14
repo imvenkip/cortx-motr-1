@@ -190,7 +190,7 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 	return 0;
 }
 
-int c2_rpc_post(struct c2_rpc_item	*item)
+int c2_rpc_post(struct c2_rpc_item *item)
 {
 	C2_ASSERT(item != NULL && item->ri_session != NULL);
 

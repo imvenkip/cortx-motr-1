@@ -36,7 +36,9 @@
 */
 /** This is the  number of bytes per unit of external data */
 enum {
+	MAX_PAD_BYTES = 7,
 	BYTES_PER_XCODE_UNIT = 8,
+	XCODE_UNIT_ALIGNED_MASK = ~(MAX_PAD_BYTES)
 };
 
 /**
@@ -47,6 +49,19 @@ enum {
 enum c2_bufvec_what {
 	C2_BUFVEC_ENCODE = 0,
 	C2_BUFVEC_DECODE = 1,
+};
+
+/** Enums used by generic fop encode-decode interfaces */
+enum {
+	FOP_FIELD_ZERO = 0,
+	ELEMENT_ZERO   = 0,
+	FOP_FIELD_ONE  = 1,
+};
+
+/** Format of fop sequence data */
+struct   c2_fop_sequence {
+	uint32_t         fs_count;
+	void		*fs_data;
 };
 
 /**
@@ -144,6 +159,26 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
 		  enum c2_bufvec_what what);
 
 /** @} end of bufvec group */
+
+/**
+  Calculates the onwire size of fop data. This function internally calls
+  the fop field type specific functions to calculate the size
+
+  @param fop The data for this fop is to be encoded/decoded.
+
+  @retval Onwire size of the fop in bytes.
+*/
+size_t c2_xcode_fop_size_get(struct c2_fop *fop);
+
+/**
+  Returns true if the current fop field type is a byte array
+
+  @param fftype the fop field type.
+
+  @retval true if field type is a byte array.
+  @retval false if field type is not a byte array.
+*/
+bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
 
 #endif
 /*

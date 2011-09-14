@@ -34,7 +34,7 @@
 #include "lib/errno.h"
 #include "rpc/rpccore.h"
 #include "rpc/rpc_onwire.h"
-
+#include "xcode/bufvec_xcode.h"
 
 /**
    Return size for a fop of type c2_fop_ping;
@@ -100,7 +100,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
 struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = c2_fop_ping_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = NULL,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
@@ -116,7 +116,7 @@ int c2_fop_ping_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_ping_reply_get_size,
+        .fto_size_get = c2_xcode_fop_size_get,
         //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
