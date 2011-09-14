@@ -375,6 +375,137 @@ do {									\
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0)
 
+#define C2_TL_DECLARE(name, hname, scope, amb_type, amb_link_field,	\
+                      amb_magic_field, amb_magic, head_magic)		\
+scope const struct c2_tl_descr name ## _tl;				\
+									\
+scope void name ## _tlist_init(struct c2_tl *head);			\
+scope void name ## _tlist_fini(struct c2_tl *head);			\
+scope void name ## _tlink_init(amb_type *amb);				\
+scope void name ## _tlink_fini(amb_type *amb);				\
+scope bool   name ## _tlist_is_empty(const struct c2_tl *list);		\
+scope bool   name ## _tlink_is_in   (const amb_type *amb);		\
+scope bool   name ## _tlist_contains(const struct c2_tl *list,		\
+				     const amb_type *amb);		\
+scope size_t name ## _tlist_length(const struct c2_tl *list);		\
+scope void   name ## _tlist_add(struct c2_tl *list, amb_type *amb);	\
+scope void   name ## _tlist_add_tail(const struct c2_tl_descr *d,	\
+				     struct c2_tl *list, amb_type *amb); \
+scope void   name ## _tlist_add_after(amb_type *amb, void *new);	\
+scope void   name ## _tlist_add_before(amb_type *amb, void *new);	\
+scope void   name ## _tlist_del(amb_type *amb);				\
+scope void   name ## _tlist_move(struct c2_tl *list, amb_type *amb);	\
+scope void   name ## _tlist_move_tail(const struct c2_tl_descr *d,	\
+				      struct c2_tl *list, amb_type *amb); \
+scope amb_type *name ## _tlist_head(struct c2_tl *list);		\
+scope amb_type *name ## _tlist_tail(struct c2_tl *list);		\
+scope amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb);	\
+scope amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb)
+
+#define __AUN __attribute__((unused))
+
+#define C2_TL_DEFINE(name, hname, scope, amb_type, amb_link_field,	\
+		     amb_magic_field, amb_magic, head_magic)		\
+scope const struct c2_tl_descr name ## _tl = C2_TL_DESCR(hname,		\
+							 amb_type,	\
+							 amb_link_field, \
+							 amb_magic_field, \
+							 amb_magic,	\
+							 head_magic);	\
+scope __AUN void name ## _tlist_init(struct c2_tl *head)		\
+{									\
+	c2_tlist_init(&name ## _tl, head);				\
+}									\
+									\
+scope __AUN void name ## _tlist_fini(struct c2_tl *head)		\
+{									\
+	c2_tlist_fini(&name ## _tl, head);				\
+}									\
+									\
+scope __AUN void name ## _tlink_init(amb_type *amb)			\
+{									\
+	c2_tlink_init(&name ## _tl, amb);				\
+}									\
+									\
+scope __AUN void name ## _tlink_fini(amb_type *amb)			\
+{									\
+	c2_tlink_fini(&name ## _tl, amb);				\
+}									\
+scope __AUN bool   name ## _tlist_is_empty(const struct c2_tl *list)	\
+{									\
+	return c2_tlist_is_empty(&name ## _tl, list);			\
+}									\
+									\
+scope __AUN bool   name ## _tlink_is_in   (const amb_type *amb)		\
+{									\
+	return c2_tlink_is_in(&name ## _tl, amb);			\
+}									\
+									\
+scope __AUN bool   name ## _tlist_contains(const struct c2_tl *list,	\
+				     const amb_type *amb)		\
+{									\
+	return c2_tlist_contains(&name ## _tl, list, amb);		\
+}									\
+									\
+scope __AUN size_t name ## _tlist_length(const struct c2_tl *list)	\
+{									\
+	return c2_tlist_length(&name ## _tl, list);			\
+}									\
+									\
+scope __AUN void   name ## _tlist_add(struct c2_tl *list, amb_type *amb) \
+{									\
+	c2_tlist_add(&name ## _tl, list, amb);				\
+}									\
+									\
+scope __AUN void   name ## _tlist_add_tail(struct c2_tl *list, amb_type *amb) \
+{									\
+	c2_tlist_add_tail(&name ## _tl, list, amb);			\
+}									\
+									\
+scope __AUN void   name ## _tlist_add_after(amb_type *amb, amb_type *new) \
+{									\
+	c2_tlist_add_after(&name ## _tl, amb, new);			\
+}									\
+									\
+scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *new) \
+{									\
+	c2_tlist_add_before(&name ## _tl, amb, new);			\
+}									\
+									\
+scope __AUN void   name ## _tlist_del(amb_type *amb)			\
+{									\
+	c2_tlist_del(&name ## _tl, amb);				\
+}									\
+									\
+scope __AUN void   name ## _tlist_move(struct c2_tl *list, amb_type *amb) \
+{									\
+	c2_tlist_move(&name ## _tl, list, amb);				\
+}									\
+									\
+scope __AUN void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb) \
+{									\
+	c2_tlist_move_tail(&name ## _tl, list, amb);			\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_head(struct c2_tl *list)		\
+{									\
+	return c2_tlist_head(&name ## _tl, list);			\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_tail(struct c2_tl *list)		\
+{									\
+	return c2_tlist_tail(&name ## _tl, list);			\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_next(struct c2_tl *list, amb_type *amb) \
+{									\
+	return c2_tlist_next(&name ## _tl, list, amb);			\
+}									\
+									\
+scope __AUN amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb) \
+{									\
+	return c2_tlist_prev(&name ## _tl, list, amb);			\
+}
 
 /** @} end of tlist group */
 
