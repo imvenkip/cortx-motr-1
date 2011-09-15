@@ -191,7 +191,6 @@ int c2_ping_fop_init(void)
         return result;
 }
 
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

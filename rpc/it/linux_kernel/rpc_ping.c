@@ -113,44 +113,56 @@ struct ping_ctx {
 
 #ifdef __KERNEL__
 /* Module parameters */
+
 bool verbose = false;
 module_param(verbose, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+
 bool server_mode = false;
 module_param(server_mode, bool, S_IRUGO);
 MODULE_PARM_DESC(server_mode, "enable server mode");
+
 bool client_mode = false;
 module_param(client_mode, bool, S_IRUGO);
 MODULE_PARM_DESC(client_mode, "enable client mode");
+
 char *local_hostaddr = "127.0.0.1";
 module_param(local_hostaddr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_hostaddr, "client address");
+
 char *remote_hostaddr = "127.0.0.1";
 module_param(remote_hostaddr, charp, S_IRUGO);
 MODULE_PARM_DESC(remote_hostaddr, "server address");
+
 int server_port = 0;
 module_param(server_port, int, S_IRUGO);
 MODULE_PARM_DESC(server_port, "remote port number");
+
 int client_port = 0;
 module_param(client_port, int, S_IRUGO);
 MODULE_PARM_DESC(client_port, "local port number");
+
 int nr_client_threads = 0;
 module_param(nr_client_threads, int, S_IRUGO);
 MODULE_PARM_DESC(nr_client_threads, "number of client threads");
+
 int nr_slots = 0;
 module_param(nr_slots, int, S_IRUGO);
 MODULE_PARM_DESC(nr_slots, "number of slots");
+
 int nr_ping_bytes = 0;
 module_param(nr_ping_bytes, int, S_IRUGO);
 MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
+
 int nr_ping_item = 0;
 module_param(nr_ping_item, int, S_IRUGO);
 MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
-#endif 
+#endif
+
 /* Default port values */
 enum {
-	CLIENT_PORT = 17708,//32123,
-	SERVER_PORT //=12321,
+	CLIENT_PORT = 32123,
+	SERVER_PORT = 12321,
 };
 
 /* Default address length */
@@ -483,6 +495,7 @@ cleanup:
 	do_cleanup();
 }
 #endif
+
 #ifndef __KERNEL__
 #define nfiles                   64
 #define ndatafids                8
@@ -535,6 +548,7 @@ void send_random_io_fop(int nr)
         c2_rpc_post(item);
 }
 #endif
+
 /**
   Create a ping fop and post it to rpc layer
  */
@@ -583,8 +597,7 @@ void print_stats(bool client, bool server)
 	struct c2_rpcmachine	*rpc_mach;
 	struct c2_rpc_stats	*stats;
 	uint64_t		 nsec;
-	
-	#ifdef __KERNEL__ 
+	#ifdef __KERNEL__
 	uint64_t sec = 0;
 	uint64_t msec = 0;
 	uint64_t thruput;
@@ -611,13 +624,12 @@ void print_stats(bool client, bool server)
 	nsec = c2_time_nanoseconds(stats->rs_min_lat);
 	#ifdef __KERNEL__
 	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	//sec += (uint64_t) nsec/1000000000;
         msec = (uint64_t) sec * 1000;
 	if (sec != 0) {
         	printf("\nMin latency    (msecs)   = %llu\n", msec);
        		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
        		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
-	} 
+	}
 	#else
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
@@ -626,13 +638,12 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Max Throughput (MB/sec)  = %lf\n", thruput);
 	#endif
-	
+
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_max_lat);
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	#ifdef __KERNEL__
 	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	//sec += (uint64_t) nsec/1000000000;
         msec = (uint64_t) sec * 1000;
 	if (sec != 0) {
         	printf("\nMax latency    (msecs)   = %llu\n", msec);
@@ -647,13 +658,12 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 	#endif
-	
+
 	sec = 0;
 	sec = c2_time_seconds(stats->rs_avg_lat);
 	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	#ifdef __KERNEL__
 	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	//sec += (uint64_t) nsec/1000000000;
         msec = (uint64_t) sec * 1000;
 	if (sec != 0) {
         	printf("\nAvg latency    (msecs)   = %llu\n", msec);
@@ -693,7 +703,6 @@ void print_stats(bool client, bool server)
 	#else
 	nsec = (uint64_t) nsec/1000000;
 	sec += (uint64_t) nsec/1000;
-	//sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("\nMin latency    (msecs)   = %lf\n", msec);
 
@@ -706,7 +715,6 @@ void print_stats(bool client, bool server)
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	#ifdef __KERNEL__
 	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	//sec += (uint64_t) nsec/1000000000;
 	msec = (uint64_t) sec * 1000;
 	if (sec != 0) {
 		printf("\nMax latency    (msecs)   = %llu\n", msec);
@@ -727,7 +735,6 @@ void print_stats(bool client, bool server)
 	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	#ifdef __KERNEL__
 	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	//sec += (uint64_t) nsec/1000000000;
 	msec = (uint64_t) sec * 1000;
 	if (sec != 0) {
 		printf("\nAvg latency    (msecs)   = %llu\n", msec);
@@ -779,7 +786,6 @@ void client_init(void)
 	#else
 	cctx.pc_lhostname = "localhost";
 	#endif
-	//strcpy(hostbuf, "127.0.0.1");
 	strcpy(hostbuf, local_hostaddr);
 	/* Init client side network domain */
 	rc = c2_net_domain_init(&cctx.pc_dom, cctx.pc_xprt);
@@ -839,7 +845,6 @@ void client_init(void)
 	#else
 	cctx.pc_rhostname = "localhost";
 	#endif
-	//strcpy(hostbuf, "127.0.0.1");
 	strcpy(hostbuf, remote_hostaddr);
 	sprintf(addr_remote, "%s:%u:%d", hostbuf, cctx.pc_rport, RID);
 	printf("Server Addr = %s\n",addr_remote);
@@ -876,7 +881,6 @@ void client_init(void)
 	} else {
 		printf("RPC connection created \n");
 	}
-
 
         c2_time_now(&timeout);
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
@@ -929,7 +933,7 @@ void client_init(void)
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
 	//io_fop_data_init();
-	#ifndef __KERNEL__	
+	#ifndef __KERNEL__
 	c2_mutex_init(&fid_mutex);
 	#endif
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -994,7 +998,7 @@ void client_init(void)
 		printf("RPC connection terminate call successful \n");
 	}
 
-	#ifndef __KERNEL__	
+	#ifndef __KERNEL__
 	c2_mutex_fini(&fid_mutex);
 	#endif
         c2_time_now(&timeout);
@@ -1027,14 +1031,11 @@ int c2_rpc_ping_init()
 int main(int argc, char *argv[])
 #endif
 {
-	#ifdef __KERNEL__
 	bool			 server = false;
 	bool			 client = false;
-	#else
+	#ifndef __KERNEL__
 	bool			 pingfops = false;
 	bool			 iofops = false;
-	bool			 server = false;
-	bool			 client = false;
 	const char		*server_name = NULL;
 	const char		*client_name = NULL;
 	int			 server_port = 0;
@@ -1049,17 +1050,16 @@ int main(int argc, char *argv[])
 	#endif
 	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
-#ifndef __KERNEL__
+	#ifndef __KERNEL__
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		return rc;
-#endif
+	#endif
 	c2_ping_fop_init();
-	printk("INIT MODULE\n");
-#ifndef __KERNEL__
+	#ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
 		C2_FLAGARG('s', "run server", &server),
@@ -1078,7 +1078,7 @@ int main(int argc, char *argv[])
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
-#endif
+	#endif
 	/* Set defaults */
 	sctx.pc_lhostname = cctx.pc_lhostname = "localhost";
 	sctx.pc_rhostname = cctx.pc_rhostname = "localhost";
@@ -1142,12 +1142,12 @@ int main(int argc, char *argv[])
 		client_init();
 		if (verbose)
 			print_stats(client, server);
-#ifndef __KERNEL__
+		#ifndef __KERNEL__
 		client_fini();
-#endif
+		#endif
 	}
 
-#ifndef __KERNEL__
+	#ifndef __KERNEL__
 	/* Server part */
 	if(server) {
 		/* server thread */
@@ -1169,8 +1169,7 @@ int main(int argc, char *argv[])
 	c2_ioservice_fop_fini();
 
 	c2_fini();
-#endif
-	printk("END\n");
+	#endif
 
 	return 0;
 }

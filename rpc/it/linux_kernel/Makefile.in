@@ -2,7 +2,7 @@ PING_SRCDIR = @SRCDIR@/rpc/it/linux_kernel
 
 obj-m       := krpcping.o
 shared_src  := ping_fop.c ping_fop_k.c ping_fom.c
-kernel_src  := rpc_ping.c formation-ut.c rpcping_kernel.c
+kernel_src  := rpc_ping.c rpcping_kernel.c
 krpcping-y  := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 

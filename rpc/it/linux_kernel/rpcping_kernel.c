@@ -22,7 +22,7 @@
 #include "rpcping_kernel.h"
 
 int init_module(void)
-{ 	
+{
 	return c2_rpc_ping_init();
 }
 

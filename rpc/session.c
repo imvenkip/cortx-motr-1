@@ -512,6 +512,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 
 	if (fop_ser->rser_rc != 0) {
 		printf("scrr: Session create failed\n");
+		printf("scrr: rc is %d\n",fop_ser->rser_rc);
 		session_failed(session, fop_ser->rser_rc);
 	} else {
 		if (session_id < SESSION_ID_MIN ||
