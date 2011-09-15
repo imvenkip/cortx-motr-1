@@ -153,7 +153,6 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		}
 	}
 
-
 	c2_free(opath);
 	c2_free(dpath);
 	return 0;
