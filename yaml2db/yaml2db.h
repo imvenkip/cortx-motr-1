@@ -37,7 +37,7 @@
 
    A typical yaml conf file will look like the following.
    @verbatim
-    disks: 
+    disks:
       - label   : LABEL1
         status  : ok
         setting : use

@@ -43,7 +43,7 @@ else
 	echo "test failed."
 fi
 
-#rm -rf $PARSE_FILE $EMIT_FILE $INPUT_FILE
+rm -rf $PARSE_FILE $EMIT_FILE $INPUT_FILE
 
 sleep 30
 
