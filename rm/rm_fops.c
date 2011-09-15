@@ -20,9 +20,12 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "fop/fop_format_def.h"
 #include "fop/fop_iterator.h"
 #include "rm_fops.h"
 #include "rm_foms.h"
+
+#include "rm/rm.ff"
 
 /**
  * Forward declaration.
@@ -39,10 +42,24 @@ struct c2_fop_type_ops c2_fop_rm_borrow_ops = {
 };
 
 /**
+ * FOP operation vector for right borrow reply.
+ */
+struct c2_fop_type_ops c2_fop_rm_borrow_reply_ops = {
+	.fto_fom_init = NULL,
+};
+
+/**
  * FOP operation vector for right revoke.
  */
 struct c2_fop_type_ops c2_fop_rm_revoke_ops = {
 	.fto_fom_init = c2_rm_fop_revoke_fom_init,
+};
+
+/**
+ * FOP operation vector for right revoke reply.
+ */
+struct c2_fop_type_ops c2_fop_rm_revoke_reply_ops = {
+	.fto_fom_init = NULL,
 };
 
 /**
@@ -70,20 +87,16 @@ static struct c2_fop_type_format *rm_fmts[] = {
  */
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_borrow, "Right Borrow",
 		    C2_RM_FOP_BORROW, &c2_fop_rm_borrow_ops);
-#if 0
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_borrow_reply, "Right Borrow Reply",
 		    C2_RM_FOP_BORROW_REPLY, &c2_fop_rm_borrow_reply_ops);
-#endif
 
 /**
  * FOP definitions for resource-right revoke request and reply.
  */
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke, "Right Revoke",
 		    C2_RM_FOP_REVOKE, &c2_fop_rm_revoke_ops);
-#if 0
 C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke_reply, "Right Revoke Reply",
 		    C2_RM_FOP_REVOKE_REPLY, &c2_fop_rm_revoke_reply_ops);
-#endif
 
 /**
  * FOP definitions for resource-right surrender.

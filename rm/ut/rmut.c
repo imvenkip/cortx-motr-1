@@ -688,15 +688,15 @@ static void intent_mode_test(void)
 	rpc_signal = 0;
 
 	result = C2_THREAD_INIT(&rpc_handle, int,
-				NULL, &rpc_process, UT_SERVER);
+				NULL, &rpc_process, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
-				NULL, &intent_server, UT_SERVER);
+				NULL, &intent_server, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
-				NULL, &intent_client, UT_CLIENT0);
+				NULL, &intent_client, UT_CLIENT0, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	for (i = 0; i < 2; ++i) {
@@ -796,15 +796,15 @@ static void wbc_mode_test(void)
 	rpc_signal = 0;
 
 	result = C2_THREAD_INIT(&rpc_handle, int,
-				NULL, &rpc_process, UT_SERVER);
+				NULL, &rpc_process, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
-				NULL, &wbc_server, UT_SERVER);
+				NULL, &wbc_server, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
-				NULL, &wbc_client, UT_CLIENT0);
+				NULL, &wbc_client, UT_CLIENT0, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	for (i = 0; i < 2; ++i) {
@@ -1017,15 +1017,15 @@ static void cancel_test(void)
 	rpc_signal = 0;
 
 	result = C2_THREAD_INIT(&rpc_handle, int,
-				NULL, &rpc_process, UT_SERVER);
+				NULL, &rpc_process, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
-				NULL, &cancel_server, UT_SERVER);
+				NULL, &cancel_server, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
-				NULL, &cancel_client, UT_CLIENT0);
+				NULL, &cancel_client, UT_CLIENT0, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	for (i = 0; i < 2; ++i) {
@@ -1148,15 +1148,15 @@ static void caching_test(void)
 	rpc_signal = 0;
 
 	result = C2_THREAD_INIT(&rpc_handle, int,
-				NULL, &rpc_process, UT_SERVER);
+				NULL, &rpc_process, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
-				NULL, &caching_server, UT_SERVER);
+				NULL, &caching_server, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
-				NULL, &caching_client, UT_CLIENT0);
+				NULL, &caching_client, UT_CLIENT0, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	for (i = 0; i < 2; ++i) {
@@ -1371,19 +1371,19 @@ static void callback_test(void)
 	rpc_signal = 0;
 
 	result = C2_THREAD_INIT(&rpc_handle, int,
-				NULL, &rpc_process, UT_SERVER);
+				NULL, &rpc_process, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_SERVER].rm_handle, int,
-				NULL, &callback_server, UT_SERVER);
+				NULL, &callback_server, UT_SERVER, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT0].rm_handle, int,
-				NULL, &callback_client, UT_CLIENT0);
+				NULL, &callback_client, UT_CLIENT0, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	result = C2_THREAD_INIT(&rm_info[UT_CLIENT1].rm_handle, int,
-				NULL, &callback_client1, UT_CLIENT1);
+				NULL, &callback_client1, UT_CLIENT1, "rmut-worker");
 	C2_ASSERT(result == 0);
 
 	for (i = 0; i < 3; ++i) {
