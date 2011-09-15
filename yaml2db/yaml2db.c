@@ -417,7 +417,6 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 					(char *)ysec->ys_valid_keys[cnt].
 					ysk_key);
 		}
-
 	}
 	return rc;
 }
