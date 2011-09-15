@@ -647,7 +647,7 @@ void print_stats(bool client, bool server)
         usec += (uint64_t) (sec * 1000000);
         printf("\nMax latency    (usecs)   = %llu\n", usec);
 	if (usec != 0) {
-        	thruput = (uint64_t)stats->rs_bytes_nr/sec;
+        	thruput = (uint64_t)stats->rs_bytes_nr/usec;
         	printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -667,7 +667,7 @@ void print_stats(bool client, bool server)
         usec += (uint64_t) (sec * 1000000);
         printf("\nAvg latency    (usecs)   = %llu\n", usec);
 	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/sec;
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -698,7 +698,7 @@ void print_stats(bool client, bool server)
         usec += (uint64_t) (sec * 1000000);
 	printf("\nMin latency    (usecs)   = %llu\n", usec);
 	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/sec;
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -719,7 +719,7 @@ void print_stats(bool client, bool server)
         usec += (uint64_t) (sec * 1000000);
 	printf("\nMax latency    (usecs)   = %llu\n", usec);
 	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/sec;
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -739,7 +739,7 @@ void print_stats(bool client, bool server)
         usec += (uint64_t) (sec * 1000000);
 	printf("\nAvg latency    (usecs)   = %llu\n", usec);
 	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/sec;
+		thruput = (uint64_t)stats->rs_bytes_nr/usec;
 		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else

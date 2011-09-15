@@ -31,7 +31,7 @@ void cleanup_module(void)
 {
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
