@@ -62,14 +62,29 @@ static struct c2_tl  head1[N];
 static struct c2_tl  head2[N];
 static struct foo    amb[NR];
 
+struct bar {
+	uint64_t        b_payload;
+	struct c2_tlink b_linkage;
+	uint64_t        b_magic;
+};
+
+C2_TL_DESCR_DEFINE(bar, "bar-s", static, struct bar, b_linkage,
+		   b_magic, 0xbeda551edcaca0ff, 0x7777777777777777);
+C2_TL_DEFINE(bar, static, struct bar);
+
+static struct c2_tl bhead;
+static struct bar   B[NR];
+
 void test_tlist(void)
 {
 	int           i;
 	struct foo   *obj;
 	struct c2_tl *head;
 	uint64_t      sum;
+	uint64_t      sumB;
 	uint64_t      sum1;
 	bool          done;
+	struct bar   *b;
 
 	C2_CASSERT(ARRAY_SIZE(head0) == ARRAY_SIZE(head1));
 	/* link magic must be the same as in fl0, because the same ambient
@@ -128,6 +143,21 @@ void test_tlist(void)
 	C2_UT_ASSERT(c2_tlist_length(&fl0, &head0[0]) == NR);
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[0]) == NR);
 	C2_UT_ASSERT(c2_tlist_length(&fl2, &head2[0]) == NR);
+
+	/* initialise bar-s */
+
+	bar_tlist_init(&bhead);
+	sumB = 0;
+	for (i = 0, b = B; i < ARRAY_SIZE(B); ++i, ++b) {
+		bar_tlink_init(b);
+		C2_UT_ASSERT(!bar_tlink_is_in(b));
+		bar_tlist_add(&bhead, b);
+		C2_UT_ASSERT(bar_tlink_is_in(b));
+		C2_UT_ASSERT(bar_tlist_contains(&bhead, b));
+		sumB += (b->b_payload = i*i);
+	}
+
+	C2_UT_ASSERT(bar_tlist_length(&bhead) == ARRAY_SIZE(B));
 
 	/* check that everything is in the lists */
 
@@ -214,6 +244,19 @@ void test_tlist(void)
 	c2_tlist_endfor;
 	C2_UT_ASSERT(sum == sum1);
 
+	/* reverse bar-s */
+
+	c2_tlist_for(&bar_tl, &bhead, b) {
+		bar_tlist_move(&bhead, b);
+	} c2_tlist_endfor;
+
+	/* check that bar list is reversed */
+
+	for (i = 0, b = bar_tlist_head(&bhead); b != NULL;
+	     b = bar_tlist_next(&bhead, b), ++i) {
+		C2_UT_ASSERT(b->b_payload == i*i);
+	}
+
 	/* finalise */
 
 	for (i = 0, obj = amb; i < ARRAY_SIZE(amb); ++i, ++obj) {
@@ -231,6 +274,13 @@ void test_tlist(void)
 		c2_tlist_fini(&fl1, &head1[i]);
 		c2_tlist_fini(&fl0, &head0[i]);
 	}
+
+	for (i = 0, b = B; i < ARRAY_SIZE(B); ++i, ++b) {
+		bar_tlist_del(b);
+		bar_tlink_fini(b);
+	}
+
+	bar_tlist_fini(&bhead);
 }
 
 enum {
