@@ -27,6 +27,10 @@
   @addtogroup yaml2db
   @{
  */
+enum {
+	C2_CONF_MAX_PARAMETER_NAME_LEN = 256,
+	C2_CONF_MAX_PARAMETER_VALUE_LEN = sizeof(char) * 256
+};
 
 const struct c2_table_ops c2_conf_disk_table_ops;
 

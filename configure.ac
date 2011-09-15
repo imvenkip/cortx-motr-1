@@ -489,7 +489,7 @@ fi
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I$DB_SRC/build_unix -I$GALOIS_SRC -I$YAML_SRC/include -I. -I$SRCDIR $CFLAGS"
 KCFLAGS="-Wall -Werror $KCFLAGS"
 LDFLAGS="-rdynamic $LDFLAGS"
 

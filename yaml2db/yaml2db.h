@@ -22,7 +22,7 @@
 #define __COLIBRI_YAML2DB_H__
 
 #include "db/db.h"
-#include "../yaml/include/yaml.h"
+#include "yaml.h"
 
 /**
    @defgroup yaml2db YAML to Database Parser
@@ -34,6 +34,20 @@
 
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1Y2FccWZFA9yWXJiC-kld0XUrexoindOpMiHEGkqc3Rc/edit?hl=en_US">DLD of Configuration (dev_enum) </a>
    for details on the design.
+
+   A typical yaml conf file will look like the following.
+   @verbatim
+    disks: 
+      - label   : LABEL1
+        status  : ok
+        setting : use
+      - label   : LABEL2
+        status  : degraded
+        setting : ignore
+      - label   : LABEL3
+        status  : unresponsive
+        setting : decommission
+   @endverbatim
 
    @{
 
@@ -70,14 +84,18 @@ struct c2_yaml2db_ctx {
 	const char			*yc_dpath;
 	/* Database environment */
 	struct c2_dbenv			 yc_db;
+	/* Flag indicating if the database environment has been established */
+	bool				 yc_db_init;
 	/* ADDB context for the context */
 	struct c2_addb_ctx		 yc_addb;
 	/* File pointer for YAML file */
 	FILE				*yc_fp;
 	/* Flag indicating whether to dump the key-value pair to a file */
 	bool				 yc_dump_kv;
-	/* File pointer for dump file */
+	/* Dump file name */
 	const char			*yc_dump_fname;
+	/* File pointer for dump file */
+	FILE				*yc_dp;
 };
 
 /**

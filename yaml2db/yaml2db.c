@@ -47,7 +47,7 @@ C2_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
                 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 enum {
-	MAX_BUF_SIZE = 256
+	MAX_BUF_SIZE = C2_CONF_MAX_PARAMETER_VALUE_LEN
 };
 
 /**
@@ -68,6 +68,7 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 				&c2_addb_global_ctx);
 	c2_addb_choose_default_level(AEL_WARN);
 
+	yctx->yc_db_init = false;
 	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
 
 		/* Initialize the parser. According to yaml documentation,
@@ -94,7 +95,8 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		/* Set the input file to the parser. */
 		yaml_parser_set_input_file(&yctx->yc_parser, yctx->yc_fp);
 
-	}
+	} else
+		yctx->yc_fp = NULL;
 
 	C2_ALLOC_ARR(opath, strlen(yctx->yc_dpath) + 2);
 	if (opath == NULL) {
@@ -141,6 +143,16 @@ int yaml2db_init(struct c2_yaml2db_ctx *yctx)
 				yaml2db_func_fail, "c2_dbenv_init", 0);
 		goto cleanup;
 	}
+	yctx->yc_db_init = true;
+
+	if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL) {
+		yctx->yc_dp = fopen(yctx->yc_dump_fname, "w");
+		if (yctx->yc_dp == NULL) {
+			rc = -errno;
+			goto cleanup;
+		}
+	}
+
 
 	c2_free(opath);
 	c2_free(dpath);
@@ -155,7 +167,7 @@ cleanup:
 	yaml_document_delete(&yctx->yc_document);
 	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER)
 		yaml_parser_delete(&yctx->yc_parser);
-	return 0;
+	return rc;
 }
 /**
   Fini function, which finalizes the parser and finies the db
@@ -171,8 +183,9 @@ void yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 		yaml_parser_delete(&yctx->yc_parser);
 	if (yctx->yc_fp != NULL)
 		fclose(yctx->yc_fp);
-	if (&yctx->yc_db.d_i != NULL)
-		c2_dbenv_sync(&yctx->yc_db);
+	if (yctx->yc_dp != NULL)
+		fclose(yctx->yc_dp);
+	if (&yctx->yc_db_init)
 		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
@@ -337,6 +350,14 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
 			&yctx->yc_parser == NULL)
 		return false;
 
+	if (yctx->yc_type == C2_YAML2DB_CTX_PARSER) {
+		if (yctx->yc_fp == NULL)
+			return false;
+	} else {
+		if (yctx->yc_fp != NULL)
+			return false;
+	}
+
 	if (&yctx->yc_document == NULL)
 		return false;
 
@@ -404,26 +425,19 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 
 /**
   Dumps the key and value in the file
+  @param yctx - yaml2db context
   @param fname - file name in which the key-value pair has to be dumped
   @param key - key
   @param value - value
  */
-static int dump_key_value (const char *fname, const int key,
-		const yaml_char_t *value)
+static void dump_key_value (struct c2_yaml2db_ctx *yctx, const char *fname,
+		const int key, const yaml_char_t *value)
 {
-	FILE *fp;
 
 	C2_PRE(fname != NULL);
 	C2_PRE(value != NULL);
 
-	fp = fopen(fname,"a");
-	if (fp != NULL)
-		return -errno;
-
-	if (fp != NULL)
-		fprintf(fp, "Key = %d \t Value = %s\n", key, value);
-	fclose(fp);
-	return 0;
+	fprintf(yctx->yc_dp, "Key = %d \t Value = %s\n", key, value);
 }
 
 /**
@@ -479,6 +493,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 				yaml2db_func_fail, "yaml2db_scalar_locate", 0);
                 c2_table_fini(&table);
+		c2_db_tx_abort(&tx);
 		return -EINVAL;
 	}
 
@@ -509,12 +524,14 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 				c2_db_pair_release(&db_pair);
 				c2_db_pair_fini(&db_pair);
 				c2_table_fini(&table);
+				c2_db_tx_abort(&tx);
 				return rc;
 			}
 			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
 				/* Ignore the return value as it does not
 				   matter if dump is done or not */
-				dump_key_value(yctx->yc_dump_fname, (int) key,
+				dump_key_value(yctx, yctx->yc_dump_fname,
+						(int) key,
 						v_node->data.scalar.value);
 			c2_db_pair_release(&db_pair);
 			c2_db_pair_fini(&db_pair);
@@ -527,6 +544,7 @@ int yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 					yaml2db_func_fail,
 					"validate_mandatory_keys", 0);
 			c2_table_fini(&table);
+			c2_db_tx_abort(&tx);
 			return -EINVAL;
 		}
 	}
@@ -581,6 +599,7 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
                                 yaml2db_func_fail, "c2_db_cursor_init", rc);
                 c2_table_fini(&table);
+		c2_db_tx_abort(&tx);
                 return rc;
         }
 
@@ -621,8 +640,8 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
 				/* Ignore the return value as it does not
 				   matter if dump is done or not */
-				dump_key_value(yctx->yc_dump_fname, (int)key,
-						buf);
+				dump_key_value(yctx, yctx->yc_dump_fname,
+						(int)key, buf);
 			break;
 		}
 		c2_db_pair_setup(&db_pair, &table, &key, sizeof key,
@@ -636,7 +655,8 @@ int yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 		if (&yctx->yc_dump_kv && yctx->yc_dump_fname != NULL)
 			/* Ignore the return value as it does not
 			   matter if dump is done or not */
-			dump_key_value(yctx->yc_dump_fname, (int)key, buf);
+			dump_key_value(yctx, yctx->yc_dump_fname,
+					(int)key, buf);
 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
 		if (rc != 0) {
 			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
