@@ -1023,7 +1023,6 @@ out:
 		 * Take out slot0 of session0 out of ready slots list.
 		 */
 		session0 = c2_rpc_conn_session0(conn);
-		c2_rpc_session_del_slots_from_ready_list(session0);
 		conn_failed(conn, rc);
 	}
 	/*

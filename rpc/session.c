@@ -575,6 +575,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
+	c2_rpc_session_del_slots_from_ready_list(session);
 	c2_mutex_lock(&session->s_mutex);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -590,7 +591,6 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 		goto out_unlock;
 	}
 
-	c2_rpc_session_del_slots_from_ready_list(session);
 	session->s_state = C2_RPC_SESSION_TERMINATING;
 
 	/*
@@ -856,11 +856,7 @@ static void snd_reply_consume(struct c2_rpc_item *req,
 
 static void rcv_slot_idle(struct c2_rpc_slot *slot)
 {
-	printf("rcv_slot_idle called %p [%lu:%lu]\n", slot,
-			(unsigned long)slot->sl_verno.vn_vc,
-			(unsigned long)slot->sl_xid);
 	C2_ASSERT(slot->sl_in_flight == 0);
-	frm_slot_idle(slot);
 }
 
 static void rcv_item_consume(struct c2_rpc_item *item)
@@ -1034,7 +1030,8 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 		return -EPROTO;
 	}
 
-	c2_rpc_session_del_slots_from_ready_list(session);
+	/* For receiver side session, no slots are on ready_slots list
+	   since all reply items are bound items. */
 
 	/*
 	 * remove session from list of sessions maintained in c2_rpc_conn.
@@ -1091,7 +1088,7 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 	 * XXX lock and unlock of cr_ready_slots_mutex is commented, until
 	 * formation adds a fix for correct lock ordering.
 	 */
-	//c2_mutex_lock(&machine->cr_ready_slots_mutex);
+	c2_mutex_lock(&machine->cr_ready_slots_mutex);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
@@ -1102,7 +1099,7 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 			c2_list_del(&slot->sl_link);
 	}
 
-	//c2_mutex_unlock(&machine->cr_ready_slots_mutex);
+	c2_mutex_unlock(&machine->cr_ready_slots_mutex);
 }
 
 /** @} end of session group */

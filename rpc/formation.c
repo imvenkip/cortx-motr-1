@@ -575,21 +575,27 @@ int frm_item_reply_received(struct c2_rpc_item *reply_item,
 static void item_timeout_handle(struct c2_rpc_frm_sm *frm_sm,
 				struct c2_rpc_item *item)
 {
-	struct c2_list *list;
+	struct c2_list		*list;
+	struct c2_rpc_session	*session;
 
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
 	C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 
-	item->ri_deadline = 0;
-
 	/* Move the rpc item to first list in unformed item data structure
 	   so that it is bundled first in the rpc being formed. */
-	c2_list_del(&item->ri_unformed_linkage);
-	list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR -
-	       (item->ri_prio + 1)].pl_unformed_items;
-	c2_list_add(list, &item->ri_unformed_linkage);
+	if (c2_rpc_item_is_bound(item)) {
+		c2_list_del(&item->ri_unformed_linkage);
+		list = &frm_sm->fs_unformed_prio[C2_RPC_ITEM_PRIO_NR -
+			(item->ri_prio + 1)].pl_unformed_items;
+		c2_list_add(list, &item->ri_unformed_linkage);
+	} else {
+		session = item->ri_session;
+		c2_mutex_lock(&session->s_mutex);
+		c2_list_move(&session->s_unbound_items, &item->ri_unbound_link);
+		c2_mutex_unlock(&session->s_mutex);
+	}
 	++frm_sm->fs_timedout_items_nr;
 }
 
