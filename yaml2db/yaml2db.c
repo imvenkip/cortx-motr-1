@@ -431,7 +431,6 @@ static bool validate_mandatory_keys(const struct c2_yaml2db_section *ysec,
 static void dump_key_value (struct c2_yaml2db_ctx *yctx, const char *fname,
 		const int key, const yaml_char_t *value)
 {
-
 	C2_PRE(fname != NULL);
 	C2_PRE(value != NULL);
 
