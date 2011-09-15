@@ -599,7 +599,7 @@ void print_stats(bool client, bool server)
 	uint64_t		 nsec;
 	#ifdef __KERNEL__
 	uint64_t sec = 0;
-	uint64_t msec = 0;
+	uint64_t usec = 0;
 	uint64_t thruput;
 	#else
 	double sec = 0;
@@ -623,11 +623,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_min_lat);
 	nsec = c2_time_nanoseconds(stats->rs_min_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-        msec = (uint64_t) sec * 1000;
-	if (sec != 0) {
-        	printf("\nMin latency    (msecs)   = %llu\n", msec);
-       		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+        printf("\nMin latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+       		thruput = (uint64_t)stats->rs_bytes_nr/usec;
        		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -643,11 +643,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_max_lat);
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-        msec = (uint64_t) sec * 1000;
-	if (sec != 0) {
-        	printf("\nMax latency    (msecs)   = %llu\n", msec);
-        	thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+        printf("\nMax latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+        	thruput = (uint64_t)stats->rs_bytes_nr/sec;
         	printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -663,11 +663,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_avg_lat);
 	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-        msec = (uint64_t) sec * 1000;
-	if (sec != 0) {
-        	printf("\nAvg latency    (msecs)   = %llu\n", msec);
-		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+        printf("\nAvg latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/sec;
 		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -694,10 +694,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_min_lat);
 	nsec = c2_time_nanoseconds(stats->rs_min_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	if (sec != 0) {
-		printf("\nMin latency    (msecs)   = %llu\n", msec);
-		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+	printf("\nMin latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/sec;
 		printf("Max Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -714,11 +715,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_max_lat);
 	nsec = c2_time_nanoseconds(stats->rs_max_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	msec = (uint64_t) sec * 1000;
-	if (sec != 0) {
-		printf("\nMax latency    (msecs)   = %llu\n", msec);
-		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+	printf("\nMax latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/sec;
 		printf("Min Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
@@ -734,11 +735,11 @@ void print_stats(bool client, bool server)
 	sec = c2_time_seconds(stats->rs_avg_lat);
 	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
 	#ifdef __KERNEL__
-	sec += (uint64_t) nsec/C2_TIME_ONE_BILLION;
-	msec = (uint64_t) sec * 1000;
-	if (sec != 0) {
-		printf("\nAvg latency    (msecs)   = %llu\n", msec);
-		thruput = (uint64_t)stats->rs_bytes_nr/(sec*1000000);
+	usec = (uint64_t) nsec / 1000;
+        usec += (uint64_t) (sec * 1000000);
+	printf("\nAvg latency    (usecs)   = %llu\n", usec);
+	if (usec != 0) {
+		thruput = (uint64_t)stats->rs_bytes_nr/sec;
 		printf("Avg Throughput (MB/sec)  = %llu\n", thruput);
 	}
 	#else
