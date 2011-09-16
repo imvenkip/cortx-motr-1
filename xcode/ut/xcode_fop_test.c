@@ -37,14 +37,14 @@
 /** Random test values */
 enum {
 	ARR_COUNT_1 = 10,
-	ARR_COUNT_2 = 12,
+	ARR_COUNT_2 = 11,
 	TEST_OFFSET = 0xABCDEF,
 	TEST_COUNT  = 0x123456,
 	TEST_INDEX  = 0xDEAD,
 	TEST_VAL    = 0x1111,
 	TEST_CNT_1  = 0x1234,
 	TEST_FLAG   = 0x1,
-	TEST_BUF_SIZE = 64,
+	TEST_BUF_SIZE = 33,
 	NO_OF_BUFFERS = 85,
 	BUFVEC_SEG_SIZE = 256
 };
@@ -146,6 +146,8 @@ static void test_fop_encdec(void)
 	struct c2_fop			*f1, *fd1;
 	struct c2_net_buffer		*nb;
 	struct c2_fop_test		*ccf1;
+	size_t				 fop_size;
+	size_t				 act_fop_size;
 
 	rc = c2_fop_type_format_parse(&c2_test_buf_tfmt);
 	C2_UT_ASSERT(rc == 0);
@@ -204,6 +206,15 @@ static void test_fop_encdec(void)
 			fop_test_buf, strlen(fop_test_buf));
 		}
 	}
+
+	/* Manually calculate the size of the fop based on the .ff file.
+	  For the current "test_fop" defined in fop.ff, we can calculate
+	  the size of the fop using the formula given below */
+	act_fop_size = 24 + ARR_COUNT_1 * (8 + ARR_COUNT_2 * 88);
+
+	/*Check the size of the fop using the interfaces*/
+	fop_size = c2_xcode_fop_size_get(f1);
+	C2_UT_ASSERT(fop_size == act_fop_size);
 
 	/* Allocate a netbuf and a bufvec, check alignments*/
 	C2_ALLOC_PTR(nb);

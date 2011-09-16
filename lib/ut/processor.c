@@ -798,6 +798,7 @@ void test_processor(void)
 	verify_all_params();
 	clean_test_dataset();
 
+	unsetenv("C2_PROCESSORS_INFO_DIR");
 }
 
 struct c2_ub_set c2_processor_ub = {

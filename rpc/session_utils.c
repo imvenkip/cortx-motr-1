@@ -65,9 +65,8 @@ void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
 {
 	/* XXX temporary */
 	uint64_t  rnd;
-	c2_time_t now;
 
-	rnd = c2_time_nanoseconds(c2_time_now(&now)) * 1000;
+	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
 	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
 }
 
@@ -98,17 +97,17 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 static struct c2_uint128 stob_id_alloc(void)
 {
         static struct c2_atomic64 cnt;
-        struct c2_uint128         id;
+	struct c2_uint128         id;
         uint64_t                  millisec;
-        c2_time_t 		  now;
-        /*
-         * TEMPORARY implementation to allocate unique stob id
-         */
-        millisec = c2_time_nanoseconds(c2_time_now(&now)) * 1000000;
-        c2_atomic64_inc(&cnt);
 
-        id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
-        id.u_lo = (millisec << 20) | (c2_atomic64_get(&cnt) & 0xFFFFF);
+	/*
+	 * TEMPORARY implementation to allocate unique stob id
+	 */
+	millisec = c2_time_nanoseconds(c2_time_now()) * 1000000;
+	c2_atomic64_inc(&cnt);
+
+	id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
+	id.u_lo = (millisec << 20) | (c2_atomic64_get(&cnt) & 0xFFFFF);
         return id;
 }
 
@@ -219,7 +218,7 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 {
 	printf("Executing %p\n", item);
-	//C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
+	C2_ASSERT(item->ri_magic == C2_RPC_ITEM_MAGIC);
 	c2_mutex_lock(&c2_exec_queue_mutex);
 	c2_queue_link_init(&item->ri_dummy_qlinkage);
 	c2_queue_put(&c2_exec_queue, &item->ri_dummy_qlinkage);

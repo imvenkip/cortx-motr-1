@@ -235,6 +235,10 @@ back to sender.
 	- How to get unique stob_id for session and slot cobs?
 	- slot table resize needs to be implemented.
 	- Design protocol to dynamically adjust number of slots.
+	- Session level timeout
+	- session can be terminated only if all items are pruned from all
+		slot->sl_item_list
+
  */
 
 #include "lib/list.h"
@@ -377,12 +381,12 @@ enum c2_rpc_conn_flags {
    +-------------------------> UNINITIALISED
          allocated               ^  |
                c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
-                                 |  V
-                               INITIALISED
-                                    |
-                                    |  c2_rpc_conn_establish()
-                                    |
-                                    V
+   c2_rpc_conn_establish() != 0  |  V
+         +---------------------INITIALISED
+         |                          |
+         |                          |  c2_rpc_conn_establish()
+         |                          |
+         |                          V
          +---------------------- CONNECTING
          | time-out ||              |
          |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
@@ -409,10 +413,23 @@ enum c2_rpc_conn_flags {
   @endverbatim
 
   <B> Liveness and Concurrency: </B>
-  * Allocation and deallocation of c2_rpc_conn object is entirely handled by
-    user (c2_rpc_conn object is not reference counted).
-  * c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
-  * Locking order: slot => session => conn => rpcmachine
+  - Sender side allocation and deallocation of c2_rpc_conn object is
+    entirely handled by user (c2_rpc_conn object is not reference counted).
+  - On receiver side, user is not expected to allocate or deallocate
+    c2_rpc_conn objects explicitly.
+  - Receiver side c2_rpc_conn object will be instantiated in response to
+    rpc connection establish request and is deallocated while terminating the
+    rpc connection.
+  - User is not expected to take lock on c2_rpc_conn object. Session module
+    will internally synchronise access to c2_rpc_conn.
+  - c2_rpc_conn::c_mutex protects all but c_link fields of c2_rpc_conn.
+  - Locking order:
+    - slot->sl_mutex
+    - session->s_mutex
+    - conn->c_mutex
+    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+      now, there is no case where these two mutex are held together. If such
+      need arises then ordering of these two mutex should be decided.)
 
   <B> Typical sequence of API execution </B>
   Note: error checking is omitted.
@@ -470,6 +487,10 @@ enum c2_rpc_conn_flags {
   c2_free(conn);
 
   @endcode
+
+  On receiver side, user is not expected to call any of these APIs.
+  Receiver side rpc-layer will internally allocate/deallocate and manage
+  all the state transitions of conn internally.
  */
 struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
@@ -548,6 +569,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     c2_rpc_conn_establish_reply_received() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
+    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -653,33 +675,49 @@ enum c2_rpc_session_state {
    parameters. But currently it is just a container for slots.
 
    <B> Liveness: </B>
-   Allocation and deallocation of c2_rpc_session is entirely managed by user
-   except for SESSION 0. SESSION 0 is allocated and deallocated by rpc-layer
-   internally along with c2_rpc_conn. @see c2_rpc_conn for more information
-   on creation and use of SESSION 0.
+
+   On sender side, allocation and deallocation of c2_rpc_session is entirely
+   managed by user except for SESSION 0. SESSION 0 is allocated and deallocated
+   by rpc-layer internally along with c2_rpc_conn.
+   @see c2_rpc_conn for more information on creation and use of SESSION 0.
+
+   On receiver side, c2_rpc_session object will be allocated and deallocated
+   by rpc-layer internally, in response to session create and session terminate
+   requests respectively.
 
    <B> Concurrency:</B>
+
+   Users of rpc-layer are never expected to take lock on session. Rpc layer
+   will internally synchronise access to c2_rpc_session.
+
    c2_rpc_session::s_mutex protects all fields except s_link. s_link is
    protected by session->s_conn->c_mutex.
+
+   There is no need to take session->s_mutex while posting item on the session.`
    When session is in one of UNINITIALISED, INITIALISED, TERMINATED and
    FAILED state, user is expected to serialise access to the session object.
-   There is no need to take session->s_mutex while posting item
-   on the session. Users of rpc-layer are never expected to take lock on
-   session.
+   (It is assumed that session in one of {UNINITIALISED, INITIALISED,
+   TERMINATED, FAILED} state, very likely does not have concurrent users).
 
-   Locking hierarchy is slot => session => conn => rpcmachine.
+   Locking order:
+    - slot->sl_mutex
+    - session->s_mutex
+    - conn->c_mutex
+    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+      now, there is no case where these two mutex are held together. If such
+      need arises then ordering of these two mutex should be decided.)
 
    @verbatim
 
             +------------------> UNINITIALISED
                  allocated         ^   |
                             fini() |   |  c2_rpc_session_init()
-				   |   V
-				  INITIALISED
-				      |
-				      | c2_rpc_session_establish()
-				      |
-		timed-out             V
+  c2_rpc_session_establish() != 0  |   V
+          +----------------------INITIALISED
+          |                           |
+          |                           | c2_rpc_session_establish()
+          |                           |
+          |     timed-out             V
           +-----------------------ESTABLISHING
 	  |   create_failed           | create successful/n = 0
 	  V                           |
@@ -766,6 +804,24 @@ enum c2_rpc_session_state {
    c2_rpc_session_fini(session);
    c2_free(session);
    @endcode
+
+   Receiver is not expected to call any of these APIs. Receiver side session
+   structures will be set-up while handling fops \
+   c2_rpc_fop_[conn|session]_[establish|terminate].
+
+   When receiver needs to post reply, it uses c2_rpc_reply_post().
+
+   @code
+   c2_rpc_reply_post(request_item, reply_item);
+   @endcode
+
+   c2_rpc_reply_post() will copy all the session related information from
+   request item to reply item and process reply item.
+
+   Note: rpc connection is a two-way communication channel. There are requests
+   and corresponding reply items, on the same connection. Receiver NEED NOT
+   have to establish other separate connection with sender, to be able to
+   send replies.
  */
 struct c2_rpc_session {
 	/** linkage into list of all sessions within a c2_rpc_conn */
@@ -826,6 +882,10 @@ struct c2_rpc_session {
    nr_slots number of slots.
    No network communication is involved.
 
+   @param session session being initialised
+   @param conn rpc connection with which this session is associated
+   @param nr_slots number of slots in the session
+
    @post ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED &&
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
@@ -842,6 +902,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
     @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+    @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
 
@@ -972,7 +1033,15 @@ uint32_t c2_rpc_slot_items_possible_inflight(struct c2_rpc_slot *slot);
   Slots are allocated at the time of session initialisation and freed at the
   time of session finalisation.
   c2_rpc_slot::sl_mutex protects all fields of slot except sl_link.
-  Locking hierarchy is slot => session => conn => rpcmachine
+  sl_link is protected by c2_rpcmachine::cr_ready_slots_mutex.
+
+  Locking order:
+    - slot->sl_mutex
+    - session->s_mutex
+    - conn->c_mutex
+    - rpcmachine->cr_session_mutex, rpcmachine->cr_ready_slots_mutex (As of
+      now, there is no case where these two mutex are held together. If such
+      need arises then ordering of these two mutex should be decided.)
  */
 struct c2_rpc_slot {
 	/** Session to which this slot belongs */

@@ -96,8 +96,6 @@ struct ping_ctx {
 	int					 pc_nr_ping_bytes;
 	/* number of client threads */
 	int					 pc_nr_client_threads;
-	/* switch to identify which type of fops have to be sent to rpc */
-	int					 pc_fop_switch;
 };
 
 /* Default port values */
@@ -140,6 +138,10 @@ enum {
 enum {
 	PING = 1,
 	IO,
+};
+
+enum {
+	MAX_RPCS_IN_FLIGHT = 32,
 };
 
 /* Global client ping context */
@@ -379,7 +381,7 @@ void server_init(int dummy)
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&sctx.pc_rpc_mach, &sctx.pc_cob_domain,
-			&sctx.pc_dom, addr_local);
+			&sctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -416,57 +418,6 @@ void server_init(int dummy)
 
 cleanup:
 	do_cleanup();
-}
-
-#define nfiles                   64
-#define ndatafids                8
-#define nfops                    256
-extern struct c2_fop_file_fid          *form_fids;
-extern uint64_t                        *file_offsets;
-extern struct c2_fop_io_vec           **form_write_iovecs;
-
-int c2_rpc_frm_item_populate_param(struct c2_rpc_item *item);
-void init_fids();
-void populate_fids();
-void init_file_io_patterns();
-struct c2_fop *form_get_new_fop();
-
-/**
-  Init the data required for IO fops
- */
-void io_fop_data_init()
-{
-        C2_ALLOC_ARR(form_fids, nfiles);
-        init_fids();
-        populate_fids();
-        C2_ALLOC_ARR(file_offsets, ndatafids);
-        init_file_io_patterns();
-        C2_ALLOC_ARR(form_write_iovecs, nfops);
-}
-
-struct c2_mutex fid_mutex;
-
-/**
-  Create a random IO fop (either read or write) and post it to rpc layer
- */
-void send_random_io_fop(int nr)
-{
-        struct c2_fop           *fop;
-        struct c2_rpc_item      *item = NULL;
-
-	c2_mutex_lock(&fid_mutex);
-        fop = form_get_new_fop();
-	c2_mutex_unlock(&fid_mutex);
-        item = &fop->f_item;
-        c2_rpc_frm_item_populate_param(&fop->f_item);
-        item->ri_deadline = 0;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group = NULL;
-	item->ri_mach = &cctx.pc_rpc_mach;
-        c2_rpc_item_type_attach(fop->f_type);
-        c2_rpc_item_attach(item);
-        item->ri_session = &cctx.pc_rpc_session;
-        c2_rpc_post(item);
 }
 
 /**
@@ -680,7 +631,7 @@ void client_init()
 
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			&cctx.pc_dom, addr_local);
+			&cctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -734,7 +685,7 @@ void client_init()
 	}
 
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -769,7 +720,7 @@ void client_init()
 		printf("RPC session created\n");
 	}
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
@@ -784,18 +735,11 @@ void client_init()
 		printf("Timeout for session create \n");
 
 	C2_ALLOC_ARR(client_thread, cctx.pc_nr_client_threads);
-	//io_fop_data_init();
-	c2_mutex_init(&fid_mutex);
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		if (cctx.pc_fop_switch == PING)
-			rc = C2_THREAD_INIT(&client_thread[i], int,
-					NULL, &send_ping_fop,
-					0, "client_%d", i);
-		else if (cctx.pc_fop_switch == IO)
-			rc = C2_THREAD_INIT(&client_thread[i], int,
-					NULL, &send_random_io_fop,
-					0, "client_%d", i);
+		rc = C2_THREAD_INIT(&client_thread[i], int,
+				NULL, &send_ping_fop,
+				0, "client_%d", i);
 		C2_ASSERT(rc == 0);
 	}
 	for (i = 0; i < cctx.pc_nr_client_threads; i++) {
@@ -806,7 +750,7 @@ void client_init()
 		send_ping_fop(i);
 	}
 */
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -822,7 +766,7 @@ void client_init()
 		printf("RPC session terminate call successful\n");
 	}
 
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -847,8 +791,7 @@ void client_init()
 	}
 
 
-	c2_mutex_fini(&fid_mutex);
-        c2_time_now(&timeout);
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -873,8 +816,6 @@ cleanup:
 /* Main function for rpc ping */
 int main(int argc, char *argv[])
 {
-	bool			 pingfops = false;
-	bool			 iofops = false;
 	bool			 verbose = false;
 	bool			 server = false;
 	bool			 client = false;
@@ -889,13 +830,13 @@ int main(int argc, char *argv[])
 	int			 rc;
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
-	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
 
+	c2_addb_choose_default_level(AEL_WARN);
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		return rc;
@@ -914,8 +855,6 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
-		C2_FLAGARG('i', "send io fops", &iofops),
-		C2_FLAGARG('d', "send ping data fops", &pingfops),
 		C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -929,13 +868,6 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_ping_items = NR_PING_ITEMS;
 	cctx.pc_nr_ping_bytes = NR_PING_BYTES;
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
-	cctx.pc_fop_switch = PING;
-
-        /* Start with a default value of 8. The max value in Lustre, is
-           limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 32;
-
-        c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
 
 	/* Set if passed through command line interface */
 	if (client_name)
@@ -954,10 +886,6 @@ int main(int argc, char *argv[])
 		cctx.pc_nr_ping_bytes = nr_ping_bytes;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-	if (pingfops)
-		cctx.pc_fop_switch = PING;
-	if (iofops)
-		cctx.pc_fop_switch = IO;
 
 	/* Client part */
 	if(client) {

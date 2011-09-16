@@ -34,16 +34,17 @@ extern int nanosleep(const struct timespec *req, struct timespec *rem);
    @{
 */
 
-c2_time_t c2_time_now(c2_time_t *time)
+c2_time_t c2_time_now(void)
 {
         struct timeval tv;
+	c2_time_t      t;
 
-        C2_PRE(time != NULL);
         /* We could use clock_gettime(CLOCK_REALTIME, time) for nanoseconds,
          but we would have to link librt... */
         gettimeofday(&tv, NULL);
-        c2_time_set(time, tv.tv_sec, tv.tv_usec * 1000);
-	return *time;
+        c2_time_set(&t, tv.tv_sec, tv.tv_usec * 1000);
+
+        return t;
 }
 C2_EXPORTED(c2_time_now);
 

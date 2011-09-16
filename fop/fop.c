@@ -187,22 +187,6 @@ struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_item_to_fop);
 
-/* onwire_fmt
-struct c2_fop_type *c2_item_type_to_fop_type
-		    (const struct c2_rpc_item_type *item_type)
-{
-	struct c2_fop_type		*ftype;
-	struct c2_fop_rpc_item_type	*fri_type;
-
-	C2_PRE(item_type != NULL);
-
-	fri_type = container_of(item_type, struct c2_fop_rpc_item_type,
-				fri_i_type);
-	ftype = fri_type->fri_f_type;
-	return ftype;
-}
-C2_EXPORTED(c2_item_type_to_fop_type);
-*/
 struct c2_fop_type *c2_item_type_to_fop_type
 		    (const struct c2_rpc_item_type *item_type)
 {

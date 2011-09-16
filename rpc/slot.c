@@ -52,6 +52,11 @@
    @{
  */
 
+extern void item_exit_stats_set(struct c2_rpc_item *item,
+				enum c2_rpc_item_path path);
+extern int frm_item_reply_received(struct c2_rpc_item *reply_item,
+		struct c2_rpc_item *req_item);
+
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
@@ -621,27 +626,34 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
+		session = slot->sl_session;
+		C2_ASSERT(session != NULL);
+
+		c2_mutex_lock(&session->s_mutex);
+		C2_ASSERT(c2_rpc_session_invariant(session));
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
+		C2_ASSERT(session->s_nr_active_items > 0);
+
 		req->ri_tstate = RPC_ITEM_PAST_VOLATILE;
 		printf("Item %p PAST_VOLATILE\n", req);
 		req->ri_reply = reply;
 		*req_out = req;
 		slot->sl_in_flight--;
 
-		session = slot->sl_session;
-		if (session != NULL) {
-			c2_mutex_lock(&session->s_mutex);
-			C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
-			C2_ASSERT(session->s_nr_active_items > 0);
-			session->s_nr_active_items--;
-			if (session->s_nr_active_items == 0 &&
-				c2_list_is_empty(&session->s_unbound_items)) {
-				printf("session %p marked IDLE\n", session);
-				session->s_state = C2_RPC_SESSION_IDLE;
-				c2_cond_broadcast(&session->s_state_changed,
-						&session->s_mutex);
-			}
-			c2_mutex_unlock(&session->s_mutex);
+		session->s_nr_active_items--;
+		/*
+		 * Setting of req->ri_tstate to PAST_VOLATILE and reducing
+		 * session->s_nr_active_items should be in same critical
+		 * region protected by session->s_mutex.
+		 */
+		if (session->s_nr_active_items == 0 &&
+			c2_list_is_empty(&session->s_unbound_items)) {
+			printf("session %p marked IDLE\n", session);
+			session->s_state = C2_RPC_SESSION_IDLE;
 		}
+		C2_ASSERT(c2_rpc_session_invariant(session));
+		c2_mutex_unlock(&session->s_mutex);
+
 		/*
 		 * On receiver, ->so_reply_consume(req, reply) will hand over
 		 * @reply to formation, to send it back to sender.
@@ -649,6 +661,17 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
+
+		c2_mutex_lock(&session->s_mutex);
+		C2_ASSERT(c2_rpc_session_invariant(session));
+		if (session->s_state == C2_RPC_SESSION_IDLE) {
+			printf("slot_reply_rcvd: broadcast session IDLE %p\n",
+						session);
+			c2_cond_broadcast(&session->s_state_changed,
+					&session->s_mutex);
+
+		}
+		c2_mutex_unlock(&session->s_mutex);
 	}
 }
 
@@ -792,7 +815,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
-	c2_rpc_item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 	if (rc != 0) {
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
@@ -831,8 +854,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = c2_rpc_frm_item_reply_received(item,
-					req);
+			rc = frm_item_reply_received(item, req);
 		}
 
 		if (req != NULL && req->ri_ops != NULL &&

@@ -80,16 +80,25 @@ DEF(c2_fop_io_vec, SEQUENCE,
 	_(iv_segs, c2_fop_io_seg));
 
 /**
+ * A common sub structure to be referred by read and write reply fops.
+ */
+DEF(c2_fop_cob_rw_reply, RECORD,
+	/** Status code of operation. */
+	_(rwr_rc, U32),
+	/** Number of bytes read or written. */
+	_(rwr_count, U64));
+
+/**
  * Reply FOP for a readv request.
  */
 DEF(c2_fop_cob_readv_rep, RECORD,
-	/** Status code. */
-	_(crr_rc, U32),
+	/** Common read/write reply. */
+	_(c_rep, c2_fop_cob_rw_reply),
 	/** At the moment, due to some constraints put up by kxdr wrapper
 	   around sunrpc, we can't have an IO vector here. It has to be
 	   a SEQUENCE of bytes. Eventually, this will be replaced by
 	   an IO vector or rather a net buffer descriptor. */
-	_(crr_iobuf, c2_fop_io_buf));
+	_(c_iobuf, c2_fop_io_buf));
 
 /**
  * Common structure for read and write request fops.
@@ -122,10 +131,8 @@ DEF(c2_fop_cob_readv, RECORD,
  * It contains the status code and number of bytes written.
  */
 DEF(c2_fop_cob_writev_rep, RECORD,
-	/** Status code. */
-	_(cwr_rc, U32),
-	/** Number of bytes written. */
-	_(cwr_count, U64));
+	/** Common read/write reply structure. */
+	_(c_rep, c2_fop_cob_rw_reply));
 
 /**
  * The c2_fop_cob_writev FOP is used to send write requests by a

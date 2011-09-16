@@ -118,9 +118,11 @@ bool verbose = false;
 module_param(verbose, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
 
+/* server mode not supported
 bool server_mode = false;
 module_param(server_mode, bool, S_IRUGO);
 MODULE_PARM_DESC(server_mode, "enable server mode");
+*/
 
 bool client_mode = false;
 module_param(client_mode, bool, S_IRUGO);
@@ -199,6 +201,10 @@ enum {
 enum {
 	PING = 1,
 	IO,
+};
+
+enum {
+        MAX_RPCS_IN_FLIGHT = 32,
 };
 
 /* Global client ping context */
@@ -826,7 +832,7 @@ void client_init(void)
 	}
 	/* Init the rpcmachine */
 	rc = c2_rpcmachine_init(&cctx.pc_rpc_mach, &cctx.pc_cob_domain,
-			&cctx.pc_dom, addr_local);
+			&cctx.pc_dom, addr_local, MAX_RPCS_IN_FLIGHT);
 	if(rc != 0){
 		printf("Failed to init rpcmachine\n");
 		goto cleanup;
@@ -883,7 +889,7 @@ void client_init(void)
 		printf("RPC connection created \n");
 	}
 
-        c2_time_now(&timeout);
+        c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -918,7 +924,7 @@ void client_init(void)
 		printf("RPC session created\n");
 	}
 
-        c2_time_now(&timeout);
+        c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
@@ -959,7 +965,7 @@ void client_init(void)
 		send_ping_fop(i);
 	}
 */
-        c2_time_now(&timeout);
+        c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -975,7 +981,7 @@ void client_init(void)
 		printf("RPC session terminate call successful\n");
 	}
 
-        c2_time_now(&timeout);
+        c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -1002,7 +1008,7 @@ void client_init(void)
 	#ifndef __KERNEL__
 	c2_mutex_fini(&fid_mutex);
 	#endif
-        c2_time_now(&timeout);
+        c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -1049,7 +1055,6 @@ int main(int argc, char *argv[])
 	struct c2_thread	 server_thread;
 	struct c2_thread	 server_rqh_thread;
 	#endif
-	uint64_t		 c2_rpc_max_rpcs_in_flight;
 
 	#ifndef __KERNEL__
 	rc = c2_init();
@@ -1071,7 +1076,8 @@ int main(int argc, char *argv[])
 			LAMBDA(void, (const char *str) {server_name = str; })),
 		C2_FORMATARG('P', "server port", "%i", &server_port),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
-		C2_FORMATARG('t', "number of client threads", "%i", &nr_client_threads),
+		C2_FORMATARG('t', "number of client threads", "%i",
+							&nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FLAGARG('i', "send io fops", &iofops),
@@ -1091,12 +1097,6 @@ int main(int argc, char *argv[])
 	cctx.pc_nr_client_threads = NR_CLIENT_THREADS;
 	cctx.pc_fop_switch = PING;
 
-        /* Start with a default value of 8. The max value in Lustre, is
-           limited to 32. */
-        c2_rpc_max_rpcs_in_flight = 32;
-
-        c2_rpc_frm_set_thresholds(c2_rpc_max_rpcs_in_flight);
-
 	/* Set if passed through command line interface */
 	#ifdef __KERNEL__
 	if (client_port != 0)
@@ -1107,8 +1107,10 @@ int main(int argc, char *argv[])
 		sctx.pc_nr_slots = cctx.pc_nr_slots = nr_slots;
 	if (nr_client_threads != 0)
 		cctx.pc_nr_client_threads = nr_client_threads;
-	if (server_mode)
+	/**
+	   if (server_mode)
 		server = true;
+	 */
 	if (client_mode)
 		client = true;
 	if (nr_ping_item != 0)
