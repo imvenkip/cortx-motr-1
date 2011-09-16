@@ -34,19 +34,20 @@ SUBDIRS_LIBS = \
                udb \
                xcode \
                xdr
-SUBDIR_RPC = rpc/it
+SUBDIR_IT = rpc/it
 SUBDIR_KERNEL = build_kernel_modules
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
             fol/ut sns/ut desim/ut cob/ut net/ut net/bulk_emulation/ut \
-            udb/ut capa/ut reqh/ut rpc/it rpc/ut xcode/ut xdr/ut
+            udb/ut capa/ut reqh/ut rpc/ut xcode/ut xdr/ut
 SUBDIR_ST = net/st net/bulk_emulation/st
 
 SUBDIR_UB =
 
 SUBDIR_BIN = mds utils
 
-SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_RPC) $(SUBDIR_KERNEL) \
-             $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_UB) $(SUBDIR_BIN)
+SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
+	     $(SUBDIR_KERNEL) $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_UB) \
+	     $(SUBDIR_BIN)
 
 etags:
 	find . -name '*.[ch]' | xargs etags
