@@ -192,15 +192,19 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
-	C2_ASSERT(item != NULL && item->ri_session != NULL);
+	struct c2_rpc_session *session;
 
-	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
-		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
+	C2_ASSERT(item != NULL && item->ri_type != NULL);
+
+	session = item->ri_session;
+	C2_ASSERT(session != NULL);
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+		  session->s_state == C2_RPC_SESSION_BUSY);
 
 	item->ri_rpc_entry_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
+	item->ri_mach = session->s_conn->c_rpcmachine;
 	return frm_ubitem_added(item);
 }
 
@@ -217,34 +221,26 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_rpc_entry_time = c2_time_now();
 
 	reply->ri_session = request->ri_session;
-	reply->ri_slot_refs[0].sr_sender_id =
-		request->ri_slot_refs[0].sr_sender_id;
-	reply->ri_slot_refs[0].sr_session_id =
-		request->ri_slot_refs[0].sr_session_id;
-	reply->ri_slot_refs[0].sr_uuid = request->ri_slot_refs[0].sr_uuid;
+
+	sref = &reply->ri_slot_refs[0];
+	*sref = request->ri_slot_refs[0];
+	sref->sr_item = reply;
+	/* don't need values of sr_link and sr_ready_link of request item */
+	c2_list_link_init(&sref->sr_link);
+	c2_list_link_init(&sref->sr_ready_link);
+
 	reply->ri_prio = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
 	reply->ri_error = 0;
 	reply->ri_state = RPC_ITEM_SUBMITTED;
 
-	sref = &reply->ri_slot_refs[0];
-
-	slot = sref->sr_slot = request->ri_slot_refs[0].sr_slot;
-	sref->sr_item = reply;
-
-	sref->sr_slot_id = request->ri_slot_refs[0].sr_slot_id;
-	sref->sr_verno = request->ri_slot_refs[0].sr_verno;
-	sref->sr_xid = request->ri_slot_refs[0].sr_xid;
-	sref->sr_slot_gen = request->ri_slot_refs[0].sr_slot_gen;
-
 	reply->ri_mach = reply->ri_session->s_conn->c_rpcmachine;
 	request->ri_mach = request->ri_session->s_conn->c_rpcmachine;
 
-	//reply->ri_type->rit_flags = C2_RPC_ITEM_BOUND;
-
+	slot = sref->sr_slot;
 	c2_mutex_lock(&slot->sl_mutex);
-	c2_rpc_slot_reply_received(reply->ri_slot_refs[0].sr_slot,
-				   reply, &tmp);
+	c2_rpc_slot_reply_received(slot, reply, &tmp);
+	C2_ASSERT(tmp == request);
 	c2_mutex_unlock(&slot->sl_mutex);
 	return 0;
 }
