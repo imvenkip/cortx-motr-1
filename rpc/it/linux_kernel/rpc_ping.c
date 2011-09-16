@@ -889,7 +889,7 @@ void client_init(void)
 		printf("RPC connection created \n");
 	}
 
-        c2_time_now();
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
@@ -902,7 +902,6 @@ void client_init(void)
 			printf("pingcli: conn create failed\n");
 	} else
 		printf("Timeout for conn create \n");
-
 	/* Init session */
 	rc = c2_rpc_session_init(&cctx.pc_rpc_session, &cctx.pc_conn,
 			cctx.pc_nr_slots);
@@ -924,7 +923,7 @@ void client_init(void)
 		printf("RPC session created\n");
 	}
 
-        c2_time_now();
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to become active */
@@ -965,7 +964,7 @@ void client_init(void)
 		send_ping_fop(i);
 	}
 */
-        c2_time_now();
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -981,7 +980,7 @@ void client_init(void)
 		printf("RPC session terminate call successful\n");
 	}
 
-        c2_time_now();
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 	/* Wait for session to terminate */
@@ -1008,7 +1007,7 @@ void client_init(void)
 	#ifndef __KERNEL__
 	c2_mutex_fini(&fid_mutex);
 	#endif
-        c2_time_now();
+        timeout = c2_time_now();
         c2_time_set(&timeout, c2_time_seconds(timeout) + 3000,
                                 c2_time_nanoseconds(timeout));
 
