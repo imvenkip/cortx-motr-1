@@ -51,6 +51,11 @@
    @{
  */
 
+extern void item_exit_stats_set(struct c2_rpc_item *item,
+				enum c2_rpc_item_path path);
+extern int frm_item_reply_received(struct c2_rpc_item *reply_item,
+		struct c2_rpc_item *req_item);
+
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item1 = NULL;  /* init to NULL, required */
@@ -631,16 +636,37 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		session->s_nr_active_items--;
 		/*
 		 * Setting of req->ri_tstate to PAST_VOLATILE and reducing
-		 * session->s_nr_active_items should be in same critical
+		 * session->s_nr_active_items must be in same critical
 		 * region protected by session->s_mutex.
 		 */
 		if (session->s_nr_active_items == 0 &&
 			c2_list_is_empty(&session->s_unbound_items)) {
 			printf("session %p marked IDLE\n", session);
 			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					&session->s_mutex);
+			/*
+			 * ->s_state_change is broadcast after slot_balance()
+			 * call in this function.
+			 * Cannot broadcast on session->s_state_changed here.
+			 * Doing so introduces a race condition:
+			 *
+			 * - User thread might be waiting for session to be
+			 *   IDLE, so that it can call
+			 *   c2_rpc_session_terminate().
+			 * - current thread broadcasts on s_state_changed
+			 * - the user thread will come out of wait, and issue
+			 *   c2_rpc_session_terminate(), which removes all
+			 *   slots of the IDLE session, from ready_slots list.
+			 * - current thread continues execution and calls
+			 *   slot_balance(), which will trigger
+			 *   slot->sl_ops->so_slot_idle() event, resulting in
+			 *   slot placed again on ready_slots list.
+			 *   A TERMINATING session must not have any of its
+			 *   slots on ready_slots list.
+			 * - session invariant catches this, in
+			 *   c2_rpc_session_terminate_reply_received()
+			 */
 		}
+		C2_ASSERT(c2_rpc_session_invariant(session));
 		c2_mutex_unlock(&session->s_mutex);
 
 		/*
@@ -650,6 +676,18 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		slot->sl_ops->so_reply_consume(req, reply);
 		slot_balance(slot);
+
+		c2_mutex_lock(&session->s_mutex);
+		C2_ASSERT(c2_rpc_session_invariant(session));
+
+		if (session->s_state == C2_RPC_SESSION_IDLE) {
+
+			c2_cond_broadcast(&session->s_state_changed,
+					&session->s_mutex);
+
+		}
+
+		c2_mutex_unlock(&session->s_mutex);
 	}
 }
 
@@ -793,7 +831,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	C2_ASSERT(item != NULL && item->ri_mach != NULL);
 	printf("item_received: %p\n", item);
 	rc = associate_session_and_slot(item);
-	c2_rpc_item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 	if (rc != 0) {
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
@@ -803,6 +841,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 * If we cannot associate the item with its slot
 		 * then there is nothing that we can do with this
 		 * item except to discard it.
+		 * XXX generate ADDB record
 		 */
 		printf("item_received: rc != 0\n");
 		return rc;
@@ -832,8 +871,7 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			rc = c2_rpc_frm_item_reply_received(item,
-					req);
+			rc = frm_item_reply_received(item, req);
 		}
 
 		if (req != NULL && req->ri_ops != NULL &&

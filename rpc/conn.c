@@ -53,6 +53,9 @@
 
 static const char conn_cob_name_fmt[] = "SENDER_%lu";
 
+extern struct c2_rpc_chan *rpc_chan_get(struct c2_rpcmachine *machine);
+extern void rpc_chan_put(struct c2_rpc_chan *chan);
+
 /**
    Attaches session 0 object to conn object.
  */
@@ -468,7 +471,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	conn->c_rpcchan = c2_rpc_chan_get(machine);
+	conn->c_rpcchan = rpc_chan_get(machine);
 
 	/*
 	 * c2_rpc_fop_conn_establish FOP doesn't contain any data.
@@ -479,7 +482,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	/* Formation client side keeps track of current rpcs in flight,
 	   while server side of formation does not. So we need to differentiate
 	   between client and server sides for formation. */
-	machine->cr_formation.rf_client_side = true;
+	machine->cr_formation.rf_sender_side = true;
 
 	rc = c2_rpc__fop_post(fop, session_0, &c2_rpc_item_conn_establish_ops);
 	if (rc != 0) {
@@ -774,10 +777,10 @@ out:
 	C2_POST(c2_rpc_conn_invariant(conn));
 	C2_POST(conn->c_state == C2_RPC_CONN_TERMINATED ||
 		conn->c_state == C2_RPC_CONN_FAILED);
+	/* Release the reference on c2_rpc_chan structure being used. */
+	rpc_chan_put(conn->c_rpcchan);
 	c2_cond_broadcast(&conn->c_state_changed, &conn->c_mutex);
 	c2_mutex_unlock(&conn->c_mutex);
-	/* Release the reference on c2_rpc_chan structure being used. */
-	c2_rpc_chan_put(conn->c_rpcchan);
 }
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,
@@ -955,7 +958,7 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 		goto out;
 
 	conn->c_sender_id = sender_id;
-	conn->c_rpcchan = c2_rpc_chan_get(conn->c_rpcmachine);
+	conn->c_rpcchan = rpc_chan_get(conn->c_rpcmachine);
 	conn->c_state = C2_RPC_CONN_ACTIVE;
 	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_add(&machine->cr_incoming_conns, &conn->c_link);
@@ -1026,7 +1029,6 @@ out:
 		 * Take out slot0 of session0 out of ready slots list.
 		 */
 		session0 = c2_rpc_conn_session0(conn);
-		c2_rpc_session_del_slots_from_ready_list(session0);
 		conn_failed(conn, rc);
 	}
 	/*
@@ -1058,7 +1060,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	conn->c_sender_id = SENDER_ID_INVALID;
 	conn->c_rc = 0;
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	c2_rpc_chan_put(conn->c_rpcchan);
+	rpc_chan_put(conn->c_rpcchan);
 
 	c2_mutex_unlock(&conn->c_mutex);
 

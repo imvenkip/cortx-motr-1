@@ -177,7 +177,7 @@ int seed_val;
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 32,
+	C2_RPC_TM_RECV_BUFFERS_NR = 128,
 };
 
 struct c2_rpc;
@@ -343,24 +343,26 @@ struct c2_update_stream {
 struct c2_rpc {
 	/** Linkage into list of rpc objects just formed or into the list
 	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link	r_linkage;
-	struct c2_list		r_items;
+	struct c2_list_link		 r_linkage;
+	struct c2_list			 r_items;
 
 	/** Items in this container should be sent via this session */
-	struct c2_rpc_session  *r_session;
+	struct c2_rpc_session		*r_session;
+	/** Formation attributes (buffer, magic) for the rpc. */
+	struct c2_rpc_frm_buffer	 r_fbuf;
 };
 
 /**
    Initialize an rpc object.
    @param rpc - rpc object to be initialized
  */
-void c2_rpc_rpcobj_init(struct c2_rpc *rpc);
+void c2_rpcobj_init(struct c2_rpc *rpc);
 
 /**
    Finalize an rpc object.
    @param rpc - rpc object to be finalized
  */
-void c2_rpc_rpcobj_fini(struct c2_rpc *rpc);
+void c2_rpcobj_fini(struct c2_rpc *rpc);
 
 /**
    Possible values for flags from c2_rpc_item_type.
@@ -555,14 +557,6 @@ enum c2_rpc_item_path {
 };
 
 /**
-  Set the stats for outgoing rpc item
-  @param item - incoming or outgoing rpc item
-  @param path - enum distinguishing whether the item is incoming or outgoing
- */
-void c2_rpc_item_exit_stats_set(struct c2_rpc_item *item,
-		enum c2_rpc_item_path path);
-
-/**
   Statistical data maintained for each item in the rpcmachine.
   It is upto the higher level layers to retrieve and process this data
  */
@@ -593,12 +587,6 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
    rpc_item_type.
  */
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
-
-/**
-   Attach the given rpc item with its corresponding item type.
-   @param item - given rpc item.
- */
-void c2_rpc_item_attach(struct c2_rpc_item *item);
 
 /**
    Initialize RPC item.
@@ -683,91 +671,6 @@ struct c2_rpc_processing {
 };
 
 /**
-   An API to create a c2_net_buffer with given c2_net_domain.
-   The rpc core component allocates a pool of buffers in advance to
-   receive incoming messages. This is necessary for asynchronous
-   behavior of system. This buffer is deallocated when the transfer
-   machine to which this buffer was added, gets destroyed.
-   @pre - net domain should be initialized.
-
-   @param net_dom - the net domain in which buffers should be registered.
-   @param nb - An out parameter to return the allocated c2_net_buffer.
-   @retval - 0 if succeeded, negative error code otherwise.
- */
-int c2_rpc_net_recv_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb);
-
-/**
-   Allocate C2_RPC_TM_RECV_BUFFERS_NR number of buffer and add each of
-   them to transfer machine's RECV queue.
-   @pre net domain should be initialized.
-   @pre tm should be initialized and started.
-
-   @param net_dom - net domain in which nr number of buffers will be registered.
-   @param tm - transfer machine to which nr number of buffers will be added.
- */
-int c2_rpc_net_recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
-		struct c2_net_transfer_mc *tm);
-
-/**
-   Delete and deregister the buffer meant for receiving messages from the
-   queue of net domain and transfer machine respectively and then
-   deallocate it.
-   @pre nb should be a valid and enqueued net buffer.
-   @pre tm should be initialized and started.
-   @pre net domain should be initialized.
-
-   @param nb - net buffer to be deallocated.
-   @param chan - Concerned c2_rpc_chan structure.
-   @param tm_active - boolean indicating whether associated TM is
-   active or not.
- */
-int c2_rpc_net_recv_buffer_deallocate(struct c2_net_buffer *nb,
-		struct c2_rpc_chan *chan, bool tm_active);
-
-/**
-   Delete and deregister C2_RPC_TM_RECV_BUFFERS_NR number of buffers from
-   queues of transfer machine and net domain respectively and then
-   deallocate each of the buffer.
-
-   @pre tm should be initialized and started.
-   @pre net domain should have been initialized.
-
-   @param chan - Concerned c2_rpc_chan structure.
-   @param tm_active - boolean indicating whether associated TM is
-   active or not.
-   @param nr - number of buffers to be deallocated
- */
-int c2_rpc_net_recv_buffer_deallocate_nr(struct c2_rpc_chan *chan,
-		bool tm_active, uint32_t nr);
-
-/**
-   Allocate a buffer for sending messages from rpc formation component.
-   @pre net domain should be initialized.
-   @pre net buffer should not be allocated.
-   @post net buffer gets allocated.
-
-   @param net_dom - network domain to which buffers will be registered.
-   @param nb - Out parameter to return the allocated c2_net_buffer.
-   @param rpc_size - Size of rpc object. The net buffer should be
-   at least as big as rpc_size.
-   @retval - 0 if succeeded, negative error code otherwise.
- */
-int c2_rpc_net_send_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb, uint64_t rpc_size);
-
-/**
-   Deallocate a net buffer meant for sending messages.
-   @pre net buffer should be allocated and registered.
-   @pre net domain should be initialized.
-
-   @param nb - network buffer which will be deallocated.
-   @param net_dom - network domain from which buffer will be deregistered.
- */
-int c2_rpc_net_send_buffer_deallocate(struct c2_net_buffer *nb,
-		struct c2_net_domain *net_dom);
-
-/**
    Transfer machine callback vector for transfer machines created by
    rpc layer.
  */
@@ -812,46 +715,6 @@ struct c2_rpc_chan {
 	/** The rpcmachine, this chan structure is associated with.*/
 	struct c2_rpcmachine		 *rc_rpcmachine;
 };
-
-/**
-   Create a new c2_rpc_chan structure, populate it and add it to
-   the list in struct c2_rpc_ep_aggr.
-   @param chan - c2_rpc_chan structure to be created.
-   @param machine - concerned c2_rpcmachine structure.
-   @param net_dom - Network domain associated with given rpcmachine.
-   @param ep_addr - End point address to associate with the transfer mc.
- */
-int c2_rpc_chan_create(struct c2_rpc_chan **chan, struct c2_rpcmachine *machine,
-		struct c2_net_domain *net_dom, const char *ep_addr);
-
-/**
-   Destroy the given c2_rpc_chan structure and remove it from the list
-   since no one is referring to it any more.
-   @param machine - concerned rpc machine.
-   @param chan - c2_rpc_chan structure to be destroyed.
- */
-void c2_rpc_chan_destroy(struct c2_rpcmachine *machine,
-		struct c2_rpc_chan *chan);
-
-/**
-   Return a c2_rpc_chan structure given the endpoint.
-   Refcount is incremented on the returned c2_rpc_chan.
-   This API will be typically used by c2_rpc_conn_establish method
-   to get a source endpoint and eventually a transfer machine to
-   associate with.
-   @param machine - concerned c2_rpcmachine from which new c2_rpc_chan
-   structure will be assigned.
- */
-struct c2_rpc_chan *c2_rpc_chan_get(struct c2_rpcmachine *machine);
-
-/**
-   Release the c2_rpc_chan structure being used.
-   This will decrement the refcount of given c2_rpc_chan structure.
-   c2_rpc_conn_terminate_reply_received will use this method to
-   release the reference to the transfer machine it was using.
-   @param chan - chan on which reference will be released.
- */
-void c2_rpc_chan_put(struct c2_rpc_chan *chan);
 
 /**
    RPC machine is an instance of RPC item (FOP/ADDB) processing context.
@@ -923,7 +786,8 @@ void c2_rpc_core_fini(void);
 int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
 			struct c2_cob_domain	*dom,
 			struct c2_net_domain	*net_dom,
-			const char		*ep_addr);
+			const char		*ep_addr,
+			uint64_t max_rpcs_in_flight);
 
 /**
    Destruct rpcmachine
@@ -1146,13 +1010,6 @@ size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine);
  */
 void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
 			      c2_time_t		   *time);
-
-/**
-   @todo rio_replied op from rpc type ops.
-   If this is an IO request, free the IO vector
-   and free the fop.
- */
-void c2_rpc_item_replied(struct c2_rpc_item *item, int rc);
 
 /**
    Returns transmission speed in bytes per second.

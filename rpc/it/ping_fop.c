@@ -34,7 +34,7 @@
 #include "lib/errno.h"
 #include "rpc/rpccore.h"
 #include "rpc/rpc_onwire.h"
-
+#include "xcode/bufvec_xcode.h"
 
 /**
    Return size for a fop of type c2_fop_ping;
@@ -74,7 +74,7 @@ int c2_fop_ping_fom_init(struct c2_fop *fop, struct c2_fom **m);
 struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
+        .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL, 
         .rito_get_io_fragment_count = NULL,
@@ -86,7 +86,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_type_ops = {
 struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
         .rito_sent = NULL,
         .rito_added = NULL,
-        .rito_replied = c2_rpc_item_replied,
+        .rito_replied = NULL,
         .rito_item_size = c2_rpc_item_default_size,
         .rito_items_equal = NULL, 
         .rito_get_io_fragment_count = NULL,
@@ -100,7 +100,7 @@ struct c2_rpc_item_type_ops rpc_item_ping_rep_type_ops = {
 struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fom_init = c2_fop_ping_fom_init,
 	.fto_fop_replied = NULL,
-	.fto_size_get = c2_fop_ping_getsize,
+	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_op_equal = NULL,
 	.fto_get_nfragments = NULL,
 	.fto_io_coalesce = NULL,
@@ -116,7 +116,7 @@ int c2_fop_ping_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
 struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fom_init = c2_fop_ping_rep_fom_init,
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_ping_reply_get_size,
+        .fto_size_get = c2_xcode_fop_size_get,
         //.fto_getsize = c2_fop_ping_getsize,
         .fto_op_equal = NULL,
         .fto_get_nfragments = NULL,
@@ -149,12 +149,12 @@ C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "Ping Reply",
 C2_FOP_TYPE_DECLARE_NEW(c2_fop_ping, "ping fop",
                         c2_fop_ping_opcode,
                         &c2_fop_ping_ops,
-                        &c2_rpc_item_type_ping);
+			&c2_rpc_item_type_ping);
 
 C2_FOP_TYPE_DECLARE_NEW(c2_fop_ping_rep, "ping fop reply",
                         c2_fop_ping_rep_opcode,
                         &c2_fop_ping_rep_ops,
-                        &c2_rpc_item_type_ping_rep);
+			&c2_rpc_item_type_ping_rep);
 
 static struct c2_fop_type_format *fmts[] = {
         &c2_fop_ping_arr_tfmt,
