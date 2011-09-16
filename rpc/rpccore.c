@@ -245,26 +245,26 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	return 0;
 }
 
-bool c2_rpc_item_is_update(struct c2_rpc_item *item)
+bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_MUTABO) != 0;
 }
 
-bool c2_rpc_item_is_request(struct c2_rpc_item *item)
+bool c2_rpc_item_is_request(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REQUEST) != 0;
 }
 
-bool c2_rpc_item_is_reply(struct c2_rpc_item *item)
+bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL && item->ri_type != NULL);
 
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REPLY) != 0;
 }
 
-bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item)
+bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_type != NULL);
@@ -272,14 +272,14 @@ bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item)
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_UNSOLICITED) != 0;
 }
 
-bool c2_rpc_item_is_bound(struct c2_rpc_item *item)
+bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 
 	return item->ri_slot_refs[0].sr_slot != NULL;
 }
 
-bool c2_rpc_item_is_unbound(struct c2_rpc_item *item)
+bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 {
 	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
 }
@@ -298,7 +298,6 @@ int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
 	item->ri_session = session_zero;
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	//item->ri_type->rit_flags = C2_RPC_ITEM_UNSOLICITED;
 
 	now = c2_time_now();
 	item->ri_rpc_entry_time = now;

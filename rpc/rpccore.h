@@ -434,21 +434,21 @@ int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
    @param item - Input rpc item
    @retval - TRUE if bound, FALSE otherwise.
  */
-bool c2_rpc_item_is_bound(struct c2_rpc_item *item);
+bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
 
 /**
    Tell whether given item is unbound.
    @param item - Input rpc item
    @retval - TRUE if unbound, FALSE otherwise.
  */
-bool c2_rpc_item_is_unbound(struct c2_rpc_item *item);
+bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
 /**
    Tell whether given item is unsolicited.
    @param item - Input rpc item
    @retval - TRUE if unsolicited, FALSE otherwise.
  */
-bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item);
+bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
 enum c2_rpc_item_state {
 	/** Newly allocated object is in uninitialized state */
@@ -468,7 +468,7 @@ enum c2_rpc_item_state {
 	/** After finalization item enters finalized state*/
 	RPC_ITEM_FINALIZED = (1 << 6)
 };
-/** transmission state of item */
+/** Stages of item in slot */
 enum c2_rpc_item_stage {
 	/** the reply for the item was received and the receiver confirmed
 	    that the item is persistent */
@@ -531,8 +531,6 @@ struct c2_rpc_item {
 	/** Linkage to list of items which are coalesced, anchored
 	    at c2_rpc_frm_item_coalesced::ic_member_list. */
 	struct c2_list_link		 ri_coalesced_linkage;
-	/** Destination endpoint. */
-	struct c2_net_end_point		 ri_endp;
 	/** Timer associated with this rpc item.*/
 	struct c2_timer			 ri_timer;
 	/** reply item */
@@ -596,12 +594,12 @@ int c2_rpc_item_init(struct c2_rpc_item *item);
 /**
    Returns true if item modifies file system state, false otherwise
  */
-bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
+bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
 
 /**
    Returns true if item is request item. False if it is a reply item
  */
-bool c2_rpc_item_is_request(struct c2_rpc_item *item);
+bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
 /** DEFINITIONS of RPC layer core DLD: */
 
