@@ -582,6 +582,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
    @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
 		conn->c_state == C2_RPC_CONN_TERMINATING
+   @post ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -726,9 +727,9 @@ enum c2_rpc_session_state {
 	  |           |               |                 | +-----+
 	  |           |failed         |                 | |     | item add/n++
 	  |           |               V  item add/n++   | V     | reply rcvd/n--
-	  |           |             IDLE--------------->BUSY----+
+	  |           +-------------IDLE--------------->BUSY----+
 	  |           |               |
-	  | fini()    |               | session_terminate
+	  | fini()    |               | c2_rpc_session_terminate()
 	  |           |               V
 	  |           +----------TERMINATING
 	  |                           |
@@ -914,6 +915,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_TERMINATING
+   @post ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
 

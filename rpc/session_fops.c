@@ -72,6 +72,7 @@ int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_establish *fom_ce;
 	struct c2_fom                    *fom;
+	struct c2_fop                    *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -87,12 +88,16 @@ int c2_rpc_fop_conn_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_conn_establish_ops;
 
 	fom_ce->fce_fop = fop;
-	fom_ce->fce_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt,
-						NULL);
-	if (fom_ce->fce_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_conn_establish_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_ce);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_ce->fce_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -102,6 +107,7 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_session_establish *fom_se;
 	struct c2_fom                       *fom;
+	struct c2_fop                       *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -116,12 +122,16 @@ int c2_rpc_fop_session_establish_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_session_establish_ops;
 
 	fom_se->fse_fop = fop;
-	fom_se->fse_fop_rep = c2_fop_alloc(
-				&c2_rpc_fop_session_establish_rep_fopt, NULL);
-	if (fom_se->fse_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_session_establish_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_se);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_se->fse_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -132,6 +142,7 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 {
 	struct c2_rpc_fom_session_terminate *fom_st;
 	struct c2_fom                       *fom;
+	struct c2_fop                       *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -146,12 +157,16 @@ int c2_rpc_fop_session_terminate_fom_init(struct c2_fop *fop,
 	fom->fo_ops = &c2_rpc_fom_session_terminate_ops;
 
 	fom_st->fst_fop = fop;
-	fom_st->fst_fop_rep = c2_fop_alloc(
-				&c2_rpc_fop_session_terminate_rep_fopt, NULL);
-	if (fom_st->fst_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_session_terminate_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_st);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_st->fst_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
@@ -161,6 +176,7 @@ int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 {
 	struct c2_rpc_fom_conn_terminate *fom_ct;
 	struct c2_fom                    *fom;
+	struct c2_fop                    *reply_fop;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(m != NULL);
@@ -175,12 +191,16 @@ int c2_rpc_fop_conn_terminate_fom_init(struct c2_fop *fop, struct c2_fom **m)
 	fom->fo_ops = &c2_rpc_fom_conn_terminate_ops;
 
 	fom_ct->fct_fop = fop;
-	fom_ct->fct_fop_rep = c2_fop_alloc(&c2_rpc_fop_conn_terminate_rep_fopt,
-						NULL);
-	if (fom_ct->fct_fop_rep == NULL) {
+	reply_fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_rep_fopt, NULL);
+	if (reply_fop == NULL) {
 		c2_free(fom_ct);
 		return -ENOMEM;
 	}
+
+	c2_rpc_item_init(&reply_fop->f_item);
+	reply_fop->f_item.ri_type = reply_fop->f_type->ft_ri_type;
+
+	fom_ct->fct_fop_rep = reply_fop;
 
 	*m = fom;
 	return 0;
