@@ -88,15 +88,15 @@ int generate_conf_file(const char *c_name, int rec_nr)
 	for (cnt = 0; cnt < rec_nr; ++cnt) {
 		fprintf(fp,"  -");
 
-		index = rand() % ARRAY_SIZE(disk_section_keys);
+		index = rand() % ARRAY_SIZE(label_fields);
 		str = label_fields[index];
 		fprintf(fp," %s : %s\n", disk_section_keys[0].ysk_key,str);
 
-		index = rand() % ARRAY_SIZE(disk_section_keys);
+		index = rand() % ARRAY_SIZE(status_fields);
 		str = status_fields[index];
 		fprintf(fp,"    %s : %s\n", disk_section_keys[1].ysk_key,str);
 
-		index = rand() % ARRAY_SIZE(disk_section_keys);
+		index = rand() % ARRAY_SIZE(setting_fields);
 		str = setting_fields[index];
 		fprintf(fp,"    %s : %s\n", disk_section_keys[2].ysk_key,str);
 	}
