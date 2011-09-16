@@ -53,6 +53,7 @@
 */
 
 #include "rpc/rpccore.h"
+#include "xcode/bufvec_xcode.h"
 
 enum {
 	C2_RPC_VERSION_1 = 1,
@@ -167,6 +168,9 @@ int c2_rpc_fop_default_decode(struct c2_rpc_item_type *item_type,
    @retval Size of the item in bytes.
 */
 size_t c2_rpc_item_default_size(const struct c2_rpc_item *item);
+
+int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
+			enum c2_bufvec_what what);
 
 /** @}  End of rpc_onwire group */
 

@@ -63,6 +63,7 @@ struct c2_fom_type c2_rpc_fom_conn_establish_type = {
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_fop_conn_establish     *request;
 	struct c2_rpc_fom_conn_establish     *fom_ce;
 	struct c2_fop                        *fop;
@@ -90,7 +91,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 
 	/* request item */
 	item = &fop->f_item;
-	C2_ASSERT(item->ri_mach != NULL && item->ri_src_ep != NULL);
+	C2_ASSERT(item->ri_mach != NULL);
+
+	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
+	C2_ASSERT(ctx != NULL && ctx->cec_sender_ep != NULL);
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL) {
@@ -98,7 +102,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		goto out;
 	}
 
-	rc = c2_rpc_rcv_conn_init(conn, item->ri_src_ep, item->ri_mach,
+	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, item->ri_mach,
 				  &item->ri_slot_refs[0].sr_uuid);
 	if (rc != 0)
 		goto out_free;

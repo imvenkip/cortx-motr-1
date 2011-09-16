@@ -537,8 +537,6 @@ struct c2_rpc_item {
 	struct c2_timer			 ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	/** For a received item, it gives source end point */
-	struct c2_net_end_point		*ri_src_ep;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Dummy queue linkage to dummy reqh */

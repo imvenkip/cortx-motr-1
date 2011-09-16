@@ -114,6 +114,8 @@ struct c2_fop {
 	void                    *f_private;
 };
 
+int            c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt,
+					void *data);
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 void           c2_fop_free(struct c2_fop *fop);
 void          *c2_fop_data(struct c2_fop *fop);

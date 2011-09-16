@@ -659,6 +659,8 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
+		/* conn establish fop will be decoded using
+		   conn_establish_item_decode() */
 		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0)
 			goto last;
@@ -672,7 +674,10 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			   its completion callback.*/
 			item->ri_mach = chan->rc_rpcmachine;
 			nb->nb_ep = ev->nbe_ep;
-			item->ri_src_ep = nb->nb_ep;
+			if (c2_rpc_item_is_conn_establish(item)) {
+				c2_rpc_fop_conn_establish_ctx_init(item,
+								   nb->nb_ep);
+			}
 			item->ri_rpc_entry_time = now;
 			rc = c2_rpc_item_received(item);
 			if (rc == 0 && !in_flight_dec) {

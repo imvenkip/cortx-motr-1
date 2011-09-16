@@ -103,6 +103,25 @@ extern const struct c2_rpc_item_ops c2_rpc_item_conn_terminate_ops;
 extern const struct c2_rpc_item_ops c2_rpc_item_session_establish_ops;
 extern const struct c2_rpc_item_ops c2_rpc_item_session_terminate_ops;
 
+/**
+   Container for CONN_ESTABLISH fop.
+
+   This is required only on receiver side so that,
+   c2_rpc_fom_conn_establish_state() can find out sender's endpoint, while
+   initialising receiver side c2_rpc_conn object.
+
+   Just before calling c2_rpc_item_received(), rpc_net_buf_received(), sets
+   cec_sender_ep, by using c2_net_buffer::nb_ep attribute.
+ */
+struct c2_rpc_fop_conn_establish_ctx
+{
+	/** fop instance of type c2_rpc_fop_conn_establish_fopt */
+	struct c2_fop            cec_fop;
+
+	/** end point of sender, who has sent the conn_establish request fop */
+	struct c2_net_end_point *cec_sender_ep;
+};
+
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */
 
 /** @}  End of rpc_session group */

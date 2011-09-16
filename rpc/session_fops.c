@@ -41,7 +41,8 @@
 #include "rpc/session_foms.h"
 #include "rpc/session.ff"
 #include "rpc/session_internal.h"
-#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
+#include "rpc/rpc_onwire.h" /* item_encdec() */
+
 /**
    @addtogroup rpc_session
 
@@ -319,16 +320,70 @@ int c2_rpc_session_fop_init(void)
 	return result;
 }
 
+void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
+					struct c2_net_end_point *ep)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+
+	C2_PRE(item != NULL && ep != NULL);
+
+	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
+				cec_fop.f_item);
+	C2_ASSERT(ctx != NULL);
+
+	ctx->cec_sender_ep = ep;
+}
+static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item     **item,
+				      struct c2_bufvec_cursor *cur)
+{
+	struct c2_rpc_fop_conn_establish_ctx *ctx;
+	struct c2_fop                        *fop;
+	int                                   rc;
+
+	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
+	C2_PRE(item_type == &c2_rpc_item_conn_establish);
+
+	*item = NULL;
+
+	C2_ALLOC_PTR(ctx);
+	if (ctx == NULL)
+		return -ENOMEM;
+
+	ctx->cec_sender_ep = NULL;
+	fop = &ctx->cec_fop;
+
+	rc = c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
+	if (rc != 0)
+		goto out;
+
+	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
+	if (rc != 0)
+		goto out;
+
+	*item = &fop->f_item;
+	return 0;
+out:
+	c2_free(ctx);
+	return rc;
+}
+
 static struct c2_rpc_item_type_ops default_item_type_ops = {
 	.rito_encode = c2_rpc_fop_default_encode,
 	.rito_decode = c2_rpc_fop_default_decode,
         .rito_item_size = c2_rpc_item_default_size,
 };
 
+static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
+	.rito_encode = c2_rpc_fop_default_encode,
+	.rito_decode = conn_establish_item_decode,
+        .rito_item_size = c2_rpc_item_default_size,
+};
+
 C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_establish,
 		     C2_RPC_FOP_CONN_ESTABLISH_OPCODE,
 		     C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-		     &default_item_type_ops);
+		     &conn_establish_item_type_ops);
 
 C2_RPC_ITEM_TYPE_DEF(c2_rpc_item_conn_terminate,
 		     C2_RPC_FOP_CONN_TERMINATE_OPCODE,

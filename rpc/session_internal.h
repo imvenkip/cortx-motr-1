@@ -478,6 +478,9 @@ struct c2_rpc_slot_ops {
  */
 bool c2_rpc_item_is_conn_establish(const struct c2_rpc_item *item);
 
+void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
+					struct c2_net_end_point *ep);
+
 /**
    Helper routine, internal to rpc module.
    Sets up and posts rpc-item representing @fop.
