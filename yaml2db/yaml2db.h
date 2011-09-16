@@ -57,11 +57,11 @@
   Enumeration of yaml2db context type
  */
 enum c2_yaml2db_ctx_type {
-	/* Parser */
+	/** Parser */
 	C2_YAML2DB_CTX_PARSER = 0,
-	/* Emitter */
+	/** Emitter */
 	C2_YAML2DB_CTX_EMITTER,
-	/* Maximum number of context types */
+	/** Maximum number of context types */
 	C2_YAML2DB_CTX_NR
 };
 
@@ -69,32 +69,32 @@ enum c2_yaml2db_ctx_type {
   yaml2db structure
 */
 struct c2_yaml2db_ctx {
-	/* YAML parser struct */
+	/** YAML parser struct */
 	yaml_parser_t			 yc_parser;
-	/* Enumeration to decide whether the context belongs
+	/** Enumeration to decide whether the context belongs
 	   to parser or emitter */
 	enum c2_yaml2db_ctx_type	 yc_type;
-	/* YAML document structure */
+	/** YAML document structure */
 	yaml_document_t			 yc_document;
-	/* Root node of the yaml_document */
+	/** Root node of the yaml_document */
 	yaml_node_t			 yc_root_node;
-	/* Config file name */
+	/** Config file name */
 	const char			*yc_cname;
-	/* Database path */
+	/** Database path */
 	const char			*yc_dpath;
-	/* Database environment */
+	/** Database environment */
 	struct c2_dbenv			 yc_db;
-	/* Flag indicating if the database environment has been established */
+	/** Flag indicating if the database environment has been established */
 	bool				 yc_db_init;
-	/* ADDB context for the context */
+	/** ADDB context for the context */
 	struct c2_addb_ctx		 yc_addb;
-	/* File pointer for YAML file */
+	/** File pointer for YAML file */
 	FILE				*yc_fp;
-	/* Flag indicating whether to dump the key-value pair to a file */
+	/** Flag indicating whether to dump the key-value pair to a file */
 	bool				 yc_dump_kv;
-	/* Dump file name */
+	/** Dump file name */
 	const char			*yc_dump_fname;
-	/* File pointer for dump file */
+	/** File pointer for dump file */
 	FILE				*yc_dp;
 };
 
@@ -102,11 +102,11 @@ struct c2_yaml2db_ctx {
   Enumeration of section types
  */
 enum c2_yaml2db_sec_type {
-	/* YAML sequence */
+	/** YAML sequence */
 	C2_YAML_TYPE_SEQUENCE = 0,
-	/* YAML mapping */
+	/** YAML mapping */
 	C2_YAML_TYPE_MAPPING,
-	/* Max section types */
+	/** Max section types */
 	C2_YAML_TYPE_NR
 };
 
@@ -114,9 +114,9 @@ enum c2_yaml2db_sec_type {
   Key structure for determining valid keys in a yaml2db section
  */
 struct c2_yaml2db_section_key {
-	/* Section key */
+	/** Section key */
 	const char	*ysk_key;
-	/* Flag to determine if a key is mandatory or optional */
+	/** Flag to determine if a key is mandatory or optional */
 	bool		 ysk_mandatory;
 };
 
@@ -124,17 +124,17 @@ struct c2_yaml2db_section_key {
   yaml2db section
 */
 struct c2_yaml2db_section {
-	/* Name of the table in which this section is supposed to be stored */
+	/** Name of the table in which this section is supposed to be stored */
 	const char			 *ys_table_name;
-	/* Table ops */
+	/** Table ops */
 	const struct c2_table_ops	 *ys_table_ops;
-	/* Type of section */
+	/** Type of section */
 	enum c2_yaml2db_sec_type	  ys_section_type;
-	/* Array of valid key structures */
+	/** Array of valid key structures */
 	struct c2_yaml2db_section_key	 *ys_valid_keys;
-	/* Number of keys in the array */
+	/** Number of keys in the array */
 	size_t				  ys_num_keys;
-	/* Starting numeric value to be treated as database key for this
+	/** Starting numeric value to be treated as database key for this
 	   section in the table */
 	int64_t				  ys_start_key;
 };
