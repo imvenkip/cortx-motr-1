@@ -469,17 +469,17 @@ enum c2_rpc_item_state {
 	RPC_ITEM_FINALIZED = (1 << 6)
 };
 /** transmission state of item */
-enum c2_rpc_item_tstate {
+enum c2_rpc_item_stage {
 	/** the reply for the item was received and the receiver confirmed
 	    that the item is persistent */
-	RPC_ITEM_PAST_COMMITTED = 1,
+	RPC_ITEM_STAGE_PAST_COMMITTED = 1,
 	/** the reply was received, but persistence confirmation wasn't */
-	RPC_ITEM_PAST_VOLATILE,
+	RPC_ITEM_STAGE_PAST_VOLATILE,
 	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
-	RPC_ITEM_IN_PROGRESS,
+	RPC_ITEM_STAGE_IN_PROGRESS,
 	/** the item is not sent */
-	RPC_ITEM_FUTURE,
+	RPC_ITEM_STAGE_FUTURE,
 };
 
 enum {
@@ -513,7 +513,7 @@ struct c2_rpc_item {
 	struct c2_rpc_group		*ri_group;
 
 	enum c2_rpc_item_state		 ri_state;
-	enum c2_rpc_item_tstate		 ri_tstate;
+	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
 	struct c2_rpc_session		*ri_session;
 	struct c2_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];

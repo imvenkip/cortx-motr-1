@@ -216,7 +216,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	struct c2_rpc_slot	*slot;
 
 	C2_PRE(request != NULL && reply != NULL);
-	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
+	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 
 	reply->ri_rpc_entry_time = c2_time_now();
 
@@ -959,7 +959,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 
 	rpc_proc_fini(&machine->cr_processing);
 	conn_list_fini(&machine->cr_incoming_conns);
-	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
 	c2_mutex_fini(&machine->cr_session_mutex);
 

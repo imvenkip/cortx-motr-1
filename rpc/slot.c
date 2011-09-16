@@ -84,13 +84,13 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			item1 = item2;
 			continue;
 		}
-		ret = ergo(item2->ri_tstate == RPC_ITEM_PAST_VOLATILE ||
-			   item2->ri_tstate == RPC_ITEM_PAST_COMMITTED,
+		ret = ergo(item2->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE ||
+			   item2->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED,
 			   item2->ri_reply != NULL);
 		if (!ret)
 			break;
 
-		ret = (item1->ri_tstate <= item2->ri_tstate);
+		ret = (item1->ri_stage <= item2->ri_stage);
 		if (!ret)
 			break;
 
@@ -151,7 +151,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 		return -ENOMEM;
 
 	dummy_item = &fop->f_item;
-	dummy_item->ri_tstate = RPC_ITEM_PAST_COMMITTED;
+	dummy_item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
 	dummy_item->ri_reply = dummy_item;
 	slot->sl_last_sent = dummy_item;
@@ -332,8 +332,8 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 		/* Take slot->last_sent->next item for sending */
 		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
 				     ri_slot_refs[0].sr_link);
-		if (item->ri_tstate == RPC_ITEM_FUTURE) {
-			item->ri_tstate = RPC_ITEM_IN_PROGRESS;
+		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE) {
+			item->ri_stage = RPC_ITEM_STAGE_IN_PROGRESS;
 			printf("Item %p IN_PROGRESS\n", item);
 		}
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
@@ -385,7 +385,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 				(unsigned long)session->s_session_id);
 
 	sref = &item->ri_slot_refs[0];
-	item->ri_tstate = RPC_ITEM_FUTURE;
+	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	sref->sr_session_id = session->s_session_id;
 	sref->sr_sender_id = session->s_conn->c_sender_id;
 	sref->sr_uuid = session->s_conn->c_uuid;
@@ -527,9 +527,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
 				&item->ri_slot_refs[0].sr_verno) == 0);
 
-		switch (req->ri_tstate) {
-		case RPC_ITEM_PAST_VOLATILE:
-		case RPC_ITEM_PAST_COMMITTED:
+		switch (req->ri_stage) {
+		case RPC_ITEM_STAGE_PAST_VOLATILE:
+		case RPC_ITEM_STAGE_PAST_COMMITTED:
 			/*
 			 * @item is duplicate and corresponding original is
 			 * already consumed (i.e. executed if item is FOP).
@@ -542,8 +542,8 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			slot->sl_ops->so_reply_consume(req,
 						req->ri_reply);
 			break;
-		case RPC_ITEM_IN_PROGRESS:
-		case RPC_ITEM_FUTURE:
+		case RPC_ITEM_STAGE_IN_PROGRESS:
+		case RPC_ITEM_STAGE_FUTURE:
 			/* item is already present but is not
 			   processed yet. Ignore it*/
 			/* do nothing */;
@@ -604,8 +604,8 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * Such reply must be ignored
 		 */
 		;
-	} else if (req->ri_tstate == RPC_ITEM_PAST_COMMITTED ||
-			req->ri_tstate == RPC_ITEM_PAST_VOLATILE) {
+	} else if (req->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
+			req->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE) {
 		/*
 		 * Got a reply to an item for which the reply was already
 		 * received in the past. Compare with the original reply.
@@ -616,7 +616,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		/*
 		 * This is valid reply case.
 		 */
-		C2_ASSERT(req->ri_tstate == RPC_ITEM_IN_PROGRESS);
+		C2_ASSERT(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
 		session = slot->sl_session;
@@ -627,7 +627,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
 		C2_ASSERT(session->s_nr_active_items > 0);
 
-		req->ri_tstate = RPC_ITEM_PAST_VOLATILE;
+		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
 		printf("Item %p PAST_VOLATILE\n", req);
 		req->ri_reply = reply;
 		*req_out = req;
@@ -635,7 +635,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 
 		session->s_nr_active_items--;
 		/*
-		 * Setting of req->ri_tstate to PAST_VOLATILE and reducing
+		 * Setting of req->ri_stage to PAST_VOLATILE and reducing
 		 * session->s_nr_active_items must be in same critical
 		 * region protected by session->s_mutex.
 		 */
@@ -715,10 +715,11 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 				&last_persistent) <= 0) {
 
-			C2_ASSERT(item->ri_tstate == RPC_ITEM_PAST_COMMITTED ||
-				  item->ri_tstate == RPC_ITEM_PAST_VOLATILE);
+			C2_ASSERT(
+			   item->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
+			   item->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE);
 
-			item->ri_tstate = RPC_ITEM_PAST_COMMITTED;
+			item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 			slot->sl_last_persistent = item;
 		} else {
 			break;
@@ -743,7 +744,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 
 		sref = &item->ri_slot_refs[0];
 		if (c2_verno_cmp(&sref->sr_verno, &last_seen) == 0) {
-			C2_ASSERT(item->ri_tstate != RPC_ITEM_FUTURE);
+			C2_ASSERT(item->ri_stage != RPC_ITEM_STAGE_FUTURE);
 			slot->sl_last_sent = item;
 			break;
 		}
@@ -935,7 +936,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item *item;
-	char                str_state[][20] = {
+	char                str_stage[][20] = {
 				"INVALID",
 				"PAST_COMMITTED",
 				"PAST_VOLATILE",
@@ -948,7 +949,7 @@ void c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot)
 				ri_slot_refs[0].sr_link) {
 		printf("item %p xid %lu state %s\n", item,
 				item->ri_slot_refs[0].sr_xid,
-				str_state[item->ri_tstate]);
+				str_stage[item->ri_stage]);
 	}
 }
 #endif

@@ -222,8 +222,8 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 				       struct c2_rpc_item,
 				       ri_slot_refs[0].sr_link) {
 
-			if (item->ri_tstate == RPC_ITEM_IN_PROGRESS ||
-			    item->ri_tstate == RPC_ITEM_FUTURE) {
+			if (item->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS ||
+			    item->ri_stage == RPC_ITEM_STAGE_FUTURE) {
 				count++;
 			}
 
@@ -505,7 +505,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			req->ri_session == reply->ri_session));
 
 	fop = c2_rpc_item_to_fop(req);
-	C2_ASSERT(fop != NULL && fop->f_private != NULL);
+	C2_ASSERT(fop->f_private != NULL);
 
 	/*
 	 * c2_rpc_session_establish(session) stored pointer of @session in
