@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -138,8 +139,6 @@
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
-struct c2_rpc_item;
-
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
@@ -165,22 +164,8 @@ enum c2_rpc_item_priority {
 
 #include "rpc/formation.h"
 
-/*Macro to enable RPC grouping test and debug code */
-
-#ifdef RPC_GRP_DEBUG
-#define MAX_RPC_ITEMS 6
-#define NO_OF_ENDPOINTS 3
-int32_t rpc_arr_index;
-int seed_val;
-#endif
-
-/* Number of default receive c2_net_buffers to be used with
-   each transfer machine.*/
-enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 128,
-};
-
 struct c2_rpc;
+struct c2_rpc_item;
 struct c2_addb_rec;
 struct c2_rpc_formation;
 struct c2_rpc_conn;
@@ -338,32 +323,6 @@ struct c2_update_stream {
         struct c2_mutex			   us_guard;
 };
 
-/** TBD in 'DLD RPC FOP:core wire formats':
-    c2_rpc is a container of c2_rpc_items. */
-struct c2_rpc {
-	/** Linkage into list of rpc objects just formed or into the list
-	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link		 r_linkage;
-	struct c2_list			 r_items;
-
-	/** Items in this container should be sent via this session */
-	struct c2_rpc_session		*r_session;
-	/** Formation attributes (buffer, magic) for the rpc. */
-	struct c2_rpc_frm_buffer	 r_fbuf;
-};
-
-/**
-   Initialize an rpc object.
-   @param rpc - rpc object to be initialized
- */
-void c2_rpcobj_init(struct c2_rpc *rpc);
-
-/**
-   Finalize an rpc object.
-   @param rpc - rpc object to be finalized
- */
-void c2_rpcobj_fini(struct c2_rpc *rpc);
-
 /**
    Possible values for flags from c2_rpc_item_type.
  */
@@ -420,35 +379,14 @@ struct c2_rpc_item_type (itype) = {                      \
 	.rit_ops = (ops)                                 \
 };
 
-/**
-   Post an unsolicited item to rpc layer.
-   @param conn - c2_rpc_conn structure from which this item will be posted.
-   @param item - input rpc item.
-   @retval - 0 if routine succeeds, -ve with proper error code otherwise.
- */
-int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
-		struct c2_rpc_item *item);
+int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
+				 struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is bound.
-   @param item - Input rpc item
-   @retval - TRUE if bound, FALSE otherwise.
- */
-bool c2_rpc_item_is_bound(struct c2_rpc_item *item);
+bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is unbound.
-   @param item - Input rpc item
-   @retval - TRUE if unbound, FALSE otherwise.
- */
-bool c2_rpc_item_is_unbound(struct c2_rpc_item *item);
+bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
-/**
-   Tell whether given item is unsolicited.
-   @param item - Input rpc item
-   @retval - TRUE if unsolicited, FALSE otherwise.
- */
-bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item);
+bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
 enum c2_rpc_item_state {
 	/** Newly allocated object is in uninitialized state */
@@ -492,22 +430,12 @@ enum {
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without
    modifying core rpc headers.
-
-   Example:
-   struct c2_fop {
-	//...
-	struct c2_rpc_item f_item;
-	//...
-   };
+   @see c2_fop.
  */
 struct c2_rpc_item {
 	uint64_t                         ri_magic;
 	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			 ri_chan;
-	/** linakge to list of rpc items in a c2_rpc_formation_list */
-	struct c2_list_link		 ri_linkage;
-	struct c2_ref			 ri_ref;
-
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
 	struct c2_rpc_group		*ri_group;
@@ -543,10 +471,8 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Dummy queue linkage to dummy reqh */
 	struct c2_queue_link		 ri_dummy_qlinkage;
-	/** Entry time into rpc layer */
-	c2_time_t			 ri_rpc_entry_time;
-	/** Entry time into rpc layer */
-	c2_time_t			 ri_rpc_exit_time;
+	/** Time spent in rpc layer. */
+	c2_time_t			 ri_rpc_time;
 };
 
 /** Enum to distinguish if the path is incoming or outgoing */
@@ -567,8 +493,6 @@ struct c2_rpc_stats {
 	uint64_t	rs_bytes_nr;
 	/** Instanteneous Latency */
 	c2_time_t	rs_i_lat;
-	/** Average Latency */
-	c2_time_t	rs_avg_lat;
 	/** Min Latency */
 	c2_time_t	rs_min_lat;
 	/** Max Latency */
@@ -588,12 +512,9 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
  */
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
-/**
-   Initialize RPC item.
-   Finalization of the item is done using ref counters, so no public fini IF.
- */
+void c2_rpc_item_init(struct c2_rpc_item *item);
 
-int c2_rpc_item_init(struct c2_rpc_item *item);
+void c2_rpc_item_fini(struct c2_rpc_item *item);
 
 /**
    Returns true if item modifies file system state, false otherwise
@@ -605,76 +526,18 @@ bool c2_rpc_item_is_update(struct c2_rpc_item	*item);
  */
 bool c2_rpc_item_is_request(struct c2_rpc_item *item);
 
-/** DEFINITIONS of RPC layer core DLD: */
-
-/** c2_rpc_formation_list is a structure which represents groups
-    of c2_rpc_items, sorted by some criteria (endpoint,...) */
-struct c2_rpc_formation_list {
-	/* linkage into list of all classification lists in a c2_rpc_processing */
-	struct c2_list_link re_linkage;
-
-	/** listss of c2_rpc_items going to the same endpoint */
-	struct c2_list re_items;
-	struct c2_net_end_point *endpoint;
-	/*Mutex to guard this list */
-	struct c2_mutex re_guard;
-};
-
-/** Group of rpc items to be transmitted in the same
-    update stream
- */
 struct c2_rpc_group {
-	struct c2_rpcmachine *rg_mach;
-	/** c2_list<c2_rpc_item> list of rpc items */
-	struct c2_list rg_items;
+	struct c2_rpcmachine	*rg_mach;
+	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
+	struct c2_list		 rg_items;
 	/** expected number of items in the group */
-	size_t rg_expected;
-        /** number of items for which no reply is yet received. */
-        uint32_t nr_residual;
-        /** set to a (negated) error code when there was an error in
-	    processing of an item in the group. */
-        int32_t rg_rc;
+	uint64_t		 rg_expected;
         /** lock protecting fields of the struct */
-        struct c2_mutex rg_guard;
+        struct c2_mutex		 rg_guard;
 	/** signalled when a reply is received or an error happens
 	     (usually a timeout). */
-	struct c2_chan rg_chan;
-	/** Flag to debug */
-	int rg_grpid;
+	struct c2_chan		 rg_chan;
 };
-
-/**
-   Different settings and presets of c2_rpc_processing.
- */
-struct c2_rpc_processing_ctl {
-};
-
-/**
-   RPC processing context used in grouping/formation/output stages.
- */
-struct c2_rpc_processing {
-	struct c2_rpc_processing_ctl crp_ctl;
-
-	/** GROUPING RELATED DATA: */
-	/**  c2_list<c2_rpc_formation_list>: list of groups sorted by endpoints */
-	struct c2_list  crp_formation_lists;
-
-	/** FORMATION RELATED DATA: */
-	/** c2_list<c2_rpc>: list of formed RPC items */
-	struct c2_list crp_form;
-
-	struct c2_list crp_us_list; /* list of update streams in this machine */
-
-	struct c2_mutex crp_guard; /* lock protecting fields of the struct */
-
-	/** OUTPUT RELATED DATA: */
-};
-
-/**
-   Transfer machine callback vector for transfer machines created by
-   rpc layer.
- */
-extern struct c2_net_tm_callbacks c2_rpc_tm_callbacks;
 
 /**
    This structure contains list of {endpoint, transfer_mc} tuples
@@ -692,7 +555,10 @@ struct c2_rpc_ep_aggr {
 };
 
 /**
-   A physical node can have multiple endpoints associated with it.
+   Struct c2_rpc_chan provides information about a target network endpoint.
+   An rpc machine (struct c2_rpcmachine) contains list of c2_rpc_chan structures
+   targeting different net endpoints.
+   Rationale A physical node can have multiple endpoints associated with it.
    And multiple services can share endpoints for transport.
    The rule of thumb is to use one transfer machine per endpoint.
    So to make sure that services using same endpoint,
@@ -725,7 +591,6 @@ struct c2_rpcmachine {
 	struct c2_rpc_ep_aggr		 cr_ep_aggr;
 	/* Formation module associated with this rpcmachine. */
 	struct c2_rpc_formation		 cr_formation;
-	struct c2_rpc_processing	 cr_processing;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		*cr_dom;
 	/** List of rpc connections

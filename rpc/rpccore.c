@@ -36,6 +36,7 @@
 #ifndef __KERNEL__
 #endif
 #include "rpc/rpc_onwire.h"
+#include "lib/arith.h"
 
 /* Forward declarations. */
 void rpc_chan_destroy(struct c2_rpcmachine *machine,
@@ -54,6 +55,12 @@ extern int frm_init(struct c2_rpc_formation *frm);
 extern void frm_fini(struct c2_rpc_formation *formation);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
+
+/* Number of default receive c2_net_buffers to be used with
+   each transfer machine.*/
+enum {
+	C2_RPC_TM_RECV_BUFFERS_NR = 128,
+};
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -94,11 +101,11 @@ static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
 
 /**
-   Transfer machine callback vector for transfer machines created by
-   rpc layer.
+    Transfer machine callback vector for transfer machines created by
+    rpc layer.
  */
-struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
-	.ntc_event_cb = rpc_tm_event_cb
+static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
+	       .ntc_event_cb = rpc_tm_event_cb
 };
 
 static const struct c2_update_stream_ops update_stream_ops;
@@ -149,29 +156,19 @@ void c2_rpcobj_fini(struct c2_rpc *rpc)
 	c2_list_link_fini(&rpc->r_linkage);
 }
 
-/* can be exported, used c2_ prefix */
-static void c2_rpc_item_fini(struct c2_rpc_item *item)
+void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
 	item->ri_state = RPC_ITEM_FINALIZED;
 	c2_chan_fini(&item->ri_chan);
 }
 
-static void c2_rpc_item_ref_fini(struct c2_ref *ref)
-{
-	struct c2_rpc_item *item;
-	item = container_of(ref, struct c2_rpc_item, ri_ref);
-	c2_rpc_item_fini(item);
-}
-
-int c2_rpc_item_init(struct c2_rpc_item *item)
+void c2_rpc_item_init(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
 	C2_SET0(item);
 	item->ri_magic = C2_RPC_ITEM_MAGIC;
 	c2_chan_init(&item->ri_chan);
-        c2_list_link_init(&item->ri_linkage);
-	c2_ref_init(&item->ri_ref, 1, c2_rpc_item_ref_fini);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 
 	sref = &item->ri_slot_refs[0];
@@ -186,8 +183,6 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
         c2_list_link_init(&item->ri_rpcobject_linkage);
 	c2_list_link_init(&item->ri_unformed_linkage);
         c2_list_link_init(&item->ri_group_linkage);
-
-	return 0;
 }
 
 int c2_rpc_post(struct c2_rpc_item *item)
@@ -197,7 +192,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	C2_ASSERT(item->ri_session->s_state == C2_RPC_SESSION_IDLE ||
 		   item->ri_session->s_state == C2_RPC_SESSION_BUSY);
 
-	item->ri_rpc_entry_time = c2_time_now();
+	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
@@ -214,7 +209,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_tstate == RPC_ITEM_IN_PROGRESS);
 
-	reply->ri_rpc_entry_time = c2_time_now();
+	reply->ri_rpc_time = c2_time_now();
 
 	reply->ri_session = request->ri_session;
 	reply->ri_slot_refs[0].sr_sender_id =
@@ -268,7 +263,7 @@ bool c2_rpc_item_is_reply(struct c2_rpc_item *item)
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REPLY) != 0;
 }
 
-bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item)
+bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_type != NULL);
@@ -276,19 +271,19 @@ bool c2_rpc_item_is_unsolicited(struct c2_rpc_item *item)
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_UNSOLICITED) != 0;
 }
 
-bool c2_rpc_item_is_bound(struct c2_rpc_item *item)
+bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 
 	return item->ri_slot_refs[0].sr_slot != NULL;
 }
 
-bool c2_rpc_item_is_unbound(struct c2_rpc_item *item)
+bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 {
 	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
 }
 
-int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
+int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 		struct c2_rpc_item *item)
 {
 	c2_time_t		 now;
@@ -305,7 +300,7 @@ int c2_rpc_unsolicited_item_post(struct c2_rpc_conn *conn,
 	//item->ri_type->rit_flags = C2_RPC_ITEM_UNSOLICITED;
 
 	now = c2_time_now();
-	item->ri_rpc_entry_time = now;
+	item->ri_rpc_time = now;
 	return frm_ubitem_added(item);
 }
 
@@ -603,35 +598,6 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine)
 	return 0;
 }
 
-static int rpc_proc_ctl_init(struct c2_rpc_processing_ctl *ctl)
-{
-	return 0;
-}
-
-static void rpc_proc_ctl_fini(struct c2_rpc_processing_ctl *ctl)
-{
-}
-
-static int rpc_proc_init(struct c2_rpc_processing *proc)
-{
-	int rc;
-	rc = rpc_proc_ctl_init(&proc->crp_ctl);
-	if (rc < 0)
-		return rc;
-
-	c2_list_init(&proc->crp_formation_lists);
-	c2_list_init(&proc->crp_form);
-
-	return rc;
-}
-
-static void rpc_proc_fini(struct c2_rpc_processing *proc)
-{
-	c2_list_fini(&proc->crp_form);
-	c2_list_fini(&proc->crp_formation_lists);
-	rpc_proc_ctl_fini(&proc->crp_ctl);
-}
-
 /**
    The callback routine to be called once the transfer machine
    receives a buffer. This subroutine later invokes decoding of
@@ -673,7 +639,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			item->ri_mach = chan->rc_rpcmachine;
 			nb->nb_ep = ev->nbe_ep;
 			item->ri_src_ep = nb->nb_ep;
-			item->ri_rpc_entry_time = now;
+			item->ri_rpc_time = now;
 			rc = c2_rpc_item_received(item);
 			if (rc == 0 && !in_flight_dec) {
 				in_flight_dec = true;
@@ -884,10 +850,6 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 
 	c2_mutex_init(&machine->cr_stats_mutex);
 
-	rc = rpc_proc_init(&machine->cr_processing);
-	if (rc < 0)
-		return rc;
-
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
 	c2_mutex_init(&machine->cr_session_mutex);
@@ -922,6 +884,7 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	/* Init the add context for this rpcmachine */
 	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
+	C2_SET_ARR0(machine->cr_rpc_stats);
 
 	return rc;
 }
@@ -956,7 +919,6 @@ void c2_rpcmachine_fini(struct c2_rpcmachine *machine)
 
 	C2_PRE(machine != NULL);
 
-	rpc_proc_fini(&machine->cr_processing);
 	conn_list_fini(&machine->cr_incoming_conns);
 	conn_list_fini(&machine->cr_outgoing_conns);
 	c2_list_fini(&machine->cr_ready_slots);
@@ -1259,20 +1221,18 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	struct c2_rpc_stats *st;
 
 	C2_PRE(item != NULL);
+	C2_PRE(IS_IN_ARRAY(path, item->ri_mach->cr_rpc_stats));
 
-	item->ri_rpc_exit_time = c2_time_now();
+	item->ri_rpc_time = c2_time_sub(c2_time_now(), item->ri_rpc_time);
 
 	st = &item->ri_mach->cr_rpc_stats[path];
 	c2_mutex_lock(&item->ri_mach->cr_stats_mutex);
-        st->rs_i_lat = c2_time_sub(item->ri_rpc_exit_time,
-                        item->ri_rpc_entry_time);
-        if (st->rs_min_lat >= st->rs_i_lat || st->rs_min_lat == 0)
-                st->rs_min_lat = st->rs_i_lat;
-        if (st->rs_max_lat <= st->rs_i_lat || st->rs_max_lat == 0)
-                st->rs_max_lat = st->rs_i_lat;
+        st->rs_i_lat = item->ri_rpc_time;
+	st->rs_min_lat = st->rs_min_lat ? : st->rs_i_lat;
+	st->rs_min_lat = min64u(st->rs_min_lat, st->rs_i_lat);
+	st->rs_max_lat = st->rs_max_lat ? : st->rs_i_lat;
+	st->rs_max_lat = max64u(st->rs_max_lat, st->rs_i_lat);
 
-        st->rs_avg_lat = ((st->rs_items_nr * st->rs_avg_lat) +
-                        st->rs_i_lat) / (st->rs_items_nr +1);
         st->rs_items_nr++;
         st->rs_bytes_nr += c2_rpc_item_default_size(item);
 

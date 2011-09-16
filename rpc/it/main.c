@@ -503,15 +503,6 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 
 	stats = &rpc_mach->cr_rpc_stats[C2_RPC_PATH_INCOMING];
@@ -544,15 +535,6 @@ void print_stats(bool client, bool server)
 	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
 	printf("Min Throughput (MB/sec)  = %lf\n", thruput);
 
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_avg_lat);
-	nsec = c2_time_nanoseconds(stats->rs_avg_lat);
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("\nAvg latency    (msecs)   = %lf\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("Avg Throughput (MB/sec)  = %lf\n", thruput);
 	printf("*********************************************\n");
 }
 

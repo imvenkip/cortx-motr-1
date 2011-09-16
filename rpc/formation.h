@@ -292,6 +292,25 @@ struct c2_rpc_frm_buffer {
 };
 
 /**
+   c2_rpc is a container of c2_rpc_items.
+ */
+struct c2_rpc {
+	/** Linkage into list of rpc objects just formed or into the list
+	    of rpc objects which are ready to be sent on wire. */
+	struct c2_list_link		 r_linkage;
+	/** List of member rpc items. */
+	struct c2_list			 r_items;
+	/** Items in this rpc are sent via this session. */
+	struct c2_rpc_session		*r_session;
+	/** Formation attributes (buffer, magic) for the rpc. */
+	struct c2_rpc_frm_buffer	 r_fbuf;
+};
+
+void c2_rpcobj_init(struct c2_rpc *rpc);
+
+void c2_rpcobj_fini(struct c2_rpc *rpc);
+
+/**
    Connects resultant rpc item with its coalesced constituent rpc items.
    When a reply is received for a coalesced rpc item, it will find out
    the requesting coalesced rpc item and using this data structure,
