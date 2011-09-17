@@ -48,7 +48,8 @@
 
    tlist is a safe and more convenient alternative to c2_list. As a general
    rule, c2_list should be used only when performance is critical or some
-   flexibility beyond what tlist provides are necessary.
+   flexibility beyond what tlist provides (e.g., a cyclic list without a head
+   object) is necessary.
 
    Similarly to c2_list, tlist is a purely algorithmic module: it deals with
    neither concurrency nor liveness nor with any similar issues that its callers
@@ -135,6 +136,26 @@
    before use, even when first usage overwrites the entity completely. This
    allows stronger checking in tlist manipulation functions.
 
+   <b>Type-safe macros.</b>
+
+   C2_TL_DESCR_DECLARE(), C2_TL_DECLARE(), C2_TL_DESCR_DEFINE() and
+   C2_TL_DEFINE() macros generate versions of tlist interface tailored for a
+   particular use case.
+
+   4 separate macros are necessary for flexibility. They should be used in
+   exactly one of the following ways for any given typed list:
+
+       - static tlist, used in a single module only: C2_TL_DEFINE() and
+         C2_TL_DESCR_DEFINE() with scope "static" in the module .c file;
+
+       - tlist exported from a module: C2_TL_DEFINE() and C2_TL_DESCR_DEFINE()
+         with scope "" in .c file and C2_TL_DESCR_DECLARE(), C2_TL_DECLARE()
+         with scope "extern" in .h file;
+
+       - tlist exported from a module as a collection of inline functions:
+         C2_TL_DESCR_DEFINE() in .c file and C2_TL_DESCR_DECLARE() with scope
+         "extern" followed by C2_TL_DEFINE() with scope "static inline" in .h
+         file.
    @{
  */
 
@@ -375,32 +396,8 @@ do {									\
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0)
 
-/**
-   @name type-safe macros
-
-   C2_TL_DESCR_DECLARE(), C2_TL_DECLARE(), C2_TL_DESCR_DEFINE() and
-   C2_TL_DEFINE() macros generate versions of tlist interface tailored for a
-   particular use case.
-
-   4 separate macros are necessary for flexibility:
-
-       - static tlist, used in a single module only: C2_TL_DEFINE() and
-         C2_TL_DESCR_DEFINE() with scope "static";
-
-       - tlist exported from a module: C2_TL_DEFINE() and C2_TL_DESCR_DEFINE()
-         with scope "" in .c file and C2_TL_DESCR_DECLARE(), C2_TL_DECLARE()
-         with scope "extern" in .h file;
-
-       - tlist exported from a module as a collection of inline functions:
-         C2_TL_DESCR_DEFINE() in .c file and C2_TL_DESCR_DECLARE() with scope
-         "extern" followed by C2_TL_DEFINE() with scope "static inline" in .h
-         file.
-
-  @{
- */
-
 #define C2_TL_DESCR_DECLARE(name, scope)	\
-scope const struct c2_tl_descr name ## _tl;
+scope const struct c2_tl_descr name ## _tl
 
 /**
    Declares a version of tlist interface with definitions adjusted to take
@@ -567,9 +564,7 @@ scope __AUN amb_type *name ## _tlist_prev(struct c2_tl *list, amb_type *amb) \
 	return c2_tlist_prev(&name ## _tl, list, amb);			\
 }									\
 									\
-struct __ ## name ## _nothing { ; }
-
-/** @} end of type-safe macros group */
+struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 
 /** @} end of tlist group */
 
