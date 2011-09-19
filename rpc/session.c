@@ -93,6 +93,21 @@ static const struct c2_rpc_slot_ops rcv_slot_ops = {
 	.so_reply_consume = rcv_reply_consume
 };
 
+/**
+   Container of session_establish fop.
+
+   Required only on sender to obtain pointer to session being established,
+   when reply to session_establish is received.
+ */
+struct fop_session_establish_ctx
+{
+	/** A fop instance of type c2_rpc_fop_conn_establish_fopt */
+	struct c2_fop          sec_fop;
+
+	/** sender side session object */
+	struct c2_rpc_session *sec_session;
+};
+
 extern int frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
 
@@ -370,6 +385,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	struct c2_rpc_conn                  *conn;
 	struct c2_fop                       *fop;
 	struct c2_rpc_fop_session_establish *fop_se;
+	struct fop_session_establish_ctx    *ctx;
 	struct c2_rpc_session               *session_0;
 	int                                  rc;
 
@@ -378,9 +394,18 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	printf("SESSION_ESTABLISH: session %p\n", session);
 
-	fop = c2_fop_alloc(&c2_rpc_fop_session_establish_fopt, NULL);
-	if (fop == NULL) {
+	C2_ALLOC_PTR(ctx);
+	if (ctx == NULL) {
 		rc = -ENOMEM;
+	} else {
+		ctx->sec_session = session;
+
+		rc = c2_fop_init(&ctx->sec_fop,
+			         &c2_rpc_fop_session_establish_fopt, NULL);
+		if (rc != 0)
+			c2_free(ctx);
+	}
+	if (rc != 0) {
 		/*
 		 * It is okay to update session state without holding
 		 * session->s_mutex here.
@@ -390,6 +415,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		goto out;
 	}
+
+	fop = &ctx->sec_fop;
 
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = fop->f_type->ft_ri_type;
@@ -409,32 +436,22 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	fop_se->rse_sender_id = conn->c_sender_id;
 	fop_se->rse_slot_cnt = session->s_nr_slots;
 
-	/*
-	 * IMPORTANT:
-	 * When a reply to session_establish is received, we need an efficient
-	 * method to find out session object whose creation is in progress.
-	 * It is problematic because all sessions in ESTABLISHING state have
-	 * session_id SESSION_ID_INVALID.
-	 * Put the pointer to session being created in fop->f_private and
-	 * access it in c2_rpc_session_establish_reply_received().
-	 * Remember that the session on which reply is received
-	 * (i.e. SESSION_ID_0), is different from the session whose creation is
-	 * in progress.
-	 */
-	C2_ASSERT(fop->f_private == NULL);
-	fop->f_private = session;
-
 	session_0 = c2_rpc_conn_session0(conn);
 	rc = c2_rpc__fop_post(fop, session_0,
 				&c2_rpc_item_session_establish_ops);
 	if (rc == 0) {
+		/*
+		 * conn->c_mutex protects from a race, if reply comes before
+		 * adding session to conn->c_sessions list.
+		 */
 		session->s_state = C2_RPC_SESSION_ESTABLISHING;
 		c2_list_add(&conn->c_sessions, &session->s_link);
 		conn->c_nr_sessions++;
 	} else {
 		session->s_state = C2_RPC_SESSION_FAILED;
 		session->s_rc = rc;
-		c2_fop_free(fop);
+		c2_fop_fini(fop);
+		c2_free(ctx);
 	}
 
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
@@ -452,7 +469,7 @@ out:
 C2_EXPORTED(c2_rpc_session_establish);
 
 /**
-   Move session to FAILED state and take it out of conn->c_sessions list.
+   Moves session to FAILED state and take it out of conn->c_sessions list.
    Caller is expected to broadcast of session->s_state_changed CV.
 
    @pre c2_mutex_is_locked(&session->s_mutex) && (
@@ -492,6 +509,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 					     int                 rc)
 {
 	struct c2_rpc_fop_session_establish_rep *fop_ser;
+	struct fop_session_establish_ctx        *ctx;
 	struct c2_fop                           *fop;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_slot                      *slot;
@@ -505,13 +523,9 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req,
 			req->ri_session == reply->ri_session));
 
 	fop = c2_rpc_item_to_fop(req);
-	C2_ASSERT(fop->f_private != NULL);
-
-	/*
-	 * c2_rpc_session_establish(session) stored pointer of @session in
-	 * ->f_private field of request fop.
-	 */
-	session = fop->f_private;
+	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
+	session = ctx->sec_session;
+	C2_ASSERT(session != NULL);
 
 	c2_mutex_lock(&session->s_mutex);
 	C2_ASSERT(c2_rpc_session_invariant(session));

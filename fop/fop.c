@@ -79,12 +79,20 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
+void c2_fop_fini(struct c2_fop *fop)
+{
+	C2_ASSERT(fop != NULL);
+
+	c2_addb_ctx_fini(&fop->f_addb);
+	c2_free(fop->f_data.fd_data);
+	c2_list_link_fini(&fop->f_link);
+}
+C2_EXPORTED(c2_fop_fini);
+
 void c2_fop_free(struct c2_fop *fop)
 {
 	if (fop != NULL) {
-		c2_addb_ctx_fini(&fop->f_addb);
-		c2_free(fop->f_data.fd_data);
-		c2_list_link_fini(&fop->f_link);
+		c2_fop_fini(fop);
 		c2_free(fop);
 	}
 }
