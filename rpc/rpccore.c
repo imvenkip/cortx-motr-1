@@ -168,7 +168,6 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 	struct c2_rpc_slot_ref	*sref;
 
 	C2_SET0(item);
-	item->ri_magic = C2_RPC_ITEM_MAGIC;
 	c2_chan_init(&item->ri_chan);
         c2_list_link_init(&item->ri_linkage);
 	c2_ref_init(&item->ri_ref, 1, c2_rpc_item_ref_fini);
