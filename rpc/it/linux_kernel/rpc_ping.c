@@ -1064,6 +1064,7 @@ int main(int argc, char *argv[])
 		return rc;
 	#endif
 	c2_ping_fop_init();
+	c2_addb_choose_default_level(AEL_WARN);
 	#ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('c', "run client", &client),
