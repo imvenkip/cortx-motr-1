@@ -30,6 +30,7 @@
    - @ref DLD-fspec
       - @ref DLD-fspec-ds
       - @ref DLD-fspec-if
+           - @ref DLD-fspec-if-cons "Constructors and Destructors"
       - @ref DLD-fspec-cli
       - @ref DLD-fspec-usecases
    - @ref DLD-lspec
@@ -42,6 +43,7 @@
    - @ref DLD-ut
    - @ref DLD-st
    - @ref DLD-O
+   - @ref DLD-ref
 
    @see Detailed functional specifications in @ref DLDDFS.
 
@@ -51,13 +53,19 @@
 
    <hr>
    @section DLD-ovw Overview
+   This document is intended to be a style guide for a detail level
+   design specification.  All such specifications must start with an
+   Overview section that briefly describes the document and provides any
+   additional instructions or hints on how to read it.
+
+   <b>Purpose of a DLD</b><br>
    The purpose of the Detailed Level Design (DLD) specification of a
    component is to:
    - Refine higher level designs
    - To be verified by inspectors and architects
    - To guide the coding phase
 
-   @subsection DLD-ovw-loc Location of the DLD
+   <b>Location of the DLD</b><br>
    The Colibri project requires Detailed Level Designs in the source
    code itself.  This greatly aids in keeping the design documentation
    up to date through the lifetime of the implementation code.
@@ -71,19 +79,19 @@
    The DLD is followed in the master header file by the detailed
    functional specification of the component interfaces.
 
-   @subsection DLD-ovw-fmt Formatting language
-   Doxygen is the formatting tool of choice.  The doxgyen \@page
+   <b>Formatting language</b><br>
+   Doxygen is the formatting tool of choice.  The doxgyen @@page
    format is used to define a separate top-level browsable element
-   that contains the body of the DLD. The \@section and \@subsection
+   that contains the body of the DLD. The @@section and @@subsection
    formatting commands are used to provide internal structure.
    The page title will be visible in the <b>Related Pages</b> tab in the
    main browser window, as well as displayed as a top-level element in the
    explorer side-bar.
 
-   @subsection DLD-ovw-layout Layout of the DLD
+   <b>Layout of the DLD</b><br>
    The DLD specification is required to be sectioned in a stylized manner
-   as demonstrated by this guide. It is similar to the sectioning
-   found in a High Level Design.
+   as demonstrated by this guide. It is similar to the sectioning found
+   in a High Level Design.
 
    Not all sections may be applicable to the component in question,
    but mandatory section may not be omitted.  Instead, it should be
@@ -93,7 +101,7 @@
 
    @todo Improve the Doxygen style sheet
 
-   @see <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US#Invariants">Detailed level design HOWTO</a>,
+   @see <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>,
    an older document on which this style guide is partially based.
 
    <hr>
@@ -112,14 +120,14 @@
      documentation of al the data structures and interfaces (internal
      and external).
    - <b>State model</b> This explains the lifecycle of component data
-     strucutres.
+     structures.
    - <b>Concurrency and threading model</b> This explains how the the
      component works in a multi-threaded environment.
 
    <hr>
    @section DLD-req Requirements
    Mandatory.
-   The DLD shall state the requirments that it attempts to meet.
+   The DLD shall state the requirements that it attempts to meet.
    They should be expressed in a list, thusly:
    - <b>R.DLD.Structured</b> The DLD shall be decomposed into a standard
    set of section.  Sub-sections may be used to further decompose the
@@ -140,7 +148,22 @@
    Components with programming interfaces should provide an
    enumeration and <i>brief</i> description of the major data structures
    defined by this component.  No details of the data structure are
-   required here, just the salient points.
+   required here, just the salient points. For example:
+
+<table border="0">
+<tr><td>&nbrsp; &nbrsp; &nbrsp; &nbrsp; &nbrsp; &nbrsp;</td><td>
+   The @c dld_sample_ds1 structure tracks the density of the
+   electro-magnetic field with the following:
+@code
+struct dld_sample_ds1 {
+  ...
+  int dsd_flux_density;
+  ...
+};
+@endcode
+   The value of this field is inversely proportional to the square of the
+   number of lines of comments in the DLD.
+</td></tr></table>
 
    The section could also describe what use it makes of data structures
    described elsewhere.
@@ -151,12 +174,20 @@
    enumeration and <i>brief</i> description
    of the programming interfaces.  The section may be further organized
    by function. For example
-        - <b>Constructors and destructors</b>
+        - @ref DLD-fspec-if-cons "Constructors and Destructors"
 	- <b>Accessors and invariants</b>
 	- <b>Operational interfaces</b>
 
-   There is no \@subsubsection tag in Doxygen, so use bold-faced caption
-   paragraphs to accomplish this further sub-sectioning.
+   There is no @@subsubsection tag in Doxygen, so use bold-faced caption
+   paragraphs to accomplish this further sub-sectioning. Another alternative
+   is to use the @<h4> HTML tag and an explicit @@anchor reference to create
+   a linkable Doxygen heading.  The corresponding @@ref tag format is shown
+   here as well as at the top of the page.
+
+   <h4>@anchor DLD-fspec-if-cons Constructors and destructors</h4>
+   This is an example of a sub-sub-section.
+   The doxygen style-sheet does not seem to have definitions for
+   the @<h4> HTML tag.
 
    @subsection DLD-fspec-cli Command Usage
    Mandatory for command line programs.
@@ -172,7 +203,7 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.
 
-   There is no \@subsubsection tag in Doxygen, so use bold-faced caption
+   There is no @@subsubsection tag in Doxygen, so use bold-faced caption
    paragraphs to further sub-section each recipie.
 
 
@@ -186,7 +217,11 @@
 
    Any of these sub-sections can utilize diagrams if needed.
    UML and sequence diagrams often illustrate points better than
-   any written explanation.
+   any written explanation.  For example:
+   <img src="../../doc/dld-sample.gif" alt="doc/dld-sample.gif">
+   An image is relatively easy to load, provided you remember that the
+   doxygen output is viewed from the doc/html directory, so all paths
+   should be relative to that frame of reference.
 
    @subsection DLD-lspec-ovw Design overview
    Mandatory.
@@ -202,7 +237,33 @@
    whether externally exposed or purely internal.
 
    Diagrams are almost essential here. Use the dot support built
-   into Doxygen.
+   into Doxygen.  Here, for example, is a figure from the "rpc/session.h"
+   file:
+   @dot
+   digraph example {
+       node [shape=record, fontname=Helvetica, fontsize=10]
+       S0 [label="", shape="plaintext", layer=""]
+       S1 [label="Uninitialized"]
+       S2 [label="Initialized"]
+       S3 [label="Connecting"]
+       S4 [label="Active"]
+       S5 [label="Terminating"]
+       S6 [label="Terminated"]
+       S7 [label="Uninitialzed"]
+       S8 [label="Failed"]
+       S0 -> S1 [label="allocate"]
+       S1 -> S2 [label="c2_rpc_conn_init()"]
+       S2 -> S3 [label="c2_rpc_conn_established()"]
+       S3 -> S4 [label="c2_rpc_conn_establish_reply_received()"]
+       S4 -> S5 [label="c2_rpc_conn_terminate()"]
+       S5 -> S6 [label="c2_rpc_conn_terminate_reply_received()"]
+       S6 -> S7 [label="c2_rpc_conn_fini()"]
+       S2 -> S8 [label="failed"]
+       S3 -> S8 [label="timeout or failed"]
+       S5 -> S8 [label="timeout or failed"]
+       S8 -> S7 [label="c2_rpc_conn_fini()"]
+   }
+   @enddot
 
    @subsection DLD-lspec-thread Threading and Concurrency Model
    Mandatory.
@@ -229,7 +290,7 @@
 
    @subsection DLD-conformance Conformance
    Mandatory.
-   This section cites each requiremnt in the @ref DLD-req section,
+   This section cites each requirement in the @ref DLD-req section,
    and explains briefly how the DLD meets the requirement.
 
 
@@ -240,7 +301,13 @@
 
    Unit tests should be planned for all interfaces exposed by the component.
    Testing should not just include correctness tests, but should also
-   test failure situations.  Another area of focus is boundary value tests,
+   test failure situations.  This includes testing of <i>expected</i>
+   returnerror codes when presented with invalid input or when encountering
+   unexpected data or state.
+   Note that assertions are not testable - the unit test program
+   terminates!
+
+   Another area of focus is boundary value tests,
    where variable values are equal to but do not exceed their maximum or
    minimum possible values.
 
@@ -268,6 +335,16 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.
 
+   <hr>
+   @section DLD-ref References
+   References to other documents are essential.  In particular a link
+   to the HLD for the DLD should be provided.
+   - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">Detailed level design HOWTO</a>
+   - <a href="http://www.stack.nl/~dimitri/doxygen/maual.html">Doxygen
+   Manual</a>
+   - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
+   Software</b> for documentation on the @c dot command.
+
  */
 
 /**
@@ -280,7 +357,7 @@
    module described by a Doxygen group.
 
    Module documentation may spread across multiple source files.  Make
-   sure that the \@addtogroup Doxygen command is used in the other
+   sure that the @@addtogroup Doxygen command is used in the other
    files.
 
    A component is not constrainted to have only one module.  If multiple
@@ -294,21 +371,42 @@
 */
 
 /**
-   Data structure
+   Data structure to do something.
+
  */
 struct dld_sample_ds1 {
 	/** The z field */
-	int z_field;
+	int dsd_z_field;
+	/** Flux density */
+	int dsd_flux_density;
 };
 
 /**
-   Subroutine1
-   @param param1 Parameter 1
+   Subroutine1 opens a foo for access.
+
+   Some particulars:
+   - Proper grammar, punctuation and spelling is required
+   in all documentation.
+   This requirement is not relaxed in the detailed functional specification.
+   - Function documentation should be in the 3rd person, singular, present
+   tense, indicative mood, active voice.  For example, "creates",
+   "initializes", "finds", etc.
+   - Functional parameters should not trivialize the
+   documentation by repeating what is already clear from the function
+   prototype.  For example it would be wrong to say, <tt>"@@param read_only
+   A boolean parameter."</tt>.
+   - The default return convention (0 for success and <tt>-errno</tt>
+   on failure) should not be repeated.
+   - The @@pre and @@post conditions are preferably expressed in code.
+
+   @param param1 Parameter 1 must be locked before use.
+   @param read_only This controls the modifiability of the foo object.
+   Set to @c true to prevent modification.
    @retval return value
-   @pre Precondition
-   @post Postcondition
+   @pre Precondition, preferably in code.
+   @post Postcondition, preferably in code.
 */
-int dld_sample_sub1(struct dld_sample_ds1 *param1);
+int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
 
 /**
    @} DLDDFS end group
