@@ -451,7 +451,6 @@ void send_ping_fop(int nr)
 	item->ri_deadline = 0;
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_group = NULL;
-	item->ri_mach = &cctx.pc_rpc_mach;
 	item->ri_type = &c2_rpc_item_type_ping;
 	ftype = fop->f_type;
 	/** Associate ping fop type with its item type */
@@ -697,7 +696,7 @@ void client_init()
 	rc = c2_rpc_session_establish(&cctx.pc_rpc_session);
 	if(rc != 0){
 		printf("Failed to create session\n");
-		goto cleanup;
+		goto conn_term;
 	} else {
 		printf("RPC session created\n");
 	}
@@ -763,6 +762,7 @@ void client_init()
 	} else
 		printf("Timeout for session terminate \n");
 
+conn_term:
 	/* Terminate RPC connection */
 	rc = c2_rpc_conn_terminate(&cctx.pc_conn);
 	if(rc != 0){

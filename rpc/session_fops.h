@@ -120,6 +120,10 @@ struct c2_rpc_fop_conn_establish_ctx
 
 	/** end point of sender, who has sent the conn_establish request fop */
 	struct c2_net_end_point *cec_sender_ep;
+
+	/** New rpc connection needs to be established in context of this
+	    rpcmachine */
+	struct c2_rpcmachine    *cec_rpcmachine;
 };
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */

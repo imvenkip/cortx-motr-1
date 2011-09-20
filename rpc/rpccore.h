@@ -433,7 +433,6 @@ enum {
    @see c2_fop.
  */
 struct c2_rpc_item {
-	struct c2_rpcmachine		*ri_mach;
 	struct c2_chan			 ri_chan;
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;

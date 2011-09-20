@@ -640,7 +640,7 @@ static struct c2_rpc_frm_group *frm_rpcgroup_init(
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_group != NULL);
 
-	formation = &item->ri_mach->cr_formation;
+	formation = &item->ri_session->s_conn->c_rpcmachine->cr_formation;
 	C2_ALLOC_PTR_ADDB(rg, &formation->rf_rpc_form_addb, &frm_addb_loc);
 	if (rg == NULL)
 		return NULL;
@@ -737,7 +737,7 @@ static int frm_item_add(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_item *item)
 
 	/* Initialize the timer only when the deadline value is non-zero
 	   i.e. dont initialize the timer for URGENT items */
-	formation = &item->ri_mach->cr_formation;
+	formation = &item->ri_session->s_conn->c_rpcmachine->cr_formation;
 	if (item->ri_deadline != 0) {
 		/* C2_TIMER_SOFT creates a different thread to handle the
 		   callback. */
@@ -1124,7 +1124,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			sz_policy_violated = frm_size_is_violated(frm_sm,
 					rpc_size, rpc_item->ri_type->rit_ops->
 					rito_item_size(rpc_item));
-			rpcmachine = rpc_item->ri_mach;
+			rpcmachine = rpc_item->ri_session->s_conn->c_rpcmachine;
 
 			/* If size threshold is not reached or other formation
 			   policies are met, add item to rpc object. */
@@ -1316,7 +1316,7 @@ static int sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 	}
 
 	/* Create an rpc object in frm_sm->isu_rpcobj_list. */
-	formation = &item->ri_mach->cr_formation;
+	formation = &item->ri_session->s_conn->c_rpcmachine->cr_formation;
 	C2_ALLOC_PTR_ADDB(rpcobj, &formation->rf_rpc_form_addb, &frm_addb_loc);
 	if (rpcobj == NULL) {
 		rc = -ENOMEM;

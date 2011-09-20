@@ -321,17 +321,19 @@ int c2_rpc_session_fop_init(void)
 }
 
 void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
-					struct c2_net_end_point *ep)
+					struct c2_net_end_point *ep,
+					struct c2_rpcmachine    *machine)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
-	C2_PRE(item != NULL && ep != NULL);
+	C2_PRE(item != NULL && ep != NULL && machine != NULL);
 
 	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
 				cec_fop.f_item);
 	C2_ASSERT(ctx != NULL);
 
 	ctx->cec_sender_ep = ep;
+	ctx->cec_rpcmachine = machine;
 }
 static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 				      struct c2_rpc_item     **item,
@@ -356,6 +358,9 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	rc = c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
 	if (rc != 0)
 		goto out;
+
+	//c2_rpc_item_init(&fop->f_item);
+	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
 
 	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
 	if (rc != 0)

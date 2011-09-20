@@ -150,6 +150,11 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	if (fop == NULL)
 		return -ENOMEM;
 
+	C2_ASSERT(fop->f_item.ri_type != NULL);
+
+	//c2_rpc_item_init(&fop->f_item);
+	//fop->f_item.ri_type = fop->f_type->ft_ri_type;
+
 	dummy_item = &fop->f_item;
 	dummy_item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 	/* set ri_reply to some value. Doesn't matter what */
@@ -757,7 +762,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	slot_balance(slot);
 }
 
-static int associate_session_and_slot(struct c2_rpc_item *item)
+static int associate_session_and_slot(struct c2_rpc_item   *item,
+				      struct c2_rpcmachine *machine)
 {
 	struct c2_list         *conn_list;
 	struct c2_rpc_conn     *conn;
@@ -776,13 +782,13 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 			(unsigned long)sref->sr_session_id,
 			sref->sr_slot_id);
 	conn_list = c2_rpc_item_is_request(item) ?
-			&item->ri_mach->cr_incoming_conns :
-			&item->ri_mach->cr_outgoing_conns;
+			&machine->cr_incoming_conns :
+			&machine->cr_outgoing_conns;
 
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 	printf("associate_session: uuid %s\n", use_uuid ? "true" : "false");
 
-	c2_mutex_lock(&item->ri_mach->cr_session_mutex);
+	c2_mutex_lock(&machine->cr_session_mutex);
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
 		found = use_uuid ?
@@ -793,7 +799,7 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 			break;
 
 	}
-	c2_mutex_unlock(&item->ri_mach->cr_session_mutex);
+	c2_mutex_unlock(&machine->cr_session_mutex);
 	if (!found) {
 		printf("associate_session: cannot find conn\n");
 		return -ENOENT;
@@ -825,16 +831,17 @@ static int associate_session_and_slot(struct c2_rpc_item *item)
 	return 0;
 }
 
-int c2_rpc_item_received(struct c2_rpc_item *item)
+int c2_rpc_item_received(struct c2_rpc_item   *item,
+			 struct c2_rpcmachine *machine)
 {
 	struct c2_rpc_item *req;
 	struct c2_rpc_slot *slot;
 	int                 rc;
 
-	C2_ASSERT(item != NULL && item->ri_mach != NULL);
+	C2_ASSERT(item != NULL && machine != NULL);
 	printf("item_received: %p\n", item);
-	rc = associate_session_and_slot(item);
-	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+
+	rc = associate_session_and_slot(item, machine);
 	if (rc != 0) {
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
@@ -851,6 +858,8 @@ int c2_rpc_item_received(struct c2_rpc_item *item)
 	}
 	C2_ASSERT(item->ri_session != NULL &&
 		  item->ri_slot_refs[0].sr_slot != NULL);
+
+	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {
