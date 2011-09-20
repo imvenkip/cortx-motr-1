@@ -149,20 +149,6 @@ void c2_rpcobj_fini(struct c2_rpc *rpc)
 	c2_list_link_fini(&rpc->r_linkage);
 }
 
-/* can be exported, used c2_ prefix */
-static void c2_rpc_item_fini(struct c2_rpc_item *item)
-{
-	item->ri_state = RPC_ITEM_FINALIZED;
-	c2_chan_fini(&item->ri_chan);
-}
-
-static void c2_rpc_item_ref_fini(struct c2_ref *ref)
-{
-	struct c2_rpc_item *item;
-	item = container_of(ref, struct c2_rpc_item, ri_ref);
-	c2_rpc_item_fini(item);
-}
-
 int c2_rpc_item_init(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
@@ -170,7 +156,6 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
 	C2_SET0(item);
 	c2_chan_init(&item->ri_chan);
         c2_list_link_init(&item->ri_linkage);
-	c2_ref_init(&item->ri_ref, 1, c2_rpc_item_ref_fini);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 
 	sref = &item->ri_slot_refs[0];
@@ -187,6 +172,29 @@ int c2_rpc_item_init(struct c2_rpc_item *item)
         c2_list_link_init(&item->ri_group_linkage);
 
 	return 0;
+}
+
+void c2_rpc_item_fini(struct c2_rpc_item *item)
+{
+	struct c2_rpc_slot_ref	*sref;
+
+	c2_chan_fini(&item->ri_chan);
+        c2_list_link_fini(&item->ri_linkage);
+
+	sref = &item->ri_slot_refs[0];
+	sref->sr_slot_id = SLOT_ID_INVALID;
+	c2_list_link_fini(&sref->sr_link);
+	c2_list_link_fini(&sref->sr_ready_link);
+
+	sref->sr_sender_id = SENDER_ID_INVALID;
+	sref->sr_session_id = SESSION_ID_INVALID;
+
+        c2_list_link_fini(&item->ri_unbound_link);
+
+        c2_list_link_fini(&item->ri_rpcobject_linkage);
+	c2_list_link_fini(&item->ri_unformed_linkage);
+        c2_list_link_fini(&item->ri_group_linkage);
+	item->ri_state = RPC_ITEM_FINALIZED;
 }
 
 int c2_rpc_post(struct c2_rpc_item *item)
@@ -635,10 +643,10 @@ static void rpc_proc_fini(struct c2_rpc_processing *proc)
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 {
 	int			 rc;
-	bool			 in_flight_dec = false;
 	c2_time_t		 now;
 	struct c2_rpc		 rpc;
 	struct c2_rpc_item	*item;
+	struct c2_rpc_item	*next_item;
 	struct c2_net_buffer	*nb;
 	struct c2_rpc_chan	*chan;
 
@@ -652,34 +660,34 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	nb->nb_ep = ev->nbe_ep;
 	c2_rpcobj_init(&rpc);
 
-	if (ev->nbe_status == 0) {
-		/* conn establish fop will be decoded using
-		   conn_establish_item_decode() */
-		rc = c2_rpc_decode(&rpc, nb);
-		if (rc < 0)
-			goto last;
-		now = c2_time_now();
-		chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
-		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
-				ri_rpcobject_linkage) {
-			/* If this is a reply type rpc item, call a
-			   sessions/slots method on it which will find
-			   out its corresponding request item and call
-			   its completion callback.*/
-			item->ri_mach = chan->rc_rpcmachine;
-			nb->nb_ep = ev->nbe_ep;
-			if (c2_rpc_item_is_conn_establish(item)) {
-				c2_rpc_fop_conn_establish_ctx_init(item,
-								   nb->nb_ep);
-			}
-			item->ri_rpc_entry_time = now;
-			rc = c2_rpc_item_received(item);
-			if (rc == 0 && !in_flight_dec) {
-				in_flight_dec = true;
-				if (!c2_rpc_item_is_conn_establish(item))
-					frm_rpcs_inflight_dec(item);
-			}
-		}
+	if (ev->nbe_status != 0)
+		goto last;
+
+	rc = c2_rpc_decode(&rpc, nb);
+	if (rc < 0)
+		goto last;
+
+	now = c2_time_now();
+	chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
+
+	c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
+				    struct c2_rpc_item, ri_rpcobject_linkage) {
+
+		c2_list_del(&item->ri_rpcobject_linkage);
+
+		item->ri_mach = chan->rc_rpcmachine;
+		nb->nb_ep = ev->nbe_ep;
+
+		if (c2_rpc_item_is_conn_establish(item))
+			c2_rpc_fop_conn_establish_ctx_init(item, nb->nb_ep);
+
+		item->ri_rpc_entry_time = now;
+		rc = c2_rpc_item_received(item);
+		/*
+		 * If 'item' is conn terminate reply then, do not
+		 * access item, after this point. In which case the
+		 * item might have already been freed.
+		 */
 	}
 
 	/* Add the c2_net_buffer back to the queue of

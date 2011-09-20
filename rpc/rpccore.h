@@ -584,11 +584,11 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
 
 /**
-   Initialize RPC item.
-   Finalization of the item is done using ref counters, so no public fini IF.
+   Initialises RPC item.
  */
-
 int c2_rpc_item_init(struct c2_rpc_item *item);
+
+void c2_rpc_item_fini(struct c2_rpc_item *item);
 
 /**
    Returns true if item modifies file system state, false otherwise

@@ -212,12 +212,14 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		}
 		reply = item->ri_reply;
 		if (reply != NULL) {
+			c2_rpc_item_fini(reply);
 			fop = c2_rpc_item_to_fop(reply);
 			c2_fop_free(fop);
 		}
 		item->ri_reply = NULL;
 
 		c2_list_del(&item->ri_slot_refs[0].sr_link);
+		c2_rpc_item_fini(item);
 		fop = c2_rpc_item_to_fop(item);
 		c2_fop_free(fop);
 		count++;
