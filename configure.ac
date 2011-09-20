@@ -409,7 +409,7 @@ AC_MSG_CHECKING([for yaml libs])
 if ! test -e $YAML_LIBS; then
         AC_MSG_RESULT([building $YAML_SRC])
         oldcwd=$(pwd)
-        cd $YAML_SRC && ./configure && make
+        cd $YAML_SRC && sh autogen.sh && ./configure && make
         res=$?
         cd $oldcwd
         if ! test $res -eq 0 ; then
