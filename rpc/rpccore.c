@@ -803,8 +803,8 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		       uint64_t max_rpcs_in_flight)
 {
 	int				 rc;
-	#ifndef __KERNEL__
 	struct c2_db_tx			 tx;
+	#ifndef __KERNEL__
 	struct c2_cob			*root_session_cob;
 	#endif
 	struct c2_rpc_chan		*chan;
