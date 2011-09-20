@@ -743,7 +743,7 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
    @return 0 success
    @return ETIMEDOUT The wait timed out wihout being sent
  */
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout);
+int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t timeout);
 
 /**
    Wait for the reply on group of items being sent.

@@ -511,9 +511,21 @@ static void rpc_chan_destroy(struct c2_rpcmachine *machine,
 	c2_free(chan);
 }
 
-int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t *timeout)
+int c2_rpc_reply_timedwait(struct c2_rpc_item *item, const c2_time_t timeout)
 {
-	return 0;
+	bool	rc;
+	struct	c2_clink clink;
+
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_state >= RPC_ITEM_SUBMITTED);
+
+	c2_clink_init(&clink, NULL);
+	c2_clink_add(&item->ri_chan, &clink);
+	rc = c2_chan_timedwait(&clink, timeout);
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
+
+	return rc ? 0 : -ETIMEDOUT;
 }
 
 int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
