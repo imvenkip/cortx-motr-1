@@ -39,19 +39,21 @@
 #include "lib/arith.h"
 
 /* Forward declarations. */
-void rpc_chan_destroy(struct c2_rpcmachine *machine,
-		struct c2_rpc_chan *chan);
+static void rpc_chan_destroy(struct c2_rpcmachine *machine,
+			     struct c2_rpc_chan *chan);
 static int recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
-		struct c2_net_transfer_mc *tm);
+				   struct c2_net_transfer_mc *tm);
 static void recv_buffer_deallocate_nr(struct c2_rpc_chan *chan, bool tm_active,
-				     uint32_t nr);
+				      uint32_t nr);
+static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 
-extern void frm_rpcs_inflight_dec(struct c2_rpc_item *item);
+
+extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
 extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, struct c2_rpc_chan *chan,
 			struct c2_rpc_formation *formation,
 			uint64_t max_rpcs_in_flight);
 extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
-extern int frm_init(struct c2_rpc_formation *frm);
+extern void frm_init(struct c2_rpc_formation *frm);
 extern void frm_fini(struct c2_rpc_formation *formation);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
@@ -74,12 +76,10 @@ static const struct c2_addb_loc rpc_machine_addb_loc = {
 C2_ADDB_EV_DEFINE(rpc_machine_func_fail, "rpc_machine_func_fail",
 		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
-
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
  */
-struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
+const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
 		[C2_NET_QT_MSG_RECV] = rpc_net_buf_received,
 	}
@@ -88,7 +88,7 @@ struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 /**
    Callback for net buffer used in posting
  */
-struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
+const struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
 	.nbc_cb = {
 		[C2_NET_QT_MSG_SEND] = frm_net_buffer_sent,
 	}
@@ -97,8 +97,6 @@ struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
 }
-
-int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
 
 /**
     Transfer machine callback vector for transfer machines created by
@@ -110,16 +108,6 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 
 static const struct c2_update_stream_ops update_stream_ops;
 static const struct c2_rpc_item_type_ops rpc_item_ops;
-
-void c2_rpcobj_init(struct c2_rpc *rpc)
-{
-	C2_PRE(rpc != NULL);
-
-	c2_list_link_init(&rpc->r_linkage);
-	c2_list_init(&rpc->r_items);
-	rpc->r_session = NULL;
-	rpc->r_fbuf.fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
-}
 
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpcmachine *mach)
@@ -140,15 +128,6 @@ static void update_stream_fini(struct c2_update_stream *us)
 	c2_mutex_fini(&us->us_guard);
 }
 
-static int rpc_init(struct c2_rpc *rpc) __attribute__((unused)); /*XXX: for now*/
-static int rpc_init(struct c2_rpc *rpc)
-{
-	c2_list_link_init(&rpc->r_linkage);
-	c2_list_init(&rpc->r_items);
-	rpc->r_session = NULL;
-	return 0;
-}
-
 void c2_rpcobj_fini(struct c2_rpc *rpc)
 {
 	rpc->r_session = NULL;
@@ -167,7 +146,6 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	struct c2_rpc_slot_ref	*sref;
 
 	C2_SET0(item);
-	item->ri_magic = C2_RPC_ITEM_MAGIC;
 	c2_chan_init(&item->ri_chan);
 	item->ri_state = RPC_ITEM_UNINITIALIZED;
 
@@ -286,7 +264,6 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 		struct c2_rpc_item *item)
 {
-	c2_time_t		 now;
 	struct c2_rpc_session	*session_zero;
 
 	C2_PRE(conn != NULL);
@@ -297,10 +274,8 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	item->ri_session = session_zero;
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	item->ri_mach = item->ri_session->s_conn->c_rpcmachine;
-	//item->ri_type->rit_flags = C2_RPC_ITEM_UNSOLICITED;
 
-	now = c2_time_now();
-	item->ri_rpc_time = now;
+	item->ri_rpc_time = c2_time_now();
 	return frm_ubitem_added(item);
 }
 
@@ -409,13 +384,11 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 
 	/* Wait on transfer machine channel till transfer machine is
 	   actually started. */
-	c2_chan_wait(&tmwait);
+	while (ch->rc_tm.ntm_state != C2_NET_TM_STARTED)
+		c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 
-	/* If tm fails to start, propogate the error back. */
-	if (ch->rc_tm.ntm_state != C2_NET_TM_STARTED)
-		goto cleanup;
 
 	/* Add buffers for receiving messages to this transfer machine. */
 	rc = recv_buffer_allocate_nr(net_dom, &ch->rc_tm);
@@ -490,7 +463,7 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 	c2_mutex_unlock(&machine->cr_ep_aggr.ea_mutex);
 }
 
-void rpc_chan_destroy(struct c2_rpcmachine *machine,
+static void rpc_chan_destroy(struct c2_rpcmachine *machine,
 		struct c2_rpc_chan *chan)
 {
 	int		cnt;
@@ -577,27 +550,6 @@ void c2_rpc_update_stream_put(struct c2_update_stream *us)
 	c2_free(us);
 }
 
-size_t c2_rpc_cache_item_count(struct c2_rpcmachine *machine,
-			       enum c2_rpc_item_priority prio)
-{
-	return 0;
-}
-
-size_t c2_rpc_rpc_count(struct c2_rpcmachine *machine)
-{
-	return 0;
-}
-
-void c2_rpc_avg_rpc_item_time(struct c2_rpcmachine *machine,
-			      c2_time_t *time)
-{
-}
-
-size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine)
-{
-	return 0;
-}
-
 /**
    The callback routine to be called once the transfer machine
    receives a buffer. This subroutine later invokes decoding of
@@ -607,29 +559,32 @@ size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine)
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 {
 	int			 rc;
-	bool			 in_flight_dec = false;
 	c2_time_t		 now;
 	struct c2_rpc		 rpc;
 	struct c2_rpc_item	*item;
 	struct c2_net_buffer	*nb;
 	struct c2_rpc_chan	*chan;
 
-	C2_PRE((ev != NULL) && (ev->nbe_buffer != NULL));
+	C2_PRE(ev != NULL && ev->nbe_buffer != NULL);
 
 	/* Decode the buffer, get an RPC from it, traverse the
 	   list of rpc items from that rpc and post reply callbacks
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
-	nb->nb_length = ev->nbe_length;
-	nb->nb_ep = ev->nbe_ep;
-	c2_rpcobj_init(&rpc);
 
 	if (ev->nbe_status == 0) {
+		nb->nb_length = ev->nbe_length;
+		nb->nb_ep = ev->nbe_ep;
+		chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
+		frm_rpcs_inflight_dec(&chan->rc_frmsm);
+		c2_rpcobj_init(&rpc);
 		rc = c2_rpc_decode(&rpc, nb);
 		if (rc < 0)
 			goto last;
+#ifndef __KERNEL__
+		printf("%lu items received.\n", c2_list_length(&rpc.r_items));
+#endif
 		now = c2_time_now();
-		chan = container_of(nb->nb_tm, struct c2_rpc_chan, rc_tm);
 		c2_list_for_each_entry(&rpc.r_items, item, struct c2_rpc_item,
 				ri_rpcobject_linkage) {
 			/* If this is a reply type rpc item, call a
@@ -637,15 +592,9 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 			   out its corresponding request item and call
 			   its completion callback.*/
 			item->ri_mach = chan->rc_rpcmachine;
-			nb->nb_ep = ev->nbe_ep;
 			item->ri_src_ep = nb->nb_ep;
 			item->ri_rpc_time = now;
 			rc = c2_rpc_item_received(item);
-			if (rc == 0 && !in_flight_dec) {
-				in_flight_dec = true;
-				if (!c2_rpc_item_is_conn_establish(item))
-					frm_rpcs_inflight_dec(item);
-			}
 		}
 	}
 
@@ -769,10 +718,9 @@ static int recv_buffer_allocate_nr(struct c2_net_domain *net_dom,
 		if (rc < 0)
 			break;
 	}
-	if (rc < 0) {
+	if (rc < 0)
 		recv_buffer_deallocate_nr(chan, true, cnt);
-		c2_net_tm_fini(tm);
-	}
+
 	return rc;
 }
 
@@ -812,6 +760,7 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 {
 	C2_PRE(nb != NULL);
 	C2_PRE(net_dom != NULL);
+	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	c2_net_buffer_deregister(nb, net_dom);
 	c2_bufvec_free(&nb->nb_buffer);
@@ -848,44 +797,40 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 	C2_PRE(net_dom != NULL);
 	C2_PRE(max_rpcs_in_flight != 0);
 
-	c2_mutex_init(&machine->cr_stats_mutex);
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
+	if (rc != 0) {
+		c2_db_tx_abort(&tx);
+		return rc;
+	}
 
+	/* Create new c2_rpc_chan structure, init the transfer machine
+	   passing the source endpoint. */
+	ep_aggr_init(&machine->cr_ep_aggr);
+	frm_init(&machine->cr_formation);
+
+	rc = rpc_chan_create(&chan, machine, net_dom, ep_addr,
+			     max_rpcs_in_flight);
+	if (rc < 0)
+		goto cleanup;
+
+	c2_mutex_init(&machine->cr_stats_mutex);
 	c2_list_init(&machine->cr_incoming_conns);
 	c2_list_init(&machine->cr_outgoing_conns);
 	c2_mutex_init(&machine->cr_session_mutex);
 	c2_list_init(&machine->cr_ready_slots);
 	c2_mutex_init(&machine->cr_ready_slots_mutex);
-
-	machine->cr_dom = dom;
-	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	rc = c2_rpc_root_session_cob_create(dom, &root_session_cob, &tx);
-	if (rc == 0)
-		c2_db_tx_commit(&tx);
-	else
-		c2_db_tx_abort(&tx);
-
-	/* Create new c2_rpc_chan structure, init the transfer machine
-	   passing the source endpoint. */
-	ep_aggr_init(&machine->cr_ep_aggr);
-
-	rc = frm_init(&machine->cr_formation);
-	if (rc < 0) {
-		ep_aggr_fini(&machine->cr_ep_aggr);
-		return rc;
-	}
-
-	rc = rpc_chan_create(&chan, machine, net_dom, ep_addr,
-			     max_rpcs_in_flight);
-	if (rc < 0) {
-		ep_aggr_fini(&machine->cr_ep_aggr);
-		return rc;
-	}
-
-	/* Init the add context for this rpcmachine */
 	c2_addb_ctx_init(&machine->cr_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 	C2_SET_ARR0(machine->cr_rpc_stats);
+	machine->cr_dom = dom;
+	c2_db_tx_commit(&tx);
+	return rc;
 
+cleanup:
+	c2_db_tx_abort(&tx);
+	ep_aggr_fini(&machine->cr_ep_aggr);
+	frm_fini(&machine->cr_formation);
 	return rc;
 }
 
@@ -966,22 +911,13 @@ void us_recovery_complete(struct c2_update_stream *us)
 	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
 }
 
-/**
-   rio_replied op from rpc type ops.
-   If this is an IO request, free the IO vector
-   and free the fop.
- */
 static void item_replied(struct c2_rpc_item *item, int rc)
 {
 	struct c2_fop *fop;
 
 	C2_PRE(item != NULL);
-	/* Find out fop from the rpc item,
-	   Find out opcode of rpc item,
-	   Deallocate the io vector of rpc item accordingly.*/
 
 	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
 	if (fop->f_type->ft_ops->fto_fop_replied != NULL)
 		fop->f_type->ft_ops->fto_fop_replied(fop);
 }
@@ -998,8 +934,7 @@ static size_t item_size_get(const struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
-	if(fop->f_type->ft_ops->fto_size_get != NULL)
+	if (fop->f_type->ft_ops->fto_size_get != NULL)
 		size = fop->f_type->ft_ops->fto_size_get(fop);
 	else
 		size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
@@ -1061,7 +996,6 @@ static uint64_t item_fragment_count_get(struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
-	C2_ASSERT(fop != NULL);
 
 	return fop->f_type->ft_ops->fto_get_nfragments(fop);
 }
@@ -1079,7 +1013,6 @@ static void item_vec_restore(struct c2_rpc_item *b_item, struct c2_fop *bkpfop)
 	C2_PRE(bkpfop == NULL);
 
 	fop = c2_rpc_item_to_fop(b_item);
-	C2_ASSERT(fop != NULL);
 	fop->f_type->ft_ops->fto_iovec_restore(fop, bkpfop);
 }
 
@@ -1227,11 +1160,11 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 
 	st = &item->ri_mach->cr_rpc_stats[path];
 	c2_mutex_lock(&item->ri_mach->cr_stats_mutex);
-        st->rs_i_lat = item->ri_rpc_time;
-	st->rs_min_lat = st->rs_min_lat ? : st->rs_i_lat;
-	st->rs_min_lat = min64u(st->rs_min_lat, st->rs_i_lat);
-	st->rs_max_lat = st->rs_max_lat ? : st->rs_i_lat;
-	st->rs_max_lat = max64u(st->rs_max_lat, st->rs_i_lat);
+        st->rs_cumu_lat += item->ri_rpc_time;
+	st->rs_min_lat = st->rs_min_lat ? : item->ri_rpc_time;
+	st->rs_min_lat = min64u(st->rs_min_lat, item->ri_rpc_time);
+	st->rs_max_lat = st->rs_max_lat ? : item->ri_rpc_time; 
+	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
         st->rs_bytes_nr += c2_rpc_item_default_size(item);
@@ -1239,6 +1172,29 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	c2_mutex_unlock(&item->ri_mach->cr_stats_mutex);
 }
 
+size_t c2_rpc_bytes_per_sec(struct c2_rpcmachine *machine,
+			    const enum c2_rpc_item_path path)
+{
+	struct c2_rpc_stats *stats;
+
+	C2_PRE(machine != NULL);
+	C2_PRE(IS_IN_ARRAY(path, machine->cr_rpc_stats));
+
+	stats = &machine->cr_rpc_stats[path];
+	return stats->rs_bytes_nr / stats->rs_cumu_lat;
+}
+
+c2_time_t c2_rpc_avg_item_time(struct c2_rpcmachine *machine,
+			       const enum c2_rpc_item_path path)
+{
+	struct c2_rpc_stats *stats;
+
+	C2_PRE(machine != NULL);
+	C2_PRE(IS_IN_ARRAY(path, machine->cr_rpc_stats));
+
+	stats = &machine->cr_rpc_stats[path];
+	return stats->rs_cumu_lat / stats->rs_items_nr;
+}
 
 /* Dummy reqh queue of items */
 
