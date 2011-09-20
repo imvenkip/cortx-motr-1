@@ -32,12 +32,10 @@
    - @ref DLD-fspec
       - @ref DLD-fspec-ds
       - @ref DLD-fspec-if
-           - @ref DLD-fspec-if-cons "Constructors and Destructors"
       - @ref DLD-fspec-cli
       - @ref DLD-fspec-usecases
    - @ref DLD-lspec
       - @ref DLD-lspec-comps
-      - @ref DLD-lspec-sc1
       - @ref DLD-lspec-state
       - @ref DLD-lspec-thread
       - @ref DLD-lspec-numa
@@ -109,10 +107,10 @@
    illustrated by this document.  It is similar to the sectioning found
    in a High Level Design.
 
-   Not all sections may be applicable to the design, but
-   mandatory section may not be omitted.  If a mandatory section does not apply
-   it should clearly be marked as non-applicable, along with an explanation.
-   Additional sections or sub-sectioning may be added as required.
+   Not all sections may be applicable to the design, but mandatory sections may
+   not be omitted.  If a mandatory section does not apply it should clearly be
+   marked as non-applicable, along with an explanation.  Additional sections or
+   sub-sectioning may be added as required.
 
    <hr>
    @section DLD-def Definitions
@@ -159,7 +157,7 @@
    depends.</i>
 
    The DLD specification style guide depends on the HLD and AR
-   specifications as they identify requirements, use cases, \&c..
+   specifications as they identify requirements, use cases, <i>\&c.</i>.
 
    <hr>
    @section DLD-highlights Design Highlights
@@ -178,7 +176,9 @@
    @section DLD-fspec Functional Specification
    <i>Mandatory. This section describes the external interfaces of the
    component, showing what the component does to address the requirements.
-   It also briefly identifies the consumers of these interfaces.</i>
+   It also briefly identifies the consumers of these interfaces.
+   The section has mandatory subsections created using the Doxygen
+   @@subsection command.</i>
 
    @subsection DLD-fspec-ds Data structures
    <i>Mandatory for programmatic interfaces.
@@ -204,8 +204,8 @@ struct dld_sample_ds1 {
    number of lines of comments in the DLD.
 </td></tr></table>
    Note the indentation above, accomplished by means of an HTML table
-   is purely for visual effect in the Doxygen output. A real DLD should
-   not use this construct.
+   is purely for visual effect in the Doxygen output of the style guide.
+   A real DLD should not use such constructs.
 
    The section could also describe what use it makes of data structures
    described elsewhere.
@@ -215,21 +215,22 @@ struct dld_sample_ds1 {
    Components with programming interfaces should provide an
    enumeration and brief description of the programming interfaces.</i>
 
-   The section may be further organized by function. For example
-        - @ref DLD-fspec-if-cons "Constructors and Destructors"
-	- <b>Accessors and invariants</b>
-	- <b>Operational interfaces</b>
+   The section may be further organized by function using additional
+   subsectioning with the Doxygen @@subsubsection command.  It is
+   useful to create a local table of contents to illustrate the structure
+   of what follows.
+   - @ref DLD-fspec-if-cons
+   - @ref DLD-fspec-acc
+   - @ref DLD-fspec-opi
 
-   There is no @@subsubsection tag in Doxygen, so use bold-faced caption
-   paragraphs to accomplish this further sub-sectioning. Another alternative
-   is to use the @<h4> HTML tag and an explicit @@anchor reference to create
-   a linkable Doxygen heading.  The corresponding @@ref tag format is shown
-   here as well as at the top of the page.
-
-   <h4>@anchor DLD-fspec-if-cons Constructors and destructors</h4>
+   @subsubsection DLD-fspec-if-cons Constructors and Destructors
    This is an example of a sub-sub-section.
-   The Doxygen style-sheet does not seem to have definitions for
-   the @<h4> HTML tag.
+
+   @subsubsection DLD-fspec-acc Accessors and Invariants
+   This is an example of a sub-sub-section.
+
+   @subsubsection DLD-fspec-opi Operational Interfaces
+   This is an example of a sub-sub-section.
 
    @subsection DLD-fspec-cli Command Usage
    <i>Mandatory for command line programs.
@@ -251,43 +252,48 @@ struct dld_sample_ds1 {
    This section describes the internal design of the component, explaining
    how the functional specification is met.  Sub-components and diagrams
    of their interaction should go into this section.
-   The section is divided into subsections, some of which are mandatory.
+   The section has mandatory subsections created using the Doxygen
+   @@subsection command.
    The designer should feel free to use additional sub-sectioning
    if needed.</i>
 
    @subsection DLD-lspec-comps Component Overview
    <i>Mandatory.
    This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components is useful.</i>
+   A diagram of the interaction between internal components and
+   between external consumers and the internal components is useful.</i>
 
-   UML and sequence diagrams often illustrate points better than any written
-   explanation.  However, please remember that every diagram <i>must</i> be
-   accompanied by an explanation.
+   Doxygen is limited in its internal support for diagrams. It has built in
+   support for @c dot and @c mscgen, and examples of both are provided in this
+   template.  Please remember that every diagram <i>must</i> be accompanied by
+   an explanation.
 
-   An image is relatively easy to load, provided you remember that the
-   Doxygen output is viewed from the doc/html directory, so all paths
-   should be relative to that frame of reference.  For example:
-   <img src="../../doc/dld-sample-uml.png">
-   I found that a PNG format image from Visio shows up with the correct
-   image size while a GIF image was wrongly sized.  Your experience may
-   be different, so please ensure that you validate the Doxygen output
-   for correct image rendering.
+   The following @@dot diagram shows the internal components of the Network
+   layer, and also illustrates its primary consumer, the RPC layer.
+   @dot
+   digraph {
+     node [stype=box];
+     label = "Network Layer Components and Interactions";
+     subgraph cluster_rpc {
+         label = "RPC Layer";
+         rpcC [label="Connectivity"];
+	 rpcO [label="Output"];
+     }
+     subgraph cluster_net {
+         label = "Network Layer";
+	 netM [label="Messaging"];
+	 netT [label="Transport"];
+	 netL [label="Legacy RPC emulation", style="filled"];
+	 netM -> netT;
+	 netL -> netM;
+     }
+     rpcC -> netM;
+     rpcO -> netM;
+   }
+   @enddot
 
-   If an external tool, such as Visio, is used to create an
-   image, the source of that image (e.g. the Visio @c .vsd file)
-   should be checked into the source tree so that future maintainers can
-   modify the figure.  This applies to all non-embedded image source files,
-   not just Visio.
-
-
-   @subsection DLD-lspec-sc1 Sub-component1 design
-   <i>This section describes the design of sub-component. Feel free to
-   add any additional sectioning to describe logically distinct
-   subcomponents.</i>
-
-   Doxygen is limited in its internal support for diagrams.  One of the
-   promising built in support commands is @@msc, which is used to run @c
-   mscgen.  This is used to create sequence diagrams. For example:
+   The @@msc command is used to invoke @c mscgen, which creates sequence
+   diagrams. For example:
    @msc
    a,b,c;
 
@@ -311,17 +317,46 @@ struct dld_sample_ds1 {
    You need the @c mscgen program installed on your system - it is part
    of the Scientific Linux based DevVM.
 
+   UML and sequence diagrams often illustrate points better than any written
+   explanation.  However, you have to resort to an external tool to generate
+   the diagram, save the image in a file, and load it into your DLD.
+
+   An image is relatively easy to load provided you remember that the
+   Doxygen output is viewed from the @c doc/html directory, so all paths
+   should be relative to that frame of reference.  For example:
+   <img src="../../doc/dld-sample-uml.png">
+   I found that a PNG format image from Visio shows up with the correct
+   image size while a GIF image was wrongly sized.  Your experience may
+   be different, so please ensure that you validate the Doxygen output
+   for correct image rendering.
+
+   If an external tool, such as Visio, is used to create an
+   image, the source of that image (e.g. the Visio @c .vsd file)
+   should be checked into the source tree so that future maintainers can
+   modify the figure.  This applies to all non-embedded image source files,
+   not just Visio.
+
+
+   @subsection DLD-lspec-sc Sub-component design
+   <i>This section describes the design of sub-component. Feel free to
+   add any additional sectioning to describe logically distinct
+   subcomponents.</i>
+
+   Sample non-standard sub-section to illustrate how to documentation the design
+   of a sub-component.
+
    @subsection DLD-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   Diagrams are almost essential here. Use the @@dot support built
-   into Doxygen.  Here, for example, is a figure from the "rpc/session.h"
-   file:
+   Diagrams are almost essential here. The @@dot tool is the easiest way to
+   create state diagrams, and is very readable in text form too.  Here, for
+   example, is a @@dot version of a figure from the "rpc/session.h" file:
    @dot
    digraph example {
        size = "5,6"
+       label = "RPC Session States"
        node [shape=record, fontname=Helvetica, fontsize=10]
        S0 [label="", shape="plaintext", layer=""]
        S1 [label="Uninitialized"]
@@ -357,7 +392,41 @@ struct dld_sample_ds1 {
    This section must explain all aspects of synchronization, including locking
    order protocols, existential protection of objects by their state, etc.
    A diagram illustrating lock scope would be very useful here.
-
+   For example, here is a @@dot illustration of the scope and locking order
+   of the mutexes in the Networking Layer:
+   @dot
+   digraph {
+      node [shape=plaintext];
+      subgraph cluster_m1 { // represents mutex scope
+         // sorted R-L so put mutex name last to align on the left
+         rank = same;
+	 n1_2 [label="dom_fini()"];  // procedure using mutex
+	 n1_1 [label="dom_init()"];
+         n1_0 [label="c2_net_mutex"];// mutex name
+      }
+      subgraph cluster_m2 {
+         rank = same;
+	 n2_2 [label="tm_fini()"];
+         n2_1 [label="tm_init()"];
+         n2_4 [label="buf_deregister()"];
+	 n2_3 [label="buf_register()"];
+         n2_0 [label="nd_mutex"];
+      }
+      subgraph cluster_m3 {
+         rank = same;
+	 n3_2 [label="tm_stop()"];
+         n3_1 [label="tm_start()"];
+	 n3_6 [label="ep_put()"];
+	 n3_5 [label="ep_create()"];
+	 n3_4 [label="buf_del()"];
+	 n3_3 [label="buf_add()"];
+         n3_0 [label="ntm_mutex"];
+      }
+      label="Mutex usage and locking order in the Network Layer";
+      n1_0 -> n2_0;  // locking order
+      n2_0 -> n3_0;
+   }
+   @enddot
 
    @subsection DLD-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
@@ -456,24 +525,24 @@ struct dld_sample_ds1 {
  */
 
 /**
-   @defgroup DLDDFS Colibri Sample Component Module
-   @brief Detailed functional specifications of a hypothetical component.
+   @defgroup DLDDFS Colibri Sample Module
+   @brief Detailed functional specifications of a hypothetical module.
 
    This page is part of the DLD style template.
-   Detailed functional specifications go into a component specific
-   module described by a Doxygen group.
+   Detailed functional specifications go into a module described by
+   the Doxygen @@defgroup command.
 
    Module documentation may spread across multiple source files.  Make
    sure that the @@addtogroup Doxygen command is used in the other
-   files.
+   files to merge their documentation into the main group.  When doing so,
+   it is important to ensure that the material flows logically when read
+   through Doxygen.
 
-   A component is not constrained to have only one module.  If multiple
+   You are not constrained to have only one module in the design.  If multiple
    modules are present you may use multiple @@defgroup commands to create
-   individual module documentation for each component.
-   Please make sure that the DLD and the modules cross-reference each other, as
-   shown below.
-   If multiple components are present, it is good idea to use separate
-   header files for the additional components.
+   individual documentation pages for each such module, though it is good idea
+   to use separate header files for the additional modules.  Please make sure
+   that the DLD and the modules cross-reference each other, as shown below.
 
    @see The @ref DLD "Colibri Sample DLD" its @ref DLD-fspec and
    its @ref DLD-lspec-thread
@@ -504,7 +573,7 @@ struct dld_sample_ds1 {
    "initializes", "finds", etc.
    - Functional parameters should not trivialize the
    documentation by repeating what is already clear from the function
-   prototype.  For example it would be wrong to say, <tt>"@@param read_only
+   prototype.  For example it would be wrong to say, <tt>"@param read_only
    A boolean parameter."</tt>.
    - The default return convention (0 for success and <tt>-errno</tt>
    on failure) should not be repeated.
@@ -514,8 +583,8 @@ struct dld_sample_ds1 {
    @param read_only This controls the modifiability of the foo object.
    Set to @c true to prevent modification.
    @retval return value
-   @pre Precondition, preferably in code.
-   @post Postcondition, preferably in code.
+   @pre Precondition, preferably expressed in code.
+   @post Postcondition, preferably expressed in code.
 */
 int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
 
